@@ -977,14 +977,21 @@ sky store `SkyView`:
   in a red ring (no label is red), drawn on its own canvas over the map so CSS blinks it (steady
   under `prefers-reduced-motion`), with a 1 km bar and the player's district in the header. It is
   repainted on open, on resize, and when the pixel ratio changes. The dialog takes focus when it
-  opens, so screen readers announce its title and the district.
+  opens, so screen readers announce its title and the district. The data credits (`.credits`)
+  show along its bottom edge; hud.css hides them while the map is closed, so play keeps a clear
+  screen.
 - The settings (`src/hud/settings.ts`), in every build: Esc opens and closes them, except that
-  Esc closes the full map first while it is open, and does nothing on the title card; mobile mode
-  has no touch control for them yet. They pause
+  Esc closes the full map first while it is open, and does nothing on the title card. In mobile
+  mode the pause button (`#hud-pause`, II, top right beside the score) opens them, and Resume
+  closes them; the button gives up focus before the dialog opens, so closing it does not leave
+  focus on the button for Space (the handbrake) to click again. A phone's short screen scrolls
+  them, so mobile mode sets them in smaller type and keeps Resume stuck to their bottom edge: on an
+  844 × 390 screen the presets alone overflow it. They pause
   the game as the map does, the last frame drawn dimmed behind them (drawn again when the window
   is resized). Their Gameplay section holds "Vehicle physics": a radio button for each preset
   (`HANDLING_PRESETS`, with its description), the current one checked, and none with a Custom note
-  when the knobs match no preset ([gameplay.md](gameplay.md#presets)).
+  when the knobs match no preset ([gameplay.md](gameplay.md#presets)). The data credits close
+  the dialog, below Resume.
 - The handling store (`src/hud/handling.ts`) holds the player's handling for the settings and the
   debug menu, so both show the same choice: it sends each change as `SetHandling` events and
   keeps it in `localStorage` under `gta-lunigiana/handling`. A preset is stored by its name, so a
@@ -1033,9 +1040,11 @@ sky store `SkyView`:
   state.
 - Mobile mode: an inline script in `index.html`'s head marks the page `touch` when a touch screen
   is the main pointer (`(pointer: coarse)`), before the first paint, so the title card shows right.
-  hud.css then shows the touch controls and a smaller HUD (the minimap top left, the speedometer
-  and credits between the left controls and the right ones) and hides the key prompt: the action
-  button shows its verb, without the vehicle. The card trades its key list for two touch hints and
+  hud.css then shows the touch controls and a smaller HUD (the minimap top left, the pause button
+  top right, the speedometer
+  and the full map's credits between the left controls and the right ones) and hides the key
+  prompt: the action
+  button shows its verb, without the vehicle. The card trades its key list for three touch hints and
   "Tap to play", and hides on the tap's click, not its press, so the click cannot land on the
   minimap under it. The keyboard keeps working. In headless Chrome emulating an 844 × 390 phone at 3× on an M4
   Pro, the view is 633 × 293 texels and runs at 60 fps with no frame over 30 ms while the stick is

@@ -35,6 +35,7 @@
           </div>
         </dl>
       </div>
+      <button id="hud-pause" class="for-touch" type="button" aria-label="Pause">II</button>
       <div id="hud-prompt" class="for-keys" hidden></div>
       <div id="hud-wasted" role="alert" hidden>
         <p>Sei morto <small>wasted</small></p>
@@ -94,7 +95,16 @@
           <p id="settings-custom" hidden>Custom: set in the debug menu</p>
         </fieldset>
       </section>
-      <button id="settings-resume" type="button" aria-keyshortcuts="Escape">Resume (Esc)</button>
+      <button id="settings-resume" type="button" aria-keyshortcuts="Escape">
+        Resume<span class="for-keys"> (Esc)</span>
+      </button>
+      <p class="fine">
+        Map data © OpenStreetMap contributors (ODbL) · Fonte dei dati: Regione Toscana – CTR 1:2000,
+        Rilievi LIDAR, Uso e copertura del suolo (CC BY 4.0), DTM 10x10 (CC BY 3.0 IT) · Dati
+        climatici: ISPRA SCIA (CC BY 4.0) · Informazioni elaborate utilizzando, tra l'altro, dati e
+        prodotti del Servizio Meteorologico dell'Aeronautica Militare pubblicati sul sito
+        www.meteoam.it
+      </p>
     </dialog>
     <div id="title">
       <div class="card">
@@ -109,6 +119,10 @@
           <div>
             <dt>Minimap</dt>
             <dd>map (pauses)</dd>
+          </div>
+          <div>
+            <dt>II</dt>
+            <dd>settings (pauses)</dd>
           </div>
         </dl>
         <dl class="keys for-keys">

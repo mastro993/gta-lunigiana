@@ -1,6 +1,7 @@
 /**
  * The game settings (markup in index.html), in every build: a modal dialog, opened and closed by
- * Esc (`routeOverlayKeys` in hud.ts) or closed by its Resume button. One setting today, the vehicle
+ * Esc (`routeOverlayKeys` in hud.ts), opened in mobile mode by the pause button (#hud-pause), and
+ * closed by its Resume button. One setting today, the vehicle
  * physics preset, chosen through the store the debug menu shares (`hud/handling.ts`). While it is
  * open the host pauses the game and leaves the last frame drawn dim behind it (`main.ts`).
  *
@@ -59,7 +60,19 @@ export const makeSettings = (document: Document, store: HandlingStore) => {
   const show = () => markPreset(radios, custom, store.preset())
   store.subscribe(show)
   show()
+  const showDialog = (): void => {
+    dialog.showModal()
+    const focus = radios.find((radio) => radio.checked) ?? radios[0]
+    focus?.focus()
+  }
   element(document, "settings-resume").addEventListener("click", () => dialog.close())
+  // Blurred first, so closing the dialog puts focus back on the page: a key typed on the focused
+  // button (Space, the handbrake) would click it again.
+  const pause = element(document, "hud-pause")
+  pause.addEventListener("click", () => {
+    pause.blur()
+    if (!dialog.open) showDialog()
+  })
   // The game's keyboard listens on the window (`settingsKey`). Keyups go on, so a key held as the dialog opened is released.
   dialog.addEventListener("keydown", (event) => {
     if (settingsKey(event) === "cancel") event.preventDefault()
@@ -69,11 +82,6 @@ export const makeSettings = (document: Document, store: HandlingStore) => {
     /** Whether the settings are open (the host pauses the game while they are). */
     open: (): boolean => dialog.open,
     /** Opens the settings, focus on the checked preset (the first when none is), or closes them; the browser puts focus back. */
-    toggle: (): void => {
-      if (dialog.open) return dialog.close()
-      dialog.showModal()
-      const focus = radios.find((radio) => radio.checked) ?? radios[0]
-      focus?.focus()
-    },
+    toggle: (): void => (dialog.open ? dialog.close() : showDialog()),
   }
 }
