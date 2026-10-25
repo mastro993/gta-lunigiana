@@ -24,13 +24,15 @@ auto_review = true
 auto_improve = true
 auto_describe = false
 pr_actions = ["opened", "reopened", "ready_for_review"]
-handle_push_trigger = false
+handle_push_trigger = true
+push_commands = ["/review"]
 
 [pr_reviewer]
 require_score_review = false
 require_tests_review = true
 require_estimate_effort_to_review = false
 require_security_review = true
+require_merge_recommendation = true
 num_max_findings = 4
 enable_review_labels_effort = false
 enable_review_labels_security = true
