@@ -6,22 +6,27 @@ on:
   issue_comment:
     types: [created]
 
-permissions:
-  contents: read
-
 concurrency:
   group: pr-agent-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   pr-agent:
-    # Auto /review and /improve on non-draft, non-bot, same-repo PRs. All review
-    # settings live in .pr_agent.toml. Collaborator `/review`, `/improve` or
-    # `/ask …` comments re-run the job; that is the only way to review a fork
-    # PR, because GitHub withholds secrets from fork runs. Other comments never
-    # start the job.
+    # Reviews every PR when it opens, and answers `/review`, `/improve`, `/ask …` comments.
+    # Drafts wait for `ready_for_review`. Bot PRs (dependabot, renovate) are skipped. Fork
+    # PRs, which get no secrets, wait for a `/review` comment from a repo collaborator.
+    # Other comments never start the job. PR-Agent reads the diff through the API and never
+    # checks out the PR's code. Model, tool, and ignore settings live in `.pr_agent.toml`
+    # (single source of truth; not duplicated here).
     if: >-
       github.event.sender.type != 'Bot' &&
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'renovate[bot]' &&
       ((github.event_name == 'pull_request' &&
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository) ||
@@ -29,6 +34,7 @@ jobs:
       startsWith(github.event.comment.body, '/') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)))
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       issues: write
