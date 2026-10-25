@@ -1,0 +1,108 @@
+# Shared PR-Agent configuration for mastro993/gta-lunigiana, mastro993/xbase
+# and mastro993/crumble. Keep this file in sync across those repositories.
+#
+# Prompt caching is intentionally off: litellm.cache_control_injection_points
+# stays []. Single-shot /review and /improve calls do not reuse a cached prefix,
+# so enabling cache writes would add cost without a matching read.
+
+[config]
+# Sonnet 5 is the primary reviewer; Opus 5.5 is fallback-only on primary failure.
+# Both ids are registered in PR-Agent v0.48.0 (pr_agent/algo/__init__.py).
+model = "anthropic/claude-sonnet-5"
+fallback_models = ["anthropic/claude-opus-5-5"]
+ai_timeout = 180
+max_model_tokens = 64000
+publish_output_progress = false
+response_language = "en-US"
+# Extended / adaptive thinking stay off so reviews do not spend tokens on reasoning.
+# reasoning_effort is left at the v0.48.0 default: Claude 5 is gated by the
+# flags below, and an explicit "none" can be rejected by some providers.
+enable_claude_extended_thinking = false
+enable_claude_adaptive_thinking = false
+ignore_pr_source_branches = ["^dependabot/", "^renovate/"]
+
+[github_action_config]
+auto_review = true
+auto_improve = true
+auto_describe = false
+pr_actions = ["opened", "reopened", "ready_for_review"]
+handle_push_trigger = false
+
+[pr_reviewer]
+require_score_review = false
+require_tests_review = true
+require_estimate_effort_to_review = false
+require_security_review = true
+num_max_findings = 5
+enable_review_labels_effort = false
+enable_review_labels_security = true
+enable_large_pr_chunking = true
+max_number_of_calls = 2
+extra_instructions = """
+Focus on bugs, security issues, correctness, and missing tests. Skip style, formatting, and lint nits that linters already cover. Be concrete: cite file paths and line numbers, and explain the risk. Reply in English.
+"""
+
+[pr_code_suggestions]
+committable_code_suggestions = false
+focus_only_on_problems = true
+num_code_suggestions_per_chunk = 2
+suggestions_score_threshold = 7
+max_number_of_calls = 2
+extra_instructions = """
+Suggest only high-value changes that fix bugs, security issues, correctness, or missing tests. Skip style, formatting, and lint nits that linters already cover. Be concrete: cite file paths and line numbers. Reply in English.
+"""
+
+[litellm]
+cache_control_injection_points = []
+
+[ignore]
+glob = [
+  "**/package-lock.json",
+  "**/pnpm-lock.yaml",
+  "**/yarn.lock",
+  "**/bun.lock",
+  "**/bun.lockb",
+  "**/npm-shrinkwrap.json",
+  "**/Cargo.lock",
+  "**/Podfile.lock",
+  "**/pubspec.lock",
+  "**/poetry.lock",
+  "**/composer.lock",
+  "**/Gemfile.lock",
+  "**/go.sum",
+  "**/flake.lock",
+  "**/uv.lock",
+  "**/Pipfile.lock",
+  "**/node_modules/**",
+  "**/vendor/**",
+  "**/third_party/**",
+  "**/dist/**",
+  "**/build/**",
+  "**/out/**",
+  "**/target/**",
+  "**/.next/**",
+  "**/coverage/**",
+  "**/generated/**",
+  "**/__snapshots__/**",
+  "**/*.snap",
+  "**/*.min.js",
+  "**/*.min.css",
+  "**/*.min.map",
+  "**/*.map",
+  "**/*.png",
+  "**/*.jpg",
+  "**/*.jpeg",
+  "**/*.gif",
+  "**/*.webp",
+  "**/*.ico",
+  "**/*.mp4",
+  "**/*.mp3",
+  "**/*.wav",
+  "**/*.woff",
+  "**/*.woff2",
+  "**/*.ttf",
+  "**/*.eot",
+  "**/*.pdf",
+  "**/*.bin",
+  "**/*.wasm",
+]

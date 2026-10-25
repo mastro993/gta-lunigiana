@@ -9,12 +9,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pr-agent-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
   pr-agent:
-    # Reviews every PR when it opens, and answers `/review`, `/improve`, `/ask …` comments. The repo
-    # is public, so only people with write access can spend the API key through a comment. Drafts
-    # wait for `ready_for_review`, and fork PRs, which get no secrets, wait for a `/review` comment.
-    # Other comments never start the job.
+    # Auto /review and /improve on non-draft, non-bot, same-repo PRs. All review
+    # settings live in .pr_agent.toml. Collaborator `/review`, `/improve` or
+    # `/ask …` comments re-run the job; that is the only way to review a fork
+    # PR, because GitHub withholds secrets from fork runs. Other comments never
+    # start the job.
     if: >-
       github.event.sender.type != 'Bot' &&
       ((github.event_name == 'pull_request' &&
@@ -34,15 +39,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC.KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          config.model: anthropic/claude-opus-5-5
-          config.fallback_models: '["anthropic/claude-sonnet-5"]'
-          # The model reads up to 200k tokens of a PR (32k by default left most of a big PR out), and a review or
-          # /improve that still overflows splits the diff into at most 3 calls.
-          config.max_model_tokens: "200000"
-          pr_reviewer.enable_large_pr_chunking: "true"
-          pr_reviewer.max_number_of_calls: "3"
-          pr_code_suggestions.max_number_of_calls: "3"
-          github_action_config.auto_review: "true"
-          github_action_config.auto_improve: "true"
-          # PR bodies follow docs/standards/commits-and-prs.md, so the agent must not rewrite them.
-          github_action_config.auto_describe: "false"
