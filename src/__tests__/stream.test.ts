@@ -210,10 +210,15 @@ test("a download that stalls past its deadline is cancelled and tried again; one
   net.wait(15_001)
   stream.update(near, undefined, none)
   await settle()
-  // All three were cancelled; once the retry wait is over they are asked for again.
+  // All three were cancelled, and none is asked for again before its retry wait (review of #64: they restarted at once): a
+  // freed slot goes to the kilometre's fourth tile, never tried yet.
+  assert.deepEqual(net.requested.slice(3), ["-1_0"])
+  stream.update(near, undefined, none)
+  assert.deepEqual(net.requested.slice(3), ["-1_0"])
+  // Once the wait is over they are asked for again, most urgent first, into the two slots left.
   net.wait(501)
   stream.update(near, undefined, none)
-  assert.deepEqual(net.requested.slice(3), ["0_0", "-1_-1", "0_-1"])
+  assert.deepEqual(net.requested.slice(4), ["0_0", "-1_-1"])
   // Far away: the downloads round `near` are cancelled with no failure, so they start at once when needed again.
   const far: Point = { x: 4900, y: -5900 }
   stream.update(far, undefined, none)

@@ -150,8 +150,9 @@ export const makeTileStream = (host: TileStreamHost) => {
           arrived.set(key, file)
         },
         (error: unknown) => {
-          // Cancelled because nothing needs it any more: no failure. Past its deadline: one.
-          if (abort.signal.reason !== "unneeded") fail(key, error)
+          // A cancelled download was settled where it was cancelled: no failure when nothing needs it any more, one at once
+          // past its deadline (so its retry waits the backoff).
+          if (!abort.signal.aborted) fail(key, error)
         },
       )
       .finally(() => {
@@ -203,8 +204,11 @@ export const makeTileStream = (host: TileStreamHost) => {
       const t = now()
       for (const [key, { since, abort }] of loading) {
         if (!need.has(key)) abort.abort("unneeded")
-        else if (t - since > DEADLINE) abort.abort(new Error(`no answer in ${DEADLINE} ms`))
-        else continue
+        else if (t - since > DEADLINE) {
+          const error = new Error(`no answer in ${DEADLINE} ms`)
+          abort.abort(error)
+          fail(key, error)
+        } else continue
         loading.delete(key)
       }
       for (const key of need) {
