@@ -5,10 +5,18 @@ import { SPRINT_SPEED, WALK_SPEED } from "../../../sim/tuning.ts"
 import { unit } from "../graph.ts"
 import { chirpRate, cricketsQuiet, echemeRate } from "../nature.ts"
 import { stepRate } from "../steps.ts"
+import { VEHICLE_SHOTS, VEHICLE_VOICES } from "../vehicles.ts"
 import { WORLD_SHOTS, WORLD_VOICES } from "../world.ts"
 
 test("the world synths load in Node: no Web Audio at module top level", () => {
-  assert.deepEqual(Object.keys(WORLD_VOICES).sort(), ["crickets", "rain", "roof", "water", "wind"])
+  assert.deepEqual(Object.keys(WORLD_VOICES).sort(), [
+    "crickets",
+    "plBell",
+    "rain",
+    "roof",
+    "water",
+    "wind",
+  ])
   assert.deepEqual(Object.keys(WORLD_SHOTS).sort(), [
     "bark",
     "bell",
@@ -25,6 +33,31 @@ test("the world synths load in Node: no Web Audio at module top level", () => {
     "thunder",
     "yell",
     "yelp",
+  ])
+})
+
+test("the vehicle and train synths load in Node too", () => {
+  assert.deepEqual(Object.keys(VEHICLE_VOICES).sort(), [
+    "beeper",
+    "brakes",
+    "engine",
+    "fire",
+    "horn",
+    "rails",
+    "scrape",
+    "siren",
+    "trainHorn",
+    "tyres",
+  ])
+  assert.deepEqual(Object.keys(VEHICLE_SHOTS).sort(), [
+    "clunk",
+    "crash",
+    "door",
+    "explosion",
+    "honk",
+    "ignition",
+    "thud",
+    "trainHonk",
   ])
 })
 

@@ -7,17 +7,26 @@
  * all" renders every voice and shot offline at a few representative params (lab-rows.ts: the
  * crashes over a matrix of bodies, targets and speeds, the scrape along every material, each engine
  * at its redline under full load, where its trim is calibrated, and worn by damage, one misfiring,
- * speech in every register, each animal's calls) and tabulates peak, RMS, spectral centroid and
- * NaNs; `window.lab.renderAll()` returns the same rows, for CDP checks. Thunder is heard from its
- * own `distance` and `ears` height (its render holds the air), aloft (over no ground, as the
- * director hears it), from its first sound, under its cap.
+ * a train rolling over its joints, speech in every register, each animal's calls) and tabulates
+ * peak, RMS, spectral centroid and NaNs; `window.lab.renderAll()` returns the same rows, for CDP
+ * checks. Thunder is heard from its own `distance` and `ears` height (its render holds the air),
+ * aloft (over no ground, as the director hears it), from its first sound, under its cap; a train's
+ * wheels as its whole length broadside. The controls' tables are in lab-forms.ts.
  *
  * @module audio/lab
  */
-import { AGES } from "../sim/schema.ts"
-import { VEHICLE_MODELS, type VehicleModel } from "../sim/vehicles.ts"
+import { TRAIN_MODELS, trainLength } from "../sim/rail/models.ts"
+import { VEHICLE_MODELS } from "../sim/vehicles.ts"
 import { screenAxes } from "../sim/view.ts"
-import { AMBIENT_DB, CABIN, type Cabin, dbToGain, EAR_HEIGHT, gainToDb } from "./acoustics.ts"
+import {
+  AMBIENT_DB,
+  CABIN,
+  type Cabin,
+  dbToGain,
+  EAR_HEIGHT,
+  gainToDb,
+  spreading,
+} from "./acoustics.ts"
 import { makeKit } from "./buffers.ts"
 import { hear, type Hearing } from "./director/hearing.ts"
 import {
@@ -28,35 +37,45 @@ import {
   MOST_DB,
   OWN_ENGINE_DB,
   rainDb,
+  ROLLING,
   roofDb,
   speechLevel,
   WATER_R_MIN,
   windDb,
 } from "./director/levels.ts"
 import { type Emitter, makeEmitter } from "./emitter.ts"
-import { type Row, SHOTS, type Sound, VOICES } from "./lab-render.ts"
 import {
-  CRASH,
-  type CrashForm,
-  crashOf,
-  MATERIALS,
-  renderRows,
-  type Speaking,
-  type SpeechForm,
-  speechOf,
-} from "./lab-rows.ts"
+  type Form,
+  HELD,
+  type HeldForm,
+  OPTIONS,
+  PLAYED,
+  RANGES,
+  soundOf,
+  UNIT_RANGE,
+  voiceOf,
+} from "./lab-forms.ts"
+import { type Row, SHOTS, type Sound, VOICES } from "./lab-render.ts"
+import { renderRows } from "./lab-rows.ts"
 import { makeMixer, type Mixer } from "./mixer.ts"
-import type { Situation } from "./speech/types.ts"
 import { animalQuiet } from "./synth/animals.ts"
 import { crashQuiet } from "./synth/crash/index.ts"
 import { engineQuiet } from "./synth/engine.ts"
 import { clunkQuiet } from "./synth/impacts.ts"
-import { VALLEY_GUSTS } from "./synth/nature.ts"
+import { brakesQuiet, railsQuiet } from "./synth/rail.ts"
 import { rainQuiet } from "./synth/rain.ts"
 import { IN_CLOUD, thunderQuiet } from "./synth/thunder.ts"
-import type { Continuous, Kit, OneShot, Shot, Surface, Voice, VoiceFactory, Zone } from "./types.ts"
+import type {
+  CabinModel,
+  Continuous,
+  EngineModel,
+  Kit,
+  OneShot,
+  Shot,
+  Voice,
+  VoiceFactory,
+} from "./types.ts"
 
-type Crash = Extract<OneShot, { readonly kind: "crash" }>
 type WaterBody = Extract<Continuous, { readonly kind: "water" }>["body"]
 
 /** The screen axes on the ground, with the view in its home seat. */
@@ -84,8 +103,15 @@ type Calibration = Level & {
 const rangeOf = (sound: Extract<OneShot, { readonly kind: "thunder" }>): number =>
   Math.hypot(sound.distance, (sound.bolt ? 0 : IN_CLOUD) - sound.ears)
 
-/** `sound`'s calibration: the beds and the own engine and the roof's drumming (from the driver's seat, through no cabin) sound at the ears. */
-const sourceOf = (sound: Sound): Calibration =>
+/** A train's wheels heard broadside from `r` m: the line source of its whole length, as a point source's level re 1 m. */
+const rollingAt = (r: number): number => {
+  const d = Math.max(1, r),
+    theta = 2 * Math.atan(trainLength(TRAIN_MODELS[0]) / 2 / d)
+  return ROLLING.lw + 10 * Math.log10(theta / (4 * Math.PI * d)) + spreading(r, ROLLING.rMin)
+}
+
+/** `sound`'s calibration from `r` m: the beds and the own engine and the roof's drumming (from the driver's seat, through no cabin) sound at the ears. */
+const sourceOf = (sound: Sound, r: number): Calibration =>
   sound.kind === "engine"
     ? sound.inside
       ? { db: OWN_ENGINE_DB, rMin: 1, wet: 0 }
@@ -118,7 +144,11 @@ const sourceOf = (sound: Sound): Calibration =>
                       ? { db: roofDb(sound.rate), rMin: 1, wet: 0, under: rainQuiet(sound.rate) }
                       : sound.kind === "thunder"
                         ? { ...LEVELS.thunder, quiet: thunderQuiet(rangeOf(sound)) }
-                        : LEVELS[sound.kind]
+                        : sound.kind === "rails"
+                          ? { db: rollingAt(r), rMin: ROLLING.rMin, quiet: railsQuiet(sound.v) }
+                          : sound.kind === "brakes"
+                            ? { ...LEVELS.brakes, quiet: brakesQuiet(sound) }
+                            : LEVELS[sound.kind]
 
 /** The listener's side of the page's controls: the source `r` m away towards `side` (−1 screen-left … 1 screen-right), their cabin and street. */
 interface Where {
@@ -136,7 +166,7 @@ const heard = (
   sound: Sound,
   where: Where,
 ): { readonly hearing: Hearing; readonly source: Calibration } => {
-  const source = sourceOf(sound),
+  const source = sourceOf(sound, where.r),
     thunder = sound.kind === "thunder" ? rangeOf(sound) : undefined
   const r = thunder ?? (source.wet === undefined ? where.r : 0),
     ahead = Math.sqrt(1 - where.side * where.side)
@@ -178,132 +208,6 @@ const heard = (
     source,
   }
 }
-
-const SURFACES = Object.keys({
-  asphalt: 0,
-  stone: 0,
-  gravel: 0,
-  dirt: 0,
-  grass: 0,
-  leaves: 0,
-} satisfies Record<Surface, 0>)
-const ZONES = Object.keys({ front: 0, side: 0, rear: 0, under: 0 } satisfies Record<Zone, 0>)
-/** Menus for the string params. */
-const OPTIONS: Readonly<Record<string, ReadonlyArray<string>>> = {
-  model: VEHICLE_MODELS,
-  surface: SURFACES,
-  material: MATERIALS,
-  zone: ZONES,
-  struck: ZONES,
-  against: [...MATERIALS, ...VEHICLE_MODELS],
-  body: Object.keys({ fountain: 0, stream: 0, river: 0 } satisfies Record<WaterBody, 0>),
-  situation: Object.keys({
-    greet: 0,
-    chat: 0,
-    reply: 0,
-    laugh: 0,
-    farewell: 0,
-    fright: 0,
-    shock: 0,
-    pity: 0,
-    anger: 0,
-    surprise: 0,
-    helpMan: 0,
-    helpWoman: 0,
-    helpKid: 0,
-    grieve: 0,
-    mum: 0,
-    dad: 0,
-    nonna: 0,
-    nonno: 0,
-    thief: 0,
-  } satisfies Record<Situation, 0>),
-  age: AGES,
-  species: Object.keys({ robin: 0, tit: 0, blackbird: 0, chaffinch: 0, owl: 0 } satisfies Record<
-    Extract<OneShot, { readonly kind: "bird" }>["species"],
-    0
-  >),
-}
-/** Slider [min, max, step] per numeric param, or per `kind.param` where kinds differ. */
-const RANGES: Readonly<Record<string, readonly [number, number, number] | undefined>> = {
-  "tyres.speed": [0, 45, 0.5],
-  "scrape.speed": [0, 20, 0.5],
-  "crash.speed": [0, 60, 0.5],
-  "thud.speed": [0, 20, 0.5],
-  "clunk.speed": [0, 6, 0.1],
-  rpm: [0, 7000, 10],
-  slip: [0, 20, 0.1],
-  mass: [0.1, 30, 0.05],
-  pitch: [350, 900, 1],
-  size: [0.85, 1.15, 0.01],
-  rate: [0, 60, 0.5],
-  celsius: [-5, 30, 0.5],
-  "thunder.distance": [30, 15000, 10],
-  "thunder.ears": [-400, 1000, 0.1],
-  "thunder.seed": [1, 1000, 1],
-}
-const UNIT_RANGE = [0, 1, 0.01] as const
-
-/** Each kind's params as first shown; the controls are made from these (numbers: sliders, strings: menus, flags: checkboxes). */
-const HELD = {
-  engine: {
-    kind: "engine",
-    model: "panda",
-    rpm: 3000,
-    load: 0.5,
-    inside: false,
-    variant: 0.5,
-    damage: 0,
-    misfire: false,
-  },
-  tyres: { kind: "tyres", speed: 12, skid: 0, slip: 0, surface: "asphalt", heavy: false },
-  scrape: { kind: "scrape", speed: 8, material: "masonry" },
-  horn: { kind: "horn", model: "panda" },
-  siren: { kind: "siren" },
-  beeper: { kind: "beeper" },
-  fire: { kind: "fire" },
-  water: { kind: "water", body: "stream", flow: 0.6 },
-  wind: { kind: "wind", strength: 0.6, forest: 0.3, gusts: VALLEY_GUSTS },
-  crickets: { kind: "crickets", density: 0.7, celsius: 15 },
-  rain: { kind: "rain", rate: 4, forest: 0.3, built: 0.2, water: 0 },
-  roof: { kind: "roof", rate: 4 },
-} as const satisfies {
-  readonly [K in Continuous["kind"]]: Extract<Continuous, { readonly kind: K }>
-}
-
-/** A one-shot panel's controls: its sound's params, the crash's and speech's flattened. */
-type Form = Exclude<OneShot, Crash | Speaking> | CrashForm | SpeechForm<"talk"> | SpeechForm<"yell">
-const soundOf = (form: Form): OneShot =>
-  form.kind === "crash"
-    ? crashOf(form)
-    : form.kind === "talk" || form.kind === "yell"
-      ? speechOf(form)
-      : form
-
-const PLAYED = {
-  crash: CRASH,
-  explosion: { kind: "explosion", surface: "asphalt" },
-  thud: { kind: "thud", speed: 8 },
-  clunk: { kind: "clunk", speed: 3, heavy: false },
-  door: { kind: "door", model: "panda", open: false },
-  ignition: { kind: "ignition", model: "panda" },
-  honk: { kind: "honk", model: "panda" },
-  step: { kind: "step", surface: "stone", run: false, snow: false },
-  talk: { kind: "talk", situation: "chat", voice: 0.5, age: "adult", female: false },
-  yell: { kind: "yell", situation: "fright", voice: 0.5, age: "adult", female: true },
-  scream: { kind: "scream", voice: 0.3 },
-  groan: { kind: "groan", voice: 0.3 },
-  bell: { kind: "bell", pitch: 600 },
-  bird: { kind: "bird", species: "robin" },
-  bark: { kind: "bark", big: true },
-  moo: { kind: "moo", size: 1 },
-  grunt: { kind: "grunt", size: 1 },
-  squeal: { kind: "squeal", size: 1 },
-  yelp: { kind: "yelp", size: 1 },
-  meow: { kind: "meow", size: 1, yowl: false },
-  hiss: { kind: "hiss", size: 1 },
-  thunder: { kind: "thunder", distance: 1500, ears: EAR_HEIGHT, bolt: true, seed: 1 },
-} as const satisfies { readonly [K in OneShot["kind"]]: Extract<Form, { readonly kind: K }> }
 
 /** Whether `sound` is a one-shot (`PLAYED` has a panel for every one-shot kind). */
 const isShot = (sound: Sound): sound is OneShot => sound.kind in PLAYED
@@ -392,7 +296,7 @@ const controls = <F extends { readonly kind: string }>(
       readers.push([name, () => input.checked])
     } else if (typeof value === "string") {
       const select = element("select", label)
-      for (const option of OPTIONS[name] ?? [])
+      for (const option of OPTIONS[`${defaults.kind}.${name}`] ?? OPTIONS[name] ?? [])
         select.add(new Option(option, option, false, option === value))
       readers.push([name, () => select.value])
     } else {
@@ -422,11 +326,11 @@ interface Held {
   readonly read: () => Continuous
   readonly emitter: Emitter
   voice: Voice<Continuous>
-  model: VehicleModel | undefined
+  model: EngineModel | undefined
 }
 const holding = new Map<Continuous["kind"], Held>()
 
-const modelOf = (sound: Continuous): VehicleModel | undefined =>
+const modelOf = (sound: Continuous): EngineModel | undefined =>
   "model" in sound ? sound.model : undefined
 /** A new voice for `sound` into `emitter`. */
 const voiceIn = ({ ctx, kit }: Live, emitter: Emitter, sound: Continuous): Voice<Continuous> =>
@@ -461,7 +365,7 @@ const where = (): Where => {
   return {
     r: 0.5 * 4000 ** (value("distance") / 1000),
     side: value("side"),
-    cabin: cabin in CABIN ? CABIN[cabin as VehicleModel] : undefined,
+    cabin: cabin in CABIN ? CABIN[cabin as CabinModel] : undefined,
     street: value("street"),
   }
 }
@@ -477,12 +381,12 @@ const describe = (sound: Sound, at: Where): string => {
 
 const build = (): void => {
   const cabin = byId<HTMLSelectElement>("cabin")
-  for (const model of VEHICLE_MODELS) cabin.add(new Option(model, model))
+  for (const model of [...VEHICLE_MODELS, ...TRAIN_MODELS]) cabin.add(new Option(model, model))
   for (const defaults of Object.values(HELD)) {
     panel(
       byId("held"),
-      defaults as Continuous,
-      (sound) => sound,
+      defaults as HeldForm,
+      (form) => voiceOf(form, performance.now() / 1000),
       "Hold",
       (read, button) => {
         const audio = wake(),

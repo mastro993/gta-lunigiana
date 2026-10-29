@@ -4,7 +4,10 @@
  * speed there. The channel is as wide as the water (`Water.w`); its bed is the terrain drawn under
  * its centreline, which the map build carves `depth`/2 under the built surface `z` (the 4 m terrain
  * lies up to 0.8 m off that under the narrow streams), except under an at-grade road, where it
- * stays `depth`/2 under the culvert's dip. Depth and speed follow Manning's equation with
+ * stays `depth`/2 under the culvert's dip, and under the track, out to the water's own reach past
+ * the rail bed's edge, where it is no higher than that nor `depth` under the rail bed (the stream
+ * runs through the track's culvert or under its deck, not over the rail bed the map build lays
+ * across it nor up the bank it raises beside it). Depth and speed follow Manning's equation with
  * Jarrett's roughness for high-gradient streams (1984, J. Hydraulic Eng. 110:1519): n = 0.39 S^0.38
  * R^−0.16, fitted on 21 Colorado mountain streams of grade 0.2–5.2 %; for a wide channel (R ≈ the
  * depth h) Q = w h^1.83 S^0.12 / 0.39.
@@ -13,8 +16,9 @@
  */
 import { Ops } from "@typeonce/ritmo-math"
 
+import { segDist2, staticGrid } from "../collide.ts"
 import { atGrade, terrainZ } from "../map/ground.ts"
-import type { Water } from "../map/index.ts"
+import { MAP, type Water } from "../map/index.ts"
 
 /** Jarrett's n = 0.39 S^0.38 R^−0.16 folded into Manning's V = R^(2/3) S^(1/2) / n: V = R^DEPTH S^GRADE / ROUGH. */
 const ROUGH = 0.39,
@@ -26,6 +30,50 @@ const GRADES = { min: 0.002, max: 0.052 } as const
 const ON_ROAD = 0.03
 /** Half-width of the grade window along the water, m: bridge caps and culvert dips are local. */
 const GRADE_WINDOW = 40
+/** Half the rail bed's width, m (the map build profiles the track 4 m wide): water this near its centreline would stand on it. */
+const TRACK = 2
+
+/** Every segment of track on the ground or on a bridge (`MAP.rail`; a tunnel's runs deep under the stream), flat (ax, ay, bx, by, its bed's z at a, at b). */
+const track = MAP.rail.flatMap((piece) =>
+  piece.tunnel === true
+    ? []
+    : Array.from({ length: piece.pts.length / 2 - 1 }, (_, k) => [
+        ...piece.pts.slice(2 * k, 2 * k + 4),
+        piece.z[k]!,
+        piece.z[k + 1]!,
+      ]).flat(),
+)
+const trackNear = staticGrid(
+  track.length / 6,
+  (i) => [
+    Math.min(track[6 * i]!, track[6 * i + 2]!),
+    Math.min(track[6 * i + 1]!, track[6 * i + 3]!),
+    Math.max(track[6 * i]!, track[6 * i + 2]!),
+    Math.max(track[6 * i + 1]!, track[6 * i + 3]!),
+  ],
+  32,
+)
+/** The lowest rail bed (m a.s.l.) of the track whose centreline passes within `reach` of (x, y); undefined where none does. */
+const railBedNear = (x: number, y: number, reach: number): number | undefined => {
+  let low: number | undefined
+  trackNear(x - reach, y - reach, x + reach, y + reach, (i) => {
+    const { d2, t } = segDist2(
+      x,
+      y,
+      track[6 * i]!,
+      track[6 * i + 1]!,
+      track[6 * i + 2]!,
+      track[6 * i + 3]!,
+    )
+    if (d2 > reach * reach) return
+    const z = track[6 * i + 4]! + (track[6 * i + 5]! - track[6 * i + 4]!) * t
+    if (low === undefined || z < low) low = z
+  })
+  return low
+}
+
+/** How far across its centreline `water` holds water, m: out to its gravel bed's half-width (`Water.bed`), or its own where wider. */
+export const reachOf = (water: Water): number => Math.max(water.bed, water.w / 2)
 
 /** Depth (m) and mean speed (m/s) at a vertex are `stage` × q^STAGE and `speed` × q^SPEED, q the discharge per km² (m³/s). */
 export const STAGE = 1 / (1 + DEPTH),
@@ -59,7 +107,9 @@ const zAlong = (s: Float64Array, z: ArrayLike<number>, at: number): number => {
 /** The channel of `water`: grades over ±GRADE_WINDOW m of its surface, its bed, and its depth and speed per unit discharge. */
 export const channelOf = (water: Water): Channel => {
   const { pts, z, w, area } = water,
-    n = pts.length / 2
+    n = pts.length / 2,
+    // A vertex this near a track's centreline holds water out onto its rail bed.
+    nearTrack = TRACK + reachOf(water)
   const s = new Float64Array(n)
   for (let i = 1; i < n; i++)
     s[i] = s[i - 1]! + Ops.hypot(pts[2 * i]! - pts[2 * i - 2]!, pts[2 * i + 1]! - pts[2 * i - 1]!)
@@ -79,7 +129,9 @@ export const channelOf = (water: Water): Channel => {
       const x = pts[2 * i]!,
         y = pts[2 * i + 1]!,
         under = terrainZ(x, y)
-      return atGrade(x, y) > under + ON_ROAD ? zi - water.depth / 2 : under
+      if (atGrade(x, y) > under + ON_ROAD) return zi - water.depth / 2
+      const rail = railBedNear(x, y, nearTrack)
+      return rail === undefined ? under : Math.min(under, zi - water.depth / 2, rail - water.depth)
     }),
     stage,
     speed: Float64Array.from(stage, (k, i) => (k > 0 ? area[i]! / (w * k) : 0)),

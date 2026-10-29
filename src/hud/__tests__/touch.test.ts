@@ -4,8 +4,8 @@ import { test } from "node:test"
 
 import { Keyboard, Touch } from "@typeonce/ritmo-browser"
 
-import { bindings } from "../../sim/index.ts"
-import { BUTTONS, unturn, withTouch } from "../touch.ts"
+import { bindings, type PlayerViewModel } from "../../sim/index.ts"
+import { BUTTONS, makeTouchControls, unturn, withTouch } from "../touch.ts"
 
 type Snapshot = Keyboard.Snapshot<typeof bindings>
 const held = (snapshot: Snapshot) =>
@@ -111,9 +111,114 @@ test("a control the mode hides under a thumb that stays down lets go of its keys
   assert.equal(controls.snapshot().actions.left.released, false, "released once")
 })
 
+const html = readFileSync(new URL("../../../index.html", import.meta.url), "utf8"),
+  css = readFileSync(new URL("../hud.css", import.meta.url), "utf8")
+
+/** The keys whose buttons hud.css hides in a train: those whose markup carries a class it hides under `data-vehicle="train"`. */
+const hiddenInTrain = (): ReadonlyArray<string> => {
+  const rules = css.replaceAll(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^}]*)\}/g)
+  const hides = new Set(
+    [...rules]
+      .filter(([, , body]) => /display:\s*none/.test(body!))
+      .flatMap(([, selectors]) => selectors!.split(",").map((selector) => selector.trim()))
+      .flatMap((selector) => {
+        const hidden = /^#hud-touch\[data-vehicle="train"\] \.([\w-]+)$/.exec(selector)
+        return hidden === null ? [] : [hidden[1]!]
+      }),
+  )
+  return BUTTONS.filter((key) => {
+    const tag = new RegExp(`<[^>]*id="hud-touch-${key}"[^>]*>`).exec(html)?.[0] ?? ""
+    const classes = /class="([^"]*)"/.exec(tag)?.[1] ?? ""
+    return classes.split(" ").some((name) => hides.has(name))
+  })
+}
+
+test("in a train ◀ ▶ hide, Gas, Brake, Hand brake and Horn stay, and a ◀ held as it boards lets go of its key", () => {
+  assert.deepEqual(hiddenInTrain(), ["left", "right"])
+  const canvas = fakeCanvas()
+  let train = false
+  // Driving, ◀ sits at (60, 340) and Gas at (740, 340); in a train hud.css hides ◀ ▶, so their zones are null.
+  const at: Partial<Record<(typeof BUTTONS)[number], Touch.ButtonZone>> = {
+    left: { center: { x: 60, y: 340 }, radius: 40 },
+    up: { center: { x: 740, y: 340 }, radius: 40 },
+  }
+  const steer = new Set<string>(hiddenInTrain())
+  const touch = Touch.actions(canvas.target, canvas.blur, () => ({
+    sticks: { move: null },
+    buttons: Object.fromEntries(
+      BUTTONS.map((key) => [key, train && steer.has(key) ? null : (at[key] ?? null)]),
+    ) as Record<(typeof BUTTONS)[number], Touch.ButtonZone | null>,
+  }))
+  const controls = withTouch(Keyboard.scripted(bindings, []), touch)
+
+  canvas.send("pointerdown", 1, 60, 340) // ◀ held
+  canvas.send("pointerdown", 2, 740, 340) // and Gas
+  assert.deepEqual(held(controls.snapshot()), ["left", "up"])
+  train = true // ◀ hides under the thumb: a train has no steering, and Gas still powers it
+  const aboard = controls.snapshot()
+  assert.deepEqual(held(aboard), ["up"])
+  assert.equal(aboard.actions.left.released, true)
+})
+
+/** index.html's touch controls as plain objects, enough for `makeTouchControls` to bind and draw (each shown, 80 px across). */
+const touchPage = () => {
+  const node = () => ({
+    dataset: {} as Record<string, string>,
+    textContent: "",
+    classList: { toggle: () => {} },
+    style: { transform: "" },
+    offsetParent: {},
+    offsetLeft: 0,
+    offsetTop: 0,
+    offsetWidth: 80,
+    offsetHeight: 80,
+    firstElementChild: { style: { transform: "" } },
+  })
+  const nodes = new Map(
+    ["hud-touch", "hud-stick", ...BUTTONS.map((key) => `hud-touch-${key}`)].map((id) => [
+      id,
+      node(),
+    ]),
+  )
+  const window = { addEventListener: () => {}, removeEventListener: () => {} }
+  const document = { getElementById: (id: string) => nodes.get(id) ?? null, defaultView: window }
+  const canvas = {
+    ownerDocument: { body: { clientWidth: 800, clientHeight: 400 }, defaultView: window },
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }
+  return {
+    controls: makeTouchControls(
+      document as unknown as Document,
+      canvas as unknown as HTMLCanvasElement,
+    ),
+    root: nodes.get("hud-touch")!,
+  }
+}
+
+// Regression guard: hud.css hides ◀ ▶ under `data-vehicle="train"`, which only `draw` writes.
+test("drawn in a train, the touch controls are marked as a train's, so hud.css hides ◀ ▶; in a car and on foot, not", () => {
+  const { controls, root } = touchPage()
+  const pose = { x: 0, y: 0, angle: 0 }
+  const view = (vehicle: PlayerViewModel["vehicle"]): PlayerViewModel => ({
+    prev: pose,
+    pose,
+    velocity: { x: 0, y: 0 },
+    mode: vehicle === undefined ? "foot" : "driving",
+    vehicle,
+    nearby: undefined,
+    turns: 0,
+  })
+  controls.draw(view({ label: "ATR 220", speed: 0, kind: "train" }))
+  assert.deepEqual([root.dataset.mode, root.dataset.vehicle], ["driving", "train"])
+  controls.draw(view({ label: "Fiat Panda", speed: 0 }))
+  assert.deepEqual([root.dataset.mode, root.dataset.vehicle], ["driving", ""])
+  controls.draw(view(undefined))
+  assert.deepEqual([root.dataset.mode, root.dataset.vehicle], ["foot", ""])
+})
+
 // Only mobile mode looks the controls up, so a desktop start-up never notices a missing one.
 test("index.html draws the stick and every button the touch screen presses", () => {
-  const html = readFileSync(new URL("../../../index.html", import.meta.url), "utf8")
   for (const id of ["hud-touch", "hud-stick", ...BUTTONS.map((key) => `hud-touch-${key}`)])
     assert.match(html, new RegExp(`id="${id}"`))
   assert.match(html, /id="hud-stick"><div class="knob">/)

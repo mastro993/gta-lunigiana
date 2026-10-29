@@ -4,14 +4,14 @@
  * the woods at night, farm dogs, and the church bells striking the game clock's hours from the
  * village towers within earshot. Rivers, the wind and the rain raise the masking floor every other
  * sound is heard against, from the rural night's stillness to a downpour's roar; the streets around
- * the listener set the reverb send, and snow on the ground stills the leaves.
+ * the listener set the reverb send, and snow on the ground stills the leaves. In a tunnel (the
+ * player's train in a bore) no wind blows, no rain falls and no crickets sing.
  *
  * @module audio/director/world
  */
 import type { WeatherValue } from "../../sim/schema.ts"
 import type { Conditions } from "../../sim/sky/local.ts"
 import { place } from "../../sim/sky/place.ts"
-import type { VehicleModel } from "../../sim/vehicles.ts"
 import { hash01 } from "../../tools/geometry.ts"
 import { audibility, CABIN, dbToGain, EAR_HEIGHT, mixGain, spreading, sumDb } from "../acoustics.ts"
 import { smoothstep } from "../buffers.ts"
@@ -30,7 +30,7 @@ import {
 } from "../places.ts"
 import { cricketsQuiet, echemeRate } from "../synth/nature.ts"
 import { rainQuiet } from "../synth/rain.ts"
-import type { HeardSky, OneShot } from "../types.ts"
+import type { CabinModel, HeardSky, OneShot } from "../types.ts"
 import type { Frame } from "./frame.ts"
 import type { Ears, Hearing } from "./hearing.ts"
 import {
@@ -110,12 +110,13 @@ interface Water extends WaterHeard {
   readonly r: number
 }
 
-/** What the listener's surroundings are this frame, before the rest of it: the sky, the weather there and the cabin around them. */
+/** What the listener's surroundings are this frame, before the rest of it: the sky, the weather there, the cabin around them and whether it stands in a tunnel. */
 export interface Around {
   readonly sky: HeardSky
   readonly weather: WeatherValue
   readonly air: Conditions
-  readonly inside: VehicleModel | undefined
+  readonly inside: CabinModel | undefined
+  readonly underground: boolean
 }
 
 /** Whether a Poisson process of `rate` per second fires in `dt`. */
@@ -138,7 +139,8 @@ export const makeWorld = () => {
   let strength = 0,
     forest = 0,
     open = 0,
-    built = 0
+    built = 0,
+    underground = false
   /** The loudest water as heard last frame (occlusion and cabin included), dB(A): an occluded river masks only as loud as it sounds. */
   let loudest = -Infinity
   let rung = ""
@@ -165,6 +167,51 @@ export const makeWorld = () => {
       audible: true,
       r: 0,
       delay: 0,
+    }
+  }
+
+  /** The beds round the listener: the wind, the rain (and its drumming on the roof inside), and the crickets in the meadows. */
+  const beds = (frame: Frame) => {
+    const { ears, air } = frame,
+      { weather } = frame.heard
+    // A gale's voice blows at full strength, its bed louder: the voice plays as far under its nominal as its own strength takes.
+    const voice = Math.min(1, strength)
+    frame.hold(
+      "wind",
+      {
+        kind: "wind",
+        strength: voice,
+        forest: forest * (1 - SNOW_LEAVES * air.snowCover),
+        gusts: gustsOf(weather),
+      },
+      bed(frame, windDb(strength), BEDS.wind - windDb(voice)),
+    )
+    // Rain on whatever lies around: leaves, roofs and paving, a river near or the puddles of a wet village; and on the car's roof.
+    if (air.rain >= RAINING) {
+      const nearest = Math.min(...(near?.water ?? []).map((w) => w.r)),
+        water = Math.max(1 - smoothstep(WATER_RAIN[0], WATER_RAIN[1], nearest), air.wet * built)
+      frame.hold(
+        "rain",
+        { kind: "rain", rate: air.rain, forest, built, water },
+        bed(frame, rainDb(air.rain), rainQuiet(air.rain)),
+      )
+      if (frame.inside !== undefined)
+        frame.hold("roof", { kind: "roof", rate: air.rain }, roofHearing(air.rain))
+    }
+    // Tree crickets sing in the meadows, not in the villages, in air warm enough and dry: a bed, with no reverb send.
+    const density = Math.max(0, open - built)
+    if (density > 0 && echemeRate(air.celsius) > 0 && air.rain < RAINING) {
+      const crickets = frame.path(
+        undefined,
+        ears,
+        { db: BEDS.crickets, rMin: 1 },
+        { quiet: cricketsQuiet(density) },
+      )
+      frame.hold(
+        "crickets",
+        { kind: "crickets", density, celsius: air.celsius },
+        { ...crickets, placement: { ...crickets.placement, wet: 0 } },
+      )
     }
   }
 
@@ -214,54 +261,21 @@ export const makeWorld = () => {
         GUSTIEST,
         Math.max(still, (height + OPEN * open - STREETS * street) * windFactor(around.weather)),
       )
-      // What masks is what plays: inside, the wind bed comes through the cabin (`bed`), as every source it masks does.
-      const wind = windDb(strength) - (around.inside === undefined ? 0 : CABIN[around.inside].loss)
-      return { ambient: sumDb([wind, rainHeard(around.air.rain, around.inside), loudest]), street }
+      // What masks is what plays: inside, the wind bed comes through the cabin (`bed`), as every source it masks does. In a
+      // tunnel no wind blows nor rain falls: the floor is the stillest air's.
+      ;({ underground } = around)
+      const wind =
+        windDb(underground ? still : strength) -
+        (around.inside === undefined ? 0 : CABIN[around.inside].loss)
+      const rain = underground ? -Infinity : rainHeard(around.air.rain, around.inside)
+      return { ambient: sumDb([wind, rain, loudest]), street }
     },
 
     hear: (frame: Frame): void => {
       const { ears, now, dt, random, air } = frame,
-        { sky, weather } = frame.heard
-      // A gale's voice blows at full strength, its bed louder: the voice plays as far under its nominal as its own strength takes.
-      const voice = Math.min(1, strength)
-      frame.hold(
-        "wind",
-        {
-          kind: "wind",
-          strength: voice,
-          forest: forest * (1 - SNOW_LEAVES * air.snowCover),
-          gusts: gustsOf(weather),
-        },
-        bed(frame, windDb(strength), BEDS.wind - windDb(voice)),
-      )
-      // Rain on whatever lies around: leaves, roofs and paving, a river near or the puddles of a wet village; and on the car's roof.
-      if (air.rain >= RAINING) {
-        const nearest = Math.min(...(near?.water ?? []).map((w) => w.r)),
-          water = Math.max(1 - smoothstep(WATER_RAIN[0], WATER_RAIN[1], nearest), air.wet * built)
-        frame.hold(
-          "rain",
-          { kind: "rain", rate: air.rain, forest, built, water },
-          bed(frame, rainDb(air.rain), rainQuiet(air.rain)),
-        )
-        if (frame.inside !== undefined)
-          frame.hold("roof", { kind: "roof", rate: air.rain }, roofHearing(air.rain))
-      }
-      // Tree crickets sing in the meadows, not in the villages, in air warm enough and dry: a bed, with no reverb send.
-      const density = Math.max(0, open - built)
-      if (density > 0 && echemeRate(air.celsius) > 0 && air.rain < RAINING) {
-        const crickets = frame.path(
-          undefined,
-          ears,
-          { db: BEDS.crickets, rMin: 1 },
-          { quiet: cricketsQuiet(density) },
-        )
-        frame.hold(
-          "crickets",
-          { kind: "crickets", density, celsius: air.celsius },
-          { ...crickets, placement: { ...crickets.placement, wet: 0 } },
-        )
-      }
-
+        { sky } = frame.heard
+      // In a tunnel (the player's train in a bore) no wind, rain nor crickets: only water, the animals and the bells, through the hill.
+      if (!underground) beds(frame)
       // The level looked up holds the distance cue: it passes as the source level back to 1 m, the spreading as the loss
       // (obstacles, lowpass, masking). Like a bed's, that level here is what the mix compresses: far water is no louder a source.
       loudest = -Infinity

@@ -1,14 +1,14 @@
 /**
  * Where the ground is, in metres a.s.l.: the terrain as the mesh draws it (each 4 m cell split
- * along its south-west to north-east diagonal), at-grade roads floating `ROAD_LIFT` above their
- * profile, and bridge decks and tunnels. Wheels, feet, sound sources and the renderer all read
- * their heights here, so what is drawn and what stands on it agree.
+ * along its south-west to north-east diagonal), station platforms at their tops, at-grade roads
+ * floating `ROAD_LIFT` above their profile, and bridge decks and tunnels. Wheels, feet, sound
+ * sources and the renderer all read their heights here, so what is drawn and what stands on it agree.
  *
  * @module map/ground
  */
-import { segDist2 } from "../collide.ts"
+import { pointInRing, segDist2 } from "../collide.ts"
 import { MAP, type Road, roadClassOf } from "./index.ts"
-import type { RoadClass } from "./kinds.ts"
+import { type RoadClass, vergeOf } from "./kinds.ts"
 
 /** How far each road class's surface floats above its profile (m); wider classes on top, so junctions never z-fight. */
 export const ROAD_LIFT = {
@@ -57,6 +57,8 @@ interface RoadSegment {
   readonly lift: number
   /** Bridge or tunnel: the surface is the profile, never the terrain. */
   readonly lifted: boolean
+  /** A bridge's or a tunnel's reach either side of its centreline to its walkers' verge (m): within it, someone on foot is on the deck or in the tunnel; 0 for a road at grade. */
+  readonly foot: number
 }
 
 const BUCKET = 16
@@ -64,7 +66,8 @@ const buckets = new Map<number, Array<RoadSegment>>()
 const keyOf = (bx: number, by: number) => bx * 4096 + by
 for (const road of MAP.roads) {
   const lifted = road.bridge === true || road.tunnel === true
-  const lift = ROAD_LIFT[roadClassOf(road)]
+  const lift = ROAD_LIFT[roadClassOf(road)],
+    verge = Math.max(road.w / 2 + 0.3, (road.verge ?? vergeOf(roadClassOf(road), road.w)) + 0.5)
   for (let k = 0; k + 1 < road.z.length; k++) {
     const s: RoadSegment = {
       ax: road.pts[2 * k]!,
@@ -76,11 +79,13 @@ for (const road of MAP.roads) {
       half: road.w / 2 + 0.3,
       lift,
       lifted,
+      foot: lifted ? verge : 0,
     }
-    const x0 = Math.floor((Math.min(s.ax, s.bx) - s.half) / BUCKET),
-      x1 = Math.floor((Math.max(s.ax, s.bx) + s.half) / BUCKET)
-    const y0 = Math.floor((Math.min(s.ay, s.by) - s.half) / BUCKET),
-      y1 = Math.floor((Math.max(s.ay, s.by) + s.half) / BUCKET)
+    const reach = Math.max(s.half, s.foot)
+    const x0 = Math.floor((Math.min(s.ax, s.bx) - reach) / BUCKET),
+      x1 = Math.floor((Math.max(s.ax, s.bx) + reach) / BUCKET)
+    const y0 = Math.floor((Math.min(s.ay, s.by) - reach) / BUCKET),
+      y1 = Math.floor((Math.max(s.ay, s.by) + reach) / BUCKET)
     for (let bx = x0; bx <= x1; bx++)
       for (let by = y0; by <= y1; by++) {
         const list = buckets.get(keyOf(bx + 2048, by + 2048))
@@ -90,33 +95,96 @@ for (const road of MAP.roads) {
   }
 }
 
+/** A platform's rings, its box and its top along its axis (`Platform` in ./index.ts). */
+interface PlatformShape {
+  readonly rings: ReadonlyArray<ReadonlyArray<number>>
+  readonly box: readonly [number, number, number, number]
+  readonly axis: ReadonlyArray<number>
+  readonly top: ReadonlyArray<number>
+}
+const platformBuckets = new Map<number, Array<PlatformShape>>()
+for (const p of MAP.railway.platforms) {
+  const rings = MAP.areas[p.area]!.rings,
+    outer = rings[0]!
+  let x0 = outer[0]!,
+    y0 = outer[1]!,
+    x1 = x0,
+    y1 = y0
+  for (let k = 2; k + 1 < outer.length; k += 2)
+    [x0, y0, x1, y1] = [
+      Math.min(x0, outer[k]!),
+      Math.min(y0, outer[k + 1]!),
+      Math.max(x1, outer[k]!),
+      Math.max(y1, outer[k + 1]!),
+    ]
+  const shape: PlatformShape = { rings, box: [x0, y0, x1, y1], axis: p.axis, top: p.top }
+  for (let bx = Math.floor(x0 / BUCKET); bx <= Math.floor(x1 / BUCKET); bx++)
+    for (let by = Math.floor(y0 / BUCKET); by <= Math.floor(y1 / BUCKET); by++) {
+      const list = platformBuckets.get(keyOf(bx + 2048, by + 2048))
+      if (list === undefined) platformBuckets.set(keyOf(bx + 2048, by + 2048), [shape])
+      else list.push(shape)
+    }
+}
+
+/**
+ * The top of the station platform or rail-level walkway (`MAP.railway.platforms`) at (x, y), m
+ * a.s.l.: its top at the nearest point of its axis; undefined off every platform.
+ */
+export const platformTop = (x: number, y: number): number | undefined => {
+  for (const p of platformBuckets.get(
+    keyOf(Math.floor(x / BUCKET) + 2048, Math.floor(y / BUCKET) + 2048),
+  ) ?? []) {
+    const [x0, y0, x1, y1] = p.box
+    if (x < x0 || x > x1 || y < y0 || y > y1 || !pointInRing(x, y, p.rings[0]!)) continue
+    if (p.rings.some((hole, i) => i > 0 && pointInRing(x, y, hole))) continue
+    let best = Number.MAX_VALUE,
+      top = p.top[0]!
+    for (let k = 0; k + 1 < p.top.length; k++) {
+      const { d2, t } = segDist2(
+        x,
+        y,
+        p.axis[2 * k]!,
+        p.axis[2 * k + 1]!,
+        p.axis[2 * k + 2]!,
+        p.axis[2 * k + 3]!,
+      )
+      if (d2 < best) [best, top] = [d2, p.top[k]! + (p.top[k + 1]! - p.top[k]!) * t]
+    }
+    return top
+  }
+  return undefined
+}
+
 /** Surface elevation of a road whose profile is `z` (m a.s.l.) at (x, y): at-grade roads never dip under the terrain mesh. */
 export const roadZ = (z: number, x: number, y: number, lift: number, lifted: boolean): number =>
   (lifted ? z : Math.max(z, terrainZ(x, y))) + lift
 
-/** Surface elevation of segment `s` at (x, y), or undefined when (x, y) is off it. */
-const onSegment = (s: RoadSegment, x: number, y: number): number | undefined => {
+/** Surface elevation of segment `s` at (x, y), or undefined when (x, y) lies farther than `reach` m off it. */
+const onSegment = (s: RoadSegment, x: number, y: number, reach = s.half): number | undefined => {
   const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
-  return d2 > s.half * s.half ? undefined : roadZ(s.za + (s.zb - s.za) * t, x, y, s.lift, s.lifted)
+  return d2 > reach * reach ? undefined : roadZ(s.za + (s.zb - s.za) * t, x, y, s.lift, s.lifted)
 }
 
 /** A bridge deck or tunnel within this height (m) of where an actor was is the one it is on. */
 export const ON_DECK = 0.5
 
 /**
- * Where an actor at (x, y) stands, m a.s.l. At-grade roads are part of the ground: where several
- * overlap (a junction), their surfaces blend, each weighted by the square of how deep inside its
- * carriageway the point is, so the ground stays continuous where their profiles disagree (by up to
- * a few metres); then the higher of that and the terrain. Bridge decks and tunnels compete with that
+ * Where an actor at (x, y) stands, m a.s.l. On a platform the ground is its top (`platformTop`), or
+ * the terrain where that stands higher (the back of Monzone's north platform rises to the street);
+ * elsewhere the terrain. At-grade roads are part of the ground: where several overlap (a junction),
+ * their surfaces blend, each weighted by the square of how deep inside its carriageway the point is,
+ * so the ground stays continuous where their profiles disagree (by up to a few metres); then the
+ * higher of that and the platform or terrain. Bridge decks and tunnels compete with that
  * ground for the one nearest `near`, the actor's previous elevation, so it stays on the level it
  * was on; without `near`, the highest wins. A deck within ON_DECK of `near` wins outright: on a ramp
  * over a gully the ground below can be nearer than the climbing deck, and the actor must not drop
- * onto it.
+ * onto it. With `verges`, for someone on foot, a deck or a tunnel reaches out to its walkers' verges.
  */
-export const groundZ = (x: number, y: number, near?: number): number => {
+export const groundZ = (x: number, y: number, near?: number, verges = false): number => {
   const segments =
     buckets.get(keyOf(Math.floor(x / BUCKET) + 2048, Math.floor(y / BUCKET) + 2048)) ?? []
-  let best = terrainZ(x, y),
+  const terrain = terrainZ(x, y)
+  let best = Math.max(terrain, platformTop(x, y) ?? terrain),
     sum = 0,
     weights = 0
   for (const s of segments) {
@@ -131,7 +199,8 @@ export const groundZ = (x: number, y: number, near?: number): number => {
   if (weights > 0) best = Math.max(best, sum / weights)
   let score = near === undefined ? -best : Math.abs(best - near)
   for (const s of segments) {
-    const h = s.lifted ? onSegment(s, x, y) : undefined
+    if (!s.lifted) continue
+    const h = onSegment(s, x, y, verges ? s.foot : s.half)
     if (h === undefined) continue
     const off = near === undefined ? 0 : Math.abs(h - near)
     const sc = near === undefined ? -h : off < ON_DECK ? off - ON_DECK : off
@@ -159,6 +228,24 @@ export const deckNear = (x: number, y: number, pad: number): number | undefined 
         if (h >= terrain && (top === undefined || h > top)) top = h
       }
   return top
+}
+
+/**
+ * Where someone on foot at (x, y) stands, m a.s.l.: keeping to the level nearest `near`, their last (`groundZ` with the decks and
+ * tunnels out to their verges); with no previous height to go by, within a road bridge's or tunnel's reach to its verges, its deck
+ * or its floor (people walk the road over or through, not the ground under the deck nor the bank over the tunnel), else the
+ * highest ground there.
+ */
+export const footZ = (x: number, y: number, near?: number): number => {
+  if (near !== undefined) return groundZ(x, y, near, true)
+  for (const s of buckets.get(
+    keyOf(Math.floor(x / BUCKET) + 2048, Math.floor(y / BUCKET) + 2048),
+  ) ?? []) {
+    if (s.foot === 0) continue
+    const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
+    if (d2 <= s.foot * s.foot) return roadZ(s.za + (s.zb - s.za) * t, x, y, s.lift, true)
+  }
+  return groundZ(x, y)
 }
 
 /** The surface elevation of `road` at the point of it nearest (x, y), m a.s.l.: where a vehicle on that road stands, whatever is above or below. */

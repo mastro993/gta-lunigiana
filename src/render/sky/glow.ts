@@ -1,6 +1,7 @@
 /**
- * Unlit materials for things that shine at night: the chunks' glow layer (window panes, lantern
- * glass) and the vehicle lamps. They read `SKY_UNIFORMS` by reference, so the sky host turns every
+ * Unlit materials for things that shine: the chunks' glow layer (window panes, lantern glass), the
+ * vehicle lamps, a train's lit windows, and the signal lamps (a train's head and tail lamps, a level crossing's red lights),
+ * which shine by day as well. They read `SKY_UNIFORMS` by reference, so the sky host turns every
  * window, lantern and lamp on and off by writing `uLamps` once a frame. Unlit colours do not darken
  * with the lights, so their day colour is scaled by `uAmbient`. The lit colour is divided by the post
  * pass's exposure, so a lamp shines as bright on screen at dusk as at midnight; bright, it is spared
@@ -19,8 +20,12 @@ import { SKY_UNIFORMS } from "./uniforms.ts"
 const GLOW_GAIN = 1.2
 /** Below this `uLamps` (day) the panes are not drawn. */
 const GLOW_FROM = 0.02
-/** Vehicle lamps: day colour × ambient × LAMP_DAY (a lit painted box), lit colour × LAMP_GAIN on screen at full `uLamps`. */
+/**
+ * Lamps: day colour × ambient × LAMP_DAY (a lit painted box), lit colour × LAMP_GAIN on screen at full `uLamps`. An unlit signal
+ * lamp is dark glass by day, × LAMP_DARK: at the day look's 0.7 a white head lamp read as lit beside the lit red tail lamps.
+ */
 const LAMP_DAY = 0.7
+const LAMP_DARK = 0.25
 const LAMP_GAIN = 3
 
 const VERTEX = /* glsl */ `
@@ -75,29 +80,72 @@ export const glowMaterial = new ShaderMaterial({
   `,
 })
 
+// A lamp shines with the night's lamps (`uLamps`), or always where its own `uDay` is 1, over its day look (`uPaint` of the vertex
+// colour × ambient); where `uPane` is 1 it is a window pane, not drawn by day at all. Uniforms, not defines, so every lamp
+// material is one program.
 const LAMP_FRAGMENT = /* glsl */ `
   uniform float uLamps;
   uniform float uAmbient;
   uniform float uExposure;
   uniform float uOn;
+  uniform float uDay;
+  uniform float uPaint;
+  uniform float uPane;
   varying vec3 vLit;
   void main() {
-    gl_FragColor = vec4(vLit * (uAmbient * ${LAMP_DAY.toFixed(2)} + uOn * uLamps * ${LAMP_GAIN.toFixed(2)} / uExposure), 1.0);
+    if (uPane > 0.5 && uLamps < ${GLOW_FROM.toFixed(2)}) discard;
+    gl_FragColor = vec4(vLit * (uAmbient * uPaint + uOn * max(uLamps, uDay) * ${LAMP_GAIN.toFixed(2)} / uExposure), 1.0);
   }
 `
-/** A vehicle lamp material: `on` shines at night (HDR), off keeps the day look (vertex colour × ambient). One program for both. */
-const lampMaterial = (on: boolean): ShaderMaterial =>
+/**
+ * A lamp material: `on` shines (HDR) at night, or by day too when `day`; off keeps the day look (vertex colour × ambient), a
+ * signal lamp's darkened to unlit glass. One program for all of them.
+ */
+const lampMaterial = (on: boolean, day: boolean): ShaderMaterial =>
   new ShaderMaterial({
     uniforms: {
       uLamps: SKY_UNIFORMS.uLamps,
       uAmbient: SKY_UNIFORMS.uAmbient,
       uExposure: SKY_UNIFORMS.uExposure,
       uOn: { value: on ? 1 : 0 },
+      uDay: { value: day ? 1 : 0 },
+      uPaint: { value: day && !on ? LAMP_DARK : LAMP_DAY },
+      uPane: { value: 0 },
     },
     vertexColors: true,
     vertexShader: VERTEX,
     fragmentShader: LAMP_FRAGMENT,
   })
 
-/** The vehicle lamp materials (shared by every vehicle): lamps on (moving traffic, the player's car) and off (parked). */
-export const vehicleLampMaterials = { on: lampMaterial(true), off: lampMaterial(false) } as const
+/** The vehicle lamp materials (shared by every vehicle): lamps on (moving traffic, the player's car: they shine at night) and off (parked). */
+export const vehicleLampMaterials = {
+  on: lampMaterial(true, false),
+  off: lampMaterial(false, false),
+} as const
+/**
+ * The signal lamp materials (shared by the trains and the level crossings): on, they shine by day and night, as a train's head
+ * and tail lamps and a crossing's red lights do; off, dark glass.
+ */
+export const signalLampMaterials = {
+  on: lampMaterial(true, true),
+  off: lampMaterial(false, true),
+} as const
+
+/**
+ * A train's lit windows (render/train): its saloon light, on the lamp program but drawn only at night, as a house's window panes
+ * are, so by day the body's own dark window band shows; at night its vertex colour × `uLamps` at a pane's gain (`GLOW_GAIN`).
+ */
+export const cabinLightMaterial = new ShaderMaterial({
+  uniforms: {
+    uLamps: SKY_UNIFORMS.uLamps,
+    uAmbient: SKY_UNIFORMS.uAmbient,
+    uExposure: SKY_UNIFORMS.uExposure,
+    uOn: { value: GLOW_GAIN / LAMP_GAIN },
+    uDay: { value: 0 },
+    uPaint: { value: 0 },
+    uPane: { value: 1 },
+  },
+  vertexColors: true,
+  vertexShader: VERTEX,
+  fragmentShader: LAMP_FRAGMENT,
+})

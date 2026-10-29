@@ -90,11 +90,20 @@ follow from the discharge per km², q.
   208 km² less the Lucido's), and leaves the map with 208.
 - **The channel** (`channelOf`, `channel.ts`): as wide as the water (`Water.w`), its bed the
   terrain drawn under the centreline (except under an at-grade road, where it stays `depth`/2
-  under the culvert's dip, so the road stays dry until a flood overtops it), and its grade the
-  surface's fall over ±40 m. Depth and mean speed follow Manning's equation with Jarrett's (1984)
-  roughness for high-gradient streams, n = 0.39 S^0.38 R^−0.16, fitted on Colorado mountain
-  streams of 0.2–5.2 % grade (flatter and steeper reaches are held to that range); for a wide
-  channel Q = w h^1.83 S^0.12 / 0.39, so the depth goes as q^0.547 and the speed as q^0.453.
+  under the culvert's dip, so the road stays dry until a flood overtops it; and near the track, on
+  the ground or a bridge, where it is no higher than that nor `depth` under the rail bed: the map
+  build lays the rail bed across a stream at grade, banks it up beside it and leaves the ground
+  under a low CTR bridge at the track's level, and the stream runs through the culvert or under
+  the deck. Near is within the water's own reach (`reachOf`, its gravel bed's half-width: 3 m on a
+  narrow stream) of the rail bed's 4 m, since a vertex holds water that far across it: the
+  vertices within 2 m of the centreline alone left 0.06 m on the bed's edge beside two of the
+  culverts at the mean flow and 0.24–0.31 m in a 0.6 m³/s per km² spate. The whole rail bed stays
+  dry where the three streams cross it at every flow up to the gauge's record flood (688 m³/s at
+  Soliera, 3.3 m³/s per km²)), and its grade the surface's fall over ±40 m. Depth and mean speed
+  follow Manning's equation with Jarrett's (1984) roughness for high-gradient streams, n = 0.39
+  S^0.38 R^−0.16, fitted on Colorado mountain streams of 0.2–5.2 % grade (flatter and steeper
+  reaches are held to that range); for a wide channel Q = w h^1.83 S^0.12 / 0.39, so the depth goes
+  as q^0.547 and the speed as q^0.453.
 - **At a point** (`waterAt`, `rivers.ts`): the nearest reach within its gravel bed's half-width
   (`Water.bed`; a narrow stream's 3 m). Across the reach the surface is level, so the depth is the
   level less the floor a body stands on; the water spreads over the gravel as it rises. The current
@@ -121,9 +130,9 @@ away on dry ground.
   a metre past the carriageway), so a bridge keeps it dry; one already in the water stands on the
   terrain under any bridge and swims under it.
 - **Off its feet** (`swept`, `swim.ts`): when the water reaches 0.7 of its height (an adult's
-  chest, Cox et al.'s 1.2 m for adults) or the depth × speed passes its footing. Cox, Shand and
-  Blacka (2010, Australian Rainfall and Runoff Revision Project 10, as WRL Technical Report
-  2014/07 reports them) find most adults lose their footing at 1.2 m²/s; the footing scales with
+  chest, Cox et al.'s 1.2 m for adults) or the depth × speed passes its hold (`holdOf`). Cox, Shand
+  and Blacka (2010, Australian Rainfall and Runoff Revision Project 10, as WRL Technical Report
+  2014/07 reports them) find most adults lose their footing at 1.2 m²/s; the hold scales with
   height × mass (a person's mass at a BMI of 24.5), so a 1.2 m child keeps it to 0.39 m²/s, their
   0.4 for children. An animal's height is its shoulder's (`FAUNA`: a dog 0.55 m, a cat 0.25, a cow
   1.4, a pig 0.7) and its mass its species' × size³; none stands more than an adult. Back on its
@@ -132,7 +141,7 @@ away on dry ground.
   depth × 1.75 / height), at least a quarter (knee-deep water, 0.35 m, slows an adult by about
   two fifths: trials of 188 people in "Impacts of water depth on pedestrian speed, gait, and
   stability", Acta Polytechnica CTU Proceedings, found 39 % for men and 45 % for women), plus the
-  current × (depth × speed / footing)², so the push grows toward the footing's loss. Running is
+  current × (depth × speed / hold)², so the push grows toward the footing's loss. Running is
   slowed more (`wadingSpeed`): the legs' drag grows with the square of their speed, so whatever a
   body wants past a walk (1.4 m/s) fades out by the time the water reaches its knees (0.28 of its
   height; estimates). In 0.15 m of water the player walks at 1.62 m/s (2.2 dry) and sprints at
@@ -148,7 +157,7 @@ away on dry ground.
   player, but one still dry takes no step into the water unless it flees: it stops at the water's
   edge where the level stands now, so a rising river pushes it back and it can walk off a river's
   dry gravel bed. In the water, they carry on as they were where it is slack and below their knees
-  (under 0.3 of their height deep and 0.25 of their footing), so a cow wades a trickle to its
+  (under 0.3 of their height deep and 0.25 of their hold), so a cow wades a trickle to its
   pasture; deeper or faster, they head square across for the nearer bank.
 
 ## Vehicles in the water
@@ -245,7 +254,8 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | File | Covers |
 |---|---|
 | `src/sim/water/__tests__/flow.test.ts` | the calibration against Soliera (mean, months, seasons, duration curve), Thornthwaite's 685 mm, a new game's rivers alike for a start and seed and spread across seeds |
-| `src/sim/water/__tests__/swim.test.ts` | footing (an adult's 1.2 m²/s, a child's 0.4), off the feet and back on, wading's slowing, a sprint slowed to a wade by knee depth |
+| `src/sim/water/__tests__/channel.test.ts` | the whole rail bed dry where a stream crosses it, at the mean, in a spate and in the 30 years' highest flood |
+| `src/sim/water/__tests__/swim.test.ts` | the hold (an adult's 1.2 m²/s, a child's 0.4), off the feet and back on, wading's slowing, a sprint slowed to a wade by knee depth |
 | `src/sim/__tests__/water.test.ts` | the Lucido's depth and current at the mean and in a spate; the player wading across, swept, swimming and out, and dry once he gets into a car in the water; people and animals swimming out and the dead drifting; a calm dog stopping at a spate's edge; a Panda holding in the Lucido and floating off in a spate; buoyancy at 0.3 and 0.7 m; a Panda ploughing to a third slower in a second of ankle-deep water, the truck hardly; stalling; a bridge keeping a walker dry, on its centreline and on every verge over the water; the rivers rising under rain and falling back; determinism and a save mid-swim |
 | `src/tools/__tests__/catchment.test.ts` | a braid's arms sharing the river's area at the fork and adding back to it at the rejoin |
 | `src/sim/map/__tests__/map.test.ts` | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 km² and the Aulella's 208; no walk or drive wall in a wide river, shore walls by it |

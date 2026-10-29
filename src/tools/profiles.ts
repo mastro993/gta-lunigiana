@@ -10,6 +10,7 @@ import {
   smooth,
   type Grid,
   type Pin,
+  type Profile,
 } from "./terrain.ts"
 
 export interface Linear {
@@ -63,6 +64,15 @@ export const chainsOf = <T extends Linear>(items: ReadonlyArray<T>): Array<Array
     .map(([c]) => c)
 }
 
+/**
+ * Half-width (m) of the core a line `w` m wide writes into a grid of `cell` m: half a cell past
+ * the carriageway's edge, so the terrain under it is (nearly) level across it.
+ */
+export const coreHalf = (w: number, cell: number): number => Math.max(w / 2 + 0.3 + cell / 2, 3)
+
+/** A bridge's or tunnel's end may take the elevation of the ground this far (m) out of it along the chain. */
+const PORTAL = 4
+
 /** An elevation at a point of a chain (nearest sample); `min`/`max` only bind when the fit crosses them. */
 export interface Bound {
   readonly x: number
@@ -71,12 +81,16 @@ export interface Bound {
   readonly kind?: "min" | "max"
 }
 
-/** Road core half-width written into the grid, rank (lower wins at junctions), grade limit and smoothing half-window (m). */
+/**
+ * Road core half-width written into the grid, rank (lower wins at junctions), grade limit,
+ * smoothing half-window (m) and the elevation tolerance (m) of the bend samples kept in the output.
+ */
 interface Spec {
   readonly w: number
   readonly rank: number
   readonly grade: number
   readonly half: number
+  readonly tol?: number
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -99,6 +113,9 @@ export const makeProfiler = (
   const nodeZ = new Map<string, number>()
   const zOf = new Map<Linear, Array<number>>()
   const denseOf = new Map<Linear, Dense>()
+  /** Writes profile `p` of a line `w` m wide into the grid at `rank`, skipping segments from samples where `skip`. */
+  const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) =>
+    flatten(grid, p, coreHalf(w, grid.cell), 8, rank, owner, protect, skip)
   const profile = <T extends Linear>(
     chain: ReadonlyArray<Link<T>>,
     spec: Spec,
@@ -119,6 +136,21 @@ export const makeProfiler = (
       if (!isLifted(i)) return
       const k0 = p.vertexSample[first[i]!]!,
         k1 = p.vertexSample[first[i]! + r.length - 1]!
+      // Each end takes the ground PORTAL m out of it when that is nearer the line's level: at a
+      // tunnel's portal the terrain model climbs the hill's face (3.6 m over the cutting at the
+      // Ugliancaldo tunnel's west portal), and a bridge's end may stand on the slope of what it
+      // spans (the Lucido's banks at Monzone).
+      const tunnel = chain[i]!.item.tunnel === true
+      for (const [k, step] of [
+        [k0, -1],
+        [k1, 1],
+      ] as const) {
+        let o = k
+        while (o + step >= 0 && o + step < p.z.length && Math.abs(p.s[o]! - p.s[k]!) < PORTAL)
+          o += step
+        if (o !== k && Math.abs(p.s[o]! - p.s[k]!) >= PORTAL)
+          p.z[k] = tunnel ? Math.min(p.z[k]!, p.z[o]!) : Math.max(p.z[k]!, p.z[o]!)
+      }
       for (let k = k0 + 1; k < k1; k++)
         p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
     })
@@ -146,16 +178,7 @@ export const makeProfiler = (
     fitProfile(p, spec.grade, pins)
     // A sample's segment belongs to the piece whose first vertex precedes it; the last sample closes the last piece.
     // The core reaches half a cell past the carriageway's edge, so the terrain under the carriageway is (nearly) level across it.
-    flatten(
-      grid,
-      p,
-      Math.max(spec.w / 2 + 0.3 + grid.cell / 2, 3),
-      8,
-      spec.rank,
-      owner,
-      protect,
-      (k) => isLifted(pieceOfSample(k)),
-    )
+    claim(p, spec.w, spec.rank, (k) => isLifted(pieceOfSample(k)))
     runs.forEach((r, i) => {
       const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!)
       if (isLifted(i)) {
@@ -167,7 +190,7 @@ export const makeProfiler = (
         if (v.id !== undefined && !nodeZ.has(v.id)) nodeZ.set(v.id, z[j]!)
       })
       const vks = r.map((_, j) => p.vertexSample[first[i]! + j]!)
-      const ks = isLifted(i) ? vks : keepSamples(p, vks)
+      const ks = isLifted(i) ? vks : keepSamples(p, vks, spec.tol)
       const vertexAt = new Map(vks.map((k, j) => [k, j]))
       const dense = ks.map((k) =>
         vertexAt.has(k)
@@ -193,5 +216,5 @@ export const makeProfiler = (
       c.some(({ item }) => item.pts.some((v) => v.id !== undefined && nodeZ.has(v.id)))
     while (left.length > 0) yield left.splice(Math.max(0, left.findIndex(touches)), 1)[0]!
   }
-  return { profile, grown, nodeZ, zOf, denseOf }
+  return { profile, claim, grown, nodeZ, zOf, denseOf }
 }

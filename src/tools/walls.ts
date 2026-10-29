@@ -54,7 +54,7 @@ const pushPolyline = (out: Array<number>, pts: ReadonlyArray<number>, closed: bo
  * crossing points midway between blocked and free centres, blocked side on the left. At saddles
  * the diagonal blocked corners join, so one-cell diagonal strips (streams) stay one loop. Returns loops of [x, y] in metres (first point repeated last).
  */
-const traceLoops = (
+export const traceLoops = (
   g: Pick<Grid, "cell" | "cols" | "rows" | "x0" | "y0">,
   blocked: Uint8Array,
 ): Array<Array<readonly [number, number]>> => {
@@ -105,7 +105,7 @@ const traceLoops = (
 }
 
 /** Douglas-Peucker on a closed loop (first point repeated last), split at the point farthest from the start. */
-const simplifyLoop = (
+export const simplifyLoop = (
   pts: ReadonlyArray<readonly [number, number]>,
   tol: number,
 ): Array<readonly [number, number]> => {

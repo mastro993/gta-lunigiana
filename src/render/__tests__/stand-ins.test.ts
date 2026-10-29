@@ -4,13 +4,16 @@ import { test } from "node:test"
 import { Group, InstancedMesh, type Material, Mesh, type Object3D, Vector3 } from "three"
 
 import { MAP } from "../../sim/map/index.ts"
+import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { LOOK } from "../../sim/testing.ts"
 import { vehicleNode } from "../actors.ts"
+import { makeCrossings } from "../crossings.ts"
 import { actorMaterial } from "../geometry.ts"
 import { terrainY } from "../ground.ts"
 import { PersonNode } from "../people.ts"
-import { vehicleLampMaterials } from "../sky/glow.ts"
+import { signalLampMaterials, vehicleLampMaterials } from "../sky/glow.ts"
 import { standIns } from "../stand-ins.ts"
+import { TrainNode } from "../train.ts"
 import { World } from "../world.ts"
 
 /** Every mesh under `root` with its material. */
@@ -22,7 +25,7 @@ const meshes = (root: Object3D): Array<Mesh> => {
   return found
 }
 
-test("the stand-ins hold every material the streamed world and the actors draw, trees instanced with instance colours as in a chunk", () => {
+test("the stand-ins hold every material the streamed world, the actors, the trains and the crossings draw, trees instanced with instance colours as in a chunk", () => {
   const { group, dispose } = standIns()
   const warmed = new Set<Material>(meshes(group).map((m) => m.material as Material))
   // The world around the spawn (a village, a river, woods) and the Sagro summit; people, a car with its lamps both ways.
@@ -39,8 +42,33 @@ test("the stand-ins hold every material the streamed world and the actors draw, 
   // The player and the car they drive show their x-ray boxes, built the first time they show.
   car.showXray(true)
   walker.showXray(true)
-  const drawn = [...meshes(parent), ...meshes(car), ...meshes(walker)]
+  // A driven train, its leading cab's lamps lit and the trailing cab's dark ones; the crossings, one lit and one dark.
+  const train = new TrainNode("atr220", actorMaterial)
+  train.setLamps(true)
+  train.showXray(true)
+  const crossings = new Group()
+  makeCrossings(crossings).draw(
+    CROSSINGS.map((_, i) => ({
+      phase: i % 2 === 0 ? "closed" : "open",
+      since: 0,
+      from: 1,
+      demanded: 0,
+    })),
+    0,
+  )
+  const drawn = [
+    ...meshes(parent),
+    ...meshes(car),
+    ...meshes(walker),
+    ...meshes(train),
+    ...meshes(crossings),
+  ]
   assert.ok(drawn.length > 20)
+  const lamps = new Set(drawn.map((mesh) => mesh.material))
+  assert.ok(
+    lamps.has(signalLampMaterials.on) && lamps.has(signalLampMaterials.off),
+    "the signal lamps both ways",
+  )
   for (const mesh of drawn)
     assert.ok(
       warmed.has(mesh.material as Material),

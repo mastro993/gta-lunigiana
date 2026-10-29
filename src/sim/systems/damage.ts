@@ -1,13 +1,15 @@
 import { Clock } from "@typeonce/ritmo"
 import { Random } from "@typeonce/ritmo-math"
 
-import { afterHit, barrierSpeeds, destroyed, groundHit } from "../damage.ts"
+import { afterHit, barrierSpeeds, destroyed, DURABILITY, groundHit } from "../damage.ts"
 import { FAUNA } from "../fauna.ts"
 import {
   Animal,
   Autopilot,
   CarInput,
+  Chassis,
   Damage,
+  Footing,
   Game,
   Impact,
   Motion,
@@ -29,7 +31,8 @@ import { FLEE_TIME } from "./pedestrians.ts"
  * Crashes wear vehicles out: this step's Impacts add to every vehicle they struck the share of its
  * durability the crash used up (`afterHit`), at the vehicle's barrier-equivalent speed: a wall hit
  * at the impact's speed, the ground as `groundHit` takes it (a landing on the wheels less the bump
- * stops, a roll by the body's speed too), two vehicles each by the other's share of their masses. A
+ * stops, a roll by the body's speed too), two vehicles each by the other's share of their masses, a
+ * train as a wall at the closing speed (a train that wrecks a vehicle, `fatal`, destroys it outright). A
  * crash's further contacts with the same thing cost only what a harder one adds. Knocking a person
  * down costs nothing; an animal struck costs its share of the two masses, as a vehicle would (a cow
  * dents the car, a cat does not). A traffic car destroyed, by a crash or by a blast (`Explode`), is abandoned:
@@ -48,6 +51,7 @@ export const CrashDamage = Game.System(
           damage: Game.Query.write(Damage),
           input: Game.Query.write(CarInput),
           traffic: Game.Query.optional(Traffic),
+          chassis: Game.Query.read(Chassis),
         },
         without: [Pedestrian],
       }),
@@ -60,7 +64,7 @@ export const CrashDamage = Game.System(
     events: { impacts: Game.System.thisTick(Game.System.readEvent(Impact)) },
     commands: Game.System.commands(
       Game.System.removes(Traffic, Route, Autopilot),
-      Game.System.spawns(Pedestrian, Person, Pose, PrevPose, Motion, Route),
+      Game.System.spawns(Pedestrian, Person, Pose, PrevPose, Motion, Route, Footing),
     ),
   },
   ({ queries, resources, events, commands }) => {
@@ -112,6 +116,17 @@ export const CrashDamage = Game.System(
             hit(impact.car, barrierSpeeds(impact.speed, a, b)[0], impact.other)
           continue
         }
+        if (impact.hit === "train") {
+          // As a wall (the train is about 100 times a Panda), at the full closing speed; a wreck at once when the train wrecked it.
+          const model = vehicles.get(impact.car)?.data.vehicle.get().model
+          if (model !== undefined)
+            hit(
+              impact.car,
+              impact.fatal === true ? Math.max(impact.speed, DURABILITY[model]) : impact.speed,
+              impact.other ?? -1,
+            )
+          continue
+        }
         if (impact.hit !== "car" || impact.other === undefined) {
           hit(impact.car, impact.speed, -1)
           continue
@@ -137,9 +152,11 @@ export const CrashDamage = Game.System(
       if (!data.traffic.present || !destroyed(data.damage.get().amount)) continue
       data.input.set({ throttle: 0, steer: 0, handbrake: true })
       commands.remove(entity, Traffic, Route, Autopilot)
+      const { model } = data.vehicle.get()
       const driver = fleeingDriver(
         data.pose.get(),
-        data.vehicle.get().model,
+        model,
+        data.chassis.get().z - VEHICLES[model].cg,
         Random.draw(resources.rng),
         step + Clock.steps(FLEE_TIME),
       )

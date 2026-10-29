@@ -2,9 +2,9 @@
  * The audio host's shared vocabulary. Three layers meet here:
  *
  * - `Heard`: what the world sounds like this frame, as plain data. The audio schedule reads it
- *   from the simulation (components, the `Impact`, `Skid`, `Honk`, `Cry`, `Explosion` and
- *   `Lightning` events, the horn key, the game clock and the weather) and hands it to the `Audio`
- *   service once per animation frame.
+ *   from the simulation (components, the level crossings, the `Impact`, `Skid`, `Honk`, `Cry`,
+ *   `Explosion`, `Lightning` and `Whistle` events, the horn key, the game clock and the weather) and
+ *   hands it to the `Audio` service once per animation frame.
  * - The director (pure TypeScript, tested in Node) turns `Heard` into sound requests: continuous
  *   voices it holds frame after frame (`Continuous`) and one-shots (`OneShot`), each with a
  *   `Placement` computed from acoustics (spreading, air absorption, occlusion, Doppler, cabin).
@@ -17,11 +17,18 @@
  * @module audio/types
  */
 import type { Surface } from "../sim/map/surface.ts"
+import type { TrainModel } from "../sim/rail/models.ts"
 import type { Age, Feeling, Mood, Species, WeatherValue } from "../sim/schema.ts"
 import type { VehicleModel } from "../sim/vehicles.ts"
+import type { HeardCrossing, HeardTrain } from "./rail-types.ts"
 import type { Speech } from "./speech/types.ts"
 
 export type { Surface }
+
+/** A model with an engine voice: a vehicle's, or a train's power packs. */
+export type EngineModel = VehicleModel | TrainModel
+/** A model the listener can sit in, behind its cabin: a vehicle, or a train's cab. */
+export type CabinModel = VehicleModel | TrainModel
 
 /** What a vehicle hit, by how it sounds: masonry (rendered houses), stone (rubble stone, dry-stone walls,
  *  churches, ruins), sheet (metal-clad industrial walls), glass (greenhouses), rail (steel W-beam guard rail),
@@ -127,12 +134,12 @@ export interface HeardAnimal {
 export type Happening =
   | {
       readonly kind: "impact"
-      /** What the vehicle `car` hit: a wall, another vehicle (`other`), a person or an animal (`other`), or the ground (`face`). */
-      readonly hit: "wall" | "car" | "person" | "animal" | "ground"
-      /** Where: the contact point (a wall, a vehicle or the ground), or the person or animal. */
+      /** What the vehicle `car` hit: a wall, another vehicle (`other`), or the ground (`face`). A train struck is the car's wall, the train its `other`. */
+      readonly hit: "wall" | "car" | "ground"
+      /** Where: the contact point on the wall, between the two vehicles or on the ground. */
       readonly x: number
       readonly y: number
-      /** Impact speed, m/s: the closing speed at contact, or the car's speed. */
+      /** Impact speed, m/s: the closing speed at contact. */
       readonly speed: number
       /** Mass behind the hit, t: the vehicle's, or the reduced mass of two vehicles. */
       readonly mass: number
@@ -140,11 +147,28 @@ export type Happening =
       readonly other?: number
       /** The face of the body that struck the ground (hit "ground"). */
       readonly face?: "under" | "roof" | "side" | "front" | "rear"
-      /** A person or animal hit that killed them. */
-      readonly fatal?: boolean
+      /** What a wall hit met, when the sim says (a train's steel): otherwise the drive wall's material there (`wallAt`). */
+      readonly material?: Material
       /** The vehicle `car`'s model and the zone of it the hit landed on; `otherBody`, the vehicle `other`'s (hit "car"). */
       readonly body: Body
       readonly otherBody?: Body
+    }
+  | {
+      readonly kind: "impact"
+      /** A person or an animal (`other`) hit by the vehicle or train `car`. */
+      readonly hit: "person" | "animal"
+      /** Where: the person or animal. */
+      readonly x: number
+      readonly y: number
+      /** The car's speed, m/s (a cow's: the closing speed). */
+      readonly speed: number
+      readonly mass: number
+      readonly car: number
+      readonly other?: number
+      /** It killed them. */
+      readonly fatal?: boolean
+      /** The vehicle's model and the zone hit; none for a train. */
+      readonly body?: Body
     }
   | {
       /** An AI driver held up for a while sounds the horn. */
@@ -179,14 +203,23 @@ export type Happening =
       readonly y: number
       readonly z: number
     }
+  | {
+      /** An AI train sounded its horn at its leading nose (x, y; `z` the rail head there): moderately long, or the alarm (`urgent`). */
+      readonly kind: "whistle"
+      readonly train: number
+      readonly x: number
+      readonly y: number
+      readonly z: number
+      readonly urgent: boolean
+    }
 
-/** The ears: the player, on foot or in `car`. */
+/** The ears: the player, on foot or in `car` (a vehicle, or the cab of a train). */
 interface HeardListener {
   readonly x: number
   readonly y: number
   readonly vx: number
   readonly vy: number
-  /** The vehicle the player sits in. */
+  /** The vehicle or train the player sits in. */
   readonly car: number | undefined
   /**
    * The view's yaw, rad to the left of its home seat: the sim's `View` quarter turns on foot, the
@@ -213,8 +246,10 @@ export interface Heard {
   readonly vehicles: ReadonlyArray<HeardVehicle>
   readonly people: ReadonlyArray<HeardPerson>
   readonly animals: ReadonlyArray<HeardAnimal>
+  readonly trains: ReadonlyArray<HeardTrain>
+  readonly crossings: ReadonlyArray<HeardCrossing>
   readonly happenings: ReadonlyArray<Happening>
-  /** The player holds the horn key (it sounds only from the driver's seat). */
+  /** The player holds the horn key (it sounds only from the driver's seat or a train's cab). */
   readonly horn: boolean
   readonly sky: HeardSky
   /** The weather over the map (a copy of the sim's `Weather`): the director works out what it is at the ears. */
@@ -240,11 +275,11 @@ export interface Placement {
  * one live voice per key and fades it out on the first frame it is not held.
  */
 export type Continuous =
-  /** Revs `rpm` and `load` 0…1; `inside`: heard from the driver's seat; `variant` 0…1: which of its model's engines (0.5 the nominal one);
+  /** A vehicle's engine or a train's power pack: revs `rpm` and `load` 0…1; `inside`: heard from the driver's seat; `variant` 0…1: which of its model's engines (0.5 the nominal one);
    *  `damage` 0…1 the sim's (rough, knocking, duller); `misfire`: the sim cuts its drive this step (the voice cuts out). */
   | {
       readonly kind: "engine"
-      readonly model: VehicleModel
+      readonly model: EngineModel
       readonly rpm: number
       readonly load: number
       readonly inside: boolean
@@ -296,6 +331,23 @@ export type Continuous =
     }
   /** Rain drumming on the roof and windscreen of the car the listener sits in: `rate` mm/h. */
   | { readonly kind: "roof"; readonly rate: number }
+  /**
+   * A train rolling on its rails at `v` m/s toward +s of its line: the wheels' roar, and a clack as each axle runs over a rail
+   * joint or a switch. `axles`: each axle's s now, and `joints`: the s of the joints and switches near them (m, on that line); the
+   * voice schedules each axle's clacks a little ahead from them.
+   */
+  | {
+      readonly kind: "rails"
+      readonly v: number
+      readonly axles: ReadonlyArray<number>
+      readonly joints: ReadonlyArray<number>
+    }
+  /** A train's disc brakes squealing as it comes to a stand: `speed` m/s, `brake` 0…1 of the emergency rate. */
+  | { readonly kind: "brakes"; readonly speed: number; readonly brake: number }
+  /** A level crossing's bell (*campana*): one stroke every 1.287 s while it rings; `variant` 0…1: which box's unit (0.5 the measured one). */
+  | { readonly kind: "plBell"; readonly variant: number }
+  /** A train's horn held from its cab (the player's H): the EN 15153-2 high tone. */
+  | { readonly kind: "trainHorn" }
 
 /** One-shot sounds: played once, at a placement, possibly delayed (sound travelling, echoes). */
 export type OneShot =
@@ -323,6 +375,8 @@ export type OneShot =
   | { readonly kind: "ignition"; readonly model: VehicleModel }
   /** A short AI honk. */
   | { readonly kind: "honk"; readonly model: VehicleModel }
+  /** An AI train's horn: one moderately long high tone, or the alarm (`urgent`): short blasts, high and low in turn. */
+  | { readonly kind: "trainHonk"; readonly urgent: boolean }
   /** A footstep on `surface`, or crunching the snow that lies on it (`snow`). */
   | {
       readonly kind: "step"

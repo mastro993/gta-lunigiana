@@ -1,8 +1,9 @@
 /**
  * The debug menu, in dev builds only (main.ts imports it inside its `import.meta.env.DEV` block): a
  * panel whose areas set the game live, Time and Weather through the sky store `gta.sky` shares
- * (`debug-sky.ts`) and the vehicle Handling through the store the settings share
- * (`debug-handling.ts`). P or the Debug button beside the Ritmo monitor's opens and closes it, Esc
+ * (`debug-sky.ts`), the vehicle Handling through the store the settings share
+ * (`debug-handling.ts`), and Trains through the trains store `gta.trains` shares
+ * (`debug-trains.ts`). P or the Debug button beside the Ritmo monitor's opens and closes it, Esc
  * inside it closes it, and no key pressed in it reaches the game. While it is open, the areas' live
  * readouts refresh each animation frame.
  *
@@ -10,8 +11,10 @@
  */
 import { handlingArea } from "./debug-handling.ts"
 import { timeArea, weatherArea } from "./debug-sky.ts"
+import { trainsArea } from "./debug-trains.ts"
 import type { HandlingStore } from "./handling.ts"
 import type { SkyStore } from "./sky.ts"
+import type { TrainStore } from "./trains.ts"
 
 const TITLE = "Debug"
 
@@ -52,11 +55,12 @@ export interface Area {
   readonly live?: () => void
 }
 
-/** What the menu needs: the page, the player's handling, the game's clock and weather, and where the player stands (x east, y north, z m a.s.l.) once there is one. */
+/** What the menu needs: the page, the player's handling, the game's clock and weather, its railway, and where the player stands (x east, y north, z m a.s.l.) once there is one. */
 export interface DebugMenuHost {
   readonly window: Window
   readonly handling: HandlingStore
   readonly sky: SkyStore
+  readonly trains: TrainStore
   readonly here: () => { readonly x: number; readonly y: number; readonly z: number } | undefined
 }
 
@@ -97,8 +101,8 @@ html.touch .debug-toggle { top: 148px; top: anchor(--ritmo-monitor top, 148px); 
 .debug :focus-visible, .debug-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 `
 
-/** Mounts the menu, closed, and its button: the Time, Weather and Handling areas, each showing every change its store makes, from wherever it comes. */
-export const mountDebugMenu = ({ window, handling, sky, here }: DebugMenuHost): void => {
+/** Mounts the menu, closed, and its button: the Time, Weather, Handling and Trains areas, each showing every change its store makes, from wherever it comes. */
+export const mountDebugMenu = ({ window, handling, sky, trains, here }: DebugMenuHost): void => {
   const document = window.document,
     make = maker(document)
   const panel = make(
@@ -107,7 +111,12 @@ export const mountDebugMenu = ({ window, handling, sky, here }: DebugMenuHost): 
     make("h2", { textContent: TITLE }),
     make("p", { textContent: "Dev builds only." }),
   )
-  const areas = [timeArea(make, sky), weatherArea(make, sky, here), handlingArea(make, handling)]
+  const areas = [
+    timeArea(make, sky),
+    weatherArea(make, sky, here),
+    handlingArea(make, handling),
+    trainsArea(make, trains),
+  ]
   for (const { title, nodes } of areas) {
     const heading = make("h3", { id: `debug-${title.toLowerCase()}-title`, textContent: title })
     const area = make("section", {}, heading, ...nodes)

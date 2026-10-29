@@ -137,13 +137,21 @@ for (const cls of order)
       r.tunnel === true ? 0.6 : 1,
     )
   }
-for (const r of MAP.rail)
+// Running track dark, loops and sidings purple, bridges with a pale deck.
+for (const r of MAP.rail) {
+  if (r.bridge === true) polyline(r.pts, 2, [215, 215, 205])
   polyline(
     r.pts,
     1.2,
-    r.tunnel === true ? [110, 110, 110] : [50, 40, 40],
+    r.tunnel === true ? [110, 110, 110] : r.kind === undefined ? [50, 40, 40] : [130, 50, 150],
     r.tunnel === true ? 0.5 : 1,
   )
+}
+// Platforms pale, rail-level walkways sandy, level-crossing nodes white.
+for (const p of MAP.railway.platforms)
+  fill(MAP.areas[p.area]!.rings, p.walkway === true ? [200, 180, 120] : [230, 230, 220], 0.9)
+for (const c of MAP.railway.crossings)
+  for (const n of c.nodes) dot(graph.nodes[n]!.x, graph.nodes[n]!.y, 1, [255, 255, 255])
 const STYLE = {
   plaster: [235, 190, 140],
   stone: [170, 160, 145],

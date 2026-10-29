@@ -8,6 +8,11 @@
  *   (D.M. 20/03/1979), switched with no JavaScript: a square LFO, shaped to exactly those two
  *   values and smoothed by a 25 Hz lowpass (a 10–20 ms glide), drives the tone's frequency.
  * - Beeper: a 1 kHz tone gated 0.5 s on, 0.5 s off by another square LFO.
+ * - Train horns: EN 15153-2's pair, 660 Hz high and 370 Hz low, sounded one at a time (both at
+ *   once is the dissonant emergency chord), each a pneumatic horn rising out of a droop over its
+ *   slower attack, voiced broadly at 1.2 kHz (horns peak in the 500 Hz–2.5 kHz octaves). The
+ *   player's H holds the high tone; an AI train gives one moderately long high blast (RFI's signal
+ *   rules, art. 5) or, at something on the track, the alarm: short blasts, high and low in turn.
  *
  * @module audio/synth/horns
  */
@@ -80,6 +85,37 @@ const HORNS = {
     gain: 0.112,
   },
 } as const satisfies Record<VehicleModel, HornSpec>
+
+/** A train's horn's tones, Hz: EN 15153-2's pair (660 ± 30 and 370 ± 20; UIC 644's 660 ± 15 and 370 ± 10). */
+export const TRAIN_TONES = { high: 660, low: 370 } as const
+/** A train's two horns, one per tone, pneumatic like the truck's: a slow attack as the air comes up. */
+const TRAIN_HORN = {
+  high: {
+    tones: [TRAIN_TONES.high],
+    wave: "sawtooth",
+    peak: [1200, 0.7],
+    highpass: 250,
+    attack: 0.12,
+    release: 0.2,
+    droop: 0.95,
+    jitter: 0,
+    gain: 0.21,
+  },
+  low: {
+    tones: [TRAIN_TONES.low],
+    wave: "sawtooth",
+    peak: [1200, 0.7],
+    highpass: 250,
+    attack: 0.12,
+    release: 0.2,
+    droop: 0.95,
+    jitter: 0,
+    gain: 0.21,
+  },
+} as const satisfies Record<"high" | "low", HornSpec>
+/** An AI train's blasts: the moderately long one (RFI art. 5: "un fischio prolungato moderatamente", 1–2 s), s; the alarm's (art. 7: more than three short), each and the gap after it, s: over in 1.6 s, before the driver sounds it again 2 s on. */
+const LONG_BLAST = [1.2, 1.8] as const,
+  ALARM = { blasts: 4, held: 0.3, gap: 0.1 } as const
 
 /** The bitonale: low and high tone (Hz) and how long each lasts (s), D.M. 20/03/1979. */
 const SIREN = { low: 466, high: 622, seconds: 0.75 } as const
@@ -177,6 +213,57 @@ export const honk: Shot<Extract<OneShot, { readonly kind: "honk" }>> = {
     const end = t + spec.release * 2
     for (const source of graph.sources) source.stop(end)
     graph.sources[0]!.onended = () => graph.gate.disconnect()
+    return end
+  },
+}
+
+/** An AI train's blasts from `when`: each tone and how long it is held, s; `random` draws a long blast's length. */
+export const trainBlasts = (
+  urgent: boolean,
+  random: () => number = Math.random,
+): ReadonlyArray<{ readonly tone: "high" | "low"; readonly held: number }> =>
+  urgent
+    ? Array.from({ length: ALARM.blasts }, (_, i) => ({
+        tone: i % 2 === 0 ? "high" : "low",
+        held: ALARM.held,
+      }))
+    : [{ tone: "high", held: LONG_BLAST[0] + (LONG_BLAST[1] - LONG_BLAST[0]) * random() }]
+
+/** A train's horn held from its cab: the high tone, sounding from its first update until stopped. */
+export const trainHorn: VoiceFactory<Extract<Continuous, { readonly kind: "trainHorn" }>> = (
+  io,
+) => {
+  const spec: HornSpec = TRAIN_HORN.high,
+    graph = hornGraph(io.ctx, io.out, io.kit, spec, io.cents, 0)
+  let pressed = false
+  return {
+    update: (_, now) => {
+      if (!pressed) press(graph, spec, now)
+      pressed = true
+    },
+    stop: (now) => fadeOut(graph.gate, graph.sources, now, spec.release / 3),
+  }
+}
+
+/** An AI train's horn: one moderately long high blast, or the alarm. */
+export const trainHonk: Shot<Extract<OneShot, { readonly kind: "trainHonk" }>> = {
+  play: (io, sound, when) => {
+    const graphs = {
+      high: hornGraph(io.ctx, io.out, io.kit, TRAIN_HORN.high, undefined, when),
+      low: hornGraph(io.ctx, io.out, io.kit, TRAIN_HORN.low, undefined, when),
+    }
+    let t = when
+    for (const { tone, held } of trainBlasts(sound.urgent)) {
+      const spec: HornSpec = TRAIN_HORN[tone]
+      press(graphs[tone], spec, t)
+      graphs[tone].gate.gain.setTargetAtTime(0, t + held, spec.release / 3)
+      t += held + ALARM.gap
+    }
+    const end = t + TRAIN_HORN.high.release * 2
+    for (const graph of Object.values(graphs)) {
+      for (const source of graph.sources) source.stop(end)
+      graph.sources[0]!.onended = () => graph.gate.disconnect()
+    }
     return end
   },
 }

@@ -1,23 +1,24 @@
 /**
- * The render schedule: mirrors people, animals and vehicles into three nodes with RenderSync (a
- * vehicle that blew up as its charred shell), places them between fixed steps (PrevPose → Pose at
- * the loop's alpha), people and animals on the ground or road under them in the frame for what they
- * do, and vehicles at their centre of mass from their Chassis, spreads the blood pools under the
- * dead, marks the player's car for the x-ray silhouette, lays tyre marks and smoke from the Skid
- * events, draws the damaged engines' smoke and fire and the Explosion events' blasts, and hands the
- * sky host the clock, the weather, the lightning and the cars with their lamps on, and the
- * see-through cut the player as drawn. Read-only towards the world (__tests__/index.test.ts checks
- * every system's declared access); the host ticks it once per animation frame after writing
- * `RenderClock.alpha`.
+ * The render schedule: mirrors people, animals, vehicles and trains into three nodes with
+ * RenderSync (render/registries; a vehicle that blew up as its charred shell), places them between
+ * fixed steps (PrevPose → Pose at the loop's alpha, a train's s blended along its line), people and
+ * animals on the ground or road under them in the frame for what they do, vehicles at their centre
+ * of mass from their Chassis and every train's cars on the rails (render/train), spreads the blood
+ * pools under the dead, marks the player's car or train for the x-ray silhouette, sets the level
+ * crossings' arms and lights (render/crossings), lays tyre marks and smoke from the Skid events,
+ * draws the damaged engines' smoke and fire and the Explosion events' blasts (render/effects), and
+ * hands the sky host the clock, the weather, the lightning and the cars and trains with their lamps
+ * on, and the see-through cut the player as drawn. Read-only towards the world
+ * (__tests__/index.test.ts checks every system's declared access); the host ticks it once per
+ * animation frame after writing `RenderClock.alpha`.
  *
  * @module render
  */
 import { Descriptor } from "@typeonce/ritmo"
-import { NodeRegistry, RenderSync } from "@typeonce/ritmo-render"
+import { RenderSync } from "@typeonce/ritmo-render"
 import type { Object3D } from "three"
 
 import { wrapAngle } from "../sim/body.ts"
-import { stageOf } from "../sim/damage.ts"
 import {
   Animal,
   Chassis,
@@ -26,7 +27,6 @@ import {
   Dead,
   Down,
   Driving,
-  Explosion,
   Game,
   GameClock,
   InWater,
@@ -40,79 +40,37 @@ import {
   PrevPose,
   Rivers,
   type RiversValue,
-  Skid,
   STEP,
   Time,
   Traffic,
+  Train,
+  TrainRun,
   Vehicle,
   Weather,
 } from "../sim/index.ts"
+import { TRAINS } from "../sim/rail/models.ts"
 import { VEHICLES } from "../sim/vehicles.ts"
-import { VIEW_REACH } from "../sim/view.ts"
 import { FLOW, specificDischarge } from "../sim/water/flow.ts"
 import { waterUnder } from "../sim/water/rivers.ts"
-import { type ActorNode, vehicleBody, type VehicleNode, vehicleNode } from "./actors.ts"
+import { vehicleBody, vehicleNode } from "./actors.ts"
 import { AnimalNode } from "./animals.ts"
-import { Blasts } from "./blasts.ts"
+import { RenderClock } from "./clock.ts"
+import { DrawCrossings } from "./crossings.ts"
+import { DrawEffects } from "./effects.ts"
 import { actorMaterial } from "./geometry.ts"
-import { groundY, yOf } from "./ground.ts"
-import { Marks, TREAD } from "./marks.ts"
+import { yOf } from "./ground.ts"
 import { PersonNode } from "./people.ts"
+import { Animals, People, Vehicles } from "./registries.ts"
 import type { SeeThrough } from "./sightline.ts"
 import type { SkyHost } from "./sky/host.ts"
-import { Smoke } from "./smoke.ts"
-import { PLUMES_AT_ONCE, type WreckState, Wrecks } from "./wrecks.ts"
+import { beamOf, PlaceTrains, SyncTrains, Trains } from "./train.ts"
 
-/** Person nodes, one per entity with a Person. */
-export const People =
-  Descriptor.Service<NodeRegistry.NodeRegistry<PersonNode>>()("Lunigiana/PeopleNodes")
-/** Animal nodes, one per entity with an Animal. */
-export const Animals =
-  Descriptor.Service<NodeRegistry.NodeRegistry<AnimalNode>>()("Lunigiana/AnimalNodes")
-/** Vehicle nodes, one per entity with a Vehicle. */
-export const Vehicles =
-  Descriptor.Service<NodeRegistry.NodeRegistry<VehicleNode>>()("Lunigiana/VehicleNodes")
-/** Mutable host object: the loop writes `alpha` (fraction of a step since the last one) before ticking `render`. */
-export const RenderClock = Descriptor.Service<{ readonly alpha: number }>()("Lunigiana/RenderClock")
+export { RenderClock } from "./clock.ts"
+export { Crossings } from "./crossings.ts"
+export { Effects, makeEffects } from "./effects.ts"
+export { Animals, makeRegistries, People, Vehicles } from "./registries.ts"
+export { Trains } from "./train.ts"
 
-/** The three registries, attaching nodes under `parent` and freeing them on detach. */
-export const makeRegistries = (parent: Object3D) => {
-  const options = {
-    attach: (node: ActorNode) => parent.add(node),
-    detach: (node: ActorNode) => {
-      node.removeFromParent()
-      node.dispose()
-    },
-  }
-  return {
-    people: NodeRegistry.make<PersonNode>(options),
-    animals: NodeRegistry.make<AnimalNode>(options),
-    vehicles: NodeRegistry.make<VehicleNode>(options),
-  }
-}
-
-/**
- * The map's tyre marks and smoke, the damaged engines' smoke and flames, and the blasts, under `parent` for the page's life: in
- * the scene from the first frame, so their programs compile before play.
- */
-export const makeEffects = (parent: Object3D) => {
-  const effects = {
-    marks: new Marks(),
-    smoke: new Smoke(),
-    wrecks: new Wrecks(),
-    blasts: new Blasts(),
-  }
-  parent.add(
-    effects.marks.mesh,
-    effects.smoke.mesh,
-    effects.wrecks.smoke.mesh,
-    effects.wrecks.flames.mesh,
-    ...effects.blasts.meshes,
-  )
-  return effects
-}
-/** The host's tyre marks and smoke, the wrecks' smoke and fire and the blasts (`makeEffects`), fed by the render schedule. */
-export const Effects = Descriptor.Service<ReturnType<typeof makeEffects>>()("Lunigiana/Effects")
 /** The host's sky (`SkyHost`), fed by the render schedule: it draws the light, the weather and the night lights. */
 export const Sky = Descriptor.Service<SkyHost>()("Lunigiana/Sky")
 /** The host's see-through cut (`SeeThrough`), fed the player as drawn by the render schedule. */
@@ -205,22 +163,21 @@ const SyncVehicles = RenderSync.system(Game, {
   },
 })
 
-/** Shows the x-ray silhouette of the vehicle the player drives, and only that one. */
+/** Shows the x-ray silhouette of the vehicle or train the player drives, and only that one. */
 const MarkDriven = Game.System(
   "Lunigiana/MarkDriven",
   {
     queries: {
       player: Game.Query({ selection: { driving: Game.Query.optional(Driving) }, with: [Player] }),
-      vehicles: Game.Query({ selection: { vehicle: Game.Query.read(Vehicle) } }),
     },
-    services: { nodes: Game.System.service(Vehicles) },
+    services: { nodes: Game.System.service(Vehicles), trains: Game.System.service(Trains) },
   },
   ({ queries, services }) => {
     const found = queries.player.singleOptional()
     const driving = found.ok ? found.value?.data.driving.value() : undefined
-    const car = driving === undefined ? undefined : queries.vehicles.getHandle(driving.vehicle)
-    const driven: number | undefined = car?.ok === true ? car.value.entity.id : undefined
+    const driven = driving === undefined ? undefined : Game.Entity.id(driving.vehicle)
     for (const [entity, node] of services.nodes.entries()) node.showXray(entity === driven)
+    for (const [entity, node] of services.trains.entries()) node.showXray(entity === driven)
   },
 )
 
@@ -334,93 +291,12 @@ const SpreadPools = Game.System(
   },
 )
 
-/** Damaged engines and blasts farther than this from the player (m) are not drawn: past the view's reach, with room for a tall plume. */
-const PLUME_REACH = VIEW_REACH + 60
-/**
- * Which damaged engines smoke first: burning wrecks (about to blow), then the smoking ones, white or black alike so a near one is not
- * dropped for a far one, and the charred shells' thin wisps last.
- */
-const PRIORITY = { destroyed: 0, severe: 1, medium: 1, burnt: 2 } as const satisfies Record<
-  Exclude<WreckState, "light">,
-  number
->
-
-/**
- * Lays the steps' Skid events as tyre marks and smoke, sets off a blast for each Explosion near the
- * player at the drawn moment, gives off the smoke and fire of the damaged engines near the player
- * since the last frame, the burning ones first (by their stage of damage, or the thin smoke of a
- * shell that blew up, from their nodes as placed this frame), then moves them all to the drawn
- * moment's sim time.
- */
-const DrawEffects = Game.System(
-  "Lunigiana/DrawEffects",
-  {
-    queries: {
-      player: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [Player] }),
-      vehicles: Game.Query({ selection: { damage: Game.Query.read(Damage) } }),
-    },
-    resources: { time: Game.System.readResource(Time) },
-    events: { skids: Game.System.readEvent(Skid), explosions: Game.System.readEvent(Explosion) },
-    services: {
-      effects: Game.System.service(Effects),
-      nodes: Game.System.service(Vehicles),
-      clock: Game.System.service(RenderClock),
-    },
-  },
-  ({ queries, resources, events, services }) => {
-    const { marks, smoke, wrecks, blasts } = services.effects
-    for (const skid of events.skids.all()) {
-      // A vehicle despawned since leaves no more marks.
-      const node = services.nodes.get(skid.car)
-      if (node === undefined) continue
-      marks.add(skid, TREAD[node.model])
-      smoke.add(skid)
-    }
-    const now = (resources.time.get().step + services.clock.alpha) * STEP.dt,
-      dt = wrecks.frame(now)
-    const me = queries.player.singleOptional(),
-      at = me.ok ? me.value?.data.pose.get() : undefined
-    for (const blast of events.explosions.all()) {
-      // A wreck despawned since (out of view) is not drawn.
-      const node = services.nodes.get(blast.car)
-      if (
-        at === undefined ||
-        node === undefined ||
-        Math.hypot(blast.x - at.x, blast.y - at.y) > PLUME_REACH
-      )
-        continue
-      // Its pieces come down on the ground on the level nearest the wreck's: a bridge's deck, not the river under it.
-      const y = yOf(blast.z),
-        deck = groundY(blast.x, blast.y, y)
-      blasts.start(blast.x, y, -blast.y, (x, z) => groundY(x, -z, deck), now, node.paint)
-    }
-    const plumes =
-      at === undefined
-        ? []
-        : queries.vehicles.each().flatMap(({ entity, data }) => {
-            const damage = data.damage.get(),
-              state: WreckState = damage.exploded ? "burnt" : stageOf(damage.amount),
-              node = services.nodes.get(entity.id)
-            if (state === "light" || node === undefined) return []
-            const away = Math.hypot(node.position.x - at.x, node.position.z + at.y)
-            return away > PLUME_REACH ? [] : [{ node, state, away }]
-          })
-    // As many as the pools hold in full, by PRIORITY and then the nearest first (the player's own car among them).
-    const first = plumes
-      .sort((a, b) => PRIORITY[a.state] - PRIORITY[b.state] || a.away - b.away)
-      .slice(0, PLUMES_AT_ONCE)
-    for (const { node, state } of first) wrecks.emit(node, state, dt, now)
-    marks.update(now)
-    smoke.update(now)
-    wrecks.update(now)
-    blasts.update(now)
-  },
-)
-
 /**
  * Hands the sky host this frame's game time (blended at alpha), the weather, sim time and what the
- * rivers carry, the steps' lightning, and the cars with their lamps on, switching every car's lamps: on in traffic and in the
- * player's car, off when parked. Last in the schedule, so the cars stand where they are drawn.
+ * rivers carry, the steps' lightning, and the cars and trains with their lamps on, switching every
+ * car's and train's lamps: on in traffic, in an AI train and in the player's car or train, off when
+ * parked or left. After `sky.sky()`, which empties the sky's list of lit cars, and after the placing
+ * systems, so the cars and trains stand where they are drawn; a train's beam leaves its leading nose.
  */
 const DrawSky = Game.System(
   "Lunigiana/DrawSky",
@@ -429,6 +305,9 @@ const DrawSky = Game.System(
       player: Game.Query({ selection: { driving: Game.Query.optional(Driving) }, with: [Player] }),
       vehicles: Game.Query({
         selection: { vehicle: Game.Query.read(Vehicle), traffic: Game.Query.optional(Traffic) },
+      }),
+      trains: Game.Query({
+        selection: { train: Game.Query.read(Train), run: Game.Query.optional(TrainRun) },
       }),
     },
     resources: {
@@ -441,6 +320,7 @@ const DrawSky = Game.System(
     services: {
       sky: Game.System.service(Sky),
       nodes: Game.System.service(Vehicles),
+      trains: Game.System.service(Trains),
       clock: Game.System.service(RenderClock),
     },
   },
@@ -458,8 +338,7 @@ const DrawSky = Game.System(
     for (const lightning of events.lightning.all()) sky.strike(lightning)
     const found = queries.player.singleOptional()
     const driving = found.ok ? found.value?.data.driving.value() : undefined
-    const car = driving === undefined ? undefined : queries.vehicles.getHandle(driving.vehicle)
-    const driven: number | undefined = car?.ok === true ? car.value.entity.id : undefined
+    const driven = driving === undefined ? undefined : Game.Entity.id(driving.vehicle)
     for (const { entity, data } of queries.vehicles.each()) {
       const node = nodes.get(entity.id)
       if (node === undefined) continue
@@ -475,6 +354,13 @@ const DrawSky = Game.System(
           driven: entity.id === driven,
         })
     }
+    for (const { entity, data } of queries.trains.each()) {
+      const node = services.trains.get(entity.id)
+      if (node === undefined) continue
+      const on = data.run.present || entity.id === driven
+      node.setLamps(on)
+      if (on) sky.car({ id: entity.id, ...beamOf(node), driven: entity.id === driven })
+    }
   },
 )
 
@@ -483,21 +369,22 @@ const LYING = 0.5
 
 /**
  * Hands the see-through cut the player as drawn this frame: on foot their figure (standing on its
- * feet, or lying), driving their car (its ground `cg` under the node, its spec's height), or shuts
- * it when there is no player. After the placing systems, so it follows the nodes where they stand.
+ * feet, or lying), driving their car (its ground `cg` under the node, its spec's height) or their
+ * train (its leading cab at the driver's place, on the rail head, its spec's height), or shuts it
+ * when there is no player. After the placing systems, so it follows the nodes where they stand.
  */
 const FollowPlayer = Game.System(
   "Lunigiana/FollowPlayer",
   {
     queries: {
       player: Game.Query({ selection: { driving: Game.Query.optional(Driving) }, with: [Player] }),
-      vehicles: Game.Query({ selection: { vehicle: Game.Query.read(Vehicle) } }),
     },
     resources: { time: Game.System.readResource(Time) },
     services: {
       cut: Game.System.service(Cut),
       people: Game.System.service(People),
       vehicles: Game.System.service(Vehicles),
+      trains: Game.System.service(Trains),
       clock: Game.System.service(RenderClock),
     },
   },
@@ -506,13 +393,19 @@ const FollowPlayer = Game.System(
     const found = queries.player.singleOptional()
     const me = found.ok ? found.value : undefined
     const driving = me?.data.driving.value()
-    const car = driving === undefined ? undefined : queries.vehicles.getHandle(driving.vehicle)
+    const train =
+      driving === undefined ? undefined : services.trains.get(Game.Entity.id(driving.vehicle))
+    if (train !== undefined) {
+      const { model } = train,
+        cab = train.behindNose(TRAINS[model].door)
+      return services.cut.follow(cab.x, cab.z, -cab.y, TRAINS[model].height, now)
+    }
     const node =
-      car?.ok === true
-        ? services.vehicles.get(car.value.entity.id)
-        : me === undefined
+      driving === undefined
+        ? me === undefined
           ? undefined
           : services.people.get(me.entity.id)
+        : services.vehicles.get(Game.Entity.id(driving.vehicle))
     if (node === undefined) return services.cut.shut()
     const at = node.position
     if (node instanceof PersonNode)
@@ -529,11 +422,14 @@ export const render = Game.Schedule(
   SyncPeople,
   SyncAnimals,
   SyncVehicles,
+  SyncTrains,
   MarkDriven,
   PlacePeople,
   PlaceAnimals,
   PlaceVehicles,
+  PlaceTrains,
   SpreadPools,
+  DrawCrossings,
   DrawEffects,
   DrawSky,
   FollowPlayer,

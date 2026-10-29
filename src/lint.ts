@@ -17,6 +17,7 @@ import {
   type Root,
   SetClock,
   SetHandling,
+  SetTrains,
   SetWeather,
   setup,
   update,
@@ -39,11 +40,11 @@ export const lintTarget = async (): Promise<Lint.Target<typeof Game.schema, type
   const { audio } = await import("./audio/index.ts")
   // The host's handling store (src/hud/handling.ts, behind the settings and the dev debug menu) sends SetHandling with runtime.send;
   // the host sends SetClock to hold the clock behind the title card (holdClock, src/hud/title.ts), and the dev debug menu sends
-  // SetClock and SetWeather.
+  // SetClock and SetWeather. SetTrains calls a train onto every idle line: the tests and the dev debug menu's Trains area send it.
   return {
     runtime: made.value,
     schedules: { setup, update },
     describe: { render, audio },
-    hostEvents: [SetHandling, SetClock, SetWeather],
+    hostEvents: [SetHandling, SetClock, SetWeather, SetTrains],
   }
 }

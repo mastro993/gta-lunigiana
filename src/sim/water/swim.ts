@@ -2,7 +2,7 @@
  * People and animals in the water. A body wades while the water leaves it its footing: slower the
  * deeper it is, and pushed along a little more as the current nears what it can stand against. It
  * swims once the water reaches its chest or the current takes its feet from under it (the depth ×
- * speed beyond its footing, Cox, Shand and Blacka 2010), and then moves with the current plus its
+ * speed beyond its hold, Cox, Shand and Blacka 2010), and then moves with the current plus its
  * own stroke. It never drowns: in the water it is swept until it swims or wades out.
  *
  * @module water/swim
@@ -19,10 +19,10 @@ import type { WaterHere } from "./rivers.ts"
  * (35 kg at the same BMI, H·M 42 m·kg, among Cox et al.'s children of 25–50) keeps its feet to
  * 0.39 m²/s, their 0.4 for children. No body stands more than an adult.
  */
-const FOOTING = { dv: 1.2, hm: 1.75 * 75 } as const
+const HOLD = { dv: 1.2, hm: 1.75 * 75 } as const
 /** A body floats off its feet once the water is this share of its height deep: at the chest (Cox et al.'s 1.2 m for adults). */
 const AFLOAT = 0.7
-/** Back on its feet only below these shares of the depth and footing that took them (no flicker at the line). */
+/** Back on its feet only below these shares of the depth and hold that took them (no flicker at the line). */
 const REGAIN = 0.85
 /**
  * Wading: speed lost for each metre of water per 1.75 m of height, and the least share kept. Walking pace in knee-deep water
@@ -44,29 +44,29 @@ export const HARD_STROKE = 1.6
 export const personMass = (height: number): number => BMI * height * height
 
 /** The depth × speed (m²/s) a body of `height` m and `mass` kg stands against before the current takes its feet. */
-export const footingOf = (height: number, mass: number): number =>
-  FOOTING.dv * Math.min(1, (height * mass) / FOOTING.hm)
+export const holdOf = (height: number, mass: number): number =>
+  HOLD.dv * Math.min(1, (height * mass) / HOLD.hm)
 
-/** A body's build in the water: its height (a person standing, an animal at the shoulder), m, and its footing, m²/s. */
+/** A body's build in the water: its height (a person standing, an animal at the shoulder), m, and its hold (`holdOf`), m²/s. */
 export interface Build {
   readonly height: number
-  readonly footing: number
+  readonly hold: number
 }
 
 /** Whether a body of `build` in `water` is off its feet, given whether it was a step ago. */
 export const swept = (water: WaterHere, build: Build, was: boolean): boolean => {
   const share = was ? REGAIN : 1,
     dv = water.depth * Ops.hypot(water.vx, water.vy)
-  return water.depth > AFLOAT * build.height * share || dv > build.footing * share
+  return water.depth > AFLOAT * build.height * share || dv > build.hold * share
 }
 
-/** Past this share of its height deep, or of its footing in depth × speed, a person or animal wading heads for the bank (TUNED). */
-const WARY = { depth: 0.3, footing: 0.25 } as const
+/** Past this share of its height deep, or of its hold in depth × speed, a person or animal wading heads for the bank (TUNED). */
+const WARY = { depth: 0.3, hold: 0.25 } as const
 
 /** Whether a body of `build` wading in `water` makes for the bank rather than carry on: the water is past its knees or pulls at it. */
 export const outOfDepth = (water: WaterHere, build: Build): boolean =>
   water.depth > WARY.depth * build.height ||
-  water.depth * Ops.hypot(water.vx, water.vy) > WARY.footing * build.footing
+  water.depth * Ops.hypot(water.vx, water.vy) > WARY.hold * build.hold
 
 /**
  * Running in water: the legs' drag grows with the square of their speed, so whatever a body wants
@@ -88,7 +88,7 @@ export const wadeShare = (depth: number, height: number): number =>
 
 /**
  * A body's velocity after `dt` s in `water`, from `velocity`: wading toward `wish` (its velocity on
- * land) slowed by the depth (`wadingSpeed`), plus the current as far as (depth × speed / footing)², changing by at
+ * land) slowed by the depth (`wadingSpeed`), plus the current as far as (depth × speed / hold)², changing by at
  * most `accel` m/s²; swimming, or down, toward the current plus a `stroke` m/s along `wish`.
  */
 export const waterVelocity = (
@@ -109,7 +109,7 @@ export const waterVelocity = (
       Vec2.scale(Vec2.subtract(target, velocity), 1 - Ops.exp(-dt / WATER_TAU)),
     )
   }
-  const pull = Math.min(1, (water.depth * Vec2.length(current)) / build.footing) ** 2
+  const pull = Math.min(1, (water.depth * Vec2.length(current)) / build.hold) ** 2
   const speed = Vec2.length(wish),
     wading = speed > 0 ? wadingSpeed(speed, water.depth, build.height) / speed : 0
   const target = Vec2.add(Vec2.scale(wish, wading), Vec2.scale(current, pull))

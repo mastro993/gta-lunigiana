@@ -5,8 +5,8 @@
  *
  * @module audio/lab-render
  */
-import { VEHICLES } from "../sim/vehicles.ts"
 import { measure } from "./measure.ts"
+import { engineSpec } from "./synth/engine.ts"
 import { LONGEST } from "./synth/thunder.ts"
 import { VEHICLE_SHOTS, VEHICLE_VOICES } from "./synth/vehicles.ts"
 import { WORLD_SHOTS, WORLD_VOICES } from "./synth/world.ts"
@@ -38,7 +38,7 @@ const offNominal = (sound: Sound, peak: number): boolean =>
   !sound.inside &&
   sound.load === 1 &&
   sound.damage === 0 &&
-  sound.rpm === VEHICLES[sound.model].engine.redline &&
+  sound.rpm === engineSpec(sound.model).redline &&
   (peak < NOMINAL[0] || peak > NOMINAL[1])
 /** Whether `sound` is an engine peaking over its nominal: worn or misfiring, it must not. */
 const overNominal = (sound: Sound, peak: number): boolean =>

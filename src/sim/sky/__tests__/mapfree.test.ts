@@ -13,7 +13,7 @@ registerHooks({
   },
 })
 
-test("map-free: the schema and the sky's calendar, astronomy, place, climate, odds, plan, regimes, clock, local weather and readout load no map", async () => {
+test("map-free: the schema, the train models and the sky's calendar, astronomy, place, climate, odds, plan, regimes, clock, local weather and readout load no map", async () => {
   const modules = [
     "../../schema.ts",
     "../regimes.ts",
@@ -27,6 +27,7 @@ test("map-free: the schema and the sky's calendar, astronomy, place, climate, od
     "../plan.ts",
     "../local.ts",
     "../readout.ts",
+    "../../rail/models.ts",
   ]
   for (const module of modules) await import(module)
   assert.ok(

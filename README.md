@@ -5,7 +5,7 @@
 
 ![Title card](docs/screenshots/title.png)
 
-Grand Theft Auto: Lunigiana is an open-world car-theft game in isometric pixel art, set in Lunigiana, the valley of the Magra between Tuscany and Liguria. You walk village streets, steal parked cars (the Carabinieri’s Alfa Romeo included, from right outside their station), carjack traffic and run people down, on a map built from survey data of the real places. As many people are out as live nearby, so the village centres are busy and the country roads empty: villagers of every age walk alone, in couples, with their kids or a dog, stop to chat, glare at a speeding car, jump out of its way and are shocked by a death, while cats and dogs roam the villages and cows and pigs the farms. The isometric camera turns a quarter at a time on foot, follows the car while you drive so the road ahead is always up the screen, and renders at low resolution for a pixel-art look. A game day lasts 24 minutes under the real sun and moon, and the weather follows Italy’s climate at the map’s latitude and height, drawn day by day from national statistics: rain wets the roads, snow whitens the mountains, and both cost grip.
+Grand Theft Auto: Lunigiana is an open-world car-theft game in isometric pixel art, set in Lunigiana, the valley of the Magra between Tuscany and Liguria. You walk village streets, steal parked cars (the Carabinieri’s Alfa Romeo included, from right outside their station), carjack traffic and run people down, on a map built from survey data of the real places. As many people are out as live nearby, so the village centres are busy and the country roads empty: villagers of every age walk alone, in couples, with their kids or a dog, stop to chat, glare at a speeding car, jump out of its way and are shocked by a death, while cats and dogs roam the villages and cows and pigs the farms. Trains run the real railway up the valley: an ATR 220 in Trenitalia’s regional livery calls at every station, level crossings ring, lower their barriers and hold the traffic for it, and you can climb into its cab and steal it too. The isometric camera turns a quarter at a time on foot, follows the car or the train while you drive so the way ahead is always up the screen, and renders at low resolution for a pixel-art look. A game day lasts 24 minutes under the real sun and moon, and the weather follows Italy’s climate at the map’s latitude and height, drawn day by day from national statistics: rain wets the roads, snow whitens the mountains, and both cost grip.
 
 The game will cover all of Lunigiana, from the beaches at the mouth of the Magra to the Apennine ridge. Today the playable map is one valley of it, the [Valle del Lucido](#the-playable-map-today-the-valle-del-lucido).
 
@@ -66,7 +66,7 @@ The playable map covers the whole valley, ridge to ridge: 7.8 × 10 km, from Gra
 - **The Apuan ridge**: Pizzo d’Uccello’s north face, the Garnerone, Foce di Vinca, Monte Sagro and Monte Borla, with the white marble quarries of the Sagro basin
 - **Hamlets and back roads**: Aiola, Mezzana, Codiponte and Casciana, with the woods, streams and hairpins in between
 
-Roads, rivers, the railway, woods and place names come from OpenStreetMap. Buildings (with their surveyed eave heights), road widths and surfaces come from Regione Toscana’s 1:2000 technical map (2019), the terrain from its 1 m LiDAR surveys (2010 and 2012), and the bare rock, pastures and quarries from its land-cover map (2019).
+Roads, rivers, woods and place names come from OpenStreetMap, and so does the railway, moved onto the surveyed track centrelines of Regione Toscana’s 1:2000 technical map (2019). That map also gives the buildings (with their surveyed eave heights), road widths and surfaces, the station platforms, and the old sidings and Gragnola’s loop as they lie; the terrain comes from Regione Toscana’s 1 m LiDAR surveys (2010 and 2012), and the bare rock, pastures and quarries from its land-cover map (2019).
 
 ## Screenshots of the Valle del Lucido
 
@@ -106,7 +106,7 @@ pnpm dev
 
 Then open `http://localhost:5173`. The server listens on the local network too, so a phone or another computer on the same network can play: open the `Network` address that Vite prints. Anyone on that network can reach it, so stop it on a shared network you don't trust. Every load is a new world, starting on today’s date at 08:00 Rome time once you dismiss the title card. Add `?seed=N` (for example `http://localhost:5173/?seed=42`) to replay the same world: the seed drives every random choice, so the same seed and the same keys give the same game.
 
-In dev mode, the backslash key toggles the Ritmo monitor, P toggles the debug menu, and `http://localhost:5173/lab.html` opens the audio audition page: every sound on a button, its params on sliders, heard from a distance you pick (see [docs/audio.md](docs/audio.md#the-audition-page)). The debug menu sets the time (stop the clock or run it 10 or 60 times faster, pick the time of day and the date, jump to sunrise or sunset), the weather (leave it to the day’s plan or force a regime, settled at once if you like, with this month’s odds and the weather seed read out) and the vehicle handling. The handling knobs it changes stay for the next load; the time and the weather do not (see [docs/weather.md](docs/weather.md#the-hud-and-the-dev-menu)).
+In dev mode, the backslash key toggles the Ritmo monitor, P toggles the debug menu, and `http://localhost:5173/lab.html` opens the audio audition page: every sound on a button, its params on sliders, heard from a distance you pick (see [docs/audio.md](docs/audio.md#the-audition-page)). The debug menu sets the time (stop the clock or run it 10 or 60 times faster, pick the time of day and the date, jump to sunrise or sunset), the weather (leave it to the day’s plan or force a regime, settled at once if you like, with this month’s odds and the weather seed read out) and the vehicle handling, and shows the trains: each line’s next train, each train and who drives it, and each level crossing’s arms, light and bell, with a button that calls a train onto every line no AI train runs on. The handling knobs it changes stay for the next load; the time and the weather do not (see [docs/weather.md](docs/weather.md#the-hud-and-the-dev-menu)).
 
 ## Controls on foot and driving
 
@@ -114,21 +114,21 @@ The same keys walk and drive; the table shows what each does in both modes:
 
 | Key | On foot | Driving |
 |---|---|---|
-| W A S D or arrow keys | walk along the screen directions; in a river, wade or swim | up: throttle, down: brake and reverse, left/right: steer |
+| W A S D or arrow keys | walk along the screen directions; in a river, wade or swim | up: throttle, down: brake and reverse, left/right: steer; in a train up and down drive toward and away from the cab’s way, against the motion they brake, and it backs up at 30 km/h at most |
 | Shift | sprint; swimming, a hard crawl | |
-| F or Enter | enter the nearest vehicle (steal, enter or carjack) | get out |
+| F or Enter | enter the nearest vehicle (steal, enter or carjack), or a train at a cab door when it is all but stopped | get out (from a train, only at a stand at grade) |
 | Q / E | turn the view a quarter left / right | nothing: the view follows the car |
-| Space | | handbrake |
-| H | | horn while held; in the Carabinieri car, siren on or off |
+| Space | | handbrake (in a train, the emergency brake) |
+| H | | horn while held; in the Carabinieri car, siren on or off; in a train, the train horn while held |
 | M | full map (pauses the game); M, Esc or a click closes it | same |
 | Esc | settings, which pause the game: the vehicle physics (Simulation, Balanced or Arcade; a new game starts on Balanced); Esc or Resume closes them. With the full map open, Esc closes the map instead | same |
-| P (dev builds only) | debug menu: the time of day, the clock’s speed and the date, the weather, and the vehicle physics presets and handling knobs for every vehicle at once; P closes it, and so does Esc while it has the focus | same |
+| P (dev builds only) | debug menu: the time of day, the clock’s speed and the date, the weather, the vehicle physics presets and handling knobs for every vehicle at once, and the trains and level crossings; P closes it, and so does Esc while it has the focus | same |
 
 Crashes wear vehicles out, the truck far less than a small car: a damaged engine pulls weaker and misfires, smokes white, then black, and once destroyed it burns and nobody can drive it again. 5–10 s later it explodes: the blast wrecks the cars beside it, which catch fire in turn, and kills the people nearby, you too if you are still inside or standing next to it; you come back on foot at the start 4 s later ([docs/gameplay.md](docs/gameplay.md#damage)).
 
 The rivers rise in a storm and fall back over the following days. Shallow water slows you; deep or fast water lifts you off your feet and the current carries you downstream until you swim out, but you never drown. A flood floats parked cars off, and water over a car's air intake stalls its engine ([docs/water.md](docs/water.md)).
 
-The bindings live in `bindings` in `src/sim/schema.ts`. The HUD shows the street and district you’re in, the time in Rome (HH:MM) with the weather and the temperature where you stand (for example “Rain · 9 °C”), cars stolen, people hit, the action the key would take, a speedometer while driving, a minimap, and “Sei morto” when you are killed. On screens 600 px wide or narrower the clock sits under the score. M, or a click on the minimap, opens the full map: the whole area north-up with the villages, hamlets and main peaks named and your position marked.
+The bindings live in `bindings` in `src/sim/schema.ts`. The HUD shows the street and district you’re in, the time in Rome (HH:MM) with the weather and the temperature where you stand (for example “Rain · 9 °C”), the action the key would take, a speedometer while driving, a minimap, and “Sei morto” when you are killed. On screens 600 px wide or narrower the clock moves to the top-right corner. M, or a click on the minimap, opens the full map: the whole area north-up with the villages, hamlets and main peaks named and your position marked.
 
 ### Touch controls on a phone or tablet
 
@@ -137,19 +137,19 @@ Where a touch screen is the main pointer, the game runs in mobile mode: the cont
 | Control | On foot | Driving |
 |---|---|---|
 | Stick: a thumb on the left half | walk along the screen directions | |
-| ◀ / ▶ on the left | | steer left / right |
+| ◀ / ▶ on the left | | steer left / right; hidden in a train, which has no steering |
 | Gas / Brake on the right | | throttle / brake, then reverse |
 | Run | sprint; swimming, a hard crawl | |
 | Steal, Enter, Carjack or Exit (shown only when it would act) | enter the nearest vehicle | get out |
 | ↺ / ↻ | turn the view a quarter left / right | hidden: the view follows the car |
-| Hand brake | | handbrake |
-| Horn | | horn while held; in the Carabinieri car, siren on or off |
+| Hand brake | | handbrake (in a train, the emergency brake) |
+| Horn | | horn while held; in the Carabinieri car, siren on or off; in a train, the train horn while held |
 | A tap on the minimap | full map (pauses the game); a tap closes it | same |
 | II, top right | settings (pauses the game); Resume closes them | same |
 
 ## How the game sounds
 
-The browser synthesises every sound with Web Audio, with no sample files: engines voiced from how each is built and revved by the drive simulation (rough, knocking and misfiring once crashes wear them), wrecks burning and then exploding, tyres that squeal when they skid, horns and the Carabinieri siren, crashes, footsteps, people chatting in Italian-sounding gibberish with a real word now and then (the way The Sims talk) and crying out in real Italian, cows, pigs, cats and dogs, wind, rain on the ground and on the car’s roof, thunder, crickets in warm, dry air, birds by day and the owl at night, the village church bells striking the game’s hours, and the Lucido and its streams.
+The browser synthesises every sound with Web Audio, with no sample files: engines voiced from how each is built and revved by the drive simulation (rough, knocking and misfiring once crashes wear them), trains (their diesel power packs, the wheels clacking over the rail joints, squealing brakes and the horn) and the level crossings’ bells, wrecks burning and then exploding, tyres that squeal when they skid, horns and the Carabinieri siren, crashes, footsteps, people chatting in Italian-sounding gibberish with a real word now and then (the way The Sims talk) and crying out in real Italian, cows, pigs, cats and dogs, wind, rain on the ground and on the car’s roof, thunder, crickets in warm, dry air, birds by day and the owl at night, the village church bells striking the game’s hours, and the Lucido and its streams.
 
 Each sound reaches you through outdoor acoustics. It fades with distance and under the background noise, so you hear only what’s near. Houses and hills muffle it, the air dulls it, its pitch shifts as it passes, far crashes arrive late, and loud ones echo off the slopes.
 
@@ -172,7 +172,7 @@ Every script runs with `pnpm`:
 | `pnpm test` | `node --test` over `src/**/*.test.ts` and `lint/**/*.test.ts`, each in a `__tests__` folder beside the module it tests |
 | `pnpm map` | rebuilds `src/sim/map/monzone.bin` from `data/raw` |
 | `pnpm fetch-osm` | downloads the OpenStreetMap extract again into `data/raw/lunigiana.osm.gz` |
-| `pnpm fetch-rt` | downloads the Regione Toscana sources again into `data/raw/rt` |
+| `pnpm fetch-rt` | downloads the Regione Toscana sources again into `data/raw/rt`; `pnpm fetch-rt ctr` only the CTR sheets, leaving the LiDAR and the land cover as they are |
 
 ## Repository layout
 
@@ -182,14 +182,15 @@ The simulation, the browser hosts and the map tools live in separate folders:
 |---|---|
 | `src/sim/` | the simulation: Ritmo schema, systems, collision, routes, drive physics (chassis, tyres, drivetrain, the arcade assists), crash damage, the handling knobs and presets, the animal species, tuning. Headless and deterministic |
 | `src/sim/sky/` | the game clock and Rome’s calendar, the map’s place, the sun and the moon, the national climate model and its daily odds, the day plan, the weather regimes and what the weather is at a point (temperature, rain and snow, wet and snowy ground, fog, wind) |
+| `src/sim/rail/` | the railway: its lines from the map, the ATR 220 and its dynamics, the cars on their bogies, level crossings, the AI train drivers and the dispatcher, boarding and driving a train (its SCMT and buffer stops, trains meeting), and the world around the trains: traffic at the crossings, what people and animals make of them, what a train strikes |
 | `src/sim/water/` | the rivers: their flow from the weather's rain, their depth and current along each reach, and people and animals wading and swimming in them |
-| `src/sim/systems/` | one file per system group (spawn, enter/exit, foot, drive, traffic, pedestrians, perception and reactions, animals, physics, contacts, damage, explosions, populate, populate animals, sky, water) |
+| `src/sim/systems/` | one file per system group (spawn, enter/exit, foot, footing, drive, traffic, pedestrians, perception and reactions, animals, their frights, physics, contacts, damage, explosions, populate, populate animals, sky, water) |
 | `src/sim/population/` | who lives where and who goes out: residents from the buildings, people's looks, parties, farms |
 | `src/sim/map/` | the generated map (`monzone.bin`), its decoder, types and lookups (heights, walls, road graph, ground elevation, surfaces, land cover) |
-| `src/render/` | Three.js host code: pixel pipeline, static world meshes, people, animal and vehicle models, blood pools, tyre marks and smoke, damaged engines' smoke and fire, explosions and charred wrecks, the render schedule; `sky/` lights the day and the night and draws the weather (fog, snow, wet ground, cloud shadows, rain and snow, lightning, street lamps, lit windows, headlights) |
-| `src/audio/` | Web Audio host code: the audio schedule, the acoustics director (vehicles, people, conversations, animals, the valley, the time of day, the weather and the thunder), the speaker and mixer, the synths, the audition page |
+| `src/render/` | Three.js host code: pixel pipeline, static world meshes (the railway's track, crossings, tunnel portals and stations among them), people, animal and vehicle models, the trains (the ATR 220 in DPR livery) and the level crossings' arms and lights, blood pools, tyre marks and smoke, damaged engines' smoke and fire, explosions and charred wrecks, the render schedule; `sky/` lights the day and the night and draws the weather (fog, snow, wet ground, cloud shadows, rain and snow, lightning, street and platform lamps, lit windows, headlights) |
+| `src/audio/` | Web Audio host code: the audio schedule, the acoustics director (vehicles, trains and level crossings, people, conversations, animals, the valley, the time of day, the weather and the thunder), the speaker and mixer, the synths, the audition page |
 | `src/audio/speech/` | the Italian-sounding speech: what people say, and a formant synthesiser that voices it |
-| `src/hud/` | DOM HUD: the title card as loading screen, location names, the clock and weather readout, score, prompt, the “Sei morto” card when the player is killed, speedometer, minimap, full map (M), touch controls (mobile mode), settings (Esc) with the vehicle physics, and the dev-only debug menu (P) for the time, the weather and the vehicle handling; the settings and the menu set the handling through one store, the menu the sky through another |
+| `src/hud/` | DOM HUD: the title card as loading screen, location names, the clock and weather readout, prompt, the “Sei morto” card when the player is killed, speedometer, minimap, full map (M), touch controls (mobile mode), settings (Esc) with the vehicle physics, and the dev-only debug menu (P) for the time, the weather, the vehicle handling and the trains; the settings and the menu set the handling through one store, the menu the sky through another and calls trains through a third |
 | `src/tools/` | the map pipeline (`build-map.ts`), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`) and a top-down preview renderer |
 | `src/boot.ts` | browser entry: downloads the map with progress, then imports the game |
 | `src/main.ts` | browser host: builds the scene, makes the runtime, runs the fixed loop |
@@ -214,7 +215,7 @@ The inputs in `data/raw` are:
 
 - `lunigiana.osm.gz`: an OpenStreetMap API 0.6 extract of the play area plus 100 m (lat 44.1060–44.1977, lon 10.0925–10.1925), written by `pnpm fetch-osm` (`src/tools/fetch-osm.ts`) from 4 × 4 `https://api.openstreetmap.org/api/0.6/map?bbox=…` tiles. It fetches every land-use, natural, building, leisure or amenity multipolygon whole with `https://api.openstreetmap.org/api/0.6/relation/<id>/full`, because most of a forest’s member ways lie outside the play area. It merges the elements by id and sorts them, so the same OSM data always gives the same file.
 - `rt/`: Regione Toscana data from the Geoscopio cartoteca, written by `pnpm fetch-rt` (`src/tools/fetch-rt.ts`, which needs `unzip`; the download URLs are pinned there):
-  - `ctr/<sheet>_<layer>.shp.gz` + `.dbf.gz`: CTR 1:2000 (2019), the 25 sheets that map ground in the play area (23D11–15, 23D18–21, 23D26–31, 23D34–37, 23D43, 23D46, 23D47, 23D53–55), layers `AED` (buildings with eave elevations), `AGE` (garages, ruins), `AVI` (road surfaces with street names) and `AZR` (the area each sheet maps).
+  - `ctr/<sheet>_<layer>.shp.gz` + `.dbf.gz`: CTR 1:2000 (2019), the 25 sheets that map ground in the play area (23D11–15, 23D18–21, 23D26–31, 23D34–37, 23D43, 23D46, 23D47, 23D53–55), layers `AED` (buildings with eave elevations), `AGE` (garages, ruins, station platforms, level crossings), `AVI` (road surfaces with street names), `AZR` (the area each sheet maps), and in the 9 sheets the railway crosses `AFE` (the ballast bed, with its bridge and tunnel spans) and `VLI` cut down to its railway track centrelines (code 0117).
   - `dtm.bin` + `dtm.json`: the 1 m LiDAR terrain model, 46 tiles of the 2010 flight and 19 of the 2012 flight (Monte Sagro and the Carrara side), mosaicked, cropped to the play area plus 32 m and averaged to 2 m cells. The 0.65 km² no flight covers come from the 10 m DTM.
   - `ucs.json.gz`: the land cover 1:10 000 (2019) polygons the build uses (quarries, bare rock, sparse vegetation, pastures, heath), from the Regione Toscana WFS.
 

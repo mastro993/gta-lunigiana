@@ -3,6 +3,7 @@ import { Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { offBody } from "../body.ts"
 import { afterHit, destroyed } from "../damage.ts"
+import { atGrade, footZ } from "../map/ground.ts"
 import { MAP } from "../map/index.ts"
 import {
   CarInput,
@@ -12,6 +13,7 @@ import {
   Down,
   Driving,
   Explosion,
+  Footing,
   Game,
   Motion,
   Pedestrian,
@@ -109,7 +111,10 @@ export const Explode = Game.System(
       time: Game.System.thisTick(Game.System.readResource(Time)),
     },
     events: { explosion: Game.System.writeEvent(Explosion) },
-    commands: Game.System.commands(Game.System.inserts(Down, Dead), Game.System.removes(Driving)),
+    commands: Game.System.commands(
+      Game.System.inserts(Down, Dead, Footing),
+      Game.System.removes(Driving),
+    ),
   },
   ({ queries, resources, events, commands }) => {
     const { step } = resources.time.get()
@@ -200,7 +205,14 @@ export const Explode = Game.System(
         // Nobody's foot on the pedals any more: the shell is left on its handbrake, as when the player gets out.
         car.data.input.set({ throttle: 0, steer: 0, handbrake: true })
         commands.remove(entity, Driving)
-        commands.insert(entity, [Down, { until: step }], [Dead, { since: step }])
+        // On the ground beside the wreck, on the level its wheels stood on.
+        const wheels = car.data.chassis.get().z - VEHICLES[model].cg
+        commands.insert(
+          entity,
+          [Down, { until: step }],
+          [Dead, { since: step }],
+          [Footing, { z: footZ(out.x, out.y, wheels) }],
+        )
       }
       // Walkers who heard it run.
       for (const { entity, data } of queries.walkers.each()) {
@@ -219,7 +231,7 @@ export const Explode = Game.System(
   },
 )
 
-/** The dead player comes back on foot at the start (where a new game begins) once `WASTED` has passed. */
+/** The dead player comes back on foot at the start (where a new game begins), on the ground there, once `WASTED` has passed. */
 export const Respawn = Game.System(
   "Lunigiana/Respawn",
   {
@@ -235,7 +247,7 @@ export const Respawn = Game.System(
       }),
     },
     resources: { time: Game.System.thisTick(Game.System.readResource(Time)) },
-    commands: Game.System.commands(Game.System.removes(Dead, Down)),
+    commands: Game.System.commands(Game.System.removes(Dead, Down), Game.System.inserts(Footing)),
   },
   ({ queries, resources, commands }) => {
     const { step } = resources.time.get()
@@ -246,6 +258,7 @@ export const Respawn = Game.System(
       data.prev.set(start)
       data.motion.set({ vx: 0, vy: 0, spin: 0 })
       commands.remove(entity, Dead, Down)
+      commands.insert(entity, [Footing, { z: atGrade(start.x, start.y) }])
     }
   },
 )

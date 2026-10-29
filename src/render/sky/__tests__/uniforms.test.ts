@@ -2,13 +2,24 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { CUT_UNIFORMS } from "../../see-through.ts"
-import { glowMaterial, vehicleLampMaterials } from "../glow.ts"
+import {
+  cabinLightMaterial,
+  glowMaterial,
+  signalLampMaterials,
+  vehicleLampMaterials,
+} from "../glow.ts"
 import { Precipitation } from "../precipitation.ts"
 import { NOON } from "../testing.ts"
 import { applyFrame, phaseLocked, SKY_UNIFORMS, TIME_WRAP } from "../uniforms.ts"
 
 test("the glow and lamp materials hold the shared uniform cells themselves, so one write per frame reaches every program", () => {
-  for (const material of [glowMaterial, vehicleLampMaterials.on, vehicleLampMaterials.off]) {
+  const lamps = [
+    vehicleLampMaterials.on,
+    vehicleLampMaterials.off,
+    signalLampMaterials.on,
+    signalLampMaterials.off,
+  ]
+  for (const material of [glowMaterial, cabinLightMaterial, ...lamps]) {
     assert.equal(material.uniforms["uLamps"], SKY_UNIFORMS.uLamps)
     assert.equal(material.uniforms["uAmbient"], SKY_UNIFORMS.uAmbient)
     assert.equal(
@@ -29,11 +40,52 @@ test("the glow and lamp materials hold the shared uniform cells themselves, so o
     vehicleLampMaterials.off.uniforms["uOn"],
     "on and off differ only in their own switch",
   )
-  assert.equal(vehicleLampMaterials.on.vertexShader, vehicleLampMaterials.off.vertexShader)
-  assert.equal(
+  for (const material of [...lamps, cabinLightMaterial]) {
+    assert.equal(material.vertexShader, vehicleLampMaterials.on.vertexShader)
+    assert.equal(
+      material.fragmentShader,
+      vehicleLampMaterials.on.fragmentShader,
+      "one program for every lamp, a vehicle's, a signal's or a train's windows",
+    )
+  }
+  assert.match(
     vehicleLampMaterials.on.fragmentShader,
-    vehicleLampMaterials.off.fragmentShader,
-    "one program for both",
+    /uOn \* max\(uLamps, uDay\)/,
+    "a lamp shines with the night's lamps or its own day term",
+  )
+  assert.deepEqual(
+    lamps.map((m) => [Number(m.uniforms["uOn"]!.value), Number(m.uniforms["uDay"]!.value)]),
+    [
+      [1, 0],
+      [0, 0],
+      [1, 1],
+      [0, 1],
+    ],
+    "a car's lamps shine only at night, a train's and a crossing's by day too",
+  )
+  // Regression: an unlit signal lamp kept the lit one's painted day look, so by day a train showed white
+  // and red dots at both ends and only their brightness told its direction.
+  const paint = (m: (typeof lamps)[number]) => Number(m.uniforms["uPaint"]!.value)
+  assert.match(vehicleLampMaterials.on.fragmentShader, /uAmbient \* uPaint \+/)
+  assert.equal(
+    paint(vehicleLampMaterials.on),
+    paint(vehicleLampMaterials.off),
+    "a car's keeps its paint",
+  )
+  assert.equal(paint(signalLampMaterials.on), paint(vehicleLampMaterials.on))
+  assert.ok(
+    paint(signalLampMaterials.off) <= paint(signalLampMaterials.on) / 2,
+    "an unlit signal lamp is dark glass by day",
+  )
+  assert.match(
+    vehicleLampMaterials.on.fragmentShader,
+    /if \(uPane > 0\.5 && uLamps < [0-9.]+\) discard;/,
+    "a lamp marked for the night only is not drawn by day",
+  )
+  assert.deepEqual(
+    [...lamps, cabinLightMaterial].map((m) => Number(m.uniforms["uPane"]!.value)),
+    [0, 0, 0, 0, 1],
+    "only a train's windows are hidden by day, as a house's panes are: every lamp still shows its day look",
   )
 })
 

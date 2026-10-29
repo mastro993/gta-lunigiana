@@ -7,6 +7,7 @@ import { FAUNA } from "../fauna.ts"
 import { peopledIndex, residentsAlong, residentsNear } from "../population/density.ts"
 import { indoors } from "../population/farms.ts"
 import { type Follower, randomParty } from "../population/parties.ts"
+import { nearCrossing } from "../rail/roads.ts"
 import {
   allowsModel,
   cruiseSpeed,
@@ -57,8 +58,9 @@ import { GIVE_UP_TRIES, LOST } from "./traffic.ts"
 
 const PERIOD = Clock.duration(STEP, 0.5)
 /**
- * Traffic: at most this many alive (all within `despawn` m of the player), spawned `spawn` m away, `spacing` m apart,
- * despawned beyond `despawn` m (or beyond `unseen` m, out of view, when lost off the road or given up unsticking).
+ * Traffic: at most this many alive (all within `despawn` m of the player), spawned `spawn` m away, `spacing` m apart and never
+ * within `SPAWN_CLEAR` m of a level crossing (rail/roads.ts), despawned beyond `despawn` m (or beyond `unseen` m, out of view,
+ * when lost off the road or given up unsticking).
  */
 export const TRAFFIC = {
   max: 10,
@@ -218,6 +220,19 @@ const placeParties = (
 }
 
 /** A random traffic model for `edge` (panda 75%, ape 15%, truck 10%), falling back to smaller ones that fit; undefined if none does. */
+/**
+ * Whether a traffic car of `model` may be brought out at `pose`, the vehicles `taken` standing about: `TRAFFIC.spacing` m from each,
+ * clear of walls, and not by a level crossing, where it could stand on the box. A spot is drawn first and then turned down.
+ */
+export const roomFor = (
+  model: VehicleModel,
+  pose: PoseValue,
+  taken: ReadonlyArray<{ readonly x: number; readonly y: number }>,
+): boolean =>
+  !taken.some((p) => Vec2.distanceSquared(p, pose) < TRAFFIC.spacing ** 2) &&
+  carClear(model, pose) &&
+  !nearCrossing(pose.x, pose.y)
+
 const pickModel = (random: Random.Random, edge: number): VehicleModel | undefined => {
   const roll = random.next()
   const choices: ReadonlyArray<VehicleModel> = [
@@ -339,11 +354,7 @@ export const Populate = Game.System(
           ...lanePoint(lane, lane.length / 2, side),
           angle: Ops.atan2(lane.dy, lane.dx),
         }
-        if (
-          taken.some((p) => Vec2.distanceSquared(p, pose) < TRAFFIC.spacing ** 2) ||
-          !carClear(model, pose)
-        )
-          continue
+        if (!roomFor(model, pose, taken)) continue
         const next = nextTrafficEdge(endNode(edge, forward), edge, model, random)
         commands.spawn(
           trafficCar(

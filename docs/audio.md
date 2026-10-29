@@ -1,37 +1,42 @@
 # Audio
 
 Every sound in the game is synthesised at run time with Web Audio; there are no sample files.
-Vehicles, people (their steps, and their chatter and cries in Italian-sounding speech), animals,
-the wind, the rain, thunder, crickets, songbirds and owls, farm dogs, church bells and running
-water all make sound, and each one reaches the player's ears through a model of outdoor acoustics.
-A sound gets quieter and duller with distance, is muffled by houses, hills, woods and snow, shifts
-in pitch when it moves, arrives late from far away, and fades out under the background noise. That
-last step is what lets the player hear only what is near. The valley sounds as the game's clock
-and weather say: still at night, roaring in a downpour, hushed under snow.
+Vehicles, trains and the level crossings' bells, people (their steps, and their chatter and cries in
+Italian-sounding speech), animals, the wind, the rain, thunder, crickets, songbirds and owls, farm
+dogs, church bells and running water all make sound, and each one reaches the player's ears through
+a model of outdoor acoustics. A sound gets quieter and duller with distance, is muffled by houses,
+hills, woods and snow, shifts in pitch when it moves, arrives late from far away, and fades out
+under the background noise. That last step is what lets the player hear only what is near. The
+valley sounds as the game's clock and weather say: still at night, roaring in a downpour, hushed
+under snow.
 
 Audio is host code beside render and the HUD (`src/audio`). The simulation never imports it; the
-audio reads six of its events (`Impact`, `Skid`, `Honk`, `Cry`, `Lightning`, `Explosion`), its
-components, the game clock and the weather. No sound has a gameplay effect.
+audio reads seven of its events (`Impact`, `Skid`, `Honk`, `Cry`, `Lightning`, `Explosion`,
+`Whistle`), its components, the level crossings' cycle, the game clock and the weather. No sound
+has a gameplay effect.
 
 ## Data flow
 
 ```
-VehiclePhysics, Contacts ──Impact──┐
+VehiclePhysics, Contacts,
+TrainPhysics, TrainContacts Impact─┐
 VehiclePhysics ─────────────Skid───┤
 TrafficAI ──────────────────Honk───┤
 Perceive, Animals, Startle ──Cry───┤
 AdvanceWeather ────────Lightning───┤
 Explode ───────────────Explosion───┤
+TrainAI ─────────────────Whistle───┤
 components, Time, GameClock,       │
-Weather, Input (horn) ─────────────┴─► audio schedule (Lunigiana/Hear) ──Heard──► director
+LevelCrossings, Weather,           │
+Input (horn) ──────────────────────┴─► audio schedule (Lunigiana/Hear) ──Heard──► director
                                                                                      │
                                  hold / play / stop / flush, each with a Placement   │
                                                                                      ▼
           speakers ◄── mixer (reverb, limiter) ◄── emitters ◄── synths ◄── Speaker (Web Audio)
 ```
 
-1. **Simulation events** (`src/sim/schema.ts`). Six events carry moments; only `Impact` and `Honk`
-   leave a trace in the world's state: the damage an impact does (`CrashDamage`,
+1. **Simulation events** (`src/sim/schema.ts`). Seven events carry moments; only `Impact`, `Honk`
+   and `Whistle` leave a trace in the world's state: the damage an impact does (`CrashDamage`,
    [gameplay.md](gameplay.md#damage)), and the moods both set in the people and animals around
    (`Perceive`, `Startle`, `Animals`, [gameplay.md](gameplay.md#reactions)):
    - `Impact` (`hit`, `x`, `y`, `speed`, `mass`, `car`, `other?`, `face?`, `fatal?`): a vehicle
@@ -55,7 +60,12 @@ Weather, Input (horn) ─────────────┴─► audio sch
      kills (`fatal`): the car's speed before a pin stops it, the car's mass, at the body; `animal`
      for a cow it closes on faster than 3 m/s, at the closing speed; and `wall` when a person or a
      light animal pinned against a wall stops a car faster than 3 m/s, as fast as it was going into
-     them, at the wall behind them.
+     them, at the wall behind them. Trains strike too ([gameplay.md](gameplay.md#trains)):
+     `TrainContacts` emits `train` when a vehicle and a train meet faster than 3 m/s (`car` the
+     vehicle, `other` the train, `fatal` when it wrecks the vehicle), and `person` or `animal` with
+     the train as `car`; `TrainPhysics` emits `train` when two trains meet (`car` the striking one,
+     `other` the struck one, the reduced mass) and `wall` when the player's train strikes its
+     buffer stop (the train as `car`, 108 t).
    - `Skid` (`car`, `wheel`, `x`, `y`, `z`, `slip`, `amount`, `surface`, `snow`, `step`): a tyre
      slid this step, sideways past its grip, spinning or locked: `slip` its sliding speed in m/s,
      `amount` 0…1 how far past its grip (0.25 an ABS stop at the limit, 1 sliding, locked or
@@ -75,14 +85,19 @@ Weather, Input (horn) ─────────────┴─► audio sch
    - `Explosion` (`car`, `model`, `x`, `y`, `z`): `Explode` emits it once when a burning wreck blows
      up, 5–10 s after it caught fire, at its centre of mass (`z` m a.s.l.); the wreck is left a
      charred shell (`Damage.exploded`) that burns no more.
+   - `Whistle` (`train`, `x`, `y`, `urgent`): `TrainAI` emits it when an AI train sounds its horn at
+     its nose: once, 30 m before it enters a tunnel 200 m long or more, or, `urgent`, while it is
+     held by something on the track: on taking the hold and every 2 s after, however often it is
+     held again, so no two alarms (1.6 s each) overlap ([gameplay.md](gameplay.md#trains)).
    - The `horn` binding (H) is read only by the audio schedule.
 
-   Events are not saved: snapshots hold components and resources only. `CrashDamage`, `Perceive`
-   and `Startle` read each `Impact`, and `Perceive` and `Animals` each `Honk`, in the step it is
-   emitted, so neither determinism nor saves lose one (both tests run with the events emitted, a
-   crash included).
+   Events are not saved: snapshots hold components and resources only. `CrashDamage`, `Perceive` and
+   `Startle` read each `Impact`, and `Perceive` and `Animals` each `Honk` and `Whistle`, in the step
+   it is emitted, so neither determinism nor saves lose one (both tests run with the events emitted,
+   a crash included).
 2. **The audio schedule** (`src/audio/index.ts`): one system, `Lunigiana/Hear`, ticked once per
-   animation frame. It reads the world and builds one `Heard` (`src/audio/types.ts`):
+   animation frame. It reads the world and builds one `Heard` (`src/audio/types.ts`, its trains
+   and crossings in `src/audio/rail-types.ts`):
    - `listener`: the player's pose and velocity, the vehicle they sit in, and the view's yaw, which
      the stereo image turns with: the `View` resource's quarter turns on foot, the yaw that puts the
      car's heading up the screen (`followYaw`) driving;
@@ -110,9 +125,22 @@ Weather, Input (horn) ─────────────┴─► audio sch
      partner);
    - `animals`: every animal: species, position, velocity, size, its `Roam` mood, knocked down,
      dead;
-   - `happenings`: the `Impact`, `Honk`, `Cry`, `Lightning` and `Explosion` events since its last
-     run, in that order. A flash carries `x`, `y`, `bolt`, `power` and `seed`; an explosion its
-     wreck and the point it blew up at (`car`, `x`, `y`, `z`). Each impact
+   - `trains` (`src/audio/rail.ts`): every train, running or standing (its engines idle): its line,
+     its active cab's nose `s`, its speed toward +s and the way that cab faces, its cars from that
+     cab back (`carsOf` at its `s`: each car's middle on the track with the rail head's z, its
+     heading, length, its middle's s and whether it stands in a tunnel), its power packs' revs and
+     load (`trainRevs`: through the hydrodynamic transmission the engine idles with the power off
+     and runs up to its rated 1800 rpm at full power, the load the power's share), its brakes
+     (0…1 of the emergency rate), the rail head at the active cab's driver's place (`cabOf`) and
+     whether the player drives it;
+   - `crossings`: every road's level crossing (`CROSSINGS`; a foot crossing has no bell), how far
+     its nearest arm's post is from its centre (`posts`), and whether its bell rings now
+     (`crossingAt` at the `Time` step: from the warning until the arms are down);
+   - `happenings`: the `Impact`, `Honk`, `Cry`, `Lightning`, `Explosion` and `Whistle` events since
+     its last run, in that order. A flash carries `x`, `y`, `bolt`, `power` and `seed`; an
+     explosion its wreck and the point it blew up at (`car`, `x`, `y`, `z`); a whistle its train,
+     where it sounded and the rail head under the train's cab car (`z`: the ground knows no rail
+     decks), and `urgent`. Each impact
      carries the `body` of the vehicle `car` (and `otherBody` of `other`, for a `car` hit): its
      model, and the zone of its L × W box the contact point lies on, by the face it is nearest in
      proportion (front when along/L exceeds |across|/W, rear when −along/L does, else the side: a
@@ -120,7 +148,13 @@ Weather, Input (horn) ─────────────┴─► audio sch
      ground hit's zone is its face's: `under` under, the roof and a side the side (no bumper and
      no airbag, the glass goes), the nose the front, the tail the rear. They come from every
      vehicle, parked ones too (a struck parked car is not in `vehicles`); an impact whose vehicle
-     has despawned since is dropped;
+     has despawned since is dropped. A hit with a train in it is rewritten as bodies the director
+     knows (`railImpact`): a vehicle and a train meeting is the vehicle's own `wall` hit, its
+     `material` the train's steel (`sheet`, until a train's own is judged by ear) and the train its
+     `other`, so the player driving the train hears it as their own hit; a train's own
+     hits (two trains meeting, a hit for each; its buffer stop) are `wall` hits of a heavy steel
+     body (the truck's, on the train's front or rear by the nearer end) on steel; a person or an
+     animal it strikes is a hit with no `body` (the director never reads one there);
    - `horn`: whether the horn key is held;
    - `sky` (`skyAt` from the `GameClock`): the game time in Unix UTC seconds, the Rome calendar day
      (days since 1 January 1970 there), the hour and minute there, and the sun's elevation over the
@@ -135,19 +169,20 @@ Weather, Input (horn) ─────────────┴─► audio sch
 3. **The director** (`src/audio/director`) is the `Audio` service: plain TypeScript, tested in
    Node. Each frame (`index.ts`) it:
    - places the ears 1.6 m above the ground under the listener (a bridge deck, not the river under
-     it), or in a car 1.6 m above the level it stands on (`Chassis.z` − `cg`, so they fly with it),
-     and notes the cabin around them;
+     it), in a car 1.6 m above the level it stands on (`Chassis.z` − `cg`, so they fly with it),
+     or in a train's cab 1.6 m above its floor, 1.2 m over the rail head at the driver's place (on
+     a rail deck 20 m over a valley too, `seatOf`), and notes the cabin around them;
    - works out the weather at the ears with the sim's own `conditionsAt` (at the ground under
      them): the air's temperature, the rain and snow falling (mm/h), the ground's wetness and snow
      cover, the fog ([Day, night and weather](#day-night-and-weather));
    - asks the world part for the masking floor and how enclosed the street is (`world.ts`), and
      every 1 s or 10 m looks up the rock faces that echo;
-   - lets its vehicle (`vehicles.ts`), people (`people.ts`: steps and cries), talk (`talk.ts`:
-     conversations), animal (`animals.ts`), world (`world.ts`) and thunder (`thunder.ts`) parts
-     place their sounds through the acoustic chain (`hearing.ts`);
+   - lets its vehicle (`vehicles.ts`), train and crossing (`rail.ts`), people (`people.ts`: steps
+     and cries), talk (`talk.ts`: conversations), animal (`animals.ts`), world (`world.ts`) and
+     thunder (`thunder.ts`) parts place their sounds through the acoustic chain (`hearing.ts`);
    - plays one-shots at once (with their echoes; the direct sound of a crash at most 8 dB over
-     gain 1, of an explosion 10 and of a thunder 2, `MOST_DB`), and keeps the loudest offered
-     continuous voices of each kind up to its cap (`frame.ts`);
+     gain 1, of an explosion 10, of a thunder or a train's honk 2, `MOST_DB`), and keeps the
+     loudest offered continuous voices of each kind up to its cap (`frame.ts`);
    - re-measures a few stale obstacle paths (`occluder.ts`) and flushes the speaker.
 
    Time is the speaker's clock. Before the AudioContext exists it reads 0 and the frame is not
@@ -193,6 +228,8 @@ Weather, Input (horn) ─────────────┴─► audio sch
     may start, the lines said, a party's burst and whether the last line asked; dropped once the
     pair no longer talks;
   - animals: each animal's last call, and the calls waiting for their frame;
+  - trains: nothing of their own. Each train's rolling voice keeps, per axle, the s up to which its
+    clacks are scheduled (in the voice, `synth/rail.ts`), so each joint clacks once per pass;
   - the valley: the water, farm dogs and owls near the ears (looked up again every 0.25 s or 2 m),
     the eased street, the loudest water heard last frame, each owl's last call, the last bell ring
     (the game's day and hour) and its strokes to come;
@@ -204,7 +241,9 @@ Weather, Input (horn) ─────────────┴─► audio sch
 - **The speaker:** the live voices by key, the one-shots playing, and the kinds muted after a
   failure. The crash, explosion, thunder, speech and animal-call shots keep each render per params
   object (a `WeakMap`), so an echo replays its sound.
-- **Static data** never changes once built. The bells are found at load; the ambience grid, the
+- **Static data** never changes once built. The bells are found at load; each line's switches on
+  the first train heard (`places/track.ts`); the crossing bell's loop is rendered once per context
+  on its first ring (1.287 s of samples, 1.9 ms at 48 kHz in Node); the ambience grid, the
   water reaches, the farm dogs and the owls in the first `hear`, during the audio tick after
   `setup` (≈ 155 ms in Node, ≈ 100 of it the cover raster, which the browser has already built for
   the renderer; the 209 owls take 0.7 ms once the raster exists); the road-surface index on the
@@ -240,7 +279,10 @@ the contact point (a blast at the wreck's centre of mass), a person 1 m (the thu
 an animal too), an animal's mouth (`MOUTH`: a dog 0.5 m, a cat 0.25, a cow 1.3, a pig 0.5), water
 2 m (lifted out of its carved bed), a bell at its tower's top, a bird 6–12 m up a tree, an owl 8 m,
 a farm dog 0.5 m, a thunder where its render starts over the ground under the flash (an in-cloud
-flash's channel about 4 km up, `IN_CLOUD`).
+flash's channel about 4 km up, `IN_CLOUD`). A train's sources stand over its rail head, on a rail
+deck or in a cutting alike: its wheels 0.4 m, its power packs 0.8 m (under the floor), its horn
+3.6 m (on the cab's roof, at the nose); a level crossing's bell 2.5 m over the road at the box's
+centre.
 
 Each class of sound behaves differently:
 
@@ -255,6 +297,9 @@ Each class of sound behaves differently:
 | Thunder | a point aloft, its channel kilometres above every ridge and roof: no ground or snow loss | no | yes, in the director, from its first sound; at once within 40 m | yes | no (through the cabin only) |
 | Wind, rain, crickets | a bed at the ears, centred | no | no | no | no (through the cabin only) |
 | Rain on the roof | at the seat, centred | no | no | no | no, nor the cabin: the roof drums inside |
+| Train voices: engine (a power pack under each end car), rails, brakes, the player's horn | point; the wheels a line along the cars in the open; in a tunnel at its portal | yes | no (continuous) | no | yes, per car, except the player's own train |
+| A train's honk (`trainHonk`) | point at its nose; in a tunnel at its portal | no | past 40 m | yes | yes |
+| A level crossing's bell (`plBell`) | point at the box's centre | yes (the listener's motion) | no (continuous) | no | yes |
 
 ### Point and line sources
 
@@ -265,6 +310,14 @@ Each class of sound behaves differently:
   Lp = 10·log10 Σ 10^(Lw′/10)·θ/(4π·d), with d the distance to each segment's line (at least 1 m)
   and θ the angle it subtends. Close to a long reach that falls 3 dB per doubling; far away, 6.
   Pieces of one named river are one body, heard from its nearest point.
+- **A train's wheels are a line source** too: each car in the open is a segment from its rear end
+  to its front, of Lw′ = 99.9 dB(A) per metre at 130 km/h (`ROLLING`), and the level at the ears
+  is the same exact sum, d counting the ears' height over or under the train (on a deck over the
+  listener, a hill over a cutting), heard from its nearest point. So 10 m abreast the rear car of
+  a passing ATR 220 it rolls 0.4 dB under abreast its middle, where a point at its middle would be
+  6 dB down; and from under a rail bridge 22 m up it plays 2.6 dB over 22 m beside it at grade
+  (less ground effect under a source aloft), where the ground's distance alone made it 13 dB
+  louder.
 - **Water loudness** (`places/water.ts`): each reach's sound power Lw′ comes from the water's
   width (a stand-in for discharge) and its grade smoothed over ±40 m (rapids against calm
   reaches), calibrated at 2 m from the bank: the Torrente Lucido ≈ 70 dB(A) in rapids and ≈ 62 on
@@ -317,6 +370,26 @@ value, and a cutoff matching the tilt):
   its value until a refresh, at most every 150 ms, at most 12 a frame (oldest first), and only if
   someone asked for it since. A source too faint to hear even in the clear is never measured.
 
+### Tunnels
+
+The hill over a tunnel would take only 15 dB off a train in it (one edge, capped), so a train
+1.6 km into the 3.2 km tunnel would rumble through 440 m of rock. Instead a car standing in a
+tunnel (its middle on a tunnel segment) is heard from a portal (`places/track.ts`, from the line's
+`tunnels`): of the two, the one losing least on its way to the ears, its depth along the track
+× 0.1 dB a metre (`TUNNEL_DB`, TUNED: a bore's walls take little) plus its spreading. A source
+deeper than 400 m (`DEEP`) is not heard at all. A power pack and a horn in a tunnel are placed so.
+The wheels are one voice summed from two parts (`rollingOf`): the cars in the open as a line,
+heard from its nearest point, and each car in a tunnel at its own best portal as a point of its
+own length's sound power (Lw′ + 10·log10 of the car's length, 11 dB under at 1 m), its tunnel's
+loss taken. Their energy at the ears adds up, heard from the louder part's place, so the level runs
+on as the cars pass a portal: 20, 40 and 60 m off the line beside each portal of the three short
+tunnels, at 80 km/h and 60 frames a second, the summed level at the ears (before the obstacles on
+the way) steps under 1 dB from frame to frame. Before, the cars
+inside added nothing while one was in the open, and a train wholly inside carried its whole length
+from one portal: its wheels jumped 2.9 dB as its last car went into the 271 m tunnel and fell up to
+15.9 dB as its cab car came out of the 67 m one. The player's own train is heard from its cab
+([Inside a vehicle](#inside-a-vehicle)), in a tunnel too.
+
 ### Doppler
 
 Vehicle voices shift with the motion of both ends: f′/f = (c − v_L·u)/(c − v_S·u), u the unit
@@ -334,7 +407,10 @@ only when its sound arrives, wherever the listener has moved meanwhile ([Thunder
 ### Inside a vehicle
 
 From the driver's seat, outside sounds pass the body's insertion loss: 15 dB and a 1.4 kHz lowpass
-in the closed cabins (Panda, truck, Giulia), 6 dB and 3.5 kHz in the Ape's cab, open at the back.
+in the closed cabins (Panda, truck, Giulia), 6 dB and 3.5 kHz in the Ape's cab, open at the back,
+24 dB and 1.2 kHz in a train's cab (`CABIN.atr220`, TUNED: a sealed cab, quieter than a car's, so
+its own 130 dB horn 2.6 m away on the roof reaches the driver at 97.6 dB(A), near TSI Noise's
+95 dB(A) limit in the cab while the horn sounds).
 Sounds of the player's own car are heard from inside it:
 
 - the engine has its own fixed level (68 dB(A), centred, no Doppler), and its voice switches to
@@ -347,6 +423,23 @@ Sounds of the player's own car are heard from inside it:
 - the rain drums on its roof and windscreen (`roof`), heard from the seat through no cabin, while
   the rain bed outside passes the whole cabin;
 - the tyres, the truck's beeper, the beds and thunder pass the whole cabin.
+
+In a train's cab, the player's own train is heard as a car's own engine is from its seat, at its own
+levels at the ears (`OWN_TRAIN_DB` in `levels.ts`, TUNED): its power pack under the cab's car 66
+dB(A) at its rated revs under full power, its wheels 72 at 130 km/h, its brakes 64, each through the
+mix's compression with no loss within half the cab's car of the ears, falling off with distance down
+the train past that (the far pack 43 m back 13 dB under), panned from where it is, Doppler-free, with
+nothing in the way and no ground effect, and dulled by the cab's 1.2 kHz lowpass (the engine voices
+play outside's tone, `inside` false). Heard instead through the cab's 24 dB as the 97 dB sources
+they are outside, compressed by the mix as such, the cab played 24–25 dB under a car's seat: in the
+game, idling −53.9 dBFS and under power −37.4 to −37.8, its idling engines 13.8 dB under the wind
+bed. Now, seed 1, the output's level over 3 s: the cab idling at Monzone −31.3 dBFS and under full
+power at 9.8 and 15.5 m/s −14.9 and −14.6, against the Carabinieri car's −28.6 idling and −13.5
+with W held and −42.4 on foot at the start; the idling pack plays 9 dB over the wind bed. The horn
+plays from the roof 2.6 m ahead through the cab (8.5 dB over gain 1; −12.1 dBFS held). A car the
+player's train strikes crashes as the player's own car's crash (open, at its cap) and grinds along
+it as their own scrape. Getting in and out of a train plays no door and no starter (its engines
+idle already).
 
 ### Masking and proximity
 
@@ -396,10 +489,11 @@ radius is about 2.2 times longer: 7 dB more of spreading):
 | yell, a man (89) | 518 m | 1.6 km |
 | Panda engine at the redline under full load (90) | 580 m | 1.8 km |
 | yelp (90) | 581 m | 1.8 km |
-| moo (92) | 730 m | 2.3 km |
+| moo, a level crossing's bell (92) | 730 m | 2.3 km |
+| an ATR 220's power pack at full power (97) | 1.3 km | 4.1 km |
 | scream (100) | 1.8 km | 5.8 km |
 | squeal (105) | 3.2 km | 10 km |
-| crash, horn, bell, explosion (115–124) | over 10 km | |
+| crash, horn, bell, explosion (115–124), a train's horn (130) | over 10 km | |
 
 At a ridge's 57 dB(A) floor every radius is about ten times shorter. In the valley the obstacles
 shorten them more (a house or a spur in the way takes up to 15 dB, the woods up to 12), and so do
@@ -410,13 +504,15 @@ the sim's ranges: traffic despawns beyond 320 m, pedestrians and animals beyond 
 
 At most this many continuous voices of each kind play, the loudest at the ears first:
 
-| `engine` | `tyres` | `scrape` | `horn` | `siren` | `beeper` | `fire` | `water` | `wind` | `crickets` | `rain` | `roof` |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 8 | 4 | 2 | 3 | 2 | 2 | 2 | 4 | 1 | 1 | 1 | 1 |
+| `engine` | `tyres` | `scrape` | `horn` | `siren` | `beeper` | `fire` | `water` | `wind` | `crickets` | `rain` | `roof` | `rails` | `brakes` | `plBell` | `trainHorn` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 8 | 4 | 2 | 3 | 2 | 2 | 2 | 4 | 1 | 1 | 1 | 1 | 2 | 2 | 2 | 1 |
 
 An engine ranks, and is masked, at its gain law's level for its revs, load and damage
 (`engineQuiet`): an idling one 11 dB under one at the redline under full load (2 dB more at full
-damage), so a car revving 100 m away keeps its voice over idling ones 40–54 m away. A voice held in
+damage), so a car revving 100 m away keeps its voice over idling ones 40–54 m away. A train's two
+power packs share the engines' 8; its wheels rank at 30 dB under per decade of speed under 130
+km/h (`railsQuiet`), its brakes by their squeal (`brakesQuiet`). A voice held in
 the last frame ranks 3 dB louder (`KEEP_DB`), so two near-equal engines do not swap every frame
 (each swap would build a new voice). At the hour, only the 4 loudest bell towers in earshot ring
 (`TOWERS`).
@@ -424,14 +520,14 @@ the last frame ranks 3 dB louder (`KEEP_DB`), so two near-equal engines do not s
 ### Echoes
 
 Loud impulsive one-shots answer off rock faces (`echoesAt` in `places.ts`): crashes from 6 m/s,
-explosions, honks, bells, yells, screams, barks, moos, squeals and thunder (its echoes worked out
-from its capped direct sound, and stopped with it). The search runs along 16 directions from 40 to
-400 m in 8 m steps and takes the first face the listener can see (rising above every sight line
-before it) that climbs at least 50°, the slope the terrain paints as bare rock, and stands at least
-10 m above the ears. A gentler slope, grassed or wooded, mirrors sound up into the sky and scatters
-back too little to hear (even a forest edge returns 16–31 dB under the direct sound), so it does not
-echo. Rock is in sight from about half of the map. Up to two echoes play, the strongest first and
-at least 45° apart:
+explosions, honks and trains' honks, bells, yells, screams, barks, moos, squeals and thunder (its
+echoes worked out from its capped direct sound, and stopped with it). The search runs along 16
+directions from 40 to 400 m in 8 m steps and takes the first face the listener can see (rising above
+every sight line before it) that climbs at least 50°, the slope the terrain paints as bare rock, and
+stands at least 10 m above the ears. A gentler slope, grassed or wooded, mirrors sound up into the
+sky and scatters back too little to hear (even a forest edge returns 16–31 dB under the direct
+sound), so it does not echo. Rock is in sight from about half of the map. Up to two echoes play, the
+strongest first and at least 45° apart:
 
 - delay 2d/c after the direct sound;
 - loss 20·log10(2d) + air absorption (0.0041 dB/m at 1 kHz) + 10 dB off the rock; always at least
@@ -545,7 +641,7 @@ Continuous voices (held every frame they play):
 
 | Kind | Made of | Plays when | Level |
 |---|---|---|---|
-| `engine` | `synth/engine.ts`: an oscillator at the firing frequency (a sawtooth, or a band-limited pulse for the Ape's two-stroke and the truck's diesel), a half-order sub, a waveshaper driven by the load, two exhaust formants, noise gated at the firing rate, and a turbo whine on the truck and the Giulia, all from how the engine is built ([Engines](#engines)). The revs, load, `damage` and `misfire` are the sim's: damage makes it duller, weaker, rough and knocking, and a misfire cuts it out with a backfire ([Engines](#engines)); each vehicle's `variant` (from its id) moves its pitch ±2 % and its formants ±4 % | a vehicle runs (AI traffic, or the player at the wheel) and is not destroyed, once its starter, if any, has caught | at the redline under full load: Panda 90 (2 m), Ape 92 (2 m), truck 98 (4 m), Giulia 93 (2.5 m); the player's own 68 from the seat |
+| `engine` | `synth/engine.ts`: an oscillator at the firing frequency (a sawtooth, or a band-limited pulse for the Ape's two-stroke and the truck's diesel), a half-order sub, a waveshaper driven by the load, two exhaust formants, noise gated at the firing rate, and a turbo whine on the truck and the Giulia, all from how the engine is built ([Engines](#engines)). The revs, load, `damage` and `misfire` are the sim's: damage makes it duller, weaker, rough and knocking, and a misfire cuts it out with a backfire ([Engines](#engines)); each vehicle's `variant` (from its id) moves its pitch ±2 % and its formants ±4 % | a vehicle runs (AI traffic, or the player at the wheel) and is not destroyed, once its starter, if any, has caught; a train's two power packs always, one under each end car, at its `trainRevs` | at the redline under full load: Panda 90 (2 m), Ape 92 (2 m), truck 98 (4 m), Giulia 93 (2.5 m), an ATR 220's power pack 97 (3 m: TSI Noise's diesel-unit starting limit, 82–83 dB(A) at 7.5 m for both); the player's own car's 68 from the seat, their train's pack 66 from its cab (`OWN_TRAIN_DB`) |
 | `tyres` | `synth/tyres.ts`: rolling noise rising as (v / 70 km/h)^1.5, a sett rumble at v / 0.14 m on stone, a two-tone squeal (980 and 1460 Hz) on asphalt and stone while the tyres skid, a gravel crunch on loose ground that grows with the skid; the truck's 6 dB louder and darker. The skid is the sim's: its `amount` past grip, faded in as the tyre slides from 0.5 to 2.5 m/s, so a standing burnout and a locked wheel in a straight line squeal, an ABS stop at the limit (0.25) faintly | its wheels are down and it moves faster than 1 m/s or skids (a skid holds 0.05 s). The surface is the skidding wheel's, else the road's OSM surface on a carriageway (or within 0.5 m of its edge), else the land cover's | 98 (2 m) |
 | `scrape` | `synth/scrape.ts`: the wall's surface played at the car's speed, ringing the car's panels and the wall's own modes, by `material` (below) | a car hits a wall at under 1.5 m/s while still moving faster than 2 m/s, or slides faster than that with its body down on the ground (`hullDown`: a corner of its box on the ground, on its roof, side or belly; the physics reports no hit for a slide); held 0.2 s past the last such frame, along the material of the wall or of the ground under the car (below). The wheels bottoming out do not grind; a landing hard enough to put the belly on the ground (the Giulia from about 0.6 m) does | 105 (2 m) |
 | `horn` | `synth/horns.ts`: Panda 420 Hz, Ape 610 Hz, truck air horn 150 + 185 Hz, Giulia 410 + 500 Hz | the player holds H at the wheel of anything but the Giulia, unless it is destroyed | 116 (2 m) |
@@ -556,6 +652,10 @@ Continuous voices (held every frame they play):
 | `wind` | `synth/nature.ts`: a brown-noise band breathing with gusts, a whistle on strong gusts, leaves in proportion to the forest around (stilled by snow on the ground). `gusts` 0…1 deepens the swells from half to 0.95 of its level and quickens them from half to twice the pace; the valley's usual is 0.5 (`VALLEY_GUSTS`) | always, one bed | 60 at the ears at strength 1, never under the floor (35 by day, 28 at night), up to 65 in a gale (`GALE_DB`) |
 | `rain` | `synth/rain.ts`: a pink hiss, the drops near the ears coloured by what they land on, a runoff roar in heavy rain, bubbles on water ([Rain](#rain)); `rate` mm/h, and the ground's `forest`, `built` and `water` shares | rain at the ears of 0.1 mm/h or more (`RAINING`) | `rainDb`: 64 at the ears in a 60 mm/h downpour (`BEDS.rain`, estimated), 43 at 1 mm/h, 50 at 4, 55 at 10, 62 at 40 |
 | `roof` | `synth/rain.ts`: the drops ringing the roof panel's and the windscreen's modes, a dense patter, the roar of a sheet of water | rain at the ears while the listener sits in a car | `roofDb`: 66 at the ears at 60 mm/h (estimated), 45 at 1 mm/h, 52 at 4, 57 at 10, 64 at 40, heard through no cabin |
+| `rails` | `synth/rail.ts`: the wheels' roar, pink noise in a band at v / 2.5 cm (the rails' roughness: 890 Hz at 80 km/h) with a brown rumble under 160 Hz, both (v / 130 km/h)^1.5, and a clack (a 1.9 kHz crack and a 130 Hz thump, rising as v / 130 km/h) as each of the 8 axles runs over a rail joint (every 36 m, `JOINT`) or a switch ([Trains and level crossings](#trains-and-level-crossings)) | a train moves: masked under about 0.5 m/s | a line source of 99.9 dB(A) per metre at 130 km/h along the cars in the open (`ROLLING`), 30 dB less per decade of speed (`railsQuiet`) |
+| `brakes` | `synth/rail.ts`: white noise in three bands of Q 50 at 2.85, 4.1 and 5.6 kHz (disc brakes squealing), juddering with the gust signal ×40 | a train braking harder than a tenth of its emergency rate, opening up from 6 m/s to a stand (`brakesTargets`), from its wheels' place | 95 (3 m), TUNED: no recording measured |
+| `plBell` | `synth/crossing.ts`: an Italian crossing's bell, measured: one stroke every 1.287 s of twelve partials (1.2–10.3 kHz, two beating doublets), a loop of its steady ring ([Trains and level crossings](#trains-and-level-crossings)) | a road's level crossing from its warning until its arms are down (`crossingAt`), one voice per box at its centre | 92 (0.3 m, raised to the box's posts' distance): at least 90 dB at 1 m (the Wegh eLCSP's data sheet), heard from at least 100 m by law |
+| `trainHorn` | `synth/horns.ts`: EN 15153-2's high tone, 660 Hz, a sawtooth climbing out of a 5 % droop over a 0.12 s attack, voiced at 1.2 kHz | the player holds H in a train's cab | 130 (2 m): TSI's 115–123 dB 5 m ahead, its lower end at 1 m; through the cab 97.6 dB(A) at the ears |
 | `crickets` | `synth/nature.ts`: six Italian tree crickets (*Oecanthus pellucens*) on a 2.6 kHz carrier, chirping at the rate Dolbear's law gives for `celsius`, the air at the ears (once a second at 22 °C; `chirpRate` never slower than the 10 °C rate, so a voice held in the cold still chirps) | open ground outweighs buildings around the ears (`open − built` > 0), in air of 10 °C or more (`echemeRate` > 0) and dry (under 0.1 mm/h) | 42 at the ears at density 1 |
 
 The scrape is built from what the wall is made of. Each material has a surface: 32 m of wall
@@ -596,11 +696,12 @@ One-shots:
 | `crash` | `synth/crash/`: rendered on demand from its exact params (pure TypeScript, a few ms; an echo replays the same render): each body's crunch, the parts that break and fall, what it hit: a wall's or the ground's material, or the other car's shell ([Crashes](#crashes)) | a `wall`, `car` or `ground` Impact of 1.5 m/s or more, but an underbody one under 5 m/s (a clunk). One hit spans a few steps: within 0.1 s of a car's crash or clunk only a 1.5× harder hit plays again. Its params (below): the closing speed, the mass behind it (t), both bodies and their wear, the wall's or the ground's material, the surface debris lands on | 115 (2 m) for the reference crash; the render plays its own level under or over that. Its direct sound plays at most 8 dB over gain 1 (`MOST_DB.crash`) |
 | `explosion` | `synth/explosion.ts`: rendered on demand (pure TypeScript, about 8 ms; an echo replays the same render): the blast wave's crack, the boom and thump of the fuel going up, the fireball's roar and whoosh, debris raining down on `surface` ([Explosions](#explosions)) | an `Explosion` event, from the wreck's centre of mass, its debris landing on the ground under it (a bridge's deck, not the river under it) | 124 (3 m), TUNED: no recording measured; 9 dB over the reference crash, 5.4 in the mix. Its direct sound plays at most 10 dB over gain 1 (`MOST_DB.explosion`) |
 | `clunk` | `synth/impacts.ts`: the bump stops' rubber thump (110 → 55 Hz, the truck's a third lower), the suspension's steel clunking at about 330 and 760 Hz, loose trim ticking; three variants each, light and heavy | an underbody `ground` Impact of 1.5–5 m/s: the suspension bottoming out over a hump or on a light landing, several a second on a rough road, a landing's few steps merged like a crash's | 85 (1.5 m) at 5 m/s, 20 dB under a Panda's crash at that speed, 6 dB less per halving of speed down to 14 dB under; estimated, not measured against a recording |
-| `thud` | a low thump and a cloth swish, full level from 12 m/s | a `person` or `animal` Impact (a knockdown, a kill, a cow struck) | 85 (1 m) |
+| `thud` | a low thump and a cloth swish, full level from 12 m/s | a `person` or `animal` Impact (a knockdown, a kill, a cow struck), by a car or a train | 85 (1 m) |
 | `groan` | `synth/voices.ts`, a formant voice in the person's own register (`cueVoice`: a man's from the lower half of the voice range, a woman's from the upper, a child's from its top) | 0.25 s after a thud, from a person hit who lives; a killed one is silent | 72 (1 m) |
 | `door` | per model: opening (latch clicks, the seal), closing (thump, latch, panel ring) | the player gets in (open, then close 0.7 s later) or out (at their new spot), not when the blast of their car throws them out | 82 (1 m) |
 | `ignition` | the starter whirring with a dip at each compression, then the engine catching: the engine voice blipped 70 % of the way from idle to the gearbox's `launch` revs at 70 % load for 0.12 s, settling back with a 0.25 s time constant | the player gets into a car whose engine was off; the engine voice takes over after `CRANK` (Panda 0.8 s, Ape 0.4 s, truck 1.5 s, Giulia 0.6 s). Carjacking a running car plays doors only | 85 (1 m) |
 | `honk` | one long or two short presses of the model's horn | a `Honk` event | 116 (2 m) |
+| `trainHonk` | `synth/horns.ts`: the train's horn, one high blast of 1.2–1.8 s (RFI's "fischio prolungato moderatamente"), or `urgent` the alarm: four 0.3 s blasts, high and low in turn, 0.1 s apart (more than three short) | a `Whistle` event, at the train's nose (in a tunnel, at its portal) | 130 (2 m), as the player's; its direct sound plays at most 2 dB over gain 1 (`MOST_DB.trainHonk`: 20 m away in the open it would play 14.7 dB over) |
 | `step` | `synth/steps.ts`: heel then ball, per surface (asphalt, stone, gravel, dirt, grass, leaves) and gait, plus a snow crunch (`snow`, the `SNOW` tread: 56 sets baked, 48 before), four variants each, played ±8 % in rate and ±2 dB | everyone on foot, at 2 steps a second at a 2.2 m/s walk and 3 at a 5.5 m/s sprint, counted from the distance actually moved (none while down or dead, none for a jump of more than 3 m in a frame); a run above 3.5 m/s; crunching where snow covers half the ground or more (`snowCoverAt`). The player's steps come from under the ears | 62 (0.5 m) for a running step on stone; walking 4 dB under |
 | `scream` | `synth/voices.ts`: a sawtooth glottis on a pitch contour, breath noise, three vowel formants and a fast roughness, in the person's own register (`cueVoice`), so a child screams at the top of a woman's range; each person keeps one voice | a fright `Cry` from a child, and from 35 % of grown-ups (by id, `SCREAMERS`, TUNED); at most one cue per person per 4 s | 100 (1 m) |
 | `talk` | `src/audio/speech`: a line of Italian-sounding speech in the speaker's own voice ([Speech](#speech)) | a turn in a conversation, a gatherer's question to the victim ([Conversations and cries](#conversations-and-cries)) | 58 (1 m) for a man, 55 for a woman or a child (Pearsons, Bennett and Fidell 1977: normal effort) |
@@ -669,6 +770,13 @@ the four hand-tuned engines they replaced:
 | Ape (50 cm³ two-stroke single) | 1 | 0.12 pulse | 0.13 | 1252, 2879 | 2503–7480 | 250 | 0.15 | no |
 | Truck (12 880 cm³ turbo-diesel six) | 3 | 0.3 pulse | 0.38 | 151, 499 | 409–1265 | 30 | 0.6 | 0.02 |
 | Giulia (1995 cm³ turbo petrol four) | 2 | sawtooth | 0.28 | 211, 697 | 571–4000 | 30 | no | 0.015 |
+| ATR 220 power pack (12 816 cm³ turbo-diesel six, the MAN D2876) | 3 | 0.3 pulse | 0.38 | 152, 500 | 409–990 | 30 | 0.6 | 0.02 |
+
+The ATR 220's power pack is a train's (`TRAINS.atr220.engine`, through `engineSpec`): built like the
+truck's six, it differs only in its redline lowpass, its rated 1800 rpm against the truck's 2300.
+It idles at 600 rpm, firing at 30 Hz, on the 30 Hz highpass: the tone rests on the formants and
+the shaper's harmonics, and plays 16.9 dB (RMS) under its rated revs at full power, the truck's
+17.0. Trains take no damage, so its `KNOCK` is 0.
 
 Geometry alone is wrong for the Giulia: its 2 l would put its formants at 282 and 930 Hz, barely
 under the Panda's, but its sports exhaust is voiced darker, so `EXHAUST` scales its formants by
@@ -697,6 +805,57 @@ while the knock and the backfires it adds are sized so a worn engine still peaks
   crack at about 1.5 kHz.
 - **Dead** once destroyed: the vehicle no longer runs, so the engine fades out (0.3 s), and with it
   the horn and the siren; the fire takes over until the blast.
+
+### Trains and level crossings
+
+A train is heard as the sim moves it, car by car (`director/rail.ts`):
+
+- **Power packs.** One engine voice under each end car (`engine:id:0` under the active cab,
+  `engine:id:1` under the far one), at the train's `trainRevs`: idling at 600 rpm with the power
+  off, up to 1800 under full power, whatever the speed (the hydrodynamic transmission). Each
+  draws its `variant` from the train's id and its index.
+- **Wheels and clacks.** One `rails` voice per train, at the nearest point of its cars in the open
+  (above). Its params carry each axle's s (8 on the ATR 220's B′2′2′B′: two per bogie, 2.6 m
+  apart, `WHEELBASE`, the outer bogies 2.5 m in from the noses, the Jacobs bogies at the joints)
+  and the joints and switches near them on the line (`jointsBetween`): a joint every 36 m
+  (`JOINT`, the longest FS bar; TUNED, the line's track is unverified) and a switch wherever an end
+  of a piece of track the line does not run on lies on it (the Gragnola loop's two, found from the
+  map's geometry, so any line's switches are found alike). The voice schedules each axle's clack
+  0.3 s ahead (`LOOKAHEAD`, as the fire's crackle) when it will reach a joint, keeping per axle the
+  s up to which it has scheduled (`clacksAhead`): each joint clacks once per axle per pass, at any
+  frame rate, and a reversal or a stall starts afresh. Under 0.5 m/s nothing clacks. So the bogie
+  pairs give the "ta-tak" of a passing train, 72 ms apart at 130 km/h.
+- **Brakes** squeal from the wheels' place while the train brakes harder than a tenth of its
+  emergency rate below 6 m/s, loudest just before it stands.
+- **Horns.** The player's H in the cab holds the high tone from the roof at the nose, through the
+  cab; an AI train's `Whistle` plays its honk there, echoing off rock faces.
+- **Tunnels** and **the cab** as above ([Tunnels](#tunnels), [Inside a vehicle](#inside-a-vehicle)).
+  Riding through a tunnel (the cab's car in a bore, `seatOf`), no wind, rain, roof drumming or
+  crickets play, and the masking floor is the stillest air's; the own wheels play as in the open
+  (6.0 dB over gain 1 in the 225 m tunnel past Monzone, as just before it), where the wind bed had
+  blown as loud as them and the ground effect, both ends of the path under the terrain, had taken
+  4.5 dB of them.
+- **Hits** with trains crash as steel ([Data flow](#data-flow)): a car into a train, two trains, a
+  buffer stop; a person or an animal a train strikes thuds, groans or cries out as from a car.
+
+A level crossing rings one bell per box (`plBell:index`), at its centre, while `crossingAt` says so:
+two bells on its posts started apart would flam. Inside its posts it gets no louder: its `rMin` is
+the distance from the centre to its nearest arm's post (`posts`, 5.2–8.9 m on this map), where the
+real bells stand; at its 0.3 m Via Riolo's bell played 15.6 dB louder at the centre than at the
+posts and ducked the whole mix 8.8 dB on every stroke. Each box's bell is its own unit (`variant`,
+from its index), detuned up to ±20 cents (±1.2 %, pitch and stroke rate together; an estimate):
+Gragnola's two boxes, 242 m apart, go into their warning in the same step, and two copies of one
+loop started together would fuse into one bell between them. The bell (`synth/crossing.ts`) is the
+trains research's measurement of an Italian automatic crossing's (Commons, "Il segnale acustico di
+un passaggio a livello automatico", CC BY-SA 4.0, analysed only): single strokes every 1287.4 ms (9
+intervals of 1285–1291 ms), each ringing until the next, falling −12 dB in 100 ms and −30 dB in
+about 1 s, its partials at 1233.5, 1526, 1720 and 2502.6 Hz (the hum, T60 5–8 s), two doublets at
+3737/3762.7 and 5157/5182 Hz beating at 25–26 Hz (the stroke's brightest, T60 1.2–2.5 s), 4398,
+6720, 8536 and 10314 Hz (0.4–0.65 s). One period is rendered in pure TypeScript per context: each
+partial's ring summed over every stroke before it in closed form (a geometric series), so the loop
+holds the steady ring of a minute of strokes and wraps on a stroke with no seam; a 1.2 ms seeded
+click marks the stroke. It plays from offset 0, so it starts on a stroke, and stops within 0.3 s
+when the arms are down.
 
 ### Crashes
 
@@ -1089,8 +1248,9 @@ tells the masking). In Node at 48 kHz a moo renders in 3.9 ms, a squeal 4.1, a h
 
 `src/audio/director/levels.ts` is the mix's one calibration table:
 
-- `ENGINE`, `OWN_ENGINE_DB`, `LEVELS` and `OWL`: each kind's level at 1 m and size, as in the
-  catalogue (`LEVELS.thunder` also stands `aloft`: 154 dB(A), `rMin` 300 m, no ground effect).
+- `ENGINE`, `OWN_ENGINE_DB`, `LEVELS`, `ROLLING` and `OWL`: each kind's level at 1 m and size, as
+  in the catalogue (`LEVELS.thunder` also stands `aloft`: 154 dB(A), `rMin` 300 m, no ground
+  effect; `ROLLING` is a train's wheels per metre of train, at 130 km/h).
   Every synth peaks near 0.5 (−6 dBFS) at the loudest params it is meant for and scales itself
   with its physical params: an engine idles 17–26 dB (RMS) under full load at the redline, tyres
   follow the rolling law, a crash its speed. The level in the table is the one at that peak.
@@ -1106,9 +1266,11 @@ tells the masking). In Node at 48 kHz a moo renders in 3.9 ms, a squeal 4.1, a h
   idle, none at the redline under full load, 2 dB more at full damage), `clunkQuiet`
   (`synth/impacts.ts`), `crashQuiet` (`synth/crash/index.ts`, the crash's level law: 18 dB under
   at a 2 m/s bump, none at the 15 m/s reference, 6 dB over from about 30 m/s, 2 dB more for a
-  ringing guard rail or sheet wall) and `animalQuiet` (`synth/animals.ts`: a plain meow 12 dB
-  under a yowl): how far the wind, rain, crickets, thunder, walking-step, engine, clunk, crash and
-  meow synths play under (or over) that, so masking counts the sound actually played. All but
+  ringing guard rail or sheet wall), `animalQuiet` (`synth/animals.ts`: a plain meow 12 dB
+  under a yowl), `railsQuiet` and `brakesQuiet` (`synth/rail.ts`: a train's wheels 30 dB under per
+  decade of speed under 130 km/h, its brakes by their squeal): how far the wind, rain, crickets,
+  thunder, walking-step, engine, clunk, crash, meow, wheel and brake synths play under (or over)
+  that, so masking counts the sound actually played. All but
   `windDb`, `rainDb` and `roofDb` live beside the synths they describe, derived from the same
   numbers.
 - `MOST_DB`: the most a one-shot's direct sound plays over gain 1, its echoes keeping the way's
@@ -1116,7 +1278,12 @@ tells the masking). In Node at 48 kHz a moo renders in 3.9 ms, a squeal 4.1, a h
   about 25 dB over, it took 20 dB off the hit and gave the sub-hits back as loud as the hit: an
   echo); an explosion at 10 dB, 2 dB over a crash, as its crest is 6–7 dB where a crash's is 13
   (below); thunder at 2 dB, because its loud part lasts seconds, so its crack stays under the
-  limiter's −6 dBFS going in.
+  limiter's −6 dBFS going in; a train's honk at 2 dB, as thunder: at 130 dB it would come 14.7 dB
+  over gain 1 from 20 m in the open, and its loud part lasts 1.2–2 s, the alarm again every 2 s
+  while a train is held. Rendered through the mixer with a 40 Hz pilot to read the limiter's gain:
+  at 8 dB a long blast was ducked 2.1 dB centred and 3.1 dB at the widest pan, the alarm 3.3 and
+  4.4 dB, for 1.3–1.6 s; at 2 dB, 0.6 and 0.1 dB, the alarm 0.8 and 0.3 dB, the output peaking at
+  −8.8 to −4.7 dBFS.
 
 **Engine trims.** Each model's `TRIM` (`synth/engine.ts`) is 1 / its own peak at the redline under
 full load, measured on the audition page: "Render all" plays every model at {rpm: redline, load: 1}
@@ -1124,6 +1291,8 @@ and at idle, and flags a redline row whose peak falls outside 0.42–0.6 as "off
 derived timbres and the old hand-set trims (0.538, 0.336, 0.435, 0.48) the redline rows peaked at
 0.551, 0.531, 0.587 and 0.512 (three runs in headless Chrome within 0.001 of each other), so the
 trims are 0.488 (Panda), 0.316 (Ape), 0.371 (truck) and 0.469 (Giulia), which peak at 0.499–0.501.
+The ATR 220's power pack peaked at 0.485 on the truck's trim, so its trim is 0.382, which peaks at
+0.499–0.500 (seven runs).
 Idle plays under the redline by (RMS) 20.4 dB on the Panda, 25.8 on the Ape (its 250 Hz highpass
 and its lowpass closing to 2.5 kHz), 17.0 on the truck (its clatter) and 22.1 on the Giulia.
 Worn to damage 0.9 at the redline under full load they peak at 0.406–0.419 (Panda), 0.385 (Ape),
@@ -1131,7 +1300,14 @@ Worn to damage 0.9 at the redline under full load they peak at 0.406–0.419 (Pa
 truck's loudest knock (at the redline off the throttle, damage 0.99) at 0.139. "Render all" flags
 any engine row over 0.6 as "over nominal". The fire peaks at 0.33–0.38 (−22.5 to −22.9 dBFS RMS)
 over two runs; every explosion at 0.5, scaled there by the renderer (−20.5 to −22 dBFS RMS over
-its 2.9–3.6 s).
+its 2.9–3.6 s). The train's and the crossing's synths were fitted the same way, so their loudest
+rows peak near 0.5: a train rolling on at 130 km/h at 0.49–0.69 over fifteen runs (RMS −19.5 to
+−19.9 dBFS; the clacks' bursts are drawn at random, and "Render all" flagged none of its rows),
+over six runs at 80 km/h 0.30–0.33 (−25.5 to −25.9) and crawling at 20 km/h 0.043–0.058 (−44.2 to
+−44.5); over four runs the brakes braking hard at 2 m/s 0.46–0.57 (−19.2
+to −19.9; the judder is random); the bell 0.50 (−28.8, its centroid 4.5 kHz); the player's horn
+0.466 (−13.8) and an AI train's long blast 0.466, its alarm 0.569 (the low blast's attack over the
+high one's release).
 - `HEIGHT`, `MOUTH`, `WATER_R_MIN`: source heights (each species' mouth) and the water's 1 m
   clamp.
 - `CAPS`, `KEEP_DB`, `TOWERS`: the voice caps and their hysteresis.
@@ -1208,6 +1384,12 @@ before the pan, and a panned one lower):
   0.5–0.8 s), against the wreck's −14.2 to −14.6 (7.1–7.3 dB) and a 12 m/s Panda's −15.5 to −17.3.
 - a settled storm at the spawn (5 mm/h) reads a median of −29.5 dBFS (loudest −23.9), about
   10 dB over a dry day, as `rainDb` says it should.
+- a train, from the spawn in Monzone (`?seed=1`, the director's gains recorded in the game): the
+  ATR 220 idling at the station, its near power pack at −39 dB and the far one at −50.6; Via
+  Riolo's bell, 81 m off, at −38.9 dB for the 19 s it rang (the warning and the arms coming down);
+  then the train pulling away, its power packs rising to −26.5 dB and its wheels to −22.9 as it
+  passed, under −60 dB 20 s later. The meter read −35 to −41 dBFS meanwhile, the street's traffic
+  and the Lucido as loud.
 
 The weather's sounds stay under the limiter. Below, the peaks per channel going into it (after the
 0.8 master) and the most it took (`DynamicsCompressorNode.reduction`, sampled every 1,024 samples).
@@ -1233,9 +1415,10 @@ are never limited. The larger takes in a storm come from traffic, as before the 
 |---|---|---|
 | H | at the wheel | sounds the horn while held |
 | H | at the wheel of the Carabinieri Giulia | each press turns the two-tone siren on or off |
+| H | in a train's cab | sounds its horn's high tone (660 Hz) while held |
 
 On foot H does nothing. The keyboard's title card lists it; in mobile mode the Horn button shows while
-driving.
+driving, a train too.
 
 ## Start, pause and hidden tabs
 
@@ -1266,11 +1449,14 @@ driving.
 emitter and mixer:
 
 - **Listener:** the distance (a logarithmic slider, 0.5 m to 2 km), the side of the screen, a cabin
-  (none or a model), how enclosed the street is (it sets the reverb send), and the master level
-  meter.
+  (none or a model, the ATR 220's cab too), how enclosed the street is (it sets the reverb send),
+  and the master level meter.
 - **One panel per kind:** each continuous kind has Hold / Release and each one-shot Play, with a
-  control for every param (sliders, menus, checkboxes): the engine's `rpm` (0–7000), `load`,
-  `variant`, `damage` and `misfire`, the tyres' `speed`, `skid` and `slip`. The crash's are flat:
+  control for every param (sliders, menus, checkboxes): the engine's `model` (the vehicles' and
+  the ATR 220's), `rpm` (0–7000), `load`, `variant`, `damage` and `misfire`, the tyres' `speed`,
+  `skid` and `slip`. The rolling voice's only control is its speed `v` (−40 to 40 m/s): an ATR 220
+  rolls on along joints 36 m apart as the page plays it (`railsAt`), so its axles clack; the
+  brakes' `speed` (0–8 m/s) and `brake`, a train's honk's `urgent`. The crash's are flat:
   speed and mass (0.1–30 t) sliders, the `model` and `zone` of the body that hits, `against` (a
   material for a wall or the ground, or a model for a car, struck on its `struck` zone) and the
   `surface`. Speech's are flat too: a `situation` and the speaker's `voice`, `age` and sex, each
@@ -1286,7 +1472,7 @@ emitter and mixer:
   lowpass (its air is in its render). Every one-shot's direct gain is shown and played under its
   `MOST_DB` cap, as the game plays it. The first press starts the audio.
 - **Render all** (also `window.lab.renderAll()`, which returns the rows) renders every voice and
-  shot offline at 48 kHz at a few representative params (130 renders: 60 voices and 70 shots, each
+  shot offline at 48 kHz at a few representative params (141 renders: 69 voices and 72 shots, each
   shot given 22 s, room for a 20 s thunder) and tabulates peak, RMS (dBFS), spectral centroid
   (`measure.ts`), NaNs and length. It flags silence (peak under 1e-4), clipping (over 0.95), an
   engine as new at the redline under full load peaking outside 0.42–0.6 ("off nominal": its trim
@@ -1313,8 +1499,12 @@ emitter and mixer:
   slowest chirp; the rain at 1 mm/h on open ground, 10 in the woods, 6 on a river (its plinks at
   their loudest), 60 on a village by the river and 60 on open ground; the roof at 1, 10 and
   60 mm/h; the owl; a step in snow; and thunder from bolts 300 m, 2 km and 8 km away and an
-  in-cloud flash overhead. An engine with `inside` ticked plays through no cabin, as the game plays
-  the listener's own (the synth makes its cabin).
+  in-cloud flash overhead. The trains' rows: the ATR 220's power pack at its rated 1800 rpm under
+  full power and idling; an ATR 220 rolling on over the joints at 130, 80 and 20 km/h (its params
+  changed frame by frame, `railsAt`); its brakes at 2 m/s braking at 0.6 and at 4 m/s at 0.3; the
+  crossing's bell; the player's horn; an AI train's long blast and its alarm. An engine with
+  `inside` ticked plays through no cabin, as the game plays the listener's own car's (the synth
+  makes its cabin).
   Adding a kind fails to compile until the page has a panel and render rows for it. Three low
   peaks are by design: the wind swells with gusts over seconds, so at strength 1 a 2 s render peaks
   near 0.2–0.3 while its 64 s gust loop reaches 0.45–0.65; the blackbird's thin "seee" (30 % of its
@@ -1324,7 +1514,9 @@ emitter and mixer:
 The page places every sound with the director's own facts: the levels from `levels.ts` through
 `hear` in `hearing.ts`, the source at ear height over open, flat ground with nothing in the way, no
 Doppler, masked against the day's 35 dB(A), and the wind and rain beds and the roof compressed at
-their levels at the ears as `world.ts` does.
+their levels at the ears as `world.ts` does. A train's wheels are heard as its whole 55.6 m length
+broadside at that distance, the line source's level there. Its controls' tables (the menus, the
+sliders' ranges, each panel's first params) are in `lab-forms.ts`; the page loads no map.
 Only water is a stand-in: a point source, the river (the Lucido) and the stream (a 4 m one) at their
 2 m bank level + 6 dB and the fountain at its 1 m level, where the game takes each body's
 line-source level at the listener.
@@ -1352,9 +1544,13 @@ functions (`synth/__tests__/world.test.ts` imports them to check).
 | `src/audio/__tests__/speaker.test.ts`, `mixer.test.ts`, `buffers.test.ts`, `measure.test.ts` | the one-shot cap, the speaker inert until a trusted gesture, the level meter, seamless noise loops, the gust signal against its closed-form sine sum, the render measurements |
 | `src/audio/director/__tests__/weather.test.ts` | the weather and the hour at the director: the rain bed at the rate falling at the ears (none dry or in snow), a downpour masking a far car, the roof's drumming in the Panda with the bed through the cabin; thunder waiting its travel time (a bolt 3.4 km away about 10 s after the flash), rendered on a frame after its flash's, timed from the ears' height on a ridge, at once and capped within 40 m, narrower than a point, placed on arrival (through the cabin if the listener got in meanwhile, sooner when driving toward it), echoing off rock and cut short with them, never before the context runs, at most two at once in an approaching storm, quieter for a weaker flash and masked by a downpour; the wind (the tuned voice in the usual wind, stiller, gustier and a gale as the weather blows, masking through the cabin in a car, rising with the ears' height over the map's floor so an Alpine floor stills a ridge, the usual wind a cloudy day's and over the weather's own October mean); the night floor; the dawn chorus, dusk and rain silencing birds; the owl at night, once in 30 s; the 08:00 ring waiting for the context; crickets in warm, dry air only (silent on the ridge in the meadow's 11 °C air, in still air); snow's hush and crunch |
 | `src/audio/synth/__tests__/thunder.test.ts` | the thunder renderer, bounds checked on seeds 1–96: finite, held to 0.5, at most 20 s, faded, the same for the same flash; a near bolt's crack and boom against a far one's rumble (centroid, onset, crack energy above 2 kHz, low share, length); an in-cloud flash with no crack; a third or more of the energy at 100–400 Hz within 2 km (phone speakers); `thunderQuiet` within 2 dB of A-weighted renders past 2 km; `lead`; the trunk first from a ridge over a valley bolt; one render per params object at 16 kHz for a bolt within 1 km and 8 kHz past it or in the cloud; a flash at no finite distance thundering as one overhead |
-| `src/audio/synth/__tests__/*.test.ts` | each engine's timbre from how it is built (pulses from cylinders and cycle, formants falling with displacement and the sub rising with each cylinder's size, a two-stroke brighter and rattling, a diesel's clatter, a turbo's whine only with a turbo, the Giulia's exhaust voiced darker than its size), the engine law (idle 11 dB under the redline, the cabin tone, every model at its trimmed peak, a variant's pitch and formants); an engine as new playing the law it played before damage, damage dulling, softening, roughening (from 0.2) and knocking (from the medium stage) it, a misfire closing its gate and nothing else, no damage lifting its output gain over its nominal and `engineQuiet` counting what it plays; the tyre law (a standing burnout and a locked wheel squeal, a creep barely past grip does not, the full slide at the Giulia's top speed); the scrape's surface loops (seamless, at their RMS, a stone every 0.3 m and a rail post every 2 m) and its speed law; step and cricket rates (a cricket voice held in the cold still chirps at the 10 °C rate, never an Infinity-long wait); the rain law (the drops' kinetic energy, 12 dB a decade, a downpour at the nominal) and its layers (a shower's drops fusing into the hiss and the roar, surfaces adding in power, plinks on water never louder than a downpour's), the roof's drumming (countable drops in a shower, a roar in a downpour, low and tonal under 1 kHz); bubbles at their Minnaert frequency; synth params clamped, NaN to silence |
+| `src/audio/synth/__tests__/*.test.ts` | the vehicle, train and world synths' tables loading in Node; each engine's timbre from how it is built (pulses from cylinders and cycle, formants falling with displacement and the sub rising with each cylinder's size, a two-stroke brighter and rattling, a diesel's clatter, a turbo's whine only with a turbo, the Giulia's exhaust voiced darker than its size), the engine law (idle 11 dB under the redline, the cabin tone, every model at its trimmed peak, a variant's pitch and formants); an engine as new playing the law it played before damage, damage dulling, softening, roughening (from 0.2) and knocking (from the medium stage) it, a misfire closing its gate and nothing else, no damage lifting its output gain over its nominal and `engineQuiet` counting what it plays; the tyre law (a standing burnout and a locked wheel squeal, a creep barely past grip does not, the full slide at the Giulia's top speed); the scrape's surface loops (seamless, at their RMS, a stone every 0.3 m and a rail post every 2 m) and its speed law; step and cricket rates (a cricket voice held in the cold still chirps at the 10 °C rate, never an Infinity-long wait); the rain law (the drops' kinetic energy, 12 dB a decade, a downpour at the nominal) and its layers (a shower's drops fusing into the hiss and the roar, surfaces adding in power, plinks on water never louder than a downpour's), the roof's drumming (countable drops in a shower, a roar in a downpour, low and tonal under 1 kHz); bubbles at their Minnaert frequency; synth params clamped, NaN to silence |
 | `src/audio/synth/__tests__/explosion.test.ts` | the blast renderer over twenty seeds (the bounds checked on seeds 1–80, twenty at a time): finite (from an 8 kHz device rate too), peaking at the nominal 0.5, at most 4 s, faded; deterministic per seed; against the reference crash at the same peak, 4 dB and more louder over its first 300 ms (median 7.1), a crest of at most 9 dB (6.6), at least 0.1 more of its energy under 200 Hz (0.54 against 0.35), its centroid over 30–600 ms at least 500 Hz lower (1.5 against 2.4 kHz); its loudest 50 ms starting within 0.2 s, 0.3–1 s within 10 dB of the first 0.15 s and 1.2–1.6 s 11 dB and more under it; over 2 kHz its debris 10 dB and more over the roar's tail on asphalt (17.4) and 6 dB and more louder than on grass (18.4) |
 | `src/audio/synth/crash/__tests__/crash.test.ts` | the crash renderer over the design's matrix, each at the sim's mass (a Panda into a house at 2, 5, 12, 14 and 20 m/s, Panda–Panda 10, Panda–truck 12, an Ape into stone 8, the Giulia into the guard rail 12, a sheet wall 12, a tree 10, earth 8, a side hit 12, a 40 m/s wreck, the laden truck into a house at 2 and 12, a hard landing on the road at 6 and a roll onto it at 8, against a house wall at 6 and 10 and a side into it at 8), twenty seeds each (the bounds checked on seeds 1–80, twenty at a time), measured by `testing.ts` (the research's analysis tools, ported): finite, ≤ 1, ≤ 4 s, faded, finite from an 8 kHz device rate; noise that never repeats inside a render; deterministic per seed; the level law, its cap and the peaks following it within 2 dB (a bump, the rail, a sheet wall, Panda–Panda, the truck's nudge); the laden truck 7 dB over a Panda, its nudge like a Panda's 4 m/s bump, capped by 14 m/s, the barrier speeds of a Panda against it and of it; a landing breaking nothing; growth past the cap (tail, block, at most 3 sub-hits, 42 m/s against 60 audibly different); the critique's targets on the exterior crashes (medians: −10 dB at 150–450 ms, rise 8–25 ms, crest 9–15 dB, band flatness 0.35–0.6, 1–8 kHz kurtosis 2.8–4.5, 8 kHz −12…−25 dB, 16 kHz −22…−36, centroid 1.5–3.5 kHz through 600 ms; 97 % of renders with 63 Hz ≤ −5 dB and the loudest octave in 125 Hz–2 kHz); the tail's −20 dB at 0.25–2.5 s, later the harder the hit; a flat median spectrum (the truck within 8 dB); the long partials layer (each model's count at 0.6–4.3 kHz, η 0.001–0.01) and 1–3 of them clear in the render; the bump's 40–100 ms; the rail's tonal ring; the sheet wall's ring against masonry; the truck's bumper clang; the tree's faint rustle past 2 s and its tail under 3.5 kHz; earth the slowest, dullest; a car–car hit's clank against a house wall's dead mass; the road's thump on a landing and slap on a roll; sub-hits 13 dB and more under the hit; a greenhouse nudge's dull crack; a worn side breaking nothing again; the glass shower's 6–10 kHz centroid and grass swallowing it |
+| `src/audio/__tests__/rail.test.ts` | the railway as `Hear` projects it: a train's power packs idling with the power off and at their rated revs at full power, either way; its cars from the active cab back, each on the track with its s and whether it is in a tunnel; a road crossing ringing in the warning and while its arms come down, not open, closed or rising, and a foot crossing never; a car meeting a train as its own hit on a steel wall, the train its `other`, two trains crashing both as steel bodies, a buffer stop by the train's front, a person struck with no vehicle body, a vanished car's hit dropped; on a real runtime, a staged ATR 220 car by car as `carsOf` places it, Via Riolo ringing once its cycle is set to the warning, a whistle at its cab car's rail head, a train–train hit as steel, and the player aboard as the listener in the cab |
+| `src/audio/director/__tests__/rail.test.ts` (trains from `train` and `beside` in `director/testing.ts`) | the train part on the director's rig: two power packs heard from the end cars, the near one louder; the wheels a line source (abreast the rear car as loud as the middle, under a rail bridge 22 m up as far off as its height) given every axle and the joints; the brakes squealing to a stand, not at speed; in the cab the ears over the rails on a rail bridge, its own engines from under the end cars through the cab's 1.2 kHz, the cab idling within 3 dB of a car's seat and over the wind, louder under power, H holding its horn there (none on foot); an AI whistle 20 m away at its 2 dB cap, echoing; a crossing's bell while it rings, one per box, two at most, at the box's centre no louder than at its posts; riding through the long tunnel no wind, rain, roof or crickets and the own wheels as loud as in the open; the wheels' summed level stepping under 1 dB a frame as a train passes each portal of the short tunnels, 20–60 m off; a train deep in the long tunnel silent under 440 m of hill, one wholly in a short tunnel heard from its portals, its power pack quieter than through the rock; a crash into a train's steel, a car the player's own train strikes crashing open at the cap and grinding along it open, a person struck by one thudding and groaning |
+| `src/audio/synth/__tests__/rail.test.ts`, `crossing.test.ts` | the wheels' law (30 dB per decade, the band at v / 2.5 cm), each axle clacking once over each joint at the time it gets there at any frame length, backing up and after a stall; the brakes squealing on every stop below 6 m/s, braking harder than a tenth of the emergency rate (the AI stops at about half of it), not coasting; the horn's tones within EN 15153-2's bands, a long blast 1–2 s, the alarm's more than three short ones in turn and over within 2 s; the bell's period 1.287 s with its stroke at the start, −20 dB a second on, and its loop sample for sample the steady ring of 40 strokes, wrapping with no seam |
+| `src/audio/places/__tests__/track.test.ts` | a joint every 36 m along each line and a switch only where a piece of track off the line ends on it (the Gragnola loop's found); a tunnel's two portals with the depths that sum to its length, none out of a tunnel |
 
 ### In a browser
 
@@ -1378,11 +1574,13 @@ params): in the Giulia idling −28.7 (750 rpm, load 0), pulling away from a sta
 throttle for 4 s a median of −13.4 to −13.7 and peaks −10.2 to −10.6 over three runs (1800 rpm
 at the launch to 5419–5498, load 1 between shifts, to 13.6–14.6 m/s); in a parked Panda idling
 −30.5 (800 rpm), the same pull-away −14.4 and peaks −13.2 (1800 to 5714 rpm, to 13.8 m/s), a
-handbrake turn onto grass −9.9 (its tyres played at skid 1, sliding 27.9 m/s). On the
-audition page "Render all" gives 130 rows. Measured apart, the damage and the weather gave 116 in
-6.0–6.1 s, none flagged (104 with the weather alone, in 5.3–5.5 s, and 100 with the damage), and
-the speech and the animal calls 102 in 3.9 s, none flagged (the speech rows peak at 0.5, a plain
-meow at 0.126). At `?seed=7`, standing at the spawn
+handbrake turn onto grass −9.9 (its tyres played at skid 1, sliding 27.9 m/s). On the audition page
+"Render all" gives 141 rows in 7.1–8.4 s, none of the train or crossing rows flagged over 13 runs
+(the crickets at 5 °C, a row these changes left alone, came out silent in 2 of them: its slowest
+chirp can fall outside the 2 s measured). Measured apart, the damage and the weather gave 116 in
+6.0–6.1 s, none flagged (104 with the weather alone, in 5.3–5.5 s, and 100 with the damage), and the
+speech and the animal calls 102 in 3.9 s, none flagged (the speech rows peak at 0.5, a plain meow at
+0.126). At `?seed=7`, standing at the spawn
 reads a median of −38.0 dBFS (−38.8 with crash damage in the game, nothing damaged yet); with
 the nearer Carabinieri Giulia burning about 6 m away, −29.7, its crackle peaking at −18.6. With
 that Giulia spawned burning in a playtest copy and blowing up at step 300 (5 s in; the meter at a
@@ -1394,6 +1592,11 @@ with no swell back up, while the louder channel's sample peak holds at −2.9 to
 0.6 s, under full scale. An echo off a rock face follows 1.83 s later at −39.8 dB, the shell lands
 0.73 and 1.03 s later (a clunk, then a 5.9 m/s crash on the road, at its cap), a fleeing
 pedestrian cries out 2.65 s later; no console error, no non-finite placement.
+Trains (`?seed=1` and `?seed=2`, 100 s and 75 s from the spawn, the speaker's `hold` wrapped): the
+AI train idling at Monzone holds its two power packs; Via Riolo's bell rings for 19 s from about
+30–35 s in; the train pulls away with its packs under power and its wheels held from 7 s later,
+fading past 20 s after it went by; no console error ([Calibration and mix](#calibration-and-mix)
+has the gains).
 Crashes (a Panda driven by CDP keys into a house, a stone wall, a tree and a bank at 5–15 m/s and
 into parked cars at 9–15 m/s, `gta.audio.level()` and each channel's sample peak every 20 ms): the
 played speed is the car's at contact (wall hits within 0.3 m/s of it, an oblique tree hit 0.5 under;
@@ -1457,7 +1660,8 @@ task, no console error, no non-finite placement.
 - **A flash not heard when it strikes is never thundered**, even if the listener then closes in.
 - **The snow cover at the ears stands for the whole path**: its loss and the halved reverb send
   (thunder, aloft, is spared both).
-- **Rain falls under bridges and in tunnels:** nothing checks for a deck overhead. Snow falls
+- **Rain falls under bridges and in road tunnels:** nothing checks for a deck overhead (riding a
+  train through a tunnel, none falls). Snow falls
   silent, and there is no wet-tyre hiss and no tyre on snow.
 - **Far thunder on phones:** in-cloud flashes keep 2.3–2.8 % of their energy above 180 Hz, an 8 km
   bolt 0.9 %, as the air leaves them, so a phone's speaker plays them faint or not at all; bolts
@@ -1494,6 +1698,9 @@ task, no console error, no non-finite placement.
   at its 8 dB cap, so nearer no longer sounds louder there: only the pan, the reverb and the echoes
   move. Uncapped, the limiter held them near −2 dBFS anyway, and gave their tails back as loud as
   the hit.
+- **Near train honks play alike loud.** A train's honk reaches its 2 dB cap within about 90 m in
+  the open (130 dB at 1 m: 40.8 dB over gain 1 less 20·log10 of the distance, before the ground),
+  so nearer it only pans and echoes differently.
 - **The road and the shells' clank are tuned by measured features only:** no recording of a car
   landing or rolling onto the road, nor of two cars' shells, was measured; their levels (`ROAD`,
   `SHELL`) are set so each kind stands apart from a house wall in the features above.
@@ -1529,14 +1736,58 @@ task, no console error, no non-finite placement.
 - **Speech and calls render on the main thread** at their first play: a chat line about 6 ms, a
   yell 2.4 ms, a call 1.4–4.1 ms in Node, several times that on a phone. At most 3 lines and 2 calls
   start in a frame, but a conversation's lines are not counted in that budget.
+- **Trains are estimated by numbers, not recordings.** A power pack's 97 dB(A) is TSI Noise's
+  limit shared by two, the wheels' 99.9 dB per metre its pass-by limit less the engines, the
+  brakes' 95 a guess, the cab's 24 dB a guess sized to TSI's 95 dB(A) under the horn, the own
+  train's levels from its cab tuned to a car's seat (TSI lets a cab reach 78 dB(A)), the tunnel's
+  0.1 dB a metre and its 400 m silence guesses. No ATR 220 recording was measured; only the bell
+  was.
+- **The track's joints are a guess.** A joint every 36 m along every line (`JOINT`): the
+  Lucca–Aulla line's own rail (jointed or long welded) is unverified; a welded line would clack
+  only at its switches and insulated joints.
+- **A train does not raise the masking floor.** A passing train masks no birds or steps, as no
+  vehicle does.
+- **A train's power packs and horn change places at a portal**: each is heard where it is until
+  its car's middle passes into a tunnel, then from that tunnel's best portal, so a pack can step
+  several dB as its car crosses a portal (only the wheels are summed across it).
+- **A moving source's occlusion steps** as its path is measured again, at most every 150 ms with
+  no glide between measures (`occluder.ts`), and when a train's wheels are heard from another car
+  (each car keys its own path), wherever a hill's or a building's edge crosses the path, as for
+  any vehicle. Through the director at 80 km/h, 20–60 m off the track: past the 8 portals (96
+  passes) a train's voices stepped over 6 dB from frame to frame in 71 passes, over 10 dB in 43
+  and over 15 dB in 20 (at worst a 24.3 dB drop for one re-measure, then 38.9 dB back); on open
+  track with no portal within 300 m (78 passes) a pass's largest step had a median of 6.7 dB, a
+  90th percentile of 18.1 dB and a maximum of 46.2 dB; a Panda past the same portals, a 90th
+  percentile of 27 dB and a maximum of 39.1 dB. Easing each path toward its new measure over the
+  refresh, or a slower glide for a change of occlusion alone, would smooth it.
+- **Only the player's train knows it is in a tunnel**: in a car in a road tunnel the wind and rain
+  beds blow as outside.
+- **The cab's horn plays louder than an AI train's beside it.** H plays from the roof through the
+  cab at 8.3 dB over gain 1 in the game, uncapped, as a car's own horn from its seat is (held, it
+  ducks the mix 2.0 dB on average, the car's 2.9 dB), while an AI train's horn is held to
+  `MOST_DB.trainHonk`, 2 dB, at any distance under about 60 m: inside the sealed cab it is louder
+  than beside the train. Holding it to that cap too would put the cab under the outside, as a
+  real sealed cab is.
+- **No tunnel reverb.** Riding through a tunnel, the mix stays as dry as the open: the street
+  reverb counts facades only.
+- **No train doors, no bridge boom, no flange squeal on curves, no air-brake hiss:** getting into a
+  train's cab plays nothing, a steel or masonry bridge rings no differently, and curves are silent.
+- **A train's crash is the truck's body on steel** (`TRAIN_BODY`, `STEEL` in `src/audio/rail.ts`)
+  until a train's own is judged by ear; a crash's mass is held to 30 Panda masses, so 108 t plays
+  as a laden truck.
+- **H in a cab sounds only the high tone**; the low one plays only in an AI train's alarm.
 
 Where to tune:
 
 | Where | What |
 |---|---|
-| `src/audio/director/levels.ts` | every source level and size (the owl's `OWL`, thunder's), the beds (`BEDS`, `GALE_DB`, the roof's `ROOF_DB`), heights and the animals' `MOUTH`, how much softer a woman's or a child's speech is (`SOFTER`), caps and hysteresis, the one-shots' gain caps (`MOST_DB`: the crash's, the explosion's and thunder's), the bell towers, delay, the reverb send (and the snow's share of it), the echo floor and which one-shots echo |
-| `src/audio/acoustics.ts` | `AMBIENT_DB`, `NIGHT_DB`, `CABIN`, the snow's loss (`snowLoss`), the mix rule (`L_REF`, `K`, `FULL_SCALE`), the air and diffraction tables |
+| `src/audio/director/levels.ts` | every source level and size (the owl's `OWL`, thunder's, a train's power pack's in `ENGINE` and its wheels' `ROLLING`, the player's own train from its cab, `OWN_TRAIN_DB`), the beds (`BEDS`, `GALE_DB`, the roof's `ROOF_DB`), heights and the animals' `MOUTH`, how much softer a woman's or a child's speech is (`SOFTER`), caps and hysteresis, the one-shots' gain caps (`MOST_DB`: the crash's, the explosion's, thunder's and a train's honk's), the bell towers, delay, the reverb send (and the snow's share of it), the echo floor and which one-shots echo |
+| `src/audio/acoustics.ts` | `AMBIENT_DB`, `NIGHT_DB`, `CABIN` (a train's cab too), the snow's loss (`snowLoss`), the mix rule (`L_REF`, `K`, `FULL_SCALE`), the air and diffraction tables |
 | `src/audio/index.ts` | when a still vehicle is heard (`STILL`), when its wheels are off the ground (`AIRBORNE`), the zone of each face that strikes the ground |
+| `src/audio/rail.ts` | a train's revs from its power (`trainRevs`), what a train struck sounds like (`STEEL`) and its own body in a crash (`TRAIN_BODY`) |
+| `src/audio/director/rail.ts` | a train's source heights over its rail head (`OVER_RAIL`), the crossing bell's (`BELL_HEIGHT`), the tunnel's loss a metre (`TUNNEL_DB`) and the depth past which nothing is heard (`DEEP`) |
+| `src/audio/places/track.ts`, `src/audio/synth/rail.ts` | how near a piece's end must lie to a line to be a switch (`ON`); the joints' spacing (`JOINT`), a bogie's wheelbase (`WHEELBASE`), the wheels' nominal speed (`RAILS_TOP`), the roughness the roar follows (`ROUGHNESS`), the clacks' lookahead and speed, the layers' gains (`ROAR`, `RUMBLE`, `CRACK`, `THUMP`), the squeal's bands and gain |
+| `src/audio/synth/crossing.ts`, `src/audio/synth/horns.ts` | the bell's measured partials (`PARTIALS`), its stroke (`STROKE`) and click; the train horn's tones (`TRAIN_TONES`), voicing and attack (`TRAIN_HORN`), an AI train's blasts (`LONG_BLAST`, `ALARM`) |
 | `src/audio/director/vehicles.ts` | when tyres roll and how long a skid holds, the beeper sounds, a hit crashes, clunks or scrapes, hits merge; the ground's materials; the groan and door timings; how much of the cabin the own horn and siren pass |
 | `src/audio/director/people.ts` | jumps, running, the robbed driver's radius (`THIEF_NEAR`), the cue gap (`CUE_GAP`), who screams (`SCREAMERS`), how often gatherers speak (`HELP_RATE`), how near a victim lies (`BODY_NEAR`), the lines a frame (`LINES_PER_FRAME`, `STALE`) |
 | `src/audio/director/talk.ts` | when two chat (`PAIRED`), the pause between turns (`GAP`), the turns' shares (`TURNS`), the conversations voiced (`VOICED`), a party's bursts and lulls (`BURST`, `LULL`) |
@@ -1554,6 +1805,13 @@ Where to tune:
 | `src/audio/mixer.ts`, `src/audio/speaker.ts` | master gain, limiter, the street reverb and its return; the one-shot cap |
 | `src/audio/synth/*.ts` | each synth's own table: horns, tyre grounds and the skid's fade-in, the clunk (`BOTTOMED`), the scrape's materials, treads (the snow's `SNOW` too), the scream and groan, calls (the owl's too), bubbles, the rain's layers and surfaces (`RAIN_LAYERS`, `SURFACES`, `WATER`), the thunder's channel and roll (`CHANNEL`, `PEARL`, `ROLL`); the animal calls' contours, tracts and `MEOW_QUIET` (`synth/animals.ts`) |
 | `src/audio/speech/` | the lexicon, fillers, gibberish weights and `PROFANE` (`lines.ts`); timing, tempo, F0, tract and voice quality, the yell (`plan.ts`); the synth's bandwidths, glides and noise levels (`render.ts`) |
+
+For trains and crossings: TSI Noise, Reg. 1304/2014 (a diesel unit's starting and pass-by
+limits), TSI HS RST 2008/232 and EN 15153-2 (the horn's tones and level), UIC 644, RFI's
+Regolamento Segnali art. 5 and 7 (when a driver whistles, the alarm), DPR 495/1992 art. 186 (the
+bell heard from 100 m), the Wegh eLCSP data sheet (the bell's 90 dB at 1 m), a Commons recording
+of an Italian crossing's bell (CC BY-SA 4.0, measured for its partials and stroke, not shipped),
+MAN (the D2876's 1800 rpm) and pesa.pl (the ATR 220's length and layout).
 
 Sources for the numbers: ISO 9613-1 (air absorption) and ISO 9613-2 (ground effect, foliage),
 Maekawa's barrier chart (diffraction), Thomas et al. 2013 (reverb in streets and in the open),

@@ -6,17 +6,21 @@
  */
 import type { PlayerViewModel, SkyViewModel } from "../sim/index.ts"
 import { heightAt } from "../sim/map/index.ts"
+import { boardable } from "../sim/rail/boarding.ts"
 import { clockText, weatherText } from "./clock.ts"
 import { locationAt } from "./location.ts"
 import { makeMinimap } from "./minimap.ts"
 import { element, set } from "./title.ts"
 import { makeWorldMap } from "./worldmap.ts"
 
-/** What the action key would do now, and to which vehicle (none when getting out); undefined when nothing. */
+/** What the action key would do now, and to which vehicle (none when getting out); undefined when nothing (a train still too fast to leave). */
 export const actionFor = (
   view: PlayerViewModel,
 ): { readonly verb: string; readonly vehicle?: string } | undefined => {
-  if (view.mode === "driving") return { verb: "exit" }
+  if (view.mode === "driving")
+    return view.vehicle?.kind === "train" && !boardable(view.vehicle.speed)
+      ? undefined
+      : { verb: "exit" }
   if (view.mode === "down" || view.mode === "dead" || view.nearby === undefined) return undefined
   const { occupied, stolen, label } = view.nearby
   return { verb: occupied ? "carjack" : stolen ? "enter" : "steal", vehicle: label }
@@ -41,8 +45,6 @@ export const makeHud = (document: Document) => {
     district = element(document, "hud-district")
   const clock = element(document, "hud-clock"),
     weather = element(document, "hud-weather")
-  const stolen = element(document, "hud-stolen"),
-    knocked = element(document, "hud-knocked")
   const speedo = element(document, "hud-speedo"),
     speed = element(document, "hud-speed"),
     vehicle = element(document, "hud-vehicle")
@@ -94,8 +96,6 @@ export const makeHud = (document: Document) => {
         clock.setAttribute("datetime", time)
       }
       set(weather, weatherText(sky, located.x, located.y, located.z))
-      set(stolen, String(view.score.stolen))
-      set(knocked, String(view.score.knocked))
       show(speedo, view.vehicle !== undefined)
       if (view.vehicle !== undefined) {
         set(speed, String(kmh(view.vehicle.speed)))

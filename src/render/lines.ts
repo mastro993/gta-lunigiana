@@ -1,217 +1,18 @@
 /**
- * Ribbons along map polylines (roads, water, rail), the bridge decks under them and station
- * platforms, as pieces the streamed world draws chunk by chunk. Ribbons are densified so they
- * follow the terrain facets and go in the decal layer, rivers in the water layer.
+ * Roads and rivers as pieces the streamed world draws chunk by chunk: ribbons along their
+ * polylines (render/ribbons), densified so they follow the terrain facets, in the decal layer and
+ * rivers in the water layer, and the decks under road bridges. The track is in render/rail.
  *
  * @module render/lines
  */
-import { ExtrudeGeometry, Shape, Vector2 } from "three"
-
 import { ROAD_LIFT } from "../sim/map/ground.ts"
 import { MAP, roadClassOf, type Road } from "../sim/map/index.ts"
-import { channelOf } from "../sim/water/channel.ts"
-import { APRON } from "./chunks.ts"
-import { type Flowing, paint, type Piece, type SinkAt, type Triangles } from "./geometry.ts"
-import { surfaceY, terrainY, yOf } from "./ground.ts"
+import { channelOf, reachOf } from "../sim/water/channel.ts"
+import type { Flowing, Piece, SinkAt } from "./geometry.ts"
+import { surfaceY, yOf } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
-
-/** A strip along a polyline. `y` gives the render height of an edge point from the centreline elevation there. */
-interface RibbonSpec {
-  readonly pts: ReadonlyArray<number>
-  /** Elevation (m a.s.l.) per vertex of `pts`. */
-  readonly z: ReadonlyArray<number>
-  readonly width: number
-  readonly hex: number
-  readonly y: (x: number, y: number, z: number) => number
-  /** Lateral shift of the strip's centre, metres (positive = left of travel). */
-  readonly offset?: number
-  /** Dash length (m): draw every other `dash` metres. */
-  readonly dash?: number
-  /** Water's: each vertex's rise and flow (`Flowing`), in step with `pts`; a ribbon with them goes in the water layer, else in the decal one. */
-  readonly flowing?: ReadonlyArray<Flowing>
-}
-
-const { minX, minY, maxX, maxY } = MAP.bounds
-const OUT = APRON * MAP.heightmap.cell
-/** Where (x, y) on the bounds goes when pushed straight out across the apron, or undefined if it is inside. */
-const outward = (x: number, y: number): readonly [number, number] | undefined =>
-  x <= minX + 0.5
-    ? [x - OUT, y]
-    : x >= maxX - 0.5
-      ? [x + OUT, y]
-      : y <= minY + 0.5
-        ? [x, y - OUT]
-        : y >= maxY - 0.5
-          ? [x, y + OUT]
-          : undefined
-
-/**
- * A line that leaves the map continues straight across the apron at its edge elevation, like the
- * apron terrain (edge heights extruded outwards), so roads and rivers do not stop at the bounds.
- */
-const throughApron = <T = never>(
-  pts: ReadonlyArray<number>,
-  z: ReadonlyArray<number>,
-  along: ReadonlyArray<T> = [],
-): { pts: Array<number>; z: Array<number>; along: Array<T> } => {
-  const head = outward(pts[0]!, pts[1]!),
-    tail = outward(pts.at(-2)!, pts.at(-1)!)
-  const ends = <V>(values: ReadonlyArray<V>): Array<V> =>
-    values.length === 0
-      ? []
-      : [
-          ...(head === undefined ? [] : [values[0]!]),
-          ...values,
-          ...(tail === undefined ? [] : [values.at(-1)!]),
-        ]
-  return { pts: [...(head ?? []), ...pts, ...(tail ?? [])], z: ends(z), along: ends(along) }
-}
-
-/**
- * Adds segments k0..k1 of a ribbon to its layer of the chunks they cross. Their neighbours
- * are densified too, for the mitres, and their quads go wherever `at` puts them; the arc length
- * (dashes) still counts from the start of the line.
- */
-const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
-  const step = spec.dash === undefined ? 2 : Math.min(1, spec.dash / 2)
-  const xs: Array<number> = [],
-    ys: Array<number> = [],
-    zs: Array<number> = [],
-    ss: Array<number> = [],
-    fs: Array<Flowing> = []
-  const flowing = spec.flowing
-  /** `flows` at vertex k and `t` of the way to the next. */
-  const flowAt = (flows: ReadonlyArray<Flowing>, k: number, t: number): Flowing => {
-    const a = flows[k]!,
-      b = flows[Math.min(flows.length - 1, k + 1)]!
-    return [
-      a[0] + (b[0] - a[0]) * t,
-      a[1] + (b[1] - a[1]) * t,
-      a[2] + (b[2] - a[2]) * t,
-      a[3] + (b[3] - a[3]) * t,
-    ]
-  }
-  const first = Math.max(0, k0 - 1),
-    last = Math.min(spec.z.length - 2, k1 + 1)
-  let s = 0
-  for (let k = 0; k < first; k++)
-    s += Math.hypot(
-      spec.pts[2 * k + 2]! - spec.pts[2 * k]!,
-      spec.pts[2 * k + 3]! - spec.pts[2 * k + 1]!,
-    )
-  for (let k = first; k <= last; k++) {
-    const ax = spec.pts[2 * k]!,
-      ay = spec.pts[2 * k + 1]!,
-      bx = spec.pts[2 * k + 2]!,
-      by = spec.pts[2 * k + 3]!
-    const len = Math.hypot(bx - ax, by - ay),
-      n = Math.max(1, Math.ceil(len / step))
-    for (let j = 0; j < n; j++) {
-      xs.push(ax + ((bx - ax) * j) / n)
-      ys.push(ay + ((by - ay) * j) / n)
-      zs.push(spec.z[k]! + ((spec.z[k + 1]! - spec.z[k]!) * j) / n)
-      ss.push(s + (len * j) / n)
-      if (flowing !== undefined) fs.push(flowAt(flowing, k, j / n))
-    }
-    s += len
-  }
-  xs.push(spec.pts[2 * last + 2]!)
-  ys.push(spec.pts[2 * last + 3]!)
-  zs.push(spec.z[last + 1]!)
-  ss.push(s)
-  if (flowing !== undefined) fs.push(flowAt(flowing, last + 1, 0))
-  const count = xs.length
-  if (count < 2) return
-  // Left normal of segment i, then mitred edge points per vertex (clamped at sharp corners).
-  const left = (i: number): readonly [number, number] => {
-    const dx = xs[i + 1]! - xs[i]!,
-      dy = ys[i + 1]! - ys[i]!,
-      l = Math.hypot(dx, dy) || 1
-    return [-dy / l, dx / l]
-  }
-  const half = spec.width / 2,
-    offset = spec.offset ?? 0
-  const edges: Array<readonly [number, number, number, number, number, number]> = []
-  for (let i = 0; i < count; i++) {
-    const a = left(Math.max(0, i - 1)),
-      b = left(Math.min(count - 2, i))
-    let mx = a[0] + b[0],
-      my = a[1] + b[1]
-    const ml = Math.hypot(mx, my) || 1
-    mx /= ml
-    my /= ml
-    const k = 1 / Math.max(mx * b[0] + my * b[1], 0.5)
-    const lx = xs[i]! + mx * (offset + half) * k,
-      ly = ys[i]! + my * (offset + half) * k
-    const rx = xs[i]! + mx * (offset - half) * k,
-      ry = ys[i]! + my * (offset - half) * k
-    edges.push([lx, ly, spec.y(lx, ly, zs[i]!), rx, ry, spec.y(rx, ry, zs[i]!)])
-  }
-  for (let i = 0; i + 1 < count; i++) {
-    if (spec.dash !== undefined && Math.floor((ss[i]! + ss[i + 1]!) / 2 / spec.dash) % 2 === 1)
-      continue
-    const [lx0, ly0, lh0, rx0, ry0, rh0] = edges[i]!,
-      [lx1, ly1, lh1, rx1, ry1, rh1] = edges[i + 1]!
-    // Right edge forward, then left edge back: counter-clockwise seen from above.
-    const sink = at((xs[i]! + xs[i + 1]!) / 2, (ys[i]! + ys[i + 1]!) / 2)
-    if (flowing === undefined)
-      sink.decal.quad(
-        [rx0, rh0, -ry0],
-        [rx1, rh1, -ry1],
-        [lx1, lh1, -ly1],
-        [lx0, lh0, -ly0],
-        spec.hex,
-      )
-    else
-      sink.water.waterQuad(
-        [rx0, rh0, -ry0],
-        [rx1, rh1, -ry1],
-        [lx1, lh1, -ly1],
-        [lx0, lh0, -ly0],
-        spec.hex,
-        [fs[i]!, fs[i + 1]!, fs[i + 1]!, fs[i]!],
-      )
-  }
-}
-
-/**
- * A box swept from (ax, ay) to (bx, by) whose bottom and top follow the heights `ya` → `yb`
- * (sheared, so consecutive pieces join on slopes); `offset` shifts it sideways (left positive).
- */
-const prism = (
-  tris: Triangles,
-  ax: number,
-  ay: number,
-  ya: number,
-  bx: number,
-  by: number,
-  yb: number,
-  offset: number,
-  width: number,
-  bottom: number,
-  top: number,
-  hex: number,
-): void => {
-  const dx = bx - ax,
-    dy = by - ay,
-    l = Math.hypot(dx, dy) || 1
-  const nx = -dy / l,
-    ny = dx / l
-  const p = (end: 0 | 1, side: number, level: number) => {
-    const w = offset + (side * width) / 2
-    return [
-      (end === 0 ? ax : bx) + nx * w,
-      (end === 0 ? ya : yb) + level,
-      -((end === 0 ? ay : by) + ny * w),
-    ] as const
-  }
-  tris.face(p(0, -1, top), p(1, -1, top), p(1, 1, top), p(0, 1, top), [0, 1, 0], hex)
-  tris.face(p(0, -1, bottom), p(1, -1, bottom), p(1, 1, bottom), p(0, 1, bottom), [0, -1, 0], hex)
-  tris.face(p(0, 1, bottom), p(1, 1, bottom), p(1, 1, top), p(0, 1, top), [nx, 0, -ny], hex)
-  tris.face(p(0, -1, bottom), p(1, -1, bottom), p(1, -1, top), p(0, -1, top), [-nx, 0, ny], hex)
-  tris.face(p(0, -1, bottom), p(0, 1, bottom), p(0, 1, top), p(0, -1, top), [-dx, 0, dy], hex)
-  tris.face(p(1, -1, bottom), p(1, 1, bottom), p(1, 1, top), p(1, -1, top), [dx, 0, -dy], hex)
-}
+import { prism, type RibbonSpec, strips, throughApron } from "./ribbons.ts"
+import { underPanel } from "./track-index.ts"
 
 /** Deck slab under segments k0..k1 of a bridge and a low parapet along each side. */
 const bridge = (
@@ -262,19 +63,8 @@ const bridgeHex = (road: Road): number => {
   return cls === "tertiary" || cls === "unclassified" ? PALETTE.plasterGrey : PALETTE.stoneMid
 }
 
-/** A piece drawing every ribbon in `specs` along `line`. */
-const strips = (
-  line: { readonly pts: ReadonlyArray<number> },
-  specs: ReadonlyArray<RibbonSpec>,
-): Piece => ({
-  pts: line.pts,
-  draw: (at, k0, k1) => {
-    for (const spec of specs) ribbon(at, spec, k0, k1)
-  },
-})
-
-/** A piece drawing the deck under a bridge whose deck top is `y(k)` at vertex k. */
-const deck = (
+/** A piece drawing the deck under a bridge whose deck top is `y(k)` at vertex k (roads here, the track in rail.ts). */
+export const deck = (
   pts: ReadonlyArray<number>,
   y: (k: number) => number,
   width: number,
@@ -304,6 +94,8 @@ const roads = (): Array<Piece> =>
         hex: PALETTE.marbleWhite,
         dash: 3,
         y: (x, y, z) => surfaceY(z, x, y, lift + 0.02, lifted),
+        // Not under a level crossing's panels, which lie as high over the road (render/rail).
+        skip: underPanel,
       })
     }
     return [
@@ -334,7 +126,7 @@ const water = (): Array<Piece> =>
     return strips(spec, [
       {
         ...spec,
-        width: 2 * Math.max(w.bed, w.w / 2),
+        width: 2 * reachOf(w),
         hex: PALETTE.waterShallow,
         y: (_x, _y, z) => yOf(z) + 0.02,
       },
@@ -351,54 +143,5 @@ const water = (): Array<Piece> =>
     ])
   })
 
-const GAUGE = 1.435
-/** The Lucca–Aulla line: ballast, sleepers and two rails; bridges get decks, tunnels are skipped. */
-const rail = (): Array<Piece> =>
-  MAP.rail.flatMap((r) => {
-    if (r.tunnel === true) return []
-    const lifted = r.bridge === true
-    const y = (lift: number) => (x: number, y: number, z: number) => surfaceY(z, x, y, lift, lifted)
-    const line = throughApron(r.pts, r.z)
-    const ribbons = strips(line, [
-      { ...line, width: 3.2, hex: PALETTE.stoneMid, y: y(0.04) },
-      { ...line, width: 2.4, hex: PALETTE.woodBrown, dash: 0.6, y: y(0.07) },
-      ...[-1, 1].map((side) => ({
-        ...line,
-        width: 0.18,
-        hex: PALETTE.stoneDark,
-        offset: (side * GAUGE) / 2,
-        y: y(0.12),
-      })),
-    ])
-    return [
-      ribbons,
-      ...(lifted ? [deck(r.pts, (k) => yOf(r.z[k]!) + 0.04, 3.2, PALETTE.stoneMid)] : []),
-    ]
-  })
-
-/** Station platforms: a slab half a metre above the highest ground under it. */
-const platforms = (): Array<Piece> =>
-  MAP.areas.flatMap((area) => {
-    if (area.kind !== "platform") return []
-    const outer = area.rings[0]!
-    return [
-      {
-        pts: [outer[0]!, outer[1]!],
-        draw: (at) => {
-          const points: Array<Vector2> = []
-          let top = -Number.MAX_VALUE
-          for (let k = 0; k + 1 < outer.length; k += 2) {
-            points.push(new Vector2(outer[k], outer[k + 1]))
-            top = Math.max(top, terrainY(outer[k]!, outer[k + 1]!))
-          }
-          const slab = new ExtrudeGeometry(new Shape(points), { depth: 2, bevelEnabled: false })
-          slab.rotateX(-Math.PI / 2)
-          slab.translate(0, top + 0.5 - 2, 0)
-          at(outer[0]!, outer[1]!).pieces.push(paint(slab, PALETTE.asphaltWorn))
-        },
-      },
-    ]
-  })
-
-/** Every line piece of the map (roads, water, rail) and the platforms, in draw order. */
-export const linePieces = (): Array<Piece> => [...roads(), ...water(), ...rail(), ...platforms()]
+/** Every road and river piece of the map, in draw order. */
+export const linePieces = (): Array<Piece> => [...roads(), ...water()]

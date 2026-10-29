@@ -4,7 +4,9 @@ import { test } from "node:test"
 import { Vector3 } from "three"
 
 import { MAP } from "../../sim/map/index.ts"
+import { DRAWN_RUN } from "../../sim/rail/lines.ts"
 import {
+  APRON,
   chunkBoxes,
   CHUNKS,
   chunkOf,
@@ -21,6 +23,10 @@ const rects = screenRects(chunkBoxes(), right, up, new Float32Array(CHUNKS.x * C
 const distancesFrom = (focus: Vector3) =>
   screenDistances(rects, focus.dot(right), focus.dot(up), new Float32Array(CHUNKS.x * CHUNKS.y))
 const ground = (x: number, y: number) => new Vector3(x, terrainY(x, y), -y)
+
+test("chunks: the apron past the map's edge is the railway's drawn run, the track a driven train runs to its buffer stop", () => {
+  assert.equal(APRON * MAP.heightmap.cell, DRAWN_RUN)
+})
 
 test("plan: builds the missing chunks within the load radius nearest first, drops loaded ones past the unload radius", () => {
   const distances = [5, 50, 150, 300, 20, 90, 250]

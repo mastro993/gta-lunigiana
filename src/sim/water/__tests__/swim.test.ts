@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { personBuild } from "../../systems/water.ts"
-import { footingOf, personMass, swept, wadeShare, wadingSpeed } from "../swim.ts"
+import { holdOf, personMass, swept, wadeShare, wadingSpeed } from "../swim.ts"
 
 const still = (depth: number, speed = 0) => ({
   depth,
@@ -13,14 +13,14 @@ const still = (depth: number, speed = 0) => ({
   bankY: 1,
 })
 
-test("footing: an adult stands to a depth × speed of 1.2 m²/s, a 1.2 m child to 0.4, as Cox et al. (2010) find", () => {
-  assert.ok(Math.abs(footingOf(1.75, 75) - 1.2) < 1e-9)
-  assert.ok(Math.abs(personBuild(1.2).footing - 0.4) < 0.02, `${personBuild(1.2).footing}`)
-  assert.equal(footingOf(1.4, 600), 1.2, "no body stands more than an adult")
+test("hold: an adult stands to a depth × speed of 1.2 m²/s, a 1.2 m child to 0.4, as Cox et al. (2010) find", () => {
+  assert.ok(Math.abs(holdOf(1.75, 75) - 1.2) < 1e-9)
+  assert.ok(Math.abs(personBuild(1.2).hold - 0.4) < 0.02, `${personBuild(1.2).hold}`)
+  assert.equal(holdOf(1.4, 600), 1.2, "no body stands more than an adult")
   assert.ok(Math.abs(personMass(1.75) - 75) < 0.1)
 })
 
-test("swept: off its feet at its chest or past its footing, back on them a little under either", () => {
+test("swept: off its feet at its chest or past its hold, back on them a little under either", () => {
   const adult = personBuild(1.75)
   assert.ok(!swept(still(1.1), adult, false))
   assert.ok(swept(still(1.3), adult, false), "the water at the chest lifts it")

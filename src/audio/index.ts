@@ -3,9 +3,10 @@
  * data (the player's ears; vehicles someone drives, that move or that burn, with the drivetrain's
  * revs and load from their worn engines, their damage, whether they burn, whether their wheels or
  * their body are down and how their tyres skid; people on foot, with who they are, what they are
- * doing and who they walk with; the animals; the Impact, Honk, Cry, Explosion and Lightning events
- * since the last frame, each impact with the bodies it struck; the horn key; the game clock's day,
- * time and sun, and a copy of the weather) and hands it to the `Audio` service.
+ * doing and who they walk with; the animals; every train, car by car, and the level crossings'
+ * bells (./rail.ts); the Impact, Honk, Cry, Explosion, Lightning and Whistle events since the last
+ * frame, each impact with the bodies it struck, those with trains rewritten as steel; the horn key;
+ * the game clock's day, time and sun, and a copy of the weather) and hands it to the `Audio` service.
  * No acoustics here: the director behind the service decides what is loud enough and where it sits,
  * and works out the weather at the ears.
  * Read-only towards the world, like render (render/__tests__/index.test.ts checks every described schedule).
@@ -34,6 +35,7 @@ import {
   Honk,
   Impact,
   Input,
+  LevelCrossings,
   Lightning,
   Motion,
   Pedestrian,
@@ -44,15 +46,20 @@ import {
   Skid,
   Time,
   Traffic,
+  Train,
+  TrainMotion,
   Vehicle,
   View,
   Weather,
+  Whistle,
 } from "../sim/index.ts"
 import { groundZ } from "../sim/map/ground.ts"
 import { daysFromCivil, romeTime } from "../sim/sky/calendar.ts"
 import { sunOver } from "../sim/sky/day.ts"
 import { VEHICLES, type VehicleModel } from "../sim/vehicles.ts"
 import { followYaw, QUARTER } from "../sim/view.ts"
+import type { HeardTrain } from "./rail-types.ts"
+import { heardCrossings, heardTrain, railImpact } from "./rail.ts"
 import type {
   Body,
   Happening,
@@ -161,6 +168,9 @@ const Hear = Game.System(
           dead: Game.Query.optional(Dead),
         },
       }),
+      trains: Game.Query({
+        selection: { train: Game.Query.read(Train), motion: Game.Query.read(TrainMotion) },
+      }),
     },
     resources: {
       input: Game.System.readResource(Input),
@@ -168,6 +178,7 @@ const Hear = Game.System(
       time: Game.System.readResource(Time),
       clock: Game.System.readResource(GameClock),
       weather: Game.System.readResource(Weather),
+      crossings: Game.System.readResource(LevelCrossings),
     },
     events: {
       impacts: Game.System.readEvent(Impact),
@@ -176,6 +187,7 @@ const Hear = Game.System(
       cries: Game.System.readEvent(Cry),
       lightning: Game.System.readEvent(Lightning),
       explosions: Game.System.readEvent(Explosion),
+      whistles: Game.System.readEvent(Whistle),
     },
     services: { audio: Game.System.service(Audio) },
   },
@@ -318,16 +330,40 @@ const Hear = Game.System(
         dead: data.dead.present,
       }
     })
+    const trains = new Map<number, HeardTrain>()
+    for (const { entity, data } of queries.trains.each()) {
+      const train = heardTrain(
+        entity.id,
+        data.train.get().model,
+        data.motion.get(),
+        entity.id === car,
+      )
+      if (train !== undefined) trains.set(entity.id, train)
+    }
     const happenings: Array<Happening> = [
       // A vehicle despawned since its hit is no longer heard.
-      ...events.impacts.all().flatMap((hit): Array<Happening> => {
+      ...events.impacts.all().flatMap((hit): ReadonlyArray<Happening> => {
+        const rail = railImpact(hit, bodyAt, trains)
+        if (rail !== undefined) return rail
+        if (hit.hit === "train") return []
+        const kind = hit.hit
         const body = bodyAt(hit.car, hit.x, hit.y, hit.face),
           otherBody =
             hit.hit === "car" && hit.other !== undefined
               ? bodyAt(hit.other, hit.x, hit.y)
               : undefined
         if (body === undefined || (hit.hit === "car" && otherBody === undefined)) return []
-        return [{ kind: "impact", ...hit, body, ...(otherBody === undefined ? {} : { otherBody }) }]
+        return kind === "person" || kind === "animal"
+          ? [{ kind: "impact", ...hit, hit: kind, body }]
+          : [
+              {
+                kind: "impact",
+                ...hit,
+                hit: kind,
+                body,
+                ...(otherBody === undefined ? {} : { otherBody }),
+              },
+            ]
       }),
       ...events.honks.all().map((honk) => ({ kind: "honk" as const, ...honk })),
       ...events.cries.all().map((cry) => ({ kind: "cry" as const, ...cry })),
@@ -342,6 +378,15 @@ const Hear = Game.System(
       ...events.explosions
         .all()
         .map(({ car, x, y, z }) => ({ kind: "explosion" as const, car, x, y, z })),
+      // At the train's nose: its cab's rail head (the ground knows no rail decks).
+      ...events.whistles.all().map(({ train, x, y, urgent }) => ({
+        kind: "whistle" as const,
+        train,
+        x,
+        y,
+        z: trains.get(train)?.cars[0]?.z ?? groundZ(x, y),
+        urgent,
+      })),
     ]
     services.audio.hear({
       listener: {
@@ -355,6 +400,8 @@ const Hear = Game.System(
       vehicles,
       people,
       animals,
+      trains: [...trains.values()],
+      crossings: heardCrossings(resources.crossings.get(), step),
       happenings,
       horn: resources.input.get().actions.horn.held,
       sky: skyAt(resources.clock.get().seconds),

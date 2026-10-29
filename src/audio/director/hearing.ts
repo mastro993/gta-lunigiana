@@ -61,6 +61,8 @@ export interface Path {
   readonly snow?: number | undefined
   /** How many dB the synth itself plays under its nominal peak with these params: counts for masking, not for the gain. */
   readonly quiet?: number
+  /** Any more loss on the way, dB (a tunnel's length between a source and its portal): counts for both. */
+  readonly loss?: number | undefined
   /** Maekawa path difference over the worst edge in the way, m, and metres of forest on the way. */
   readonly delta: number
   readonly forest: number
@@ -108,7 +110,12 @@ export const hear = (path: Path): Hearing => {
     snow = path.snow ?? 0
   const ground = path.aloft === true ? 0 : groundLoss(r, path.height) + snowLoss(r, snow)
   const loss =
-    spreading(r, path.rMin) + ground + foliageLoss(path.forest) + edge.loss + (through?.loss ?? 0)
+    spreading(r, path.rMin) +
+    ground +
+    foliageLoss(path.forest) +
+    edge.loss +
+    (through?.loss ?? 0) +
+    (path.loss ?? 0)
   const level = path.db - (path.quiet ?? 0) - loss
   const fade = audibility(level, path.ambient)
   const reach = Math.min(REVERB.far, Math.max(REVERB.near, r)) / REVERB.ref

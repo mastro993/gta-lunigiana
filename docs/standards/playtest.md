@@ -33,10 +33,13 @@ this WebGL page, so drive headless Chrome over CDP:
    `deviceScaleFactor` 3; swap the sides for a phone held upright), together with
    `Emulation.setTouchEmulationEnabled`; both make `(pointer: coarse)` match, so the game starts
    in mobile mode. Drive the touch controls with `Input.dispatchTouchEvent`.
-4. Dev builds expose `window.gta`: `renderer`, `view`, `scene`, `world`, `effects`, `heightAt`,
+4. Dev builds expose `window.gta`: `renderer`, `view`, `scene`, `world`, `effects` (its
+   `crossings.boxes` hold each level crossing's barriers and road lights, as the render last set
+   them; `undefined` at a foot crossing), `heightAt`,
    `player()`, `handling()` (the handling knobs in force), `audio` (`level()` gives the output in
-   dBFS), `sky`, `skyLook()` and `cut` (the see-through cut: `open`, and `follow`, which the
-   render schedule calls with the player each frame; wrap it to pin the cut to a spot you shoot).
+   dBFS), `sky`, `skyLook()`, `trains()` and `cut` (the see-through cut: `open`, and `follow`,
+   which the render schedule calls with the player each frame; wrap it to pin the cut to a spot you
+   shoot).
    Load `?seed=N`, wait for `gta`, then press a key to dismiss the title card.
    - `gta.sky` is the debug menu's sky store: `now()` (the game time, its rate, Rome's wall clock
      in `local`, and the weather), `rate()`, `regime()` (the regime held, `null` in Auto),
@@ -55,10 +58,21 @@ this WebGL page, so drive headless Chrome over CDP:
    - `gta.skyLook()` returns what the sky host drew last: the sky frame (night, lamps, ambient,
      flash, wind, rain and snow), the sun and the moon, the light, the key light's aim, the
      exposure, whether shadows were drawn, the fog layers and the weather at the focus.
+   - `gta.trains()` returns the railway as the debug menu's Trains area shows it (`TrainView`
+     through the trains store): `lines` (`due`, real seconds until each line's next train may
+     enter, 0 once due, `null` when none is; `from`, the end it enters from), `trains` (id, label,
+     line, `s`, `v`, `facing`, the AI driver's `state`, `next`, `driver` and `stolen`) and
+     `crossings` (centre, road, `walk`, `phase`, `arm`, `lit`, `ringing`). `gta.trains.call()`
+     calls a train now onto every line no AI train runs on (`SetTrains`); until the game steps,
+     `gta.trains()` already shows those lines due now. At the start of a new game each line's train
+     stands at its station nearest the player, so the call reaches a line only once its train is
+     gone or stolen. A crew door, to board a train from a bot, is 2.5 m behind each nose
+     (`doorsOf` in `src/sim/rail/boarding.ts`, which Vite serves to the page as
+     `/src/sim/rail/boarding.ts`).
    - The debug menu (P) has ids for bots: `#debug-time-rate-{0,1,10,60}`, `#debug-time-of-day`,
      `#debug-time-date`, `#debug-time-sunrise`, `#debug-time-sunset`,
-     `#debug-weather-{auto,clear,fair,cloudy,overcast,fog,rain,storm,windy,snow}` and
-     `#debug-weather-settle`.
+     `#debug-weather-{auto,clear,fair,cloudy,overcast,fog,rain,storm,windy,snow}`,
+     `#debug-weather-settle`, and `#debug-trains-call` under `#debug-trains-title`.
 5. To shoot the spot at (x east, y north), run this, then wait about 6 s:
 
    ```js

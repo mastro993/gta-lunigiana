@@ -396,6 +396,16 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
           const gap = zAt(rl.z, c.i, c.t) - zAt(rd.z, c.j, c.u)
           assert.ok(gap >= 4.6, `rail ${rl.id} only ${gap.toFixed(1)} m over road ${rd.id}`)
         }
+  // A road bridge over the rail clears the ATR 220 (4.185 m over the rail head, 0.12 m over the
+  // bed) under its 0.9 m deck, with 0.3 m to spare (rail-levels.ts; the Equi Terme overpass left
+  // the roof 0.46 m in the deck).
+  for (const rl of MAP.rail)
+    for (const rd of MAP.roads)
+      if (rd.bridge === true && rl.tunnel !== true && rl.bridge !== true)
+        for (const c of crossings(rl.pts, rd.pts)) {
+          const gap = zAt(rd.z, c.j, c.u) - zAt(rl.z, c.i, c.t)
+          assert.ok(gap >= 5.4, `road ${rd.id} only ${gap.toFixed(2)} m over rail ${rl.id}`)
+        }
   const channels = bucketed(
     MAP.water.flatMap((o) => segsOf(o.pts).map((s) => ({ ...s, w: o.w }))),
     (s) => [s.ax, s.ay, s.bx, s.by],

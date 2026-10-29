@@ -4,8 +4,8 @@
  * them), the weather there (the sim's own laws, at the ears' height), the masking floor, how
  * enclosed the street is and the rock faces that echo, lets its parts place every sound through
  * the acoustic chain (hearing.ts), keeps the loudest voices of each kind up to their caps, and
- * flushes the speaker. Its parts: vehicles, people (steps and cries), talk (conversations),
- * animals, the world around and thunder. Pure TypeScript: Node tests drive it with a recording
+ * flushes the speaker. Its parts: vehicles, trains and level crossings, people (steps and cries),
+ * talk (conversations), animals, the world around and thunder. Pure TypeScript: Node tests drive it with a recording
  * speaker and a seeded random source.
  *
  * Time is the speaker's: before its context exists (and while it is suspended) no time passes;
@@ -19,11 +19,12 @@ import { VEHICLES } from "../../sim/vehicles.ts"
 import { axesAt } from "../../sim/view.ts"
 import { EAR_HEIGHT } from "../acoustics.ts"
 import { echoesAt, type Echo } from "../places.ts"
-import type { Heard, Speaker } from "../types.ts"
+import type { CabinModel, Heard, Speaker } from "../types.ts"
 import { makeAnimals } from "./animals.ts"
 import { commit, groundAt, makeFrame, type Offer } from "./frame.ts"
 import { makeOccluder } from "./occluder.ts"
 import { makePeople } from "./people.ts"
+import { makeRail } from "./rail.ts"
 import { makeTalk } from "./talk.ts"
 import { makeThunder } from "./thunder.ts"
 import { makeVehicles } from "./vehicles.ts"
@@ -31,9 +32,38 @@ import { makeWorld } from "./world.ts"
 
 /** A frame longer than this (s) is a stall, not time passing. */
 const MAX_DT = 0.25
+/** A train's cab floor over the rail head, m: over the bogie and the power pack (the ATR 220's 1.2–1.3 m). */
+const CAB_FLOOR = 1.2
 /** Echoing rock faces are looked up again after this long (s) or this far (m). */
 const ECHOES_EVERY = 1,
   ECHOES_MOVED = 10
+
+/**
+ * Where the listener sits: the level the ears ride over, the cabin around them and whether it stands in a tunnel. In a car the
+ * ears ride with it, in the air too, and in a train's cab over its rails (a rail deck, a tunnel); on foot the ground under the
+ * listener stays on the level it was on, `near` (the last frame's): a bridge deck, not the river under it.
+ */
+export const seatOf = (
+  heard: Heard,
+  near?: number,
+): {
+  readonly ground: number
+  readonly inside: CabinModel | undefined
+  readonly underground: boolean
+} => {
+  const { listener } = heard
+  const seat = heard.vehicles.find((v) => v.id === listener.car)
+  if (seat !== undefined)
+    return { ground: seat.z - VEHICLES[seat.model].cg, inside: seat.model, underground: false }
+  const cab = heard.trains.find((t) => t.id === listener.car)
+  if (cab !== undefined)
+    return {
+      ground: cab.cab + CAB_FLOOR,
+      inside: cab.model,
+      underground: cab.cars[0]?.tunnel === true,
+    }
+  return { ground: groundAt(listener.x, listener.y, near), inside: undefined, underground: false }
+}
 
 /** The director playing through `speaker`; `random` drives birds, owls, dogs, animal calls and what people say. */
 export const makeDirector = (
@@ -43,6 +73,7 @@ export const makeDirector = (
   const random = options.random ?? Math.random
   const occluder = makeOccluder(),
     vehicles = makeVehicles(),
+    rail = makeRail(),
     people = makePeople(),
     talk = makeTalk(),
     animals = makeAnimals(),
@@ -66,14 +97,8 @@ export const makeDirector = (
       const dt = last === undefined ? 0 : Math.min(MAX_DT, Math.max(0, now - last))
       last = now
       const { listener } = heard
-      // In a car the ears ride with it, in the air too; on foot the ground under the listener stays on the level it was on: a bridge
-      // deck, not the river under it.
-      const seat =
-        listener.car === undefined ? undefined : heard.vehicles.find((v) => v.id === listener.car)
-      ground =
-        seat === undefined
-          ? groundAt(listener.x, listener.y, ground)
-          : seat.z - VEHICLES[seat.model].cg
+      const seat = seatOf(heard, ground)
+      ground = seat.ground
       const ears = {
         x: listener.x,
         y: listener.y,
@@ -82,13 +107,14 @@ export const makeDirector = (
         vy: listener.vy,
         right: axesAt(listener.yaw).right,
       }
-      const inside = seat?.model
+      const { inside, underground } = seat
       const air = conditionsAt(heard.sky.seconds, heard.weather, ears.x, ears.y, ground)
       const { ambient, street } = world.listen(ears, now, dt, {
         sky: heard.sky,
         weather: heard.weather,
         air,
         inside,
+        underground,
       })
       if (
         live &&
@@ -116,6 +142,7 @@ export const makeDirector = (
         offers,
       })
       vehicles.hear(frame)
+      rail.hear(frame)
       people.hear(frame)
       talk.hear(frame)
       animals.hear(frame)

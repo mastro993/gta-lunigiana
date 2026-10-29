@@ -53,6 +53,17 @@ export const isDrivable = (cls: string): boolean => isRoadClass(cls) && ROADS[cl
 /** Whether AI traffic may use a road of this class (drivable minus tracks). */
 export const isTraffic = (cls: string): boolean => isRoadClass(cls) && ROADS[cls].use === "traffic"
 
+/**
+ * How far from a road's centreline people walk, m, on either side: its verge, 0.8 m past the
+ * carriageway's edge, or 0.3 m off the middle of paths, steps and tracks. A road's own `verge`
+ * (the build's, where the verge would run beside the railway) overrides it.
+ */
+export const vergeOf = (cls: string, w: number): number =>
+  cls === "path" || cls === "steps" || cls === "track" ? 0.3 : w / 2 + 0.8
+
+/** The nominal traffic lane offset, m right of a road's centreline (drive on the right): a quarter of the width plus 0.2 m on roads 5 m wide or more, 0.5 m on narrower ones. */
+export const laneOffset = (w: number): number => (w >= 5 ? w / 4 + 0.2 : 0.5)
+
 /** Facade styles the build emits. */
 export const BUILDING_STYLES = [
   "plaster",
@@ -93,6 +104,17 @@ export type AreaKind = (typeof AREA_KINDS)[number]
 const areaKinds: ReadonlySet<string> = new Set(AREA_KINDS)
 /** Whether `kind` is one of AREA_KINDS. */
 export const isAreaKind = (kind: string): kind is AreaKind => areaKinds.has(kind)
+
+/**
+ * Track on no line, drawn and driven by no train: a loop rejoins other track at both ends
+ * (Gragnola's track 1), a siding leads to a dead end (yard tracks, stubs).
+ */
+export const RAIL_KINDS = ["loop", "siding"] as const
+/** A kind of track on no line. */
+export type RailKind = (typeof RAIL_KINDS)[number]
+
+/** The rail head over a rail piece's `z` (the bed its sleepers lie on), m: where trains run (`src/sim/rail/lines.ts`) and the rails are drawn (`src/render/rail.ts`). */
+export const RAIL_LIFT = 0.12
 
 /** Side of the square wall around every tree trunk, m. */
 export const TRUNK = 0.5

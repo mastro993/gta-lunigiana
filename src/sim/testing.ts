@@ -57,13 +57,19 @@ import {
   setup,
   Stolen,
   Traffic,
+  Train,
+  TrainMotion,
+  TrainRun,
   update,
   Vehicle,
   Weather,
+  Whistle,
   Witness,
 } from "./index.ts"
 import { graph } from "./map/index.ts"
 import type { Surface } from "./map/surface.ts"
+import type { trainDraft } from "./rail/service.ts"
+import { noTrains, TrainWorld } from "./rail/testing.ts"
 import {
   edgeIndex,
   endNode,
@@ -242,6 +248,8 @@ interface Cast {
   /** People and animals lying dead since the first step. */
   readonly bodies?: ReadonlyArray<ReturnType<typeof pedestrian>>
   readonly carcasses?: ReadonlyArray<ReturnType<typeof animal>>
+  /** Trains (`trainDraft`), AI-driven or not. */
+  readonly trains?: ReadonlyArray<ReturnType<typeof trainDraft>>
   /** A leader (lying dead, when `dead`) and who walks with it, people and animals (a dog on a lead), each at its place (see `Follows`). */
   readonly parties?: ReadonlyArray<{
     readonly leader: ReturnType<typeof pedestrian>
@@ -312,7 +320,7 @@ export const wear = (amount: number) =>
     ),
   )
 
-/** Test setup: no other vehicles or pedestrians, the player at `at`, plus the `cast`. */
+/** Test setup: no other vehicles, trains or pedestrians, the player at `at`, plus the `cast`. The railway's service is left as setup made it: with `start`'s `trains`, setup's first trains are gone and no line has another due, so only the cast's trains run until a `SetTrains`. */
 export const stage = (at: PoseValue, cast: Cast = {}) =>
   Game.Schedule(
     Game.System(
@@ -320,13 +328,15 @@ export const stage = (at: PoseValue, cast: Cast = {}) =>
       {
         queries: {
           vehicles: Game.Query({ selection: { vehicle: Game.Query.read(Vehicle) } }),
+          trains: Game.Query({ selection: { train: Game.Query.read(Train) } }),
           peds: Game.Query({ selection: { ped: Game.Query.read(Pedestrian) } }),
           animals: Game.Query({ selection: { animal: Game.Query.read(Animal) } }),
         },
-        commands: Game.System.commands(Game.System.despawns(Vehicle, Pedestrian, Animal)),
+        commands: Game.System.commands(Game.System.despawns(Vehicle, Train, Pedestrian, Animal)),
       },
       ({ queries, commands }) => {
         for (const { entity } of queries.vehicles.each()) commands.despawn(entity)
+        for (const { entity } of queries.trains.each()) commands.despawn(entity)
         for (const { entity } of queries.peds.each()) commands.despawn(entity)
         for (const { entity } of queries.animals.each()) commands.despawn(entity)
       },
@@ -353,11 +363,15 @@ export const stage = (at: PoseValue, cast: Cast = {}) =>
             Follows,
             Down,
             Dead,
+            Train,
+            TrainMotion,
+            TrainRun,
           ),
         ),
       },
       ({ commands }) => {
         for (const car of cast.cars ?? []) commands.spawn(car)
+        for (const train of cast.trains ?? []) commands.spawn(train)
         for (const car of cast.traffic ?? []) commands.spawn(car)
         for (const ped of cast.peds ?? []) commands.spawn(ped)
         for (const beast of cast.animals ?? []) commands.spawn(beast)
@@ -410,24 +424,31 @@ const keepOnly = (keep: ReadonlySet<number>) =>
   )
 
 /**
- * A runtime after setup (and `staging`, if given) driven by `timeline`: run frames, inspect the world and the player's view,
- * and read every event emitted so far (`heard`, in emission order). `alone`: no one else ever comes (what Populate spawns goes
- * at once), so a staged scene plays out undisturbed by traffic and passers-by.
+ * A runtime after setup (and `staging`, if given) driven by `timeline`: run frames, inspect the world (its trains, the railway
+ * and the crossings included) and the player's view, and read every event emitted so far (`heard`, in emission order). `alone`:
+ * no one else ever comes (what Populate spawns goes at once), so a staged scene plays out undisturbed by traffic and passers-by.
+ * No train runs unless `trains` (`noTrains` ticks before setup): only the trains tests have the service, and the trains they stage
+ * (with `staging`, only those: see `stage`).
  */
 export const start = (
   timeline: Timeline = [],
   staging?: readonly [PoseValue, Cast?],
-  options: { readonly alone?: boolean } = {},
+  options: {
+    readonly alone?: boolean
+    readonly trains?: boolean
+    /** Keys a test plays as it goes, instead of `timeline` (`liveKeys` in rail/testing.ts). */
+    readonly keys?: { readonly snapshot: () => Keyboard.Snapshot<typeof bindings> }
+  } = {},
 ) => {
   const made = makeRuntime({
     seed: 1,
     services: Game.Runtime.services(
-      Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, timeline)),
+      Game.Runtime.service(KeyboardInput, options.keys ?? Keyboard.scripted(bindings, timeline)),
     ),
   })
   assert.ok(made.ok)
   const runtime = made.value
-  assert.ok(runtime.tick(setup).ok)
+  assert.ok((options.trains === true ? runtime.tick(setup) : runtime.tick(noTrains, setup)).ok)
   if (staging !== undefined) assert.ok(runtime.tick(stage(...staging)).ok)
   const heard = {
     impacts: new Array<Descriptor.Descriptor.Value<typeof Impact>>(),
@@ -435,6 +456,7 @@ export const start = (
     cries: new Array<Descriptor.Descriptor.Value<typeof Cry>>(),
     lightning: new Array<Descriptor.Descriptor.Value<typeof Lightning>>(),
     explosions: new Array<Descriptor.Descriptor.Value<typeof Explosion>>(),
+    whistles: new Array<Descriptor.Descriptor.Value<typeof Whistle>>(),
   }
   const listen = Game.Schedule(
     Game.System(
@@ -446,6 +468,7 @@ export const start = (
           cries: Game.System.readEvent(Cry),
           lightning: Game.System.readEvent(Lightning),
           explosions: Game.System.readEvent(Explosion),
+          whistles: Game.System.readEvent(Whistle),
         },
       },
       ({ events }) => {
@@ -454,6 +477,7 @@ export const start = (
         heard.cries.push(...events.cries.all())
         heard.lightning.push(...events.lightning.all())
         heard.explosions.push(...events.explosions.all())
+        heard.whistles.push(...events.whistles.all())
       },
     ),
   )
@@ -473,7 +497,7 @@ export const start = (
     runtime,
     run,
     heard,
-    world: () => runtime.inspect(World),
+    world: () => ({ ...runtime.inspect(World), ...runtime.inspect(TrainWorld) }),
     view: () => runtime.inspect(PlayerView),
   }
 }

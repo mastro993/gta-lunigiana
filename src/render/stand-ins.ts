@@ -1,10 +1,11 @@
 /**
  * Stand-ins for the shader warm-up: one tiny mesh per material the streamed world and the actors
  * draw, built the way the real meshes are (vertex colours; trees instanced with instance colours; a
- * car with its x-ray box and its lamps on and off), so `PixelView.compile` builds every program before
- * the first frame. The first view need not hold a river, a tree or a lit car: wherever the player
- * goes later, nothing compiles mid-game. The effects (marks, smoke, rain, snow, bolts) are in the
- * scene from the start and compile with it.
+ * car with its x-ray box and its lamps on and off; the signal lamps a train and a crossing light), so
+ * `PixelView.compile` builds every program before the first frame. The first view need not hold a
+ * river, a tree, a lit car or a train: wherever the player goes later, nothing compiles mid-game. The
+ * effects (marks, smoke, rain, snow, bolts, the level crossings' arms and lights) are in the scene
+ * from the start and compile with it.
  *
  * @module render/stand-ins
  */
@@ -20,7 +21,12 @@ import {
   treeMaterial,
   waterMaterial,
 } from "./geometry.ts"
-import { glowMaterial, vehicleLampMaterials } from "./sky/glow.ts"
+import {
+  cabinLightMaterial,
+  glowMaterial,
+  signalLampMaterials,
+  vehicleLampMaterials,
+} from "./sky/glow.ts"
 import { treeMeshes } from "./trees.ts"
 
 /** One triangle with the attributes every world mesh has: position, normal and colour (linear, three channels). */
@@ -49,6 +55,9 @@ export const standIns = (): { readonly group: Group; readonly dispose: () => voi
       waterMaterial,
       glowMaterial,
       vehicleLampMaterials.on,
+      signalLampMaterials.on,
+      signalLampMaterials.off,
+      cabinLightMaterial,
       bloodMaterial,
     ].map((material) => new Mesh(shape, material)),
     car,

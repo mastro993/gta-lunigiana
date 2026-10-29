@@ -59,9 +59,9 @@ const ELDER_FRAILTY = 4.5
 /** Under this impact speed (m/s) nobody dies: a knockdown is all. */
 const NO_DEATH = 5
 
-/** The chance that a vehicle hitting someone at `speed` (m/s) kills them, for whom `half` is the speed that kills half the time. */
-export const deathChance = (speed: number, half: number): number =>
-  speed < NO_DEATH ? 0 : 1 / (1 + Ops.exp((half - speed) / DEATH_SPREAD))
+/** The chance that a vehicle hitting someone at `speed` (m/s) kills them, for whom `half` is the speed that kills half the time, the curve rising over `spread` m/s (a car's, unless given). */
+export const deathChance = (speed: number, half: number, spread = DEATH_SPREAD): number =>
+  speed < NO_DEATH ? 0 : 1 / (1 + Ops.exp((half - speed) / spread))
 /** The speed (m/s) that kills a person of `age` half the time (an animal's is its species' `lethal`). */
 export const halfOf = (age: Age): number => DEATH_HALF - (age === "elder" ? ELDER_FRAILTY : 0)
 

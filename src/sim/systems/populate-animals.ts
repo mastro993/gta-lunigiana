@@ -15,6 +15,7 @@ import {
   RURAL,
   RURAL_REACH,
 } from "../population/farms.ts"
+import { offTrack } from "../rail/bodies.ts"
 import { laneOf, lanePoint, roadOf, walkSide } from "../route.ts"
 import {
   Animal,
@@ -97,7 +98,7 @@ const wanted = (at: Vec2.Vec2): Record<Species, number> => {
 
 /** Whether `p` is within `r` m of `at`. */
 const within = (at: Vec2.Vec2, p: Vec2.Vec2, r: number) => Vec2.distanceSquared(p, at) <= r * r
-/** Whether an animal of `species` (of the largest size) fits at `p`: `band` m from `at`, outdoors and clear of walk walls. */
+/** Whether an animal of `species` (of the largest size) fits at `p`: `band` m from `at`, outdoors, clear of walk walls and off the railway's track (`offTrack`). */
 const fits = (
   species: Species,
   p: Vec2.Vec2,
@@ -109,7 +110,8 @@ const fits = (
     !within(at, p, near) &&
     within(at, p, far) &&
     !indoors(p.x, p.y) &&
-    clearOf(wallsAlong("land", p.x, p.y, 0, 0, r + 0.5), p.x, p.y, r)
+    clearOf(wallsAlong("land", p.x, p.y, 0, 0, r + 0.5), p.x, p.y, r) &&
+    offTrack(p.x, p.y)
   )
 }
 

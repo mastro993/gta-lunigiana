@@ -78,8 +78,11 @@ export const loadDtm = (dir: string): ((x: number, y: number) => number) => {
 /** Half-width of the box each node averages, m: a 5 m square of 1 m samples, about one cell. */
 const BOX = 2
 
+/** The terrain grid's cell, m. */
+export const GRID_CELL = 4
+
 /** Node grid covering BOUNDS (the last row/col reaches maxX/maxY); each node is the mean of `dem` over a (2 BOX + 1) m square. */
-export const makeGrid = (dem: (x: number, y: number) => number, cell = 4): Grid => {
+export const makeGrid = (dem: (x: number, y: number) => number, cell = GRID_CELL): Grid => {
   const cols = Math.ceil((BOUNDS.maxX - BOUNDS.minX) / cell) + 1,
     rows = Math.ceil((BOUNDS.maxY - BOUNDS.minY) / cell) + 1
   const x0 = BOUNDS.minX,

@@ -40,8 +40,8 @@ body {
   display: none;
 }
 
-/* The top row: the place left, the clock and the weather centred, the score right. Each keeps to its column, so a long road name
-   wraps under itself instead of running under the clock. */
+/* The top row: the place left, the clock and the weather centred (the right column is kept empty, so the clock stays at the centre).
+   Each keeps to its column, so a long road name wraps under itself instead of running under the clock. */
 .top {
   position: absolute;
   top: 16px;
@@ -73,45 +73,14 @@ body {
   font-size: 12px;
 }
 
-.score {
-  justify-self: end;
-  margin: 0;
-  text-align: right;
-}
-.score div {
-  display: flex;
-  justify-content: flex-end;
-  align-items: baseline;
-  gap: 12px;
-}
-.score dt {
-  font-size: 12px;
-}
-.score dt small {
-  display: block;
-  font-size: 10px;
-  opacity: 0.75;
-}
-/* A count never shrinks below its digits: when the score is squeezed, its label wraps instead. */
-.score dd {
-  flex: none;
-  margin: 0;
-  min-width: 2ch;
-  font-size: 22px;
-  color: var(--accent);
-}
-
-/* Narrow windows (mobile mode is always landscape, so these leave it alone) have no room for three columns: the clock goes under the score, in GTA's top-right corner, and the place takes the
-   rest of the width, in a smaller type. The second row takes what the place adds below the score. */
+/* Narrow windows (mobile mode is always landscape, so these leave it alone) have no room for three columns: the clock goes to GTA's
+   top-right corner, and the place takes the rest of the width, in a smaller type. */
 @media (max-width: 600px) {
   html:not(.touch) .top {
-    grid-template: "where score" auto "where when" 1fr / 1fr auto;
+    grid-template: "where when" auto / 1fr auto;
   }
   html:not(.touch) .where {
     grid-area: where;
-  }
-  html:not(.touch) .score {
-    grid-area: score;
   }
   html:not(.touch) .when {
     grid-area: when;
@@ -123,18 +92,14 @@ body {
   }
 }
 
-/* Under 360 px, the narrowest common phone, the longest word in a road name (DELL'UCCELLIERA, 158 px) and the score no longer fit side
-   by side. There the score and the clock keep their narrowest width (an English label still on one line), and the place takes the
-   rest, breaking inside a word if it must. */
+/* Under 360 px, the narrowest common phone, the longest word in a road name (DELL'UCCELLIERA, 158 px) and the clock no longer fit side
+   by side. There the clock keeps its narrowest width, and the place takes the rest, breaking inside a word if it must. */
 @media (max-width: 359px) {
   html:not(.touch) .top {
     grid-template-columns: minmax(0, 1fr) min-content;
   }
   html:not(.touch) .where {
     overflow-wrap: break-word;
-  }
-  html:not(.touch) .score dt small {
-    white-space: nowrap;
   }
 }
 
@@ -550,18 +515,6 @@ html.touch #hud-clock {
 html.touch #hud-weather {
   font-size: 10px;
 }
-html.touch .score div {
-  gap: 8px;
-}
-html.touch .score dt {
-  font-size: 10px;
-}
-html.touch .score dt small {
-  font-size: 8px;
-}
-html.touch .score dd {
-  font-size: 17px;
-}
 /* Between the left controls and the right ones (◀ ▶ reach 192 px in, Brake 172 px), a long vehicle name cut short. */
 html.touch #hud-speedo {
   right: auto;
@@ -606,7 +559,7 @@ html.touch #settings button {
   position: sticky;
   bottom: 0;
 }
-/* Top right, beside the score: opens the settings, which pause the game as Esc does. */
+/* Top right: opens the settings, which pause the game as Esc does. */
 #hud-pause {
   position: absolute;
   top: 12px;
@@ -639,7 +592,8 @@ html.touch .map-title {
 /* The touch controls (touch.ts). On foot, a finger on the left half brings the stick under it;
    driving, ◀ ▶ take its place and Gas and Brake the action button's and Run's, the action button
    moving up, and ↺ ↻ go: the view follows the car. The buttons show only in the mode they work in,
-   the action button only when there is something to do. */
+   the action button only when there is something to do. A train has no steering: there ◀ ▶ hide
+   (data-vehicle, set by touch.ts), and Gas, Brake, Hand brake and Horn stay. */
 #hud-touch {
   position: absolute;
   inset: 0;
@@ -647,6 +601,7 @@ html.touch .map-title {
 #hud-touch[data-mode="driving"] .on-foot,
 #hud-touch[data-mode="driving"] .turn,
 #hud-touch:not([data-mode="driving"]) .driving,
+#hud-touch[data-vehicle="train"] .steer,
 #hud-touch-action:empty {
   display: none;
 }

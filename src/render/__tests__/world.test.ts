@@ -184,3 +184,49 @@ test("world streaming: rivers draw in their own water mesh (no snow on them), ro
   )
   assert.ok(meshes.some((m) => m.material === terrainMaterial))
 })
+
+test("world streaming: the railway in its layers: a crossing's panel, rails and stop lines in the decal mesh, its housings and the ballast bed in the solid one; a platform's yellow line a decal, its name board solid", () => {
+  const has = (meshes: ReadonlyArray<Mesh>, hex: number) => {
+    // The meshes hold 32-bit colours.
+    const [r, g, b] = linear(hex).map(Math.fround) as [number, number, number]
+    return meshes.some((m) => {
+      const c = m.geometry.getAttribute("color")
+      for (let i = 0; i < c.count; i += 3)
+        if (c.getX(i) === r && c.getY(i) === g && c.getZ(i) === b) return true
+      return false
+    })
+  }
+  const riolo = MAP.railway.crossings.find((c) => MAP.roads[c.road]!.name === "Via Riolo")!
+  for (const [at, decals, solids] of [
+    [
+      riolo,
+      [PALETTE.crossingPanel, PALETTE.railHead, PALETTE.marbleWhite, PALETTE.railSteel],
+      [PALETTE.barrierWhite, PALETTE.signalBlack, PALETTE.ballast],
+    ],
+    [
+      MAP.pois.find((p) => p.kind === "railway=stop" && p.name === "Gragnola")!,
+      [PALETTE.signYellow],
+      [PALETTE.rfiBlue, PALETTE.kerb, PALETTE.canopyGrey],
+    ],
+  ] as const) {
+    const world = new World(new Group())
+    world.update(ground(at.x, at.y), 0, REACH, Infinity)
+    const meshes = [...world.loaded.values()].flat()
+    for (const hex of decals)
+      assert.ok(
+        has(
+          meshes.filter((m) => m.material === decalMaterial),
+          hex,
+        ),
+        `decal ${hex.toString(16)}`,
+      )
+    for (const hex of solids)
+      assert.ok(
+        has(
+          meshes.filter((m) => m.material === solidMaterial),
+          hex,
+        ),
+        `solid ${hex.toString(16)}`,
+      )
+  }
+})

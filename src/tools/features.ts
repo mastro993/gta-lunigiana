@@ -52,10 +52,16 @@ export interface WaterF {
   readonly depth: number
   readonly pts: ReadonlyArray<V>
 }
+/**
+ * A `railway=rail` way (or a track only the CTR has, with a negative id) as the build carries it;
+ * pieces cut from one way (at bridges, junctions) keep its id.
+ */
 export interface RailF {
   readonly id: number
   readonly bridge?: true
   readonly tunnel?: true
+  /** OSM `maxspeed`, km/h. */
+  readonly maxspeed?: number
   readonly pts: ReadonlyArray<V>
 }
 export interface BuildingF {
@@ -193,6 +199,7 @@ export const extractWater = (osm: Osm, ground: (x: number, y: number) => number)
       })
     })
 
+/** `railway=rail` ways clipped to the play area, with their bridge, tunnel and speed-limit tags. */
 export const extractRail = (osm: Osm): Array<RailF> =>
   [...osm.ways.values()]
     .filter((w) => w.tags.railway === "rail")
@@ -201,6 +208,7 @@ export const extractRail = (osm: Osm): Array<RailF> =>
         id: +w.id,
         ...(w.tags.bridge !== undefined && w.tags.bridge !== "no" ? { bridge: true } : {}),
         ...(w.tags.tunnel !== undefined && w.tags.tunnel !== "no" ? { tunnel: true } : {}),
+        ...(/^\d+(\.\d+)?$/.test(w.tags.maxspeed ?? "") ? { maxspeed: +w.tags.maxspeed! } : {}),
         pts,
       })),
     )

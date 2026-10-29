@@ -212,3 +212,11 @@ export const merge = (pieces: ReadonlyArray<BufferGeometry>): BufferGeometry => 
   if (merged === null) throw new Error("mergeGeometries failed: attribute sets differ")
   return merged
 }
+
+const built = new Map<string, BufferGeometry>()
+/** The geometry named `key` (a train car's, a crossing arm's), merged from `make`'s pieces the first time and shared for good (never disposed). */
+export const sharedGeometry = (key: string, make: () => Array<BufferGeometry>): BufferGeometry => {
+  let geometry = built.get(key)
+  if (geometry === undefined) built.set(key, (geometry = merge(make())))
+  return geometry
+}

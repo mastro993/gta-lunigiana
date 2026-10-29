@@ -7,7 +7,7 @@
  *
  * @module audio/acoustics
  */
-import type { VehicleModel } from "../sim/vehicles.ts"
+import type { CabinModel } from "./types.ts"
 
 /** Speed of sound at 15 °C, m/s: c = 331.3 + 0.606·T (§5). */
 export const SPEED_OF_SOUND = 340.4
@@ -43,13 +43,15 @@ export interface LineSegment {
 
 /**
  * Level at (x, y) of a polyline of incoherent line sources (§1, exact for any listener position):
- * Lp = 10·log10 Σ 10^(lwᵢ/10)·θᵢ/(4π·dᵢ), dᵢ the distance to segment i's line (clamped to 1 m) and
- * θᵢ the angle it subtends there; −Infinity for no segments. Also the nearest point on the polyline.
+ * Lp = 10·log10 Σ 10^(lwᵢ/10)·θᵢ/(4π·dᵢ), dᵢ the distance to segment i's line (clamped to 1 m), with
+ * the listener `height` m over or under the polyline, and θᵢ the angle it subtends there; −Infinity
+ * for no segments. Also the nearest point on the polyline.
  */
 export const lineLevel = (
   segments: ReadonlyArray<LineSegment>,
   x: number,
   y: number,
+  height = 0,
 ): { readonly level: number; readonly x: number; readonly y: number } => {
   let energy = 0,
     nearest = Number.MAX_VALUE,
@@ -62,7 +64,7 @@ export const lineLevel = (
       uy = (s.by - s.ay) / length
     // The ends' coordinates along the line from the foot of the perpendicular through (x, y).
     const ta = (s.ax - x) * ux + (s.ay - y) * uy,
-      d = Math.max(1, Math.abs((x - s.ax) * uy - (y - s.ay) * ux))
+      d = Math.max(1, Math.hypot((x - s.ax) * uy - (y - s.ay) * ux, height))
     energy +=
       (10 ** (s.lw / 10) * (Math.atan2(ta + length, d) - Math.atan2(ta, d))) / (4 * Math.PI * d)
     const t = Math.min(length, Math.max(0, -ta)),
@@ -189,13 +191,18 @@ export interface Cabin {
 }
 
 const CLOSED: Cabin = { loss: 15, cutoff: 1400 }
-/** Heard from the driver's seat (§10): closed cabins with the windows up; the Ape's cab is open at the back. */
+/**
+ * Heard from the driver's seat (§10): closed cabins with the windows up; the Ape's cab is open at the back. A train's cab is
+ * TUNED (estimated, no measurement found): a sealed driver's cab, quieter than a car's, so its own 130 dB horn on the roof
+ * 2.5 m ahead reaches the driver at 97 dB(A), near TSI Noise's 95 dB(A) limit in the cab while the horn sounds.
+ */
 export const CABIN = {
   panda: CLOSED,
   ape: { loss: 6, cutoff: 3500 },
   truck: CLOSED,
   carabinieri: CLOSED,
-} as const satisfies Record<VehicleModel, Cabin>
+  atr220: { loss: 24, cutoff: 1200 },
+} as const satisfies Record<CabinModel, Cabin>
 
 /** HDR mix (§9): source levels are compressed around L_REF by K, so a horn is not 54 dB above a footstep; losses stay physical. */
 const L_REF = 120,

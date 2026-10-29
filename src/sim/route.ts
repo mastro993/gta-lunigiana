@@ -9,7 +9,16 @@ import { Ops, type Random } from "@typeonce/ritmo-math"
 
 import { carCircles, carRadius, clearOf } from "./body.ts"
 import { edgeIndex } from "./edges.ts"
-import { graph, MAP, roadClassOf, type Road, type Segment, wallsNear } from "./map/index.ts"
+import {
+  graph,
+  laneOffset,
+  MAP,
+  roadClassOf,
+  type Road,
+  type Segment,
+  vergeOf,
+  wallsNear,
+} from "./map/index.ts"
 import { residentsAlong } from "./population/density.ts"
 import { VEHICLES, type VehicleModel } from "./vehicles.ts"
 
@@ -57,13 +66,10 @@ export const endNode = (edge: number, forward: boolean): number =>
   forward ? graph.edges[edge]!.b : graph.edges[edge]!.a
 
 /** Drive on the right: the nominal traffic lane offset for a road. */
-const trafficSide = (road: Road): number => (road.w >= 5 ? road.w / 4 + 0.2 : 0.5)
+const trafficSide = (road: Road): number => laneOffset(road.w)
 
-/** Pedestrians keep to the verge of roads and to the middle of paths, steps and tracks. */
-export const walkSide = (road: Road): number => {
-  const cls = roadClassOf(road)
-  return cls === "path" || cls === "steps" || cls === "track" ? 0.3 : road.w / 2 + 0.8
-}
+/** Pedestrians keep to the verge of roads and to the middle of paths, steps and tracks, or where the road's `verge` says (off the railway). */
+export const walkSide = (road: Road): number => road.verge ?? vergeOf(roadClassOf(road), road.w)
 
 /** Cruising speed of AI traffic by road class, m/s. */
 export const cruiseSpeed = (road: Road): number => {
@@ -96,7 +102,8 @@ const leaving = (node: number, edge: number): Step => ({
   edge,
   forward: graph.edges[edge]!.a === node,
 })
-const key = (step: Step) => step.edge * 2 + (step.forward ? 1 : 0)
+/** A directed step's key in the per-step tables (lane sides, dead ends, the crossings' approaches): `edge * 2`, plus 1 when forward. */
+export const stepKey = (step: Step) => step.edge * 2 + (step.forward ? 1 : 0)
 
 /**
  * Peels degree-1 nodes off the edges `usable` allows until only loops (and
@@ -114,7 +121,7 @@ const peel = (usable: (edge: number) => boolean) => {
     removed.add(edge)
     const e = graph.edges[edge]!
     const other = e.a === leaf ? e.b : e.a
-    toward.add(key({ edge, forward: e.b === leaf }))
+    toward.add(stepKey({ edge, forward: e.b === leaf }))
     if (--degree[other]! === 1) leaves.push(other)
   }
   return { removed, toward }
@@ -256,7 +263,7 @@ const lanesFor = (model: VehicleModel): Float64Array => {
       }
       let side = nominal
       while (side > 0 && !fits(side)) side = Math.max(0, side - SIDE_STEP)
-      if (side > 0 || fits(0)) sides[key({ edge, forward })] = side
+      if (side > 0 || fits(0)) sides[stepKey({ edge, forward })] = side
     }
   }
   return largestPart(sides)
@@ -270,12 +277,12 @@ const laneSides = {
 
 /** Drive on the right: the lane offset of `model` on `step` (nominal, or less where walls crowd the road). */
 export const laneSide = (step: Step, model: VehicleModel): number =>
-  Math.max(0, laneSides[model][key(step)]!)
+  Math.max(0, laneSides[model][stepKey(step)]!)
 
 /** Whether AI `model` may drive `edge`: where the body fits between the walls, trucks only on the loops of the wide roads. */
 export const allowsModel = (edge: number, model: VehicleModel): boolean =>
-  laneSides[model][key({ edge, forward: true })]! >= 0 &&
-  laneSides[model][key({ edge, forward: false })]! >= 0
+  laneSides[model][stepKey({ edge, forward: true })]! >= 0 &&
+  laneSides[model][stepKey({ edge, forward: false })]! >= 0
 
 /** Per model, the directions of travel that only lead into dead-end spurs (map exits, and roads too narrow for it, included). */
 const deadEnds = {
@@ -287,7 +294,7 @@ const deadEnds = {
 
 /** Whether travelling `edge` this way only leads `model` into a dead end. */
 export const leadsToDeadEnd = (step: Step, model: VehicleModel): boolean =>
-  deadEnds[model].has(key(step))
+  deadEnds[model].has(stepKey(step))
 
 /** Turns sharper than this (cosine between the directions in and out) are hairpins a car cannot follow. */
 const HAIRPIN = -0.5
@@ -333,7 +340,7 @@ const ahead = new Float32Array(graph.edges.length * 2).fill(-1)
  * leads. A breadth-first search over the walk edges, each edge visited once.
  */
 const wayAhead = (step: Step): number => {
-  const k = key(step)
+  const k = stepKey(step)
   if (ahead[k]! >= 0) return ahead[k]!
   let most = 0
   const seen = new Set([step.edge])

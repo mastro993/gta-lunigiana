@@ -19,6 +19,7 @@ import {
   walkIndex,
   walkSide,
 } from "../route.ts"
+import { seeded } from "../scene.ts"
 import {
   CarInput,
   Chassis,
@@ -343,7 +344,9 @@ const bodyGap = (a: PoseValue, b: PoseValue): number => {
  * a car, how far it backed up (m), its top speed (m/s), its controls after the last frame, and the closest its body came to each
  * parked car (m), over the whole run and from the step it first backed up to get unstuck. Staged alone: a coin from the shared Rng
  * decides whether the car turns round when it first backs up, and the people and animals Populate brings draw on that Rng too. These
- * scenes measure it backing along its lane, which is how the coin falls with seed 1 and no one else around.
+ * scenes measure it backing along its lane, which is how the coin falls with seed 1 and no one else around. The Rng is set to seed 1
+ * once the scene is staged (scene.ts `seeded`): the setup before it draws for every parked spot and passer-by of the map, so each
+ * map rebuild moved the coin (seeds 3, 4 and 8 turn the car round).
  */
 const trafficAmong = (
   at: PoseValue,
@@ -355,8 +358,8 @@ const trafficAmong = (
     [at, ...parked].every((pose) => carClear("panda", pose)),
     "staged clear of walls",
   )
-  const { runtime, run, world, heard } = start(
-    [],
+  const { runtime, run, world, heard } = seeded(
+    1,
     [
       FAR,
       {

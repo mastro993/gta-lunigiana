@@ -1,20 +1,23 @@
 /**
  * Test kit for the director's tests: real map spots, a director on a recording speaker with a
- * seeded random source, and `Heard` frames built from a few vehicles, people, animals and
- * happenings, at a calm mid-morning (10:10 on 22 October, the sun 22° up, dry, the usual wind) under
+ * seeded random source, and `Heard` frames built from a few vehicles, people, animals, trains (on
+ * the map's own line, as the audio schedule projects them) and happenings, at a calm mid-morning (10:10 on 22 October, the sun 22° up, dry, the usual wind) under
  * which every law of the day and the weather is the identity, unless a test sets its own sky or
  * weather.
  *
  * @module audio/director/testing
  */
 import { groundZ } from "../../sim/map/ground.ts"
-import type { WeatherValue } from "../../sim/schema.ts"
+import { LINES, pointAt } from "../../sim/rail/lines.ts"
+import type { TrainMotionValue, WeatherValue } from "../../sim/schema.ts"
 import { DAY, daysFromCivil, utcFromRome } from "../../sim/sky/calendar.ts"
 import { NO_SNOW } from "../../sim/sky/climate.ts"
 import { initialWeather } from "../../sim/sky/weather.ts"
 import { VEHICLES, type VehicleModel } from "../../sim/vehicles.ts"
 import { screenAxes } from "../../sim/view.ts"
 import { skyAt } from "../index.ts"
+import type { HeardTrain } from "../rail-types.ts"
+import { heardTrain } from "../rail.ts"
 import { seeded } from "../speech/testing.ts"
 import type {
   Continuous,
@@ -203,6 +206,25 @@ export const animal = (
   dead: false,
   ...more,
 })
+/** An ATR 220, train `id`, on the map's line with its active cab's nose at s, facing `facing` (+s unless −1), moving as `motion` says (standing, power off, by default), the player's when `mine`. */
+export const train = (
+  id: number,
+  s: number,
+  motion: Partial<TrainMotionValue> = {},
+  mine = false,
+): HeardTrain =>
+  heardTrain(
+    id,
+    "atr220",
+    { line: 0, s, prev: s, v: 0, facing: 1, power: 0, brake: 0, ...motion },
+    mine,
+  )!
+/** `metres` off the map's line at s, to its right (left when negative), on the ground there. */
+export const beside = (s: number, metres: number) => {
+  const at = pointAt(LINES[0]!, s)
+  return { x: at.x + Math.sin(at.angle) * metres, y: at.y - Math.cos(at.angle) * metres }
+}
+
 /** The listener at `at` (in `car` when given), with `more` of the world, at the tests' sky and weather unless it sets them. */
 export const world = (
   at: { readonly x: number; readonly y: number },
@@ -213,6 +235,8 @@ export const world = (
   vehicles: [],
   people: [],
   animals: [],
+  trains: [],
+  crossings: [],
   happenings: [],
   horn: false,
   sky: MORNING,

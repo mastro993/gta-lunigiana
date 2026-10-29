@@ -801,9 +801,11 @@ sim functions; how the sky host, the materials and the post pass fit in the fram
   lanterns on house walls, as in the villages here, where no lamp data exists: along tertiary,
   unclassified, residential and service roads among at least 4 buildings within 40 m, every 28 m or
   more and at least 18 m apart, 4.5 m up (lower under low eaves, never under 3 m), between two
-  windows. Traffic and the player's car light their lamps, parked cars stay dark; 4 headlight beams
-  (the player's car and the 3 nearest traffic cars) and 8 lamp pools (the nearest street lamps)
-  light the ground, fading over 0.35 s as they move between cars and lamps.
+  windows. 24 more stand on poles along the station platforms, every 18 m, their lanterns 4 m over
+  the platform. Traffic and the player's car light their lamps, parked cars stay dark; 4 headlight
+  beams (the player's car or train and the 3 nearest lit traffic cars or AI trains) and 8 lamp
+  pools (the nearest street lamps) light the ground, fading over 0.35 s as they move between cars,
+  trains and lamps.
 - **Lightning.** A bolt is a jagged, seeded channel with branches that flickers in 2–4 strokes
   30–120 ms apart. The scene flashes once per flash, a smooth pulse (a 50 ms rise, then a 0.25 s
   decay), fainter with distance and at 0.6 for a flash in the cloud; the strokes move it by ±5 % at

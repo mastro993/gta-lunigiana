@@ -13,10 +13,9 @@
  * @module audio/director/levels
  */
 import type { Species } from "../../sim/schema.ts"
-import type { VehicleModel } from "../../sim/vehicles.ts"
 import type { Speaker } from "../speech/types.ts"
 import { rainQuiet } from "../synth/rain.ts"
-import type { Continuous, OneShot } from "../types.ts"
+import type { Continuous, EngineModel, OneShot } from "../types.ts"
 
 /** A source's calibration: dB(A) at 1 m at the synth's nominal peak, its size, m, and whether it stands so far `aloft` that the ground takes nothing on its way. */
 export interface Level {
@@ -25,13 +24,18 @@ export interface Level {
   readonly aloft?: boolean
 }
 
-/** Engines at the redline under full load (pass-by levels, physics.md §8): every engine voice peaks alike, so the model's loudness lives here. */
+/**
+ * Engines at the redline under full load (pass-by levels, physics.md §8): every engine voice peaks alike, so the model's loudness
+ * lives here. A train's is one power pack's: TSI Noise (Reg. 1304/2014) lets a diesel unit start at 82–83 dB(A) at 7.5 m with
+ * both packs at full power, so one pack is about 80 there, 97 at 1 m (estimated: the limit, not a measurement of the ATR 220).
+ */
 export const ENGINE = {
   panda: { db: 90, rMin: 2 },
   ape: { db: 92, rMin: 2 },
   truck: { db: 98, rMin: 4 },
   carabinieri: { db: 93, rMin: 2.5 },
-} as const satisfies Record<VehicleModel, Level>
+  atr220: { db: 97, rMin: 3 },
+} as const satisfies Record<EngineModel, Level>
 
 /**
  * The listener's own engine from the driver's seat; the voice makes the cabin tone. TUNED: the voice idles 20–22 dB (RMS)
@@ -39,6 +43,16 @@ export const ENGINE = {
  * (the voice's idle-to-redline range is narrower than an engine's), and well under the outside mix (physics.md §10).
  */
 export const OWN_ENGINE_DB = 68
+
+/**
+ * The player's own train from its cab, dB(A) at the ears at each synth's nominal peak, as `OWN_ENGINE_DB` is a car's from its
+ * seat: the power pack under the cab's car at its rated revs under full power, the wheels at the rolling voice's top speed (130
+ * km/h) and the brakes. TUNED: through the cab's 24 dB from the outside levels (`ENGINE.atr220`, `ROLLING`), compressed as
+ * sources 97 dB(A) loud and more, the cab played 24–25 dB under a car's seat, its idling packs 13.8 dB under the wind bed;
+ * here it idles near a car's idle and runs at line speed near a car under load. TSI Noise lets a driver's cab reach 78 dB(A) at
+ * top speed.
+ */
+export const OWN_TRAIN_DB = { pack: 66, rails: 72, brakes: 64 } as const
 
 /** Every other positional kind. Tyres at their squeal-capable peak; the step is a running step on stone. */
 export const LEVELS = {
@@ -80,6 +94,15 @@ export const LEVELS = {
   meow: { db: 75, rMin: 0.5 },
   hiss: { db: 65, rMin: 0.5 },
   bell: { db: 118, rMin: 5 },
+  // TUNED (estimated, no recording measured): a train's disc brakes squealing in the last metres to a stand.
+  brakes: { db: 95, rMin: 3 },
+  // A level crossing's bell: at least 90 dB at 1 m (the Wegh eLCSP's data sheet), heard from at least 100 m by law (DPR 495/1992
+  // art. 186); a small bell on the post.
+  plBell: { db: 92, rMin: 0.3 },
+  // A train's horn: TSI's 115–123 dB 5 m ahead (Reg. 1302/2014 after EN 15153-2), 129–137 at 1 m: its lower end in dB(A), from
+  // a horn mouth and a cab front about 2 m across. The AI's honk is the same horn.
+  trainHorn: { db: 130, rMin: 2 },
+  trainHonk: { db: 130, rMin: 2 },
   // A lightning channel, kilometres of it, heard from its strike point (an in-cloud flash's start) and aloft, over no ground: 88 dB(A)
   // at 1 km once the render's own `thunderQuiet` is taken (a close strike's pulse tops 120 dB unweighted there), 66 at 5 km; inside
   // 300 m its crack is no louder, and its direct sound is capped (`MOST_DB`) anyway.
@@ -87,10 +110,18 @@ export const LEVELS = {
 } as const satisfies Record<
   Exclude<
     Continuous["kind"] | OneShot["kind"],
-    "engine" | "water" | "wind" | "crickets" | "rain" | "roof"
+    "engine" | "water" | "wind" | "crickets" | "rain" | "roof" | "rails"
   >,
   Level
 >
+
+/**
+ * A train's wheels on its rails, a line source along its length: dB(A) per metre at the rolling voice's nominal, its top speed
+ * (`RAILS_TOP`, 130 km/h), 30 dB softer per decade of speed (`railsQuiet`). From TSI Noise's pass-by limit for a diesel unit, 81
+ * dB(A) at 7.5 m at 80 km/h with its engines: the wheels 3 dB under it, a 55.6 m train's 78 there, 93.6 dB per metre at 80 km/h
+ * (estimated: the limit, not a measurement of the ATR 220).
+ */
+export const ROLLING = { lw: 99.9, rMin: 1 } as const
 
 /**
  * At most this many dB over gain 1 a one-shot's direct sound plays (its echoes, at least `ECHO_MIN_DB` under it, keep the way's
@@ -99,11 +130,17 @@ export const LEVELS = {
  * loud as the hit: an echo. An explosion at 10: centred, it (crest 6–7 dB, a crash's 13) meters 4–5.5 dB over a 40 m/s wreck at
  * 8 while the limiter takes 2.5 dB of it (5.3 of the wreck); at 12 it took 4.3 dB, held into the roar for up to 0.8 s. Thunder at
  * 2: its loud part lasts seconds, so its crack (a render's 0.5 peak) stays under the limiter's −6 dBFS going in (×0.8 master):
- * −9 dBFS centred, −6.0 at the widest pan (±0.85); its rumble 10 dB and more under that.
+ * −9 dBFS centred, −6.0 at the widest pan (±0.85); its rumble 10 dB and more under that. A train's honk at 2, as thunder: 130 dB
+ * at 1 m, it would play 15 dB over gain 1 from 20 m and slam the limiter, and its loud part lasts 1.2–2 s (the alarm again every 2
+ * s while a train is held). At 8 the limiter took 3.1 dB of a long blast and 4.4 of the alarm at the widest pan, 2.1 and 3.3
+ * centred, for 1.3–1.6 s; at 2, at most 0.3 and 0.8 dB.
  */
-export const MOST_DB = { crash: 8, explosion: 10, thunder: 2 } as const satisfies Partial<
-  Record<OneShot["kind"], number>
->
+export const MOST_DB = {
+  crash: 8,
+  explosion: 10,
+  thunder: 2,
+  trainHonk: 2,
+} as const satisfies Partial<Record<OneShot["kind"], number>>
 
 /**
  * The tawny owl's hoot, a bird's call of its own: estimated (no measurement found) 5 dB over a songbird's, low (800 Hz) and carrying,
@@ -179,6 +216,10 @@ export const CAPS = {
   crickets: 1,
   rain: 1,
   roof: 1,
+  rails: 2,
+  brakes: 2,
+  plBell: 2,
+  trainHorn: 1,
 } as const satisfies Record<Continuous["kind"], number>
 
 /** A voice that played last frame keeps its place under the cap until a newcomer is this many dB louder: near-equals do not swap every frame. */
@@ -204,10 +245,11 @@ export const REVERB = { db: 8, ref: 10, near: 2.5, far: 40, cabin: 0.25, snow: 0
 /** An echo plays at least this many dB under the direct sound: a rock face's own reflection loss (places.ts). */
 export const ECHO_MIN_DB = 10
 
-/** One-shots loud and sharp enough to answer off rock faces (physics.md §7): a crash from 6 m/s, explosions, honks, bells, yells, screams, the loud animal calls and thunder. */
+/** One-shots loud and sharp enough to answer off rock faces (physics.md §7): a crash from 6 m/s, explosions, honks and trains' horns, bells, yells, screams, the loud animal calls and thunder. */
 const ECHOING = new Set<OneShot["kind"]>([
   "explosion",
   "honk",
+  "trainHonk",
   "bell",
   "yell",
   "scream",

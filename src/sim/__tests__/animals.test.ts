@@ -6,6 +6,7 @@ import { Keyboard } from "@typeonce/ritmo-browser"
 import { Determinism } from "@typeonce/ritmo-devtools"
 import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
+import { clearOf } from "../body.ts"
 import { distanceToEdge, edgeIndex } from "../edges.ts"
 import { FAUNA, randomAnimal } from "../fauna.ts"
 import {
@@ -29,9 +30,18 @@ import {
   type Species,
   update,
 } from "../index.ts"
-import { graph, MAP } from "../map/index.ts"
+import { graph, MAP, wallsNear } from "../map/index.ts"
 import { residentsNear } from "../population/density.ts"
-import { farmsNear, grazing, indoors, pasture, RURAL, RURAL_REACH } from "../population/farms.ts"
+import {
+  farmsNear,
+  grazing,
+  indoors,
+  openGround,
+  pasture,
+  RURAL,
+  RURAL_REACH,
+} from "../population/farms.ts"
+import { noTrains } from "../rail/testing.ts"
 import { laneOf, lanePoint, laneSide, roadOf, walkIndex, walkSide } from "../route.ts"
 import { animal, pedestrian } from "../spawning.ts"
 import { ANIMALS } from "../systems/populate-animals.ts"
@@ -69,9 +79,13 @@ const FARM = (() => {
 })()
 
 /**
- * A pasture by the farm at least 60 m from any traffic road, where a passing car scares nothing, and with no stream within a cow's
- * home range (wading slows a walk past its time): found by geometry.
+ * A pasture by the farm at least 60 m from any traffic road, where a passing car scares nothing, with no stream within a cow's
+ * home range (wading slows a walk past its time), and the ground the herd test puts its animals on, 15–27 m east of it, open and
+ * 3 m clear of walk walls (a pig penned in a passage between two walls is blocked on every walk and never rests; one off open
+ * ground finds nowhere to walk): found by geometry.
  */
+/** Every metre of the herd test's ground east of the meadow, m. */
+const HERD = Array.from({ length: 13 }, (_, k) => 15 + k)
 const MEADOW = (() => {
   const roads = edgeIndex(graph.trafficEdges)
   for (let r = 20; r < 400; r += 10)
@@ -86,6 +100,11 @@ const MEADOW = (() => {
           w.pts.some(
             (v, k) => k % 2 === 0 && Ops.hypot(v - x, w.pts[k + 1]! - y) < FAUNA.cow.home + 10,
           ),
+        ) &&
+        HERD.every(
+          (dx) =>
+            openGround(x + dx, y) &&
+            clearOf(wallsNear("walk", x + dx - 3, y - 3, x + dx + 3, y + 3), x + dx, y, 3),
         )
       )
         return { x, y, angle: 0 }
@@ -371,6 +390,7 @@ test("determinism: a walk about the farm with its animals replays bit for bit", 
       })
       if (!made.ok) throw new Error(JSON.stringify(made.error))
       const ready = made.value.tick(
+        noTrains,
         setup,
         stage(FARM, { animals: [beast("cat", FARM, 2, 0), beast("cow", FARM, 30, 0)] }),
       )

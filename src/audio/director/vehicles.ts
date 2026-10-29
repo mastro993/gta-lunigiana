@@ -8,7 +8,8 @@
  * worn each is where it was hit, the wall's or the ground's material and the ground under the car; a
  * scrape, the material; a blast, the ground its debris rains on. Sounds of the listener's own car are
  * heard from inside it: its crash, clunk, scrape and doors through no cabin, its horn and siren (out
- * by the grille, up on the roof) through all of it.
+ * by the grille, up on the roof) through all of it; so are a car's crash into the player's own train
+ * and its scrape along it.
  *
  * @module audio/director/vehicles
  */
@@ -18,6 +19,7 @@ import { VEHICLES, type VehicleModel } from "../../sim/vehicles.ts"
 import { hash01 } from "../../tools/geometry.ts"
 import { mixGain } from "../acoustics.ts"
 import { wallAt } from "../places.ts"
+import type { HeardTrain } from "../rail-types.ts"
 import { crushSpeeds } from "../synth/crash/hit.ts"
 import { crashQuiet } from "../synth/crash/index.ts"
 import { engineQuiet } from "../synth/engine.ts"
@@ -86,12 +88,25 @@ const GROUND = {
   leaves: "earth",
 } as const satisfies Record<Surface, Material>
 
-/** What `hit` met: the drive wall's material (`wallAt`), or the ground's under the contact point, at the struck car's `level`. */
-const materialOf = (
-  hit: Extract<Happening, { readonly kind: "impact" }>,
-  level: number | undefined,
-): Material =>
-  hit.hit === "ground" ? GROUND[surfaceAt(hit.x, hit.y, level)] : wallAt(hit.x, hit.y)
+/** A vehicle's hit on a wall, another vehicle or the ground. */
+type Hit = Extract<Happening, { readonly kind: "impact"; readonly hit: "wall" | "car" | "ground" }>
+
+/** What `hit` met: the ground's under the contact point, at the struck car's `level`, or the wall's (as the sim names it, else the drive wall's, `wallAt`). */
+const materialOf = (hit: Hit, level: number | undefined): Material =>
+  hit.hit === "ground"
+    ? GROUND[surfaceAt(hit.x, hit.y, level)]
+    : (hit.material ?? wallAt(hit.x, hit.y))
+
+/** The rail head under train `id` nearest (x, y) among `trains`: where its hits stand (the ground knows no rail decks). */
+const railLevel = (
+  trains: ReadonlyArray<HeardTrain>,
+  id: number,
+  x: number,
+  y: number,
+): number | undefined =>
+  trains
+    .find((t) => t.id === id)
+    ?.cars.reduce((a, b) => (Math.hypot(b.x - x, b.y - y) < Math.hypot(a.x - x, a.y - y) ? b : a)).z
 
 /** The vehicle part of the director, with what it remembers between frames. */
 export const makeVehicles = () => {
@@ -102,13 +117,14 @@ export const makeVehicles = () => {
   /** Vehicle → when its engine catches, after the starter. */
   const cranking = new Map<number, number>()
   const sirens = new Set<number>()
-  /** Vehicle → its last crash; vehicle → until when it scrapes, along what, and what it has met since when (not yet switched to). */
+  /** Vehicle → its last crash; vehicle → until when it scrapes, along what (a train, `by`), and what it has met since when (not yet switched to). */
   const crashes = new Map<number, { readonly at: number; readonly speed: number }>()
   const scrapes = new Map<
     number,
     {
       readonly until: number
       readonly material: Material
+      readonly by?: number | undefined
       readonly next?: { readonly material: Material; readonly since: number }
     }
   >()
@@ -129,18 +145,18 @@ export const makeVehicles = () => {
     worn.set(id, { ...zones, [zone]: Math.max(speed, zones[zone] ?? 0) })
     if (worn.size > WORN) worn.delete(worn.keys().next().value!)
   }
-  /** `car`'s scrape along `material` now: the material it had holds until `material` has been met for `SWITCH` s. */
-  const scrape = (car: number, material: Material, now: number) => {
+  /** `car`'s scrape along `material` (train `by`'s side) now: the material it had holds until `material` has been met for `SWITCH` s. */
+  const scrape = (car: number, material: Material, now: number, by?: number) => {
     const held = scrapes.get(car),
       until = now + SCRAPE_HOLD
     if (held === undefined || held.material === material)
-      return void scrapes.set(car, { until, material })
+      return void scrapes.set(car, { until, material, by })
     const since = held.next?.material === material ? held.next.since : now
     scrapes.set(
       car,
       now - since >= SWITCH
-        ? { until, material }
-        : { until, material: held.material, next: { material, since } },
+        ? { until, material, by }
+        : { until, material: held.material, by, next: { material, since } },
     )
   }
 
@@ -185,28 +201,28 @@ export const makeVehicles = () => {
       for (const [id, last] of crashes) if (now - last.at >= MERGE) crashes.delete(id)
       // The hardest hits first, so the softer tail of the same hit merges into them.
       const hits = heard.happenings
-        .flatMap((h) =>
-          h.kind === "impact" && h.hit !== "person" && h.hit !== "animal" ? [h] : [],
-        )
+        .filter((h): h is Hit => h.kind === "impact" && h.hit !== "person" && h.hit !== "animal")
         .sort((a, b) => b.speed - a.speed)
       for (const hit of hits) {
         const v = byId.get(hit.car),
-          level = levelOf(v),
+          level = levelOf(v) ?? railLevel(heard.trains, hit.car, hit.x, hit.y),
           bottomed = hit.hit === "ground" && hit.face === "under"
         if (hit.speed < CRASH_FROM) {
           // A soft contact along a wall grinds while the car still moves (the physics reports no ground hit this soft).
           if (hit.hit === "wall" && v !== undefined && Math.hypot(v.vx, v.vy) > SCRAPING)
-            scrape(hit.car, materialOf(hit, level), now)
+            scrape(hit.car, materialOf(hit, level), now, hit.other)
           continue
         }
+        // The other body crushed: a vehicle's (a train met is the car's wall, its `other` only who drives it).
+        const struck = hit.otherBody === undefined ? undefined : hit.other
         const last = Math.max(
           crashes.get(hit.car)?.speed ?? 0,
-          hit.other === undefined ? 0 : (crashes.get(hit.other)?.speed ?? 0),
+          struck === undefined ? 0 : (crashes.get(struck)?.speed ?? 0),
         )
         if (hit.speed < HARDER * last) continue
-        for (const id of [hit.car, hit.other])
+        for (const id of [hit.car, struck])
           if (id !== undefined) crashes.set(id, { at: now, speed: hit.speed })
-        // On foot `mine` and a wall hit's `other` are both undefined.
+        // On foot `mine` is undefined, and so is a wall hit's `other` but a train's. A car the player's train meets is their own hit.
         const own = hit.car === mine || (mine !== undefined && hit.other === mine)
         const point = { x: hit.x, y: hit.y, z: groundAt(hit.x, hit.y, level) + HEIGHT.vehicle }
         // Cresting a hump or a light landing: the bump stops take it.
@@ -367,12 +383,14 @@ export const makeVehicles = () => {
           )
         // Its body down on the ground grinds along it while it slides: the roof, a side, or the belly beached on a bank.
         if (v.hullDown && speed > SCRAPING) scrape(v.id, GROUND[surfaceAt(v.x, v.y, level)], now)
-        const grinding = scrapes.get(v.id)
+        // A car the player's train drags grinds along their own train: heard as their own car's scrape.
+        const grinding = scrapes.get(v.id),
+          own = v.id === mine || (mine !== undefined && grinding?.by === mine)
         if (grinding !== undefined)
           frame.hold(
             `scrape:${v.id}`,
             { kind: "scrape", speed, material: grinding.material },
-            frame.path(key, at, LEVELS.scrape, { doppler: true, cabin: v.id !== mine }),
+            frame.path(own ? undefined : key, at, LEVELS.scrape, { doppler: true, cabin: !own }),
           )
       }
 

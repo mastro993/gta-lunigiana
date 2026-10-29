@@ -70,6 +70,10 @@ export const clearOf = (
   slack = 0,
 ): boolean => segs.every((s) => segmentDistance(s, x, y) >= r - slack)
 
+/** Whether a person can stand at `at`: clear of walk walls. */
+export const standClear = (at: Vec2.Vec2): boolean =>
+  clearOf(wallsAlong("walk", at.x, at.y, 0, 0, PERSON_RADIUS + 0.5), at.x, at.y, PERSON_RADIUS)
+
 /** How deep (m) circles of radius `r` at `at` + each of `offsets` reach into `segs`; 0 when clear. */
 const depthIn = (
   segs: ReadonlyArray<Segment>,
@@ -93,9 +97,9 @@ export const crossesAny = (segs: ReadonlyArray<Segment>, p: Vec2.Vec2, q: Vec2.V
 
 /**
  * Of `vehicles`, the one a person at `at` gets into with the action key: the nearest body (the
- * capsule around its circles) within ENTER_GAP, the later one on a tie, with no walk wall between
- * the person and its axis; never one lying on its side or roof, nor a destroyed one. The action
- * (EnterExit) and the HUD prompt (PlayerView) both ask this.
+ * capsule around its circles) within `reach` m (ENTER_GAP), the later one on a tie, with no walk wall
+ * between the person and its axis; never one lying on its side or roof, nor a destroyed one. The
+ * action (EnterExit) and the HUD prompt (PlayerView) both ask this, through `boardingAt` (rail/boarding.ts).
  */
 export const vehicleInReach = <T>(
   at: Vec2.Vec2,
@@ -106,8 +110,9 @@ export const vehicleInReach = <T>(
     readonly chassis: ChassisValue
     readonly damage: number
   },
+  reach = ENTER_GAP,
 ): T | undefined => {
-  let best = ENTER_GAP,
+  let best = reach,
     found: T | undefined
   for (const vehicle of vehicles) {
     const { model, pose, chassis, damage } = bodyOf(vehicle)

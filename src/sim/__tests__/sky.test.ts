@@ -22,6 +22,7 @@ import {
   update,
 } from "../index.ts"
 import { MAP } from "../map/index.ts"
+import { noTrains } from "../rail/testing.ts"
 import { REGIME_SPECS } from "../sky/regimes.ts"
 import { jsonSave, ON_BATTISTI, rolling, start } from "../testing.ts"
 
@@ -106,7 +107,7 @@ test("the weather seed: a new game keeps WeatherRng's first state as the weather
     })
     assert.ok(made.ok)
     const runtime = made.value
-    assert.ok(runtime.tick(setup).ok)
+    assert.ok(runtime.tick(noTrains, setup).ok)
     const first = jsonSave(runtime).resources["Lunigiana/WeatherRng"],
       weatherSeed = runtime.inspect(SkyView).weather.seed
     runtime.send(SetClock, { rate: 3600 })

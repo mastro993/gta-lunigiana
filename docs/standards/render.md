@@ -8,11 +8,12 @@ Checks for a change in `src/render`, the camera, the view or the keys, on top of
   no sprites; an orthographic camera at 30°, for exact 2:1 pixel lines; the home view north-west of
   the player; quarter turns on Q/E, eased over about 1/3 s; driving, a view that follows the car on
   a spring, the road ahead up the screen, and settles on the nearest quarter turn when the player
-  gets out; the sun on its real arc for the game
+  gets out (a train is followed as a car is); the sun on its real arc for the game
   date and time, fixed in the sky whichever way the view looks, so turning the view never moves a
   shadow; F or Enter as the
   action key; on a touch screen, every control on the screen (a stick to walk; in a vehicle ◀ ▶
-  buttons on the left and Gas and Brake on the right, pressing the keys as the keyboard does) and
+  buttons on the left, hidden in a train, and Gas and Brake on the right, pressing the keys as the
+  keyboard does) and
   the game landscape only, turned a quarter when the phone is held upright; while the world hides
   the player, a see-through circle opens round them with a crisp outlined edge (no dither), and
   shuts once they are in sight again.

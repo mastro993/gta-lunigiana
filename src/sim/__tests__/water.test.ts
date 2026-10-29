@@ -138,19 +138,32 @@ test("getting into a car in the water leaves the player dry while he drives", ()
   assert.equal(game.world().water, undefined)
 })
 
+/** The first dry point on the Lucido's far bank in a spate, `across` m (negative) from its middle. */
+const farBank = (() => {
+  let across = -20
+  while (waterUnder(atLucido(across + 0.5).x, atLucido(across + 0.5).y, false, SPATE) === undefined)
+    across += 0.5
+  return across
+})()
+
 test("people and animals in a spate swim for the bank and walk out; the current takes the dead downstream", () => {
   const route = { edge: walkIndex.nearest(LUCIDO.x, LUCIDO.y), forward: true, side: 1 }
   const walking = { mood: "walk", until: 0, fx: 0, fy: 0 } as const
+  // The dog was swept in from its home on the far bank, so its walks there take it out once it is back in its depth; the player
+  // stands out of its barking range (it would stand in the water barking at him).
+  const home = atLucido(farBank - 3)
+  const swept = Game.Command.extend(
+    animal({ species: "dog", coat: 0xc49a6c, patch: 0xc49a6c, size: 1 }, atLucido(-1, 2)),
+    [Roam, { mood: "idle", until: 0, hx: home.x, hy: home.y, tx: home.x, ty: home.y }],
+  )
   const game = start(
     [],
     [
-      atLucido(-14),
+      atLucido(-30),
       {
         peds: [pedestrian(LOOK, atLucido(1), route, walking)],
         bodies: [pedestrian(LOOK, atLucido(0, 4), route, walking)],
-        animals: [
-          animal({ species: "dog", coat: 0xc49a6c, patch: 0xc49a6c, size: 1 }, atLucido(-1, 2)),
-        ],
+        animals: [swept],
       },
     ],
     { alone: true },
@@ -175,9 +188,7 @@ test("people and animals in a spate swim for the bank and walk out; the current 
 // Regression: people and animals kept out only by the shore walls, which ring the water's cells, walked into a spate spread past them.
 test("a calm dog walking for the river in a spate stops at the water's edge and stays dry", () => {
   // The first dry point coming in from the far bank, then a step short of it.
-  let across = -20
-  while (waterUnder(atLucido(across + 0.5).x, atLucido(across + 0.5).y, false, SPATE) === undefined)
-    across += 0.5
+  const across = farBank
   const dog = Game.Command.extend(
     animal({ species: "dog", coat: 0xc49a6c, patch: 0xc49a6c, size: 1 }, atLucido(across - 1)),
     [Roam, { mood: "walk", until: 600, hx: LUCIDO.x, hy: LUCIDO.y, tx: LUCIDO.x, ty: LUCIDO.y }],

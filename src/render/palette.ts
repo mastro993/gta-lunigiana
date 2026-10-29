@@ -46,10 +46,23 @@ export const PALETTE = {
   nose: 0x1c1a19,
   horn: 0xd8cdb4,
   blood: 0x6b0d10,
+  // The ATR 220 "Swing" in Trenitalia's DPR livery (render/train), between it.wikipedia "Livrea DPR"'s RAL and Pantone swatches
+  // and samples of Commons photos of units at Aulla, Fivizzano-Gassano and Lucca: the RAL 9006 silver side, the RAL 7021 window
+  // band and cab panels, the blue of the roof, cantrail and hoods (the photos' brighter blue, not RAL 5002's), the front's RAL
+  // 3020 red band, the gommagutta yellow swoosh and line, the Pantone 2296 lime doors, and the dark underframe and bogies.
+  dprSilver: 0xb8bcbc,
+  dprWindow: 0x2a2f33,
+  dprBlue: 0x1f4fa8,
+  dprRed: 0xc8161e,
+  dprYellow: 0xf5b800,
+  dprLime: 0xa8c23a,
+  dprUnder: 0x2b2b2d,
   // Night and weather (render/sky): window glass by day, lit windows, lanterns and their light, headlight beams, rain, snow, lightning.
   windowGlass: 0x323a46,
   windowLit: 0xffc56e,
   windowAmber: 0xf09a4c,
+  // A train's saloon at night (render/train): the cool white of LED strip lighting, against the homes' warm lamplight.
+  cabinLit: 0xe4ecf0,
   lanternIron: 0x26241f,
   lampLight: 0xffcf8a,
   headlight: 0xfff1d0,
@@ -81,6 +94,24 @@ export const PALETTE = {
   snowRut: 0x4a4640,
   // Snow lying on the ground, roofs and canopies (render/sky/surface): off-white, ≈ 0.72 linear, so a sunlit slope keeps its facets.
   snow: 0xdcdfe6,
+  // The railway's static parts (render/rail, render/stations), estimated from photos of the line: grey limestone ballast, the
+  // prestressed-concrete sleepers and UNI 60 rail of the 2010–12 renewal (rusty, its head polished where tyres cross it), worn
+  // concrete crossing panels, the white barrier housing, the road light's grey pole and black back plate, a grey equipment
+  // cabinet, the dark of a tunnel's mouth, a platform's concrete kerb, the blue of RFI's name boards (RAL 5017) and a station
+  // canopy's grey metal (Gragnola's).
+  ballast: 0x7f7a70,
+  sleeperConcrete: 0xa9a49a,
+  railSteel: 0x4d4640,
+  railHead: 0x9c9a94,
+  crossingPanel: 0x85827a,
+  barrierWhite: 0xe4e2da,
+  signalPole: 0x8d9190,
+  signalBlack: 0x1e1e20,
+  cabinetGrey: 0xa6aaa6,
+  tunnelDark: 0x121114,
+  kerb: 0xc4bfb2,
+  rfiBlue: 0x0e518d,
+  canopyGrey: 0x7c827f,
 } as const satisfies Record<string, number>
 
 /** `#rrggbb` CSS string of a palette (or any sRGB hex) colour. */

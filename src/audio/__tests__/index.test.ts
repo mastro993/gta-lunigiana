@@ -296,7 +296,7 @@ test("hear: a ground hit lands on the face that struck: the roof and a side on t
   for (const face of ["roof", "side", "front", "rear", "under"] as const)
     runtime.send(Impact, { hit: "ground", x: at.x, y: at.y, speed: 6, mass: 1.015, car, face })
   hear()
-  const zones = frames[1]!.happenings.map((h) => (h.kind === "impact" ? h.body.zone : undefined))
+  const zones = frames[1]!.happenings.map((h) => (h.kind === "impact" ? h.body?.zone : undefined))
   assert.deepEqual(zones, ["side", "side", "front", "rear", "under"])
 })
 

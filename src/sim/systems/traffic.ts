@@ -6,6 +6,8 @@ import { GRAVITY, rigFor, RIGS } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { type HandlingValue, REAL_HANDLING } from "../handling.ts"
 import { graph } from "../map/index.ts"
+import { onLevel, trainCars } from "../rail/bodies.ts"
+import { atCrossings, busyBoxes, nearTrack, type Occupant } from "../rail/roads.ts"
 import {
   allowsModel,
   alongLane,
@@ -35,6 +37,7 @@ import {
   GameClock,
   Handling,
   Honk,
+  LevelCrossings,
   Motion,
   Person,
   Pose,
@@ -43,6 +46,8 @@ import {
   STEP,
   Time,
   Traffic,
+  Train,
+  TrainMotion,
   Vehicle,
   Weather,
 } from "../schema.ts"
@@ -147,9 +152,10 @@ export const leans = (model: VehicleModel, chassis: Pick<ChassisValue, "roll">):
 const lifted = (edge: number): boolean =>
   roadOf(edge).bridge === true || roadOf(edge).tunnel === true
 
-/** Whether a car may turn round on `edge`: never on a bridge or in a tunnel, nor on an edge next to one (a circle there leaves the deck). */
+/** Whether a car may turn round on `edge`: never on a bridge or in a tunnel, nor on an edge next to one (a circle there leaves the deck), nor beside a railway's track at grade (it would sweep over it). */
 export const roomToTurn = (edge: number): boolean =>
   !lifted(edge) &&
+  !nearTrack(edge) &&
   [graph.edges[edge]!.a, graph.edges[edge]!.b].every((node) => !graph.adjacency[node]!.some(lifted))
 
 /** Throttle (or brake) toward a wanted speed. */
@@ -179,16 +185,19 @@ const arrived = (
  * AI drivers on graph.trafficEdges: keep right (Route.side), steer at a point
  * ahead along this edge and the next, pick the next edge at random at each
  * node, slow for sharp turns and for anything in a cone ahead (people and
- * animals, living or dead, included), and back up along the lane after
- * standing still for 3 s (sometimes turning round, and always from its second
- * time on, dead end or not); waiting for a living person or animal ahead on the
- * carriageway counts four times slower. Half-way to backing up it honks, once
- * (a Honk event). The cone follows the arc its wheels steer and sees the whole
- * footprint of what stands in it (a car across the road as well as one ahead);
- * backing up, it stops short of what is behind and keeps the wheel straight
- * past what is alongside. On wet or snowy roads it drives slower by the square
- * root of the grip left (as a curve's speed goes), and looks and keeps further
- * ahead by the grip lost.
+ * animals, living or dead, and the cars of a train on their level included),
+ * and back up along the lane after standing still for 3 s (sometimes turning
+ * round, and always from its second time on, dead end or not); waiting for a
+ * living person or animal, or a train, ahead on the carriageway counts four
+ * times slower. Half-way to backing up it honks, once (a Honk event). The cone
+ * follows the arc its wheels steer and sees the whole footprint of what stands
+ * in it (a car across the road as well as one ahead); backing up, it stops
+ * short of what is behind and keeps the wheel straight past what is alongside.
+ * On wet or snowy roads it drives slower by the square root of the grip left
+ * (as a curve's speed goes), and looks and keeps further ahead by the grip
+ * lost. At a level crossing it keeps to the crossing rules (rail/roads.ts):
+ * it stops for a box not open, keeps the box and the junction before it
+ * clear, and waits patiently while the box is closed for a train.
  */
 export const TrafficAI = Game.System(
   "Lunigiana/TrafficAI",
@@ -207,7 +216,14 @@ export const TrafficAI = Game.System(
         with: [Traffic],
       }),
       vehicles: Game.Query({
-        selection: { pose: Game.Query.read(Pose), vehicle: Game.Query.read(Vehicle) },
+        selection: {
+          pose: Game.Query.read(Pose),
+          motion: Game.Query.read(Motion),
+          vehicle: Game.Query.read(Vehicle),
+        },
+      }),
+      trains: Game.Query({
+        selection: { motion: Game.Query.read(TrainMotion), train: Game.Query.read(Train) },
       }),
       people: Game.Query({
         selection: { pose: Game.Query.read(Pose), dead: Game.Query.optional(Dead) },
@@ -228,6 +244,7 @@ export const TrafficAI = Game.System(
       handling: Game.System.readResource(Handling),
       weather: Game.System.readResource(Weather),
       clock: Game.System.readResource(GameClock),
+      crossings: Game.System.thisTick(Game.System.readResource(LevelCrossings)),
     },
     events: { honk: Game.System.writeEvent(Honk) },
   },
@@ -237,19 +254,49 @@ export const TrafficAI = Game.System(
       weather = resources.weather.get(),
       air = airAt(resources.clock.get().seconds, weather)
     const random = Random.draw(resources.rng)
+    const states = resources.crossings.get()
+    const trains = queries.trains.each().map(({ entity, data }) => ({
+      id: entity.id as number,
+      motion: data.motion.get(),
+      model: data.train.get().model,
+    }))
+    const busy = busyBoxes(trains)
+    // The vehicles as the crossing rules see them: footprints and speeds.
+    const occupants: ReadonlyArray<Occupant> = queries.vehicles.each().map(({ entity, data }) => {
+      const { length, width } = VEHICLES[data.vehicle.get().model],
+        { vx, vy } = data.motion.get()
+      return {
+        id: entity.id,
+        ...data.pose.get(),
+        long: length / 2,
+        wide: width / 2,
+        speed: Math.sqrt(vx * vx + vy * vy),
+      }
+    })
     // Each obstacle's footprint, half its length and half its width (a person or an animal a circle), and whether it moves on: the
-    // living do; a body lying dead is waited for no longer than a parked car, not queued behind until it is gone.
-    const obstacles = [
-      ...queries.vehicles.each().map(({ entity, data }) => {
-        const { length, width } = VEHICLES[data.vehicle.get().model]
-        return {
-          id: entity.id,
-          ...data.pose.get(),
-          long: length / 2,
-          wide: width / 2,
-          movesOn: false,
-        }
-      }),
+    // living do, and a train; a body lying dead is waited for no longer than a parked car, not queued behind until it is gone. A
+    // train's car is an obstacle only to a car on its level (`z`, its rail head).
+    const obstacles: ReadonlyArray<{
+      readonly id: number
+      readonly x: number
+      readonly y: number
+      readonly angle: number
+      readonly long: number
+      readonly wide: number
+      readonly movesOn: boolean
+      readonly z?: number
+    }> = [
+      ...occupants.map((o) => ({ ...o, movesOn: false })),
+      ...trainCars(trains).map((car) => ({
+        id: car.train,
+        x: car.x,
+        y: car.y,
+        angle: car.angle,
+        long: car.length / 2,
+        wide: car.width / 2,
+        movesOn: true,
+        z: car.z,
+      })),
       ...queries.people.each().map(({ entity, data }) => ({
         id: entity.id,
         ...data.pose.get(),
@@ -284,6 +331,10 @@ export const TrafficAI = Game.System(
       const { model } = data.vehicle.get()
       const spec = VEHICLES[model]
       const speed = forwardSpeed(data.motion.get(), pose.angle)
+      // What stands on its level: the ground under it.
+      const ground = data.chassis.get().z - spec.cg,
+        level = (other: (typeof obstacles)[number]) =>
+          other.z === undefined || onLevel(ground, other.z)
       let route = data.route.get()
       let pilot = data.pilot.get()
       if (distanceToEdge(route.edge, pose.x, pose.y) > LOST) {
@@ -342,7 +393,7 @@ export const TrafficAI = Game.System(
         let back = REVERSE_SPEED,
           beside = false
         for (const other of obstacles) {
-          if (other.id === entity.id) continue
+          if (other.id === entity.id || !level(other)) continue
           const rx = other.x - pose.x,
             ry = other.y - pose.y,
             front = rx * fx + ry * fy,
@@ -392,10 +443,11 @@ export const TrafficAI = Game.System(
         Math.max(roadOf(edge).w / 2, walkSide(roadOf(edge))) + PERSON_RADIUS
       const onRoad = (p: { readonly x: number; readonly y: number }) =>
         inWay(route.edge, p) || inWay(pilot.next, p)
-      // Whether the nearest thing held back for is a living person or animal in the way (ahead of the bumper, on the carriageway or its verge), which moves on.
+      // Whether the nearest thing held back for is a living person or animal in the way (ahead of the bumper, on the carriageway or
+      // its verge), or a train across it, which moves on.
       let forPerson = false
       for (const other of obstacles) {
-        if (other.id === entity.id) continue
+        if (other.id === entity.id || !level(other)) continue
         const rx = other.x - pose.x,
           ry = other.y - pose.y
         const front = rx * fx + ry * fy,
@@ -409,8 +461,36 @@ export const TrafficAI = Game.System(
         if (off - extent.across >= spec.width / 2 + CONE_CLEARANCE) continue
         const limit = Math.max(0, (front - spec.length / 2 - extent.along - GAP) * 0.8 * grip)
         if (limit < want)
-          [want, forPerson] = [limit, other.movesOn && front > spec.length / 2 && onRoad(other)]
+          [want, forPerson] = [
+            limit,
+            other.movesOn && front > spec.length / 2 && (other.z !== undefined || onRoad(other)),
+          ]
       }
+      // The level crossings: a stop for a box not open, or to keep one or the junction before it clear; patience at a closed one.
+      const was = data.input.get()
+      const crossing = atCrossings(
+        {
+          id: entity.id,
+          x: pose.x,
+          y: pose.y,
+          angle: pose.angle,
+          speed,
+          length: spec.length,
+          width: spec.width,
+          side: route.side,
+          route,
+          next: { edge: pilot.next, forward: pilot.nextForward },
+          lane,
+          along,
+          grip,
+          braking: was.throttle < 0 || was.handbrake,
+        },
+        occupants,
+        states,
+        busy,
+        step,
+      )
+      want = Math.min(want, crossing.limit)
 
       const holding = want < 0.5 && Math.abs(speed) < 0.5,
         slow = Math.abs(speed) < 0.5
@@ -422,8 +502,9 @@ export const TrafficAI = Game.System(
             : { throttle: throttleFor(want, speed), steer, handbrake: false },
       )
 
-      // Stopped (or grinding along a wall) counts up, waiting for a living person or animal in the way only every PERSON_PATIENCE steps; only real progress resets it.
-      const counts = !forPerson || step % PERSON_PATIENCE === 0
+      // Stopped (or grinding along a wall) counts up, waiting for a living person or animal (or a train) in the way only every
+      // PERSON_PATIENCE steps, and not at all waiting at a closed level crossing; only real progress resets it.
+      const counts = !crossing.patient && (!forPerson || step % PERSON_PATIENCE === 0)
       const stuck =
         Math.abs(speed) < STUCK_SPEED
           ? pilot.stuck + (counts ? 1 : 0)

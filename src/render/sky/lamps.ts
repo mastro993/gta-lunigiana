@@ -22,20 +22,24 @@ import {
   type RoadClass,
 } from "../../sim/map/index.ts"
 import { eaveOf, windowCount } from "../buildings.ts"
-import type { Piece, Sink, Triangles } from "../geometry.ts"
-import { terrainY } from "../ground.ts"
+import type { Piece, Sink } from "../geometry.ts"
+import { groundY, terrainY } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
+import { block } from "../ribbons.ts"
+import { platformLamps } from "../stations.ts"
 
-/** A street lamp: where its lantern hangs and which way it faces. */
+/** A street lamp: where its lantern hangs, which way it faces and what holds it. */
 export interface StreetLamp {
   /** The lantern's centre, map metres. */
   readonly x: number
   readonly y: number
   /** The lantern's centre, render y. */
   readonly h: number
-  /** Unit direction out of the wall it hangs on (toward the street), map frame. */
+  /** Unit direction from what holds it out to the lantern (a wall's toward the street, a pole's toward the track), map frame. */
   readonly nx: number
   readonly ny: number
+  /** A lantern on a house wall's bracket, or on a platform pole's (render/stations) the same `ARM` out from its top. */
+  readonly kind: "wall" | "pole"
 }
 
 /** Road classes lit where houses line them. */
@@ -52,7 +56,7 @@ const REACH = { out: 6, in: 0.3 } as const
 const VILLAGE = { radius: 40, buildings: 4 } as const
 /** Bracket height over the ground outside the wall, m; a lower house takes it 0.4 m under its eaves, down to 3 m. */
 const MOUNT = { height: 4.5, lowest: 3, eaves: 0.4 } as const
-/** How far the lantern's centre stands out from the wall, m, and hangs under the bracket. */
+/** How far the lantern's centre stands out from the wall or the pole, m, and hangs under the bracket. */
 const ARM = 0.6
 const HANG = 0.3
 /** Room kept from a wall's corners, m. */
@@ -126,7 +130,10 @@ const mounts = (
       eave ??= eaveOf(b)
       const bracket = Math.min(ground + MOUNT.height, eave - MOUNT.eaves)
       if (bracket - ground >= MOUNT.lowest)
-        found.push({ lamp: { x: wx + nx * ARM, y: wy + ny * ARM, h: bracket - HANG, nx, ny }, d })
+        found.push({
+          lamp: { x: wx + nx * ARM, y: wy + ny * ARM, h: bracket - HANG, nx, ny, kind: "wall" },
+          d,
+        })
     }
   })
   return found
@@ -192,8 +199,22 @@ export const placeLamps = (): Array<StreetLamp> => {
 }
 
 let placed: ReadonlyArray<StreetLamp> | undefined
-/** `placeLamps()`, placed on first use and shared (the world's chunks and the night lights read the same list); never write to it. */
-export const streetLamps = (): ReadonlyArray<StreetLamp> => (placed ??= placeLamps())
+/**
+ * Every lamp: the wall lanterns (`placeLamps()`) and the platforms' pole lamps (`platformLamps()`), placed on first use and
+ * shared (the world's chunks and the night lights read the same list); never write to it.
+ */
+export const streetLamps = (): ReadonlyArray<StreetLamp> =>
+  (placed ??= [
+    ...placeLamps(),
+    ...platformLamps().map(({ x, y, h, nx, ny }) => ({
+      x: x + nx * ARM,
+      y: y + ny * ARM,
+      h,
+      nx,
+      ny,
+      kind: "pole" as const,
+    })),
+  ])
 
 let grid: ReturnType<typeof staticGrid> | undefined
 /**
@@ -212,59 +233,13 @@ export const lampsIn = (
   grid(minX, minY, maxX, maxY, visit)
 }
 
-/**
- * A box centred at (x, y, z) (three space) with half sizes `out` along the horizontal unit `(ux, uz)`,
- * `up` vertically and `side` across, in one colour.
- */
-const box = (
-  tris: Triangles,
-  x: number,
-  y: number,
-  z: number,
-  ux: number,
-  uz: number,
-  out: number,
-  up: number,
-  side: number,
-  hex: number,
-): void => {
-  const corner = (a: number, b: number, c: number) =>
-    [x + ux * out * a - uz * side * c, y + up * b, z + uz * out * a + ux * side * c] as const
-  for (const s of [-1, 1]) {
-    tris.face(
-      corner(s, -1, -1),
-      corner(s, -1, 1),
-      corner(s, 1, 1),
-      corner(s, 1, -1),
-      [ux * s, 0, uz * s],
-      hex,
-    )
-    tris.face(
-      corner(-1, -1, s),
-      corner(1, -1, s),
-      corner(1, 1, s),
-      corner(-1, 1, s),
-      [-uz * s, 0, ux * s],
-      hex,
-    )
-    tris.face(
-      corner(-1, s, -1),
-      corner(1, s, -1),
-      corner(1, s, 1),
-      corner(-1, s, 1),
-      [0, s, 0],
-      hex,
-    )
-  }
-}
-
 /** Half sizes of the lantern's glass, m (out, up, across); its solid body stands 2 cm inside it. */
 const GLASS = { out: 0.14, up: 0.18, side: 0.14 } as const
 
 /**
- * One lamp into a chunk: the iron bracket from the wall, the lantern's cap, body and foot (solid), its
- * glass (glow). By day the glass is not drawn and the dark body keeps the lantern whole; at night the
- * glass covers it.
+ * One lamp into a chunk: the iron bracket from the wall, or the grey steel pole (standing on the ground under it, a
+ * platform's top) and the bracket from its top, the lantern's cap, body and foot (solid), its glass (glow). By day the glass is not drawn and the dark body
+ * keeps the lantern whole; at night the glass covers it.
  */
 const drawLamp = (sink: Sink, lamp: StreetLamp): void => {
   const x = lamp.x,
@@ -272,8 +247,26 @@ const drawLamp = (sink: Sink, lamp: StreetLamp): void => {
     ux = lamp.nx,
     uz = -lamp.ny,
     top = lamp.h + HANG,
-    iron = PALETTE.lanternIron
-  box(
+    iron = PALETTE.lanternIron,
+    holder = lamp.kind === "pole" ? PALETTE.signalPole : iron
+  if (lamp.kind === "pole") {
+    const px = x - ux * ARM,
+      pz = z - uz * ARM,
+      foot = groundY(px, -pz)
+    block(
+      sink.solid,
+      px,
+      (foot + top + 0.12) / 2,
+      pz,
+      ux,
+      uz,
+      0.06,
+      (top + 0.12 - foot) / 2,
+      0.06,
+      holder,
+    )
+  }
+  block(
     sink.solid,
     x - ux * (ARM / 2),
     top + 0.06,
@@ -283,10 +276,10 @@ const drawLamp = (sink: Sink, lamp: StreetLamp): void => {
     ARM / 2 + 0.06,
     0.06,
     0.06,
-    iron,
+    holder,
   )
-  box(sink.solid, x, lamp.h + 0.23, z, ux, uz, 0.19, 0.05, 0.19, iron)
-  box(
+  block(sink.solid, x, lamp.h + 0.23, z, ux, uz, 0.19, 0.05, 0.19, iron)
+  block(
     sink.solid,
     x,
     lamp.h,
@@ -298,11 +291,11 @@ const drawLamp = (sink: Sink, lamp: StreetLamp): void => {
     GLASS.side - 0.02,
     PALETTE.windowGlass,
   )
-  box(sink.solid, x, lamp.h - 0.22, z, ux, uz, 0.1, 0.04, 0.1, iron)
-  box(sink.glow, x, lamp.h, z, ux, uz, GLASS.out, GLASS.up, GLASS.side, PALETTE.lampLight)
+  block(sink.solid, x, lamp.h - 0.22, z, ux, uz, 0.1, 0.04, 0.1, iron)
+  block(sink.glow, x, lamp.h, z, ux, uz, GLASS.out, GLASS.up, GLASS.side, PALETTE.lampLight)
 }
 
-/** Every street lamp as a piece anchored at its lantern (it goes whole into that chunk). */
+/** Every lamp as a piece anchored at its lantern (it goes whole into that chunk, its pole too). */
 export const lampPieces = (): Array<Piece> =>
   streetLamps().map((lamp) => ({
     pts: [lamp.x, lamp.y],

@@ -1,13 +1,14 @@
 /// <reference types="vite/client" />
 /**
  * Browser host (imported by `boot.ts` once the map is in): makes the streamed world and the pixel
- * view, makes the runtime with the live keyboard, the render registries, the tyre marks and smoke
- * and the audio director, and drives everything from one FixedLoop: fixed sim steps, then once per
- * animation frame the render and audio schedules, the camera, world streaming, the frame and the
- * HUD. While the full map (M) or the settings (Esc) are open, both are skipped and the sound is
- * suspended: the game is paused. The build runs in steps the title card names; the card says
- * "Press any key" once the first frame is drawn, and the game clock stands still until it goes. In
- * mobile mode (index.html) the touch controls add to the keys.
+ * view, makes the runtime with the live keyboard, the render registries (trains included), the
+ * effects (the tyre marks and smoke, the level crossings' arms and lights) and the audio director,
+ * and drives everything from one FixedLoop: fixed sim steps, then once per animation frame the
+ * render and audio schedules, the camera, world streaming, the frame and the HUD. While the full
+ * map (M) or the settings (Esc) are open, both are skipped and the sound is suspended: the game is
+ * paused. The build runs in steps the title card names; the card says "Press any key" once the
+ * first frame is drawn, and the game clock stands still until it goes. In mobile mode (index.html)
+ * the touch controls add to the keys.
  *
  * @module main
  */
@@ -28,10 +29,12 @@ import { makeSettings } from "./hud/settings.ts"
 import { makeSkyStore } from "./hud/sky.ts"
 import { element, holdClock, step, titleReady } from "./hud/title.ts"
 import { holdLandscape, makeTouchControls, withTouch } from "./hud/touch.ts"
-import { groundY } from "./render/ground.ts"
+import { makeTrainStore } from "./hud/trains.ts"
+import { groundY, yOf } from "./render/ground.ts"
 import {
   Animals,
   blend,
+  Crossings,
   Cut,
   Effects,
   makeEffects,
@@ -40,6 +43,7 @@ import {
   render,
   RenderClock,
   Sky,
+  Trains,
   Vehicles,
 } from "./render/index.ts"
 import { PixelView, WIDEST_ZOOM, zoomFor } from "./render/pipeline.ts"
@@ -57,10 +61,12 @@ import {
   PlayerView,
   SetClock,
   SetHandling,
+  SetTrains,
   SetWeather,
   setup,
   SkyView,
   STEP,
+  TrainView,
   update,
 } from "./sim/index.ts"
 import { mapCover } from "./sim/map/cover.ts"
@@ -124,7 +130,7 @@ const pad = document.documentElement.classList.contains("touch")
   : undefined
 const controls = pad === undefined ? keyboard : withTouch(keyboard, pad.touch)
 const renderClock = { alpha: 0 }
-const { people, animals, vehicles } = makeRegistries(scene)
+const { people, animals, vehicles, trains } = makeRegistries(scene)
 const effects = makeEffects(scene)
 // The circle that opens round the player while the world hides them, sized in texels of the view.
 const cut = new SeeThrough(view, () => reduceMotion.matches)
@@ -151,8 +157,10 @@ const made = makeRuntime({
     Game.Runtime.service(People, people),
     Game.Runtime.service(Animals, animals),
     Game.Runtime.service(Vehicles, vehicles),
+    Game.Runtime.service(Trains, trains),
     Game.Runtime.service(RenderClock, renderClock),
     Game.Runtime.service(Effects, effects),
+    Game.Runtime.service(Crossings, effects.crossings),
     Game.Runtime.service(Sky, skyHost),
     Game.Runtime.service(Cut, cut),
     Game.Runtime.service(Audio, director),
@@ -216,8 +224,12 @@ const draw = (frame: FixedLoop.Frame): void => {
   const ease = camera.placed ? 1 - Math.exp(-5 * dt) : 1
   camera.x += (x + lead.x - camera.x) * ease
   camera.y += (y + lead.y - camera.y) * ease
-  camera.elevation +=
-    (groundY(x, y, camera.placed ? camera.elevation : undefined) - camera.elevation) * ease
+  // In a train the cab's own ground, which a rail bridge has and the map's ground has not.
+  const ground =
+    player.z === undefined
+      ? groundY(x, y, camera.placed ? camera.elevation : undefined)
+      : yOf(player.z)
+  camera.elevation += (ground - camera.elevation) * ease
   view.focus.set(camera.x, camera.elevation, -camera.y)
   swing = swingView(
     swing,
@@ -278,7 +290,7 @@ routeOverlayKeys(window, {
 if (pad !== undefined) holdLandscape(window)
 titleReady(window, play)
 
-// Dev only: the Ritmo monitor (backslash toggles it), the debug menu (P: time, weather, handling) and a handle for
+// Dev only: the Ritmo monitor (backslash toggles it), the debug menu (P: time, weather, handling, trains) and a handle for
 // measuring from the console. No HMR hooks: nothing accepts updates, so Vite reloads the page on every edit.
 if (import.meta.env.DEV) {
   // The clock and the weather for the debug menu and `gta.sky`; like the handling store's, its sends run between ticks.
@@ -286,6 +298,11 @@ if (import.meta.env.DEV) {
     read: () => runtime.inspect(SkyView),
     setClock: (request) => runtime.send(SetClock, request),
     setWeather: (request) => runtime.send(SetWeather, request),
+  })
+  // The railway for the debug menu's Trains area and `gta.trains`; its call, like the stores' above, is sent between ticks.
+  const railway = makeTrainStore({
+    read: () => runtime.inspect(TrainView),
+    send: (request) => runtime.send(SetTrains, request),
   })
   const here = () => {
     const player = runtime.inspect(PlayerView)
@@ -309,6 +326,8 @@ if (import.meta.env.DEV) {
       cut,
       // What the sky host drew last: the sky frame, the sun and moon, the light, the exposure, the fog and the weather at the focus.
       skyLook: () => skyHost.look,
+      // The railway as the debug menu's Trains area shows it; `gta.trains.call()` calls the trains.
+      trains: Object.assign(() => railway.now(), railway),
     },
   })
   const mountDebug = async () => {
@@ -319,7 +338,7 @@ if (import.meta.env.DEV) {
     }
     // After the monitor: the menu's button is anchored beside the monitor's, which must come first in the page.
     const { mountDebugMenu } = await import("./hud/debug.ts")
-    mountDebugMenu({ window, handling, sky, here })
+    mountDebugMenu({ window, handling, sky, trains: railway, here })
   }
   void mountDebug()
 }

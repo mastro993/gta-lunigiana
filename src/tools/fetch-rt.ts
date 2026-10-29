@@ -1,10 +1,16 @@
 // Downloads the Regione Toscana sources (Geoscopio cartoteca) and writes the pinned subsets the map
-// build reads to data/raw/rt. Run: node src/tools/fetch-rt.ts  (pnpm fetch-rt).
-// Needs `unzip` on the PATH. The archives are cached in the OS temp directory.
+// build reads to data/raw/rt. Run: node src/tools/fetch-rt.ts  (pnpm fetch-rt), or
+// `node src/tools/fetch-rt.ts ctr` (pnpm fetch-rt ctr) for the CTR sheets alone, which leaves the
+// LiDAR and the land cover as they are. Needs `unzip` on the PATH. The archives are cached in the
+// OS temp directory. A file whose unpacked bytes equal the new ones is not rewritten, so another
+// zlib never churns a pinned file.
 // - ctr/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2019 flight, EPSG:6707 (CC BY 4.0). AED =
-//   buildings, AGE = other areas (garages, ruins), AVI = road areas, AZR = the mapped area of each
-//   sheet. Some sheets map only part of their frame; where none does, OSM fills in. A sheet may
-//   lack AGE or AVI (nothing of the kind in it).
+//   buildings, AGE = other areas (garages, ruins, station platforms, level crossings), AVI = road
+//   areas, AZR = the mapped area of each sheet, AFE = the rail ballast bed (its bridge and tunnel
+//   spans), VLI = the railway track centrelines only (code 0117; the rest of the layer, mostly
+//   contour lines, is dropped). Some sheets map only part of their frame; where none does, OSM
+//   fills in. A sheet may lack AGE, AVI or AFE (nothing of the kind in it) and has a VLI file only
+//   where a track runs.
 // - dtm.json + dtm.bin: LiDAR DTM, EPSG:3003 (CC BY 4.0): the 1 m tiles of the 2010 flight, then
 //   the 2012 flight where 2010 has no data (the Carrara side of the ridge, Monte Sagro), mosaicked,
 //   cropped to the play area plus MARGIN and averaged to 2 m cells (the game grid is 4 m); int16
@@ -14,19 +20,26 @@
 //   the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse vegetation,
 //   pastures, heath), from the WFS.
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
-import { deflateSync, gzipSync } from "node:zlib"
+import { deflateSync, gunzipSync, gzipSync, inflateSync } from "node:zlib"
 
 import { latLonToGaussBoaga } from "./crs.ts"
 import { BOUNDS, fromLocal } from "./geometry.ts"
+import { subsetShp } from "./shp.ts"
 import { UCS_CODES } from "./ucs.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
 const OUT = join(ROOT, "data/raw/rt")
 const CACHE = join(tmpdir(), "gta-lunigiana-rt")
 const BASE = "https://www502.regione.toscana.it/geoscopio/download"
+/** The only thing the requests say about who asks: the project (no names, no addresses). */
+const HEADERS = { "User-Agent": "gta-lunigiana map build" }
+/** `ctr` fetches the CTR sheets alone; no argument fetches everything. */
+const stage = process.argv[2]
+if (stage !== undefined && stage !== "ctr")
+  throw new Error(`unknown stage ${stage}: use ctr or none`)
 
 /** Every 2019 CTR 1:2000 sheet that maps ground in the play area (cartoteca layer rt_cartoteca.ctr2k). */
 const CTR_SHEETS = [
@@ -56,7 +69,10 @@ const CTR_SHEETS = [
   "23D54",
   "23D55",
 ] as const
-const CTR_LAYERS = ["AED", "AGE", "AVI", "AZR"] as const
+/** Layers copied whole; AED and AZR are in every sheet. */
+const CTR_LAYERS = ["AED", "AGE", "AVI", "AZR", "AFE"] as const
+/** CTR code of a railway track centreline, the only VLI records kept. */
+const TRACK = "0117"
 /**
  * Every LiDAR DTM tile with data in the crop (cartoteca layer rt_cartoteca.lidar2k; the suffix is
  * the archive's MD5), in priority order: a cell keeps the first value written. The 2010 flight
@@ -137,18 +153,36 @@ const MARGIN = 32
 const UCS_WFS =
   "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full"
 
+/** Whether `dir` holds a file at any depth: macOS purges the temp directory's files but keeps its folders. */
+const holdsFiles = (dir: string): boolean =>
+  existsSync(dir) &&
+  readdirSync(dir, { recursive: true, withFileTypes: true }).some((e) => e.isFile())
+
+/** The archive at `url`, extracted under CACHE; an extracted folder without files counts as missing. */
 const fetchZip = async (url: string): Promise<string> => {
   const zip = join(CACHE, basename(url)),
     dir = zip.replace(/\.zip$/, "")
-  if (!existsSync(dir)) {
+  if (!holdsFiles(dir)) {
     if (!existsSync(zip)) {
-      const res = await fetch(url)
+      const res = await fetch(url, { headers: HEADERS })
       if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`)
       writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
     }
     execFileSync("unzip", ["-o", "-q", zip, "-d", dir])
   }
   return dir
+}
+
+/** Writes `bytes`, packed, to `path`, unless the file there already unpacks to the same bytes. */
+const pin = (
+  path: string,
+  bytes: Buffer,
+  pack: (b: Buffer) => Buffer = (b) => gzipSync(b, { level: 9 }),
+  unpack: (b: Buffer) => Buffer = gunzipSync,
+): void => {
+  if (existsSync(path) && unpack(readFileSync(path)).equals(bytes)) return
+  writeFileSync(path, pack(bytes))
+  console.log(`wrote ${path.slice(ROOT.length + 1)}`)
 }
 
 const findFile = (dir: string, name: string): string | undefined =>
@@ -165,17 +199,24 @@ mkdirSync(join(OUT, "ctr"), { recursive: true })
 
 for (const sheet of CTR_SHEETS) {
   const dir = await fetchZip(`${BASE}/ctr2k/SHP/S_${sheet}_2019_6707.zip`)
+  const out = (layer: string, ext: string) => join(OUT, "ctr", `${sheet}_${layer}.${ext}.gz`)
   for (const layer of CTR_LAYERS)
     for (const ext of ["shp", "dbf"]) {
       const name = `S_${sheet}_2019_${layer}.${ext}`,
         file = layer === "AED" || layer === "AZR" ? mustFind(dir, name) : findFile(dir, name)
-      if (file !== undefined)
-        writeFileSync(
-          join(OUT, "ctr", `${sheet}_${layer}.${ext}.gz`),
-          gzipSync(readFileSync(file), { level: 9 }),
-        )
+      if (file !== undefined) pin(out(layer, ext), readFileSync(file))
     }
+  const tracks = subsetShp(
+    readFileSync(mustFind(dir, `S_${sheet}_2019_VLI.shp`)),
+    readFileSync(mustFind(dir, `S_${sheet}_2019_VLI.dbf`)),
+    (attrs) => attrs.Cod_CTR === TRACK,
+  )
+  if (tracks !== undefined) {
+    pin(out("VLI", "shp"), tracks.shp)
+    pin(out("VLI", "dbf"), tracks.dbf)
+  }
 }
+if (stage === "ctr") process.exit(0)
 
 // The crop: play-area corners in Gauss-Boaga, widened by MARGIN, on the tiles' cell centres (x.5).
 const corners = [
@@ -325,8 +366,12 @@ for (let j = 0, prev = 0; j < rows2; j++)
     deltas[j * cols2 + i] = i === 0 ? mean : mean - prev
     prev = mean
   }
-const bin = deflateSync(Buffer.from(deltas.buffer), { level: 9 })
-writeFileSync(join(OUT, "dtm.bin"), bin)
+pin(
+  join(OUT, "dtm.bin"),
+  Buffer.from(deltas.buffer),
+  (b) => deflateSync(b, { level: 9 }),
+  inflateSync,
+)
 const meta = {
   crs: "EPSG:3003",
   e0: e0 + 0.5,
@@ -337,8 +382,13 @@ const meta = {
   unit: "dm",
   encoding: "int16le, row 0 = south, each row delta-coded from its first value, deflate",
 }
-writeFileSync(join(OUT, "dtm.json"), `${JSON.stringify(meta, null, 2)}\n`)
-console.log({ ...meta, bytes: bin.length, filledFrom10m: holes })
+pin(
+  join(OUT, "dtm.json"),
+  Buffer.from(`${JSON.stringify(meta, null, 2)}\n`),
+  (b) => b,
+  (b) => b,
+)
+console.log({ ...meta, bytes: readFileSync(join(OUT, "dtm.bin")).length, filledFrom10m: holes })
 
 // Land cover: every polygon of a kept class whose box meets the crop, sorted by id. Coordinates in
 // EPSG:3003 to the decimetre; rings as gml gives them (outer first). The server's BBOX filter
@@ -347,6 +397,7 @@ const UCS_PAD = 500
 const gml = await (
   await fetch(
     `${UCS_WFS}&BBOX=${e0 - UCS_PAD},${n0 - UCS_PAD},${e0 + cols + UCS_PAD},${n0 + rows + UCS_PAD}`,
+    { headers: HEADERS },
   )
 ).text()
 const ucs = [...gml.matchAll(/<gml:featureMember>([\s\S]*?)<\/gml:featureMember>/g)]
@@ -369,8 +420,8 @@ const ucs = [...gml.matchAll(/<gml:featureMember>([\s\S]*?)<\/gml:featureMember>
   .sort((a, b) => a.id - b.id)
 if (!gml.includes("</wfs:FeatureCollection>")) throw new Error("UCS WFS: truncated answer")
 if (ucs.length === 0) throw new Error("UCS WFS: no polygons")
-writeFileSync(
+pin(
   join(OUT, "ucs.json.gz"),
-  gzipSync(JSON.stringify({ crs: "EPSG:3003", year: 2019, polygons: ucs }), { level: 9 }),
+  Buffer.from(JSON.stringify({ crs: "EPSG:3003", year: 2019, polygons: ucs })),
 )
 console.log({ ucs: ucs.length })

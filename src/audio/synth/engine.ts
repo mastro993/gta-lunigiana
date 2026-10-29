@@ -3,8 +3,8 @@
  * band-limited pulse for a two-stroke or a diesel), a half-order sub, a tanh waveshaper whose drive
  * follows the load, two exhaust formants, a lowpass opening with revs, and bandpassed noise gated at
  * the firing rate (diesel clatter, two-stroke rattle). A turbo adds a whine that spools up with lag.
- * The revs and load are the sim's (`engineRevs`); the timbre comes from how the engine is built
- * (`VEHICLES[model].engine`, `timbreOf`): its cycle and fuel, its cylinders and its displacement.
+ * The revs and load are the sim's (`engineRevs`, or a train's `trainRevs`); the timbre comes from how
+ * the engine is built (`engineSpec`, `timbreOf`): its cycle and fuel, its cylinders and its displacement.
  * Crash damage wears it (`WORN`): duller and softer, rough, knocking, cut out by the sim's misfires
  * with a backfire; an engine as new plays exactly as built.
  *
@@ -16,9 +16,10 @@
  * @module audio/synth/engine
  */
 import { STAGE_FROM } from "../../sim/damage.ts"
-import { type EngineSpec, VEHICLES, type VehicleModel } from "../../sim/vehicles.ts"
+import { TRAIN_MODELS, TRAINS, type TrainModel } from "../../sim/rail/models.ts"
+import { type EngineSpec, VEHICLES } from "../../sim/vehicles.ts"
 import { loop, smoothstep, tanhCurve } from "../buffers.ts"
-import type { Continuous, Voice, VoiceIo } from "../types.ts"
+import type { Continuous, EngineModel, Voice, VoiceIo } from "../types.ts"
 import { builtOnFirst, burst, fadeOut, glide, jitter, unit } from "./graph.ts"
 
 type EngineSound = Extract<Continuous, { readonly kind: "engine" }>
@@ -156,25 +157,40 @@ const TRIM = {
   ape: 0.316,
   truck: 0.371,
   carabinieri: 0.469,
-} as const satisfies Record<VehicleModel, number>
+  atr220: 0.382,
+} as const satisfies Record<EngineModel, number>
 /**
  * MEASURED: each model's knock at full damage (`Timbre.knock`), so that idling at damage 0.9 it plays 16 dB (RMS) under the
  * firing tone (the seeded render with the knock against the same without it, in headless Chrome). A thin Ape needs little, the
- * truck's loud diesel much. Re-measure after any change to the graph.
+ * truck's loud diesel much. Re-measure after any change to the graph. Trains take no damage: none.
  */
-const KNOCK = { panda: 4, ape: 1.5, truck: 8, carabinieri: 5.5 } as const satisfies Record<
-  VehicleModel,
-  number
->
+const KNOCK = {
+  panda: 4,
+  ape: 1.5,
+  truck: 8,
+  carabinieri: 5.5,
+  atr220: 0,
+} as const satisfies Record<EngineModel, number>
 /** Voicing where size alone is wrong: the Giulia's sports exhaust plays a quarter lower than its 2 l would (210 Hz, not 282). */
-const EXHAUST = { panda: 1, ape: 1, truck: 1, carabinieri: 0.75 } as const satisfies Record<
-  VehicleModel,
-  number
->
+const EXHAUST = {
+  panda: 1,
+  ape: 1,
+  truck: 1,
+  carabinieri: 0.75,
+  atr220: 1,
+} as const satisfies Record<EngineModel, number>
+
+/** Whether `model` is a train's. */
+const isTrain = (model: EngineModel): model is TrainModel =>
+  (TRAIN_MODELS as ReadonlyArray<string>).includes(model)
+
+/** How `model`'s engine is built: a vehicle's, or a train's power pack. */
+export const engineSpec = (model: EngineModel): EngineSpec =>
+  isTrain(model) ? TRAINS[model].engine : VEHICLES[model].engine
 
 /** The timbre of `model`'s engine. */
-export const timbre = (model: VehicleModel): Timbre =>
-  timbreOf(VEHICLES[model].engine, TRIM[model], EXHAUST[model], KNOCK[model])
+export const timbre = (model: EngineModel): Timbre =>
+  timbreOf(engineSpec(model), TRIM[model], EXHAUST[model], KNOCK[model])
 
 /** The own engine heard from the driver's seat, behind the firewall (physics.md §10). */
 export const CABIN = { lowpass: 2500, shelf: 4 } as const
@@ -254,7 +270,7 @@ const quietOf = (timbre: Timbre, rpm: number, load: number, damage: number): num
  * How many dB `model`'s engine plays under its nominal peak at `rpm` and `load`, worn by `damage`, by its gain law (the
  * filters' share at idle, ~9 dB, and a worn engine's duller tone are not counted).
  */
-export const engineQuiet = (model: VehicleModel, rpm: number, load: number, damage = 0): number =>
+export const engineQuiet = (model: EngineModel, rpm: number, load: number, damage = 0): number =>
   quietOf(timbre(model), rpm, load, damage)
 
 /**

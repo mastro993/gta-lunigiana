@@ -1,7 +1,7 @@
 // Regione Toscana CTR 1:2000 (2019 flight, data/raw/rt/ctr) in local metres, clipped to the play
 // area: buildings with their surveyed eave elevation, road surfaces with their street names, and
-// the area the sheets map. `fetch-rt.ts` writes the files.
-import { existsSync, readdirSync } from "node:fs"
+// the area the sheets map (the rail layers are `ctr-rail.ts`'s). `fetch-rt.ts` writes the files.
+import { readdirSync } from "node:fs"
 import { join } from "node:path"
 
 import { staticGrid } from "../sim/collide.ts"
@@ -72,6 +72,7 @@ interface RoadArea {
   readonly rings: ReadonlyArray<ReadonlyArray<number>>
 }
 
+/** What `readCtr` reads: buildings, road surfaces and the mapped area. */
 export interface Ctr {
   readonly buildings: ReadonlyArray<CtrBuilding>
   readonly roadAreas: ReadonlyArray<RoadArea>
@@ -79,14 +80,32 @@ export interface Ctr {
   readonly mapped: ReadonlyArray<ReadonlyArray<number>>
 }
 
-const local = ([e, n]: readonly [number, number]): P => toLocal(...utm32ToLatLon(e, n))
+/** A CTR coordinate (EPSG:6707 easting, northing) in local metres. */
+export const local = ([e, n]: readonly [number, number]): P => toLocal(...utm32ToLatLon(e, n))
+
+/** One record of a CTR layer: its sheet ("23D19"), its place in the sheet's file (from 0) and its shape. */
+export interface CtrRecord {
+  readonly sheet: string
+  readonly index: number
+  readonly rec: ShpRecord
+}
+
+/** Every record of a layer over the sheets that have it (a sheet with no garages has no AGE), sheets in name order, records in file order. */
+export const ctrRecords = (dir: string, layer: string): Array<CtrRecord> =>
+  readdirSync(dir)
+    .filter((f) => f.endsWith(`_${layer}.shp.gz`))
+    .sort()
+    .flatMap((f) => {
+      const sheet = f.slice(0, -`_${layer}.shp.gz`.length)
+      return readShp(join(dir, `${sheet}_${layer}`)).map((rec, index) => ({ sheet, index, rec }))
+    })
 
 /**
  * A record's polygons, each as flat outer (counter-clockwise) plus holes (clockwise), clipped to
  * the play area. Rings are sorted by size: one inside an earlier outer ring is its hole,
  * otherwise it starts a polygon (so the file's ring order and winding do not matter).
  */
-const polygonsOf = (r: ShpRecord): Array<Array<Array<number>>> => {
+export const polygonsOf = (r: ShpRecord): Array<Array<Array<number>>> => {
   const rings = r.parts
     .map((part) => part.map(local))
     .sort((a, b) => Math.abs(signedArea(b)) - Math.abs(signedArea(a)))
@@ -138,20 +157,14 @@ const streetName = (toponym: string): string | undefined => {
   return toponym.split(/\s+/).map(streetWord).join(" ")
 }
 
+/** Buildings, road surfaces and mapped areas of every sheet in `dir`. */
 export const readCtr = (dir: string): Ctr => {
-  /** Every sheet `fetch-rt.ts` wrote, in name order. */
-  const sheets = readdirSync(dir)
-    .filter((f) => f.endsWith("_AED.shp.gz"))
-    .map((f) => f.slice(0, -"_AED.shp.gz".length))
-    .sort()
-  /** A layer's records over every sheet that has it (a sheet with no garages or road areas has no AGE or AVI). */
+  /** A layer's records, each with an id from its sheet number, `base` and its index. */
   const layer = (name: string, base = 0) =>
-    sheets.flatMap((sheet) => {
-      const path = join(dir, `${sheet}_${name}`)
-      return existsSync(`${path}.shp.gz`)
-        ? readShp(path).map((rec, i) => ({ rec, id: -(Number(sheet.slice(3)) * 1e5 + base + i) }))
-        : []
-    })
+    ctrRecords(dir, name).map(({ sheet, index, rec }) => ({
+      rec,
+      id: -(Number(sheet.slice(3)) * 1e5 + base + index),
+    }))
   const buildings: Array<CtrBuilding> = []
   for (const { rec, id } of [...layer("AED"), ...layer("AGE", 5e4)]) {
     const code = rec.attrs.Cod_CTR!

@@ -1,6 +1,8 @@
 import { Clock } from "@typeonce/ritmo"
 import { Random, Vec2 } from "@typeonce/ritmo-math"
 
+import { onLevel } from "../rail/bodies.ts"
+import { railSense } from "../rail/senses.ts"
 import { cruiseSpeed, roadOf, trafficIndex } from "../route.ts"
 import {
   Cry,
@@ -9,9 +11,11 @@ import {
   Driving,
   type Feeling,
   Follows,
+  Footing,
   Game,
   Honk,
   Impact,
+  LevelCrossings,
   type Look,
   type Mood,
   Motion,
@@ -24,13 +28,18 @@ import {
   Route,
   STEP,
   Time,
+  Train,
+  TrainMotion,
   Vehicle,
+  Whistle,
   Witness,
 } from "../schema.ts"
+import { footingAt } from "./footing.ts"
 import { FLEE_TIME, runFrom, sameRoute } from "./pedestrians.ts"
 import {
   alarm,
   type Car,
+  carOf,
   DANGER,
   endangers,
   honkedAt,
@@ -98,6 +107,12 @@ const CRASH_SURPRISE = 0.6
 const HORN_RANGE = 12
 const HORN_LOOK = Clock.duration(STEP, 1.5)
 const HORN_ANGER = 0.3
+/** A train's whistle draws a look of WHISTLE_LOOK (within `WHISTLE_RANGE`, rail/senses.ts), and its alarm a flight in fright from its path. */
+const WHISTLE_LOOK = Clock.duration(STEP, 1.5)
+/** A train's car farther than this, m, is out of a walker's danger and speeding senses (1.5 s at 130 km/h and half a car). */
+const TRAIN_SENSED = 80
+/** Holding short of a level crossing closing to them, someone stands watching, renewed each step (rail/senses.ts). */
+const HOLD_LOOK = Clock.duration(STEP, 1)
 /** Someone running away within PANIC_RANGE m draws a look toward what they run from (TUNED); a look never spreads further. */
 const PANIC_RANGE = 8
 const PANIC_LOOK = Clock.duration(STEP, 2)
@@ -200,10 +215,11 @@ const sameMood = (a: PedestrianValue, b: PedestrianValue) =>
 
 /**
  * Pedestrians take in what surrounds them and react (each step, after the contacts, so this step's hits count): a vehicle about
- * to hit them (flee, re-aimed at every threat, crying out only when it alarms them), one speeding past (look, often in anger),
- * someone struck (flee from the car if near, then shock at a death; shock at a death, a look at a knockdown), a body met on the
- * way (shock), a crash, a horn (look, in anger when it honks at them), someone running away (look), the player shoving past
- * (look, in anger). The strongest stimulus wins when it ranks at least as high as the current mood (or that has run out), and a
+ * to hit them, a train's car on their level among them (flee, re-aimed at every threat, crying out only when it alarms them),
+ * one speeding past (look, often in anger), someone struck (flee from the car if near, then shock at a death; shock at a death,
+ * a look at a knockdown), a body met on the way (shock), a crash, a horn (look, in anger when it honks at them), a train's
+ * whistle (look; its alarm sends whoever stands in its path off the track in fright), someone running away (look), the player
+ * shoving past (look, in anger), a level crossing closing as their way leads onto its track (look, holding short of it). The strongest stimulus wins when it ranks at least as high as the current mood (or that has run out), and a
  * mood changing into a reaction may draw a `Cry`. Looks, gathers, flights and chats end in a calm walk with a cooldown, longer
  * after a death; a shock at a death ends in a choice to gather (when the body is in sight) or run. Two calm grown-ups passing
  * close may stop to chat. Followers copy their leader's reactions; one whose leader is gone walks alone. A party keeps by its
@@ -224,6 +240,7 @@ export const Perceive = Game.System(
           witness: Game.Query.optional(Witness),
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
+          footing: Game.Query.optional(Footing),
         },
       }),
       vehicles: Game.Query({
@@ -238,14 +255,19 @@ export const Perceive = Game.System(
         with: [Player],
         without: [Driving],
       }),
+      trains: Game.Query({
+        selection: { motion: Game.Query.read(TrainMotion), train: Game.Query.read(Train) },
+      }),
     },
     resources: {
       rng: Game.System.writeResource(Rng),
       time: Game.System.thisTick(Game.System.readResource(Time)),
+      crossings: Game.System.thisTick(Game.System.readResource(LevelCrossings)),
     },
     events: {
       impacts: Game.System.thisTick(Game.System.readEvent(Impact)),
       honks: Game.System.thisTick(Game.System.readEvent(Honk)),
+      whistles: Game.System.thisTick(Game.System.readEvent(Whistle)),
       cries: Game.System.writeEvent(Cry),
     },
     commands: Game.System.commands(
@@ -273,6 +295,7 @@ export const Perceive = Game.System(
         witness: data.witness.present,
         mood: data.ped.get(),
         route: data.route.get(),
+        footing: data.footing.value(),
       }
     })
     type Walker = (typeof walkers)[number]
@@ -289,26 +312,24 @@ export const Perceive = Game.System(
         fallen.set(w.leader, [...(fallen.get(w.leader) ?? []), w])
     const cars: ReadonlyArray<Car> = queries.vehicles.each().flatMap(({ entity, data }) => {
       const pose = data.pose.get(),
-        { vx, vy } = data.motion.get(),
-        speed = Math.sqrt(vx * vx + vy * vy)
-      if (speed <= DANGER.slowest) return []
+        { vx, vy } = data.motion.get()
+      if (Math.sqrt(vx * vx + vy * vy) <= DANGER.slowest) return []
       const usual = cruiseSpeed(roadOf(trafficIndex.nearest(pose.x, pose.y)))
-      return [
-        {
-          id: entity.id,
-          model: data.vehicle.get().model,
-          x: pose.x,
-          y: pose.y,
-          angle: pose.angle,
-          vx,
-          vy,
-          speed,
-          usual,
-        },
-      ]
+      return [carOf(entity.id, data.vehicle.get().model, pose, vx, vy, usual)]
     })
     const positions = new Map(
       queries.vehicles.each().map(({ entity, data }) => [entity.id as number, data.pose.get()]),
+    )
+    // The railway: the trains' moving cars (on their level only), their whistles, the crossings closing.
+    const rail = railSense(
+      queries.trains.each().map(({ entity, data }) => ({
+        id: entity.id,
+        motion: data.motion.get(),
+        model: data.train.get().model,
+      })),
+      events.whistles.all(),
+      resources.crossings.get(),
+      step,
     )
     const bodies = walkers.filter((w) => w.dead).map((w) => w.at)
     const lying = walkers.filter((w) => w.dead || w.down).map((w) => w.at)
@@ -442,10 +463,25 @@ export const Perceive = Game.System(
         cry(w, voiced(w.look, r.feeling))
     }
 
-    /** What `w` takes in this step, the first found winning a tie (`stronger`): danger, someone struck, a body, a crash, speeding, a horn, a shove, panic. */
+    /**
+     * What `w` takes in this step, the first found winning a tie (`stronger`): danger (a train's cars on its level too), someone
+     * struck, a body, a crash, speeding, a horn, a train's whistle, a shove, panic, a level crossing closing to it.
+     */
     const stimuli = (w: Walker): Array<Reaction> => {
       const found: Array<Reaction> = []
-      for (const car of cars) {
+      let ground: number | undefined
+      const groundOf = () => (ground ??= footingAt(w.footing, w.at.x, w.at.y))
+      // A train's cars within reach of its senses, on its level.
+      const moving =
+        rail.cars.length === 0
+          ? cars
+          : [
+              ...cars,
+              ...rail.cars.filter(
+                (car) => near(w.at, car, TRAIN_SENSED) && onLevel(groundOf(), car.z),
+              ),
+            ]
+      for (const car of moving) {
         if (!endangers(w.at, w.velocity, car)) continue
         const { alarming, fresh } = alarm(w.at, w.velocity, car, dt)
         found.push(
@@ -497,7 +533,10 @@ export const Perceive = Game.System(
       }
       for (const hit of impacts) {
         if (
-          (hit.hit === "car" || hit.hit === "wall" || hit.hit === "ground") &&
+          (hit.hit === "car" ||
+            hit.hit === "wall" ||
+            hit.hit === "ground" ||
+            hit.hit === "train") &&
           hit.speed > CRASH_SPEED &&
           near(w.at, hit, CRASH_RANGE)
         ) {
@@ -509,7 +548,7 @@ export const Perceive = Game.System(
           )
         }
       }
-      for (const car of cars) {
+      for (const car of moving) {
         if (
           car.speed > car.usual * USUAL &&
           SPEEDING.some(({ speed, range }) => car.speed > speed && near(w.at, car, range))
@@ -539,6 +578,15 @@ export const Perceive = Game.System(
           ),
         )
       }
+      for (const heard of rail.whistled(w.at, groundOf))
+        found.push(
+          heard.mood === "flee"
+            ? reaction("flee", Clock.steps(FLEE_TIME), heard, {
+                feeling: "fright",
+                path: heard.path,
+              })
+            : reaction("look", Clock.steps(WHISTLE_LOOK), heard),
+        )
       if (shover !== undefined && near(w.at, shover, SHOVE_RANGE)) {
         found.push(
           reaction("look", Clock.steps(SHOVE_LOOK), shover, {
@@ -551,6 +599,8 @@ export const Perceive = Game.System(
         if (f.id !== w.id && near(w.at, f, PANIC_RANGE))
           found.push(reaction("look", Clock.steps(PANIC_LOOK), { x: f.fx, y: f.fy }))
       }
+      const hold = rail.holding(w.at, w.route)
+      if (hold !== undefined) found.push(reaction("look", Clock.steps(HOLD_LOOK), hold))
       return found
     }
 

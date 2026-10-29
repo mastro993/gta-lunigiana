@@ -24,6 +24,12 @@ import {
   update,
   Vehicle,
 } from "../../sim/index.ts"
+import { LOWERING } from "../../sim/rail/barriers.ts"
+import { carsOf } from "../../sim/rail/consist.ts"
+import { LINES, pointAt } from "../../sim/rail/lines.ts"
+import { TRAINS } from "../../sim/rail/models.ts"
+import { trainDraft } from "../../sim/rail/service.ts"
+import { aboard, aiTrain, MONZONE, RIOLO, setCrossing, TrainWorld } from "../../sim/rail/testing.ts"
 import { lanePoint, laneOf, laneSide } from "../../sim/route.ts"
 import { parkedCar, rollingChassis } from "../../sim/spawning.ts"
 import {
@@ -35,6 +41,7 @@ import {
   ON_BATTISTI,
   press,
   stage,
+  type Timeline,
   World,
 } from "../../sim/testing.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../../sim/vehicles.ts"
@@ -45,6 +52,7 @@ import { actorMaterial, linear, solidMaterial } from "../geometry.ts"
 import { yOf } from "../ground.ts"
 import {
   Animals,
+  Crossings,
   Cut,
   Effects,
   makeEffects,
@@ -54,21 +62,54 @@ import {
   render,
   RenderClock,
   Sky,
+  Trains,
   Vehicles,
 } from "../index.ts"
 import { PALETTE } from "../palette.ts"
 import { PersonNode } from "../people.ts"
+import { CUT_UNIFORMS } from "../see-through.ts"
 import { SeeThrough } from "../sightline.ts"
-import { vehicleLampMaterials } from "../sky/glow.ts"
+import { signalLampMaterials, vehicleLampMaterials } from "../sky/glow.ts"
 import { SkyHost } from "../sky/host.ts"
 import type { LitCar } from "../sky/night-lights.ts"
 import { shownProxy } from "../testing.ts"
+import { TrainNode } from "../train.ts"
 import { PLUMES_AT_ONCE } from "../wrecks.ts"
 
+/**
+ * A runtime of `seed` drawing into a scene of its own with every service the render schedule reads: the `keys`, the registries,
+ * the effects with their level crossings, the sky, the see-through cut and the render clock (`clock.alpha`, written by the test).
+ */
+const drawing = (seed: number, keys: Timeline = []) => {
+  const scene = new Group(),
+    registries = makeRegistries(scene),
+    effects = makeEffects(scene),
+    sky = new SkyHost(scene, { reduced: () => false }),
+    clock = { alpha: 0 }
+  const made = makeRuntime({
+    seed,
+    services: Game.Runtime.services(
+      Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, keys)),
+      Game.Runtime.service(People, registries.people),
+      Game.Runtime.service(Animals, registries.animals),
+      Game.Runtime.service(Vehicles, registries.vehicles),
+      Game.Runtime.service(Trains, registries.trains),
+      Game.Runtime.service(RenderClock, clock),
+      Game.Runtime.service(Effects, effects),
+      Game.Runtime.service(Crossings, effects.crossings),
+      Game.Runtime.service(Sky, sky),
+      Game.Runtime.service(Cut, new SeeThrough({ yaw: 0, texelsPerMetre: 8 }, () => false)),
+    ),
+  })
+  assert.ok(made.ok)
+  return { runtime: made.value, scene, ...registries, effects, sky, clock }
+}
+
 // Regression: detached vehicle nodes kept their x-ray geometry, so despawned traffic leaked GPU buffers.
-test("registries: a detached node frees its own geometry (frames, pool, proxy), not its vehicle's shared body", () => {
-  const { people, animals, vehicles } = makeRegistries(new Group())
+test("registries: a detached node frees its own geometry (frames, pool, proxy), not its vehicle's or train's shared body", () => {
+  const { people, animals, vehicles, trains } = makeRegistries(new Group())
   const car = vehicles.ensure(1, () => vehicleNode("panda", 0xb8312b, solidMaterial))
+  const train = trains.ensure(4, () => new TrainNode("atr220", solidMaterial))
   const person = people.ensure(2, () => new PersonNode(LOOK, solidMaterial, 2))
   const cat = animals.ensure(
     3,
@@ -87,6 +128,11 @@ test("registries: a detached node frees its own geometry (frames, pool, proxy), 
   car.showXray(true)
   watch("car x-ray", shownProxy(car)!.geometry)
   watch("car body", car.body.geometry)
+  train.showXray(true)
+  for (const [k, part] of train.cars.entries()) {
+    watch(`train car ${k} x-ray`, shownProxy(part)!.geometry)
+    watch(`train car ${k} body`, part.body.geometry)
+  }
   // Blown up, it is left a charred shell: shared like the intact body.
   car.body.geometry = vehicleBody("panda", 0xb8312b, true)
   watch("car shell", car.body.geometry)
@@ -109,7 +155,7 @@ test("registries: a detached node frees its own geometry (frames, pool, proxy), 
     watch(`${who} pool`, node.pool.geometry)
     for (const [name, frame] of Object.entries(node.frames)) watch(`${who} ${name}`, frame)
   }
-  assert.ok(vehicles.remove(1) && people.remove(2) && animals.remove(3))
+  assert.ok(vehicles.remove(1) && people.remove(2) && animals.remove(3) && trains.remove(4))
   assert.deepEqual([...freed].sort(), [
     "car x-ray",
     "cat pool",
@@ -129,8 +175,12 @@ test("registries: a detached node frees its own geometry (frames, pool, proxy), 
     "person walk x-ray",
     "person walk1",
     "person walk2",
+    "train car 0 x-ray",
+    "train car 1 x-ray",
+    "train car 2 x-ray",
   ])
   assert.equal(car.parent, null)
+  assert.equal(train.parent, null)
 })
 
 test("a charred shell is its model's body darkened toward charcoal, shaped the same, one per model and paint", () => {
@@ -175,9 +225,9 @@ test("the host schedules (render, audio) read the world and never write it", asy
     const steps = described.schedules.find((s) => s.name === name)?.steps ?? []
     const names = new Set(steps.flatMap((step) => (step.kind === "system" ? [step.system] : [])))
     const systems = described.systems.filter((s) => names.has(s.name))
-    // Sync and place people, animals and vehicles, mark the driven car, spread the blood pools, draw the tyre marks and smoke,
-    // feed the sky, follow the player with the see-through cut.
-    if (name === "render") assert.equal(systems.length, 11)
+    // Sync and place people, animals, vehicles and trains, mark the driven car or train, spread the blood pools, set the level
+    // crossings, draw the tyre marks and smoke, feed the sky, follow the player with the see-through cut.
+    if (name === "render") assert.equal(systems.length, 14)
     assert.ok(systems.length > 0, `${name} has systems`)
     for (const s of systems) {
       const writes = [
@@ -192,61 +242,40 @@ test("the host schedules (render, audio) read the world and never write it", asy
 })
 
 // Regression: people and cars were drawn with the terrain's material, so above the snow line they turned to white stipple.
-test("the render schedule draws people, animals and vehicles with the actor material: cloud shadows, no snow or wet on them", () => {
-  const scene = new Group(),
-    { people, animals, vehicles } = makeRegistries(scene)
-  const made = makeRuntime({
-    seed: 42,
-    services: Game.Runtime.services(
-      Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, [])),
-      Game.Runtime.service(People, people),
-      Game.Runtime.service(Animals, animals),
-      Game.Runtime.service(Vehicles, vehicles),
-      Game.Runtime.service(RenderClock, { alpha: 0 }),
-      Game.Runtime.service(Effects, makeEffects(scene)),
-      Game.Runtime.service(Sky, new SkyHost(scene, { reduced: () => false })),
-      Game.Runtime.service(Cut, new SeeThrough({ yaw: 0, texelsPerMetre: 8 }, () => false)),
-    ),
-  })
-  assert.ok(made.ok)
-  assert.ok(made.value.tick(setup).ok && made.value.tick(render).ok)
+test("the render schedule draws people, animals, vehicles, trains and the crossings' arms with the actor material: cloud shadows, no snow or wet on them", () => {
+  const { runtime, people, animals, vehicles, trains, effects } = drawing(42)
+  assert.ok(runtime.tick(setup).ok && runtime.tick(render).ok)
   const walkers = [...people.entries()].map(([, node]) => node),
     beasts = [...animals.entries()].map(([, node]) => node),
-    cars = [...vehicles.entries()].map(([, node]) => node)
+    cars = [...vehicles.entries()].map(([, node]) => node),
+    carriages = [...trains.entries()].flatMap(([, node]) => node.cars),
+    barriers = effects.crossings.boxes.flatMap((box) => box?.barriers ?? [])
   assert.ok(
-    walkers.length > 0 && beasts.length > 0 && cars.length > 0,
-    "the spawn has people, animals and cars",
+    walkers.length > 0 && beasts.length > 0 && cars.length > 0 && carriages.length > 0,
+    "the spawn has people, animals, cars and a train at Monzone",
   )
-  for (const node of [...walkers, ...beasts, ...cars])
+  for (const node of [...walkers, ...beasts, ...cars, ...carriages])
     assert.equal(node.body.material, actorMaterial)
+  assert.ok(barriers.length > 0)
+  for (const { arm, skirt } of barriers)
+    assert.ok(arm.material === actorMaterial && skirt.material === actorMaterial)
 })
 
-test("lamps: the player's car and traffic shine and get the sky's headlight beams, parked cars stay dark", () => {
-  const scene = new Group(),
-    { people, animals, vehicles } = makeRegistries(scene),
-    sky = new SkyHost(scene, { reduced: () => false })
+/** Every lit car or train `sky` is handed from here on, by `car`. */
+const beamsOf = (sky: SkyHost): Array<LitCar> => {
   const beams: Array<LitCar> = [],
     car = sky.car.bind(sky)
   sky.car = (lit) => {
     beams.push(lit)
     car(lit)
   }
-  const made = makeRuntime({
-    seed: 42,
-    services: Game.Runtime.services(
-      Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, press(0, "action"))),
-      Game.Runtime.service(People, people),
-      Game.Runtime.service(Animals, animals),
-      Game.Runtime.service(Vehicles, vehicles),
-      Game.Runtime.service(RenderClock, { alpha: 0 }),
-      Game.Runtime.service(Effects, makeEffects(scene)),
-      Game.Runtime.service(Sky, sky),
-      Game.Runtime.service(Cut, new SeeThrough({ yaw: 0, texelsPerMetre: 8 }, () => false)),
-    ),
-  })
-  assert.ok(made.ok)
-  const runtime = made.value,
-    { x, y, angle } = ON_BATTISTI,
+  return beams
+}
+
+test("lamps: the player's car and traffic shine and get the sky's headlight beams, parked cars stay dark", () => {
+  const { runtime, vehicles, sky } = drawing(42, press(0, "action")),
+    beams = beamsOf(sky)
+  const { x, y, angle } = ON_BATTISTI,
     along = (m: number) => ({ x: x + Math.cos(angle) * m, y: y + Math.sin(angle) * m, angle })
   const paint = { driven: 0xb8312b, parked: 0x3d6155, traffic: 0x1d2b4f }
   const cast = {
@@ -275,6 +304,107 @@ test("lamps: the player's car and traffic shine and get the sky's headlight beam
       ] as const
     ).toSorted(([a], [b]) => a - b),
     "only the lit cars reach the sky, the player's marked",
+  )
+})
+
+test("trains: the player's and an AI train shine, the player's beam in the driven slot from its leading nose, its x-ray shown and the cut at its cab; a train left alone stays dark", () => {
+  const { runtime, trains, sky } = drawing(42),
+    beams = beamsOf(sky)
+  const line = LINES[MONZONE.line]!,
+    mid = (MONZONE.s0 + MONZONE.s1) / 2
+  // The player's train first (\`aboard\` boards the first), its cab facing back down the line; an AI train dwelling 400 m on, and
+  // one left alone 400 m back.
+  const stand = (s: number, facing: 1 | -1) =>
+    trainDraft("atr220", { line: line.index, s, facing, v: 0 })
+  const cast = {
+    trains: [stand(mid, -1), aiTrain(mid + 400, 1, 0, 10 ** 6), stand(mid - 400, 1)],
+  }
+  assert.ok(runtime.tick(setup, stage(door(ON_BATTISTI), cast), aboard, render).ok)
+  const at = (s: number) => runtime.inspect(TrainWorld).trains.find((t) => t.s === s)!.id
+  const mine = at(mid),
+    ai = at(mid + 400),
+    left = at(mid - 400)
+  const lit = (id: number) => {
+    const node = trains.get(id)!
+    return [node.cars[0]!.lamps!.head.material, node.cars.at(-1)!.lamps!.tail.material]
+  }
+  const { on, off } = signalLampMaterials
+  assert.deepEqual(lit(mine), [on, on], "the player's train")
+  assert.deepEqual(lit(ai), [on, on], "the AI train")
+  assert.deepEqual(lit(left), [off, off], "the train left alone")
+  assert.deepEqual(
+    beams.map((b) => [b.id, b.driven] as const).sort(([a], [b]) => a - b),
+    (
+      [
+        [mine, true],
+        [ai, false],
+      ] as const
+    ).toSorted(([a], [b]) => a - b),
+    "the lit trains reach the sky, the player's marked",
+  )
+  // The beam is handed 2 m behind the leading nose (the sky's spot stands 2 m ahead of what it is handed), 0.25 m under the lamps.
+  const beam = beams.find((b) => b.id === mine)!,
+    nose = pointAt(line, mid)
+  assert.ok(
+    Math.hypot(
+      beam.x + Math.cos(beam.angle) * 2 - nose.x,
+      beam.y + Math.sin(beam.angle) * 2 - nose.y,
+    ) < 0.05,
+    "the spot at the leading nose",
+  )
+  assert.ok(Math.abs(beam.z + 0.25 - (yOf(nose.z) + 1.8)) < 0.05, "at the head lamps' height")
+  assert.ok(
+    trains.get(mine)!.cars.every((car) => shownProxy(car) !== undefined),
+    "the driven train's x-ray",
+  )
+  assert.ok(
+    [ai, left].every((id) => trains.get(id)!.cars.every((car) => shownProxy(car) === undefined)),
+    "no other train's",
+  )
+  // The cut round the driver's place in the active cab, `door` m behind the nose, the train's height tall.
+  const cab = pointAt(line, mid + TRAINS.atr220.door),
+    centre = CUT_UNIFORMS.uCutCentre.value
+  assert.ok(Math.hypot(centre.x - cab.x, -centre.z - cab.y) < 0.05, "the cut at the cab")
+  assert.ok(Math.abs(centre.y - (yOf(cab.z) + TRAINS.atr220.height / 2)) < 0.05)
+})
+
+test("the level crossings are drawn as the sim has them at the drawn moment: a box lowering for 6 s and half a step is halfway down and lit", () => {
+  const { runtime, effects, clock } = drawing(42)
+  assert.ok(runtime.tick(setup, stage(door(ON_BATTISTI))).ok)
+  // Setup takes no step: the drawn moment is step 0 plus the alpha.
+  const since = -(LOWERING / 2) / STEP.dt
+  assert.ok(
+    runtime.tick(setCrossing(RIOLO, { phase: "lowering", since, from: 0, demanded: 0 }), render).ok,
+  )
+  const shown = effects.crossings.boxes[RIOLO]!
+  for (const barrier of shown.barriers)
+    assert.ok(Math.abs(barrier.arm.rotation.z - Math.PI / 4) < 1e-9, "halfway down")
+  assert.equal(shown.lenses.material, signalLampMaterials.on)
+  clock.alpha = 0.5
+  assert.ok(runtime.tick(render).ok)
+  const half = (0.5 / (LOWERING / STEP.dt)) * (Math.PI / 2)
+  for (const barrier of shown.barriers)
+    assert.ok(Math.abs(barrier.arm.rotation.z - (Math.PI / 4 - half)) < 1e-9, "half a step on")
+  for (const [i, box] of effects.crossings.boxes.entries())
+    if (i !== RIOLO && box !== undefined) assert.equal(box.lenses.material, signalLampMaterials.off)
+})
+
+// Regression: drawn at the last step's s, a train judders at the sim's 60 Hz on a faster display.
+test("a moving train is drawn at its s blended between the last two steps at the render alpha", () => {
+  const { runtime, trains, clock } = drawing(42)
+  const line = LINES[MONZONE.line]!,
+    start = (MONZONE.s0 + MONZONE.s1) / 2
+  const moving = trainDraft("atr220", { line: line.index, s: start, facing: 1, v: 20 })
+  assert.ok(runtime.tick(setup, stage(door(ON_BATTISTI), { trains: [moving] }), update).ok)
+  const motion = runtime.inspect(TrainWorld).trains.find((t) => t.prev === start)!
+  assert.ok(motion.s - motion.prev > 0.2, "it moved in the step")
+  clock.alpha = 0.5
+  assert.ok(runtime.tick(render).ok)
+  const lead = trains.get(motion.id)!.cars[0]!,
+    [pose] = carsOf(line, (motion.prev + motion.s) / 2, 1, "atr220")
+  assert.ok(
+    lead.position.distanceTo(new Vector3(pose!.x, yOf(pose!.z), -pose!.y)) < 1e-6,
+    `the lead car ${lead.position.x - pose!.x} m off the blended pose`,
   )
 })
 
@@ -404,24 +534,7 @@ const shell = (pose: PoseValue) =>
   )
 /** The game drawn into a scene of its own, the player on foot 55 m down the road and the `cars` on it; `frame` steps and draws. */
 const drawn = (cars: ReadonlyArray<ReturnType<typeof burning>>) => {
-  const scene = new Group(),
-    { people, animals, vehicles } = makeRegistries(scene),
-    effects = makeEffects(scene)
-  const made = makeRuntime({
-    seed: 1,
-    services: Game.Runtime.services(
-      Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, [])),
-      Game.Runtime.service(People, people),
-      Game.Runtime.service(Animals, animals),
-      Game.Runtime.service(Vehicles, vehicles),
-      Game.Runtime.service(RenderClock, { alpha: 0 }),
-      Game.Runtime.service(Effects, effects),
-      Game.Runtime.service(Sky, new SkyHost(scene, { reduced: () => false })),
-      Game.Runtime.service(Cut, new SeeThrough({ yaw: 0, texelsPerMetre: 8 }, () => false)),
-    ),
-  })
-  assert.ok(made.ok)
-  const runtime = made.value
+  const { runtime, vehicles, effects } = drawing(1)
   assert.ok(runtime.tick(setup).ok)
   assert.ok(runtime.tick(stage(door(on(55)), { cars })).ok)
   assert.ok(runtime.tick(render).ok)

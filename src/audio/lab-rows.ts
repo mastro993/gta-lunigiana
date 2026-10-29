@@ -2,11 +2,13 @@
  * The audition page's "Render all" (lab.ts): every voice and shot at a few representative params
  * (the crashes over a matrix of bodies, targets and speeds, the scrape along every material, each
  * engine at its redline under full load, where its trim is calibrated, and worn by damage, one
- * misfiring, speech in every register, each animal's calls), rendered offline and measured one at
- * a time (lab-render.ts). Also the flat forms the page's controls edit for the crash and for speech.
+ * misfiring, a train rolling over its joints, speech in every register, each animal's calls),
+ * rendered offline and measured one at a time (lab-render.ts). Also the flat forms the page's
+ * controls edit for the crash and for speech, and a train rolling on for the rolling voice.
  *
  * @module audio/lab-rows
  */
+import { TRAIN_MODELS } from "../sim/rail/models.ts"
 import type { Age } from "../sim/schema.ts"
 import { VEHICLE_MODELS, VEHICLES, type VehicleModel } from "../sim/vehicles.ts"
 import { EAR_HEIGHT } from "./acoustics.ts"
@@ -14,8 +16,10 @@ import { makeKit } from "./buffers.ts"
 import { paramsOf, RATE, renderShot, renderVoice, type Row, type Sound } from "./lab-render.ts"
 import { lineFor } from "./speech/index.ts"
 import type { Situation } from "./speech/types.ts"
+import { engineSpec } from "./synth/engine.ts"
 import { VALLEY_GUSTS } from "./synth/nature.ts"
-import type { Continuous, Material, OneShot, Surface, Zone } from "./types.ts"
+import { axleOffsets, JOINT, RAILS_TOP } from "./synth/rail.ts"
+import type { Continuous, EngineModel, Material, OneShot, Surface, Zone } from "./types.ts"
 
 type Crash = Extract<OneShot, { readonly kind: "crash" }>
 /** A line said or yelled. */
@@ -97,11 +101,12 @@ type Each<S extends Sound> = {
 }
 
 type Engine = Extract<Continuous, { readonly kind: "engine" }>
+type Rails = Extract<Continuous, { readonly kind: "rails" }>
 /** `model`'s engine as new, outside, the nominal variant, at its redline under full load unless `more` says otherwise. */
-const engineAt = (model: VehicleModel, more: Partial<Engine> = {}): Engine => ({
+const engineAt = (model: EngineModel, more: Partial<Engine> = {}): Engine => ({
   kind: "engine",
   model,
-  rpm: VEHICLES[model].engine.redline,
+  rpm: engineSpec(model).redline,
   load: 1,
   inside: false,
   variant: 0.5,
@@ -115,6 +120,24 @@ const sputtering = (t: number): Engine => ({
   ...SPUTTERING,
   misfire: Math.floor(t / 0.25) % 2 === 1,
 })
+
+/**
+ * An ATR 220 rolling at `v` m/s with its active cab's nose at s 0 at time 0, `t` s on: its axles there, and the rail joints
+ * around them (`JOINT` apart), as the director holds the rolling voice frame by frame.
+ */
+export const railsAt = (v: number, t: number): Rails => {
+  const axles = axleOffsets(TRAIN_MODELS[0]).map((at) => v * t - Math.sign(v || 1) * at)
+  const lo = Math.floor((Math.min(...axles) - 10) / JOINT),
+    hi = Math.ceil((Math.max(...axles) + 10) / JOINT)
+  return {
+    kind: "rails",
+    v,
+    axles,
+    joints: Array.from({ length: hi - lo + 1 }, (_, k) => (lo + k) * JOINT),
+  }
+}
+/** The rolling voice's renders: at its top speed, where it peaks near 0.5, at the line's 80 km/h, and crawling at 20 km/h. */
+const RAILS_SPEEDS = [RAILS_TOP, 80 / 3.6, 20 / 3.6] as const
 
 /** "Render all": representative params per voice (rendered 2 s) and per shot. */
 const VOICE_RENDERS = {
@@ -132,6 +155,11 @@ const VOICE_RENDERS = {
     engineAt("truck", { rpm: VEHICLES.truck.engine.idle, load: 0, damage: 0.8 }),
     // The loudest knock: the truck's, at the redline off the throttle, at full damage short of destroyed.
     engineAt("truck", { load: 0, damage: 0.99 }),
+    // A train's power pack at its rated revs under full power, and idling (trains take no damage).
+    ...TRAIN_MODELS.flatMap((model) => [
+      engineAt(model),
+      engineAt(model, { rpm: engineSpec(model).idle, load: 0 }),
+    ]),
   ],
   tyres: [
     // The loudest intended case, a full slide at the Giulia's top speed: peaks near 0.5.
@@ -188,6 +216,15 @@ const VOICE_RENDERS = {
     { kind: "roof", rate: 10 },
     { kind: "roof", rate: 60 },
   ],
+  // Rendered rolling on (`railsAt`, in `renderRows`), so their axles clack over the joints.
+  rails: RAILS_SPEEDS.map((v) => railsAt(v, 0)),
+  // The loudest squeal, braking hard at 2 m/s, and a gentler stop.
+  brakes: [
+    { kind: "brakes", speed: 2, brake: 0.6 },
+    { kind: "brakes", speed: 4, brake: 0.3 },
+  ],
+  plBell: [{ kind: "plBell", variant: 0.5 }],
+  trainHorn: [{ kind: "trainHorn" }],
 } satisfies Each<Continuous>
 const SHOT_RENDERS = {
   // A Panda into a house wall (a bump to a heavy hit), car–car pairs, each other target, a side hit, a wreck, the laden truck nudging
@@ -239,6 +276,10 @@ const SHOT_RENDERS = {
   honk: [
     { kind: "honk", model: "panda" },
     { kind: "honk", model: "truck" },
+  ],
+  trainHonk: [
+    { kind: "trainHonk", urgent: false },
+    { kind: "trainHonk", urgent: true },
   ],
   step: (
     [
@@ -311,11 +352,19 @@ const SHOT_RENDERS = {
   ),
 } satisfies Each<OneShot>
 
-/** Renders every voice, the sputtering engine and every shot offline, one at a time (a dozen 22 s stereo renders at once would hold hundreds of MB). */
+/** Renders every voice (a train rolling on), the sputtering engine and every shot offline, one at a time (a dozen 22 s stereo renders at once would hold hundreds of MB). */
 export const renderRows = async (): Promise<ReadonlyArray<Row>> => {
   const kit = makeKit(new OfflineAudioContext({ length: 1, sampleRate: RATE }))
   const rows: Array<Row> = []
-  for (const sound of Object.values(VOICE_RENDERS).flat()) rows.push(await renderVoice(kit, sound))
+  for (const sound of Object.values(VOICE_RENDERS).flat())
+    rows.push(
+      await renderVoice(
+        kit,
+        sound,
+        sound.kind === "rails" ? (t) => railsAt(sound.v, t) : undefined,
+        sound.kind === "rails" ? `v=${sound.v.toFixed(1)} rolling on` : undefined,
+      ),
+    )
   rows.push(
     await renderVoice(
       kit,

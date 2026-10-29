@@ -27,6 +27,8 @@ interface GraphOut {
   readonly walk: Array<number>
   /** Node degree over all edges. */
   readonly degree: Array<number>
+  /** The node of each vertex id (OSM's, or the conflation's `ctr:` and `culvert:` ones); clip and split points are keyed `clip:`/`mid:`. */
+  readonly ids: ReadonlyMap<string, number>
 }
 
 /** Edge indices of the largest connected component among `ids`. */
@@ -134,5 +136,5 @@ export const buildGraph = (
     degree[edges[3 * e]!]!++
     degree[edges[3 * e + 1]!]!++
   }
-  return { xy, edges, traffic, walk, degree }
+  return { xy, edges, traffic, walk, degree, ids }
 }

@@ -221,9 +221,68 @@ interface ParkingInput {
   readonly station: { readonly x: number; readonly y: number }
   /** The Carabinieri station: its two nearest kerb spots are always kept (the sim parks their cars there). */
   readonly police: { readonly x: number; readonly y: number }
+  /** At-grade rail centrelines (flat x, y), sidings included, and whether trains run on each: no car is parked in a train's way. */
+  readonly rail: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly running: boolean }>
+  /** Level-crossing nodes: no car is parked near one. */
+  readonly crossings: ReadonlyArray<readonly [number, number]>
 }
 
 const KERB_CLASSES = new Set(["tertiary", "unclassified", "residential"])
+/**
+ * A parked car's box keeps this far (m) from a track centreline: from a siding's, the ATR 220's
+ * half-width (2.883 m wide) plus 0.5 m; from running track's, the clearance rule's 1.44 + 0.35 + 1
+ * (`RAIL_CLEAR` in rail-clear.ts). The box, not its centre: a car whose centre stood 2.87 m from
+ * Gragnola's through track had its side 2.02 m from it.
+ */
+const TRACK_CLEAR = { siding: 1.44 + 0.5, running: 2.8 }
+/** No car is parked this near (m, in a straight line, so along any road too) a level crossing: the Codice della Strada (art. 158) bans stopping "in corrispondenza o in prossimità dei passaggi a livello". */
+const CROSSING_FREE = 20
+
+/** Distance from segment a–b to the box of half-length `hl` and half-width `hw` centred on (x, y) along `angle` (0 when they touch). */
+const boxSegment = (
+  x: number,
+  y: number,
+  angle: number,
+  hl: number,
+  hw: number,
+  seg: { readonly ax: number; readonly ay: number; readonly bx: number; readonly by: number },
+): number => {
+  const c = Math.cos(angle),
+    s = Math.sin(angle)
+  const u = (px: number, py: number) =>
+    [(px - x) * c + (py - y) * s, -(px - x) * s + (py - y) * c] as const
+  const [au, av] = u(seg.ax, seg.ay),
+    [bu, bv] = u(seg.bx, seg.by)
+  // Liang–Barsky: does the segment enter the box?
+  let t0 = 0,
+    t1 = 1
+  for (const [p, q] of [
+    [au - bu, au + hl],
+    [bu - au, hl - au],
+    [av - bv, av + hw],
+    [bv - av, hw - av],
+  ] as const) {
+    if (p === 0) {
+      if (q < 0) t1 = -1
+      continue
+    }
+    const r = q / p
+    if (p < 0) t0 = Math.max(t0, r)
+    else t1 = Math.min(t1, r)
+  }
+  if (t1 >= t0) return 0
+  const toBox = (pu: number, pv: number) =>
+    Math.hypot(Math.max(0, Math.abs(pu) - hl), Math.max(0, Math.abs(pv) - hw))
+  let d = Math.min(toBox(au, av), toBox(bu, bv))
+  for (const [cu, cv] of [
+    [hl, hw],
+    [hl, -hw],
+    [-hl, hw],
+    [-hl, -hw],
+  ] as const)
+    d = Math.min(d, Math.sqrt(segDist2(cu, cv, au, av, bu, bv).d2))
+  return d
+}
 /** Kerbside spots kept: one per this many buildings (Monzone's 800 buildings had 100), drawn in hash order so every village gets its share. */
 const BUILDINGS_PER_SPOT = 8
 
@@ -238,6 +297,8 @@ export const parkedSpots = ({
   avoid,
   station,
   police,
+  rail,
+  crossings,
 }: ParkingInput): Array<Spawn> => {
   // Bucketed lookups: building centroids within 40 m, junctions within 12 m, footprints by bounding box.
   const centroids = segIndex<null>(),
@@ -257,6 +318,16 @@ export const parkedSpots = ({
     let n = 0
     centroids.within(x, y, () => n++)
     return n
+  }
+  const tracks = segIndex<number>()
+  for (const { pts, running } of rail) {
+    const clear = running ? TRACK_CLEAR.running : TRACK_CLEAR.siding
+    tracks.addLine(pts, Math.hypot(CAR_HL, CAR_HW) + clear, clear)
+  }
+  const offTrack = (x: number, y: number, angle: number) => {
+    let ok = crossings.every(([cx, cy]) => Math.hypot(cx - x, cy - y) >= CROSSING_FREE)
+    tracks.within(x, y, (seg) => (ok &&= boxSegment(x, y, angle, CAR_HL, CAR_HW, seg) >= seg.data))
+    return ok
   }
   const carriage = segIndex<RoadF>(),
     lanes = segIndex<RoadF>()
@@ -285,6 +356,7 @@ export const parkedSpots = ({
     walk.circle(x, y, SPAWN_R) &&
     drive.circle(x, y, SPAWN_R) &&
     drive.box(x, y, angle, CAR_HL + CAR_GAP, CAR_HW + CAR_GAP) &&
+    offTrack(x, y, angle) &&
     !insideBuilding(x, y) &&
     Math.hypot(x - avoid.x, y - avoid.y) > 6
   const candidates: Array<Spawn & { readonly order: number }> = []

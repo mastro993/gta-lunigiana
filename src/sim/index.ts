@@ -4,6 +4,13 @@ import { InputAxis, Random } from "@typeonce/ritmo-math"
 import type { RuntimeServices } from "@typeonce/ritmo/Runtime"
 
 import { clampKnob, DEFAULT_HANDLING } from "./handling.ts"
+import { OPEN } from "./rail/barriers.ts"
+import { CROSSINGS } from "./rail/crossings.ts"
+import { ApplyTrains, Dispatch, FillTrains } from "./rail/dispatch.ts"
+import { LINES } from "./rail/lines.ts"
+import { TrainAI } from "./rail/service.ts"
+import { TrainContacts } from "./rail/strikes.ts"
+import { Crossings, TrainPhysics } from "./rail/systems.ts"
 import {
   bindings,
   Driving,
@@ -25,13 +32,15 @@ import {
 } from "./schema.ts"
 import { setClock } from "./sky/clock.ts"
 import { initialWeather, setWeather } from "./sky/weather.ts"
-import { Animals, Startle } from "./systems/animals.ts"
+import { Animals } from "./systems/animals.ts"
 import { Contacts, Recover } from "./systems/contacts.ts"
 import { CrashDamage } from "./systems/damage.ts"
 import { PlayerDrive, RideAlong } from "./systems/drive.ts"
 import { EnterExit } from "./systems/enter-exit.ts"
 import { Explode, Respawn } from "./systems/explosions.ts"
 import { PlayerFoot } from "./systems/foot.ts"
+import { FindFooting } from "./systems/footing.ts"
+import { Startle } from "./systems/fright.ts"
 import { Pedestrians } from "./systems/pedestrians.ts"
 import { Perceive } from "./systems/perceive.ts"
 import { VehiclePhysics } from "./systems/physics.ts"
@@ -45,6 +54,7 @@ import { followYaw, nearestSeat } from "./view.ts"
 import { initialRivers } from "./water/flow.ts"
 
 export * from "./schema.ts"
+export { TrainView, type TrainViewModel } from "./rail/view.ts"
 export {
   HandlingView,
   PlayerView,
@@ -157,15 +167,17 @@ const ApplyWeather = Game.System(
 )
 
 /**
- * Ticked once after the runtime is made. The first fill of people and animals runs once the player stands at the start, so the
- * world is peopled from the first frame. The host's requests wait for the apply systems' first run in `update`, however many render
- * frames come first.
+ * Ticked once after the runtime is made. The first fill of trains, people and animals runs once the player stands at the start, so
+ * the world is peopled from the first frame. The host's requests wait for the apply systems' first run in `update`, however many
+ * render frames come first.
  */
 export const setup = Game.Schedule(
   SpawnWorld,
   Game.Schedule.applyDeferred(),
   FillPeople,
   FillAnimals,
+  // Last: the people and animals take the same entity ids as in a game with no trains (some of their ways hash it).
+  FillTrains,
   Game.Schedule.applyDeferred(),
 )
 /** One fixed step of the game. */
@@ -177,21 +189,30 @@ export const update = Game.Schedule(
   ApplyHandling,
   ApplyClock,
   ApplyWeather,
+  ApplyTrains,
   AdvanceClock,
   AdvanceWeather,
   AdvanceRivers,
   EnterExit,
   Game.Schedule.applyDeferred(),
+  // Where each body on foot stands, before anything moves: the railway's rules read it.
+  FindFooting,
   Explode,
   Wade,
   Game.Schedule.applyDeferred(),
   PlayerFoot,
   PlayerDrive,
+  // Before traffic, which obeys the arms; the AI trains read them too.
+  Crossings,
   TrafficAI,
+  TrainAI,
   Pedestrians,
   Animals,
   VehiclePhysics,
+  TrainPhysics,
   Contacts,
+  // Last of the contacts: a train is shoved by nothing, so what it strikes ends where it leaves it.
+  TrainContacts,
   CrashDamage,
   RideAlong,
   Recover,
@@ -199,6 +220,7 @@ export const update = Game.Schedule(
   Perceive,
   Startle,
   Respawn,
+  Dispatch,
   Populate,
   PopulateAnimals,
   Game.Schedule.applyDeferred(),
@@ -214,6 +236,8 @@ export const DEFAULT_START = 1792648800
  * never changes traffic, people, animals or parking.
  */
 const WEATHER_SEED = 0x9e3779b9
+/** Mixed into the seed for the railway's stream (`RailRng`), as `WEATHER_SEED` is for the weather's: trains never change what `Rng` draws. */
+const RAIL_SEED = 0x7f4a7c15
 
 /**
  * A new game from `seed`, starting at `start` (Unix UTC seconds, a whole number: the host's today at 08:00 in Rome;
@@ -233,12 +257,15 @@ export const makeRuntime = <const Services extends RuntimeServices>(options: {
       Time: Clock.start(STEP),
       Rng: Random.seed(options.seed),
       WeatherRng: weatherSeed,
+      RailRng: Random.seed(options.seed ^ RAIL_SEED),
       Score: { stolen: 0, knocked: 0 },
       View: { turns: 0 },
       Handling: DEFAULT_HANDLING,
       GameClock: { seconds: start, rate: 1 },
       Weather: initialWeather(start, weatherSeed),
       Rivers: initialRivers(start, weatherSeed),
+      Railway: LINES.map(() => ({ due: 0, from: 0 }) as const),
+      LevelCrossings: CROSSINGS.map(() => OPEN),
       Input: Keyboard.idle(bindings),
     },
     debug: options.debug,

@@ -195,10 +195,10 @@ test("echoes at Equi Terme come off the rock faces around it, finite and in rang
     assert.ok(Math.abs(2 * Math.hypot(dx, dy) - SPEED_OF_SOUND * delay) < 1e-6, `${dx}, ${dy}`)
   }
   assert.deepEqual(echoesAt(MEADOW.x, MEADOW.y), [])
-  // Monzone's streets, every 25 m: where no slope in sight climbs as steeply as bare rock (50°), nothing echoes, steep or not.
+  // Monzone's streets, every 12.5 m: where no slope in sight climbs as steeply as bare rock (50°), nothing echoes, steep or not.
   let checked = 0
-  for (let x = -700; x <= -200; x += 25)
-    for (let y = 300; y <= 600; y += 25) {
+  for (let x = -700; x <= -200; x += 12.5)
+    for (let y = 300; y <= 600; y += 12.5) {
       if (surfaceAt(x, y) !== "asphalt") continue
       let steepest = 0
       for (let k = 0; k < 16; k++) {

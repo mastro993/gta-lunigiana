@@ -27,6 +27,9 @@ interface Corner {
   readonly minY: number
 }
 
+/** The map file's format version (`MonzoneMap.version`): 2 added `railway` (lines, stations, level crossings, platforms) and `Road.verge`. */
+export const MAP_VERSION = 2
+
 /** Where wall coordinates count from, decimetres: 100 m south-west of the bounds' corner. */
 export const packOrigin = (bounds: Corner): { readonly x: number; readonly y: number } => ({
   x: Math.round(bounds.minX * 10) - 1000,
@@ -118,6 +121,10 @@ const unpackTrees = (w: Int32Array, bounds: Corner): Float64Array => {
 export const decodeMap = (file: Uint8Array): MonzoneMap => {
   const line = file.indexOf(10) // JSON.stringify escapes every newline inside strings
   const json = JSON.parse(new TextDecoder().decode(file.subarray(0, line))) as MonzoneMapJson
+  if (json.version !== MAP_VERSION)
+    throw new Error(
+      `map: monzone.bin is version ${json.version}, this decoder reads ${MAP_VERSION}; run pnpm map`,
+    )
   const { heightmap, walls, trees, bounds } = json
   let at = line + 1
   const section = (n: number, size: number, stride: number): Int32Array => {

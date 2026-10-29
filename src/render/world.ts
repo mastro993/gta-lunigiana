@@ -44,8 +44,10 @@ import {
 } from "./geometry.ts"
 import { linePieces } from "./lines.ts"
 import { viewAxes } from "./pipeline.ts"
+import { railPieces } from "./rail.ts"
 import { glowMaterial } from "./sky/glow.ts"
 import { lampPieces } from "./sky/lamps.ts"
+import { stationPieces } from "./stations.ts"
 import { terrainChunk } from "./terrain.ts"
 import { bucketTrees, treeMeshes } from "./trees.ts"
 
@@ -75,7 +77,7 @@ const emptySink = (): Sink => ({
  * Pieces per chunk key: flat (piece, k0, k1) triples, k0..k1 being the piece's segments whose
  * bounding box reaches the chunk (a one-point piece has the one segment 0).
  */
-const bucketPieces = (pieces: ReadonlyArray<Piece>): Array<Array<number>> => {
+export const bucketPieces = (pieces: ReadonlyArray<Piece>): Array<Array<number>> => {
   const chunks = Array.from({ length: CHUNKS.x * CHUNKS.y }, (): Array<number> => [])
   const range = new Map<number, [number, number]>()
   pieces.forEach((piece, p) => {
@@ -109,9 +111,12 @@ export class World {
   /** The meshes of every built chunk, by key. */
   readonly loaded = new Map<number, ReadonlyArray<Mesh>>()
   private readonly parent: Object3D
+  private readonly lines = linePieces()
   private readonly pieces: ReadonlyArray<Piece> = [
     ...buildingPieces(),
-    ...linePieces(),
+    ...this.lines,
+    ...railPieces(this.lines),
+    ...stationPieces(),
     ...lampPieces(),
   ]
   private readonly byChunk = bucketPieces(this.pieces)

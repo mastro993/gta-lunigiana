@@ -5,6 +5,7 @@ import * as v from "valibot"
 
 import type { HandlingKey } from "./handling.ts"
 import type { Surface } from "./map/surface.ts"
+import { CROSSING_PHASES, RUN_STATES, TRAIN_MODELS } from "./rail/models.ts"
 import { EVENTS, FOGS, INTENSITIES, type Regime, REGIMES, SKIES } from "./sky/regimes.ts"
 import { VEHICLE_MODELS, type VehicleModel } from "./vehicles.ts"
 
@@ -116,8 +117,9 @@ export const Witness = Descriptor.Tag("Lunigiana/Witness")
 /** Knocked to the ground until step `until` (the player, a pedestrian or an animal). */
 export const Down = Descriptor.ConstructedComponent(v.object({ until: integer }))("Lunigiana/Down")
 /**
- * Killed at step `since`: a pedestrian or an animal by a vehicle; anyone on foot near a blast, or the player in the wreck, by an
- * explosion. It lies where it fell, always `Down`, and never gets up; the player is brought back to the start (`Respawn`).
+ * Killed at step `since`: a pedestrian or an animal by a vehicle, anyone on foot by a train, anyone on foot near a blast, or the
+ * player in the wreck, by an explosion. It lies where it fell, always `Down`, and never gets up; the player is brought back to
+ * the start (`Respawn`).
  */
 export const Dead = Descriptor.ConstructedComponent(v.object({ since: integer }))("Lunigiana/Dead")
 
@@ -129,6 +131,15 @@ export const Dead = Descriptor.ConstructedComponent(v.object({ since: integer })
 export const InWater = Descriptor.ConstructedComponent(v.object({ swimming: v.boolean() }))(
   "Lunigiana/InWater",
 )
+
+/**
+ * The ground a body on foot stands on, m a.s.l. (the player, a pedestrian or an animal): kept from step to step on the level it
+ * was on (`groundZ` nearest the last), so someone on the track over a road tunnel or under a road bridge is on the track, and
+ * someone in the tunnel or on the bridge is not. A body without one yet takes the ground its way or the place is on (`FindFooting`).
+ */
+export const Footing = Descriptor.ConstructedComponent(v.object({ z: finite }))("Lunigiana/Footing")
+/** A Footing value. */
+export type FootingValue = Descriptor.Descriptor.Value<typeof Footing>
 
 /** Animal species: dogs and cats in the villages, cows and pigs on the farms. */
 export const SPECIES = ["dog", "cat", "cow", "pig"] as const
@@ -166,7 +177,10 @@ export type RoamValue = Descriptor.Descriptor.Value<typeof Roam>
 export const Vehicle = Descriptor.ConstructedComponent(
   v.object({ model: v.picklist(VEHICLE_MODELS), color: integer }),
 )("Lunigiana/Vehicle", { immutable: true })
-/** What the vehicle's driver is doing this step: throttle and steer in [-1, 1]. */
+/**
+ * What the driver of a vehicle or a train is doing this step: throttle and steer in [-1, 1] and the handbrake. A train's lever is
+ * the throttle (along its motion power, against it the brake; steer unused) and its handbrake the emergency brake.
+ */
 export const CarInput = Descriptor.ConstructedComponent(
   v.object({ throttle: finite, steer: finite, handbrake: v.boolean() }),
 )("Lunigiana/CarInput")
@@ -238,10 +252,52 @@ export const Autopilot = Descriptor.ConstructedComponent(
 )("Lunigiana/Autopilot")
 /** A vehicle the player has already entered once (it scored a theft). */
 export const Stolen = Descriptor.Tag("Lunigiana/Stolen")
-/** The player is in this vehicle. */
+/** The player is in this vehicle or train (each has the controls the player works, `CarInput`). */
 export const Driving = Descriptor.ConstructedComponent(
-  v.object({ vehicle: handle(Entity.isHandle(Root, Vehicle)) }),
+  v.object({ vehicle: handle(Entity.isHandle(Root, CarInput)) }),
 )("Lunigiana/Driving")
+
+/** A train of one model (`TRAINS` in rail/models.ts), what it is (immutable). */
+export const Train = Descriptor.ConstructedComponent(v.object({ model: v.picklist(TRAIN_MODELS) }))(
+  "Lunigiana/Train",
+  { immutable: true },
+)
+/**
+ * Where a train is on its line (`LINES` in rail/lines.ts): the arc length `s` (m) of its active cab's
+ * nose, `prev` its s at the start of this step (for render interpolation: every writer that moves it
+ * at once sets `prev = s`), its speed `v` toward +s (m/s), which way the active cab faces (`facing`:
+ * the train's body runs from s back to s − facing × its length), and its eased `power` (−1…1, + toward
+ * the facing) and `brake` (0…1 of the emergency rate). Its controls are a `CarInput`.
+ */
+export const TrainMotion = Descriptor.ConstructedComponent(
+  v.object({
+    line: integer,
+    s: finite,
+    prev: finite,
+    v: finite,
+    facing: v.picklist([1, -1]),
+    power: finite,
+    brake: finite,
+  }),
+)("Lunigiana/TrainMotion")
+/** A TrainMotion value. */
+export type TrainMotionValue = Descriptor.Descriptor.Value<typeof TrainMotion>
+/**
+ * An AI train's driver: the way it runs along its line (`dir`, +1 toward +s), the station it calls at next (`stop`, an index
+ * into `MAP.railway.stations`; −1 past its last), and what it is doing (`state`, rail/lookout.ts) and `until` which step:
+ * dwelling at that station until it leaves, standing sounding the horn for something on the track ahead until it creeps on,
+ * and otherwise (running, braking to a stand for it, creeping on) the step its next alarm is due from.
+ */
+export const TrainRun = Descriptor.ConstructedComponent(
+  v.object({
+    dir: v.picklist([1, -1]),
+    stop: integer,
+    state: v.picklist(RUN_STATES),
+    until: integer,
+  }),
+)("Lunigiana/TrainRun")
+/** A TrainRun value. */
+export type TrainRunValue = Descriptor.Descriptor.Value<typeof TrainRun>
 
 /** Simulation time. */
 export const Time = Clock.resource("Lunigiana/Time", STEP)
@@ -300,6 +356,32 @@ export const GameClock = Descriptor.ConstructedResource(
 export type GameClockValue = Descriptor.Descriptor.Value<typeof GameClock>
 /** The weather's own random stream (saved), apart from `Rng` so the weather never changes traffic, pedestrians or parking. */
 export const WeatherRng = Descriptor.ConstructedResource(Random.codec)("Lunigiana/WeatherRng")
+/** The railway's own random stream (saved): where the first trains stand, the dwells and the layovers, apart from `Rng` so trains never change traffic, people or parking. */
+export const RailRng = Descriptor.ConstructedResource(Random.codec)("Lunigiana/RailRng")
+/**
+ * Each line's service (`LINES` in rail/lines.ts, in its order): the step its next train may enter (`due`; null while one runs
+ * on it, or with no service) and the end it enters from (`from`: 0 the line's start, 1 its end). Saved.
+ */
+export const Railway = Descriptor.ConstructedResource(
+  v.array(v.object({ due: v.nullable(integer), from: v.picklist([0, 1]) })),
+)("Lunigiana/Railway")
+/** A Railway value. */
+export type RailwayValue = Descriptor.Descriptor.Value<typeof Railway>
+/**
+ * Each level crossing's cycle (`CROSSINGS` in rail/crossings.ts, in its order): its `phase` since step `since`, its arms' share
+ * down then (`from`, 0 up … 1 down, read only while they lower or rise), and the last step a train `demanded` it. Saved;
+ * `crossingAt` says what it shows.
+ */
+export const LevelCrossings = Descriptor.ConstructedResource(
+  v.array(
+    v.object({
+      phase: v.picklist(CROSSING_PHASES),
+      since: integer,
+      from: finite,
+      demanded: integer,
+    }),
+  ),
+)("Lunigiana/LevelCrossings")
 /**
  * A day of weather as the weather plans it at Rome's midnight (sky/plan.ts), times as seconds since that
  * Rome day's midnight (a day the clocks change lasts 23 or 25 hours): the `day` (Rome's calendar day, days
@@ -399,10 +481,14 @@ export const SetWeather = Descriptor.Event<{
  * vehicles or on the ground, the person's or animal's position), how hard (the closing speed at contact,
  * m/s) and with how much mass behind it (tonnes). A ground hit names the `face` of the body that
  * struck: the wheels bottoming out, the roof, a side, the nose or the tail. A person or animal hit is
- * `fatal` when it killed them. Not saved; the audio schedule plays it.
+ * `fatal` when it killed them. A train is a vehicle that strikes too: a train striking a person or an
+ * animal is such a hit with the train as `car`, and a vehicle and a train meeting is a `train` hit, `car`
+ * the vehicle and `other` the train, `fatal` when it wrecks the vehicle; two trains meeting are a `train`
+ * hit, `car` the striking train and `other` the struck one, and a train against a buffer stop a `wall`
+ * hit with the train as `car`. Not saved; the audio schedule plays it.
  */
 export const Impact = Descriptor.Event<{
-  readonly hit: "wall" | "car" | "person" | "animal" | "ground"
+  readonly hit: "wall" | "car" | "person" | "animal" | "ground" | "train"
   readonly x: number
   readonly y: number
   readonly speed: number
@@ -431,6 +517,18 @@ export const Skid = Descriptor.Event<{
   readonly snow: number
   readonly step: number
 }>()("Lunigiana/Skid")
+/**
+ * An AI train sounds its horn this step at its leading nose (x, y): a moderately long whistle entering a long tunnel, or, when
+ * `urgent`, the alarm at something on the track. Not saved; the audio schedule plays it.
+ */
+export const Whistle = Descriptor.Event<{
+  readonly train: number
+  readonly x: number
+  readonly y: number
+  readonly urgent: boolean
+}>()("Lunigiana/Whistle")
+/** A request from the dev debug menu to call a train onto every line with no AI train on it, now (`ApplyTrains`). Not saved. */
+export const SetTrains = Descriptor.Event<{ readonly call: true }>()("Lunigiana/SetTrains")
 /** An AI driver held up for a while sounds the horn, once per stuck episode. Not saved; the audio schedule plays it. */
 export const Honk = Descriptor.Event<{
   readonly car: number
@@ -515,6 +613,7 @@ export const Game = Schema.bind(
       Witness,
       Down,
       Dead,
+      Footing,
       Animal,
       Roam,
       Vehicle,
@@ -527,17 +626,23 @@ export const Game = Schema.bind(
       Autopilot,
       Stolen,
       InWater,
+      Train,
+      TrainMotion,
+      TrainRun,
     },
     resources: {
       Time,
       Rng,
       WeatherRng,
+      RailRng,
       Score,
       View,
       Handling,
       GameClock,
       Weather,
       Rivers,
+      Railway,
+      LevelCrossings,
       Input,
     },
     events: {
@@ -547,9 +652,11 @@ export const Game = Schema.bind(
       Skid,
       Lightning,
       Explosion,
+      Whistle,
       SetHandling,
       SetClock,
       SetWeather,
+      SetTrains,
     },
     requires: [
       Schema.requires(Player, Pose, PrevPose, Motion, Person),
@@ -561,6 +668,8 @@ export const Game = Schema.bind(
       Schema.requires(Traffic, Vehicle, Route, Autopilot),
       Schema.requires(Dead, Down),
       Schema.requires(InWater, Pose, Motion),
+      Schema.requires(Train, TrainMotion, CarInput),
+      Schema.requires(TrainRun, Train),
     ],
   }),
   Root,

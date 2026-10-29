@@ -36,18 +36,45 @@ export const USUAL = 1.2
 /** A horn is meant for whoever stands in front of the honking car within this many metres of its axis: the traffic AI's cone. */
 const HORN_AIM = 1.8
 
-/** A moving vehicle as perceived: where, which way, how fast. */
+/** A moving vehicle (or a train's car) as perceived: its body's length and width and its full braking (m, m/s²), where, which way, how fast. */
 export interface Car {
   readonly id: number
-  readonly model: VehicleModel
+  readonly length: number
+  readonly width: number
+  readonly decel: number
   readonly x: number
   readonly y: number
   readonly angle: number
   readonly vx: number
   readonly vy: number
   readonly speed: number
-  /** The pace of ordinary traffic on the street it drives (m/s). */
+  /** The pace of ordinary traffic on the street it drives, or a train's line speed (m/s). */
   readonly usual: number
+}
+
+/** A vehicle of `model` as perceived, from its pose, velocity and its street's pace. */
+export const carOf = (
+  id: number,
+  model: VehicleModel,
+  pose: PoseValue,
+  vx: number,
+  vy: number,
+  usual: number,
+): Car => {
+  const { length, width, brakes } = VEHICLES[model]
+  return {
+    id,
+    length,
+    width,
+    decel: brakes.decel,
+    x: pose.x,
+    y: pose.y,
+    angle: pose.angle,
+    vx,
+    vy,
+    speed: Math.sqrt(vx * vx + vy * vy),
+    usual,
+  }
 }
 
 /**
@@ -55,7 +82,7 @@ export interface Car {
  * next `horizon` seconds, both keeping their velocities.
  */
 const nearMiss = (at: Vec2.Vec2, velocity: Vec2.Vec2, car: Car, horizon: number): number => {
-  const { length, width } = VEHICLES[car.model]
+  const { length, width } = car
   const k = length / 2 - width / 2,
     fx = Ops.cos(car.angle),
     fy = Ops.sin(car.angle)
@@ -93,10 +120,10 @@ export const endangers = (at: PoseValue, velocity: Vec2.Vec2, car: Car): boolean
  * village street), only makes them step aside: crying out at it made an idle Gragnola scream 5 times a minute.
  */
 export const alarm = (at: Vec2.Vec2, velocity: Vec2.Vec2, car: Car, dt: number) => {
-  const { length, width, brakes } = VEHICLES[car.model]
+  const { length, width } = car
   const fx = Ops.cos(car.angle),
     fy = Ops.sin(car.angle),
-    stop = (car.speed * car.speed) / (2 * brakes.decel)
+    stop = (car.speed * car.speed) / (2 * car.decel)
   const rx = at.x - car.x,
     ry = at.y - car.y,
     ahead = rx * fx + ry * fy - length / 2 - PERSON_RADIUS

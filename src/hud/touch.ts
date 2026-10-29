@@ -1,10 +1,11 @@
 /**
  * Mobile mode's controls (markup in index.html, layout in hud.css). On foot, a stick appears under
  * a thumb on the left half of the screen and holds the arrow keys it leans toward, eight ways like
- * the keys. Driving, buttons take its place: ◀ ▶ on the left steer, Gas and Brake on the right.
- * Every key has a button, shown in the mode it works in. They feed the keyboard's own snapshot
- * (`withTouch`), so the simulation, its tests and replays cannot tell a tap from a key. Ritmo's
- * `Touch` tracks the fingers; its zones are read from the drawn controls, so they always match.
+ * the keys. Driving, buttons take its place: ◀ ▶ on the left steer, Gas and Brake on the right; in
+ * a train, which has no steering, ◀ ▶ hide. Every key has a button, shown in the mode it works in.
+ * They feed the keyboard's own snapshot (`withTouch`), so the simulation, its tests and replays
+ * cannot tell a tap from a key. Ritmo's `Touch` tracks the fingers; its zones are read from the
+ * drawn controls, so they always match.
  *
  * @module hud/touch
  */
@@ -32,8 +33,9 @@ const directions = ({ x, y }: Controls.Vector): Partial<Record<Key, boolean>> =>
 /**
  * The keyboard's controls with the touch screen's added: the stick holds the direction keys, each
  * button its own key. A key is held while any of them holds it, and a press on any is a press. A
- * control the mode hides is `null` in Touch's layout, so Touch lets go of it under a thumb that
- * stays down (the stick on getting in, ◀ on getting out), and its keys release once.
+ * control the mode or the vehicle hides is `null` in Touch's layout, so Touch lets go of it under a
+ * thumb that stays down (the stick on getting in, ◀ on getting out, ◀ ▶ on boarding a train), and
+ * its keys release once.
  */
 export const withTouch = (
   keyboard: InputCapture.Source<Keys>,
@@ -175,9 +177,12 @@ export const makeTouchControls = (document: Document, canvas: HTMLCanvasElement)
     leaned = ""
   return {
     touch,
-    /** Shows the buttons of the player's mode, the action button's verb, the held controls lit and the stick under the thumb. */
+    /** Shows the buttons of the player's mode and vehicle, the action button's verb, the held controls lit and the stick under the thumb. */
     draw: (view: PlayerViewModel): void => {
       if (root.dataset.mode !== view.mode) root.dataset.mode = view.mode
+      // "train" hides ◀ ▶ (hud.css): their zones turn null, and Touch lets go of a finger on one.
+      const vehicle = view.vehicle?.kind ?? ""
+      if (root.dataset.vehicle !== vehicle) root.dataset.vehicle = vehicle
       const verb = actionFor(view)?.verb ?? ""
       if (pads.action.textContent !== verb) pads.action.textContent = verb
       const live = touch.view()

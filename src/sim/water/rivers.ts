@@ -14,7 +14,7 @@ import { walkBy } from "../body.ts"
 import { segDist2, staticGrid } from "../collide.ts"
 import { atGrade, deckNear, groundZ } from "../map/ground.ts"
 import { MAP } from "../map/index.ts"
-import { channelOf, SPEED, STAGE } from "./channel.ts"
+import { channelOf, reachOf, SPEED, STAGE } from "./channel.ts"
 
 /** One straight reach between two vertices of a water piece, with what its two ends carry. */
 interface Reach {
@@ -58,7 +58,7 @@ const reaches: ReadonlyArray<Reach> = MAP.water.flatMap((water) => {
       by,
       ux: (bx - ax) / length,
       uy: (by - ay) / length,
-      reach: Math.max(water.bed, water.w / 2),
+      reach: reachOf(water),
       bedA: ch.bed[i]!,
       bedB: ch.bed[i + 1]!,
       stageA: ch.stage[i]!,

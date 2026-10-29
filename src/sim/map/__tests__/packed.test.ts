@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import { packMap } from "../../../tools/pack.ts"
 import type { MonzoneMap } from "../index.ts"
-import { decodeMap } from "../packed.ts"
+import { decodeMap, MAP_VERSION } from "../packed.ts"
 
 /** The map with its typed arrays as plain arrays, for deepEqual. */
 const plain = (m: MonzoneMap) => ({
@@ -13,10 +13,10 @@ const plain = (m: MonzoneMap) => ({
   trees: Array.from(m.trees),
 })
 
-test("packMap and decodeMap round-trip the map file: negative values, the widest deltas, an empty section", () => {
+test("packMap and decodeMap round-trip the map file (negative values, the widest deltas, an empty section); another version throws", () => {
   // packOrigin is (-1500, -1200) dm and treeOrigin (-150, -120) m: the first wall and tree lie south-west of them
   const map: MonzoneMap = {
-    version: 1,
+    version: MAP_VERSION,
     origin: { lat: 44.2, lon: 10.1 },
     mPerDeg: { lat: 111_000, lon: 80_000 },
     bounds: { minX: -50, minY: -20, maxX: 50, maxY: 20 },
@@ -32,6 +32,7 @@ test("packMap and decodeMap round-trip the map file: negative values, the widest
     buildings: [],
     water: [],
     rail: [],
+    railway: { lines: [], stations: [], crossings: [], platforms: [] },
     areas: [],
     barriers: [],
     pois: [],
@@ -47,6 +48,10 @@ test("packMap and decodeMap round-trip the map file: negative values, the widest
     spawns: { player: { x: 1, y: 2, angle: -0.5 }, parked: [{ x: 3, y: 4, angle: 1 }] },
   }
   assert.deepEqual(plain(decodeMap(packMap(map).file)), plain(map))
+  assert.throws(
+    () => decodeMap(packMap({ ...map, version: MAP_VERSION - 1 }).file),
+    /monzone.bin is version 1, this decoder reads 2/,
+  )
   assert.throws(
     () => packMap({ ...map, trees: [...Array.from(map.trees), 32617, 0, 1] }),
     /trees: 32767 at 6 is 32768 from the value 3 back, too far for 2 bytes/,

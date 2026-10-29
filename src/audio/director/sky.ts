@@ -10,11 +10,11 @@
  * @module audio/director/sky
  */
 import type { WeatherValue } from "../../sim/schema.ts"
-import type { VehicleModel } from "../../sim/vehicles.ts"
 import { AMBIENT_DB, CABIN, dbToGain, mixGain, NIGHT_DB, sumDb } from "../acoustics.ts"
 import { smoothstep } from "../buffers.ts"
 import { unit } from "../synth/graph.ts"
 import { rainQuiet } from "../synth/rain.ts"
+import type { CabinModel } from "../types.ts"
 import type { Hearing } from "./hearing.ts"
 import { rainDb, roofDb } from "./levels.ts"
 
@@ -57,7 +57,7 @@ export const gustsOf = (weather: Pick<WeatherValue, "gust">): number => unit(wea
 export const RAINING = 0.1
 
 /** The rain at `rate` mm/h as heard at the ears, dB(A): the bed outside, or the bed through `inside`'s cabin and the drumming on its roof. */
-export const rainHeard = (rate: number, inside: VehicleModel | undefined): number =>
+export const rainHeard = (rate: number, inside: CabinModel | undefined): number =>
   rate < RAINING
     ? -Infinity
     : inside === undefined

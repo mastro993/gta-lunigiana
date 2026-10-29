@@ -24,10 +24,12 @@ import {
   type BuildingStyle,
   isRoadClass,
   pushTrunk,
+  type RailKind,
   type RoadClass,
   TRUNK,
 } from "./kinds.ts"
 import { decodeMap, mapFile } from "./packed.ts"
+import type { Railway } from "./railway.ts"
 
 export {
   AREA_KINDS,
@@ -36,10 +38,16 @@ export {
   type BuildingStyle,
   isAreaKind,
   isDrivable,
+  laneOffset,
+  RAIL_KINDS,
+  RAIL_LIFT,
+  type RailKind,
   ROAD_CLASSES,
   type RoadClass,
   TRUNK,
+  vergeOf,
 } from "./kinds.ts"
+export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
 
 /** Play area rectangle, metres. */
 interface Bounds {
@@ -72,6 +80,8 @@ export interface Road {
   readonly bridge?: boolean
   readonly tunnel?: boolean
   readonly layer?: number
+  /** Where people walk, m from the centreline on either side, when the build pulls the verge in off the railway beside it (else `vergeOf`). */
+  readonly verge?: number
   /** The OSM vertices plus points on the OSM segments where the elevation profile bends (dips under the rail, crests). */
   readonly pts: ReadonlyArray<number>
   /** Road surface elevation per vertex (m); bridge decks and tunnels are straight between their ends. */
@@ -113,9 +123,17 @@ export interface Water {
   readonly area: ReadonlyArray<number>
 }
 
-/** A railway piece (Lucca-Aulla line); `z` = rail top per vertex, bridges and tunnels interpolated between their ends. */
+/**
+ * A railway piece: OSM's Lucca–Aulla line moved onto the CTR's surveyed track centrelines (`id` the
+ * OSM way), or a track only the CTR has (`id` negative); `z` = the bed under its sleepers per vertex
+ * (the rail head is `RAIL_LIFT` higher), bridges and tunnels interpolated between their ends.
+ * Tracks meet only at piece ends (switches cut the pieces), so `id` is not unique: the pieces cut
+ * from one way (at its switches and where the CTR maps a bridge) share it.
+ */
 export interface Rail {
   readonly id: number
+  /** None on a line's running track; else, from the topology, a `loop` (rejoins other track at both ends) or a `siding` (leads to a dead end). */
+  readonly kind?: RailKind
   readonly bridge?: boolean
   readonly tunnel?: boolean
   readonly pts: ReadonlyArray<number>
@@ -161,6 +179,7 @@ export interface Spawn {
 
 /** The map as the game reads it: `monzone.bin` with its packed sections decoded. */
 export interface MonzoneMap {
+  /** `MAP_VERSION` (`./packed.ts`): `decodeMap` throws on any other. */
   readonly version: number
   readonly origin: { readonly lat: number; readonly lon: number }
   readonly mPerDeg: { readonly lat: number; readonly lon: number }
@@ -170,6 +189,7 @@ export interface MonzoneMap {
   readonly buildings: ReadonlyArray<Building>
   readonly water: ReadonlyArray<Water>
   readonly rail: ReadonlyArray<Rail>
+  readonly railway: Railway
   readonly areas: ReadonlyArray<Area>
   readonly barriers: ReadonlyArray<Barrier>
   readonly pois: ReadonlyArray<Poi>

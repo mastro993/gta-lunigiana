@@ -2,12 +2,12 @@ import { FAUNA } from "../fauna.ts"
 import { Animal, Driving, Game, InWater, Motion, Person, Pose, Rivers } from "../schema.ts"
 import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterUnder } from "../water/rivers.ts"
-import { type Build, footingOf, personMass, swept } from "../water/swim.ts"
+import { type Build, holdOf, personMass, swept } from "../water/swim.ts"
 
-/** A person's build in the water: its height and the footing of its height at BMI 24.5. */
+/** A person's build in the water: its height and the hold of its height at BMI 24.5. */
 export const personBuild = (height: number): Build => ({
   height,
-  footing: footingOf(height, personMass(height)),
+  hold: holdOf(height, personMass(height)),
 })
 
 /** An animal's build in the water: its species' shoulder height and mass, scaled by its size. */
@@ -19,7 +19,7 @@ export const animalBuild = (animal: {
     height = fauna.height * animal.size
   return {
     height,
-    footing: footingOf(height, fauna.mass * animal.size * animal.size * animal.size),
+    hold: holdOf(height, fauna.mass * animal.size * animal.size * animal.size),
   }
 }
 

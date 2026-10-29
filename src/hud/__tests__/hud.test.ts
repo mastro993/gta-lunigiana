@@ -4,6 +4,8 @@ import { test } from "node:test"
 import { Keyboard } from "@typeonce/ritmo-browser"
 
 import { bindings, type PlayerViewModel } from "../../sim/index.ts"
+import { BOARD_SPEED } from "../../sim/rail/boarding.ts"
+import { TRAINS } from "../../sim/rail/models.ts"
 import { QUARTER, screenAxes } from "../../sim/view.ts"
 import { kmh, overlayKey, type Overlays, pausable, promptText, routeOverlayKeys } from "../hud.ts"
 import { minimapRotation } from "../minimap.ts"
@@ -16,7 +18,6 @@ const view = (patch: Partial<PlayerViewModel>): PlayerViewModel => ({
   mode: "foot",
   vehicle: undefined,
   nearby: undefined,
-  score: { stolen: 0, knocked: 0 },
   turns: 0,
   ...patch,
 })
@@ -56,6 +57,36 @@ test("the prompt names the action the key would take", () => {
 test("speed reads in whole km/h, reversing included", () => {
   assert.equal(kmh(10), 36)
   assert.equal(kmh(-2.5), 9)
+})
+
+test("a train reads as a car does: the prompt names it to take, then offers to get out", () => {
+  const { label } = TRAINS.atr220
+  assert.equal(
+    promptText(view({ nearby: { label, occupied: true, stolen: false } })),
+    `F — carjack ${label}`,
+  )
+  assert.equal(
+    promptText(view({ nearby: { label, occupied: false, stolen: true } })),
+    `F — enter ${label}`,
+  )
+  const driving = view({ mode: "driving", vehicle: { label, speed: 0, kind: "train" }, z: 231.4 })
+  assert.equal(promptText(driving), "F — exit")
+  assert.equal(kmh(driving.vehicle!.speed), 0)
+})
+
+// Regression: a train lets you out only below BOARD_SPEED, but the prompt and the touch EXIT pad offered it at 34 km/h.
+test("driving a train, the prompt offers to get out only while it is slow enough to leave, backing up too; a car at any speed", () => {
+  const { label } = TRAINS.atr220
+  const train = (speed: number) =>
+    view({ mode: "driving", vehicle: { label, speed, kind: "train" } })
+  assert.equal(promptText(train(BOARD_SPEED - 0.1)), "F — exit")
+  assert.equal(promptText(train(-(BOARD_SPEED - 0.1))), "F — exit")
+  assert.equal(promptText(train(BOARD_SPEED)), "")
+  assert.equal(promptText(train(-8.3)), "", "backing up at 30 km/h")
+  assert.equal(
+    promptText(view({ mode: "driving", vehicle: { label: "Fiat Panda", speed: 30 } })),
+    "F — exit",
+  )
 })
 
 test("the minimap turns screen-up to the top, whichever way the view is turned", () => {

@@ -5,10 +5,13 @@ import { pointInRing } from "../../../sim/collide.ts"
 import { buildingsIn, buildingStyleOf, MAP, roadClassOf } from "../../../sim/map/index.ts"
 import { eaveOf, windowCount } from "../../buildings.ts"
 import { type Sink, Triangles, WaterTriangles } from "../../geometry.ts"
-import { terrainY } from "../../ground.ts"
+import { groundY, terrainY } from "../../ground.ts"
+import { platformLamps } from "../../stations.ts"
 import { lampPieces, lampsIn, placeLamps, streetLamps } from "../lamps.ts"
 
 const lamps = streetLamps()
+/** The lanterns on house walls (the rest stand on platform poles). */
+const walls = lamps.filter((lamp) => lamp.kind === "wall")
 const LIT = new Set(["tertiary", "unclassified", "residential", "service"])
 
 /** The wall (building and edge) the lamp's bracket meets: the outer edge through its mount point with its outward normal. */
@@ -41,16 +44,18 @@ const wallOf = (lamp: (typeof lamps)[number]) => {
   return found
 }
 
-test("street lamps: the same every time, hundreds over the valley, a dozen and more along Monzone's streets", () => {
-  assert.deepEqual(placeLamps(), lamps)
-  assert.ok(lamps.length > 300 && lamps.length < 1500, `${lamps.length} lamps`)
+test("street lamps: the same every time, hundreds over the valley, a dozen and more along Monzone's streets, then the platforms' pole lamps", () => {
+  assert.deepEqual(placeLamps(), walls)
+  assert.deepEqual(lamps.slice(0, walls.length), walls, "the wall lanterns first")
+  assert.equal(lamps.length - walls.length, platformLamps().length)
+  assert.ok(walls.length > 300 && walls.length < 1500, `${walls.length} lamps`)
   const { x, y } = MAP.spawns.player
-  const monzone = lamps.filter((l) => Math.hypot(l.x - x, l.y - y) < 300).length
+  const monzone = walls.filter((l) => Math.hypot(l.x - x, l.y - y) < 300).length
   assert.ok(monzone >= 12, `${monzone} lamps within 300 m of the station`)
 })
 
 test("street lamps: each hangs 0.6 m out from a house wall between its windows, 4.2 m or less over the street, under the eaves, outside every house", () => {
-  for (const lamp of lamps) {
+  for (const lamp of walls) {
     const wall = wallOf(lamp)
     assert.ok(
       wall !== undefined,
@@ -76,7 +81,7 @@ test("street lamps: each hangs 0.6 m out from a house wall between its windows, 
 
 test("street lamps: on lit streets in villages, never two within 18 m", () => {
   const lit = MAP.roads.filter((r) => r.tunnel !== true && LIT.has(roadClassOf(r)))
-  for (const lamp of lamps) {
+  for (const lamp of walls) {
     let road = Number.MAX_VALUE
     for (const r of lit)
       for (let k = 0; k + 3 < r.pts.length; k += 2) {
@@ -93,7 +98,7 @@ test("street lamps: on lit streets in villages, never two within 18 m", () => {
     buildingsIn(lamp.x - 40, lamp.y - 40, lamp.x + 40, lamp.y + 40, () => near++)
     assert.ok(near >= 4, "in a village")
   }
-  const sorted = [...lamps].sort((a, b) => a.x - b.x)
+  const sorted = [...walls].sort((a, b) => a.x - b.x)
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length && sorted[j]!.x - sorted[i]!.x < 18; j++) {
       assert.ok(
@@ -181,4 +186,29 @@ test("street lamps: a lantern is whole by day, solid from its foot to its cap on
         )
     }
   })
+})
+
+test("platform lamps: a pole from the platform's top to the bracket, the lantern 0.6 m out from it toward the track", () => {
+  const pieces = lampPieces()
+  const poles = lamps.flatMap((lamp, i) => (lamp.kind === "pole" ? [i] : []))
+  assert.ok(poles.length > 0)
+  for (const i of poles) {
+    const lamp = lamps[i]!,
+      sink: Sink = {
+        solid: new Triangles(),
+        decal: new Triangles(),
+        water: new WaterTriangles(),
+        glow: new Triangles(),
+        pieces: [],
+      }
+    pieces[i]!.draw(() => sink, 0, 0)
+    // In the lamp's frame (u out to the lantern), the pole is the box on u = -0.6 standing from the ground to the bracket.
+    const pole = boxesOf(sink.solid, lamp).find(
+      (b) => b.u[0] < -0.6 && b.u[1] > -0.6 && b.u[1] < -0.5,
+    )
+    assert.ok(pole !== undefined, `lamp ${i}: a pole 0.6 m behind the lantern`)
+    const foot = groundY(lamp.x - lamp.nx * 0.6, lamp.y - lamp.ny * 0.6)
+    assert.ok(Math.abs(pole.y[0] - foot) < 1e-6, "standing on the ground (the platform's top)")
+    assert.ok(pole.y[1] >= lamp.h + 0.3, "up to the bracket")
+  }
 })

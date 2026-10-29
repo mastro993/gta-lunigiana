@@ -1,23 +1,24 @@
 # Gameplay
 
-All rules are simulation systems in `src/sim/systems`. The step order is in
-[architecture.md](architecture.md). Units are metres, seconds and radians. One step is 1/60 s. The
-keys named here are the keyboard's; in mobile mode the touch controls press the same keys
-([architecture.md](architecture.md#input)).
+All rules are simulation systems in `src/sim/systems`, and the railway's in `src/sim/rail`. The step
+order is in [architecture.md](architecture.md). Units are metres, seconds and radians. One step is
+1/60 s. The keys named here are the keyboard's; in mobile mode the touch controls press the same
+keys ([architecture.md](architecture.md#input)).
 
 ## Start
 
 `SpawnWorld` puts the player on the Via Cesare Battisti sidewalk in front of the Carabinieri
 station. 200 of the map's parked spots (`PARKED`) get a car, picked at random, so the cars spread
-over the villages as the spots do. Spots where a parked car would tilt more than 15° are skipped
-(72 of the 805: the 4 m terrain puts some verges on a bank), and each car settles on its springs
-with the ground's slope. The two spots nearest the station get Carabinieri cars. The rest
-are randomly chosen spots, about 80% Pandas and 20% Apes. On a tertiary-road spot where it fits,
-a roll under 10% makes a marble truck instead, at most two of them. Then the first fill puts the
-people and animals around the start out at once ([The first fill](#the-first-fill)). The world's
-`Rng` makes every choice, so `?seed=N` replays the same start. The game begins on today's date at
-08:00 in Rome, under a clear sky on dry roads, once the title card is dismissed; the clock, the sun
-and the weather are in [weather.md](weather.md).
+over the villages as the spots do. Spots where a parked car would tilt more than 15° are skipped (72
+of the 805: the 4 m terrain puts some verges on a bank), and each car settles on its springs with
+the ground's slope. The two spots nearest the station get Carabinieri cars. The rest are randomly
+chosen spots, about 80% Pandas and 20% Apes. On a tertiary-road spot where it fits, a roll under 10%
+makes a marble truck instead, at most two of them. Then the first fill puts the people and animals
+around the start out at once ([The first fill](#the-first-fill)), and each line's first train stands
+at its station nearest the start ([Trains](#trains)). The world's `Rng` makes every choice but the
+trains' (`RailRng`), so `?seed=N` replays the same start. The game begins on today's date at 08:00
+in Rome, under a clear sky on dry roads, once the title card is dismissed; the clock, the sun and
+the weather are in [weather.md](weather.md).
 
 ## The view
 
@@ -71,14 +72,16 @@ back once it rests on a seat.
 
 ## Entering, stealing, carjacking, exiting
 
-`EnterExit` (`systems/enter-exit.ts`) handles the action key (F or Enter), once per press:
+`EnterExit` (`systems/enter-exit.ts`) handles the action key (F or Enter), once per press. A
+train is boarded at its cab doors ([Driving a train](#driving-a-train)); the rest is about vehicles:
 
 - **Enter**: on foot and standing, the player enters the vehicle whose body is nearest, within
   2 m (`ENTER_GAP`), with no walk wall in between, unless it lies on its side or roof or is
-  destroyed ([Damage](#damage)). The HUD prompt uses the same test (`vehicleInReach`), so it shows
-  exactly what the key would do: `steal`, `enter` or `carjack`.
-- **Steal**: the first entry of any vehicle scores one theft and tags it `Stolen`. Entering it
-  again scores nothing.
+  destroyed ([Damage](#damage)), or a train's door nearer still. The HUD prompt uses the same test
+  (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it shows exactly what the key would
+  do: `steal`, `enter` or `carjack`.
+- **Steal**: the first entry of any vehicle or train scores one theft and tags it `Stolen`.
+  Entering it again scores nothing.
 - **Carjack**: entering a traffic car removes its AI. Its driver gets out at the first free door
   as a pedestrian, on the verge on that side, and flees for 4 s. If no door is free, no driver
   appears.
@@ -129,9 +132,10 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
 `integrate` (`src/sim/dynamics.ts`) advances each vehicle in four substeps of 1/240 s:
 
 - **Suspension**: each wheel is a spring (the body's ride frequency, 1.5–2 Hz) and a damper
-  against the ground under it (`groundZ`: the drawn terrain and road ribbons, blended where a
-  junction's ribbons overlap, see [map.md](map.md#known-data-limitations)), plus a bump stop
-  past 0.1 m of travel and anti-roll bars, stiffer at the front so cars understeer at the limit.
+  against the ground under it (`groundZ`: the drawn terrain, station platforms and road ribbons,
+  blended where a junction's ribbons overlap, see [map.md](map.md#known-data-limitations)), plus a
+  bump stop past 0.1 m of travel and anti-roll bars, stiffer at the front so cars understeer at the
+  limit.
   The body pitches when it brakes or accelerates, rolls in corners (about 4° per g in a Panda),
   leaves the ground over a crest or a ramp and lands. In the air the tumbling slows a little.
 - **Tyres** (`src/sim/tyres.ts`): sideways force rises with the slip angle to a peak (0.12–0.15
@@ -403,6 +407,9 @@ its durability its crashes have used up, from 0 (as new) to 1 (destroyed). Nothi
   of the crash's first on the same vehicle or animal, or on any wall or the ground (an `Impact`
   does not say which wall), cost only what a harder one adds: a crash costs what its hardest hit
   does.
+- **A train** counts as a wall at the full closing speed (it is about 100 times a Panda's mass),
+  the train being what was struck. A train that strikes a vehicle faster than 14 m/s, or drags one
+  a wall holds, wrecks it outright ([Trains](#what-a-train-strikes)).
 - **Stages.** What the player sees and hears, by damage (`STAGE_FROM`): under 0.4 no smoke shows and
   the engine loses no drive, though it already sounds duller, and rough from 0.2
   ([audio.md](audio.md#engines)); from 0.4 (medium) the engine smokes white, from 0.7 (severe)
@@ -517,15 +524,20 @@ the lane helpers in `src/sim/route.ts`.
   wide as the car plus 0.15 m to either side (`CONE_CLEARANCE`); an obstacle counts by its
   footprint (half its length and width turned to the car's heading, a person or an animal a
   circle), so a car standing across the road holds it back as well as one ahead. For a Panda
-  following a Panda in line that is 1.8 m to either side of its axis. Standing still, it holds the
-  handbrake.
+  following a Panda in line that is 1.8 m to either side of its axis. Each car of a train on its
+  level is such an obstacle too, one that moves on. Standing still, it holds the handbrake.
+- **Level crossings.** The car stops for a box that is not open and keeps boxes and the junctions
+  before them clear ([Traffic at the crossings](#traffic-at-the-crossings)).
 - **Unsticking.** A car stuck below 1 m/s for 3 s reverses for 1.5 s at 3 m/s. If it is lined up
   with its lane, it may turn round: half the time when the way back is not a dead end, always
   from its second try, never on a oneway, and never on a bridge or in a tunnel, nor on an edge
-  touching one (`roomToTurn`: a circle there leaves the deck). A truck never turns round: it
+  touching one (`roomToTurn`: a circle there leaves the deck), nor within 12 m of a railway's track
+  at grade (the circle would sweep over it). A truck never turns round: it
   only backs up. Waiting for a living person or animal in the way (ahead of the bumper, on the
-  carriageway or the verge pedestrians walk) counts four times slower: the car holds about 12 s
-  for them to move on, then backs up and turns round like for anything else. One beside the car or
+  carriageway or the verge pedestrians walk), or for a train across it, counts four times slower:
+  the car holds about 12 s for them to move on, then backs up and turns round like for anything
+  else. Waiting at a level crossing closed for a train does not count at all
+  ([Traffic at the crossings](#traffic-at-the-crossings)). One beside the car or
   off the road, or a body, counts like any other obstacle. Backing up, the car slows as its tail
   nears anything behind it, as when following, and stops 0.5 m short (`BACK_GAP`; about 1 m in
   practice, as it stops once the gap allows less than 0.5 m/s), holding the handbrake, so it does
@@ -578,14 +590,17 @@ happens around them. `Perceive` (`systems/perceive.ts`, with the vehicle checks 
   or swept into it, they wade or swim for the nearer bank, and the current takes the down and the
   dead ([water.md](water.md#people-and-animals-in-the-water)).
 - **Routes.** People walk `graph.walkEdges`: on the verge of roads (w/2 + 0.8 m, on either side)
-  and 0.3 m off the middle of paths, steps and tracks. At a junction a walker takes each way with
-  the weight of the most lived-in walk edge up to 120 m down it (`WALK_AHEAD`, TUNED: about a
-  village block) plus 0.5 (`WALK_FLOOR`, TUNED), and turns back only at dead ends. The ways are
-  weighed by where they lead, not by the edge itself, because residents are counted within 60 m of
-  each edge, so all the edges at one junction count about the same houses. With the floor, a lane
-  into the fields draws about 1 walker in 35 against a typical village street (17 residents, the
-  median of the peopled walk edges). Of 200 walkers set off for 1.5 km from each centre, the share
-  of the distance walked on peopled streets:
+  and 0.3 m off the middle of paths, steps and tracks, or nearer the middle where a road's verge
+  would run within 2.8 m of the railway (its `verge`: Piazza della Liberazione by Monzone
+  station, Via Riolo and Piazza Paolo Sist by its level crossing;
+  [map.md](map.md#9-the-railway-railwayts-platformsts-rail-clearts)). At a junction a walker
+  takes each way with the weight of the most lived-in walk edge up to 120 m down it
+  (`WALK_AHEAD`, TUNED: about a village block) plus 0.5 (`WALK_FLOOR`, TUNED), and turns back
+  only at dead ends. The ways are weighed by where they lead, not by the edge itself, because
+  residents are counted within 60 m of each edge, so all the edges at one junction count about the
+  same houses. With the floor, a lane into the fields draws about 1 walker in 35 against a typical
+  village street (17 residents, the median of the peopled walk edges). Of 200 walkers set off for
+  1.5 km from each centre, the share of the distance walked on peopled streets:
 
   | Centre | This choice | The edge's own residents | Random |
   |---|---|---|---|
@@ -655,7 +670,17 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
 | A shove | the player on foot faster than 3 m/s within 1 m | `look` 2 s | anger, 70 % |
 | Panic | someone running away, not a follower, within 8 m | `look` 2 s toward what they run from; a look never spreads further | none |
 | A chat | two calm grown-ups (walking, out of a cooldown, neither following anyone) within 1.6 m | `chat` 8–25 s, a chance of 0.35 a second, facing each other; it ends when the partner leaves | none |
+| A train's whistle | an AI train's `Whistle` within 60 m | `look` 1.5 s | none |
+| A train's alarm | an urgent `Whistle`, standing in the train's path: on its track ahead of its leading end within 700 m, their body within its half-width and 1.3 m of the centreline, on its level | `flee` 4 s from its nose, to the verge on their own side of its path | fright |
+| A crossing closing | a level crossing within 30 m in every phase but open (a foot crossing while a train demands it), their next metre along their way within 3 m of a track crossing it, they not | `look` 1 s at the box, renewed each step: they stand short of the track | none |
 
+- **Trains.** Each car of a moving train is a vehicle to the Danger and Speeding stimuli, with its
+  line's speed as its street's traffic, so a train at line speed passes the people waiting at a
+  crossing (3.5 m from the centreline, 1.7 m between their body and its) and on the platforms' paths
+  (2.6 m or more from the centreline)
+  without a flight or a glare. Only people on its level sense it: under a rail bridge, over a
+  tunnel or on a road bridge over the line it passes them by
+  ([Around the trains](#around-the-trains)).
 - **The gap, not the distance.** Danger is the gap to the car's body, because a distance from its
   centre made every walker on the verge run from ordinary traffic. A Panda in its lane passes a
   walker on the verge with 0.88 m or more between its body and them on 95 % of the map's 12 m/s
@@ -737,7 +762,8 @@ where the fit gives 9.7, 24.7, 53.3, 75.6 and 89.3 %.
   11.2 m/s (25 mph) dies 32.6 % of the time, an adult at 15.6 m/s (35 mph) 32.0 %.
 - An animal's h is its species' `lethal` speed ([Animals](#animals)).
 - Nobody dies under 5 m/s, and no vehicle kills the player; a blast can
-  ([Explosions](#explosions)).
+  ([Explosions](#explosions)), and so can a train, which strikes by a curve of its own
+  ([What a train strikes](#what-a-train-strikes)).
 - The killed get `Dead` (the step they died) beside their `Down`, are thrown like a knockdown, and
   lie where they slide to: the dead never get up. The `Impact` says `fatal`.
 
@@ -745,11 +771,12 @@ where the fit gives 9.7, 24.7, 53.3, 75.6 and 89.3 %.
 along its route away from the nearest vehicle for 4 s, an animal bolts from it for 3 s. The player
 can be knocked down too, and cannot act until they get up.
 
-`Score` has two counters, shown on the HUD:
+`Score` has two counters, kept in the save but not shown: the HUD has no score until its design is
+settled.
 
-- **Auto rubate** (cars stolen): +1 on the first entry of a vehicle.
-- **Persone investite** (people hit): +1 for each person the car the player is driving knocks down
-  or kills. Animals score nothing.
+- **Auto rubate** (cars stolen): +1 on the first entry of a vehicle or a train.
+- **Persone investite** (people hit): +1 for each person the car (or the train) the player is
+  driving knocks down or kills. Animals score nothing.
 
 ## Population
 
@@ -767,8 +794,10 @@ shows). The animals have their own system ([Animals](#animals)).
 | Also despawned, once beyond 90 m | more than 12 m off its road, or 4 unstick tries | a living walker blocked for more than 5 s; the followers, people and dogs, of a leader that has gone |
 
 - New traffic is 75% Pandas, 15% Apes and 10% trucks, falling back to a smaller model where one
-  does not fit. It spawns at least 15 m from any vehicle and clear of walls, heads out of dead-end
-  spurs, and starts at 0.6 × cruising speed.
+  does not fit. It spawns at least 15 m from any vehicle and from the middle of any level crossing
+  (`SPAWN_CLEAR`, `rail/roads.ts`: brought out at an edge's middle, a car could stand on the box),
+  clear of walls, heads out of dead-end spurs, and starts at 0.6 × cruising speed. Each rule turns
+  a spot down after its draws, so a spot turned down draws what one in a wall would.
 - The player's car is never despawned. Parked, stolen and carjacked cars are not traffic, so they
   stay where they are left. A destroyed vehicle, traffic or not, goes once it is beyond 90 m
   (`VIEW_REACH`), out of view. A body lies where it fell until it is beyond 140 m, as the living
@@ -883,8 +912,9 @@ people within 45 m on average at the start, and 3.3 in Gragnola's centre.
 ## Animals
 
 Dogs and cats live in the villages, cows and pigs on the farms out in the country. `Animals`
-(`systems/animals.ts`) moves them, `Startle` (in the same file) scares cats and pigs at a crash,
-and `PopulateAnimals` (`systems/populate-animals.ts`) keeps them around the player.
+(`systems/animals.ts`) moves them, running from what `scare` (`systems/fright.ts`) finds them
+afraid of, `Startle` (in the same file) scares cats and pigs at a crash, and `PopulateAnimals`
+(`systems/populate-animals.ts`) keeps them around the player.
 
 | Species | Radius (m) | Mass (kg) | Walk (m/s) | Run (m/s) | Home range (m) | Lethal (m/s) |
 |---|---|---|---|---|---|---|
@@ -912,16 +942,24 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   bank ([water.md](water.md#people-and-animals-in-the-water)).
 - **Roaming.** An animal rests (a cat 4–20 s, a dog 3–12, a cow 8–40 grazing, a pig 4–15; TUNED),
   then walks to a random point within its home range of home where it may stand: cows on pasture
-  cover (meadow, grassland, farmland), pigs on open ground, cats and dogs anywhere outdoors. Blocked
+  cover (meadow, grassland, farmland), pigs on open ground, cats and dogs anywhere outdoors. A
+  point on the railway's track at grade or over it is brought back to the animal's side, 3 m off
+  the centreline beside where it was drawn (`ownSide`, `rail/bodies.ts`, with the same draws), so
+  animals never wander onto the line; a line on a bridge or in a tunnel there is no barrier. Blocked
   for 1 s on the way it picks another point; with 4 points that will not do, it rests again.
 - **Fear.** What scares each species (TUNED; a crash is `Startle`'s, below):
 
-  | Species | A vehicle | A person | A horn | A crash or a body struck | Cries out (`Cry`) |
-  |---|---|---|---|---|---|
-  | cat | faster than 3 m/s within 8 m | on the move (faster than 0.3 m/s) within 2.5 m | | within 20 m | fright, 50 % |
-  | dog | faster than 8 m/s within 6 m | | | | fright, 30 % |
-  | cow | faster than 8 m/s within 10 m | | an AI `Honk` within 15 m | | surprise, 50 % |
-  | pig | faster than 5 m/s within 8 m | within 3 m | | within 20 m | fright, 80 % |
+  | Species | A vehicle | A person | A horn | A train's whistle | A crash or a body struck | Cries out (`Cry`) |
+  |---|---|---|---|---|---|---|
+  | cat | faster than 3 m/s within 8 m | on the move (faster than 0.3 m/s) within 2.5 m | | within 30 m | within 20 m | fright, 50 % |
+  | dog | faster than 8 m/s within 6 m | | | within 20 m | | fright, 30 % |
+  | cow | faster than 8 m/s within 10 m | | an AI `Honk` within 15 m | within 40 m | | surprise, 50 % |
+  | pig | faster than 5 m/s within 8 m | within 3 m | | within 30 m | within 20 m | fright, 80 % |
+
+  A train's car counts as a vehicle by the distance to its body (a car's middle can be 10 m from
+  an animal beside its end), and only on the animal's level. A train's horn sounds 120–125 dB(A)
+  at 5 m (UIC 644), about 20 dB over a car's (an estimate), so its whistle carries further than an
+  AI horn.
 
   A scared animal runs at its running speed for 2–5 s away from the threat, and from a vehicle off
   its path (away from the point beside it on the car's path ahead); scared again while running, it
@@ -965,19 +1003,623 @@ pigs come out only where the player is out in the country, with fewer than 60 re
 | Pigs | 0.15 × the rural pens within 140 m (TUNED) | 5 | 1–3 by a pen, 5–15 m off it on open ground | 140 m |
 
 - Each run brings out at most one cat, one dog, one herd and one litter, never indoors and clear of
-  walk walls and the water's edge. Every animal beyond its kind's reach is despawned, the dead and dogs on a lead
-  included. Dogs on a lead come with their walkers ([Parties](#parties)) and count for no kind.
+  walk walls, the water's edge and the railway's track at grade (3 m or more off a line's
+  centreline, `offTrack` in `rail/bodies.ts`: 18 of 362 animals brought out along the line came out
+  on it before, and a train braked for them). Every animal beyond its kind's reach is despawned, the
+  dead and dogs on a lead included. Dogs on a lead come with their walkers ([Parties](#parties)) and
+  count for no kind.
 - Free dogs come out in village outskirts too, where houses stand on meadow or grassland cover
   (Monzone's start has 65 farms within 140 m, Equi Terme 111, Gragnola's centre none).
 - With the player staged at each spot for 30 s: Gragnola's centre 4 cats; Vinca 3 cats; Monzone Alto
   2 cats and 2 dogs; Monzone's start and Equi Terme 2 cats and 3 dogs; the SR445 none; the farm at
   (375, 388) 8 cows, 2 pigs and 3 dogs.
 
+## Trains
+
+One AI train runs each line of the map end to end and back, calling at every station, with no
+timetable; level crossings close for it, traffic queues at them, people hold short of them and
+animals keep off the line. A train stops for what is on its track if it can and strikes what it
+cannot avoid, but only what is on its level. The player can steal one at its cab and drive it
+([Driving a train](#driving-a-train)). The systems are in `src/sim/rail/`
+([architecture.md](architecture.md)); the render draws the trains, lit at both ends, and the
+crossings' arms and lights ([Trains and crossings](architecture.md#trains-and-crossings)), and the
+audio plays the trains, their horns and the crossings' bells
+([Trains and level crossings](audio.md#trains-and-level-crossings)).
+
+### The service
+
+The same on every line, from `MAP.railway` alone (`rail/service.ts` drives the trains,
+`rail/dispatch.ts` brings them in and takes them off), so a map with more railways needs no new
+code:
+
+- **A line** (`LINES`, `rail/lines.ts`) is the map's running track from one terminal to the other
+  ([map.md](map.md)), joined into one polyline in arc length s (0 at its first terminal) and
+  extended straight and level past both terminals: over the drawn apron (`DRAWN_RUN`, 192 m, the
+  render's) to the end of the run-out, where trains enter out of view. Each run-out is sized from
+  the line speed at its end (`runOut`): the strike-in of a box at the map's edge
+  ([Level crossings](#level-crossings)) plus the longest train's length, and never less than the
+  drawn run, so a train entering at that speed is beyond view and finds even that box down before
+  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. Today's one line, Lucca–Aulla from
+  the east edge by Minucciano to the north edge toward Fivizzano, is 10,910.9 m, with Equi Terme at
+  s 4103.7–4239.3, Monzone at 6675.7–6779.4 and Gragnola at 10093.9–10240.
+- **Shared track.** Lines that run on the same pieces of `MAP.rail`, or past the same terminal,
+  share that track (`SHARED`): one line's s there maps onto the other's, either way round, one
+  stretch for as many pieces in a row as they share (`sharedTrack` joins them, so two trains
+  meeting over a joint are pushed apart just to touch). The build makes such lines at every
+  junction, a branch sharing the main line up to it. Each AI train keeps clear of every train on
+  its track, whichever line it runs, and each level crossing closes for the trains of every line
+  crossing it. Trains of two lines sharing track run it the same way: a new game faces them so,
+  and no train enters toward another line's train running at it there (below). Two AI trains that
+  still meet head-on both brake to a stand 30 m apart ([The AI driver](#the-ai-driver)). Measured
+  on a map with a second line running the first's whole track the other way round
+  (`service.test.ts`): 2 h of game time from a new game in each of seeds 1–6, 25–28 trains run,
+  none strikes another and no two stand face to face.
+- **One train per line.** It calls at each station in turn, stopping centred on the platforms, and
+  dwells 30–60 s (`DWELL`: opening, the passengers, the 3 s closing warning and closing take about
+  30–45 s at such halts, after Rail Engineer's door timings, and the timetable books 1 min). A
+  dwell runs on the game clock: while the day stands still (behind the title card, or at the dev
+  menu's rate 0) the train waits on. Past its last station it runs on at line speed and is removed
+  in the step its whole body runs past the drawn run, beyond view (`Dispatch`). The line's next
+  train is then due after a layover of 60–180 s (`LAYOVER`), from that end, going the other way.
+  The dwells and layovers are the "small random delays"; they draw from the railway's own stream,
+  `RailRng`, never from `Rng`, so trains change nothing traffic, people, animals or parking draw.
+- **A stolen train** is its line's one train while the player has it: the line gets no other
+  (unless a `SetTrains` call brings one in, which keeps 30 m behind it as behind any train). Once
+  the player has left it and all of it is out of view (`VIEW_REACH`, 90 m, as people and cars are
+  quietly removed), it is removed, and the line's next train is due after a layover, from the end
+  nearer where it stood. Left in view (Monzone's platforms are 58.6 m from the start, where the
+  player comes back too), it stays, and so does the line's wait.
+- **Entering.** A due train enters with its tail at the run-out's end, at line speed, once no AI
+  train runs on its line, no train is on its run-out and none lies within its braking distance
+  ahead of its nose, short of `KEEP_BEHIND` (`entryClear`: the driver's plan, 0.6 m/s² begun 1.5 s
+  early, plus 30 m; 530 m from 85 km/h), and no AI train of another line runs the other way on
+  track the two share, anywhere on it: it would meet that one head-on, so it waits until that one
+  has run off. Entering 1 m outside that clearance of a train standing on
+  the line, it stops 30.2 m behind it, braking at 0.609 m/s² at most.
+- **A new game** starts with each line's train already dwelling at the station nearest the player's
+  start whose platforms no train placed already stands on, with 30 m to spare (lines sharing track
+  take the next nearest; a line with every one taken gets its first train from a run-out), its dwell
+  drawn from `RailRng` (`FillTrains`). It faces the way that takes it past the line's point nearest
+  the start, so it passes the player (drawn from `RailRng` where either way does), unless a train
+  placed already ahead that way on track the lines share faces it: then the other way, and, facing
+  one either way, the next station. The player starts 36.8 m from the line at Monzone, 81 m from Via
+  Riolo's crossing: the train leaves Monzone toward Equi Terme and passes the line's point nearest
+  the start 44–68 s after play starts in seeds 1–16 (behind the title card the day, and the dwell,
+  stand still), unseen at 1280×720 ([The first train passes out of view](#train-limits)).
+- **`SetTrains`** makes a train due now on every line no AI train runs on (`ApplyTrains`): the
+  tests send it, and so do the dev debug menu's "Call trains now" (P, Trains) and
+  `gta.trains.call()`. Measured at seed 1 with the player's stolen train standing at Monzone: the
+  call made the line's train due, and it entered at once from the Equi Terme end at 85 km/h.
+
+Measured over a round trip from the east end (dry rail unless named; the dwells are those seed 1
+draws):
+
+| Run | Terminal to terminal | Of it dwelling | Top speed under 85 / 80 / 85 km/h |
+|---|---|---|---|
+| east to north, dry | 745.9 s | 112.4 s | 85.0 / 80.0 / 82.6 km/h (the last 711 m start from Gragnola) |
+| east to north, wet / under snow | 746.6 s / 750.9 s | 112.4 s | the same; 82.2 km/h out of Gragnola under snow |
+| north to east, dry | 825.2 s | 127.4 s | 85.0 / 80.0 / 79.8 km/h (the climb to the east edge, 21 ‰ in the Ugliancaldo tunnel) |
+| north to east, wet / under snow | 826.1 s / 831.9 s | 127.4 s | the same |
+
+Every stop of those runs landed 0.22 m short of its stop point, and the hardest braking was 0.612
+m/s².
+
+### The AI driver
+
+`TrainAI` (`rail/service.ts`, with `rail/driver.ts`) works each AI train's lever (`CarInput`):
+
+- **The speed it may run at** is the least of the line speed (OSM's `maxspeed`, the lowest under the
+  train until its tail clears; a stretch with none at its lower neighbour's, a line with none at 80
+  km/h, rank B on a secondary line) and the braking curves to everything ahead it must meet slower:
+  a lower limit, its next station's stop point, 30 m behind any train ahead on its track
+  (`KEEP_BEHIND`, at that train's speed, on its own line or another's shared track; nearer, 0.5
+  m/s slower than it per metre short, `FALL_BACK`, so it drops back: from 15 m behind at 8 m/s it
+  is 20.5 m behind 4 s on), 30 m short of where a train coming at it on its track stands once its
+  driver brakes as this one plans to (its braking distance on, so two meeting head-on both stop
+  30 m apart: 30.2 m from 20 m/s each, 1500 m apart), and 30 m
+  short of a level crossing whose arms are not down (`CROSSING_HOLD`: the crossing's protection
+  signal clears only once they are, RFI's signal rules art. 53), ahead with its near edge short of
+  its next stop.
+- **At a crossing not yet down**, standing (under 0.5 m/s) with that hold point within its
+  braking distance from the line speed there (the plan below from that speed: 445 m from 80 km/h),
+  it waits where it stands until the arms are down, so it never moves off only to brake again;
+  past the hold point it brakes to a stand. Standing ready, it has the box closing already
+  ([Level crossings](#level-crossings)). Standing in state `run` 50–450 m short of Viale 20
+  Settembre (80 km/h there), it waits the 19 s the arms take and moves off 0.7–1 s after they are
+  down, the brakes letting go; 550–1300 m short it moves off at once; it never slows for the box.
+- **Each curve** is planned at `min(0.6, 0.8·μ(v)·grip·g + g·rise/d)` m/s² (0.6: RAIB's middle
+  braking step; 0.8 of the rail's adhesion, which the wheel-slide protection sheds past 0.9; the
+  rise or fall to the target over at least 20 m) and begun 1.5 s early, the brakes' ease time. On
+  the curve the driver asks the dynamics for the deceleration that meets its target; off it, it
+  closes on the speed at 0.5 m/s² per m/s. Once it and the speed it may run at are both under 0.5
+  m/s, it lets go of the lever and the brakes hold the train.
+- **Calls.** Stopped (under 0.01 m/s) within 3 m of its stop point or past it, it dwells; when the
+  dwell ends it runs on to the next station, or off the line past the last.
+- **Whistle.** 30 m before the mouth of a tunnel 200 m long or more (RFI's signal rules, art. 5:
+  curved tunnels and long straight ones), it sounds a moderately long whistle (`Whistle`, about
+  1.5 s, for the audio to play): the Ugliancaldo tunnel (3194.5 m), and those of 271.2 and 225.0 m;
+  the 66.8 m one gets none.
+- **The look-out** (`rail/lookout.ts`; RFI's signal rules art. 5(e): people on or next to the track
+  call for the whistle; the Italian investigation report on the Caluso crossing crash of 2018, of a
+  driver at Bojano: the urgent brake and the horn together). A person, an animal or a vehicle on the
+  track ahead holds the train (`TrainRun.state` `braking`, `horn`, then `creep`): their body within
+  the train's half-width and 0.3 m of the centreline (`CLEARANCE`), on its level (their ground
+  within 2 m of the rail head, `LEVEL`), on a platform only reaching into the train's body itself
+  (at its very edge, 1.7 m off the centreline), ahead of the nose within its emergency stop and 20 m
+  more (`lookoutReach`: v²/(2 × 1 m/s²), the emergency brake under snow, plus 1.5 s of brake ease:
+  334 m from 85 km/h, 20 m standing), and short of its next stop by no more than 5 m. Held, the
+  driver pulls the emergency brake and sounds the alarm (an urgent `Whistle`, 1.6 s long) on taking
+  the hold and every 2 s after it; standing with the track still fouled within 60 m (`HELD_SIGHT`,
+  so what it stopped short of keeps it held), it sounds the horn until 10 s (`HORN`) after the
+  alarm's last beat (8–10 s from the stand), the alarm going on every 2 s, then creeps on at no more
+  than 1 m/s (`CREEP`), its nose pushing what is there off the track, until the way is clear; then
+  it runs again. The alarm keeps its 2 s beat however often the train is held again
+  (`TrainRun.until`, the step the next is due from), so no two overlap: with the player stepping
+  half a pace on and off the track's edge (1.4 and 2.4 m off the centreline) in front of a held
+  train every 0.5, 0.8, 1.2 or 2 s for 48 s, the alarms sounded 2.0–4.0 s apart (taking each hold
+  with the alarm at once, every 0.5 s they would start 1.0 s apart, each over the last). A vehicle
+  touching its body alongside, within 0.1 m of its side (`SCRAPE`), from its nose to its tail, holds
+  it too (`touchingAlong`): one it shoved aside and now scrapes past, pinned by a wall, or one that
+  ran into its side. So it creeps past at a walk and runs on only once its tail is by. A held train
+  is ready to go: it keeps the boxes ahead within their strike-in closed. Measured at Via Riolo: a
+  car standing across the track 120 m short of the box, the train 420 m short at 80 km/h, stops 39 m
+  short of it, sounds the horn 10 s, creeps 40 m in 40 s, pushes the car 16 m along and 3.4 m off
+  the centreline (at 1 m/s: no hit, no damage) and runs on, the box down throughout; a man standing
+  on the box, the train 320 m off, hears the alarm at once and runs off the track, and the train
+  stands short of where he stood, then goes on.
+
+### Train physics
+
+`TrainPhysics` (`rail/systems.ts`, with `rail/dynamics.ts`) moves every train, AI or not, as one
+rigid body along its line, the single-mass model of OpenRails and TrainRuns.jl:
+`m·ξ·dv/dt = traction − brakes − (A + B·v + C·v²) − m·g·grade − m·g·curve`.
+
+| ATR 220 Tr "Swing" (`TRAINS`, `rail/models.ts`) | Value | Source |
+|---|---|---|
+| Cars | 19.535 + 16.5 + 19.535 m = 55.57 m, on Jacobs bogies at the joints, the outer bogies 2.5 m in from the noses | pesa.pl (55.57 m); the FSE poster's side drawing (±0.5 m); pl.wikipedia (B′2′2′B′) |
+| Width, height over the rail, floor | 2.883 m, 4.185 m, 0.6 m | pesa.pl, FSE poster, pl.wikipedia |
+| Mass, rotating-mass factor | 108 t in service, ξ 1.08 | pl.wikipedia; TrainRuns.jl after Wende 2003 |
+| Power at the rail, starting force | 640 kW, 95 kN | estimates: 2 × 390 kW (pesa.pl) × about 0.82 through the hydrodynamic transmission; fitted to the FSE poster |
+| Driven share of the weight | 0.5 (4 of 8 axles) | pl.wikipedia |
+| Running resistance A, B, C | 2.0 kN, 76 N·s/m, 5 N·s²/m² | Dittus et al. 2011's 100 t DMU, × 1.08 for the mass |
+| Top speed | 130 km/h | pesa.pl |
+| Full service, emergency brake | 0.9, 1.2 m/s² | RAIB Report 25/2006 |
+| Engines | 2 × MAN D2876 LUE623: diesel six, 12,816 cm³, turbo, 390 kW at 1800 rpm, idle 600 rpm, torque 2300 N·m from 1300 rpm (estimate), one per end car; crew doors 2.5 m behind each nose | MAN, pesa.pl |
+
+- **Traction** is the least of the starting force, the power over the speed and the driven axles'
+  adhesion, `μ(v) = 7.5/(3.6·v + 44) + 0.161` (Curtius–Kniffler, OpenRails' constants: 0.33 at rest,
+  0.23 at 60 km/h), times the rail's grip: 1 dry, 0.6 fully wet (OpenRails' lowest rain factor), 0.5
+  under snow, from the weather's wet and snow at the train's nose (`groundAt`); in a tunnel the rail
+  is dry. It cuts out past 130 km/h, and backing up past 30 km/h.
+- **Brakes** are a share of the emergency rate, held to 0.9 of the rail's adhesion (the wheel-slide
+  protection); the curve's drag is Röckl's, 650/(R − 55) N/kN from 300 m up and 500/(R − 30)
+  under; the grade is the rise between the train's ends over its length.
+- **The lever** (`CarInput.throttle`, −1…1, toward the active cab's facing) is power along the
+  motion or from rest, and the brake (up to full service) against it; the handbrake is the
+  emergency brake. The power eases from none to full over 2 s, the brakes over 1.5 s (estimates for
+  engine spool-up and brake-cylinder fill).
+- **Brakes and resistance never reverse a train**: they hold it like static friction at rest. The
+  grade does: released on 25 ‰ it rolls back. Below 0.5 m/s with the lever at rest the brakes hold
+  it at full service, as a driver's would. No train runs past the ends of its line's run-outs, and
+  the player's not past the buffer stops ([Driving a train](#driving-a-train)).
+- **Trains that meet** on one track (one line's, or track two lines share) strike each other in
+  one dimension, inelastically (restitution 0: what a train strikes is pushed, not bounced off):
+  they are pushed apart to touch, the
+  lighter the more, and go on together at their common speed. Closing faster than 0.5 m/s
+  (`TOUCH_SPEED`: trains couple at a walk) it is a `train` `Impact`, its `car` the train that ran
+  faster into the other, `other` the one struck; slower they only touch. A train takes no damage
+  and never derails. An AI train with another train against either end (within 0.5 m, `AGAINST`)
+  is held as for something on the track ahead ([The AI driver](#the-ai-driver)): the emergency
+  brake and the alarm, then the horn and a creep on once the way is clear; one dwelling, shoved
+  along, pulls the emergency brake.
+- Measured on level track: 0–40 km/h in 16.9 s (0.66 m/s² on average; the FSE poster: at least
+  0.5), 0–60 in 32.4 s over 315 m, 0–80 in 56.0 s over 779 m; it holds 97.5 km/h up 15 ‰ and
+  72.0 up 25 ‰, and starts on 27 ‰ (the poster: it does). From 80 km/h the full service brake
+  stops it in 275 m (24.5 s), the emergency brake in 215 m dry, 221 m wet and 254 m under snow.
+
+### Driving a train
+
+The player steals and drives a train as a car, with the same keys (`EnterExit`, `PlayerDrive`,
+`RideAlong`; `rail/boarding.ts`, `rail/collisions.ts`):
+
+- **Boarding.** A train has a crew door each side 2.5 m behind each nose. Within 2 m of one
+  (`ENTER_GAP`), the player's `Footing` on the rail's level there (within 2 m of the rail head,
+  `LEVEL`: not from a road bridge's deck over it, nor from the road tunnel under it), with no walk
+  wall between, and the train moving
+  slower than 1.5 m/s (`BOARD_SPEED`, a walk), the action key gets in: the nearest door, unless a
+  vehicle's body is nearer still. The HUD prompt offers the same (`ATR 220 Swing`, `carjack` while
+  an AI driver is aboard).
+- **Stealing.** Taking an AI train removes its driver (`TrainRun`), who gets out of the active cab,
+  across it from the player when the player boards there, else by its left door first, or, with no
+  door there to step down from (on a bridge, in a tunnel), out of the far cab, and flees along the
+  verge as a carjacked driver does; with no door free at either, none appears. The first boarding
+  tags the train `Stolen` and scores a theft.
+- **The far cab.** Boarded at the far cab, that cab becomes the active one: the train's nose is
+  that end, the cab faces the other way, and the power keeps its pull.
+- **Controls** (`CarInput`, [Train physics](#train-physics)): up powers toward the cab's way and
+  down away from it; against the motion either brakes, up to the full service brake; from a stand
+  down backs the train up, no faster than 30 km/h (`REVERSE_MAX`: its power cuts out past it and
+  the train's SCMT brakes it, down a grade too); Space is the emergency brake; left and right do
+  nothing, so on a touch screen ◀ ▶ hide in a train; H is the horn key, as in a car,
+  sounding the train horn's high tone. With no key held the train coasts, and below 0.5 m/s its brakes
+  hold it.
+- **Riding.** The player rides at the active cab's driver's place, 2.5 m behind the nose, facing
+  its way, moving with the train; the camera follows them as a car. The view carries the cab's
+  ground (`PlayerView.z`, the rail head there), so the camera stays on the train on a rail bridge,
+  where the map's ground is the valley below.
+- **Getting out.** Only slower than 1.5 m/s (`boardable`, which the HUD prompt and the touch
+  action button ask too, so neither offers `exit` faster), at a door of the active cab, on the side
+  of a station's platforms where the door is along them, else its left first (the driver's side, as
+  in a car), then its right, 0.6 m out from it: where the door is at grade (on no bridge and in no
+  tunnel) between the line's terminals, with ground there on the rail's level (the ground on foot
+  nearest the rail head: beside the track over a road underpass, or under a road bridge, it is the
+  track's bank, not the tunnel's floor or the deck), clear of walk walls with none between it and
+  the track. The player stands on the ground there on the rail's level. None that is: the player
+  goes through the train to the far cab, which becomes the active one, so a train stopped on a
+  viaduct or in a tunnel can be driven back the way it came, and the action key there again gets
+  out at that cab where it can. The train is left on its emergency brake.
+- **SCMT and the buffer stops.** The player's train runs no farther than the end of the drawn track,
+  192 m past each terminal (`DRAWN_RUN`, the render's apron): a buffer stop there. Its SCMT
+  (`supervise`; on overspeed SCMT warns, cuts the traction and brakes, then applies the emergency
+  brake, Lupi's railway course, University of Pisa 2022–23) watches its speed against the braking
+  curve to the buffer ahead, the
+  AI driver's plan (0.6 m/s², or what the rail's adhesion allows, begun 1.5 s early), and, backing
+  up, against 30 km/h: over it, it cuts the power and applies the full service brake; 5 km/h over
+  (`OVER`, the tolerance of SCMT's continuous supervision), the emergency brake. A train that still
+  reaches the buffer stops dead against it, and faster than 0.5 m/s that is a `wall` `Impact` with
+  the train as its `car`. Measured with the up key held from 1500 m short: from 20, 30 and 36 m/s
+  the train tops out at 98.8, 117.0 and 130.5 km/h, begins braking 663, 923 and 1135 m short, at the
+  service brake (never the emergency), and stops touching the buffer, under 0.5 m/s; one 60 m short
+  at 25 m/s pulls the emergency brake and strikes it at 22.8 m/s.
+- **What it meets**: other trains ([Train physics](#train-physics)), and vehicles, people and
+  animals as any train ([What a train strikes](#what-a-train-strikes)): someone it knocks down
+  scores a hit, as the car's do.
+- **Left behind**, a stolen train goes once all of it is out of the player's view
+  ([The service](#the-service)).
+
+Measured, the player's train stolen at Monzone toward Equi Terme, driven on a 0.6 m/s² braking curve
+(the test's driver): 2.56 km, climbing 58 m (23 ‰ on average), in 175 s at most 70 km/h, stopped 0.8
+m short of Equi's stop point, its body on the platforms; backing up from there, down the grade, at
+30.03 km/h at most. Driven at 12 m/s into an AI train running 3 m/s ahead it strikes at 6.6 m/s;
+together at 10 m/s, the AI train on its emergency brake (and sounding the alarm) and the player's on
+full service, both are under 0.5 m/s 10.6 s later. Into a train dwelling at Monzone at 12.5 m/s,
+they stand 6.5 s later, the dwelling train shoved 22 m along.
+
+### Level crossings
+
+`MAP.railway.crossings` gives the boxes (`CROSSINGS`, `rail/crossings.ts`; the cycle and demand
+are in `rail/barriers.ts`): today Via Riolo by Monzone, Viale 20 Settembre, Via Castel dell'Aquila
+(over Gragnola's two tracks) and Via Nuova, all automatic full barriers (half barriers need a median
+the roads lack, CdS art. 44), and Equi Terme's foot crossing, a path over the track: it runs the
+same cycle with no arms, light or bell, for walkers.
+
+- **The lines it crosses** (`on`): every line whose track passes within 0.5 m of one of the box's
+  nodes (each node is a vertex both the road and a rail piece have; parallel tracks lie 4 m apart),
+  at grade there, each with its s, the carriageway's reach either side of it along the line (the
+  road's half-width over the crossing angle's sine) and its strike-in. So a box on track two lines
+  share, or over two lines' tracks, closes for the trains of each, and it is level-aware: a line
+  passing over the road on a bridge, or under it in a tunnel, does not cross it. Today each box has
+  one, the map's line; Gragnola's loop, which Via Castel dell'Aquila also crosses, is no line's.
+
+- **Each road approach** has a stop line whose nearer corner stands 3.75 m from the nearest track
+  centreline (3.5–4 m keeps a waiting car's nose clear of the train), the box entry and the arm 1 m
+  past it, and the arm's post on the right of the way in, 0.5 m off the carriageway, with the steady
+  red road light (CdS art. 44). Down, the arm spans the road: 5, 7, 8 and 7 m (RFI's 4–8 m arms, the
+  shortest that reach the far edge). The traffic steps leading in, up to the first junction, another
+  box or 100 m back, are tabled with their distances to the stop line, the entry and the far side
+  (`APPROACHES`), each step into the box it reaches first; Via Riolo's south-east stop line falls
+  inside the junction 6.5 m from the box.
+- **The cycle** (`LevelCrossings`): a demand lights the light and rings the bell 7 s before the arms
+  move (`WARNING`; the law asks at least 5 s, DPR 495/1992 art. 186), the arms come down over 12 s
+  (`LOWERING`; the TD96/2 box sets 10–15 s) and stay down; 2 s after the last demand (`RELEASE`)
+  they rise over 12 s (`RAISING`). The bell rings in the warning and while the arms come down (art.
+  186 c.4); the light is lit from the warning until the arms are up (`crossingAt`, shared with the
+  render and the audio). A demand while they rise lowers them again from where they are. Drawn,
+  each way in has its arm with three red lamps and a hanging skirt, and the red road light on its
+  post; the lamps and the light are lit, by day too, while the light is. The arm hinges on a white
+  housing beside the road, each way in has a white stop line, and the track crosses the road on a
+  concrete panel, its rails laid over the road
+  ([architecture.md](architecture.md#track-and-stations)).
+- **The strike-in** (`strikeIn`) is fixed by the line speed at the box, as a real crossing's
+  closing point is: the run in which a train at that speed covers the warning, the lowering and 4 s
+  to spare (`SPARE`, room for the driver's slack), then brakes on its plan to the hold point 30 m
+  short, so the arms are down before it would brake for them. 1073 m at 85 km/h, 45 s there, as a
+  strike-in set for 45 s of warning at line speed (the law asks at least 30 s for half barriers,
+  art. 187); 986 m at 80 km/h, 2.0 km at 130. A train braking, crawling or standing ready inside it
+  keeps the box down rather than letting it rise and come down again.
+- **Demand**: a train on a line crossing the box with any part within the box and 2 m either side
+  (`MARGIN`); one moving toward it (over 0.5 m/s) with the end leading its motion within the
+  strike-in, or within the strike-in at its own speed if it runs faster than the line; or a train
+  standing ready to go with the box ahead within the strike-in: an AI train running, or 20 s before
+  its dwell ends (`DEPARTURE`: the 19 s the arms take, and 1 to spare), and the player's with its
+  lever forward (the bell rings the step the up key goes down, before the train moves; backing up,
+  it demands the boxes once it moves). An AI train does not demand a box
+  whose near edge (the carriageway and 2 m) lies past its next stop: that one waits for its
+  departure, so Via Riolo stays open while a train from Gragnola comes into Monzone and dwells
+  there, until 20 s before it leaves; a box its head would stop on is demanded on the way in.
+- Measured closures, the bell to the arms fully up, for a train calling at every station (dry; wet
+  rail adds at most 0.3 s, snow 2.0 s):
+
+  | Crossing | East to north | North to east |
+  |---|---|---|
+  | Equi Terme's foot crossing | 73.9 s | 52.4 s |
+  | Via Riolo | 66.5 s | 57.7 s |
+  | Viale 20 Settembre | 61.7 s | 71.8 s |
+  | Via Castel dell'Aquila | 54.2 s | 71.0 s |
+  | Via Nuova | 69.8 s | 62.9 s |
+
+  The arms were down every time the train's leading end reached a road box, the bell having rung
+  34.7–53.6 s before (35.8–55.4 s under snow); the foot crossing's cycle began 32.1–52.1 s before.
+  An estimate from the legal minimums and the TD96/2's settings gives 45–75 s for a regional train
+  at 70–100 km/h.
+
+### Around the trains
+
+What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/strikes.ts`,
+`rail/bodies.ts`), the same on every line, from the map's lines and boxes alone:
+
+- **On its level only.** Every rule between a train and a body applies only where the body's
+  ground stands within 2 m of the rail head there (`LEVEL`): a vehicle's from its chassis, a
+  person's or an animal's on foot from its `Footing` ([Footing](#footing)). So a train on the rail
+  bridge over Via delle Cave by Monzone, over the underpass east of the station (a road in a tunnel
+  5.5 m under the track, which crosses it on a 20.7 m bridge), in the Ugliancaldo tunnel under the
+  fields (at its middle the ground stands 440 m over the rail) or under the road bridge by Equi
+  Terme meets nothing on the other level: a car and a walker on the road under it go on exactly as
+  with no train overhead, a cow over the tunnel keeps grazing, and a walker on the deck over the
+  track is passed by. Someone on the track itself under the road bridge, or over Equi Terme's
+  pedestrian underpass (the track at grade over it), is on the train's level: struck, held for and
+  whistled at, as anywhere at grade; walking the track onto the bridge over the underpass, they step
+  down under its deck ([Train limits](#train-limits)).
+- **Under the rail bridges, in the water.** No deck of a rail bridge is ground anyone stands on, so
+  whoever is at one is under it, wading or swimming on the river's bed (someone walking the track
+  onto a bridge steps off its end, [Train limits](#train-limits)): a swimmer swept under the
+  Aulella's bridge at Gragnola in a spate (its deck 9 m over the bed) is passed over exactly as with
+  no train. The three streams that cross the track run through its culverts or under its deck
+  ([water.md](water.md#depth-and-current)), so its whole rail bed stays dry there at every flow up
+  to the record flood.
+- **A train's bodies** (`trainCars`): each car is a capsule along its axis, round at the train's two
+  noses (a radius of half its width, 1.44 m) and square at the joints, moving along the track at the
+  train's speed, its line's speed its street's pace.
+
+#### Footing
+
+Where each body on foot stands (`Footing`, `systems/footing.ts`), so the railway's rules can tell
+its level:
+
+- **Kept from step to step.** Each step, before anything moves (`FindFooting`), every body on foot
+  (the player out of a vehicle, each pedestrian and each animal) keeps to the level it was on: the
+  ground where it is now nearest its last footing, a road bridge's deck or a road tunnel's floor
+  reaching out to its walkers' verges (`footZ` with that height, as the render places a figure).
+  So it walks onto a deck or into a tunnel along the road, and stays on the track over a road
+  tunnel or under a road bridge.
+- **Into a road tunnel's mouth.** An at-grade road's surface never dips under the terrain, and the
+  map build cuts the mouths of the underpasses (it once buried them 5.0–5.4 m deep,
+  [map.md](map.md)), so walking in along a road keeps to it and onto the tunnel's floor, with no
+  rule of its own: one keeping walkers within 6 m of a mouth to their road's profile changed no
+  walk's footing by more than 0.5 m (walking in along every road at grade out of every road tunnel's
+  mouth, on its centreline, its carriageway's edge and its verge, both sides, from 12 m out to 3 m
+  in: 228 walks); off those walks it only held a few metres of verge at the road's level by a 7 m
+  road tunnel whose road runs 5 m over the terrain, where every other stretch of that road's verge
+  lies on the terrain. Along every road into the road tunnels under the line (`UNDERPASS_WAYS`: both
+  ends of the four under its bridges and Equi Terme's pedestrian underpass from the street, nine
+  ways), the footing under the track is the floor, 5.5–9.7 m under the rail; the player standing
+  there, a train passes over at 25 m/s and they are not struck. Equi Terme's underpass from the
+  north, its path joined 1.7 m over its floor, is a map limit ([Train limits](#train-limits)).
+- **The first.** One with none yet (just brought out, or from a save made before footings) takes
+  its way's road where that is a deck or a tunnel's floor, else the ground at the terrain's level
+  (`firstFooting`).
+- **Set down.** Getting out of a vehicle, the player stands on the ground beside it on the level
+  its wheels stand on, out of a train on the rail's; thrown from a wreck, the same; coming back at
+  the start, on the ground there. A driver who gets out and runs starts on the same level.
+- Measured on the track over Equi Terme's pedestrian underpass (s 4080, the tunnel's floor 6 m
+  under the rail): the player there is struck by a train at 30 m/s, and a man standing there holds
+  an AI train 300 m off, which sounds the alarm. Taken from the place alone, they were in the tunnel
+  below, and neither happened.
+
+#### Traffic at the crossings
+
+`TrafficAI` keeps to `atCrossings` (`rail/roads.ts`) on each way into a box (`APPROACHES`: the step
+the car is on or the next one):
+
+- **Stop for a box not open.** A car stops with its nose 0.3 m short of the stop line (`LINE_SLACK`),
+  or, once past it, of the box entry, braking along a 3.5 m/s² curve (`STOP_DECEL`) and then the
+  cone's 0.8 m/s per m, and never nearer the track than 0.5 m outside a train's envelope
+  (`ENVELOPE_SLACK`; the envelope is the widest train's half-width and 0.3 m, 1.74 m from the
+  centreline), measured from its body along its heading: where a junction lies inside the box, as
+  at Via Riolo's south-east side, a car coming round its corner is past the table's line and entry
+  before it reaches the track. In the warning it stops only if it can at 3.5 m/s² or gentler (one
+  braking already, at 6 m/s², `HARD_DECEL`, under the Ape's and the truck's 6.5): else, or past the
+  entry, it clears the box, as the law asks of a car already at the line when the light comes on
+  (CdS art. 147). From the lowering on it always stops: no car drives onto the track under arms
+  coming down or down. A car whose body already reaches into the envelope clears the box, whatever
+  the phase. At 7 m/s with the bell just rung, a Panda 12 m short of the line (2.1 m/s² to stop)
+  stops; one 5 m short (4.3 m/s²) goes over.
+- **Keep clear.** Within 30 m of the entry, a car does not drive onto a box, open or not, while a
+  vehicle slower than 2.5 m/s stands in its lane within its length and 2 m past the far side: the
+  box is no place to stop. In its lane is within 0.15 m of its footprint, as its braking cone keeps
+  clear (`LANE_CLEAR`), and, for one heading its way, 0.5 m more (`PATH_SLACK`): the box's straight
+  on past its far side, where the lane is measured from, may stray from where the lane runs (0.37 m
+  on Via Volturno, where the road bends a little past the box), the car from its lane (0.14 m
+  there), and the cone bends with the wheel. One coming the other way, queued in its own lane, never
+  takes the room: it drives through toward the car, and the two holding for each other would wait
+  for good. Too near its line to stop there at 6 m/s², it stops short of the envelope instead. That
+  hold counts as stuck as usual, so a deadlock beyond the box still unsticks; but no car turns round
+  on a road within 12 m of a line's track at grade (`nearTrack`: its turning circle would sweep over
+  it), it backs up instead. Measured with a Panda standing on the road's axis 3.5 m past the far
+  side of each box, the box open, and a Panda, an Ape and a truck at its road's cruise speed (7–12
+  m/s) on every way in each may drive: none stands in the envelope (on Via Volturno from Viale 20
+  Settembre a Panda did for 5.3 s at a time with no slack).
+- **The junction before the way in.** Toward a box not open, a car whose way in starts at a
+  junction it has not reached does not enter the junction while the way in holds a queue with no
+  room for it behind (its length and 2 m): it stands short of the junction by the widest other road
+  there's half-width and 0.5 m. The first in line may stand with its tail in the junction: Via
+  Riolo's north-west stop line is 3.65 m from the junction with Via delle Cave. Its south-east one
+  lies 1.41 m short of the junction where Piazza Paolo Sist and Via Riolo meet, which is itself in
+  the box, 4.9 m from the centreline: cars from either arm stop short of the envelope there.
+  Measured, a Panda and an Ape coming at 8 m/s from 20 m up either arm (or its whole 8.8 m) keep
+  their bodies 2.4–6.1 m from the centreline with the arms down, and 2.4–5.8 m with the box open
+  and a car standing just past it. No truck crosses Via Riolo: its ways in are too narrow for one
+  (`allowsModel`).
+- **Patience.** While a box is not open, every car on a way into it (and any other within 60 m of it
+  heading toward it, the queue spilling back past the tabled ways in, found through a static grid of
+  the boxes, so the look costs the same however many the railway has: 0.004–0.008 ms a step for 60
+  cars with 5 to 2,000 boxes, against 0.23 ms at 2,000 checking each) waits patiently, its stuck
+  count frozen: no honk, no backing up, no turning round. That lasts while the arms rise, for 120 s
+  from the start of the warning (`PATIENT_FOR`; the closures measured below last 52–74 s), and
+  longer only while a train moves within the box's strike-in. A box held down by a standing train
+  (stolen and left on it, or an AI train held there) lets its queue honk and turn round after that:
+  in the test the first honk comes 6 s after the 120 s, a train across the road counting four times
+  slower.
+- **Trains as obstacles.** Each car of a train on the car's level is an obstacle in its cone that
+  moves on ([Traffic AI](#traffic-ai)).
+- **No traffic brought out within 15 m of a box** ([Population](#population)).
+
+Measured at Via Riolo from the north-west, two Pandas arriving 4 m and 14 m short of the junction
+with Via delle Cave as the bell rings and a walker on the verge 1 m into the way in, the train 980 m
+off at 80 km/h: the first car stands with its nose 0.87 m short of the stop line, the second short
+of the junction, its middle 6.9 m from the node; the walker holds 3.5 m from the centreline. The arms
+are down at 19 s, the train reaches the box at 46.7 s, they rise from 54.2 s and are up at 66.2 s;
+the cars are over the box 3.9 and 6.2 s later, the walker 15.6 s later. Nobody honked or counted as
+stuck, and no car came within 2 m of the track while the train was on the box.
+
+#### People and animals
+
+- **Danger and speeding** ([Reactions](#reactions)): each car of a moving train is a vehicle, at its
+  line's pace, felt only on its level. Its braking is the emergency rate, so someone ahead in its
+  path within its stopping distance cries out in fright.
+- **The whistle** draws a look from everyone within 60 m (`WHISTLE_RANGE`); the alarm (urgent)
+  sends whoever stands in the train's path, on its track ahead of its leading end within 700 m,
+  their body within 1.3 m of the train's side, on its level, running off it in fright.
+- **Holding at a crossing.** A walker whose next metre along its way would take it within 3 m of a
+  track crossing a box within 30 m (`HOLD_CLEAR`, outside the 2.54 m at which a passing train at
+  line speed alarms), while it is not, holds there watching the box: at a road box in every phase
+  but open, warning included (CdS art. 147 c.3: not while the light shows or the arms move), at
+  Equi Terme's foot crossing while a train demands it. Someone already on the track walks clear.
+  Followers stand with their leader, and a dog on a lead with its walker. Walkers wait as
+  patiently as drivers (`patientAt`): for 120 s from the warning, while the arms rise, and longer
+  only while a train moves within the box's strike-in. Then they walk on, and where a train stands
+  in the way they turn back, as a walker blocked does: by a train left across Via Riolo, a walker
+  holds 115 s on and has gone another way, more than 8 m from the track, 40 s later.
+- **Animals** run from a train's car by its body and from its whistle (`FEARS`, [Animals](#animals)),
+  and never pick a place to go on or over the track at grade.
+
+#### What a train strikes
+
+`TrainContacts` (`rail/strikes.ts`), right after `Contacts`, resolves what touches a train's cars on
+their level. A train is shoved by nothing and keeps its speed (a car is under a hundredth of its
+mass): the other body takes the whole separation and, with no bounce (restitution 0), the train's
+speed along the contact.
+
+- **A vehicle** is shoved clear, walls permitting; closing faster than 3 m/s it is a `train`
+  `Impact` (its `car` the vehicle, `other` the train), which `CrashDamage` counts as a wall at the
+  closing speed. A train striking it faster than 14 m/s (`WRECK_SPEED`, 50 km/h: a train's broadside
+  crushes a car a wall at that speed would only dent; an estimate) wrecks it outright, `fatal`: it
+  burns and blows up 5–10 s later ([Explosions](#explosions)). One a wall holds, a moving train
+  drags along with it, sliding along the wall at the train's pace as far as the wall lets it, and
+  wrecks it so faster than 3 m/s (`IMPACT_SPEED`): creeping on at a walk, the AI driver only shoves
+  it along, and the AI driver creeps for as long as a vehicle touches its body
+  ([The AI driver](#the-ai-driver)). A contact is one `Impact`: only one that begins (the two were
+  apart when the step began) is a hit, so a car held against the train is not struck again each
+  step, and the blow that wrecks it is the other. Measured under the road bridge by Equi Terme, a
+  Panda across the track between the abutments: an AI train coming at 20 m/s stops, sounds the horn,
+  creeps into it and shoves it along unharmed; a driverless train at 6 m/s strikes it at 6.2 m/s and
+  wrecks it against the abutment 0.57 s later, two hits in all (21 when every step of the drag was
+  one), and slid along the abutment it makes 3 wall hits there, not 24. Beside a wall 3.3–5 m off
+  the centreline (`BESIDE_WALL`, s 4300 and 4623), a Panda across the track that an AI train from
+  400 m at 15 m/s and from 600 m at 20 m/s stops for, then creeps into, is shoved against the wall
+  and left beside the track 3.0–3.1 m off its centreline; the train creeps past it scraping its side
+  at 1 m/s, then runs on 172 and 175 s after it set out, no hit and no damage. A Panda standing
+  across Via Riolo, struck at 18.9 m/s by a train coming at 80 km/h from 60 m (its emergency brake
+  on from the first step), is destroyed and thrown 47 m along, off the track and down its bank into
+  the Torrente Lucido beside it, where it comes to rest 5 m off the centreline in 0.3 m of water; a
+  Panda rolling at 8 m/s into a standing train's side takes a wall's hit at 8 m/s and stops against
+  it.
+- **A person or an animal** is pushed aside; struck by the train's own speed into them faster than 3
+  m/s (`KNOCK_SPEED`; as with a car, running into a standing train only stops the runner) it is
+  knocked down and thrown on with 0.6 of the train's velocity and 3 m/s to the side, away from the
+  track, or killed, by that speed: a `person` or `animal` `Impact` with the train as its `car`. The
+  player on foot too: killed, they come back at the start ([Explosions](#explosions)); in the cab,
+  never. A knockdown by the train the player drives scores, as a car's does.
+- **The death curve** (`trainDeath`): a train striking someone at v m/s kills them with the chance
+  1 / (1 + e^((10.5 − v) / 8.1)), or a car's at that speed where that is higher, nobody under 5 m/s.
+  It is fitted by weighted least squares in log-odds to the 2136 train–pedestrian casualties of
+  Southwest China in 2011–2020 by train speed ("Characteristics of Train–Pedestrian Collisions in
+  Southwest China, 2011–2020", Int. J. Environ. Res. Public Health 2022, 19(10), 6104): 57.3, 57.7,
+  71.7, 80.0 and 89.7 % died at up to 50, 51–60, 61–70, 71–80 and over 80 km/h (taken at 40, 55.5,
+  65.5, 75.5 and 90 km/h), where it gives 52, 65, 72, 78 and 86 %; at 30 km/h it gives 43 %, where
+  a tram kills almost 40 % (Gaca & Franek 2021, "Pedestrian fatality risk as a function of tram
+  impact speed", Open Engineering 11). An estimate: the data pools every age, and animals take it
+  as people do. At 80 km/h it kills 81 % of adults and 91 % of elders (a car's curve, higher for
+  them there), at 30 m/s 96 % of adults.
+
+### Train limits
+
+- **One train per line, no track reserved.** On single track there is no opposing train to protect
+  against. Lines that share track (a future map) run it the same way, but a train enters seeing
+  only the trains on its own track: a branch's train still on its own track when the main line's
+  enters toward it may come onto the shared track and meet it head-on. Then both stop 30 m apart
+  and wait for each other for good: the hook is a block table both `TrainAI` and `Dispatch` would
+  consult.
+- **Terminals are open ends** at the map's edge: the build makes no other kind, and `lines.test.ts`
+  fails on a terminal off the edge. A buffer stop inside the map would need the AI train to dwell
+  and turn back there instead of a run-out; the player's train already turns back by its far cab.
+- **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
+  over the line speed, through a box whose arms are not down and onto another train. The lever
+  forward rings the bell at once, but driven off Monzone at full power the train's nose reaches
+  Via Riolo, 115.6 m on, 18.3 s later at 11.7 m/s, the arms still coming down (they take 19 s);
+  an SCMT hold short of a box not down, as the AI's, would change the controls and is not built.
+- **One line's train at a time**: while the player has a line's train, the line runs no other, so
+  the crossings and stations along it wait until the stolen train is left and removed.
+- **A standing AI train ready to go** keeps every box within its strike-in ahead down for as long as
+  it stands there, as a real crossing stays closed for a train held in its approach.
+- **The arms are no wall.** A car whose body already reaches the envelope when the arms start down
+  clears the box under them, and a walker holds by choice: the arm is drawn down through a car still
+  under it.
+- **A dead end beside the track.** A car that reaches a dead end within its turning circle of the
+  track (Via Castel dell'Aquila's, 5.9 m from it by Gragnola) still turns round there, over the
+  track, and may stand on it; traffic is never brought out heading into a dead end and never picks
+  one while another way goes on, so only a car pushed or lost there gets in.
+- **Fleeing walkers keep to no crossing rule**: someone running from a car may cross a closed box,
+  as the look-out then holds the train for them.
+- **A train keeps its speed** whatever vehicle, person or animal it strikes, and a car it drags is
+  never let go until the wall that held it ends. Trains are never damaged. A car wedged where it can
+  move neither off nor along (under the road bridge by Equi Terme, between its abutments) is not
+  moved at all: the creeping train passes through it, up to 1.34 m deep for 1.1 s, measured; a
+  train that stopped for it instead would block its line for good.
+- **Animals can still end up on the track**: brought out off it and walking only to its own side,
+  an animal that bolts runs straight away from its fright, over the track too, and a cow shoved by
+  its herd can stand inside the envelope (by Gragnola, one rested 1.3 m off the centreline after
+  bolting, another 2.5 m off after a shove). The look-out then holds the train for it.
+- **The first train passes out of view.** At 1280×720 the view is 427 × 240 texels (`PixelView`
+  rounds 720 / 270 up to a 3× upscale), ±26.7 m of ground across and ±30 m deep about the player
+  at 8 texels a metre, and the line's nearest point is 36.8 m from the start: in seeds 1–16 the
+  train goes by just past the frame's top-right corner, never on screen. A 1440×900 or 1920×1080
+  window (480 × 300 or 480 × 270 texels) catches it in that corner for 6.0–6.4 s, under the HUD's
+  score. Showing it from the start would take a start nearer the line or a wider view there.
+- **No platform passengers**: nobody waits on the platforms or boards.
+- **A footpath tunnel's data.** The path into Equi Terme's pedestrian underpass from the north (way
+  1306844336) meets it 1.7 m over its floor (264.6 against 262.9 m), so someone walking in that way
+  stays on the bank over it, on the track's level: the map build cuts no path's mouth (paths keep
+  the terrain's level).
+- **Nobody on a rail deck.** The track over a rail bridge is no ground to stand on, so someone
+  walking along it onto a bridge steps off the end onto the ground under it: over the underpasses
+  at s 6324.6 and s 4777.6, walking the track, the footing falls 5.5 and 5.8 m into the road's cut
+  under the deck within 9 m and climbs back out on the far side; onto the Torrente
+  Lucido's bridge by Monzone (from s 6599), the player's footing falls from the rail bed's 210.4 m
+  to 201.2 m within 7 m, the figure sinking through the drawn deck, and at the mean flow he wades
+  the Lucido under the bridge and climbs out on the far side at s 6625. Walls across the rail bed
+  at each bridge's ends, or a deck walkers stand on (where a train would strike them), would mend
+  it; neither is built.
+- **No derailment**: a train keeps to its line at any speed and whatever it strikes, though by a
+  rule like OpenRails' (unbalanced lateral acceleration over 2.5 m/s² for a second or two derails,
+  over 3.5 m/s² tips) one would leave a 300 m curve at 116–125 km/h, and the map's sharpest curve
+  is 193 m (over 20 m chords).
+
 ## Tuning
 
 | Where | What |
 |---|---|
-| `src/sim/tuning.ts` | `ENTER_GAP`, `PERSON_RADIUS`, `WALK_SPEED`, `SPRINT_SPEED`, `KNOCK_SPEED` |
+| `src/sim/tuning.ts` | `ENTER_GAP`, `DOOR_GAP`, `PERSON_RADIUS`, `WALK_SPEED`, `SPRINT_SPEED`, `KNOCK_SPEED` |
 | `src/sim/handling.ts` | `HANDLING`: each handling knob's group, name, description, kind, range and step; `REAL_HANDLING`; `HANDLING_PRESETS`, the three presets; `DEFAULT_HANDLING` (a new game's: Balanced) |
 | `src/sim/vehicles.ts` | `VEHICLES`: each model's body, mass, wheels, tyres, brakes, engine, gearbox, drag and suspension; `CAR_COLORS` |
 | `src/sim/systems/explosions.ts` | `FUSE` (how long a wreck burns before it blows), `BLAST` (who dies, falls, flees, how hard vehicles are hit and shoved), `WASTED` (how long the dead player lies) |
@@ -993,12 +1635,28 @@ pigs come out only where the player is out in the country, with fewer than 60 re
 | `src/sim/population/parties.ts` | `PARTY_WEIGHTS`, `GRANDPARENT`, `SAME_ORIGIN`, `TWO_KIDS`, `DOORSTEP`, the followers' `PLACES` |
 | `src/sim/population/farms.ts` | what a farm and a pen are, `RURAL`, `RURAL_REACH`, `PASTURE_ROOM`, `STEEPEST` |
 | `src/sim/fauna.ts` | `FAUNA` (each species' body, gait, home range and lethal speed), coats, `SIZE` |
-| `src/sim/systems/perceive.ts`, `src/sim/systems/senses.ts` | each reaction's trigger, length and cry chance, `COOLDOWN`, `CHAT_COOLDOWN`, `SHAKEN`, `VIGIL`; `DANGER`, `USUAL`, `HORN_AIM` |
+| `src/sim/systems/perceive.ts`, `src/sim/systems/senses.ts` | each reaction's trigger, length and cry chance (`WHISTLE_LOOK`, `HOLD_LOOK`, `TRAIN_SENSED` for the trains), `COOLDOWN`, `CHAT_COOLDOWN`, `SHAKEN`, `VIGIL`; `DANGER`, `USUAL`, `HORN_AIM` |
 | `src/sim/systems/pedestrians.ts` | `WALK_PACE`, `RUN_PACE`, `HEIGHT_SPREAD`, `ACCEL`, `STOP`, `TURN`, the gatherers' distances, `FOLLOW_GAIN`, `CATCH_UP` |
 | `src/sim/systems/contacts.ts` | `DOWN_TIME`, the death curve (`DEATH_HALF`, `DEATH_SPREAD`, `ELDER_FRAILTY`, `NO_DEATH`), `HEAVY`, `PERSON_MASS` |
-| `src/sim/systems/animals.ts` | `IDLE`, `FLEE`, `FEARS`, `CRIES`, `BARK`, `MOURN`, `CRASH_SPEED` (Startle) |
+| `src/sim/systems/animals.ts` | `IDLE`, `BARK`, `MOURN` |
+| `src/sim/systems/fright.ts` | `FLEE`, `FEARS` (a train's whistle's reach included), `CRIES`, `CRASH_SPEED` (Startle) |
 | `src/sim/systems/populate-animals.ts` | `ANIMALS` (each kind's share, reach, cap and despawn), the spawn bands and spots |
 | `src/sim/systems/spawn.ts` | parked cars (`PARKED`), trucks (`TRUCKS`) |
+| `src/sim/rail/models.ts` | `TRAINS`: the ATR 220's cars, bogies, mass, power, resistance, brakes and engines; `MOVING`, the speed over which a train counts as moving |
+| `src/sim/rail/lines.ts` | `DRAWN_RUN`, `runOut`, `DEFAULT_SPEED`, `CHORD`, `STOP_REACH` |
+| `src/sim/rail/service.ts` | `DWELL`, `KEEP_BEHIND`, `FALL_BACK` (dropping back to it), `LONG_TUNNEL`, `WHISTLE_LEAD`, `AGAINST` (another train against an AI train) |
+| `src/sim/rail/dispatch.ts` | `LAYOVER`, `entryClear`; a stolen train left goes beyond `VIEW_REACH` (`src/sim/view.ts`) |
+| `src/sim/rail/boarding.ts` | `BOARD_SPEED`; the crew doors are `TRAINS`' `door` |
+| `src/sim/rail/collisions.ts` | SCMT's `OVER`, `TOUCH_SPEED` (trains and buffers only touched), the buffers at `DRAWN_RUN` |
+| `src/sim/rail/driver.ts` | the plan's deceleration (`PLAN_DECEL`, and `brakingDistance` from it), its share of the adhesion, `GAIN`, `SLACK` |
+| `src/sim/rail/dynamics.ts` | `POWER_EASE`, `BRAKE_EASE`, `HOLD_SPEED`, `REVERSE_MAX`, the brakes' share of the adhesion |
+| `src/sim/rail/barriers.ts` | `WARNING`, `LOWERING`, `RAISING`, `RELEASE`, `MARGIN`, `CROSSING_HOLD`, `DEPARTURE`, `SPARE` (in `strikeIn`) |
+| `src/sim/rail/crossings.ts` | the stop line's clearance, the arms, how near a line passes a box's node (`NODE_REACH`), how far back the approaches go |
+| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule keeps to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
+| `src/sim/rail/lookout.ts` | the look-out's planned brake and margin (`lookoutReach`), `HELD_SIGHT`, `HORN`, `CREEP`, how often the alarm sounds, `SCRAPE` (a vehicle touching a train's side) |
+| `src/sim/rail/roads.ts` | `STOP_DECEL`, `HARD_DECEL`, `LINE_SLACK`, `ENVELOPE_SLACK` (how far outside the trains' envelope a car holds), the room past a box (`ROOM`, `KEEP_REACH`, `SLOW`, `LANE_CLEAR`, `PATH_SLACK`), `JUNCTION_CLEAR`, `PATIENT_FOR` (drivers' and walkers'), the queue's reach and heading, `SPAWN_CLEAR`, `TURN_SWEEP` (no turning round nearer a line's track) |
+| `src/sim/rail/senses.ts` | `WHISTLE_RANGE`, the alarm's path (`PATH_WIDE`, `PATH_REACH`), the hold at a crossing (`HOLD_LOOK`, `HOLD_CLEAR`, `HOLD_NEAR`, `HOLD_SPAN`) |
+| `src/sim/rail/strikes.ts` | `WRECK_SPEED`, the train's death curve (`TRAIN_HALF`, `TRAIN_SPREAD`), the throw (`CARRY`, `THROW`), the train hit's and a crushing drag's least speed (`IMPACT_SPEED`) |
 | `src/sim/systems/*.ts` | each system's own constants at the top of its file (physics: steering rates and the speed-sensitive lock; traffic: comfort, leaning, turning room, the cone's `CONE_CLEARANCE`, backing's `BACK_GAP` and `ALONGSIDE`; foot, enter/exit) |
 | `src/sim/sky/` | the clock, the map's place, the climate, the odds, the day plan, the regimes and the ground's weather (see [weather.md](weather.md#tuning)) |
 | `src/sim/map/kinds.ts` | road widths and which classes carry traffic, the player's car, or only people |
@@ -1015,8 +1673,18 @@ with `src/sim/testing.ts`; `src/sim/__tests__/reactions.test.ts` and
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first
 fill, and `src/sim/__tests__/animals.test.ts` the animals in a village, at a farm and on a rural
-road; `src/sim/__tests__/physics.test.ts` drives each model on flat, sloping and ramped test ground
-with `advance` (no walls), and `src/sim/__tests__/handling.test.ts` proves each handling knob's
-effect the same way, the weather grip loss's on wet and snowy ground included. Fixtures find map
-features by geometry, never by index (`BATTISTI` is the Via Cesare Battisti traffic edge nearest
-(-412, 438), eastbound), so they survive map rebuilds. Re-run `pnpm check` after any change.
+road; `src/sim/__tests__/trains.test.ts` runs the train service with `src/sim/rail/testing.ts` (the
+railway stepped alone), `trains-traffic.test.ts`, `trains-strikes.test.ts` and
+`trains-world.test.ts` beside it stage the world around the trains (queues and walkers at Via
+Riolo, strikes and the look-out, the level under the bridges, in the river under one, over the
+tunnel and down a road onto a crossing, the animals brought out off the track and kept to their
+side, the draws), `trains-driving.test.ts` the player's train (driven
+with `liveKeys`, keys a test plays as it goes), and `src/sim/rail/__tests__/` checks the lines,
+the cars, the crossings, the dynamics, the AI driver, the bodies, the look-out, the crossing rules
+for traffic, the senses, boarding and the collisions;
+`src/sim/__tests__/physics.test.ts` drives each model on flat, sloping and ramped test ground with
+`advance` (no walls), and `src/sim/__tests__/handling.test.ts` proves
+each handling knob's effect the same way, the weather grip loss's on wet and snowy ground included.
+Fixtures find map features by geometry, never by index (`BATTISTI` is the Via Cesare Battisti
+traffic edge nearest (-412, 438), eastbound), so they survive map rebuilds. Re-run `pnpm check`
+after any change.

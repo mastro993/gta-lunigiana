@@ -11,7 +11,6 @@
 import { groundZ } from "../../sim/map/ground.ts"
 import { heightAt } from "../../sim/map/index.ts"
 import type { Conditions } from "../../sim/sky/local.ts"
-import type { VehicleModel } from "../../sim/vehicles.ts"
 import {
   airCutoff,
   audibility,
@@ -23,16 +22,20 @@ import {
   spreading,
 } from "../acoustics.ts"
 import type { Echo } from "../places.ts"
-import type { Continuous, Heard, OneShot, Placement, Speaker } from "../types.ts"
+import type { CabinModel, Continuous, Heard, OneShot, Placement, Speaker } from "../types.ts"
 import { type Ears, hear, type Hearing, SILENT, type Source } from "./hearing.ts"
 import { CAPS, ECHO_MIN_DB, echoes, KEEP_DB, LEVELS, type Level, MOST_DB } from "./levels.ts"
 import type { Between, Occluder } from "./occluder.ts"
 
-/** How a path is heard: Doppler-shifted (vehicles), through the listener's `cabin` (unless false: their own car's crash, scrape, doors), `quiet` dB under the nominal peak. */
+/**
+ * How a path is heard: Doppler-shifted (vehicles), through the listener's `cabin` (unless false: their own car's crash, scrape,
+ * doors), `quiet` dB under the nominal peak, and `loss` dB more lost on the way (a train deep in a tunnel, heard at its portal).
+ */
 interface Way {
   readonly doppler?: boolean
   readonly cabin?: boolean
   readonly quiet?: number
+  readonly loss?: number
 }
 
 /** What the director's parts see and do this frame. */
@@ -46,8 +49,8 @@ export interface Frame {
   readonly ears: Ears
   /** The weather at the ears: the air's temperature, the rain and snow falling, the ground's wetness and snow cover. */
   readonly air: Conditions
-  /** The model of the vehicle the listener sits in. */
-  readonly inside: VehicleModel | undefined
+  /** The model of the vehicle (or the train's cab) the listener sits in. */
+  readonly inside: CabinModel | undefined
   /** The masking floor at the ears, dB(A). */
   readonly ambient: number
   readonly random: () => number
@@ -77,7 +80,7 @@ export interface Setup {
   readonly live: boolean
   readonly ears: Ears
   readonly air: Conditions
-  readonly inside: VehicleModel | undefined
+  readonly inside: CabinModel | undefined
   readonly ambient: number
   readonly street: number
   readonly random: () => number
@@ -160,7 +163,11 @@ export const makeFrame = (setup: Setup): Frame => {
       const r = Math.hypot(source.x - ears.x, source.y - ears.y, source.z - ears.z)
       if (
         audibility(
-          level.db - (way.quiet ?? 0) - spreading(r, level.rMin) - (through?.loss ?? 0),
+          level.db -
+            (way.quiet ?? 0) -
+            (way.loss ?? 0) -
+            spreading(r, level.rMin) -
+            (through?.loss ?? 0),
           ambient,
         ) === 0
       )
@@ -180,6 +187,7 @@ export const makeFrame = (setup: Setup): Frame => {
         aloft: level.aloft,
         snow: air.snowCover,
         quiet: way.quiet,
+        loss: way.loss,
         delta: between.delta,
         forest: between.forest,
         ambient,
