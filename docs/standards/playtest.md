@@ -21,8 +21,11 @@ this WebGL page, so drive headless Chrome over CDP:
    plus `--use-angle=metal --enable-gpu --ignore-gpu-blocklist` on macOS
    (`--use-angle=swiftshader --enable-unsafe-swiftshader` elsewhere). For sound, add
    `--autoplay-policy=no-user-gesture-required --mute-audio`.
-3. Drive it over CDP. `.research/playtest/bot.ts <seed>` walks, steals the Carabinieri car, drives
-   and gets out; `cdp.ts` sends single steps. `.research/` is gitignored, so these scripts live only
+3. Drive it over CDP. For screenshots of map spots and the full map, and for the first frame, the
+   slowest frame and the heap, run `pnpm playtest shots|heap … --port <port>`
+   ([docs/map.md](../map.md#adding-a-part)); `shots` needs the dev server. For play,
+   `.research/playtest/bot.ts <seed>` walks, steals the Carabinieri car, drives and gets out;
+   `cdp.ts` sends single steps. `.research/` is gitignored, so these scripts live only
    in the main checkout (`git worktree list`): copy them over, then change their hard-coded CDP port
    (9333) and game URL (port 5173). On every new CDP connection send
    `Emulation.setDeviceMetricsOverride` with `{ width: 1280, height: 720, deviceScaleFactor: 1,

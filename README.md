@@ -173,6 +173,14 @@ Every script runs with `pnpm`:
 | `pnpm map` | rebuilds `src/sim/map/monzone.bin` from `data/raw` |
 | `pnpm fetch-osm` | downloads the OpenStreetMap extract again into `data/raw/lunigiana.osm.gz` |
 | `pnpm fetch-rt` | downloads the Regione Toscana sources again into `data/raw/rt`; `pnpm fetch-rt ctr` only the CTR sheets, leaving the LiDAR and the land cover as they are |
+| `pnpm rt-index <part>` | lists the Regione Toscana CTR sheets, LiDAR tiles (with their archive names and licences), DBT blocks and DSM 2021 elements over a part into `.research/<part>/index.json` |
+| `pnpm pick-sheets <part>` | the 2019 CTR sheets whose mapped area meets the part, against its manifest; `--write` updates `data/parts/<part>.json` |
+| `pnpm pick-lidar <part> [--lots 004,005]` | replays `fetch-rt`'s first-wins LiDAR mosaic to keep the tiles that write a cell and report the holes, against the manifest; `--write` updates it |
+| `pnpm coverage <part>` | per comune, the share of the part mapped by the CTR, each LiDAR lot and the fillers, and OSM forest against the land cover's woods, as a table and a PNG |
+| `pnpm footprint-check <part>` | villages and building clusters within 300 m of the part's edges, and roads that leave it and come back |
+| `pnpm ortho <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>]` | a Regione Toscana orthophoto crop with the built map's buildings, stone cores and stream widths drawn over it, for tracing the hand tables |
+| `pnpm playtest shots\|heap <url> …` | drives a running headless Chrome over CDP: screenshots of map spots and the full map, or first frame, slowest frame and heap after GC |
+| `pnpm map-diff <a.bin> <b.bin>` | the differences between two built maps, by category; exits 1 when they differ |
 
 ## Repository layout
 
@@ -191,12 +199,13 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `src/audio/` | Web Audio host code: the audio schedule, the acoustics director (vehicles, trains and level crossings, people, conversations, animals, the valley, the time of day, the weather and the thunder), the speaker and mixer, the synths, the audition page |
 | `src/audio/speech/` | the Italian-sounding speech: what people say, and a formant synthesiser that voices it |
 | `src/hud/` | DOM HUD: the title card as loading screen, location names, the clock and weather readout, prompt, the “Sei morto” card when the player is killed, speedometer, minimap, full map (M), touch controls (mobile mode), settings (Esc) with the vehicle physics, and the dev-only debug menu (P) for the time, the weather, the vehicle handling and the trains; the settings and the menu set the handling through one store, the menu the sky through another and calls trains through a third |
-| `src/tools/` | the map pipeline (`build-map.ts`), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`) and a top-down preview renderer |
+| `src/tools/` | the map pipeline (`build-map.ts`), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`), the parts of the map (`region.ts`) and the tools that scope and check a new part (`rt-index.ts`, `pick-sheets.ts`, `pick-lidar.ts`, `coverage.ts`, `footprint-check.ts`, `ortho.ts`, `playtest.ts`, `map-diff.ts`), and a top-down preview renderer |
 | `src/boot.ts` | browser entry: downloads the map with progress, then imports the game |
 | `src/main.ts` | browser host: builds the scene, makes the runtime, runs the fixed loop |
 | `index.html` | canvas, HUD and touch-control markup, title card (the loading screen), and the switch to mobile mode |
 | `lab.html` | the audio audition page (dev server only) |
 | `data/raw/` | pinned map inputs: OSM extract, Regione Toscana CTR and LiDAR |
+| `data/parts/` | each part's source manifest: the CTR sheets, LiDAR tiles and 10 m DTMs `fetch-rt` downloads for it |
 | `docs/` | architecture, map pipeline, gameplay, weather, water and audio notes; `docs/standards/` holds the checks for each part of the game |
 | `.oxlintrc.json`, `.oxfmtrc.json`, `lefthook.yml` | lint rules, formatter settings, and the git hooks that format and lint each commit and check each push |
 | `lint/` | the project's own oxlint plugins, one file each named after the plugin (`test-files.ts`: each test in a `__tests__` folder) |
@@ -213,8 +222,8 @@ The build reads only `data/raw` and takes about 9 s. Its output is deterministic
 
 The inputs in `data/raw` are:
 
-- `lunigiana.osm.gz`: an OpenStreetMap API 0.6 extract of the play area plus 100 m (lat 44.1060–44.1977, lon 10.0925–10.1925), written by `pnpm fetch-osm` (`src/tools/fetch-osm.ts`) from 4 × 4 `https://api.openstreetmap.org/api/0.6/map?bbox=…` tiles. It fetches every land-use, natural, building, leisure or amenity multipolygon whole with `https://api.openstreetmap.org/api/0.6/relation/<id>/full`, because most of a forest’s member ways lie outside the play area. It merges the elements by id and sorts them, so the same OSM data always gives the same file.
-- `rt/`: Regione Toscana data from the Geoscopio cartoteca, written by `pnpm fetch-rt` (`src/tools/fetch-rt.ts`, which needs `unzip`; the download URLs are pinned there):
+- `lunigiana.osm.gz`: an OpenStreetMap API 0.6 extract of the play area plus 100 m (lat 44.1060–44.1977, lon 10.0925–10.1925), written by `pnpm fetch-osm` (`src/tools/fetch-osm.ts`) from `https://api.openstreetmap.org/api/0.6/map?bbox=…`, asked for the whole box and split in four wherever the API answers HTTP 400 (over 50,000 nodes). It fetches every land-use, natural, building, leisure or amenity multipolygon whole with `https://api.openstreetmap.org/api/0.6/relation/<id>/full`, because most of a forest’s member ways lie outside the play area. It merges the elements by id and sorts them, so the same OSM data always gives the same file.
+- `rt/`: Regione Toscana data from the Geoscopio cartoteca, written by `pnpm fetch-rt` (`src/tools/fetch-rt.ts`, which needs `unzip`; the sheets and tiles it downloads are listed in `data/parts/lucido.json`):
   - `ctr/<sheet>_<layer>.shp.gz` + `.dbf.gz`: CTR 1:2000 (2019), the 25 sheets that map ground in the play area (23D11–15, 23D18–21, 23D26–31, 23D34–37, 23D43, 23D46, 23D47, 23D53–55), layers `AED` (buildings with eave elevations), `AGE` (garages, ruins, station platforms, level crossings), `AVI` (road surfaces with street names), `AZR` (the area each sheet maps), and in the 9 sheets the railway crosses `AFE` (the ballast bed, with its bridge and tunnel spans) and `VLI` cut down to its railway track centrelines (code 0117).
   - `dtm.bin` + `dtm.json`: the 1 m LiDAR terrain model, 46 tiles of the 2010 flight and 19 of the 2012 flight (Monte Sagro and the Carrara side), mosaicked, cropped to the play area plus 32 m and averaged to 2 m cells. The 0.65 km² no flight covers come from the 10 m DTM.
   - `ucs.json.gz`: the land cover 1:10 000 (2019) polygons the build uses (quarries, bare rock, sparse vegetation, pastures, heath), from the Regione Toscana WFS.

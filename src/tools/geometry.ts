@@ -75,9 +75,16 @@ export const clipLine = (pts: ReadonlyArray<V>): Array<Array<V>> => {
   return out
 }
 
-/** Sutherland-Hodgman clip of an open ring to the play area. */
-export const clipRing = (ring: ReadonlyArray<P>): Array<P> => {
-  const { minX: X0, minY: Y0, maxX: X1, maxY: Y1 } = BOUNDS
+/** Sutherland-Hodgman clip of an open ring to a box [minX, minY, maxX, maxY], by default the play area. */
+export const clipRing = (
+  ring: ReadonlyArray<P>,
+  [X0, Y0, X1, Y1]: readonly [number, number, number, number] = [
+    BOUNDS.minX,
+    BOUNDS.minY,
+    BOUNDS.maxX,
+    BOUNDS.maxY,
+  ],
+): Array<P> => {
   let poly: ReadonlyArray<P> = ring
   const edges: ReadonlyArray<readonly [(p: P) => boolean, (a: P, b: P) => P]> = [
     [(p) => p[0] >= X0, (a, b) => [X0, a[1] + ((b[1] - a[1]) * (X0 - a[0])) / (b[0] - a[0])]],

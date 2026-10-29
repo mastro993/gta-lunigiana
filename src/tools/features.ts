@@ -217,7 +217,7 @@ export const extractRail = (osm: Osm): Array<RailF> =>
  * Historic stone cores (x, y, r), traced on the 2010 orthophoto (dense irregular blocks around the
  * church or castle); newer houses along the main roads are plaster.
  */
-const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
+export const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
   [-20, -300, 170], // Monzone Alto
   [720, 170, 220], // Aiola, with its eastern houses
   [420, -260, 120], // Castellaccio

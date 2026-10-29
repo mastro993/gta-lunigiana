@@ -7,7 +7,7 @@ Checks for a change to the map pipeline (`src/tools`), the map code (`src/sim/ma
 ## Every map change
 
 - Run `pnpm map` twice and compare `gunzip -c src/sim/map/monzone.bin | shasum`: the two outputs
-  are byte-identical.
+  are byte-identical. `pnpm map-diff <before.bin> src/sim/map/monzone.bin` says what a change moved.
 - Draw the changed area with `node src/tools/preview-map.ts` (a top-down PNG in `.research/`) and
   look at it.
 - A rebuilt map shifts pinned positions: test coordinates, bot waypoints and screenshot spots.
@@ -32,10 +32,13 @@ Checks for a change to the map pipeline (`src/tools`), the map code (`src/sim/ma
 Follow issue #3 (the extent, the order of parts and the runbook), plus the checklist and
 acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 
-- Many runbook tools (`region.ts`, `footprint-check`, `rt-index`, `pick-sheets`, `pick-lidar`,
-  `coverage`, `playtest.ts`, `pin-raw`, `fetch-lig`) arrive with issues #4–#7 and #12. When one is
-  missing from `src/tools` and `package.json`, name the issue that adds it and ask the user before
-  building it.
+- The runbook's tools are in `src/tools` and `package.json` ([Adding a
+  part](../map.md#adding-a-part)): `footprint-check`, `rt-index`, `pick-sheets`, `pick-lidar`,
+  `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the parts' rectangles; their
+  masks and outline walls arrive with issue #7, `pin-raw` with #6 and `fetch-lig` with #12. When one
+  is missing, name the issue that adds it and ask the user before building it.
+- The pick tools only print by default: run `--write` to change a manifest on purpose, then
+  `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
 - Moving `BOUNDS` moves every tree: trees are stored in whole metres from a corner 100 m
   south-west of it.
