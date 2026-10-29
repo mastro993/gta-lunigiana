@@ -151,13 +151,14 @@ in [water.md](water.md).
 A step reads the map only round the player, because the host keeps only the tiles there in memory
 ([Tile streaming](#tile-streaming)). A vehicle farther than `FROZEN_BEYOND` (500 m) from the player
 along either axis stands frozen: `Explode`, `TrafficAI`, `VehiclePhysics`, `Contacts`,
-`TrainContacts` and `CrashDamage`'s abandoning of a destroyed traffic car skip it (`inReach` in `systems/reach.ts`, against the player's `Pose`; with no
-player everything is in reach), so its state stays exactly as it was until the player comes back.
-People and animals never get that far in play. `ApplyPlayer` moves the player with the other host
-requests, before anything moves. `LeaveBehind` comes after `Respawn`, the player's last move of the
-step, so whoever a jump left behind goes at the step's last `applyDeferred`, before the next step
-would read the map there: placed early in the step, it swept a man off the track before `RideAlong`
-had carried the player, boarding a train far from where they were staged, to him.
+`TrainContacts` and `CrashDamage`'s abandoning of a destroyed traffic car skip it (`inReach` in
+`systems/reach.ts`, against the player's `Pose`; with no player everything is in reach), so its
+state stays exactly as it was until the player comes back. People and animals never get that far in
+play. `ApplyPlayer` moves the player with the other host requests, before anything moves.
+`LeaveBehind` comes after `Respawn`, the player's last move of the step, so whoever a jump left
+behind goes at the step's last `applyDeferred`, before the next step would read the map there:
+placed early in the step, it swept a man off the track before `RideAlong` had carried the player,
+boarding a train far from where they were staged, to him.
 
 ### Where state lives
 
@@ -563,13 +564,13 @@ so every tile a step reads is there before the step runs; the sim never sees whi
 - **What it keeps and drops**: a tile goes only once it lies outside [player ± `KEEP`]² (1500 m),
   the view does not want it and it is not within 1000 m of `extra`, at two updates running (the
   frame's render and audio read the events of steps run round where the last update found the
-  player), so walking back and forth over a seam never fetches a tile twice. The world hears of each change: `tileProvided` after
-  `provideTile`, `tileDropped` before `dropTile` ([Rendering](#rendering)). A tile in memory is its
-  decoded arrays, 0.78–3.68 MB on Lunigiana (68 MB for all 30; walls and trees decode to 8-byte
-  numbers), plus its broad phases once a query reaches it; its gunzipped file is 0.76–1.78 MB. After
-  a teleport to (1998, 2017) the tiles in memory
-  settled at 4 (0_0, 1_0, 0_1, 1_1); along the SP59 to Vinca at 40 m/s at most 6 were in memory at
-  once, and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1).
+  player), so walking back and forth over a seam never fetches a tile twice. The world hears of each
+  change: `tileProvided` after `provideTile`, `tileDropped` before `dropTile`
+  ([Rendering](#rendering)). A tile in memory is its decoded arrays, 0.78–3.68 MB on Lunigiana (68
+  MB for all 30; walls and trees decode to 8-byte numbers), plus its broad phases once a query
+  reaches it; its gunzipped file is 0.76–1.78 MB. After a teleport to (1998, 2017) the tiles in
+  memory settled at 4 (0_0, 1_0, 0_1, 1_1); along the SP59 to Vinca at 40 m/s at most 6 were in
+  memory at once, and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1).
 - **`ready(player, extra)`**: whether every listed tile a step reads round the player, and round
   `extra` when given, is in memory; `main.ts` pauses the game while it is not ([Host
   loop](#host-loop)).
@@ -1820,13 +1821,13 @@ step, and git hooks run the first three before a commit or push.
   - `src/__tests__/stream.test.ts`: the tile stream on fakes: the tiles the next step reads asked
     for first, then the rest within 1 km, three at a time; `ready` round the player and the extra
     point; a tile let go only past 1.5 km, never while the view or the extra point needs it and only
-    at the second update that would let it go (the frame after a jump), the world told first; a failed download tried again after a wait that doubles, one stalled past
-    15 s cancelled and tried again, one nothing needs any more cancelled with no failure; a tile the
-    store refuses or the server has not (404) gone, named and never asked for again; a download that
-    lands once nothing needs it let go; the files gunzipped as they arrive,
-    their bytes counted; a failed download naming the file and its status.
-    `src/__tests__/maps.test.ts`: every tile each map's global file lists has a file at its tile
-    URL, in the map's own directory.
+    at the second update that would let it go (the frame after a jump), the world told first; a
+    failed download tried again after a wait that doubles, one stalled past 15 s cancelled and tried
+    again, one nothing needs any more cancelled with no failure; a tile the store refuses or the
+    server has not (404) gone, named and never asked for again; a download that lands once nothing
+    needs it let go; the files gunzipped as they arrive, their bytes counted; a failed download
+    naming the file and its status. `src/__tests__/maps.test.ts`: every tile each map's global file
+    lists has a file at its tile URL, in the map's own directory.
   - `src/hud/__tests__/handling.test.ts`: the handling store (what it stores, restores and
     sends); `src/hud/__tests__/settings.test.ts`: the settings' keys (Esc on to the router, every
     other key kept from the game) and the preset they show (Custom for a hand-set mix);
