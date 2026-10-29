@@ -11,6 +11,7 @@ import { test } from "node:test"
 import { gridOver, mask } from "../coverage-grid.ts"
 import { checkPicks, forestPolygons, osmPolygon, readUcs } from "../coverage.ts"
 import { fromLocal } from "../geometry.ts"
+import { readManifest } from "../manifest.ts"
 import type { Osm, Tags } from "../osm.ts"
 
 /** An Osm of the given nodes (id: local x, y), ways (id: node ids, tags) and relations. */
@@ -138,10 +139,10 @@ test("readUcs caches a WFS answer only once it parses, then reads the cache", as
   assert.equal(readFileSync(path, "utf8"), GML, "a failed refresh keeps the cache")
 })
 
-test("checkPicks throws for a part without a manifest or with no CTR sheet and no LiDAR tile picked", () => {
+test("checkPicks throws for a part without a manifest (read as empty) or with no CTR sheet and no LiDAR tile picked", () => {
   const message =
     "no picks in data/parts/x.json: run pnpm pick-sheets x --write and pnpm pick-lidar x --write first"
-  assert.throws(() => checkPicks("x", undefined), { message })
+  assert.throws(() => checkPicks("x", readManifest("x")), { message })
   assert.throws(() => checkPicks("x", { ctr: [], lidar: [], dtm10: ["MS_dtm10x10"] }), { message })
   const ctr = { ctr: ["23D11"], lidar: [], dtm10: [] },
     lidar = { ctr: [], lidar: ["23d42"], dtm10: [] }

@@ -1,15 +1,15 @@
 // Picks a part's LiDAR DTM tiles by replaying `fetch-rt`'s first-wins mosaic over the part's crop
 // (`dtm-mosaic.ts`: the EPSG:3003 box round its rectangles, an L's notch included, as fetch-rt
-// mosaics it while it reads one part; issue #7 revisits both): tiles go in lot order (the lots named, 004 then 005 by default), then by
-// sheet, and a tile is kept when it gives at least one cell no earlier tile gave. Run:
-// node src/tools/pick-lidar.ts <part> [--lots 004,005] [--write]  (pnpm pick-lidar <part> …).
-// Reads .research/<part>/index.json (`rt-index` writes it) and the tiles' archives through the
-// cache (`rt-cache.ts`; needs `unzip` on the PATH). Only RT's tiles (CC BY 4.0) are candidates:
-// lots 006 and 007 (MATTM, CC BY-SA 3.0 IT) and the private lidar2k_noRT layer never are. Prints
-// the tiles skipped and why, each candidate's cells in the crop and cells given first (1 m cells,
-// m²), the holes no tile fills (the cells fetch-rt takes from the 10 m DTM: count, 4-connected
-// holes, the largest), and how the picks differ from data/parts/<part>.json, order included.
-// --write stores the picks there as `lidar`, in priority order.
+// mosaics it while it reads one part; issue #7 revisits both): tiles go in lot order (the lots
+// named, 004 then 005 by default), then by sheet, and a tile is kept when it gives at least one
+// cell no earlier tile gave. Run: node src/tools/pick-lidar.ts <part> [--lots 004,005] [--write]
+// (pnpm pick-lidar <part> …). Reads .research/<part>/index.json (`rt-index` writes it) and the
+// tiles' archives through the cache (`rt-cache.ts`; needs `unzip` on the PATH). Only RT's tiles
+// (CC BY 4.0) are candidates: lots 006 and 007 (MATTM, CC BY-SA 3.0 IT) and the private lidar2k_noRT
+// layer never are. Prints the tiles skipped and why, each candidate's cells in the crop and cells
+// given first (1 m cells, m²), the holes no tile fills (the cells fetch-rt takes from the 10 m DTM:
+// count, 4-connected holes, the largest), and how the picks differ from data/parts/<part>.json,
+// order included. --write stores the picks there as `lidar`, in priority order.
 
 import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"

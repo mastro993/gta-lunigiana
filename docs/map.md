@@ -774,21 +774,22 @@ Settembre).
 The part tools ([Adding a part](#adding-a-part)) are checked offline in `src/tools/__tests__`:
 `cartoteca.test.ts` parses GML and GetFeatureInfo answers trimmed from real ones (a hole, a
 multipolygon written as one `ms:GEOMETRY` per polygon, a tile in lots 004 and 006) and keeps
-`insidePoints` inside a wedge, a footprint with a hole and one under 100 m tall; `dtm-mosaic.test.ts`
-pins `lucido`'s crop to the formula `fetch-rt` used before parts and reads a synthetic grid;
-`net.test.ts` serves a local HTTP server to check the `User-Agent`, the retry of a 5xx (after 2 s,
-so the file takes 2.2 s), the immediate 4xx and `overpass` moving on from a 504 or an answer with a
-top-level remark (a server timeout) but not from a tag named `remark`; `manifest.test.ts` pins `lucido`'s 25 sheets, 65
-tiles (46 of 2010 before 19 of 2012) and one 10 m DTM; `pick-sheets.test.ts`, `pick-lidar.test.ts`
-and `pick-diff.test.ts` check the area rule, first wins and the holes on synthetic grids;
-`footprint.test.ts` the outline of an L, clusters, a road that leaves and comes back, one that runs
-off the query box (unresolved) and a mistyped flag;
+`insidePoints` inside a wedge, a footprint with a hole and one under 100 m tall;
+`dtm-mosaic.test.ts` pins `lucido`'s crop to the formula `fetch-rt` used before parts and reads a
+synthetic grid; `net.test.ts` serves a local HTTP server to check the `User-Agent`, the retry of a
+5xx (after 2 s, so the file takes 2.2 s), the immediate 4xx and `overpass` moving on from a 504 or
+an answer with a top-level remark (a server timeout) but not from a tag named `remark`;
+`manifest.test.ts` pins `lucido`'s 25 sheets, 65 tiles (46 of 2010 before 19 of 2012) and one 10 m
+DTM; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule, first
+wins and the holes on synthetic grids; `footprint.test.ts` the outline of an L, clusters, a road
+that leaves and comes back, one that runs off the query box (unresolved) and a mistyped flag;
 `fetch-osm.test.ts` the split on HTTP 400 with a fake server; `coverage-grid.test.ts` and
 `coverage.test.ts` first wins, the tally, ring assembly, no picks, and a WFS error answer never
 cached; `ortho.test.ts` and `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted
 sibling flight is look only) and an error answer for capabilities; `playtest.test.ts` the spot
 script and, on a fake Chrome, a command's own timeout and the socket closed when a tab cannot open;
-`map-diff.test.ts` each category's change on small maps and a key it does not compare; `geometry.test.ts` `clipRing` to a box.
+`map-diff.test.ts` each category's change on small maps and a key it does not compare;
+`geometry.test.ts` `clipRing` to a box.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map (the running line dark, loops and sidings purple, rail bridges with a pale deck,
@@ -839,20 +840,20 @@ repository. Measured on `lucido` on 2026-10-29.
   (`dtm-mosaic.ts`, the same crop and reader) on a one-byte mask: RT's tiles of the named lots, in
   lot order then by sheet, each kept when it writes a cell no earlier tile wrote, over the crop
   `fetch-rt` mosaics (the EPSG:3003 box round the part's rectangles, an L's notch included, until
-  issue #7). MATTM's lots are
-  skipped, with their licence. It reports each tile's area and the holes left for the 10 m DTM, and
-  without `--write` the difference from the manifest's `lidar`. `lucido` (19 s, 565 MB): the 65
-  tiles of the manifest plus `22d14` of lot 004 (see [Known data
+  issue #7). MATTM's lots are skipped, with their licence. It reports each tile's area and the holes
+  left for the 10 m DTM, and without `--write` the difference from the manifest's `lidar`. `lucido`
+  (19 s, 565 MB): the 65 tiles of the manifest plus `22d14` of lot 004 (see [Known data
   limitations](#known-data-limitations)); holes 654 734 m² in 5 pieces, the largest 361 141 m²,
-  exactly the cells `fetch-rt` fills from the 10 m DTM. The `dtm10` list is written by hand, from the
-  provinces the holes lie in.
+  exactly the cells `fetch-rt` fills from the 10 m DTM. The `dtm10` list is written by hand, from
+  the provinces the holes lie in.
 - **`pnpm coverage <part> [--refresh]`** (`coverage.ts`, raster in `coverage-grid.ts`) tallies, per
   comune (OSM `admin_level=8` boundaries), the part's area mapped by the manifest's 2019 sheets, by
   each LiDAR lot (the index footprints in manifest order, first wins) and by no LiDAR, and the UCS
   2019 woods (311–313, 324) against OSM's forest, on 10 m cells; it stops when the manifest holds no
-  picks yet. It prints the markdown table for the PR and writes `coverage.md` and `coverage.png`. `lucido`: 6 comuni (Fivizzano 50.62 km²);
-  CTR 11.1%, lot 004 78.6%, lot 005 20.5%, no LiDAR 0.66 km² (0.7% over the mosaic's holes: the
-  footprints' slivers and the 10 m cells); OSM marks 92.7% of the 54.69 km² of UCS woods as forest.
+  picks yet. It prints the markdown table for the PR and writes `coverage.md` and `coverage.png`.
+  `lucido`: 6 comuni (Fivizzano 50.62 km²); CTR 11.1%, lot 004 78.6%, lot 005 20.5%, no LiDAR 0.66
+  km² (0.7% over the mosaic's holes: the footprints' slivers and the 10 m cells); OSM marks 92.7% of
+  the 54.69 km² of UCS woods as forest.
 - **`pnpm ortho <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>] [--refresh]`** (`ortho.ts`,
   `ortho-wms.ts`) draws a Regione Toscana orthophoto crop (WMS GetMap in EPSG:4326, which maps
   linearly onto the local frame; 0.5 m a pixel by default, tiled past 4096 px) with the built map's

@@ -2,9 +2,10 @@
 // build reads to data/raw/rt. Run: node src/tools/fetch-rt.ts  (pnpm fetch-rt), or
 // `node src/tools/fetch-rt.ts ctr` (pnpm fetch-rt ctr) for the CTR sheets alone, which leaves the
 // LiDAR and the land cover as they are. What it downloads comes from the part's manifest,
-// data/parts/<part>.json (`manifest.ts`); it reads one part, today's (`lucido` in `region.ts`), until
-// issue #7 builds the map tile by tile. Needs `unzip` on the PATH. The archives are cached in the OS temp directory (`rt-cache.ts`). A file whose unpacked
-// bytes equal the new ones is not rewritten, so another zlib never churns a pinned file.
+// data/parts/<part>.json (`manifest.ts`); it reads one part, today's (`lucido` in `region.ts`),
+// until issue #7 builds the map tile by tile. Needs `unzip` on the PATH. The archives are cached in
+// the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes equal the new ones is not
+// rewritten, so another zlib never churns a pinned file.
 // - ctr/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2019 flight, EPSG:6707 (CC BY 4.0). AED =
 //   buildings, AGE = other areas (garages, ruins, station platforms, level crossings), AVI = road
 //   areas, AZR = the mapped area of each sheet, AFE = the rail ballast bed (its bridge and tunnel

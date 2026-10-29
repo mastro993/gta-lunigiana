@@ -33,7 +33,7 @@ import {
 } from "./coverage-grid.ts"
 import { gaussBoagaToLatLon, utm32ToLatLon } from "./crs.ts"
 import { fromLocal, toLocal } from "./geometry.ts"
-import { type Manifest, manifestPath, readManifest } from "./manifest.ts"
+import { type Manifest, readManifest } from "./manifest.ts"
 import { getText, overpass, pool } from "./net.ts"
 import { type Osm, assembleRings, readOsm } from "./osm.ts"
 import { encodePngRgb } from "./png.ts"
@@ -107,9 +107,9 @@ export const readUcs = async (
 ): Promise<ReturnType<typeof parseGml>> =>
   parseGml(await cached(path, refresh, () => getText(url).then((t) => (parseGml(t), t))))
 
-/** Part `key`'s `manifest` (undefined when it has none) when it picks CTR sheets or LiDAR tiles; throws saying to pick them otherwise. */
-export const checkPicks = (key: string, manifest: Manifest | undefined): Manifest => {
-  if (manifest === undefined || (manifest.ctr.length === 0 && manifest.lidar.length === 0))
+/** Part `key`'s `manifest` when it picks CTR sheets or LiDAR tiles (a part without one reads as empty); throws saying to pick them otherwise. */
+export const checkPicks = (key: string, manifest: Manifest): Manifest => {
+  if (manifest.ctr.length === 0 && manifest.lidar.length === 0)
     throw new Error(
       `no picks in data/parts/${key}.json: run pnpm pick-sheets ${key} --write and pnpm pick-lidar ${key} --write first`,
     )
@@ -150,10 +150,7 @@ const main = async (): Promise<void> => {
   })
   const part = partOf(positionals[0])
   const refresh = values.refresh === true
-  const manifest = checkPicks(
-      part.key,
-      existsSync(manifestPath(part.key)) ? readManifest(part.key) : undefined,
-    ),
+  const manifest = checkPicks(part.key, readManifest(part.key)),
     index = readIndex(part.key)
   const dir = join(import.meta.dirname, "../../.research", part.key)
   mkdirSync(dir, { recursive: true })
