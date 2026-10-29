@@ -1,15 +1,60 @@
-// The parts of the map (issue #3): each a key, a title and its rectangles in local metres, on 100 m
-// multiples. Today's map is part `lucido`. The part tools (`rt-index`, `pick-sheets`,
-// `pick-lidar`, `coverage`, `footprint-check`) and `fetch-rt` take parts from here; issue #7 adds
-// masks and the outline walls.
+// The maps the build makes and the parts of the Lunigiana one.
+// - Regions: separately built play areas (Lunigiana, Cesena), never sharing survey inputs; the
+//   build, `fetch-osm` and the geometry read the one `--region` names (REGION, Lunigiana by default).
+// - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
+//   rectangles in local metres, on 100 m multiples. Today's map is part `lucido`. The part tools
+//   (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`, `footprint-check`) and `fetch-rt` take
+//   parts from here; issue #7 adds masks and the outline walls.
 
-import { latLonToGaussBoaga } from "./crs.ts"
-import { BOUNDS, fromLocal } from "./geometry.ts"
+import type { MapId } from "../maps.ts"
+
+/** A separately built play area; survey inputs are never shared between regions. */
+export interface Region {
+  readonly id: MapId
+  readonly file: string
+  readonly origin: { readonly lat: number; readonly lon: number }
+  readonly bounds: {
+    readonly minX: number
+    readonly minY: number
+    readonly maxX: number
+    readonly maxY: number
+  }
+}
+
+const LUNIGIANA: Region = {
+  id: "lunigiana",
+  file: "monzone",
+  origin: { lat: 44.16175, lon: 10.13 },
+  bounds: { minX: -2900, minY: -6100, maxX: 4900, maxY: 3900 },
+}
+
+const regions: ReadonlyArray<Region> = [
+  LUNIGIANA,
+  {
+    id: "cesena",
+    file: "cesena",
+    origin: { lat: 44.1391, lon: 12.2429 },
+    bounds: { minX: -2000, minY: -2000, maxX: 2000, maxY: 2000 },
+  },
+]
+
+/** Selects a known region, defaulting to the original map; invalid input fails before I/O. */
+export const regionFromArgs = (args: ReadonlyArray<string>): Region => {
+  const index = args.indexOf("--region")
+  const id = index < 0 ? "lunigiana" : args[index + 1]
+  const region = regions.find((candidate) => candidate.id === id)
+  if (region === undefined)
+    throw new Error(`Unknown or missing region: ${id ?? "--region requires a name"}`)
+  return region
+}
+
+/** Build region for this Node invocation, fixed before the geometry modules load. */
+export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])
 
 /** A rectangle [minX, minY, maxX, maxY] in local metres. */
 export type Rect = readonly [number, number, number, number]
 
-/** A part of the map: its key (the tools' argument), its title and its rectangles. */
+/** A part of the Lunigiana map: its key (the tools' argument), its title and its rectangles. */
 export interface Part {
   readonly key: string
   readonly title: string
@@ -21,12 +66,19 @@ export const PARTS: ReadonlyArray<Part> = [
   {
     key: "lucido",
     title: "Valle del Lucido",
-    rects: [[BOUNDS.minX, BOUNDS.minY, BOUNDS.maxX, BOUNDS.maxY]],
+    rects: [
+      [LUNIGIANA.bounds.minX, LUNIGIANA.bounds.minY, LUNIGIANA.bounds.maxX, LUNIGIANA.bounds.maxY],
+    ],
   },
 ]
 
-/** The part with `key`; throws naming the known keys, so a tool run without one says what to pass. */
+/**
+ * The part with `key`; throws naming the known keys, so a tool run without one says what to pass,
+ * and when the build region is not Lunigiana, whose local frame the parts' rectangles are in.
+ */
 export const partOf = (key: string | undefined): Part => {
+  if (REGION.id !== LUNIGIANA.id)
+    throw new Error(`parts belong to the Lunigiana map, not --region ${REGION.id}`)
   const part = PARTS.find((p) => p.key === key)
   if (part === undefined)
     throw new Error(`unknown part ${key}: use one of ${PARTS.map((p) => p.key).join(", ")}`)
@@ -44,27 +96,3 @@ export const rectsBox = (rects: ReadonlyArray<Rect>): Rect => [
   Math.max(...rects.map((r) => r[2])),
   Math.max(...rects.map((r) => r[3])),
 ]
-
-/**
- * The EPSG:3003 box [e0, n0, e1, n1] round every rectangle corner, widened by `pad` metres. The
- * local frame turns against Gauss-Boaga's grid, so the box holds more than the rectangles.
- */
-export const gaussBoagaBox = (
-  rects: ReadonlyArray<Rect>,
-  pad = 0,
-): [number, number, number, number] => {
-  const corners = rects.flatMap(([x0, y0, x1, y1]) =>
-    [
-      [x0, y0],
-      [x1, y0],
-      [x0, y1],
-      [x1, y1],
-    ].map(([x, y]) => latLonToGaussBoaga(...fromLocal(x!, y!))),
-  )
-  return [
-    Math.min(...corners.map((c) => c[0])) - pad,
-    Math.min(...corners.map((c) => c[1])) - pad,
-    Math.max(...corners.map((c) => c[0])) + pad,
-    Math.max(...corners.map((c) => c[1])) + pad,
-  ]
-}

@@ -1,7 +1,7 @@
 # The map
 
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into
-`src/sim/map/monzone.bin`, the only map file the game loads (6.7 MB, see
+`src/sim/map/monzone.bin`, the default Lunigiana map (6.7 MB, see
 [File format](#file-format)). The build is deterministic (gunzipped, its output is the same bytes
 on every machine; the gzipped file is byte-identical with the same Node build, while another zlib
 or OS writes other compressed bytes) and takes about 10 s. It prints a lap time per stage, the
@@ -17,6 +17,46 @@ Inputs and attribution are in the [README](../README.md).
 their default widths, where people walk and cars drive across them (`vergeOf`, `laneOffset`),
 building styles, area kinds, rail kinds (`RAIL_KINDS`), the rail head over the bed (`RAIL_LIFT`)
 and the tree-trunk size. It imports no data, so the build can use it before `monzone.bin` exists.
+
+## Cesena
+
+Cesena is a separate experimental city-centre map; it loads instead of Lunigiana, not alongside it.
+The pipeline below describes Lunigiana unless a Cesena difference is noted here.
+
+- **Selection**: the title card links to `?map=cesena`; an omitted `map` selects Lunigiana.
+  `src/maps.ts` validates the name before download, and the boot host updates the title and credits.
+  Switching maps reloads the page and starts a fresh world. The links preserve an explicit seed.
+- **Extent**: `region.ts` centres Cesena at latitude 44.1391, longitude 12.2429, with local bounds
+  of -2000 to 2000 m on both axes. This covers a 4 by 4 km city-centre area, not the whole comune.
+- **Accepted sources**: OpenStreetMap (ODbL) supplies roads, buildings, water, land use and names.
+  `pnpm fetch-osm --region cesena` pins a separate `data/raw/cesena.osm.gz` with the same API
+  fetcher, which splits a box the API refuses as too large. Regione Emilia-Romagna's
+  [DTM 5x5 - ultima edizione](https://geoportale.regione.emilia-romagna.it/catalogo/dati-cartografici/altimetria/layer-2)
+  is accepted under the catalogue's CC BY 4.0 licence. `pnpm fetch-rer --region cesena` checks that
+  licence and requests WCS coverage `DTM5X5_RDN32_RMD` as an EPSG:4326 GeoTIFF. The pinned
+  `data/raw/cesena/source.json` records the request and raster SHA-256. `loadGeoDtm` rejects
+  incorrect CRS, incomplete coverage and invalid or missing heights instead of inventing terrain.
+- **Excluded sources**: the Tuscany CTR, LiDAR and UCS inputs do not cover Cesena and are not
+  reused there. No other terrain, building or imagery source is included for Cesena.
+- **Build**: `pnpm map --region cesena` writes only `src/sim/map/cesena.bin`, using the same
+  profiles, collision, road graph, parking and packed format as Lunigiana. The source terrain has
+  5 m cells; resampling onto the game's 4 m grid does not make it a finer survey.
+- **Rail**: the shared railway pipeline uses Cesena's OSM tracks and platforms, with no Tuscany
+  survey tracks or Gragnola-specific layout corrections. The bundled Cesena map is rebuilt when
+  the shared packed format changes, so both regional maps use the same decoder.
+- **Features**: secondary roads and main-road links use the existing tertiary class; cycleways
+  are walkable paths. OSM building height tags are used where present, otherwise existing default
+  heights apply. Road widths use class defaults. The Savio's width is the median of perpendicular
+  cross-sections through its OSM bank polygons, not the mountain-stream fallback. Neighbourhood
+  labels come from OSM place nodes, without Monzone's hand-placed districts or stone cores.
+- **Start**: the player starts beside a central street in the connected traffic network, outside
+  buildings with an open walk-clear route to the street. Police and station parking use Cesena's
+  mapped Carabinieri headquarters and railway station.
+- **Checks**: `src/tools/__tests__/cesena.test.ts` checks landmarks, connected networks, the outdoor spawn,
+  nearby cars, measured river widths and deterministic simulation startup. Run `pnpm check` after
+  a build. Preview the map with
+  `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`.
+  Repeat builds must have identical decompressed hashes, as for Lunigiana.
 
 ## Pipeline
 
@@ -615,7 +655,10 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   (at most one tree per spot) and a scale of 0.8–1.3 (1.7 MB of the gzipped map file). Placement
   uses a fixed hash, not a random generator.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
-  clear of walk and drive walls.
+  clear of walk and drive walls. Cesena uses a central street in its connected traffic network.
+  The final rounded position must lie outside every building footprint and have a walk-clear
+  route to its street centreline, sampled at intervals no greater than 0.5 m. Wall distance alone
+  can accept a point deep inside a building, leaving the player trapped.
 - **Parked spots**: one per 8 buildings (797) on the right kerb of tertiary, unclassified and
   residential roads (not bridges or tunnels), at least 12 m from junctions and 9 m from each other,
   with two or more buildings within 40 m, off every carriageway (tunnels included), clear of walls,
@@ -886,9 +929,10 @@ repository. Measured on `lucido` on 2026-10-29.
   `lucido`: no differences, 0.4 s.
 
 Until issue #7 builds the map tile by tile, only `lucido` is fetched and built: `pnpm fetch-osm`
-and `pnpm map` cover `BOUNDS`, and `pnpm fetch-rt` reads one part's manifest and stops when `PARTS`
-holds more than one (a second part would widen the mosaic's crop over the land between them, all of
-it holes for the 10 m DTM) or the manifest lists more than one 10 m DTM.
+and `pnpm map` cover the Lunigiana region's bounds (`BOUNDS`; `--region cesena` builds the separate
+Cesena map instead, and the part tools refuse it), and `pnpm fetch-rt` reads one part's manifest and
+stops when `PARTS` holds more than one (a second part would widen the mosaic's crop over the land
+between them, all of it holes for the 10 m DTM) or the manifest lists more than one 10 m DTM.
 
 ## Known data limitations
 

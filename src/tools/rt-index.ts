@@ -25,8 +25,9 @@ import {
   wfsUrl,
 } from "./cartoteca.ts"
 import { gaussBoagaToLatLon } from "./crs.ts"
+import { gaussBoagaBox } from "./geometry.ts"
 import { type Head, getText, head, pool } from "./net.ts"
-import { gaussBoagaBox, partOf } from "./region.ts"
+import { partOf } from "./region.ts"
 import { type RtIndex, indexPath } from "./rt-index-file.ts"
 
 /** Requests in flight at once. */

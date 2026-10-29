@@ -1,7 +1,7 @@
 # Grand Theft Auto: Lunigiana
 
 > [!WARNING]
-> **Grand Theft Auto: Lunigiana is in early development.** Today you can play one valley, about 6% of the planned map.
+> **Grand Theft Auto: Lunigiana is in early development.** Today you can play one valley, about 6% of the planned map, and a separate experimental Cesena city-centre map.
 
 ![Title card](docs/screenshots/title.png)
 
@@ -106,6 +106,8 @@ pnpm dev
 
 Then open `http://localhost:5173`. The server listens on the local network too, so a phone or another computer on the same network can play: open the `Network` address that Vite prints. Anyone on that network can reach it, so stop it on a shared network you don't trust. Every load is a new world, starting on today’s date at 08:00 Rome time once you dismiss the title card. Add `?seed=N` (for example `http://localhost:5173/?seed=42`) to replay the same world: the seed drives every random choice, so the same seed and the same keys give the same game.
 
+Choose **Cesena** on the title card, or open `http://localhost:5173/?map=cesena&seed=42`. Cesena is a separate 4 × 4 km map around the historic centre, with the Savio, the railway station and surrounding neighbourhoods. It uses OpenStreetMap streets and building footprints and Regione Emilia-Romagna's 5 m terrain model. It does not replace or extend Lunigiana. Building heights without OSM height tags and road widths are defaults, not surveyed Cesena measurements.
+
 In dev mode, the backslash key toggles the Ritmo monitor, P toggles the debug menu, and `http://localhost:5173/lab.html` opens the audio audition page: every sound on a button, its params on sliders, heard from a distance you pick (see [docs/audio.md](docs/audio.md#the-audition-page)). The debug menu sets the time (stop the clock or run it 10 or 60 times faster, pick the time of day and the date, jump to sunrise or sunset), the weather (leave it to the day’s plan or force a regime, settled at once if you like, with this month’s odds and the weather seed read out) and the vehicle handling, and shows the trains: each line’s next train, each train and who drives it, and each level crossing’s arms, light and bell, with a button that calls a train onto every line no AI train runs on. The handling knobs it changes stay for the next load; the time and the weather do not (see [docs/weather.md](docs/weather.md#the-hud-and-the-dev-menu)).
 
 ## Controls on foot and driving
@@ -171,8 +173,11 @@ Every script runs with `pnpm`:
 | `pnpm lint` | type-aware `oxlint` with the Ritmo plugin and the project's own (`lint/`), warnings failing, then `ritmo-devtools lint src/lint.ts` |
 | `pnpm test` | `node --test` over `src/**/*.test.ts` and `lint/**/*.test.ts`, each in a `__tests__` folder beside the module it tests |
 | `pnpm map` | rebuilds `src/sim/map/monzone.bin` from `data/raw` |
+| `pnpm map --region cesena` | rebuilds the separate `src/sim/map/cesena.bin` from pinned Cesena inputs |
 | `pnpm fetch-osm` | downloads the OpenStreetMap extract again into `data/raw/lunigiana.osm.gz` |
+| `pnpm fetch-osm --region cesena` | downloads the Cesena extract into `data/raw/cesena.osm.gz` |
 | `pnpm fetch-rt` | downloads the Regione Toscana sources again into `data/raw/rt`; `pnpm fetch-rt ctr` only the CTR sheets, leaving the LiDAR and the land cover as they are |
+| `pnpm fetch-rer --region cesena` | verifies the terrain licence and downloads Emilia-Romagna's DTM into `data/raw/cesena` |
 | `pnpm rt-index <part>` | lists the Regione Toscana CTR sheets, LiDAR tiles (with their archive names and licences), DBT blocks and DSM 2021 elements over a part into `.research/<part>/index.json` |
 | `pnpm pick-sheets <part>` | the 2019 CTR sheets whose mapped area meets the part, against its manifest; `--write` updates `data/parts/<part>.json` |
 | `pnpm pick-lidar <part> [--lots 004,005]` | replays `fetch-rt`'s first-wins LiDAR mosaic to keep the tiles that write a cell and report the holes, against the manifest; `--write` updates it |
@@ -194,18 +199,19 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `src/sim/water/` | the rivers: their flow from the weather's rain, their depth and current along each reach, and people and animals wading and swimming in them |
 | `src/sim/systems/` | one file per system group (spawn, enter/exit, foot, footing, drive, traffic, pedestrians, perception and reactions, animals, their frights, physics, contacts, damage, explosions, populate, populate animals, sky, water) |
 | `src/sim/population/` | who lives where and who goes out: residents from the buildings, people's looks, parties, farms |
-| `src/sim/map/` | the generated map (`monzone.bin`), its decoder, types and lookups (heights, walls, road graph, ground elevation, surfaces, land cover) |
+| `src/sim/map/` | the generated maps (`monzone.bin`, `cesena.bin`), their shared decoder, types and lookups (heights, walls, road graph, ground elevation, surfaces, land cover) |
 | `src/render/` | Three.js host code: pixel pipeline, static world meshes (the railway's track, crossings, tunnel portals and stations among them), people, animal and vehicle models, the trains (the ATR 220 in DPR livery) and the level crossings' arms and lights, blood pools, tyre marks and smoke, damaged engines' smoke and fire, explosions and charred wrecks, the render schedule; `sky/` lights the day and the night and draws the weather (fog, snow, wet ground, cloud shadows, rain and snow, lightning, street and platform lamps, lit windows, headlights) |
 | `src/audio/` | Web Audio host code: the audio schedule, the acoustics director (vehicles, trains and level crossings, people, conversations, animals, the valley, the time of day, the weather and the thunder), the speaker and mixer, the synths, the audition page |
 | `src/audio/speech/` | the Italian-sounding speech: what people say, and a formant synthesiser that voices it |
 | `src/hud/` | DOM HUD: the title card as loading screen, location names, the clock and weather readout, prompt, the “Sei morto” card when the player is killed, speedometer, minimap, full map (M), touch controls (mobile mode), settings (Esc) with the vehicle physics, and the dev-only debug menu (P) for the time, the weather, the vehicle handling and the trains; the settings and the menu set the handling through one store, the menu the sky through another and calls trains through a third |
-| `src/tools/` | the map pipeline (`build-map.ts`), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`), the parts of the map (`region.ts`) and the tools that scope and check a new part (`rt-index.ts`, `pick-sheets.ts`, `pick-lidar.ts`, `coverage.ts`, `footprint-check.ts`, `ortho.ts`, `playtest.ts`, `map-diff.ts`), and a top-down preview renderer |
+| `src/tools/` | the region-aware map pipeline (`build-map.ts`; `region.ts` holds the regions and the parts of the Lunigiana map), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`, `fetch-rer.ts`), the tools that scope and check a new part (`rt-index.ts`, `pick-sheets.ts`, `pick-lidar.ts`, `coverage.ts`, `footprint-check.ts`, `ortho.ts`, `playtest.ts`, `map-diff.ts`), and a top-down preview renderer |
+| `src/maps.ts` | browser map catalogue and validation of the `?map=` choice |
 | `src/boot.ts` | browser entry: downloads the map with progress, then imports the game |
 | `src/main.ts` | browser host: builds the scene, makes the runtime, runs the fixed loop |
 | `index.html` | canvas, HUD and touch-control markup, title card (the loading screen), and the switch to mobile mode |
 | `lab.html` | the audio audition page (dev server only) |
-| `data/raw/` | pinned map inputs: OSM extract, Regione Toscana CTR and LiDAR |
-| `data/parts/` | each part's source manifest: the CTR sheets, LiDAR tiles and 10 m DTMs `fetch-rt` downloads for it |
+| `data/raw/` | pinned map inputs: regional OSM extracts, Regione Toscana CTR and LiDAR, Emilia-Romagna DTM |
+| `data/parts/` | each Lunigiana part's source manifest: the CTR sheets, LiDAR tiles and 10 m DTMs `fetch-rt` downloads for it |
 | `docs/` | architecture, map pipeline, gameplay, weather, water and audio notes; `docs/standards/` holds the checks for each part of the game |
 | `.oxlintrc.json`, `.oxfmtrc.json`, `lefthook.yml` | lint rules, formatter settings, and the git hooks that format and lint each commit and check each push |
 | `lint/` | the project's own oxlint plugins, one file each named after the plugin (`test-files.ts`: each test in a `__tests__` folder) |
@@ -219,6 +225,8 @@ pnpm map
 ```
 
 The build reads only `data/raw` and takes about 9 s. Its output is deterministic: with the same inputs, `monzone.bin` (6.7 MB, gzipped) gunzips to the same bytes on every machine, and comes out byte-identical with the same Node build (another zlib or OS compresses differently). Never edit `monzone.bin` by hand.
+
+Build Cesena without changing Lunigiana with `pnpm map --region cesena`. The checked-in inputs are sufficient; only run `pnpm fetch-osm --region cesena` and `pnpm fetch-rer --region cesena` when intentionally updating them. `data/raw/cesena/source.json` records the terrain request, verified CC BY 4.0 licence and raster SHA-256. Preview it with `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`, then run `pnpm check`.
 
 The inputs in `data/raw` are:
 
@@ -234,8 +242,9 @@ Downloading the OSM data again pulls current edits, so the map changes; the file
 
 The map and the climate model use open data under these licences and terms:
 
-- **OpenStreetMap**: map data © OpenStreetMap contributors, available under the [Open Database License (ODbL) 1.0](https://www.openstreetmap.org/copyright). `monzone.bin` is a derived database and stays under the ODbL.
+- **OpenStreetMap**: map data © OpenStreetMap contributors, available under the [Open Database License (ODbL) 1.0](https://www.openstreetmap.org/copyright). `monzone.bin` and `cesena.bin` are derived databases and stay under the ODbL.
 - **Regione Toscana**: buildings, road surfaces, elevation and land cover, “Fonte dei dati: Regione Toscana – Rilievi LIDAR”, the Carta Tecnica Regionale 1:2000 and the Uso e copertura del suolo 2019, under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/), and the DTM 10x10 metri, under [Creative Commons Attribution 3.0 Italia](https://creativecommons.org/licenses/by/3.0/it/), from the [Geoscopio cartoteca](https://www502.regione.toscana.it/geoscopio/cartoteca.html).
+- **Regione Emilia-Romagna**: Cesena terrain from [DTM 5x5 - ultima edizione](https://geoportale.regione.emilia-romagna.it/catalogo/dati-cartografici/altimetria/layer-2), under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/), downloaded through the region's WCS. The game resamples the 5 m source onto its 4 m terrain grid; this does not add survey detail.
 - **ISPRA SCIA**: the 1991–2020 station normals (temperature and rain days) the national climate model is fitted to, from ISPRA’s SCIA [valori climatici normali](http://valori-climatici-normali.isprambiente.it/), and the heavy-rain shares of ISPRA’s report *I normali climatici 1991-2020 di temperatura e precipitazione in Italia*, under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).
 - **Aeronautica Militare**: the cumulonimbus, fog, cloud-cover and strong-wind normals of its lowland airports from its *Atlante Climatico d’Italia* 1971–2000, used under its [terms](https://www.meteoam.it/it/condizioni-utilizzo), which ask for this credit: “Informazioni elaborate utilizzando, tra l'altro, dati e prodotti del Servizio Meteorologico dell'Aeronautica Militare pubblicati sul sito www.meteoam.it”.
 

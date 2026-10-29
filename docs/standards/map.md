@@ -34,9 +34,10 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 
 - The runbook's tools are in `src/tools` and `package.json` ([Adding a
   part](../map.md#adding-a-part)): `footprint-check`, `rt-index`, `pick-sheets`, `pick-lidar`,
-  `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the parts' rectangles; their
-  masks and outline walls arrive with issue #7, `pin-raw` with #6 and `fetch-lig` with #12. When one
-  is missing, name the issue that adds it and ask the user before building it.
+  `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the regions (Lunigiana,
+  Cesena) and the Lunigiana parts' rectangles; their masks and outline walls arrive with issue #7,
+  `pin-raw` with #6 and `fetch-lig` with #12. When one is missing, name the issue that adds it and
+  ask the user before building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.

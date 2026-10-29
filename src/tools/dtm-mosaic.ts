@@ -2,7 +2,8 @@
 // `pick-lidar` (which replays it to see which tiles write a cell). A cell keeps the first value a
 // tile gives it, so the tiles' order decides the mosaic.
 
-import { type Rect, gaussBoagaBox } from "./region.ts"
+import { gaussBoagaBox } from "./geometry.ts"
+import type { Rect } from "./region.ts"
 
 /** A 1 m grid in EPSG:3003: cell (col, row) is centred on (e0 + col, n0 + row), row 0 south. */
 export interface Crop {

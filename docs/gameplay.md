@@ -8,15 +8,18 @@ keys ([architecture.md](architecture.md#input)).
 ## Start
 
 `SpawnWorld` puts the player on the Via Cesare Battisti sidewalk in front of the Carabinieri
-station. 200 of the map's parked spots (`PARKED`) get a car, picked at random, so the cars spread
-over the villages as the spots do. Spots where a parked car would tilt more than 15° are skipped (72
-of the 805: the 4 m terrain puts some verges on a bank), and each car settles on its springs with
-the ground's slope. The two spots nearest the station get Carabinieri cars. The rest are randomly
-chosen spots, about 80% Pandas and 20% Apes. On a tertiary-road spot where it fits, a roll under 10%
-makes a marble truck instead, at most two of them. Then the first fill puts the people and animals
-around the start out at once ([The first fill](#the-first-fill)), and each line's first train stands
-at its station nearest the start ([Trains](#trains)). The world's `Rng` makes every choice but the
-trains' (`RailRng`), so `?seed=N` replays the same start. The game begins on today's date at 08:00
+station in Lunigiana, or beside a central connected street in Cesena. The map build rejects
+positions inside buildings and requires an open walking route to the street, so the player can
+leave the starting spot. 200 of the map's parked spots (`PARKED`) get a car, picked at random,
+so the cars spread over the villages as the spots do. Spots where a parked car would tilt more
+than 15° are skipped (in Lunigiana, 72 of the 805: the 4 m terrain puts some verges on a bank),
+and each car settles on its springs with the ground's slope. The two spots nearest the station
+get Carabinieri cars. The rest
+are randomly chosen spots, about 80% Pandas and 20% Apes. On a tertiary-road spot where it fits,
+a roll under 10% makes a marble truck instead, at most two of them. Then the first fill puts the
+people and animals around the start out at once ([The first fill](#the-first-fill)), and each line's
+first train stands at its station nearest the start ([Trains](#trains)). The world's `Rng` makes
+every choice but the trains' (`RailRng`), so `?seed=N` replays the same start. The game begins on today's date at 08:00
 in Rome, under a clear sky on dry roads, once the title card is dismissed; the clock, the sun and
 the weather are in [weather.md](weather.md).
 

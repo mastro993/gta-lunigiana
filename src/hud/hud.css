@@ -324,6 +324,21 @@ body {
   outline-offset: 2px;
 }
 
+#map-choice {
+  margin-bottom: 12px;
+}
+#map-choice a {
+  color: var(--ink);
+  text-underline-offset: 4px;
+}
+#map-choice a[aria-current] {
+  color: var(--accent);
+  text-decoration-thickness: 2px;
+}
+#map-choice a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
 #title {
   position: fixed;
   inset: 0;
@@ -337,6 +352,10 @@ body {
   display: none;
 }
 #title .card {
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
   padding: 24px 32px;
   background: var(--panel);
   border: 2px solid var(--accent);

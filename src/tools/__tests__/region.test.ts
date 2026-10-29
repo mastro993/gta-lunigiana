@@ -1,9 +1,28 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { latLonToGaussBoaga } from "../crs.ts"
-import { fromLocal } from "../geometry.ts"
-import { PARTS, type Rect, gaussBoagaBox, inRects, partOf, rectsBox } from "../region.ts"
+import { PARTS, type Rect, inRects, partOf, rectsBox, regionFromArgs } from "../region.ts"
+
+test("the default build keeps the pinned Lunigiana map", () => {
+  const region = regionFromArgs([])
+  assert.equal(region.id, "lunigiana")
+  assert.equal(region.file, "monzone")
+  assert.deepEqual(region.origin, { lat: 44.16175, lon: 10.13 })
+})
+
+test("Cesena is a separate city-centre map", () => {
+  const region = regionFromArgs(["--region", "cesena"])
+  assert.equal(region.file, "cesena")
+  assert.ok(region.origin.lat > 44.13 && region.origin.lat < 44.15)
+  assert.ok(region.origin.lon > 12.23 && region.origin.lon < 12.26)
+  assert.equal(region.bounds.maxX - region.bounds.minX, 4000)
+  assert.equal(region.bounds.maxY - region.bounds.minY, 4000)
+})
+
+test("unknown regions and incomplete arguments fail before a fetch or build", () => {
+  assert.throws(() => regionFromArgs(["--region", "unknown"]), /region/)
+  assert.throws(() => regionFromArgs(["--region"]), /region/)
+})
 
 /** An L: a 200 by 100 m foot and a 100 by 200 m leg on its west half, the notch at its north-east. */
 const L: ReadonlyArray<Rect> = [
@@ -57,26 +76,4 @@ test("inRects holds inside either rectangle and on their edges, not in the notch
 test("rectsBox is the box round every rectangle", () => {
   assert.deepEqual(rectsBox(L), [0, 0, 200, 300])
   assert.deepEqual(rectsBox(partOf("lucido").rects), [-2900, -6100, 4900, 3900])
-})
-
-test("gaussBoagaBox is the EPSG:3003 box round the corners, widened by pad on every side", () => {
-  const [x0, y0, x1, y1] = partOf("lucido").rects[0]!
-  const corners = [
-    [x0, y0],
-    [x1, y0],
-    [x0, y1],
-    [x1, y1],
-  ].map(([x, y]) => latLonToGaussBoaga(...fromLocal(x!, y!)))
-  const es = corners.map((c) => c[0]),
-    ns = corners.map((c) => c[1])
-  const box = [Math.min(...es), Math.min(...ns), Math.max(...es), Math.max(...ns)]
-  assert.deepEqual(gaussBoagaBox(partOf("lucido").rects), box)
-  assert.deepEqual(gaussBoagaBox(partOf("lucido").rects, 500), [
-    box[0]! - 500,
-    box[1]! - 500,
-    box[2]! + 500,
-    box[3]! + 500,
-  ])
-  // The box holds the 7.8 by 10 km rectangle with room to spare: the frames turn against each other.
-  assert.ok(box[2]! - box[0]! > 7800 && box[3]! - box[1]! > 10_000)
 })

@@ -14,6 +14,7 @@ import {
   centroid,
   clipLine,
   clipRing,
+  crossings,
   flatLine,
   flatRing,
   hash01,
@@ -26,6 +27,7 @@ import {
   type V,
 } from "./geometry.ts"
 import { assembleRings, type Osm, type OsmWay, type Tags } from "./osm.ts"
+import { REGION } from "./region.ts"
 
 export interface RoadF {
   readonly id: number
@@ -100,9 +102,18 @@ const FOLDED: Readonly<Partial<Record<string, RoadClass>>> = {
   footway: "path",
   pedestrian: "path",
 }
+const CITY_FOLDED: Readonly<Partial<Record<string, RoadClass>>> = {
+  secondary: "tertiary",
+  primary_link: "tertiary",
+  secondary_link: "tertiary",
+  tertiary_link: "tertiary",
+  cycleway: "path",
+}
 const classOf = (t: Tags): RoadClass | undefined => {
   if (t.highway === undefined || t.area === "yes") return undefined // squares are areas
-  return isRoadClass(t.highway) ? t.highway : FOLDED[t.highway]
+  return isRoadClass(t.highway)
+    ? t.highway
+    : (FOLDED[t.highway] ?? (REGION.id === "cesena" ? CITY_FOLDED[t.highway] : undefined))
 }
 
 export const extractRoads = (osm: Osm): Array<RoadF> =>
@@ -181,23 +192,83 @@ const waterSize = (
   return { w, bed: Math.max(w / 2 + 1, 3), depth: kind === "river" ? 2.5 : main ? 1.5 : 1 }
 }
 
-export const extractWater = (osm: Osm, ground: (x: number, y: number) => number): Array<WaterF> =>
-  [...osm.ways.values()]
-    .filter((w) => w.tags.waterway !== undefined && w.tags.tunnel !== "culvert")
+/** Median cross-section between mapped riverbanks; missing outlines leave the existing default. */
+const mappedRiverWidth = (
+  pts: ReadonlyArray<V>,
+  banks: ReadonlyArray<ReadonlyArray<V>>,
+): number | undefined => {
+  const widths: Array<number> = []
+  for (let index = 1; index < pts.length; index++) {
+    const start = pts[index - 1]!,
+      end = pts[index]!
+    const length = Math.hypot(end.x - start.x, end.y - start.y)
+    if (length < 1) continue
+    const x = (start.x + end.x) / 2,
+      y = (start.y + end.y) / 2
+    const nx = -(end.y - start.y) / length,
+      ny = (end.x - start.x) / length
+    const section = [
+      { x: x - nx * 200, y: y - ny * 200 },
+      { x: x + nx * 200, y: y + ny * 200 },
+    ]
+    for (const bank of banks) {
+      const hits = crossings(section, bank)
+        .map((hit) => hit.sa)
+        .sort((a, b) => a - b)
+      for (let hit = 0; hit + 1 < hits.length; hit += 2) {
+        const left = hits[hit]!,
+          right = hits[hit + 1]!
+        if (left <= 200 && right >= 200 && right - left >= 2) widths.push(right - left)
+      }
+    }
+  }
+  widths.sort((a, b) => a - b)
+  const width = widths[Math.floor(widths.length / 2)]
+  return width === undefined ? undefined : r1(width)
+}
+
+export const extractWater = (osm: Osm, ground: (x: number, y: number) => number): Array<WaterF> => {
+  const isBank = (tags: Tags) =>
+    tags.waterway === "riverbank" || (tags.natural === "water" && tags.water === "river")
+  const banks =
+    REGION.id === "cesena"
+      ? [
+          ...[...osm.ways.values()]
+            .filter((way) => isBank(way.tags) && closed(way))
+            .map((way) => vertices(osm, way.nds)),
+          ...[...osm.relations.values()]
+            .filter((relation) => isBank(relation.tags))
+            .flatMap((relation) =>
+              assembleRings(osm, relation, "outer").map((ring) => vertices(osm, ring)),
+            ),
+        ]
+      : []
+  return [...osm.ways.values()]
+    .filter(
+      (w) =>
+        w.tags.waterway !== undefined &&
+        w.tags.waterway !== "riverbank" &&
+        w.tags.tunnel !== "culvert",
+    )
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"
       return clipLine(vertices(osm, w.nds)).map((pts): WaterF => {
         const z = pts.reduce((s, p) => s + ground(p.x, p.y), 0) / pts.length
+        const size = waterSize(t.name, kind, z)
+        const measured =
+          kind === "river" && REGION.id === "cesena" ? mappedRiverWidth(pts, banks) : undefined
         return {
           id: +w.id,
           kind,
           ...(t.name ? { name: t.name } : {}),
-          ...waterSize(t.name, kind, z),
+          ...size,
+          ...(measured === undefined ? {} : { w: measured, bed: measured / 2 + 1 }),
           pts,
         }
       })
     })
+}
 
 /** `railway=rail` ways clipped to the play area, with their bridge, tunnel and speed-limit tags. */
 export const extractRail = (osm: Osm): Array<RailF> =>
@@ -259,7 +330,9 @@ const BLOCK_LINK = 6
 
 /** Stone inside the hill-village cores, plaster elsewhere. */
 const genericStyle = (cx: number, cy: number): BuildingStyle =>
-  STONE_CORES.some(([x, y, r]) => Math.hypot(cx - x, cy - y) < r) ? "stone" : "plaster"
+  REGION.id === "lunigiana" && STONE_CORES.some(([x, y, r]) => Math.hypot(cx - x, cy - y) < r)
+    ? "stone"
+    : "plaster"
 const isGeneric = (s: BuildingStyle) => s === "plaster" || s === "stone"
 
 const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {

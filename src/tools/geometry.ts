@@ -2,7 +2,8 @@
 // ring winding, point/segment distances and a bucketed segment index.
 
 import { segDist2 } from "../sim/collide.ts"
-import { ORIGIN } from "../sim/map/kinds.ts"
+import { latLonToGaussBoaga } from "./crs.ts"
+import { REGION, type Rect } from "./region.ts"
 
 export type P = readonly [number, number]
 /** A polyline vertex; `id` is the OSM node id, absent for points made by clipping. */
@@ -12,9 +13,13 @@ export interface V {
   readonly id?: string
 }
 
-export const M_PER_DEG = { lat: 111115.37, lon: 79987.94 }
+export const ORIGIN = REGION.origin
+export const M_PER_DEG = {
+  lat: 111115.37,
+  lon: REGION.id === "lunigiana" ? 79987.94 : 111320 * Math.cos((ORIGIN.lat * Math.PI) / 180),
+}
 /** Play area, local metres: lat 44.1069–44.1968, lon 10.0937–10.1913. The whole Lucido catchment, ridge to ridge, plus the Aulella side by Gragnola and Codiponte. */
-export const BOUNDS = { minX: -2900, minY: -6100, maxX: 4900, maxY: 3900 }
+export const BOUNDS = REGION.bounds
 
 export const r1 = (v: number): number => Math.round(v * 10) / 10
 export const toLocal = (lat: number, lon: number): P => [
@@ -106,6 +111,31 @@ export const clipRing = (
     if (poly.length === 0) break
   }
   return [...poly]
+}
+
+/**
+ * The EPSG:3003 box [e0, n0, e1, n1] round every corner of local rectangles, widened by `pad`
+ * metres. The local frame turns against Gauss-Boaga's grid, so the box holds more than the
+ * rectangles.
+ */
+export const gaussBoagaBox = (
+  rects: ReadonlyArray<Rect>,
+  pad = 0,
+): [number, number, number, number] => {
+  const corners = rects.flatMap(([x0, y0, x1, y1]) =>
+    [
+      [x0, y0],
+      [x1, y0],
+      [x0, y1],
+      [x1, y1],
+    ].map(([x, y]) => latLonToGaussBoaga(...fromLocal(x!, y!))),
+  )
+  return [
+    Math.min(...corners.map((c) => c[0])) - pad,
+    Math.min(...corners.map((c) => c[1])) - pad,
+    Math.max(...corners.map((c) => c[0])) + pad,
+    Math.max(...corners.map((c) => c[1])) + pad,
+  ]
 }
 
 export const signedArea = (r: ReadonlyArray<P>): number => {

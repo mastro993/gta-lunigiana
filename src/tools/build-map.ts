@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { gzipSync } from "node:zlib"
 
 import type { MonzoneMap } from "../sim/map/index.ts"
-import { isDrivable, ORIGIN } from "../sim/map/kinds.ts"
+import { isDrivable } from "../sim/map/kinds.ts"
 import { MAP_VERSION } from "../sim/map/packed.ts"
 import { catchments } from "./catchment.ts"
 import { conflateRail } from "./conflate.ts"
@@ -33,6 +33,7 @@ import {
   crossings,
   flatLine,
   M_PER_DEG,
+  ORIGIN,
   pointInRing,
   r1,
   segIndex,
@@ -47,22 +48,32 @@ import { clearVerges } from "./rail-clear.ts"
 import { railLevels } from "./rail-levels.ts"
 import { printRail, railSummary } from "./rail-report.ts"
 import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
+import { REGION } from "./region.ts"
 import { clearance, parkedSpots, playerSpawn, scatterTrees } from "./spawns.ts"
-import { loadDtm, makeGrid, sampleGrid } from "./terrain.ts"
+import { loadDtm, loadGeoDtm, makeGrid, sampleGrid } from "./terrain.ts"
 import { readUcs } from "./ucs.ts"
 import { buildWalls, clipBuildings, openBarriers } from "./walls.ts"
 import { carveAll, fitUnderDecks, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
-const OUT = join(ROOT, "src/sim/map/monzone.bin")
+const OUT = join(ROOT, `src/sim/map/${REGION.file}.bin`)
 const t0 = performance.now()
 const lap = (label: string) =>
   console.log(`${label.padEnd(10)} ${((performance.now() - t0) / 1000).toFixed(2)} s`)
 
-const osm = readOsm(join(ROOT, "data/raw/lunigiana.osm.gz"))
-const ctr = readCtr(join(ROOT, "data/raw/rt/ctr"))
-const ground = loadDtm(join(ROOT, "data/raw/rt")) // the untouched 1 m terrain every profile samples
-const ctrRail = readCtrRail(join(ROOT, "data/raw/rt/ctr"))
+const osm = readOsm(join(ROOT, `data/raw/${REGION.id}.osm.gz`))
+const ctr =
+  REGION.id === "lunigiana"
+    ? readCtr(join(ROOT, "data/raw/rt/ctr"))
+    : { buildings: [], roadAreas: [], mapped: [] }
+const ground =
+  REGION.id === "lunigiana"
+    ? loadDtm(join(ROOT, "data/raw/rt"))
+    : await loadGeoDtm(join(ROOT, "data/raw/cesena/dtm.tif"))
+const ctrRail =
+  REGION.id === "lunigiana"
+    ? readCtrRail(join(ROOT, "data/raw/rt/ctr"))
+    : { tracks: [], bridges: [], tunnels: [], platforms: [], crossings: [] }
 // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has; level-crossing nodes
 // slide along their roads with it, and what its bridges span stays under them (water widths
 // depend on the way's mean ground, so the terrain is loaded first).
@@ -73,7 +84,13 @@ const {
   water,
   moves,
   report: railReport,
-} = conflateRail(extractRail(osm), extractRoads(osm), extractWater(osm, ground), ctrRail)
+} = conflateRail(
+  extractRail(osm),
+  extractRoads(osm),
+  extractWater(osm, ground),
+  ctrRail,
+  REGION.id === "lunigiana" ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
+)
 const allRail = [...rail, ...extra]
 lap("rail")
 fitRoads(roads, ctr.roadAreas, ctr.mapped)
@@ -88,7 +105,7 @@ const buildings = clipBuildings(extractBuildings(osm, ctr), roads),
 const osmAreas = extractAreas(osm)
 const areas = [
   ...osmAreas.filter((a) => a.kind !== "platform"),
-  ...readUcs(join(ROOT, "data/raw/rt/ucs.json.gz")), // rock, pastures and quarries OSM lacks above the woods
+  ...(REGION.id === "lunigiana" ? readUcs(join(ROOT, "data/raw/rt/ucs.json.gz")) : []), // rock, pastures and quarries OSM lacks above the woods
   ...ctr.roadAreas.filter((a) => a.paved).map((a) => ({ kind: "paved", rings: a.rings })), // squares, lay-bys
 ]
 lap("features")
@@ -296,9 +313,31 @@ const poi = (id: number) => {
   if (p === undefined) throw new Error(`poi ${id} missing`)
   return p
 }
-const station = poi(1813987803),
-  carabinieri = poi(14183344901)
-const player = playerSpawn(roads, walkClear, driveClear, carabinieri)
+const station = poi(REGION.id === "lunigiana" ? 1813987803 : 827592490),
+  carabinieri = poi(REGION.id === "lunigiana" ? 14183344901 : 806564311)
+const central =
+  REGION.id === "lunigiana"
+    ? []
+    : graph.traffic
+        .map((edge) => {
+          const node = graph.edges[3 * edge]!,
+            road = graph.edges[3 * edge + 2]!
+          const x = graph.xy[2 * node]!,
+            y = graph.xy[2 * node + 1]!
+          return { road: roads[road]!, x, y, distance: Math.hypot(x, y) }
+        })
+        .sort((a, b) => a.distance - b.distance)
+const start = central[0]
+if (REGION.id === "cesena" && start === undefined)
+  throw new Error("Cesena has no connected traffic roads")
+const player = playerSpawn(
+  roads,
+  walkClear,
+  driveClear,
+  start ?? carabinieri,
+  buildings,
+  start?.road,
+)
 const junctions = graph.degree.flatMap((d, n) =>
   d >= 3 ? [[graph.xy[2 * n]!, graph.xy[2 * n + 1]!] as const] : [],
 )

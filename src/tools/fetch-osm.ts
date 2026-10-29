@@ -1,5 +1,6 @@
-// Downloads the OSM extract the map build reads: `data/raw/lunigiana.osm.gz`.
-// Run: node src/tools/fetch-osm.ts  (pnpm fetch-osm).
+// Downloads the OSM extract the map build reads: `data/raw/<region>.osm.gz`, for the region
+// `--region` names (`lunigiana` by default; `region.ts`).
+// Run: node src/tools/fetch-osm.ts [--region cesena]  (pnpm fetch-osm).
 // The OSM API 0.6 `/map` call answers HTTP 400 for a box holding more than 50 000 nodes (or larger
 // than 0.25 square degrees), so the play area plus MARGIN is asked for whole, and a box answered
 // 400 is split in four and each quarter asked for in turn, down to boxes MIN_SIDE wide; a network
@@ -14,9 +15,10 @@ import { gzipSync } from "node:zlib"
 
 import { BOUNDS, fromLocal } from "./geometry.ts"
 import { getText, request } from "./net.ts"
+import { REGION } from "./region.ts"
 
 const API = "https://api.openstreetmap.org/api/0.6"
-const OUT = join(import.meta.dirname, "../../data/raw/lunigiana.osm.gz")
+const OUT = join(import.meta.dirname, `../../data/raw/${REGION.id}.osm.gz`)
 const MARGIN = 100 // m beyond the play area: ways crossing the edge come whole anyway
 const AREA_KEYS = ["landuse", "natural", "building", "leisure", "amenity"]
 /** Degrees (40-55 m here): a box this narrow answered 400 is an error, not too many nodes. */
