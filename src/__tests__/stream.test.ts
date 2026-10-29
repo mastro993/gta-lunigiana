@@ -140,11 +140,33 @@ test("a tile is let go only past 1.5 km from the player, never while the view or
     "1_1 lies within 1.5 km, the view wants 2_0, -2_-2 is by the extra point",
   )
   stream.update(near, undefined, none)
+  assert.equal(
+    net.calls.filter((call) => call.includes("drop")).length,
+    0,
+    "the last update kept them",
+  )
+  stream.update(near, undefined, none)
   assert.deepEqual(
     net.calls.filter((call) => call.includes("drop")),
     ["dropped 2_0", "drop 2_0", "dropped -2_-2", "drop -2_-2"],
   )
   assert.ok(net.here.has("1_1") && net.here.has("0_0"))
+})
+
+// Review of #64: the steps of the frame that jumped (a respawn, a teleport) left events at the old place (a skid, a crash), and the
+// render and audio read the ground there after the stream had let its tiles go: "map tile i_j not loaded".
+test("a tile goes only once two updates running would let it go: the frame after a jump still reads the old place", () => {
+  const net = fake(["0_0"])
+  const stream = makeTileStream(net.host)
+  stream.update(near, undefined, none)
+  const far: Point = { x: 4900, y: -5900 }
+  stream.update(far, undefined, none)
+  assert.ok(net.here.has("0_0"), "kept through the frame of the jump")
+  stream.update(far, undefined, none)
+  assert.deepEqual(
+    net.calls.filter((call) => call.includes("drop")),
+    ["dropped 0_0", "drop 0_0"],
+  )
 })
 
 test("a failed download is retried after a wait that doubles", async (t) => {

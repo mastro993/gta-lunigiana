@@ -8,7 +8,9 @@
  * gives each `DEADLINE` ms and cancels one nothing needs any more, retries a failed one after a wait
  * that doubles, hands over at most one downloaded tile a frame (decoding one takes a few
  * milliseconds), and lets a tile go only once it lies farther than `KEEP` from the player and
- * neither the view nor `extra` needs it. A tile that cannot ever come (the server has no such file,
+ * neither the view nor `extra` needs it, two updates running: the frame's render and audio read
+ * the events its steps left round where the last update found the player (after a jump, the old
+ * place: a skid, a crash). A tile that cannot ever come (the server has no such file,
  * as after a new build replaced the site, or the file is from another build) is `gone`: `main.ts`
  * offers a reload. Residency is the host's alone: the sim's answers never depend on it.
  *
@@ -124,6 +126,8 @@ export const makeTileStream = (host: TileStreamHost) => {
   const failed = new Map<string, { readonly tries: number; readonly until: number }>()
   /** Tiles that will never come: tried no more. */
   const gone = new Set<string>()
+  /** The tiles the last update kept. */
+  let kept: ReadonlySet<string> = new Set()
   const around = (p: Point, r: number) => over(p.x - r, p.y - r, p.x + r, p.y + r)
   const fail = (key: string, error: unknown) => {
     if (permanent(error)) {
@@ -197,10 +201,11 @@ export const makeTileStream = (host: TileStreamHost) => {
         ...(extra === undefined ? [] : around(extra, NEAR)),
       ])
       for (const key of here)
-        if (!keep.has(key)) {
+        if (!keep.has(key) && !kept.has(key)) {
           onDropped?.(key)
           drop(key)
         }
+      kept = keep
       const t = now()
       for (const [key, { since, abort }] of loading) {
         if (!need.has(key)) abort.abort("unneeded")

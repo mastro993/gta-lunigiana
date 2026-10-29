@@ -18,7 +18,7 @@ import {
 } from "../map/tiles.ts"
 import { parkedCar } from "../spawning.ts"
 import { inReach } from "../systems/reach.ts"
-import { door, ON_BATTISTI, press, rolling, start } from "../testing.ts"
+import { battistiTraffic, door, ON_BATTISTI, press, rolling, start, wear } from "../testing.ts"
 
 const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 const START = MAP.spawns.player
@@ -89,6 +89,34 @@ test("freeze: cars past FROZEN_BEYOND keep their state bit for bit and read no t
   assert.ok(
     Ops.hypot(shoved.x - ahead(AWAY, -3).x, shoved.y - ahead(AWAY, -3).y) > 0.1,
     "and shoved the parked one",
+  )
+})
+
+// Review of #64: CrashDamage abandoned every destroyed traffic car, and its fleeing driver read the walls there, frozen or not.
+test("a traffic wreck beyond reach is abandoned only once the player comes within reach: no tile read there before", () => {
+  const game = start([], [{ ...START }, { traffic: [battistiTraffic(0xd4a85e, AWAY)] }])
+  const wreck = () => game.world().vehicles.find((v) => off(v) > FROZEN_BEYOND)
+  const near = tilesOver(
+    START.x - STEP_REACH,
+    START.y - STEP_REACH,
+    START.x + STEP_REACH,
+    START.y + STEP_REACH,
+  )
+  try {
+    for (const key of near) provideTile(fromDisk(key))
+    setTileSource(undefined)
+    for (const { i, j } of MAP.tiles) if (!near.includes(tileKey(i, j))) dropTile(tileKey(i, j))
+    assert.ok(game.runtime.tick(wear(1)).ok)
+    game.run(10)
+    assert.equal(wreck()?.traffic, true, "frozen, still traffic")
+  } finally {
+    setTileSource(fromDisk)
+  }
+  game.runtime.send(SetPlayer, { ...ahead(AWAY, -(FROZEN_BEYOND - 50)), angle: 0 })
+  game.run(2)
+  assert.equal(wreck()?.traffic, false, "abandoned")
+  assert.ok(
+    game.world().peds.some((p) => p.mood === "flee" && Ops.hypot(p.x - AWAY.x, p.y - AWAY.y) < 15),
   )
 })
 

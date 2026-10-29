@@ -253,7 +253,8 @@ game reads the map only round the player, where the browser keeps its tiles
 - **What stops**: its physics (it neither sleeps nor wakes, and a flood does not float it), its
   contacts with vehicles, people and animals, a train's shove (a train passes through it, though the
   train's look-out still sees it: on the track it holds an AI train at the horn, then the train
-  creeps through), blasts, its fuse and its AI driver.
+  creeps through), blasts, its fuse and its AI driver. A traffic car destroyed out there is
+  abandoned only once the player is back within reach: its driver's way out reads the walls round it.
 - **What it keeps**: its pose, velocity, chassis, damage and controls, exactly. Once the player is
   back within 500 m it moves on with them, the velocity it had included.
 - **What freezes in play**: traffic goes beyond 320 m and a destroyed vehicle once out of view, so

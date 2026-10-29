@@ -26,6 +26,7 @@ import {
 import { VEHICLES } from "../vehicles.ts"
 import { fleeingDriver } from "./enter-exit.ts"
 import { FLEE_TIME } from "./pedestrians.ts"
+import { inReach, playerPose } from "./reach.ts"
 
 /**
  * Crashes wear vehicles out: this step's Impacts add to every vehicle they struck the share of its
@@ -37,7 +38,8 @@ import { FLEE_TIME } from "./pedestrians.ts"
  * down costs nothing; an animal struck costs its share of the two masses, as a vehicle would (a cow
  * dents the car, a cat does not). A traffic car destroyed, by a crash or by a blast (`Explode`), is abandoned:
  * its driver gets out at the first free door and flees, and it stays where it stops, its handbrake
- * on.
+ * on. A wreck beyond the player's reach (`inReach`) stands frozen, its driver in it, until the player comes within reach: the
+ * driver's way out reads the walls there.
  */
 export const CrashDamage = Game.System(
   "Lunigiana/CrashDamage",
@@ -56,6 +58,7 @@ export const CrashDamage = Game.System(
         without: [Pedestrian],
       }),
       animals: Game.Query({ selection: { animal: Game.Query.read(Animal) } }),
+      player: playerPose(),
     },
     resources: {
       rng: Game.System.writeResource(Rng),
@@ -148,8 +151,10 @@ export const CrashDamage = Game.System(
       }
     }
     // A traffic car destroyed, by a crash or by a blast (`Explode`), is abandoned.
+    const player = queries.player.each()[0]?.data.pose.get()
     for (const { entity, data } of matches) {
-      if (!data.traffic.present || !destroyed(data.damage.get().amount)) continue
+      const { amount } = data.damage.get()
+      if (!data.traffic.present || !destroyed(amount) || !inReach(data.pose.get(), player)) continue
       data.input.set({ throttle: 0, steer: 0, handbrake: true })
       commands.remove(entity, Traffic, Route, Autopilot)
       const { model } = data.vehicle.get()

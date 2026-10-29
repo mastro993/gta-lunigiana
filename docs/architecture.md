@@ -150,8 +150,8 @@ in [water.md](water.md).
 
 A step reads the map only round the player, because the host keeps only the tiles there in memory
 ([Tile streaming](#tile-streaming)). A vehicle farther than `FROZEN_BEYOND` (500 m) from the player
-along either axis stands frozen: `Explode`, `TrafficAI`, `VehiclePhysics`, `Contacts` and
-`TrainContacts` skip it (`inReach` in `systems/reach.ts`, against the player's `Pose`; with no
+along either axis stands frozen: `Explode`, `TrafficAI`, `VehiclePhysics`, `Contacts`,
+`TrainContacts` and `CrashDamage`'s abandoning of a destroyed traffic car skip it (`inReach` in `systems/reach.ts`, against the player's `Pose`; with no
 player everything is in reach), so its state stays exactly as it was until the player comes back.
 People and animals never get that far in play. `ApplyPlayer` moves the player with the other host
 requests, before anything moves. `LeaveBehind` comes after `Respawn`, the player's last move of the
@@ -543,7 +543,9 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   `walls.reach`, 33 m, past its box), traffic within 320 m, people within 140 m and animals within
   180 m of the player, and the spawn checks, at most 265 m out. Before sending `SetPlayer` the host
   brings in the target's square too. After the step that applies a jump the old place's tiles may
-  go: `LeaveBehind` has taken its people and animals, and its vehicles are frozen.
+  go: `LeaveBehind` has taken its people and animals, and its vehicles are frozen. They go at the
+  next frame's update, not the jump's: that frame's render and audio still read the ground and the
+  walls where its earlier steps left events (a skid's mark, a crash's material).
 - **What it asks for**: each animation frame `update(player, extra, wanted)` asks, most urgent
   first, for the tiles a step reads round the player and round `extra`, then every listed tile within
   `NEAR` (1000 m) of the player, the renderer's `wanted()` tiles and those within 1000 m of `extra`.
@@ -559,8 +561,9 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   `provideTile`, the most urgent first, as decoding one takes about 3 ms; a download nothing needs
   any more when it lands is let go unread.
 - **What it keeps and drops**: a tile goes only once it lies outside [player ± `KEEP`]² (1500 m),
-  the view does not want it and it is not within 1000 m of `extra`, so walking back and forth over
-  a seam never fetches a tile twice. The world hears of each change: `tileProvided` after
+  the view does not want it and it is not within 1000 m of `extra`, at two updates running (the
+  frame's render and audio read the events of steps run round where the last update found the
+  player), so walking back and forth over a seam never fetches a tile twice. The world hears of each change: `tileProvided` after
   `provideTile`, `tileDropped` before `dropTile` ([Rendering](#rendering)). A tile in memory is its
   decoded arrays, 0.78–3.68 MB on Lunigiana (68 MB for all 30; walls and trees decode to 8-byte
   numbers), plus its broad phases once a query reaches it; its gunzipped file is 0.76–1.78 MB. After
@@ -1798,7 +1801,8 @@ step, and git hooks run the first three before a commit or push.
   - `src/sim/__tests__/freeze.test.ts`: `inReach` (within `FROZEN_BEYOND` along both axes, and
     everywhere with no player); a car rolling at 5 m/s and a parked car touching its tail about
     5.7 km from the start, their tiles dropped and no tile source, keeping their state bit for bit
-    for 120 steps and moving again once `SetPlayer` brings the player within reach; a jump leaving
+    for 120 steps and moving again once `SetPlayer` brings the player within reach; a destroyed
+    traffic car there abandoned only then, reading no tile before; a jump leaving
     no one behind, and 60 steps run with only the target's tiles in memory; `SetPlayer` on foot and
     driving, and its bad requests dropped. `src/sim/__tests__/seams.test.ts`: two cars driven across
     the x = 0 and y = 0 seams on Via Borgo Monzone by the station, every frame's world and the final
@@ -1815,8 +1819,8 @@ step, and git hooks run the first three before a commit or push.
     ([map.md](map.md#checks-and-tools)).
   - `src/__tests__/stream.test.ts`: the tile stream on fakes: the tiles the next step reads asked
     for first, then the rest within 1 km, three at a time; `ready` round the player and the extra
-    point; a tile let go only past 1.5 km and never while the view or the extra point needs it, the
-    world told first; a failed download tried again after a wait that doubles, one stalled past
+    point; a tile let go only past 1.5 km, never while the view or the extra point needs it and only
+    at the second update that would let it go (the frame after a jump), the world told first; a failed download tried again after a wait that doubles, one stalled past
     15 s cancelled and tried again, one nothing needs any more cancelled with no failure; a tile the
     store refuses or the server has not (404) gone, named and never asked for again; a download that
     lands once nothing needs it let go; the files gunzipped as they arrive,
