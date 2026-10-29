@@ -77,9 +77,9 @@ and the tree-trunk size. It imports no data, so the build can use it before `mon
   those two are read from the geometry (the `0117` lines follow OSM's rail within 0.7 m at the
   median; the `0122` polygons sit on OSM's level-crossing nodes).
 - **LiDAR**: Regione Toscana's 1 m digital terrain model, in EPSG:3003 (Monte Mario / Gauss-Boaga
-  west): the 2010 flight (46 tiles) first, then the 2012 flight (19 tiles) for the Carrara side of
+  west): the 2010 flight (47 tiles) first, then the 2012 flight (19 tiles) for the Carrara side of
   the ridge and Monte Sagro, which 2010 flew only in part, in the order `data/parts/lucido.json`
-  lists them (one 2010 sliver is left out: see [Known data limitations](#known-data-limitations)).
+  lists them.
   `crs.ts` converts with the EPSG:1660 datum shift plus a residual of (−0.4, +0.5) m, fitted by
   matching the 2010 surface model to the 2019 CTR building outlines. The MATTM 2008 flight (lot 006)
   adds nothing here and is CC BY-SA, so it is not used.
@@ -779,7 +779,7 @@ multipolygon written as one `ms:GEOMETRY` per polygon, a tile in lots 004 and 00
 synthetic grid; `net.test.ts` serves a local HTTP server to check the `User-Agent`, the retry of a
 5xx (after 2 s, so the file takes 2.2 s), the immediate 4xx and `overpass` moving on from a 504 or
 an answer with a top-level remark (a server timeout) but not from a tag named `remark`;
-`manifest.test.ts` pins `lucido`'s 25 sheets, 65 tiles (46 of 2010 before 19 of 2012) and one 10 m
+`manifest.test.ts` pins `lucido`'s 25 sheets, 66 tiles (47 of 2010 before 19 of 2012) and one 10 m
 DTM; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule, first
 wins and the holes on synthetic grids; `footprint.test.ts` the outline of an L, clusters, a road
 that leaves and comes back, one that runs off the query box (unresolved) and a mistyped flag;
@@ -842,10 +842,13 @@ repository. Measured on `lucido` on 2026-10-29.
   `fetch-rt` mosaics (the EPSG:3003 box round the part's rectangles, an L's notch included, until
   issue #7). MATTM's lots are skipped, with their licence. It reports each tile's area and the holes
   left for the 10 m DTM, and without `--write` the difference from the manifest's `lidar`. `lucido`
-  (19 s, 565 MB): the 65 tiles of the manifest plus `22d14` of lot 004 (see [Known data
-  limitations](#known-data-limitations)); holes 654 734 m² in 5 pieces, the largest 361 141 m²,
-  exactly the cells `fetch-rt` fills from the 10 m DTM. The `dtm10` list is written by hand, from
-  the provinces the holes lie in.
+  (19 s, 565 MB): the manifest's 66 tiles; holes 654 734 m² in 5 pieces, the largest 361 141 m²,
+  exactly the cells `fetch-rt` fills from the 10 m DTM. PR #2 had found its 65 tiles with a
+  GetFeatureInfo grid 640 m apart, which missed `22d14` of lot 004, a 98 m wide 2010 sliver below
+  Picco di Navola (19 518 m² in the crop, local x 3843–3943, y −5750…−5473) that `pick-lidar` added:
+  506 heightmap nodes moved there, 474 of them under 0.5 m and none on average, up to 8.4 m on the
+  steep rock face, where the 2010 and 2012 flights classify the ground differently. The `dtm10` list
+  is written by hand, from the provinces the holes lie in.
 - **`pnpm coverage <part> [--refresh]`** (`coverage.ts`, raster in `coverage-grid.ts`) tallies, per
   comune (OSM `admin_level=8` boundaries), the part's area mapped by the manifest's 2019 sheets, by
   each LiDAR lot (the index footprints in manifest order, first wins) and by no LiDAR, and the UCS
@@ -889,11 +892,6 @@ it holes for the 10 m DTM) or the manifest lists more than one 10 m DTM.
 
 ## Known data limitations
 
-- **One 2010 LiDAR tile is missing from the mosaic.** PR #2 found the tiles with a GetFeatureInfo
-  grid 640 m apart, which missed `22d14` of lot 004, a 98 m wide sliver below Monte Sagro's ridge
-  (19 518 m² inside the crop, 1186–1338 m, local x 3843–3943, y −5750…−5473): those cells come
-  from the 2012 flight. `pnpm pick-lidar lucido` adds it; the manifest keeps PR #2's 65 tiles so
-  the map stays as it is until a rebuild takes it.
 - **The terrain is 4 m.** The LiDAR resolves 1 m (stored at 2 m), but the game grid averages it
   over 4 m cells: terrace walls, steps and narrow road benches are smoothed into slopes. Slopes
   come from a 12 m baseline. The LiDAR is from 2010 (2012 on the Carrara side), so earthworks

@@ -13,12 +13,11 @@
 //   contour lines, is dropped). Some sheets map only part of their frame; where none does, OSM
 //   fills in. A sheet may lack AGE, AVI or AFE (nothing of the kind in it) and has a VLI file only
 //   where a track runs.
-// - dtm.json + dtm.bin: LiDAR DTM, EPSG:3003 (CC BY 4.0): the manifests' 1 m tiles in priority
+// - dtm.json + dtm.bin: LiDAR DTM, EPSG:3003 (CC BY 4.0): the manifest's 1 m tiles in priority
 //   order (a cell keeps the first value written; for lucido the 2010 flight, then the 2012 flight
-//   for the Carrara side of the ridge and Monte Sagro, which 2010 flew only in part; one 2010
-//   sliver, 22d14 of lot 004, is not listed: docs/map.md), mosaicked, cropped to the
-//   play area plus MARGIN (`dtm-mosaic.ts`) and averaged to 2 m cells (the game grid is 4 m); int16
-//   decimetres, each row delta-coded, deflated. The few cells no tile has come from the 10 m DTM
+//   for the Carrara side of the ridge and Monte Sagro, which 2010 flew only in part), mosaicked,
+//   cropped to the play area plus MARGIN (`dtm-mosaic.ts`) and averaged to 2 m cells (the game grid
+//   is 4 m); int16 decimetres, each row delta-coded, deflated. The few cells no tile has come from the 10 m DTM
 //   (CC BY 3.0 IT), bent onto the LiDAR around each hole.
 // - ucs.json.gz: land cover 1:10 000, 2019 ("Uso e copertura del suolo", CC BY 4.0), EPSG:3003:
 //   the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse vegetation,
