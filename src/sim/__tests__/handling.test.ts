@@ -664,7 +664,12 @@ test("self-righting: a car asleep on its roof wakes and rolls back onto its whee
     [Chassis, roof],
     [Damage, UNDAMAGED],
   )
-  const { runtime, run, world } = start([], [{ x: -2800, y: -6000, angle: 0 }, { cars: [wreck] }])
+  // The player 400 m east, within the reach where vehicles move (FROZEN_BEYOND, 500 m); nobody else comes.
+  const { runtime, run, world } = start(
+    [],
+    [{ x: ON_BATTISTI.x + 400, y: ON_BATTISTI.y, angle: 0 }, { cars: [wreck] }],
+    { alone: true },
+  )
   run(240)
   assert.equal(world().vehicles[0]!.chassis.rollRate, 0, "asleep on its roof")
   runtime.send(SetHandling, { key: "selfRighting", value: 1 })

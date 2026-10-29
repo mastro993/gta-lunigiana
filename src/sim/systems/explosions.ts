@@ -32,6 +32,7 @@ import { VEHICLES, type VehicleModel } from "../vehicles.ts"
 import { DOWN_TIME } from "./contacts.ts"
 import { freeDoor } from "./enter-exit.ts"
 import { FLEE_TIME, runFrom } from "./pedestrians.ts"
+import { inReach, playerPose } from "./reach.ts"
 
 /** A wreck burns 5–10 s before it blows up: drawn from the world's Rng when it catches fire. */
 const FUSE = [Clock.duration(STEP, 5), Clock.duration(STEP, 10)] as const
@@ -63,7 +64,8 @@ export const WASTED = Clock.duration(STEP, 4)
  * on foot nearby and the player sitting in the wreck, knocks down and throws those a little farther, and sends the walkers
  * around running. People inside other vehicles are shielded by them. It runs after getting in and out are applied and before
  * anything moves, so it knows who sits in which vehicle, and the dead are down (a killed player out of the wreck, which is left
- * on its handbrake) by the time the step's movement reads them.
+ * on its handbrake) by the time the step's movement reads them. A vehicle beyond the player's reach (`inReach`) stands frozen: its
+ * fuse waits, and no blast reaches it.
  */
 export const Explode = Game.System(
   "Lunigiana/Explode",
@@ -105,6 +107,7 @@ export const Explode = Game.System(
         },
         with: [Player],
       }),
+      player: playerPose(),
     },
     resources: {
       rng: Game.System.writeResource(Rng),
@@ -117,8 +120,9 @@ export const Explode = Game.System(
     ),
   },
   ({ queries, resources, events, commands }) => {
-    const { step } = resources.time.get()
-    const vehicles = queries.vehicles.each()
+    const { step } = resources.time.get(),
+      player = queries.player.each()[0]?.data.pose.get()
+    const vehicles = queries.vehicles.each().filter(({ data }) => inReach(data.pose.get(), player))
     const blasts: Array<{
       readonly id: number
       readonly at: PoseValue
@@ -254,6 +258,7 @@ export const Respawn = Game.System(
     for (const { entity, data } of queries.player.each()) {
       if (step < data.dead.get().since + Clock.steps(WASTED)) continue
       const start = MAP.spawns.player
+      // While the player is dead the host keeps the start's tiles in memory too (`STEP_REACH`, map/tiles.ts): the ground is read there.
       data.pose.set(start)
       data.prev.set(start)
       data.motion.set({ vx: 0, vy: 0, spin: 0 })

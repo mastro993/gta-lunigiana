@@ -21,9 +21,11 @@ this WebGL page, so drive headless Chrome over CDP:
    plus `--use-angle=metal --enable-gpu --ignore-gpu-blocklist` on macOS
    (`--use-angle=swiftshader --enable-unsafe-swiftshader` elsewhere). For sound, add
    `--autoplay-policy=no-user-gesture-required --mute-audio`.
-3. Drive it over CDP. For screenshots of map spots and the full map, and for the first frame, the
-   slowest frame and the heap, run `pnpm playtest shots|heap … --port <port>`
-   ([docs/map.md](../map.md#adding-a-part)); `shots` needs the dev server. For play,
+3. Drive it over CDP. For screenshots of map spots and the full map, for the first frame, the
+   slowest frame and the heap, and for a 40 m/s run across the map's tile seams (the slowest frame
+   at each seam, the tiles in memory and the heap at the end), run
+   `pnpm playtest shots|heap|drive … --port <port>` ([docs/map.md](../map.md#adding-a-part));
+   `shots` and `drive` need the dev server. For play,
    `.research/playtest/bot.ts <seed>` walks, steals the Carabinieri car, drives and gets out;
    `cdp.ts` sends single steps. `.research/` is gitignored, so these scripts live only
    in the main checkout (`git worktree list`): copy them over, then change their hard-coded CDP port
@@ -38,12 +40,19 @@ this WebGL page, so drive headless Chrome over CDP:
    in mobile mode. Drive the touch controls with `Input.dispatchTouchEvent`.
 4. Dev builds expose `window.gta`: `renderer`, `view`, `scene`, `world`, `effects` (its
    `crossings.boxes` hold each level crossing's barriers and road lights, as the render last set
-   them; `undefined` at a foot crossing), `heightAt`,
-   `player()`, `handling()` (the handling knobs in force), `audio` (`level()` gives the output in
-   dBFS), `sky`, `skyLook()`, `trains()` and `cut` (the see-through cut: `open`, and `follow`,
-   which the render schedule calls with the player each frame; wrap it to pin the cut to a spot you
-   shoot).
+   them; `undefined` at a foot crossing), `heightAt` (exact where its tile is in memory, else the coarse
+   grid's height), `player()`, `tiles()` (the keys of the tiles in memory, in key order),
+   `teleport(x, y, angle)` (below), `handling()` (the handling knobs in force), `audio` (`level()`
+   gives the output in dBFS), `sky`, `skyLook()`, `trains()` and `cut` (the see-through cut: `open`,
+   and `follow`, which the render schedule calls with the player each frame; wrap it to pin the cut
+   to a spot you shoot).
    Load `?seed=N`, wait for `gta`, then press a key to dismiss the title card.
+   - `gta.teleport(x, y, angle)` puts the player at (x east, y north) facing `angle` (radians from
+     east toward north, as a spawn's), standing still, with the car they drive if any (dropped while
+     they drive a train). The game pauses while a tile a step reads round the goal is not in
+     memory, showing "Loading map…" after 300 ms, then `main.ts` sends `SetPlayer`, and it forgets
+     the goal once the player stands within 2 m of it. Wait until `gta.tiles()` holds still before
+     you measure or shoot there.
    - `gta.sky` is the debug menu's sky store: `now()` (the game time, its rate, Rome's wall clock
      in `local`, and the weather), `rate()`, `regime()` (the regime held, `null` in Auto),
      `heading()`, and the setters `setTime(secondOfDay)` (Rome time),
@@ -81,6 +90,12 @@ this WebGL page, so drive headless Chrome over CDP:
    ```js
    const f = gta.view.focus; f.set = function () { return this }; f.x = x; f.y = gta.heightAt(x, y) - 200; f.z = -y
    ```
+
+   For a spot off the tiles in memory (only those round the player and the view are), `gta.heightAt`
+   gives the coarse grid's height: wait 2 s for the view's tiles to stream in, then run the line
+   again to stand the focus on the exact ground, as `pnpm playtest shots` does. To have the game
+   itself there (its people, its sounds), run `gta.teleport(x, y, 0)` first and wait for
+   `gta.tiles()` to hold still.
 
    For a visible change, shoot the same spot before you change the code too: the PR shows before
    and after. M opens the full map. Shots for the README come from `pnpm build && pnpm preview` at

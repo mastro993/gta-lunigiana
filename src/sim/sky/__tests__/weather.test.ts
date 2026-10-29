@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { Ops, Random } from "@typeonce/ritmo-math"
 
+import { wholeMap } from "../../../tools/map-file.ts"
 import { MAP } from "../../map/index.ts"
 import type { LightningValue, WeatherValue } from "../../schema.ts"
 import { screenAxes } from "../../view.ts"
@@ -361,7 +362,8 @@ test("ground: in January snow covers the mountains down toward the freezing leve
     `a sunny January day: snow line ${thaw.snowLine} m`,
   )
   const lowest =
-    Array.from(MAP.heightmap.data).reduce((low, z) => Math.min(low, z), Number.MAX_VALUE) / 10
+    Array.from(wholeMap().heightmap.data).reduce((low, z) => Math.min(low, z), Number.MAX_VALUE) /
+    10
   const deep = run({ ...snowing, anomaly: -20, snowLine: 200 }, JANUARY, 3600, 60)
   assert.ok(
     deep.snowLine >= lowest - 50 - 1e-9 && deep.snowLine < 200,
@@ -655,7 +657,7 @@ test("readout: one word for the weather where the player stands, from what falls
 })
 
 test("place: the sky's place is the map's, its low ground about 230 m and its slope falling west-north-west", () => {
-  assert.deepEqual(place(), placeFrom(MAP.origin, MAP.heightmap))
+  assert.deepEqual(place(), placeFrom(MAP.origin, wholeMap().heightmap))
   assert.ok(
     FLOOR > 220 && FLOOR < 240 && place().downslope > 2 && place().downslope < 2.3,
     JSON.stringify(place()),

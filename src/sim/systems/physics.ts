@@ -32,6 +32,7 @@ import { weathered } from "../tyres.ts"
 import type { VehicleModel, VehicleSpec } from "../vehicles.ts"
 import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterAt } from "../water/rivers.ts"
+import { inReach, playerPose } from "./reach.ts"
 
 /** Wall hits: share of the impact speed bounced back, and speed lost per m/s of impact. */
 const BOUNCE = 0.2
@@ -311,7 +312,7 @@ const waterAround = (
  * the drive walls: a hit keeps the sliding part, bounces a little and costs speed by how hard it
  * was. Wall and ground hits are Impact events, sliding tyres Skid events. A vehicle at rest with
  * its pedal up sleeps until something moves it, unless it stands in a river, which buoys it, drags
- * it with its current and stalls its engine once over the air intake.
+ * it with its current and stalls its engine once over the air intake. One beyond the player's reach stands frozen (`inReach`).
  */
 export const VehiclePhysics = Game.System(
   "Lunigiana/VehiclePhysics",
@@ -327,6 +328,7 @@ export const VehiclePhysics = Game.System(
           damage: Game.Query.read(Damage),
         },
       }),
+      player: playerPose(),
     },
     resources: {
       time: Game.System.thisTick(Game.System.readResource(Time)),
@@ -344,12 +346,15 @@ export const VehiclePhysics = Game.System(
     if (dt <= 0) return
     const air = airAt(resources.clock.get().seconds, weather),
       under = (x: number, y: number, level: number) => groundAt(weather, x, y, level, air),
-      q = specificDischarge(resources.rivers.get(), FLOW)
+      q = specificDischarge(resources.rivers.get(), FLOW),
+      player = queries.player.each()[0]?.data.pose.get()
     for (const { entity, data } of queries.vehicles.each()) {
+      const pose = data.pose.get()
+      // Frozen beyond the player's reach, where the host keeps no map: it costs nothing and reads nothing.
+      if (!inReach(pose, player)) continue
       const { model } = data.vehicle.get()
       const spec = RIGS[model].spec
       const input = data.input.get()
-      const pose = data.pose.get()
       const motion = data.motion.get()
       const chassis = data.chassis.get()
       // Asleep: a vehicle its brakes hold at rest, that nobody drives off or touched, costs nothing; one lying overturned wakes to

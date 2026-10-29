@@ -17,6 +17,7 @@ import {
   type Root,
   SetClock,
   SetHandling,
+  SetPlayer,
   SetTrains,
   SetWeather,
   setup,
@@ -41,10 +42,11 @@ export const lintTarget = async (): Promise<Lint.Target<typeof Game.schema, type
   // The host's handling store (src/hud/handling.ts, behind the settings and the dev debug menu) sends SetHandling with runtime.send;
   // the host sends SetClock to hold the clock behind the title card (holdClock, src/hud/title.ts), and the dev debug menu sends
   // SetClock and SetWeather. SetTrains calls a train onto every idle line: the tests and the dev debug menu's Trains area send it.
+  // SetPlayer puts the player somewhere else: the tests send it, and in dev builds `gta.teleport`, which the playtest's drives call.
   return {
     runtime: made.value,
     schedules: { setup, update },
     describe: { render, audio },
-    hostEvents: [SetHandling, SetClock, SetWeather, SetTrains],
+    hostEvents: [SetHandling, SetClock, SetWeather, SetTrains, SetPlayer],
   }
 }

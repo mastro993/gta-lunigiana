@@ -4,8 +4,9 @@
  * car with its x-ray box and its lamps on and off; the signal lamps a train and a crossing light), so
  * `PixelView.compile` builds every program before the first frame. The first view need not hold a
  * river, a tree, a lit car or a train: wherever the player goes later, nothing compiles mid-game. The
- * effects (marks, smoke, rain, snow, bolts, the level crossings' arms and lights) are in the scene
- * from the start and compile with it.
+ * effects (marks, smoke, rain, snow, bolts) are in the scene from the start and compile with it; the
+ * level crossings' arms and lights, hidden until their ground is in memory, take the actors' and the
+ * signal lamps' programs warmed here.
  *
  * @module render/stand-ins
  */
@@ -42,10 +43,11 @@ export const standIns = (): { readonly group: Group; readonly dispose: () => voi
     group = new Group()
   const car = new VehicleNode("panda", 0xffffff, shape, actorMaterial)
   car.showXray(true) // x-ray boxes are built the first time they show
-  // One broadleaf at the origin: an InstancedMesh with instance colours, as every chunk's trees are.
+  // One broadleaf at the origin, on no ground (no tile need be in memory): an InstancedMesh with instance colours, as every chunk's trees are.
   const trees: Array<InstancedMesh> = treeMeshes(
     { broadleaf: [0, 0, 1, 1], conifer: [] },
     treeMaterial,
+    () => 0,
   )
   group.add(
     ...[

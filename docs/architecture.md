@@ -7,6 +7,8 @@ draws, plays the sound, and shows the HUD. It reads the world and never writes s
 requests go in as events that a system applies. `SetHandling` carries the handling the player picks
 in the settings or the dev debug menu, `SetClock` the game clock held behind the title card and
 the time and rate set in the dev debug menu, and `SetWeather` a regime forced in the dev debug menu.
+The host also decides which of the map's 2 km tiles are in memory, keeping those round the player
+([Tile streaming](#tile-streaming)); the simulation's answers never depend on it.
 
 ```
 keys, touch ──► KeyboardInput service ──► CaptureInput ──► Input resource ──► systems
@@ -73,10 +75,11 @@ player's stored handling at load, or the clock held behind the title card) waits
 run, however many render frames tick first: Ritmo keeps a sent event for a reader that has not run
 yet (since 0.14).
 
-In Node, setup takes about 12 ms once the land cover is built, as `main.ts` builds it first (the
-farm list about 9 ms of it); a test that has not built the cover pays for it here too, about
-109 ms. Setup draws from the world's `Rng`, and `FillTrains` from `RailRng`, so the fill replays
-with the seed.
+In Node, setup takes 18.3–18.7 ms (seed 7, three runs) with the start's four tiles in memory, as
+`boot.ts` hands them over first; the farm list, indexed from the farms the map file holds, takes
+4–8 ms on its own. A Node test reads each tile from disk the first time a lookup needs it: the
+start's four take 22 ms, read, gunzipped and decoded. Setup draws from the world's `Rng`, and
+`FillTrains` from `RailRng`, so the fill replays with the seed.
 
 `update` is one fixed step (`STEP = Clock.hz(60)`):
 
@@ -90,36 +93,38 @@ with the seed.
 | 6 | `ApplyClock` | `index.ts` | each `SetClock` request sets the game time and/or its rate in `GameClock`, kept in range (2000-01-01 to 2100-01-01, rate a whole 0–3600) |
 | 7 | `ApplyWeather` | `index.ts` | each `SetWeather` request forces a regime or hands the weather back to the day's plan, settled at once when asked, under the plan of the day the clock is on |
 | 8 | `ApplyTrains` | `rail/dispatch.ts` | each `SetTrains` request makes a train due now on every line no AI train runs on (`Railway`) |
-| 9 | `AdvanceClock` | `systems/sky.ts` | moves `GameClock` on by its rate (a game second a step at rate 1); at rate 0 it stands still, unwritten |
-| 10 | `AdvanceWeather` | `systems/sky.ts` | over the step's game seconds, draws the day's plan from the weather seed when a new Rome day begins (at rate 0 only that), moves toward the regime it sets for the hour and eases `Weather` toward it, wetting, drying, snowing and thawing the ground; over its real time, drifts a thunderstorm's cell and emits `Lightning`, drawing from `WeatherRng` |
-| 11 | `AdvanceRivers` | `systems/sky.ts` | over the step's game seconds, the weather's precipitation fills the catchments' snow, soil and stores and they drain into the rivers (`Rivers`, [water.md](water.md)) |
-| 12 | `EnterExit` | `systems/enter-exit.ts` | action key: enter, steal, carjack, get out; a train at its cab doors (`rail/boarding.ts`): its AI driver flees (out of the far cab where the active one has no door at grade), the far cab becomes the active one; getting out needs a stand at grade, the platforms' side first, and with none the player goes through to the far cab; out, the player stands on the ground on the vehicle's level (`Footing`) |
-| 13 | `applyDeferred` | | applies the enter/exit commands, so the blast knows who sits in which vehicle |
-| 14 | `FindFooting` | `systems/footing.ts` | every body on foot keeps to the level it was on (`Footing`: the ground nearest its last, decks and tunnels out to their verges); one with none takes its way's road or the terrain's level |
-| 15 | `Explode` | `systems/explosions.ts` | lights a burning wreck's fuse; a wreck whose fuse has burnt down blows up (`Explosion`): hits and shoves the vehicles near it, kills, knocks down and scares the people |
-| 16 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river or stream gets `InWater`, swimming once off its feet, and loses it on dry ground |
-| 17 | `applyDeferred` | | applies the blast's deaths and knockdowns, the first footings and who is in the water, before anything moves |
-| 18 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
-| 19 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
-| 20 | `Crossings` | `rail/systems.ts` | each level crossing moves on through its cycle (`LevelCrossings`: open, warning, lowering, closed, raising) from whether a train demands it now: moving at it, standing ready (an AI train about to go, the player's with its lever forward) or on it |
-| 21 | `TrafficAI` | `systems/traffic.ts` | AI drivers write their `CarInput`, braking for vehicles, people, animals and the cars of trains on their level, slower and keeping further back where the road is wet or snowy; at a level crossing (`rail/roads.ts`, reading `LevelCrossings` this step) they stop for a box not open (from the lowering on always, and short of the trains' envelope) and keep it and the junction before it clear, patient while it is closed for a train; a driver held up honks (`Honk`), and backs up rather than turn round beside a line's track |
-| 22 | `TrainAI` | `rail/service.ts` | AI train drivers write their lever (`CarInput`): line speed, braking curves to the next station's stop point, behind a train ahead on their track (any line's, on shared track; short of where one coming at them will stand) and short of a crossing whose arms are not down, standing where they are while one within their braking distance comes down; they dwell at stations while the game clock runs (`TrainRun`), drawing from `RailRng`, and whistle entering long tunnels (`Whistle`); a person, an animal or a vehicle on the track ahead on their level, a vehicle touching their body alongside, or another train against either end, holds them (`rail/lookout.ts`): the emergency brake and the urgent whistle, the horn, then a creep on; shoved while dwelling, they pull the emergency brake |
-| 23 | `Pedestrians` | `systems/pedestrians.ts` | people move as their mood says: walk their routes, keep by their leader, stop, gather, run; the down and the dead slide; out of their depth in the water they make for the bank, and the current takes the down and the dead |
-| 24 | `Animals` | `systems/animals.ts` | animals rest, wander (never onto the track), keep by their walker and run from what scares them, a train on their level and this step's whistles too; free dogs bark; the down and the dead slide; out of their depth in the water they paddle for the bank; cries are `Cry` events |
-| 25 | `VehiclePhysics` | `systems/physics.ts` | every vehicle moves on its springs and tyres from its `CarInput` under the `Handling`, each tyre's grip lowered by the wet and the snow under it, buoyed and dragged by a river and its engine stalled under one; wall and ground hits are `Impact` events, sliding tyres `Skid` events |
-| 26 | `TrainPhysics` | `rail/systems.ts` | every train moves along its line from its lever: traction, brakes, running resistance, grade and curves, on rail the weather leaves wet or under snow (`TrainMotion`); the player's under SCMT to its buffer stops at the drawn run (`rail/collisions.ts`), any other to its run-outs' ends; trains on one track that meet go on at their common speed; a buffer struck is a `wall` `Impact`, a train struck a `train` one |
-| 27 | `Contacts` | `systems/contacts.ts` | car–car, car–person, car–animal, person and animal contacts, knockdowns and deaths (`Down`, `Dead`); car–car hits, knockdowns, kills, a cow struck and a car stopped against a wall by a pinned person or animal (faster than `KNOCK_SPEED`) are `Impact` events |
-| 28 | `TrainContacts` | `rail/strikes.ts` | trains strike what touches their cars on their level, shoved by nothing: vehicles shoved clear or dragged along their wall, wrecked faster than 14 m/s or dragged against a wall faster than 3 m/s (a `train` `Impact` as a contact begins, against `PrevPose` and `TrainMotion.prev`, and the wrecking blow); people and animals on their `Footing` pushed aside, or knocked down by the train's own speed into them and maybe killed by the train's death curve, the player too (`Impact` with the train as its `car`) |
-| 29 | `CrashDamage` | `systems/damage.ts` | this step's `Impact` events wear the vehicles they struck (`Damage`), a train's as a wall's; a traffic car destroyed is abandoned, its driver fleeing |
-| 30 | `RideAlong` | `systems/drive.ts` | the driving player takes the car's pose and motion, or the pose of a train's active cab and the train's motion |
-| 31 | `Recover` | `systems/contacts.ts` | knocked-down people and animals get up, never the dead; pedestrians then flee, animals bolt |
-| 32 | `Perceive` | `systems/perceive.ts` | pedestrians take in this step's hits, crashes, horns and whistles, the vehicles (the cars of trains on their level among them), bodies and people around them and the level crossings closing (`rail/senses.ts`; held there as patiently as a driver), and set their moods; cries are `Cry` events; marks `Witness`es, lets go of a leader gone or dead |
-| 33 | `Startle` | `systems/fright.ts` | cats and pigs run from this step's crashes and struck bodies (`Cry`) |
-| 34 | `Respawn` | `systems/explosions.ts` | the dead player comes back on foot at the start after 4 s, on the ground there (`Footing`) |
-| 35 | `Dispatch` | `rail/dispatch.ts` | removes AI trains run past their line's drawn run and makes that line's next train due after a layover, drawn from `RailRng`; removes a stolen train the player has left once all of it is out of view (`VIEW_REACH`), its line's next train then due after a layover; sends a due train in at the run-out's end once its braking distance ahead (`entryClear`) and its run-out are free of any train and no AI train of another line runs the other way on track they share |
-| 36 | `Populate` | `systems/populate.ts` | every 0.5 s spawns (never within 15 m of a level crossing) and despawns traffic and parties of people (the dead beyond 140 m, like the living), and removes destroyed vehicles once out of view (`VIEW_REACH`) |
-| 37 | `PopulateAnimals` | `systems/populate-animals.ts` | every 0.5 s spawns and despawns the free animals |
-| 38 | `applyDeferred` | | applies spawns, despawns, inserts and removals |
+| 9 | `ApplyPlayer` | `systems/reach.ts` | each `SetPlayer` request puts the player at its pose, standing still (`Pose` and `PrevPose`, no `Motion`): on foot on the ground there at the terrain's level (`Footing`, as `Respawn` does), driving a vehicle with it, settled on its springs (`settle`); dropped when a number in it is not finite, it lies off `MAP.bounds` or the player drives a train |
+| 10 | `AdvanceClock` | `systems/sky.ts` | moves `GameClock` on by its rate (a game second a step at rate 1); at rate 0 it stands still, unwritten |
+| 11 | `AdvanceWeather` | `systems/sky.ts` | over the step's game seconds, draws the day's plan from the weather seed when a new Rome day begins (at rate 0 only that), moves toward the regime it sets for the hour and eases `Weather` toward it, wetting, drying, snowing and thawing the ground; over its real time, drifts a thunderstorm's cell and emits `Lightning`, drawing from `WeatherRng` |
+| 12 | `AdvanceRivers` | `systems/sky.ts` | over the step's game seconds, the weather's precipitation fills the catchments' snow, soil and stores and they drain into the rivers (`Rivers`, [water.md](water.md)) |
+| 13 | `EnterExit` | `systems/enter-exit.ts` | action key: enter, steal, carjack, get out; a train at its cab doors (`rail/boarding.ts`): its AI driver flees (out of the far cab where the active one has no door at grade), the far cab becomes the active one; getting out needs a stand at grade, the platforms' side first, and with none the player goes through to the far cab; out, the player stands on the ground on the vehicle's level (`Footing`) |
+| 14 | `applyDeferred` | | applies the enter/exit commands, so the blast knows who sits in which vehicle |
+| 15 | `FindFooting` | `systems/footing.ts` | every body on foot keeps to the level it was on (`Footing`: the ground nearest its last, decks and tunnels out to their verges); one with none takes its way's road or the terrain's level |
+| 16 | `Explode` | `systems/explosions.ts` | lights a burning wreck's fuse; a wreck whose fuse has burnt down blows up (`Explosion`): hits and shoves the vehicles near it, kills, knocks down and scares the people; a vehicle beyond the player's reach (`inReach`) is left as it is: its fuse waits and no blast reaches it |
+| 17 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river or stream gets `InWater`, swimming once off its feet, and loses it on dry ground |
+| 18 | `applyDeferred` | | applies the blast's deaths and knockdowns, the first footings and who is in the water, before anything moves |
+| 19 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
+| 20 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
+| 21 | `Crossings` | `rail/systems.ts` | each level crossing moves on through its cycle (`LevelCrossings`: open, warning, lowering, closed, raising) from whether a train demands it now: moving at it, standing ready (an AI train about to go, the player's with its lever forward) or on it |
+| 22 | `TrafficAI` | `systems/traffic.ts` | AI drivers write their `CarInput`, braking for vehicles, people, animals and the cars of trains on their level, slower and keeping further back where the road is wet or snowy; at a level crossing (`rail/roads.ts`, reading `LevelCrossings` this step) they stop for a box not open (from the lowering on always, and short of the trains' envelope) and keep it and the junction before it clear, patient while it is closed for a train; a driver held up honks (`Honk`), and backs up rather than turn round beside a line's track; a car beyond the player's reach (`inReach`) is skipped, its route and controls kept |
+| 23 | `TrainAI` | `rail/service.ts` | AI train drivers write their lever (`CarInput`): line speed, braking curves to the next station's stop point, behind a train ahead on their track (any line's, on shared track; short of where one coming at them will stand) and short of a crossing whose arms are not down, standing where they are while one within their braking distance comes down; they dwell at stations while the game clock runs (`TrainRun`), drawing from `RailRng`, and whistle entering long tunnels (`Whistle`); a person, an animal or a vehicle on the track ahead on their level, a vehicle touching their body alongside, or another train against either end, holds them (`rail/lookout.ts`): the emergency brake and the urgent whistle, the horn, then a creep on; shoved while dwelling, they pull the emergency brake |
+| 24 | `Pedestrians` | `systems/pedestrians.ts` | people move as their mood says: walk their routes, keep by their leader, stop, gather, run; the down and the dead slide; out of their depth in the water they make for the bank, and the current takes the down and the dead |
+| 25 | `Animals` | `systems/animals.ts` | animals rest, wander (never onto the track), keep by their walker and run from what scares them, a train on their level and this step's whistles too; free dogs bark; the down and the dead slide; out of their depth in the water they paddle for the bank; cries are `Cry` events |
+| 26 | `VehiclePhysics` | `systems/physics.ts` | every vehicle moves on its springs and tyres from its `CarInput` under the `Handling`, each tyre's grip lowered by the wet and the snow under it, buoyed and dragged by a river and its engine stalled under one; wall and ground hits are `Impact` events, sliding tyres `Skid` events; a vehicle beyond the player's reach (`inReach`) is skipped, before its sleep and its water are looked at |
+| 27 | `TrainPhysics` | `rail/systems.ts` | every train moves along its line from its lever: traction, brakes, running resistance, grade and curves, on rail the weather leaves wet or under snow (`TrainMotion`); the player's under SCMT to its buffer stops at the drawn run (`rail/collisions.ts`), any other to its run-outs' ends; trains on one track that meet go on at their common speed; a buffer struck is a `wall` `Impact`, a train struck a `train` one |
+| 28 | `Contacts` | `systems/contacts.ts` | car–car, car–person, car–animal, person and animal contacts, knockdowns and deaths (`Down`, `Dead`); car–car hits, knockdowns, kills, a cow struck and a car stopped against a wall by a pinned person or animal (faster than `KNOCK_SPEED`) are `Impact` events; a vehicle beyond the player's reach (`inReach`) touches nothing |
+| 29 | `TrainContacts` | `rail/strikes.ts` | trains strike what touches their cars on their level, shoved by nothing: vehicles shoved clear or dragged along their wall, wrecked faster than 14 m/s or dragged against a wall faster than 3 m/s (a `train` `Impact` as a contact begins, against `PrevPose` and `TrainMotion.prev`, and the wrecking blow); people and animals on their `Footing` pushed aside, or knocked down by the train's own speed into them and maybe killed by the train's death curve, the player too (`Impact` with the train as its `car`); a vehicle beyond the player's reach (`inReach`) is passed through |
+| 30 | `CrashDamage` | `systems/damage.ts` | this step's `Impact` events wear the vehicles they struck (`Damage`), a train's as a wall's; a traffic car destroyed is abandoned, its driver fleeing |
+| 31 | `RideAlong` | `systems/drive.ts` | the driving player takes the car's pose and motion, or the pose of a train's active cab and the train's motion |
+| 32 | `Recover` | `systems/contacts.ts` | knocked-down people and animals get up, never the dead; pedestrians then flee, animals bolt |
+| 33 | `Perceive` | `systems/perceive.ts` | pedestrians take in this step's hits, crashes, horns and whistles, the vehicles (the cars of trains on their level among them), bodies and people around them and the level crossings closing (`rail/senses.ts`; held there as patiently as a driver), and set their moods; cries are `Cry` events; marks `Witness`es, lets go of a leader gone or dead |
+| 34 | `Startle` | `systems/fright.ts` | cats and pigs run from this step's crashes and struck bodies (`Cry`) |
+| 35 | `Respawn` | `systems/explosions.ts` | the dead player comes back on foot at the start after 4 s, on the ground there (`Footing`) |
+| 36 | `LeaveBehind` | `systems/reach.ts` | the people (the dead too) and animals farther than `FROZEN_BEYOND` (500 m) from the player along either axis go, at the step's last `applyDeferred`: only a jump of the player (`Respawn`, `SetPlayer`) leaves anyone there, since `Populate` and `PopulateAnimals` despawn them beyond 140–180 m every 0.5 s |
+| 37 | `Dispatch` | `rail/dispatch.ts` | removes AI trains run past their line's drawn run and makes that line's next train due after a layover, drawn from `RailRng`; removes a stolen train the player has left once all of it is out of view (`VIEW_REACH`), its line's next train then due after a layover; sends a due train in at the run-out's end once its braking distance ahead (`entryClear`) and its run-out are free of any train and no AI train of another line runs the other way on track they share |
+| 38 | `Populate` | `systems/populate.ts` | every 0.5 s spawns (never within 15 m of a level crossing) and despawns traffic and parties of people (the dead beyond 140 m, like the living), and removes destroyed vehicles once out of view (`VIEW_REACH`) |
+| 39 | `PopulateAnimals` | `systems/populate-animals.ts` | every 0.5 s spawns and despawns the free animals |
+| 40 | `applyDeferred` | | applies spawns, despawns, inserts and removals |
 
 Controls, the handling, the clock, the weather, the rivers and a call for trains are settled before
 movement, where each body on foot stands (`FindFooting`), a blast and who is in the water are
@@ -142,6 +147,17 @@ and `VehiclePhysics` read `GameClock` and `Weather` and work out the air once a 
 every wheel meets the wet and the snow this step's weather left, meltwater included. Gameplay is in
 [gameplay.md](gameplay.md), the weather in [weather.md](weather.md), the rivers and who meets them
 in [water.md](water.md).
+
+A step reads the map only round the player, because the host keeps only the tiles there in memory
+([Tile streaming](#tile-streaming)). A vehicle farther than `FROZEN_BEYOND` (500 m) from the player
+along either axis stands frozen: `Explode`, `TrafficAI`, `VehiclePhysics`, `Contacts` and
+`TrainContacts` skip it (`inReach` in `systems/reach.ts`, against the player's `Pose`; with no
+player everything is in reach), so its state stays exactly as it was until the player comes back.
+People and animals never get that far in play. `ApplyPlayer` moves the player with the other host
+requests, before anything moves. `LeaveBehind` comes after `Respawn`, the player's last move of the
+step, so whoever a jump left behind goes at the step's last `applyDeferred`, before the next step
+would read the map there: placed early in the step, it swept a man off the track before `RideAlong`
+had carried the player, boarding a train far from where they were staged, to him.
 
 ### Where state lives
 
@@ -233,7 +249,7 @@ train's horn, and a hit with a train in it crashes as steel), and the render sch
 `Honk` and `Whistle` events, `Startle` this step's `Impact` events and `Animals` this step's
 `Whistle` events and the `Honk` events since its last run: these are the only traces an event leaves
 in the components (`Damage`, and the moods and `Witness`es it sets). An in-cloud flash may lie off
-the map; a bolt never does. Four events are host intents, which no system emits and the host sends
+the map; a bolt never does. Five events are host intents, which no system emits and the host sends
 with `runtime.send`:
 
 - `SetHandling` (set one handling knob to a value): the host's handling store
@@ -247,15 +263,29 @@ with `runtime.send`:
 - `SetTrains` (`call`: a train due now on every line no AI train runs on, `takesCall`): the tests
   send it, and the dev trains store for the debug menu's Trains area and `gta.trains.call()`;
   `ApplyTrains` reads it.
+- `SetPlayer` (`x`, `y`, `angle`: put the player there, standing still): the tests send it, and in
+  dev builds `gta.teleport(x, y, angle)`, which the playtest's `drive` calls; `ApplyPlayer` reads
+  it. The step that applies it reads the map at the target, so the host sends it only once every
+  listed tile over [target ± `STEP_REACH`]² is in memory.
 
 Snapshots hold no events: `CrashDamage`, `Perceive` and `Startle` read each `Impact`, `Perceive`
 each `Honk`, and `Perceive` and `Animals` each `Whistle`, in the step it is emitted (`thisTick`), so
 a snapshot between steps loses none and a restored save plays on alike.
 
-Static data is module content, not state. `MAP` and `graph` (`src/sim/map/index.ts`), the wall,
-tree, building and edge lookups, the per-model lane tables in `src/sim/route.ts` and the per-model
-rigs in `src/sim/chassis.ts` (`RIGS`: static wheel loads, springs, inertias, steering lock, tipping
-threshold) are built once at load and never change, so they are safe to share between runtimes.
+Static data is module content, not state. `MAP` (`src/sim/map/global.ts`, which
+`src/sim/map/index.ts` re-exports with `graph`) is the map's global file, decoded once at load: the
+vectors, the graph, the railway, the tile list and the tables baked from the dense layers
+([map.md](map.md#map-files)). The dense layers (terrain, walls, trees, land cover) live in 2 km
+tiles, and only the tiles round the player are in memory (`src/sim/map/tiles.ts`): the host hands
+them over and lets them go ([Tile streaming](#tile-streaming)); in Node a lookup reads a missing tile
+from disk, and in the browser it throws "map tile i_j not loaded". Which tiles are in memory is never
+observable: every lookup gives the same answer, in the same order, whichever tiles are there and in
+whatever order they came (`tiles.test.ts`, `seams.test.ts`), so a save holds nothing of them and the
+tiles in memory are shared by every runtime. The wall, tree, building and edge lookups, the
+per-model lane tables in `src/sim/route.ts` (read from the baked `MAP.lanes`) and the per-model rigs
+in `src/sim/chassis.ts` (`RIGS`: static wheel loads, springs, inertias, steering lock, tipping
+threshold) are built once at load, a tile's broad phases the first time a query reaches it, and
+never change, so they are safe to share between runtimes.
 A rig under a handling off its real values (`rigFor`) is a pure function of the model and the
 `Handling`, derived on first use and cached (the whole cache empties once it holds 64 rigs, 16
 for each of the four models), so it is safe to share too.
@@ -281,34 +311,54 @@ states and the map. The train models (`TRAINS` in
 `src/sim/rail/models.ts`) decode no map, so the schema can import them.
 The sky's tables (the national temperature normals, the odds' rows, the regimes' `REGIME_SPECS`)
 are module content as well. The map's place (`place()`, `src/sim/sky/place.ts`: its origin, its
-5th-percentile height and the way its ground falls) is per-load map content: `src/sim/map/index.ts`
-works it out once it decodes the map (13–20 ms) and hands it over with `providePlace`, as the host
-hands the map file to `provideMap`; with no map loaded it is the reference site, the shipped map's
-place. So the sky modules the schema and the HUD import (`regimes`, `clock`, `calendar`, `astro`,
-`place`, `day`, `climate`, `odds`, `plan`, `local`, `readout`) decode no map, and every Italian map
-gets its own sun and climate (`sky/__tests__/mapfree.test.ts` asserts both); `sky/weather.ts`
-decodes it, for the heights and the bounds. `ORIGIN` in `src/sim/map/kinds.ts` now serves only the build.
-The land-cover raster (`mapCover` in `src/sim/map/cover.ts`, ≈ 105 ms and 4.9 MB) and the road
-index of `surfaceAt` (`src/sim/map/surface.ts`) are built on first use: pure functions of `MAP`,
-never written after; `main.ts` builds the raster in its "Painting land cover" loading step, so
-the first physics step finds it ready. The lookups are compact static grids (`staticGrid` in
-`src/sim/collide.ts`, item indices packed into one `Int32Array`):
+5th-percentile height and the way its ground falls) is per-load map content: the build fits it over
+the whole heightmap and writes it into the global file (`MAP.place`), and `src/sim/map/global.ts`
+hands it over with `providePlace` once it decodes the map, as the host hands the map file to
+`provideMap`; with no map loaded it is the reference site, the shipped map's place. So the sky
+modules the schema and the HUD import (`regimes`, `clock`, `calendar`, `astro`, `place`, `day`,
+`climate`, `odds`, `plan`, `local`, `readout`) decode no map, and every Italian map gets its own sun
+and climate (`sky/__tests__/mapfree.test.ts` asserts both); `sky/weather.ts` decodes it, for the
+heights (the tiles' lowest and highest nodes, `MAP.tiles`) and the bounds. `ORIGIN` in
+`src/sim/map/kinds.ts` now serves only the build.
 
-- `wallsNear` indexes the walls straight from the decoded flat arrays and the trees as points,
-  making each trunk's square (`pushTrunk` in `src/sim/map/kinds.ts`) only when a query reaches it.
-  It reuses its answer array and the segment objects in it until the next call of the same kind:
-  copy the coordinates to keep them.
-- `buildingsIn` (over `buildingBoxes`, 64 m cells) and `treesIn` (the trees as points) in
-  `src/sim/map/index.ts` are broad phases that call back with candidate indices; callers run the
-  exact test. The sim (the residents, the farms, the spawns' indoor checks) and the audio host
-  (occlusion, streets, birds) share them.
+The tables a load would otherwise work out from the dense layers, which the game now holds only near
+the player, are baked into the global file by the game's own code at build time
+([map.md](map.md#the-global-file)): the lanes (`MAP.lanes`), the parked cars' rests
+(`MAP.spawns.parked`), the water's beds (`Water.floor`), the farms (`MAP.farms`) and the street
+lamps (`MAP.lamps`), each by its owner module's code (`src/tools/bake.ts` calls it), and the place;
+`src/tools/__tests__/bake.test.ts` (and `cesena-bake.test.ts` for Cesena, in a process of its own)
+runs the five and the place fit again and fails while one is stale. The land cover
+is read from the tiles (`coverAt` and `coverIndexAt` in `src/sim/map/cover.ts`: each tile holds its
+500 × 500 cells, rasterised once at build time), and the road index of `surfaceAt`
+(`src/sim/map/surface.ts`) is built on first use, a pure function of `MAP` never written after. The
+lookups are compact static grids (`staticGrid` in `src/sim/collide.ts`, item indices packed into one
+`Int32Array`), the walls and trees one per tile on the whole map's lattice
+(`src/sim/map/lattice.ts`):
+
+- `wallsNear` (`src/sim/map/tiles.ts`) indexes each tile's walls straight from its decoded flat
+  arrays and its trees as points, building a tile's grids the first time a query reaches it, and
+  makes each trunk's square (`pushTrunk` in `src/sim/map/kinds.ts`) only when a query reaches it. It
+  walks the lattice's cells the box touches and takes each cell's items in the whole map's order
+  across the tiles that hold some, so it answers exactly as one grid over the whole map did, the
+  same walls in the same order ([map.md](map.md#a-tile)): the physics pushes out of walls one by one
+  and keeps the first of equal-time hits, so another order would move collisions at corners. It
+  reuses its answer array and the segment objects in it until the next call of the same kind: copy
+  the coordinates to keep them.
+- `buildingsIn` (over `buildingBoxes`, 64 m cells, `src/sim/map/index.ts`) and `treesIn` (the trees
+  as points, `src/sim/map/tiles.ts`, handing each tree's position, scale and id) are broad phases
+  that call back with candidates; callers run the exact test. The sim (the residents, the farms, the
+  spawns' indoor checks) and the audio host (occlusion, streets, birds) share them.
+- `coarseHeightAt` and `coarseCoverAt` (`src/sim/map/coarse.ts`) read the global file's coarse grid
+  (64 m) anywhere, for the hosts' reads far from the player (sound paths and their ground, the shadow
+  fit, lightning); the sim never reads them.
 - `edgeIndex` (`src/sim/edges.ts`, re-exported by `src/sim/route.ts`), with its instances
   `trafficIndex` and `walkIndex` (`src/sim/route.ts`) and `peopledIndex`, answers nearest-edge and
   spawn-band lookups without scanning the whole graph.
 - `waterAt` (`src/sim/water/rivers.ts`) finds the nearest reach of a river or stream within its
   bed in a 32 m grid of the map's reaches, each with its two vertices' bed, depth and speed per
-  unit discharge (`channelOf` in `src/sim/water/channel.ts`, built at load). `initialRivers` keeps the rivers it has worked out for a start
-  and seed (a pure function of them), and `petAt` the evapotranspiration's heat index per latitude.
+  unit discharge (`channelOf` in `src/sim/water/channel.ts`, built at load from each water's baked
+  bed, `Water.floor`). `initialRivers` keeps the rivers it has worked out for a start and seed (a
+  pure function of them), and `petAt` the evapotranspiration's heat index per latitude.
 - `groundZ` (`src/sim/map/ground.ts`) is where every wheel, foot, sound source and drawn actor
   stands, in m a.s.l.: the terrain as its mesh is drawn (each 4 m cell split along its SW–NE
   diagonal), or a station platform's top where that is higher (`platformTop`, from
@@ -326,19 +376,20 @@ The population's tables are static data too, pure functions of `MAP` shared by e
 residents of each home and within 60 m of each walk edge, and the walk edges people live along
 (`residentsNear`, `residentsAlong`, `peopledIndex` in `src/sim/population/density.ts`), built at
 load; the 2,405 farms in a 64 m grid (`farmsNear` and the ground checks in
-`src/sim/population/farms.ts`), built on first use, which `setup` makes (about 9 ms in Node with
-the land cover built); and the residents ahead of each way out of a junction (`nextWalkEdge` in
-`src/sim/route.ts`), cached as walkers first reach it.
+`src/sim/population/farms.ts`), indexed on first use from the farms the map file holds
+(`MAP.farms`), which `setup` makes (4–8 ms in Node); and the residents ahead of each way out of a
+junction (`nextWalkEdge` in `src/sim/route.ts`), cached as walkers first reach it.
 
-Host state stays in the host: the camera, the render clock, the three.js scene and nodes, the
-streamed world's chunks, the tyre marks and smoke, the wrecks' smoke and flames, the level
-crossings' arms and lights (set every frame from the saved `LevelCrossings`), the sky host (its
-lights, the eased exposure and lamps, the clouds' drift and the shared sky uniforms, worked out
-again from the saved clock and weather every frame, so a loaded save needs nothing), the HUD's DOM,
-the player's handling (a preset's name or the knobs set by hand, kept in `localStorage` by
-`src/hud/handling.ts`), the dev sky store (nothing stored), and the audio context, live voices and
-the director's memory of each sound source, thunders on their way included (pruned as sources go;
-see [audio.md](audio.md#where-state-lives)).
+Host state stays in the host: which map tiles are in memory and the tile stream's downloads
+(`src/stream.ts`), the camera, the render clock, the three.js scene and nodes, the streamed world's
+chunks and their trees, the minimap's tile canvases, the tyre marks and smoke, the wrecks' smoke and
+flames, the level crossings' arms and lights (set every frame from the saved `LevelCrossings`), the
+sky host (its lights, the eased exposure and lamps, the clouds' drift and the shared sky uniforms,
+worked out again from the saved clock and weather every frame, so a loaded save needs nothing), the
+HUD's DOM, the player's handling (a preset's name or the knobs set by hand, kept in `localStorage`
+by `src/hud/handling.ts`), the dev sky store (nothing stored), and the audio context, live voices
+and the director's memory of each sound source, thunders on their way included (pruned as sources
+go; see [audio.md](audio.md#where-state-lives)).
 
 ## Input
 
@@ -361,26 +412,36 @@ see [audio.md](audio.md#where-state-lives)).
 ## Start-up
 
 The title card doubles as the loading screen: it says the game is in early development, downloads
-the map, builds in named steps, and asks for a key only once the first frame is drawn.
+the map's global file and the tiles round the start, builds in named steps, and asks for a key only
+once the first frame is drawn.
 
 1. `index.html` is static, so the card shows before any script runs. Its entry, `src/boot.ts`,
-  imports the card (`src/hud/title.ts`), map selection (`src/maps.ts`) and the map file's
-  handover (`src/sim/map/packed.ts`), keeping simulation setup out of the entry module.
-2. `boot.ts` validates `?map=` and fetches the selected hashed asset: `monzone.bin` by default,
-  or `cesena.bin` for `?map=cesena`. It counts the bytes against
-   `Content-Length` (the first 60% of the bar, with MB so far). It gunzips with
-   `DecompressionStream` while the file arrives, then hands the bytes to `provideMap`. The file is
-   named `.bin`, not `.gz`: Vite's server would label a `.gz` as `Content-Encoding: gzip`, and the
-   browser would then gunzip it first.
-3. It imports the game in three parts, with a paint between them, because each import evaluates
-   only the modules the earlier ones left: `src/sim/map/index.ts` (decoding, collision grids),
-   `src/sim/route.ts` (each vehicle model's lanes), then `main.ts`.
+   imports the card (`src/hud/title.ts`), map selection (`src/maps.ts`), the map file's handover
+   (`src/sim/map/packed.ts`) and the download helpers (`src/stream.ts`, which imports no sim
+   module), keeping simulation setup out of the entry module.
+2. `boot.ts` validates `?map=` and fetches the selected global file, a hashed asset: `monzone.bin`
+   by default, or `cesena.bin` for `?map=cesena` ("Downloading map"). It counts the bytes against
+   `Content-Length` (the bar's first 36%, with "x / y MB"), gunzips with `DecompressionStream`
+   while the file arrives, then hands the bytes to `provideMap`. The files are named `.bin`, not
+   `.gz`: Vite's server would label a `.gz` as `Content-Encoding: gzip`, and the browser would then
+   gunzip it first.
+3. It imports the game in parts, with a paint between them, because each import evaluates only the
+   modules the earlier ones left. "Decoding map" imports `src/sim/map/index.ts` (the global file
+   decoded) and `src/sim/map/tiles.ts`. "Downloading terrain" fetches the start tiles: every listed
+   tile over [`MAP.spawns.player` ± 1000 m]² (`tilesOver`, `NEAR`), on Lunigiana -1_-1, 0_-1, -1_0
+   and 0_0, 1,193,604 B gzipped. They come in parallel, all their headers first, so the bar (36% to
+   60%) counts the bytes against their summed `Content-Length` and never runs backwards. "Decoding
+   terrain" hands each to `provideTile` (about 3 ms a tile in Node). Then come `src/sim/route.ts`
+   ("Planning traffic": each vehicle model's lanes, from the baked tables) and `main.ts` ("Loading
+   the game").
 4. `main.ts` first makes the sky host, every light and weather mesh in it, so they exist before
    any shader compiles. It then builds the rest in steps with top-level `await`, each named on the
-   card: the land cover (`mapCover`), the world (`new World`, which places the street and
-   platform lamps and builds the platforms and the level crossings' fixed parts), then the HUD, the
-   runtime, `setup` (about 12 ms in Node: the farm list and the first fill), the
-   clock's hold and the first audio tick, then every chunk of the first view.
+   card: the world ("Planting trees": `new World`, which reads no tile, then `tileProvided` for each
+   tile `boot.ts` handed over, bucketing its trees) and the tile stream, then the HUD, the runtime,
+   `setup` (about 18 ms in Node: the farm list and the first fill), the clock's hold and the first
+   audio tick, then every chunk of the first view. Every tile the first steps read is in memory
+   already: `boot.ts` handed over every tile within 1 km of the start, more than the 600 m round the
+   player a step reads.
 5. `main.ts` compiles every program the game draws (`view.compile` with the stand-ins, see
    [Rendering](#rendering)) and draws the first frame itself: a throw there reaches the card,
    where inside the loop's animation frame it would stop the loop behind "Press any key".
@@ -397,8 +458,8 @@ the map, builds in named steps, and asks for a key only once the first frame is 
 
 The step name is a polite live region, so screen readers hear each step; the byte count beside it
 is not, so chunks stay quiet. A background tab has no animation frames and slows timers to about
-one a second, so there each step yields on a `MessageChannel` message instead (eight steps would
-otherwise add ≈ 8 s).
+one a second, so there each step yields on a `MessageChannel` message instead (the seven steps would
+otherwise add ≈ 7 s).
 
 Measured with the production build in headless Chrome on an M4 Pro, 1280×720, before the day
 cycle (its dev-server numbers are under [Measured](#measured)):
@@ -407,6 +468,17 @@ cycle (its dev-server numbers are under [Measured](#measured)):
 |---|---|---|
 | local server | first frame at 1.9 s; JS heap after GC 117 MB | "Press any key" at 0.63 s; 88 MB |
 | 4× CPU, 1.5 MB/s | the 15 MB script in at 9.8 s (a dead "Press any key" until then), one 3.5 s task, first frame at 13.5 s | map in at 4.6 s, ready at 7.1 s, longest task 0.64 s |
+
+With the map in tiles (production build served by `vite preview`, headless Chrome on an M-series
+Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each):
+
+| Map | First frame | Slowest frame, p99 | JS heap after GC |
+|---|---|---|---|
+| Lunigiana | 0.43 s | 16.8 ms, 16.8 ms | 125 MB |
+| Lunigiana, the whole 6.7 MB map before the tiles (`main`) | 0.92–0.98 s | 16.8 ms | 250 MB |
+| Cesena | 0.35 s | | 94 MB |
+
+The production JS is 1,201,078 B (`dist/assets/*.js`, about 1.19 MB before the tiles).
 
 ## Host loop
 
@@ -417,16 +489,34 @@ reads the events published since its own last run, so a reader that has never ru
 first steps' `Impact`, `Honk`, `Cry`, `Skid`, `Lightning`, `Explosion` and `Whistle` events. Each
 animation frame it:
 
-1. writes the loop's `alpha` (fraction of a step since the last one) into `RenderClock`;
-2. ticks the `render` and `audio` schedules (`runtime.tick(render, audio)`); the render's `DrawSky`
+1. reads `PlayerView` once and runs the tile stream ([Tile streaming](#tile-streaming)) for the
+   player's pose after the last step: `stream.update(pose, extra, world.wanted())`, `extra` being
+   `MAP.spawns.player` while the player is dead (`Respawn` brings them back there) or a dev
+   teleport's goal. It then sets `waiting` while a tile the next step reads is not in memory
+   (`!stream.ready(pose, extra)`; the start's tiles count only in the last second before the
+   respawn, `PlayerView.respawnIn` ≤ 60 steps). This comes before the pause check, so the tiles keep
+   coming in while the game is paused. A tile the stream gives up on (`gone`) puts the title card
+   back up with a reload (`stopped` in `src/hud/title.ts`);
+2. writes the loop's `alpha` (fraction of a step since the last one) into `RenderClock`;
+3. ticks the `render` and `audio` schedules (`runtime.tick(render, audio)`); the render's `DrawSky`
    hands the sky host the clock, the weather, the steps' lightning and the cars and trains with
    lamps on, and its `FollowPlayer` hands the see-through cut the player as drawn;
-3. reads `PlayerView` and moves and turns the camera;
-4. draws the sky for the moved camera (`skyHost.draw`: light, shadows, fog, rain, bolts, night
+4. moves and turns the camera from the `PlayerView` it read;
+5. draws the sky for the moved camera (`skyHost.draw`: light, shadows, fog, rain, bolts, night
    lights; see [The sky](#the-sky));
-5. streams the static world around the camera focus (see below);
-6. renders the pixel view, then updates the HUD with `PlayerView` and `SkyView` and, in mobile
+6. streams the static world around the camera focus ([Rendering](#rendering));
+7. renders the pixel view, then updates the HUD with `PlayerView` and `SkyView` and, in mobile
    mode, the touch controls.
+
+The game is paused while the full map or the settings are open ([HUD](#hud)) and while it is
+`waiting`: the loop skips the sim's update and steps 2–7, and the sound is suspended, so nothing
+reads a tile that is not there. `ready` is checked once a frame; at most 5 steps run before the next
+check, moving the player a few metres (5 m at 60 m/s), well inside the 100 m between `STEP_REACH`
+and `FROZEN_BEYOND`. After 300 ms of waiting the HUD shows "Loading map…" (`#hud-loading`,
+`role="status"`, in the prompt's panel 120 px from the bottom, above the prompt). The stream asks for
+every tile within 1 km, 400 m past what a step reads: 10 s of driving at 40 m/s. Measured in headless
+Chrome (M-series Mac, the network throttled to 1.5 MB/s and 40 ms): a 2.9 km dev teleport showed the
+hint at 354 ms and landed at 714 ms; with the tiles in the HTTP cache it took 172 ms, with no hint.
 
 The seed comes from `?seed=N`, or a random 32-bit number.
 
@@ -439,6 +529,60 @@ it returns when the card hides, which sends `{ rate: 1 }`. Only the clock waits:
 animals move on behind the card. `title.test.ts` wires it as `main.ts` does: after 300 steps on the
 card the clock reads `DEFAULT_START` and the HUD 08:00, and 60 steps after the card goes it reads
 `DEFAULT_START + 60` at rate 1.
+
+## Tile streaming
+
+The browser keeps in memory only the map tiles round the player and the view (`src/stream.ts`),
+so every tile a step reads is there before the step runs; the sim never sees which are.
+
+- **The contract** (`src/sim/map/tiles.ts`): before each step every listed tile over [player ±
+  `STEP_REACH`]² (600 m) is in memory, and while the player is dead those over [`MAP.spawns.player`
+  ± 600 m]² too, where `Respawn` reads the ground. Everything a step reads lies in that square:
+  vehicles within `FROZEN_BEYOND` (500 m; farther ones stand frozen, see [Schedules and system
+  order](#schedules-and-system-order)) and the walls round them (a wall query reads the tiles up to
+  `walls.reach`, 33 m, past its box), traffic within 320 m, people within 140 m and animals within
+  180 m of the player, and the spawn checks, at most 265 m out. Before sending `SetPlayer` the host
+  brings in the target's square too. After the step that applies a jump the old place's tiles may
+  go: `LeaveBehind` has taken its people and animals, and its vehicles are frozen.
+- **What it asks for**: each animation frame `update(player, extra, wanted)` asks, most urgent
+  first, for the tiles a step reads round the player and round `extra`, then every listed tile within
+  `NEAR` (1000 m) of the player, the renderer's `wanted()` tiles and those within 1000 m of `extra`.
+  At most 3 downloads run at once. One still running after 15 s (`DEADLINE`: a stalled connection
+  must not hold a slot for good) is cancelled and counts as failed, and one nothing needs any more
+  is cancelled with no failure, so the urgent tiles get the slots. A failed one is tried again after
+  0.5 s, the wait doubling with each failure up to 16 s (`console.warn` names the tile). A tile that
+  can never come is `gone` and tried no more (`console.error` names it): the server has no such
+  file (HTTP 404 or 410, as when a new build has replaced the site since the page loaded, every
+  tile's hashed name changing with the build hash), or `provideTile` refuses it (a tile from another
+  build). `main.ts` then puts the title card back up with "The map changed since this page loaded
+  … reload to play on." and a reload button. At most one downloaded tile a frame goes to
+  `provideTile`, the most urgent first, as decoding one takes about 3 ms; a download nothing needs
+  any more when it lands is let go unread.
+- **What it keeps and drops**: a tile goes only once it lies outside [player ± `KEEP`]² (1500 m),
+  the view does not want it and it is not within 1000 m of `extra`, so walking back and forth over
+  a seam never fetches a tile twice. The world hears of each change: `tileProvided` after
+  `provideTile`, `tileDropped` before `dropTile` ([Rendering](#rendering)). A tile in memory is its
+  decoded arrays, 0.78–3.68 MB on Lunigiana (68 MB for all 30; walls and trees decode to 8-byte
+  numbers), plus its broad phases once a query reaches it; its gunzipped file is 0.76–1.78 MB. After
+  a teleport to (1998, 2017) the tiles in memory
+  settled at 4 (0_0, 1_0, 0_1, 1_1); along the SP59 to Vinca at 40 m/s at most 6 were in memory at
+  once, and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1).
+- **`ready(player, extra)`**: whether every listed tile a step reads round the player, and round
+  `extra` when given, is in memory; `main.ts` pauses the game while it is not ([Host
+  loop](#host-loop)).
+- **The extras**: while the player is dead `extra` is the respawn point: its tiles download from
+  the moment of death, and the game waits for them only in the last second before `Respawn`
+  (`PlayerView.respawnIn`, the steps left, ≤ 60), so dying far from the start never freezes the
+  death itself. A dev teleport,
+  `gta.teleport(x, y, angle)`, is the `extra` until the player stands within 2 m of its goal: the
+  game waits until the goal's tiles are in, then `main.ts` sends `SetPlayer`.
+- **Its host**: the tile store comes in through `TileStreamHost` (`tilesOver`, `residentTiles`,
+  `provideTile`, `dropTile`, `STEP_REACH`), so `src/stream.ts` imports no sim module: `boot.ts`
+  shares its download and gunzip (`fetchFile`, `gunzipped`) before the map is loaded, and
+  `src/__tests__/stream.test.ts` runs it on fakes. Each map's `tileUrl(key)` in `src/maps.ts` is a
+  template, ``new URL(`./sim/map/<name>/${key}.bin`, import.meta.url)``, which Vite turns into a
+  lookup over the directory's files: every tile is a hashed asset (the smallest 8.4 kB, past Vite's
+  4 kB inline limit), and it resolves with `pnpm build --base=./`, as GitHub Pages serves the game.
 
 ## Rendering
 
@@ -673,31 +817,66 @@ yellow lines), a water mesh (rivers and streams, laid on their beds: the shader 
 level the rivers run at, [water.md](water.md#how-it-looks)), a glow mesh (lit window panes and lantern glass)
 and one `InstancedMesh` per tree kind; the water and glow meshes exist only where the chunk has
 some. A 192 m apron of extra chunks continues the terrain, lines and trees beyond the map
-bounds. Terrain cells take their colours from the land cover (`src/sim/map/cover.ts`, painted by
-`COVER_LOOK` in `src/render/terrain.ts`): the
+bounds. Terrain cells take their colours from the land cover, read from the tiles cell by cell
+(`coverIndexAt` in `src/sim/map/cover.ts`, painted by `COVER_LOOK` in `src/render/terrain.ts`): the
 map's areas, meadow where none covers a cell, paving where open ground lies within 3 m of both a
 wall and a road's edge (house fronts, sidewalks, alleys), and pebble beds along the wide streams.
 
-Streaming:
+Streaming has two levels: the tiles in memory are planned first, then the chunks of the tiles in
+reach, so a frame's cost does not grow with the map, and a chunk builds only once every tile its
+build reads is in memory.
 
-- `new World(scene)` prepares, once (245–251 ms in Node for the whole valley, five runs; 225–237 ms
-  before the railway's platforms and crossings, 189–195 ms before the street lamps): the land-cover
-  raster
-  for the whole map (`mapCover()` in `src/sim/map/cover.ts`, ≈ 105 ms and 4.9 MB, cheaper than
-  clipping areas per chunk; built on first use and shared read-only with the sim's surfaces and the
-  audio host), the street lamps (`streetLamps()`, 34–37 ms on first use), the platforms' and the
-  level crossings' geometry ([Track and stations](#track-and-stations)), every
-  static item as a `Piece` (an anchor polyline plus a `draw` function; each lamp is a one-point
-  piece at its lantern), the pieces bucketed per
-  chunk with the range of segments that reach it, and the trees bucketed per chunk and kind. A chunk
-  build reads only its own bucket; it draws each piece's segments plus one neighbour on each side
-  (for ribbon mitres) and keeps exactly the triangles that fall in the chunk, so the result is the
-  same as cutting a whole-map build.
-- Distances are measured on the screen plane, from the focus to each chunk's box projected along
-  the camera's right and up axes, terrain relief included. A valley far below a ridge counts as
-  near when the camera shows it beside the focus. The boxes are measured once (`chunkBoxes`);
-  their screen rectangles are projected again whenever the view's yaw changes, which is every
-  frame of a turn and every frame the view follows a turning car (5,248 boxes of 8 corners each).
+- `new World(scene)` prepares, once, and reads no map tile (52–54 ms in Node, the first in a fresh
+  process, five runs; 245–251 ms when it also built the whole map's land-cover raster, tree buckets,
+  chunk boxes, platforms and crossings): every static item as a `Piece` (an anchor polyline plus a
+  `draw` function; each lamp is a one-point piece at its lantern, from `MAP.lamps`), the pieces
+  bucketed per chunk with the range of segments that reach it, and which tiles each chunk reads
+  (`chunkTiles` in `src/render/chunk-tiles.ts`, with no terrain read). A chunk build reads only its
+  own bucket; it draws each piece's segments plus one neighbour on each side (for ribbon mitres) and
+  keeps exactly the triangles that fall in the chunk, so the result is the same as cutting a
+  whole-map build (`rail.test.ts` checks it for the rail, the stations, the roads and rivers, the
+  lamps and the buildings).
+- **The tiles a chunk reads**: its terrain reads the tiles under its square (an apron chunk's, the
+  edge tiles it clamps to). Its build reads the tiles under its needs box: the square; for an apron
+  chunk, the square mirrored across the map edge too, where its mirrored trees stand; and each
+  piece's `reads` box (a building's footprint, a platform's rim, a canopy's footprint, the road
+  ribbons a crossing lies over) or the vertices k0−1…k1+2 it draws, all grown by 50 m (`REACH`: a
+  mitred ribbon's edge, the ballast bed's foot, a portal's throat). A chunk is ready once every tile
+  in its needs box has been handed to the world (`tileProvided`, after `provideTile`), and
+  `tileDropped(key)` (before `dropTile`) drops every built chunk that read the tile and frees its
+  tree buckets. On this map every piece the spot sweep covers reads within its own chunk's square,
+  so the 50 m and the `reads` boxes are a margin for maps to come; a miss throws "map tile … not
+  loaded" in the sweep test.
+- **Trees per tile**: `tileProvided(key)` buckets that tile's trees per chunk and kind, the apron's
+  mirrors included (`bucketTileTrees` in `src/render/trees.ts`): 1.41 ms at the median, 2.01 ms at
+  p90 and 2.65 ms at worst over the 30 tiles; 1.22 MB of buckets a tile at the median and 2.45 MB at
+  most (tile 1_1, 69,842 trees), 35.0 MB for all 30 (`Float64Array` quadruples of x, y, scale and
+  seed). A chunk merges its tiles' buckets in seed order, so its instances come in the whole-map
+  buckets' order, and every tree keeps its look (seed 3 × its id in the whole map's list, a mirror's
+  one more).
+- **Two levels**: each tile plans the chunks whose middle it holds (18–272 a tile, median 225), and
+  its box is the union of their boxes, so the apron chunks belong to the edge tiles. Distances are
+  measured on the screen plane, from the focus to each box projected along the camera's right and up
+  axes, terrain relief included: a valley far below a ridge counts as near when the camera shows it
+  beside the focus. The 30 tile boxes are projected again whenever the view's yaw changes, which is
+  every frame of a turn and every frame the view follows a turning car; a frame then measures only
+  the chunks of the tiles within the load radius, plus every built chunk (for the drops). At the
+  spawn, the origin and the Sagro summit (2364, −5129) that is 3–6 tiles and 526–1,360 chunks at
+  reach 60–300 m, where all 5,248 chunk boxes were projected before; a steady update takes 0.043 ms
+  at the median and 0.059 ms at p90 with the yaw changing every frame (Node, reach 210, 62 chunks
+  built, 200 frames).
+- **Chunk boxes**: until its terrain's tiles are in, a chunk's box spans the lowest and highest
+  nodes of the tiles under its square (`MAP.tiles`' `zmin` and `zmax`), larger than the exact box,
+  so a chunk loads early, never late. It turns exact (`exactBox`) the first time the chunk is within
+  the load radius with its terrain's tiles in, and stays exact after they go (all 5,248 take 45 ms,
+  about 9 µs a chunk).
+- **`wanted()`** lists the tiles the chunks within the load radius read, as far as their boxes are
+  known, but for chunks wholly behind the camera's near plane (`BEHIND` in `src/render/pipeline.ts`,
+  499 m back from the focus along the view's back axis): they show nowhere, so they never make the
+  stream fetch a tile (along the SP59, 151 of 312 views at 8 yaws held such a tile, which the follow
+  camera would swing in and out again and again); they still build when their tiles are in, as a
+  shadow may fall from them. The stream keeps the wanted tiles in memory. At the origin with reach
+  60 it is 4 tiles: -1_-1, -1_0, 0_-1 and 0_0.
 - `world.update(focus, yaw, reach, budgetMs)` runs every frame. `reach` is the half-diagonal of the
   view at the widest zoom (`WIDEST_ZOOM`, 5 texels/m), so zooming out never shows a missing chunk.
   Chunks within reach + 64 m are built, nearest first, until 4 ms of the frame are spent (at least
@@ -709,6 +888,13 @@ Streaming:
   under 3 ms at worst, first frame after ≈ 0.6–0.85 s, JS heap ≈ 185 MB (was ≈ 550 MB building the
   whole map), no frame over 30 ms, 60 fps. Widened to the whole valley (7.8 × 10 km, 3.3× the
   area), chunks per view do not grow; load times and heap are under [Start-up](#start-up).
+- Measured with the tiles: in Node, the chunk builds along a 4 km sweep from the spawn (129 frames
+  with builds, two runs) take 0.47–0.49 ms on average, 0.35 ms at the median, 0.63–0.78 ms at p90 and
+  4.8–5.9 ms at worst, as before. In headless Chrome (dev build, M-series Mac, `?seed=7`,
+  `pnpm playtest drive` along the SP59's 7,937 m to Vinca at 40 m/s, two runs) the slowest frame
+  within 1 s of each of the five seam crossings was 16.8 ms; one run had one frame of 33.3 ms away
+  from the seams, the other none over 16.8 ms. At most 6 tiles were in memory at once, and the JS
+  heap after GC at Vinca was 157 MB (a dev build).
 
 The pixel pipeline (`src/render/pipeline.ts`):
 
@@ -739,7 +925,9 @@ The pixel pipeline (`src/render/pipeline.ts`):
 - The camera leads the player by 0.6 s of velocity, at most 14 m (`LOOK_AHEAD`), and eases
   toward its target, at the height of the ground under the player (`groundY`, on the level nearest
   the camera's), or driving a train the cab's (`PlayerView.z`), which a rail bridge has and the map's
-  ground has not.
+  ground has not. It trails the player by about 26 m at most, so when they are more than 200 m off
+  (`CUT_BEYOND` in `main.ts`: the respawn, a teleport) it cuts to them instead of gliding over tiles
+  no longer in memory.
 - The key light (the sun, or the moon at night) stands on its real arc for the game time over the
   map's origin, fixed in the sky whichever way the view looks ([Lights](#lights)): a turn moves the
   camera, never the shadows. Its shadow box follows the view, snapped to shadow-map texels. The box
@@ -747,7 +935,10 @@ The pixel pipeline (`src/render/pipeline.ts`):
   down to the terrain, because a slope falling away from the camera shows ground far past the flat
   rectangle (at most 300 m across the light) and a valley seen between the view's edges can lie
   hundreds of metres deeper along the light. Its depth also reaches 1.5 km toward the sun for the
-  ridges that shade a valley. The depth bias stays 0.45 m whatever the depth range.
+  ridges that shade a valley. The depth bias stays 0.45 m whatever the depth range. The rays, which
+  reach up to 2.5 km off, read the terrain through `farTerrainY` (`src/render/ground.ts`): the
+  exact terrain where the tiles of the cell's four nodes are in memory (`terrainResident`), else the
+  coarse 64 m grid's height, so nothing changes near the player.
 - The far plane is 3 km from the camera (2.5 km past the focus): from the Apuan summits the
   deepest ground in view is ≈ 2.45 km from the camera, past the 1 km the plane used to stop at.
 
@@ -782,7 +973,9 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   under each track and two polished rails, 2 and 3 cm over the road ribbon drawn there (the
   nearby roads' own triangles, drawn again for the box by `surfaceNear` in `ribbons.ts`: the
   sim's `drawnZ` sat up to 11 cm under them at Via Castel dell'Aquila), and per approach a 0.5 m
-  white stop line across its lane at the sim's stop line. A road's centre dashes, as high over it
+  white stop line across its lane at the sim's stop line. The piece is built on its first draw,
+  where it reads the ground under those ribbons (its `reads` box, from `surfaceReads`, which picks
+  the pieces as `surfaceNear` does), then copied. A road's centre dashes, as high over it
   as the panels, stop under them (`underPanel` in `src/render/track-index.ts`): in a box, within
   half a panel and a metre of a track centreline (at three tertiary crossings they cut through the
   panels and broke their rails). Beside each arm (render/crossings)
@@ -809,7 +1002,8 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   end). Cut points are computed from each edge's ends in a fixed order, so neighbouring triangles
   share them exactly (no cracks). A concrete kerb runs down to the ground under every edge, and on
   a platform (not a rail-level walkway) a 0.2 m yellow line lies 0.45–0.65 m in from the edges
-  beside running track or a loop. Each triangle goes into the chunk of its middle.
+  beside running track or a loop. A platform is built whole on its first draw (it reads the ground
+  under its whole rim) and kept, and each triangle goes into the chunk of its middle.
 - **Name boards**: one per platform people wait on, RFI blue with a white rim, as long as the
   station's name (0.16 m a character, 2–6 m), its words as white bars on both faces (lettering does
   not read at this pixel size), on two posts 1.8 m back from the track-side edge near the platform's
@@ -818,7 +1012,8 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   name) gets a flat grey metal canopy like Gragnola's along its wall facing the track where a
   platform or walkway runs along that wall (its rim, holes left out, covers 80 % of the strip
   0.5–2.5 m out from the wall: a platform wrapping round its building has the eaves' footprint as
-  a hole), along the whole wall, 4.5 m deep and 3.4 m up on posts, keeping 1.95 m off the nearest
+  a hole), along the whole wall, 4.5 m deep and 3.4 m up on posts (the roof's height read in its
+  first draw), keeping 1.95 m off the nearest
   track centreline (a train's half width, 1.44 m, and a margin). On this map that is Gragnola's
   alone. Monzone's real canopy, a small green one over the door of a wall with grass between it
   and the platform, is not drawn: the CTR maps canopies (code 0208, 653 over the sheets, one 7.5 m
@@ -835,19 +1030,22 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   0.84 ms on average, 1.38 ms at p90 and 2.17 ms at worst (chunk 3623); with 300 more crossings
   far off the map 0.87, 1.36 and 2.22 ms, where scanning every box took 1.52, 2.69 and 4.72 ms,
   past `STREAM_BUDGET_MS` (4).
-- **Cost**: 76 chunks hold railway, 1,240 triangles a chunk at the median, 2,216 at p90 and 5,539
-  at the worst (Gragnola's two tracks, platforms and canopy; a chunk's terrain is 2,048); 35,098
-  solid and 66,562 decal triangles over the map, against about 4,000 and 48,300 for the flat
-  ribbons and slabs before. In Node, `new World` takes 245–251 ms (225–237 before: the platforms'
-  and crossings' geometry is built there, once, so no chunk build pays it), and 785 chunk builds
-  swept along the line and through Monzone after the spawn view take 0.47–0.49 ms on average
-  (0.43–0.44 before), 0.94–1.03 ms at p90 (0.93–0.96) and 4.5–8.6 ms at worst (4.1–7.4, garbage
-  collection), over five runs. In headless Chrome (M4 Pro, 1280×720, dev server, seed 7, a clear
-  noon) a 40 m/s sweep over the stations and crossings builds 132 chunks in 0.79–0.84 ms on
-  average and 2.9–3.9 ms at worst (0.74–0.81 and 3.1–4.2 ms before), at 60 fps with no frame over
-  16.8 ms; "Press any key" at 0.76–0.85 s (0.82–0.99 s), the JS heap after GC 229.6–229.8 MB after
-  the sweep (225.6–226.2 MB), and a frame at Monzone's platforms 58–59 draw calls and 60,437
-  triangles (56–57 and 53,215 before), still 19 programs.
+- **Cost**: 76 chunks hold railway, 1,240 triangles a chunk at the median, 2,216 at p90 and 5,539 at
+  the worst (Gragnola's two tracks, platforms and canopy; a chunk's terrain is 2,048); 35,098 solid
+  and 66,562 decal triangles over the map, against about 4,000 and 48,300 for the flat ribbons and
+  slabs before. The platforms' and crossings' geometry is built on its chunk's first build, since
+  `new World` reads no tile: in Node the 5 crossings' fixed parts take 7.7 ms in all, at most 2.8 ms
+  for one, and the 6 platforms and canopies 11.6 ms, at most 5.1 ms for one, which can take that
+  chunk's frame past `STREAM_BUDGET_MS` once a page; copied again they take 0.2 and 1.0 ms in all.
+  Before the tiles, when `new World` built them (245–251 ms, 225–237 without them), 785 chunk builds
+  swept along the line and through Monzone after the spawn view took 0.47–0.49 ms on average
+  (0.43–0.44 without the platforms and crossings), 0.94–1.03 ms at p90 (0.93–0.96) and 4.5–8.6 ms at
+  worst (4.1–7.4, garbage collection), over five runs. In headless Chrome (M4 Pro, 1280×720, dev
+  server, seed 7, a clear noon) a 40 m/s sweep over the stations and crossings builds 132 chunks in
+  0.79–0.84 ms on average and 2.9–3.9 ms at worst (0.74–0.81 and 3.1–4.2 ms before), at 60 fps with
+  no frame over 16.8 ms; "Press any key" at 0.76–0.85 s (0.82–0.99 s), the JS heap after GC
+  229.6–229.8 MB after the sweep (225.6–226.2 MB), and a frame at Monzone's platforms 58–59 draw
+  calls and 60,437 triangles (56–57 and 53,215 before), still 19 programs.
 
 ### Trains and crossings
 
@@ -885,21 +1083,24 @@ nodes set from the sim's cycle; both draw with materials compiled before the fir
   neighbour's.
 - **Crossings** (`src/render/crossings.ts`): `makeCrossings`, called by `makeEffects`, builds for
   each road box of the sim's `CROSSINGS` a barrier per approach on the pivot the sim gives (on the
-  post right of the way in) and one mesh of road lights per box, for the page's life and visible
-  from the start, so `view.compile` sees them; the host hands them to the schedule as the
-  `Crossings` service (`Lunigiana/CrossingNodes`). A barrier is the arm (red and white 0.5 m stripes
-  from the tip, 0.26 m tall with its top 1.18 m over the road, a counterweight behind the pivot),
-  three red lamps along it, and the skirt (*grembiale*, 0.6 m) whose bars stay plumb as the arm
-  rises (a sheared matrix: its x along the arm, its y vertical), so it folds flat against the
-  standing arm. The road light is a 0.45 m red lens 2.25 m over the road, facing the traffic coming
-  in. The posts, the cabinets and the light's housing are the track's chunk pieces. `DrawCrossings`
-  reads the `LevelCrossings` resource and asks `crossingAt` (`src/sim/rail/barriers.ts`) what each
-  box shows at the drawn moment, step plus alpha: the arm's share down turns it from standing (0) to
-  across the road (1), and `lit` (from the warning until the arms stand up again) puts the arm lamps
-  and the road lights on `signalLampMaterials.on`. A train asking for the box while its arms rise
-  lowers them from where they stood, since the saved state carries the arms' share down at the
-  phase's start (`from`). A foot crossing shows nothing. Arms and skirts use `actorMaterial`, so no
-  snow lies on the stripes; only the arms cast shadows.
+  post right of the way in) and one mesh of road lights per box, for the page's life; the host hands
+  them to the schedule as the `Crossings` service (`Lunigiana/CrossingNodes`). Each box stays hidden
+  until the ground under every way in is in memory (`terrainResident`), when `DrawCrossings` stands
+  its posts and lights on the road and shows them; the stand-ins compile their programs (the actor
+  material, the signal lamps) before the first frame, so a box shown later compiles nothing. A
+  barrier is the arm (red and white 0.5 m stripes from the tip, 0.26 m tall with its top 1.18 m over
+  the road, a counterweight behind the pivot), three red lamps along it, and the skirt (*grembiale*,
+  0.6 m) whose bars stay plumb as the arm rises (a sheared matrix: its x along the arm, its y
+  vertical), so it folds flat against the standing arm. The road light is a 0.45 m red lens 2.25 m
+  over the road, facing the traffic coming in. The posts, the cabinets and the light's housing are
+  the track's chunk pieces. `DrawCrossings` reads the `LevelCrossings` resource and asks
+  `crossingAt` (`src/sim/rail/barriers.ts`) what each box shows at the drawn moment, step plus
+  alpha: the arm's share down turns it from standing (0) to across the road (1), and `lit` (from the
+  warning until the arms stand up again) puts the arm lamps and the road lights on
+  `signalLampMaterials.on`. A train asking for the box while its arms rise lowers them from where
+  they stood, since the saved state carries the arms' share down at the phase's start (`from`). A
+  foot crossing shows nothing. Arms and skirts use `actorMaterial`, so no snow lies on the stripes;
+  only the arms cast shadows.
 - **Cost**, measured in headless Chrome (M4 Pro, ANGLE Metal, 1280×720, dev server, seed 7) by
   counting every `renderBufferDirect` by owner: a train in view takes 10 draw calls (3 bodies, 4
   lamp meshes, 3 shadow casts), the driven one up to 3 more for its x-ray boxes; a road box in
@@ -926,15 +1127,16 @@ show behind houses, trees and hills.
 - **When** (`SeeThrough` in `src/render/sightline.ts`): each frame two sight lines run from the
   player toward the camera (along its back axis, 30° up), one 0.4 m over their feet and one 0.1 m
   under their top (`sight`). Every 2 m up to 500 m along each they look for terrain over the line,
-  and where they first meet it; then every 0.75 m up to 100 m (50 m up) for a building (inside its
-  walls, under its ridge: `topOf` in `buildings.ts`) and a tree crown as drawn (`inCrown` in
-  `trees.ts`: the broadleaf's ellipsoid, the conifer's cone). Either line blocked holds the cut open; it opens over 0.2 s, stays 0.4 s after the
-  player was last hidden (it does not flicker at a wall's edge) and shuts over 0.2 s. Under
-  `prefers-reduced-motion` it opens and shuts at once. When sim time goes back (a state the
-  devtools replay restores), it forgets when the player was last hidden, so the cut is not held
-  open until the clock catches up. A sight line costs 0.004–0.06 ms in Node
-  (in a forest, unblocked: the longest march), two a frame. Baldur's Gate 3 traces from its
-  characters toward the camera the same way.
+  and where they first meet it (past the tiles in memory on the coarse grid, `farTerrainY`); then
+  every 0.75 m up to 100 m (50 m up) for a building (inside its walls, under its ridge: `topOf` in
+  `buildings.ts`) and a tree crown as drawn (`inCrown` in `trees.ts`: the broadleaf's ellipsoid, the
+  conifer's cone). Either line blocked holds the cut open; it opens over 0.2 s, stays 0.4 s after
+  the player was last hidden (it does not flicker at a wall's edge) and shuts over 0.2 s. Under
+  `prefers-reduced-motion` it opens and shuts at once. When sim time goes back (a state the devtools
+  replay restores), it forgets when the player was last hidden, so the cut is not held open until
+  the clock catches up. A sight line costs 0.004–0.06 ms in Node (in a forest, unblocked: the
+  longest march), two a frame. Baldur's Gate 3 traces from its characters toward the camera the same
+  way.
 - **What** (`src/render/see-through.ts`): a circle of 54 texels' radius on screen (6.75 m on foot,
   9 m in a car, 10.8 m above 16 m/s: 40 % of the view's height across) round the middle of the
   player's body. Inside it, a fragment
@@ -1115,13 +1317,15 @@ first frame.
   panes are not drawn at all (under `uLamps` 0.02), so the windows keep their settled daytime look;
   lit, their colour is divided by the exposure, so a window shines as bright at dusk as at
   midnight. The whole map holds 21,201 lit panes and 3,096 lantern-glass quads.
-- **Street lamps** (`lamps.ts`): the map has no lamp data (two `street_lamp` nodes in the raw OSM),
-  so wall lanterns are placed from `MAP` at load: along tertiary, unclassified, residential and
-  service roads, about every 28 m, on a house wall that fronts the road within 6 m, with at least
-  four buildings within 40 m, the bracket 4.5 m up between two windows: 492 lamps. After them
-  come the platforms' 24 pole lamps (`platformLamps` in `src/render/stations.ts`,
+- **Street lamps** (`lamps.ts`): OSM has no lamp data (two `street_lamp` nodes in the raw OSM), so
+  wall lanterns are placed from `MAP`: along tertiary, unclassified, residential and service roads,
+  about every 28 m, on a house wall that fronts the road within 6 m, with at least four buildings
+  within 40 m, the bracket 4.5 m up between two windows: 492 lamps. After them come the platforms'
+  24 pole lamps (`platformLamps` in `src/render/stations.ts`,
   [Track and stations](#track-and-stations)), each `StreetLamp` saying which (`kind`: `wall` or
-  `pole`), so the glow and the light pool read one list: `streetLamps()`, 34–37 ms on first use;
+  `pole`). Placing them reads the terrain under every house that fronts a lit road, so the build
+  places them (`bakeLamps`) and the map file keeps the list (`MAP.lamps`, the heights in m a.s.l.).
+  The glow and the light pool read that one list: `streetLamps()`, 0.1 ms on first use in Node;
   `lampsIn` (32 m cells) finds them for the light pool. Bracket, cap, lantern body and foot are
   solid, a pole lamp's grey pole and bracket too; the glass glows.
 - **Vehicle lamps** (`actors.ts`): head and tail lamps are a per-model shared child mesh of the
@@ -1167,7 +1371,9 @@ Precipitation and bolts are scene objects the sky host makes, drawn after the wo
   `step · STEP.dt`. The scene flash is one smooth pulse per flash, carried by the hemisphere, and a
   new pulse waits at least 0.4 s after the last, so the screen never flickers (WCAG 2.3.1). Under
   `prefers-reduced-motion` the bolt does not flicker and the flash is halved. An in-cloud flash
-  draws no bolt, only the flash, and may lie off the map (`terrainY` clamps its ground).
+  draws no bolt, only the flash, and may lie off the map (`farTerrainY` clamps its ground to the
+  map's). A bolt's ground is read through `farTerrainY`, the coarse grid's where its tiles are not in
+  memory.
 
 #### Shader warm-up and draw order
 
@@ -1181,7 +1387,8 @@ order.
   builds its proxy only the first time it shows one, a mesh with lamps on, and meshes with the
   signal lamps on and off), never drawn and freed after. A train needs nothing more: its bodies,
   lamps and x-ray boxes use materials the stand-ins hold, so one first met mid-game compiles
-  nothing. The level crossings' nodes are in the scene from the start (`makeEffects`). Without
+  nothing. The level crossings' nodes are in the scene from the start (`makeEffects`), hidden until
+  their ground is in memory; their materials are among the stand-ins'. Without
   the target bound, each program compiled as an sRGB-output twin no frame uses (26 programs at
   ready), and the real one again at the first draw. `stand-ins.test.ts` fails when a material a
   world build, an actor, a driven train with its lamps both ways or a crossing lit and dark draws
@@ -1282,6 +1489,9 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   `prefers-reduced-motion`), until the player is back at the start; the touch controls hide all but
   ↺ and ↻, as on a keyboard only Q and E still act on the game; the full map (M, or a tap on the
   minimap) and the settings (Esc) still open.
+- Waiting for a tile ([Host loop](#host-loop)), after 300 ms `hud.loadingMap` shows "Loading map…"
+  (`#hud-loading`, `role="status"`, so screen readers hear it politely), in the prompt's panel above
+  the prompt; the frame is not drawn meanwhile, so the HUD keeps its last text.
 - `boardingAt` (`src/sim/rail/boarding.ts`: the vehicle in reach by `vehicleInReach` in
   `src/sim/body.ts`, else the nearest train door in reach from the player's `Footing`) answers both
   the HUD prompt and the `EnterExit` action, so the prompt never offers something the key will not
@@ -1290,11 +1500,21 @@ sky store `SkyView`, and the dev trains store `TrainView`:
 - Location: the name of the nearest road within 15 m, if it has one (tracks and paths skipped,
   so an unnamed road never borrows a side street's name), and the district disc from `districtAt`.
   Looked up again only after moving 2 m.
-- The minimap is drawn once to an offscreen canvas and then blitted around the player, 300 m
-  across, turned with the view so that screen-up is up. At 0.3 px/m, the minimap's own scale (90
-  canvas px over 300 m, so the blit is 1:1), the whole map is 2340 × 3000 px (7 MP, 28 MB): under
-  every browser's canvas limit (the strictest, Safari's, is 16.7 MP). Drawing it takes ≈ 15 ms at
-  load; the per-frame blit ≈ 1 ms. hud.css shows its 90 px at 180 CSS px (120 in mobile mode),
+- The minimap (`src/hud/minimap.ts`) is blitted around the player, 300 m across, turned with the
+  view so that screen-up is up, from offscreen canvases of one 2 km tile each. At 0.3 px/m, the
+  minimap's own scale (90 canvas px over 300 m, so the blit is 1:1), a tile's canvas is 602 × 602
+  px: its 600 px and 1 px past each side, so neighbours overlap under a turned nearest-neighbour
+  blit instead of leaving a seam (0.36 MP, 1.45 MB). One canvas of the whole region would pass
+  Safari's 16.7 MP limit as the map grows (Lunigiana's was already 2340 × 3000 px, 7 MP). A tile
+  is painted from the global vectors (areas, water, rail, roads, buildings) whose boxes reach it
+  (± 1 px and 20 m, the widest stroke's half), clipped to the map's bounds, once the player comes
+  within 1 km of it along either axis: one a frame, nearest first. Past 1.5 km it is let go (its
+  canvas set to 0 × 0, since Safari caps the memory of all canvases), so at most 9 are kept
+  (≈ 13 MB). The blit draws the tiles within 212 m, the turned square's half-diagonal. In headless
+  Chrome a tile paints in about 3 ms (Monzone's village tiles, -1_0 and 0_0), 1.3 ms (-1_-1, 0_-1)
+  or 0.9 ms (2_-4), the first in about 6 ms (it builds the features' boxes), where the whole map took
+  18.8 ms; the look is unchanged (crops at the spawn before and after match, and a four-tile corner
+  shows no seam, north-up or turned). hud.css shows its 90 px at 180 CSS px (120 in mobile mode),
   and a click or tap on it opens the full map.
 - The full map (`src/hud/worldmap.ts`, `#hud-map` in `index.html`): the key labelled M toggles it
   (matched by the character it types, so AZERTY works; non-Latin layouts fall back to the key's
@@ -1328,8 +1548,9 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   keeps it in `localStorage` under `gta-lunigiana/handling`. A preset is stored by its name, so a
   preset retuned in a later build reaches the player; knobs set by hand are stored as the knobs.
   At load it sends the stored handling before the first step.
-- While the full map or the settings are open the host pauses the game: the FixedLoop keeps
-  running, but `pausable` (`src/hud/hud.ts`) skips the sim update and `main.ts` skips the frame
+- While the full map or the settings are open, or a tile the next step reads is still downloading
+  ([Host loop](#host-loop)), the host pauses the game: the FixedLoop keeps running, but `pausable`
+  (`src/hud/hud.ts`) skips the sim update and `main.ts` skips the frame
   (no world render, so actors do not jitter between `PrevPose` and `Pose`, and no audio tick) and
   suspends the AudioContext (`speaker.pause`). With no update the game clock stops too. Each
   skipped update drains the controls' press edges, keys and touch, so a key tapped on the map (F,
@@ -1458,10 +1679,10 @@ step, and git hooks run the first three before a commit or push.
   described, `Cry`, which no sim system reads, would be `event-never-read` (`CrashDamage`,
   `Perceive` and `Startle` read `Impact` in `update`, `Perceive` and `Animals` read `Honk` and
   `Whistle`, which the audio's `Hear` reads too; `Lightning` has two readers, the render's `DrawSky`
-  and the audio's `Hear`). `lintTarget` declares
-  `SetHandling`, `SetClock`, `SetWeather` and `SetTrains` host events (`hostEvents`), since only
-  the host sends them; undeclared they would be `event-never-written`. It also fails if a module the
-  sim loads is not covered by the oxlint simulation override.
+  and the audio's `Hear`). `lintTarget` declares `SetHandling`, `SetClock`, `SetWeather`,
+  `SetTrains` and `SetPlayer` host events (`hostEvents`), since only the host sends them; undeclared
+  they would be `event-never-written`. It also fails if a module the sim loads is not covered by the
+  oxlint simulation override.
 - `node --test` over every `*.test.ts` in `src` and `lint`. A test lives in a `__tests__` folder
   beside the module it tests (`src/sim/route.ts` is tested by `src/sim/__tests__/route.test.ts`;
   `test-files/in-tests-folder` enforces it). Beside the unit tests, these guard the architecture:
@@ -1574,11 +1795,43 @@ step, and git hooks run the first three before a commit or push.
     backs up short of the car queued behind, waits for a car beside its front as it steers back
     into its lane, backs up straight past a car alongside, and keeps slower and further back on a
     wet road.
+  - `src/sim/__tests__/freeze.test.ts`: `inReach` (within `FROZEN_BEYOND` along both axes, and
+    everywhere with no player); a car rolling at 5 m/s and a parked car touching its tail about
+    5.7 km from the start, their tiles dropped and no tile source, keeping their state bit for bit
+    for 120 steps and moving again once `SetPlayer` brings the player within reach; a jump leaving
+    no one behind, and 60 steps run with only the target's tiles in memory; `SetPlayer` on foot and
+    driving, and its bad requests dropped. `src/sim/__tests__/seams.test.ts`: two cars driven across
+    the x = 0 and y = 0 seams on Via Borgo Monzone by the station, every frame's world and the final
+    save the same with the tiles read in lazily and dropped every 20 steps as with all 30 in memory.
+  - `src/sim/map/__tests__/tiles.test.ts`: the tile list (30, i −2…2 and j −4…1, south to north
+    then west to east) and its lowest and highest nodes, shared borders, each wall and tree in its
+    tile and no wall reaching past `walls.reach`, `heightAt`, `terrainZ` and `coverAt` bit for bit
+    as the whole heightmap and land cover give them, `wallsNear` the same whatever is in memory and
+    in whichever order it came, `wallsNear` and `treesIn` answering exactly as one broad phase over
+    the whole map (the same items in the same order, over 1,500 boxes 1–60 m across, half of them
+    within 40 m of a seam), every wall whose box overlaps a query found, and a lookup in a tile not
+    in memory throwing with its name. `src/tools/__tests__/bake.test.ts` and `cesena-bake.test.ts`:
+    each map's baked tables and its place are what the game's code makes of it now
+    ([map.md](map.md#checks-and-tools)).
+  - `src/__tests__/stream.test.ts`: the tile stream on fakes: the tiles the next step reads asked
+    for first, then the rest within 1 km, three at a time; `ready` round the player and the extra
+    point; a tile let go only past 1.5 km and never while the view or the extra point needs it, the
+    world told first; a failed download tried again after a wait that doubles, one stalled past
+    15 s cancelled and tried again, one nothing needs any more cancelled with no failure; a tile the
+    store refuses or the server has not (404) gone, named and never asked for again; a download that
+    lands once nothing needs it let go; the files gunzipped as they arrive,
+    their bytes counted; a failed download naming the file and its status.
+    `src/__tests__/maps.test.ts`: every tile each map's global file lists has a file at its tile
+    URL, in the map's own directory.
   - `src/hud/__tests__/handling.test.ts`: the handling store (what it stores, restores and
     sends); `src/hud/__tests__/settings.test.ts`: the settings' keys (Esc on to the router, every
     other key kept from the game) and the preset they show (Custom for a hand-set mix);
     `src/hud/__tests__/hud.test.ts`: the Esc and M routing (`overlayKey`), the pause, and a
     train's prompt as a car's, offering to get out only below `BOARD_SPEED`;
+    `src/hud/__tests__/minimap.test.ts`: the minimap turned screen-up to the top at every yaw, the
+    tiles its turned square can reach, nearest first and none off the map, and a tile's canvas,
+    painted from only the features near it, getting every path the whole map would draw on it, in
+    order;
     `src/hud/__tests__/touch.test.ts`: the stick and buttons as keys, a hidden control letting go
     of its key, and in a train only ◀ ▶ hidden (read from hud.css and
     index.html, and marked by `draw` on the controls, `data-vehicle="train"`).
@@ -1606,17 +1859,18 @@ step, and git hooks run the first three before a commit or push.
     and the tail lamps at the trailing one, none on a train left alone; the x-ray boxes trimmed and
     open at the joints; a train node frees only its x-ray boxes.
   - `src/render/__tests__/crossings.test.ts`: a barrier and a road light per way in at each road
-    box, none at the foot crossing; the arms standing up open and in the warning, across the road
+    box, none at the foot crossing; a box hidden until the ground under its ways in is in memory,
+    then standing on its road; the arms standing up open and in the warning, across the road
     to the left of the way in closed, at 45° halfway; a demand while they rise lowering them from
     where they stood; the lamps and lights lit from the warning until the arms are up; the skirt
     plumb at every angle and folded flat standing up.
-  - `src/render/__tests__/rail.test.ts`: a chunk build of the track and stations keeping exactly
-    its cut of the whole-map build; nothing 3D in a crossing's carriageway and the bed stopping a
-    metre short of it; each panel, its rails and the stop lines over the road ribbon, and no
-    road's centre dash under a panel; sleepers and rails at reading widths; the bed's top within
-    0.15 m of the terrain on 90 % of the line at grade; a portal at every tunnel mouth, facing out
-    of the hill; each arm hinged on its housing and the road light's plate behind its lens, all
-    clear of the trains.
+  - `src/render/__tests__/rail.test.ts`: a chunk build of the track and stations, the roads and
+    rivers, the lamps and the buildings keeping exactly its cut of the whole-map build; nothing 3D
+    in a crossing's carriageway and the bed stopping a metre short of it; each panel, its rails and
+    the stop lines over the road ribbon, and no road's centre dash under a panel; sleepers and rails
+    at reading widths; the bed's top within 0.15 m of the terrain on 90 % of the line at grade; a
+    portal at every tunnel mouth, facing out of the hill; each arm hinged on its housing and the
+    road light's plate behind its lens, all clear of the trains.
   - `src/render/__tests__/stations.test.ts`: the platforms' tops following the rail profile,
     their yellow lines, nothing standing in a train's way, one name board per platform people wait
     on, the platform lamps, a canopy only where a platform runs along a station building, and no
@@ -1635,12 +1889,21 @@ step, and git hooks run the first three before a commit or push.
     world build, the actors, a driven train and the crossings draw has a stand-in;
     `pipeline.test.ts`: `compile` builds into the scene's target; `actors.test.ts`: the vehicle
     lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts`: the
-    glow and water meshes; `index.test.ts`: no x-ray in the water, a swimmer floating at its
-    shoulders; `sightline.test.ts`: a person behind a house near the spawn, under a tree's crown or
-    under the ground is hidden, the player at the spawn is not, a hill hiding a road says where it
-    meets the line, and the cut's easing, hold, radius, ground depth, reduced motion and sim time
+    glow and water meshes, the world and the crossings' nodes made without reading a tile, and a
+    chunk built only once every tile its build reads is in and dropped when one goes;
+    `chunk-tiles.test.ts`: a chunk's build reading its terrain's tiles, one tile planning each chunk
+    with its box round the chunk's, a crossing's chunk reading the ground under its road ribbons,
+    and with only some tiles in every chunk that builds reading only those; `trees.test.ts`: each
+    chunk's trees from its tiles the whole map's bucket for it, the apron's mirrors and order
+    included; `chunks.test.ts`: the box from the tiles' lowest and highest nodes holding the exact
+    one, for every chunk; `ground.test.ts`: `farTerrainY` the terrain where it is in memory and the
+    coarse grid's height where not; `index.test.ts`: no x-ray in the water, a swimmer floating at
+    its shoulders; `sightline.test.ts`: a person behind a house near the spawn, under a tree's crown
+    or under the ground is hidden, the player at the spawn is not, a hill hiding a road says where
+    it meets the line, and the cut's easing, hold, radius, ground depth, reduced motion and sim time
     going back.
-  - `src/sim/map/__tests__/map.test.ts`: invariants of the generated map (see [map.md](map.md)).
+  - `src/sim/map/__tests__/map.test.ts`: invariants of the generated map, read whole, its tiles
+    joined (see [map.md](map.md#checks-and-tools)).
   - the audio tests, in Node without Web Audio (see [audio.md](audio.md#tests)).
 
 Git hooks come from `lefthook.yml`; `pnpm install` installs them (lefthook's own install script,

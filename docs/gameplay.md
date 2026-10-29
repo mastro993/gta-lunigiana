@@ -7,21 +7,24 @@ keys ([architecture.md](architecture.md#input)).
 
 ## Start
 
-`SpawnWorld` puts the player on the Via Cesare Battisti sidewalk in front of the Carabinieri
-station in Lunigiana, or beside a central connected street in Cesena. The map build rejects
-positions inside buildings and requires an open walking route to the street, so the player can
-leave the starting spot. 200 of the map's parked spots (`PARKED`) get a car, picked at random,
-so the cars spread over the villages as the spots do. Spots where a parked car would tilt more
-than 15° are skipped (in Lunigiana, 72 of the 805: the 4 m terrain puts some verges on a bank),
-and each car settles on its springs with the ground's slope. The two spots nearest the station
-get Carabinieri cars. The rest
-are randomly chosen spots, about 80% Pandas and 20% Apes. On a tertiary-road spot where it fits,
-a roll under 10% makes a marble truck instead, at most two of them. Then the first fill puts the
-people and animals around the start out at once ([The first fill](#the-first-fill)), and each line's
-first train stands at its station nearest the start ([Trains](#trains)). The world's `Rng` makes
-every choice but the trains' (`RailRng`), so `?seed=N` replays the same start. The game begins on today's date at 08:00
-in Rome, under a clear sky on dry roads, once the title card is dismissed; the clock, the sun and
-the weather are in [weather.md](weather.md).
+`SpawnWorld` puts the player on the Via Cesare Battisti sidewalk in front of the Carabinieri station
+in Lunigiana, or beside a central connected street in Cesena. The map build rejects positions inside
+buildings and requires an open walking route to the street, so the player can leave the starting
+spot. 200 of the map's parked spots (`PARKED`) get a car, picked at random, so the cars spread over
+the villages as the spots do. Spots where a parked car would tilt more than 15° are skipped (in
+Lunigiana, 70 of the 805 for a Panda: the 4 m terrain puts some verges on a bank), and each car
+stands settled on its springs with the ground's slope. Settling reads the terrain at the spot, and a
+truck's clearance the walls, so the build works both out for every model on every spot (`bakeParked`
+in `src/sim/parking.ts`) and the map file keeps, per spot, each model's rest where it stands level
+and whether a truck fits (`MAP.spawns.parked`), which `SpawnWorld` reads. The two spots nearest the
+station get Carabinieri cars. The rest are randomly chosen spots, about 80% Pandas and 20% Apes. On
+a tertiary-road spot where it fits, a roll under 10% makes a marble truck instead, at most two of
+them. Then the first fill puts the people and animals around the start out at once ([The first
+fill](#the-first-fill)), and each line's first train stands at its station nearest the start
+([Trains](#trains)). The world's `Rng` makes every choice but the trains' (`RailRng`), so `?seed=N`
+replays the same start. The game begins on today's date at 08:00 in Rome, under a clear sky on dry
+roads, once the title card is dismissed; the clock, the sun and the weather are in
+[weather.md](weather.md).
 
 ## The view
 
@@ -240,6 +243,29 @@ and an engine for its smoke and fire in `src/render/actors.ts`, and a trim in th
 
 The camera zooms out with speed (6 texels/m in a car, 5 above 16 m/s). The HUD speedometer shows
 km/h.
+
+### Vehicles far from the player
+
+A vehicle more than 500 m from the player along either axis (`FROZEN_BEYOND`) stands frozen, so the
+game reads the map only round the player, where the browser keeps its tiles
+([architecture.md](architecture.md#tile-streaming)).
+
+- **What stops**: its physics (it neither sleeps nor wakes, and a flood does not float it), its
+  contacts with vehicles, people and animals, a train's shove (a train passes through it, though the
+  train's look-out still sees it: on the track it holds an AI train at the horn, then the train
+  creeps through), blasts, its fuse and its AI driver.
+- **What it keeps**: its pose, velocity, chassis, damage and controls, exactly. Once the player is
+  back within 500 m it moves on with them, the velocity it had included.
+- **What freezes in play**: traffic goes beyond 320 m and a destroyed vehicle once out of view, so
+  the frozen ones are the parked cars and the cars the player has left. Of the 200 parked at the
+  start (seed 1), 16 stand within reach of it; of the map's 805 parked spots, 89. A car left in a
+  flood, on its roof under self-righting or on a level crossing more than 500 m away stays as it was
+  until the player comes back.
+- **Trains** are never frozen: their lines are global data, so they run their whole line wherever
+  the player is.
+- **People and animals** never get that far: `Populate` and `PopulateAnimals` despawn them beyond
+  140–180 m. After a jump (coming back at the start, a dev teleport) those left more than 500 m away
+  go at once (`LeaveBehind`).
 
 ### Handling
 
@@ -501,7 +527,9 @@ the lane helpers in `src/sim/route.ts`.
 
 - **Keep right.** The lane offset is w/4 + 0.2 m on roads at least 5 m wide, otherwise 0.5 m. It
   shrinks in 0.25 m steps where houses crowd the road, until the body clears the walls. Each model
-  has its own lane table. A model only uses edges where it fits, and where the drive walls across
+  has its own lane table, worked out at build time (`bakeLanes` in `src/sim/lanes.ts`) and kept in
+  the map file (`MAP.lanes`), since fitting it reads every drive wall along every traffic edge. A
+  model only uses edges where it fits, and where the drive walls across
   the road leave room for it and an oncoming Panda plus 0.3 m (`PASS_MARGIN`): in single-file
   lanes between houses two cars met head-on with no room to back out or turn round. It only uses
   the largest connected part of those edges, so villages reached only by such lanes (Terma, Monte
@@ -989,10 +1017,11 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
 A farm (`src/sim/population/farms.ts`) is a house, barn, shed, `farm_auxiliary` or silo, not a ruin,
 whose centre lies on meadow, grassland, farmland or farmyard cover. It is rural when fewer than 60
 residents live within 140 m (`RURAL`, TUNED), and a pen (pigs live there) when it is a barn, shed or
-`farm_auxiliary`, or stands on a farmyard. The map has 2,405 farms, 1,710 of them rural, 796 pens
-and 647 rural pens. A pasture for a herd is meadow, grassland or farmland no steeper than 0.47
-(25°, TUNED), 15 m from any building, 5 m from any road's edge (roads in tunnels left out) and within
-250 m of a rural farm.
+`farm_auxiliary`, or stands on a farmyard. The map has 2,405 farms, 1,709 of them rural, 796 pens
+and 647 rural pens. Finding them reads the land cover under every building, so the build does it
+(`bakeFarms`) and the map file keeps the list (`MAP.farms`). A pasture for a herd is meadow,
+grassland or farmland no steeper than 0.47 (25°, TUNED), 15 m from any building, 5 m from any road's
+edge (roads in tunnels left out) and within 250 m of a rural farm.
 
 `PopulateAnimals` runs every 0.5 s and keeps each kind's count near the player (`ANIMALS`); cows and
 pigs come out only where the player is out in the country, with fewer than 60 residents within
@@ -1637,12 +1666,13 @@ speed along the contact.
 | `src/sim/dynamics.ts` | substeps, bump-stop travel, damper limit, the body's ground contacts, in-air tumbling damping, the ground-hit speed |
 | `src/sim/drivetrain.ts` | shift points, engine braking, driveline efficiency |
 | `src/sim/view.ts` | `screenAxes` (screen axes of the home view), `LOOK_AHEAD`, `VIEW_REACH` |
-| `src/sim/route.ts` | lane offsets, passing room (`PASS_MARGIN`), pedestrian verge, `cruiseSpeed`, truck road classes, hairpin limit, the walk choice (`WALK_AHEAD`, `WALK_FLOOR`) |
+| `src/sim/lanes.ts` | lane offsets, passing room (`PASS_MARGIN`), truck road classes; baked into the map, so run `pnpm map` after a change (`bake.test.ts` fails until then) |
+| `src/sim/route.ts` | pedestrian verge, `cruiseSpeed`, hairpin limit, the walk choice (`WALK_AHEAD`, `WALK_FLOOR`) |
 | `src/sim/systems/populate.ts` | `TRAFFIC` and `PEDESTRIANS` population limits and bands, `OUT_SHARE` (the residents out), `FACE_TO_FACE` (neighbours), `FILL_NEAR` (the first fill), spawn model mix |
 | `src/sim/population/density.ts` | residents per home (`HOMES`, `STOREY`, `GROSS_PER_RESIDENT`, `LIVED_IN`), the streets people come out on and walk (`EDGE_REACH`, `PEOPLED`) |
 | `src/sim/population/looks.ts` | `FEMALE`, `ELDERS`, `DARKER`, skins, hair and `FAIRER`, hairdos, outfits, clothes, `HEIGHT` |
 | `src/sim/population/parties.ts` | `PARTY_WEIGHTS`, `GRANDPARENT`, `SAME_ORIGIN`, `TWO_KIDS`, `DOORSTEP`, the followers' `PLACES` |
-| `src/sim/population/farms.ts` | what a farm and a pen are, `RURAL`, `RURAL_REACH`, `PASTURE_ROOM`, `STEEPEST` |
+| `src/sim/population/farms.ts` | what a farm and a pen are, `RURAL`, `RURAL_REACH` (all baked into the map: run `pnpm map` after a change), `PASTURE_ROOM`, `STEEPEST` |
 | `src/sim/fauna.ts` | `FAUNA` (each species' body, gait, home range and lethal speed), coats, `SIZE` |
 | `src/sim/systems/perceive.ts`, `src/sim/systems/senses.ts` | each reaction's trigger, length and cry chance (`WHISTLE_LOOK`, `HOLD_LOOK`, `TRAIN_SENSED` for the trains), `COOLDOWN`, `CHAT_COOLDOWN`, `SHAKEN`, `VIGIL`; `DANGER`, `USUAL`, `HORN_AIM` |
 | `src/sim/systems/pedestrians.ts` | `WALK_PACE`, `RUN_PACE`, `HEIGHT_SPREAD`, `ACCEL`, `STOP`, `TURN`, the gatherers' distances, `FOLLOW_GAIN`, `CATCH_UP` |
@@ -1651,6 +1681,8 @@ speed along the contact.
 | `src/sim/systems/fright.ts` | `FLEE`, `FEARS` (a train's whistle's reach included), `CRIES`, `CRASH_SPEED` (Startle) |
 | `src/sim/systems/populate-animals.ts` | `ANIMALS` (each kind's share, reach, cap and despawn), the spawn bands and spots |
 | `src/sim/systems/spawn.ts` | parked cars (`PARKED`), trucks (`TRUCKS`) |
+| `src/sim/parking.ts` | `LEVEL`, the steepest tilt a parked car stands at; baked into the map, so run `pnpm map` after a change |
+| `src/sim/map/tiles.ts` | `FROZEN_BEYOND` (how far from the player a vehicle still steps), `STEP_REACH` (the square of tiles the host keeps for a step) |
 | `src/sim/rail/models.ts` | `TRAINS`: the ATR 220's cars, bogies, mass, power, resistance, brakes and engines; `MOVING`, the speed over which a train counts as moving |
 | `src/sim/rail/lines.ts` | `DRAWN_RUN`, `runOut`, `DEFAULT_SPEED`, `CHORD`, `STOP_REACH` |
 | `src/sim/rail/service.ts` | `DWELL`, `KEEP_BEHIND`, `FALL_BACK` (dropping back to it), `LONG_TUNNEL`, `WHISTLE_LEAD`, `AGAINST` (another train against an AI train) |

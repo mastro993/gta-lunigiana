@@ -49,7 +49,8 @@ export const makeHud = (document: Document) => {
     speed = element(document, "hud-speed"),
     vehicle = element(document, "hud-vehicle")
   const prompt = element(document, "hud-prompt"),
-    wasted = element(document, "hud-wasted")
+    wasted = element(document, "hud-wasted"),
+    wait = element(document, "hud-loading")
   const minimap = makeMinimap(document)
   const worldMap = makeWorldMap(document)
   let last = { x: Number.NaN, y: Number.NaN, angle: 0 }
@@ -74,6 +75,8 @@ export const makeHud = (document: Document) => {
     repaintMap: (): void => {
       if (worldMap.open) worldMap.show(last.x, last.y, last.angle)
     },
+    /** Shows or hides "Loading map…": the game has waited a while for a tile the next step reads (`update` is not called meanwhile). */
+    loadingMap: (visible: boolean): void => show(wait, visible),
     update: (
       view: PlayerViewModel,
       x: number,

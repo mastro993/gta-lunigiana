@@ -181,14 +181,36 @@ export interface Sink {
 /** The sink of the chunk holding map point (x, y). */
 export type SinkAt = (x: number, y: number) => Sink
 
+/** A map box, metres: (minX, minY, maxX, maxY). */
+export type Box = readonly [number, number, number, number]
+
+/** The map box over vertices `from` … `to` of a flat polyline or ring (all of them by default). */
+export const boxOver = (pts: ReadonlyArray<number>, from = 0, to = pts.length / 2 - 1): Box => {
+  let minX = Number.POSITIVE_INFINITY,
+    minY = Number.POSITIVE_INFINITY,
+    maxX = Number.NEGATIVE_INFINITY,
+    maxY = Number.NEGATIVE_INFINITY
+  for (let k = from; k <= to; k++) {
+    minX = Math.min(minX, pts[2 * k]!)
+    minY = Math.min(minY, pts[2 * k + 1]!)
+    maxX = Math.max(maxX, pts[2 * k]!)
+    maxY = Math.max(maxY, pts[2 * k + 1]!)
+  }
+  return [minX, minY, maxX, maxY]
+}
+
 /**
  * A static item drawn chunk by chunk. `pts` is its anchor polyline (one point for a building);
  * `draw` emits segments k0..k1 of it, reading their neighbours for joints, and puts every
- * triangle in `at` of the point it belongs to, so a chunk keeps exactly its share.
+ * triangle in `at` of the point it belongs to, so a chunk keeps exactly its share. A draw reads
+ * the ground near those segments; `reads` is where it reads instead, for a piece that is built
+ * whole on its first draw (a platform, a level crossing) or reaches off its anchor (a building's
+ * footprint, a canopy's).
  */
 export interface Piece {
   readonly pts: ReadonlyArray<number>
   readonly draw: (at: SinkAt, k0: number, k1: number) => void
+  readonly reads?: Box
 }
 
 /** A three primitive (Box, Cylinder, Extrude...) as non-indexed position/normal/color in one colour. */

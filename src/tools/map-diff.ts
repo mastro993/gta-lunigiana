@@ -1,11 +1,13 @@
 // The differences between two built maps, category by category, for checking that a pipeline
 // change moves only what it should. Run: node src/tools/map-diff.ts <a.bin> <b.bin>  (pnpm map-diff
-// <a.bin> <b.bin>). Reads two monzone.bin files (gzipped or not) of one format version, decodes
-// them (`decodeMap`, which throws on any other version) and prints one block per category that
-// differs, or "no differences". Exits 0 when the maps are the same, 1 when anything differs, 2 on
-// bad arguments or a file it cannot read.
+// <a.bin> <b.bin>). Reads two global map files (monzone.bin), each with its tiles in the directory
+// named after the map beside it (copy both to keep a build: `cp -R src/sim/map/monzone.bin
+// src/sim/map/monzone /tmp/before/`), joins each whole (map-file.ts; the decoders throw on another
+// format version) and prints one block per category that differs, or "no differences". Exits 0
+// when the maps are the same, 1 when anything differs, 2 on bad arguments or a file it cannot read.
+// The build hash is not compared (it changes with anything else); the baked tables are.
 // - A key it does not compare, at the top level or inside a part it reads key by key (heightmap,
-//   graph, walls, railway, spawns), is listed under "unhandled keys" whether or not it differs, so
+//   graph, walls, railway, spawns, place), is listed under "unhandled keys" whether or not it differs, so
 //   a key a later map adds is never passed over as "no differences".
 // - Order is ignored: lists compare as multisets of their items (wall segments, trees, areas,
 //   barriers, graph nodes and edges), or matched by id where items have one (roads, buildings,
@@ -14,12 +16,10 @@
 //   coordinates and its road's id, a level crossing's road as its id, so inserting one road does
 //   not renumber every edge into a difference.
 // - The heightmap compares the nodes both grids share (they must line up: one cell size, origins
-//   whole cells apart): how many differ, by how much at most and RMS (m), and where.
-import { readFileSync } from "node:fs"
-import { gunzipSync } from "node:zlib"
+//   whole cells apart): how many differ, by how much at most and RMS (m), and where; the land cover
+//   the cells both share.
+import { pathToFileURL } from "node:url"
 
-import type { MonzoneMap } from "../sim/map/index.ts"
-import { decodeMap } from "../sim/map/packed.ts"
 import {
   addFlat,
   type Bag,
@@ -33,6 +33,8 @@ import {
   keyedDiff,
   num,
 } from "./diff-lists.ts"
+import { readWholeMap } from "./map-file.ts"
+import type { JoinedMap } from "./tile-map.ts"
 
 /** One category that differs: its name and the report's lines for it. */
 interface Block {
@@ -43,9 +45,10 @@ interface Block {
 /** Items listed per kind of change before "... and n more". */
 const LIST = 10
 
+type MonzoneMap = JoinedMap
 type Heightmap = MonzoneMap["heightmap"]
 
-const TOP_FIELDS = ["origin", "mPerDeg", "bounds"] as const
+const TOP_FIELDS = ["origin", "mPerDeg", "bounds", "place"] as const
 const WALL_KINDS = ["walk", "shore", "drive"] as const
 const RAILWAY_PARTS = ["lines", "stations", "crossings", "platforms"] as const
 
@@ -56,10 +59,17 @@ const COMPARED: ReadonlyArray<readonly [string, (m: MonzoneMap) => object, Reado
       "",
       (m) => m,
       [
-        // decodeMap reads one version only, so both maps have the same
+        // the decoders read one version only, so both maps have the same
         "version",
+        // anything else that differs changes it
+        "hash",
+        "name",
         ...TOP_FIELDS,
+        "tiles",
+        "place",
         "heightmap",
+        "cover",
+        "coarse",
         "walls",
         "trees",
         "roads",
@@ -73,13 +83,18 @@ const COMPARED: ReadonlyArray<readonly [string, (m: MonzoneMap) => object, Reado
         "districts",
         "spawns",
         "graph",
+        "lanes",
+        "farms",
+        "lamps",
       ] satisfies ReadonlyArray<keyof MonzoneMap>,
     ],
     ["heightmap", (m) => m.heightmap, ["cell", "cols", "rows", "x0", "y0", "data"]],
     ["graph", (m) => m.graph, ["xy", "edges", "traffic", "walk"]],
-    ["walls", (m) => m.walls, WALL_KINDS],
+    ["walls", (m) => m.walls, [...WALL_KINDS, "reach", "lattice", "counts"]],
+    ["coarse", (m) => m.coarse, ["cell", "cols", "rows", "x0", "y0", "heights", "cover"]],
     ["railway", (m) => m.railway, RAILWAY_PARTS],
     ["spawns", (m) => m.spawns, ["player", "parked"]],
+    ["place", (m) => m.place, ["floor", "downslope"]],
   ]
 
 /** Each key in either map that `COMPARED` does not list, as `part.key: differs` or `: the same in both`. */
@@ -126,8 +141,14 @@ const itemBox = (box: Box, item: object): void => {
   if (v.x !== undefined && v.y !== undefined) addFlat(box, [v.x, v.y])
 }
 
-const gridOf = ({ cell, cols, rows, x0, y0 }: Heightmap) => ({ cell, cols, rows, x0, y0 })
-const extent = ({ cell, cols, rows, x0, y0 }: Heightmap): string =>
+const gridOf = ({ cell, cols, rows, x0, y0 }: Omit<Heightmap, "data">) => ({
+  cell,
+  cols,
+  rows,
+  x0,
+  y0,
+})
+const extent = ({ cell, cols, rows, x0, y0 }: Omit<Heightmap, "data">): string =>
   `x ${num(x0)}..${num(x0 + (cols - 1) * cell)}, y ${num(y0)}..${num(y0 + (rows - 1) * cell)}`
 
 /** The grid's change, then the nodes both grids share: how many differ, the largest and RMS difference (m), and their box. */
@@ -181,6 +202,51 @@ const diffHeightmap = (a: Heightmap, b: Heightmap): Array<string> => {
     )
   }
   return out
+}
+
+/** The land-cover cells both maps' grids share that differ: how many, and their box. */
+const diffCover = (a: MonzoneMap, b: MonzoneMap): Array<string> => {
+  const ga = a.heightmap,
+    gb = b.heightmap,
+    di = (gb.x0 - ga.x0) / ga.cell,
+    dj = (gb.y0 - ga.y0) / ga.cell
+  if (ga.cell !== gb.cell || !Number.isInteger(di) || !Number.isInteger(dj)) return []
+  const ca = ga.cols - 1,
+    cb = gb.cols - 1
+  const i0 = Math.max(0, di),
+    i1 = Math.min(ca, cb + di),
+    j0 = Math.max(0, dj),
+    j1 = Math.min(ga.rows - 1, gb.rows - 1 + dj)
+  let changed = 0
+  const box = emptyBox()
+  for (let j = j0; j < j1; j++)
+    for (let i = i0; i < i1; i++)
+      if (a.cover[j * ca + i] !== b.cover[(j - dj) * cb + i - di]) {
+        changed++
+        addFlat(box, [ga.x0 + (i + 0.5) * ga.cell, ga.y0 + (j + 0.5) * ga.cell])
+      }
+  return changed > 0
+    ? [
+        `cells: ${changed} of ${Math.max(0, (i1 - i0) * (j1 - j0))} shared cells differ${boxText(box)}`,
+      ]
+    : []
+}
+
+/** The coarse grid's change: its lattice, then how many of the nodes' heights and covers differ (the grids must match). */
+const diffCoarse = (a: MonzoneMap["coarse"], b: MonzoneMap["coarse"]): Array<string> => {
+  const grid = fieldChanges(gridOf(a), gridOf(b))
+  if (grid.length > 0) return [`grid: ${grid.join(", ")}`]
+  const count = (u: ArrayLike<number>, v: ArrayLike<number>) => {
+    let n = 0
+    for (let k = 0; k < u.length; k++) if (u[k] !== v[k]) n++
+    return n
+  }
+  const heights = count(a.heights, b.heights),
+    cover = count(a.cover, b.cover)
+  return [
+    ...(heights > 0 ? [`heights: ${heights} of ${a.heights.length} nodes differ`] : []),
+    ...(cover > 0 ? [`cover: ${cover} of ${a.cover.length} nodes differ`] : []),
+  ]
 }
 
 /** The counts of a multiset diff of flat tuples and the box round the first `coords` numbers of each changed tuple. */
@@ -339,12 +405,31 @@ const railwayParts = (m: MonzoneMap) => {
   }
 }
 
-/** The origin, metres per degree and bounds. */
-const diffTop = (a: MonzoneMap, b: MonzoneMap): Array<string> =>
-  TOP_FIELDS.flatMap((k) => {
+/** The baked tables with their indices resolved: each model's lanes per traffic edge (its two ends and road id, then the two sides), each farm by its building's id and first vertex. */
+const bakedParts = (m: MonzoneMap, edges: ReadonlyArray<number>) => {
+  const traffic = m.graph.traffic.map((_, k) => edges.slice(5 * k, 5 * k + 5))
+  return {
+    lanes: Object.fromEntries(
+      Object.entries(m.lanes).map(([model, sides]) => [
+        model,
+        traffic.map((edge, k) => ({ edge, sides: [sides[2 * k], sides[2 * k + 1]] })),
+      ]),
+    ),
+    farms: m.farms.map((f) => {
+      const b = at(m.buildings, f.building, "building")
+      return { ...f, building: `${b.id}@${b.outer[0]},${b.outer[1]}` }
+    }),
+  }
+}
+
+/** The name, origin, metres per degree, bounds and place. */
+const diffTop = (a: MonzoneMap, b: MonzoneMap): Array<string> => [
+  ...(a.name === b.name ? [] : [`name: ${a.name} -> ${b.name}`]),
+  ...TOP_FIELDS.flatMap((k) => {
     const changes = fieldChanges(a[k], b[k])
     return changes.length > 0 ? [`${k}: ${changes.join(", ")}`] : []
-  })
+  }),
+]
 
 /** Every category in which `a` and `b` differ, in a fixed order; none when the maps are the same. */
 export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => {
@@ -353,14 +438,27 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
   const ra = railwayParts(a),
     rb = railwayParts(b)
   const player = fieldChanges(a.spawns.player, b.spawns.player)
+  const ba = bakedParts(a, ga.traffic),
+    bb = bakedParts(b, gb.traffic)
+  const models = [...new Set([...Object.keys(ba.lanes), ...Object.keys(bb.lanes)])].sort()
   const blocks: ReadonlyArray<Block> = [
     { category: "unhandled keys", lines: unhandledKeys(a, b) },
     { category: "top level", lines: diffTop(a, b) },
+    { category: "tiles", lines: [bagLine(a.tiles, b.tiles)[0] ?? []].flat() },
     { category: "heightmap", lines: diffHeightmap(a.heightmap, b.heightmap) },
+    { category: "cover", lines: diffCover(a, b) },
     {
       category: "walls",
-      lines: partLines(WALL_KINDS.map((k) => [k, flatLine(a.walls[k], b.walls[k], 4, 4)])),
+      lines: [
+        ...partLines(WALL_KINDS.map((k) => [k, flatLine(a.walls[k], b.walls[k], 4, 4)])),
+        ...(a.walls.reach === b.walls.reach ? [] : [`reach: ${a.walls.reach} -> ${b.walls.reach}`]),
+        ...(["lattice", "counts"] as const).flatMap((k) => {
+          const changes = fieldChanges(a.walls[k], b.walls[k])
+          return changes.length > 0 ? [`${k}: ${changes.join(", ")}`] : []
+        }),
+      ],
     },
+    { category: "coarse", lines: diffCoarse(a.coarse, b.coarse) },
     { category: "trees", lines: [flatLine(a.trees, b.trees, 3, 2) ?? []].flat() },
     { category: "roads", lines: keyedLines("road", a.roads, b.roads, (r) => r.id) },
     { category: "buildings", lines: keyedLines("building", a.buildings, b.buildings, (r) => r.id) },
@@ -393,6 +491,14 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
         ["walk", flatLine(ga.walk, gb.walk, 5, 4)],
       ]),
     },
+    {
+      category: "lanes",
+      lines: partLines(
+        models.map((model) => [model, bagLine(ba.lanes[model] ?? [], bb.lanes[model] ?? [])[0]]),
+      ),
+    },
+    { category: "farms", lines: [bagLine(ba.farms, bb.farms)[0] ?? []].flat() },
+    { category: "lamps", lines: [bagLine(a.lamps, b.lamps)[0] ?? []].flat() },
   ]
   return blocks.filter((block) => block.lines.length > 0)
 }
@@ -409,11 +515,10 @@ export const formatDiff = (blocks: ReadonlyArray<Block>): string =>
         `${blocks.length} ${blocks.length === 1 ? "category differs" : "categories differ"}: ${blocks.map((block) => block.category).join(", ")}`,
       ].join("\n")
 
-/** The decoded map in a monzone.bin file, gzipped (as the build writes it) or not; errors name the file. */
+/** The whole map whose global file is at `path` (its tiles beside it); errors name the file. */
 const readMap = (path: string): MonzoneMap => {
   try {
-    const bytes = readFileSync(path)
-    return decodeMap(bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : bytes)
+    return readWholeMap(pathToFileURL(path))
   } catch (error) {
     throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, {
       cause: error,

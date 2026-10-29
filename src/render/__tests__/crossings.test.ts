@@ -3,6 +3,9 @@ import { test } from "node:test"
 
 import { Group, type Mesh, Vector3 } from "three"
 
+import { MAP } from "../../sim/map/index.ts"
+import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
+import { dropTile, setTileSource, tilesOver } from "../../sim/map/tiles.ts"
 import { type CrossingState, LOWERING, RAISING } from "../../sim/rail/barriers.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { STEP } from "../../sim/schema.ts"
@@ -10,7 +13,10 @@ import { BARRIER, makeCrossings, ROAD_LIGHT } from "../crossings.ts"
 import { actorMaterial } from "../geometry.ts"
 import { atGradeY } from "../ground.ts"
 import { signalLampMaterials } from "../sky/glow.ts"
+import { everyTileIn } from "../testing.ts"
 
+// A box stands on its road once the ground under it is in memory: here all of it is.
+everyTileIn()
 const S = 1 / STEP.dt
 /** The map's crossings drawn, every box in `state` at step `now`. */
 const drawn = (state: CrossingState, now: number) => {
@@ -154,4 +160,32 @@ test("the skirt hangs plumb under the arm at every angle, and folds flat against
         .length()
       assert.ok(off < 0.02, `folded ${off} m out`)
     }
+})
+
+test("a box stays hidden until the ground under its ways in is in memory, then stands on its road", () => {
+  const { box, i } = roads[0]!,
+    { x, y } = box.approaches[0]!.entry
+  const out = tilesOver(x, y, x, y)[0]!
+  const scene = new Group(),
+    nodes = makeCrossings(scene),
+    shown = nodes.boxes[i]!,
+    open = CROSSINGS.map((): CrossingState => ({ phase: "open", since: 0, from: 0, demanded: 0 }))
+  assert.ok(!shown.placed && !shown.lenses.visible && shown.barriers.every((b) => !b.post.visible))
+  setTileSource(undefined)
+  dropTile(out)
+  try {
+    nodes.draw(open, 0)
+    assert.ok(!shown.placed && !shown.lenses.visible, `hidden while tile ${out} is out`)
+  } finally {
+    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    everyTileIn()
+  }
+  nodes.draw(open, 0)
+  assert.ok(shown.placed && shown.lenses.visible && shown.barriers.every((b) => b.post.visible))
+  for (const [k, { entry }] of box.approaches.entries())
+    assert.equal(
+      shown.barriers[k]!.post.position.y,
+      atGradeY(entry.x, entry.y) + BARRIER.pivot,
+      "the pivot over the road",
+    )
 })

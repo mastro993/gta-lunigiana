@@ -1,13 +1,15 @@
 /**
  * What stands between a sound and the listener: the Maekawa path difference δ over the highest
  * obstacle on the straight path, from building walls (up to the eaves, `z0 + h`) and the terrain
- * profile. `diffraction` (acoustics.ts) turns δ into a loss and a lowpass. Trees, water banks and
- * the sim's collision walls are not acoustic obstacles here.
+ * profile (exact where its tiles are in memory, else the coarse grid's: `./ground.ts`). `diffraction`
+ * (acoustics.ts) turns δ into a loss and a lowpass. Trees, water banks and the sim's collision walls
+ * are not acoustic obstacles here.
  *
  * @module audio/occlusion
  */
 import { pointInRing } from "../sim/collide.ts"
-import { buildingBoxes, buildingsIn, heightAt, MAP } from "../sim/map/index.ts"
+import { buildingBoxes, buildingsIn, MAP } from "../sim/map/index.ts"
+import { terrainAt } from "./ground.ts"
 
 /** A point in the world frame: x east, y north (m), z elevation a.s.l. (m). */
 export interface Point3 {
@@ -56,7 +58,7 @@ export const pathDifference = (from: Point3, to: Point3): number => {
     worst = Math.max(worst, Math.hypot(a, top - sz) + Math.hypot(length - a, top - to.z) - direct)
   }
   for (let s = END; s <= length - END; s += STEP)
-    edge(s / length, heightAt(sx + (dx * s) / length, sy + (dy * s) / length))
+    edge(s / length, terrainAt(sx + (dx * s) / length, sy + (dy * s) / length))
   if (length === 0) return worst
 
   const ring = (pts: ReadonlyArray<number>, top: number) => {

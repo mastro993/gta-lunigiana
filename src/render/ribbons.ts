@@ -11,6 +11,8 @@ import { drawnZ, groundZ } from "../sim/map/ground.ts"
 import { MAP } from "../sim/map/index.ts"
 import { APRON } from "./chunks.ts"
 import {
+  type Box,
+  boxOver,
   type Flowing,
   type Piece,
   type Sink,
@@ -322,6 +324,61 @@ const heightIn = (tris: Triangles, t: number, x: number, y: number): number | un
 /** The cells (m) `surfaceNear` buckets the ribbons' triangles in. */
 const CELL = 2
 
+/** Calls `visit` with each piece of `pieces` that has segments within `reach` m of (x, y), and the first and last of them. */
+const piecesNear = (
+  pieces: ReadonlyArray<Piece>,
+  x: number,
+  y: number,
+  reach: number,
+  visit: (piece: Piece, k0: number, k1: number) => void,
+): void => {
+  for (const piece of pieces) {
+    const pts = piece.pts
+    let k0 = -1,
+      k1 = -1
+    for (let k = 0; 2 * k + 3 < pts.length; k++) {
+      const ax = pts[2 * k]!,
+        ay = pts[2 * k + 1]!,
+        bx = pts[2 * k + 2]!,
+        by = pts[2 * k + 3]!
+      // A cheap reject first: both ends past the reach on one side.
+      if (Math.min(ax, bx) > x + reach || Math.max(ax, bx) < x - reach) continue
+      if (Math.min(ay, by) > y + reach || Math.max(ay, by) < y - reach) continue
+      if (segDist2(x, y, ax, ay, bx, by).d2 > reach * reach) continue
+      if (k0 < 0) k0 = k
+      k1 = k
+    }
+    if (k0 >= 0) visit(piece, k0, k1)
+  }
+}
+
+/**
+ * Where `surfaceNear` with the same arguments reads the ground: over the segments it draws again
+ * and their neighbours (a ribbon's joints), and the box `reach` m round (x, y).
+ */
+export const surfaceReads = (
+  pieces: ReadonlyArray<Piece>,
+  x: number,
+  y: number,
+  reach: number,
+): Box => {
+  let box: Box = [x - reach, y - reach, x + reach, y + reach]
+  piecesNear(pieces, x, y, reach, ({ pts }, k0, k1) => {
+    const [minX, minY, maxX, maxY] = boxOver(
+      pts,
+      Math.max(0, k0 - 1),
+      Math.min(pts.length / 2 - 1, k1 + 2),
+    )
+    box = [
+      Math.min(box[0], minX),
+      Math.min(box[1], minY),
+      Math.max(box[2], maxX),
+      Math.max(box[3], maxY),
+    ]
+  })
+  return box
+}
+
 /**
  * The surface the decal ribbons of `pieces` (the world's road pieces) draw within `reach` m of (x, y), as a lookup of render y
  * at a map point there: the highest ribbon over it, exactly as drawn (each piece's segments in reach drawn again), or past
@@ -340,24 +397,7 @@ export const surfaceNear = (
     glow: new Triangles(),
     pieces: [],
   }
-  for (const piece of pieces) {
-    const pts = piece.pts
-    let k0 = -1,
-      k1 = -1
-    for (let k = 0; 2 * k + 3 < pts.length; k++) {
-      const ax = pts[2 * k]!,
-        ay = pts[2 * k + 1]!,
-        bx = pts[2 * k + 2]!,
-        by = pts[2 * k + 3]!
-      // A cheap reject first: both ends past the reach on one side.
-      if (Math.min(ax, bx) > x + reach || Math.max(ax, bx) < x - reach) continue
-      if (Math.min(ay, by) > y + reach || Math.max(ay, by) < y - reach) continue
-      if (segDist2(x, y, ax, ay, bx, by).d2 > reach * reach) continue
-      if (k0 < 0) k0 = k
-      k1 = k
-    }
-    if (k0 >= 0) piece.draw(() => scratch, k0, k1)
-  }
+  piecesNear(pieces, x, y, reach, (piece, k0, k1) => piece.draw(() => scratch, k0, k1))
   const tris = scratch.decal,
     cells = new Map<number, Array<number>>(),
     key = (i: number, j: number) => i * 65536 + j

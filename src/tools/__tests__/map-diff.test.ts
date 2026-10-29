@@ -1,16 +1,23 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import type { MonzoneMap } from "../../sim/map/index.ts"
 import { MAP_VERSION } from "../../sim/map/packed.ts"
 import { diffMaps, formatDiff } from "../map-diff.ts"
+import type { JoinedMap } from "../tile-map.ts"
+
+type MonzoneMap = JoinedMap
 
 const MAP: MonzoneMap = {
   version: MAP_VERSION,
+  name: "monzone",
+  hash: "0123456789abcdef",
   origin: { lat: 44.2, lon: 10.1 },
   mPerDeg: { lat: 111_000, lon: 80_000 },
   bounds: { minX: -50, minY: -20, maxX: 50, maxY: 20 },
   heightmap: { cell: 4, cols: 3, rows: 2, x0: -52, y0: -24, data: [100, 110, 120, 130, 140, 150] },
+  tiles: [{ i: -1, j: -1, zmin: 100, zmax: 150 }],
+  place: { floor: 10, downslope: 2 },
+  cover: [0, 3],
   roads: [
     // two pieces cut from one OSM way share its id
     { id: 7, cls: "tertiary", w: 6, surface: "asphalt", pts: [0, 0, 10, 0], z: [100, 101] },
@@ -46,6 +53,7 @@ const MAP: MonzoneMap = {
       pts: [-10, -10, -10, 10],
       z: [99, 98],
       area: [1, 1.1],
+      floor: [98.5, 97.5],
     },
   ],
   rail: [{ id: 9, pts: [-40, 0, 40, 0], z: [100, 100] }],
@@ -68,9 +76,42 @@ const MAP: MonzoneMap = {
     traffic: [0, 1],
     walk: [0, 1, 2],
   },
-  walls: { walk: [1, 1, 5, 1, 5, 1, 5, 5], shore: [-11, -10, -11, 10], drive: [1, 1, 5, 1] },
+  walls: {
+    walk: [1, 1, 5, 1, 5, 1, 5, 5],
+    shore: [-11, -10, -11, 10],
+    drive: [1, 1, 5, 1],
+    reach: 3,
+    lattice: {
+      walk: [1, 1],
+      land: [-11, -10],
+      drive: [1, 1],
+      traffic: [-11, -10],
+      trees: [10, 10],
+    },
+    counts: { walk: 2, drive: 1 },
+  },
+  coarse: {
+    cell: 64,
+    cols: 2,
+    rows: 2,
+    x0: -64,
+    y0: -64,
+    heights: Int16Array.from([100, 110, 120, 130]),
+    cover: Uint8Array.from([0, 1, 2, 3]),
+  },
   trees: [10, 10, 1, 12, 10, 0.8],
-  spawns: { player: { x: 1, y: 2, angle: 0 }, parked: [{ x: 3, y: 4, angle: 1 }] },
+  spawns: {
+    player: { x: 1, y: 2, angle: 0 },
+    parked: [{ x: 3, y: 4, angle: 1, rest: { panda: [100.5, 0, 0.01] } }],
+  },
+  lanes: {
+    panda: [1.5, 1.5, -1, -1],
+    ape: [1, 1, 0.5, 0.5],
+    truck: [-1, -1, -1, -1],
+    carabinieri: [1.5, 1.25, -1, -1],
+  },
+  farms: [{ building: 0, rural: true, pen: false }],
+  lamps: [{ x: 1, y: 2, z: 104.5, nx: 0, ny: 1, kind: "wall" }],
 }
 
 /** The map with item `k` of `list` replaced by `item`. */
@@ -206,14 +247,47 @@ const CASES: ReadonlyArray<readonly [string, Partial<MonzoneMap>, RegExp]> = [
   ],
   [
     "spawns",
-    { spawns: { ...MAP.spawns, parked: [...MAP.spawns.parked, { x: 9, y: 9, angle: 0 }] } },
+    {
+      spawns: { ...MAP.spawns, parked: [...MAP.spawns.parked, { x: 9, y: 9, angle: 0, rest: {} }] },
+    },
     /^parked: 1 added, in x 9\.\.9, y 9\.\.9$/,
   ],
   [
-    "graph",
-    { graph: { ...MAP.graph, traffic: [0] } },
-    /^traffic: 1 removed, in x 10\.\.20, y 0\.\.5$/,
+    "spawns",
+    {
+      spawns: {
+        ...MAP.spawns,
+        parked: [{ ...MAP.spawns.parked[0]!, rest: { panda: [100.6, 0, 0.01] } }],
+      },
+    },
+    /^parked: 1 added, 1 removed, in x 3\.\.3, y 4\.\.4$/,
   ],
+  ["top level", { place: { floor: 11, downslope: 2 } }, /^place: floor 10 -> 11$/],
+  ["top level", { name: "cesena" }, /^name: monzone -> cesena$/],
+  ["tiles", { tiles: [{ i: -1, j: -1, zmin: 100, zmax: 151 }] }, /^1 added, 1 removed$/],
+  [
+    "cover",
+    { cover: [0, 4] },
+    /^cells: 1 of 2 shared cells differ, in x -46\.\.-46, y -22\.\.-22$/,
+  ],
+  ["lanes", { lanes: { ...MAP.lanes, ape: [1, 1, 0.25, 0.5] } }, /^ape: 1 added, 1 removed$/],
+  ["farms", { farms: [{ building: 0, rural: false, pen: false }] }, /^1 added, 1 removed/],
+  ["walls", { walls: { ...MAP.walls, reach: 4 } }, /^reach: 3 -> 4$/],
+  ["walls", { walls: { ...MAP.walls, counts: { walk: 2, drive: 2 } } }, /^counts: drive 1 -> 2$/],
+  [
+    "coarse",
+    { coarse: { ...MAP.coarse, heights: Int16Array.from([100, 111, 120, 130]) } },
+    /^heights: 1 of 4 nodes differ$/,
+  ],
+  [
+    "coarse",
+    { coarse: { ...MAP.coarse, cover: Uint8Array.from([0, 1, 2, 4]) } },
+    /^cover: 1 of 4 nodes differ$/,
+  ],
+  ["coarse", { coarse: { ...MAP.coarse, cell: 32 } }, /^grid: cell 64 -> 32$/],
+  ["lamps", { lamps: [] }, /^1 removed/],
+  ["water", { water: [{ ...MAP.water[0]!, floor: [98.5, 97] }] }, /floor/],
+  ["graph", { graph: { ...MAP.graph, walk: [0, 1] } }, /^walk: 1 removed, in x 0\.\.0, y 0\.\.10$/],
   [
     "graph",
     { graph: { ...MAP.graph, walk: [0, 1, 2, 2] } },
@@ -272,6 +346,13 @@ test("a removed road piece leaves the piece sharing its id matched; the graph lo
     // edge 0 (road 0) gone, the road indices after it one lower
     graph: { ...MAP.graph, edges: [1, 2, 0, 0, 3, 1], traffic: [0], walk: [0, 1] },
     railway: { ...MAP.railway, crossings: [{ ...MAP.railway.crossings[0]!, road: 1 }] },
+    // the lanes of the traffic edge left
+    lanes: {
+      panda: MAP.lanes.panda.slice(2),
+      ape: MAP.lanes.ape.slice(2),
+      truck: MAP.lanes.truck.slice(2),
+      carabinieri: MAP.lanes.carabinieri.slice(2),
+    },
   }
   assert.deepEqual(diffMaps(MAP, removed), [
     { category: "roads", lines: ["1 removed, in x 0..10, y 0..0", "  removed road 7"] },
@@ -282,6 +363,10 @@ test("a removed road piece leaves the piece sharing its id matched; the graph lo
         "traffic: 1 removed, in x 0..10, y 0..0",
         "walk: 1 removed, in x 0..10, y 0..0",
       ],
+    },
+    {
+      category: "lanes",
+      lines: ["ape: 1 removed", "carabinieri: 1 removed", "panda: 1 removed", "truck: 1 removed"],
     },
   ])
   assert.throws(() => diffMaps(MAP, { ...MAP, roads: [] }), /an index points at road 0 of 0/)

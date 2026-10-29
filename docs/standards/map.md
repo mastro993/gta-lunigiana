@@ -6,8 +6,11 @@ Checks for a change to the map pipeline (`src/tools`), the map code (`src/sim/ma
 
 ## Every map change
 
-- Run `pnpm map` twice and compare `gunzip -c src/sim/map/monzone.bin | shasum`: the two outputs
-  are byte-identical. `pnpm map-diff <before.bin> src/sim/map/monzone.bin` says what a change moved.
+- Run `pnpm map` twice: the two print the same build hash, and the gunzipped files are
+  byte-identical (`for f in src/sim/map/monzone.bin src/sim/map/monzone/*.bin; do gunzip -c $f;
+  done | shasum`). Keep the build before (`cp -R src/sim/map/monzone.bin src/sim/map/monzone
+  /tmp/before/`): `pnpm map-diff /tmp/before/monzone.bin src/sim/map/monzone.bin` says what a change
+  moved.
 - Draw the changed area with `node src/tools/preview-map.ts` (a top-down PNG in `.research/`) and
   look at it.
 - A rebuilt map shifts pinned positions: test coordinates, bot waypoints and screenshot spots.
@@ -41,5 +44,10 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
-- Moving `BOUNDS` moves every tree: trees are stored in whole metres from a corner 100 m
-  south-west of it.
+- Moving `BOUNDS` moves every tree: the lattice they are planted on starts at its corner. Each tile
+  stores its trees in whole metres from a point 100 m south-west of the tile's corner.
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.31 MB, the build
+  prints it, and `src/__tests__/maps.test.ts` fails past it).
+- A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
+  lamps) needs both `pnpm map` and `pnpm map --region cesena`: `bake.test.ts` and
+  `cesena-bake.test.ts` fail until each is baked again.

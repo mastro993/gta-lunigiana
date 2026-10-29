@@ -9,6 +9,7 @@
 import { pointInRing, segDist2 } from "../collide.ts"
 import { MAP, type Road, roadClassOf } from "./index.ts"
 import { type RoadClass, vergeOf } from "./kinds.ts"
+import { nodeAt } from "./tiles.ts"
 
 /** How far each road class's surface floats above its profile (m); wider classes on top, so junctions never z-fight. */
 export const ROAD_LIFT = {
@@ -27,9 +28,7 @@ const hm = MAP.heightmap
  * the edge, which is how the apron beyond the map bounds continues the landscape.
  */
 export const terrainNodeZ = (i: number, j: number): number =>
-  hm.data[
-    Math.min(hm.rows - 1, Math.max(0, j)) * hm.cols + Math.min(hm.cols - 1, Math.max(0, i))
-  ]! / 10
+  nodeAt(Math.min(hm.cols - 1, Math.max(0, i)), Math.min(hm.rows - 1, Math.max(0, j))) / 10
 
 /** Terrain elevation under (x, y) on the drawn mesh: each cell is split along its south-west to north-east diagonal. */
 export const terrainZ = (x: number, y: number): number => {
@@ -63,7 +62,8 @@ interface RoadSegment {
 
 const BUCKET = 16
 const buckets = new Map<number, Array<RoadSegment>>()
-const keyOf = (bx: number, by: number) => bx * 4096 + by
+/** A bucket's key: distinct for every bucket within ±524 km of the origin (16 m × 32768 each way). */
+const keyOf = (bx: number, by: number) => (bx + 32768) * 65536 + by + 32768
 for (const road of MAP.roads) {
   const lifted = road.bridge === true || road.tunnel === true
   const lift = ROAD_LIFT[roadClassOf(road)],
@@ -88,8 +88,8 @@ for (const road of MAP.roads) {
       y1 = Math.floor((Math.max(s.ay, s.by) + reach) / BUCKET)
     for (let bx = x0; bx <= x1; bx++)
       for (let by = y0; by <= y1; by++) {
-        const list = buckets.get(keyOf(bx + 2048, by + 2048))
-        if (list === undefined) buckets.set(keyOf(bx + 2048, by + 2048), [s])
+        const list = buckets.get(keyOf(bx, by))
+        if (list === undefined) buckets.set(keyOf(bx, by), [s])
         else list.push(s)
       }
   }
@@ -120,8 +120,8 @@ for (const p of MAP.railway.platforms) {
   const shape: PlatformShape = { rings, box: [x0, y0, x1, y1], axis: p.axis, top: p.top }
   for (let bx = Math.floor(x0 / BUCKET); bx <= Math.floor(x1 / BUCKET); bx++)
     for (let by = Math.floor(y0 / BUCKET); by <= Math.floor(y1 / BUCKET); by++) {
-      const list = platformBuckets.get(keyOf(bx + 2048, by + 2048))
-      if (list === undefined) platformBuckets.set(keyOf(bx + 2048, by + 2048), [shape])
+      const list = platformBuckets.get(keyOf(bx, by))
+      if (list === undefined) platformBuckets.set(keyOf(bx, by), [shape])
       else list.push(shape)
     }
 }
@@ -131,9 +131,8 @@ for (const p of MAP.railway.platforms) {
  * a.s.l.: its top at the nearest point of its axis; undefined off every platform.
  */
 export const platformTop = (x: number, y: number): number | undefined => {
-  for (const p of platformBuckets.get(
-    keyOf(Math.floor(x / BUCKET) + 2048, Math.floor(y / BUCKET) + 2048),
-  ) ?? []) {
+  for (const p of platformBuckets.get(keyOf(Math.floor(x / BUCKET), Math.floor(y / BUCKET))) ??
+    []) {
     const [x0, y0, x1, y1] = p.box
     if (x < x0 || x > x1 || y < y0 || y > y1 || !pointInRing(x, y, p.rings[0]!)) continue
     if (p.rings.some((hole, i) => i > 0 && pointInRing(x, y, hole))) continue
@@ -181,8 +180,7 @@ export const ON_DECK = 0.5
  * onto it. With `verges`, for someone on foot, a deck or a tunnel reaches out to its walkers' verges.
  */
 export const groundZ = (x: number, y: number, near?: number, verges = false): number => {
-  const segments =
-    buckets.get(keyOf(Math.floor(x / BUCKET) + 2048, Math.floor(y / BUCKET) + 2048)) ?? []
+  const segments = buckets.get(keyOf(Math.floor(x / BUCKET), Math.floor(y / BUCKET))) ?? []
   const terrain = terrainZ(x, y)
   let best = Math.max(terrain, platformTop(x, y) ?? terrain),
     sum = 0,
@@ -219,7 +217,7 @@ export const deckNear = (x: number, y: number, pad: number): number | undefined 
   // Buckets hold segments by their carriageway's box: look in every bucket the pad reaches.
   for (let bx = Math.floor((x - pad) / BUCKET); bx <= Math.floor((x + pad) / BUCKET); bx++)
     for (let by = Math.floor((y - pad) / BUCKET); by <= Math.floor((y + pad) / BUCKET); by++)
-      for (const s of buckets.get(keyOf(bx + 2048, by + 2048)) ?? []) {
+      for (const s of buckets.get(keyOf(bx, by)) ?? []) {
         if (!s.lifted) continue
         const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
         if (d2 > (s.half + pad) * (s.half + pad)) continue
@@ -238,9 +236,7 @@ export const deckNear = (x: number, y: number, pad: number): number | undefined 
  */
 export const footZ = (x: number, y: number, near?: number): number => {
   if (near !== undefined) return groundZ(x, y, near, true)
-  for (const s of buckets.get(
-    keyOf(Math.floor(x / BUCKET) + 2048, Math.floor(y / BUCKET) + 2048),
-  ) ?? []) {
+  for (const s of buckets.get(keyOf(Math.floor(x / BUCKET), Math.floor(y / BUCKET))) ?? []) {
     if (s.foot === 0) continue
     const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
     if (d2 <= s.foot * s.foot) return roadZ(s.za + (s.zb - s.za) * t, x, y, s.lift, true)
@@ -287,9 +283,7 @@ export const drawnZ = (x: number, y: number, near: number): number => {
   let top = near
   const over = (h: number) => h > top && h <= near + DRAWN_REACH
   if (over(terrainZ(x, y))) top = terrainZ(x, y)
-  for (const s of buckets.get(
-    keyOf(Math.floor(x / BUCKET) + 2048, Math.floor(y / BUCKET) + 2048),
-  ) ?? []) {
+  for (const s of buckets.get(keyOf(Math.floor(x / BUCKET), Math.floor(y / BUCKET))) ?? []) {
     const h = s.lifted ? undefined : onSegment(s, x, y)
     if (h !== undefined && over(h)) top = h
   }

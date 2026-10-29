@@ -4,6 +4,7 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
+import { wholeMap } from "../../../tools/map-file.ts"
 import { moveCircles, segmentDistance, staticGrid } from "../../collide.ts"
 import {
   BUILDING_STYLES,
@@ -19,6 +20,8 @@ import {
 } from "../index.ts"
 
 const { hypot } = Ops
+/** The dense layers live in the tiles: these checks read them all, joined. */
+const WHOLE = wholeMap()
 const segsOf = (flat: ReadonlyArray<number>, closed = false): Array<Segment> => {
   const out: Array<Segment> = [],
     n = flat.length / 2
@@ -102,7 +105,14 @@ const VILLAGES = {
 
 test("bounds and heightmap cover the play area", () => {
   assert.deepEqual(MAP.bounds, { minX: -2900, minY: -6100, maxX: 4900, maxY: 3900 })
-  const hm = MAP.heightmap
+  const hm = WHOLE.heightmap
+  assert.deepEqual(MAP.heightmap, {
+    cell: hm.cell,
+    cols: hm.cols,
+    rows: hm.rows,
+    x0: hm.x0,
+    y0: hm.y0,
+  })
   assert.equal(hm.data.length, hm.cols * hm.rows)
   assert.ok(hm.x0 <= MAP.bounds.minX && hm.x0 + (hm.cols - 1) * hm.cell >= MAP.bounds.maxX)
   assert.ok(hm.y0 <= MAP.bounds.minY && hm.y0 + (hm.rows - 1) * hm.cell >= MAP.bounds.maxY)
@@ -112,13 +122,14 @@ test("bounds and heightmap cover the play area", () => {
 // Regression: rounded to the metre, neighbouring lattice trees could land on one spot (drawn and collided twice).
 test("trees: inside the bounds, at most one per spot", () => {
   const spots = new Set<number>()
-  for (let i = 0; i < MAP.trees.length; i += 3) {
-    const x = MAP.trees[i]!,
-      y = MAP.trees[i + 1]!
+  const { trees } = WHOLE
+  for (let i = 0; i < trees.length; i += 3) {
+    const x = trees[i]!,
+      y = trees[i + 1]!
     assert.ok(inside(x, y), `tree at ${x},${y}`)
     spots.add(x * 65536 + y)
   }
-  assert.equal(spots.size, MAP.trees.length / 3)
+  assert.equal(spots.size, trees.length / 3)
 })
 
 test("heightAt: station on the valley floor, Monzone Alto on its spur", () => {
@@ -187,7 +198,7 @@ test("player spawn and parked cars are inside the bounds, clear of walls and off
 })
 
 test("walls: none on a road; only buildings and barriers come inside w/2", () => {
-  assert.ok(MAP.walls.walk.length > 0 && MAP.walls.drive.length > 0)
+  assert.ok(WHOLE.walls.walk.length > 0 && WHOLE.walls.drive.length > 0)
   const near = (x: number, y: number, ring: ReadonlyArray<number>, d: number) =>
     inRing(x, y, ring) || segsOf(ring, true).some((s) => segmentDistance(s, x, y) < d)
   const buildings = bucketed(MAP.buildings, (b) => b.outer, 0.35),

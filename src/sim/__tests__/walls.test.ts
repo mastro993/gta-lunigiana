@@ -3,12 +3,13 @@ import { test } from "node:test"
 
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
+import { wholeMap } from "../../tools/map-file.ts"
 import { carCircles, carClear, carRadius, crossesAny, moveCar, wallsAlong } from "../body.ts"
 import { settle, tiltOf, turn } from "../chassis.ts"
 import { UNDAMAGED } from "../damage.ts"
 import { groundZ } from "../map/ground.ts"
-import { graph, MAP, wallsNear } from "../map/index.ts"
-import { pushTrunk } from "../map/kinds.ts"
+import { graph, wallsNear } from "../map/index.ts"
+import { pushTrunk, TILE } from "../map/kinds.ts"
 import {
   edgeIndex,
   facesForward,
@@ -61,16 +62,23 @@ import { weatherFactor } from "../tyres.ts"
 import { VEHICLES } from "../vehicles.ts"
 
 // Trees are indexed as points and their trunk squares made on query: the broad phase must still return them.
-test("wallsNear: a box touching only the corner of a tree's trunk square returns its four edges", () => {
-  const trees = MAP.trees.length / 3
+test("wallsNear: a box touching only the corner of a tree's trunk square returns its four edges, across tile seams too", () => {
+  const all = wholeMap().trees,
+    trees = all.length / 3
   assert.ok(trees > 1000, `${trees} trees`)
   const square: Array<number> = []
   pushTrunk(square, 0, 0)
   const reach = Math.max(...square)
-  // Every tenth tree: hundreds of them have a corner box in a grid cell the tree is not in.
-  for (let i = 0; i < trees; i += 10) {
-    const x = MAP.trees[3 * i]!,
-      y = MAP.trees[3 * i + 1]!
+  // Every tenth tree (hundreds of them have a corner box in a grid cell the tree is not in), and every tree within a metre
+  // of a tile seam, whose corner box lies in the next tile.
+  const seam = (v: number) => Math.abs(v - TILE * Math.round(v / TILE)) <= 1
+  const picked = Array.from({ length: trees }, (_, i) => i).filter(
+    (i) => i % 10 === 0 || seam(all[3 * i]!) || seam(all[3 * i + 1]!),
+  )
+  assert.ok(picked.length - Math.ceil(trees / 10) > 100, "trees on the seams")
+  for (const i of picked) {
+    const x = all[3 * i]!,
+      y = all[3 * i + 1]!
     square.length = 0
     pushTrunk(square, x, y)
     for (const [minX, minY, maxX, maxY] of [

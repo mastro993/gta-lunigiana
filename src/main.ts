@@ -1,14 +1,15 @@
 /// <reference types="vite/client" />
 /**
- * Browser host (imported by `boot.ts` once the map is in): makes the streamed world and the pixel
- * view, makes the runtime with the live keyboard, the render registries (trains included), the
- * effects (the tyre marks and smoke, the level crossings' arms and lights) and the audio director,
- * and drives everything from one FixedLoop: fixed sim steps, then once per animation frame the
- * render and audio schedules, the camera, world streaming, the frame and the HUD. While the full
- * map (M) or the settings (Esc) are open, both are skipped and the sound is suspended: the game is
- * paused. The build runs in steps the title card names; the card says "Press any key" once the
- * first frame is drawn, and the game clock stands still until it goes. In mobile mode (index.html)
- * the touch controls add to the keys.
+ * Browser host (imported by `boot.ts` once the global map and the tiles round the start are in):
+ * makes the streamed world and the pixel view, the tile stream (`stream.ts`), the runtime with the
+ * live keyboard, the render registries (trains included), the effects (the tyre marks and smoke,
+ * the level crossings' arms and lights) and the audio director, and drives everything from one
+ * FixedLoop: fixed sim steps, then once per animation frame the tile stream, the render and audio
+ * schedules, the camera, world streaming, the frame and the HUD. While the full map (M) or the
+ * settings (Esc) are open, or a tile the next step reads is still downloading, both are skipped and
+ * the sound is suspended: the game is paused (the tiles keep coming). The build runs in steps the
+ * title card names; the card says "Press any key" once the first frame is drawn, and the game clock
+ * stands still until it goes. In mobile mode (index.html) the touch controls add to the keys.
  *
  * @module main
  */
@@ -27,9 +28,10 @@ import { makeHandlingStore } from "./hud/handling.ts"
 import { makeHud, pausable, routeOverlayKeys } from "./hud/hud.ts"
 import { makeSettings } from "./hud/settings.ts"
 import { makeSkyStore } from "./hud/sky.ts"
-import { element, holdClock, step, titleReady } from "./hud/title.ts"
+import { element, holdClock, step, stopped, titleReady } from "./hud/title.ts"
 import { holdLandscape, makeTouchControls, withTouch } from "./hud/touch.ts"
 import { makeTrainStore } from "./hud/trains.ts"
+import { mapForSearch } from "./maps.ts"
 import { groundY, yOf } from "./render/ground.ts"
 import {
   Animals,
@@ -59,8 +61,10 @@ import {
   KeyboardInput,
   makeRuntime,
   PlayerView,
+  type PlayerViewModel,
   SetClock,
   SetHandling,
+  SetPlayer,
   SetTrains,
   SetWeather,
   setup,
@@ -69,10 +73,19 @@ import {
   TrainView,
   update,
 } from "./sim/index.ts"
-import { mapCover } from "./sim/map/cover.ts"
-import { heightAt } from "./sim/map/index.ts"
+import { coarseHeightAt } from "./sim/map/coarse.ts"
+import { heightAt, MAP } from "./sim/map/index.ts"
+import {
+  dropTile,
+  isResidentAt,
+  provideTile,
+  residentTiles,
+  STEP_REACH,
+  tilesOver,
+} from "./sim/map/tiles.ts"
 import { DAY, daysFromCivil, utcFromRome } from "./sim/sky/calendar.ts"
 import { LOOK_AHEAD, QUARTER } from "./sim/view.ts"
+import { makeTileStream } from "./stream.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")
 if (canvas === null) throw new Error("index.html lacks canvas#game")
@@ -90,10 +103,20 @@ const scene = new Scene()
 // The sun (the moon at night) on its real arc, fixed in the sky, the sky light, the weather and the night lights: every light
 // and weather mesh is made here, before the first frame compiles the shaders (the clear colour too is the sky's, each frame).
 const skyHost = new SkyHost(scene, { reduced: () => reduceMotion.matches })
-await step(document, "Painting land cover", 0.8)
-mapCover() // built once, shared by the world, the tyres' grip and the sound
 await step(document, "Planting trees", 0.86)
 const world = new World(scene)
+// The tiles boot.ts handed over cover the start; from here on the stream brings them in round the player and the view.
+for (const key of residentTiles()) world.tileProvided(key)
+const stream = makeTileStream({
+  url: mapForSearch(location.search).tileUrl,
+  over: tilesOver,
+  resident: residentTiles,
+  provide: provideTile,
+  drop: dropTile,
+  reach: STEP_REACH,
+  onProvided: (key) => world.tileProvided(key),
+  onDropped: (key) => world.tileDropped(key),
+})
 await step(document, "Waking the valley", 0.92)
 // Before the pixel-ratio listener below, which repaints the maps.
 const hud = makeHud(document)
@@ -186,8 +209,14 @@ const handling = makeHandlingStore({
   },
 })
 const settings = makeSettings(document, handling)
-/** The full map and the settings pause the game. */
-const paused = () => hud.mapOpen() || settings.open()
+/**
+ * Whether a tile the next step reads is not in memory yet, set each animation frame after the
+ * stream's update. Not at the start: boot.ts handed over every tile within `NEAR` of it, more than
+ * a step reads.
+ */
+let waiting = false
+/** The full map and the settings pause the game, and so does a missing tile. */
+const paused = () => hud.mapOpen() || settings.open() || waiting
 redrawPaused = () => {
   if (settings.open()) view.render(scene)
 }
@@ -206,18 +235,22 @@ if (spawn !== undefined)
   )
 
 const camera = { x: 0, y: 0, elevation: 0, placed: false, zoom: 8 }
+/** The camera trails the player by at most about 26 m (its lead and its easing); farther than this (m) the player jumped. */
+const CUT_BEYOND = 200
 let swing: Swing = { yaw: view.yaw, rate: 0, by: "keys", seat: 0 }
 // The view swings through each quarter turn and follows the car, or jumps when the player asks for less motion.
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)")
 
-const draw = (frame: FixedLoop.Frame): void => {
+/** Draws the frame for `player` (the PlayerView before the render tick, which changes no world state). */
+const draw = (frame: FixedLoop.Frame, player: PlayerViewModel | undefined): void => {
   renderer.info.reset()
   renderClock.alpha = frame.alpha
   const drawn = runtime.tick(render, audio)
   if (!drawn.ok) console.error("render", drawn.error)
-  const player = runtime.inspect(PlayerView)
   if (player === undefined) return
   const { x, y, angle } = blend(player.prev, player.pose, frame.alpha)
+  // After a jump (the respawn, a teleport) the camera cuts to the player instead of gliding over tiles no longer in memory.
+  if (Math.hypot(x - camera.x, y - camera.y) > CUT_BEYOND) camera.placed = false
   // Look ahead along the velocity, not the pose change: getting in or out hops the pose a door's width.
   const lead = Vec2.clampLength(Vec2.scale(player.velocity, LOOK_AHEAD.seconds), LOOK_AHEAD.max)
   const dt = frame.elapsedSeconds
@@ -261,9 +294,48 @@ const draw = (frame: FixedLoop.Frame): void => {
 const warm = standIns()
 view.compile(scene, warm.group)
 warm.dispose()
-draw({ elapsedSeconds: 0, fixedSteps: 0, alpha: 0, droppedSeconds: 0 })
+draw({ elapsedSeconds: 0, fixedSteps: 0, alpha: 0, droppedSeconds: 0 }, runtime.inspect(PlayerView))
 // Keys pressed while loading arrive during the steps: drop their presses (held keys stay held).
 controls.snapshot()
+/** A dev teleport (`gta.teleport`) waiting for its tiles: sent once they are in memory, forgotten once the player stands there. */
+let jump:
+  | { readonly x: number; readonly y: number; readonly angle: number; sent: boolean }
+  | undefined
+/** Since when (ms) the game has waited for a tile; "Loading map…" shows once it is longer than `HINT_MS`. */
+let stalled: number | undefined
+const HINT_MS = 300
+/** Steps before the respawn from which the game waits for the start's tiles (1 s); before that they only download. */
+const RESPAWN_WAIT = 60
+/** Whether the game stopped for good: a tile it needs will never come (`stream.gone`). */
+let lost = false
+/**
+ * Runs the tile stream for the player as the last step left them and sets `waiting`. The tiles
+ * round the start come in too while the player is dead (the respawn puts them there), and the game
+ * waits for them only in the last second before it; the tiles round a dev teleport's goal come in
+ * until the player is there.
+ */
+const follow = (player: PlayerViewModel): void => {
+  const { pose } = player,
+    dead = player.mode === "dead"
+  const extra = dead ? MAP.spawns.player : jump
+  stream.update(pose, extra, world.wanted())
+  waiting = !stream.ready(pose, dead && (player.respawnIn ?? 0) > RESPAWN_WAIT ? undefined : extra)
+  if (waiting && !lost && stream.gone().length > 0) {
+    lost = true
+    stopped(
+      document,
+      `The map changed since this page loaded (tile ${stream.gone()[0]} is gone): reload to play on.`,
+    )
+  }
+  const now = performance.now()
+  stalled = waiting ? (stalled ?? now) : undefined
+  hud.loadingMap(!lost && stalled !== undefined && now - stalled > HINT_MS)
+  if (jump === undefined || dead) return
+  if (!jump.sent && !waiting) {
+    runtime.send(SetPlayer, { x: jump.x, y: jump.y, angle: jump.angle })
+    jump.sent = true
+  } else if (jump.sent && Math.hypot(pose.x - jump.x, pose.y - jump.y) < 2) jump = undefined
+}
 const loop = FixedLoop.start({
   source: BrowserTickSource.make(window),
   step: STEP,
@@ -271,10 +343,12 @@ const loop = FixedLoop.start({
   maxStepsPerFrame: 5,
   update: pausable(paused, controls, () => runtime.tick(update), Result.success(undefined)),
   // Paused, nothing is drawn: the map covers the screen, the settings dim the last frame drawn, and actors stay put (no interpolation
-  // jitter).
+  // jitter). The tiles come in all the same.
   render: (frame) => {
+    const player = runtime.inspect(PlayerView)
+    if (player !== undefined) follow(player)
     speaker.pause(paused())
-    if (!paused()) draw(frame)
+    if (!paused()) draw(frame, player)
   },
   onFailure: (failure) => console.error("loop stopped", failure),
 })
@@ -317,8 +391,15 @@ if (import.meta.env.DEV) {
       scene,
       world,
       effects,
-      heightAt,
+      // The terrain's height at (x, y): exact where its tile is in memory, else the coarse grid's (a spot far off still answers).
+      heightAt: (x: number, y: number) =>
+        isResidentAt(x, y) ? heightAt(x, y) : coarseHeightAt(x, y),
       player: () => runtime.inspect(PlayerView),
+      // The tiles in memory, in key order, and a jump to (x, y) facing `angle`, made once the tiles there are in.
+      tiles: () => residentTiles(),
+      teleport: (x: number, y: number, angle: number): void => {
+        jump = { x, y, angle, sent: false }
+      },
       handling: () => runtime.inspect(HandlingView),
       audio: { speaker, level: speaker.level, context: speaker.context },
       sky,

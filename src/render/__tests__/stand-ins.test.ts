@@ -13,6 +13,7 @@ import { terrainY } from "../ground.ts"
 import { PersonNode } from "../people.ts"
 import { signalLampMaterials, vehicleLampMaterials } from "../sky/glow.ts"
 import { standIns } from "../stand-ins.ts"
+import { everyTileIn, streamAround } from "../testing.ts"
 import { TrainNode } from "../train.ts"
 import { World } from "../world.ts"
 
@@ -35,7 +36,7 @@ test("the stand-ins hold every material the streamed world, the actors, the trai
     [MAP.spawns.player.x, MAP.spawns.player.y],
     [2364, -5129],
   ] as const)
-    world.update(new Vector3(x, terrainY(x, y), -y), 0, 60, Infinity)
+    streamAround(world, new Vector3(x, terrainY(x, y), -y))
   const car = vehicleNode("panda", 0xb8312b, actorMaterial),
     walker = new PersonNode(LOOK, actorMaterial)
   car.setLamps(true)
@@ -47,6 +48,8 @@ test("the stand-ins hold every material the streamed world, the actors, the trai
   train.setLamps(true)
   train.showXray(true)
   const crossings = new Group()
+  // A box shows once the ground under it is in memory.
+  everyTileIn()
   makeCrossings(crossings).draw(
     CROSSINGS.map((_, i) => ({
       phase: i % 2 === 0 ? "closed" : "open",

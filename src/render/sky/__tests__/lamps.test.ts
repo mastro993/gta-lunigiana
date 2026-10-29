@@ -45,7 +45,16 @@ const wallOf = (lamp: (typeof lamps)[number]) => {
 }
 
 test("street lamps: the same every time, hundreds over the valley, a dozen and more along Monzone's streets, then the platforms' pole lamps", () => {
-  assert.deepEqual(placeLamps(), walls)
+  // The map file keeps each lantern's height in m a.s.l. (`bakeLamps`): back in render y it is the placed one within rounding.
+  const placed = placeLamps()
+  assert.equal(placed.length, walls.length)
+  for (const [k, lamp] of placed.entries()) {
+    const kept = walls[k]!
+    // The file's JSON keeps −0 as 0, which `===` holds equal.
+    for (const field of ["x", "y", "nx", "ny", "kind"] as const)
+      assert.ok(lamp[field] === kept[field], `lamp ${k}: ${field}`)
+    assert.ok(Math.abs(lamp.h - kept.h) < 1e-9, `lamp ${k}: ${lamp.h} placed, ${kept.h} kept`)
+  }
   assert.deepEqual(lamps.slice(0, walls.length), walls, "the wall lanterns first")
   assert.equal(lamps.length - walls.length, platformLamps().length)
   assert.ok(walls.length > 300 && walls.length < 1500, `${walls.length} lamps`)

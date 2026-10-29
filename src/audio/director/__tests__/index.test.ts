@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { groundZ, terrainZ } from "../../../sim/map/ground.ts"
-import { MAP } from "../../../sim/map/index.ts"
+import { treesIn } from "../../../sim/map/index.ts"
 import { surfaceAt } from "../../../sim/map/surface.ts"
 import { VEHICLES, type VehicleModel } from "../../../sim/vehicles.ts"
 import { followYaw, QUARTER, screenAxes } from "../../../sim/view.ts"
@@ -215,8 +215,11 @@ test("a hard landing crashes against the ground's own material, not the nearest 
     "under",
     "grass",
   ])
-  // Beside a trunk, which a wall hit there would strike.
-  const trunk = { x: MAP.trees[0]! + 0.55, y: MAP.trees[1]! },
+  // Beside a trunk on the wooded ridge, which a wall hit there would strike.
+  let tree: { readonly x: number; readonly y: number } | undefined
+  treesIn(RIDGE.x - 5, RIDGE.y - 5, RIDGE.x + 5, RIDGE.y + 5, (x, y) => void (tree ??= { x, y }))
+  assert.ok(tree !== undefined, "a tree on the ridge")
+  const trunk = { x: tree.x + 0.55, y: tree.y },
     under = surfaceAt(trunk.x, trunk.y)
   assert.equal(wallAt(trunk.x, trunk.y), "tree")
   assert.deepEqual(ground(trunk, 8, "under"), [

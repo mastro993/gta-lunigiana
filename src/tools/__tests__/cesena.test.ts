@@ -3,13 +3,12 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { gunzipSync } from "node:zlib"
 
-import { decodeMap, provideMap } from "../../sim/map/packed.ts"
+import { provideMap } from "../../sim/map/packed.ts"
 import { pointInRing, segDist2 } from "../geometry.ts"
+import { wholeMap } from "../map-file.ts"
 import { clearance } from "../spawns.ts"
 
-const map = decodeMap(
-  gunzipSync(readFileSync(new URL("../../sim/map/cesena.bin", import.meta.url))),
-)
+const map = wholeMap("cesena")
 
 test("Cesena contains the real city, station, historic centre and connected streets", () => {
   assert.equal(map.origin.lon, 12.2429)

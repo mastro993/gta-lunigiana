@@ -28,6 +28,7 @@ import {
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
 import { FLEE_TIME, runFrom } from "./pedestrians.ts"
+import { inReach, playerPose } from "./reach.ts"
 
 /** How long a knocked-down person or animal stays on the ground. */
 export const DOWN_TIME = Clock.duration(STEP, 2.5)
@@ -173,7 +174,8 @@ const stopInto = (body: Body, nx: number, ny: number) => {
  * may kill them (`deathChance`: a point for the player when it was their car and a person), slower it pushes them aside, and one
  * pinned against a wall stops the vehicle instead; a cow meets a vehicle like another vehicle, falling only to a hit twice
  * KNOCK_SPEED; people and animals step apart. Vehicles closing on each other, hits on people and animals, and a vehicle stopped
- * against a wall through one pinned (faster than KNOCK_SPEED) are Impact events.
+ * against a wall through one pinned (faster than KNOCK_SPEED) are Impact events. A vehicle beyond the player's reach (`inReach`)
+ * touches nothing, frozen.
  */
 export const Contacts = Game.System(
   "Lunigiana/Contacts",
@@ -207,6 +209,7 @@ export const Contacts = Game.System(
         },
       }),
       driver: Game.Query({ selection: { driving: Game.Query.read(Driving) }, with: [Player] }),
+      player: playerPose(),
     },
     resources: {
       score: Game.System.writeResource(Score),
@@ -220,10 +223,12 @@ export const Contacts = Game.System(
     const mine = new Set(
       queries.driver.each().map(({ data }) => Game.Entity.id(data.driving.get().vehicle)),
     )
-    const random = Random.draw(resources.rng)
-    const cars = queries.vehicles.each().map((match) => {
+    const random = Random.draw(resources.rng),
+      player = queries.player.each()[0]?.data.pose.get()
+    const cars = queries.vehicles.each().flatMap((match) => {
       const pose = match.data.pose.get(),
         motion = match.data.motion.get()
+      if (!inReach(pose, player)) return []
       const { model } = match.data.vehicle.get()
       const car: Car = {
         model,
@@ -237,7 +242,7 @@ export const Contacts = Game.System(
         vy: motion.vy,
         moved: false,
       }
-      return { match, car }
+      return [{ match, car }]
     })
     const circlesOf = (car: Car) =>
       carCircles(car.model, car.angle).map((o) => ({ x: car.x + o.x, y: car.y + o.y }))

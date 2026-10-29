@@ -1,7 +1,8 @@
 /**
  * Map vocabulary shared by the build (src/tools) and the runtime map module:
  * where the map lies on the Earth, road classes, building styles, area kinds and the tree-trunk
- * wall size. Imports no data, so the build can use it before monzone.bin exists. Game code imports
+ * wall size, and the 2 km tile grid the map files are cut on. Imports no data, so the build can use it
+ * before the map exists. Game code imports
  * these through `./index.ts`; the sky (`src/sim/sky`) reads the loaded map's place through
  * `place()` (sky/place.ts) instead.
  *
@@ -10,6 +11,29 @@
 
 /** The map's origin, degrees (north, east): x and y count metres east and north of it. The build projects with it and writes it as `MAP.origin`. */
 export const ORIGIN = { lat: 44.16175, lon: 10.13 } as const
+
+/** Side of a map tile, m: tile (i, j) is the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin. */
+export const TILE = 2000
+
+/** A tile's key, `"i_j"`: its file is `<key>.bin`, and "map tile i_j not loaded" names it. */
+export const tileKey = (i: number, j: number): string => `${i}_${j}`
+
+/**
+ * The tiles [i0, i1] × [j0, j1] whose squares hold the terrain nodes of a map spanning `bounds`
+ * (its first and last nodes lie on the bounds): every tile with ground in it. A last node on a seam
+ * (Cesena's bounds lie on them) is the shared border of the tile below the seam, not a tile of its own.
+ */
+export const tileRange = (bounds: {
+  readonly minX: number
+  readonly minY: number
+  readonly maxX: number
+  readonly maxY: number
+}): { readonly i0: number; readonly i1: number; readonly j0: number; readonly j1: number } => ({
+  i0: Math.floor(bounds.minX / TILE),
+  i1: Math.ceil(bounds.maxX / TILE) - 1,
+  j0: Math.floor(bounds.minY / TILE),
+  j1: Math.ceil(bounds.maxY / TILE) - 1,
+})
 
 /**
  * Highway classes the build emits, widest first. The build folds OSM `primary` (the SR445) into

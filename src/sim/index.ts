@@ -46,6 +46,7 @@ import { Perceive } from "./systems/perceive.ts"
 import { VehiclePhysics } from "./systems/physics.ts"
 import { FillAnimals, PopulateAnimals } from "./systems/populate-animals.ts"
 import { FillPeople, Populate } from "./systems/populate.ts"
+import { ApplyPlayer, LeaveBehind } from "./systems/reach.ts"
 import { AdvanceClock, AdvanceRivers, AdvanceWeather } from "./systems/sky.ts"
 import { SpawnWorld } from "./systems/spawn.ts"
 import { TrafficAI } from "./systems/traffic.ts"
@@ -190,6 +191,7 @@ export const update = Game.Schedule(
   ApplyClock,
   ApplyWeather,
   ApplyTrains,
+  ApplyPlayer,
   AdvanceClock,
   AdvanceWeather,
   AdvanceRivers,
@@ -220,6 +222,8 @@ export const update = Game.Schedule(
   Perceive,
   Startle,
   Respawn,
+  // After the player's last move of the step: whoever a jump left behind goes before the next step reads the map there.
+  LeaveBehind,
   Dispatch,
   Populate,
   PopulateAnimals,

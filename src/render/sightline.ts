@@ -12,7 +12,7 @@ import { Vector3 } from "three"
 import { pointInRing } from "../sim/collide.ts"
 import { buildingsIn, MAP, treesIn } from "../sim/map/index.ts"
 import { topOf } from "./buildings.ts"
-import { terrainY, yOf } from "./ground.ts"
+import { farTerrainY, yOf } from "./ground.ts"
 import { viewAxes } from "./pipeline.ts"
 import { CUT_UNIFORMS } from "./see-through.ts"
 import { inCrown } from "./trees.ts"
@@ -28,7 +28,7 @@ const LOW = 0.4
 const UNDER_TOP = 0.1
 /** Buildings and trees are looked for every `step` m along the line, up to `reach` m (where it is 50 m up: over every roof and crown). */
 const NEAR = { step: 0.75, reach: 100 } as const
-/** The terrain is sampled every `step` m from `from` m on, up to `reach` m: the camera stands 500 m from the focus. */
+/** The terrain is sampled every `step` m from `from` m on, up to `reach` m: the camera stands 500 m from the focus (past the tiles in memory, on the coarse grid: `farTerrainY`). */
 const FAR = { from: 1, step: 2, reach: 500 } as const
 /** A tree crown is looked for within this many metres of each step: the widest drawn crown's radius. */
 const CROWN_REACH = 4.5
@@ -66,8 +66,8 @@ const blockedAt = (x: number, y: number, h: number): boolean => {
     found ||= inBuilding(i, x, y, h)
   })
   if (!found)
-    treesIn(x - CROWN_REACH, y - CROWN_REACH, x + CROWN_REACH, y + CROWN_REACH, (k) => {
-      found ||= inCrown(k, x, y, h)
+    treesIn(x - CROWN_REACH, y - CROWN_REACH, x + CROWN_REACH, y + CROWN_REACH, (tx, ty, s, id) => {
+      found ||= inCrown(tx, ty, s, id, x, y, h)
     })
   return found
 }
@@ -92,7 +92,7 @@ export const sight = (from: Vector3, back: Vector3): Sight => {
     h0 = from.y
   let ground = Number.POSITIVE_INFINITY
   for (let t = FAR.from; t <= FAR.reach && ground === Number.POSITIVE_INFINITY; t += FAR.step)
-    if (terrainY(x0 + dx * t, y0 + dy * t) > h0 + dh * t) ground = t
+    if (farTerrainY(x0 + dx * t, y0 + dy * t) > h0 + dh * t) ground = t
   if (ground < Number.POSITIVE_INFINITY) return { hidden: true, ground }
   for (let t = NEAR.step; t <= NEAR.reach; t += NEAR.step)
     if (blockedAt(x0 + dx * t, y0 + dy * t, h0 + dh * t)) return { hidden: true, ground }

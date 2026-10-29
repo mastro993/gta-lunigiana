@@ -1,17 +1,17 @@
 /**
  * Where the animals live, from the map: the farms (the buildings that stand on open, unpaved land), which of them are
- * rural, and the ground checks the animal spawns run (indoors, pasture, open ground, a spot off a wall). Built on first
- * use from `MAP` and the land cover (after `mapCover`, which the host builds while loading): static data shared by every
- * runtime, never written after.
+ * rural, and the ground checks the animal spawns run (indoors, pasture, open ground, a spot off a wall). The farms are
+ * baked into the map (`bakeFarms`, `MAP.farms`) and indexed on first use: static data shared by every runtime, never
+ * written after.
  *
  * @module population/farms
  */
 import { Ops, type Random } from "@typeonce/ritmo-math"
 
 import { pointInRing, segDist2, staticGrid } from "../collide.ts"
+import { distanceToEdge, edgeIndex } from "../edges.ts"
 import { type Cover, coverAt } from "../map/cover.ts"
-import { buildingBoxes, buildingsIn, graph, heightAt, MAP } from "../map/index.ts"
-import { distanceToEdge, edgeIndex, roadOf } from "../route.ts"
+import { buildingBoxes, buildingsIn, type FarmEntry, graph, heightAt, MAP } from "../map/index.ts"
 import { buildingCentre, residentsNear } from "./density.ts"
 
 /** The buildings a farm can be: a farmhouse, its barn, shed, farm building or silo. */
@@ -43,34 +43,42 @@ export interface Farm {
 /** Grid cell of the farm lookup, m. */
 const FARM_CELL = 64
 
-const build = () => {
-  const list: Array<Farm> = []
-  MAP.buildings.forEach((b, i) => {
-    if (!FARM_KINDS.has(b.kind) || b.ruins === true) return
+/**
+ * Every farm of the map for the map file (`MAP.farms`): the farm kinds of building standing on open land (the land
+ * cover at its centre), rural where fewer than `RURAL` people live within `RURAL_REACH` m. It reads the land cover
+ * under every building, so the build bakes it; `bake.test.ts` checks it is current.
+ */
+export const bakeFarms = (): Array<FarmEntry> =>
+  MAP.buildings.flatMap((b, i) => {
+    if (!FARM_KINDS.has(b.kind) || b.ruins === true) return []
     const { x, y } = buildingCentre(i)
     const cover = coverAt(x, y)
-    if (!OPEN.has(cover)) return
-    list.push({
-      building: i,
-      x,
-      y,
-      rural: residentsNear(x, y, RURAL_REACH) < RURAL,
-      pen: PEN_KINDS.has(b.kind) || cover === "farmyard",
-    })
+    if (!OPEN.has(cover)) return []
+    return [
+      {
+        building: i,
+        rural: residentsNear(x, y, RURAL_REACH) < RURAL,
+        pen: PEN_KINDS.has(b.kind) || cover === "farmyard",
+      },
+    ]
   })
+
+const build = () => {
+  const list: Array<Farm> = MAP.farms.map((f) => ({ ...f, ...buildingCentre(f.building) }))
   const grid = staticGrid(
     list.length,
     (k) => [list[k]!.x, list[k]!.y, list[k]!.x, list[k]!.y],
     FARM_CELL,
   )
   // Roads in tunnels run under the fields: they keep no herd off.
-  const roads = edgeIndex(graph.edges.flatMap((_, e) => (roadOf(e).tunnel === true ? [] : [e])))
+  const roads = edgeIndex(
+    graph.edges.flatMap((e, k) => (MAP.roads[e.road]!.tunnel === true ? [] : [k])),
+  )
   return { list, grid, roads }
 }
 /**
- * Built on first use: 2,405 farms on the current map, 1,710 of them rural, in 8–10 ms once the land cover exists (`mapCover`,
- * which the browser builds while loading; in Node the first call builds it too, about 0.1 s more). The first fill (`FillAnimals`,
- * in `setup`) asks for farms, so the build happens behind the title card, not in play.
+ * Built on first use from the baked farms: 2,405 on the current map, 1,710 of them rural. The first fill
+ * (`FillAnimals`, in `setup`) asks for farms, so the build happens behind the title card, not in play.
  */
 let built: ReturnType<typeof build> | undefined
 const data = () => (built ??= build())
@@ -148,7 +156,8 @@ export const pasture = (x: number, y: number): boolean => {
   )
     return false
   const road = data().roads.nearest(x, y)
-  if (distanceToEdge(road, x, y) - roadOf(road).w / 2 < PASTURE_ROOM.road) return false
+  if (distanceToEdge(road, x, y) - MAP.roads[graph.edges[road]!.road]!.w / 2 < PASTURE_ROOM.road)
+    return false
   return farmsNear(x, y, PASTURE_ROOM.farm).some((f) => f.rural)
 }
 

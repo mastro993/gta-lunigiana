@@ -1,3 +1,4 @@
+import { Clock } from "@typeonce/ritmo"
 import type { Vec2 } from "@typeonce/ritmo-math"
 
 import { forwardSpeed } from "./body.ts"
@@ -22,6 +23,7 @@ import {
   PrevPose,
   Rivers,
   Stolen,
+  Time,
   Traffic,
   Train,
   TrainMotion,
@@ -32,6 +34,7 @@ import {
   type WeatherValue,
 } from "./schema.ts"
 import { type RomeTime, romeTime } from "./sky/calendar.ts"
+import { WASTED } from "./systems/explosions.ts"
 import { footingAt } from "./systems/footing.ts"
 import { VEHICLES } from "./vehicles.ts"
 import { FLOW, specificDischarge } from "./water/flow.ts"
@@ -44,6 +47,8 @@ export interface PlayerViewModel {
   /** Player velocity, m/s (the vehicle's while driving; zero on the step they get in or out). */
   readonly velocity: Vec2.Vec2
   readonly mode: "foot" | "driving" | "down" | "dead"
+  /** While dead: the steps left before the respawn (`Respawn`) puts the player back at the start, which the host must have the map round by then. */
+  readonly respawnIn?: number
   /** The vehicle being driven: label, forward speed in m/s (negative when reversing), and `kind` "train" for a train. */
   readonly vehicle:
     | { readonly label: string; readonly speed: number; readonly kind?: "train" }
@@ -97,7 +102,7 @@ export const PlayerView = Game.Inspector(
         with: [CarInput],
       }),
     },
-    resources: { view: Game.System.readResource(View) },
+    resources: { view: Game.System.readResource(View), time: Game.System.readResource(Time) },
   },
   ({ queries, resources }): PlayerViewModel | undefined => {
     const found = queries.player.singleOptional()
@@ -106,6 +111,7 @@ export const PlayerView = Game.Inspector(
     const pose = data.pose.get()
     const motion = data.motion.get()
     const driving = data.driving.value()
+    const dead = data.dead.value()
     const car = driving === undefined ? undefined : queries.vehicles.getHandle(driving.vehicle)
     const train =
       driving === undefined || car?.ok === true
@@ -158,6 +164,11 @@ export const PlayerView = Game.Inspector(
               ? "down"
               : "foot"
           : "driving",
+      ...(dead === undefined
+        ? {}
+        : {
+            respawnIn: Math.max(0, dead.since + Clock.steps(WASTED) - resources.time.get().step),
+          }),
       vehicle,
       ...(driven === undefined || line === undefined
         ? {}

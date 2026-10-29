@@ -21,7 +21,7 @@ import { atGradeY, surfaceY, terrainY, yOf } from "./ground.ts"
 import { deck } from "./lines.ts"
 import { PALETTE } from "./palette.ts"
 import { portalPieces } from "./portals.ts"
-import { append, block, strips, surfaceNear, throughApron } from "./ribbons.ts"
+import { append, block, strips, surfaceNear, surfaceReads, throughApron } from "./ribbons.ts"
 import { BOX_REACH, BOXES, boxAt, PANEL, trackNear } from "./track-index.ts"
 
 /** Rail centres apart, m (the 1.435 m gauge). */
@@ -356,30 +356,38 @@ const cabinet = (sink: Sink, b: number): void => {
   )
 }
 
+/** Crossing `b`'s fixed parts, laid over the ribbons of `roads` (drawn again for it): the panels and rails, and per approach the stop line and the housing. */
+const crossingParts = (roads: ReadonlyArray<Piece>, b: number): Sink => {
+  const built: Sink = {
+    solid: new Triangles(),
+    decal: new Triangles(),
+    water: new WaterTriangles(),
+    glow: new Triangles(),
+    pieces: [],
+  }
+  const { x, y } = BOXES[b]!,
+    surface = surfaceNear(roads, x, y, BOX_REACH)
+  panels(built.decal, b, surface)
+  for (const approach of CROSSINGS[b]!.approaches.keys()) {
+    stopLine(built.decal, b, approach, surface)
+    housing(built, b, approach)
+  }
+  if (CROSSINGS[b]!.approaches.length > 0) cabinet(built, b)
+  return built
+}
+
 /**
- * Each level crossing as one piece at its middle, whole in its chunk: the panels and rails over its road, and per approach
- * the stop line and the housing. Built once with the pieces (the road ribbons under it are drawn again for it), then copied.
+ * Each level crossing as one piece at its middle, whole in its chunk (`crossingParts`): built on its first draw, where it
+ * reads the ground under the road ribbons it lies over, then copied.
  */
 const crossings = (roads: ReadonlyArray<Piece>): Array<Piece> =>
   MAP.railway.crossings.map((crossing, b) => {
-    const built: Sink = {
-      solid: new Triangles(),
-      decal: new Triangles(),
-      water: new WaterTriangles(),
-      glow: new Triangles(),
-      pieces: [],
-    }
-    const { x, y } = BOXES[b]!,
-      surface = surfaceNear(roads, x, y, BOX_REACH)
-    panels(built.decal, b, surface)
-    for (const approach of CROSSINGS[b]!.approaches.keys()) {
-      stopLine(built.decal, b, approach, surface)
-      housing(built, b, approach)
-    }
-    if (CROSSINGS[b]!.approaches.length > 0) cabinet(built, b)
+    let built: Sink | undefined
     return {
       pts: [crossing.x, crossing.y],
+      reads: surfaceReads(roads, BOXES[b]!.x, BOXES[b]!.y, BOX_REACH),
       draw: (at) => {
+        built ??= crossingParts(roads, b)
         const sink = at(crossing.x, crossing.y)
         for (const layer of ["solid", "decal"] as const) append(built[layer], sink[layer])
       },

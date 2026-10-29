@@ -9,7 +9,7 @@
  */
 import { pointInRing, segDist2 } from "../sim/collide.ts"
 import { buildingStyleOf, MAP, type Platform } from "../sim/map/index.ts"
-import type { Piece } from "./geometry.ts"
+import { boxOver, type Piece } from "./geometry.ts"
 import { groundY } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
 import { along, dirOf, type P2, platformPiece, ringPoints, topOf } from "./platforms.ts"
@@ -275,21 +275,23 @@ const canopies = (): Array<Canopy> =>
       mx = (ax + bx) / 2,
       my = (ay + by) / 2
     if (deep < 1) return []
-    const roof = groundY(mx + ox, my + oy) + ALONG.under
     const corner = (s: number, d: number) => [
       mx + tx * (wide / 2) * s + ox * d,
       my + ty * (wide / 2) * s + oy * d,
     ]
     const cx = mx + ox * (deep / 2),
       cy = my + oy * (deep / 2)
+    const ring = [...corner(-1, 0), ...corner(1, 0), ...corner(1, deep), ...corner(-1, deep)]
     return [
       {
-        ring: [...corner(-1, 0), ...corner(1, 0), ...corner(1, deep), ...corner(-1, deep)],
+        ring,
         piece: {
           pts: [mx, my],
+          reads: boxOver(ring),
           draw: (at) => {
             const tris = at(mx, my).solid,
-              hex = PALETTE.canopyGrey
+              hex = PALETTE.canopyGrey,
+              roof = groundY(mx + ox, my + oy) + ALONG.under
             block(tris, cx, roof + 0.08, -cy, tx, -ty, wide / 2, 0.08, deep / 2, hex)
             const posts = Math.ceil(wide / ALONG.every) + 1
             for (let i = 0; i < posts; i++) {

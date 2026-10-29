@@ -60,7 +60,7 @@ and `Intl`'s time-zone data comes from the host.
 ## The map's place
 
 The sky knows where the map lies only through `place()` (`src/sim/sky/place.ts`): four numbers the
-map module works out once it decodes the map, so the sky modules themselves decode no map and a
+map module hands over once it decodes the map, so the sky modules themselves decode no map and a
 new map needs no weather data of its own.
 
 | Field | What it is | On the shipped map |
@@ -69,14 +69,17 @@ new map needs no weather data of its own.
 | `floor` | the map's low ground, m: the 5th percentile of its heightmap | 230.3 m |
 | `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | 2.127 (toward the north-north-west) |
 
-- **Provided at load.** `src/sim/map/index.ts` calls `providePlace(placeFrom(MAP.origin,
-  MAP.heightmap))` right after decoding, as the host hands the map file to `provideMap`. The fit
-  reads every one of the 4.9 million height nodes once: 13–20 ms in Node (three runs).
+- **Baked at build time.** The fit reads every one of the 4.9 million height nodes, which the game
+  now holds only in the tiles near the player, so the build runs `placeFrom` over the whole
+  heightmap (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file
+  (`MAP.place`). `src/sim/map/global.ts` calls `providePlace({ ...MAP.origin, ...MAP.place })` right
+  after decoding, as the host hands the map file to `provideMap`.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,
   `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 230 m, downslope 2.13, the shipped map's own place
   rounded, so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
   the sky modules decode no map, and that once the map is decoded `place()` is the map's origin,
-  its 5th-percentile height and its plane fit, within 0.5 m and 0.005 rad of the reference.
+  its 5th-percentile height and its plane fit (fitted again over the whole heightmap joined from
+  the tiles), within 0.5 m and 0.005 rad of the reference.
 - **Absolute or over the floor.** Temperature, precipitation and snow follow the height above sea
   level, so a high map is colder and snowier. What relief sets counts from the floor instead: the
   low-ground fog, the cloud base, the wind's growth on exposed ground, the drying air and the
@@ -583,12 +586,12 @@ and how snow-covered the ground is there, each 0 to 1.
   08:00) to 0.41 (15 January, noon).
 - **The snow line** is the lowest ground with snow cover (`NO_SNOW`, 6000 m, when none lies). While
   more than drizzle falls and the freezing level lies under the line, snow settles from the map's
-  top (1799 m on the shipped map) down toward the freezing level at 150 m per game hour for each
-  mm/h, × `orographic` at the line (`SNOWING`). Otherwise it rises by a degree-day melt of 1 m per
-  game hour for each °C above 0 at the line, twice that under rain (`MELTING`), and once above the
-  map's top no snow is left. It never falls below the map's lowest ground less 50 m (97 m on the
-  shipped map), so all the map can lie white. The rates are design values fitted to Capozzi et al.'s
-  snow-cover days ([Snow](#snow)).
+  top (its tiles' highest node, `MAP.tiles`: 1799 m on the shipped map) down toward the freezing
+  level at 150 m per game hour for each mm/h, × `orographic` at the line (`SNOWING`). Otherwise it
+  rises by a degree-day melt of 1 m per game hour for each °C above 0 at the line, twice that under
+  rain (`MELTING`), and once above the map's top no snow is left. It never falls below the map's
+  lowest ground less 50 m (97 m on the shipped map), so all the map can lie white. The rates are
+  design values fitted to Capozzi et al.'s snow-cover days ([Snow](#snow)).
 - **The ragged edge.** Snow covers ground above the line's edge, fading in over ±10 m of height
   (`FEATHER`). The edge wanders by two octaves of value noise, ±45 m over 80 m cells plus ±15 m over
   20 m cells (`EDGE`), locked to the world and the same every game. Its lattice hash uses only

@@ -34,6 +34,8 @@ const ELEVATION = Math.PI / 6
 const MARGIN = 1 // extra low-res texels per side, consumed by the sub-texel offset
 const DISTANCE = 500 // metres from focus to camera along the view axis
 const NEAR = 1
+/** How far back from the focus along the view's back axis (m) the near plane lies: nothing farther back is ever drawn. */
+export const BEHIND = DISTANCE - NEAR
 const FAR = 3000 // 2.5 km past the focus: from the Apuan summits the deepest ground in view is ≈ 2.45 km from the camera
 
 const aim = new Matrix4(),
@@ -183,7 +185,7 @@ export class PixelView {
     this.aimed = this.yaw
   }
 
-  /** The shadow box over the ground this view shows (`shadowFit`), at its current yaw; `groundAt(x, z)` is the terrain's render y. */
+  /** The shadow box over the ground this view shows (`shadowFit`), at its current yaw; `groundAt(x, z)` is the terrain's render y, read up to 2.5 km off (the sky host's falls back to the coarse grid: `farTerrainY`). */
   shadowFit(toSun: Vector3, groundAt: (x: number, z: number) => number): ShadowFit {
     this.aim()
     return shadowFit(

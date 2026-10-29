@@ -103,7 +103,8 @@ body {
   }
 }
 
-#hud-prompt {
+#hud-prompt,
+#hud-loading {
   position: absolute;
   left: 50%;
   bottom: 72px;
@@ -111,6 +112,10 @@ body {
   padding: 6px 12px;
   background: var(--panel);
   border: 2px solid var(--accent);
+}
+/* The game waits for a map tile (main.ts): above the prompt, which may show at the same time. */
+#hud-loading {
+  bottom: 120px;
 }
 
 /* Killed: the screen darkens and "Sei morto" fades in over a second, until the player is back at the start (hud.ts). */

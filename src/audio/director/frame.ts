@@ -8,8 +8,6 @@
  *
  * @module audio/director/frame
  */
-import { groundZ } from "../../sim/map/ground.ts"
-import { heightAt } from "../../sim/map/index.ts"
 import type { Conditions } from "../../sim/sky/local.ts"
 import {
   airCutoff,
@@ -21,11 +19,14 @@ import {
   SPEED_OF_SOUND,
   spreading,
 } from "../acoustics.ts"
+import { terrainAt } from "../ground.ts"
 import type { Echo } from "../places.ts"
 import type { CabinModel, Continuous, Heard, OneShot, Placement, Speaker } from "../types.ts"
 import { type Ears, hear, type Hearing, SILENT, type Source } from "./hearing.ts"
 import { CAPS, ECHO_MIN_DB, echoes, KEEP_DB, LEVELS, type Level, MOST_DB } from "./levels.ts"
 import type { Between, Occluder } from "./occluder.ts"
+
+export { groundAt } from "../ground.ts"
 
 /**
  * How a path is heard: Doppler-shifted (vehicles), through the listener's `cabin` (unless false: their own car's crash, scrape,
@@ -90,9 +91,6 @@ export interface Setup {
   /** Filled by `hold`, for `commit`. */
   readonly offers: Array<Offer>
 }
-
-/** Elevation a.s.l. of what stands at (x, y): the terrain, a road, or the bridge deck nearest `near` (a previous elevation). */
-export const groundAt = (x: number, y: number, near?: number): number => groundZ(x, y, near)
 
 /** Nothing in the way (sounds of the listener's own car or body). */
 const CLEAR: Between = { delta: 0, forest: 0 }
@@ -176,7 +174,7 @@ export const makeFrame = (setup: Setup): Frame => {
       // ISO 9613-2's mean path height: both ends over the terrain under them (a bridge deck lifts the path).
       const height = Math.max(
         0,
-        (ears.z - heightAt(ears.x, ears.y) + source.z - heightAt(source.x, source.y)) / 2,
+        (ears.z - terrainAt(ears.x, ears.y) + source.z - terrainAt(source.x, source.y)) / 2,
       )
       return hear({
         ears,

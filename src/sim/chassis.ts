@@ -287,15 +287,18 @@ export const settle = (
   const plane = groundPlane(model, pose, ground)
   const pitch = Ops.atan(plane.gf),
     roll = Ops.atan(plane.gl)
-  return {
-    z: plane.z + RIGS[model].spec.cg * Ops.cos(pitch) * Ops.cos(roll),
-    vz: 0,
-    pitch,
-    pitchRate: 0,
-    roll,
-    rollRate: 0,
-    steer: 0,
-    gear: 0,
-    shiftUntil: 0,
-  }
+  return resting(plane.z + RIGS[model].spec.cg * Ops.cos(pitch) * Ops.cos(roll), pitch, roll)
 }
+
+/** A chassis standing still on its springs with its centre of mass at `z` (m a.s.l.), pitched and rolled (rad), in neutral. */
+export const resting = (z: number, pitch: number, roll: number): ChassisValue => ({
+  z,
+  vz: 0,
+  pitch,
+  pitchRate: 0,
+  roll,
+  rollRate: 0,
+  steer: 0,
+  gear: 0,
+  shiftUntil: 0,
+})

@@ -6,9 +6,7 @@ import { Keyboard } from "@typeonce/ritmo-browser"
 import { bindings, type PlayerViewModel } from "../../sim/index.ts"
 import { BOARD_SPEED } from "../../sim/rail/boarding.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
-import { QUARTER, screenAxes } from "../../sim/view.ts"
 import { kmh, overlayKey, type Overlays, pausable, promptText, routeOverlayKeys } from "../hud.ts"
-import { minimapRotation } from "../minimap.ts"
 
 const pose = { x: 0, y: 0, angle: 0 }
 const view = (patch: Partial<PlayerViewModel>): PlayerViewModel => ({
@@ -87,20 +85,6 @@ test("driving a train, the prompt offers to get out only while it is slow enough
     promptText(view({ mode: "driving", vehicle: { label: "Fiat Panda", speed: 30 } })),
     "F — exit",
   )
-})
-
-test("the minimap turns screen-up to the top, whichever way the view is turned", () => {
-  for (const turns of [0, 1, 2, 3, -1]) {
-    // North-up canvas vector of screen-up, rotated by the canvas transform (y grows downwards).
-    const { up } = screenAxes(turns),
-      r = minimapRotation(turns * QUARTER)
-    const u = up.x,
-      v = -up.y,
-      c = Math.cos(r),
-      s = Math.sin(r)
-    assert.ok(Math.abs(u * c - v * s) < 1e-9, `turns ${turns}`)
-    assert.ok(Math.abs(u * s + v * c + 1) < 1e-9, `turns ${turns}`)
-  }
 })
 
 /** A keydown/keyup the way a browser fills it (Node's EventTarget has no KeyboardEvent). */

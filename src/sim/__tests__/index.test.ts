@@ -784,6 +784,15 @@ test("enter: the marble truck can be entered from beside its cab, 3.5 m from its
 
 /** The player out of the way, in the map's empty south-west corner: Populate brings nobody near the car under test. */
 const FAR_AWAY = { x: -2800, y: -6000, angle: 0 }
+/**
+ * The player 400 m east of `at`, still within the reach where vehicles move (`FROZEN_BEYOND`, 500 m) but out of the way of the
+ * car under test; `alone` keeps everyone else away.
+ */
+const beside = (at: { readonly x: number; readonly y: number }) => ({
+  x: at.x + 400,
+  y: at.y,
+  angle: 0,
+})
 
 // Regression: a car came to rest and slept wherever it stopped, so a car its brakes could not hold on a steep bank hung there for ever.
 test("sleep: standing with no pedal the brakes hold a car on a hill and it sleeps; on a bank too steep for them it slides on", () => {
@@ -805,7 +814,11 @@ test("sleep: standing with no pedal the brakes hold a car on a hill and it sleep
   // Coasting up a 54% grass bank west of Monzone: it stops, and no grass holds a braked car there at its real grip (a new game's
   // off-road grip loss of 0.5 does), so it slides back down past its start.
   const bank = { x: -596, y: 596, angle: -2.657 + Math.PI }
-  const { runtime, run, world } = start([], [FAR_AWAY, { cars: [rolling("panda", bank, 1, 0)] }])
+  const { runtime, run, world } = start(
+    [],
+    [beside(bank), { cars: [rolling("panda", bank, 1, 0)] }],
+    { alone: true },
+  )
   runtime.send(SetHandling, { key: "looseGround", value: 1 })
   run(180)
   const slid = world().vehicles[0]!,
@@ -833,7 +846,7 @@ test("sleep: a car on its roof with its handbrake off comes to rest and sleeps",
     [Chassis, roof],
     [Damage, UNDAMAGED],
   )
-  const { run, world } = start([], [FAR_AWAY, { cars: [wreck] }])
+  const { run, world } = start([], [beside(ON_BATTISTI), { cars: [wreck] }], { alone: true })
   run(240)
   const v = world().vehicles[0]!
   assert.deepEqual(

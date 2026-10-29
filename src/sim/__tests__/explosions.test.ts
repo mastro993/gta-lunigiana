@@ -170,13 +170,22 @@ test("explosions: the player sitting in the wreck dies with it, out of its door;
   back.run(2)
   assert.ok(back.runtime.tick(wear(1)).ok)
   let deadFor = 0
+  const counted: Array<number> = []
   back.run(900, () => {
-    if (back.view()!.mode === "dead") {
+    const me = back.view()!
+    if (me.mode === "dead") {
       deadFor++
-      assert.equal(back.view()!.nearby, undefined)
-    }
+      assert.equal(me.nearby, undefined)
+      counted.push(me.respawnIn!)
+    } else assert.equal(me.respawnIn, undefined)
   })
   assert.ok(Math.abs(deadFor - Clock.steps(WASTED)) <= 1, `dead for ${deadFor} steps`)
+  // The host reads how long until the respawn (it fetches the start's tiles first): one step less each step, down to 0.
+  assert.ok(counted.every((left, k) => k === 0 || left === counted[k - 1]! - 1))
+  assert.ok(
+    counted.at(-1)! <= 1 && counted[0]! >= Clock.steps(WASTED) - 1,
+    JSON.stringify([counted[0], counted.at(-1)]),
+  )
 })
 
 test("explosions: the player on foot by a wreck dies too; inside another car they are shielded by it", () => {

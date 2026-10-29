@@ -4,13 +4,20 @@ import { test } from "node:test"
 import { Vector3 } from "three"
 
 import { pointInRing } from "../../sim/collide.ts"
+import { coarseHeightAt } from "../../sim/map/coarse.ts"
 import { buildingsIn, MAP, treesIn } from "../../sim/map/index.ts"
+import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
+import { dropTile, isResidentAt, setTileSource } from "../../sim/map/tiles.ts"
 import { topOf } from "../buildings.ts"
-import { terrainY } from "../ground.ts"
+import { terrainResident, terrainY, yOf } from "../ground.ts"
 import { viewAxes } from "../pipeline.ts"
 import { CUT_UNIFORMS } from "../see-through.ts"
 import { SeeThrough, sight } from "../sightline.ts"
+import { everyTileIn } from "../testing.ts"
 import { inCrown } from "../trees.ts"
+
+// Far along a sight line the terrain comes from the coarse grid where no tile is in memory: here every one is.
+everyTileIn()
 
 const HOME = viewAxes(0).back
 const spawn = MAP.spawns.player
@@ -63,15 +70,14 @@ test("the player at the spawn, in the street, is not hidden", () => {
 
 test("a person under a tree's crown is hidden by it", () => {
   // The first tree near the spawn: from its trunk, 1.5 m up (a head under the crown), the line climbs through the crown.
-  let tree = -1
-  treesIn(spawn.x - 300, spawn.y - 300, spawn.x + 300, spawn.y + 300, (k) => {
-    if (tree < 0) tree = k
+  let tree: readonly [number, number, number, number] | undefined
+  treesIn(spawn.x - 300, spawn.y - 300, spawn.x + 300, spawn.y + 300, (x, y, scale, id) => {
+    tree ??= [x, y, scale, id]
   })
-  assert.ok(tree >= 0)
-  const x = MAP.trees[3 * tree]!,
-    y = MAP.trees[3 * tree + 1]!
-  assert.ok(inCrown(tree, x, y, terrainY(x, y) + 3.5 * MAP.trees[3 * tree + 2]!))
-  assert.equal(inCrown(tree, x + 10, y, terrainY(x, y) + 4), false)
+  assert.ok(tree !== undefined)
+  const [x, y, scale] = tree
+  assert.ok(inCrown(...tree, x, y, terrainY(x, y) + 3.5 * scale))
+  assert.equal(inCrown(...tree, x + 10, y, terrainY(x, y) + 4), false)
   assert.ok(hidden(at(x, y, 1.5)))
 })
 
@@ -163,4 +169,46 @@ test("under reduced motion the cut opens and shuts at once; with no player it sh
   assert.equal(CUT_UNIFORMS.uCutRadius.value, 9, "54 texels at 6 texels a metre: wider in a car")
   cut.shut()
   assert.equal(CUT_UNIFORMS.uCutRadius.value, 0)
+})
+
+test("past the tiles in memory a sight line reads the coarse grid's terrain, and never a tile that is out", () => {
+  // From 150 m (along the line) short of where the line from the spawn toward the home camera leaves the spawn's tile, with
+  // every tile out but that one: the buildings and crowns looked for over its first 100 m stand on that tile (in play the host
+  // keeps every tile within 600 m), the last 350 m of the 500 m line lie on tiles that are out.
+  const dx = HOME.x,
+    dy = -HOME.z,
+    tile = { i: Math.floor(spawn.x / 2000), j: Math.floor(spawn.y / 2000) }
+  const exit = Math.min(
+    ...[
+      dx > 0 ? (2000 * (tile.i + 1) - spawn.x) / dx : (2000 * tile.i - spawn.x) / dx,
+      dy > 0 ? (2000 * (tile.j + 1) - spawn.y) / dy : (2000 * tile.j - spawn.y) / dy,
+    ].filter((t) => t > 0),
+  )
+  const x = spawn.x + dx * (exit - 150),
+    y = spawn.y + dy * (exit - 150),
+    from = at(x, y, 0.4)
+  const end = { x: x + dx * 500, y: y + dy * 500 }
+  assert.notDeepEqual(
+    [Math.floor(end.x / 2000), Math.floor(end.y / 2000)],
+    [tile.i, tile.j],
+    "the line ends in another tile",
+  )
+  setTileSource(undefined)
+  try {
+    for (const { i, j } of MAP.tiles) if (i !== tile.i || j !== tile.j) dropTile(`${i}_${j}`)
+    assert.equal(isResidentAt(end.x, end.y), false)
+    // The terrain sampled as the sight line samples it: exact on the tile in memory, the coarse grid's past it.
+    let ground = Number.POSITIVE_INFINITY
+    for (let t = 1; t <= 500 && ground === Number.POSITIVE_INFINITY; t += 2) {
+      const px = x + dx * t,
+        py = y + dy * t
+      // A cell on the tile's last row or column reads the next tile's nodes too: exact only where all four are in.
+      const h = terrainResident(px, py) ? terrainY(px, py) : yOf(coarseHeightAt(px, py))
+      if (h > from.y + HOME.y * t) ground = t
+    }
+    assert.equal(sight(from, HOME).ground, ground)
+  } finally {
+    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    everyTileIn()
+  }
 })

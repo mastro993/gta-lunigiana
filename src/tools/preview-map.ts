@@ -1,4 +1,4 @@
-// Top-down debug render of src/sim/map/monzone.bin -> .research/map-preview.png.
+// Top-down debug render of src/sim/map/monzone.bin and its tiles -> .research/map-preview.png.
 // Usage: node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
@@ -7,11 +7,14 @@ import { gunzipSync } from "node:zlib"
 import type { AreaKind, BuildingStyle, RoadClass } from "../sim/map/index.ts"
 import { provideMap } from "../sim/map/packed.ts"
 import { fillPolygon, segDist2 } from "./geometry.ts"
+import { wholeMap } from "./map-file.ts"
 import { encodePngRgb } from "./png.ts"
 import { REGION } from "./region.ts"
 
 provideMap(gunzipSync(readFileSync(join(import.meta.dirname, `../sim/map/${REGION.file}.bin`))))
 const { buildingStyleOf, graph, heightAt, isAreaKind, MAP } = await import("../sim/map/index.ts")
+// The trees and walls live in the tiles: read them all, joined.
+const { trees, walls } = wholeMap(REGION.file)
 
 type RGB = readonly [number, number, number]
 const scale = Number(process.argv[2] ?? 1)
@@ -102,8 +105,8 @@ for (const a of MAP.areas)
     isAreaKind(a.kind) ? AREA[a.kind] : [255, 0, 255],
     a.kind === "forest" ? 0.25 : 0.45,
   )
-for (let i = 0; i + 2 < MAP.trees.length; i += 3)
-  dot(MAP.trees[i]!, MAP.trees[i + 1]!, 0.9 * MAP.trees[i + 2]!, [20, 70, 30], 0.8)
+for (let i = 0; i + 2 < trees.length; i += 3)
+  dot(trees[i]!, trees[i + 1]!, 0.9 * trees[i + 2]!, [20, 70, 30], 0.8)
 for (const w of MAP.water) polyline(w.pts, w.w / 2, [60, 120, 220])
 const ROAD = {
   tertiary: [250, 240, 150],
@@ -169,8 +172,8 @@ const segs = (flat: ArrayLike<number>, c: RGB) => {
   for (let i = 0; i + 3 < flat.length; i += 4)
     line(flat[i]!, flat[i + 1]!, flat[i + 2]!, flat[i + 3]!, 0.15, c)
 }
-segs(MAP.walls.drive, [255, 150, 0])
-segs(MAP.walls.walk, [220, 0, 0])
+segs(walls.drive, [255, 150, 0])
+segs(walls.walk, [220, 0, 0])
 for (const e of graph.trafficEdges) {
   const { a, b } = graph.edges[e]!
   line(

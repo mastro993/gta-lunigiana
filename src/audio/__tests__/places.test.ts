@@ -3,6 +3,8 @@ import { test } from "node:test"
 
 import { pointInRing } from "../../sim/collide.ts"
 import { buildingsIn, heightAt, MAP, treesIn } from "../../sim/map/index.ts"
+import { tileKey } from "../../sim/map/kinds.ts"
+import { decodeTile } from "../../sim/map/packed.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
 import { SPEED_OF_SOUND } from "../acoustics.ts"
 import {
@@ -13,8 +15,13 @@ import {
   echoesAt,
   forestAlong,
   streetAt,
+  owlsNear,
   wallAt,
 } from "../places.ts"
+import { fromDisk, residentMap } from "../testing.ts"
+
+// The whole map in memory, as around the player in the game: every place is worked out from the exact map.
+residentMap()
 
 /** A small deterministic random source, so the checks never flake. */
 const seeded = (seed: number) => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32
@@ -63,23 +70,30 @@ test("walls: a tree trunk, buildings by kind and style, the guard rail, the ston
     const at = beside(MAP.barriers.find((b) => b.kind === kind)!.pts, false)
     assert.equal(wallAt(at.x, at.y), expected, kind)
   }
-  const { trees } = MAP
-  assert.equal(wallAt(trees[0]! + 0.55, trees[1]!), "tree")
+  let trunk: { readonly x: number; readonly y: number } | undefined
+  treesIn(
+    FOREST.x - 5,
+    FOREST.y - 5,
+    FOREST.x + 5,
+    FOREST.y + 5,
+    (x, y) => void (trunk ??= { x, y }),
+  )
+  assert.ok(trunk !== undefined, "a tree in the forest")
+  assert.equal(wallAt(trunk.x + 0.55, trunk.y), "tree")
   assert.equal(wallAt(MEADOW.x, MEADOW.y), "earth")
   assert.equal(wallAt(QUARRY_FACE.x, QUARRY_FACE.y), "rock")
 })
 
 test("walls: the nearest source wins, a trunk by a house wall is the trunk; a bank is earth though trees stand 1.5–3 m off it", () => {
-  const { trees } = MAP,
-    outside = (x: number, y: number) => {
-      let free = true
-      buildingsIn(x, y, x, y, (i) => void (free &&= !pointInRing(x, y, MAP.buildings[i]!.outer)))
-      return free
-    }
+  const outside = (x: number, y: number) => {
+    let free = true
+    buildingsIn(x, y, x, y, (i) => void (free &&= !pointInRing(x, y, MAP.buildings[i]!.outer)))
+    return free
+  }
   // A trunk 1–2.5 m from a rendered house's wall: 0.3 m off the trunk on its far side is the tree, 0.3 m off the wall the house.
   let pair:
     | {
-        readonly tree: number
+        readonly tree: { readonly x: number; readonly y: number }
         readonly wall: {
           readonly x: number
           readonly y: number
@@ -101,29 +115,36 @@ test("walls: the nearest source wins, a trunk by a house wall is the trunk; a ba
         y = (pts[i + 1]! + pts[j + 1]!) / 2,
         nx = ey / length,
         ny = -ex / length
-      treesIn(x - 3, y - 3, x + 3, y + 3, (t) => {
-        const d = (trees[3 * t]! - x) * nx + (trees[3 * t + 1]! - y) * ny,
-          off = Math.abs((trees[3 * t]! - x) * ny - (trees[3 * t + 1]! - y) * nx)
+      treesIn(x - 3, y - 3, x + 3, y + 3, (tx, ty) => {
+        const d = (tx - x) * nx + (ty - y) * ny,
+          off = Math.abs((tx - x) * ny - (ty - y) * nx)
         if (
           pair === undefined &&
           d > 1.2 &&
           d < 2.5 &&
           off < 0.5 &&
-          outside(trees[3 * t]! + 0.6 * nx, trees[3 * t + 1]! + 0.6 * ny)
+          outside(tx + 0.6 * nx, ty + 0.6 * ny)
         )
-          pair = { tree: t, wall: { x, y, nx, ny } }
+          pair = { tree: { x: tx, y: ty }, wall: { x, y, nx, ny } }
       })
     }
   }
   assert.ok(pair !== undefined, "a trunk by a house wall")
   const { tree, wall } = pair
   assert.equal(wallAt(wall.x + 0.3 * wall.nx, wall.y + 0.3 * wall.ny), "masonry")
-  assert.equal(
-    wallAt(trees[3 * tree]! + 0.55 * wall.nx, trees[3 * tree + 1]! + 0.55 * wall.ny),
-    "tree",
-  )
+  assert.equal(wallAt(tree.x + 0.55 * wall.nx, tree.y + 0.55 * wall.ny), "tree")
   // A steep bank (a drive wall that is no building and no barrier) with a trunk 1.5–3 m from the contact point and nothing else within 3 m.
-  const walls = MAP.walls.drive
+  let bank: { readonly x: number; readonly y: number } | undefined
+  for (let tile = 0; tile < MAP.tiles.length && bank === undefined; tile++) {
+    const { i, j } = MAP.tiles[tile]!
+    bank = wildBank(decodeTile(fromDisk(tileKey(i, j))).walls.drive)
+  }
+  assert.ok(bank !== undefined, "a wooded bank")
+  assert.equal(wallAt(bank.x, bank.y), "earth")
+})
+
+/** 0.15 m off a drive wall of `walls` (flat segments) that is no building and no barrier, with a trunk 1.5–3 m off and nothing else within 3 m. */
+const wildBank = (walls: ArrayLike<number>) => {
   let bank: { readonly x: number; readonly y: number } | undefined
   for (let s = 0; s + 3 < walls.length && bank === undefined; s += 4) {
     const ax = walls[s]!,
@@ -137,14 +158,9 @@ test("walls: the nearest source wins, a trunk by a house wall is the trunk; a ba
         y = (ay + by) / 2 - (side * 0.15 * (bx - ax)) / length
       let nearest = Infinity,
         built = false
-      treesIn(
-        x - 3,
-        y - 3,
-        x + 3,
-        y + 3,
-        (t) =>
-          void (nearest = Math.min(nearest, Math.hypot(trees[3 * t]! - x, trees[3 * t + 1]! - y))),
-      )
+      treesIn(x - 3, y - 3, x + 3, y + 3, (tx, ty) => {
+        nearest = Math.min(nearest, Math.hypot(tx - x, ty - y))
+      })
       buildingsIn(x - 3, y - 3, x + 3, y + 3, () => void (built = true))
       if (
         nearest > 1.5 &&
@@ -157,9 +173,8 @@ test("walls: the nearest source wins, a trunk by a house wall is the trunk; a ba
         bank ??= { x, y }
     }
   }
-  assert.ok(bank !== undefined, "a wooded bank")
-  assert.equal(wallAt(bank.x, bank.y), "earth")
-})
+  return bank
+}
 
 test("ambience shares stay within 1 and tell the forest, the meadow and the village apart", () => {
   for (let x = MAP.bounds.minX; x <= MAP.bounds.maxX; x += 97)
@@ -226,11 +241,15 @@ test("one bell per settlement, lower in taller towers", () => {
   assert.ok(alto?.pitch === 400 && alto.z > 325)
 })
 
-test("dogs are stable picks out in the farms; birds sing from a nearby tree, never on a treeless meadow", () => {
-  const all = dogsNear(0, 0, 1e6)
-  assert.ok(all.length > 50)
-  assert.deepEqual(dogsNear(0, 0, 1e6), all)
-  assert.ok(dogsNear(-400, 400, 300).every((d) => Math.hypot(d.x + 400, d.y - 400) <= 300))
+test("dogs and owls are stable picks out in the farms and the woods, near ones those of the whole map in its order; birds sing from a nearby tree, never on a treeless meadow", () => {
+  const within = (r: number) => (p: { readonly x: number; readonly y: number }) =>
+    Math.hypot(p.x + 400, p.y - 400) <= r
+  const dogs = dogsNear(0, 0, 1e6),
+    owls = owlsNear(0, 0, 1e6)
+  assert.ok(dogs.length > 50 && owls.length > 100, `${dogs.length} dogs, ${owls.length} owls`)
+  assert.deepEqual(dogsNear(0, 0, 1e6), dogs)
+  assert.deepEqual(dogsNear(-400, 400, 300), dogs.filter(within(300)))
+  assert.deepEqual(owlsNear(-400, 400, 600), owls.filter(within(600)))
   const random = seeded(3)
   for (let k = 0; k < 20; k++) {
     const spot = birdSpot(FOREST.x, FOREST.y, random)

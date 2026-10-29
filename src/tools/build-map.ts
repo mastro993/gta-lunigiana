@@ -1,15 +1,15 @@
-// Builds src/sim/map/monzone.bin from data/raw: OSM (fetch-osm.ts) and the Regione
-// Toscana CTR 1:2000, LiDAR DTM and land cover (data/raw/rt, written by fetch-rt.ts).
-// Run: node src/tools/build-map.ts  (pnpm map), from any directory. Output is deterministic:
-// gunzipped, the same bytes everywhere; gzipped, the same file with the same Node build (another
-// zlib or OS writes other compressed bytes).
-import { writeFileSync } from "node:fs"
+// Builds src/sim/map/monzone.bin and its tiles (src/sim/map/monzone/<i>_<j>.bin) from data/raw:
+// OSM (fetch-osm.ts) and the Regione Toscana CTR 1:2000, LiDAR DTM and land cover (data/raw/rt,
+// written by fetch-rt.ts). Run: node src/tools/build-map.ts  (pnpm map), from any directory. Output
+// is deterministic: gunzipped, the same bytes everywhere, and the same build hash; gzipped, the
+// same files with the same Node build (another zlib or OS writes other compressed bytes).
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { gzipSync } from "node:zlib"
 
-import type { MonzoneMap } from "../sim/map/index.ts"
 import { isDrivable } from "../sim/map/kinds.ts"
-import { MAP_VERSION } from "../sim/map/packed.ts"
+import { MAP_VERSION, provideMap } from "../sim/map/packed.ts"
+import { rasterCover } from "../sim/map/raster.ts"
 import { catchments } from "./catchment.ts"
 import { conflateRail } from "./conflate.ts"
 import { readCtrRail } from "./ctr-rail.ts"
@@ -41,7 +41,6 @@ import {
 } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
 import { readOsm } from "./osm.ts"
-import { packMap } from "./pack.ts"
 import { chainsOf, lifted, makeProfiler, type Linear } from "./profiles.ts"
 import { extraLevels, RAIL_TOL, railBed } from "./rail-bed.ts"
 import { clearVerges } from "./rail-clear.ts"
@@ -51,12 +50,14 @@ import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
 import { REGION } from "./region.ts"
 import { clearance, parkedSpots, playerSpawn, scatterTrees } from "./spawns.ts"
 import { loadDtm, loadGeoDtm, makeGrid, sampleGrid } from "./terrain.ts"
+import { type BuiltMap, cutMap, NO_BAKES } from "./tile-map.ts"
 import { readUcs } from "./ucs.ts"
 import { buildWalls, clipBuildings, openBarriers } from "./walls.ts"
 import { carveAll, fitUnderDecks, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
-const OUT = join(ROOT, `src/sim/map/${REGION.file}.bin`)
+const OUT = join(ROOT, `src/sim/map/${REGION.file}.bin`),
+  TILES = join(ROOT, `src/sim/map/${REGION.file}`)
 const t0 = performance.now()
 const lap = (label: string) =>
   console.log(`${label.padEnd(10)} ${((performance.now() - t0) / 1000).toFixed(2)} s`)
@@ -383,7 +384,7 @@ const roadOut = (r: RoadF, i: number) => ({
   ...(verges.has(i) ? { verge: verges.get(i)! } : {}),
   ...roadLines[i]!,
 })
-const map: MonzoneMap = {
+const map: BuiltMap = {
   version: MAP_VERSION,
   origin: ORIGIN,
   mPerDeg: M_PER_DEG,
@@ -459,11 +460,30 @@ const map: MonzoneMap = {
   graph: { xy: graph.xy, edges: graph.edges, traffic: graph.traffic, walk: graph.walk },
   walls: { walk: walls.walk, shore: walls.shore, drive: walls.drive },
   trees,
+  cover: [],
   spawns: { player, parked },
 }
-const { file, sizes } = packMap(map)
-const gz = gzipSync(file, { level: 9 })
-writeFileSync(OUT, gz)
+const built: BuiltMap = { ...map, cover: rasterCover(map) }
+lap("cover")
+// The baked tables come from the game's own code, run on the map cut without them (bake.ts).
+const provisional = cutMap(built, REGION.file, NO_BAKES)
+provideMap(provisional.files.get("")!)
+const { setTileSource } = await import("../sim/map/tiles.ts")
+setTileSource((key) => provisional.files.get(key)!)
+const { bake } = await import("./bake.ts")
+const bakes = bake()
+lap("bake")
+const { global, files, sizes } = cutMap(built, REGION.file, bakes)
+rmSync(TILES, { recursive: true, force: true })
+mkdirSync(TILES)
+let gzBytes = 0,
+  largest = 0
+for (const [key, file] of files) {
+  const gz = gzipSync(file, { level: 9 })
+  writeFileSync(key === "" ? OUT : join(TILES, `${key}.bin`), gz)
+  gzBytes += gz.length
+  if (key !== "") largest = Math.max(largest, gz.length)
+}
 lap("write")
 
 printRail(railReport, platforms)
@@ -482,7 +502,10 @@ for (const r of map.roads)
 const kb = (bytes: number) => `${(bytes / 1024).toFixed(0)} KB`,
   jsonKb = (v: unknown) => kb(JSON.stringify(v).length)
 console.log({
-  bytes: gz.length,
+  hash: global.hash,
+  tiles: readdirSync(TILES).length,
+  bytes: gzBytes,
+  largestTile: largest,
   roads: map.roads.length,
   buildings: map.buildings.length,
   water: map.water.length,
@@ -512,7 +535,7 @@ console.log({
   parked: parked.length,
   player,
   grades,
-  // the file's parts before gzip (the JSON line, then the packed sections), and the JSON line's biggest fields
+  // the files' parts before gzip (the global JSON line and coarse grid, the tiles' sections summed), and the JSON line's biggest fields
   sizes: {
     ...Object.fromEntries(Object.entries(sizes).map(([part, n]) => [part, kb(n)])),
     graph: jsonKb(map.graph),

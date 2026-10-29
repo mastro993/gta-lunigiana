@@ -73,7 +73,7 @@ const railBedNear = (x: number, y: number, reach: number): number | undefined =>
 }
 
 /** How far across its centreline `water` holds water, m: out to its gravel bed's half-width (`Water.bed`), or its own where wider. */
-export const reachOf = (water: Water): number => Math.max(water.bed, water.w / 2)
+export const reachOf = (water: Pick<Water, "bed" | "w">): number => Math.max(water.bed, water.w / 2)
 
 /** Depth (m) and mean speed (m/s) at a vertex are `stage` × q^STAGE and `speed` × q^SPEED, q the discharge per km² (m³/s). */
 export const STAGE = 1 / (1 + DEPTH),
@@ -104,12 +104,30 @@ const zAlong = (s: Float64Array, z: ArrayLike<number>, at: number): number => {
   return span > 0 ? z[lo]! + ((z[hi]! - z[lo]!) * (at - s[lo]!)) / span : z[lo]!
 }
 
-/** The channel of `water`: grades over ±GRADE_WINDOW m of its surface, its bed, and its depth and speed per unit discharge. */
-export const channelOf = (water: Water): Channel => {
-  const { pts, z, w, area } = water,
-    n = pts.length / 2,
+/**
+ * The bed of `water` under its centreline per vertex (m a.s.l.): the terrain drawn there, `depth`/2
+ * under the culvert's dip under an at-grade road, and under the track no higher than that nor `depth`
+ * under the rail bed. It reads the terrain along the whole water, so the build bakes it into the map
+ * (`Water.floor`), which `channelOf` reads; `bake.test.ts` checks it is current.
+ */
+export const bedOf = (water: Water | Omit<Water, "floor">): Array<number> => {
+  const { pts, z } = water,
     // A vertex this near a track's centreline holds water out onto its rail bed.
     nearTrack = TRACK + reachOf(water)
+  return Array.from(z, (zi, i) => {
+    const x = pts[2 * i]!,
+      y = pts[2 * i + 1]!,
+      under = terrainZ(x, y)
+    if (atGrade(x, y) > under + ON_ROAD) return zi - water.depth / 2
+    const rail = railBedNear(x, y, nearTrack)
+    return rail === undefined ? under : Math.min(under, zi - water.depth / 2, rail - water.depth)
+  })
+}
+
+/** The channel of `water`: grades over ±GRADE_WINDOW m of its surface, its bed (baked: `bedOf`), and its depth and speed per unit discharge. */
+export const channelOf = (water: Water): Channel => {
+  const { pts, z, w, area } = water,
+    n = pts.length / 2
   const s = new Float64Array(n)
   for (let i = 1; i < n; i++)
     s[i] = s[i - 1]! + Ops.hypot(pts[2 * i]! - pts[2 * i - 2]!, pts[2 * i + 1]! - pts[2 * i - 1]!)
@@ -125,14 +143,7 @@ export const channelOf = (water: Water): Channel => {
   })
   return {
     grade,
-    bed: Float64Array.from(z, (zi, i) => {
-      const x = pts[2 * i]!,
-        y = pts[2 * i + 1]!,
-        under = terrainZ(x, y)
-      if (atGrade(x, y) > under + ON_ROAD) return zi - water.depth / 2
-      const rail = railBedNear(x, y, nearTrack)
-      return rail === undefined ? under : Math.min(under, zi - water.depth / 2, rail - water.depth)
-    }),
+    bed: Float64Array.from(water.floor),
     stage,
     speed: Float64Array.from(stage, (k, i) => (k > 0 ? area[i]! / (w * k) : 0)),
   }

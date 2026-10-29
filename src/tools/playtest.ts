@@ -3,6 +3,7 @@
 // closed at the end, at 1280×720 and a device pixel ratio of 1.
 // Run: node src/tools/playtest.ts shots <url> <outdir> <name>:<x>,<y>[,<texels/m>] … [map] [--port N] [--wait s]
 //      node src/tools/playtest.ts heap <url> [--port N] [--seconds s]  (pnpm playtest …)
+//      node src/tools/playtest.ts drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,x2,y2,…]
 // - shots needs a dev build (`pnpm exec vite`), whose page has `window.gta`, and fails on a
 //   production one. It dismisses the title card, then for each spot shows only the canvas, pins the
 //   zoom when given (texels per metre; else the game's own), pins the view's focus on the ground at
@@ -13,15 +14,34 @@
 //   first frame is drawn), the slowest frame and the 99th percentile over --seconds s (10) after the
 //   card goes (ms between animation frames), and the JS heap after a forced GC (MB, 10^6 bytes), as
 //   one JSON line.
+// - drive needs a dev build too (`gta.teleport`, `gta.tiles`). It dismisses the title card, puts the
+//   player at the route's start and waits for the resident tiles to hold still, then each animation
+//   frame teleports the player to where --speed m/s (40) has reached along the route (held at its
+//   end) for --seconds s (the route's length at that speed). The route is --route's points (map
+//   metres), else the SP59 from Monzone to Vinca out of the global map file. It reports, as one JSON
+//   line, the slowest frame and the 99th percentile, the slowest frame within 1 s of each tile-seam
+//   crossing, the most tiles resident at once, the tiles resident at the end and the heap after GC.
 // The port defaults to 9333.
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
+import { evaluate, openTab, press, type Tab } from "./cdp.ts"
+import {
+  defaultRoute,
+  driveReport,
+  driveScript,
+  endOf,
+  type Frame,
+  frameStats,
+  lengthOf,
+} from "./playtest-drive.ts"
+
 const USAGE = `usage: node src/tools/playtest.ts shots <url> <outdir> <name>:<x>,<y>[,<texels/m>] … [map] [--port N] [--wait s]
        node src/tools/playtest.ts heap <url> [--port N] [--seconds s]
-shots needs a dev build (pnpm exec vite: window.gta); heap works on dev and production builds`
+       node src/tools/playtest.ts drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,x2,y2,…]
+shots and drive need a dev build (pnpm exec vite: window.gta); heap works on dev and production builds`
 
 /** A place to shoot: x east and y north in map metres, at `zoom` texels per metre when set; or the full map. */
 type Spot =
@@ -50,6 +70,17 @@ export type Command =
       readonly port: number
       readonly seconds: number
     }
+  | {
+      readonly command: "drive"
+      readonly url: string
+      readonly port: number
+      /** m/s along the route. */
+      readonly speed: number
+      /** Unset: the route's length at `speed`. */
+      readonly seconds?: number
+      /** Flat x, y pairs in map metres; unset: `defaultRoute()`. */
+      readonly route?: ReadonlyArray<number>
+    }
 
 /** Parses `map` or `<name>:<x>,<y>[,<texels/m>]`; the name becomes a file name, so it holds only letters, digits, `_` and `-`. */
 export const parseSpot = (text: string): Spot => {
@@ -70,12 +101,25 @@ const positive = (text: string | undefined, fallback: number, flag: string): num
   return value
 }
 
+const parseRoute = (text: string): Array<number> => {
+  const route = text.split(",").map((v) => (v.trim() === "" ? Number.NaN : Number(v)))
+  if (route.length < 4 || route.length % 2 !== 0 || !route.every(Number.isFinite))
+    throw new Error(`bad --route "${text}": want x1,y1,x2,y2,… (two points or more)`)
+  return route
+}
+
 /** Parses the arguments after the script's name; throws on a bad line (the CLI prints the usage after the error). */
 export const parseCli = (argv: ReadonlyArray<string>): Command => {
   const { values, positionals } = parseArgs({
     args: [...argv],
     allowPositionals: true,
-    options: { port: { type: "string" }, wait: { type: "string" }, seconds: { type: "string" } },
+    options: {
+      port: { type: "string" },
+      wait: { type: "string" },
+      seconds: { type: "string" },
+      speed: { type: "string" },
+      route: { type: "string" },
+    },
   })
   const port = positive(values.port, 9333, "--port")
   if (!Number.isInteger(port) || port > 65_535) throw new Error(`bad --port "${values.port}"`)
@@ -94,16 +138,18 @@ export const parseCli = (argv: ReadonlyArray<string>): Command => {
   }
   if (command === "heap" && url !== undefined && rest.length === 0)
     return { command, url, port, seconds: positive(values.seconds, 10, "--seconds") }
+  if (command === "drive" && url !== undefined && rest.length === 0)
+    return {
+      command,
+      url,
+      port,
+      speed: positive(values.speed, 40, "--speed"),
+      ...(values.seconds === undefined
+        ? {}
+        : { seconds: positive(values.seconds, 0, "--seconds") }),
+      ...(values.route === undefined ? {} : { route: parseRoute(values.route) }),
+    }
   throw new Error("missing or extra arguments")
-}
-
-/** The slowest of `deltas` and its 99th percentile (nearest rank), in their unit; 0 for none. */
-export const frameStats = (deltas: ReadonlyArray<number>): { slowest: number; p99: number } => {
-  const sorted = deltas.toSorted((a, b) => a - b)
-  return {
-    slowest: sorted.at(-1) ?? 0,
-    p99: sorted[Math.max(0, Math.ceil(sorted.length * 0.99) - 1)] ?? 0,
-  }
 }
 
 /**
@@ -161,137 +207,8 @@ const READY_SCRIPT = `(() => {
 
 /** What every load sets: the viewport the shots and docs/standards/playtest.md use. */
 const METRICS = { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false }
-/** No CDP command takes longer unless the page hangs, but heap's frames evaluate, which gets its own. */
-const COMMAND_TIMEOUT_MS = 60_000
 /** Longest wait for the title card to say "Press any key": a cold dev server transforms every module first. */
 const LOAD_TIMEOUT_MS = 180_000
-
-interface Message {
-  readonly id?: number
-  readonly method?: string
-  readonly sessionId?: string
-  readonly params?: Record<string, unknown>
-  readonly result?: Record<string, unknown>
-  readonly error?: { readonly message: string }
-}
-
-interface Tab {
-  /** Sends a command to the page; it fails after `timeoutMs` (`COMMAND_TIMEOUT_MS`) without an answer. */
-  send<T = Record<string, unknown>>(method: string, params?: object, timeoutMs?: number): Promise<T>
-  on(method: string, handler: (params: Record<string, unknown>) => void): void
-  close(): Promise<void>
-}
-
-/** Opens a new tab in the Chrome on `port` and attaches to it; commands sent through the tab go to its page. On a failure it closes what it opened and throws. */
-export const openTab = async (port: number): Promise<Tab> => {
-  let browser: string
-  try {
-    const version = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()) as {
-      webSocketDebuggerUrl: string
-    }
-    browser = version.webSocketDebuggerUrl
-  } catch {
-    throw new Error(
-      `no Chrome on port ${port}: start it headless with --remote-debugging-port=${port} (docs/standards/playtest.md step 2)`,
-    )
-  }
-  const ws = new WebSocket(browser)
-  await new Promise((done, fail) => {
-    ws.addEventListener("open", done, { once: true })
-    ws.addEventListener("error", () => fail(new Error(`cannot connect to ${browser}`)), {
-      once: true,
-    })
-  })
-  let next = 0
-  const pending = new Map<
-    number,
-    { done: (r: Record<string, unknown>) => void; fail: (e: Error) => void }
-  >()
-  const handlers = new Map<string, (params: Record<string, unknown>) => void>()
-  ws.addEventListener("message", (event) => {
-    const message = JSON.parse(String(event.data)) as Message
-    if (message.id === undefined) {
-      if (message.method !== undefined) handlers.get(message.method)?.(message.params ?? {})
-      return
-    }
-    const waiting = pending.get(message.id)
-    pending.delete(message.id)
-    if (message.error === undefined) waiting?.done(message.result ?? {})
-    else waiting?.fail(new Error(message.error.message))
-  })
-  ws.addEventListener("close", () => {
-    for (const waiting of pending.values()) waiting.fail(new Error("Chrome closed the connection"))
-    pending.clear()
-  })
-  const raw = <T>(
-    method: string,
-    params: object,
-    sessionId?: string,
-    timeoutMs = COMMAND_TIMEOUT_MS,
-  ): Promise<T> =>
-    new Promise<Record<string, unknown>>((done, fail) => {
-      // A closed socket drops what is sent: fail now rather than at the timeout.
-      if (ws.readyState !== WebSocket.OPEN) {
-        fail(new Error(`${method}: Chrome closed the connection`))
-        return
-      }
-      const id = ++next
-      const timer = setTimeout(() => {
-        pending.delete(id)
-        fail(new Error(`${method}: no answer in ${timeoutMs / 1000} s`))
-      }, timeoutMs)
-      pending.set(id, {
-        done: (result) => (clearTimeout(timer), done(result)),
-        fail: (error) => (clearTimeout(timer), fail(new Error(`${method}: ${error.message}`))),
-      })
-      ws.send(
-        JSON.stringify({ id, method, params, ...(sessionId === undefined ? {} : { sessionId }) }),
-      )
-    }) as Promise<T>
-  const close = async (targetId: string | undefined): Promise<void> => {
-    if (targetId !== undefined) await raw("Target.closeTarget", { targetId }).catch(() => undefined)
-    ws.close()
-  }
-  let made: string | undefined
-  try {
-    const { targetId } = await raw<{ targetId: string }>("Target.createTarget", {
-      url: "about:blank",
-    })
-    made = targetId
-    const { sessionId } = await raw<{ sessionId: string }>("Target.attachToTarget", {
-      targetId,
-      flatten: true,
-    })
-    return {
-      send: (method, params = {}, timeoutMs) => raw(method, params, sessionId, timeoutMs),
-      on: (method, handler) => handlers.set(method, handler),
-      close: () => close(targetId),
-    }
-  } catch (error) {
-    // An open socket keeps the process alive: close it, and the tab when it was made.
-    await close(made)
-    throw error
-  }
-}
-
-/** Evaluates `expression` in the page, awaiting a promise, and returns its value; a page exception, or no answer in `timeoutMs`, throws. */
-const evaluate = async <T>(tab: Tab, expression: string, timeoutMs?: number): Promise<T> => {
-  const answer = await tab.send<{
-    result: { value?: unknown }
-    exceptionDetails?: { text: string; exception?: { description?: string } }
-  }>("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, timeoutMs)
-  const thrown = answer.exceptionDetails
-  if (thrown !== undefined) throw new Error(`page: ${thrown.exception?.description ?? thrown.text}`)
-  return answer.result.value as T
-}
-
-/** Presses and releases a key (`key` and `code` as KeyboardEvent has them). */
-const press = async (tab: Tab, key: string, code: string, keyCode: number): Promise<void> => {
-  const event = { key, code, windowsVirtualKeyCode: keyCode }
-  await tab.send("Input.dispatchKeyEvent", { type: "keyDown", ...event })
-  await sleep(80)
-  await tab.send("Input.dispatchKeyEvent", { type: "keyUp", ...event })
-}
 
 /** Loads `url` at 1280×720 (running `init` first in each new document) and waits for "Press any key"; returns the s it took. */
 const load = async (tab: Tab, url: string, init?: string): Promise<number> => {
@@ -328,6 +245,31 @@ const dismissTitle = async (tab: Tab): Promise<void> => {
     throw new Error("the title card stayed up after a key press")
 }
 
+/** Throws unless the page is a dev build whose `window.gta` has the functions `mode` calls. */
+const needDevBuild = async (
+  tab: Tab,
+  mode: string,
+  functions: ReadonlyArray<string>,
+): Promise<void> => {
+  const names = JSON.stringify(functions)
+  if (
+    !(await evaluate<boolean>(tab, `${names}.every((f) => typeof window.gta?.[f] === "function")`))
+  )
+    throw new Error(
+      `the page has no window.gta with ${functions.join(", ")}: ${mode} needs a dev build (pnpm exec vite), not pnpm preview`,
+    )
+}
+
+/** The JS heap after a forced GC, MB (10^6 bytes). */
+const heapAfterGc = async (tab: Tab): Promise<number> => {
+  await tab.send("HeapProfiler.enable")
+  await tab.send("HeapProfiler.collectGarbage")
+  return Math.round((await evaluate<number>(tab, "performance.memory.usedJSHeapSize")) / 1e6)
+}
+
+/** A value in ms or s to a tenth, as the reports print it. */
+const tenths = (value: number): number => Math.round(value * 10) / 10
+
 const shoot = async (tab: Tab, path: string): Promise<void> => {
   const { data } = await tab.send<{ data: string }>("Page.captureScreenshot", { format: "png" })
   writeFileSync(path, Buffer.from(data, "base64"))
@@ -337,10 +279,7 @@ const shoot = async (tab: Tab, path: string): Promise<void> => {
 const shots = async (tab: Tab, command: Extract<Command, { command: "shots" }>): Promise<void> => {
   const seconds = await load(tab, command.url)
   console.log(`ready in ${seconds.toFixed(1)} s`)
-  if ((await evaluate<string>(tab, "typeof gta")) !== "object")
-    throw new Error(
-      "the page has no window.gta: shots needs a dev build (pnpm exec vite), not pnpm preview",
-    )
+  await needDevBuild(tab, "shots", ["heightAt"])
   await dismissTitle(tab)
   mkdirSync(command.outdir, { recursive: true })
   for (const spot of command.spots) {
@@ -352,6 +291,10 @@ const shots = async (tab: Tab, command: Extract<Command, { command: "shots" }>):
       await press(tab, "m", "KeyM", 77)
       continue
     }
+    // A spot off the tiles in memory gets the coarse grid's height first; the view's tiles then stream in, and the second pin
+    // stands the focus on the exact ground.
+    await evaluate<number>(tab, spotScript(spot))
+    await sleep(2000)
     const elevation = await evaluate<number>(tab, spotScript(spot))
     console.log(`${spot.name}: ${spot.x}, ${spot.y}, ground at ${elevation.toFixed(1)} m`)
     await sleep(command.waitS * 1000)
@@ -372,16 +315,73 @@ const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): P
       command.seconds * 1000 + 10_000,
     ),
   )
-  await tab.send("HeapProfiler.enable")
-  await tab.send("HeapProfiler.collectGarbage")
-  const used = await evaluate<number>(tab, "performance.memory.usedJSHeapSize")
   console.log(
     JSON.stringify({
       url: command.url,
       firstFrameS: Math.round(firstFrame / 10) / 100,
-      slowestFrameMs: Math.round(slowest * 10) / 10,
-      p99FrameMs: Math.round(p99 * 10) / 10,
-      heapMB: Math.round(used / 1e6),
+      slowestFrameMs: tenths(slowest),
+      p99FrameMs: tenths(p99),
+      heapMB: await heapAfterGc(tab),
+    }),
+  )
+}
+
+/** Puts the player at (x, y) facing `angle` and waits until the resident tiles hold still for 1 s (20 s at most). */
+const settle = async (tab: Tab, x: number, y: number, angle: number): Promise<void> => {
+  await evaluate(tab, `gta.teleport(${x}, ${y}, ${angle})`)
+  let held = "",
+    still = 0
+  for (let k = 0; k < 80 && still < 4; k++) {
+    await sleep(250)
+    const now = await evaluate<string>(tab, "gta.tiles().join()")
+    still = now === held ? still + 1 : 0
+    held = now
+  }
+}
+
+const drive = async (tab: Tab, command: Extract<Command, { command: "drive" }>): Promise<void> => {
+  const route = command.route ?? defaultRoute()
+  const length = lengthOf(route),
+    seconds = command.seconds ?? length / command.speed
+  await load(tab, command.url)
+  await needDevBuild(tab, "drive", ["player", "teleport", "tiles"])
+  await dismissTitle(tab)
+  const start = endOf(route, false)
+  await settle(tab, start.x, start.y, Math.atan2(route[3]! - start.y, route[2]! - start.x))
+  // On stderr: stdout holds only the report's JSON line, as heap's does.
+  console.error(`driving ${Math.round(length)} m at ${command.speed} m/s for ${tenths(seconds)} s`)
+  // The script resolves by seconds + 5 s: its command waits 5 s longer than that.
+  const frames = await evaluate<Array<Frame>>(
+    tab,
+    driveScript(route, command.speed, seconds),
+    seconds * 1000 + 10_000,
+  )
+  const { slowest, p99, seams, slow, maxTiles } = driveReport(frames)
+  const tiles = await evaluate<Array<string>>(tab, "gta.tiles()")
+  console.log(
+    JSON.stringify({
+      url: command.url,
+      speed: command.speed,
+      routeM: Math.round(length),
+      seconds: tenths((frames.at(-1)?.[0] ?? 0) / 1000),
+      slowestFrameMs: tenths(slowest),
+      p99FrameMs: tenths(p99),
+      seamFrameMs: tenths(seams.reduce((m, seam) => Math.max(m, seam.slowest), 0)),
+      seams: seams.map(({ axis, at, t, slowest }) => ({
+        axis,
+        at,
+        t: tenths(t / 1000),
+        slowestFrameMs: tenths(slowest),
+      })),
+      framesOver30Ms: slow.map(({ t, x, y, dt }) => ({
+        t: tenths(t / 1000),
+        x: x === null ? null : Math.round(x),
+        y: y === null ? null : Math.round(y),
+        ms: tenths(dt),
+      })),
+      maxTiles,
+      tiles,
+      heapMB: await heapAfterGc(tab),
     }),
   )
 }
@@ -390,7 +390,9 @@ const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): P
 const run = async (command: Command): Promise<void> => {
   const tab = await openTab(command.port)
   try {
-    await (command.command === "shots" ? shots(tab, command) : heap(tab, command))
+    if (command.command === "shots") await shots(tab, command)
+    else if (command.command === "heap") await heap(tab, command)
+    else await drive(tab, command)
   } finally {
     await tab.close()
   }

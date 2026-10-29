@@ -1,16 +1,17 @@
 /**
  * The terrain mesh: one faceted, vertex-coloured mesh per chunk (render/chunks), cut from the 4 m
  * heightmap (row 0 = south) and continued by an apron beyond the map bounds so the edges never
- * show the void. Cells take their land-cover colour; very steep faces show bare limestone.
+ * show the void. Cells take their land-cover colour (`coverIndexAt`, from the tiles); very steep
+ * faces show bare limestone.
  *
  * @module render/terrain
  */
 import { BufferGeometry, Float32BufferAttribute } from "three"
 
-import { type Cover, coverName } from "../sim/map/cover.ts"
+import { type Cover, coverIndexAt, coverName } from "../sim/map/cover.ts"
 import { MAP } from "../sim/map/index.ts"
 import { hash01 } from "../tools/geometry.ts"
-import { CELLS, chunkCells } from "./chunks.ts"
+import { chunkCells } from "./chunks.ts"
 import { linear } from "./geometry.ts"
 import { ROCK_NORMAL_Y, terrainNodeY } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
@@ -69,8 +70,8 @@ const patchNoise = (i: number, j: number): number => {
 const shade = (look: CoverLook, i: number, j: number): number =>
   (look.stripes === true ? (i & 1) === 1 : patchNoise(i, j) < look.share) ? look.alt : look.base
 
-/** Builds the terrain chunk `key` (see `chunkOf`) coloured by the cover raster. */
-export const terrainChunk = (key: number, cover: Uint8Array): BufferGeometry => {
+/** Builds the terrain chunk `key` (see `chunkOf`) coloured by the land cover; its tiles must be in memory. */
+export const terrainChunk = (key: number): BufferGeometry => {
   const { i0, j0, i1, j1 } = chunkCells(key)
   const cells = (i1 - i0) * (j1 - j0)
   const position = new Float32Array(cells * 18),
@@ -132,9 +133,8 @@ export const terrainChunk = (key: number, cover: Uint8Array): BufferGeometry => 
   }
   for (let j = j0; j < j1; j++)
     for (let i = i0; i < i1; i++) {
-      const ki = Math.min(CELLS.x - 1, Math.max(0, i)),
-        kj = Math.min(CELLS.y - 1, Math.max(0, j))
-      const look = COVER_LOOK[coverName(cover[kj * CELLS.x + ki]!)]
+      // The apron takes the cover of the edge cell it continues (`coverIndexAt` clamps).
+      const look = COVER_LOOK[coverName(coverIndexAt(i, j))]
       const x = hm.x0 + i * hm.cell,
         y = hm.y0 + j * hm.cell,
         x1 = x + hm.cell,

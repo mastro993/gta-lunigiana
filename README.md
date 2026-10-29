@@ -172,8 +172,8 @@ Every script runs with `pnpm`:
 | `pnpm typecheck` | `tsc` (no emit) |
 | `pnpm lint` | type-aware `oxlint` with the Ritmo plugin and the project's own (`lint/`), warnings failing, then `ritmo-devtools lint src/lint.ts` |
 | `pnpm test` | `node --test` over `src/**/*.test.ts` and `lint/**/*.test.ts`, each in a `__tests__` folder beside the module it tests |
-| `pnpm map` | rebuilds `src/sim/map/monzone.bin` from `data/raw` |
-| `pnpm map --region cesena` | rebuilds the separate `src/sim/map/cesena.bin` from pinned Cesena inputs |
+| `pnpm map` | rebuilds `src/sim/map/monzone.bin` and its tiles (`src/sim/map/monzone/`) from `data/raw`, baking the tables the game reads from them |
+| `pnpm map --region cesena` | rebuilds the separate `src/sim/map/cesena.bin` and its tiles from pinned Cesena inputs |
 | `pnpm fetch-osm` | downloads the OpenStreetMap extract again into `data/raw/lunigiana.osm.gz` |
 | `pnpm fetch-osm --region cesena` | downloads the Cesena extract into `data/raw/cesena.osm.gz` |
 | `pnpm fetch-rt` | downloads the Regione Toscana sources again into `data/raw/rt`; `pnpm fetch-rt ctr` only the CTR sheets, leaving the LiDAR and the land cover as they are |
@@ -184,8 +184,8 @@ Every script runs with `pnpm`:
 | `pnpm coverage <part>` | per comune, the share of the part mapped by the CTR, each LiDAR lot and the fillers, and OSM forest against the land cover's woods, as a table and a PNG |
 | `pnpm footprint-check <part>` | villages and building clusters within 300 m of the part's edges, and roads that leave it and come back |
 | `pnpm ortho <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>]` | a Regione Toscana orthophoto crop with the built map's buildings, stone cores and stream widths drawn over it, for tracing the hand tables |
-| `pnpm playtest shots\|heap <url> …` | drives a running headless Chrome over CDP: screenshots of map spots and the full map, or first frame, slowest frame and heap after GC |
-| `pnpm map-diff <a.bin> <b.bin>` | the differences between two built maps, by category; exits 1 when they differ |
+| `pnpm playtest shots\|heap\|drive <url> …` | drives a running headless Chrome over CDP: screenshots of map spots and the full map; first frame, slowest frame and heap after GC; or a 40 m/s run along the SP59 to Vinca with the slowest frame at each tile seam, the tiles in memory and the heap at the end |
+| `pnpm map-diff <a.bin> <b.bin>` | the differences between two built maps (each global file with its tiles beside it), by category; exits 1 when they differ |
 
 ## Repository layout
 
@@ -199,14 +199,15 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `src/sim/water/` | the rivers: their flow from the weather's rain, their depth and current along each reach, and people and animals wading and swimming in them |
 | `src/sim/systems/` | one file per system group (spawn, enter/exit, foot, footing, drive, traffic, pedestrians, perception and reactions, animals, their frights, physics, contacts, damage, explosions, populate, populate animals, sky, water) |
 | `src/sim/population/` | who lives where and who goes out: residents from the buildings, people's looks, parties, farms |
-| `src/sim/map/` | the generated maps (`monzone.bin`, `cesena.bin`), their shared decoder, types and lookups (heights, walls, road graph, ground elevation, surfaces, land cover) |
+| `src/sim/map/` | the generated maps (the global files `monzone.bin` and `cesena.bin`, their 2 km tiles in `monzone/` and `cesena/`), their shared decoders, the tiles in memory, types and lookups (heights, walls, road graph, ground elevation, surfaces, land cover, the coarse grid) |
 | `src/render/` | Three.js host code: pixel pipeline, static world meshes (the railway's track, crossings, tunnel portals and stations among them), people, animal and vehicle models, the trains (the ATR 220 in DPR livery) and the level crossings' arms and lights, blood pools, tyre marks and smoke, damaged engines' smoke and fire, explosions and charred wrecks, the render schedule; `sky/` lights the day and the night and draws the weather (fog, snow, wet ground, cloud shadows, rain and snow, lightning, street and platform lamps, lit windows, headlights) |
 | `src/audio/` | Web Audio host code: the audio schedule, the acoustics director (vehicles, trains and level crossings, people, conversations, animals, the valley, the time of day, the weather and the thunder), the speaker and mixer, the synths, the audition page |
 | `src/audio/speech/` | the Italian-sounding speech: what people say, and a formant synthesiser that voices it |
 | `src/hud/` | DOM HUD: the title card as loading screen, location names, the clock and weather readout, prompt, the “Sei morto” card when the player is killed, speedometer, minimap, full map (M), touch controls (mobile mode), settings (Esc) with the vehicle physics, and the dev-only debug menu (P) for the time, the weather, the vehicle handling and the trains; the settings and the menu set the handling through one store, the menu the sky through another and calls trains through a third |
-| `src/tools/` | the region-aware map pipeline (`build-map.ts`; `region.ts` holds the regions and the parts of the Lunigiana map), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`, `fetch-rer.ts`), the tools that scope and check a new part (`rt-index.ts`, `pick-sheets.ts`, `pick-lidar.ts`, `coverage.ts`, `footprint-check.ts`, `ortho.ts`, `playtest.ts`, `map-diff.ts`), and a top-down preview renderer |
+| `src/tools/` | the region-aware map pipeline (`build-map.ts`; `region.ts` holds the regions and the parts of the Lunigiana map; `tile-map.ts` cuts the map into tiles and `bake.ts` bakes the tables the game reads from them; `map-file.ts` reads a map back whole), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`, `fetch-rer.ts`), the tools that scope and check a new part (`rt-index.ts`, `pick-sheets.ts`, `pick-lidar.ts`, `coverage.ts`, `footprint-check.ts`, `ortho.ts`, `playtest.ts`, `map-diff.ts`), and a top-down preview renderer |
 | `src/maps.ts` | browser map catalogue and validation of the `?map=` choice |
-| `src/boot.ts` | browser entry: downloads the map with progress, then imports the game |
+| `src/boot.ts` | browser entry: downloads the global map and the tiles round the start with progress, then imports the game |
+| `src/stream.ts` | browser host: brings the map's tiles in as the player moves and lets them go behind |
 | `src/main.ts` | browser host: builds the scene, makes the runtime, runs the fixed loop |
 | `index.html` | canvas, HUD and touch-control markup, title card (the loading screen), and the switch to mobile mode |
 | `lab.html` | the audio audition page (dev server only) |
@@ -224,7 +225,7 @@ Rebuild the map from the pinned inputs with one command:
 pnpm map
 ```
 
-The build reads only `data/raw` and takes about 9 s. Its output is deterministic: with the same inputs, `monzone.bin` (6.7 MB, gzipped) gunzips to the same bytes on every machine, and comes out byte-identical with the same Node build (another zlib or OS compresses differently). Never edit `monzone.bin` by hand.
+The build reads only `data/raw` and takes about 14 s. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test` fails until `pnpm map` and `pnpm map --region cesena` run again.
 
 Build Cesena without changing Lunigiana with `pnpm map --region cesena`. The checked-in inputs are sufficient; only run `pnpm fetch-osm --region cesena` and `pnpm fetch-rer --region cesena` when intentionally updating them. `data/raw/cesena/source.json` records the terrain request, verified CC BY 4.0 licence and raster SHA-256. Preview it with `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`, then run `pnpm check`.
 
@@ -242,7 +243,7 @@ Downloading the OSM data again pulls current edits, so the map changes; the file
 
 The map and the climate model use open data under these licences and terms:
 
-- **OpenStreetMap**: map data © OpenStreetMap contributors, available under the [Open Database License (ODbL) 1.0](https://www.openstreetmap.org/copyright). `monzone.bin` and `cesena.bin` are derived databases and stay under the ODbL.
+- **OpenStreetMap**: map data © OpenStreetMap contributors, available under the [Open Database License (ODbL) 1.0](https://www.openstreetmap.org/copyright). `monzone.bin` and `cesena.bin` and their tiles are derived databases and stay under the ODbL.
 - **Regione Toscana**: buildings, road surfaces, elevation and land cover, “Fonte dei dati: Regione Toscana – Rilievi LIDAR”, the Carta Tecnica Regionale 1:2000 and the Uso e copertura del suolo 2019, under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/), and the DTM 10x10 metri, under [Creative Commons Attribution 3.0 Italia](https://creativecommons.org/licenses/by/3.0/it/), from the [Geoscopio cartoteca](https://www502.regione.toscana.it/geoscopio/cartoteca.html).
 - **Regione Emilia-Romagna**: Cesena terrain from [DTM 5x5 - ultima edizione](https://geoportale.regione.emilia-romagna.it/catalogo/dati-cartografici/altimetria/layer-2), under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/), downloaded through the region's WCS. The game resamples the 5 m source onto its 4 m terrain grid; this does not add survey detail.
 - **ISPRA SCIA**: the 1991–2020 station normals (temperature and rain days) the national climate model is fitted to, from ISPRA’s SCIA [valori climatici normali](http://valori-climatici-normali.isprambiente.it/), and the heavy-rain shares of ISPRA’s report *I normali climatici 1991-2020 di temperatura e precipitazione in Italia*, under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).

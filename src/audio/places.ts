@@ -2,15 +2,17 @@
  * What the map around the listener sounds like: what a car hit (the material of the drive wall at
  * a contact point), the mix of forest, open ground and village (the ambience beds), how enclosed a
  * street is (the reverb send), forest along a path (foliage loss), rock faces that echo, and the
- * fixed places that make sound: church bells, farm dogs, birds in the trees, owls in the woods. Running water is in
- * places/water.ts; the surface under a foot or a tyre is the sim's (`surfaceAt`). Off the roads
- * everything reads the sim's land-cover raster (`mapCover`, built once and shared); the other
- * structures are built on their first query.
+ * church bells. The animals (farm dogs, owls, the birds' trees) are in places/animals.ts, running
+ * water in places/water.ts; the surface under a foot or a tyre is the sim's (`surfaceAt`). Off the
+ * roads everything reads the sim's land cover (`coverAt`). Around the listener the tiles are in
+ * memory and the reads are exact; forest along a path, which can run for kilometres, reads the
+ * coarse grid past them (`./ground.ts`). Each 32 m ambience block is worked out where it is first
+ * asked for, once the tiles under it are in memory, and kept.
  *
  * @module audio/places
  */
 import { segDist2 } from "../sim/collide.ts"
-import { type Cover, coverAt, coverName, mapCover } from "../sim/map/cover.ts"
+import { type Cover, coverAt, coverIndexAt, coverName } from "../sim/map/cover.ts"
 import {
   type Building,
   buildingBoxes,
@@ -23,10 +25,12 @@ import {
   TRUNK,
   wallsNear,
 } from "../sim/map/index.ts"
-import { hash01 } from "../tools/geometry.ts"
+import { isResident, tilesOver } from "../sim/map/tiles.ts"
 import { delayOf, EAR_HEIGHT } from "./acoustics.ts"
+import { landAt } from "./ground.ts"
 import type { Material } from "./types.ts"
 
+export { birdSpot, type Dog, dogsNear, type Owl, owlsNear } from "./places/animals.ts"
 export { waterNear, type WaterHeard } from "./places/water.ts"
 
 const { cell, x0, y0 } = MAP.heightmap,
@@ -85,9 +89,8 @@ export const wallAt = (x: number, y: number, reach = 3): Material => {
   const offer = (d: number, what: Material) => {
     if (d < nearest) [nearest, material] = [d, what]
   }
-  const { trees } = MAP
-  treesIn(x - reach, y - reach, x + reach, y + reach, (i) =>
-    offer(Math.hypot(trees[3 * i]! - x, trees[3 * i + 1]! - y) - TRUNK / 2, "tree"),
+  treesIn(x - reach, y - reach, x + reach, y + reach, (tx, ty) =>
+    offer(Math.hypot(tx - x, ty - y) - TRUNK / 2, "tree"),
   )
   buildingsIn(x - reach, y - reach, x + reach, y + reach, (i) => {
     const building = MAP.buildings[i]!,
@@ -135,54 +138,70 @@ const AMBIENCE = {
   pebble: "none",
 } as const satisfies Record<Cover, keyof Ambience | "none">
 
-/** An ambience cell is this many cover cells a side (32 m). */
-const BLOCK = 8
+/** Where each share of `Ambience` is kept in a block. */
+const SHARE = { forest: 0, open: 1, built: 2 } as const satisfies Record<keyof Ambience, number>
+/** Each land-cover index's share. */
+const KINDS = Array.from({ length: 256 }, (_, v) => AMBIENCE[coverName(v)])
 
-/** The ambience shares of every 32 m block of the cover raster. */
-const gridAmbience = () => {
-  const cols = Math.ceil(COLS / BLOCK),
-    rows = Math.ceil(ROWS / BLOCK),
-    raster = mapCover()
-  const shares = {
-    forest: new Float32Array(cols * rows),
-    open: new Float32Array(cols * rows),
-    built: new Float32Array(cols * rows),
+/** An ambience block is this many cover cells a side (32 m), on the cover's lattice; at most `BLOCKS` are kept (2 km square of them). */
+const BLOCK = 8,
+  BLOCKS = 4096
+const blockCols = Math.ceil(COLS / BLOCK),
+  blockRows = Math.ceil(ROWS / BLOCK)
+/** The blocks worked out, by `j * blockCols + i`: their forest, open and built shares. */
+const blocks = new Map<number, Float32Array>()
+
+/**
+ * The shares of block (i, j), its cells counted once the tiles under it are in memory (and kept); until
+ * then, all of its share is the coarse cover's at its centre.
+ */
+const blockAt = (i: number, j: number): Float32Array => {
+  const k = j * blockCols + i,
+    known = blocks.get(k)
+  if (known !== undefined) return known
+  // Blocks on the north and east edges are cut short.
+  const ci0 = i * BLOCK,
+    cj0 = j * BLOCK,
+    ci1 = Math.min(COLS, ci0 + BLOCK),
+    cj1 = Math.min(ROWS, cj0 + BLOCK)
+  const shares = new Float32Array(3)
+  const sw = { x: x0 + (ci0 + 0.5) * cell, y: y0 + (cj0 + 0.5) * cell },
+    ne = { x: x0 + (ci1 - 0.5) * cell, y: y0 + (cj1 - 0.5) * cell }
+  if (!tilesOver(sw.x, sw.y, ne.x, ne.y).every(isResident)) {
+    const kind = AMBIENCE[landAt((sw.x + ne.x) / 2, (sw.y + ne.y) / 2)]
+    if (kind !== "none") shares[SHARE[kind]] = 1
+    return shares
   }
-  const kinds = Array.from({ length: 256 }, (_, v) => AMBIENCE[coverName(v)])
-  for (let j = 0; j < ROWS; j++)
-    for (let i = 0; i < COLS; i++) {
-      const kind = kinds[raster[j * COLS + i]!]!
-      if (kind !== "none") shares[kind][Math.floor(j / BLOCK) * cols + Math.floor(i / BLOCK)]! += 1
+  for (let cj = cj0; cj < cj1; cj++)
+    for (let ci = ci0; ci < ci1; ci++) {
+      const kind = KINDS[coverIndexAt(ci, cj)]!
+      if (kind !== "none") shares[SHARE[kind]]! += 1
     }
-  for (let k = 0; k < cols * rows; k++) {
-    const i = k % cols,
-      j = Math.floor(k / cols)
-    // Blocks on the north and east edges are cut short.
-    const n =
-      (Math.min(COLS, (i + 1) * BLOCK) - i * BLOCK) * (Math.min(ROWS, (j + 1) * BLOCK) - j * BLOCK)
-    for (const share of [shares.forest, shares.open, shares.built]) share[k]! /= n
-  }
-  return { cols, rows, shares }
+  for (let s = 0; s < 3; s++) shares[s]! /= (ci1 - ci0) * (cj1 - cj0)
+  if (blocks.size >= BLOCKS) blocks.delete(blocks.keys().next().value!)
+  blocks.set(k, shares)
+  return shares
 }
-let ambience: ReturnType<typeof gridAmbience> | undefined
 
 /** The ambience around (x, y): the 32 m blocks' shares, bilinear between block centres. */
 export const ambienceAt = (x: number, y: number): Ambience => {
-  const { cols, rows, shares } = (ambience ??= gridAmbience()),
-    size = cell * BLOCK
-  const fx = Math.min(cols - 1, Math.max(0, (x - x0) / size - 0.5)),
-    fy = Math.min(rows - 1, Math.max(0, (y - y0) / size - 0.5))
-  const i = Math.min(cols - 2, Math.floor(fx)),
-    j = Math.min(rows - 2, Math.floor(fy)),
+  const size = cell * BLOCK
+  const fx = Math.min(blockCols - 1, Math.max(0, (x - x0) / size - 0.5)),
+    fy = Math.min(blockRows - 1, Math.max(0, (y - y0) / size - 0.5))
+  const i = Math.min(blockCols - 2, Math.floor(fx)),
+    j = Math.min(blockRows - 2, Math.floor(fy)),
     tx = fx - i,
-    ty = fy - j,
-    k = j * cols + i
-  const at = (a: Float32Array) => {
-    const south = a[k]! + (a[k + 1]! - a[k]!) * tx,
-      north = a[k + cols]! + (a[k + cols + 1]! - a[k + cols]!) * tx
+    ty = fy - j
+  const sw = blockAt(i, j),
+    se = blockAt(i + 1, j),
+    nw = blockAt(i, j + 1),
+    ne = blockAt(i + 1, j + 1)
+  const at = (s: number) => {
+    const south = sw[s]! + (se[s]! - sw[s]!) * tx,
+      north = nw[s]! + (ne[s]! - nw[s]!) * tx
     return south + (north - south) * ty
   }
-  return { forest: at(shares.forest), open: at(shares.open), built: at(shares.built) }
+  return { forest: at(SHARE.forest), open: at(SHARE.open), built: at(SHARE.built) }
 }
 
 /** Facades are looked for in `PROBES` directions up to `PROBE_REACH` m; one `FULL_FACADE` m above the listener's ground counts fully. */
@@ -224,13 +243,13 @@ export const streetAt = (x: number, y: number): number => {
 /** Forest along a path is sampled every this many metres. */
 const FOREST_STEP = 8
 
-/** Metres of forest on the straight path from (ax, ay) to (bx, by), for `foliageLoss`. */
+/** Metres of forest on the straight path from (ax, ay) to (bx, by), for `foliageLoss` (the coarse cover's past the tiles in memory). */
 export const forestAlong = (ax: number, ay: number, bx: number, by: number): number => {
   const length = Math.hypot(bx - ax, by - ay),
     n = Math.max(1, Math.ceil(length / FOREST_STEP))
   let forest = 0
   for (let k = 0; k < n; k++)
-    if (coverAt(ax + ((bx - ax) * (k + 0.5)) / n, ay + ((by - ay) * (k + 0.5)) / n) === "forest")
+    if (landAt(ax + ((bx - ax) * (k + 0.5)) / n, ay + ((by - ay) * (k + 0.5)) / n) === "forest")
       forest++
   return (forest * length) / n
 }
@@ -340,111 +359,3 @@ const findBells = (): Array<Bell> => {
 }
 /** One bell per settlement. */
 export const bells: ReadonlyArray<Bell> = findBells()
-
-/** A farm dog in a yard. */
-export interface Dog {
-  readonly key: string
-  readonly x: number
-  readonly y: number
-  readonly z: number
-  readonly big: boolean
-}
-
-/** Buildings with a dog: about one in `DOG_SHARE` of these kinds, out of the village cores, with open ground `YARD` m out. */
-const KENNELS: ReadonlySet<string> = new Set(["barn", "shed", "house", "farm_auxiliary"])
-const DOG_SHARE = 8,
-  YARD = 5
-const YARD_COVERS: ReadonlySet<Cover> = new Set(["meadow", "grassland", "farmland", "farmyard"])
-
-/** Every dog: hashed picks among the kennel buildings, placed in the first open yard probed around the building. */
-const findDogs = (): Array<Dog> => {
-  const out: Array<Dog> = []
-  MAP.buildings.forEach(({ id, kind }, i) => {
-    if (!KENNELS.has(kind) || hash01(id, 1) * DOG_SHARE >= 1) return
-    const [bx0, by0, bx1, by1] = buildingBoxes[i]!,
-      cx = (bx0 + bx1) / 2,
-      cy = (by0 + by1) / 2
-    const probes = [
-      [bx0 - YARD, cy],
-      [cx, by0 - YARD],
-      [bx1 + YARD, cy],
-      [cx, by1 + YARD],
-    ] as const
-    const covers = probes.map(([px, py]) => coverAt(px, py))
-    const yard = covers.findIndex((c) => YARD_COVERS.has(c))
-    if (covers.includes("paved") || yard < 0) return
-    const [x, y] = probes[yard]!
-    out.push({ key: `dog:${id}`, x, y, z: heightAt(x, y) + 0.5, big: hash01(id, 2) < 0.5 })
-  })
-  return out
-}
-let dogs: ReadonlyArray<Dog> | undefined
-
-/** The dogs within `radius` m of (x, y). */
-export const dogsNear = (x: number, y: number, radius: number): ReadonlyArray<Dog> =>
-  (dogs ??= findDogs()).filter((d) => (d.x - x) ** 2 + (d.y - y) ** 2 <= radius * radius)
-
-/** A tawny owl in its wood: the tree it calls from. */
-export interface Owl {
-  readonly key: string
-  readonly x: number
-  readonly y: number
-  readonly z: number
-}
-
-/**
- * One owl territory in `OWL_SHARE` of the map's `OWL_CELL` m squares with woods in them (a tawny owl holds 20–30 ha), perched
- * `OWL_PERCH` m up a tree at the first of `OWL_TRIES` hashed points of the square that falls in forest.
- */
-const OWL_CELL = 500,
-  OWL_SHARE = 0.7,
-  OWL_TRIES = 8,
-  OWL_PERCH = 8
-
-/** Every owl. */
-const findOwls = (): Array<Owl> => {
-  const { minX, minY, maxX, maxY } = MAP.bounds,
-    out: Array<Owl> = []
-  for (let i = 0; minX + i * OWL_CELL < maxX; i++) {
-    for (let j = 0; minY + j * OWL_CELL < maxY; j++) {
-      if (hash01(i, j, 11) >= OWL_SHARE) continue
-      for (let k = 0; k < OWL_TRIES; k++) {
-        const x = Math.min(maxX, minX + (i + hash01(i, j, k, 12)) * OWL_CELL),
-          y = Math.min(maxY, minY + (j + hash01(i, j, k, 13)) * OWL_CELL)
-        if (coverAt(x, y) !== "forest") continue
-        out.push({ key: `owl:${i},${j}`, x, y, z: heightAt(x, y) + OWL_PERCH })
-        break
-      }
-    }
-  }
-  return out
-}
-let owls: ReadonlyArray<Owl> | undefined
-
-/** The owls within `radius` m of (x, y). */
-export const owlsNear = (x: number, y: number, radius: number): ReadonlyArray<Owl> =>
-  (owls ??= findOwls()).filter((o) => (o.x - x) ** 2 + (o.y - y) ** 2 <= radius * radius)
-
-/** Birds sing from trees `BIRD_NEAR` to `BIRD_FAR` m from the listener. */
-const BIRD_NEAR = 15,
-  BIRD_FAR = 70
-
-/** A random tree 15–70 m from (x, y) for a bird to sing from, 6–12 m up; undefined where no tree is that near. */
-export const birdSpot = (
-  x: number,
-  y: number,
-  random: () => number,
-): { readonly x: number; readonly y: number; readonly z: number } | undefined => {
-  const { trees } = MAP
-  let picked = -1,
-    seen = 0
-  treesIn(x - BIRD_FAR, y - BIRD_FAR, x + BIRD_FAR, y + BIRD_FAR, (i) => {
-    const d2 = (trees[3 * i]! - x) ** 2 + (trees[3 * i + 1]! - y) ** 2
-    // Reservoir sampling: every tree in the ring is equally likely, with no list.
-    if (d2 >= BIRD_NEAR ** 2 && d2 <= BIRD_FAR ** 2 && random() * ++seen < 1) picked = i
-  })
-  if (picked < 0) return undefined
-  const tx = trees[3 * picked]!,
-    ty = trees[3 * picked + 1]!
-  return { x: tx, y: ty, z: heightAt(tx, ty) + 6 + 6 * random() }
-}

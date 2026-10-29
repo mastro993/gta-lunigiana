@@ -3,6 +3,10 @@ import { test } from "node:test"
 
 import { buildingsIn, heightAt, MAP } from "../../sim/map/index.ts"
 import { pathDifference } from "../occlusion.ts"
+import { residentMap } from "../testing.ts"
+
+// The whole map in memory, as around the player in the game: every path reads the exact terrain.
+residentMap()
 
 /** A point `up` m above the ground at (x, y). */
 const at = (x: number, y: number, up = 1.6) => ({ x, y, z: heightAt(x, y) + up })

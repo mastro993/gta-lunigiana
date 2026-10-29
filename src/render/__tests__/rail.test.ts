@@ -5,6 +5,7 @@ import { segDist2 } from "../../sim/collide.ts"
 import { MAP } from "../../sim/map/index.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
+import { buildingPieces } from "../buildings.ts"
 import { chunkOf } from "../chunks.ts"
 import { BARRIER, ROAD_LIGHT } from "../crossings.ts"
 import { linear, Triangles, type Piece, type Sink, WaterTriangles } from "../geometry.ts"
@@ -12,6 +13,7 @@ import { atGradeY, terrainY, yOf } from "../ground.ts"
 import { linePieces } from "../lines.ts"
 import { PALETTE } from "../palette.ts"
 import { railPieces } from "../rail.ts"
+import { lampPieces } from "../sky/lamps.ts"
 import { stationPieces } from "../stations.ts"
 import { bucketPieces } from "../world.ts"
 
@@ -89,8 +91,8 @@ const offRoad = (b: number, x: number, y: number) => {
   }
 }
 
-test("rail and stations: a chunk build keeps exactly its cut of the whole-map build", () => {
-  for (const list of [pieces, stationPieces()]) {
+test("rail, stations, roads and rivers, lamps and buildings: a chunk build keeps exactly its cut of the whole-map build", () => {
+  for (const list of [pieces, stationPieces(), linePieces(), lampPieces(), buildingPieces()]) {
     // The whole map drawn once, each triangle into the chunk `at` sends it to.
     const cut = new Map<number, Sink>()
     for (const piece of list)
@@ -117,10 +119,16 @@ test("rail and stations: a chunk build keeps exactly its cut of the whole-map bu
           entries[n + 2]!,
         )
       const expected = cut.get(key) ?? sink()
-      for (const layer of ["solid", "decal", "glow"] as const) {
+      for (const layer of ["solid", "decal", "water", "glow"] as const) {
         assert.deepEqual(mine[layer].position, expected[layer].position, `chunk ${key} ${layer}`)
         assert.deepEqual(mine[layer].color, expected[layer].color, `chunk ${key} ${layer} colours`)
       }
+      // A building's walls are an extrusion of its own.
+      assert.deepEqual(
+        mine.pieces.map((g) => g.getAttribute("position").array),
+        expected.pieces.map((g) => g.getAttribute("position").array),
+        `chunk ${key} extrusions`,
+      )
       built++
     }
     assert.ok(built >= 5, `${built} chunks hold some`)

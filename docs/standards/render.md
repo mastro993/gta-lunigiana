@@ -20,9 +20,14 @@ Checks for a change in `src/render`, the camera, the view or the keys, on top of
 - **Axes**: Three.js world axes are (east, up, −north), so the map point (x, y) at height h is
   (x, h, −y).
 - **Streaming**: a chunk build keeps giving the same result as cutting the same area from a
-  whole-map build ([architecture.md](../architecture.md), "Rendering"). A new mesh, geometry or
-  buffer is disposed when the chunk or node that owns it is dropped: an x-ray proxy once leaked
-  GPU memory.
+  whole-map build ([architecture.md](../architecture.md), "Rendering"). A chunk builds only once
+  every map tile its build reads is in memory (`src/render/chunk-tiles.ts`), since a read off the
+  tiles in memory throws "map tile i_j not loaded": a new piece that reads the ground more than
+  50 m from the segments it draws gives that area as its `reads` box (`Piece.reads`). Nothing at
+  `World` construction, nor in `makeCrossings`, reads a tile (`world.test.ts` checks both), as the
+  host then holds only the start's tiles: build such geometry on the piece's first draw. A new mesh,
+  geometry or buffer is disposed when the chunk or node that owns it is dropped: an x-ray proxy once
+  leaked GPU memory.
 - **Terrain fits**: anything fitted to the terrain samples the whole view, interior included: a
   valley deep inside the frame escapes a fit built on the view's edges (PR #2's shadow box).
 - **Lit materials**: a new lit material takes a weather variant (`weatherMaterial` in

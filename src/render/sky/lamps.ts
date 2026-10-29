@@ -1,6 +1,7 @@
 /**
- * Street lamps: wall-mounted lanterns on the houses along village streets. The map has no lamp data
- * (two `street_lamp` nodes in the raw OSM), so they are placed here, deterministically from `MAP`:
+ * Street lamps: wall-mounted lanterns on the houses along village streets. OSM has no lamp data
+ * (two `street_lamp` nodes in the raw OSM), so they are placed here, deterministically from `MAP`
+ * (the build runs `bakeLamps` and the map file keeps the list: `MAP.lamps`):
  * along tertiary, unclassified, residential and service roads, every ≈ 28 m where a house wall
  * fronts the road within 6 m of the carriageway (the road point lies square in front of it) and at
  * least four buildings stand within 40 m (a village, not a lone farmhouse). Each lantern hangs
@@ -16,6 +17,7 @@ import {
   buildingBoxes,
   buildingsIn,
   buildingStyleOf,
+  type Lamp,
   MAP,
   ROAD_CLASSES,
   roadClassOf,
@@ -23,7 +25,7 @@ import {
 } from "../../sim/map/index.ts"
 import { eaveOf, windowCount } from "../buildings.ts"
 import type { Piece, Sink } from "../geometry.ts"
-import { groundY, terrainY } from "../ground.ts"
+import { groundY, terrainY, yOf, zOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
 import { block } from "../ribbons.ts"
 import { platformLamps } from "../stations.ts"
@@ -198,13 +200,13 @@ export const placeLamps = (): Array<StreetLamp> => {
   return lamps
 }
 
-let placed: ReadonlyArray<StreetLamp> | undefined
 /**
- * Every lamp: the wall lanterns (`placeLamps()`) and the platforms' pole lamps (`platformLamps()`), placed on first use and
- * shared (the world's chunks and the night lights read the same list); never write to it.
+ * Every lamp of the map for the map file (`MAP.lamps`): the wall lanterns (`placeLamps()`) then the platforms' pole lamps
+ * (`platformLamps()`), their heights in m a.s.l. Placing them reads the terrain under every house that fronts a lit road, so
+ * the build bakes them; `bake.test.ts` checks they are current.
  */
-export const streetLamps = (): ReadonlyArray<StreetLamp> =>
-  (placed ??= [
+export const bakeLamps = (): Array<Lamp> =>
+  [
     ...placeLamps(),
     ...platformLamps().map(({ x, y, h, nx, ny }) => ({
       x: x + nx * ARM,
@@ -214,7 +216,12 @@ export const streetLamps = (): ReadonlyArray<StreetLamp> =>
       ny,
       kind: "pole" as const,
     })),
-  ])
+  ].map(({ h, ...lamp }) => ({ ...lamp, z: zOf(h) }))
+
+let placed: ReadonlyArray<StreetLamp> | undefined
+/** Every lamp, as the map holds them (`bakeLamps`), read on first use and shared (the world's chunks and the night lights read the same list); never write to it. */
+export const streetLamps = (): ReadonlyArray<StreetLamp> =>
+  (placed ??= MAP.lamps.map(({ z, ...lamp }) => ({ ...lamp, h: yOf(z) })))
 
 let grid: ReturnType<typeof staticGrid> | undefined
 /**

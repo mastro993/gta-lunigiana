@@ -42,6 +42,7 @@ import {
 } from "../schema.ts"
 import { deathChance, DOWN_TIME, halfOf } from "../systems/contacts.ts"
 import { footingAt } from "../systems/footing.ts"
+import { inReach, playerPose } from "../systems/reach.ts"
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
 import { axisNear, nearCar, onLevel, type TrainCar, trainCars } from "./bodies.ts"
@@ -113,7 +114,7 @@ const overlap = (model: VehicleModel, x: number, y: number, angle: number, car: 
  * wrecked so faster than IMPACT_SPEED; a `train` Impact as a contact begins, the two apart where the step began, and the blow
  * that wrecks it), people and animals (pushed aside, or knocked down, thrown and maybe killed when the train's own speed into
  * them is over KNOCK_SPEED: a `person` or `animal` Impact with the train as its `car`, and a point for the player when they
- * drive the train).
+ * drive the train). A vehicle beyond the player's reach (`inReach`) stands frozen: the train passes through it.
  */
 export const TrainContacts = Game.System(
   "Lunigiana/TrainContacts",
@@ -152,6 +153,7 @@ export const TrainContacts = Game.System(
         },
       }),
       driver: Game.Query({ selection: { driving: Game.Query.read(Driving) }, with: [Player] }),
+      player: playerPose(),
     },
     resources: {
       score: Game.System.writeResource(Score),
@@ -179,13 +181,15 @@ export const TrainContacts = Game.System(
     const mine = new Set<number>(
       queries.driver.each().map(({ data }) => Game.Entity.id(data.driving.get().vehicle) as number),
     )
+    const player = queries.player.each()[0]?.data.pose.get()
 
     for (const { entity, data } of queries.vehicles.each()) {
+      let pose = data.pose.get()
+      if (!inReach(pose, player)) continue
       const { model } = data.vehicle.get(),
         spec = VEHICLES[model],
         ground = data.chassis.get().z - spec.cg
-      let pose = data.pose.get(),
-        { vx, vy } = data.motion.get(),
+      let { vx, vy } = data.motion.get(),
         moved = false
       const prev = data.prev.get()
       for (const [k, car] of cars.entries()) {

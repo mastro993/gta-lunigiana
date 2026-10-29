@@ -88,22 +88,24 @@ follow from the discharge per km², q.
   keeps what came down to it: D8 may route the water it joins through a tail running beside it. The Torrente Lucido drains 47 km² where it meets the Aulella. The bounds
   hold only the Aulella's left bank, so it takes 161 km² from beyond them (the Soliera gauge's
   208 km² less the Lucido's), and leaves the map with 208.
-- **The channel** (`channelOf`, `channel.ts`): as wide as the water (`Water.w`), its bed the
-  terrain drawn under the centreline (except under an at-grade road, where it stays `depth`/2
-  under the culvert's dip, so the road stays dry until a flood overtops it; and near the track, on
-  the ground or a bridge, where it is no higher than that nor `depth` under the rail bed: the map
-  build lays the rail bed across a stream at grade, banks it up beside it and leaves the ground
-  under a low CTR bridge at the track's level, and the stream runs through the culvert or under
-  the deck. Near is within the water's own reach (`reachOf`, its gravel bed's half-width: 3 m on a
-  narrow stream) of the rail bed's 4 m, since a vertex holds water that far across it: the
-  vertices within 2 m of the centreline alone left 0.06 m on the bed's edge beside two of the
-  culverts at the mean flow and 0.24–0.31 m in a 0.6 m³/s per km² spate. The whole rail bed stays
-  dry where the three streams cross it at every flow up to the gauge's record flood (688 m³/s at
-  Soliera, 3.3 m³/s per km²)), and its grade the surface's fall over ±40 m. Depth and mean speed
-  follow Manning's equation with Jarrett's (1984) roughness for high-gradient streams, n = 0.39
-  S^0.38 R^−0.16, fitted on Colorado mountain streams of 0.2–5.2 % grade (flatter and steeper
-  reaches are held to that range); for a wide channel Q = w h^1.83 S^0.12 / 0.39, so the depth goes
-  as q^0.547 and the speed as q^0.453.
+- **The channel** (`channelOf`, `channel.ts`): as wide as the water (`Water.w`), its bed the terrain
+  drawn under the centreline (except under an at-grade road, where it stays `depth`/2 under the
+  culvert's dip, so the road stays dry until a flood overtops it; and near the track, on the ground
+  or a bridge, where it is no higher than that nor `depth` under the rail bed: the map build lays
+  the rail bed across a stream at grade, banks it up beside it and leaves the ground under a low CTR
+  bridge at the track's level, and the stream runs through the culvert or under the deck. Near is
+  within the water's own reach (`reachOf`, its gravel bed's half-width: 3 m on a narrow stream) of
+  the rail bed's 4 m, since a vertex holds water that far across it: the vertices within 2 m of the
+  centreline alone left 0.06 m on the bed's edge beside two of the culverts at the mean flow and
+  0.24–0.31 m in a 0.6 m³/s per km² spate. The whole rail bed stays dry where the three streams
+  cross it at every flow up to the gauge's record flood (688 m³/s at Soliera, 3.3 m³/s per km²)),
+  and its grade the surface's fall over ±40 m. The bed reads the terrain along the whole water,
+  which the game holds only near the player, so the build works it out (`bedOf`) and the map file
+  keeps it per vertex (`Water.floor`), which `channelOf` reads. Depth and mean speed follow
+  Manning's equation with Jarrett's (1984) roughness for high-gradient streams, n = 0.39 S^0.38
+  R^−0.16, fitted on Colorado mountain streams of 0.2–5.2 % grade (flatter and steeper reaches are
+  held to that range); for a wide channel Q = w h^1.83 S^0.12 / 0.39, so the depth goes as q^0.547
+  and the speed as q^0.453.
 - **At a point** (`waterAt`, `rivers.ts`): the nearest reach within its gravel bed's half-width
   (`Water.bed`; a narrow stream's 3 m). Across the reach the surface is level, so the depth is the
   level less the floor a body stands on; the water spreads over the gravel as it rises. The current
@@ -184,9 +186,12 @@ quarter of its underbody by the water over that quarter:
 - **Stalling**: water over the engine's air intake cuts its drive (`stalled`): a Panda's at 0.6 m,
   an Ape's at 0.45, a Giulia's at 0.55, the truck's stack at 2.4 (estimates from each model's
   layout). Out of the water the engine runs again.
-- **No sleeping**: a vehicle at rest in a river is never put to sleep, so a rising flood floats a
-  parked car off. In the Lucido below Monzone a parked Panda holds at the mean flow and is carried
-  off downstream in a spate.
+- **No sleeping**: a vehicle at rest in a river within 500 m of the player along both axes is never
+  put to sleep, so a rising flood floats a parked car off. In the Lucido below Monzone a parked
+  Panda holds at the mean flow and is carried off downstream in a spate. Farther off a vehicle
+  stands frozen, so a
+  flood does not move it until the player comes near
+  ([gameplay.md](gameplay.md#vehicles-far-from-the-player)).
 
 AI drivers keep to their lanes; a car shoved into a river is carried off like any other.
 

@@ -1,8 +1,10 @@
 /**
  * Trees: chestnut-like round canopies and a few conifers, one
  * InstancedMesh per kind per chunk, built when the chunk streams in. Trees near the map edge are
- * mirrored into the apron so the forest does not stop at the bounds. A `canopy` vertex attribute
- * (1 on the crown, 0 on the trunk) tells the tree material what sways in the wind.
+ * mirrored into the apron so the forest does not stop at the bounds. Each tree's look is drawn from
+ * its seed, three times its index in the whole map's list (a mirror's one more), so a tree looks the
+ * same whichever tile brought it. A `canopy` vertex attribute (1 on the crown, 0 on the trunk) tells
+ * the tree material what sways in the wind.
  *
  * @module render/trees
  */
@@ -21,6 +23,7 @@ import {
 } from "three"
 
 import { MAP } from "../sim/map/index.ts"
+import { tileTrees } from "../sim/map/tiles.ts"
 import { hash01 } from "../tools/geometry.ts"
 import { APRON, chunkOf } from "./chunks.ts"
 import { merge, paint } from "./geometry.ts"
@@ -96,14 +99,21 @@ const sizeOf = (seed: number, scale: number): number => scale * (0.85 + 0.3 * ha
 const baseY = (x: number, y: number): number => terrainY(x, y) - 0.2
 
 /**
- * Whether the point (x, y) at render height `h` lies in the crown of tree `k` (`MAP.trees` at 3k,
- * as `treesIn` gives it): the broadleaf's ellipsoid, or the conifer's cone, as drawn.
+ * Whether the point (x, y) at render height `h` lies in the crown of the tree at (tx, ty) of map
+ * scale `scale` and index `id` (as `treesIn` gives them): the broadleaf's ellipsoid, or the
+ * conifer's cone, as drawn.
  */
-export const inCrown = (k: number, x: number, y: number, h: number): boolean => {
-  const tx = MAP.trees[3 * k]!,
-    ty = MAP.trees[3 * k + 1]!,
-    seed = 3 * k,
-    s = sizeOf(seed, MAP.trees[3 * k + 2]!),
+export const inCrown = (
+  tx: number,
+  ty: number,
+  scale: number,
+  id: number,
+  x: number,
+  y: number,
+  h: number,
+): boolean => {
+  const seed = 3 * id,
+    s = sizeOf(seed, scale),
     kind = kindOf(seed),
     { radius, height, at } = CROWN[kind]
   const across = Math.hypot(x - tx, y - ty) / (radius * s),
@@ -113,15 +123,30 @@ export const inCrown = (k: number, x: number, y: number, h: number): boolean => 
   return Math.abs(up) < height / 2 && across < 0.5 - up / height
 }
 
-/** Calls `visit` for each tree of MAP.trees and each mirror image of the trees within the apron width of an edge. */
-const eachTree = (visit: (x: number, y: number, scale: number, seed: number) => void): void => {
+/** One chunk's trees per kind: flat (x, y, scale, seed) quadruples, in seed order. */
+type ChunkTrees = Readonly<Record<TreeKind, ArrayLike<number>>>
+
+/**
+ * The trees of tile `key` (in memory) bucketed by chunk and kind, each tree within the apron width
+ * of a map edge with its mirror images across it: the whole map's buckets cut by tile.
+ */
+export const bucketTileTrees = (key: string): Map<number, ChunkTrees> => {
   const { minX, minY, maxX, maxY } = MAP.bounds
   const reach = APRON * MAP.heightmap.cell
-  for (let i = 0; i + 2 < MAP.trees.length; i += 3) {
-    const x = MAP.trees[i]!,
-      y = MAP.trees[i + 1]!,
-      scale = MAP.trees[i + 2]!
-    visit(x, y, scale, i)
+  const { trees, ids } = tileTrees(key)
+  const chunks = new Map<number, Record<TreeKind, Array<number>>>()
+  const visit = (x: number, y: number, scale: number, seed: number) => {
+    const chunk = chunkOf(x, y)
+    let bucket = chunks.get(chunk)
+    if (bucket === undefined) chunks.set(chunk, (bucket = { broadleaf: [], conifer: [] }))
+    bucket[kindOf(seed)].push(x, y, scale, seed)
+  }
+  for (let k = 0; k < ids.length; k++) {
+    const x = trees[3 * k]!,
+      y = trees[3 * k + 1]!,
+      scale = trees[3 * k + 2]!,
+      seed = 3 * ids[k]!
+    visit(x, y, scale, seed)
     // Most trees are far from every edge: no mirrors, so skip building the lists below.
     if (x - minX >= reach && maxX - x >= reach && y - minY >= reach && maxY - y >= reach) continue
     const xs = [
@@ -134,24 +159,52 @@ const eachTree = (visit: (x: number, y: number, scale: number, seed: number) => 
       ...(y - minY < reach ? [2 * minY - y] : []),
       ...(maxY - y < reach ? [2 * maxY - y] : []),
     ]
-    for (const mx of xs) for (const my of ys) if (mx !== x || my !== y) visit(mx, my, scale, i + 1)
+    for (const mx of xs)
+      for (const my of ys) if (mx !== x || my !== y) visit(mx, my, scale, seed + 1)
   }
+  // Packed: a bucket is read, never grown again.
+  return new Map(
+    [...chunks].map(([chunk, { broadleaf, conifer }]) => [
+      chunk,
+      { broadleaf: Float64Array.from(broadleaf), conifer: Float64Array.from(conifer) },
+    ]),
+  )
 }
 
-/** One chunk's trees per kind: flat (x, y, scale, seed) quadruples. */
-type ChunkTrees = Record<TreeKind, Array<number>>
+/** `a`'s and `b`'s (x, y, scale, seed) quadruples merged in seed order (a tree's mirrors share its seed and stay in their order). */
+const mergeBySeed = (a: ArrayLike<number>, b: ArrayLike<number>): Float64Array => {
+  const out = new Float64Array(a.length + b.length)
+  let i = 0,
+    j = 0,
+    o = 0
+  while (i < a.length || j < b.length) {
+    const fromA = j >= b.length || (i < a.length && a[i + 3]! <= b[j + 3]!)
+    const from = fromA ? a : b,
+      k = fromA ? i : j
+    for (let n = 0; n < 4; n++) out[o + n] = from[k + n]!
+    o += 4
+    if (fromA) i += 4
+    else j += 4
+  }
+  return out
+}
 
-/** Every tree (apron mirrors included) bucketed by chunk and kind, once. */
-export const bucketTrees = (): Map<number, ChunkTrees> => {
-  const chunks = new Map<number, ChunkTrees>()
-  eachTree((x, y, scale, seed) => {
-    const kind = kindOf(seed)
-    const key = chunkOf(x, y)
-    let trees = chunks.get(key)
-    if (trees === undefined) chunks.set(key, (trees = { broadleaf: [], conifer: [] }))
-    trees[kind].push(x, y, scale, seed)
-  })
-  return chunks
+/** A chunk's trees from its buckets in the tiles it draws trees from (`bucketTileTrees`), in seed order as one whole-map bucket holds them; undefined when it has none. */
+export const chunkTrees = (
+  buckets: ReadonlyArray<ChunkTrees | undefined>,
+): ChunkTrees | undefined => {
+  let merged: ChunkTrees | undefined
+  for (const bucket of buckets) {
+    if (bucket === undefined) continue
+    merged =
+      merged === undefined
+        ? bucket
+        : {
+            broadleaf: mergeBySeed(merged.broadleaf, bucket.broadleaf),
+            conifer: mergeBySeed(merged.conifer, bucket.conifer),
+          }
+  }
+  return merged
 }
 
 const matrix = new Matrix4(),
@@ -159,8 +212,16 @@ const matrix = new Matrix4(),
   up = new Vector3(0, 1, 0),
   at = new Vector3(),
   size = new Vector3()
-/** The tree meshes of one chunk, one per kind it has. Dispose them with `InstancedMesh.dispose` (the shapes are shared). */
-export const treeMeshes = (trees: ChunkTrees, material: Material): Array<InstancedMesh> => {
+/**
+ * The tree meshes of one chunk, one per kind it has, each tree's trunk base `base(x, y)` (render y;
+ * a little into the terrain there by default). Dispose them with `InstancedMesh.dispose` (the shapes
+ * are shared).
+ */
+export const treeMeshes = (
+  trees: ChunkTrees,
+  material: Material,
+  base: (x: number, y: number) => number = baseY,
+): Array<InstancedMesh> => {
   const meshes: Array<InstancedMesh> = []
   for (const kind of KINDS) {
     const list = trees[kind]
@@ -173,7 +234,7 @@ export const treeMeshes = (trees: ChunkTrees, material: Material): Array<Instanc
         seed = list[4 * i + 3]!
       rotation.setFromAxisAngle(up, hash01(seed, 5) * Math.PI * 2)
       const s = sizeOf(seed, scale)
-      mesh.setMatrixAt(i, matrix.compose(at.set(x, baseY(x, y), -y), rotation, size.set(s, s, s)))
+      mesh.setMatrixAt(i, matrix.compose(at.set(x, base(x, y), -y), rotation, size.set(s, s, s)))
       mesh.setColorAt(i, TINTS[Math.floor(hash01(seed, 13) * TINTS.length)]!)
     }
     mesh.instanceMatrix.needsUpdate = true

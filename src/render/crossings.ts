@@ -1,6 +1,7 @@
 /**
  * The level crossings' moving parts and lights: host nodes for the page's life, made with the
- * effects (`makeEffects`), so they stand in the scene when the shaders compile. At each road box of
+ * effects (`makeEffects`), each box hidden until the map tiles under its ways in are in memory and
+ * it stands on its road (the stand-ins warm up its programs, render/stand-ins). At each road box of
  * the sim's `CROSSINGS`, every approach has its barrier on the pivot the sim gives (right of the
  * way in): a red and white arm with its counterweight, three red lamps along it, and the skirt
  * (RFI's *grembiale*) hanging under it, whose bars stay plumb as the arm rises and fold flat when it
@@ -15,14 +16,14 @@
  * @module render/crossings
  */
 import { Descriptor } from "@typeonce/ritmo"
-import { BoxGeometry, type BufferGeometry, Group, Mesh, type Object3D } from "three"
+import { BoxGeometry, BufferGeometry, Group, Mesh, type Object3D } from "three"
 
 import { Game, LevelCrossings, Time } from "../sim/index.ts"
 import { crossingAt, type CrossingState, OPEN } from "../sim/rail/barriers.ts"
 import { type CrossingBox, CROSSINGS } from "../sim/rail/crossings.ts"
 import { RenderClock } from "./clock.ts"
 import { actorMaterial, merge, paint, sharedGeometry } from "./geometry.ts"
-import { atGradeY } from "./ground.ts"
+import { atGradeY, terrainResident } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
 import { signalLampMaterials } from "./sky/glow.ts"
 
@@ -117,26 +118,35 @@ const skirtOf = (length: number): BufferGeometry =>
     ]
   })
 
-/** One approach's barrier: its arm, turning about the pivot, the lamps on it, and the skirt under it. */
+/** One approach's barrier: the post it turns on, its arm, turning about the pivot, the lamps on it, and the skirt under it. */
 interface Barrier {
+  readonly post: Group
   readonly arm: Mesh
   readonly lamps: Mesh
   readonly skirt: Mesh
 }
 
-/** A box's moving parts and lights: a barrier per approach, and its road lights merged into one lens mesh. */
+/**
+ * A box's moving parts and lights: a barrier per approach, and its road lights merged into one lens
+ * mesh; hidden until `placed` on the road, the first time the ground under its ways in is in memory.
+ */
 interface BoxNodes {
   readonly barriers: ReadonlyArray<Barrier>
   readonly lenses: Mesh
+  placed: boolean
 }
 
-/** A box's barrier at `approach`, under `parent`: its pivot on the post, the arm across the road (to the left of the way in) when down. */
+/**
+ * A box's barrier at `approach`, under `parent`: its pivot on the post, the arm across the road (to the left of the way in)
+ * when down. The post stands at the pivot's height over the road once `place` sets it.
+ */
 const barrierAt = (parent: Object3D, approach: CrossingBox["approaches"][number]): Barrier => {
-  const { pivot, entry, heading, arm: length } = approach
+  const { pivot, heading, arm: length } = approach
   const post = new Group()
   // The arm along the post group's +X: across the road, to the left of a car driving in; it rises about the road's axis (+Z).
-  post.position.set(pivot.x, atGradeY(entry.x, entry.y) + BARRIER.pivot, -pivot.y)
+  post.position.set(pivot.x, 0, -pivot.y)
   post.rotation.y = heading + Math.PI / 2
+  post.visible = false
   const arm = new Mesh(armOf(length), actorMaterial),
     lamps = new Mesh(armLampsOf(length), signalLampMaterials.off),
     skirt = new Mesh(skirtOf(length), actorMaterial)
@@ -146,7 +156,7 @@ const barrierAt = (parent: Object3D, approach: CrossingBox["approaches"][number]
   arm.add(lamps)
   post.add(arm, skirt)
   parent.add(post)
-  return { arm, lamps, skirt }
+  return { post, arm, lamps, skirt }
 }
 
 /** A box's road lights, one per approach: a red lens on the post facing the traffic coming in, all in one mesh. */
@@ -178,28 +188,47 @@ const lower = (barrier: Barrier, arm: number): void => {
   barrier.skirt.matrixWorldNeedsUpdate = true
 }
 
+/** Stands box `box`'s posts and road lights on its road, at its ways in, and shows them: its ground must be in memory. */
+const place = (nodes: BoxNodes, box: CrossingBox): void => {
+  for (const [k, { entry }] of box.approaches.entries()) {
+    const post = nodes.barriers[k]!.post
+    post.position.y = atGradeY(entry.x, entry.y) + BARRIER.pivot
+    post.visible = true
+  }
+  nodes.lenses.geometry.dispose()
+  nodes.lenses.geometry = lensesOf(box)
+  nodes.lenses.visible = true
+  nodes.placed = true
+}
+
 /** Every road box's barriers and road lights (`CROSSINGS` order; none at a foot crossing), set each frame by `draw`. */
 class CrossingNodes {
   /** Per box, its nodes; undefined for a foot crossing. */
   readonly boxes: ReadonlyArray<BoxNodes | undefined>
 
-  /** Builds every box's nodes under `parent`, the arms up and the lights dark. */
+  /** Builds every box's nodes under `parent`, the arms up and the lights dark, hidden until `draw` places them. */
   constructor(parent: Object3D) {
     this.boxes = CROSSINGS.map((box) => {
       if (box.walk || box.approaches.length === 0) return undefined
       const barriers = box.approaches.map((approach) => barrierAt(parent, approach))
       for (const barrier of barriers) lower(barrier, 0)
-      const lenses = new Mesh(lensesOf(box), signalLampMaterials.off)
+      const lenses = new Mesh(new BufferGeometry(), signalLampMaterials.off)
+      lenses.visible = false
       parent.add(lenses)
-      return { barriers, lenses }
+      return { barriers, lenses, placed: false }
     })
   }
 
-  /** Shows each box as `crossingAt` says in `states` (the `LevelCrossings` resource) at step `now` (fractional: the drawn moment). */
+  /**
+   * Shows each box as `crossingAt` says in `states` (the `LevelCrossings` resource) at step `now` (fractional: the drawn
+   * moment), placing a box on its road the first time the ground under its ways in is in memory.
+   */
   draw(states: ReadonlyArray<CrossingState>, now: number): void {
     for (const [i, nodes] of this.boxes.entries()) {
       const box = CROSSINGS[i]
       if (nodes === undefined || box === undefined) continue
+      if (!nodes.placed && box.approaches.every(({ entry }) => terrainResident(entry.x, entry.y)))
+        place(nodes, box)
       const { arm, lit } = crossingAt(box, states[i] ?? OPEN, now),
         lamp = lit ? signalLampMaterials.on : signalLampMaterials.off
       for (const barrier of nodes.barriers) {

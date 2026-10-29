@@ -1,8 +1,9 @@
 /**
  * The audio schedule: once per animation frame it projects what can be heard into plain `Heard`
- * data (the player's ears; vehicles someone drives, that move or that burn, with the drivetrain's
- * revs and load from their worn engines, their damage, whether they burn, whether their wheels or
- * their body are down and how their tyres skid; people on foot, with who they are, what they are
+ * data (the player's ears; vehicles someone drives, that move or that burn, on the tiles in memory
+ * (farther ones stand frozen, out of earshot), with the drivetrain's revs and load from their worn
+ * engines, their damage, whether they burn, whether their wheels or their body are down and how
+ * their tyres skid; people on foot, with who they are, what they are
  * doing and who they walk with; the animals; every train, car by car, and the level crossings'
  * bells (./rail.ts); the Impact, Honk, Cry, Explosion, Lightning and Whistle events since the last
  * frame, each impact with the bodies it struck, those with trains rewritten as steel; the horn key;
@@ -58,6 +59,7 @@ import { daysFromCivil, romeTime } from "../sim/sky/calendar.ts"
 import { sunOver } from "../sim/sky/day.ts"
 import { VEHICLES, type VehicleModel } from "../sim/vehicles.ts"
 import { followYaw, QUARTER } from "../sim/view.ts"
+import { exactAt, groundAt } from "./ground.ts"
 import type { HeardTrain } from "./rail-types.ts"
 import { heardCrossings, heardTrain, railImpact } from "./rail.ts"
 import type {
@@ -236,7 +238,9 @@ const Hear = Game.System(
       const shaking =
         Math.max(Math.abs(chassis.vz), Math.abs(chassis.pitchRate), Math.abs(chassis.rollRate)) >
         STILL
-      if (!running && !moving && !shaking && !fire) return []
+      // One off the tiles in memory stands frozen a kilometre or more from the player (the host keeps the tiles nearer):
+      // too far to hear, and the ground the director would read under it is not there.
+      if ((!running && !moving && !shaking && !fire) || !exactAt(at.x, at.y)) return []
       const spec = VEHICLES[model],
         revs = engineRevs(
           spec,
@@ -384,7 +388,7 @@ const Hear = Game.System(
         train,
         x,
         y,
-        z: trains.get(train)?.cars[0]?.z ?? groundZ(x, y),
+        z: trains.get(train)?.cars[0]?.z ?? groundAt(x, y),
         urgent,
       })),
     ]

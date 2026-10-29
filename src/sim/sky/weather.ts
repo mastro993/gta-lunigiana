@@ -57,15 +57,9 @@ const EASE = {
   anomaly: 3600,
 } as const
 
-/** The map's lowest and highest ground, m a.s.l. (its heightmap holds decimetres). */
-const { BOTTOM, TOP } = ((): { readonly BOTTOM: number; readonly TOP: number } => {
-  const { data } = MAP.heightmap
-  let low = Number.MAX_VALUE,
-    high = -Number.MAX_VALUE
-  for (let k = 0; k < data.length; k++)
-    [low, high] = [Math.min(low, data[k]!), Math.max(high, data[k]!)]
-  return { BOTTOM: low / 10, TOP: high / 10 }
-})()
+/** The map's lowest and highest ground, m a.s.l. (its tiles' lowest and highest nodes, in decimetres). */
+const BOTTOM = Math.min(...MAP.tiles.map((t) => t.zmin)) / 10,
+  TOP = Math.max(...MAP.tiles.map((t) => t.zmax)) / 10
 /** The snow line never falls below this, m a.s.l.: just under the lowest ground, so all of it can lie white. */
 const LOWEST_SNOW = BOTTOM - 50
 

@@ -57,6 +57,7 @@ import { PERSON_RADIUS } from "../tuning.ts"
 import { weatherFactor } from "../tyres.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
 import { steerLimit } from "./physics.ts"
+import { inReach, playerPose } from "./reach.ts"
 
 /** Look-ahead along the route: base metres plus seconds of speed. */
 const LOOK_BASE = 6
@@ -197,7 +198,8 @@ const arrived = (
  * (as a curve's speed goes), and looks and keeps further ahead by the grip
  * lost. At a level crossing it keeps to the crossing rules (rail/roads.ts):
  * it stops for a box not open, keeps the box and the junction before it
- * clear, and waits patiently while the box is closed for a train.
+ * clear, and waits patiently while the box is closed for a train. A car
+ * beyond the player's reach (`inReach`) stands frozen, its driver too.
  */
 export const TrafficAI = Game.System(
   "Lunigiana/TrafficAI",
@@ -237,6 +239,7 @@ export const TrafficAI = Game.System(
           dead: Game.Query.optional(Dead),
         },
       }),
+      player: playerPose(),
     },
     resources: {
       rng: Game.System.writeResource(Rng),
@@ -326,8 +329,10 @@ export const TrafficAI = Game.System(
         across: across * other.long + along * other.wide,
       }
     }
+    const player = queries.player.each()[0]?.data.pose.get()
     for (const { entity, data } of queries.cars.each()) {
       const pose = data.pose.get()
+      if (!inReach(pose, player)) continue
       const { model } = data.vehicle.get()
       const spec = VEHICLES[model]
       const speed = forwardSpeed(data.motion.get(), pose.angle)

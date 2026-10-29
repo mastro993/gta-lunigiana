@@ -1,7 +1,16 @@
-// Encoder of monzone.bin (before gzip); the format and the decoder (`decodeMap`) are in
-// src/sim/map/packed.ts. Every value must fit its section, or the build throws.
+// Encoders of the map files (before gzip); the format and the decoders (`decodeMap`, `decodeTile`)
+// are in src/sim/map/packed.ts. Every value must fit its section, or the build throws.
 import type { MonzoneMap, MonzoneMapJson } from "../sim/map/index.ts"
-import { packOrigin, treeOrigin } from "../sim/map/packed.ts"
+import {
+  packOrigin,
+  TILE_CELLS,
+  TILE_NODES,
+  type TileData,
+  type TileJson,
+  tileCorner,
+  treeOrigin,
+  MAP_VERSION,
+} from "../sim/map/packed.ts"
 
 interface Corner {
   readonly minX: number
@@ -9,7 +18,7 @@ interface Corner {
 }
 
 /** `values` as `size` byte planes of zigzag deltas from the value `stride` back, each an int32 whose delta fits. */
-const pack = (values: ArrayLike<number>, size: 2 | 4, stride: number, what: string): Buffer => {
+const pack = (values: ArrayLike<number>, size: 1 | 2 | 4, stride: number, what: string): Buffer => {
   const n = values.length,
     out = Buffer.alloc(n * size)
   for (let k = 0; k < n; k++) {
@@ -28,31 +37,31 @@ const pack = (values: ArrayLike<number>, size: 2 | 4, stride: number, what: stri
 }
 
 /** Integer decimetres (int16: the game keeps them in an `Int16Array`), rows of `cols` values each delta-coded from its first. */
-const packRows = (dm: ArrayLike<number>, cols: number): Buffer =>
+const packRows = (dm: ArrayLike<number>, cols: number, what: string): Buffer =>
   pack(
     Array.from(dm, (v, k) => {
-      if (v < -32768 || v > 32767) throw new Error(`heightmap: ${v} at ${k} does not fit int16`)
+      if (v < -32768 || v > 32767) throw new Error(`${what}: ${v} at ${k} does not fit int16`)
       return k % cols === 0 ? v : v - dm[k - 1]!
     }),
     2,
     cols,
-    "heightmap",
+    what,
   )
 
-/** Wall segments (ax, ay, bx, by) as decimetres from `packOrigin(bounds)`. */
-const packWalls = (flat: ArrayLike<number>, bounds: Corner, what: string): Buffer => {
-  const o = packOrigin(bounds)
+/** Wall segments (ax, ay, bx, by) as decimetres from `packOrigin(corner)`. */
+const packWalls = (flat: ArrayLike<number>, corner: Corner, what: string): Buffer => {
+  const o = packOrigin(corner)
   return pack(
     Array.from(flat, (v, k) => Math.round(v * 10) - (k % 2 === 0 ? o.x : o.y)),
-    4,
+    2,
     2,
     what,
   )
 }
 
-/** Trees (x, y, scale) on whole metres: metres from `treeOrigin(bounds)`, the scale in hundredths. */
-const packTrees = (flat: ArrayLike<number>, bounds: Corner): Buffer => {
-  const o = treeOrigin(bounds)
+/** Trees (x, y, scale) on whole metres: metres from `treeOrigin(corner)`, the scale in hundredths. */
+const packTrees = (flat: ArrayLike<number>, corner: Corner): Buffer => {
+  const o = treeOrigin(corner)
   return pack(
     Array.from(flat, (v, k) => {
       const c = k % 3
@@ -64,19 +73,49 @@ const packTrees = (flat: ArrayLike<number>, bounds: Corner): Buffer => {
   )
 }
 
-/** The gunzipped map file `decodeMap` reads back into `map`, and the bytes of each of its parts. */
+/** The gunzipped global file `decodeMap` reads back into `map`, and the bytes of each of its parts. */
 export const packMap = (
   map: MonzoneMap,
 ): { readonly file: Buffer; readonly sizes: Readonly<Record<string, number>> } => {
   const {
-    heightmap: { data, ...heightmap },
-    walls,
-    trees,
-    bounds,
+    coarse: { heights, cover, ...coarse },
   } = map
-  const json: MonzoneMapJson = {
-    ...map,
-    heightmap,
+  const json: MonzoneMapJson = { ...map, version: MAP_VERSION, coarse }
+  const parts = {
+    // file order
+    json: Buffer.from(`${JSON.stringify(json)}\n`),
+    heights: packRows(heights, coarse.cols, "coarse heights"),
+    cover: pack(cover, 1, coarse.cols, "coarse cover"),
+  }
+  return {
+    file: Buffer.concat(Object.values(parts)),
+    sizes: Object.fromEntries(Object.entries(parts).map(([part, b]) => [part, b.length])),
+  }
+}
+
+/** The gunzipped tile file `decodeTile` reads back into `tile`, and the bytes of each of its parts. */
+export const packTile = (
+  tile: Omit<TileData, "heights" | "cover"> & {
+    readonly heights: ArrayLike<number>
+    readonly cover: ArrayLike<number>
+  },
+): { readonly file: Buffer; readonly sizes: Readonly<Record<string, number>> } => {
+  const { hash, i, j, heights, walls, wallIds, trees, ids, cover } = tile
+  if (heights.length !== TILE_NODES * TILE_NODES || cover.length !== TILE_CELLS * TILE_CELLS)
+    throw new Error(`tile ${i}_${j}: ${heights.length} nodes and ${cover.length} cells`)
+  for (const kind of ["walk", "shore", "drive"] as const)
+    if (4 * wallIds[kind].length !== walls[kind].length)
+      throw new Error(
+        `tile ${i}_${j}: ${walls[kind].length / 4} ${kind} walls, ${wallIds[kind].length} ids`,
+      )
+  if (3 * ids.length !== trees.length)
+    throw new Error(`tile ${i}_${j}: ${trees.length / 3} trees, ${ids.length} ids`)
+  const corner = tileCorner(i, j)
+  const json: TileJson = {
+    version: MAP_VERSION,
+    hash,
+    i,
+    j,
     walls: {
       walk: walls.walk.length / 4,
       shore: walls.shore.length / 4,
@@ -87,11 +126,16 @@ export const packMap = (
   const parts = {
     // file order
     json: Buffer.from(`${JSON.stringify(json)}\n`),
-    heightmap: packRows(data, heightmap.cols),
-    walk: packWalls(walls.walk, bounds, "walk walls"),
-    shore: packWalls(walls.shore, bounds, "shore walls"),
-    drive: packWalls(walls.drive, bounds, "drive walls"),
-    trees: packTrees(trees, bounds),
+    heightmap: packRows(heights, TILE_NODES, `tile ${i}_${j} heightmap`),
+    walk: packWalls(walls.walk, corner, `tile ${i}_${j} walk walls`),
+    shore: packWalls(walls.shore, corner, `tile ${i}_${j} shore walls`),
+    drive: packWalls(walls.drive, corner, `tile ${i}_${j} drive walls`),
+    walkIds: pack(wallIds.walk, 4, 1, `tile ${i}_${j} walk wall ids`),
+    shoreIds: pack(wallIds.shore, 4, 1, `tile ${i}_${j} shore wall ids`),
+    driveIds: pack(wallIds.drive, 4, 1, `tile ${i}_${j} drive wall ids`),
+    trees: packTrees(trees, corner),
+    ids: pack(ids, 4, 1, `tile ${i}_${j} tree ids`),
+    cover: pack(cover, 1, TILE_CELLS, `tile ${i}_${j} cover`),
   }
   return {
     file: Buffer.concat(Object.values(parts)),

@@ -529,6 +529,16 @@ export const Whistle = Descriptor.Event<{
 }>()("Lunigiana/Whistle")
 /** A request from the dev debug menu to call a train onto every line with no AI train on it, now (`ApplyTrains`). Not saved. */
 export const SetTrains = Descriptor.Event<{ readonly call: true }>()("Lunigiana/SetTrains")
+/**
+ * A dev request to put the player at (x, y) facing `angle` (the dev `gta.teleport` hook, which the playtest's drives call), on
+ * foot or in the vehicle they drive (`ApplyPlayer`). The step that applies it reads the map there, so the host sends it only once it holds every listed tile
+ * over the target ± `STEP_REACH` (map/tiles.ts). Not saved.
+ */
+export const SetPlayer = Descriptor.Event<{
+  readonly x: number
+  readonly y: number
+  readonly angle: number
+}>()("Lunigiana/SetPlayer")
 /** An AI driver held up for a while sounds the horn, once per stuck episode. Not saved; the audio schedule plays it. */
 export const Honk = Descriptor.Event<{
   readonly car: number
@@ -657,6 +667,7 @@ export const Game = Schema.bind(
       SetClock,
       SetWeather,
       SetTrains,
+      SetPlayer,
     },
     requires: [
       Schema.requires(Player, Pose, PrevPose, Motion, Person),

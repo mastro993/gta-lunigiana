@@ -1,8 +1,7 @@
-import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
+import { Random, Vec2 } from "@typeonce/ritmo-math"
 
-import { carClear } from "../body.ts"
-import { settle, uprightness } from "../chassis.ts"
-import { MAP, roadClassOf, type Spawn } from "../map/index.ts"
+import { resting } from "../chassis.ts"
+import { MAP, type ParkedSpot, roadClassOf } from "../map/index.ts"
 import { roadOf, trafficIndex } from "../route.ts"
 import { CarInput, Game, Motion, Person, Player, Pose, PrevPose, Rng, Vehicle } from "../schema.ts"
 import { parkedCar, randomColor } from "../spawning.ts"
@@ -16,13 +15,18 @@ export const PARKED = 200
 const TRUCKS = 2
 const CARABINIERI_BLUE = 0x1d2b4f
 
-/**
- * A vehicle that would stand tilted more than this (rad, 15°) on a spot is not parked there: the 4 m terrain puts some verges on a
- * bank. A spot too steep for a Panda is skipped; one too steep for the Ape or the truck the dice gave it gets a Panda instead.
- */
-const LEVEL = 0.26
-const level = (model: VehicleModel, spot: Spawn): boolean =>
-  uprightness(settle(model, spot)) > Ops.cos(LEVEL)
+/** Whether `model` stands level enough on `spot` to park there (the build baked its rest: src/sim/parking.ts). */
+const level = (model: VehicleModel, spot: ParkedSpot): boolean => spot.rest[model] !== undefined
+/** `model` at rest on `spot`, as the build settled it: its Pose the spot's alone, not the bakes beside it. */
+const parked = (model: VehicleModel, color: number, spot: ParkedSpot) => {
+  const [z, pitch, roll] = spot.rest[model]!
+  return parkedCar(
+    model,
+    color,
+    { x: spot.x, y: spot.y, angle: spot.angle },
+    resting(z, pitch, roll),
+  )
+}
 const spots = MAP.spawns.parked.filter((s) => level("panda", s))
 const police = MAP.pois.find((p) => p.kind === "amenity=police")
 const byPolice =
@@ -71,19 +75,14 @@ export const SpawnWorld = Game.System(
         ],
       ),
     )
-    for (const spot of byPolice) commands.spawn(parkedCar("carabinieri", CARABINIERI_BLUE, spot))
+    for (const spot of byPolice) commands.spawn(parked("carabinieri", CARABINIERI_BLUE, spot))
     let trucks = 0
     for (const spot of random.shuffle(civilian).slice(0, parkedCount - byPolice.length)) {
       const roll = random.next()
-      const truck =
-        trucks < TRUCKS &&
-        roll < 0.1 &&
-        onTertiary(spot) &&
-        carClear("truck", spot) &&
-        level("truck", spot)
+      const truck = trucks < TRUCKS && roll < 0.1 && onTertiary(spot) && spot.truck === true
       if (truck) trucks++
       const model = truck ? "truck" : roll >= 0.8 && level("ape", spot) ? "ape" : "panda"
-      commands.spawn(parkedCar(model, randomColor(random), spot))
+      commands.spawn(parked(model, randomColor(random), spot))
     }
   },
 )

@@ -11,7 +11,7 @@ import { ShapeUtils, Vector2 } from "three"
 
 import { segDist2 } from "../sim/collide.ts"
 import { MAP, type Platform } from "../sim/map/index.ts"
-import { type Piece, Triangles } from "./geometry.ts"
+import { boxOver, type Piece, Triangles } from "./geometry.ts"
 import { terrainY, yOf } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
 import { append } from "./ribbons.ts"
@@ -173,13 +173,18 @@ const platformFaces = (p: Platform): { readonly solid: Triangles; readonly decal
   return { solid, decal }
 }
 
-/** A platform as a piece along its rim: built once, each triangle into the chunk of its middle, so a chunk keeps exactly its share. */
+/**
+ * A platform as a piece along its rim: built whole on its first draw (it reads the ground under its
+ * whole rim) and kept, each triangle into the chunk of its middle, so a chunk keeps exactly its share.
+ */
 export const platformPiece = (p: Platform): Piece => {
   const outer = MAP.areas[p.area]!.rings[0]!
-  const faces = platformFaces(p)
+  let faces: ReturnType<typeof platformFaces> | undefined
   return {
     pts: [...outer, outer[0]!, outer[1]!],
+    reads: boxOver(outer),
     draw: (at) => {
+      faces ??= platformFaces(p)
       for (const layer of ["solid", "decal"] as const) {
         const tris = faces[layer]
         for (let i = 0; i < tris.position.length / 9; i++) {

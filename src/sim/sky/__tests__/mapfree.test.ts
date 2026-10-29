@@ -45,8 +45,11 @@ test("map-free: the schema, the train models and the sky's calendar, astronomy, 
 test("map-free: once the map is decoded the sky's place is the map's: its origin, its 5th-percentile height and the way its ground falls", async () => {
   const { place, placeFrom, REFERENCE_PLACE } = await import("../place.ts")
   const { MAP } = await import("../../map/index.ts")
+  const { wholeMap } = await import("../../../tools/map-file.ts")
+  const whole = wholeMap()
   const where = place()
-  assert.deepEqual(where, placeFrom(MAP.origin, MAP.heightmap))
+  // The build baked the place from the whole heightmap (MAP.place): the same as fitting it now.
+  assert.deepEqual(where, placeFrom(MAP.origin, whole.heightmap))
   assert.deepEqual({ lat: where.lat, lon: where.lon }, { ...MAP.origin })
   // The shipped map is the reference site: the same origin, its floor and slope to the rounding the default keeps.
   assert.ok(
@@ -54,6 +57,6 @@ test("map-free: once the map is decoded the sky's place is the map's: its origin
       Math.abs(where.downslope - REFERENCE_PLACE.downslope) < 0.005,
     JSON.stringify(where),
   )
-  const heights = Array.from(MAP.heightmap.data, (z) => z / 10).sort((a, b) => a - b)
+  const heights = Array.from(whole.heightmap.data, (z) => z / 10).sort((a, b) => a - b)
   assert.equal(where.floor, heights[Math.floor(0.05 * (heights.length - 1))])
 })

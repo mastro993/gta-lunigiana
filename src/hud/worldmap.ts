@@ -138,7 +138,7 @@ export const makeWorldMap = (document: Document) => {
     const fit = fitMap(bounds, width, height)
     const px = (x: number) => fit.ox + (x - bounds.minX) * fit.scale,
       py = (y: number) => fit.oy + (bounds.maxY - y) * fit.scale
-    paintMap(ctx, fit.scale, fit.ox, fit.oy, true)
+    paintMap(ctx, fit.scale, bounds, { ox: fit.ox, oy: fit.oy, overview: true })
     const mapW = (bounds.maxX - bounds.minX) * fit.scale,
       mapH = (bounds.maxY - bounds.minY) * fit.scale
     ctx.lineWidth = 2

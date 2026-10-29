@@ -20,6 +20,7 @@ import {
   Autopilot,
   CarInput,
   Chassis,
+  type ChassisValue,
   Damage,
   Game,
   type Look,
@@ -46,15 +47,20 @@ export const randomLook = (random: Random.Random): Look =>
 export const randomColor = (random: Random.Random): number =>
   random.pick(CAR_COLORS) ?? CAR_COLORS[0]
 
-/** A vehicle at rest at `pose`: no driver, handbrake on. */
-export const parkedCar = (model: VehicleModel, color: number, pose: PoseValue) =>
+/** A vehicle at rest at `pose` on `chassis` (settled on the ground there unless given): no driver, handbrake on. */
+export const parkedCar = (
+  model: VehicleModel,
+  color: number,
+  pose: PoseValue,
+  chassis: ChassisValue = settle(model, pose),
+) =>
   Game.Command.spawn(
     [Vehicle, { model, color }],
     [Pose, pose],
     [PrevPose, pose],
     [Motion, { vx: 0, vy: 0, spin: 0 }],
     [CarInput, { throttle: 0, steer: 0, handbrake: true }],
-    [Chassis, settle(model, pose)],
+    [Chassis, chassis],
     [Damage, UNDAMAGED],
   )
 

@@ -56,17 +56,38 @@ export const step = async (document: Document, name: string, done: number): Prom
   await paint()
 }
 
-/** Keeps the failed step on the card, announces the error and offers a reload (a failed module import stays failed until one). */
-export const loadFailed = (document: Document, error: unknown): void => {
-  console.error("start-up failed", error)
+/** Announces `text` on the card with a reload (what failed stays failed until one). */
+const offerReload = (document: Document, text: string): void => {
   const message = element(document, "title-error"),
     retry = element(document, "title-retry")
-  message.textContent = `Failed to start: ${error instanceof Error ? error.message : String(error)}`
+  message.textContent = text
   message.hidden = retry.hidden = false
   retry.addEventListener("click", () => document.location.reload(), { once: true })
   // The game's keyboard (made late in start-up) cancels Enter and Space at the window: keep them on the button.
   retry.addEventListener("keydown", (event) => event.stopPropagation())
   retry.focus()
+}
+
+/** Keeps the failed step on the card, announces the error and offers a reload (a failed module import stays failed until one). */
+export const loadFailed = (document: Document, error: unknown): void => {
+  console.error("start-up failed", error)
+  offerReload(
+    document,
+    `Failed to start: ${error instanceof Error ? error.message : String(error)}`,
+  )
+}
+
+/**
+ * Puts the card back over the game with `reason` and a reload: the game cannot go on (a map tile it
+ * needs will never come, as when a new build has replaced the site since the page loaded).
+ */
+export const stopped = (document: Document, reason: string): void => {
+  element(document, "title").hidden = false
+  element(document, "title-go").hidden = true
+  element(document, "title-load").hidden = false
+  set(element(document, "title-step"), "Stopped")
+  set(element(document, "title-detail"), "")
+  offerReload(document, reason)
 }
 
 /**

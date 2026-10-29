@@ -20,7 +20,7 @@ import { sunOver } from "../../sim/sky/day.ts"
 import { conditionsAt, type FogLayers, fogLayers, windAt } from "../../sim/sky/local.ts"
 import { place } from "../../sim/sky/place.ts"
 import { linear } from "../geometry.ts"
-import { terrainY, yOf } from "../ground.ts"
+import { farTerrainY, yOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
 import { followSun, type PixelView, viewAxes, WIDEST_ZOOM } from "../pipeline.ts"
 import { type SkyFrame } from "./frame.ts"
@@ -198,7 +198,8 @@ export class SkyHost {
     const exposure = this.exposure
 
     this.bolts.reduced = this.reduced()
-    for (const l of this.strikes) this.bolts.strike(l, terrainY(l.x, l.y), l.step * STEP.dt, focus)
+    for (const l of this.strikes)
+      this.bolts.strike(l, farTerrainY(l.x, l.y), l.step * STEP.dt, focus)
     this.strikes.length = 0
     const flash = this.bolts.update({ now }),
       flashLight = (flash * FLASH_LIGHT) / exposure
@@ -213,7 +214,7 @@ export class SkyHost {
       this.key,
       focus,
       this.toKey,
-      view.shadowFit(this.toKey, (gx, gz) => terrainY(gx, -gz)),
+      view.shadowFit(this.toKey, (gx, gz) => farTerrainY(gx, -gz)),
     )
     // Dark, or every texel under an overcast sky's cloud shadow: no shadow to draw.
     const shadows = key.intensity * light.direct > KEY_DARK
