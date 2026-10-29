@@ -6,8 +6,9 @@
  * (a junction inside the box). A car whose body already fouls a line's envelope clears the box. It
  * never drives into a box it could not leave, for want of room past it, nor, toward a closed box, into
  * the junction before the way in unless it fits on that way; and while a box is closed for a train,
- * everyone waiting at it, and the queue behind, waits patiently. No traffic is brought out near a box,
- * and none turns round beside a line's track.
+ * everyone waiting at it, and the queue behind, waits patiently. A car backing up to get unstuck never
+ * backs onto a line's track at a box not open (one that has cleared it and stands in the queue past
+ * it). No traffic is brought out near a box, and none turns round beside a line's track.
  *
  * @module rail/roads
  */
@@ -224,7 +225,7 @@ const stopSpeed = (gap: number, grip: number): number =>
  * onto any): what the approach table gets wrong where a junction lies in the box.
  */
 const toTrack = (
-  car: CrossingCar,
+  car: Pick<CrossingCar, "x" | "y" | "angle" | "length" | "width">,
   box: CrossingBox,
 ): { readonly fouls: boolean; readonly room: number } => {
   const fx = Ops.cos(car.angle),
@@ -339,6 +340,32 @@ export const atCrossings = (
   }
 }
 
+/**
+ * How far `car` may back up before its body comes within ENVELOPE_SLACK m of a line's envelope at a box not open in `states`, m
+ * (`Number.MAX_VALUE` when it backs onto none): one that has cleared a box and stands in the queue past it, stuck there, never backs
+ * onto the track behind it while the arms are down. One already on a track is left to clear the box.
+ */
+export const backRoom = (
+  car: Pick<CrossingCar, "x" | "y" | "angle" | "length" | "width">,
+  states: ReadonlyArray<CrossingState>,
+): number => {
+  const backing = { ...car, angle: car.angle + Math.PI }
+  let room = Number.MAX_VALUE
+  boxGrid(
+    car.x - QUEUE_REACH,
+    car.y - QUEUE_REACH,
+    car.x + QUEUE_REACH,
+    car.y + QUEUE_REACH,
+    (i) => {
+      const box = CROSSINGS[i]!
+      if (box.walk || (states[i] ?? OPEN).phase === "open") return
+      const at = toTrack(backing, box)
+      if (!at.fouls) room = Math.min(room, at.room)
+    },
+  )
+  return room
+}
+
 /** A car turning round sweeps this far from its lane, m: a Panda's turning circle and its body. */
 const TURN_SWEEP = 12
 /** The traffic edges within TURN_SWEEP m of a line's track at grade (sampled every 4 m along them). */
@@ -359,7 +386,10 @@ const besideTrack: ReadonlySet<number> = new Set(
   }),
 )
 
-/** Whether a car turning round on traffic edge `edge` would sweep over a line's track at grade: it backs up there, never turns. */
+/**
+ * Whether a car turning round on traffic edge `edge` would sweep over a line's track at grade: it backs up there, never turns (and
+ * never backs onto the track at a box not open, `backRoom`).
+ */
 export const nearTrack = (edge: number): boolean => besideTrack.has(edge)
 
 /** Whether (x, y) lies within `SPAWN_CLEAR` m of a level crossing: no traffic is brought out there. */

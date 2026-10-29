@@ -7,7 +7,7 @@ import { FAUNA } from "../fauna.ts"
 import { type HandlingValue, REAL_HANDLING } from "../handling.ts"
 import { graph } from "../map/index.ts"
 import { onLevel, trainCars } from "../rail/bodies.ts"
-import { atCrossings, busyBoxes, nearTrack, type Occupant } from "../rail/roads.ts"
+import { atCrossings, backRoom, busyBoxes, nearTrack, type Occupant } from "../rail/roads.ts"
 import {
   allowsModel,
   alongLane,
@@ -407,6 +407,12 @@ export const TrafficAI = Game.System(
             )
           if (Math.abs(front) < spec.length / 2 + extent.along && clear < ALONGSIDE) beside = true
         }
+        // Never back onto a line's track at a level crossing that is not open (stuck in the queue past one it has cleared).
+        const room = backRoom(
+          { x: pose.x, y: pose.y, angle: pose.angle, length: spec.length, width: spec.width },
+          states,
+        )
+        back = Math.max(back, -Math.max(0, room * 0.8 * grip))
         const held = back > -0.5 && Math.abs(speed) < 0.5
         data.input.set(
           held

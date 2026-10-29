@@ -1449,6 +1449,12 @@ the car is on or the next one):
   side of each box, the box open, and a Panda, an Ape and a truck at its road's cruise speed (7–12
   m/s) on every way in each may drive: none stands in the envelope (on Via Volturno from Viale 20
   Settembre a Panda did for 5.3 s at a time with no slack).
+- **No backing onto the track.** A car backing up to get unstuck near a box that is not open stops
+  0.5 m outside the envelope (`backRoom`): one that has just cleared the box and stands stuck in
+  the queue past it, heading away, counts as stuck (nothing ahead of it is a box to wait for), and
+  without this it backed onto the track behind it with the arms down. Measured at Via Riolo with a
+  Panda stopped just over, its tail 0.5 m short of the far entry and a parked Panda 1 m ahead: it
+  backs 2.5 m and stands 1.4 m clear of the envelope, where it backed 4.3 m and 0.5 m into it.
 - **The junction before the way in.** Toward a box not open, a car whose way in starts at a
   junction it has not reached does not enter the junction while the way in holds a queue with no
   room for it behind (its length and 2 m): it stands short of the junction by the widest other road

@@ -11,6 +11,7 @@ import { type CrossingState, OPEN } from "../barriers.ts"
 import { APPROACHES, CROSSINGS } from "../crossings.ts"
 import {
   atCrossings,
+  backRoom,
   busyBoxes,
   type CrossingCar,
   nearCrossing,
@@ -252,4 +253,47 @@ test("roads: a box is busy while a train moves within its strike-in, and no traf
   assert.ok(Ops.hypot(spot.x - box.x, spot.y - box.y) < SPAWN_CLEAR)
   assert.equal(roomFor("panda", { ...spot, angle: Ops.atan2(lane.dy, lane.dx) }, []), false)
   assert.equal(roomFor("panda", ON_BATTISTI, []), true)
+})
+
+// Regression (PR review): a car that had cleared Via Riolo and stood stuck in the queue past it backed up onto the track behind it
+// with the arms down, 2–4 m at 3 m/s, as the far entry lies about 1 m outside the trains' envelope.
+test("roads: a car past a box not open never backs onto its track; open, or backing away from the track, it backs up freely", () => {
+  const far = box.approaches[1 - SIDE]!.entry,
+    { heading } = box.approaches[SIDE]!
+  // A Panda that went over from SIDE, its tail `tail` m past the far entry, heading on away from the box.
+  const past = (tail: number) => ({
+    x: far.x + Ops.cos(heading) * (tail + 1.85),
+    y: far.y + Ops.sin(heading) * (tail + 1.85),
+    angle: heading,
+    length: 3.7,
+    width: 1.65,
+  })
+  const shut = states(RIOLO, { ...OPEN, phase: "closed", since: 0 }),
+    closed = backRoom(past(0.2), shut)
+  assert.ok(
+    closed > 0 && closed < 4.5,
+    `it may back ${closed.toFixed(2)} m, less than a reverse takes`,
+  )
+  // Backed that far it may back no farther; half-way, half as far again.
+  assert.ok(Math.abs(backRoom(past(0.2 - closed), shut)) < 0.01)
+  assert.ok(Math.abs(backRoom(past(0.2 - closed / 2), shut) - closed / 2) < 0.01)
+  assert.equal(backRoom(past(0.2), states(RIOLO, { ...OPEN, phase: "raising", since: 0 })), closed)
+  assert.equal(
+    backRoom(past(0.2), states(RIOLO, OPEN)),
+    Number.MAX_VALUE,
+    "open, it backs up as anywhere",
+  )
+  // Facing the box from the near side, backing up takes it away from the track.
+  const near = box.approaches[SIDE]!.entry
+  const waiting = {
+    x: near.x - Ops.cos(heading) * 4,
+    y: near.y - Ops.sin(heading) * 4,
+    angle: heading,
+    length: 3.7,
+    width: 1.65,
+  }
+  assert.equal(
+    backRoom(waiting, states(RIOLO, { ...OPEN, phase: "closed", since: 0 })),
+    Number.MAX_VALUE,
+  )
 })

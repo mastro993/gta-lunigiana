@@ -13,7 +13,17 @@ import { trainLength, TRAINS } from "../rail/models.ts"
 import { PATIENT_FOR } from "../rail/roads.ts"
 import { trainDraft } from "../rail/service.ts"
 import { aiTrain, crossedBy, MONZONE, RIOLO, setCrossing, wayInto } from "../rail/testing.ts"
-import { cruiseSpeed, laneOf, lanePoint, laneSide, roadOf, type Step, walkSide } from "../route.ts"
+import {
+  alongLane,
+  cruiseSpeed,
+  endNode,
+  laneOf,
+  lanePoint,
+  laneSide,
+  roadOf,
+  type Step,
+  walkSide,
+} from "../route.ts"
 import { parkedCar, pedestrian, trafficCar } from "../spawning.ts"
 import { HONK_STEPS } from "../systems/traffic.ts"
 import { LOOK, start } from "../testing.ts"
@@ -400,4 +410,69 @@ test("trains: no car drives onto Via Riolo's track with its arms down, nor onto 
   // A truck off the other side's junction at 13 m/s, the arms down, stops short of the envelope too.
   const truck = nearest("truck", way.before, way.step, true, false, 13)
   assert.ok(truck > ENVELOPE, `the truck from the north-west: ${truck.toFixed(2)} m off`)
+})
+
+// Regression (PR review): a car that had cleared Via Riolo and stood stuck in the queue past it counted as stuck (it heads away
+// from the box, so nothing made it wait patiently) and backed up onto the track behind it with the arms down.
+test("trains: a car stuck in the queue past Via Riolo while its arms are down backs up, but never onto the track", () => {
+  const far = box.approaches[1 - SIDE]!.entry,
+    { heading } = box.approaches[SIDE]!,
+    fx = Ops.cos(heading),
+    fy = Ops.sin(heading)
+  // The traffic step that takes a car on from the far side, going over from SIDE, and the step after it.
+  const ahead = { x: far.x + fx * 6, y: far.y + fy * 6 }
+  const off = (step: Step) => {
+    const lane = laneOf(step.edge, step.forward),
+      along = alongLane(lane, ahead.x, ahead.y)
+    return along < 0 || along > lane.length || lane.dx * fx + lane.dy * fy < 0.8
+      ? Number.MAX_VALUE
+      : Math.abs((ahead.x - lane.x) * lane.dy - (ahead.y - lane.y) * lane.dx)
+  }
+  const out = graph.trafficEdges
+    .flatMap((edge) => [true, false].map((forward): Step => ({ edge, forward })))
+    .reduce((p, q) => (off(q) < off(p) ? q : p))
+  const lane = laneOf(out.edge, out.forward),
+    node = endNode(out.edge, out.forward)
+  const then = graph.adjacency[node]!.filter(
+    (e) => e !== out.edge && graph.trafficEdges.includes(e),
+  )
+    .map((e): Step => ({ edge: e, forward: graph.edges[e]!.a === node }))
+    .reduce((p, q) => {
+      const lp = laneOf(p.edge, p.forward),
+        lq = laneOf(q.edge, q.forward)
+      return lq.dx * lane.dx + lq.dy * lane.dy > lp.dx * lane.dx + lp.dy * lane.dy ? q : p
+    })
+  // Just over, stopped: its tail 0.5 m short of the far entry, 4 m clear of the envelope; a parked Panda 1 m ahead of its nose holds
+  // it there.
+  const along = alongLane(lane, far.x, far.y) - 0.5 + 1.85,
+    side = laneSide(out, "panda"),
+    blocker = { ...lanePoint(lane, along + 3.7 + 1, side), angle: Ops.atan2(lane.dy, lane.dx) }
+  const game = start(
+    [],
+    [
+      AWAY,
+      {
+        cars: [parkedCar("panda", 0x8b8170, blocker)],
+        traffic: [panda(out, along, then, 0)],
+      },
+    ],
+    { alone: true },
+  )
+  // The arms down for a train that has not come yet, and kept down.
+  assert.ok(game.runtime.tick(setCrossing(RIOLO, { ...OPEN, phase: "closed", demanded: 1e9 })).ok)
+  const start0 = game.world().vehicles.find((v) => v.traffic)!
+  assert.ok(offTrack("panda", start0) > ENVELOPE, "it starts clear of the envelope")
+  let nearest = Number.MAX_VALUE,
+    backed = 0
+  game.run(10 * S, () => {
+    const car = game.world().vehicles.find((v) => v.traffic)!
+    nearest = Math.min(nearest, offTrack("panda", car))
+    backed = Math.max(backed, (start0.x - car.x) * fx + (start0.y - car.y) * fy)
+    assert.equal(game.world().crossings[RIOLO]!.phase, "closed")
+  })
+  assert.ok(backed > 0.5, `stuck, it backs up (${backed.toFixed(2)} m)`)
+  assert.ok(
+    nearest > ENVELOPE,
+    `its body stays ${(nearest - ENVELOPE).toFixed(2)} m outside the trains' envelope`,
+  )
 })
