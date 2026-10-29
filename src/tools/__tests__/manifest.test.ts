@@ -21,7 +21,8 @@ test("lucido's LiDAR tiles put the 2010 flight before the 2012 flight", () => {
   assert.equal(lots.filter((lot) => lot === "004").length, 47)
   assert.equal(lots.filter((lot) => lot === "005").length, 19)
   assert.ok(lots.lastIndexOf("004") < lots.indexOf("005"))
-  // The 2010 sliver below Picco di Navola PR #2's 65 tiles missed, in its place among the 2010 tiles.
+  // The 2010 sliver below Picco di Navola that PR #2's 65 tiles missed, in its place among the
+  // 2010 tiles.
   const sliver = readManifest("lucido").lidar.indexOf(
     "22d14_1x1_dtm_004_2010_3003_a348f39b6dd6b4258843d5ada196028d",
   )
