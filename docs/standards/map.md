@@ -48,9 +48,9 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   part](../map.md#adding-a-part)): `footprint-check`, `rt-index`, `pick-sheets`, `pick-lidar`,
   `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the regions (Lunigiana,
   Cesena), their parts' rectangles and masks (`checkMask` throws on a bad one), and `play-area.ts`
-  the outline of their union, which the map is clipped to and walled along (issue #7). A part's mask
-  comes with the part's own issue (#17 on), and `fetch-lig` with #12. When one is missing, name the issue that adds it and ask the user before
-  building it.
+  the outline of their union, which the map is clipped to and walled along (issue #7). A part's
+  mask comes with the part's own issue (#17 on), and `fetch-lig` with #12. When one is missing,
+  name the issue that adds it and ask the user before building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw` then pins
   the part's new inputs.

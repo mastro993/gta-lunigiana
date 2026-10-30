@@ -267,8 +267,8 @@ part](#adding-a-part)).
   runs merged, each from its lowest (y, x) vertex). A chain turns as far left as it can, so no ring
   crosses itself, and is cut at every vertex it passes twice, so two outer rings touching at a
   corner, or a hole touching the outer ring or another hole, stay separate rings. Lucido's outline
-  is its rectangle from the south-west corner: south, east, north, west.
-  Only + − × ÷ and square roots go into it, so every architecture builds the same.
+  is its rectangle from the south-west corner: south, east, north, west. Only + − × ÷ and square
+  roots go into it, so every architecture builds the same.
 - **The built terrain** is the box round every part's rectangles, `BOUNDS` (`REGION.bounds`,
   written as `bounds`): the heightmap's extent. On Lunigiana and Cesena it is the play area.
 - **Lines** (roads, water, rail, barriers and the CTR's tracks) are clipped to the play area
@@ -716,9 +716,9 @@ The stage takes about 0.55 s, most of it rasterising the platforms.
 
 Walls are segments of at most 16 m. Blocked 4 m cells are traced with marching squares and
 simplified (Douglas–Peucker, 1.5 m tolerance); a cell whose centre lies outside the play area is
-never blocked, as the outline's walls stop everyone there (it costs the stage 0.15 s of its 1.5 s). Slopes use a 12 m baseline, so shorter steps
-(terrace walls, road cuts) stop no one. Steep cells are majority-filtered (3 × 3) so the walls
-follow slopes, not single-cell bumps.
+never blocked, as the outline's walls stop everyone there (it costs the stage 0.15 s of its 1.5 s).
+Slopes use a 12 m baseline, so shorter steps (terrace walls, road cuts) stop no one. Steep cells are
+majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 
 | Wall source | `walk` | `shore` | `drive` |
 |---|---|---|---|
@@ -973,7 +973,8 @@ What goes in which tile:
   bounds a tile repeats the edge. The lookups keep the lattice's arithmetic and only read the node from
   its tile, so `heightAt`, `terrainZ` and `groundZ` give the same doubles as the whole heightmap did.
 - **Walls**: each segment lives in the tile of its midpoint, clamped to the listed tiles (Cesena's
-  outline walls lie on a seam). A tile's walls keep the whole map's order and carry their index in it.
+  outline walls lie on a seam). A tile's walls keep the whole map's order and carry their index in
+  it.
 - **Trees**: each in the tile of its point, the same way, with its index.
 - **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`rasterCover` in
   `src/sim/map/raster.ts`, rasterised at build time for the tile's cells alone, the same cells a
@@ -1179,12 +1180,11 @@ counter-clockwise ring on 0.1 m inside the rectangles (`checkMask` throws on any
 region loads, naming the fault). The region's play area is the union of its parts' masks, or
 rectangles where a part has none, and its `bounds`, the built terrain, the box round every part's
 rectangles ([section 2](#2-projection-and-play-area-geometryts-play-areats)). Today's map is part
-`lucido`, with no mask. Its sources are its manifest,
-`data/parts/<part>.json`. The tools below scope a part and check it. `rt-index`, `coverage` and
-`footprint-check` write their scratch in `.research/<part>/` (gitignored), `ortho` in
-`.research/ortho/` unless given a file, `playtest` in the folder it is given; every request names
-only the project in its `User-Agent` (`net.ts`), and the tools print paths relative to the
-repository. Measured on `lucido` on 2026-10-29.
+`lucido`, with no mask. Its sources are its manifest, `data/parts/<part>.json`. The tools below
+scope a part and check it. `rt-index`, `coverage` and `footprint-check` write their scratch in
+`.research/<part>/` (gitignored), `ortho` in `.research/ortho/` unless given a file, `playtest` in
+the folder it is given; every request names only the project in its `User-Agent` (`net.ts`), and
+the tools print paths relative to the repository. Measured on `lucido` on 2026-10-29.
 
 - **`pnpm footprint-check <part> [--refresh]`** (`footprint-check.ts`, geometry in `footprint.ts`)
   checks what the part's edges cut through: one Overpass query over the part's box + 1 km (place
@@ -1298,9 +1298,9 @@ repository. Measured on `lucido` on 2026-10-29.
   file it cannot read. `--except trees,walls` accepts those categories (the names its blocks print:
   `unhandled keys`, `top level`, `outline`, `tiles`, `heightmap`, `cover`, `walls`, `coarse`,
   `trees`, `roads`, `buildings`, `water`, `rail`, `railway`, `areas`, `barriers`, `pois`,
-  `districts`, `spawns`, `graph`, `lanes`, `farms`, `lamps`): their differences are still printed, the last line
-  names them as accepted, and the exit code is 0 unless another category differs. The shipped map
-  against itself (two builds are byte-identical): no differences, 0.9 s.
+  `districts`, `spawns`, `graph`, `lanes`, `farms`, `lamps`): their differences are still printed,
+  the last line names them as accepted, and the exit code is 0 unless another category differs.
+  The shipped map against itself (two builds are byte-identical): no differences, 0.9 s.
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
   `lucido`'s largest, -1_-1, is 0.31 MB.
