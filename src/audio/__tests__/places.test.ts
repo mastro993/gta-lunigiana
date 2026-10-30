@@ -3,9 +3,9 @@ import { test } from "node:test"
 
 import { pointInRing } from "../../sim/collide.ts"
 import { buildingsIn, heightAt, MAP, treesIn } from "../../sim/map/index.ts"
-import { tileKey } from "../../sim/map/kinds.ts"
 import { decodeTile } from "../../sim/map/packed.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
+import { tilesOver } from "../../sim/map/tiles.ts"
 import { SPEED_OF_SOUND } from "../acoustics.ts"
 import {
   ambienceAt,
@@ -18,10 +18,7 @@ import {
   owlsNear,
   wallAt,
 } from "../places.ts"
-import { fromDisk, residentMap } from "../testing.ts"
-
-// The whole map in memory, as around the player in the game: every place is worked out from the exact map.
-residentMap()
+import { fromDisk, HELD, residentAround } from "../testing.ts"
 
 /** A small deterministic random source, so the checks never flake. */
 const seeded = (seed: number) => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32
@@ -31,6 +28,10 @@ const FOREST = { x: 500, y: -400 },
   EQUI = { x: 1804.9, y: 721 }
 /** 0.15 m off a drive wall in a quarry, with no trunk or building within 3 m and no barrier within 20 m: a cut face. */
 const QUARRY_FACE = { x: -2480, y: -5923.85 }
+
+// The tiles round the spots in memory, as around the player in the game: every place is worked out from the exact map
+// there (places.map-test.ts checks the places all over the map).
+residentAround([FOREST, MEADOW, GRAGNOLA, EQUI], HELD)
 
 test("walls: a tree trunk, buildings by kind and style, the guard rail, the stone wall and a cliff, each 0.3 m off; bare ground is earth, a quarry's bank rock", () => {
   /** 0.3 m off the middle of the longest edge of `pts`, on its right (outside a counter-clockwise ring). */
@@ -135,10 +136,9 @@ test("walls: the nearest source wins, a trunk by a house wall is the trunk; a ba
   assert.equal(wallAt(tree.x + 0.55 * wall.nx, tree.y + 0.55 * wall.ny), "tree")
   // A steep bank (a drive wall that is no building and no barrier) with a trunk 1.5–3 m from the contact point and nothing else within 3 m.
   let bank: { readonly x: number; readonly y: number } | undefined
-  for (let tile = 0; tile < MAP.tiles.length && bank === undefined; tile++) {
-    const { i, j } = MAP.tiles[tile]!
-    bank = wildBank(decodeTile(fromDisk(tileKey(i, j))).walls.drive)
-  }
+  // In the four tiles by Monzone, meeting at (0, 0).
+  for (const key of tilesOver(-1, -1, 1, 1))
+    bank ??= wildBank(decodeTile(fromDisk(key)).walls.drive)
   assert.ok(bank !== undefined, "a wooded bank")
   assert.equal(wallAt(bank.x, bank.y), "earth")
 })
@@ -176,9 +176,10 @@ const wildBank = (walls: ArrayLike<number>) => {
   return bank
 }
 
-test("ambience shares stay within 1 and tell the forest, the meadow and the village apart", () => {
-  for (let x = MAP.bounds.minX; x <= MAP.bounds.maxX; x += 97)
-    for (let y = MAP.bounds.minY; y <= MAP.bounds.maxY; y += 89) {
+test("ambience shares stay within 1 round Monzone and tell the forest, the meadow and the village apart", () => {
+  // The four tiles meeting at (0, 0), in memory.
+  for (let x = -2000; x <= 2000; x += 97)
+    for (let y = -2000; y <= 2000; y += 89) {
       const { forest, open, built } = ambienceAt(x, y)
       assert.ok(
         Math.min(forest, open, built) >= 0 && forest + open + built <= 1 + 1e-6,
@@ -241,13 +242,13 @@ test("one bell per settlement, lower in taller towers", () => {
   assert.ok(alto?.pitch === 400 && alto.z > 325)
 })
 
-test("dogs and owls are stable picks out in the farms and the woods, near ones those of the whole map in its order; birds sing from a nearby tree, never on a treeless meadow", () => {
+test("dogs and owls are stable picks out in the farms and the woods, near ones those of a wider search in its order; birds sing from a nearby tree, never on a treeless meadow", () => {
   const within = (r: number) => (p: { readonly x: number; readonly y: number }) =>
     Math.hypot(p.x + 400, p.y - 400) <= r
-  const dogs = dogsNear(0, 0, 1e6),
-    owls = owlsNear(0, 0, 1e6)
-  assert.ok(dogs.length > 50 && owls.length > 100, `${dogs.length} dogs, ${owls.length} owls`)
-  assert.deepEqual(dogsNear(0, 0, 1e6), dogs)
+  const dogs = dogsNear(-400, 400, 600),
+    owls = owlsNear(-400, 400, 1200)
+  assert.ok(dogs.length > 10 && owls.length > 10, `${dogs.length} dogs, ${owls.length} owls`)
+  assert.deepEqual(dogsNear(-400, 400, 600), dogs)
   assert.deepEqual(dogsNear(-400, 400, 300), dogs.filter(within(300)))
   assert.deepEqual(owlsNear(-400, 400, 600), owls.filter(within(600)))
   const random = seeded(3)

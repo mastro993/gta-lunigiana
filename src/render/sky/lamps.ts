@@ -203,7 +203,7 @@ export const placeLamps = (): Array<StreetLamp> => {
 /**
  * Every lamp of the map for the map file (`MAP.lamps`): the wall lanterns (`placeLamps()`) then the platforms' pole lamps
  * (`platformLamps()`), their heights in m a.s.l. Placing them reads the terrain under every house that fronts a lit road, so
- * the build bakes them; `bake.test.ts` checks they are current.
+ * the build bakes them; `bake.map-test.ts` checks they are current.
  */
 export const bakeLamps = (): Array<Lamp> =>
   [

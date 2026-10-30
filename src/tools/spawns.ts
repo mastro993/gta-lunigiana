@@ -103,7 +103,7 @@ type Clearance = ReturnType<typeof clearance>
 const CAR_HL = 3.7 / 2,
   CAR_HW = 1.7 / 2,
   CAR_GAP = 0.3,
-  SPAWN_R = 1.3 // 1.2 m (map.test.ts) + rounding margin
+  SPAWN_R = 1.3 // 1.2 m (map.map-test.ts) + rounding margin
 
 /** A clear sidewalk spot outside building footprints, with an open walking route to the street. */
 export const playerSpawn = (

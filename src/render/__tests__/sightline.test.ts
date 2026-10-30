@@ -13,14 +13,17 @@ import { terrainResident, terrainY, yOf } from "../ground.ts"
 import { viewAxes } from "../pipeline.ts"
 import { CUT_UNIFORMS } from "../see-through.ts"
 import { SeeThrough, sight } from "../sightline.ts"
-import { everyTileIn } from "../testing.ts"
+import { residentAround } from "../testing.ts"
 import { inCrown } from "../trees.ts"
-
-// Far along a sight line the terrain comes from the coarse grid where no tile is in memory: here every one is.
-everyTileIn()
 
 const HOME = viewAxes(0).back
 const spawn = MAP.spawns.player
+/** How far from the spawn the tests look, m, and the tiles they hold round it (the sight lines run 500 m past it). */
+const LOOK = 1500,
+  HOLD = LOOK + 500
+// Far along a sight line the terrain comes from the coarse grid where no tile is in memory: here every one round the
+// spawn is.
+residentAround([spawn], HOLD)
 const hidden = (from: Vector3) => sight(from, HOME).hidden
 
 /** Three space at map (x, y), `over` m above the terrain. */
@@ -85,13 +88,14 @@ test("a point under the ground is hidden by the terrain", () => {
   assert.ok(hidden(at(spawn.x, spawn.y, -3)))
 })
 
-/** The first road point with no building within 60 m that a hill hides from the home camera, 20–150 m off along the sight line. */
+/** The first road point within `LOOK` of the spawn, with no building within 60 m, that a hill hides from the home camera, 20–150 m off along the sight line. */
 const UNDER_HILL = (() => {
   for (const road of MAP.roads)
     for (let k = 0; k + 1 < road.pts.length; k += 10) {
       const x = road.pts[k]!,
-        y = road.pts[k + 1]!,
-        { hidden, ground } = sight(at(x, y, 0.4), HOME)
+        y = road.pts[k + 1]!
+      if (Math.hypot(x - spawn.x, y - spawn.y) > LOOK) continue
+      const { hidden, ground } = sight(at(x, y, 0.4), HOME)
       let near = 0
       buildingsIn(x - 60, y - 60, x + 60, y + 60, () => near++)
       if (hidden && ground >= 20 && ground <= 150 && near === 0) return { x, y, ground }
@@ -209,6 +213,6 @@ test("past the tiles in memory a sight line reads the coarse grid's terrain, and
     assert.equal(sight(from, HOME).ground, ground)
   } finally {
     setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
-    everyTileIn()
+    residentAround([spawn], HOLD)
   }
 })

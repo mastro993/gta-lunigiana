@@ -22,10 +22,10 @@ import {
   owlsNear,
   streetAt,
 } from "../places.ts"
-import { fromDisk, residentMap } from "../testing.ts"
+import { fromDisk, HELD as REACH, residentAround } from "../testing.ts"
 
 /** What the game holds around the listener at `SPAWN`: the tiles within 1.2 km (past every owl square in earshot); the rest are let go. */
-const HELD = new Set(tilesOver(SPAWN.x - 1200, SPAWN.y - 1200, SPAWN.x + 1200, SPAWN.y + 1200))
+const HELD = new Set(tilesOver(SPAWN.x - REACH, SPAWN.y - REACH, SPAWN.x + REACH, SPAWN.y + REACH))
 const LET_GO = MAP.tiles.map(({ i, j }) => tileKey(i, j)).filter((key) => !HELD.has(key))
 const gone = (p: { readonly x: number; readonly y: number }) =>
   !tilesOver(p.x, p.y, p.x, p.y).some((key) => HELD.has(key))
@@ -86,7 +86,7 @@ const edgeBlock = (x: number, y: number) => {
   throw new Error(`no woods' edge near ${x}, ${y}`)
 }
 
-test("far sources (bells km off, a crossing, a strike) read no tile out of memory, and the listener's surroundings are the whole map's", () => {
+test("far sources (bells km off, a crossing, a strike) read no tile out of memory, and the listener's surroundings are what more tiles in memory give", () => {
   assert.ok(TOWERS.length >= 10 && CROSSING >= 0, `${TOWERS.length} towers, crossing ${CROSSING}`)
   const tower = TOWERS[0]!,
     before = measured(),
@@ -133,14 +133,17 @@ test("far sources (bells km off, a crossing, a strike) read no tile out of memor
   } finally {
     setTileSource(fromDisk)
   }
-  residentMap()
+  // Back in memory: the tiles twice as far round the listener, and the far block's.
+  residentAround([SPAWN], 2 * REACH)
+  residentAround([far], 0)
   const { dogs, owls, ring: rung, village: woods, ...rest } = held
   assert.deepEqual(rest, before)
   const within = (r: number) => (p: { readonly x: number; readonly y: number }) =>
     Math.hypot(p.x - SPAWN.x, p.y - SPAWN.y) <= r
   assert.ok(dogs.length > 0 && owls.length > 0 && rung.length > 0)
-  assert.deepEqual(dogs, dogsNear(0, 0, 1e6).filter(within(200)))
-  assert.deepEqual(owls, owlsNear(0, 0, 1e6).filter(within(600)))
+  // The near ones of a search twice as wide, in its order.
+  assert.deepEqual(dogs, dogsNear(SPAWN.x, SPAWN.y, 400).filter(within(200)))
+  assert.deepEqual(owls, owlsNear(SPAWN.x, SPAWN.y, 1200).filter(within(600)))
   assert.deepEqual(rung, ring())
   assert.equal(woods, village.forest)
   // Back in memory, the far block is its own cells': the coarse stand-in was not kept.

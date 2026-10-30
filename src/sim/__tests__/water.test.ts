@@ -21,7 +21,7 @@ import {
   SkyView,
   update,
 } from "../index.ts"
-import { deckNear, terrainZ } from "../map/ground.ts"
+import { deckNear } from "../map/ground.ts"
 import { MAP } from "../map/index.ts"
 import { walkIndex } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
@@ -31,6 +31,7 @@ import { WALK_SPEED } from "../tuning.ts"
 import { VEHICLES } from "../vehicles.ts"
 import { screenAxes } from "../view.ts"
 import { waterUnder } from "../water/rivers.ts"
+import { assertVergesDry } from "./verges.ts"
 
 /**
  * The Torrente Lucido below Monzone station, found by geometry: the vertex of its river part nearest the station with no bridge
@@ -332,35 +333,13 @@ test("bridges: a walker on a bridge over the Lucido stays dry in a spate; a swim
   assert.ok(waterUnder(crossing.x, crossing.y, true, SPATE) !== undefined)
 })
 
-// Regression: the deck lookup skipped a bridge by its first vertex's height and read one 16 m bucket, putting verge walkers in the river.
-test("bridges: every walker's verge over the water in a spate is on the deck", () => {
-  let checked = 0
-  for (const road of MAP.roads.filter((r) => r.bridge === true))
-    for (let k = 0; k + 1 < road.pts.length / 2; k++) {
-      const ax = road.pts[2 * k]!,
-        ay = road.pts[2 * k + 1]!,
-        dx = road.pts[2 * k + 2]! - ax,
-        dy = road.pts[2 * k + 3]! - ay,
-        l = Ops.hypot(dx, dy)
-      for (let t = 0; t <= 1; t += 0.05)
-        for (const off of [-1.2, -0.9, -0.6, 0.6, 0.9, 1.2].map(
-          (e) => Math.sign(e) * (road.w / 2) + e,
-        )) {
-          // About the verge pedestrians walk, w/2 + 0.8 m off the centreline.
-          const x = ax + dx * t - (dy / l) * off,
-            y = ay + dy * t + (dx / l) * off,
-            under = waterUnder(x, y, true, SPATE),
-            deck = road.z[k]! + (road.z[k + 1]! - road.z[k]!) * t
-          // Where the deck stands clear of the ground: at a bridge's foot the flood may reach the path.
-          if (under === undefined || deck < terrainZ(x, y) + 0.5) continue
-          checked++
-          assert.equal(
-            waterUnder(x, y, false, SPATE),
-            undefined,
-            `bridge ${road.id} verge at ${x}, ${y}`,
-          )
-        }
-    }
+// Regression: the deck lookup skipped a bridge by its first vertex's height and read one 16 m bucket, putting verge walkers
+// in the river (water.map-test.ts checks every bridge of the map).
+test("bridges: every walker's verge over the water in a spate is on the deck, on the bridges within 2 km of Monzone", () => {
+  const near = MAP.roads.filter(
+    (r) => r.bridge === true && Ops.hypot(r.pts[0]! + 493.8, r.pts[1]! - 436.9) < 2000,
+  )
+  const checked = assertVergesDry(near, SPATE)
   assert.ok(checked > 20, `${checked} verge points over deep water`)
 })
 

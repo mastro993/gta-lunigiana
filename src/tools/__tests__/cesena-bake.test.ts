@@ -4,13 +4,16 @@ import { test } from "node:test"
 import { gunzipSync } from "node:zlib"
 
 import { provideMap } from "../../sim/map/packed.ts"
-import { assertBakesCurrent } from "./bakes.ts"
+import { assertBakesCurrentNear } from "./bakes.ts"
 
 // This process loads Cesena (bake.test.ts checks Lunigiana): the global file goes in before anything decodes the map.
-test("Cesena's baked tables are what the game's code makes of the map now (run pnpm map --region cesena when this fails)", async () => {
+// cesena-bake.map-test.ts (pnpm test:map) bakes the whole map again.
+test("Cesena's baked parked spots, water beds and farms round its start are what the game's code makes of them now (run pnpm map --region cesena when this fails)", async () => {
   provideMap(gunzipSync(readFileSync(new URL("../../sim/map/cesena.bin", import.meta.url))))
   const { MAP } = await import("../../sim/map/index.ts")
-  const { bake } = await import("../bake.ts")
+  const { bakeParked } = await import("../../sim/parking.ts")
+  const { bakeFarms } = await import("../../sim/population/farms.ts")
+  const { bedOf } = await import("../../sim/water/channel.ts")
   assert.equal(MAP.name, "cesena")
-  assertBakesCurrent(MAP, bake)
+  assertBakesCurrentNear(MAP, MAP.spawns.player, 1000, { bakeParked, bedOf, bakeFarms })
 })

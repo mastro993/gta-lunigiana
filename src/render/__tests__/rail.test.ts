@@ -16,6 +16,7 @@ import { railPieces } from "../rail.ts"
 import { lampPieces } from "../sky/lamps.ts"
 import { stationPieces } from "../stations.ts"
 import { bucketPieces } from "../world.ts"
+import { assertChunkCut } from "./chunk-cut.ts"
 
 const sink = (): Sink => ({
   solid: new Triangles(),
@@ -91,52 +92,13 @@ const offRoad = (b: number, x: number, y: number) => {
   }
 }
 
-test("rail, stations, roads and rivers, lamps and buildings: a chunk build keeps exactly its cut of the whole-map build", () => {
+// rail.map-test.ts checks every chunk of the map.
+test("rail, stations, roads and rivers, lamps and buildings: a chunk build by Monzone station keeps exactly its cut of the whole build", () => {
+  const station = { minX: -1000, minY: -100, maxX: 0, maxY: 900 }
   for (const list of [pieces, stationPieces(), linePieces(), lampPieces(), buildingPieces()]) {
-    // The whole map drawn once, each triangle into the chunk `at` sends it to.
-    const cut = new Map<number, Sink>()
-    for (const piece of list)
-      piece.draw(
-        (x, y) => {
-          const key = chunkOf(x, y)
-          let s = cut.get(key)
-          if (s === undefined) cut.set(key, (s = sink()))
-          return s
-        },
-        0,
-        Math.max(0, piece.pts.length / 2 - 2),
-      )
-    const byChunk = bucketPieces(list)
-    let built = 0
-    for (const [key, entries] of byChunk.entries()) {
-      if (entries.length === 0) continue
-      const mine = sink(),
-        elsewhere = sink()
-      for (let n = 0; n < entries.length; n += 3)
-        list[entries[n]!]!.draw(
-          (x, y) => (chunkOf(x, y) === key ? mine : elsewhere),
-          entries[n + 1]!,
-          entries[n + 2]!,
-        )
-      const expected = cut.get(key) ?? sink()
-      for (const layer of ["solid", "decal", "water", "glow"] as const) {
-        assert.deepEqual(mine[layer].position, expected[layer].position, `chunk ${key} ${layer}`)
-        assert.deepEqual(mine[layer].color, expected[layer].color, `chunk ${key} ${layer} colours`)
-      }
-      // A building's walls are an extrusion of its own.
-      assert.deepEqual(
-        mine.pieces.map((g) => g.getAttribute("position").array),
-        expected.pieces.map((g) => g.getAttribute("position").array),
-        `chunk ${key} extrusions`,
-      )
-      built++
-    }
-    assert.ok(built >= 5, `${built} chunks hold some`)
-    assert.equal(
-      [...cut.keys()].filter((key) => byChunk[key]!.length === 0).length,
-      0,
-      "nothing lands in a chunk that does not build it",
-    )
+    const built = assertChunkCut(list, station)
+    // Monzone's two platforms are the fewest.
+    assert.ok(built >= 2, `${built} chunks hold some`)
   }
 })
 

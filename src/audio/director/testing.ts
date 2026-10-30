@@ -1,10 +1,10 @@
 /**
- * Test kit for the director's tests: the whole map in memory (as around the player in the game),
- * real map spots, a director on a recording speaker with a seeded random source, and `Heard` frames
- * built from a few vehicles, people, animals, trains (on the map's own line, as the audio schedule
- * projects them) and happenings, at a calm mid-morning (10:10 on 22 October, the sun 22° up, dry,
- * the usual wind) under which every law of the day and the weather is the identity, unless a test
- * sets its own sky or weather.
+ * Test kit for the director's tests: the tiles round its spots in memory (as around the player in
+ * the game), real map spots, a director on a recording speaker with a seeded random source, and
+ * `Heard` frames built from a few vehicles, people, animals, trains (on the map's own line, as the
+ * audio schedule projects them) and happenings, at a calm mid-morning (10:10 on 22 October, the sun
+ * 22° up, dry, the usual wind) under which every law of the day and the weather is the identity,
+ * unless a test sets its own sky or weather.
  *
  * @module audio/director/testing
  */
@@ -20,7 +20,7 @@ import { skyAt } from "../index.ts"
 import type { HeardTrain } from "../rail-types.ts"
 import { heardTrain } from "../rail.ts"
 import { seeded } from "../speech/testing.ts"
-import { residentMap } from "../testing.ts"
+import { HELD, residentAround } from "../testing.ts"
 import type {
   Continuous,
   Happening,
@@ -35,9 +35,6 @@ import type {
 } from "../types.ts"
 import { makeDirector } from "./index.ts"
 import { USUAL_WIND } from "./sky.ts"
-
-// Every tile in memory: the director hears the exact map wherever a test listens, as the game does around the player.
-residentMap()
 
 // Real map spots, found by probing the map.
 /** A treeless meadow on Monte dei Bianchi, clear for 300 m to the south and screen-right. */
@@ -70,6 +67,30 @@ export const HOUSE_WALL = { x: -429.85, y: 452.9 }
 export const GRAGNOLA = { x: -1751.2, y: 3360.4 }
 /** The riverbed's gravel 16 m under a bridge's asphalt deck. */
 export const UNDER_BRIDGE = { x: -1190.3, y: 1273.1 }
+
+// The tiles round every spot in memory: the director hears the exact map wherever a test listens, as the game does around
+// the player.
+residentAround(
+  [
+    MEADOW,
+    STREET,
+    BEHIND,
+    OPEN,
+    RIDGE,
+    STATION,
+    BELFRY,
+    HILLSIDE,
+    SPAWN,
+    BANK,
+    WEST_FLANK,
+    EAST_FLANK,
+    HOUSE_WALL,
+    GRAGNOLA,
+    UNDER_BRIDGE,
+  ],
+  HELD,
+)
+
 /** One frame at 60 Hz, s. */
 export const FRAME = 1 / 60
 /** Screen-right on the ground, with the view in its home seat. */

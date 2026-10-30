@@ -3,7 +3,6 @@ import { test } from "node:test"
 
 import { Ops, Random } from "@typeonce/ritmo-math"
 
-import { wholeMap } from "../../../tools/map-file.ts"
 import { MAP } from "../../map/index.ts"
 import type { LightningValue, WeatherValue } from "../../schema.ts"
 import { screenAxes } from "../../view.ts"
@@ -19,7 +18,7 @@ import {
 } from "../climate.ts"
 import { MAX_RATE, SECONDS_RANGE, setClock } from "../clock.ts"
 import { conditionsAt, DRY, fogAt, fogLayers, groundAt, snowCoverAt, windAt } from "../local.ts"
-import { place, placeFrom } from "../place.ts"
+import { place } from "../place.ts"
 import { calmPlan, dayWarmth, planFor, rainingAt, regimeAt } from "../plan.ts"
 import { describeWeather } from "../readout.ts"
 import { EVENTS, isRegime, REGIME_SPECS, REGIMES, SKIES } from "../regimes.ts"
@@ -361,9 +360,8 @@ test("ground: in January snow covers the mountains down toward the freezing leve
     thaw.snowLine > 900 && thaw.snowLine < 1300,
     `a sunny January day: snow line ${thaw.snowLine} m`,
   )
-  const lowest =
-    Array.from(wholeMap().heightmap.data).reduce((low, z) => Math.min(low, z), Number.MAX_VALUE) /
-    10
+  // Each tile's lowest node (tiles.map-test.ts checks them against the tiles' heights).
+  const lowest = Math.min(...MAP.tiles.map((t) => t.zmin)) / 10
   const deep = run({ ...snowing, anomaly: -20, snowLine: 200 }, JANUARY, 3600, 60)
   assert.ok(
     deep.snowLine >= lowest - 50 - 1e-9 && deep.snowLine < 200,
@@ -656,8 +654,8 @@ test("readout: one word for the weather where the player stands, from what falls
   )
 })
 
+// place.map-test.ts checks the place is the one fitted over the whole heightmap.
 test("place: the sky's place is the map's, its low ground about 230 m and its slope falling west-north-west", () => {
-  assert.deepEqual(place(), placeFrom(MAP.origin, wholeMap().heightmap))
   assert.ok(
     FLOOR > 220 && FLOOR < 240 && place().downslope > 2 && place().downslope < 2.3,
     JSON.stringify(place()),

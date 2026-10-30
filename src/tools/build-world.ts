@@ -16,7 +16,7 @@ import { sampleGrid } from "./terrain.ts"
 import { scatterTrees } from "./trees.ts"
 import { buildWalls } from "./walls.ts"
 
-/** Room for a car to stop and turn (map.test.ts asks the same of every traffic dead end). */
+/** Room for a car to stop and turn (map.map-test.ts asks the same of every traffic dead end). */
 const TURN = 2.3
 
 /** The railway, walls, trees, graph and spawns on `terrain`; `lap` marks the end of each stage. */

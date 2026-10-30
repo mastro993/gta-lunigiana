@@ -6,7 +6,7 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 import { ringBox } from "../../tools/geometry.ts"
 import { pointInRing } from "../collide.ts"
 import { Game, type Look } from "../index.ts"
-import { graph, MAP } from "../map/index.ts"
+import { buildingsIn, graph, MAP } from "../map/index.ts"
 import { EDGE_REACH } from "../population/density.ts"
 import {
   alongLane,
@@ -307,20 +307,25 @@ test("populate: traffic and pedestrians fill in out of view around a moving play
 
 // Regression: verges that run into houses spawned pedestrians inside them (stuck under the roof for good).
 test("populate: pedestrians spawn in the villages, never inside a house, and none in the woods", () => {
-  const indoors = (p: { readonly x: number; readonly y: number }) =>
-    MAP.buildings.some(
-      (b) =>
-        pointInRing(p.x, p.y, b.outer) && !(b.holes ?? []).some((h) => pointInRing(p.x, p.y, h)),
-    )
-  // A walk node with walk edges in the spawn band but no building within EDGE_REACH of any of them: none has residents near.
-  const lonely = (n: { readonly x: number; readonly y: number }) =>
-    MAP.buildings.every((b) => {
-      const [x0, y0, x1, y1] = ringBox(b.outer)
-      return (
-        Ops.hypot(Math.max(x0 - n.x, 0, n.x - x1), Math.max(y0 - n.y, 0, n.y - y1)) >
-        EDGE_REACH + PEDESTRIANS.spawn[1]
-      )
+  const indoors = (p: { readonly x: number; readonly y: number }) => {
+    let inside = false
+    buildingsIn(p.x, p.y, p.x, p.y, (i) => {
+      const b = MAP.buildings[i]!
+      inside ||=
+        pointInRing(p.x, p.y, b.outer) && !(b.holes ?? []).some((h) => pointInRing(p.x, p.y, h))
     })
+    return inside
+  }
+  // A walk node with walk edges in the spawn band but no building within EDGE_REACH of any of them: none has residents near.
+  const lonely = (n: { readonly x: number; readonly y: number }) => {
+    const reach = EDGE_REACH + PEDESTRIANS.spawn[1]
+    let alone = true
+    buildingsIn(n.x - reach, n.y - reach, n.x + reach, n.y + reach, (i) => {
+      const [x0, y0, x1, y1] = ringBox(MAP.buildings[i]!.outer)
+      alone &&= Ops.hypot(Math.max(x0 - n.x, 0, n.x - x1), Math.max(y0 - n.y, 0, n.y - y1)) > reach
+    })
+    return alone
+  }
   const woods = graph.nodes.find(
     (n) => walkIndex.around(n.x, n.y, PEDESTRIANS.spawn).length > 0 && lonely(n),
   )!

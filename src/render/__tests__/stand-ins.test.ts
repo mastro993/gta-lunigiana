@@ -13,7 +13,7 @@ import { terrainY } from "../ground.ts"
 import { PersonNode } from "../people.ts"
 import { signalLampMaterials, vehicleLampMaterials } from "../sky/glow.ts"
 import { standIns } from "../stand-ins.ts"
-import { everyTileIn, streamAround } from "../testing.ts"
+import { residentAround, streamAround } from "../testing.ts"
 import { TrainNode } from "../train.ts"
 import { World } from "../world.ts"
 
@@ -48,8 +48,8 @@ test("the stand-ins hold every material the streamed world, the actors, the trai
   train.setLamps(true)
   train.showXray(true)
   const crossings = new Group()
-  // A box shows once the ground under it is in memory.
-  everyTileIn()
+  // A box shows once the ground under it is in memory: the first two, one closed and one open, are.
+  residentAround(CROSSINGS.slice(0, 2), 100)
   makeCrossings(crossings).draw(
     CROSSINGS.map((_, i) => ({
       phase: i % 2 === 0 ? "closed" : "open",

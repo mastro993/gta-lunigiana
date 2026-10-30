@@ -25,8 +25,29 @@ import { viewAxes } from "../pipeline.ts"
 
 const { right, up, back } = viewAxes(0)
 const count = CHUNKS.x * CHUNKS.y
+const tiles = new Map(MAP.tiles.map((tile) => [tileKey(tile.i, tile.j), tile]))
+/** Writes chunk `key`'s box from its tiles' lowest and highest nodes (`boundBox`) into `out`: no tile is read. */
+const bound = (out: Float32Array, key: number) => {
+  const { minX, minY, maxX, maxY } = chunkRect(key)
+  boundBox(
+    out,
+    key,
+    tilesOver(minX, minY, maxX, maxY).map((k) => tiles.get(k)!),
+  )
+}
+const SPAWN = MAP.spawns.player
+/** The chunks the screen-distance tests read: the spawn's, 1.5 km east and south of it, and the map's first and last. */
+const READ = [
+  chunkOf(SPAWN.x, SPAWN.y),
+  chunkOf(SPAWN.x + 1500, SPAWN.y),
+  chunkOf(SPAWN.x, SPAWN.y - 1500),
+  0,
+  count - 1,
+]
+/** Every chunk's box from its tiles, those the tests read exact (`exactBox` reads their terrain). */
 const boxes = new Float32Array(count * 6)
-for (let key = 0; key < count; key++) exactBox(boxes, key)
+for (let key = 0; key < count; key++) bound(boxes, key)
+for (const key of READ) exactBox(boxes, key)
 const rects = screenRects(boxes, right, up, new Float32Array(count * 4))
 const distancesFrom = (focus: Vector3) =>
   screenDistances(rects, focus.dot(right), focus.dot(up), new Float32Array(count))
@@ -85,7 +106,7 @@ test("screen distance: one box's is screenRects' and screenDistances'", () => {
   const { x, y } = MAP.spawns.player
   const focus = ground(x + 300, y - 200),
     d = distancesFrom(focus)
-  for (const key of [chunkOf(x, y), chunkOf(x + 1500, y), chunkOf(x, y - 1500), 0, count - 1])
+  for (const key of READ)
     // `d` holds 32-bit floats.
     assert.equal(
       Math.fround(screenDistance(boxes, key, right, up, focus.dot(right), focus.dot(up))),
@@ -93,18 +114,20 @@ test("screen distance: one box's is screenRects' and screenDistances'", () => {
     )
 })
 
-test("chunk boxes: the one from the tiles' lowest and highest nodes holds the exact one, for every chunk", () => {
-  const tiles = new Map(MAP.tiles.map((tile) => [tileKey(tile.i, tile.j), tile]))
-  const bound = new Float32Array(count * 6)
+// chunks.map-test.ts checks every chunk of the map.
+test("chunk boxes: the one from the tiles' lowest and highest nodes holds the exact one, for every chunk of the four tiles by Monzone", () => {
+  const exact = new Float32Array(count * 6),
+    from = new Float32Array(count * 6)
+  let checked = 0
   for (let key = 0; key < count; key++) {
     const { minX, minY, maxX, maxY } = chunkRect(key)
-    boundBox(
-      bound,
-      key,
-      tilesOver(minX, minY, maxX, maxY).map((k) => tiles.get(k)!),
-    )
-    for (let k = 0; k < 4; k++) assert.equal(bound[key * 6 + k], boxes[key * 6 + k])
-    assert.ok(bound[key * 6 + 4]! <= boxes[key * 6 + 4]!, `chunk ${key} low`)
-    assert.ok(bound[key * 6 + 5]! >= boxes[key * 6 + 5]!, `chunk ${key} high`)
+    if (minX < -2000 || minY < -2000 || maxX > 2000 || maxY > 2000) continue
+    exactBox(exact, key)
+    bound(from, key)
+    for (let k = 0; k < 4; k++) assert.equal(from[key * 6 + k], exact[key * 6 + k])
+    assert.ok(from[key * 6 + 4]! <= exact[key * 6 + 4]!, `chunk ${key} low`)
+    assert.ok(from[key * 6 + 5]! >= exact[key * 6 + 5]!, `chunk ${key} high`)
+    checked++
   }
+  assert.ok(checked > 100, `${checked} chunks`)
 })

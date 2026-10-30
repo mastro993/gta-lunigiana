@@ -173,7 +173,7 @@ export interface Rail {
   readonly z: ReadonlyArray<number>
 }
 
-/** Land use polygon: `rings[0]` outer, the rest holes; `kind` is one of `AREA_KINDS` (checked by map.test.ts, narrow with `isAreaKind`). */
+/** Land use polygon: `rings[0]` outer, the rest holes; `kind` is one of `AREA_KINDS` (checked by map.map-test.ts, narrow with `isAreaKind`). */
 export interface Area {
   readonly kind: string
   readonly name?: string
@@ -215,7 +215,7 @@ export type Rest = readonly [z: number, pitch: number, roll: number]
 
 /**
  * A parked spot, with what the build baked from the terrain and walls there (src/sim/systems/spawn.ts
- * reads them; `bake.test.ts` checks they are current): the rest of each model that stands level
+ * reads them; `bake.map-test.ts` checks they are current): the rest of each model that stands level
  * enough on it, and whether a truck fits (clear of the walls, and level).
  */
 export interface ParkedSpot extends Spawn {
@@ -287,7 +287,7 @@ export interface MonzoneMap {
   }
   readonly spawns: { readonly player: Spawn; readonly parked: ReadonlyArray<ParkedSpot> }
   /**
-   * Baked by the build (src/sim/lanes.ts; `bake.test.ts` checks they are current): per model, the lane
+   * Baked by the build (src/sim/lanes.ts; `bake.map-test.ts` checks they are current): per model, the lane
    * offset of each traffic edge (`graph.traffic` order) travelled b → a, then a → b; −1 where the model
    * may not drive it.
    */
@@ -301,7 +301,7 @@ export interface MonzoneMapJson extends Omit<MonzoneMap, "coarse"> {
   readonly coarse: Omit<Coarse, "heights" | "cover">
 }
 
-/** The road's class; the build only emits `ROAD_CLASSES` (checked by map.test.ts), anything else reads as "path". */
+/** The road's class; the build only emits `ROAD_CLASSES` (checked by map.map-test.ts), anything else reads as "path". */
 export const roadClassOf = (road: Road): RoadClass => (isRoadClass(road.cls) ? road.cls : "path")
 
 const buildingStyles: ReadonlySet<string> = new Set(BUILDING_STYLES)

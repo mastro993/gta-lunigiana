@@ -108,7 +108,7 @@ const zAlong = (s: Float64Array, z: ArrayLike<number>, at: number): number => {
  * The bed of `water` under its centreline per vertex (m a.s.l.): the terrain drawn there, `depth`/2
  * under the culvert's dip under an at-grade road, and under the track no higher than that nor `depth`
  * under the rail bed. It reads the terrain along the whole water, so the build bakes it into the map
- * (`Water.floor`), which `channelOf` reads; `bake.test.ts` checks it is current.
+ * (`Water.floor`), which `channelOf` reads; `bake.map-test.ts` checks it is current.
  */
 export const bedOf = (water: Water | Omit<Water, "floor">): Array<number> => {
   const { pts, z } = water,

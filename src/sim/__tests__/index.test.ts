@@ -38,6 +38,7 @@ import {
   lanePoint,
   laneSide,
   roadOf,
+  trafficIndex,
   walkIndex,
   walkSide,
 } from "../route.ts"
@@ -427,10 +428,10 @@ test("traffic: a car follows the roads for 30 s, never inside walls", () => {
   let last: PoseValue = ON_BATTISTI
   run(1800, () => {
     const car = world().vehicles.find((v) => v.id === id)!
-    // Within a metre of a traffic road's carriageway (corners get cut): measured from every edge, so a car
-    // turning out of a lane into a wider road is judged by the wider road.
+    // Within a metre of a traffic road's carriageway (corners get cut): measured from every edge near it (an edge is at
+    // most 25.5 m, a carriageway 12 m), so a car turning out of a lane into a wider road is judged by the wider road.
     let off = Infinity
-    for (const e of graph.trafficEdges)
+    for (const e of trafficIndex.around(car.x, car.y, [0, 40]))
       off = Math.min(off, distanceToEdge(e, car.x, car.y) - roadOf(e).w / 2)
     assert.ok(off < 1, `${off} m beyond the carriageway at (${car.x}, ${car.y})`)
     assert.ok(carClear("panda", car, 0.02), "never inside a wall")

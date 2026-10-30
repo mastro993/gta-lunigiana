@@ -3,13 +3,12 @@ import { test } from "node:test"
 
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
-import { wholeMap } from "../../tools/map-file.ts"
 import { carCircles, carClear, carRadius, crossesAny, moveCar, wallsAlong } from "../body.ts"
 import { settle, tiltOf, turn } from "../chassis.ts"
 import { UNDAMAGED } from "../damage.ts"
 import { groundZ } from "../map/ground.ts"
-import { graph, wallsNear } from "../map/index.ts"
-import { pushTrunk, TILE } from "../map/kinds.ts"
+import { graph } from "../map/index.ts"
+import { tileTrees, tilesOver } from "../map/tiles.ts"
 import {
   edgeIndex,
   facesForward,
@@ -60,47 +59,16 @@ import {
 import { PERSON_RADIUS } from "../tuning.ts"
 import { weatherFactor } from "../tyres.ts"
 import { VEHICLES } from "../vehicles.ts"
+import { assertTrunkCorners } from "./trunk-corners.ts"
 
-// Trees are indexed as points and their trunk squares made on query: the broad phase must still return them.
-test("wallsNear: a box touching only the corner of a tree's trunk square returns its four edges, across tile seams too", () => {
-  const all = wholeMap().trees,
-    trees = all.length / 3
-  assert.ok(trees > 1000, `${trees} trees`)
-  const square: Array<number> = []
-  pushTrunk(square, 0, 0)
-  const reach = Math.max(...square)
-  // Every tenth tree (hundreds of them have a corner box in a grid cell the tree is not in), and every tree within a metre
-  // of a tile seam, whose corner box lies in the next tile.
-  const seam = (v: number) => Math.abs(v - TILE * Math.round(v / TILE)) <= 1
-  const picked = Array.from({ length: trees }, (_, i) => i).filter(
-    (i) => i % 10 === 0 || seam(all[3 * i]!) || seam(all[3 * i + 1]!),
-  )
-  assert.ok(picked.length - Math.ceil(trees / 10) > 100, "trees on the seams")
-  for (const i of picked) {
-    const x = all[3 * i]!,
-      y = all[3 * i + 1]!
-    square.length = 0
-    pushTrunk(square, x, y)
-    for (const [minX, minY, maxX, maxY] of [
-      [x + reach, y + reach, x + reach + 0.5, y + reach + 0.5],
-      [x - reach - 0.5, y - reach - 0.5, x - reach, y - reach],
-    ] as const) {
-      for (const kind of ["walk", "drive"] as const) {
-        let edges = 0 // one bit per edge of the square
-        for (const s of wallsNear(kind, minX, minY, maxX, maxY)) {
-          for (let k = 0; k < 16; k += 4)
-            if (
-              s.ax === square[k] &&
-              s.ay === square[k + 1] &&
-              s.bx === square[k + 2] &&
-              s.by === square[k + 3]
-            )
-              edges |= 1 << (k / 4)
-        }
-        assert.equal(edges, 0b1111, `${kind}: tree ${i} at ${x},${y}`)
-      }
-    }
-  }
+// Trees are indexed as points and their trunk squares made on query: the broad phase must still return them
+// (walls.map-test.ts checks every tree of the map).
+test("wallsNear: a box touching only the corner of a tree's trunk square returns its four edges, across tile seams too, by Monzone", () => {
+  // The trees of the four tiles meeting at (0, 0), by Monzone: seams run along their every side.
+  const trees = tilesOver(-1, -1, 1, 1).flatMap((key) => Array.from(tileTrees(key).trees))
+  assert.ok(trees.length / 3 > 1000, `${trees.length / 3} trees`)
+  const onSeams = assertTrunkCorners(trees)
+  assert.ok(onSeams > 20, `${onSeams} trees on the seams`)
 })
 
 // Regressions: nothing (pushed, thrown, shoved, getting out, turning) ends up inside a building.
