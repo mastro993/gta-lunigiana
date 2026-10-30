@@ -1009,13 +1009,14 @@ maps has its file, of at most 0.7 MB.
 `src/tools/__tests__/seams.map-test.ts` is a map test: it reads every tile of both maps, so it grows
 with the map and `pnpm test` leaves it out (run it with `node --test
 src/tools/__tests__/seams.map-test.ts`). Wherever two listed tiles meet it checks each tile's own
-copy: every node they share has one height, the ground under every road (not a bridge or tunnel)
-is one height where the road crosses the seam, read from either tile, and the walls carry on
-across the seam as the tiles store them: each wall of each kind in exactly one tile, and at both
-ends of every wall that crosses a seam the tiles within `walls.reach` hold the same walls touching
-that point as the whole map does (the shore walls, closed outlines, an even number). On a tile with
-one border node raised by a decimetre the height check fails, and with a wall crossing x = 0 moved
-into a tile 2 km away (or dropped) the wall check fails.
+copy: every node they share has one height, and the walls carry on across the seam as the tiles
+store them: each wall of each kind in exactly one tile, and at both ends of every wall that crosses
+a seam the tiles within `walls.reach` hold the same walls touching that point as the whole map does
+(the shore walls, closed outlines, an even number). On a tile with one border node raised by a
+decimetre the height check fails, and with a wall crossing x = 0 moved into a tile 2 km away (or
+dropped) the wall check fails. The roads need no check of their own: they lie whole in the global
+file, so a road's z has no seam, and the ground under a road where it crosses a seam is read from
+the shared nodes alone (bilinear on the seam's column or row), which the height check covers.
 
 `src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with `subsetShp` and reads it back,
 `src/tools/__tests__/ctr-rail.test.ts` checks the track chaining, the tunnel cut and the clip on

@@ -1,8 +1,9 @@
 // Seam checks on the built maps (a map test: it reads every tile of both maps, so it grows with
 // the map and stays out of `pnpm test`). Wherever two listed tiles meet, the terrain nodes they
-// share are the same in both, the ground under every road crossing the seam is one height, and the
-// walls carry on across it as the tile format stores them: each wall once, in the tile of its
-// midpoint, found from either side within `walls.reach`.
+// share are the same in both, and the walls carry on across the seam as the tile format stores
+// them: each wall once, in the tile of its midpoint, found from either side within `walls.reach`. A
+// road's z has no seam (the roads lie whole in the global file), and the ground under a road at a
+// seam is read from the shared nodes alone.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
@@ -12,7 +13,6 @@ import {
   decodeTile,
   MAP_URL,
   readMapFile,
-  TILE_CELLS,
   TILE_NODES,
   type TileData,
   tileUrl,
@@ -42,18 +42,6 @@ const seams = (tiles: ReadonlyMap<string, TileData>) =>
     ).flatMap(([side, b]) => (b === undefined ? [] : [{ side, a, b }])),
   )
 
-/** The height of tile `t`'s terrain at (x, y), decimetres, read from its own nodes (bilinear in the cell holding the point, clamped to the tile). */
-const heightIn = (t: TileData, x: number, y: number): number => {
-  const fx = (x - TILE * t.i) / (TILE / TILE_CELLS),
-    fy = (y - TILE * t.j) / (TILE / TILE_CELLS)
-  const c = Math.min(TILE_CELLS - 1, Math.max(0, Math.floor(fx))),
-    r = Math.min(TILE_CELLS - 1, Math.max(0, Math.floor(fy)))
-  const tx = Math.min(1, Math.max(0, fx - c)),
-    ty = Math.min(1, Math.max(0, fy - r))
-  const h = (dc: number, dr: number) => t.heights[(r + dr) * TILE_NODES + c + dc]!
-  return (h(0, 0) * (1 - tx) + h(1, 0) * tx) * (1 - ty) + (h(0, 1) * (1 - tx) + h(1, 1) * tx) * ty
-}
-
 for (const { name, global, tiles } of MAPS) {
   test(`${name}: every node two tiles share has one height`, () => {
     const pairs = seams(tiles)
@@ -70,40 +58,6 @@ for (const { name, global, tiles } of MAPS) {
           `${tileKey(a.i, a.j)} and its ${side} neighbour, node ${k} along the seam`,
         )
       }
-  })
-
-  test(`${name}: the ground under every road is one height where the road crosses a seam`, () => {
-    let crossings = 0
-    for (const road of global.roads) {
-      if (road.bridge === true || road.tunnel === true) continue
-      for (let k = 0; k + 3 < road.pts.length; k += 2) {
-        const [ax, ay, bx, by] = [
-          road.pts[k]!,
-          road.pts[k + 1]!,
-          road.pts[k + 2]!,
-          road.pts[k + 3]!,
-        ]
-        for (const axis of [0, 1] as const) {
-          const [a, b] = axis === 0 ? [ax, bx] : [ay, by]
-          for (let s = Math.floor(Math.min(a, b) / TILE) + 1; s * TILE <= Math.max(a, b); s++) {
-            const t = (s * TILE - a) / (b - a),
-              x = axis === 0 ? s * TILE : ax + (bx - ax) * t,
-              y = axis === 1 ? s * TILE : ay + (by - ay) * t
-            const [ti, tj] = [Math.floor(x / TILE), Math.floor(y / TILE)]
-            const before = tiles.get(axis === 0 ? tileKey(s - 1, tj) : tileKey(ti, s - 1)),
-              after = tiles.get(tileKey(ti, tj))
-            if (before === undefined || after === undefined) continue
-            crossings++
-            assert.equal(
-              heightIn(before, x, y),
-              heightIn(after, x, y),
-              `road ${road.id} at (${x.toFixed(1)}, ${y.toFixed(1)})`,
-            )
-          }
-        }
-      }
-    }
-    assert.ok(crossings > 0)
   })
 
   test(`${name}: the walls carry on across every seam, each once and found from either side`, () => {
