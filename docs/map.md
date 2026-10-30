@@ -874,7 +874,15 @@ the dense layers. The tiles hold the dense layers: terrain, walls, trees and lan
 the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin, keyed `i_j` (`TILE` and
 `tileKey` in `src/sim/map/kinds.ts`). Every tile with ground in it is listed: Lunigiana's 30 are
 i −2…2 and j −4…1, Cesena's 4 are −1…0 both ways (`tileRange`). The render's 192 m apron past the
-bounds has no tiles of its own: it extends the edge nodes, as before.
+bounds has no tiles of its own: it extends the edge nodes, as before. The game takes the box of tile
+indices from the listed tiles, not from the bounds, and a region whose parts make an L lists no tile
+in the notch the parts leave in the box round them: there a terrain or land-cover lookup reads the
+nearest node or cell of the listed tiles in the nearest ring of tiles round the unlisted one (a tie
+goes to the first in key order), so the ground past an inner edge of the play area extends that
+edge, as the apron does past the bounds (`src/sim/map/tiles.ts`;
+`src/__tests__/notch.test.ts` drops Lunigiana's four tiles north-east of (2000, 0) and checks every
+runtime reader). The tiles round it are what `tilesOver` names for a box over the notch, so the
+host keeps them in memory wherever a lookup there may read.
 
 | File | Lunigiana | Cesena |
 |---|---|---|

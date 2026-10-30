@@ -338,7 +338,7 @@ const { minX, minY, maxX, maxY } = MAP.bounds
 /** Scratch for the four nodes of a cell. */
 const corners = new Int32Array(4)
 
-/** Bilinear terrain elevation (m) at (x, y), clamped to the map bounds. */
+/** Bilinear terrain elevation (m) at (x, y), clamped to the map bounds; in an unlisted tile, from the nearest listed nodes (`./tiles.ts`). */
 export const heightAt = (x: number, y: number): number => {
   const fx = (Math.min(maxX, Math.max(minX, x)) - hm.x0) / hm.cell
   const fy = (Math.min(maxY, Math.max(minY, y)) - hm.y0) / hm.cell

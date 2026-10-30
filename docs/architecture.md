@@ -603,6 +603,12 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   reaches it; its gunzipped file is 0.76–1.78 MB. After a teleport to (1998, 2017) the tiles in
   memory settled at 4 (0_0, 1_0, 0_1, 1_1); along the SP59 to Vinca at 40 m/s at most 6 were in
   memory at once, and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1).
+- **Unlisted tiles**: the listed tiles need not fill the box round them (a region of parts in an L
+  leaves its notch unlisted, [map.md](map.md#map-files)). A terrain or land-cover lookup in an
+  unlisted tile reads the nearest node or cell of the listed tiles round it, so `tilesOver` names
+  those for a box over it, and `isResidentAt` there answers whether they are all in memory; walls
+  and trees there are none. On Lunigiana and Cesena every tile in the box is listed, and nothing
+  changes.
 - **`ready(player, extra)`**: whether every listed tile a step reads round the player, and round
   `extra` when given, is in memory; `main.ts` pauses the game while it is not ([Host
   loop](#host-loop)).
