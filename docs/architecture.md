@@ -2002,11 +2002,12 @@ stages the result, with any unstaged edits to them held aside, then `oxlint` che
 push, `pnpm format:check`, `pnpm typecheck` and `pnpm lint` run in parallel; the tests are left to
 CI. `git commit --no-verify` skips the hooks, never CI.
 
-`src/sim/testing.ts` is the headless test kit: `start(timeline, staging, { alone, trains, keys })`
-makes a runtime with scripted keys (or `keys`, a source the test plays as it goes) and collects
-every `Impact`, `Honk`, `Cry`, `Lightning`, `Explosion` and `Whistle` emitted (`heard`); it has no
-train unless `trains` (it ticks `noTrains`, from `src/sim/rail/testing.ts`, before setup: every
-line's service off, so setup stands no train and no test meets one it did not ask for; the direct
+`src/sim/testing.ts` is the headless test kit:
+`start(timeline, staging, { alone, trains, keys, seed })` makes a runtime of the game's `seed` (1 by
+default) with scripted keys (or `keys`, a source the test plays as it goes) and collects every
+`Impact`, `Honk`, `Cry`, `Lightning`, `Explosion` and `Whistle` emitted (`heard`); it has no train
+unless `trains` (it ticks `noTrains`, from `src/sim/rail/testing.ts`, before setup: every line's
+service off, so setup stands no train and no test meets one it did not ask for; the direct
 `makeRuntime` tests by the line tick it too); with `alone`, whatever `Populate` brings is despawned
 the step it comes, so a staged scene plays out undisturbed. `stage` clears the map (vehicles,
 trains, people and animals) and places exactly the cars, trains, pedestrians, animals, bodies lying
