@@ -859,7 +859,10 @@ yellow lines), a water mesh (rivers and streams, laid on their beds: the shader 
 level the rivers run at, [water.md](water.md#how-it-looks)), a glow mesh (lit window panes and lantern glass)
 and one `InstancedMesh` per tree kind; the water and glow meshes exist only where the chunk has
 some. A 192 m apron of extra chunks continues the terrain, lines and trees beyond the map
-bounds. Terrain cells take their colours from the land cover, read from the tiles cell by cell
+bounds, the built terrain's box; inside it, past an inner edge of a play area of parts in an L, the
+notch's unlisted tiles draw the ground and cover the nearest listed tiles extend into it, with no
+trees, and the lines stop at the outline (only a line ending on the bounds runs on across the
+apron). Terrain cells take their colours from the land cover, read from the tiles cell by cell
 (`coverIndexAt` in `src/sim/map/cover.ts`, painted by `COVER_LOOK` in `src/render/terrain.ts`): the
 map's areas, meadow where none covers a cell, paving where open ground lies within 3 m of both a
 wall and a road's edge (house fronts, sidewalks, alleys), and pebble beds along the wide streams.
@@ -879,8 +882,9 @@ build reads is in memory.
   whole-map build (`rail.map-test.ts` checks it for the rail, the stations, the roads and rivers,
   the lamps and the buildings in every chunk, `rail.test.ts` in the chunks by Monzone station).
 - **The tiles a chunk reads**: its terrain reads the tiles under its square (an apron chunk's, the
-  edge tiles it clamps to). Its build reads the tiles under its needs box: the square; for an apron
-  chunk, the square mirrored across the map edge too, where its mirrored trees stand; and each
+  edge tiles it clamps to; a notch chunk's, the listed tiles round the notch, `tilesOver`). Its
+  build reads the tiles under its needs box: the square; for an apron chunk, the square mirrored
+  across the map edge too, where its mirrored trees stand; and each
   piece's `reads` box (a building's footprint, a platform's rim, a canopy's footprint, the road
   ribbons a crossing lies over) or the vertices k0−1…k1+2 it draws, all grown by 50 m (`REACH`: a
   mitred ribbon's edge, the ballast bed's foot, a portal's throat). A chunk is ready once every tile

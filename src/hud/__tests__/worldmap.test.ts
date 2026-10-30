@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { districtAt, MAP } from "../../sim/map/index.ts"
+import { districtAt, inPlay, MAP } from "../../sim/map/index.ts"
 import { fitMap, PLACES, placeLabels } from "../worldmap.ts"
 
 test("the map fits the screen inside the margins, centred, with north up and the aspect kept", () => {
@@ -61,15 +61,7 @@ test("places: the villages and hamlets the user asked for are named on the map",
       .includes("Gragnola"),
     "Gragnola is a village (big label)",
   )
-  assert.ok(
-    PLACES.every(
-      (p) =>
-        p.x >= MAP.bounds.minX &&
-        p.x <= MAP.bounds.maxX &&
-        p.y >= MAP.bounds.minY &&
-        p.y <= MAP.bounds.maxY,
-    ),
-  )
+  assert.ok(PLACES.every((p) => inPlay(p.x, p.y)))
   // Every place sits in the HUD district of the same name, so the map and the HUD agree.
   for (const name of [
     "Equi Terme",

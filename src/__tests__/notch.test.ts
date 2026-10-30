@@ -37,6 +37,7 @@ const { terrainZ } = await import("../sim/map/ground.ts")
 const tiles = await import("../sim/map/tiles.ts")
 const { chunkTiles } = await import("../render/chunk-tiles.ts")
 const { CHUNKS, chunkRect, exactBox } = await import("../render/chunks.ts")
+const { bucketTileTrees } = await import("../render/trees.ts")
 const { SetPlayer } = await import("../sim/index.ts")
 const { door, ON_BATTISTI, start } = await import("../sim/testing.ts")
 const { initialWeather, setWeather, stormStep } = await import("../sim/sky/weather.ts")
@@ -132,6 +133,9 @@ test("an L: the render plans every chunk once, the notch's on the listed tiles r
     assert.ok(plan.boxes[key * 6 + 5]! >= exact[key * 6 + 5]!, `chunk ${key}'s high`)
   }
   assert.ok(notch > 400, `${notch} chunks in the notch`)
+  // the trees of the tiles round the notch, mirrored past the bounds' edges, fall in chunks of the grid
+  for (const key of AROUND)
+    for (const chunk of bucketTileTrees(key).keys()) assert.ok(chunk >= 0 && chunk < count, key)
 })
 
 test("an L: the play area is the outline's, its edge in it", () => {
