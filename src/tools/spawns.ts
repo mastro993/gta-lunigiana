@@ -7,7 +7,6 @@ import {
   arcLengths,
   centroid,
   hash01,
-  inBounds,
   pointAt,
   pointInRing,
   r1,
@@ -15,6 +14,7 @@ import {
   segDist2,
   segIndex,
 } from "./geometry.ts"
+import { inPlay } from "./play-area.ts"
 
 /** Segments farther than this from a clearance query are ignored, m (every caller asks less). */
 const REACH = 3
@@ -132,10 +132,7 @@ export const playerSpawn = (
       const off = side * (road.w / 2 + 1),
         x = r1(p.x - p.ty * off),
         y = r1(p.y + p.tx * off)
-      if (
-        !inBounds(x, y, SPAWN_R) ||
-        buildings.some((building) => pointInRing(x, y, building.outer))
-      )
+      if (!inPlay(x, y, SPAWN_R) || buildings.some((building) => pointInRing(x, y, building.outer)))
         continue
       if (!walk.circle(x, y, SPAWN_R) || !drive.circle(x, y, SPAWN_R)) continue
       const steps = Math.ceil(Math.hypot(x - p.x, y - p.y) / 0.5)
@@ -295,7 +292,7 @@ export const parkedSpots = ({
     ]
   }
   const fits = (x: number, y: number, angle: number) =>
-    inBounds(x, y, 5) &&
+    inPlay(x, y, 5) &&
     walk.circle(x, y, SPAWN_R) &&
     drive.circle(x, y, SPAWN_R) &&
     drive.box(x, y, angle, CAR_HL + CAR_GAP, CAR_HW + CAR_GAP) &&

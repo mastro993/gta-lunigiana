@@ -3,8 +3,9 @@
 // the buildings nearest it, and the mountains' landmarks, placed by hand.
 import type { District } from "../sim/map/index.ts"
 import type { BuildingF } from "./features.ts"
-import { centroid, inBounds, r1, toLocal } from "./geometry.ts"
+import { centroid, r1, toLocal } from "./geometry.ts"
 import type { Osm } from "./osm.ts"
+import { inPlay } from "./play-area.ts"
 import { REGION } from "./region.ts"
 
 /** Monzone's station, streets and hill clusters: OSM names only Monzone (Alto) and Aiola there. */
@@ -89,7 +90,7 @@ export const fitDistricts = (osm: Osm, buildings: ReadonlyArray<BuildingF>): Arr
       const name = node.tags.name
       return name !== undefined &&
         ["city", "suburb", "neighbourhood", "village", "hamlet"].includes(node.tags.place ?? "") &&
-        inBounds(x, y)
+        inPlay(x, y)
         ? [{ name, x: r1(x), y: r1(y), r: node.tags.place === "city" ? 1000 : 500 }]
         : []
     })
@@ -98,10 +99,7 @@ export const fitDistricts = (osm: Osm, buildings: ReadonlyArray<BuildingF>): Arr
   const places = [...osm.nodes.values()].flatMap((n) => {
     const [x, y] = toLocal(n.lat, n.lon)
     const name = n.tags.name
-    return PLACES.has(n.tags.place ?? "") &&
-      name !== undefined &&
-      inBounds(x, y) &&
-      !inMonzone(x, y)
+    return PLACES.has(n.tags.place ?? "") && name !== undefined && inPlay(x, y) && !inMonzone(x, y)
       ? [{ name, x, y, near: [] as Array<number> }]
       : []
   })

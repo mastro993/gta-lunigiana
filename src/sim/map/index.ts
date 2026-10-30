@@ -391,8 +391,8 @@ interface GraphEdge {
 
 /**
  * Road network for AI steering. Junctions come from shared OSM nodes; long edges are split so
- * none exceeds ~25 m. Where a road leaves the play area its dead end sits 8 m inside the bounds,
- * beyond the road-exit caps: treat those degree-1 nodes as exits (despawn or U-turn).
+ * none exceeds ~25 m. Where a road leaves the play area its dead end sits 8 m back from the
+ * outline, beyond the road-exit caps: treat those degree-1 nodes as exits (despawn or U-turn).
  */
 interface RoadGraph {
   readonly nodes: ReadonlyArray<{ readonly x: number; readonly y: number }>

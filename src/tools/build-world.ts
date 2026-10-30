@@ -5,8 +5,9 @@
 import { isDrivable } from "../sim/map/kinds.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
-import { BOUNDS, flatLine, r1 } from "./geometry.ts"
+import { flatLine, r1 } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
+import { onOutline } from "./play-area.ts"
 import { lifted } from "./profiles.ts"
 import { clearVerges } from "./rail-clear.ts"
 import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
@@ -25,14 +26,8 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   const { grid, railLines, roadLines, levels } = terrain
   const at = (x: number, y: number) => sampleGrid(grid, x, y)
   // ---- the railway: lines over the running track, the platforms beside them, the stations ----
-  /** A line's terminal: a dead end on the map's edge, where the track runs on beyond it. */
-  const onEdge = (x: number, y: number) =>
-    Math.min(
-      Math.abs(x - BOUNDS.minX),
-      Math.abs(x - BOUNDS.maxX),
-      Math.abs(y - BOUNDS.minY),
-      Math.abs(y - BOUNDS.maxY),
-    ) < 0.06
+  /** A line's terminal: a dead end on the play area's outline, where the track runs on beyond it. */
+  const onEdge = (x: number, y: number) => onOutline(x, y, 0.06)
   const { shipped, lines, kinds, platforms, stations } = layRailway(
     railLines,
     onEdge,

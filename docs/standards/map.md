@@ -47,15 +47,18 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 - The runbook's tools are in `src/tools` and `package.json` ([Adding a
   part](../map.md#adding-a-part)): `footprint-check`, `rt-index`, `pick-sheets`, `pick-lidar`,
   `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the regions (Lunigiana,
-  Cesena) and the Lunigiana parts' rectangles; their masks and outline walls arrive with issue #7
-  and `fetch-lig` with #12. When one is missing, name the issue that adds it and ask the user before
+  Cesena), their parts' rectangles and masks (`checkMask` throws on a bad one), and `play-area.ts`
+  the outline of their union, which the map is clipped to and walled along (issue #7). A part's mask
+  comes with the part's own issue (#17 on), and `fetch-lig` with #12. When one is missing, name the issue that adds it and ask the user before
   building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw` then pins
   the part's new inputs.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
-- Moving `BOUNDS` moves every tree: the lattice they are planted on starts at its corner. Each tile
-  stores its trees in whole metres from a point 100 m south-west of the tile's corner.
+- Growing the built terrain's box (`BOUNDS`, the box round every part's rectangles) moves every
+  tree: the lattice they are planted on starts at its south-west corner. A mask or a part inside
+  the box moves none (trees cover the built terrain, not the play area). Each tile stores its trees
+  in whole metres from a point 100 m south-west of the tile's corner.
 - A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.31 MB, the build
   prints it, and `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,

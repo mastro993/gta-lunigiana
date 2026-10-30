@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { latLonToGaussBoaga } from "../crs.ts"
-import { BOUNDS, type P, clipRing, fromLocal, gaussBoagaBox } from "../geometry.ts"
+import { type P, clipRing, fromLocal, gaussBoagaBox } from "../geometry.ts"
 import { partOf } from "../region.ts"
 
 /** A square from (x, y), `s` metres a side. */
@@ -22,16 +22,6 @@ test("clipRing keeps the part of a ring inside a box", () => {
     [150, 1000],
   ])
   assert.deepEqual(clipRing(square(2000, 0, 10), [0, 0, 1000, 1000]), [])
-})
-
-test("clipRing clips to the play area by default", () => {
-  const x = BOUNDS.maxX - 10
-  assert.deepEqual(sorted(clipRing(square(x, 0, 20))), [
-    [x, 0],
-    [x, 20],
-    [BOUNDS.maxX, 0],
-    [BOUNDS.maxX, 20],
-  ])
 })
 
 test("gaussBoagaBox is the EPSG:3003 box round the corners, widened by pad on every side", () => {

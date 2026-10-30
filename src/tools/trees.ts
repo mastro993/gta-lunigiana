@@ -11,7 +11,6 @@ import {
   BOUNDS,
   fillPolygon,
   hash01,
-  inBounds,
   pointAt,
   r1,
   ringBox,
@@ -155,8 +154,16 @@ export const scatterTrees = (
       bankOf.delete(j)
     },
   )
+  // Trees cover the built terrain, beyond the play area too, standing 1 m inside its box.
+  const { minX, minY, maxX, maxY } = BOUNDS
   const free = (x: number, y: number) =>
-    inBounds(x, y, 1) && !masks.at(OPEN, x, y) && !masks.at(BUILT, x, y) && !keepOut.covers(x, y)
+    x >= minX + 1 &&
+    x <= maxX - 1 &&
+    y >= minY + 1 &&
+    y <= maxY - 1 &&
+    !masks.at(OPEN, x, y) &&
+    !masks.at(BUILT, x, y) &&
+    !keepOut.covers(x, y)
   bank.x.forEach((x, b) => {
     const key = masks.rowAt(x, bank.y[b]!),
       list = key === undefined ? undefined : bankOf.get(key)
@@ -166,7 +173,6 @@ export const scatterTrees = (
   const trees: Array<number> = []
   // Rounded to the metre, two jittered points can land on one spot: keep the first (a bit per
   // metre of the bounds; every tree stands 1 m inside them).
-  const { minX, minY, maxX, maxY } = BOUNDS
   const across = maxX - minX + 1,
     planted = new Uint8Array(Math.ceil((across * (maxY - minY + 1)) / 8))
   const plant = (x: number, y: number, scale: number) => {

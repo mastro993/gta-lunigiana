@@ -2,11 +2,11 @@
 // `--region` names (`lunigiana` by default; `region.ts`).
 // Run: node src/tools/fetch-osm.ts [--region cesena]  (pnpm fetch-osm).
 // The OSM API 0.6 `/map` call answers HTTP 400 for a box holding more than 50 000 nodes (or larger
-// than 0.25 square degrees), so the play area plus MARGIN is asked for whole, and a box answered
-// 400 is split in four and each quarter asked for in turn, down to boxes MIN_SIDE wide; a network
-// error, 429 or 5xx is retried (net.ts). Every multipolygon relation with an AREA_KEYS tag (land
-// use, natural, building, leisure, amenity) is then fetched whole (`/relation/<id>/full`), because
-// most of a forest's member ways lie outside the play area. Elements are merged by id and written
+// than 0.25 square degrees), so the built terrain's box plus MARGIN is asked for whole, and a box
+// answered 400 is split in four and each quarter asked for in turn, down to boxes MIN_SIDE wide; a
+// network error, 429 or 5xx is retried (net.ts). Every multipolygon relation with an AREA_KEYS tag
+// (land use, natural, building, leisure, amenity) is then fetched whole (`/relation/<id>/full`),
+// because most of a forest's member ways lie outside the box. Elements are merged by id and written
 // sorted (nodes, ways, relations, each by id), so the same OSM data always gives the same file,
 // however the boxes were split. The file's source, the box and the date, goes into
 // data/raw.lock.json for `pnpm pin-raw` (`raw-lock.ts`).
@@ -21,7 +21,7 @@ import { REGION } from "./region.ts"
 
 const API = "https://api.openstreetmap.org/api/0.6"
 const OUT = join(import.meta.dirname, `../../data/raw/${REGION.id}.osm.gz`)
-const MARGIN = 100 // m beyond the play area: ways crossing the edge come whole anyway
+const MARGIN = 100 // m beyond the built terrain's box: ways crossing its edge come whole anyway
 const AREA_KEYS = ["landuse", "natural", "building", "leisure", "amenity"]
 /** Degrees (40-55 m here): a box this narrow answered 400 is an error, not too many nodes. */
 const MIN_SIDE = 0.0005

@@ -1,22 +1,15 @@
-// Collision walls: outlines of the blocked 4 m cells (steep ground, and apart the water's edge; marching squares,
-// simplified, <= 16 m pieces) plus building edges, barriers, map bounds and road-exit caps.
-// Flat (ax, ay, bx, by) arrays.
+// Collision walls: outlines of the blocked 4 m cells in the play area (steep ground, and apart the
+// water's edge; marching squares, simplified, <= 16 m pieces) plus building edges, barriers, the
+// play area's outline and road-exit caps. Flat (ax, ay, bx, by) arrays.
 import { staticGrid } from "../sim/collide.ts"
 import type { Barrier } from "../sim/map/index.ts"
 import { isDrivable } from "../sim/map/kinds.ts"
+import type { Rings } from "../sim/map/outline.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
-import {
-  BOUNDS,
-  flatRing,
-  pointInRing,
-  r1,
-  ringBox,
-  segDist2,
-  segIndex,
-  signedArea,
-} from "./geometry.ts"
+import { flatRing, pointInRing, r1, ringBox, segDist2, segIndex, signedArea } from "./geometry.ts"
 import { gridTiles } from "./grid-tiles.ts"
 import { simplifyLoop, traceLoops } from "./loops.ts"
+import { inPlay, OUTLINE } from "./play-area.ts"
 import { cellSlope, type Grid } from "./terrain.ts"
 
 const RUN = 16 // max wall segment length, m
@@ -42,6 +35,19 @@ const pushSplit = (
       r1(ax + ((bx - ax) * (k + 1)) / n),
       r1(ay + ((by - ay) * (k + 1)) / n),
     )
+}
+/**
+ * The play area's outline into every list in `outs`: each ring's edges in ring order, as pieces of
+ * at most 64 m (so `walls.reach`, how far a wall sticks out of its midpoint, is 33 m). A rectangle
+ * runs S, E, N, W from its south-west corner.
+ */
+export const pushOutline = (outs: ReadonlyArray<Array<number>>, rings: Rings): void => {
+  for (const out of outs)
+    for (const ring of rings)
+      for (let i = 0, n = ring.length / 2; i < n; i++) {
+        const j = (i + 1) % n
+        pushSplit(out, ring[2 * i]!, ring[2 * i + 1]!, ring[2 * j]!, ring[2 * j + 1]!, 64)
+      }
 }
 const pushPolyline = (out: Array<number>, pts: ReadonlyArray<number>, closed: boolean) => {
   const n = pts.length / 2
@@ -286,7 +292,7 @@ const pushBuilding = (outs: ReadonlyArray<Array<number>>, b: BuildingF, arches: 
 }
 
 interface Walls {
-  /** What stops anyone on foot: buildings, steep ground, barriers, the bounds. */
+  /** What stops anyone on foot: buildings, steep ground, barriers, the play area's outline. */
   readonly walk: Array<number>
   /** The water's edge, which people and animals keep to by choice (none where a road crosses). */
   readonly shore: Array<number>
@@ -367,7 +373,8 @@ export const buildWalls = (
           x = g.x0 + (i + 0.5) * g.cell,
           y = g.y0 + (j + 0.5) * g.cell
         const water = wet.covers(x, y)
-        if (!water && !steepDrive && !steepWalk) continue
+        // Outside the play area the outline walls stop everyone: its cells stay open.
+        if ((!water && !steepDrive && !steepWalk) || !inPlay(x, y)) continue
         let walkRoad = false,
           driveRoad = false,
           driveCrossing = false
@@ -401,16 +408,9 @@ export const buildWalls = (
     pushPolyline(drive, b.pts, false)
   }
   for (const p of parapets(roads)) pushPolyline(drive, p.pts, false)
-  const { minX, minY, maxX, maxY } = BOUNDS
-  for (const out of [walk, drive])
-    for (const [ax, ay, bx, by] of [
-      [minX, minY, maxX, minY],
-      [maxX, minY, maxX, maxY],
-      [maxX, maxY, minX, maxY],
-      [minX, maxY, minX, minY],
-    ] as const)
-      pushSplit(out, ax, ay, bx, by, 64)
-  // Road-block caps a few metres inside the edge where drivable roads leave the play area.
+  pushOutline([walk, drive], OUTLINE)
+  // Road-block caps a few metres inside the outline where drivable roads leave the play area (their
+  // cut ends, which have no id).
   for (const r of roads) {
     if (!isDrivable(r.cls)) continue
     for (const [end, prev] of [

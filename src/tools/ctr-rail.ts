@@ -4,7 +4,8 @@
 // level-crossing areas (AGE 0122). `fetch-rt.ts ctr` writes the VLI and AFE files; AGE is the
 // file `ctr.ts` reads garages and ruins from.
 import { ctrRecords, local, polygonsOf, type CtrRecord } from "./ctr.ts"
-import { clipLine, pointInRing, type P, type V } from "./geometry.ts"
+import { pointInRing, type P, type V } from "./geometry.ts"
+import { clipToPlay } from "./play-area.ts"
 
 /** A polygon as flat rings: the outer one counter-clockwise first, then its holes clockwise. */
 export type Polygon = ReadonlyArray<ReadonlyArray<number>>
@@ -149,7 +150,7 @@ export const chainTracks = (
 ): Array<CtrTrack> => {
   const pieces = lines.flatMap(({ src, pts }) =>
     cutOut(pts, tunnels)
-      .flatMap((run) => clipLine(run.map(([x, y]) => ({ x, y }))))
+      .flatMap((run) => clipToPlay(run.map(([x, y]) => ({ x, y }))))
       .map((clipped) => ({ src, pts: clipped.map((v): P => [v.x, v.y]) }))
       .filter((p) => lengthOf(p.pts) >= MIN_LENGTH),
   )

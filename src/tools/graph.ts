@@ -4,10 +4,10 @@ import type { RoadF } from "./features.ts"
 import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
 
 const MAX_EDGE = 25
-/** Map-edge dead ends stop this far (m) back along the road: past the road-exit caps (4 m in) with room for a car's nose. */
+/** Dead ends on the play area's outline stop this far (m) back along the road: past the road-exit caps (4 m in) with room for a car's nose. */
 const EXIT = 8
 
-/** The polyline with each map-edge end (a clip point: no OSM id) pulled EXIT m back along it. */
+/** The polyline with each end on the outline (a clip point: no OSM id) pulled EXIT m back along it. */
 const trimExits = (pts: ReadonlyArray<V>): ReadonlyArray<V> => {
   const head = (q: ReadonlyArray<V>): Array<V> => {
     const s = arcLengths(q)

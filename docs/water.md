@@ -203,7 +203,7 @@ of a centreline, not on a road) as their own walls, the shore, and `wallsNear` a
 
 | Kind | Walls | Who keeps to them |
 |---|---|---|
-| `walk` | buildings, slopes over 35°, cliffs, walls, the bounds, trunks | everyone on foot and every animal |
+| `walk` | buildings, slopes over 35°, cliffs, walls, the play area's outline, trunks | everyone on foot and every animal |
 | `land` | `walk` and the shore | where people and animals spawn; a follower's way to its leader |
 | `drive` | `walk`'s, slopes over 25° off the roads, guard rails, parapets, road-exit caps | every vehicle's physics |
 | `traffic` | `drive` and the shore | AI drivers' lanes (`lanesFor`), where vehicles spawn |

@@ -1,14 +1,14 @@
 // Regione Toscana land cover 1:10 000, 2019 ("Uso e copertura del suolo", data/raw/rt/ucs.json.gz,
-// written by fetch-rt.ts) as map areas in local metres, clipped to the play area. Only the open
-// covers OSM mostly lacks above the woods: in the new mountain area it tags about a fifth of the
-// bare rock and half the pastures. Woods, fields and towns stay OSM's.
+// written by fetch-rt.ts) as map areas in local metres, clipped to the built terrain's box. Only
+// the open covers OSM mostly lacks above the woods: in the new mountain area it tags about a fifth
+// of the bare rock and half the pastures. Woods, fields and towns stay OSM's.
 import { readFileSync } from "node:fs"
 import { gunzipSync } from "node:zlib"
 
 import type { Area } from "../sim/map/index.ts"
 import type { AreaKind } from "../sim/map/kinds.ts"
 import { gaussBoagaToLatLon } from "./crs.ts"
-import { clipRing, flatRing, pointInRing, toLocal, type P } from "./geometry.ts"
+import { clipRing, flatRing, pointInRing, TERRAIN_BOX, toLocal, type P } from "./geometry.ts"
 
 /** UCS 2019 classes kept, and the area kind each becomes. */
 export const UCS_CODES = {
@@ -36,10 +36,10 @@ export const readUcs = (path: string): Array<Area> => {
         ring.push(toLocal(...gaussBoagaToLatLon(r[i]!, r[i + 1]!)))
       return ring.slice(0, -1) // gml repeats the first point
     })
-    const o = flatRing(clipRing(outer!), true)
+    const o = flatRing(clipRing(outer!, TERRAIN_BOX), true)
     if (o === undefined) return []
     const hs = holes
-      .map((h) => flatRing(clipRing(h), false))
+      .map((h) => flatRing(clipRing(h, TERRAIN_BOX), false))
       .filter((h): h is Array<number> => h !== undefined && pointInRing(h[0]!, h[1]!, o))
     return [{ kind: UCS_CODES[code], rings: [o, ...hs] }]
   })

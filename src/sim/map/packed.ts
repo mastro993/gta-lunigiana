@@ -13,7 +13,7 @@
  * | Section | Integers | Bytes | Stride |
  * |---|---|---|---|
  * | heightmap | 501 × 501 nodes, decimetres, each row delta-coded from its first node | 2 | 501 (the node to the south) |
- * | walk, shore, drive walls | (ax, ay, bx, by) decimetres from `packOrigin` (100 m south-west of the tile's corner: bounds walls stick out) | 2 | 2 (the previous x or y) |
+ * | walk, shore, drive walls | (ax, ay, bx, by) decimetres from `packOrigin` (100 m south-west of the tile's corner: outline walls stick out) | 2 | 2 (the previous x or y) |
  * | walk, shore, drive wall ids | each wall's index in the whole map's list of its kind (the broad phases answer in that order) | 4 | 1 |
  * | trees | (x, y) whole metres from `treeOrigin` (they are planted on whole metres), the scale in hundredths | 2 | 3 (the previous tree) |
  * | tree ids | each tree's index in the whole map's tree list (its look's seed) | 4 | 1 |

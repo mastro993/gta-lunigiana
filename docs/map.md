@@ -239,12 +239,15 @@ file whose unpacked bytes equal the new ones is not rewritten, so another zlib n
 file, and a cached archive folder with no files left in it (macOS purges the temporary directory's
 files but keeps its folders) is fetched again. Requests name only the project in their `User-Agent`.
 
-### 2. Projection and play area (`geometry.ts`)
+### 2. Projection and play area (`geometry.ts`, `play-area.ts`)
+
+The map is projected onto a plane, and everything in it is clipped either to the play area, the
+union of the region's parts, or to the built terrain, the box round them.
 
 Equirectangular around `ORIGIN` (lat 44.16175, lon 10.13; defined in `src/sim/map/kinds.ts` and
 written into the map file as `MAP.origin`, which the sky reads through `place()`), with
 `M_PER_DEG` = 111115.37 m per degree of latitude and 79987.94 m per degree of longitude. x = east,
-y = north, in metres, rounded to 0.1 m. The play area `BOUNDS` is x
+y = north, in metres, rounded to 0.1 m. The play area is part `lucido`, the rectangle x
 −2900…4900 m, y −6100…3900 m (7.8 × 10 km; lat 44.1069–44.1968, lon 10.0937–10.1913): the whole
 catchment of the Lucido, ridge to ridge, from its mouth in the Aulella below Gragnola up both
 branches. Up the Vinca branch: the SP59, Vinca and its valley to Foce di Vinca, the Garnerone and
@@ -252,9 +255,34 @@ Foce di Giovo, with Monte Sagro, Monte Borla and their quarries on the ridge. Up
 Equi Terme, the Solco di Equi and its quarries, Pizzo d'Uccello and Ugliancaldo. West of the Lucido:
 Tenerano and the SP10, Viano, Pieve di Viano, Colognola, Campiglione and Vezzanello; Monzone, Aiola,
 Codiponte and Casciana in the middle. Being a rectangle, the area also takes in some of the Aulella
-side (Argigliano), the Bardine side and the Carrara side of the ridge (Campocecina). Lines are
-clipped with Liang–Barsky and rings with Sutherland–Hodgman. `PARTS` in `region.ts` names this
-rectangle part `lucido`, for `fetch-rt` and the part tools ([Adding a part](#adding-a-part)).
+side (Argigliano), the Bardine side and the Carrara side of the ridge (Campocecina). `PARTS` in
+`region.ts` names this rectangle part `lucido`, for `fetch-rt` and the part tools ([Adding a
+part](#adding-a-part)).
+
+- **The play area** is the union of the region's parts, each its mask or else its rectangles.
+  `play-area.ts` works out its outline (`OUTLINE`, written into the global file as `outline`):
+  every piece edge is cut where another piece's edge crosses or ends on it, a cut piece is outline
+  where the union holds the point just left of its middle and not the point just right, and the
+  pieces, rounded to 0.1 m, chain into rings (outer counter-clockwise, holes clockwise, collinear
+  runs merged, each from its lowest (y, x) vertex; where two rings touch, each turns as far left as
+  it can). Lucido's outline is its rectangle from the south-west corner: south, east, north, west.
+  Only + − × ÷ and square roots go into it, so every architecture builds the same.
+- **The built terrain** is the box round every part's rectangles, `BOUNDS` (`REGION.bounds`,
+  written as `bounds`): the heightmap's extent. On Lunigiana and Cesena it is the play area.
+- **Lines** (roads, water, rail, barriers and the CTR's tracks) are clipped to the play area
+  (`clipToPlay`): each segment is cut where it crosses the outline and each stretch kept by its
+  middle. Original vertices keep their OSM ids and cut points have none, which is how the
+  road-exit caps, the graph's exits and the rail's terminals find where a line leaves. On a
+  vertical or horizontal edge the cut is Liang–Barsky's to the bit (t = (X − a.x) / dx); a stretch
+  shorter than 10 µm between two crossings is a corner passed, and left out, as Liang–Barsky takes
+  the later of two entries.
+- **Rings** (OSM and UCS areas, the CTR's road surfaces, mapped areas and rail polygons) are
+  clipped to the built terrain's box with Sutherland–Hodgman, which only a convex window clips
+  right. **Buildings** are clipped to it too, then kept only where the centre of the clipped outline
+  (its vertices' mean) is in the play area: a house the outline cuts stands whole or not at all.
+- **Points**: POIs, OSM place nodes, the player's spawn (1.3 m from the outline) and the parked
+  spots (5 m) must lie in the play area (`inPlay`, an edge counting as in it). Trees cover the
+  built terrain, 1 m inside its box.
 
 ### 3. Features (`features.ts`)
 
@@ -608,7 +636,7 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
 
 - **Lines** (`findLines` in `rail-graph.ts`): the rail is a graph whose
   junctions are piece ends ([section 4](#4-the-rail-on-the-ctr)). A terminal is a dead end on the
-  map's edge, where the track runs on beyond it. From each terminal a walk goes on at every
+  play area's outline (within 0.06 m), where the track runs on beyond it. From each terminal a walk goes on at every
   junction the way that turns least (under 60°, headings taken over 5 m: a single 0.3 m end
   segment turns up to 12° on the 0.1 m grid, more than a turnout diverges) and never takes a piece
   twice; a walk that ends at another terminal is a line, and of two between one pair of terminals
@@ -681,7 +709,8 @@ The stage takes about 0.55 s, most of it rasterising the platforms.
 ### 10. Collision walls (`walls.ts`)
 
 Walls are segments of at most 16 m. Blocked 4 m cells are traced with marching squares and
-simplified (Douglas–Peucker, 1.5 m tolerance). Slopes use a 12 m baseline, so shorter steps
+simplified (Douglas–Peucker, 1.5 m tolerance); a cell whose centre lies outside the play area is
+never blocked, as the outline's walls stop everyone there (it costs the stage 0.15 s of its 1.5 s). Slopes use a 12 m baseline, so shorter steps
 (terrace walls, road cuts) stop no one. Steep cells are majority-filtered (3 × 3) so the walls
 follow slopes, not single-cell bumps.
 
@@ -692,7 +721,7 @@ follow slopes, not single-cell bumps.
 | Building outlines | yes | no | yes |
 | `wall`, `cliff` barriers | yes | no | yes |
 | `guard_rail` barriers | no | no | yes |
-| Map bounds | yes | no | yes |
+| The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
 | Road-exit caps (4 m inside, where drivable roads leave the area) | no | no | yes |
 | Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them; open where any other road, tunnels included, crosses under, joins or carries on) | no | no | yes |
 
@@ -881,13 +910,13 @@ counter-clockwise, holes clockwise.
 | `buildings` | `id` (OSM id, or negative for the CTR), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint), `style`, `ruins?`, `tint`, `outer`, `holes?` |
 | `water` | `id`, `kind` (`river` or `stream`), `name?`, `w` (the water's width), `bed` (the gravel bed's half-width), `depth` (the bed is carved `depth`/2 under `z`), `pts`, `z` (the built water surface per vertex), `area` (the catchment upstream of each vertex, km²), `floor` (baked: the bed under the centreline per vertex, m a.s.l.) |
 | `rail` | `id` (OSM way, negative for a track only the CTR has; not unique: the pieces cut from one way at its switches and the CTR's bridges share it), `kind?` (none on a line; off the lines `loop` or `siding`, from the topology), `bridge?`, `tunnel?`, `pts`, `z` (the bed under the sleepers per vertex, the rail head `RAIL_LIFT` 0.12 m higher, where the rails are drawn; at grade, more than 6 m from a level crossing, the terrain is at most 0.05 m higher and 0.5 m lower, but beside a lower road along the line). Tracks meet only at piece ends; no polyline repeats a vertex |
-| `railway` | `lines`: `{ pieces: [{ rail, rev }], maxspeed: [[from s, to s, km/h]] }`, each a path of running pieces (`rail` indexes `MAP.rail`, walked backwards when `rev`) from terminal (a dead end on the map's edge) to terminal, consecutive pieces sharing an end vertex, s in m from its first vertex; `stations`: `{ name, line, s0, s1, side }` (side 1 right of the line's direction, −1 left), by line and s0; `crossings`: `{ road, nodes, x, y, line, s }` (`road` indexes `MAP.roads`, `nodes` the graph's nodes, `line` −1 and `s` −1 where only a loop or siding is crossed); `platforms`: `{ area, walkway?, name?, axis, top }` (`area` indexes `MAP.areas`, `axis` the line's centreline along it, `top` per axis vertex in m a.s.l.) |
+| `railway` | `lines`: `{ pieces: [{ rail, rev }], maxspeed: [[from s, to s, km/h]] }`, each a path of running pieces (`rail` indexes `MAP.rail`, walked backwards when `rev`) from terminal (a dead end on the play area's outline) to terminal, consecutive pieces sharing an end vertex, s in m from its first vertex; `stations`: `{ name, line, s0, s1, side }` (side 1 right of the line's direction, −1 left), by line and s0; `crossings`: `{ road, nodes, x, y, line, s }` (`road` indexes `MAP.roads`, `nodes` the graph's nodes, `line` −1 and `s` −1 where only a loop or siding is crossed); `platforms`: `{ area, walkway?, name?, axis, top }` (`area` indexes `MAP.areas`, `axis` the line's centreline along it, `top` per axis vertex in m a.s.l.) |
 | `areas` | `kind` (one of `AREA_KINDS`), `name?`, `rings` (outer first, then holes); the platforms (`platform`) and walkways (`paved`) last |
 | `barriers` | `kind` (`wall`, `guard_rail`, `cliff`), `pts` |
 | `pois` | `id`, `kind` (`key=value` or `area:<kind>`), `name?`, `x`, `y` |
 | `districts` | `name`, `x`, `y`, `r` |
 | `graph` | `xy` (node coordinates), `edges` (flat `a, b, roadIndex` triples), `traffic`, `walk` (edge indices) |
-| `walls` | `reach` (how far any wall sticks out of its midpoint along either axis, 33 m: the 64 m bounds walls), `lattice` (each wall kind's and the trees' broad-phase corner, below) and `counts` (`walk`, `drive`) |
+| `walls` | `reach` (how far any wall sticks out of its midpoint along either axis, 33 m: the 64 m outline walls), `lattice` (each wall kind's and the trees' broad-phase corner, below) and `counts` (`walk`, `drive`) |
 | `spawns` | `player`: `{ x, y, angle }`; `parked`: `{ x, y, angle, rest, truck? }`, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked) |
 | `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it |
 | `farms` | baked: `{ building, rural, pen }` per farm (`building` indexes `MAP.buildings`) |
@@ -918,7 +947,7 @@ of its walk, shore and drive walls and of its trees. Its sections follow the new
 | Section | Integers | Bytes | Stride |
 |---|---|---|---|
 | heightmap | 501 × 501 nodes, decimetres (int16), each row delta-coded from its first node | 2 | 501: the node to the south |
-| walk, shore, drive walls | (ax, ay, bx, by) decimetres from a point 100 m south-west of the tile's corner (the bounds walls stick out of their tile) | 2 | 2: the previous x or y |
+| walk, shore, drive walls | (ax, ay, bx, by) decimetres from a point 100 m south-west of the tile's corner (the outline walls stick out of their tile) | 2 | 2: the previous x or y |
 | walk, shore, drive wall ids | each wall's index in the whole map's list of its kind | 4 | 1 |
 | trees | (x, y) whole metres from the same point (trees stand on whole metres), the scale in hundredths | 2 | 3: the previous tree |
 | tree ids | each tree's index in the whole map's list (its look's seed) | 4 | 1 |
@@ -938,7 +967,7 @@ What goes in which tile:
   bounds a tile repeats the edge. The lookups keep the lattice's arithmetic and only read the node from
   its tile, so `heightAt`, `terrainZ` and `groundZ` give the same doubles as the whole heightmap did.
 - **Walls**: each segment lives in the tile of its midpoint, clamped to the listed tiles (Cesena's
-  bounds walls lie on a seam). A tile's walls keep the whole map's order and carry their index in it.
+  outline walls lie on a seam). A tile's walls keep the whole map's order and carry their index in it.
 - **Trees**: each in the tile of its point, the same way, with its index.
 - **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`rasterCover` in
   `src/sim/map/raster.ts`, rasterised at build time for the tile's cells alone, the same cells a
@@ -1116,8 +1145,16 @@ y = 0, y = −2000 and x = 2000 seams, the page's drive script (run in a `vm` ag
 and its report; `cdp.test.ts`, on a fake Chrome, a command's own timeout and the socket closed
 when a tab cannot open; `map-diff.test.ts` each category's change on small maps, a key it does not
 compare, walls and trees in another order (the fewest moved counted, copies of a removed segment
-left out) and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts`
-`clipRing` to a box.
+left out), a map from before the outline and `--except`, and `map-diff-args.test.ts` its command
+line; `geometry.test.ts` `clipRing` to a box; `region.test.ts` the regions' parts and bounds and
+`checkMask` on a diagonal mask in an L and on each fault (too few vertices, off 0.1 m, clockwise,
+a repeated vertex, a fold, a crossing, a vertex or an edge outside the rectangles);
+`play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of two, overlapping
+rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing off the
+0.1 m lattice, a hole and two rings touching at a corner, `insideRings`'s margins round the L's
+inner corner, the notch cutting a line in two with ids kept and cuts id-less, and clipping to one
+rectangle against Liang–Barsky on 4000 random lines and lines through its corners; `walls.test.ts`
+the outline walls closing the L and a rectangle's running south, east, north, west.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees and walls read whole from the tiles (the running line dark, loops and
@@ -1130,8 +1167,10 @@ The map grows one part at a time (issue #3 holds the extent, the order of the pa
 runbook each part follows). A part is a key in `PARTS` (`src/tools/region.ts`) with its rectangles
 in local metres, on 100 m multiples, and, where it plays less than them, a mask: one simple
 counter-clockwise ring on 0.1 m inside the rectangles (`checkMask` throws on any other when the
-region loads, naming the fault). The region's `bounds` are the box round every part's
-rectangles. Today's map is part `lucido`, with no mask. Its sources are its manifest,
+region loads, naming the fault). The region's play area is the union of its parts' masks, or
+rectangles where a part has none, and its `bounds`, the built terrain, the box round every part's
+rectangles ([section 2](#2-projection-and-play-area-geometryts-play-areats)). Today's map is part
+`lucido`, with no mask. Its sources are its manifest,
 `data/parts/<part>.json`. The tools below scope a part and check it. `rt-index`, `coverage` and
 `footprint-check` write their scratch in `.research/<part>/` (gitignored), `ortho` in
 `.research/ortho/` unless given a file, `playtest` in the folder it is given; every request names
