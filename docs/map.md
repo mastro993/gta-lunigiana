@@ -34,8 +34,9 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
 - **Selection**: the title card links to `?map=cesena`; an omitted `map` selects Lunigiana.
   `src/maps.ts` validates the name before download, and the boot host updates the title and credits.
   Switching maps reloads the page and starts a fresh world. The links preserve an explicit seed.
-- **Extent**: `region.ts` centres Cesena at latitude 44.1391, longitude 12.2429, with local bounds
-  of -2000 to 2000 m on both axes. This covers a 4 by 4 km city-centre area, not the whole comune.
+- **Extent**: `region.ts` centres Cesena at latitude 44.1391, longitude 12.2429, with one part,
+  `cesena`: the local square −2000 to 2000 m on both axes, played whole. This covers a 4 by 4 km
+  city-centre area, not the whole comune.
 - **Accepted sources**: OpenStreetMap (ODbL) supplies roads, buildings, water, land use and names.
   `pnpm fetch-osm --region cesena` pins a separate `data/raw/cesena.osm.gz` with the same API
   fetcher, which splits a box the API refuses as too large. Regione Emilia-Romagna's
@@ -1126,7 +1127,10 @@ white). It writes `.research/map-preview.png` by default.
 
 The map grows one part at a time (issue #3 holds the extent, the order of the parts and the
 runbook each part follows). A part is a key in `PARTS` (`src/tools/region.ts`) with its rectangles
-in local metres, on 100 m multiples; today's map is part `lucido`. Its sources are its manifest,
+in local metres, on 100 m multiples, and, where it plays less than them, a mask: one simple
+counter-clockwise ring on 0.1 m inside the rectangles (`checkMask` throws on any other when the
+region loads, naming the fault). The region's `bounds` are the box round every part's
+rectangles. Today's map is part `lucido`, with no mask. Its sources are its manifest,
 `data/parts/<part>.json`. The tools below scope a part and check it. `rt-index`, `coverage` and
 `footprint-check` write their scratch in `.research/<part>/` (gitignored), `ortho` in
 `.research/ortho/` unless given a file, `playtest` in the folder it is given; every request names

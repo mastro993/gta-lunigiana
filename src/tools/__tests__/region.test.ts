@@ -1,7 +1,16 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { PARTS, type Rect, inRects, partOf, rectsBox, regionFromArgs } from "../region.ts"
+import {
+  PARTS,
+  type Part,
+  type Rect,
+  checkMask,
+  inRects,
+  partOf,
+  rectsBox,
+  regionFromArgs,
+} from "../region.ts"
 
 test("the default build keeps the pinned Lunigiana map", () => {
   const region = regionFromArgs([])
@@ -17,6 +26,22 @@ test("Cesena is a separate city-centre map", () => {
   assert.ok(region.origin.lon > 12.23 && region.origin.lon < 12.26)
   assert.equal(region.bounds.maxX - region.bounds.minX, 4000)
   assert.equal(region.bounds.maxY - region.bounds.minY, 4000)
+  // One part, its 4 km square, played whole.
+  assert.deepEqual(
+    region.parts.map((p) => [p.rects, p.mask]),
+    [[[[-2000, -2000, 2000, 2000]], undefined]],
+  )
+})
+
+test("a region's bounds, its built terrain, are the box round its parts' rectangles", () => {
+  for (const id of ["lunigiana", "cesena"]) {
+    const region = regionFromArgs(["--region", id])
+    const [minX, minY, maxX, maxY] = rectsBox(region.parts.flatMap((p) => p.rects))
+    assert.deepEqual(region.bounds, { minX, minY, maxX, maxY }, id)
+  }
+  const lunigiana = regionFromArgs([])
+  assert.equal(lunigiana.parts, PARTS)
+  assert.deepEqual(lunigiana.bounds, { minX: -2900, minY: -6100, maxX: 4900, maxY: 3900 })
 })
 
 test("unknown regions and incomplete arguments fail before a fetch or build", () => {
@@ -76,4 +101,37 @@ test("inRects holds inside either rectangle and on their edges, not in the notch
 test("rectsBox is the box round every rectangle", () => {
   assert.deepEqual(rectsBox(L), [0, 0, 200, 300])
   assert.deepEqual(rectsBox(partOf("lucido").rects), [-2900, -6100, 4900, 3900])
+})
+
+/** A part over the L with `mask`. */
+const masked = (mask: ReadonlyArray<number>): Part => ({ key: "l", title: "L", rects: L, mask })
+
+test("every region's masks are simple counter-clockwise rings on 0.1 m inside their rectangles", () => {
+  for (const id of ["lunigiana", "cesena"])
+    for (const part of regionFromArgs(["--region", id]).parts) checkMask(part)
+})
+
+test("checkMask passes a diagonal mask in the L, touching its sides and its inner corner", () => {
+  checkMask(masked([0, 0, 200, 0, 200, 50, 100, 100, 50, 300, 0, 300]))
+  checkMask(masked([10.5, 10.1, 150.3, 20, 100, 100, 99.9, 250.7]))
+  checkMask({ key: "none", title: "No mask", rects: L })
+})
+
+test("checkMask throws, naming the part and the fault, for any other mask", () => {
+  for (const [mask, fault] of [
+    [[0, 0, 200, 0], /needs three or more/],
+    [[0, 0, 200, 0, 100, 50.05], /off the 0\.1 m lattice/],
+    [[0, 0, 100, 250, 200, 0], /not counter-clockwise/],
+    [[0, 0, 200, 0, 200, 0, 100, 50], /repeats vertex 1/],
+    [[0, 0, 200, 0, 100, 0, 100, 50], /folds back at vertex 1/],
+    // the edge from the leg back down crosses the foot's south side
+    [[0, 0, 200, 0, 200, 100, 0, 100, 100, -20], /crosses itself: edges 0 and 3/],
+    [[0, 0, 200, 0, 200, 100, 150, 200, 0, 100], /vertex 3 outside/],
+    // every vertex in the L, the edge from the foot's far corner to the leg's top across the notch
+    [[0, 0, 200, 0, 200, 100, 100, 300, 0, 300], /leaves its rectangles on edge 2/],
+  ] as const)
+    assert.throws(
+      () => checkMask(masked(mask)),
+      (error: Error) => error.message.startsWith("part l's mask ") && fault.test(error.message),
+    )
 })
