@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import { Ops, Random } from "@typeonce/ritmo-math"
 
-import { MAP } from "../../map/index.ts"
+import { inPlay, MAP, outlineDistance } from "../../map/index.ts"
 import type { LightningValue, WeatherValue } from "../../schema.ts"
 import { screenAxes } from "../../view.ts"
 import { DAY, daysFromCivil, romeDay, utcFromRome } from "../calendar.ts"
@@ -587,19 +587,11 @@ test("storm: lightning about 0.25 times a real second at full strength, 60% of i
   )
 })
 
-/** Whether a flash lies on the map, and whether exactly on its edge (where clamping once piled them). */
-const onMap = (l: Pick<LightningValue, "x" | "y">) =>
-  l.x >= MAP.bounds.minX &&
-  l.x <= MAP.bounds.maxX &&
-  l.y >= MAP.bounds.minY &&
-  l.y <= MAP.bounds.maxY
-const onEdge = (l: Pick<LightningValue, "x" | "y">) =>
-  l.x === MAP.bounds.minX ||
-  l.x === MAP.bounds.maxX ||
-  l.y === MAP.bounds.minY ||
-  l.y === MAP.bounds.maxY
+/** Whether a flash lies in the play area, and whether exactly on its edge (where clamping once piled them). */
+const onMap = (l: Pick<LightningValue, "x" | "y">) => inPlay(l.x, l.y)
+const onEdge = (l: Pick<LightningValue, "x" | "y">) => outlineDistance(l.x, l.y) === 0
 
-test("storm: near the map's edge bolts strike only the map and none lie on its edge; flashes in the cloud stay where they were drawn, off the map too", () => {
+test("storm: near the play area's edge bolts strike only inside it and none lie on its edge; flashes in the cloud stay where they were drawn, outside it too", () => {
   for (const [x, y] of [
     [-1751, 3360],
     [-412, 438],
@@ -624,7 +616,7 @@ test("storm: near the map's edge bolts strike only the map and none lie on its e
     if (x < -1000)
       assert.ok(
         list.some((l) => !l.bolt && !onMap(l)),
-        "by the edge some flashes light the cloud off the map",
+        "by the edge some flashes light the cloud outside the play area",
       )
   }
 })

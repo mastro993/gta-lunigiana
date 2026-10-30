@@ -29,6 +29,7 @@ import {
   type RailKind,
   type RoadClass,
 } from "./kinds.ts"
+import { insideRings, ringsDistance } from "./outline.ts"
 import type { Railway } from "./railway.ts"
 import { cellNodes, type WallKind } from "./tiles.ts"
 
@@ -331,6 +332,16 @@ export const districtAt = (x: number, y: number): District => {
   }
   return best
 }
+
+/**
+ * Whether (x, y) lies in the play area (`MAP.outline`; its edge counts as in it) with no edge of it
+ * closer than `margin` m: on a rectangular play area, the box test, to the bit (`./outline.ts`).
+ */
+export const inPlay = (x: number, y: number, margin = 0): boolean =>
+  insideRings(MAP.outline, x, y, margin)
+
+/** Distance (m) from (x, y) to the play area's outline, inside or out. */
+export const outlineDistance = (x: number, y: number): number => ringsDistance(MAP.outline, x, y)
 
 const hm = MAP.heightmap
 const { minX, minY, maxX, maxY } = MAP.bounds

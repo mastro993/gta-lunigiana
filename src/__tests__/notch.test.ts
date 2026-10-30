@@ -6,6 +6,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { Random } from "@typeonce/ritmo-math"
+
 import { MAP_URL, provideMap, readMapFile } from "../sim/map/packed.ts"
 
 /** The tiles left out: x 2000 … 6000, y 0 … 4000 (the bounds stop at 4900, 3900). */
@@ -29,12 +31,18 @@ const L = [-2900, -6100, 4900, -6100, 4900, 0, 2000, 0, 2000, 3900, -2900, 3900]
   provideMap(notched)
 }
 
-const { heightAt, MAP } = await import("../sim/map/index.ts")
+const { heightAt, inPlay, MAP, outlineDistance } = await import("../sim/map/index.ts")
 const { coverAt } = await import("../sim/map/cover.ts")
 const { terrainZ } = await import("../sim/map/ground.ts")
 const tiles = await import("../sim/map/tiles.ts")
 const { chunkTiles } = await import("../render/chunk-tiles.ts")
 const { CHUNKS, chunkRect, exactBox } = await import("../render/chunks.ts")
+const { SetPlayer } = await import("../sim/index.ts")
+const { door, ON_BATTISTI, start } = await import("../sim/testing.ts")
+const { initialWeather, setWeather, stormStep } = await import("../sim/sky/weather.ts")
+const { screenAxes } = await import("../sim/view.ts")
+const { pasture, RURAL, RURAL_REACH } = await import("../sim/population/farms.ts")
+const { residentsNear } = await import("../sim/population/density.ts")
 
 const { maxX, maxY } = MAP.bounds
 /** The listed tiles round the notch: those a lookup in its corner tiles reads. */
@@ -122,4 +130,70 @@ test("an L: the render plans every chunk once, the notch's on the listed tiles r
     assert.ok(plan.boxes[key * 6 + 5]! >= exact[key * 6 + 5]!, `chunk ${key}'s high`)
   }
   assert.ok(notch > 400, `${notch} chunks in the notch`)
+})
+
+test("an L: the play area is the outline's, its edge in it", () => {
+  assert.ok(inPlay(1500, 500) && inPlay(2000, 1000) && inPlay(3000, 0) && inPlay(4900, -6100))
+  assert.ok(!inPlay(2500, 500) && !inPlay(2000.1, 1000) && !inPlay(4800, 3800))
+  assert.ok(!inPlay(1995, 1000, 6) && inPlay(1995, 1000, 5))
+  assert.equal(outlineDistance(1990, 1000), 10)
+  assert.equal(outlineDistance(2300, 400), 300)
+})
+
+test("an L: a teleport into the notch is dropped, one just inside its corner is not", () => {
+  const game = start([], [door(ON_BATTISTI)])
+  const at = (x: number, y: number) => {
+    game.runtime.send(SetPlayer, { x, y, angle: 0 })
+    game.run(1)
+    const { pose } = game.view()!
+    return [pose.x, pose.y]
+  }
+  assert.deepEqual(at(1990, -10), [1990, -10])
+  assert.deepEqual(at(2500, 500), [1990, -10])
+  assert.deepEqual(at(2000.5, 1000), [1990, -10])
+  assert.deepEqual(at(1999.5, 1000), [1999.5, 1000])
+})
+
+test("an L: by the notch, bolts strike only the play area", () => {
+  const t = 1792648800 // 2026-10-22, 10:00 in Rome
+  for (const [x, y] of [
+    [1700, 800],
+    [3000, -300],
+  ] as const) {
+    const witness = { x, y, ...screenAxes(0) }
+    let bolts = 0
+    for (const seed of [1, 2, 3, 4]) {
+      const random = Random.make(seed)
+      let w = setWeather(initialWeather(t, 1), { regime: "storm", settle: true }, t)!
+      for (let step = 0; step < 60 * 180; step++) {
+        const out = stormStep(w, witness, 1 / 60, step, random)
+        w = out.weather
+        if (out.lightning?.bolt !== true) continue
+        bolts++
+        assert.ok(
+          inPlay(out.lightning.x, out.lightning.y),
+          `a bolt at ${out.lightning.x}, ${out.lightning.y}`,
+        )
+      }
+    }
+    assert.ok(bolts > 20, `(${x}, ${y}): ${bolts} bolts`)
+  }
+})
+
+test("an L: herds graze only the play area, a pasture by the notch included", () => {
+  // The first rural pasture 20 m inside the notch's west side, from its south end: herds drawn 90-140 m off
+  // fall in the notch about half the time.
+  let y = 100
+  while (!(pasture(1980, y) && residentsNear(1980, y, RURAL_REACH) < RURAL)) y += 40
+  const game = start([], [{ x: 1980, y, angle: 0 }])
+  let cows = 0
+  game.run(900, (frame) => {
+    if (frame % 60 !== 0) return
+    for (const a of game.world().animals) {
+      if (a.species !== "cow") continue
+      cows++
+      assert.ok(inPlay(a.x, a.y), `a cow at ${a.x.toFixed(1)}, ${a.y.toFixed(1)}`)
+    }
+  })
+  assert.ok(cows > 0, `${cows} cows by (1980, ${y})`)
 })

@@ -1006,6 +1006,9 @@ broad phases the sim and the audio host share: `buildingsIn` over the building b
 (`buildingBoxes`, indexed like `MAP.buildings`) and `treesIn` over the trees, which hands each tree's
 position, scale and id. `platformTop` in `src/sim/map/ground.ts` gives a platform's top at a point (its
 axis's nearest point), and `groundZ` stands people on it (or on the terrain, where that is higher).
+`inPlay(x, y, margin)` and `outlineDistance` test a point against the play area (`MAP.outline`,
+through `src/sim/map/outline.ts`, which the build shares): the teleport (`SetPlayer`), the bolts,
+the herds and the tunnels' mouths (one 0.5 m off the outline is an open end, not a portal) read it.
 `coverAt` (`src/sim/map/cover.ts`) reads the land cover from the tiles, and `coarseHeightAt` and
 `coarseCoverAt` (`src/sim/map/coarse.ts`) read the coarse grid. A lookup in a listed tile that is not
 in memory throws "map tile i_j not loaded" in the browser; the host makes sure that never happens

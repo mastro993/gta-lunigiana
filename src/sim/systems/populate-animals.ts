@@ -3,6 +3,7 @@ import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { clearOf, wallsAlong } from "../body.ts"
 import { FAUNA, randomAnimal, SIZE } from "../fauna.ts"
+import { inPlay } from "../map/index.ts"
 import { peopledIndex, residentsAlong, residentsNear } from "../population/density.ts"
 import {
   buildingsNear,
@@ -164,7 +165,7 @@ const dogSpot = (
   return undefined
 }
 
-/** A herd of at least `ANIMALS.cow.herd[0]` and at most `most` cows on a rural pasture `band` m from `at`, and its middle (`TRIES` spots). */
+/** A herd of at least `ANIMALS.cow.herd[0]` and at most `most` cows on a rural pasture `band` m from `at` inside the play area, and its middle (`TRIES` spots). */
 const herdSpots = (
   random: Random.Random,
   at: Vec2.Vec2,
@@ -184,6 +185,7 @@ const herdSpots = (
         b = random.range(0, 2 * Math.PI)
       const spot = { x: middle.x + d * Ops.cos(b), y: middle.y + d * Ops.sin(b) }
       if (
+        inPlay(spot.x, spot.y) &&
         grazing(spot.x, spot.y) &&
         fits("cow", spot, at, band) &&
         herd.every((q) => Vec2.distance(q, spot) >= FARM_SPOT.apart)

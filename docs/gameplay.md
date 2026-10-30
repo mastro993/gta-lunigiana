@@ -1080,7 +1080,7 @@ pigs come out only where the player is out in the country, with fewer than 60 re
 |---|---|---|---|---|
 | Cats | 0.02 × the residents within 140 m (Italy keeps about 0.2 pet cats a resident, 11.9 M cats for 59 M people, Assalco–Zoomark 2025; about one in ten out on the street at a time is an estimate) | 5 | 90–120 m out, on a peopled walk edge's verge 0.3–1.2 m past the walkers' line, or 1–3 m off the wall of a house along it | 140 m |
 | Free dogs | 0.15 × the farms within 140 m (TUNED: about one farm in seven has its dog lying out in the yard) | 3 | 90–140 m out, 4–8 m off a farm building, on open ground | 140 m |
-| Cows | 0.15 × the rural farms within 250 m (TUNED) | 8 | a herd of 2–5 around a middle 90–140 m out on pasture, each within 8 m of it on grass, 2.5 m apart | 180 m: a herd grazes up to 35 m from where it came out |
+| Cows | 0.15 × the rural farms within 250 m (TUNED) | 8 | a herd of 2–5 around a middle 90–140 m out on pasture, each within 8 m of it on grass inside the play area (`inPlay`), 2.5 m apart | 180 m: a herd grazes up to 35 m from where it came out |
 | Pigs | 0.15 × the rural pens within 140 m (TUNED) | 5 | 1–3 by a pen, 5–15 m off it on open ground | 140 m |
 
 - Each run brings out at most one cat, one dog, one herd and one litter, never indoors and clear of
@@ -1650,6 +1650,12 @@ speed along the contact.
 - **Terminals are open ends** at the map's edge: the build makes no other kind, and `lines.test.ts`
   fails on a terminal off the edge. A buffer stop inside the map would need the AI train to dwell
   and turn back there instead of a run-out; the player's train already turns back by its far cab.
+- **Run-outs assume open land past the edge**: the drawn run and the run-out go straight and level
+  past a terminal, over the terrain the apron extends. On a map of parts in an L (issue #7) a
+  terminal on an inner edge of the play area would send them across the notch, over ground that
+  only extends the edge's (no tile is listed there, [map.md](map.md#map-files)), and a long run-out
+  could come back over the other arm. Lunigiana's and Cesena's terminals lie on the bounds; a
+  region with such a terminal needs a run-out that bends or stops short.
 - **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
   over the line speed, through a box whose arms are not down and onto another train. The lever
   forward rings the bell at once, but driven off Monzone at full power the train's nose reaches

@@ -11,7 +11,7 @@
  */
 import { Ops, type Random } from "@typeonce/ritmo-math"
 
-import { MAP } from "../map/index.ts"
+import { inPlay, MAP } from "../map/index.ts"
 import type { LightningValue, WeatherValue } from "../schema.ts"
 import type { SunPlace } from "./astro.ts"
 import { romeDay } from "./calendar.ts"
@@ -284,12 +284,8 @@ const IN_VIEW = 0.25
 const STRIP = { across: 40, near: 60, far: 600 } as const
 /** Seeds for a bolt's shape and its thunder: whole numbers below this. */
 const SEEDS = 0x7fffffff
-/** A ground strike drawn off the map is drawn again up to this many times, then dropped: bolts strike only the map, never its edge. */
+/** A ground strike drawn outside the play area is drawn again up to this many times, then dropped: bolts strike only the play area (`inPlay`), never piled on its edge. */
 const REDRAWS = 4
-
-/** Whether (x, y) lies on the map. */
-const onMap = (x: number, y: number): boolean =>
-  x >= MAP.bounds.minX && x <= MAP.bounds.maxX && y >= MAP.bounds.minY && y <= MAP.bounds.maxY
 
 /** Below this storm strength there is no storm: no lightning, and the cell is sent `FAR` off. */
 const CALM = 0.01
@@ -299,7 +295,7 @@ const CALM = 0.01
  * cell drifts downwind (or starts upwind of the player when a storm begins or has passed), and lightning
  * strikes at random with a rate proportional to the storm's strength (a flash in the cloud, or a bolt to
  * the ground, now and then in front of the camera). A flash in the cloud stays where it was drawn, on the
- * map or off it; a bolt drawn off the map is drawn again (`REDRAWS`), then dropped. Once the storm fades
+ * map or off it; a bolt drawn outside the play area is drawn again (`REDRAWS`), then dropped. Once the storm fades
  * the cell is sent off the map, so the next storm starts upwind again; a calm sky is returned unchanged.
  * Draws from `random` only while a storm is active.
  */
@@ -349,8 +345,8 @@ export const stormStep = (
     return { x: cellX + r * Ops.cos(a), y: cellY + r * Ops.sin(a) }
   }
   let at = place()
-  if (bolt) for (let k = 0; k < REDRAWS && !onMap(at.x, at.y); k++) at = place()
-  if (bolt && !onMap(at.x, at.y)) return { weather: next, lightning: undefined }
+  if (bolt) for (let k = 0; k < REDRAWS && !inPlay(at.x, at.y); k++) at = place()
+  if (bolt && !inPlay(at.x, at.y)) return { weather: next, lightning: undefined }
   return {
     weather: next,
     lightning: {
