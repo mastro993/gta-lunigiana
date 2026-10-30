@@ -8,8 +8,10 @@
  * tiles hold its items (`./lattice.ts`).
  * The listed tiles (`MAP.tiles`) need not fill the box of tiles round them: an L-shaped map leaves
  * its notch unlisted, with no file. A terrain or land-cover lookup there reads the nearest node or
- * cell of the listed tiles round it (`nearest`), and `tilesOver` names those tiles, so the host's
- * residency checks cover the lookup; walls and trees there are none.
+ * cell of the listed tiles round it (`nearest`); a wall or tree whose midpoint falls there (an
+ * outline wall on the notch's side, a house wall over it) the cut kept in the first of those tiles,
+ * so a wall or tree lookup over the notch reads them all; and `tilesOver` names them, so the host's
+ * residency checks cover both.
  * So residency is never observable, and the host decides it alone: it keeps every listed tile
  * overlapping [player ± `STEP_REACH`]² before each step, and the sim reads nothing farther away
  * (vehicles past `FROZEN_BEYOND` stand frozen).
@@ -19,7 +21,7 @@
  * @module map/tiles
  */
 import { MAP } from "./global.ts"
-import { pushTrunk, TILE, tileKey, TRUNK } from "./kinds.ts"
+import { pushTrunk, TILE, tileKey, tilesRound, TRUNK } from "./kinds.ts"
 import { cellBox, type CellGrid, cellGrid, queryCells } from "./lattice.ts"
 import {
   decodeTile,
@@ -74,26 +76,14 @@ export const TILE_RANGE: Readonly<typeof range> = range
 /** Whether tile (i, j) is listed: on the map, with a file (an L-shaped map's notch is not). */
 export const isListed = (i: number, j: number): boolean => listed[slotOf(i, j)] === 1
 
-/** The listed tiles `ring` tiles from slot `s`'s (along the farther axis), in key order. */
-const ringOf = (s: number, ring: number): Array<number> => {
-  const found: Array<number> = []
-  for (let j = jOf(s) - ring; j <= jOf(s) + ring; j++)
-    for (let i = iOf(s) - ring; i <= iOf(s) + ring; i++)
-      if (Math.max(Math.abs(i - iOf(s)), Math.abs(j - jOf(s))) === ring && isListed(i, j))
-        found.push(slotOf(i, j))
-  return found
-}
 /**
  * Per unlisted slot of the range, the listed tiles a lookup there reads, in key order: those of the
- * nearest ring of tiles round it that holds any (its listed neighbours, in an L's notch). Empty for
- * a listed slot.
+ * nearest ring of tiles round it that holds any (`tilesRound`: its listed neighbours, in an L's
+ * notch). Empty for a listed slot.
  */
-const around: ReadonlyArray<ReadonlyArray<number>> = Array.from({ length: slots }, (_, s) => {
-  if (listed[s] === 1) return []
-  let ring = 1
-  while (ringOf(s, ring).length === 0) ring++
-  return ringOf(s, ring)
-})
+const around: ReadonlyArray<ReadonlyArray<number>> = Array.from({ length: slots }, (_, s) =>
+  listed[s] === 1 ? [] : tilesRound(iOf(s), jOf(s), isListed).map(([i, j]) => slotOf(i, j)),
+)
 
 /** A wall broad phase over one tile's flat (ax, ay, bx, by) segments. */
 interface Walls {
@@ -263,7 +253,14 @@ export const coverCell = (ci: number, cj: number): number => {
   return tileAt(ti, tj).data.cover[(nj - N * tj) * TILE_CELLS + ni - N * ti]!
 }
 
-/** Calls `visit` with every listed tile overlapping the box, in key order (indices clamped to the list, as the cut assigns them). */
+/** Scratch for `eachTile`: the slots it visited for the unlisted ones in the box. */
+const visited: Array<number> = []
+
+/**
+ * Calls `visit` with every listed tile overlapping the box (indices clamped to the list, as the cut
+ * assigns them), in key order, then those round an unlisted one in it (`around`, where the cut kept
+ * its walls and trees) not visited yet; each tile once.
+ */
 const eachTile = (
   minX: number,
   minY: number,
@@ -275,8 +272,22 @@ const eachTile = (
     i1 = indexOf(maxX / cell, range.i0, range.i1),
     j0 = indexOf(minY / cell, range.j0, range.j1),
     j1 = indexOf(maxY / cell, range.j0, range.j1)
+  let notch = false
   for (let j = j0; j <= j1; j++)
-    for (let i = i0; i <= i1; i++) if (listed[slotOf(i, j)] === 1) visit(tileAt(i, j))
+    for (let i = i0; i <= i1; i++)
+      if (listed[slotOf(i, j)] === 1) visit(tileAt(i, j))
+      else notch = true
+  if (!notch) return
+  visited.length = 0
+  for (let j = j0; j <= j1; j++)
+    for (let i = i0; i <= i1; i++)
+      for (const t of around[slotOf(i, j)]!) {
+        const ti = iOf(t),
+          tj = jOf(t)
+        if ((ti >= i0 && ti <= i1 && tj >= j0 && tj <= j1) || visited.includes(t)) continue
+        visited.push(t)
+        visit(tileAt(ti, tj))
+      }
 }
 
 /**

@@ -7,7 +7,7 @@ import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
 import type { MonzoneMap, Spawn, Water } from "../sim/map/index.ts"
-import { TILE, tileKey, tileRange } from "../sim/map/kinds.ts"
+import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
 import { TILE_CELLS, TILE_NODES, type TileData } from "../sim/map/packed.ts"
 import { placeFrom } from "../sim/sky/place.ts"
 import { packMap, packTile } from "./pack.ts"
@@ -30,6 +30,8 @@ export interface BuiltMap extends Omit<
 > {
   /** `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in build-output.ts fits them to int16). */
   readonly heightmap: MonzoneMap["heightmap"] & { readonly data: Int16Array }
+  /** The tiles to cut and write, the region's (`tiles` in region.ts): those of the bounds' box its parts leave out (an L's notch) are not. */
+  readonly tiles: ReadonlyArray<{ readonly i: number; readonly j: number }>
   readonly walls: {
     readonly walk: ArrayLike<number>
     readonly shore: ArrayLike<number>
@@ -132,10 +134,12 @@ export interface MapCut {
 }
 
 /**
- * `map` named `name` cut into its tiles, one at a time, each packed as it is cut: its terrain nodes,
- * its land cover (asked of `map.cover` for its cells alone), and its walls and trees (with their
- * ids) in the whole map's order. The global map keeps only the sparse parts, so the dense layers
- * can go once the cut is done. Deterministic.
+ * `map` named `name` cut into its tiles (`map.tiles`), one at a time, each packed as it is cut: its
+ * terrain nodes, its land cover (asked of `map.cover` for its cells alone), and its walls and trees
+ * (with their ids) in the whole map's order. A wall or tree whose midpoint falls in a tile of the
+ * bounds' box left off the list goes to the listed tile round it (`tilesRound`) nearest it, which a
+ * lookup there reads; the coarse grid reads such a tile's land cover all the same. The global map
+ * keeps only the sparse parts, so the dense layers can go once the cut is done. Deterministic.
  */
 export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const { cell, cols, rows, x0, y0, data } = map.heightmap
@@ -149,10 +153,35 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     slots = across * (range.j1 - range.j0 + 1)
   const node = (gi: number, gj: number) =>
     data[Math.min(rows - 1, Math.max(0, gj)) * cols + Math.min(cols - 1, Math.max(0, gi))]!
-  const slotAt = (x: number, y: number) =>
-    (indexOf(y / cell, range.j0, range.j1, n) - range.j0) * across +
-    indexOf(x / cell, range.i0, range.i1, n) -
-    range.i0
+  const slotOf = (i: number, j: number) => (j - range.j0) * across + i - range.i0
+  const listed = new Uint8Array(slots)
+  for (const { i, j } of map.tiles) listed[slotOf(i, j)] = 1
+  const isListed = (i: number, j: number) =>
+    i >= range.i0 && i <= range.i1 && j >= range.j0 && j <= range.j1 && listed[slotOf(i, j)] === 1
+  /** Per unlisted slot, the listed tiles round it (`tilesRound`); none for a listed one. */
+  const around = Array.from({ length: slots }, (_, s) =>
+    listed[s] === 1
+      ? []
+      : tilesRound(range.i0 + (s % across), range.j0 + Math.floor(s / across), isListed),
+  )
+  const cellSlot = (x: number, y: number) =>
+    slotOf(indexOf(x / cell, range.i0, range.i1, n), indexOf(y / cell, range.j0, range.j1, n))
+  /**
+   * The tile a wall or tree at (x, y) goes to: the one holding it, or in an unlisted one the listed
+   * tile round it nearest (x, y), the first in key order on a tie (so its coordinates pack as the
+   * tile's own do: it lies within a wall's reach of the play area).
+   */
+  const slotAt = (x: number, y: number) => {
+    const s = cellSlot(x, y)
+    let best = s,
+      least = Infinity
+    for (const [i, j] of around[s]!) {
+      const dx = Math.max(TILE * i - x, 0, x - TILE * (i + 1)),
+        dy = Math.max(TILE * j - y, 0, y - TILE * (j + 1))
+      if (dx * dx + dy * dy < least) [best, least] = [slotOf(i, j), dx * dx + dy * dy]
+    }
+    return best
+  }
   // Each wall in the tile of its midpoint, and each kind's lattice corner: the lowest corner of any
   // of its walls, where the whole map's broad phase put it.
   let reach = 0
@@ -197,24 +226,16 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     ] as const
   const coarseOf = bySlot(gcols * grows, slots, (k) => {
     const [ci, cj] = coarseCell(k % gcols, Math.floor(k / gcols))
-    return slotAt((ci + cx) * cell, (cj + cy) * cell)
+    return cellSlot((ci + cx) * cell, (cj + cy) * cell)
   })
   const files = new Map<string, Buffer>(),
     sizes: Record<string, number> = {},
     list: Array<MonzoneMap["tiles"][number]> = []
   for (let j = range.j0; j <= range.j1; j++)
     for (let i = range.i0; i <= range.i1; i++) {
-      const s = (j - range.j0) * across + i - range.i0
-      const heights = new Int16Array(TILE_NODES * TILE_NODES),
-        cover = new Uint8Array(TILE_CELLS * TILE_CELLS)
-      let zmin = Number.MAX_SAFE_INTEGER,
-        zmax = -Number.MAX_SAFE_INTEGER
-      for (let r = 0; r < TILE_NODES; r++)
-        for (let c = 0; c < TILE_NODES; c++) {
-          const z = node(n * i + c - cx, n * j + r - cy)
-          heights[r * TILE_NODES + c] = z
-          ;[zmin, zmax] = [Math.min(zmin, z), Math.max(zmax, z)]
-        }
+      const s = slotOf(i, j)
+      if (listed[s] !== 1 && coarseOf(s).length === 0) continue
+      const cover = new Uint8Array(TILE_CELLS * TILE_CELLS)
       // The tile's cells on the heightmap; cells past the bounds stay 0.
       const c0 = Math.max(0, n * i - cx),
         r0 = Math.max(0, n * j - cy)
@@ -233,6 +254,17 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
         const [ci, cj] = coarseCell(k % gcols, Math.floor(k / gcols))
         coarseCover[k] = cover[(cj + cy - n * j) * TILE_CELLS + ci + cx - n * i]!
       }
+      // An unlisted tile (an L's notch) gives the coarse grid its land cover, and no file.
+      if (listed[s] !== 1) continue
+      const heights = new Int16Array(TILE_NODES * TILE_NODES)
+      let zmin = Number.MAX_SAFE_INTEGER,
+        zmax = -Number.MAX_SAFE_INTEGER
+      for (let r = 0; r < TILE_NODES; r++)
+        for (let c = 0; c < TILE_NODES; c++) {
+          const z = node(n * i + c - cx, n * j + r - cy)
+          heights[r * TILE_NODES + c] = z
+          ;[zmin, zmax] = [Math.min(zmin, z), Math.max(zmax, z)]
+        }
       const flatOf = (from: ArrayLike<number>, items: Int32Array, stride: number) => {
         const out = new Float64Array(items.length * stride)
         items.forEach((k, m) => {

@@ -7,7 +7,7 @@ import { MAP_URL, readMapFile } from "../packed.ts"
 import { AROUND, notchMap } from "./edit-map.ts"
 
 notchMap()
-const { heightAt, inPlay, MAP, outlineDistance } = await import("../index.ts")
+const { heightAt, inPlay, MAP, outlineDistance, treesIn, wallsNear } = await import("../index.ts")
 const { coverAt } = await import("../cover.ts")
 const { terrainZ } = await import("../ground.ts")
 const tiles = await import("../tiles.ts")
@@ -64,6 +64,24 @@ test("an L: a lookup in the notch is resident once the listed tiles round it are
   } finally {
     tiles.setTileSource((key) => readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL)))
   }
+})
+
+// The cut keeps a wall or tree whose midpoint falls in an unlisted tile (an outline wall on the notch's side, a house wall
+// over it) in a listed tile round it (src/tools/tile-map.ts): a lookup there must read them.
+test("an L: a wall or tree lookup over the notch reads the listed tiles round it, as the host keeps them", () => {
+  const read: Array<string> = []
+  for (const { i, j } of MAP.tiles) tiles.dropTile(`${i}_${j}`)
+  tiles.setTileSource((key) => {
+    read.push(key)
+    return readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL))
+  })
+  wallsNear("walk", 2500, 500, 2510, 510)
+  assert.deepEqual(read, AROUND)
+  assert.deepEqual(tiles.tilesOver(2500 - 49, 500 - 49, 2510 + 49, 510 + 49), AROUND)
+  read.length = 0
+  for (const key of AROUND) tiles.dropTile(key)
+  treesIn(3000, 1000, 3010, 1010, () => {})
+  assert.deepEqual(read, AROUND)
 })
 
 test("an L: the play area is the outline's, its edge in it", () => {

@@ -52,6 +52,7 @@ export const assembleMap = (
     mPerDeg: M_PER_DEG,
     bounds: BOUNDS,
     outline: OUTLINE,
+    tiles: REGION.tiles,
     heightmap: {
       cell: grid.cell,
       cols: grid.cols,

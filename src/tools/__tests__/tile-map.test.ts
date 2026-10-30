@@ -15,6 +15,12 @@ const built = (data: ReadonlyArray<number>): BuiltMap => ({
   mPerDeg: { lat: 111_000, lon: 80_000 },
   bounds: { minX: -12, minY: -12, maxX: 12, maxY: 12 },
   outline: [[-12, -12, 12, -12, 12, 12, -12, 12]],
+  tiles: [
+    { i: -1, j: -1 },
+    { i: 0, j: -1 },
+    { i: -1, j: 0 },
+    { i: 0, j: 0 },
+  ],
   heightmap: { cell: 4, cols: 7, rows: 7, x0: -12, y0: -12, data: Int16Array.from(data) },
   roads: [],
   buildings: [],
@@ -76,6 +82,39 @@ test("cutMap cuts the dense layers into tiles that joinTiles puts back as they w
   assert.deepEqual(global.walls.lattice.trees, [-11, -11]) // the region's, not the lowest tree's
   assert.deepEqual(Array.from(whole.cover), cover)
   assert.equal(global.walls.reach, 13) // the 24 m shore wall on the edge reaches 12 m past its midpoint, plus the margin
+})
+
+test("cutMap writes the listed tiles alone: a wall or tree in an unlisted one goes to the listed tile round it nearest it, and its land cover still reaches the coarse grid", () => {
+  const whole = built(data)
+  // (0, 0) unlisted, as an L leaves its notch; a wall and a tree in it
+  const l: BuiltMap = {
+    ...whole,
+    tiles: whole.tiles.slice(0, 3),
+    walls: { ...whole.walls, walk: [...Array.from(whole.walls.walk), 2, 2, 4, 2] },
+  }
+  const { global, files } = filesOf(l)
+  assert.deepEqual([...files.keys()], ["", "-1_-1", "0_-1", "-1_0"])
+  assert.deepEqual(
+    global.tiles.map(({ i, j }) => `${i}_${j}`),
+    ["-1_-1", "0_-1", "-1_0"],
+  )
+  const tiles = global.tiles.map(({ i, j }) => decodeTile(files.get(`${i}_${j}`)!))
+  // The new wall, midpoint (3, 2), lies 2 m from 0_-1, 3 m from -1_0; 0_0's tree, at (0, 0), on all three, goes to the
+  // first in key order, -1_-1.
+  assert.deepEqual(
+    tiles.map((t) => Array.from(t.wallIds.walk)),
+    [[1], [2], [0]],
+  )
+  assert.deepEqual(
+    tiles.map((t) => Array.from(t.ids)),
+    [[12, 40_000], [2 ** 28 + 5], []],
+  )
+  const joined = joinTiles(decodeMap(files.get("")!), tiles)
+  assert.deepEqual(Array.from(joined.walls.walk), l.walls.walk)
+  assert.deepEqual(Array.from(joined.trees), l.trees)
+  const all = filesOf(whole).global
+  assert.deepEqual(global.coarse.cover, all.coarse.cover)
+  assert.deepEqual(global.coarse.heights, all.coarse.heights)
 })
 
 test("joinTiles refuses a tile from another build", () => {

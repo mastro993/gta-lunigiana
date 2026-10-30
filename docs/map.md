@@ -914,9 +914,14 @@ goes to the first in key order), so the ground past an inner edge of the play ar
 edge, as the apron does past the bounds (`src/sim/map/tiles.ts`; `notchMap` in
 `src/sim/map/__tests__/edit-map.ts` drops Lunigiana's four tiles north-east of (2000, 0), and the
 `notch.test.ts` beside each runtime reader of the tiles and the play area checks it there; the
-tunnel portals' `portals.test.ts` moves the outline onto a tunnel mouth instead). The tiles round
-it are what `tilesOver` names for a box over the notch, so the host keeps them in memory wherever a
-lookup there may read.
+tunnel portals' `portals.test.ts` moves the outline onto a tunnel mouth instead). The build writes
+the listed tiles alone (the region's: `tiles` in `region.ts`) and keeps a wall or tree whose midpoint
+falls in the notch (an outline wall on its side, a house wall over it) in the listed tile round it
+nearest it (`tilesRound` in `src/sim/map/kinds.ts`, the cut in `src/tools/tile-map.ts`): such an
+item lies within a wall's reach of the play area, so its coordinates pack as the tile's own do. A
+wall or tree lookup over the notch reads the listed tiles round it. The tiles round it are what
+`tilesOver` names for a box over the notch, so the host keeps them in memory wherever a lookup there
+may read.
 
 | File | Lunigiana | Cesena |
 |---|---|---|
@@ -1014,9 +1019,9 @@ What goes in which tile:
   clamped to the lattice, so a tile's border rows and columns are its neighbours' too, and past the
   bounds a tile repeats the edge. The lookups keep the lattice's arithmetic and only read the node from
   its tile, so `heightAt`, `terrainZ` and `groundZ` give the same doubles as the whole heightmap did.
-- **Walls**: each segment lives in the tile of its midpoint, clamped to the listed tiles (Cesena's
-  outline walls lie on a seam). A tile's walls keep the whole map's order and carry their index in
-  it.
+- **Walls**: each segment lives in the tile of its midpoint, clamped to the box of the listed tiles
+  (Cesena's outline walls lie on a seam), or, where that tile is not listed, in the listed tile round
+  it nearest the midpoint. A tile's walls keep the whole map's order and carry their index in it.
 - **Trees**: each in the tile of its point, the same way (the scatter already made it there), with
   its id.
 - **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`rasterCover` in
