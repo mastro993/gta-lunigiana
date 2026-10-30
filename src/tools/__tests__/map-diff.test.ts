@@ -312,20 +312,13 @@ test("each category's change is reported in its block alone", () => {
 // The physics resolves contacts in wall order (another order lets a car into a building at a corner), and a tree's place
 // in the list is its id: a multiset comparison would hide both.
 test("walls of a kind and trees in another order are a difference, beside their adds and removals", () => {
+  // Two swapped: one of them moved.
   assert.deepEqual(
     diffMaps(MAP, { ...MAP, walls: { ...MAP.walls, walk: [5, 1, 5, 5, 1, 1, 5, 1] } }),
-    [
-      {
-        category: "walls",
-        lines: ["walk order: 2 of 2 shared segments in another order, in x 1..5, y 1..5"],
-      },
-    ],
+    [{ category: "walls", lines: ["walk order: 1 of 2 shared segments moved, in x 1..5, y 1..1"] }],
   )
   assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8, 10, 10, 1] }), [
-    {
-      category: "trees",
-      lines: ["order: 2 of 2 shared trees in another order, in x 10..12, y 10..10"],
-    },
+    { category: "trees", lines: ["order: 1 of 2 shared trees moved, in x 10..10, y 10..10"] },
   ])
   // A tree added in front and one removed leave the others in their order: no reorder.
   assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [5, 5, 1, 10, 10, 1] }), [
@@ -339,8 +332,30 @@ test("walls of a kind and trees in another order are a difference, beside their 
     })[0]!.lines,
     [
       "walk: 1 added, in x 0..1, y 0..0",
-      "walk order: 2 of 2 shared segments in another order, in x 1..5, y 1..5",
+      "walk order: 1 of 2 shared segments moved, in x 1..5, y 1..1",
     ],
+  )
+})
+
+test("an order change counts the fewest items that must move, the one moved from the front to the back alone", () => {
+  const row = [0, 1, 2, 3, 4].flatMap((x) => [x, 0, 1])
+  assert.deepEqual(
+    diffMaps({ ...MAP, trees: row }, { ...MAP, trees: [...row.slice(3), ...row.slice(0, 3)] }),
+    [{ category: "trees", lines: ["order: 1 of 5 shared trees moved, in x 0..0, y 0..0"] }],
+  )
+})
+
+// The real maps hold identical wall segments (Lunigiana 4 walk and 4 drive, Cesena 51 of each): which copy went is
+// unknown, so a wrong guess must not shift every segment between the copies out of place.
+test("a segment with a copy removed is left out of the order, so the others between its copies keep theirs", () => {
+  const twin = [9, 9, 9, 8],
+    run = [1, 2, 3, 4, 5].flatMap((x) => [x, 0, x, 1])
+  assert.deepEqual(
+    diffMaps(
+      { ...MAP, walls: { ...MAP.walls, walk: [0, 0, 0, 1, ...twin, ...run, ...twin] } },
+      { ...MAP, walls: { ...MAP.walls, walk: [0, 0, 0, 2, ...twin, ...run] } },
+    ),
+    [{ category: "walls", lines: ["walk: 1 added, 2 removed, in x 0..9, y 0..9"] }],
   )
 })
 

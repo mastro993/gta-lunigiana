@@ -17,7 +17,8 @@
 //   in order of occurrence. The walls of each kind and the trees both maps hold must also stand in
 //   the same order: the physics resolves contacts in wall order (another order lets a car into a
 //   building at a corner), and a tree's place in the list is its id (its seed, its owl and its
-//   bird), so a reorder is a difference of its own.
+//   bird), so a reorder is a difference of its own, counted as the fewest items that must move
+//   (items with a copy added or removed left out).
 // - Indices into other lists are compared as what they point at: a graph edge as its two nodes'
 //   coordinates and its road's id, a level crossing's road as its id, so inserting one road does
 //   not renumber every edge into a difference.
@@ -274,8 +275,8 @@ const flatLine = (
 
 /**
  * A flat list compared in order (a kind of wall, the trees): its multiset line (`flatLine`), then
- * how many of the `noun` both maps hold stand in another order (`outOfOrder`) and their box, each
- * line after `label` when there is one (`walk: …`, `walk order: …`).
+ * the fewest of the `noun` both maps hold that must move to restore their order (`outOfOrder`) and
+ * their box, each line after `label` when there is one (`walk: …`, `walk order: …`).
  */
 const orderedLines = (
   label: string,
@@ -293,7 +294,7 @@ const orderedLines = (
     const box = emptyBox()
     for (const i of moved) addFlat(box, a, i * stride, i * stride + coords)
     out.push(
-      `${label === "" ? "" : `${label} `}order: ${moved.length} of ${a.length / stride - bag.removed.length} shared ${noun} in another order${boxText(box)}`,
+      `${label === "" ? "" : `${label} `}order: ${moved.length} of ${a.length / stride - bag.removed.length} shared ${noun} moved${boxText(box)}`,
     )
   }
   return out

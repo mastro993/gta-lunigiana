@@ -1113,8 +1113,9 @@ nearest the start and at a fork toward the goal, the SP59 from Monzone to Vinca 
 y = 0, y = −2000 and x = 2000 seams, the page's drive script (run in a `vm` against a fake `gta`)
 and its report; `cdp.test.ts`, on a fake Chrome, a command's own timeout and the socket closed
 when a tab cannot open; `map-diff.test.ts` each category's change on small maps, a key it does not
-compare, walls and trees in another order and `--except`, and `map-diff-args.test.ts` its command
-line; `geometry.test.ts` `clipRing` to a box.
+compare, walls and trees in another order (the fewest moved counted, copies of a removed segment
+left out) and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts`
+`clipRing` to a box.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees and walls read whole from the tiles (the running line dark, loops and
@@ -1232,17 +1233,20 @@ repository. Measured on `lucido` on 2026-10-29.
   the tile list, the place, the name and the baked tables (lanes, farms, lamps) and the rest,
   matched by id or as multisets, and any key it does not know as its own block; the build hash is
   left out, as anything else changes it. Order counts only for the walls of each kind and the
-  trees: beside their multiset change it prints how many of the items both maps hold stand in
-  another order, and where (`walk order: 2 of 2 shared segments in another order, in x …`), since
-  the physics resolves contacts in wall order and a tree's place in the list is its id. It compares
-  two builds of one format version (the decoders refuse another) and exits 0 for "no differences",
-  1 when they differ and 2 on bad arguments, an unknown category among them, or a file it cannot
-  read. `--except trees,walls` accepts those categories (the names its blocks print: `unhandled
-  keys`, `top level`, `tiles`, `heightmap`, `cover`, `walls`, `coarse`, `trees`, `roads`,
-  `buildings`, `water`, `rail`, `railway`, `areas`, `barriers`, `pois`, `districts`, `spawns`,
-  `graph`, `lanes`, `farms`, `lamps`): their differences are still printed, the last line names them
-  as accepted, and the exit code is 0 unless another category differs. The shipped map against
-  itself (two builds are byte-identical): no differences, 0.9 s.
+  trees: beside their multiset change it prints the fewest of the items both maps hold that must
+  move to restore their order, and where (`walk order: 1 of 2 shared segments moved, in x …`; one
+  item moved from the front of a list to its back is 1), since the physics resolves contacts in
+  wall order and a tree's place in the list is its id. Every copy of an item with a copy added or
+  removed is left out of the order, as which copy went is unknown (Lunigiana's walk and drive
+  walls each hold 4 segments twice, Cesena's 28 segments 2 to 4 times, 51 extra copies). It
+  compares two builds of one format version (the decoders refuse another) and exits 0 for "no
+  differences", 1 when they differ and 2 on bad arguments, an unknown category among them, or a
+  file it cannot read. `--except trees,walls` accepts those categories (the names its blocks print:
+  `unhandled keys`, `top level`, `tiles`, `heightmap`, `cover`, `walls`, `coarse`, `trees`,
+  `roads`, `buildings`, `water`, `rail`, `railway`, `areas`, `barriers`, `pois`, `districts`,
+  `spawns`, `graph`, `lanes`, `farms`, `lamps`): their differences are still printed, the last line
+  names them as accepted, and the exit code is 0 unless another category differs. The shipped map
+  against itself (two builds are byte-identical): no differences, 0.9 s.
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
   `lucido`'s largest, -1_-1, is 0.31 MB.
