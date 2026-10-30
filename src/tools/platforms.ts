@@ -367,7 +367,7 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
       options.sort((a, b) => Math.hypot(a[0] - x, a[1] - y) - Math.hypot(b[0] - x, b[1] - y))
       return options.find(([ox, oy]) => clear(ox, oy)) ?? options[0]!
     }
-    const loops = traceLoops({ cell: RES, cols: cw + 1, rows: ch + 1, x0: gx, y0: gy }, mask)
+    const loops = [...traceLoops({ cell: RES, cols: cw + 1, rows: ch + 1, x0: gx, y0: gy }, mask)]
       .map((loop) => simplifyLoop(loop, TOL).slice(0, -1).map(round))
       .map((loop) =>
         loop.filter((v, i) => v[0] !== loop.at(i - 1)![0] || v[1] !== loop.at(i - 1)![1]),

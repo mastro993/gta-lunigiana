@@ -79,8 +79,15 @@ so its peak is one phase's working set plus what that phase hands on:
 | world | `build-world.ts` | 9–12 | the clearance indexes the spawns and the graph's dead ends are checked against |
 | output | `build-output.ts` | the map put together, its land cover, the cut, the bake, the files | |
 
-The output cuts the map into its tiles once ([Map files](#map-files)), each packed with an empty
-hash. The bake reads those through a store that keeps 16 decoded and drops the first one read past
+The output cuts the map into its tiles once ([Map files](#map-files)), one at a time, each packed
+with an empty hash as soon as it is cut: its nodes from the grid (whole decimetres, an `Int16Array`),
+its land cover rasterised for its cells alone (`rasterCover` on a block of the cells, with the whole
+raster's arithmetic, so no raster of the whole map is ever made), and its walls and trees in the
+whole map's order (sorted by tile once). The walls' blocked cells are worked out tile by tile too:
+the slope test and the 3 × 3 majority filter of a tile's cells read one cell past it, from the
+grid, into one bit set per kind over the whole map, which is traced as one (the loops in the order
+of their lowest crossing, each simplified and split as it is traced, so only the loop at hand is
+held). The bake reads those through a store that keeps 16 decoded and drops the first one read past
 that, as a host drops tiles: the cut and the bake took 7.6 s with 4 kept, 3.7 s with 9, 1.5 s with
 16 and 1.2 s with all 30. Then the hash is taken over the global file and each tile, all unstamped,
 and each tile is stamped (its JSON line rewritten with the hash), gzipped and written in turn.
@@ -105,13 +112,14 @@ node ids already set, the road–rail and line–water crossings gated by their 
 parapets' openings read from one index of the roads.
 
 On 2026-10-30 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs)
-the build peaked at 1.17–1.18 GB resident and took 12.1–12.5 s, against 1.30–1.46 GB and
-13.6–13.9 s with every stage at the top level of `build-map.ts` and the map cut twice. The tile
-pass takes 3.3 s, 0.11 s a tile. The stages ended at (s from the start):
+the build peaked at 1.16–1.21 GB resident and took 11.9–12.2 s (a third run, with the machine
+busy, 16.9 s), against 1.30–1.46 GB and 13.6–13.9 s with every stage at the top level of
+`build-map.ts` and the map cut twice. The grid's tile pass takes 3.3 s (0.11 s a tile) and the cut
+0.95 s. The stages ended at (s from the start):
 
-| rail | features | roads | decks | grid | water | railway | walls | trees | spawns | cover | bake | write |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0.61 | 1.17 | 1.24 | 1.26 | 4.51 | 5.59 | 6.17 | 8.03 | 8.53 | 8.81 | 8.97 | 10.41 | 11.95 |
+| rail | features | roads | decks | grid | water | railway | walls | trees | spawns | map | cut | bake | write |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.60 | 1.16 | 1.24 | 1.27 | 4.54 | 5.63 | 6.21 | 7.67 | 8.22 | 8.52 | 8.54 | 9.49 | 10.25 | 11.78 |
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
@@ -909,8 +917,9 @@ What goes in which tile:
 - **Walls**: each segment lives in the tile of its midpoint, clamped to the listed tiles (Cesena's
   bounds walls lie on a seam). A tile's walls keep the whole map's order and carry their index in it.
 - **Trees**: each in the tile of its point, the same way, with its index.
-- **Cover**: the 500 × 500 cells of the whole map's raster (`rasterCover` in `src/sim/map/raster.ts`,
-  rasterised once at build time) that fall in the tile; cells past the bounds are 0 and never read.
+- **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`rasterCover` in
+  `src/sim/map/raster.ts`, rasterised at build time for the tile's cells alone, the same cells a
+  raster of the whole map gives there); cells past the bounds are 0 and never read.
 
 `wallsNear` and `treesIn` answer exactly as the one broad phase over the whole map did, the same
 items in the same order: each kind keeps its 16 m lattice (`walls.lattice`, the lowest corner of any

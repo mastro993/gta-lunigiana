@@ -330,7 +330,7 @@ lamps (`MAP.lamps`), each by its owner module's code (`src/tools/bake.ts` calls 
 `src/tools/__tests__/bake.test.ts` (and `cesena-bake.test.ts` for Cesena, in a process of its own)
 runs the five and the place fit again and fails while one is stale. The land cover
 is read from the tiles (`coverAt` and `coverIndexAt` in `src/sim/map/cover.ts`: each tile holds its
-500 × 500 cells, rasterised once at build time), and the road index of `surfaceAt`
+500 × 500 cells, rasterised for that tile at build time), and the road index of `surfaceAt`
 (`src/sim/map/surface.ts`) is built on first use, a pure function of `MAP` never written after. The
 lookups are compact static grids (`staticGrid` in `src/sim/collide.ts`, item indices packed into one
 `Int32Array`), the walls and trees one per tile on the whole map's lattice

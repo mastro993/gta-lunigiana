@@ -30,9 +30,11 @@ const cutBuilt = async () => {
   const terrain = buildTerrain(src, ground, lap)
   const world = buildWorld(src, terrain, lap)
   const built = assembleMap(src, terrain, world)
-  lap("cover")
+  lap("map")
+  const cut = cutMap(built, REGION.file)
+  lap("cut")
   return {
-    cut: cutMap(built, REGION.file),
+    cut,
     report: {
       rail: src.railReport,
       running: src.rail.length,

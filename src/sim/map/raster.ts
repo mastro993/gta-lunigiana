@@ -1,13 +1,14 @@
 /**
  * Land cover of every 4 m terrain cell: map areas rasterised with a scanline even-odd fill
  * (`fillPolygon`), meadow where nothing covers a cell, paving where a house fronts a road, and
- * pebble beds along rivers and streams. The build rasterises the whole map once (`rasterCover`) and
- * cuts it into the tiles (src/tools/tile-map.ts); `./cover.ts` reads it there. Imports no map, so
- * the build can use it before the map exists.
+ * pebble beds along rivers and streams. The build rasterises each tile's cells (`rasterCover` on a
+ * block, the cells a raster of the whole map gives there) as it cuts the tiles
+ * (src/tools/tile-map.ts); `./cover.ts` reads them there. Imports no map, so the build can use it
+ * before the map exists.
  *
  * @module map/raster
  */
-import { fillPolygon, segDist2 } from "../collide.ts"
+import { fillPolygon, type PixelBlock, segDist2 } from "../collide.ts"
 import type { Area, AreaKind, Building, MonzoneMap, Road, Water } from "./index.ts"
 
 /** Cover kinds: meadow by default, the map's area kinds, and the river bed. */
@@ -43,9 +44,10 @@ const coverIndex = new Map<string, number>(COVERS.map((c, i) => [c, i]))
 /** Metres from a wall and from a road's edge within which open ground is paved: house fronts, sidewalks, alleys. */
 const FRONT = 3
 
-/** Calls `visit` with each cell whose centre is within `reach` of segment a-b. */
+/** Calls `visit` with each cell of `block` whose centre is within `reach` of segment a-b, by its index in the block. */
 const cellsNear = (
   heightmap: MonzoneMap["heightmap"],
+  block: PixelBlock,
   ax: number,
   ay: number,
   bx: number,
@@ -53,20 +55,18 @@ const cellsNear = (
   reach: number,
   visit: (k: number) => void,
 ) => {
-  const { cell, x0, y0 } = heightmap,
-    cols = heightmap.cols - 1,
-    rows = heightmap.rows - 1
-  const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - reach - x0) / cell)),
-    i1 = Math.min(cols - 1, Math.floor((Math.max(ax, bx) + reach - x0) / cell))
-  const j0 = Math.max(0, Math.floor((Math.min(ay, by) - reach - y0) / cell)),
-    j1 = Math.min(rows - 1, Math.floor((Math.max(ay, by) + reach - y0) / cell))
+  const { cell, x0, y0 } = heightmap
+  const i0 = Math.max(block.c0, Math.floor((Math.min(ax, bx) - reach - x0) / cell)),
+    i1 = Math.min(block.c0 + block.cols - 1, Math.floor((Math.max(ax, bx) + reach - x0) / cell))
+  const j0 = Math.max(block.r0, Math.floor((Math.min(ay, by) - reach - y0) / cell)),
+    j1 = Math.min(block.r0 + block.rows - 1, Math.floor((Math.max(ay, by) + reach - y0) / cell))
   for (let j = j0; j <= j1; j++)
     for (let i = i0; i <= i1; i++) {
       if (
         segDist2(x0 + (i + 0.5) * cell, y0 + (j + 0.5) * cell, ax, ay, bx, by).d2 <=
         reach * reach
       )
-        visit(j * cols + i)
+        visit((j - block.r0) * block.cols + i - block.c0)
     }
 }
 
@@ -74,36 +74,42 @@ const cellsNear = (
 const bankOf = (w: number): number => (w >= 12 ? 5 : w >= 8 ? 3 : w >= 4 ? 1.5 : 0)
 
 /**
- * The cover of every terrain cell, row-major with row 0 = south, `(cols − 1) × (rows − 1)` cells
- * of the heightmap. Forest is filled first, so every other area and the river beds draw over it.
+ * The cover of the terrain cells of `block` (every cell when absent: the `(cols − 1) × (rows − 1)`
+ * cells of the heightmap), row-major with row 0 = south. Forest is filled first, so every other
+ * area and the river beds draw over it. A block's cells come out as in the whole raster.
  */
-export const rasterCover = (map: {
-  readonly heightmap: MonzoneMap["heightmap"]
-  readonly areas: ReadonlyArray<Area>
-  readonly water: ReadonlyArray<Omit<Water, "floor">>
-  readonly roads: ReadonlyArray<Road>
-  readonly buildings: ReadonlyArray<Building>
-}): Uint8Array => {
+export const rasterCover = (
+  map: {
+    readonly heightmap: MonzoneMap["heightmap"]
+    readonly areas: ReadonlyArray<Area>
+    readonly water: ReadonlyArray<Omit<Water, "floor">>
+    readonly roads: ReadonlyArray<Road>
+    readonly buildings: ReadonlyArray<Building>
+  },
+  part?: PixelBlock,
+): Uint8Array => {
   const { cell, x0, y0 } = map.heightmap
   const cols = map.heightmap.cols - 1,
     rows = map.heightmap.rows - 1
-  const out = new Uint8Array(cols * rows)
+  const block = part ?? { c0: 0, r0: 0, cols, rows }
+  const out = new Uint8Array(block.cols * block.rows)
   const ordered = [...map.areas].sort(
     (a, b) => (coverIndex.get(a.kind) ?? 0) - (coverIndex.get(b.kind) ?? 0),
   )
   for (const area of ordered) {
     const cover = coverIndex.get(area.kind)
     if (cover !== undefined)
-      fillPolygon(area.rings, x0, y0, cell, cols, rows, (k) => (out[k] = cover))
+      fillPolygon(area.rings, x0, y0, cell, cols, rows, (k) => (out[k] = cover), block)
   }
   // Open ground (meadow, residential grass) both near a wall and near a road edge.
-  const fronting = new Uint8Array(cols * rows),
+  const fronting = new Uint8Array(block.cols * block.rows),
     open = new Set([coverIndex.get("meadow"), coverIndex.get("residential")]),
     paved = coverIndex.get("paved")!
   for (const b of map.buildings)
     for (let k = 0, n = b.outer.length; k < n; k += 2) {
       cellsNear(
         map.heightmap,
+        block,
         b.outer[k]!,
         b.outer[k + 1]!,
         b.outer[(k + 2) % n]!,
@@ -117,6 +123,7 @@ export const rasterCover = (map: {
     for (let k = 0; k + 3 < r.pts.length; k += 2) {
       cellsNear(
         map.heightmap,
+        block,
         r.pts[k]!,
         r.pts[k + 1]!,
         r.pts[k + 2]!,
@@ -135,6 +142,7 @@ export const rasterCover = (map: {
     for (let k = 0; k + 3 < w.pts.length; k += 2)
       cellsNear(
         map.heightmap,
+        block,
         w.pts[k]!,
         w.pts[k + 1]!,
         w.pts[k + 2]!,

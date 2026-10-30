@@ -14,13 +14,13 @@ import type { buildWorld } from "./build-world.ts"
 import type { RoadF } from "./features.ts"
 import { BOUNDS, M_PER_DEG, ORIGIN, r1 } from "./geometry.ts"
 import { packMap } from "./pack.ts"
-import { sampleGrid } from "./terrain.ts"
+import { sampleGrid, type Grid } from "./terrain.ts"
 import { type BuiltMap, type MapCut, NO_BAKES, stampMap } from "./tile-map.ts"
 
 /** Surveyed eave over a building's lowest ground, m, outside which the eave is a survey slip and the default height stands. */
 const EAVE = { min: 1.5, max: 45 }
 
-/** The map as built, its land cover rasterised: every layer whole, before the cut. */
+/** The map as built: every layer whole, but the land cover, which the cut rasterises tile by tile. */
 export const assembleMap = (
   src: Sources,
   terrain: Terrain,
@@ -43,7 +43,7 @@ export const assembleMap = (
     ...(verges.has(i) ? { verge: verges.get(i)! } : {}),
     ...roadLines[i]!,
   })
-  const map: BuiltMap = {
+  const map: Omit<BuiltMap, "cover"> = {
     version: MAP_VERSION,
     origin: ORIGIN,
     mPerDeg: M_PER_DEG,
@@ -54,7 +54,7 @@ export const assembleMap = (
       rows: grid.rows,
       x0: grid.x0,
       y0: grid.y0,
-      data: Array.from(grid.z, (z) => Math.round(z * 10)),
+      data: decimetres(grid),
     },
     roads: roads.map(roadOut),
     buildings: buildings.map((b) => {
@@ -95,10 +95,24 @@ export const assembleMap = (
     graph: world.graph,
     walls: world.walls,
     trees: world.trees,
-    cover: [],
     spawns: world.spawns,
   }
-  return { ...map, cover: rasterCover(map) }
+  // Rasterised a tile at a time, as the cut asks for it.
+  return { ...map, cover: (block) => rasterCover(map, block) }
+}
+
+/** The grid's nodes in whole decimetres, each checked to fit int16 (a NaN or a height past ±3276.7 m fails the build). */
+const decimetres = (grid: Grid): Int16Array => {
+  const out = new Int16Array(grid.z.length)
+  for (let k = 0; k < out.length; k++) {
+    const v = Math.round(grid.z[k]! * 10)
+    if (!(v >= -32768 && v <= 32767))
+      throw new Error(
+        `heightmap: ${v} at node (${k % grid.cols}, ${Math.floor(k / grid.cols)}) does not fit int16`,
+      )
+    out[k] = v
+  }
+  return out
 }
 
 /** Decoded tiles the bake keeps at once: past them the first read goes, and is read again if needed. */

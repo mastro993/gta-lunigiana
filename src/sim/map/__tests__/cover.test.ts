@@ -112,3 +112,60 @@ test("open ground between a house and a road is paved; a garden behind the house
   assert.equal(at(raster, 18, 35), "meadow") // 10 m behind it
   assert.equal(at(raster, 38, 38), "meadow")
 })
+
+test("a block of the raster has the cells the whole raster has there", () => {
+  const map = {
+    heightmap,
+    areas: [
+      { kind: "forest" as const, rings: [[0, 0, 40, 0, 40, 6, 0, 6]] },
+      { kind: "parking" as const, rings: [[13, 9, 31, 11, 27, 33, 9, 22]] },
+    ],
+    water: [
+      {
+        id: 1,
+        kind: "river" as const,
+        w: 8,
+        bed: 6,
+        depth: 1,
+        pts: [3, 37, 37, 3],
+        z: [200, 199],
+        area: [1, 1],
+      },
+    ],
+    roads: [
+      { id: 1, cls: "residential", w: 4, surface: "asphalt", pts: [0, 21, 40, 19], z: [200, 200] },
+    ],
+    buildings: [
+      {
+        id: 1,
+        kind: "house",
+        h: 6,
+        z0: 200,
+        style: "plaster",
+        tint: 0,
+        outer: [6, 25, 14, 25, 14, 31, 6, 31],
+      },
+    ],
+  }
+  const whole = rasterCover(map)
+  for (const block of [
+    { c0: 0, r0: 0, cols: 10, rows: 10 },
+    { c0: 3, r0: 4, cols: 5, rows: 2 },
+    { c0: 7, r0: 0, cols: 3, rows: 10 },
+  ]) {
+    const part = rasterCover(map, block)
+    part.forEach((v, k) =>
+      assert.equal(
+        v,
+        whole[(block.r0 + Math.floor(k / block.cols)) * 10 + block.c0 + (k % block.cols)],
+      ),
+    )
+  }
+  assert.deepEqual([...new Set(whole)].map(coverName).sort(), [
+    "forest",
+    "meadow",
+    "parking",
+    "paved",
+    "pebble",
+  ])
+})

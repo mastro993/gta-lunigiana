@@ -15,6 +15,7 @@ import {
   segIndex,
   signedArea,
 } from "./geometry.ts"
+import { gridTiles } from "./grid-tiles.ts"
 import { cellSlope, type Grid } from "./terrain.ts"
 
 const RUN = 16 // max wall segment length, m
@@ -52,12 +53,14 @@ const pushPolyline = (out: Array<number>, pts: ReadonlyArray<number>, closed: bo
 /**
  * Marching squares over the blocked cells (centres = samples, outside = free): closed loops of
  * crossing points midway between blocked and free centres, blocked side on the left. At saddles
- * the diagonal blocked corners join, so one-cell diagonal strips (streams) stay one loop. Returns loops of [x, y] in metres (first point repeated last).
+ * the diagonal blocked corners join, so one-cell diagonal strips (streams) stay one loop. Yields
+ * loops of [x, y] in metres (first point repeated last), each from its lowest crossing id, one at a
+ * time so only the loop at hand is held.
  */
-export const traceLoops = (
+export function* traceLoops(
   g: Pick<Grid, "cell" | "cols" | "rows" | "x0" | "y0">,
   blocked: Uint8Array,
-): Array<Array<readonly [number, number]>> => {
+): Generator<Array<readonly [number, number]>> {
   const cw = g.cols - 1,
     ch = g.rows - 1,
     c = g.cell
@@ -88,7 +91,6 @@ export const traceLoops = (
         next.set(edge[k]!, edge[e]!)
       }
     }
-  const loops: Array<Array<readonly [number, number]>> = []
   for (const start of [...next.keys()].sort((a, d) => a - d)) {
     if (!next.has(start)) continue
     const loop = [xy(start)]
@@ -99,9 +101,8 @@ export const traceLoops = (
       loop.push(xy(to))
       cur = to
     } while (cur !== start)
-    loops.push(loop)
+    yield loop
   }
-  return loops
 }
 
 /** Douglas-Peucker on a closed loop (first point repeated last), split at the point farthest from the start. */
@@ -255,7 +256,9 @@ export const clipBuildings = (
   return buildings.flatMap((b) => {
     const c = carved(b, clipping)
     if (c === undefined) return [b]
-    const rings = traceLoops(c.grid, c.blocked).map((loop) => simplifyLoop(loop, 0.15).slice(0, -1))
+    const rings = Array.from(traceLoops(c.grid, c.blocked), (loop) =>
+      simplifyLoop(loop, 0.15).slice(0, -1),
+    )
     const holes = rings
       .filter((r) => signedArea(r) < 0)
       .map((r) => flatRing(r, false))
@@ -407,60 +410,72 @@ export const buildWalls = (
   for (const r of roads) near.addLine(r.pts, Math.max(r.w / 2, 1.5) + 1.5 + pad, r) // tunnels too: they are short underpasses here
   const cw = g.cols - 1,
     ch = g.rows - 1
-  // Steep cells, majority-filtered (3x3) so the walls follow slopes, not single-cell bumps.
-  const steep = (limit: number) => {
-    const raw = new Uint8Array(cw * ch)
-    for (let j = 0; j < ch; j++)
-      for (let i = 0; i < cw; i++)
-        raw[j * cw + i] =
-          cellSlope(g, i, j) > limit &&
-          !banks.covers(g.x0 + (i + 0.5) * g.cell, g.y0 + (j + 0.5) * g.cell)
-            ? 1
-            : 0
-    const out = new Uint8Array(cw * ch)
-    for (let j = 0; j < ch; j++)
-      for (let i = 0; i < cw; i++) {
-        let n = 0
-        for (let dj = -1; dj <= 1; dj++)
-          for (let di = -1; di <= 1; di++)
-            n +=
-              raw[
-                Math.min(ch - 1, Math.max(0, j + dj)) * cw + Math.min(cw - 1, Math.max(0, i + di))
-              ]!
-        out[j * cw + i] = n >= 5 ? 1 : 0
-      }
-    return out
-  }
-  const steepWalk = steep(WALK_SLOPE),
-    steepDrive = steep(DRIVE_SLOPE)
   const walkBlocked = new Uint8Array(cw * ch),
     shoreBlocked = new Uint8Array(cw * ch),
     driveBlocked = new Uint8Array(cw * ch),
     driveShoreBlocked = new Uint8Array(cw * ch)
-  for (let j = 0; j < ch; j++)
-    for (let i = 0; i < cw; i++) {
-      const k = j * cw + i,
-        x = g.x0 + (i + 0.5) * g.cell,
-        y = g.y0 + (j + 0.5) * g.cell
-      const water = wet.covers(x, y)
-      if (!water && steepDrive[k] === 0 && steepWalk[k] === 0) continue
-      let walkRoad = false,
-        driveRoad = false,
-        driveCrossing = false
-      near.within(x, y, (s, d2) => {
-        const d = Math.sqrt(d2),
-          r = s.data
-        if (d < Math.max(r.w / 2, 1.5) + pad) walkRoad = true // every class is walkable; paths keep >= 1.5 m
-        if (isDrivable(r.cls)) {
-          if (d < r.w / 2 + 1.5 + pad) driveRoad = true
-          if (d < r.w / 2 + pad) driveCrossing = true // bridge deck or ford
-        }
-      })
-      walkBlocked[k] = !walkRoad && steepWalk[k] === 1 ? 1 : 0
-      shoreBlocked[k] = !walkRoad && water && walkBlocked[k] === 0 ? 1 : 0
-      driveBlocked[k] = steepDrive[k] === 1 && !driveRoad ? 1 : 0
-      driveShoreBlocked[k] = water && !driveCrossing && driveBlocked[k] === 0 ? 1 : 0
-    }
+  // Tile by tile: a tile's cells, and the ring of cells around them that the majority filter reads.
+  for (const { span } of gridTiles(g, 0)) {
+    const ci0 = span.i0,
+      ci1 = span.i0 + span.cols - 1,
+      cj0 = span.j0,
+      cj1 = span.j0 + span.rows - 1
+    const ri0 = Math.max(0, ci0 - 1),
+      rj0 = Math.max(0, cj0 - 1),
+      rw = Math.min(cw, ci1 + 1) - ri0,
+      rh = Math.min(ch, cj1 + 1) - rj0
+    // Steep cells (bit 1 over WALK_SLOPE, bit 2 over DRIVE_SLOPE), but the carved banks.
+    const raw = new Uint8Array(rw * rh)
+    for (let j = rj0; j < rj0 + rh; j++)
+      for (let i = ri0; i < ri0 + rw; i++) {
+        const slope = cellSlope(g, i, j)
+        if (
+          slope > DRIVE_SLOPE &&
+          !banks.covers(g.x0 + (i + 0.5) * g.cell, g.y0 + (j + 0.5) * g.cell)
+        )
+          raw[(j - rj0) * rw + i - ri0] = (slope > WALK_SLOPE ? 1 : 0) | 2
+      }
+    for (let j = cj0; j < cj1; j++)
+      for (let i = ci0; i < ci1; i++) {
+        // Majority-filtered (3x3, clamped to the grid) so the walls follow slopes, not single-cell bumps.
+        let walkN = 0,
+          driveN = 0
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++) {
+            const v =
+              raw[
+                (Math.min(ch - 1, Math.max(0, j + dj)) - rj0) * rw +
+                  Math.min(cw - 1, Math.max(0, i + di)) -
+                  ri0
+              ]!
+            walkN += v & 1
+            driveN += v >> 1
+          }
+        const steepWalk = walkN >= 5,
+          steepDrive = driveN >= 5
+        const k = j * cw + i,
+          x = g.x0 + (i + 0.5) * g.cell,
+          y = g.y0 + (j + 0.5) * g.cell
+        const water = wet.covers(x, y)
+        if (!water && !steepDrive && !steepWalk) continue
+        let walkRoad = false,
+          driveRoad = false,
+          driveCrossing = false
+        near.within(x, y, (s, d2) => {
+          const d = Math.sqrt(d2),
+            r = s.data
+          if (d < Math.max(r.w / 2, 1.5) + pad) walkRoad = true // every class is walkable; paths keep >= 1.5 m
+          if (isDrivable(r.cls)) {
+            if (d < r.w / 2 + 1.5 + pad) driveRoad = true
+            if (d < r.w / 2 + pad) driveCrossing = true // bridge deck or ford
+          }
+        })
+        walkBlocked[k] = !walkRoad && steepWalk ? 1 : 0
+        shoreBlocked[k] = !walkRoad && water && walkBlocked[k] === 0 ? 1 : 0
+        driveBlocked[k] = steepDrive && !driveRoad ? 1 : 0
+        driveShoreBlocked[k] = water && !driveCrossing && driveBlocked[k] === 0 ? 1 : 0
+      }
+  }
   const walk: Array<number> = [],
     shore: Array<number> = [],
     drive: Array<number> = [],

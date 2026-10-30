@@ -1,9 +1,10 @@
-// Cuts the map the build makes (one heightmap, every wall and tree, the land cover rasterised once)
-// into the global map and its 2 km tiles (src/sim/map/packed.ts), and joins them back for the tools
-// that read a whole map (map-diff, preview-map, the map tests). The cut is exact: joining the tiles
-// gives back every node, wall, tree and cover cell, in order.
+// Cuts the map the build makes (one heightmap, every wall and tree, the land cover rasterised tile
+// by tile) into the global map and its 2 km tiles (src/sim/map/packed.ts), one tile at a time, and
+// joins them back for the tools that read a whole map (map-diff, preview-map, the map tests). The
+// cut is exact: joining the tiles gives back every node, wall, tree and cover cell, in order.
 import { createHash } from "node:crypto"
 
+import type { PixelBlock } from "../sim/collide.ts"
 import type { MonzoneMap, Spawn, Water } from "../sim/map/index.ts"
 import { TILE, tileKey, tileRange } from "../sim/map/kinds.ts"
 import { TILE_CELLS, TILE_NODES, type TileData } from "../sim/map/packed.ts"
@@ -35,8 +36,8 @@ export interface BuiltMap extends Omit<
   }
   /** Flat (x, y, scale) triples. */
   readonly trees: ArrayLike<number>
-  /** Every land-cover cell (`rasterCover`), `(cols − 1) × (rows − 1)`. */
-  readonly cover: ArrayLike<number>
+  /** The land cover of a block of the heightmap's `(cols − 1) × (rows − 1)` cells (`rasterCover`), row-major. */
+  readonly cover: (block: PixelBlock) => ArrayLike<number>
   readonly water: ReadonlyArray<Omit<Water, "floor">>
   readonly spawns: { readonly player: Spawn; readonly parked: ReadonlyArray<Spawn> }
 }
@@ -56,12 +57,6 @@ export const NO_BAKES: Bakes = {
   parked: [],
 }
 
-/** A tile before packing: its data with the build hash still to stamp. */
-type Cut = Omit<TileData, "hash" | "heights" | "cover"> & {
-  readonly heights: Int16Array
-  readonly cover: Uint8Array
-}
-
 /** Lattice step of the coarse grid (`MonzoneMap.coarse`), m. */
 const COARSE = 64
 
@@ -69,15 +64,44 @@ const COARSE = 64
 const indexOf = (n: number, lo: number, hi: number, nodes: number) =>
   Math.min(hi, Math.max(lo, Math.floor(n / nodes)))
 
-/** The dense layers cut into tiles, and the global map's header and coarse grid (no bakes, no hash). */
-const cut = (map: BuiltMap) => {
+/** The items of each of `slots` slots, in order: a stable counting sort of `slotOf` over `count` items. */
+const bySlot = (count: number, slots: number, slotOf: (item: number) => number) => {
+  const slot = new Int32Array(count),
+    starts = new Int32Array(slots + 1)
+  for (let k = 0; k < count; k++) starts[(slot[k] = slotOf(k)) + 1]!++
+  for (let s = 0; s < slots; s++) starts[s + 1]! += starts[s]!
+  const items = new Int32Array(count),
+    next = starts.slice(0, -1)
+  for (let k = 0; k < count; k++) items[next[slot[k]!]!++] = k
+  return (s: number) => items.subarray(starts[s], starts[s + 1])
+}
+
+/** A map cut into its tiles: each tile packed with no hash yet, and the global map the bakes complete. */
+export interface MapCut {
+  /** Each tile's gunzipped file with an empty hash, by key, south to north then west to east. */
+  readonly tiles: ReadonlyMap<string, Buffer>
+  /** The global map with `bakes`, before its hash. */
+  readonly global: (bakes: Bakes) => Omit<MonzoneMap, "hash">
+  /** The bytes of each part of the tiles, summed (`json` with the hash still empty). */
+  readonly sizes: Readonly<Record<string, number>>
+}
+
+/**
+ * `map` named `name` cut into its tiles, one at a time, each packed as it is cut: its terrain nodes,
+ * its land cover (asked of `map.cover` for its cells alone), and its walls and trees in the whole
+ * map's order. The global map keeps only the sparse parts, so the dense layers can go once the cut
+ * is done. Deterministic.
+ */
+export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const { cell, cols, rows, x0, y0, data } = map.heightmap
   const n = TILE / cell,
     cx = Math.round(x0 / cell),
     cy = Math.round(y0 / cell)
   if (n !== TILE_CELLS || cx * cell !== x0 || cy * cell !== y0)
     throw new Error(`the ${cell} m heightmap at (${x0}, ${y0}) does not line up with the tiles`)
-  const range = tileRange(map.bounds)
+  const range = tileRange(map.bounds),
+    across = range.i1 - range.i0 + 1,
+    slots = across * (range.j1 - range.j0 + 1)
   // Every tile and coarse node passes here before an Int16Array would wrap it: one that does not fit fails the build.
   const node = (gi: number, gj: number) => {
     const v =
@@ -86,104 +110,137 @@ const cut = (map: BuiltMap) => {
       throw new Error(`heightmap: ${v} at node (${gi}, ${gj}) does not fit int16`)
     return v
   }
-  /** A tile being cut: its walls and trees gathered in the whole map's order, with their ids. */
-  interface Gathering {
-    readonly i: number
-    readonly j: number
-    readonly heights: Int16Array
-    readonly cover: Uint8Array
-    readonly walls: Record<"walk" | "shore" | "drive", Array<number>>
-    readonly wallIds: Record<"walk" | "shore" | "drive", Array<number>>
-    readonly trees: Array<number>
-    readonly ids: Array<number>
-  }
-  const tiles: Array<Gathering> = []
-  const slot = new Map<string, number>()
-  for (let j = range.j0; j <= range.j1; j++)
-    for (let i = range.i0; i <= range.i1; i++) {
-      const heights = new Int16Array(TILE_NODES * TILE_NODES),
-        cover = new Uint8Array(TILE_CELLS * TILE_CELLS)
-      for (let r = 0; r < TILE_NODES; r++)
-        for (let c = 0; c < TILE_NODES; c++)
-          heights[r * TILE_NODES + c] = node(n * i + c - cx, n * j + r - cy)
-      for (let r = 0; r < TILE_CELLS; r++)
-        for (let c = 0; c < TILE_CELLS; c++) {
-          const ci = n * i + c - cx,
-            cj = n * j + r - cy
-          if (ci >= 0 && ci < cols - 1 && cj >= 0 && cj < rows - 1)
-            cover[r * TILE_CELLS + c] = map.cover[cj * (cols - 1) + ci]!
-        }
-      slot.set(tileKey(i, j), tiles.length)
-      tiles.push({
-        i,
-        j,
-        heights,
-        cover,
-        walls: { walk: [], shore: [], drive: [] },
-        wallIds: { walk: [], shore: [], drive: [] },
-        trees: [],
-        ids: [],
-      })
-    }
-  const tileOf = (x: number, y: number) =>
-    tiles[
-      slot.get(
-        tileKey(indexOf(x / cell, range.i0, range.i1, n), indexOf(y / cell, range.j0, range.j1, n)),
-      )!
-    ]!
+  const slotAt = (x: number, y: number) =>
+    (indexOf(y / cell, range.j0, range.j1, n) - range.j0) * across +
+    indexOf(x / cell, range.i0, range.i1, n) -
+    range.i0
+  // Each wall in the tile of its midpoint, and each kind's lattice corner: the lowest corner of any
+  // of its walls, where the whole map's broad phase put it.
   let reach = 0
-  // Each kind's lattice corner: the lowest corner of any of its walls, where the whole map's broad phase put it.
   const low = {
     walk: [Infinity, Infinity],
     shore: [Infinity, Infinity],
     drive: [Infinity, Infinity],
   }
-  for (const kind of ["walk", "shore", "drive"] as const) {
-    const flat = map.walls[kind]
-    for (let k = 0; k + 3 < flat.length; k += 4) {
-      const ax = flat[k]!,
-        ay = flat[k + 1]!,
-        bx = flat[k + 2]!,
-        by = flat[k + 3]!
-      reach = Math.max(reach, Math.abs(bx - ax) / 2, Math.abs(by - ay) / 2)
-      low[kind][0] = Math.min(low[kind][0]!, ax, bx)
-      low[kind][1] = Math.min(low[kind][1]!, ay, by)
-      const t = tileOf((ax + bx) / 2, (ay + by) / 2)
-      t.walls[kind].push(ax, ay, bx, by)
-      t.wallIds[kind].push(k / 4)
-    }
-  }
+  const wallsOf = Object.fromEntries(
+    (["walk", "shore", "drive"] as const).map((kind) => {
+      const flat = map.walls[kind]
+      return [
+        kind,
+        bySlot(flat.length / 4, slots, (w) => {
+          const ax = flat[4 * w]!,
+            ay = flat[4 * w + 1]!,
+            bx = flat[4 * w + 2]!,
+            by = flat[4 * w + 3]!
+          reach = Math.max(reach, Math.abs(bx - ax) / 2, Math.abs(by - ay) / 2)
+          low[kind][0] = Math.min(low[kind][0]!, ax, bx)
+          low[kind][1] = Math.min(low[kind][1]!, ay, by)
+          return slotAt((ax + bx) / 2, (ay + by) / 2)
+        }),
+      ]
+    }),
+  ) as Record<"walk" | "shore" | "drive", (s: number) => Int32Array>
   let treeLow: readonly [number, number] = [Infinity, Infinity]
-  for (let k = 0; k + 2 < map.trees.length; k += 3) {
-    const t = tileOf(map.trees[k]!, map.trees[k + 1]!)
-    t.trees.push(map.trees[k]!, map.trees[k + 1]!, map.trees[k + 2]!)
-    t.ids.push(k / 3)
-    treeLow = [Math.min(treeLow[0], map.trees[k]!), Math.min(treeLow[1], map.trees[k + 1]!)]
-  }
+  const treesOf = bySlot(map.trees.length / 3, slots, (t) => {
+    const x = map.trees[3 * t]!,
+      y = map.trees[3 * t + 1]!
+    treeLow = [Math.min(treeLow[0], x), Math.min(treeLow[1], y)]
+    return slotAt(x, y)
+  })
+  // The coarse grid: every COARSE m on the origin's multiples, over the bounds; its cover is read in
+  // the tile whose cells hold each node's cell.
+  const gx0 = COARSE * Math.floor(map.bounds.minX / COARSE),
+    gy0 = COARSE * Math.floor(map.bounds.minY / COARSE),
+    gcols = (COARSE * Math.ceil(map.bounds.maxX / COARSE) - gx0) / COARSE + 1,
+    grows = (COARSE * Math.ceil(map.bounds.maxY / COARSE) - gy0) / COARSE + 1
+  const coarseHeights = new Int16Array(gcols * grows),
+    coarseCover = new Uint8Array(gcols * grows)
+  const coarseCell = (c: number, r: number) =>
+    [
+      Math.min(cols - 2, Math.max(0, (gx0 + c * COARSE - x0) / cell)),
+      Math.min(rows - 2, Math.max(0, (gy0 + r * COARSE - y0) / cell)),
+    ] as const
+  const coarseOf = bySlot(gcols * grows, slots, (k) => {
+    const [ci, cj] = coarseCell(k % gcols, Math.floor(k / gcols))
+    return slotAt((ci + cx) * cell, (cj + cy) * cell)
+  })
+  const files = new Map<string, Buffer>(),
+    sizes: Record<string, number> = {},
+    list: Array<MonzoneMap["tiles"][number]> = []
+  for (let j = range.j0; j <= range.j1; j++)
+    for (let i = range.i0; i <= range.i1; i++) {
+      const s = (j - range.j0) * across + i - range.i0
+      const heights = new Int16Array(TILE_NODES * TILE_NODES),
+        cover = new Uint8Array(TILE_CELLS * TILE_CELLS)
+      let zmin = Number.MAX_SAFE_INTEGER,
+        zmax = -Number.MAX_SAFE_INTEGER
+      for (let r = 0; r < TILE_NODES; r++)
+        for (let c = 0; c < TILE_NODES; c++) {
+          const z = node(n * i + c - cx, n * j + r - cy)
+          heights[r * TILE_NODES + c] = z
+          ;[zmin, zmax] = [Math.min(zmin, z), Math.max(zmax, z)]
+        }
+      // The tile's cells on the heightmap; cells past the bounds stay 0.
+      const c0 = Math.max(0, n * i - cx),
+        r0 = Math.max(0, n * j - cy)
+      const block = {
+        c0,
+        r0,
+        cols: Math.min(cols - 1, n * (i + 1) - cx) - c0,
+        rows: Math.min(rows - 1, n * (j + 1) - cy) - r0,
+      }
+      const cells = map.cover(block)
+      for (let r = 0; r < block.rows; r++)
+        for (let c = 0; c < block.cols; c++)
+          cover[(r0 + r + cy - n * j) * TILE_CELLS + c0 + c + cx - n * i] =
+            cells[r * block.cols + c]!
+      for (const k of coarseOf(s)) {
+        const [ci, cj] = coarseCell(k % gcols, Math.floor(k / gcols))
+        coarseCover[k] = cover[(cj + cy - n * j) * TILE_CELLS + ci + cx - n * i]!
+      }
+      const flatOf = (from: ArrayLike<number>, items: Int32Array, stride: number) => {
+        const out = new Float64Array(items.length * stride)
+        items.forEach((k, m) => {
+          for (let d = 0; d < stride; d++) out[m * stride + d] = from[k * stride + d]!
+        })
+        return out
+      }
+      const walk = wallsOf.walk(s),
+        shore = wallsOf.shore(s),
+        drive = wallsOf.drive(s),
+        trees = treesOf(s)
+      const tile = packTile({
+        hash: "",
+        i,
+        j,
+        heights,
+        walls: {
+          walk: flatOf(map.walls.walk, walk, 4),
+          shore: flatOf(map.walls.shore, shore, 4),
+          drive: flatOf(map.walls.drive, drive, 4),
+        },
+        wallIds: { walk, shore, drive },
+        trees: flatOf(map.trees, trees, 3),
+        ids: trees,
+        cover,
+      })
+      files.set(tileKey(i, j), tile.file)
+      for (const [part, bytes] of Object.entries(tile.sizes))
+        sizes[part] = (sizes[part] ?? 0) + bytes
+      list.push({ i, j, zmin, zmax })
+    }
+  for (let r = 0; r < grows; r++)
+    for (let c = 0; c < gcols; c++)
+      coarseHeights[r * gcols + c] = node(
+        (gx0 + c * COARSE - x0) / cell,
+        (gy0 + r * COARSE - y0) / cell,
+      )
   const corner = (
     ...kinds: ReadonlyArray<"walk" | "shore" | "drive">
   ): readonly [number, number] => [
     Math.min(...kinds.map((k) => low[k][0]!)),
     Math.min(...kinds.map((k) => low[k][1]!)),
   ]
-  const cuts: Array<Cut> = tiles.map((t) => ({
-    i: t.i,
-    j: t.j,
-    heights: t.heights,
-    cover: t.cover,
-    walls: {
-      walk: Float64Array.from(t.walls.walk),
-      shore: Float64Array.from(t.walls.shore),
-      drive: Float64Array.from(t.walls.drive),
-    },
-    wallIds: {
-      walk: Int32Array.from(t.wallIds.walk),
-      shore: Int32Array.from(t.wallIds.shore),
-      drive: Int32Array.from(t.wallIds.drive),
-    },
-    trees: Float64Array.from(t.trees),
-    ids: Int32Array.from(t.ids),
-  }))
   const walls: MonzoneMap["walls"] = {
     // Every wall reaches at most this far past its midpoint; the margin keeps a box's rounding inside it.
     reach: Math.ceil(reach) + 1,
@@ -196,62 +253,7 @@ const cut = (map: BuiltMap) => {
     },
     counts: { walk: map.walls.walk.length / 4, drive: map.walls.drive.length / 4 },
   }
-  // The coarse grid: every COARSE m on the origin's multiples, over the bounds.
-  const gx0 = COARSE * Math.floor(map.bounds.minX / COARSE),
-    gy0 = COARSE * Math.floor(map.bounds.minY / COARSE),
-    gcols = (COARSE * Math.ceil(map.bounds.maxX / COARSE) - gx0) / COARSE + 1,
-    grows = (COARSE * Math.ceil(map.bounds.maxY / COARSE) - gy0) / COARSE + 1
-  const heights = new Int16Array(gcols * grows),
-    coverGrid = new Uint8Array(gcols * grows)
-  for (let r = 0; r < grows; r++)
-    for (let c = 0; c < gcols; c++) {
-      const gi = (gx0 + c * COARSE - x0) / cell,
-        gj = (gy0 + r * COARSE - y0) / cell
-      heights[r * gcols + c] = node(gi, gj)
-      const ci = Math.min(cols - 2, Math.max(0, gi)),
-        cj = Math.min(rows - 2, Math.max(0, gj))
-      coverGrid[r * gcols + c] = map.cover[cj * (cols - 1) + ci]!
-    }
-  return {
-    tiles: cuts,
-    walls,
-    coarse: {
-      cell: COARSE,
-      cols: gcols,
-      rows: grows,
-      x0: gx0,
-      y0: gy0,
-      heights,
-      cover: coverGrid,
-    },
-  }
-}
-
-/** The map cut into its tiles once: each tile packed with no hash yet, and the global map the bakes complete. */
-export interface MapCut {
-  /** Each tile's gunzipped file with an empty hash, by key, south to north then west to east. */
-  readonly tiles: ReadonlyMap<string, Buffer>
-  /** The global map with `bakes`, before its hash. */
-  readonly global: (bakes: Bakes) => Omit<MonzoneMap, "hash">
-  /** The bytes of each part of the tiles, summed (`json` with the hash still empty). */
-  readonly sizes: Readonly<Record<string, number>>
-}
-
-/**
- * `map` named `name` cut into its tiles, each packed once. The global map keeps only the sparse
- * parts, so the dense layers can go once the cut is done. Deterministic.
- */
-export const cutMap = (map: BuiltMap, name: string): MapCut => {
-  const { tiles, walls, coarse } = cut(map)
-  const { cell, cols, rows, x0, y0 } = map.heightmap
   const place = placeFrom(map.origin, map.heightmap)
-  const files = new Map<string, Buffer>(),
-    sizes: Record<string, number> = {}
-  for (const t of tiles) {
-    const tile = packTile({ ...t, hash: "" })
-    files.set(tileKey(t.i, t.j), tile.file)
-    for (const [part, bytes] of Object.entries(tile.sizes)) sizes[part] = (sizes[part] ?? 0) + bytes
-  }
   const header = {
     version: map.version,
     name,
@@ -259,14 +261,17 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     mPerDeg: map.mPerDeg,
     bounds: map.bounds,
     heightmap: { cell, cols, rows, x0, y0 },
-    tiles: tiles.map(({ i, j, heights }) => {
-      let zmin = Number.MAX_SAFE_INTEGER,
-        zmax = -Number.MAX_SAFE_INTEGER
-      for (const z of heights) [zmin, zmax] = [Math.min(zmin, z), Math.max(zmax, z)]
-      return { i, j, zmin, zmax }
-    }),
+    tiles: list,
     place: { floor: place.floor, downslope: place.downslope },
-    coarse,
+    coarse: {
+      cell: COARSE,
+      cols: gcols,
+      rows: grows,
+      x0: gx0,
+      y0: gy0,
+      heights: coarseHeights,
+      cover: coarseCover,
+    },
   }
   const { roads, buildings, water, rail, railway, areas, barriers, pois, districts, graph } = map
   const { player, parked } = map.spawns

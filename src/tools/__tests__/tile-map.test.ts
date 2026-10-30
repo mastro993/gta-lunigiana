@@ -5,6 +5,9 @@ import { decodeMap, decodeTile, MAP_VERSION } from "../../sim/map/packed.ts"
 import { packTile } from "../pack.ts"
 import { type BuiltMap, cutMap, joinTiles, NO_BAKES, stampMap } from "../tile-map.ts"
 
+/** The 6 × 6 cells' land cover. */
+const cover = Array.from({ length: 36 }, (_, k) => k % 22)
+
 /** A 24 m map on the origin: its four tiles meet at (0, 0). */
 const built = (data: ReadonlyArray<number>): BuiltMap => ({
   version: MAP_VERSION,
@@ -29,7 +32,12 @@ const built = (data: ReadonlyArray<number>): BuiltMap => ({
     drive: [-3, 5, 1, 5],
   },
   trees: [-5, -5, 1.2, 0, 0, 0.9, 7, -3, 1],
-  cover: Array.from({ length: 36 }, (_, k) => k % 22),
+  cover: (b) =>
+    Array.from({ length: b.cols * b.rows }, (_, k) => {
+      const c = b.c0 + (k % b.cols),
+        r = b.r0 + Math.floor(k / b.cols)
+      return cover[r * 6 + c]!
+    }),
   spawns: { player: { x: 1, y: 2, angle: 0 }, parked: [] },
 })
 const data = Array.from({ length: 49 }, (_, k) => 2000 + 13 * k)
@@ -55,7 +63,7 @@ test("cutMap cuts the dense layers into tiles that joinTiles puts back as they w
   for (const kind of ["walk", "shore", "drive"] as const)
     assert.deepEqual(Array.from(whole.walls[kind]), built(data).walls[kind])
   assert.deepEqual(Array.from(whole.trees), built(data).trees)
-  assert.deepEqual(Array.from(whole.cover), built(data).cover)
+  assert.deepEqual(Array.from(whole.cover), cover)
   assert.equal(global.walls.reach, 13) // the 24 m shore wall on the edge reaches 12 m past its midpoint, plus the margin
 })
 
