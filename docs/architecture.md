@@ -1549,8 +1549,10 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   blit instead of leaving a seam (0.36 MP, 1.45 MB). One canvas of the whole region would pass
   Safari's 16.7 MP limit as the map grows (Lunigiana's was already 2340 × 3000 px, 7 MP). A tile
   is painted from the global vectors (areas, water, rail, roads, buildings) whose boxes reach it
-  (± 1 px and 20 m, the widest stroke's half), clipped to the map's bounds, once the player comes
-  within 1 km of it along either axis: one a frame, nearest first. Past 1.5 km it is let go (its
+  (± 1 px and 20 m, the widest stroke's half), on grass over the play area and clipped to it
+  (`MAP.outline`: an area reaches the built terrain's box, an L's notch included), once the player
+  comes within 1 km of it along either axis: one a frame, nearest first; only listed tiles are
+  painted (`isListed`), so an L's notch shows the dark background. Past 1.5 km it is let go (its
   canvas set to 0 × 0, since Safari caps the memory of all canvases), so at most 9 are kept
   (≈ 13 MB). The blit draws the tiles within 212 m, the turned square's half-diagonal. In headless
   Chrome a tile paints in about 3 ms (Monzone's village tiles, -1_0 and 0_0), 1.3 ms (-1_-1, 0_-1)
@@ -1563,7 +1565,8 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   position) and Esc closes it; repeats and Ctrl/Cmd/Alt chords are ignored. A click or tap on the
   minimap opens it, one on the map closes it. It paints the whole area north-up at the resolution of
   its own box (the page's, which a phone held upright lays out sideways) with the same layers as the
-  minimap (`paintMap`), but roads light and at least 1.5–2 px wide so the network reads. It names
+  minimap (`paintMap`, on grass over the play area and clipped to it, in a frame round the bounds),
+  but roads light and at least 1.5–2 px wide so the network reads. It names
   the OSM villages (big, placed first) and hamlets (`place=*` POIs, localities left out), then the
   peaks that are HUD landmark districts (Monte Sagro, Pizzo d'Uccello...), once per name; a label
   that would overlap another or the north arrow is dropped with its dot. The player is a red arrow

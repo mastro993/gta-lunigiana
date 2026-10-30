@@ -25,7 +25,9 @@ const painted = (
   const drawn: Array<Points> = []
   const ctx = new Proxy(
     {
-      fillRect: () => {},
+      save: () => {},
+      restore: () => {},
+      clip: () => {},
       fill: (p: Points) => drawn.push(p),
       stroke: (p: Points) => drawn.push(p),
     },

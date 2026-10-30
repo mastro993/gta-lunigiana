@@ -68,6 +68,9 @@ const iOf = (s: number) => range.i0 + (s % across),
 const listed = new Uint8Array(slots)
 for (const { i, j } of MAP.tiles) listed[slotOf(i, j)] = 1
 
+/** The box of tile indices round the listed tiles: not every tile in it need be listed (`isListed`). */
+export const TILE_RANGE: Readonly<typeof range> = range
+
 /** Whether tile (i, j) is listed: on the map, with a file (an L-shaped map's notch is not). */
 export const isListed = (i: number, j: number): boolean => listed[slotOf(i, j)] === 1
 

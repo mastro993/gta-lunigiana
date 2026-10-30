@@ -141,6 +141,9 @@ export const makeWorldMap = (document: Document) => {
     paintMap(ctx, fit.scale, bounds, { ox: fit.ox, oy: fit.oy, overview: true })
     const mapW = (bounds.maxX - bounds.minX) * fit.scale,
       mapH = (bounds.maxY - bounds.minY) * fit.scale
+    // The frame's corners and the labels' outlines are round, as the map's lines are.
+    ctx.lineCap = "round"
+    ctx.lineJoin = "round"
     ctx.lineWidth = 2
     ctx.strokeStyle = css(PALETTE.marbleWhite)
     ctx.strokeRect(fit.ox - 1, fit.oy - 1, mapW + 2, mapH + 2)
