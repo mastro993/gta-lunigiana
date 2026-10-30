@@ -90,18 +90,29 @@ export const stopped = (document: Document, reason: string): void => {
   offerReload(document, reason)
 }
 
+/** Logs what stopped the game loop and puts the card back with it and a reload (`stopped`). */
+export const crashed = (document: Document, error: unknown): void => {
+  console.error("game stopped", error)
+  stopped(
+    document,
+    `The game stopped: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+  )
+}
+
 /**
  * Swaps the bar for "Press any key" ("Tap to play" in mobile mode) and hides the card on the first
  * key press, or click or tap on it, after that, then calls `dismissed`. On the click, not the
  * press: hidden on the press, the card would let the tap's click land on whatever lies under it
- * (the minimap opens the map).
+ * (the minimap opens the map). Once `stopped` has put the card back, nothing hides it.
  */
 export const titleReady = (window: Window, dismissed: () => void): void => {
   const document = window.document,
-    title = element(document, "title")
+    title = element(document, "title"),
+    go = element(document, "title-go")
   element(document, "title-load").hidden = true
-  element(document, "title-go").hidden = false
+  go.hidden = false
   const dismiss = () => {
+    if (go.hidden) return
     title.hidden = true
     window.removeEventListener("keydown", dismiss)
     title.removeEventListener("click", dismiss)

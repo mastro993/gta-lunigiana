@@ -444,8 +444,8 @@ once the first frame is drawn.
    already: `boot.ts` handed over every tile within 1 km of the start, more than the 600 m round the
    player a step reads.
 5. `main.ts` compiles every program the game draws (`view.compile` with the stand-ins, see
-   [Rendering](#rendering)) and draws the first frame itself: a throw there reaches the card,
-   where inside the loop's animation frame it would stop the loop behind "Press any key".
+   [Rendering](#rendering)) and draws the first frame itself: a throw there fails start-up on the
+   card with the step's name (step 6), not inside the loop ([Host loop](#host-loop)).
    It then drops the presses of keys hit while loading (held keys stay held, as `pausable` does),
    starts the loop, arms M and calls `titleReady`. The card swaps the bar for "Press any key"
    ("Tap to play" in mobile mode) and hides on the next key, click or tap, which runs the game
@@ -518,6 +518,20 @@ and `FROZEN_BEYOND`. After 300 ms of waiting the HUD shows "Loading map…" (`#h
 every tile within 1 km, 400 m past what a step reads: 10 s of driving at 40 m/s. Measured in headless
 Chrome (M-series Mac, the network throttled to 1.5 MB/s and 40 ms): a 2.9 km dev teleport showed the
 hint at 354 ms and landed at 714 ms; with the tiles in the HTTP cache it took 172 ms, with no hint.
+
+A frame that fails stops the game for good. Ritmo lets a throw through: `runtime.tick` rethrows a
+system's throw after its rollback, `FixedLoop` catches neither `update` nor `render`, and a throw
+from the tick source's callback skips its next `requestAnimationFrame`, which would leave the last
+frame on screen with nothing said. So `startGuardedLoop` (`src/hud/hud.ts`) catches a throw from
+any frame (a sim step, the `render` or `audio` schedule, the tile stream, the camera, the HUD) and
+stops the animation frames; it treats the loop's own failures (`onFailure`: a failed update
+`Result`, a bad tick) the same, and halts once whichever comes first. The halt suspends the sound
+(`speaker.pause(true)`), hides "Loading map…" and puts the title card back with "Stopped", "The
+game stopped: " and the error's message, and a reload (`crashed` in `src/hud/title.ts`, which logs
+the error once). A tile that is `gone` already put the card up with its own reason; a halt after
+it keeps that reason and only logs. Once stopped, no key, click or tap hides the card (`titleReady`
+ignores them while "Press any key" is hidden) and a resize redraws nothing. The first frame, drawn
+before the loop starts, fails onto the start-up card instead ([Start-up](#start-up), step 6).
 
 The seed comes from `?seed=N`, or a random 32-bit number.
 

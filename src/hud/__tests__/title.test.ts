@@ -2,10 +2,13 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { test } from "node:test"
 
+import { Clock, type FixedLoop, Result } from "@typeonce/ritmo"
+
 import { DEFAULT_START, SetClock, SkyView } from "../../sim/index.ts"
 import { start } from "../../sim/testing.ts"
 import { clockText } from "../clock.ts"
-import { holdClock, titleReady } from "../title.ts"
+import { startGuardedLoop } from "../hud.ts"
+import { crashed, holdClock, titleReady } from "../title.ts"
 
 const html = readFileSync(new URL("../../../index.html", import.meta.url), "utf8")
 const readme = readFileSync(new URL("../../../README.md", import.meta.url), "utf8")
@@ -15,9 +18,17 @@ const hiddenAtLoad = (id: string) => new RegExp(`id="${id}"[^>]*\\shidden[\\s>]`
 /** The title card's elements as plain event targets, as index.html starts them, in a window whose events tests dispatch. */
 const page = () => {
   const nodes = new Map(
-    ["title", "title-load", "title-go"].map((id) => [
+    [
+      "title",
+      "title-load",
+      "title-go",
+      "title-step",
+      "title-detail",
+      "title-error",
+      "title-retry",
+    ].map((id) => [
       id,
-      Object.assign(new EventTarget(), { hidden: hiddenAtLoad(id) }),
+      Object.assign(new EventTarget(), { hidden: hiddenAtLoad(id), textContent: "", focus() {} }),
     ]),
   )
   const window = Object.assign(new EventTarget(), {
@@ -78,6 +89,45 @@ test("the game clock stands still behind the title card, the world moving on: th
     { seconds: DEFAULT_START + 60, rate: 1 },
     "from 08:00:00 as the card went, a game minute a real second",
   )
+})
+
+// Regression: a throw in a frame left the last frame frozen on screen, the error only in the console.
+test("a frame that throws puts the card back with the error and a reload, and no key hides it", (t) => {
+  const logged = t.mock.method(console, "error", () => {})
+  const { window, node } = page()
+  titleReady(window, () => {})
+  // As main.ts: the loop starts behind "Press any key", and a halt puts the card back.
+  let onTick: (tick: FixedLoop.Tick) => void = () => {}
+  let frames = 0
+  startGuardedLoop(
+    {
+      source: { subscribe: (next) => ((onTick = next), { stop: () => {} }) },
+      step: Clock.hz(60),
+      maxFrameSeconds: 0.25,
+      maxStepsPerFrame: 5,
+      update: () => Result.success(undefined),
+      render: () => {
+        frames++
+        throw new Error("boom")
+      },
+    },
+    (error) => crashed(window.document, error),
+  )
+  onTick({ deltaMS: 16 })
+  onTick({ deltaMS: 16 })
+  window.dispatchEvent(new Event("keydown"))
+  node("title").dispatchEvent(new Event("click"))
+  assert.deepEqual(
+    [node("title").hidden, node("title-go").hidden, node("title-load").hidden],
+    [false, true, false],
+    "the card is up, without Press any key, after a key and a click",
+  )
+  assert.deepEqual(
+    [node("title-step").textContent, node("title-error").textContent, node("title-retry").hidden],
+    ["Stopped", "The game stopped: boom", false],
+  )
+  assert.equal(frames, 1, "no frame after the throw")
+  assert.equal(logged.mock.callCount(), 1, "logged once")
 })
 
 // Regression: hidden on the press, the card let the tap's click land on the minimap under it, which opened the map.

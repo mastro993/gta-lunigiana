@@ -4,6 +4,8 @@
  *
  * @module hud
  */
+import { FixedLoop } from "@typeonce/ritmo"
+
 import type { PlayerViewModel, SkyViewModel } from "../sim/index.ts"
 import { heightAt } from "../sim/map/index.ts"
 import { boardable } from "../sim/rail/boarding.ts"
@@ -179,3 +181,40 @@ export const pausable =
     controls.snapshot()
     return skip
   }
+
+/**
+ * Starts the fixed loop so that a frame that throws (a sim step, the render or audio schedule, the
+ * tile stream) stops it for good, as a failure the loop reports (`onFailure`) does, and calls
+ * `halt` once with the error or the failure. Unguarded, a throw would skip the browser tick
+ * source's next `requestAnimationFrame`: the last frame stays up, and nothing says the game stopped.
+ */
+export const startGuardedLoop = <T extends FixedLoop.Tick, E>(
+  options: Omit<FixedLoop.StartOptions<T, E>, "onFailure">,
+  halt: (error: unknown) => void,
+) => {
+  let down = false
+  let driver: FixedLoop.Driver | undefined
+  const fail = (error: unknown): void => {
+    if (down) return
+    down = true
+    driver?.stop()
+    halt(error)
+  }
+  const source = FixedLoop.source<T>((onTick) =>
+    options.source.subscribe((tick) => {
+      if (down) return
+      try {
+        onTick(tick)
+      } catch (error) {
+        fail(error)
+      }
+    }),
+  )
+  const started = FixedLoop.start({ ...options, source, onFailure: fail })
+  if (started.ok) {
+    driver = started.value
+    // A source that ticks inside `subscribe` can fail before the driver is known.
+    if (down) driver.stop()
+  }
+  return started
+}

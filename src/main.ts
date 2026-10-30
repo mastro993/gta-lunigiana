@@ -7,13 +7,15 @@
  * FixedLoop: fixed sim steps, then once per animation frame the tile stream, the render and audio
  * schedules, the camera, world streaming, the frame and the HUD. While the full map (M) or the
  * settings (Esc) are open, or a tile the next step reads is still downloading, both are skipped and
- * the sound is suspended: the game is paused (the tiles keep coming). The build runs in steps the
+ * the sound is suspended: the game is paused (the tiles keep coming). A frame that throws, or a
+ * loop failure, stops the loop for good and puts the title card back with the error and a reload
+ * (`startGuardedLoop`, `crashed`). The build runs in steps the
  * title card names; the card says "Press any key" once the first frame is drawn, and the game clock
  * stands still until it goes. In mobile mode (index.html) the touch controls add to the keys.
  *
  * @module main
  */
-import { FixedLoop, Result } from "@typeonce/ritmo"
+import { type FixedLoop, Result } from "@typeonce/ritmo"
 import { BrowserHostClock, BrowserTickSource, Keyboard } from "@typeonce/ritmo-browser"
 import { Vec2 } from "@typeonce/ritmo-math"
 import { BasicShadowMap, Scene, Vector3, WebGLRenderer } from "three"
@@ -25,10 +27,10 @@ import { VEHICLE_SHOTS, VEHICLE_VOICES } from "./audio/synth/vehicles.ts"
 import { WORLD_SHOTS, WORLD_VOICES } from "./audio/synth/world.ts"
 import type { Shots, Voices } from "./audio/types.ts"
 import { makeHandlingStore } from "./hud/handling.ts"
-import { makeHud, pausable, routeOverlayKeys } from "./hud/hud.ts"
+import { makeHud, pausable, routeOverlayKeys, startGuardedLoop } from "./hud/hud.ts"
 import { makeSettings } from "./hud/settings.ts"
 import { makeSkyStore } from "./hud/sky.ts"
-import { element, holdClock, step, stopped, titleReady } from "./hud/title.ts"
+import { crashed, element, holdClock, step, stopped, titleReady } from "./hud/title.ts"
 import { holdLandscape, makeTouchControls, withTouch } from "./hud/touch.ts"
 import { makeTrainStore } from "./hud/trains.ts"
 import { mapForSearch } from "./maps.ts"
@@ -215,10 +217,12 @@ const settings = makeSettings(document, handling)
  * a step reads.
  */
 let waiting = false
+/** Whether the game stopped for good: a tile it needs will never come (`stream.gone`), or a frame threw. */
+let lost = false
 /** The full map and the settings pause the game, and so does a missing tile. */
 const paused = () => hud.mapOpen() || settings.open() || waiting
 redrawPaused = () => {
-  if (settings.open()) view.render(scene)
+  if (!lost && settings.open()) view.render(scene)
 }
 // Before the first update: the audio system starts reading the Impact, Honk and Skid events from here on.
 const listening = runtime.tick(audio)
@@ -286,8 +290,8 @@ const draw = (frame: FixedLoop.Frame, player: PlayerViewModel | undefined): void
   pad?.draw(player)
 }
 
-// The first frame here, shader compiles included: one that throws lands on the card (boot.ts),
-// where in the loop's animation frame it would stop the loop behind "Press any key". It also
+// The first frame here, shader compiles included: one that throws fails start-up on the card
+// (boot.ts) with the step's name, where in the loop it would only say the game stopped. It also
 // starts the render schedule reading Skid events before the first update. Every program the game
 // draws is compiled first, at once, for the view's target: the scene's (the night lights and weather
 // meshes included) and the stand-ins' (rivers, trees, glow, cars), so none compiles mid-game.
@@ -306,8 +310,6 @@ let stalled: number | undefined
 const HINT_MS = 300
 /** Steps before the respawn from which the game waits for the start's tiles (1 s); before that they only download. */
 const RESPAWN_WAIT = 60
-/** Whether the game stopped for good: a tile it needs will never come (`stream.gone`). */
-let lost = false
 /**
  * Runs the tile stream for the player as the last step left them and sets `waiting`. The tiles
  * round the start come in too while the player is dead (the respawn puts them there), and the game
@@ -336,22 +338,31 @@ const follow = (player: PlayerViewModel): void => {
     jump.sent = true
   } else if (jump.sent && Math.hypot(pose.x - jump.x, pose.y - jump.y) < 2) jump = undefined
 }
-const loop = FixedLoop.start({
-  source: BrowserTickSource.make(window),
-  step: STEP,
-  maxFrameSeconds: 0.25,
-  maxStepsPerFrame: 5,
-  update: pausable(paused, controls, () => runtime.tick(update), Result.success(undefined)),
-  // Paused, nothing is drawn: the map covers the screen, the settings dim the last frame drawn, and actors stay put (no interpolation
-  // jitter). The tiles come in all the same.
-  render: (frame) => {
-    const player = runtime.inspect(PlayerView)
-    if (player !== undefined) follow(player)
-    speaker.pause(paused())
-    if (!paused()) draw(frame, player)
+const loop = startGuardedLoop(
+  {
+    source: BrowserTickSource.make(window),
+    step: STEP,
+    maxFrameSeconds: 0.25,
+    maxStepsPerFrame: 5,
+    update: pausable(paused, controls, () => runtime.tick(update), Result.success(undefined)),
+    // Paused, nothing is drawn: the map covers the screen, the settings dim the last frame drawn, and actors stay put (no interpolation
+    // jitter). The tiles come in all the same.
+    render: (frame) => {
+      const player = runtime.inspect(PlayerView)
+      if (player !== undefined) follow(player)
+      speaker.pause(paused())
+      if (!paused()) draw(frame, player)
+    },
   },
-  onFailure: (failure) => console.error("loop stopped", failure),
-})
+  // A frame threw or the loop failed: the loop has stopped, so silence it and put the card back (unless a lost tile already has).
+  (error) => {
+    speaker.pause(true)
+    hud.loadingMap(false)
+    if (lost) console.error("game stopped", error)
+    else crashed(document, error)
+    lost = true
+  },
+)
 if (!loop.ok) throw new Error(`loop: ${JSON.stringify(loop.error)}`)
 // Before titleReady: the key that dismisses the card finds it still up, so it opens nothing.
 const title = element(document, "title")

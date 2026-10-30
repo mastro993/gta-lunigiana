@@ -1,12 +1,21 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { Clock, type FixedLoop, Result } from "@typeonce/ritmo"
 import { Keyboard } from "@typeonce/ritmo-browser"
 
 import { bindings, type PlayerViewModel } from "../../sim/index.ts"
 import { BOARD_SPEED } from "../../sim/rail/boarding.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
-import { kmh, overlayKey, type Overlays, pausable, promptText, routeOverlayKeys } from "../hud.ts"
+import {
+  kmh,
+  overlayKey,
+  type Overlays,
+  pausable,
+  promptText,
+  routeOverlayKeys,
+  startGuardedLoop,
+} from "../hud.ts"
 
 const pose = { x: 0, y: 0, angle: 0 }
 const view = (patch: Partial<PlayerViewModel>): PlayerViewModel => ({
@@ -197,4 +206,70 @@ test("pausing for the map or the settings drops taps made on it, keeps held keys
     "the F tapped on the map does not steal a car on resume",
   )
   assert.equal(now.actions.up.held, true, "W held through the pause is still held")
+})
+
+/** A tick source the test drives: `tick` sends a frame, as an animation frame would, until the loop stops it. */
+const fakeFrames = () => {
+  let onTick: ((tick: FixedLoop.Tick) => void) | undefined
+  let stops = 0
+  return {
+    source: {
+      subscribe: (next: (tick: FixedLoop.Tick) => void) => {
+        onTick = next
+        return { stop: () => void stops++ }
+      },
+    },
+    tick: (deltaMS = 1000 / 60) => onTick?.({ deltaMS }),
+    stops: () => stops,
+  }
+}
+
+// Regression: a throw in a frame ended the animation frames with the last one on screen, and nothing said the game had stopped.
+test("a frame that throws or fails stops the loop for good and halts once with what went wrong", () => {
+  const boom = new Error("boom")
+  const cases = [
+    { name: "a render that throws", fault: "render", halted: boom },
+    { name: "a sim step that throws", fault: "update", halted: boom },
+    {
+      name: "a sim step that fails",
+      fault: "failure",
+      halted: { kind: "UpdateFailure", error: "bad" },
+    },
+    { name: "a bad tick", fault: "tick", halted: { kind: "InvalidTickDelta", deltaMS: -1 } },
+  ] as const
+  for (const { name, fault, halted } of cases) {
+    const frames = fakeFrames()
+    const runs = { update: 0, render: 0 }
+    const halts: unknown[] = []
+    const loop = startGuardedLoop(
+      {
+        source: frames.source,
+        step: Clock.hz(60),
+        maxFrameSeconds: 0.25,
+        maxStepsPerFrame: 5,
+        update: () => {
+          runs.update++
+          if (fault === "update" && runs.update > 1) throw boom
+          return fault === "failure" && runs.update > 1
+            ? Result.failure("bad")
+            : Result.success(undefined)
+        },
+        render: () => {
+          runs.render++
+          if (fault === "render" && runs.render > 1) throw boom
+        },
+      },
+      (error) => halts.push(error),
+    )
+    assert.equal(loop.ok, true)
+    frames.tick()
+    assert.deepEqual([runs, halts], [{ update: 1, render: 1 }, []], `${name}: a good frame first`)
+    frames.tick(fault === "tick" ? -1 : undefined)
+    assert.deepEqual(halts, [halted], `${name}: halted once`)
+    assert.equal(frames.stops(), 1, `${name}: the frames stopped`)
+    const after = { ...runs }
+    frames.tick()
+    frames.tick()
+    assert.deepEqual([runs, halts.length], [after, 1], `${name}: no frame runs after`)
+  }
 })
