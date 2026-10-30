@@ -153,7 +153,7 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
     assert.ok(inPlay(s.x, s.y), JSON.stringify(s))
     assert.ok(clear("walk", s.x, s.y, 1.2) && clear("drive", s.x, s.y, 1.2), JSON.stringify(s))
   }
-  const police = MAP.pois.find((p) => p.kind === "amenity=police")!
+  const police = MAP.spawns.police!
   assert.ok(
     hypot(MAP.spawns.player.x - police.x, MAP.spawns.player.y - police.y) < 40,
     "player near the Carabinieri",

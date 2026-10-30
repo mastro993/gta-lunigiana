@@ -119,7 +119,7 @@ test("setup: the player at the map spawn, the cars the spots' hash parks within 
       `seed ${seed}`,
     )
   }
-  const police = MAP.pois.find((p) => p.kind === "amenity=police")!
+  const police = MAP.spawns.police!
   const nearest = [...MAP.spawns.parked]
     .sort((a, b) => Vec2.distance(a, police) - Vec2.distance(b, police))
     .slice(0, 2)

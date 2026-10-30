@@ -105,7 +105,7 @@ const COMPARED: ReadonlyArray<readonly [string, (m: MonzoneMap) => object, Reado
     ["walls", (m) => m.walls, [...WALL_KINDS, "reach", "lattice", "counts"]],
     ["coarse", (m) => m.coarse, ["cell", "cols", "rows", "x0", "y0", "heights", "cover"]],
     ["railway", (m) => m.railway, RAILWAY_PARTS],
-    ["spawns", (m) => m.spawns, ["player", "parked"]],
+    ["spawns", (m) => m.spawns, ["player", "parked", "police"]],
     ["place", (m) => m.place, ["floor", "downslope"]],
   ]
 
@@ -515,6 +515,16 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
   const ra = railwayParts(a),
     rb = railwayParts(b)
   const player = fieldChanges(a.spawns.player, b.spawns.player)
+  const pa = a.spawns.police,
+    pb = b.spawns.police
+  const police =
+    pb === undefined
+      ? pa === undefined
+        ? []
+        : ["removed"]
+      : pa === undefined
+        ? [`added at ${pb.x}, ${pb.y}`]
+        : fieldChanges(pa, pb)
   const ba = bakedParts(a, ga.traffic),
     bb = bakedParts(b, gb.traffic)
   const models = [...new Set([...Object.keys(ba.lanes), ...Object.keys(bb.lanes)])].sort()
@@ -560,6 +570,7 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
       category: "spawns",
       lines: [
         ...(player.length > 0 ? [`player: ${player.join(", ")}`] : []),
+        ...(police.length > 0 ? [`police: ${police.join(", ")}`] : []),
         ...partLines([["parked", bagLine(a.spawns.parked, b.spawns.parked)[0]]]),
       ],
     },

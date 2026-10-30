@@ -10,11 +10,12 @@ keys ([architecture.md](architecture.md#input)).
 `SpawnWorld` puts the player on the Via Cesare Battisti sidewalk in front of the Carabinieri station
 in Lunigiana, or beside a central connected street in Cesena. The map build rejects positions inside
 buildings and requires an open walking route to the street, so the player can leave the starting
-spot. The two parked spots nearest the station get Carabinieri cars, and the spots within 300 m of
-the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 5 for seed 1, in
-view as well as out of it, which the title card hides coming. Each car stands settled on its
-springs with the ground's slope. Settling reads the terrain at the spot, and a truck's clearance
-the walls, so the build works both out for every model on every spot (`bakeParked` in
+spot. The two parked spots nearest the station (the one the build chose, `MAP.spawns.police`: in
+Cesena the Compagnia Carabinieri, not the Commissariato) get Carabinieri cars, and the spots within
+300 m of the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 5 for
+seed 1, in view as well as out of it, which the title card hides coming. Each car stands settled
+on its springs with the ground's slope. Settling reads the terrain at the spot, and a truck's
+clearance the walls, so the build works both out for every model on every spot (`bakeParked` in
 `src/sim/parking.ts`) and the map file keeps, per spot, each model's rest where it stands level and
 whether a truck fits (`MAP.spawns.parked`), which `SpawnWorld` reads. Then the first fill puts the
 people and animals around the start out at once ([The first fill](#the-first-fill)), and each

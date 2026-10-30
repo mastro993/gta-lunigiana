@@ -53,8 +53,8 @@ const level = (model: VehicleModel, spot: ParkedSpot): boolean => spot.rest[mode
 const onTertiary = (s: Vec2.Vec2) =>
   roadClassOf(roadOf(trafficIndex.nearest(s.x, s.y))) === "tertiary"
 
-const police = MAP.pois.find((p) => p.kind === "amenity=police")
-/** The two spots nearest the police station where a Carabinieri car stands level: theirs, never a civilian's. */
+const police = MAP.spawns.police
+/** The two spots nearest the Carabinieri station the build chose where a Carabinieri car stands level: theirs, never a civilian's. */
 export const CARABINIERI: ReadonlyArray<number> =
   police === undefined
     ? []

@@ -268,6 +268,8 @@ const CASES: ReadonlyArray<readonly [string, Partial<MonzoneMap>, RegExp]> = [
     },
     /^parked: 1 added, 1 removed, in x 3\.\.3, y 4\.\.4$/,
   ],
+  ["spawns", { spawns: { ...MAP.spawns, police: { x: 5, y: 6 } } }, /^police: added at 5, 6$/],
+
   ["top level", { place: { floor: 11, downslope: 2 } }, /^place: floor 10 -> 11$/],
   ["top level", { name: "cesena" }, /^name: monzone -> cesena$/],
   ["tiles", { tiles: [{ i: -1, j: -1, zmin: 100, zmax: 151 }] }, /^1 added, 1 removed$/],
@@ -314,6 +316,17 @@ test("each category's change is reported in its block alone", () => {
       `${category}: ${blocks[0]!.lines.join(" | ")}`,
     )
   }
+})
+
+test("the Carabinieri station the build chose is reported under spawns: added, moved or removed", () => {
+  const at = (x: number, y: number): MonzoneMap => ({
+    ...MAP,
+    spawns: { ...MAP.spawns, police: { x, y } },
+  })
+  assert.deepEqual(diffMaps(at(5, 6), at(5, 7.5)), [
+    { category: "spawns", lines: ["police: y 6 -> 7.5"] },
+  ])
+  assert.deepEqual(diffMaps(at(5, 6), MAP), [{ category: "spawns", lines: ["police: removed"] }])
 })
 
 // The physics resolves contacts in wall order (another order lets a car into a building at a corner), and a tree's place

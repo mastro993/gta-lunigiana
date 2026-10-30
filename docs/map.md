@@ -63,7 +63,9 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
   cores.
 - **Start**: the player starts beside a central street in the connected traffic network, outside
   buildings with an open walk-clear route to the street. Police and station parking use Cesena's
-  mapped Carabinieri headquarters and railway station.
+  mapped Carabinieri headquarters (the Compagnia, POI 806564311, which the map names as
+  `spawns.police`: the game parked them by the first police POI, the Commissariato 1.9 km away,
+  until the build named it) and railway station.
 - **Checks**: `src/tools/__tests__/cesena.test.ts` checks landmarks, connected networks, the outdoor spawn,
   nearby cars, measured river widths and deterministic simulation startup. Run `pnpm check` after
   a build. Preview the map with
@@ -819,10 +821,11 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   along any road too) of a level-crossing node: the Codice della Strada (art. 158) bans stopping "in
   corrispondenza o in prossimità dei passaggi a livello". That rule took three spots, 14.7–19.4 m
   from Via Nuova, Via Riolo and Viale 20 Settembre; others took their place. The two nearest the
-  Carabinieri station come first (the sim parks their cars there); the rest are drawn in hash order
-  from every village's candidates, so each village gets its share. Car parks within 150 m of Monzone
-  station add up to 6 nose-in spots each (805 spots in all). The sim decides how many cars to park
-  on them.
+  Carabinieri station come first (the sim parks their cars there: the station goes into the map as
+  `spawns.police`, so the game never guesses it among the police POIs); the rest are drawn in hash
+  order from every village's candidates, so each village gets its share. Car parks within 150 m of
+  Monzone station add up to 6 nose-in spots each (805 spots in all). The sim decides how many cars
+  to park on them.
 - **Districts** (`districts.ts`): 14 hand-placed discs (name, centre, radius) for Monzone's
   station, streets and hill clusters, then a disc per OSM `village` and `hamlet` node outside
   them (26: Gragnola, Equi Terme, Viano, Vinca, Tenerano, Ugliancaldo...), then 35 hand-placed
@@ -962,7 +965,7 @@ counter-clockwise, holes clockwise.
 | `districts` | `name`, `x`, `y`, `r` |
 | `graph` | `xy` (node coordinates), `edges` (flat `a, b, roadIndex` triples), `traffic`, `walk` (edge indices) |
 | `walls` | `reach` (how far any wall sticks out of its midpoint along either axis, 33 m: the 64 m outline walls), `lattice` (each wall kind's and the trees' broad-phase corner, below) and `counts` (`walk`, `drive`) |
-| `spawns` | `player`: `{ x, y, angle }`; `parked`: `{ x, y, angle, rest, truck? }`, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked) |
+| `spawns` | `player`: `{ x, y, angle }`; `parked`: `{ x, y, angle, rest, truck? }`, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked); `police?`: `{ x, y }`, the Carabinieri station the build chose (Lunigiana's POI 14183344901, Cesena's 806564311), whose two nearest level spots the game parks their cars on |
 | `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it |
 | `farms` | baked: `{ building, rural, pen }` per farm (`building` indexes `MAP.buildings`) |
 | `lamps` | baked: every street lamp's lantern, `{ x, y, z, nx, ny, kind }` |

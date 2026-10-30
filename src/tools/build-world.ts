@@ -133,7 +133,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     graph: { xy: graph.xy, edges: graph.edges, traffic: graph.traffic, walk: graph.walk },
     verges,
     clearReport,
-    spawns: { player, parked },
+    spawns: { player, parked, police: { x: carabinieri.x, y: carabinieri.y } },
     railway: {
       lines: toRailLines(lines, shipped),
       stations,

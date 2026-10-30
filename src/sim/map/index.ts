@@ -294,7 +294,16 @@ export interface MonzoneMap {
     readonly lattice: Readonly<Record<WallKind | "trees", readonly [number, number]>>
     readonly counts: { readonly walk: number; readonly drive: number }
   }
-  readonly spawns: { readonly player: Spawn; readonly parked: ReadonlyArray<ParkedSpot> }
+  readonly spawns: {
+    readonly player: Spawn
+    readonly parked: ReadonlyArray<ParkedSpot>
+    /**
+     * The Carabinieri station the build chose (src/tools/build-world.ts): their two cars park at the
+     * level spots nearest it (`CARABINIERI` in src/sim/population/parked.ts). None where the play
+     * area leaves it out.
+     */
+    readonly police?: { readonly x: number; readonly y: number }
+  }
   /**
    * Baked by the build (src/sim/lanes.ts; `bake.map-test.ts` checks they are current): per model, the lane
    * offset of each traffic edge (`graph.traffic` order) travelled b → a, then a → b; −1 where the model

@@ -44,7 +44,7 @@ export interface BuiltMap extends Omit<
   /** The land cover of a block of the heightmap's `(cols − 1) × (rows − 1)` cells (`rasterCover`), row-major. */
   readonly cover: (block: PixelBlock) => ArrayLike<number>
   readonly water: ReadonlyArray<Omit<Water, "floor">>
-  readonly spawns: { readonly player: Spawn; readonly parked: ReadonlyArray<Spawn> }
+  readonly spawns: Omit<MonzoneMap["spawns"], "parked"> & { readonly parked: ReadonlyArray<Spawn> }
 }
 
 /** The tables the build bakes from the dense layers (src/tools/bake.ts): what `cutMap` leaves empty. */
@@ -370,7 +370,7 @@ const globalOf =
       | "walls"
     >,
     water: BuiltMap["water"],
-    { player, parked }: BuiltMap["spawns"],
+    { player, parked, police }: BuiltMap["spawns"],
   ) =>
   (bakes: Bakes): Omit<MonzoneMap, "hash"> => ({
     ...header,
@@ -385,7 +385,11 @@ const globalOf =
     districts: v.districts,
     graph: v.graph,
     walls: v.walls,
-    spawns: { player, parked: parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }) },
+    spawns: {
+      player,
+      parked: parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }),
+      ...(police === undefined ? {} : { police }),
+    },
     lanes: bakes.lanes,
     farms: bakes.farms,
     lamps: bakes.lamps,
