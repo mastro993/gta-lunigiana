@@ -172,13 +172,34 @@ const tidy = (ring: Array<number>): Array<number> => {
   return [...pts.slice(2 * low), ...pts.slice(0, 2 * low)]
 }
 
+/** A closed chain cut at each vertex it passes twice into loops, each passing every vertex once. */
+const loops = (chain: ReadonlyArray<number>): Array<Array<number>> => {
+  const out: Array<Array<number>> = [],
+    open: Array<number> = [],
+    at = new Map<string, number>()
+  for (let i = 0; i < chain.length; i += 2) {
+    const key = `${chain[i]},${chain[i + 1]}`,
+      k = at.get(key)
+    if (k !== undefined) {
+      // back at a vertex: the stretch since it closes a loop
+      const loop = open.splice(2 * k)
+      for (let m = 0; m < loop.length; m += 2) at.delete(`${loop[m]},${loop[m + 1]}`)
+      out.push(loop)
+    }
+    at.set(key, open.length / 2)
+    open.push(chain[i]!, chain[i + 1]!)
+  }
+  return [...out, open]
+}
+
 /**
  * The outline of the union of the parts' pieces as chained rings in metres on 0.1 m: outer rings
  * counter-clockwise, holes clockwise, collinear runs merged, each from its lowest (y, x) vertex,
  * the rings in that vertex's order. Every piece edge is cut where another piece's edge crosses or
  * ends on it; a piece of edge is outline when the union holds the point just left of its middle
- * and not the point just right. Where two rings touch at a vertex, each turns there as far left as
- * it can, so neither crosses itself.
+ * and not the point just right. The pieces chain turning as far left as they can, so no ring
+ * crosses itself, and each chain is cut at every vertex it passes twice (a hole touching the outer
+ * ring or another hole there), so each ring passes each vertex once.
  */
 export const outlineOf = (parts: ReadonlyArray<Part>): Array<Array<number>> => {
   const pieces = piecesOf(parts)
@@ -231,13 +252,15 @@ export const outlineOf = (parts: ReadonlyArray<Part>): Array<Array<number>> => {
       if (next[0] === first) break
       k = next[0]
     }
-    const tidied = tidy(ring)
-    let area = 0
-    for (let i = 0, n = tidied.length / 2; i < n; i++)
-      area +=
-        tidied[2 * i]! * tidied[(2 * i + 3) % (2 * n)]! -
-        tidied[(2 * i + 2) % (2 * n)]! * tidied[2 * i + 1]!
-    if (area !== 0) rings.push(tidied)
+    for (const loop of loops(ring)) {
+      const tidied = tidy(loop)
+      let area = 0
+      for (let i = 0, n = tidied.length / 2; i < n; i++)
+        area +=
+          tidied[2 * i]! * tidied[(2 * i + 3) % (2 * n)]! -
+          tidied[(2 * i + 2) % (2 * n)]! * tidied[2 * i + 1]!
+      if (area !== 0) rings.push(tidied)
+    }
   }
   return rings.sort((p, q) => p[1]! - q[1]! || p[0]! - q[0]!).map((ring) => ring.map((v) => v / 10))
 }

@@ -109,6 +109,34 @@ test("a hole is a clockwise ring, after the outer ring; rings touching at a corn
   ])
 })
 
+test("a hole touching the outer ring, or another hole, at a corner is a ring of its own", () => {
+  // the frame's north-east corner square left out: its hole meets the outside at (200, 200)
+  const frame = [
+    part([[0, 0, 300, 100]]),
+    part([[0, 100, 100, 300]]),
+    part([[100, 200, 200, 300]]),
+    part([[200, 100, 300, 200]]),
+  ]
+  assert.deepEqual(outlineOf(frame), [
+    [0, 0, 300, 0, 300, 200, 200, 200, 200, 300, 0, 300],
+    [100, 100, 100, 200, 200, 200, 200, 100],
+  ])
+  // the hole's south-west and north-east quarters filled: two holes meeting at (150, 150)
+  const pinched = [
+    part([[0, 0, 300, 100]]),
+    part([[0, 200, 300, 300]]),
+    part([[0, 100, 100, 200]]),
+    part([[200, 100, 300, 200]]),
+    part([[100, 100, 150, 150]]),
+    part([[150, 150, 200, 200]]),
+  ]
+  assert.deepEqual(outlineOf(pinched), [
+    [0, 0, 300, 0, 300, 300, 0, 300],
+    [150, 100, 150, 150, 200, 150, 200, 100],
+    [100, 150, 100, 200, 150, 200, 150, 150],
+  ])
+})
+
 test("inPlay, onOutline and outlineEdgeAt answer for the play area: lucido's rectangle", () => {
   assert.ok(inPlay(0, 0) && inPlay(4900, 3900) && inPlay(-2900, 0))
   assert.ok(!inPlay(4900.01, 0) && !inPlay(0, -6100.01))

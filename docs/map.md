@@ -264,8 +264,10 @@ part](#adding-a-part)).
   every piece edge is cut where another piece's edge crosses or ends on it, a cut piece is outline
   where the union holds the point just left of its middle and not the point just right, and the
   pieces, rounded to 0.1 m, chain into rings (outer counter-clockwise, holes clockwise, collinear
-  runs merged, each from its lowest (y, x) vertex; where two rings touch, each turns as far left as
-  it can). Lucido's outline is its rectangle from the south-west corner: south, east, north, west.
+  runs merged, each from its lowest (y, x) vertex). A chain turns as far left as it can, so no ring
+  crosses itself, and is cut at every vertex it passes twice, so two outer rings touching at a
+  corner, or a hole touching the outer ring or another hole, stay separate rings. Lucido's outline
+  is its rectangle from the south-west corner: south, east, north, west.
   Only + − × ÷ and square roots go into it, so every architecture builds the same.
 - **The built terrain** is the box round every part's rectangles, `BOUNDS` (`REGION.bounds`,
   written as `bounds`): the heightmap's extent. On Lunigiana and Cesena it is the play area.
