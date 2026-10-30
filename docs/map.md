@@ -3,9 +3,13 @@
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map: the global file `src/sim/map/monzone.bin` (1.9 MB) and 30 tiles of 2 km in
 `src/sim/map/monzone/` (5.6 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
-is deterministic (gunzipped, its files are the same bytes on every machine, and it prints the same
-build hash; gzipped, they are byte-identical with the same Node build, while another zlib or OS
-writes other compressed bytes) and takes about 14 s. It prints a lap time per stage, the rail's fit
+is deterministic on one CPU architecture (gunzipped, its files are the same bytes on every machine
+of it, and it prints the same build hash; gzipped, they are byte-identical with the same Node build,
+while another zlib or OS writes other compressed bytes) and takes about 14 s. Across architectures
+it is not: V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` return other last bits on arm64
+than on x64 (`hypot` agrees; Node 24.22.1, 200,000 arguments each), and on 2026-10-30 the arm64 and
+x64 builds of Lunigiana differed by one parked car's spot at (−1306, 2480), Cesena not at all. CI
+and Pages build on x64. It prints a lap time per stage, the rail's fit
 to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)), each platform
 ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the
 tile count, the bytes written and the largest tile, counts, the rail on the CTR (OSM's offset from
@@ -737,8 +741,9 @@ change an input.
   rather than miss a file: on a specifier that names no file, an `import(` without a string literal
   and any `require(`. When the check job built the maps, the `reproducible` job builds them again
   on another runner; the SHA-256s of the two builds' gunzipped files must match, and only then does
-  it save the maps to the cache, so a re-run checks a new key again. Pages (`pages.yml`) runs the
-  same action before `vite build` and saves nothing.
+  it save the maps to the cache, so a re-run checks a new key again. Both runners are x64, so it
+  checks the build on one architecture: an arm64 build may differ (see the top of this page).
+  Pages (`pages.yml`) runs the same action before `vite build` and saves nothing.
 - **Tests**: `raw-lock.test.ts` checks the lock's format and `recordSource`, that git ignores
   `data/raw` and the built maps, and that no tracked file is over 1 MB. `fetch-raw.test.ts` and
   `pin-raw.test.ts` run against a fake `gh`: a second fetch downloads nothing, a download with other
