@@ -252,6 +252,15 @@ export const Autopilot = Descriptor.ConstructedComponent(
 )("Lunigiana/Autopilot")
 /** A vehicle the player has already entered once (it scored a theft). */
 export const Stolen = Descriptor.Tag("Lunigiana/Stolen")
+/**
+ * A car the spots' hash parked on `spot` (an index into `MAP.spawns.parked`; population/parked.ts), never entered since: the
+ * spot counts as taken while it stands, and while it is as it was parked it goes once the player is far. Entering it takes this
+ * off, so the spot can fill again. Immutable.
+ */
+export const Parked = Descriptor.ConstructedComponent(v.object({ spot: integer }))(
+  "Lunigiana/Parked",
+  { immutable: true },
+)
 /** The player is in this vehicle or train (each has the controls the player works, `CarInput`). */
 export const Driving = Descriptor.ConstructedComponent(
   v.object({ vehicle: handle(Entity.isHandle(Root, CarInput)) }),
@@ -303,6 +312,13 @@ export type TrainRunValue = Descriptor.Descriptor.Value<typeof TrainRun>
 export const Time = Clock.resource("Lunigiana/Time", STEP)
 /** The world's random stream (saved, so runs replay). */
 export const Rng = Descriptor.ConstructedResource(Random.codec)("Lunigiana/Rng")
+/**
+ * The parked cars' seed: the game's own (`?seed=N`), never changed. With a spot's index it decides whether the spot holds a car
+ * and which (population/parked.ts), so a street looks the same each time the player comes back. Saved.
+ */
+export const Parking = Descriptor.ConstructedResource(v.object({ seed: integer }))(
+  "Lunigiana/Parking",
+)
 /** Counters shown on the HUD. */
 export const Score = Descriptor.ConstructedResource(
   v.object({ stolen: integer, knocked: integer }),
@@ -354,9 +370,9 @@ export const GameClock = Descriptor.ConstructedResource(
 )("Lunigiana/GameClock")
 /** A GameClock value. */
 export type GameClockValue = Descriptor.Descriptor.Value<typeof GameClock>
-/** The weather's own random stream (saved), apart from `Rng` so the weather never changes traffic, pedestrians or parking. */
+/** The weather's own random stream (saved), apart from `Rng` so the weather never changes traffic, people or animals. */
 export const WeatherRng = Descriptor.ConstructedResource(Random.codec)("Lunigiana/WeatherRng")
-/** The railway's own random stream (saved): where the first trains stand, the dwells and the layovers, apart from `Rng` so trains never change traffic, people or parking. */
+/** The railway's own random stream (saved): where the first trains stand, the dwells and the layovers, apart from `Rng` so trains never change traffic, people or animals. */
 export const RailRng = Descriptor.ConstructedResource(Random.codec)("Lunigiana/RailRng")
 /**
  * Each line's service (`LINES` in rail/lines.ts, in its order): the step its next train may enter (`due`; null while one runs
@@ -635,6 +651,7 @@ export const Game = Schema.bind(
       Driving,
       Autopilot,
       Stolen,
+      Parked,
       InWater,
       Train,
       TrainMotion,
@@ -645,6 +662,7 @@ export const Game = Schema.bind(
       Rng,
       WeatherRng,
       RailRng,
+      Parking,
       Score,
       View,
       Handling,
@@ -677,6 +695,7 @@ export const Game = Schema.bind(
       Schema.requires(Witness, Pedestrian),
       Schema.requires(Vehicle, Pose, PrevPose, Motion, CarInput, Chassis, Damage),
       Schema.requires(Traffic, Vehicle, Route, Autopilot),
+      Schema.requires(Parked, Vehicle),
       Schema.requires(Dead, Down),
       Schema.requires(InWater, Pose, Motion),
       Schema.requires(Train, TrainMotion, CarInput),

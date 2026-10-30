@@ -167,7 +167,9 @@ test("people and animals in a spate swim for the bank and walk out; the current 
         animals: [swept],
       },
     ],
-    { alone: true },
+    // Seed 3: shocked by the body, the walker runs from it. One who chooses to stand by it instead (the world's Rng decides, as
+    // on seeds 1 and 2) stays wading beside it as the current takes it.
+    { alone: true, seed: 3 },
   )
   assert.ok(game.runtime.tick(flood(SPATE)).ok)
   game.run(60)

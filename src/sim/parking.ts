@@ -1,7 +1,7 @@
 /**
  * How vehicles stand on the map's parked spots: settled on their wheels where the ground is level
  * enough, and where a truck fits. It reads the terrain and the walls at every spot of the map, so the
- * build bakes it into the spots (`bakeParked`, `MAP.spawns.parked`) and `systems/spawn.ts` reads
+ * build bakes it into the spots (`bakeParked`, `MAP.spawns.parked`) and `population/parked.ts` reads
  * them; `bake.map-test.ts` checks they are current (`bake.test.ts` those by Monzone).
  *
  * @module parking

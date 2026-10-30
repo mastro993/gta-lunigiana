@@ -8,6 +8,7 @@ import { pointInRing } from "../collide.ts"
 import { Game, type Look } from "../index.ts"
 import { buildingsIn, graph, MAP } from "../map/index.ts"
 import { EDGE_REACH } from "../population/density.ts"
+import { PARKING, pristine } from "../population/parked.ts"
 import {
   alongLane,
   facesForward,
@@ -300,8 +301,17 @@ test("populate: traffic and pedestrians fill in out of view around a moving play
   )
   assert.ok(after.peds.every((p) => Vec2.distance(p, away) <= PEDESTRIANS.despawn))
   assert.ok(
-    after.vehicles.some((v) => !v.traffic && Vec2.distance(v, away) > TRAFFIC.despawn),
-    "parked cars stay",
+    after.vehicles
+      .filter((v) => v.parked !== undefined && pristine(v.parked, v, v.damage))
+      .every((v) => Vec2.distance(v, away) <= PARKING.despawn),
+    "untouched parked cars go",
+  )
+  assert.equal(
+    after.vehicles.filter(
+      (v) => v.model === "carabinieri" && Vec2.distance(v, away) > PARKING.despawn,
+    ).length,
+    2,
+    "the Carabinieri stay",
   )
 })
 

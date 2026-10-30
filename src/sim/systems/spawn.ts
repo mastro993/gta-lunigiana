@@ -1,57 +1,38 @@
-import { Random, Vec2 } from "@typeonce/ritmo-math"
-
-import { resting } from "../chassis.ts"
-import { MAP, type ParkedSpot, roadClassOf } from "../map/index.ts"
-import { roadOf, trafficIndex } from "../route.ts"
-import { CarInput, Game, Motion, Person, Player, Pose, PrevPose, Rng, Vehicle } from "../schema.ts"
-import { parkedCar, randomColor } from "../spawning.ts"
-import type { VehicleModel } from "../vehicles.ts"
+import { MAP } from "../map/index.ts"
+import {
+  CARABINIERI,
+  carabinieriOn,
+  carOn,
+  PARKING,
+  parkedOn,
+  spotsWithin,
+} from "../population/parked.ts"
+import {
+  CarInput,
+  Game,
+  Motion,
+  Parked,
+  Parking,
+  Person,
+  Player,
+  Pose,
+  PrevPose,
+  Vehicle,
+} from "../schema.ts"
 
 /**
- * Parked cars at setup, Carabinieri included: this many of the map's parked spots, picked at random so they
- * spread over the villages as the spots do (every vehicle costs a little in Contacts and TrafficAI each step).
+ * Setup: the player at the map spawn, the Carabinieri at their station, and the cars the spots' hash parks within
+ * `PARKING.fill[1]` m of the start (`PopulateParked` keeps them round the player from then on); the title card hides them coming.
  */
-export const PARKED = 200
-const TRUCKS = 2
-const CARABINIERI_BLUE = 0x1d2b4f
-
-/** Whether `model` stands level enough on `spot` to park there (the build baked its rest: src/sim/parking.ts). */
-const level = (model: VehicleModel, spot: ParkedSpot): boolean => spot.rest[model] !== undefined
-/** `model` at rest on `spot`, as the build settled it: its Pose the spot's alone, not the bakes beside it. */
-const parked = (model: VehicleModel, color: number, spot: ParkedSpot) => {
-  const [z, pitch, roll] = spot.rest[model]!
-  return parkedCar(
-    model,
-    color,
-    { x: spot.x, y: spot.y, angle: spot.angle },
-    resting(z, pitch, roll),
-  )
-}
-const spots = MAP.spawns.parked.filter((s) => level("panda", s))
-const police = MAP.pois.find((p) => p.kind === "amenity=police")
-const byPolice =
-  police === undefined
-    ? []
-    : spots
-        .filter((s) => level("carabinieri", s))
-        .sort((a, b) => Vec2.distanceSquared(a, police) - Vec2.distanceSquared(b, police))
-        .slice(0, 2)
-const civilian = spots.filter((s) => !byPolice.includes(s))
-const parkedCount = Math.min(PARKED, spots.length)
-const onTertiary = (s: Vec2.Vec2) =>
-  roadClassOf(roadOf(trafficIndex.nearest(s.x, s.y))) === "tertiary"
-
-/** Setup: the player at the map spawn, the Carabinieri at their station, and parked cars picked with the world's Rng. */
 export const SpawnWorld = Game.System(
   "Lunigiana/SpawnWorld",
   {
-    resources: { rng: Game.System.writeResource(Rng) },
+    resources: { parking: Game.System.readResource(Parking) },
     commands: Game.System.commands(
-      Game.System.spawns(Player, Person, Pose, PrevPose, Motion, Vehicle, CarInput),
+      Game.System.spawns(Player, Person, Pose, PrevPose, Motion, Vehicle, CarInput, Parked),
     ),
   },
   ({ resources, commands }) => {
-    const random = Random.draw(resources.rng)
     const start = MAP.spawns.player
     commands.spawn(
       Game.Command.spawn(
@@ -75,14 +56,11 @@ export const SpawnWorld = Game.System(
         ],
       ),
     )
-    for (const spot of byPolice) commands.spawn(parked("carabinieri", CARABINIERI_BLUE, spot))
-    let trucks = 0
-    for (const spot of random.shuffle(civilian).slice(0, parkedCount - byPolice.length)) {
-      const roll = random.next()
-      const truck = trucks < TRUCKS && roll < 0.1 && onTertiary(spot) && spot.truck === true
-      if (truck) trucks++
-      const model = truck ? "truck" : roll >= 0.8 && level("ape", spot) ? "ape" : "panda"
-      commands.spawn(parked(model, randomColor(random), spot))
+    for (const index of CARABINIERI) commands.spawn(carabinieriOn(index))
+    const { seed } = resources.parking.get()
+    for (const index of spotsWithin(start, PARKING.fill[1])) {
+      const car = carOn(seed, index)
+      if (car !== undefined) commands.spawn(parkedOn(index, car))
     }
   },
 )

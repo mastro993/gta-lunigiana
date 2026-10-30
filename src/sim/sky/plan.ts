@@ -14,6 +14,7 @@
  */
 import { Ops } from "@typeonce/ritmo-math"
 
+import { mix } from "../hash.ts"
 import type { PlanValue } from "../schema.ts"
 import { civilFromDays, DAY, romeDay, utcFromRome } from "./calendar.ts"
 import { AIR_MASS, CLEAR_OF_CLEARISH, rainChance, WET_OFFSET } from "./climate.ts"
@@ -123,13 +124,6 @@ const chancesOn = (day: number, lat: number): Chances => {
     fog,
     overcast: share(odds.overcast - wet * (1 - summer), cloudy * (1 - stratus)),
   }
-}
-
-/** murmur3's 32-bit finaliser: a bijection that spreads every bit of `x` over every bit out. */
-const mix = (x: number): number => {
-  const a = Math.imul(x ^ (x >>> 16), 0x85ebca6b),
-    b = Math.imul(a ^ (a >>> 13), 0xc2b2ae35)
-  return (b ^ (b >>> 16)) >>> 0
 }
 
 /**

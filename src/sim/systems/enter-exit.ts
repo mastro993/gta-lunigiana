@@ -17,6 +17,7 @@ import {
   Game,
   Input,
   Motion,
+  Parked,
   Pedestrian,
   Person,
   Player,
@@ -135,6 +136,7 @@ export const EnterExit = Game.System(
           input: Game.Query.write(CarInput),
           traffic: Game.Query.optional(Traffic),
           stolen: Game.Query.optional(Stolen),
+          parked: Game.Query.optional(Parked),
         },
         without: [Pedestrian],
       }),
@@ -156,7 +158,7 @@ export const EnterExit = Game.System(
     },
     commands: Game.System.commands(
       Game.System.inserts(Driving, Stolen, Footing),
-      Game.System.removes(Driving, Traffic, Route, Autopilot, TrainRun),
+      Game.System.removes(Driving, Traffic, Route, Autopilot, TrainRun, Parked),
       Game.System.spawns(Pedestrian, Person, Pose, PrevPose, Motion, Route, Footing),
     ),
   },
@@ -225,6 +227,8 @@ export const EnterExit = Game.System(
       }
       if (near.kind === "vehicle") {
         const { entity: vehicle, data: car } = near.vehicle
+        // Entered, a parked car is no longer its spot's: the spot can fill again (`PopulateParked`).
+        if (car.parked.present) commands.remove(vehicle, Parked)
         if (!car.traffic.present) continue
         commands.remove(vehicle, Traffic, Route, Autopilot)
         const { model } = car.vehicle.get()

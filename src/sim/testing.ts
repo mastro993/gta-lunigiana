@@ -41,6 +41,7 @@ import {
   type Look,
   makeRuntime,
   Motion,
+  Parked,
   Pedestrian,
   Person,
   Player,
@@ -136,6 +137,7 @@ export const World = Game.Inspector(
           damage: Game.Query.read(Damage),
           traffic: Game.Query.optional(Traffic),
           stolen: Game.Query.optional(Stolen),
+          parked: Game.Query.optional(Parked),
           route: Game.Query.optional(Route),
           pilot: Game.Query.optional(Autopilot),
         },
@@ -191,6 +193,8 @@ export const World = Game.Inspector(
       damage: data.damage.get(),
       traffic: data.traffic.present,
       stolen: data.stolen.present,
+      /** The parked spot it holds (`Parked`), undefined once entered or for any other vehicle. */
+      parked: data.parked.value()?.spot,
       route: data.route.value(),
       pilot: data.pilot.value(),
     })),
@@ -234,7 +238,7 @@ export const World = Game.Inspector(
     clock: resources.clock.get(),
     weather: resources.weather.get(),
     rivers: resources.rivers.get(),
-    /** The world's random stream's state: what traffic, pedestrians and parking have drawn. */
+    /** The world's random stream's state: what traffic, people and animals have drawn. */
     rng: resources.rng.get(),
   }),
 )
@@ -320,7 +324,7 @@ export const wear = (amount: number) =>
     ),
   )
 
-/** Test setup: no other vehicles, trains or pedestrians, the player at `at`, plus the `cast`. The railway's service is left as setup made it: with `start`'s `trains`, setup's first trains are gone and no line has another due, so only the cast's trains run until a `SetTrains`. */
+/** Test setup: no other vehicles, trains or pedestrians, the player at `at`, plus the `cast`; from the next half second `PopulateParked` parks cars 90–300 m round the player, as `Populate` brings traffic and people, unless `start` runs `alone`. The railway's service is left as setup made it: with `start`'s `trains`, setup's first trains are gone and no line has another due, so only the cast's trains run until a `SetTrains`. */
 export const stage = (at: PoseValue, cast: Cast = {}) =>
   Game.Schedule(
     Game.System(
@@ -428,7 +432,7 @@ const keepOnly = (keep: ReadonlySet<number>) =>
  * and the crossings included) and the player's view, and read every event emitted so far (`heard`, in emission order). `alone`:
  * no one else ever comes (what Populate spawns goes at once), so a staged scene plays out undisturbed by traffic and passers-by.
  * No train runs unless `trains` (`noTrains` ticks before setup): only the trains tests have the service, and the trains they stage
- * (with `staging`, only those: see `stage`).
+ * (with `staging`, only those: see `stage`). The game's seed is `seed`, 1 by default.
  */
 export const start = (
   timeline: Timeline = [],
@@ -438,10 +442,11 @@ export const start = (
     readonly trains?: boolean
     /** Keys a test plays as it goes, instead of `timeline` (`liveKeys` in rail/testing.ts). */
     readonly keys?: { readonly snapshot: () => Keyboard.Snapshot<typeof bindings> }
+    readonly seed?: number
   } = {},
 ) => {
   const made = makeRuntime({
-    seed: 1,
+    seed: options.seed ?? 1,
     services: Game.Runtime.services(
       Game.Runtime.service(KeyboardInput, options.keys ?? Keyboard.scripted(bindings, timeline)),
     ),

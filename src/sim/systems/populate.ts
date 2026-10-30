@@ -6,6 +6,7 @@ import { destroyed } from "../damage.ts"
 import { FAUNA } from "../fauna.ts"
 import { peopledIndex, residentsAlong, residentsNear } from "../population/density.ts"
 import { indoors } from "../population/farms.ts"
+import { PARKED } from "../population/parked.ts"
 import { type Follower, randomParty } from "../population/parties.ts"
 import { nearCrossing } from "../rail/roads.ts"
 import {
@@ -219,7 +220,6 @@ const placeParties = (
   return placed
 }
 
-/** A random traffic model for `edge` (panda 75%, ape 15%, truck 10%), falling back to smaller ones that fit; undefined if none does. */
 /**
  * Whether a traffic car of `model` may be brought out at `pose`, the vehicles `taken` standing about: `TRAFFIC.spacing` m from each,
  * clear of walls, and not by a level crossing, where it could stand on the box. A spot is drawn first and then turned down.
@@ -233,6 +233,7 @@ export const roomFor = (
   carClear(model, pose) &&
   !nearCrossing(pose.x, pose.y)
 
+/** A random traffic model for `edge` (panda 75%, ape 15%, truck 10%), falling back to smaller ones that fit; undefined if none does. */
 const pickModel = (random: Random.Random, edge: number): VehicleModel | undefined => {
   const roll = random.next()
   const choices: ReadonlyArray<VehicleModel> = [
@@ -248,8 +249,8 @@ const pickModel = (random: Random.Random, edge: number): VehicleModel | undefine
  * random traffic edges, and as many people as live nearby go out (`peopleOut`)
  * in parties on the streets they live on, spawning out of view; both despawn
  * once far behind, or out of sight when stuck for good (never the player's own
- * car). Destroyed vehicles go once out of sight; the dead count for nobody
- * and go once far behind.
+ * car); no traffic comes while `PARKED` + `TRAFFIC.max` vehicles stand. Destroyed
+ * vehicles go once out of sight; the dead count for nobody and go once far behind.
  */
 export const Populate = Game.System(
   "Lunigiana/Populate",
@@ -338,7 +339,8 @@ export const Populate = Game.System(
     }
     const taken = queries.vehicles.each().map(({ data }) => data.pose.get())
     const roads = trafficIndex.around(at.x, at.y, TRAFFIC.spawn)
-    for (let slot = 0; slot < TRAFFIC.perTick && cars < TRAFFIC.max; slot++)
+    const room = () => cars < TRAFFIC.max && taken.length < PARKED + TRAFFIC.max
+    for (let slot = 0; slot < TRAFFIC.perTick && room(); slot++)
       for (let k = 0; k < TRIES; k++) {
         const edge = random.pick(roads)
         if (edge === undefined) break

@@ -214,8 +214,9 @@ export interface Spawn {
 export type Rest = readonly [z: number, pitch: number, roll: number]
 
 /**
- * A parked spot, with what the build baked from the terrain and walls there (src/sim/systems/spawn.ts
- * reads them; `bake.map-test.ts` checks they are current): the rest of each model that stands level
+ * A parked spot, with what the build baked from the terrain and walls there
+ * (src/sim/population/parked.ts reads them; `bake.map-test.ts` checks they are current): the rest of
+ * each model that stands level
  * enough on it, and whether a truck fits (clear of the walls, and level).
  */
 export interface ParkedSpot extends Spawn {

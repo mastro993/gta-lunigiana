@@ -692,7 +692,7 @@ storms.
   ([How it sounds](#how-it-sounds)). It needs a player: without one the cell stands still and
   nothing flashes.
 - The cell's and the lightning's draws come from `WeatherRng`, the weather's own saved random
-  stream, so the weather never changes traffic, people, animals or parking; the day plan draws from
+  stream, so the weather never changes traffic, people or animals; the day plan draws from
   the weather seed and the day alone, so a storm never changes the days that follow.
 
 ## Grip
