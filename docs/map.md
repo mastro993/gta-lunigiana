@@ -636,14 +636,16 @@ perched drop run on those readings once every tile is built (`dropPerched`).
 Once the rail is profiled and its bed laid, the build reads the railway off the shipped (rounded)
 rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
 
-- **Lines** (`findLines` in `rail-graph.ts`): the rail is a graph whose
-  junctions are piece ends ([section 4](#4-the-rail-on-the-ctr)). A terminal is a dead end on the
-  play area's outline (within 0.06 m), where the track runs on beyond it. From each terminal a walk goes on at every
-  junction the way that turns least (under 60°, headings taken over 5 m: a single 0.3 m end
-  segment turns up to 12° on the 0.1 m grid, more than a turnout diverges) and never takes a piece
-  twice; a walk that ends at another terminal is a line, and of two between one pair of terminals
-  the one turning less in all. A dead end inside the map (a siding's buffer) is no terminal, and a
-  ring with no way off the map gives no line. Each line runs the way most of its length was drawn.
+- **Lines** (`findLines` in `rail-graph.ts`): the rail is a graph whose junctions are piece ends
+  ([section 4](#4-the-rail-on-the-ctr)). A terminal is a dead end on the play area's outline, where
+  the track runs on beyond it: within 0.08 m of it (`onOutline`), as rounding to 0.1 m moves an end
+  cut on a slanted edge up to 0.05·√2 ≈ 0.071 m off it, while a lattice point off a vertical or
+  horizontal edge lies 0.1 m or more away. From each terminal a walk goes on at every junction the
+  way that turns least (under 60°, headings taken over 5 m: a single 0.3 m end segment turns up to
+  12° on the 0.1 m grid, more than a turnout diverges) and never takes a piece twice; a walk that
+  ends at another terminal is a line, and of two between one pair of terminals the one turning
+  less in all. A dead end inside the map (a siding's buffer) is no terminal, and a ring with no way
+  off the map gives no line. Each line runs the way most of its length was drawn.
   One line here: the Lucca–Aulla line's 75 pieces, 10,910.9 m from the east edge at (4900,
   3609.4) to the north edge at (−1859.6, 3900), every piece in its OSM direction; 3 757.6 m in
   tunnels, 1 181.6 m on bridges. Its speed limits are OSM's `maxspeed`, pieces with one limit

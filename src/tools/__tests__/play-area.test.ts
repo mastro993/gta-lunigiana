@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { insideRings, ringsDistance } from "../../sim/map/outline.ts"
-import { hash01, type V } from "../geometry.ts"
+import { hash01, r1, type V } from "../geometry.ts"
 import {
   OUTLINE,
   clipLineTo,
@@ -113,10 +113,22 @@ test("inPlay, onOutline and outlineEdgeAt answer for the play area: lucido's rec
   assert.ok(inPlay(0, 0) && inPlay(4900, 3900) && inPlay(-2900, 0))
   assert.ok(!inPlay(4900.01, 0) && !inPlay(0, -6100.01))
   assert.ok(inPlay(4895, 0, 5) && !inPlay(4895.01, 0, 5) && !inPlay(-2898.8, 0, 1.3))
-  assert.ok(onOutline(4899.95, 0, 0.06) && !onOutline(4899.9, 0, 0.06))
+  assert.ok(onOutline(4900, 0) && onOutline(0, 3900) && !onOutline(4899.9, 0))
   assert.deepEqual(outlineEdgeAt(4900, 10, 1e-6), [4900, -6100, 4900, 3900])
   assert.deepEqual(outlineEdgeAt(10, -6100, 1e-6), [-2900, -6100, 4900, -6100])
   assert.equal(outlineEdgeAt(4899, 10, 1e-6), undefined)
+})
+
+test("onOutline finds a line's end cut on a slanted edge and rounded to 0.1 m: a rail terminal", () => {
+  const rings = [[0, 0, 1000, 0, 1000, 937.3]]
+  // up to 0.05·√2 m off the edge once rounded, as flatLine writes it: (0.15, 0.1406) to (0.2, 0.1)
+  for (let k = 1; k < 1999; k++) {
+    const x = r1((1000 * k) / 1999),
+      y = r1((937.3 * k) / 1999)
+    assert.ok(onOutline(x, y, rings), `${x}, ${y}`)
+  }
+  assert.ok(onOutline(0.2, 0.1, rings) && onOutline(1.4, 1.5, [[0, 0, 1000, 0, 1000, 1003.7]]))
+  assert.ok(!onOutline(500, 0.1, rings) && !onOutline(999.9, 400, rings))
 })
 
 test("insideRings: margins round a reflex corner are discs, beside an edge bands; an edge is inside", () => {

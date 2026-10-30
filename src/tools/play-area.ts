@@ -249,9 +249,16 @@ export const OUTLINE: Rings = outlineOf(REGION.parts)
 export const inPlay = (x: number, y: number, margin = 0): boolean =>
   insideRings(OUTLINE, x, y, margin)
 
-/** Whether local (x, y) lies within `tol` m of the outline. */
-export const onOutline = (x: number, y: number, tol: number): boolean =>
-  ringsDistance(OUTLINE, x, y) < tol
+/**
+ * How far (m) from the outline a line's end rounded to 0.1 m (as `flatLine` writes it) may lie and
+ * still have been cut on it: rounding moves a point of a slanted edge up to 0.05·√2 ≈ 0.071 m off
+ * it, and a point of the 0.1 m lattice off a vertical or horizontal edge lies 0.1 m or more away.
+ */
+const ROUNDED_ON = 0.08
+
+/** Whether local (x, y), rounded to 0.1 m, was a point of the outline of `rings` (the play area's). */
+export const onOutline = (x: number, y: number, rings: Rings = OUTLINE): boolean =>
+  ringsDistance(rings, x, y) < ROUNDED_ON
 
 /** The outline edge [ax, ay, bx, by] nearest (x, y) when nearer than `tol` m (the first in ring order on a tie). */
 export const outlineEdgeAt = (

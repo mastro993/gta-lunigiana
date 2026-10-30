@@ -26,11 +26,10 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   const { grid, railLines, roadLines, levels } = terrain
   const at = (x: number, y: number) => sampleGrid(grid, x, y)
   // ---- the railway: lines over the running track, the platforms beside them, the stations ----
-  /** A line's terminal: a dead end on the play area's outline, where the track runs on beyond it. */
-  const onEdge = (x: number, y: number) => onOutline(x, y, 0.06)
+  // A line's terminal: a dead end on the play area's outline, where the track runs on beyond it.
   const { shipped, lines, kinds, platforms, stations } = layRailway(
     railLines,
-    onEdge,
+    (x, y) => onOutline(x, y),
     {
       polygons: src.platforms,
       roads: roads.flatMap((r) =>
