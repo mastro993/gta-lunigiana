@@ -32,7 +32,11 @@ const built = (data: ReadonlyArray<number>): BuiltMap => ({
     shore: [12, -12, 12, 12],
     drive: [-3, 5, 1, 5],
   },
+  // Sparse ids, as the scatter numbers trees (lattice cells, bank trees past 2^28): in id order the
+  // trees are not in their tiles' order (0_0's comes before 0_-1's).
   trees: [-5, -5, 1.2, 0, 0, 0.9, 7, -3, 1],
+  treeIds: [12, 40_000, 2 ** 28 + 5],
+  treeCorner: [-11, -11],
   cover: (b) =>
     Array.from({ length: b.cols * b.rows }, (_, k) => {
       const c = b.c0 + (k % b.cols),
@@ -52,7 +56,7 @@ const filesOf = (map: BuiltMap) => {
   return { global: stamped.global, files, unstamped: cut.tiles }
 }
 
-test("cutMap cuts the dense layers into tiles that joinTiles puts back as they were, walls and trees in order", () => {
+test("cutMap cuts the dense layers into tiles that joinTiles puts back as they were, walls and trees in order, trees merged by id", () => {
   const { global, files } = filesOf(built(data))
   assert.deepEqual(
     global.tiles.map(({ i, j }) => `${i}_${j}`),
@@ -64,6 +68,12 @@ test("cutMap cuts the dense layers into tiles that joinTiles puts back as they w
   for (const kind of ["walk", "shore", "drive"] as const)
     assert.deepEqual(Array.from(whole.walls[kind]), built(data).walls[kind])
   assert.deepEqual(Array.from(whole.trees), built(data).trees)
+  assert.deepEqual(Array.from(whole.treeIds), built(data).treeIds)
+  assert.deepEqual(
+    tiles.map((t) => Array.from(t.ids)),
+    [[12], [2 ** 28 + 5], [], [40_000]],
+  )
+  assert.deepEqual(global.walls.lattice.trees, [-11, -11]) // the region's, not the lowest tree's
   assert.deepEqual(Array.from(whole.cover), cover)
   assert.equal(global.walls.reach, 13) // the 24 m shore wall on the edge reaches 12 m past its midpoint, plus the margin
 })

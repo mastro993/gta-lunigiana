@@ -376,9 +376,9 @@ const treeTiles: Array<Tile> = [],
   treeGrids: Array<CellGrid> = []
 
 /**
- * Tree broad phase (trees as points): calls `visit` with the position, scale and id (its index in
- * the whole map's list) of every tree in a cell the box overlaps, in the whole map's order cell by
- * cell; run the exact test. `visit` must not query again.
+ * Tree broad phase (trees as points): calls `visit` with the position, scale and id (its look's
+ * seed, src/tools/trees.ts) of every tree in a cell the box overlaps, in the whole map's order (by
+ * id) cell by cell; run the exact test. `visit` must not query again.
  */
 export const treesIn = (
   minX: number,

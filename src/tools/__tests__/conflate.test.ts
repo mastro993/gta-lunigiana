@@ -53,6 +53,7 @@ const STREAM: WaterF = {
   bed: 3,
   depth: 1,
   pts: [v(100, -30, "w0"), v(100, 30, "w1")],
+  from: 0,
 }
 
 test("conflateRail puts OSM's line on the CTR, its crossing nodes on the road where the CTR crosses it, and adds the CTR-only tracks", () => {

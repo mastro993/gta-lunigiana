@@ -44,6 +44,18 @@ test("a region's bounds, its built terrain, are the box round its parts' rectang
   assert.deepEqual(lunigiana.bounds, { minX: -2900, minY: -6100, maxX: 4900, maxY: 3900 })
 })
 
+test("a region's tiles are those its parts' rectangles meet, and its tree anchor is its first part's south-west corner", () => {
+  const keys = (id: string) => regionFromArgs(["--region", id]).tiles.map(({ i, j }) => `${i}_${j}`)
+  // Lunigiana's 30: i −2…2, j −4…1, south to north, then west to east.
+  const lunigiana = keys("lunigiana")
+  assert.equal(lunigiana.length, 30)
+  assert.deepEqual(lunigiana.slice(0, 6), ["-2_-4", "-1_-4", "0_-4", "1_-4", "2_-4", "-2_-3"])
+  assert.equal(lunigiana.at(-1), "2_1")
+  assert.deepEqual(keys("cesena"), ["-1_-1", "0_-1", "-1_0", "0_0"])
+  assert.deepEqual(regionFromArgs([]).anchor, { x: -2900, y: -6100 })
+  assert.deepEqual(regionFromArgs(["--region", "cesena"]).anchor, { x: -2000, y: -2000 })
+})
+
 test("unknown regions and incomplete arguments fail before a fetch or build", () => {
   assert.throws(() => regionFromArgs(["--region", "unknown"]), /region/)
   assert.throws(() => regionFromArgs(["--region"]), /region/)

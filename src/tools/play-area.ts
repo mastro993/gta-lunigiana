@@ -338,16 +338,25 @@ const crossingsOf = (rings: Rings, ax: number, ay: number, dx: number, dy: numbe
   return [...new Set(ts.sort((p, q) => p - q))]
 }
 
+/** A piece of a clipped line, and how far along the whole line it starts, m. */
+export interface Piece {
+  readonly pts: Array<V>
+  readonly from: number
+}
+
 /**
  * Polyline `pts` clipped to the area `rings` bound (edges in it), consecutive stretches inside
- * joined into pieces. Original vertices keep their ids; the points where a piece is cut have none,
- * which is how later stages know a line leaves the play area there.
+ * joined into pieces, each with the arc length along `pts` where it starts. Original vertices keep
+ * their ids; the points where a piece is cut have none, which is how later stages know a line
+ * leaves the play area there.
  */
-export const clipLineTo = (rings: Rings, pts: ReadonlyArray<V>): Array<Array<V>> => {
-  const out: Array<Array<V>> = []
-  let cur: Array<V> = []
+export const clipPieces = (rings: Rings, pts: ReadonlyArray<V>): Array<Piece> => {
+  const out: Array<Piece> = []
+  let cur: Array<V> = [],
+    from = 0,
+    walked = 0
   const end = () => {
-    if (cur.length > 1) out.push(cur)
+    if (cur.length > 1) out.push({ pts: cur, from })
     cur = []
   }
   for (let i = 1; i < pts.length; i++) {
@@ -383,14 +392,22 @@ export const clipLineTo = (rings: Rings, pts: ReadonlyArray<V>): Array<Array<V>>
     }
     if (cur.length > 0 && runs[0]?.[0] !== 0) end()
     for (const [s, t] of runs) {
-      if (cur.length === 0) cur.push(at(s))
+      if (cur.length === 0) {
+        cur.push(at(s))
+        from = walked + s * len
+      }
       cur.push(at(t))
       if (t < 1) end()
     }
+    walked += len
   }
   end()
   return out
 }
+
+/** Polyline `pts` clipped to the area `rings` bound (`clipPieces` without where each starts). */
+export const clipLineTo = (rings: Rings, pts: ReadonlyArray<V>): Array<Array<V>> =>
+  clipPieces(rings, pts).map((p) => p.pts)
 
 /** Polyline `pts` clipped to the play area (`clipLineTo` the outline). */
 export const clipToPlay = (pts: ReadonlyArray<V>): Array<Array<V>> => clipLineTo(OUTLINE, pts)

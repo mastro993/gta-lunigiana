@@ -49,11 +49,11 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   // ---- collision, graph, trees, spawns ----
   const walls = buildWalls(grid, roads, water, buildings, barriers)
   lap("walls")
-  const trees = scatterTrees(areas, roads, buildings, water, allRail)
+  const trees = scatterTrees({ areas, roads, buildings, water, rail: allRail }, REGION)
   lap("trees")
   // Spawns and traffic's dead ends keep off the water as well.
-  const walkClear = clearance([...walls.walk, ...walls.shore], trees),
-    driveClear = clearance([...walls.drive, ...walls.driveShore], trees)
+  const walkClear = clearance([...walls.walk, ...walls.shore], trees.trees),
+    driveClear = clearance([...walls.drive, ...walls.driveShore], trees.trees)
   const graph = buildGraph(roads, (x, y) => driveClear.circle(x, y, TURN))
   // Level crossings: boxes of crossing nodes on one road; then no verge or lane beside the running track.
   const crossingNodes = levels.map(({ road, piece, v, vertex }) => ({

@@ -284,9 +284,10 @@ export interface MonzoneMap {
   /**
    * The walls' broad phases: how far any wall reaches past its midpoint along either axis (m: a wall
    * lives in its midpoint's tile, so a query looks this far into the next), the south-west corner of
-   * each kind's lattice and the trees' (the lowest corner of any of them, where the whole map's broad
-   * phase put it: `./lattice.ts`), and how many walk and drive walls there are (a shore wall's index in
-   * the land and traffic broad phases follows them).
+   * each kind's lattice (the lowest corner of any of its walls, where the whole map's broad phase put
+   * it: `./lattice.ts`) and the trees' (fixed per region: src/tools/trees.ts `treeCorner`), and how
+   * many walk and drive walls there are (a shore wall's index in the land and traffic broad phases
+   * follows them).
    */
   readonly walls: {
     readonly reach: number

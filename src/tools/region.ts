@@ -2,13 +2,15 @@
 // - Regions: separately built maps (Lunigiana, Cesena), never sharing survey inputs; the build,
 //   `fetch-osm` and the geometry read the one `--region` names (REGION, Lunigiana by default). A
 //   region's play area is the union of its parts' (play-area.ts); its built terrain is the box round
-//   every part's rectangles (`bounds`).
+//   every part's rectangles (`bounds`), its tiles those the rectangles meet, and its trees stand on
+//   a lattice from a corner fixed for good (`anchor`, trees.ts).
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
 //   `footprint-check`) and `fetch-rt` take parts from here.
 
 import type { MapId } from "../maps.ts"
+import { tileRange } from "../sim/map/kinds.ts"
 
 /** A rectangle [minX, minY, maxX, maxY] in local metres. */
 export type Rect = readonly [number, number, number, number]
@@ -40,6 +42,14 @@ export interface Region {
     readonly maxX: number
     readonly maxY: number
   }
+  /** The 2 km tiles its parts' rectangles meet, south to north, then west to east: the trees cover these. */
+  readonly tiles: ReadonlyArray<{ readonly i: number; readonly j: number }>
+  /**
+   * The south-west corner of the tree lattice and its masks, local metres on the 4 m bank cells
+   * (trees.ts): set once, where the first part's corner was, and never moved, so no tree moves or
+   * changes its id as parts are added.
+   */
+  readonly anchor: { readonly x: number; readonly y: number }
 }
 
 /** Whether local (x, y) lies in one of the rectangles. */
@@ -143,16 +153,42 @@ export const checkMask = ({ key, rects, mask }: Part): void => {
   }
 }
 
-/** A region of `parts`, each mask checked, its bounds the box round every rectangle. */
+/** Every tile any of `rects` meets (more than along its edge), south to north, then west to east. */
+const tilesOf = (rects: ReadonlyArray<Rect>): Region["tiles"] => {
+  const keys = new Set<string>(),
+    tiles: Array<{ i: number; j: number }> = []
+  for (const [minX, minY, maxX, maxY] of rects) {
+    const { i0, i1, j0, j1 } = tileRange({ minX, minY, maxX, maxY })
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++)
+        if (!keys.has(`${i}_${j}`)) {
+          keys.add(`${i}_${j}`)
+          tiles.push({ i, j })
+        }
+  }
+  return tiles.sort((a, b) => a.j - b.j || a.i - b.i)
+}
+
+/** A region of `parts` with its tree lattice at `anchor`, each mask checked, its bounds the box round every rectangle. */
 const regionOf = (
   id: MapId,
   file: string,
   origin: Region["origin"],
   parts: ReadonlyArray<Part>,
+  anchor: Region["anchor"],
 ): Region => {
   for (const part of parts) checkMask(part)
-  const [minX, minY, maxX, maxY] = rectsBox(parts.flatMap((p) => p.rects))
-  return { id, file, origin, parts, bounds: { minX, minY, maxX, maxY } }
+  const rects = parts.flatMap((p) => p.rects)
+  const [minX, minY, maxX, maxY] = rectsBox(rects)
+  return {
+    id,
+    file,
+    origin,
+    parts,
+    bounds: { minX, minY, maxX, maxY },
+    tiles: tilesOf(rects),
+    anchor,
+  }
 }
 
 /**
@@ -164,13 +200,21 @@ export const PARTS: ReadonlyArray<Part> = [
   { key: "lucido", title: "Valle del Lucido", rects: [[-2900, -6100, 4900, 3900]] },
 ]
 
-const LUNIGIANA = regionOf("lunigiana", "monzone", { lat: 44.16175, lon: 10.13 }, PARTS)
+// Each anchor is its first part's south-west corner.
+const LUNIGIANA = regionOf("lunigiana", "monzone", { lat: 44.16175, lon: 10.13 }, PARTS, {
+  x: -2900,
+  y: -6100,
+})
 
 const regions: ReadonlyArray<Region> = [
   LUNIGIANA,
-  regionOf("cesena", "cesena", { lat: 44.1391, lon: 12.2429 }, [
-    { key: "cesena", title: "Cesena", rects: [[-2000, -2000, 2000, 2000]] },
-  ]),
+  regionOf(
+    "cesena",
+    "cesena",
+    { lat: 44.1391, lon: 12.2429 },
+    [{ key: "cesena", title: "Cesena", rects: [[-2000, -2000, 2000, 2000]] }],
+    { x: -2000, y: -2000 },
+  ),
 ]
 
 /** Selects a known region, defaulting to the original map; invalid input fails before I/O. */

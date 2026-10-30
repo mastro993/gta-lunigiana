@@ -274,7 +274,9 @@ part](#adding-a-part)).
 - **Lines** (roads, water, rail, barriers and the CTR's tracks) are clipped to the play area
   (`clipToPlay`): each segment is cut where it crosses the outline and each stretch kept by its
   middle. Original vertices keep their OSM ids and cut points have none, which is how the
-  road-exit caps, the graph's exits and the rail's terminals find where a line leaves. On a
+  road-exit caps, the graph's exits and the rail's terminals find where a line leaves; a water
+  piece also keeps how far along its way it starts (`clipPieces`, `WaterF.from`), which its bank
+  trees count from. On a
   vertical or horizontal edge the cut is Liang–Barsky's to the bit (t = (X − a.x) / dx). A stretch
   shorter than 10 µm between two crossings is a corner passed, too short for its middle to tell:
   past a convex corner it is left out, as Liang–Barsky takes the later of two entries, and past a
@@ -767,14 +769,30 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
 ### 12. Trees, spawns, districts (`trees.ts`, `spawns.ts`, `districts.ts`)
 
 - **Trees**: a jittered lattice at one tree per 50 m² inside forest areas. Trees stay out of other
-  areas, buildings (plus 2 m), roads (w/2 + 2 m), stream beds and the rail, its loops and
-  sidings included (6 m). Sparse trees
-  also line the banks of the wider streams. No cap: about 1 012 000 trees, positions rounded to 1 m
-  (at most one tree per spot) and a scale of 0.8–1.3 (1.7 MB of the gzipped map file). Placement
-  uses a fixed hash, not a random generator. The scatter (`trees.ts`) rasterises its 2 m masks
-  (forest, the other areas, the buildings) a row of 2 km tiles at a time, with the whole raster's
-  arithmetic, as the lattice reaches the row, and lets a row go once the lattice has passed it; a
-  1 m bit set over the bounds keeps the first tree on each spot.
+  areas, buildings (plus 2 m), roads (w/2 + 2 m), stream beds and the rail, its loops and sidings
+  included (6 m), and stand 1 m inside the built terrain's box on the region's tiles (`tiles` in
+  `region.ts`, those its parts' rectangles meet), outside the play area too. Sparse trees also
+  line the banks of the streams at least 4 m wide: a candidate every 9 m along the OSM way on each
+  side, kept by a hash of the way's id, the step and the side, at most one in a 4 m cell. The steps
+  count from the way's start (`WaterF.from`, where the outline cut the piece), so a bank tree stays
+  put when the play area grows. No cap: 1 011 936 trees on Lunigiana (1 352 on the banks) and
+  5 633 on Cesena (283), positions rounded to 1 m (at most one tree per spot) and a scale of
+  0.8–1.3. Placement uses a fixed hash, not a random generator.
+- **A fixed lattice**: it starts at the region's anchor (`anchor` in `region.ts`: Lunigiana's
+  (−2900, −6100), the corner of its first part, lucido; Cesena's (−2000, −2000)), set once and never
+  taken from the bounds, and its cells run on past it either way, so adding a part moves no tree.
+  A tree's id is its cell's number, (gj + 8192) × 16384 + (gi + 8192) for the cell gi east and gj
+  north of the anchor (below 2²⁸), and a bank tree's is its 4 m cell's number past them,
+  2²⁸ + (cj + 16384) × 32768 + (ci + 16384) (below 2³¹). The ids order the whole map's trees (south
+  to north, west to east, then the banks), seed each tree's look (`src/render/trees.ts`), and never
+  change as parts are added.
+- **A tile at a time**: the scatter (`trees.ts`) works each of the region's tiles alone,
+  rasterising its 2 m masks (forest, the other areas, the buildings) over the tile and a metre round
+  it on the anchor's pixels, the pixels one raster of the whole map has there. A tree belongs to the
+  tile of its rounded point, so two lattice points that round onto one spot, even from either side
+  of a seam, meet in one tile, where a bit a metre keeps the first (the lattice's before the bank
+  trees). The tiles' trees are merged by id (`mergeTrees` in `tile-map.ts`). The scatter takes
+  0.7 s for Lunigiana's 30 tiles and holds one tile's masks, 3 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
   clear of walk and drive walls. Cesena uses a central street in its connected traffic network.
   The final rounded position must lie outside every building footprint and have a walk-clear
@@ -889,7 +907,7 @@ lookup there may read.
 | File | Lunigiana | Cesena |
 |---|---|---|
 | `src/sim/map/<name>.bin` (global) | 1.9 MB, 6.3 MB gunzipped | 1.2 MB |
-| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 30, 5.6 MB in all, 0.01 to 0.31 MB each | 4, 0.9 MB in all, up to 0.24 MB |
+| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 30, 5.7 MB in all, 0.01 to 0.31 MB each | 4, 0.9 MB in all, up to 0.24 MB |
 
 Each file is gzip (level 9) of one JSON line, a newline, then packed sections. The game never fetches:
 the browser host downloads the global file, gunzips it and hands the bytes to `provideMap`
@@ -966,7 +984,7 @@ of its walk, shore and drive walls and of its trees. Its sections follow the new
 | walk, shore, drive walls | (ax, ay, bx, by) decimetres from a point 100 m south-west of the tile's corner (the outline walls stick out of their tile) | 2 | 2: the previous x or y |
 | walk, shore, drive wall ids | each wall's index in the whole map's list of its kind | 4 | 1 |
 | trees | (x, y) whole metres from the same point (trees stand on whole metres), the scale in hundredths | 2 | 3: the previous tree |
-| tree ids | each tree's index in the whole map's list (its look's seed) | 4 | 1 |
+| tree ids | each tree's id (its lattice cell's number, [Trees](#12-trees-spawns-districts-treests-spawnsts-districtsts); its look's seed), ascending | 4 | 1 |
 | cover | 500 × 500 cells, the land-cover index | 1 | 500: the cell to the south |
 
 Each section holds n integers as the zigzag-coded difference (0, −1, 1, −2... stored as 0, 1, 2,
@@ -985,16 +1003,19 @@ What goes in which tile:
 - **Walls**: each segment lives in the tile of its midpoint, clamped to the listed tiles (Cesena's
   outline walls lie on a seam). A tile's walls keep the whole map's order and carry their index in
   it.
-- **Trees**: each in the tile of its point, the same way, with its index.
+- **Trees**: each in the tile of its point, the same way (the scatter already made it there), with
+  its id.
 - **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`rasterCover` in
   `src/sim/map/raster.ts`, rasterised at build time for the tile's cells alone, the same cells a
   raster of the whole map gives there); cells past the bounds are 0 and never read.
 
 `wallsNear` and `treesIn` answer exactly as the one broad phase over the whole map did, the same
-items in the same order: each kind keeps its 16 m lattice (`walls.lattice`, the lowest corner of any
-of its items), each tile grids its items on that lattice, and a query walks the cells the box touches
-south to north, west to east, taking each cell's items in the whole map's order across the tiles that
-hold some (`src/sim/map/lattice.ts`). It reads every tile those cells reach, `walls.reach` further for
+items in the same order: each kind keeps its 16 m lattice (`walls.lattice`: the lowest corner of any
+of its walls; the trees', 1 m north-east of the region's tree anchor, fixed so that a query's trunks
+keep their order as parts are added, `treeCorner` in `src/tools/trees.ts`), each tile grids its
+items on that lattice, and a query walks the cells the box touches south to north, west to east,
+taking each cell's items in the whole map's order (by id) across the tiles that hold some
+(`src/sim/map/lattice.ts`). It reads every tile those cells reach, `walls.reach` further for
 walls. The order matters: the physics pushes out of walls one by one and keeps the first of
 equal-time hits, so another order would move collisions at corners (map.map-test.ts drives a car
 from the road into building −2800141 at (28.7, 1145.7), 29 m east of the x = 0 seam: with 3 of 5
@@ -1067,7 +1088,8 @@ within 1 km of Monzone station and of Cesena's start (`assertBakesCurrentNear`, 
 and `bakeFarms` given just those), so `pnpm test` fails too: proven red by changing the parked cars'
 `LEVEL` (0.26 to 0.2) and the farms' `RURAL` (60 to 50). The lanes and the lamps are worked out
 map-wide, so only the map check catches a change to them. `src/tools/__tests__/tile-map.test.ts`
-cuts a 24 m map into its four tiles and joins them back as they were (walls and trees in order),
+cuts a 24 m map into its four tiles and joins them back as they were (walls in order, trees with
+sparse ids merged back in id order, which is not their tiles' order), with the region's tree corner,
 refuses to join a tile from another build, and stamps each tile as `packTile` packs it with the
 build hash. `build-output.test.ts` checks that `decimetres`, which rounds the grid into the
 `Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
@@ -1166,14 +1188,21 @@ and its report; `cdp.test.ts`, on a fake Chrome, a command's own timeout and the
 when a tab cannot open; `map-diff.test.ts` each category's change on small maps, a key it does not
 compare, walls and trees in another order (the fewest moved counted, copies of a removed segment
 left out), a tree on a spot both maps plant with another id there, a map from before the outline
-and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts` `clipRing` to a box; `region.test.ts` the regions' parts and bounds and
+and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts` `clipRing` to a
+box; `trees.test.ts` the tiles' scatters merged by id against the scatter of their whole box (with
+two lattice points rounding onto one spot from either side of a seam, and a stream beside another
+whose bank trees fall in its 4 m cells), a tile's trees and ids when the region's box grows, a
+stream's piece the outline cut keeping the whole stream's bank trees, and a stream's banks in every
+listed tile and none in one left out; `region.test.ts` the regions' parts, bounds, tiles and tree
+anchors and
 `checkMask` on a diagonal mask in an L and on each fault (too few vertices, off 0.1 m, clockwise,
 a repeated vertex, a fold, a crossing, a vertex or an edge outside the rectangles);
 `play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of two,
 overlapping rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing
 off the 0.1 m lattice, a hole, two rings touching at a corner and a hole touching the outer ring or
 another hole at one, `onOutline` finding rail ends rounded off a slanted edge, the notch cutting a
-line in two with ids kept and cuts id-less, a line past the L's inner corner (or a mask's slanted
+line in two with ids kept and cuts id-less, each piece's start along the whole line
+(`clipPieces`), a line past the L's inner corner (or a mask's slanted
 one) within a micrometre staying whole, and clipping to one rectangle against Liang–Barsky on 4000
 random lines and lines through its corners; `src/sim/map/__tests__/outline.test.ts` `insideRings`'s
 margins round the L's inner corner, a clockwise hole, and `edgeDistance` beside and past an edge;

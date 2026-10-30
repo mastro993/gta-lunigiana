@@ -155,8 +155,13 @@ test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole hei
 })
 
 test("wallsNear and treesIn answer exactly as one broad phase over the whole map does: the same walls and trunks, in the same order, across the seams too", () => {
-  // The whole map's broad phases as they were before the map was cut (staticGrid anchors each at its items' lowest corner).
-  const { walls, trees } = WHOLE
+  // The whole map's broad phases as they were before the map was cut (staticGrid anchors each at its
+  // items' lowest corner; the lowest tree stands on the trees' fixed corner), handing trees' ids.
+  const { walls, trees, treeIds } = WHOLE
+  const lowest = [Infinity, Infinity]
+  for (let k = 0; k < trees.length; k += 3)
+    [lowest[0], lowest[1]] = [Math.min(lowest[0]!, trees[k]!), Math.min(lowest[1]!, trees[k + 1]!)]
+  assert.deepEqual(MAP.walls.lattice.trees, lowest)
   const treeGrid = staticGrid(
     trees.length / 3,
     (i) => [trees[3 * i]!, trees[3 * i + 1]!, trees[3 * i]!, trees[3 * i + 1]!],
@@ -223,7 +228,7 @@ test("wallsNear and treesIn answer exactly as one broad phase over the whole map
     const ids: Array<number> = [],
       want: Array<number> = []
     treesIn(...box, (_x, _y, _scale, id) => ids.push(id))
-    treeGrid(...box, (i) => want.push(i))
+    treeGrid(...box, (i) => want.push(treeIds[i]!))
     assert.deepEqual(ids, want, `trees ${box.join(",")}`)
   }
 })

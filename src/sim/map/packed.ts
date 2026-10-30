@@ -16,7 +16,7 @@
  * | walk, shore, drive walls | (ax, ay, bx, by) decimetres from `packOrigin` (100 m south-west of the tile's corner: outline walls stick out) | 2 | 2 (the previous x or y) |
  * | walk, shore, drive wall ids | each wall's index in the whole map's list of its kind (the broad phases answer in that order) | 4 | 1 |
  * | trees | (x, y) whole metres from `treeOrigin` (they are planted on whole metres), the scale in hundredths | 2 | 3 (the previous tree) |
- * | tree ids | each tree's index in the whole map's tree list (its look's seed) | 4 | 1 |
+ * | tree ids | each tree's id, ascending (its look's seed; its lattice cell's number, src/tools/trees.ts) | 4 | 1 |
  * | cover | 500 × 500 cells, the land-cover index (`./cover.ts`) | 1 | 500 (the cell to the south) |
  *
  * Decoding is exact: every coordinate is an integer number of decimetres divided by 10, the same
@@ -220,7 +220,7 @@ export interface TileData {
   }
   /** Flat (x, y, scale) triples of the trees standing in the tile, in the whole map's order. */
   readonly trees: Float64Array
-  /** Each tree's index in the whole map's list. */
+  /** Each tree's id (its lattice cell's number, or its bank cell's past them; src/tools/trees.ts), ascending. */
   readonly ids: Int32Array
   /** `TILE_CELLS` × `TILE_CELLS` land-cover indices, row-major from the south-west cell (0 past the map's bounds, never read). */
   readonly cover: Uint8Array

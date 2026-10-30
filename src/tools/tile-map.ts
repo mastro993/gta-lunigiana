@@ -1,7 +1,8 @@
 // Cuts the map the build makes (one heightmap, every wall and tree, the land cover rasterised tile
 // by tile) into the global map and its 2 km tiles (src/sim/map/packed.ts), one tile at a time, and
 // joins them back for the tools that read a whole map (map-diff, preview-map, the map tests). The
-// cut is exact: joining the tiles gives back every node, wall, tree and cover cell, in order.
+// cut is exact: joining the tiles gives back every node, wall, tree and cover cell, in order (the
+// trees in id order: merged by id, `mergeTrees`).
 import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
@@ -34,8 +35,12 @@ export interface BuiltMap extends Omit<
     readonly shore: ArrayLike<number>
     readonly drive: ArrayLike<number>
   }
-  /** Flat (x, y, scale) triples. */
+  /** Flat (x, y, scale) triples, in id order. */
   readonly trees: ArrayLike<number>
+  /** Each tree's id, ascending: its lattice cell's number, or its bank cell's past them (trees.ts). */
+  readonly treeIds: ArrayLike<number>
+  /** The trees' broad-phase corner, `walls.lattice.trees`: fixed per region (trees.ts `treeCorner`). */
+  readonly treeCorner: readonly [number, number]
   /** The land cover of a block of the heightmap's `(cols − 1) × (rows − 1)` cells (`rasterCover`), row-major. */
   readonly cover: (block: PixelBlock) => ArrayLike<number>
   readonly water: ReadonlyArray<Omit<Water, "floor">>
@@ -46,6 +51,46 @@ export interface BuiltMap extends Omit<
 export type Bakes = Pick<MonzoneMap, "lanes" | "farms" | "lamps"> & {
   readonly floors: ReadonlyArray<ReadonlyArray<number>>
   readonly parked: MonzoneMap["spawns"]["parked"]
+}
+
+/** Trees as flat (x, y, scale) triples on whole metres and each one's id (its look's seed), ascending. */
+export interface TreeList {
+  readonly trees: Float64Array
+  readonly ids: Int32Array
+}
+
+/** The trees of `parts` (each in ascending id order, no id in two) merged in id order. */
+export const mergeTrees = (
+  parts: ReadonlyArray<{ readonly trees: ArrayLike<number>; readonly ids: ArrayLike<number> }>,
+): TreeList => {
+  const n = parts.reduce((sum, p) => sum + p.ids.length, 0)
+  // Every tree's id, part and place in it, then the trees sorted by id.
+  const all = new Int32Array(n),
+    part = new Int32Array(n),
+    index = new Int32Array(n)
+  let k = 0
+  parts.forEach((p, q) => {
+    for (let m = 0; m < p.ids.length; m++, k++) {
+      all[k] = p.ids[m]!
+      part[k] = q
+      index[k] = m
+    }
+  })
+  const order = new Uint32Array(n)
+  for (let m = 0; m < n; m++) order[m] = m
+  order.sort((a, b) => all[a]! - all[b]!)
+  const trees = new Float64Array(3 * n),
+    ids = new Int32Array(n)
+  for (let o = 0; o < n; o++) {
+    const m = order[o]!,
+      from = parts[part[m]!]!.trees,
+      i = 3 * index[m]!
+    trees[3 * o] = from[i]!
+    trees[3 * o + 1] = from[i + 1]!
+    trees[3 * o + 2] = from[i + 2]!
+    ids[o] = all[m]!
+  }
+  return { trees, ids }
 }
 
 /** No baked tables yet: what the bake itself runs on. */
@@ -88,9 +133,9 @@ export interface MapCut {
 
 /**
  * `map` named `name` cut into its tiles, one at a time, each packed as it is cut: its terrain nodes,
- * its land cover (asked of `map.cover` for its cells alone), and its walls and trees in the whole
- * map's order. The global map keeps only the sparse parts, so the dense layers can go once the cut
- * is done. Deterministic.
+ * its land cover (asked of `map.cover` for its cells alone), and its walls and trees (with their
+ * ids) in the whole map's order. The global map keeps only the sparse parts, so the dense layers
+ * can go once the cut is done. Deterministic.
  */
 export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const { cell, cols, rows, x0, y0, data } = map.heightmap
@@ -134,13 +179,9 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
       ]
     }),
   ) as Record<"walk" | "shore" | "drive", (s: number) => Int32Array>
-  let treeLow: readonly [number, number] = [Infinity, Infinity]
-  const treesOf = bySlot(map.trees.length / 3, slots, (t) => {
-    const x = map.trees[3 * t]!,
-      y = map.trees[3 * t + 1]!
-    treeLow = [Math.min(treeLow[0], x), Math.min(treeLow[1], y)]
-    return slotAt(x, y)
-  })
+  const treesOf = bySlot(map.trees.length / 3, slots, (t) =>
+    slotAt(map.trees[3 * t]!, map.trees[3 * t + 1]!),
+  )
   // The coarse grid: every COARSE m on the origin's multiples, over the bounds; its cover is read in
   // the tile whose cells hold each node's cell.
   const gx0 = COARSE * Math.floor(map.bounds.minX / COARSE),
@@ -215,7 +256,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
         },
         wallIds: { walk, shore, drive },
         trees: flatOf(map.trees, trees, 3),
-        ids: trees,
+        ids: Int32Array.from(trees, (k) => map.treeIds[k]!),
         cover,
       })
       files.set(tileKey(i, j), tile.file)
@@ -243,7 +284,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
       land: corner("walk", "shore"),
       drive: corner("drive"),
       traffic: corner("drive", "shore"),
-      trees: treeLow,
+      trees: map.treeCorner,
     },
     counts: { walk: map.walls.walk.length / 4, drive: map.walls.drive.length / 4 },
   }
@@ -391,9 +432,9 @@ export interface JoinedMap extends Omit<MonzoneMap, "heightmap" | "walls"> {
     readonly shore: ArrayLike<number>
     readonly drive: ArrayLike<number>
   }
-  /** Flat (x, y, scale) triples in the whole map's order. */
+  /** Flat (x, y, scale) triples in the whole map's order: by id. */
   readonly trees: ArrayLike<number>
-  /** Each tree's id, ascending (its look's seed): its index in the whole map's list. */
+  /** Each tree's id (its look's seed, trees.ts), ascending. */
   readonly treeIds: ArrayLike<number>
   /** Every land-cover cell, `(cols − 1) × (rows − 1)`. */
   readonly cover: ArrayLike<number>
@@ -423,7 +464,6 @@ export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): J
       t.wallIds[kind].forEach((id, k) => out.set(t.walls[kind].subarray(4 * k, 4 * k + 4), 4 * id))
     return out
   }
-  const trees = new Float64Array(3 * listed.reduce((sum, t) => sum + t.ids.length, 0))
   for (const t of listed) {
     const { i, j } = t
     for (let r = 0; r < TILE_NODES; r++)
@@ -440,15 +480,15 @@ export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): J
         if (ci >= 0 && ci < cols - 1 && cj >= 0 && cj < rows - 1)
           cover[cj * (cols - 1) + ci] = t.cover[r * TILE_CELLS + c]!
       }
-    t.ids.forEach((id, k) => trees.set(t.trees.subarray(3 * k, 3 * k + 3), 3 * id))
   }
+  const { trees, ids } = mergeTrees(listed)
   const { heightmap, ...rest } = global
   return {
     ...rest,
     heightmap: { ...heightmap, data },
     walls: { ...global.walls, walk: flat("walk"), shore: flat("shore"), drive: flat("drive") },
     trees,
-    treeIds: Int32Array.from({ length: trees.length / 3 }, (_, k) => k),
+    treeIds: ids,
     cover,
   }
 }

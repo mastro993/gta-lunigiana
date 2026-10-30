@@ -896,10 +896,11 @@ build reads is in memory.
 - **Trees per tile**: `tileProvided(key)` buckets that tile's trees per chunk and kind, the apron's
   mirrors included (`bucketTileTrees` in `src/render/trees.ts`): 1.41 ms at the median, 2.01 ms at
   p90 and 2.65 ms at worst over the 30 tiles; 1.22 MB of buckets a tile at the median and 2.45 MB at
-  most (tile 1_1, 69,842 trees), 35.0 MB for all 30 (`Float64Array` quadruples of x, y, scale and
+  most (tile 1_1, 69,840 trees), 35.0 MB for all 30 (`Float64Array` quadruples of x, y, scale and
   seed). A chunk merges its tiles' buckets in seed order, so its instances come in the whole-map
-  buckets' order, and every tree keeps its look (seed 3 × its id in the whole map's list, a mirror's
-  one more).
+  buckets' order, and every tree keeps its look (seed 3 × its id, a mirror's one more; the id is its
+  lattice cell's number, which no added part changes:
+  [map.md](map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)).
 - **Two levels**: each tile plans the chunks whose middle it holds (18–272 a tile, median 225), and
   its box is the union of their boxes, so the apron chunks belong to the edge tiles. Distances are
   measured on the screen plane, from the focus to each box projected along the camera's right and up

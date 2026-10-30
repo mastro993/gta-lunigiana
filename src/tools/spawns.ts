@@ -24,7 +24,7 @@ const REACH = 3
  * flat (x, y, scale) `trees`. Trees are indexed as points and their squares made on query, as
  * `wallsNear` does in the game: a segment per trunk edge would take gigabytes at a million trees.
  */
-export const clearance = (walls: ReadonlyArray<number>, trees: ReadonlyArray<number>) => {
+export const clearance = (walls: ReadonlyArray<number>, trees: ArrayLike<number>) => {
   const idx = segIndex<null>()
   for (let i = 0; i + 3 < walls.length; i += 4)
     idx.add(walls[i]!, walls[i + 1]!, walls[i + 2]!, walls[i + 3]!, REACH, null)

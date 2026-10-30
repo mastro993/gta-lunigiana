@@ -15,8 +15,10 @@ import type { RoadF } from "./features.ts"
 import { BOUNDS, M_PER_DEG, ORIGIN, r1 } from "./geometry.ts"
 import { packMap } from "./pack.ts"
 import { OUTLINE } from "./play-area.ts"
+import { REGION } from "./region.ts"
 import { sampleGrid, type Grid } from "./terrain.ts"
 import { type BuiltMap, type MapCut, NO_BAKES, stampMap } from "./tile-map.ts"
+import { treeCorner } from "./trees.ts"
 
 /** Surveyed eave over a building's lowest ground, m, outside which the eave is a survey slip and the default height stands. */
 const EAVE = { min: 1.5, max: 45 }
@@ -96,7 +98,9 @@ export const assembleMap = (
     districts,
     graph: world.graph,
     walls: world.walls,
-    trees: world.trees,
+    trees: world.trees.trees,
+    treeIds: world.trees.ids,
+    treeCorner: treeCorner(REGION),
     spawns: world.spawns,
   }
   // Rasterised a tile at a time, as the cut asks for it.

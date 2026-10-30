@@ -28,7 +28,7 @@ import {
   type V,
 } from "./geometry.ts"
 import { assembleRings, type Osm, type OsmWay, type Tags } from "./osm.ts"
-import { clipToPlay, inPlay } from "./play-area.ts"
+import { clipPieces, clipToPlay, inPlay, OUTLINE } from "./play-area.ts"
 import { REGION } from "./region.ts"
 
 export interface RoadF {
@@ -55,6 +55,12 @@ export interface WaterF {
   readonly bed: number
   readonly depth: number
   readonly pts: ReadonlyArray<V>
+  /**
+   * How far along its OSM way the piece starts, m (0 unless the play area's outline cut the way
+   * before it): the bank trees count their steps from the way's start, so they stay put as the
+   * play area grows.
+   */
+  readonly from: number
 }
 /**
  * A `railway=rail` way (or a track only the CTR has, with a negative id) as the build carries it;
@@ -255,7 +261,7 @@ export const extractWater = (osm: Osm, ground: (x: number, y: number) => number)
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"
-      return clipToPlay(vertices(osm, w.nds)).map((pts): WaterF => {
+      return clipPieces(OUTLINE, vertices(osm, w.nds)).map(({ pts, from }): WaterF => {
         const z = pts.reduce((s, p) => s + ground(p.x, p.y), 0) / pts.length
         const size = waterSize(t.name, kind, z)
         const measured =
@@ -267,6 +273,7 @@ export const extractWater = (osm: Osm, ground: (x: number, y: number) => number)
           ...size,
           ...(measured === undefined ? {} : { w: measured, bed: measured / 2 + 1 }),
           pts,
+          from,
         }
       })
     })

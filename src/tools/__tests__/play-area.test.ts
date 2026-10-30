@@ -5,6 +5,7 @@ import { hash01, r1, type V } from "../geometry.ts"
 import {
   OUTLINE,
   clipLineTo,
+  clipPieces,
   clipToPlay,
   inPlay,
   onOutline,
@@ -179,6 +180,22 @@ test("the L's notch cuts a line through it into two pieces: ids on the original 
     [v(100, 150, "a"), v(100, 250, "b")],
   ])
   assert.deepEqual(clipLineTo(rings, [v(150, 150, "a"), v(190, 290, "b")]), [])
+})
+
+test("each piece of a clipped line knows how far along the whole line it starts", () => {
+  const rings = [L_RING]
+  const pieces = clipPieces(rings, [v(50, 250, "a"), v(150, 150, "b"), v(180, 50, "c")])
+  assert.deepEqual(
+    pieces.map((p) => p.pts),
+    clipLineTo(rings, [v(50, 250, "a"), v(150, 150, "b"), v(180, 50, "c")]),
+  )
+  // The foot's piece starts at (165, 100), half way down the second segment.
+  const [leg, foot] = pieces.map((p) => p.from)
+  assert.equal(leg, 0)
+  assert.ok(Math.abs(foot! - (Math.hypot(100, 100) + Math.hypot(30, 100) / 2)) < 1e-9, `${foot}`)
+  // A line starting in the notch: its one piece starts where it enters the leg.
+  const [entered] = clipPieces(rings, [v(150, 250, "a"), v(50, 250, "b")])
+  assert.equal(entered!.from, 50)
 })
 
 test("a line past a reflex corner within a micrometre stays whole: both its sides are in play", () => {

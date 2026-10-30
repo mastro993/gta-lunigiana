@@ -8,12 +8,16 @@ import { assertChunkTrees } from "./chunk-trees.ts"
 // Map checks (pnpm test:map): every tile's trees and every chunk; trees.test.ts checks a few tiles.
 const KEYS = MAP.tiles.map(({ i, j }) => `${i}_${j}`)
 
-test("trees: the tiles' ids number the whole map's list", () => {
-  const ids = KEYS.flatMap((key) => Array.from(tileTrees(key).ids)).sort((a, b) => a - b)
-  assert.ok(
-    ids.every((id, k) => id === k),
-    "ids number the whole map's list",
-  )
+test("trees: each tile's ids ascend, and no two trees of the map share one (a look's seed)", () => {
+  for (const key of KEYS) {
+    const { ids } = tileTrees(key)
+    assert.ok(
+      ids.every((id, k) => k === 0 || id > ids[k - 1]!),
+      `${key}: ids in the whole map's order`,
+    )
+  }
+  const ids = KEYS.flatMap((key) => Array.from(tileTrees(key).ids))
+  assert.equal(new Set(ids).size, ids.length)
 })
 
 test("trees: each chunk's from the tiles it reads are the whole map's bucket for it, apron mirrors and order included", () => {
