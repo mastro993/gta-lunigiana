@@ -1,13 +1,11 @@
-// Deterministic tree scatter, the player spawn and parked-car spots.
+// The clearance checks against walls and trunks, the player spawn and parked-car spots.
 import { staticGrid } from "../sim/collide.ts"
 import type { Area, Spawn } from "../sim/map/index.ts"
 import { pushTrunk, TRUNK } from "../sim/map/kinds.ts"
-import type { BuildingF, RailF, RoadF, WaterF } from "./features.ts"
+import type { BuildingF, RoadF } from "./features.ts"
 import {
   arcLengths,
-  BOUNDS,
   centroid,
-  fillPolygon,
   hash01,
   inBounds,
   pointAt,
@@ -17,77 +15,6 @@ import {
   segDist2,
   segIndex,
 } from "./geometry.ts"
-
-const TREE_AREA = 50 // m² per tree
-const MASK_RES = 2
-
-/** Raster of the play area at MASK_RES m with every polygon in `polys` filled. */
-const mask = (polys: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>) => {
-  const cols = Math.ceil((BOUNDS.maxX - BOUNDS.minX) / MASK_RES),
-    rows = Math.ceil((BOUNDS.maxY - BOUNDS.minY) / MASK_RES)
-  const m = new Uint8Array(cols * rows)
-  // Even-odd within each polygon (fillPolygon visits a pixel once per polygon), OR across them.
-  for (const rings of polys)
-    fillPolygon(rings, BOUNDS.minX, BOUNDS.minY, MASK_RES, cols, rows, (k) => (m[k] = 1))
-  return (x: number, y: number) => {
-    const c = Math.floor((x - BOUNDS.minX) / MASK_RES),
-      r = Math.floor((y - BOUNDS.minY) / MASK_RES)
-    return c >= 0 && r >= 0 && c < cols && r < rows && m[r * cols + c] === 1
-  }
-}
-
-/** Flat (x, y, scale) triples (positions to the metre: scatter needs no more, and it keeps the JSON small): a jittered ~7 m lattice inside forest, plus sparse trees on river banks. */
-export const scatterTrees = (
-  areas: ReadonlyArray<Area>,
-  roads: ReadonlyArray<RoadF>,
-  buildings: ReadonlyArray<BuildingF>,
-  water: ReadonlyArray<WaterF>,
-  rail: ReadonlyArray<RailF>,
-): Array<number> => {
-  const forest = mask(areas.filter((a) => a.kind === "forest").map((a) => a.rings))
-  const open = mask(areas.filter((a) => a.kind !== "forest").map((a) => a.rings))
-  const built = mask(buildings.map((b) => [b.outer, ...(b.holes ?? [])]))
-  const keepOut = segIndex<null>()
-  for (const r of roads) keepOut.addLine(r.pts, r.w / 2 + 2, null)
-  for (const b of buildings) keepOut.addLine([...b.outer, b.outer[0]!, b.outer[1]!], 2, null)
-  for (const w of water) keepOut.addLine(w.pts, w.bed, null)
-  for (const r of rail) if (r.tunnel !== true) keepOut.addLine(r.pts, 6, null)
-  const free = (x: number, y: number) =>
-    inBounds(x, y, 1) && !open(x, y) && !built(x, y) && !keepOut.covers(x, y)
-  const trees: Array<number> = [],
-    planted = new Set<number>()
-  /** Rounded to the metre, two jittered lattice points can land on one spot: keep the first. */
-  const plant = (x: number, y: number, scale: number) => {
-    const tx = Math.round(x),
-      ty = Math.round(y),
-      key = tx * 65536 + ty
-    if (planted.has(key)) return
-    planted.add(key)
-    trees.push(tx, ty, r1(scale))
-  }
-  const step = Math.sqrt(TREE_AREA)
-  for (let gj = 0; gj * step < BOUNDS.maxY - BOUNDS.minY; gj++)
-    for (let gi = 0; gi * step < BOUNDS.maxX - BOUNDS.minX; gi++) {
-      const x = BOUNDS.minX + (gi + hash01(gi, gj, 1)) * step,
-        y = BOUNDS.minY + (gj + hash01(gi, gj, 2)) * step
-      if (forest(x, y) && free(x, y)) plant(x, y, 0.8 + 0.5 * hash01(gi, gj, 3))
-    }
-  water.forEach((w, wi) => {
-    if (w.w < 4) return
-    const s = arcLengths(w.pts),
-      total = s.at(-1)!
-    for (let k = 0; k * 9 < total; k++)
-      for (const side of [1, -1]) {
-        if (hash01(wi, k, side, 4) > 0.55) continue
-        const p = pointAt(w.pts, s, k * 9),
-          off = side * (w.bed + 2 + 3 * hash01(wi, k, side, 5))
-        const x = p.x - p.ty * off,
-          y = p.y + p.tx * off
-        if (!forest(x, y) && free(x, y)) plant(x, y, 0.8 + 0.5 * hash01(wi, k, side, 6))
-      }
-  })
-  return trees
-}
 
 /** Segments farther than this from a clearance query are ignored, m (every caller asks less). */
 const REACH = 3

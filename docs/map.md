@@ -112,14 +112,21 @@ node ids already set, the road–rail and line–water crossings gated by their 
 parapets' openings read from one index of the roads.
 
 On 2026-10-30 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs)
-the build peaked at 1.16–1.21 GB resident and took 11.9–12.2 s (a third run, with the machine
-busy, 16.9 s), against 1.30–1.46 GB and 13.6–13.9 s with every stage at the top level of
-`build-map.ts` and the map cut twice. The grid's tile pass takes 3.3 s (0.11 s a tile) and the cut
-0.95 s. The stages ended at (s from the start):
+the build peaked at 1.15–1.20 GB resident and took 11.8–12.1 s, against 1.30–1.46 GB and
+13.6–13.9 s with every stage at the top level of `build-map.ts` and the map cut twice. The grid's
+tile pass takes 3.3 s (0.11 s a tile) and the cut 0.95 s. The stages ended at (s from the start):
 
 | rail | features | roads | decks | grid | water | railway | walls | trees | spawns | map | cut | bake | write |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0.60 | 1.16 | 1.24 | 1.27 | 4.54 | 5.63 | 6.21 | 7.67 | 8.22 | 8.52 | 8.54 | 9.49 | 10.25 | 11.78 |
+| 0.60 | 1.17 | 1.24 | 1.26 | 4.54 | 5.63 | 6.21 | 7.67 | 8.21 | 8.47 | 8.49 | 9.43 | 10.18 | 11.70 |
+
+Resident memory (`process.memoryUsage()` at each lap) climbs most in the spawns, by 150 MB (the
+clearance indexes of every wall and trunk), and in the bake, by 100 MB (the game decoding the
+global file and the tiles it reads, while the build still holds the cut tiles, 38.5 MB of unstamped
+files, and the global map's vectors); it peaks in the bake or the write. The grid stays whole (8 bytes a node, 39 MB here) for the walls' slope test, the railway's platforms,
+the paths' and buildings' heights and the cut, and so do the catchments (about 140 MB of arrays the
+size of the grid, for a moment), the walls' bit sets (1 byte a cell each) and their trace, which
+are the parts that still grow with the area.
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
@@ -713,14 +720,17 @@ lanes that end between houses); tracks are drivable by the player but get no AI 
 is the largest connected component of every edge except tunnels. The build keeps each vertex
 id's node (`ids`), so the level-crossing boxes name their nodes without matching coordinates.
 
-### 12. Trees, spawns, districts (`spawns.ts`, `districts.ts`)
+### 12. Trees, spawns, districts (`trees.ts`, `spawns.ts`, `districts.ts`)
 
 - **Trees**: a jittered lattice at one tree per 50 m² inside forest areas. Trees stay out of other
   areas, buildings (plus 2 m), roads (w/2 + 2 m), stream beds and the rail, its loops and
   sidings included (6 m). Sparse trees
   also line the banks of the wider streams. No cap: about 1 012 000 trees, positions rounded to 1 m
   (at most one tree per spot) and a scale of 0.8–1.3 (1.7 MB of the gzipped map file). Placement
-  uses a fixed hash, not a random generator.
+  uses a fixed hash, not a random generator. The scatter (`trees.ts`) rasterises its 2 m masks
+  (forest, the other areas, the buildings) a row of 2 km tiles at a time, with the whole raster's
+  arithmetic, as the lattice reaches the row, and lets a row go once the lattice has passed it; a
+  1 m bit set over the bounds keeps the first tree on each spot.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
   clear of walk and drive walls. Cesena uses a central street in its connected traffic network.
   The final rounded position must lie outside every building footprint and have a walk-clear
@@ -796,7 +806,7 @@ change an input.
   depend on the architecture and on V8's math. On a miss it restores `data/raw` from the cache
   under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
-  imports, followed from import to import (91 files today, in `src/tools`, `src/sim` and
+  imports, followed from import to import (92 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
   rather than miss a file: on a specifier that names no file, an `import(` without a string literal
   and any `require(`. When the check job built the maps, the `reproducible` job builds them again

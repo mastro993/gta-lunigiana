@@ -11,8 +11,9 @@ import { lifted } from "./profiles.ts"
 import { clearVerges } from "./rail-clear.ts"
 import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
 import { REGION } from "./region.ts"
-import { clearance, parkedSpots, playerSpawn, scatterTrees } from "./spawns.ts"
+import { clearance, parkedSpots, playerSpawn } from "./spawns.ts"
 import { sampleGrid } from "./terrain.ts"
+import { scatterTrees } from "./trees.ts"
 import { buildWalls } from "./walls.ts"
 
 /** Room for a car to stop and turn (map.test.ts asks the same of every traffic dead end). */

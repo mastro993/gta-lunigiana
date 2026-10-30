@@ -273,31 +273,78 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
       cover: coarseCover,
     },
   }
-  const { roads, buildings, water, rail, railway, areas, barriers, pois, districts, graph } = map
-  const { player, parked } = map.spawns
+  const {
+    roads,
+    buildings,
+    water,
+    rail,
+    railway,
+    areas,
+    barriers,
+    pois,
+    districts,
+    graph,
+    spawns,
+  } = map
   return {
     tiles: files,
     sizes,
-    global: (bakes) => ({
-      ...header,
-      roads,
-      buildings,
-      water: water.map((w, i) => ({ ...w, floor: bakes.floors[i] ?? [] })),
-      rail,
-      railway,
-      areas,
-      barriers,
-      pois,
-      districts,
-      graph,
-      walls,
-      spawns: { player, parked: parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }) },
-      lanes: bakes.lanes,
-      farms: bakes.farms,
-      lamps: bakes.lamps,
-    }),
+    global: globalOf(
+      header,
+      { roads, buildings, rail, railway, areas, barriers, pois, districts, graph, walls },
+      water,
+      spawns,
+    ),
   }
 }
+
+/** The global map's parts that come before the vectors, in file order. */
+type Header = Pick<
+  MonzoneMap,
+  "version" | "name" | "origin" | "mPerDeg" | "bounds" | "heightmap" | "tiles" | "place" | "coarse"
+>
+
+/**
+ * The global map with the bakes, from its parts (in the file's key order): made apart from
+ * `cutMap`, so the closure holds these alone and not the dense layers the cut read.
+ */
+const globalOf =
+  (
+    header: Header,
+    v: Pick<
+      MonzoneMap,
+      | "roads"
+      | "buildings"
+      | "rail"
+      | "railway"
+      | "areas"
+      | "barriers"
+      | "pois"
+      | "districts"
+      | "graph"
+      | "walls"
+    >,
+    water: BuiltMap["water"],
+    { player, parked }: BuiltMap["spawns"],
+  ) =>
+  (bakes: Bakes): Omit<MonzoneMap, "hash"> => ({
+    ...header,
+    roads: v.roads,
+    buildings: v.buildings,
+    water: water.map((w, i) => ({ ...w, floor: bakes.floors[i] ?? [] })),
+    rail: v.rail,
+    railway: v.railway,
+    areas: v.areas,
+    barriers: v.barriers,
+    pois: v.pois,
+    districts: v.districts,
+    graph: v.graph,
+    walls: v.walls,
+    spawns: { player, parked: parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }) },
+    lanes: bakes.lanes,
+    farms: bakes.farms,
+    lamps: bakes.lamps,
+  })
 
 /** A file's JSON line with `hash` set, the packed sections after it unchanged: what packing it with that hash gives. */
 const restamp = (file: Uint8Array, hash: string): Buffer => {
