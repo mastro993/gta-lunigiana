@@ -156,17 +156,34 @@ test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole hei
 
 test("wallsNear and treesIn answer exactly as one broad phase over the whole map does: the same walls and trunks, in the same order, across the seams too", () => {
   // The whole map's broad phases as they were before the map was cut (staticGrid anchors each at its
-  // items' lowest corner; the lowest tree stands on the trees' fixed corner), handing trees' ids.
+  // items' lowest corner), handing trees' ids. The trees' corner is fixed per region, not their
+  // lowest (a part to the west or south, or an OSM refresh, moves that), so a sentinel item, never
+  // answered, stands on the corner's 16 m lattice at or south-west of every tree: the grid's cells
+  // are the runtime's.
   const { walls, trees, treeIds } = WHOLE
+  const count = trees.length / 3,
+    corner = MAP.walls.lattice.trees
   const lowest = [Infinity, Infinity]
   for (let k = 0; k < trees.length; k += 3)
     [lowest[0], lowest[1]] = [Math.min(lowest[0]!, trees[k]!), Math.min(lowest[1]!, trees[k + 1]!)]
-  assert.deepEqual(MAP.walls.lattice.trees, lowest)
-  const treeGrid = staticGrid(
-    trees.length / 3,
-    (i) => [trees[3 * i]!, trees[3 * i + 1]!, trees[3 * i]!, trees[3 * i + 1]!],
+  const [sx, sy] = [0, 1].map(
+    (a) => corner[a]! - 16 * Math.max(0, Math.ceil((corner[a]! - lowest[a]!) / 16)),
+  )
+  const sentinelGrid = staticGrid(
+    count + 1,
+    (i) =>
+      i === count
+        ? [sx!, sy!, sx!, sy!]
+        : [trees[3 * i]!, trees[3 * i + 1]!, trees[3 * i]!, trees[3 * i + 1]!],
     16,
   )
+  const treeGrid = (
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+    visit: (i: number) => void,
+  ) => sentinelGrid(minX, minY, maxX, maxY, (i) => i < count && visit(i))
   const joined = (a: ArrayLike<number>, b: ArrayLike<number>) => [
     ...Array.from(a),
     ...Array.from(b),

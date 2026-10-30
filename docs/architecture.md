@@ -1993,7 +1993,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     and tree in its tile and no wall reaching past `walls.reach`, `heightAt`, `terrainZ` and
     `coverAt` bit for bit as the whole heightmap and land cover give them, and `wallsNear` and
     `treesIn` answering exactly as one broad phase over the whole map (the same items in the same
-    order, over 1,500 boxes 1–60 m across, half of them within 40 m of a seam).
+    order, over 1,500 boxes 1–60 m across, half of them within 40 m of a seam; the trees' on the
+    region's fixed corner, which need not be their lowest).
   - `src/sim/__tests__/route.map-test.ts`: every dead end flagged one way, every lane AI traffic
     may drive clear of the walls, and `edgeIndex.nearest` the nearest edge by brute force over the
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square

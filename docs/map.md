@@ -1071,7 +1071,8 @@ its east neighbour's west column and its north row its north neighbour's south r
 in the tile of its midpoint and each tree in the tile of its point and no wall reaches farther than
 `walls.reach`, `heightAt`, `terrainZ` and `coverAt` read the tiles bit for bit as the whole
 heightmap and land cover give them, and `wallsNear` and `treesIn` answer exactly as one broad phase
-over the whole map does (1,500 boxes 1–60 m across, half of them within 40 m of a seam).
+over the whole map does (1,500 boxes 1–60 m across, half of them within 40 m of a seam; the trees'
+on the region's fixed corner, which need not be their lowest).
 `tiles.test.ts` checks, round four boxes by Monzone station and on the west edge, that `wallsNear`
 answers the same in the same order whatever is in memory and in whichever order it came, that every
 wall whose box overlaps a query is found (among the walls of the tiles within `walls.reach` of it: a
