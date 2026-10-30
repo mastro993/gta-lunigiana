@@ -1,6 +1,7 @@
 import { staticGrid } from "../sim/collide.ts"
 // OSM (and for buildings the CTR) -> map features in local metres, clipped to the play area.
-// Terrain-dependent fields (z, z0) are filled later by build-map.ts.
+// Terrain-dependent fields are filled later: the lines' z by build-terrain.ts, the buildings' z0 by
+// `assembleMap` (build-output.ts).
 import type { Area, Barrier, Poi } from "../sim/map/index.ts"
 import {
   type AreaKind,

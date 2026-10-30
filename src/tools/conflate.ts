@@ -338,7 +338,7 @@ export const conflateRail = (
 
   // Bridges keep what they span; streams under at-grade track share a culvert vertex with it. A
   // bridge reaches past the cells under it that the at-grade track cannot take: a wide stream's
-  // protected bed (w/2 + 1 m, build-map.ts) and a tertiary road's core (rank 0 beats the rail),
+  // protected bed (w/2 + 1 m, build-grid.ts) and a tertiary road's core (rank 0 beats the rail),
   // plus a cell's diagonal, the farthest a corner of a cell the track runs through lies off it.
   const waterPts = osmWater.map((w) => moved(w.pts, moves))
   const corner = GRID_CELL * Math.SQRT2
