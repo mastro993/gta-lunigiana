@@ -2,8 +2,8 @@
 // deflated files, so each rebuilt input added a whole copy to the pack. `data/raw.lock.json`
 // (tracked) maps each file in it, by its path under `data/raw`, to its SHA-256, its size, the release
 // asset that holds it (`raw-YYYYMMDD/<path with / as .>`) and where it came from. The fetch tools
-// record a file's source as they write it (`recordSource`), which leaves the file unpinned (a source
-// and nothing else) until `pnpm pin-raw` uploads it; `pnpm fetch-raw` downloads what the lock pins.
+// record each file they write (`recordSource`): its digest and source with no asset, fetched but not
+// pinned, until `pnpm pin-raw` uploads those bytes; `pnpm fetch-raw` downloads what the lock pins.
 
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -27,29 +27,30 @@ const PATH = /^[\w-][\w.-]*(?:\/[\w-][\w.-]*)*$/
 /** A release asset: the tag (`raw-` and the UTC day, `-2`, `-3`… past the first) and the name. */
 const ASSET = /^(raw-\d{8}(?:-\d+)?)\/([\w-][\w.-]*)$/
 
-const Source = v.pipe(v.string(), v.nonEmpty())
-const PinnedSchema = v.strictObject({
+const Fields = {
   sha256: v.pipe(v.string(), v.regex(/^[\da-f]{64}$/)),
   bytes: v.pipe(v.number(), v.safeInteger(), v.minValue(0)),
-  asset: v.pipe(v.string(), v.regex(ASSET)),
-  source: Source,
-})
-// Strict, so a pinned entry with a broken field fails instead of reading as unpinned.
-const UnpinnedSchema = v.strictObject({ source: Source })
+  source: v.pipe(v.string(), v.nonEmpty()),
+}
+// Strict, so a pinned entry with a broken asset fails instead of reading as fetched.
+const PinnedSchema = v.strictObject({ ...Fields, asset: v.pipe(v.string(), v.regex(ASSET)) })
+const FetchedSchema = v.strictObject(Fields)
 const LockSchema = v.record(
   v.pipe(v.string(), v.regex(PATH)),
-  v.union([PinnedSchema, UnpinnedSchema]),
+  v.union([PinnedSchema, FetchedSchema]),
 )
 
 /** A pinned file: its bytes' SHA-256 and count, the asset holding them, and where they came from. */
 export type Pinned = v.InferOutput<typeof PinnedSchema>
-/** A lock entry: pinned, or written by a fetch tool and waiting for `pin-raw` (a source only). */
-export type Entry = Pinned | v.InferOutput<typeof UnpinnedSchema>
+/** A file a fetch tool wrote and `pin-raw` has not uploaded: the digest of the bytes it wrote, and their source. */
+export type Fetched = v.InferOutput<typeof FetchedSchema>
+/** A lock entry: pinned, or fetched and waiting for `pin-raw`. */
+export type Entry = Pinned | Fetched
 /** The lock: an entry per file, by its path under `data/raw`. */
 export type Lock = Readonly<Record<string, Entry>>
 
-/** Whether `entry` is pinned. */
-export const isPinned = (entry: Entry): entry is Pinned => "sha256" in entry
+/** Whether `entry` is pinned (it has an asset). */
+export const isPinned = (entry: Entry): entry is Pinned => "asset" in entry
 
 /** A file's bytes: their SHA-256 and their count. */
 export interface Digest {
@@ -83,7 +84,7 @@ export const writeLock = (lock: Lock, path = LOCK_PATH): void => {
                 asset: entry.asset,
                 source: entry.source,
               }
-            : { source: entry.source },
+            : { sha256: entry.sha256, bytes: entry.bytes, source: entry.source },
         ]
       }),
   )
@@ -125,8 +126,9 @@ export const fetchedToday = (what: string): string =>
   `${what}, fetched ${new Date().toISOString().slice(0, 10)}`
 
 /**
- * Records that the fetch tool just wrote `file` (under `raw`) from `source`. A file whose bytes are
- * the ones pinned keeps its entry; any other becomes unpinned, its source alone, for `pin-raw`.
+ * Records that a fetch tool holds `file` (under `raw`) from `source`. An entry already recording
+ * these bytes, pinned or fetched, stays as it is; otherwise the file becomes fetched, with the
+ * digest of its bytes, for `pin-raw`.
  */
 export const recordSource = (
   file: string,
@@ -137,12 +139,7 @@ export const recordSource = (
   const path = relative(raw, file).split(sep).join("/")
   if (!PATH.test(path)) throw new Error(`${file} is not a raw input under ${raw}`)
   const lock = readLock(lockPath),
-    entry = lock[path]
-  if (
-    entry !== undefined &&
-    isPinned(entry) &&
-    entry.sha256 === digestOf(readFileSync(file)).sha256
-  )
-    return
-  writeLock({ ...lock, [path]: { source } }, lockPath)
+    digest = digestOf(readFileSync(file))
+  if (lock[path]?.sha256 === digest.sha256) return
+  writeLock({ ...lock, [path]: { ...digest, source } }, lockPath)
 }

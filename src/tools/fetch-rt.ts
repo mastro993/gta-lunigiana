@@ -5,8 +5,8 @@
 // data/parts/<part>.json (`manifest.ts`); it reads one part, today's (`lucido` in `region.ts`),
 // until issue #7 builds the map tile by tile. Needs `unzip` on the PATH. The archives are cached in
 // the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes equal the new ones is not
-// rewritten, so another zlib never churns a pinned file; one that is rewritten has its source
-// recorded in data/raw.lock.json for `pnpm pin-raw` (`raw-lock.ts`).
+// rewritten, so another zlib never churns a pinned file. Either way, a file whose bytes the lock does
+// not hold is recorded there with its source, for `pnpm pin-raw` (`raw-lock.ts`).
 // - ctr/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2019 flight, EPSG:6707 (CC BY 4.0). AED =
 //   buildings, AGE = other areas (garages, ruins, station platforms, level crossings), AVI = road
 //   areas, AZR = the mapped area of each sheet, AFE = the rail ballast bed (its bridge and tunnel
@@ -70,8 +70,8 @@ if (manifest.dtm10.length > 1)
 const [DTM10] = manifest.dtm10
 
 /**
- * Writes `bytes`, packed, to `path` and records where they came from (`source`), unless the file
- * there already unpacks to the same bytes.
+ * Writes `bytes`, packed, to `path`, unless the file there already unpacks to the same bytes, and
+ * records the file with where they came from (`source`) unless the lock holds it already.
  */
 const pin = (
   path: string,
@@ -80,10 +80,11 @@ const pin = (
   pack: (b: Buffer) => Buffer = (b) => gzipSync(b, { level: 9 }),
   unpack: (b: Buffer) => Buffer = gunzipSync,
 ): void => {
-  if (existsSync(path) && unpack(readFileSync(path)).equals(bytes)) return
-  writeFileSync(path, pack(bytes))
+  if (!existsSync(path) || !unpack(readFileSync(path)).equals(bytes)) {
+    writeFileSync(path, pack(bytes))
+    console.log(`wrote ${path.slice(ROOT.length + 1)}`)
+  }
   recordSource(path, source)
-  console.log(`wrote ${path.slice(ROOT.length + 1)}`)
 }
 
 mkdirSync(join(OUT, "ctr"), { recursive: true })

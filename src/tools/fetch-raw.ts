@@ -3,8 +3,9 @@
 // comes from its release asset through the GitHub CLI (`gh release download`: signed in, or with
 // GH_TOKEN set), so a second run downloads nothing. All downloads are checked against their SHA-256
 // and size before any replaces a file: one that differs fails the run with data/raw unchanged.
-// A file the lock holds with a source only (fetched, not pinned yet) is left as it is, and fails the
-// run if data/raw lacks it; files the lock does not list are reported and left alone.
+// A file a fetch tool wrote and `pin-raw` has not uploaded is left as it is, and fails the run if
+// data/raw no longer holds the bytes the tool wrote; files the lock does not list are reported and
+// left alone.
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs"
 import { dirname, join } from "node:path"
@@ -29,9 +30,9 @@ export interface FetchPlan {
   readonly download: ReadonlyArray<string>
   /** Of those, the ones data/raw holds with other bytes: replaced. */
   readonly replace: ReadonlyArray<string>
-  /** Files with a source only that data/raw holds: a fetch tool wrote them, `pin-raw` has not run. */
-  readonly unpinned: ReadonlyArray<string>
-  /** Files with a source only that data/raw lacks: never uploaded, so nothing can fetch them. */
+  /** Fetched files data/raw holds as the fetch tool wrote them: waiting for `pin-raw`. */
+  readonly fetched: ReadonlyArray<string>
+  /** Fetched files data/raw lacks or holds with other bytes: never uploaded, so nothing can fetch them. */
   readonly lost: ReadonlyArray<string>
   /** Files data/raw holds and the lock does not list: the build may read them. */
   readonly extra: ReadonlyArray<string>
@@ -41,11 +42,11 @@ export interface FetchPlan {
 export const planFetch = (lock: Lock, local: ReadonlyMap<string, Digest>): FetchPlan => {
   const download: Array<string> = [],
     replace: Array<string> = [],
-    unpinned: Array<string> = [],
+    fetched: Array<string> = [],
     lost: Array<string> = []
   for (const [path, entry] of Object.entries(lock)) {
     const have = local.get(path)
-    if (!isPinned(entry)) (have === undefined ? lost : unpinned).push(path)
+    if (!isPinned(entry)) (have?.sha256 === entry.sha256 ? fetched : lost).push(path)
     else if (have === undefined) download.push(path)
     else if (have.sha256 !== entry.sha256) {
       download.push(path)
@@ -53,7 +54,7 @@ export const planFetch = (lock: Lock, local: ReadonlyMap<string, Digest>): Fetch
     }
   }
   const extra = [...local.keys()].filter((path) => !Object.hasOwn(lock, path))
-  return { download, replace, unpinned, lost, extra }
+  return { download, replace, fetched, lost, extra }
 }
 
 /**
@@ -70,12 +71,12 @@ export const fetchRaw = (
   const plan = planFetch(lock, digests(raw))
   for (const path of plan.extra)
     log(`not in the lock, left as it is (the build may read it): ${path}`)
-  for (const path of plan.unpinned) log(`fetched, not pinned yet (pnpm pin-raw): ${path}`)
+  for (const path of plan.fetched) log(`fetched, not pinned yet (pnpm pin-raw): ${path}`)
   if (plan.lost.length > 0)
     throw new Error(
-      `fetch-raw: the lock gives these files a source only, and data/raw lacks them: fetch them with their tool and run pnpm pin-raw\n${plan.lost.join("\n")}`,
+      `fetch-raw: a fetch tool wrote these files and pin-raw never uploaded them, and data/raw no longer holds the bytes the lock records: fetch them again with their tool and run pnpm pin-raw\n${plan.lost.join("\n")}`,
     )
-  const pinned = Object.keys(lock).length - plan.unpinned.length
+  const pinned = Object.keys(lock).length - plan.fetched.length
   if (plan.download.length === 0) {
     log(`data/raw matches the lock: ${pinned} files`)
     return

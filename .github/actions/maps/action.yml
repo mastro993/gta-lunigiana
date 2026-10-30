@@ -1,13 +1,17 @@
 # Puts the built maps in src/sim/map for the steps after it: from the cache when their inputs are
 # unchanged, else built from the raw inputs data/raw.lock.json pins, which come through a cache of
-# their own. Runs after Node, pnpm and the dependencies are installed (ci.yml, pages.yml).
+# their own. It never saves the maps: ci.yml's reproducible job does, once a second build matches.
+# Runs after Node, pnpm and the dependencies are installed (ci.yml, pages.yml).
 name: Maps
 description: Restore the built maps from the cache, or fetch the pinned raw inputs and build them
 inputs:
-  cache:
-    description: '"false" builds the maps even when the cache holds them, and saves nothing'
+  restore:
+    description: '"false" builds the maps even when the cache holds them'
     default: "true"
 outputs:
+  key:
+    description: The maps' cache key
+    value: ${{ steps.key.outputs.key }}
   hash:
     description: SHA-256 of the built map files gunzipped, in path order; empty when they came from the cache
     value: ${{ steps.hash.outputs.hash }}
@@ -15,13 +19,16 @@ runs:
   using: composite
   steps:
     # A hash of everything the build reads: the raw lock, the package files and every source file
-    # build-map.ts imports (src/tools/map-key.ts).
+    # build-map.ts imports (src/tools/map-key.ts). Assigned on its own line, so a failure fails the
+    # step instead of leaving an empty key.
     - id: key
       shell: bash
-      run: echo "key=maps-${{ runner.os }}-$(node src/tools/map-key.ts)" >> "$GITHUB_OUTPUT"
+      run: |
+        key=$(node src/tools/map-key.ts)
+        echo "key=maps-${{ runner.os }}-$key" >> "$GITHUB_OUTPUT"
 
     - id: maps
-      if: inputs.cache == 'true'
+      if: inputs.restore == 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -43,6 +50,7 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
 
+    # Every file was just checked against the lock, so the raw cache is safe to save here.
     - if: steps.maps.outputs.cache-hit != 'true' && steps.raw.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -60,12 +68,3 @@ runs:
       run: |
         hash=$(find src/sim/map -name '*.bin' -print0 | LC_ALL=C sort -z | xargs -0 gunzip -c | sha256sum)
         echo "hash=${hash%% *}" >> "$GITHUB_OUTPUT"
-
-    # Saved before the tests run, so a failing test does not cost the next run a build.
-    - if: inputs.cache == 'true' && steps.maps.outputs.cache-hit != 'true'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: |
-          src/sim/map/*.bin
-          src/sim/map/*/*.bin
-        key: ${{ steps.key.outputs.key }}

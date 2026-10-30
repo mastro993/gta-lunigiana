@@ -229,14 +229,14 @@ The simulation, the browser hosts and the map tools live in separate folders:
 
 ## Rebuilding the map
 
-Download the pinned inputs, then rebuild the map from them:
+Download the pinned inputs, then build both maps from them:
 
 ```sh
 pnpm fetch-raw
-pnpm map
+pnpm maps
 ```
 
-`pnpm fetch-raw` downloads only the files `data/raw` lacks or holds with other bytes, so a second run downloads nothing. It checks every download's SHA-256 and size against `data/raw.lock.json` and fails, changing nothing, if one differs. The build reads only `data/raw` and takes about 14 s. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test` fails until `pnpm map` and `pnpm map --region cesena` run again (`pnpm maps` runs both).
+`pnpm fetch-raw` downloads only the files `data/raw` lacks or holds with other bytes, so a second run downloads nothing. It checks every download's SHA-256 and size against `data/raw.lock.json` and fails, changing nothing, if one differs. `pnpm maps` runs `pnpm map`, which builds Lunigiana, then `pnpm map --region cesena`; `pnpm check` needs both. The Lunigiana build reads only `data/raw` and takes about 14 s. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test` fails until `pnpm map` and `pnpm map --region cesena` run again (`pnpm maps` runs both).
 
 Build Cesena without changing Lunigiana with `pnpm map --region cesena`. The pinned inputs are sufficient; only run `pnpm fetch-osm --region cesena` and `pnpm fetch-rer --region cesena` when intentionally updating them. `data/raw/cesena/source.json` records the terrain request, verified CC BY 4.0 licence and raster SHA-256. Preview it with `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`, then run `pnpm check`.
 
@@ -244,10 +244,10 @@ Build Cesena without changing Lunigiana with `pnpm map --region cesena`. The pin
 
 To change the inputs:
 
-1. Run their fetch tool (`pnpm fetch-osm`, `pnpm fetch-rt`, `pnpm fetch-rer --region cesena`). It records each file it changes in the lock with its source only, unpinned.
+1. Run their fetch tool (`pnpm fetch-osm`, `pnpm fetch-rt`, `pnpm fetch-rer --region cesena`). It records each file it changes in the lock as fetched: the SHA-256 and size of the bytes it wrote and their source, with no asset yet.
 2. Rebuild with `pnpm map` and check the result.
-3. Run `pnpm pin-raw`. It uploads the unpinned files to a new prerelease, `raw-YYYYMMDD` (`-2`, `-3`… when that tag is taken), and writes their hashes and assets into the lock. The repository is public, so this publishes the files. It refuses, uploading nothing, while `data/raw` and the lock disagree in another way, and names the fix.
-4. Commit `data/raw.lock.json`. CI's `pnpm fetch-raw` fails on a lock that still holds an unpinned file.
+3. Run `pnpm pin-raw`. It uploads the fetched files, if `data/raw` still holds the bytes their tool wrote, to a new prerelease, `raw-YYYYMMDD` (`-2`, `-3`… when that tag is taken), and writes their hashes and assets into the lock. The repository is public, so this publishes the files. It refuses, uploading nothing, while `data/raw` and the lock disagree in another way, and names the fix.
+4. Commit `data/raw.lock.json`. CI's `pnpm fetch-raw` fails on a lock that still holds a fetched file, since nothing can download it.
 
 The inputs in `data/raw` are:
 

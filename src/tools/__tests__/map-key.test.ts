@@ -1,14 +1,20 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { test } from "node:test"
+import { after, test } from "node:test"
 
 import { importClosure, mapKey } from "../map-key.ts"
+
+const dirs: Array<string> = []
+after(() => {
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
+})
 
 /** A repository holding `files` (path → text), with the inputs every key reads. */
 const repo = (files: Record<string, string>): string => {
   const root = mkdtempSync(join(tmpdir(), "map-key-"))
+  dirs.push(root)
   const all = { "data/raw.lock.json": "{}", "package.json": "{}", "pnpm-lock.yaml": "", ...files }
   for (const [path, text] of Object.entries(all)) {
     mkdirSync(join(root, path, ".."), { recursive: true })
@@ -58,6 +64,22 @@ import { readFileSync } from "node:fs"`,
     "src/tools/side.ts",
     "src/tools/types.ts",
   ])
+})
+
+test("an import the key cannot follow throws rather than leaving its file out", () => {
+  for (const call of [
+    "await import(`./lazy.ts`)",
+    'await import(/* @vite-ignore */ "./lazy.ts")',
+    "await import(name)",
+    'require("./lazy.ts")',
+  ]) {
+    const root = repo({ "src/tools/build-map.ts": call, "src/tools/lazy.ts": "" })
+    assert.throws(
+      () => importClosure("src/tools/build-map.ts", root),
+      /src\/tools\/build-map\.ts: cannot follow /,
+      call,
+    )
+  }
 })
 
 test("an import of a file that is not there throws, naming it", () => {

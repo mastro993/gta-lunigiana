@@ -1,9 +1,10 @@
 // Pins data/raw. Run: node src/tools/pin-raw.ts  (pnpm pin-raw), with the GitHub CLI signed in to an
 // account that can publish releases. Every file a fetch tool wrote since the last pin (its lock
-// entry a source only, `recordSource`) goes to a new prerelease, `raw-YYYYMMDD` (today, UTC), or
-// `raw-YYYYMMDD-2`, `-3`… when that tag is taken or a release would pass GitHub's 1000 assets.
-// `gh release create` makes it a draft, uploads, then publishes. Each file's SHA-256, size and asset
-// then go into data/raw.lock.json; nothing else changes. Assets are never replaced, so an old lock
+// entry fetched: a digest and a source, no asset; `recordSource`) goes, if data/raw still holds
+// those bytes, to a new prerelease, `raw-YYYYMMDD` (today, UTC), or `raw-YYYYMMDD-2`, `-3`… when
+// that tag is taken or a release would pass GitHub's 1000 assets. `gh release create` makes it a
+// draft, uploads, then publishes. Each file's asset then goes into data/raw.lock.json; nothing else
+// changes. Assets are never replaced, so an old lock
 // still fetches what it pinned. It uploads nothing while data/raw and the lock disagree in a way only
 // a person can settle (`planPin`).
 
@@ -30,18 +31,23 @@ import {
 /** GitHub's limit on a release's assets. */
 export const MAX_ASSETS = 1000
 
-/** The release notes: what the release holds, and the credits its sources ask for. */
-const NOTES = `Raw map inputs, pinned by \`pnpm pin-raw\`. \`data/raw.lock.json\` maps each file in \`data/raw\` to its asset here, its SHA-256 and its source; \`pnpm fetch-raw\` downloads them.
+/**
+ * The release notes: what the release holds, that it is changed from its sources, and the credits
+ * and licences they ask for (as the README's attribution section gives them).
+ */
+export const NOTES = `Raw map inputs, pinned by \`pnpm pin-raw\`. \`data/raw.lock.json\` maps each file in \`data/raw\` to its asset here, its SHA-256 and its source; \`pnpm fetch-raw\` downloads them.
 
-- Map data © OpenStreetMap contributors, under the Open Database License 1.0: https://www.openstreetmap.org/copyright
-- Fonte dei dati: Regione Toscana – Rilievi LIDAR. Carta Tecnica Regionale 1:2000 and Uso e copertura del suolo 2019, Regione Toscana, CC BY 4.0; DTM 10x10 metri, Regione Toscana, CC BY 3.0 IT (Geoscopio cartoteca)
-- DTM 5x5 - ultima edizione, Regione Emilia-Romagna, CC BY 4.0
+The files are changed from their sources: cut to the play area, subset to the layers and classes the map uses, mosaicked, averaged or re-encoded. Credits and licences:
 
-Each file's source is in its lock entry; the README lists the credits in full.`
+- Map data © OpenStreetMap contributors, available under the Open Database License (ODbL) 1.0: https://www.openstreetmap.org/copyright
+- Fonte dei dati: Regione Toscana – Rilievi LIDAR. The Carta Tecnica Regionale 1:2000 and the Uso e copertura del suolo 2019, Regione Toscana, under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/), and the DTM 10x10 metri, Regione Toscana, under Creative Commons Attribution 3.0 Italia (https://creativecommons.org/licenses/by/3.0/it/), from the Geoscopio cartoteca: https://www502.regione.toscana.it/geoscopio/cartoteca.html
+- DTM 5x5 - ultima edizione, Regione Emilia-Romagna, under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/): https://geoportale.regione.emilia-romagna.it/catalogo/dati-cartografici/altimetria/layer-2
+
+Each file's source is in its lock entry. The full credits: https://github.com/mastro993/gta-lunigiana#data-attribution-and-licences`
 
 /** What `pin-raw` uploads, and why it refuses when it does. */
 export interface PinPlan {
-  /** Files with a source only, written by a fetch tool since the last pin. */
+  /** Fetched files data/raw holds as their fetch tool wrote them. */
   readonly upload: ReadonlyArray<string>
   /** Disagreements between data/raw and the lock, each with what settles it. */
   readonly problems: ReadonlyArray<string>
@@ -57,16 +63,21 @@ export const planPin = (lock: Lock, local: ReadonlyMap<string, Digest>): PinPlan
       problems.push(
         `${path}: no source recorded; write it with its fetch tool (fetch-osm, fetch-rt, fetch-rer), which records one`,
       )
-    else if (!isPinned(entry)) upload.push(path)
-    else if (entry.sha256 !== have.sha256)
+    else if (entry.sha256 === have.sha256) {
+      if (!isPinned(entry)) upload.push(path)
+    } else
       problems.push(
-        `${path}: other bytes than pinned, and no new source; fetch it with its tool to change it, or pnpm fetch-raw to restore it`,
+        isPinned(entry)
+          ? `${path}: other bytes than pinned, and no fetch tool recorded them; fetch it with its tool to change it, or pnpm fetch-raw to restore it`
+          : `${path}: other bytes than its fetch tool wrote; fetch it again with its tool`,
       )
   }
-  for (const path of Object.keys(lock))
+  for (const [path, entry] of Object.entries(lock))
     if (!local.has(path))
       problems.push(
-        `${path}: in the lock but not in data/raw; pnpm fetch-raw restores it, or delete its entry from data/raw.lock.json to drop it`,
+        isPinned(entry)
+          ? `${path}: in the lock but not in data/raw; pnpm fetch-raw restores it, or delete its entry from data/raw.lock.json to drop it`
+          : `${path}: fetched, then gone from data/raw; fetch it again with its tool, or delete its entry from data/raw.lock.json to drop it`,
       )
   return { upload, problems }
 }
@@ -123,7 +134,12 @@ export const pinRaw = (
     chunks.forEach((chunk, k) => {
       const tag = tags[k]!,
         files = chunk.map((path) => join(stage, assetName(path)))
-      chunk.forEach((path, i) => copyFileSync(join(raw, path), files[i]!))
+      // The copies are what the release gets: each must still be the bytes its fetch tool wrote.
+      chunk.forEach((path, i) => {
+        copyFileSync(join(raw, path), files[i]!)
+        if (digestOf(readFileSync(files[i]!)).sha256 !== lock[path]!.sha256)
+          throw new Error(`pin-raw: ${path} changed while pinning; nothing more uploaded`)
+      })
       run([
         "release",
         "create",
@@ -136,17 +152,11 @@ export const pinRaw = (
         "--prerelease",
         "--latest=false",
       ])
-      // The digests of the copies uploaded, so the lock pins the bytes the release holds.
       const pinned: Record<string, Entry> = {}
-      chunk.forEach((path, i) => {
-        const { sha256, bytes } = digestOf(readFileSync(files[i]!))
-        pinned[path] = {
-          sha256,
-          bytes,
-          asset: `${tag}/${assetName(path)}`,
-          source: lock[path]!.source,
-        }
-      })
+      for (const path of chunk) {
+        const { sha256, bytes, source } = lock[path]!
+        pinned[path] = { sha256, bytes, asset: `${tag}/${assetName(path)}`, source }
+      }
       lock = { ...lock, ...pinned }
       writeLock(lock, lockPath)
       log(`pinned ${chunk.length} files in release ${tag}`)

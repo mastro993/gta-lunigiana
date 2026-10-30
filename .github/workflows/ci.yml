@@ -41,7 +41,8 @@ jobs:
       - run: pnpm test
 
   # When the check job built the maps (their inputs changed), build them again on another runner:
-  # the two builds must gunzip to the same bytes.
+  # the two builds must gunzip to the same bytes. Only then are the maps cached, so every new set of
+  # inputs is checked once, however often its run is re-run.
   reproducible:
     needs: check
     if: ${{ !cancelled() && needs.check.outputs.maps-hash != '' }}
@@ -61,7 +62,7 @@ jobs:
       - id: maps
         uses: ./.github/actions/maps
         with:
-          cache: "false"
+          restore: "false"
 
       - name: Compare with the check job's build
         env:
@@ -74,3 +75,10 @@ jobs:
             echo "::error::Two builds of the maps differ: the map build is not deterministic"
             exit 1
           fi
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            src/sim/map/*.bin
+            src/sim/map/*/*.bin
+          key: ${{ steps.maps.outputs.key }}

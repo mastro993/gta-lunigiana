@@ -699,44 +699,53 @@ change an input.
 
 - **The lock** holds one entry per file in `data/raw`, by its `/`-separated path, sorted. A pinned
   entry holds `sha256`, `bytes`, `asset` (`raw-YYYYMMDD/<path with / as .>`, or
-  `raw-YYYYMMDD-2/…` past the first release of a day) and `source`; an unpinned one holds `source`
-  alone. `readLock` (Valibot) rejects any other shape, a path with a part that starts with a dot
-  (`..`, `.DS_Store`) and an asset outside a `raw-` release. `writeLock` writes the fields in that
+  `raw-YYYYMMDD-2/…` past the first release of a day) and `source`. A fetched one, written by a
+  fetch tool and not uploaded yet, holds the same without `asset`: its digest is of the bytes the
+  tool wrote, so `pin-raw` uploads those bytes and no others. `readLock` (Valibot) rejects any other
+  shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
+  release. `writeLock` writes the fields in that
   order, one per line, so a re-pin's diff shows only the files that changed. Today: 241 files,
   24.1 MB, all in `raw-20261030`.
-- **Sources**: each fetch tool calls `recordSource` for every file it writes. `fetch-rt` gives the
+- **Sources**: each fetch tool calls `recordSource` for every file it writes (`fetch-rt` also for
+  each file it finds unchanged). `fetch-rt` gives the
   CTR sheet's archive URL, the manifest for the LiDAR mosaic (`dtm.bin`, `dtm.json`), and the WFS
   request with the date for the land cover. `fetch-osm` gives the `/map` box and the date, and
-  `fetch-rer` the WCS request and the metadata URL, each with the date. A file whose bytes are the
-  pinned ones keeps its entry; any other becomes unpinned. The entries pinned on 2026-10-30 say
-  when the file entered git (`in git since 2026-10-20 (66ae295)`) instead of a fetch date.
+  `fetch-rer` the WCS request and the metadata URL, each with the date. An entry that already holds
+  the file's bytes, pinned or fetched, stays as it is; any other file becomes fetched. The entries
+  pinned on 2026-10-30 say when the file entered git (`in git since 2026-10-20 (66ae295)`) instead
+  of a fetch date.
 - **`pnpm fetch-raw`** (`fetch-raw.ts`) hashes `data/raw`, then downloads every pinned file that is
   missing or has other bytes with `gh release download`, one call per release, into a folder inside
   `data/raw`. It checks each download against its SHA-256 and size and moves them into place only
-  when all match, so a mismatch fails the run with `data/raw` unchanged. It reports the unpinned
-  files and the files the lock does not list, and leaves them; an unpinned file that `data/raw`
-  lacks fails the run. From an empty folder: 241 files in 25 s; on a second run, none.
-- **`pnpm pin-raw`** (`pin-raw.ts`) refuses while a file has no source, a pinned file has other
-  bytes and no new source, or a pinned file is gone (`planPin`, each with its fix). Otherwise it
-  copies the unpinned files under their asset names and makes one prerelease per 1,000 of them with
+  when all match, so a mismatch fails the run with `data/raw` unchanged. It reports the fetched
+  files and the files the lock does not list, and leaves them; a fetched file whose bytes `data/raw`
+  no longer holds fails the run. From an empty folder: 241 files in 25 s; on a second run, none.
+- **`pnpm pin-raw`** (`pin-raw.ts`) refuses while a file has no entry, a file's bytes differ from
+  its entry's (pinned, or fetched and since replaced), or an entry's file is gone (`planPin`, each
+  with its fix). Otherwise it copies the fetched files under their asset names, checks each copy
+  against its digest, and makes one prerelease per 1,000 of them with
   `gh release create`, not marked latest (gh uploads to a draft and publishes it once all are up).
-  It writes the lock after each release. The release notes carry the sources' credits (`NOTES`).
+  It writes the lock after each release. The release notes carry each source's credit and licence
+  link and say the files are changed from their sources (`NOTES`).
   241 files in 38 s.
 - **CI** (`.github/workflows/ci.yml`, `.github/actions/maps/action.yml`): the check job restores
   the maps from the cache under `maps-<os>-<key>`. On a miss it restores `data/raw` from the cache
-  under the lock's hash, runs `pnpm fetch-raw` and `pnpm maps`, and saves both before the tests.
+  under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
   imports, followed from import to import (85 files today, in `src/tools`, `src/sim` and
-  `src/render`, through the bakes), so a change anywhere else reuses the cached maps. When the check
-  job built the maps, the `reproducible` job builds them again on another runner, and the SHA-256s
-  of the two builds' gunzipped files must match. Pages (`pages.yml`) runs the same action before
-  `vite build`.
+  `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
+  rather than miss a file: on a specifier that names no file, an `import(` without a string literal
+  and any `require(`. When the check job built the maps, the `reproducible` job builds them again
+  on another runner; the SHA-256s of the two builds' gunzipped files must match, and only then does
+  it save the maps to the cache, so a re-run checks a new key again. Pages (`pages.yml`) runs the
+  same action before `vite build` and saves nothing.
 - **Tests**: `raw-lock.test.ts` checks the lock's format and `recordSource`, that git ignores
   `data/raw` and the built maps, and that no tracked file is over 1 MB. `fetch-raw.test.ts` and
   `pin-raw.test.ts` run against a fake `gh`: a second fetch downloads nothing, a download with other
-  bytes fails with `data/raw` unchanged, and an upload of 1,001 files takes two releases.
-  `map-key.test.ts` checks every import form, and that the key moves with the lock and the imported
-  code and with nothing else.
+  bytes fails with `data/raw` unchanged, a fetched file replaced since is refused, an upload of
+  1,001 files takes two releases, and the release notes carry the README's credits and licence
+  links. `map-key.test.ts` checks every import form it follows, that it throws on the ones it
+  cannot, and that the key moves with the lock and the imported code and with nothing else.
 
 ## Map files
 

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { test } from "node:test"
+import { after, test } from "node:test"
 
 import { fetchRaw, planFetch } from "../fetch-raw.ts"
 import { assetName, type Digest, digestOf, type Lock, rawFiles } from "../raw-lock.ts"
@@ -14,9 +14,19 @@ const pin = (path: string, text: string, tag = "raw-20261030") => ({
   source: `https://example.org/${path}`,
 })
 
+/** What a fetch tool records for `text` from `source`. */
+const fetched = (text: string, source = "s") => ({ ...digestOf(Buffer.from(text)), source })
+
+const dirs: Array<string> = []
+after(() => {
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
+})
+
 /** A data/raw holding `files` (path → text). */
 const rawWith = (files: Record<string, string>): string => {
-  const raw = join(mkdtempSync(join(tmpdir(), "fetch-raw-")), "raw")
+  const dir = mkdtempSync(join(tmpdir(), "fetch-raw-")),
+    raw = join(dir, "raw")
+  dirs.push(dir)
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(join(raw, path, ".."), { recursive: true })
     writeFileSync(join(raw, path), text)
@@ -55,20 +65,22 @@ test("planFetch downloads what is missing or differs, keeps what matches, and so
     "same.bin": pin("same.bin", "same"),
     "gone.bin": pin("gone.bin", "gone"),
     "stale.bin": pin("stale.bin", "new"),
-    "fetched.bin": { source: "s" },
-    "lost.bin": { source: "s" },
+    "fetched.bin": fetched("fetched"),
+    "refetched.bin": fetched("what the tool wrote"),
+    "lost.bin": fetched("lost"),
   }
   const local = new Map<string, Digest>([
     ["same.bin", digestOf(Buffer.from("same"))],
     ["stale.bin", digestOf(Buffer.from("old"))],
     ["fetched.bin", digestOf(Buffer.from("fetched"))],
+    ["refetched.bin", digestOf(Buffer.from("an older file put back"))],
     ["extra.bin", digestOf(Buffer.from("extra"))],
   ])
   assert.deepEqual(planFetch(lock, local), {
     download: ["gone.bin", "stale.bin"],
     replace: ["stale.bin"],
-    unpinned: ["fetched.bin"],
-    lost: ["lost.bin"],
+    fetched: ["fetched.bin"],
+    lost: ["refetched.bin", "lost.bin"],
     extra: ["extra.bin"],
   })
 })
@@ -133,18 +145,21 @@ test("an asset the release lacks fails the run", () => {
   assert.deepEqual(contents(raw), {})
 })
 
-test("a file the lock gives a source only fails the run when data/raw lacks it, before any download", () => {
-  const lock: Lock = { "rt/dtm.bin": pin("rt/dtm.bin", "dtm"), "rt/ucs.json.gz": { source: "s" } }
+test("a fetched file fails the run when data/raw no longer holds its bytes, before any download", () => {
+  const lock: Lock = { "rt/dtm.bin": pin("rt/dtm.bin", "dtm"), "rt/ucs.json.gz": fetched("ucs") }
   const gh = fakeGh({ "raw-20261030": { "rt.dtm.bin": "dtm" } })
   assert.throws(
     () => fetchRaw(lock, rawWith({}), gh.run, quiet),
-    /data\/raw lacks them: fetch them with their tool and run pnpm pin-raw\nrt\/ucs\.json\.gz$/,
+    /no longer holds the bytes the lock records: fetch them again with their tool and run pnpm pin-raw\nrt\/ucs\.json\.gz$/,
   )
   assert.equal(gh.calls.length, 0)
 })
 
-test("fetched-but-unpinned and unlisted files are reported and left alone", () => {
-  const lock: Lock = { "rt/dtm.bin": pin("rt/dtm.bin", "dtm"), "rt/ucs.json.gz": { source: "s" } }
+test("fetched and unlisted files are reported and left alone", () => {
+  const lock: Lock = {
+    "rt/dtm.bin": pin("rt/dtm.bin", "dtm"),
+    "rt/ucs.json.gz": fetched("new ucs"),
+  }
   const raw = rawWith({ "rt/dtm.bin": "dtm", "rt/ucs.json.gz": "new ucs", "notes.txt": "mine" })
   const lines: Array<string> = []
   fetchRaw(lock, raw, fakeGh({}).run, (line) => lines.push(line))
