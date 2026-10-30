@@ -162,6 +162,24 @@ test("the L's notch cuts a line through it into two pieces: ids on the original 
   assert.deepEqual(clipLineTo(rings, [v(150, 150, "a"), v(190, 290, "b")]), [])
 })
 
+test("a line past a reflex corner within a micrometre stays whole: both its sides are in play", () => {
+  const rings = [L_RING]
+  // through the notch's corner (100, 100), and up to 1 µm inside it or into the notch
+  for (const eps of [0, 1e-7, 5e-7, 1e-6, -5e-7]) {
+    const pts = [v(50, 150 - eps, "a"), v(150, 50 - eps, "b")]
+    assert.deepEqual(clipLineTo(rings, pts), [pts], `${eps}`)
+  }
+  // a mask's reflex vertex between two slanted edges, met where float rounding parts the crossings
+  const mask = [[0, 0, 300, 0, 300, 300, 150, 120, 0, 300]]
+  for (const [ax, ay, bx, by] of [
+    [50.00000493480215, 119.96858407398088, 249.99999506519785, 120.03141592601912],
+    [50.00001110330474, 119.95287611194026, 249.99998889669524, 120.04712388805974],
+  ] as const) {
+    const pts = [v(ax, ay, "a"), v(bx, by, "b")]
+    assert.deepEqual(clipLineTo(mask, pts), [pts])
+  }
+})
+
 /** Liang–Barsky to a box per segment, consecutive inside parts merged: the clipping before the play area's outline. */
 const liangBarsky = (
   [X0, Y0, X1, Y1]: readonly [number, number, number, number],

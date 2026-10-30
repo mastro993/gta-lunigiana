@@ -273,9 +273,11 @@ part](#adding-a-part)).
   (`clipToPlay`): each segment is cut where it crosses the outline and each stretch kept by its
   middle. Original vertices keep their OSM ids and cut points have none, which is how the
   road-exit caps, the graph's exits and the rail's terminals find where a line leaves. On a
-  vertical or horizontal edge the cut is Liang–Barsky's to the bit (t = (X − a.x) / dx); a stretch
-  shorter than 10 µm between two crossings is a corner passed, and left out, as Liang–Barsky takes
-  the later of two entries.
+  vertical or horizontal edge the cut is Liang–Barsky's to the bit (t = (X − a.x) / dx). A stretch
+  shorter than 10 µm between two crossings is a corner passed, too short for its middle to tell:
+  past a convex corner it is left out, as Liang–Barsky takes the later of two entries, and past a
+  reflex one (both stretches beside it in play) it is kept, so a road round an L's inner corner is
+  not cut in two.
 - **Rings** (OSM and UCS areas, the CTR's road surfaces, mapped areas and rail polygons) are
   clipped to the built terrain's box with Sutherland–Hodgman, which only a convex window clips
   right. **Buildings** are clipped to it too, then kept only where the centre of the clipped outline

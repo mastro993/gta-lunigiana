@@ -14,9 +14,11 @@ const ON = 1e-6
 /** How far (m) beside a cut edge's middle the union is probed: at most this, and a hundredth of the edge. */
 const PROBE = 1e-3
 /**
- * A stretch of a line shorter than this (m) between two crossings of the outline is outside: the
- * line passes a corner, crossing both its edges' lines within this of each other, as Liang–Barsky
- * takes the later of two entries and the earlier of two exits.
+ * A stretch of a line shorter than this (m) between two crossings of the outline is a corner
+ * passed, the line crossing both its edges' lines within this of each other, and too short for
+ * its middle to say which side it is on. It is in play when the stretches on both its sides are (a
+ * reflex corner), and otherwise out (a convex one), as Liang–Barsky takes the later of two entries
+ * and the earlier of two exits.
  */
 const SLIVER = 1e-5
 
@@ -330,19 +332,24 @@ export const clipLineTo = (rings: Rings, pts: ReadonlyArray<V>): Array<Array<V>>
     if (len === 0) {
       if (insideRings(rings, a.x, a.y)) runs.push([0, 1])
     } else {
-      let s = 0
-      for (const t of [...crossingsOf(rings, a.x, a.y, dx, dy), 1]) {
-        const m = (s + t) / 2
-        if (
-          (s === 0 || t === 1 || (t - s) * len >= SLIVER) &&
-          insideRings(rings, a.x + m * dx, a.y + m * dy)
-        ) {
-          const last = runs.at(-1)
-          if (last?.[1] === s) last[1] = t
-          else runs.push([s, t])
-        }
-        s = t
-      }
+      const ts = [0, ...crossingsOf(rings, a.x, a.y, dx, dy), 1]
+      // Each stretch by its middle; a sliver (never the first or last) by its neighbours, later.
+      const inside = ts.slice(1).map((t, k) => {
+        const s = ts[k]!,
+          m = (s + t) / 2
+        return s !== 0 && t !== 1 && (t - s) * len < SLIVER
+          ? undefined
+          : insideRings(rings, a.x + m * dx, a.y + m * dy)
+      })
+      inside.forEach((_, k) => {
+        inside[k] ??= inside[k - 1]! && inside.slice(k + 1).find((i) => i !== undefined)!
+        if (!inside[k]) return
+        const s = ts[k]!,
+          t = ts[k + 1]!,
+          last = runs.at(-1)
+        if (last?.[1] === s) last[1] = t
+        else runs.push([s, t])
+      })
     }
     if (cur.length > 0 && runs[0]?.[0] !== 0) end()
     for (const [s, t] of runs) {
