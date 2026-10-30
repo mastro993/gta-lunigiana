@@ -160,7 +160,8 @@ away on dry ground.
   edge where the level stands now, so a rising river pushes it back and it can walk off a river's
   dry gravel bed. In the water, they carry on as they were where it is slack and below their knees
   (under 0.3 of their height deep and 0.25 of their hold), so a cow wades a trickle to its
-  pasture; deeper or faster, they head square across for the nearer bank.
+  pasture; deeper or faster, they head square across for the nearer bank. A witness in the water
+  never stays by a body: it runs ([gameplay.md](gameplay.md#witnesses-and-the-dead)).
 
 ## Vehicles in the water
 

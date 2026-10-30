@@ -749,7 +749,8 @@ at Monzone's start (seed 11, 3 min) people cry out 2.5 times a minute (surprise 
   A walker who comes on a body is shocked for 2.5 s. Each is a `Witness` (saved), and its shock ends
   in a choice: a grown-up with no kids who can see the body stays by it for 20–40 s with a chance of
   0.4, while fewer than 4 already gather within 3 m of it; everyone else runs from the body for 6 s.
-  A witness who only heard it through a house never goes to stand by the body.
+  A witness who only heard it through a house never goes to stand by the body, nor does one in a
+  river or stream: staying, they would wade beside a body the current takes.
 - **A knockdown** draws a 4 s look and nobody goes over: the victim is up and running after 2.5 s.
 - A witness's, a shocked person's and a gatherer's point keeps to the body lying within 2 m of it
   as the body slides to a stop.
