@@ -14,7 +14,7 @@ import {
   segDist2,
   signedArea,
 } from "./geometry.ts"
-import { simplifyLoop, traceLoops } from "./walls.ts"
+import { simplifyLoop, traceLoops } from "./loops.ts"
 
 /** Kept this far (m) from every track centreline: the ATR 220's half-width (2.883 m wide) plus 0.16 m. */
 const PLATFORM_CLEAR = 1.6

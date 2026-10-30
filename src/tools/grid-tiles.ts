@@ -10,7 +10,7 @@ import type { Grid, Span } from "./terrain.ts"
 type Lattice = Omit<Grid, "z" | "span">
 
 /** A map tile and the window of grid nodes the build works it on. */
-export interface GridTile {
+interface GridTile {
   readonly key: string
   readonly i: number
   readonly j: number
