@@ -1667,7 +1667,7 @@ speed along the contact.
 | `src/sim/dynamics.ts` | substeps, bump-stop travel, damper limit, the body's ground contacts, in-air tumbling damping, the ground-hit speed |
 | `src/sim/drivetrain.ts` | shift points, engine braking, driveline efficiency |
 | `src/sim/view.ts` | `screenAxes` (screen axes of the home view), `LOOK_AHEAD`, `VIEW_REACH` |
-| `src/sim/lanes.ts` | lane offsets, passing room (`PASS_MARGIN`), truck road classes; baked into the map, so run `pnpm map` after a change (`bake.test.ts` fails until then) |
+| `src/sim/lanes.ts` | lane offsets, passing room (`PASS_MARGIN`), truck road classes; baked into the map, so run `pnpm map` after a change (`bake.map-test.ts`, in `pnpm test:map`, fails until then) |
 | `src/sim/route.ts` | pedestrian verge, `cruiseSpeed`, hairpin limit, the walk choice (`WALK_AHEAD`, `WALK_FLOOR`) |
 | `src/sim/systems/populate.ts` | `TRAFFIC` and `PEDESTRIANS` population limits and bands, `OUT_SHARE` (the residents out), `FACE_TO_FACE` (neighbours), `FILL_NEAR` (the first fill), spawn model mix |
 | `src/sim/population/density.ts` | residents per home (`HOMES`, `STOREY`, `GROSS_PER_RESIDENT`, `LIVED_IN`), the streets people come out on and walk (`EDGE_REACH`, `PEOPLED`) |

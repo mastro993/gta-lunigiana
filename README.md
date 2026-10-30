@@ -171,12 +171,13 @@ Every script runs with `pnpm`:
 | `pnpm dev` | Vite dev server on port 5173, open to the local network (`--host`) |
 | `pnpm build` | production build into `dist/` (the Pages workflow adds `--base=./`) |
 | `pnpm preview` | serves `dist/` on port 4173 |
-| `pnpm check` | `format:check`, then `typecheck`, then `lint`, then `test` |
+| `pnpm check` | `format:check`, then `typecheck`, then `lint`, then `test`, then `test:map` |
 | `pnpm format` | `oxfmt`: formats the code, JSON, YAML, HTML and CSS in place |
 | `pnpm format:check` | `oxfmt --check`: fails on any unformatted file |
 | `pnpm typecheck` | `tsc` (no emit) |
 | `pnpm lint` | type-aware `oxlint` with the Ritmo plugin and the project's own (`lint/`), warnings failing, then `ritmo-devtools lint src/lint.ts` |
-| `pnpm test` | `node --test` over `src/**/*.test.ts` and `lint/**/*.test.ts`, each in a `__tests__` folder beside the module it tests |
+| `pnpm test` | `node --test` over `src/**/*.test.ts` and `lint/**/*.test.ts`, each in a `__tests__` folder beside the module it tests; none of them checks every tile or feature of the map |
+| `pnpm test:map` | `node --test` over `src/**/*.map-test.ts`: the map checks, over every tile, chunk and feature of the built maps (run it after `pnpm map`) |
 | `pnpm maps` | builds both maps: `pnpm map`, then `pnpm map --region cesena` |
 | `pnpm map` | rebuilds `src/sim/map/monzone.bin` and its tiles (`src/sim/map/monzone/`) from `data/raw`, baking the tables the game reads from them |
 | `pnpm map --region cesena` | rebuilds the separate `src/sim/map/cesena.bin` and its tiles from pinned Cesena inputs |
@@ -193,7 +194,7 @@ Every script runs with `pnpm`:
 | `pnpm footprint-check <part>` | villages and building clusters within 300 m of the part's edges, and roads that leave it and come back |
 | `pnpm ortho <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>]` | a Regione Toscana orthophoto crop with the built map's buildings, stone cores and stream widths drawn over it, for tracing the hand tables |
 | `pnpm playtest shots\|heap\|drive <url> …` | drives a running headless Chrome over CDP: screenshots of map spots and the full map; first frame, slowest frame and heap after GC; or a 40 m/s run along the SP59 to Vinca with the slowest frame at each tile seam, the tiles in memory and the heap at the end |
-| `pnpm map-diff <a.bin> <b.bin>` | the differences between two built maps (each global file with its tiles beside it), by category; exits 1 when they differ |
+| `pnpm map-diff <a.bin> <b.bin> [--except <category,...>]` | the differences between two built maps (each global file with its tiles beside it), by category, a reorder of the walls or the trees included; exits 1 when they differ in a category `--except` does not accept |
 
 ## Repository layout
 
@@ -225,7 +226,7 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `docs/` | architecture, map pipeline, gameplay, weather, water and audio notes; `docs/standards/` holds the checks for each part of the game |
 | `.github/` | the workflows (CI, Pages) and the action they share to restore or build the maps (`actions/maps/`) |
 | `.oxlintrc.json`, `.oxfmtrc.json`, `lefthook.yml` | lint rules, formatter settings, and the git hooks that format and lint each commit and check each push |
-| `lint/` | the project's own oxlint plugins, one file each named after the plugin (`test-files.ts`: each test in a `__tests__` folder) |
+| `lint/` | the project's own oxlint plugins, one file each named after the plugin (`test-files.ts`: each test and map check in a `__tests__` folder) |
 
 ## Rebuilding the map
 
@@ -236,7 +237,7 @@ pnpm fetch-raw
 pnpm maps
 ```
 
-`pnpm fetch-raw` downloads only the files `data/raw` lacks or holds with other bytes, so a second run downloads nothing. It checks every download's SHA-256 and size against `data/raw.lock.json` and fails, changing nothing, if one differs. `pnpm maps` runs `pnpm map`, which builds Lunigiana, then `pnpm map --region cesena`; `pnpm check` needs both. The Lunigiana build reads only `data/raw`, takes about 12 s and peaks at 1.1 GB resident. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine of the same CPU architecture and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` round differently on arm64 and x64, so an Apple-silicon build and CI's x64 build differ: on 2026-10-30, by one parked car's spot in Lunigiana (`pnpm map-diff`), with Cesena the same (#68 makes them match). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test` fails until `pnpm map` and `pnpm map --region cesena` run again (`pnpm maps` runs both).
+`pnpm fetch-raw` downloads only the files `data/raw` lacks or holds with other bytes, so a second run downloads nothing. It checks every download's SHA-256 and size against `data/raw.lock.json` and fails, changing nothing, if one differs. `pnpm maps` runs `pnpm map`, which builds Lunigiana, then `pnpm map --region cesena`; `pnpm check` needs both. The Lunigiana build reads only `data/raw`, takes about 12 s and peaks at 1.1 GB resident. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine of the same CPU architecture and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` round differently on arm64 and x64, so an Apple-silicon build and CI's x64 build differ: on 2026-10-30, by one parked car's spot in Lunigiana (`pnpm map-diff`), with Cesena the same (#68 makes them match). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test:map` fails (and `pnpm test`, for the parked spots, water beds and farms by Monzone) until `pnpm map` and `pnpm map --region cesena` run again (`pnpm maps` runs both).
 
 Build Cesena without changing Lunigiana with `pnpm map --region cesena`. The pinned inputs are sufficient; only run `pnpm fetch-osm --region cesena` and `pnpm fetch-rer --region cesena` when intentionally updating them. `data/raw/cesena/source.json` records the terrain request, verified CC BY 4.0 licence and raster SHA-256. Preview it with `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`, then run `pnpm check`.
 

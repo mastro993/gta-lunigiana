@@ -11,7 +11,11 @@ never compares a change's map with the map before it, so these runs are yours.
   byte-identical (`for f in src/sim/map/monzone.bin src/sim/map/monzone/*.bin; do gunzip -c $f;
   done | shasum`). Keep the build before (`cp -R src/sim/map/monzone.bin src/sim/map/monzone
   /tmp/before/`): `pnpm map-diff /tmp/before/monzone.bin src/sim/map/monzone.bin` says what a change
-  moved.
+  moved. When a change may move only some categories, name them: `pnpm map-diff … --except trees`
+  still prints the trees' differences but exits 0 only when nothing else differs (a reorder of the
+  walls or the trees counts as a difference: the physics resolves contacts in wall order).
+- Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
+  of the map live there, not in `pnpm test`.
 - Draw the changed area with `node src/tools/preview-map.ts` (a top-down PNG in `.research/`) and
   look at it.
 - A rebuilt map shifts pinned positions: test coordinates, bot waypoints and screenshot spots.
@@ -53,7 +57,9 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 - Moving `BOUNDS` moves every tree: the lattice they are planted on starts at its corner. Each tile
   stores its trees in whole metres from a point 100 m south-west of the tile's corner.
 - A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.31 MB, the build
-  prints it, and `src/__tests__/maps.test.ts` fails past it).
+  prints it, and `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
-  lamps) needs both `pnpm map` and `pnpm map --region cesena`: `bake.test.ts` and
-  `cesena-bake.test.ts` fail until each is baked again.
+  lamps) needs both `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and
+  `cesena-bake.map-test.ts` (`pnpm test:map`) fail until each is baked again, and `bake.test.ts`
+  and `cesena-bake.test.ts` (`pnpm test`) already for the parked spots, water beds and farms
+  within 1 km of Monzone station and of Cesena's start.

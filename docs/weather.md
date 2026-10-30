@@ -77,9 +77,10 @@ new map needs no weather data of its own.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,
   `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 230 m, downslope 2.13, the shipped map's own place
   rounded, so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
-  the sky modules decode no map, and that once the map is decoded `place()` is the map's origin,
-  its 5th-percentile height and its plane fit (fitted again over the whole heightmap joined from
-  the tiles), within 0.5 m and 0.005 rad of the reference.
+  the sky modules decode no map, and that once the map is decoded `place()` is the map's origin and
+  the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the reference;
+  `place.map-test.ts` (`pnpm test:map`) fits them again over the whole heightmap joined from the
+  tiles, the floor its 5th-percentile height.
 - **Absolute or over the floor.** Temperature, precipitation and snow follow the height above sea
   level, so a high map is colder and snowier. What relief sets counts from the floor instead: the
   low-ground fog, the cloud base, the wind's growth on exposed ground, the drying air and the
@@ -879,7 +880,8 @@ node --test src/sim/sky/__tests__/*.test.ts src/sim/__tests__/sky.test.ts
   day, wetting and drying, drizzle, the snow line and meltwater, fog, the cloud bases, wind, the
   storm cell and lightning, the readout, and the map's place.
 - `mapfree.test.ts`: the modules the schema and the HUD import decode no map, and the place once
-  the map is decoded.
+  the map is decoded; `place.map-test.ts` (`pnpm test:map`): the place fitted again over every node
+  of the map.
 - `src/sim/__tests__/sky.test.ts`: the clock and the weather in a runtime, requests applied before
   the first update, a forced storm's lightning, the weather seed kept and replayed, the seed alone
   planning the days, `WeatherRng` kept apart from `Rng`, and a longer braking distance in the rain.

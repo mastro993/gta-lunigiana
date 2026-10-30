@@ -427,7 +427,7 @@ the pieces where tracks meet (`rail-graph.ts`).
   only the south one, 5.4 m, so a car drove in at the open north mouth, met the bank and was thrown
   about 80 m up. Its 3.5 m CTR bridge piece, east of the road, grows to 20.7 m, and the track
   underpass 696231810 at s 4777.6 (one mouth 5.0 m under) gets 19.4 m;
-  both tunnels now open at both mouths at their floors' level (`map/__tests__/rail.test.ts`). A
+  both tunnels now open at both mouths at their floors' level (`map/__tests__/rail.map-test.ts`). A
   path's tunnel gets none: the build cuts no path's mouth.
 - **No short segments**: a vertex no other line or piece shares (OSM's other
   vertices only carried its drawing) is dropped where it lies under 2 m from a kept neighbour,
@@ -896,10 +896,13 @@ now holds only near the player. Each is computed by the game's own code at build
 (`src/tools/bake.ts`): the lanes by `bakeLanes` (`src/sim/lanes.ts`), the parked rests by
 `bakeParked` (`src/sim/parking.ts`), the water's floor by `bedOf` (`src/sim/water/channel.ts`), the
 farms by `bakeFarms` (`src/sim/population/farms.ts`) and the lamps by `bakeLamps`
-(`src/render/sky/lamps.ts`). `src/tools/__tests__/bake.test.ts` runs them again on the shipped map, and
-refits the place over the joined heightmap, so a change to that code fails `pnpm test` until
-`pnpm map` bakes the tables again; `cesena-bake.test.ts` does the same for Cesena in a process of its
-own (a process loads one map), so a change needs `pnpm map --region cesena` too.
+(`src/render/sky/lamps.ts`). `src/tools/__tests__/bake.map-test.ts` runs them again on the shipped
+map, and refits the place over the joined heightmap, so a change to that code fails `pnpm test:map`
+until `pnpm map` bakes the tables again; `cesena-bake.map-test.ts` does the same for Cesena in a
+process of its own (a process loads one map), so a change needs `pnpm map --region cesena` too.
+`bake.test.ts` and `cesena-bake.test.ts` bake again only the parked spots, water beds and farms
+within 1 km of Monzone station and of Cesena's start, so `pnpm test` already fails on most such
+changes (the lanes and the lamps are worked out map-wide, and only the map checks catch them).
 
 Gzipped on their own, the JSON line's biggest fields are the water 0.63 MB (the baked floor at full
 precision is a third of it), the areas 0.33 MB, the graph 0.30 MB, the buildings 0.26 MB and the roads
@@ -944,10 +947,10 @@ items in the same order: each kind keeps its 16 m lattice (`walls.lattice`, the 
 of its items), each tile grids its items on that lattice, and a query walks the cells the box touches
 south to north, west to east, taking each cell's items in the whole map's order across the tiles that
 hold some (`src/sim/map/lattice.ts`). It reads every tile those cells reach, `walls.reach` further for
-walls. The order matters: the physics pushes out of walls one by one and keeps the first of equal-time
-hits, so another order would move collisions at corners (map.test.ts drives a car from the road into
-building −2800141 at (28.7, 1145.7), 29 m east of the x = 0 seam: with 3 of 5 wall orders tried it
-got inside).
+walls. The order matters: the physics pushes out of walls one by one and keeps the first of
+equal-time hits, so another order would move collisions at corners (map.map-test.ts drives a car
+from the road into building −2800141 at (28.7, 1145.7), 29 m east of the x = 0 seam: with 3 of 5
+wall orders tried it got inside).
 
 Profiled roads and rail carry extra points where the elevation bends between OSM vertices (dips
 under the rail, crests). Graph edges run a → b in the OSM way direction, so a `oneway` road may
@@ -964,8 +967,15 @@ in memory throws "map tile i_j not loaded" in the browser; the host makes sure t
 
 ## Checks and tools
 
-`src/sim/map/__tests__/map.test.ts` checks the built map in about 4 s, read whole (`wholeMap` in
-`src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list and land
+The checks over the whole built map are map checks: `*.map-test.ts` files, which `pnpm test:map`
+runs and `pnpm check` and CI run after `pnpm test`. `pnpm test` keeps only checks that read the
+tiles and features round named spots, mostly Monzone station, so what it checks does not grow with
+the map ([architecture.md](architecture.md#checks)). Run `pnpm test:map` after every `pnpm map`.
+On 2026-10-30 it ran 58 tests in 20 files in 5.2–11 s on a loaded 14-core Mac (28 s of CPU with
+each file alone), and the split took 21 s of CPU out of `pnpm test` (228 to 207 s).
+
+`src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.3 s alone, read whole (`wholeMap`
+in `src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list and land
 cover): heightmap coverage, spawns clear of walls and off traffic lanes (with parking in each
 village the map was widened for: Equi Terme, Gragnola, Colognola, Campiglione, Viano, Vinca,
 Ugliancaldo and Tenerano), no walls on roads, no drivable road inside a footprint, closed building
@@ -977,52 +987,59 @@ with no jump at a tributary's mouth (the Lucido's 47 km² at its mouth, the Aule
 map), no walk or drive wall in a wide river and shore walls by it, and valid names, classes, styles,
 area kinds and districts (each of those villages is its own HUD name, Equi Terme's station and spa
 included, and Monte Sagro and Pizzo d'Uccello name themselves; CTR street names cased like "Via XX
-Settembre" and "Via Castel dell'Aquila"). Run `pnpm test` after every `pnpm map`.
+Settembre" and "Via Castel dell'Aquila").
 
 `src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
 `decodeMap` (a newline inside a name, the coarse grid) and a tile through `packTile` and
 `decodeTile` (negative values, the widest deltas, an empty section), and checks that a file of
-another version, or a value too far for its section, throws. `src/sim/map/__tests__/tiles.test.ts`
-checks the cut: the 30 tiles cover the bounds (i −2…2, j −4…1, south to north then west to east)
-with their lowest and highest nodes, a tile's east column is its east neighbour's west column and
-its north row its north neighbour's south row, each wall lives in the tile of its midpoint and each
-tree in the tile of its point and no wall reaches farther than `walls.reach`, `heightAt`, `terrainZ`
-and `coverAt` read the tiles bit for bit as the whole heightmap and land cover give them,
-`wallsNear` answers the same in the same order whatever is in memory and in whichever order it came,
-`wallsNear` and `treesIn` answer exactly as one broad phase over the whole map does (1,500 boxes
-1–60 m across, half of them within 40 m of a seam), every wall whose box overlaps a query is found,
-and a lookup in a tile not in memory throws, naming it. `src/sim/__tests__/seams.test.ts` drives two
-cars across the x = 0 and y = 0 seams on Via Borgo Monzone by the station: every frame's world and
-the final save are the same with the tiles read in lazily and dropped every 20 steps as with all 30
-in memory. `src/tools/__tests__/bake.test.ts` runs the bakes again on the shipped map and compares
-them, and the place refitted over the joined heightmap, with what it holds (proven red by changing
-the parked cars' `LEVEL`; the check is `assertBakesCurrent` in `src/tools/__tests__/bakes.ts`), so
-code that changes a baked table fails `pnpm test` until `pnpm map` runs; `cesena-bake.test.ts`
-checks Cesena's (`pnpm map --region cesena`). `src/tools/__tests__/tile-map.test.ts` cuts a 24 m map
-into its four tiles and joins them back as they were (walls and trees in order), refuses to join a
-tile from another build, and stamps each tile as `packTile` packs it with the build hash.
-`build-output.test.ts` checks that `decimetres`, which rounds the grid into the `Int16Array` the cut
-reads, throws for a height that does not fit int16 decimetres (4000 m, −4000 m, 3276.75 m, NaN,
-infinity) instead of wrapping it. `src/__tests__/maps.test.ts` checks that every listed tile of both
-maps has its file, of at most 0.7 MB.
+another version, or a value too far for its section, throws.
+`src/sim/map/__tests__/tiles.map-test.ts` checks the cut: the 30 tiles cover the bounds (i −2…2, j
+−4…1, south to north then west to east) with their lowest and highest nodes, a tile's east column is
+its east neighbour's west column and its north row its north neighbour's south row, each wall lives
+in the tile of its midpoint and each tree in the tile of its point and no wall reaches farther than
+`walls.reach`, `heightAt`, `terrainZ` and `coverAt` read the tiles bit for bit as the whole
+heightmap and land cover give them, and `wallsNear` and `treesIn` answer exactly as one broad phase
+over the whole map does (1,500 boxes 1–60 m across, half of them within 40 m of a seam).
+`tiles.test.ts` checks, round four boxes by Monzone station and on the west edge, that `wallsNear`
+answers the same in the same order whatever is in memory and in whichever order it came, that every
+wall whose box overlaps a query is found (among the walls of the tiles within `walls.reach` of it: a
+wall lives in the tile of its midpoint), and that a lookup in a tile not in memory throws, naming
+it. `src/sim/__tests__/seams.test.ts` drives two cars across the x = 0 and y = 0 seams on Via Borgo
+Monzone by the station: every frame's world and the final save are the same with the tiles read in
+lazily and dropped every 20 steps as with the nine tiles round (0, 0) in memory.
+`src/tools/__tests__/bake.map-test.ts` runs the bakes again on the shipped map and compares them,
+and the place refitted over the joined heightmap, with what it holds (the check is
+`assertBakesCurrent` in `src/tools/__tests__/bakes.ts`), so code that changes a baked table fails
+`pnpm test:map` until `pnpm map` runs; `cesena-bake.map-test.ts` checks Cesena's (`pnpm map --region
+cesena`). `bake.test.ts` and `cesena-bake.test.ts` bake again the parked spots, water beds and farms
+within 1 km of Monzone station and of Cesena's start (`assertBakesCurrentNear`, through `bakeParked`
+and `bakeFarms` given just those), so `pnpm test` fails too: proven red by changing the parked cars'
+`LEVEL` (0.26 to 0.2) and the farms' `RURAL` (60 to 50). The lanes and the lamps are worked out
+map-wide, so only the map check catches a change to them. `src/tools/__tests__/tile-map.test.ts`
+cuts a 24 m map into its four tiles and joins them back as they were (walls and trees in order),
+refuses to join a tile from another build, and stamps each tile as `packTile` packs it with the
+build hash. `build-output.test.ts` checks that `decimetres`, which rounds the grid into the
+`Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
+−4000 m, 3276.75 m, NaN, infinity) instead of wrapping it. `src/__tests__/maps.map-test.ts` checks
+that every listed tile of both maps has its file, of at most 0.7 MB, and `maps.test.ts` one tile of
+each.
 
 `src/tools/__tests__/seams.map-test.ts` is a map test: it reads every tile of both maps, so it grows
-with the map and `pnpm test` leaves it out (run it with `node --test
-src/tools/__tests__/seams.map-test.ts`). Wherever two listed tiles meet it checks each tile's own
-copy: every node they share has one height, and the walls carry on across the seam as the tiles
-store them: each wall of each kind in exactly one tile, and at both ends of every wall that crosses
-a seam the tiles within `walls.reach` hold the same walls touching that point as the whole map does
-(the shore walls, closed outlines, an even number). On a tile with one border node raised by a
-decimetre the height check fails, and with a wall crossing x = 0 moved into a tile 2 km away (or
-dropped) the wall check fails. The roads need no check of their own: they lie whole in the global
-file, so a road's z has no seam, and the ground under a road where it crosses a seam is read from
-the shared nodes alone (bilinear on the seam's column or row), which the height check covers.
+with the map and runs in `pnpm test:map`, not `pnpm test`. Wherever two listed tiles meet it checks
+each tile's own copy: every node they share has one height, and the walls carry on across the seam
+as the tiles store them: each wall of each kind in exactly one tile, and at both ends of every wall
+that crosses a seam the tiles within `walls.reach` hold the same walls touching that point as the
+whole map does (the shore walls, closed outlines, an even number). On a tile with one border node
+raised by a decimetre the height check fails, and with a wall crossing x = 0 moved into a tile 2 km
+away (or dropped) the wall check fails. The roads need no check of their own: they lie whole in the
+global file, so a road's z has no seam, and the ground under a road where it crosses a seam is read
+from the shared nodes alone (bilinear on the seam's column or row), which the height check covers.
 
 `src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with `subsetShp` and reads it back,
 `src/tools/__tests__/ctr-rail.test.ts` checks the track chaining, the tunnel cut and the clip on
 synthetic lines and reads synthetic CTR rail layers (`shapefile.ts` beside them writes those).
-`src/sim/map/__tests__/rail.test.ts` checks the rail in the built map: the running line is one chain
-from the north edge to the east edge (10.85–10.95 km), its loop (two pieces) ending on it and
+`src/sim/map/__tests__/rail.map-test.ts` checks the rail in the built map: the running line is one
+chain from the north edge to the east edge (10.85–10.95 km), its loop (two pieces) ending on it and
 Gragnola's loop the track by the station building, every kind one of `RAIL_KINDS`; at grade, the
 rail meets roads and water only at vertices they share, level with the road (Via Riolo, Viale 20
 Settembre, Via Castel dell'Aquila twice, Via Nuova, and Equi Terme's foot crossing); no rail, road
@@ -1058,7 +1075,7 @@ siding and away from a level crossing; `platforms.test.ts` clips a platform off 
 a crossing area, makes a strip between close tracks and a narrow one walkways, and leaves out the
 ground far under a platform's top; `railway.test.ts` checks the speed limits, crossing boxes and
 stations; `rail-clear.test.ts` narrows a verge beside a track, leaves one at another level, in a box
-or on a platform alone, and throws for a lane. `src/sim/map/__tests__/railway.test.ts` checks
+or on a platform alone, and throws for a lane. `src/sim/map/__tests__/railway.map-test.ts` checks
 `MAP.railway`: each line runs terminal to terminal, its pieces sharing their end vertices
 bit-identically, every running piece on one (today the one line, east edge to north edge); the speed
 limits cover it, 80 km/h from Equi Terme's stop to Gragnola's; the three stations lie along their
@@ -1069,7 +1086,7 @@ road shares with at-grade rail is in a box; the platforms stand 1.55 m or more f
 top the rail head plus 0.25 m (Gragnola's walkway 0.02 m) and `groundZ` on them their top or the
 terrain where that is higher; the line's grade changes by under 4% over 20 m, and under 2% through a
 level crossing (the map before the fixes changed it 4.1% at s 6269).
-`src/sim/map/__tests__/clearance.test.ts` checks the clearance rule on the verges people walk
+`src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule on the verges people walk
 (`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car stands within 20 m of a
 crossing node; on a map built without the narrowed verges and the parking rule, both fail (Piazza
 Paolo Sist at 2.75 m and Via Riolo at 1.92 m, a car 19.4 m from Viale 20 Settembre).
@@ -1095,9 +1112,9 @@ the command line (shots, heap and drive with their defaults and flags) and the s
 nearest the start and at a fork toward the goal, the SP59 from Monzone to Vinca across the x = 0,
 y = 0, y = −2000 and x = 2000 seams, the page's drive script (run in a `vm` against a fake `gta`)
 and its report; `cdp.test.ts`, on a fake Chrome, a command's own timeout and the socket closed
-when a tab cannot open; `map-diff.test.ts` each category's change on small maps and a key it does
-not compare;
-`geometry.test.ts` `clipRing` to a box.
+when a tab cannot open; `map-diff.test.ts` each category's change on small maps, a key it does not
+compare, walls and trees in another order and `--except`, and `map-diff-args.test.ts` its command
+line; `geometry.test.ts` `clipRing` to a box.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees and walls read whole from the tiles (the running line dark, loops and
@@ -1205,23 +1222,30 @@ repository. Measured on `lucido` on 2026-10-29.
   at 20.4 s and 29.3 s, y = −2000 at 87.7 s, x = 2000 at 183.7 s) each at 16.8 ms at worst; one run
   had one frame of 33.3 ms off the seams, the other none over 16.8 ms; at most 6 tiles in memory, 4
   at Vinca (0_-2, 1_-2, 0_-1, 1_-1), and a heap of 157 MB there.
-- **`pnpm map-diff <a.bin> <b.bin>`** (`map-diff.ts`, `diff-lists.ts`) prints, category by category,
-  what differs between two built maps, each a global file with its tiles in the directory of its
-  name beside it (keep a build with
+- **`pnpm map-diff <a.bin> <b.bin> [--except <category,...>]`** (`map-diff.ts`, `map-diff-args.ts`,
+  `diff-lists.ts`) prints, category by category, what differs between two built maps, each a global
+  file with its tiles in the directory of its name beside it (keep a build with
   `cp -R src/sim/map/monzone.bin src/sim/map/monzone /tmp/before/`). It joins each map whole
   (`readWholeMap` in `map-file.ts`) and compares heightmap nodes (count, largest and RMS difference,
   their box), the land cover's cells, the coarse grid (its lattice, then how many heights and covers
   differ), walls (and their reach, lattices and counts), trees, roads, buildings, water, rail, areas,
   the tile list, the place, the name and the baked tables (lanes, farms, lamps) and the rest,
-  matched by id
-  or as multisets, so order never counts, and any key it does not know as its own block; the build
-  hash is left out, as anything else changes it. It compares two builds of one format version (the
-  decoders refuse another) and exits 0 for "no differences", 1 when they differ and 2 on bad
-  arguments or a file it cannot read. The shipped map against itself (two builds are
-  byte-identical): no differences, 0.8 s.
+  matched by id or as multisets, and any key it does not know as its own block; the build hash is
+  left out, as anything else changes it. Order counts only for the walls of each kind and the
+  trees: beside their multiset change it prints how many of the items both maps hold stand in
+  another order, and where (`walk order: 2 of 2 shared segments in another order, in x …`), since
+  the physics resolves contacts in wall order and a tree's place in the list is its id. It compares
+  two builds of one format version (the decoders refuse another) and exits 0 for "no differences",
+  1 when they differ and 2 on bad arguments, an unknown category among them, or a file it cannot
+  read. `--except trees,walls` accepts those categories (the names its blocks print: `unhandled
+  keys`, `top level`, `tiles`, `heightmap`, `cover`, `walls`, `coarse`, `trees`, `roads`,
+  `buildings`, `water`, `rail`, `railway`, `areas`, `barriers`, `pois`, `districts`, `spawns`,
+  `graph`, `lanes`, `farms`, `lamps`): their differences are still printed, the last line names them
+  as accepted, and the exit code is 0 unless another category differs. The shipped map against
+  itself (two builds are byte-identical): no differences, 0.9 s.
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
-  checks for the parts, #18 and #21–#23; `src/__tests__/maps.test.ts` fails past it), and `lucido`'s
-  largest, -1_-1, is 0.31 MB.
+  checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
+  `lucido`'s largest, -1_-1, is 0.31 MB.
 
 Until issue #7 builds the map tile by tile, only `lucido` is fetched and built: `pnpm fetch-osm`
 and `pnpm map` cover the Lunigiana region's bounds (`BOUNDS`; `--region cesena` builds the separate
