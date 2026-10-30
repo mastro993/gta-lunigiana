@@ -32,13 +32,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # The steps of `pnpm check`, one per step so a failure names its gate; lint and the tests read
-      # the built maps.
+      # the built maps. `pnpm test:map` runs the checks whose cost grows with the map.
       - run: pnpm format:check
       - run: pnpm typecheck
       - id: maps
         uses: ./.github/actions/maps
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm test:map
 
   # When the check job built the maps (their inputs changed), build them again on another runner:
   # the two builds must gunzip to the same bytes. Only then are the maps cached, so every new set of
