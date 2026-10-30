@@ -1850,8 +1850,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     other key kept from the game) and the preset they show (Custom for a hand-set mix);
     `src/hud/__tests__/hud.test.ts`: the Esc and M routing (`overlayKey`), the pause, and a
     train's prompt as a car's, offering to get out only below `BOARD_SPEED`;
-    `src/hud/__tests__/minimap.test.ts`: the minimap turned screen-up to the top at every yaw, and
-    the tiles its turned square can reach, nearest first and none off the map;
+    `src/hud/__tests__/minimap.test.ts`: the minimap turned screen-up to the top at every yaw, the
+    tiles its turned square can reach, nearest first and none off the map, and Monzone's tile
+    canvas, painted from only the features near it, getting every path the features within 1 km
+    would draw on it, in order;
     `src/hud/__tests__/touch.test.ts`: the stick and buttons as keys, a hidden control letting go
     of its key, and in a train only ◀ ▶ hidden (read from hud.css and
     index.html, and marked by `draw` on the controls, `data-vehicle="train"`).
@@ -1912,9 +1914,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts`: the
     glow and water meshes, the world and the crossings' nodes made without reading a tile, and a
     chunk built only once every tile its build reads is in and dropped when one goes;
-    `chunk-tiles.test.ts`: a piece's own reads box making its chunk read a tile past its square,
-    and with only some tiles in every chunk that builds reading only those, round (0, 0) and
-    Monzone's level crossing and platforms; `trees.test.ts`: each chunk's trees from its tiles the
+    `chunk-tiles.test.ts`: one tile planning each chunk with its box round the chunk's over the
+    four tiles round (0, 0), a road's segments and a piece's own reads box making its chunk read a
+    tile past its square, and with only some tiles in every chunk that builds reading only those,
+    round (0, 0) and Monzone's level crossing and platforms; `trees.test.ts`: each chunk's trees from its tiles the
     whole map's bucket for it, the apron's mirrors and order included, over the six tiles by Monzone
     and on the west edge; `chunks.test.ts`: the box from the tiles' lowest and highest nodes holding
     the exact one, for every chunk of the four tiles by Monzone; `ground.test.ts`: `farTerrainY` the
@@ -1935,8 +1938,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   Monzone station. The suffix is not `*.map.test.ts` because `node --test` cannot leave files out of
   a glob, and that name matches `*.test.ts`. They sit in `__tests__` beside the tests (the lint
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
-  `trunk-corners.ts`, `verges.ts`, `some-tiles.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
-  `bridges.ts`, `lamp-checks.ts`, `bakes.ts`):
+  `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
+  `bridges.ts`, `lamp-checks.ts`, `tile-paint.ts`, `bakes.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined (see
     [map.md](map.md#checks-and-tools)); `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,

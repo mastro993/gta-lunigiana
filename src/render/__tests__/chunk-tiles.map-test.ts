@@ -8,7 +8,7 @@ import { linePieces } from "../lines.ts"
 import { railPieces } from "../rail.ts"
 import { stationPieces } from "../stations.ts"
 import { bucketPieces } from "../world.ts"
-import { buildsWithSomeTiles } from "./some-tiles.ts"
+import { buildsWithSomeTiles, checkPlan } from "./chunk-tile-checks.ts"
 
 // Map checks (pnpm test:map): every chunk and every spot of the map where a chunk's build reads
 // past its square; chunk-tiles.test.ts checks a few near Monzone.
@@ -19,25 +19,11 @@ const empty = chunkTiles(
 )
 
 test("chunk tiles: a chunk's build reads its terrain's tiles; one tile plans each chunk, its box round the chunk's", () => {
-  const planned = new Map<number, number>()
-  for (const [t, chunks] of empty.owned.entries())
-    for (const key of chunks) {
-      assert.equal(planned.get(key), undefined, `chunk ${key} planned twice`)
-      planned.set(key, t)
-      for (let k = 0; k < 6; k++)
-        assert.ok(
-          k % 2 === 0
-            ? empty.tileBoxes[t * 6 + k]! <= empty.boxes[key * 6 + k]!
-            : empty.tileBoxes[t * 6 + k]! >= empty.boxes[key * 6 + k]!,
-          `tile ${empty.keys[t]} holds chunk ${key}`,
-        )
-    }
-  assert.equal(planned.size, count, "every chunk planned")
-  for (let key = 0; key < count; key++) {
-    assert.ok(empty.terrain[key]!.length > 0, `chunk ${key} lies on the tiles`)
-    for (const t of empty.terrain[key]!) assert.ok(empty.needs[key]!.includes(t))
-    for (const t of empty.needs[key]!) assert.ok(empty.readers[t]!.includes(key))
-  }
+  checkPlan(
+    empty,
+    empty.keys.map((_, t) => t),
+    Array.from({ length: count }, (_, key) => key),
+  )
 })
 
 test("chunk tiles: a crossing's chunk reads the ground under the road ribbons it lies over", () => {

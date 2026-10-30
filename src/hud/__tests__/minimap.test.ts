@@ -3,7 +3,8 @@ import { test } from "node:test"
 
 import { MAP } from "../../sim/map/index.ts"
 import { QUARTER, screenAxes } from "../../sim/view.ts"
-import { minimapRotation, tilesNear } from "../minimap.ts"
+import { minimapRotation, tileReach, tilesNear } from "../minimap.ts"
+import { checkTilePaint } from "./tile-paint.ts"
 
 test("the minimap turns screen-up to the top, whichever way the view is turned", () => {
   for (const turns of [0, 1, 2, 3, -1]) {
@@ -46,4 +47,11 @@ test("the minimap shows the tiles its turned square can reach, nearest first, an
       MAP.tiles.some(({ i, j }) => i === t.i && j === t.j),
       `${t.key} is a listed tile`,
     )
+})
+
+// minimap.map-test.ts (pnpm test:map) checks two tiles against the whole map painted; this one
+// against the features whose boxes come within 1 km of the tile, as no stroke is that wide.
+test("Monzone's tile, painted from only the features near it, gets every path the features within 1 km would draw on it, in order", () => {
+  const [minX, minY, maxX, maxY] = tileReach(-1, 0)
+  checkTilePaint(-1, 0, [minX - 1000, minY - 1000, maxX + 1000, maxY + 1000])
 })
