@@ -143,6 +143,8 @@ are the parts that still grow with the area.
   most of a forest's member ways lie outside the play area.
   Elements are merged by id and written sorted. A regex reader parses the XML into nodes, ways
   and relations, and assembles multipolygon rings from member ways (unclosed chains are dropped).
+  It copies each tag's value out of the XML text: a match is a slice of the text, and one kept
+  name held it all (Lunigiana's 37 MB, Cesena's 60 MB) until the map was written.
   OSM gives the road network and its names, water, rail, land use, barriers, POIs and place names.
 - **CTR**: Regione Toscana's Carta Tecnica Regionale 1:2000, 2019 flight, the 25 sheets that map
   ground in the play area (23D11–15, 23D18–21, 23D26–31, 23D34–37, 23D43, 23D46, 23D47, 23D53–55),

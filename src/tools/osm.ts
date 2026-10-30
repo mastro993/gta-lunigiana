@@ -48,10 +48,17 @@ const attrs = (s: string): Tags => {
   return out
 }
 
+/**
+ * A copy of `s`, a match in the file's text, that holds none of it: a match is a slice of the text,
+ * so a value the build keeps (a road's name) would keep the whole text alive (18.6 M characters,
+ * 37 MB, for Lunigiana) until the map is written.
+ */
+const own = (s: string) => Buffer.from(s).toString()
+
 const tagsOf = (body: string): Tags => {
   const t: Tags = {}
   for (const m of body.matchAll(/<tag k="([^"]*)" v="([^"]*)"\s*\/>/g))
-    t[unescape(m[1]!)] = unescape(m[2]!)
+    t[unescape(m[1]!)] = own(unescape(m[2]!))
   return t
 }
 
