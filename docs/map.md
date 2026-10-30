@@ -9,14 +9,14 @@ while another zlib or OS writes other compressed bytes) and takes about 14 s. Ac
 it is not: V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` return other last bits on arm64
 than on x64 (`hypot` agrees; Node 24.22.1, 200,000 arguments each), and on 2026-10-30 the arm64 and
 x64 builds of Lunigiana differed by one parked car's spot at (−1306, 2480), Cesena not at all. CI
-and Pages build on x64; issue #68 makes the build the same on both. It prints a lap time per stage, the rail's fit
-to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)), each platform
-([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the
-tile count, the bytes written and the largest tile, counts, the rail on the CTR (OSM's offset from
-it, the shipped residual, the level crossings' slides, the bridge ends slid, the culverts, the
-at-grade track cut into the CTR's bridges and the rail bed), the railway (its lines, stations,
-level-crossing boxes and the verges pulled in off the track), the steepest grade per road class, and
-the size of each part of the files.
+and Pages build on x64; issue #68 makes the build the same on both. It prints a lap time per stage,
+the rail's fit to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)), each platform ([section
+9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the tile
+count, the bytes written and the largest tile, counts, the rail on the CTR (OSM's offset from it,
+the shipped residual, the level crossings' slides, the bridge ends slid, the culverts, the at-grade
+track cut into the CTR's bridges and the rail bed), the railway (its lines, stations, level-crossing
+boxes and the verges pulled in off the track), the steepest grade per road class, and the size of
+each part of the files.
 Inputs and attribution are in the [README](../README.md).
 
 `src/sim/map/kinds.ts` holds the vocabulary that the build and the game share: road classes and
