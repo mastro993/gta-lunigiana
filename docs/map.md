@@ -3,13 +3,17 @@
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map: the global file `src/sim/map/monzone.bin` (1.9 MB) and 30 tiles of 2 km in
 `src/sim/map/monzone/` (5.6 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
-is deterministic on one CPU architecture (gunzipped, its files are the same bytes on every machine
-of it, and it prints the same build hash; gzipped, they are byte-identical with the same Node build,
-while another zlib or OS writes other compressed bytes) and takes about 14 s. Across architectures
-it is not: V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` return other last bits on arm64
-than on x64 (`hypot` agrees; Node 24.22.1, 200,000 arguments each), and on 2026-10-30 the arm64 and
-x64 builds of Lunigiana differed by one parked car's spot at (−1306, 2480), Cesena not at all. CI
-and Pages build on x64; issue #68 makes the build the same on both. It prints a lap time per stage,
+is deterministic (gunzipped, its files are the same bytes on every machine, arm64 and x64 alike,
+and it prints the same build hash; gzipped, they are byte-identical with the same Node build, while
+another zlib or OS writes other compressed bytes) and takes about 14 s. V8's `Math.sin`, `cos`,
+`tan`, their inverses, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `atanh`, `exp`, `expm1`, `log`,
+`log1p`, `log10` and `**` (but squaring) return other last bits on arm64 than on x64 (Node 24.14.1,
+200,000 arguments each; `sqrt`, `hypot`, `cbrt`, `log2` and `x ** 2` agree), and before #68 the two
+builds of Lunigiana differed by one parked car's spot at (−1306, 2480). So the build calls Ritmo's
+`Ops` (`@typeonce/ritmo-math`, a port of fdlibm built from `+ − × ÷` and `Math.sqrt`, which every CPU
+rounds the same) for those, as the sim does, and keeps V8's `Math.hypot`, which V8 computes from the
+same operations (`Ops.hypot` would move 38 % of its results by a last bit). `map-key.test.ts` fails
+on a `Math` call or `**` of that list in any file the build imports. It prints a lap time per stage,
 the rail's fit to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)), each platform ([section
 9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the tile
 count, the bytes written and the largest tile, counts, the rail on the CTR (OSM's offset from it,
@@ -733,17 +737,18 @@ change an input.
   link and say the files are changed from their sources (`NOTES`).
   241 files in 38 s.
 - **CI** (`.github/workflows/ci.yml`, `.github/actions/maps/action.yml`): the check job restores
-  the maps from the cache under `maps-<os>-<arch>-<node version>-<key>`, as the build's bytes
-  depend on the architecture and on V8's math. On a miss it restores `data/raw` from the cache
+  the maps from the cache under `maps-<os>-<node version>-<key>`: the two builds the reproducible
+  job compares run the same Node, so a new one is built and checked again. On a miss it restores
+  `data/raw` from the cache
   under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
   imports, followed from import to import (85 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
   rather than miss a file: on a specifier that names no file, an `import(` without a string literal
   and any `require(`. When the check job built the maps, the `reproducible` job builds them again
-  on another runner; the SHA-256s of the two builds' gunzipped files must match, and only then does
-  it save the maps to the cache, so a re-run checks a new key again. Both runners are x64, so it
-  checks the build on one architecture: an arm64 build may differ (see the top of this page).
+  on an arm64 runner (`ubuntu-24.04-arm`; the check job's is x64); the SHA-256s of the two builds'
+  gunzipped files must match, and only then does it save the maps to the cache, so a re-run checks a
+  new key again. The x64 check job and Pages restore what it saved.
   Pages (`pages.yml`) runs the same action before `vite build` and saves nothing.
 - **Tests**: `raw-lock.test.ts` checks the lock's format and `recordSource`, that git ignores
   `data/raw` and the built maps, and that no tracked file is over 1 MB. `fetch-raw.test.ts` and
@@ -751,7 +756,8 @@ change an input.
   bytes fails with `data/raw` unchanged, a fetched file replaced since is refused, an upload of
   1,001 files takes two releases, and the release notes carry the README's credits and licence
   links. `map-key.test.ts` checks every import form it follows, that it throws on the ones it
-  cannot, and that the key moves with the lock and the imported code and with nothing else.
+  cannot, that the key moves with the lock and the imported code and with nothing else, and that
+  no imported file calls a `Math` function or `**` that rounds differently on arm64 and x64.
 
 ## Map files
 

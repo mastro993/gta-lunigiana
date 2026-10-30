@@ -1,6 +1,8 @@
 // Plane geometry for the map build: local projection, clipping to the play area,
 // ring winding, point/segment distances and a bucketed segment index.
 
+import { Ops } from "@typeonce/ritmo-math"
+
 import { segDist2 } from "../sim/collide.ts"
 import { latLonToGaussBoaga } from "./crs.ts"
 import { REGION, type Rect } from "./region.ts"
@@ -16,7 +18,7 @@ export interface V {
 export const ORIGIN = REGION.origin
 export const M_PER_DEG = {
   lat: 111115.37,
-  lon: REGION.id === "lunigiana" ? 79987.94 : 111320 * Math.cos((ORIGIN.lat * Math.PI) / 180),
+  lon: REGION.id === "lunigiana" ? 79987.94 : 111320 * Ops.cos((ORIGIN.lat * Math.PI) / 180),
 }
 /** Play area, local metres: lat 44.1069–44.1968, lon 10.0937–10.1913. The whole Lucido catchment, ridge to ridge, plus the Aulella side by Gragnola and Codiponte. */
 export const BOUNDS = REGION.bounds

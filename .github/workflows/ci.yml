@@ -40,13 +40,13 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
 
-  # When the check job built the maps (their inputs changed), build them again on another runner:
-  # the two builds must gunzip to the same bytes. Only then are the maps cached, so every new set of
-  # inputs is checked once, however often its run is re-run.
+  # When the check job built the maps (their inputs changed), build them again on an arm64 runner
+  # (the check job's is x64): the two builds must gunzip to the same bytes. Only then are the maps
+  # cached, so every new set of inputs is checked once, however often its run is re-run.
   reproducible:
     needs: check
     if: ${{ !cancelled() && needs.check.outputs.maps-hash != '' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -69,10 +69,10 @@ jobs:
           FIRST: ${{ needs.check.outputs.maps-hash }}
           SECOND: ${{ steps.maps.outputs.hash }}
         run: |
-          echo "check job: $FIRST"
-          echo "this job:  $SECOND"
+          echo "check job (x64):  $FIRST"
+          echo "this job (arm64): $SECOND"
           if [ "$FIRST" != "$SECOND" ]; then
-            echo "::error::Two builds of the maps differ: the map build is not deterministic"
+            echo "::error::The x64 and arm64 builds of the maps differ: the map build is not deterministic"
             exit 1
           fi
 

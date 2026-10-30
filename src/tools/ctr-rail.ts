@@ -3,6 +3,8 @@
 // ballast bed's bridge and tunnel spans (AFE 0140), the station platforms (AGE 0141) and the
 // level-crossing areas (AGE 0122). `fetch-rt.ts ctr` writes the VLI and AFE files; AGE is the
 // file `ctr.ts` reads garages and ruins from.
+import { Ops } from "@typeonce/ritmo-math"
+
 import { ctrRecords, local, polygonsOf, type CtrRecord } from "./ctr.ts"
 import { clipLine, pointInRing, type P, type V } from "./geometry.ts"
 
@@ -159,7 +161,7 @@ export const chainTracks = (
     return e & 1 ? pts.at(-1)! : pts[0]!
   }
   const heading = pieces.flatMap((p) => [outward(p.pts, false), outward(p.pts, true)])
-  const cosMax = -Math.cos((JOIN.angle * Math.PI) / 180)
+  const cosMax = -Ops.cos((JOIN.angle * Math.PI) / 180)
   const pairs: Array<{ a: number; b: number; d: number }> = []
   for (let a = 0; a < heading.length; a++)
     for (let b = a + 2 - (a & 1); b < heading.length; b++) {

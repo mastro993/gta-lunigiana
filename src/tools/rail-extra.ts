@@ -3,6 +3,8 @@
 // track whose end lies on another track is joined to it by a switch vertex both share; bridges come
 // from the CTR's ballast-on-bridge polygons; where a track crosses a road at grade, the two share a
 // vertex, as OSM's level crossings do.
+import { Ops } from "@typeonce/ritmo-math"
+
 import { splitIn, type CtrTrack, type Polygon } from "./ctr-rail.ts"
 import type { RailF, RoadF } from "./features.ts"
 import { arcLengths, segDist2, type V } from "./geometry.ts"
@@ -120,7 +122,7 @@ export const buildExtras = (input: Input): { pieces: Array<RailF>; report: Repor
         for (const host of list) {
           const f = nearest(host, tip.x, tip.y)
           const along = Math.abs(f.tx * out.x + f.ty * out.y)
-          const fits = f.d <= SWITCH.gap && along >= Math.cos((SWITCH.angle * Math.PI) / 180)
+          const fits = f.d <= SWITCH.gap && along >= Ops.cos((SWITCH.angle * Math.PI) / 180)
           if (fits && (best === undefined || f.d < best.d))
             best = { host, on, x: f.x, y: f.y, d: f.d }
         }

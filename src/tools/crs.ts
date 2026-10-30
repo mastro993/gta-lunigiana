@@ -6,6 +6,8 @@
 //   Italy, a few metres); `GB_RESIDUAL` removes what is left, fitted on Monzone's buildings.
 // Transverse Mercator uses Krüger's series to n³, sub-millimetre within 3° of the central meridian.
 
+import { Ops } from "@typeonce/ritmo-math"
+
 interface Ellipsoid {
   readonly a: number
   readonly f: number
@@ -17,25 +19,18 @@ const RAD = Math.PI / 180
 
 /** Krüger coefficients of an ellipsoid: rectifying radius A, forward α and inverse β/δ series. */
 const kruger = ({ a, f }: Ellipsoid) => {
-  const n = f / (2 - f)
+  const n = f / (2 - f),
+    n3 = n * n * n
   return {
     n,
-    A: (a / (1 + n)) * (1 + (n * n) / 4 + n ** 4 / 64),
+    A: (a / (1 + n)) * (1 + (n * n) / 4 + (n3 * n) / 64),
     alpha: [
-      n / 2 - (2 * n * n) / 3 + (5 * n ** 3) / 16,
-      (13 * n * n) / 48 - (3 * n ** 3) / 5,
-      (61 * n ** 3) / 240,
+      n / 2 - (2 * n * n) / 3 + (5 * n3) / 16,
+      (13 * n * n) / 48 - (3 * n3) / 5,
+      (61 * n3) / 240,
     ],
-    beta: [
-      n / 2 - (2 * n * n) / 3 + (37 * n ** 3) / 96,
-      (n * n) / 48 + n ** 3 / 15,
-      (17 * n ** 3) / 480,
-    ],
-    delta: [
-      2 * n - (2 * n * n) / 3 - 2 * n ** 3,
-      (7 * n * n) / 3 - (8 * n ** 3) / 5,
-      (56 * n ** 3) / 15,
-    ],
+    beta: [n / 2 - (2 * n * n) / 3 + (37 * n3) / 96, (n * n) / 48 + n3 / 15, (17 * n3) / 480],
+    delta: [2 * n - (2 * n * n) / 3 - 2 * n3, (7 * n * n) / 3 - (8 * n3) / 5, (56 * n3) / 15],
   }
 }
 
@@ -55,13 +50,13 @@ const tmInverse = (tm: Tm, e: number, nth: number): [number, number] => {
   let xp = xi,
     ep = eta
   for (let j = 1; j <= 3; j++) {
-    xp -= k.beta[j - 1]! * Math.sin(2 * j * xi) * Math.cosh(2 * j * eta)
-    ep -= k.beta[j - 1]! * Math.cos(2 * j * xi) * Math.sinh(2 * j * eta)
+    xp -= k.beta[j - 1]! * Ops.sin(2 * j * xi) * Ops.cosh(2 * j * eta)
+    ep -= k.beta[j - 1]! * Ops.cos(2 * j * xi) * Ops.sinh(2 * j * eta)
   }
-  const chi = Math.asin(Math.sin(xp) / Math.cosh(ep))
+  const chi = Ops.asin(Ops.sin(xp) / Ops.cosh(ep))
   let lat = chi
-  for (let j = 1; j <= 3; j++) lat += k.delta[j - 1]! * Math.sin(2 * j * chi)
-  return [lat / RAD, tm.lon0 + Math.atan2(Math.sinh(ep), Math.cos(xp)) / RAD]
+  for (let j = 1; j <= 3; j++) lat += k.delta[j - 1]! * Ops.sin(2 * j * chi)
+  return [lat / RAD, tm.lon0 + Ops.atan2(Ops.sinh(ep), Ops.cos(xp)) / RAD]
 }
 
 const tmForward = (tm: Tm, lat: number, lon: number): [number, number] => {
@@ -69,14 +64,14 @@ const tmForward = (tm: Tm, lat: number, lon: number): [number, number] => {
     phi = lat * RAD,
     dl = (lon - tm.lon0) * RAD
   const c = (2 * Math.sqrt(k.n)) / (1 + k.n)
-  const t = Math.sinh(Math.atanh(Math.sin(phi)) - c * Math.atanh(c * Math.sin(phi)))
-  const xp = Math.atan2(t, Math.cos(dl)),
-    ep = Math.atanh(Math.sin(dl) / Math.sqrt(1 + t * t))
+  const t = Ops.sinh(Ops.atanh(Ops.sin(phi)) - c * Ops.atanh(c * Ops.sin(phi)))
+  const xp = Ops.atan2(t, Ops.cos(dl)),
+    ep = Ops.atanh(Ops.sin(dl) / Math.sqrt(1 + t * t))
   let xi = xp,
     eta = ep
   for (let j = 1; j <= 3; j++) {
-    xi += k.alpha[j - 1]! * Math.sin(2 * j * xp) * Math.cosh(2 * j * ep)
-    eta += k.alpha[j - 1]! * Math.cos(2 * j * xp) * Math.sinh(2 * j * ep)
+    xi += k.alpha[j - 1]! * Ops.sin(2 * j * xp) * Ops.cosh(2 * j * ep)
+    eta += k.alpha[j - 1]! * Ops.cos(2 * j * xp) * Ops.sinh(2 * j * ep)
   }
   return [tm.fe + tm.k0 * k.A * eta, tm.k0 * k.A * xi]
 }
@@ -85,21 +80,17 @@ const toEcef = ({ a, f }: Ellipsoid, lat: number, lon: number): [number, number,
   const e2 = f * (2 - f),
     p = lat * RAD,
     l = lon * RAD,
-    nu = a / Math.sqrt(1 - e2 * Math.sin(p) ** 2)
-  return [
-    nu * Math.cos(p) * Math.cos(l),
-    nu * Math.cos(p) * Math.sin(l),
-    nu * (1 - e2) * Math.sin(p),
-  ]
+    nu = a / Math.sqrt(1 - e2 * Ops.sin(p) ** 2)
+  return [nu * Ops.cos(p) * Ops.cos(l), nu * Ops.cos(p) * Ops.sin(l), nu * (1 - e2) * Ops.sin(p)]
 }
 
 const fromEcef = ({ a, f }: Ellipsoid, x: number, y: number, z: number): [number, number] => {
   const e2 = f * (2 - f),
     p = Math.hypot(x, y)
-  let lat = Math.atan2(z, p * (1 - e2))
+  let lat = Ops.atan2(z, p * (1 - e2))
   for (let i = 0; i < 5; i++)
-    lat = Math.atan2(z + (e2 * a * Math.sin(lat)) / Math.sqrt(1 - e2 * Math.sin(lat) ** 2), p)
-  return [lat / RAD, Math.atan2(y, x) / RAD]
+    lat = Ops.atan2(z + (e2 * a * Ops.sin(lat)) / Math.sqrt(1 - e2 * Ops.sin(lat) ** 2), p)
+  return [lat / RAD, Ops.atan2(y, x) / RAD]
 }
 
 /** EPSG:1660 Monte Mario -> WGS84, position vector: dx, dy, dz (m), rx, ry, rz (arc seconds), ds (ppm). */
