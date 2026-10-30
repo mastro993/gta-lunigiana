@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
+import { offBody } from "../body.ts"
 import {
   Damage,
   type DamageValue,
@@ -21,6 +22,8 @@ import { door, press, start } from "../testing.ts"
 import { VIEW_REACH } from "../view.ts"
 
 const START = MAP.spawns.player
+/** No car is parked within this of a person or an animal, m (`ROOM` in systems/populate-parked.ts). */
+const ROOM = 1
 const spotPose = (index: number): PoseValue => {
   const { x, y, angle } = MAP.spawns.parked[index]!
   return { x, y, angle }
@@ -161,6 +164,32 @@ test("parking: driving across the map, every village has traffic and parked cars
     CARABINIERI.map((i) => [spotPose(i).x, spotPose(i).y]),
     "the Carabinieri stay at their station",
   )
+})
+
+test("parking: after a jump into a village, no car is parked within 1 m of a person or an animal, those brought out in the same half second included", () => {
+  // Seed 1 at Campiglione and seed 3 at Monzone Alto, Viano and Vinca once parked a car on people who came out in its step.
+  for (const seed of [1, 3])
+    for (const name of VILLAGES) {
+      const game = start([], undefined, { seed })
+      game.run(1)
+      const seen = new Set(game.world().vehicles.map((v) => v.id))
+      const village = MAP.districts.find((d) => d.name === name)!
+      go(game, { x: village.x, y: village.y, angle: 0 }, 60, () => {
+        const { vehicles, peds, animals } = game.world()
+        for (const car of vehicles) {
+          if (seen.has(car.id)) continue
+          seen.add(car.id)
+          if (car.parked === undefined) continue
+          for (const body of [...peds, ...animals]) {
+            const off = offBody(car.model, car, body.x, body.y)
+            assert.ok(
+              off >= ROOM,
+              `seed ${seed}, ${name}: ${body.id} ${off.toFixed(2)} m off ${car.id}`,
+            )
+          }
+        }
+      })
+    }
 })
 
 test("parking: entering a parked car frees its spot, which fills again with the same car once out of view, never in view", () => {

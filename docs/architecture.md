@@ -128,12 +128,13 @@ fill replays with the seed.
 | 33 | `Perceive` | `systems/perceive.ts` | pedestrians take in this step's hits, crashes, horns and whistles, the vehicles (the cars of trains on their level among them), bodies and people around them and the level crossings closing (`rail/senses.ts`; held there as patiently as a driver), and set their moods; cries are `Cry` events; marks `Witness`es, lets go of a leader gone or dead |
 | 34 | `Startle` | `systems/fright.ts` | cats and pigs run from this step's crashes and struck bodies (`Cry`) |
 | 35 | `Respawn` | `systems/explosions.ts` | the dead player comes back on foot at the start after 4 s, on the ground there (`Footing`) |
-| 36 | `LeaveBehind` | `systems/reach.ts` | the people (the dead too) and animals farther than `FROZEN_BEYOND` (500 m) from the player along either axis go, at the step's last `applyDeferred`: only a jump of the player (`Respawn`, `SetPlayer`) leaves anyone there, since `Populate` and `PopulateAnimals` despawn them beyond 140–180 m every 0.5 s |
+| 36 | `LeaveBehind` | `systems/reach.ts` | the people (the dead too) and animals farther than `FROZEN_BEYOND` (500 m) from the player along either axis go, at the `applyDeferred` after `PopulateAnimals`: only a jump of the player (`Respawn`, `SetPlayer`) leaves anyone there, since `Populate` and `PopulateAnimals` despawn them beyond 140–180 m every 0.5 s |
 | 37 | `Dispatch` | `rail/dispatch.ts` | removes AI trains run past their line's drawn run and makes that line's next train due after a layover, drawn from `RailRng`; removes a stolen train the player has left once all of it is out of view (`VIEW_REACH`), its line's next train then due after a layover; sends a due train in at the run-out's end once its braking distance ahead (`entryClear`) and its run-out are free of any train and no AI train of another line runs the other way on track they share |
 | 38 | `Populate` | `systems/populate.ts` | every 0.5 s spawns (never within 15 m of a level crossing, nor while 210 vehicles stand) and despawns traffic and parties of people (the dead beyond 140 m, like the living), and removes destroyed vehicles once out of view (`VIEW_REACH`), parked cars' left to `PopulateParked` |
 | 39 | `PopulateAnimals` | `systems/populate-animals.ts` | every 0.5 s spawns and despawns the free animals |
-| 40 | `PopulateParked` | `systems/populate-parked.ts` | every 0.5 s parks the car the spots' hash gives each empty spot 90–300 m from the player (out of view), clear of every vehicle, person and animal, while fewer than 200 vehicles that are not traffic stand; removes a parked car still as it was parked (`Parked`, undamaged, on its spot) beyond 400 m, and a parked car's wreck once out of view, its spot kept empty for good (`Parking.wrecked`) |
-| 41 | `applyDeferred` | | applies spawns, despawns, inserts and removals |
+| 40 | `applyDeferred` | | applies the commands since the blast's, so `PopulateParked` parks clear of the people, animals and traffic `Populate` and `PopulateAnimals` brought out this step |
+| 41 | `PopulateParked` | `systems/populate-parked.ts` | every 0.5 s parks the car the spots' hash gives each empty spot 90–300 m from the player (out of view), clear of every vehicle, person and animal, while fewer than 200 vehicles that are not traffic stand; removes a parked car still as it was parked (`Parked`, undamaged, on its spot) beyond 400 m, and a parked car's wreck once out of view, its spot kept empty for good (`Parking.wrecked`) |
+| 42 | `applyDeferred` | | applies spawns, despawns, inserts and removals |
 
 Controls, the handling, the clock, the weather, the rivers and a call for trains are settled before
 movement, where each body on foot stands (`FindFooting`), a blast and who is in the water are
@@ -141,19 +142,20 @@ settled once getting in and out are applied and before anything moves (the movem
 `InWater` and the water under them this step; what moves this step keeps to its footing from the
 next), all movement happens before contacts, crash damage is counted after both, from the same
 step's hits, and contacts happen before the player's pose follows the car. The crossings move on
-before traffic and the AI train drivers, which read them that step (`thisTick`), as `Perceive`
-does; the drivers write their levers and sound their whistles before `Pedestrians` and `Animals`,
-which hear them in the step they sound, as `Perceive` does, and `TrainPhysics` moves the trains
-after the vehicles and before the contacts; `CrashDamage` (which damages no train) and `Perceive`
-read its `Impact`s in the same step. `TrainContacts` comes last of the contacts: a train is shoved
-by nothing, so what it strikes ends where it leaves it, and `CrashDamage` counts its hits in the
-same step. `Dispatch` takes trains off and sends them in beside `Populate`, at the step's last
-`applyDeferred`. The physics drives on the crash damage counted the step before, and on a blast's
-in the same step. `Perceive` and `Startle` run after the contacts and `Recover` because they read
-this step's `Impact` and `Honk` events, which a save does not keep: read a step later, a restored
-game would miss them. The moods they set move people and animals from the next step. `TrafficAI`
-and `VehiclePhysics` read `GameClock` and `Weather` and work out the air once a step (`airAt`), so
-every wheel meets the wet and the snow this step's weather left, meltwater included. Gameplay is in
+before traffic and the AI train drivers, which read them that step (`thisTick`), as `Perceive` does;
+the drivers write their levers and sound their whistles before `Pedestrians` and `Animals`, which
+hear them in the step they sound, as `Perceive` does, and `TrainPhysics` moves the trains after the
+vehicles and before the contacts; `CrashDamage` (which damages no train) and `Perceive` read its
+`Impact`s in the same step. `TrainContacts` comes last of the contacts: a train is shoved by
+nothing, so what it strikes ends where it leaves it, and `CrashDamage` counts its hits in the same
+step. `Dispatch` takes trains off and sends them in beside `Populate`, at the `applyDeferred` after
+`PopulateAnimals`, the one `PopulateParked` waits for so that it parks clear of what came out in the
+step. The physics drives on the crash damage counted the step before, and on a blast's in the same
+step. `Perceive` and `Startle` run after the contacts and `Recover` because they read this step's
+`Impact` and `Honk` events, which a save does not keep: read a step later, a restored game would
+miss them. The moods they set move people and animals from the next step. `TrafficAI` and
+`VehiclePhysics` read `GameClock` and `Weather` and work out the air once a step (`airAt`), so every
+wheel meets the wet and the snow this step's weather left, meltwater included. Gameplay is in
 [gameplay.md](gameplay.md), the weather in [weather.md](weather.md), the rivers and who meets them
 in [water.md](water.md).
 
@@ -165,9 +167,9 @@ along either axis stands frozen: `Explode`, `TrafficAI`, `VehiclePhysics`, `Cont
 state stays exactly as it was until the player comes back. People and animals never get that far in
 play. `ApplyPlayer` moves the player with the other host requests, before anything moves.
 `LeaveBehind` comes after `Respawn`, the player's last move of the step, so whoever a jump left
-behind goes at the step's last `applyDeferred`, before the next step would read the map there:
-placed early in the step, it swept a man off the track before `RideAlong` had carried the player,
-boarding a train far from where they were staged, to him.
+behind goes at the `applyDeferred` after `PopulateAnimals`, before the next step would read the map
+there: placed early in the step, it swept a man off the track before `RideAlong` had carried the
+player, boarding a train far from where they were staged, to him.
 
 ### Where state lives
 

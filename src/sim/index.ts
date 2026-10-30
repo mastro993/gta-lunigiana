@@ -228,6 +228,8 @@ export const update = Game.Schedule(
   Dispatch,
   Populate,
   PopulateAnimals,
+  // The people, animals and traffic brought out this step stand before a car is parked clear of them.
+  Game.Schedule.applyDeferred(),
   PopulateParked,
   Game.Schedule.applyDeferred(),
 )
