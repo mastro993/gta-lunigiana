@@ -24,10 +24,19 @@ const t0 = performance.now()
 const lap = (label: string) =>
   console.log(`${label.padEnd(10)} ${((performance.now() - t0) / 1000).toFixed(2)} s`)
 
+/**
+ * The sources and the terrain built on them. The DTM (`ground`), which only these two read, lives
+ * in this function's frame alone: a value a running function holds is never collected, so it goes
+ * when this returns, before the world phase.
+ */
+const sourcesAndTerrain = async () => {
+  const { ground, ...src } = await readSources(ROOT, lap)
+  return { src, terrain: buildTerrain(src, ground, lap) }
+}
+
 /** The map cut into tiles, and what the report prints about the build; every other intermediate is gone once it returns. */
 const cutBuilt = async () => {
-  const { ground, ...src } = await readSources(ROOT, lap)
-  const terrain = buildTerrain(src, ground, lap)
+  const { src, terrain } = await sourcesAndTerrain()
   const world = buildWorld(src, terrain, lap)
   const built = assembleMap(src, terrain, world)
   lap("map")

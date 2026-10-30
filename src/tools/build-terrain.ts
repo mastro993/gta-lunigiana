@@ -1,7 +1,8 @@
 // The map build's terrain phase: the water's surfaces, the road and rail profiles (their claims on
 // the grid recorded), the water kept under the decks, then the grid built tile by tile
 // (build-grid.ts), the catchments on it and the perched water dropped. It returns the finished grid
-// and the lines read from it, so the profiles and the DTM go out of scope here.
+// and the lines read from it, so the profiles go out of scope here, and the DTM when the function
+// in build-map.ts that holds it returns.
 import type { Water } from "../sim/map/index.ts"
 import { tileByTile } from "./build-grid.ts"
 import type { Sources } from "./build-sources.ts"

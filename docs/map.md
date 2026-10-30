@@ -79,6 +79,12 @@ so its peak is one phase's working set plus what that phase hands on:
 | world | `build-world.ts` | 9–12 | the clearance indexes the spawns and the graph's dead ends are checked against |
 | output | `build-output.ts` | the map put together, its land cover, the cut, the bake, the files | |
 
+The DTM is the one input two phases read (the sources take the water's widths from it), so
+`build-map.ts` hands it from one to the other in a function of its own that returns with the grid:
+a value a running function holds is never collected, and held in the build's own function it
+stayed through the world phase and the cut (Lunigiana, after the terrain phase and two full
+collections: 121 MB of array buffers, 39 MB, the grid alone, once it goes).
+
 The output cuts the map into its tiles once ([Map files](#map-files)), one at a time, each packed
 with an empty hash as soon as it is cut: its nodes from the grid (whole decimetres, an `Int16Array`),
 its land cover rasterised for its cells alone (`rasterCover` on a block of the cells, with the whole
