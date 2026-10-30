@@ -456,7 +456,8 @@ its durability its crashes have used up, from 0 (as new) to 1 (destroyed). Nothi
   out. A traffic car is abandoned the step it is destroyed: its driver gets out at the first free
   door and flees for 4 s, as from a carjacking, and it stops being traffic, its handbrake on.
   `Populate` removes a wreck once it is out of view (farther than `VIEW_REACH`, 90 m), whoever it
-  belonged to, so wrecks never pile up.
+  belonged to, so wrecks never pile up; a parked car's wreck goes the same way, in `PopulateParked`,
+  which keeps its spot empty ([Parked cars](#parked-cars)).
 
 A vehicle rolled square on into a house wall on Via Cesare Battisti, its damage after the one
 crash (the handling does not change what a crash costs):
@@ -833,9 +834,9 @@ shows). The animals have their own system ([Animals](#animals)), and so do the p
   where they are left, and so do parked cars once touched ([Parked cars](#parked-cars)). No traffic
   comes while 210 vehicles stand (`PARKED` + `TRAFFIC.max`), so the vehicles never outnumber what
   a game parked over the whole map before parking followed the player, plus the traffic. A
-  destroyed vehicle, traffic or not, goes once it is beyond 90 m (`VIEW_REACH`), out of view. A
-  body lies where it fell until it is beyond 140 m, as the living do, so a player who drives off
-  and turns back finds it still there with whoever stands by it.
+  destroyed vehicle, traffic, parked or not, goes once it is beyond 90 m (`VIEW_REACH`), out of
+  view. A body lies where it fell until it is beyond 140 m, as the living do, so a player who drives
+  off and turns back finds it still there with whoever stands by it.
 
 ### Parked cars
 
@@ -867,6 +868,10 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   moved car, and its spot fills again once out of view and clear of it, with the same model and
   paint. The Carabinieri's cars are no spot's: they stay by their station, or wherever the player
   leaves them.
+- **Wrecked**: a parked car destroyed (never entered) goes once out of view, as every wreck does,
+  and its spot holds no car again in this game (`Parking.wrecked`, saved), as a spot stayed empty
+  once its wreck had gone when every car was parked at setup: the player who turns back, or comes
+  back later, finds the street without it.
 - **At most**: none comes while 200 vehicles that are not traffic stand (`PARKED`), the
   Carabinieri's, the stolen and the wrecked ones included. Driving across the map through the ten
   villages above (seed 1, 50 m every half second from 400 m out of each), at most 25 vehicles stood

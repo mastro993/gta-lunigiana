@@ -42,6 +42,7 @@ import {
   makeRuntime,
   Motion,
   Parked,
+  Parking,
   Pedestrian,
   Person,
   Player,
@@ -69,6 +70,7 @@ import {
 } from "./index.ts"
 import { graph } from "./map/index.ts"
 import type { Surface } from "./map/surface.ts"
+import { parkedOn } from "./population/parked.ts"
 import type { trainDraft } from "./rail/service.ts"
 import { noTrains, TrainWorld } from "./rail/testing.ts"
 import {
@@ -180,6 +182,7 @@ export const World = Game.Inspector(
       weather: Game.System.readResource(Weather),
       rivers: Game.System.readResource(Rivers),
       rng: Game.System.readResource(Rng),
+      parking: Game.System.readResource(Parking),
     },
   },
   ({ queries, resources }) => ({
@@ -240,6 +243,7 @@ export const World = Game.Inspector(
     rivers: resources.rivers.get(),
     /** The world's random stream's state: what traffic, people and animals have drawn. */
     rng: resources.rng.get(),
+    parking: resources.parking.get(),
   }),
 )
 
@@ -254,6 +258,8 @@ interface Cast {
   readonly carcasses?: ReadonlyArray<ReturnType<typeof animal>>
   /** Trains (`trainDraft`), AI-driven or not. */
   readonly trains?: ReadonlyArray<ReturnType<typeof trainDraft>>
+  /** Parked spots (indices into `MAP.spawns.parked`) each holding its Panda burnt out (`Parked`, a charred shell). */
+  readonly wrecks?: ReadonlyArray<number>
   /** A leader (lying dead, when `dead`) and who walks with it, people and animals (a dog on a lead), each at its place (see `Follows`). */
   readonly parties?: ReadonlyArray<{
     readonly leader: ReturnType<typeof pedestrian>
@@ -357,6 +363,7 @@ export const stage = (at: PoseValue, cast: Cast = {}) =>
             PrevPose,
             Motion,
             CarInput,
+            Parked,
             Traffic,
             Route,
             Autopilot,
@@ -381,6 +388,13 @@ export const stage = (at: PoseValue, cast: Cast = {}) =>
         for (const beast of cast.animals ?? []) commands.spawn(beast)
         for (const body of cast.bodies ?? [])
           commands.spawn(Game.Command.extend(body, [Down, { until: 0 }], [Dead, { since: 0 }]))
+        for (const spot of cast.wrecks ?? [])
+          commands.spawn(
+            Game.Command.extend(parkedOn(spot, { model: "panda", color: 0x8b8170 }), [
+              Damage,
+              { ...UNDAMAGED, amount: 1, exploded: true },
+            ]),
+          )
         for (const body of cast.carcasses ?? [])
           commands.spawn(Game.Command.extend(body, [Down, { until: 0 }], [Dead, { since: 0 }]))
         for (const party of cast.parties ?? []) {

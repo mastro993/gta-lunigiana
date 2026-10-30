@@ -539,9 +539,14 @@ const joyride: Timeline = [
 /**
  * Up the street, a mother with her son and their dog on a lead walk toward a man lying dead on their verge: they come on him in
  * about 2 s, stand shocked and run from him; a cat sits across the street. Followers, bodies, animals and reactions all replay.
- * A man walks by the burning wreck.
+ * A man walks by the burning wreck. Out of view, a parked car stands burnt out on `WRECKED`: it goes in the first half second,
+ * and its spot stays empty (`Parking.wrecked`).
  */
 const BYSTANDER = { x: FAR.x, y: FAR.y + 2.5, angle: 0 }
+/** A parked spot 150–300 m from the joyride's start where seed 1 parks a car. */
+const WRECKED = spotsWithin(ON_BATTISTI, PARKING.fill[1]).find(
+  (i) => Vec2.distance(MAP.spawns.parked[i]!, ON_BATTISTI) > 150 && carOn(1, i) !== undefined,
+)!
 const joyrideCast = (() => {
   const lane = laneOf(BATTISTI.edge, BATTISTI.forward),
     verge = walkSide(roadOf(BATTISTI.edge)),
@@ -562,6 +567,7 @@ const joyrideCast = (() => {
           angle: 0,
         }),
       ],
+      wrecks: [WRECKED],
       peds: [
         pedestrian(
           LOOK,
@@ -691,6 +697,7 @@ test("saves: a snapshot taken mid-joyride, in a thunderstorm, restores through J
     a.world().vehicles.some((v) => v.parked !== undefined),
     "with cars parked round the player since",
   )
+  assert.deepEqual(a.world().parking.wrecked, [WRECKED], "and the wreck out of view gone for good")
   // Another seed's game: the restore brings back the save's random streams and its parking seed.
   const b = start([], undefined, { seed: 2 })
   assert.ok(b.runtime.restore(jsonSave(a.runtime)).ok)

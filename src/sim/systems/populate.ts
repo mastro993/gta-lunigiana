@@ -35,6 +35,7 @@ import {
   Game,
   type Look,
   Motion,
+  Parked,
   Pedestrian,
   Person,
   Player,
@@ -250,7 +251,8 @@ const pickModel = (random: Random.Random, edge: number): VehicleModel | undefine
  * in parties on the streets they live on, spawning out of view; both despawn
  * once far behind, or out of sight when stuck for good (never the player's own
  * car); no traffic comes while `PARKED` + `TRAFFIC.max` vehicles stand. Destroyed
- * vehicles go once out of sight; the dead count for nobody and go once far behind.
+ * vehicles go once out of sight (a parked car's in `PopulateParked`); the dead
+ * count for nobody and go once far behind.
  */
 export const Populate = Game.System(
   "Lunigiana/Populate",
@@ -269,10 +271,11 @@ export const Populate = Game.System(
         with: [Traffic],
       }),
       vehicles: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [Vehicle] }),
+      // A parked car's wreck is `PopulateParked`'s, which keeps its spot empty once it has gone.
       wrecks: Game.Query({
         selection: { pose: Game.Query.read(Pose), damage: Game.Query.read(Damage) },
         with: [Vehicle],
-        without: [Traffic],
+        without: [Traffic, Parked],
       }),
       peds: Game.Query({
         selection: {

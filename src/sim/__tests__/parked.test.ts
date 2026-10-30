@@ -3,7 +3,16 @@ import { test } from "node:test"
 
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
-import { Damage, Game, Pose, type PoseValue, PrevPose, SetPlayer, Vehicle } from "../index.ts"
+import {
+  Damage,
+  type DamageValue,
+  Game,
+  Pose,
+  type PoseValue,
+  PrevPose,
+  SetPlayer,
+  Vehicle,
+} from "../index.ts"
 import { MAP } from "../map/index.ts"
 import { CARABINIERI, carOn, PARKED, PARKING, pristine, spotsWithin } from "../population/parked.ts"
 import { parkedCar } from "../spawning.ts"
@@ -57,8 +66,11 @@ const looks = (game: Run, at: Vec2.Vec2) =>
       .map((v) => [v.parked!, `${v.model} ${v.color.toString(16)}`] as const)
       .sort(([a], [b]) => a - b),
   )
-/** Damages vehicle `id` by `amount` or moves it to `pose` (`runtime.tick` it). */
-const touch = (id: number, change: { readonly amount?: number; readonly pose?: PoseValue }) =>
+/** Sets vehicle `id`'s `damage` or moves it to `pose` (`runtime.tick` it). */
+const touch = (
+  id: number,
+  change: { readonly damage?: Partial<DamageValue>; readonly pose?: PoseValue },
+) =>
   Game.Schedule(
     Game.System(
       "Test/Touch",
@@ -77,8 +89,8 @@ const touch = (id: number, change: { readonly amount?: number; readonly pose?: P
       ({ queries }) => {
         for (const { entity, data } of queries.cars.each()) {
           if (entity.id !== id) continue
-          const { amount, pose } = change
-          if (amount !== undefined) data.damage.update((damage) => ({ ...damage, amount }))
+          const { damage, pose } = change
+          if (damage !== undefined) data.damage.update((now) => ({ ...now, ...damage }))
           if (pose !== undefined) {
             data.pose.set(pose)
             data.prev.set(pose)
@@ -176,7 +188,7 @@ test("parking: beyond 400 m the untouched parked cars go; a damaged one, a moved
   const parked = game.world().vehicles.filter((v) => v.parked !== undefined)
   assert.ok(parked.length >= 3, `${parked.length} parked at the start`)
   const [hit, shoved] = parked as [(typeof parked)[0], (typeof parked)[0]]
-  assert.ok(game.runtime.tick(touch(hit.id, { amount: 0.2 })).ok)
+  assert.ok(game.runtime.tick(touch(hit.id, { damage: { amount: 0.2 } })).ok)
   assert.ok(game.runtime.tick(touch(shoved.id, { pose: along(shoved, 2) })).ok)
   go(game, { x: START.x + 800, y: START.y, angle: 0 }, 60)
   const there = game.world().vehicles.filter((v) => Vec2.distance(v, START) <= PARKING.fill[1])
@@ -193,6 +205,28 @@ test("parking: beyond 400 m the untouched parked cars go; a damaged one, a moved
   const back = game.world().vehicles
   for (const car of [hit, shoved])
     assert.equal(back.filter((v) => v.parked === car.parked).length, 1, `one car on ${car.parked}`)
+})
+
+test("parking: a parked car destroyed goes once out of view, as every wreck does, and its spot holds no car again", () => {
+  const game = start()
+  game.run(1)
+  const me = game.view()!.pose
+  const wreck = game
+    .world()
+    .vehicles.filter((v) => v.parked !== undefined)
+    .reduce((a, b) => (Vec2.distance(b, me) < Vec2.distance(a, me) ? b : a))
+  assert.ok(Vec2.distance(wreck, me) < VIEW_REACH, "a car in view")
+  // A charred shell: burnt out and blown up.
+  assert.ok(game.runtime.tick(touch(wreck.id, { damage: { amount: 1, exploded: true } })).ok)
+  const spot = spotPose(wreck.parked!)
+  go(game, { x: spot.x + 120, y: spot.y, angle: Math.PI }, 60)
+  const { vehicles } = game.world()
+  const onSpot = () => game.world().vehicles.filter((v) => v.parked === wreck.parked)
+  assert.ok(!vehicles.some((v) => v.id === wreck.id), "the wreck goes out of view")
+  assert.deepEqual(onSpot(), [], "and its spot gets no car")
+  go(game, { x: spot.x + 900, y: spot.y, angle: Math.PI }, 60)
+  go(game, { x: spot.x + 120, y: spot.y, angle: Math.PI }, 60)
+  assert.deepEqual(onSpot(), [], "nor once the player has been far and come back")
 })
 
 test("parking: with more than 200 vehicles that are not traffic standing, no parked car comes, and traffic only up to 210 vehicles in all", () => {

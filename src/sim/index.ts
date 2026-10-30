@@ -264,7 +264,7 @@ export const makeRuntime = <const Services extends RuntimeServices>(options: {
       Rng: Random.seed(options.seed),
       WeatherRng: weatherSeed,
       RailRng: Random.seed(options.seed ^ RAIL_SEED),
-      Parking: { seed: Random.seed(options.seed) },
+      Parking: { seed: Random.seed(options.seed), wrecked: [] },
       Score: { stolen: 0, knocked: 0 },
       View: { turns: 0 },
       Handling: DEFAULT_HANDLING,

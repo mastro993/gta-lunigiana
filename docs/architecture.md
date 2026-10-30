@@ -24,7 +24,7 @@ keys, touch ──► KeyboardInput service ──► CaptureInput ──► Inp
 `makeRuntime({ seed, start?, services, debug? })`, which makes a runtime with the starting
 resources: `Time` (60 Hz clock), `Rng` (seeded from `seed`), `WeatherRng` (seeded from
 `seed ^ 0x9e3779b9`), `RailRng` (seeded from `seed ^ 0x7f4a7c15`), `Parking` (`seed` itself, as an
-unsigned 32-bit integer), `Score` (zeroed), `View`
+unsigned 32-bit integer, and no spot wrecked), `Score` (zeroed), `View`
 (home view), `Handling` (a new game's knobs, `DEFAULT_HANDLING`: the Balanced preset), `GameClock`
 (`start` at rate 1), `Weather` (`initialWeather(start, weatherSeed)`, `weatherSeed` being
 `WeatherRng`'s first state: clear and calm, dry ground, the season's snow line, and a calm plan the
@@ -130,9 +130,9 @@ fill replays with the seed.
 | 35 | `Respawn` | `systems/explosions.ts` | the dead player comes back on foot at the start after 4 s, on the ground there (`Footing`) |
 | 36 | `LeaveBehind` | `systems/reach.ts` | the people (the dead too) and animals farther than `FROZEN_BEYOND` (500 m) from the player along either axis go, at the step's last `applyDeferred`: only a jump of the player (`Respawn`, `SetPlayer`) leaves anyone there, since `Populate` and `PopulateAnimals` despawn them beyond 140–180 m every 0.5 s |
 | 37 | `Dispatch` | `rail/dispatch.ts` | removes AI trains run past their line's drawn run and makes that line's next train due after a layover, drawn from `RailRng`; removes a stolen train the player has left once all of it is out of view (`VIEW_REACH`), its line's next train then due after a layover; sends a due train in at the run-out's end once its braking distance ahead (`entryClear`) and its run-out are free of any train and no AI train of another line runs the other way on track they share |
-| 38 | `Populate` | `systems/populate.ts` | every 0.5 s spawns (never within 15 m of a level crossing, nor while 210 vehicles stand) and despawns traffic and parties of people (the dead beyond 140 m, like the living), and removes destroyed vehicles once out of view (`VIEW_REACH`) |
+| 38 | `Populate` | `systems/populate.ts` | every 0.5 s spawns (never within 15 m of a level crossing, nor while 210 vehicles stand) and despawns traffic and parties of people (the dead beyond 140 m, like the living), and removes destroyed vehicles once out of view (`VIEW_REACH`), parked cars' left to `PopulateParked` |
 | 39 | `PopulateAnimals` | `systems/populate-animals.ts` | every 0.5 s spawns and despawns the free animals |
-| 40 | `PopulateParked` | `systems/populate-parked.ts` | every 0.5 s parks the car the spots' hash gives each empty spot 90–300 m from the player (out of view), clear of every vehicle, person and animal, while fewer than 200 vehicles that are not traffic stand; removes a parked car still as it was parked (`Parked`, undamaged, on its spot) beyond 400 m |
+| 40 | `PopulateParked` | `systems/populate-parked.ts` | every 0.5 s parks the car the spots' hash gives each empty spot 90–300 m from the player (out of view), clear of every vehicle, person and animal, while fewer than 200 vehicles that are not traffic stand; removes a parked car still as it was parked (`Parked`, undamaged, on its spot) beyond 400 m, and a parked car's wreck once out of view, its spot kept empty for good (`Parking.wrecked`) |
 | 41 | `applyDeferred` | | applies spawns, despawns, inserts and removals |
 
 Controls, the handling, the clock, the weather, the rivers and a call for trains are settled before
@@ -196,7 +196,7 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `Route` | traffic, pedestrians | current graph edge, direction, lateral offset (a follower's is its leader's) |
 | `Autopilot` | traffic | next edge, stuck counter, reverse end step, unstick tries |
 | `Stolen` | vehicles, trains | tag: already entered once by the player |
-| `Parked` | parked cars never entered | the spot it holds (`spot`, an index into `MAP.spawns.parked`; immutable): the spot counts as taken while it stands, and while it is still as it was parked it goes beyond 400 m. `EnterExit` removes it, so the spot fills again; the Carabinieri's cars have none |
+| `Parked` | parked cars never entered | the spot it holds (`spot`, an index into `MAP.spawns.parked`; immutable): the spot counts as taken while it stands, and while it is still as it was parked it goes beyond 400 m; destroyed, it goes out of view and the spot stays taken (`Parking.wrecked`). `EnterExit` removes it, so the spot fills again; the Carabinieri's cars have none |
 | `Driving` | the player | handle of the vehicle or train being driven, with the intent `CarInput` (both carry it): a system resolves it through a query that selects `CarInput` (`PlayerDrive` one for both; `EnterExit`, `RideAlong` and `PlayerView` one for vehicles, one for trains), and the hosts compare `Game.Entity.id` |
 | `Train` | trains | model (`atr220`, immutable) |
 | `TrainMotion` | trains | its line (an index into `LINES`), the arc length `s` of its active cab's nose and `prev`, its s at the step's start (every writer that moves it at once sets both), speed `v` toward +s (m/s), which way the active cab faces (`facing`, ±1: the body runs back from s to s − facing × its length), its eased `power` (−1…1, + toward the facing) and `brake` (0…1 of the emergency rate) |
@@ -228,7 +228,7 @@ Saved resources:
 | `Rng` | the world's random stream: traffic, people and animals |
 | `WeatherRng` | the weather's own random stream: the storm cell and lightning (its first state is the weather seed) |
 | `RailRng` | the railway's own random stream: which way each line's first train runs where either way passes the start, the dwells and the layovers |
-| `Parking` | `seed`, the game's seed (never changed): with a spot's index it hashes whether the spot holds a car, its model and its paint |
+| `Parking` | `seed`, the game's seed (never changed): with a spot's index it hashes whether the spot holds a car, its model and its paint; `wrecked`, the spots whose car was destroyed and has gone, in the order they went, which hold no car again |
 | `Score` | `stolen` (vehicles and trains), and `knocked`: people the player's car or train knocked down or killed |
 | `View` | `turns`, the net quarter turns of the camera; driving, the seat nearest the car's heading |
 | `Handling` | the 16 handling knobs ([gameplay.md](gameplay.md#handling)) |
@@ -1729,15 +1729,17 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     drive on misfiring and a wreck blowing up beside a passer-by, and requires identical state,
     transient components included. Its cast reaches the population's state: a mother, her son and
     their dog on a lead come on a man lying dead (shocked, they run), a cat sits across the street,
-    and `PopulateParked` parks cars 90–300 m round the player (`Parked`).
-  - `saves`: a snapshot taken mid-joyride, with a changed handling, the clock at rate 600, a
-    forced, settled thunderstorm and cars parked round the player, goes through JSON, restores into
-    a fresh runtime of another seed (its streams and `Parking` come from the save), and plays on
-    identically for 1,200 frames, its lightning included (some, and the same); so does one taken
-    while a walker stands shocked by a body (a `Witness`), whose choice to gather or run comes out
-    alike. `src/sim/__tests__/animals.test.ts` replays a walk about a farm with its animals, and
-    restores animals mid-roam and a save taken in the step a car strikes a dog, the cat by it
-    scared in that step (`Startle`).
+    and `PopulateParked` parks cars 90–300 m round the player (`Parked`) and takes a parked car's
+    wreck out of view, its spot then empty for good (`Parking.wrecked`).
+  - `saves`: a snapshot taken mid-joyride, with a changed handling, the clock at rate 600, a forced,
+    settled thunderstorm, cars parked round the player and the wrecked spot kept empty
+    (`Parking.wrecked`), goes through JSON, restores into a fresh runtime of another seed (its
+    streams and `Parking` come from the save), and plays on identically for 1,200 frames, its
+    lightning included (some, and the same); so does one taken while a walker stands shocked by a
+    body (a `Witness`), whose choice to gather or run comes out alike.
+    `src/sim/__tests__/animals.test.ts` replays a walk about a farm with its animals, and restores
+    animals mid-roam and a save taken in the step a car strikes a dog, the cat by it scared in that
+    step (`Startle`).
   - `src/sim/__tests__/sky.test.ts`: the clock in the runtime (08:00 in Rome on the start day, each
     step's rate, none at rate 0, through a save), `SetClock` and `SetWeather` sent before the first
     update still applied, a forced storm's lightning (bolts on the map, with the clock stopped, the
@@ -2006,16 +2008,17 @@ line's service off, so setup stands no train and no test meets one it did not as
 `makeRuntime` tests by the line tick it too); with `alone`, whatever `Populate` brings is despawned
 the step it comes, so a staged scene plays out undisturbed. `stage` clears the map (vehicles,
 trains, people and animals) and places exactly the cars, trains, pedestrians, animals, bodies lying
-dead and parties with their followers a test needs (`battistiTraffic(color, at?, speed?)` a traffic
-car on Via Cesare Battisti), `wear` sets every vehicle's damage, `burning` makes a wreck that blows
-up at a given step, `World` inspects everything as plain data (each person's look, mood, route,
-leader, `Down`, `Dead` and `Witness`, each animal, the handling, the damage, the clock, the weather
-and the world's random stream, `rng`, and through `TrainWorld` the trains, whether stolen,
-`Railway`, `LevelCrossings` and `RailRng`), `LOOK` is a test person, `facing` places things in front
-of a house wall on Via Cesare Battisti, and `drive` steps one vehicle with `advance` alone (test
-ground, no walls) under a given handling, its engine worn as given, on ground as wet and snowy as
-its `weather` (dry when omitted); after `stage` a game started with `trains` runs only the cast's
-trains until a `SetTrains`, since setup's first trains are gone and no line has another due.
+dead, parked cars burnt out on their spots (`wrecks`) and parties with their followers a test needs
+(`battistiTraffic(color, at?, speed?)` a traffic car on Via Cesare Battisti), `wear` sets every
+vehicle's damage, `burning` makes a wreck that blows up at a given step, `World` inspects everything
+as plain data (each person's look, mood, route, leader, `Down`, `Dead` and `Witness`, each animal,
+the handling, the damage, the clock, the weather and the world's random stream, `rng`, the parked
+cars' `Parking`, and through `TrainWorld` the trains, whether stolen, `Railway`, `LevelCrossings`
+and `RailRng`), `LOOK` is a test person, `facing` places things in front of a house wall on Via
+Cesare Battisti, and `drive` steps one vehicle with `advance` alone (test ground, no walls) under a
+given handling, its engine worn as given, on ground as wet and snowy as its `weather` (dry when
+omitted); after `stage` a game started with `trains` runs only the cast's trains until a
+`SetTrains`, since setup's first trains are gone and no line has another due.
 `src/sim/rail/testing.ts` adds `placeTrains` (replace every train), `railStep` (the railway's
 systems alone, in `update`'s order), `groundTo` (wet or snowy ground everywhere), `setCrossing(box,
 state)` (a box's cycle), `aiTrain(s, dir, v?, until?)` (an AI train on Monzone's line, running or

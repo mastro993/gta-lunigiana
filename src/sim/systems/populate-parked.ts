@@ -2,6 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import { Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carRadius, offBody } from "../body.ts"
+import { destroyed } from "../damage.ts"
 import { MAP } from "../map/index.ts"
 import { carOn, PARKED, PARKING, parkedOn, pristine, spotsWithin } from "../population/parked.ts"
 import {
@@ -21,6 +22,7 @@ import {
   Vehicle,
 } from "../schema.ts"
 import type { VehicleModel } from "../vehicles.ts"
+import { VIEW_REACH } from "../view.ts"
 
 const PERIOD = Clock.duration(STEP, 0.5)
 /** A car is not brought out within this of a person or an animal, m: the largest, a cow, is 0.86 m round. */
@@ -49,8 +51,9 @@ const roomOn = (
 /**
  * Every half second, keeps the parked cars round the player: each spot `PARKING.fill` m away (out of view) that the hash gives a
  * car and no car holds gets it, unless a vehicle, a person or an animal stands there; a car still as it was parked goes beyond
- * `PARKING.despawn` m. A stolen, moved or damaged car stays where it is, as the Carabinieri's do; no more spawn while `PARKED`
- * vehicles that are not traffic stand.
+ * `PARKING.despawn` m. A stolen, moved or damaged car stays where it is, as the Carabinieri's do; a wreck goes once out of view,
+ * as `Populate` takes every other, and its spot gets no car again (`Parking.wrecked`). No more spawn while `PARKED` vehicles that
+ * are not traffic stand.
  */
 export const PopulateParked = Game.System(
   "Lunigiana/PopulateParked",
@@ -74,7 +77,7 @@ export const PopulateParked = Game.System(
       bodies: Game.Query({ selection: { pose: Game.Query.read(Pose) }, without: [Vehicle] }),
     },
     resources: {
-      parking: Game.System.readResource(Parking),
+      parking: Game.System.writeResource(Parking),
       time: Game.System.thisTick(Game.System.readResource(Time)),
     },
     commands: Game.System.commands(
@@ -89,16 +92,28 @@ export const PopulateParked = Game.System(
     const at = found.value.data.pose.get()
     const far = (p: Vec2.Vec2, range: number) => Vec2.distanceSquared(p, at) > range * range
 
-    const held = new Set<number>()
+    const { seed, wrecked } = resources.parking.get()
+    // The spots a car holds, and those whose wreck has gone: neither gets a car.
+    const held = new Set(wrecked),
+      burnt: Array<number> = []
     let gone = 0
     for (const { entity, data } of queries.parked.each()) {
       const { spot } = data.parked.get(),
-        pose = data.pose.get()
-      if (pristine(spot, pose, data.damage.get()) && far(pose, PARKING.despawn)) {
+        pose = data.pose.get(),
+        damage = data.damage.get()
+      if (pristine(spot, pose, damage) && far(pose, PARKING.despawn)) {
         commands.despawn(entity)
         gone++
-      } else held.add(spot)
+        continue
+      }
+      held.add(spot)
+      if (destroyed(damage.amount) && far(pose, VIEW_REACH)) {
+        commands.despawn(entity)
+        burnt.push(spot)
+        gone++
+      }
     }
+    if (burnt.length > 0) resources.parking.set({ seed, wrecked: [...wrecked, ...burnt] })
     const vehicles: Array<Standing> = [],
       bodies = queries.bodies.each().map(({ data }) => data.pose.get())
     let standing = -gone
@@ -106,7 +121,6 @@ export const PopulateParked = Game.System(
       vehicles.push({ model: data.vehicle.get().model, pose: data.pose.get() })
       if (!data.traffic.present) standing++
     }
-    const { seed } = resources.parking.get()
     for (const index of spotsWithin(at, PARKING.fill[1])) {
       if (standing >= PARKED) break
       const spot = MAP.spawns.parked[index]!
