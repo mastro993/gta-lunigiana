@@ -210,7 +210,7 @@ export const along = (s: ReadonlyArray<number>, z: ArrayLike<number>, at: number
 }
 
 /** Bounding box [minX, minY, maxX, maxY] of a polyline. */
-const lineBox = (l: ReadonlyArray<V>): [number, number, number, number] => {
+export const lineBox = (l: ReadonlyArray<V>): [number, number, number, number] => {
   let x0 = Infinity,
     y0 = Infinity,
     x1 = -Infinity,
@@ -227,12 +227,16 @@ export interface Crossing {
   readonly sb: number
 }
 
+/** Whether two [minX, minY, maxX, maxY] boxes overlap (touching counts): where `crossings` can find any. */
+export const boxesMeet = (
+  a: readonly [number, number, number, number],
+  b: readonly [number, number, number, number],
+): boolean => !(a[0] > b[2] || b[0] > a[2] || a[1] > b[3] || b[1] > a[3])
+
 /** Points where polylines a and b meet (shared vertices included, duplicates dropped), with the arc length along each. */
 export const crossings = (a: ReadonlyArray<V>, b: ReadonlyArray<V>): Array<Crossing> => {
   const out: Array<Crossing> = []
-  const [ax0, ay0, ax1, ay1] = lineBox(a),
-    [bx0, by0, bx1, by1] = lineBox(b)
-  if (ax0 > bx1 || bx0 > ax1 || ay0 > by1 || by0 > ay1) return out
+  if (!boxesMeet(lineBox(a), lineBox(b))) return out
   const la = arcLengths(a),
     lb = arcLengths(b)
   for (let i = 0; i + 1 < a.length; i++)

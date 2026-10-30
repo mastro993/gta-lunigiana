@@ -2,7 +2,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { decodeMap, decodeTile, MAP_VERSION } from "../../sim/map/packed.ts"
-import { type BuiltMap, cutMap, joinTiles, NO_BAKES } from "../tile-map.ts"
+import { packTile } from "../pack.ts"
+import { type BuiltMap, cutMap, joinTiles, NO_BAKES, stampMap } from "../tile-map.ts"
 
 /** A 24 m map on the origin: its four tiles meet at (0, 0). */
 const built = (data: ReadonlyArray<number>): BuiltMap => ({
@@ -33,8 +34,17 @@ const built = (data: ReadonlyArray<number>): BuiltMap => ({
 })
 const data = Array.from({ length: 49 }, (_, k) => 2000 + 13 * k)
 
+/** The stamped global map and the files of `map` cut as the build cuts it: the global file under "", each tile under its key. */
+const filesOf = (map: BuiltMap) => {
+  const cut = cutMap(map, "test")
+  const stamped = stampMap(cut.global(NO_BAKES), cut.tiles.values())
+  const files = new Map<string, Uint8Array>([["", stamped.file]])
+  for (const [key, file] of cut.tiles) files.set(key, stamped.tile(file))
+  return { global: stamped.global, files, unstamped: cut.tiles }
+}
+
 test("cutMap cuts the dense layers into tiles that joinTiles puts back as they were, walls and trees in order", () => {
-  const { global, files } = cutMap(built(data), "test", NO_BAKES)
+  const { global, files } = filesOf(built(data))
   assert.deepEqual(
     global.tiles.map(({ i, j }) => `${i}_${j}`),
     ["-1_-1", "0_-1", "-1_0", "0_0"],
@@ -52,14 +62,14 @@ test("cutMap cuts the dense layers into tiles that joinTiles puts back as they w
 test("cutMap throws for a height that does not fit int16 decimetres, rather than wrapping it", () => {
   for (const bad of [40000, -40000, Number.NaN, 2000.5])
     assert.throws(
-      () => cutMap(built(data.map((z, k) => (k === 10 ? bad : z))), "test", NO_BAKES),
+      () => cutMap(built(data.map((z, k) => (k === 10 ? bad : z))), "test"),
       /heightmap: .* at node \(3, 1\) does not fit int16/,
     )
 })
 
 test("joinTiles refuses a tile from another build", () => {
-  const a = cutMap(built(data), "test", NO_BAKES),
-    b = cutMap(built(data.map((z) => z + 1)), "test", NO_BAKES)
+  const a = filesOf(built(data)),
+    b = filesOf(built(data.map((z) => z + 1)))
   const tiles = a.global.tiles.map(({ i, j }) =>
     decodeTile((i === 0 && j === 0 ? b : a).files.get(`${i}_${j}`)!),
   )
@@ -67,4 +77,13 @@ test("joinTiles refuses a tile from another build", () => {
     () => joinTiles(decodeMap(a.files.get("")!), tiles),
     new RegExp(`join: tile 0_0 is from another build \\(${b.global.hash}, not ${a.global.hash}\\)`),
   )
+})
+
+test("stamping a tile gives the file packTile packs with the build hash", () => {
+  const { global, files, unstamped } = filesOf(built(data))
+  for (const [key, file] of unstamped) {
+    const tile = decodeTile(file)
+    assert.equal(tile.hash, "")
+    assert.deepEqual(files.get(key), packTile({ ...tile, hash: global.hash }).file)
+  }
 })

@@ -19,6 +19,16 @@ const runningMin = (p: Profile) => {
  * the water it joins (tail lowered at <= TAIL, or ponded up to it).
  */
 const settle = (water: ReadonlyArray<WaterF>, wp: ReadonlyArray<Profile>) => {
+  // Each node id's waters, in order, with the first vertex of each that has it.
+  const at = new Map<string, Array<readonly [number, number]>>()
+  water.forEach((r, j) =>
+    r.pts.forEach((q, v) => {
+      if (q.id === undefined) return
+      const list = at.get(q.id)
+      if (list === undefined) at.set(q.id, [[j, v]])
+      else if (list.at(-1)![0] !== j) list.push([j, v])
+    }),
+  )
   for (let it = 0; it < 20; it++) {
     let changed = false
     for (const p of wp) runningMin(p)
@@ -27,13 +37,13 @@ const settle = (water: ReadonlyArray<WaterF>, wp: ReadonlyArray<Profile>) => {
       if (mouth === undefined) return
       const p = wp[i]!,
         end = p.z.length - 1
-      water.forEach((r, j) => {
-        const v = r.pts.findIndex((q) => q.id === mouth)
-        if (j === i || v < 0 || v === r.pts.length - 1) return // r ends there too: siblings, not a receiver
+      for (const [j, v] of at.get(mouth)!) {
+        const r = water[j]!
+        if (j === i || v === r.pts.length - 1) continue // r ends there too: siblings, not a receiver
         const q = wp[j]!
         const level = v === 0 ? Math.min(q.z[0]!, p.z[end]!) : q.z[q.vertexSample[v]!]!
         if (v === 0 && q.z[0]! > level) [q.z[0], changed] = [level, true]
-        if (Math.abs(p.z[end]! - level) < 1e-6) return
+        if (Math.abs(p.z[end]! - level) < 1e-6) continue
         changed = true
         if (p.z[end]! < level) for (let k = 0; k <= end; k++) p.z[k] = Math.max(p.z[k]!, level)
         else {
@@ -43,7 +53,7 @@ const settle = (water: ReadonlyArray<WaterF>, wp: ReadonlyArray<Profile>) => {
           for (let k = 0; k <= end; k++)
             p.z[k] = p.z[k]! - drop * Math.max(0, 1 - (p.s[end]! - p.s[k]!) / fade)
         }
-      })
+      }
     })
     if (!changed) return
   }

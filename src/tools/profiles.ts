@@ -99,6 +99,50 @@ interface Dense {
   readonly z: ReadonlyArray<number>
 }
 
+/** Elevations set at shared nodes, and the ids in the order they were first set (what `grown` reads). */
+class NodeZ extends Map<string, number> {
+  readonly order: Array<string> = []
+  override set(id: string, z: number): this {
+    if (!this.has(id)) this.order.push(id)
+    return super.set(id, z)
+  }
+}
+
+/** A binary min-heap of integers. */
+const minHeap = () => {
+  const items: Array<number> = []
+  return {
+    push(n: number) {
+      let k = items.length
+      items.push(n)
+      while (k > 0) {
+        const up = (k - 1) >> 1
+        if (items[up]! <= n) break
+        items[k] = items[up]!
+        k = up
+      }
+      items[k] = n
+    },
+    /** The least item, removed; undefined when empty. */
+    pop(): number | undefined {
+      const top = items[0],
+        last = items.pop()
+      if (last === undefined || items.length === 0) return top
+      let k = 0
+      for (;;) {
+        const l = 2 * k + 1
+        if (l >= items.length) break
+        const m = l + 1 < items.length && items[l + 1]! < items[l]! ? l + 1 : l
+        if (items[m]! >= last) break
+        items[k] = items[m]!
+        k = m
+      }
+      items[k] = last
+      return top
+    },
+  }
+}
+
 /**
  * Profiles chains against `ground` (the uncarved terrain) and flattens them into `grid`. Elevations
  * set at shared nodes (`nodeZ`) pin every later chain through them; `zOf` holds per-vertex z and
@@ -110,7 +154,7 @@ export const makeProfiler = (
   owner: Uint8Array,
   protect: Uint8Array,
 ) => {
-  const nodeZ = new Map<string, number>()
+  const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
   const denseOf = new Map<Linear, Dense>()
   /** Writes profile `p` of a line `w` m wide into the grid at `rank`, skipping segments from samples where `skip`. */
@@ -211,10 +255,39 @@ export const makeProfiler = (
   function* grown<T extends Linear>(
     chains: ReadonlyArray<ReadonlyArray<Link<T>>>,
   ): Generator<ReadonlyArray<Link<T>>> {
-    const left = [...chains]
-    const touches = (c: ReadonlyArray<Link<T>>) =>
-      c.some(({ item }) => item.pts.some((v) => v.id !== undefined && nodeZ.has(v.id)))
-    while (left.length > 0) yield left.splice(Math.max(0, left.findIndex(touches)), 1)[0]!
+    // The chains through each node id; a chain touches once any of its ids is set, and stays so.
+    const through = new Map<string, Array<number>>()
+    chains.forEach((c, i) => {
+      for (const { item } of c)
+        for (const v of item.pts) {
+          if (v.id === undefined) continue
+          const list = through.get(v.id)
+          if (list === undefined) through.set(v.id, [i])
+          else if (list.at(-1) !== i) list.push(i)
+        }
+    })
+    const used = new Uint8Array(chains.length),
+      touching = new Uint8Array(chains.length),
+      ready = minHeap()
+    let seen = 0,
+      first = 0
+    for (let n = 0; n < chains.length; n++) {
+      // The elevations set since the last chain (by it, or between passes) make more chains touch.
+      for (; seen < nodeZ.order.length; seen++)
+        for (const i of through.get(nodeZ.order[seen]!) ?? [])
+          if (touching[i] === 0) {
+            touching[i] = 1
+            ready.push(i)
+          }
+      let next = ready.pop()
+      while (next !== undefined && used[next] === 1) next = ready.pop()
+      if (next === undefined) {
+        while (used[first] === 1) first++
+        next = first
+      }
+      used[next] = 1
+      yield chains[next]!
+    }
   }
   return { profile, claim, grown, nodeZ, zOf, denseOf }
 }

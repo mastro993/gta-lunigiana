@@ -227,42 +227,32 @@ const cut = (map: BuiltMap) => {
   }
 }
 
-/** The global map and its tiles, packed and stamped with the build's hash (16 hex digits of SHA-256 over every file unstamped). */
-const stamp = (
-  global: Omit<MonzoneMap, "hash">,
-  tiles: ReadonlyArray<Cut>,
-): {
-  readonly global: MonzoneMap
-  readonly files: Map<string, Buffer>
-  readonly sizes: Record<string, number>
-} => {
-  const hash = createHash("sha256")
-  hash.update(packMap({ ...global, hash: "" }).file)
-  for (const t of tiles) hash.update(packTile({ ...t, hash: "" }).file)
-  const stamped: MonzoneMap = { ...global, hash: hash.digest("hex").slice(0, 16) }
-  const files = new Map<string, Buffer>()
-  const sizes: Record<string, number> = {}
-  const packed = packMap(stamped)
-  files.set("", packed.file)
-  for (const [part, bytes] of Object.entries(packed.sizes)) sizes[`global ${part}`] = bytes
-  for (const t of tiles) {
-    const tile = packTile({ ...t, hash: stamped.hash })
-    files.set(tileKey(t.i, t.j), tile.file)
-    for (const [part, bytes] of Object.entries(tile.sizes))
-      sizes[`tile ${part}`] = (sizes[`tile ${part}`] ?? 0) + bytes
-  }
-  return { global: stamped, files, sizes }
+/** The map cut into its tiles once: each tile packed with no hash yet, and the global map the bakes complete. */
+export interface MapCut {
+  /** Each tile's gunzipped file with an empty hash, by key, south to north then west to east. */
+  readonly tiles: ReadonlyMap<string, Buffer>
+  /** The global map with `bakes`, before its hash. */
+  readonly global: (bakes: Bakes) => Omit<MonzoneMap, "hash">
+  /** The bytes of each part of the tiles, summed (`json` with the hash still empty). */
+  readonly sizes: Readonly<Record<string, number>>
 }
 
 /**
- * The map files for `map` named `name`, with `bakes`: the gunzipped global file under key "" and each
- * tile under its key, the decoded global map, and the bytes of each part (tiles summed). Deterministic.
+ * `map` named `name` cut into its tiles, each packed once. The global map keeps only the sparse
+ * parts, so the dense layers can go once the cut is done. Deterministic.
  */
-export const cutMap = (map: BuiltMap, name: string, bakes: Bakes): ReturnType<typeof stamp> => {
+export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const { tiles, walls, coarse } = cut(map)
   const { cell, cols, rows, x0, y0 } = map.heightmap
   const place = placeFrom(map.origin, map.heightmap)
-  const global: Omit<MonzoneMap, "hash"> = {
+  const files = new Map<string, Buffer>(),
+    sizes: Record<string, number> = {}
+  for (const t of tiles) {
+    const tile = packTile({ ...t, hash: "" })
+    files.set(tileKey(t.i, t.j), tile.file)
+    for (const [part, bytes] of Object.entries(tile.sizes)) sizes[part] = (sizes[part] ?? 0) + bytes
+  }
+  const header = {
     version: map.version,
     name,
     origin: map.origin,
@@ -277,26 +267,62 @@ export const cutMap = (map: BuiltMap, name: string, bakes: Bakes): ReturnType<ty
     }),
     place: { floor: place.floor, downslope: place.downslope },
     coarse,
-    roads: map.roads,
-    buildings: map.buildings,
-    water: map.water.map((w, i) => ({ ...w, floor: bakes.floors[i] ?? [] })),
-    rail: map.rail,
-    railway: map.railway,
-    areas: map.areas,
-    barriers: map.barriers,
-    pois: map.pois,
-    districts: map.districts,
-    graph: map.graph,
-    walls,
-    spawns: {
-      player: map.spawns.player,
-      parked: map.spawns.parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }),
-    },
-    lanes: bakes.lanes,
-    farms: bakes.farms,
-    lamps: bakes.lamps,
   }
-  return stamp(global, tiles)
+  const { roads, buildings, water, rail, railway, areas, barriers, pois, districts, graph } = map
+  const { player, parked } = map.spawns
+  return {
+    tiles: files,
+    sizes,
+    global: (bakes) => ({
+      ...header,
+      roads,
+      buildings,
+      water: water.map((w, i) => ({ ...w, floor: bakes.floors[i] ?? [] })),
+      rail,
+      railway,
+      areas,
+      barriers,
+      pois,
+      districts,
+      graph,
+      walls,
+      spawns: { player, parked: parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }) },
+      lanes: bakes.lanes,
+      farms: bakes.farms,
+      lamps: bakes.lamps,
+    }),
+  }
+}
+
+/** A file's JSON line with `hash` set, the packed sections after it unchanged: what packing it with that hash gives. */
+const restamp = (file: Uint8Array, hash: string): Buffer => {
+  const end = file.indexOf(10)
+  const json = JSON.parse(Buffer.from(file.subarray(0, end)).toString()) as { hash: string }
+  json.hash = hash
+  return Buffer.concat([Buffer.from(JSON.stringify(json)), file.subarray(end)])
+}
+
+/**
+ * The build hash of `global` and its unstamped `tiles` (16 hex digits of SHA-256 over the global
+ * file, then each tile's, all unstamped and in order), the global map and its file stamped with it,
+ * and `tile`, which stamps a tile's file.
+ */
+export const stampMap = (
+  global: Omit<MonzoneMap, "hash">,
+  tiles: Iterable<Uint8Array>,
+): {
+  readonly global: MonzoneMap
+  readonly file: Buffer
+  readonly sizes: Readonly<Record<string, number>>
+  readonly tile: (file: Uint8Array) => Buffer
+} => {
+  const sha = createHash("sha256")
+  sha.update(packMap({ ...global, hash: "" }).file)
+  for (const file of tiles) sha.update(file)
+  const hash = sha.digest("hex").slice(0, 16)
+  const stamped: MonzoneMap = { ...global, hash }
+  const { file, sizes } = packMap(stamped)
+  return { global: stamped, file, sizes, tile: (tile) => restamp(tile, hash) }
 }
 
 /** The whole map joined back from its global map and tiles: the dense layers whole again, next to everything global. */

@@ -278,16 +278,23 @@ const OPEN_STEP = 0.25
  * draws cliffs across the paths that climb through them and garden walls up to the road's
  * centreline; the way itself is open (a gap, a gate, steps cut in the rock). Original vertices are
  * kept; each opening ends at the last free sample. Guard rails run along their road and stay whole.
- * Tunnels open nothing unless `tunnels` (a bridge's parapet where the road runs on into one).
+ * Tunnels open nothing (a bridge's parapets do open where the road runs on into one).
  */
 export const openBarriers = (
   barriers: ReadonlyArray<Barrier>,
   roads: ReadonlyArray<RoadF>,
-  tunnels = false,
 ): Array<Barrier> => {
   const ways = segIndex<null>()
-  for (const r of roads) if (tunnels || r.tunnel !== true) ways.addLine(r.pts, r.w / 2, null)
-  return barriers.flatMap((b) => {
+  for (const r of roads) if (r.tunnel !== true) ways.addLine(r.pts, r.w / 2, null)
+  return opened(barriers, (x, y) => ways.covers(x, y))
+}
+
+/** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` says. */
+const opened = (
+  barriers: ReadonlyArray<Barrier>,
+  open: (x: number, y: number) => boolean,
+): Array<Barrier> =>
+  barriers.flatMap((b) => {
     if (b.kind === "guard_rail") return [b]
     const out: Array<Barrier> = []
     let cur: Array<number> = [],
@@ -304,7 +311,7 @@ export const openBarriers = (
       for (let k = i === 0 ? 0 : 1; k <= n; k++) {
         const x = r1(ax + ((bx - ax) * k) / n),
           y = r1(ay + ((by - ay) * k) / n)
-        if (ways.covers(x, y)) {
+        if (open(x, y)) {
           if (last !== undefined) push(...last)
           if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
           cur = []
@@ -318,7 +325,6 @@ export const openBarriers = (
     if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
     return out
   })
-}
 
 /** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */
 const PARAPET = 0.25
@@ -329,11 +335,13 @@ const PARAPET = 0.25
  * joins or carries on from its deck, tunnels and other pieces of the same bridge included (OSM
  * splits bridges). Walkers keep their verge across.
  */
-const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> =>
-  roads
+const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> => {
+  const ways = segIndex<RoadF>()
+  for (const r of roads) ways.addLine(r.pts, r.w / 2, r)
+  return roads
     .filter((r) => r.bridge === true && isDrivable(r.cls))
     .flatMap((r) =>
-      openBarriers(
+      opened(
         r.pts.slice(1).flatMap((b, i) => {
           const a = r.pts[i]!,
             len = Math.hypot(b.x - a.x, b.y - a.y) || 1,
@@ -347,10 +355,10 @@ const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> =>
             }
           })
         }),
-        roads.filter((q) => q !== r),
-        true,
+        (x, y) => ways.covers(x, y, (q) => q !== r),
       ),
     )
+}
 
 /**
  * Building edges into every list in `outs`. Where a tunnel, path or steps centreline comes within

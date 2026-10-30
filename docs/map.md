@@ -5,7 +5,8 @@ Lunigiana map: the global file `src/sim/map/monzone.bin` (1.9 MB) and 30 tiles o
 `src/sim/map/monzone/` (5.6 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
 is deterministic on one CPU architecture (gunzipped, its files are the same bytes on every machine
 of it, and it prints the same build hash; gzipped, they are byte-identical with the same Node build,
-while another zlib or OS writes other compressed bytes) and takes about 14 s. Across architectures
+while another zlib or OS writes other compressed bytes), takes about 12 s and peaks at 1.2 GB
+resident ([Pipeline](#pipeline)). Across architectures
 it is not: V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` return other last bits on arm64
 than on x64 (`hypot` agrees; Node 24.22.1, 200,000 arguments each), and on 2026-10-30 the arm64 and
 x64 builds of Lunigiana differed by one parked car's spot at (−1306, 2480), Cesena not at all. CI
@@ -67,6 +68,35 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
   Repeat builds must have identical decompressed hashes, as for Lunigiana.
 
 ## Pipeline
+
+The build runs in four phases, each a function whose intermediates go out of scope when it returns,
+so its peak is one phase's working set plus what that phase hands on:
+
+| Phase | Module | Sections | Let go when it returns |
+|---|---|---|---|
+| sources | `build-sources.ts` | 1–4, and the districts (12) | the OSM, the CTR |
+| terrain | `build-terrain.ts` | 5–8 and the rail bed | the DTM, the profiles, the catchments' grid |
+| world | `build-world.ts` | 9–12 | the clearance indexes the spawns and the graph's dead ends are checked against |
+| output | `build-output.ts` | the map put together, its land cover, the cut, the bake, the files | |
+
+The output cuts the map into its tiles once ([Map files](#map-files)), each packed with an empty
+hash. The bake reads those through a store that keeps 16 decoded and drops the first one read past
+that, as a host drops tiles: the cut and the bake took 7.6 s with 4 kept, 3.7 s with 9, 1.5 s with
+16 and 1.2 s with all 30. Then the hash is taken over the global file and each tile, all unstamped,
+and each tile is stamped (its JSON line rewritten with the hash), gzipped and written in turn.
+Pairings that would grow with the square of the region are indexed: the level crossings, the
+water's mouths and the catchments' inflows by node id, the chains' growth order (section 7) by the
+node ids already set, the road–rail and line–water crossings gated by their boxes, and the
+parapets' openings read from one index of the roads.
+
+On 2026-10-30 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs)
+the build peaked at 1.18–1.20 GB resident and took 11.7–12.0 s, against 1.30–1.46 GB and
+13.6–13.9 s with every stage at the top level of `build-map.ts` and the map cut twice. Its stages
+ended at (s from the start):
+
+| rail | features | water | roads | decks | railway | walls | trees | spawns | cover | bake | write |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.58 | 1.16 | 5.14 | 5.34 | 5.45 | 6.01 | 7.61 | 8.12 | 8.38 | 8.55 | 9.98 | 11.51 |
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
@@ -737,7 +767,7 @@ change an input.
   depend on the architecture and on V8's math. On a miss it restores `data/raw` from the cache
   under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
-  imports, followed from import to import (85 files today, in `src/tools`, `src/sim` and
+  imports, followed from import to import (89 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
   rather than miss a file: on a specifier that names no file, an `import(` without a string literal
   and any `require(`. When the check job built the maps, the `reproducible` job builds them again
@@ -922,8 +952,8 @@ the parked cars' `LEVEL`; the check is `assertBakesCurrent` in `src/tools/__test
 code that changes a baked table fails `pnpm test` until `pnpm map` runs; `cesena-bake.test.ts`
 checks Cesena's (`pnpm map --region cesena`). `src/tools/__tests__/tile-map.test.ts` cuts a 24 m map
 into its four tiles and joins them back as they were (walls and trees in order), throws for a height
-that does not fit int16 decimetres (40000, −40000, NaN, 2000.5) instead of wrapping it, and refuses
-to join a tile from another build; `src/__tests__/maps.test.ts` checks that every listed tile of
+that does not fit int16 decimetres (40000, −40000, NaN, 2000.5) instead of wrapping it, refuses
+to join a tile from another build, and stamps each tile as `packTile` packs it with the build hash; `src/__tests__/maps.test.ts` checks that every listed tile of
 both maps has its file, of at most 0.7 MB.
 
 `src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with `subsetShp` and reads it back,

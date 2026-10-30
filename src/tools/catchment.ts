@@ -151,6 +151,15 @@ export const catchments = (
   // corner past a sample's node), never less than upstream; the last sample keeps what came down to
   // it (a confluence is the receiving water's).
   const out: Array<Float64Array | undefined> = wp.map(() => undefined)
+  // The pieces ending at each node (not a loop on it), in order, and how many start there.
+  const endAt = new Map<string, Array<number>>(),
+    starts = new Map<string, number>()
+  ids.forEach((v, u) => {
+    const a = v[0],
+      b = v.at(-1)
+    if (b !== undefined && a !== b) endAt.set(b, [...(endAt.get(b) ?? []), u])
+    if (a !== undefined) starts.set(a, (starts.get(a) ?? 0) + 1)
+  })
   const solve = (w: number): Float64Array => {
     const known = out[w]
     if (known !== undefined) return known
@@ -161,10 +170,8 @@ export const catchments = (
     // What comes down to its start, shared among the arms that leave it (a braid's rejoin adds them up again).
     let carried = 0
     if (start !== undefined) {
-      ids.forEach((v, u) => {
-        if (u !== w && v.at(-1) === start && v[0] !== start) carried += solve(u).at(-1)!
-      })
-      carried /= ids.filter((v) => v[0] === start).length
+      for (const u of endAt.get(start) ?? []) if (u !== w) carried += solve(u).at(-1)!
+      carried /= starts.get(start)!
     }
     for (let k = 0; k < p.x.length; k++) {
       let most = k > 0 ? result[k - 1]! : carried
