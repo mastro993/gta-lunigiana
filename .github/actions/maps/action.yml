@@ -19,13 +19,15 @@ runs:
   using: composite
   steps:
     # A hash of everything the build reads: the raw lock, the package files and every source file
-    # build-map.ts imports (src/tools/map-key.ts). Assigned on its own line, so a failure fails the
-    # step instead of leaving an empty key.
+    # build-map.ts imports (src/tools/map-key.ts). The architecture and the Node version are in it
+    # too, as V8's trigonometry rounds differently across them (docs/map.md). Each is assigned on
+    # its own line, so a failure fails the step instead of leaving a part of the key empty.
     - id: key
       shell: bash
       run: |
         key=$(node src/tools/map-key.ts)
-        echo "key=maps-${{ runner.os }}-$key" >> "$GITHUB_OUTPUT"
+        node=$(node --version)
+        echo "key=maps-${{ runner.os }}-${{ runner.arch }}-$node-$key" >> "$GITHUB_OUTPUT"
 
     - id: maps
       if: inputs.restore == 'true'

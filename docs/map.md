@@ -733,7 +733,8 @@ change an input.
   link and say the files are changed from their sources (`NOTES`).
   241 files in 38 s.
 - **CI** (`.github/workflows/ci.yml`, `.github/actions/maps/action.yml`): the check job restores
-  the maps from the cache under `maps-<os>-<key>`. On a miss it restores `data/raw` from the cache
+  the maps from the cache under `maps-<os>-<arch>-<node version>-<key>`, as the build's bytes
+  depend on the architecture and on V8's math. On a miss it restores `data/raw` from the cache
   under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
   imports, followed from import to import (85 files today, in `src/tools`, `src/sim` and
