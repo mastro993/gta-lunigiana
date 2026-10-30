@@ -977,6 +977,17 @@ that does not fit int16 decimetres (40000, −40000, NaN, 2000.5) instead of wra
 to join a tile from another build, and stamps each tile as `packTile` packs it with the build hash; `src/__tests__/maps.test.ts` checks that every listed tile of
 both maps has its file, of at most 0.7 MB.
 
+`src/tools/__tests__/seams.map-test.ts` is a map test: it reads every tile of both maps, so it grows
+with the map and `pnpm test` leaves it out (run it with `node --test
+src/tools/__tests__/seams.map-test.ts`). Wherever two listed tiles meet it checks each tile's own
+copy: every node they share has one height, the ground under every road (not a bridge or tunnel)
+is one height where the road crosses the seam, read from either tile, and the walls carry on
+across the seam as the tiles store them: each wall of each kind in exactly one tile, and at both
+ends of every wall that crosses a seam the tiles within `walls.reach` hold the same walls touching
+that point as the whole map does (the shore walls, closed outlines, an even number). On a tile with
+one border node raised by a decimetre the height check fails, and with a wall crossing x = 0 moved
+into a tile 2 km away (or dropped) the wall check fails.
+
 `src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with `subsetShp` and reads it back,
 `src/tools/__tests__/ctr-rail.test.ts` checks the track chaining, the tunnel cut and the clip on
 synthetic lines and reads synthetic CTR rail layers (`shapefile.ts` beside them writes those).
