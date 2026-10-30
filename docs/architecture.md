@@ -1876,6 +1876,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     needs it let go; the files gunzipped as they arrive, their bytes counted; a failed download
     naming the file and its status. `src/__tests__/maps.test.ts`: a tile each map's global file
     lists has its file at its tile URL, in the map's own directory.
+  - `src/__tests__/notch.test.ts`: Lunigiana's global file rewritten with its four tiles north-east
+    of (2000, 0) unlisted and an L outline, as a region of parts in an L gives: the lookups there
+    read the nearest listed tiles' nodes and cells and never throw, `tilesOver` and `isResidentAt`
+    name those tiles, the render plans every chunk once, a teleport into the notch is dropped, bolts
+    and herds keep to the L, the minimap lists no notch tile, the maps' grass and clip are the L,
+    and no owl perches on an unlisted tile.
   - `src/hud/__tests__/handling.test.ts`: the handling store (what it stores, restores and
     sends); `src/hud/__tests__/settings.test.ts`: the settings' keys (Esc on to the router, every
     other key kept from the game) and the preset they show (Custom for a hand-set mix);
