@@ -250,9 +250,12 @@ Input (horn) ──────────────────────�
   over the whole map) are each worked out where first asked for, round the ears, once the tiles they
   read are in memory, and then kept: at most 4096 ambience blocks (about a 2 km square), the oldest
   dropped first. Until a block's tiles are in memory it reads as the coarse cover's kind at its
-  centre for that ask, and is not kept. The road-surface index is built on the first footstep or
-  tyre, unless the physics built it first. The land cover is read from the tiles (`coverAt` in
-  `src/sim/map/cover.ts`), and `surfaceAt` is the sim's (`surface.ts`), shared with the tyres' grip.
+  centre for that ask, and is not kept. In an unlisted tile (an L's notch,
+  [map.md](map.md#map-files)) a block reads the cover the nearest listed cells extend into it, and
+  an owl's tries there are skipped, so no owl calls from woods the notch only borrows. The
+  road-surface index is built on the first footstep or tyre, unless the physics built it first.
+  The land cover is read from the tiles (`coverAt` in `src/sim/map/cover.ts`), and `surfaceAt` is
+  the sim's (`surface.ts`), shared with the tyres' grip.
   Measured in Node (the director's rig at the spawn, every tile in memory, three runs; in brackets
   the same on the map before the tiles, when the first query built the land-cover raster): the first
   `hear` 29.7–31.7 ms (171.7–175.8), the water reaches 25–28 ms (34–37), the dogs within 200 m

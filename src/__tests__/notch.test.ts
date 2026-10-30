@@ -44,6 +44,7 @@ const { screenAxes } = await import("../sim/view.ts")
 const { pasture, RURAL, RURAL_REACH } = await import("../sim/population/farms.ts")
 const { residentsNear } = await import("../sim/population/density.ts")
 const { paintMap, tilesNear } = await import("../hud/minimap.ts")
+const { owlsNear } = await import("../audio/places/animals.ts")
 
 const { maxX, maxY } = MAP.bounds
 /** The listed tiles round the notch: those a lookup in its corner tiles reads. */
@@ -245,4 +246,17 @@ test("an L: the minimap paints only listed tiles, and the maps lay their grass o
     [px],
   )
   assert.deepEqual(fills[0]!.pts, px)
+})
+
+test("an L: owls perch only on listed tiles, none in the notch's borrowed woods", () => {
+  for (const key of AROUND)
+    if (!tiles.isResident(key))
+      tiles.provideTile(readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL)))
+  const owls = owlsNear(3400, 1950, 2500)
+  assert.ok(owls.length > 10, `${owls.length} owls`)
+  for (const owl of owls)
+    assert.ok(
+      tiles.isListed(Math.floor(owl.x / 2000), Math.floor(owl.y / 2000)),
+      `${owl.key} at ${owl.x.toFixed(0)}, ${owl.y.toFixed(0)}`,
+    )
 })
