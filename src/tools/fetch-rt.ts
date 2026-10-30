@@ -5,7 +5,8 @@
 // data/parts/<part>.json (`manifest.ts`); it reads one part, today's (`lucido` in `region.ts`),
 // until issue #7 builds the map tile by tile. Needs `unzip` on the PATH. The archives are cached in
 // the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes equal the new ones is not
-// rewritten, so another zlib never churns a pinned file.
+// rewritten, so another zlib never churns a pinned file. Either way, a file whose bytes the lock does
+// not hold is recorded there with its source, for `pnpm pin-raw` (`raw-lock.ts`).
 // - ctr/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2019 flight, EPSG:6707 (CC BY 4.0). AED =
 //   buildings, AGE = other areas (garages, ruins, station platforms, level crossings), AVI = road
 //   areas, AZR = the mapped area of each sheet, AFE = the rail ballast bed (its bridge and tunnel
@@ -30,6 +31,7 @@ import { UCS, ctrUrl, dtm10Url, lidarUrl, parseGml, wfsUrl } from "./cartoteca.t
 import { ascHeader, cropOf, eachCell } from "./dtm-mosaic.ts"
 import { manifestPath, readManifest } from "./manifest.ts"
 import { getText } from "./net.ts"
+import { fetchedToday, recordSource } from "./raw-lock.ts"
 import { PARTS } from "./region.ts"
 import { fetchZip, findFile, mustFind } from "./rt-cache.ts"
 import { subsetShp } from "./shp.ts"
@@ -67,16 +69,22 @@ if (manifest.dtm10.length > 1)
   )
 const [DTM10] = manifest.dtm10
 
-/** Writes `bytes`, packed, to `path`, unless the file there already unpacks to the same bytes. */
+/**
+ * Writes `bytes`, packed, to `path`, unless the file there already unpacks to the same bytes, and
+ * records the file with where they came from (`source`) unless the lock holds it already.
+ */
 const pin = (
   path: string,
   bytes: Buffer,
+  source: string,
   pack: (b: Buffer) => Buffer = (b) => gzipSync(b, { level: 9 }),
   unpack: (b: Buffer) => Buffer = gunzipSync,
 ): void => {
-  if (existsSync(path) && unpack(readFileSync(path)).equals(bytes)) return
-  writeFileSync(path, pack(bytes))
-  console.log(`wrote ${path.slice(ROOT.length + 1)}`)
+  if (!existsSync(path) || !unpack(readFileSync(path)).equals(bytes)) {
+    writeFileSync(path, pack(bytes))
+    console.log(`wrote ${path.slice(ROOT.length + 1)}`)
+  }
+  recordSource(path, source)
 }
 
 mkdirSync(join(OUT, "ctr"), { recursive: true })
@@ -88,7 +96,7 @@ for (const sheet of CTR_SHEETS) {
     for (const ext of ["shp", "dbf"]) {
       const name = `S_${sheet}_2019_${layer}.${ext}`,
         file = layer === "AED" || layer === "AZR" ? mustFind(dir, name) : findFile(dir, name)
-      if (file !== undefined) pin(out(layer, ext), readFileSync(file))
+      if (file !== undefined) pin(out(layer, ext), readFileSync(file), ctrUrl(sheet))
     }
   const tracks = subsetShp(
     readFileSync(mustFind(dir, `S_${sheet}_2019_VLI.shp`)),
@@ -96,8 +104,8 @@ for (const sheet of CTR_SHEETS) {
     (attrs) => attrs.Cod_CTR === TRACK,
   )
   if (tracks !== undefined) {
-    pin(out("VLI", "shp"), tracks.shp)
-    pin(out("VLI", "dbf"), tracks.dbf)
+    pin(out("VLI", "shp"), tracks.shp, ctrUrl(sheet))
+    pin(out("VLI", "dbf"), tracks.dbf, ctrUrl(sheet))
   }
 }
 if (stage === "ctr") process.exit(0)
@@ -221,9 +229,12 @@ for (let j = 0, prev = 0; j < rows2; j++)
     deltas[j * cols2 + i] = i === 0 ? mean : mean - prev
     prev = mean
   }
+/** The mosaic's source: the manifest's archives, each named with its MD5. */
+const mosaic = `the lidar and dtm10 archives of data/parts/${PART!.key}.json, mosaicked (${lidarUrl("<lidar>")}, ${dtm10Url("<dtm10>")})`
 pin(
   join(OUT, "dtm.bin"),
   Buffer.from(deltas.buffer),
+  mosaic,
   (b) => deflateSync(b, { level: 9 }),
   inflateSync,
 )
@@ -240,6 +251,7 @@ const meta = {
 pin(
   join(OUT, "dtm.json"),
   Buffer.from(`${JSON.stringify(meta, null, 2)}\n`),
+  mosaic,
   (b) => b,
   (b) => b,
 )
@@ -248,14 +260,13 @@ console.log({ ...meta, bytes: readFileSync(join(OUT, "dtm.bin")).length, filledF
 // Land cover: every polygon of a kept class whose box meets the crop, sorted by id. Coordinates in
 // EPSG:3003 to the decimetre; rings as gml gives them (outer first). The server's BBOX filter
 // sometimes loses features near the box's edge, so the box is padded by UCS.pad (readUcs clips).
-const gml = await getText(
-  wfsUrl(UCS.map, UCS.layer, [
-    e0 - UCS.pad,
-    n0 - UCS.pad,
-    e0 + cols + UCS.pad,
-    n0 + rows + UCS.pad,
-  ]),
-)
+const ucsUrl = wfsUrl(UCS.map, UCS.layer, [
+  e0 - UCS.pad,
+  n0 - UCS.pad,
+  e0 + cols + UCS.pad,
+  n0 + rows + UCS.pad,
+])
+const gml = await getText(ucsUrl)
 // One entry per polygon (a multipolygon has several), each its outer ring then its holes.
 const ucs = parseGml(gml)
   .flatMap(({ attrs, polygons }) =>
@@ -272,5 +283,6 @@ if (ucs.length === 0) throw new Error("UCS WFS: no polygons")
 pin(
   join(OUT, "ucs.json.gz"),
   Buffer.from(JSON.stringify({ crs: "EPSG:3003", year: 2019, polygons: ucs })),
+  fetchedToday(ucsUrl),
 )
 console.log({ ucs: ucs.length })

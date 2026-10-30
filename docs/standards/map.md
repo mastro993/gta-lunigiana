@@ -1,8 +1,9 @@
 # Map standards
 
 Checks for a change to the map pipeline (`src/tools`), the map code (`src/sim/map`) or its inputs
-(`data/raw`), on top of the steps in [CODING_STANDARDS.md](../../CODING_STANDARDS.md). CI runs only
-`pnpm check` and never builds the map, so these runs are yours.
+(`data/raw`), on top of the steps in [CODING_STANDARDS.md](../../CODING_STANDARDS.md). CI builds the
+maps from the pinned inputs, checks that two builds match and runs `pnpm check` on them, but it
+never compares a change's map with the map before it, so these runs are yours.
 
 ## Every map change
 
@@ -17,16 +18,20 @@ Checks for a change to the map pipeline (`src/tools`), the map code (`src/sim/ma
   Find them again by geometry.
 - Place hand-made tables (`STONE_CORES`, `LANDMARKS`, stream widths, district discs) on
   orthophotos and OSM nodes, with a comment saying how.
-- `data/raw` is pinned. Fetch again (`pnpm fetch-osm`, `pnpm fetch-rt`) only to change the inputs
-  on purpose: OSM returns current edits, so the map moves.
+- `data/raw` is pinned by `data/raw.lock.json`; `pnpm fetch-raw` restores it. Fetch again
+  (`pnpm fetch-osm`, `pnpm fetch-rt`) only to change the inputs on purpose: OSM returns current
+  edits, so the map moves. Then run `pnpm pin-raw` and commit the lock, or CI's `pnpm fetch-raw`
+  fails. Ask the user before each `pnpm pin-raw`: it publishes the files as release assets of the
+  public repository.
 
 ## Data sources and requests
 
 - **Licences**: accept CC BY and the ODbL (OpenStreetMap's). Ask the user before any other
   share-alike source (CC BY-SA and the like), and leave out non-commercial or unlicensed data.
 - **Records and credits**: record each accepted and rejected source, with the reason, in
-  [docs/map.md](../map.md). Credit each accepted one in the README and in both credit lines of
-  `index.html` (the HUD's and the title card's), keeping Regione Toscana's wording verbatim.
+  [docs/map.md](../map.md). Credit each accepted one in the README, in both credit lines of
+  `index.html` (the HUD's and the title card's) and in the release notes `pin-raw` writes (`NOTES`
+  in `src/tools/pin-raw.ts`), keeping Regione Toscana's wording verbatim.
 - **Overpass** is often overloaded: the pipeline uses the OSM API's `/map` tiles, and the
   kumi.systems mirror serves one-off queries.
 
@@ -38,11 +43,12 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 - The runbook's tools are in `src/tools` and `package.json` ([Adding a
   part](../map.md#adding-a-part)): `footprint-check`, `rt-index`, `pick-sheets`, `pick-lidar`,
   `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the regions (Lunigiana,
-  Cesena) and the Lunigiana parts' rectangles; their masks and outline walls arrive with issue #7,
-  `pin-raw` with #6 and `fetch-lig` with #12. When one is missing, name the issue that adds it and
-  ask the user before building it.
+  Cesena) and the Lunigiana parts' rectangles; their masks and outline walls arrive with issue #7
+  and `fetch-lig` with #12. When one is missing, name the issue that adds it and ask the user before
+  building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
-  `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before.
+  `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw` then pins
+  the part's new inputs.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
 - Moving `BOUNDS` moves every tree: the lattice they are planted on starts at its corner. Each tile
   stores its trees in whole metres from a point 100 m south-west of the tile's corner.

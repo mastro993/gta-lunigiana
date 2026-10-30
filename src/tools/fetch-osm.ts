@@ -8,13 +8,15 @@
 // use, natural, building, leisure, amenity) is then fetched whole (`/relation/<id>/full`), because
 // most of a forest's member ways lie outside the play area. Elements are merged by id and written
 // sorted (nodes, ways, relations, each by id), so the same OSM data always gives the same file,
-// however the boxes were split.
+// however the boxes were split. The file's source, the box and the date, goes into
+// data/raw.lock.json for `pnpm pin-raw` (`raw-lock.ts`).
 import { writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { gzipSync } from "node:zlib"
 
 import { BOUNDS, fromLocal } from "./geometry.ts"
 import { getText, request } from "./net.ts"
+import { fetchedToday, recordSource } from "./raw-lock.ts"
 import { REGION } from "./region.ts"
 
 const API = "https://api.openstreetmap.org/api/0.6"
@@ -108,6 +110,12 @@ const main = async (): Promise<void> => {
     "",
   ].join("\n")
   writeFileSync(OUT, gzipSync(xml, { level: 9 }))
+  recordSource(
+    OUT,
+    fetchedToday(
+      `${API}/map?bbox=${box([w, s, e, n])} and each area multipolygon's /relation/<id>/full`,
+    ),
+  )
   console.log({
     nodes: elements.node.size,
     ways: elements.way.size,

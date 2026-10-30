@@ -1,8 +1,9 @@
 // Builds src/sim/map/monzone.bin and its tiles (src/sim/map/monzone/<i>_<j>.bin) from data/raw:
 // OSM (fetch-osm.ts) and the Regione Toscana CTR 1:2000, LiDAR DTM and land cover (data/raw/rt,
 // written by fetch-rt.ts). Run: node src/tools/build-map.ts  (pnpm map), from any directory. Output
-// is deterministic: gunzipped, the same bytes everywhere, and the same build hash; gzipped, the
-// same files with the same Node build (another zlib or OS writes other compressed bytes).
+// is deterministic on one CPU architecture: gunzipped, the same bytes on every machine of it, and
+// the same build hash; gzipped, the same files with the same Node build (another zlib or OS writes
+// other compressed bytes). V8's trigonometry rounds differently on arm64 and x64 (docs/map.md).
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { gzipSync } from "node:zlib"

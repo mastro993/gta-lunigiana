@@ -3,16 +3,20 @@
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map: the global file `src/sim/map/monzone.bin` (1.9 MB) and 30 tiles of 2 km in
 `src/sim/map/monzone/` (5.6 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
-is deterministic (gunzipped, its files are the same bytes on every machine, and it prints the same
-build hash; gzipped, they are byte-identical with the same Node build, while another zlib or OS
-writes other compressed bytes) and takes about 14 s. It prints a lap time per stage, the rail's fit
-to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)), each platform
-([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the
-tile count, the bytes written and the largest tile, counts, the rail on the CTR (OSM's offset from
-it, the shipped residual, the level crossings' slides, the bridge ends slid, the culverts, the
-at-grade track cut into the CTR's bridges and the rail bed), the railway (its lines, stations,
-level-crossing boxes and the verges pulled in off the track), the steepest grade per road class, and
-the size of each part of the files.
+is deterministic on one CPU architecture (gunzipped, its files are the same bytes on every machine
+of it, and it prints the same build hash; gzipped, they are byte-identical with the same Node build,
+while another zlib or OS writes other compressed bytes) and takes about 14 s. Across architectures
+it is not: V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` return other last bits on arm64
+than on x64 (`hypot` agrees; Node 24.22.1, 200,000 arguments each), and on 2026-10-30 the arm64 and
+x64 builds of Lunigiana differed by one parked car's spot at (−1306, 2480), Cesena not at all. CI
+and Pages build on x64; issue #68 makes the build the same on both. It prints a lap time per stage,
+the rail's fit to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)), each platform ([section
+9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the tile
+count, the bytes written and the largest tile, counts, the rail on the CTR (OSM's offset from it,
+the shipped residual, the level crossings' slides, the bridge ends slid, the culverts, the at-grade
+track cut into the CTR's bridges and the rail bed), the railway (its lines, stations, level-crossing
+boxes and the verges pulled in off the track), the steepest grade per road class, and the size of
+each part of the files.
 Inputs and attribution are in the [README](../README.md).
 
 `src/sim/map/kinds.ts` holds the vocabulary that the build and the game share: road classes and
@@ -690,6 +694,65 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   clamped to 80–400 m. `districtAt` picks the disc the point is relatively closest to, or the
   nearest rim outside every disc.
 
+## Pinned inputs and CI
+
+`data/raw` is gitignored. `data/raw.lock.json` pins it (`src/tools/raw-lock.ts`), and CI builds the
+maps from it. The README's [Rebuilding the map](../README.md#rebuilding-the-map) gives the reasons
+(git cannot delta the deflated inputs; Git LFS's free tier has a bandwidth cap) and the steps to
+change an input.
+
+- **The lock** holds one entry per file in `data/raw`, by its `/`-separated path, sorted. A pinned
+  entry holds `sha256`, `bytes`, `asset` (`raw-YYYYMMDD/<path with / as .>`, or
+  `raw-YYYYMMDD-2/…` past the first release of a day) and `source`. A fetched one, written by a
+  fetch tool and not uploaded yet, holds the same without `asset`: its digest is of the bytes the
+  tool wrote, so `pin-raw` uploads those bytes and no others. `readLock` (Valibot) rejects any other
+  shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
+  release. `writeLock` writes the fields in that
+  order, one per line, so a re-pin's diff shows only the files that changed. Today: 241 files,
+  24.1 MB, all in `raw-20261030`.
+- **Sources**: each fetch tool calls `recordSource` for every file it writes (`fetch-rt` also for
+  each file it finds unchanged). `fetch-rt` gives the
+  CTR sheet's archive URL, the manifest for the LiDAR mosaic (`dtm.bin`, `dtm.json`), and the WFS
+  request with the date for the land cover. `fetch-osm` gives the `/map` box and the date, and
+  `fetch-rer` the WCS request and the metadata URL, each with the date. An entry that already holds
+  the file's bytes, pinned or fetched, stays as it is; any other file becomes fetched. The entries
+  pinned on 2026-10-30 say when the file entered git (`in git since 2026-10-20 (66ae295)`) instead
+  of a fetch date.
+- **`pnpm fetch-raw`** (`fetch-raw.ts`) hashes `data/raw`, then downloads every pinned file that is
+  missing or has other bytes with `gh release download`, one call per release, into a folder inside
+  `data/raw`. It checks each download against its SHA-256 and size and moves them into place only
+  when all match, so a mismatch fails the run with `data/raw` unchanged. It reports the fetched
+  files and the files the lock does not list, and leaves them; a fetched file whose bytes `data/raw`
+  no longer holds fails the run. From an empty folder: 241 files in 25 s; on a second run, none.
+- **`pnpm pin-raw`** (`pin-raw.ts`) refuses while a file has no entry, a file's bytes differ from
+  its entry's (pinned, or fetched and since replaced), or an entry's file is gone (`planPin`, each
+  with its fix). Otherwise it copies the fetched files under their asset names, checks each copy
+  against its digest, and makes one prerelease per 1,000 of them with
+  `gh release create`, not marked latest (gh uploads to a draft and publishes it once all are up).
+  It writes the lock after each release. The release notes carry each source's credit and licence
+  link and say the files are changed from their sources (`NOTES`).
+  241 files in 38 s.
+- **CI** (`.github/workflows/ci.yml`, `.github/actions/maps/action.yml`): the check job restores
+  the maps from the cache under `maps-<os>-<arch>-<node version>-<key>`, as the build's bytes
+  depend on the architecture and on V8's math. On a miss it restores `data/raw` from the cache
+  under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
+  `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
+  imports, followed from import to import (85 files today, in `src/tools`, `src/sim` and
+  `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
+  rather than miss a file: on a specifier that names no file, an `import(` without a string literal
+  and any `require(`. When the check job built the maps, the `reproducible` job builds them again
+  on another runner; the SHA-256s of the two builds' gunzipped files must match, and only then does
+  it save the maps to the cache, so a re-run checks a new key again. Both runners are x64, so it
+  checks the build on one architecture: an arm64 build may differ (see the top of this page).
+  Pages (`pages.yml`) runs the same action before `vite build` and saves nothing.
+- **Tests**: `raw-lock.test.ts` checks the lock's format and `recordSource`, that git ignores
+  `data/raw` and the built maps, and that no tracked file is over 1 MB. `fetch-raw.test.ts` and
+  `pin-raw.test.ts` run against a fake `gh`: a second fetch downloads nothing, a download with other
+  bytes fails with `data/raw` unchanged, a fetched file replaced since is refused, an upload of
+  1,001 files takes two releases, and the release notes carry the README's credits and licence
+  links. `map-key.test.ts` checks every import form it follows, that it throws on the ones it
+  cannot, and that the key moves with the lock and the imported code and with nothing else.
+
 ## Map files
 
 A map is a global file and one file per 2 km tile, beside it. The global file holds everything
@@ -715,7 +778,8 @@ replaced held every layer at once (28.4 MB gunzipped).
 
 The build hash (`hash`, 16 hex digits of SHA-256 over every file unstamped) is in the global file
 and in every tile: `provideTile` refuses a tile from another build ("map tile i_j is from another
-build"). The files are tracked in git until CI builds the map (#6).
+build"). The files are not in git: `pnpm maps` builds both maps from the pinned inputs, and CI
+caches them ([Pinned inputs and CI](#pinned-inputs-and-ci)).
 
 ### The global file
 
@@ -1069,6 +1133,9 @@ Cesena map instead, and the part tools refuse it), and `pnpm fetch-rt` reads one
 stops when `PARTS` holds more than one (a second part would widen the mosaic's crop over the land
 between them, all of it holes for the 10 m DTM) or the manifest lists more than one 10 m DTM.
 
+A part's new inputs are pinned like any other: after `pnpm fetch-rt` and `pnpm map`, `pnpm pin-raw`
+uploads them and the lock goes into the part's PR ([Pinned inputs and CI](#pinned-inputs-and-ci)).
+
 ## Known data limitations
 
 - **The terrain is 4 m.** The LiDAR resolves 1 m (stored at 2 m), but the game grid averages it
@@ -1159,5 +1226,5 @@ between them, all of it holes for the 10 m DTM) or the manifest lists more than 
   their share in the UCS woodland around the valley).
 - **Some names only exist on addresses.** The vote can pick the wrong piece of road. Culverted
   waterways are dropped; at-grade crossings imply a culvert instead.
-- **Re-downloading changes the map.** `pnpm fetch-osm` pulls current OSM edits; `data/raw` is the
-  source of truth.
+- **Re-downloading changes the map.** `pnpm fetch-osm` pulls current OSM edits;
+  `data/raw.lock.json` pins the inputs the map is built from.

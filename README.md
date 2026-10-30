@@ -89,20 +89,25 @@ You need:
 
 - **Node 24**: runs the TypeScript tests and map tools directly, with no build step
 - **pnpm 10**: `packageManager` pins it in `package.json`, and `corepack enable` installs it
+- **The GitHub CLI** (`gh`), signed in (`gh auth login`): `pnpm fetch-raw` downloads the map's inputs with it
 - **A browser with WebGL**: plus Web Audio for the sound
 
 ## Play in the browser
 
-Every push to `main` publishes the game to GitHub Pages at <https://gta-lunigiana.fedemas.dev/> (`.github/workflows/pages.yml`).
+Every push to `main` publishes the game to GitHub Pages at <https://gta-lunigiana.fedemas.dev/> (`.github/workflows/pages.yml`, which builds the maps first, or takes them from CI's cache).
 
 ## Run the game locally
 
-Install the dependencies and start the dev server:
+Install the dependencies, download the map's inputs, build the maps and start the dev server:
 
 ```sh
 pnpm install
+pnpm fetch-raw
+pnpm maps
 pnpm dev
 ```
+
+The maps are not in git, so a fresh clone or worktree builds them once: `pnpm fetch-raw` downloads 24.1 MB in about 25 s, and `pnpm maps` builds both maps in about 30 s. The tests and `pnpm lint` read the built maps too.
 
 Then open `http://localhost:5173`. The server listens on the local network too, so a phone or another computer on the same network can play: open the `Network` address that Vite prints. Anyone on that network can reach it, so stop it on a shared network you don't trust. Every load is a new world, starting on today’s date at 08:00 Rome time once you dismiss the title card. Add `?seed=N` (for example `http://localhost:5173/?seed=42`) to replay the same world: the seed drives every random choice, so the same seed and the same keys give the same game.
 
@@ -172,8 +177,11 @@ Every script runs with `pnpm`:
 | `pnpm typecheck` | `tsc` (no emit) |
 | `pnpm lint` | type-aware `oxlint` with the Ritmo plugin and the project's own (`lint/`), warnings failing, then `ritmo-devtools lint src/lint.ts` |
 | `pnpm test` | `node --test` over `src/**/*.test.ts` and `lint/**/*.test.ts`, each in a `__tests__` folder beside the module it tests |
+| `pnpm maps` | builds both maps: `pnpm map`, then `pnpm map --region cesena` |
 | `pnpm map` | rebuilds `src/sim/map/monzone.bin` and its tiles (`src/sim/map/monzone/`) from `data/raw`, baking the tables the game reads from them |
 | `pnpm map --region cesena` | rebuilds the separate `src/sim/map/cesena.bin` and its tiles from pinned Cesena inputs |
+| `pnpm fetch-raw` | downloads the map inputs `data/raw.lock.json` pins into `data/raw`, only those missing or different, checking each one's SHA-256 |
+| `pnpm pin-raw` | uploads the inputs a fetch tool changed to a new `raw-YYYYMMDD` release and pins them in `data/raw.lock.json` |
 | `pnpm fetch-osm` | downloads the OpenStreetMap extract again into `data/raw/lunigiana.osm.gz` |
 | `pnpm fetch-osm --region cesena` | downloads the Cesena extract into `data/raw/cesena.osm.gz` |
 | `pnpm fetch-rt` | downloads the Regione Toscana sources again into `data/raw/rt`; `pnpm fetch-rt ctr` only the CTR sheets, leaving the LiDAR and the land cover as they are |
@@ -199,35 +207,47 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `src/sim/water/` | the rivers: their flow from the weather's rain, their depth and current along each reach, and people and animals wading and swimming in them |
 | `src/sim/systems/` | one file per system group (spawn, enter/exit, foot, footing, drive, traffic, pedestrians, perception and reactions, animals, their frights, physics, contacts, damage, explosions, populate, populate animals, sky, water) |
 | `src/sim/population/` | who lives where and who goes out: residents from the buildings, people's looks, parties, farms |
-| `src/sim/map/` | the generated maps (the global files `monzone.bin` and `cesena.bin`, their 2 km tiles in `monzone/` and `cesena/`), their shared decoders, the tiles in memory, types and lookups (heights, walls, road graph, ground elevation, surfaces, land cover, the coarse grid) |
+| `src/sim/map/` | the generated maps (the global files `monzone.bin` and `cesena.bin`, their 2 km tiles in `monzone/` and `cesena/`; built by `pnpm maps`, not in git), their shared decoders, the tiles in memory, types and lookups (heights, walls, road graph, ground elevation, surfaces, land cover, the coarse grid) |
 | `src/render/` | Three.js host code: pixel pipeline, static world meshes (the railway's track, crossings, tunnel portals and stations among them), people, animal and vehicle models, the trains (the ATR 220 in DPR livery) and the level crossings' arms and lights, blood pools, tyre marks and smoke, damaged engines' smoke and fire, explosions and charred wrecks, the render schedule; `sky/` lights the day and the night and draws the weather (fog, snow, wet ground, cloud shadows, rain and snow, lightning, street and platform lamps, lit windows, headlights) |
 | `src/audio/` | Web Audio host code: the audio schedule, the acoustics director (vehicles, trains and level crossings, people, conversations, animals, the valley, the time of day, the weather and the thunder), the speaker and mixer, the synths, the audition page |
 | `src/audio/speech/` | the Italian-sounding speech: what people say, and a formant synthesiser that voices it |
 | `src/hud/` | DOM HUD: the title card as loading screen, location names, the clock and weather readout, prompt, the “Sei morto” card when the player is killed, speedometer, minimap, full map (M), touch controls (mobile mode), settings (Esc) with the vehicle physics, and the dev-only debug menu (P) for the time, the weather, the vehicle handling and the trains; the settings and the menu set the handling through one store, the menu the sky through another and calls trains through a third |
-| `src/tools/` | the region-aware map pipeline (`build-map.ts`; `region.ts` holds the regions and the parts of the Lunigiana map; `tile-map.ts` cuts the map into tiles and `bake.ts` bakes the tables the game reads from them; `map-file.ts` reads a map back whole), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`, `fetch-rer.ts`), the tools that scope and check a new part (`rt-index.ts`, `pick-sheets.ts`, `pick-lidar.ts`, `coverage.ts`, `footprint-check.ts`, `ortho.ts`, `playtest.ts`, `map-diff.ts`), and a top-down preview renderer |
+| `src/tools/` | the region-aware map pipeline (`build-map.ts`; `region.ts` holds the regions and the parts of the Lunigiana map; `tile-map.ts` cuts the map into tiles and `bake.ts` bakes the tables the game reads from them; `map-file.ts` reads a map back whole), the downloaders (`fetch-osm.ts`, `fetch-rt.ts`, `fetch-rer.ts`), the pin of their output (`raw-lock.ts`, `fetch-raw.ts`, `pin-raw.ts`) and CI's map cache key (`map-key.ts`), the tools that scope and check a new part (`rt-index.ts`, `pick-sheets.ts`, `pick-lidar.ts`, `coverage.ts`, `footprint-check.ts`, `ortho.ts`, `playtest.ts`, `map-diff.ts`), and a top-down preview renderer |
 | `src/maps.ts` | browser map catalogue and validation of the `?map=` choice |
 | `src/boot.ts` | browser entry: downloads the global map and the tiles round the start with progress, then imports the game |
 | `src/stream.ts` | browser host: brings the map's tiles in as the player moves and lets them go behind |
 | `src/main.ts` | browser host: builds the scene, makes the runtime, runs the fixed loop |
 | `index.html` | canvas, HUD and touch-control markup, title card (the loading screen), and the switch to mobile mode |
 | `lab.html` | the audio audition page (dev server only) |
-| `data/raw/` | pinned map inputs: regional OSM extracts, Regione Toscana CTR and LiDAR, Emilia-Romagna DTM |
+| `data/raw/` | the map inputs, not in git: regional OSM extracts, Regione Toscana CTR and LiDAR, Emilia-Romagna DTM |
+| `data/raw.lock.json` | the pin of `data/raw`: each file's SHA-256, size, release asset and source |
 | `data/parts/` | each Lunigiana part's source manifest: the CTR sheets, LiDAR tiles and 10 m DTMs `fetch-rt` downloads for it |
 | `docs/` | architecture, map pipeline, gameplay, weather, water and audio notes; `docs/standards/` holds the checks for each part of the game |
+| `.github/` | the workflows (CI, Pages) and the action they share to restore or build the maps (`actions/maps/`) |
 | `.oxlintrc.json`, `.oxfmtrc.json`, `lefthook.yml` | lint rules, formatter settings, and the git hooks that format and lint each commit and check each push |
 | `lint/` | the project's own oxlint plugins, one file each named after the plugin (`test-files.ts`: each test in a `__tests__` folder) |
 
 ## Rebuilding the map
 
-Rebuild the map from the pinned inputs with one command:
+Download the pinned inputs, then build both maps from them:
 
 ```sh
-pnpm map
+pnpm fetch-raw
+pnpm maps
 ```
 
-The build reads only `data/raw` and takes about 14 s. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test` fails until `pnpm map` and `pnpm map --region cesena` run again.
+`pnpm fetch-raw` downloads only the files `data/raw` lacks or holds with other bytes, so a second run downloads nothing. It checks every download's SHA-256 and size against `data/raw.lock.json` and fails, changing nothing, if one differs. `pnpm maps` runs `pnpm map`, which builds Lunigiana, then `pnpm map --region cesena`; `pnpm check` needs both. The Lunigiana build reads only `data/raw` and takes about 14 s. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine of the same CPU architecture and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` round differently on arm64 and x64, so an Apple-silicon build and CI's x64 build differ: on 2026-10-30, by one parked car's spot in Lunigiana (`pnpm map-diff`), with Cesena the same (#68 makes them match). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test` fails until `pnpm map` and `pnpm map --region cesena` run again (`pnpm maps` runs both).
 
-Build Cesena without changing Lunigiana with `pnpm map --region cesena`. The checked-in inputs are sufficient; only run `pnpm fetch-osm --region cesena` and `pnpm fetch-rer --region cesena` when intentionally updating them. `data/raw/cesena/source.json` records the terrain request, verified CC BY 4.0 licence and raster SHA-256. Preview it with `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`, then run `pnpm check`.
+Build Cesena without changing Lunigiana with `pnpm map --region cesena`. The pinned inputs are sufficient; only run `pnpm fetch-osm --region cesena` and `pnpm fetch-rer --region cesena` when intentionally updating them. `data/raw/cesena/source.json` records the terrain request, verified CC BY 4.0 licence and raster SHA-256. Preview it with `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`, then run `pnpm check`.
+
+`data/raw` is not in git. Git cannot delta its deflated files, so every rebuilt input added a whole copy to the repository: on `main`, the three versions of the 15 MB `rt/dtm.bin` take 34.2 MB and `data/raw`'s history 45.1 MB (measured 2026-10-30), and the whole of Lunigiana needs about 300 MB of inputs (issue #6's estimate). `data/raw.lock.json` is in git instead: it maps each file in `data/raw` to its SHA-256, its size, the release asset that holds it (`raw-YYYYMMDD/<path with / as .>`) and its source, the upstream URL or the OSM box with the date it was fetched. The files are assets of the repository's `raw-…` prereleases, not Git LFS objects: LFS's free tier stores 10 GiB and serves 10 GiB a month, Actions downloads included, while release assets have no total or bandwidth limit (up to 2 GiB each, 1000 to a release). A pinned asset is never replaced, so an old commit's lock still fetches what it pinned. Commits before issue #6 tracked `data/raw` and the maps, so git overwrites or deletes them whenever it moves a checkout across that change (a pull, a rebase, a checkout); run `pnpm fetch-raw` and `pnpm maps` again afterwards (52 s).
+
+To change the inputs:
+
+1. Run their fetch tool (`pnpm fetch-osm`, `pnpm fetch-rt`, `pnpm fetch-rer --region cesena`). It records each file it changes in the lock as fetched: the SHA-256 and size of the bytes it wrote and their source, with no asset yet.
+2. Rebuild with `pnpm map` and check the result.
+3. Run `pnpm pin-raw`. It uploads the fetched files, if `data/raw` still holds the bytes their tool wrote, to a new prerelease, `raw-YYYYMMDD` (`-2`, `-3`… when that tag is taken), and writes their hashes and assets into the lock. The repository is public, so this publishes the files. It refuses, uploading nothing, while `data/raw` and the lock disagree in another way, and names the fix.
+4. Commit `data/raw.lock.json`. CI's `pnpm fetch-raw` fails on a lock that still holds a fetched file, since nothing can download it.
 
 The inputs in `data/raw` are:
 
@@ -237,7 +257,7 @@ The inputs in `data/raw` are:
   - `dtm.bin` + `dtm.json`: the 1 m LiDAR terrain model, 47 tiles of the 2010 flight and 19 of the 2012 flight (Monte Sagro and the Carrara side), mosaicked, cropped to the play area plus 32 m and averaged to 2 m cells. The 0.65 km² no flight covers come from the 10 m DTM.
   - `ucs.json.gz`: the land cover 1:10 000 (2019) polygons the build uses (quarries, bare rock, sparse vegetation, pastures, heath), from the Regione Toscana WFS.
 
-Downloading the OSM data again pulls current edits, so the map changes; the files in `data/raw` pin it. `node src/tools/preview-map.ts` draws a top-down PNG of the built map (see [docs/map.md](docs/map.md)).
+Downloading the OSM data again pulls current edits, so the map changes; `data/raw.lock.json` pins it. `node src/tools/preview-map.ts` draws a top-down PNG of the built map (see [docs/map.md](docs/map.md)).
 
 ## Data attribution and licences
 

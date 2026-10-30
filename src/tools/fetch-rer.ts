@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { BOUNDS, fromLocal } from "./geometry.ts"
+import { fetchedToday, recordSource } from "./raw-lock.ts"
 import { REGION } from "./region.ts"
 
 if (REGION.id !== "cesena") throw new Error("fetch-rer requires --region cesena")
@@ -64,4 +65,6 @@ writeFileSync(
     2,
   )}\n`,
 )
+recordSource(join(dir, "dtm.tif"), fetchedToday(url.href))
+recordSource(join(dir, "source.json"), fetchedToday(metadataUrl))
 console.log(`Pinned Cesena DTM: ${bytes.length} bytes`)
