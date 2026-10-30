@@ -74,6 +74,7 @@ const COMPARED: ReadonlyArray<readonly [string, (m: MonzoneMap) => object, Reado
         "hash",
         "name",
         ...TOP_FIELDS,
+        "outline",
         "tiles",
         "place",
         "heightmap",
@@ -467,6 +468,21 @@ const diffTop = (a: MonzoneMap, b: MonzoneMap): Array<string> => [
   }),
 ]
 
+/**
+ * The play area's outline rings as a multiset by content, with the box of the rings only one map
+ * has; a map built before the outline (issue #7) has none.
+ */
+const diffOutline = (a: MonzoneMap, b: MonzoneMap): Array<string> => {
+  const ra = a.outline ?? [],
+    rb = b.outline ?? []
+  const bag = bagOf(ra, rb)
+  if (bag.added.length + bag.removed.length === 0) return []
+  const box = emptyBox()
+  for (const i of bag.removed) addFlat(box, ra[i]!)
+  for (const j of bag.added) addFlat(box, rb[j]!)
+  return [`rings: ${counts(0, bag.added.length, bag.removed.length)}${boxText(box)}`]
+}
+
 /** Every category in which `a` and `b` differ, in a fixed order; none when the maps are the same. */
 export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => {
   const ga = graphTuples(a),
@@ -480,6 +496,7 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
   const blocks: ReadonlyArray<Block> = [
     { category: "unhandled keys", lines: unhandledKeys(a, b) },
     { category: "top level", lines: diffTop(a, b) },
+    { category: "outline", lines: diffOutline(a, b) },
     { category: "tiles", lines: [bagLine(a.tiles, b.tiles)[0] ?? []].flat() },
     { category: "heightmap", lines: diffHeightmap(a.heightmap, b.heightmap) },
     { category: "cover", lines: diffCover(a, b) },

@@ -19,6 +19,6 @@ test("the command line: two maps, and --except with a comma list of categories a
   assert.throws(() => parseArgs(["a.bin", "b.bin", "--except"]), /--except takes a category list/)
   assert.throws(
     () => parseArgs(["a.bin", "b.bin", "--except", "trees,tree"]),
-    /--except: no category "tree"; the categories: unhandled keys, top level, tiles/,
+    /--except: no category "tree"; the categories: unhandled keys, top level, outline, tiles/,
   )
 })

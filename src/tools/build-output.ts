@@ -14,6 +14,7 @@ import type { buildWorld } from "./build-world.ts"
 import type { RoadF } from "./features.ts"
 import { BOUNDS, M_PER_DEG, ORIGIN, r1 } from "./geometry.ts"
 import { packMap } from "./pack.ts"
+import { OUTLINE } from "./play-area.ts"
 import { sampleGrid, type Grid } from "./terrain.ts"
 import { type BuiltMap, type MapCut, NO_BAKES, stampMap } from "./tile-map.ts"
 
@@ -48,6 +49,7 @@ export const assembleMap = (
     origin: ORIGIN,
     mPerDeg: M_PER_DEG,
     bounds: BOUNDS,
+    outline: OUTLINE,
     heightmap: {
       cell: grid.cell,
       cols: grid.cols,

@@ -15,6 +15,7 @@ const MAP: MonzoneMap = {
   origin: { lat: 44.2, lon: 10.1 },
   mPerDeg: { lat: 111_000, lon: 80_000 },
   bounds: { minX: -50, minY: -20, maxX: 50, maxY: 20 },
+  outline: [[-50, -20, 50, -20, 50, 20, -50, 20]],
   heightmap: { cell: 4, cols: 3, rows: 2, x0: -52, y0: -24, data: [100, 110, 120, 130, 140, 150] },
   tiles: [{ i: -1, j: -1, zmin: 100, zmax: 150 }],
   place: { floor: 10, downslope: 2 },
@@ -143,6 +144,11 @@ test("identical maps, and maps that differ only in the order of lists other than
 
 const CASES: ReadonlyArray<readonly [string, Partial<MonzoneMap>, RegExp]> = [
   ["top level", { bounds: { ...MAP.bounds, maxX: 60 } }, /^bounds: maxX 50 -> 60$/],
+  [
+    "outline",
+    { outline: [[-50, -20, 60, -20, 60, 20, -50, 20]] },
+    /^rings: 1 added, 1 removed, in x -50\.\.60, y -20\.\.20$/,
+  ],
   [
     "heightmap",
     { heightmap: { ...MAP.heightmap, data: [100, 110, 120, 130, 145, 150] } },
@@ -379,6 +385,16 @@ test("--except: the accepted categories' differences are still printed, and name
     formatDiff(more, except),
     /2 categories differ: trees, lamps; accepted \(--except\): trees$/,
   )
+})
+
+test("a map built before the play area's outline (issue #7) differs from one with it in the outline alone", () => {
+  // the outline key left out, as in a file written before it
+  const before = Object.fromEntries(
+    Object.entries(MAP).filter(([key]) => key !== "outline"),
+  ) as MonzoneMap
+  assert.deepEqual(diffMaps(before, MAP), [
+    { category: "outline", lines: ["rings: 1 added, in x -50..50, y -20..20"] },
+  ])
 })
 
 test("a key diffMaps does not compare, at the top level or inside a part it reads key by key, is reported, never no differences", () => {

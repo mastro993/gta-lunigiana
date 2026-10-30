@@ -254,6 +254,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     origin: map.origin,
     mPerDeg: map.mPerDeg,
     bounds: map.bounds,
+    outline: map.outline,
     heightmap: { cell, cols, rows, x0, y0 },
     tiles: list,
     place: { floor: place.floor, downslope: place.downslope },
@@ -295,7 +296,16 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
 /** The global map's parts that come before the vectors, in file order. */
 type Header = Pick<
   MonzoneMap,
-  "version" | "name" | "origin" | "mPerDeg" | "bounds" | "heightmap" | "tiles" | "place" | "coarse"
+  | "version"
+  | "name"
+  | "origin"
+  | "mPerDeg"
+  | "bounds"
+  | "outline"
+  | "heightmap"
+  | "tiles"
+  | "place"
+  | "coarse"
 >
 
 /**

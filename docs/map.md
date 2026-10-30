@@ -871,7 +871,8 @@ counter-clockwise, holes clockwise.
 | `version` | `3` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them) |
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
-| `bounds` | play area `minX`, `minY`, `maxX`, `maxY` (m) |
+| `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
+| `outline` | the play area's outline (`src/tools/play-area.ts`): flat rings on 0.1 m, outer counter-clockwise, holes clockwise (the play area left of every edge), each from its lowest (y, x) vertex; `insideRings` and `ringsDistance` (`src/sim/map/outline.ts`) test points against it. Lunigiana's and Cesena's is one ring, `bounds` itself, and the game reads `bounds` as the play area |
 | `heightmap` | the terrain lattice: `cell` (4 m), `cols`, `rows`, `x0`, `y0`; its nodes are the tiles' |
 | `tiles` | `{ i, j, zmin, zmax }` per tile, south to north then west to east: its lowest and highest node, decimetres |
 | `place` | `floor` and `downslope`, the sky's place ([weather.md](weather.md)), fitted over every node at build time |
@@ -1234,8 +1235,9 @@ repository. Measured on `lucido` on 2026-10-29.
   (`readWholeMap` in `map-file.ts`) and compares heightmap nodes (count, largest and RMS difference,
   their box), the land cover's cells, the coarse grid (its lattice, then how many heights and covers
   differ), walls (and their reach, lattices and counts), trees, roads, buildings, water, rail, areas,
-  the tile list, the place, the name and the baked tables (lanes, farms, lamps) and the rest,
-  matched by id or as multisets, and any key it does not know as its own block; the build hash is
+  the tile list, the place, the name, the play area's outline (its rings as a multiset; a map built
+  before it, issue #7, has none) and the baked tables (lanes, farms, lamps) and the rest, matched by
+  id or as multisets, and any key it does not know as its own block; the build hash is
   left out, as anything else changes it. Order counts only for the walls of each kind and the
   trees: beside their multiset change it prints the fewest of the items both maps hold that must
   move to restore their order, and where (`walk order: 1 of 2 shared segments moved, in x …`; one
@@ -1246,9 +1248,9 @@ repository. Measured on `lucido` on 2026-10-29.
   compares two builds of one format version (the decoders refuse another) and exits 0 for "no
   differences", 1 when they differ and 2 on bad arguments, an unknown category among them, or a
   file it cannot read. `--except trees,walls` accepts those categories (the names its blocks print:
-  `unhandled keys`, `top level`, `tiles`, `heightmap`, `cover`, `walls`, `coarse`, `trees`,
-  `roads`, `buildings`, `water`, `rail`, `railway`, `areas`, `barriers`, `pois`, `districts`,
-  `spawns`, `graph`, `lanes`, `farms`, `lamps`): their differences are still printed, the last line
+  `unhandled keys`, `top level`, `outline`, `tiles`, `heightmap`, `cover`, `walls`, `coarse`,
+  `trees`, `roads`, `buildings`, `water`, `rail`, `railway`, `areas`, `barriers`, `pois`,
+  `districts`, `spawns`, `graph`, `lanes`, `farms`, `lamps`): their differences are still printed, the last line
   names them as accepted, and the exit code is 0 unless another category differs. The shipped map
   against itself (two builds are byte-identical): no differences, 0.9 s.
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale

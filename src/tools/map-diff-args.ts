@@ -5,6 +5,7 @@
 export const CATEGORIES = [
   "unhandled keys",
   "top level",
+  "outline",
   "tiles",
   "heightmap",
   "cover",

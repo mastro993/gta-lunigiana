@@ -14,6 +14,7 @@ const built = (data: ReadonlyArray<number>): BuiltMap => ({
   origin: { lat: 44.2, lon: 10.1 },
   mPerDeg: { lat: 111_000, lon: 80_000 },
   bounds: { minX: -12, minY: -12, maxX: 12, maxY: 12 },
+  outline: [[-12, -12, 12, -12, 12, 12, -12, 12]],
   heightmap: { cell: 4, cols: 7, rows: 7, x0: -12, y0: -12, data: Int16Array.from(data) },
   roads: [],
   buildings: [],

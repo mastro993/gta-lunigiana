@@ -53,7 +53,7 @@ export {
 export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
 export { type Segment, treesIn, type WallKind, wallsNear } from "./tiles.ts"
 
-/** Play area rectangle, metres. */
+/** The built terrain's box, metres: the box round the map's parts, which the play area (`outline`) lies in. */
 interface Bounds {
   readonly minX: number
   readonly minY: number
@@ -252,6 +252,12 @@ export interface MonzoneMap {
   readonly origin: { readonly lat: number; readonly lon: number }
   readonly mPerDeg: { readonly lat: number; readonly lon: number }
   readonly bounds: Bounds
+  /**
+   * The play area's outline (`./outline.ts` tests points against it): flat rings on 0.1 m, outer
+   * counter-clockwise and holes clockwise, the area left of every edge; the union of the map's
+   * parts, which on Lunigiana and Cesena is `bounds` itself.
+   */
+  readonly outline: ReadonlyArray<ReadonlyArray<number>>
   readonly heightmap: Heightmap
   /** Every tile with terrain in it, in key order (south to north, then west to east). */
   readonly tiles: ReadonlyArray<TileEntry>
