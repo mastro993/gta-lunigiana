@@ -27,8 +27,8 @@ export interface BuiltMap extends Omit<
   | "farms"
   | "lamps"
 > {
-  /** `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0). */
-  readonly heightmap: MonzoneMap["heightmap"] & { readonly data: ArrayLike<number> }
+  /** `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in build-output.ts fits them to int16). */
+  readonly heightmap: MonzoneMap["heightmap"] & { readonly data: Int16Array }
   readonly walls: {
     readonly walk: ArrayLike<number>
     readonly shore: ArrayLike<number>
@@ -102,14 +102,8 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const range = tileRange(map.bounds),
     across = range.i1 - range.i0 + 1,
     slots = across * (range.j1 - range.j0 + 1)
-  // Every tile and coarse node passes here before an Int16Array would wrap it: one that does not fit fails the build.
-  const node = (gi: number, gj: number) => {
-    const v =
-      data[Math.min(rows - 1, Math.max(0, gj)) * cols + Math.min(cols - 1, Math.max(0, gi))]!
-    if (!Number.isInteger(v) || v < -32768 || v > 32767)
-      throw new Error(`heightmap: ${v} at node (${gi}, ${gj}) does not fit int16`)
-    return v
-  }
+  const node = (gi: number, gj: number) =>
+    data[Math.min(rows - 1, Math.max(0, gj)) * cols + Math.min(cols - 1, Math.max(0, gi))]!
   const slotAt = (x: number, y: number) =>
     (indexOf(y / cell, range.j0, range.j1, n) - range.j0) * across +
     indexOf(x / cell, range.i0, range.i1, n) -

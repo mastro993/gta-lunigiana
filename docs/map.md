@@ -999,10 +999,12 @@ them, and the place refitted over the joined heightmap, with what it holds (prov
 the parked cars' `LEVEL`; the check is `assertBakesCurrent` in `src/tools/__tests__/bakes.ts`), so
 code that changes a baked table fails `pnpm test` until `pnpm map` runs; `cesena-bake.test.ts`
 checks Cesena's (`pnpm map --region cesena`). `src/tools/__tests__/tile-map.test.ts` cuts a 24 m map
-into its four tiles and joins them back as they were (walls and trees in order), throws for a height
-that does not fit int16 decimetres (40000, −40000, NaN, 2000.5) instead of wrapping it, refuses
-to join a tile from another build, and stamps each tile as `packTile` packs it with the build hash; `src/__tests__/maps.test.ts` checks that every listed tile of
-both maps has its file, of at most 0.7 MB.
+into its four tiles and joins them back as they were (walls and trees in order), refuses to join a
+tile from another build, and stamps each tile as `packTile` packs it with the build hash.
+`build-output.test.ts` checks that `decimetres`, which rounds the grid into the `Int16Array` the cut
+reads, throws for a height that does not fit int16 decimetres (4000 m, −4000 m, 3276.75 m, NaN,
+infinity) instead of wrapping it. `src/__tests__/maps.test.ts` checks that every listed tile of both
+maps has its file, of at most 0.7 MB.
 
 `src/tools/__tests__/seams.map-test.ts` is a map test: it reads every tile of both maps, so it grows
 with the map and `pnpm test` leaves it out (run it with `node --test

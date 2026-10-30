@@ -14,7 +14,7 @@ const built = (data: ReadonlyArray<number>): BuiltMap => ({
   origin: { lat: 44.2, lon: 10.1 },
   mPerDeg: { lat: 111_000, lon: 80_000 },
   bounds: { minX: -12, minY: -12, maxX: 12, maxY: 12 },
-  heightmap: { cell: 4, cols: 7, rows: 7, x0: -12, y0: -12, data },
+  heightmap: { cell: 4, cols: 7, rows: 7, x0: -12, y0: -12, data: Int16Array.from(data) },
   roads: [],
   buildings: [],
   water: [],
@@ -65,14 +65,6 @@ test("cutMap cuts the dense layers into tiles that joinTiles puts back as they w
   assert.deepEqual(Array.from(whole.trees), built(data).trees)
   assert.deepEqual(Array.from(whole.cover), cover)
   assert.equal(global.walls.reach, 13) // the 24 m shore wall on the edge reaches 12 m past its midpoint, plus the margin
-})
-
-test("cutMap throws for a height that does not fit int16 decimetres, rather than wrapping it", () => {
-  for (const bad of [40000, -40000, Number.NaN, 2000.5])
-    assert.throws(
-      () => cutMap(built(data.map((z, k) => (k === 10 ? bad : z))), "test"),
-      /heightmap: .* at node \(3, 1\) does not fit int16/,
-    )
 })
 
 test("joinTiles refuses a tile from another build", () => {

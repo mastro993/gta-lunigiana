@@ -102,7 +102,7 @@ export const assembleMap = (
 }
 
 /** The grid's nodes in whole decimetres, each checked to fit int16 (a NaN or a height past ±3276.7 m fails the build). */
-const decimetres = (grid: Grid): Int16Array => {
+export const decimetres = (grid: Grid): Int16Array => {
   const out = new Int16Array(grid.z.length)
   for (let k = 0; k < out.length; k++) {
     const v = Math.round(grid.z[k]! * 10)
