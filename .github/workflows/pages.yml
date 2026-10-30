@@ -29,6 +29,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The maps are not in git: restored from CI's cache, or built from the pinned raw inputs.
+      - uses: ./.github/actions/maps
+
       # Relative asset URLs, so the build works under the /<repo>/ project path.
       - run: pnpm build --base=./
 

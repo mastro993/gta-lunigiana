@@ -2,3 +2,8 @@ node_modules
 dist
 .research
 .DS_Store
+# Map inputs, pinned by data/raw.lock.json and fetched by `pnpm fetch-raw` (issue #6).
+/data/raw/
+# The built maps: `pnpm maps` writes them, CI caches them.
+/src/sim/map/*.bin
+/src/sim/map/*/*.bin

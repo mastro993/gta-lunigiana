@@ -1659,7 +1659,9 @@ sky store `SkyView`, and the dev trains store `TrainView`:
 ## Checks
 
 `pnpm check` runs the format, type, lint and test gates in that order; CI runs each as its own
-step, and git hooks run the first three before a commit or push.
+step, and git hooks run the first three before a commit or push. The lint and the tests read the
+built maps, which are not in git: CI restores them from its cache, or builds them from the pinned
+inputs and checks a second build on another runner matches ([map.md](map.md#pinned-inputs-and-ci)).
 
 - `oxfmt --check` (`.oxfmtrc.json`): no semicolons, double quotes, 100 columns, sorted imports,
   over the code, JSON, YAML, HTML and CSS. Markdown is skipped: oxfmt pads every table cell to

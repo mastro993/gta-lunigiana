@@ -1,0 +1,71 @@
+# Puts the built maps in src/sim/map for the steps after it: from the cache when their inputs are
+# unchanged, else built from the raw inputs data/raw.lock.json pins, which come through a cache of
+# their own. Runs after Node, pnpm and the dependencies are installed (ci.yml, pages.yml).
+name: Maps
+description: Restore the built maps from the cache, or fetch the pinned raw inputs and build them
+inputs:
+  cache:
+    description: '"false" builds the maps even when the cache holds them, and saves nothing'
+    default: "true"
+outputs:
+  hash:
+    description: SHA-256 of the built map files gunzipped, in path order; empty when they came from the cache
+    value: ${{ steps.hash.outputs.hash }}
+runs:
+  using: composite
+  steps:
+    # A hash of everything the build reads: the raw lock, the package files and every source file
+    # build-map.ts imports (src/tools/map-key.ts).
+    - id: key
+      shell: bash
+      run: echo "key=maps-${{ runner.os }}-$(node src/tools/map-key.ts)" >> "$GITHUB_OUTPUT"
+
+    - id: maps
+      if: inputs.cache == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          src/sim/map/*.bin
+          src/sim/map/*/*.bin
+        key: ${{ steps.key.outputs.key }}
+
+    - id: raw
+      if: steps.maps.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: data/raw
+        key: raw-${{ hashFiles('data/raw.lock.json') }}
+
+    # Downloads only what the cache lacks, and checks every file's SHA-256 either way.
+    - if: steps.maps.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm fetch-raw
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - if: steps.maps.outputs.cache-hit != 'true' && steps.raw.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: data/raw
+        key: ${{ steps.raw.outputs.cache-primary-key }}
+
+    - if: steps.maps.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm maps
+
+    # Gunzipped, so the hash is the same wherever the build ran (another zlib compresses differently).
+    - id: hash
+      if: steps.maps.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        hash=$(find src/sim/map -name '*.bin' -print0 | LC_ALL=C sort -z | xargs -0 gunzip -c | sha256sum)
+        echo "hash=${hash%% *}" >> "$GITHUB_OUTPUT"
+
+    # Saved before the tests run, so a failing test does not cost the next run a build.
+    - if: inputs.cache == 'true' && steps.maps.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          src/sim/map/*.bin
+          src/sim/map/*/*.bin
+        key: ${{ steps.key.outputs.key }}
