@@ -1,6 +1,6 @@
-// Order-free comparison of two lists, for map-diff.ts: multisets (equal items pair up wherever
-// they stand), items matched by a key that may repeat, what changed between two versions of an
-// item, and the box round the changes.
+// Comparison of two lists, for map-diff.ts: multisets (equal items pair up wherever they stand),
+// the order of the items two lists share, items matched by a key that may repeat, what changed
+// between two versions of an item, and the box round the changes.
 
 /** A box [minX, minY, maxX, maxY], m; empty while minX > maxX. */
 export type Box = [number, number, number, number]
@@ -97,6 +97,35 @@ export const flatDiff = (a: ArrayLike<number>, b: ArrayLike<number>, stride: num
       return true
     },
   )
+}
+
+/**
+ * The items of two flat lists of `stride`-number tuples that stand in another order: with `bag`
+ * their multiset diff (`flatDiff`), the items both hold (all but the removed and the added) are
+ * compared position by position, and the indices into `a` of those out of place returned, ascending;
+ * none when the shared items keep their order.
+ */
+export const outOfOrder = (
+  a: ArrayLike<number>,
+  b: ArrayLike<number>,
+  stride: number,
+  bag: Bag,
+): Array<number> => {
+  const removed = new Set(bag.removed),
+    added = new Set(bag.added),
+    out: Array<number> = []
+  let j = 0
+  for (let i = 0; i < a.length / stride; i++) {
+    if (removed.has(i)) continue
+    while (added.has(j)) j++
+    for (let k = 0; k < stride; k++)
+      if (a[i * stride + k] !== b[j * stride + k]) {
+        out.push(i)
+        break
+      }
+    j++
+  }
+  return out
 }
 
 /** Items matched by key: the versions that differ (`changed`), and the items only `a` or only `b` has. */

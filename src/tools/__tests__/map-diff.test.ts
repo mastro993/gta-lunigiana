@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { MAP_VERSION } from "../../sim/map/packed.ts"
+import { exitCodeOf, parseArgs } from "../map-diff-args.ts"
 import { diffMaps, formatDiff } from "../map-diff.ts"
 import type { JoinedMap } from "../tile-map.ts"
 
@@ -118,7 +119,7 @@ const MAP: MonzoneMap = {
 const swap = <T>(list: ReadonlyArray<T>, k: number, item: T): ReadonlyArray<T> =>
   list.map((x, i) => (i === k ? item : x))
 
-test("identical maps, and maps that differ only in order, have no differences", () => {
+test("identical maps, and maps that differ only in the order of lists other than the walls and the trees, have no differences", () => {
   assert.deepEqual(diffMaps(MAP, MAP), [])
   assert.equal(formatDiff(diffMaps(MAP, MAP)), "no differences")
   const road = MAP.roads[2]!
@@ -127,8 +128,6 @@ test("identical maps, and maps that differ only in order, have no differences", 
     roads: [...MAP.roads].reverse(),
     // the same fields built in another order
     pois: [{ y: 2, x: 2, name: "Bar", kind: "amenity=bar", id: 11 }],
-    trees: [12, 10, 0.8, 10, 10, 1],
-    walls: { ...MAP.walls, walk: [5, 1, 5, 5, 1, 1, 5, 1] },
     // nodes 0 and 3 swapped, the edges reversed in order and pointing at the reversed roads
     graph: {
       xy: [0, 10, 10, 0, 20, 5, 0, 0],
@@ -308,6 +307,63 @@ test("each category's change is reported in its block alone", () => {
       `${category}: ${blocks[0]!.lines.join(" | ")}`,
     )
   }
+})
+
+// The physics resolves contacts in wall order (another order lets a car into a building at a corner), and a tree's place
+// in the list is its id: a multiset comparison would hide both.
+test("walls of a kind and trees in another order are a difference, beside their adds and removals", () => {
+  assert.deepEqual(
+    diffMaps(MAP, { ...MAP, walls: { ...MAP.walls, walk: [5, 1, 5, 5, 1, 1, 5, 1] } }),
+    [
+      {
+        category: "walls",
+        lines: ["walk order: 2 of 2 shared segments in another order, in x 1..5, y 1..5"],
+      },
+    ],
+  )
+  assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8, 10, 10, 1] }), [
+    {
+      category: "trees",
+      lines: ["order: 2 of 2 shared trees in another order, in x 10..12, y 10..10"],
+    },
+  ])
+  // A tree added in front and one removed leave the others in their order: no reorder.
+  assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [5, 5, 1, 10, 10, 1] }), [
+    { category: "trees", lines: ["1 added, 1 removed, in x 5..12, y 5..10"] },
+  ])
+  // Added, and the shared ones swapped: both said.
+  assert.deepEqual(
+    diffMaps(MAP, {
+      ...MAP,
+      walls: { ...MAP.walls, walk: [0, 0, 1, 0, 5, 1, 5, 5, 1, 1, 5, 1] },
+    })[0]!.lines,
+    [
+      "walk: 1 added, in x 0..1, y 0..0",
+      "walk order: 2 of 2 shared segments in another order, in x 1..5, y 1..5",
+    ],
+  )
+})
+
+test("--except: the accepted categories' differences are still printed, and named, but leave the exit code 0; any other category's makes it 1", () => {
+  const trees = diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8] }),
+    { except } = parseArgs(["a.bin", "b.bin", "--except", "trees"])
+  assert.equal(exitCodeOf([], new Set()), 0)
+  assert.equal(exitCodeOf(trees, new Set()), 1)
+  assert.equal(exitCodeOf(trees, except), 0)
+  assert.equal(
+    formatDiff(trees, except),
+    [
+      "trees:",
+      "  1 removed, in x 10..10, y 10..10",
+      "1 category differs: trees; accepted (--except): trees",
+    ].join("\n"),
+  )
+  const more = diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8], lamps: [] })
+  assert.equal(exitCodeOf(more, except), 1)
+  assert.match(
+    formatDiff(more, except),
+    /2 categories differ: trees, lamps; accepted \(--except\): trees$/,
+  )
 })
 
 test("a key diffMaps does not compare, at the top level or inside a part it reads key by key, is reported, never no differences", () => {

@@ -1,17 +1,23 @@
 // The differences between two built maps, category by category, for checking that a pipeline
-// change moves only what it should. Run: node src/tools/map-diff.ts <a.bin> <b.bin>  (pnpm map-diff
-// <a.bin> <b.bin>). Reads two global map files (monzone.bin), each with its tiles in the directory
-// named after the map beside it (copy both to keep a build: `cp -R src/sim/map/monzone.bin
-// src/sim/map/monzone /tmp/before/`), joins each whole (map-file.ts; the decoders throw on another
-// format version) and prints one block per category that differs, or "no differences". Exits 0
-// when the maps are the same, 1 when anything differs, 2 on bad arguments or a file it cannot read.
-// The build hash is not compared (it changes with anything else); the baked tables are.
+// change moves only what it should. Run: node src/tools/map-diff.ts <a.bin> <b.bin> [--except
+// <category,...>]  (pnpm map-diff …). Reads two global map files (monzone.bin), each with its tiles
+// in the directory named after the map beside it (copy both to keep a build: `cp -R
+// src/sim/map/monzone.bin src/sim/map/monzone /tmp/before/`), joins each whole (map-file.ts; the
+// decoders throw on another format version) and prints one block per category that differs, or "no
+// differences". Exits 0 when the maps are the same or differ only in the categories `--except`
+// accepts (still printed, and named as accepted), 1 when any other category differs, 2 on bad
+// arguments (a category it does not know among them) or a file it cannot read. The build hash is
+// not compared (it changes with anything else); the baked tables are.
 // - A key it does not compare, at the top level or inside a part it reads key by key (heightmap,
 //   graph, walls, railway, spawns, place), is listed under "unhandled keys" whether or not it differs, so
 //   a key a later map adds is never passed over as "no differences".
-// - Order is ignored: lists compare as multisets of their items (wall segments, trees, areas,
-//   barriers, graph nodes and edges), or matched by id where items have one (roads, buildings,
-//   water, rail, pois; districts by name), the pieces that share an id in order of occurrence.
+// - Order is ignored, but for the walls and the trees: lists compare as multisets of their items
+//   (wall segments, trees, areas, barriers, graph nodes and edges), or matched by id where items
+//   have one (roads, buildings, water, rail, pois; districts by name), the pieces that share an id
+//   in order of occurrence. The walls of each kind and the trees both maps hold must also stand in
+//   the same order: the physics resolves contacts in wall order (another order lets a car into a
+//   building at a corner), and a tree's place in the list is its id (its seed, its owl and its
+//   bird), so a reorder is a difference of its own.
 // - Indices into other lists are compared as what they point at: a graph edge as its two nodes'
 //   coordinates and its road's id, a level crossing's road as its id, so inserting one road does
 //   not renumber every edge into a difference.
@@ -32,13 +38,15 @@ import {
   flatDiff,
   keyedDiff,
   num,
+  outOfOrder,
 } from "./diff-lists.ts"
+import { type Category, exitCodeOf, parseArgs } from "./map-diff-args.ts"
 import { readWholeMap } from "./map-file.ts"
 import type { JoinedMap } from "./tile-map.ts"
 
 /** One category that differs: its name and the report's lines for it. */
 interface Block {
-  readonly category: string
+  readonly category: Category
   readonly lines: ReadonlyArray<string>
 }
 
@@ -255,13 +263,40 @@ const flatLine = (
   b: ArrayLike<number>,
   stride: number,
   coords: number,
+  bag: Bag = flatDiff(a, b, stride),
 ): string | undefined => {
-  const bag = flatDiff(a, b, stride)
   if (bag.added.length + bag.removed.length === 0) return undefined
   const box = emptyBox()
   for (const i of bag.removed) addFlat(box, a, i * stride, i * stride + coords)
   for (const j of bag.added) addFlat(box, b, j * stride, j * stride + coords)
   return `${counts(0, bag.added.length, bag.removed.length)}${boxText(box)}`
+}
+
+/**
+ * A flat list compared in order (a kind of wall, the trees): its multiset line (`flatLine`), then
+ * how many of the `noun` both maps hold stand in another order (`outOfOrder`) and their box, each
+ * line after `label` when there is one (`walk: …`, `walk order: …`).
+ */
+const orderedLines = (
+  label: string,
+  noun: string,
+  a: ArrayLike<number>,
+  b: ArrayLike<number>,
+  stride: number,
+  coords: number,
+): Array<string> => {
+  const bag = flatDiff(a, b, stride),
+    line = flatLine(a, b, stride, coords, bag),
+    moved = outOfOrder(a, b, stride, bag),
+    out = line === undefined ? [] : [label === "" ? line : `${label}: ${line}`]
+  if (moved.length > 0) {
+    const box = emptyBox()
+    for (const i of moved) addFlat(box, a, i * stride, i * stride + coords)
+    out.push(
+      `${label === "" ? "" : `${label} `}order: ${moved.length} of ${a.length / stride - bag.removed.length} shared ${noun} in another order${boxText(box)}`,
+    )
+  }
+  return out
 }
 
 /** One line per named part that differs, `name: counts, box`. */
@@ -450,7 +485,7 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
     {
       category: "walls",
       lines: [
-        ...partLines(WALL_KINDS.map((k) => [k, flatLine(a.walls[k], b.walls[k], 4, 4)])),
+        ...WALL_KINDS.flatMap((k) => orderedLines(k, "segments", a.walls[k], b.walls[k], 4, 4)),
         ...(a.walls.reach === b.walls.reach ? [] : [`reach: ${a.walls.reach} -> ${b.walls.reach}`]),
         ...(["lattice", "counts"] as const).flatMap((k) => {
           const changes = fieldChanges(a.walls[k], b.walls[k])
@@ -459,7 +494,7 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
       ],
     },
     { category: "coarse", lines: diffCoarse(a.coarse, b.coarse) },
-    { category: "trees", lines: [flatLine(a.trees, b.trees, 3, 2) ?? []].flat() },
+    { category: "trees", lines: orderedLines("", "trees", a.trees, b.trees, 3, 2) },
     { category: "roads", lines: keyedLines("road", a.roads, b.roads, (r) => r.id) },
     { category: "buildings", lines: keyedLines("building", a.buildings, b.buildings, (r) => r.id) },
     { category: "water", lines: keyedLines("water", a.water, b.water, (r) => r.id) },
@@ -503,17 +538,21 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
   return blocks.filter((block) => block.lines.length > 0)
 }
 
-/** The report: each block's category, then its lines indented, then which categories differ; "no differences" when there are no blocks. */
-export const formatDiff = (blocks: ReadonlyArray<Block>): string =>
-  blocks.length === 0
-    ? "no differences"
-    : [
-        ...blocks.flatMap((block) => [
-          `${block.category}:`,
-          ...block.lines.map((line) => `  ${line}`),
-        ]),
-        `${blocks.length} ${blocks.length === 1 ? "category differs" : "categories differ"}: ${blocks.map((block) => block.category).join(", ")}`,
-      ].join("\n")
+/**
+ * The report: each block's category, then its lines indented, then which categories differ and which of them `accepted`
+ * holds; "no differences" when there are no blocks.
+ */
+export const formatDiff = (
+  blocks: ReadonlyArray<Block>,
+  accepted: ReadonlySet<Category> = new Set(),
+): string => {
+  if (blocks.length === 0) return "no differences"
+  const taken = blocks.filter((block) => accepted.has(block.category))
+  return [
+    ...blocks.flatMap((block) => [`${block.category}:`, ...block.lines.map((line) => `  ${line}`)]),
+    `${blocks.length} ${blocks.length === 1 ? "category differs" : "categories differ"}: ${blocks.map((block) => block.category).join(", ")}${taken.length > 0 ? `; accepted (--except): ${taken.map((block) => block.category).join(", ")}` : ""}`,
+  ].join("\n")
+}
 
 /** The whole map whose global file is at `path` (its tiles beside it); errors name the file. */
 const readMap = (path: string): MonzoneMap => {
@@ -528,12 +567,10 @@ const readMap = (path: string): MonzoneMap => {
 
 if (import.meta.main) {
   try {
-    const [pathA, pathB, ...rest] = process.argv.slice(2)
-    if (pathA === undefined || pathB === undefined || rest.length > 0)
-      throw new Error("usage: node src/tools/map-diff.ts <a.bin> <b.bin>")
-    const blocks = diffMaps(readMap(pathA), readMap(pathB))
-    console.log(formatDiff(blocks))
-    process.exitCode = blocks.length > 0 ? 1 : 0
+    const { a, b, except } = parseArgs(process.argv.slice(2))
+    const blocks = diffMaps(readMap(a), readMap(b))
+    console.log(formatDiff(blocks, except))
+    process.exitCode = exitCodeOf(blocks, except)
   } catch (error) {
     console.error(`map-diff: ${error instanceof Error ? error.message : String(error)}`)
     process.exitCode = 2
