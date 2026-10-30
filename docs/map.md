@@ -879,10 +879,11 @@ indices from the listed tiles, not from the bounds, and a region whose parts mak
 in the notch the parts leave in the box round them: there a terrain or land-cover lookup reads the
 nearest node or cell of the listed tiles in the nearest ring of tiles round the unlisted one (a tie
 goes to the first in key order), so the ground past an inner edge of the play area extends that
-edge, as the apron does past the bounds (`src/sim/map/tiles.ts`;
-`src/__tests__/notch.test.ts` drops Lunigiana's four tiles north-east of (2000, 0) and checks every
-runtime reader). The tiles round it are what `tilesOver` names for a box over the notch, so the
-host keeps them in memory wherever a lookup there may read.
+edge, as the apron does past the bounds (`src/sim/map/tiles.ts`; `notchMap` in
+`src/sim/map/__tests__/edit-map.ts` drops Lunigiana's four tiles north-east of (2000, 0), and the
+`notch.test.ts` beside each runtime reader of the tiles and the play area checks it there). The
+tiles round it are what `tilesOver` names for a box over the notch, so the host keeps them in
+memory wherever a lookup there may read.
 
 | File | Lunigiana | Cesena |
 |---|---|---|

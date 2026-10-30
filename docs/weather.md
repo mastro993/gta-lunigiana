@@ -678,7 +678,7 @@ storms.
   scatter around the cell (Gaussian, σ 2 km); a bolt drawn outside the play area (`inPlay`, inside
   `MAP.outline`, its edge included) is drawn again up to 4 times, then dropped, so bolts strike
   only the play area, never piled on its edge, and on a map of parts in an L never in its notch
-  (`src/__tests__/notch.test.ts`). With the cell within 4 km of the
+  (`src/sim/sky/__tests__/notch.test.ts`). With the cell within 4 km of the
   player, a quarter of the bolts strike in the strip the camera sees, up to 40 m to either side of
   the player and 60–600 m toward the camera (the driving view's, while the player drives:
   `restAxes` in `src/sim/view.ts`), where a vertical bolt crosses the whole screen.
