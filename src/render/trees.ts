@@ -3,9 +3,10 @@
  * InstancedMesh per kind per chunk, built when the chunk streams in. Trees near the map edge are
  * mirrored into the apron so the forest does not stop at the bounds. Each tree's look is drawn from
  * its seed, three times its id (a mirror's one more; the id is its lattice cell's number, fixed as
- * parts are added: src/tools/trees.ts), so a tree looks the same whichever tile brought it. A
- * `canopy` vertex attribute (1 on the crown, 0 on the trunk) tells the tree material what sways in
- * the wind.
+ * parts are added: src/tools/trees.ts), so a tree looks the same whichever tile brought it. A bank
+ * tree's seeds pass int32: `hash01` wraps them (ToInt32), and the ids keep every seed below 2^32,
+ * so no two trees share one. A `canopy` vertex attribute (1 on the crown, 0 on the trunk) tells the
+ * tree material what sways in the wind.
  *
  * @module render/trees
  */

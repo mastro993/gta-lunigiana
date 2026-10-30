@@ -783,9 +783,12 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   taken from the bounds, and its cells run on past it either way, so adding a part moves no tree.
   A tree's id is its cell's number, (gj + 8192) × 16384 + (gi + 8192) for the cell gi east and gj
   north of the anchor (below 2²⁸), and a bank tree's is its 4 m cell's number past them,
-  2²⁸ + (cj + 16384) × 32768 + (ci + 16384) (below 2³¹). The ids order the whole map's trees (south
-  to north, west to east, then the banks), seed each tree's look (`src/render/trees.ts`), and never
-  change as parts are added.
+  2²⁸ + (cj + 16384) × 32768 + (ci + 16384) (at most 2²⁸ + 2³⁰ − 1). The cells run 57.9 km (lattice)
+  and 65.5 km (banks) from the anchor either way, and the scatter throws past them. The ids order
+  the whole map's trees (south to north, west to east, then the banks), seed each tree's look
+  (3 × id, a mirror's one more: `src/render/trees.ts`), and never change as parts are added. A bank
+  tree's seeds pass int32 (Lunigiana's largest is 2 661 635 298) and `hash01` wraps them (ToInt32),
+  but the ids keep every seed below 2³² (at most 4 026 531 838), so no two trees share one.
 - **A tile at a time**: the scatter (`trees.ts`) works each of the region's tiles alone,
   rasterising its 2 m masks (forest, the other areas, the buildings) over the tile and a metre round
   it on the anchor's pixels, the pixels one raster of the whole map has there. A tree belongs to the
@@ -1193,8 +1196,9 @@ and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts`
 box; `trees.test.ts` the tiles' scatters merged by id against the scatter of their whole box (with
 two lattice points rounding onto one spot from either side of a seam, and a stream beside another
 whose bank trees fall in its 4 m cells), a tile's trees and ids when the region's box grows, a
-stream's piece the outline cut keeping the whole stream's bank trees, and a stream's banks in every
-listed tile and none in one left out; `region.test.ts` the regions' parts, bounds, tiles and tree
+stream's piece the outline cut keeping the whole stream's bank trees, a stream's banks in every
+listed tile and none in one left out, and the last bank cell's tree getting the largest id (its
+look's seeds below 2³², a cell further throwing); `region.test.ts` the regions' parts, bounds, tiles and tree
 anchors and
 `checkMask` on a diagonal mask in an L and on each fault (too few vertices, off 0.1 m, clockwise,
 a repeated vertex, a fold, a crossing, a vertex or an edge outside the rectangles);

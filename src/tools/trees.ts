@@ -24,7 +24,11 @@ const BANK_CELL = 4
 const SPAN = 8192
 /** Bank cells numbered each way from the anchor: 16384, 65.5 km. */
 const BANK_SPAN = 16384
-/** The first bank tree's id, past every lattice cell's number (2^28; the last bank id is below 2^31). */
+/**
+ * The first bank tree's id, past every lattice cell's number (2^28; the last is 2^28 + 2^30 - 1). A
+ * look's seeds, 3 * id and one more for a mirror (render/trees.ts), pass int32 for bank trees and
+ * reach 4,026,531,838: hash01 takes them through ToInt32, which keeps any two below 2^32 apart.
+ */
 const BANKS = 4 * SPAN * SPAN
 
 /** What the trees grow in (forest areas) and keep out of (the other areas, and every feature). */

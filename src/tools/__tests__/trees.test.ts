@@ -185,3 +185,33 @@ test("scatterTrees covers the region's tiles: a stream's banks in every tile it 
   assert.deepEqual(rowsOf(tiles), [-4, -3, -2, -1, 0, 1])
   assert.deepEqual(rowsOf(tiles.filter(({ j }) => j !== -2)), [-4, -3, -1, 0, 1])
 })
+
+test("the last bank cell's tree gets the largest id, whose look's seeds stay below 2^32, where hash01 tells them apart", () => {
+  // Bank cells number 16384 each way from the anchor: (16383, 16383) is the last, 65532–65536 m
+  // north-east of it. A stream east of it keeps its 60th step's west bank tree there (by search).
+  const far = { anchor: { x: 0, y: 0 }, bounds: { minX: 0, minY: 0, maxX: 65536, maxY: 65536 } }
+  const features = {
+    ...FEATURES,
+    water: [
+      stream(2, [
+        [65540, 64993],
+        [65540, 65600],
+      ]),
+    ],
+  }
+  const window: Rect = [64000, 64000, 66000, 66000]
+  const { trees, ids } = treeScatter(features, far)(window)
+  const last = ids.length - 1
+  assert.deepEqual([trees[3 * last], trees[3 * last + 1]], [65533, 65533])
+  assert.equal(ids[last], 2 ** 28 + 2 ** 30 - 1)
+  // The render seeds a look from 3 * id (a mirror's from one more), past int32 for bank trees:
+  // hash01 takes each number through ToInt32, so seeds 2^32 apart look alike, and below 2^32 none do.
+  const seed = 3 * ids[last] + 1
+  assert.ok(seed > 2 ** 31 && seed < 2 ** 32, `${seed}`)
+  assert.equal(hash01(seed, 11), hash01(seed - 2 ** 32, 11))
+  // A cell further would wrap, so the scatter throws there.
+  assert.throws(
+    () => treeScatter(features, { ...far, anchor: { x: -4, y: -4 } })(window),
+    /past the 16384 cells the ids number/,
+  )
+})
