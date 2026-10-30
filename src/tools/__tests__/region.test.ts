@@ -7,7 +7,9 @@ import {
   type Rect,
   checkMask,
   inRects,
+  mapDir,
   partOf,
+  rectRing,
   rectsBox,
   regionFromArgs,
 } from "../region.ts"
@@ -56,9 +58,61 @@ test("a region's tiles are those its parts' rectangles meet, and its tree anchor
   assert.deepEqual(regionFromArgs(["--region", "cesena"]).anchor, { x: -2000, y: -2000 })
 })
 
-test("unknown regions and incomplete arguments fail before a fetch or build", () => {
-  assert.throws(() => regionFromArgs(["--region", "unknown"]), /region/)
+test("unknown regions and incomplete arguments fail before a fetch or build, naming the known keys", () => {
+  assert.throws(() => regionFromArgs(["--region", "unknown"]), /region.*lunigiana-l/)
   assert.throws(() => regionFromArgs(["--region"]), /region/)
+})
+
+const TESTS = ["lunigiana-l", "lunigiana-3x"] as const
+const lucido = partOf("lucido").rects[0]!
+const area = ([x0, y0, x1, y1]: Rect) => (x1 - x0) * (y1 - y0)
+
+test("the test regions build from Lunigiana's inputs, origin and tree anchor into test-maps; the shipped maps into src/sim/map", () => {
+  const lunigiana = regionFromArgs([])
+  for (const key of TESTS) {
+    const region = regionFromArgs(["--region", key])
+    assert.equal(region.key, key)
+    assert.equal(region.file, key)
+    assert.ok(region.test)
+    assert.equal(mapDir(region), "test-maps")
+    assert.equal(region.id, "lunigiana")
+    assert.deepEqual(region.origin, lunigiana.origin)
+    assert.deepEqual(region.anchor, lunigiana.anchor)
+  }
+  for (const key of ["lunigiana", "cesena"]) {
+    const region = regionFromArgs(["--region", key])
+    assert.equal(region.key, key)
+    assert.ok(!region.test)
+    assert.equal(mapDir(region), "src/sim/map")
+  }
+})
+
+test("lunigiana-l: two rectangles of lucido in an L, its notch's two tiles left off the list", () => {
+  const l = regionFromArgs(["--region", "lunigiana-l"])
+  const rects = l.parts.flatMap((p) => p.rects)
+  assert.equal(rects.length, 2)
+  for (const [x0, y0, x1, y1] of rects)
+    assert.ok(inRects([lucido], x0, y0) && inRects([lucido], x1, y1))
+  assert.ok(l.parts.every((p) => p.mask === undefined))
+  // the box less the two arms is the notch: a rectangle of its own, in neither
+  const box = rectsBox(rects)
+  assert.equal(area(box) - area(rects[0]!) - area(rects[1]!), 2400 * 2500)
+  assert.ok(!inRects(rects, 1200, 2650))
+  assert.deepEqual(
+    l.tiles.map(({ i, j }) => `${i}_${j}`),
+    ["-2_0", "-1_0", "0_0", "1_0", "-2_1", "-1_1"],
+  )
+})
+
+test("lunigiana-3x: lucido between terrain-only rectangles, 3 times its built terrain, its play area lucido's rectangle", () => {
+  const x3 = regionFromArgs(["--region", "lunigiana-3x"])
+  const [part] = x3.parts
+  assert.equal(x3.parts.length, 1)
+  assert.deepEqual(part!.mask, rectRing(lucido))
+  assert.ok(part!.rects.some((r) => r.every((v, k) => v === lucido[k])))
+  const { minX, minY, maxX, maxY } = x3.bounds
+  assert.equal(area([minX, minY, maxX, maxY]), 3 * area(lucido))
+  assert.equal(x3.tiles.length, 78)
 })
 
 /** An L: a 200 by 100 m foot and a 100 by 200 m leg on its west half, the notch at its north-east. */
@@ -119,7 +173,7 @@ test("rectsBox is the box round every rectangle", () => {
 const masked = (mask: ReadonlyArray<number>): Part => ({ key: "l", title: "L", rects: L, mask })
 
 test("every region's masks are simple counter-clockwise rings on 0.1 m inside their rectangles", () => {
-  for (const id of ["lunigiana", "cesena"])
+  for (const id of ["lunigiana", "cesena", ...TESTS])
     for (const part of regionFromArgs(["--region", id]).parts) checkMask(part)
 })
 

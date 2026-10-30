@@ -72,6 +72,36 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
   `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`.
   Repeat builds must have identical decompressed hashes, as for Lunigiana.
 
+## Test regions
+
+Test regions build the Lunigiana map in other shapes and sizes, to check the build where the shipped
+map cannot: `region.ts` defines them beside the regions, and `node src/tools/build-map.ts --region
+<key>` (or `pnpm map --region <key>`) writes them to `test-maps/<key>.bin` and its tiles, gitignored;
+the game never loads them and nothing ships them. Each reads Lunigiana's inputs on its origin and
+tree anchor (a tree stands where it does on the shipped map, with the same id), and `fetch-osm`
+refuses one (its box is not its inputs'). `loadBuiltMap` in `src/tools/map-file.ts` hands one to the
+sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
+
+- **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
+  the Carabinieri and the start, Gragnola's rail layout to lucido's north edge) and x 0…2400 by y
+  0…1400 (Equi Terme and its station), 6 tiles; the notch, x 0…2400 by y 1400…3900 round Fazzano,
+  Casciana and Codiponte, is real land, its two tiles unlisted. It builds in 4.3 s and peaks at
+  0.66 GB (arm64). `src/tools/__tests__/l-region.map-test.ts` (`pnpm test:map`, skipped without the
+  build) checks it.
+- **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
+  y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
+  play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
+  synthetic, with no roads, buildings or land cover, for the build's memory and time only.
+
+The build's Lunigiana-only constants hold in a test region: the station and Carabinieri POIs may be
+out of play (a shipped map without them throws), and then no spots are kept for them, no car park
+by the station gets spots, `spawns.police` is left out and the player starts as on Cesena, at the
+traffic node nearest the origin; Gragnola's layout swaps no node the play area leaves out
+(`conflate.ts`). The Aulella's 161 km² beyond the map (`AULELLA_OFF_MAP`) and the stone cores are
+lucido's: a test region's river flows are not calibrated. Scratch regions without Gragnola, without
+Monzone and without the rail (x −1000…4900 by y 0…2600, x −2900…0 by y 2000…3900, x 500…4900 by y
+−6100…−1000) built on 2026-10-31.
+
 ## Pipeline
 
 The build runs in four phases, each a function whose intermediates go out of scope when it returns,
@@ -807,7 +837,8 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   trees). The tiles' trees are merged by id (`mergeTrees` in `tile-map.ts`). The scatter takes
   0.7 s for Lunigiana's 30 tiles and holds one tile's masks, 3 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
-  clear of walk and drive walls. Cesena uses a central street in its connected traffic network.
+  clear of walk and drive walls. Cesena, and a test region without the Carabinieri, use a central
+  street in its connected traffic network (the traffic node nearest the origin).
   The final rounded position must lie outside every building footprint and have a walk-clear
   route to its street centreline, sampled at intervals no greater than 0.5 m. Wall distance alone
   can accept a point deep inside a building, leaving the player trapped.
@@ -1372,7 +1403,8 @@ the tools print paths relative to the repository. Measured on `lucido` on 2026-1
 
 Until issue #7 builds the map tile by tile, only `lucido` is fetched and built: `pnpm fetch-osm`
 and `pnpm map` cover the Lunigiana region's bounds (`BOUNDS`; `--region cesena` builds the separate
-Cesena map instead, and the part tools refuse it), and `pnpm fetch-rt` reads one part's manifest and
+Cesena map instead, and the part tools refuse it; a [test region](#test-regions) builds from
+Lunigiana's inputs and fetches none), and `pnpm fetch-rt` reads one part's manifest and
 stops when `PARTS` holds more than one (a second part would widen the mosaic's crop over the land
 between them, all of it holes for the 10 m DTM) or the manifest lists more than one 10 m DTM.
 

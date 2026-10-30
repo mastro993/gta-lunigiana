@@ -158,9 +158,10 @@ interface ParkingInput {
   readonly walk: Clearance
   readonly drive: Clearance
   readonly avoid: { readonly x: number; readonly y: number }
-  readonly station: { readonly x: number; readonly y: number }
-  /** The Carabinieri station: its two nearest kerb spots are always kept (the sim parks their cars there). */
-  readonly police: { readonly x: number; readonly y: number }
+  /** The railway station, whose car parks within 150 m get spots; none where the play area leaves it out. */
+  readonly station: { readonly x: number; readonly y: number } | undefined
+  /** The Carabinieri station: its two nearest kerb spots are always kept (the sim parks their cars there); none where the play area leaves it out. */
+  readonly police: { readonly x: number; readonly y: number } | undefined
   /** At-grade rail centrelines (flat x, y), sidings included, and whether trains run on each: no car is parked in a train's way. */
   readonly rail: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly running: boolean }>
   /** Level-crossing nodes: no car is parked near one. */
@@ -323,11 +324,13 @@ export const parkedSpots = ({
       if (spots.every((o) => Math.hypot(o.x - c.x, o.y - c.y) >= 9)) spots.push(c)
     }
   }
-  const toPolice = (c: Spawn) => Math.hypot(c.x - police.x, c.y - police.y)
-  take(
-    [...candidates].sort((a, b) => toPolice(a) - toPolice(b)),
-    2,
-  )
+  if (police !== undefined) {
+    const toPolice = (c: Spawn) => Math.hypot(c.x - police.x, c.y - police.y)
+    take(
+      [...candidates].sort((a, b) => toPolice(a) - toPolice(b)),
+      2,
+    )
+  }
   take(
     candidates.sort((a, b) => a.order - b.order),
     Math.round(buildings.length / BUILDINGS_PER_SPOT),
@@ -339,7 +342,7 @@ export const parkedSpots = ({
     let cx = 0,
       cy = 0
     for (let i = 0; i < n; i++) [cx, cy] = [cx + ring[2 * i]! / n, cy + ring[2 * i + 1]! / n]
-    if (Math.hypot(cx - station.x, cy - station.y) > 150) continue
+    if (station === undefined || Math.hypot(cx - station.x, cy - station.y) > 150) continue
     let ex = 1,
       ey = 0,
       longest = 0

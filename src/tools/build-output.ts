@@ -151,7 +151,7 @@ export const writeMap = async (
   lap("bake")
   const stamped = stampMap(cut.global(bakes), cut.tiles.values())
   rmSync(dir, { recursive: true, force: true })
-  mkdirSync(dir)
+  mkdirSync(dir, { recursive: true })
   let bytes = 0,
     largest = 0,
     json = 0

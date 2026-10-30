@@ -75,6 +75,9 @@ const absorb = (xml: string): void => {
 }
 
 const main = async (): Promise<void> => {
+  // A test region's box is not its inputs': fetching for it would cut down the file it shares.
+  if (REGION.test)
+    throw new Error(`--region ${REGION.key} is a test region: it reads --region ${REGION.id}'s OSM`)
   const [s, w] = fromLocal(BOUNDS.minX - MARGIN, BOUNDS.minY - MARGIN),
     [n, e] = fromLocal(BOUNDS.maxX + MARGIN, BOUNDS.maxY + MARGIN)
   const box = (b: Bbox) => b.map((v) => v.toFixed(6)).join(",")

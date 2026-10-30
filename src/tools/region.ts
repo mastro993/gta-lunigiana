@@ -4,6 +4,8 @@
 //   region's play area is the union of its parts' (play-area.ts); its built terrain is the box round
 //   every part's rectangles (`bounds`), its tiles those the rectangles meet, and its trees stand on
 //   a lattice from a corner fixed for good (`anchor`, trees.ts).
+// - Test regions (issue #7): other shapes and sizes built from Lunigiana's inputs, in its frame and
+//   on its anchor, into `test-maps/` (gitignored), to check the build; the game never loads them.
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
@@ -28,10 +30,16 @@ export interface Part {
   readonly mask?: ReadonlyArray<number>
 }
 
-/** A separately built map; survey inputs are never shared between regions. */
+/** A separately built map; survey inputs are never shared between regions, but a test region's. */
 export interface Region {
+  /** The `--region` argument that selects it. */
+  readonly key: string
+  /** The map whose inputs and local frame it is built from (`data/raw/<id>.osm.gz`, …). */
   readonly id: MapId
+  /** Its files' name: the global file `<file>.bin` and the tiles `<file>/<i>_<j>.bin`, in `mapDir`. */
   readonly file: string
+  /** A test region: built from another region's inputs to check the build, into `test-maps/`; never shipped or fetched for. */
+  readonly test: boolean
   readonly origin: { readonly lat: number; readonly lon: number }
   /** Its parts: the play area is the union of their masks, or their rectangles where they have none. */
   readonly parts: ReadonlyArray<Part>
@@ -55,6 +63,9 @@ export interface Region {
 /** Whether local (x, y) lies in one of the rectangles. */
 export const inRects = (rects: ReadonlyArray<Rect>, x: number, y: number): boolean =>
   rects.some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)
+
+/** A rectangle as a counter-clockwise flat ring from its south-west corner. */
+export const rectRing = ([x0, y0, x1, y1]: Rect): Array<number> => [x0, y0, x1, y0, x1, y1, x0, y1]
 
 /** The local box [minX, minY, maxX, maxY] round every rectangle. */
 export const rectsBox = (rects: ReadonlyArray<Rect>): Rect => [
@@ -171,8 +182,7 @@ const tilesOf = (rects: ReadonlyArray<Rect>): Region["tiles"] => {
 
 /** A region of `parts` with its tree lattice at `anchor`, each mask checked, its bounds the box round every rectangle. */
 const regionOf = (
-  id: MapId,
-  file: string,
+  { key, id, file, test }: Pick<Region, "key" | "id" | "file" | "test">,
   origin: Region["origin"],
   parts: ReadonlyArray<Part>,
   anchor: Region["anchor"],
@@ -181,8 +191,10 @@ const regionOf = (
   const rects = parts.flatMap((p) => p.rects)
   const [minX, minY, maxX, maxY] = rectsBox(rects)
   return {
+    key,
     id,
     file,
+    test,
     origin,
     parts,
     bounds: { minX, minY, maxX, maxY },
@@ -200,32 +212,86 @@ export const PARTS: ReadonlyArray<Part> = [
   { key: "lucido", title: "Valle del Lucido", rects: [[-2900, -6100, 4900, 3900]] },
 ]
 
+const LUNIGIANA_ORIGIN = { lat: 44.16175, lon: 10.13 }
 // Each anchor is its first part's south-west corner.
-const LUNIGIANA = regionOf("lunigiana", "monzone", { lat: 44.16175, lon: 10.13 }, PARTS, {
-  x: -2900,
-  y: -6100,
-})
+const LUNIGIANA_ANCHOR = { x: -2900, y: -6100 }
+const LUNIGIANA = regionOf(
+  { key: "lunigiana", id: "lunigiana", file: "monzone", test: false },
+  LUNIGIANA_ORIGIN,
+  PARTS,
+  LUNIGIANA_ANCHOR,
+)
+const lucido = PARTS[0]!.rects[0]!
+
+/**
+ * The test regions, each built from Lunigiana's inputs on its origin and anchor (so a tree stands
+ * where it does on the shipped map, with the same id):
+ * - `lunigiana-l`: two rectangles of lucido in an L, 6 of its tiles. The leg, x −2400…0 by y
+ *   0…3900, holds Monzone (its station, the Carabinieri, the start) and Gragnola's rail layout to
+ *   lucido's north edge; the foot, x 0…2400 by y 0…1400, Equi Terme and its station. The notch, round
+ *   Fazzano, Casciana and Codiponte, is real land, so roads leave the play area across its two sides
+ *   and are capped there (`l-region.map-test.ts`, which CI runs on it).
+ * - `lunigiana-3x`: lucido between two rectangles of terrain only, as wide as it, 3 times its built
+ *   terrain and 78 tiles; a mask on lucido's rectangle keeps the play area lucido's. Past the DTM's
+ *   crop the terrain is the crop's edge drawn on (`loadDtm`): synthetic, for the build's memory and
+ *   time and the cars round Monzone (docs/map.md, "Test regions").
+ */
+const TEST_REGIONS: ReadonlyArray<Region> = [
+  regionOf(
+    { key: "lunigiana-l", id: "lunigiana", file: "lunigiana-l", test: true },
+    LUNIGIANA_ORIGIN,
+    [
+      {
+        key: "lucido-l",
+        title: "Valle del Lucido, an L from Gragnola to Equi Terme",
+        rects: [
+          [-2400, 0, 0, 3900],
+          [0, 0, 2400, 1400],
+        ],
+      },
+    ],
+    LUNIGIANA_ANCHOR,
+  ),
+  regionOf(
+    { key: "lunigiana-3x", id: "lunigiana", file: "lunigiana-3x", test: true },
+    LUNIGIANA_ORIGIN,
+    [
+      {
+        key: "lucido-3x",
+        title: "Valle del Lucido between two of terrain only",
+        rects: [[-10700, -6100, -2900, 3900], lucido, [4900, -6100, 12700, 3900]],
+        mask: rectRing(lucido),
+      },
+    ],
+    LUNIGIANA_ANCHOR,
+  ),
+]
 
 const regions: ReadonlyArray<Region> = [
   LUNIGIANA,
   regionOf(
-    "cesena",
-    "cesena",
+    { key: "cesena", id: "cesena", file: "cesena", test: false },
     { lat: 44.1391, lon: 12.2429 },
     [{ key: "cesena", title: "Cesena", rects: [[-2000, -2000, 2000, 2000]] }],
     { x: -2000, y: -2000 },
   ),
+  ...TEST_REGIONS,
 ]
 
-/** Selects a known region, defaulting to the original map; invalid input fails before I/O. */
+/** Selects a known region by its key, defaulting to the original map; invalid input fails before I/O. */
 export const regionFromArgs = (args: ReadonlyArray<string>): Region => {
   const index = args.indexOf("--region")
-  const id = index < 0 ? "lunigiana" : args[index + 1]
-  const region = regions.find((candidate) => candidate.id === id)
+  const key = index < 0 ? "lunigiana" : args[index + 1]
+  const region = regions.find((candidate) => candidate.key === key)
   if (region === undefined)
-    throw new Error(`Unknown or missing region: ${id ?? "--region requires a name"}`)
+    throw new Error(
+      `Unknown or missing region: ${key ?? "--region requires a name"} (use one of ${regions.map((r) => r.key).join(", ")})`,
+    )
   return region
 }
+
+/** Where the build writes `region`'s files, from the repository root: beside the game's map code, or a test region's in the gitignored `test-maps`. */
+export const mapDir = (region: Region): string => (region.test ? "test-maps" : "src/sim/map")
 
 /** Build region for this Node invocation, fixed before the geometry modules load. */
 export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])

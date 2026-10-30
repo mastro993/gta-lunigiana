@@ -411,7 +411,10 @@ export const conflateRail = (
     extra: ctr.tracks.flatMap((_, k) => (used[k] ? [] : [k])),
     hosts: chains.map((c) => c.line),
     bridges: ctr.bridges.map((b) => b.rings),
-    away: [...layout.swap.keys()].map((id) => osmAt.get(id)!).filter((v) => !roadsAt.has(v.id!)),
+    // A swapped node the play area leaves out (a test region without Gragnola) has nothing to re-home.
+    away: [...layout.swap.keys()]
+      .flatMap((id) => osmAt.get(id) ?? [])
+      .filter((v) => !roadsAt.has(v.id!)),
     roads: roadPts,
     osmRoads,
     moves,

@@ -1,6 +1,7 @@
 // Builds src/sim/map/monzone.bin and its tiles (src/sim/map/monzone/<i>_<j>.bin) from data/raw:
 // OSM (fetch-osm.ts) and the Regione Toscana CTR 1:2000, LiDAR DTM and land cover (data/raw/rt,
-// written by fetch-rt.ts). Run: node src/tools/build-map.ts  (pnpm map), from any directory. Output
+// written by fetch-rt.ts). Run: node src/tools/build-map.ts  (pnpm map), from any directory;
+// `--region <key>` builds another region (region.ts), a test region into test-maps/. Output
 // is deterministic on one CPU architecture: gunzipped, the same bytes on every machine of it, and
 // the same build hash; gzipped, the same files with the same Node build (another zlib or OS writes
 // other compressed bytes). V8's trigonometry rounds differently on arm64 and x64 (docs/map.md).
@@ -16,7 +17,7 @@ import { readSources } from "./build-sources.ts"
 import { buildTerrain } from "./build-terrain.ts"
 import { buildWorld } from "./build-world.ts"
 import { printRail, railSummary } from "./rail-report.ts"
-import { REGION } from "./region.ts"
+import { mapDir, REGION } from "./region.ts"
 import { cutMap } from "./tile-map.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
@@ -60,12 +61,8 @@ const cutBuilt = async () => {
 }
 
 const { cut, report } = await cutBuilt()
-const written = await writeMap(
-  cut,
-  join(ROOT, `src/sim/map/${REGION.file}.bin`),
-  join(ROOT, `src/sim/map/${REGION.file}`),
-  lap,
-)
+const dir = join(ROOT, mapDir(REGION))
+const written = await writeMap(cut, join(dir, `${REGION.file}.bin`), join(dir, REGION.file), lap)
 const map = written.global
 
 printRail(report.rail, report.platforms)

@@ -7,7 +7,7 @@
 // clipping is Liang–Barsky's to the bit.
 import { edgeDistance, insideRings, ringsDistance, type Rings } from "../sim/map/outline.ts"
 import { pointInRing, segDist2, type V } from "./geometry.ts"
-import { type Part, REGION } from "./region.ts"
+import { type Part, rectRing, REGION } from "./region.ts"
 
 /** Within this distance (m) a point lies on a piece's edge, or a crossing on an outline edge. */
 const ON = 1e-6
@@ -24,11 +24,7 @@ const SLIVER = 1e-5
 
 /** Each part's pieces: its mask, or each of its rectangles, as counter-clockwise flat rings. */
 const piecesOf = (parts: ReadonlyArray<Part>): Array<ReadonlyArray<number>> =>
-  parts.flatMap((p) =>
-    p.mask === undefined
-      ? p.rects.map(([x0, y0, x1, y1]) => [x0, y0, x1, y0, x1, y1, x0, y1])
-      : [p.mask],
-  )
+  parts.flatMap((p) => (p.mask === undefined ? p.rects.map(rectRing) : [p.mask]))
 
 interface Edge {
   readonly ax: number

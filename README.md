@@ -181,6 +181,7 @@ Every script runs with `pnpm`:
 | `pnpm maps` | builds both maps: `pnpm map`, then `pnpm map --region cesena` |
 | `pnpm map` | rebuilds `src/sim/map/monzone.bin` and its tiles (`src/sim/map/monzone/`) from `data/raw`, baking the tables the game reads from them |
 | `pnpm map --region cesena` | rebuilds the separate `src/sim/map/cesena.bin` and its tiles from pinned Cesena inputs |
+| `pnpm map --region lunigiana-l` | builds a test region from Lunigiana's inputs into `test-maps/` (gitignored, never shipped): `lunigiana-l`, an L that CI builds and `pnpm test:map` checks, or `lunigiana-3x`, three times the built terrain, for the build's memory and time ([test regions](docs/map.md#test-regions)) |
 | `pnpm fetch-raw` | downloads the map inputs `data/raw.lock.json` pins into `data/raw`, only those missing or different, checking each one's SHA-256 |
 | `pnpm pin-raw` | uploads the inputs a fetch tool changed to a new `raw-YYYYMMDD` release and pins them in `data/raw.lock.json` |
 | `pnpm fetch-osm` | downloads the OpenStreetMap extract again into `data/raw/lunigiana.osm.gz` |
@@ -221,6 +222,7 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `index.html` | canvas, HUD and touch-control markup, title card (the loading screen), and the switch to mobile mode |
 | `lab.html` | the audio audition page (dev server only) |
 | `data/raw/` | the map inputs, not in git: regional OSM extracts, Regione Toscana CTR and LiDAR, Emilia-Romagna DTM |
+| `test-maps/` | the test regions' builds (`pnpm map --region lunigiana-l`), not in git and never shipped |
 | `data/raw.lock.json` | the pin of `data/raw`: each file's SHA-256, size, release asset and source |
 | `data/parts/` | each Lunigiana part's source manifest: the CTR sheets, LiDAR tiles and 10 m DTMs `fetch-rt` downloads for it |
 | `docs/` | architecture, map pipeline, gameplay, weather, water and audio notes; `docs/standards/` holds the checks for each part of the game |

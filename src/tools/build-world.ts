@@ -77,33 +77,37 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     })),
     platforms: platforms.map((p) => p.rings),
   })
+  const lunigiana = REGION.id === "lunigiana"
+  // A shipped map without one has lost it from OSM; a test region may leave it out of play.
   const poi = (id: number) => {
     const p = pois.find((q) => q.id === id)
-    if (p === undefined) throw new Error(`poi ${id} missing`)
+    if (p === undefined && !REGION.test) throw new Error(`poi ${id} missing`)
     return p
   }
-  const station = poi(REGION.id === "lunigiana" ? 1813987803 : 827592490),
-    carabinieri = poi(REGION.id === "lunigiana" ? 14183344901 : 806564311)
-  const central =
-    REGION.id === "lunigiana"
-      ? []
-      : graph.traffic
-          .map((edge) => {
-            const node = graph.edges[3 * edge]!,
-              road = graph.edges[3 * edge + 2]!
-            const x = graph.xy[2 * node]!,
-              y = graph.xy[2 * node + 1]!
-            return { road: roads[road]!, x, y, distance: Math.hypot(x, y) }
-          })
-          .sort((a, b) => a.distance - b.distance)
+  const station = poi(lunigiana ? 1813987803 : 827592490),
+    carabinieri = poi(lunigiana ? 14183344901 : 806564311)
+  // Lunigiana starts by the Carabinieri; Cesena, and a test region without them, by the traffic
+  // node nearest the origin.
+  const byPolice = lunigiana && carabinieri !== undefined
+  const central = byPolice
+    ? []
+    : graph.traffic
+        .map((edge) => {
+          const node = graph.edges[3 * edge]!,
+            road = graph.edges[3 * edge + 2]!
+          const x = graph.xy[2 * node]!,
+            y = graph.xy[2 * node + 1]!
+          return { road: roads[road]!, x, y, distance: Math.hypot(x, y) }
+        })
+        .sort((a, b) => a.distance - b.distance)
   const start = central[0]
-  if (REGION.id === "cesena" && start === undefined)
-    throw new Error("Cesena has no connected traffic roads")
+  if (!byPolice && start === undefined)
+    throw new Error(`--region ${REGION.key} has no connected traffic roads`)
   const player = playerSpawn(
     roads,
     walkClear,
     driveClear,
-    start ?? carabinieri,
+    start ?? carabinieri!,
     buildings,
     start?.road,
   )
@@ -133,7 +137,11 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     graph: { xy: graph.xy, edges: graph.edges, traffic: graph.traffic, walk: graph.walk },
     verges,
     clearReport,
-    spawns: { player, parked, police: { x: carabinieri.x, y: carabinieri.y } },
+    spawns: {
+      player,
+      parked,
+      ...(carabinieri === undefined ? {} : { police: { x: carabinieri.x, y: carabinieri.y } }),
+    },
     railway: {
       lines: toRailLines(lines, shipped),
       stations,
