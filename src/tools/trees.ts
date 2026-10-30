@@ -1,10 +1,12 @@
 // The deterministic tree scatter: a jittered lattice inside forest, plus sparse trees on the banks
 // of the wider streams. The lattice and its 2 m masks (forest, other areas, buildings) start at the
 // region's anchor, fixed for good, and a tree's id is its lattice cell's number (a bank tree's, its
-// 4 m cell's, past every lattice cell's), so no tree moves or changes its id, or its look, as parts
-// are added. The scatter works a window at a time (in the build, each of the region's 2 km tiles),
-// rasterising the masks over the window alone; a tree belongs to the window holding its rounded
-// point, so two lattice points that round onto one spot meet in one window, which keeps the first.
+// 4 m cell's, past every lattice cell's), so no lattice tree moves, and no tree changes its id or
+// its look, as parts are added (a bank tree keeps its step along its way, but stands off its
+// piece's bed, which may change where the outline cuts the way). The scatter works a window at a
+// time (in the build, each of the region's 2 km tiles), rasterising the masks over the window
+// alone; a tree belongs to the window holding its rounded point, so two lattice points that round
+// onto one spot meet in one window, which keeps the first.
 import type { Area } from "../sim/map/index.ts"
 import { TILE } from "../sim/map/kinds.ts"
 import type { BuildingF, RailF, RoadF, WaterF } from "./features.ts"

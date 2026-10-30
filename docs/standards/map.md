@@ -55,12 +55,16 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw` then pins
   the part's new inputs.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
-- Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no tree and changes
-  no tree's id (its look's seed): the lattice starts at the region's fixed `anchor` (`region.ts`),
-  never at the box, and a tree's id is its lattice cell's number. Never move an anchor: every tree
-  would move and look different. Trees cover the region's tiles, beyond the play area too, 1 m
-  inside the box; `pnpm map-diff` names a tree that keeps its spot but not its id (`ids:` under
-  trees). Each tile stores its trees in whole metres from a point 100 m south-west of its corner.
+- Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no lattice tree and
+  changes no tree's id (its look's seed): the lattice starts at the region's fixed `anchor`
+  (`region.ts`), never at the box, and a tree's id is its lattice cell's number. Never move an
+  anchor: every tree would move and look different. A bank tree keeps its 9 m step along its OSM
+  way, but stands off its piece's bed, so it moves where the outline newly cuts a way sized by its
+  piece (the Lucido, the Caldanella, Cesena's measured rivers: [Trees in
+  map.md](../map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)). Trees cover the
+  region's tiles, beyond the play area too, 1 m inside the box; `pnpm map-diff` names a tree that
+  keeps its spot but not its id (`ids:` under trees). Each tile stores its trees in whole metres
+  from a point 100 m south-west of its corner.
 - A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.31 MB, the build
   prints it, and `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,

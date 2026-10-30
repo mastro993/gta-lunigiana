@@ -57,8 +57,8 @@ export interface WaterF {
   readonly pts: ReadonlyArray<V>
   /**
    * How far along its OSM way the piece starts, m (0 unless the play area's outline cut the way
-   * before it): the bank trees count their steps from the way's start, so they stay put as the
-   * play area grows.
+   * before it): the bank trees count their steps from the way's start, so the steps stay put as
+   * the play area grows (how far a tree stands from the centreline follows the piece's bed).
    */
   readonly from: number
 }

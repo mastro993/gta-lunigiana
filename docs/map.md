@@ -57,8 +57,10 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
 - **Features**: secondary roads and main-road links use the existing tertiary class; cycleways
   are walkable paths. OSM building height tags are used where present, otherwise existing default
   heights apply. Road widths use class defaults. The Savio's width is the median of perpendicular
-  cross-sections through its OSM bank polygons, not the mountain-stream fallback. Neighbourhood
-  labels come from OSM place nodes, without Monzone's hand-placed districts or stone cores.
+  cross-sections through its OSM bank polygons (each piece the play area's outline keeps of a way
+  on its own: way 1029104404's two are 13.8 and 14 m), not the mountain-stream fallback.
+  Neighbourhood labels come from OSM place nodes, without Monzone's hand-placed districts or stone
+  cores.
 - **Start**: the player starts beside a central street in the connected traffic network, outside
   buildings with an open walk-clear route to the street. Police and station parking use Cesena's
   mapped Carabinieri headquarters and railway station.
@@ -321,13 +323,14 @@ part](#adding-a-part)).
   | other named streams, and the Lucido above Vinca | 4 m | 3 m | 1 m |
   | unnamed streams | 2 m | 3 m | 1 m |
 
-  A way's class comes from its mean LiDAR ground over its vertices, so water is extracted once the
-  terrain is loaded. The Vinca branch shows 6–11 m of open marble gravel below 250 m and 4–6 m up to
-  400 m; from 500 m its bed is under closed canopy. Its way from the source under the Garnerone down
-  to Vinca (mean 826 m) is a beech-wood gully with 3–6 m windows of bed, so it gets 4 m. The
-  Caldanella runs 15–16 m between walls at Equi and 5–9 m of boulders down to Monzone. The Solco di
-  Equi (dry, 5–7 m of gravel in the gorge) and the other named streams keep 4 m. Other rivers would
-  be 2.5 m deep with the stream widths.
+  A way's class comes from its mean LiDAR ground over its vertices (over each piece's, where the
+  play area's outline cuts it: none of the Lucido's or the Caldanella's today), so water is
+  extracted once the terrain is loaded. The Vinca branch shows 6–11 m of open marble gravel below
+  250 m and 4–6 m up to 400 m; from 500 m its bed is under closed canopy. Its way from the source
+  under the Garnerone down to Vinca (mean 826 m) is a beech-wood gully with 3–6 m windows of bed,
+  so it gets 4 m. The Caldanella runs 15–16 m between walls at Equi and 5–9 m of boulders down to
+  Monzone. The Solco di Equi (dry, 5–7 m of gravel in the gorge) and the other named streams keep
+  4 m. Other rivers would be 2.5 m deep with the stream widths.
 - **Rail**: `railway=rail` (the Lucca–Aulla line), with bridges and tunnels, moved onto the
   CTR's tracks next ([section 4](#4-the-rail-on-the-ctr)).
 - **Buildings**: the CTR's wherever its sheets map the ground, OSM's elsewhere (an OSM building
@@ -773,16 +776,21 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   included (6 m), and stand 1 m inside the built terrain's box on the region's tiles (`tiles` in
   `region.ts`, those its parts' rectangles meet), outside the play area too. Sparse trees also
   line the banks of the streams at least 4 m wide: a candidate every 9 m along the OSM way on each
-  side, kept by a hash of the way's id, the step and the side, at most one in a 4 m cell. The steps
-  count from the way's start (`WaterF.from`, where the outline cut the piece), so a bank tree stays
-  put when the play area grows. No cap: 1 011 936 trees on Lunigiana (1 352 on the banks) and
-  5 633 on Cesena (283), positions rounded to 1 m (at most one tree per spot) and a scale of
-  0.8–1.3. Placement uses a fixed hash, not a random generator.
+  side, kept by a hash of the way's id, the step and the side, at most one in a 4 m cell, and
+  standing bed + 2 to bed + 5 m from the centreline. The steps count from the way's start
+  (`WaterF.from`, where the outline cut the piece), so they stay put when the play area grows, but
+  the bed is the piece's: where the outline newly cuts a way sized by its piece (the Lucido and the
+  Caldanella by the piece's mean ground, Cesena's rivers by the piece's median width), its bank
+  trees move with its width. Cesena's Savio (way 1029104404) is cut into pieces 13.8 and 14 m wide;
+  no Lunigiana way sized by its ground is cut today, and a mask across one could switch its water
+  between 8 and 4 m wide and move its bank trees 2 m. No cap: 1 011 936 trees on Lunigiana (1 352
+  on the banks) and 5 633 on Cesena (283), positions rounded to 1 m (at most one tree per spot)
+  and a scale of 0.8–1.3. Placement uses a fixed hash, not a random generator.
 - **A fixed lattice**: it starts at the region's anchor (`anchor` in `region.ts`: Lunigiana's
   (−2900, −6100), the corner of its first part, lucido; Cesena's (−2000, −2000)), set once and never
-  taken from the bounds, and its cells run on past it either way, so adding a part moves no tree.
-  A tree's id is its cell's number, (gj + 8192) × 16384 + (gi + 8192) for the cell gi east and gj
-  north of the anchor (below 2²⁸), and a bank tree's is its 4 m cell's number past them,
+  taken from the bounds, and its cells run on past it either way, so adding a part moves no lattice
+  tree. A tree's id is its cell's number, (gj + 8192) × 16384 + (gi + 8192) for the cell gi east
+  and gj north of the anchor (below 2²⁸), and a bank tree's is its 4 m cell's number past them,
   2²⁸ + (cj + 16384) × 32768 + (ci + 16384) (at most 2²⁸ + 2³⁰ − 1). The cells run 57.9 km (lattice)
   and 65.5 km (banks) from the anchor either way, and the scatter throws past them. The ids order
   the whole map's trees (south to north, west to east, then the banks), seed each tree's look

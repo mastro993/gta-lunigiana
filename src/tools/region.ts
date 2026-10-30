@@ -46,8 +46,8 @@ export interface Region {
   readonly tiles: ReadonlyArray<{ readonly i: number; readonly j: number }>
   /**
    * The south-west corner of the tree lattice and its masks, local metres on the 4 m bank cells
-   * (trees.ts): set once, where the first part's corner was, and never moved, so no tree moves or
-   * changes its id as parts are added.
+   * (trees.ts): set once, where the first part's corner was, and never moved, so no lattice tree
+   * moves and no tree changes its id as parts are added.
    */
   readonly anchor: { readonly x: number; readonly y: number }
 }
