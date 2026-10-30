@@ -1,8 +1,9 @@
-// The map build's terrain phase: the LiDAR on the 4 m grid, the water's surfaces and catchments,
-// the beds carved, the road and rail profiles written in, the water kept under the decks, the grid
-// rounded to 0.1 m and the rail bed levelled. It returns the finished grid and the lines read from
-// it, so the profiles and the DTM go out of scope here.
+// The map build's terrain phase: the water's surfaces, the road and rail profiles (their claims on
+// the grid recorded), the water kept under the decks, then the grid built tile by tile
+// (build-grid.ts), the catchments on it and the perched water dropped. It returns the finished grid
+// and the lines read from it, so the profiles and the DTM go out of scope here.
 import type { Water } from "../sim/map/index.ts"
+import { tileByTile } from "./build-grid.ts"
 import type { Sources } from "./build-sources.ts"
 import { catchments } from "./catchment.ts"
 import type { RoadF } from "./features.ts"
@@ -14,14 +15,13 @@ import {
   flatLine,
   lineBox,
   r1,
-  segIndex,
   type V,
 } from "./geometry.ts"
 import { chainsOf, lifted, makeProfiler, type Linear } from "./profiles.ts"
-import { extraLevels, RAIL_TOL, railBed } from "./rail-bed.ts"
+import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
-import { makeGrid, sampleGrid } from "./terrain.ts"
-import { carveAll, fitUnderDecks, waterLine, waterProfiles, type Crossed } from "./water.ts"
+import { sampleGrid } from "./terrain.ts"
+import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**
  * Catchment of the Torrente Aulella beyond the map, km²: the bounds hold only its left bank, so
@@ -41,33 +41,12 @@ export const buildTerrain = (
   lap: (label: string) => void,
 ) => {
   const { rail, extra, allRail, roads, water } = src
-  // ---- LiDAR -> 4 m grid -> carved water -> roads and rail -> water kept under the decks ----
-  const grid = makeGrid(ground)
-  const at = (x: number, y: number) => sampleGrid(grid, x, y)
+  // ---- the vectors: water surfaces, road and rail profiles (their claims on the grid recorded),
+  // the water kept under the decks; then the grid, one tile at a time ----
   const wp = waterProfiles(water, ground)
-  const drained = catchments(
-    grid,
-    wp,
-    water.map((w) => w.pts.map((v) => v.id)),
-  )
-  carveAll(grid, water, wp)
-  lap("water")
-
-  // Roads may claim river banks but never the water itself.
-  const protect = new Uint8Array(grid.cols * grid.rows)
-  const owner = new Uint8Array(grid.cols * grid.rows).fill(255)
-  {
-    const wet = segIndex<null>()
-    for (const w of water) if (w.w >= 4) wet.addLine(w.pts, w.w / 2 + 1, null)
-    for (let k = 0; k < protect.length; k++)
-      protect[k] = wet.covers(
-        grid.x0 + (k % grid.cols) * grid.cell,
-        grid.y0 + Math.floor(k / grid.cols) * grid.cell,
-      )
-        ? 1
-        : 0
-  }
-  const { profile, claim, grown, nodeZ, zOf, denseOf } = makeProfiler(grid, ground, owner, protect)
+  // The water as first settled: the beds are carved under it and the catchments read along it.
+  const wp0 = wp.map((p) => ({ ...p, z: Float64Array.from(p.z) }))
+  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(ground)
   const zAt = (l: Linear, s: number) => along(arcLengths(l.pts), zOf.get(l)!, s)
 
   const { railRoad, levels, roadBounds, railBounds } = railLevels({
@@ -144,39 +123,53 @@ export const buildTerrain = (
         })
     })
   }
-  fitUnderDecks(grid, water, wp, crossed, (n) => owner[n] !== 255, at)
-  for (let k = 0; k < grid.z.length; k++) grid.z[k] = Math.round(grid.z[k]! * 10) / 10
+  capUnderDecks(water, wp, crossed)
   lap("decks")
 
-  /** Per-vertex elevation: the profile, a lone bridge's line between its ends, or the terrain (paths). */
-  const zLine = (l: Linear): Array<number> =>
-    (zOf.get(l) ?? (lifted(l) ? lone(l) : l.pts.map((v) => at(v.x, v.y)))).map(r1)
+  /** Per-vertex elevation: the profile, a lone bridge's line between its ends, or `terrain` (paths). */
+  const zLine = (l: Linear, terrain: (x: number, y: number) => number): Array<number> =>
+    (zOf.get(l) ?? (lifted(l) ? lone(l) : l.pts.map((v) => terrain(v.x, v.y)))).map(r1)
   /** Output polyline and z: profiled pieces carry their extra bend samples. */
-  const lineOut = (l: Linear) => {
+  const lineOut = (l: Linear, terrain: (x: number, y: number) => number) => {
     const d = denseOf.get(l)
     return d === undefined
-      ? { pts: flatLine(l.pts), z: zLine(l) }
+      ? { pts: flatLine(l.pts), z: zLine(l, terrain) }
       : { pts: flatLine(d.pts), z: d.z.map(r1) }
   }
-  // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings.
-  const railLines = allRail.map((r) => ({ r, ...lineOut(r) }))
-  const atGradeRail = railLines.filter(({ r }) => !lifted(r))
-  // A road's core (ranks 0, 2, 3) and a wide stream's bed keep their level; the rail's and the
-  // extra tracks' cells (1, 4) and open ground may be raised.
-  const bed = railBed(
-    grid,
-    atGradeRail,
-    levels.map(({ v }) => [v.x, v.y] as const),
-    (n) => protect[n] === 1 || owner[n] === 0 || owner[n] === 2 || owner[n] === 3,
+  // Every rail piece is profiled, so its line reads no terrain.
+  const railLines = allRail.map((r) => ({
+    r,
+    ...lineOut(r, () => {
+      throw new Error(`rail ${r.id} has no profile`)
+    }),
+  }))
+  const grid = tileByTile({
+    ground,
+    water,
+    wp0,
+    wp,
+    claims,
+    // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings.
+    rail: railLines.filter(({ r }) => !lifted(r)),
+    levels: levels.map(({ v }) => [v.x, v.y] as const),
+  })
+  lap("grid")
+  const drained = catchments(
+    grid.uncarved,
+    wp0,
+    water.map((w) => w.pts.map((v) => v.id)),
   )
+  dropPerched(water, wp, crossed, grid.perched)
+  lap("water")
   // Everything below reads the finished grid.
+  const at = (x: number, y: number) => sampleGrid(grid.grid, x, y)
   const pieceOf = new Map(allRail.map((r, i) => [r, i])),
     roadOf = new Map(roads.map((r, i) => [r, i]))
   return {
-    grid,
+    grid: grid.grid,
     railLines,
-    roadLines: roads.map(lineOut),
-    bed,
+    roadLines: roads.map((r) => lineOut(r, at)),
+    bed: grid.bed,
     /** The level crossings: the road and rail piece sharing a vertex (with its index in the piece's output polyline). */
     levels: levels.map(({ rl, rd, v }) => ({
       road: roadOf.get(rd)!,

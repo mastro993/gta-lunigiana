@@ -5,6 +5,7 @@ import { arcLengths, type V } from "./geometry.ts"
 import {
   fitProfile,
   flatten,
+  GRID_CELL,
   keepSamples,
   resample,
   smooth,
@@ -144,22 +145,73 @@ const minHeap = () => {
 }
 
 /**
- * Profiles chains against `ground` (the uncarved terrain) and flattens them into `grid`. Elevations
- * set at shared nodes (`nodeZ`) pin every later chain through them; `zOf` holds per-vertex z and
- * `denseOf` the output polyline.
+ * A profile to write into the grid (`flatten`): its core half-width, rank, and the samples whose
+ * segment writes nothing (bridges, tunnels).
  */
-export const makeProfiler = (
-  grid: Grid,
-  ground: (x: number, y: number) => number,
+export interface Claim {
+  readonly p: Profile
+  readonly core: number
+  readonly rank: number
+  readonly skip: Uint8Array
+  /** The box its writes reach: [minX, minY, maxX, maxY]. */
+  readonly box: readonly [number, number, number, number]
+}
+
+/** Metres a claim's writes reach past its core: the blend back to the terrain. */
+const BLEND = 8
+
+/**
+ * Writes `claims` into the nodes `g` holds, in order: what one pass over the whole grid writes
+ * there, since a node's writes read only that node. `owner` and `protect` are indexed like `g.z`.
+ */
+export const replayClaims = (
+  g: Grid,
+  claims: ReadonlyArray<Claim>,
   owner: Uint8Array,
   protect: Uint8Array,
-) => {
+): void => {
+  const { i0, j0, cols, rows } = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
+  const minX = g.x0 + i0 * g.cell,
+    minY = g.y0 + j0 * g.cell,
+    maxX = g.x0 + (i0 + cols - 1) * g.cell,
+    maxY = g.y0 + (j0 + rows - 1) * g.cell
+  for (const { p, core, rank, skip, box } of claims)
+    if (box[0] <= maxX && box[2] >= minX && box[1] <= maxY && box[3] >= minY)
+      flatten(g, p, core, BLEND, rank, owner, protect, (k) => skip[k] === 1)
+}
+
+/**
+ * Profiles chains against `ground` (the uncarved terrain) and records the claims they make on the
+ * grid, in order (`replayClaims` writes them). Elevations set at shared nodes (`nodeZ`) pin every
+ * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline.
+ */
+export const makeProfiler = (ground: (x: number, y: number) => number) => {
   const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
   const denseOf = new Map<Linear, Dense>()
-  /** Writes profile `p` of a line `w` m wide into the grid at `rank`, skipping segments from samples where `skip`. */
-  const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) =>
-    flatten(grid, p, coreHalf(w, grid.cell), 8, rank, owner, protect, skip)
+  const claims: Array<Claim> = []
+  /** Claims the grid along profile `p` of a line `w` m wide at `rank`, but for segments from samples where `skip`. */
+  const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) => {
+    const core = coreHalf(w, GRID_CELL),
+      reach = core + BLEND
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity
+    for (let k = 0; k < p.x.length; k++) {
+      minX = Math.min(minX, p.x[k]! - reach)
+      minY = Math.min(minY, p.y[k]! - reach)
+      maxX = Math.max(maxX, p.x[k]! + reach)
+      maxY = Math.max(maxY, p.y[k]! + reach)
+    }
+    claims.push({
+      p,
+      core,
+      rank,
+      skip: Uint8Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) => (skip(k) ? 1 : 0)),
+      box: [minX, minY, maxX, maxY],
+    })
+  }
   const profile = <T extends Linear>(
     chain: ReadonlyArray<Link<T>>,
     spec: Spec,
@@ -289,5 +341,5 @@ export const makeProfiler = (
       yield chains[next]!
     }
   }
-  return { profile, claim, grown, nodeZ, zOf, denseOf }
+  return { profile, claim, claims, grown, nodeZ, zOf, denseOf }
 }

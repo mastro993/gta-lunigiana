@@ -52,7 +52,8 @@ const heap = (z: Float64Array) => {
 }
 
 /**
- * Upstream area (km²) at every sample of each profile in `wp`, from grid `g` before carving; `ids`
+ * Upstream area (km²) at every sample of each profile in `wp`, from grid `g` before carving, whose
+ * nodes it overwrites (the water burned in, the pits filled); `ids`
  * holds each profile's OSM vertex ids, where pieces meet. The
  * water is burned in BURN m under its own profile, the grid filled so every node drains (its edge
  * the outlet), each node routed to its steepest lower neighbour (D8) and the 4 m cells accumulated
@@ -64,7 +65,7 @@ export const catchments = (
   ids: ReadonlyArray<ReadonlyArray<string | undefined>>,
 ): Array<Float64Array> => {
   const { cols, rows, cell } = g
-  const z = Float64Array.from(g.z)
+  const z = g.z // burned and filled in place: the grid is the build's uncarved copy
   const nodeOf = (x: number, y: number) =>
     Math.min(rows - 1, Math.max(0, Math.round((y - g.y0) / cell))) * cols +
     Math.min(cols - 1, Math.max(0, Math.round((x - g.x0) / cell)))

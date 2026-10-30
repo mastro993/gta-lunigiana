@@ -7,14 +7,28 @@ import { inflateSync } from "node:zlib"
 import { latLonToGaussBoaga } from "./crs.ts"
 import { arcLengths, BOUNDS, fromLocal, segDist2, type V } from "./geometry.ts"
 
+/** A block of the grid's nodes by whole-grid index: columns i0 … i0 + cols − 1, rows j0 … j0 + rows − 1. */
+export interface Span {
+  readonly i0: number
+  readonly j0: number
+  readonly cols: number
+  readonly rows: number
+}
+
+/**
+ * The terrain grid, or a window of it: `cell`, `cols`, `rows`, `x0` and `y0` are always the whole
+ * grid's, so every position and clamp is worked out as on the whole grid, bit for bit.
+ */
 export interface Grid {
   readonly cell: number
   readonly cols: number
   readonly rows: number
   readonly x0: number
   readonly y0: number
-  /** Node elevations, row-major, row 0 = south. */
+  /** Elevations of the nodes `span` holds, row-major, row 0 = south. */
   readonly z: Float64Array
+  /** The nodes `z` holds; the whole grid when absent. */
+  readonly span?: Span
 }
 
 /** Lattice step, m, on which local -> Gauss-Boaga is computed exactly; bilinear in between is exact to well under 1 mm. */
@@ -129,23 +143,44 @@ const BOX = 2
 /** The terrain grid's cell, m. */
 export const GRID_CELL = 4
 
-/** Node grid covering BOUNDS (the last row/col reaches maxX/maxY); each node is the mean of `dem` over a (2 BOX + 1) m square. */
-export const makeGrid = (dem: (x: number, y: number) => number, cell = GRID_CELL): Grid => {
-  const cols = Math.ceil((BOUNDS.maxX - BOUNDS.minX) / cell) + 1,
-    rows = Math.ceil((BOUNDS.maxY - BOUNDS.minY) / cell) + 1
-  const x0 = BOUNDS.minX,
-    y0 = BOUNDS.minY
-  const z = new Float64Array(cols * rows)
-  for (let j = 0; j < rows; j++)
-    for (let i = 0; i < cols; i++) {
+/** The whole grid over BOUNDS at `cell` m, with no nodes: the lattice every window of it shares. */
+export const gridLattice = (cell = GRID_CELL): Omit<Grid, "z" | "span"> => ({
+  cell,
+  cols: Math.ceil((BOUNDS.maxX - BOUNDS.minX) / cell) + 1,
+  rows: Math.ceil((BOUNDS.maxY - BOUNDS.minY) / cell) + 1,
+  x0: BOUNDS.minX,
+  y0: BOUNDS.minY,
+})
+
+/**
+ * The nodes of `span` (the whole grid over BOUNDS when absent; its last row/col reaches maxX/maxY);
+ * each node is the mean of `dem` over a (2 BOX + 1) m square.
+ */
+export const makeGrid = (
+  dem: (x: number, y: number) => number,
+  cell = GRID_CELL,
+  span?: Span,
+): Grid => {
+  const { cols, rows, x0, y0 } = gridLattice(cell)
+  const { i0, j0, cols: w, rows: h } = span ?? { i0: 0, j0: 0, cols, rows }
+  const z = new Float64Array(w * h)
+  for (let j = j0; j < j0 + h; j++)
+    for (let i = i0; i < i0 + w; i++) {
       let s = 0
       for (let dy = -BOX; dy <= BOX; dy++)
         for (let dx = -BOX; dx <= BOX; dx++) s += dem(x0 + i * cell + dx, y0 + j * cell + dy)
-      z[j * cols + i] = s / (2 * BOX + 1) ** 2
+      z[(j - j0) * w + i - i0] = s / (2 * BOX + 1) ** 2
     }
-  return { cell, cols, rows, x0, y0, z }
+  return span === undefined
+    ? { cell, cols, rows, x0, y0, z }
+    : { cell, cols, rows, x0, y0, z, span }
 }
 
+/** Index in `g.z` of whole-grid node (i, j), which `g` must hold. */
+export const slotOf = (g: Grid, i: number, j: number): number =>
+  g.span === undefined ? j * g.cols + i : (j - g.span.j0) * g.span.cols + i - g.span.i0
+
+/** Bilinear terrain at (x, y), clamped to the whole grid; `g` must hold the four nodes of the cell read. */
 export const sampleGrid = (g: Grid, x: number, y: number): number => {
   const fx = (x - g.x0) / g.cell,
     fy = (y - g.y0) / g.cell
@@ -153,22 +188,29 @@ export const sampleGrid = (g: Grid, x: number, y: number): number => {
     j = Math.min(g.rows - 2, Math.max(0, Math.floor(fy)))
   const tx = Math.min(1, Math.max(0, fx - i)),
     ty = Math.min(1, Math.max(0, fy - j))
-  const k = j * g.cols + i
+  const k = slotOf(g, i, j),
+    up = g.span?.cols ?? g.cols
   const s = g.z[k]! + (g.z[k + 1]! - g.z[k]!) * tx,
-    n = g.z[k + g.cols]! + (g.z[k + g.cols + 1]! - g.z[k + g.cols]!) * tx
+    n = g.z[k + up]! + (g.z[k + up + 1]! - g.z[k + up]!) * tx
   return s + (n - s) * ty
 }
 
 /** Slope in degrees of cell (i, j) (between nodes (i, j) and (i+1, j+1)), over a 3-cell (12 m) baseline: shorter steps (terrace walls, road cuts) are not slopes the player is stopped by. */
 export const cellSlope = (g: Grid, i: number, j: number): number => {
+  const w = g.span,
+    i0 = w === undefined ? 0 : w.i0,
+    j0 = w === undefined ? 0 : w.j0,
+    cols = w === undefined ? g.cols : w.cols
   const z = (a: number, b: number) =>
-    g.z[Math.min(g.rows - 1, Math.max(0, b)) * g.cols + Math.min(g.cols - 1, Math.max(0, a))]!
+    g.z[
+      (Math.min(g.rows - 1, Math.max(0, b)) - j0) * cols + Math.min(g.cols - 1, Math.max(0, a)) - i0
+    ]!
   const dx = (z(i + 2, j) + z(i + 2, j + 1) - z(i - 1, j) - z(i - 1, j + 1)) / (6 * g.cell)
   const dy = (z(i, j + 2) + z(i + 1, j + 2) - z(i, j - 1) - z(i + 1, j - 1)) / (6 * g.cell)
   return (Math.atan(Math.hypot(dx, dy)) * 180) / Math.PI
 }
 
-/** Visits nodes within `r` of segment a-b with their distance and projection parameter. */
+/** Visits the nodes `g` holds within `r` of segment a-b, by their index in `g.z`, with their distance and projection parameter. */
 const forNodesNear = (
   g: Grid,
   ax: number,
@@ -178,14 +220,20 @@ const forNodesNear = (
   r: number,
   visit: (k: number, d: number, t: number) => void,
 ) => {
-  const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - r - g.x0) / g.cell)),
-    i1 = Math.min(g.cols - 1, Math.ceil((Math.max(ax, bx) + r - g.x0) / g.cell))
-  const j0 = Math.max(0, Math.floor((Math.min(ay, by) - r - g.y0) / g.cell)),
-    j1 = Math.min(g.rows - 1, Math.ceil((Math.max(ay, by) + r - g.y0) / g.cell))
+  const {
+    i0: si,
+    j0: sj,
+    cols: w,
+    rows: h,
+  } = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
+  const i0 = Math.max(si, Math.floor((Math.min(ax, bx) - r - g.x0) / g.cell)),
+    i1 = Math.min(si + w - 1, Math.ceil((Math.max(ax, bx) + r - g.x0) / g.cell))
+  const j0 = Math.max(sj, Math.floor((Math.min(ay, by) - r - g.y0) / g.cell)),
+    j1 = Math.min(sj + h - 1, Math.ceil((Math.max(ay, by) + r - g.y0) / g.cell))
   for (let j = j0; j <= j1; j++)
     for (let i = i0; i <= i1; i++) {
       const { d2, t } = segDist2(g.x0 + i * g.cell, g.y0 + j * g.cell, ax, ay, bx, by)
-      if (d2 <= r * r) visit(j * g.cols + i, Math.sqrt(d2), t)
+      if (d2 <= r * r) visit((j - sj) * w + i - si, Math.sqrt(d2), t)
     }
 }
 

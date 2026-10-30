@@ -75,7 +75,7 @@ so its peak is one phase's working set plus what that phase hands on:
 | Phase | Module | Sections | Let go when it returns |
 |---|---|---|---|
 | sources | `build-sources.ts` | 1–4, and the districts (12) | the OSM, the CTR |
-| terrain | `build-terrain.ts` | 5–8 and the rail bed | the DTM, the profiles, the catchments' grid |
+| terrain | `build-terrain.ts`, `build-grid.ts` | 5–8 and the rail bed | the DTM, the profiles, the catchments' grid |
 | world | `build-world.ts` | 9–12 | the clearance indexes the spawns and the graph's dead ends are checked against |
 | output | `build-output.ts` | the map put together, its land cover, the cut, the bake, the files | |
 
@@ -84,19 +84,34 @@ hash. The bake reads those through a store that keeps 16 decoded and drops the f
 that, as a host drops tiles: the cut and the bake took 7.6 s with 4 kept, 3.7 s with 9, 1.5 s with
 16 and 1.2 s with all 30. Then the hash is taken over the global file and each tile, all unstamped,
 and each tile is stamped (its JSON line rewritten with the hash), gzipped and written in turn.
+The terrain phase works out the vectors first: the water's surfaces, the road and rail profiles,
+whose writes into the grid are recorded in order as claims, and the water capped under the decks.
+Then `build-grid.ts` builds the grid one 2 km tile at a time (`gridTiles` in `grid-tiles.ts`, south
+to north then west to east): on the window of the tile's 501 × 501 nodes, cut to the grid, it
+averages the LiDAR, carves the beds under the water as first settled, writes the claims in their
+order, carves the beds again under the capped water outside the road cores, reads the terrain under
+the water samples whose cells are the tile's own (for the perched check, section 8), rounds to 0.1 m
+and lays the rail bed. A window keeps the whole grid's lattice (`Grid.span` in `terrain.ts`):
+positions, index ranges and clamps are worked out as on the whole grid, so its nodes are the same
+doubles. Each of those stages writes a node from that node alone (its own value, position and owner,
+and the vectors), so a window needs no halo. The perched check reads the 4 nodes of one cell, all in
+the tile that owns the cell, and the walls' slope test, which reads 3 nodes around a cell, reads the
+grid the tiles put together. A node two tiles share is worked out in both, and the pass fails the
+build if the two differ. The catchments then run on the uncarved grid the tiles put together.
+
 Pairings that would grow with the square of the region are indexed: the level crossings, the
 water's mouths and the catchments' inflows by node id, the chains' growth order (section 7) by the
 node ids already set, the road–rail and line–water crossings gated by their boxes, and the
 parapets' openings read from one index of the roads.
 
 On 2026-10-30 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs)
-the build peaked at 1.18–1.20 GB resident and took 11.7–12.0 s, against 1.30–1.46 GB and
-13.6–13.9 s with every stage at the top level of `build-map.ts` and the map cut twice. Its stages
-ended at (s from the start):
+the build peaked at 1.17–1.18 GB resident and took 12.1–12.5 s, against 1.30–1.46 GB and
+13.6–13.9 s with every stage at the top level of `build-map.ts` and the map cut twice. The tile
+pass takes 3.3 s, 0.11 s a tile. The stages ended at (s from the start):
 
-| rail | features | water | roads | decks | railway | walls | trees | spawns | cover | bake | write |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0.58 | 1.16 | 5.14 | 5.34 | 5.45 | 6.01 | 7.61 | 8.12 | 8.38 | 8.55 | 9.98 | 11.51 |
+| rail | features | roads | decks | grid | water | railway | walls | trees | spawns | cover | bake | write |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.61 | 1.17 | 1.24 | 1.26 | 4.51 | 5.59 | 6.17 | 8.03 | 8.53 | 8.81 | 8.97 | 10.41 | 11.95 |
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
@@ -433,10 +448,12 @@ the pieces where tracks meet (`rail-graph.ts`).
 
 ### 5. Heightmap (`terrain.ts`)
 
-The LiDAR terrain is sampled through the projection (computed exactly on a 50 m lattice,
-bilinear in between). Each node of the 4 m grid over the bounds (1951 × 2501 nodes) is the mean
-of a 5 × 5 m square of samples. This grid is carved and flattened by the next steps; profiles and water sample the untouched terrain (the "ground"). Elevations run from 147 m
-(the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte Grondilice).
+The LiDAR terrain is sampled through the projection (computed exactly on a 50 m lattice, bilinear in
+between). Each node of the 4 m grid over the bounds (1951 × 2501 nodes) is the mean of a 5 × 5 m
+square of samples, worked out tile by tile ([Pipeline](#pipeline)). This grid is carved and
+flattened by the next steps; profiles and water sample the untouched terrain (the "ground").
+Elevations run from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
+Grondilice).
 
 ### 6. River carving and catchments (`water.ts`, `catchment.ts`)
 
@@ -484,20 +501,21 @@ of a 5 × 5 m square of samples. This grid is carved and flattened by the next s
 | service, track | 20% | 20 m | 3 |
 | tracks only the CTR has (written after every road) | the nearest running track's level | – | 4 |
 
-- Each profile is written into the grid: the core (max(w/2 + 0.3 + 2, 3) m, half a 4 m cell past
-  the carriageway's edge) takes the road elevation, and the next 8 m blend back to the terrain. A
-  core that stopped at w/2 + 0.5 left the outer node of most cells the carriageway's edge crossed
-  on the hillside, so the drawn road leaned across with it: under a Panda in its lane more than
-  10% at 3.5% of 40,000 sampled positions and more than 20% at 1.2%, enough to roll an Ape over.
-  With the wider core those shares are 1.1% and 0.5%, mostly at junctions and road ends. A core a
-  whole cell wider (0.9%, 0.4%) cut road banks steep enough to paint as rock 2.5% more often (0.9%
-  with this one), and a bank steeper than bare rock (50°) echoes: 17 of the 23 asphalt points of
-  a 25 m grid over Monzone hear one (the spawn an echo 312 m away, 1.8 s, off a bank beside a
-  road). The wider core also buries more of the narrow streams (under 4 m wide, which
-  roads may write over): with a core a cell wider, 664 m of stream ran more than 1 m under the
-  terrain against 474 m before, and houses on a bank above a road lost up to 8 m of base (above
-  the SR445 near (50, −290)). At junctions the lower rank keeps the cell, so tertiary beats rail and
-  rail beats the rest.
+- Each profile is written into the grid (recorded as a claim, then written in each tile's window in
+  the order of the passes, as [Pipeline](#pipeline) says): the core (max(w/2 + 0.3 + 2, 3) m, half a
+  4 m cell past the carriageway's edge) takes the road elevation, and the next 8 m blend back to the
+  terrain. A core that stopped at w/2 + 0.5 left the outer node of most cells the carriageway's edge
+  crossed on the hillside, so the drawn road leaned across with it: under a Panda in its lane more
+  than 10% at 3.5% of 40,000 sampled positions and more than 20% at 1.2%, enough to roll an Ape
+  over. With the wider core those shares are 1.1% and 0.5%, mostly at junctions and road ends. A
+  core a whole cell wider (0.9%, 0.4%) cut road banks steep enough to paint as rock 2.5% more often
+  (0.9% with this one), and a bank steeper than bare rock (50°) echoes: 17 of the 23 asphalt points
+  of a 25 m grid over Monzone hear one (the spawn an echo 312 m away, 1.8 s, off a bank beside a
+  road). The wider core also buries more of the narrow streams (under 4 m wide, which roads may
+  write over): with a core a cell wider, 664 m of stream ran more than 1 m under the terrain against
+  474 m before, and houses on a bank above a road lost up to 8 m of base (above the SR445 near (50,
+  −290)). At junctions the lower rank keeps the cell, so tertiary beats rail and rail beats the
+  rest.
 - The tracks only the CTR has take, point by point, the elevation of the nearest running track
   (the old yards lie level with the line; Equi's sidings are 17 m from it), set right after the
   rail pass so a road crossing one is pinned to it there. They are written last (rank 4), into
@@ -554,7 +572,10 @@ water dips 0.3 m below the road (the two fords over the Aulella, at and below Co
 such crossings). Water left perched more than 1 m above the terrain (streams that end at a road cut)
 drops to the terrain, except inside a wider channel it flows into, and there only while it still
 runs downhill: a stream dropped into a river's carved bed never steps back up. The grid is then
-rounded to 0.1 m and stored as integer decimetres.
+rounded to 0.1 m and stored as integer decimetres. The capping and settling read no terrain and
+run before the grid is built (`capUnderDecks`); the re-carve runs in each tile's window, which then
+reads the terrain under the water samples of its own cells before rounding; the culverts and the
+perched drop run on those readings once every tile is built (`dropPerched`).
 
 ### 9. The railway (`railway.ts`, `platforms.ts`, `rail-clear.ts`)
 
@@ -767,7 +788,7 @@ change an input.
   depend on the architecture and on V8's math. On a miss it restores `data/raw` from the cache
   under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
-  imports, followed from import to import (89 files today, in `src/tools`, `src/sim` and
+  imports, followed from import to import (91 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
   rather than miss a file: on a specifier that names no file, an `import(` without a string literal
   and any `require(`. When the check job built the maps, the `reproducible` job builds them again
@@ -986,8 +1007,12 @@ through turnouts past a passing loop, a yard and a spur, takes junction headings
 no line on a ring, with each piece's kind; `rail-levels.test.ts` bounds the rail over a tagged and
 an untagged underpass, under a road bridge, at a level crossing (no pin) and over a river and a
 stream; `profiles.test.ts` levels a tunnel's portals and a bridge's ends with the ground outside
-them; `rail-bed.test.ts` lowers a grid under a line, raises the corners far under it but a kept one,
-and levels a siding on the line beside it; `spawns.test.ts` parks cars off running track, off a
+them, and writes two roads' claims into two windows that share a seam just as into the whole grid;
+`rail-bed.test.ts` lowers a grid under a line, raises the corners far under it but a kept one, moves
+a window's nodes as it moves the whole grid's, and levels a siding on the line beside it;
+`grid-tiles.test.ts` checks that the tiles' windows cover the grid, neighbours sharing their border
+nodes, and that the tile `cellTile` names for a point (on and off the seams and the grid's edge)
+holds the four nodes of the cell read there; `spawns.test.ts` parks cars off running track, off a
 siding and away from a level crossing; `platforms.test.ts` clips a platform off a track, a road and
 a crossing area, makes a strip between close tracks and a narrow one walkways, and leaves out the
 ground far under a platform's top; `railway.test.ts` checks the speed limits, crossing boxes and
