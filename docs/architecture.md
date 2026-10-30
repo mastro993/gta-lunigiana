@@ -1030,11 +1030,12 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   lens with a hood over it, on a grey pole, and one grey equipment cabinet per box; all 1.59 m or
   more off every track centreline. A foot crossing gets the panel and rails only.
 - **Tunnel portals**, at each end of a tunnel piece that no other tunnel piece carries on and that
-  is not on the map's edge (8 on this map): a stone face wall 10 m wide and 7.5 m over the rail
-  head with a cornice, the dark mouth of a single-track tunnel (4.8 m wide, an arch in three steps
-  to 5.8 m) on its face, and behind it a lined throat 6.4 m wide and 6.2 m tall that runs into the
-  hill until the hill stands over its centreline (3–40 m): the map's ground over the first 5–15 m
-  of a tunnel is too low to hide a train. A train passing the mouth vanishes behind its dark face.
+  is not within 0.5 m of the play area's edge, where the line runs on past it (`outlineDistance`;
+  8 on this map): a stone face wall 10 m wide and 7.5 m over the rail head with a cornice, the
+  dark mouth of a single-track tunnel (4.8 m wide, an arch in three steps to 5.8 m) on its face,
+  and behind it a lined throat 6.4 m wide and 6.2 m tall that runs into the hill until the hill
+  stands over its centreline (3–40 m): the map's ground over the first 5–15 m of a tunnel is too
+  low to hide a train. A train passing the mouth vanishes behind its dark face.
   Where the hill falls away across the throat it still shows: at the 271 m tunnel's east mouth
   (s 5575) the cover over the rail head every 4 m in from the mouth is −0.7, −1.6, 0.3, 4.7 and
   6.9 m against the throat's 6.2 m, so seen from the opposite quarter its downhill side stands out
@@ -1935,6 +1936,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     at reading widths; the bed's top within 0.15 m of the terrain on 90 % of the line at grade; a
     portal at every tunnel mouth, facing out of the hill; each arm hinged on its housing and the
     road light's plate behind its lens, all clear of the trains.
+    `src/render/__tests__/portals.test.ts`: Lunigiana with its outline's east side moved onto its
+    easternmost tunnel mouth (`editMap`), as a region whose outline cuts a tunnel gives: no portal
+    there, one at each of the other seven mouths.
   - `src/render/__tests__/stations.test.ts`: the platforms' tops following the rail profile,
     their yellow lines, nothing standing in a train's way, one name board per platform people wait
     on, the platform lamps, a canopy only where a platform runs along a station building, and no
