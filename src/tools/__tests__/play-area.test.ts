@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { insideRings, ringsDistance } from "../../sim/map/outline.ts"
 import { hash01, r1, type V } from "../geometry.ts"
 import {
   OUTLINE,
@@ -157,26 +156,6 @@ test("onOutline finds a line's end cut on a slanted edge and rounded to 0.1 m: a
   }
   assert.ok(onOutline(0.2, 0.1, rings) && onOutline(1.4, 1.5, [[0, 0, 1000, 0, 1000, 1003.7]]))
   assert.ok(!onOutline(500, 0.1, rings) && !onOutline(999.9, 400, rings))
-})
-
-test("insideRings: margins round a reflex corner are discs, beside an edge bands; an edge is inside", () => {
-  const rings = [L_RING]
-  // 7.07 m from the notch's corner (100, 100), beside neither of its edges
-  assert.ok(insideRings(rings, 95, 95, 7) && !insideRings(rings, 95, 95, 7.1))
-  // 3 m under the notch's south side, 3 m west of its west side
-  assert.ok(insideRings(rings, 150, 97, 3) && !insideRings(rings, 150, 97, 3.01))
-  assert.ok(insideRings(rings, 97, 150, 3) && !insideRings(rings, 97, 150, 3.01))
-  assert.ok(!insideRings(rings, 105, 105) && !insideRings(rings, 150, 100.001))
-  for (const [x, y] of [
-    [150, 100],
-    [100, 250],
-    [200, 50],
-    [0, 300],
-    [100, 100],
-  ] as const)
-    assert.ok(insideRings(rings, x, y), `${x}, ${y} on the outline`)
-  assert.equal(ringsDistance(rings, 95, 95), Math.hypot(5, 5))
-  assert.equal(ringsDistance(rings, 150, 97), 3)
 })
 
 const v = (x: number, y: number, id?: string): V => ({ x, y, ...(id === undefined ? {} : { id }) })

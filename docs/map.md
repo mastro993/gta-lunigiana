@@ -1155,12 +1155,15 @@ left out), a map from before the outline and `--except`, and `map-diff-args.test
 line; `geometry.test.ts` `clipRing` to a box; `region.test.ts` the regions' parts and bounds and
 `checkMask` on a diagonal mask in an L and on each fault (too few vertices, off 0.1 m, clockwise,
 a repeated vertex, a fold, a crossing, a vertex or an edge outside the rectangles);
-`play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of two, overlapping
-rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing off the
-0.1 m lattice, a hole and two rings touching at a corner, `insideRings`'s margins round the L's
-inner corner, the notch cutting a line in two with ids kept and cuts id-less, and clipping to one
-rectangle against Liang–Barsky on 4000 random lines and lines through its corners; `walls.test.ts`
-the outline walls closing the L and a rectangle's running south, east, north, west.
+`play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of two,
+overlapping rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing
+off the 0.1 m lattice, a hole, two rings touching at a corner and a hole touching the outer ring or
+another hole at one, `onOutline` finding rail ends rounded off a slanted edge, the notch cutting a
+line in two with ids kept and cuts id-less, a line past the L's inner corner (or a mask's slanted
+one) within a micrometre staying whole, and clipping to one rectangle against Liang–Barsky on 4000
+random lines and lines through its corners; `src/sim/map/__tests__/outline.test.ts` `insideRings`'s
+margins round the L's inner corner, a clockwise hole, and `edgeDistance` beside and past an edge;
+`walls.test.ts` the outline walls closing the L and a rectangle's running south, east, north, west.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees and walls read whole from the tiles (the running line dark, loops and
