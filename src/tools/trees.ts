@@ -26,8 +26,9 @@ type Polygon = ReadonlyArray<ReadonlyArray<number>>
 /**
  * Rasters of the bounds at MASK_RES m, each the union of its `kinds` polygons, made a row of 2 km
  * tiles at a time when a lookup first needs one (each polygon's scanlines worked out once): `at(kind,
- * x, y)` reads one (false off the raster), `drop(y)` lets go every row wholly south of y, `rowAt`
- * names the row a lookup at (x, y) reads, and `onRow` hears each row as its rasters are made.
+ * x, y)` reads one (false off the raster), `drop(y)` lets go every row wholly south of y (a row
+ * let go is never made again: asking for it throws), `rowAt` names the row a lookup at (x, y)
+ * reads, and `onRow` hears each row as its rasters are made.
  */
 const rowMasks = (kinds: ReadonlyArray<ReadonlyArray<Polygon>>, onRow: (j: number) => void) => {
   const { minX, minY, maxX, maxY } = BOUNDS
@@ -52,7 +53,8 @@ const rowMasks = (kinds: ReadonlyArray<ReadonlyArray<Polygon>>, onRow: (j: numbe
     readonly r0: number
     readonly masks: ReadonlyArray<Uint8Array>
   }
-  const made = new Map<number, Row>()
+  const made = new Map<number, Row>(),
+    gone = new Set<number>()
   let last: Row | undefined
   /** The row of tiles holding cell row r (the tiles' corners lie on the mask lattice). */
   const rowOf = (r: number) => Math.floor((minY + r * MASK_RES) / TILE)
@@ -60,6 +62,7 @@ const rowMasks = (kinds: ReadonlyArray<ReadonlyArray<Polygon>>, onRow: (j: numbe
     if (last?.j === j) return last
     const known = made.get(j)
     if (known !== undefined) return (last = known)
+    if (gone.has(j)) throw new Error(`tree masks: row ${j} of tiles made again after it was let go`)
     const r0 = Math.max(0, (TILE * j - minY) / MASK_RES)
     const block = { c0: 0, r0, cols, rows: Math.min(rows, (TILE * (j + 1) - minY) / MASK_RES) - r0 }
     const [ey0, ey1] = [minY + r0 * MASK_RES, minY + (r0 + block.rows) * MASK_RES]
@@ -92,7 +95,11 @@ const rowMasks = (kinds: ReadonlyArray<ReadonlyArray<Polygon>>, onRow: (j: numbe
       return t.masks[kind]![(cell[1] - t.r0) * cols + cell[0]] === 1
     },
     drop: (y: number) => {
-      for (const [j] of made) if (TILE * (j + 1) <= y) made.delete(j)
+      for (const [j] of made)
+        if (TILE * (j + 1) <= y) {
+          made.delete(j)
+          gone.add(j)
+        }
     },
     rowAt: (x: number, y: number): number | undefined => {
       const cell = cellOf(x, y)
@@ -145,6 +152,7 @@ export const scatterTrees = (
     (j) => {
       for (const b of bankOf.get(j) ?? [])
         clear[b] = !masks.at(FOREST, bank.x[b]!, bank.y[b]!) && free(bank.x[b]!, bank.y[b]!) ? 1 : 0
+      bankOf.delete(j)
     },
   )
   const free = (x: number, y: number) =>
@@ -179,7 +187,8 @@ export const scatterTrees = (
       if (masks.at(FOREST, x, y) && free(x, y)) plant(x, y, 0.8 + 0.5 * hash01(gi, gj, 3))
     }
   }
-  // Banks in a row no lattice point read: reading one there makes its rasters, and reads them all.
+  // Banks in a row no lattice point read (a row's banks are judged, and left, as its rasters are
+  // made): reading one there makes its rasters, and reads them all.
   for (const list of bankOf.values()) masks.at(FOREST, bank.x[list[0]!]!, bank.y[list[0]!]!)
   bank.x.forEach((x, b) => {
     if (clear[b] === 1) plant(x, bank.y[b]!, bank.scale[b]!)
