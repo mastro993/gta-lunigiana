@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { midpointOf } from "../edges.ts"
-import { graph, MAP } from "../map/index.ts"
+import { graph } from "../map/index.ts"
 import { allowsModel, distanceToEdge, roadOf, trafficIndex, walkIndex } from "../route.ts"
 import { assertDeadEnds, assertLanesClear, assertNearest } from "./route-checks.ts"
 
@@ -51,22 +51,28 @@ test("lanes: AI traffic keeps off lanes where the walls leave no room to pass an
   )
 })
 
-test("edgeIndex.nearest: the nearest edge by brute force (first on a tie), by Monzone and far outside the map", () => {
-  const { minX, minY, maxX, maxY } = MAP.bounds
-  for (const [index, edges] of [
-    [trafficIndex, graph.trafficEdges],
-    [walkIndex, graph.walkEdges],
-  ] as const) {
-    // A 10 x 8 lattice over Monzone, every 7th edge's midpoint there, and the map's corners 300 m out.
+/** Half the longest graph edge and some spare, m: the build cuts edges to at most 25 m (25.1 m on the 0.1 m grid). */
+const HALF_EDGE = 13
+
+test("edgeIndex.nearest: the nearest edge by brute force (first on a tie), by Monzone", () => {
+  for (const index of [trafficIndex, walkIndex]) {
+    // A 10 x 8 lattice over Monzone and every 7th edge's midpoint there.
     const points = Array.from({ length: 80 }, (_, k) => ({
       x: STATION.x - REACH + (2 * REACH * (k % 10)) / 9,
       y: STATION.y - REACH + (2 * REACH * Math.floor(k / 10)) / 7,
     }))
     const there = [...index.around(STATION.x, STATION.y, [0, REACH])]
     for (let k = 0; k < there.length; k += 7) points.push(midpointOf(there[k]!))
-    for (const x of [minX - 300, maxX + 300])
-      for (const y of [minY - 300, maxY + 300]) points.push({ x, y })
     assert.ok(points.length > 100, `${points.length} points`)
-    assertNearest(index, edges, points)
+    // Brute force over the edges round each point: an edge nearer than the answer has its midpoint
+    // within the answer's distance plus HALF_EDGE. The edge lists ascend, so sorted is their order.
+    for (const p of points) {
+      const d = distanceToEdge(index.nearest(p.x, p.y), p.x, p.y)
+      assertNearest(
+        index,
+        [...index.around(p.x, p.y, [0, d + HALF_EDGE])].sort((a, b) => a - b),
+        [p],
+      )
+    }
   }
 })
