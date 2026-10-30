@@ -393,6 +393,8 @@ export interface JoinedMap extends Omit<MonzoneMap, "heightmap" | "walls"> {
   }
   /** Flat (x, y, scale) triples in the whole map's order. */
   readonly trees: ArrayLike<number>
+  /** Each tree's id, ascending (its look's seed): its index in the whole map's list. */
+  readonly treeIds: ArrayLike<number>
   /** Every land-cover cell, `(cols − 1) × (rows − 1)`. */
   readonly cover: ArrayLike<number>
 }
@@ -446,6 +448,7 @@ export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): J
     heightmap: { ...heightmap, data },
     walls: { ...global.walls, walk: flat("walk"), shore: flat("shore"), drive: flat("drive") },
     trees,
+    treeIds: Int32Array.from({ length: trees.length / 3 }, (_, k) => k),
     cover,
   }
 }

@@ -1165,8 +1165,8 @@ y = 0, y = −2000 and x = 2000 seams, the page's drive script (run in a `vm` ag
 and its report; `cdp.test.ts`, on a fake Chrome, a command's own timeout and the socket closed
 when a tab cannot open; `map-diff.test.ts` each category's change on small maps, a key it does not
 compare, walls and trees in another order (the fewest moved counted, copies of a removed segment
-left out), a map from before the outline and `--except`, and `map-diff-args.test.ts` its command
-line; `geometry.test.ts` `clipRing` to a box; `region.test.ts` the regions' parts and bounds and
+left out), a tree on a spot both maps plant with another id there, a map from before the outline
+and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts` `clipRing` to a box; `region.test.ts` the regions' parts and bounds and
 `checkMask` on a diagonal mask in an L and on each fault (too few vertices, off 0.1 m, clockwise,
 a repeated vertex, a fold, a crossing, a vertex or an edge outside the rectangles);
 `play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of two,
@@ -1303,7 +1303,9 @@ the tools print paths relative to the repository. Measured on `lucido` on 2026-1
   trees: beside their multiset change it prints the fewest of the items both maps hold that must
   move to restore their order, and where (`walk order: 1 of 2 shared segments moved, in x …`; one
   item moved from the front of a list to its back is 1), since the physics resolves contacts in
-  wall order and a tree's place in the list is its id. Every copy of an item with a copy added or
+  wall order and the trunks a query hands come in the trees' order. A tree on a spot both maps
+  plant that carries another id there is a difference too (`ids: 1 of 2 trees on a spot both maps
+  plant renumbered, in x …`): the id seeds its look. Every copy of an item with a copy added or
   removed is left out of the order, as which copy went is unknown (Lunigiana's walk and drive
   walls each hold 4 segments twice, Cesena's 28 segments 2 to 4 times, 51 extra copies). It
   compares two builds of one format version (the decoders refuse another) and exits 0 for "no

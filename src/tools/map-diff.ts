@@ -16,9 +16,10 @@
 //   have one (roads, buildings, water, rail, pois; districts by name), the pieces that share an id
 //   in order of occurrence. The walls of each kind and the trees both maps hold must also stand in
 //   the same order: the physics resolves contacts in wall order (another order lets a car into a
-//   building at a corner), and a tree's place in the list is its id (its seed, its owl and its
-//   bird), so a reorder is a difference of its own, counted as the fewest items that must move
-//   (items with a copy added or removed left out).
+//   building at a corner), and the trees' order is the trunks' in a query (the birds' trees), so a
+//   reorder is a difference of its own, counted as the fewest items that must move (items with a
+//   copy added or removed left out). A tree on a spot both maps plant must keep its id there too:
+//   the id seeds its look.
 // - Indices into other lists are compared as what they point at: a graph edge as its two nodes'
 //   coordinates and its road's id, a level crossing's road as its id, so inserting one road does
 //   not renumber every edge into a difference.
@@ -82,6 +83,7 @@ const COMPARED: ReadonlyArray<readonly [string, (m: MonzoneMap) => object, Reado
         "coarse",
         "walls",
         "trees",
+        "treeIds",
         "roads",
         "buildings",
         "water",
@@ -301,6 +303,29 @@ const orderedLines = (
   return out
 }
 
+/** The trees on a spot both maps plant (one tree a spot) whose id differs there, and their box. */
+const idLines = (a: MonzoneMap, b: MonzoneMap): Array<string> => {
+  // Whole metres well inside ±2^20 m: a spot's key is exact.
+  const spot = (flat: ArrayLike<number>, k: number) =>
+    (flat[3 * k]! + 2 ** 20) * 2 ** 21 + flat[3 * k + 1]! + 2 ** 20
+  const idAt = new Map<number, number>()
+  for (let k = 0; k < a.treeIds.length; k++) idAt.set(spot(a.trees, k), a.treeIds[k]!)
+  let shared = 0,
+    renumbered = 0
+  const box = emptyBox()
+  for (let k = 0; k < b.treeIds.length; k++) {
+    const id = idAt.get(spot(b.trees, k))
+    if (id === undefined) continue
+    shared++
+    if (id === b.treeIds[k]) continue
+    renumbered++
+    addFlat(box, b.trees, 3 * k, 3 * k + 2)
+  }
+  return renumbered === 0
+    ? []
+    : [`ids: ${renumbered} of ${shared} trees on a spot both maps plant renumbered${boxText(box)}`]
+}
+
 /** One line per named part that differs, `name: counts, box`. */
 const partLines = (parts: ReadonlyArray<readonly [string, string | undefined]>): Array<string> =>
   parts.flatMap(([name, line]) => (line === undefined ? [] : [`${name}: ${line}`]))
@@ -512,7 +537,10 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
       ],
     },
     { category: "coarse", lines: diffCoarse(a.coarse, b.coarse) },
-    { category: "trees", lines: orderedLines("", "trees", a.trees, b.trees, 3, 2) },
+    {
+      category: "trees",
+      lines: [...orderedLines("", "trees", a.trees, b.trees, 3, 2), ...idLines(a, b)],
+    },
     { category: "roads", lines: keyedLines("road", a.roads, b.roads, (r) => r.id) },
     { category: "buildings", lines: keyedLines("building", a.buildings, b.buildings, (r) => r.id) },
     { category: "water", lines: keyedLines("water", a.water, b.water, (r) => r.id) },

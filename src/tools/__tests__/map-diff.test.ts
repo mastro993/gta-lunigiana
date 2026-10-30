@@ -102,6 +102,7 @@ const MAP: MonzoneMap = {
     cover: Uint8Array.from([0, 1, 2, 3]),
   },
   trees: [10, 10, 1, 12, 10, 0.8],
+  treeIds: [3, 7],
   spawns: {
     player: { x: 1, y: 2, angle: 0 },
     parked: [{ x: 3, y: 4, angle: 1, rest: { panda: [100.5, 0, 0.01] } }],
@@ -170,7 +171,7 @@ const CASES: ReadonlyArray<readonly [string, Partial<MonzoneMap>, RegExp]> = [
     /^drive: 1 added, in x 0\.\.2, y 0\.\.2$/,
   ],
   ["walls", { walls: { ...MAP.walls, shore: [] } }, /^shore: 1 removed/],
-  ["trees", { trees: [12, 10, 0.8] }, /^1 removed, in x 10\.\.10, y 10\.\.10$/],
+  ["trees", { trees: [12, 10, 0.8], treeIds: [7] }, /^1 removed, in x 10\.\.10, y 10\.\.10$/],
   ["trees", { trees: [10, 10, 1.1, 12, 10, 0.8] }, /^1 added, 1 removed, in x 10\.\.10/],
   [
     "roads",
@@ -323,11 +324,11 @@ test("walls of a kind and trees in another order are a difference, beside their 
     diffMaps(MAP, { ...MAP, walls: { ...MAP.walls, walk: [5, 1, 5, 5, 1, 1, 5, 1] } }),
     [{ category: "walls", lines: ["walk order: 1 of 2 shared segments moved, in x 1..5, y 1..1"] }],
   )
-  assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8, 10, 10, 1] }), [
+  assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8, 10, 10, 1], treeIds: [7, 3] }), [
     { category: "trees", lines: ["order: 1 of 2 shared trees moved, in x 10..10, y 10..10"] },
   ])
   // A tree added in front and one removed leave the others in their order: no reorder.
-  assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [5, 5, 1, 10, 10, 1] }), [
+  assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [5, 5, 1, 10, 10, 1], treeIds: [9, 3] }), [
     { category: "trees", lines: ["1 added, 1 removed, in x 5..12, y 5..10"] },
   ])
   // Added, and the shared ones swapped: both said.
@@ -343,10 +344,30 @@ test("walls of a kind and trees in another order are a difference, beside their 
   )
 })
 
-test("an order change counts the fewest items that must move, the one moved from the front to the back alone", () => {
-  const row = [0, 1, 2, 3, 4].flatMap((x) => [x, 0, 1])
+// A tree's id seeds its look (kind, size, tint, turn): the same tree with another id looks different.
+test("a tree on a spot both maps plant that carries another id there is a difference", () => {
+  assert.deepEqual(diffMaps(MAP, { ...MAP, treeIds: [3, 8] }), [
+    {
+      category: "trees",
+      lines: ["ids: 1 of 2 trees on a spot both maps plant renumbered, in x 12..12, y 10..10"],
+    },
+  ])
+  // Renumbered with their spots, beside an added tree: the shared trees keep their ids.
   assert.deepEqual(
-    diffMaps({ ...MAP, trees: row }, { ...MAP, trees: [...row.slice(3), ...row.slice(0, 3)] }),
+    diffMaps(MAP, { ...MAP, trees: [10, 10, 1, 12, 10, 0.8, 0, 0, 1], treeIds: [3, 7, 1] })[0]!
+      .lines,
+    ["1 added, in x 0..0, y 0..0"],
+  )
+})
+
+test("an order change counts the fewest items that must move, the one moved from the front to the back alone", () => {
+  const row = [0, 1, 2, 3, 4].flatMap((x) => [x, 0, 1]),
+    ids = [0, 1, 2, 3, 4]
+  assert.deepEqual(
+    diffMaps(
+      { ...MAP, trees: row, treeIds: ids },
+      { ...MAP, trees: [...row.slice(3), ...row.slice(0, 3)], treeIds: [...ids.slice(1), 0] },
+    ),
     [{ category: "trees", lines: ["order: 1 of 5 shared trees moved, in x 0..0, y 0..0"] }],
   )
 })
@@ -366,7 +387,7 @@ test("a segment with a copy removed is left out of the order, so the others betw
 })
 
 test("--except: the accepted categories' differences are still printed, and named, but leave the exit code 0; any other category's makes it 1", () => {
-  const trees = diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8] }),
+  const trees = diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8], treeIds: [7] }),
     { except } = parseArgs(["a.bin", "b.bin", "--except", "trees"])
   assert.equal(exitCodeOf([], new Set()), 0)
   assert.equal(exitCodeOf(trees, new Set()), 1)
@@ -379,7 +400,7 @@ test("--except: the accepted categories' differences are still printed, and name
       "1 category differs: trees; accepted (--except): trees",
     ].join("\n"),
   )
-  const more = diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8], lamps: [] })
+  const more = diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8], treeIds: [7], lamps: [] })
   assert.equal(exitCodeOf(more, except), 1)
   assert.match(
     formatDiff(more, except),
