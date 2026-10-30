@@ -13,9 +13,6 @@ import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { gridLattice, makeGrid, sampleGrid, type Grid, type Profile } from "./terrain.ts"
 import { carveAll } from "./water.ts"
 
-/** Nodes each tile's window takes past its own: none, as every stage here is node-local. */
-const HALO = 0
-
 /** What the tile pass reads. */
 interface GridInput {
   /** The uncarved terrain, m a.s.l. at a local point. */
@@ -61,9 +58,9 @@ export const tileByTile = ({ ground, water, wp0, wp, claims, rail, levels }: Gri
     }
   })
   const perched = wp.map((p) => new Float64Array(p.x.length))
-  for (const tile of gridTiles(lattice, HALO)) {
+  for (const tile of gridTiles(lattice)) {
     const { i0, j0, cols, rows } = tile.span
-    const win = makeGrid(ground, lattice.cell, tile.span)
+    const win = makeGrid(ground, tile.span)
     for (let r = 0; r < rows; r++)
       uncarved.z.set(win.z.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
     carveAll(win, water, wp0)

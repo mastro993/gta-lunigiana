@@ -1,5 +1,5 @@
 // The terrain grid by map tile: the window of nodes each 2 km tile works on (its 501 × 501 nodes,
-// the borders shared with its neighbours, plus a halo, cut to the grid) and the tile whose own cells
+// the borders shared with its neighbours, cut to the grid) and the tile whose own cells
 // hold a point's cell, so the build works the grid one tile at a time with the whole grid's
 // arithmetic (`Grid` in terrain.ts).
 import { TILE, tileKey, tileRange } from "../sim/map/kinds.ts"
@@ -29,17 +29,17 @@ const steps = (g: Lattice) => {
 
 /**
  * The map's tiles, south to north then west to east (the tile list's order), each with its window:
- * the nodes it holds plus `halo` more on every side, cut to the grid.
+ * the nodes it holds, cut to the grid.
  */
-export const gridTiles = (g: Lattice, halo: number): Array<GridTile> => {
+export const gridTiles = (g: Lattice): Array<GridTile> => {
   const { n, cx, cy, range } = steps(g)
   const tiles: Array<GridTile> = []
   for (let j = range.j0; j <= range.j1; j++)
     for (let i = range.i0; i <= range.i1; i++) {
-      const i0 = Math.max(0, n * i - cx - halo),
-        i1 = Math.min(g.cols - 1, n * (i + 1) - cx + halo),
-        j0 = Math.max(0, n * j - cy - halo),
-        j1 = Math.min(g.rows - 1, n * (j + 1) - cy + halo)
+      const i0 = Math.max(0, n * i - cx),
+        i1 = Math.min(g.cols - 1, n * (i + 1) - cx),
+        j0 = Math.max(0, n * j - cy),
+        j1 = Math.min(g.rows - 1, n * (j + 1) - cy)
       tiles.push({
         key: tileKey(i, j),
         i,

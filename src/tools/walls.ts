@@ -325,7 +325,7 @@ export const buildWalls = (
     driveBlocked = new Uint8Array(cw * ch),
     driveShoreBlocked = new Uint8Array(cw * ch)
   // Tile by tile: a tile's cells, and the ring of cells around them that the majority filter reads.
-  for (const { span } of gridTiles(g, 0)) {
+  for (const { span } of gridTiles(g)) {
     const ci0 = span.i0,
       ci1 = span.i0 + span.cols - 1,
       cj0 = span.j0,

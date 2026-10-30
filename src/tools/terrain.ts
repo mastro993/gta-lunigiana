@@ -143,26 +143,20 @@ const BOX = 2
 /** The terrain grid's cell, m. */
 export const GRID_CELL = 4
 
-/** The whole grid over BOUNDS at `cell` m, with no nodes: the lattice every window of it shares. */
-export const gridLattice = (cell = GRID_CELL): Omit<Grid, "z" | "span"> => ({
-  cell,
-  cols: Math.ceil((BOUNDS.maxX - BOUNDS.minX) / cell) + 1,
-  rows: Math.ceil((BOUNDS.maxY - BOUNDS.minY) / cell) + 1,
+/** The whole grid over BOUNDS (its last row/col reaches maxX/maxY), with no nodes: the lattice every window of it shares. */
+export const gridLattice = (): Omit<Grid, "z" | "span"> => ({
+  cell: GRID_CELL,
+  cols: Math.ceil((BOUNDS.maxX - BOUNDS.minX) / GRID_CELL) + 1,
+  rows: Math.ceil((BOUNDS.maxY - BOUNDS.minY) / GRID_CELL) + 1,
   x0: BOUNDS.minX,
   y0: BOUNDS.minY,
 })
 
-/**
- * The nodes of `span` (the whole grid over BOUNDS when absent; its last row/col reaches maxX/maxY);
- * each node is the mean of `dem` over a (2 BOX + 1) m square.
- */
-export const makeGrid = (
-  dem: (x: number, y: number) => number,
-  cell = GRID_CELL,
-  span?: Span,
-): Grid => {
-  const { cols, rows, x0, y0 } = gridLattice(cell)
-  const { i0, j0, cols: w, rows: h } = span ?? { i0: 0, j0: 0, cols, rows }
+/** The window of the whole grid's nodes `span` holds, each the mean of `dem` over a (2 BOX + 1) m square. */
+export const makeGrid = (dem: (x: number, y: number) => number, span: Span): Grid => {
+  const lattice = gridLattice(),
+    { cell, x0, y0 } = lattice
+  const { i0, j0, cols: w, rows: h } = span
   const z = new Float64Array(w * h)
   for (let j = j0; j < j0 + h; j++)
     for (let i = i0; i < i0 + w; i++) {
@@ -171,9 +165,7 @@ export const makeGrid = (
         for (let dx = -BOX; dx <= BOX; dx++) s += dem(x0 + i * cell + dx, y0 + j * cell + dy)
       z[(j - j0) * w + i - i0] = s / (2 * BOX + 1) ** 2
     }
-  return span === undefined
-    ? { cell, cols, rows, x0, y0, z }
-    : { cell, cols, rows, x0, y0, z, span }
+  return { ...lattice, z, span }
 }
 
 /** Index in `g.z` of whole-grid node (i, j), which `g` must hold. */
@@ -195,16 +187,10 @@ export const sampleGrid = (g: Grid, x: number, y: number): number => {
   return s + (n - s) * ty
 }
 
-/** Slope in degrees of cell (i, j) (between nodes (i, j) and (i+1, j+1)), over a 3-cell (12 m) baseline: shorter steps (terrace walls, road cuts) are not slopes the player is stopped by. */
+/** Slope in degrees of cell (i, j) (between nodes (i, j) and (i+1, j+1)) of the whole grid `g`, over a 3-cell (12 m) baseline: shorter steps (terrace walls, road cuts) are not slopes the player is stopped by. */
 export const cellSlope = (g: Grid, i: number, j: number): number => {
-  const w = g.span,
-    i0 = w === undefined ? 0 : w.i0,
-    j0 = w === undefined ? 0 : w.j0,
-    cols = w === undefined ? g.cols : w.cols
   const z = (a: number, b: number) =>
-    g.z[
-      (Math.min(g.rows - 1, Math.max(0, b)) - j0) * cols + Math.min(g.cols - 1, Math.max(0, a)) - i0
-    ]!
+    g.z[Math.min(g.rows - 1, Math.max(0, b)) * g.cols + Math.min(g.cols - 1, Math.max(0, a))]!
   const dx = (z(i + 2, j) + z(i + 2, j + 1) - z(i - 1, j) - z(i - 1, j + 1)) / (6 * g.cell)
   const dy = (z(i, j + 2) + z(i + 1, j + 2) - z(i, j - 1) - z(i + 1, j - 1)) / (6 * g.cell)
   return (Math.atan(Math.hypot(dx, dy)) * 180) / Math.PI
