@@ -554,11 +554,16 @@ test("a 2 m/s bump plays quieter than a 20 m/s crash, so masking culls it nearer
 })
 
 test("a hard crash answers off a rock face, later, fainter and dry in the open; in a street only the open share of it; a soft one does not", () => {
+  // Into a tree trunk wherever it is: how loud the crash plays, and so whether masking culls an echo, must not hang on
+  // what the map has standing at the spot (a bank tree stood 0.4 m from the one 100 m south of BELFRY until issue #7).
   const crash = (spot: { readonly x: number; readonly y: number }, speed: number, metres = 10) => {
     const director = rig()
     const at = away(spot, metres, SOUTH)
     director.hear(
-      world(spot, { vehicles: [car(1, "panda", at)], happenings: [wallHit(at, speed)] }),
+      world(spot, {
+        vehicles: [car(1, "panda", at)],
+        happenings: [{ ...wallHit(at, speed), material: "tree" }],
+      }),
     )
     return director.take("crash")
   }

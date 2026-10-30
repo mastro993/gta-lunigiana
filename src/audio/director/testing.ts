@@ -281,7 +281,7 @@ export const wallHit = (
   speed: number,
   car = 1,
   zone: Zone = "front",
-): Happening => ({
+): Extract<Happening, { readonly hit: "wall" | "car" | "ground" }> => ({
   kind: "impact",
   hit: "wall",
   x: at.x,

@@ -296,9 +296,11 @@ test("traffic: a car held up by a car parked in its lane honks once each time it
     reversed.map((frame) => frame - HONK_STEPS),
     "one honk per stuck episode, half-way to backing up",
   )
+  // Its honks until it had turned round (held up again later, by a car the population parks, is another scene).
   assert.ok(
     heard.honks
       .filter((h) => h.car === id)
+      .slice(0, honked.length)
       .every((h) => h.model === "panda" && Vec2.distance(h, blocker) < 10),
     "behind the blocker",
   )

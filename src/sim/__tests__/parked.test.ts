@@ -237,13 +237,11 @@ test("parking: beyond 400 m the untouched parked cars go; a damaged one, a moved
 })
 
 test("parking: a parked car destroyed goes once out of view, as every wreck does, and its spot holds no car again", () => {
+  // Beside the Panda on FIRST (which cars stand near the start is the map's and the seed's to say).
   const game = start()
-  game.run(1)
+  go(game, door(spotPose(FIRST)), 1)
   const me = game.view()!.pose
-  const wreck = game
-    .world()
-    .vehicles.filter((v) => v.parked !== undefined)
-    .reduce((a, b) => (Vec2.distance(b, me) < Vec2.distance(a, me) ? b : a))
+  const wreck = game.world().vehicles.find((v) => v.parked === FIRST)!
   assert.ok(Vec2.distance(wreck, me) < VIEW_REACH, "a car in view")
   // A charred shell: burnt out and blown up.
   assert.ok(game.runtime.tick(touch(wreck.id, { damage: { amount: 1, exploded: true } })).ok)
