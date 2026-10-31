@@ -89,7 +89,9 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
   0.66 GB (arm64). `pnpm maps` builds it after the two maps, and CI caches it with them (it reads
   their inputs and code, so it shares their key, and the reproducible job's hash covers it).
   `src/tools/__tests__/l-region.map-test.ts` (`pnpm test:map`; without the build every check is
-  skipped, saying how to build it) loads it and checks, through the game's own lookups:
+  skipped, saying how to build it, but in CI, which builds it, the file fails instead, so a broken
+  `maps` script or cache path cannot pass with nothing checked) loads it and checks, through the
+  game's own lookups:
   - the outline walls, walk and drive, run end to end along every edge of the L, and `wallsNear`
     answers them every 4 m along it, the notch's sides included (the cut keeps their walls in the
     listed tiles beside the notch: [Map files](#map-files));

@@ -1,7 +1,8 @@
 // The L test region (`lunigiana-l`, region.ts) as built: its outline walls close its play area,
 // nothing on foot gets out of it, and everything the map places lies in it. This process loads
 // the L (`loadBuiltMap`), from test-maps/, which `node src/tools/build-map.ts --region lunigiana-l`
-// writes and CI builds; without that build every check here is skipped.
+// writes. Without that build every check here is skipped, but in CI, which builds it with the maps
+// (`pnpm maps`), a missing build fails: a skip there would pass with nothing checked.
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
@@ -15,6 +16,8 @@ const URL_L = builtMapUrl(REGION)
 const skip = existsSync(URL_L)
   ? false
   : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
+// GitHub Actions sets CI=true.
+if (skip !== false && process.env.CI === "true") throw new Error(skip)
 if (skip === false) await loadBuiltMap(REGION)
 const sim = skip === false ? await import("../../sim/map/index.ts") : undefined
 const WHOLE = skip === false ? readWholeMap(URL_L) : undefined
