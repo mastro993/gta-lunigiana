@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { MAP_VERSION } from "../../sim/map/packed.ts"
 import { exitCodeOf, parseArgs } from "../map-diff-args.ts"
 import { diffMaps, formatDiff } from "../map-diff.ts"
-import type { JoinedMap } from "../tile-map.ts"
+import type { JoinedMap } from "../map-file.ts"
 
 type MonzoneMap = JoinedMap
 

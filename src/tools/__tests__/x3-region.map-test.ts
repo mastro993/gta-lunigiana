@@ -14,9 +14,8 @@ import { promisify } from "node:util"
 import { insideRings } from "../../sim/map/outline.ts"
 import { PARKED } from "../../sim/population/parked.ts"
 import { TRAFFIC } from "../../sim/systems/populate.ts"
-import { builtMapUrl, readWholeMap, wholeMap } from "../map-file.ts"
+import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../map-file.ts"
 import { PARTS, regionFromArgs } from "../region.ts"
-import type { JoinedMap } from "../tile-map.ts"
 
 const X3 = regionFromArgs(["--region", "lunigiana-3x"])
 const skip = existsSync(builtMapUrl(X3))

@@ -5,8 +5,7 @@ import { TILE } from "../../sim/map/kinds.ts"
 import type { BuildingF, RoadF, WaterF } from "../features.ts"
 import { hash01 } from "../geometry.ts"
 import type { Rect } from "../region.ts"
-import { mergeTrees } from "../tile-map.ts"
-import { scatterTrees, type TreeFeatures, treeScatter } from "../trees.ts"
+import { mergeTrees, scatterTrees, type TreeFeatures, treeScatter } from "../trees.ts"
 
 /** Lucido's lattice anchor and built terrain. */
 const LUCIDO = {

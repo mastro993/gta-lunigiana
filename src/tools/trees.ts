@@ -12,7 +12,6 @@ import { TILE } from "../sim/map/kinds.ts"
 import type { BuildingF, RailF, RoadF, WaterF } from "./features.ts"
 import { arcLengths, fillPolygon, hash01, pointAt, r1, ringBox, segIndex } from "./geometry.ts"
 import type { Rect, Region } from "./region.ts"
-import { mergeTrees, type TreeList } from "./tile-map.ts"
 
 const TREE_AREA = 50 // m² per tree
 /** The lattice's step, m: one cell, and at most one tree, per TREE_AREA. */
@@ -223,6 +222,46 @@ export const treeScatter = (
     }
     return { trees: Float64Array.from(trees), ids: Int32Array.from(ids) }
   }
+}
+
+/** Trees as flat (x, y, scale) triples on whole metres and each one's id (its look's seed), ascending. */
+export interface TreeList {
+  readonly trees: Float64Array
+  readonly ids: Int32Array
+}
+
+/** The trees of `parts` (each in ascending id order, no id in two) merged in id order. */
+export const mergeTrees = (
+  parts: ReadonlyArray<{ readonly trees: ArrayLike<number>; readonly ids: ArrayLike<number> }>,
+): TreeList => {
+  const n = parts.reduce((sum, p) => sum + p.ids.length, 0)
+  // Every tree's id, part and place in it, then the trees sorted by id.
+  const all = new Int32Array(n),
+    part = new Int32Array(n),
+    index = new Int32Array(n)
+  let k = 0
+  parts.forEach((p, q) => {
+    for (let m = 0; m < p.ids.length; m++, k++) {
+      all[k] = p.ids[m]!
+      part[k] = q
+      index[k] = m
+    }
+  })
+  const order = new Uint32Array(n)
+  for (let m = 0; m < n; m++) order[m] = m
+  order.sort((a, b) => all[a]! - all[b]!)
+  const trees = new Float64Array(3 * n),
+    ids = new Int32Array(n)
+  for (let o = 0; o < n; o++) {
+    const m = order[o]!,
+      from = parts[part[m]!]!.trees,
+      i = 3 * index[m]!
+    trees[3 * o] = from[i]!
+    trees[3 * o + 1] = from[i + 1]!
+    trees[3 * o + 2] = from[i + 2]!
+    ids[o] = all[m]!
+  }
+  return { trees, ids }
 }
 
 /**

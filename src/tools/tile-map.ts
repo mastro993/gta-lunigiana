@@ -1,14 +1,14 @@
 // Cuts the map the build makes (one heightmap, every wall and tree, the land cover rasterised tile
 // by tile) into the global map and its 2 km tiles (src/sim/map/packed.ts), one tile at a time, and
-// joins them back for the tools that read a whole map (map-diff, preview-map, the map tests). The
-// cut is exact: joining the tiles gives back every node, wall, tree and cover cell, in order (the
-// trees in id order: merged by id, `mergeTrees`).
+// stamps them with the build hash. The cut is exact: joining the tiles back (`joinTiles` in
+// map-file.ts, for the tools that read a whole map) gives back every node, wall, tree and cover
+// cell, in order (the trees in id order: merged by id, `mergeTrees` in trees.ts).
 import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
 import type { MonzoneMap, Spawn, Water } from "../sim/map/index.ts"
 import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
-import { TILE_CELLS, TILE_NODES, type TileData } from "../sim/map/packed.ts"
+import { TILE_CELLS, TILE_NODES } from "../sim/map/packed.ts"
 import { placeFrom } from "../sim/sky/place.ts"
 import { packMap, packTile } from "./pack.ts"
 
@@ -53,46 +53,6 @@ export interface BuiltMap extends Omit<
 export type Bakes = Pick<MonzoneMap, "lanes" | "farms" | "lamps"> & {
   readonly floors: ReadonlyArray<ReadonlyArray<number>>
   readonly parked: MonzoneMap["spawns"]["parked"]
-}
-
-/** Trees as flat (x, y, scale) triples on whole metres and each one's id (its look's seed), ascending. */
-export interface TreeList {
-  readonly trees: Float64Array
-  readonly ids: Int32Array
-}
-
-/** The trees of `parts` (each in ascending id order, no id in two) merged in id order. */
-export const mergeTrees = (
-  parts: ReadonlyArray<{ readonly trees: ArrayLike<number>; readonly ids: ArrayLike<number> }>,
-): TreeList => {
-  const n = parts.reduce((sum, p) => sum + p.ids.length, 0)
-  // Every tree's id, part and place in it, then the trees sorted by id.
-  const all = new Int32Array(n),
-    part = new Int32Array(n),
-    index = new Int32Array(n)
-  let k = 0
-  parts.forEach((p, q) => {
-    for (let m = 0; m < p.ids.length; m++, k++) {
-      all[k] = p.ids[m]!
-      part[k] = q
-      index[k] = m
-    }
-  })
-  const order = new Uint32Array(n)
-  for (let m = 0; m < n; m++) order[m] = m
-  order.sort((a, b) => all[a]! - all[b]!)
-  const trees = new Float64Array(3 * n),
-    ids = new Int32Array(n)
-  for (let o = 0; o < n; o++) {
-    const m = order[o]!,
-      from = parts[part[m]!]!.trees,
-      i = 3 * index[m]!
-    trees[3 * o] = from[i]!
-    trees[3 * o + 1] = from[i + 1]!
-    trees[3 * o + 2] = from[i + 2]!
-    ids[o] = all[m]!
-  }
-  return { trees, ids }
 }
 
 /** No baked tables yet: what the bake itself runs on. */
@@ -476,75 +436,4 @@ export const stampMap = (
   const stamped: MonzoneMap = { ...global, hash }
   const { file, sizes } = packMap(stamped)
   return { global: stamped, file, sizes, tile: (tile) => restamp(tile, hash) }
-}
-
-/** The whole map joined back from its global map and tiles: the dense layers whole again, next to everything global. */
-export interface JoinedMap extends Omit<MonzoneMap, "heightmap" | "walls"> {
-  /** `cols` × `rows` nodes, decimetres, row-major from the south-west node. */
-  readonly heightmap: MonzoneMap["heightmap"] & { readonly data: ArrayLike<number> }
-  /** The global walls' broad-phase facts, and every flat (ax, ay, bx, by) wall in the whole map's order. */
-  readonly walls: MonzoneMap["walls"] & {
-    readonly walk: ArrayLike<number>
-    readonly shore: ArrayLike<number>
-    readonly drive: ArrayLike<number>
-  }
-  /** Flat (x, y, scale) triples in the whole map's order: by id. */
-  readonly trees: ArrayLike<number>
-  /** Each tree's id (its look's seed, trees.ts), ascending. */
-  readonly treeIds: ArrayLike<number>
-  /** Every land-cover cell, `(cols − 1) × (rows − 1)`. */
-  readonly cover: ArrayLike<number>
-}
-
-/** The whole map back from the global map and its decoded tiles: what the tools and the map tests read. */
-export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): JoinedMap => {
-  const { cell, cols, rows, x0, y0 } = global.heightmap
-  const n = TILE / cell,
-    cx = Math.round(x0 / cell),
-    cy = Math.round(y0 / cell)
-  const data = new Int16Array(cols * rows),
-    cover = new Uint8Array((cols - 1) * (rows - 1))
-  const byKey = new Map(tiles.map((t) => [tileKey(t.i, t.j), t]))
-  const listed = global.tiles.map(({ i, j }) => {
-    const t = byKey.get(tileKey(i, j))
-    if (t === undefined) throw new Error(`join: tile ${tileKey(i, j)} missing`)
-    if (t.hash !== global.hash)
-      throw new Error(
-        `join: tile ${tileKey(i, j)} is from another build (${t.hash}, not ${global.hash})`,
-      )
-    return t
-  })
-  const flat = (kind: "walk" | "shore" | "drive") => {
-    const out = new Float64Array(listed.reduce((sum, t) => sum + t.walls[kind].length, 0))
-    for (const t of listed)
-      t.wallIds[kind].forEach((id, k) => out.set(t.walls[kind].subarray(4 * k, 4 * k + 4), 4 * id))
-    return out
-  }
-  for (const t of listed) {
-    const { i, j } = t
-    for (let r = 0; r < TILE_NODES; r++)
-      for (let c = 0; c < TILE_NODES; c++) {
-        const gi = n * i + c - cx,
-          gj = n * j + r - cy
-        if (gi >= 0 && gi < cols && gj >= 0 && gj < rows)
-          data[gj * cols + gi] = t.heights[r * TILE_NODES + c]!
-      }
-    for (let r = 0; r < TILE_CELLS; r++)
-      for (let c = 0; c < TILE_CELLS; c++) {
-        const ci = n * i + c - cx,
-          cj = n * j + r - cy
-        if (ci >= 0 && ci < cols - 1 && cj >= 0 && cj < rows - 1)
-          cover[cj * (cols - 1) + ci] = t.cover[r * TILE_CELLS + c]!
-      }
-  }
-  const { trees, ids } = mergeTrees(listed)
-  const { heightmap, ...rest } = global
-  return {
-    ...rest,
-    heightmap: { ...heightmap, data },
-    walls: { ...global.walls, walk: flat("walk"), shore: flat("shore"), drive: flat("drive") },
-    trees,
-    treeIds: ids,
-    cover,
-  }
 }

@@ -951,7 +951,7 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   it on the anchor's pixels, the pixels one raster of the whole map has there. A tree belongs to the
   tile of its rounded point, so two lattice points that round onto one spot, even from either side
   of a seam, meet in one tile, where a bit a metre keeps the first (the lattice's before the bank
-  trees). The tiles' trees are merged by id (`mergeTrees` in `tile-map.ts`). The scatter takes
+  trees). The tiles' trees are merged by id (`mergeTrees` in `trees.ts`). The scatter takes
   0.7 s for Lunigiana's 30 tiles and holds one tile's masks, 3 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
   clear of walk and drive walls. Cesena, and a test region without the Carabinieri, use a central

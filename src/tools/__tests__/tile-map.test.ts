@@ -2,8 +2,9 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { decodeMap, decodeTile, MAP_VERSION } from "../../sim/map/packed.ts"
+import { joinTiles } from "../map-file.ts"
 import { packTile } from "../pack.ts"
-import { type BuiltMap, cutMap, joinTiles, NO_BAKES, stampMap } from "../tile-map.ts"
+import { type BuiltMap, cutMap, NO_BAKES, stampMap } from "../tile-map.ts"
 
 /** The 6 × 6 cells' land cover. */
 const cover = Array.from({ length: 36 }, (_, k) => k % 22)

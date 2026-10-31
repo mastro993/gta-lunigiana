@@ -44,8 +44,7 @@ import {
   outOfOrder,
 } from "./diff-lists.ts"
 import { type Category, exitCodeOf, parseArgs } from "./map-diff-args.ts"
-import { readWholeMap } from "./map-file.ts"
-import type { JoinedMap } from "./tile-map.ts"
+import { type JoinedMap, readWholeMap } from "./map-file.ts"
 
 /** One category that differs: its name and the report's lines for it. */
 interface Block {
