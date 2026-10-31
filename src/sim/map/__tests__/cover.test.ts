@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { coverName, rasterCover } from "../cover.ts"
 import { AREA_KINDS } from "../index.ts"
+import { coverBlocks } from "../raster.ts"
 
 // 10 × 10 cells of 4 m from (0, 0); row 0 = south.
 const heightmap = {
@@ -168,4 +169,36 @@ test("a block of the raster has the cells the whole raster has there", () => {
     "paved",
     "pebble",
   ])
+})
+
+test("every block coverBlocks fills has the cells the whole raster has there, areas beside it skipped", () => {
+  const map = {
+    heightmap,
+    // Areas each in a corner or a stripe of the cells, so most blocks meet some and miss others.
+    areas: [
+      { kind: "forest" as const, rings: [[0, 0, 40, 0, 40, 6, 0, 6]] },
+      { kind: "parking" as const, rings: [[13, 9, 31, 11, 27, 33, 9, 22]] },
+      { kind: "rock" as const, rings: [[0.5, 33, 4.1, 33, 4.1, 40, 0.5, 40]] },
+      { kind: "farmland" as const, rings: [[35.9, 30, 40, 30, 40, 34.2, 35.9, 34.2]] },
+    ],
+    water: [],
+    roads: [],
+    buildings: [],
+  }
+  const whole = rasterCover(map),
+    cover = coverBlocks(map)
+  for (let c0 = 0; c0 < 10; c0++)
+    for (let r0 = 0; r0 < 10; r0++)
+      for (const [cols, rows] of [
+        [1, 1],
+        [2, 3],
+        [10 - c0, 1],
+        [1, 10 - r0],
+      ] as const) {
+        if (c0 + cols > 10 || r0 + rows > 10) continue
+        const part = cover({ c0, r0, cols, rows })
+        part.forEach((v, k) =>
+          assert.equal(v, whole[(r0 + Math.floor(k / cols)) * 10 + c0 + (k % cols)], `${c0} ${r0}`),
+        )
+      }
 })

@@ -1,8 +1,8 @@
 /**
  * Land cover of every 4 m terrain cell: map areas rasterised with a scanline even-odd fill
  * (`fillPolygon`), meadow where nothing covers a cell, paving where a house fronts a road, and
- * pebble beds along rivers and streams. The build rasterises each tile's cells (`rasterCover` on a
- * block, the cells a raster of the whole map gives there) as it cuts the tiles
+ * pebble beds along rivers and streams. The build rasterises each tile's cells (`coverBlocks`, the
+ * cells a raster of the whole map gives there) as it cuts the tiles
  * (src/tools/tile-map.ts); `./cover.ts` reads them there. Imports no map, so the build can use it
  * before the map exists.
  *
@@ -73,34 +73,77 @@ const cellsNear = (
 /** Extra pebble bed beyond the water's half-width, by water width (m); narrow streams get none. */
 const bankOf = (w: number): number => (w >= 12 ? 5 : w >= 8 ? 3 : w >= 4 ? 1.5 : 0)
 
+/** What the cover is rasterised from. */
+interface CoverSource {
+  readonly heightmap: MonzoneMap["heightmap"]
+  readonly areas: ReadonlyArray<Area>
+  readonly water: ReadonlyArray<Omit<Water, "floor">>
+  readonly roads: ReadonlyArray<Road>
+  readonly buildings: ReadonlyArray<Building>
+}
+
 /**
  * The cover of the terrain cells of `block` (every cell when absent: the `(cols − 1) × (rows − 1)`
  * cells of the heightmap), row-major with row 0 = south. Forest is filled first, so every other
  * area and the river beds draw over it. A block's cells come out as in the whole raster.
  */
-export const rasterCover = (
-  map: {
-    readonly heightmap: MonzoneMap["heightmap"]
-    readonly areas: ReadonlyArray<Area>
-    readonly water: ReadonlyArray<Omit<Water, "floor">>
-    readonly roads: ReadonlyArray<Road>
-    readonly buildings: ReadonlyArray<Building>
-  },
-  part?: PixelBlock,
-): Uint8Array => {
-  const { cell, x0, y0 } = map.heightmap
+export const rasterCover = (map: CoverSource, part?: PixelBlock): Uint8Array =>
+  coverBlocks(map)(part)
+
+/**
+ * `rasterCover` of `map` for one block after another: the areas sorted and boxed once, and each
+ * block filling only those whose box comes within a cell of it (the build asks it for every tile,
+ * and a scan of every area's rows for each tile grew with the square of the map).
+ */
+export const coverBlocks = (map: CoverSource): ((part?: PixelBlock) => Uint8Array) => {
   const cols = map.heightmap.cols - 1,
     rows = map.heightmap.rows - 1
-  const block = part ?? { c0: 0, r0: 0, cols, rows }
+  const ordered = [...map.areas]
+    .sort((a, b) => (coverIndex.get(a.kind) ?? 0) - (coverIndex.get(b.kind) ?? 0))
+    .flatMap(({ kind, rings }) => {
+      const cover = coverIndex.get(kind)
+      if (cover === undefined) return []
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity
+      for (const ring of rings)
+        for (let k = 0; k < ring.length; k += 2) {
+          minX = Math.min(minX, ring[k]!)
+          maxX = Math.max(maxX, ring[k]!)
+          minY = Math.min(minY, ring[k + 1]!)
+          maxY = Math.max(maxY, ring[k + 1]!)
+        }
+      return [{ cover, rings, minX, minY, maxX, maxY }]
+    })
+  return (part) => paint(map, ordered, part ?? { c0: 0, r0: 0, cols, rows }, cols, rows)
+}
+
+/** One block of the cover: the areas `ordered` whose box meets it filled in turn, then the paving and the river beds. */
+const paint = (
+  map: CoverSource,
+  ordered: ReadonlyArray<{
+    readonly cover: number
+    readonly rings: ReadonlyArray<ReadonlyArray<number>>
+    readonly minX: number
+    readonly minY: number
+    readonly maxX: number
+    readonly maxY: number
+  }>,
+  block: PixelBlock,
+  cols: number,
+  rows: number,
+): Uint8Array => {
+  const { cell, x0, y0 } = map.heightmap
   const out = new Uint8Array(block.cols * block.rows)
-  const ordered = [...map.areas].sort(
-    (a, b) => (coverIndex.get(a.kind) ?? 0) - (coverIndex.get(b.kind) ?? 0),
-  )
-  for (const area of ordered) {
-    const cover = coverIndex.get(area.kind)
-    if (cover !== undefined)
-      fillPolygon(area.rings, x0, y0, cell, cols, rows, (k) => (out[k] = cover), block)
-  }
+  // A pixel is filled only where its centre lies in the area's box: a cell's margin on each side.
+  const bx0 = x0 + (block.c0 - 1) * cell,
+    bx1 = x0 + (block.c0 + block.cols + 1) * cell,
+    by0 = y0 + (block.r0 - 1) * cell,
+    by1 = y0 + (block.r0 + block.rows + 1) * cell
+  for (const { cover, rings, minX, minY, maxX, maxY } of ordered)
+    if (maxX >= bx0 && minX <= bx1 && maxY >= by0 && minY <= by1)
+      fillPolygon(rings, x0, y0, cell, cols, rows, (k) => (out[k] = cover), block)
   // Open ground (meadow, residential grass) both near a wall and near a road edge.
   const fronting = new Uint8Array(block.cols * block.rows),
     open = new Set([coverIndex.get("meadow"), coverIndex.get("residential")]),

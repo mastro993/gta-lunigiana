@@ -171,10 +171,12 @@ collections: 121 MB of array buffers, 39 MB, the grid alone, once it goes).
 
 The output cuts the map into its tiles once ([Map files](#map-files)), one at a time, each packed
 with an empty hash as soon as it is cut: its nodes from the grid (whole decimetres, an `Int16Array`),
-its land cover rasterised for its cells alone (`rasterCover` on a block of the cells, with the whole
-raster's arithmetic, so no raster of the whole map is ever made), and its walls and trees in the
-whole map's order (sorted by tile once). The walls' blocked cells are worked out tile by tile too:
-the slope test and the 3 × 3 majority filter of a tile's cells read one cell past it, from the
+its land cover rasterised for its cells alone (`coverBlocks` in `raster.ts`, with the whole
+raster's arithmetic, so no raster of the whole map is ever made; the areas are sorted and boxed
+once, and a tile fills only those whose box comes within a cell of it: the cut took 1.9 s rather
+than 2.4 s on the 3x test region, whose tiles in a row each scanned every area of the row), and
+its walls and trees in the whole map's order (sorted by tile once). The walls' blocked cells are
+worked out tile by tile too: the slope test and the 3 × 3 majority filter of a tile's cells read one cell past it, from the
 grid, into one bit set per kind over the whole map, which is traced as one (the loops in the order
 of their lowest crossing, each simplified and split as it is traced, so only the loop at hand is
 held). The bake reads those through a store that keeps 16 decoded and drops the first one read past

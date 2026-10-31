@@ -9,7 +9,7 @@ import { promisify } from "node:util"
 import { gzip } from "node:zlib"
 
 import { MAP_VERSION, provideMap } from "../sim/map/packed.ts"
-import { rasterCover } from "../sim/map/raster.ts"
+import { coverBlocks } from "../sim/map/raster.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import type { buildWorld } from "./build-world.ts"
@@ -107,7 +107,7 @@ export const assembleMap = (
     spawns: world.spawns,
   }
   // Rasterised a tile at a time, as the cut asks for it.
-  return { ...map, cover: (block) => rasterCover(map, block) }
+  return { ...map, cover: coverBlocks(map) }
 }
 
 /** The grid's nodes in whole decimetres, each checked to fit int16 (a NaN or a height past ±3276.7 m fails the build). */

@@ -43,7 +43,7 @@ export interface BuiltMap extends Omit<
   readonly treeIds: ArrayLike<number>
   /** The trees' broad-phase corner, `walls.lattice.trees`: fixed per region (trees.ts `treeCorner`). */
   readonly treeCorner: readonly [number, number]
-  /** The land cover of a block of the heightmap's `(cols − 1) × (rows − 1)` cells (`rasterCover`), row-major. */
+  /** The land cover of a block of the heightmap's `(cols − 1) × (rows − 1)` cells (`coverBlocks`), row-major. */
   readonly cover: (block: PixelBlock) => ArrayLike<number>
   readonly water: ReadonlyArray<Omit<Water, "floor">>
   readonly spawns: Omit<MonzoneMap["spawns"], "parked"> & { readonly parked: ReadonlyArray<Spawn> }
