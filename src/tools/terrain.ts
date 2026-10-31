@@ -121,7 +121,7 @@ export const cellOf = (f: number, o: number, n: number): number =>
   Math.min(n - 2, Math.max(0, Math.floor(f) + o))
 
 /** The fraction, clamped to 0 … 1, of cell `i` (`cellOf`) at the point `f` cells past node `o`. */
-export const fractionOf = (f: number, o: number, i: number): number =>
+const fractionOf = (f: number, o: number, i: number): number =>
   Math.min(1, Math.max(0, f - (i - o)))
 
 /**
