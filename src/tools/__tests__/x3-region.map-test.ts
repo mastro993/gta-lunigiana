@@ -1,14 +1,15 @@
 // The 3x test region (`lunigiana-3x`, region.ts), whose play area is lucido's on three times its
 // built terrain, against lucido: the terrain and the tables the bake reads from it in lucido's
-// rectangle, and the live vehicles round Monzone (the same seed and the same stand at the start:
-// `stand.ts`, one child process a map, as a process loads one map). The 3x is built by hand (node
-// src/tools/build-map.ts --region lunigiana-3x, 15.5 s, 1.5 GB; CI never builds it), and without it
-// this is skipped.
+// rectangle, and the live vehicles round Monzone (six seeds and the same stand at the start:
+// `stand.ts`, one child process a map and seed, as a process loads one map). The 3x is built by
+// hand (node src/tools/build-map.ts --region lunigiana-3x, 15.5 s, 1.5 GB; CI never builds it), and
+// without it this is skipped.
 import assert from "node:assert/strict"
-import { execFileSync } from "node:child_process"
+import { execFile } from "node:child_process"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
+import { promisify } from "node:util"
 
 import { insideRings } from "../../sim/map/outline.ts"
 import { PARKED } from "../../sim/population/parked.ts"
@@ -22,6 +23,7 @@ const skip = existsSync(builtMapUrl(X3))
   ? false
   : `no ${X3.key} build in test-maps: run node src/tools/build-map.ts --region ${X3.key}`
 const STAND = fileURLToPath(new URL("stand.ts", import.meta.url))
+const run = promisify(execFile)
 const LUCIDO = PARTS[0]!.rects[0]!
 
 let both: { readonly lucido: JoinedMap; readonly x3: JoinedMap } | undefined
@@ -112,22 +114,40 @@ test("every platform of the 3x lies in its play area, lucido's rectangle", { ski
         )
 })
 
-/** How many vehicles are live after the stand on the map of region `key`, by kind. */
-const stand = (key: string) => {
-  const { parked, traffic, other } = JSON.parse(
-    execFileSync(process.execPath, [STAND, key], { encoding: "utf8" }),
-  ) as { readonly parked: number; readonly traffic: number; readonly other: number }
-  return { parked, traffic, other }
+/** What `stand.ts` prints: the live vehicles after the stand, and the dice's spots round the start. */
+interface Stand {
+  readonly parked: number
+  readonly traffic: number
+  readonly other: number
+  readonly spots: ReadonlyArray<number>
+  readonly dice: ReadonlyArray<number>
+  readonly near: ReadonlyArray<string>
 }
+/** The stand on the map of region `key` on `seed`, in a process of its own. */
+const stand = async (key: string, seed: number): Promise<Stand> =>
+  JSON.parse(
+    (await run(process.execPath, [STAND, key, String(seed)], { encoding: "utf8" })).stdout,
+  ) as Stand
 
+// A spot's car is the dice's for its index and the seed (`carOn`), and the 3x leaves out one spot
+// past lucido's edge (docs/map.md, "Test regions"), so the same seed parks other cars round Monzone
+// there: what holds whatever the seed is that the cars are the dice's on the spots within 300 m of
+// the start, which stand where they do on lucido.
 test(
-  "round Monzone the live vehicles are as many on three times lucido's built terrain as on lucido, within 200 parked and 10 traffic",
+  "round Monzone the live vehicles do not grow with the map: on lucido and on three times its built terrain, the dice's cars on the same spots, within 200 parked and 10 traffic",
   { skip },
-  () => {
-    const lucido = stand("lunigiana")
-    assert.deepEqual(stand(X3.key), lucido)
-    const { parked, traffic, other } = lucido
-    assert.ok(parked + other <= PARKED && traffic <= TRAFFIC.max)
-    assert.ok(parked > 0 && traffic > 0 && other === 2) // the Carabinieri's two
+  async () => {
+    const runs = await Promise.all(
+      [1, 2, 3, 4, 5, 6].flatMap((seed) =>
+        ["lunigiana", X3.key].map(async (key) => ({ key, seed, ...(await stand(key, seed)) })),
+      ),
+    )
+    for (const { key, seed, parked, traffic, other, spots, dice, near } of runs) {
+      const on = `${key}, seed ${seed}`
+      assert.deepEqual(spots, dice, on)
+      assert.deepEqual(near, runs[0]!.near, on)
+      assert.ok(parked + other <= PARKED && traffic <= TRAFFIC.max, on)
+      assert.ok(parked > 0 && traffic > 0 && other === 2, on) // the Carabinieri's two
+    }
   },
 )

@@ -140,15 +140,21 @@ stages were sped up (lucido's files the same, byte for byte):
   what changed). Gzip at level 9 takes 78 ms on a synthetic tile against 43 ms on a lucido one
   (the edge drawn on repeats, which lengthens its match chains), so a real part's tiles write
   faster but bring roads, walls and trees the synthetic ones lack.
-- **Live vehicles round Monzone** (`x3-region.map-test.ts`, which runs `stand.ts` on each map in a
-  process of its own and is skipped without the 3x build): after the player stands 60 s at the start
-  on seed 1, 18 on both, 6 parked, 10 traffic and the Carabinieri's 2, within the 200 parked and 10
-  traffic `PARKED` and `TRAFFIC.max` allow. Not the same cars: the 3x keeps 804 parked spots, not
-  805, as 9 buildings across lucido's edge, clipped to its box on lucido (their centroid inside),
-  are kept whole and dropped by their centroid there (CTR building 700764389 by spot 367, at
-  (−2892.7, 3095.5)), so every spot after 367 moves up one index and the spots' hash parks other
-  cars on them (spots 228, 452, 652, 740, 788 and 801 on lucido; 228, 442, 451, 453, 776 and 801 on
-  the 3x). Monzone's own spots stand where they did.
+- **Live vehicles round Monzone** (`x3-region.map-test.ts`, which runs `stand.ts` on each map and
+  seeds 1–6, each in a process of its own, and is skipped without the 3x build): after the player
+  stands 60 s at the start, the parked cars on either map are exactly those the dice (`carOn`, a hash
+  of a spot's index and the seed) park on the 34 spots within 300 m of the start, which stand where
+  they do on lucido, beside 10 traffic and the Carabinieri's 2, within the 200 parked and 10 traffic
+  `PARKED` and `TRAFFIC.max` allow: 6, 7, 6, 6, 8 and 7 parked on lucido on seeds 1–6, and 6, 7, 6,
+  5, 7 and 8 on the 3x. So the count does not grow with the map, but one seed parks other cars on
+  the two: the 3x keeps 804 parked spots, not 805, as 9 buildings across lucido's edge, clipped to
+  its box on lucido (their centroid inside), are kept whole and dropped by their centroid there (CTR
+  building 700764389 by spot 367, at (−2892.7, 3095.5)), so every spot after 367 moves one index
+  down and its dice change (on seed 1, spots 228, 452, 652, 740, 788 and 801 on lucido; 228, 442,
+  451, 453, 776 and 801 on the 3x). Dice keyed on a spot's place rather than its index would keep
+  them, a change to the parked cars the user chose, not made. `src/sim/__tests__/parked-far.test.ts`
+  (`pnpm test`) gives Lunigiana three times its spots, copies 30 and 60 km east appended after its
+  own: the cars round the start are still the dice's on its own spots.
 - **What else moves**: in lucido's rectangle the 3x's terrain, its land cover more than 50 m in
   from the edge and the tables it bakes are lucido's to the bit (`x3-region.map-test.ts`); the
   place, the catchments and what lucido's edge cuts differ ([What growing a region

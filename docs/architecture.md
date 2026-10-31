@@ -2025,9 +2025,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     ([map.md](map.md#test-regions));
     `x3-region.map-test.ts`: on the 3x test region, every terrain node in lucido's rectangle is
     lucido's, its land cover more than 50 m inside lucido's edge, and the lamps, water beds and
-    parked spots' rests it bakes, every platform lies in its play area, and as many live vehicles round Monzone after a 60 s stand as on
-    lucido (`stand.ts` on each in a process of its own; skipped without the 3x build, which only a
-    hand builds; [map.md](map.md#what-growing-a-region-changes)).
+    parked spots' rests it bakes, every platform lies in its play area, and after a 60 s stand at
+    the start, on seeds 1–6 and on both maps, the parked cars are the dice's on the same spots within
+    300 m of it (`stand.ts`, a process each; skipped without the 3x build, which only a hand builds;
+    [map.md](map.md#what-growing-a-region-changes)); `src/sim/__tests__/parked-far.test.ts` the
+    same with three times the spots, the new ones far away.
 
   Measured on 2026-10-30 on a 14-core Apple-silicon Mac under a load average of 50–95 from other
   work, each file run alone: the split took `pnpm test` from 1,177 tests in 181 files and 228 s of
