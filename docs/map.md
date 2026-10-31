@@ -150,7 +150,7 @@ stages were sped up (lucido's files the same, byte for byte):
   `PARKED` and `TRAFFIC.max` allow: 6, 7, 6, 6, 8 and 7 parked on lucido on seeds 1–6, and 6, 7, 6,
   5, 7 and 8 on the 3x. So the count does not grow with the map, but one seed parks other cars on
   the two: the 3x keeps 804 parked spots, not 805, as 9 buildings across lucido's edge, clipped to
-  its box on lucido (their centroid inside), are kept whole and dropped by their centroid there (CTR
+  its box on lucido (their centroid inside), are kept whole and dropped by their centroid there (OSM
   building 700764389 by spot 367, at (−2892.7, 3095.5)), so every spot after 367 moves one index
   down and its dice change (on seed 1, spots 228, 452, 652, 740, 788 and 801 on lucido; 228, 442,
   451, 453, 776 and 801 on the 3x). Dice keyed on a spot's place rather than its index would keep
