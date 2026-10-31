@@ -1,7 +1,8 @@
 // Regione Toscana land cover 1:10 000, 2019 ("Uso e copertura del suolo", data/raw/rt/ucs.json.gz,
 // written by fetch-rt.ts) as map areas in local metres, clipped to the built terrain's box. Only
-// the open covers OSM mostly lacks above the woods: in the new mountain area it tags about a fifth
-// of the bare rock and half the pastures. Woods, fields and towns stay OSM's.
+// the open covers OSM mostly lacks above the woods (in the new mountain area it tags about a fifth
+// of the bare rock and half the pastures), the rivers' gravel beds and the water bodies. Woods,
+// fields and towns stay OSM's.
 import { readFileSync } from "node:fs"
 import { gunzipSync } from "node:zlib"
 
@@ -17,6 +18,8 @@ export const UCS_CODES = {
   "322": "scrub", // brughiere e cespuglieti
   "332": "rock", // rocce nude, falesie, rupi, affioramenti
   "333": "sparse", // vegetazione rada
+  "331": "pebble", // spiagge, dune e sabbie: inland, the rivers' gravel bars
+  "512": "lake", // corpi d'acqua
 } as const satisfies Record<string, AreaKind>
 
 interface UcsFile {

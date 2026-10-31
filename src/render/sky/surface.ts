@@ -104,6 +104,8 @@ const SHALLOWS = {
   clear: 0.05,
   full: 0.7,
 } as const
+/** Still water darkens toward the deep water's colour from `from` m deep to `to` (TUNED by eye: a lake's middle, 3 m at most, reads deep). */
+const STILL_DEEP = { colour: new Color(PALETTE.waterDeep), from: 0.7, to: 2.5 } as const
 
 /** A number as a GLSL float literal. */
 const num = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n))
@@ -153,9 +155,11 @@ const VERTEX_PARS = /* glsl */ `
 #ifdef WEATHER_WATER
 attribute float stage;
 attribute vec3 flow;
+attribute float still;
 uniform float uRiverStage;
 varying vec3 vRiverFlow;
 varying float vRiverDepth;
+varying float vStill;
 #endif
 #ifdef WEATHER_TREE
 attribute float canopy;
@@ -169,7 +173,8 @@ uniform vec3 uSwayAxis;
 
 /**
  * After `begin_vertex`: a river's surface lifted off its bed to the depth the rivers run at (its
- * vertex's `stage` × q^STAGE, as `waterAt` has it), the rest pose (what the snow and the clouds are locked to), then the tree's
+ * vertex's `stage` × q^STAGE, as `waterAt` has it; a lake's `still` depth shades it but lifts
+ * nothing), the rest pose (what the snow and the clouds are locked to), then the tree's
  * sway. A canopy moves rigidly by whole texels along the camera's right (a sprite's wobble: the
  * static world never shimmers), converted back into the unit shape's frame (Rᵀ·w / s); the trunk
  * stays. The shadow pass draws the rest pose.
@@ -178,6 +183,8 @@ const VERTEX_SWAY = /* glsl */ `
 #ifdef WEATHER_WATER
   vRiverDepth = stage * uRiverStage;
   transformed.y += vRiverDepth;
+  vRiverDepth += still;
+  vStill = still;
   vRiverFlow = flow;
 #endif
 vec3 weatherRest = transformed;
@@ -217,6 +224,7 @@ uniform float uRipples;
 #ifdef WEATHER_WATER
 varying vec3 vRiverFlow;
 varying float vRiverDepth;
+varying float vStill;
 uniform float uRiverSpeed;
 #endif
 #define WEATHER_FEATHER ${num(FEATHER)}
@@ -266,6 +274,8 @@ vec2 weatherMap = vec2(vWeatherWorld.x, -vWeatherWorld.z);
 {
   // Shallow water shows the pebbles through it; the water's own colour, and the dark channel's, only where it is deep.
   diffuseColor.rgb = mix(vec3(${num(SHALLOWS.colour.r)}, ${num(SHALLOWS.colour.g)}, ${num(SHALLOWS.colour.b)}), diffuseColor.rgb, smoothstep(${num(SHALLOWS.clear)}, ${num(SHALLOWS.full)}, vRiverDepth));
+  // A lake darkens with its depth.
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${num(STILL_DEEP.colour.r)}, ${num(STILL_DEEP.colour.g)}, ${num(STILL_DEEP.colour.b)}), smoothstep(${num(STILL_DEEP.from)}, ${num(STILL_DEEP.to)}, vStill));
 }
 {
   // The current: streaks carried downstream at the water's mean speed there, two phases crossfaded.

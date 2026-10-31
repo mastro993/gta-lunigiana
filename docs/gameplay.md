@@ -69,11 +69,12 @@ back once it rests on a seat.
   (`walkBy` in `src/sim/body.ts`). Velocity is what actually happened, so a wall stops it. Water is
   no wall.
 - Knocked down, the player cannot steer and slides to a stop (10 m/s²).
-- **In a river or stream** the player wades, slower the deeper it is (a sprint most of all) and
-  pushed by the current, until the water reaches his chest or the current takes his feet (an adult's 1.2 m²/s of depth ×
-  speed); then he swims with the current at 0.9 m/s of his own (sprinting, a hard crawl at 1.4
-  m/s), and swims out wherever he heads. He never drowns. Knocked down in the water, the current
-  takes him. The rivers' depth and current follow the rain ([water.md](water.md)).
+- **In a river, a stream or a lake** the player wades, slower the deeper it is (a sprint most of
+  all) and pushed by the current, until the water reaches his chest or the current takes his feet
+  (an adult's 1.2 m²/s of depth × speed); then he swims with the current at 0.9 m/s of his own
+  (sprinting, a hard crawl at 1.4 m/s), and swims out wherever he heads. He never drowns. Knocked
+  down in the water, the current takes him. The rivers' depth and current follow the rain; a lake
+  stands still at its level ([water.md](water.md)).
 
 ## Entering, stealing, carjacking, exiting
 

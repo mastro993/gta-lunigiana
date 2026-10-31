@@ -13,6 +13,7 @@ import { surfaceY, yOf } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
 import { prism, type RibbonSpec, strips, throughApron } from "./ribbons.ts"
 import { underPanel } from "./track-index.ts"
+import { inPool } from "./water.ts"
 
 /** Deck slab under segments k0..k1 of a bridge and a low parapet along each side. */
 const bridge = (
@@ -140,6 +141,7 @@ const roads = (): Array<Piece> =>
  * Rivers and streams: a shallow ribbon over the whole bed, with a deeper channel down the middle of
  * the wide ones, laid flat on the bed (`channelOf`) for the shader to lift to the level the rivers
  * run at; the terrain above that level hides it, so in a spate the water spreads over the gravel.
+ * The ribbon stops where a lake or a river polygon holds the water (`render/water`).
  */
 const water = (): Array<Piece> =>
   MAP.water.map((w) => {
@@ -161,6 +163,7 @@ const water = (): Array<Piece> =>
         width: 2 * reachOf(w),
         hex: PALETTE.waterShallow,
         y: (_x, _y, z) => yOf(z) + 0.02,
+        cover: inPool,
       },
       ...(w.w >= 8
         ? [
@@ -169,6 +172,7 @@ const water = (): Array<Piece> =>
               width: w.w * 0.45,
               hex: PALETTE.waterDeep,
               y: (_x: number, _y: number, z: number) => yOf(z) + 0.04,
+              cover: inPool,
             },
           ]
         : []),

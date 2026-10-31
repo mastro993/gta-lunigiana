@@ -1,7 +1,7 @@
 // Downloads the Regione Toscana sources (Geoscopio cartoteca) and writes the pinned subsets the map
 // build reads to data/raw/rt. Run: node src/tools/fetch-rt.ts  (pnpm fetch-rt), or
 // `node src/tools/fetch-rt.ts ctr` (pnpm fetch-rt ctr) for the CTR sheets alone, which leaves the
-// LiDAR and the land cover as they are. What it downloads comes from the part's manifest,
+// LiDAR and the land cover as they are, or `ucs` for the land cover alone. What it downloads comes from the part's manifest,
 // data/parts/<part>.json (`manifest.ts`); it reads one part, today's (`lucido` in `region.ts`),
 // until #17 brings `fetch-rt <part>` and the per-part raw layout. Needs `unzip` on the PATH. The
 // archives are cached in the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes equal
@@ -22,7 +22,7 @@
 //   from the 10 m DTM (CC BY 3.0 IT), bent onto the LiDAR around each hole.
 // - ucs.json.gz: land cover 1:10 000, 2019 ("Uso e copertura del suolo", CC BY 4.0), EPSG:3003:
 //   the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse vegetation,
-//   pastures, heath), from the WFS.
+//   pastures, heath), the rivers' gravel and the water bodies, from the WFS.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { deflateSync, gunzipSync, gzipSync, inflateSync } from "node:zlib"
@@ -39,10 +39,10 @@ import { UCS_CODES } from "./ucs.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
 const OUT = join(ROOT, "data/raw/rt")
-/** `ctr` fetches the CTR sheets alone; no argument fetches everything. */
+/** `ctr` fetches the CTR sheets alone, `ucs` the land cover alone; no argument fetches everything. */
 const stage = process.argv[2]
-if (stage !== undefined && stage !== "ctr")
-  throw new Error(`unknown stage ${stage}: use ctr or none`)
+if (stage !== undefined && stage !== "ctr" && stage !== "ucs")
+  throw new Error(`unknown stage ${stage}: use ctr, ucs or none`)
 
 // One part until #17 writes a DTM file a tile (rt/dtm/<i>_<j>): one mosaic over two parts would widen
 // its crop over the land between them, all of it holes.
@@ -92,7 +92,7 @@ const pin = (
 
 mkdirSync(join(OUT, "ctr"), { recursive: true })
 
-for (const sheet of CTR_SHEETS) {
+for (const sheet of stage === "ucs" ? [] : CTR_SHEETS) {
   const dir = await fetchZip(ctrUrl(sheet))
   const out = (layer: string, ext: string) => join(OUT, "ctr", `${sheet}_${layer}.${ext}.gz`)
   for (const layer of CTR_LAYERS)
@@ -116,6 +116,38 @@ if (stage === "ctr") process.exit(0)
 // The crop: play-area corners in Gauss-Boaga, widened by MARGIN, on the tiles' cell centres (x.5).
 const crop = cropOf(PART!.rects)
 const { e0, n0, cols, rows } = crop
+
+// Land cover: every polygon of a kept class whose box meets the crop, sorted by id. Coordinates in
+// EPSG:3003 to the decimetre; rings as gml gives them (outer first). The server's BBOX filter
+// sometimes loses features near the box's edge, so the box is padded by UCS.pad (readUcs clips).
+const ucsUrl = wfsUrl(UCS.map, UCS.layer, [
+  e0 - UCS.pad,
+  n0 - UCS.pad,
+  e0 + cols + UCS.pad,
+  n0 + rows + UCS.pad,
+])
+const gml = await getText(ucsUrl)
+// One entry per polygon (a multipolygon has several), each its outer ring then its holes.
+const ucs = parseGml(gml)
+  .flatMap(({ attrs, polygons }) =>
+    Object.hasOwn(UCS_CODES, attrs.ucs2019 ?? "")
+      ? polygons.map((rings) => ({
+          id: Number(attrs.pk_uid),
+          code: attrs.ucs2019!,
+          rings: rings.map((ring) => ring.map((v) => Math.round(v * 10) / 10)),
+        }))
+      : [],
+  )
+  .sort((a, b) => a.id - b.id)
+if (ucs.length === 0) throw new Error("UCS WFS: no polygons")
+pin(
+  join(OUT, "ucs.json.gz"),
+  Buffer.from(JSON.stringify({ crs: "EPSG:3003", year: 2019, polygons: ucs })),
+  fetchedToday(ucsUrl),
+)
+console.log({ ucs: ucs.length })
+if (stage === "ucs") process.exit(0)
+
 const NODATA = -32768
 const dm = new Int16Array(cols * rows).fill(NODATA) // row 0 = south
 
@@ -259,33 +291,3 @@ pin(
   (b) => b,
 )
 console.log({ ...meta, bytes: readFileSync(join(OUT, "dtm.bin")).length, filledFrom10m: holes })
-
-// Land cover: every polygon of a kept class whose box meets the crop, sorted by id. Coordinates in
-// EPSG:3003 to the decimetre; rings as gml gives them (outer first). The server's BBOX filter
-// sometimes loses features near the box's edge, so the box is padded by UCS.pad (readUcs clips).
-const ucsUrl = wfsUrl(UCS.map, UCS.layer, [
-  e0 - UCS.pad,
-  n0 - UCS.pad,
-  e0 + cols + UCS.pad,
-  n0 + rows + UCS.pad,
-])
-const gml = await getText(ucsUrl)
-// One entry per polygon (a multipolygon has several), each its outer ring then its holes.
-const ucs = parseGml(gml)
-  .flatMap(({ attrs, polygons }) =>
-    Object.hasOwn(UCS_CODES, attrs.ucs2019 ?? "")
-      ? polygons.map((rings) => ({
-          id: Number(attrs.pk_uid),
-          code: attrs.ucs2019!,
-          rings: rings.map((ring) => ring.map((v) => Math.round(v * 10) / 10)),
-        }))
-      : [],
-  )
-  .sort((a, b) => a.id - b.id)
-if (ucs.length === 0) throw new Error("UCS WFS: no polygons")
-pin(
-  join(OUT, "ucs.json.gz"),
-  Buffer.from(JSON.stringify({ crs: "EPSG:3003", year: 2019, polygons: ucs })),
-  fetchedToday(ucsUrl),
-)
-console.log({ ucs: ucs.length })

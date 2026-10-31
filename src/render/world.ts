@@ -52,6 +52,7 @@ import { lampPieces } from "./sky/lamps.ts"
 import { stationPieces } from "./stations.ts"
 import { terrainChunk } from "./terrain.ts"
 import { bucketTileTrees, chunkTrees, treeMeshes } from "./trees.ts"
+import { poolWater } from "./water.ts"
 
 const staticMesh = (
   geometry: BufferGeometry,
@@ -258,6 +259,7 @@ export class World {
     const list = this.byChunk[key]!
     for (let n = 0; n < list.length; n += 3)
       this.pieces[list[n]!]!.draw(at, list[n + 1]!, list[n + 2]!)
+    poolWater(key, sink.water)
     const meshes = [staticMesh(terrainChunk(key), terrainMaterial, false)]
     const solid = [...(sink.solid.empty ? [] : [sink.solid.geometry()]), ...sink.pieces]
     if (solid.length > 0) meshes.push(staticMesh(merge(solid), solidMaterial, true))

@@ -14,6 +14,7 @@ import {
   type AreaKind,
   buildingBoxes,
   isAreaKind,
+  isWaterArea,
   MAP,
   ROAD_CLASSES,
   roadClassOf,
@@ -60,7 +61,18 @@ const AREA_HEX: Partial<Record<AreaKind, number>> = {
   scree: PALETTE.stoneLight,
   sparse: PALETTE.grassDry,
   scrub: PALETTE.forestLight,
+  pebble: PALETTE.limestone,
+  river: PALETTE.waterShallow,
+  lake: PALETTE.waterShallow,
 }
+
+/** The order the areas are filled in, by kind: the land, then the water over it, then a river's gravel bars over that. */
+const fillPass = (kind: string): number => (kind === "pebble" ? 2 : isWaterArea(kind) ? 1 : 0)
+/** The areas' indices in fill order (`fillPass`), each pass in the map's order. */
+const AREA_ORDER = MAP.areas
+  .map((area, k) => [fillPass(area.kind), k] as const)
+  .sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  .map(([, k]) => k)
 
 const HOME_UP = screenAxes(0).up
 /**
@@ -138,8 +150,9 @@ interface PaintOptions {
  * play area and clipped to it (`MAP.outline`: the areas reach the built terrain's box, which an L's
  * notch lies in). Lines stay at least 1 px wide; those thinner than that at this scale fade instead.
  * `overview` (the full map) draws roads light, motorways and trunk roads yellow, and at least
- * `OVERVIEW_MIN` px wide, so the network reads at a few pixels per hundred metres. Roads are painted
- * narrowest class first (`ROAD_ORDER`).
+ * `OVERVIEW_MIN` px wide, so the network reads at a few pixels per hundred metres. The lakes and
+ * river polygons are filled over the other areas and the gravel bars over them (`AREA_ORDER`), and
+ * roads are painted narrowest class first (`ROAD_ORDER`).
  */
 export const paintMap = (
   ctx: CanvasRenderingContext2D,
@@ -169,14 +182,15 @@ export const paintMap = (
   ctx.clip(play, "evenodd")
   ctx.fillStyle = css(PALETTE.grass)
   ctx.fill(play, "evenodd")
-  MAP.areas.forEach((area, k) => {
-    const hex = isAreaKind(area.kind) ? AREA_HEX[area.kind] : undefined
-    if (hex === undefined || !reaches(layers?.areas[k])) return
+  for (const k of AREA_ORDER) {
+    const area = MAP.areas[k]!,
+      hex = isAreaKind(area.kind) ? AREA_HEX[area.kind] : undefined
+    if (hex === undefined || !reaches(layers?.areas[k])) continue
     const p = new Path2D()
     for (const ring of area.rings) path(ring, true, p)
     ctx.fillStyle = css(hex)
     ctx.fill(p, "evenodd")
-  })
+  }
   ctx.lineCap = "round"
   ctx.lineJoin = "round"
   const stroke = (flat: ArrayLike<number>, width: number, hex: number, min = 1) => {

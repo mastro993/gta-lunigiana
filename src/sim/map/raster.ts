@@ -1,7 +1,7 @@
 /**
  * Land cover of every 4 m terrain cell: map areas rasterised with a scanline even-odd fill
  * (`fillPolygon`), meadow where nothing covers a cell, paving where a house fronts a road, and
- * pebble beds along rivers and streams. The build rasterises each tile's cells (`coverBlocks`, the
+ * pebble beds along rivers and streams outside the water areas. The build rasterises each tile's cells (`coverBlocks`, the
  * cells a raster of the whole map gives there) as it cuts the tiles
  * (src/tools/tile-map.ts); `./cover.ts` reads them there. Imports no map, so the build can use it
  * before the map exists.
@@ -12,9 +12,12 @@ import { fillPolygon, type PixelBlock, segDist2 } from "../collide.ts"
 import type { Area, AreaKind, Building, MonzoneMap, Road, Water } from "./index.ts"
 import { anchorOf } from "./kinds.ts"
 
-/** Cover kinds: meadow by default, the map's area kinds, and the river bed. */
-export type Cover = "meadow" | AreaKind | "pebble"
-/** Every cover, in fill order: later kinds draw over earlier ones. */
+/** Cover kinds: meadow by default and the map's area kinds (a river's gravel bed is `pebble`). */
+export type Cover = "meadow" | AreaKind
+/**
+ * Every cover, by the value stored in the tiles: new kinds go at the end, so a cover keeps its byte
+ * and `pnpm map-diff` sees only the cells that changed.
+ */
 const COVERS = [
   "meadow",
   "forest",
@@ -38,9 +41,14 @@ const COVERS = [
   "platform",
   "ruins",
   "pebble",
+  "river",
+  "lake",
 ] as const satisfies ReadonlyArray<Cover>
 
 const coverIndex = new Map<string, number>(COVERS.map((c, i) => [c, i]))
+/** The covers in fill order, later kinds drawing over earlier ones: a river's gravel bars over its water. */
+const FILL: ReadonlyArray<Cover> = [...COVERS.slice(0, -3), "river", "lake", "pebble"]
+const fillRank = new Map<string, number>(FILL.map((c, i) => [c, i]))
 
 /** Metres from a wall and from a road's edge within which open ground is paved: house fronts, sidewalks, alleys. */
 const FRONT = 3
@@ -99,7 +107,7 @@ interface CoverSource {
  */
 export const coverBlocks = (map: CoverSource): ((part: PixelBlock) => Uint8Array) => {
   const ordered = [...map.areas]
-    .sort((a, b) => (coverIndex.get(a.kind) ?? 0) - (coverIndex.get(b.kind) ?? 0))
+    .sort((a, b) => (fillRank.get(a.kind) ?? 0) - (fillRank.get(b.kind) ?? 0))
     .flatMap(({ kind, rings }) => {
       const cover = coverIndex.get(kind)
       if (cover === undefined) return []
@@ -180,7 +188,10 @@ const paint = (
       )
     }
   }
-  const pebble = coverIndex.get("pebble")!
+  // The beds along the water lines, but not over a water area, whose own polygon is its bed.
+  const pebble = coverIndex.get("pebble")!,
+    river = coverIndex.get("river")!,
+    lake = coverIndex.get("lake")!
   for (const w of map.water) {
     const reach = w.w / 2 + bankOf(w.w)
     if (reach <= w.w / 2) continue
@@ -193,7 +204,9 @@ const paint = (
         w.pts[k + 2]!,
         w.pts[k + 3]!,
         reach,
-        (c) => (out[c] = pebble),
+        (c) => {
+          if (out[c] !== river && out[c] !== lake) out[c] = pebble
+        },
       )
   }
   return out

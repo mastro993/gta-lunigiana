@@ -118,10 +118,10 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
-  synthetic, with no roads or buildings, only the land cover that reaches past lucido: 19 areas
+  synthetic, with no roads or buildings, only the land cover that reaches past lucido: 22 areas
   run on whole past its edge, among them 4 woods of 97.4 km² that hold 0.98 million more trees, and
-  77 more lie beyond it, 62 of them the CTR's paved surfaces (1,215 areas and 1,988,627 trees
-  against lucido's 1,138 and 1,011,936 on 2026-10-31). It serves the build's memory and time and
+  80 more lie beyond it, 62 of them the CTR's paved surfaces (1,290 areas and 1,986,801 trees
+  against lucido's 1,210 and 1,010,210 on 2026-10-31). It serves the build's memory and time and
   the cars round Monzone, and is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`);
   CI never builds it.
 
@@ -225,8 +225,9 @@ The terrain phase works out the vectors first: the water's surfaces, the road an
 whose writes into the grid are recorded in order as claims, and the water capped under the decks.
 Then `build-grid.ts` builds the grid one 2 km tile at a time (`gridTiles` in `grid-tiles.ts`, south
 to north then west to east): on the window of the tile's 501 × 501 nodes, cut to the grid, it
-averages the LiDAR, carves the beds under the water as first settled, writes the claims in their
-order, carves the beds again under the capped water outside the road cores, reads the terrain under
+averages the LiDAR, carves the lakes and river polygons and the beds under the water as first
+settled, writes the claims in their order (never on the water), carves the river polygons and the
+beds again under the capped water outside the road cores, reads the terrain under
 the water samples whose cells are the tile's own (for the perched check, section 8), rounds to 0.1 m
 and lays the rail bed. A window keeps the whole grid's lattice (`Grid.span` in `terrain.ts`):
 positions, index ranges and clamps are worked out as on the whole grid, so its nodes are the same
@@ -343,7 +344,12 @@ regions](#test-regions)).
   0.5 ha minimum unit), from its WFS. OSM maps the woods and the quarries well but only about a
   fifth of the Apuans' bare rock and half their pastures, so `ucs.ts` adds the open covers: quarries
   (UCS 131), natural pastures (321), heath and scrub (322), bare rock and cliffs (332) and sparse
-  vegetation (333). Woods, fields and towns stay OSM's.
+  vegetation (333). It also adds the rivers' gravel ("spiagge, dune e sabbie", 331: inland, the bars
+  of the beds, 64 polygons and 17.9 ha on the Aulella and the lower Lucido, where OSM draws the
+  woods the 2011–2014 floods scoured; the 2023 orthophoto shows open gravel there) and the water
+  bodies ("corpi d'acqua", 512), but not one OSM already draws ([section
+  3](#3-features-featurests): the one in the bounds is OSM's lake by the Solco di Equi). Woods, fields
+  and towns stay OSM's.
 - **The Aulella's catchment**: one published figure, the 208 km² ARPAL's Annali Idrologici 2017
   (part II) give the Soliera gauge, taken as a fact (as the rivers' calibration takes the gauge's
   flows, [water.md](water.md#sources)); no ARPAL data is shipped.
@@ -368,7 +374,9 @@ with each row delta-coded and deflated (15 MB). It writes the kept land-cover po
 to the decimetre, to `data/raw/rt/ucs.json.gz` (`crs.ts` has the inverse transform); the WFS box is
 padded by 500 m, because the server's box filter sometimes drops features near its edge. `pnpm
 fetch-rt ctr` fetches the CTR sheets alone (28 s with the downloads, 1.5 s from the cache), leaving
-the LiDAR and the land cover, which comes from a live service and would move the map, as they are. A
+the LiDAR and the land cover, which comes from a live service and would move the map, as they are;
+`pnpm fetch-rt ucs` fetches the land cover alone (on 2026-10-31 the service gave the 425 pinned
+polygons of the five open covers back byte for byte, and 83 of codes 331 and 512 besides). A
 file whose unpacked bytes equal the new ones is not rewritten, so another zlib never churns a pinned
 file, and a cached archive folder with no files left in it (macOS purges the temporary directory's
 files but keeps its folders) is fetched again. Requests name only the project in their `User-Agent`.
@@ -525,11 +533,19 @@ part](#adding-a-part)).
   where the CTR's sheets map no ground; elsewhere the CTR's replace them
   ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)): all three of OSM's here.
   Mountain covers: `landuse=quarry` is `quarry`, `natural=bare_rock`/`rock` is `rock`,
-  `natural=scree`/`shingle` is `scree` (mostly ravaneti, the quarries' marble waste),
-  `natural=scrub`/`heath` is `scrub`, and `natural=fell`, `landuse=meadow`/`grass` are `grassland`.
+  `natural=scree` is `scree` (mostly ravaneti, the quarries' marble waste), `natural=scrub`/`heath`
+  is `scrub`, and `natural=fell`, `landuse=meadow`/`grass` are `grassland`. Water: `natural=water`
+  with `water=river` (or `waterway=riverbank`) is a `river` polygon, the bed its river spreads over;
+  with `water=lake`, `reservoir`, `pond` or `basin`, or no `water` tag, a `lake`, its level its
+  `ele` when it has one (none does here); other `water` values are left out, and a `water` tag
+  without `natural=water` is not water (the ruins of a reservoir by the south edge stay `ruins`).
+  `natural=shingle`, a river's gravel, is `pebble` (none here). Lunigiana's OSM draws 8 such
+  polygons: 7 lakes and ponds of 18 to 2,026 m² (the Bozzetti pond at Equi, the quarry ponds by Cave
+  Crespina) and the edge of the Aulella's bed by the Tassonaro, cut by the map's north edge,
+  whose river lies beyond it; Cesena's, 12 river polygons along the Savio, a basin and a reservoir.
   The UCS land cover adds its quarries, rock (`rock`), sparse vegetation (`sparse`), pastures
-  (`grassland`) and heath (`scrub`). The CTR's asphalt road surfaces are added as `paved` areas:
-  squares, lay-bys and station forecourts.
+  (`grassland`), heath (`scrub`), the rivers' gravel (`pebble`) and its water bodies (`lake`). The
+  CTR's asphalt road surfaces are added as `paved` areas: squares, lay-bys and station forecourts.
 - **Barriers**: `barrier=wall`, `barrier=guard_rail` and `natural=cliff` lines. Walls and cliffs
   are opened wherever a road (not a tunnel) comes within w/2 of them (`openBarriers` in
   `walls.ts`): OSM draws cliffs across the paths that climb through them and garden walls up to
@@ -687,7 +703,7 @@ carved and flattened by the next steps; profiles and water sample the untouched 
 Elevations run from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
 Grondilice).
 
-### 6. River carving and catchments (`water.ts`, `catchment.ts`)
+### 6. River carving and catchments (`water.ts`, `water-areas.ts`, `catchment.ts`)
 
 - The water surface is sampled every 2 m at ground − depth/2. It is made monotone downstream and
   continuous at confluences: a tributary's tail is lowered (by at most 0.25 extra slope) or ponded
@@ -708,6 +724,38 @@ Grondilice).
   above it, last first, with no stack (the order a stack of them gave, so the same sums).
 - The bed is carved into the grid: depth/2 below the surface inside w/2, a gravel slope out to the
   bed width, then a one-cell bank back to the terrain.
+- **Water areas** (`water-areas.ts`): a lake, and a river polygon its river does not run through,
+  holds still water at its level: OSM's `ele`, else the median of the uncarved grid's nodes inside
+  it (the LiDAR flies over a lake and reads its surface flat; the vertices' DTM when no node falls
+  inside), but no higher than its spill, the lowest uncarved node of its edge, in whole decimetres.
+  On the bare median the 4 m grid read an edge node up to 3.1 m under the level, where an outline
+  runs up a slope or a cascade, and the water drew over the ground beside it. Capped, the lake by the
+  Solco di Equi stands at 272.0 m (median 272.2) and Bozzetti at 261.5 m (262.0), and two of the
+  seven hold no water at all, the LiDAR reading no hollow under them: the intermittent pond at Prati
+  di Campocecina, on a 24 % slope, and the 18 m² pool on the Canale Doglio's cascade, whose water is
+  the stream's. A river polygon follows its waterways: every water piece with a 2 m sample inside
+  it, a tributary running in too (the Tassonaro's two pieces and the Fosso di Tufo, which joins it,
+  at the north edge; the Savio's in Cesena), which the game's water takes its level and current
+  from ([water.md](water.md#depth-and-current)). The map file keeps a lake's `level` and a river
+  polygon's `waters`.
+- They are carved node by node, each node from its own position and the vectors alone, so a tile's
+  window needs no halo. A node is the area's when one of its four cells is (the cell's centre inside,
+  filled from the anchor as the land cover is), and on the water's edge when one of its cells is in
+  no water area (the seam between two polygons of one river is no edge). A lake's nodes are carved
+  to its level less 0.1 m for each metre from its shore, 3 m deep at most, and its edge raised to
+  the level (by a rounding at most, the level being no higher than the spill), so the shore holds
+  the water drawn up to it. A river polygon's inner nodes are carved to the floor of its waterways
+  at their nearest point (their surface less depth/2, as the line itself is carved within w/2, and
+  0.05 m more, so no node rounds above the floor the game's water stands on), and its outer edge is
+  left, so the bank starts on its outline (riverside paths keep their ground) and the terrain hides
+  the water's edge. Its gravel bars (`pebble` cells inside it) are raised to 0.3 m over the
+  surface, dry until a spate tops them: in the pass under the water kept below the decks, so a bar
+  never stands over a capped surface. Ground more than 1 m over the water's top (a lake's level,
+  the ground a river was sampled on) is left: an island, a quarry face a pond's outline climbs. The
+  lakes and river polygons are carved before the lines, whose own beds then cut their channels
+  through a lake's edge and a river's bars, both before the claims, which may not write on them but
+  for a river polygon's outer edge, and the river polygons again after them, under the water kept
+  below the decks.
 
 ### 7. Road and rail profiles (`profiles.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`)
 
@@ -831,11 +879,12 @@ Grondilice).
 
 Bridges keep 2.5 m of clearance over the water: the surface is capped there, settled again
 downstream, and re-carved outside road cores. At-grade road crossings imply a culvert, where the
-water dips 0.3 m below the road (the two fords over the Aulella, at and below Codiponte, are
-such crossings). Water left perched more than 1 m above the terrain (streams that end at a road cut)
+water dips 0.3 m below the road (the two fords over the Aulella, at and below Codiponte, are such
+crossings). Water left perched more than 1 m above the terrain (streams that end at a road cut)
 drops to the terrain, except inside a wider channel it flows into, and there only while it still
-runs downhill: a stream dropped into a river's carved bed never steps back up. The grid is then
-rounded to 0.1 m and stored as integer decimetres. The capping and settling read no terrain and
+runs downhill (a stream dropped into a river's carved bed never steps back up), or in a lake, whose
+carved bed lies under it (the Canale Doglio through the 18 m² lake at (2934, −2611)). The grid is
+then rounded to 0.1 m and stored as integer decimetres. The capping and settling read no terrain and
 run before the grid is built (`capUnderDecks`); the re-carve runs in each tile's window, which then
 reads the terrain under the water samples of its own cells before rounding; the culverts and the
 perched drop run on those readings once every tile is built (`dropPerched`).
@@ -929,7 +978,7 @@ majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 
 | Wall source | `walk` | `shore` | `drive` |
 |---|---|---|---|
-| Water cells (within max(w/2, 2) m of the centreline) | no | yes, except on any road or a steep cell | no |
+| Water cells (within max(w/2, 2) m of the centreline, and the cells of the lakes and river polygons) | no | yes, except on any road or a steep cell | no |
 | Slope | > 35°, except on any road | no | > 25°, except within w/2 + 1.5 m of a drivable road |
 | Building outlines | yes | no | yes |
 | `wall`, `cliff` barriers | yes | no | yes |
@@ -947,8 +996,11 @@ and against the drive walls with the water's cells open where a drivable road cr
 walls held them before, and stores neither of those.
 
 - Road buffers are padded by half a cell plus the simplification tolerance, so no traced wall
-  comes within w/2 of a centreline. The carved banks of the wider streams skip the slope test:
-  they are the way out of the water.
+  comes within w/2 of a centreline. The carved banks of the wider streams skip the slope test, and
+  so does the edge of a river polygon its river runs through (2 cells either side of its rings),
+  carved to its river's floor: they are the way out of the water. A lake's bed only shelves, and so
+  does a river polygon's whose river the map does not hold, so their banks are walled as steep as
+  they are.
 - Where a drivable road (not a tunnel) runs through or along a footprint, the house gives way:
   OSM centrelines and CTR footprints disagree by a metre or two, and none of these roads is
   tagged as a passage. `clipBuildings` cuts a corridor of min(w/2, 1.2) m half-width out of the
@@ -984,19 +1036,22 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   roads, water, rail or buildings, so the trees keep off the inputs' own, cut to the box beyond the
   outline (`clipBeyond` in `play-area.ts`; the roads as wide as the CTR maps them, the buildings
   whose centre lies beyond it). Before, on the L test region's notch, 1,763 more trees grew there,
-  467 of them on a road, 319 in a stream and 21 in a house of lucido's map, which holds those
-  whole (`l-region.map-test.ts` checks it). Sparse trees also line the banks of the streams the map
-  holds at least 4 m wide: a candidate every 9 m along the OSM way on each
-  side, kept by a hash of the way's id, the step and the side, at most one in a 4 m cell, and
-  standing bed + 2 to bed + 5 m from the centreline. The steps count from the way's start
-  (`WaterF.from`, where the outline cut the piece), so they stay put when the play area grows, but
-  the bed is the piece's: where the outline newly cuts a way sized by its piece (the Lucido and the
-  Caldanella by the piece's mean ground, Cesena's rivers by the piece's median width), its bank
-  trees move with its width. Cesena's Savio (way 1029104404) is cut into pieces 13.8 and 14 m wide;
-  no Lunigiana way sized by its ground is cut today, and a mask across one could switch its water
-  between 8 and 4 m wide and move its bank trees 2 m. No cap: 1 011 936 trees on Lunigiana (1 352
-  on the banks) and 5 633 on Cesena (283), positions rounded to 1 m (at most one tree per spot)
-  and a scale of 0.8–1.3. Placement uses a fixed hash, not a random generator.
+  467 of them on a road, 319 in a stream and 21 in a house of lucido's map, which holds those whole
+  (`l-region.map-test.ts` checks it). Sparse trees also line the banks of the streams the map holds
+  at least 4 m wide: a candidate every 9 m along the OSM way on each side, kept by a hash of the
+  way's id, the step and the side, at most one in a 4 m cell, and standing bed + 2 to bed + 5 m from
+  the centreline. The steps count from the way's start (`WaterF.from`, where the outline cut the
+  piece), so they stay put when the play area grows, but the bed is the piece's: where the outline
+  newly cuts a way sized by its piece (the Lucido and the Caldanella by the piece's mean ground,
+  Cesena's rivers by the piece's median width), its bank trees move with its width. Cesena's Savio
+  (way 1029104404) is cut into pieces 13.8 and 14 m wide; no Lunigiana way sized by its ground is
+  cut today, and a mask across one could switch its water between 8 and 4 m wide and move its bank
+  trees 2 m. The water areas and the rivers' gravel are areas too, so neither lattice nor bank trees
+  stand in them: 1,725 fewer on Lunigiana, 1,655 of them in the UCS gravel, mostly by the Aulella,
+  31 in the lakes and the river polygon and 39 at their edges, where the 2 m masks reach past the
+  outlines. No cap: 1 010 210 trees on Lunigiana (1 204 on the banks) and 5 521 on Cesena (171),
+  positions rounded to 1 m (at most one tree per spot) and a scale of 0.8–1.3. Placement uses a
+  fixed hash, not a random generator.
 - **A fixed lattice**: it starts at the region's anchor (`anchor` in `region.ts`: Lunigiana's
   (−2900, −6100), the corner of its first part, lucido; Cesena's (−2000, −2000)), set once and never
   taken from the bounds, and its cells run on past it either way, so adding a part moves no lattice
@@ -1017,26 +1072,27 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   0.7 s for Lunigiana's 30 tiles and holds one tile's masks, 3 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
   clear of walk and drive walls. Cesena, and a test region without the Carabinieri, use a central
-  street in its connected traffic network (the traffic node nearest the origin, `startNear`).
-  The final rounded position must lie outside every building footprint and have a walk-clear
-  route to its street centreline, sampled at intervals no greater than 0.5 m. Wall distance alone
-  can accept a point deep inside a building, leaving the player trapped.
+  street in its connected traffic network (the traffic node nearest the origin, `startNear`). The
+  final rounded position must lie outside every building footprint and the water areas, and have a
+  walk-clear route to its street centreline, sampled at intervals no greater than 0.5 m. Wall
+  distance alone can accept a point deep inside a building, leaving the player trapped.
 - **Parked spots**: one per 8 buildings (797) on the right kerb of primary, secondary, tertiary,
   unclassified and residential roads (not bridges or tunnels; never by a motor road, where art. 176,
   comma 5 bans stopping on the carriageways and ramps), at least 12 m from junctions and 9 m from
   each other, with two or more buildings within 40 m, off every carriageway (tunnels included),
-  clear of walls, with the car's box at least 2.8 m from at-grade running track (the clearance rule)
-  and 1.94 m from a loop or siding (a train's half-width, 1.44 m, plus 0.5 m: a spot by OSM's
-  Gragnola loop stood 1.4 m from it; measured from the car's centre, the rule kept a spot at
-  (−1645.2, 3301.1) whose side stood 2.02 m from Gragnola's through track), and none within 20 m (in
-  a straight line, so along any road too) of a level-crossing node: the Codice della Strada (art.
-  158) bans stopping "in corrispondenza o in prossimità dei passaggi a livello". That rule took
-  three spots, 14.7–19.4 m from Via Nuova, Via Riolo and Viale 20 Settembre; others took their
-  place. The two nearest the Carabinieri station come first (the sim parks their cars there: the
-  station goes into the map as `spawns.police`, so the game never guesses it among the police POIs);
-  the rest are drawn in hash order from every village's candidates, so each village gets its share.
-  Car parks within 150 m of Monzone station add up to 6 nose-in spots each (805 spots in all). The
-  sim decides how many cars to park on them.
+  clear of walls, its box's centre and corners out of the lakes and river polygons (whose shore
+  walls open on the roads beside them), with the car's box at least 2.8 m from at-grade running
+  track (the clearance rule) and 1.94 m from a loop or siding (a train's half-width, 1.44 m, plus
+  0.5 m: a spot by OSM's Gragnola loop stood 1.4 m from it; measured from the car's centre, the rule
+  kept a spot at (−1645.2, 3301.1) whose side stood 2.02 m from Gragnola's through track), and none
+  within 20 m (in a straight line, so along any road too) of a level-crossing node: the Codice della
+  Strada (art. 158) bans stopping "in corrispondenza o in prossimità dei passaggi a livello". That
+  rule took three spots, 14.7–19.4 m from Via Nuova, Via Riolo and Viale 20 Settembre; others took
+  their place. The two nearest the Carabinieri station come first (the sim parks their cars there:
+  the station goes into the map as `spawns.police`, so the game never guesses it among the police
+  POIs); the rest are drawn in hash order from every village's candidates, so each village gets its
+  share. Car parks within 150 m of Monzone station add up to 6 nose-in spots each (805 spots in
+  all). The sim decides how many cars to park on them.
 - **Districts** (`districts.ts`): 14 hand-placed discs (name, centre, radius) for Monzone's
   station, streets and hill clusters, then a disc per OSM `village` and `hamlet` node outside
   them (26: Gragnola, Equi Terme, Viano, Vinca, Tenerano, Ugliancaldo...), then 35 hand-placed
@@ -1184,7 +1240,7 @@ counter-clockwise, holes clockwise.
 | `water` | `id`, `kind` (`river` or `stream`), `name?`, `w` (the water's width), `bed` (the gravel bed's half-width), `depth` (the bed is carved `depth`/2 under `z`), `pts`, `z` (the built water surface per vertex), `area` (the catchment upstream of each vertex, km²), `floor` (baked: the bed under the centreline per vertex, m a.s.l.) |
 | `rail` | `id` (OSM way, negative for a track only the CTR has; not unique: the pieces cut from one way at its switches and the CTR's bridges share it), `kind?` (none on a line; off the lines `loop` or `siding`, from the topology), `bridge?`, `tunnel?`, `pts`, `z` (the bed under the sleepers per vertex, the rail head `RAIL_LIFT` 0.12 m higher, where the rails are drawn; at grade, more than 6 m from a level crossing, the terrain is at most 0.05 m higher and 0.5 m lower, but beside a lower road along the line). Tracks meet only at piece ends; no polyline repeats a vertex |
 | `railway` | `lines`: `{ pieces: [{ rail, rev }], maxspeed: [[from s, to s, km/h]] }`, each a path of running pieces (`rail` indexes `MAP.rail`, walked backwards when `rev`) from terminal (a dead end on the play area's outline) to terminal, consecutive pieces sharing an end vertex, s in m from its first vertex; `stations`: `{ name, line, s0, s1, side }` (side 1 right of the line's direction, −1 left), by line and s0; `crossings`: `{ road, nodes, x, y, line, s }` (`road` indexes `MAP.roads`, `nodes` the graph's nodes, `line` −1 and `s` −1 where only a loop or siding is crossed); `platforms`: `{ area, walkway?, name?, axis, top }` (`area` indexes `MAP.areas`, `axis` the line's centreline along it, `top` per axis vertex in m a.s.l.) |
-| `areas` | `kind` (one of `AREA_KINDS`), `name?`, `rings` (outer first, then holes); the platforms (`platform`) and walkways (`paved`) last |
+| `areas` | `kind` (one of `AREA_KINDS`), `name?`, `rings` (outer first, then holes), a water area's still `level?` (m) or its river's `waters?` (indices into `MAP.water`; [section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)); the platforms (`platform`) and walkways (`paved`) last |
 | `barriers` | `kind` (`wall`, `guard_rail`, `cliff`), `pts` |
 | `pois` | `id`, `kind` (`key=value` or `area:<kind>`), `name?`, `x`, `y` |
 | `districts` | `name`, `x`, `y`, `r` |
@@ -1282,9 +1338,9 @@ The checks over the whole built map are map checks: `*.map-test.ts` files, which
 runs and `pnpm check` and CI run after `pnpm test`. `pnpm test` keeps only checks that read the
 tiles and features round named spots, mostly Monzone station, so what it checks does not grow with
 the map ([architecture.md](architecture.md#checks)). Run `pnpm test:map` after every `pnpm map`.
-On 2026-10-31 it ran 102 tests in 30 files in 5.7–6.0 s on a loaded 14-core Mac (37 s of CPU with
-each file alone), the 3x test region's 5 skipped; with the 3x built, 8.8–9.5 s and 46 s of CPU
-more. The split took 21 s of CPU out of `pnpm test` on 2026-10-30 (228 to 207 s), when
+On 2026-10-31 it ran 117 tests in 31 files in 5.8–6.0 s on a 14-core Mac (38 s of CPU with each
+file alone), the 3x test region's 5 skipped; with the 3x built, 8.8–9.0 s and 46 s of CPU more.
+The split took 21 s of CPU out of `pnpm test` on 2026-10-30 (228 to 207 s), when
 `pnpm test:map` held 58 tests in 20 files.
 
 `src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.1 s alone, read whole (`wholeMap`
@@ -1356,6 +1412,28 @@ raised by a decimetre the height check fails, and with a wall crossing x = 0 mov
 away (or dropped) the wall check fails. The roads need no check of their own: they lie whole in the
 global file, so a road's z has no seam, and the ground under a road where it crosses a seam is read
 from the shared nodes alone (bilinear on the seam's column or row), which the height check covers.
+
+`src/tools/__tests__/water-areas.test.ts` checks every node of a synthetic scene against its
+expected height: a lake on a flat basin (its median, capped at a low outlet's spill, OSM's `ele`
+over both; its bed shelving from the shore to 3 m, an island over it left, its edge raised to hold
+it), two river polygons meeting across a river and a tributary (carved to the floor at the nearest
+point, the seam between them carved as their inside, a bank over the river and the outer edge
+left, a gravel bar raised only in the pass that raises bars) and a river polygon no river reaches
+(still water); that windows meeting at a column through the lake and its outlet, or at a row across
+the river polygons and the bar, carve every node as the whole grid does (red with the ring of cells
+round a window left out); and which nodes the roads may not claim. `water.test.ts` checks that
+`dropPerched` keeps a lake's samples. `water-areas.map-test.ts` checks both maps: Lunigiana's 7
+lakes (the one by the Solco di Equi OSM's, at 272.0 m) and the Aulella's river polygon on every
+stream with a sample in it, the Fosso di Tufo too; the UCS gravel at Pian del Molino; each water
+area's level in whole decimetres or its waterways, and at least one cell; a lake's nodes carved
+under its level or a bank over it, its edge holding it but where a stream's channel leaves, its
+level never over every node of its cells, and water in each lake but the two the LiDAR reads no
+hollow under; a river polygon's built surface falling downstream through it and its outer edge left
+over its river's bed; and no tree, parked car or player spawn in the water. `spawns.test.ts` keeps a
+parked car's box and the player's spawn out of a lake, `walls.test.ts` rings a lake with shore walls
+and leaves a river polygon's carved banks open, `cover.test.ts` pins the cover bytes and draws the
+bars over the river and the line's bed only outside the water, and `features.test.ts` maps the
+water tags, `ele` and the POIs.
 
 `src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with `subsetShp` and reads it back,
 `src/tools/__tests__/ctr-rail.test.ts` checks the track chaining, the tunnel cut and the clip on
@@ -1664,9 +1742,13 @@ carries the roads, water, rail and buildings across the old edge, which then are
   place, does not see: [Test regions](#test-regions)), 2 farms (2 more move to their whole
   building), the paving in front of them (6 land-cover cells within 6 m of the edge) and 10 m of a
   district disc of Argigliano's (r 120 → 110 m).
-- **Areas across the edge** are clipped to the box, not the play area, so on the 3x 19 run on
-  whole past lucido's edge and 77 more lie beyond it. A cut is rounded to 0.1 m, which moves the
+- **Areas across the edge** are clipped to the box, not the play area, so on the 3x 22 run on
+  whole past lucido's edge and 80 more lie beyond it. A cut is rounded to 0.1 m, which moves the
   cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs.
+- **Water areas across the edge**: a lake the box cuts takes its level from the nodes inside it,
+  and a river polygon the waterways that run through the part of it inside, so a part that carries
+  one on whole may move its level or its river: the Aulella's polygon at lucido's north edge follows
+  the Tassonaro's tail until a part brings the Aulella in. None lies across an edge the 3x grows.
 - **Walls**: a cell's slope reads the nodes up to 8 m round it, and on lucido those past its edge
   are the edge's own (clamped), so the steep cells along the edge differ, and a loop of blocked
   cells that takes one in is traced and simplified anew along all its length: walk walls differ up
@@ -1763,7 +1845,17 @@ carries the roads, water, rail and buildings across the old edge, which then are
   better than the wooded channel at Codiponte; the gravel bars of the Lucido at Pian del Molino
   are wider than its 22 m bed. The Vinca branch below Vinca is one OSM way, so its 8 m fits the
   valley floor below the SP59 bridge but not the 3–6 m gorge just below Vinca. The LiDAR still
-  shapes the banks.
+  shapes the banks. The UCS gravel now draws the Lucido's and the Aulella's bars where they lie,
+  but the water itself spreads only as wide as each river's bed: a river runs wider only where OSM
+  draws its polygon.
+- **Water areas are where OSM and the UCS draw them.** A lake's level is the LiDAR's of 2010 and
+  its outline OSM's, so a pond whose outline reaches up a slope shows a muddy margin (the lake's
+  own cover where the ground stands over the level), and a lake the LiDAR reads no hollow under
+  holds no water (the intermittent pond at Prati di Campocecina, the pool on the Canale Doglio). The
+  intermittent Bozzetti pond is always full. The Aulella's polygon at the north edge is cut by the
+  map and follows the Tassonaro's tail, its river lying beyond the map. A river polygon's water is
+  its river's depth, so on Cesena's Savio, whose catchment the map holds only 3 km² of, it is a few
+  centimetres deep: 54 % of the polygons' cells are wet at the mean flow, 62 % in a spate.
 - **Land cover is 1:10 000.** The UCS polygons (0.5 ha minimum) generalise the edge between rock,
   pasture and wood; tree species are not mapped tree by tree (conifers are a flat 3% of the woods,
   their share in the UCS woodland around the valley).

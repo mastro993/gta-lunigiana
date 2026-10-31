@@ -4,6 +4,7 @@
 import { join } from "node:path"
 
 import type { Area, Barrier, District } from "../sim/map/index.ts"
+import { isWaterArea } from "../sim/map/kinds.ts"
 import { conflateRail } from "./conflate.ts"
 import { readCtrRail } from "./ctr-rail.ts"
 import { fitRoads, readCtr } from "./ctr.ts"
@@ -19,12 +20,20 @@ import {
   extractWater,
   nameFromAddresses,
 } from "./features.ts"
-import { pointInRing, r1 } from "./geometry.ts"
+import { centroid, pointInRing, r1 } from "./geometry.ts"
 import { readOsm } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
 import { REGION } from "./region.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
+
+/** Whether two water areas draw the same water: either's centroid lies in the other's outer ring. */
+const overlap = (a: Area, b: Area): boolean => {
+  if (!isWaterArea(b.kind)) return false
+  const [ax, ay] = centroid(a.rings[0]!),
+    [bx, by] = centroid(b.rings[0]!)
+  return pointInRing(ax, ay, b.rings[0]!) || pointInRing(bx, by, a.rings[0]!)
+}
 
 /** The features every later phase reads (the DTM apart: only the terrain reads it). */
 export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem">
@@ -69,7 +78,13 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   const osmAreas = extractAreas(osm)
   const areas: Array<Area> = [
     ...osmAreas.filter((a) => a.kind !== "platform"),
-    ...(lunigiana ? readUcs(join(root, "data/raw/rt/ucs.json.gz")) : []), // rock, pastures and quarries OSM lacks above the woods
+    // Rock, pastures and quarries OSM lacks above the woods, the rivers' gravel, and the water
+    // bodies OSM lacks (OSM's own draws the same water finer, with its level).
+    ...(lunigiana
+      ? readUcs(join(root, "data/raw/rt/ucs.json.gz")).filter(
+          (a) => !isWaterArea(a.kind) || !osmAreas.some((o) => overlap(a, o)),
+        )
+      : []),
     ...ctr.roadAreas.filter((a) => a.paved).map((a) => ({ kind: "paved", rings: a.rings })), // squares, lay-bys
   ]
   const inCtr = (ring: ReadonlyArray<number>) =>

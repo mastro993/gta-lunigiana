@@ -43,6 +43,7 @@ export {
   isAreaKind,
   isDrivable,
   isMotorRoad,
+  isWaterArea,
   LANE,
   laneOffset,
   RAIL_KINDS,
@@ -188,11 +189,20 @@ export interface Rail {
   readonly z: ReadonlyArray<number>
 }
 
-/** Land use polygon: `rings[0]` outer, the rest holes; `kind` is one of `AREA_KINDS` (checked by map.map-test.ts, narrow with `isAreaKind`). */
+/**
+ * Land use polygon: `rings[0]` outer, the rest holes; `kind` is one of `AREA_KINDS` (checked by
+ * map.map-test.ts, narrow with `isAreaKind`). A water area (`isWaterArea`) holds either still water
+ * at `level` (a lake, or a river polygon none of whose waterways the map holds) or its waterways'
+ * running water (`waters`).
+ */
 export interface Area {
   readonly kind: string
   readonly name?: string
   readonly rings: ReadonlyArray<ReadonlyArray<number>>
+  /** Still water's surface, m a.s.l. (whole decimetres): OSM's `ele`, else the median of the LiDAR inside. */
+  readonly level?: number
+  /** A river polygon's waterways: the indices in `MAP.water` of the pieces that run through it, whose bed and flow its water takes. */
+  readonly waters?: ReadonlyArray<number>
 }
 
 /** "wall" | "guard_rail" | "cliff" polyline. */

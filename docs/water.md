@@ -1,15 +1,16 @@
 # Water
 
-The rivers and streams carry what the weather's rain leaves them: they rise in a storm and fall
-back over the following days, and their depth and current follow from each reach's catchment,
-width and grade. The player wades through them and swims once they lift him off his feet or the
-current takes them from under him; people, animals and vehicles meet the same water. Nobody
+The rivers and streams carry what the weather's rain leaves them: they rise in a storm and fall back
+over the following days, and their depth and current follow from each reach's catchment, width and
+grade. Where OSM draws a river's water as a polygon, the river spreads over it; the lakes and ponds
+stand still at their level. The player wades through them and swims once they lift him off his feet
+or the current takes them from under him; people, animals and vehicles meet the same water. Nobody
 drowns.
 
 The code is in `src/sim/water/` (`flow.ts`, `channel.ts`, `rivers.ts`, `swim.ts`), the `Wade`
-system in `src/sim/systems/water.ts`, the catchment areas in the map build
-(`src/tools/catchment.ts`) and the drawn water in `src/render/lines.ts` and
-`src/render/sky/surface.ts`.
+system in `src/sim/systems/water.ts`, the catchment areas and the lakes' levels in the map build
+(`src/tools/catchment.ts`, `src/tools/water-areas.ts`) and the drawn water in
+`src/render/lines.ts`, `src/render/water.ts` and `src/render/sky/surface.ts`.
 
 ## The rivers' flow
 
@@ -111,6 +112,21 @@ follow from the discharge per km², q.
   level less the floor a body stands on; the water spreads over the gravel as it rises. The current
   runs down the reach at the mean speed × (depth / mean depth)^0.83 (Manning's speed with depth,
   at most 1.5 times the mean depth's), so it slows to nothing at the water's edge.
+- **In a river polygon** (`Area.waters`,
+  [map.md](map.md#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)): the nearest
+  reach of its own waterways, however far across it, so the river's level and current hold out to
+  the polygon's outline over the bed the map build carves flat to the river's floor; its gravel bars
+  stand dry 0.3 m over the build's surface until a spate tops them. Its waterways are every piece
+  with a sample inside it, a tributary running in too, which `settle` brings to the river's level
+  where they meet: near the Fosso di Tufo's mouth in the Aulella's polygon at the north edge the
+  water is the Fosso's, whose catchment the map holds none of, so it stays as low as at the mean
+  flow (0.12 m under the Tassonaro's beside it in a spate). The way to the bank is square to the
+  reach, as on a line: an edge of the polygon may be another polygon's of the same river (the Savio
+  is 12 of them in Cesena).
+- **In a lake** (`Area.level`): still water at its level, whatever the rivers carry, with no
+  current; the way to the bank is toward its nearest shore. A lake wins over a stream through it.
+  Its bed shelves 0.1 m a metre from the shore, 3 m deep at most: the lake by the Solco di Equi is
+  1.5 m deep in its middle, the Bozzetti pond 0.5 m.
 
 | Where | at 1 m³/s (Soliera) | 9 m³/s, the mean | 21 m³/s | 125 m³/s, a spate |
 |---|---|---|---|---|
@@ -124,8 +140,8 @@ rest are headwater gullies, dry as real ones are.
 ## People and animals in the water
 
 `Wade` (before the movement systems) gives every person on foot and every animal standing in a
-river or stream the saved `InWater` component, `swimming` once it is off its feet, and takes it
-away on dry ground.
+river, a stream or a lake the saved `InWater` component, `swimming` once it is off its feet, and
+takes it away on dry ground.
 
 - **On a bridge or under it.** A body not yet in the water stands on the highest ground at its
   point, a bridge's deck when it is within 1 m of the deck's edge (a walker keeps to the verge, half
@@ -199,7 +215,8 @@ AI drivers keep to their lanes; a car shoved into a river is carried off like an
 ## Walls
 
 Water stops neither feet nor wheels. The map build traces the water's cells (within max(w/2, 2) m
-of a centreline, not on a road) as their own walls, the shore, and `wallsNear` answers four kinds:
+of a centreline, and the lakes' and river polygons' cells, not on a road) as their own walls, the
+shore, and `wallsNear` answers four kinds:
 
 | Kind | Walls | Who keeps to them |
 |---|---|---|
@@ -209,7 +226,9 @@ of a centreline, not on a road) as their own walls, the shore, and `wallsNear` a
 | `traffic` | `drive` and the shore | AI drivers' lanes (`lanesFor`), where vehicles spawn |
 
 Traffic's dead ends and the spawns are worked out against the water's edge, as before, so the road
-graph, the parked spots and the player's spawn are the same.
+graph, the parked spots and the player's spawn are the same; a parked car's box and the player's
+spawn also keep out of the lakes and river polygons, whose shore opens where a road runs beside
+them.
 
 ## How it looks
 
@@ -219,10 +238,19 @@ graph, the parked spots and the player's spawn are the same.
   speed per unit); the water shader lifts it by `stage` × q^0.547, the uniform `uRiverStage`, so the
   surface stands where the sim's is, and the terrain above it hides it: in a spate the water spreads
   over the gravel.
+- **Lakes and river polygons** (`render/water.ts`): a quad over each cell of the area (its centre
+  inside, as the land cover paints it), its corners on the cell's nodes. A river polygon's lie on
+  the bed of its nearest waterway with that reach's `stage` and `flow`, so the shader lifts them as
+  it lifts the ribbon, to where `waterAt` has the level (0.05 m over the bed, over the ribbon and a
+  wide river's deep channel, so where the area's water half covers a quad of them it stays under); a
+  lake's lie at its level, each carrying how deep the water stands over its node (`still`), which
+  lifts nothing. A river's ribbon leaves out each quad their water covers whole. The terrain above
+  the level hides the water, so the shore is where they meet.
 - **The colour**: the water's own colour (and the darker channel's) shows from 0.05 m of mean depth
   and fully from 0.7 m; shallower, it is the limestone pebbles seen through it, tinted 0.6 of the
   way to the water's green (TUNED by eye), so an ankle-deep torrent reads as wet gravel with the
-  current on it and a spate as a river.
+  current on it and a spate as a river. A lake darkens to the deep water's colour from 0.7 m deep
+  to 2.5 m (TUNED by eye).
 - **The current**: streaks 1.6 m long and 0.3 m wide carried downstream at the water's speed
   (`uRiverSpeed` = q^0.453), two phases 2 s apart dissolving into each other cell by cell; 2 % of
   them show on still water, up to 30 % at 3 m/s and over (TUNED by eye).
@@ -265,6 +293,10 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/sim/water/__tests__/swim.test.ts` | the hold (an adult's 1.2 m²/s, a child's 0.4), off the feet and back on, wading's slowing, a sprint slowed to a wade by knee depth |
 | `src/sim/__tests__/water.test.ts` | the Lucido's depth and current at the mean and in a spate; the player wading across, swept, swimming and out, and dry once he gets into a car in the water; people and animals swimming out and the dead drifting; a calm dog stopping at a spate's edge; a Panda holding in the Lucido and floating off in a spate; buoyancy at 0.3 and 0.7 m; a Panda ploughing to a third slower in a second of ankle-deep water, the truck hardly; stalling; a bridge keeping a walker dry, on its centreline and on every verge over the water of the bridges within 2 km of Monzone; the rivers rising under rain and falling back; determinism and a save mid-swim |
 | `src/tools/__tests__/catchment.test.ts` | a braid's arms sharing the river's area at the fork and adding back to it at the rejoin |
+| `src/sim/water/__tests__/rivers.test.ts` | over a synthetic river polygon with an island and a lake a stream runs through (`waterIndex`): the river's level and current across the polygon, the island dry, the river's own bed beyond it; the bank square to the reach either side of the seam between two polygons of one river; the lake still at its level, its bank the nearest shore, winning over the stream; a water area's surface as the render draws it |
+| `src/sim/__tests__/water.test.ts` (the lake) | the player swimming in the lake by the Solco di Equi and out; a Panda afloat there, drifting under 1 m with no current |
+| `src/render/__tests__/water.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes; the Aulella's polygon carried on over the apron; `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon |
+| `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores, the two dry ones, a river polygon's surface falling through it and its outer edge left, no tree, parked car or spawn in the water |
 | `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
 | `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 km² and the Aulella's 208; no walk or drive wall in a wide river, shore walls by it |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
@@ -279,7 +311,16 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 - **Wide channels.** The depth comes from a rectangular channel as wide as the water; a spate
   spreading over the gravel would run lower than that.
 - **No pools.** The rivers have no deeper pools or weirs: in a dry summer the water is nowhere
-  deep enough to swim in, and there are no lakes or ponds.
+  deep enough to swim in but in the lakes.
+- **Still lakes.** A lake keeps its level whatever the weather (no storage in the flow model), so an
+  intermittent pond is always full and a stream through a lake steps to the lake's level at its
+  shore. Lakes make no sound.
+- **A river polygon's depth** comes from its river's channel (`Water.w`), not the polygon's width:
+  where the polygon is wider than the river, the water runs deeper over it than a spate spreading
+  over the gravel would. The Tassonaro's 4 m channel holds 0.04 m at the mean flow across the
+  Aulella's polygon at the north edge, and Cesena's Savio, whose catchment the map holds only 3 km²
+  of, a few centimetres over its polygons: 54 % of their cells are wet at the mean flow, 62 % in a
+  spate.
 - **Snow at one height.** The snowpack lies at 667 m; the high Apuan snow and its spring melt are
   not modelled.
 - **Silent floods.** The rivers sound as they do at their usual flow ([audio.md](audio.md)),
