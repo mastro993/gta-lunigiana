@@ -64,6 +64,21 @@ const shore2 = (rings: ReadonlyArray<ReadonlyArray<number>>, x: number, y: numbe
 const meet = (a: ReadonlyArray<number>, b: ReadonlyArray<number>) =>
   a[0]! <= b[2]! && b[0]! <= a[2]! && a[1]! <= b[3]! && b[1]! <= a[3]!
 
+/** The areas whose box meets `g`'s window and the ring of cells round it: those a node of it may belong to. */
+const inWindow = <A extends { readonly box: CarvedArea["box"] }>(
+  g: Grid,
+  areas: ReadonlyArray<A>,
+): Array<A> => {
+  const span = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
+  const reach = [
+    g.x0 + (span.i0 - 1) * g.cell,
+    g.y0 + (span.j0 - 1) * g.cell,
+    g.x0 + (span.i0 + span.cols) * g.cell,
+    g.y0 + (span.j0 + span.rows) * g.cell,
+  ]
+  return areas.filter((a) => meet(a.box, reach))
+}
+
 /**
  * The cells of `rings` over `g`'s window and the ring of cells round it, filled from the anchor as
  * the land cover is (so a cell comes out the same in every window that holds it), into `cells`
@@ -286,24 +301,14 @@ export const carveAreas = (
   raiseBars: boolean,
 ): void => {
   const span = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
-  const reach: readonly [number, number, number, number] = [
-    g.x0 + (span.i0 - 1) * g.cell,
-    g.y0 + (span.j0 - 1) * g.cell,
-    g.x0 + (span.i0 + span.cols) * g.cell,
-    g.y0 + (span.j0 + span.rows) * g.cell,
-  ]
-  const near = nearestOn(
-    areas.filter((a) => meet(a.box, reach)),
-    water,
-    wp,
-  )
+  // All the water the window holds: a node is on the edge only where it meets dry ground.
+  const here = inWindow(g, areas),
+    whole = cellMask(g),
+    near = nearestOn(here, water, wp)
   const node = (k: number): readonly [number, number] => [
     g.x0 + (span.i0 + (k % span.cols)) * g.cell,
     g.y0 + (span.j0 + Math.floor(k / span.cols)) * g.cell,
   ]
-  // All the water the window holds: a node is on the edge only where it meets dry ground.
-  const here = areas.filter((a) => meet(a.box, reach)),
-    whole = cellMask(g)
   for (const area of here) fillCells(g, area.rings, whole)
   for (const area of here) {
     const nearest = near.get(area)
@@ -367,14 +372,7 @@ export const inWater = (areas: ReadonlyArray<Area>) =>
  * ground it was (a lake's edge holds its water).
  */
 export const waterNodes = (g: Grid, areas: ReadonlyArray<CarvedArea>): Uint8Array => {
-  const span = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
-  const reach = [
-    g.x0 + (span.i0 - 1) * g.cell,
-    g.y0 + (span.j0 - 1) * g.cell,
-    g.x0 + (span.i0 + span.cols) * g.cell,
-    g.y0 + (span.j0 + span.rows) * g.cell,
-  ]
-  const here = areas.filter((a) => meet(a.box, reach)),
+  const here = inWindow(g, areas),
     whole = cellMask(g),
     still = cellMask(g)
   for (const area of here) fillCells(g, area.rings, area.level === undefined ? whole : still)

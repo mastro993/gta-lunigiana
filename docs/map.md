@@ -997,8 +997,9 @@ walls held them before, and stores neither of those.
 
 - Road buffers are padded by half a cell plus the simplification tolerance, so no traced wall
   comes within w/2 of a centreline. The carved banks of the wider streams skip the slope test, and
-  so does a river polygon's edge (2 cells either side of its rings), carved to its river's floor:
-  they are the way out of the water. A lake's bed only shelves, so its banks are walled as steep as
+  so does the edge of a river polygon its river runs through (2 cells either side of its rings),
+  carved to its river's floor: they are the way out of the water. A lake's bed only shelves, and so
+  does a river polygon's whose river the map does not hold, so their banks are walled as steep as
   they are.
 - Where a drivable road (not a tunnel) runs through or along a footprint, the house gives way:
   OSM centrelines and CTR footprints disagree by a metre or two, and none of these roads is
@@ -1338,7 +1339,8 @@ runs and `pnpm check` and CI run after `pnpm test`. `pnpm test` keeps only check
 tiles and features round named spots, mostly Monzone station, so what it checks does not grow with
 the map ([architecture.md](architecture.md#checks)). Run `pnpm test:map` after every `pnpm map`.
 On 2026-10-31 it ran 117 tests in 31 files in 5.8–6.0 s on a 14-core Mac (38 s of CPU with each
-file alone), the 3x test region's 5 skipped; with the 3x built, 8.8–9.0 s and 46 s of CPU more. The split took 21 s of CPU out of `pnpm test` on 2026-10-30 (228 to 207 s), when
+file alone), the 3x test region's 5 skipped; with the 3x built, 8.8–9.0 s and 46 s of CPU more.
+The split took 21 s of CPU out of `pnpm test` on 2026-10-30 (228 to 207 s), when
 `pnpm test:map` held 58 tests in 20 files.
 
 `src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.1 s alone, read whole (`wholeMap`
@@ -1853,7 +1855,7 @@ carries the roads, water, rail and buildings across the old edge, which then are
   intermittent Bozzetti pond is always full. The Aulella's polygon at the north edge is cut by the
   map and follows the Tassonaro's tail, its river lying beyond the map. A river polygon's water is
   its river's depth, so on Cesena's Savio, whose catchment the map holds only 3 km² of, it is a few
-  centimetres deep and half the polygons' cells stand dry at the mean flow (54 %, 62 % in a spate).
+  centimetres deep: 54 % of the polygons' cells are wet at the mean flow, 62 % in a spate.
 - **Land cover is 1:10 000.** The UCS polygons (0.5 ha minimum) generalise the edge between rock,
   pasture and wood; tree species are not mapped tree by tree (conifers are a flat 3% of the woods,
   their share in the UCS woodland around the valley).

@@ -241,9 +241,11 @@ them.
 - **Lakes and river polygons** (`render/water.ts`): a quad over each cell of the area (its centre
   inside, as the land cover paints it), its corners on the cell's nodes. A river polygon's lie on
   the bed of its nearest waterway with that reach's `stage` and `flow`, so the shader lifts them as
-  it lifts the ribbon, to where `waterAt` has the level; a lake's lie at its level, each carrying
-  how deep the water stands over its node (`still`), which lifts nothing. A river's ribbon stops
-  over their cells. The terrain above the level hides the water, so the shore is where they meet.
+  it lifts the ribbon, to where `waterAt` has the level (0.05 m over the bed, over the ribbon and a
+  wide river's deep channel, so where the area's water half covers a quad of them it stays under); a
+  lake's lie at its level, each carrying how deep the water stands over its node (`still`), which
+  lifts nothing. A river's ribbon leaves out each quad their water covers whole. The terrain above
+  the level hides the water, so the shore is where they meet.
 - **The colour**: the water's own colour (and the darker channel's) shows from 0.05 m of mean depth
   and fully from 0.7 m; shallower, it is the limestone pebbles seen through it, tinted 0.6 of the
   way to the water's green (TUNED by eye), so an ankle-deep torrent reads as wet gravel with the
@@ -317,7 +319,8 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
   where the polygon is wider than the river, the water runs deeper over it than a spate spreading
   over the gravel would. The Tassonaro's 4 m channel holds 0.04 m at the mean flow across the
   Aulella's polygon at the north edge, and Cesena's Savio, whose catchment the map holds only 3 km²
-  of, a few centimetres over its polygons: half their cells stand dry at the mean flow.
+  of, a few centimetres over its polygons: 54 % of their cells are wet at the mean flow, 62 % in a
+  spate.
 - **Snow at one height.** The snowpack lies at 667 m; the high Apuan snow and its spring melt are
   not modelled.
 - **Silent floods.** The rivers sound as they do at their usual flow ([audio.md](audio.md)),

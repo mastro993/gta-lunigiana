@@ -327,9 +327,10 @@ export const buildWalls = (
     // Carved banks of the larger streams are steep by construction and stay open: the way out of the water.
     if (w.w >= 4) banks.addLine(w.pts, w.bed + 2 * g.cell, null)
   }
-  // So are a river polygon's, carved to its river's floor; a lake's bed only shelves.
+  // So are a river polygon's, carved to its river's floor; a lake's bed only shelves, as does a
+  // river polygon's whose river the map does not hold (still water).
   for (const a of areas)
-    if (a.kind === "river")
+    if (a.waters !== undefined)
       for (const ring of a.rings) banks.addLine([...ring, ring[0]!, ring[1]!], 2 * g.cell, null)
   // Road buffers are measured from cell centres; walls sit midway between centres (half a cell) and may
   // move SLACK when simplified, so pad the buffers by both to keep every wall at least w/2 from the centreline.

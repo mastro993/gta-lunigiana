@@ -49,6 +49,7 @@ const LAKE: Area = {
 }
 const RIVER: Area = {
   kind: "river",
+  waters: [0],
   rings: [
     [
       2000, 1000, 2100, 1010, 2190, 1060, 2230, 1140, 2195, 1155, 2160, 1090, 2090, 1048, 1995,
@@ -56,6 +57,8 @@ const RIVER: Area = {
     ],
   ],
 }
+/** A river polygon whose river the map does not hold: still water at its level, its bed only shelving. */
+const STILL: Area = { kind: "river", level: -CARVE, rings: [] }
 const walled = () => {
   const g = gridLattice(),
     z = new Float64Array(g.cols * g.rows),
@@ -69,6 +72,8 @@ const walled = () => {
     both: buildWalls({ ...g, z }, [], [], [], [], [LAKE, RIVER]),
     /** The same ground with no river polygon over its carve. */
     lakeOnly: buildWalls({ ...g, z }, [], [], [], [], [LAKE]),
+    /** The same polygon holding still water, its river not in the map: carved as a lake is. */
+    still: buildWalls({ ...g, z }, [], [], [], [], [LAKE, { ...STILL, rings: RIVER.rings }]),
   }
 }
 let built: ReturnType<typeof walled> | undefined
@@ -155,4 +160,14 @@ test("buildWalls keeps a river polygon's carved banks open: no walk or drive wal
   assert.deepEqual(nearBend(both.walk), [])
   assert.deepEqual(nearBend(both.drive), [])
   assert.ok(nearBend(both.shore).length > 0, "its outline is the water's edge")
+})
+
+// Regression: the exemption went by kind, so a river polygon holding still water, whose bed only
+// shelves as a lake's does, lost the walls of the steep slopes round it.
+test("buildWalls walls the steep banks round a river polygon whose river the map does not hold, as round a lake", () => {
+  const { still, lakeOnly } = pondAndBend()
+  const nearBend = (flat: ReadonlyArray<number>) =>
+    samples(flat).filter(([x, y]) => toOutline(RIVER, x, y) < 2 * CELL)
+  assert.deepEqual(nearBend(still.walk), nearBend(lakeOnly.walk))
+  assert.deepEqual(nearBend(still.drive), nearBend(lakeOnly.drive))
 })

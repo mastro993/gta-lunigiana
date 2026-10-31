@@ -21,8 +21,12 @@ import { PALETTE } from "./palette.ts"
 
 const hm = MAP.heightmap,
   anchor = anchorOf(hm)
-/** Running water lies this far over its bed, m: 1 cm over the river's ribbon where they overlap. */
-const OVER_BED = 0.03
+/**
+ * Running water lies this far over its bed, m: over the river's ribbon (0.02) and the deep channel
+ * of a wide one (0.04) where they overlap, so a ribbon's quad the area's water half covers stays
+ * under it.
+ */
+const OVER_BED = 0.05
 /** The grid's last cell along x and y: an apron cell takes the edge cell it continues, as the terrain does. */
 const LAST = { i: hm.cols - 2, j: hm.rows - 2 } as const
 
