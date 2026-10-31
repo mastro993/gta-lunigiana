@@ -1,6 +1,7 @@
-// The clearance checks against walls and trunks, the player spawn and parked-car spots.
+// The clearance checks against walls and trunks, the station and Carabinieri POIs, the player's start
+// and spawn, and parked-car spots.
 import { staticGrid } from "../sim/collide.ts"
-import type { Area, Spawn } from "../sim/map/index.ts"
+import type { Area, Poi, Spawn } from "../sim/map/index.ts"
 import { pushTrunk, TRUNK } from "../sim/map/kinds.ts"
 import type { BuildingF, RoadF } from "./features.ts"
 import {
@@ -15,6 +16,7 @@ import {
   segIndex,
 } from "./geometry.ts"
 import { inPlay } from "./play-area.ts"
+import type { Region } from "./region.ts"
 
 /** Segments farther than this from a clearance query are ignored, m (every caller asks less). */
 const REACH = 3
@@ -104,6 +106,50 @@ const CAR_HL = 3.7 / 2,
   CAR_HW = 1.7 / 2,
   CAR_GAP = 0.3,
   SPAWN_R = 1.3 // 1.2 m (map.map-test.ts) + rounding margin
+
+/** POI `id` of `pois`: a test region may leave it out of play (undefined), while a shipped map without it has lost it from OSM and throws. */
+export const regionPoi = (
+  pois: ReadonlyArray<Poi>,
+  id: number,
+  { test }: Pick<Region, "test">,
+): Poi | undefined => {
+  const p = pois.find((q) => q.id === id)
+  if (p === undefined && !test) throw new Error(`poi ${id} missing`)
+  return p
+}
+
+/** Where the player's spawn is sought (`playerSpawn`'s target), and on which road. */
+interface Start {
+  readonly at: { readonly x: number; readonly y: number }
+  readonly road?: RoadF
+}
+
+/**
+ * Where the player's spawn is sought: by `police` (Lunigiana's Carabinieri) when given, else by the
+ * traffic node nearest the origin, on its road (Cesena, and a test region that leaves the
+ * Carabinieri out); undefined when the graph has no traffic edge.
+ */
+export const startNear = (
+  graph: {
+    readonly xy: ReadonlyArray<number>
+    readonly edges: ReadonlyArray<number>
+    readonly traffic: ReadonlyArray<number>
+  },
+  roads: ReadonlyArray<RoadF>,
+  police: Start["at"] | undefined,
+): Start | undefined => {
+  if (police !== undefined) return { at: police }
+  let start: Start | undefined,
+    least = Infinity
+  for (const edge of graph.traffic) {
+    const node = graph.edges[3 * edge]!,
+      x = graph.xy[2 * node]!,
+      y = graph.xy[2 * node + 1]!,
+      d = Math.hypot(x, y)
+    if (d < least) [start, least] = [{ at: { x, y }, road: roads[graph.edges[3 * edge + 2]!]! }, d]
+  }
+  return start
+}
 
 /** A clear sidewalk spot outside building footprints, with an open walking route to the street. */
 export const playerSpawn = (

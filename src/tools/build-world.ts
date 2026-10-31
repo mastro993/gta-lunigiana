@@ -12,7 +12,7 @@ import { lifted } from "./profiles.ts"
 import { clearVerges } from "./rail-clear.ts"
 import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
 import { REGION } from "./region.ts"
-import { clearance, parkedSpots, playerSpawn } from "./spawns.ts"
+import { clearance, parkedSpots, playerSpawn, regionPoi, startNear } from "./spawns.ts"
 import { sampleGrid } from "./terrain.ts"
 import { scatterTrees } from "./trees.ts"
 import { buildWalls } from "./walls.ts"
@@ -78,39 +78,11 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     platforms: platforms.map((p) => p.rings),
   })
   const lunigiana = REGION.id === "lunigiana"
-  // A shipped map without one has lost it from OSM; a test region may leave it out of play.
-  const poi = (id: number) => {
-    const p = pois.find((q) => q.id === id)
-    if (p === undefined && !REGION.test) throw new Error(`poi ${id} missing`)
-    return p
-  }
-  const station = poi(lunigiana ? 1813987803 : 827592490),
-    carabinieri = poi(lunigiana ? 14183344901 : 806564311)
-  // Lunigiana starts by the Carabinieri; Cesena, and a test region without them, by the traffic
-  // node nearest the origin.
-  const byPolice = lunigiana && carabinieri !== undefined
-  const central = byPolice
-    ? []
-    : graph.traffic
-        .map((edge) => {
-          const node = graph.edges[3 * edge]!,
-            road = graph.edges[3 * edge + 2]!
-          const x = graph.xy[2 * node]!,
-            y = graph.xy[2 * node + 1]!
-          return { road: roads[road]!, x, y, distance: Math.hypot(x, y) }
-        })
-        .sort((a, b) => a.distance - b.distance)
-  const start = central[0]
-  if (!byPolice && start === undefined)
-    throw new Error(`--region ${REGION.key} has no connected traffic roads`)
-  const player = playerSpawn(
-    roads,
-    walkClear,
-    driveClear,
-    start ?? carabinieri!,
-    buildings,
-    start?.road,
-  )
+  const station = regionPoi(pois, lunigiana ? 1813987803 : 827592490, REGION),
+    carabinieri = regionPoi(pois, lunigiana ? 14183344901 : 806564311, REGION)
+  const start = startNear(graph, roads, lunigiana ? carabinieri : undefined)
+  if (start === undefined) throw new Error(`--region ${REGION.key} has no connected traffic roads`)
+  const player = playerSpawn(roads, walkClear, driveClear, start.at, buildings, start.road)
   const junctions = graph.degree.flatMap((d, n) =>
     d >= 3 ? [[graph.xy[2 * n]!, graph.xy[2 * n + 1]!] as const] : [],
   )

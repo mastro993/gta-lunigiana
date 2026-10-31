@@ -141,10 +141,11 @@ a load average of 7–12 from other work):
   areas change.
 
 The build's Lunigiana-only constants hold in a test region: the station and Carabinieri POIs may be
-out of play (a shipped map without them throws), and then no spots are kept for them, no car park
-by the station gets spots, `spawns.police` is left out and the player starts as on Cesena, at the
-traffic node nearest the origin; Gragnola's layout swaps no node the play area leaves out
-(`conflate.ts`). The Aulella's 161 km² beyond the map (`AULELLA_OFF_MAP`) and the stone cores are
+out of play (`regionPoi` in `spawns.ts`; a shipped map without them throws), and then no spots are
+kept for them, no car park by the station gets spots (`parkedSpots`), `spawns.police` is left out
+and the player starts as on Cesena, at the traffic node nearest the origin (`startNear`), each
+checked in `spawns.test.ts`; Gragnola's layout swaps no node the play area leaves out
+(`conflate.ts`, `conflate.test.ts`). The Aulella's 161 km² beyond the map (`AULELLA_OFF_MAP`) and the stone cores are
 lucido's: a test region's river flows are not calibrated. Scratch regions without Gragnola, without
 Monzone and without the rail (x −1000…4900 by y 0…2600, x −2900…0 by y 2000…3900, x 500…4900 by y
 −6100…−1000) built on 2026-10-31.
@@ -885,7 +886,7 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   0.7 s for Lunigiana's 30 tiles and holds one tile's masks, 3 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
   clear of walk and drive walls. Cesena, and a test region without the Carabinieri, use a central
-  street in its connected traffic network (the traffic node nearest the origin).
+  street in its connected traffic network (the traffic node nearest the origin, `startNear`).
   The final rounded position must lie outside every building footprint and have a walk-clear
   route to its street centreline, sampled at intervals no greater than 0.5 m. Wall distance alone
   can accept a point deep inside a building, leaving the player trapped.
