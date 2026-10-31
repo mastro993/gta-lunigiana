@@ -313,7 +313,7 @@ export const Time = Clock.resource("Lunigiana/Time", STEP)
 /** The world's random stream (saved, so runs replay). */
 export const Rng = Descriptor.ConstructedResource(Random.codec)("Lunigiana/Rng")
 /**
- * The parked cars: their `seed`, the game's own (`?seed=N`), never changed, which with a spot's index decides whether the spot
+ * The parked cars: their `seed`, the game's own (`?seed=N`), never changed, which with a spot's place decides whether the spot
  * holds a car and which (population/parked.ts), so a street looks the same each time the player comes back; and the spots whose
  * car was wrecked and has gone (`wrecked`, in the order they went), which hold no car again in this game. Saved.
  */
