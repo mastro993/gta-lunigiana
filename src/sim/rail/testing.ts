@@ -449,8 +449,8 @@ const roadsAlong = (line: Line): Array<{ readonly index: number; readonly road: 
 /**
  * Every way on foot into a road tunnel under Monzone's line, at grade or on the bridge over a tunnel's mouth: from 15 m out along
  * a road at grade through one of its mouths at its floor's level (one per mouth), through that mouth, to its point nearest the
- * track where it passes under it (the rail head more than 2 m over its floor), every 0.05 m; with that tunnel's road and the
- * track's s over that point.
+ * track where it passes under it (the rail head more than 2 m over its floor), every 0.05 m; with that tunnel's road, its index
+ * in `MAP.roads` and the track's s over that point.
  */
 export const UNDERPASS_WAYS = (() => {
   const line = LINES[MONZONE.line]!
@@ -463,8 +463,9 @@ export const UNDERPASS_WAYS = (() => {
       for (const p of along([pts[k]!, pts[k + 1]!], 0.05)) {
         const near = linesNear(p.x, p.y, 2).find((n) => n.line === line.index)
         if (near === undefined || (under !== undefined && near.distance >= under.d)) continue
-        const at = pointAt(line, near.s)
-        if (!at.tunnel && at.z - roadLevel(road, p.x, p.y) > 2)
+        const at = pointAt(line, near.s),
+          floor = roadLevel(index, p.x, p.y)
+        if (!at.tunnel && floor !== undefined && at.z - floor > 2)
           under = { k, p, s: near.s, d: near.distance }
       }
     })
@@ -486,7 +487,7 @@ export const UNDERPASS_WAYS = (() => {
       })[0]
       if (into === undefined) return []
       const inside = end === 0 ? [...pts.slice(0, k + 1), p] : [...pts.slice(k + 1).reverse(), p]
-      return [{ road, walk: along([...lastOf(into, 15), ...inside.slice(1)], 0.05), s }]
+      return [{ road, index, walk: along([...lastOf(into, 15), ...inside.slice(1)], 0.05), s }]
     })
   })
 })()

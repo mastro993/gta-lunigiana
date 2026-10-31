@@ -15,9 +15,8 @@ import {
   isMotorRoad,
   laneOffset,
   MAP,
-  roadClassOf,
-  type Road,
   type RoadClass,
+  type RoadInfo,
   type Segment,
   wallsNear,
 } from "./map/index.ts"
@@ -35,8 +34,8 @@ export interface Lane {
   readonly ry: number
 }
 
-/** The road an edge belongs to. */
-export const roadOf = (edge: number): Road => MAP.roads[graph.edges[edge]!.road]!
+/** The attributes of the road an edge belongs to (its line is in the tiles: `roadLine`). */
+export const roadOf = (edge: number): RoadInfo => MAP.roads[graph.edges[edge]!.road]!
 
 /** Edge `edge` travelled a -> b when `forward`, else b -> a. */
 export const laneOf = (edge: number, forward: boolean): Lane => {
@@ -56,7 +55,7 @@ export const lanePoint = (lane: Lane, along: number, side: number) => ({
 })
 
 /** The classes trucks may drive: the main roads and unclassified ones (lanes through the village arches are too narrow). */
-const TRUCK_CLASSES: ReadonlySet<RoadClass> = new Set([
+const TRUCK_CLASSES: ReadonlySet<string> = new Set<RoadClass>([
   "motorway",
   "trunk",
   "primary",
@@ -65,10 +64,10 @@ const TRUCK_CLASSES: ReadonlySet<RoadClass> = new Set([
   "unclassified",
 ])
 
-/** Trucks keep to the wide roads; the Ape 50, a moped, keeps off motor roads (`isMotorRoad`, art. 175). */
+/** Trucks keep to the wide roads (an unknown class, a path, is none); the Ape 50, a moped, keeps off motor roads (`isMotorRoad`, art. 175). */
 const classAllows = (edge: number, model: VehicleModel): boolean =>
   model === "truck"
-    ? TRUCK_CLASSES.has(roadClassOf(roadOf(edge)))
+    ? TRUCK_CLASSES.has(roadOf(edge).cls)
     : model !== "ape" || !isMotorRoad(roadOf(edge))
 
 /** A choice of edge and direction leaving a node. */

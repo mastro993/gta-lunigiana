@@ -4,16 +4,18 @@
  * water out to its gravel bed's half-width (`Water.bed`; a narrow stream's 3 m), where the map build
  * carves its bank; across that the surface is level, downstream it runs from the depth and speed of `channelOf`
  * between its two vertices. The current runs down the reach, slower where the water is shallower
- * (Manning's speed with depth, `DEPTH_SPEED`); it is zero where the water meets the bank.
+ * (Manning's speed with depth, `DEPTH_SPEED`); it is zero where the water meets the bank. The
+ * rivers come from the tile holding the point (`placeAt`), which holds every one whose bed reaches it.
  *
  * @module water/rivers
  */
 import { Ops } from "@typeonce/ritmo-math"
 
 import { walkBy } from "../body.ts"
-import { segDist2, staticGrid } from "../collide.ts"
+import { segDist2 } from "../collide.ts"
+import { addToBuckets, bucketItems, type Buckets, emptyBuckets } from "../map/buckets.ts"
 import { atGrade, deckNear, groundZ } from "../map/ground.ts"
-import { MAP } from "../map/index.ts"
+import { derived, type Place, placeAt } from "../map/tiles.ts"
 import { channelOf, reachOf, SPEED, STAGE } from "./channel.ts"
 
 /** One straight reach between two vertices of a water piece, with what its two ends carry. */
@@ -40,48 +42,53 @@ const DEPTH_SPEED = 2 / 3 + 0.16
 /** At most this many times the mean depth counts toward the speed (a pothole is no faster). */
 const DEEPEST = 1.5
 
-const reaches: ReadonlyArray<Reach> = MAP.water.flatMap((water) => {
-  const ch = channelOf(water),
-    { pts } = water,
-    out: Array<Reach> = []
-  for (let i = 0; i + 1 < pts.length / 2; i++) {
-    const ax = pts[2 * i]!,
-      ay = pts[2 * i + 1]!,
-      bx = pts[2 * i + 2]!,
-      by = pts[2 * i + 3]!,
-      length = Ops.hypot(bx - ax, by - ay)
-    if (length <= 0) continue
-    out.push({
-      ax,
-      ay,
-      bx,
-      by,
-      ux: (bx - ax) / length,
-      uy: (by - ay) / length,
-      reach: reachOf(water),
-      bedA: ch.bed[i]!,
-      bedB: ch.bed[i + 1]!,
-      stageA: ch.stage[i]!,
-      stageB: ch.stage[i + 1]!,
-      speedA: ch.speed[i]!,
-      speedB: ch.speed[i + 1]!,
-    })
+/** Bucket side of the reaches' broad phase, m. */
+const CELL = 32
+
+/**
+ * A place's reaches in 32 m buckets by their beds' boxes: every water piece the tile holds (whole,
+ * so its channel is the whole piece's), by piece then vertex, as the whole map's broad phase visited
+ * a point's candidates; a zero-length reach holds none. Built on a place's first use.
+ */
+const reachesOf = derived((place: Place): Buckets<Reach> => {
+  const out = emptyBuckets<Reach>(CELL)
+  for (const water of place.vectors.water.items) {
+    const ch = channelOf(water),
+      { pts } = water,
+      reach = reachOf(water)
+    for (let i = 0; i + 1 < pts.length / 2; i++) {
+      const ax = pts[2 * i]!,
+        ay = pts[2 * i + 1]!,
+        bx = pts[2 * i + 2]!,
+        by = pts[2 * i + 3]!,
+        length = Ops.hypot(bx - ax, by - ay)
+      if (length <= 0) continue
+      addToBuckets(
+        out,
+        {
+          ax,
+          ay,
+          bx,
+          by,
+          ux: (bx - ax) / length,
+          uy: (by - ay) / length,
+          reach,
+          bedA: ch.bed[i]!,
+          bedB: ch.bed[i + 1]!,
+          stageA: ch.stage[i]!,
+          stageB: ch.stage[i + 1]!,
+          speedA: ch.speed[i]!,
+          speedB: ch.speed[i + 1]!,
+        },
+        Math.min(ax, bx) - reach,
+        Math.min(ay, by) - reach,
+        Math.max(ax, bx) + reach,
+        Math.max(ay, by) + reach,
+      )
+    }
   }
   return out
 })
-const near = staticGrid(
-  reaches.length,
-  (i) => {
-    const r = reaches[i]!
-    return [
-      Math.min(r.ax, r.bx) - r.reach,
-      Math.min(r.ay, r.by) - r.reach,
-      Math.max(r.ax, r.bx) + r.reach,
-      Math.max(r.ay, r.by) + r.reach,
-    ]
-  },
-  32,
-)
 
 /**
  * The water where a body stands: its depth there (m), the surface's height (m a.s.l.), the current (m/s, world frame), and the
@@ -96,28 +103,37 @@ export interface WaterHere {
   readonly bankY: number
 }
 
-/** The nearest reach holding water at (x, y), within its bed, and where along it (0…1); undefined where none does. */
-const reachAt = (x: number, y: number): { readonly i: number; readonly t: number } | undefined => {
-  let nearest = -1,
+/** A reach and a point's place along it (0…1). */
+interface Hit {
+  readonly reach: Reach
+  readonly t: number
+}
+
+/**
+ * The nearest reach holding water at (x, y), within its bed, and where along it (0…1); undefined where none does. Of equally near
+ * ones, the first in the whole map's order (by piece, then vertex).
+ */
+const reachAt = (x: number, y: number): Hit | undefined => {
+  const near = reachesOf(placeAt(x, y))
+  let nearest: Reach | undefined,
     nearestD2 = Number.MAX_VALUE,
     nearestT = 0
-  near(x, y, x, y, (i) => {
-    const r = reaches[i]!,
-      { d2, t } = segDist2(x, y, r.ax, r.ay, r.bx, r.by)
-    if (d2 <= r.reach * r.reach && d2 < nearestD2) [nearest, nearestD2, nearestT] = [i, d2, t]
-  })
-  return nearest < 0 ? undefined : { i: nearest, t: nearestT }
+  for (const r of bucketItems(near, Math.floor(x / CELL), Math.floor(y / CELL))) {
+    const { d2, t } = segDist2(x, y, r.ax, r.ay, r.bx, r.by)
+    if (d2 <= r.reach * r.reach && d2 < nearestD2) [nearest, nearestD2, nearestT] = [r, d2, t]
+  }
+  return nearest === undefined ? undefined : { reach: nearest, t: nearestT }
 }
 
 /** The water of reach `hit` at (x, y) over a floor at `floor` m a.s.l. at `q` m³/s per km²; undefined where the floor is above it. */
 const waterOf = (
   x: number,
   y: number,
-  hit: { readonly i: number; readonly t: number },
+  hit: Hit,
   floor: number,
   q: number,
 ): WaterHere | undefined => {
-  const r = reaches[hit.i]!,
+  const r = hit.reach,
     t = hit.t
   const mean = (r.stageA + (r.stageB - r.stageA) * t) * (q > 0 ? Ops.pow(q, STAGE) : 0),
     level = r.bedA + (r.bedB - r.bedA) * t + mean,

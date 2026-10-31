@@ -21,8 +21,8 @@ import {
   SkyView,
   update,
 } from "../index.ts"
+import { roadsNear, waterNear } from "../map/__tests__/vectors-near.ts"
 import { deckNear } from "../map/ground.ts"
-import { MAP } from "../map/index.ts"
 import { walkIndex } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { stalled } from "../systems/physics.ts"
@@ -33,13 +33,17 @@ import { screenAxes } from "../view.ts"
 import { waterUnder } from "../water/rivers.ts"
 import { assertVergesDry } from "./verges.ts"
 
+/** The roads and rivers of the four tiles round Monzone station (-493.8, 436.9) and the tiles' corner (0, 0). */
+const ROADS = roadsNear(-493.8, 436.9, 1500),
+  WATER = waterNear(-493.8, 436.9, 1500)
+
 /**
  * The Torrente Lucido below Monzone station, found by geometry: the vertex of its river part nearest the station with no bridge
  * within 30 m, the way it flows there, and the way across from its north bank to its south one.
  */
 const LUCIDO = (() => {
   let best: { d: number; x: number; y: number; ux: number; uy: number } | undefined
-  for (const w of MAP.water.filter((o) => o.name === "Torrente Lucido" && o.kind === "river"))
+  for (const w of WATER.filter((o) => o.name === "Torrente Lucido" && o.kind === "river"))
     for (let i = 1; i + 1 < w.pts.length / 2; i++) {
       const x = w.pts[2 * i]!,
         y = w.pts[2 * i + 1]!,
@@ -320,7 +324,7 @@ test("stalling: water over a car's air intake stalls its engine; the truck breat
 
 test("bridges: a walker on a bridge over the Lucido stays dry in a spate; a swimmer under it is in the water", () => {
   const crossing = (() => {
-    for (const road of MAP.roads.filter((r) => r.bridge === true))
+    for (const road of ROADS.filter((r) => r.bridge === true))
       for (let k = 0; k + 1 < road.pts.length / 2; k++)
         for (let t = 0; t <= 1; t += 0.05) {
           const x = road.pts[2 * k]! + (road.pts[2 * k + 2]! - road.pts[2 * k]!) * t,
@@ -338,7 +342,7 @@ test("bridges: a walker on a bridge over the Lucido stays dry in a spate; a swim
 // Regression: the deck lookup skipped a bridge by its first vertex's height and read one 16 m bucket, putting verge walkers
 // in the river (water.map-test.ts checks every bridge of the map).
 test("bridges: every walker's verge over the water in a spate is on the deck, on the bridges within 2 km of Monzone", () => {
-  const near = MAP.roads.filter(
+  const near = roadsNear(-493.8, 436.9, 2000).filter(
     (r) => r.bridge === true && Ops.hypot(r.pts[0]! + 493.8, r.pts[1]! - 436.9) < 2000,
   )
   const checked = assertVergesDry(near, SPATE)

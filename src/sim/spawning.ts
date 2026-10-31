@@ -12,8 +12,9 @@ import { settle } from "./chassis.ts"
 import { UNDAMAGED } from "./damage.ts"
 import { gearFor } from "./drivetrain.ts"
 import { groundZ, roadLevel } from "./map/ground.ts"
+import { graph } from "./map/index.ts"
 import { ELDERS, lookOf } from "./population/looks.ts"
-import { roadOf, type Step } from "./route.ts"
+import { type Step } from "./route.ts"
 import {
   Animal,
   type AnimalValue,
@@ -93,7 +94,10 @@ export const trafficCar = (
     [PrevPose, pose],
     [Motion, { vx: Ops.cos(pose.angle) * speed, vy: Ops.sin(pose.angle) * speed, spin: 0 }],
     [CarInput, { throttle: 0, steer: 0, handbrake: false }],
-    [Chassis, rollingChassis(model, pose, speed, roadLevel(roadOf(route.edge), pose.x, pose.y))],
+    [
+      Chassis,
+      rollingChassis(model, pose, speed, roadLevel(graph.edges[route.edge]!.road, pose.x, pose.y)),
+    ],
     [Damage, UNDAMAGED],
     [Traffic, {}],
     [Route, route],

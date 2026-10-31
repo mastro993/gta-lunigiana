@@ -10,7 +10,8 @@ import { Ops, type Random } from "@typeonce/ritmo-math"
 
 import { edgeIndex } from "./edges.ts"
 import { type Lane, laneOf, peel, roadOf, type Step, stepKey } from "./lanes.ts"
-import { graph, MAP, roadClassOf, type Road, type RoadClass, vergeOf } from "./map/index.ts"
+import { graph, MAP, type RoadClass, type RoadInfo, vergeOf } from "./map/index.ts"
+import { isRoadClass } from "./map/kinds.ts"
 import { residentsAlong } from "./population/density.ts"
 import { VEHICLE_MODELS, type VehicleModel } from "./vehicles.ts"
 
@@ -50,8 +51,11 @@ export const alongLane = (lane: Lane, x: number, y: number): number =>
 export const endNode = (edge: number, forward: boolean): number =>
   forward ? graph.edges[edge]!.b : graph.edges[edge]!.a
 
+/** A road's class (`roadClassOf`, which takes the whole road, line and all): an unknown one is a path. */
+const classOf = (road: RoadInfo): RoadClass => (isRoadClass(road.cls) ? road.cls : "path")
+
 /** Pedestrians keep to the verge of roads and to the middle of paths, steps and tracks, or where the road's `verge` says (off the railway). */
-export const walkSide = (road: Road): number => road.verge ?? vergeOf(roadClassOf(road), road.w)
+export const walkSide = (road: RoadInfo): number => road.verge ?? vergeOf(classOf(road), road.w)
 
 /** Cruising speed of AI traffic by road class, m/s (service roads and the rest: 5). */
 const CRUISE: Readonly<Partial<Record<RoadClass, number>>> = {
@@ -65,7 +69,7 @@ const CRUISE: Readonly<Partial<Record<RoadClass, number>>> = {
 }
 
 /** Cruising speed of AI traffic on `road`, m/s (`CRUISE`). */
-export const cruiseSpeed = (road: Road): number => CRUISE[roadClassOf(road)] ?? 5
+export const cruiseSpeed = (road: RoadInfo): number => CRUISE[classOf(road)] ?? 5
 
 const walkSet: ReadonlySet<number> = new Set(graph.walkEdges)
 
