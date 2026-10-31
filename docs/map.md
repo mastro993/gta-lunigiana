@@ -5,7 +5,7 @@ Lunigiana map: the global file `src/sim/map/monzone.bin` (1.9 MB) and 30 tiles o
 `src/sim/map/monzone/` (5.6 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
 is deterministic on one CPU architecture (gunzipped, its files are the same bytes on every machine
 of it, and it prints the same build hash; gzipped, they are byte-identical with the same Node build,
-while another zlib or OS writes other compressed bytes), takes about 12 s and peaks at 1.2 GB
+while another zlib or OS writes other compressed bytes), takes about 8.5 s and peaks at 1.05 GB
 resident ([Pipeline](#pipeline)). Across architectures
 it is not: V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` return other last bits on arm64
 than on x64 (`hypot` agrees; Node 24.22.1, 200,000 arguments each), and on 2026-10-30 the arm64 and
@@ -105,24 +105,34 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
-  synthetic, with no roads, buildings or land cover, for the build's memory and time and the cars
-  round Monzone. It is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`); CI never
+  synthetic, with no roads or buildings, only the OSM areas that reach past lucido (80 more, mostly
+  woods, and 0.98 million more trees in them), for the build's memory and time and the cars round
+  Monzone. It is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`); CI never
   builds it.
 
 Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
-a load average of 7–12 from other work):
+three runs each, a load average of 5–6 from other work), before and after the build's per-tile
+stages were sped up (the same files, byte for byte, and the same hashes):
 
 | Build | Tiles | Wall clock | Peak resident |
 |---|---|---|---|
-| lucido (`pnpm map`), 2 runs | 30 | 12.41, 12.81 s | 1,117, 1,096 MB |
-| `lunigiana-3x`, 3 runs | 78 | 28.52, 28.27, 28.17 s | 1,594, 1,592, 1,598 MB |
+| lucido (`pnpm map`), before | 30 | 12.41, 12.81, 12.71 s | 1,117, 1,096, 1,109 MB |
+| `lunigiana-3x`, before | 78 | 28.52, 28.27, 28.17 s | 1,594, 1,592, 1,598 MB |
+| lucido (`pnpm map`) | 30 | 8.60, 8.35, 8.42 s | 1,048, 1,041, 1,052 MB |
+| `lunigiana-3x` | 78 | 15.87, 15.98, 15.92 s | 1,469, 1,482, 1,465 MB |
 
-- **Memory**: 1.6 GB, under the 3 GB issue #3 asks of a 3× region, and 10 MB more a tile: the grid,
-  the catchments' arrays and the walls' bit sets still grow with the area ([Pipeline](#pipeline)).
-- **Time**: (28.32 − 12.61) s over 48 more tiles is 0.33 s a tile, over the 0.3 s issue #3 asks.
-  The 15.7 s more: the grid 5.7 s (0.12 s a tile: each node averages 25 DTM samples, each through
-  the projection lattice), the write 4.3 s, the catchments 2.1 s, the cut 1.4 s, the walls 1.1 s and
-  the trees 0.9 s. Gzip at level 9 takes 78 ms on a synthetic tile against 43 ms on a lucido one
+- **Memory**: 1.47 GB, half the 3 GB issue #3 asks of a 3× region, and 9 MB more a tile: the grid
+  (twice, carved and uncarved, 8 bytes a node), the catchments' arrays (15 bytes a node), the walls'
+  bit sets and the cut tiles still grow with the area ([Pipeline](#pipeline)). It was 1.6 GB and
+  10 MB a tile before the catchments' D8 went to a byte a node.
+- **Time**: (15.92 − 8.46) s over 48 more tiles is 0.155 s a tile, against the 0.3 s issue #3 asks
+  (0.33 s before), plus a fixed 3.8 s (lucido's 8.46 s less its 30 tiles at that rate). The 7.4 s
+  more, stage by stage: the grid 1.5 s (2.5 s rather than 1.0 s), the catchments 1.5 s, the walls
+  1.1 s, the write 1.1 s, the cut 1.0 s and the trees 0.9 s; the rest holds lucido's features
+  whatever the size. Before, the 15.7 s more were the grid 5.7 s (each of a node's 25 DTM samples
+  ran the projection lattice's bilinear twice), the write 4.3 s (gzip on the main thread), the
+  catchments 2.1 s, the cut 1.4 s, the walls 1.1 s and the trees 0.9 s ([Pipeline](#pipeline) says
+  what changed). Gzip at level 9 takes 78 ms on a synthetic tile against 43 ms on a lucido one
   (the edge drawn on repeats, which lengthens its match chains), so a real part's tiles write
   faster but bring roads, walls and trees the synthetic ones lack.
 - **Live vehicles round Monzone** (`x3-region.map-test.ts`, which runs `stand.ts` on each map in a
@@ -207,22 +217,28 @@ water's mouths and the catchments' inflows by node id, the chains' growth order 
 node ids already set, the road–rail and line–water crossings gated by their boxes, and the
 parapets' openings read from one index of the roads.
 
-On 2026-10-30 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs)
-the build peaked at 1.15–1.20 GB resident and took 11.8–12.1 s, against 1.30–1.46 GB and
-13.6–13.9 s with every stage at the top level of `build-map.ts` and the map cut twice. The grid's
-tile pass takes 3.3 s (0.11 s a tile) and the cut 0.95 s. The stages ended at (s from the start):
+On 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs)
+the build peaked at 1.04–1.05 GB resident and took 8.4–8.6 s: 1.10–1.12 GB and 12.4–12.8 s that
+morning, before the grid's nodes, the catchments, the land cover's fills and the write were sped
+up (the same files), and 1.30–1.46 GB and 13.6–13.9 s on 2026-10-30 with every stage at the top
+level of `build-map.ts` and the map cut twice. The grid's tile pass takes 1.0 s (0.033 s a tile)
+and the cut 0.9 s. The stages ended at (s from the start, and the resident MB the build prints
+then):
 
-| rail | features | roads | decks | grid | water | railway | walls | trees | spawns | map | cut | bake | write |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0.60 | 1.17 | 1.24 | 1.26 | 4.54 | 5.63 | 6.21 | 7.67 | 8.21 | 8.47 | 8.49 | 9.43 | 10.18 | 11.70 |
+| | rail | features | roads | decks | grid | water | railway | walls | trees | spawns | map | cut | bake | write |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| s | 0.60 | 1.16 | 1.22 | 1.24 | 2.24 | 3.02 | 3.59 | 5.06 | 5.78 | 6.04 | 6.06 | 6.96 | 7.71 | 8.22 |
+| MB | 518 | 544 | 553 | 560 | 644 | 653 | 686 | 782 | 767 | 892 | 894 | 883 | 1,007 | 1,021 |
 
-Resident memory (`process.memoryUsage()` at each lap) climbs most in the spawns, by 150 MB (the
-clearance indexes of every wall and trunk), and in the bake, by 100 MB (the game decoding the
-global file and the tiles it reads, while the build still holds the cut tiles, 38.5 MB of unstamped
-files, and the global map's vectors); it peaks in the bake or the write. The grid stays whole (8 bytes a node, 39 MB here) for the walls' slope test, the railway's platforms,
-the paths' and buildings' heights and the cut, and so do the catchments (15 bytes a node of arrays
-the size of the grid, 73 MB here, beside the uncarved grid they fill, for a moment), the walls' bit sets (1 byte a cell each) and their trace, which
-are the parts that still grow with the area.
+Resident memory climbs most in the spawns, by 125 MB (the clearance indexes of every wall and
+trunk), and in the bake, by 124 MB (the game decoding the global file and the tiles it reads, while
+the build still holds the cut tiles, 38.5 MB of unstamped files, and the global map's vectors); it
+peaks in the bake or the write. The grid stays whole (8 bytes a node, 39 MB here) for the walls'
+slope test, the railway's platforms, the paths' and buildings' heights and the cut, and so do the
+catchments (15 bytes a node of arrays the size of the grid, 73 MB here, beside the uncarved grid
+they fill, for a moment), the walls' bit sets (1 byte a cell each) and their trace, which are the
+parts that still grow with the area: 9 MB a tile on the 3x test region ([Test
+regions](#test-regions)).
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
