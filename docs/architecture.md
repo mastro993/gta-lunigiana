@@ -1891,6 +1891,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     herds keep to the L; in `src/sim/sky/__tests__` bolts strike only the L; in `src/hud/__tests__`
     the minimap lists no notch tile and the maps' grass and clip are the L; in
     `src/audio/places/__tests__` no owl perches on an unlisted tile.
+    `src/sim/map/__tests__/anchor.test.ts`: Lunigiana's global file rewritten to start its
+    heightmap a tile east and north of its anchor, which it names (`ax`, `ay`), as a region whose
+    parts lie east or north of its anchor gives: `heightAt`, `terrainZ` and `coverAt` at 440 points
+    round Monzone station (40 of them a hair short of a line of the 4 m lattice) the same to the bit
+    as on Lunigiana itself, read in a process of its own (`lookups.ts`); `kinds.test.ts`:
+    `anchorOf`.
   - `src/hud/__tests__/handling.test.ts`: the handling store (what it stores, restores and
     sends); `src/hud/__tests__/settings.test.ts`: the settings' keys (Esc on to the router, every
     other key kept from the game) and the preset they show (Custom for a hand-set mix);

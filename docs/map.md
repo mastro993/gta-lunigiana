@@ -1238,7 +1238,11 @@ Settembre" and "Via Castel dell'Aquila").
 `decodeMap` (a newline inside a name, the coarse grid) and a tile through `packTile` and
 `decodeTile` (negative values, the widest deltas, an empty section), and checks that a file of
 another version, or a value too far for its section, throws; `stale-map.test.ts` that the game
-refuses a global file without the play area's outline.
+refuses a global file without the play area's outline. `anchor.test.ts` rewrites Lunigiana's
+global file to start its heightmap a tile east and north of its anchor, which the file then names,
+and checks that `heightAt`, `terrainZ` and `coverAt` answer to the bit as on Lunigiana itself (read
+by `lookups.ts` in a process of its own) at 440 points round Monzone station; measuring from the
+first node instead, as before the anchor, it fails on all three.
 `src/sim/map/__tests__/tiles.map-test.ts` checks the cut: the 30 tiles cover the bounds (i −2…2, j
 −4…1, south to north then west to east) with their lowest and highest nodes (the nodes two tiles
 share are `seams.map-test.ts`'s, below), each wall lives in the tile of its midpoint and each tree
