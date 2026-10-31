@@ -14,6 +14,8 @@ const grid: Grid = {
   rows,
   x0: 0,
   y0: 0,
+  ax: 0,
+  ay: 0,
   z: Float64Array.from({ length: cols * rows }, (_, n) => 100 - 0.02 * 4 * (n % cols)),
 }
 const profile = (pts: ReadonlyArray<readonly [number, number]>): Profile => {
@@ -88,6 +90,8 @@ test("catchments fills and routes a grid of flats and pits to the same heights a
     rows,
     x0: 0,
     y0: 0,
+    ax: 0,
+    ay: 0,
     z: Float64Array.from({ length: cols * rows }, (_, n) => ((n * 7919) % 13) % 4),
   }
   const wp = [

@@ -6,6 +6,7 @@ import { inflateSync } from "node:zlib"
 
 import { latLonToGaussBoaga } from "./crs.ts"
 import { arcLengths, BOUNDS, fromLocal, segDist2, type V } from "./geometry.ts"
+import { REGION, type Region } from "./region.ts"
 
 /** A block of the grid's nodes by whole-grid index: columns i0 … i0 + cols − 1, rows j0 … j0 + rows − 1. */
 export interface Span {
@@ -25,6 +26,12 @@ export interface Grid {
   readonly rows: number
   readonly x0: number
   readonly y0: number
+  /**
+   * The region's anchor (region.ts), a node of the whole grid's lattice: a point's cell and its
+   * fraction of it are measured from there, so they keep their bits however far the grid reaches.
+   */
+  readonly ax: number
+  readonly ay: number
   /** Elevations of the nodes `span` holds, row-major, row 0 = south. */
   readonly z: Float64Array
   /** The nodes `z` holds; the whole grid when absent. */
@@ -105,7 +112,22 @@ export interface DtmData {
   readonly z: Float32Array
 }
 
-/** Bilinear terrain at fractional cell (fx, fy) of a `cols` × `rows` raster `a` (component `c` of `stride`), clamped to its edge. */
+/**
+ * The cell (0 … n − 2) of a lattice of `n` nodes that holds the point `f` cells past its node `o`,
+ * clamped to the lattice. `o` goes on the whole cells alone, so the point's fraction of its cell
+ * (`fractionOf`) keeps its bits however far the lattice reaches past `o`.
+ */
+export const cellOf = (f: number, o: number, n: number): number =>
+  Math.min(n - 2, Math.max(0, Math.floor(f) + o))
+
+/** The fraction, clamped to 0 … 1, of cell `i` (`cellOf`) at the point `f` cells past node `o`. */
+export const fractionOf = (f: number, o: number, i: number): number =>
+  Math.min(1, Math.max(0, f - (i - o)))
+
+/**
+ * Bilinear terrain at fractional cell (fx, fy) past node (ox, oy) of a `cols` × `rows` raster `a`
+ * (component `c` of `stride`), clamped to its edge.
+ */
 const bilinear = (
   a: Float32Array | Float64Array,
   cols: number,
@@ -114,11 +136,13 @@ const bilinear = (
   fy: number,
   stride: number,
   c: number,
+  ox = 0,
+  oy = 0,
 ) => {
-  const i = Math.min(cols - 2, Math.max(0, Math.floor(fx))),
-    j = Math.min(rows - 2, Math.max(0, Math.floor(fy)))
-  const tx = Math.min(1, Math.max(0, fx - i)),
-    ty = Math.min(1, Math.max(0, fy - j))
+  const i = cellOf(fx, ox, cols),
+    j = cellOf(fy, oy, rows)
+  const tx = fractionOf(fx, ox, i),
+    ty = fractionOf(fy, oy, j)
   const v = (di: number, dj: number) => a[((j + dj) * cols + i + di) * stride + c]!
   return (v(0, 0) * (1 - tx) + v(1, 0) * tx) * (1 - ty) + (v(0, 1) * (1 - tx) + v(1, 1) * tx) * ty
 }
@@ -140,17 +164,25 @@ export const loadDtm = (dir: string): Dem => {
 
 /**
  * Bilinear sampler in local metres of `dtm`, through a lattice of exact projections every
- * PROJ_STEP m over the built terrain and 100 m round it; outside the crop it holds the edge value.
+ * PROJ_STEP m over `ground`'s built terrain and 100 m round it; outside the crop it holds the edge
+ * value. The lattice's nodes and a point's fraction of a lattice cell are measured from 100 m
+ * south-west of the region's anchor, so a point's height keeps its bits when parts grow the box.
  * Its grid windows give the nodes `makeGrid` gives on the sampler, bit for bit, but read each
  * sample's projection from terms worked out once per lattice row: the same operations on the
  * same doubles, about twice as fast (the grid's tile pass took 3.5 s of Lunigiana's 12 s).
  */
-export const dtmDem = (dtm: DtmData): Dem => {
+export const dtmDem = (dtm: DtmData, ground: Ground = REGION): Dem => {
+  const { bounds, anchor } = ground
   const margin = 2 * PROJ_STEP
-  const lx0 = BOUNDS.minX - margin,
-    ly0 = BOUNDS.minY - margin
-  const lcols = Math.ceil((BOUNDS.maxX - BOUNDS.minX + 2 * margin) / PROJ_STEP) + 1,
-    lrows = Math.ceil((BOUNDS.maxY - BOUNDS.minY + 2 * margin) / PROJ_STEP) + 1
+  // The reference node (rx, ry), its column and row (ri, rj), and the lattice's first node.
+  const rx = anchor.x - margin,
+    ry = anchor.y - margin
+  const ri = Math.ceil((rx - bounds.minX + margin) / PROJ_STEP),
+    rj = Math.ceil((ry - bounds.minY + margin) / PROJ_STEP)
+  const lx0 = rx - ri * PROJ_STEP,
+    ly0 = ry - rj * PROJ_STEP
+  const lcols = Math.ceil((bounds.maxX + margin - lx0) / PROJ_STEP) + 1,
+    lrows = Math.ceil((bounds.maxY + margin - ly0) / PROJ_STEP) + 1
   const lattice = new Float64Array(lcols * lrows * 2)
   for (let j = 0; j < lrows; j++)
     for (let i = 0; i < lcols; i++)
@@ -160,14 +192,14 @@ export const dtmDem = (dtm: DtmData): Dem => {
       )
   const { e0, n0, cell: dc, cols: dcols, rows: drows, z } = dtm
   const at = (x: number, y: number) => {
-    const fx = (x - lx0) / PROJ_STEP,
-      fy = (y - ly0) / PROJ_STEP
-    const e = bilinear(lattice, lcols, lrows, fx, fy, 2, 0),
-      n = bilinear(lattice, lcols, lrows, fx, fy, 2, 1)
+    const fx = (x - rx) / PROJ_STEP,
+      fy = (y - ry) / PROJ_STEP
+    const e = bilinear(lattice, lcols, lrows, fx, fy, 2, 0, ri, rj),
+      n = bilinear(lattice, lcols, lrows, fx, fy, 2, 1, ri, rj)
     return bilinear(z, dcols, drows, (e - e0) / dc, (n - n0) / dc, 1, 0)
   }
   const grid = (span: Span): Grid => {
-    const g = gridLattice(),
+    const g = gridLattice(ground),
       side = 2 * BOX + 1
     const { i0, j0, cols: w, rows: h } = span
     // Each sample column (a node's column, then its box's dx): its lattice column and weights.
@@ -178,9 +210,9 @@ export const dtmDem = (dtm: DtmData): Dem => {
     for (let c = 0; c < w; c++)
       for (let dx = -BOX; dx <= BOX; dx++) {
         const q = c * side + dx + BOX,
-          fx = (g.x0 + (i0 + c) * g.cell + dx - lx0) / PROJ_STEP
-        const i = Math.min(lcols - 2, Math.max(0, Math.floor(fx))),
-          t = Math.min(1, Math.max(0, fx - i))
+          fx = (g.x0 + (i0 + c) * g.cell + dx - rx) / PROJ_STEP
+        const i = cellOf(fx, ri, lcols),
+          t = fractionOf(fx, ri, i)
         li[q] = i
         tx[q] = t
         ux[q] = 1 - t
@@ -197,9 +229,9 @@ export const dtmDem = (dtm: DtmData): Dem => {
     for (let j = j0; j < j0 + h; j++) {
       sums.fill(0)
       for (let dy = -BOX; dy <= BOX; dy++) {
-        const fy = (g.y0 + j * g.cell + dy - ly0) / PROJ_STEP
-        const lj = Math.min(lrows - 2, Math.max(0, Math.floor(fy)))
-        const ty = Math.min(1, Math.max(0, fy - lj)),
+        const fy = (g.y0 + j * g.cell + dy - ry) / PROJ_STEP
+        const lj = cellOf(fy, rj, lrows)
+        const ty = fractionOf(fy, rj, lj),
           uy = 1 - ty
         if (lj !== row) {
           row = lj
@@ -236,14 +268,35 @@ const BOX = 2
 /** The terrain grid's cell, m. */
 export const GRID_CELL = 4
 
-/** The whole grid over BOUNDS (its last row/col reaches maxX/maxY), with no nodes: the lattice every window of it shares. */
-export const gridLattice = (): Omit<Grid, "z" | "span"> => ({
-  cell: GRID_CELL,
-  cols: Math.ceil((BOUNDS.maxX - BOUNDS.minX) / GRID_CELL) + 1,
-  rows: Math.ceil((BOUNDS.maxY - BOUNDS.minY) / GRID_CELL) + 1,
-  x0: BOUNDS.minX,
-  y0: BOUNDS.minY,
-})
+/** The built terrain's box and the anchor its arithmetic is measured from: a region's (`REGION`). */
+type Ground = Pick<Region, "bounds" | "anchor">
+
+/** The whole grid over `ground`'s box (its last row/col reaches maxX/maxY), with no nodes: the lattice every window of it shares. */
+export const gridLattice = ({ bounds, anchor }: Ground = REGION): Omit<Grid, "z" | "span"> => {
+  const { minX: x0, minY: y0 } = bounds
+  if (
+    !Number.isInteger((anchor.x - x0) / GRID_CELL) ||
+    !Number.isInteger((anchor.y - y0) / GRID_CELL)
+  )
+    throw new Error(
+      `the anchor (${anchor.x}, ${anchor.y}) is off the ${GRID_CELL} m grid from (${x0}, ${y0})`,
+    )
+  return {
+    cell: GRID_CELL,
+    cols: Math.ceil((bounds.maxX - x0) / GRID_CELL) + 1,
+    rows: Math.ceil((bounds.maxY - y0) / GRID_CELL) + 1,
+    x0,
+    y0,
+    ax: anchor.x,
+    ay: anchor.y,
+  }
+}
+
+/** The whole-grid column and row of `g`'s anchor (a node, maybe off the grid): the `o` of `cellOf`. */
+export const anchorNode = (g: Omit<Grid, "z" | "span">): readonly [number, number] => [
+  (g.ax - g.x0) / g.cell,
+  (g.ay - g.y0) / g.cell,
+]
 
 /** The window of the whole grid's nodes `span` holds, each the mean of `dem` over a (2 BOX + 1) m square. */
 export const makeGrid = (dem: (x: number, y: number) => number, span: Span): Grid => {
@@ -265,14 +318,19 @@ export const makeGrid = (dem: (x: number, y: number) => number, span: Span): Gri
 export const slotOf = (g: Grid, i: number, j: number): number =>
   g.span === undefined ? j * g.cols + i : (j - g.span.j0) * g.span.cols + i - g.span.i0
 
-/** Bilinear terrain at (x, y), clamped to the whole grid; `g` must hold the four nodes of the cell read. */
+/**
+ * Bilinear terrain at (x, y), clamped to the whole grid, measured from its anchor (the same bits on
+ * any grid round it); `g` must hold the four nodes of the cell read.
+ */
 export const sampleGrid = (g: Grid, x: number, y: number): number => {
-  const fx = (x - g.x0) / g.cell,
-    fy = (y - g.y0) / g.cell
-  const i = Math.min(g.cols - 2, Math.max(0, Math.floor(fx))),
-    j = Math.min(g.rows - 2, Math.max(0, Math.floor(fy)))
-  const tx = Math.min(1, Math.max(0, fx - i)),
-    ty = Math.min(1, Math.max(0, fy - j))
+  const fx = (x - g.ax) / g.cell,
+    fy = (y - g.ay) / g.cell,
+    oi = (g.ax - g.x0) / g.cell,
+    oj = (g.ay - g.y0) / g.cell
+  const i = cellOf(fx, oi, g.cols),
+    j = cellOf(fy, oj, g.rows)
+  const tx = fractionOf(fx, oi, i),
+    ty = fractionOf(fy, oj, j)
   const k = slotOf(g, i, j),
     up = g.span?.cols ?? g.cols
   const s = g.z[k]! + (g.z[k + 1]! - g.z[k]!) * tx,
@@ -305,10 +363,11 @@ const forNodesNear = (
     cols: w,
     rows: h,
   } = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
-  const i0 = Math.max(si, Math.floor((Math.min(ax, bx) - r - g.x0) / g.cell)),
-    i1 = Math.min(si + w - 1, Math.ceil((Math.max(ax, bx) + r - g.x0) / g.cell))
-  const j0 = Math.max(sj, Math.floor((Math.min(ay, by) - r - g.y0) / g.cell)),
-    j1 = Math.min(sj + h - 1, Math.ceil((Math.max(ay, by) + r - g.y0) / g.cell))
+  const [oi, oj] = anchorNode(g)
+  const i0 = Math.max(si, Math.floor((Math.min(ax, bx) - r - g.ax) / g.cell) + oi),
+    i1 = Math.min(si + w - 1, Math.ceil((Math.max(ax, bx) + r - g.ax) / g.cell) + oi)
+  const j0 = Math.max(sj, Math.floor((Math.min(ay, by) - r - g.ay) / g.cell) + oj),
+    j1 = Math.min(sj + h - 1, Math.ceil((Math.max(ay, by) + r - g.ay) / g.cell) + oj)
   for (let j = j0; j <= j1; j++)
     for (let i = i0; i <= i1; i++) {
       const { d2, t } = segDist2(g.x0 + i * g.cell, g.y0 + j * g.cell, ax, ay, bx, by)

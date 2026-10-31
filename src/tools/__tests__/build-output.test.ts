@@ -14,6 +14,8 @@ const grid = (z: ReadonlyArray<number>) => ({
   rows: 2,
   x0: 0,
   y0: 0,
+  ax: 0,
+  ay: 0,
   z: Float64Array.from(z),
 })
 

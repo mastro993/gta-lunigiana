@@ -4,7 +4,7 @@
 // arithmetic (`Grid` in terrain.ts).
 import { TILE, tileKey, tileRange } from "../sim/map/kinds.ts"
 import { BOUNDS } from "./geometry.ts"
-import type { Grid, Span } from "./terrain.ts"
+import { anchorNode, cellOf, type Grid, type Span } from "./terrain.ts"
 
 /** The whole grid's lattice: its cell, size and south-west node. */
 type Lattice = Omit<Grid, "z" | "span">
@@ -55,10 +55,11 @@ export const gridTiles = (g: Lattice): Array<GridTile> => {
  * of that cell is in the tile, so its window answers as the whole grid does.
  */
 export const cellTile = (g: Lattice): ((x: number, y: number) => string) => {
-  const { n, cx, cy, range } = steps(g)
+  const { n, cx, cy, range } = steps(g),
+    [oi, oj] = anchorNode(g)
   return (x, y) => {
-    const i = Math.min(g.cols - 2, Math.max(0, Math.floor((x - g.x0) / g.cell))),
-      j = Math.min(g.rows - 2, Math.max(0, Math.floor((y - g.y0) / g.cell)))
+    const i = cellOf((x - g.ax) / g.cell, oi, g.cols),
+      j = cellOf((y - g.ay) / g.cell, oj, g.rows)
     return tileKey(
       Math.min(range.i1, Math.max(range.i0, Math.floor((i + cx) / n))),
       Math.min(range.j1, Math.max(range.j0, Math.floor((j + cy) / n))),

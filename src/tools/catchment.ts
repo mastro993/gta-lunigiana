@@ -1,7 +1,7 @@
 // Upstream catchment areas for the map build: the 4 m grid with the water burned in, filled
 // (priority-flood + epsilon, Barnes et al. 2014), routed D8 and accumulated, read at every sample
 // of each water profile.
-import type { Grid, Profile } from "./terrain.ts"
+import { anchorNode, type Grid, type Profile } from "./terrain.ts"
 
 /** How far (m) the water's samples are burned under the terrain, so D8 follows the mapped water, not the 4 m grid's guess. */
 const BURN = 100
@@ -84,11 +84,13 @@ export const catchments = (
   wp: ReadonlyArray<Profile>,
   ids: ReadonlyArray<ReadonlyArray<string | undefined>>,
 ): Array<Float64Array> => {
-  const { cols, rows, cell } = g
+  const { cols, rows, cell } = g,
+    [oi, oj] = anchorNode(g)
   const z = g.z // burned and filled in place: the grid is the build's uncarved copy
+  // The nearest node, measured from the anchor (the same on any grid round it).
   const nodeOf = (x: number, y: number) =>
-    Math.min(rows - 1, Math.max(0, Math.round((y - g.y0) / cell))) * cols +
-    Math.min(cols - 1, Math.max(0, Math.round((x - g.x0) / cell)))
+    Math.min(rows - 1, Math.max(0, Math.round((y - g.ay) / cell) + oj)) * cols +
+    Math.min(cols - 1, Math.max(0, Math.round((x - g.ax) / cell) + oi))
   // Which water burned each node (-1 none, -2 more than one: where waters meet).
   const owner = new Int32Array(cols * rows).fill(-1)
   wp.forEach((p, w) => {

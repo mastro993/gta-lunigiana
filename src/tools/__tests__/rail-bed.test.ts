@@ -12,6 +12,8 @@ const flat = (): Grid => ({
   rows: 11,
   x0: 0,
   y0: 0,
+  ax: 0,
+  ay: 0,
   z: new Float64Array(21 * 11).fill(10),
 })
 const node = (g: Grid, i: number, j: number) => j * g.cols + i

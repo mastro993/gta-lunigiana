@@ -10,7 +10,16 @@ const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y }
 const grid = (): Grid => {
   const cols = 161,
     rows = 11
-  return { cell: 4, cols, rows, x0: -20, y0: -20, z: new Float64Array(cols * rows).fill(100) }
+  return {
+    cell: 4,
+    cols,
+    rows,
+    x0: -20,
+    y0: -20,
+    ax: -20,
+    ay: -20,
+    z: new Float64Array(cols * rows).fill(100),
+  }
 }
 const SPEC = { w: 4, rank: 1, grade: 0.025, half: 20, tol: 0.03 }
 

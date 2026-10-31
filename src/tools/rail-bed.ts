@@ -5,7 +5,7 @@
 // and the track never hangs over a hole.
 import type { RailF } from "./features.ts"
 import { segIndex, type V } from "./geometry.ts"
-import { keepSamples, resample, slotOf, type Grid, type Profile } from "./terrain.ts"
+import { anchorNode, keepSamples, resample, slotOf, type Grid, type Profile } from "./terrain.ts"
 
 /** A piece as written to the map: its vertices plus the profile samples where the elevation bends. */
 export interface Dense {
@@ -97,6 +97,7 @@ export const bedLimits = (
   lines: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly z: ReadonlyArray<number> }>,
   levelCrossings: ReadonlyArray<readonly [number, number]>,
 ): Array<readonly [number, number, number]> => {
+  const [oi, oj] = anchorNode(g)
   const cap = new Map<number, number>(),
     floor = new Map<number, number>()
   const clear = (x: number, y: number) =>
@@ -110,8 +111,8 @@ export const bedLimits = (
       // Parameters where the segment crosses a grid line, so each stretch lies in one cell.
       const ts = [0, 1]
       for (const [a, b, o] of [
-        [ax, bx, g.x0],
-        [ay, by, g.y0],
+        [ax, bx, g.ax],
+        [ay, by, g.ay],
       ] as const) {
         if (a === b) continue
         for (let n = Math.ceil((Math.min(a, b) - o) / g.cell); o + n * g.cell < Math.max(a, b); n++)
@@ -127,8 +128,8 @@ export const bedLimits = (
           [x1, y1] = at(t1)
         if (!clear(x0, y0) && !clear(x1, y1)) continue
         const [mx, my] = at((t0 + t1) / 2)
-        const i = Math.floor((mx - g.x0) / g.cell),
-          j = Math.floor((my - g.y0) / g.cell)
+        const i = Math.floor((mx - g.ax) / g.cell) + oi,
+          j = Math.floor((my - g.ay) / g.cell) + oj
         const za = z[k]! + (z[k + 1]! - z[k]!) * t0,
           zb = z[k]! + (z[k + 1]! - z[k]!) * t1
         const top = Math.floor((Math.min(za, zb) + BED) * 10 + 1e-6) / 10,

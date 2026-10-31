@@ -620,8 +620,15 @@ bilinear that one lattice row shares, worked out once per row and sample column,
 of a node cost about one DTM read each: the same operations on the same doubles as the sampler
 (`makeGrid` on it, which Cesena's GeoTIFF still uses, gives the same bits:
 `terrain.test.ts`), and the grid's tile pass took 1.0 s rather than 3.6 s on Lunigiana and 2.5 s
-rather than 9.2 s on the 3x test region. This grid is carved and
-flattened by the next steps; profiles and water sample the untouched terrain (the "ground").
+rather than 9.2 s on the 3x test region. The lattice's nodes lie every 50 m from 100 m
+south-west of the region's anchor (`anchor` in `region.ts`), and a sample's fraction of a lattice
+cell is measured from there, not from the box's corner; the build's grid lookups (`sampleGrid`,
+`cellTile`, the catchments' and the rail bed's) measure a point's 4 m cell from the anchor the same
+way. A part that grows the box west or south so changes no bit of the terrain under the others
+(`terrain.test.ts`; before, 19,023 of 19,026 nodes of a synthetic DTM differed in their last bits).
+Lucido's and Cesena's anchors are their boxes' corners, so their maps did not move. This grid is
+carved and flattened by the next steps; profiles and water sample the untouched terrain (the
+"ground").
 Elevations run from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
 Grondilice).
 
