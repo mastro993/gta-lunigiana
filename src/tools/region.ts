@@ -104,7 +104,8 @@ const meet = ([ax, ay, bx, by]: Rect, [cx, cy, dx, dy]: Rect): boolean => {
 /**
  * Throws, naming the part and the fault, unless its mask (if any) is one simple counter-clockwise
  * ring on 0.1 m lying in its rectangles: at least three vertices, no edge meeting another but at
- * the vertex they share, and every stretch of every edge in a rectangle. Checked on whole
+ * the vertex they share, every stretch of every edge in a rectangle, and no ground outside the
+ * rectangles inside it (a gap they leave). Checked on whole
  * decimetres, so the predicates are exact.
  */
 export const checkMask = ({ key, rects, mask }: Part): void => {
@@ -162,6 +163,31 @@ export const checkMask = ({ key, rects, mask }: Part): void => {
         fail(`leaves its rectangles on edge ${i}`)
     }
   }
+  // Its inside in the rectangles too: their sides cut the box round them into cells each wholly in
+  // or wholly out of them, and with no edge leaving them, a cell they miss is wholly in or out of
+  // the mask, so its centre decides (a mask round a hole in a donut of rectangles fails here).
+  const xs = [...new Set(rects.flatMap((r) => [r[0], r[2]]))].sort((a, b) => a - b),
+    ys = [...new Set(rects.flatMap((r) => [r[1], r[3]]))].sort((a, b) => a - b)
+  for (let a = 0; a + 1 < xs.length; a++)
+    for (let b = 0; b + 1 < ys.length; b++) {
+      const x = (xs[a]! + xs[a + 1]!) / 2,
+        y = (ys[b]! + ys[b + 1]!) / 2
+      if (!inRects(rects, x, y) && insideRing(mask, x, y))
+        fail("encloses ground outside its rectangles")
+    }
+}
+
+/** Whether (x, y), on no edge of the flat ring, lies inside it (even-odd). */
+const insideRing = (ring: ReadonlyArray<number>, x: number, y: number): boolean => {
+  let inside = false
+  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+    const xi = ring[i]!,
+      yi = ring[i + 1]!,
+      xj = ring[j]!,
+      yj = ring[j + 1]!
+    if (yi > y !== yj > y && x < xi + ((y - yi) * (xj - xi)) / (yj - yi)) inside = !inside
+  }
+  return inside
 }
 
 /** Every tile any of `rects` meets (more than along its edge), south to north, then west to east. */

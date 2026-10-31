@@ -183,6 +183,28 @@ test("checkMask passes a diagonal mask in the L, touching its sides and its inne
   checkMask({ key: "none", title: "No mask", rects: L })
 })
 
+test("checkMask throws for a mask round a gap in its rectangles, though no edge leaves them", () => {
+  // Four rectangles in a donut; the mask's edges all lie in them, but it encloses the 100 m hole.
+  const donut: ReadonlyArray<Rect> = [
+    [0, 0, 300, 100],
+    [0, 200, 300, 300],
+    [0, 100, 100, 200],
+    [200, 100, 300, 200],
+  ]
+  assert.throws(
+    () =>
+      checkMask({
+        key: "donut",
+        title: "Donut",
+        rects: donut,
+        mask: [50, 50, 250, 50, 250, 250, 50, 250],
+      }),
+    /part donut's mask encloses ground outside its rectangles/,
+  )
+  // A mask that keeps to one side of the hole passes.
+  checkMask({ key: "donut", title: "Donut", rects: donut, mask: [0, 0, 300, 0, 300, 100, 0, 100] })
+})
+
 test("checkMask throws, naming the part and the fault, for any other mask", () => {
   for (const [mask, fault] of [
     [[0, 0, 200, 0], /needs three or more/],

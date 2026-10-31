@@ -1371,37 +1371,37 @@ DTM; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check t
 wins and the holes on synthetic grids; `footprint.test.ts` the outline of an L, clusters, a road
 that leaves and comes back, one that runs off the query box (unresolved) and a mistyped flag;
 `fetch-osm.test.ts` the split on HTTP 400 with a fake server and the refusal of a test region
-(`checkFetchable`, before any request); `coverage-grid.test.ts` and
-`coverage.test.ts` first wins, the tally, ring assembly, no picks, and a WFS error answer never
-cached; `ortho.test.ts` and `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted
-sibling flight is look only) and an error answer for capabilities; `playtest.test.ts` the spots,
-the command line (shots, heap and drive with their defaults and flags) and the spot script;
-`playtest-drive.test.ts` the frame stats, the road chained through shared ends from the free end
-nearest the start and at a fork toward the goal, the SP59 from Monzone to Vinca across the x = 0,
-y = 0, y = −2000 and x = 2000 seams, the page's drive script (run in a `vm` against a fake `gta`)
-and its report; `cdp.test.ts`, on a fake Chrome, a command's own timeout and the socket closed
-when a tab cannot open; `map-diff.test.ts` each category's change on small maps, a key it does not
-compare, walls and trees in another order (the fewest moved counted, copies of a removed segment
-left out), a tree on a spot both maps plant with another id there, a map from before the outline
-and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts` `clipRing` to a
-box; `trees.test.ts` the tiles' scatters merged by id against the scatter of their whole box (with
-two lattice points rounding onto one spot from either side of a seam, and a stream beside another
-whose bank trees fall in its 4 m cells), a tile's trees and ids when the region's box grows, a
-stream's piece the outline cut keeping the whole stream's bank trees, a stream's banks in every
-listed tile and none in one left out, and the last bank cell's tree getting the largest id (its
-look's seeds below 2³², a cell further throwing); `region.test.ts` the regions' parts, bounds, tiles
-and tree anchors and `checkMask` on a diagonal mask in an L and on each fault (too few vertices, off
-0.1 m, clockwise, a repeated vertex, a fold, a crossing, a vertex or an edge outside the
-rectangles); `play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of
-two, overlapping rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle
-crossing off the 0.1 m lattice, a hole, two rings touching at a corner and a hole touching the outer
-ring or another hole at one, `onOutline` finding rail ends rounded off a slanted edge, the notch
-cutting a line in two with ids kept and cuts id-less, each piece's start along the whole line
-(`clipPieces`), a line past the L's inner corner (or a mask's slanted
-one) within a micrometre staying whole, and clipping to one rectangle against Liang–Barsky on 4000
-random lines and lines through its corners; `src/sim/map/__tests__/outline.test.ts` `insideRings`'s
-margins round the L's inner corner, a clockwise hole, and `edgeDistance` beside and past an edge;
-`walls.test.ts` the outline walls closing the L and a rectangle's running south, east, north, west.
+(`checkFetchable`, before any request); `coverage-grid.test.ts` and `coverage.test.ts` first wins,
+the tally, ring assembly, no picks, and a WFS error answer never cached; `ortho.test.ts` and
+`ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted sibling flight is look only) and
+an error answer for capabilities; `playtest.test.ts` the spots, the command line (shots, heap and
+drive with their defaults and flags) and the spot script; `playtest-drive.test.ts` the frame stats,
+the road chained through shared ends from the free end nearest the start and at a fork toward the
+goal, the SP59 from Monzone to Vinca across the x = 0, y = 0, y = −2000 and x = 2000 seams, the
+page's drive script (run in a `vm` against a fake `gta`) and its report; `cdp.test.ts`, on a fake
+Chrome, a command's own timeout and the socket closed when a tab cannot open; `map-diff.test.ts`
+each category's change on small maps, a key it does not compare, walls and trees in another order
+(the fewest moved counted, copies of a removed segment left out), a tree on a spot both maps plant
+with another id there, a map from before the outline and `--except`, and `map-diff-args.test.ts` its
+command line; `geometry.test.ts` `clipRing` to a box; `trees.test.ts` the tiles' scatters merged by
+id against the scatter of their whole box (with two lattice points rounding onto one spot from
+either side of a seam, and a stream beside another whose bank trees fall in its 4 m cells), a tile's
+trees and ids when the region's box grows, a stream's piece the outline cut keeping the whole
+stream's bank trees, a stream's banks in every listed tile and none in one left out, and the last
+bank cell's tree getting the largest id (its look's seeds below 2³², a cell further throwing);
+`region.test.ts` the regions' parts, bounds, tiles and tree anchors and `checkMask` on a diagonal
+mask in an L and on each fault (too few vertices, off 0.1 m, clockwise, a repeated vertex, a fold, a
+crossing, a vertex or an edge outside the rectangles, a mask round a gap in a donut of rectangles);
+`play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of two,
+overlapping rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing
+off the 0.1 m lattice, a hole, two rings touching at a corner and a hole touching the outer ring or
+another hole at one, `onOutline` finding rail ends rounded off a slanted edge, the notch cutting a
+line in two with ids kept and cuts id-less, each piece's start along the whole line (`clipPieces`),
+a line past the L's inner corner (or a mask's slanted one) within a micrometre staying whole, and
+clipping to one rectangle against Liang–Barsky on 4000 random lines and lines through its corners;
+`src/sim/map/__tests__/outline.test.ts` `insideRings`'s margins round the L's inner corner, a
+clockwise hole, and `edgeDistance` beside and past an edge; `walls.test.ts` the outline walls
+closing the L and a rectangle's running south, east, north, west.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees and walls read whole from the tiles (the running line dark, loops and
@@ -1410,18 +1410,19 @@ white). It writes `.research/map-preview.png` by default.
 
 ## Adding a part
 
-The map grows one part at a time (issue #3 holds the extent, the order of the parts and the
-runbook each part follows). A part is a key in `PARTS` (`src/tools/region.ts`) with its rectangles
-in local metres, on 100 m multiples, and, where it plays less than them, a mask: one simple
-counter-clockwise ring on 0.1 m inside the rectangles (`checkMask` throws on any other when the
-region loads, naming the fault). The region's play area is the union of its parts' masks, or
-rectangles where a part has none, and its `bounds`, the built terrain, the box round every part's
-rectangles ([section 2](#2-projection-and-play-area-geometryts-play-areats)). Today's map is part
-`lucido`, with no mask. Its sources are its manifest, `data/parts/<part>.json`. The tools below
-scope a part and check it. `rt-index`, `coverage` and `footprint-check` write their scratch in
-`.research/<part>/` (gitignored), `ortho` in `.research/ortho/` unless given a file, `playtest` in
-the folder it is given; every request names only the project in its `User-Agent` (`net.ts`), and
-the tools print paths relative to the repository. Measured on `lucido` on 2026-10-29.
+The map grows one part at a time (issue #3 holds the extent, the order of the parts and the runbook
+each part follows). A part is a key in `PARTS` (`src/tools/region.ts`) with its rectangles in local
+metres, on 100 m multiples, and, where it plays less than them, a mask: one simple counter-clockwise
+ring on 0.1 m inside the rectangles, its edges and all it encloses (`checkMask` throws on any other
+when the region loads, naming the fault: a mask round a gap the rectangles leave fails too). The
+region's play area is the union of its parts' masks, or rectangles where a part has none, and its
+`bounds`, the built terrain, the box round every part's rectangles ([section
+2](#2-projection-and-play-area-geometryts-play-areats)). Today's map is part `lucido`, with no mask.
+Its sources are its manifest, `data/parts/<part>.json`. The tools below scope a part and check it.
+`rt-index`, `coverage` and `footprint-check` write their scratch in `.research/<part>/`
+(gitignored), `ortho` in `.research/ortho/` unless given a file, `playtest` in the folder it is
+given; every request names only the project in its `User-Agent` (`net.ts`), and the tools print
+paths relative to the repository. Measured on `lucido` on 2026-10-29.
 
 - **`pnpm footprint-check <part> [--refresh]`** (`footprint-check.ts`, geometry in `footprint.ts`)
   checks what the part's edges cut through: one Overpass query over the part's box + 1 km (place
