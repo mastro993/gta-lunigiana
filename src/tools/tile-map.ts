@@ -29,6 +29,7 @@ export interface BuiltMap extends Omit<
   | "coarse"
   | "walls"
   | "vectors"
+  | "derived"
   | "water"
   | "spawns"
   | "lanes"
@@ -56,11 +57,14 @@ export interface BuiltMap extends Omit<
   readonly spawns: Omit<MonzoneMap["spawns"], "parked"> & { readonly parked: ReadonlyArray<Spawn> }
 }
 
-/** The tables the build bakes from the dense layers (src/tools/bake.ts): what `cutMap` leaves empty. */
-export type Bakes = Pick<MonzoneMap, "lanes" | "farms" | "lamps"> & {
-  readonly floors: ReadonlyArray<ReadonlyArray<number>>
-  readonly parked: MonzoneMap["spawns"]["parked"]
-}
+/** The tables the build bakes from the dense layers and the vectors (src/tools/bake.ts): what `cutMap` leaves empty. */
+export type Bakes = Pick<MonzoneMap, "lanes" | "farms" | "lamps"> &
+  Pick<MonzoneMap["derived"], "bells" | "residents"> & {
+    readonly floors: ReadonlyArray<ReadonlyArray<number>>
+    readonly parked: MonzoneMap["spawns"]["parked"]
+    /** Each farm's building centre, flat x, y (`derived.farms`). */
+    readonly farmCentres: ReadonlyArray<number>
+  }
 
 /** No baked tables yet: what the bake itself runs on. */
 export const NO_BAKES: Bakes = {
@@ -69,6 +73,9 @@ export const NO_BAKES: Bakes = {
   lamps: [],
   floors: [],
   parked: [],
+  bells: [],
+  residents: [],
+  farmCentres: [],
 }
 
 /** Lattice step of the coarse grid (`MonzoneMap.coarse`), m. */
@@ -574,6 +581,19 @@ const globalOf =
     lanes: bakes.lanes,
     farms: bakes.farms,
     lamps: bakes.lamps,
+    derived: {
+      crossings: v.railway.crossings.map((c) => ({
+        pts: v.roads[c.road]!.pts,
+        z: v.roads[c.road]!.z,
+      })),
+      platforms: v.railway.platforms.map((p) => v.areas[p.area]!.rings),
+      stations: v.railway.stations.map(
+        (st) => v.buildings.find((b) => b.style === "station" && b.name === st.name) ?? null,
+      ),
+      bells: bakes.bells,
+      residents: bakes.residents,
+      farms: bakes.farmCentres,
+    },
   })
 
 /**

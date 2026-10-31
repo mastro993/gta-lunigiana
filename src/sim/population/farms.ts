@@ -68,7 +68,12 @@ export const bakeFarms = (
   })
 
 const build = () => {
-  const list: Array<Farm> = MAP.farms.map((f) => ({ ...f, ...buildingCentre(f.building) }))
+  const centres = MAP.derived.farms,
+    list: Array<Farm> = MAP.farms.map((f, k) => ({
+      ...f,
+      x: centres[2 * k]!,
+      y: centres[2 * k + 1]!,
+    }))
   const grid = staticGrid(
     list.length,
     (k) => [list[k]!.x, list[k]!.y, list[k]!.x, list[k]!.y],

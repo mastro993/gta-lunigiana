@@ -15,10 +15,8 @@ import { segDist2 } from "../sim/collide.ts"
 import { type Cover, coverAt, coverIndexAt, coverName } from "../sim/map/cover.ts"
 import {
   type Building,
-  buildingBoxes,
   buildingsIn,
   buildingStyleOf,
-  districtAt,
   heightAt,
   MAP,
   treesIn,
@@ -334,28 +332,11 @@ export interface Bell {
 /** Taller towers hang bigger bells: the prime falls an octave from 800 Hz (a 10 m tower) to 400 Hz (30 m). */
 const pitchOf = (h: number): number => 800 * 2 ** -Math.min(1, Math.max(0, (h - 10) / 20))
 
-/** The tallest church or tower of every district that has one. */
-const findBells = (): Array<Bell> => {
-  const tallest = new Map<string, number>()
-  MAP.buildings.forEach((b, i) => {
-    const style = buildingStyleOf(b)
-    if (style !== "church" && style !== "tower") return
-    const [bx0, by0, bx1, by1] = buildingBoxes[i]!,
-      district = districtAt((bx0 + bx1) / 2, (by0 + by1) / 2).name,
-      best = tallest.get(district)
-    if (best === undefined || b.h > MAP.buildings[best]!.h) tallest.set(district, i)
-  })
-  return [...tallest.values()].map((i) => {
-    const { id, z0, h } = MAP.buildings[i]!,
-      [bx0, by0, bx1, by1] = buildingBoxes[i]!
-    return {
-      key: `bell:${id}`,
-      x: (bx0 + bx1) / 2,
-      y: (by0 + by1) / 2,
-      z: z0 + h,
-      pitch: pitchOf(h),
-    }
-  })
-}
-/** One bell per settlement. */
-export const bells: ReadonlyArray<Bell> = findBells()
+/** One bell per settlement: the tallest church or tower of every district that has one (the build finds them, src/tools/bells.ts). */
+export const bells: ReadonlyArray<Bell> = MAP.derived.bells.map(({ id, x, y, z, h }) => ({
+  key: `bell:${id}`,
+  x,
+  y,
+  z,
+  pitch: pitchOf(h),
+}))

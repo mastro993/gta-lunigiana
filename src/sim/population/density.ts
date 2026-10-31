@@ -85,11 +85,18 @@ export const EDGE_REACH = 60
  */
 export const PEOPLED = 6
 
+/**
+ * Per walk edge (`graph.walkEdges` order), the residents within `EDGE_REACH` m of its midpoint, as
+ * float32: they read buildings all over the map, so the build bakes them (`MAP.derived.residents`).
+ */
+export const bakeResidents = (): Array<number> =>
+  graph.walkEdges.map((e) => {
+    const m = midpointOf(e)
+    return Math.fround(residentsNear(m.x, m.y, EDGE_REACH))
+  })
+
 const edgeResidents = new Float32Array(graph.edges.length)
-for (const e of graph.walkEdges) {
-  const m = midpointOf(e)
-  edgeResidents[e] = residentsNear(m.x, m.y, EDGE_REACH)
-}
+graph.walkEdges.forEach((e, k) => (edgeResidents[e] = MAP.derived.residents[k] ?? 0))
 /** Residents within `EDGE_REACH` m of the midpoint of walk edge `edge` (0 for any other edge). */
 export const residentsAlong = (edge: number): number => edgeResidents[edge] ?? 0
 /** Lookups over the walk edges people walk: those with at least `PEOPLED` residents nearby. */

@@ -24,7 +24,10 @@ import { mapDir, type Region } from "./region.ts"
 import { mergeTrees } from "./trees.ts"
 
 /** The whole map joined back from its global map and tiles: the dense layers and the vectors whole again, next to everything global. */
-export interface JoinedMap extends Omit<MonzoneMap, "heightmap" | "walls" | "vectors" | "roads"> {
+export interface JoinedMap extends Omit<
+  MonzoneMap,
+  "heightmap" | "walls" | "vectors" | "derived" | "roads"
+> {
   /** Every road, its attributes (global) and its line (the tiles'). */
   readonly roads: ReadonlyArray<Road>
   /** `cols` × `rows` nodes, decimetres, row-major from the south-west node. */
@@ -85,7 +88,7 @@ export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): J
       }
   }
   const { trees, ids } = mergeTrees(listed)
-  const { heightmap, vectors: _, ...rest } = global
+  const { heightmap, vectors: _, derived: __, ...rest } = global
   return {
     ...rest,
     // a build before the vectors' cut (`readWholeMap`) has them in `rest`

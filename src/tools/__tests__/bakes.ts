@@ -39,8 +39,40 @@ export const assertBakesCurrent = (map: MonzoneMap, run: typeof bake): void => {
     `MAP.farms (src/sim/population/farms.ts): ${hint}`,
   )
   assert.deepEqual(fresh.lamps, saved(map.lamps), `MAP.lamps (src/render/sky/lamps.ts): ${hint}`)
-  const { floor, downslope } = placeFrom(map.origin, wholeMap(map.name).heightmap)
+  assert.deepEqual(
+    fresh.bells,
+    saved(map.derived.bells),
+    `MAP.derived.bells (src/audio/places.ts): ${hint}`,
+  )
+  assert.deepEqual(
+    fresh.residents,
+    saved(map.derived.residents),
+    `MAP.derived.residents (src/sim/population/density.ts): ${hint}`,
+  )
+  assert.deepEqual(
+    fresh.farmCentres,
+    saved(map.derived.farms),
+    `MAP.derived.farms (src/sim/population/density.ts): ${hint}`,
+  )
+  const whole = wholeMap(map.name)
+  const { floor, downslope } = placeFrom(map.origin, whole.heightmap)
   assert.deepEqual({ floor, downslope }, map.place, `MAP.place (src/sim/sky/place.ts): ${hint}`)
+  // the copies of what the railway points at
+  const { crossings, platforms, stations } = map.railway
+  assert.deepEqual(
+    map.derived.crossings,
+    crossings.map((c) => ({ pts: whole.roads[c.road]!.pts, z: whole.roads[c.road]!.z })),
+  )
+  assert.deepEqual(
+    map.derived.platforms,
+    platforms.map((p) => whole.areas[p.area]!.rings),
+  )
+  assert.deepEqual(
+    map.derived.stations,
+    stations.map(
+      (st) => whole.buildings.find((b) => b.style === "station" && b.name === st.name) ?? null,
+    ),
+  )
 }
 
 /** The bakes that run item by item, from the modules of the map the sim has loaded (Cesena's process imports them late). */

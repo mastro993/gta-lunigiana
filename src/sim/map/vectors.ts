@@ -41,8 +41,8 @@ export const roadLine = (road: number, x: number, y: number): RoadLine => {
 /** A box [minX, minY, maxX, maxY], m. */
 export type Box = readonly [number, number, number, number]
 
-/** The box of a building's outer ring. */
-const boxOf = (outer: ReadonlyArray<number>): Box => {
+/** The box of a building's outer ring (its holes lie inside it). */
+export const buildingBox = (outer: ReadonlyArray<number>): Box => {
   let x0 = outer[0]!,
     y0 = outer[1]!,
     x1 = x0,
@@ -70,7 +70,7 @@ interface Buildings {
 /** Each tile's buildings' broad phase, built on first use. */
 const buildingsOf = derived((tile: Tile): Buildings => {
   const { ids, items } = tile.vectors.buildings,
-    boxes = items.map((b) => boxOf(b.outer))
+    boxes = items.map((b) => buildingBox(b.outer))
   return {
     ids,
     items,

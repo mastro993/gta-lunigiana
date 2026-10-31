@@ -8,15 +8,26 @@ import { bakeLamps } from "../render/sky/lamps.ts"
 import { bakeLanes } from "../sim/lanes.ts"
 import { MAP } from "../sim/map/index.ts"
 import { bakeParked } from "../sim/parking.ts"
+import { bakeResidents, buildingCentre } from "../sim/population/density.ts"
 import { bakeFarms } from "../sim/population/farms.ts"
 import { bedOf } from "../sim/water/channel.ts"
+import { bellsOf } from "./bells.ts"
 import type { Bakes } from "./tile-map.ts"
 
 /** Every baked table, from the map the sim has loaded. */
-export const bake = (): Bakes => ({
-  lanes: bakeLanes(),
-  parked: bakeParked(),
-  floors: MAP.water.map(bedOf),
-  farms: bakeFarms(),
-  lamps: bakeLamps(),
-})
+export const bake = (): Bakes => {
+  const farms = bakeFarms()
+  return {
+    lanes: bakeLanes(),
+    parked: bakeParked(),
+    floors: MAP.water.map(bedOf),
+    farms,
+    lamps: bakeLamps(),
+    bells: bellsOf(MAP.buildings),
+    residents: bakeResidents(),
+    farmCentres: farms.flatMap((f) => {
+      const { x, y } = buildingCentre(f.building)
+      return [x, y]
+    }),
+  }
+}

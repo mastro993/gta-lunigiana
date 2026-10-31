@@ -68,6 +68,14 @@ const map: MonzoneMap = {
   lanes: { panda: [1.8, -1], ape: [1.6, 1.6], truck: [-1, -1], carabinieri: [1.5, 0] },
   farms: [{ building: 0, rural: true, pen: false }],
   lamps: [{ x: 1, y: 2, z: 304.5, nx: 0, ny: 1, kind: "wall" }],
+  derived: {
+    crossings: [],
+    platforms: [],
+    stations: [],
+    bells: [{ id: 7, x: 1.5, y: 2.25, z: 320.5, h: 18 }],
+    residents: [0, Math.fround(1.3)],
+    farms: [3.5, 4.25],
+  },
 }
 
 test("packMap and decodeMap round-trip the global file (a newline inside a name, the coarse grid); a file of another version throws", () => {
