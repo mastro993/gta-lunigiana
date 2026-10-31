@@ -242,10 +242,13 @@ Input (horn) ──────────────────────�
 - **The speaker:** the live voices by key, the one-shots playing, and the kinds muted after a
   failure. The crash, explosion, thunder, speech and animal-call shots keep each render per params
   object (a `WeakMap`), so an echo replays its sound.
-- **Static data** never changes once built. The bells are found at load; each line's switches on the
-  first train heard (`places/track.ts`); the crossing bell's loop is rendered once per context on
-  its first ring (1.287 s of samples, 1.9 ms at 48 kHz in Node); the water reaches on the first
-  `hear`, during the audio tick after `setup`. The 32 m ambience blocks, the farm dogs (per
+- **Static data** never changes once built. The bells come with the map (`MAP.derived.bells`): the
+  build finds them over the whole map's buildings (`src/tools/bells.ts`), since they ring all over
+  it and a tile holds only the buildings round it. Each line's switches are found on the first train
+  heard (`places/track.ts`); the crossing bell's loop is rendered once per context on its first
+  ring (1.287 s of samples, 1.9 ms at 48 kHz in Node); a tile's water reaches on the first water
+  query that reads the tile, kept while it is in memory and dropped with it ([Point and line
+  sources](#point-and-line-sources)). The 32 m ambience blocks, the farm dogs (per
   building) and the owls (per 500 m square, on the same squares and in the same order and draws as
   over the whole map) are each worked out where first asked for, round the ears, once the tiles they
   read are in memory, and then kept: at most 4096 ambience blocks (about a 2 km square), the oldest
@@ -256,12 +259,14 @@ Input (horn) ──────────────────────�
   road-surface index is built on the first footstep or tyre, unless the physics built it first.
   The land cover is read from the tiles (`coverAt` in `src/sim/map/cover.ts`), and `surfaceAt` is
   the sim's (`surface.ts`), shared with the tyres' grip.
-  Measured in Node (the director's rig at the spawn, every tile in memory, three runs; in brackets
-  the same on the map before the tiles, when the first query built the land-cover raster): the first
-  `hear` 29.7–31.7 ms (171.7–175.8), the water reaches 25–28 ms (34–37), the dogs within 200 m
-  0.52–0.58 ms (98–103, the raster built in it), the owls within 600 m 0.13–0.19 ms (0.4–0.9) and
-  `ambienceAt` 0.16–0.18 ms (34–43); `streetAt` 0.24 ms and `echoesAt` 0.45 ms; all 209 owls of the
-  map 0.45–0.54 ms and all 225 farm dogs 2.1–6.0 ms.
+  Measured in Node (the director's rig at the spawn, every tile in memory, three fresh processes; in
+  brackets the same with the vectors still in the global file, when the first water query gridded
+  every reach of the map): the first `hear` 18.9–19.5 ms (28.8–29.2); the first `waterNear`
+  13.0–13.8 ms (25.5–27.2), the reaches of the 2 tiles under its cells built in it; the dogs within
+  200 m 1.2–2.0 ms (0.52–0.53 through the 64 m building grid, where `dogsNear` scans every building
+  of the tiles under its box); the owls within 600 m 0.13–0.15 ms and `ambienceAt` 0.16–0.17 ms
+  (the same); `streetAt` 0.27–0.34 ms (0.22–0.29) and `echoesAt` 0.37–0.42 ms (0.39–0.48); all 209
+  owls of the map 0.49–0.52 ms and all 225 farm dogs 3.6–3.7 ms (1.9–2.2).
 - **Randomness** in the director (birds, owls, farm dogs, animal calls, what people say) and the
   synths (variants, jitter, a fire's crackle, a backfire) is `Math.random`: `?seed=N` replays the
   world, not the birds. The owls draw after the farm dogs and only at night, so a day's draws come
@@ -340,6 +345,18 @@ Each class of sound behaves differently:
   the cull at the still night's floor (`NIGHT_DB` − 15), so a stream does not vanish at night.
   The loudness does not follow what the rivers carry ([water.md](water.md)): a spate sounds as the
   river does at its usual flow, and the water's voice stands at the built surface `Water.z`.
+- **The reaches come from the tiles** (`reachesIn` in `places/water.ts`). Each water piece lies
+  whole in every tile it comes within 32 m of (`HALO`), so a reach's grade reads its piece end to
+  end. A tile's reaches are gridded in 32 m cells on the rivers' lattice
+  (`MAP.vectors.lattice.water`: the lowest water vertex, (−2900, −6100) on Lunigiana, the corner the
+  one grid over the whole map's reaches had), each with the id piece index × 65536
+  (`WATER_VERTICES`) + its first vertex. A query walks the cells south to north, west to east, each
+  cell's reaches by id, and gives each reach once, though every tile round a seam holds it: the
+  whole map's order, so the levels sum in the order they always did. While a tile under the query's
+  cells is not in memory, `reachesIn` reads none and answers false, and only the fountains and the
+  Cascata are heard; within 600 m of the player that never happens, since the 400 m disc's cells
+  reach at most 432 m out. A fountain stands on the ground `terrainAt` gives
+  ([Reading the map far off](#reading-the-map-far-off)), the coarse grid's off the tiles in memory.
 
 ### Air absorption
 
@@ -366,16 +383,20 @@ absorption reaches 3 dB (ISO 9613-1, 15 °C, 70 % relative humidity), log-log be
 ### Buildings and terrain
 
 `occlusion.ts` finds the worst edge between source and ears: building walls up to their eaves
-(`z0 + h`; the outline's exact crossings, found through the shared building grid) and the terrain
-sampled every 7 m (3 m in from each end, the coarse grid's past the tiles in memory). The edge with
-the largest Maekawa path difference δ = |ST| + |TR| − |SR| wins; `diffraction` turns it into a loss
-and a lowpass (the 250 Hz Maekawa value, and a cutoff matching the tilt):
+(`z0 + h`; the outline's exact crossings) and the terrain sampled every 7 m (3 m in from each end,
+the coarse grid's past the tiles in memory). The edge with the largest Maekawa path difference
+δ = |ST| + |TR| − |SR| wins; `diffraction` turns it into a loss and a lowpass (the 250 Hz Maekawa
+value, and a cutoff matching the tilt):
 
 | δ | 0 | 0.05 m | 0.1 m | 0.25 m | 0.5 m | 1 m and more |
 |---|---|---|---|---|---|---|
 | Loss | 0 | 6.5 dB | 7.7 dB | 10.1 dB | 12.5 dB | 15 dB |
 | Cutoff | 20 kHz | 1.8 kHz | 1.5 kHz | 1.4 kHz | 1.9 kHz | 2.8 kHz |
 
+- Only the buildings on the tiles in memory count (`buildingsInMemory` in `src/sim/map/vectors.ts`),
+  so a path to a bell 5 km off reads no tile that is not there. A path whose tiles are all in
+  memory is exact; past them it meets only the coarse terrain. The largest δ wins, so the order the
+  buildings come in does not matter.
 - A building an endpoint stands in hides nothing from it: a bell at the top of its tower rings
   out over its own walls.
 - Trees, water banks and the sim's collision walls are not edges (trees count as foliage).
@@ -386,7 +407,8 @@ and a lowpass (the 250 Hz Maekawa value, and a cutoff matching the tilt):
 ### Reading the map far off
 
 Only the tiles round the player hold the exact map, so a read that can stray past them takes the
-coarse 64 m grid there (`src/audio/ground.ts`, over `src/sim/map/coarse.ts`).
+coarse 64 m grid there (`src/audio/ground.ts`, over `src/sim/map/coarse.ts`), or goes without what
+only the tiles hold (buildings, rivers), and never reads a tile that is not in memory.
 
 - **Exact or coarse**: `exactAt(x, y)` holds when every tile the 4 m terrain cell at (x, y) touches
   is in memory: it checks the four corners of the cell grown by 1 m (`isResidentAt`), since the
@@ -396,16 +418,29 @@ coarse 64 m grid there (`src/audio/ground.ts`, over `src/sim/map/coarse.ts`).
 - **What goes through it**: occlusion's terrain samples every 7 m, the mean path height at both ends
   (ISO 9613-2), `forestAlong`'s 8 m samples, the director's `groundAt` (re-exported by
   `director/frame.ts`: the ground under a lightning strike, under a ringing level crossing's bell and
-  under every part's sources) and a whistle's height off every line (`src/audio/index.ts`).
+  under every part's sources), a whistle's height off every line (`src/audio/index.ts`) and a
+  fountain's (`waterNear`).
+- **What only the tiles in memory give**: occlusion's buildings (`buildingsInMemory`: past the
+  tiles in memory a path meets only the coarse terrain), the buildings `dogsNear` finds its dogs at
+  (the same reader, sorted by index into the whole map's order) and the rivers and streams
+  `waterNear` hears (`reachesIn`: none while a tile under its 32 m cells is missing). Round the
+  player all of them are in memory, so there the answers are the exact map's.
 - **What stays exact**: the reads within 600 m of the player (`STEP_REACH`, whose tiles are always
-  in memory) read the map directly: `echoesAt` (up to 400 m), the fountains (up to 400 m),
-  `streetAt` (15 m), `wallAt` (3 m) and `birdSpot` (up to 70 m).
+  in memory) read the map directly: `echoesAt` (up to 400 m), `streetAt` (15 m) and `wallAt` (3 m),
+  whose buildings come through the tiled `buildingsIn` (`src/sim/map/vectors.ts`, the tiles of the
+  64 m cells round the box, in the whole map's order), and `birdSpot` (up to 70 m).
 - **Vehicles**: the audio schedule projects no vehicle whose pose fails `exactAt`. Such a vehicle
   stands frozen more than 600 m from the player along an axis (1 km or more once the stream has
   caught up), where a fire (82 dB at 1 m) arrives at 26 dB at most, under the 28 dB night floor.
 - **Unchanged where the tiles are in**: against the map before the tiles, all 225 farm dogs and 209
   owls, `ambienceAt` on a 13.7 × 17.3 m grid over the bounds ± 50 m, `pathDifference` and
-  `forestAlong` on 300 random paths across the map and `wallAt` at 200 random points match.
+  `forestAlong` on 300 random paths across the map and `wallAt` at 200 random points match. Against
+  the vectors in the global file, with every tile in memory, these gave the same answers bit for
+  bit: `waterNear` at 4,813 spots (15,979 bodies), `wallAt` at 69,276 contact points (9,096 of them
+  beside barriers), `streetAt` at 34,603 points, `dogsNear` at 400 spots and over the whole map's
+  225 dogs, and `pathDifference` on 6,000 paths. With only the tiles within 1.2 km of Monzone
+  station in memory and no tile source, 3,180 water spots, 4,148 dog searches and 1,316 paths
+  within them matched, and 1,684 longer paths stayed finite without reading a missing tile.
 
 ### Tunnels
 
@@ -775,7 +810,10 @@ the rest `masonry`); a barrier (a guard rail `rail`, a wall `stone`, a cliff `ro
 bank itself: `rock` in the bare-stone covers (a quarry's cut face, a crag, scree), and anything
 else, a steep bank or the end of the map, is `earth`, though trees stand a metre
 or two off it (35 % of the probes 0.15 m off the map's banks read `tree` before that rule, 3.6 %
-after).
+after). The barriers measured are those of the contact point's tile (`placeAt`; at most 14 a tile
+on Lunigiana): a tile holds every barrier within 32 m of it, so it holds all within 3 m of the
+point. On a tie the first offered wins: trunks, buildings in the broad phase's order, then barriers
+in the whole map's.
 
 ### Engines
 
@@ -1031,8 +1069,10 @@ crash plays) a play took 2 ms (median; 4.6 for nine in ten, 8.8 at most) and no 
 within a second of one. ponytail: the render runs on the main thread; move it to a Worker if the
 browser shows long tasks.
 
-The bells are the tallest church or tower of each district, 27 in all. A tower of 10 m or less
-rings an 800 Hz prime; taller towers ring lower, down to 400 Hz at 30 m.
+The bells are the tallest church or tower of each district (the district its box's centre lies
+in; the first of the tallest), 27 in all, found by the build over the whole map's buildings
+(`bellsOf` in `src/tools/bells.ts`) and kept in the map (`MAP.derived.bells`). A tower of 10 m or
+less rings an 800 Hz prime; taller towers ring lower, down to 400 Hz at 30 m.
 
 ### Explosions
 
@@ -1566,8 +1606,8 @@ check). The tests that read the map hold the tiles round the spots they listen a
 as the game holds them round the player (`residentAround` in `src/audio/testing.ts`, within `HELD`,
 1.2 km; `director/testing.ts` holds those round its spots at import), since the audio reads the
 exact map only where a tile is in memory and Node reads one from disk only once a lookup asks for
-it. They never hold the whole map: `places.map-test.ts` (`pnpm test:map`) does, for the checks over
-all of it.
+it. They never hold the whole map: `places.map-test.ts` and `places/__tests__/water.map-test.ts`
+(`pnpm test:map`) do, for the checks over all of it.
 
 | File | Checks |
 |---|---|
@@ -1576,10 +1616,12 @@ all of it.
 | `src/render/__tests__/index.test.ts` | every system of the render and audio schedules declares no writes |
 | `src/audio/__tests__/acoustics.test.ts` | the laws: the line source against the exact table, the air cutoffs, Doppler, the pan, diffraction, ground, foliage, masking, the mix calibration |
 | `src/audio/__tests__/occlusion.test.ts` | path differences on real map spots: a flat meadow, Monzone Alto's 30 m tower, a bell over its own walls, Monte San Giorgio between its flanks |
-| `src/audio/__tests__/ground.test.ts` | with only the 4 tiles within 1.2 km of the spawn in memory and no tile source: reading a far tower's tile directly throws; `terrainAt`, `groundAt` and `landAt` there equal the coarse grid's; the paths and forest to the 15 towers on dropped tiles are finite; a far ambience block is one kind or none; a strike 4.8 km off thunders and a crossing 3.1 km off rings without reading a missing tile; the street, the echoes, a 300 m path's δ and forest and the ground at the listener equal the values with the tiles round it in; the dogs within 200 m and the owls within 600 m are the near ones of a search twice as wide, in its order, with the tiles 2.4 km round the listener back in memory; a woods'-edge block's forest share is its cells' count; the nearest tower's 09:00 strokes are unchanged; with the tiles back, the far block is its own cells' value (the coarse stand-in was not kept) |
+| `src/audio/__tests__/ground.test.ts` | with only the 4 tiles within 1.2 km of the spawn in memory and no tile source: reading a far tower's tile directly throws; `terrainAt`, `groundAt` and `landAt` there equal the coarse grid's; the paths and forest to the 15 towers on dropped tiles are finite; a far ambience block is one kind or none; a strike 4.8 km off thunders and a crossing 3.1 km off rings without reading a missing tile; the street, the echoes, a 300 m path's δ and forest and the ground at the listener equal the values with the tiles round it in; a way across a far tower on a dropped tile, 40 m each side of its bell and 3 m under its top, over coarse ground below it, has δ = 0 (its walls are not read), and once the tile is back its walls give δ over 0.2 m (2·√(40² + 3²) − 80 ≈ 0.22 m); the dogs within 200 m and the owls within 600 m are the near ones of a search twice as wide, in its order, with the tiles 2.4 km round the listener back in memory; a woods'-edge block's forest share is its cells' count; the nearest tower's 09:00 strokes are unchanged; with the tiles back, the far block is its own cells' value (the coarse stand-in was not kept) |
 | `src/sim/map/__tests__/surface.test.ts` | the surfaces the tyres and the sounds share: carriageways by their OSM surface, the forest floor, a meadow; by level, the hillside over a tunnel and the deck only on the deck |
-| `src/audio/__tests__/places.test.ts`, `src/audio/places/__tests__/water.test.ts` | wall materials (a trunk, buildings by kind and style, the guard rail, the stone wall, a cliff, bare ground, a quarry's bank; the nearer of a trunk and a house wall 1.2–2.5 m apart wins; a bank with trees 1.5–3 m off it is earth), ambience shares round Monzone, streets, echoes off the rock at Equi Terme, none on an open meadow nor at any Monzone street with no slope as steep as bare rock (50°) in sight, bells, dogs and owls stable and the near ones those of a wider search in its order, birds, the Torrente Lucido from Monzone station, the Fontana di Aiola |
+| `src/audio/__tests__/places.test.ts` | wall materials (a trunk, the first building of each kind and style and the first barrier of each kind round the held spots: the guard rail, the stone wall, a cliff; bare ground, a quarry's bank; the nearer of a trunk and a house wall 1.2–2.5 m apart wins; a bank with trees 1.5–3 m off it and no barrier of its tile within 20 m is earth), ambience shares round Monzone, streets, echoes off the rock at Equi Terme, none on an open meadow nor at any Monzone street with no slope as steep as bare rock (50°) in sight, bells, dogs and owls stable and the near ones those of a wider search in its order, birds |
+| `src/audio/places/__tests__/water.test.ts` (the tiles round Monzone station, the Fontana di Aiola and the Lucido at the x = 0 seam, (16, 343)) | the Torrente Lucido from Monzone station, the Fontana di Aiola; the reaches in 5 boxes across the x = 0 and y = 0 seams in the whole map's order, each once; at the seam spot the same water heard whichever of its 4 tiles are in memory and in whichever order they came, and with one of them dropped and no tile source none read (`reachesIn` false) and only the fountains heard |
 | `src/audio/__tests__/places.map-test.ts` (`pnpm test:map`, every tile in memory) | ambience shares within 1 all over the map; the whole map's dogs and owls stable, the near ones those of the whole map in its order |
+| `src/audio/places/__tests__/water.map-test.ts` (`pnpm test:map`, every tile in memory) | the reaches over 1,500 boxes up to 800 m across, half of them within 80 m of a seam, are those one 32 m grid over every reach of the whole map's water gives: the same, in the same order, each once, with their geometry; the rivers' lattice corner is that grid's origin |
 | `src/audio/director/__tests__/index.test.ts` (its kit, the map spots, `rig` and `world`, in `director/testing.ts`) | the director on a recording speaker at real map spots: proximity (in the open and behind a ridge), a building's muffling, Doppler, step cadence, travel delay, crash merging and scrapes, a house wall's material and cobbles in the crash and scrape params, a car crash's bodies the same from either car, a zone's wear carried to the next crash, a wall crash's debris surface read under the car, a scrape's material held through a brief other contact, a wall crash on foot muffled by the house in the way, a bump culled nearer than a crash, the engine's revs, load, variant, damage and misfires passed on, engines ranked by their load, the tyres on the sim's skids (a standing burnout, the skid held over a frame with no step, silent in the air), a vehicle heard where its body is, a hard landing against the ground's material and not the nearest wall's and a body down on it grinding it (no hit needed), under a bridge the tyres and a landing on the riverbed's own surface and not the deck's, the own siren as loud in the air as on the ground (the ears ride in the car), cresting a hump as one clunk and a hard landing as a crash, echoes off a rock face and hidden in a street, the reverb dry in the open and wet in a walled street, nothing before the context, the cabin (the own crash open and at its cap, its tail and echoes through it, against a like crash outside: the same wall and ground), getting in and out, horn and siren, the bells on the game clock's hours (once a game day, not on the half hour, nor 22:00–06:00), water and its masking, the valley's never-silent bed and the river 15 m away against behind the houses, voice caps and their hysteresis |
 | `src/audio/director/__tests__/wrecks.test.ts` | fires and blasts on the director's rig (`director/testing.ts`): a burning car's fire held with its engine, horn and siren dead (an intact one never burning, the own one through its cabin), at most two fires, the nearest; a wreck's blast played once at once from its centre of mass, 5.4 dB over a crash from the same point, its debris on the ground under it, and its fire out; the listener thrown out by their own car's blast hearing it and no door; a blast 300 m away after its travel time, one under a rock face echoing later and fainter, one 5 m away at its cap |
 | `src/audio/director/__tests__/voices.test.ts` (on the shared rig of `director/testing.ts`) | conversations: a greeting each, alternating lines 0.2–0.9 s apart and a goodbye each as the pair walks on; a chat under way before the sound starts opening with both greetings once it does; none when something breaks it off; couples in a lull taking no voice from a chat nearby, and talking now and then as they walk; cries: a child screams in fright, a grown-up screams or yells, in their own voice, one cue every few seconds; shock, anger and surprise yell a line, the dead are silent; the thief line within 15 m, not at 40; gatherers' lines, fitting a man, a woman or a child, and grief, "Mamma!" or "Nonna!" by one of their own, nothing by an empty spot; pity, not an ambulance, for an animal; a crowd's cries a few a frame, the nearest first, every one said; a fatal hit with no groan; animals calling on their own (none while fleeing), each species' cry, at most two calls a frame, a struck animal's pain and a killed one's silence |
