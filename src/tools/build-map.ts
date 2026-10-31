@@ -22,8 +22,11 @@ import { cutMap } from "./tile-map.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
 const t0 = performance.now()
+// Each stage's end: seconds from the start and the process's resident memory then.
 const lap = (label: string) =>
-  console.log(`${label.padEnd(10)} ${((performance.now() - t0) / 1000).toFixed(2)} s`)
+  console.log(
+    `${label.padEnd(10)} ${((performance.now() - t0) / 1000).toFixed(2).padStart(6)} s ${(process.memoryUsage.rss() / 1e6).toFixed(0).padStart(5)} MB`,
+  )
 
 /**
  * The sources and the terrain built on them. The DTM (`ground`), which only these two read, lives
