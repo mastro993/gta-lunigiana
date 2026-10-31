@@ -2,14 +2,16 @@
  * Level crossings as the map places them: the static boxes `MAP.railway.crossings` describes, with
  * what traffic and the render need of them (the lines crossing each at grade, each approach's stop
  * line, box entry and arm, and the traffic steps leading in). The cycle a box runs is in
- * ./barriers.ts. Static module content, built once at load.
+ * ./barriers.ts. Static module content, built once at load from the global file: each box's road
+ * line is the copy the build keeps beside the railway (`MAP.derived.crossings`), since most boxes
+ * lie far from the player's tiles.
  *
  * @module rail/crossings
  */
 import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../collide.ts"
-import { graph, isDrivable, type LevelCrossing, MAP, type Road } from "../map/index.ts"
+import { graph, isDrivable, type LevelCrossing, MAP, type RoadLine } from "../map/index.ts"
 import { stepKey } from "../route.ts"
 import { type CrossedLine, strikeIn } from "./barriers.ts"
 import { CHORD, LINES, linesNear, pointAt, speedAt } from "./lines.ts"
@@ -69,8 +71,20 @@ export interface ApproachStep {
   readonly exit: number
 }
 
+/** Per road a box stands on (index into `MAP.roads`), its line: the copy kept beside each of its boxes. */
+const LINE_OF: ReadonlyMap<number, RoadLine> = new Map(
+  MAP.railway.crossings.map((c, k) => [c.road, MAP.derived.crossings[k]!] as const),
+)
+
+/** The line of road `road` (index into `MAP.roads`), which a level crossing stands on. */
+const lineOf = (road: number): RoadLine => {
+  const line = LINE_OF.get(road)
+  if (line === undefined) throw new Error(`rail: road ${road} has no level crossing`)
+  return line
+}
+
 /** The road's arc length at each vertex. */
-const arcOf = (road: Road): ReadonlyArray<number> => {
+const arcOf = (road: RoadLine): ReadonlyArray<number> => {
   const arc = [0]
   for (let k = 1; 2 * k + 1 < road.pts.length; k++)
     arc.push(
@@ -84,7 +98,7 @@ const arcOf = (road: Road): ReadonlyArray<number> => {
 }
 
 /** The point at arc length `u` along the road (clamped to it). */
-const roadAt = (road: Road, arc: ReadonlyArray<number>, u: number): Point => {
+const roadAt = (road: RoadLine, arc: ReadonlyArray<number>, u: number): Point => {
   let k = 0
   while (k + 2 < arc.length && arc[k + 1]! < u) k++
   const t = Math.max(0, Math.min(1, (u - arc[k]!) / Math.max(1e-9, arc[k + 1]! - arc[k]!)))
@@ -95,7 +109,7 @@ const roadAt = (road: Road, arc: ReadonlyArray<number>, u: number): Point => {
 }
 
 /** The arc length of the road's point nearest (x, y). */
-const roadAlong = (road: Road, arc: ReadonlyArray<number>, x: number, y: number): number => {
+const roadAlong = (road: RoadLine, arc: ReadonlyArray<number>, x: number, y: number): number => {
   let best = Number.MAX_VALUE,
     u = 0
   for (let k = 0; k + 1 < arc.length; k++) {
@@ -154,12 +168,13 @@ export const linesAtGrade = (
 /** The box a level crossing makes, and where its nodes lie along its road (arc lengths, m). */
 const boxOf = (crossing: LevelCrossing) => {
   const road = MAP.roads[crossing.road]!,
-    arc = arcOf(road)
+    line = lineOf(crossing.road),
+    arc = arcOf(line)
   const nodes = crossing.nodes.map((n) => {
     const { x, y } = graph.nodes[n]!,
-      u = roadAlong(road, arc, x, y)
-    const a = roadAt(road, arc, u - CHORD / 2),
-      b = roadAt(road, arc, u + CHORD / 2),
+      u = roadAlong(line, arc, x, y)
+    const a = roadAt(line, arc, u - CHORD / 2),
+      b = roadAt(line, arc, u + CHORD / 2),
       d = Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2)
     const along = { x: (b.x - a.x) / d, y: (b.y - a.y) / d },
       rail = railHeading(x, y)
@@ -254,7 +269,7 @@ const approachesFrom = (
   for (const [box, { box: crossing, nodes, first, last, entries, stops }] of boxes.entries()) {
     if (crossing.walk) continue
     const inside = new Set(nodes),
-      road = MAP.roads[crossing.road]!,
+      road = lineOf(crossing.road),
       arc = arcOf(road)
     for (const approach of [0, 1] as const) {
       const near = approach === 0 ? first : last,

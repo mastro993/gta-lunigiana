@@ -14,7 +14,8 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 import { wallsAlong } from "../body.ts"
 import { segDist2 } from "../collide.ts"
 import { footZ, groundZ, roadLevel } from "../map/ground.ts"
-import { graph, MAP, type Road } from "../map/index.ts"
+import { graph, MAP, type Road, type RoadLine } from "../map/index.ts"
+import { eachTile, placeAt, type Tile } from "../map/tiles.ts"
 import { laneOf, type Step } from "../route.ts"
 import {
   bindings,
@@ -39,7 +40,7 @@ import { type CrossingState } from "./barriers.ts"
 import { doorsOf } from "./boarding.ts"
 import { APPROACHES, CROSSINGS } from "./crossings.ts"
 import { ApplyTrains, Dispatch } from "./dispatch.ts"
-import { LINES, linesNear, nextStop, pointAt, stopPoint } from "./lines.ts"
+import { type Line, LINES, linesNear, nextStop, pointAt, stopPoint } from "./lines.ts"
 import { trainLength } from "./models.ts"
 import { trainDraft, TrainAI } from "./service.ts"
 import { Crossings, TrainPhysics } from "./systems.ts"
@@ -375,7 +376,7 @@ export const BESIDE_WALL = (() => {
 })()
 
 /** A road's polyline as points. */
-const pointsOf = (road: Road) =>
+const pointsOf = (road: RoadLine) =>
   Array.from({ length: road.pts.length / 2 }, (_, k) => ({
     x: road.pts[2 * k]!,
     y: road.pts[2 * k + 1]!,
@@ -409,7 +410,7 @@ export const DOWN_TO_BOX = (() => {
   return CROSSINGS.flatMap((box, index) => {
     const on = box.on.find((at) => at.line === line.index)
     if (box.walk || on === undefined) return []
-    const pts = pointsOf(MAP.roads[box.road]!),
+    const pts = pointsOf(MAP.derived.crossings[index]!),
       k = pts.reduce((a, p, i) => (Vec2.distance(p, box) < Vec2.distance(pts[a]!, box) ? i : a), 0)
     const rail = pointAt(line, on.s).z,
       centre = { x: box.x, y: box.y }
@@ -424,6 +425,28 @@ export const DOWN_TO_BOX = (() => {
 })()
 
 /**
+ * Every road of the tiles `line`'s track crosses (all within `HALO` of it are there), whole with its
+ * attributes, each once with its index into `MAP.roads`, in the whole map's order.
+ */
+const roadsAlong = (line: Line): Array<{ readonly index: number; readonly road: Road }> => {
+  const tiles = new Set<Tile>()
+  for (let k = 0; k + 1 < line.x.length; k++)
+    eachTile(
+      Math.min(line.x[k]!, line.x[k + 1]!),
+      Math.min(line.y[k]!, line.y[k + 1]!),
+      Math.max(line.x[k]!, line.x[k + 1]!),
+      Math.max(line.y[k]!, line.y[k + 1]!),
+      (tile) => tiles.add(tile),
+    )
+  const lines = new Map<number, RoadLine>()
+  for (const { vectors } of tiles)
+    vectors.roads.ids.forEach((id, k) => lines.set(id, vectors.roads.items[k]!))
+  return [...lines.keys()]
+    .sort((a, b) => a - b)
+    .map((index) => ({ index, road: { ...MAP.roads[index]!, ...lines.get(index)! } }))
+}
+
+/**
  * Every way on foot into a road tunnel under Monzone's line, at grade or on the bridge over a tunnel's mouth: from 15 m out along
  * a road at grade through one of its mouths at its floor's level (one per mouth), through that mouth, to its point nearest the
  * track where it passes under it (the rail head more than 2 m over its floor), every 0.05 m; with that tunnel's road and the
@@ -431,7 +454,7 @@ export const DOWN_TO_BOX = (() => {
  */
 export const UNDERPASS_WAYS = (() => {
   const line = LINES[MONZONE.line]!
-  return MAP.roads.flatMap((road) => {
+  return roadsAlong(line).flatMap(({ index, road }) => {
     if (road.tunnel !== true) return []
     const pts = pointsOf(road)
     // Its point nearest the centreline, segment by segment, where the track runs over it at grade.
@@ -450,9 +473,12 @@ export const UNDERPASS_WAYS = (() => {
     return ([0, pts.length - 1] as const).flatMap((end) => {
       const mouth = pts[end]!
       // A road at grade with a vertex at the mouth, at the floor's level there: the walk in along it, ending at that vertex.
-      const into = MAP.roads.flatMap((o) => {
-        if (o === road || o.tunnel === true || o.bridge === true) return []
-        const points = pointsOf(o),
+      const { ids, items } = placeAt(mouth.x, mouth.y).vectors.roads
+      const into = ids.flatMap((id, n) => {
+        const { tunnel, bridge } = MAP.roads[id]!
+        if (id === index || tunnel === true || bridge === true) return []
+        const o = items[n]!,
+          points = pointsOf(o),
           i = points.findIndex(
             (q, j) => Vec2.distance(q, mouth) < 0.5 && Math.abs(o.z[j]! - road.z[end]!) < 0.5,
           )
