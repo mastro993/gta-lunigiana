@@ -20,6 +20,7 @@ import {
 } from "./features.ts"
 import { pointInRing, r1 } from "./geometry.ts"
 import { readOsm } from "./osm.ts"
+import { heldInPlay } from "./play-area.ts"
 import { REGION } from "./region.ts"
 import { loadDtm, loadGeoDtm } from "./terrain.ts"
 import { readUcs } from "./ucs.ts"
@@ -41,6 +42,9 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   const ctrRail = lunigiana
     ? readCtrRail(join(root, "data/raw/rt/ctr"))
     : { tracks: [], bridges: [], tunnels: [], platforms: [], crossings: [] }
+  // The level crossings the play area holds: the rail and roads are cut at its outline, so one
+  // beyond it would hold no level-crossing node.
+  const crossings = heldInPlay(ctrRail.crossings)
   // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has; level-crossing nodes
   // slide along their roads with it, and what its bridges span stays under them (water widths
   // depend on the way's mean ground, so the terrain is loaded first).
@@ -48,7 +52,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     extractRail(osm),
     extractRoads(osm),
     extractWater(osm, dem.at),
-    ctrRail,
+    { ...ctrRail, crossings },
     lunigiana ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
   )
   lap("rail")
@@ -69,13 +73,14 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   ]
   const inCtr = (ring: ReadonlyArray<number>) =>
     ctr.mapped.some((m) => pointInRing(ring[0]!, ring[1]!, m))
-  // The platforms: the CTR's where its sheets map the ground, OSM's elsewhere.
-  const platforms = [
+  // The platforms: the CTR's where its sheets map the ground, OSM's elsewhere; those the play area
+  // holds, as one beyond it would stand by the stub of rail its outline leaves.
+  const platforms = heldInPlay([
     ...ctrRail.platforms,
     ...osmAreas
       .filter((a) => a.kind === "platform" && !inCtr(a.rings[0]!))
       .map((a, i) => ({ src: `OSM platform ${i}`, rings: a.rings })),
-  ]
+  ])
   const districts: Array<District> = fitDistricts(osm, buildings)
   lap("features")
   return {
@@ -92,7 +97,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     pois,
     areas,
     platforms,
-    railCrossings: ctrRail.crossings.map((c) => c.rings),
+    railCrossings: crossings.map((c) => c.rings),
     districts,
   }
 }

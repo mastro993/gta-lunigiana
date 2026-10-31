@@ -6,7 +6,7 @@
 // sqrt, so every architecture builds the same outline; on vertical and horizontal edges the
 // clipping is Liang–Barsky's to the bit.
 import { edgeDistance, insideRings, ringsDistance, type Rings } from "../sim/map/outline.ts"
-import { pointInRing, segDist2, type V } from "./geometry.ts"
+import { centroid, pointInRing, segDist2, type V } from "./geometry.ts"
 import { type Part, rectRing, REGION } from "./region.ts"
 
 /** Within this distance (m) a point lies on a piece's edge, or a crossing on an outline edge. */
@@ -267,6 +267,16 @@ export const OUTLINE: Rings = outlineOf(REGION.parts)
 /** Whether local (x, y) lies in the play area with the outline at least `margin` m away (`insideRings`). */
 export const inPlay = (x: number, y: number, margin = 0): boolean =>
   insideRings(OUTLINE, x, y, margin)
+
+/**
+ * The polygons of `areas` (outer ring first) whose outer ring's centroid lies in the play area
+ * `rings`, kept whole, as buildings are: what belongs to the lines cut at the outline (the level
+ * crossings, the platforms) and would hang off their stubs beyond it.
+ */
+export const heldInPlay = <T extends { readonly rings: Rings }>(
+  areas: ReadonlyArray<T>,
+  rings: Rings = OUTLINE,
+): Array<T> => areas.filter((a) => insideRings(rings, ...centroid(a.rings[0]!)))
 
 /**
  * How far (m) from the outline a line's end rounded to 0.1 m (as `flatLine` writes it) may lie and

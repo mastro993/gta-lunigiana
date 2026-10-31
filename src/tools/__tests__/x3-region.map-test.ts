@@ -10,6 +10,7 @@ import { existsSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
+import { insideRings } from "../../sim/map/outline.ts"
 import { PARKED } from "../../sim/population/parked.ts"
 import { TRAFFIC } from "../../sim/systems/populate.ts"
 import { builtMapUrl, readWholeMap, wholeMap } from "../map-file.ts"
@@ -96,6 +97,19 @@ test("the 3x bakes lucido's lamps, water beds and parked spots' rests", { skip }
     left.map((s) => inFromEdge(s.x, s.y) < 50),
     [true],
   )
+})
+
+// Outside the play area the map holds terrain, land cover and trees alone (issue #7): no platform
+// stands by the stub of rail the outline leaves.
+test("every platform of the 3x lies in its play area, lucido's rectangle", { skip }, () => {
+  const { x3 } = maps()
+  for (const p of x3.railway.platforms)
+    for (const ring of x3.areas[p.area]!.rings)
+      for (let i = 0; i < ring.length; i += 2)
+        assert.ok(
+          insideRings(x3.outline, ring[i]!, ring[i + 1]!),
+          `platform at ${ring[i]}, ${ring[i + 1]}`,
+        )
 })
 
 /** How many vehicles are live after the stand on the map of region `key`, by kind. */

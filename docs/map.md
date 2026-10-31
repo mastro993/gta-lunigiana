@@ -102,7 +102,7 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
   - a flood on foot from the start, over 2 m cells, stops at the walk walls (`wallsNear`: walls and
     trunks) and never leaves the play area, while it reaches every edge and 10.2 km² of the 12.72;
     with the walls on the notch's west side left out of its lookups it gets out at (1, 3009);
-  - every graph node, spawn and POI lies in the play area, and every building's centroid.
+  - every graph node, spawn, POI and platform lies in the play area, and every building's centroid.
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
@@ -158,7 +158,11 @@ checked in `spawns.test.ts`; Gragnola's layout swaps no node the play area leave
 (`conflate.ts`, `conflate.test.ts`). The Aulella's 161 km² beyond the map (`AULELLA_OFF_MAP`) and
 the stone cores are lucido's: a test region's river flows are not calibrated. Scratch regions
 without Gragnola, without Monzone and without the rail (x −1000…4900 by y 0…2600, x −2900…0 by y
-2000…3900, x 500…4900 by y −6100…−1000) built on 2026-10-31.
+2000…3900, x 500…4900 by y −6100…−1000) built on 2026-10-31, and so did three on lucido's box whose
+play area leaves level crossings and stations out: a mask on its south half (y −6100…−1100), a
+slanted mask with a reflex corner, and four rectangles round a hole at Monzone (x −1000…1500 by y
+−1000…2000). Before the build kept only the level crossings and platforms in play, each threw on a
+level crossing beyond the outline (CTR 23D11 AGE#166, 23D36 AGE#76).
 
 ## Pipeline
 
@@ -292,6 +296,11 @@ regions](#test-regions)).
     Settembre, Via Castel dell'Aquila over both tracks, Via Nuova). No platform reaches into one,
     and the build checks that each holds a level-crossing node and that no node near one lies
     outside it ([section 4](#4-the-rail-on-the-ctr)).
+
+  The build keeps the platforms and level-crossing areas whose centroid lies in the play area,
+  whole, as it keeps buildings (`heldInPlay` in `play-area.ts`, OSM's platforms too): the rail and
+  roads are cut at the outline, so a level crossing beyond it would hold no level-crossing node
+  (the build threw) and a platform would stand by the stub of rail the outline leaves.
 
   The codebook ("Tavola dei contenuti … 1:2000, livello 4.2", November 2011) gives `0140` and
   `0141` in its text; its code table for `0117` and `0122` is in fonts that do not extract, so
@@ -1514,10 +1523,11 @@ carries the roads, water, rail and buildings across the old edge, which then are
 
 - **The same to the bit**: every terrain node in lucido's rectangle, the land cover more than 50 m
   in from its edge, the lamps, water beds and parked spots' rests the bake makes
-  (`x3-region.map-test.ts` checks these), and the roads, rail, POIs, graph, lanes, lucido's trees
-  (each with its id) and the coarse grid's nodes in lucido's box. The DTM's projection lattice,
-  the build's grid lookups, the game's (`heightAt`, `terrainZ`, `coverAt`) and the land cover's
-  raster count a point's cell from the anchor ([section 5](#5-heightmap-terraints), [The global
+  (`x3-region.map-test.ts` checks these), and the roads, rail, railway (its platforms all in play,
+  `x3-region.map-test.ts`), POIs, graph, lanes, lucido's trees (each with its id) and the coarse
+  grid's nodes in lucido's box. The DTM's projection lattice, the build's grid lookups, the game's
+  (`heightAt`, `terrainZ`, `coverAt`) and the land cover's raster count a point's cell from the
+  anchor ([section 5](#5-heightmap-terraints), [The global
   file](#the-global-file)). Counted from the box's corner, as they were before, the heights of 25
   buildings, 22,698 water-bed values, 133 lamps and the rests of 664 parked spots differed in their
   last bits, and 3 land-cover cells 0.8–3.6 km in from the edge, where an area's edge passes a
@@ -1541,9 +1551,7 @@ carries the roads, water, rail and buildings across the old edge, which then are
   Argigliano's (r 120 → 110 m).
 - **Areas across the edge** are clipped to the box, not the play area, so on the 3x 19 run on
   whole past lucido's edge and 80 more lie beyond it. A cut is rounded to 0.1 m, which moves the
-  cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs. 3 platforms of the station past
-  lucido's east edge, outside the play area, are laid along the rail's last stretch at the outline
-  (x 4899–4900, y 3609).
+  cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs.
 - **Walls**: a cell's slope reads the nodes up to 8 m round it, and on lucido those past its edge
   are the edge's own (clamped), so the steep cells along the edge differ, and a loop of blocked
   cells that takes one in is traced and simplified anew along all its length: walk walls differ up

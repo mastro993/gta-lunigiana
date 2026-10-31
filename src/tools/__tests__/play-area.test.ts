@@ -7,6 +7,7 @@ import {
   clipLineTo,
   clipPieces,
   clipToPlay,
+  heldInPlay,
   inPlay,
   onOutline,
   outlineEdgeAt,
@@ -157,6 +158,31 @@ test("onOutline finds a line's end cut on a slanted edge and rounded to 0.1 m: a
   }
   assert.ok(onOutline(0.2, 0.1, rings) && onOutline(1.4, 1.5, [[0, 0, 1000, 0, 1000, 1003.7]]))
   assert.ok(!onOutline(500, 0.1, rings) && !onOutline(999.9, 400, rings))
+})
+
+test("heldInPlay keeps a level crossing or platform whole by its centroid, as buildings are kept", () => {
+  /** A 10 m square centred on (x, y), with a hole. */
+  const square = (src: string, x: number, y: number) => ({
+    src,
+    rings: [
+      [x - 5, y - 5, x + 5, y - 5, x + 5, y + 5, x - 5, y + 5],
+      [x - 1, y - 1, x - 1, y + 1, x + 1, y + 1, x + 1, y - 1],
+    ],
+  })
+  const kept = heldInPlay(
+    [
+      square("in the leg", 50, 200),
+      square("in the notch", 150, 200),
+      square("across the notch's side, centre in", 98, 200),
+      square("across the notch's side, centre out", 102, 200),
+    ],
+    [L_RING],
+  )
+  assert.deepEqual(
+    kept.map((a) => a.src),
+    ["in the leg", "across the notch's side, centre in"],
+  )
+  assert.deepEqual(kept[1]!.rings, square("", 98, 200).rings)
 })
 
 const v = (x: number, y: number, id?: string): V => ({ x, y, ...(id === undefined ? {} : { id }) })

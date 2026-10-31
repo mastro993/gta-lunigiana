@@ -277,15 +277,23 @@ const edgeNear = (e: ReturnType<typeof edge>, x: number, y: number) =>
     ? Math.abs(x - e.ax) < STEP && y >= Math.min(e.ay, e.by) && y <= Math.max(e.ay, e.by)
     : Math.abs(y - e.ay) < STEP && x >= Math.min(e.ax, e.bx) && x <= Math.max(e.ax, e.bx)
 
-test("every graph node, spawn, POI and building of the L lies in its play area", { skip }, () => {
-  const { MAP, graph, inPlay, outlineDistance } = sim!
-  for (const n of graph.nodes) assert.ok(inPlay(n.x, n.y), `node at ${n.x}, ${n.y}`)
-  for (const s of [MAP.spawns.player, ...MAP.spawns.parked])
-    assert.ok(inPlay(s.x, s.y, 1), `spawn at ${s.x}, ${s.y}`)
-  for (const p of MAP.pois) assert.ok(inPlay(p.x, p.y), `poi ${p.id} at ${p.x}, ${p.y}`)
-  // kept by its centroid (rounded to 0.1 m since)
-  for (const b of MAP.buildings) {
-    const [cx, cy] = centroid(b.outer)
-    assert.ok(inPlay(cx, cy) || outlineDistance(cx, cy) < 0.1, `building ${b.id} at ${cx}, ${cy}`)
-  }
-})
+test(
+  "every graph node, spawn, POI, building and platform of the L lies in its play area",
+  { skip },
+  () => {
+    const { MAP, graph, inPlay, outlineDistance } = sim!
+    for (const n of graph.nodes) assert.ok(inPlay(n.x, n.y), `node at ${n.x}, ${n.y}`)
+    for (const p of MAP.railway.platforms)
+      for (const ring of MAP.areas[p.area]!.rings)
+        for (let i = 0; i < ring.length; i += 2)
+          assert.ok(inPlay(ring[i]!, ring[i + 1]!), `platform at ${ring[i]}, ${ring[i + 1]}`)
+    for (const s of [MAP.spawns.player, ...MAP.spawns.parked])
+      assert.ok(inPlay(s.x, s.y, 1), `spawn at ${s.x}, ${s.y}`)
+    for (const p of MAP.pois) assert.ok(inPlay(p.x, p.y), `poi ${p.id} at ${p.x}, ${p.y}`)
+    // kept by its centroid (rounded to 0.1 m since)
+    for (const b of MAP.buildings) {
+      const [cx, cy] = centroid(b.outer)
+      assert.ok(inPlay(cx, cy) || outlineDistance(cx, cy) < 0.1, `building ${b.id} at ${cx}, ${cy}`)
+    }
+  },
+)
