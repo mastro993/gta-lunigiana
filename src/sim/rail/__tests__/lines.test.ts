@@ -3,8 +3,7 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { segDist2 } from "../../collide.ts"
-import { graph, MAP, RAIL_LIFT } from "../../map/index.ts"
+import { MAP } from "../../map/index.ts"
 import { strikeIn } from "../barriers.ts"
 import {
   curvatureAt,
@@ -13,51 +12,35 @@ import {
   linesNear,
   LINES,
   makeLine,
-  nextStop,
   pointAt,
   runOut,
-  SHARED,
   sharedPart,
   sharedTrack,
   speedAt,
-  stopPoint,
   type TrackPiece,
 } from "../lines.ts"
 import { trainLength } from "../models.ts"
+import {
+  checkAtTheirS,
+  checkLinesNear,
+  checkNoSharedTrack,
+  checkStops,
+  checkTerminals,
+  railwayAround,
+} from "./railway-checks.ts"
 
-const { bounds } = MAP
-const onEdge = (x: number, y: number) =>
-  Math.min(x - bounds.minX, bounds.maxX - x, y - bounds.minY, bounds.maxY - y) < 0.5
+/** Monzone station. */
+const STATION = { x: -493.8, y: 436.9 }
+/**
+ * The railway within 4 km of Monzone station: the Lucca–Aulla line, Monzone's, Gragnola's and Equi
+ * Terme's stations and boxes; lines.map-test.ts checks the whole map's.
+ */
+const HERE = railwayAround(STATION, 4000)
 
-test("lines: each line runs its pieces terminal to terminal from s 0, then its run-out straight on past each, level", () => {
+test("lines, by Monzone station: each line runs its pieces terminal to terminal from s 0, then its run-out straight on past each, level", () => {
   assert.equal(LINES.length, MAP.railway.lines.length)
-  for (const line of LINES) {
-    const pieces = MAP.railway.lines[line.index]!.pieces
-    let length = 0
-    for (const { rail } of pieces) {
-      const { pts } = MAP.rail[rail]!
-      for (let k = 2; k < pts.length; k += 2)
-        length += Ops.hypot(pts[k]! - pts[k - 2]!, pts[k + 1]! - pts[k - 1]!)
-    }
-    assert.ok(Math.abs(line.length - length) < 0.01, `${line.length} m against ${length} m`)
-    assert.deepEqual(
-      [line.start, line.end],
-      [-runOut(speedAt(line, 0)), line.length + runOut(speedAt(line, line.length))],
-    )
-    for (const s of [0, line.length]) {
-      const end = pointAt(line, s)
-      assert.ok(onEdge(end.x, end.y), `terminal at (${end.x}, ${end.y}) on the map's edge`)
-      // Straight on and level past it, over the drawn run to the run-out's end.
-      const way = s === 0 ? -1 : 1
-      for (const out of [DRAWN_RUN, s === 0 ? -line.start : line.end - line.length]) {
-        const far = pointAt(line, s + way * out)
-        assert.ok(Math.abs(Ops.hypot(far.x - end.x, far.y - end.y) - out) < 1e-6)
-        assert.ok(Math.abs(far.angle - pointAt(line, s + (way * out) / 2).angle) < 1e-9)
-        assert.equal(far.z, end.z)
-        assert.ok(!far.bridge && !far.tunnel)
-      }
-    }
-  }
+  assert.ok(HERE.lines.length > 0, "the Lucca–Aulla line")
+  checkTerminals(HERE.lines)
 })
 
 test("lines: a run-out lets a train entering at line speed run its strike-in before the terminal, its whole body past the drawn run", () => {
@@ -74,35 +57,12 @@ test("lines: a run-out lets a train entering at line speed run its strike-in bef
   assert.ok(runOut(130 / 3.6) > runOut(85 / 3.6) + 900)
 })
 
-test("lines: the map's crossings and stations lie at their s, the rail head RAIL_LIFT over the bed, and a box's road meets the rail at its level", () => {
-  for (const crossing of MAP.railway.crossings.filter((c) => c.line >= 0)) {
-    const at = pointAt(LINES[crossing.line]!, crossing.s)
-    const node = crossing.nodes
-      .map((n) => graph.nodes[n]!)
-      .find((n) => Ops.hypot(n.x - at.x, n.y - at.y) < 0.05)
-    assert.ok(node !== undefined, `a node of the box at s ${crossing.s}`)
-    assert.ok(!at.bridge && !at.tunnel, "at grade")
-    const road = MAP.roads[crossing.road]!
-    const k = road.pts.findIndex(
-      (v, i) => i % 2 === 0 && v === node.x && road.pts[i + 1] === node.y,
-    )
-    assert.ok(Math.abs(at.z - RAIL_LIFT - road.z[k / 2]!) < 0.01, `rail and road meet at the box`)
-  }
-  for (const station of MAP.railway.stations) {
-    const mid = (station.s0 + station.s1) / 2,
-      at = pointAt(LINES[station.line]!, mid)
-    const platform = MAP.railway.platforms.find(
-      (p) => p.name === station.name && p.walkway !== true,
-    )
-    assert.ok(platform !== undefined)
-    // The platform's axis is the running track beside it: the line runs along it at the platform's middle.
-    let near = Number.MAX_VALUE
-    for (let k = 0; k + 3 < platform.axis.length; k += 2) {
-      const [ax, ay, bx, by] = platform.axis.slice(k, k + 4) as [number, number, number, number]
-      near = Math.min(near, Math.sqrt(segDist2(at.x, at.y, ax, ay, bx, by).d2))
-    }
-    assert.ok(near < 0.05, `${station.name}'s platform beside the line at its middle (${near} m)`)
-  }
+test("lines, by Monzone station: the crossings and stations lie at their s, the rail head RAIL_LIFT over the bed, and a box's road meets the rail at its level", () => {
+  assert.ok(
+    HERE.boxes.length >= 4 && HERE.stations.length >= 3,
+    "Monzone's, Gragnola's and Equi Terme's",
+  )
+  checkAtTheirS(HERE)
 })
 
 test("lines: a point's place, heading over 5 m, grade and what it runs on; the curvature of a 300 m curve", () => {
@@ -156,38 +116,13 @@ test("lines: line speed from OSM's limits, a stretch with none at its lower neig
   )
 })
 
-test("lines: linesNear finds each line's s and the distance off it, and nothing out of reach", () => {
-  for (const line of LINES) {
-    // The middle of its longest straight between its terminals.
-    let k = 1
-    for (let j = 2; j + 2 < line.s.length; j++)
-      if (line.s[j + 1]! - line.s[j]! > line.s[k + 1]! - line.s[k]!) k = j
-    const s = (line.s[k]! + line.s[k + 1]!) / 2,
-      at = pointAt(line, s)
-    const off = {
-      x: at.x - 5 * Ops.sin(at.angle),
-      y: at.y + 5 * Ops.cos(at.angle),
-    }
-    const [found, ...more] = linesNear(off.x, off.y, 8)
-    assert.ok(found?.line === line.index && more.length === 0)
-    assert.ok(Math.abs(found.s - s) < 0.05 && Math.abs(found.distance - 5) < 0.05)
-    assert.deepEqual(linesNear(off.x, off.y, 4), [])
-  }
+test("lines, by Monzone station: linesNear finds each line's s and the distance off it, and nothing out of reach", () => {
+  checkLinesNear(HERE.lines)
   assert.deepEqual(linesNear(MAP.spawns.player.x - 2000, MAP.spawns.player.y - 2000, 10), [])
 })
 
-test("lines: a train stops centred on the platforms, and calls next at the first station ahead past its stop reach", () => {
-  const length = trainLength("atr220")
-  for (const line of LINES.filter((l) => l.stations.length >= 2)) {
-    const [first, second] = line.stations
-    const a = MAP.railway.stations[first!]!
-    assert.ok(Math.abs(stopPoint(a, 1, length) - length / 2 - (a.s0 + a.s1) / 2) < 1e-9)
-    assert.ok(Math.abs(stopPoint(a, -1, length) + length / 2 - (a.s0 + a.s1) / 2) < 1e-9)
-    assert.equal(nextStop(line, 0, 1, length), first)
-    assert.equal(nextStop(line, stopPoint(a, 1, length), 1, length), second)
-    assert.equal(nextStop(line, stopPoint(a, -1, length), -1, length), -1)
-    assert.equal(nextStop(line, line.length, -1, length), line.stations.at(-1))
-  }
+test("lines, by Monzone station: a train stops centred on the platforms, and calls next at the first station ahead past its stop reach", () => {
+  checkStops(HERE.lines)
 })
 
 test("lines: lines on the same pieces share that track, either way round, and the run-out past a terminal they share", () => {
@@ -235,7 +170,6 @@ test("lines: lines on the same pieces share that track, either way round, and th
   assert.deepEqual(onto(1, 0, -300, -200), [[-300, -200, 1]])
   assert.deepEqual(onto(2, 0, -300, -200), [[c.length + 200, c.length + 300, -1]])
   assert.deepEqual(onto(0, 0, 0, 10), [], "none with itself")
-  // The map's lines share no track today.
-  for (const [i, row] of SHARED.entries())
-    for (const [j, runs] of row.entries()) assert.deepEqual(runs, [], `lines ${i} and ${j}`)
+  // The map's lines by Monzone station share no track today.
+  checkNoSharedTrack(HERE.lines)
 })

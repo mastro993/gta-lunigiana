@@ -1827,10 +1827,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     next train due; a knockdown scored; a save taken while driving playing on alike; and a
     `Determinism.check` over 30 s of the theft and the drive). `src/sim/rail/__tests__/*.test.ts`:
     the lines (their s, run-outs from the end speeds, points, speed limits, `linesNear`, stops,
-    shared track over three synthetic lines, one stretch over their joints), the cars on their
-    pivots, the crossings' cycle, demand and strike-in (`barriers.test.ts`), the boxes, their lines
-    at grade and their approaches with a second box on one road (`crossings.test.ts`), the train's
-    dynamics against the FSE poster's figures, the AI driver's stops and limits, and in
+    shared track over three synthetic lines, one stretch over their joints; the map's within 4 km of
+    Monzone station, `lines.test.ts`), the cars on their pivots, the crossings' cycle, demand and
+    strike-in (`barriers.test.ts`), the boxes within 4 km of Monzone station (all five today), their
+    lines at grade and their approaches with a second box on one road (`crossings.test.ts`), the
+    train's dynamics against the FSE poster's figures, the AI driver's stops and limits, and in
     `service.test.ts` a map whose second line runs the first's track the other way round: every box
     closing for either line's trains, an AI train keeping behind the other line's, and the
     dispatcher keeping an entry clear of it on their shared run-out, and the two lines' trains
@@ -1991,8 +1992,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   a glob, and that name matches `*.test.ts`. They sit in `__tests__` beside the tests (the lint
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
-  `rail-checks.ts`, `station-checks.ts`, `bridges.ts`, `lamp-checks.ts`, `tile-paint.ts`,
-  `bakes.ts`):
+  `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `bridges.ts`, `lamp-checks.ts`,
+  `tile-paint.ts`, `bakes.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined (see
     [map.md](map.md#checks-and-tools)); `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,
@@ -2007,7 +2008,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square
     returning its four edges, for every tenth tree and every one within a metre of a seam;
     `water.map-test.ts`: every bridge's verges over the water on the deck in a spate;
-    `src/sim/sky/__tests__/place.map-test.ts`: the place fitted again over every node.
+    `src/sim/sky/__tests__/place.map-test.ts`: the place fitted again over every node;
+    `src/sim/rail/__tests__/lines.map-test.ts` and `crossings.map-test.ts`: `lines.test.ts`'s and
+    `crossings.test.ts`'s checks over every line, station and level crossing.
   - `src/render/__tests__/chunk-tiles.map-test.ts`: one tile planning each chunk with its box round
     the chunk's, a crossing's chunk reading the ground under its road ribbons, and with only some
     tiles in every chunk that builds reading only those at every level crossing, platform, tunnel

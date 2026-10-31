@@ -1648,9 +1648,10 @@ speed along the contact.
   enters toward it may come onto the shared track and meet it head-on. Then both stop 30 m apart
   and wait for each other for good: the hook is a block table both `TrainAI` and `Dispatch` would
   consult.
-- **Terminals are open ends** at the map's edge: the build makes no other kind, and `lines.test.ts`
-  fails on a terminal off the edge. A buffer stop inside the map would need the AI train to dwell
-  and turn back there instead of a run-out; the player's train already turns back by its far cab.
+- **Terminals are open ends** at the map's edge: the build makes no other kind, and
+  `lines.map-test.ts` fails on a terminal off the edge (`lines.test.ts` on one of a line by Monzone
+  station). A buffer stop inside the map would need the AI train to dwell and turn back there
+  instead of a run-out; the player's train already turns back by its far cab.
 - **Run-outs assume open land past the edge**: the drawn run and the run-out go straight and level
   past a terminal, over the terrain the apron extends. On a map of parts in an L (issue #7) a
   terminal on an inner edge of the play area would send them across the notch, over ground that
