@@ -1,24 +1,32 @@
 // Reads a map from disk whole (Node only): its global file and every tile it lists, joined back
-// into one heightmap, wall list, tree list and land-cover raster (`joinTiles`, the cut of
-// tile-map.ts undone). The tools that draw or compare a whole map and the map tests read it this
-// way. A region's map as built, a test region's too, is handed to the sim with `loadBuiltMap`.
-import type { MonzoneMap } from "../sim/map/index.ts"
+// into one heightmap, wall list, tree list, land-cover raster and list of each layer of vectors
+// (`joinTiles`, the cut of tile-map.ts undone). The tools that draw or compare a whole map and the
+// map tests read it this way. A region's map as built, a test region's too, is handed to the sim
+// with `loadBuiltMap`.
+import type { MonzoneMap, Road } from "../sim/map/index.ts"
 import { TILE, tileKey } from "../sim/map/kinds.ts"
 import {
   decodeMap,
   decodeTile,
   MAP_URL,
+  MAP_VERSION,
   provideMap,
   readMapFile,
   TILE_CELLS,
   TILE_NODES,
+  type Layer,
   type TileData,
+  type TileVectors,
+  type VectorLayer,
 } from "../sim/map/packed.ts"
+import { relined } from "./pack.ts"
 import { mapDir, type Region } from "./region.ts"
 import { mergeTrees } from "./trees.ts"
 
-/** The whole map joined back from its global map and tiles: the dense layers whole again, next to everything global. */
-export interface JoinedMap extends Omit<MonzoneMap, "heightmap" | "walls"> {
+/** The whole map joined back from its global map and tiles: the dense layers and the vectors whole again, next to everything global. */
+export interface JoinedMap extends Omit<MonzoneMap, "heightmap" | "walls" | "vectors" | "roads"> {
+  /** Every road, its attributes (global) and its line (the tiles'). */
+  readonly roads: ReadonlyArray<Road>
   /** `cols` × `rows` nodes, decimetres, row-major from the south-west node. */
   readonly heightmap: MonzoneMap["heightmap"] & { readonly data: ArrayLike<number> }
   /** The global walls' broad-phase facts, and every flat (ax, ay, bx, by) wall in the whole map's order. */
@@ -77,9 +85,11 @@ export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): J
       }
   }
   const { trees, ids } = mergeTrees(listed)
-  const { heightmap, ...rest } = global
+  const { heightmap, vectors: _, ...rest } = global
   return {
     ...rest,
+    // a build before the vectors' cut (`readWholeMap`) has them in `rest`
+    ...("vectors" in global ? joinVectors(global, listed) : {}),
     heightmap: { ...heightmap, data },
     walls: { ...global.walls, walk: flat("walk"), shore: flat("shore"), drive: flat("drive") },
     trees,
@@ -88,13 +98,48 @@ export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): J
   }
 }
 
+/**
+ * Each layer of vectors back in the whole map's order from the tiles holding its features (the first
+ * that holds one: every copy is the same), each road its global attributes with its line.
+ */
+const joinVectors = (
+  global: MonzoneMap,
+  listed: ReadonlyArray<TileData>,
+): Pick<JoinedMap, VectorLayer> => {
+  const layer = <T>(name: VectorLayer, of: (v: TileVectors) => Layer<T>): Array<T> => {
+    const out: Array<T | undefined> = Array.from({ length: global.vectors.counts[name] })
+    for (const t of listed) {
+      const { ids, items } = of(t.vectors)
+      ids.forEach((id, k) => (out[id] ??= items[k]))
+    }
+    return out.map((item, k) => {
+      if (item === undefined) throw new Error(`join: ${name} ${k} is in no tile`)
+      return item
+    })
+  }
+  return {
+    roads: layer("roads", (v) => v.roads).map((line, k) => ({ ...global.roads[k]!, ...line })),
+    buildings: layer("buildings", (v) => v.buildings),
+    water: layer("water", (v) => v.water),
+    areas: layer("areas", (v) => v.areas),
+    barriers: layer("barriers", (v) => v.barriers),
+  }
+}
+
 /** The map whose global file is at `url` (its tiles in the directory named after it beside it), whole. */
 export const readWholeMap = (url: URL): JoinedMap => {
-  const global = decodeMap(readMapFile(url))
+  const file = readMapFile(url)
+  // A build before the vectors' cut (version 3, issue #63) holds them in its global file (and none
+  // in its tiles), which `joinTiles` keeps: read it as one, so map-diff compares it with a tiled build.
+  const line = JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as {
+    readonly version?: unknown
+  }
+  const read = (f: Uint8Array) => (line.version === 3 ? relined(f, { version: MAP_VERSION }) : f)
+  const global = decodeMap(read(file))
   return joinTiles(
     global,
     global.tiles.map(({ i, j }) =>
-      decodeTile(readMapFile(new URL(`${global.name}/${tileKey(i, j)}.bin`, url))),
+      decodeTile(read(readMapFile(new URL(`${global.name}/${tileKey(i, j)}.bin`, url)))),
     ),
   )
 }

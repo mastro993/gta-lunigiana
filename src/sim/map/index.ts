@@ -31,8 +31,10 @@ import {
   type RoadClass,
 } from "./kinds.ts"
 import { insideRings, ringsDistance } from "./outline.ts"
+import type { VectorLayer } from "./packed.ts"
 import type { Railway } from "./railway.ts"
-import { cellNodes, type WallKind } from "./tiles.ts"
+import { cellNodes } from "./tiles.ts"
+import type { WallKind } from "./walls.ts"
 
 export { MAP } from "./global.ts"
 export {
@@ -56,7 +58,7 @@ export {
   vergeOf,
 } from "./kinds.ts"
 export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
-export { type Segment, treesIn, type WallKind, wallsNear } from "./tiles.ts"
+export { type Segment, treesIn, type WallKind, wallsNear } from "./walls.ts"
 
 /** The built terrain's box, metres: the box round the map's parts, which the play area (`outline`) lies in. */
 interface Bounds {
@@ -109,8 +111,8 @@ export interface Coarse {
   readonly cover: Uint8Array
 }
 
-/** A road piece (OSM highway way clipped to the play area). `cls` narrows with `roadClassOf`. */
-export interface Road {
+/** A road piece's attributes (OSM highway way clipped to the play area). `cls` narrows with `roadClassOf`. */
+export interface RoadInfo {
   readonly id: number
   readonly cls: string
   readonly name?: string
@@ -128,11 +130,18 @@ export interface Road {
   readonly maxheight?: number
   /** Where people walk, m from the centreline on either side, when the build pulls the verge in off the railway beside it (else `vergeOf`). */
   readonly verge?: number
+}
+
+/** A road piece's line, which the tiles hold (`./vectors.ts`). */
+export interface RoadLine {
   /** The OSM vertices plus points on the OSM segments where the elevation profile bends (dips under the rail, crests). */
   readonly pts: ReadonlyArray<number>
   /** Road surface elevation per vertex (m); bridge decks and tunnels are straight between their ends. */
   readonly z: ReadonlyArray<number>
 }
+
+/** A road piece: its attributes and its line. */
+export interface Road extends RoadInfo, RoadLine {}
 
 /** `style` narrows with `buildingStyleOf`; `tint` is a colour variant 0..3. */
 export interface Building {
@@ -307,6 +316,17 @@ export interface MonzoneMap {
     readonly reach: number
     readonly lattice: Readonly<Record<WallKind | "trees", readonly [number, number]>>
     readonly counts: { readonly walk: number; readonly drive: number }
+  }
+  /**
+   * How the vectors are cut into the tiles (`./vectors.ts`): each feature lies whole in every tile
+   * it comes within `halo` m of (`HALO`), and `counts` says how many of each layer the whole map
+   * has (a feature's index runs up to it). `lattice.buildings` is the buildings' broad-phase corner:
+   * the lowest corner of any building's box, where the whole map's broad phase put it.
+   */
+  readonly vectors: {
+    readonly halo: number
+    readonly counts: Readonly<Record<VectorLayer, number>>
+    readonly lattice: { readonly buildings: readonly [number, number] }
   }
   readonly spawns: {
     readonly player: Spawn

@@ -1,16 +1,22 @@
 // Cuts the map the build makes (one heightmap, every wall and tree, the land cover rasterised tile
-// by tile) into the global map and its 2 km tiles (src/sim/map/packed.ts), one tile at a time, and
-// stamps them with the build hash. The cut is exact: joining the tiles back (`joinTiles` in
-// map-file.ts, for the tools that read a whole map) gives back every node, wall, tree and cover
-// cell, in order (the trees in id order: merged by id, `mergeTrees` in trees.ts).
+// by tile, every vector) into the global map and its 2 km tiles (src/sim/map/packed.ts), one tile at
+// a time, and stamps them with the build hash. The cut is exact: joining the tiles back (`joinTiles`
+// in map-file.ts, for the tools that read a whole map) gives back every node, wall, tree, cover cell
+// and vector, in order (the trees in id order: merged by id, `mergeTrees` in trees.ts).
 import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
 import type { MonzoneMap, Spawn, Water } from "../sim/map/index.ts"
-import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
-import { TILE_CELLS, TILE_NODES } from "../sim/map/packed.ts"
+import { HALO, TILE, tileKey, tileRange, tilesRound, vergeOf } from "../sim/map/kinds.ts"
+import {
+  TILE_CELLS,
+  TILE_NODES,
+  type TileVectors,
+  VECTOR_LAYERS,
+  type VectorLayer,
+} from "../sim/map/packed.ts"
 import { placeFrom } from "../sim/sky/place.ts"
-import { packMap, packTile } from "./pack.ts"
+import { packMap, packTile, relined } from "./pack.ts"
 
 /** The map as the build makes it: the global map's sparse parts with the dense layers whole, before the tables baked from them. */
 export interface BuiltMap extends Omit<
@@ -22,6 +28,7 @@ export interface BuiltMap extends Omit<
   | "place"
   | "coarse"
   | "walls"
+  | "vectors"
   | "water"
   | "spawns"
   | "lanes"
@@ -83,14 +90,82 @@ const bySlot = (count: number, slots: number, slotOf: (item: number) => number) 
   return (s: number) => items.subarray(starts[s], starts[s + 1])
 }
 
-/** A map cut into its tiles: each tile packed with no hash yet, and the global map the bakes complete. */
+/** A map cut into its tiles, and the global map: both completed by the bakes. */
 export interface MapCut {
-  /** Each tile's gunzipped file with an empty hash, by key, south to north then west to east. */
-  readonly tiles: ReadonlyMap<string, Buffer>
+  /**
+   * Each tile's gunzipped file with `bakes` (the water's floors) and an empty hash, by key, south to
+   * north then west to east, and the bytes of each layer of vectors in them, summed.
+   */
+  readonly tiles: (bakes: Bakes) => {
+    readonly files: ReadonlyMap<string, Buffer>
+    readonly sizes: Readonly<Record<VectorLayer, number>>
+  }
   /** The global map with `bakes`, before its hash. */
   readonly global: (bakes: Bakes) => Omit<MonzoneMap, "hash">
-  /** The bytes of each part of the tiles, summed (`json` with the hash still empty). */
+  /** The bytes of each part of the tiles' dense layers, summed (`json` with the hash and the vectors still empty). */
   readonly sizes: Readonly<Record<string, number>>
+}
+
+/** No vectors: a tile's before the cut adds them. */
+const NO_VECTORS: TileVectors = {
+  roads: { ids: [], items: [] },
+  buildings: { ids: [], items: [] },
+  water: { ids: [], items: [] },
+  areas: { ids: [], items: [] },
+  barriers: { ids: [], items: [] },
+}
+
+/** Calls `box` with the box of each segment of the flat polyline `pts` (of its one point, if it has one). */
+const segmentBoxes = (
+  pts: ReadonlyArray<number>,
+  box: (x0: number, y0: number, x1: number, y1: number) => void,
+): void => {
+  if (pts.length === 2) box(pts[0]!, pts[1]!, pts[0]!, pts[1]!)
+  for (let k = 0; k + 3 < pts.length; k += 2)
+    box(
+      Math.min(pts[k]!, pts[k + 2]!),
+      Math.min(pts[k + 1]!, pts[k + 3]!),
+      Math.max(pts[k]!, pts[k + 2]!),
+      Math.max(pts[k + 1]!, pts[k + 3]!),
+    )
+}
+
+/** Calls `box` with the box of the flat ring `ring`. */
+const ringBox = (
+  ring: ReadonlyArray<number>,
+  box: (x0: number, y0: number, x1: number, y1: number) => void,
+): void => {
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity
+  for (let k = 0; k + 1 < ring.length; k += 2) {
+    x0 = Math.min(x0, ring[k]!)
+    y0 = Math.min(y0, ring[k + 1]!)
+    x1 = Math.max(x1, ring[k]!)
+    y1 = Math.max(y1, ring[k + 1]!)
+  }
+  box(x0, y0, x1, y1)
+}
+
+/**
+ * Throws unless every road's carriageway and walkers' verge and every river's bed lie within the
+ * halo of the tile holding a point on them: a lookup at a point reads that tile's vectors alone
+ * (src/sim/map/ground.ts, surface.ts, src/sim/water/rivers.ts).
+ */
+const checkReach = (map: BuiltMap): void => {
+  for (const road of map.roads) {
+    const reach = Math.max(road.w / 2 + 0.5, (road.verge ?? vergeOf(road.cls, road.w)) + 0.5)
+    if (reach > HALO)
+      throw new Error(
+        `road ${road.id} reaches ${reach} m off its centreline, past the ${HALO} m halo`,
+      )
+  }
+  for (const w of map.water)
+    if (Math.max(w.bed, w.w / 2) > HALO)
+      throw new Error(
+        `water ${w.id} reaches ${Math.max(w.bed, w.w / 2)} m off its centreline, past the ${HALO} m halo`,
+      )
 }
 
 /**
@@ -172,6 +247,46 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const treesOf = bySlot(map.trees.length / 3, slots, (t) =>
     slotAt(map.trees[3 * t]!, map.trees[3 * t + 1]!),
   )
+  /**
+   * Per slot, the features of a layer of `count` it holds, in whole-map order: those with a box
+   * (`boxesOf` gives each) within HALO of the slot's square, the indices clamped to the list as a
+   * lookup's are (`tilesOver` in src/sim/map/tiles.ts: on an edge tile, beyond the edge too); for
+   * an unlisted slot (an L's notch), the listed tiles round it hold them instead.
+   */
+  const membersOf = (
+    count: number,
+    boxesOf: (item: number, box: (x0: number, y0: number, x1: number, y1: number) => void) => void,
+  ): ReadonlyArray<ReadonlyArray<number>> => {
+    const lists = Array.from({ length: slots }, (): Array<number> => []),
+      last = new Int32Array(slots).fill(-1)
+    const add = (s: number, item: number) => {
+      if (last[s] === item) return
+      last[s] = item
+      lists[s]!.push(item)
+    }
+    for (let item = 0; item < count; item++)
+      boxesOf(item, (x0, y0, x1, y1) => {
+        const i0 = indexOf((x0 - HALO) / cell, range.i0, range.i1, n),
+          i1 = indexOf((x1 + HALO) / cell, range.i0, range.i1, n),
+          j0 = indexOf((y0 - HALO) / cell, range.j0, range.j1, n),
+          j1 = indexOf((y1 + HALO) / cell, range.j0, range.j1, n)
+        for (let tj = j0; tj <= j1; tj++)
+          for (let ti = i0; ti <= i1; ti++) {
+            const t = slotOf(ti, tj)
+            if (listed[t] === 1) add(t, item)
+            else for (const [ai, aj] of around[t]!) add(slotOf(ai, aj), item)
+          }
+      })
+    return lists
+  }
+  checkReach(map)
+  const members: Readonly<Record<VectorLayer, ReadonlyArray<ReadonlyArray<number>>>> = {
+    roads: membersOf(map.roads.length, (k, box) => segmentBoxes(map.roads[k]!.pts, box)),
+    buildings: membersOf(map.buildings.length, (k, box) => ringBox(map.buildings[k]!.outer, box)),
+    water: membersOf(map.water.length, (k, box) => segmentBoxes(map.water[k]!.pts, box)),
+    areas: membersOf(map.areas.length, (k, box) => ringBox(map.areas[k]!.rings[0] ?? [], box)),
+    barriers: membersOf(map.barriers.length, (k, box) => segmentBoxes(map.barriers[k]!.pts, box)),
+  }
   /**
    * Where the game reads lattice point (ni, nj), counted from the origin, a node (`cells` 0: a tile
    * holds N + 1 along each side) or a cell (1: N): in its tile when listed, else in the listed tile
@@ -272,6 +387,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
         trees: flatOf(map.trees, trees, 3),
         ids: Int32Array.from(trees, (k) => map.treeIds[k]!),
         cover,
+        vectors: NO_VECTORS,
       })
       files.set(tileKey(i, j), tile.file)
       for (const [part, bytes] of Object.entries(tile.sizes))
@@ -334,12 +450,63 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     graph,
     spawns,
   } = map
+  let bx = Infinity,
+    by = Infinity
+  for (const b of map.buildings)
+    ringBox(b.outer, (x0, y0) => {
+      bx = Math.min(bx, x0)
+      by = Math.min(by, y0)
+    })
+  const vectors: MonzoneMap["vectors"] = {
+    halo: HALO,
+    counts: {
+      roads: map.roads.length,
+      buildings: map.buildings.length,
+      water: map.water.length,
+      areas: map.areas.length,
+      barriers: map.barriers.length,
+    },
+    // where the whole map's broad phase of the buildings put its lattice (the origin with none)
+    lattice: { buildings: map.buildings.length === 0 ? [0, 0] : [bx, by] },
+  }
+  /** Each tile's file with its vectors, the water's floors from `bakes`. */
+  const tiles = (bakes: Bakes) => {
+    const out = new Map<string, Buffer>(),
+      bytes: Record<VectorLayer, number> = {
+        roads: 0,
+        buildings: 0,
+        water: 0,
+        areas: 0,
+        barriers: 0,
+      }
+    for (const [key, file] of files) {
+      const [i, j] = key.split("_").map(Number)
+      const s = slotOf(i!, j!)
+      const layer = <T>(ids: ReadonlyArray<number>, item: (k: number) => T) => ({
+        ids,
+        items: ids.map(item),
+      })
+      const tile: TileVectors = {
+        roads: layer(members.roads[s]!, (k) => ({ pts: map.roads[k]!.pts, z: map.roads[k]!.z })),
+        buildings: layer(members.buildings[s]!, (k) => map.buildings[k]!),
+        water: layer(members.water[s]!, (k) => ({
+          ...map.water[k]!,
+          floor: bakes.floors[k] ?? [],
+        })),
+        areas: layer(members.areas[s]!, (k) => map.areas[k]!),
+        barriers: layer(members.barriers[s]!, (k) => map.barriers[k]!),
+      }
+      for (const name of VECTOR_LAYERS) bytes[name] += JSON.stringify(tile[name]).length
+      out.set(key, relined(file, { vectors: tile }))
+    }
+    return { files: out, sizes: bytes }
+  }
   return {
-    tiles: files,
+    tiles,
     sizes,
     global: globalOf(
       header,
-      { roads, buildings, rail, railway, areas, barriers, pois, districts, graph, walls },
+      { roads, buildings, rail, railway, areas, barriers, pois, districts, graph, walls, vectors },
       water,
       spawns,
     ),
@@ -380,6 +547,7 @@ const globalOf =
       | "districts"
       | "graph"
       | "walls"
+      | "vectors"
     >,
     water: BuiltMap["water"],
     { player, parked, police }: BuiltMap["spawns"],
@@ -397,6 +565,7 @@ const globalOf =
     districts: v.districts,
     graph: v.graph,
     walls: v.walls,
+    vectors: v.vectors,
     spawns: {
       player,
       parked: parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }),
@@ -406,14 +575,6 @@ const globalOf =
     farms: bakes.farms,
     lamps: bakes.lamps,
   })
-
-/** A file's JSON line with `hash` set, the packed sections after it unchanged: what packing it with that hash gives. */
-const restamp = (file: Uint8Array, hash: string): Buffer => {
-  const end = file.indexOf(10)
-  const json = JSON.parse(Buffer.from(file.subarray(0, end)).toString()) as { hash: string }
-  json.hash = hash
-  return Buffer.concat([Buffer.from(JSON.stringify(json)), file.subarray(end)])
-}
 
 /**
  * The build hash of `global` and its unstamped `tiles` (16 hex digits of SHA-256 over the global
@@ -435,5 +596,5 @@ export const stampMap = (
   const hash = sha.digest("hex").slice(0, 16)
   const stamped: MonzoneMap = { ...global, hash }
   const { file, sizes } = packMap(stamped)
-  return { global: stamped, file, sizes, tile: (tile) => restamp(tile, hash) }
+  return { global: stamped, file, sizes, tile: (tile) => relined(tile, { hash }) }
 }

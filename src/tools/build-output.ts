@@ -177,25 +177,27 @@ export const writeMap = async (
 ) => {
   provideMap(packMap({ ...cut.global(NO_BAKES), hash: "" }).file)
   const { dropTile, setTileSource } = await import("../sim/map/tiles.ts")
-  const resident: Array<string> = []
+  const resident: Array<string> = [],
+    provisional = cut.tiles(NO_BAKES).files
   setTileSource((key) => {
     resident.push(key)
     if (resident.length > RESIDENT) dropTile(resident.shift()!)
-    return cut.tiles.get(key)!
+    return provisional.get(key)!
   })
   const { bake } = await import("./bake.ts")
   const bakes = bake()
   setTileSource(undefined)
   for (const key of resident) dropTile(key)
   lap("bake")
-  const stamped = stampMap(cut.global(bakes), cut.tiles.values())
+  const { files, sizes: vectorSizes } = cut.tiles(bakes)
+  const stamped = stampMap(cut.global(bakes), files.values())
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
   let json = 0
   const [global, ...tiles] = await writeGzipped(
     (function* () {
       yield [out, stamped.file] as const
-      for (const [key, file] of cut.tiles) {
+      for (const [key, file] of files) {
         const tile = stamped.tile(file)
         json += tile.indexOf(10) + 1
         yield [join(dir, `${key}.bin`), tile] as const
@@ -207,9 +209,10 @@ export const writeMap = async (
   for (const [part, n] of Object.entries(stamped.sizes)) sizes[`global ${part}`] = n
   for (const [part, n] of Object.entries(cut.sizes))
     sizes[`tile ${part}`] = part === "json" ? json : n
+  for (const [layer, n] of Object.entries(vectorSizes)) sizes[`tile ${layer}`] = n
   return {
     global: stamped.global,
-    tiles: cut.tiles.size,
+    tiles: files.size,
     bytes: tiles.reduce((sum, n) => sum + n, global!),
     largest: Math.max(...tiles),
     sizes,

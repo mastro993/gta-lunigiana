@@ -15,6 +15,14 @@ export const ORIGIN = { lat: 44.16175, lon: 10.13 } as const
 /** Side of a map tile, m: tile (i, j) is the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin. */
 export const TILE = 2000
 
+/**
+ * How far round its square a tile holds the vectors, m: every road, river, barrier, building and
+ * area with a segment (a ring's box) within this of the square, whole, so a lookup at a point reads
+ * the point's tile alone. More than any carriageway, verge or river bed reaches off its centreline
+ * (13 m, a river's bed; the build checks it) and than the minimap's margin round a tile (23.3 m).
+ */
+export const HALO = 32
+
 /** A tile's key, `"i_j"`: its file is `<key>.bin`, and "map tile i_j not loaded" names it. */
 export const tileKey = (i: number, j: number): string => `${i}_${j}`
 

@@ -1,18 +1,29 @@
 /**
- * Broad phases cut by tile that answer as one: each tile's items (walls, trees) are gridded on the
- * whole map's lattice for their kind (`MAP.walls.lattice`: 16 m cells from the lowest corner of any
- * wall of the kind, or the trees' corner fixed per region), and a query walks the lattice's cells
- * south to north, west to east, each cell's items in the whole map's order (by id: merged across the
- * tiles that hold some), each item once. That is
- * the order the single whole-map broad phase (`staticGrid`) gave before the map was cut into tiles,
- * so every collision resolves exactly as it did (the physics pushes out of walls one by one and keeps
- * the first of equal-time hits), whichever tiles are in memory.
+ * Broad phases cut by tile that answer as one: each tile's items (walls, trees, buildings) are
+ * gridded on the whole map's lattice for their kind (`MAP.walls.lattice`: 16 m cells from the lowest
+ * corner of any wall of the kind, or the trees' corner fixed per region; `MAP.vectors.lattice`: the
+ * buildings' 64 m cells from the lowest corner of any building), and a query walks the lattice's
+ * cells south to north, west to east, each cell's items in the whole map's order (by id: merged
+ * across the tiles that hold some), each item once (a building, which every tile round it holds, is
+ * marked by id). That is the order the single whole-map broad phase (`staticGrid`) gave before the
+ * map was cut into tiles, so every collision resolves exactly as it did (the physics pushes out of
+ * walls one by one and keeps the first of equal-time hits), whichever tiles are in memory.
  *
  * @module map/lattice
  */
 
 /** Cell side of the wall and tree broad phases, m (car and person queries span one to four cells). */
 export const CELL = 16
+
+/** Marks of the items a query has visited, by id (`queryCells`), for items several tiles hold. */
+export interface Visited {
+  /** `marks[id] === stamp` once the current query has visited the item with that id. */
+  readonly marks: Int32Array
+  stamp: number
+}
+
+/** Marks for `count` ids (every id below it). */
+export const visited = (count: number): Visited => ({ marks: new Int32Array(count), stamp: 0 })
 
 /** A lattice's south-west corner, m. */
 export type Corner = readonly [x: number, y: number]
@@ -35,32 +46,34 @@ export interface CellGrid {
   stamp: number
 }
 
-/** The cell index of coordinate `v` on a lattice from `origin`, as `staticGrid` computes it. */
-const cellOf = (v: number, origin: number) => Math.floor((v - origin) / CELL)
+/** The cell index of coordinate `v` on a lattice of `cell` m cells from `origin`, as `staticGrid` computes it. */
+const cellOf = (v: number, origin: number, cell: number) => Math.floor((v - origin) / cell)
 
 /**
- * The box's cells on the lattice from `at`, as a box: a query answers every item in them (a superset
+ * The box's cells on the lattice of `cell` m cells from `at`, as a box: a query answers every item in them (a superset
  * of the box), so it reads every tile those cells reach.
  */
 export const cellBox = (
   at: Corner,
+  cell: number,
   minX: number,
   minY: number,
   maxX: number,
   maxY: number,
 ): readonly [number, number, number, number] => [
-  at[0] + CELL * cellOf(minX, at[0]),
-  at[1] + CELL * cellOf(minY, at[1]),
-  at[0] + CELL * (cellOf(maxX, at[0]) + 1),
-  at[1] + CELL * (cellOf(maxY, at[1]) + 1),
+  at[0] + cell * cellOf(minX, at[0], cell),
+  at[1] + cell * cellOf(minY, at[1], cell),
+  at[0] + cell * (cellOf(maxX, at[0], cell) + 1),
+  at[1] + cell * (cellOf(maxY, at[1], cell) + 1),
 ]
 
-/** `count` items with boxes `boxOf` (minX, minY, maxX, maxY) and whole-map indices `ids`, gridded on the lattice from `at`. */
+/** `count` items with boxes `boxOf` (minX, minY, maxX, maxY) and whole-map indices `ids`, gridded on the lattice of `cell` m cells from `at`. */
 export const cellGrid = (
   count: number,
   boxOf: (item: number) => readonly [number, number, number, number],
   ids: ArrayLike<number>,
   at: Corner,
+  cell: number,
 ): CellGrid => {
   const boxes = new Float64Array(4 * count)
   let c0 = Infinity,
@@ -70,18 +83,26 @@ export const cellGrid = (
   for (let i = 0; i < count; i++) {
     const box = boxOf(i)
     boxes.set(box, 4 * i)
-    c0 = Math.min(c0, cellOf(box[0], at[0]))
-    r0 = Math.min(r0, cellOf(box[1], at[1]))
-    c1 = Math.max(c1, cellOf(box[2], at[0]))
-    r1 = Math.max(r1, cellOf(box[3], at[1]))
+    c0 = Math.min(c0, cellOf(box[0], at[0], cell))
+    r0 = Math.min(r0, cellOf(box[1], at[1], cell))
+    c1 = Math.max(c1, cellOf(box[2], at[0], cell))
+    r1 = Math.max(r1, cellOf(box[3], at[1], cell))
   }
   if (count === 0) [c0, c1, r0, r1] = [0, -1, 0, -1]
   const cols = c1 - c0 + 1,
     rows = r1 - r0 + 1
   const each = (item: number, visit: (cell: number) => void) => {
     const k = 4 * item
-    for (let r = cellOf(boxes[k + 1]!, at[1]), e = cellOf(boxes[k + 3]!, at[1]); r <= e; r++)
-      for (let c = cellOf(boxes[k]!, at[0]), f = cellOf(boxes[k + 2]!, at[0]); c <= f; c++)
+    for (
+      let r = cellOf(boxes[k + 1]!, at[1], cell), e = cellOf(boxes[k + 3]!, at[1], cell);
+      r <= e;
+      r++
+    )
+      for (
+        let c = cellOf(boxes[k]!, at[0], cell), f = cellOf(boxes[k + 2]!, at[0], cell);
+        c <= f;
+        c++
+      )
         visit((r - r0) * cols + c - c0)
   }
   const starts = new Int32Array(cols * rows + 1)
@@ -100,25 +121,38 @@ const heads: Array<number> = [],
 
 /**
  * Calls `visit(grid, item)` with every item of `grids` (one per tile, any order) in a cell the box
- * overlaps on the lattice from `at`: cells south to north, west to east, each cell's items in the
- * whole map's order, each item once. `visit` must not query again.
+ * overlaps on the lattice of `cell` m cells from `at`: cells south to north, west to east, each
+ * cell's items in the whole map's order, each item once. An item in one grid alone (a wall, a tree)
+ * is marked in its grid; items several grids hold (the vectors round each tile) are marked by id in
+ * `byId`, and the first grid holding one gives it. `visit` must not query again.
  */
 export const queryCells = (
   grids: ReadonlyArray<CellGrid>,
   at: Corner,
+  cell: number,
   minX: number,
   minY: number,
   maxX: number,
   maxY: number,
   visit: (grid: number, item: number) => void,
+  byId?: Visited,
 ): void => {
   if (grids.length === 0) return
-  for (const g of grids) {
-    if (g.stamp === 0x7fffffff) {
-      g.seen.fill(0)
-      g.stamp = 0
+  // A new stamp marks nothing visited yet; at the last one, the marks start over.
+  if (byId === undefined)
+    for (const g of grids) {
+      if (g.stamp === 0x7fffffff) {
+        g.seen.fill(0)
+        g.stamp = 0
+      }
+      g.stamp++
     }
-    g.stamp++
+  else {
+    if (byId.stamp === 0x7fffffff) {
+      byId.marks.fill(0)
+      byId.stamp = 0
+    }
+    byId.stamp++
   }
   // Only the cells some grid has: a huge box walks no empty lattice.
   let lo = Infinity,
@@ -131,10 +165,10 @@ export const queryCells = (
     bottom = Math.min(bottom, g.r0)
     top = Math.max(top, g.r0 + g.rows - 1)
   }
-  const c0 = Math.max(lo, cellOf(minX, at[0])),
-    c1 = Math.min(hi, cellOf(maxX, at[0])),
-    r0 = Math.max(bottom, cellOf(minY, at[1])),
-    r1 = Math.min(top, cellOf(maxY, at[1]))
+  const c0 = Math.max(lo, cellOf(minX, at[0], cell)),
+    c1 = Math.min(hi, cellOf(maxX, at[0], cell)),
+    r0 = Math.max(bottom, cellOf(minY, at[1], cell)),
+    r1 = Math.min(top, cellOf(maxY, at[1], cell))
   for (let r = r0; r <= r1; r++)
     for (let c = c0; c <= c1; c++) {
       let n = 0
@@ -163,8 +197,13 @@ export const queryCells = (
         const g = which[best]!,
           grid = grids[g]!,
           item = grid.items[heads[best]!++]!
-        if (grid.seen[item] === grid.stamp) continue
-        grid.seen[item] = grid.stamp
+        if (byId === undefined) {
+          if (grid.seen[item] === grid.stamp) continue
+          grid.seen[item] = grid.stamp
+        } else {
+          if (byId.marks[id] === byId.stamp) continue
+          byId.marks[id] = byId.stamp
+        }
         visit(g, item)
       }
     }

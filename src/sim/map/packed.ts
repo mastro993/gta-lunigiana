@@ -8,7 +8,8 @@
  *
  * The global file's line is `MonzoneMapJson` (everything sparse: the vectors, the graph, the
  * railway, the tile list, the baked tables); its sections are the coarse grid's heights and cover.
- * A tile's line is `TileJson`; its sections hold the dense layers of its square:
+ * A tile's line is `TileJson`, which holds the vectors round its square (`TileVectors`, as JSON:
+ * their doubles come back exact); its sections hold the dense layers of its square:
  *
  * | Section | Integers | Bytes | Stride |
  * |---|---|---|---|
@@ -27,7 +28,15 @@
  *
  * @module map/packed
  */
-import type { MonzoneMap, MonzoneMapJson } from "./index.ts"
+import type {
+  Area,
+  Barrier,
+  Building,
+  MonzoneMap,
+  MonzoneMapJson,
+  RoadLine,
+  Water,
+} from "./index.ts"
 import { TILE } from "./kinds.ts"
 
 interface Corner {
@@ -35,8 +44,8 @@ interface Corner {
   readonly minY: number
 }
 
-/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them. */
-export const MAP_VERSION = 3
+/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors. */
+export const MAP_VERSION = 4
 
 /** Where wall coordinates count from, decimetres: 100 m south-west of the corner. */
 export const packOrigin = (corner: Corner): { readonly x: number; readonly y: number } => ({
@@ -188,7 +197,31 @@ export const TILE_NODES = 501
 /** Land-cover cells along a tile's side. */
 export const TILE_CELLS = 500
 
-/** A tile file's JSON line: the build it belongs to, which tile it is, and how many walls and trees its sections hold. */
+/** The layers of vectors the tiles hold (`TileVectors`). */
+export const VECTOR_LAYERS = ["roads", "buildings", "water", "areas", "barriers"] as const
+/** A layer of vectors. */
+export type VectorLayer = (typeof VECTOR_LAYERS)[number]
+
+/** A tile's features of one layer: each one's index in the whole map's list (ascending), and the feature. */
+export interface Layer<T> {
+  readonly ids: ReadonlyArray<number>
+  readonly items: ReadonlyArray<T>
+}
+
+/**
+ * The vectors a tile holds: every road line, river, barrier, building and area with a segment (a
+ * ring's box) within `HALO` of its square (on the map's edge tiles, beyond the edge too; for an
+ * unlisted tile round it, a listed one round that holds them), whole, in the whole map's order.
+ */
+export interface TileVectors {
+  readonly roads: Layer<RoadLine>
+  readonly buildings: Layer<Building>
+  readonly water: Layer<Water>
+  readonly areas: Layer<Area>
+  readonly barriers: Layer<Barrier>
+}
+
+/** A tile file's JSON line: the build it belongs to, which tile it is, how many walls and trees its sections hold, and its vectors. */
 export interface TileJson {
   readonly version: number
   /** `MonzoneMap.hash` of the build that wrote it: a tile from another build is refused. */
@@ -197,9 +230,10 @@ export interface TileJson {
   readonly j: number
   readonly walls: { readonly walk: number; readonly shore: number; readonly drive: number }
   readonly trees: number
+  readonly vectors: TileVectors
 }
 
-/** A decoded tile: its square's terrain nodes, walls, trees and land cover. */
+/** A decoded tile: its square's terrain nodes, walls, trees and land cover, and the vectors round it. */
 export interface TileData {
   readonly hash: string
   readonly i: number
@@ -224,12 +258,13 @@ export interface TileData {
   readonly ids: Int32Array
   /** `TILE_CELLS` × `TILE_CELLS` land-cover indices, row-major from the south-west cell (0 past the map's bounds, never read). */
   readonly cover: Uint8Array
+  readonly vectors: TileVectors
 }
 
 /** A tile from its gunzipped file. */
 export const decodeTile = (file: Uint8Array): TileData => {
   const { json, section, end } = sectionsOf(file, "a tile file")
-  const { hash, i, j, walls, trees } = json as TileJson
+  const { hash, i, j, walls, trees, vectors } = json as TileJson
   const corner = tileCorner(i, j)
   const heights = unpackRows(section(TILE_NODES * TILE_NODES, 2, TILE_NODES), TILE_NODES)
   const walk = unpackWalls(section(4 * walls.walk, 2, 2), corner)
@@ -254,5 +289,6 @@ export const decodeTile = (file: Uint8Array): TileData => {
     trees: treeData,
     ids,
     cover,
+    vectors,
   }
 }

@@ -102,7 +102,7 @@ export const packTile = (
     readonly cover: ArrayLike<number>
   },
 ): { readonly file: Buffer; readonly sizes: Readonly<Record<string, number>> } => {
-  const { hash, i, j, heights, walls, wallIds, trees, ids, cover } = tile
+  const { hash, i, j, heights, walls, wallIds, trees, ids, cover, vectors } = tile
   if (heights.length !== TILE_NODES * TILE_NODES || cover.length !== TILE_CELLS * TILE_CELLS)
     throw new Error(`tile ${i}_${j}: ${heights.length} nodes and ${cover.length} cells`)
   for (const kind of ["walk", "shore", "drive"] as const)
@@ -124,6 +124,7 @@ export const packTile = (
       drive: walls.drive.length / 4,
     },
     trees: trees.length / 3,
+    vectors,
   }
   const parts = {
     // file order
@@ -143,4 +144,15 @@ export const packTile = (
     file: Buffer.concat(Object.values(parts)),
     sizes: Object.fromEntries(Object.entries(parts).map(([part, b]) => [part, b.length])),
   }
+}
+
+/**
+ * `file` with its JSON line's keys set to `patch`'s (in place, so the key order stays), the packed
+ * sections after it unchanged: what packing it with those values gives (a tile's `hash`, its
+ * `vectors`).
+ */
+export const relined = (file: Uint8Array, patch: object): Buffer => {
+  const end = file.indexOf(10)
+  const json = JSON.parse(Buffer.from(file.subarray(0, end)).toString()) as Record<string, unknown>
+  return Buffer.concat([Buffer.from(JSON.stringify({ ...json, ...patch })), file.subarray(end)])
 }
