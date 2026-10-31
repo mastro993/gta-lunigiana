@@ -2,7 +2,7 @@
 
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map: the global file `src/sim/map/monzone.bin` (1.9 MB) and 30 tiles of 2 km in
-`src/sim/map/monzone/` (5.6 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
+`src/sim/map/monzone/` (5.7 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
 is deterministic on one CPU architecture (gunzipped, its files are the same bytes on every machine
 of it, and it prints the same build hash; gzipped, they are byte-identical with the same Node build,
 while another zlib or OS writes other compressed bytes), takes about 8.5 s and peaks at 1.05 GB
@@ -86,9 +86,10 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
   the Carabinieri and the start, Gragnola's rail layout to lucido's north edge) and x 0…2400 by y
   0…1400 (Equi Terme and its station), 6 tiles; the notch, x 0…2400 by y 1400…3900 round Fazzano,
-  Casciana and Codiponte, is real land, its two tiles unlisted. It builds in 4.3 s and peaks at
-  0.66 GB (arm64). `pnpm maps` builds it after the two maps, and CI caches it with them (it reads
-  their inputs and code, so it shares their key, and the reproducible job's hash covers it).
+  Casciana and Codiponte, is real land, its two tiles unlisted. It builds in 3.2–3.8 s and peaks
+  at 0.64–0.69 GB (arm64, five runs on 2026-10-31). `pnpm maps` builds it after the two maps, and
+  CI caches it with them (it reads their inputs and code, so it shares their key, and the
+  reproducible job's hash covers it).
   `src/tools/__tests__/l-region.map-test.ts` (`pnpm test:map`; without the build every check is
   skipped, saying how to build it, but in CI, which builds it, the file fails instead, so a broken
   `maps` script or cache path cannot pass with nothing checked) loads it and checks, through the
@@ -154,10 +155,10 @@ out of play (`regionPoi` in `spawns.ts`; a shipped map without them throws), and
 kept for them, no car park by the station gets spots (`parkedSpots`), `spawns.police` is left out
 and the player starts as on Cesena, at the traffic node nearest the origin (`startNear`), each
 checked in `spawns.test.ts`; Gragnola's layout swaps no node the play area leaves out
-(`conflate.ts`, `conflate.test.ts`). The Aulella's 161 km² beyond the map (`AULELLA_OFF_MAP`) and the stone cores are
-lucido's: a test region's river flows are not calibrated. Scratch regions without Gragnola, without
-Monzone and without the rail (x −1000…4900 by y 0…2600, x −2900…0 by y 2000…3900, x 500…4900 by y
-−6100…−1000) built on 2026-10-31.
+(`conflate.ts`, `conflate.test.ts`). The Aulella's 161 km² beyond the map (`AULELLA_OFF_MAP`) and
+the stone cores are lucido's: a test region's river flows are not calibrated. Scratch regions
+without Gragnola, without Monzone and without the rail (x −1000…4900 by y 0…2600, x −2900…0 by y
+2000…3900, x 500…4900 by y −6100…−1000) built on 2026-10-31.
 
 ## Pipeline
 
@@ -184,16 +185,16 @@ raster's arithmetic, so no raster of the whole map is ever made; the areas are s
 once, and a tile fills only those whose box comes within a cell of it: the cut took 1.9 s rather
 than 2.4 s on the 3x test region, whose tiles in a row each scanned every area of the row), and
 its walls and trees in the whole map's order (sorted by tile once). The walls' blocked cells are
-worked out tile by tile too: the slope test and the 3 × 3 majority filter of a tile's cells read one cell past it, from the
-grid, into one bit set per kind over the whole map, which is traced as one (the loops in the order
-of their lowest crossing, each simplified and split as it is traced, so only the loop at hand is
-held). The bake reads those through a store that keeps 16 decoded and drops the first one read past
-that, as a host drops tiles: the cut and the bake took 7.6 s with 4 kept, 3.7 s with 9, 1.5 s with
-16 and 1.2 s with all 30. Then the hash is taken over the global file and each tile, all unstamped,
-and each file is stamped (a tile's JSON line rewritten with the hash), gzipped at level 9 and
-written, 8 at a time on libuv's 4 threads (`writeGzipped`): the same bytes as one at a time, in
-0.5 s rather than 1.6 s on Lunigiana and 1.6 s rather than 6 s on the 3x test region, whose 78
-tiles gzip at 74 ms each.
+worked out tile by tile too: the slope test and the 3 × 3 majority filter of a tile's cells read one
+cell past it, from the grid, into one bit set per kind over the whole map, which is traced as one
+(the loops in the order of their lowest crossing, each simplified and split as it is traced, so only
+the loop at hand is held). The bake reads those through a store that keeps 16 decoded and drops the
+first one read past that, as a host drops tiles: the cut and the bake took 7.6 s with 4 kept, 3.7 s
+with 9, 1.5 s with 16 and 1.2 s with all 30. Then the hash is taken over the global file and each
+tile, all unstamped, and each file is stamped (a tile's JSON line rewritten with the hash), gzipped
+at level 9 and written, 8 at a time on libuv's 4 threads (`writeGzipped`): the same bytes as one at
+a time, in 0.5 s rather than 1.6 s on Lunigiana and 1.6 s rather than 6 s on the 3x test region,
+whose 78 tiles gzip at 74 ms each.
 
 The terrain phase works out the vectors first: the water's surfaces, the road and rail profiles,
 whose writes into the grid are recorded in order as claims, and the water capped under the decks.
@@ -1332,15 +1333,14 @@ two lattice points rounding onto one spot from either side of a seam, and a stre
 whose bank trees fall in its 4 m cells), a tile's trees and ids when the region's box grows, a
 stream's piece the outline cut keeping the whole stream's bank trees, a stream's banks in every
 listed tile and none in one left out, and the last bank cell's tree getting the largest id (its
-look's seeds below 2³², a cell further throwing); `region.test.ts` the regions' parts, bounds, tiles and tree
-anchors and
-`checkMask` on a diagonal mask in an L and on each fault (too few vertices, off 0.1 m, clockwise,
-a repeated vertex, a fold, a crossing, a vertex or an edge outside the rectangles);
-`play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of two,
-overlapping rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing
-off the 0.1 m lattice, a hole, two rings touching at a corner and a hole touching the outer ring or
-another hole at one, `onOutline` finding rail ends rounded off a slanted edge, the notch cutting a
-line in two with ids kept and cuts id-less, each piece's start along the whole line
+look's seeds below 2³², a cell further throwing); `region.test.ts` the regions' parts, bounds, tiles
+and tree anchors and `checkMask` on a diagonal mask in an L and on each fault (too few vertices, off
+0.1 m, clockwise, a repeated vertex, a fold, a crossing, a vertex or an edge outside the
+rectangles); `play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of
+two, overlapping rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle
+crossing off the 0.1 m lattice, a hole, two rings touching at a corner and a hole touching the outer
+ring or another hole at one, `onOutline` finding rail ends rounded off a slanted edge, the notch
+cutting a line in two with ids kept and cuts id-less, each piece's start along the whole line
 (`clipPieces`), a line past the L's inner corner (or a mask's slanted
 one) within a micrometre staying whole, and clipping to one rectangle against Liang–Barsky on 4000
 random lines and lines through its corners; `src/sim/map/__tests__/outline.test.ts` `insideRings`'s

@@ -1773,18 +1773,17 @@ with `src/sim/testing.ts`; `src/sim/__tests__/reactions.test.ts` and
 fill, and `src/sim/__tests__/animals.test.ts` the animals in a village, at a farm and on a rural
 road; `src/sim/__tests__/parked.test.ts` drives across the map into ten villages for their parked
 cars and traffic, frees a stolen car's spot, leaves touched cars and the Carabinieri behind, holds
-the caps and brings the same cars back on one seed; `src/sim/__tests__/trains.test.ts` runs the train service with `src/sim/rail/testing.ts` (the
-railway stepped alone), `trains-traffic.test.ts`, `trains-strikes.test.ts` and
-`trains-world.test.ts` beside it stage the world around the trains (queues and walkers at Via
-Riolo, strikes and the look-out, the level under the bridges, in the river under one, over the
-tunnel and down a road onto a crossing, the animals brought out off the track and kept to their
-side, the draws), `trains-driving.test.ts` the player's train (driven
-with `liveKeys`, keys a test plays as it goes), and `src/sim/rail/__tests__/` checks the lines,
-the cars, the crossings, the dynamics, the AI driver, the bodies, the look-out, the crossing rules
-for traffic, the senses, boarding and the collisions;
-`src/sim/__tests__/physics.test.ts` drives each model on flat, sloping and ramped test ground with
-`advance` (no walls), and `src/sim/__tests__/handling.test.ts` proves
-each handling knob's effect the same way, the weather grip loss's on wet and snowy ground included.
-Fixtures find map features by geometry, never by index (`BATTISTI` is the Via Cesare Battisti
-traffic edge nearest (-412, 438), eastbound), so they survive map rebuilds. Re-run `pnpm check`
-after any change.
+the caps and brings the same cars back on one seed; `src/sim/__tests__/trains.test.ts` runs the
+train service with `src/sim/rail/testing.ts` (the railway stepped alone), `trains-traffic.test.ts`,
+`trains-strikes.test.ts` and `trains-world.test.ts` beside it stage the world around the trains
+(queues and walkers at Via Riolo, strikes and the look-out, the level under the bridges, in the
+river under one, over the tunnel and down a road onto a crossing, the animals brought out off the
+track and kept to their side, the draws), `trains-driving.test.ts` the player's train (driven with
+`liveKeys`, keys a test plays as it goes), and `src/sim/rail/__tests__/` checks the lines, the cars,
+the crossings, the dynamics, the AI driver, the bodies, the look-out, the crossing rules for
+traffic, the senses, boarding and the collisions; `src/sim/__tests__/physics.test.ts` drives each
+model on flat, sloping and ramped test ground with `advance` (no walls), and
+`src/sim/__tests__/handling.test.ts` proves each handling knob's effect the same way, the weather
+grip loss's on wet and snowy ground included. Fixtures find map features by geometry, never by index
+(`BATTISTI` is the Via Cesare Battisti traffic edge nearest (-412, 438), eastbound), so they survive
+map rebuilds. Re-run `pnpm check` after any change.

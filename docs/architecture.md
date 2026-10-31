@@ -1964,16 +1964,17 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `chunk-tiles.test.ts`: one tile planning each chunk with its box round the chunk's over the
     four tiles round (0, 0), a road's segments and a piece's own reads box making its chunk read a
     tile past its square, and with only some tiles in every chunk that builds reading only those,
-    round (0, 0) and Monzone's level crossing and platforms; `trees.test.ts`: each chunk's trees from its tiles the
-    whole map's bucket for it, the apron's mirrors and order included, over the six tiles by Monzone
-    and on the west edge; `chunks.test.ts`: the box from the tiles' lowest and highest nodes holding
-    the exact one, for every chunk of the four tiles by Monzone; `ground.test.ts`: `farTerrainY` the
-    terrain where it is in memory and the coarse grid's height where not, and a car and a walker on
-    the deck of every drivable bridge within 2 km of Monzone; `index.test.ts`: no x-ray in the
-    water, a swimmer floating at its shoulders; `sightline.test.ts`: a person behind a house near
-    the spawn, under a tree's crown or under the ground is hidden, the player at the spawn is not, a
-    hill hiding a road within 1.5 km of the spawn says where it meets the line, and the cut's
-    easing, hold, radius, ground depth, reduced motion and sim time going back.
+    round (0, 0) and Monzone's level crossing and platforms; `trees.test.ts`: each chunk's trees
+    from its tiles the whole map's bucket for it, the apron's mirrors and order included, over the
+    six tiles by Monzone and on the west edge; `chunks.test.ts`: the box from the tiles' lowest and
+    highest nodes holding the exact one, for every chunk of the four tiles by Monzone;
+    `ground.test.ts`: `farTerrainY` the terrain where it is in memory and the coarse grid's height
+    where not, and a car and a walker on the deck of every drivable bridge within 2 km of Monzone;
+    `index.test.ts`: no x-ray in the water, a swimmer floating at its shoulders;
+    `sightline.test.ts`: a person behind a house near the spawn, under a tree's crown or under the
+    ground is hidden, the player at the spawn is not, a hill hiding a road within 1.5 km of the
+    spawn says where it meets the line, and the cut's easing, hold, radius, ground depth, reduced
+    motion and sim time going back.
   - the audio tests, in Node without Web Audio (see [audio.md](audio.md#tests)).
 
   Its tests read the tiles round the spots they name (`residentAround` in `src/render/testing.ts`
