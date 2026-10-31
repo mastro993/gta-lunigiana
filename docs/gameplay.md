@@ -12,7 +12,7 @@ in Lunigiana, or beside a central connected street in Cesena. The map build reje
 buildings and requires an open walking route to the street, so the player can leave the starting
 spot. The two parked spots nearest the station (the one the build chose, `MAP.spawns.police`: in
 Cesena the Compagnia Carabinieri, not the Commissariato) get Carabinieri cars, and the spots within
-300 m of the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 5 for
+300 m of the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 6 for
 seed 1, in view as well as out of it, which the title card hides coming. Each car stands settled
 on its springs with the ground's slope. Settling reads the terrain at the spot, and a truck's
 clearance the walls, so the build works both out for every model on every spot (`bakeParked` in
@@ -849,16 +849,17 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
 - **Which spots and which cars**: whether a spot holds a car, its model and its paint come from a
   random stream seeded by a hash of the spot's index and the game's seed (`Parking`, saved), so
   within one game a street looks the same each time the player comes back, and `?seed=N` parks
-  another set. A spot where a Panda would tilt more than 15° stays empty (in Lunigiana, 70 of the
+  another set. A spot where a Panda would tilt more than 15° stays empty (in Lunigiana, 71 of the
   805: the 4 m terrain puts some verges on a bank), and so do the Carabinieri's two.
 - **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
-  over the whole map at setup made of them, kept as the maps grow: 198 of Lunigiana's 733, about
-  27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village (seed 1): Monzone
-  (Stazione) 8, Monzone Alto 4, Equi Terme 3, Gragnola 3, Colognola 6, Campiglione 5, Viano 2,
-  Vinca 11, Ugliancaldo 6, Tenerano 2.
+  over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had
+  then (732 now), about 27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village
+  (seed 1): Monzone (Stazione) 8, Monzone Alto 2, Equi Terme 4, Gragnola 4, Colognola 4,
+  Campiglione 5, Viano 2, Vinca 10, Ugliancaldo 5, Tenerano 2. A spot's dice follow its index, so
+  a build that adds or drops a spot rolls every later spot's anew, and these counts move with it.
 - **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
-  tertiary-road spot where a truck fits, a roll under 10% makes a marble truck instead: 4 of the
-  177 cars Lunigiana's spots hold for seed 1 (3–8 over seeds 1, 2, 3, 7 and 11), where the game
+  tertiary-road spot where a truck fits, a roll under 10% makes a marble truck instead: 3 of the
+  176 cars Lunigiana's spots hold for seed 1 (3–7 over seeds 1, 2, 3, 7 and 11), where the game
   that parked over the whole map held at most two.
 - **Coming**: a spot 90–300 m from the player (`PARKING.fill`, out of view) that should hold a car
   and has none gets it, unless a vehicle's body, or a person or an animal within 1 m (`ROOM`), is in
@@ -876,8 +877,8 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   back later, finds the street without it.
 - **At most**: none comes while 200 vehicles that are not traffic stand (`PARKED`), the
   Carabinieri's, the stolen and the wrecked ones included. Driving across the map through the ten
-  villages above (seed 1, 50 m every half second from 400 m out of each), at most 25 vehicles stood
-  at once, the player's car included, with at most 12 parked cars and 10 traffic.
+  villages above (seed 1, 50 m every half second from 400 m out of each), at most 24 vehicles stood
+  at once, the player's car included, with at most 11 parked cars and 10 traffic.
 - **Limits**: after a jump (`Respawn` at the start, a dev teleport) the spots within 90 m of the
   player stay empty until it is 90 m away from them; back at the start after a death, Monzone's
   street holds only the cars that stayed. A car a flood floats off its spot, or a blast shoves, stays

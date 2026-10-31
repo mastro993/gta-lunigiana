@@ -31,8 +31,8 @@ export const PARKED = 200
 export const PARKING = { fill: [VIEW_REACH, 300], despawn: 400 } as const
 /**
  * Share of a map's civilian spots (where a Panda stands level, the Carabinieri's two left out) that hold a car: what `PARKED` cars
- * made of them when every car was parked at setup, 198 of Lunigiana's 733 and 198 of Cesena's 1223, by the map's file name (any
- * other map takes Lunigiana's). Kept as the maps grow.
+ * made of them when every car was parked at setup, 198 of the 733 Lunigiana had then and 198 of Cesena's 1223, by the map's file
+ * name (any other map takes Lunigiana's). Kept as the maps grow.
  */
 const LUNIGIANA = 198 / 733
 const SHARE: Readonly<Record<string, number>> = { monzone: LUNIGIANA, cesena: 198 / 1223 }
