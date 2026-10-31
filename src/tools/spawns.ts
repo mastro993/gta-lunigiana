@@ -1,5 +1,7 @@
 // The clearance checks against walls and trunks, the station and Carabinieri POIs, the player's start
 // and spawn, and parked-car spots.
+import { Ops } from "@typeonce/ritmo-math"
+
 import { staticGrid } from "../sim/collide.ts"
 import type { Area, Poi, Spawn } from "../sim/map/index.ts"
 import { pushTrunk, TRUNK } from "../sim/map/kinds.ts"
@@ -70,8 +72,8 @@ export const clearance = (walls: ReadonlyArray<number>, trees: ArrayLike<number>
   }
   /** No segment crosses or lies inside the oriented box (half-length hl along `angle`, half-width hw). */
   const box = (x: number, y: number, angle: number, hl: number, hw: number) => {
-    const c = Math.cos(angle),
-      s = Math.sin(angle)
+    const c = Ops.cos(angle),
+      s = Ops.sin(angle)
     let ok = true
     near(x, y, (seg) => {
       const ax = (seg.ax - x) * c + (seg.ay - y) * s,
@@ -190,7 +192,7 @@ export const playerSpawn = (
           break
         }
       }
-      if (connected) return { x, y, angle: Math.round(Math.atan2(p.ty, p.tx) * 1000) / 1000 }
+      if (connected) return { x, y, angle: Math.round(Ops.atan2(p.ty, p.tx) * 1000) / 1000 }
     }
   }
   throw new Error(`No clear player spawn on ${road.name ?? road.id}`)
@@ -234,8 +236,8 @@ const boxSegment = (
   hw: number,
   seg: { readonly ax: number; readonly ay: number; readonly bx: number; readonly by: number },
 ): number => {
-  const c = Math.cos(angle),
-    s = Math.sin(angle)
+  const c = Ops.cos(angle),
+    s = Ops.sin(angle)
   const u = (px: number, py: number) =>
     [(px - x) * c + (py - y) * s, -(px - x) * s + (py - y) * c] as const
   const [au, av] = u(seg.ax, seg.ay),
@@ -324,8 +326,8 @@ export const parkedSpots = ({
   }
   /** Centre and corners of the car box grown by `gap`. */
   const box = (x: number, y: number, angle: number, gap: number) => {
-    const c = Math.cos(angle),
-      s = Math.sin(angle),
+    const c = Ops.cos(angle),
+      s = Ops.sin(angle),
       l = CAR_HL + gap,
       w = CAR_HW + gap
     return [
@@ -356,7 +358,7 @@ export const parkedSpots = ({
         off = r.w / 2 + 1,
         x = p.x + p.ty * off,
         y = p.y - p.tx * off,
-        angle = Math.atan2(p.ty, p.tx)
+        angle = Ops.atan2(p.ty, p.tx)
       if (corners.covers(p.x, p.y) || housesNear(x, y) < 2) continue
       if (carriage.covers(x, y) || box(x, y, angle, 0).some(([qx, qy]) => lanes.covers(qx, qy)))
         continue // overlaps a carriageway (another road, or this one on a bend)
@@ -399,7 +401,7 @@ export const parkedSpots = ({
         l = Math.hypot(dx, dy)
       if (l > longest) [ex, ey, longest] = [dx / l, dy / l, l]
     }
-    const angle = Math.atan2(ex, -ey) // facing across the row (perpendicular to the longest edge)
+    const angle = Ops.atan2(ex, -ey) // facing across the row (perpendicular to the longest edge)
     const lotSpots: Array<Spawn> = []
     const grid: Array<readonly [number, number]> = []
     for (let u = -60; u <= 60; u += 2.7)

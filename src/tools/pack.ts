@@ -17,6 +17,9 @@ interface Corner {
   readonly minY: number
 }
 
+/** One past the largest zigzag delta that fits in 1, 2 or 4 bytes. */
+const BYTES_LIMIT = { 1: 0x100, 2: 0x1_0000, 4: 0x1_0000_0000 } as const
+
 /** `values` as `size` byte planes of zigzag deltas from the value `stride` back, each an int32 whose delta fits. */
 const pack = (values: ArrayLike<number>, size: 1 | 2 | 4, stride: number, what: string): Buffer => {
   const n = values.length,
@@ -25,13 +28,12 @@ const pack = (values: ArrayLike<number>, size: 1 | 2 | 4, stride: number, what: 
     const v = values[k]!,
       d = v - (k >= stride ? values[k - stride]! : 0),
       z = d < 0 ? -2 * d - 1 : 2 * d
-    if (!Number.isInteger(v) || v < -(2 ** 31) || v >= 2 ** 31)
-      throw new Error(`${what}: ${v} at ${k} is not an int32`)
-    if (z >= 2 ** (8 * size))
+    if ((v | 0) !== v) throw new Error(`${what}: ${v} at ${k} is not an int32`)
+    if (z >= BYTES_LIMIT[size])
       throw new Error(
         `${what}: ${v} at ${k} is ${d} from the value ${stride} back, too far for ${size} bytes`,
       )
-    for (let p = 0; p < size; p++) out[p * n + k] = Math.floor(z / 256 ** p) % 256
+    for (let p = 0; p < size; p++) out[p * n + k] = (z >>> (8 * p)) & 255
   }
   return out
 }

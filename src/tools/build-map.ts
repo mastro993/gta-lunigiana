@@ -1,10 +1,11 @@
 // Builds src/sim/map/monzone.bin and its tiles (src/sim/map/monzone/<i>_<j>.bin) from data/raw:
 // OSM (fetch-osm.ts) and the Regione Toscana CTR 1:2000, LiDAR DTM and land cover (data/raw/rt,
 // written by fetch-rt.ts). Run: node src/tools/build-map.ts  (pnpm map), from any directory;
-// `--region <key>` builds another region (region.ts), a test region into test-maps/. Output
-// is deterministic on one CPU architecture: gunzipped, the same bytes on every machine of it, and
-// the same build hash; gzipped, the same files with the same Node build (another zlib or OS writes
-// other compressed bytes). V8's trigonometry rounds differently on arm64 and x64 (docs/map.md).
+// `--region <key>` builds another region (region.ts), a test region into test-maps/. Output is
+// deterministic: gunzipped, the same bytes on every machine, arm64 and x64 alike, and the same build
+// hash; gzipped, the same files with the same Node build (another zlib or OS writes other compressed
+// bytes). The build's trigonometry is Ritmo's `Ops`, as V8's `Math` rounds differently on arm64 and
+// x64 (docs/map.md).
 //
 // The phases (docs/map.md, "Pipeline") run one after another, each a function whose intermediates
 // go out of scope when it returns: the sources (build-sources.ts), the terrain (build-terrain.ts),

@@ -2,6 +2,8 @@
 // to a box, ring winding, point/segment distances and a bucketed segment index. The play area and
 // clipping lines to it are play-area.ts's.
 
+import { Ops } from "@typeonce/ritmo-math"
+
 import { segDist2 } from "../sim/collide.ts"
 import { latLonToGaussBoaga } from "./crs.ts"
 import { REGION, type Rect } from "./region.ts"
@@ -17,7 +19,7 @@ export interface V {
 export const ORIGIN = REGION.origin
 export const M_PER_DEG = {
   lat: 111115.37,
-  lon: REGION.id === "lunigiana" ? 79987.94 : 111320 * Math.cos((ORIGIN.lat * Math.PI) / 180),
+  lon: REGION.id === "lunigiana" ? 79987.94 : 111320 * Ops.cos((ORIGIN.lat * Math.PI) / 180),
 }
 /** The built terrain's box, local metres: the box round every part's rectangles (region.ts), the play area (play-area.ts) inside it. */
 export const BOUNDS = REGION.bounds

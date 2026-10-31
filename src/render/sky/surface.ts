@@ -10,6 +10,7 @@
  *
  * @module render/sky/surface
  */
+import { Ops } from "@typeonce/ritmo-math"
 import {
   Color,
   type Material,
@@ -429,10 +430,14 @@ export const applySurface = (s: Surface): void => {
   u.uCloudShade.value = cloudShade(cover)
   u.uCloudOffset.value.set(s.cloudOffset.x, s.cloudOffset.y)
   u.uSkyColour.value.copy(s.skyColour)
+  // `Ops.pow`, not `**`: the map build imports this module, and its imports keep to the maths that
+  // rounds the same on arm64 and x64 (map-key.test.ts).
   u.uRipples.value =
-    s.rain > 0 ? Math.min(RIPPLES.most, RIPPLES.share * (s.rain / RIPPLES.at) ** RIPPLES.power) : 0
-  u.uRiverStage.value = s.flow > 0 ? s.flow ** STAGE : 0
-  u.uRiverSpeed.value = s.flow > 0 ? s.flow ** SPEED : 0
+    s.rain > 0
+      ? Math.min(RIPPLES.most, RIPPLES.share * Ops.pow(s.rain / RIPPLES.at, RIPPLES.power))
+      : 0
+  u.uRiverStage.value = s.flow > 0 ? Ops.pow(s.flow, STAGE) : 0
+  u.uRiverSpeed.value = s.flow > 0 ? Ops.pow(s.flow, SPEED) : 0
   const speed = Math.hypot(s.wind.x, s.wind.y)
   u.uSway.value = Math.min(SWAY.most, SWAY.perMs * Math.max(0, speed - SWAY.from))
   // The wind's share along the camera's right: three x is east, three z is south.
