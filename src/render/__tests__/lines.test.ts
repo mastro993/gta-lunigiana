@@ -29,4 +29,9 @@ test("roadLines: a two-way main road's dashed centre line; a oneway carriageway'
   ])
   const side = laneOffset(motorway)
   assert.ok(side > -1.5 && side < 2, `the lane at ${side} m`)
+  // One lane, 6.5 m: the lane in the middle and its shoulder's line at its right edge, clear of a
+  // truck (2.45 m wide) driving it.
+  const single = road("motorway", 6.5, true)
+  assert.deepEqual(roadLines(single), [{ right: 1.75, dashed: false }])
+  assert.ok(laneOffset(single) + 2.45 / 2 < 1.75)
 })

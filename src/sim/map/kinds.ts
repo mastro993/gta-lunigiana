@@ -164,11 +164,20 @@ export const laneWidth = (cls: string, lanes: number): number | undefined =>
   LANED.has(cls) ? lanes * LANE + (cls === "motorway" ? SHOULDER : 0) : undefined
 
 /**
+ * A carriageway's hard shoulder, m: a motorway's SHOULDER, narrowed to what its rightmost lane
+ * leaves when that lane's middle would fall left of the centreline (a one-lane carriageway, 6.5 m,
+ * keeps 1.5 m: a full shoulder put its lane 1.5 m left, and the lane offset, clamped at the
+ * centreline, ran traffic over the shoulder's line); none on other classes.
+ */
+export const shoulderOf = (road: { readonly cls: string; readonly w: number }): number =>
+  road.cls === "motorway" ? Math.max(0, Math.min(SHOULDER, road.w / 2 - LANE / 2)) : 0
+
+/**
  * The nominal traffic lane offset, m right of a road's centreline (drive on the right). A two-way
  * road: a quarter of the width plus 0.2 m on roads 5 m wide or more, 0.5 m on narrower ones. A
- * oneway road: the middle of its rightmost lane (LANE wide, left of a motorway's shoulder), or the
- * centreline where the road is narrower than a lane, since w/4 + 0.2 put a car on a motorway's hard
- * shoulder.
+ * oneway road: the middle of its rightmost lane (LANE wide, left of a motorway's shoulder,
+ * `shoulderOf`), or the centreline where the road is narrower than a lane, since w/4 + 0.2 put a
+ * car on a motorway's hard shoulder.
  */
 export const laneOffset = (road: {
   readonly cls: string
@@ -176,7 +185,7 @@ export const laneOffset = (road: {
   readonly oneway?: boolean
 }): number =>
   road.oneway === true
-    ? Math.max(0, road.w / 2 - (road.cls === "motorway" ? SHOULDER : 0) - LANE / 2)
+    ? Math.max(0, road.w / 2 - shoulderOf(road) - LANE / 2)
     : road.w >= 5
       ? road.w / 4 + 0.2
       : 0.5

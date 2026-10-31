@@ -1,7 +1,16 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { anchorOf, LANE, laneOffset, laneWidth, SHOULDER, tileKey, tilesRound } from "../kinds.ts"
+import {
+  anchorOf,
+  LANE,
+  laneOffset,
+  laneWidth,
+  SHOULDER,
+  shoulderOf,
+  tileKey,
+  tilesRound,
+} from "../kinds.ts"
 
 /** An L of tiles: i −2…1 by j 0…1 less its notch, tiles (0, 1) and (1, 1). */
 const L = new Set(["-2_0", "-1_0", "0_0", "1_0", "-2_1", "-1_1"])
@@ -39,6 +48,14 @@ test("laneOffset: a oneway 11 m motorway's lane lies inside its right lane, left
   // Two-way roads keep w/4 + 0.2 (a 5 m road's 1.45 m), narrower ones 0.5 m.
   assert.equal(laneOffset({ cls: "tertiary", w: 5 }), 1.45)
   assert.equal(laneOffset({ cls: "service", w: 3.5 }), 0.5)
+  // Regression: a one-lane motorway carriageway (`lanes=1`, 6.5 m) put its lane's middle 1.5 m left
+  // of the centreline, so the clamped lane straddled the shoulder's line. Its shoulder narrows to
+  // what the lane leaves, 1.5 m, and the lane lies in the middle.
+  const single = { cls: "motorway", w: laneWidth("motorway", 1)!, oneway: true }
+  assert.equal(shoulderOf(single), 1.5)
+  assert.equal(laneOffset(single), 0)
+  assert.equal(shoulderOf({ cls: "motorway", w: 11 }), SHOULDER)
+  assert.equal(shoulderOf({ cls: "trunk", w: 7 }), 0)
   // A oneway road narrower than a lane drives on its centreline, a wider one in its right lane.
   assert.equal(laneOffset({ cls: "service", w: 3.5, oneway: true }), 0)
   assert.equal(laneOffset({ cls: "unclassified", w: 5, oneway: true }), 0.75)

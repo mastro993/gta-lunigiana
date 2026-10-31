@@ -6,7 +6,7 @@
  * @module render/lines
  */
 import { ROAD_LIFT } from "../sim/map/ground.ts"
-import { LANE, MAP, roadClassOf, type Road, type RoadClass, SHOULDER } from "../sim/map/index.ts"
+import { LANE, MAP, roadClassOf, type Road, type RoadClass, shoulderOf } from "../sim/map/index.ts"
 import { channelOf, reachOf } from "../sim/water/channel.ts"
 import type { Flowing, Piece, SinkAt } from "./geometry.ts"
 import { surfaceY, yOf } from "./ground.ts"
@@ -83,7 +83,7 @@ export const roadLines = (
   const cls = roadClassOf(road)
   if (!MARKED.has(cls)) return []
   if (road.oneway !== true) return [{ right: 0, dashed: true }]
-  const shoulder = cls === "motorway" ? SHOULDER : 0,
+  const shoulder = shoulderOf(road),
     edge = road.w / 2 - shoulder,
     lanes = Math.floor((road.w - shoulder) / LANE + 1e-9)
   return [

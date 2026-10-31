@@ -50,7 +50,7 @@ export {
   type RailKind,
   ROAD_CLASSES,
   type RoadClass,
-  SHOULDER,
+  shoulderOf,
   TILE,
   TRUNK,
   vergeOf,

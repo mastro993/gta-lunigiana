@@ -528,21 +528,22 @@ the lane helpers in `src/sim/route.ts`.
 
 - **Keep right.** On a two-way road the lane offset is w/4 + 0.2 m on roads at least 5 m wide,
   otherwise 0.5 m. On a oneway road it is the middle of the rightmost lane, 3.5 m wide from the
-  carriageway's right edge (left of a motorway's 3 m hard shoulder), or the centreline where the
-  road is narrower than a lane (`laneOffset` in `src/sim/map/kinds.ts`): w/4 + 0.2 m put a car on an
-  11 m motorway's hard shoulder. In the Lucido valley this moved the lanes of its 8 oneway roads: a
-  5 m one's from 1.45 to 0.75 m right of the centreline, a 3.5 m one's onto it. The offset shrinks
-  in 0.25 m steps where houses crowd the road, until the body clears the walls. Each model has its
-  own lane table, worked out at build time (`bakeLanes` in `src/sim/lanes.ts`) and kept in the map
-  file (`MAP.lanes`), since fitting it reads every drive wall along every traffic edge. A model only
-  uses edges where it fits, and where the drive walls across the road leave room for it and an
-  oncoming Panda plus 0.3 m (`PASS_MARGIN`): in single-file lanes between houses two cars met
-  head-on with no room to back out or turn round. It only uses the largest connected part of those
-  edges, so villages reached only by such lanes (Terma, Monte dei Bianchi, Vezzanello) get no AI
-  traffic; the player can still drive there. Trucks keep to the main roads (motorway to tertiary)
-  and unclassified roads and to the loops of that network, because they cannot turn round. Apes keep
-  off motor roads (`isMotorRoad`: motorways, trunk roads and their slip roads), which the Codice
-  della Strada (art. 175) closes to mopeds such as the Ape 50.
+  carriageway's right edge (left of a motorway's 3 m hard shoulder, narrowed on a one-lane
+  carriageway to what its lane leaves: 1.5 m of 6.5, the lane in the middle; `shoulderOf`), or the
+  centreline where the road is narrower than a lane (`laneOffset` in `src/sim/map/kinds.ts`): w/4 +
+  0.2 m put a car on an 11 m motorway's hard shoulder. In the Lucido valley this moved the lanes of
+  its 8 oneway roads: a 5 m one's from 1.45 to 0.75 m right of the centreline, a 3.5 m one's onto
+  it. The offset shrinks in 0.25 m steps where houses crowd the road, until the body clears the
+  walls. Each model has its own lane table, worked out at build time (`bakeLanes` in
+  `src/sim/lanes.ts`) and kept in the map file (`MAP.lanes`), since fitting it reads every drive
+  wall along every traffic edge. A model only uses edges where it fits, and where the drive walls
+  across the road leave room for it and an oncoming Panda plus 0.3 m (`PASS_MARGIN`): in single-file
+  lanes between houses two cars met head-on with no room to back out or turn round. It only uses the
+  largest connected part of those edges, so villages reached only by such lanes (Terma, Monte dei
+  Bianchi, Vezzanello) get no AI traffic; the player can still drive there. Trucks keep to the main
+  roads (motorway to tertiary) and unclassified roads and to the loops of that network, because they
+  cannot turn round. Apes keep off motor roads (`isMotorRoad`: motorways, trunk roads and their slip
+  roads), which the Codice della Strada (art. 175) closes to mopeds such as the Ape 50.
 - **Steering.** The car aims at a point 6 m + 0.6 s × speed ahead along this edge and the next.
 - **Route choice.** At each node the car picks a random legal edge. Oneways are driven a → b only.
   It avoids dead-end spurs, then hairpins, while another way exists, and makes a U-turn only at a
