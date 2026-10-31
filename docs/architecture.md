@@ -1992,8 +1992,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   a glob, and that name matches `*.test.ts`. They sit in `__tests__` beside the tests (the lint
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
-  `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `bridges.ts`, `lamp-checks.ts`,
-  `tile-paint.ts`, `bakes.ts`):
+  `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
+  `lamp-checks.ts`, `tile-paint.ts`, `bakes.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined (see
     [map.md](map.md#checks-and-tools)); `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,
@@ -2008,6 +2008,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square
     returning its four edges, for every tenth tree and every one within a metre of a seam;
     `water.map-test.ts`: every bridge's verges over the water on the deck in a spate;
+    `src/sim/water/__tests__/channel.map-test.ts`: the whole rail bed dry where a stream crosses it;
     `src/sim/sky/__tests__/place.map-test.ts`: the place fitted again over every node;
     `src/sim/rail/__tests__/lines.map-test.ts` and `crossings.map-test.ts`: `lines.test.ts`'s and
     `crossings.test.ts`'s checks over every line, station and level crossing.
