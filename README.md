@@ -192,7 +192,7 @@ Every script runs with `pnpm`:
 | `pnpm pick-sheets <part>` | the 2019 CTR sheets whose mapped area meets the part, against its manifest; `--write` updates `data/parts/<part>.json` |
 | `pnpm pick-lidar <part> [--lots 004,005]` | replays `fetch-rt`'s first-wins LiDAR mosaic to keep the tiles that write a cell and report the holes, against the manifest; `--write` updates it |
 | `pnpm coverage <part>` | per comune, the share of the part mapped by the CTR, each LiDAR lot and the fillers, and OSM forest against the land cover's woods, as a table and a PNG |
-| `pnpm footprint-check <part>` | villages and building clusters within 300 m of the part's edges, and roads that leave it and come back |
+| `pnpm footprint-check <part>` | villages and building clusters within 300 m of the edges of the part's rectangles (not its mask), and roads that leave them and come back |
 | `pnpm ortho <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>]` | a Regione Toscana orthophoto crop with the built map's buildings, stone cores and stream widths drawn over it, for tracing the hand tables |
 | `pnpm playtest shots\|heap\|drive <url> …` | drives a running headless Chrome over CDP: screenshots of map spots and the full map; first frame, slowest frame and heap after GC; or a 40 m/s run along the SP59 to Vinca with the slowest frame at each tile seam, the tiles in memory and the heap at the end |
 | `pnpm map-diff <a.bin> <b.bin> [--except <category,...>]` | the differences between two built maps (each global file with its tiles beside it), by category, a reorder of the walls or the trees included; exits 1 when they differ in a category `--except` does not accept |

@@ -1,8 +1,10 @@
 // The runbook's critic aid (issue #3, step 1): what a part's edges cut through.
 // Run: node src/tools/footprint-check.ts <part> [--refresh]  (pnpm footprint-check <part>).
-// - The play area is the union of the part's rectangles (region.ts). Its outline is cut into
-//   straight edges, each labelled by the side it bounds (N/S/E/W); an edge whose outer side lies
-//   in another part is a seam with that built neighbour: listed, never a finding.
+// - It judges the union of the part's rectangles (region.ts), never its mask, so on a masked part
+//   it reports the rectangles' edges, not the play area's (judging a mask's slanted outline comes
+//   with #17, the first part with one). The union's outline is cut into straight edges, each
+//   labelled by the side it bounds (N/S/E/W); an edge whose outer side lies in another part is a
+//   seam with that built neighbour: listed, never a finding.
 // - One Overpass query over the part's box + 1 km: place nodes, building centres and highway ways
 //   with their geometry. The answer is kept in .research/<part>/footprint-osm.json and queried
 //   again only with --refresh or when its box no longer holds the part's box + 500 m.

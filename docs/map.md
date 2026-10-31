@@ -1404,10 +1404,12 @@ the tools print paths relative to the repository. Measured on `lucido` on 2026-1
   nodes, building centres, highway ways; cached in `footprint-osm.json`). It reports the places
   within 300 m of an edge, clusters of 5 or more buildings linked at 50 m with a member within 300 m
   of one, and the roads that leave the part and come back (ways join at shared nodes, so a road
-  split into several ways counts); paths and steps are notes, not findings. An edge along another
-  part's rectangle is a seam and never a finding. A road whose way out runs to within 50 m of the
-  query box's edge without coming back is listed as unresolved: the 1 km pad is how deep the check
-  sees. It writes `footprint.json`. `lucido`: 32 places, 23 clusters (Argigliano, 188 buildings, is
+  split into several ways counts); paths and steps are notes, not findings. It judges the part's
+  rectangles, never its mask, so on a masked part it reports the rectangles' edges, not the play
+  area's (judging a mask's slanted outline comes with #17, the first part with one). An edge along
+  another part's rectangle is a seam and never a finding. A road whose way out runs to within 50 m
+  of the query box's edge without coming back is listed as unresolved: the 1 km pad is how deep the
+  check sees. It writes `footprint.json`. `lucido`: 32 places, 23 clusters (Argigliano, 188 buildings, is
   cut 2 m inside the east edge), 16 drivable re-entries (the SR445 runs 780 m outside the north
   edge), 15 path notes, 7 unresolved roads (the SR445 north, the SP10 west) and 2 paths; 99 s with
   the query, 0.2 s cached.
