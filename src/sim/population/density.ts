@@ -9,7 +9,7 @@
  * @module population/density
  */
 import { edgeIndex, midpointOf } from "../edges.ts"
-import { type Building, graph, MAP } from "../map/index.ts"
+import { type Building, graph, MAP, TILE } from "../map/index.ts"
 import { buildingsIn } from "../map/vectors.ts"
 
 /** Building kinds people live in: the CTR's houses and the OSM tags for homes ("yes" is an untagged OSM building, nearly always a house). */
@@ -88,11 +88,22 @@ export const PEOPLED = 6
  * Per walk edge (`graph.walkEdges` order), the residents within `EDGE_REACH` m of its midpoint, as
  * float32: they read buildings all over the map, so the build bakes them (`MAP.derived.residents`).
  */
-export const bakeResidents = (): Array<number> =>
-  graph.walkEdges.map((e) => {
-    const m = midpointOf(e)
-    return Math.fround(residentsNear(m.x, m.y, EDGE_REACH))
-  })
+export const bakeResidents = (): Array<number> => {
+  const out: Array<number> = Array.from({ length: graph.walkEdges.length })
+  // Tile by tile (each edge's sum is its own): the build keeps only a few tiles in memory.
+  const tile = (k: number) => {
+    const m = midpointOf(graph.walkEdges[k]!)
+    return [Math.floor(m.x / TILE), Math.floor(m.y / TILE)] as const
+  }
+  const order = [...graph.walkEdges.keys()]
+    .map((k) => [k, ...tile(k)] as const)
+    .sort((a, b) => a[2] - b[2] || a[1] - b[1] || a[0] - b[0])
+  for (const [k] of order) {
+    const m = midpointOf(graph.walkEdges[k]!)
+    out[k] = Math.fround(residentsNear(m.x, m.y, EDGE_REACH))
+  }
+  return out
+}
 
 const edgeResidents = new Float32Array(graph.edges.length)
 graph.walkEdges.forEach((e, k) => (edgeResidents[e] = MAP.derived.residents[k] ?? 0))

@@ -13,8 +13,11 @@ import { mapForSearch } from "./maps.ts"
 import { provideMap } from "./sim/map/packed.ts"
 import { fetchFile, gunzipped, NEAR } from "./stream.ts"
 
-/** Shares of the bar the global file's download and the start tiles' fill; the build steps share the rest. */
-const GLOBAL = 0.36
+/**
+ * Shares of the bar the global file's download and the start tiles' fill (by their bytes on
+ * Lunigiana: the global file 0.55 MB, its 4 start tiles 1.84 MB); the build steps share the rest.
+ */
+const GLOBAL = 0.14
 const DOWNLOAD = 0.6
 const mb = (bytes: number) => (bytes / 1e6).toFixed(1)
 
