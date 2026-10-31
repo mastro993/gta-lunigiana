@@ -179,15 +179,6 @@ test("conflateRail re-homes OSM's ids by the layout: dropped ways, reserved CTR 
 
 // Regression: every unmatched run was smoothed, so with no CTR at all a 20°
 // kink in 1 km of open track came back 6 m off OSM, its node with it.
-// Regression: a test region without Gragnola (issue #7) threw reading the missing node's id.
-test("conflateRail passes over a swapped node the play area leaves out", () => {
-  const away: Layout = { ...NONE, swap: new Map([["gone", "lc"]]) }
-  assert.deepEqual(
-    conflateRail(RAIL, ROADS, [STREAM], ctr(TRACKS), away).rail,
-    conflateRail(RAIL, ROADS, [STREAM], ctr(TRACKS), NONE).rail,
-  )
-})
-
 test("conflateRail keeps OSM's line where no CTR track maps it", () => {
   const a = (20 * Math.PI) / 180
   const open: RailF = {
@@ -201,6 +192,15 @@ test("conflateRail keeps OSM's line where no CTR track maps it", () => {
   }
   const c = conflateRail([open], [], [], ctr([]), NONE)
   assert.deepEqual(c.rail[0]!.pts, open.pts)
+})
+
+// Regression: a test region without Gragnola (issue #7) threw reading the missing node's id.
+test("conflateRail passes over a swapped node the play area leaves out", () => {
+  const away: Layout = { ...NONE, swap: new Map([["gone", "lc"]]) }
+  assert.deepEqual(
+    conflateRail(RAIL, ROADS, [STREAM], ctr(TRACKS), away).rail,
+    conflateRail(RAIL, ROADS, [STREAM], ctr(TRACKS), NONE).rail,
+  )
 })
 
 // Regression: nothing checked the crossing nodes against the
