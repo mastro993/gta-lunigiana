@@ -14,7 +14,7 @@ import {
   segDist2,
   signedArea,
 } from "./geometry.ts"
-import { simplifyLoop, traceLoops } from "./walls.ts"
+import { simplifyLoop, traceLoops } from "./loops.ts"
 
 /** Kept this far (m) from every track centreline: the ATR 220's half-width (2.883 m wide) plus 0.16 m. */
 const PLATFORM_CLEAR = 1.6
@@ -316,7 +316,7 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
           blocked[j * cw + i] = 1
   }
   const kept = new Uint8Array(cw * ch)
-  fillPolygon(rings, gx, gy, RES, cw, ch, (k) => {
+  fillPolygon(rings, gx, gy, RES, { c0: 0, r0: 0, cols: cw, rows: ch }, (k) => {
     const x = gx + ((k % cw) + 0.5) * RES,
       y = gy + (Math.floor(k / cw) + 0.5) * RES
     if (blocked[k] === 1 || inCrossing(x, y)) return
@@ -367,7 +367,7 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
       options.sort((a, b) => Math.hypot(a[0] - x, a[1] - y) - Math.hypot(b[0] - x, b[1] - y))
       return options.find(([ox, oy]) => clear(ox, oy)) ?? options[0]!
     }
-    const loops = traceLoops({ cell: RES, cols: cw + 1, rows: ch + 1, x0: gx, y0: gy }, mask)
+    const loops = [...traceLoops({ cell: RES, cols: cw + 1, rows: ch + 1, x0: gx, y0: gy }, mask)]
       .map((loop) => simplifyLoop(loop, TOL).slice(0, -1).map(round))
       .map((loop) =>
         loop.filter((v, i) => v[0] !== loop.at(i - 1)![0] || v[1] !== loop.at(i - 1)![1]),

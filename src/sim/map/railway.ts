@@ -13,9 +13,10 @@ export interface LinePiece {
 }
 
 /**
- * A line: running track from one terminal (a dead end on the map's edge, where the track runs on
- * beyond it) to another, on the straightest way through junctions. Consecutive pieces share their
- * end vertex bit-identically; its arc length s counts metres from the first piece's start.
+ * A line: running track from one terminal (a dead end on the play area's outline, where the track
+ * runs on beyond it) to another, on the straightest way through junctions. Consecutive pieces
+ * share their end vertex bit-identically; its arc length s counts metres from the first piece's
+ * start.
  */
 export interface RailLine {
   readonly pieces: ReadonlyArray<LinePiece>

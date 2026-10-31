@@ -8,7 +8,7 @@ import { alongLane, laneOf, lanePoint, laneSide, roadOf, type Step } from "../..
 import { roomFor } from "../../systems/populate.ts"
 import { ON_BATTISTI } from "../../testing.ts"
 import { type CrossingState, OPEN } from "../barriers.ts"
-import { APPROACHES, CROSSINGS } from "../crossings.ts"
+import { CROSSINGS } from "../crossings.ts"
 import {
   atCrossings,
   backRoom,
@@ -21,7 +21,10 @@ import {
   STOP_DECEL,
 } from "../roads.ts"
 import { RIOLO, wayInto } from "../testing.ts"
+import { checkStepsClear, railwayAround } from "./railway-checks.ts"
 
+/** Monzone station. */
+const STATION = { x: -493.8, y: 436.9 }
 const S = 60,
   box = CROSSINGS[RIOLO]!
 /** The side of Via Riolo whose way in starts at a junction short of its stop line, and that way. */
@@ -237,14 +240,9 @@ test("roads: a box is busy while a train moves within its strike-in, and no traf
   assert.equal(busyBoxes(train(at.s - at.reach + 10, 20))[RIOLO], true)
   assert.equal(busyBoxes(train(at.s - at.reach - 200, 20))[RIOLO], false, "beyond its strike-in")
   assert.equal(busyBoxes(train(at.s - 20, 0))[RIOLO], false, "standing")
-  // Every traffic step tabled into a box has its middle, where traffic is brought out, inside the clearance, or is long.
-  for (const [key, entry] of APPROACHES) {
-    const lane = laneOf(key >> 1, (key & 1) === 1),
-      mid = lanePoint(lane, lane.length / 2, 0),
-      crossing = CROSSINGS[entry.box]!
-    if (Ops.hypot(mid.x - crossing.x, mid.y - crossing.y) < SPAWN_CLEAR)
-      assert.equal(nearCrossing(mid.x, mid.y), true)
-  }
+  // Every traffic step tabled into a box by Monzone station has its middle, where traffic is brought out, inside the
+  // clearance, or is long (roads.map-test.ts: into every box of the map).
+  checkStepsClear(railwayAround(STATION, 4000).boxes)
   assert.equal(nearCrossing(box.x + SPAWN_CLEAR - 0.1, box.y), true)
   assert.equal(nearCrossing(box.x + SPAWN_CLEAR + 0.1, box.y), false)
   // Populate turns such a spot down, on the way in as anywhere near the box; one on an open road it takes.

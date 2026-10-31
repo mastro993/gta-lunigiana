@@ -13,7 +13,7 @@ import type { Vec2 } from "@typeonce/ritmo-math"
 
 import { settle } from "../chassis.ts"
 import { atGrade } from "../map/ground.ts"
-import { MAP } from "../map/index.ts"
+import { inPlay } from "../map/index.ts"
 import { FROZEN_BEYOND } from "../map/tiles.ts"
 import {
   Animal,
@@ -64,17 +64,10 @@ export const LeaveBehind = Game.System(
   },
 )
 
-/** A `SetPlayer` request's pose, or undefined when a number in it is not finite or it lies off the map. */
+/** A `SetPlayer` request's pose, or undefined when a number in it is not finite or it lies outside the play area. */
 const target = (request: { readonly x: number; readonly y: number; readonly angle: number }) => {
-  const { x, y, angle } = request,
-    { minX, minY, maxX, maxY } = MAP.bounds
-  return Number.isFinite(x) &&
-    Number.isFinite(y) &&
-    Number.isFinite(angle) &&
-    x >= minX &&
-    x <= maxX &&
-    y >= minY &&
-    y <= maxY
+  const { x, y, angle } = request
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(angle) && inPlay(x, y)
     ? { x, y, angle }
     : undefined
 }
@@ -83,8 +76,8 @@ const STILL = { vx: 0, vy: 0, spin: 0 }
 
 /**
  * Each `SetPlayer` request puts the player at its pose, standing still: on foot on the ground there at the terrain's level
- * (`Footing`), or in the vehicle they drive, settled on its springs there (`settle`); in a train, which keeps to its line, or off
- * the map, it is dropped. The pose and the previous pose both jump, so nothing is drawn sliding from the old place.
+ * (`Footing`), or in the vehicle they drive, settled on its springs there (`settle`); in a train, which keeps to its line, or
+ * outside the play area (`inPlay`), it is dropped. The pose and the previous pose both jump, so nothing is drawn sliding from the old place.
  */
 export const ApplyPlayer = Game.System(
   "Lunigiana/ApplyPlayer",

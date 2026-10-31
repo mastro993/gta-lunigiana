@@ -7,3 +7,5 @@ dist
 # The built maps: `pnpm maps` writes them, CI caches them.
 /src/sim/map/*.bin
 /src/sim/map/*/*.bin
+# Test regions' builds (`node src/tools/build-map.ts --region lunigiana-l`): never shipped.
+/test-maps/

@@ -15,6 +15,7 @@ import {
   pointInRing,
   ringBox,
   signedArea,
+  TERRAIN_BOX,
   toLocal,
   type P,
   type V,
@@ -102,7 +103,7 @@ export const ctrRecords = (dir: string, layer: string): Array<CtrRecord> =>
 
 /**
  * A record's polygons, each as flat outer (counter-clockwise) plus holes (clockwise), clipped to
- * the play area. Rings are sorted by size: one inside an earlier outer ring is its hole,
+ * the built terrain's box (`TERRAIN_BOX`). Rings are sorted by size: one inside an earlier outer ring is its hole,
  * otherwise it starts a polygon (so the file's ring order and winding do not matter).
  */
 export const polygonsOf = (r: ShpRecord): Array<Array<Array<number>>> => {
@@ -119,10 +120,15 @@ export const polygonsOf = (r: ShpRecord): Array<Array<Array<number>>> => {
     }
   }
   return polys.flatMap((p) => {
-    const outer = flatRing(clipRing(p.outer), true)
+    const outer = flatRing(clipRing(p.outer, TERRAIN_BOX), true)
     if (outer === undefined) return []
     return [
-      [outer, ...p.holes.map((h) => flatRing(clipRing(h), false)).filter((h) => h !== undefined)],
+      [
+        outer,
+        ...p.holes
+          .map((h) => flatRing(clipRing(h, TERRAIN_BOX), false))
+          .filter((h) => h !== undefined),
+      ],
     ]
   })
 }

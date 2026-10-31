@@ -3,12 +3,39 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { gunzipSync } from "node:zlib"
 
-import { provideMap } from "../../sim/map/packed.ts"
+import { TILE, tileKey } from "../../sim/map/kinds.ts"
+import {
+  decodeMap,
+  decodeTile,
+  MAP_URL,
+  provideMap,
+  readMapFile,
+  tileUrl,
+} from "../../sim/map/packed.ts"
 import { pointInRing, segDist2 } from "../geometry.ts"
-import { wholeMap } from "../map-file.ts"
 import { clearance } from "../spawns.ts"
 
-const map = wholeMap("cesena")
+// Cesena's global file, and the walls and trees of the tiles round its start: every wall within 50 m of it lives in one
+// of them (a wall lives in the tile of its midpoint and reaches at most `walls.reach` from it).
+const map = decodeMap(readMapFile(new URL("cesena.bin", MAP_URL)))
+const start = (() => {
+  const { x, y } = map.spawns.player,
+    r = 50 + map.walls.reach
+  const tiles = map.tiles
+    .filter(
+      ({ i, j }) =>
+        i >= Math.floor((x - r) / TILE) &&
+        i <= Math.floor((x + r) / TILE) &&
+        j >= Math.floor((y - r) / TILE) &&
+        j <= Math.floor((y + r) / TILE),
+    )
+    .map(({ i, j }) => decodeTile(readMapFile(tileUrl(map.name, tileKey(i, j)))))
+  return {
+    walk: tiles.flatMap((t) => Array.from(t.walls.walk)),
+    drive: tiles.flatMap((t) => Array.from(t.walls.drive)),
+    trees: tiles.flatMap((t) => Array.from(t.trees)),
+  }
+})()
 
 test("Cesena contains the real city, station, historic centre and connected streets", () => {
   assert.equal(map.origin.lon, 12.2429)
@@ -21,8 +48,8 @@ test("Cesena contains the real city, station, historic centre and connected stre
 })
 
 test("Cesena starts on clear ground in the centre with cars to steal", () => {
-  const { x, y } = map.spawns.player
-  const trees = Array.from(map.trees)
+  const { x, y } = map.spawns.player,
+    { trees } = start
   assert.ok(Math.hypot(x, y) < 200)
   const containing = map.buildings.find(
     (building) =>
@@ -30,9 +57,9 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
       !(building.holes ?? []).some((hole) => pointInRing(x, y, hole)),
   )
   assert.equal(containing, undefined, `Player starts inside building ${containing?.id}`)
-  const walk = clearance(Array.from(map.walls.walk), trees)
+  const walk = clearance(start.walk, trees)
   assert.ok(walk.circle(x, y, 1.2))
-  assert.ok(clearance(Array.from(map.walls.drive), trees).circle(x, y, 1.2))
+  assert.ok(clearance(start.drive, trees).circle(x, y, 1.2))
   const reachesStreet = map.roads.some((road) => {
     if (!["tertiary", "unclassified", "residential", "service"].includes(road.cls)) return false
     for (let index = 0; index + 3 < road.pts.length; index += 2) {

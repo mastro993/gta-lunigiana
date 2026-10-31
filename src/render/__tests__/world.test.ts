@@ -9,7 +9,15 @@ import { dropTile, provideTile, setTileSource } from "../../sim/map/tiles.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { QUARTER } from "../../sim/view.ts"
 import { defaultRoute } from "../../tools/playtest-drive.ts"
-import { CHUNKS, exactBox, radiiFor, screenDistances, screenRects } from "../chunks.ts"
+import { chunkTiles } from "../chunk-tiles.ts"
+import {
+  CHUNKS,
+  exactBox,
+  radiiFor,
+  screenDistance,
+  screenDistances,
+  screenRects,
+} from "../chunks.ts"
 import { makeCrossings } from "../crossings.ts"
 import {
   decalMaterial,
@@ -27,22 +35,40 @@ import { lampsIn } from "../sky/lamps.ts"
 import { streamAround } from "../testing.ts"
 import { World } from "../world.ts"
 
-/** Every chunk's exact box, as a whole-map build would measure them. */
-const boxes = new Float32Array(CHUNKS.x * CHUNKS.y * 6)
-for (let key = 0; key < CHUNKS.x * CHUNKS.y; key++) exactBox(boxes, key)
+const count = CHUNKS.x * CHUNKS.y
+/** Every chunk's box from its tiles' lowest and highest nodes (no tile read): it holds the exact one. */
+const bound = chunkTiles(
+  [],
+  Array.from({ length: count }, () => []),
+).boxes
+/** The exact boxes (`exactBox` reads the terrain) of the chunks measured so far, as a whole-map build would measure them. */
+const exact = new Float32Array(count * 6),
+  measured = new Set<number>()
 const REACH = 60
 const ground = (x: number, y: number) => new Vector3(x, terrainY(x, y), -y)
-/** Chunk keys within `radius` screen metres of `focus` for a view turned `yaw`. */
+/**
+ * Chunk keys within `radius` screen metres of `focus` for a view turned `yaw`, by their exact boxes. Only a chunk whose
+ * bound box is that near can be, so only those are measured: the tiles read are those round the view, never the whole map.
+ */
 const within = (focus: Vector3, radius: number, yaw = 0): Array<number> => {
-  const { right, up } = viewAxes(yaw)
-  const rects = screenRects(boxes, right, up, new Float32Array(CHUNKS.x * CHUNKS.y * 4))
+  const { right, up } = viewAxes(yaw),
+    r = focus.dot(right),
+    u = focus.dot(up)
   const d = screenDistances(
-    rects,
-    focus.dot(right),
-    focus.dot(up),
-    new Float32Array(CHUNKS.x * CHUNKS.y),
+    screenRects(bound, right, up, new Float32Array(count * 4)),
+    r,
+    u,
+    new Float32Array(count),
   )
-  return [...d.keys()].filter((key) => d[key]! <= radius)
+  return [...d.keys()].filter((key) => {
+    if (d[key]! > radius) return false
+    if (!measured.has(key)) {
+      exactBox(exact, key)
+      measured.add(key)
+    }
+    // As `screenDistances` holds them: 32-bit floats.
+    return Math.fround(screenDistance(exact, key, right, up, r, u)) <= radius
+  })
 }
 
 // First, before any test has drawn a platform, a crossing or a canopy (each built on its first draw).
@@ -269,7 +295,8 @@ test("world streaming: a chunk builds only once every tile its build reads is in
     { load } = radiiFor(REACH)
   const world = new World(new Group())
   world.update(focus, 0, REACH, Infinity)
-  const wanted = [...world.wanted()]
+  const wanted = [...world.wanted()],
+    every = within(focus, load)
   assert.deepEqual(wanted.toSorted(), ["-1_-1", "-1_0", "0_-1", "0_0"])
   // Every tile but one in, that one out of memory and nowhere to read it from: a build reading it throws.
   const out = "0_0"
@@ -280,7 +307,7 @@ test("world streaming: a chunk builds only once every tile its build reads is in
     world.update(focus, 0, REACH, Infinity)
     const partial = [...world.loaded.keys()]
     assert.ok(partial.length > 0, "the chunks that read only the tiles in build")
-    assert.ok(partial.length < within(focus, load).length, "the ones that read the tile out do not")
+    assert.ok(partial.length < every.length, "the ones that read the tile out do not")
     // In again: the rest build, and the world is the one a host with every tile in streams.
     setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
     provideTile(readMapFile(tileUrl(MAP.name, out)))
@@ -288,7 +315,7 @@ test("world streaming: a chunk builds only once every tile its build reads is in
     world.update(focus, 0, REACH, Infinity)
     assert.deepEqual(
       [...world.loaded.keys()].toSorted((a, b) => a - b),
-      within(focus, load),
+      every,
     )
     // Out again: the chunks that read it go, the others stay.
     world.tileDropped(out)

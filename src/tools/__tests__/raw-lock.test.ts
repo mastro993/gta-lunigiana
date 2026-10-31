@@ -150,13 +150,15 @@ test("recordSource records a file's digest and source, unless the lock holds its
   )
 })
 
-test("data/raw and the built maps are ignored by git, and no tracked file is over 1 MB", () => {
+test("data/raw and the built maps, the test regions' too, are ignored by git, and no tracked file is over 1 MB", () => {
   // Issue #6: each rebuilt input or map put a whole new copy of its deflated bytes into the pack.
   // check-ignore exits 0 when any path it is given is ignored, so each is asked alone.
   for (const path of [
     "data/raw/rt/dtm.bin",
     "src/sim/map/monzone.bin",
     "src/sim/map/cesena/0_0.bin",
+    "test-maps/lunigiana-l.bin",
+    "test-maps/lunigiana-3x/0_0.bin",
   ])
     execFileSync("git", ["check-ignore", "--quiet", "--no-index", path], { cwd: ROOT })
   const big = execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, encoding: "utf8" })

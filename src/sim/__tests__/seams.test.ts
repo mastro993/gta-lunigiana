@@ -6,10 +6,12 @@ import { Ops } from "@typeonce/ritmo-math"
 import { graph, MAP } from "../map/index.ts"
 import { tileKey } from "../map/kinds.ts"
 import { readMapFile, tileUrl } from "../map/packed.ts"
-import { dropTile, provideTile, residentTiles, setTileSource } from "../map/tiles.ts"
+import { dropTile, provideTile, residentTiles, setTileSource, tilesOver } from "../map/tiles.ts"
 import { jsonSave, rolling, start } from "../testing.ts"
 
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
+/** The tiles within 2 km of Monzone station's (0, 0) corner, more than the cars and the player there ever read. */
+const AROUND = tilesOver(-2000, -2000, 2000, 2000)
 const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 
 /** The traffic edge of Via Borgo Monzone whose chord crosses the seam `axis` = 0 nearest Monzone station, found by geometry. */
@@ -46,9 +48,9 @@ const across = (axis: "x" | "y") => {
 const drive = (lazy: boolean) => {
   for (const key of KEYS) dropTile(key)
   setTileSource(fromDisk)
-  // All loaded: every tile in memory before the first step, in reverse key order; lazy: each read in when a lookup
-  // first needs it, and every tile let go again every 20 steps.
-  if (!lazy) for (const key of [...KEYS].reverse()) provideTile(fromDisk(key))
+  // All loaded: every tile round them in memory before the first step, in reverse key order; lazy: each read in when a
+  // lookup first needs it, and every tile let go again every 20 steps.
+  if (!lazy) for (const key of [...AROUND].reverse()) provideTile(fromDisk(key))
   const east = across("x"),
     south = across("y")
   const s = start(
@@ -74,7 +76,7 @@ const drive = (lazy: boolean) => {
   return { frames, save: jsonSave(s.runtime), fewest, cars: s.world().vehicles }
 }
 
-test("seams: cars driven across the x = 0 and y = 0 seams by Monzone station end the same with tiles read in lazily as with every tile in memory", () => {
+test("seams: cars driven across the x = 0 and y = 0 seams by Monzone station end the same with tiles read in lazily as with every tile round them in memory", () => {
   const lazy = drive(true),
     loaded = drive(false)
   assert.ok(lazy.fewest < 8, `${lazy.fewest} tiles in memory between drops`)

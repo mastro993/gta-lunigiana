@@ -2,11 +2,11 @@
 // `--region` names (`lunigiana` by default; `region.ts`).
 // Run: node src/tools/fetch-osm.ts [--region cesena]  (pnpm fetch-osm).
 // The OSM API 0.6 `/map` call answers HTTP 400 for a box holding more than 50 000 nodes (or larger
-// than 0.25 square degrees), so the play area plus MARGIN is asked for whole, and a box answered
-// 400 is split in four and each quarter asked for in turn, down to boxes MIN_SIDE wide; a network
-// error, 429 or 5xx is retried (net.ts). Every multipolygon relation with an AREA_KEYS tag (land
-// use, natural, building, leisure, amenity) is then fetched whole (`/relation/<id>/full`), because
-// most of a forest's member ways lie outside the play area. Elements are merged by id and written
+// than 0.25 square degrees), so the built terrain's box plus MARGIN is asked for whole, and a box
+// answered 400 is split in four and each quarter asked for in turn, down to boxes MIN_SIDE wide; a
+// network error, 429 or 5xx is retried (net.ts). Every multipolygon relation with an AREA_KEYS tag
+// (land use, natural, building, leisure, amenity) is then fetched whole (`/relation/<id>/full`),
+// because most of a forest's member ways lie outside the box. Elements are merged by id and written
 // sorted (nodes, ways, relations, each by id), so the same OSM data always gives the same file,
 // however the boxes were split. The file's source, the box and the date, goes into
 // data/raw.lock.json for `pnpm pin-raw` (`raw-lock.ts`).
@@ -17,11 +17,11 @@ import { gzipSync } from "node:zlib"
 import { BOUNDS, fromLocal } from "./geometry.ts"
 import { getText, request } from "./net.ts"
 import { fetchedToday, recordSource } from "./raw-lock.ts"
-import { REGION } from "./region.ts"
+import { REGION, type Region } from "./region.ts"
 
 const API = "https://api.openstreetmap.org/api/0.6"
 const OUT = join(import.meta.dirname, `../../data/raw/${REGION.id}.osm.gz`)
-const MARGIN = 100 // m beyond the play area: ways crossing the edge come whole anyway
+const MARGIN = 100 // m beyond the built terrain's box: ways crossing its edge come whole anyway
 const AREA_KEYS = ["landuse", "natural", "building", "leisure", "amenity"]
 /** Degrees (40-55 m here): a box this narrow answered 400 is an error, not too many nodes. */
 const MIN_SIDE = 0.0005
@@ -74,7 +74,16 @@ const absorb = (xml: string): void => {
     elements[m[1] as keyof typeof elements].set(Number(m[2]), m[0])
 }
 
+/**
+ * Throws for a test region, before any request: its box is not its inputs', so fetching for it would
+ * cut down the file it shares (`data/raw/<id>.osm.gz`, which a test region's id names).
+ */
+export const checkFetchable = ({ key, id, test }: Pick<Region, "key" | "id" | "test">): void => {
+  if (test) throw new Error(`--region ${key} is a test region: it reads --region ${id}'s OSM`)
+}
+
 const main = async (): Promise<void> => {
+  checkFetchable(REGION)
   const [s, w] = fromLocal(BOUNDS.minX - MARGIN, BOUNDS.minY - MARGIN),
     [n, e] = fromLocal(BOUNDS.maxX + MARGIN, BOUNDS.maxY + MARGIN)
   const box = (b: Bbox) => b.map((v) => v.toFixed(6)).join(",")

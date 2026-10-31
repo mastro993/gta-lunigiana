@@ -6,6 +6,12 @@
  * are here or in which order they came: each tile's broad phases are built from that tile alone (on
  * first use) on the whole map's lattice, and a query answers in the whole map's order whichever
  * tiles hold its items (`./lattice.ts`).
+ * The listed tiles (`MAP.tiles`) need not fill the box of tiles round them: an L-shaped map leaves
+ * its notch unlisted, with no file. A terrain or land-cover lookup there reads the nearest node or
+ * cell of the listed tiles round it (`nearest`); a wall or tree whose midpoint falls there (an
+ * outline wall on the notch's side, a house wall over it) the cut kept in the one of those tiles
+ * nearest its midpoint (the first in key order on a tie), so a wall or tree lookup over the notch
+ * reads them all; and `tilesOver` names them, so the host's residency checks cover both.
  * So residency is never observable, and the host decides it alone: it keeps every listed tile
  * overlapping [player ± `STEP_REACH`]² before each step, and the sim reads nothing farther away
  * (vehicles past `FROZEN_BEYOND` stand frozen).
@@ -15,7 +21,7 @@
  * @module map/tiles
  */
 import { MAP } from "./global.ts"
-import { pushTrunk, TILE, tileKey, tileRange, TRUNK } from "./kinds.ts"
+import { pushTrunk, TILE, tileKey, tilesRound, TRUNK } from "./kinds.ts"
 import { cellBox, type CellGrid, cellGrid, queryCells } from "./lattice.ts"
 import {
   decodeTile,
@@ -42,7 +48,13 @@ const N = TILE / cell
 const CORNER = { x: Math.round(x0 / cell), y: Math.round(y0 / cell) }
 if (N !== TILE_CELLS || CORNER.x * cell !== x0 || CORNER.y * cell !== y0)
   throw new Error(`map: the ${cell} m heightmap at (${x0}, ${y0}) does not line up with the tiles`)
-const range = tileRange(MAP.bounds)
+/** The box of tile indices round the listed tiles. */
+const range = {
+  i0: Math.min(...MAP.tiles.map(({ i }) => i)),
+  i1: Math.max(...MAP.tiles.map(({ i }) => i)),
+  j0: Math.min(...MAP.tiles.map(({ j }) => j)),
+  j1: Math.max(...MAP.tiles.map(({ j }) => j)),
+}
 const across = range.i1 - range.i0 + 1
 const slots = across * (range.j1 - range.j0 + 1)
 
@@ -51,8 +63,27 @@ const slotOf = (i: number, j: number): number =>
   i < range.i0 || i > range.i1 || j < range.j0 || j > range.j1
     ? -1
     : (j - range.j0) * across + i - range.i0
+/** The tile in slot `s`, and its key. */
+const iOf = (s: number) => range.i0 + (s % across),
+  jOf = (s: number) => range.j0 + Math.floor(s / across),
+  keyOf = (s: number) => tileKey(iOf(s), jOf(s))
 const listed = new Uint8Array(slots)
 for (const { i, j } of MAP.tiles) listed[slotOf(i, j)] = 1
+
+/** The box of tile indices round the listed tiles: not every tile in it need be listed (`isListed`). */
+export const TILE_RANGE: Readonly<typeof range> = range
+
+/** Whether tile (i, j) is listed: on the map, with a file (an L-shaped map's notch is not). */
+export const isListed = (i: number, j: number): boolean => listed[slotOf(i, j)] === 1
+
+/**
+ * Per unlisted slot of the range, the listed tiles a lookup there reads, in key order: those of the
+ * nearest ring of tiles round it that holds any (`tilesRound`: its listed neighbours, in an L's
+ * notch). Empty for a listed slot.
+ */
+const around: ReadonlyArray<ReadonlyArray<number>> = Array.from({ length: slots }, (_, s) =>
+  listed[s] === 1 ? [] : tilesRound(iOf(s), jOf(s), isListed).map(([i, j]) => slotOf(i, j)),
+)
 
 /** A wall broad phase over one tile's flat (ax, ay, bx, by) segments. */
 interface Walls {
@@ -114,7 +145,7 @@ export const isResident = (key: string): boolean => {
  */
 export const isResidentAt = (x: number, y: number): boolean => {
   const s = slotOf(indexOf(x / cell, range.i0, range.i1), indexOf(y / cell, range.j0, range.j1))
-  return listed[s] === 1 && tiles[s] !== undefined
+  return listed[s] === 1 ? tiles[s] !== undefined : around[s]!.every((t) => tiles[t] !== undefined)
 }
 
 /** Host only: the trees of tile `key` in memory (flat (x, y, scale) triples and their ids, in the whole map's order), for the renderer to bucket. */
@@ -144,27 +175,61 @@ const tileAt = (i: number, j: number): Tile => {
 /** The tile index holding the cell or node `n` lattice steps from the origin, clamped to `lo`..`hi` (a last node on a seam is the lower tile's border). */
 const indexOf = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.floor(n / N)))
 
+/** The lattice's last node along x and y, counted from the origin as `CORNER` is. */
+const LAST = { x: CORNER.x + MAP.heightmap.cols - 1, y: CORNER.y + MAP.heightmap.rows - 1 }
+/** What `nearest` found: a listed tile and a lattice point in it, counted from the origin. */
+const found = { ti: 0, tj: 0, ni: 0, nj: 0 }
+
+/**
+ * The listed tile round unlisted slot `s` (`around`) holding the lattice point nearest (ni, nj),
+ * counted from the origin: a node (`cells` 0: a tile holds its N + 1 along each side) or a cell
+ * (`cells` 1: it holds N). Ties go to the tile first in key order. Answers in `found`.
+ */
+const nearest = (s: number, ni: number, nj: number, cells: 0 | 1): typeof found => {
+  let best = Infinity
+  for (const t of around[s]!) {
+    const ti = iOf(t),
+      tj = jOf(t)
+    const x = Math.min(LAST.x - cells, N * ti + N - cells, Math.max(CORNER.x, N * ti, ni)),
+      y = Math.min(LAST.y - cells, N * tj + N - cells, Math.max(CORNER.y, N * tj, nj)),
+      d = (x - ni) * (x - ni) + (y - nj) * (y - nj)
+    if (d < best) [best, found.ti, found.tj, found.ni, found.nj] = [d, ti, tj, x, y]
+  }
+  return found
+}
+
 /**
  * The terrain node (gi, gj) of the heightmap lattice (`MAP.heightmap`: col 0 at x0, row 0 at y0),
- * decimetres; the indices must already lie on the lattice (0 ≤ gi < cols, 0 ≤ gj < rows).
+ * decimetres; the indices must already lie on the lattice (0 ≤ gi < cols, 0 ≤ gj < rows). In an
+ * unlisted tile, the nearest listed node's (`nearest`).
  */
 export const nodeAt = (gi: number, gj: number): number => {
-  const ni = CORNER.x + gi,
+  let ni = CORNER.x + gi,
     nj = CORNER.y + gj,
     ti = indexOf(ni, range.i0, range.i1),
     tj = indexOf(nj, range.j0, range.j1)
+  const s = slotOf(ti, tj)
+  if (listed[s] !== 1) ({ ti, tj, ni, nj } = nearest(s, ni, nj, 0))
   return tileAt(ti, tj).data.heights[(nj - N * tj) * TILE_NODES + ni - N * ti]!
 }
 
 /**
  * The four nodes of cell (gi, gj) (its corners (gi, gj) … (gi + 1, gj + 1), all on the lattice),
- * decimetres, in `out` as south-west, south-east, north-west, north-east: one tile holds them all.
+ * decimetres, in `out` as south-west, south-east, north-west, north-east: one tile holds them all,
+ * but in an unlisted tile each is its nearest listed node (`nodeAt`).
  */
 export const cellNodes = (gi: number, gj: number, out: Int32Array): Int32Array => {
   const ni = CORNER.x + gi,
     nj = CORNER.y + gj,
     ti = indexOf(ni, range.i0, range.i1),
     tj = indexOf(nj, range.j0, range.j1)
+  if (listed[slotOf(ti, tj)] !== 1) {
+    out[0] = nodeAt(gi, gj)
+    out[1] = nodeAt(gi + 1, gj)
+    out[2] = nodeAt(gi, gj + 1)
+    out[3] = nodeAt(gi + 1, gj + 1)
+    return out
+  }
   const h = tileAt(ti, tj).data.heights,
     k = (nj - N * tj) * TILE_NODES + ni - N * ti
   out[0] = h[k]!
@@ -174,16 +239,28 @@ export const cellNodes = (gi: number, gj: number, out: Int32Array): Int32Array =
   return out
 }
 
-/** The land-cover index of heightmap cell (ci, cj) (on the lattice: 0 ≤ ci < cols − 1, 0 ≤ cj < rows − 1). */
+/**
+ * The land-cover index of heightmap cell (ci, cj) (on the lattice: 0 ≤ ci < cols − 1, 0 ≤ cj < rows −
+ * 1); in an unlisted tile, the nearest listed cell's (`nearest`).
+ */
 export const coverCell = (ci: number, cj: number): number => {
-  const ni = CORNER.x + ci,
+  let ni = CORNER.x + ci,
     nj = CORNER.y + cj,
     ti = indexOf(ni, range.i0, range.i1),
     tj = indexOf(nj, range.j0, range.j1)
+  const s = slotOf(ti, tj)
+  if (listed[s] !== 1) ({ ti, tj, ni, nj } = nearest(s, ni, nj, 1))
   return tileAt(ti, tj).data.cover[(nj - N * tj) * TILE_CELLS + ni - N * ti]!
 }
 
-/** Calls `visit` with every listed tile overlapping the box, in key order (indices clamped to the list, as the cut assigns them). */
+/** Scratch for `eachTile`: the slots it visited for the unlisted ones in the box. */
+const visited: Array<number> = []
+
+/**
+ * Calls `visit` with every listed tile overlapping the box (indices clamped to the list, as the cut
+ * assigns them), in key order, then those round an unlisted one in it (`around`, where the cut kept
+ * its walls and trees) not visited yet; each tile once.
+ */
 const eachTile = (
   minX: number,
   minY: number,
@@ -195,25 +272,50 @@ const eachTile = (
     i1 = indexOf(maxX / cell, range.i0, range.i1),
     j0 = indexOf(minY / cell, range.j0, range.j1),
     j1 = indexOf(maxY / cell, range.j0, range.j1)
+  let notch = false
   for (let j = j0; j <= j1; j++)
-    for (let i = i0; i <= i1; i++) if (listed[slotOf(i, j)] === 1) visit(tileAt(i, j))
+    for (let i = i0; i <= i1; i++)
+      if (listed[slotOf(i, j)] === 1) visit(tileAt(i, j))
+      else notch = true
+  if (!notch) return
+  visited.length = 0
+  for (let j = j0; j <= j1; j++)
+    for (let i = i0; i <= i1; i++)
+      for (const t of around[slotOf(i, j)]!) {
+        const ti = iOf(t),
+          tj = jOf(t)
+        if ((ti >= i0 && ti <= i1 && tj >= j0 && tj <= j1) || visited.includes(t)) continue
+        visited.push(t)
+        visit(tileAt(ti, tj))
+      }
 }
 
-/** The keys of the listed tiles overlapping the box, in key order: what a lookup there reads (the host's residency checks use it). */
+/**
+ * The keys of the tiles a lookup over the box reads, in key order (the host's residency checks use
+ * it): the listed tiles overlapping it, and for an unlisted one the listed tiles round it (`around`).
+ */
 export const tilesOver = (
   minX: number,
   minY: number,
   maxX: number,
   maxY: number,
 ): Array<string> => {
-  const keys: Array<string> = []
+  const read: Array<number> = []
   const i0 = indexOf(minX / cell, range.i0, range.i1),
     i1 = indexOf(maxX / cell, range.i0, range.i1),
     j0 = indexOf(minY / cell, range.j0, range.j1),
     j1 = indexOf(maxY / cell, range.j0, range.j1)
+  let notch = false
   for (let j = j0; j <= j1; j++)
-    for (let i = i0; i <= i1; i++) if (listed[slotOf(i, j)] === 1) keys.push(tileKey(i, j))
-  return keys
+    for (let i = i0; i <= i1; i++) {
+      const s = slotOf(i, j)
+      if (listed[s] === 1) read.push(s)
+      else {
+        notch = true
+        read.push(...around[s]!)
+      }
+    }
+  return (notch ? [...new Set(read)].sort((a, b) => a - b) : read).map(keyOf)
 }
 
 /** `a`'s values then `b`'s. */
@@ -285,9 +387,9 @@ const treeTiles: Array<Tile> = [],
   treeGrids: Array<CellGrid> = []
 
 /**
- * Tree broad phase (trees as points): calls `visit` with the position, scale and id (its index in
- * the whole map's list) of every tree in a cell the box overlaps, in the whole map's order cell by
- * cell; run the exact test. `visit` must not query again.
+ * Tree broad phase (trees as points): calls `visit` with the position, scale and id (its look's
+ * seed, src/tools/trees.ts) of every tree in a cell the box overlaps, in the whole map's order (by
+ * id) cell by cell; run the exact test. `visit` must not query again.
  */
 export const treesIn = (
   minX: number,

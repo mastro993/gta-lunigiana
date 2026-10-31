@@ -22,6 +22,7 @@ const map: MonzoneMap = {
   origin: { lat: 44.2, lon: 10.1 },
   mPerDeg: { lat: 111_000, lon: 80_000 },
   bounds: { minX: -50, minY: -20, maxX: 50, maxY: 20 },
+  outline: [[-50, -20, 50, -20, 50, 20, -50, 20]],
   heightmap: { cell: 4, cols: 26, rows: 11, x0: -52, y0: -24 },
   tiles: [{ i: -1, j: -1, zmin: -510, zmax: 3010 }],
   place: { floor: 230.3, downslope: 2.1 },

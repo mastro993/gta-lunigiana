@@ -21,7 +21,7 @@ import {
   SkyView,
   update,
 } from "../index.ts"
-import { MAP } from "../map/index.ts"
+import { inPlay } from "../map/index.ts"
 import { noTrains } from "../rail/testing.ts"
 import { REGIME_SPECS } from "../sky/regimes.ts"
 import { jsonSave, ON_BATTISTI, rolling, start } from "../testing.ts"
@@ -81,16 +81,11 @@ test("a forced thunderstorm throws lightning, its bolts on the map, even with th
   }
   const a = storm(),
     b = storm()
-  const { minX, minY, maxX, maxY } = MAP.bounds
   assert.ok(
     a.heard.lightning.length >= 15,
     `${a.heard.lightning.length} flashes in two real minutes`,
   )
-  assert.ok(
-    a.heard.lightning.every(
-      (l) => !l.bolt || (l.x >= minX && l.x <= maxX && l.y >= minY && l.y <= maxY),
-    ),
-  )
+  assert.ok(a.heard.lightning.every((l) => !l.bolt || inPlay(l.x, l.y)))
   assert.ok(a.heard.lightning.some((l) => l.bolt) && a.heard.lightning.some((l) => !l.bolt))
   assert.deepEqual(b.heard.lightning, a.heard.lightning)
   assert.equal(a.world().clock.seconds, DEFAULT_START, "the clock stood still")

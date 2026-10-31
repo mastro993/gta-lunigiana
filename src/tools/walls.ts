@@ -1,20 +1,15 @@
-// Collision walls: outlines of the blocked 4 m cells (steep ground, and apart the water's edge; marching squares,
-// simplified, <= 16 m pieces) plus building edges, barriers, map bounds and road-exit caps.
-// Flat (ax, ay, bx, by) arrays.
+// Collision walls: outlines of the blocked 4 m cells in the play area (steep ground, and apart the
+// water's edge; marching squares, simplified, <= 16 m pieces) plus building edges, barriers, the
+// play area's outline and road-exit caps. Flat (ax, ay, bx, by) arrays.
 import { staticGrid } from "../sim/collide.ts"
 import type { Barrier } from "../sim/map/index.ts"
 import { isDrivable } from "../sim/map/kinds.ts"
+import type { Rings } from "../sim/map/outline.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
-import {
-  BOUNDS,
-  flatRing,
-  pointInRing,
-  r1,
-  ringBox,
-  segDist2,
-  segIndex,
-  signedArea,
-} from "./geometry.ts"
+import { flatRing, pointInRing, r1, ringBox, segDist2, segIndex, signedArea } from "./geometry.ts"
+import { gridTiles } from "./grid-tiles.ts"
+import { simplifyLoop, traceLoops } from "./loops.ts"
+import { inPlay, OUTLINE } from "./play-area.ts"
 import { cellSlope, type Grid } from "./terrain.ts"
 
 const RUN = 16 // max wall segment length, m
@@ -41,103 +36,25 @@ const pushSplit = (
       r1(ay + ((by - ay) * (k + 1)) / n),
     )
 }
+/**
+ * The play area's outline into every list in `outs`: each ring's edges in ring order, as pieces of
+ * at most 64 m (so `walls.reach`, how far a wall sticks out of its midpoint, is 33 m). A rectangle
+ * runs S, E, N, W from its south-west corner.
+ */
+export const pushOutline = (outs: ReadonlyArray<Array<number>>, rings: Rings): void => {
+  for (const out of outs)
+    for (const ring of rings)
+      for (let i = 0, n = ring.length / 2; i < n; i++) {
+        const j = (i + 1) % n
+        pushSplit(out, ring[2 * i]!, ring[2 * i + 1]!, ring[2 * j]!, ring[2 * j + 1]!, 64)
+      }
+}
 const pushPolyline = (out: Array<number>, pts: ReadonlyArray<number>, closed: boolean) => {
   const n = pts.length / 2
   for (let i = 0; i < (closed ? n : n - 1); i++) {
     const j = (i + 1) % n
     pushSplit(out, pts[2 * i]!, pts[2 * i + 1]!, pts[2 * j]!, pts[2 * j + 1]!)
   }
-}
-
-/**
- * Marching squares over the blocked cells (centres = samples, outside = free): closed loops of
- * crossing points midway between blocked and free centres, blocked side on the left. At saddles
- * the diagonal blocked corners join, so one-cell diagonal strips (streams) stay one loop. Returns loops of [x, y] in metres (first point repeated last).
- */
-export const traceLoops = (
-  g: Pick<Grid, "cell" | "cols" | "rows" | "x0" | "y0">,
-  blocked: Uint8Array,
-): Array<Array<readonly [number, number]>> => {
-  const cw = g.cols - 1,
-    ch = g.rows - 1,
-    c = g.cell
-  const b = (i: number, j: number) =>
-    i < 0 || j < 0 || i >= cw || j >= ch ? 0 : blocked[j * cw + i]!
-  // Crossing ids: edge between centres (i,j)-(i+1,j) -> h, (i,j)-(i,j+1) -> v.
-  const hId = (i: number, j: number) => ((j + 1) * (cw + 2) + i + 1) * 2,
-    vId = (i: number, j: number) => hId(i, j) + 1
-  const xy = (id: number): readonly [number, number] => {
-    const cell = Math.floor(id / 2),
-      i = (cell % (cw + 2)) - 1,
-      j = Math.floor(cell / (cw + 2)) - 1
-    return id % 2 === 0
-      ? [g.x0 + (i + 1) * c, g.y0 + (j + 0.5) * c]
-      : [g.x0 + (i + 0.5) * c, g.y0 + (j + 1) * c]
-  }
-  const next = new Map<number, number>()
-  for (let j = -1; j < ch; j++)
-    for (let i = -1; i < cw; i++) {
-      // Square corners counter-clockwise: SW, SE, NE, NW; edge k runs corner k -> k+1.
-      const v = [b(i, j), b(i + 1, j), b(i + 1, j + 1), b(i, j + 1)]
-      if (v[0] === v[1] && v[1] === v[2] && v[2] === v[3]) continue
-      const edge = [hId(i, j), vId(i + 1, j), hId(i, j + 1), vId(i, j)]
-      for (let k = 0; k < 4; k++) {
-        if (!(v[k] === 1 && v[(k + 1) % 4] === 0)) continue // leaves the blocked region along edge k
-        let e = (k + 1) % 4
-        while (!(v[e] === 0 && v[(e + 1) % 4] === 1)) e = (e + 1) % 4 // next entering edge counter-clockwise
-        next.set(edge[k]!, edge[e]!)
-      }
-    }
-  const loops: Array<Array<readonly [number, number]>> = []
-  for (const start of [...next.keys()].sort((a, d) => a - d)) {
-    if (!next.has(start)) continue
-    const loop = [xy(start)]
-    let cur = start
-    do {
-      const to = next.get(cur)!
-      next.delete(cur)
-      loop.push(xy(to))
-      cur = to
-    } while (cur !== start)
-    loops.push(loop)
-  }
-  return loops
-}
-
-/** Douglas-Peucker on a closed loop (first point repeated last), split at the point farthest from the start. */
-export const simplifyLoop = (
-  pts: ReadonlyArray<readonly [number, number]>,
-  tol: number,
-): Array<readonly [number, number]> => {
-  const n = pts.length - 1
-  if (n <= 4) return [...pts]
-  const keep = new Uint8Array(n + 1)
-  const rec = (a: number, z: number) => {
-    const [ax, ay] = pts[a]!,
-      [zx, zy] = pts[z]!,
-      len = Math.hypot(zx - ax, zy - ay) || 1
-    let worst = tol,
-      at = -1
-    for (let k = a + 1; k < z; k++) {
-      const d = Math.abs((pts[k]![0] - ax) * (zy - ay) - (pts[k]![1] - ay) * (zx - ax)) / len
-      if (d > worst) [worst, at] = [d, k]
-    }
-    if (at < 0) return
-    keep[at] = 1
-    rec(a, at)
-    rec(at, z)
-  }
-  let far = 1
-  for (let k = 1; k < n; k++)
-    if (
-      Math.hypot(pts[k]![0] - pts[0]![0], pts[k]![1] - pts[0]![1]) >
-      Math.hypot(pts[far]![0] - pts[0]![0], pts[far]![1] - pts[0]![1])
-    )
-      far = k
-  keep[0] = keep[far] = keep[n] = 1
-  rec(0, far)
-  rec(far, n)
-  return pts.filter((_, k) => keep[k] === 1)
 }
 
 /** Walls around the blocked cells: traced loops, simplified within `tol` m, split into <= RUN m segments, into every list in `outs`. */
@@ -255,7 +172,9 @@ export const clipBuildings = (
   return buildings.flatMap((b) => {
     const c = carved(b, clipping)
     if (c === undefined) return [b]
-    const rings = traceLoops(c.grid, c.blocked).map((loop) => simplifyLoop(loop, 0.15).slice(0, -1))
+    const rings = Array.from(traceLoops(c.grid, c.blocked), (loop) =>
+      simplifyLoop(loop, 0.15).slice(0, -1),
+    )
     const holes = rings
       .filter((r) => signedArea(r) < 0)
       .map((r) => flatRing(r, false))
@@ -278,16 +197,23 @@ const OPEN_STEP = 0.25
  * draws cliffs across the paths that climb through them and garden walls up to the road's
  * centreline; the way itself is open (a gap, a gate, steps cut in the rock). Original vertices are
  * kept; each opening ends at the last free sample. Guard rails run along their road and stay whole.
- * Tunnels open nothing unless `tunnels` (a bridge's parapet where the road runs on into one).
+ * Tunnels open nothing (a bridge's parapets do open where the road runs on into one).
  */
 export const openBarriers = (
   barriers: ReadonlyArray<Barrier>,
   roads: ReadonlyArray<RoadF>,
-  tunnels = false,
 ): Array<Barrier> => {
   const ways = segIndex<null>()
-  for (const r of roads) if (tunnels || r.tunnel !== true) ways.addLine(r.pts, r.w / 2, null)
-  return barriers.flatMap((b) => {
+  for (const r of roads) if (r.tunnel !== true) ways.addLine(r.pts, r.w / 2, null)
+  return opened(barriers, (x, y) => ways.covers(x, y))
+}
+
+/** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` says. */
+const opened = (
+  barriers: ReadonlyArray<Barrier>,
+  open: (x: number, y: number) => boolean,
+): Array<Barrier> =>
+  barriers.flatMap((b) => {
     if (b.kind === "guard_rail") return [b]
     const out: Array<Barrier> = []
     let cur: Array<number> = [],
@@ -304,7 +230,7 @@ export const openBarriers = (
       for (let k = i === 0 ? 0 : 1; k <= n; k++) {
         const x = r1(ax + ((bx - ax) * k) / n),
           y = r1(ay + ((by - ay) * k) / n)
-        if (ways.covers(x, y)) {
+        if (open(x, y)) {
           if (last !== undefined) push(...last)
           if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
           cur = []
@@ -318,7 +244,6 @@ export const openBarriers = (
     if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
     return out
   })
-}
 
 /** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */
 const PARAPET = 0.25
@@ -329,11 +254,13 @@ const PARAPET = 0.25
  * joins or carries on from its deck, tunnels and other pieces of the same bridge included (OSM
  * splits bridges). Walkers keep their verge across.
  */
-const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> =>
-  roads
+const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> => {
+  const ways = segIndex<RoadF>()
+  for (const r of roads) ways.addLine(r.pts, r.w / 2, r)
+  return roads
     .filter((r) => r.bridge === true && isDrivable(r.cls))
     .flatMap((r) =>
-      openBarriers(
+      opened(
         r.pts.slice(1).flatMap((b, i) => {
           const a = r.pts[i]!,
             len = Math.hypot(b.x - a.x, b.y - a.y) || 1,
@@ -347,10 +274,10 @@ const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> =>
             }
           })
         }),
-        roads.filter((q) => q !== r),
-        true,
+        (x, y) => ways.covers(x, y, (q) => q !== r),
       ),
     )
+}
 
 /**
  * Building edges into every list in `outs`. Where a tunnel, path or steps centreline comes within
@@ -365,7 +292,7 @@ const pushBuilding = (outs: ReadonlyArray<Array<number>>, b: BuildingF, arches: 
 }
 
 interface Walls {
-  /** What stops anyone on foot: buildings, steep ground, barriers, the bounds. */
+  /** What stops anyone on foot: buildings, steep ground, barriers, the play area's outline. */
   readonly walk: Array<number>
   /** The water's edge, which people and animals keep to by choice (none where a road crosses). */
   readonly shore: Array<number>
@@ -399,60 +326,73 @@ export const buildWalls = (
   for (const r of roads) near.addLine(r.pts, Math.max(r.w / 2, 1.5) + 1.5 + pad, r) // tunnels too: they are short underpasses here
   const cw = g.cols - 1,
     ch = g.rows - 1
-  // Steep cells, majority-filtered (3x3) so the walls follow slopes, not single-cell bumps.
-  const steep = (limit: number) => {
-    const raw = new Uint8Array(cw * ch)
-    for (let j = 0; j < ch; j++)
-      for (let i = 0; i < cw; i++)
-        raw[j * cw + i] =
-          cellSlope(g, i, j) > limit &&
-          !banks.covers(g.x0 + (i + 0.5) * g.cell, g.y0 + (j + 0.5) * g.cell)
-            ? 1
-            : 0
-    const out = new Uint8Array(cw * ch)
-    for (let j = 0; j < ch; j++)
-      for (let i = 0; i < cw; i++) {
-        let n = 0
-        for (let dj = -1; dj <= 1; dj++)
-          for (let di = -1; di <= 1; di++)
-            n +=
-              raw[
-                Math.min(ch - 1, Math.max(0, j + dj)) * cw + Math.min(cw - 1, Math.max(0, i + di))
-              ]!
-        out[j * cw + i] = n >= 5 ? 1 : 0
-      }
-    return out
-  }
-  const steepWalk = steep(WALK_SLOPE),
-    steepDrive = steep(DRIVE_SLOPE)
   const walkBlocked = new Uint8Array(cw * ch),
     shoreBlocked = new Uint8Array(cw * ch),
     driveBlocked = new Uint8Array(cw * ch),
     driveShoreBlocked = new Uint8Array(cw * ch)
-  for (let j = 0; j < ch; j++)
-    for (let i = 0; i < cw; i++) {
-      const k = j * cw + i,
-        x = g.x0 + (i + 0.5) * g.cell,
-        y = g.y0 + (j + 0.5) * g.cell
-      const water = wet.covers(x, y)
-      if (!water && steepDrive[k] === 0 && steepWalk[k] === 0) continue
-      let walkRoad = false,
-        driveRoad = false,
-        driveCrossing = false
-      near.within(x, y, (s, d2) => {
-        const d = Math.sqrt(d2),
-          r = s.data
-        if (d < Math.max(r.w / 2, 1.5) + pad) walkRoad = true // every class is walkable; paths keep >= 1.5 m
-        if (isDrivable(r.cls)) {
-          if (d < r.w / 2 + 1.5 + pad) driveRoad = true
-          if (d < r.w / 2 + pad) driveCrossing = true // bridge deck or ford
-        }
-      })
-      walkBlocked[k] = !walkRoad && steepWalk[k] === 1 ? 1 : 0
-      shoreBlocked[k] = !walkRoad && water && walkBlocked[k] === 0 ? 1 : 0
-      driveBlocked[k] = steepDrive[k] === 1 && !driveRoad ? 1 : 0
-      driveShoreBlocked[k] = water && !driveCrossing && driveBlocked[k] === 0 ? 1 : 0
-    }
+  // Tile by tile: a tile's cells, and the ring of cells around them that the majority filter reads.
+  for (const { span } of gridTiles(g)) {
+    const ci0 = span.i0,
+      ci1 = span.i0 + span.cols - 1,
+      cj0 = span.j0,
+      cj1 = span.j0 + span.rows - 1
+    const ri0 = Math.max(0, ci0 - 1),
+      rj0 = Math.max(0, cj0 - 1),
+      rw = Math.min(cw, ci1 + 1) - ri0,
+      rh = Math.min(ch, cj1 + 1) - rj0
+    // Steep cells (bit 1 over WALK_SLOPE, bit 2 over DRIVE_SLOPE), but the carved banks.
+    const raw = new Uint8Array(rw * rh)
+    for (let j = rj0; j < rj0 + rh; j++)
+      for (let i = ri0; i < ri0 + rw; i++) {
+        const slope = cellSlope(g, i, j)
+        if (
+          slope > DRIVE_SLOPE &&
+          !banks.covers(g.x0 + (i + 0.5) * g.cell, g.y0 + (j + 0.5) * g.cell)
+        )
+          raw[(j - rj0) * rw + i - ri0] = (slope > WALK_SLOPE ? 1 : 0) | 2
+      }
+    for (let j = cj0; j < cj1; j++)
+      for (let i = ci0; i < ci1; i++) {
+        // Majority-filtered (3x3, clamped to the grid) so the walls follow slopes, not single-cell bumps.
+        let walkN = 0,
+          driveN = 0
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++) {
+            const v =
+              raw[
+                (Math.min(ch - 1, Math.max(0, j + dj)) - rj0) * rw +
+                  Math.min(cw - 1, Math.max(0, i + di)) -
+                  ri0
+              ]!
+            walkN += v & 1
+            driveN += v >> 1
+          }
+        const steepWalk = walkN >= 5,
+          steepDrive = driveN >= 5
+        const k = j * cw + i,
+          x = g.x0 + (i + 0.5) * g.cell,
+          y = g.y0 + (j + 0.5) * g.cell
+        const water = wet.covers(x, y)
+        // Outside the play area the outline walls stop everyone: its cells stay open.
+        if ((!water && !steepDrive && !steepWalk) || !inPlay(x, y)) continue
+        let walkRoad = false,
+          driveRoad = false,
+          driveCrossing = false
+        near.within(x, y, (s, d2) => {
+          const d = Math.sqrt(d2),
+            r = s.data
+          if (d < Math.max(r.w / 2, 1.5) + pad) walkRoad = true // every class is walkable; paths keep >= 1.5 m
+          if (isDrivable(r.cls)) {
+            if (d < r.w / 2 + 1.5 + pad) driveRoad = true
+            if (d < r.w / 2 + pad) driveCrossing = true // bridge deck or ford
+          }
+        })
+        walkBlocked[k] = !walkRoad && steepWalk ? 1 : 0
+        shoreBlocked[k] = !walkRoad && water && walkBlocked[k] === 0 ? 1 : 0
+        driveBlocked[k] = steepDrive && !driveRoad ? 1 : 0
+        driveShoreBlocked[k] = water && !driveCrossing && driveBlocked[k] === 0 ? 1 : 0
+      }
+  }
   const walk: Array<number> = [],
     shore: Array<number> = [],
     drive: Array<number> = [],
@@ -468,16 +408,9 @@ export const buildWalls = (
     pushPolyline(drive, b.pts, false)
   }
   for (const p of parapets(roads)) pushPolyline(drive, p.pts, false)
-  const { minX, minY, maxX, maxY } = BOUNDS
-  for (const out of [walk, drive])
-    for (const [ax, ay, bx, by] of [
-      [minX, minY, maxX, minY],
-      [maxX, minY, maxX, maxY],
-      [maxX, maxY, minX, maxY],
-      [minX, maxY, minX, minY],
-    ] as const)
-      pushSplit(out, ax, ay, bx, by, 64)
-  // Road-block caps a few metres inside the edge where drivable roads leave the play area.
+  pushOutline([walk, drive], OUTLINE)
+  // Road-block caps a few metres inside the outline where drivable roads leave the play area (their
+  // cut ends, which have no id).
   for (const r of roads) {
     if (!isDrivable(r.cls)) continue
     for (const [end, prev] of [

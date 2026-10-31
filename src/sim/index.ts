@@ -45,6 +45,7 @@ import { Pedestrians } from "./systems/pedestrians.ts"
 import { Perceive } from "./systems/perceive.ts"
 import { VehiclePhysics } from "./systems/physics.ts"
 import { FillAnimals, PopulateAnimals } from "./systems/populate-animals.ts"
+import { PopulateParked } from "./systems/populate-parked.ts"
 import { FillPeople, Populate } from "./systems/populate.ts"
 import { ApplyPlayer, LeaveBehind } from "./systems/reach.ts"
 import { AdvanceClock, AdvanceRivers, AdvanceWeather } from "./systems/sky.ts"
@@ -227,6 +228,9 @@ export const update = Game.Schedule(
   Dispatch,
   Populate,
   PopulateAnimals,
+  // The people, animals and traffic brought out this step stand before a car is parked clear of them.
+  Game.Schedule.applyDeferred(),
+  PopulateParked,
   Game.Schedule.applyDeferred(),
 )
 
@@ -237,7 +241,7 @@ export const DEFAULT_START = 1792648800
  * are the same sequence at an offset the seed sets. Measured over all 2³² seeds, the offset is as good as random: two streams of N
  * draws each overlap for about 2N/2³² of the seeds (1 in 2000 at a million draws); the closest is 7179 draws (seed 137 773 472), and
  * every seed from 0 to 200 000 is at least 1.2 million apart. Where they overlap the weather only repeats numbers the world drew: it
- * never changes traffic, people, animals or parking.
+ * never changes traffic, people or animals.
  */
 const WEATHER_SEED = 0x9e3779b9
 /** Mixed into the seed for the railway's stream (`RailRng`), as `WEATHER_SEED` is for the weather's: trains never change what `Rng` draws. */
@@ -262,6 +266,7 @@ export const makeRuntime = <const Services extends RuntimeServices>(options: {
       Rng: Random.seed(options.seed),
       WeatherRng: weatherSeed,
       RailRng: Random.seed(options.seed ^ RAIL_SEED),
+      Parking: { seed: Random.seed(options.seed), wrecked: [] },
       Score: { stolen: 0, knocked: 0 },
       View: { turns: 0 },
       Handling: DEFAULT_HANDLING,

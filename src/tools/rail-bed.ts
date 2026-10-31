@@ -5,7 +5,7 @@
 // and the track never hangs over a hole.
 import type { RailF } from "./features.ts"
 import { segIndex, type V } from "./geometry.ts"
-import { keepSamples, resample, type Grid, type Profile } from "./terrain.ts"
+import { anchorNode, keepSamples, resample, slotOf, type Grid, type Profile } from "./terrain.ts"
 
 /** A piece as written to the map: its vertices plus the profile samples where the elevation bends. */
 export interface Dense {
@@ -84,20 +84,20 @@ export const extraLevels = (
 }
 
 /**
- * Moves grid nodes so the terrain stays within BED over and BANK under every at-grade rail
- * centreline more than BED_CLEAR m from a level crossing: each stretch of centreline inside a cell
- * caps that cell's four corners at the lower rail elevation of its two ends plus BED, floored to
- * the grid's 0.1 m, so any interpolation of the cell (bilinear, or the drawn mesh's triangles)
- * stays under the rail, and raises them to the higher one less BANK, unless `keep` holds them (a
- * road's core, a river's bed). `lines` are the shipped (rounded) polylines and elevations; returns
- * the nodes lowered and the deepest cut, and the nodes raised and the highest fill.
+ * The limits the rail bed puts on grid nodes, so the terrain stays within BED over and BANK under
+ * every at-grade rail centreline more than BED_CLEAR m from a level crossing: each stretch of
+ * centreline inside a cell caps that cell's four corners at the lower rail elevation of its two ends
+ * plus BED, floored to the grid's 0.1 m, so any interpolation of the cell (bilinear, or the drawn
+ * mesh's triangles) stays under the rail, and floors them at the higher one less BANK. `lines` are
+ * the shipped (rounded) polylines and elevations. Returns [node, cap, floor] by whole-grid node
+ * index, ascending; it reads only the grid's lattice, so it holds for any window of it.
  */
-export const railBed = (
-  g: Grid,
+export const bedLimits = (
+  g: Omit<Grid, "z" | "span">,
   lines: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly z: ReadonlyArray<number> }>,
   levelCrossings: ReadonlyArray<readonly [number, number]>,
-  keep: (n: number) => boolean = () => false,
-): { nodes: number; deepest: number; raised: number; fill: number } => {
+): Array<readonly [number, number, number]> => {
+  const [oi, oj] = anchorNode(g)
   const cap = new Map<number, number>(),
     floor = new Map<number, number>()
   const clear = (x: number, y: number) =>
@@ -111,8 +111,8 @@ export const railBed = (
       // Parameters where the segment crosses a grid line, so each stretch lies in one cell.
       const ts = [0, 1]
       for (const [a, b, o] of [
-        [ax, bx, g.x0],
-        [ay, by, g.y0],
+        [ax, bx, g.ax],
+        [ay, by, g.ay],
       ] as const) {
         if (a === b) continue
         for (let n = Math.ceil((Math.min(a, b) - o) / g.cell); o + n * g.cell < Math.max(a, b); n++)
@@ -128,8 +128,8 @@ export const railBed = (
           [x1, y1] = at(t1)
         if (!clear(x0, y0) && !clear(x1, y1)) continue
         const [mx, my] = at((t0 + t1) / 2)
-        const i = Math.floor((mx - g.x0) / g.cell),
-          j = Math.floor((my - g.y0) / g.cell)
+        const i = Math.floor((mx - g.ax) / g.cell) + oi,
+          j = Math.floor((my - g.ay) / g.cell) + oj
         const za = z[k]! + (z[k + 1]! - z[k]!) * t0,
           zb = z[k]! + (z[k + 1]! - z[k]!) * t1
         const top = Math.floor((Math.min(za, zb) + BED) * 10 + 1e-6) / 10,
@@ -148,23 +148,50 @@ export const railBed = (
         }
       }
     }
+  return [...cap].sort((a, b) => a[0] - b[0]).map(([n, top]) => [n, top, floor.get(n)!] as const)
+}
+
+/**
+ * Moves the nodes `g` holds into their `limits` (`bedLimits`): down to the cap, and up to the
+ * floor (never over the cap) unless `keep` holds them by their index in `g.z` (a road's core, a
+ * river's bed). Returns each node moved, by whole-grid index, with how far (negative: lowered).
+ */
+export const railBed = (
+  g: Grid,
+  limits: ReadonlyArray<readonly [number, number, number]>,
+  keep: (k: number) => boolean = () => false,
+): Array<readonly [number, number]> => {
+  const moved: Array<readonly [number, number]> = []
+  const { i0, j0, cols, rows } = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
+  for (const [n, top, floor] of limits) {
+    const i = n % g.cols,
+      j = (n - i) / g.cols
+    if (i < i0 || j < j0 || i >= i0 + cols || j >= j0 + rows) continue
+    const k = slotOf(g, i, j)
+    if (g.z[k]! > top + 1e-9) {
+      moved.push([n, top - g.z[k]!])
+      g.z[k] = top
+    }
+    // Never over the cap: a node two stretches share keeps under the lower rail.
+    const bottom = Math.min(floor, top)
+    if (g.z[k]! < bottom - 1e-9 && !keep(k)) {
+      moved.push([n, bottom - g.z[k]!])
+      g.z[k] = bottom
+    }
+  }
+  return moved
+}
+
+/** The nodes `railBed` lowered and the deepest cut, the nodes it raised and the highest fill, m. */
+export const bedReport = (
+  moved: Iterable<readonly [number, number]>,
+): { nodes: number; deepest: number; raised: number; fill: number } => {
   let nodes = 0,
     deepest = 0,
     raised = 0,
     fill = 0
-  for (const [n, top] of [...cap].sort((a, b) => a[0] - b[0])) {
-    if (g.z[n]! > top + 1e-9) {
-      deepest = Math.max(deepest, g.z[n]! - top)
-      g.z[n] = top
-      nodes++
-    }
-    // Never over the cap: a node two stretches share keeps under the lower rail.
-    const bottom = Math.min(floor.get(n)!, top)
-    if (g.z[n]! < bottom - 1e-9 && !keep(n)) {
-      fill = Math.max(fill, bottom - g.z[n]!)
-      g.z[n] = bottom
-      raised++
-    }
-  }
+  for (const [, dz] of moved)
+    if (dz < 0) [nodes, deepest] = [nodes + 1, Math.max(deepest, -dz)]
+    else [raised, fill] = [raised + 1, Math.max(fill, dz)]
   return { nodes, deepest, raised, fill }
 }

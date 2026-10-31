@@ -8,7 +8,7 @@
  */
 import { pointInRing, segDist2 } from "../collide.ts"
 import { MAP, type Road, roadClassOf } from "./index.ts"
-import { type RoadClass, vergeOf } from "./kinds.ts"
+import { anchorOf, type RoadClass, vergeOf } from "./kinds.ts"
 import { nodeAt } from "./tiles.ts"
 
 /** How far each road class's surface floats above its profile (m); wider classes on top, so junctions never z-fight. */
@@ -23,6 +23,7 @@ export const ROAD_LIFT = {
 } as const satisfies Record<RoadClass, number>
 
 const hm = MAP.heightmap
+const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
 /**
  * Terrain node elevation at grid index (i, j), row 0 = south; indices outside the grid clamp to
  * the edge, which is how the apron beyond the map bounds continues the landscape.
@@ -30,14 +31,19 @@ const hm = MAP.heightmap
 export const terrainNodeZ = (i: number, j: number): number =>
   nodeAt(Math.min(hm.cols - 1, Math.max(0, i)), Math.min(hm.rows - 1, Math.max(0, j))) / 10
 
-/** Terrain elevation under (x, y) on the drawn mesh: each cell is split along its south-west to north-east diagonal. */
+/**
+ * Terrain elevation under (x, y) on the drawn mesh: each cell is split along its south-west to
+ * north-east diagonal. The cell is measured from the region's anchor (`anchorOf`).
+ */
 export const terrainZ = (x: number, y: number): number => {
-  const fx = (x - hm.x0) / hm.cell,
-    fy = (y - hm.y0) / hm.cell
-  const i = Math.floor(fx),
-    j = Math.floor(fy)
-  const u = fx - i,
-    v = fy - j
+  const fx = (x - AX) / hm.cell,
+    fy = (y - AY) / hm.cell
+  const fi = Math.floor(fx),
+    fj = Math.floor(fy)
+  const u = fx - fi,
+    v = fy - fj
+  const i = fi + AI,
+    j = fj + AJ
   const sw = terrainNodeZ(i, j),
     se = terrainNodeZ(i + 1, j),
     nw = terrainNodeZ(i, j + 1),

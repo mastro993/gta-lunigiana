@@ -1,6 +1,8 @@
 import { staticGrid } from "../sim/collide.ts"
-// OSM (and for buildings the CTR) -> map features in local metres, clipped to the play area.
-// Terrain-dependent fields (z, z0) are filled later by build-map.ts.
+// OSM (and for buildings the CTR) -> map features in local metres: lines clipped to the play area,
+// areas to the built terrain's box, buildings to the box and kept where their centre is in play.
+// Terrain-dependent fields are filled later: the lines' z by build-terrain.ts, the buildings' z0 by
+// `assembleMap` (build-output.ts).
 import type { Area, Barrier, Poi } from "../sim/map/index.ts"
 import {
   type AreaKind,
@@ -12,21 +14,21 @@ import {
 import type { Ctr } from "./ctr.ts"
 import {
   centroid,
-  clipLine,
   clipRing,
   crossings,
   flatLine,
   flatRing,
   hash01,
-  inBounds,
   pointInRing,
   r1,
   ringBox,
+  TERRAIN_BOX,
   toLocal,
   type P,
   type V,
 } from "./geometry.ts"
 import { assembleRings, type Osm, type OsmWay, type Tags } from "./osm.ts"
+import { clipPieces, inPlay, OUTLINE, type Piece } from "./play-area.ts"
 import { REGION } from "./region.ts"
 
 export interface RoadF {
@@ -53,6 +55,12 @@ export interface WaterF {
   readonly bed: number
   readonly depth: number
   readonly pts: ReadonlyArray<V>
+  /**
+   * How far along its OSM way the piece starts, m (0 unless the play area's outline cut the way
+   * before it): the bank trees count their steps from the way's start, so the steps stay put as
+   * the play area grows (how far a tree stands from the centreline follows the piece's bed).
+   */
+  readonly from: number
 }
 /**
  * A `railway=rail` way (or a track only the CTR has, with a negative id) as the build carries it;
@@ -116,12 +124,20 @@ const classOf = (t: Tags): RoadClass | undefined => {
     : (FOLDED[t.highway] ?? (REGION.id === "cesena" ? CITY_FOLDED[t.highway] : undefined))
 }
 
-export const extractRoads = (osm: Osm): Array<RoadF> =>
+/**
+ * How the extractors cut a line into pieces: to the play area, for the map (the default), or to
+ * what lies beyond it in the built terrain's box (`clipBeyond`), for the trees to keep off.
+ */
+type Clip = (pts: ReadonlyArray<V>) => Array<Piece>
+const toPlay: Clip = (pts) => clipPieces(OUTLINE, pts)
+
+/** The highways, cut by `clip`, each piece keeping its way's id and tags. */
+export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
   [...osm.ways.values()].flatMap((w) => {
     const t = w.tags,
       cls = classOf(t)
     if (cls === undefined) return []
-    return clipLine(vertices(osm, w.nds)).map((pts): RoadF => ({
+    return clip(vertices(osm, w.nds)).map(({ pts }): RoadF => ({
       id: +w.id,
       cls,
       ...(t.name ? { name: t.name } : {}),
@@ -227,7 +243,12 @@ const mappedRiverWidth = (
   return width === undefined ? undefined : r1(width)
 }
 
-export const extractWater = (osm: Osm, ground: (x: number, y: number) => number): Array<WaterF> => {
+/** The waterways but culverts, cut by `clip`, sized by `ground` under each piece. */
+export const extractWater = (
+  osm: Osm,
+  ground: (x: number, y: number) => number,
+  clip: Clip = toPlay,
+): Array<WaterF> => {
   const isBank = (tags: Tags) =>
     tags.waterway === "riverbank" || (tags.natural === "water" && tags.water === "river")
   const banks =
@@ -253,7 +274,7 @@ export const extractWater = (osm: Osm, ground: (x: number, y: number) => number)
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"
-      return clipLine(vertices(osm, w.nds)).map((pts): WaterF => {
+      return clip(vertices(osm, w.nds)).map(({ pts, from }): WaterF => {
         const z = pts.reduce((s, p) => s + ground(p.x, p.y), 0) / pts.length
         const size = waterSize(t.name, kind, z)
         const measured =
@@ -265,17 +286,18 @@ export const extractWater = (osm: Osm, ground: (x: number, y: number) => number)
           ...size,
           ...(measured === undefined ? {} : { w: measured, bed: measured / 2 + 1 }),
           pts,
+          from,
         }
       })
     })
 }
 
-/** `railway=rail` ways clipped to the play area, with their bridge, tunnel and speed-limit tags. */
-export const extractRail = (osm: Osm): Array<RailF> =>
+/** `railway=rail` ways cut by `clip`, with their bridge, tunnel and speed-limit tags. */
+export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
   [...osm.ways.values()]
     .filter((w) => w.tags.railway === "rail")
     .flatMap((w) =>
-      clipLine(vertices(osm, w.nds)).map((pts): RailF => ({
+      clip(vertices(osm, w.nds)).map(({ pts }): RailF => ({
         id: +w.id,
         ...(w.tags.bridge !== undefined && w.tags.bridge !== "no" ? { bridge: true } : {}),
         ...(w.tags.tunnel !== undefined && w.tags.tunnel !== "no" ? { tunnel: true } : {}),
@@ -345,12 +367,18 @@ const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {
 }
 
 /**
- * Buildings: the CTR's where its sheets map the ground, OSM's elsewhere. A CTR building inside an
- * OSM footprint takes that building's name, and its style when the CTR only says "building" and
- * surveyed no fixed-style unit (the church itself) inside that footprint: then the other units are
- * the houses around it.
+ * Buildings: the CTR's where its sheets map the ground, OSM's elsewhere, each clipped to the built
+ * terrain's box and kept (`held`) where the centre of its clipped outline is in the play area (an
+ * outline edge inside the box may cut through a house, which then stands whole or not at all; one
+ * across the box's edge stands clipped), the others `beyond` it, for the trees to keep off. A CTR
+ * building inside an OSM footprint takes that building's name, and its style when the CTR only says
+ * "building" and surveyed no fixed-style unit (the church itself) inside that footprint: then the
+ * other units are the houses around it.
  */
-export const extractBuildings = (osm: Osm, ctr: Ctr): Array<BuildingF> => {
+export const extractBuildings = (
+  osm: Osm,
+  ctr: Ctr,
+): { readonly held: Array<BuildingF>; readonly beyond: Array<BuildingF> } => {
   const fromOsm = osmBuildings(osm)
   const osmIn = staticGrid(fromOsm.length, (k) => ringBox(fromOsm[k]!.outer), 32)
   /** The index of the first OSM footprint (file order) around the point, or -1. */
@@ -389,7 +417,19 @@ export const extractBuildings = (osm: Osm, ctr: Ctr): Array<BuildingF> => {
   const unmapped = fromOsm.filter(
     (b) => !ctr.mapped.some((ring) => pointInRing(...centroid(b.outer), ring)),
   )
-  return unifyStyles(unifyStyles([...unmapped, ...fromCtr], HAMLET_LINK, HAMLET), BLOCK_LINK)
+  const all = [...unmapped, ...fromCtr],
+    held = all.map((b) => inPlay(...centroid(b.outer)))
+  return {
+    held: unifyStyles(
+      unifyStyles(
+        all.filter((_, k) => held[k]),
+        HAMLET_LINK,
+        HAMLET,
+      ),
+      BLOCK_LINK,
+    ),
+    beyond: all.filter((_, k) => !held[k]),
+  }
 }
 
 const osmBuildings = (osm: Osm): Array<BuildingF> => {
@@ -403,13 +443,15 @@ const osmBuildings = (osm: Osm): Array<BuildingF> => {
     outer: Array<P>,
     holes: Array<Array<P>>,
   ): BuildingF | undefined => {
-    const o = flatRing(clipRing(outer), true)
+    const o = flatRing(clipRing(outer, TERRAIN_BOX), true)
     if (o === undefined) return undefined
     const [cx, cy] = centroid(o)
     const ruins = t.ruins !== undefined || t.building === "ruins"
     const tagged = t.height === undefined ? Number.NaN : parseFloat(t.height)
     const h = Number.isNaN(tagged) ? (ruins ? 2.5 : 6) : Math.min(Math.max(tagged, 2.5), 22)
-    const hs = holes.map((r) => flatRing(clipRing(r), false)).filter((r) => r !== undefined)
+    const hs = holes
+      .map((r) => flatRing(clipRing(r, TERRAIN_BOX), false))
+      .filter((r) => r !== undefined)
     return {
       id: +id,
       kind: t.building === "yes" && t.amenity === "place_of_worship" ? "church" : t.building!,
@@ -531,7 +573,7 @@ export const extractAreas = (osm: Osm): Array<Area> => {
   for (const w of osm.ways.values()) {
     const kind = areaKind(w.tags)
     if (kind === undefined || w.tags.building !== undefined || !closed(w)) continue
-    const ring = flatRing(clipRing(ringOf(osm, w.nds)), true)
+    const ring = flatRing(clipRing(ringOf(osm, w.nds), TERRAIN_BOX), true)
     if (ring !== undefined)
       areas.push({ kind, ...(w.tags.name ? { name: w.tags.name } : {}), rings: [ring] })
   }
@@ -542,11 +584,11 @@ export const extractAreas = (osm: Osm): Array<Area> => {
     const inners = assembleRings(osm, rel, "inner").map((r) => ringOf(osm, r))
     for (const outer of assembleRings(osm, rel, "outer").map((r) => ringOf(osm, r))) {
       const flat = outer.flatMap(([x, y]) => [x, y])
-      const ring = flatRing(clipRing(outer), true)
+      const ring = flatRing(clipRing(outer, TERRAIN_BOX), true)
       if (ring === undefined) continue
       const holes = inners
         .filter((h) => pointInRing(h[0]![0], h[0]![1], flat))
-        .map((h) => flatRing(clipRing(h), false))
+        .map((h) => flatRing(clipRing(h, TERRAIN_BOX), false))
         .filter((h) => h !== undefined)
       areas.push({
         kind,
@@ -565,7 +607,7 @@ export const extractBarriers = (osm: Osm): Array<Barrier> =>
         w.tags.barrier === "wall" || w.tags.barrier === "guard_rail" || w.tags.natural === "cliff",
     )
     .flatMap((w) =>
-      clipLine(vertices(osm, w.nds)).map((pts) => ({
+      toPlay(vertices(osm, w.nds)).map(({ pts }) => ({
         kind: w.tags.natural === "cliff" ? "cliff" : w.tags.barrier!,
         pts: flatLine(pts),
       })),
@@ -597,7 +639,7 @@ export const extractPois = (osm: Osm): Array<Poi> => {
       continue
     if (k === "highway" && n.tags.highway !== "trailhead") continue // crossings, stops, street lamps
     const [x, y] = toLocal(n.lat, n.lon)
-    if (inBounds(x, y))
+    if (inPlay(x, y))
       pois.push({
         id: +n.id,
         kind: `${k}=${n.tags[k]}`,
@@ -613,7 +655,7 @@ export const extractPois = (osm: Osm): Array<Poi> => {
     const x = ring.reduce((s, p) => s + p[0], 0) / ring.length,
       y = ring.reduce((s, p) => s + p[1], 0) / ring.length
     const kind = areaKind(w.tags) ?? w.tags.amenity ?? w.tags.building ?? "named"
-    if (inBounds(x, y))
+    if (inPlay(x, y))
       pois.push({ id: +w.id, kind: `area:${kind}`, name: w.tags.name, x: r1(x), y: r1(y) })
   }
   return pois

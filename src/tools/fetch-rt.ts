@@ -3,10 +3,10 @@
 // `node src/tools/fetch-rt.ts ctr` (pnpm fetch-rt ctr) for the CTR sheets alone, which leaves the
 // LiDAR and the land cover as they are. What it downloads comes from the part's manifest,
 // data/parts/<part>.json (`manifest.ts`); it reads one part, today's (`lucido` in `region.ts`),
-// until issue #7 builds the map tile by tile. Needs `unzip` on the PATH. The archives are cached in
-// the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes equal the new ones is not
-// rewritten, so another zlib never churns a pinned file. Either way, a file whose bytes the lock does
-// not hold is recorded there with its source, for `pnpm pin-raw` (`raw-lock.ts`).
+// until #17 brings `fetch-rt <part>` and the per-part raw layout. Needs `unzip` on the PATH. The
+// archives are cached in the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes equal
+// the new ones is not rewritten, so another zlib never churns a pinned file. Either way, a file whose
+// bytes the lock does not hold is recorded there with its source, for `pnpm pin-raw` (`raw-lock.ts`).
 // - ctr/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2019 flight, EPSG:6707 (CC BY 4.0). AED =
 //   buildings, AGE = other areas (garages, ruins, station platforms, level crossings), AVI = road
 //   areas, AZR = the mapped area of each sheet, AFE = the rail ballast bed (its bridge and tunnel
@@ -44,9 +44,12 @@ const stage = process.argv[2]
 if (stage !== undefined && stage !== "ctr")
   throw new Error(`unknown stage ${stage}: use ctr or none`)
 
-// One part until #7: a second one would widen the crop over the land between them, all of it holes.
+// One part until #17 writes a DTM file a tile (rt/dtm/<i>_<j>): one mosaic over two parts would widen
+// its crop over the land between them, all of it holes.
 if (PARTS.length !== 1)
-  throw new Error(`fetch-rt mosaics one part; PARTS has ${PARTS.length} (more arrive with #7)`)
+  throw new Error(
+    `fetch-rt mosaics one part; PARTS has ${PARTS.length} (fetch-rt <part> comes with #17)`,
+  )
 const [PART] = PARTS
 if (!existsSync(manifestPath(PART!.key)))
   throw new Error(`no data/parts/${PART!.key}.json: run pick-sheets and pick-lidar with --write`)

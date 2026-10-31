@@ -53,18 +53,13 @@ const GRAGNOLA = { x: -1751, y: 3360, angle: 0 }
 const RURAL_ROAD = { x: -279, y: 3736, angle: 0 }
 
 /**
- * A farm out in the country, found by geometry: a rural farm with a pen (a barn, shed or farmyard) and no village or hamlet
- * within 300 m, the one with the most rural farms around it (where herds and pigs are likeliest).
+ * A farm out in the country within 1.5 km of Monzone station, found by geometry: a rural farm with a pen (a barn, shed or
+ * farmyard) and no village or hamlet within 300 m, the one with the most rural farms around it (where herds and pigs are
+ * likeliest; on 2026-10-30 also the whole map's).
  */
 const FARM = (() => {
   const places = MAP.pois.filter((p) => p.kind === "place=village" || p.kind === "place=hamlet")
-  const { x0, y0, cols, rows, cell } = MAP.heightmap
-  // Every farm on the map: those within the disc that covers it.
-  const all = farmsNear(
-    x0 + (cols * cell) / 2,
-    y0 + (rows * cell) / 2,
-    (Math.sqrt(cols * cols + rows * rows) * cell) / 2,
-  )
+  const all = farmsNear(-493.8, 436.9, 1500)
   const lonely = all.filter(
     (f) =>
       f.rural &&

@@ -1,8 +1,9 @@
 /**
  * Broad phases cut by tile that answer as one: each tile's items (walls, trees) are gridded on the
  * whole map's lattice for their kind (`MAP.walls.lattice`: 16 m cells from the lowest corner of any
- * item of the kind), and a query walks the lattice's cells south to north, west to east, each cell's
- * items in the whole map's order (merged across the tiles that hold some), each item once. That is
+ * wall of the kind, or the trees' corner fixed per region), and a query walks the lattice's cells
+ * south to north, west to east, each cell's items in the whole map's order (by id: merged across the
+ * tiles that hold some), each item once. That is
  * the order the single whole-map broad phase (`staticGrid`) gave before the map was cut into tiles,
  * so every collision resolves exactly as it did (the physics pushes out of walls one by one and keeps
  * the first of equal-time hits), whichever tiles are in memory.
@@ -26,7 +27,7 @@ export interface CellGrid {
   /** Cell k's items are `items[starts[k]] … items[starts[k + 1] − 1]`. */
   readonly starts: Int32Array
   readonly items: Int32Array
-  /** Each item's index in the whole map's list of its kind, ascending with the item. */
+  /** Each item's id, ascending with the item: a wall's index in the whole map's list of its kind, a tree's id. */
   readonly ids: ArrayLike<number>
   /** `seen[item] === stamp` once the current query has visited the item. */
   readonly seen: Int32Array

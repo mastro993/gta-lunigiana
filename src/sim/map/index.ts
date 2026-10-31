@@ -23,12 +23,14 @@ import { staticGrid } from "../collide.ts"
 import type { VehicleModel } from "../vehicles.ts"
 import { MAP } from "./global.ts"
 import {
+  anchorOf,
   BUILDING_STYLES,
   type BuildingStyle,
   isRoadClass,
   type RailKind,
   type RoadClass,
 } from "./kinds.ts"
+import { insideRings, ringsDistance } from "./outline.ts"
 import type { Railway } from "./railway.ts"
 import { cellNodes, type WallKind } from "./tiles.ts"
 
@@ -53,7 +55,7 @@ export {
 export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
 export { type Segment, treesIn, type WallKind, wallsNear } from "./tiles.ts"
 
-/** Play area rectangle, metres. */
+/** The built terrain's box, metres: the box round the map's parts, which the play area (`outline`) lies in. */
 interface Bounds {
   readonly minX: number
   readonly minY: number
@@ -72,6 +74,12 @@ interface Heightmap {
   readonly rows: number
   readonly x0: number
   readonly y0: number
+  /**
+   * The region's anchor, a node of the lattice, where it is not (x0, y0) (a part grew the map west
+   * or south of it): the lookups measure a point's cell from it (`anchorOf` in `./kinds.ts`).
+   */
+  readonly ax?: number
+  readonly ay?: number
 }
 
 /** A tile of the map (`TILE` m square (i, j)): its lowest and highest terrain node, decimetres. */
@@ -173,7 +181,7 @@ export interface Rail {
   readonly z: ReadonlyArray<number>
 }
 
-/** Land use polygon: `rings[0]` outer, the rest holes; `kind` is one of `AREA_KINDS` (checked by map.test.ts, narrow with `isAreaKind`). */
+/** Land use polygon: `rings[0]` outer, the rest holes; `kind` is one of `AREA_KINDS` (checked by map.map-test.ts, narrow with `isAreaKind`). */
 export interface Area {
   readonly kind: string
   readonly name?: string
@@ -214,8 +222,9 @@ export interface Spawn {
 export type Rest = readonly [z: number, pitch: number, roll: number]
 
 /**
- * A parked spot, with what the build baked from the terrain and walls there (src/sim/systems/spawn.ts
- * reads them; `bake.test.ts` checks they are current): the rest of each model that stands level
+ * A parked spot, with what the build baked from the terrain and walls there
+ * (src/sim/population/parked.ts reads them; `bake.map-test.ts` checks they are current): the rest of
+ * each model that stands level
  * enough on it, and whether a truck fits (clear of the walls, and level).
  */
 export interface ParkedSpot extends Spawn {
@@ -251,6 +260,12 @@ export interface MonzoneMap {
   readonly origin: { readonly lat: number; readonly lon: number }
   readonly mPerDeg: { readonly lat: number; readonly lon: number }
   readonly bounds: Bounds
+  /**
+   * The play area's outline (`./outline.ts` tests points against it): flat rings on 0.1 m, outer
+   * counter-clockwise and holes clockwise, the area left of every edge; the union of the map's
+   * parts, which on Lunigiana and Cesena is `bounds` itself.
+   */
+  readonly outline: ReadonlyArray<ReadonlyArray<number>>
   readonly heightmap: Heightmap
   /** Every tile with terrain in it, in key order (south to north, then west to east). */
   readonly tiles: ReadonlyArray<TileEntry>
@@ -276,18 +291,28 @@ export interface MonzoneMap {
   /**
    * The walls' broad phases: how far any wall reaches past its midpoint along either axis (m: a wall
    * lives in its midpoint's tile, so a query looks this far into the next), the south-west corner of
-   * each kind's lattice and the trees' (the lowest corner of any of them, where the whole map's broad
-   * phase put it: `./lattice.ts`), and how many walk and drive walls there are (a shore wall's index in
-   * the land and traffic broad phases follows them).
+   * each kind's lattice (the lowest corner of any of its walls, where the whole map's broad phase put
+   * it: `./lattice.ts`) and the trees' (fixed per region: src/tools/trees.ts `treeCorner`), and how
+   * many walk and drive walls there are (a shore wall's index in the land and traffic broad phases
+   * follows them).
    */
   readonly walls: {
     readonly reach: number
     readonly lattice: Readonly<Record<WallKind | "trees", readonly [number, number]>>
     readonly counts: { readonly walk: number; readonly drive: number }
   }
-  readonly spawns: { readonly player: Spawn; readonly parked: ReadonlyArray<ParkedSpot> }
+  readonly spawns: {
+    readonly player: Spawn
+    readonly parked: ReadonlyArray<ParkedSpot>
+    /**
+     * The Carabinieri station the build chose (src/tools/build-world.ts): their two cars park at the
+     * level spots nearest it (`CARABINIERI` in src/sim/population/parked.ts). None where the play
+     * area leaves it out.
+     */
+    readonly police?: { readonly x: number; readonly y: number }
+  }
   /**
-   * Baked by the build (src/sim/lanes.ts; `bake.test.ts` checks they are current): per model, the lane
+   * Baked by the build (src/sim/lanes.ts; `bake.map-test.ts` checks they are current): per model, the lane
    * offset of each traffic edge (`graph.traffic` order) travelled b → a, then a → b; −1 where the model
    * may not drive it.
    */
@@ -301,7 +326,7 @@ export interface MonzoneMapJson extends Omit<MonzoneMap, "coarse"> {
   readonly coarse: Omit<Coarse, "heights" | "cover">
 }
 
-/** The road's class; the build only emits `ROAD_CLASSES` (checked by map.test.ts), anything else reads as "path". */
+/** The road's class; the build only emits `ROAD_CLASSES` (checked by map.map-test.ts), anything else reads as "path". */
 export const roadClassOf = (road: Road): RoadClass => (isRoadClass(road.cls) ? road.cls : "path")
 
 const buildingStyles: ReadonlySet<string> = new Set(BUILDING_STYLES)
@@ -325,20 +350,31 @@ export const districtAt = (x: number, y: number): District => {
   return best
 }
 
+/**
+ * Whether (x, y) lies in the play area (`MAP.outline`; its edge counts as in it) with no edge of it
+ * closer than `margin` m: on a rectangular play area, the box test, to the bit (`./outline.ts`).
+ */
+export const inPlay = (x: number, y: number, margin = 0): boolean =>
+  insideRings(MAP.outline, x, y, margin)
+
+/** Distance (m) from (x, y) to the play area's outline, inside or out. */
+export const outlineDistance = (x: number, y: number): number => ringsDistance(MAP.outline, x, y)
+
 const hm = MAP.heightmap
 const { minX, minY, maxX, maxY } = MAP.bounds
+const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
 
 /** Scratch for the four nodes of a cell. */
 const corners = new Int32Array(4)
 
-/** Bilinear terrain elevation (m) at (x, y), clamped to the map bounds. */
+/** Bilinear terrain elevation (m) at (x, y), clamped to the map bounds; in an unlisted tile, from the nearest listed nodes (`./tiles.ts`). */
 export const heightAt = (x: number, y: number): number => {
-  const fx = (Math.min(maxX, Math.max(minX, x)) - hm.x0) / hm.cell
-  const fy = (Math.min(maxY, Math.max(minY, y)) - hm.y0) / hm.cell
-  const i = Math.min(hm.cols - 2, Math.max(0, Math.floor(fx)))
-  const j = Math.min(hm.rows - 2, Math.max(0, Math.floor(fy)))
-  const tx = fx - i
-  const ty = fy - j
+  const fx = (Math.min(maxX, Math.max(minX, x)) - AX) / hm.cell
+  const fy = (Math.min(maxY, Math.max(minY, y)) - AY) / hm.cell
+  const i = Math.min(hm.cols - 2, Math.max(0, Math.floor(fx) + AI))
+  const j = Math.min(hm.rows - 2, Math.max(0, Math.floor(fy) + AJ))
+  const tx = fx - (i - AI)
+  const ty = fy - (j - AJ)
   const [sw, se, nw, ne] = cellNodes(i, j, corners)
   const south = sw! + (se! - sw!) * tx
   const north = nw! + (ne! - nw!) * tx
@@ -384,8 +420,8 @@ interface GraphEdge {
 
 /**
  * Road network for AI steering. Junctions come from shared OSM nodes; long edges are split so
- * none exceeds ~25 m. Where a road leaves the play area its dead end sits 8 m inside the bounds,
- * beyond the road-exit caps: treat those degree-1 nodes as exits (despawn or U-turn).
+ * none exceeds ~25 m. Where a road leaves the play area its dead end sits 8 m back from the
+ * outline, beyond the road-exit caps: treat those degree-1 nodes as exits (despawn or U-turn).
  */
 interface RoadGraph {
   readonly nodes: ReadonlyArray<{ readonly x: number; readonly y: number }>

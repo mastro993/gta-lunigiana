@@ -2,8 +2,9 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { MAP_VERSION } from "../../sim/map/packed.ts"
+import { exitCodeOf, parseArgs } from "../map-diff-args.ts"
 import { diffMaps, formatDiff } from "../map-diff.ts"
-import type { JoinedMap } from "../tile-map.ts"
+import type { JoinedMap } from "../map-file.ts"
 
 type MonzoneMap = JoinedMap
 
@@ -14,6 +15,7 @@ const MAP: MonzoneMap = {
   origin: { lat: 44.2, lon: 10.1 },
   mPerDeg: { lat: 111_000, lon: 80_000 },
   bounds: { minX: -50, minY: -20, maxX: 50, maxY: 20 },
+  outline: [[-50, -20, 50, -20, 50, 20, -50, 20]],
   heightmap: { cell: 4, cols: 3, rows: 2, x0: -52, y0: -24, data: [100, 110, 120, 130, 140, 150] },
   tiles: [{ i: -1, j: -1, zmin: 100, zmax: 150 }],
   place: { floor: 10, downslope: 2 },
@@ -100,6 +102,7 @@ const MAP: MonzoneMap = {
     cover: Uint8Array.from([0, 1, 2, 3]),
   },
   trees: [10, 10, 1, 12, 10, 0.8],
+  treeIds: [3, 7],
   spawns: {
     player: { x: 1, y: 2, angle: 0 },
     parked: [{ x: 3, y: 4, angle: 1, rest: { panda: [100.5, 0, 0.01] } }],
@@ -118,7 +121,7 @@ const MAP: MonzoneMap = {
 const swap = <T>(list: ReadonlyArray<T>, k: number, item: T): ReadonlyArray<T> =>
   list.map((x, i) => (i === k ? item : x))
 
-test("identical maps, and maps that differ only in order, have no differences", () => {
+test("identical maps, and maps that differ only in the order of lists other than the walls and the trees, have no differences", () => {
   assert.deepEqual(diffMaps(MAP, MAP), [])
   assert.equal(formatDiff(diffMaps(MAP, MAP)), "no differences")
   const road = MAP.roads[2]!
@@ -127,8 +130,6 @@ test("identical maps, and maps that differ only in order, have no differences", 
     roads: [...MAP.roads].reverse(),
     // the same fields built in another order
     pois: [{ y: 2, x: 2, name: "Bar", kind: "amenity=bar", id: 11 }],
-    trees: [12, 10, 0.8, 10, 10, 1],
-    walls: { ...MAP.walls, walk: [5, 1, 5, 5, 1, 1, 5, 1] },
     // nodes 0 and 3 swapped, the edges reversed in order and pointing at the reversed roads
     graph: {
       xy: [0, 10, 10, 0, 20, 5, 0, 0],
@@ -144,6 +145,11 @@ test("identical maps, and maps that differ only in order, have no differences", 
 
 const CASES: ReadonlyArray<readonly [string, Partial<MonzoneMap>, RegExp]> = [
   ["top level", { bounds: { ...MAP.bounds, maxX: 60 } }, /^bounds: maxX 50 -> 60$/],
+  [
+    "outline",
+    { outline: [[-50, -20, 60, -20, 60, 20, -50, 20]] },
+    /^rings: 1 added, 1 removed, in x -50\.\.60, y -20\.\.20$/,
+  ],
   [
     "heightmap",
     { heightmap: { ...MAP.heightmap, data: [100, 110, 120, 130, 145, 150] } },
@@ -165,7 +171,7 @@ const CASES: ReadonlyArray<readonly [string, Partial<MonzoneMap>, RegExp]> = [
     /^drive: 1 added, in x 0\.\.2, y 0\.\.2$/,
   ],
   ["walls", { walls: { ...MAP.walls, shore: [] } }, /^shore: 1 removed/],
-  ["trees", { trees: [12, 10, 0.8] }, /^1 removed, in x 10\.\.10, y 10\.\.10$/],
+  ["trees", { trees: [12, 10, 0.8], treeIds: [7] }, /^1 removed, in x 10\.\.10, y 10\.\.10$/],
   ["trees", { trees: [10, 10, 1.1, 12, 10, 0.8] }, /^1 added, 1 removed, in x 10\.\.10/],
   [
     "roads",
@@ -262,6 +268,8 @@ const CASES: ReadonlyArray<readonly [string, Partial<MonzoneMap>, RegExp]> = [
     },
     /^parked: 1 added, 1 removed, in x 3\.\.3, y 4\.\.4$/,
   ],
+  ["spawns", { spawns: { ...MAP.spawns, police: { x: 5, y: 6 } } }, /^police: added at 5, 6$/],
+
   ["top level", { place: { floor: 11, downslope: 2 } }, /^place: floor 10 -> 11$/],
   ["top level", { name: "cesena" }, /^name: monzone -> cesena$/],
   ["tiles", { tiles: [{ i: -1, j: -1, zmin: 100, zmax: 151 }] }, /^1 added, 1 removed$/],
@@ -308,6 +316,119 @@ test("each category's change is reported in its block alone", () => {
       `${category}: ${blocks[0]!.lines.join(" | ")}`,
     )
   }
+})
+
+test("the Carabinieri station the build chose is reported under spawns: added, moved or removed", () => {
+  const at = (x: number, y: number): MonzoneMap => ({
+    ...MAP,
+    spawns: { ...MAP.spawns, police: { x, y } },
+  })
+  assert.deepEqual(diffMaps(at(5, 6), at(5, 7.5)), [
+    { category: "spawns", lines: ["police: y 6 -> 7.5"] },
+  ])
+  assert.deepEqual(diffMaps(at(5, 6), MAP), [{ category: "spawns", lines: ["police: removed"] }])
+})
+
+// The physics resolves contacts in wall order (another order lets a car into a building at a corner), and a tree's place
+// in the list is its id: a multiset comparison would hide both.
+test("walls of a kind and trees in another order are a difference, beside their adds and removals", () => {
+  // Two swapped: one of them moved.
+  assert.deepEqual(
+    diffMaps(MAP, { ...MAP, walls: { ...MAP.walls, walk: [5, 1, 5, 5, 1, 1, 5, 1] } }),
+    [{ category: "walls", lines: ["walk order: 1 of 2 shared segments moved, in x 1..5, y 1..1"] }],
+  )
+  assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8, 10, 10, 1], treeIds: [7, 3] }), [
+    { category: "trees", lines: ["order: 1 of 2 shared trees moved, in x 10..10, y 10..10"] },
+  ])
+  // A tree added in front and one removed leave the others in their order: no reorder.
+  assert.deepEqual(diffMaps(MAP, { ...MAP, trees: [5, 5, 1, 10, 10, 1], treeIds: [9, 3] }), [
+    { category: "trees", lines: ["1 added, 1 removed, in x 5..12, y 5..10"] },
+  ])
+  // Added, and the shared ones swapped: both said.
+  assert.deepEqual(
+    diffMaps(MAP, {
+      ...MAP,
+      walls: { ...MAP.walls, walk: [0, 0, 1, 0, 5, 1, 5, 5, 1, 1, 5, 1] },
+    })[0]!.lines,
+    [
+      "walk: 1 added, in x 0..1, y 0..0",
+      "walk order: 1 of 2 shared segments moved, in x 1..5, y 1..1",
+    ],
+  )
+})
+
+// A tree's id seeds its look (kind, size, tint, turn): the same tree with another id looks different.
+test("a tree on a spot both maps plant that carries another id there is a difference", () => {
+  assert.deepEqual(diffMaps(MAP, { ...MAP, treeIds: [3, 8] }), [
+    {
+      category: "trees",
+      lines: ["ids: 1 of 2 trees on a spot both maps plant renumbered, in x 12..12, y 10..10"],
+    },
+  ])
+  // Renumbered with their spots, beside an added tree: the shared trees keep their ids.
+  assert.deepEqual(
+    diffMaps(MAP, { ...MAP, trees: [10, 10, 1, 12, 10, 0.8, 0, 0, 1], treeIds: [3, 7, 1] })[0]!
+      .lines,
+    ["1 added, in x 0..0, y 0..0"],
+  )
+})
+
+test("an order change counts the fewest items that must move, the one moved from the front to the back alone", () => {
+  const row = [0, 1, 2, 3, 4].flatMap((x) => [x, 0, 1]),
+    ids = [0, 1, 2, 3, 4]
+  assert.deepEqual(
+    diffMaps(
+      { ...MAP, trees: row, treeIds: ids },
+      { ...MAP, trees: [...row.slice(3), ...row.slice(0, 3)], treeIds: [...ids.slice(1), 0] },
+    ),
+    [{ category: "trees", lines: ["order: 1 of 5 shared trees moved, in x 0..0, y 0..0"] }],
+  )
+})
+
+// The real maps hold identical wall segments (Lunigiana 4 walk and 4 drive, Cesena 51 of each): which copy went is
+// unknown, so a wrong guess must not shift every segment between the copies out of place.
+test("a segment with a copy removed is left out of the order, so the others between its copies keep theirs", () => {
+  const twin = [9, 9, 9, 8],
+    run = [1, 2, 3, 4, 5].flatMap((x) => [x, 0, x, 1])
+  assert.deepEqual(
+    diffMaps(
+      { ...MAP, walls: { ...MAP.walls, walk: [0, 0, 0, 1, ...twin, ...run, ...twin] } },
+      { ...MAP, walls: { ...MAP.walls, walk: [0, 0, 0, 2, ...twin, ...run] } },
+    ),
+    [{ category: "walls", lines: ["walk: 1 added, 2 removed, in x 0..9, y 0..9"] }],
+  )
+})
+
+test("--except: the accepted categories' differences are still printed, and named, but leave the exit code 0; any other category's makes it 1", () => {
+  const trees = diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8], treeIds: [7] }),
+    { except } = parseArgs(["a.bin", "b.bin", "--except", "trees"])
+  assert.equal(exitCodeOf([], new Set()), 0)
+  assert.equal(exitCodeOf(trees, new Set()), 1)
+  assert.equal(exitCodeOf(trees, except), 0)
+  assert.equal(
+    formatDiff(trees, except),
+    [
+      "trees:",
+      "  1 removed, in x 10..10, y 10..10",
+      "1 category differs: trees; accepted (--except): trees",
+    ].join("\n"),
+  )
+  const more = diffMaps(MAP, { ...MAP, trees: [12, 10, 0.8], treeIds: [7], lamps: [] })
+  assert.equal(exitCodeOf(more, except), 1)
+  assert.match(
+    formatDiff(more, except),
+    /2 categories differ: trees, lamps; accepted \(--except\): trees$/,
+  )
+})
+
+test("a map built before the play area's outline (issue #7) differs from one with it in the outline alone", () => {
+  // the outline key left out, as in a file written before it
+  const before = Object.fromEntries(
+    Object.entries(MAP).filter(([key]) => key !== "outline"),
+  ) as MonzoneMap
+  assert.deepEqual(diffMaps(before, MAP), [
+    { category: "outline", lines: ["rings: 1 added, in x -50..50, y -20..20"] },
+  ])
 })
 
 test("a key diffMaps does not compare, at the top level or inside a part it reads key by key, is reported, never no differences", () => {
@@ -421,6 +542,25 @@ test("the heightmap's grid change is reported, and the nodes both grids share ar
       "nodes: 1 of 4 shared nodes differ, max 1 m, RMS 1 m over them, in x -44..-44, y -20..-20",
     ],
   })
+})
+
+test("the heightmap's anchor is compared as the node its lookups count from, named or not", () => {
+  // Grown a column west round the same anchor: only the grid moved.
+  const grown = {
+    ...MAP.heightmap,
+    cols: 4,
+    x0: -56,
+    ax: -52,
+    ay: -24,
+    data: [0, 100, 110, 120, 0, 130, 140, 150],
+  }
+  assert.deepEqual(diffMaps(MAP, { ...MAP, heightmap: grown })[0]?.lines, [
+    "grid: cols 3 -> 4, x0 -52 -> -56; extent x -52..-44, y -24..-20 -> x -56..-44, y -24..-20",
+  ])
+  const moved = { ...MAP.heightmap, ax: -48, ay: -24 }
+  assert.deepEqual(diffMaps(MAP, { ...MAP, heightmap: moved })[0]?.lines, [
+    "grid: ax -52 -> -48; extent x -52..-44, y -24..-20 -> x -52..-44, y -24..-20",
+  ])
 })
 
 test("the report lists each block's lines, at most 10 per kind of change, then the categories that differ", () => {

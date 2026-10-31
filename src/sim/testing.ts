@@ -41,6 +41,8 @@ import {
   type Look,
   makeRuntime,
   Motion,
+  Parked,
+  Parking,
   Pedestrian,
   Person,
   Player,
@@ -68,6 +70,7 @@ import {
 } from "./index.ts"
 import { graph } from "./map/index.ts"
 import type { Surface } from "./map/surface.ts"
+import { parkedOn } from "./population/parked.ts"
 import type { trainDraft } from "./rail/service.ts"
 import { noTrains, TrainWorld } from "./rail/testing.ts"
 import {
@@ -136,6 +139,7 @@ export const World = Game.Inspector(
           damage: Game.Query.read(Damage),
           traffic: Game.Query.optional(Traffic),
           stolen: Game.Query.optional(Stolen),
+          parked: Game.Query.optional(Parked),
           route: Game.Query.optional(Route),
           pilot: Game.Query.optional(Autopilot),
         },
@@ -178,6 +182,7 @@ export const World = Game.Inspector(
       weather: Game.System.readResource(Weather),
       rivers: Game.System.readResource(Rivers),
       rng: Game.System.readResource(Rng),
+      parking: Game.System.readResource(Parking),
     },
   },
   ({ queries, resources }) => ({
@@ -191,6 +196,8 @@ export const World = Game.Inspector(
       damage: data.damage.get(),
       traffic: data.traffic.present,
       stolen: data.stolen.present,
+      /** The parked spot it holds (`Parked`), undefined once entered or for any other vehicle. */
+      parked: data.parked.value()?.spot,
       route: data.route.value(),
       pilot: data.pilot.value(),
     })),
@@ -234,8 +241,9 @@ export const World = Game.Inspector(
     clock: resources.clock.get(),
     weather: resources.weather.get(),
     rivers: resources.rivers.get(),
-    /** The world's random stream's state: what traffic, pedestrians and parking have drawn. */
+    /** The world's random stream's state: what traffic, people and animals have drawn. */
     rng: resources.rng.get(),
+    parking: resources.parking.get(),
   }),
 )
 
@@ -250,6 +258,8 @@ interface Cast {
   readonly carcasses?: ReadonlyArray<ReturnType<typeof animal>>
   /** Trains (`trainDraft`), AI-driven or not. */
   readonly trains?: ReadonlyArray<ReturnType<typeof trainDraft>>
+  /** Parked spots (indices into `MAP.spawns.parked`) each holding its Panda burnt out (`Parked`, a charred shell). */
+  readonly wrecks?: ReadonlyArray<number>
   /** A leader (lying dead, when `dead`) and who walks with it, people and animals (a dog on a lead), each at its place (see `Follows`). */
   readonly parties?: ReadonlyArray<{
     readonly leader: ReturnType<typeof pedestrian>
@@ -320,7 +330,7 @@ export const wear = (amount: number) =>
     ),
   )
 
-/** Test setup: no other vehicles, trains or pedestrians, the player at `at`, plus the `cast`. The railway's service is left as setup made it: with `start`'s `trains`, setup's first trains are gone and no line has another due, so only the cast's trains run until a `SetTrains`. */
+/** Test setup: no other vehicles, trains or pedestrians, the player at `at`, plus the `cast`; from the next half second `PopulateParked` parks cars 90–300 m round the player, as `Populate` brings traffic and people, unless `start` runs `alone`. The railway's service is left as setup made it: with `start`'s `trains`, setup's first trains are gone and no line has another due, so only the cast's trains run until a `SetTrains`. */
 export const stage = (at: PoseValue, cast: Cast = {}) =>
   Game.Schedule(
     Game.System(
@@ -353,6 +363,7 @@ export const stage = (at: PoseValue, cast: Cast = {}) =>
             PrevPose,
             Motion,
             CarInput,
+            Parked,
             Traffic,
             Route,
             Autopilot,
@@ -377,6 +388,13 @@ export const stage = (at: PoseValue, cast: Cast = {}) =>
         for (const beast of cast.animals ?? []) commands.spawn(beast)
         for (const body of cast.bodies ?? [])
           commands.spawn(Game.Command.extend(body, [Down, { until: 0 }], [Dead, { since: 0 }]))
+        for (const spot of cast.wrecks ?? [])
+          commands.spawn(
+            Game.Command.extend(parkedOn(spot, { model: "panda", color: 0x8b8170 }), [
+              Damage,
+              { ...UNDAMAGED, amount: 1, exploded: true },
+            ]),
+          )
         for (const body of cast.carcasses ?? [])
           commands.spawn(Game.Command.extend(body, [Down, { until: 0 }], [Dead, { since: 0 }]))
         for (const party of cast.parties ?? []) {
@@ -428,7 +446,7 @@ const keepOnly = (keep: ReadonlySet<number>) =>
  * and the crossings included) and the player's view, and read every event emitted so far (`heard`, in emission order). `alone`:
  * no one else ever comes (what Populate spawns goes at once), so a staged scene plays out undisturbed by traffic and passers-by.
  * No train runs unless `trains` (`noTrains` ticks before setup): only the trains tests have the service, and the trains they stage
- * (with `staging`, only those: see `stage`).
+ * (with `staging`, only those: see `stage`). The game's seed is `seed`, 1 by default.
  */
 export const start = (
   timeline: Timeline = [],
@@ -438,10 +456,11 @@ export const start = (
     readonly trains?: boolean
     /** Keys a test plays as it goes, instead of `timeline` (`liveKeys` in rail/testing.ts). */
     readonly keys?: { readonly snapshot: () => Keyboard.Snapshot<typeof bindings> }
+    readonly seed?: number
   } = {},
 ) => {
   const made = makeRuntime({
-    seed: 1,
+    seed: options.seed ?? 1,
     services: Game.Runtime.services(
       Game.Runtime.service(KeyboardInput, options.keys ?? Keyboard.scripted(bindings, timeline)),
     ),

@@ -1,35 +1,24 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP } from "../../../sim/map/index.ts"
 import { LINES, pointAt } from "../../../sim/rail/lines.ts"
-import { JOINT } from "../../synth/rail.ts"
-import { jointsBetween, portalsOf } from "../track.ts"
+import { portalsOf } from "../track.ts"
+import { checkJoints } from "./track-checks.ts"
 
-test("the rails clack at a joint every 36 m along a line, and at its switches: where a loop or siding the line does not run on meets it", () => {
+/** Monzone station. */
+const STATION = { x: -493.8, y: 436.9 }
+/** Within 4 km of Monzone station: the line from Equi Terme to past Gragnola's loop; track.map-test.ts checks every line end to end. */
+const holds = (x: number, y: number) => Math.hypot(x - STATION.x, y - STATION.y) <= 4000
+
+test("the rails clack at a joint every 36 m along a line by Monzone station, and at its switches: where a loop or siding the line does not run on meets it", () => {
+  let lines = 0
   for (const line of LINES) {
-    const joints = jointsBetween(line.index, -100, line.length + 100)
-    const switches = joints.filter((s) => s % JOINT !== 0)
-    assert.ok(
-      joints.filter((s) => s % JOINT === 0).length === Math.floor((line.length + 100) / JOINT) + 3,
-    )
-    // Every piece of track off the line ends on it at a switch, and nowhere else.
-    const runs = new Set(line.runs.map((run) => run.key))
-    const ends = MAP.rail.flatMap((piece, index) =>
-      runs.has(index)
-        ? []
-        : [0, piece.z.length - 1].map((k) => ({ x: piece.pts[2 * k]!, y: piece.pts[2 * k + 1]! })),
-    )
-    for (const s of switches) {
-      const at = pointAt(line, s)
-      assert.ok(
-        ends.some((end) => Math.hypot(end.x - at.x, end.y - at.y) < 0.1),
-        `${s}`,
-      )
-    }
-    if (ends.some((end) => line.x.some((x, k) => x === end.x && line.y[k] === end.y)))
-      assert.ok(switches.length > 0, "a loop on the line has its switches")
+    const s = line.s.filter((_, k) => holds(line.x[k]!, line.y[k]!))
+    if (s.length === 0) continue
+    lines++
+    checkJoints(line.index, Math.min(...s), Math.max(...s), holds)
   }
+  assert.ok(lines > 0, "the Lucca–Aulla line")
 })
 
 test("a train in a tunnel reaches the open by its two portals, each as deep as the track from it; out of a tunnel by none", () => {

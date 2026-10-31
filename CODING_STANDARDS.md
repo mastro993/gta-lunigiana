@@ -6,6 +6,7 @@ Every change follows these principles and steps; step 2 routes it to the checks 
 
 - **The real place.** Streets, buildings, heights, rivers, land cover and names come from survey and open data of the real Lunigiana. When the game and the real place disagree, fix the data or the pipeline.
 - **Code style.** No semicolons and double quotes (`pnpm format` applies both), a one-line JSDoc on every export, and modules under ~500 lines grouped by feature. Tests live in a `__tests__` folder beside the module they test: `src/sim/route.ts` is tested by `src/sim/__tests__/route.test.ts` (`pnpm lint` fails a test anywhere else).
+- **Map checks.** A check that visits every tile, chunk or feature of a map layer (every road, building, wall, tree, lane, parked spot, bridge, lamp) goes in a `*.map-test.ts` beside the tests (`src/sim/__tests__/route.map-test.ts`), which `pnpm test:map` runs, so what `pnpm test` checks does not grow with the map. `pnpm test` keeps a sampled version where the check guards code rather than data: the same check over the tiles or features round Monzone station, found by geometry. A test names the tiles it reads (`residentAround` in `src/audio/testing.ts` and `src/render/testing.ts`), never the whole map.
 
 ## Every change
 
@@ -24,7 +25,7 @@ Every change follows these principles and steps; step 2 routes it to the checks 
    | `src/hud` | [docs/standards/hud.md](docs/standards/hud.md) |
    | anything the player sees or hears | [docs/standards/playtest.md](docs/standards/playtest.md) |
 
-3. Write the test first. Find map features by geometry, as `BATTISTI` in `src/sim/testing.ts` does, so the test survives a map rebuild. A bug fix, a review's finding included, proves its test red: revert the fix, watch the test fail, restore it.
+3. Write the test first, in `pnpm test` or, for a check over the whole map, `pnpm test:map` (see Map checks above). Find map features by geometry, as `BATTISTI` in `src/sim/testing.ts` does, so the test survives a map rebuild. A bug fix, a review's finding included, proves its test red: revert the fix, watch the test fail, restore it.
 4. Make the change and work through every item of each standards file you read.
 5. Run `pnpm check` and read its exit code: `pnpm check > /tmp/check.log 2>&1; echo $?`. Piping it into `tail` hides a failure.
 6. Update every doc that describes the changed behaviour: the markdown under `docs/`, the README's controls, scripts and layout tables, and the system-order and state tables in architecture.md. Measure every number you write, with its unit, run every command, and put the reason beside the rule. Headings name what their section holds, and each section opens with a summary line. Markdown under `docs/` wraps at about 100 columns; root markdown files stay unwrapped.

@@ -13,6 +13,7 @@ import { smoothstep } from "../../buffers.ts"
 import { skyAt } from "../../index.ts"
 import { ambienceAt, bells, owlsNear, streetAt } from "../../places.ts"
 import { thunderRender } from "../../synth/thunder.ts"
+import { residentAround } from "../../testing.ts"
 import type { Happening, Heard, OneShot } from "../../types.ts"
 import { BEDS, GALE_DB, MOST_DB, windDb } from "../levels.ts"
 import { birdActivity, floorDb, USUAL_WIND } from "../sky.ts"
@@ -118,6 +119,8 @@ test("in the Panda the rain drums on the roof, centred and open; the bed outside
 test("thunder waits its travel time: a bolt 3.4 km away is first heard about 10 s after the flash, its render's lead before its strike point's sound", () => {
   const director = rig(),
     strike = away(MEADOW, 3400, SOUTH)
+  // The strike point's tile in memory too: the thunder starts on its exact ground.
+  residentAround([strike], 0)
   director.hear(world(MEADOW, { happenings: [flash(strike)] }))
   const flashed = director.now()
   director.hear(world(MEADOW), 12 * 60)

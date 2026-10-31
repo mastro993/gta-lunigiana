@@ -11,9 +11,11 @@ import {
   districtAt,
   graph,
   heightAt,
+  inPlay,
   isAreaKind,
   isDrivable,
   MAP,
+  outlineDistance,
   ROAD_CLASSES,
   type Segment,
   wallsNear,
@@ -82,13 +84,9 @@ const bucketed = <T>(
 }
 const clear = (kind: "walk" | "drive", x: number, y: number, r: number) =>
   wallsNear(kind, x - r, y - r, x + r, y + r).every((s) => segmentDistance(s, x, y) >= r)
+/** Strictly inside the built terrain's box, where the trees stand. */
 const inside = (x: number, y: number) =>
   x > MAP.bounds.minX && x < MAP.bounds.maxX && y > MAP.bounds.minY && y < MAP.bounds.maxY
-const nearEdge = (x: number, y: number, m: number) =>
-  x < MAP.bounds.minX + m ||
-  x > MAP.bounds.maxX - m ||
-  y < MAP.bounds.minY + m ||
-  y > MAP.bounds.maxY - m
 const STATION = { x: -493.8, y: 436.9 },
   ALTO = { x: -34.4, y: -300.3 }
 /** OSM place nodes of the villages the map was widened for. */
@@ -140,7 +138,7 @@ test("heightAt: station on the valley floor, Monzone Alto on its spur", () => {
   assert.equal(heightAt(-1e6, -1e6), heightAt(MAP.bounds.minX, MAP.bounds.minY)) // clamped
 })
 
-test("player spawn and parked cars are inside the bounds, clear of walls and off traffic lanes", () => {
+test("player spawn and parked cars are inside the play area, clear of walls and off traffic lanes", () => {
   const spots = [MAP.spawns.player, ...MAP.spawns.parked]
   assert.ok(
     MAP.spawns.parked.length >= 700 && MAP.spawns.parked.length <= 950,
@@ -152,10 +150,10 @@ test("player spawn and parked cars are inside the bounds, clear of walls and off
       `no parking in ${name}`,
     )
   for (const s of spots) {
-    assert.ok(inside(s.x, s.y), JSON.stringify(s))
+    assert.ok(inPlay(s.x, s.y), JSON.stringify(s))
     assert.ok(clear("walk", s.x, s.y, 1.2) && clear("drive", s.x, s.y, 1.2), JSON.stringify(s))
   }
-  const police = MAP.pois.find((p) => p.kind === "amenity=police")!
+  const police = MAP.spawns.police!
   assert.ok(
     hypot(MAP.spawns.player.x - police.x, MAP.spawns.player.y - police.y) < 40,
     "player near the Carabinieri",
@@ -212,7 +210,7 @@ test("walls: none on a road; only buildings and barriers come inside w/2", () =>
   for (const r of MAP.roads) {
     if (r.tunnel === true) continue
     for (const { x, y } of samples(r.pts, 2)) {
-      if (nearEdge(x, y, 10)) continue // road-exit caps
+      if (outlineDistance(x, y) < 10) continue // road-exit caps
       const where = `${r.cls} ${r.id} at ${x.toFixed(1)},${y.toFixed(1)}`
       assert.ok(clear("walk", x, y, Math.min(0.6, r.w / 2)), `walk wall on ${where}`)
       if (isDrivable(r.cls)) assert.ok(clear("drive", x, y, 1), `drive wall within 1 m of ${where}`)

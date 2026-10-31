@@ -32,17 +32,18 @@ import {
 } from "../index.ts"
 import { roadLevel } from "../map/ground.ts"
 import { graph, isDrivable, MAP, wallsNear } from "../map/index.ts"
+import { carOn, PARKING, spotsWithin } from "../population/parked.ts"
 import {
   distanceToEdge,
   laneOf,
   lanePoint,
   laneSide,
   roadOf,
+  trafficIndex,
   walkIndex,
   walkSide,
 } from "../route.ts"
 import { animal, parkedCar, pedestrian, trafficCar } from "../spawning.ts"
-import { PARKED } from "../systems/spawn.ts"
 import {
   BATTISTI,
   battistiTraffic,
@@ -66,20 +67,35 @@ import {
 import { VEHICLES } from "../vehicles.ts"
 import { followYaw, QUARTER, screenAxes } from "../view.ts"
 
-test("setup: the player at the map spawn, 200 parked cars on random spots, Carabinieri in front of the station", () => {
+test("setup: the player at the map spawn, the cars the spots' hash parks within 300 m of it, Carabinieri in front of the station", () => {
   const { run, view, world } = start()
   run(1)
   assert.equal(view()?.mode, "foot")
   assert.deepEqual(view()?.pose, MAP.spawns.player)
   const { vehicles } = world()
-  assert.equal(vehicles.length, PARKED)
-  assert.ok(vehicles.length >= 40, `${vehicles.length} parked cars`)
   assert.ok(vehicles.every((v) => !v.traffic && v.input.handbrake))
+  const civilians = vehicles.filter((v) => v.model !== "carabinieri")
+  assert.deepEqual(
+    civilians.map((v) => v.parked).sort((a, b) => a! - b!),
+    spotsWithin(MAP.spawns.player, PARKING.fill[1])
+      .filter((i) => carOn(1, i) !== undefined)
+      .sort((a, b) => a - b),
+    "a car on each spot within 300 m of the start the hash gives one",
+  )
+  assert.ok(civilians.length >= 3, `${civilians.length} parked cars`)
   assert.ok(
-    vehicles.every((v) =>
-      MAP.spawns.parked.some((s) => s.x === v.x && s.y === v.y && s.angle === v.angle),
-    ),
-    "every car on a parked spot",
+    civilians.every((v) => {
+      const s = MAP.spawns.parked[v.parked!]!,
+        car = carOn(1, v.parked!)
+      return (
+        s.x === v.x &&
+        s.y === v.y &&
+        s.angle === v.angle &&
+        car?.model === v.model &&
+        car.color === v.color
+      )
+    }),
+    "each the car its spot's hash gives, on its spot",
   )
   assert.ok(
     vehicles.every((v) => uprightness(v.chassis) > Ops.cos(0.26)),
@@ -103,7 +119,7 @@ test("setup: the player at the map spawn, 200 parked cars on random spots, Carab
       `seed ${seed}`,
     )
   }
-  const police = MAP.pois.find((p) => p.kind === "amenity=police")!
+  const police = MAP.spawns.police!
   const nearest = [...MAP.spawns.parked]
     .sort((a, b) => Vec2.distance(a, police) - Vec2.distance(b, police))
     .slice(0, 2)
@@ -111,14 +127,16 @@ test("setup: the player at the map spawn, 200 parked cars on random spots, Carab
   assert.equal(carabinieri.length, 2)
   assert.ok(
     carabinieri.every(
-      (v) => v.color === 0x1d2b4f && nearest.some((s) => s.x === v.x && s.y === v.y),
+      (v) =>
+        v.color === 0x1d2b4f &&
+        v.parked === undefined &&
+        nearest.some((s) => s.x === v.x && s.y === v.y),
     ),
   )
   assert.ok(
     carabinieri.every((v) => Vec2.distance(v, police) < 45),
     "Carabinieri in front of their station",
   )
-  assert.ok(vehicles.filter((v) => v.model === "truck").length <= 2)
 })
 
 test("on foot: the up key walks along screen-up and stops at a building wall", () => {
@@ -427,10 +445,10 @@ test("traffic: a car follows the roads for 30 s, never inside walls", () => {
   let last: PoseValue = ON_BATTISTI
   run(1800, () => {
     const car = world().vehicles.find((v) => v.id === id)!
-    // Within a metre of a traffic road's carriageway (corners get cut): measured from every edge, so a car
-    // turning out of a lane into a wider road is judged by the wider road.
+    // Within a metre of a traffic road's carriageway (corners get cut): measured from every edge near it (an edge is at
+    // most 25.5 m, a carriageway 12 m), so a car turning out of a lane into a wider road is judged by the wider road.
     let off = Infinity
-    for (const e of graph.trafficEdges)
+    for (const e of trafficIndex.around(car.x, car.y, [0, 40]))
       off = Math.min(off, distanceToEdge(e, car.x, car.y) - roadOf(e).w / 2)
     assert.ok(off < 1, `${off} m beyond the carriageway at (${car.x}, ${car.y})`)
     assert.ok(carClear("panda", car, 0.02), "never inside a wall")
@@ -521,9 +539,14 @@ const joyride: Timeline = [
 /**
  * Up the street, a mother with her son and their dog on a lead walk toward a man lying dead on their verge: they come on him in
  * about 2 s, stand shocked and run from him; a cat sits across the street. Followers, bodies, animals and reactions all replay.
- * A man walks by the burning wreck.
+ * A man walks by the burning wreck. Out of view, a parked car stands burnt out on `WRECKED`: it goes in the first half second,
+ * and its spot stays empty (`Parking.wrecked`).
  */
 const BYSTANDER = { x: FAR.x, y: FAR.y + 2.5, angle: 0 }
+/** A parked spot 150–300 m from the joyride's start where seed 1 parks a car. */
+const WRECKED = spotsWithin(ON_BATTISTI, PARKING.fill[1]).find(
+  (i) => Vec2.distance(MAP.spawns.parked[i]!, ON_BATTISTI) > 150 && carOn(1, i) !== undefined,
+)!
 const joyrideCast = (() => {
   const lane = laneOf(BATTISTI.edge, BATTISTI.forward),
     verge = walkSide(roadOf(BATTISTI.edge)),
@@ -544,6 +567,7 @@ const joyrideCast = (() => {
           angle: 0,
         }),
       ],
+      wrecks: [WRECKED],
       peds: [
         pedestrian(
           LOOK,
@@ -669,7 +693,13 @@ test("saves: a snapshot taken mid-joyride, in a thunderstorm, restores through J
     a.world().vehicles.some((v) => !v.damage.exploded && v.damage.fuse > 0),
     "and setting the car beside it burning",
   )
-  const b = start()
+  assert.ok(
+    a.world().vehicles.some((v) => v.parked !== undefined),
+    "with cars parked round the player since",
+  )
+  assert.deepEqual(a.world().parking.wrecked, [WRECKED], "and the wreck out of view gone for good")
+  // Another seed's game: the restore brings back the save's random streams and its parking seed.
+  const b = start([], undefined, { seed: 2 })
   assert.ok(b.runtime.restore(jsonSave(a.runtime)).ok)
   assert.deepEqual(b.view(), a.view())
   assert.deepEqual(b.world(), a.world())

@@ -2,26 +2,27 @@
 
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map: the global file `src/sim/map/monzone.bin` (1.9 MB) and 30 tiles of 2 km in
-`src/sim/map/monzone/` (5.6 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
-is deterministic (gunzipped, its files are the same bytes on every machine, arm64 and x64 alike,
-and it prints the same build hash; gzipped, they are byte-identical with the same Node build, while
-another zlib or OS writes other compressed bytes) and takes about 14 s. V8's `Math.sin`, `cos`,
-`tan`, their inverses, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `atanh`, `exp`, `expm1`, `log`,
-`log1p`, `log10` and `**` (but squaring) return other last bits on arm64 than on x64 (Node 24.14.1,
-200,000 arguments each; `sqrt`, `hypot`, `cbrt`, `log2` and `x ** 2` agree), and before #68 the two
-builds of Lunigiana differed by one parked car's spot at (−1306, 2480). So the build calls Ritmo's
-`Ops` (`@typeonce/ritmo-math`, a port of fdlibm built from `+ − × ÷` and `Math.sqrt`, which every CPU
-rounds the same) for those, as the sim does, and keeps V8's `Math.hypot`, which V8 computes from the
-same operations (`Ops.hypot` would move 38 % of its results by a last bit). `map-key.test.ts` fails
-on a `Math` call or `**` of that list in any file the build imports. It prints a lap time per stage,
-the rail's fit to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)), each platform ([section
-9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the tile
-count, the bytes written and the largest tile, counts, the rail on the CTR (OSM's offset from it,
-the shipped residual, the level crossings' slides, the bridge ends slid, the culverts, the at-grade
-track cut into the CTR's bridges and the rail bed), the railway (its lines, stations, level-crossing
-boxes and the verges pulled in off the track), the steepest grade per road class, and the size of
-each part of the files.
-Inputs and attribution are in the [README](../README.md).
+`src/sim/map/monzone/` (5.7 MB in all, the largest 0.31 MB; see [Map files](#map-files)). The build
+is deterministic (gunzipped, its files are the same bytes on every machine, arm64 and x64 alike, and
+it prints the same build hash; gzipped, they are byte-identical with the same Node build, while
+another zlib or OS writes other compressed bytes), takes about 8.3 s and peaks at 1.05 GB resident
+([Pipeline](#pipeline)). V8's `Math.sin`, `cos`, `tan`, their inverses, `atan2`, `sinh`, `cosh`,
+`tanh`, `asinh`, `atanh`, `exp`, `expm1`, `log`, `log1p`, `log10` and `**` (but squaring) return
+other last bits on arm64 than on x64 (Node 24.14.1, 200,000 arguments each; `sqrt`, `hypot`, `cbrt`,
+`log2` and `x ** 2` agree), and before #68 the two builds of Lunigiana differed by one parked car's
+spot at (−1306, 2480). So the build calls Ritmo's `Ops` (`@typeonce/ritmo-math`, a port of fdlibm
+built from `+ − × ÷` and `Math.sqrt`, which every CPU rounds the same) for those, as the sim does,
+and keeps V8's `Math.hypot`, which V8 computes from the same operations (`Ops.hypot` would move 38 %
+of its results by a last bit). `map-key.test.ts` fails on a `Math` call or `**` of that list in any
+file the build imports. It prints the end of each stage (seconds from the start and the process's
+resident memory then), the rail's fit to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)),
+each platform ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the
+build hash, the tile count, the bytes written and the largest tile, counts, the rail on the CTR
+(OSM's offset from it, the shipped residual, the level crossings' slides, the bridge ends slid, the
+culverts, the at-grade track cut into the CTR's bridges and the rail bed), the railway (its lines,
+stations, level-crossing boxes and the verges pulled in off the track), the steepest grade per road
+class, and the size of each part of the files. Inputs and attribution are in the
+[README](../README.md).
 
 `src/sim/map/kinds.ts` holds the vocabulary that the build and the game share: road classes and
 their default widths, where people walk and cars drive across them (`vergeOf`, `laneOffset`),
@@ -37,8 +38,9 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
 - **Selection**: the title card links to `?map=cesena`; an omitted `map` selects Lunigiana.
   `src/maps.ts` validates the name before download, and the boot host updates the title and credits.
   Switching maps reloads the page and starts a fresh world. The links preserve an explicit seed.
-- **Extent**: `region.ts` centres Cesena at latitude 44.1391, longitude 12.2429, with local bounds
-  of -2000 to 2000 m on both axes. This covers a 4 by 4 km city-centre area, not the whole comune.
+- **Extent**: `region.ts` centres Cesena at latitude 44.1391, longitude 12.2429, with one part,
+  `cesena`: the local square −2000 to 2000 m on both axes, played whole. This covers a 4 by 4 km
+  city-centre area, not the whole comune.
 - **Accepted sources**: OpenStreetMap (ODbL) supplies roads, buildings, water, land use and names.
   `pnpm fetch-osm --region cesena` pins a separate `data/raw/cesena.osm.gz` with the same API
   fetcher, which splits a box the API refuses as too large. Regione Emilia-Romagna's
@@ -59,18 +61,203 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
 - **Features**: secondary roads and main-road links use the existing tertiary class; cycleways
   are walkable paths. OSM building height tags are used where present, otherwise existing default
   heights apply. Road widths use class defaults. The Savio's width is the median of perpendicular
-  cross-sections through its OSM bank polygons, not the mountain-stream fallback. Neighbourhood
-  labels come from OSM place nodes, without Monzone's hand-placed districts or stone cores.
+  cross-sections through its OSM bank polygons (each piece the play area's outline keeps of a way
+  on its own: way 1029104404's two are 13.8 and 14 m), not the mountain-stream fallback.
+  Neighbourhood labels come from OSM place nodes, without Monzone's hand-placed districts or stone
+  cores.
 - **Start**: the player starts beside a central street in the connected traffic network, outside
   buildings with an open walk-clear route to the street. Police and station parking use Cesena's
-  mapped Carabinieri headquarters and railway station.
+  mapped Carabinieri headquarters (the Compagnia, POI 806564311, which the map names as
+  `spawns.police`: the game parked them by the first police POI, the Commissariato 1.9 km away,
+  until the build named it) and railway station.
 - **Checks**: `src/tools/__tests__/cesena.test.ts` checks landmarks, connected networks, the outdoor spawn,
   nearby cars, measured river widths and deterministic simulation startup. Run `pnpm check` after
   a build. Preview the map with
   `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`.
   Repeat builds must have identical decompressed hashes, as for Lunigiana.
 
+## Test regions
+
+Test regions build the Lunigiana map in other shapes and sizes, to check the build where the shipped
+map cannot: `region.ts` defines them beside the regions, and `node src/tools/build-map.ts --region
+<key>` (or `pnpm map --region <key>`) writes them to `test-maps/<key>.bin` and its tiles, gitignored;
+the game never loads them and nothing ships them. Each reads Lunigiana's inputs on its origin and
+tree anchor (a tree stands where it does on the shipped map, with the same id), and `fetch-osm`
+refuses one (`checkFetchable`: its box is not its inputs', and its id names the OSM file it would
+cut down). `loadBuiltMap` in `src/tools/map-file.ts` hands one to the
+sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
+
+- **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
+  the Carabinieri and the start, Gragnola's rail layout to lucido's north edge) and x 0…2400 by y
+  0…1400 (Equi Terme and its station), 6 tiles; the notch, x 0…2400 by y 1400…3900 round Fazzano,
+  Casciana and Codiponte, is real land, its two tiles unlisted. It builds in 3.1–3.2 s and peaks
+  at 0.64–0.68 GB (arm64, three runs on 2026-10-31). `pnpm maps` builds it after the two maps, and
+  CI caches it with them (it reads their inputs and code, so it shares their key, and the
+  reproducible job's hash covers it).
+  `src/tools/__tests__/l-region.map-test.ts` (`pnpm test:map`; without the build every check is
+  skipped, saying how to build it, but in CI, which builds it, the file fails instead, so a broken
+  `maps` script or cache path cannot pass with nothing checked) loads it and checks, through the
+  game's own lookups:
+  - the outline walls, walk and drive, run end to end along every edge of the L, and `wallsNear`
+    answers them every 4 m along it, the notch's sides included (the cut keeps their walls in the
+    listed tiles beside the notch: [Map files](#map-files));
+  - every drivable road leaving it (52 cut ends, 15 on the notch's two sides) is crossed by a drive
+    wall off the outline within 8 m of its end (the build's cap, 4 m in);
+  - a flood on foot from the start, over 2 m cells, stops at the walk walls (`wallsNear`: walls and
+    trunks) and never leaves the play area, while it reaches every edge and 10.2 km² of the 12.72;
+    with the walls on the notch's west side left out of its lookups it gets out at (1, 3009);
+  - every graph node, spawn, POI and platform lies in the play area, and every building's centroid;
+  - no tree beyond the outline stands on a road, in a stream or in a building of lucido's map;
+  - no wall lies wholly more than 5 m outside the play area: the walls stage blocks no cell whose
+    centre lies outside it, so the notch's slopes and banks are walled by the outline alone.
+- **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
+  y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
+  play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
+  synthetic, with no roads or buildings, only the land cover that reaches past lucido: 19 areas
+  run on whole past its edge, among them 4 woods of 97.4 km² that hold 0.98 million more trees, and
+  77 more lie beyond it, 62 of them the CTR's paved surfaces (1,215 areas and 1,988,627 trees
+  against lucido's 1,138 and 1,011,936 on 2026-10-31). It serves the build's memory and time and
+  the cars round Monzone, and is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`);
+  CI never builds it.
+
+Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
+three runs each, a load average of 5–6 from other work), before and after the build's per-tile
+stages were sped up (lucido's files the same, byte for byte):
+
+| Build | Tiles | Wall clock | Peak resident |
+|---|---|---|---|
+| lucido (`pnpm map`), before | 30 | 12.41, 12.81, 12.71 s | 1,117, 1,096, 1,109 MB |
+| `lunigiana-3x`, before | 78 | 28.52, 28.27, 28.17 s | 1,594, 1,592, 1,598 MB |
+| lucido (`pnpm map`) | 30 | 8.29, 8.27, 8.30 s | 1,057, 1,040, 1,051 MB |
+| `lunigiana-3x` | 78 | 15.43, 15.71, 15.29 s | 1,476, 1,459, 1,473 MB |
+
+- **Memory**: 1.46–1.48 GB, half the 3 GB issue #3 asks of a 3× region, and 9 MB more a tile: the
+  grid (twice, carved and uncarved, 8 bytes a node), the catchments' arrays (15 bytes a node), the
+  walls' bit sets and the cut tiles still grow with the area ([Pipeline](#pipeline)). It was 1.6 GB
+  and 10 MB a tile before the catchments' D8 went to a byte a node.
+- **Time**: (15.48 − 8.29) s over 48 more tiles is 0.150 s a tile, against the 0.3 s issue #3 asks
+  (0.33 s before), plus a fixed 3.8 s (lucido's 8.29 s less its 30 tiles at that rate). The 7.2 s
+  more, stage by stage: the catchments 1.5 s, the grid 1.3 s (2.1 s rather than 0.85 s), the walls
+  1.1 s, the write 1.1 s, the cut 1.0 s and the trees 0.85 s; the rest holds lucido's features
+  whatever the size. Before, the 15.7 s more were the grid 5.7 s (each of a node's 25 DTM samples
+  ran the projection lattice's bilinear twice), the write 4.3 s (gzip on the main thread), the
+  catchments 2.1 s, the cut 1.4 s, the walls 1.1 s and the trees 0.9 s ([Pipeline](#pipeline) says
+  what changed). Gzip at level 9 takes 78 ms on a synthetic tile against 43 ms on a lucido one
+  (the edge drawn on repeats, which lengthens its match chains), so a real part's tiles write
+  faster but bring roads, walls and trees the synthetic ones lack.
+- **Live vehicles round Monzone** (`x3-region.map-test.ts`, which runs `stand.ts` on each map and
+  seeds 1–6, each in a process of its own, and is skipped without the 3x build): after the player
+  stands 60 s at the start, the parked cars on either map are exactly those the dice (`carOn`, a hash
+  of a spot's place and the seed) park on the 34 spots within 300 m of the start, which stand where
+  they do on lucido, beside 10 traffic and the Carabinieri's 2, within the 200 parked and 10 traffic
+  `PARKED` and `TRAFFIC.max` allow: 11, 3, 6, 10, 11 and 9 parked on seeds 1–6, the same cars on
+  the same spots in the same paint on both maps. So the count does not grow with the map, and the
+  cars stay as they were though the 3x keeps 804 parked spots, not 805: 9 buildings across lucido's
+  edge, clipped to its box on lucido (their centroid inside), are kept whole and dropped by their
+  centroid there (OSM building 700764389 by spot 367, at (−2892.7, 3095.5)), so every spot after
+  367 moves one index down, which dice keyed on the place do not see.
+  `src/sim/__tests__/parked-far.test.ts` (`pnpm test`) gives Lunigiana three times its spots, copies
+  30 and 60 km east after its own: the cars round the start are still the dice's on its own spots;
+  `parked-place.test.ts` lists each spot twice, once with a spot dropped before it and once with
+  all the others added before it, and both listings of a spot round the start hold the same car on
+  seeds 1–6.
+- **What else moves**: in lucido's rectangle the 3x's terrain, its land cover more than 50 m in
+  from the edge and the tables it bakes are lucido's to the bit (`x3-region.map-test.ts`); the
+  place, the catchments and what lucido's edge cuts differ ([What growing a region
+  changes](#what-growing-a-region-changes)).
+
+The build's Lunigiana-only constants hold in a test region: the station and Carabinieri POIs may be
+out of play (`regionPoi` in `spawns.ts`; a shipped map without them throws), and then no spots are
+kept for them, no car park by the station gets spots (`parkedSpots`), `spawns.police` is left out
+and the player starts as on Cesena, at the traffic node nearest the origin (`startNear`), each
+checked in `spawns.test.ts`; Gragnola's layout swaps no node the play area leaves out
+(`conflate.ts`, `conflate.test.ts`). The Aulella's 161 km² beyond the map (`AULELLA_OFF_MAP`) and
+the stone cores are lucido's: a test region's river flows are not calibrated. Scratch regions
+without Gragnola, without Monzone and without the rail (x −1000…4900 by y 0…2600, x −2900…0 by y
+2000…3900, x 500…4900 by y −6100…−1000) built on 2026-10-31, and so did three on lucido's box whose
+play area leaves level crossings and stations out: a mask on its south half (y −6100…−1100), a
+slanted mask with a reflex corner, and four rectangles round a hole at Monzone (x −1000…1500 by y
+−1000…2000). Before the build kept only the level crossings and platforms in play, each threw on a
+level crossing beyond the outline (CTR 23D11 AGE#166, 23D36 AGE#76).
+
 ## Pipeline
+
+The build runs in four phases, each a function whose intermediates go out of scope when it returns,
+so its peak is one phase's working set plus what that phase hands on:
+
+| Phase | Module | Sections | Let go when it returns |
+|---|---|---|---|
+| sources | `build-sources.ts` | 1–4, and the districts (12) | the OSM, the CTR |
+| terrain | `build-terrain.ts`, `build-grid.ts` | 5–8 and the rail bed | the DTM, the profiles, the catchments' grid |
+| world | `build-world.ts` | 9–12 | the clearance indexes the spawns and the graph's dead ends are checked against |
+| output | `build-output.ts` | the map put together, its land cover, the cut, the bake, the files | |
+
+The DTM is the one input two phases read (the sources take the water's widths from it), so
+`build-map.ts` hands it from one to the other in a function of its own that returns with the grid:
+a value a running function holds is never collected, and held in the build's own function it
+stayed through the world phase and the cut (Lunigiana, after the terrain phase and two full
+collections: 121 MB of array buffers, 39 MB, the grid alone, once it goes).
+
+The output cuts the map into its tiles once ([Map files](#map-files)), one at a time, each packed
+with an empty hash as soon as it is cut: its nodes from the grid (whole decimetres, an `Int16Array`),
+its land cover rasterised for its cells alone (`coverBlocks` in `raster.ts`, with the whole
+raster's arithmetic, so no raster of the whole map is ever made; the areas are sorted and boxed
+once, and a tile fills only those whose box comes within a cell of it: the cut took 1.9 s rather
+than 2.4 s on the 3x test region, whose tiles in a row each scanned every area of the row), and
+its walls and trees in the whole map's order (sorted by tile once). The walls' blocked cells are
+worked out tile by tile too: the slope test and the 3 × 3 majority filter of a tile's cells read one
+cell past it, from the grid, into one bit set per kind over the whole map, which is traced as one
+(the loops in the order of their lowest crossing, each simplified and split as it is traced, so only
+the loop at hand is held). The bake reads those through a store that keeps 16 decoded and drops the
+first one read past that, as a host drops tiles: the cut and the bake took 7.6 s with 4 kept, 3.7 s
+with 9, 1.5 s with 16 and 1.2 s with all 30. Then the hash is taken over the global file and each
+tile, all unstamped, and each file is stamped (a tile's JSON line rewritten with the hash), gzipped
+at level 9 and written, 8 at a time on libuv's 4 threads (`writeGzipped`): the same bytes as one at
+a time, in 0.5 s rather than 1.6 s on Lunigiana and 1.6 s rather than 6 s on the 3x test region,
+whose 78 tiles gzip at 74 ms each.
+
+The terrain phase works out the vectors first: the water's surfaces, the road and rail profiles,
+whose writes into the grid are recorded in order as claims, and the water capped under the decks.
+Then `build-grid.ts` builds the grid one 2 km tile at a time (`gridTiles` in `grid-tiles.ts`, south
+to north then west to east): on the window of the tile's 501 × 501 nodes, cut to the grid, it
+averages the LiDAR, carves the beds under the water as first settled, writes the claims in their
+order, carves the beds again under the capped water outside the road cores, reads the terrain under
+the water samples whose cells are the tile's own (for the perched check, section 8), rounds to 0.1 m
+and lays the rail bed. A window keeps the whole grid's lattice (`Grid.span` in `terrain.ts`):
+positions, index ranges and clamps are worked out as on the whole grid, so its nodes are the same
+doubles. Each of those stages writes a node from that node alone (its own value, position and owner,
+and the vectors), so a window needs no halo. The perched check reads the 4 nodes of one cell, all in
+the tile that owns the cell, and the walls' slope test, which reads 3 nodes around a cell, reads the
+grid the tiles put together. A node two tiles share is worked out in both, and the pass fails the
+build if the two differ. The catchments then run on the uncarved grid the tiles put together.
+
+Pairings that would grow with the square of the region are indexed: the level crossings, the
+water's mouths and the catchments' inflows by node id, the chains' growth order (section 7) by the
+node ids already set, the road–rail and line–water crossings gated by their boxes, and the
+parapets' openings read from one index of the roads.
+
+On 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs)
+the build peaked at 1.04–1.06 GB resident and took 8.3 s: 1.10–1.12 GB and 12.4–12.8 s that
+morning, before the grid's nodes, the catchments, the land cover's fills and the write were sped
+up (the same files), and 1.30–1.46 GB and 13.6–13.9 s on 2026-10-30 with every stage at the top
+level of `build-map.ts` and the map cut twice. The grid's tile pass takes 0.85 s (0.028 s a tile)
+and the cut 0.9 s. The stages ended at (s from the start, and the resident MB the build prints
+then):
+
+| | rail | features | roads | decks | grid | water | railway | walls | trees | spawns | map | cut | bake | write |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| s | 0.60 | 1.17 | 1.23 | 1.25 | 2.10 | 2.90 | 3.48 | 4.93 | 5.67 | 5.98 | 6.00 | 6.91 | 7.66 | 8.17 |
+| MB | 521 | 549 | 561 | 565 | 649 | 658 | 692 | 830 | 777 | 895 | 895 | 874 | 1,003 | 1,018 |
+
+Resident memory climbs most in the spawns, by 118 MB (the clearance indexes of every wall and
+trunk), and in the bake, by 129 MB (the game decoding the global file and the tiles it reads, while
+the build still holds the cut tiles, 38.5 MB of unstamped files, and the global map's vectors); it
+peaks in the bake or the write. The grid stays whole (8 bytes a node, 39 MB here) for the walls'
+slope test, the railway's platforms, the paths' and buildings' heights and the cut, and so do the
+catchments (15 bytes a node of arrays the size of the grid, 73 MB here, beside the uncarved grid
+they fill, for a moment), the walls' bit sets (1 byte a cell each) and their trace, which are the
+parts that still grow with the area: 9 MB a tile on the 3x test region ([Test
+regions](#test-regions)).
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
@@ -81,6 +268,8 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
   most of a forest's member ways lie outside the play area.
   Elements are merged by id and written sorted. A regex reader parses the XML into nodes, ways
   and relations, and assembles multipolygon rings from member ways (unclosed chains are dropped).
+  It copies each tag's value out of the XML text: a match is a slice of the text, and one kept
+  name held it all (Lunigiana's 37 MB, Cesena's 60 MB) until the map was written.
   OSM gives the road network and its names, water, rail, land use, barriers, POIs and place names.
 - **CTR**: Regione Toscana's Carta Tecnica Regionale 1:2000, 2019 flight, the 25 sheets that map
   ground in the play area (23D11–15, 23D18–21, 23D26–31, 23D34–37, 23D43, 23D46, 23D47, 23D53–55),
@@ -123,6 +312,11 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
     Settembre, Via Castel dell'Aquila over both tracks, Via Nuova). No platform reaches into one,
     and the build checks that each holds a level-crossing node and that no node near one lies
     outside it ([section 4](#4-the-rail-on-the-ctr)).
+
+  The build keeps the platforms and level-crossing areas whose centroid lies in the play area,
+  whole, as it keeps buildings (`heldInPlay` in `play-area.ts`, OSM's platforms too): the rail and
+  roads are cut at the outline, so a level crossing beyond it would hold no level-crossing node
+  (the build threw) and a platform would stand by the stub of rail the outline leaves.
 
   The codebook ("Tavola dei contenuti … 1:2000, livello 4.2", November 2011) gives `0140` and
   `0141` in its text; its code table for `0117` and `0122` is in fonts that do not extract, so
@@ -174,12 +368,15 @@ file whose unpacked bytes equal the new ones is not rewritten, so another zlib n
 file, and a cached archive folder with no files left in it (macOS purges the temporary directory's
 files but keeps its folders) is fetched again. Requests name only the project in their `User-Agent`.
 
-### 2. Projection and play area (`geometry.ts`)
+### 2. Projection and play area (`geometry.ts`, `play-area.ts`)
+
+The map is projected onto a plane, and everything in it is clipped either to the play area, the
+union of the region's parts, or to the built terrain, the box round them.
 
 Equirectangular around `ORIGIN` (lat 44.16175, lon 10.13; defined in `src/sim/map/kinds.ts` and
 written into the map file as `MAP.origin`, which the sky reads through `place()`), with
 `M_PER_DEG` = 111115.37 m per degree of latitude and 79987.94 m per degree of longitude. x = east,
-y = north, in metres, rounded to 0.1 m. The play area `BOUNDS` is x
+y = north, in metres, rounded to 0.1 m. The play area is part `lucido`, the rectangle x
 −2900…4900 m, y −6100…3900 m (7.8 × 10 km; lat 44.1069–44.1968, lon 10.0937–10.1913): the whole
 catchment of the Lucido, ridge to ridge, from its mouth in the Aulella below Gragnola up both
 branches. Up the Vinca branch: the SP59, Vinca and its valley to Foce di Vinca, the Garnerone and
@@ -187,9 +384,48 @@ Foce di Giovo, with Monte Sagro, Monte Borla and their quarries on the ridge. Up
 Equi Terme, the Solco di Equi and its quarries, Pizzo d'Uccello and Ugliancaldo. West of the Lucido:
 Tenerano and the SP10, Viano, Pieve di Viano, Colognola, Campiglione and Vezzanello; Monzone, Aiola,
 Codiponte and Casciana in the middle. Being a rectangle, the area also takes in some of the Aulella
-side (Argigliano), the Bardine side and the Carrara side of the ridge (Campocecina). Lines are
-clipped with Liang–Barsky and rings with Sutherland–Hodgman. `PARTS` in `region.ts` names this
-rectangle part `lucido`, for `fetch-rt` and the part tools ([Adding a part](#adding-a-part)).
+side (Argigliano), the Bardine side and the Carrara side of the ridge (Campocecina). `PARTS` in
+`region.ts` names this rectangle part `lucido`, for `fetch-rt` and the part tools ([Adding a
+part](#adding-a-part)).
+
+- **The play area** is the union of the region's parts, each its mask or else its rectangles.
+  `play-area.ts` works out its outline (`OUTLINE`, written into the global file as `outline`):
+  every piece edge is cut where another piece's edge crosses or ends on it, a cut piece is outline
+  where the union holds the point just left of its middle and not the point just right, and the
+  pieces, rounded to 0.1 m, chain into rings (outer counter-clockwise, holes clockwise, collinear
+  runs merged, each from its lowest (y, x) vertex). A chain turns as far left as it can, so no ring
+  crosses itself, and is cut at every vertex it passes twice, so two outer rings touching at a
+  corner, or a hole touching the outer ring or another hole, stay separate rings. Lucido's outline
+  is its rectangle from the south-west corner: south, east, north, west. Only + − × ÷ and square
+  roots go into it, so every architecture builds the same.
+- **The built terrain** is the box round every part's rectangles, `BOUNDS` (`REGION.bounds`,
+  written as `bounds`): the heightmap's extent. On Lunigiana and Cesena it is the play area.
+- **Lines** (roads, water, rail, barriers and the CTR's tracks) are clipped to the play area
+  (`clipToPlay`): each segment is cut where it crosses the outline and each stretch kept by its
+  middle. Original vertices keep their OSM ids and cut points have none, which is how the
+  road-exit caps, the graph's exits and the rail's terminals find where a line leaves; a water
+  piece also keeps how far along its way it starts (`clipPieces`, `WaterF.from`), which its bank
+  trees count from. On a
+  vertical or horizontal edge the cut is Liang–Barsky's to the bit (t = (X − a.x) / dx). A stretch
+  shorter than 10 µm between two crossings is a corner passed, too short for its middle to tell:
+  past a convex corner it is left out, as Liang–Barsky takes the later of two entries, and past a
+  reflex one (both stretches beside it in play) it is kept, so a road round an L's inner corner is
+  not cut in two. The roads, water and rail are also cut to what lies beyond the outline in the
+  box (`clipBeyond`), for the trees there to keep off ([section
+  12](#12-trees-spawns-districts-treests-spawnsts-districtsts)); the map never carries those.
+- **Rings** (OSM and UCS areas, the CTR's road surfaces, mapped areas and rail polygons) are
+  clipped to the built terrain's box with Sutherland–Hodgman, which only a convex window clips
+  right. **Buildings** are clipped to it too, then kept only where the centre of the clipped outline
+  (its vertices' mean) is in the play area: a house an outline edge inside the box cuts (an L's
+  notch, a mask) stands whole or not at all, while one across the box's edge is clipped to it and
+  kept by the centre of what is left (23 of Lunigiana's 6,379 and 66 of Cesena's 9,690 end on its
+  edge). So are the level crossings and platforms (`heldInPlay`), which belong to the rail and
+  roads the outline cuts.
+- **Points**: POIs, OSM place nodes, the player's spawn (1.3 m from the outline) and the parked
+  spots (5 m) must lie in the play area (`inPlay`, an edge counting as in it). Trees cover the
+  region's tiles, beyond the play area too, 1 m inside the built terrain's box ([section
+  12](#12-trees-spawns-districts-treests-spawnsts-districtsts)), so the tiles an L leaves unlisted
+  have none.
 
 ### 3. Features (`features.ts`)
 
@@ -222,13 +458,14 @@ rectangle part `lucido`, for `fetch-rt` and the part tools ([Adding a part](#add
   | other named streams, and the Lucido above Vinca | 4 m | 3 m | 1 m |
   | unnamed streams | 2 m | 3 m | 1 m |
 
-  A way's class comes from its mean LiDAR ground over its vertices, so water is extracted once the
-  terrain is loaded. The Vinca branch shows 6–11 m of open marble gravel below 250 m and 4–6 m up to
-  400 m; from 500 m its bed is under closed canopy. Its way from the source under the Garnerone down
-  to Vinca (mean 826 m) is a beech-wood gully with 3–6 m windows of bed, so it gets 4 m. The
-  Caldanella runs 15–16 m between walls at Equi and 5–9 m of boulders down to Monzone. The Solco di
-  Equi (dry, 5–7 m of gravel in the gorge) and the other named streams keep 4 m. Other rivers would
-  be 2.5 m deep with the stream widths.
+  A way's class comes from its mean LiDAR ground over its vertices (over each piece's, where the
+  play area's outline cuts it: none of the Lucido's or the Caldanella's today), so water is
+  extracted once the terrain is loaded. The Vinca branch shows 6–11 m of open marble gravel below
+  250 m and 4–6 m up to 400 m; from 500 m its bed is under closed canopy. Its way from the source
+  under the Garnerone down to Vinca (mean 826 m) is a beech-wood gully with 3–6 m windows of bed,
+  so it gets 4 m. The Caldanella runs 15–16 m between walls at Equi and 5–9 m of boulders down to
+  Monzone. The Solco di Equi (dry, 5–7 m of gravel in the gorge) and the other named streams keep
+  4 m. Other rivers would be 2.5 m deep with the stream widths.
 - **Rail**: `railway=rail` (the Lucca–Aulla line), with bridges and tunnels, moved onto the
   CTR's tracks next ([section 4](#4-the-rail-on-the-ctr)).
 - **Buildings**: the CTR's wherever its sheets map the ground, OSM's elsewhere (an OSM building
@@ -363,7 +600,7 @@ the pieces where tracks meet (`rail-graph.ts`).
   only the south one, 5.4 m, so a car drove in at the open north mouth, met the bank and was thrown
   about 80 m up. Its 3.5 m CTR bridge piece, east of the road, grows to 20.7 m, and the track
   underpass 696231810 at s 4777.6 (one mouth 5.0 m under) gets 19.4 m;
-  both tunnels now open at both mouths at their floors' level (`map/__tests__/rail.test.ts`). A
+  both tunnels now open at both mouths at their floors' level (`map/__tests__/rail.map-test.ts`). A
   path's tunnel gets none: the build cuts no path's mouth.
 - **No short segments**: a vertex no other line or piece shares (OSM's other
   vertices only carried its drawing) is dropped where it lies under 2 m from a kept neighbour,
@@ -405,12 +642,30 @@ the pieces where tracks meet (`rail-graph.ts`).
   switches; the loop is cut in two
   at the stub's.
 
-### 5. Heightmap (`terrain.ts`)
+### 5. Heightmap (`dtm.ts`, `terrain.ts`)
 
-The LiDAR terrain is sampled through the projection (computed exactly on a 50 m lattice,
-bilinear in between). Each node of the 4 m grid over the bounds (1951 × 2501 nodes) is the mean
-of a 5 × 5 m square of samples. This grid is carved and flattened by the next steps; profiles and water sample the untouched terrain (the "ground"). Elevations run from 147 m
-(the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte Grondilice).
+The LiDAR terrain is sampled through the projection (computed exactly on a 50 m lattice, bilinear in
+between). Each node of the 4 m grid over the bounds (1951 × 2501 nodes) is the mean of a 5 × 5 m
+square of samples, worked out tile by tile ([Pipeline](#pipeline)). A tile's nodes (`grid` of
+`dtmDem` in `dtm.ts`) read each sample's projection from the two terms of the lattice's
+bilinear that one lattice row shares, worked out once per row and sample column, so the 25 samples
+of a node cost about one DTM read each: the same operations on the same doubles as the sampler
+(`makeGrid` on it, which Cesena's GeoTIFF still uses, gives the same bits:
+`dtm.test.ts`), and the grid's tile pass took 0.85 s rather than 3.6 s on Lunigiana and 2.1 s
+rather than 9.2 s on the 3x test region. The DTM read has a function of its own (`dtmHeight`), apart
+from the lattice's bilinear with its anchor's offsets: through that one V8 did not inline it into
+the 25 samples, and the pass took 2.0 s on Lunigiana and 5.6 s on the 3x. The lattice's nodes lie
+every 50 m from 100 m south-west of the region's anchor (`anchor` in `region.ts`), and a sample's
+fraction of a lattice cell is measured from there, not from the box's corner; the build's grid
+lookups (`sampleGrid`, `cellTile`, the catchments' and the rail bed's) measure a point's 4 m cell
+from the anchor the same way. A part that grows the box west or south so changes no bit of the
+terrain under the others (`dtm.test.ts` and `terrain.test.ts`; before, 19,023 of 19,026 nodes of a
+synthetic DTM differed in their last bits).
+Lucido's and Cesena's anchors are their boxes' corners, so their maps did not move. This grid is
+carved and flattened by the next steps; profiles and water sample the untouched terrain (the
+"ground").
+Elevations run from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
+Grondilice).
 
 ### 6. River carving and catchments (`water.ts`, `catchment.ts`)
 
@@ -427,7 +682,10 @@ of a 5 × 5 m square of samples. This grid is carved and flattened by the next s
   node), never less than upstream; nodes within two of another water's are left out, and a piece's
   last sample keeps what came down to it (D8 may route the water a tail joins through it). The
   Torrente Aulella takes 161 km² from beyond the bounds, which hold only its left bank: the Soliera
-  gauge's 208 km² (ARPAL), less the Lucido's 47 at its mouth. It takes about 1 s.
+  gauge's 208 km² (ARPAL), less the Lucido's 47 at its mouth. It takes about 0.8 s: the flood's
+  heap keeps each open node's height beside it in typed arrays, the D8 stores a direction (1 byte)
+  and an inflow count (1 byte) a node, and the accumulation walks down from each node with nothing
+  above it, last first, with no stack (the order a stack of them gave, so the same sums).
 - The bed is carved into the grid: depth/2 below the surface inside w/2, a gravel slope out to the
   bed width, then a one-cell bank back to the terrain.
 
@@ -458,20 +716,21 @@ of a 5 × 5 m square of samples. This grid is carved and flattened by the next s
 | service, track | 20% | 20 m | 3 |
 | tracks only the CTR has (written after every road) | the nearest running track's level | – | 4 |
 
-- Each profile is written into the grid: the core (max(w/2 + 0.3 + 2, 3) m, half a 4 m cell past
-  the carriageway's edge) takes the road elevation, and the next 8 m blend back to the terrain. A
-  core that stopped at w/2 + 0.5 left the outer node of most cells the carriageway's edge crossed
-  on the hillside, so the drawn road leaned across with it: under a Panda in its lane more than
-  10% at 3.5% of 40,000 sampled positions and more than 20% at 1.2%, enough to roll an Ape over.
-  With the wider core those shares are 1.1% and 0.5%, mostly at junctions and road ends. A core a
-  whole cell wider (0.9%, 0.4%) cut road banks steep enough to paint as rock 2.5% more often (0.9%
-  with this one), and a bank steeper than bare rock (50°) echoes: 17 of the 23 asphalt points of
-  a 25 m grid over Monzone hear one (the spawn an echo 312 m away, 1.8 s, off a bank beside a
-  road). The wider core also buries more of the narrow streams (under 4 m wide, which
-  roads may write over): with a core a cell wider, 664 m of stream ran more than 1 m under the
-  terrain against 474 m before, and houses on a bank above a road lost up to 8 m of base (above
-  the SR445 near (50, −290)). At junctions the lower rank keeps the cell, so tertiary beats rail and
-  rail beats the rest.
+- Each profile is written into the grid (recorded as a claim, then written in each tile's window in
+  the order of the passes, as [Pipeline](#pipeline) says): the core (max(w/2 + 0.3 + 2, 3) m, half a
+  4 m cell past the carriageway's edge) takes the road elevation, and the next 8 m blend back to the
+  terrain. A core that stopped at w/2 + 0.5 left the outer node of most cells the carriageway's edge
+  crossed on the hillside, so the drawn road leaned across with it: under a Panda in its lane more
+  than 10% at 3.5% of 40,000 sampled positions and more than 20% at 1.2%, enough to roll an Ape
+  over. With the wider core those shares are 1.1% and 0.5%, mostly at junctions and road ends. A
+  core a whole cell wider (0.9%, 0.4%) cut road banks steep enough to paint as rock 2.5% more often
+  (0.9% with this one), and a bank steeper than bare rock (50°) echoes: 17 of the 23 asphalt points
+  of a 25 m grid over Monzone hear one (the spawn an echo 312 m away, 1.8 s, off a bank beside a
+  road). The wider core also buries more of the narrow streams (under 4 m wide, which roads may
+  write over): with a core a cell wider, 664 m of stream ran more than 1 m under the terrain against
+  474 m before, and houses on a bank above a road lost up to 8 m of base (above the SR445 near (50,
+  −290)). At junctions the lower rank keeps the cell, so tertiary beats rail and rail beats the
+  rest.
 - The tracks only the CTR has take, point by point, the elevation of the nearest running track
   (the old yards lie level with the line; Equi's sidings are 17 m from it), set right after the
   rail pass so a road crossing one is pinned to it there. They are written last (rank 4), into
@@ -528,21 +787,26 @@ water dips 0.3 m below the road (the two fords over the Aulella, at and below Co
 such crossings). Water left perched more than 1 m above the terrain (streams that end at a road cut)
 drops to the terrain, except inside a wider channel it flows into, and there only while it still
 runs downhill: a stream dropped into a river's carved bed never steps back up. The grid is then
-rounded to 0.1 m and stored as integer decimetres.
+rounded to 0.1 m and stored as integer decimetres. The capping and settling read no terrain and
+run before the grid is built (`capUnderDecks`); the re-carve runs in each tile's window, which then
+reads the terrain under the water samples of its own cells before rounding; the culverts and the
+perched drop run on those readings once every tile is built (`dropPerched`).
 
 ### 9. The railway (`railway.ts`, `platforms.ts`, `rail-clear.ts`)
 
 Once the rail is profiled and its bed laid, the build reads the railway off the shipped (rounded)
 rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
 
-- **Lines** (`findLines` in `rail-graph.ts`): the rail is a graph whose
-  junctions are piece ends ([section 4](#4-the-rail-on-the-ctr)). A terminal is a dead end on the
-  map's edge, where the track runs on beyond it. From each terminal a walk goes on at every
-  junction the way that turns least (under 60°, headings taken over 5 m: a single 0.3 m end
-  segment turns up to 12° on the 0.1 m grid, more than a turnout diverges) and never takes a piece
-  twice; a walk that ends at another terminal is a line, and of two between one pair of terminals
-  the one turning less in all. A dead end inside the map (a siding's buffer) is no terminal, and a
-  ring with no way off the map gives no line. Each line runs the way most of its length was drawn.
+- **Lines** (`findLines` in `rail-graph.ts`): the rail is a graph whose junctions are piece ends
+  ([section 4](#4-the-rail-on-the-ctr)). A terminal is a dead end on the play area's outline, where
+  the track runs on beyond it: within 0.08 m of it (`onOutline`), as rounding to 0.1 m moves an end
+  cut on a slanted edge up to 0.05·√2 ≈ 0.071 m off it, while a lattice point off a vertical or
+  horizontal edge lies 0.1 m or more away. From each terminal a walk goes on at every junction the
+  way that turns least (under 60°, headings taken over 5 m: a single 0.3 m end segment turns up to
+  12° on the 0.1 m grid, more than a turnout diverges) and never takes a piece twice; a walk that
+  ends at another terminal is a line, and of two between one pair of terminals the one turning
+  less in all. A dead end inside the map (a siding's buffer) is no terminal, and a ring with no way
+  off the map gives no line. Each line runs the way most of its length was drawn.
   One line here: the Lucca–Aulla line's 75 pieces, 10,910.9 m from the east edge at (4900,
   3609.4) to the north edge at (−1859.6, 3900), every piece in its OSM direction; 3 757.6 m in
   tunnels, 1 181.6 m on bridges. Its speed limits are OSM's `maxspeed`, pieces with one limit
@@ -610,9 +874,10 @@ The stage takes about 0.55 s, most of it rasterising the platforms.
 ### 10. Collision walls (`walls.ts`)
 
 Walls are segments of at most 16 m. Blocked 4 m cells are traced with marching squares and
-simplified (Douglas–Peucker, 1.5 m tolerance). Slopes use a 12 m baseline, so shorter steps
-(terrace walls, road cuts) stop no one. Steep cells are majority-filtered (3 × 3) so the walls
-follow slopes, not single-cell bumps.
+simplified (Douglas–Peucker, 1.5 m tolerance); a cell whose centre lies outside the play area is
+never blocked, as the outline's walls stop everyone there (it costs the stage 0.15 s of its 1.5 s).
+Slopes use a 12 m baseline, so shorter steps (terrace walls, road cuts) stop no one. Steep cells are
+majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 
 | Wall source | `walk` | `shore` | `drive` |
 |---|---|---|---|
@@ -621,7 +886,7 @@ follow slopes, not single-cell bumps.
 | Building outlines | yes | no | yes |
 | `wall`, `cliff` barriers | yes | no | yes |
 | `guard_rail` barriers | no | no | yes |
-| Map bounds | yes | no | yes |
+| The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
 | Road-exit caps (4 m inside, where drivable roads leave the area) | no | no | yes |
 | Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them; open where any other road, tunnels included, crosses under, joins or carries on) | no | no | yes |
 
@@ -658,16 +923,49 @@ lanes that end between houses); tracks are drivable by the player but get no AI 
 is the largest connected component of every edge except tunnels. The build keeps each vertex
 id's node (`ids`), so the level-crossing boxes name their nodes without matching coordinates.
 
-### 12. Trees, spawns, districts (`spawns.ts`, `districts.ts`)
+### 12. Trees, spawns, districts (`trees.ts`, `spawns.ts`, `districts.ts`)
 
 - **Trees**: a jittered lattice at one tree per 50 m² inside forest areas. Trees stay out of other
-  areas, buildings (plus 2 m), roads (w/2 + 2 m), stream beds and the rail, its loops and
-  sidings included (6 m). Sparse trees
-  also line the banks of the wider streams. No cap: about 1 012 000 trees, positions rounded to 1 m
-  (at most one tree per spot) and a scale of 0.8–1.3 (1.7 MB of the gzipped map file). Placement
-  uses a fixed hash, not a random generator.
+  areas, buildings (plus 2 m), roads (w/2 + 2 m), stream beds and the rail, its loops and sidings
+  included (6 m), and stand 1 m inside the built terrain's box on the region's tiles (`tiles` in
+  `region.ts`, those its parts' rectangles meet), outside the play area too. There the map holds no
+  roads, water, rail or buildings, so the trees keep off the inputs' own, cut to the box beyond the
+  outline (`clipBeyond` in `play-area.ts`; the roads as wide as the CTR maps them, the buildings
+  whose centre lies beyond it). Before, on the L test region's notch, 1,763 more trees grew there,
+  467 of them on a road, 319 in a stream and 21 in a house of lucido's map, which holds those
+  whole (`l-region.map-test.ts` checks it). Sparse trees also line the banks of the streams the map
+  holds at least 4 m wide: a candidate every 9 m along the OSM way on each
+  side, kept by a hash of the way's id, the step and the side, at most one in a 4 m cell, and
+  standing bed + 2 to bed + 5 m from the centreline. The steps count from the way's start
+  (`WaterF.from`, where the outline cut the piece), so they stay put when the play area grows, but
+  the bed is the piece's: where the outline newly cuts a way sized by its piece (the Lucido and the
+  Caldanella by the piece's mean ground, Cesena's rivers by the piece's median width), its bank
+  trees move with its width. Cesena's Savio (way 1029104404) is cut into pieces 13.8 and 14 m wide;
+  no Lunigiana way sized by its ground is cut today, and a mask across one could switch its water
+  between 8 and 4 m wide and move its bank trees 2 m. No cap: 1 011 936 trees on Lunigiana (1 352
+  on the banks) and 5 633 on Cesena (283), positions rounded to 1 m (at most one tree per spot)
+  and a scale of 0.8–1.3. Placement uses a fixed hash, not a random generator.
+- **A fixed lattice**: it starts at the region's anchor (`anchor` in `region.ts`: Lunigiana's
+  (−2900, −6100), the corner of its first part, lucido; Cesena's (−2000, −2000)), set once and never
+  taken from the bounds, and its cells run on past it either way, so adding a part moves no lattice
+  tree. A tree's id is its cell's number, (gj + 8192) × 16384 + (gi + 8192) for the cell gi east
+  and gj north of the anchor (below 2²⁸), and a bank tree's is its 4 m cell's number past them,
+  2²⁸ + (cj + 16384) × 32768 + (ci + 16384) (at most 2²⁸ + 2³⁰ − 1). The cells run 57.9 km (lattice)
+  and 65.5 km (banks) from the anchor either way, and the scatter throws past them. The ids order
+  the whole map's trees (south to north, west to east, then the banks), seed each tree's look
+  (3 × id, a mirror's one more: `src/render/trees.ts`), and never change as parts are added. A bank
+  tree's seeds pass int32 (Lunigiana's largest is 2 661 635 298) and `hash01` wraps them (ToInt32),
+  but the ids keep every seed below 2³² (at most 4 026 531 838), so no two trees share one.
+- **A tile at a time**: the scatter (`trees.ts`) works each of the region's tiles alone,
+  rasterising its 2 m masks (forest, the other areas, the buildings) over the tile and a metre round
+  it on the anchor's pixels, the pixels one raster of the whole map has there. A tree belongs to the
+  tile of its rounded point, so two lattice points that round onto one spot, even from either side
+  of a seam, meet in one tile, where a bit a metre keeps the first (the lattice's before the bank
+  trees). The tiles' trees are merged by id (`mergeTrees` in `trees.ts`). The scatter takes
+  0.7 s for Lunigiana's 30 tiles and holds one tile's masks, 3 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
-  clear of walk and drive walls. Cesena uses a central street in its connected traffic network.
+  clear of walk and drive walls. Cesena, and a test region without the Carabinieri, use a central
+  street in its connected traffic network (the traffic node nearest the origin, `startNear`).
   The final rounded position must lie outside every building footprint and have a walk-clear
   route to its street centreline, sampled at intervals no greater than 0.5 m. Wall distance alone
   can accept a point deep inside a building, leaving the player trapped.
@@ -681,10 +979,11 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   along any road too) of a level-crossing node: the Codice della Strada (art. 158) bans stopping "in
   corrispondenza o in prossimità dei passaggi a livello". That rule took three spots, 14.7–19.4 m
   from Via Nuova, Via Riolo and Viale 20 Settembre; others took their place. The two nearest the
-  Carabinieri station come first (the sim parks their cars there); the rest are drawn in hash order
-  from every village's candidates, so each village gets its share. Car parks within 150 m of Monzone
-  station add up to 6 nose-in spots each (805 spots in all). The sim decides how many cars to park
-  on them.
+  Carabinieri station come first (the sim parks their cars there: the station goes into the map as
+  `spawns.police`, so the game never guesses it among the police POIs); the rest are drawn in hash
+  order from every village's candidates, so each village gets its share. Car parks within 150 m of
+  Monzone station add up to 6 nose-in spots each (805 spots in all). The sim decides how many cars
+  to park on them.
 - **Districts** (`districts.ts`): 14 hand-placed discs (name, centre, radius) for Monzone's
   station, streets and hill clusters, then a disc per OSM `village` and `hamlet` node outside
   them (26: Gragnola, Equi Terme, Viano, Vinca, Tenerano, Ugliancaldo...), then 35 hand-placed
@@ -741,9 +1040,10 @@ change an input.
   checked again. Every job reads the version from `.node-version`: the runner images update their
   Node 24 on their own schedules, and the x64 jobs must look up the key the arm64 job saved. On a
   miss it restores `data/raw` from the cache under the lock's hash, runs `pnpm fetch-raw` (saving
-  `data/raw` once it checks) and `pnpm maps`.
+  `data/raw` once it checks) and `pnpm maps`, which builds the L test region too (`test-maps/`,
+  cached and hashed with the maps: [Test regions](#test-regions)).
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
-  imports, followed from import to import (85 files today, in `src/tools`, `src/sim` and
+  imports, followed from import to import (96 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
   rather than miss a file: on a specifier that names no file, an `import(` without a string literal
   and any `require(`. When the check job built the maps, the `reproducible` job builds them again
@@ -766,14 +1066,34 @@ A map is a global file and one file per 2 km tile, beside it. The global file ho
 sparse and topological: the vectors, the graph, the railway, the tile list and the tables baked from
 the dense layers. The tiles hold the dense layers: terrain, walls, trees and land cover. A tile is
 the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin, keyed `i_j` (`TILE` and
-`tileKey` in `src/sim/map/kinds.ts`). Every tile with ground in it is listed: Lunigiana's 30 are
-i −2…2 and j −4…1, Cesena's 4 are −1…0 both ways (`tileRange`). The render's 192 m apron past the
-bounds has no tiles of its own: it extends the edge nodes, as before.
+`tileKey` in `src/sim/map/kinds.ts`). The listed tiles are the region's, each tile one of its parts'
+rectangles meets (`tiles` in `region.ts`): Lunigiana's 30 are i −2…2 and j −4…1, Cesena's 4 are −1…0
+both ways, each the whole box round its one rectangle (`tileRange`). The render's 192 m apron past
+the bounds has no tiles of its own: it extends the edge nodes, as before. The game takes the box of
+tile indices from the listed tiles, not from the bounds, and a region whose parts make an L lists no
+tile in the notch the parts leave in the box round them: there a terrain or land-cover lookup reads
+the nearest node or cell of the listed tiles in the nearest ring of tiles round the unlisted one (a
+tie goes to the first in key order), so the ground past an inner edge of the play area extends that
+edge, as the apron does past the bounds (`src/sim/map/tiles.ts`; `notchMap` in
+`src/sim/map/__tests__/edit-map.ts` drops Lunigiana's four tiles north-east of (2000, 0), and the
+`notch.test.ts` beside each runtime reader of the tiles and the play area checks it there; the
+tunnel portals' `portals.test.ts` moves the outline onto a tunnel mouth instead). The build writes
+the listed tiles alone and keeps a wall or tree whose midpoint falls in the notch (an outline wall
+on its side, a house wall over it) in the listed tile round it nearest it (`tilesRound` in
+`src/sim/map/kinds.ts`, the cut in `src/tools/tile-map.ts`): such an item lies within a wall's reach
+of the play area, so its coordinates pack as the tile's own do. A wall or tree lookup over the notch
+reads the listed tiles round it. The tiles round it are what `tilesOver` names for a box over the
+notch, so the host keeps them in memory wherever a lookup there may read. The coarse grid's nodes in
+the notch read the same nearest listed node and cell (`readAt` in the cut), so a host that falls
+back to it where those tiles are not in memory finds the ground and cover the tiles give: before,
+they held the notch's own land, up to 286 m off the extended edge on the L test region, and 1,140 of
+its 4,774 heights and 488 covers differed (`l-region.map-test.ts` checks every node against the
+tiles).
 
 | File | Lunigiana | Cesena |
 |---|---|---|
 | `src/sim/map/<name>.bin` (global) | 1.9 MB, 6.3 MB gunzipped | 1.2 MB |
-| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 30, 5.6 MB in all, 0.01 to 0.31 MB each | 4, 0.9 MB in all, up to 0.24 MB |
+| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 30, 5.7 MB in all, 0.01 to 0.31 MB each | 4, 0.9 MB in all, up to 0.24 MB |
 
 Each file is gzip (level 9) of one JSON line, a newline, then packed sections. The game never fetches:
 the browser host downloads the global file, gunzips it and hands the bytes to `provideMap`
@@ -797,26 +1117,27 @@ counter-clockwise, holes clockwise.
 
 | Field | Contents |
 |---|---|
-| `version` | `3` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them) |
+| `version` | `3` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them). A version-3 file built before the play area's `outline` still decodes, so `pnpm map-diff` reads it, but the game throws on it, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
-| `bounds` | play area `minX`, `minY`, `maxX`, `maxY` (m) |
-| `heightmap` | the terrain lattice: `cell` (4 m), `cols`, `rows`, `x0`, `y0`; its nodes are the tiles' |
+| `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
+| `outline` | the play area's outline (`src/tools/play-area.ts`): flat rings on 0.1 m, outer counter-clockwise, holes clockwise (the play area left of every edge), each from its lowest (y, x) vertex; `insideRings` and `ringsDistance` (`src/sim/map/outline.ts`) test points against it. Lunigiana's and Cesena's is one ring, `bounds` itself. The game tests a point against the play area with it (`inPlay` and `outlineDistance` in `src/sim/map/index.ts`: teleports, bolts, herds, tunnel portals, the minimap and the full map); `bounds` is only the heightmap's extent |
+| `heightmap` | the terrain lattice: `cell` (4 m), `cols`, `rows`, `x0`, `y0`, and `ax`, `ay`, the region's anchor (`region.ts`), only where it is not (x0, y0); its nodes are the tiles'. The lookups (`heightAt`, `terrainZ`, `coverAt`) and the land cover's raster (`coverBlocks`: its scanline and its cells near a wall or a road) measure a point's cell from the anchor (`anchorOf` in `src/sim/map/kinds.ts`), so a point keeps its height and its cover to the bit, and the bake its tables, when a part grows the box west or south; Lunigiana's and Cesena's anchors are their corners, so their files name none |
 | `tiles` | `{ i, j, zmin, zmax }` per tile, south to north then west to east: its lowest and highest node, decimetres |
 | `place` | `floor` and `downslope`, the sky's place ([weather.md](weather.md)), fitted over every node at build time |
-| `coarse` | `cell` (64 m), `cols`, `rows`, `x0`, `y0` on the origin's multiples over the bounds; the nodes' heights and the cover there are its two packed sections. For hosts reading far from the player, never the sim |
+| `coarse` | `cell` (64 m), `cols`, `rows`, `x0`, `y0` on the origin's multiples over the bounds; the nodes' heights and the cover there are its two packed sections, as the tiles' lookups read them (in an unlisted tile, the nearest listed node and cell). For hosts reading far from the player, never the sim |
 | `roads` | `id`, `cls`, `name?`, `ref?`, `w`, `surface`, `oneway?`, `bridge?`, `tunnel?`, `layer?`, `verge?` (where people walk, m from the centreline on either side, on the three roads pulled in off the railway; else w/2 + 0.8 m, 0.3 m on paths, steps and tracks), `pts`, `z` (surface elevation per vertex) |
 | `buildings` | `id` (OSM id, or negative for the CTR), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint), `style`, `ruins?`, `tint`, `outer`, `holes?` |
 | `water` | `id`, `kind` (`river` or `stream`), `name?`, `w` (the water's width), `bed` (the gravel bed's half-width), `depth` (the bed is carved `depth`/2 under `z`), `pts`, `z` (the built water surface per vertex), `area` (the catchment upstream of each vertex, km²), `floor` (baked: the bed under the centreline per vertex, m a.s.l.) |
 | `rail` | `id` (OSM way, negative for a track only the CTR has; not unique: the pieces cut from one way at its switches and the CTR's bridges share it), `kind?` (none on a line; off the lines `loop` or `siding`, from the topology), `bridge?`, `tunnel?`, `pts`, `z` (the bed under the sleepers per vertex, the rail head `RAIL_LIFT` 0.12 m higher, where the rails are drawn; at grade, more than 6 m from a level crossing, the terrain is at most 0.05 m higher and 0.5 m lower, but beside a lower road along the line). Tracks meet only at piece ends; no polyline repeats a vertex |
-| `railway` | `lines`: `{ pieces: [{ rail, rev }], maxspeed: [[from s, to s, km/h]] }`, each a path of running pieces (`rail` indexes `MAP.rail`, walked backwards when `rev`) from terminal (a dead end on the map's edge) to terminal, consecutive pieces sharing an end vertex, s in m from its first vertex; `stations`: `{ name, line, s0, s1, side }` (side 1 right of the line's direction, −1 left), by line and s0; `crossings`: `{ road, nodes, x, y, line, s }` (`road` indexes `MAP.roads`, `nodes` the graph's nodes, `line` −1 and `s` −1 where only a loop or siding is crossed); `platforms`: `{ area, walkway?, name?, axis, top }` (`area` indexes `MAP.areas`, `axis` the line's centreline along it, `top` per axis vertex in m a.s.l.) |
+| `railway` | `lines`: `{ pieces: [{ rail, rev }], maxspeed: [[from s, to s, km/h]] }`, each a path of running pieces (`rail` indexes `MAP.rail`, walked backwards when `rev`) from terminal (a dead end on the play area's outline) to terminal, consecutive pieces sharing an end vertex, s in m from its first vertex; `stations`: `{ name, line, s0, s1, side }` (side 1 right of the line's direction, −1 left), by line and s0; `crossings`: `{ road, nodes, x, y, line, s }` (`road` indexes `MAP.roads`, `nodes` the graph's nodes, `line` −1 and `s` −1 where only a loop or siding is crossed); `platforms`: `{ area, walkway?, name?, axis, top }` (`area` indexes `MAP.areas`, `axis` the line's centreline along it, `top` per axis vertex in m a.s.l.) |
 | `areas` | `kind` (one of `AREA_KINDS`), `name?`, `rings` (outer first, then holes); the platforms (`platform`) and walkways (`paved`) last |
 | `barriers` | `kind` (`wall`, `guard_rail`, `cliff`), `pts` |
 | `pois` | `id`, `kind` (`key=value` or `area:<kind>`), `name?`, `x`, `y` |
 | `districts` | `name`, `x`, `y`, `r` |
 | `graph` | `xy` (node coordinates), `edges` (flat `a, b, roadIndex` triples), `traffic`, `walk` (edge indices) |
-| `walls` | `reach` (how far any wall sticks out of its midpoint along either axis, 33 m: the 64 m bounds walls), `lattice` (each wall kind's and the trees' broad-phase corner, below) and `counts` (`walk`, `drive`) |
-| `spawns` | `player`: `{ x, y, angle }`; `parked`: `{ x, y, angle, rest, truck? }`, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked) |
+| `walls` | `reach` (how far any wall sticks out of its midpoint along either axis, 33 m: the 64 m outline walls), `lattice` (each wall kind's and the trees' broad-phase corner, below) and `counts` (`walk`, `drive`) |
+| `spawns` | `player`: `{ x, y, angle }`; `parked`: `{ x, y, angle, rest, truck? }`, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked); `police?`: `{ x, y }`, the Carabinieri station the build chose (Lunigiana's POI 14183344901, Cesena's 806564311), whose two nearest level spots the game parks their cars on |
 | `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it |
 | `farms` | baked: `{ building, rural, pen }` per farm (`building` indexes `MAP.buildings`) |
 | `lamps` | baked: every street lamp's lantern, `{ x, y, z, nx, ny, kind }` |
@@ -826,10 +1147,13 @@ now holds only near the player. Each is computed by the game's own code at build
 (`src/tools/bake.ts`): the lanes by `bakeLanes` (`src/sim/lanes.ts`), the parked rests by
 `bakeParked` (`src/sim/parking.ts`), the water's floor by `bedOf` (`src/sim/water/channel.ts`), the
 farms by `bakeFarms` (`src/sim/population/farms.ts`) and the lamps by `bakeLamps`
-(`src/render/sky/lamps.ts`). `src/tools/__tests__/bake.test.ts` runs them again on the shipped map, and
-refits the place over the joined heightmap, so a change to that code fails `pnpm test` until
-`pnpm map` bakes the tables again; `cesena-bake.test.ts` does the same for Cesena in a process of its
-own (a process loads one map), so a change needs `pnpm map --region cesena` too.
+(`src/render/sky/lamps.ts`). `src/tools/__tests__/bake.map-test.ts` runs them again on the shipped
+map, and refits the place over the joined heightmap, so a change to that code fails `pnpm test:map`
+until `pnpm map` bakes the tables again; `cesena-bake.map-test.ts` does the same for Cesena in a
+process of its own (a process loads one map), so a change needs `pnpm map --region cesena` too.
+`bake.test.ts` and `cesena-bake.test.ts` bake again only the parked spots, water beds and farms
+within 1 km of Monzone station and of Cesena's start, so `pnpm test` already fails on most such
+changes (the lanes and the lamps are worked out map-wide, and only the map checks catch them).
 
 Gzipped on their own, the JSON line's biggest fields are the water 0.63 MB (the baked floor at full
 precision is a third of it), the areas 0.33 MB, the graph 0.30 MB, the buildings 0.26 MB and the roads
@@ -843,10 +1167,10 @@ of its walk, shore and drive walls and of its trees. Its sections follow the new
 | Section | Integers | Bytes | Stride |
 |---|---|---|---|
 | heightmap | 501 × 501 nodes, decimetres (int16), each row delta-coded from its first node | 2 | 501: the node to the south |
-| walk, shore, drive walls | (ax, ay, bx, by) decimetres from a point 100 m south-west of the tile's corner (the bounds walls stick out of their tile) | 2 | 2: the previous x or y |
+| walk, shore, drive walls | (ax, ay, bx, by) decimetres from a point 100 m south-west of the tile's corner (the outline walls stick out of their tile) | 2 | 2: the previous x or y |
 | walk, shore, drive wall ids | each wall's index in the whole map's list of its kind | 4 | 1 |
 | trees | (x, y) whole metres from the same point (trees stand on whole metres), the scale in hundredths | 2 | 3: the previous tree |
-| tree ids | each tree's index in the whole map's list (its look's seed) | 4 | 1 |
+| tree ids | each tree's id (its lattice cell's number, [Trees](#12-trees-spawns-districts-treests-spawnsts-districtsts); its look's seed), ascending | 4 | 1 |
 | cover | 500 × 500 cells, the land-cover index | 1 | 500: the cell to the south |
 
 Each section holds n integers as the zigzag-coded difference (0, −1, 1, −2... stored as 0, 1, 2,
@@ -862,21 +1186,26 @@ What goes in which tile:
   clamped to the lattice, so a tile's border rows and columns are its neighbours' too, and past the
   bounds a tile repeats the edge. The lookups keep the lattice's arithmetic and only read the node from
   its tile, so `heightAt`, `terrainZ` and `groundZ` give the same doubles as the whole heightmap did.
-- **Walls**: each segment lives in the tile of its midpoint, clamped to the listed tiles (Cesena's
-  bounds walls lie on a seam). A tile's walls keep the whole map's order and carry their index in it.
-- **Trees**: each in the tile of its point, the same way, with its index.
-- **Cover**: the 500 × 500 cells of the whole map's raster (`rasterCover` in `src/sim/map/raster.ts`,
-  rasterised once at build time) that fall in the tile; cells past the bounds are 0 and never read.
+- **Walls**: each segment lives in the tile of its midpoint, clamped to the box of the listed tiles
+  (Cesena's outline walls lie on a seam), or, where that tile is not listed, in the listed tile round
+  it nearest the midpoint. A tile's walls keep the whole map's order and carry their index in it.
+- **Trees**: each in the tile of its point, the same way (the scatter already made it there), with
+  its id.
+- **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`coverBlocks` in
+  `src/sim/map/raster.ts`, rasterised at build time for the tile's cells alone, the same cells a
+  raster of the whole map gives there); cells past the bounds are 0 and never read.
 
 `wallsNear` and `treesIn` answer exactly as the one broad phase over the whole map did, the same
-items in the same order: each kind keeps its 16 m lattice (`walls.lattice`, the lowest corner of any
-of its items), each tile grids its items on that lattice, and a query walks the cells the box touches
-south to north, west to east, taking each cell's items in the whole map's order across the tiles that
-hold some (`src/sim/map/lattice.ts`). It reads every tile those cells reach, `walls.reach` further for
-walls. The order matters: the physics pushes out of walls one by one and keeps the first of equal-time
-hits, so another order would move collisions at corners (map.test.ts drives a car from the road into
-building −2800141 at (28.7, 1145.7), 29 m east of the x = 0 seam: with 3 of 5 wall orders tried it
-got inside).
+items in the same order: each kind keeps its 16 m lattice (`walls.lattice`: the lowest corner of any
+of its walls; the trees', 1 m north-east of the region's tree anchor, fixed so that a query's trunks
+keep their order as parts are added, `treeCorner` in `src/tools/trees.ts`), each tile grids its
+items on that lattice, and a query walks the cells the box touches south to north, west to east,
+taking each cell's items in the whole map's order (by id) across the tiles that hold some
+(`src/sim/map/lattice.ts`). It reads every tile those cells reach, `walls.reach` further for
+walls. The order matters: the physics pushes out of walls one by one and keeps the first of
+equal-time hits, so another order would move collisions at corners (map.map-test.ts drives a car
+from the road into building −2800141 at (28.7, 1145.7), 29 m east of the x = 0 seam: with 3 of 5
+wall orders tried it got inside).
 
 Profiled roads and rail carry extra points where the elevation bends between OSM vertices (dips
 under the rail, crests). Graph edges run a → b in the OSM way direction, so a `oneway` road may
@@ -886,6 +1215,9 @@ broad phases the sim and the audio host share: `buildingsIn` over the building b
 (`buildingBoxes`, indexed like `MAP.buildings`) and `treesIn` over the trees, which hands each tree's
 position, scale and id. `platformTop` in `src/sim/map/ground.ts` gives a platform's top at a point (its
 axis's nearest point), and `groundZ` stands people on it (or on the terrain, where that is higher).
+`inPlay(x, y, margin)` and `outlineDistance` test a point against the play area (`MAP.outline`,
+through `src/sim/map/outline.ts`, which the build shares): the teleport (`SetPlayer`), the bolts,
+the herds and the tunnels' mouths (one 0.5 m off the outline is an open end, not a portal) read it.
 `coverAt` (`src/sim/map/cover.ts`) reads the land cover from the tiles, and `coarseHeightAt` and
 `coarseCoverAt` (`src/sim/map/coarse.ts`) read the coarse grid. A lookup in a listed tile that is not
 in memory throws "map tile i_j not loaded" in the browser; the host makes sure that never happens
@@ -893,8 +1225,17 @@ in memory throws "map tile i_j not loaded" in the browser; the host makes sure t
 
 ## Checks and tools
 
-`src/sim/map/__tests__/map.test.ts` checks the built map in about 4 s, read whole (`wholeMap` in
-`src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list and land
+The checks over the whole built map are map checks: `*.map-test.ts` files, which `pnpm test:map`
+runs and `pnpm check` and CI run after `pnpm test`. `pnpm test` keeps only checks that read the
+tiles and features round named spots, mostly Monzone station, so what it checks does not grow with
+the map ([architecture.md](architecture.md#checks)). Run `pnpm test:map` after every `pnpm map`.
+On 2026-10-31 it ran 100 tests in 29 files in 5.9–6.3 s on a loaded 14-core Mac (36 s of CPU with
+each file alone), the 3x test region's 5 skipped; with the 3x built, 8.8–9.5 s and 46 s of CPU
+more. The split took 21 s of CPU out of `pnpm test` on 2026-10-30 (228 to 207 s), when
+`pnpm test:map` held 58 tests in 20 files.
+
+`src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.3 s alone, read whole (`wholeMap`
+in `src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list and land
 cover): heightmap coverage, spawns clear of walls and off traffic lanes (with parking in each
 village the map was widened for: Equi Terme, Gragnola, Colognola, Campiglione, Viano, Vinca,
 Ugliancaldo and Tenerano), no walls on roads, no drivable road inside a footprint, closed building
@@ -906,38 +1247,66 @@ with no jump at a tributary's mouth (the Lucido's 47 km² at its mouth, the Aule
 map), no walk or drive wall in a wide river and shore walls by it, and valid names, classes, styles,
 area kinds and districts (each of those villages is its own HUD name, Equi Terme's station and spa
 included, and Monte Sagro and Pizzo d'Uccello name themselves; CTR street names cased like "Via XX
-Settembre" and "Via Castel dell'Aquila"). Run `pnpm test` after every `pnpm map`.
+Settembre" and "Via Castel dell'Aquila").
 
 `src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
 `decodeMap` (a newline inside a name, the coarse grid) and a tile through `packTile` and
 `decodeTile` (negative values, the widest deltas, an empty section), and checks that a file of
-another version, or a value too far for its section, throws. `src/sim/map/__tests__/tiles.test.ts`
-checks the cut: the 30 tiles cover the bounds (i −2…2, j −4…1, south to north then west to east)
-with their lowest and highest nodes, a tile's east column is its east neighbour's west column and
-its north row its north neighbour's south row, each wall lives in the tile of its midpoint and each
-tree in the tile of its point and no wall reaches farther than `walls.reach`, `heightAt`, `terrainZ`
-and `coverAt` read the tiles bit for bit as the whole heightmap and land cover give them,
-`wallsNear` answers the same in the same order whatever is in memory and in whichever order it came,
+another version, or a value too far for its section, throws; `stale-map.test.ts` that the game
+refuses a global file without the play area's outline. `anchor.test.ts` rewrites Lunigiana's
+global file to start its heightmap a tile east and north of its anchor, which the file then names,
+and checks that `heightAt`, `terrainZ` and `coverAt` answer to the bit as on Lunigiana itself (read
+by `lookups.ts` in a process of its own) at 440 points round Monzone station; measuring from the
+first node instead, as before the anchor, it fails on all three.
+`src/sim/map/__tests__/tiles.map-test.ts` checks the cut: the 30 tiles cover the bounds (i −2…2, j
+−4…1, south to north then west to east) with their lowest and highest nodes (the nodes two tiles
+share are `seams.map-test.ts`'s, below), each wall lives in the tile of its midpoint and each tree
+in the tile of its point and no wall reaches farther than `walls.reach`, `heightAt`, `terrainZ` and
+`coverAt` read the tiles bit for bit as the whole heightmap and land cover give them, and
 `wallsNear` and `treesIn` answer exactly as one broad phase over the whole map does (1,500 boxes
-1–60 m across, half of them within 40 m of a seam), every wall whose box overlaps a query is found,
-and a lookup in a tile not in memory throws, naming it. `src/sim/__tests__/seams.test.ts` drives two
-cars across the x = 0 and y = 0 seams on Via Borgo Monzone by the station: every frame's world and
-the final save are the same with the tiles read in lazily and dropped every 20 steps as with all 30
-in memory. `src/tools/__tests__/bake.test.ts` runs the bakes again on the shipped map and compares
-them, and the place refitted over the joined heightmap, with what it holds (proven red by changing
-the parked cars' `LEVEL`; the check is `assertBakesCurrent` in `src/tools/__tests__/bakes.ts`), so
-code that changes a baked table fails `pnpm test` until `pnpm map` runs; `cesena-bake.test.ts`
-checks Cesena's (`pnpm map --region cesena`). `src/tools/__tests__/tile-map.test.ts` cuts a 24 m map
-into its four tiles and joins them back as they were (walls and trees in order), throws for a height
-that does not fit int16 decimetres (40000, −40000, NaN, 2000.5) instead of wrapping it, and refuses
-to join a tile from another build; `src/__tests__/maps.test.ts` checks that every listed tile of
-both maps has its file, of at most 0.7 MB.
+1–60 m across, half of them within 40 m of a seam; the trees' on the region's fixed corner, which
+need not be their lowest).
+`tiles.test.ts` checks, round four boxes by Monzone station and on the west edge, that `wallsNear`
+answers the same in the same order whatever is in memory and in whichever order it came, that every
+wall whose box overlaps a query is found (among the walls of the tiles within `walls.reach` of it: a
+wall lives in the tile of its midpoint), and that a lookup in a tile not in memory throws, naming
+it. `src/sim/__tests__/seams.test.ts` drives two cars across the x = 0 and y = 0 seams on Via Borgo
+Monzone by the station: every frame's world and the final save are the same with the tiles read in
+lazily and dropped every 20 steps as with the nine tiles round (0, 0) in memory.
+`src/tools/__tests__/bake.map-test.ts` runs the bakes again on the shipped map and compares them,
+and the place refitted over the joined heightmap, with what it holds (the check is
+`assertBakesCurrent` in `src/tools/__tests__/bakes.ts`), so code that changes a baked table fails
+`pnpm test:map` until `pnpm map` runs; `cesena-bake.map-test.ts` checks Cesena's (`pnpm map --region
+cesena`). `bake.test.ts` and `cesena-bake.test.ts` bake again the parked spots, water beds and farms
+within 1 km of Monzone station and of Cesena's start (`assertBakesCurrentNear`, through `bakeParked`
+and `bakeFarms` given just those), so `pnpm test` fails too: proven red by changing the parked cars'
+`LEVEL` (0.26 to 0.2) and the farms' `RURAL` (60 to 50). The lanes and the lamps are worked out
+map-wide, so only the map check catches a change to them. `src/tools/__tests__/tile-map.test.ts`
+cuts a 24 m map into its four tiles and joins them back as they were (walls in order, trees with
+sparse ids merged back in id order, which is not their tiles' order), with the region's tree corner,
+refuses to join a tile from another build, and stamps each tile as `packTile` packs it with the
+build hash. `build-output.test.ts` checks that `decimetres`, which rounds the grid into the
+`Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
+−4000 m, 3276.75 m, NaN, infinity) instead of wrapping it. `src/__tests__/maps.map-test.ts` checks
+that every listed tile of both maps has its file, of at most 0.7 MB, and `maps.test.ts` one tile of
+each.
+
+`src/tools/__tests__/seams.map-test.ts` is a map test: it reads every tile of both maps, so it grows
+with the map and runs in `pnpm test:map`, not `pnpm test`. Wherever two listed tiles meet it checks
+each tile's own copy: every node they share has one height, and the walls carry on across the seam
+as the tiles store them: each wall of each kind in exactly one tile, and at both ends of every wall
+that crosses a seam the tiles within `walls.reach` hold the same walls touching that point as the
+whole map does (the shore walls, closed outlines, an even number). On a tile with one border node
+raised by a decimetre the height check fails, and with a wall crossing x = 0 moved into a tile 2 km
+away (or dropped) the wall check fails. The roads need no check of their own: they lie whole in the
+global file, so a road's z has no seam, and the ground under a road where it crosses a seam is read
+from the shared nodes alone (bilinear on the seam's column or row), which the height check covers.
 
 `src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with `subsetShp` and reads it back,
 `src/tools/__tests__/ctr-rail.test.ts` checks the track chaining, the tunnel cut and the clip on
 synthetic lines and reads synthetic CTR rail layers (`shapefile.ts` beside them writes those).
-`src/sim/map/__tests__/rail.test.ts` checks the rail in the built map: the running line is one chain
-from the north edge to the east edge (10.85–10.95 km), its loop (two pieces) ending on it and
+`src/sim/map/__tests__/rail.map-test.ts` checks the rail in the built map: the running line is one
+chain from the north edge to the east edge (10.85–10.95 km), its loop (two pieces) ending on it and
 Gragnola's loop the track by the station building, every kind one of `RAIL_KINDS`; at grade, the
 rail meets roads and water only at vertices they share, level with the road (Via Riolo, Viale 20
 Settembre, Via Castel dell'Aquila twice, Via Nuova, and Equi Terme's foot crossing); no rail, road
@@ -963,13 +1332,17 @@ through turnouts past a passing loop, a yard and a spur, takes junction headings
 no line on a ring, with each piece's kind; `rail-levels.test.ts` bounds the rail over a tagged and
 an untagged underpass, under a road bridge, at a level crossing (no pin) and over a river and a
 stream; `profiles.test.ts` levels a tunnel's portals and a bridge's ends with the ground outside
-them; `rail-bed.test.ts` lowers a grid under a line, raises the corners far under it but a kept one,
-and levels a siding on the line beside it; `spawns.test.ts` parks cars off running track, off a
+them, and writes two roads' claims into two windows that share a seam just as into the whole grid;
+`rail-bed.test.ts` lowers a grid under a line, raises the corners far under it but a kept one, moves
+a window's nodes as it moves the whole grid's, and levels a siding on the line beside it;
+`grid-tiles.test.ts` checks that the tiles' windows cover the grid, neighbours sharing their border
+nodes, and that the tile `cellTile` names for a point (on and off the seams and the grid's edge)
+holds the four nodes of the cell read there; `spawns.test.ts` parks cars off running track, off a
 siding and away from a level crossing; `platforms.test.ts` clips a platform off a track, a road and
 a crossing area, makes a strip between close tracks and a narrow one walkways, and leaves out the
 ground far under a platform's top; `railway.test.ts` checks the speed limits, crossing boxes and
 stations; `rail-clear.test.ts` narrows a verge beside a track, leaves one at another level, in a box
-or on a platform alone, and throws for a lane. `src/sim/map/__tests__/railway.test.ts` checks
+or on a platform alone, and throws for a lane. `src/sim/map/__tests__/railway.map-test.ts` checks
 `MAP.railway`: each line runs terminal to terminal, its pieces sharing their end vertices
 bit-identically, every running piece on one (today the one line, east edge to north edge); the speed
 limits cover it, 80 km/h from Equi Terme's stop to Gragnola's; the three stations lie along their
@@ -980,7 +1353,7 @@ road shares with at-grade rail is in a box; the platforms stand 1.55 m or more f
 top the rail head plus 0.25 m (Gragnola's walkway 0.02 m) and `groundZ` on them their top or the
 terrain where that is higher; the line's grade changes by under 4% over 20 m, and under 2% through a
 level crossing (the map before the fixes changed it 4.1% at s 6269).
-`src/sim/map/__tests__/clearance.test.ts` checks the clearance rule on the verges people walk
+`src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule on the verges people walk
 (`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car stands within 20 m of a
 crossing node; on a map built without the narrowed verges and the parking rule, both fail (Piazza
 Paolo Sist at 2.75 m and Via Riolo at 1.92 m, a car 19.4 m from Viale 20 Settembre).
@@ -997,18 +1370,38 @@ an answer with a top-level remark (a server timeout) but not from a tag named `r
 DTM; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule, first
 wins and the holes on synthetic grids; `footprint.test.ts` the outline of an L, clusters, a road
 that leaves and comes back, one that runs off the query box (unresolved) and a mistyped flag;
-`fetch-osm.test.ts` the split on HTTP 400 with a fake server; `coverage-grid.test.ts` and
-`coverage.test.ts` first wins, the tally, ring assembly, no picks, and a WFS error answer never
-cached; `ortho.test.ts` and `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted
-sibling flight is look only) and an error answer for capabilities; `playtest.test.ts` the spots,
-the command line (shots, heap and drive with their defaults and flags) and the spot script;
-`playtest-drive.test.ts` the frame stats, the road chained through shared ends from the free end
-nearest the start and at a fork toward the goal, the SP59 from Monzone to Vinca across the x = 0,
-y = 0, y = −2000 and x = 2000 seams, the page's drive script (run in a `vm` against a fake `gta`)
-and its report; `cdp.test.ts`, on a fake Chrome, a command's own timeout and the socket closed
-when a tab cannot open; `map-diff.test.ts` each category's change on small maps and a key it does
-not compare;
-`geometry.test.ts` `clipRing` to a box.
+`fetch-osm.test.ts` the split on HTTP 400 with a fake server and the refusal of a test region
+(`checkFetchable`, before any request); `coverage-grid.test.ts` and `coverage.test.ts` first wins,
+the tally, ring assembly, no picks, and a WFS error answer never cached; `ortho.test.ts` and
+`ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted sibling flight is look only) and
+an error answer for capabilities; `playtest.test.ts` the spots, the command line (shots, heap and
+drive with their defaults and flags) and the spot script; `playtest-drive.test.ts` the frame stats,
+the road chained through shared ends from the free end nearest the start and at a fork toward the
+goal, the SP59 from Monzone to Vinca across the x = 0, y = 0, y = −2000 and x = 2000 seams, the
+page's drive script (run in a `vm` against a fake `gta`) and its report; `cdp.test.ts`, on a fake
+Chrome, a command's own timeout and the socket closed when a tab cannot open; `map-diff.test.ts`
+each category's change on small maps, a key it does not compare, walls and trees in another order
+(the fewest moved counted, copies of a removed segment left out), a tree on a spot both maps plant
+with another id there, a map from before the outline and `--except`, and `map-diff-args.test.ts` its
+command line; `geometry.test.ts` `clipRing` to a box; `trees.test.ts` the tiles' scatters merged by
+id against the scatter of their whole box (with two lattice points rounding onto one spot from
+either side of a seam, and a stream beside another whose bank trees fall in its 4 m cells), a tile's
+trees and ids when the region's box grows, a stream's piece the outline cut keeping the whole
+stream's bank trees, a stream's banks in every listed tile and none in one left out, and the last
+bank cell's tree getting the largest id (its look's seeds below 2³², a cell further throwing);
+`region.test.ts` the regions' parts, bounds, tiles and tree anchors and `checkMask` on a diagonal
+mask in an L and on each fault (too few vertices, off 0.1 m, clockwise, a repeated vertex, a fold, a
+crossing, a vertex or an edge outside the rectangles, a mask round a gap in a donut of rectangles);
+`play-area.test.ts` the outline of one rectangle (south, east, north, west), an L of two,
+overlapping rectangles, rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing
+off the 0.1 m lattice, a hole, two rings touching at a corner and a hole touching the outer ring or
+another hole at one, `onOutline` finding rail ends rounded off a slanted edge, the notch cutting a
+line in two with ids kept and cuts id-less, each piece's start along the whole line (`clipPieces`),
+a line past the L's inner corner (or a mask's slanted one) within a micrometre staying whole, and
+clipping to one rectangle against Liang–Barsky on 4000 random lines and lines through its corners;
+`src/sim/map/__tests__/outline.test.ts` `insideRings`'s margins round the L's inner corner, a
+clockwise hole, and `edgeDistance` beside and past an edge; `walls.test.ts` the outline walls
+closing the L and a rectangle's running south, east, north, west.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees and walls read whole from the tiles (the running line dark, loops and
@@ -1017,24 +1410,31 @@ white). It writes `.research/map-preview.png` by default.
 
 ## Adding a part
 
-The map grows one part at a time (issue #3 holds the extent, the order of the parts and the
-runbook each part follows). A part is a key in `PARTS` (`src/tools/region.ts`) with its rectangles
-in local metres, on 100 m multiples; today's map is part `lucido`. Its sources are its manifest,
-`data/parts/<part>.json`. The tools below scope a part and check it. `rt-index`, `coverage` and
-`footprint-check` write their scratch in `.research/<part>/` (gitignored), `ortho` in
-`.research/ortho/` unless given a file, `playtest` in the folder it is given; every request names
-only the project in its `User-Agent` (`net.ts`), and the tools print paths relative to the
-repository. Measured on `lucido` on 2026-10-29.
+The map grows one part at a time (issue #3 holds the extent, the order of the parts and the runbook
+each part follows). A part is a key in `PARTS` (`src/tools/region.ts`) with its rectangles in local
+metres, on 100 m multiples, and, where it plays less than them, a mask: one simple counter-clockwise
+ring on 0.1 m inside the rectangles, its edges and all it encloses (`checkMask` throws on any other
+when the region loads, naming the fault: a mask round a gap the rectangles leave fails too). The
+region's play area is the union of its parts' masks, or rectangles where a part has none, and its
+`bounds`, the built terrain, the box round every part's rectangles ([section
+2](#2-projection-and-play-area-geometryts-play-areats)). Today's map is part `lucido`, with no mask.
+Its sources are its manifest, `data/parts/<part>.json`. The tools below scope a part and check it.
+`rt-index`, `coverage` and `footprint-check` write their scratch in `.research/<part>/`
+(gitignored), `ortho` in `.research/ortho/` unless given a file, `playtest` in the folder it is
+given; every request names only the project in its `User-Agent` (`net.ts`), and the tools print
+paths relative to the repository. Measured on `lucido` on 2026-10-29.
 
 - **`pnpm footprint-check <part> [--refresh]`** (`footprint-check.ts`, geometry in `footprint.ts`)
   checks what the part's edges cut through: one Overpass query over the part's box + 1 km (place
   nodes, building centres, highway ways; cached in `footprint-osm.json`). It reports the places
   within 300 m of an edge, clusters of 5 or more buildings linked at 50 m with a member within 300 m
   of one, and the roads that leave the part and come back (ways join at shared nodes, so a road
-  split into several ways counts); paths and steps are notes, not findings. An edge along another
-  part's rectangle is a seam and never a finding. A road whose way out runs to within 50 m of the
-  query box's edge without coming back is listed as unresolved: the 1 km pad is how deep the check
-  sees. It writes `footprint.json`. `lucido`: 32 places, 23 clusters (Argigliano, 188 buildings, is
+  split into several ways counts); paths and steps are notes, not findings. It judges the part's
+  rectangles, never its mask, so on a masked part it reports the rectangles' edges, not the play
+  area's (judging a mask's slanted outline comes with #17, the first part with one). An edge along
+  another part's rectangle is a seam and never a finding. A road whose way out runs to within 50 m
+  of the query box's edge without coming back is listed as unresolved: the 1 km pad is how deep the
+  check sees. It writes `footprint.json`. `lucido`: 32 places, 23 clusters (Argigliano, 188 buildings, is
   cut 2 m inside the east edge), 16 drivable re-entries (the SR445 runs 780 m outside the north
   edge), 15 path notes, 7 unresolved roads (the SR445 north, the SP10 west) and 2 paths; 99 s with
   the query, 0.2 s cached.
@@ -1059,7 +1459,7 @@ repository. Measured on `lucido` on 2026-10-29.
   (`dtm-mosaic.ts`, the same crop and reader) on a one-byte mask: RT's tiles of the named lots, in
   lot order then by sheet, each kept when it writes a cell no earlier tile wrote, over the crop
   `fetch-rt` mosaics (the EPSG:3003 box round the part's rectangles, an L's notch included, until
-  issue #7). MATTM's lots are skipped, with their licence. It reports each tile's area and the holes
+  #17 writes a DTM file a tile). MATTM's lots are skipped, with their licence. It reports each tile's area and the holes
   left for the 10 m DTM, and without `--write` the difference from the manifest's `lidar`. `lucido`
   (19 s, 565 MB): the manifest's 66 tiles; holes 654 734 m² in 5 pieces, the largest 361 141 m²,
   exactly the cells `fetch-rt` fills from the 10 m DTM. PR #2 had found its 65 tiles with a
@@ -1116,32 +1516,107 @@ repository. Measured on `lucido` on 2026-10-29.
   at 20.4 s and 29.3 s, y = −2000 at 87.7 s, x = 2000 at 183.7 s) each at 16.8 ms at worst; one run
   had one frame of 33.3 ms off the seams, the other none over 16.8 ms; at most 6 tiles in memory, 4
   at Vinca (0_-2, 1_-2, 0_-1, 1_-1), and a heap of 157 MB there.
-- **`pnpm map-diff <a.bin> <b.bin>`** (`map-diff.ts`, `diff-lists.ts`) prints, category by category,
-  what differs between two built maps, each a global file with its tiles in the directory of its
-  name beside it (keep a build with
-  `cp -R src/sim/map/monzone.bin src/sim/map/monzone /tmp/before/`). It joins each map whole
-  (`readWholeMap` in `map-file.ts`) and compares heightmap nodes (count, largest and RMS difference,
-  their box), the land cover's cells, the coarse grid (its lattice, then how many heights and covers
-  differ), walls (and their reach, lattices and counts), trees, roads, buildings, water, rail, areas,
-  the tile list, the place, the name and the baked tables (lanes, farms, lamps) and the rest,
-  matched by id
-  or as multisets, so order never counts, and any key it does not know as its own block; the build
-  hash is left out, as anything else changes it. It compares two builds of one format version (the
-  decoders refuse another) and exits 0 for "no differences", 1 when they differ and 2 on bad
-  arguments or a file it cannot read. The shipped map against itself (two builds are
-  byte-identical): no differences, 0.8 s.
+- **`pnpm map-diff <a.bin> <b.bin> [--except <category,...>]`** (`map-diff.ts`, `map-diff-args.ts`,
+  `map-diff-dense.ts`, `diff-lists.ts`) prints, category by category, what differs between two
+  built maps, each a global file with its tiles in the directory of its name beside it (keep a
+  build with `cp -R src/sim/map/monzone.bin src/sim/map/monzone /tmp/before/`). It joins each map
+  whole (`readWholeMap` in `map-file.ts`) and compares the heightmap's grid (with the anchor its
+  lookups count from where either map names one: a map grown round lucido's anchor shows only its
+  grid moved) and its nodes (count, largest and RMS difference, their box), the land cover's cells,
+  the coarse grid (its lattice, then how many heights and covers differ), walls (and their reach,
+  lattices and counts), trees, roads, buildings, water, rail, areas, the tile list, the place, the
+  name, the play area's outline (its rings as a multiset; a map built before it, issue #7, has
+  none) and the baked tables (lanes, farms, lamps) and the rest, matched by id or as multisets, and
+  any key it does not know as its own block; the build hash is left out, as anything else changes
+  it. Order counts only for the walls of each kind and the
+  trees: beside their multiset change it prints the fewest of the items both maps hold that must
+  move to restore their order, and where (`walk order: 1 of 2 shared segments moved, in x …`; one
+  item moved from the front of a list to its back is 1), since the physics resolves contacts in
+  wall order and the trunks a query hands come in the trees' order. A tree on a spot both maps
+  plant that carries another id there is a difference too (`ids: 1 of 2 trees on a spot both maps
+  plant renumbered, in x …`): the id seeds its look. Every copy of an item with a copy added or
+  removed is left out of the order, as which copy went is unknown (Lunigiana's walk and drive
+  walls each hold 4 segments twice, Cesena's 28 segments 2 to 4 times, 51 extra copies). It
+  compares two builds of one format version (the decoders refuse another) and exits 0 for "no
+  differences", 1 when they differ and 2 on bad arguments, an unknown category among them, or a
+  file it cannot read. `--except trees,walls` accepts those categories (the names its blocks print:
+  `unhandled keys`, `top level`, `outline`, `tiles`, `heightmap`, `cover`, `walls`, `coarse`,
+  `trees`, `roads`, `buildings`, `water`, `rail`, `railway`, `areas`, `barriers`, `pois`,
+  `districts`, `spawns`, `graph`, `lanes`, `farms`, `lamps`): their differences are still printed,
+  the last line names them as accepted, and the exit code is 0 unless another category differs.
+  The shipped map against itself (two builds are byte-identical): no differences, 0.9 s.
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
-  checks for the parts, #18 and #21–#23; `src/__tests__/maps.test.ts` fails past it), and `lucido`'s
-  largest, -1_-1, is 0.31 MB.
+  checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
+  `lucido`'s largest, -1_-1, is 0.31 MB.
 
-Until issue #7 builds the map tile by tile, only `lucido` is fetched and built: `pnpm fetch-osm`
-and `pnpm map` cover the Lunigiana region's bounds (`BOUNDS`; `--region cesena` builds the separate
-Cesena map instead, and the part tools refuse it), and `pnpm fetch-rt` reads one part's manifest and
-stops when `PARTS` holds more than one (a second part would widen the mosaic's crop over the land
-between them, all of it holes for the 10 m DTM) or the manifest lists more than one 10 m DTM.
+Only `lucido` is fetched and built: `pnpm fetch-osm` and `pnpm map` cover the Lunigiana region's
+bounds (`BOUNDS`; `--region cesena` builds the separate Cesena map instead, and the part tools
+refuse it; a [test region](#test-regions) builds from Lunigiana's inputs and fetches none), and
+`pnpm fetch-rt` reads one part's manifest and stops when `PARTS` holds more than one (a second part
+would widen the mosaic's crop over the land between them, all of it holes for the 10 m DTM) or the
+manifest lists more than one 10 m DTM. The build works a tile at a time since issue #7
+([Pipeline](#pipeline)), but its inputs stay one OSM file and one DTM mosaic per region until #17
+(Fivizzano, the first part after lucido) brings the per-part raw layout (`osm/<part>.osm.gz`,
+`rt/dtm/<i>_<j>.bin`, a part adding files only) and `fetch-rt <part>`.
 
 A part's new inputs are pinned like any other: after `pnpm fetch-rt` and `pnpm map`, `pnpm pin-raw`
 uploads them and the lock goes into the part's PR ([Pinned inputs and CI](#pinned-inputs-and-ci)).
+
+### What growing a region changes
+
+A part grows the built terrain's box, and a box grown west or south of the region's anchor moves
+the grid's first node: what the build and the game measure from the anchor keeps its bits, and
+what is fitted over the whole box, or cut at the box's edge, does not. Measured on the 3x test
+region against lucido on 2026-10-31 (`node src/tools/build-map.ts --region lunigiana-3x`, then
+`pnpm map-diff src/sim/map/monzone.bin test-maps/lunigiana-3x.bin`). Its play area stays lucido's,
+so this is what a part changes beside it before it joins the play: a part that joins it also
+carries the roads, water, rail and buildings across the old edge, which then are no longer cut.
+
+- **The same to the bit**: every terrain node in lucido's rectangle, the land cover more than 50 m
+  in from its edge, the lamps, water beds and parked spots' rests the bake makes
+  (`x3-region.map-test.ts` checks these), and the roads, rail, railway (its platforms all in play,
+  `x3-region.map-test.ts`), POIs, graph, lanes, lucido's trees (each with its id) but 2 and the
+  coarse grid's nodes in lucido's box. The 2 trees (ids 155837518 and 155853902, at (4899, 3228) and
+  (4898, 3240)) stood within 2 m of the east edge, 1.2 m from the bed of the Torrente Rondonaia
+  (way 788514322), which on the 3x runs on past the edge and keeps trees off its bed there as in
+  play (`clipBeyond`, [section 12](#12-trees-spawns-districts-spawnsts-districtsts)). The DTM's
+  projection lattice, the build's grid lookups, the game's (`heightAt`, `terrainZ`, `coverAt`) and
+  the land cover's raster count a point's cell from the anchor ([section
+  5](#5-heightmap-dtmts-terraints), [The global file](#the-global-file)). Counted from the box's
+  corner, as they were before, the heights of 25 buildings, 22,698 water-bed values, 133 lamps and
+  the rests of 664 parked spots differed in their last bits, and 3 land-cover cells 0.8–3.6 km in
+  from the edge, where an area's edge passes a cell's centre to within a few ulps.
+- **The place** (`placeFrom`) is fitted over every node of the built terrain: the 3x's floor is
+  258.5 m and its downslope 1.919 rad against lucido's 230.3 m and 2.127 rad, and the weather
+  moves with them ([weather.md](weather.md)).
+- **The catchments** route D8 over the whole grid, its edge the outlet, so what drains across
+  lucido's edge from the land beyond now counts: 69 of the 581 water pieces gather other areas,
+  2,149 values in all, the Torrente Tassonaro's most (0.16 → 8.63 km²). The Aulella's 161 km²
+  from beyond the map (`AULELLA_OFF_MAP`) is lucido's: a part that takes in some of that catchment
+  must take it off.
+- **Tiles**: the 4 tiles lucido's edge crosses whose lowest or highest node now lies past it
+  (-2_-4, 2_-3, -2_-2, 2_0) change their `zmin` or `zmax`.
+- **Buildings across the edge**: on lucido each is clipped to its box and kept by the centre of
+  what is left; on the 3x the box reaches past it, so it is kept whole, or dropped, by the centre of
+  the whole. 9 change and 9 go, none reaching more than 19.2 m in from the edge, and with them go
+  parked spot 367 (every later spot's index moves one down, which the spots' hash, keyed on their
+  place, does not see: [Test regions](#test-regions)), 2 farms (2 more move to their whole
+  building), the paving in front of them (6 land-cover cells within 6 m of the edge) and 10 m of a
+  district disc of Argigliano's (r 120 → 110 m).
+- **Areas across the edge** are clipped to the box, not the play area, so on the 3x 19 run on
+  whole past lucido's edge and 77 more lie beyond it. A cut is rounded to 0.1 m, which moves the
+  cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs.
+- **Walls**: a cell's slope reads the nodes up to 8 m round it, and on lucido those past its edge
+  are the edge's own (clamped), so the steep cells along the edge differ, and a loop of blocked
+  cells that takes one in is traced and simplified anew along all its length: walk walls differ up
+  to 396 m in from the edge, drive walls 104 m and shore walls 18 m, and 593 walk and 355 drive
+  walls both maps hold come in another order (a loop that changed starts elsewhere). The walk and
+  drive broad phases start at the lowest corner of any of their walls (`walls.lattice`), which a
+  building kept whole past the edge moves (to x −2917.3 on the 3x), so every wall may fall in
+  another 16 m cell and a query may hand them in another order; the trees' corner is the region's,
+  fixed for good.
+- **The coarse grid** covers the box: its nodes past lucido's edge (x −2944 and 4928) read the
+  land there, where lucido's read its edge.
 
 ## Known data limitations
 

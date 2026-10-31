@@ -4,7 +4,7 @@
 // on a bridge (AFE Sede 063) and OSM draws it at grade, the track is cut into a bridge there (else
 // 12 m of track hung 12 m over the Fosso di Rubiana), and so it is over a road tunnel whose mouth
 // lies under it (`underpasses`). Water crossing at-grade track (a culvert, as OSM draws its small
-// streams) gets a vertex both share, so every crossing at grade is a shared vertex (map.test.ts).
+// streams) gets a vertex both share, so every crossing at grade is a shared vertex (rail.map-test.ts).
 import { inPolygon, splitIn, type Polygon } from "./ctr-rail.ts"
 import { arcLengths, crossings, pointAt, type V } from "./geometry.ts"
 import { insertOn } from "./rail-match.ts"

@@ -1,20 +1,18 @@
 // Top-down debug render of src/sim/map/monzone.bin and its tiles -> .research/map-preview.png.
-// Usage: node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+// Usage: node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png] [--region <key>]
+import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { gunzipSync } from "node:zlib"
 
 import type { AreaKind, BuildingStyle, RoadClass } from "../sim/map/index.ts"
-import { provideMap } from "../sim/map/packed.ts"
 import { fillPolygon, segDist2 } from "./geometry.ts"
-import { wholeMap } from "./map-file.ts"
+import { builtMapUrl, loadBuiltMap, readWholeMap } from "./map-file.ts"
 import { encodePngRgb } from "./png.ts"
 import { REGION } from "./region.ts"
 
-provideMap(gunzipSync(readFileSync(join(import.meta.dirname, `../sim/map/${REGION.file}.bin`))))
+await loadBuiltMap(REGION)
 const { buildingStyleOf, graph, heightAt, isAreaKind, MAP } = await import("../sim/map/index.ts")
 // The trees and walls live in the tiles: read them all, joined.
-const { trees, walls } = wholeMap(REGION.file)
+const { trees, walls } = readWholeMap(builtMapUrl(REGION))
 
 type RGB = readonly [number, number, number]
 const scale = Number(process.argv[2] ?? 1)
@@ -58,7 +56,9 @@ const polyline = (pts: ReadonlyArray<number>, r: number, c: RGB, a = 1) => {
     line(pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!, r, c, a)
 }
 const fill = (rings: ReadonlyArray<ReadonlyArray<number>>, c: RGB, a: number) =>
-  fillPolygon(rings, minX, minY, 1 / scale, W, H, (k) => blend(k, c, a))
+  fillPolygon(rings, minX, minY, 1 / scale, { c0: 0, r0: 0, cols: W, rows: H }, (k) =>
+    blend(k, c, a),
+  )
 
 // Terrain: elevation ramp x hillshade (light from the north-west).
 for (let j = 0; j < H; j++)

@@ -4,7 +4,7 @@
 // keeps its own grade and the road, profiled after it, meets it there (a rail pinned to the road's
 // level made a V of up to 5% in its grade).
 import type { RailF, RoadF, WaterF } from "./features.ts"
-import { along, arcLengths, crossings, type V } from "./geometry.ts"
+import { along, arcLengths, boxesMeet, crossings, lineBox, type V } from "./geometry.ts"
 import type { Bound, Linear } from "./profiles.ts"
 import type { Profile } from "./terrain.ts"
 
@@ -38,9 +38,12 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
         rd.pts.some((u) => u.id === v.id),
     )
   /** Rail over road without a shared node (rail bridge or road tunnel): the road keeps the clearance under the rail. A rail tunnel passes under. */
-  const railRoad = allRail.flatMap((rl) =>
-    roads.flatMap((rd) => {
-      if (rl.bridge !== true && rd.tunnel !== true) return []
+  const railBox = allRail.map((rl) => lineBox(rl.pts)),
+    roadBox = roads.map((rd) => lineBox(rd.pts))
+  const railRoad = allRail.flatMap((rl, li) =>
+    roads.flatMap((rd, ri) => {
+      if ((rl.bridge !== true && rd.tunnel !== true) || !boxesMeet(railBox[li]!, roadBox[ri]!))
+        return []
       return crossings(rl.pts, rd.pts)
         .filter((c) => !level(rl, rd, c))
         .map((c) => ({
@@ -53,11 +56,11 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
     }),
   )
   /** A road bridge over at-grade rail (the one by Equi Terme): the train passes under its deck. */
-  const roadRail = allRail.flatMap((rl) =>
+  const roadRail = allRail.flatMap((rl, li) =>
     rl.bridge === true || rl.tunnel === true
       ? []
-      : roads.flatMap((rd) =>
-          rd.bridge === true
+      : roads.flatMap((rd, ri) =>
+          rd.bridge === true && boxesMeet(railBox[li]!, roadBox[ri]!)
             ? crossings(rl.pts, rd.pts)
                 .filter((c) => !level(rl, rd, c))
                 .map((c) => {
@@ -105,14 +108,20 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
         kind: "min" as const,
       })),
   ]
-  /** Level crossings: a rail node shared with a road. */
-  const levels = allRail.flatMap((rl) =>
-    roads.flatMap((rd) =>
-      rd.pts.flatMap((v) =>
-        v.id !== undefined && rl.pts.some((u) => u.id === v.id) ? [{ rl, rd, v }] : [],
-      ),
-    ),
-  )
+  /** Level crossings: a rail node shared with a road, by rail piece, then road, then the road's vertex. */
+  const levels = (() => {
+    const piecesAt = new Map<string, Set<number>>()
+    allRail.forEach((rl, li) => {
+      for (const u of rl.pts)
+        if (u.id !== undefined) piecesAt.set(u.id, (piecesAt.get(u.id) ?? new Set()).add(li))
+    })
+    const byPiece = allRail.map((): Array<{ rl: RailF; rd: RoadF; v: V }> => [])
+    for (const rd of roads)
+      for (const v of rd.pts)
+        for (const li of (v.id === undefined ? undefined : piecesAt.get(v.id)) ?? [])
+          byPiece[li]!.push({ rl: allRail[li]!, rd, v })
+    return byPiece.flat()
+  })()
   /**
    * The rail stays at least maxheight + RAIL_DECK over the natural level of a tagged underpass (a
    * sign gives the least clearance: the Via delle Cave deck stands 1.1–3.3 m higher, and pinning

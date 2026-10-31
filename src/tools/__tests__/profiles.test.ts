@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { V } from "../geometry.ts"
-import { makeProfiler, type Linear } from "../profiles.ts"
+import { makeProfiler, replayClaims, type Linear } from "../profiles.ts"
 import type { Grid } from "../terrain.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
@@ -10,7 +10,16 @@ const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y }
 const grid = (): Grid => {
   const cols = 161,
     rows = 11
-  return { cell: 4, cols, rows, x0: -20, y0: -20, z: new Float64Array(cols * rows).fill(100) }
+  return {
+    cell: 4,
+    cols,
+    rows,
+    x0: -20,
+    y0: -20,
+    ax: -20,
+    ay: -20,
+    z: new Float64Array(cols * rows).fill(100),
+  }
 }
 const SPEC = { w: 4, rank: 1, grade: 0.025, half: 20, tol: 0.03 }
 
@@ -28,17 +37,56 @@ test("profile takes a tunnel portal's and a bridge end's level from the ground j
     { id: 4, bridge: true, pts: [v(300, 0, "b0"), v(400, 0, "b1")] },
     { id: 5, pts: [v(400, 0, "b1"), v(600, 0)] },
   ]
-  const g = grid()
-  const { profile, zOf } = makeProfiler(
-    g,
-    (x) => ground(x),
-    new Uint8Array(g.z.length).fill(255),
-    new Uint8Array(g.z.length),
-  )
+  const { profile, zOf } = makeProfiler((x) => ground(x))
   profile(
     pieces.map((item) => ({ item, rev: false })),
     SPEC,
   )
   for (const p of pieces)
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
+})
+
+test("replayClaims writes a window's nodes, its seam with the next included, as it writes the whole grid's", () => {
+  // Two crossing roads over a sloping grid: the rank-0 road keeps the junction, the other blends.
+  const ground = (x: number, y: number) => 100 + 0.05 * x + 0.1 * y
+  const { profile, claims } = makeProfiler(ground)
+  profile([{ item: { pts: [v(-10, -5), v(300, 6, "j"), v(610, 2)] }, rev: false }], {
+    ...SPEC,
+    rank: 0,
+  })
+  profile([{ item: { pts: [v(300, 6, "j"), v(320, 18)] }, rev: false }], { ...SPEC, rank: 2 })
+  const whole = grid()
+  whole.z.forEach(
+    (_, n) => (whole.z[n] = ground(-20 + 4 * (n % 161), -20 + 4 * Math.floor(n / 161))),
+  )
+  const base = Float64Array.from(whole.z)
+  replayClaims(
+    whole,
+    claims,
+    new Uint8Array(whole.z.length).fill(255),
+    new Uint8Array(whole.z.length),
+  )
+  // The windows meet at column 80 (x 300, the junction), both holding it.
+  for (const [i0, cols] of [
+    [0, 81],
+    [80, 81],
+  ] as const) {
+    const span = { i0, j0: 0, cols, rows: 11 }
+    const part: Grid = {
+      ...whole,
+      span,
+      z: Float64Array.from(
+        { length: cols * 11 },
+        (_, k) => base[Math.floor(k / cols) * 161 + i0 + (k % cols)]!,
+      ),
+    }
+    replayClaims(
+      part,
+      claims,
+      new Uint8Array(part.z.length).fill(255),
+      new Uint8Array(part.z.length),
+    )
+    part.z.forEach((z, k) => assert.equal(z, whole.z[Math.floor(k / cols) * 161 + i0 + (k % cols)]))
+  }
+  assert.notDeepEqual(whole.z, base, "the claims wrote the grid")
 })

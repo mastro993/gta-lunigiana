@@ -2,15 +2,17 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { coarseHeightAt } from "../../sim/map/coarse.ts"
-import { groundZ, ROAD_LIFT } from "../../sim/map/ground.ts"
-import { isDrivable, MAP, roadClassOf } from "../../sim/map/index.ts"
+import { ROAD_LIFT } from "../../sim/map/ground.ts"
+import { MAP } from "../../sim/map/index.ts"
 import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
 import { dropTile, nodeAt, setTileSource } from "../../sim/map/tiles.ts"
-import { VEHICLES } from "../../sim/vehicles.ts"
 import { farTerrainY, groundY, terrainResident, terrainY, yOf } from "../ground.ts"
-import { everyTileIn } from "../testing.ts"
+import { residentAround } from "../testing.ts"
+import { assertBridgesCarry } from "./bridges.ts"
 
 const hm = MAP.heightmap
+/** Monzone station. */
+const STATION = { x: -493.8, y: 436.9 }
 
 test("terrainY hits the heightmap nodes (row 0 = south) and stays planar inside a triangle", () => {
   for (const [i, j] of [
@@ -33,10 +35,10 @@ test("terrainY hits the heightmap nodes (row 0 = south) and stays planar inside 
 })
 
 test("farTerrainY is terrainY where the terrain is in memory and the coarse grid's height where not, even in a cell whose east nodes lie in a tile out", () => {
-  everyTileIn()
   // The last cell west of the x = 0 seam, by Monzone's station: its east nodes are tile 0_0's.
   const x = -1,
     y = 500
+  residentAround([{ x, y }], 200)
   assert.equal(farTerrainY(x, y), terrainY(x, y))
   assert.equal(farTerrainY(100, y), terrainY(100, y))
   setTileSource(undefined)
@@ -87,60 +89,16 @@ test("groundY stands on an at-grade road when arriving from the terrain beside i
 })
 
 // Regression: on the steep little bridge on Via Provinciale near Colognola (OSM 810591030) the gully below stayed
-// nearer than the climbing deck, so the car (and walkers) dropped 1.9 m under it. The car's wheels are the sim's: each
-// keeps to the level of its previous contact, as the drive physics does; walkers stand where the renderer puts them.
-test("a car's wheels and a walker crossing every drivable bridge, both ways, from 12 m before it, stay on the deck", () => {
-  const { wheels } = VEHICLES.carabinieri
-  // The straight approach out of a tunnel runs through the hillside (the old marble road up the Solco di Equi bends between its tunnels and bridges).
-  const tunnelEnd = (x: number, y: number) =>
-    MAP.roads.some(
-      (q) =>
-        q.tunnel === true &&
-        [0, q.pts.length - 2].some((i) => Math.hypot(q.pts[i]! - x, q.pts[i + 1]! - y) < 0.1),
-    )
-  let passes = 0
-  for (const r of MAP.roads) {
-    if (r.bridge !== true || !isDrivable(r.cls)) continue
-    for (const reverse of [false, true]) {
-      const pts = Array.from(
-        { length: r.z.length },
-        (_, k) => [r.pts[2 * k]!, r.pts[2 * k + 1]!, r.z[k]!] as const,
-      )
-      if (reverse) pts.reverse()
-      const [x0, y0] = pts[0]!,
-        [x1, y1] = pts[1]!,
-        d = Math.hypot(x1 - x0, y1 - y0),
-        ux = (x1 - x0) / d,
-        uy = (y1 - y0) / d
-      if (tunnelEnd(x0, y0)) continue
-      let contacts: ReadonlyArray<number> | undefined, feet: number | undefined
-      const place = (x: number, y: number, angle: number) => {
-        const c = Math.cos(angle),
-          s = Math.sin(angle)
-        contacts = wheels.map((w, i) =>
-          groundZ(x + w.x * c - w.y * s, y + w.x * s + w.y * c, contacts?.[i]),
-        )
-        feet = groundY(x, y, feet)
-      }
-      for (let s = -12; s < 0; s += 0.4) place(x0 + ux * s, y0 + uy * s, Math.atan2(uy, ux))
-      for (let i = 0; i + 1 < pts.length; i++) {
-        const [ax, ay, az] = pts[i]!,
-          [bx, by, bz] = pts[i + 1]!,
-          len = Math.hypot(bx - ax, by - ay)
-        for (let s = 0; s < len; s += 0.4) {
-          const x = ax + ((bx - ax) * s) / len,
-            y = ay + ((by - ay) * s) / len
-          place(x, y, Math.atan2(by - ay, bx - ax))
-          const deck = az + ((bz - az) * s) / len + ROAD_LIFT[roadClassOf(r)],
-            car = contacts!.reduce((a, b) => a + b) / contacts!.length
-          assert.ok(
-            Math.abs(car - deck) < 0.5 && Math.abs(feet! - yOf(deck)) < 0.5,
-            `road ${r.id} ${reverse ? "b -> a" : "a -> b"} at ${x.toFixed(1)},${y.toFixed(1)}: deck ${deck.toFixed(2)}, wheels ${car.toFixed(2)}, walker ${(feet! - yOf(0)).toFixed(2)} m a.s.l.`,
-          )
-        }
-      }
-      passes++
-    }
-  }
-  assert.ok(passes >= 40, `${passes} passes`)
+// nearer than the climbing deck, so the car (and walkers) dropped 1.9 m under it (ground.map-test.ts crosses every bridge
+// of the map).
+test("a car's wheels and a walker crossing every drivable bridge within 2 km of Monzone, Colognola's among them, both ways, from 12 m before it, stay on the deck", () => {
+  const near = MAP.roads.filter(
+    (r) => r.bridge === true && Math.hypot(r.pts[0]! - STATION.x, r.pts[1]! - STATION.y) < 2000,
+  )
+  assert.ok(
+    near.some((r) => r.id === 810591030),
+    "the bridge near Colognola",
+  )
+  const passes = assertBridgesCarry(near)
+  assert.ok(passes >= 10, `${passes} passes`)
 })

@@ -5,6 +5,7 @@ import { arcLengths, type V } from "./geometry.ts"
 import {
   fitProfile,
   flatten,
+  GRID_CELL,
   keepSamples,
   resample,
   smooth,
@@ -99,23 +100,118 @@ interface Dense {
   readonly z: ReadonlyArray<number>
 }
 
+/** Elevations set at shared nodes, and the ids in the order they were first set (what `grown` reads). */
+class NodeZ extends Map<string, number> {
+  readonly order: Array<string> = []
+  override set(id: string, z: number): this {
+    if (!this.has(id)) this.order.push(id)
+    return super.set(id, z)
+  }
+}
+
+/** A binary min-heap of integers. */
+const minHeap = () => {
+  const items: Array<number> = []
+  return {
+    push(n: number) {
+      let k = items.length
+      items.push(n)
+      while (k > 0) {
+        const up = (k - 1) >> 1
+        if (items[up]! <= n) break
+        items[k] = items[up]!
+        k = up
+      }
+      items[k] = n
+    },
+    /** The least item, removed; undefined when empty. */
+    pop(): number | undefined {
+      const top = items[0],
+        last = items.pop()
+      if (last === undefined || items.length === 0) return top
+      let k = 0
+      for (;;) {
+        const l = 2 * k + 1
+        if (l >= items.length) break
+        const m = l + 1 < items.length && items[l + 1]! < items[l]! ? l + 1 : l
+        if (items[m]! >= last) break
+        items[k] = items[m]!
+        k = m
+      }
+      items[k] = last
+      return top
+    },
+  }
+}
+
 /**
- * Profiles chains against `ground` (the uncarved terrain) and flattens them into `grid`. Elevations
- * set at shared nodes (`nodeZ`) pin every later chain through them; `zOf` holds per-vertex z and
- * `denseOf` the output polyline.
+ * A profile to write into the grid (`flatten`): its core half-width, rank, and the samples whose
+ * segment writes nothing (bridges, tunnels).
  */
-export const makeProfiler = (
-  grid: Grid,
-  ground: (x: number, y: number) => number,
+export interface Claim {
+  readonly p: Profile
+  readonly core: number
+  readonly rank: number
+  readonly skip: Uint8Array
+  /** The box its writes reach: [minX, minY, maxX, maxY]. */
+  readonly box: readonly [number, number, number, number]
+}
+
+/** Metres a claim's writes reach past its core: the blend back to the terrain. */
+const BLEND = 8
+
+/**
+ * Writes `claims` into the nodes `g` holds, in order: what one pass over the whole grid writes
+ * there, since a node's writes read only that node. `owner` and `protect` are indexed like `g.z`.
+ */
+export const replayClaims = (
+  g: Grid,
+  claims: ReadonlyArray<Claim>,
   owner: Uint8Array,
   protect: Uint8Array,
-) => {
-  const nodeZ = new Map<string, number>()
+): void => {
+  const { i0, j0, cols, rows } = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
+  const minX = g.x0 + i0 * g.cell,
+    minY = g.y0 + j0 * g.cell,
+    maxX = g.x0 + (i0 + cols - 1) * g.cell,
+    maxY = g.y0 + (j0 + rows - 1) * g.cell
+  for (const { p, core, rank, skip, box } of claims)
+    if (box[0] <= maxX && box[2] >= minX && box[1] <= maxY && box[3] >= minY)
+      flatten(g, p, core, BLEND, rank, owner, protect, (k) => skip[k] === 1)
+}
+
+/**
+ * Profiles chains against `ground` (the uncarved terrain) and records the claims they make on the
+ * grid, in order (`replayClaims` writes them). Elevations set at shared nodes (`nodeZ`) pin every
+ * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline.
+ */
+export const makeProfiler = (ground: (x: number, y: number) => number) => {
+  const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
   const denseOf = new Map<Linear, Dense>()
-  /** Writes profile `p` of a line `w` m wide into the grid at `rank`, skipping segments from samples where `skip`. */
-  const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) =>
-    flatten(grid, p, coreHalf(w, grid.cell), 8, rank, owner, protect, skip)
+  const claims: Array<Claim> = []
+  /** Claims the grid along profile `p` of a line `w` m wide at `rank`, but for segments from samples where `skip`. */
+  const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) => {
+    const core = coreHalf(w, GRID_CELL),
+      reach = core + BLEND
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity
+    for (let k = 0; k < p.x.length; k++) {
+      minX = Math.min(minX, p.x[k]! - reach)
+      minY = Math.min(minY, p.y[k]! - reach)
+      maxX = Math.max(maxX, p.x[k]! + reach)
+      maxY = Math.max(maxY, p.y[k]! + reach)
+    }
+    claims.push({
+      p,
+      core,
+      rank,
+      skip: Uint8Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) => (skip(k) ? 1 : 0)),
+      box: [minX, minY, maxX, maxY],
+    })
+  }
   const profile = <T extends Linear>(
     chain: ReadonlyArray<Link<T>>,
     spec: Spec,
@@ -211,10 +307,39 @@ export const makeProfiler = (
   function* grown<T extends Linear>(
     chains: ReadonlyArray<ReadonlyArray<Link<T>>>,
   ): Generator<ReadonlyArray<Link<T>>> {
-    const left = [...chains]
-    const touches = (c: ReadonlyArray<Link<T>>) =>
-      c.some(({ item }) => item.pts.some((v) => v.id !== undefined && nodeZ.has(v.id)))
-    while (left.length > 0) yield left.splice(Math.max(0, left.findIndex(touches)), 1)[0]!
+    // The chains through each node id; a chain touches once any of its ids is set, and stays so.
+    const through = new Map<string, Array<number>>()
+    chains.forEach((c, i) => {
+      for (const { item } of c)
+        for (const v of item.pts) {
+          if (v.id === undefined) continue
+          const list = through.get(v.id)
+          if (list === undefined) through.set(v.id, [i])
+          else if (list.at(-1) !== i) list.push(i)
+        }
+    })
+    const used = new Uint8Array(chains.length),
+      touching = new Uint8Array(chains.length),
+      ready = minHeap()
+    let seen = 0,
+      first = 0
+    for (let n = 0; n < chains.length; n++) {
+      // The elevations set since the last chain (by it, or between passes) make more chains touch.
+      for (; seen < nodeZ.order.length; seen++)
+        for (const i of through.get(nodeZ.order[seen]!) ?? [])
+          if (touching[i] === 0) {
+            touching[i] = 1
+            ready.push(i)
+          }
+      let next = ready.pop()
+      while (next !== undefined && used[next] === 1) next = ready.pop()
+      if (next === undefined) {
+        while (used[first] === 1) first++
+        next = first
+      }
+      used[next] = 1
+      yield chains[next]!
+    }
   }
-  return { profile, claim, grown, nodeZ, zOf, denseOf }
+  return { profile, claim, claims, grown, nodeZ, zOf, denseOf }
 }

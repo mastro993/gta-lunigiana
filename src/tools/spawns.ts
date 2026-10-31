@@ -1,17 +1,15 @@
-// Deterministic tree scatter, the player spawn and parked-car spots.
+// The clearance checks against walls and trunks, the station and Carabinieri POIs, the player's start
+// and spawn, and parked-car spots.
 import { Ops } from "@typeonce/ritmo-math"
 
 import { staticGrid } from "../sim/collide.ts"
-import type { Area, Spawn } from "../sim/map/index.ts"
+import type { Area, Poi, Spawn } from "../sim/map/index.ts"
 import { pushTrunk, TRUNK } from "../sim/map/kinds.ts"
-import type { BuildingF, RailF, RoadF, WaterF } from "./features.ts"
+import type { BuildingF, RoadF } from "./features.ts"
 import {
   arcLengths,
-  BOUNDS,
   centroid,
-  fillPolygon,
   hash01,
-  inBounds,
   pointAt,
   pointInRing,
   r1,
@@ -19,77 +17,8 @@ import {
   segDist2,
   segIndex,
 } from "./geometry.ts"
-
-const TREE_AREA = 50 // m² per tree
-const MASK_RES = 2
-
-/** Raster of the play area at MASK_RES m with every polygon in `polys` filled. */
-const mask = (polys: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>) => {
-  const cols = Math.ceil((BOUNDS.maxX - BOUNDS.minX) / MASK_RES),
-    rows = Math.ceil((BOUNDS.maxY - BOUNDS.minY) / MASK_RES)
-  const m = new Uint8Array(cols * rows)
-  // Even-odd within each polygon (fillPolygon visits a pixel once per polygon), OR across them.
-  for (const rings of polys)
-    fillPolygon(rings, BOUNDS.minX, BOUNDS.minY, MASK_RES, cols, rows, (k) => (m[k] = 1))
-  return (x: number, y: number) => {
-    const c = Math.floor((x - BOUNDS.minX) / MASK_RES),
-      r = Math.floor((y - BOUNDS.minY) / MASK_RES)
-    return c >= 0 && r >= 0 && c < cols && r < rows && m[r * cols + c] === 1
-  }
-}
-
-/** Flat (x, y, scale) triples (positions to the metre: scatter needs no more, and it keeps the JSON small): a jittered ~7 m lattice inside forest, plus sparse trees on river banks. */
-export const scatterTrees = (
-  areas: ReadonlyArray<Area>,
-  roads: ReadonlyArray<RoadF>,
-  buildings: ReadonlyArray<BuildingF>,
-  water: ReadonlyArray<WaterF>,
-  rail: ReadonlyArray<RailF>,
-): Array<number> => {
-  const forest = mask(areas.filter((a) => a.kind === "forest").map((a) => a.rings))
-  const open = mask(areas.filter((a) => a.kind !== "forest").map((a) => a.rings))
-  const built = mask(buildings.map((b) => [b.outer, ...(b.holes ?? [])]))
-  const keepOut = segIndex<null>()
-  for (const r of roads) keepOut.addLine(r.pts, r.w / 2 + 2, null)
-  for (const b of buildings) keepOut.addLine([...b.outer, b.outer[0]!, b.outer[1]!], 2, null)
-  for (const w of water) keepOut.addLine(w.pts, w.bed, null)
-  for (const r of rail) if (r.tunnel !== true) keepOut.addLine(r.pts, 6, null)
-  const free = (x: number, y: number) =>
-    inBounds(x, y, 1) && !open(x, y) && !built(x, y) && !keepOut.covers(x, y)
-  const trees: Array<number> = [],
-    planted = new Set<number>()
-  /** Rounded to the metre, two jittered lattice points can land on one spot: keep the first. */
-  const plant = (x: number, y: number, scale: number) => {
-    const tx = Math.round(x),
-      ty = Math.round(y),
-      key = tx * 65536 + ty
-    if (planted.has(key)) return
-    planted.add(key)
-    trees.push(tx, ty, r1(scale))
-  }
-  const step = Math.sqrt(TREE_AREA)
-  for (let gj = 0; gj * step < BOUNDS.maxY - BOUNDS.minY; gj++)
-    for (let gi = 0; gi * step < BOUNDS.maxX - BOUNDS.minX; gi++) {
-      const x = BOUNDS.minX + (gi + hash01(gi, gj, 1)) * step,
-        y = BOUNDS.minY + (gj + hash01(gi, gj, 2)) * step
-      if (forest(x, y) && free(x, y)) plant(x, y, 0.8 + 0.5 * hash01(gi, gj, 3))
-    }
-  water.forEach((w, wi) => {
-    if (w.w < 4) return
-    const s = arcLengths(w.pts),
-      total = s.at(-1)!
-    for (let k = 0; k * 9 < total; k++)
-      for (const side of [1, -1]) {
-        if (hash01(wi, k, side, 4) > 0.55) continue
-        const p = pointAt(w.pts, s, k * 9),
-          off = side * (w.bed + 2 + 3 * hash01(wi, k, side, 5))
-        const x = p.x - p.ty * off,
-          y = p.y + p.tx * off
-        if (!forest(x, y) && free(x, y)) plant(x, y, 0.8 + 0.5 * hash01(wi, k, side, 6))
-      }
-  })
-  return trees
-}
+import { inPlay } from "./play-area.ts"
+import type { Region } from "./region.ts"
 
 /** Segments farther than this from a clearance query are ignored, m (every caller asks less). */
 const REACH = 3
@@ -99,7 +28,7 @@ const REACH = 3
  * flat (x, y, scale) `trees`. Trees are indexed as points and their squares made on query, as
  * `wallsNear` does in the game: a segment per trunk edge would take gigabytes at a million trees.
  */
-export const clearance = (walls: ReadonlyArray<number>, trees: ReadonlyArray<number>) => {
+export const clearance = (walls: ReadonlyArray<number>, trees: ArrayLike<number>) => {
   const idx = segIndex<null>()
   for (let i = 0; i + 3 < walls.length; i += 4)
     idx.add(walls[i]!, walls[i + 1]!, walls[i + 2]!, walls[i + 3]!, REACH, null)
@@ -178,7 +107,51 @@ type Clearance = ReturnType<typeof clearance>
 const CAR_HL = 3.7 / 2,
   CAR_HW = 1.7 / 2,
   CAR_GAP = 0.3,
-  SPAWN_R = 1.3 // 1.2 m (map.test.ts) + rounding margin
+  SPAWN_R = 1.3 // 1.2 m (map.map-test.ts) + rounding margin
+
+/** POI `id` of `pois`: a test region may leave it out of play (undefined), while a shipped map without it has lost it from OSM and throws. */
+export const regionPoi = (
+  pois: ReadonlyArray<Poi>,
+  id: number,
+  { test }: Pick<Region, "test">,
+): Poi | undefined => {
+  const p = pois.find((q) => q.id === id)
+  if (p === undefined && !test) throw new Error(`poi ${id} missing`)
+  return p
+}
+
+/** Where the player's spawn is sought (`playerSpawn`'s target), and on which road. */
+interface Start {
+  readonly at: { readonly x: number; readonly y: number }
+  readonly road?: RoadF
+}
+
+/**
+ * Where the player's spawn is sought: by `police` (Lunigiana's Carabinieri) when given, else by the
+ * traffic node nearest the origin, on its road (Cesena, and a test region that leaves the
+ * Carabinieri out); undefined when the graph has no traffic edge.
+ */
+export const startNear = (
+  graph: {
+    readonly xy: ReadonlyArray<number>
+    readonly edges: ReadonlyArray<number>
+    readonly traffic: ReadonlyArray<number>
+  },
+  roads: ReadonlyArray<RoadF>,
+  police: Start["at"] | undefined,
+): Start | undefined => {
+  if (police !== undefined) return { at: police }
+  let start: Start | undefined,
+    least = Infinity
+  for (const edge of graph.traffic) {
+    const node = graph.edges[3 * edge]!,
+      x = graph.xy[2 * node]!,
+      y = graph.xy[2 * node + 1]!,
+      d = Math.hypot(x, y)
+    if (d < least) [start, least] = [{ at: { x, y }, road: roads[graph.edges[3 * edge + 2]!]! }, d]
+  }
+  return start
+}
 
 /** A clear sidewalk spot outside building footprints, with an open walking route to the street. */
 export const playerSpawn = (
@@ -207,10 +180,7 @@ export const playerSpawn = (
       const off = side * (road.w / 2 + 1),
         x = r1(p.x - p.ty * off),
         y = r1(p.y + p.tx * off)
-      if (
-        !inBounds(x, y, SPAWN_R) ||
-        buildings.some((building) => pointInRing(x, y, building.outer))
-      )
+      if (!inPlay(x, y, SPAWN_R) || buildings.some((building) => pointInRing(x, y, building.outer)))
         continue
       if (!walk.circle(x, y, SPAWN_R) || !drive.circle(x, y, SPAWN_R)) continue
       const steps = Math.ceil(Math.hypot(x - p.x, y - p.y) / 0.5)
@@ -236,9 +206,10 @@ interface ParkingInput {
   readonly walk: Clearance
   readonly drive: Clearance
   readonly avoid: { readonly x: number; readonly y: number }
-  readonly station: { readonly x: number; readonly y: number }
-  /** The Carabinieri station: its two nearest kerb spots are always kept (the sim parks their cars there). */
-  readonly police: { readonly x: number; readonly y: number }
+  /** The railway station, whose car parks within 150 m get spots; none where the play area leaves it out. */
+  readonly station: { readonly x: number; readonly y: number } | undefined
+  /** The Carabinieri station: its two nearest kerb spots are always kept (the sim parks their cars there); none where the play area leaves it out. */
+  readonly police: { readonly x: number; readonly y: number } | undefined
   /** At-grade rail centrelines (flat x, y), sidings included, and whether trains run on each: no car is parked in a train's way. */
   readonly rail: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly running: boolean }>
   /** Level-crossing nodes: no car is parked near one. */
@@ -370,7 +341,7 @@ export const parkedSpots = ({
     ]
   }
   const fits = (x: number, y: number, angle: number) =>
-    inBounds(x, y, 5) &&
+    inPlay(x, y, 5) &&
     walk.circle(x, y, SPAWN_R) &&
     drive.circle(x, y, SPAWN_R) &&
     drive.box(x, y, angle, CAR_HL + CAR_GAP, CAR_HW + CAR_GAP) &&
@@ -401,11 +372,13 @@ export const parkedSpots = ({
       if (spots.every((o) => Math.hypot(o.x - c.x, o.y - c.y) >= 9)) spots.push(c)
     }
   }
-  const toPolice = (c: Spawn) => Math.hypot(c.x - police.x, c.y - police.y)
-  take(
-    [...candidates].sort((a, b) => toPolice(a) - toPolice(b)),
-    2,
-  )
+  if (police !== undefined) {
+    const toPolice = (c: Spawn) => Math.hypot(c.x - police.x, c.y - police.y)
+    take(
+      [...candidates].sort((a, b) => toPolice(a) - toPolice(b)),
+      2,
+    )
+  }
   take(
     candidates.sort((a, b) => a.order - b.order),
     Math.round(buildings.length / BUILDINGS_PER_SPOT),
@@ -417,7 +390,7 @@ export const parkedSpots = ({
     let cx = 0,
       cy = 0
     for (let i = 0; i < n; i++) [cx, cy] = [cx + ring[2 * i]! / n, cy + ring[2 * i + 1]! / n]
-    if (Math.hypot(cx - station.x, cy - station.y) > 150) continue
+    if (station === undefined || Math.hypot(cx - station.x, cy - station.y) > 150) continue
     let ex = 1,
       ey = 0,
       longest = 0

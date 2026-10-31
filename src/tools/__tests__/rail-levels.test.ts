@@ -23,6 +23,7 @@ const stream = (id: number, w: number, x: number): WaterF => ({
   bed: w,
   depth: 1,
   pts: [v(x, -50), v(x, 50)],
+  from: 0,
 })
 // The rail along y 0: at grade to x 100, a bridge over x 100–300, at grade on. Ground is flat at
 // 100 m; the rail stands at 110 m wherever a road's bound reads it.

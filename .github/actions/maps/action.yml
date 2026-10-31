@@ -1,6 +1,8 @@
-# Puts the built maps in src/sim/map for the steps after it: from the cache when their inputs are
-# unchanged, else built from the raw inputs data/raw.lock.json pins, which come through a cache of
-# their own. It never saves the maps: ci.yml's reproducible job does, once a second build matches.
+# Puts the built maps in src/sim/map, and the L test region pnpm test:map checks in test-maps, for
+# the steps after it: from the cache when their inputs are unchanged, else built from the raw inputs
+# data/raw.lock.json pins, which come through a cache of their own. The L is built from the same
+# inputs and code (pnpm maps), so it shares the maps' key and is cached with them: a hit needs no
+# raw inputs. It never saves the maps: ci.yml's reproducible job does, once a second build matches.
 # Runs after Node, pnpm and the dependencies are installed (ci.yml, pages.yml).
 name: Maps
 description: Restore the built maps from the cache, or fetch the pinned raw inputs and build them
@@ -38,6 +40,8 @@ runs:
         path: |
           src/sim/map/*.bin
           src/sim/map/*/*.bin
+          test-maps/*.bin
+          test-maps/*/*.bin
         key: ${{ steps.key.outputs.key }}
 
     - id: raw
@@ -70,5 +74,5 @@ runs:
       if: steps.maps.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        hash=$(find src/sim/map -name '*.bin' -print0 | LC_ALL=C sort -z | xargs -0 gunzip -c | sha256sum)
+        hash=$(find src/sim/map test-maps -name '*.bin' -print0 | LC_ALL=C sort -z | xargs -0 gunzip -c | sha256sum)
         echo "hash=${hash%% *}" >> "$GITHUB_OUTPUT"

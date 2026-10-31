@@ -19,6 +19,16 @@ const runningMin = (p: Profile) => {
  * the water it joins (tail lowered at <= TAIL, or ponded up to it).
  */
 const settle = (water: ReadonlyArray<WaterF>, wp: ReadonlyArray<Profile>) => {
+  // Each node id's waters, in order, with the first vertex of each that has it.
+  const at = new Map<string, Array<readonly [number, number]>>()
+  water.forEach((r, j) =>
+    r.pts.forEach((q, v) => {
+      if (q.id === undefined) return
+      const list = at.get(q.id)
+      if (list === undefined) at.set(q.id, [[j, v]])
+      else if (list.at(-1)![0] !== j) list.push([j, v])
+    }),
+  )
   for (let it = 0; it < 20; it++) {
     let changed = false
     for (const p of wp) runningMin(p)
@@ -27,13 +37,13 @@ const settle = (water: ReadonlyArray<WaterF>, wp: ReadonlyArray<Profile>) => {
       if (mouth === undefined) return
       const p = wp[i]!,
         end = p.z.length - 1
-      water.forEach((r, j) => {
-        const v = r.pts.findIndex((q) => q.id === mouth)
-        if (j === i || v < 0 || v === r.pts.length - 1) return // r ends there too: siblings, not a receiver
+      for (const [j, v] of at.get(mouth)!) {
+        const r = water[j]!
+        if (j === i || v === r.pts.length - 1) continue // r ends there too: siblings, not a receiver
         const q = wp[j]!
         const level = v === 0 ? Math.min(q.z[0]!, p.z[end]!) : q.z[q.vertexSample[v]!]!
         if (v === 0 && q.z[0]! > level) [q.z[0], changed] = [level, true]
-        if (Math.abs(p.z[end]! - level) < 1e-6) return
+        if (Math.abs(p.z[end]! - level) < 1e-6) continue
         changed = true
         if (p.z[end]! < level) for (let k = 0; k <= end; k++) p.z[k] = Math.max(p.z[k]!, level)
         else {
@@ -43,7 +53,7 @@ const settle = (water: ReadonlyArray<WaterF>, wp: ReadonlyArray<Profile>) => {
           for (let k = 0; k <= end; k++)
             p.z[k] = p.z[k]! - drop * Math.max(0, 1 - (p.s[end]! - p.s[k]!) / fade)
         }
-      })
+      }
     })
     if (!changed) return
   }
@@ -103,19 +113,13 @@ export interface Crossed {
 }
 
 /**
- * After the roads: bridges keep BRIDGE_CLEAR over the water (settled again downstream, then
- * re-carved outside road cores); at-grade roads pass over an implied culvert (a local dip, hidden
- * under the road and its approaches). Last, water left perched over a road cut (culverted streams
- * end at the road) drops to the terrain, except inside a wider channel it flows into, as long as it
- * still runs downhill there (a stream dropped into a river's carved bed never steps back up).
+ * After the roads, before the beds are carved again: bridges keep BRIDGE_CLEAR over the water,
+ * settled again downstream. Reads no terrain.
  */
-export const fitUnderDecks = (
-  g: Grid,
+export const capUnderDecks = (
   water: ReadonlyArray<WaterF>,
   wp: ReadonlyArray<Profile>,
   crossed: ReadonlyArray<Crossed>,
-  keep: (n: number) => boolean,
-  terrain: (x: number, y: number) => number,
 ): void => {
   const decks = () => {
     for (const c of crossed) if (c.bridge) cap(wp[c.water]!, c.at, c.half, c.deck - BRIDGE_CLEAR)
@@ -123,14 +127,29 @@ export const fitUnderDecks = (
   decks()
   settle(water, wp)
   decks() // settling may pond a tributary back up under a bridge near its mouth
-  carveAll(g, water, wp, keep)
+}
+
+/**
+ * Once the beds are carved again under the capped water (`carveAll` outside the road cores):
+ * at-grade roads pass over an implied culvert (a local dip, hidden under the road and its
+ * approaches); then water left perched over a road cut (culverted streams end at the road) drops
+ * to the terrain, except inside a wider channel it flows into, as long as it still runs downhill
+ * there (a stream dropped into a river's carved bed never steps back up). `terrain[i][k]` is the
+ * carved grid, before its rounding, under sample k of water i.
+ */
+export const dropPerched = (
+  water: ReadonlyArray<WaterF>,
+  wp: ReadonlyArray<Profile>,
+  crossed: ReadonlyArray<Crossed>,
+  terrain: ReadonlyArray<ArrayLike<number>>,
+): void => {
   for (const c of crossed) if (!c.bridge) cap(wp[c.water]!, c.at, c.half, c.deck - CULVERT, true)
   const channels = segIndex<number>()
   water.forEach((w, i) => channels.addLine(w.pts, w.w / 2 + 1, i))
   water.forEach((w, i) => {
     const p = wp[i]!
     for (let k = 0; k < p.z.length; k++) {
-      const top = terrain(p.x[k]!, p.y[k]!) + w.depth / 2
+      const top = terrain[i]![k]! + w.depth / 2
       const joins =
         (k === 0 || p.z[k]! <= p.z[k - 1]!) &&
         channels.covers(p.x[k]!, p.y[k]!, (j) => j !== i && water[j]!.w > w.w)

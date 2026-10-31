@@ -1,8 +1,8 @@
 /**
  * How vehicles stand on the map's parked spots: settled on their wheels where the ground is level
  * enough, and where a truck fits. It reads the terrain and the walls at every spot of the map, so the
- * build bakes it into the spots (`bakeParked`, `MAP.spawns.parked`) and `systems/spawn.ts` reads
- * them; `bake.test.ts` checks they are current.
+ * build bakes it into the spots (`bakeParked`, `MAP.spawns.parked`) and `population/parked.ts` reads
+ * them; `bake.map-test.ts` checks they are current (`bake.test.ts` those by Monzone).
  *
  * @module parking
  */
@@ -19,9 +19,9 @@ import { VEHICLE_MODELS } from "./vehicles.ts"
  */
 const LEVEL = 0.26
 
-/** Every parked spot of the map with each model's rest where it stands level, and whether a truck fits (clear of the walls, and level). */
-export const bakeParked = (): Array<ParkedSpot> =>
-  MAP.spawns.parked.map(({ x, y, angle }) => {
+/** The parked spots (the map's every one unless given) with each model's rest where it stands level, and whether a truck fits (clear of the walls, and level). */
+export const bakeParked = (spots: ReadonlyArray<Spawn> = MAP.spawns.parked): Array<ParkedSpot> =>
+  spots.map(({ x, y, angle }) => {
     const spot: Spawn = { x, y, angle }
     const rest: Partial<Record<(typeof VEHICLE_MODELS)[number], Rest>> = {}
     for (const model of VEHICLE_MODELS) {

@@ -77,9 +77,10 @@ new map needs no weather data of its own.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,
   `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 230 m, downslope 2.13, the shipped map's own place
   rounded, so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
-  the sky modules decode no map, and that once the map is decoded `place()` is the map's origin,
-  its 5th-percentile height and its plane fit (fitted again over the whole heightmap joined from
-  the tiles), within 0.5 m and 0.005 rad of the reference.
+  the sky modules decode no map, and that once the map is decoded `place()` is the map's origin and
+  the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the reference;
+  `place.map-test.ts` (`pnpm test:map`) fits them again over the whole heightmap joined from the
+  tiles, the floor its 5th-percentile height.
 - **Absolute or over the floor.** Temperature, precipitation and snow follow the height above sea
   level, so a high map is colder and snowier. What relief sets counts from the floor instead: the
   low-ground fog, the cloud base, the wind's growth on exposed ground, the drying air and the
@@ -674,8 +675,10 @@ storms.
   at the normal clock).
 - **Flashes** come at random, storm × 0.25 a real second (a draw each step). 40 % of them are ground
   strikes (`bolt`); the rest flash in the cloud and keep their place, on the map or off it. Flashes
-  scatter around the cell (Gaussian, σ 2 km); a bolt drawn off the map is drawn again up to 4 times,
-  then dropped, so bolts strike only the map and never its edge. With the cell within 4 km of the
+  scatter around the cell (Gaussian, σ 2 km); a bolt drawn outside the play area (`inPlay`, inside
+  `MAP.outline`, its edge included) is drawn again up to 4 times, then dropped, so bolts strike
+  only the play area, never piled on its edge, and on a map of parts in an L never in its notch
+  (`src/sim/sky/__tests__/notch.test.ts`). With the cell within 4 km of the
   player, a quarter of the bolts strike in the strip the camera sees, up to 40 m to either side of
   the player and 60–600 m toward the camera (the driving view's, while the player drives:
   `restAxes` in `src/sim/view.ts`), where a vertical bolt crosses the whole screen.
@@ -691,7 +694,7 @@ storms.
   ([How it sounds](#how-it-sounds)). It needs a player: without one the cell stands still and
   nothing flashes.
 - The cell's and the lightning's draws come from `WeatherRng`, the weather's own saved random
-  stream, so the weather never changes traffic, people, animals or parking; the day plan draws from
+  stream, so the weather never changes traffic, people or animals; the day plan draws from
   the weather seed and the day alone, so a storm never changes the days that follow.
 
 ## Grip
@@ -879,7 +882,8 @@ node --test src/sim/sky/__tests__/*.test.ts src/sim/__tests__/sky.test.ts
   day, wetting and drying, drizzle, the snow line and meltwater, fog, the cloud bases, wind, the
   storm cell and lightning, the readout, and the map's place.
 - `mapfree.test.ts`: the modules the schema and the HUD import decode no map, and the place once
-  the map is decoded.
+  the map is decoded; `place.map-test.ts` (`pnpm test:map`): the place fitted again over every node
+  of the map.
 - `src/sim/__tests__/sky.test.ts`: the clock and the weather in a runtime, requests applied before
   the first update, a forced storm's lightning, the weather seed kept and replayed, the seed alone
   planning the days, `WeatherRng` kept apart from `Rng`, and a longer braking distance in the rain.

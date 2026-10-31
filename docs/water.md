@@ -160,7 +160,8 @@ away on dry ground.
   edge where the level stands now, so a rising river pushes it back and it can walk off a river's
   dry gravel bed. In the water, they carry on as they were where it is slack and below their knees
   (under 0.3 of their height deep and 0.25 of their hold), so a cow wades a trickle to its
-  pasture; deeper or faster, they head square across for the nearer bank.
+  pasture; deeper or faster, they head square across for the nearer bank. A witness in the water
+  never stays by a body: it runs ([gameplay.md](gameplay.md#witnesses-and-the-dead)).
 
 ## Vehicles in the water
 
@@ -202,7 +203,7 @@ of a centreline, not on a road) as their own walls, the shore, and `wallsNear` a
 
 | Kind | Walls | Who keeps to them |
 |---|---|---|
-| `walk` | buildings, slopes over 35°, cliffs, walls, the bounds, trunks | everyone on foot and every animal |
+| `walk` | buildings, slopes over 35°, cliffs, walls, the play area's outline, trunks | everyone on foot and every animal |
 | `land` | `walk` and the shore | where people and animals spawn; a follower's way to its leader |
 | `drive` | `walk`'s, slopes over 25° off the roads, guard rails, parapets, road-exit caps | every vehicle's physics |
 | `traffic` | `drive` and the shore | AI drivers' lanes (`lanesFor`), where vehicles spawn |
@@ -259,11 +260,13 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | File | Covers |
 |---|---|
 | `src/sim/water/__tests__/flow.test.ts` | the calibration against Soliera (mean, months, seasons, duration curve), Thornthwaite's 685 mm, a new game's rivers alike for a start and seed and spread across seeds |
-| `src/sim/water/__tests__/channel.test.ts` | the whole rail bed dry where a stream crosses it, at the mean, in a spate and in the 30 years' highest flood |
+| `src/sim/water/__tests__/channel.test.ts` | the rail bed within 4 km of Monzone station dry where a stream crosses it, at the mean, in a spate and in the 30 years' highest flood |
+| `src/sim/water/__tests__/channel.map-test.ts` (`pnpm test:map`) | the whole rail bed of the map dry where a stream crosses it, at the same three flows |
 | `src/sim/water/__tests__/swim.test.ts` | the hold (an adult's 1.2 m²/s, a child's 0.4), off the feet and back on, wading's slowing, a sprint slowed to a wade by knee depth |
-| `src/sim/__tests__/water.test.ts` | the Lucido's depth and current at the mean and in a spate; the player wading across, swept, swimming and out, and dry once he gets into a car in the water; people and animals swimming out and the dead drifting; a calm dog stopping at a spate's edge; a Panda holding in the Lucido and floating off in a spate; buoyancy at 0.3 and 0.7 m; a Panda ploughing to a third slower in a second of ankle-deep water, the truck hardly; stalling; a bridge keeping a walker dry, on its centreline and on every verge over the water; the rivers rising under rain and falling back; determinism and a save mid-swim |
+| `src/sim/__tests__/water.test.ts` | the Lucido's depth and current at the mean and in a spate; the player wading across, swept, swimming and out, and dry once he gets into a car in the water; people and animals swimming out and the dead drifting; a calm dog stopping at a spate's edge; a Panda holding in the Lucido and floating off in a spate; buoyancy at 0.3 and 0.7 m; a Panda ploughing to a third slower in a second of ankle-deep water, the truck hardly; stalling; a bridge keeping a walker dry, on its centreline and on every verge over the water of the bridges within 2 km of Monzone; the rivers rising under rain and falling back; determinism and a save mid-swim |
 | `src/tools/__tests__/catchment.test.ts` | a braid's arms sharing the river's area at the fork and adding back to it at the rejoin |
-| `src/sim/map/__tests__/map.test.ts` | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 km² and the Aulella's 208; no walk or drive wall in a wide river, shore walls by it |
+| `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
+| `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 km² and the Aulella's 208; no walk or drive wall in a wide river, shore walls by it |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
 
 ## Known limits

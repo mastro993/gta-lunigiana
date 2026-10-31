@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { type Answer, type Bbox, fetchSplit } from "../fetch-osm.ts"
+import { type Answer, type Bbox, checkFetchable, fetchSplit } from "../fetch-osm.ts"
+import { regionFromArgs } from "../region.ts"
 
 /** A fake `/map`: nodes on a 0.01° grid, 400 for a box holding more than `limit` of them. */
 const fakeMap = (limit: number) => {
@@ -72,4 +73,14 @@ test("fetchSplit stops splitting at a box too small to hold 50 000 nodes", async
   )
   // Depth first, the first failure at the bottom ends the run: one box per level.
   assert.ok(asked < 12)
+})
+
+test("fetch-osm refuses a test region, whose box would cut down the OSM file it shares with its map", () => {
+  for (const key of ["lunigiana-l", "lunigiana-3x"])
+    assert.throws(
+      () => checkFetchable(regionFromArgs(["--region", key])),
+      new RegExp(`--region ${key} is a test region: it reads --region lunigiana's OSM`),
+    )
+  checkFetchable(regionFromArgs([]))
+  checkFetchable(regionFromArgs(["--region", "cesena"]))
 })

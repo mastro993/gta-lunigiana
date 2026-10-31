@@ -13,10 +13,19 @@ import { BARRIER, makeCrossings, ROAD_LIGHT } from "../crossings.ts"
 import { actorMaterial } from "../geometry.ts"
 import { atGradeY } from "../ground.ts"
 import { signalLampMaterials } from "../sky/glow.ts"
-import { everyTileIn } from "../testing.ts"
+import { residentAround } from "../testing.ts"
 
-// A box stands on its road once the ground under it is in memory: here all of it is.
-everyTileIn()
+/** Monzone station. */
+const STATION = { x: -493.8, y: 436.9 }
+/** The boxes within 4 km of Monzone station (Monzone's, Gragnola's and Equi Terme's), with their indices. */
+const HERE = CROSSINGS.flatMap((box, i) =>
+  Math.hypot(box.x - STATION.x, box.y - STATION.y) < 4000 ? [{ box, i }] : [],
+)
+// A box stands on its road once the ground under it is in memory: here it is under each of them.
+residentAround(
+  HERE.map(({ box }) => box),
+  100,
+)
 const S = 1 / STEP.dt
 /** The map's crossings drawn, every box in `state` at step `now`. */
 const drawn = (state: CrossingState, now: number) => {
@@ -31,7 +40,7 @@ const drawn = (state: CrossingState, now: number) => {
 }
 /** A point of a mesh's own frame in three space, as map x, y and height over the road at its box's approach. */
 const world = (mesh: Mesh, x: number, y: number) => mesh.localToWorld(new Vector3(x, y, 0))
-const roads = CROSSINGS.flatMap((box, i) => (box.walk ? [] : [{ box, i }]))
+const roads = HERE.filter(({ box }) => !box.walk)
 
 test("a road box has a barrier and a red road light on the post right of each way in; a foot crossing has none", () => {
   const nodes = drawn({ phase: "open", since: 0, from: 0, demanded: 0 }, 0)
@@ -39,7 +48,11 @@ test("a road box has a barrier and a red road light on the post right of each wa
     roads.length >= 4,
     "Via Riolo, Viale 20 Settembre, Via Castel dell'Aquila and Via Nuova",
   )
-  for (const [i, box] of CROSSINGS.entries()) {
+  assert.ok(
+    HERE.some(({ box }) => box.walk),
+    "Equi Terme's foot crossing",
+  )
+  for (const { box, i } of HERE) {
     const shown = nodes.boxes[i]
     if (box.walk) {
       assert.equal(shown, undefined, "a foot crossing shows nothing")
@@ -178,7 +191,7 @@ test("a box stays hidden until the ground under its ways in is in memory, then s
     assert.ok(!shown.placed && !shown.lenses.visible, `hidden while tile ${out} is out`)
   } finally {
     setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
-    everyTileIn()
+    residentAround([{ x, y }], 0)
   }
   nodes.draw(open, 0)
   assert.ok(shown.placed && shown.lenses.visible && shown.barriers.every((b) => b.post.visible))

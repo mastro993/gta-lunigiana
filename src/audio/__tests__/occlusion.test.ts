@@ -3,10 +3,18 @@ import { test } from "node:test"
 
 import { buildingsIn, heightAt, MAP } from "../../sim/map/index.ts"
 import { pathDifference } from "../occlusion.ts"
-import { residentMap } from "../testing.ts"
+import { HELD, residentAround } from "../testing.ts"
 
-// The whole map in memory, as around the player in the game: every path reads the exact terrain.
-residentMap()
+// The tiles round the meadow, Monzone Alto and Monte San Giorgio in memory, as around the player in the game: every path
+// reads the exact terrain.
+residentAround(
+  [
+    { x: -329, y: 1078 },
+    { x: 5, y: -326 },
+    { x: 985.7, y: -563.4 },
+  ],
+  HELD,
+)
 
 /** A point `up` m above the ground at (x, y). */
 const at = (x: number, y: number, up = 1.6) => ({ x, y, z: heightAt(x, y) + up })

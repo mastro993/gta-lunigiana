@@ -27,24 +27,37 @@ export const segDist2 = (
   return { d2: dx * dx + dy * dy, t }
 }
 
-/** Even-odd scanline fill of one polygon (flat rings) on a raster with pixel centres at x0 + (c + 0.5) * res; calls `set` per pixel index. */
+/** A block of a raster's pixels: columns c0 … c0 + cols − 1, rows r0 … r0 + rows − 1. */
+export interface PixelBlock {
+  readonly c0: number
+  readonly r0: number
+  readonly cols: number
+  readonly rows: number
+}
+
+/**
+ * Even-odd scanline fill of one polygon (flat rings) over the pixels of `block` on the lattice of
+ * `res` pixels from (x0, y0), pixel (c, r) centred at (x0 + (c + 0.5) * res, y0 + (r + 0.5) * res);
+ * calls `set` per pixel by its index within the block, row-major. The block may lie anywhere on the
+ * lattice (c0 and r0 below 0 too), and gets the pixels a fill of any block round it sets there.
+ */
 export const fillPolygon = (
   rings: ReadonlyArray<ReadonlyArray<number>>,
   x0: number,
   y0: number,
   res: number,
-  cols: number,
-  rows: number,
+  block: PixelBlock,
   set: (k: number) => void,
 ): void => {
+  const { c0, r0, cols: bc, rows: br } = block
   let lo = Number.MAX_VALUE,
     hi = -Number.MAX_VALUE
   for (const r of rings)
     for (let i = 1; i < r.length; i += 2) [lo, hi] = [Math.min(lo, r[i]!), Math.max(hi, r[i]!)]
   const xs: Array<number> = []
   for (
-    let row = Math.max(0, Math.floor((lo - y0) / res));
-    row <= Math.min(rows - 1, Math.ceil((hi - y0) / res));
+    let row = Math.max(r0, Math.floor((lo - y0) / res));
+    row <= Math.min(r0 + br - 1, Math.ceil((hi - y0) / res));
     row++
   ) {
     const yc = y0 + (row + 0.5) * res
@@ -62,11 +75,11 @@ export const fillPolygon = (
     xs.sort((a, b) => a - b)
     for (let k = 0; k + 1 < xs.length; k += 2)
       for (
-        let c = Math.max(0, Math.ceil((xs[k]! - x0) / res - 0.5));
-        c <= Math.min(cols - 1, Math.floor((xs[k + 1]! - x0) / res - 0.5));
+        let c = Math.max(c0, Math.ceil((xs[k]! - x0) / res - 0.5));
+        c <= Math.min(c0 + bc - 1, Math.floor((xs[k + 1]! - x0) / res - 0.5));
         c++
       )
-        set(row * cols + c)
+        set((row - r0) * bc + c - c0)
   }
 }
 

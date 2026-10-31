@@ -18,7 +18,8 @@ import {
   roadClassOf,
   TILE,
 } from "../sim/map/index.ts"
-import { tileKey, tileRange } from "../sim/map/kinds.ts"
+import { tileKey } from "../sim/map/kinds.ts"
+import { isListed, TILE_RANGE } from "../sim/map/tiles.ts"
 import { screenAxes } from "../sim/view.ts"
 
 /** Base map pixels per metre: the minimap's own scale (90 canvas px over SPAN), so the blit is 1:1. */
@@ -116,10 +117,11 @@ interface PaintOptions {
 
 /**
  * Paints the map layers (areas, water, rail, roads, buildings) north-up at `scale` px/m, with the
- * map point `corner` (its west edge and north edge, m) at canvas pixel (ox, oy). Lines stay at least
- * 1 px wide; those thinner than that at this scale fade instead. `overview` (the full map) draws roads
- * light and at least 2 px (main roads) or 1.5 px wide, so the network reads at a few pixels per
- * hundred metres.
+ * map point `corner` (its west edge and north edge, m) at canvas pixel (ox, oy), on grass over the
+ * play area and clipped to it (`MAP.outline`: the areas reach the built terrain's box, which an L's
+ * notch lies in). Lines stay at least 1 px wide; those thinner than that at this scale fade instead.
+ * `overview` (the full map) draws roads light and at least 2 px (main roads) or 1.5 px wide, so the
+ * network reads at a few pixels per hundred metres.
  */
 export const paintMap = (
   ctx: CanvasRenderingContext2D,
@@ -127,7 +129,6 @@ export const paintMap = (
   corner: { readonly minX: number; readonly maxY: number },
   { ox = 0, oy = 0, overview = false, within }: PaintOptions = {},
 ): void => {
-  const { minX, minY, maxX, maxY } = MAP.bounds
   const u = (x: number) => ox + (x - corner.minX) * scale,
     v = (y: number) => oy + (corner.maxY - y) * scale
   const reaches = (box: Box | undefined) =>
@@ -144,8 +145,12 @@ export const paintMap = (
     if (closed) into.closePath()
     return into
   }
+  const play = new Path2D()
+  for (const ring of MAP.outline) path(ring, true, play)
+  ctx.save()
+  ctx.clip(play, "evenodd")
   ctx.fillStyle = css(PALETTE.grass)
-  ctx.fillRect(u(minX), v(maxY), (maxX - minX) * scale, (maxY - minY) * scale)
+  ctx.fill(play, "evenodd")
   MAP.areas.forEach((area, k) => {
     const hex = isAreaKind(area.kind) ? AREA_HEX[area.kind] : undefined
     if (hex === undefined || !reaches(layers?.areas[k])) return
@@ -184,6 +189,7 @@ export const paintMap = (
   MAP.buildings.forEach((b, k) => {
     if (reaches(buildingBoxes[k])) ctx.fill(path(b.outer, true))
   })
+  ctx.restore()
 }
 
 /** The player marker: an arrow along +x, `size` px from tail to tip, centred on the current origin. */
@@ -206,8 +212,6 @@ export const paintArrow = (
   ctx.stroke()
 }
 
-const range = tileRange(MAP.bounds)
-
 /** A tile (i, j) of the map's grid (`TILE`), by its key. */
 interface TileRef {
   readonly key: string
@@ -215,7 +219,7 @@ interface TileRef {
   readonly j: number
 }
 
-/** The tiles with map in them whose squares come closer than `r` m to (x, y) along either axis, nearest first. */
+/** The listed tiles (those with map in them) whose squares come closer than `r` m to (x, y) along either axis, nearest first. */
 export const tilesNear = (x: number, y: number, r: number): Array<TileRef> => {
   const near: Array<TileRef & { readonly d: number }> = []
   /** The tiles along one axis whose spans come closer than `r` to `p`, within `lo`..`hi`. */
@@ -224,11 +228,12 @@ export const tilesNear = (x: number, y: number, r: number): Array<TileRef> => {
     to: Math.min(hi, Math.ceil((p + r) / TILE) - 1),
   })
   const gap = (p: number, n: number) => Math.max(0, n * TILE - p, p - (n + 1) * TILE)
-  const across = span(x, range.i0, range.i1),
-    down = span(y, range.j0, range.j1)
+  const across = span(x, TILE_RANGE.i0, TILE_RANGE.i1),
+    down = span(y, TILE_RANGE.j0, TILE_RANGE.j1)
   for (let j = down.from; j <= down.to; j++)
     for (let i = across.from; i <= across.to; i++)
-      near.push({ key: tileKey(i, j), i, j, d: Math.hypot(gap(x, i), gap(y, j)) })
+      if (isListed(i, j))
+        near.push({ key: tileKey(i, j), i, j, d: Math.hypot(gap(x, i), gap(y, j)) })
   return near.sort((a, b) => a.d - b.d)
 }
 
@@ -238,23 +243,14 @@ export const tileReach = (i: number, j: number): Box => {
   return [i * TILE - m, j * TILE - m, (i + 1) * TILE + m, (j + 1) * TILE + m]
 }
 
-/** Tile (i, j)'s canvas: its square at BASE plus `OVERLAP` px all round, clipped to the map's bounds as the whole map's canvas was. */
+/** Tile (i, j)'s canvas: its square at BASE plus `OVERLAP` px all round (`paintMap` clips it to the play area). */
 const paintTile = (document: Document, { i, j }: TileRef): HTMLCanvasElement => {
   const canvas = document.createElement("canvas")
   canvas.width = canvas.height = SIDE
   const ctx = canvas.getContext("2d")
   if (ctx === null) return canvas
   const minX = i * TILE,
-    maxY = (j + 1) * TILE,
-    { bounds } = MAP
-  ctx.beginPath()
-  ctx.rect(
-    OVERLAP + (bounds.minX - minX) * BASE,
-    OVERLAP + (maxY - bounds.maxY) * BASE,
-    (bounds.maxX - bounds.minX) * BASE,
-    (bounds.maxY - bounds.minY) * BASE,
-  )
-  ctx.clip()
+    maxY = (j + 1) * TILE
   paintMap(ctx, BASE, { minX, maxY }, { ox: OVERLAP, oy: OVERLAP, within: tileReach(i, j) })
   return canvas
 }

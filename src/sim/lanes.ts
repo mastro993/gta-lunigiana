@@ -3,7 +3,7 @@
  * direction, shrunk where walls crowd the road, or none where the model does not fit, plus the lane
  * geometry the tables are measured on. Fitting reads every drive wall along every traffic edge, so
  * the build bakes the tables into the map (`bakeLanes`, `MAP.lanes`) and `route.ts` reads them;
- * `bake.test.ts` checks they are current. `route.ts` is the public home of what this module exports.
+ * `bake.map-test.ts` checks they are current. `route.ts` is the public home of what this module exports.
  *
  * @module lanes
  */

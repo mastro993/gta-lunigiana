@@ -15,6 +15,7 @@ import {
   Game,
   Honk,
   Impact,
+  InWater,
   LevelCrossings,
   type Look,
   type Mood,
@@ -86,9 +87,9 @@ const BEAST_LOOK = Clock.duration(STEP, 3)
 const BODY_RANGE = 10
 const BODY_SHOCK = Clock.duration(STEP, 2.5)
 /**
- * After a death, a grown-up without children who can see the body stays by it with this chance, for GATHER_DEATH seconds,
- * while fewer than GATHER_MOST already do; everyone else runs from there for STRUCK_FLEE (TUNED). Gatherers count for a victim
- * within CROWD m of it.
+ * After a death, a grown-up without children who can see the body, out of the water, stays by it with this chance, for
+ * GATHER_DEATH seconds, while fewer than GATHER_MOST already do; everyone else runs from there for STRUCK_FLEE (TUNED). Gatherers
+ * count for a victim within CROWD m of it.
  */
 const GATHER_SHARE = 0.4
 const GATHER_MOST = 4
@@ -241,6 +242,7 @@ export const Perceive = Game.System(
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
           footing: Game.Query.optional(Footing),
+          wet: Game.Query.optional(InWater),
         },
       }),
       vehicles: Game.Query({
@@ -296,6 +298,7 @@ export const Perceive = Game.System(
         mood: data.ped.get(),
         route: data.route.get(),
         footing: data.footing.value(),
+        wet: data.wet.present,
       }
     })
     type Walker = (typeof walkers)[number]
@@ -404,8 +407,8 @@ export const Perceive = Game.System(
 
     /**
      * A mood run out. A witness clear of the car that killed someone takes in the death (shock); a leader keeps by its fallen; a
-     * child left alone stays by the body; a witness's shock ends in a choice to gather by the body, in sight, or run; anyone else
-     * walks on, calm for a while (longer after a death).
+     * child left alone stays by the body; a witness's shock ends in a choice to gather by the body, in sight and out of the water,
+     * or run; anyone else walks on, calm for a while (longer after a death).
      */
     const settle = (w: Walker) => {
       const { mood, fx, fy } = w.mood,
@@ -424,7 +427,14 @@ export const Perceive = Game.System(
           (o) => o.mood.mood === "gather" && near({ x: o.mood.fx, y: o.mood.fy }, victim, CROWD),
         ).length
         const grown = w.look.age !== "kid" && !withKids.has(w.id)
-        if (grown && crowd < GATHER_MOST && inSight(w.at, victim) && random.next() < GATHER_SHARE)
+        // One in the water runs: staying, they would wade beside a body the current takes.
+        if (
+          grown &&
+          !w.wet &&
+          crowd < GATHER_MOST &&
+          inSight(w.at, victim) &&
+          random.next() < GATHER_SHARE
+        )
           gather(w, victim, stepsOf(random.range(...GATHER_DEATH)))
         else flee(w, victim, Clock.steps(STRUCK_FLEE))
         witnessed(w, false)

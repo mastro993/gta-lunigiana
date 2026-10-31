@@ -10,7 +10,8 @@
 import { isDrivable } from "../sim/map/kinds.ts"
 import { inPolygon, type CtrRail } from "./ctr-rail.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
-import { arcLengths, BOUNDS, pointAt, r1, type V } from "./geometry.ts"
+import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
+import { outlineEdgeAt } from "./play-area.ts"
 import { chainsOf, coreHalf } from "./profiles.ts"
 import { checkCrossings, slideCrossing, type Slid } from "./rail-crossings.ts"
 import { buildExtras, type Report as ExtraReport } from "./rail-extra.ts"
@@ -138,20 +139,31 @@ const samplesOf = (
   return { out, h }
 }
 
-/** Point on the bounds' edge `e` along the line from `from` through `to`, or `to` itself. */
-const ontoEdge = (from: V, to: V, e: "minX" | "maxX" | "minY" | "maxY"): V => {
-  const vertical = e === "minX" || e === "maxX"
-  const d = vertical ? to.x - from.x : to.y - from.y
-  if (d === 0) return to
-  const t = (BOUNDS[e] - (vertical ? from.x : from.y)) / d
-  return { ...to, x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }
+type Edge = readonly [number, number, number, number]
+
+/**
+ * Point on the line of outline edge [ax, ay, bx, by] along the line from `from` through `to`, or
+ * `to` itself when they do not meet. A vertical edge at X meets it at t = (X − from.x) / dx, a
+ * horizontal one likewise in y.
+ */
+const ontoEdge = (from: V, to: V, [ax, ay, bx, by]: Edge): V => {
+  const dx = to.x - from.x,
+    dy = to.y - from.y
+  let t: number
+  if (ax === bx || ay === by) {
+    const d = ax === bx ? dx : dy
+    if (d === 0) return to
+    t = ax === bx ? (ax - from.x) / d : (ay - from.y) / d
+  } else {
+    const den = dx * (by - ay) - dy * (bx - ax)
+    if (den === 0) return to
+    t = ((ax - from.x) * (by - ay) - (ay - from.y) * (bx - ax)) / den
+  }
+  return { ...to, x: from.x + dx * t, y: from.y + dy * t }
 }
-const edgeOf = (v: V): "minX" | "maxX" | "minY" | "maxY" | undefined =>
-  v.id === undefined
-    ? (["minX", "maxX", "minY", "maxY"] as const).find(
-        (e) => Math.abs((e === "minX" || e === "maxX" ? v.x : v.y) - BOUNDS[e]) < 1e-6,
-      )
-    : undefined
+/** The outline edge a cut end (no id) lies on, if any. */
+const edgeOf = (v: V): Edge | undefined =>
+  v.id === undefined ? outlineEdgeAt(v.x, v.y, 1e-6) : undefined
 
 /** `pts` with every vertex whose id moved at its new position. */
 const moved = <T extends V>(pts: ReadonlyArray<T>, moves: ReadonlyMap<string, V>): Array<T> =>
@@ -323,7 +335,7 @@ export const conflateRail = (
         Math.hypot(v.x - line[i - 1]!.x, v.y - line[i - 1]!.y) > 0.01 ||
         v.id !== undefined,
     )
-    // Ends on the play area's edge stay on it.
+    // Ends on the play area's outline stay on it.
     for (const end of [0, 1] as const) {
       const e = edgeOf(end === 0 ? pts[0]! : pts.at(-1)!)
       if (e === undefined) continue
@@ -338,7 +350,7 @@ export const conflateRail = (
 
   // Bridges keep what they span; streams under at-grade track share a culvert vertex with it. A
   // bridge reaches past the cells under it that the at-grade track cannot take: a wide stream's
-  // protected bed (w/2 + 1 m, build-map.ts) and a tertiary road's core (rank 0 beats the rail),
+  // protected bed (w/2 + 1 m, build-grid.ts) and a tertiary road's core (rank 0 beats the rail),
   // plus a cell's diagonal, the farthest a corner of a cell the track runs through lies off it.
   const waterPts = osmWater.map((w) => moved(w.pts, moves))
   const corner = GRID_CELL * Math.SQRT2
@@ -399,7 +411,10 @@ export const conflateRail = (
     extra: ctr.tracks.flatMap((_, k) => (used[k] ? [] : [k])),
     hosts: chains.map((c) => c.line),
     bridges: ctr.bridges.map((b) => b.rings),
-    away: [...layout.swap.keys()].map((id) => osmAt.get(id)!).filter((v) => !roadsAt.has(v.id!)),
+    // A swapped node the play area leaves out (a test region without Gragnola) has nothing to re-home.
+    away: [...layout.swap.keys()]
+      .flatMap((id) => osmAt.get(id) ?? [])
+      .filter((v) => !roadsAt.has(v.id!)),
     roads: roadPts,
     osmRoads,
     moves,

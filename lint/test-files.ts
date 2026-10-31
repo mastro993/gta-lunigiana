@@ -8,9 +8,12 @@ import { basename, dirname } from "node:path"
 
 import { definePlugin, defineRule } from "@oxlint/plugins"
 
-/** Whether `filename` is a test that does not sit directly in a `__tests__` folder. */
+/**
+ * Whether `filename` is a test (`*.test.ts`, or a map check `*.map-test.ts`) that does not sit
+ * directly in a `__tests__` folder.
+ */
 export const misplacedTest = (filename: string): boolean =>
-  filename.endsWith(".test.ts") && basename(dirname(filename)) !== "__tests__"
+  /\.(test|map-test)\.ts$/.test(filename) && basename(dirname(filename)) !== "__tests__"
 
 /** A test sits in a `__tests__` folder beside the module it tests. */
 const inTestsFolder = defineRule({

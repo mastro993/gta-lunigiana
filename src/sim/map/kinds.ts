@@ -36,6 +36,50 @@ export const tileRange = (bounds: {
 })
 
 /**
+ * The heightmap node a lookup measures a point's cell from, and its column `i` and row `j`: the
+ * region's anchor (src/tools/region.ts), which the map file names (`ax`, `ay`) where it is not the
+ * first node (x0, y0). Measured from a node fixed per region, with `i` and `j` added to the whole
+ * cells alone, a point's fraction of its cell keeps its bits as parts grow the map.
+ */
+export const anchorOf = (hm: {
+  readonly cell: number
+  readonly x0: number
+  readonly y0: number
+  readonly ax?: number
+  readonly ay?: number
+}): { readonly x: number; readonly y: number; readonly i: number; readonly j: number } => {
+  const x = hm.ax ?? hm.x0,
+    y = hm.ay ?? hm.y0
+  return { x, y, i: (x - hm.x0) / hm.cell, j: (y - hm.y0) / hm.cell }
+}
+
+/** How many rings round a tile `tilesRound` searches before it gives up: farther than any map's tiles reach. */
+const RINGS = 64
+
+/**
+ * The listed tiles round tile (i, j), which `listed` says is not: those of the nearest ring of
+ * tiles round it (along the farther axis) holding any, in key order (south to north, then west to
+ * east). A lookup in an unlisted tile (an L's notch) reads them, and the cut keeps each wall or
+ * tree whose midpoint falls in it in the one of them nearest that midpoint (the first in key order
+ * on a tie). Throws when no ring within `RINGS` holds one.
+ */
+export const tilesRound = (
+  i: number,
+  j: number,
+  listed: (i: number, j: number) => boolean,
+): Array<readonly [number, number]> => {
+  for (let ring = 1; ring <= RINGS; ring++) {
+    const found: Array<readonly [number, number]> = []
+    for (let tj = j - ring; tj <= j + ring; tj++)
+      for (let ti = i - ring; ti <= i + ring; ti++)
+        if (Math.max(Math.abs(ti - i), Math.abs(tj - j)) === ring && listed(ti, tj))
+          found.push([ti, tj])
+    if (found.length > 0) return found
+  }
+  throw new Error(`no listed tile within ${RINGS} rings of tile ${tileKey(i, j)}`)
+}
+
+/**
  * Highway classes the build emits, widest first. The build folds OSM `primary` (the SR445) into
  * tertiary, `living_street` into residential, `footway` and `pedestrian` into path.
  */

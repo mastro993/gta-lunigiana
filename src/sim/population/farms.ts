@@ -44,12 +44,16 @@ export interface Farm {
 const FARM_CELL = 64
 
 /**
- * Every farm of the map for the map file (`MAP.farms`): the farm kinds of building standing on open land (the land
- * cover at its centre), rural where fewer than `RURAL` people live within `RURAL_REACH` m. It reads the land cover
- * under every building, so the build bakes it; `bake.test.ts` checks it is current.
+ * The farms among `buildings` (indices into `MAP.buildings`, every one unless given) for the map file (`MAP.farms`): the
+ * farm kinds of building standing on open land (the land cover at its centre), rural where fewer than `RURAL` people
+ * live within `RURAL_REACH` m. It reads the land cover under every building, so the build bakes it; `bake.map-test.ts`
+ * checks it is current (`bake.test.ts` the farms by Monzone).
  */
-export const bakeFarms = (): Array<FarmEntry> =>
-  MAP.buildings.flatMap((b, i) => {
+export const bakeFarms = (
+  buildings: ReadonlyArray<number> = [...MAP.buildings.keys()],
+): Array<FarmEntry> =>
+  buildings.flatMap((i) => {
+    const b = MAP.buildings[i]!
     if (!FARM_KINDS.has(b.kind) || b.ruins === true) return []
     const { x, y } = buildingCentre(i)
     const cover = coverAt(x, y)

@@ -1,5 +1,6 @@
-// Plane geometry for the map build: local projection, clipping to the play area,
-// ring winding, point/segment distances and a bucketed segment index.
+// Plane geometry for the map build: local projection, the built terrain's box and clipping rings
+// to a box, ring winding, point/segment distances and a bucketed segment index. The play area and
+// clipping lines to it are play-area.ts's.
 
 import { Ops } from "@typeonce/ritmo-math"
 
@@ -20,8 +21,10 @@ export const M_PER_DEG = {
   lat: 111115.37,
   lon: REGION.id === "lunigiana" ? 79987.94 : 111320 * Ops.cos((ORIGIN.lat * Math.PI) / 180),
 }
-/** Play area, local metres: lat 44.1069–44.1968, lon 10.0937–10.1913. The whole Lucido catchment, ridge to ridge, plus the Aulella side by Gragnola and Codiponte. */
+/** The built terrain's box, local metres: the box round every part's rectangles (region.ts), the play area (play-area.ts) inside it. */
 export const BOUNDS = REGION.bounds
+/** `BOUNDS` as a box [minX, minY, maxX, maxY]: what areas and land cover are clipped to (`clipRing`). */
+export const TERRAIN_BOX: Rect = [BOUNDS.minX, BOUNDS.minY, BOUNDS.maxX, BOUNDS.maxY]
 
 export const r1 = (v: number): number => Math.round(v * 10) / 10
 export const toLocal = (lat: number, lon: number): P => [
@@ -33,65 +36,12 @@ export const fromLocal = (x: number, y: number): [number, number] => [
   ORIGIN.lat + y / M_PER_DEG.lat,
   ORIGIN.lon + x / M_PER_DEG.lon,
 ]
-export const inBounds = (x: number, y: number, margin = 0): boolean =>
-  x >= BOUNDS.minX + margin &&
-  x <= BOUNDS.maxX - margin &&
-  y >= BOUNDS.minY + margin &&
-  y <= BOUNDS.maxY - margin
-
-/** Liang-Barsky per segment, consecutive inside parts merged into pieces. Original vertices keep their ids. */
-export const clipLine = (pts: ReadonlyArray<V>): Array<Array<V>> => {
-  const { minX: X0, minY: Y0, maxX: X1, maxY: Y1 } = BOUNDS
-  const out: Array<Array<V>> = []
-  let cur: Array<V> = []
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1]!,
-      b = pts[i]!
-    const dx = b.x - a.x,
-      dy = b.y - a.y
-    let t0 = 0,
-      t1 = 1,
-      ok = true
-    for (const [p, q] of [
-      [-dx, a.x - X0],
-      [dx, X1 - a.x],
-      [-dy, a.y - Y0],
-      [dy, Y1 - a.y],
-    ] as const) {
-      if (p === 0) {
-        if (q < 0) ok = false
-        continue
-      }
-      const r = q / p
-      if (p < 0) t0 = Math.max(t0, r)
-      else t1 = Math.min(t1, r)
-    }
-    if (!ok || t1 <= t0) {
-      if (cur.length > 1) out.push(cur)
-      cur = []
-      continue
-    }
-    if (cur.length === 0) cur.push(t0 === 0 ? a : { x: a.x + t0 * dx, y: a.y + t0 * dy })
-    cur.push(t1 === 1 ? b : { x: a.x + t1 * dx, y: a.y + t1 * dy })
-    if (t1 < 1) {
-      out.push(cur)
-      cur = []
-    }
-  }
-  if (cur.length > 1) out.push(cur)
-  return out
-}
-
-/** Sutherland-Hodgman clip of an open ring to a box [minX, minY, maxX, maxY], by default the play area. */
-export const clipRing = (
-  ring: ReadonlyArray<P>,
-  [X0, Y0, X1, Y1]: readonly [number, number, number, number] = [
-    BOUNDS.minX,
-    BOUNDS.minY,
-    BOUNDS.maxX,
-    BOUNDS.maxY,
-  ],
-): Array<P> => {
+/**
+ * Sutherland–Hodgman clip of an open ring to a box [minX, minY, maxX, maxY]. Only a convex window
+ * clips a ring right, so the play area, which may not be, is never one: rings go to the built
+ * terrain's box (`TERRAIN_BOX`).
+ */
+export const clipRing = (ring: ReadonlyArray<P>, [X0, Y0, X1, Y1]: Rect): Array<P> => {
   let poly: ReadonlyArray<P> = ring
   const edges: ReadonlyArray<readonly [(p: P) => boolean, (a: P, b: P) => P]> = [
     [(p) => p[0] >= X0, (a, b) => [X0, a[1] + ((b[1] - a[1]) * (X0 - a[0])) / (b[0] - a[0])]],
@@ -212,7 +162,7 @@ export const along = (s: ReadonlyArray<number>, z: ArrayLike<number>, at: number
 }
 
 /** Bounding box [minX, minY, maxX, maxY] of a polyline. */
-const lineBox = (l: ReadonlyArray<V>): [number, number, number, number] => {
+export const lineBox = (l: ReadonlyArray<V>): [number, number, number, number] => {
   let x0 = Infinity,
     y0 = Infinity,
     x1 = -Infinity,
@@ -229,12 +179,16 @@ export interface Crossing {
   readonly sb: number
 }
 
+/** Whether two [minX, minY, maxX, maxY] boxes overlap (touching counts): where `crossings` can find any. */
+export const boxesMeet = (
+  a: readonly [number, number, number, number],
+  b: readonly [number, number, number, number],
+): boolean => !(a[0] > b[2] || b[0] > a[2] || a[1] > b[3] || b[1] > a[3])
+
 /** Points where polylines a and b meet (shared vertices included, duplicates dropped), with the arc length along each. */
 export const crossings = (a: ReadonlyArray<V>, b: ReadonlyArray<V>): Array<Crossing> => {
   const out: Array<Crossing> = []
-  const [ax0, ay0, ax1, ay1] = lineBox(a),
-    [bx0, by0, bx1, by1] = lineBox(b)
-  if (ax0 > bx1 || bx0 > ax1 || ay0 > by1 || by0 > ay1) return out
+  if (!boxesMeet(lineBox(a), lineBox(b))) return out
   const la = arcLengths(a),
     lb = arcLengths(b)
   for (let i = 0; i + 1 < a.length; i++)

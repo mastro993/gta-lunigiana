@@ -10,19 +10,18 @@ keys ([architecture.md](architecture.md#input)).
 `SpawnWorld` puts the player on the Via Cesare Battisti sidewalk in front of the Carabinieri station
 in Lunigiana, or beside a central connected street in Cesena. The map build rejects positions inside
 buildings and requires an open walking route to the street, so the player can leave the starting
-spot. 200 of the map's parked spots (`PARKED`) get a car, picked at random, so the cars spread over
-the villages as the spots do. Spots where a parked car would tilt more than 15° are skipped (in
-Lunigiana, 70 of the 805 for a Panda: the 4 m terrain puts some verges on a bank), and each car
-stands settled on its springs with the ground's slope. Settling reads the terrain at the spot, and a
-truck's clearance the walls, so the build works both out for every model on every spot (`bakeParked`
-in `src/sim/parking.ts`) and the map file keeps, per spot, each model's rest where it stands level
-and whether a truck fits (`MAP.spawns.parked`), which `SpawnWorld` reads. The two spots nearest the
-station get Carabinieri cars. The rest are randomly chosen spots, about 80% Pandas and 20% Apes. On
-a tertiary-road spot where it fits, a roll under 10% makes a marble truck instead, at most two of
-them. Then the first fill puts the people and animals around the start out at once ([The first
-fill](#the-first-fill)), and each line's first train stands at its station nearest the start
-([Trains](#trains)). The world's `Rng` makes every choice but the trains' (`RailRng`), so `?seed=N`
-replays the same start. The game begins on today's date at 08:00 in Rome, under a clear sky on dry
+spot. The two parked spots nearest the station (the one the build chose, `MAP.spawns.police`: in
+Cesena the Compagnia Carabinieri, not the Commissariato) get Carabinieri cars, and the spots within
+300 m of the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 11 for
+seed 1, in view as well as out of it, which the title card hides coming. Each car stands settled
+on its springs with the ground's slope. Settling reads the terrain at the spot, and a truck's
+clearance the walls, so the build works both out for every model on every spot (`bakeParked` in
+`src/sim/parking.ts`) and the map file keeps, per spot, each model's rest where it stands level and
+whether a truck fits (`MAP.spawns.parked`), which `SpawnWorld` reads. Then the first fill puts the
+people and animals around the start out at once ([The first fill](#the-first-fill)), and each
+line's first train stands at its station nearest the start ([Trains](#trains)). The world's `Rng`
+makes every other choice but the trains' (`RailRng`), so `?seed=N` replays the same start. The
+game begins on today's date at 08:00 in Rome, under a clear sky on dry
 roads, once the title card is dismissed; the clock, the sun and the weather are in
 [weather.md](weather.md).
 
@@ -257,11 +256,11 @@ game reads the map only round the player, where the browser keeps its tiles
   abandoned only once the player is back within reach: its driver's way out reads the walls there.
 - **What it keeps**: its pose, velocity, chassis, damage and controls, exactly. Once the player is
   back within 500 m it moves on with them, the velocity it had included.
-- **What freezes in play**: traffic goes beyond 320 m and a destroyed vehicle once out of view, so
-  the frozen ones are the parked cars and the cars the player has left. Of the 200 parked at the
-  start (seed 1), 16 stand within reach of it; of the map's 805 parked spots, 89. A car left in a
-  flood, on its roof under self-righting or on a level crossing more than 500 m away stays as it was
-  until the player comes back.
+- **What freezes in play**: traffic goes beyond 320 m, a destroyed vehicle once out of view and a
+  parked car still as it was parked beyond 400 m ([Parked cars](#parked-cars)), so the frozen ones
+  are the cars the player has entered, moved or damaged, and the Carabinieri's once the player is
+  far from Monzone. A car left in a flood, on its roof under self-righting or on a level crossing
+  more than 500 m away stays as it was until the player comes back.
 - **Trains** are never frozen: their lines are global data, so they run their whole line wherever
   the player is.
 - **People and animals** never get that far: `Populate` and `PopulateAnimals` despawn them beyond
@@ -458,7 +457,8 @@ its durability its crashes have used up, from 0 (as new) to 1 (destroyed). Nothi
   out. A traffic car is abandoned the step it is destroyed: its driver gets out at the first free
   door and flees for 4 s, as from a carjacking, and it stops being traffic, its handbrake on.
   `Populate` removes a wreck once it is out of view (farther than `VIEW_REACH`, 90 m), whoever it
-  belonged to, so wrecks never pile up.
+  belonged to, so wrecks never pile up; a parked car's wreck goes the same way, in `PopulateParked`,
+  which keeps its spot empty ([Parked cars](#parked-cars)).
 
 A vehicle rolled square on into a house wall on Via Cesare Battisti, its damage after the one
 crash (the handling does not change what a crash costs):
@@ -488,8 +488,8 @@ by 1–4 s, except the Ape at 0.85, which reaches 30 km/h in 61–107 s:
 
 The Giulia's climb is held by its grip on the steepest grades (60% is as far as was tried), and the
 laden truck's by its tyres at about 15% whatever the damage. Traffic hardly wears itself out: with
-the player standing 3 minutes at the start while traffic fills the roads (seed 1, in Node), 5 of
-the 224 vehicles on the map in that time (210 at once) took any damage, at most 0.06.
+the player standing 3 minutes at the start while traffic fills the roads (seed 1, in Node), 8 of
+the 45 vehicles on the map in that time (23 at once) took any damage, at most 0.041.
 
 ### Explosions
 
@@ -750,7 +750,8 @@ at Monzone's start (seed 11, 3 min) people cry out 2.5 times a minute (surprise 
   A walker who comes on a body is shocked for 2.5 s. Each is a `Witness` (saved), and its shock ends
   in a choice: a grown-up with no kids who can see the body stays by it for 20–40 s with a chance of
   0.4, while fewer than 4 already gather within 3 m of it; everyone else runs from the body for 6 s.
-  A witness who only heard it through a house never goes to stand by the body.
+  A witness who only heard it through a house never goes to stand by the body, nor does one in a
+  river or stream: staying, they would wade beside a body the current takes.
 - **A knockdown** draws a 4 s look and nobody goes over: the victim is up and running after 2.5 s.
 - A witness's, a shocked person's and a gatherer's point keeps to the body lying within 2 m of it
   as the body slides to a stop.
@@ -815,7 +816,8 @@ settled.
 As many people are out around the player as live nearby, in parties on the streets they live on,
 and the traffic keeps the roads busy. `Populate` (`systems/populate.ts`) runs every 0.5 s around
 the player and spawns out of view, farther than `VIEW_REACH` (90 m, the farthest ground the camera
-shows). The animals have their own system ([Animals](#animals)).
+shows). The animals have their own system ([Animals](#animals)), and so do the parked cars
+([Parked cars](#parked-cars)).
 
 | | Traffic | People |
 |---|---|---|
@@ -830,10 +832,60 @@ shows). The animals have their own system ([Animals](#animals)).
   (`SPAWN_CLEAR`, `rail/roads.ts`: brought out at an edge's middle, a car could stand on the box),
   clear of walls, heads out of dead-end spurs, and starts at 0.6 × cruising speed. Each rule turns
   a spot down after its draws, so a spot turned down draws what one in a wall would.
-- The player's car is never despawned. Parked, stolen and carjacked cars are not traffic, so they
-  stay where they are left. A destroyed vehicle, traffic or not, goes once it is beyond 90 m
-  (`VIEW_REACH`), out of view. A body lies where it fell until it is beyond 140 m, as the living
-  do, so a player who drives off and turns back finds it still there with whoever stands by it.
+- The player's car is never despawned. Stolen and carjacked cars are not traffic, so they stay
+  where they are left, and so do parked cars once touched ([Parked cars](#parked-cars)). No traffic
+  comes while 210 vehicles stand (`PARKED` + `TRAFFIC.max`), so the vehicles never outnumber what
+  a game parked over the whole map before parking followed the player, plus the traffic. A
+  destroyed vehicle, traffic, parked or not, goes once it is beyond 90 m (`VIEW_REACH`), out of
+  view. A body lies where it fell until it is beyond 140 m, as the living do, so a player who drives
+  off and turns back finds it still there with whoever stands by it.
+
+### Parked cars
+
+The parked cars stand round the player, on the map's parked spots: `PopulateParked`
+(`systems/populate-parked.ts`) keeps them every 0.5 s, and `SpawnWorld` parks those round the start
+(`src/sim/population/parked.ts` decides which).
+
+- **Which spots and which cars**: whether a spot holds a car, its model and its paint come from a
+  random stream seeded by a hash of the spot's place (its x and y in whole decimetres, as the build
+  rounds them) and the game's seed (`Parking`, saved), so within one game a street looks the same
+  each time the player comes back, and `?seed=N` parks another set. A spot where a Panda would
+  tilt more than 15° stays empty (in Lunigiana, 71 of the 805: the 4 m terrain puts some verges on
+  a bank), and so do the Carabinieri's two.
+- **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
+  over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had
+  then (732 now), about 27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village
+  (seed 1): Monzone (Stazione) 12, Monzone Alto 6, Equi Terme 5, Gragnola 6, Colognola 2,
+  Campiglione 6, Viano 6, Vinca 12, Ugliancaldo 8, Tenerano 3. A spot's dice follow its place, not
+  its index, so a build that adds or drops other spots leaves its car as it was (the 3x test region
+  drops one by lucido's edge and parks the same cars round Monzone:
+  [map.md](map.md#test-regions)); a spot the build moves rolls anew.
+- **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
+  tertiary-road spot where a truck fits, a roll under 10% makes a marble truck instead: 6 of the
+  209 cars Lunigiana's spots hold for seed 1 (2–6 over seeds 1, 2, 3, 7 and 11), where the game
+  that parked over the whole map held at most two.
+- **Coming**: a spot 90–300 m from the player (`PARKING.fill`, out of view) that should hold a car
+  and has none gets it, unless a vehicle's body, or a person or an animal within 1 m (`ROOM`), is in
+  the way: it is tried again every 0.5 s.
+- **Going**: a car still as it was parked goes once the player is more than 400 m away
+  (`PARKING.despawn`), and its spot fills again when the player comes back. Still as it was parked
+  means never entered, undamaged, and within 0.5 m and 0.1 rad of its spot. Getting into a car takes
+  it off its spot (`EnterExit` removes `Parked`): it stays wherever it is left, like a damaged or
+  moved car, and its spot fills again once out of view and clear of it, with the same model and
+  paint. The Carabinieri's cars are no spot's: they stay by their station, or wherever the player
+  leaves them.
+- **Wrecked**: a parked car destroyed (never entered) goes once out of view, as every wreck does,
+  and its spot holds no car again in this game (`Parking.wrecked`, saved), as a spot stayed empty
+  once its wreck had gone when every car was parked at setup: the player who turns back, or comes
+  back later, finds the street without it.
+- **At most**: none comes while 200 vehicles that are not traffic stand (`PARKED`), the
+  Carabinieri's, the stolen and the wrecked ones included. Driving across the map through the ten
+  villages above (seed 1, 50 m every half second from 400 m out of each), at most 27 vehicles stood
+  at once, the player's car included, with at most 14 parked cars and 10 traffic.
+- **Limits**: after a jump (`Respawn` at the start, a dev teleport) the spots within 90 m of the
+  player stay empty until it is 90 m away from them; back at the start after a death, Monzone's
+  street holds only the cars that stayed. A car a flood floats off its spot, or a blast shoves, stays
+  for good like any touched car, and its spot holds nothing while it stands.
 
 ### How many people are out
 
@@ -925,9 +977,10 @@ suggests.
 parties from 4 m (`FILL_NEAR`: round the player, none on them) to 120 m, and `FillAnimals` the
 animals `PopulateAnimals` keeps, the cats out to 120 m and the farm animals to 140 m. The title card
 hides them coming; after it, people and animals spawn only out of view. Over 40 seeds at the start:
-9.2 people out (the target is 9), 2.75 of them within 45 m (the residents there are 28 % of those
-within 140 m), 2 cats and 2.8 free dogs. Standing still 3 minutes (seed 11), the player has 2.7
-people within 45 m on average at the start, and 3.3 in Gragnola's centre.
+9.2 people out (the target is 9), 2.2 of them within 45 m (the residents there are 28 % of those
+within 140 m), 2 cats and 2.8 free dogs. Standing still 3 minutes (seeds 11–14), the player has 2.4
+people within 45 m on average at the start (0.8–3.8 a seed), and 1.5 in Gragnola's centre
+(0.8–2.4).
 
 ### Limits
 
@@ -1032,7 +1085,7 @@ pigs come out only where the player is out in the country, with fewer than 60 re
 |---|---|---|---|---|
 | Cats | 0.02 × the residents within 140 m (Italy keeps about 0.2 pet cats a resident, 11.9 M cats for 59 M people, Assalco–Zoomark 2025; about one in ten out on the street at a time is an estimate) | 5 | 90–120 m out, on a peopled walk edge's verge 0.3–1.2 m past the walkers' line, or 1–3 m off the wall of a house along it | 140 m |
 | Free dogs | 0.15 × the farms within 140 m (TUNED: about one farm in seven has its dog lying out in the yard) | 3 | 90–140 m out, 4–8 m off a farm building, on open ground | 140 m |
-| Cows | 0.15 × the rural farms within 250 m (TUNED) | 8 | a herd of 2–5 around a middle 90–140 m out on pasture, each within 8 m of it on grass, 2.5 m apart | 180 m: a herd grazes up to 35 m from where it came out |
+| Cows | 0.15 × the rural farms within 250 m (TUNED) | 8 | a herd of 2–5 around a middle 90–140 m out on pasture, each within 8 m of it on grass inside the play area (`inPlay`), 2.5 m apart | 180 m: a herd grazes up to 35 m from where it came out |
 | Pigs | 0.15 × the rural pens within 140 m (TUNED) | 5 | 1–3 by a pen, 5–15 m off it on open ground | 140 m |
 
 - Each run brings out at most one cat, one dog, one herd and one litter, never indoors and clear of
@@ -1095,7 +1148,8 @@ code:
   in the step its whole body runs past the drawn run, beyond view (`Dispatch`). The line's next
   train is then due after a layover of 60–180 s (`LAYOVER`), from that end, going the other way.
   The dwells and layovers are the "small random delays"; they draw from the railway's own stream,
-  `RailRng`, never from `Rng`, so trains change nothing traffic, people, animals or parking draw.
+  `RailRng`, never from `Rng`, so the railway's draws change nothing traffic, people or animals
+  draw (a train in a car's way still changes when it draws its next turn).
 - **A stolen train** is its line's one train while the player has it: the line gets no other
   (unless a `SetTrains` call brings one in, which keeps 30 m behind it as behind any train). Once
   the player has left it and all of it is out of view (`VIEW_REACH`, 90 m, as people and cars are
@@ -1599,9 +1653,16 @@ speed along the contact.
   enters toward it may come onto the shared track and meet it head-on. Then both stop 30 m apart
   and wait for each other for good: the hook is a block table both `TrainAI` and `Dispatch` would
   consult.
-- **Terminals are open ends** at the map's edge: the build makes no other kind, and `lines.test.ts`
-  fails on a terminal off the edge. A buffer stop inside the map would need the AI train to dwell
-  and turn back there instead of a run-out; the player's train already turns back by its far cab.
+- **Terminals are open ends** at the map's edge: the build makes no other kind, and
+  `lines.map-test.ts` fails on a terminal off the edge (`lines.test.ts` on one of a line by Monzone
+  station). A buffer stop inside the map would need the AI train to dwell and turn back there
+  instead of a run-out; the player's train already turns back by its far cab.
+- **Run-outs assume open land past the edge**: the drawn run and the run-out go straight and level
+  past a terminal, over the terrain the apron extends. On a map of parts in an L (issue #7) a
+  terminal on an inner edge of the play area would send them across the notch, over ground that
+  only extends the edge's (no tile is listed there, [map.md](map.md#map-files)), and a long run-out
+  could come back over the other arm. Lunigiana's and Cesena's terminals lie on the bounds; a
+  region with such a terminal needs a run-out that bends or stops short.
 - **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
   over the line speed, through a box whose arms are not down and onto another train. The lever
   forward rings the bell at once, but driven off Monzone at full power the train's nose reaches
@@ -1667,7 +1728,7 @@ speed along the contact.
 | `src/sim/dynamics.ts` | substeps, bump-stop travel, damper limit, the body's ground contacts, in-air tumbling damping, the ground-hit speed |
 | `src/sim/drivetrain.ts` | shift points, engine braking, driveline efficiency |
 | `src/sim/view.ts` | `screenAxes` (screen axes of the home view), `LOOK_AHEAD`, `VIEW_REACH` |
-| `src/sim/lanes.ts` | lane offsets, passing room (`PASS_MARGIN`), truck road classes; baked into the map, so run `pnpm map` after a change (`bake.test.ts` fails until then) |
+| `src/sim/lanes.ts` | lane offsets, passing room (`PASS_MARGIN`), truck road classes; baked into the map, so run `pnpm map` after a change (`bake.map-test.ts`, in `pnpm test:map`, fails until then) |
 | `src/sim/route.ts` | pedestrian verge, `cruiseSpeed`, hairpin limit, the walk choice (`WALK_AHEAD`, `WALK_FLOOR`) |
 | `src/sim/systems/populate.ts` | `TRAFFIC` and `PEDESTRIANS` population limits and bands, `OUT_SHARE` (the residents out), `FACE_TO_FACE` (neighbours), `FILL_NEAR` (the first fill), spawn model mix |
 | `src/sim/population/density.ts` | residents per home (`HOMES`, `STOREY`, `GROSS_PER_RESIDENT`, `LIVED_IN`), the streets people come out on and walk (`EDGE_REACH`, `PEOPLED`) |
@@ -1681,7 +1742,8 @@ speed along the contact.
 | `src/sim/systems/animals.ts` | `IDLE`, `BARK`, `MOURN` |
 | `src/sim/systems/fright.ts` | `FLEE`, `FEARS` (a train's whistle's reach included), `CRIES`, `CRASH_SPEED` (Startle) |
 | `src/sim/systems/populate-animals.ts` | `ANIMALS` (each kind's share, reach, cap and despawn), the spawn bands and spots |
-| `src/sim/systems/spawn.ts` | parked cars (`PARKED`), trucks (`TRUCKS`) |
+| `src/sim/population/parked.ts` | the most vehicles that are not traffic (`PARKED`), the parked cars' bands (`PARKING`: fill 90–300 m, gone beyond 400 m), each map's share of spots with a car (`SHARE`), the truck and Ape rolls (`TRUCK`, `APE`), how far a car may stand off its spot and still be as parked (`ON_SPOT`) |
+| `src/sim/systems/populate-parked.ts` | `ROOM`, how near a person or an animal a car is not brought out |
 | `src/sim/parking.ts` | `LEVEL`, the steepest tilt a parked car stands at; baked into the map, so run `pnpm map` after a change |
 | `src/sim/map/tiles.ts` | `FROZEN_BEYOND` (how far from the player a vehicle still steps), `STEP_REACH` (the square of tiles the host keeps for a step) |
 | `src/sim/rail/models.ts` | `TRAINS`: the ATR 220's cars, bogies, mass, power, resistance, brakes and engines; `MOVING`, the speed over which a train counts as moving |
@@ -1715,18 +1777,19 @@ with `src/sim/testing.ts`; `src/sim/__tests__/reactions.test.ts` and
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first
 fill, and `src/sim/__tests__/animals.test.ts` the animals in a village, at a farm and on a rural
-road; `src/sim/__tests__/trains.test.ts` runs the train service with `src/sim/rail/testing.ts` (the
-railway stepped alone), `trains-traffic.test.ts`, `trains-strikes.test.ts` and
-`trains-world.test.ts` beside it stage the world around the trains (queues and walkers at Via
-Riolo, strikes and the look-out, the level under the bridges, in the river under one, over the
-tunnel and down a road onto a crossing, the animals brought out off the track and kept to their
-side, the draws), `trains-driving.test.ts` the player's train (driven
-with `liveKeys`, keys a test plays as it goes), and `src/sim/rail/__tests__/` checks the lines,
-the cars, the crossings, the dynamics, the AI driver, the bodies, the look-out, the crossing rules
-for traffic, the senses, boarding and the collisions;
-`src/sim/__tests__/physics.test.ts` drives each model on flat, sloping and ramped test ground with
-`advance` (no walls), and `src/sim/__tests__/handling.test.ts` proves
-each handling knob's effect the same way, the weather grip loss's on wet and snowy ground included.
-Fixtures find map features by geometry, never by index (`BATTISTI` is the Via Cesare Battisti
-traffic edge nearest (-412, 438), eastbound), so they survive map rebuilds. Re-run `pnpm check`
-after any change.
+road; `src/sim/__tests__/parked.test.ts` drives across the map into ten villages for their parked
+cars and traffic, frees a stolen car's spot, leaves touched cars and the Carabinieri behind, holds
+the caps and brings the same cars back on one seed; `src/sim/__tests__/trains.test.ts` runs the
+train service with `src/sim/rail/testing.ts` (the railway stepped alone), `trains-traffic.test.ts`,
+`trains-strikes.test.ts` and `trains-world.test.ts` beside it stage the world around the trains
+(queues and walkers at Via Riolo, strikes and the look-out, the level under the bridges, in the
+river under one, over the tunnel and down a road onto a crossing, the animals brought out off the
+track and kept to their side, the draws), `trains-driving.test.ts` the player's train (driven with
+`liveKeys`, keys a test plays as it goes), and `src/sim/rail/__tests__/` checks the lines, the cars,
+the crossings, the dynamics, the AI driver, the bodies, the look-out, the crossing rules for
+traffic, the senses, boarding and the collisions; `src/sim/__tests__/physics.test.ts` drives each
+model on flat, sloping and ramped test ground with `advance` (no walls), and
+`src/sim/__tests__/handling.test.ts` proves each handling knob's effect the same way, the weather
+grip loss's on wet and snowy ground included. Fixtures find map features by geometry, never by index
+(`BATTISTI` is the Via Cesare Battisti traffic edge nearest (-412, 438), eastbound), so they survive
+map rebuilds. Re-run `pnpm check` after any change.

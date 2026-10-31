@@ -53,6 +53,7 @@ const STREAM: WaterF = {
   bed: 3,
   depth: 1,
   pts: [v(100, -30, "w0"), v(100, 30, "w1")],
+  from: 0,
 }
 
 test("conflateRail puts OSM's line on the CTR, its crossing nodes on the road where the CTR crosses it, and adds the CTR-only tracks", () => {
@@ -191,6 +192,15 @@ test("conflateRail keeps OSM's line where no CTR track maps it", () => {
   }
   const c = conflateRail([open], [], [], ctr([]), NONE)
   assert.deepEqual(c.rail[0]!.pts, open.pts)
+})
+
+// Regression: a test region without Gragnola (issue #7) threw reading the missing node's id.
+test("conflateRail passes over a swapped node the play area leaves out", () => {
+  const away: Layout = { ...NONE, swap: new Map([["gone", "lc"]]) }
+  assert.deepEqual(
+    conflateRail(RAIL, ROADS, [STREAM], ctr(TRACKS), away).rail,
+    conflateRail(RAIL, ROADS, [STREAM], ctr(TRACKS), NONE).rail,
+  )
 })
 
 // Regression: nothing checked the crossing nodes against the

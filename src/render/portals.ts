@@ -1,12 +1,12 @@
 /**
  * Tunnel portals, drawn chunk by chunk: one at each mouth of the railway's tunnels (an end of a
- * tunnel piece of `MAP.rail` that no other tunnel piece carries on, inside the map), each whole in
+ * tunnel piece of `MAP.rail` that no other tunnel piece carries on, inside the play area), each whole in
  * its chunk. A train passing a mouth vanishes behind its dark face; the lined throat behind hides it
  * where the hill over the tunnel is too low to.
  *
  * @module render/portals
  */
-import { MAP, RAIL_LIFT } from "../sim/map/index.ts"
+import { MAP, outlineDistance, RAIL_LIFT } from "../sim/map/index.ts"
 import type { Piece } from "./geometry.ts"
 import { terrainY, yOf } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
@@ -35,12 +35,10 @@ const CHORD = 5
 /** A three-space point. */
 type Point3 = readonly [number, number, number]
 
-const { minX, minY, maxX, maxY } = MAP.bounds
-/** Whether (x, y) lies on the map's edge, where a line runs on past it. */
-const onEdge = (x: number, y: number): boolean =>
-  x <= minX + 0.5 || x >= maxX - 0.5 || y <= minY + 0.5 || y >= maxY - 0.5
+/** Whether (x, y) lies on the play area's edge, where a line runs on past it. */
+const onEdge = (x: number, y: number): boolean => outlineDistance(x, y) <= 0.5
 
-/** Each tunnel's mouth: where a tunnel piece ends and no other tunnel piece goes on, inside the map, with its rail head and the heading out of the hill. */
+/** Each tunnel's mouth: where a tunnel piece ends and no other tunnel piece goes on, off the play area's edge, with its rail head and the heading out of the hill. */
 const tunnelMouths = (): Array<{
   readonly x: number
   readonly y: number
