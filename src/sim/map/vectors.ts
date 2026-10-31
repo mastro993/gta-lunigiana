@@ -11,7 +11,7 @@
 import { MAP } from "./global.ts"
 import type { Building, RoadLine } from "./index.ts"
 import { cellBox, type CellGrid, cellGrid, queryCells, visited } from "./lattice.ts"
-import { derived, eachTile, placeAt, type Tile } from "./tiles.ts"
+import { derived, eachTile, placeAt, residentTile, type Tile, tilesOver } from "./tiles.ts"
 
 /** The index of `id` in the ascending `ids`, or −1. */
 const indexIn = (ids: ReadonlyArray<number>, id: number): number => {
@@ -127,4 +127,51 @@ export const buildingsIn = (
     },
     seen,
   )
+}
+
+/**
+ * Building `i` (index into the whole map's buildings), read where a lookup at (x, y) reads: the
+ * point must lie within `HALO` of its box (its centre, a farm's baked one), or it throws.
+ */
+export const buildingAt = (i: number, x: number, y: number): Building => {
+  const { ids, items } = placeAt(x, y).vectors.buildings,
+    k = indexIn(ids, i)
+  if (k < 0) throw new Error(`map: building ${i} lies nowhere near (${x}, ${y})`)
+  return items[k]!
+}
+
+/** Marks of the buildings `buildingsInMemory` has visited. */
+const inMemory = visited(MAP.vectors.counts.buildings)
+
+/**
+ * Host only (its answer depends on which tiles are in memory): calls `visit`, as `buildingsIn` does,
+ * with every building whose box overlaps the query box in a tile in memory, each once, in no set
+ * order; the tiles not in memory are passed over, never read. For a reader whose answer is order-free
+ * (a sound path's most occluding building) far from the player.
+ */
+export const buildingsInMemory = (
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+  visit: (i: number, building: Building, box: Box) => void,
+): void => {
+  if (inMemory.stamp === 0x7fffffff) {
+    inMemory.marks.fill(0)
+    inMemory.stamp = 0
+  }
+  const stamp = ++inMemory.stamp
+  for (const key of tilesOver(minX, minY, maxX, maxY)) {
+    const tile = residentTile(key)
+    if (tile === undefined) continue
+    const { ids, items, boxes } = buildingsOf(tile)
+    for (let k = 0; k < ids.length; k++) {
+      const id = ids[k]!,
+        box = boxes[k]!
+      if (inMemory.marks[id] === stamp) continue
+      if (box[0] > maxX || box[2] < minX || box[1] > maxY || box[3] < minY) continue
+      inMemory.marks[id] = stamp
+      visit(id, items[k]!, box)
+    }
+  }
 }

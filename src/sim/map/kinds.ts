@@ -23,6 +23,9 @@ export const TILE = 2000
  */
 export const HALO = 32
 
+/** The most vertices a water piece has (the build checks it): a reach of it is keyed by the piece's index times this, plus its first vertex's. */
+export const WATER_VERTICES = 65536
+
 /** A tile's key, `"i_j"`: its file is `<key>.bin`, and "map tile i_j not loaded" names it. */
 export const tileKey = (i: number, j: number): string => `${i}_${j}`
 

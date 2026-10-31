@@ -349,13 +349,18 @@ export interface MonzoneMap {
   /**
    * How the vectors are cut into the tiles (`./vectors.ts`): each feature lies whole in every tile
    * it comes within `halo` m of (`HALO`), and `counts` says how many of each layer the whole map
-   * has (a feature's index runs up to it). `lattice.buildings` is the buildings' broad-phase corner:
-   * the lowest corner of any building's box, where the whole map's broad phase put it.
+   * has (a feature's index runs up to it). `lattice` holds the corners of the broad phases that
+   * answer box queries in the whole map's order, where the whole map's broad phase put them: the
+   * buildings' (the lowest corner of any building's box) and the rivers' sound's (the lowest vertex
+   * of any water, src/audio/places/water.ts).
    */
   readonly vectors: {
     readonly halo: number
     readonly counts: Readonly<Record<VectorLayer, number>>
-    readonly lattice: { readonly buildings: readonly [number, number] }
+    readonly lattice: {
+      readonly buildings: readonly [number, number]
+      readonly water: readonly [number, number]
+    }
   }
   readonly spawns: {
     readonly player: Spawn

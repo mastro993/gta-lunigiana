@@ -257,7 +257,7 @@ test("cutMap puts each vector whole in every tile it comes within the halo of, w
   assert.deepEqual(stamped.global.vectors, {
     halo: 32,
     counts: { roads: 2, buildings: 2, water: 1, areas: 1, barriers: 1 },
-    lattice: { buildings: [-300, -300] },
+    lattice: { buildings: [-300, -300], water: [10, -100] },
   })
 })
 

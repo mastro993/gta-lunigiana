@@ -12,7 +12,7 @@ import {
   setTileSource,
   tilesOver,
 } from "../tiles.ts"
-import { buildingsIn, roadLine } from "../vectors.ts"
+import { buildingAt, buildingsIn, buildingsInMemory, roadLine } from "../vectors.ts"
 
 // The checks over every tile's vectors live in vectors.map-test.ts (pnpm test:map); these read only
 // the tiles round Monzone station.
@@ -69,5 +69,27 @@ test("a lookup at a point reads the vectors of the point's tile: a road's line t
   setTileSource(undefined)
   dropTile("1_-3")
   assert.throws(() => placeAt(3000, -5000), /map tile 1_-3 not loaded/)
+  setTileSource(fromDisk)
+})
+
+test("a building by its index near it, and a host's read of the buildings in memory, which never reads another tile", () => {
+  emptied()
+  const found: Array<number> = []
+  buildingsIn(-60, -60, 60, 60, (i, b, [x0, y0, x1, y1]) => {
+    found.push(i)
+    assert.deepEqual(buildingAt(i, (x0 + x1) / 2, (y0 + y1) / 2), b)
+  })
+  assert.ok(found.length > 0)
+  assert.throws(() => buildingAt(found[0]!, 4000, -5000), /map: building \d+ lies nowhere near/)
+  // with only the tiles round the origin in memory, the rest of a 4 km box is passed over
+  const resident = residentTiles()
+  setTileSource(undefined)
+  const near = new Set<number>()
+  buildingsInMemory(-2000, -2000, 2000, 2000, (i) => {
+    assert.ok(!near.has(i), `${i} twice`)
+    near.add(i)
+  })
+  assert.deepEqual(residentTiles(), resident)
+  for (const i of found) assert.ok(near.has(i), `${i}`)
   setTileSource(fromDisk)
 })

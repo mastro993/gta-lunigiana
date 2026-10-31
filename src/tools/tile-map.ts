@@ -7,7 +7,15 @@ import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
 import type { MonzoneMap, Spawn, Water } from "../sim/map/index.ts"
-import { HALO, TILE, tileKey, tileRange, tilesRound, vergeOf } from "../sim/map/kinds.ts"
+import {
+  HALO,
+  TILE,
+  tileKey,
+  tileRange,
+  tilesRound,
+  vergeOf,
+  WATER_VERTICES,
+} from "../sim/map/kinds.ts"
 import {
   TILE_CELLS,
   TILE_NODES,
@@ -458,12 +466,23 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     spawns,
   } = map
   let bx = Infinity,
-    by = Infinity
+    by = Infinity,
+    wx = Infinity,
+    wy = Infinity
   for (const b of map.buildings)
     ringBox(b.outer, (x0, y0) => {
       bx = Math.min(bx, x0)
       by = Math.min(by, y0)
     })
+  for (const w of map.water) {
+    // a reach's sound is keyed by its piece and vertex (src/audio/places/water.ts)
+    if (w.pts.length / 2 > WATER_VERTICES)
+      throw new Error(`water ${w.id} has ${w.pts.length / 2} vertices, more than ${WATER_VERTICES}`)
+    ringBox(w.pts, (x0, y0) => {
+      wx = Math.min(wx, x0)
+      wy = Math.min(wy, y0)
+    })
+  }
   const vectors: MonzoneMap["vectors"] = {
     halo: HALO,
     counts: {
@@ -473,8 +492,11 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
       areas: map.areas.length,
       barriers: map.barriers.length,
     },
-    // where the whole map's broad phase of the buildings put its lattice (the origin with none)
-    lattice: { buildings: map.buildings.length === 0 ? [0, 0] : [bx, by] },
+    // where the whole map's broad phases put their lattices (the origin with none)
+    lattice: {
+      buildings: map.buildings.length === 0 ? [0, 0] : [bx, by],
+      water: map.water.length === 0 ? [0, 0] : [wx, wy],
+    },
   }
   /** Each tile's file with its vectors, the water's floors from `bakes`. */
   const tiles = (bakes: Bakes) => {

@@ -160,6 +160,13 @@ export const tileVectors = (key: string): TileVectors => {
   return tileAt(i!, j!).vectors
 }
 
+/** Host only: tile `key` if it is in memory, never read from the source. */
+export const residentTile = (key: string): Tile | undefined => {
+  const [i, j] = key.split("_").map(Number)
+  const s = slotOf(i!, j!)
+  return s < 0 ? undefined : tiles[s]
+}
+
 /** The keys of the tiles in memory, in key order. */
 export const residentTiles = (): Array<string> =>
   MAP.tiles.flatMap(({ i, j }) => (tiles[slotOf(i, j)] === undefined ? [] : [tileKey(i, j)]))

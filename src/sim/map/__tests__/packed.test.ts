@@ -59,7 +59,7 @@ const map: MonzoneMap = {
   vectors: {
     halo: 32,
     counts: { roads: 0, buildings: 0, water: 0, areas: 0, barriers: 0 },
-    lattice: { buildings: [0, 0] },
+    lattice: { buildings: [0, 0], water: [0, 0] },
   },
   spawns: {
     player: { x: 1, y: 2, angle: -0.5 },
