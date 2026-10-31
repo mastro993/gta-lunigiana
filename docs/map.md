@@ -1093,7 +1093,7 @@ counter-clockwise, holes clockwise.
 
 | Field | Contents |
 |---|---|
-| `version` | `3` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them) |
+| `version` | `3` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them). A version-3 file built before the play area's `outline` still decodes, so `pnpm map-diff` reads it, but the game throws on it, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
 | `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
@@ -1226,7 +1226,8 @@ Settembre" and "Via Castel dell'Aquila").
 `src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
 `decodeMap` (a newline inside a name, the coarse grid) and a tile through `packTile` and
 `decodeTile` (negative values, the widest deltas, an empty section), and checks that a file of
-another version, or a value too far for its section, throws.
+another version, or a value too far for its section, throws; `stale-map.test.ts` that the game
+refuses a global file without the play area's outline.
 `src/sim/map/__tests__/tiles.map-test.ts` checks the cut: the 30 tiles cover the bounds (i −2…2, j
 −4…1, south to north then west to east) with their lowest and highest nodes, a tile's east column is
 its east neighbour's west column and its north row its north neighbour's south row, each wall lives
