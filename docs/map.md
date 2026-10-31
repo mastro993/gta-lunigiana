@@ -125,15 +125,15 @@ stages were sped up (lucido's files the same, byte for byte):
 |---|---|---|---|
 | lucido (`pnpm map`), before | 30 | 12.41, 12.81, 12.71 s | 1,117, 1,096, 1,109 MB |
 | `lunigiana-3x`, before | 78 | 28.52, 28.27, 28.17 s | 1,594, 1,592, 1,598 MB |
-| lucido (`pnpm map`) | 30 | 8.52, 8.21, 8.30 s | 1,064, 1,066, 1,043 MB |
-| `lunigiana-3x` | 78 | 15.50, 15.39, 15.45 s | 1,471, 1,472, 1,507 MB |
+| lucido (`pnpm map`) | 30 | 8.29, 8.27, 8.30 s | 1,057, 1,040, 1,051 MB |
+| `lunigiana-3x` | 78 | 15.43, 15.71, 15.29 s | 1,476, 1,459, 1,473 MB |
 
-- **Memory**: 1.47–1.51 GB, half the 3 GB issue #3 asks of a 3× region, and 9 MB more a tile: the
+- **Memory**: 1.46–1.48 GB, half the 3 GB issue #3 asks of a 3× region, and 9 MB more a tile: the
   grid (twice, carved and uncarved, 8 bytes a node), the catchments' arrays (15 bytes a node), the
   walls' bit sets and the cut tiles still grow with the area ([Pipeline](#pipeline)). It was 1.6 GB
   and 10 MB a tile before the catchments' D8 went to a byte a node.
-- **Time**: (15.45 − 8.34) s over 48 more tiles is 0.148 s a tile, against the 0.3 s issue #3 asks
-  (0.33 s before), plus a fixed 3.9 s (lucido's 8.34 s less its 30 tiles at that rate). The 7.1 s
+- **Time**: (15.48 − 8.29) s over 48 more tiles is 0.150 s a tile, against the 0.3 s issue #3 asks
+  (0.33 s before), plus a fixed 3.8 s (lucido's 8.29 s less its 30 tiles at that rate). The 7.2 s
   more, stage by stage: the catchments 1.5 s, the grid 1.3 s (2.1 s rather than 0.85 s), the walls
   1.1 s, the write 1.1 s, the cut 1.0 s and the trees 0.85 s; the rest holds lucido's features
   whatever the size. Before, the 15.7 s more were the grid 5.7 s (each of a node's 25 DTM samples
@@ -233,7 +233,7 @@ node ids already set, the road–rail and line–water crossings gated by their 
 parapets' openings read from one index of the roads.
 
 On 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l node src/tools/build-map.ts`, three runs)
-the build peaked at 1.04–1.07 GB resident and took 8.2–8.5 s: 1.10–1.12 GB and 12.4–12.8 s that
+the build peaked at 1.04–1.06 GB resident and took 8.3 s: 1.10–1.12 GB and 12.4–12.8 s that
 morning, before the grid's nodes, the catchments, the land cover's fills and the write were sped
 up (the same files), and 1.30–1.46 GB and 13.6–13.9 s on 2026-10-30 with every stage at the top
 level of `build-map.ts` and the map cut twice. The grid's tile pass takes 0.85 s (0.028 s a tile)
