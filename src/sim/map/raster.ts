@@ -83,17 +83,12 @@ interface CoverSource {
 }
 
 /**
- * The cover of the terrain cells of `block` (every cell when absent: the `(cols − 1) × (rows − 1)`
- * cells of the heightmap), row-major with row 0 = south. Forest is filled first, so every other
- * area and the river beds draw over it. A block's cells come out as in the whole raster.
- */
-export const rasterCover = (map: CoverSource, part?: PixelBlock): Uint8Array =>
-  coverBlocks(map)(part)
-
-/**
- * `rasterCover` of `map` for one block after another: the areas sorted and boxed once, and each
- * block filling only those whose box comes within a cell of it (the build asks it for every tile,
- * and a scan of every area's rows for each tile grew with the square of the map).
+ * The cover of `map`'s terrain cells, a block at a time: the cells of `part` (every cell when
+ * absent: the `(cols − 1) × (rows − 1)` cells of the heightmap), row-major with row 0 = south.
+ * Forest is filled first, so every other area and the river beds draw over it, and a block's cells
+ * come out as in the whole raster. The areas are sorted and boxed once, and each block fills only
+ * those whose box comes within a cell of it (the build asks for every tile, and a scan of every
+ * area's rows for each tile grew with the square of the map).
  */
 export const coverBlocks = (map: CoverSource): ((part?: PixelBlock) => Uint8Array) => {
   const cols = map.heightmap.cols - 1,

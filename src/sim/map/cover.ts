@@ -9,7 +9,7 @@ import { MAP } from "./global.ts"
 import { type Cover, coverName } from "./raster.ts"
 import { coverCell } from "./tiles.ts"
 
-export { type Cover, coverName, rasterCover } from "./raster.ts"
+export { type Cover, coverName } from "./raster.ts"
 
 const { cell, x0, y0 } = MAP.heightmap,
   COLS = MAP.heightmap.cols - 1,

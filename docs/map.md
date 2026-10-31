@@ -1137,7 +1137,7 @@ What goes in which tile:
   it nearest the midpoint. A tile's walls keep the whole map's order and carry their index in it.
 - **Trees**: each in the tile of its point, the same way (the scatter already made it there), with
   its id.
-- **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`rasterCover` in
+- **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`coverBlocks` in
   `src/sim/map/raster.ts`, rasterised at build time for the tile's cells alone, the same cells a
   raster of the whole map gives there); cells past the bounds are 0 and never read.
 

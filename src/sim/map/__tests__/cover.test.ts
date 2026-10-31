@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { coverName, rasterCover } from "../cover.ts"
+import { coverName } from "../cover.ts"
 import { AREA_KINDS } from "../index.ts"
 import { coverBlocks } from "../raster.ts"
 
@@ -19,7 +19,7 @@ const at = (raster: Uint8Array, x: number, y: number) =>
 const bare = { roads: [], buildings: [] }
 
 test("areas fill even-odd (holes stay meadow) and later kinds draw over forest", () => {
-  const raster = rasterCover({
+  const raster = coverBlocks({
     ...bare,
     heightmap,
     water: [],
@@ -33,14 +33,14 @@ test("areas fill even-odd (holes stay meadow) and later kinds draw over forest",
         ],
       },
     ],
-  })
+  })()
   assert.equal(at(raster, 2, 2), "forest")
   assert.equal(at(raster, 6, 6), "meadow")
   assert.equal(at(raster, 22, 22), "parking")
 })
 
 test("wide water gets a pebble bed, narrow streams none", () => {
-  const raster = rasterCover({
+  const raster = coverBlocks({
     ...bare,
     heightmap,
     areas: [],
@@ -66,7 +66,7 @@ test("wide water gets a pebble bed, narrow streams none", () => {
         area: [1, 1],
       },
     ],
-  })
+  })()
   assert.equal(at(raster, 10, 30), "pebble")
   assert.equal(at(raster, 10, 37), "pebble") // cell centre 8 m out: past the water (7 m), inside the bed (12 m)
   assert.equal(at(raster, 10, 6), "meadow")
@@ -76,12 +76,12 @@ test("every area kind paints as its own cover", () => {
   for (const kind of AREA_KINDS)
     assert.equal(
       at(
-        rasterCover({
+        coverBlocks({
           ...bare,
           heightmap,
           water: [],
           areas: [{ kind, rings: [[0, 0, 8, 0, 8, 8, 0, 8]] }],
-        }),
+        })(),
         2,
         2,
       ),
@@ -108,7 +108,13 @@ test("open ground between a house and a road is paved; a garden behind the house
     pts: [0, 10, 40, 10],
     z: [200, 200],
   }
-  const raster = rasterCover({ heightmap, water: [], areas: [], roads: [road], buildings: [house] })
+  const raster = coverBlocks({
+    heightmap,
+    water: [],
+    areas: [],
+    roads: [road],
+    buildings: [house],
+  })()
   assert.equal(at(raster, 18, 13), "paved") // the 3 m between the road edge and the house
   assert.equal(at(raster, 18, 35), "meadow") // 10 m behind it
   assert.equal(at(raster, 38, 38), "meadow")
@@ -148,13 +154,13 @@ test("a block of the raster has the cells the whole raster has there", () => {
       },
     ],
   }
-  const whole = rasterCover(map)
+  const whole = coverBlocks(map)()
   for (const block of [
     { c0: 0, r0: 0, cols: 10, rows: 10 },
     { c0: 3, r0: 4, cols: 5, rows: 2 },
     { c0: 7, r0: 0, cols: 3, rows: 10 },
   ]) {
-    const part = rasterCover(map, block)
+    const part = coverBlocks(map)(block)
     part.forEach((v, k) =>
       assert.equal(
         v,
@@ -185,8 +191,8 @@ test("every block coverBlocks fills has the cells the whole raster has there, ar
     roads: [],
     buildings: [],
   }
-  const whole = rasterCover(map),
-    cover = coverBlocks(map)
+  const cover = coverBlocks(map),
+    whole = cover()
   for (let c0 = 0; c0 < 10; c0++)
     for (let r0 = 0; r0 < 10; r0++)
       for (const [cols, rows] of [
