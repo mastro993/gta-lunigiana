@@ -133,13 +133,15 @@ export type Flowing = readonly [stage: number, x: number, y: number, speed: numb
 /**
  * Water's triangles: each vertex lies on the river's bed and carries how far its surface rises
  * (`stage`) and the way and speed it flows (`flow`), which the water shader turns into the level
- * and current the rivers run at (`render/sky/surface`).
+ * and current the rivers run at (`render/sky/surface`); a lake's lies on its still surface and
+ * carries how deep the water stands there (`still`), which shades it.
  */
 export class WaterTriangles extends Triangles {
   readonly stage: Array<number> = []
   readonly flow: Array<number> = []
+  readonly still: Array<number> = []
 
-  /** A quad a-b-c-d of water (counter-clockwise seen from above), each corner with its own `Flowing`. */
+  /** A quad a-b-c-d of water (counter-clockwise seen from above), each corner with its own `Flowing` and still depth (m). */
   waterQuad(
     a: Point3,
     b: Point3,
@@ -147,20 +149,23 @@ export class WaterTriangles extends Triangles {
     d: Point3,
     hex: number,
     flowing: readonly [Flowing, Flowing, Flowing, Flowing],
+    still: readonly [number, number, number, number] = [0, 0, 0, 0],
   ): void {
     this.quad(a, b, c, d, hex)
     for (const k of [0, 1, 2, 0, 2, 3] as const) {
       const [stage, x, y, speed] = flowing[k]
       this.stage.push(stage)
       this.flow.push(x, y, speed)
+      this.still.push(still[k])
     }
   }
 
-  /** The triangles as a non-indexed BufferGeometry, with `stage` and `flow`. */
+  /** The triangles as a non-indexed BufferGeometry, with `stage`, `flow` and `still`. */
   override geometry(): BufferGeometry {
     const g = super.geometry()
     g.setAttribute("stage", new Float32BufferAttribute(this.stage, 1))
     g.setAttribute("flow", new Float32BufferAttribute(this.flow, 3))
+    g.setAttribute("still", new Float32BufferAttribute(this.still, 1))
     return g
   }
 }

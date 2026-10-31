@@ -10,7 +10,7 @@ import { encodePngRgb } from "./png.ts"
 import { REGION } from "./region.ts"
 
 await loadBuiltMap(REGION)
-const { buildingStyleOf, graph, heightAt, isAreaKind, MAP, ROAD_CLASSES } =
+const { buildingStyleOf, graph, heightAt, isAreaKind, isWaterArea, MAP, ROAD_CLASSES } =
   await import("../sim/map/index.ts")
 // The trees, walls and vectors live in the tiles: read them all, joined in the whole map's order,
 // which the alpha blending below follows.
@@ -100,12 +100,15 @@ const AREA = {
   sparse: [200, 200, 150],
   scree: [190, 180, 160],
   scrub: [110, 150, 80],
+  pebble: [225, 220, 205],
+  river: [60, 120, 220],
+  lake: [60, 120, 220],
 } as const satisfies Record<AreaKind, RGB>
 for (const a of areas)
   fill(
     a.rings,
     isAreaKind(a.kind) ? AREA[a.kind] : [255, 0, 255],
-    a.kind === "forest" ? 0.25 : 0.45,
+    a.kind === "forest" ? 0.25 : isWaterArea(a.kind) ? 0.8 : 0.45,
   )
 for (let i = 0; i + 2 < trees.length; i += 3)
   dot(trees[i]!, trees[i + 1]!, 0.9 * trees[i + 2]!, [20, 70, 30], 0.8)

@@ -5,7 +5,7 @@
  */
 import { Mesh, type Object3D, type Vector3 } from "three"
 
-import { type Building, MAP, type Road, type Water } from "../sim/map/index.ts"
+import { type Area, type Building, MAP, type Road, type Water } from "../sim/map/index.ts"
 import { type Layer, readMapFile, tileUrl } from "../sim/map/packed.ts"
 import { isResident, provideTile, tilesOver, tileVectors } from "../sim/map/tiles.ts"
 import { DRAW_ORDER } from "./order.ts"
@@ -57,6 +57,7 @@ export interface Vectors {
   readonly roads: Layer<Road>
   readonly buildings: Layer<Building>
   readonly water: Layer<Water>
+  readonly areas: Layer<Area>
 }
 
 /** The features of `layers`, each once, by index (`ids`) ascending. */
@@ -68,7 +69,7 @@ const merged = <T>(layers: ReadonlyArray<Layer<T>>): Layer<T> => {
 }
 
 /**
- * The roads, buildings and rivers the tiles within `reach` m (along either axis) of any of `spots`
+ * The roads, buildings, rivers and areas the tiles within `reach` m (along either axis) of any of `spots`
  * hold (in Node read from disk), each once, in the whole map's order: among them every one with a
  * segment, or a building's box, that near, so a search of them for the first that fits there finds
  * the whole map's first. Never the whole map, so a test's cost does not grow with it.
@@ -89,5 +90,6 @@ export const vectorsAround = (
     },
     buildings: merged(tiles.map((v) => v.buildings)),
     water: merged(tiles.map((v) => v.water)),
+    areas: merged(tiles.map((v) => v.areas)),
   }
 }

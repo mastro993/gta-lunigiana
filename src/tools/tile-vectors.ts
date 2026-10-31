@@ -60,7 +60,8 @@ const checkRoad = (road: Road): void => {
 
 /**
  * Per slot of `slots`, the features of each layer it holds, in the whole map's order: every slot
- * `over` names for a box of the feature (a segment's, or an outer ring's) grown by HALO. Throws
+ * `over` names for a box of the feature (a segment's, or an outer ring's) grown by HALO, and the
+ * waterways of every river polygon a slot holds. Throws
  * where a road or a river reaches past the halo off its line (src/sim/water/rivers.ts reads a
  * river's bed at a point from that point's tile too).
  */
@@ -95,11 +96,19 @@ export const vectorMembers = (
     flat: ReadonlyArray<number>,
     box: (x0: number, y0: number, x1: number, y1: number) => void,
   ) => box(...boxOf(flat))
+  const areas = layer(map.areas.length, (k, box) => ring(map.areas[k]!.rings[0] ?? [], box))
+  // A river polygon's water is its waterways' (src/sim/water/rivers.ts): they lie in each tile it does.
+  const water = layer(map.water.length, (k, box) => segmentBoxes(map.water[k]!.pts, box)).map(
+    (list, s) => {
+      const ways = areas[s]!.flatMap((k) => map.areas[k]!.waters ?? [])
+      return ways.length === 0 ? list : [...new Set([...list, ...ways])].sort((a, b) => a - b)
+    },
+  )
   return {
     roads: layer(map.roads.length, (k, box) => segmentBoxes(map.roads[k]!.pts, box)),
     buildings: layer(map.buildings.length, (k, box) => ring(map.buildings[k]!.outer, box)),
-    water: layer(map.water.length, (k, box) => segmentBoxes(map.water[k]!.pts, box)),
-    areas: layer(map.areas.length, (k, box) => ring(map.areas[k]!.rings[0] ?? [], box)),
+    water,
+    areas,
     barriers: layer(map.barriers.length, (k, box) => segmentBoxes(map.barriers[k]!.pts, box)),
   }
 }

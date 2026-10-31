@@ -151,6 +151,23 @@ export const assertGroundAsBefore = (whole: JoinedMap, seed: number): number => 
       check(pts[k]! + dx * t - (dy / l) * off, pts[k + 1]! + dy * t + (dx / l) * off)
     }
   }
+  // Every 4 m over every lake and river polygon's box and 8 m past it (#73's water areas).
+  for (const area of whole.areas) {
+    if (area.kind !== "lake" && area.kind !== "river") continue
+    const ring = area.rings[0]!
+    let ax0 = Infinity,
+      ay0 = Infinity,
+      ax1 = -Infinity,
+      ay1 = -Infinity
+    for (let k = 0; k + 1 < ring.length; k += 2) {
+      ax0 = Math.min(ax0, ring[k]!)
+      ay0 = Math.min(ay0, ring[k + 1]!)
+      ax1 = Math.max(ax1, ring[k]!)
+      ay1 = Math.max(ay1, ring[k + 1]!)
+    }
+    for (let x = ax0 - 8; x <= ax1 + 8; x += 4)
+      for (let y = ay0 - 8; y <= ay1 + 8; y += 4) check(x + next(), y + next())
+  }
   // A point in every 16 m bucket the old broad phase had road in.
   for (const key of old.buckets.keys()) {
     const bx = Math.floor(key / 65536) - 32768,

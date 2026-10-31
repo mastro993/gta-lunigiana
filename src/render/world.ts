@@ -50,6 +50,7 @@ import { BEHIND, viewAxes } from "./pipeline.ts"
 import { glowMaterial } from "./sky/glow.ts"
 import { terrainChunk } from "./terrain.ts"
 import { bucketTileTrees, chunkTrees, treeMeshes } from "./trees.ts"
+import { poolWater } from "./water.ts"
 
 const staticMesh = (
   geometry: BufferGeometry,
@@ -253,6 +254,7 @@ export class World {
     const { entries, needs } = this.drawn[key]!
     for (let n = 0; n < entries.length; n += 3)
       this.pieces.piece(entries[n]!).draw(at, entries[n + 1]!, entries[n + 2]!)
+    poolWater(key, sink.water)
     const meshes = [staticMesh(terrainChunk(key), terrainMaterial, false)]
     const solid = [...(sink.solid.empty ? [] : [sink.solid.geometry()]), ...sink.pieces]
     if (solid.length > 0) meshes.push(staticMesh(merge(solid), solidMaterial, true))

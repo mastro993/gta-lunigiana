@@ -12,6 +12,7 @@ import {
   type AreaKind,
   isAreaKind,
   isRoadClass,
+  isWaterArea,
   ROAD_CLASSES,
   type RoadClass,
 } from "../sim/map/kinds.ts"
@@ -37,7 +38,13 @@ const AREA_HEX: Partial<Record<AreaKind, number>> = {
   scree: PALETTE.stoneLight,
   sparse: PALETTE.grassDry,
   scrub: PALETTE.forestLight,
+  pebble: PALETTE.limestone,
+  river: PALETTE.waterShallow,
+  lake: PALETTE.waterShallow,
 }
+
+/** The order the areas are filled in, by kind: the land, then the water over it, then a river's gravel bars over that. */
+const fillPass = (kind: string): number => (kind === "pebble" ? 2 : isWaterArea(kind) ? 1 : 0)
 
 /** The full map's least road width by class, px (the rest: 1.5), so the main roads stand out at a few pixels per hundred metres. */
 const OVERVIEW_MIN: Readonly<Partial<Record<RoadClass, number>>> = {
@@ -124,7 +131,8 @@ const roadOrder = (roads: ReadonlyArray<{ readonly cls: string }>): Array<number
 
 /**
  * Paints `map` at `scale` px/m with `pen`: grass over the play area, clipped to it, then the areas
- * (even-odd, kinds without a colour left out), the water and the rail out of tunnels (`faded`), the
+ * (even-odd, kinds without a colour left out; the lakes and river polygons over the land, a river's
+ * gravel bars over them, `fillPass`), the water and the rail out of tunnels (`faded`), the
  * roads out of tunnels, paths left out (`roadOrder`, each as `road` says), and the buildings' outer
  * rings (non-zero).
  */
@@ -136,7 +144,8 @@ export const paintLayers = <R extends PaintRoad>(
 ): void => {
   pen.clip(map.outline)
   pen.fill(map.outline, PALETTE.grass, "evenodd")
-  for (const area of map.areas) {
+  // each pass in the layer's order (a stable sort)
+  for (const area of [...map.areas].sort((a, b) => fillPass(a.kind) - fillPass(b.kind))) {
     const hex = isAreaKind(area.kind) ? AREA_HEX[area.kind] : undefined
     if (hex !== undefined) pen.fill(area.rings, hex, "evenodd")
   }

@@ -186,7 +186,7 @@ Every script runs with `pnpm`:
 | `pnpm pin-raw` | uploads the inputs a fetch tool changed to a new `raw-YYYYMMDD` release and pins them in `data/raw.lock.json` |
 | `pnpm fetch-osm` | downloads the OpenStreetMap extract again into `data/raw/lunigiana.osm.gz` |
 | `pnpm fetch-osm --region cesena` | downloads the Cesena extract into `data/raw/cesena.osm.gz` |
-| `pnpm fetch-rt` | downloads the Regione Toscana sources again into `data/raw/rt`; `pnpm fetch-rt ctr` only the CTR sheets, leaving the LiDAR and the land cover as they are |
+| `pnpm fetch-rt` | downloads the Regione Toscana sources again into `data/raw/rt`; `pnpm fetch-rt ctr` only the CTR sheets, leaving the LiDAR and the land cover as they are, and `pnpm fetch-rt ucs` only the land cover |
 | `pnpm fetch-rer --region cesena` | verifies the terrain licence and downloads Emilia-Romagna's DTM into `data/raw/cesena` |
 | `pnpm rt-index <part>` | lists the Regione Toscana CTR sheets, LiDAR tiles (with their archive names and licences), DBT blocks and DSM 2021 elements over a part into `.research/<part>/index.json` |
 | `pnpm pick-sheets <part>` | the 2019 CTR sheets whose mapped area meets the part, against its manifest; `--write` updates `data/parts/<part>.json` |

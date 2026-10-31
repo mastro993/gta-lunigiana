@@ -134,14 +134,16 @@ export const capUnderDecks = (
  * at-grade roads pass over an implied culvert (a local dip, hidden under the road and its
  * approaches); then water left perched over a road cut (culverted streams end at the road) drops
  * to the terrain, except inside a wider channel it flows into, as long as it still runs downhill
- * there (a stream dropped into a river's carved bed never steps back up). `terrain[i][k]` is the
- * carved grid, before its rounding, under sample k of water i.
+ * there (a stream dropped into a river's carved bed never steps back up), or in a lake (`still`),
+ * whose carved bed lies under it. `terrain[i][k]` is the carved grid, before its rounding, under
+ * sample k of water i.
  */
 export const dropPerched = (
   water: ReadonlyArray<WaterF>,
   wp: ReadonlyArray<Profile>,
   crossed: ReadonlyArray<Crossed>,
   terrain: ReadonlyArray<ArrayLike<number>>,
+  still: (x: number, y: number) => boolean = () => false,
 ): void => {
   for (const c of crossed) if (!c.bridge) cap(wp[c.water]!, c.at, c.half, c.deck - CULVERT, true)
   const channels = segIndex<number>()
@@ -153,7 +155,7 @@ export const dropPerched = (
       const joins =
         (k === 0 || p.z[k]! <= p.z[k - 1]!) &&
         channels.covers(p.x[k]!, p.y[k]!, (j) => j !== i && water[j]!.w > w.w)
-      if (p.z[k]! > top + PERCH && !joins) p.z[k] = top
+      if (p.z[k]! > top + PERCH && !joins && !still(p.x[k]!, p.y[k]!)) p.z[k] = top
     }
   })
 }

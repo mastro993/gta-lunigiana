@@ -7,6 +7,7 @@ import { Determinism } from "@typeonce/ritmo-devtools"
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import { rigFor } from "../chassis.ts"
+import { pointInRing } from "../collide.ts"
 import { integrate } from "../dynamics.ts"
 import { REAL_HANDLING } from "../handling.ts"
 import {
@@ -23,6 +24,7 @@ import {
 } from "../index.ts"
 import { roadsNear, waterNear } from "../map/__tests__/vectors-near.ts"
 import { deckNear } from "../map/ground.ts"
+import { placeAt } from "../map/tiles.ts"
 import { walkIndex } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { stalled } from "../systems/physics.ts"
@@ -227,6 +229,58 @@ test("cars in the river: a Panda stands in the Lucido at its mean flow; in a spa
   assert.ok(Vec2.distance(shallow, atLucido(0)) < 0.3, "it holds on its tyres")
   const spate = panda(SPATE)
   assert.ok(downOf(spate) > 3, `carried ${downOf(spate).toFixed(1)} m downstream`)
+})
+
+/**
+ * The lake by the Solco di Equi, found by geometry: the lake area holding (2410, 944), and its
+ * deepest point on a 2 m lattice over its box, with how deep the water stands there.
+ */
+const EQUI_LAKE = (() => {
+  // the tile holding the point holds every area over it
+  const lake = placeAt(2410, 944).vectors.areas.items.find(
+    (a) =>
+      a.kind === "lake" &&
+      a.rings.reduce((inside, r) => inside !== pointInRing(2410, 944, r), false),
+  )
+  assert.ok(lake?.level !== undefined)
+  const ring = lake.rings[0]!
+  let deepest = { x: 0, y: 0, depth: 0 }
+  for (let x = Math.min(...ring.filter((_, k) => k % 2 === 0)); x <= 2450; x += 2)
+    for (let y = 920; y <= 970; y += 2) {
+      const depth = waterUnder(x, y, true, MEAN)?.depth ?? 0
+      if (depth > deepest.depth) deepest = { x, y, depth }
+    }
+  return { ...deepest, level: lake.level }
+})()
+
+test("a lake: the player swims in the middle of the one by the Solco di Equi and out; a Panda floats there and stays, with no current", () => {
+  const middle = { x: EQUI_LAKE.x, y: EQUI_LAKE.y, angle: 0 }
+  assert.ok(EQUI_LAKE.depth > 1.3, `${EQUI_LAKE.depth.toFixed(2)} m deep`)
+  assert.equal(
+    waterUnder(middle.x, middle.y, true, SPATE)?.level,
+    EQUI_LAKE.level,
+    "whatever the rivers carry",
+  )
+  const swim = start([{ frame: 60, press: ["up"] }], [middle], { alone: true })
+  assert.ok(swim.runtime.tick(flood(MEAN)).ok)
+  swim.run(30)
+  assert.equal(swim.world().water, "swimming")
+  let out = -1
+  swim.run(1800, (frame) => {
+    if (out < 0 && swim.world().water === undefined) out = frame
+  })
+  assert.ok(out > 0, "out of the lake")
+  // The player on the shore: a vehicle more than 500 m off stands frozen.
+  const shore = { x: middle.x, y: middle.y + 40, angle: 0 }
+  const car = start([], [shore, { cars: [parkedCar("panda", 0xb8312b, middle)] }], {
+    alone: true,
+  })
+  assert.ok(car.runtime.tick(flood(MEAN)).ok)
+  car.run(600)
+  const panda = car.world().vehicles[0]!,
+    lift = panda.chassis.z - VEHICLES.panda.cg - (EQUI_LAKE.level - EQUI_LAKE.depth)
+  assert.ok(lift > 0.1, `afloat, ${lift.toFixed(2)} m off the lake's bed`)
+  assert.ok(Vec2.distance(panda, middle) < 1, `${Vec2.distance(panda, middle).toFixed(2)} m adrift`)
 })
 
 test("buoyancy: a Panda in still water keeps its wheels down at 0.3 m and floats at 0.7 m, as a 1 t Yaris did at 0.6 m", () => {

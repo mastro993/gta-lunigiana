@@ -112,7 +112,7 @@ cars come from `Parking.seed`, so the fill replays with the seed.
 | 14 | `applyDeferred` | | applies the enter/exit commands, so the blast knows who sits in which vehicle |
 | 15 | `FindFooting` | `systems/footing.ts` | every body on foot keeps to the level it was on (`Footing`: the ground nearest its last, decks and tunnels out to their verges); one with none takes its way's road or the terrain's level |
 | 16 | `Explode` | `systems/explosions.ts` | lights a burning wreck's fuse; a wreck whose fuse has burnt down blows up (`Explosion`): hits and shoves the vehicles near it, kills, knocks down and scares the people; a vehicle beyond the player's reach (`inReach`) is left as it is: its fuse waits and no blast reaches it |
-| 17 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river or stream gets `InWater`, swimming once off its feet, and loses it on dry ground |
+| 17 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river, a stream or a lake gets `InWater`, swimming once off its feet, and loses it on dry ground |
 | 18 | `applyDeferred` | | applies the blast's deaths and knockdowns, the first footings and who is in the water, before anything moves |
 | 19 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
 | 20 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
@@ -191,7 +191,7 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `Dead` | the killed: pedestrians and animals a vehicle struck, people and animals on foot a train struck, people on foot by a blast, the player in a wreck that blew up | step they died (`since`); always with `Down` |
 | `Footing` | the player, pedestrians and animals, once `FindFooting` has seen them | the ground it stands on, m a.s.l., kept on the level it was on: the railway's rules read it (`footingAt`, which takes `firstFooting` for one with none yet) |
 | `Animal` | animals | species (`dog`, `cat`, `cow`, `pig`), coat and patch colours, size × the species' usual (immutable) |
-| `InWater` | the player on foot, pedestrians, animals in a river or stream | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
+| `InWater` | the player on foot, pedestrians, animals in a river, a stream or a lake | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
 | `Roam` | animals | mood (`idle`, `walk`, `flee`), the step it ends, home (hx, hy), and the point (tx, ty) it walks to or runs from |
 | `Vehicle` | vehicles | model and paint colour (immutable) |
 | `CarInput` | vehicles, trains | throttle, steer, handbrake for this step; a train's lever is the throttle (along its motion power, against it the brake, from rest backwards) and its handbrake the emergency brake |
@@ -392,12 +392,15 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
 - `edgeIndex` (`src/sim/edges.ts`, re-exported by `src/sim/route.ts`), with its instances
   `trafficIndex` and `walkIndex` (`src/sim/route.ts`) and `peopledIndex`, answers nearest-edge and
   spawn-band lookups without scanning the whole graph.
-- `waterAt` (`src/sim/water/rivers.ts`) finds the nearest reach of a river or stream within its
-  bed in 32 m buckets of the reaches of the tile holding the point (`placeAt`), each with its two
-  vertices' bed, depth and speed per unit discharge (`channelOf` in `src/sim/water/channel.ts`, from
-  each water's baked bed, `Water.floor`), built from the whole pieces the tile holds the first time a
-  query reaches it; of equally near reaches it keeps the first in (water piece, vertex) order, as
-  one grid over the whole map did. `waterUnder` and `walkDry` read them the same way.
+- `waterAt` (`src/sim/water/rivers.ts`) finds the lake or river polygon a point lies in (lakes
+  first), else the nearest reach of a river or stream within its bed in 32 m buckets, all from the
+  tile holding the point (`placeAt`), each reach with its two vertices' bed, depth and speed per unit
+  discharge (`channelOf` in `src/sim/water/channel.ts`, from each water's baked bed, `Water.floor`),
+  built from the whole pieces and areas the tile holds the first time a query reaches it; in a river
+  polygon, the nearest reach of its own waterways (the cut puts them in every tile the polygon lies
+  in). Of equally near reaches it keeps the first in (water piece, vertex) order, as one grid over
+  the whole map did. `waterUnder` and `walkDry` read them the same way, and `waterIndex` builds these
+  lookups over any water and areas: a test's, or the whole map's as the map checks' oracle.
   `initialRivers` keeps the rivers it has worked out for a start and seed (a pure function of
   them), and `petAt` the evapotranspiration's heat index per latitude.
 - `groundZ` (`src/sim/map/ground.ts`) is where every wheel, foot, sound source and drawn actor
@@ -925,22 +928,26 @@ People and animals (`src/render/people.ts`, `src/render/animals.ts`, sharing `fi
 - **Limit**: in the dense centres (Gragnola, Vinca) the camera sees mostly roofs, so people in the
   alleys are hidden; only the player has an x-ray silhouette and the see-through cut.
 
-The static world (`src/render/world.ts`) is cut into 128 m chunks (`src/render/chunks.ts`), and
-only the chunks around the camera exist as meshes. A built chunk has a terrain mesh, a solid mesh
+The static world (`src/render/world.ts`) is cut into 128 m chunks (`src/render/chunks.ts`), and only
+the chunks around the camera exist as meshes. A built chunk has a terrain mesh, a solid mesh
 (buildings, roofs, bridges, the railway's ballast bed, platforms, canopies and name boards, the
 level crossings' housings and cabinets, tunnel portals, the lamps' iron, poles and lantern bodies),
 a decal mesh (roads, the track's sleepers and rails, crossing panels and stop lines, the platforms'
 yellow lines), a water mesh (rivers and streams, laid on their beds: the shader lifts them to the
-level the rivers run at, [water.md](water.md#how-it-looks)), a glow mesh (lit window panes and lantern glass)
-and one `InstancedMesh` per tree kind; the water and glow meshes exist only where the chunk has
-some. A 192 m apron of extra chunks continues the terrain, lines and trees beyond the map
-bounds, the built terrain's box; inside it, past an inner edge of a play area of parts in an L, the
-notch's unlisted tiles draw the ground and cover the nearest listed tiles extend into it, with no
-trees, and the lines stop at the outline (only a line ending on the bounds runs on across the
-apron). Terrain cells take their colours from the land cover, read from the tiles cell by cell
-(`coverIndexAt` in `src/sim/map/cover.ts`, painted by `COVER_LOOK` in `src/render/terrain.ts`): the
-map's areas, meadow where none covers a cell, paving where open ground lies within 3 m of both a
-wall and a road's edge (house fronts, sidewalks, alleys), and pebble beds along the wide streams.
+level the rivers run at, [water.md](water.md#how-it-looks); and a quad over each cell of the lakes
+and river polygons, `src/render/water.ts`, from the chunk's own cells), a glow mesh (lit window
+panes and lantern glass) and one `InstancedMesh` per tree kind; the water and glow meshes exist only
+where the chunk has some. A 192 m apron of extra chunks continues the terrain, lines and trees
+beyond the map bounds, the built terrain's box; inside it, past an inner edge of a play area of
+parts in an L, the notch's unlisted tiles draw the ground and cover the nearest listed tiles extend
+into it, with no trees, and the lines stop at the outline (only a line ending on the bounds runs on
+across the apron). Terrain cells take their colours from the land cover, read from the tiles cell by
+cell (`coverIndexAt` in `src/sim/map/cover.ts`, painted by `COVER_LOOK` in `src/render/terrain.ts`):
+the map's areas, meadow where none covers a cell, paving where open ground lies within 3 m of both a
+wall and a road's edge (house fronts, sidewalks, alleys), and pebble beds along the wide streams
+outside the lakes and river polygons. A cover's byte in the tiles is its place in `COVERS`
+(`src/sim/map/raster.ts`; new kinds go at the end), and the order the areas are filled in is its own
+(`FILL`: a river's gravel bars over its water).
 
 Streaming has two levels: the tiles in memory are planned first, then the chunks of the tiles in
 reach, so a frame's cost does not grow with the map, and a chunk builds only once every tile its
@@ -1465,7 +1472,9 @@ never recompiles a shader.
   cut by the same chunk rule, so a chunk still equals a cut: water takes no snow and no wet
   darkening. Its vertices lie on the bed and carry `stage` and `flow` (`WaterTriangles` in
   `geometry.ts`); `uRiverStage` (q^0.547) lifts them to the rivers' level and `uRiverSpeed`
-  (q^0.453) carries the streaks, both written by `applySurface` from `SkyViewModel.flow`.
+  (q^0.453) carries the streaks, both written by `applySurface` from `SkyViewModel.flow`. A lake's
+  vertices lie at its level with `stage` 0 and carry their `still` depth, which darkens it and lifts
+  nothing.
 - Cost: +0.015 ms a render at Monzone with snow, wet, clouds and wind on (0.25–0.27 ms against
   0.24–0.26 ms unpatched, 640 × 317 target, about 92 draw calls).
 
@@ -1686,7 +1695,8 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   px: its 600 px and 1 px past each side, so neighbours overlap under a turned nearest-neighbour
   blit instead of leaving a seam (0.36 MP, 1.45 MB). One canvas of the whole region would pass
   Safari's 16.7 MP limit as the map grows (Lunigiana's was already 2340 × 3000 px, 7 MP). A tile
-  is painted from that tile's own vectors (`tileLayers`: its areas, water, roads and buildings, every
+  is painted from that tile's own vectors (`tileLayers`: its areas (the lakes and river polygons
+  over the land and the gravel bars over those), water, roads and buildings, every
   one within the tiles' 32 m halo of its square, in the whole map's order, the roads' attributes
   from `MAP.roads`) and the global rail whose boxes reach it (± 1 px and 20 m, the widest stroke's
   half, inside the halo, so the tile holds every feature its canvas can show), in the minimap's
@@ -2274,16 +2284,16 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   28.3 s after): it is the longest file's, `population.test.ts`, 17.6 s of CPU alone. On 2026-10-31
   the rail checks moved the same way: `rail.test.ts`, which drew every road and river to find the
   dashes by the crossings, went from 30 tiles read and 2.1 s of CPU to 8 tiles and 1.3 s. With the
-  seams, the two test regions, and the lines, crossings, traffic steps, stations, rail bed and rail
-  joints moved or added since, `pnpm test:map` holds 100 tests in 29 files (2026-10-31, under a
+  seams, the two test regions, the water areas, and the lines, crossings, traffic steps, stations,
+  rail bed and rail joints moved or added since, `pnpm test:map` holds 100 tests in 29 files (2026-10-31, under a
   load average of 4–26): 36 s of CPU with each file alone (chunk-tiles 6.2 s, the map invariants
   4.7 s) and 5.9–6.3 s of wall clock, with the 3x test region's 5 checks skipped; with the 3x built
   they add 46 s of CPU (`stand.ts` on 12 games, a process each) and the wall clock is 8.8–9.5 s.
   With the vectors in the tiles (#63), the checks that read them whole (the ground and surface
   oracles, the vectors' cut, the residents and the farms, the overview, the location, the rivers'
   sound, the default drive) joined `pnpm test:map` and `pnpm test` keeps their sampled versions
-  round Monzone: `pnpm test` holds 1,267 tests in 209 files and `pnpm test:map` 118 in 40 files,
-  113 passing and the 3x test region's 5 skipped, and `rail.test.ts` reads 7 tiles. What still
+  round Monzone: with the water areas (#73) too, `pnpm test` holds 1,299 tests in 213 files and
+  `pnpm test:map` 133 in 41 files, 128 passing and the 3x test region's 5 skipped, and `rail.test.ts` reads 7 tiles. What still
   grows with the map in `pnpm test` is setup, not checks: every process that loads the sim decodes
   the whole global file, though it now holds no vector geometry (Lunigiana's decodes in 9.2–9.5 ms
   in Node, the first in a fresh process, against 30.1–30.4 ms while it held the vectors, three runs

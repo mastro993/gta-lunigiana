@@ -19,6 +19,7 @@ import {
 } from "./geometry.ts"
 import { inPlay } from "./play-area.ts"
 import type { Region } from "./region.ts"
+import { inWater } from "./water-areas.ts"
 
 /** Segments farther than this from a clearance query are ignored, m (every caller asks less). */
 const REACH = 3
@@ -153,13 +154,14 @@ export const startNear = (
   return start
 }
 
-/** A clear sidewalk spot outside building footprints, with an open walking route to the street. */
+/** A clear sidewalk spot outside building footprints and the water (`wet`), with an open walking route to the street. */
 export const playerSpawn = (
   roads: ReadonlyArray<RoadF>,
   walk: Clearance,
   drive: Clearance,
   target: { readonly x: number; readonly y: number },
   buildings: ReadonlyArray<BuildingF>,
+  wet: (x: number, y: number) => boolean,
   preferred?: RoadF,
 ): Spawn => {
   const road = preferred ?? roads.find((r) => r.name === "Via Cesare Battisti")
@@ -180,7 +182,11 @@ export const playerSpawn = (
       const off = side * (road.w / 2 + 1),
         x = r1(p.x - p.ty * off),
         y = r1(p.y + p.tx * off)
-      if (!inPlay(x, y, SPAWN_R) || buildings.some((building) => pointInRing(x, y, building.outer)))
+      if (
+        !inPlay(x, y, SPAWN_R) ||
+        wet(x, y) ||
+        buildings.some((building) => pointInRing(x, y, building.outer))
+      )
         continue
       if (!walk.circle(x, y, SPAWN_R) || !drive.circle(x, y, SPAWN_R)) continue
       const steps = Math.ceil(Math.hypot(x - p.x, y - p.y) / 0.5)
@@ -341,6 +347,7 @@ export const parkedSpots = ({
       ].map(([u, v]) => [x + c * u! - s * v!, y + s * u! + c * v!] as const),
     ]
   }
+  const wet = inWater(areas)
   const fits = (x: number, y: number, angle: number) =>
     inPlay(x, y, 5) &&
     walk.circle(x, y, SPAWN_R) &&
@@ -348,6 +355,7 @@ export const parkedSpots = ({
     drive.box(x, y, angle, CAR_HL + CAR_GAP, CAR_HW + CAR_GAP) &&
     offTrack(x, y, angle) &&
     !insideBuilding(x, y) &&
+    box(x, y, angle, CAR_GAP).every(([px, py]) => !wet(px, py)) &&
     Math.hypot(x - avoid.x, y - avoid.y) > 6
   const candidates: Array<Spawn & { readonly order: number }> = []
   roads.forEach((r, ri) => {

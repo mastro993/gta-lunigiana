@@ -1440,9 +1440,9 @@
     "source": "the lidar and dtm10 archives of data/parts/lucido.json, mosaicked (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip, https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/<dtm10>.zip)"
   },
   "rt/ucs.json.gz": {
-    "sha256": "0fe853ef0b8d2518f7b4b21f5663aab9f18ad4afb8d5ba1a34ee90aa92fddb4c",
-    "bytes": 197549,
-    "asset": "raw-20261030/rt.ucs.json.gz",
-    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, in git since 2026-10-20 (66ae295)"
+    "sha256": "fb1585716f37ff93efe1b8f60a8e45f0e07dbcd94d7cd8b0bb65e933f2371ab6",
+    "bytes": 208339,
+    "asset": "raw-20261031/rt.ucs.json.gz",
+    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-10-31"
   }
 }

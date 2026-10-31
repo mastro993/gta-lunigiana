@@ -32,6 +32,7 @@ import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { roadLevels } from "./road-levels.ts"
 import { sampleGrid } from "./terrain.ts"
+import { inStill, waterAreas } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**
@@ -54,6 +55,10 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   const wp = waterProfiles(water, ground)
   // The water as first settled: the beds are carved under it and the catchments read along it.
   const wp0 = wp.map((p) => ({ ...p, z: Float64Array.from(p.z) }))
+  // The lakes' levels and the river polygons' waterways, into the areas in their places (a
+  // platform's area is its index there).
+  const wet = waterAreas(src.areas, water, wp0, dem)
+  wet.areas.forEach((a, i) => (src.areas[i] = a))
   const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(ground)
   const zAt = (l: Linear, s: number) => along(arcLengths(l.pts), zOf.get(l)!, s)
 
@@ -159,6 +164,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     water,
     wp0,
     wp,
+    areas: wet.carved,
     claims,
     // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings.
     rail: railLines.filter(({ r }) => !lifted(r)),
@@ -170,7 +176,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     wp0,
     water.map((w) => w.pts.map((v) => v.id)),
   )
-  dropPerched(water, wp, crossed, grid.perched)
+  dropPerched(water, wp, crossed, grid.perched, inStill(wet.carved))
   lap("water")
   // Everything below reads the finished grid.
   const at = (x: number, y: number) => sampleGrid(grid.grid, x, y)

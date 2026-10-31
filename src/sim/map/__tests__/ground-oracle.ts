@@ -1,16 +1,16 @@
 // The ground, surface and water lookups as they were before the vectors left the global file (issue
-// #63): one broad phase over the whole map's roads, platforms and rivers, built here from the map
-// joined back from its tiles (`wholeMap`). ground.map-test.ts holds the tiled lookups to them, to the bit.
-import { Ops } from "@typeonce/ritmo-math"
+// #63): one broad phase over the whole map's roads, platforms, rivers and water areas, built here
+// from the map joined back from its tiles (`wholeMap`). ground.map-test.ts holds the tiled lookups
+// to them, to the bit.
 
 import type { JoinedMap } from "../../../tools/map-file.ts"
 import { pointInRing, segDist2, staticGrid } from "../../collide.ts"
-import { channelOf, reachOf, SPEED, STAGE } from "../../water/channel.ts"
 import { coverAt } from "../cover.ts"
 import { ON_DECK, ROAD_LIFT, roadZ, terrainZ } from "../ground.ts"
 import type { Road } from "../index.ts"
 import { isRoadClass, type RoadClass, vergeOf } from "../kinds.ts"
 import type { Surface } from "../surface.ts"
+import { mainWater } from "./water-oracle.ts"
 
 const classOf = (road: Road): RoadClass => (isRoadClass(road.cls) ? road.cls : "path")
 
@@ -51,6 +51,8 @@ const COVER_SURFACE: Record<string, Surface> = {
   platform: "asphalt",
   ruins: "stone",
   pebble: "gravel",
+  river: "gravel",
+  lake: "dirt",
 }
 
 /** The roads' OSM `surface` values (surface.ts's table). */
@@ -319,102 +321,17 @@ export const oracle = (map: JoinedMap) => {
       : (ROAD_SURFACE[on.surface] ?? "asphalt")
   }
 
-  // water/rivers.ts
-  const DEPTH_SPEED = 2 / 3 + 0.16,
-    DEEPEST = 1.5,
-    ON_BRIDGE = 1
-  const reaches = map.water.flatMap((water) => {
-    const ch = channelOf(water),
-      { pts } = water,
-      out = []
-    for (let i = 0; i + 1 < pts.length / 2; i++) {
-      const ax = pts[2 * i]!,
-        ay = pts[2 * i + 1]!,
-        bx = pts[2 * i + 2]!,
-        by = pts[2 * i + 3]!,
-        length = Ops.hypot(bx - ax, by - ay)
-      if (length <= 0) continue
-      out.push({
-        ax,
-        ay,
-        bx,
-        by,
-        ux: (bx - ax) / length,
-        uy: (by - ay) / length,
-        reach: reachOf(water),
-        bedA: ch.bed[i]!,
-        bedB: ch.bed[i + 1]!,
-        stageA: ch.stage[i]!,
-        stageB: ch.stage[i + 1]!,
-        speedA: ch.speed[i]!,
-        speedB: ch.speed[i + 1]!,
-      })
-    }
-    return out
-  })
-  const reachesNear = staticGrid(
-    reaches.length,
-    (i) => {
-      const r = reaches[i]!
-      return [
-        Math.min(r.ax, r.bx) - r.reach,
-        Math.min(r.ay, r.by) - r.reach,
-        Math.max(r.ax, r.bx) + r.reach,
-        Math.max(r.ay, r.by) + r.reach,
-      ]
-    },
-    32,
-  )
-  const reachAt = (x: number, y: number) => {
-    let nearest = -1,
-      nearestD2 = Number.MAX_VALUE,
-      nearestT = 0
-    reachesNear(x, y, x, y, (i) => {
-      const r = reaches[i]!,
-        { d2, t } = segDist2(x, y, r.ax, r.ay, r.bx, r.by)
-      if (d2 <= r.reach * r.reach && d2 < nearestD2) [nearest, nearestD2, nearestT] = [i, d2, t]
-    })
-    return nearest < 0 ? undefined : { i: nearest, t: nearestT }
-  }
-  const waterOf = (
-    x: number,
-    y: number,
-    hit: { readonly i: number; readonly t: number },
-    floor: number,
-    q: number,
-  ) => {
-    const r = reaches[hit.i]!,
-      t = hit.t
-    const mean = (r.stageA + (r.stageB - r.stageA) * t) * (q > 0 ? Ops.pow(q, STAGE) : 0),
-      level = r.bedA + (r.bedB - r.bedA) * t + mean,
-      depth = level - floor
-    if (depth <= 0) return undefined
-    const along =
-      mean > 0
-        ? (r.speedA + (r.speedB - r.speedA) * t) *
-          Ops.pow(q, SPEED) *
-          Ops.pow(Math.min(DEEPEST, depth / mean), DEPTH_SPEED)
-        : 0
-    const side = (x - r.ax) * -r.uy + (y - r.ay) * r.ux >= 0 ? 1 : -1
-    return {
-      depth,
-      level,
-      vx: r.ux * along,
-      vy: r.uy * along,
-      bankX: -r.uy * side,
-      bankY: r.ux * side,
-    }
-  }
-  const waterAt = (x: number, y: number, floor: number, q: number) => {
-    const hit = reachAt(x, y)
-    return hit === undefined ? undefined : waterOf(x, y, hit, floor, q)
-  }
-  const waterUnder = (x: number, y: number, inWater: boolean, q: number) => {
-    const hit = reachAt(x, y)
-    if (hit === undefined) return undefined
-    const floor = inWater ? atGrade(x, y) : (deckNear(x, y, ON_BRIDGE) ?? groundZ(x, y))
-    return waterOf(x, y, hit, floor, q)
-  }
+  // water/rivers.ts, main's (water-oracle.ts), with its lakes and river polygons
+  const ON_BRIDGE = 1,
+    water = mainWater(map.water, map.areas)
+  const waterAt = water.at
+  const waterUnder = (x: number, y: number, inWater: boolean, q: number) =>
+    water.under(
+      x,
+      y,
+      () => (inWater ? atGrade(x, y) : (deckNear(x, y, ON_BRIDGE) ?? groundZ(x, y))),
+      q,
+    )
 
   return {
     buckets,

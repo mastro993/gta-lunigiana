@@ -233,3 +233,87 @@ test("the cover is the same on two heightmaps round one anchor where an edge gra
   }
   assert.deepEqual(cells(-10700), cells(-2900))
 })
+
+test("a cover keeps its byte: the old covers in their order, then river and lake", () => {
+  assert.deepEqual(
+    Array.from({ length: 25 }, (_, v) => coverName(v)),
+    [
+      "meadow",
+      "forest",
+      "grassland",
+      "scrub",
+      "sparse",
+      "scree",
+      "rock",
+      "quarry",
+      "residential",
+      "farmland",
+      "farmyard",
+      "vineyard",
+      "park",
+      "school",
+      "cemetery",
+      "pitch",
+      "parking",
+      "industrial",
+      "paved",
+      "platform",
+      "ruins",
+      "pebble",
+      "river",
+      "lake",
+      "meadow", // past the list
+    ],
+  )
+})
+
+test("a river's gravel bar draws over its water, and a wide line's pebble bed paints only outside the river and the lake", () => {
+  // A river polygon (x 0…24) and a lake (x 24…40) on rows y 12…28, a bar inside the river, and a
+  // 14 m river line along y = 20 whose bed reaches 12 m out: rows y 8…32.
+  const raster = coverBlocks({
+    ...bare,
+    heightmap,
+    areas: [
+      { kind: "pebble", rings: [[8, 16, 16, 16, 16, 24, 8, 24]] },
+      { kind: "lake", rings: [[24, 12, 40, 12, 40, 28, 24, 28]] },
+      { kind: "river", rings: [[0, 12, 24, 12, 24, 28, 0, 28]] },
+    ],
+    water: [
+      {
+        id: 1,
+        kind: "river",
+        w: 14,
+        bed: 11,
+        depth: 2.5,
+        pts: [0, 20, 40, 20],
+        z: [200, 200],
+        area: [40, 40],
+      },
+    ],
+  })(WHOLE)
+  /** The cover the cell centred at (x, y) should read. */
+  const expected = (x: number, y: number) => {
+    if (y < 8 || y > 32) return "meadow"
+    if (y < 12 || y > 28) return "pebble" // the line's bed beside the water areas
+    if (x > 24) return "lake"
+    return x > 8 && x < 16 && y > 16 && y < 24 ? "pebble" : "river"
+  }
+  for (let y = 2; y < 40; y += 4)
+    for (let x = 2; x < 40; x += 4) assert.equal(at(raster, x, y), expected(x, y), `${x} ${y}`)
+})
+
+test("a lake draws over the forest round it, whichever comes first in the map", () => {
+  const raster = coverBlocks({
+    ...bare,
+    heightmap,
+    water: [],
+    areas: [
+      { kind: "lake", rings: [[8, 8, 24, 8, 24, 24, 8, 24]] },
+      { kind: "forest", rings: [[0, 0, 40, 0, 40, 40, 0, 40]] },
+    ],
+  })(WHOLE)
+  assert.equal(at(raster, 10, 10), "lake")
+  assert.equal(at(raster, 22, 22), "lake")
+  assert.equal(at(raster, 26, 26), "forest")
+  assert.equal(at(raster, 2, 2), "forest")
+})
