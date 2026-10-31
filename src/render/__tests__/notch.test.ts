@@ -14,10 +14,7 @@ const { bucketTileTrees } = await import("../trees.ts")
 test("an L: the render plans every chunk once, the notch's on the listed tiles round it, its box round the exact one", () => {
   const { maxX, maxY } = MAP.bounds
   const count = CHUNKS.x * CHUNKS.y
-  const plan = chunkTiles(
-    [],
-    Array.from({ length: count }, () => []),
-  )
+  const plan = chunkTiles()
   assert.deepEqual(
     plan.keys,
     MAP.tiles.map(({ i, j }) => `${i}_${j}`),

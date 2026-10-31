@@ -8,7 +8,7 @@
  * @module render/stations
  */
 import { pointInRing, segDist2 } from "../sim/collide.ts"
-import { buildingStyleOf, MAP, type Platform } from "../sim/map/index.ts"
+import { MAP, type Platform } from "../sim/map/index.ts"
 import { boxOver, type Piece } from "./geometry.ts"
 import { groundY } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
@@ -45,9 +45,12 @@ const COVERED = 0.8
 /** A station building stands within this many metres of its track. */
 const TRACK_REACH = 100
 
+/** A platform with its area's rings (outer, then holes), from the copy the map keeps (`MAP.derived.platforms`). */
+type Placed = Platform & { readonly rings: ReadonlyArray<ReadonlyArray<number>> }
+
 /** Whether (x, y) and the four points `MARGIN` m round it lie on platform `p` (inside its rim, outside its holes). */
-const onPlatform = (p: Platform, x: number, y: number): boolean => {
-  const [outer, ...holes] = MAP.areas[p.area]!.rings
+const onPlatform = (p: Placed, x: number, y: number): boolean => {
+  const [outer, ...holes] = p.rings
   return [
     [0, 0],
     [MARGIN, 0],
@@ -62,7 +65,7 @@ const onPlatform = (p: Platform, x: number, y: number): boolean => {
 }
 
 /** A frame along a platform at `u` m along its axis direction: the axis point there, the track's direction and the unit across it toward the platform. */
-const frameAt = (p: Platform, u: number) => {
+const frameAt = (p: Placed, u: number) => {
   const dir = dirOf(p),
     n = p.axis.length / 2
   let k = 0
@@ -76,7 +79,7 @@ const frameAt = (p: Platform, u: number) => {
   const tx = (b[0] - a[0]) / l,
     ty = (b[1] - a[1]) / l
   // The platform's side of its axis: where the middle of its rim lies.
-  const outer = MAP.areas[p.area]!.rings[0]!
+  const outer = p.rings[0]!
   let cx = 0,
     cy = 0
   for (let i = 0; i < outer.length; i += 2) [cx, cy] = [cx + outer[i]!, cy + outer[i + 1]!]
@@ -87,8 +90,8 @@ const frameAt = (p: Platform, u: number) => {
 }
 
 /** How far out from the axis point of `frame` the platform begins (its track-side edge), m; undefined when none lies within 15 m. */
-const edgeOf = (p: Platform, frame: ReturnType<typeof frameAt>): number | undefined => {
-  const [outer, ...holes] = MAP.areas[p.area]!.rings
+const edgeOf = (p: Placed, frame: ReturnType<typeof frameAt>): number | undefined => {
+  const [outer, ...holes] = p.rings
   for (let d = 0; d < 15; d += 0.05) {
     const x = frame.x + frame.ox * d,
       y = frame.y + frame.oy * d
@@ -98,9 +101,9 @@ const edgeOf = (p: Platform, frame: ReturnType<typeof frameAt>): number | undefi
 }
 
 /** The range of a platform's rim along its axis direction, m. */
-const spanOf = (p: Platform): readonly [number, number] => {
+const spanOf = (p: Placed): readonly [number, number] => {
   const dir = dirOf(p),
-    us = ringPoints(MAP.areas[p.area]!.rings[0]!).map((q) => along(q, dir))
+    us = ringPoints(p.rings[0]!).map((q) => along(q, dir))
   return [Math.min(...us), Math.max(...us)]
 }
 
@@ -115,13 +118,15 @@ interface Board {
 }
 
 /** The platforms people wait on (not the rail-level walkways), with their station's name. */
-const platforms = (): Array<Platform & { readonly name: string }> =>
-  MAP.railway.platforms.flatMap((p) =>
-    p.walkway === true || p.name === undefined ? [] : [{ ...p, name: p.name }],
+const platforms = (): Array<Placed & { readonly name: string }> =>
+  MAP.railway.platforms.flatMap((p, i) =>
+    p.walkway === true || p.name === undefined
+      ? []
+      : [{ ...p, name: p.name, rings: MAP.derived.platforms[i]! }],
   )
 
 /** A platform's name board: as near its middle as fits, `BOARD.back` m back from the track-side edge, along the track. */
-const boardOf = (p: Platform & { readonly name: string }): Board | undefined => {
+const boardOf = (p: Placed & { readonly name: string }): Board | undefined => {
   const words = p.name.split(/[\s-]+/).filter((w) => w.length > 0)
   const length = Math.min(BOARD.longest, Math.max(BOARD.shortest, 0.6 + BOARD.char * p.name.length))
   const [u0, u1] = spanOf(p)
@@ -252,18 +257,19 @@ const platformAlong = (ax: number, ay: number, bx: number, by: number, ox: numbe
       const x = ax + (bx - ax) * t + ox * d,
         y = ay + (by - ay) * t + oy * d
       n++
-      if (MAP.railway.platforms.some((p) => pointInRing(x, y, MAP.areas[p.area]!.rings[0]!))) on++
+      if (MAP.derived.platforms.some((rings) => pointInRing(x, y, rings[0]!))) on++
     }
   return on / n
 }
 
-/** The canopy along each station's building (the station-style building of its name), where a platform runs along its track wall. */
+/**
+ * The canopy along each station's building (the first station-style building of its name, which the map keeps a copy of:
+ * `MAP.derived.stations`), where a platform runs along its track wall.
+ */
 const canopies = (): Array<Canopy> =>
-  MAP.railway.stations.flatMap((station): Array<Canopy> => {
-    const building = MAP.buildings.find(
-      (b) => buildingStyleOf(b) === "station" && b.name === station.name,
-    )
-    const wall = building === undefined ? undefined : trackWall(building.outer)
+  MAP.railway.stations.flatMap((_, s): Array<Canopy> => {
+    const building = MAP.derived.stations[s] ?? null
+    const wall = building === null ? undefined : trackWall(building.outer)
     if (wall === undefined) return []
     const { ax, ay, bx, by, ox, oy } = wall
     if (platformAlong(ax, ay, bx, by, ox, oy) < COVERED) return []
@@ -359,7 +365,7 @@ export const platformLamps = (): Array<{
 
 /** Every station piece of the map: the platforms and walkways, their name boards and the canopies. */
 export const stationPieces = (): Array<Piece> => [
-  ...MAP.railway.platforms.map(platformPiece),
+  ...MAP.railway.platforms.map((_, i) => platformPiece(i)),
   ...platforms().flatMap((p) => {
     const board = boardOf(p)
     return board === undefined ? [] : [boardPiece(board)]

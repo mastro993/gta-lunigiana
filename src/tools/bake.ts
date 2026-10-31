@@ -29,7 +29,7 @@ export const bake = (whole: WholeVectors): Bakes => {
     parked: bakeParked(),
     floors: whole.water.map(bedOf),
     farms,
-    lamps: bakeLamps(),
+    lamps: bakeLamps(whole.roads),
     bells: bellsOf(whole.buildings),
     residents: bakeResidents(),
     farmCentres: farms.flatMap((f) => {

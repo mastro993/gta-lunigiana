@@ -102,11 +102,14 @@ const byTrack = (x: number, y: number, reach: number): boolean =>
  * A platform's faces in two layers: its top (earcut, then cut into `CUT` m strips across its axis, each corner at the platform
  * top over it), a kerb face down to the ground under every edge, and on a platform the yellow line along its track-side edges.
  */
-const platformFaces = (p: Platform): { readonly solid: Triangles; readonly decal: Triangles } => {
+const platformFaces = (
+  p: Platform,
+  area: ReadonlyArray<ReadonlyArray<number>>,
+): { readonly solid: Triangles; readonly decal: Triangles } => {
   const solid = new Triangles(),
     decal = new Triangles(),
     dir = dirOf(p)
-  const rings = MAP.areas[p.area]!.rings.map(ringPoints)
+  const rings = area.map(ringPoints)
   const h = (q: P2) => topOf(p, q[0], q[1])
   const point = (q: P2, y: number) => [q[0], y, -q[1]] as const
   const corners = rings.flat()
@@ -174,17 +177,21 @@ const platformFaces = (p: Platform): { readonly solid: Triangles; readonly decal
 }
 
 /**
- * A platform as a piece along its rim: built whole on its first draw (it reads the ground under its
- * whole rim) and kept, each triangle into the chunk of its middle, so a chunk keeps exactly its share.
+ * Platform `i` (of `MAP.railway.platforms`) as a piece along its rim, from the copy of its area's
+ * rings the map keeps (`MAP.derived.platforms`): built whole on its first draw (it reads the ground
+ * under its whole rim) and kept for the piece's life, each triangle into the chunk of its middle,
+ * so a chunk keeps exactly its share.
  */
-export const platformPiece = (p: Platform): Piece => {
-  const outer = MAP.areas[p.area]!.rings[0]!
+export const platformPiece = (i: number): Piece => {
+  const p = MAP.railway.platforms[i]!,
+    area = MAP.derived.platforms[i]!,
+    outer = area[0]!
   let faces: ReturnType<typeof platformFaces> | undefined
   return {
     pts: [...outer, outer[0]!, outer[1]!],
     reads: boxOver(outer),
     draw: (at) => {
-      faces ??= platformFaces(p)
+      faces ??= platformFaces(p, area)
       for (const layer of ["solid", "decal"] as const) {
         const tris = faces[layer]
         for (let i = 0; i < tris.position.length / 9; i++) {

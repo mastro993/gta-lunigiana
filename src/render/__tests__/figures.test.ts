@@ -13,7 +13,7 @@ import { poolRadius, SPREAD } from "../blood.ts"
 import { solidMaterial } from "../geometry.ts"
 import { drawnY, groundY } from "../ground.ts"
 import { type Doing, framePerson, longSleeves, PersonNode, PERSON_FRAMES } from "../people.ts"
-import { shownProxy } from "../testing.ts"
+import { shownProxy, vectorsAround } from "../testing.ts"
 
 const bounds = (geometry: BufferGeometry): Box3 => {
   geometry.computeBoundingBox()
@@ -175,6 +175,9 @@ test("a blood pool grows as √t to its full size over SPREAD seconds and lies j
   assert.ok(full > 0.6 && full <= 0.8 + 1e-6, `${full} m when full`)
 })
 
+/** The roads of the tiles within 2 km of the player's start (by Monzone station), in the map's order. */
+const ROADS = vectorsAround([MAP.spawns.player], 2000).roads.items
+
 /** Where each corner of a dead body's full-grown pool lies, in world space, the body at map (x, y) facing `angle`. */
 const poolCorners = (x: number, y: number, angle: number) => {
   const node = new PersonNode(LOOK, solidMaterial, 5)
@@ -194,7 +197,7 @@ const poolCorners = (x: number, y: number, angle: number) => {
 // Regression: corners past a deck's edge were draped on the ground below it, so the pool hung a red spike 2–16 m off the bridge.
 test("a blood pool by a bridge deck's edge lies flat on the deck, and one on a steep road still follows the road", () => {
   let checked = false
-  for (const road of MAP.roads) {
+  for (const road of ROADS) {
     if (road.bridge !== true) continue
     const [ax, ay, bx, by] = road.pts as [number, number, number, number]
     const len = Math.hypot(bx - ax, by - ay),
@@ -221,7 +224,7 @@ test("a blood pool by a bridge deck's edge lies flat on the deck, and one on a s
   assert.ok(checked, "a bridge high over the ground")
 
   // The first at-grade road climbing at over 20 % for 6 m or more: the pool drapes over its slope.
-  const steep = MAP.roads.flatMap((road) =>
+  const steep = ROADS.flatMap((road) =>
     road.bridge === true || road.tunnel === true
       ? []
       : road.z.slice(1).flatMap((z1, k) => {

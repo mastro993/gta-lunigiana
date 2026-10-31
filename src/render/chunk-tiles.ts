@@ -1,10 +1,12 @@
 /**
  * Which map tiles each chunk of the static world reads (`src/sim/map/tiles.ts`), and the tiles'
  * boxes for the first level of the streaming plan. A chunk's terrain reads the tiles under its
- * square (an apron chunk's, the edge tiles it clamps to); its build reads the tiles under its needs
- * box: the square, where its pieces draw (`Piece.reads`, or the segments it draws and their
- * neighbours) `REACH` m round, and an apron chunk's mirror image across the map edge, where its
- * mirrored trees stand. A pure function of the map and the pieces, worked out once with the world.
+ * square (an apron chunk's, the edge tiles it clamps to), which also hold every road, river and
+ * building it draws (render/pieces); its base is those and, for an apron chunk, the tiles under its
+ * square's mirror image across the map edge, where its mirrored trees stand. Its build reads the
+ * tiles under its needs box: the base's box and where its pieces draw (`Piece.reads`, or the
+ * segments it draws and their neighbours) `REACH` m round, known once its base is in (`needs`).
+ * A pure function of the map and the pieces.
  *
  * @module render/chunk-tiles
  */
@@ -28,18 +30,28 @@ interface ChunkTiles {
   readonly keys: ReadonlyArray<string>
   /** Each tile's index, by key. */
   readonly index: ReadonlyMap<string, number>
-  /** Per chunk, the tiles its terrain reads. */
+  /** Per chunk, the tiles its terrain reads, which hold its pieces. */
   readonly terrain: ReadonlyArray<ReadonlyArray<number>>
-  /** Per chunk, the tiles its build reads (its terrain's among them). */
-  readonly needs: ReadonlyArray<ReadonlyArray<number>>
-  /** Per tile, the chunks whose build reads it. */
-  readonly readers: ReadonlyArray<ReadonlyArray<number>>
+  /** Per chunk, the tiles its build reads whatever it draws (its terrain's among them): its needs are known once these are in. */
+  readonly base: ReadonlyArray<ReadonlyArray<number>>
+  /** Per tile, the chunks whose base holds it. */
+  readonly bases: ReadonlyArray<ReadonlyArray<number>>
   /** Per tile, the chunks it plans: those whose middle it holds. */
   readonly owned: ReadonlyArray<ReadonlyArray<number>>
   /** Every chunk's box from its terrain tiles' lowest and highest nodes (`boundBox`): never smaller than its exact box. */
   readonly boxes: Float32Array
   /** Every tile's box (the layout of `boxes`): round the boxes of the chunks it plans. */
   readonly tileBoxes: Float32Array
+  /**
+   * The tiles chunk `key`'s build reads drawing `entries` ((piece, k0, k1) triples: `Pieces.entries` in render/pieces), each `piece(n)`
+   * the piece named by the triple at `n`: its base's, and those under the box `REACH` m round each piece's `reads` or the
+   * vertices k0 − 1 … k1 + 2 it draws.
+   */
+  readonly needs: (
+    key: number,
+    entries: ReadonlyArray<number>,
+    piece: (n: number) => Piece,
+  ) => ReadonlyArray<number>
 }
 
 /**
@@ -58,15 +70,15 @@ const squareReads = (key: number): [number, number, number, number] => {
   ]
 }
 
-/** Where chunk `key` reads the ground: `squareReads` and its `entries` of `pieces` ((piece, k0, k1) triples, `bucketPieces`). */
+/** Where chunk `key` reads the ground: `squareReads` and where its `entries` draw (see `ChunkTiles.needs`). */
 const needsBox = (
   key: number,
-  pieces: ReadonlyArray<Piece>,
   entries: ReadonlyArray<number>,
+  pieceAt: (n: number) => Piece,
 ): [number, number, number, number] => {
   const box = squareReads(key)
   for (let n = 0; n < entries.length; n += 3) {
-    const piece = pieces[entries[n]!]!,
+    const piece = pieceAt(n),
       last = piece.pts.length / 2 - 1
     const [minX, minY, maxX, maxY] =
       piece.reads ??
@@ -79,11 +91,8 @@ const needsBox = (
   return box
 }
 
-/** The part every chunk and tile plays in streaming `pieces`, bucketed per chunk as `byChunk` (`bucketPieces`). */
-export const chunkTiles = (
-  pieces: ReadonlyArray<Piece>,
-  byChunk: ReadonlyArray<ReadonlyArray<number>>,
-): ChunkTiles => {
+/** The part every chunk and tile plays in streaming the static world; it reads no tile. */
+export const chunkTiles = (): ChunkTiles => {
   const keys = MAP.tiles.map(({ i, j }) => tileKey(i, j)),
     index = new Map(keys.map((key, t) => [key, t]))
   // Most chunks read the same few lists: one array per distinct list.
@@ -97,15 +106,15 @@ export const chunkTiles = (
   }
   const count = CHUNKS.x * CHUNKS.y,
     terrain: Array<ReadonlyArray<number>> = [],
-    needs: Array<ReadonlyArray<number>> = [],
-    readers = keys.map((): Array<number> => []),
+    base: Array<ReadonlyArray<number>> = [],
+    bases = keys.map((): Array<number> => []),
     owned = keys.map((): Array<number> => []),
     boxes = new Float32Array(count * 6)
   for (let key = 0; key < count; key++) {
     const { minX, minY, maxX, maxY } = chunkRect(key)
     terrain.push(over(minX, minY, maxX, maxY))
-    needs.push(over(...needsBox(key, pieces, byChunk[key]!)))
-    for (const t of needs[key]!) readers[t]!.push(key)
+    base.push(over(...squareReads(key)))
+    for (const t of base[key]!) bases[t]!.push(key)
     const x = (minX + maxX) / 2,
       y = (minY + maxY) / 2,
       owner = over(x, y, x, y)[0] ?? terrain[key]![0]
@@ -124,5 +133,15 @@ export const chunkTiles = (
         box[k] = (k % 2 === 0 ? Math.min : Math.max)(box[k]!, boxes[key * 6 + k]!)
     tileBoxes.set(box, t * 6)
   }
-  return { keys, index, terrain, needs, readers, owned, boxes, tileBoxes }
+  return {
+    keys,
+    index,
+    terrain,
+    base,
+    bases,
+    owned,
+    boxes,
+    tileBoxes,
+    needs: (key, entries, piece) => over(...needsBox(key, entries, piece)),
+  }
 }

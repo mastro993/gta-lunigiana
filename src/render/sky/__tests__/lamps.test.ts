@@ -4,6 +4,7 @@ import { test } from "node:test"
 import { MAP } from "../../../sim/map/index.ts"
 import { groundY } from "../../ground.ts"
 import { platformLamps } from "../../stations.ts"
+import { vectorsAround } from "../../testing.ts"
 import { lampPieces, lampsIn, streetLamps } from "../lamps.ts"
 import {
   assertLanternsWhole,
@@ -39,7 +40,7 @@ test("street lamps: each by Monzone hangs 0.6 m out from a house wall between it
 
 test("street lamps by Monzone: on lit streets in villages, never two within 18 m", () => {
   // The roads that come within 50 m of the lamps' disc: the nearest lit carriageway of each is among them.
-  const roads = MAP.roads.filter((r) =>
+  const roads = vectorsAround([MAP.spawns.player], REACH + 100).roads.items.filter((r) =>
     r.pts.some((v, k) => k % 2 === 0 && Math.hypot(v - SX, r.pts[k + 1]! - SY) < REACH + 50 + r.w),
   )
   assertOnLitStreets(walls.filter(near), litOf(roads))

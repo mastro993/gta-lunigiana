@@ -205,7 +205,8 @@ export const boxOver = (pts: ReadonlyArray<number>, from = 0, to = pts.length / 
  * triangle in `at` of the point it belongs to, so a chunk keeps exactly its share. A draw reads
  * the ground near those segments; `reads` is where it reads instead, for a piece that is built
  * whole on its first draw (a platform, a level crossing) or reaches off its anchor (a building's
- * footprint, a canopy's).
+ * footprint, a canopy's). A level crossing works its `reads` out when first asked, from the road
+ * pieces of the tiles round it, so the world asks only once its chunk's tiles are in.
  */
 export interface Piece {
   readonly pts: ReadonlyArray<number>

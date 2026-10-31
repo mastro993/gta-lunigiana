@@ -10,7 +10,8 @@
 import { Vector3 } from "three"
 
 import { pointInRing } from "../sim/collide.ts"
-import { buildingsIn, MAP, treesIn } from "../sim/map/index.ts"
+import { type Building, MAP, treesIn } from "../sim/map/index.ts"
+import { buildingsIn } from "../sim/map/vectors.ts"
 import { topOf } from "./buildings.ts"
 import { farTerrainY, yOf } from "./ground.ts"
 import { viewAxes } from "./pipeline.ts"
@@ -41,29 +42,25 @@ const GROUND = { short: FAR.step, least: 1 } as const
 /** `uCutGround` while no terrain hides the player: farther than any ground in view, so none is cut. */
 const NO_GROUND = 1e6
 
-/** Each building's top, render y (`topOf`), worked out the first time a line passes over it. */
-const tops = new Float32Array(MAP.buildings.length).fill(Number.NaN)
-const topAt = (i: number): number => {
-  if (Number.isNaN(tops[i]!)) tops[i] = topOf(MAP.buildings[i]!)
+/** Each building's top, render y (`topOf`), by its index in the whole map's buildings, worked out the first time a line passes over it. */
+const tops = new Float32Array(MAP.vectors.counts.buildings).fill(Number.NaN)
+const topAt = (i: number, b: Building): number => {
+  if (Number.isNaN(tops[i]!)) tops[i] = topOf(b)
   return tops[i]!
 }
 
-/** Whether (x, y) at render height `h` is inside building `i`'s walls and under its top. */
-const inBuilding = (i: number, x: number, y: number, h: number): boolean => {
-  const b = MAP.buildings[i]!
-  return (
-    h < topAt(i) &&
-    h > yOf(b.z0) - 0.5 &&
-    pointInRing(x, y, b.outer) &&
-    !(b.holes ?? []).some((hole) => pointInRing(x, y, hole))
-  )
-}
+/** Whether (x, y) at render height `h` is inside building `b` (index `i`)'s walls and under its top. */
+const inBuilding = (i: number, b: Building, x: number, y: number, h: number): boolean =>
+  h < topAt(i, b) &&
+  h > yOf(b.z0) - 0.5 &&
+  pointInRing(x, y, b.outer) &&
+  !(b.holes ?? []).some((hole) => pointInRing(x, y, hole))
 
 /** Whether (x, y) at render height `h` is inside a building or a tree crown. */
 const blockedAt = (x: number, y: number, h: number): boolean => {
   let found = false
-  buildingsIn(x, y, x, y, (i) => {
-    found ||= inBuilding(i, x, y, h)
+  buildingsIn(x, y, x, y, (i, b) => {
+    found ||= inBuilding(i, b, x, y, h)
   })
   if (!found)
     treesIn(x - CROWN_REACH, y - CROWN_REACH, x + CROWN_REACH, y + CROWN_REACH, (tx, ty, s, id) => {

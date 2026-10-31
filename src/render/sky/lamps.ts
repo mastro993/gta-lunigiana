@@ -1,7 +1,8 @@
 /**
  * Street lamps: wall-mounted lanterns on the houses along village streets. OSM has no lamp data
- * (two `street_lamp` nodes in the raw OSM), so they are placed here, deterministically from `MAP`
- * (the build runs `bakeLamps` and the map file keeps the list: `MAP.lamps`): along primary,
+ * (two `street_lamp` nodes in the raw OSM), so they are placed here, deterministically from the
+ * map's roads and buildings (the build runs `bakeLamps` over the whole map's roads and the map file
+ * keeps the list: `MAP.lamps`): along primary,
  * secondary, tertiary, unclassified, residential and service roads (`LIT`), every ≈ 28 m where a
  * house wall fronts the road within 6 m of the carriageway (the road point lies square in front of it) and at
  * least four buildings stand within 40 m (a village, not a lone farmhouse). Each lantern hangs
@@ -14,14 +15,14 @@
  */
 import { pointInRing, staticGrid } from "../../sim/collide.ts"
 import {
-  buildingBoxes,
-  buildingsIn,
   buildingStyleOf,
   type Lamp,
   MAP,
+  type Road,
   roadClassOf,
   type RoadClass,
 } from "../../sim/map/index.ts"
+import { buildingsIn } from "../../sim/map/vectors.ts"
 import { eaveOf, windowCount } from "../buildings.ts"
 import type { Piece, Sink } from "../geometry.ts"
 import { groundY, terrainY, yOf, zOf } from "../ground.ts"
@@ -89,8 +90,7 @@ const between = (len: number, s: number): number => {
 const inVillage = (x: number, y: number): boolean => {
   let n = 0
   const r = VILLAGE.radius
-  buildingsIn(x - r, y - r, x + r, y + r, (i) => {
-    const [x0, y0, x1, y1] = buildingBoxes[i]!
+  buildingsIn(x - r, y - r, x + r, y + r, (_i, _b, [x0, y0, x1, y1]) => {
     if (Math.hypot((x0 + x1) / 2 - x, (y0 + y1) / 2 - y) <= r) n++
   })
   return n >= VILLAGE.buildings
@@ -99,8 +99,8 @@ const inVillage = (x: number, y: number): boolean => {
 /** Whether (x, y) lies inside any building's footprint. */
 const indoors = (x: number, y: number): boolean => {
   let inside = false
-  buildingsIn(x, y, x, y, (i) => {
-    if (!inside && pointInRing(x, y, MAP.buildings[i]!.outer)) inside = true
+  buildingsIn(x, y, x, y, (_i, b) => {
+    if (!inside && pointInRing(x, y, b.outer)) inside = true
   })
   return inside
 }
@@ -113,8 +113,7 @@ const mounts = (
 ): Array<{ readonly lamp: StreetLamp; readonly d: number }> => {
   const found: Array<{ readonly lamp: StreetLamp; readonly d: number }> = []
   const r = half + REACH.out
-  buildingsIn(px - r, py - r, px + r, py + r, (i) => {
-    const b = MAP.buildings[i]!
+  buildingsIn(px - r, py - r, px + r, py + r, (_i, b) => {
     if (buildingStyleOf(b) === "ruin") return
     const ring = b.outer,
       n = ring.length / 2
@@ -165,10 +164,10 @@ const mountNear = (px: number, py: number, half: number): StreetLamp | undefined
     )?.lamp
 
 /**
- * Every street lamp of the map, placed road by road (widest class first, then map order), so the
- * same map always gives the same lamps.
+ * Every street lamp along `roads` (the whole map's, in its order), placed road by road (widest
+ * class first, then map order), so the same map always gives the same lamps.
  */
-export const placeLamps = (): Array<StreetLamp> => {
+export const placeLamps = (roads: ReadonlyArray<Road>): Array<StreetLamp> => {
   const lamps: Array<StreetLamp> = []
   const cells = new Map<number, Array<StreetLamp>>()
   const cellOf = (cx: number, cy: number) => cx * 100003 + cy
@@ -182,9 +181,9 @@ export const placeLamps = (): Array<StreetLamp> => {
       }
     return false
   }
-  const roads = MAP.roads.filter((r) => r.tunnel !== true && LIT[roadClassOf(r)] !== undefined)
-  roads.sort((a, b) => LIT[roadClassOf(a)]! - LIT[roadClassOf(b)]!)
-  for (const road of roads) {
+  const lit = roads.filter((r) => r.tunnel !== true && LIT[roadClassOf(r)] !== undefined)
+  lit.sort((a, b) => LIT[roadClassOf(a)]! - LIT[roadClassOf(b)]!)
+  for (const road of lit) {
     const pts = road.pts
     // `s`: where the next point falls along the current segment (the step carries over its vertices).
     let since = SPACING,
@@ -211,13 +210,13 @@ export const placeLamps = (): Array<StreetLamp> => {
 }
 
 /**
- * Every lamp of the map for the map file (`MAP.lamps`): the wall lanterns (`placeLamps()`) then the platforms' pole lamps
- * (`platformLamps()`), their heights in m a.s.l. Placing them reads the terrain under every house that fronts a lit road, so
- * the build bakes them; `bake.map-test.ts` checks they are current.
+ * Every lamp of the map for the map file (`MAP.lamps`): the wall lanterns along `roads` (the whole map's, `placeLamps`)
+ * then the platforms' pole lamps (`platformLamps()`), their heights in m a.s.l. Placing them reads the terrain and the
+ * buildings by every house that fronts a lit road, so the build bakes them; `bake.map-test.ts` checks they are current.
  */
-export const bakeLamps = (): Array<Lamp> =>
+export const bakeLamps = (roads: ReadonlyArray<Road>): Array<Lamp> =>
   [
-    ...placeLamps(),
+    ...placeLamps(roads),
     ...platformLamps().map(({ x, y, h, nx, ny }) => ({
       x: x + nx * ARM,
       y: y + ny * ARM,

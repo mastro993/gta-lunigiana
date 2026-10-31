@@ -5,15 +5,16 @@ import { Vector3 } from "three"
 
 import { pointInRing } from "../../sim/collide.ts"
 import { coarseHeightAt } from "../../sim/map/coarse.ts"
-import { buildingsIn, MAP, treesIn } from "../../sim/map/index.ts"
+import { MAP, treesIn } from "../../sim/map/index.ts"
 import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
 import { dropTile, isResidentAt, setTileSource } from "../../sim/map/tiles.ts"
+import { buildingsIn } from "../../sim/map/vectors.ts"
 import { topOf } from "../buildings.ts"
 import { terrainResident, terrainY, yOf } from "../ground.ts"
 import { viewAxes } from "../pipeline.ts"
 import { CUT_UNIFORMS } from "../see-through.ts"
 import { SeeThrough, sight } from "../sightline.ts"
-import { residentAround } from "../testing.ts"
+import { residentAround, vectorsAround } from "../testing.ts"
 import { inCrown } from "../trees.ts"
 
 const HOME = viewAxes(0).back
@@ -35,8 +36,7 @@ const behindHouse = (() => {
   const away = { x: -HOME.x, y: HOME.z },
     n = Math.hypot(away.x, away.y)
   let found: Vector3 | undefined
-  buildingsIn(spawn.x - 80, spawn.y - 80, spawn.x + 80, spawn.y + 80, (i) => {
-    const b = MAP.buildings[i]!
+  buildingsIn(spawn.x - 80, spawn.y - 80, spawn.x + 80, spawn.y + 80, (_i, b) => {
     if (found !== undefined || b.holes !== undefined) return
     let cx = 0,
       cy = 0
@@ -52,7 +52,7 @@ const behindHouse = (() => {
     const x = cx + (away.x / n) * (s + 2),
       y = cy + (away.y / n) * (s + 2)
     let inside = false
-    buildingsIn(x, y, x, y, (j) => (inside ||= pointInRing(x, y, MAP.buildings[j]!.outer)))
+    buildingsIn(x, y, x, y, (_j, other) => (inside ||= pointInRing(x, y, other.outer)))
     if (!inside) found = at(x, y, 0.4)
   })
   if (found === undefined) throw new Error("no house near the spawn")
@@ -90,7 +90,7 @@ test("a point under the ground is hidden by the terrain", () => {
 
 /** The first road point within `LOOK` of the spawn, with no building within 60 m, that a hill hides from the home camera, 20–150 m off along the sight line. */
 const UNDER_HILL = (() => {
-  for (const road of MAP.roads)
+  for (const road of vectorsAround([spawn], LOOK).roads.items)
     for (let k = 0; k + 1 < road.pts.length; k += 10) {
       const x = road.pts[k]!,
         y = road.pts[k + 1]!

@@ -2,40 +2,36 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { MAP } from "../../sim/map/index.ts"
+import { tileVectors } from "../../sim/map/tiles.ts"
 import { chunkTiles } from "../chunk-tiles.ts"
 import { CHUNKS } from "../chunks.ts"
-import { linePieces } from "../lines.ts"
-import { railPieces } from "../rail.ts"
-import { stationPieces } from "../stations.ts"
-import { bucketPieces } from "../world.ts"
+import { Pieces } from "../pieces.ts"
 import { buildsWithSomeTiles, checkPlan } from "./chunk-tile-checks.ts"
 
 // Map checks (pnpm test:map): every chunk and every spot of the map where a chunk's build reads
 // past its square; chunk-tiles.test.ts checks a few near Monzone.
 const count = CHUNKS.x * CHUNKS.y
-const empty = chunkTiles(
-  [],
-  Array.from({ length: count }, () => []),
-)
+const plan = chunkTiles()
 
-test("chunk tiles: a chunk's build reads its terrain's tiles; one tile plans each chunk, its box round the chunk's", () => {
+test("chunk tiles: a chunk's base holds its terrain's tiles; one tile plans each chunk, its box round the chunk's", () => {
   checkPlan(
-    empty,
-    empty.keys.map((_, t) => t),
+    plan,
+    plan.keys.map((_, t) => t),
     Array.from({ length: count }, (_, key) => key),
   )
 })
 
-test("chunk tiles: a crossing's chunk reads the ground under the road ribbons it lies over", () => {
-  const lines = linePieces(),
-    pieces = [...lines, ...railPieces(lines), ...stationPieces()],
-    tiles = chunkTiles(pieces, bucketPieces(pieces))
-  for (let key = 0; key < count; key++)
-    for (const t of empty.needs[key]!) assert.ok(tiles.needs[key]!.includes(t))
-  assert.ok(
-    tiles.needs.some((needs, key) => needs.length > empty.needs[key]!.length),
-    "some chunk reads past its square",
-  )
+test("chunk tiles: a chunk's build reads its base, and a crossing's chunk the ground under the road ribbons it lies over", () => {
+  const pieces = new Pieces(plan)
+  for (const [t, key] of plan.keys.entries()) pieces.provide(t, tileVectors(key))
+  let past = 0
+  for (let key = 0; key < count; key++) {
+    const entries = pieces.entries(key),
+      needs = plan.needs(key, entries, (n) => pieces.piece(entries[n]!))
+    for (const t of plan.base[key]!) assert.ok(needs.includes(t))
+    if (needs.length > plan.base[key]!.length) past++
+  }
+  assert.ok(past > 0, "some chunk reads past its square")
 })
 
 /** Map points round which a chunk's build reads past its square or across a tile seam. */
@@ -52,7 +48,7 @@ const SPOTS: ReadonlyArray<readonly [number, number]> = [
   [0, MAP.bounds.maxY],
 ]
 
-test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those, at every crossing, platform, tunnel mouth and corner", () => {
+test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those and builds as with every tile in, at every crossing, platform, tunnel mouth and corner", () => {
   const built = buildsWithSomeTiles(SPOTS)
   assert.ok(built > 100, `${built} chunks built with some tiles out`)
 })
