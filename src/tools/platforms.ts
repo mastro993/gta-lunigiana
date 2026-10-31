@@ -316,7 +316,7 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
           blocked[j * cw + i] = 1
   }
   const kept = new Uint8Array(cw * ch)
-  fillPolygon(rings, gx, gy, RES, cw, ch, (k) => {
+  fillPolygon(rings, gx, gy, RES, { c0: 0, r0: 0, cols: cw, rows: ch }, (k) => {
     const x = gx + ((k % cw) + 0.5) * RES,
       y = gy + (Math.floor(k / cw) + 0.5) * RES
     if (blocked[k] === 1 || inCrossing(x, y)) return

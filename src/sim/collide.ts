@@ -36,22 +36,20 @@ export interface PixelBlock {
 }
 
 /**
- * Even-odd scanline fill of one polygon (flat rings) on a `cols` × `rows` raster with pixel centres
- * at x0 + (c + 0.5) * res; calls `set` per pixel index. With `block`, only the pixels of that block
- * of the raster (inside it), indexed within the block: the same pixels a fill of the whole raster
- * sets there.
+ * Even-odd scanline fill of one polygon (flat rings) over the pixels of `block` on the lattice of
+ * `res` pixels from (x0, y0), pixel (c, r) centred at (x0 + (c + 0.5) * res, y0 + (r + 0.5) * res);
+ * calls `set` per pixel by its index within the block, row-major. The block may lie anywhere on the
+ * lattice (c0 and r0 below 0 too), and gets the pixels a fill of any block round it sets there.
  */
 export const fillPolygon = (
   rings: ReadonlyArray<ReadonlyArray<number>>,
   x0: number,
   y0: number,
   res: number,
-  cols: number,
-  rows: number,
+  block: PixelBlock,
   set: (k: number) => void,
-  block?: PixelBlock,
 ): void => {
-  const { c0, r0, cols: bc, rows: br } = block ?? { c0: 0, r0: 0, cols, rows }
+  const { c0, r0, cols: bc, rows: br } = block
   let lo = Number.MAX_VALUE,
     hi = -Number.MAX_VALUE
   for (const r of rings)

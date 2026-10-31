@@ -157,7 +157,7 @@ export const treeScatter = (
       const m = new Uint8Array(block.cols * block.rows)
       for (const { rings, box } of polys)
         if (box[0]! <= ex1 && box[2]! >= ex0 && box[1]! <= ey1 && box[3]! >= ey0)
-          fillPolygon(rings, ax, ay, MASK_RES, block.cols, block.rows, (k) => (m[k] = 1), block)
+          fillPolygon(rings, ax, ay, MASK_RES, block, (k) => (m[k] = 1))
       return m
     })
     const at = (kind: number, x: number, y: number) => {

@@ -56,7 +56,9 @@ const polyline = (pts: ReadonlyArray<number>, r: number, c: RGB, a = 1) => {
     line(pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!, r, c, a)
 }
 const fill = (rings: ReadonlyArray<ReadonlyArray<number>>, c: RGB, a: number) =>
-  fillPolygon(rings, minX, minY, 1 / scale, W, H, (k) => blend(k, c, a))
+  fillPolygon(rings, minX, minY, 1 / scale, { c0: 0, r0: 0, cols: W, rows: H }, (k) =>
+    blend(k, c, a),
+  )
 
 // Terrain: elevation ramp x hillshade (light from the north-west).
 for (let j = 0; j < H; j++)

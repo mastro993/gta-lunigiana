@@ -49,7 +49,7 @@ export const paint = (grid: Grid, layers: ReadonlyArray<Layer>): Uint16Array => 
   const out = new Uint16Array(cols * rows)
   for (const { value, polygons } of layers)
     for (const rings of polygons)
-      fillPolygon(rings, x0, y0, res, cols, rows, (k) => {
+      fillPolygon(rings, x0, y0, res, { c0: 0, r0: 0, cols, rows }, (k) => {
         if (out[k] === 0) out[k] = value
       })
   return out

@@ -14,6 +14,8 @@ const heightmap = {
   y0: 0,
   data: Array.from({ length: 121 }, () => 2000),
 }
+/** Every cell of `heightmap`. */
+const WHOLE = { c0: 0, r0: 0, cols: 10, rows: 10 }
 const at = (raster: Uint8Array, x: number, y: number) =>
   coverName(raster[Math.floor(y / 4) * 10 + Math.floor(x / 4)]!)
 const bare = { roads: [], buildings: [] }
@@ -33,7 +35,7 @@ test("areas fill even-odd (holes stay meadow) and later kinds draw over forest",
         ],
       },
     ],
-  })()
+  })(WHOLE)
   assert.equal(at(raster, 2, 2), "forest")
   assert.equal(at(raster, 6, 6), "meadow")
   assert.equal(at(raster, 22, 22), "parking")
@@ -66,7 +68,7 @@ test("wide water gets a pebble bed, narrow streams none", () => {
         area: [1, 1],
       },
     ],
-  })()
+  })(WHOLE)
   assert.equal(at(raster, 10, 30), "pebble")
   assert.equal(at(raster, 10, 37), "pebble") // cell centre 8 m out: past the water (7 m), inside the bed (12 m)
   assert.equal(at(raster, 10, 6), "meadow")
@@ -81,7 +83,7 @@ test("every area kind paints as its own cover", () => {
           heightmap,
           water: [],
           areas: [{ kind, rings: [[0, 0, 8, 0, 8, 8, 0, 8]] }],
-        })(),
+        })(WHOLE),
         2,
         2,
       ),
@@ -114,7 +116,7 @@ test("open ground between a house and a road is paved; a garden behind the house
     areas: [],
     roads: [road],
     buildings: [house],
-  })()
+  })(WHOLE)
   assert.equal(at(raster, 18, 13), "paved") // the 3 m between the road edge and the house
   assert.equal(at(raster, 18, 35), "meadow") // 10 m behind it
   assert.equal(at(raster, 38, 38), "meadow")
@@ -154,9 +156,8 @@ test("a block of the raster has the cells the whole raster has there", () => {
       },
     ],
   }
-  const whole = coverBlocks(map)()
+  const whole = coverBlocks(map)(WHOLE)
   for (const block of [
-    { c0: 0, r0: 0, cols: 10, rows: 10 },
     { c0: 3, r0: 4, cols: 5, rows: 2 },
     { c0: 7, r0: 0, cols: 3, rows: 10 },
   ]) {
@@ -192,7 +193,7 @@ test("every block coverBlocks fills has the cells the whole raster has there, ar
     buildings: [],
   }
   const cover = coverBlocks(map),
-    whole = cover()
+    whole = cover(WHOLE)
   for (let c0 = 0; c0 < 10; c0++)
     for (let r0 = 0; r0 < 10; r0++)
       for (const [cols, rows] of [

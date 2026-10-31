@@ -90,16 +90,14 @@ interface CoverSource {
 }
 
 /**
- * The cover of `map`'s terrain cells, a block at a time: the cells of `part` (every cell when
- * absent: the `(cols − 1) × (rows − 1)` cells of the heightmap), row-major with row 0 = south.
+ * The cover of `map`'s terrain cells, a block at a time: the cells of `part`, a block of the
+ * heightmap's `(cols − 1) × (rows − 1)` cells, row-major with row 0 = south.
  * Forest is filled first, so every other area and the river beds draw over it, and a block's cells
  * come out as in the whole raster. The areas are sorted and boxed once, and each block fills only
  * those whose box comes within a cell of it (the build asks for every tile, and a scan of every
  * area's rows for each tile grew with the square of the map).
  */
-export const coverBlocks = (map: CoverSource): ((part?: PixelBlock) => Uint8Array) => {
-  const cols = map.heightmap.cols - 1,
-    rows = map.heightmap.rows - 1
+export const coverBlocks = (map: CoverSource): ((part: PixelBlock) => Uint8Array) => {
   const ordered = [...map.areas]
     .sort((a, b) => (coverIndex.get(a.kind) ?? 0) - (coverIndex.get(b.kind) ?? 0))
     .flatMap(({ kind, rings }) => {
@@ -118,7 +116,7 @@ export const coverBlocks = (map: CoverSource): ((part?: PixelBlock) => Uint8Arra
         }
       return [{ cover, rings, minX, minY, maxX, maxY }]
     })
-  return (part) => paint(map, ordered, part ?? { c0: 0, r0: 0, cols, rows }, cols, rows)
+  return (part) => paint(map, ordered, part)
 }
 
 /** One block of the cover: the areas `ordered` whose box meets it filled in turn, then the paving and the river beds. */
@@ -133,8 +131,6 @@ const paint = (
     readonly maxY: number
   }>,
   block: PixelBlock,
-  cols: number,
-  rows: number,
 ): Uint8Array => {
   const { cell, x0, y0 } = map.heightmap,
     anchor = anchorOf(map.heightmap)
@@ -149,7 +145,7 @@ const paint = (
     by1 = y0 + (block.r0 + block.rows + 1) * cell
   for (const { cover, rings, minX, minY, maxX, maxY } of ordered)
     if (maxX >= bx0 && minX <= bx1 && maxY >= by0 && minY <= by1)
-      fillPolygon(rings, anchor.x, anchor.y, cell, cols, rows, (k) => (out[k] = cover), fromAnchor)
+      fillPolygon(rings, anchor.x, anchor.y, cell, fromAnchor, (k) => (out[k] = cover))
   // Open ground (meadow, residential grass) both near a wall and near a road edge.
   const fronting = new Uint8Array(block.cols * block.rows),
     open = new Set([coverIndex.get("meadow"), coverIndex.get("residential")]),
