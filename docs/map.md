@@ -963,7 +963,7 @@ change an input.
   which builds the L test region too (`test-maps/`, cached and hashed with the maps: [Test
   regions](#test-regions)).
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
-  imports, followed from import to import (93 files today, in `src/tools`, `src/sim` and
+  imports, followed from import to import (95 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
   rather than miss a file: on a specifier that names no file, an `import(` without a string literal
   and any `require(`. When the check job built the maps, the `reproducible` job builds them again

@@ -41,8 +41,9 @@ const RINGS = 64
 /**
  * The listed tiles round tile (i, j), which `listed` says is not: those of the nearest ring of
  * tiles round it (along the farther axis) holding any, in key order (south to north, then west to
- * east). A lookup in an unlisted tile (an L's notch) reads them, and the cut keeps the walls and
- * trees whose midpoint falls in it in the first of them. Throws when no ring within `RINGS` holds one.
+ * east). A lookup in an unlisted tile (an L's notch) reads them, and the cut keeps each wall or
+ * tree whose midpoint falls in it in the one of them nearest that midpoint (the first in key order
+ * on a tie). Throws when no ring within `RINGS` holds one.
  */
 export const tilesRound = (
   i: number,

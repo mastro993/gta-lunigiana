@@ -9,9 +9,9 @@
  * The listed tiles (`MAP.tiles`) need not fill the box of tiles round them: an L-shaped map leaves
  * its notch unlisted, with no file. A terrain or land-cover lookup there reads the nearest node or
  * cell of the listed tiles round it (`nearest`); a wall or tree whose midpoint falls there (an
- * outline wall on the notch's side, a house wall over it) the cut kept in the first of those tiles,
- * so a wall or tree lookup over the notch reads them all; and `tilesOver` names them, so the host's
- * residency checks cover both.
+ * outline wall on the notch's side, a house wall over it) the cut kept in the one of those tiles
+ * nearest its midpoint (the first in key order on a tie), so a wall or tree lookup over the notch
+ * reads them all; and `tilesOver` names them, so the host's residency checks cover both.
  * So residency is never observable, and the host decides it alone: it keeps every listed tile
  * overlapping [player ± `STEP_REACH`]² before each step, and the sim reads nothing farther away
  * (vehicles past `FROZEN_BEYOND` stand frozen).
