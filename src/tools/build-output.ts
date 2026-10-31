@@ -1,10 +1,12 @@
 // The map build's last phase: the built map put together and its land cover rasterised, then cut
 // into its tiles once; the tables baked from it by the game's own code (bake.ts) reading the tiles
-// through a store that keeps only a few decoded; then the files stamped with the build hash, gzipped
-// and written one at a time.
-import { mkdirSync, rmSync, writeFileSync } from "node:fs"
+// through a store that keeps only a few decoded; then the files stamped with the build hash, and
+// gzipped and written a few at a time on libuv's threads.
+import { mkdirSync, rmSync } from "node:fs"
+import { writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { gzipSync } from "node:zlib"
+import { promisify } from "node:util"
+import { gzip } from "node:zlib"
 
 import { MAP_VERSION, provideMap } from "../sim/map/packed.ts"
 import { rasterCover } from "../sim/map/raster.ts"
@@ -126,9 +128,42 @@ export const decimetres = (grid: Grid): Int16Array => {
 const RESIDENT = 16
 
 /**
+ * Files gzipped at once: twice libuv's 4 threads, so each has the next file ready, and few enough
+ * that the stamped copies in flight stay a handful of tiles.
+ */
+const IN_FLIGHT = 8
+
+const gzipAsync = promisify(gzip)
+
+/**
+ * Gzips each of `files` at level 9 on libuv's threads, `IN_FLIGHT` at a time, pulling the next
+ * from the iterable only when one is done, and writes it to its path; resolves to each one's
+ * gzipped size, in order. The bytes are those gzipSync writes: only the wall clock changes.
+ */
+export const writeGzipped = async (
+  files: Iterable<readonly [string, Uint8Array]>,
+): Promise<Array<number>> => {
+  const sizes: Array<number> = [],
+    next = files[Symbol.iterator]()
+  let count = 0
+  const lane = async () => {
+    for (let r = next.next(); r.done !== true; r = next.next()) {
+      const k = count++,
+        [file, data] = r.value
+      const gz = await gzipAsync(data, { level: 9 })
+      await writeFile(file, gz)
+      sizes[k] = gz.length
+    }
+  }
+  await Promise.all(Array.from({ length: IN_FLIGHT }, lane))
+  return sizes
+}
+
+/**
  * Bakes the tables of `cut` (the game's own code on the map cut without them), then writes the
- * global file `out` and the tiles into `dir`, stamped and gzipped one at a time. Returns the stamped
- * global map, the bytes written and the largest tile, and the bytes of each part before gzip.
+ * global file `out` and the tiles into `dir`, stamped and gzipped a few at a time. Returns the
+ * stamped global map, the bytes written and the largest tile, and the bytes of each part before
+ * gzip.
  */
 export const writeMap = async (
   cut: MapCut,
@@ -152,25 +187,27 @@ export const writeMap = async (
   const stamped = stampMap(cut.global(bakes), cut.tiles.values())
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
-  let bytes = 0,
-    largest = 0,
-    json = 0
-  const write = (file: string, data: Uint8Array) => {
-    const gz = gzipSync(data, { level: 9 })
-    writeFileSync(file, gz)
-    bytes += gz.length
-    return gz.length
-  }
-  write(out, stamped.file)
-  for (const [key, file] of cut.tiles) {
-    const tile = stamped.tile(file)
-    json += tile.indexOf(10) + 1
-    largest = Math.max(largest, write(join(dir, `${key}.bin`), tile))
-  }
+  let json = 0
+  const [global, ...tiles] = await writeGzipped(
+    (function* () {
+      yield [out, stamped.file] as const
+      for (const [key, file] of cut.tiles) {
+        const tile = stamped.tile(file)
+        json += tile.indexOf(10) + 1
+        yield [join(dir, `${key}.bin`), tile] as const
+      }
+    })(),
+  )
   lap("write")
   const sizes: Record<string, number> = {}
   for (const [part, n] of Object.entries(stamped.sizes)) sizes[`global ${part}`] = n
   for (const [part, n] of Object.entries(cut.sizes))
     sizes[`tile ${part}`] = part === "json" ? json : n
-  return { global: stamped.global, tiles: cut.tiles.size, bytes, largest, sizes }
+  return {
+    global: stamped.global,
+    tiles: cut.tiles.size,
+    bytes: tiles.reduce((sum, n) => sum + n, global!),
+    largest: Math.max(...tiles),
+    sizes,
+  }
 }

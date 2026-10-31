@@ -180,7 +180,11 @@ of their lowest crossing, each simplified and split as it is traced, so only the
 held). The bake reads those through a store that keeps 16 decoded and drops the first one read past
 that, as a host drops tiles: the cut and the bake took 7.6 s with 4 kept, 3.7 s with 9, 1.5 s with
 16 and 1.2 s with all 30. Then the hash is taken over the global file and each tile, all unstamped,
-and each tile is stamped (its JSON line rewritten with the hash), gzipped and written in turn.
+and each file is stamped (a tile's JSON line rewritten with the hash), gzipped at level 9 and
+written, 8 at a time on libuv's 4 threads (`writeGzipped`): the same bytes as one at a time, in
+0.5 s rather than 1.6 s on Lunigiana and 1.6 s rather than 6 s on the 3x test region, whose 78
+tiles gzip at 74 ms each.
+
 The terrain phase works out the vectors first: the water's surfaces, the road and rail profiles,
 whose writes into the grid are recorded in order as claims, and the water capped under the decks.
 Then `build-grid.ts` builds the grid one 2 km tile at a time (`gridTiles` in `grid-tiles.ts`, south
