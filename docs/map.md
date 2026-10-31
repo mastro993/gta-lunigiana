@@ -144,15 +144,10 @@ stages were sped up (the same files, byte for byte, and the same hashes):
   (−2892.7, 3095.5)), so every spot after 367 moves up one index and the spots' hash parks other
   cars on them (spots 228, 452, 652, 740, 788 and 801 on lucido; 228, 442, 451, 453, 776 and 801 on
   the 3x). Monzone's own spots stand where they did.
-- **What else moves**: the terrain under lucido is the same to the decimetre (every node), and the
-  lookups count from the region's anchor, so the 3x bakes lucido's lamps, water beds and parked
-  spots' rests to the bit (`x3-region.map-test.ts`; before, 133 lamps, 22,698 bed values and the
-  rests of 664 spots differed in their last bits), and its land cover is lucido's but within 50 m
-  of lucido's edge (before, 3 cells 0.8–3.6 km inside it differed too, where an area's edge passes
-  a cell's centre to within a few ulps); the place is fitted over every node of the built terrain (`placeFrom`), so the 3x's floor is 258.5 m
-  and its downslope 1.919 rad against lucido's 230.3 m and 2.127 rad, and with it the weather
-  ([weather.md](weather.md)); and the catchments run over the synthetic land too, so the water's
-  areas change.
+- **What else moves**: in lucido's rectangle the 3x's terrain, its land cover more than 50 m in
+  from the edge and the tables it bakes are lucido's to the bit (`x3-region.map-test.ts`); the
+  place, the catchments and what lucido's edge cuts differ ([What growing a region
+  changes](#what-growing-a-region-changes)).
 
 The build's Lunigiana-only constants hold in a test region: the station and Carabinieri POIs may be
 out of play (`regionPoi` in `spawns.ts`; a shipped map without them throws), and then no spots are
@@ -1468,12 +1463,13 @@ the tools print paths relative to the repository. Measured on `lucido` on 2026-1
   `cp -R src/sim/map/monzone.bin src/sim/map/monzone /tmp/before/`). It joins each map whole
   (`readWholeMap` in `map-file.ts`) and compares the heightmap's grid (with the anchor its lookups
   count from where either map names one: a map grown round lucido's anchor shows only its grid
-  moved) and its nodes (count, largest and RMS difference, their box), the land cover's cells, the coarse grid (its lattice, then how many heights and covers
-  differ), walls (and their reach, lattices and counts), trees, roads, buildings, water, rail, areas,
-  the tile list, the place, the name, the play area's outline (its rings as a multiset; a map built
-  before it, issue #7, has none) and the baked tables (lanes, farms, lamps) and the rest, matched by
-  id or as multisets, and any key it does not know as its own block; the build hash is
-  left out, as anything else changes it. Order counts only for the walls of each kind and the
+  moved) and its nodes (count, largest and RMS difference, their box), the land cover's cells, the
+  coarse grid (its lattice, then how many heights and covers differ), walls (and their reach,
+  lattices and counts), trees, roads, buildings, water, rail, areas, the tile list, the place, the
+  name, the play area's outline (its rings as a multiset; a map built before it, issue #7, has
+  none) and the baked tables (lanes, farms, lamps) and the rest, matched by id or as multisets, and
+  any key it does not know as its own block; the build hash is left out, as anything else changes
+  it. Order counts only for the walls of each kind and the
   trees: beside their multiset change it prints the fewest of the items both maps hold that must
   move to restore their order, and where (`walk order: 1 of 2 shared segments moved, in x …`; one
   item moved from the front of a list to its back is 1), since the physics resolves contacts in
@@ -1503,6 +1499,60 @@ between them, all of it holes for the 10 m DTM) or the manifest lists more than 
 
 A part's new inputs are pinned like any other: after `pnpm fetch-rt` and `pnpm map`, `pnpm pin-raw`
 uploads them and the lock goes into the part's PR ([Pinned inputs and CI](#pinned-inputs-and-ci)).
+
+### What growing a region changes
+
+A part grows the built terrain's box, and a box grown west or south of the region's anchor moves
+the grid's first node: what the build and the game measure from the anchor keeps its bits, and
+what is fitted over the whole box, or cut at the box's edge, does not. Measured on the 3x test
+region against lucido on 2026-10-31 (`node src/tools/build-map.ts --region lunigiana-3x`, then
+`pnpm map-diff src/sim/map/monzone.bin test-maps/lunigiana-3x.bin`). Its play area stays lucido's,
+so this is what a part changes beside it before it joins the play: a part that joins it also
+carries the roads, water, rail and buildings across the old edge, which then are no longer cut.
+
+- **The same to the bit**: every terrain node in lucido's rectangle, the land cover more than 50 m
+  in from its edge, the lamps, water beds and parked spots' rests the bake makes
+  (`x3-region.map-test.ts` checks these), and the roads, rail, POIs, graph, lanes, lucido's trees
+  (each with its id) and the coarse grid's nodes in lucido's box. The DTM's projection lattice,
+  the build's grid lookups, the game's (`heightAt`, `terrainZ`, `coverAt`) and the land cover's
+  raster count a point's cell from the anchor ([section 5](#5-heightmap-terraints), [The global
+  file](#the-global-file)). Counted from the box's corner, as they were before, the heights of 25
+  buildings, 22,698 water-bed values, 133 lamps and the rests of 664 parked spots differed in their
+  last bits, and 3 land-cover cells 0.8–3.6 km in from the edge, where an area's edge passes a
+  cell's centre to within a few ulps.
+- **The place** (`placeFrom`) is fitted over every node of the built terrain: the 3x's floor is
+  258.5 m and its downslope 1.919 rad against lucido's 230.3 m and 2.127 rad, and the weather
+  moves with them ([weather.md](weather.md)).
+- **The catchments** route D8 over the whole grid, its edge the outlet, so what drains across
+  lucido's edge from the land beyond now counts: 69 of the 581 water pieces gather other areas,
+  2,149 values in all, the Torrente Tassonaro's most (0.16 → 8.63 km²). The Aulella's 161 km²
+  from beyond the map (`AULELLA_OFF_MAP`) is lucido's: a part that takes in some of that catchment
+  must take it off.
+- **Tiles**: the 4 tiles lucido's edge crosses whose lowest or highest node now lies past it
+  (-2_-4, 2_-3, -2_-2, 2_0) change their `zmin` or `zmax`.
+- **Buildings across the edge**: on lucido each is clipped to its box and kept by the centre of
+  what is left; on the 3x the box reaches past it, so it is kept whole, or dropped, by the centre of
+  the whole. 9 change and 9 go, none reaching more than 19.2 m in from the edge, and with them go
+  parked spot 367 (every later spot's index moves up one, so the spots' hash parks other cars:
+  [Test regions](#test-regions)), 2 farms (2 more move to their whole building), the paving in
+  front of them (6 land-cover cells within 6 m of the edge) and 10 m of a district disc of
+  Argigliano's (r 120 → 110 m).
+- **Areas across the edge** are clipped to the box, not the play area, so on the 3x 19 run on
+  whole past lucido's edge and 80 more lie beyond it. A cut is rounded to 0.1 m, which moves the
+  cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs. 3 platforms of the station past
+  lucido's east edge, outside the play area, are laid along the rail's last stretch at the outline
+  (x 4899–4900, y 3609).
+- **Walls**: a cell's slope reads the nodes up to 8 m round it, and on lucido those past its edge
+  are the edge's own (clamped), so the steep cells along the edge differ, and a loop of blocked
+  cells that takes one in is traced and simplified anew along all its length: walk walls differ up
+  to 396 m in from the edge, drive walls 104 m and shore walls 18 m, and 593 walk and 355 drive
+  walls both maps hold come in another order (a loop that changed starts elsewhere). The walk and
+  drive broad phases start at the lowest corner of any of their walls (`walls.lattice`), which a
+  building kept whole past the edge moves (to x −2917.3 on the 3x), so every wall may fall in
+  another 16 m cell and a query may hand them in another order; the trees' corner is the region's,
+  fixed for good.
+- **The coarse grid** covers the box: its nodes past lucido's edge (x −2944 and 4928) read the
+  land there, where lucido's read its edge.
 
 ## Known data limitations
 

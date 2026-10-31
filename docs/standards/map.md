@@ -65,7 +65,11 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   map.md](../map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)). Trees cover the
   region's tiles, beyond the play area too, 1 m inside the box; `pnpm map-diff` names a tree that
   keeps its spot but not its id (`ids:` under trees). Each tile stores its trees in whole metres
-  from a point 100 m south-west of its corner.
+  from a point 100 m south-west of its corner. Nor does it move a bit of the terrain, the land
+  cover or the baked tables of the parts already built: the DTM's projection lattice and every
+  terrain and cover lookup count from the anchor too. What it does change there (the place, the
+  catchments, the walls and buildings along the old edge) is in [What growing a region
+  changes](../map.md#what-growing-a-region-changes); keep that list true when a part shows more.
 - A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.31 MB, the build
   prints it, and `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,

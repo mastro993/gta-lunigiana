@@ -2020,9 +2020,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     which builds it): its outline walls close it, its road exits are capped, a flood on foot from
     the start stays in it, and every graph node, spawn, POI and building lies in it
     ([map.md](map.md#test-regions));
-    `x3-region.map-test.ts`: as many live vehicles round Monzone after a 60 s stand on the 3x test
-    region as on lucido (`stand.ts` on each in a process of its own; skipped without the 3x build,
-    which only a hand builds).
+    `x3-region.map-test.ts`: on the 3x test region, every terrain node in lucido's rectangle is
+    lucido's, its land cover more than 50 m inside lucido's edge, and the lamps, water beds and
+    parked spots' rests it bakes, and as many live vehicles round Monzone after a 60 s stand as on
+    lucido (`stand.ts` on each in a process of its own; skipped without the 3x build, which only a
+    hand builds; [map.md](map.md#what-growing-a-region-changes)).
 
   Measured on 2026-10-30 on a 14-core Apple-silicon Mac under a load average of 50–95 from other
   work, each file run alone: the split took `pnpm test` from 1,177 tests in 181 files and 228 s of
