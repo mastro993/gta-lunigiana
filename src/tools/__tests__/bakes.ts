@@ -20,7 +20,7 @@ const hintFor = (map: MonzoneMap) =>
 
 /** Asserts `map`'s baked tables equal a fresh `run()` of the bake and its place a fresh fit over its whole heightmap. */
 export const assertBakesCurrent = (map: MonzoneMap, run: typeof bake): void => {
-  const fresh = saved(run()) as ReturnType<typeof bake>
+  const fresh = saved(run(wholeMap(map.name))) as ReturnType<typeof bake>
   const hint = hintFor(map)
   assert.deepEqual(fresh.lanes, saved(map.lanes), `MAP.lanes (src/sim/lanes.ts): ${hint}`)
   assert.deepEqual(

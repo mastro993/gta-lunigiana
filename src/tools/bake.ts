@@ -6,7 +6,7 @@
 // baked tables are current.
 import { bakeLamps } from "../render/sky/lamps.ts"
 import { bakeLanes } from "../sim/lanes.ts"
-import { MAP } from "../sim/map/index.ts"
+import type { Building, Road, Water } from "../sim/map/index.ts"
 import { bakeParked } from "../sim/parking.ts"
 import { bakeResidents, buildingCentre } from "../sim/population/density.ts"
 import { bakeFarms } from "../sim/population/farms.ts"
@@ -14,16 +14,23 @@ import { bedOf } from "../sim/water/channel.ts"
 import { bellsOf } from "./bells.ts"
 import type { Bakes } from "./tile-map.ts"
 
-/** Every baked table, from the map the sim has loaded. */
-export const bake = (): Bakes => {
+/** The whole map's vectors, in its order: what the bakes that read them all are given (the sim holds them only near the player). */
+export interface WholeVectors {
+  readonly roads: ReadonlyArray<Road>
+  readonly buildings: ReadonlyArray<Building>
+  readonly water: ReadonlyArray<Omit<Water, "floor">>
+}
+
+/** Every baked table, from the map the sim has loaded and its vectors `whole`. */
+export const bake = (whole: WholeVectors): Bakes => {
   const farms = bakeFarms()
   return {
     lanes: bakeLanes(),
     parked: bakeParked(),
-    floors: MAP.water.map(bedOf),
+    floors: whole.water.map(bedOf),
     farms,
     lamps: bakeLamps(),
-    bells: bellsOf(MAP.buildings),
+    bells: bellsOf(whole.buildings),
     residents: bakeResidents(),
     farmCentres: farms.flatMap((f) => {
       const { x, y } = buildingCentre(f.building)

@@ -185,7 +185,7 @@ export const writeMap = async (
     return provisional.get(key)!
   })
   const { bake } = await import("./bake.ts")
-  const bakes = bake()
+  const bakes = bake(cut.whole)
   setTileSource(undefined)
   for (const key of resident) dropTile(key)
   lap("bake")

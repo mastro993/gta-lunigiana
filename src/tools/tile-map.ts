@@ -117,6 +117,8 @@ export interface MapCut {
   }
   /** The global map with `bakes`, before its hash. */
   readonly global: (bakes: Bakes) => Omit<MonzoneMap, "hash">
+  /** The whole map's vectors, for the bakes that read them all (the water before its floors). */
+  readonly whole: Pick<BuiltMap, "roads" | "buildings" | "water">
   /** The bytes of each part of the tiles' dense layers, summed (`json` with the hash and the vectors still empty). */
   readonly sizes: Readonly<Record<string, number>>
 }
@@ -533,6 +535,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
   return {
     tiles,
     sizes,
+    whole: { roads: map.roads, buildings: map.buildings, water: map.water },
     global: globalOf(
       header,
       { roads, buildings, rail, railway, areas, barriers, pois, districts, graph, walls, vectors },
