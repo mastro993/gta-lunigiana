@@ -2011,7 +2011,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `src/sim/water/__tests__/channel.map-test.ts`: the whole rail bed dry where a stream crosses it;
     `src/sim/sky/__tests__/place.map-test.ts`: the place fitted again over every node;
     `src/sim/rail/__tests__/lines.map-test.ts` and `crossings.map-test.ts`: `lines.test.ts`'s and
-    `crossings.test.ts`'s checks over every line, station and level crossing.
+    `crossings.test.ts`'s checks over every line, station and level crossing; `roads.map-test.ts`:
+    the middle of every traffic step into a box inside its clearance, or the step long.
   - `src/render/__tests__/chunk-tiles.map-test.ts`: one tile planning each chunk with its box round
     the chunk's, a crossing's chunk reading the ground under its road ribbons, and with only some
     tiles in every chunk that builds reading only those at every level crossing, platform, tunnel

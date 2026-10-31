@@ -1,13 +1,13 @@
-// The checks lines.test.ts and crossings.test.ts (the railway within 4 km of Monzone station) and
-// lines.map-test.ts and crossings.map-test.ts (all of the map's) share: the lines, their level
-// crossings and stations as the game reads them.
+// The checks lines.test.ts, crossings.test.ts and roads.test.ts (the railway within 4 km of Monzone
+// station) and lines.map-test.ts, crossings.map-test.ts and roads.map-test.ts (all of the map's)
+// share: the lines, their level crossings and stations as the game reads them.
 import assert from "node:assert/strict"
 
 import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../../collide.ts"
 import { graph, type LevelCrossing, MAP, RAIL_LIFT } from "../../map/index.ts"
-import { endNode } from "../../route.ts"
+import { endNode, laneOf, lanePoint } from "../../route.ts"
 import { strikeIn } from "../barriers.ts"
 import { approachesOf, APPROACHES, CROSSINGS, linesAtGrade } from "../crossings.ts"
 import {
@@ -22,6 +22,7 @@ import {
   stopPoint,
 } from "../lines.ts"
 import { trainLength } from "../models.ts"
+import { nearCrossing, SPAWN_CLEAR } from "../roads.ts"
 
 /** A part of the map's railway, by index: what the checks below visit. */
 export interface RailwayPart {
@@ -320,4 +321,19 @@ export const checkPairs = (boxes: ReadonlyArray<number>): void => {
       assert.deepEqual(step, first, `step ${key}`)
     }
   }
+}
+
+/** Every traffic step tabled into one of `boxes` has its middle, where traffic is brought out, inside the box's clearance, or is long. */
+export const checkStepsClear = (boxes: ReadonlyArray<number>): void => {
+  let steps = 0
+  for (const [key, entry] of APPROACHES) {
+    if (!boxes.includes(entry.box)) continue
+    steps++
+    const lane = laneOf(key >> 1, (key & 1) === 1),
+      mid = lanePoint(lane, lane.length / 2, 0),
+      crossing = CROSSINGS[entry.box]!
+    if (Ops.hypot(mid.x - crossing.x, mid.y - crossing.y) < SPAWN_CLEAR)
+      assert.equal(nearCrossing(mid.x, mid.y), true)
+  }
+  assert.ok(steps > 0, "steps into the boxes")
 }
