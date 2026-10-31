@@ -1,6 +1,6 @@
 // Comparison of two lists, for map-diff.ts: multisets (equal items pair up wherever they stand),
 // the order of the items two lists share, items matched by a key that may repeat, what changed
-// between two versions of an item, and the box round the changes.
+// between two versions of an item, the box round the changes, and the report's counts of them.
 
 /** A box [minX, minY, maxX, maxY], m; empty while minX > maxX. */
 export type Box = [number, number, number, number]
@@ -36,6 +36,16 @@ export const num = (n: number): string => String(Number(n.toFixed(3)))
 /** ", in x a..b, y c..d" for a box that holds something, else "". */
 export const boxText = (box: Box): string =>
   box[0] > box[2] ? "" : `, in x ${num(box[0])}..${num(box[2])}, y ${num(box[1])}..${num(box[3])}`
+
+/** "2 changed, 1 added, 3 removed", leaving out the zero counts. */
+export const counts = (changed: number, added: number, removed: number): string =>
+  [
+    changed > 0 ? `${changed} changed` : "",
+    added > 0 ? `${added} added` : "",
+    removed > 0 ? `${removed} removed` : "",
+  ]
+    .filter((s) => s !== "")
+    .join(", ")
 
 /** JSON with every object's keys sorted, so two items built with their fields in another order compare equal. */
 export const canon = (value: unknown): string =>
@@ -118,6 +128,21 @@ export const flatDiff = (a: ArrayLike<number>, b: ArrayLike<number>, stride: num
     (j) => tupleKey(b, j, stride),
     (i, j) => sameTuple(a, i, b, j, stride),
   )
+
+/** The counts of a multiset diff of flat tuples and the box round the first `coords` numbers of each changed tuple. */
+export const flatLine = (
+  a: ArrayLike<number>,
+  b: ArrayLike<number>,
+  stride: number,
+  coords: number,
+  bag: Bag = flatDiff(a, b, stride),
+): string | undefined => {
+  if (bag.added.length + bag.removed.length === 0) return undefined
+  const box = emptyBox()
+  for (const i of bag.removed) addFlat(box, a, i * stride, i * stride + coords)
+  for (const j of bag.added) addFlat(box, b, j * stride, j * stride + coords)
+  return `${counts(0, bag.added.length, bag.removed.length)}${boxText(box)}`
+}
 
 /** For each of `v`'s values, whether it is on one longest strictly increasing run through them (patience sorting). */
 const onLongestRun = (v: ReadonlyArray<number>): Uint8Array => {

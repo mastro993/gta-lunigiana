@@ -1497,13 +1497,13 @@ the tools print paths relative to the repository. Measured on `lucido` on 2026-1
   had one frame of 33.3 ms off the seams, the other none over 16.8 ms; at most 6 tiles in memory, 4
   at Vinca (0_-2, 1_-2, 0_-1, 1_-1), and a heap of 157 MB there.
 - **`pnpm map-diff <a.bin> <b.bin> [--except <category,...>]`** (`map-diff.ts`, `map-diff-args.ts`,
-  `diff-lists.ts`) prints, category by category, what differs between two built maps, each a global
-  file with its tiles in the directory of its name beside it (keep a build with
-  `cp -R src/sim/map/monzone.bin src/sim/map/monzone /tmp/before/`). It joins each map whole
-  (`readWholeMap` in `map-file.ts`) and compares the heightmap's grid (with the anchor its lookups
-  count from where either map names one: a map grown round lucido's anchor shows only its grid
-  moved) and its nodes (count, largest and RMS difference, their box), the land cover's cells, the
-  coarse grid (its lattice, then how many heights and covers differ), walls (and their reach,
+  `map-diff-dense.ts`, `diff-lists.ts`) prints, category by category, what differs between two
+  built maps, each a global file with its tiles in the directory of its name beside it (keep a
+  build with `cp -R src/sim/map/monzone.bin src/sim/map/monzone /tmp/before/`). It joins each map
+  whole (`readWholeMap` in `map-file.ts`) and compares the heightmap's grid (with the anchor its
+  lookups count from where either map names one: a map grown round lucido's anchor shows only its
+  grid moved) and its nodes (count, largest and RMS difference, their box), the land cover's cells,
+  the coarse grid (its lattice, then how many heights and covers differ), walls (and their reach,
   lattices and counts), trees, roads, buildings, water, rail, areas, the tile list, the place, the
   name, the play area's outline (its rings as a multiset; a map built before it, issue #7, has
   none) and the baked tables (lanes, farms, lamps) and the rest, matched by id or as multisets, and
