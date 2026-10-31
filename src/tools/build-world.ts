@@ -16,6 +16,7 @@ import { clearance, parkedSpots, playerSpawn, regionPoi, startNear } from "./spa
 import { sampleGrid } from "./terrain.ts"
 import { scatterTrees } from "./trees.ts"
 import { buildWalls } from "./walls.ts"
+import { inWater } from "./water-areas.ts"
 
 /** Room for a car to stop and turn (map.map-test.ts asks the same of every traffic dead end). */
 const TURN = 2.3
@@ -47,7 +48,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   lap("railway")
 
   // ---- collision, graph, trees, spawns ----
-  const walls = buildWalls(grid, roads, water, buildings, barriers)
+  const walls = buildWalls(grid, roads, water, buildings, barriers, areas)
   lap("walls")
   const trees = scatterTrees(
     { areas, roads, buildings, water, rail: allRail, beyond: src.beyond },
@@ -90,7 +91,15 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     carabinieri = regionPoi(pois, lunigiana ? 14183344901 : 806564311, REGION)
   const start = startNear(graph, roads, lunigiana ? carabinieri : undefined)
   if (start === undefined) throw new Error(`--region ${REGION.key} has no connected traffic roads`)
-  const player = playerSpawn(roads, walkClear, driveClear, start.at, buildings, start.road)
+  const player = playerSpawn(
+    roads,
+    walkClear,
+    driveClear,
+    start.at,
+    buildings,
+    inWater(areas),
+    start.road,
+  )
   const junctions = graph.degree.flatMap((d, n) =>
     d >= 3 ? [[graph.xy[2 * n]!, graph.xy[2 * n + 1]!] as const] : [],
   )

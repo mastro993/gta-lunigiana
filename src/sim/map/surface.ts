@@ -40,6 +40,8 @@ const COVER_SURFACE = {
   platform: "asphalt",
   ruins: "stone",
   pebble: "gravel",
+  river: "gravel", // a river polygon's bed, its gravel where the water leaves it
+  lake: "dirt", // a lake's silt
 } as const satisfies Record<Cover, Surface>
 
 /** The roads' OSM `surface` values; anything else is asphalt. */

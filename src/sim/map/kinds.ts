@@ -202,7 +202,7 @@ export const BUILDING_STYLES = [
 ] as const
 export type BuildingStyle = (typeof BUILDING_STYLES)[number]
 
-/** Land-use kinds the build emits. */
+/** Land-use kinds the build emits: land covers, a river's gravel (`pebble`) and its water (`river`, `lake`). */
 export const AREA_KINDS = [
   "forest",
   "cemetery",
@@ -224,12 +224,19 @@ export const AREA_KINDS = [
   "sparse",
   "scree",
   "scrub",
+  "pebble",
+  "river",
+  "lake",
 ] as const
 export type AreaKind = (typeof AREA_KINDS)[number]
 
 const areaKinds: ReadonlySet<string> = new Set(AREA_KINDS)
 /** Whether `kind` is one of AREA_KINDS. */
 export const isAreaKind = (kind: string): kind is AreaKind => areaKinds.has(kind)
+
+/** Whether an area of `kind` holds water: a river's polygon (its bed, as wide as it spreads) or a lake; a river's gravel (`pebble`) does not. */
+export const isWaterArea = (kind: string): kind is "river" | "lake" =>
+  kind === "river" || kind === "lake"
 
 /**
  * Track on no line, drawn and driven by no train: a loop rejoins other track at both ends

@@ -50,6 +50,8 @@ const COVER_LOOK = {
   platform: { base: PALETTE.asphaltWorn, alt: PALETTE.asphaltWorn, share: 0 },
   ruins: { base: PALETTE.stoneMid, alt: PALETTE.forest, share: 0.4 },
   pebble: { base: PALETTE.limestone, alt: PALETTE.marbleWhite, share: 0.4 },
+  river: { base: PALETTE.limestone, alt: PALETTE.marbleWhite, share: 0.4 },
+  lake: { base: PALETTE.dirtTrack, alt: PALETTE.stoneMid, share: 0.4 },
 } as const satisfies Record<Cover, CoverLook>
 
 const PATCH = 4 // cells between noise lattice points: variant patches are blobs of ~16 m, not single cells

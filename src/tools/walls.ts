@@ -1,16 +1,17 @@
 // Collision walls: outlines of the blocked 4 m cells in the play area (steep ground, and apart the
-// water's edge; marching squares, simplified, <= 16 m pieces) plus building edges, barriers, the
-// play area's outline and road-exit caps. Flat (ax, ay, bx, by) arrays.
-import { staticGrid } from "../sim/collide.ts"
-import type { Barrier } from "../sim/map/index.ts"
-import { isDrivable, isMotorRoad } from "../sim/map/kinds.ts"
+// water's edge: the lines' beds and the lakes' and river polygons' cells; marching squares,
+// simplified, <= 16 m pieces) plus building edges, barriers, the play area's outline and road-exit
+// caps. Flat (ax, ay, bx, by) arrays.
+import { fillPolygon, staticGrid } from "../sim/collide.ts"
+import type { Area, Barrier } from "../sim/map/index.ts"
+import { isDrivable, isMotorRoad, isWaterArea } from "../sim/map/kinds.ts"
 import type { Rings } from "../sim/map/outline.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
 import { flatRing, pointInRing, r1, ringBox, segDist2, segIndex, signedArea } from "./geometry.ts"
 import { gridTiles } from "./grid-tiles.ts"
 import { simplifyLoop, traceLoops } from "./loops.ts"
 import { inPlay, OUTLINE } from "./play-area.ts"
-import { cellSlope, type Grid } from "./terrain.ts"
+import { anchorNode, cellSlope, type Grid } from "./terrain.ts"
 
 const RUN = 16 // max wall segment length, m
 const WALK_SLOPE = 35,
@@ -294,7 +295,7 @@ const pushBuilding = (outs: ReadonlyArray<Array<number>>, b: BuildingF, arches: 
 interface Walls {
   /** What stops anyone on foot: buildings, steep ground, barriers, the play area's outline. */
   readonly walk: Array<number>
-  /** The water's edge, which people and animals keep to by choice (none where a road crosses). */
+  /** The water's edge (the lines' beds, the lakes and river polygons), which people and animals keep to by choice (none where a road crosses). */
   readonly shore: Array<number>
   /** What stops a vehicle: `walk`'s plus slopes over 25°, guard rails, parapets and road-exit caps; water is no wall. */
   readonly drive: Array<number>
@@ -311,7 +312,14 @@ export const buildWalls = (
   water: ReadonlyArray<WaterF>,
   buildings: ReadonlyArray<BuildingF>,
   barriers: ReadonlyArray<Barrier>,
+  areas: ReadonlyArray<Area>,
 ): Walls => {
+  // The lakes' and river polygons' cells are water too: those whose centre each fills, as the
+  // land cover paints them.
+  const pools = areas
+    .filter((a) => isWaterArea(a.kind))
+    .map((a) => ({ rings: a.rings, box: ringBox(a.rings[0]!) }))
+  const [ai, aj] = anchorNode(g)
   const wet = segIndex<null>(),
     banks = segIndex<null>()
   for (const w of water) {
@@ -319,6 +327,10 @@ export const buildWalls = (
     // Carved banks of the larger streams are steep by construction and stay open: the way out of the water.
     if (w.w >= 4) banks.addLine(w.pts, w.bed + 2 * g.cell, null)
   }
+  // So are a river polygon's, carved to its river's floor; a lake's bed only shelves.
+  for (const a of areas)
+    if (a.kind === "river")
+      for (const ring of a.rings) banks.addLine([...ring, ring[0]!, ring[1]!], 2 * g.cell, null)
   // Road buffers are measured from cell centres; walls sit midway between centres (half a cell) and may
   // move SLACK when simplified, so pad the buffers by both to keep every wall at least w/2 from the centreline.
   const pad = g.cell / 2 + SLACK
@@ -351,6 +363,22 @@ export const buildWalls = (
         )
           raw[(j - rj0) * rw + i - ri0] = (slope > WALK_SLOPE ? 1 : 0) | 2
       }
+    const inArea = new Uint8Array((ci1 - ci0) * (cj1 - cj0))
+    for (const { rings, box } of pools)
+      if (
+        box[2] >= g.x0 + ci0 * g.cell &&
+        box[0] <= g.x0 + ci1 * g.cell &&
+        box[3] >= g.y0 + cj0 * g.cell &&
+        box[1] <= g.y0 + cj1 * g.cell
+      )
+        fillPolygon(
+          rings,
+          g.ax,
+          g.ay,
+          g.cell,
+          { c0: ci0 - ai, r0: cj0 - aj, cols: ci1 - ci0, rows: cj1 - cj0 },
+          (k) => (inArea[k] = 1),
+        )
     for (let j = cj0; j < cj1; j++)
       for (let i = ci0; i < ci1; i++) {
         // Majority-filtered (3x3, clamped to the grid) so the walls follow slopes, not single-cell bumps.
@@ -372,7 +400,7 @@ export const buildWalls = (
         const k = j * cw + i,
           x = g.x0 + (i + 0.5) * g.cell,
           y = g.y0 + (j + 0.5) * g.cell
-        const water = wet.covers(x, y)
+        const water = wet.covers(x, y) || inArea[(j - cj0) * (ci1 - ci0) + i - ci0] === 1
         // Outside the play area the outline walls stop everyone: its cells stay open.
         if ((!water && !steepDrive && !steepWalk) || !inPlay(x, y)) continue
         let walkRoad = false,

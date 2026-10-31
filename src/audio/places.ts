@@ -136,6 +136,8 @@ const AMBIENCE = {
   platform: "built",
   ruins: "open",
   pebble: "none",
+  river: "none",
+  lake: "none",
 } as const satisfies Record<Cover, keyof Ambience | "none">
 
 /** Where each share of `Ambience` is kept in a block. */

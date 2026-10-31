@@ -263,16 +263,14 @@ export const extractWater = (
   ground: (x: number, y: number) => number,
   clip: Clip = toPlay,
 ): Array<WaterF> => {
-  const isBank = (tags: Tags) =>
-    tags.waterway === "riverbank" || (tags.natural === "water" && tags.water === "river")
   const banks =
     REGION.id === "cesena"
       ? [
           ...[...osm.ways.values()]
-            .filter((way) => isBank(way.tags) && closed(way))
+            .filter((way) => isRiverBank(way.tags) && closed(way))
             .map((way) => vertices(osm, way.nds)),
           ...[...osm.relations.values()]
-            .filter((relation) => isBank(relation.tags))
+            .filter((relation) => isRiverBank(relation.tags))
             .flatMap((relation) =>
               assembleRings(osm, relation, "outer").map((ring) => vertices(osm, ring)),
             ),
@@ -556,6 +554,19 @@ const LANDUSE = [
 const landuses: ReadonlySet<string> = new Set(LANDUSE)
 const isLanduse = (landuse: string): landuse is (typeof LANDUSE)[number] => landuses.has(landuse)
 
+/** The `water` values of still water; an untagged `natural=water` is still water too. */
+const STILL: ReadonlySet<string> = new Set(["lake", "reservoir", "pond", "basin"])
+
+/** Whether OSM draws a river's water as a polygon (its banks): `waterway=riverbank`, or `natural=water` + `water=river`. */
+const isRiverBank = (t: Tags): boolean =>
+  t.waterway === "riverbank" || (t.natural === "water" && t.water === "river")
+
+/** A lake's surface from its `ele` tag (m, whole decimetres), if it has a number. */
+const eleOf = (kind: AreaKind, t: Tags): { readonly level?: number } => {
+  const ele = Number.parseFloat(t.ele ?? "")
+  return kind === "lake" && Number.isFinite(ele) ? { level: r1(ele) } : {}
+}
+
 const areaKind = (t: Tags): AreaKind | undefined => {
   if (t.landuse !== undefined && isLanduse(t.landuse)) return t.landuse
   if (t.highway === "pedestrian" && t.area === "yes") return "paved"
@@ -572,7 +583,10 @@ const areaKind = (t: Tags): AreaKind | undefined => {
     return "grassland"
   if (t.natural === "wood") return "forest"
   if (t.natural === "bare_rock" || t.natural === "rock") return "rock"
-  if (t.natural === "scree" || t.natural === "shingle") return "scree" // mostly ravaneti, the quarries' marble waste
+  if (isRiverBank(t)) return "river"
+  if (t.natural === "water" && (t.water === undefined || STILL.has(t.water))) return "lake"
+  if (t.natural === "shingle") return "pebble" // a river's gravel
+  if (t.natural === "scree") return "scree" // mostly ravaneti, the quarries' marble waste
   if (t.natural === "scrub" || t.natural === "heath") return "scrub"
   return undefined
 }
@@ -589,7 +603,12 @@ export const extractAreas = (osm: Osm): Array<Area> => {
     if (kind === undefined || w.tags.building !== undefined || !closed(w)) continue
     const ring = flatRing(clipRing(ringOf(osm, w.nds), TERRAIN_BOX), true)
     if (ring !== undefined)
-      areas.push({ kind, ...(w.tags.name ? { name: w.tags.name } : {}), rings: [ring] })
+      areas.push({
+        kind,
+        ...(w.tags.name ? { name: w.tags.name } : {}),
+        rings: [ring],
+        ...eleOf(kind, w.tags),
+      })
   }
   for (const rel of osm.relations.values()) {
     const kind = areaKind(rel.tags)
@@ -608,6 +627,7 @@ export const extractAreas = (osm: Osm): Array<Area> => {
         kind,
         ...(rel.tags.name ? { name: rel.tags.name } : {}),
         rings: [ring, ...holes],
+        ...eleOf(kind, rel.tags),
       })
     }
   }

@@ -38,6 +38,8 @@ export interface RibbonSpec {
   readonly flowing?: ReadonlyArray<Flowing>
   /** Leaves out the quads whose centreline midpoint (map x, y) it holds: the track where a road crosses it. */
   readonly skip?: (x: number, y: number) => boolean
+  /** Leaves out the quads all four of whose corners (map x, y) it holds: a river's ribbon where a lake or river polygon draws the water. */
+  readonly cover?: (x: number, y: number) => boolean
 }
 
 const { minX, minY, maxX, maxY } = MAP.bounds
@@ -173,6 +175,14 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
     if (spec.skip?.(mx, my) === true) continue
     const [lx0, ly0, lh0, rx0, ry0, rh0] = edges[i]!,
       [lx1, ly1, lh1, rx1, ry1, rh1] = edges[i + 1]!
+    if (
+      spec.cover !== undefined &&
+      spec.cover(lx0, ly0) &&
+      spec.cover(rx0, ry0) &&
+      spec.cover(lx1, ly1) &&
+      spec.cover(rx1, ry1)
+    )
+      continue
     // Right edge forward, then left edge back: counter-clockwise seen from above.
     const sink = at(mx, my)
     if (flowing === undefined)

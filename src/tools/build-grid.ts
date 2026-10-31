@@ -1,7 +1,9 @@
 // The terrain grid, built one 2 km tile at a time: on each tile's window of nodes the LiDAR is
-// averaged, the beds carved under the water as first settled, the road and rail claims written in
-// the build's order, the beds carved again under the water kept below the decks (outside the road
-// cores), the terrain under each water sample read for the perched check, the grid rounded to
+// averaged, the lakes and river polygons carved (water-areas.ts) and the beds under the water as
+// first settled, the road and rail claims written in the build's order (never on the water), the
+// river polygons (their gravel bars raised now) and the beds (outside the road cores) carved again
+// under the water kept below the decks, the terrain under each water sample read for the perched
+// check, the grid rounded to
 // 0.1 m and the rail bed levelled. Each of those writes a node from that node alone (its own value,
 // position, owner and the vectors), so a window needs no halo, and a node two tiles share comes out
 // the same in both: the pass checks it.
@@ -12,6 +14,7 @@ import { cellTile, gridTiles } from "./grid-tiles.ts"
 import { replayClaims, ROAD_RANKS, type Claim } from "./profiles.ts"
 import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { gridLattice, sampleGrid, type Grid, type Profile } from "./terrain.ts"
+import { carveAreas, waterNodes, type CarvedArea } from "./water-areas.ts"
 import { carveAll } from "./water.ts"
 
 /** What the tile pass reads. */
@@ -22,6 +25,8 @@ interface GridInput {
   /** The water's surfaces as first settled, and as kept under the decks (`capUnderDecks`). */
   readonly wp0: ReadonlyArray<Profile>
   readonly wp: ReadonlyArray<Profile>
+  /** The lakes and river polygons. */
+  readonly areas: ReadonlyArray<CarvedArea>
   /** The road and rail profiles' claims, in the order they were made. */
   readonly claims: ReadonlyArray<Claim>
   /** The at-grade rail as shipped, and the level crossings' nodes. */
@@ -36,7 +41,7 @@ interface GridInput {
  * The finished grid, the uncarved one (the catchments read it), the carved grid before its rounding
  * under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed moved.
  */
-export const tileByTile = ({ dem, water, wp0, wp, claims, rail, levels }: GridInput) => {
+export const tileByTile = ({ dem, water, wp0, wp, areas, claims, rail, levels }: GridInput) => {
   const lattice = gridLattice()
   const size = lattice.cols * lattice.rows
   const uncarved: Grid = { ...lattice, z: new Float64Array(size) },
@@ -64,17 +69,20 @@ export const tileByTile = ({ dem, water, wp0, wp, claims, rail, levels }: GridIn
     const win = dem.grid(tile.span)
     for (let r = 0; r < rows; r++)
       uncarved.z.set(win.z.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
+    carveAreas(win, areas, water, wp0, false)
     carveAll(win, water, wp0)
-    const protect = new Uint8Array(cols * rows),
+    const protect = waterNodes(win, areas),
       owner = new Uint8Array(cols * rows).fill(255)
     for (let k = 0; k < protect.length; k++)
-      protect[k] = wet.covers(
-        lattice.x0 + (i0 + (k % cols)) * lattice.cell,
-        lattice.y0 + (j0 + Math.floor(k / cols)) * lattice.cell,
-      )
-        ? 1
-        : 0
+      if (protect[k] === 0)
+        protect[k] = wet.covers(
+          lattice.x0 + (i0 + (k % cols)) * lattice.cell,
+          lattice.y0 + (j0 + Math.floor(k / cols)) * lattice.cell,
+        )
+          ? 1
+          : 0
     replayClaims(win, claims, owner, protect)
+    carveAreas(win, areas, water, wp, true)
     carveAll(win, water, wp, (k) => owner[k] !== 255)
     const own = samples.get(tile.key) ?? []
     for (let m = 0; m < own.length; m += 2) {
