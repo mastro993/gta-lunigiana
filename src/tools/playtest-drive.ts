@@ -1,9 +1,9 @@
 // The playtest bot's drive mode, apart from its CDP plumbing: the default route (the SP59 from
-// Monzone to Vinca, chained from the global map file), the page script that teleports the player
-// along a route every animation frame, and the report it makes of the frames (the frame statistics
-// heap mode shares). src/tools/playtest.ts runs it.
+// Monzone to Vinca, chained from the map on disk, joined from its tiles), the page script that
+// teleports the player along a route every animation frame, and the report it makes of the frames
+// (the frame statistics heap mode shares). src/tools/playtest.ts runs it.
 import { TILE } from "../sim/map/kinds.ts"
-import { decodeMap, MAP_URL, readMapFile } from "../sim/map/packed.ts"
+import { wholeMap } from "./map-file.ts"
 
 /** The slowest of `deltas` and its 99th percentile (nearest rank), in their unit; 0 for none. */
 export const frameStats = (deltas: ReadonlyArray<number>): { slowest: number; p99: number } => {
@@ -66,9 +66,9 @@ export const chainRoad = (
   }
 }
 
-/** The default drive: the SP59 from its end nearest the player's start (by Monzone) to Vinca (its district), chained from the global map file on disk. */
+/** The default drive: the SP59 from its end nearest the player's start (by Monzone) to Vinca (its district), chained from the map on disk, whole (its lines are in the tiles). */
 export const defaultRoute = (): Array<number> => {
-  const map = decodeMap(readMapFile(MAP_URL))
+  const map = wholeMap()
   const vinca = map.districts.find((d) => d.name === "Vinca")
   if (vinca === undefined) throw new Error("the map has no Vinca district: no default drive")
   const sp59 = map.roads.filter((road) => road.ref === "SP59").map((road) => road.pts)
