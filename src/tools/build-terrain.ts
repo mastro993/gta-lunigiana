@@ -19,9 +19,18 @@ import {
   r1,
   type V,
 } from "./geometry.ts"
-import { chainsOf, lifted, makeProfiler, type Linear } from "./profiles.ts"
+import {
+  chainsOf,
+  EXTRA_RANK,
+  lifted,
+  makeProfiler,
+  RAIL_PASS,
+  ROAD_PASSES,
+  type Linear,
+} from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
+import { roadLevels } from "./road-levels.ts"
 import { sampleGrid } from "./terrain.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
@@ -58,11 +67,12 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   })
   const widest = (chain: ReadonlyArray<{ readonly item: RoadF }>) =>
     Math.max(...chain.map((m) => m.item.w))
-  const ofClass = (...cls: ReadonlyArray<string>) => roads.filter((r) => cls.includes(r.cls))
+  const ofClass = (cls: ReadonlyArray<string>) => roads.filter((r) => cls.includes(r.cls))
   // The rail goes first (its grade limit is the strictest; roads dip under it and meet it at level
-  // crossings), then roads by class. Ranks decide grid cells: tertiary 0 beats rail 1 beats the rest.
+  // crossings), then roads by class (ROAD_PASSES). Ranks decide grid cells: the main roads beat
+  // the rail, and the rail beats the rest.
   for (const ch of grown(chainsOf(rail)))
-    profile(ch, { w: 4, rank: 1, grade: 0.025, half: 100, tol: RAIL_TOL }, railBounds(ch))
+    profile(ch, { w: 4, ...RAIL_PASS, tol: RAIL_TOL }, railBounds(ch))
   // The tracks only the CTR has lie level with the line; a road crossing one is pinned to it there.
   const extraZ = extraLevels(
     extra,
@@ -73,15 +83,17 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     zOf.set(piece, z)
     denseOf.set(piece, dense)
   }
-  for (const ch of grown(chainsOf(ofClass("tertiary"))))
-    profile(ch, { w: widest(ch), rank: 0, grade: 0.1, half: 20 }, roadBounds(ch))
-  for (const ch of grown(chainsOf(ofClass("unclassified", "residential"))))
-    profile(ch, { w: widest(ch), rank: 2, grade: 0.15, half: 20 }, roadBounds(ch))
-  for (const ch of grown(chainsOf(ofClass("service", "track"))))
-    profile(ch, { w: widest(ch), rank: 3, grade: 0.2, half: 20 }, roadBounds(ch))
-  // The extra tracks take only the cells no road took (rank 4).
+  // A road crossing another on two levels keeps the clearance under it (road-levels.ts).
+  const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
+  for (const { classes, rank, grade, half } of ROAD_PASSES)
+    for (const ch of grown(chainsOf(ofClass(classes))))
+      profile(ch, { w: widest(ch), rank, grade, half }, [
+        ...roadBounds(ch),
+        ...overpasses.bounds(ch),
+      ])
+  // The extra tracks take only the cells no road took.
   for (const [piece, { profile: p }] of extraZ)
-    if (piece.bridge !== true) claim(p, 4, 4, () => false)
+    if (piece.bridge !== true) claim(p, 4, EXTRA_RANK, () => false)
   lap("roads")
 
   /**

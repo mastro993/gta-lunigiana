@@ -39,7 +39,7 @@ const LUNIGIANA = 198 / 733
 const SHARE: Readonly<Record<string, number>> = { monzone: LUNIGIANA, cesena: 198 / 1223 }
 const share = SHARE[MAP.name] ?? LUNIGIANA
 /**
- * A spot's car is a marble truck when its roll is under this, on a tertiary road's spot where a truck fits; an Ape when it is at
+ * A spot's car is a marble truck when its roll is under this, on a primary, secondary or tertiary road's spot where a truck fits; an Ape when it is at
  * least `APE`, where an Ape stands level; else a Panda.
  */
 const TRUCK = 0.1
@@ -51,8 +51,10 @@ const CARABINIERI_BLUE = 0x1d2b4f
 const SPOTS = MAP.spawns.parked
 /** Whether `model` stands level enough on `spot` to park there (the build baked its rest: src/sim/parking.ts). */
 const level = (model: VehicleModel, spot: ParkedSpot): boolean => spot.rest[model] !== undefined
-const onTertiary = (s: Vec2.Vec2) =>
-  roadClassOf(roadOf(trafficIndex.nearest(s.x, s.y))) === "tertiary"
+/** The kerbs a marble truck parks by: the main roads with parked spots (spawns.ts parks none by a motorway or trunk road). */
+const TRUCK_KERBS: ReadonlySet<string> = new Set(["primary", "secondary", "tertiary"])
+const onMainRoad = (s: Vec2.Vec2) =>
+  TRUCK_KERBS.has(roadClassOf(roadOf(trafficIndex.nearest(s.x, s.y))))
 
 const police = MAP.spawns.police
 /** The two spots nearest the Carabinieri station the build chose where a Carabinieri car stands level: theirs, never a civilian's. */
@@ -88,7 +90,7 @@ export const carOn = (seed: number, index: number): ParkedLook | undefined => {
   if (random.next() >= share) return undefined
   const roll = random.next()
   const model =
-    roll < TRUCK && spot.truck === true && onTertiary(spot)
+    roll < TRUCK && spot.truck === true && onMainRoad(spot)
       ? "truck"
       : roll >= APE && level("ape", spot)
         ? "ape"

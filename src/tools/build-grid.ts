@@ -9,7 +9,7 @@ import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
 import { segIndex } from "./geometry.ts"
 import { cellTile, gridTiles } from "./grid-tiles.ts"
-import { replayClaims, type Claim } from "./profiles.ts"
+import { replayClaims, ROAD_RANKS, type Claim } from "./profiles.ts"
 import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { gridLattice, sampleGrid, type Grid, type Profile } from "./terrain.ts"
 import { carveAll } from "./water.ts"
@@ -83,10 +83,9 @@ export const tileByTile = ({ dem, water, wp0, wp, claims, rail, levels }: GridIn
       perched[own[m]!]![k] = sampleGrid(win, p.x[k]!, p.y[k]!)
     }
     for (let k = 0; k < win.z.length; k++) win.z[k] = Math.round(win.z[k]! * 10) / 10
-    // A road's core (ranks 0, 2, 3) and a wide stream's bed keep their level; the rail's and the
-    // extra tracks' cells (1, 4) and open ground may be raised.
-    const keep = (k: number) =>
-      protect[k] === 1 || owner[k] === 0 || owner[k] === 2 || owner[k] === 3
+    // A road's core (ROAD_RANKS) and a wide stream's bed keep their level; the rail's and the extra
+    // tracks' cells and open ground may be raised.
+    const keep = (k: number) => protect[k] === 1 || ROAD_RANKS.has(owner[k]!)
     for (const [n, dz] of railBed(win, limits, keep)) moved.set(n, dz)
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++) {

@@ -10,7 +10,7 @@ import { Ops, type Random } from "@typeonce/ritmo-math"
 
 import { edgeIndex } from "./edges.ts"
 import { type Lane, laneOf, peel, roadOf, type Step, stepKey } from "./lanes.ts"
-import { graph, MAP, roadClassOf, type Road, vergeOf } from "./map/index.ts"
+import { graph, MAP, roadClassOf, type Road, type RoadClass, vergeOf } from "./map/index.ts"
 import { residentsAlong } from "./population/density.ts"
 import { VEHICLE_MODELS, type VehicleModel } from "./vehicles.ts"
 
@@ -53,11 +53,19 @@ export const endNode = (edge: number, forward: boolean): number =>
 /** Pedestrians keep to the verge of roads and to the middle of paths, steps and tracks, or where the road's `verge` says (off the railway). */
 export const walkSide = (road: Road): number => road.verge ?? vergeOf(roadClassOf(road), road.w)
 
-/** Cruising speed of AI traffic by road class, m/s. */
-export const cruiseSpeed = (road: Road): number => {
-  const cls = roadClassOf(road)
-  return cls === "tertiary" ? 12 : cls === "unclassified" ? 9 : cls === "residential" ? 7 : 5
+/** Cruising speed of AI traffic by road class, m/s (service roads and the rest: 5). */
+const CRUISE: Readonly<Partial<Record<RoadClass, number>>> = {
+  motorway: 30,
+  trunk: 25,
+  primary: 16,
+  secondary: 14,
+  tertiary: 12,
+  unclassified: 9,
+  residential: 7,
 }
+
+/** Cruising speed of AI traffic on `road`, m/s (`CRUISE`). */
+export const cruiseSpeed = (road: Road): number => CRUISE[roadClassOf(road)] ?? 5
 
 const walkSet: ReadonlySet<number> = new Set(graph.walkEdges)
 

@@ -6,7 +6,7 @@
  * @module render/lines
  */
 import { ROAD_LIFT } from "../sim/map/ground.ts"
-import { MAP, roadClassOf, type Road } from "../sim/map/index.ts"
+import { LANE, MAP, roadClassOf, type Road, type RoadClass, SHOULDER } from "../sim/map/index.ts"
 import { channelOf, reachOf } from "../sim/water/channel.ts"
 import type { Flowing, Piece, SinkAt } from "./geometry.ts"
 import { surfaceY, yOf } from "./ground.ts"
@@ -57,10 +57,42 @@ export const roadHex = (road: Road): number => {
   }
 }
 
-/** Old masonry for small and historic bridges, concrete for the provincial roads. */
+/** The classes with painted lines and concrete bridges: the main and provincial roads. */
+const MARKED: ReadonlySet<RoadClass> = new Set([
+  "motorway",
+  "trunk",
+  "primary",
+  "secondary",
+  "tertiary",
+])
+
+/** Old masonry for small and historic bridges, concrete for the main, provincial and unclassified roads. */
 const bridgeHex = (road: Road): number => {
   const cls = roadClassOf(road)
-  return cls === "tertiary" || cls === "unclassified" ? PALETTE.plasterGrey : PALETTE.stoneMid
+  return MARKED.has(cls) || cls === "unclassified" ? PALETTE.plasterGrey : PALETTE.stoneMid
+}
+
+/**
+ * The white lines painted along a main road, m right of its centreline (drive on the right): a
+ * two-way road's dashed centre line; on a oneway carriageway the dashed lines between its LANE-wide
+ * lanes, laid from its right edge, and a motorway's solid line along its hard shoulder.
+ */
+export const roadLines = (
+  road: Road,
+): Array<{ readonly right: number; readonly dashed: boolean }> => {
+  const cls = roadClassOf(road)
+  if (!MARKED.has(cls)) return []
+  if (road.oneway !== true) return [{ right: 0, dashed: true }]
+  const shoulder = cls === "motorway" ? SHOULDER : 0,
+    edge = road.w / 2 - shoulder,
+    lanes = Math.floor((road.w - shoulder) / LANE + 1e-9)
+  return [
+    ...(shoulder > 0 ? [{ right: edge, dashed: false }] : []),
+    ...Array.from({ length: Math.max(0, lanes - 1) }, (_, k) => ({
+      right: edge - (k + 1) * LANE,
+      dashed: true,
+    })),
+  ]
 }
 
 /** A piece drawing the deck under a bridge whose deck top is `y(k)` at vertex k (roads here, the track in rail.ts). */
@@ -71,7 +103,7 @@ export const deck = (
   hex: number,
 ): Piece => ({ pts, draw: (at, k0, k1) => bridge(at, pts, y, width, hex, k0, k1) })
 
-/** Roads (with centre dashes on the provincial roads and decks on bridges); tunnels are not drawn. */
+/** Roads (with their painted lines on the main and provincial roads, `roadLines`, and decks on bridges); tunnels are not drawn. */
 const roads = (): Array<Piece> =>
   MAP.roads.flatMap((road) => {
     if (road.tunnel === true) return []
@@ -87,17 +119,17 @@ const roads = (): Array<Piece> =>
         y: (x, y, z) => surfaceY(z, x, y, lift, lifted),
       },
     ]
-    if (cls === "tertiary") {
+    for (const { right, dashed } of roadLines(road))
       specs.push({
         ...line,
         width: 0.25,
         hex: PALETTE.marbleWhite,
-        dash: 3,
+        offset: -right,
+        ...(dashed ? { dash: 3 } : {}),
         y: (x, y, z) => surfaceY(z, x, y, lift + 0.02, lifted),
         // Not under a level crossing's panels, which lie as high over the road (render/rail).
         skip: underPanel,
       })
-    }
     return [
       strips(line, specs),
       ...(lifted ? [deck(road.pts, (k) => yOf(road.z[k]!) + lift, road.w, bridgeHex(road))] : []),

@@ -6,6 +6,7 @@
 import type { RailF, RoadF, WaterF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, type V } from "./geometry.ts"
 import type { Bound, Linear } from "./profiles.ts"
+import { DECK, naturalAt, UNDERPASS } from "./road-levels.ts"
 import type { Profile } from "./terrain.ts"
 
 /** What the bounds are read from: the rail, the roads, the water with its surface profiles, the uncarved ground, and each profiled line's z at arc length s. */
@@ -20,11 +21,9 @@ interface LevelsInput {
 
 /** The rail's crossings with the roads (`railRoad`: rail over road, `roadRail`: road bridge over rail, `levels`: level crossings) and the bounds they put on road and rail profiles. */
 export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInput) => {
-  const RAIL_DECK = 1.5 // rail bridge structure above an underpass's clear height, m
   // Rail bed to the surface of a road bridge over it, m: the rail head 0.12, the ATR 220's 4.185 m,
   // 0.3 m of clearance and the 0.9 m deck the render draws under a road bridge.
   const UNDER_ROAD = 5.5
-  const UNDERPASS = 4 // clear height of an untagged underpass, m
   const RAIL_OVER_WATER = 3 // minimum rail height over the river it bridges, m (more fights the station level crossing 25 m away)
   // Water at least this wide (m) is a river the rail bridges high; under the CTR's short bridges over
   // narrower streams the line keeps its level (the water dips under the deck, water.ts).
@@ -50,7 +49,7 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
           rl,
           rd,
           c,
-          clear: (rd.maxheight ?? UNDERPASS) + RAIL_DECK,
+          clear: (rd.maxheight ?? UNDERPASS) + DECK,
           tagged: rd.maxheight !== undefined,
         }))
     }),
@@ -74,26 +73,6 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
         ),
   )
   type Chain = ReadonlyArray<{ readonly item: Linear }>
-  /** Mean uncarved ground along `l` within 35 m (arc length) of `s`: a road's natural level before it is profiled. */
-  const naturalAt = (l: Linear, s: number) => {
-    const ss = arcLengths(l.pts)
-    let sum = 0,
-      n = 0
-    for (let d = Math.max(0, s - 35); d <= Math.min(ss.at(-1)!, s + 35); d += 2, n++)
-      sum += ground(
-        along(
-          ss,
-          l.pts.map((v) => v.x),
-          d,
-        ),
-        along(
-          ss,
-          l.pts.map((v) => v.y),
-          d,
-        ),
-      )
-    return sum / Math.max(1, n)
-  }
   /** Roads under the rail stay at least that far below it, and a road bridge over it UNDER_ROAD above. */
   const roadBounds = (chain: Chain): Array<Bound> => [
     ...railRoad
@@ -123,7 +102,7 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
     return byPiece.flat()
   })()
   /**
-   * The rail stays at least maxheight + RAIL_DECK over the natural level of a tagged underpass (a
+   * The rail stays at least maxheight + DECK over the natural level of a tagged underpass (a
    * sign gives the least clearance: the Via delle Cave deck stands 1.1–3.3 m higher, and pinning
    * the rail to it held the line 2.7 m under its bed for 1.9 km), UNDER_ROAD under a road bridge's
    * deck, and RAIL_OVER_WATER above the river it bridges.
@@ -134,7 +113,7 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
       .map((x) => ({
         x: x.c.x,
         y: x.c.y,
-        z: naturalAt(x.rd, x.c.sb) + x.clear,
+        z: naturalAt(ground, x.rd, x.c.sb) + x.clear,
         kind: "min" as const,
       })),
     ...roadRail

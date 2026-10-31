@@ -12,10 +12,12 @@ import { Ops } from "@typeonce/ritmo-math"
 import { carCircles, carRadius, clearOf } from "./body.ts"
 import {
   graph,
+  isMotorRoad,
   laneOffset,
   MAP,
   roadClassOf,
   type Road,
+  type RoadClass,
   type Segment,
   wallsNear,
 } from "./map/index.ts"
@@ -53,15 +55,21 @@ export const lanePoint = (lane: Lane, along: number, side: number) => ({
   y: lane.y + lane.dy * along + lane.ry * side,
 })
 
-/** Drive on the right: the nominal traffic lane offset for a road. */
-const trafficSide = (road: Road): number => laneOffset(road.w)
+/** The classes trucks may drive: the main roads and unclassified ones (lanes through the village arches are too narrow). */
+const TRUCK_CLASSES: ReadonlySet<RoadClass> = new Set([
+  "motorway",
+  "trunk",
+  "primary",
+  "secondary",
+  "tertiary",
+  "unclassified",
+])
 
-/** Trucks keep to the wide roads (lanes through the village arches are too narrow). */
-const classAllows = (edge: number, model: VehicleModel): boolean => {
-  if (model !== "truck") return true
-  const cls = roadClassOf(roadOf(edge))
-  return cls === "tertiary" || cls === "unclassified"
-}
+/** Trucks keep to the wide roads; the Ape 50, a moped, keeps off motor roads (`isMotorRoad`, art. 175). */
+const classAllows = (edge: number, model: VehicleModel): boolean =>
+  model === "truck"
+    ? TRUCK_CLASSES.has(roadClassOf(roadOf(edge)))
+    : model !== "ape" || !isMotorRoad(roadOf(edge))
 
 /** A choice of edge and direction leaving a node. */
 export interface Step {
@@ -209,7 +217,7 @@ const lanesFor = (model: VehicleModel): Float64Array => {
     // Samples every LANE_SAMPLE m over the middle 80%: the same points travelled either way.
     const samples = Math.max(2, Math.ceil((graph.edges[edge]!.length * 0.8) / LANE_SAMPLE))
     const at = (lane: Lane, i: number) => lane.length * (0.1 + (0.8 * i) / samples)
-    const nominal = trafficSide(roadOf(edge))
+    const nominal = laneOffset(roadOf(edge))
     const ab = laneOf(edge, true)
     // Every wall `freeWidth` can meet within PASS_REACH, and every one a body circle can touch (half the body length out) at any side offset, with 1 m to spare.
     const walls = wallsBeside(edge, ab, Math.max(PASS_REACH, nominal + length / 2) + 1)

@@ -70,7 +70,12 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   const levelCrossings = crossingBoxes(crossingNodes, lines, shipped)
   const { verges, report: clearReport } = clearVerges({
     graph,
-    roads: roads.map((r, i) => ({ cls: r.cls, w: r.w, ...roadLines[i]! })),
+    roads: roads.map((r, i) => ({
+      cls: r.cls,
+      w: r.w,
+      ...(r.oneway ? { oneway: true } : {}),
+      ...roadLines[i]!,
+    })),
     track: railLines.flatMap(({ r, pts, z }, i) =>
       kinds[i] === undefined && !lifted(r) ? [{ pts, z }] : [],
     ),

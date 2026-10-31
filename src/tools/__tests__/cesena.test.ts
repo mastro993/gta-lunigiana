@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { gunzipSync } from "node:zlib"
 
-import { TILE, tileKey } from "../../sim/map/kinds.ts"
+import { isMotorRoad, isTraffic, TILE, tileKey } from "../../sim/map/kinds.ts"
 import {
   decodeMap,
   decodeTile,
@@ -61,7 +61,7 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
   assert.ok(walk.circle(x, y, 1.2))
   assert.ok(clearance(start.drive, trees).circle(x, y, 1.2))
   const reachesStreet = map.roads.some((road) => {
-    if (!["tertiary", "unclassified", "residential", "service"].includes(road.cls)) return false
+    if (!isTraffic(road.cls) || isMotorRoad(road)) return false
     for (let index = 0; index + 3 < road.pts.length; index += 2) {
       const ax = road.pts[index]!,
         ay = road.pts[index + 1]!,

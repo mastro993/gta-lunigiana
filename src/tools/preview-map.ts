@@ -10,7 +10,8 @@ import { encodePngRgb } from "./png.ts"
 import { REGION } from "./region.ts"
 
 await loadBuiltMap(REGION)
-const { buildingStyleOf, graph, heightAt, isAreaKind, MAP } = await import("../sim/map/index.ts")
+const { buildingStyleOf, graph, heightAt, isAreaKind, MAP, ROAD_CLASSES } =
+  await import("../sim/map/index.ts")
 // The trees and walls live in the tiles: read them all, joined.
 const { trees, walls } = readWholeMap(builtMapUrl(REGION))
 
@@ -109,6 +110,10 @@ for (let i = 0; i + 2 < trees.length; i += 3)
   dot(trees[i]!, trees[i + 1]!, 0.9 * trees[i + 2]!, [20, 70, 30], 0.8)
 for (const w of MAP.water) polyline(w.pts, w.w / 2, [60, 120, 220])
 const ROAD = {
+  motorway: [230, 120, 60],
+  trunk: [240, 150, 70],
+  primary: [250, 190, 110],
+  secondary: [250, 215, 130],
   tertiary: [250, 240, 150],
   unclassified: [255, 255, 255],
   residential: [235, 235, 235],
@@ -117,15 +122,8 @@ const ROAD = {
   path: [200, 90, 60],
   steps: [200, 60, 60],
 } as const satisfies Record<RoadClass, RGB>
-const order: ReadonlyArray<RoadClass> = [
-  "path",
-  "steps",
-  "track",
-  "service",
-  "residential",
-  "unclassified",
-  "tertiary",
-]
+// Narrowest class first, so the main roads lie on top.
+const order = [...ROAD_CLASSES].reverse()
 for (const cls of order)
   for (const r of MAP.roads) {
     if (r.cls !== cls) continue

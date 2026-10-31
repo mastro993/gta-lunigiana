@@ -42,12 +42,15 @@ export {
   type BuildingStyle,
   isAreaKind,
   isDrivable,
+  isMotorRoad,
+  LANE,
   laneOffset,
   RAIL_KINDS,
   RAIL_LIFT,
   type RailKind,
   ROAD_CLASSES,
   type RoadClass,
+  SHOULDER,
   TILE,
   TRUNK,
   vergeOf,
@@ -116,9 +119,13 @@ export interface Road {
   readonly w: number
   readonly surface: string
   readonly oneway?: boolean
+  /** A motorway's or trunk road's slip road (OSM `motorway_link`, `trunk_link`): primary by class, but a motor road (`isMotorRoad`). */
+  readonly ramp?: boolean
   readonly bridge?: boolean
   readonly tunnel?: boolean
   readonly layer?: number
+  /** OSM `maxheight` of an underpass, m: the clear height it keeps under a bridge (4 m where untagged, road-levels.ts). */
+  readonly maxheight?: number
   /** Where people walk, m from the centreline on either side, when the build pulls the verge in off the railway beside it (else `vergeOf`). */
   readonly verge?: number
   /** The OSM vertices plus points on the OSM segments where the elevation profile bends (dips under the rail, crests). */
@@ -429,12 +436,12 @@ interface RoadGraph {
   /** node -> incident edge indices */
   readonly adjacency: ReadonlyArray<ReadonlyArray<number>>
   /**
-   * Edges AI cars may use: tertiary..service, public, one connected component. Where a lane
+   * Edges AI cars may use: motorway..service, public, one connected component. Where a lane
    * crosses a footprint the house is clipped to ~2.4 m around it, so keep vehicles wider than
-   * ~2.2 m on tertiary/unclassified roads (`lanesFor` in route.ts fits each model to the walls).
+   * ~2.2 m on the main and unclassified roads (`lanesFor` in lanes.ts fits each model to the walls).
    */
   readonly trafficEdges: ReadonlyArray<number>
-  /** Edges pedestrians may use: every class but tunnels, one connected component. */
+  /** Edges pedestrians may use: every road but motorways, trunk roads and their slip roads (`isMotorRoad`), out of tunnels, one connected component. */
   readonly walkEdges: ReadonlyArray<number>
 }
 

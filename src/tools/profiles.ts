@@ -1,6 +1,7 @@
 // Road and rail elevations for the map build: pieces chained through shared end nodes (bridges
 // and tunnels included), smoothed, grade-fitted through junction and crossing pins, then written
 // into the terrain grid (except under bridges and tunnels).
+import type { RoadClass } from "../sim/map/kinds.ts"
 import { arcLengths, type V } from "./geometry.ts"
 import {
   fitProfile,
@@ -80,7 +81,49 @@ export interface Bound {
   readonly y: number
   readonly z: number
   readonly kind?: "min" | "max"
+  /**
+   * Inside a bridge or tunnel, carry the bound to each end along the deck's slope (the profile's
+   * line between its ends before the fit) rather than pin both ends at `z`: the straight deck still
+   * keeps it where it applies, and a climbing tunnel's far portal stays at its level (pinned flat,
+   * a road over a 3% motorway tunnel 50 m from its low portal sank the high one 10.5 m underground).
+   */
+  readonly tilt?: true
 }
+
+/**
+ * The road passes after the rail's, in order: the classes each profiles, their rank (lower keeps a
+ * grid cell where two cores meet), grade limit and smoothing half-window (m). Motorways and trunk
+ * roads come first and keep their cells against every road and the rail (rank 0), with a gentle
+ * grade and the rail's long smoothing; primary and secondary share tertiary's pass and rank, so the
+ * SR445 keeps the profile it had as a tertiary road. Paths and steps are not profiled: they follow
+ * the terrain.
+ */
+export const ROAD_PASSES = [
+  { classes: ["motorway", "trunk"], rank: 0, grade: 0.06, half: 100 },
+  { classes: ["primary", "secondary", "tertiary"], rank: 1, grade: 0.1, half: 20 },
+  { classes: ["unclassified", "residential"], rank: 3, grade: 0.15, half: 20 },
+  { classes: ["service", "track"], rank: 4, grade: 0.2, half: 20 },
+] as const satisfies ReadonlyArray<{
+  readonly classes: ReadonlyArray<Exclude<RoadClass, "path" | "steps">>
+  readonly rank: number
+  readonly grade: number
+  readonly half: number
+}>
+
+/** The rail's pass, before every road's: its rank (it keeps its cells against all but the main roads), grade limit and smoothing half-window (m). */
+export const RAIL_PASS = { rank: 2, grade: 0.025, half: 100 } as const
+
+/** Rank of the tracks only the CTR has: written after every road, into the cells no road took. */
+export const EXTRA_RANK = 5
+
+/** The ranks the road passes write: a grid cell one of them owns is a road's core. */
+export const ROAD_RANKS: ReadonlySet<number> = new Set(ROAD_PASSES.map((p) => p.rank))
+
+/** Whether a road of `cls` keeps the grid cells under its core against the rail (its rank is lower). */
+export const beatsRail = (cls: string): boolean =>
+  ROAD_PASSES.some(
+    (p) => p.rank < RAIL_PASS.rank && (p.classes as ReadonlyArray<string>).includes(cls),
+  )
 
 /**
  * Road core half-width written into the grid, rank (lower wins at junctions), grade limit,
@@ -256,7 +299,9 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
       const z = v.id === undefined ? undefined : nodeZ.get(v.id)
       if (z !== undefined) pins.push({ k: p.vertexSample[i]!, z })
     })
-    // A bound inside a bridge or tunnel holds at both of its ends: the deck is straight between them.
+    // A bound inside a bridge or tunnel holds at both of its ends: the deck is straight between them
+    // (a `tilt` bound, shifted along the deck's slope).
+    const strictest = new Map<string, Pin>()
     for (const b of bounds) {
       let best = 0,
         d2 = Number.MAX_VALUE
@@ -268,9 +313,24 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
       const at = isLifted(i)
         ? [p.vertexSample[first[i]!]!, p.vertexSample[first[i]! + runs[i]!.length - 1]!]
         : [best]
-      for (const k of at)
-        pins.push({ k, z: b.z, ...(b.kind === undefined ? {} : { kind: b.kind }) })
+      const [k0, k1] = [at[0]!, at.at(-1)!],
+        t = k1 === k0 ? 0 : (p.s[best]! - p.s[k0]!) / (p.s[k1]! - p.s[k0]!),
+        deck = p.z[k0]! + (p.z[k1]! - p.z[k0]!) * t
+      for (const k of at) {
+        const z = b.tilt === true ? b.z + p.z[k]! - deck : b.z
+        if (b.kind === undefined) {
+          pins.push({ k, z })
+          continue
+        }
+        // Bounds of a kind on one sample (a deck's end, under several crossings) keep the strictest:
+        // the fit enforces one bound per sample.
+        const key = `${b.kind}:${k}`,
+          was = strictest.get(key)
+        if (was === undefined || (b.kind === "min" ? z > was.z : z < was.z))
+          strictest.set(key, { k, z, kind: b.kind })
+      }
     }
+    pins.push(...strictest.values())
     fitProfile(p, spec.grade, pins)
     // A sample's segment belongs to the piece whose first vertex precedes it; the last sample closes the last piece.
     // The core reaches half a cell past the carriageway's edge, so the terrain under the carriageway is (nearly) level across it.

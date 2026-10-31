@@ -15,7 +15,9 @@ import {
   buildingBoxes,
   isAreaKind,
   MAP,
+  ROAD_CLASSES,
   roadClassOf,
+  type RoadClass,
   TILE,
 } from "../sim/map/index.ts"
 import { tileKey } from "../sim/map/kinds.ts"
@@ -104,12 +106,27 @@ const boxes = () =>
     roads: MAP.roads.map((road) => boxOf(road.pts)),
   })
 
+/** The roads in the order they are painted: the narrow classes first, so the main roads lie on top at junctions and overpasses. */
+const ROAD_ORDER = MAP.roads
+  .map((road, k) => [ROAD_CLASSES.indexOf(roadClassOf(road)), k] as const)
+  .sort((a, b) => b[0] - a[0] || a[1] - b[1])
+  .map(([, k]) => k)
+
+/** The full map's least road width by class, px (the rest: 1.5), so the main roads stand out at a few pixels per hundred metres. */
+const OVERVIEW_MIN: Readonly<Partial<Record<RoadClass, number>>> = {
+  motorway: 3,
+  trunk: 3,
+  primary: 2.5,
+  secondary: 2.5,
+  tertiary: 2,
+}
+
 /** How `paintMap` places the map, and what it paints. */
 interface PaintOptions {
   /** The canvas pixel of the corner, px. */
   readonly ox?: number
   readonly oy?: number
-  /** The full map's look: roads light and at least 2 px (main roads) or 1.5 px wide. */
+  /** The full map's look: roads light (motorways and trunk roads yellow) and at least `OVERVIEW_MIN` px wide. */
   readonly overview?: boolean
   /** Paint only the features whose boxes reach this box, m (a tile's canvas); else all of them. */
   readonly within?: Box
@@ -120,8 +137,9 @@ interface PaintOptions {
  * map point `corner` (its west edge and north edge, m) at canvas pixel (ox, oy), on grass over the
  * play area and clipped to it (`MAP.outline`: the areas reach the built terrain's box, which an L's
  * notch lies in). Lines stay at least 1 px wide; those thinner than that at this scale fade instead.
- * `overview` (the full map) draws roads light and at least 2 px (main roads) or 1.5 px wide, so the
- * network reads at a few pixels per hundred metres.
+ * `overview` (the full map) draws roads light, motorways and trunk roads yellow, and at least
+ * `OVERVIEW_MIN` px wide, so the network reads at a few pixels per hundred metres. Roads are painted
+ * narrowest class first (`ROAD_ORDER`).
  */
 export const paintMap = (
   ctx: CanvasRenderingContext2D,
@@ -174,17 +192,24 @@ export const paintMap = (
   MAP.rail.forEach((r, k) => {
     if (r.tunnel !== true && reaches(layers?.rail[k])) stroke(r.pts, 2, PALETTE.stoneDark)
   })
-  MAP.roads.forEach((road, k) => {
-    const cls = roadClassOf(road)
-    if (road.tunnel === true || cls === "path" || !reaches(layers?.roads[k])) return
+  for (const k of ROAD_ORDER) {
+    const road = MAP.roads[k]!,
+      cls = roadClassOf(road)
+    if (road.tunnel === true || cls === "path" || !reaches(layers?.roads[k])) continue
     if (overview) {
-      ctx.strokeStyle = css(cls === "track" ? PALETTE.stoneLight : PALETTE.limestone)
-      ctx.lineWidth = Math.max(cls === "tertiary" ? 2 : 1.5, road.w * 1.6 * scale)
+      ctx.strokeStyle = css(
+        cls === "track"
+          ? PALETTE.stoneLight
+          : cls === "motorway" || cls === "trunk"
+            ? PALETTE.signYellow
+            : PALETTE.limestone,
+      )
+      ctx.lineWidth = Math.max(OVERVIEW_MIN[cls] ?? 1.5, road.w * 1.6 * scale)
       ctx.stroke(path(road.pts, false))
     } else {
       stroke(road.pts, road.w * 1.6, roadHex(road))
     }
-  })
+  }
   ctx.fillStyle = css(PALETTE.roofTile)
   MAP.buildings.forEach((b, k) => {
     if (reaches(buildingBoxes[k])) ctx.fill(path(b.outer, true))

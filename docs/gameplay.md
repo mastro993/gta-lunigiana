@@ -526,21 +526,33 @@ the 45 vehicles on the map in that time (23 at once) took any damage, at most 0.
 `TrafficAI` (`systems/traffic.ts`) drives the cars tagged `Traffic` on `graph.trafficEdges`, using
 the lane helpers in `src/sim/route.ts`.
 
-- **Keep right.** The lane offset is w/4 + 0.2 m on roads at least 5 m wide, otherwise 0.5 m. It
-  shrinks in 0.25 m steps where houses crowd the road, until the body clears the walls. Each model
-  has its own lane table, worked out at build time (`bakeLanes` in `src/sim/lanes.ts`) and kept in
-  the map file (`MAP.lanes`), since fitting it reads every drive wall along every traffic edge. A
-  model only uses edges where it fits, and where the drive walls across
-  the road leave room for it and an oncoming Panda plus 0.3 m (`PASS_MARGIN`): in single-file
-  lanes between houses two cars met head-on with no room to back out or turn round. It only uses
-  the largest connected part of those edges, so villages reached only by such lanes (Terma, Monte
-  dei Bianchi, Vezzanello) get no AI traffic; the player can still drive there. Trucks keep to
-  tertiary and unclassified roads and to the loops of that network, because they cannot turn round.
+- **Keep right.** On a two-way road the lane offset is w/4 + 0.2 m on roads at least 5 m wide,
+  otherwise 0.5 m. On a oneway road it is the middle of the rightmost lane, 3.5 m wide from the
+  carriageway's right edge (left of a motorway's 3 m hard shoulder), or the centreline where the
+  road is narrower than a lane (`laneOffset` in `src/sim/map/kinds.ts`): w/4 + 0.2 m put a car on an
+  11 m motorway's hard shoulder. In the Lucido valley this moved the lanes of its 8 oneway roads: a
+  5 m one's from 1.45 to 0.75 m right of the centreline, a 3.5 m one's onto it. The offset shrinks
+  in 0.25 m steps where houses crowd the road, until the body clears the walls. Each model has its
+  own lane table, worked out at build time (`bakeLanes` in `src/sim/lanes.ts`) and kept in the map
+  file (`MAP.lanes`), since fitting it reads every drive wall along every traffic edge. A model only
+  uses edges where it fits, and where the drive walls across the road leave room for it and an
+  oncoming Panda plus 0.3 m (`PASS_MARGIN`): in single-file lanes between houses two cars met
+  head-on with no room to back out or turn round. It only uses the largest connected part of those
+  edges, so villages reached only by such lanes (Terma, Monte dei Bianchi, Vezzanello) get no AI
+  traffic; the player can still drive there. Trucks keep to the main roads (motorway to tertiary)
+  and unclassified roads and to the loops of that network, because they cannot turn round. Apes keep
+  off motor roads (`isMotorRoad`: motorways, trunk roads and their slip roads), which the Codice
+  della Strada (art. 175) closes to mopeds such as the Ape 50.
 - **Steering.** The car aims at a point 6 m + 0.6 s × speed ahead along this edge and the next.
 - **Route choice.** At each node the car picks a random legal edge. Oneways are driven a → b only.
   It avoids dead-end spurs, then hairpins, while another way exists, and makes a U-turn only at a
-  dead end.
-- **Speed.** Cruising speed by class: tertiary 12 m/s, unclassified 9, residential 7, service 5.
+  dead end. Where a oneway road itself ends (a carriageway leaving the map), that U-turn drives it
+  against its direction: 16 such ends in Cesena (none in Lunigiana), two of them the Secante's
+  carriageways at the map's edge, whose outbound traffic all turns back there.
+- **Speed.** Cruising speed by class (`CRUISE` in `src/sim/route.ts`): motorway 30 m/s, trunk 25,
+  primary 16, secondary 14, tertiary 12, unclassified 9, residential 7, service 5. Traffic on the
+  SR445, primary since issue #8, cruises at 16 m/s (12 as a tertiary road), so a walker beside it
+  cries out at a car only past 19.2 m/s (1.2 × 16, [Reactions](#reactions)).
   The car slows before sharp corners (down to 3 m/s) and when pointing away from its target, and
   never goes faster than the curve it steers allows in comfort: a sideways acceleration under
   3.5 m/s², or under 0.45 of what tips its vehicle over (the Ape ≈ 2.4 m/s², the laden truck
@@ -551,13 +563,18 @@ the lane helpers in `src/sim/route.ts`.
   stream, stops rather than tip over: it brakes while moving, then holds the handbrake with the
   wheel straight once under 0.5 m/s. Stuck there, it backs up like for anything else.
 - **Braking.** Anything whose body reaches into a cone ahead, a vehicle, a person or an animal,
-  living or dead, slows the car to keep a 2 m gap. The cone is 8 m + 1.2 s × speed long, bends
-  along the arc the front wheels steer (a straight line under a curvature of 0.001 per m), and is as
-  wide as the car plus 0.15 m to either side (`CONE_CLEARANCE`); an obstacle counts by its
-  footprint (half its length and width turned to the car's heading, a person or an animal a
-  circle), so a car standing across the road holds it back as well as one ahead. For a Panda
-  following a Panda in line that is 1.8 m to either side of its axis. Each car of a train on its
-  level is such an obstacle too, one that moves on. Standing still, it holds the handbrake.
+  living or dead, slows the car to keep a 2 m gap. The car allows itself 0.8 m/s per metre to that
+  gap, or the speed it can stop from at 0.6 of its full braking (`FOLLOW`: a Panda 6 m/s², a truck
+  or an Ape 3.9) where that is slower, and the cone reaches 8 m + 1.2 s × speed plus that stop
+  (`coneRange`): at the main roads' new speeds the old law alone ran a laden truck at 25 m/s into a
+  car standing 38 m on at 16 m/s, and now every model keeps 1.49–2.05 m of its 2 m gap from 12 to 30
+  m/s. Nothing changed up to 15 m/s for a Panda or a Carabinieri car, 9.7 m/s for a truck or an Ape.
+  The cone bends along the arc the front wheels steer (a straight line under a curvature of 0.001
+  per m), and is as wide as the car plus 0.15 m to either side (`CONE_CLEARANCE`); an obstacle
+  counts by its footprint (half its length and width turned to the car's heading, a person or an
+  animal a circle), so a car standing across the road holds it back as well as one ahead. For a
+  Panda following a Panda in line that is 1.8 m to either side of its axis. Each car of a train on
+  its level is such an obstacle too, one that moves on. Standing still, it holds the handbrake.
 - **Level crossings.** The car stops for a box that is not open and keeps boxes and the junctions
   before them clear ([Traffic at the crossings](#traffic-at-the-crossings)).
 - **Unsticking.** A car stuck below 1 m/s for 3 s reverses for 1.5 s at 3 m/s. If it is lined up
@@ -726,8 +743,8 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
   v² / (2 × its braking deceleration): 4.05 m for a Panda at 9 m/s. Coming that close while already
   running draws the cry too. Crying out at every car made an idle Gragnola scream 5 times a minute.
 - **Speeding counts over the street's traffic.** Only a vehicle faster than 1.2 × its street's
-  `cruiseSpeed` counts, so people do not glare at every car on the main road, whose traffic keeps
-  12 m/s about 1 m from the verge.
+  `cruiseSpeed` counts, so people do not glare at every car on the main roads, whose traffic keeps
+  12 m/s (16 on the SR445) about 1 m from the verge.
 - **A horn angers only the one it honks at**: standing in front of the honking car within 1.8 m of
   its axis (the traffic AI's cone, which honks at whoever holds it up), out of a cooldown. When
   every bystander could, the 41 AI honks a minute in Gragnola's centre drew 7 angry yells a minute.
@@ -861,9 +878,9 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   drops one by lucido's edge and parks the same cars round Monzone:
   [map.md](map.md#test-regions)); a spot the build moves rolls anew.
 - **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
-  tertiary-road spot where a truck fits, a roll under 10% makes a marble truck instead: 6 of the
-  209 cars Lunigiana's spots hold for seed 1 (2–6 over seeds 1, 2, 3, 7 and 11), where the game
-  that parked over the whole map held at most two.
+  primary, secondary or tertiary road's spot where a truck fits, a roll under 10% makes a marble
+  truck instead: 6 of the 209 cars Lunigiana's spots hold for seed 1 (2–6 over seeds 1, 2, 3, 7
+  and 11), where the game that parked over the whole map held at most two.
 - **Coming**: a spot 90–300 m from the player (`PARKING.fill`, out of view) that should hold a car
   and has none gets it, unless a vehicle's body, or a person or an animal within 1 m (`ROOM`), is in
   the way: it is tried again every 0.5 s.
@@ -1728,8 +1745,8 @@ speed along the contact.
 | `src/sim/dynamics.ts` | substeps, bump-stop travel, damper limit, the body's ground contacts, in-air tumbling damping, the ground-hit speed |
 | `src/sim/drivetrain.ts` | shift points, engine braking, driveline efficiency |
 | `src/sim/view.ts` | `screenAxes` (screen axes of the home view), `LOOK_AHEAD`, `VIEW_REACH` |
-| `src/sim/lanes.ts` | lane offsets, passing room (`PASS_MARGIN`), truck road classes; baked into the map, so run `pnpm map` after a change (`bake.map-test.ts`, in `pnpm test:map`, fails until then) |
-| `src/sim/route.ts` | pedestrian verge, `cruiseSpeed`, hairpin limit, the walk choice (`WALK_AHEAD`, `WALK_FLOOR`) |
+| `src/sim/lanes.ts` | lane offsets (the nominal one: `laneOffset` in `src/sim/map/kinds.ts`), passing room (`PASS_MARGIN`), truck road classes (`TRUCK_CLASSES`); baked into the map, so run `pnpm map` after a change (`bake.map-test.ts`, in `pnpm test:map`, fails until then) |
+| `src/sim/route.ts` | pedestrian verge, cruising speeds (`CRUISE`), hairpin limit, the walk choice (`WALK_AHEAD`, `WALK_FLOOR`) |
 | `src/sim/systems/populate.ts` | `TRAFFIC` and `PEDESTRIANS` population limits and bands, `OUT_SHARE` (the residents out), `FACE_TO_FACE` (neighbours), `FILL_NEAR` (the first fill), spawn model mix |
 | `src/sim/population/density.ts` | residents per home (`HOMES`, `STOREY`, `GROSS_PER_RESIDENT`, `LIVED_IN`), the streets people come out on and walk (`EDGE_REACH`, `PEOPLED`) |
 | `src/sim/population/looks.ts` | `FEMALE`, `ELDERS`, `DARKER`, skins, hair and `FAIRER`, hairdos, outfits, clothes, `HEIGHT` |

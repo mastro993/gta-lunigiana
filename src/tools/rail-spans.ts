@@ -15,7 +15,7 @@ export interface Crossed {
   readonly w: number
   /**
    * How far (m) beyond its edge a bridge over it must reach: where the grid cells it keeps (a
-   * river's protected bed, a tertiary road's core) end, plus one cell, so no at-grade track
+   * river's protected bed, a main road's core) end, plus one cell, so no at-grade track
    * beyond the bridge stands over them.
    */
   readonly margin: number
