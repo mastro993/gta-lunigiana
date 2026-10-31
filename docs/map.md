@@ -1568,14 +1568,17 @@ carries the roads, water, rail and buildings across the old edge, which then are
 - **The same to the bit**: every terrain node in lucido's rectangle, the land cover more than 50 m
   in from its edge, the lamps, water beds and parked spots' rests the bake makes
   (`x3-region.map-test.ts` checks these), and the roads, rail, railway (its platforms all in play,
-  `x3-region.map-test.ts`), POIs, graph, lanes, lucido's trees (each with its id) and the coarse
-  grid's nodes in lucido's box. The DTM's projection lattice, the build's grid lookups, the game's
-  (`heightAt`, `terrainZ`, `coverAt`) and the land cover's raster count a point's cell from the
-  anchor ([section 5](#5-heightmap-dtmts-terraints), [The global
-  file](#the-global-file)). Counted from the box's corner, as they were before, the heights of 25
-  buildings, 22,698 water-bed values, 133 lamps and the rests of 664 parked spots differed in their
-  last bits, and 3 land-cover cells 0.8–3.6 km in from the edge, where an area's edge passes a
-  cell's centre to within a few ulps.
+  `x3-region.map-test.ts`), POIs, graph, lanes, lucido's trees (each with its id) but 2 and the
+  coarse grid's nodes in lucido's box. The 2 trees (ids 155837518 and 155853902, at (4899, 3228) and
+  (4898, 3240)) stood within 2 m of the east edge, 1.2 m from the bed of the Torrente Rondonaia
+  (way 788514322), which on the 3x runs on past the edge and keeps trees off its bed there as in
+  play (`clipBeyond`, [section 12](#12-trees-spawns-districts-spawnsts-districtsts)). The DTM's
+  projection lattice, the build's grid lookups, the game's (`heightAt`, `terrainZ`, `coverAt`) and
+  the land cover's raster count a point's cell from the anchor ([section
+  5](#5-heightmap-dtmts-terraints), [The global file](#the-global-file)). Counted from the box's
+  corner, as they were before, the heights of 25 buildings, 22,698 water-bed values, 133 lamps and
+  the rests of 664 parked spots differed in their last bits, and 3 land-cover cells 0.8–3.6 km in
+  from the edge, where an area's edge passes a cell's centre to within a few ulps.
 - **The place** (`placeFrom`) is fitted over every node of the built terrain: the 3x's floor is
   258.5 m and its downslope 1.919 rad against lucido's 230.3 m and 2.127 rad, and the weather
   moves with them ([weather.md](weather.md)).
