@@ -57,7 +57,7 @@ test("the overview paints the full map's look: grass on the play area only, area
     at(5501, 501),
     w.map((c, k) => (k === 3 ? 255 : Math.round(c * 0.3 + g[k]! * 0.7))),
   )
-  // the motorway at its least 3 px, the street 1.5, 4 overview px each
+  // the motorway at its least 3 px, the street 1.5, 5 overview px each (whole pixels: the edges blend)
   const count = (hex: number, k0: number, step: number, n: number) => {
     const want = rgba(hex).join()
     let found = 0
@@ -66,7 +66,7 @@ test("the overview paints the full map's look: grass on the play area only, area
         found++
     return found
   }
-  assert.equal(count(PALETTE.signYellow, 3000, width, height), 12)
+  assert.equal(count(PALETTE.signYellow, 3000, width, height), 14)
   assert.equal(count(PALETTE.limestone, Math.floor((4096 - 2201) / 2) * width, 1, width), 6)
 })
 

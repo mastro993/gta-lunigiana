@@ -3,7 +3,8 @@
 // src/hud/worldmap.ts) downloads the first time it opens and draws scaled to the screen, so the game
 // never needs every tile's vectors at once. It is the full map's look (src/render/map-style.ts:
 // grass over the play area and clipped to it, areas, water, rail, roads light by class at least
-// `OVERVIEW_MIN` px wide, buildings) as a map about 1000 px on its long side would show it, at
+// `OVERVIEW_MIN` px wide, buildings) as a map about 820 px on its long side would show it (between
+// a 1280 × 720 window's 600 px and a 1920 × 1080 window's 960 px), at
 // `OVERVIEW_RATIO` px per px: about `OVERVIEW_SIDE` px on its long side, the bounds exactly. The
 // same bytes on every run and machine with the same Node build (paint-raster.ts paints with + − × ÷
 // and sqrt alone; another zlib compresses the same image data differently, `pngData`).
@@ -18,7 +19,7 @@ export const OVERVIEW_SIDE = 4096
 /** Its pixels, at most: under Safari's 16.7 MP canvas limit, which a 4096 px square passes. */
 const OVERVIEW_PIXELS = 16_000_000
 /** Overview pixels per px of the look: its lines are as wide as on a map `OVERVIEW_SIDE / OVERVIEW_RATIO` px long shown at that pixel ratio. */
-export const OVERVIEW_RATIO = 4
+export const OVERVIEW_RATIO = 5
 
 /** The box the overview spans, m: the map's bounds. */
 interface Bounds {
