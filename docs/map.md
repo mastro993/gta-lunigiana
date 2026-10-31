@@ -218,8 +218,8 @@ Resident memory (`process.memoryUsage()` at each lap) climbs most in the spawns,
 clearance indexes of every wall and trunk), and in the bake, by 100 MB (the game decoding the
 global file and the tiles it reads, while the build still holds the cut tiles, 38.5 MB of unstamped
 files, and the global map's vectors); it peaks in the bake or the write. The grid stays whole (8 bytes a node, 39 MB here) for the walls' slope test, the railway's platforms,
-the paths' and buildings' heights and the cut, and so do the catchments (about 140 MB of arrays the
-size of the grid, for a moment), the walls' bit sets (1 byte a cell each) and their trace, which
+the paths' and buildings' heights and the cut, and so do the catchments (15 bytes a node of arrays
+the size of the grid, 73 MB here, beside the uncarved grid they fill, for a moment), the walls' bit sets (1 byte a cell each) and their trace, which
 are the parts that still grow with the area.
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
@@ -622,7 +622,10 @@ Grondilice).
   node), never less than upstream; nodes within two of another water's are left out, and a piece's
   last sample keeps what came down to it (D8 may route the water a tail joins through it). The
   Torrente Aulella takes 161 km² from beyond the bounds, which hold only its left bank: the Soliera
-  gauge's 208 km² (ARPAL), less the Lucido's 47 at its mouth. It takes about 1 s.
+  gauge's 208 km² (ARPAL), less the Lucido's 47 at its mouth. It takes about 0.8 s: the flood's
+  heap keeps each open node's height beside it in typed arrays, the D8 stores a direction (1 byte)
+  and an inflow count (1 byte) a node, and the accumulation walks down from each node with nothing
+  above it, last first, with no stack (the order a stack of them gave, so the same sums).
 - The bed is carved into the grid: depth/2 below the surface inside w/2, a gravel slope out to the
   bed width, then a one-cell bank back to the terrain.
 

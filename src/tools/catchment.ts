@@ -124,9 +124,11 @@ export const catchments = (
         open.push(m)
       }
   }
-  // D8: each inner node drains to its steepest lower neighbour; edge nodes leave the grid.
-  const to = new Int32Array(cols * rows).fill(-1),
-    inflow = new Int32Array(cols * rows)
+  // D8: each inner node drains to its steepest lower neighbour (`to`: its direction, the index of
+  // (di, dj) in the 3 × 3 block, row by row; −1 for none); edge nodes leave the grid.
+  const step = [-cols - 1, -cols, -cols + 1, -1, 0, 1, cols - 1, cols, cols + 1]
+  const to = new Int8Array(cols * rows).fill(-1),
+    inflow = new Uint8Array(cols * rows)
   for (let j = 1; j < rows - 1; j++)
     for (let i = 1; i < cols - 1; i++) {
       const n = j * cols + i
@@ -138,21 +140,25 @@ export const catchments = (
             drop = (z[n]! - z[m]!) / (di !== 0 && dj !== 0 ? Math.SQRT2 : 1)
           if (drop > best) {
             best = drop
-            to[n] = m
+            to[n] = 3 * (dj + 1) + di + 1
           }
         }
-      if (to[n]! >= 0) inflow[to[n]!]!++
+      if (to[n]! >= 0) inflow[n + step[to[n]!]!]!++
     }
-  // Accumulate from the ridges down (Kahn's order: a node once everything above it is counted).
+  // Accumulate from the ridges down, in Kahn's order: each node with nothing above it, last first,
+  // then on down its path while every node above the next is counted (marked DONE, so it is not
+  // taken for a ridge again). A stack of the ridges gave the same order, and the same sums.
+  const DONE = 255
   const area = new Float64Array(cols * rows).fill((cell * cell) / 1e6)
-  const ready: Array<number> = []
-  for (let n = 0; n < area.length; n++) if (inflow[n] === 0) ready.push(n)
-  while (ready.length > 0) {
-    const n = ready.pop()!,
-      m = to[n]!
-    if (m < 0) continue
-    area[m] = area[m]! + area[n]!
-    if (--inflow[m]! === 0) ready.push(m)
+  for (let top = area.length - 1; top >= 0; top--) {
+    if (inflow[top] !== 0) continue
+    for (let n = top; to[n]! >= 0;) {
+      const m = n + step[to[n]!]!
+      area[m] = area[m]! + area[n]!
+      if (--inflow[m]! !== 0) break
+      inflow[m] = DONE
+      n = m
+    }
   }
   // Near another water D8 may route its flow through this one's nodes (a tail running beside the
   // river it joins): only nodes clear of every other water by two nodes count.
