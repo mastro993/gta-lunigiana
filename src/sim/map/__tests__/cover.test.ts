@@ -208,3 +208,27 @@ test("every block coverBlocks fills has the cells the whole raster has there, ar
         )
       }
 })
+
+// Regression: the scanline measured a crossing from the heightmap's corner, so where a polygon's edge
+// passes a cell's centre to within a few ulps the cell came out filled on one box and not on another:
+// three cells inside lucido differed on the 3x test region, this edge's among them.
+test("the cover is the same on two heightmaps round one anchor where an edge grazes a cell's centre", () => {
+  // A grassland whose west edge crosses row y = −5274 at x = −390 less 4e-13 m, the centre of a cell.
+  const areas = [
+    {
+      kind: "grassland" as const,
+      rings: [[-398.5, -5272.3, -386.5, -5274.7, -370, -5276, -370, -5270, -398.5, -5270]],
+    },
+  ]
+  /** The cells x −412…−364 by y −5280…−5268 on a heightmap from (x0, −5280) round the anchor (−2900, −5280). */
+  const cells = (x0: number) => {
+    const map = {
+      ...bare,
+      water: [],
+      areas,
+      heightmap: { cell: 4, cols: 4001, rows: 4, x0, y0: -5280, ax: -2900, ay: -5280 },
+    }
+    return coverBlocks(map)({ c0: (-412 - x0) / 4, r0: 0, cols: 12, rows: 3 })
+  }
+  assert.deepEqual(cells(-10700), cells(-2900))
+})

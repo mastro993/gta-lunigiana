@@ -10,6 +10,7 @@
  */
 import { fillPolygon, type PixelBlock, segDist2 } from "../collide.ts"
 import type { Area, AreaKind, Building, MonzoneMap, Road, Water } from "./index.ts"
+import { anchorOf } from "./kinds.ts"
 
 /** Cover kinds: meadow by default, the map's area kinds, and the river bed. */
 export type Cover = "meadow" | AreaKind | "pebble"
@@ -44,7 +45,10 @@ const coverIndex = new Map<string, number>(COVERS.map((c, i) => [c, i]))
 /** Metres from a wall and from a road's edge within which open ground is paved: house fronts, sidewalks, alleys. */
 const FRONT = 3
 
-/** Calls `visit` with each cell of `block` whose centre is within `reach` of segment a-b, by its index in the block. */
+/**
+ * Calls `visit` with each cell of `block` whose centre is within `reach` of segment a-b, by its index
+ * in the block; the cells measured from the region's anchor (`anchorOf`).
+ */
 const cellsNear = (
   heightmap: MonzoneMap["heightmap"],
   block: PixelBlock,
@@ -55,11 +59,14 @@ const cellsNear = (
   reach: number,
   visit: (k: number) => void,
 ) => {
-  const { cell, x0, y0 } = heightmap
-  const i0 = Math.max(block.c0, Math.floor((Math.min(ax, bx) - reach - x0) / cell)),
-    i1 = Math.min(block.c0 + block.cols - 1, Math.floor((Math.max(ax, bx) + reach - x0) / cell))
-  const j0 = Math.max(block.r0, Math.floor((Math.min(ay, by) - reach - y0) / cell)),
-    j1 = Math.min(block.r0 + block.rows - 1, Math.floor((Math.max(ay, by) + reach - y0) / cell))
+  const { cell, x0, y0 } = heightmap,
+    anchor = anchorOf(heightmap)
+  const col = (x: number) => Math.floor((x - anchor.x) / cell) + anchor.i,
+    row = (y: number) => Math.floor((y - anchor.y) / cell) + anchor.j
+  const i0 = Math.max(block.c0, col(Math.min(ax, bx) - reach)),
+    i1 = Math.min(block.c0 + block.cols - 1, col(Math.max(ax, bx) + reach))
+  const j0 = Math.max(block.r0, row(Math.min(ay, by) - reach)),
+    j1 = Math.min(block.r0 + block.rows - 1, row(Math.max(ay, by) + reach))
   for (let j = j0; j <= j1; j++)
     for (let i = i0; i <= i1; i++) {
       if (
@@ -129,8 +136,12 @@ const paint = (
   cols: number,
   rows: number,
 ): Uint8Array => {
-  const { cell, x0, y0 } = map.heightmap
+  const { cell, x0, y0 } = map.heightmap,
+    anchor = anchorOf(map.heightmap)
   const out = new Uint8Array(block.cols * block.rows)
+  // The scanline measures each crossing from the anchor, so a crossing a few ulps off a cell's centre
+  // falls the same side of it on any box round the anchor: the same block, counted from there.
+  const fromAnchor = { ...block, c0: block.c0 - anchor.i, r0: block.r0 - anchor.j }
   // A pixel is filled only where its centre lies in the area's box: a cell's margin on each side.
   const bx0 = x0 + (block.c0 - 1) * cell,
     bx1 = x0 + (block.c0 + block.cols + 1) * cell,
@@ -138,7 +149,7 @@ const paint = (
     by1 = y0 + (block.r0 + block.rows + 1) * cell
   for (const { cover, rings, minX, minY, maxX, maxY } of ordered)
     if (maxX >= bx0 && minX <= bx1 && maxY >= by0 && minY <= by1)
-      fillPolygon(rings, x0, y0, cell, cols, rows, (k) => (out[k] = cover), block)
+      fillPolygon(rings, anchor.x, anchor.y, cell, cols, rows, (k) => (out[k] = cover), fromAnchor)
   // Open ground (meadow, residential grass) both near a wall and near a road edge.
   const fronting = new Uint8Array(block.cols * block.rows),
     open = new Set([coverIndex.get("meadow"), coverIndex.get("residential")]),

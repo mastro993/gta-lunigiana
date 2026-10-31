@@ -147,7 +147,9 @@ stages were sped up (the same files, byte for byte, and the same hashes):
 - **What else moves**: the terrain under lucido is the same to the decimetre (every node), and the
   lookups count from the region's anchor, so the 3x bakes lucido's lamps, water beds and parked
   spots' rests to the bit (`x3-region.map-test.ts`; before, 133 lamps, 22,698 bed values and the
-  rests of 664 spots differed in their last bits); the place is fitted over every node of the built terrain (`placeFrom`), so the 3x's floor is 258.5 m
+  rests of 664 spots differed in their last bits), and its land cover is lucido's but within 50 m
+  of lucido's edge (before, 3 cells 0.8–3.6 km inside it differed too, where an area's edge passes
+  a cell's centre to within a few ulps); the place is fitted over every node of the built terrain (`placeFrom`), so the 3x's floor is 258.5 m
   and its downslope 1.919 rad against lucido's 230.3 m and 2.127 rad, and with it the weather
   ([weather.md](weather.md)); and the catchments run over the synthetic land too, so the water's
   areas change.
@@ -1076,7 +1078,7 @@ counter-clockwise, holes clockwise.
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
 | `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
 | `outline` | the play area's outline (`src/tools/play-area.ts`): flat rings on 0.1 m, outer counter-clockwise, holes clockwise (the play area left of every edge), each from its lowest (y, x) vertex; `insideRings` and `ringsDistance` (`src/sim/map/outline.ts`) test points against it. Lunigiana's and Cesena's is one ring, `bounds` itself, and the game reads `bounds` as the play area |
-| `heightmap` | the terrain lattice: `cell` (4 m), `cols`, `rows`, `x0`, `y0`, and `ax`, `ay`, the region's anchor (`region.ts`), only where it is not (x0, y0); its nodes are the tiles'. The lookups (`heightAt`, `terrainZ`, `coverAt`) measure a point's cell from the anchor (`anchorOf` in `src/sim/map/kinds.ts`), so a point keeps its height to the bit, and the bake its tables, when a part grows the box west or south; Lunigiana's and Cesena's anchors are their corners, so their files name none |
+| `heightmap` | the terrain lattice: `cell` (4 m), `cols`, `rows`, `x0`, `y0`, and `ax`, `ay`, the region's anchor (`region.ts`), only where it is not (x0, y0); its nodes are the tiles'. The lookups (`heightAt`, `terrainZ`, `coverAt`) and the land cover's raster (`coverBlocks`: its scanline and its cells near a wall or a road) measure a point's cell from the anchor (`anchorOf` in `src/sim/map/kinds.ts`), so a point keeps its height and its cover to the bit, and the bake its tables, when a part grows the box west or south; Lunigiana's and Cesena's anchors are their corners, so their files name none |
 | `tiles` | `{ i, j, zmin, zmax }` per tile, south to north then west to east: its lowest and highest node, decimetres |
 | `place` | `floor` and `downslope`, the sky's place ([weather.md](weather.md)), fitted over every node at build time |
 | `coarse` | `cell` (64 m), `cols`, `rows`, `x0`, `y0` on the origin's multiples over the bounds; the nodes' heights and the cover there are its two packed sections. For hosts reading far from the player, never the sim |

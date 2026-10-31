@@ -47,6 +47,29 @@ test("every terrain node in lucido's rectangle is lucido's on the 3x", { skip },
   assert.equal(nodes, 1951 * 2501)
 })
 
+// By the edge, an area lucido's box cuts has its cut rounded to 0.1 m, and a building across it is
+// clipped on lucido and dropped on the 3x, its paved front with it (docs/map.md, "Test regions").
+test(
+  "the 3x's land cover in lucido's rectangle is lucido's, but within 50 m of its edge",
+  { skip },
+  () => {
+    const { lucido, x3 } = maps()
+    /** The cover of the cell centred on (x, y). */
+    const cover = ({ cover, heightmap: { x0, y0, cols, cell } }: JoinedMap, x: number, y: number) =>
+      cover[((y - y0 - cell / 2) / cell) * (cols - 1) + (x - x0 - cell / 2) / cell]
+    const [x0, y0, x1, y1] = LUCIDO
+    let cells = 0
+    for (let y = y0 + 2; y < y1; y += 4)
+      for (let x = x0 + 2; x < x1; x += 4) {
+        if (inFromEdge(x, y) <= 50) continue
+        cells++
+        if (cover(lucido, x, y) !== cover(x3, x, y))
+          assert.fail(`cell at (${x}, ${y}): ${cover(lucido, x, y)} on lucido, ${cover(x3, x, y)}`)
+      }
+    assert.equal(cells, 1924 * 2474)
+  },
+)
+
 test("the 3x bakes lucido's lamps, water beds and parked spots' rests", { skip }, () => {
   const { lucido, x3 } = maps()
   const key = (o: object) => JSON.stringify(o)
