@@ -265,7 +265,7 @@ export interface Lamp {
   readonly kind: "wall" | "pole"
 }
 
-/** A bell the build found (`bellsOf` in src/audio/places.ts): its tower's id and box centre, the top of its walls (m a.s.l.) and its height (m). */
+/** A bell the build found (`bellsOf` in src/tools/bells.ts): its tower's id and box centre, the top of its walls (m a.s.l.) and its height (m). */
 export interface BellEntry {
   readonly id: number
   readonly x: number
