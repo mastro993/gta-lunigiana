@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
 import { test } from "node:test"
 
 import { catchments } from "../catchment.ts"
@@ -75,4 +76,37 @@ test("catchments: a river's arms share its area at a fork and add up to it again
     Math.abs(out - (into + gathered)) < 1e-9,
     `${out} km² below the rejoin against ${into} + ${gathered}`,
   )
+})
+
+test("catchments fills and routes a grid of flats and pits to the same heights and areas as before", () => {
+  // Heights on a few whole metres, so most neighbours tie, and two streams across them.
+  const cols = 61,
+    rows = 47
+  const g: Grid = {
+    cell: 4,
+    cols,
+    rows,
+    x0: 0,
+    y0: 0,
+    z: Float64Array.from({ length: cols * rows }, (_, n) => ((n * 7919) % 13) % 4),
+  }
+  const wp = [
+    profile([
+      [10, 30],
+      [120, 90],
+      [236, 100],
+    ]),
+    profile([
+      [40, 170],
+      [120, 90],
+    ]),
+  ]
+  const areas = catchments(g, wp, [
+    ["a", "b", "c"],
+    ["d", "b"],
+  ])
+  const digest = createHash("sha256")
+  digest.update(new Uint8Array(g.z.buffer))
+  for (const a of areas) digest.update(new Uint8Array(a.buffer))
+  assert.equal(digest.digest("hex").slice(0, 16), "1f425d940e4a6bd8")
 })

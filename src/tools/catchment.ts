@@ -8,43 +8,63 @@ const BURN = 100
 /** Rise (m) a filled flat gains per node, so every node drains to a lower neighbour. */
 const EPSILON = 1e-4
 
-/** A binary min-heap of node indices keyed by elevation. */
+/**
+ * A binary min-heap of node indices keyed by their elevation when pushed (the flood never changes
+ * a node it has pushed), in typed arrays that double when full.
+ */
 const heap = (z: Float64Array) => {
-  const items: Array<number> = []
-  const less = (a: number, b: number) => z[items[a]!]! < z[items[b]!]!
-  const swap = (a: number, b: number) => {
-    const t = items[a]!
-    items[a] = items[b]!
-    items[b] = t
-  }
+  let items = new Int32Array(1024),
+    keys = new Float64Array(1024),
+    size = 0
   return {
     get size() {
-      return items.length
+      return size
     },
     push(n: number) {
-      items.push(n)
-      for (let k = items.length - 1; k > 0;) {
+      if (size === items.length) {
+        const grown = new Int32Array(2 * size),
+          more = new Float64Array(2 * size)
+        grown.set(items)
+        more.set(keys)
+        items = grown
+        keys = more
+      }
+      const key = z[n]!
+      let k = size++
+      while (k > 0) {
         const up = (k - 1) >> 1
-        if (!less(k, up)) break
-        swap(k, up)
+        if (!(key < keys[up]!)) break
+        items[k] = items[up]!
+        keys[k] = keys[up]!
         k = up
       }
+      items[k] = n
+      keys[k] = key
     },
     pop(): number {
-      const top = items[0]!,
-        last = items.pop()!
-      if (items.length > 0) {
-        items[0] = last
-        for (let k = 0; ;) {
+      const top = items[0]!
+      size--
+      if (size > 0) {
+        const n = items[size]!,
+          key = keys[size]!
+        let k = 0
+        for (;;) {
           const l = 2 * k + 1,
             r = l + 1
-          let m = k
-          if (l < items.length && less(l, m)) m = l
-          if (r < items.length && less(r, m)) m = r
+          let m = k,
+            least = key
+          if (l < size && keys[l]! < least) {
+            m = l
+            least = keys[l]!
+          }
+          if (r < size && keys[r]! < least) m = r
           if (m === k) break
-          swap(k, m)
+          items[k] = items[m]!
+          keys[k] = keys[m]!
           k = m
         }
+        items[k] = n
+        keys[k] = key
       }
       return top
     },
@@ -116,7 +136,10 @@ export const catchments = (
           if (di === 0 && dj === 0) continue
           const m = n + dj * cols + di,
             drop = (z[n]! - z[m]!) / (di !== 0 && dj !== 0 ? Math.SQRT2 : 1)
-          if (drop > best) [best, to[n]] = [drop, m]
+          if (drop > best) {
+            best = drop
+            to[n] = m
+          }
         }
       if (to[n]! >= 0) inflow[to[n]!]!++
     }
