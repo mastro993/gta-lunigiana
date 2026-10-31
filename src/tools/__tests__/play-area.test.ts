@@ -4,6 +4,7 @@ import { test } from "node:test"
 import { hash01, r1, type V } from "../geometry.ts"
 import {
   OUTLINE,
+  clipBeyond,
   clipLineTo,
   clipPieces,
   clipToPlay,
@@ -222,6 +223,20 @@ test("each piece of a clipped line knows how far along the whole line it starts"
   // A line starting in the notch: its one piece starts where it enters the leg.
   const [entered] = clipPieces(rings, [v(150, 250, "a"), v(50, 250, "b")])
   assert.equal(entered!.from, 50)
+})
+
+test("outside, clipPieces keeps what the area leaves out, and clipBeyond nothing on lucido, whose play area is its box", () => {
+  const rings = [L_RING]
+  const line = [v(50, 250, "a"), v(150, 150, "b"), v(180, 50, "c")]
+  // the bend in the notch, between where the line leaves the leg and enters the foot
+  const [notch, ...rest] = clipPieces(rings, line, true)
+  assert.deepEqual(rest, [])
+  assert.deepEqual(notch!.pts, [v(100, 200), v(150, 150, "b"), v(165, 100)])
+  assert.ok(Math.abs(notch!.from - Math.hypot(50, 50)) < 1e-9, `${notch!.from}`)
+  // along the outline is in, so not out
+  assert.deepEqual(clipPieces(rings, [v(100, 150, "a"), v(100, 250, "b")], true), [])
+  // lucido's box is its play area: nothing of a line across it lies beyond the one in the other
+  assert.deepEqual(clipBeyond([v(-3000, 0, "a"), v(0, 0, "b"), v(5000, 4000, "c")]), [])
 })
 
 test("a line past a reflex corner within a micrometre stays whole: both its sides are in play", () => {

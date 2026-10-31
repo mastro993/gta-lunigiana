@@ -6,7 +6,7 @@
 // sqrt, so every architecture builds the same outline; on vertical and horizontal edges the
 // clipping is Liang–Barsky's to the bit.
 import { edgeDistance, insideRings, ringsDistance, type Rings } from "../sim/map/outline.ts"
-import { centroid, pointInRing, segDist2, type V } from "./geometry.ts"
+import { centroid, pointInRing, segDist2, TERRAIN_BOX, type V } from "./geometry.ts"
 import { type Part, rectRing, REGION } from "./region.ts"
 
 /** Within this distance (m) a point lies on a piece's edge, or a crossing on an outline edge. */
@@ -352,11 +352,11 @@ export interface Piece {
 
 /**
  * Polyline `pts` clipped to the area `rings` bound (edges in it), consecutive stretches inside
- * joined into pieces, each with the arc length along `pts` where it starts. Original vertices keep
- * their ids; the points where a piece is cut have none, which is how later stages know a line
- * leaves the play area there.
+ * joined into pieces, each with the arc length along `pts` where it starts; with `outside`, the
+ * stretches outside it instead (its edges left out). Original vertices keep their ids; the points
+ * where a piece is cut have none, which is how later stages know a line leaves the play area there.
  */
-export const clipPieces = (rings: Rings, pts: ReadonlyArray<V>): Array<Piece> => {
+export const clipPieces = (rings: Rings, pts: ReadonlyArray<V>, outside = false): Array<Piece> => {
   const out: Array<Piece> = []
   let cur: Array<V> = [],
     from = 0,
@@ -375,7 +375,7 @@ export const clipPieces = (rings: Rings, pts: ReadonlyArray<V>): Array<Piece> =>
     // The stretches between crossings inside, consecutive ones joined.
     const runs: Array<[number, number]> = []
     if (len === 0) {
-      if (insideRings(rings, a.x, a.y)) runs.push([0, 1])
+      if (insideRings(rings, a.x, a.y) !== outside) runs.push([0, 1])
     } else {
       const ts = [0, ...crossingsOf(rings, a.x, a.y, dx, dy), 1]
       // Each stretch by its middle; a sliver (never the first or last) by its neighbours, later.
@@ -388,7 +388,7 @@ export const clipPieces = (rings: Rings, pts: ReadonlyArray<V>): Array<Piece> =>
       })
       inside.forEach((_, k) => {
         inside[k] ??= inside[k - 1]! && inside.slice(k + 1).find((i) => i !== undefined)!
-        if (!inside[k]) return
+        if (inside[k] === outside) return
         const s = ts[k]!,
           t = ts[k + 1]!,
           last = runs.at(-1)
@@ -417,3 +417,15 @@ export const clipLineTo = (rings: Rings, pts: ReadonlyArray<V>): Array<Array<V>>
 
 /** Polyline `pts` clipped to the play area (`clipLineTo` the outline). */
 export const clipToPlay = (pts: ReadonlyArray<V>): Array<Array<V>> => clipLineTo(OUTLINE, pts)
+
+/** The built terrain's box as a ring. */
+const BOX_RING = rectRing(TERRAIN_BOX)
+
+/**
+ * The pieces of polyline `pts` beyond the play area but in the built terrain's box, each with
+ * where it starts along `pts`: what of a line the map leaves out, where the trees still grow.
+ */
+export const clipBeyond = (pts: ReadonlyArray<V>): Array<Piece> =>
+  clipPieces(OUTLINE, pts, true).flatMap((out) =>
+    clipPieces([BOX_RING], out.pts).map((p) => ({ pts: p.pts, from: out.from + p.from })),
+  )

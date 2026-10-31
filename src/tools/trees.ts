@@ -33,13 +33,22 @@ const BANK_SPAN = 16384
  */
 const BANKS = 4 * SPAN * SPAN
 
-/** What the trees grow in (forest areas) and keep out of (the other areas, and every feature). */
-export interface TreeFeatures {
-  readonly areas: ReadonlyArray<Area>
+/** The features the trees keep off: roads (w/2 + 2 m), buildings (2 m), stream beds, the rail (6 m). */
+interface KeptOff {
   readonly roads: ReadonlyArray<RoadF>
   readonly buildings: ReadonlyArray<BuildingF>
   readonly water: ReadonlyArray<WaterF>
   readonly rail: ReadonlyArray<RailF>
+}
+
+/** What the trees grow in (forest areas) and keep out of (the other areas, and every feature). */
+export interface TreeFeatures extends KeptOff {
+  readonly areas: ReadonlyArray<Area>
+  /**
+   * The roads, water, rail and buildings beyond the play area, which the map leaves out
+   * (`clipBeyond`): the trees keep off them there too, but grow no bank trees by their streams.
+   */
+  readonly beyond?: KeptOff
 }
 
 /** The id of lattice cell (gi, gj) from the anchor: its number, south to north, then west to east. */
@@ -97,12 +106,15 @@ export const treeScatter = (
     { minX, minY, maxX, maxY } = ground.bounds
   if (ax % BANK_CELL !== 0 || ay % BANK_CELL !== 0)
     throw new Error(`the tree anchor (${ax}, ${ay}) is off the ${BANK_CELL} m bank cells`)
-  const { areas, roads, buildings, water, rail } = features
+  const { areas, water } = features
+  const keptOff = features.beyond === undefined ? [features] : [features, features.beyond]
   const keepOut = segIndex<null>()
-  for (const r of roads) keepOut.addLine(r.pts, r.w / 2 + 2, null)
-  for (const b of buildings) keepOut.addLine([...b.outer, b.outer[0]!, b.outer[1]!], 2, null)
-  for (const w of water) keepOut.addLine(w.pts, w.bed, null)
-  for (const r of rail) if (r.tunnel !== true) keepOut.addLine(r.pts, 6, null)
+  for (const { roads, buildings, water, rail } of keptOff) {
+    for (const r of roads) keepOut.addLine(r.pts, r.w / 2 + 2, null)
+    for (const b of buildings) keepOut.addLine([...b.outer, b.outer[0]!, b.outer[1]!], 2, null)
+    for (const w of water) keepOut.addLine(w.pts, w.bed, null)
+    for (const r of rail) if (r.tunnel !== true) keepOut.addLine(r.pts, 6, null)
+  }
   const FOREST = 0,
     OPEN = 1,
     BUILT = 2
@@ -110,7 +122,7 @@ export const treeScatter = (
   const kinds = [
     areas.filter((a) => a.kind === "forest").map((a) => a.rings),
     areas.filter((a) => a.kind !== "forest").map((a) => a.rings),
-    buildings.map((b) => [b.outer, ...(b.holes ?? [])]),
+    keptOff.flatMap(({ buildings }) => buildings.map((b) => [b.outer, ...(b.holes ?? [])])),
   ].map((polys) =>
     polys.map((rings) => {
       const box = [Infinity, Infinity, -Infinity, -Infinity]

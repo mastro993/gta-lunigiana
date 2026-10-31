@@ -102,7 +102,8 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
   - a flood on foot from the start, over 2 m cells, stops at the walk walls (`wallsNear`: walls and
     trunks) and never leaves the play area, while it reaches every edge and 10.2 km² of the 12.72;
     with the walls on the notch's west side left out of its lookups it gets out at (1, 3009);
-  - every graph node, spawn, POI and platform lies in the play area, and every building's centroid.
+  - every graph node, spawn, POI and platform lies in the play area, and every building's centroid;
+  - no tree beyond the outline stands on a road, in a stream or in a building of lucido's map.
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
@@ -903,8 +904,13 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
 - **Trees**: a jittered lattice at one tree per 50 m² inside forest areas. Trees stay out of other
   areas, buildings (plus 2 m), roads (w/2 + 2 m), stream beds and the rail, its loops and sidings
   included (6 m), and stand 1 m inside the built terrain's box on the region's tiles (`tiles` in
-  `region.ts`, those its parts' rectangles meet), outside the play area too. Sparse trees also
-  line the banks of the streams at least 4 m wide: a candidate every 9 m along the OSM way on each
+  `region.ts`, those its parts' rectangles meet), outside the play area too. There the map holds no
+  roads, water, rail or buildings, so the trees keep off the inputs' own, cut to the box beyond the
+  outline (`clipBeyond` in `play-area.ts`; the roads as wide as the CTR maps them, the buildings
+  whose centre lies beyond it). Before, on the L test region's notch, 1,763 more trees grew there,
+  467 of them on a road, 319 in a stream and 21 in a house of lucido's map, which holds those
+  whole (`l-region.map-test.ts` checks it). Sparse trees also line the banks of the streams the map
+  holds at least 4 m wide: a candidate every 9 m along the OSM way on each
   side, kept by a hash of the way's id, the step and the side, at most one in a 4 m cell, and
   standing bed + 2 to bed + 5 m from the centreline. The steps count from the way's start
   (`WaterF.from`, where the outline cut the piece), so they stay put when the play area grows, but

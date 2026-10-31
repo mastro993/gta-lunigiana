@@ -186,6 +186,66 @@ test("scatterTrees covers the region's tiles: a stream's banks in every tile it 
   assert.deepEqual(rowsOf(tiles.filter(({ j }) => j !== -2)), [-4, -3, -1, 0, 1])
 })
 
+test("beyond the play area the trees keep off the roads, water, rail and buildings the map leaves out, and grow no bank trees there", () => {
+  // A wood with, beyond the play area, a road along y = 1950, a stream along y = 2000, a track along
+  // y = 2050 and a house, none of them in the map.
+  const window: Rect = [2200, 1900, 2400, 2100]
+  const wood: TreeFeatures = {
+    areas: [{ kind: "forest", rings: [ring(window)] }],
+    roads: [],
+    buildings: [],
+    water: [],
+    rail: [],
+  }
+  const along = (y: number) => [
+    { x: 2190, y },
+    { x: 2410, y },
+  ]
+  const beyond = {
+    roads: [{ ...road, pts: along(1950) }],
+    water: [
+      stream(
+        4,
+        along(2000).map(({ x, y }) => [x, y] as const),
+      ),
+    ],
+    rail: [{ id: 5, pts: along(2050) }],
+    buildings: [{ ...house, outer: ring([2300, 1960, 2340, 1990]) }],
+  }
+  const scatter = (f: TreeFeatures) => treeScatter(f, LUCIDO)(window)
+  /**
+   * The trees on any of them: within the road's w/2 + 2 m, the bed, the rail's 6 m or the house's
+   * 2 m, less the 0.5 m a tree's point moves when rounded.
+   */
+  const on = ({ trees }: ReturnType<typeof scatter>) => {
+    const hit: Array<string> = []
+    for (let k = 0; k < trees.length; k += 3) {
+      const x = trees[k]!,
+        y = trees[k + 1]!
+      if (
+        Math.abs(y - 1950) < 4 ||
+        Math.abs(y - 2000) < 3.5 ||
+        Math.abs(y - 2050) < 5.5 ||
+        (x > 2298.5 && x < 2341.5 && y > 1958.5 && y < 1991.5)
+      )
+        hit.push(`${x},${y}`)
+    }
+    return hit
+  }
+  const open = scatter(wood),
+    kept = scatter({ ...wood, beyond })
+  assert.ok(on(open).length > 50, `${on(open).length} trees on them with nothing to keep off`)
+  assert.deepEqual(on(kept), [])
+  // Every tree kept stands where it stood, with its id; none is a bank tree.
+  const ids = new Map(
+    Array.from(open.ids, (id, k) => [id, `${open.trees[3 * k]},${open.trees[3 * k + 1]}`]),
+  )
+  kept.ids.forEach((id, k) =>
+    assert.equal(ids.get(id), `${kept.trees[3 * k]},${kept.trees[3 * k + 1]}`),
+  )
+  assert.ok(kept.ids.length > 300 && kept.ids.every((id) => id < 2 ** 28))
+})
+
 test("the last bank cell's tree gets the largest id, whose look's seeds stay below 2^32, where hash01 tells them apart", () => {
   // Bank cells number 16384 each way from the anchor: (16383, 16383) is the last, 65532–65536 m
   // north-east of it. A stream east of it keeps its 60th step's west bank tree there (by search).

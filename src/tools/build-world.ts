@@ -49,7 +49,10 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   // ---- collision, graph, trees, spawns ----
   const walls = buildWalls(grid, roads, water, buildings, barriers)
   lap("walls")
-  const trees = scatterTrees({ areas, roads, buildings, water, rail: allRail }, REGION)
+  const trees = scatterTrees(
+    { areas, roads, buildings, water, rail: allRail, beyond: src.beyond },
+    REGION,
+  )
   lap("trees")
   // Spawns and traffic's dead ends keep off the water as well.
   const walkClear = clearance([...walls.walk, ...walls.shore], trees.trees),

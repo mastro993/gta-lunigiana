@@ -20,7 +20,7 @@ import {
 } from "./features.ts"
 import { pointInRing, r1 } from "./geometry.ts"
 import { readOsm } from "./osm.ts"
-import { heldInPlay } from "./play-area.ts"
+import { clipBeyond, heldInPlay } from "./play-area.ts"
 import { REGION } from "./region.ts"
 import { loadDtm, loadGeoDtm } from "./terrain.ts"
 import { readUcs } from "./ucs.ts"
@@ -58,7 +58,8 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   lap("rail")
   fitRoads(roads, ctr.roadAreas, ctr.mapped)
   nameFromAddresses(osm, roads)
-  const buildings = clipBuildings(extractBuildings(osm, ctr), roads),
+  const { held, beyond: buildingsBeyond } = extractBuildings(osm, ctr)
+  const buildings = clipBuildings(held, roads),
     barriers: Array<Barrier> = openBarriers(extractBarriers(osm), roads),
     // Stops and the Equi foot crossing stand where the rail took their nodes.
     pois = extractPois(osm).map((p) => {
@@ -82,6 +83,15 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
       .map((a, i) => ({ src: `OSM platform ${i}`, rings: a.rings })),
   ])
   const districts: Array<District> = fitDistricts(osm, buildings)
+  // What the map leaves out beyond the play area, in the built terrain's box: the trees keep off its
+  // roads (as wide as the CTR maps them), water, rail and buildings there as they do in play.
+  const beyond = {
+    roads: extractRoads(osm, clipBeyond),
+    water: extractWater(osm, dem.at, clipBeyond),
+    rail: extractRail(osm, clipBeyond),
+    buildings: buildingsBeyond,
+  }
+  fitRoads(beyond.roads, ctr.roadAreas, ctr.mapped)
   lap("features")
   return {
     /** The uncarved terrain (the LiDAR DTM, or Cesena's GeoTIFF). */
@@ -99,5 +109,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     platforms,
     railCrossings: crossings.map((c) => c.rings),
     districts,
+    /** The roads, water, rail and buildings beyond the play area, for the trees alone. */
+    beyond,
   }
 }

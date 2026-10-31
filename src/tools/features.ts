@@ -28,7 +28,7 @@ import {
   type V,
 } from "./geometry.ts"
 import { assembleRings, type Osm, type OsmWay, type Tags } from "./osm.ts"
-import { clipPieces, clipToPlay, inPlay, OUTLINE } from "./play-area.ts"
+import { clipPieces, inPlay, OUTLINE, type Piece } from "./play-area.ts"
 import { REGION } from "./region.ts"
 
 export interface RoadF {
@@ -124,12 +124,20 @@ const classOf = (t: Tags): RoadClass | undefined => {
     : (FOLDED[t.highway] ?? (REGION.id === "cesena" ? CITY_FOLDED[t.highway] : undefined))
 }
 
-export const extractRoads = (osm: Osm): Array<RoadF> =>
+/**
+ * How the extractors cut a line into pieces: to the play area, for the map (the default), or to
+ * what lies beyond it in the built terrain's box (`clipBeyond`), for the trees to keep off.
+ */
+type Clip = (pts: ReadonlyArray<V>) => Array<Piece>
+const toPlay: Clip = (pts) => clipPieces(OUTLINE, pts)
+
+/** The highways, cut by `clip`, each piece keeping its way's id and tags. */
+export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
   [...osm.ways.values()].flatMap((w) => {
     const t = w.tags,
       cls = classOf(t)
     if (cls === undefined) return []
-    return clipToPlay(vertices(osm, w.nds)).map((pts): RoadF => ({
+    return clip(vertices(osm, w.nds)).map(({ pts }): RoadF => ({
       id: +w.id,
       cls,
       ...(t.name ? { name: t.name } : {}),
@@ -235,7 +243,12 @@ const mappedRiverWidth = (
   return width === undefined ? undefined : r1(width)
 }
 
-export const extractWater = (osm: Osm, ground: (x: number, y: number) => number): Array<WaterF> => {
+/** The waterways but culverts, cut by `clip`, sized by `ground` under each piece. */
+export const extractWater = (
+  osm: Osm,
+  ground: (x: number, y: number) => number,
+  clip: Clip = toPlay,
+): Array<WaterF> => {
   const isBank = (tags: Tags) =>
     tags.waterway === "riverbank" || (tags.natural === "water" && tags.water === "river")
   const banks =
@@ -261,7 +274,7 @@ export const extractWater = (osm: Osm, ground: (x: number, y: number) => number)
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"
-      return clipPieces(OUTLINE, vertices(osm, w.nds)).map(({ pts, from }): WaterF => {
+      return clip(vertices(osm, w.nds)).map(({ pts, from }): WaterF => {
         const z = pts.reduce((s, p) => s + ground(p.x, p.y), 0) / pts.length
         const size = waterSize(t.name, kind, z)
         const measured =
@@ -279,12 +292,12 @@ export const extractWater = (osm: Osm, ground: (x: number, y: number) => number)
     })
 }
 
-/** `railway=rail` ways clipped to the play area, with their bridge, tunnel and speed-limit tags. */
-export const extractRail = (osm: Osm): Array<RailF> =>
+/** `railway=rail` ways cut by `clip`, with their bridge, tunnel and speed-limit tags. */
+export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
   [...osm.ways.values()]
     .filter((w) => w.tags.railway === "rail")
     .flatMap((w) =>
-      clipToPlay(vertices(osm, w.nds)).map((pts): RailF => ({
+      clip(vertices(osm, w.nds)).map(({ pts }): RailF => ({
         id: +w.id,
         ...(w.tags.bridge !== undefined && w.tags.bridge !== "no" ? { bridge: true } : {}),
         ...(w.tags.tunnel !== undefined && w.tags.tunnel !== "no" ? { tunnel: true } : {}),
@@ -355,13 +368,16 @@ const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {
 
 /**
  * Buildings: the CTR's where its sheets map the ground, OSM's elsewhere, each clipped to the built
- * terrain's box and kept where the centre of its clipped outline is in the play area (an outline
- * may cut through a house, which then stands whole or not at all). A CTR building inside an OSM
- * footprint takes that building's name, and its style when the CTR only says "building" and
- * surveyed no fixed-style unit (the church itself) inside that footprint: then the other units are
- * the houses around it.
+ * terrain's box and kept (`held`) where the centre of its clipped outline is in the play area (an
+ * outline may cut through a house, which then stands whole or not at all), the others `beyond` it,
+ * for the trees to keep off. A CTR building inside an OSM footprint takes that building's name,
+ * and its style when the CTR only says "building" and surveyed no fixed-style unit (the church
+ * itself) inside that footprint: then the other units are the houses around it.
  */
-export const extractBuildings = (osm: Osm, ctr: Ctr): Array<BuildingF> => {
+export const extractBuildings = (
+  osm: Osm,
+  ctr: Ctr,
+): { readonly held: Array<BuildingF>; readonly beyond: Array<BuildingF> } => {
   const fromOsm = osmBuildings(osm)
   const osmIn = staticGrid(fromOsm.length, (k) => ringBox(fromOsm[k]!.outer), 32)
   /** The index of the first OSM footprint (file order) around the point, or -1. */
@@ -400,8 +416,19 @@ export const extractBuildings = (osm: Osm, ctr: Ctr): Array<BuildingF> => {
   const unmapped = fromOsm.filter(
     (b) => !ctr.mapped.some((ring) => pointInRing(...centroid(b.outer), ring)),
   )
-  const kept = [...unmapped, ...fromCtr].filter((b) => inPlay(...centroid(b.outer)))
-  return unifyStyles(unifyStyles(kept, HAMLET_LINK, HAMLET), BLOCK_LINK)
+  const all = [...unmapped, ...fromCtr],
+    held = all.map((b) => inPlay(...centroid(b.outer)))
+  return {
+    held: unifyStyles(
+      unifyStyles(
+        all.filter((_, k) => held[k]),
+        HAMLET_LINK,
+        HAMLET,
+      ),
+      BLOCK_LINK,
+    ),
+    beyond: all.filter((_, k) => !held[k]),
+  }
 }
 
 const osmBuildings = (osm: Osm): Array<BuildingF> => {
@@ -579,7 +606,7 @@ export const extractBarriers = (osm: Osm): Array<Barrier> =>
         w.tags.barrier === "wall" || w.tags.barrier === "guard_rail" || w.tags.natural === "cliff",
     )
     .flatMap((w) =>
-      clipToPlay(vertices(osm, w.nds)).map((pts) => ({
+      toPlay(vertices(osm, w.nds)).map(({ pts }) => ({
         kind: w.tags.natural === "cliff" ? "cliff" : w.tags.barrier!,
         pts: flatLine(pts),
       })),

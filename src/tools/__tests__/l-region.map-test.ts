@@ -7,8 +7,8 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { centroid } from "../geometry.ts"
-import { builtMapUrl, loadBuiltMap, readWholeMap } from "../map-file.ts"
+import { centroid, pointInRing, ringBox, segDist2 } from "../geometry.ts"
+import { builtMapUrl, loadBuiltMap, readWholeMap, wholeMap } from "../map-file.ts"
 import { regionFromArgs } from "../region.ts"
 
 const REGION = regionFromArgs(["--region", "lunigiana-l"])
@@ -295,5 +295,51 @@ test(
       const [cx, cy] = centroid(b.outer)
       assert.ok(inPlay(cx, cy) || outlineDistance(cx, cy) < 0.1, `building ${b.id} at ${cx}, ${cy}`)
     }
+  },
+)
+
+// Beyond the outline the L holds no roads, water or buildings, but lucido's map holds them there:
+// the build cuts them to the box for the trees to keep off (`clipBeyond`), as lucido's trees do.
+test(
+  "no tree of the L beyond its outline stands on a road, in a stream or in a building lucido holds there",
+  { skip },
+  () => {
+    const { inPlay } = sim!
+    const lucido = wholeMap()
+    /** Each feature's test, with its box grown by its reach. */
+    const near = (pts: ReadonlyArray<number>, reach: number) => {
+      const [x0, y0, x1, y1] = ringBox(pts)
+      return {
+        box: [x0 - reach, y0 - reach, x1 + reach, y1 + reach] as const,
+        hit: (x: number, y: number) => {
+          for (let i = 2; i < pts.length; i += 2)
+            if (segDist2(x, y, pts[i - 2]!, pts[i - 1]!, pts[i]!, pts[i + 1]!).d2 < reach * reach)
+              return true
+          return false
+        },
+      }
+    }
+    const features = [
+      ...lucido.roads.map((r) => ({ what: `road ${r.id}`, ...near(r.pts, r.w / 2) })),
+      ...lucido.water.map((w) => ({ what: `water ${w.id}`, ...near(w.pts, w.w / 2) })),
+      ...lucido.buildings.map((b) => ({
+        what: `building ${b.id}`,
+        box: ringBox(b.outer),
+        hit: (x: number, y: number) => pointInRing(x, y, b.outer),
+      })),
+    ]
+    const { trees } = WHOLE!
+    let beyond = 0
+    for (let k = 0; k < trees.length; k += 3) {
+      const x = trees[k]!,
+        y = trees[k + 1]!
+      if (inPlay(x, y)) continue
+      beyond++
+      for (const { what, box, hit } of features)
+        if (x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3] && hit(x, y))
+          assert.fail(`the tree at ${x}, ${y} stands on lucido's ${what}`)
+    }
+    // the notch's strip in the listed tiles, x 0…2400 by y 1400…2000, is mostly wood
+    assert.ok(beyond > 15000, `${beyond} trees beyond the outline`)
   },
 )
