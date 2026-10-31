@@ -1240,13 +1240,13 @@ Settembre" and "Via Castel dell'Aquila").
 another version, or a value too far for its section, throws; `stale-map.test.ts` that the game
 refuses a global file without the play area's outline.
 `src/sim/map/__tests__/tiles.map-test.ts` checks the cut: the 30 tiles cover the bounds (i −2…2, j
-−4…1, south to north then west to east) with their lowest and highest nodes, a tile's east column is
-its east neighbour's west column and its north row its north neighbour's south row, each wall lives
-in the tile of its midpoint and each tree in the tile of its point and no wall reaches farther than
-`walls.reach`, `heightAt`, `terrainZ` and `coverAt` read the tiles bit for bit as the whole
-heightmap and land cover give them, and `wallsNear` and `treesIn` answer exactly as one broad phase
-over the whole map does (1,500 boxes 1–60 m across, half of them within 40 m of a seam; the trees'
-on the region's fixed corner, which need not be their lowest).
+−4…1, south to north then west to east) with their lowest and highest nodes (the nodes two tiles
+share are `seams.map-test.ts`'s, below), each wall lives in the tile of its midpoint and each tree
+in the tile of its point and no wall reaches farther than `walls.reach`, `heightAt`, `terrainZ` and
+`coverAt` read the tiles bit for bit as the whole heightmap and land cover give them, and
+`wallsNear` and `treesIn` answer exactly as one broad phase over the whole map does (1,500 boxes
+1–60 m across, half of them within 40 m of a seam; the trees' on the region's fixed corner, which
+need not be their lowest).
 `tiles.test.ts` checks, round four boxes by Monzone station and on the west edge, that `wallsNear`
 answers the same in the same order whatever is in memory and in whichever order it came, that every
 wall whose box overlaps a query is found (among the walls of the tiles within `walls.reach` of it: a

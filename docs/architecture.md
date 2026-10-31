@@ -1997,12 +1997,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined (see
     [map.md](map.md#checks-and-tools)); `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,
-    south to north then west to east) and its lowest and highest nodes, shared borders, each wall
-    and tree in its tile and no wall reaching past `walls.reach`, `heightAt`, `terrainZ` and
-    `coverAt` bit for bit as the whole heightmap and land cover give them, and `wallsNear` and
-    `treesIn` answering exactly as one broad phase over the whole map (the same items in the same
-    order, over 1,500 boxes 1–60 m across, half of them within 40 m of a seam; the trees' on the
-    region's fixed corner, which need not be their lowest).
+    south to north then west to east) and its lowest and highest nodes, each wall and tree in its
+    tile and no wall reaching past `walls.reach`, `heightAt`, `terrainZ` and `coverAt` bit for bit
+    as the whole heightmap and land cover give them, and `wallsNear` and `treesIn` answering exactly
+    as one broad phase over the whole map (the same items in the same order, over 1,500 boxes 1–60 m
+    across, half of them within 40 m of a seam; the trees' on the region's fixed corner, which need
+    not be their lowest).
   - `src/sim/__tests__/route.map-test.ts`: every dead end flagged one way, every lane AI traffic
     may drive clear of the walls, and `edgeIndex.nearest` the nearest edge by brute force over the
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square
@@ -2027,7 +2027,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     whole map and its dogs and owls.
   - `src/tools/__tests__/bake.map-test.ts` and `cesena-bake.map-test.ts`: each map's baked tables
     and its place are what the game's code makes of it now ([map.md](map.md#checks-and-tools));
-    `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB.
+    `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB;
+    `src/tools/__tests__/seams.map-test.ts`: on both maps, one height for every node two tiles
+    share, and the walls carrying on across every seam.
   - `src/tools/__tests__/l-region.map-test.ts`: the L test region `lunigiana-l` as built in
     `test-maps/` (`pnpm maps` builds it; skipped, saying how, without the build, but failed in CI,
     which builds it): its outline walls close it, its road exits are capped, a flood on foot from

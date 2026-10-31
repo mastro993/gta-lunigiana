@@ -7,9 +7,10 @@ import { coverAt, coverName } from "../cover.ts"
 import { terrainZ } from "../ground.ts"
 import { heightAt, MAP, treesIn, wallsNear } from "../index.ts"
 import { pushTrunk, TILE, tileKey, tileRange, TRUNK } from "../kinds.ts"
-import { decodeTile, readMapFile, TILE_CELLS, TILE_NODES, tileUrl } from "../packed.ts"
+import { decodeTile, readMapFile, TILE_CELLS, tileUrl } from "../packed.ts"
 
-// Map checks (pnpm test:map): every tile of the shipped map, and the whole map joined from them.
+// Map checks (pnpm test:map): every tile of the shipped map, and the whole map joined from them
+// (src/tools/__tests__/seams.map-test.ts checks the nodes two tiles share, on both maps).
 const WHOLE = wholeMap()
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
 const tiles = new Map(KEYS.map((key) => [key, decodeTile(readMapFile(tileUrl(MAP.name, key)))]))
@@ -34,32 +35,6 @@ test("the tiles cover the bounds: every tile of tileRange, listed south to north
       t.zmax,
     )
   }
-})
-
-test("shared borders: a tile's east column is its east neighbour's west column, its north row its north neighbour's south row", () => {
-  let compared = 0
-  for (const t of tiles.values()) {
-    const east = tiles.get(tileKey(t.i + 1, t.j)),
-      north = tiles.get(tileKey(t.i, t.j + 1))
-    for (let k = 0; k < TILE_NODES; k++) {
-      if (east !== undefined)
-        assert.equal(
-          t.heights[k * TILE_NODES + TILE_NODES - 1],
-          east.heights[k * TILE_NODES],
-          `${t.i}_${t.j} east row ${k}`,
-        )
-      if (north !== undefined)
-        assert.equal(
-          t.heights[(TILE_NODES - 1) * TILE_NODES + k],
-          north.heights[k],
-          `${t.i}_${t.j} north col ${k}`,
-        )
-    }
-    compared += Number(east !== undefined) + Number(north !== undefined)
-  }
-  const across = RANGE.i1 - RANGE.i0 + 1,
-    up = RANGE.j1 - RANGE.j0 + 1
-  assert.equal(compared, (across - 1) * up + across * (up - 1))
 })
 
 test("each wall lives in the tile of its midpoint and each tree in the tile of its point (clamped to the list); no wall reaches farther than MAP.walls.reach", () => {
