@@ -87,8 +87,8 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
   the Carabinieri and the start, Gragnola's rail layout to lucido's north edge) and x 0…2400 by y
   0…1400 (Equi Terme and its station), 6 tiles; the notch, x 0…2400 by y 1400…3900 round Fazzano,
-  Casciana and Codiponte, is real land, its two tiles unlisted. It builds in 3.2–3.8 s and peaks
-  at 0.64–0.69 GB (arm64, five runs on 2026-10-31). `pnpm maps` builds it after the two maps, and
+  Casciana and Codiponte, is real land, its two tiles unlisted. It builds in 3.1–3.2 s and peaks
+  at 0.64–0.68 GB (arm64, three runs on 2026-10-31). `pnpm maps` builds it after the two maps, and
   CI caches it with them (it reads their inputs and code, so it shares their key, and the
   reproducible job's hash covers it).
   `src/tools/__tests__/l-region.map-test.ts` (`pnpm test:map`; without the build every check is
@@ -404,11 +404,15 @@ part](#adding-a-part)).
   shorter than 10 µm between two crossings is a corner passed, too short for its middle to tell:
   past a convex corner it is left out, as Liang–Barsky takes the later of two entries, and past a
   reflex one (both stretches beside it in play) it is kept, so a road round an L's inner corner is
-  not cut in two.
+  not cut in two. The roads, water and rail are also cut to what lies beyond the outline in the
+  box (`clipBeyond`), for the trees there to keep off ([section
+  12](#12-trees-spawns-districts-treests-spawnsts-districtsts)); the map never carries those.
 - **Rings** (OSM and UCS areas, the CTR's road surfaces, mapped areas and rail polygons) are
   clipped to the built terrain's box with Sutherland–Hodgman, which only a convex window clips
   right. **Buildings** are clipped to it too, then kept only where the centre of the clipped outline
   (its vertices' mean) is in the play area: a house the outline cuts stands whole or not at all.
+  So are the level crossings and platforms (`heldInPlay`), which belong to the rail and roads the
+  outline cuts.
 - **Points**: POIs, OSM place nodes, the player's spawn (1.3 m from the outline) and the parked
   spots (5 m) must lie in the play area (`inPlay`, an edge counting as in it). Trees cover the
   built terrain, 1 m inside its box.

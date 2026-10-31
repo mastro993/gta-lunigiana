@@ -372,7 +372,7 @@ export const clipPieces = (rings: Rings, pts: ReadonlyArray<V>, outside = false)
       dy = b.y - a.y,
       len = Math.sqrt(dx * dx + dy * dy)
     const at = (t: number): V => (t === 0 ? a : t === 1 ? b : { x: a.x + t * dx, y: a.y + t * dy })
-    // The stretches between crossings inside, consecutive ones joined.
+    // The stretches between crossings kept (inside, or outside with `outside`), consecutive ones joined.
     const runs: Array<[number, number]> = []
     if (len === 0) {
       if (insideRings(rings, a.x, a.y) !== outside) runs.push([0, 1])
