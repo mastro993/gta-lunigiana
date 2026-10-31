@@ -1,9 +1,9 @@
+// Terrain for the map build: LiDAR DTM -> 4 m node grid, river carving, road flattening along
+// smoothed, grade-clamped profiles.
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { inflateSync } from "node:zlib"
 
-// Terrain for the map build: LiDAR DTM -> 4 m node grid, river carving, road flattening along
-// smoothed, grade-clamped profiles.
 import { Ops } from "@typeonce/ritmo-math"
 
 import { latLonToGaussBoaga } from "./crs.ts"

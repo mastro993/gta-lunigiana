@@ -737,10 +737,11 @@ change an input.
   link and say the files are changed from their sources (`NOTES`).
   241 files in 38 s.
 - **CI** (`.github/workflows/ci.yml`, `.github/actions/maps/action.yml`): the check job restores
-  the maps from the cache under `maps-<os>-<node version>-<key>`: the two builds the reproducible
-  job compares run the same Node, so a new one is built and checked again. On a miss it restores
-  `data/raw` from the cache
-  under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
+  the maps from the cache under `maps-<os>-<node version>-<key>`, so a new Node is built and
+  checked again. Every job reads the version from `.node-version`: the runner images update their
+  Node 24 on their own schedules, and the x64 jobs must look up the key the arm64 job saved. On a
+  miss it restores `data/raw` from the cache under the lock's hash, runs `pnpm fetch-raw` (saving
+  `data/raw` once it checks) and `pnpm maps`.
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
   imports, followed from import to import (85 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails

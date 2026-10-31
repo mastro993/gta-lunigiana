@@ -87,7 +87,7 @@ All screenshots come from today’s map:
 
 You need:
 
-- **Node 24**: runs the TypeScript tests and map tools directly, with no build step
+- **Node 24**: runs the TypeScript tests and map tools directly, with no build step; CI pins the exact version in `.node-version`
 - **pnpm 10**: `packageManager` pins it in `package.json`, and `corepack enable` installs it
 - **The GitHub CLI** (`gh`), signed in (`gh auth login`): `pnpm fetch-raw` downloads the map's inputs with it
 - **A browser with WebGL**: plus Web Audio for the sound
@@ -224,6 +224,7 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `data/parts/` | each Lunigiana part's source manifest: the CTR sheets, LiDAR tiles and 10 m DTMs `fetch-rt` downloads for it |
 | `docs/` | architecture, map pipeline, gameplay, weather, water and audio notes; `docs/standards/` holds the checks for each part of the game |
 | `.github/` | the workflows (CI, Pages) and the action they share to restore or build the maps (`actions/maps/`) |
+| `.node-version` | the exact Node version CI and Pages install, so every job keys the maps cache alike |
 | `.oxlintrc.json`, `.oxfmtrc.json`, `lefthook.yml` | lint rules, formatter settings, and the git hooks that format and lint each commit and check each push |
 | `lint/` | the project's own oxlint plugins, one file each named after the plugin (`test-files.ts`: each test in a `__tests__` folder) |
 
