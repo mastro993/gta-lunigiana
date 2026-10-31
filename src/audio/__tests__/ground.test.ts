@@ -15,6 +15,7 @@ import { skyAt } from "../index.ts"
 import { pathDifference } from "../occlusion.ts"
 import {
   ambienceAt,
+  type Bell,
   bells,
   dogsNear,
   echoesAt,
@@ -36,6 +37,17 @@ const TOWERS = bells.filter(gone),
 const EARS = { ...SPAWN, z: groundZ(SPAWN.x, SPAWN.y) + EAR_HEIGHT },
   /** A source 300 m along the valley, on a held tile. */
   NEAR = { x: SPAWN.x + 300, y: SPAWN.y - 120, z: heightAt(SPAWN.x + 300, SPAWN.y - 120) + 1 }
+/** A way across a tower, 40 m to either side of its bell, 3 m under the top of its walls. */
+const across = ({ x, y, z }: Bell) =>
+  [
+    { x: x - 40, y, z: z - 3 },
+    { x: x + 40, y, z: z - 3 },
+  ] as const
+/** A tower on a tile let go whose way across clears the coarse ground under it, metre by metre: only its walls rise into it. */
+const OPEN = TOWERS.find((t) => {
+  const [a] = across(t)
+  return Array.from({ length: 81 }, (_, s) => coarseHeightAt(a.x + s, a.y)).every((z) => z < a.z)
+})
 
 /** What the listener hears of the map that is measured afresh on every ask. */
 const measured = () => ({
@@ -88,7 +100,9 @@ const edgeBlock = (x: number, y: number) => {
 
 test("far sources (bells km off, a crossing, a strike) read no tile out of memory, and the listener's surroundings are what more tiles in memory give", () => {
   assert.ok(TOWERS.length >= 10 && CROSSING >= 0, `${TOWERS.length} towers, crossing ${CROSSING}`)
+  assert.ok(OPEN !== undefined, "a far tower on open ground")
   const tower = TOWERS[0]!,
+    open = OPEN,
     before = measured(),
     village = edgeBlock(SPAWN.x, SPAWN.y),
     far = edgeBlock(tower.x, tower.y)
@@ -106,6 +120,8 @@ test("far sources (bells km off, a crossing, a strike) read no tile out of memor
         forest = forestAlong(EARS.x, EARS.y, bell.x, bell.y)
       assert.ok(Number.isFinite(delta) && delta >= 0 && forest >= 0, `${bell.key}: ${delta} m`)
     }
+    // A building on a tile out of memory is passed over: across the tower, only the coarse ground, under the way.
+    assert.equal(pathDifference(...across(open)), 0)
     // Off the tiles in memory an ambience block is the coarse cover's at its centre: all one kind, or none.
     const stand = ambienceAt(far.x, far.y)
     assert.ok(
@@ -133,9 +149,14 @@ test("far sources (bells km off, a crossing, a strike) read no tile out of memor
   } finally {
     setTileSource(fromDisk)
   }
-  // Back in memory: the tiles twice as far round the listener, and the far block's.
+  // Back in memory: the tiles twice as far round the listener, the far block's and the tower's.
   residentAround([SPAWN], 2 * REACH)
-  residentAround([far], 0)
+  residentAround([far, open], 0)
+  // Back in memory, the tower's walls stand in the way, 3 m over its middle: δ ≈ 2·√(40² + 3²) − 80 = 0.22 m.
+  const [a] = across(open)
+  assert.ok(Array.from({ length: 81 }, (_, s) => heightAt(a.x + s, a.y)).every((z) => z < a.z))
+  const walls = pathDifference(...across(open))
+  assert.ok(walls > 0.2, `${walls} m`)
   const { dogs, owls, ring: rung, village: woods, ...rest } = held
   assert.deepEqual(rest, before)
   const within = (r: number) => (p: { readonly x: number; readonly y: number }) =>

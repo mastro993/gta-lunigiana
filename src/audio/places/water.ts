@@ -3,16 +3,22 @@
  * fountains and the Cascata di Equi as point sources. Loudness per reach comes from the water's
  * width (a stand-in for discharge) and its grade smoothed over ±40 m (rapids against calm reaches),
  * calibrated at 2 m from the bank: the Torrente Lucido ≈ 70 dB(A) in rapids and ≈ 62 on calm
- * reaches, the 8 m torrents ≈ 64, the 4 m named streams ≈ 55, the unnamed 2 m gullies ≈ 40.
+ * reaches, the 8 m torrents ≈ 64, the 4 m named streams ≈ 55, the unnamed 2 m gullies ≈ 40. The
+ * reaches come from the water pieces of the tiles in memory, each whole in every tile round it,
+ * and are heard in the whole map's order, so the levels sum as one broad phase over every reach
+ * of the map summed them.
  *
  * @module audio/places/water
  */
-import { staticGrid } from "../../sim/collide.ts"
-import { heightAt, MAP, type Water } from "../../sim/map/index.ts"
+import { MAP, type Water } from "../../sim/map/index.ts"
+import { WATER_VERTICES } from "../../sim/map/kinds.ts"
+import { cellBox, type CellGrid, cellGrid, queryCells } from "../../sim/map/lattice.ts"
+import { derived, residentTile, type Tile, tilesOver } from "../../sim/map/tiles.ts"
 import { channelOf } from "../../sim/water/channel.ts"
 import { segDist2 } from "../../tools/geometry.ts"
 import { lineLevel, NIGHT_DB, spreading, type LineSegment } from "../acoustics.ts"
 import { smoothstep } from "../buffers.ts"
+import { terrainAt } from "../ground.ts"
 
 /** A body of water heard from a point: its nearest point (z the water surface) and level there, dB(A). */
 export interface WaterHeard {
@@ -28,7 +34,7 @@ export interface WaterHeard {
 }
 
 /** A straight reach of one body: its line-source power, and what the synth needs at its nearest point. */
-interface Reach extends LineSegment {
+export interface Reach extends LineSegment {
   readonly key: string
   readonly river: boolean
   readonly flow: number
@@ -95,25 +101,74 @@ const reachesOf = (water: Water): Array<Reach> => {
   return out
 }
 
-/** Every reach of the map, gridded (≈ 30 ms, on the first query). */
-const indexReaches = () => {
-  const reaches = MAP.water.flatMap(reachesOf)
-  const near = staticGrid(
-    reaches.length,
-    (i) => {
-      const r = reaches[i]!
-      return [
-        Math.min(r.ax, r.bx),
-        Math.min(r.ay, r.by),
-        Math.max(r.ax, r.bx),
-        Math.max(r.ay, r.by),
-      ]
-    },
-    32,
-  )
-  return { reaches, near }
+/** Cell side of the reaches' broad phase, m, on the rivers' lattice (`MAP.vectors.lattice.water`). */
+const CELL = 32
+
+/** A tile's reaches, and their ids (`WATER_VERTICES` × the piece's index in the whole map's water, plus the reach's first vertex), gridded. */
+interface Reaches {
+  readonly reaches: ReadonlyArray<Reach>
+  readonly grid: CellGrid
 }
-let index: ReturnType<typeof indexReaches> | undefined
+
+/** The reaches of every water piece a tile holds (whole: the grade reads the piece end to end), gridded on first use. */
+const reachesOfTile = derived((tile: Tile): Reaches => {
+  const { ids, items } = tile.vectors.water,
+    reaches: Array<Reach> = [],
+    keys: Array<number> = []
+  items.forEach((water, k) => {
+    reachesOf(water).forEach((reach, i) => {
+      reaches.push(reach)
+      keys.push(ids[k]! * WATER_VERTICES + i)
+    })
+  })
+  const boxOf = (i: number) => {
+    const { ax, ay, bx, by } = reaches[i]!
+    return [Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)] as const
+  }
+  return {
+    reaches,
+    grid: cellGrid(reaches.length, boxOf, keys, MAP.vectors.lattice.water, CELL),
+  }
+})
+
+/** Scratch for a query's tiles' reaches and grids. */
+const held: Array<Reaches> = [],
+  grids: Array<CellGrid> = []
+
+/**
+ * Host only: calls `visit` with the id and the reach of every reach whose box may overlap the
+ * query box (run the exact test), in the whole map's order (32 m cells south to north, west to
+ * east, each cell's reaches by id), each once, though every tile round it holds its piece. Visits
+ * none and answers false when a tile the query reads is not in memory: none is ever read.
+ */
+export const reachesIn = (
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+  visit: (id: number, reach: Reach) => void,
+): boolean => {
+  const at = MAP.vectors.lattice.water
+  held.length = 0
+  grids.length = 0
+  for (const key of tilesOver(...cellBox(at, CELL, minX, minY, maxX, maxY))) {
+    const tile = residentTile(key)
+    if (tile === undefined) return false
+    const inTile = reachesOfTile(tile)
+    if (inTile.reaches.length === 0) continue
+    held.push(inTile)
+    grids.push(inTile.grid)
+  }
+  // A grid marks what it has given, but a reach the tiles round a seam all hold comes once from each: the first is kept.
+  const seen = new Set<number>()
+  queryCells(grids, at, CELL, minX, minY, maxX, maxY, (g, k) => {
+    const id = grids[g]!.ids[k]!
+    if (seen.has(id)) return
+    seen.add(id)
+    visit(id, held[g]!.reaches[k]!)
+  })
+  return true
+}
 
 /** Drinking fountains, taps and the Fontana di Aiola lavoir (more water: higher flow). */
 const fountains = MAP.pois.filter(
@@ -126,19 +181,19 @@ const fountains = MAP.pois.filter(
 /**
  * The bodies of water heard at (x, y) within `radius` m (at most 400), loudest first: rivers and
  * streams (pieces merged by name) at their nearest point, fountains and the waterfall as points.
- * Bodies under 20 dB(A) at (x, y) are left out.
+ * Bodies under 20 dB(A) at (x, y) are left out. The rivers and streams are heard only while every
+ * tile under the disc is in memory (always, within 400 m of the player); a fountain off them stands
+ * on the coarse terrain (`terrainAt`).
  */
 export const waterNear = (x: number, y: number, radius: number): ReadonlyArray<WaterHeard> => {
   const r = Math.min(radius, FARTHEST),
     out: Array<WaterHeard> = []
-  const { reaches, near } = (index ??= indexReaches())
   const bodies = new Map<
     string,
     { readonly reaches: Array<Reach>; nearest: Reach; d2: number; t: number }
   >()
-  near(x - r, y - r, x + r, y + r, (i) => {
-    const reach = reaches[i]!,
-      { d2, t } = segDist2(x, y, reach.ax, reach.ay, reach.bx, reach.by)
+  reachesIn(x - r, y - r, x + r, y + r, (_, reach) => {
+    const { d2, t } = segDist2(x, y, reach.ax, reach.ay, reach.bx, reach.by)
     if (d2 > r * r) return
     const body = bodies.get(reach.key)
     if (body === undefined) bodies.set(reach.key, { reaches: [reach], nearest: reach, d2, t })
@@ -168,7 +223,7 @@ export const waterNear = (x: number, y: number, radius: number): ReadonlyArray<W
       level: FOUNTAIN_DB - spreading(d, 1),
       x: f.x,
       y: f.y,
-      z: heightAt(f.x, f.y) + 0.8,
+      z: terrainAt(f.x, f.y) + 0.8,
     })
   }
   const d = Math.hypot(CASCATA.x - x, CASCATA.y - y)
