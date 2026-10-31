@@ -58,21 +58,26 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
 - **Rail**: the shared railway pipeline uses Cesena's OSM tracks and platforms, with no Tuscany
   survey tracks or Gragnola-specific layout corrections. The bundled Cesena map is rebuilt when
   the shared packed format changes, so both regional maps use the same decoder.
-- **Features**: secondary roads and main-road links use the existing tertiary class; cycleways
-  are walkable paths. OSM building height tags are used where present, otherwise existing default
-  heights apply. Road widths use class defaults. The Savio's width is the median of perpendicular
-  cross-sections through its OSM bank polygons (each piece the play area's outline keeps of a way
-  on its own: way 1029104404's two are 13.8 and 14 m), not the mountain-stream fallback.
-  Neighbourhood labels come from OSM place nodes, without Monzone's hand-placed districts or stone
-  cores.
+- **Features**: the roads take the classes Lunigiana's do ([section 3](#3-features-featurests)): the
+  SS726 Secante (Via Ugo La Malfa) is the region's trunk road, its 27 slip roads primary, and the
+  secondary roads keep their class. Its 80 roundabout ways, which carry no `oneway` tag, are oneway
+  as OSM implies. Cycleways are walkable paths. OSM building height tags are used where present,
+  otherwise existing default heights apply. Road widths use class defaults, or on the main roads
+  their `lanes` width: the Secante's `lanes=2` makes it 7 m, not trunk's 8.5 m, and 58 of the 148
+  secondary pieces take 3.5, 7 or 10.5 m. The Savio's width is the median of perpendicular
+  cross-sections through its OSM bank polygons (each piece the play area's outline keeps of a way on
+  its own: way 1029104404's two are 13.8 and 14 m), not the mountain-stream fallback. Neighbourhood
+  labels come from OSM place nodes, without Monzone's hand-placed districts or stone cores.
 - **Start**: the player starts beside a central street in the connected traffic network, outside
   buildings with an open walk-clear route to the street. Police and station parking use Cesena's
   mapped Carabinieri headquarters (the Compagnia, POI 806564311, which the map names as
   `spawns.police`: the game parked them by the first police POI, the Commissariato 1.9 km away,
   until the build named it) and railway station.
 - **Checks**: `src/tools/__tests__/cesena.test.ts` checks landmarks, connected networks, the outdoor spawn,
-  nearby cars, measured river widths and deterministic simulation startup. Run `pnpm check` after
-  a build. Preview the map with
+  nearby cars, measured river widths and deterministic simulation startup, and
+  `cesena.map-test.ts` (`pnpm test:map`) the clearance under every road bridge and the Secante and
+  its slip roads: trunk and ramps, in the traffic graph but no Ape's lanes, off the walk graph and
+  with no parked car by them. Run `pnpm check` after a build. Preview the map with
   `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`.
   Repeat builds must have identical decompressed hashes, as for Lunigiana.
 
@@ -429,12 +434,25 @@ part](#adding-a-part)).
 
 ### 3. Features (`features.ts`)
 
-- **Roads**: OSM highway classes `tertiary`, `unclassified`, `residential`, `service`, `track`,
-  `path` and `steps`, plus four values folded into them: `primary` (the SR445 della Garfagnana
-  through Gragnola and Codiponte, a two-lane valley road) is `tertiary`, `living_street` is
-  `residential`, `footway` and `pedestrian` are `path`. A highway way tagged `area=yes` is a
-  square, not a road (a pedestrian square becomes a `paved` area). Other highway values are
-  skipped. The ways keep `oneway`, `bridge`, `tunnel`, `layer`, `maxheight` and private access.
+- **Roads**: OSM highway classes `motorway`, `trunk`, `primary`, `secondary`, `tertiary`,
+  `unclassified`, `residential`, `service`, `track`, `path` and `steps` (`ROAD_CLASSES` in
+  `kinds.ts`, widest first), plus the values folded into them. Each link folds into the class below
+  and keeps its `oneway`: `motorway_link` and `trunk_link` are `primary`, `primary_link`
+  `secondary`, `secondary_link` and `tertiary_link` `tertiary`. `living_street` is `residential`,
+  `footway` and `pedestrian` are `path` (and in Cesena `cycleway`). The Lucido valley holds one main
+  road, the SR445 della Garfagnana through Gragnola and Codiponte (OSM `primary`, 12 pieces); its
+  SP10 and SP59 are OSM `tertiary`. A highway way tagged `area=yes` is a square, not a road (a
+  pedestrian square becomes a `paved` area). Other highway values are skipped. The ways keep
+  `oneway`, `bridge`, `tunnel`, `layer`, `maxheight` and private access. A motorway, a
+  `motorway_link` and a roundabout are oneway unless tagged otherwise, as OSM implies (they are
+  drawn in their direction of travel): a one-lane roundabout untagged was a two-way road 3.5 m wide.
+  A `motorway_link` or `trunk_link` is a `ramp`: primary by class, but a motor road (`isMotorRoad`
+  in `kinds.ts`) with its motorway or trunk road, where nobody walks or parks and no Ape drives.
+  - A carriageway's width defaults by class (`ROADS` in `kinds.ts`). For the classes the valley
+    lacks, the defaults are per carriageway, for the first part that maps each to measure on the
+    orthophoto: motorway 11 m, trunk 8.5 m, primary 7 m, secondary 6.5 m. On these four a `lanes`
+    tag gives the width instead: 3.5 m a lane, plus a 3 m hard shoulder on a motorway (the SR445's
+    `lanes=2`: 7 m).
   - Width, surface and name come from the CTR road surfaces (`fitRoads` in `ctr.ts`). Every 4 m
     along a drivable road (skipping 6 m at each end), a station on a surface measures the surface
     across the centreline. Stations with more than 10 m on either side (squares, car parks) are
@@ -444,7 +462,8 @@ part](#adding-a-part)).
     and "Via XX Settembre") when the same holds for its stations inside the area the sheets map,
     so a road that runs on into the unmapped mountains keeps the name of its village stretch (Via
     di Ugliancaldo). OSM names stay, and so do specific OSM surfaces (cobblestone, gravel). Roads
-    the CTR does not cover keep their class width (6.5, 5, 4.5, 3.5, 3, 1.5 and 2 m).
+    the CTR does not cover keep their class width (tertiary to steps: 6.5, 5, 4.5, 3.5, 3, 1.5 and
+    2 m) or their `lanes` width: 6 of the SR445's 12 pieces, 7 m.
   - Roads still unnamed take a street name from `addr:street` votes (the nearest road to most
     addresses with that name).
 - **Water**: every `waterway` except culverts, with a water width, a gravel-bed half-width and a
@@ -571,16 +590,17 @@ the pieces where tracks meet (`rail-graph.ts`).
   so OSM's line keeps its shape, moved as its last matched sample (1.8 m), its end on the edge: a
   spline there bent a 20° kink 6 m off OSM in a test with no CTR at all. OSM's 4.5° vertex at
   (−1837.3, 3865.3) stays.
-- **Bridges keep what they span** (`rail-spans.ts`): moving a bridge sideways by d
-  slides each crossing along it by d·cot θ. A river or road that was under a bridge stays under
-  it, and the bridge reaches past it as far as the cells the at-grade track beyond cannot take: a
-  wide stream's protected bed (w ≥ 4 m: w/2 + 1 m) and a tertiary road's core (rank 0,
-  [section 7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts): w/2 + 2.3 m), each
+- **Bridges keep what they span** (`rail-spans.ts`): moving a bridge sideways by d slides each
+  crossing along it by d·cot θ. A river or road that was under a bridge stays under it, and the
+  bridge reaches past it as far as the cells the at-grade track beyond cannot take: a wide stream's
+  protected bed (w ≥ 4 m: w/2 + 1 m) and a main road's core (motorway to tertiary, whose rank beats
+  the rail's, [section
+  7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts-road-levelsts): w/2 + 2.3 m), each
   plus a cell's diagonal (5.7 m, the farthest a corner of a cell the track runs through lies off
-  it). A bridge end that falls short slides along the track: 9 ends, among them the Aulella
-  bridge 261445433's north end by 13.9 m (OSM ended it 3.1 m inside the river, and the track
-  beyond hung 8.2 m over the river's carve) and both ends of the Via Provinciale bridge 83729869
-  by 5.7 and 11.0 m (the tertiary under it left 4.5 m of track 5.1 m over its carved core).
+  it). A bridge end that falls short slides along the track: 9 ends, among them the Aulella bridge
+  261445433's north end by 13.9 m (OSM ended it 3.1 m inside the river, and the track beyond hung
+  8.2 m over the river's carve) and both ends of the Via Provinciale bridge 83729869 by 5.7 and 11.0
+  m (the tertiary under it left 4.5 m of track 5.1 m over its carved core).
 - **The CTR's bridges**: where the CTR maps the ballast on a bridge (`AFE` `Sede`
   063) and OSM draws the track at grade, the piece is cut at the polygon's edges (vertices
   `afe:<way>:<n>`; a stretch under 2 m joins its neighbour) and the stretch inside is a bridge: 24
@@ -590,18 +610,18 @@ the pieces where tracks meet (`rail-graph.ts`).
   797861191 and 797865913 still cross at-grade track, each sharing a culvert vertex with it
   (797865758 keeps OSM's own, now on a CTR bridge). A level crossing inside such a polygon stops
   the build (none is).
-- **Over an underpass's mouth** (`underpasses` in `rail-spans.ts`): where the track
-  crosses a drivable road's tunnel within reach of one of its mouths, a square about the crossing
-  joins the CTR's bridge polygons, reaching the road's core half width plus a cell's diagonal
-  (w/2 + 2.3 m + 5.7 m) across its centreline either way, so the track is a bridge there: at
-  grade, the track's own cells (rank 1 beats a residential road) and its bed held the mouth's grid
-  nodes at the rail's level. Over the residential underpass 698940836 at s 6324.6 the CTR's track
-  runs 1.8 m south of OSM's: OSM's had buried both its mouths 5.1–5.5 m under the bank, the CTR's
-  only the south one, 5.4 m, so a car drove in at the open north mouth, met the bank and was thrown
-  about 80 m up. Its 3.5 m CTR bridge piece, east of the road, grows to 20.7 m, and the track
-  underpass 696231810 at s 4777.6 (one mouth 5.0 m under) gets 19.4 m;
-  both tunnels now open at both mouths at their floors' level (`map/__tests__/rail.map-test.ts`). A
-  path's tunnel gets none: the build cuts no path's mouth.
+- **Over an underpass's mouth** (`underpasses` in `rail-spans.ts`): where the track crosses a
+  drivable road's tunnel within reach of one of its mouths, a square about the crossing joins the
+  CTR's bridge polygons, reaching the road's core half width plus a cell's diagonal (w/2 + 2.3 m +
+  5.7 m) across its centreline either way, so the track is a bridge there: at grade, the track's own
+  cells (rank 2 beats a residential road's 3) and its bed held the mouth's grid nodes at the rail's
+  level. Over the residential underpass 698940836 at s 6324.6 the CTR's track runs 1.8 m south of
+  OSM's: OSM's had buried both its mouths 5.1–5.5 m under the bank, the CTR's only the south one,
+  5.4 m, so a car drove in at the open north mouth, met the bank and was thrown about 80 m up. Its
+  3.5 m CTR bridge piece, east of the road, grows to 20.7 m, and the track underpass 696231810 at s
+  4777.6 (one mouth 5.0 m under) gets 19.4 m; both tunnels now open at both mouths at their floors'
+  level (`map/__tests__/rail.map-test.ts`). A path's tunnel gets none: the build cuts no path's
+  mouth.
 - **No short segments**: a vertex no other line or piece shares (OSM's other
   vertices only carried its drawing) is dropped where it lies under 2 m from a kept neighbour,
   unless that moves the line more than 0.25 m. On the 0.1 m grid a short segment's heading is
@@ -689,7 +709,7 @@ Grondilice).
 - The bed is carved into the grid: depth/2 below the surface inside w/2, a gravel slope out to the
   bed width, then a one-cell bank back to the terrain.
 
-### 7. Road and rail profiles (`profiles.ts`, `terrain.ts`, `rail-levels.ts`)
+### 7. Road and rail profiles (`profiles.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`)
 
 - Pieces are chained through nodes where exactly two ends meet. Each chain is resampled every 4 m
   from the ground and smoothed with a moving average. Bridges and tunnels are straight between
@@ -703,18 +723,23 @@ Grondilice).
   pinned, so a short link is not pinned at both ends by chains fitted apart (a lane in Codiponte
   between two levels got a 93% straight line that way).
 - The profile is then fitted to a grade limit through hard pins: elevations already set at
-  shared nodes by earlier chains, and rail clearance bounds. The fit is the midpoint of the two
-  grade envelopes, so cut and fill split evenly.
+  shared nodes by earlier chains, and the rail's and the overpasses' clearance bounds. The fit is
+  the midpoint of the two grade envelopes, so cut and fill split evenly.
 - Where the fit strays more than 4 m from the smoothed ground, the grade limit within 60 m is
   raised in 10% steps, up to 1.5× the class limit.
 
-| Pass (in order) | Grade limit | Smoothing half-window | Rank |
+| Pass (in order, `RAIL_PASS` and `ROAD_PASSES` in `profiles.ts`) | Grade limit | Smoothing half-window | Rank |
 |---|---|---|---|
-| rail | 2.5% | 100 m | 1 |
-| tertiary (with the SR445) | 10% | 20 m | 0 |
-| unclassified, residential | 15% | 20 m | 2 |
-| service, track | 20% | 20 m | 3 |
-| tracks only the CTR has (written after every road) | the nearest running track's level | – | 4 |
+| rail | 2.5% | 100 m | 2 |
+| motorway, trunk | 6% | 100 m | 0 |
+| primary, secondary, tertiary (the SR445 is primary) | 10% | 20 m | 1 |
+| unclassified, residential | 15% | 20 m | 3 |
+| service, track | 20% | 20 m | 4 |
+| tracks only the CTR has (written after every road) | the nearest running track's level | – | 5 |
+
+- Motorways and trunk roads take the rail's long smoothing and a gentle grade, and their rank keeps
+  their cells against every road and the rail. Primary and secondary roads share tertiary's pass
+  and rank, so the SR445 keeps the profile it had as a tertiary road.
 
 - Each profile is written into the grid (recorded as a claim, then written in each tile's window in
   the order of the passes, as [Pipeline](#pipeline) says): the core (max(w/2 + 0.3 + 2, 3) m, half a
@@ -729,11 +754,11 @@ Grondilice).
   road). The wider core also buries more of the narrow streams (under 4 m wide, which roads may
   write over): with a core a cell wider, 664 m of stream ran more than 1 m under the terrain against
   474 m before, and houses on a bank above a road lost up to 8 m of base (above the SR445 near (50,
-  −290)). At junctions the lower rank keeps the cell, so tertiary beats rail and rail beats the
-  rest.
+  −290)). At junctions the lower rank keeps the cell, so the main roads (motorway to tertiary)
+  beat the rail and the rail beats the rest.
 - The tracks only the CTR has take, point by point, the elevation of the nearest running track
   (the old yards lie level with the line; Equi's sidings are 17 m from it), set right after the
-  rail pass so a road crossing one is pinned to it there. They are written last (rank 4), into
+  rail pass so a road crossing one is pinned to it there. They are written last (rank 5), into
   cells no road took.
 - Grid nodes inside the wider streams (w ≥ 4 m) are protected: no road writes them. Bridges and
   tunnels write nothing. Paths and steps are not profiled.
@@ -755,6 +780,29 @@ Grondilice).
   the streams on the hillside. The rail's output keeps the profile samples where its elevation
   bends by more than 0.03 m (roads: 0.25 m), so the line drawn and driven follows the grid it was
   written into: 823 vertices, 19.0 KB of the JSON line (223 vertices before the CTR).
+- Overpasses (`road-levels.ts`): the rail bridge's rule holds under every road bridge too, so local
+  roads pass under a motorway's overpasses. A drivable road under a profiled road's bridge, or in a
+  tunnel under a road, keeps its `maxheight` (4 m when untagged) plus a 1.5 m deck under it. Of the
+  two roads, the one profiled second takes the bound: it dips under the road above, or, a bridge,
+  rises over the road below. A bridge or a tunnel in an earlier pass than the other road takes it
+  too, from that road's natural level (its mean uncarved ground within 35 m) and 0.3 m more, as the
+  rail does over a tagged underpass: a junction pinned under a Cesena slip road's bridge held a
+  service road 1.6 m under its deck (0.18 m over its natural level, which without the 0.3 m left it
+  5.32 m), and the Secante's tunnels ran 2.8 m under Cesena's streets. A road at grade never rises
+  over a tunnel: a car park's ramp under a Cesena square lifted the square 5.6 m. Each bound holds
+  at the profile samples on both sides of the crossing (2 m either way), as one at the nearest
+  sample left 0.1–0.2 m short between samples. Inside a bridge or tunnel it holds at both ends along
+  the deck's slope (`tilt` in `profiles.ts`), so a climbing tunnel's far portal keeps its level, and
+  bounds on one sample keep the strictest (several crossings under one deck). In the Lucido valley
+  the rule dropped the residential 328463362 1.2 m under the bridge 328463361 at (1643, 3286), from
+  4.36 to 5.52 m below its deck, and Via Gioco di Sopra in its tunnel under the tertiary 1001748732
+  at (−1661, 3550), from 5.27 to 5.57 m. In Cesena the least clearance under a road bridge went from
+  1.25 m to 5.50 m (3.92 m under the Ponte Europa Unita, over a road tagged `maxheight` 2.4), and
+  the Secante's tunnels run 5.41 m or more under its streets. Both maps' checks (`map.map-test.ts`,
+  `cesena.map-test.ts`) read every road bridge. Two Cesena tunnels keep less: the car park ramp
+  68296970 (a service road in its square's pass, which no pass before it bounds) stays at the
+  square's level, and Via Giovanni Spadolini's 166880964 runs 5.1 m under two service roads, its
+  ends pinned by junctions.
 - The bed against the LiDAR (every 2 m of at-grade line, leaving out the 4 m+ gaps of streams):
   0.26 m off at the mean, 0.10 m at the median and 0.86 m at p90, 432 m of the line more than 1 m
   off (before these rules: 1.18, 0.87 and 2.77 m, 2 932 m). Its grade changes by at most 3.4% over
@@ -763,9 +811,9 @@ Grondilice).
   centreline inside a cell caps that cell's four corners at the stretch's lower rail elevation
   plus 0.05 m, floored to 0.1 m, so no interpolation of the cell (bilinear, or the drawn mesh's
   triangles) stands more than 0.05 m over the rail, and raises them to its higher rail elevation
-  less 0.5 m, unless a road's core (ranks 0, 2, 3) or a wide stream's protected bed holds them.
+  less 0.5 m, unless a road's core (`ROAD_RANKS`) or a wide stream's protected bed holds them.
   Within 6 m of a level crossing the road decides. The terrain stood up to 0.84 m over the rail by
-  Via Riolo, where two tertiary roads (rank 0) keep the cells beside the line; a corner of a cell
+  Via Riolo, where two tertiary roads (rank 1) keep the cells beside the line; a corner of a cell
   the line clips lies up to 5.7 m off it, outside the profile's 4.3 m core, and one stood 7 m
   under the track in the Aulella's carve north of its bridge. The pass lowers 2 050 nodes, 25 of
   them by more than 0.3 m: 4.0 m on the slope of the cutting west of Equi Terme at (920, 756), a
@@ -908,7 +956,9 @@ walls held them before, and stores neither of those.
   one outline. A footprint cut in two becomes two buildings with the same id; slivers under
   4 m² are dropped. Clipped houses lose their hip roof.
 - Tunnels, paths and steps under arches only open such a corridor in the walls: the house is
-  drawn whole, the passage stays open and the interior stays closed.
+  drawn whole, the passage stays open and the interior stays closed. A motor road's corridor is its
+  whole w/2: no arch spans a motorway's or trunk road's tunnel, and the 1.2 m left the Secante's 7 m
+  tunnel under a house in Cesena a 2.4 m gap, too narrow for traffic, which cut 1.45 km of it off.
 - Tree trunks are not stored as walls. `wallsNear` indexes the trees as points and adds a 0.5 m
   square (`pushTrunk`, `TRUNK` in `kinds.ts`) around each tree a query reaches.
 
@@ -916,11 +966,13 @@ walls held them before, and stores neither of those.
 
 Nodes come from shared OSM node ids (clip points get their own), and edges are split to at most
 25 m. Where a road leaves the play area, its end is pulled back 8 m, past the exit cap. `traffic`
-is the largest connected component of `tertiary`, `unclassified`, `residential` and `service`
-edges (the SR445 and living streets included), minus private roads, dead-end tunnel spurs, and
-dead-end tips with no room for a car to turn (a 2.3 m circle clear of drive walls and trunks:
-lanes that end between houses); tracks are drivable by the player but get no AI traffic. `walk`
-is the largest connected component of every edge except tunnels. The build keeps each vertex
+is the largest connected component of the `motorway` to `service` edges (`isTraffic`: living
+streets and links included), minus private roads, dead-end tunnel spurs, and dead-end tips with
+no room for a car to turn (a 2.3 m circle clear of drive walls and trunks: lanes that end between
+houses); tracks are drivable by the player but get no AI traffic. `walk` is the largest connected
+component of every edge except tunnels and motor roads (`isMotorRoad`: motorways, trunk roads and
+their slip roads, where the Codice della Strada, art. 175, bans people on foot), so nobody walks
+the Secante. The build keeps each vertex
 id's node (`ids`), so the level-crossing boxes name their nodes without matching coordinates.
 
 ### 12. Trees, spawns, districts (`trees.ts`, `spawns.ts`, `districts.ts`)
@@ -969,21 +1021,22 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   The final rounded position must lie outside every building footprint and have a walk-clear
   route to its street centreline, sampled at intervals no greater than 0.5 m. Wall distance alone
   can accept a point deep inside a building, leaving the player trapped.
-- **Parked spots**: one per 8 buildings (797) on the right kerb of tertiary, unclassified and
-  residential roads (not bridges or tunnels), at least 12 m from junctions and 9 m from each other,
-  with two or more buildings within 40 m, off every carriageway (tunnels included), clear of walls,
-  with the car's box at least 2.8 m from at-grade running track (the clearance rule) and 1.94 m from
-  a loop or siding (a train's half-width, 1.44 m, plus 0.5 m: a spot by OSM's Gragnola loop stood
-  1.4 m from it; measured from the car's centre, the rule kept a spot at (−1645.2, 3301.1) whose
-  side stood 2.02 m from Gragnola's through track), and none within 20 m (in a straight line, so
-  along any road too) of a level-crossing node: the Codice della Strada (art. 158) bans stopping "in
-  corrispondenza o in prossimità dei passaggi a livello". That rule took three spots, 14.7–19.4 m
-  from Via Nuova, Via Riolo and Viale 20 Settembre; others took their place. The two nearest the
-  Carabinieri station come first (the sim parks their cars there: the station goes into the map as
-  `spawns.police`, so the game never guesses it among the police POIs); the rest are drawn in hash
-  order from every village's candidates, so each village gets its share. Car parks within 150 m of
-  Monzone station add up to 6 nose-in spots each (805 spots in all). The sim decides how many cars
-  to park on them.
+- **Parked spots**: one per 8 buildings (797) on the right kerb of primary, secondary, tertiary,
+  unclassified and residential roads (not bridges or tunnels; never by a motor road, where art. 176,
+  comma 5 bans stopping on the carriageways and ramps), at least 12 m from junctions and 9 m from
+  each other, with two or more buildings within 40 m, off every carriageway (tunnels included),
+  clear of walls, with the car's box at least 2.8 m from at-grade running track (the clearance rule)
+  and 1.94 m from a loop or siding (a train's half-width, 1.44 m, plus 0.5 m: a spot by OSM's
+  Gragnola loop stood 1.4 m from it; measured from the car's centre, the rule kept a spot at
+  (−1645.2, 3301.1) whose side stood 2.02 m from Gragnola's through track), and none within 20 m (in
+  a straight line, so along any road too) of a level-crossing node: the Codice della Strada (art.
+  158) bans stopping "in corrispondenza o in prossimità dei passaggi a livello". That rule took
+  three spots, 14.7–19.4 m from Via Nuova, Via Riolo and Viale 20 Settembre; others took their
+  place. The two nearest the Carabinieri station come first (the sim parks their cars there: the
+  station goes into the map as `spawns.police`, so the game never guesses it among the police POIs);
+  the rest are drawn in hash order from every village's candidates, so each village gets its share.
+  Car parks within 150 m of Monzone station add up to 6 nose-in spots each (805 spots in all). The
+  sim decides how many cars to park on them.
 - **Districts** (`districts.ts`): 14 hand-placed discs (name, centre, radius) for Monzone's
   station, streets and hill clusters, then a disc per OSM `village` and `hamlet` node outside
   them (26: Gragnola, Equi Terme, Viano, Vinca, Tenerano, Ugliancaldo...), then 35 hand-placed
@@ -1126,7 +1179,7 @@ counter-clockwise, holes clockwise.
 | `tiles` | `{ i, j, zmin, zmax }` per tile, south to north then west to east: its lowest and highest node, decimetres |
 | `place` | `floor` and `downslope`, the sky's place ([weather.md](weather.md)), fitted over every node at build time |
 | `coarse` | `cell` (64 m), `cols`, `rows`, `x0`, `y0` on the origin's multiples over the bounds; the nodes' heights and the cover there are its two packed sections, as the tiles' lookups read them (in an unlisted tile, the nearest listed node and cell). For hosts reading far from the player, never the sim |
-| `roads` | `id`, `cls`, `name?`, `ref?`, `w`, `surface`, `oneway?`, `bridge?`, `tunnel?`, `layer?`, `verge?` (where people walk, m from the centreline on either side, on the three roads pulled in off the railway; else w/2 + 0.8 m, 0.3 m on paths, steps and tracks), `pts`, `z` (surface elevation per vertex) |
+| `roads` | `id`, `cls`, `name?`, `ref?`, `w`, `surface`, `oneway?`, `bridge?`, `tunnel?`, `layer?`, `maxheight?` (an underpass's OSM clear height, m), `verge?` (where people walk, m from the centreline on either side, on the three roads pulled in off the railway; else w/2 + 0.8 m, 0.3 m on paths, steps and tracks), `pts`, `z` (surface elevation per vertex) |
 | `buildings` | `id` (OSM id, or negative for the CTR), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint), `style`, `ruins?`, `tint`, `outer`, `holes?` |
 | `water` | `id`, `kind` (`river` or `stream`), `name?`, `w` (the water's width), `bed` (the gravel bed's half-width), `depth` (the bed is carved `depth`/2 under `z`), `pts`, `z` (the built water surface per vertex), `area` (the catchment upstream of each vertex, km²), `floor` (baked: the bed under the centreline per vertex, m a.s.l.) |
 | `rail` | `id` (OSM way, negative for a track only the CTR has; not unique: the pieces cut from one way at its switches and the CTR's bridges share it), `kind?` (none on a line; off the lines `loop` or `siding`, from the topology), `bridge?`, `tunnel?`, `pts`, `z` (the bed under the sleepers per vertex, the rail head `RAIL_LIFT` 0.12 m higher, where the rails are drawn; at grade, more than 6 m from a level crossing, the terrain is at most 0.05 m higher and 0.5 m lower, but beside a lower road along the line). Tracks meet only at piece ends; no polyline repeats a vertex |
@@ -1229,25 +1282,27 @@ The checks over the whole built map are map checks: `*.map-test.ts` files, which
 runs and `pnpm check` and CI run after `pnpm test`. `pnpm test` keeps only checks that read the
 tiles and features round named spots, mostly Monzone station, so what it checks does not grow with
 the map ([architecture.md](architecture.md#checks)). Run `pnpm test:map` after every `pnpm map`.
-On 2026-10-31 it ran 100 tests in 29 files in 5.9–6.3 s on a loaded 14-core Mac (36 s of CPU with
+On 2026-10-31 it ran 102 tests in 30 files in 5.7–6.0 s on a loaded 14-core Mac (37 s of CPU with
 each file alone), the 3x test region's 5 skipped; with the 3x built, 8.8–9.5 s and 46 s of CPU
 more. The split took 21 s of CPU out of `pnpm test` on 2026-10-30 (228 to 207 s), when
 `pnpm test:map` held 58 tests in 20 files.
 
-`src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.3 s alone, read whole (`wholeMap`
+`src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.1 s alone, read whole (`wholeMap`
 in `src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list and land
 cover): heightmap coverage, spawns clear of walls and off traffic lanes (with parking in each
 village the map was widened for: Equi Terme, Gragnola, Colognola, Campiglione, Viano, Vinca,
 Ugliancaldo and Tenerano), no walls on roads, no drivable road inside a footprint, closed building
 interiors, one traffic component reaching the station, Monzone Alto and each of those villages,
-grades within 1.5× the class limits (a track shortcut pinned at both ends by the bends of one quarry
-road may only be the straight line between them), bridge and underpass clearances (a road bridge 5.4
-m or more over the rail's bed), no perched water, the Lucido's widths, catchments growing downstream
-with no jump at a tributary's mouth (the Lucido's 47 km² at its mouth, the Aulella's 208 leaving the
-map), no walk or drive wall in a wide river and shore walls by it, and valid names, classes, styles,
-area kinds and districts (each of those villages is its own HUD name, Equi Terme's station and spa
-included, and Monte Sagro and Pizzo d'Uccello name themselves; CTR street names cased like "Via XX
-Settembre" and "Via Castel dell'Aquila").
+grades within 1.5× the class limits, plus the 0.1 m elevations' rounding over the 8 m measured
+(every class but paths and steps has one; a track shortcut pinned at both ends by the bends of one
+quarry road may only be the straight line between them), bridge and underpass clearances (a road
+bridge 5.4 m or more over the rail's bed; a drivable road under a road bridge its `maxheight`, 4 m
+untagged, plus the 1.5 m deck, less that rounding), no perched water, the Lucido's widths,
+catchments growing downstream with no jump at a tributary's mouth (the Lucido's 47 km² at its mouth,
+the Aulella's 208 leaving the map), no walk or drive wall in a wide river and shore walls by it, and
+valid names, classes, styles, area kinds and districts (each of those villages is its own HUD name,
+Equi Terme's station and spa included, and Monte Sagro and Pizzo d'Uccello name themselves; CTR
+street names cased like "Via XX Settembre" and "Via Castel dell'Aquila").
 
 `src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
 `decodeMap` (a newline inside a name, the coarse grid) and a tile through `packTile` and
@@ -1331,32 +1386,38 @@ track into the CTR's bridges; `rail-graph.test.ts` cuts a piece at a switch, fin
 through turnouts past a passing loop, a yard and a spur, takes junction headings over 5 m, and finds
 no line on a ring, with each piece's kind; `rail-levels.test.ts` bounds the rail over a tagged and
 an untagged underpass, under a road bridge, at a level crossing (no pin) and over a river and a
-stream; `profiles.test.ts` levels a tunnel's portals and a bridge's ends with the ground outside
-them, and writes two roads' claims into two windows that share a seam just as into the whole grid;
-`rail-bed.test.ts` lowers a grid under a line, raises the corners far under it but a kept one, moves
-a window's nodes as it moves the whole grid's, and levels a siding on the line beside it;
-`grid-tiles.test.ts` checks that the tiles' windows cover the grid, neighbours sharing their border
-nodes, and that the tile `cellTile` names for a point (on and off the seams and the grid's edge)
-holds the four nodes of the cell read there; `spawns.test.ts` parks cars off running track, off a
-siding and away from a level crossing; `platforms.test.ts` clips a platform off a track, a road and
-a crossing area, makes a strip between close tracks and a narrow one walkways, and leaves out the
-ground far under a platform's top; `railway.test.ts` checks the speed limits, crossing boxes and
-stations; `rail-clear.test.ts` narrows a verge beside a track, leaves one at another level, in a box
-or on a platform alone, and throws for a lane. `src/sim/map/__tests__/railway.map-test.ts` checks
-`MAP.railway`: each line runs terminal to terminal, its pieces sharing their end vertices
-bit-identically, every running piece on one (today the one line, east edge to north edge); the speed
-limits cover it, 80 km/h from Equi Terme's stop to Gragnola's; the three stations lie along their
-platforms, a platform within 4 m of the line's side at each one's middle; each crossing box's nodes
-are vertices of its road and of the rail, the line's s on one of them, and every vertex an at-grade
-road shares with at-grade rail is in a box; the platforms stand 1.55 m or more from every track and
-0.44 m or more past every carriageway's edge (0.5 m less the rings' 0.06 m simplification), their
-top the rail head plus 0.25 m (Gragnola's walkway 0.02 m) and `groundZ` on them their top or the
-terrain where that is higher; the line's grade changes by under 4% over 20 m, and under 2% through a
-level crossing (the map before the fixes changed it 4.1% at s 6269).
-`src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule on the verges people walk
-(`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car stands within 20 m of a
-crossing node; on a map built without the narrowed verges and the parking rule, both fail (Piazza
-Paolo Sist at 2.75 m and Via Riolo at 1.92 m, a car 19.4 m from Viale 20 Settembre).
+stream; `road-levels.test.ts` bounds a road under a bridge by its `maxheight` (4 m untagged) plus
+the 1.5 m deck, 2 m either side of the crossing, a bridge or tunnel in an earlier pass by the other
+road's natural level, and never a road at grade over a tunnel; `features.test.ts` folds each link
+into the class below, gives a main road its `lanes` width, and makes a motorway, its links and a
+roundabout oneway and a motorway's or trunk road's link a ramp; `profiles.test.ts` levels a tunnel's
+portals and a bridge's ends with the ground outside them, carries a tilted bound inside a climbing
+tunnel to its portals along its slope, and writes two roads' claims into two windows that share a
+seam just as into the whole grid; `rail-bed.test.ts` lowers a grid under a line, raises the corners
+far under it but a kept one, moves a window's nodes as it moves the whole grid's, and levels a
+siding on the line beside it; `grid-tiles.test.ts` checks that the tiles' windows cover the grid,
+neighbours sharing their border nodes, and that the tile `cellTile` names for a point (on and off
+the seams and the grid's edge) holds the four nodes of the cell read there; `spawns.test.ts` parks
+cars off running track, off a siding and away from a level crossing; `platforms.test.ts` clips a
+platform off a track, a road and a crossing area, makes a strip between close tracks and a narrow
+one walkways, and leaves out the ground far under a platform's top; `railway.test.ts` checks the
+speed limits, crossing boxes and stations; `rail-clear.test.ts` narrows a verge beside a track,
+leaves one at another level, in a box or on a platform alone, and throws for a lane.
+`src/sim/map/__tests__/railway.map-test.ts` checks `MAP.railway`: each line runs terminal to
+terminal, its pieces sharing their end vertices bit-identically, every running piece on one (today
+the one line, east edge to north edge); the speed limits cover it, 80 km/h from Equi Terme's stop to
+Gragnola's; the three stations lie along their platforms, a platform within 4 m of the line's side
+at each one's middle; each crossing box's nodes are vertices of its road and of the rail, the line's
+s on one of them, and every vertex an at-grade road shares with at-grade rail is in a box; the
+platforms stand 1.55 m or more from every track and 0.44 m or more past every carriageway's edge
+(0.5 m less the rings' 0.06 m simplification), their top the rail head plus 0.25 m (Gragnola's
+walkway 0.02 m) and `groundZ` on them their top or the terrain where that is higher; the line's
+grade changes by under 4% over 20 m, and under 2% through a level crossing (the map before the fixes
+changed it 4.1% at s 6269). `src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule
+on the verges people walk (`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car
+stands within 20 m of a crossing node; on a map built without the narrowed verges and the parking
+rule, both fail (Piazza Paolo Sist at 2.75 m and Via Riolo at 1.92 m, a car 19.4 m from Viale 20
+Settembre).
 
 The part tools ([Adding a part](#adding-a-part)) are checked offline in `src/tools/__tests__`:
 `cartoteca.test.ts` parses GML and GetFeatureInfo answers trimmed from real ones (a hole, a
@@ -1649,12 +1710,12 @@ carries the roads, water, rail and buildings across the old edge, which then are
   retaining walls between them are for the render to draw.
 - **The rail's level is the LiDAR's, smoothed under a 2.5% grade limit.** The CTR's track lines
   carry no heights. The bed lies within 0.10 m of the LiDAR at the median and 0.86 m at p90
-  ([section 7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts)); where the ground is
-  steeper than the limit allows or bends within the 100 m smoothing it stays off: 1.1 m under the
-  ground west of Equi Terme (s 4250–4500), 0.89 m along Monzone's station (s 6750–7000), 1.3 m
-  south of Gragnola (s 9500–9750), 0.75 m either side of the Terma tunnel, and up to 2.5 m over it
-  on the 214 m to the north edge, where the Aulella bridge holds it 3 m over the river. The short
-  bridges the CTR maps over ditches keep the line's level, under 3 m over their streams.
+  ([section 7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts-road-levelsts)); where
+  the ground is steeper than the limit allows or bends within the 100 m smoothing it stays off: 1.1
+  m under the ground west of Equi Terme (s 4250–4500), 0.89 m along Monzone's station (s 6750–7000),
+  1.3 m south of Gragnola (s 9500–9750), 0.75 m either side of the Terma tunnel, and up to 2.5 m
+  over it on the 214 m to the north edge, where the Aulella bridge holds it 3 m over the river. The
+  short bridges the CTR maps over ditches keep the line's level, under 3 m over their streams.
 - **Platforms are the CTR's outlines at an assumed height.** Their top is the rail head plus 0.25 m:
   the sources say only that the platforms are low. The CTR's outlines reach past the platform
   proper: Monzone's north one runs up to the street, where the terrain stands up to 0.30 m over its

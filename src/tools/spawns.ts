@@ -4,7 +4,7 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { staticGrid } from "../sim/collide.ts"
 import type { Area, Poi, Spawn } from "../sim/map/index.ts"
-import { pushTrunk, TRUNK } from "../sim/map/kinds.ts"
+import { isMotorRoad, pushTrunk, TRUNK } from "../sim/map/kinds.ts"
 import type { BuildingF, RoadF } from "./features.ts"
 import {
   arcLengths,
@@ -216,7 +216,8 @@ interface ParkingInput {
   readonly crossings: ReadonlyArray<readonly [number, number]>
 }
 
-const KERB_CLASSES = new Set(["tertiary", "unclassified", "residential"])
+/** The roads with kerbs to park by: no motor road (`isMotorRoad`: a motorway, a trunk road or their slip roads), where the Codice della Strada bans stopping (art. 176, comma 5). */
+const KERB_CLASSES = new Set(["primary", "secondary", "tertiary", "unclassified", "residential"])
 /**
  * A parked car's box keeps this far (m) from a track centreline: from a siding's, the ATR 220's
  * half-width (2.883 m wide) plus 0.5 m; from running track's, the clearance rule's 1.44 + 0.35 + 1
@@ -350,7 +351,7 @@ export const parkedSpots = ({
     Math.hypot(x - avoid.x, y - avoid.y) > 6
   const candidates: Array<Spawn & { readonly order: number }> = []
   roads.forEach((r, ri) => {
-    if (!KERB_CLASSES.has(r.cls) || r.bridge === true || r.tunnel === true) return
+    if (!KERB_CLASSES.has(r.cls) || isMotorRoad(r) || r.bridge === true || r.tunnel === true) return
     const s = arcLengths(r.pts),
       total = s.at(-1)!
     for (let d = 6; d <= total - 6; d += 3) {

@@ -1,9 +1,9 @@
 /**
  * Street lamps: wall-mounted lanterns on the houses along village streets. OSM has no lamp data
  * (two `street_lamp` nodes in the raw OSM), so they are placed here, deterministically from `MAP`
- * (the build runs `bakeLamps` and the map file keeps the list: `MAP.lamps`):
- * along tertiary, unclassified, residential and service roads, every ≈ 28 m where a house wall
- * fronts the road within 6 m of the carriageway (the road point lies square in front of it) and at
+ * (the build runs `bakeLamps` and the map file keeps the list: `MAP.lamps`): along primary,
+ * secondary, tertiary, unclassified, residential and service roads (`LIT`), every ≈ 28 m where a
+ * house wall fronts the road within 6 m of the carriageway (the road point lies square in front of it) and at
  * least four buildings stand within 40 m (a village, not a lone farmhouse). Each lantern hangs
  * 0.6 m out from the wall, its bracket 4.5 m up, between two windows, in the open (not inside a
  * neighbour's house). A lamp is drawn into its chunk like any static piece: bracket, cap, body and
@@ -19,7 +19,6 @@ import {
   buildingStyleOf,
   type Lamp,
   MAP,
-  ROAD_CLASSES,
   roadClassOf,
   type RoadClass,
 } from "../../sim/map/index.ts"
@@ -44,8 +43,19 @@ export interface StreetLamp {
   readonly kind: "wall" | "pole"
 }
 
-/** Road classes lit where houses line them. */
-const LIT: ReadonlySet<RoadClass> = new Set(["tertiary", "unclassified", "residential", "service"])
+/**
+ * Road classes lit where houses line them, each with the turn its lamps are placed in: the main
+ * roads through the villages as one (primary, secondary, tertiary), then the narrower ones. No
+ * motorway or trunk road runs between houses.
+ */
+export const LIT: Readonly<Partial<Record<RoadClass, number>>> = {
+  primary: 0,
+  secondary: 0,
+  tertiary: 0,
+  unclassified: 1,
+  residential: 2,
+  service: 3,
+}
 /** Metres between the points tried along a road. */
 const STEP = 3
 /** Metres along a road between its lamps. */
@@ -172,8 +182,8 @@ export const placeLamps = (): Array<StreetLamp> => {
       }
     return false
   }
-  const roads = MAP.roads.filter((r) => r.tunnel !== true && LIT.has(roadClassOf(r)))
-  roads.sort((a, b) => ROAD_CLASSES.indexOf(roadClassOf(a)) - ROAD_CLASSES.indexOf(roadClassOf(b)))
+  const roads = MAP.roads.filter((r) => r.tunnel !== true && LIT[roadClassOf(r)] !== undefined)
+  roads.sort((a, b) => LIT[roadClassOf(a)]! - LIT[roadClassOf(b)]!)
   for (const road of roads) {
     const pts = road.pts
     // `s`: where the next point falls along the current segment (the step carries over its vertices).

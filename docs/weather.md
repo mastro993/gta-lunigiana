@@ -804,8 +804,9 @@ sim functions; how the sky host, the materials and the post pass fit in the fram
   about ten minutes after sunset, and in storms and thick fog. A home's windows are half lit, by a
   hash per window (21,201 panes over the map); sheds, garages and barns keep their shutters closed,
   and the panes are not drawn by day, so the daytime look is unchanged. 492 street lamps hang as
-  lanterns on house walls, as in the villages here, where no lamp data exists: along tertiary,
-  unclassified, residential and service roads among at least 4 buildings within 40 m, every 28 m or
+  lanterns on house walls, as in the villages here, where no lamp data exists: along primary,
+  secondary, tertiary, unclassified, residential and service roads among at least 4 buildings
+  within 40 m, every 28 m or
   more and at least 18 m apart, 4.5 m up (lower under low eaves, never under 3 m), between two
   windows. 24 more stand on poles along the station platforms, every 18 m, their lanterns 4 m over
   the platform. Traffic and the player's car light their lamps, parked cars stay dark; 4 headlight

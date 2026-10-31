@@ -8,6 +8,7 @@ import {
   type AreaKind,
   type BuildingStyle,
   isRoadClass,
+  laneWidth,
   type RoadClass,
   ROADS,
 } from "../sim/map/kinds.ts"
@@ -39,6 +40,8 @@ export interface RoadF {
   w: number
   surface: string
   readonly oneway?: true
+  /** A motorway's or trunk road's slip road (OSM `motorway_link`, `trunk_link`), primary by class. */
+  readonly ramp?: true
   readonly bridge?: true
   readonly tunnel?: true
   readonly layer?: number
@@ -100,21 +103,21 @@ const ringOf = (osm: Osm, nds: ReadonlyArray<string>): Array<P> =>
 const closed = (w: OsmWay) => w.nds.length > 3 && w.nds[0] === w.nds.at(-1)
 
 /**
- * OSM highway values folded into a road class: the SR445 (primary) is a two-lane valley road like
- * the provincial ones, living streets drive like residential streets, footways and pedestrian
- * lanes are walked like paths.
+ * OSM highway values folded into a road class: each link into the class below (a slip road is
+ * narrower and slower than its road; it keeps its `oneway`), living streets drive like residential
+ * streets, footways and pedestrian lanes are walked like paths.
  */
 const FOLDED: Readonly<Partial<Record<string, RoadClass>>> = {
-  primary: "tertiary",
+  motorway_link: "primary",
+  trunk_link: "primary",
+  primary_link: "secondary",
+  secondary_link: "tertiary",
+  tertiary_link: "tertiary",
   living_street: "residential",
   footway: "path",
   pedestrian: "path",
 }
 const CITY_FOLDED: Readonly<Partial<Record<string, RoadClass>>> = {
-  secondary: "tertiary",
-  primary_link: "tertiary",
-  secondary_link: "tertiary",
-  tertiary_link: "tertiary",
   cycleway: "path",
 }
 const classOf = (t: Tags): RoadClass | undefined => {
@@ -137,14 +140,25 @@ export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
     const t = w.tags,
       cls = classOf(t)
     if (cls === undefined) return []
+    // OSM implies `oneway` on motorways, their links and roundabouts, drawn in their direction of travel.
+    const oneway =
+      t.oneway === "yes" ||
+      (t.oneway === undefined &&
+        (t.highway === "motorway" ||
+          t.highway === "motorway_link" ||
+          t.junction === "roundabout" ||
+          t.junction === "circular"))
+    const lanes = parseInt(t.lanes ?? "", 10),
+      width = (lanes >= 1 ? laneWidth(cls, lanes) : undefined) ?? ROADS[cls].w
     return clip(vertices(osm, w.nds)).map(({ pts }): RoadF => ({
       id: +w.id,
       cls,
       ...(t.name ? { name: t.name } : {}),
       ...(t.ref ? { ref: t.ref } : {}),
-      w: ROADS[cls].w,
+      w: width,
       surface: t.surface ?? (ROADS[cls].paved ? "asphalt" : "unpaved"),
-      ...(t.oneway === "yes" ? { oneway: true } : {}),
+      ...(oneway ? { oneway: true } : {}),
+      ...(t.highway === "motorway_link" || t.highway === "trunk_link" ? { ramp: true } : {}),
       ...(t.bridge !== undefined && t.bridge !== "no" ? { bridge: true } : {}),
       ...(t.tunnel !== undefined && t.tunnel !== "no" ? { tunnel: true } : {}),
       ...(t.layer ? { layer: +t.layer } : {}),

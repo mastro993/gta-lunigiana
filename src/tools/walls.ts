@@ -3,7 +3,7 @@
 // play area's outline and road-exit caps. Flat (ax, ay, bx, by) arrays.
 import { staticGrid } from "../sim/collide.ts"
 import type { Barrier } from "../sim/map/index.ts"
-import { isDrivable } from "../sim/map/kinds.ts"
+import { isDrivable, isMotorRoad } from "../sim/map/kinds.ts"
 import type { Rings } from "../sim/map/outline.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
 import { flatRing, pointInRing, r1, ringBox, segDist2, segIndex, signedArea } from "./geometry.ts"
@@ -88,7 +88,7 @@ const clips = (r: RoadF) => isDrivable(r.cls) && r.tunnel !== true
 /** A centreline segment (ax, ay, bx, by) and its corridor half-width. */
 type Cut = readonly [number, number, number, number, number]
 
-/** The corridor of every centreline segment of `roads`, min(w/2, ARCH) m half-width, indexed by its box. */
+/** The corridor of every centreline segment of `roads`, min(w/2, ARCH) m half-width (a motor road's whole w/2: no arch spans a motorway's or trunk road's tunnel), indexed by its box. */
 const corridors = (roads: ReadonlyArray<RoadF>) => {
   const cuts: Array<Cut> = []
   for (const r of roads)
@@ -98,7 +98,7 @@ const corridors = (roads: ReadonlyArray<RoadF>) => {
         r.pts[i]!.y,
         r.pts[i + 1]!.x,
         r.pts[i + 1]!.y,
-        Math.min(r.w / 2, ARCH),
+        isMotorRoad(r) ? r.w / 2 : Math.min(r.w / 2, ARCH),
       ])
   const index = staticGrid(
     cuts.length,

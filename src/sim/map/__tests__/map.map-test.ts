@@ -5,6 +5,7 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
 import { wholeMap } from "../../../tools/map-file.ts"
+import { ROAD_PASSES } from "../../../tools/profiles.ts"
 import { moveCircles, segmentDistance, staticGrid } from "../../collide.ts"
 import {
   BUILDING_STYLES,
@@ -14,12 +15,14 @@ import {
   inPlay,
   isAreaKind,
   isDrivable,
+  isMotorRoad,
   MAP,
   outlineDistance,
   ROAD_CLASSES,
   type Segment,
   wallsNear,
 } from "../index.ts"
+import { overpassShortfalls } from "./overpass-checks.ts"
 
 const { hypot } = Ops
 /** The dense layers live in the tiles: these checks read them all, joined. */
@@ -329,6 +332,10 @@ test("traffic graph: one component reaching the station, Monzone Alto and the vi
   )
   assert.ok(graph.edges.every((e) => e.length > 0 && e.length <= 25.5 && e.road < MAP.roads.length))
   assert.ok(graph.walkEdges.length > graph.trafficEdges.length)
+  assert.ok(
+    graph.walkEdges.every((e) => !isMotorRoad(MAP.roads[graph.edges[e]!.road]!)),
+    "a walk edge on a motor road",
+  )
   for (const e of graph.trafficEdges)
     for (const { x, y } of samples([chord(e).ax, chord(e).ay, chord(e).bx, chord(e).by], 1))
       assert.ok(
@@ -345,15 +352,19 @@ test("traffic graph: one component reaching the station, Monzone Alto and the vi
 })
 
 test("profiles: class grades (1.5x relaxed at most), deck and underpass clearances, no perched water", () => {
-  // 1.5 x the class limit, plus slack where two junction pins conflict (a straight line between them).
+  // 1.5 x each class's grade limit (ROAD_PASSES), plus the 0.1 m the map rounds elevations to over
+  // the 8 m measured; the rail's, plus slack where two junction pins conflict.
   const limit: Record<string, number> = {
-    tertiary: 0.16,
-    unclassified: 0.24,
-    residential: 0.24,
-    service: 0.31,
-    track: 0.31,
+    ...Object.fromEntries(
+      ROAD_PASSES.flatMap((p) => p.classes.map((cls) => [cls, 1.5 * p.grade + 0.1 / 8])),
+    ),
     rail: 0.0425,
   }
+  for (const cls of ROAD_CLASSES)
+    assert.ok(
+      limit[cls] !== undefined || cls === "path" || cls === "steps",
+      `${cls} has no grade limit`,
+    )
   const ends = bucketed(MAP.roads, (r) => r.pts, 0.1)
   /** Both ends on another road: a link whose two junctions were set by roads profiled before it. */
   const pinned = (pts: ReadonlyArray<number>) =>
@@ -405,6 +416,8 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
           const gap = zAt(rl.z, c.i, c.t) - zAt(rd.z, c.j, c.u)
           assert.ok(gap >= 4.6, `rail ${rl.id} only ${gap.toFixed(1)} m over road ${rd.id}`)
         }
+  // A road under a road bridge keeps its maxheight (4 m untagged) plus a 1.5 m deck (road-levels.ts).
+  assert.deepEqual(overpassShortfalls(MAP.roads), [])
   // A road bridge over the rail clears the ATR 220 (4.185 m over the rail head, 0.12 m over the
   // bed) under its 0.9 m deck, with 0.3 m to spare (rail-levels.ts; the Equi Terme overpass left
   // the roof 0.46 m in the deck).
@@ -449,6 +462,11 @@ test("road names, classes, styles, area kinds and districts", () => {
       (r) =>
         (ROAD_CLASSES as ReadonlyArray<string>).includes(r.cls) && r.z.length * 2 === r.pts.length,
     ),
+  )
+  // OSM's primary, the SR445 della Garfagnana, keeps its class.
+  assert.deepEqual(
+    new Set(MAP.roads.filter((r) => r.ref === "SR445").map((r) => r.cls)),
+    new Set(["primary"]),
   )
   assert.ok(
     MAP.buildings.every(

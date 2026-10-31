@@ -1368,7 +1368,8 @@ first frame.
   lit, their colour is divided by the exposure, so a window shines as bright at dusk as at
   midnight. The whole map holds 21,201 lit panes and 3,096 lantern-glass quads.
 - **Street lamps** (`lamps.ts`): OSM has no lamp data (two `street_lamp` nodes in the raw OSM), so
-  wall lanterns are placed from `MAP`: along tertiary, unclassified, residential and service roads,
+  wall lanterns are placed from `MAP`: along primary, secondary, tertiary, unclassified, residential
+  and service roads (`LIT`; no motorway or trunk road runs between houses),
   about every 28 m, on a house wall that fronts the road within 6 m, with at least four buildings
   within 40 m, the bracket 4.5 m up between two windows: 492 lamps. After them come the platforms'
   24 pole lamps (`platformLamps` in `src/render/stations.ts`,
@@ -1574,7 +1575,10 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   minimap opens it, one on the map closes it. It paints the whole area north-up at the resolution of
   its own box (the page's, which a phone held upright lays out sideways) with the same layers as the
   minimap (`paintMap`, on grass over the play area and clipped to it, in a frame round the bounds),
-  but roads light and at least 1.5–2 px wide so the network reads. It names
+  but roads light (motorways and trunk roads yellow) and at least 1.5–3 px wide by class
+  (`OVERVIEW_MIN`: 3 motorway and trunk, 2.5 primary and secondary, 2 tertiary) so the network
+  reads; both paint the roads narrowest class first (`ROAD_ORDER`), so the main roads lie on top at
+  junctions and overpasses. It names
   the OSM villages (big, placed first) and hamlets (`place=*` POIs, localities left out), then the
   peaks that are HUD landmark districts (Monte Sagro, Pizzo d'Uccello...), once per name; a label
   that would overlap another or the north arrow is dropped with its dot. The player is a red arrow
@@ -1896,7 +1900,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     parts lie east or north of its anchor gives: `heightAt`, `terrainZ` and `coverAt` at 440 points
     round Monzone station (40 of them a hair short of a line of the 4 m lattice) the same to the bit
     as on Lunigiana itself, read in a process of its own (`lookups.ts`); `kinds.test.ts`:
-    `anchorOf`.
+    `anchorOf`, `laneOffset` (a oneway 11 m motorway's lane inside its right lane) and `laneWidth`;
+    `src/render/__tests__/lines.test.ts`: `roadLines`, the white lines along the main roads.
   - `src/hud/__tests__/handling.test.ts`: the handling store (what it stores, restores and
     sends); `src/hud/__tests__/settings.test.ts`: the settings' keys (Esc on to the router, every
     other key kept from the game) and the preset they show (Custom for a hand-set mix);
@@ -1999,7 +2004,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
-  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`):
+  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `overpass-checks.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined (see
     [map.md](map.md#checks-and-tools)); `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,
@@ -2034,6 +2039,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     joints and switches along every line, end to end.
   - `src/tools/__tests__/bake.map-test.ts` and `cesena-bake.map-test.ts`: each map's baked tables
     and its place are what the game's code makes of it now ([map.md](map.md#checks-and-tools));
+    `cesena.map-test.ts`: the clearance under every Cesena road bridge, and its trunk road and slip
+    roads driven by traffic but no Ape, and nobody walking or parked by them;
     `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB;
     `src/tools/__tests__/seams.map-test.ts`: on both maps, one height for every node two tiles
     share, and every wall stored once, those across a seam carrying on and found from either side

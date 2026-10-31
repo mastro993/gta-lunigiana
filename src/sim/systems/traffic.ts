@@ -70,6 +70,25 @@ const LOOK_TIME = 0.6
 const CONE_BASE = 8
 const CONE_TIME = 1.2
 const CONE_CLEARANCE = 0.15
+/**
+ * The share of its vehicle's full braking (`brakes.decel`) a driver plans to stop at for what is ahead: the cone reaches as far
+ * again as that stop takes, and the speed allowed near it follows its curve. TUNED: the most that stops every model from every
+ * cruise speed short of the gap kept, its pedal (0.4 per m/s off the speed wanted) lagging behind the curve; the laden truck,
+ * planning at 3.9 m/s², keeps 1.49 m of its 2 m gap from 25 m/s (at 4.5 it touched at 16 m/s). The 0.8 m/s per metre the cone allows
+ * stays under the curve up to 2 × decel / 0.64 m out, so nothing changes up to 15 m/s for a Panda, 9.7 for a truck or an Ape;
+ * at the trunk road's 25 m/s the cone alone found a stopped car 38 m out, and a truck hit it at 16 m/s, a Panda at 30 m/s at 13.
+ */
+const FOLLOW = 0.6
+
+/** How far ahead the braking cone reaches, m, at `speed` on a road keeping `grip`, for a vehicle braking at `decel` m/s²: CONE_BASE plus CONE_TIME of speed, plus the stop at FOLLOW of it. */
+export const coneRange = (speed: number, grip: number, decel: number): number => {
+  const v = Math.max(0, speed)
+  return (CONE_BASE + v * CONE_TIME + (v * v) / (2 * FOLLOW * decel)) / grip
+}
+
+/** The fastest a driver whose vehicle brakes at `decel` m/s² goes `gap` m short of the GAP it keeps to what is ahead, on a road keeping `grip`: 0.8 m/s per metre, or the curve stopping at FOLLOW of `decel` where that is slower. */
+export const followSpeed = (gap: number, grip: number, decel: number): number =>
+  Math.max(0, Math.min(gap * 0.8 * grip, Math.sqrt(2 * FOLLOW * decel * grip * Math.max(0, gap))))
 /** Backing up with something this close alongside (m, body to body), a driver keeps the wheel straight. */
 const ALONGSIDE = 0.6
 /** Backing up, a driver stops this far short of anything behind (m, body to body). */
@@ -444,7 +463,7 @@ export const TrafficAI = Game.System(
       want = Math.min(want, CORNER_MIN + (cruise - CORNER_MIN) * Math.max(0, Ops.cos(error)))
       // Wet or snowy road: slower by the square root of the grip left, as the speed a curve allows goes.
       want = Math.min(want * Math.sqrt(grip), comfortSpeed(model, steer, speed, handling, grip))
-      const range = (CONE_BASE + Math.max(0, speed) * CONE_TIME) / grip
+      const range = coneRange(speed, grip, spec.brakes.decel)
       // The path the front wheels steer: a circle of radius `radius` m, its centre to the left (+) or right; nearly straight, a line (0).
       const bend = Ops.tan(data.chassis.get().steer) / RIGS[model].wheelbase,
         radius = Math.abs(bend) < 1e-3 ? 0 : 1 / bend
@@ -470,7 +489,11 @@ export const TrafficAI = Game.System(
               ? Math.abs(across)
               : Math.abs(Ops.hypot(front, across - radius) - Math.abs(radius))
         if (off - extent.across >= spec.width / 2 + CONE_CLEARANCE) continue
-        const limit = Math.max(0, (front - spec.length / 2 - extent.along - GAP) * 0.8 * grip)
+        const limit = followSpeed(
+          front - spec.length / 2 - extent.along - GAP,
+          grip,
+          spec.brakes.decel,
+        )
         if (limit < want)
           [want, forPerson] = [
             limit,
