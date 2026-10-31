@@ -410,9 +410,11 @@ part](#adding-a-part)).
 - **Rings** (OSM and UCS areas, the CTR's road surfaces, mapped areas and rail polygons) are
   clipped to the built terrain's box with Sutherland–Hodgman, which only a convex window clips
   right. **Buildings** are clipped to it too, then kept only where the centre of the clipped outline
-  (its vertices' mean) is in the play area: a house the outline cuts stands whole or not at all.
-  So are the level crossings and platforms (`heldInPlay`), which belong to the rail and roads the
-  outline cuts.
+  (its vertices' mean) is in the play area: a house an outline edge inside the box cuts (an L's
+  notch, a mask) stands whole or not at all, while one across the box's edge is clipped to it and
+  kept by the centre of what is left (23 of Lunigiana's 6,379 and 66 of Cesena's 9,690 end on its
+  edge). So are the level crossings and platforms (`heldInPlay`), which belong to the rail and
+  roads the outline cuts.
 - **Points**: POIs, OSM place nodes, the player's spawn (1.3 m from the outline) and the parked
   spots (5 m) must lie in the play area (`inPlay`, an edge counting as in it). Trees cover the
   region's tiles, beyond the play area too, 1 m inside the built terrain's box ([section

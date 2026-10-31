@@ -369,10 +369,11 @@ const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {
 /**
  * Buildings: the CTR's where its sheets map the ground, OSM's elsewhere, each clipped to the built
  * terrain's box and kept (`held`) where the centre of its clipped outline is in the play area (an
- * outline may cut through a house, which then stands whole or not at all), the others `beyond` it,
- * for the trees to keep off. A CTR building inside an OSM footprint takes that building's name,
- * and its style when the CTR only says "building" and surveyed no fixed-style unit (the church
- * itself) inside that footprint: then the other units are the houses around it.
+ * outline edge inside the box may cut through a house, which then stands whole or not at all; one
+ * across the box's edge stands clipped), the others `beyond` it, for the trees to keep off. A CTR
+ * building inside an OSM footprint takes that building's name, and its style when the CTR only says
+ * "building" and surveyed no fixed-style unit (the church itself) inside that footprint: then the
+ * other units are the houses around it.
  */
 export const extractBuildings = (
   osm: Osm,
