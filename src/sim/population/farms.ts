@@ -1,8 +1,9 @@
 /**
  * Where the animals live, from the map: the farms (the buildings that stand on open, unpaved land), which of them are
  * rural, and the ground checks the animal spawns run (indoors, pasture, open ground, a spot off a wall). The farms are
- * baked into the map (`bakeFarms`, `MAP.farms`) and indexed on first use: static data shared by every runtime, never
- * written after.
+ * baked into the map (`bakeFarms`, `MAP.farms`, their centres `MAP.derived.farms`) and indexed on first use; the checks
+ * read the buildings of the tiles round them (`buildingsIn`, `buildingAt`), in the whole map's order: static data shared
+ * by every runtime, never written after.
  *
  * @module population/farms
  */
@@ -11,7 +12,9 @@ import { Ops, type Random } from "@typeonce/ritmo-math"
 import { pointInRing, segDist2, staticGrid } from "../collide.ts"
 import { distanceToEdge, edgeIndex } from "../edges.ts"
 import { type Cover, coverAt } from "../map/cover.ts"
-import { buildingBoxes, buildingsIn, type FarmEntry, graph, heightAt, MAP } from "../map/index.ts"
+import { type Building, type FarmEntry, graph, heightAt, MAP } from "../map/index.ts"
+import type { Layer } from "../map/packed.ts"
+import { buildingAt, buildingsIn } from "../map/vectors.ts"
 import { buildingCentre, residentsNear } from "./density.ts"
 
 /** The buildings a farm can be: a farmhouse, its barn, shed, farm building or silo. */
@@ -31,7 +34,7 @@ const PASTURE_ROOM = { building: 15, road: 5, farm: 250 } as const
 /** Steepest ground (rise over run) a herd or pen is put on: 0.47 is 25°, steep for a pasture (TUNED). */
 const STEEPEST = 0.47
 
-/** A farm: the building (index into `MAP.buildings`), its centre, whether it is rural, and whether pigs are kept by it. */
+/** A farm: the building (index into the whole map's buildings: `farmBuilding` reads it), its centre, whether it is rural, and whether pigs are kept by it. */
 export interface Farm {
   readonly building: number
   readonly x: number
@@ -44,23 +47,20 @@ export interface Farm {
 const FARM_CELL = 64
 
 /**
- * The farms among `buildings` (indices into `MAP.buildings`, every one unless given) for the map file (`MAP.farms`): the
- * farm kinds of building standing on open land (the land cover at its centre), rural where fewer than `RURAL` people
- * live within `RURAL_REACH` m. It reads the land cover under every building, so the build bakes it; `bake.map-test.ts`
- * checks it is current (`bake.test.ts` the farms by Monzone).
+ * The farms among `buildings` (each with its index in the whole map's list, ascending: the whole map's at the build) for
+ * the map file (`MAP.farms`): the farm kinds of building standing on open land (the land cover at its centre), rural
+ * where fewer than `RURAL` people live within `RURAL_REACH` m. It reads the land cover under every building, so the build
+ * bakes it; `bake.map-test.ts` checks it is current (`bake.test.ts` the farms by Monzone).
  */
-export const bakeFarms = (
-  buildings: ReadonlyArray<number> = [...MAP.buildings.keys()],
-): Array<FarmEntry> =>
-  buildings.flatMap((i) => {
-    const b = MAP.buildings[i]!
+export const bakeFarms = ({ ids, items }: Layer<Building>): Array<FarmEntry> =>
+  items.flatMap((b, k) => {
     if (!FARM_KINDS.has(b.kind) || b.ruins === true) return []
-    const { x, y } = buildingCentre(i)
+    const { x, y } = buildingCentre(b)
     const cover = coverAt(x, y)
     if (!OPEN.has(cover)) return []
     return [
       {
-        building: i,
+        building: ids[k]!,
         rural: residentsNear(x, y, RURAL_REACH) < RURAL,
         pen: PEN_KINDS.has(b.kind) || cover === "farmyard",
       },
@@ -103,26 +103,27 @@ export const farmsNear = (x: number, y: number, r: number): Array<Farm> => {
   return found
 }
 
+/** The building farm `farm` is, read at its centre. */
+export const farmBuilding = (farm: Farm): Building => buildingAt(farm.building, farm.x, farm.y)
+
 /** Whether (x, y) is inside a building (not in a courtyard). */
 export const indoors = (x: number, y: number): boolean => {
   let inside = false
-  buildingsIn(x, y, x, y, (i) => {
-    const { outer, holes } = MAP.buildings[i]!
+  buildingsIn(x, y, x, y, (_, { outer, holes }) => {
     inside ||= pointInRing(x, y, outer) && !(holes ?? []).some((h) => pointInRing(x, y, h))
   })
   return inside
 }
 
-/** The buildings (indices into `MAP.buildings`, ruins left out) whose bounding box comes within `r` m of (x, y), in a fixed order. */
-export const buildingsNear = (x: number, y: number, r: number): Array<number> => {
-  const found: Array<number> = []
-  buildingsIn(x - r, y - r, x + r, y + r, (i) => {
-    const [x0, y0, x1, y1] = buildingBoxes[i]!
+/** The buildings (ruins left out) whose bounding box comes within `r` m of (x, y), in the whole map's order (`buildingsIn`). */
+export const buildingsNear = (x: number, y: number, r: number): Array<Building> => {
+  const found: Array<Building> = []
+  buildingsIn(x - r, y - r, x + r, y + r, (_, building, [x0, y0, x1, y1]) => {
     if (
-      MAP.buildings[i]!.ruins !== true &&
+      building.ruins !== true &&
       Math.max(x0 - x, 0, x - x1) ** 2 + Math.max(y0 - y, 0, y - y1) ** 2 <= r * r
     )
-      found.push(i)
+      found.push(building)
   })
   return found
 }
@@ -130,11 +131,9 @@ export const buildingsNear = (x: number, y: number, r: number): Array<number> =>
 /** Whether a building's walls come within `d` m of (x, y), or it stands on it. */
 const nearBuilding = (x: number, y: number, d: number): boolean => {
   let near = false
-  buildingsIn(x - d, y - d, x + d, y + d, (i) => {
+  buildingsIn(x - d, y - d, x + d, y + d, (_, { outer }, [x0, y0, x1, y1]) => {
     if (near) return
-    const [x0, y0, x1, y1] = buildingBoxes[i]!
     if (Math.max(x0 - x, 0, x - x1) ** 2 + Math.max(y0 - y, 0, y - y1) ** 2 > d * d) return
-    const { outer } = MAP.buildings[i]!
     for (let k = 0, n = outer.length; k < n && !near; k += 2) {
       near =
         segDist2(x, y, outer[k]!, outer[k + 1]!, outer[(k + 2) % n]!, outer[(k + 3) % n]!).d2 <=
@@ -174,13 +173,12 @@ export const pasture = (x: number, y: number): boolean => {
 export const grazing = (x: number, y: number): boolean =>
   PASTURE.has(coverAt(x, y)) && slopeAt(x, y) <= STEEPEST && !indoors(x, y)
 
-/** A point `distance` m out from a random spot on the outside of building `i`'s walls (a wall picked by its length). */
+/** A point `distance` m out from a random spot on the outside of `building`'s walls (a wall picked by its length). */
 export const offWall = (
-  i: number,
+  { outer }: Building,
   distance: number,
   random: Random.Random,
 ): { readonly x: number; readonly y: number } => {
-  const { outer } = MAP.buildings[i]!
   const n = outer.length
   // The ring's turning sense: counter-clockwise rings have the outside on the right of each wall.
   let twice = 0

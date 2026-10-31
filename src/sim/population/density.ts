@@ -1,12 +1,16 @@
 /**
  * How many people live where, from the map's buildings: each home's residents from its floor area,
  * summed around a point (how many people are out near the player) and around each walk edge (where
- * they walk). Built once at load from `MAP`, so it is static data shared by every runtime.
+ * they walk). A sum reads the buildings of the tiles round it (`buildingsIn`) and adds them in the
+ * whole map's order, so its bits never depend on which tiles are in memory; the walk edges' sums
+ * read buildings all over the map, so the build bakes them (`MAP.derived.residents`). Static data
+ * shared by every runtime.
  *
  * @module population/density
  */
 import { edgeIndex, midpointOf } from "../edges.ts"
-import { buildingsIn, graph, MAP } from "../map/index.ts"
+import { type Building, graph, MAP } from "../map/index.ts"
+import { buildingsIn } from "../map/vectors.ts"
 
 /** Building kinds people live in: the CTR's houses and the OSM tags for homes ("yes" is an untagged OSM building, nearly always a house). */
 const HOMES: ReadonlySet<string> = new Set([
@@ -34,8 +38,8 @@ const GROSS_PER_RESIDENT = 56
  */
 const LIVED_IN = 0.3
 
-/** Residents of building `i`: 0 for anything that is not a home, and for ruins. */
-const residents = Float32Array.from(MAP.buildings, (b) => {
+/** Residents of `building`, as float32: 0 for anything that is not a home, and for ruins. */
+export const residentsOf = (b: Building): number => {
   if (!HOMES.has(b.kind) || b.ruins === true || b.style === "ruin") return 0
   let twice = 0
   for (let k = 0, n = b.outer.length; k < n; k += 2)
@@ -48,31 +52,26 @@ const residents = Float32Array.from(MAP.buildings, (b) => {
     area -= Math.abs(h) / 2
   }
   const floors = Math.min(MAX_FLOORS, Math.max(1, Math.round(b.h / STOREY)))
-  return (Math.max(0, area) * floors * LIVED_IN) / GROSS_PER_RESIDENT
-})
-/** Each building's centre (the mean of its outer ring's vertices), x then y. */
-const centres = Float64Array.from(
-  MAP.buildings.flatMap((b) => {
-    let x = 0,
-      y = 0
-    const n = b.outer.length / 2
-    for (let k = 0; k < b.outer.length; k += 2) [x, y] = [x + b.outer[k]!, y + b.outer[k + 1]!]
-    return [x / n, y / n]
-  }),
-)
-/** The centre of building `i`: the mean of its outer ring's vertices. */
-export const buildingCentre = (i: number): { readonly x: number; readonly y: number } => ({
-  x: centres[2 * i]!,
-  y: centres[2 * i + 1]!,
-})
+  return Math.fround((Math.max(0, area) * floors * LIVED_IN) / GROSS_PER_RESIDENT)
+}
 
-/** Residents of the homes whose centre is within `r` m of (x, y). */
+/** The centre of `building`: the mean of its outer ring's vertices. */
+export const buildingCentre = ({ outer }: Building): { readonly x: number; readonly y: number } => {
+  let x = 0,
+    y = 0
+  const n = outer.length / 2
+  for (let k = 0; k < outer.length; k += 2) [x, y] = [x + outer[k]!, y + outer[k + 1]!]
+  return { x: x / n, y: y / n }
+}
+
+/** Residents of the homes whose centre is within `r` m of (x, y), added in the whole map's order (`buildingsIn`). */
 export const residentsNear = (x: number, y: number, r: number): number => {
   let sum = 0
-  buildingsIn(x - r, y - r, x + r, y + r, (i) => {
-    const dx = centres[2 * i]! - x,
-      dy = centres[2 * i + 1]! - y
-    if (dx * dx + dy * dy <= r * r) sum += residents[i]!
+  buildingsIn(x - r, y - r, x + r, y + r, (_, building) => {
+    const centre = buildingCentre(building),
+      dx = centre.x - x,
+      dy = centre.y - y
+    if (dx * dx + dy * dy <= r * r) sum += residentsOf(building)
   })
   return sum
 }

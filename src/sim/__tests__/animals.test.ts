@@ -31,6 +31,7 @@ import {
   update,
 } from "../index.ts"
 import { graph, MAP, wallsNear } from "../map/index.ts"
+import { eachTile } from "../map/tiles.ts"
 import { residentsNear } from "../population/density.ts"
 import {
   farmsNear,
@@ -73,6 +74,17 @@ const FARM = (() => {
   return { x: best.x, y: best.y, angle: 0 }
 })()
 
+/** Whether a vertex of a stream or river lies within `r` m of (x, y): any there is in a tile over the box round it. */
+const waterWithin = (x: number, y: number, r: number) => {
+  let near = false
+  eachTile(x - r, y - r, x + r, y + r, ({ vectors }) => {
+    near ||= vectors.water.items.some((w) =>
+      w.pts.some((v, k) => k % 2 === 0 && Ops.hypot(v - x, w.pts[k + 1]! - y) < r),
+    )
+  })
+  return near
+}
+
 /**
  * A pasture by the farm at least 60 m from any traffic road, where a passing car scares nothing, with no stream within a cow's
  * home range (wading slows a walk past its time), and the ground the herd test puts its animals on, 15–27 m east of it, open and
@@ -91,11 +103,7 @@ const MEADOW = (() => {
       if (
         pasture(x, y) &&
         distanceToEdge(road, x, y) - roadOf(road).w / 2 > 60 &&
-        !MAP.water.some((w) =>
-          w.pts.some(
-            (v, k) => k % 2 === 0 && Ops.hypot(v - x, w.pts[k + 1]! - y) < FAUNA.cow.home + 10,
-          ),
-        ) &&
+        !waterWithin(x, y, FAUNA.cow.home + 10) &&
         HERD.every(
           (dx) =>
             openGround(x + dx, y) &&

@@ -23,7 +23,7 @@ export interface WholeVectors {
 
 /** Every baked table, from the map the sim has loaded and its vectors `whole`. */
 export const bake = (whole: WholeVectors): Bakes => {
-  const farms = bakeFarms()
+  const farms = bakeFarms({ ids: [...whole.buildings.keys()], items: whole.buildings })
   return {
     lanes: bakeLanes(),
     parked: bakeParked(),
@@ -33,7 +33,7 @@ export const bake = (whole: WholeVectors): Bakes => {
     bells: bellsOf(whole.buildings),
     residents: bakeResidents(),
     farmCentres: farms.flatMap((f) => {
-      const { x, y } = buildingCentre(f.building)
+      const { x, y } = buildingCentre(whole.buildings[f.building]!)
       return [x, y]
     }),
   }
