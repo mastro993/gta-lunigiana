@@ -1999,7 +1999,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
-  `lamp-checks.ts`, `tile-paint.ts`, `bakes.ts`):
+  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined (see
     [map.md](map.md#checks-and-tools)); `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,
@@ -2030,12 +2030,14 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     between its windows, by a lit street and whole by day; `src/hud/__tests__/minimap.map-test.ts`:
     a tile's canvas, painted from only the features near it, getting every path the whole map
     would draw on it, in order; `src/audio/__tests__/places.map-test.ts`: the ambience over the
-    whole map and its dogs and owls.
+    whole map and its dogs and owls; `src/audio/places/__tests__/track.map-test.ts`: the rails'
+    joints and switches along every line, end to end.
   - `src/tools/__tests__/bake.map-test.ts` and `cesena-bake.map-test.ts`: each map's baked tables
     and its place are what the game's code makes of it now ([map.md](map.md#checks-and-tools));
     `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB;
     `src/tools/__tests__/seams.map-test.ts`: on both maps, one height for every node two tiles
-    share, and the walls carrying on across every seam.
+    share, and every wall stored once, those across a seam carrying on and found from either side
+    within `walls.reach`.
   - `src/tools/__tests__/l-region.map-test.ts`: the L test region `lunigiana-l` as built in
     `test-maps/` (`pnpm maps` builds it; skipped, saying how, without the build, but failed in CI,
     which builds it): its outline walls close it, its road exits are capped, a flood on foot from
