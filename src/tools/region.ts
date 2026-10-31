@@ -204,9 +204,9 @@ const regionOf = (
 }
 
 /**
- * Every Lunigiana part, in build order; `fetch-rt` reads one until issue #7 builds the map tile by
- * tile. `lucido`: lat 44.1069–44.1968, lon 10.0937–10.1913, the whole Lucido catchment, ridge to
- * ridge, plus the Aulella side by Gragnola and Codiponte.
+ * Every Lunigiana part, in build order; `fetch-rt` reads one until #17 brings `fetch-rt <part>` and
+ * the per-part raw layout. `lucido`: lat 44.1069–44.1968, lon 10.0937–10.1913, the whole Lucido
+ * catchment, ridge to ridge, plus the Aulella side by Gragnola and Codiponte.
  */
 export const PARTS: ReadonlyArray<Part> = [
   { key: "lucido", title: "Valle del Lucido", rects: [[-2900, -6100, 4900, 3900]] },

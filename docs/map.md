@@ -1443,7 +1443,7 @@ the tools print paths relative to the repository. Measured on `lucido` on 2026-1
   (`dtm-mosaic.ts`, the same crop and reader) on a one-byte mask: RT's tiles of the named lots, in
   lot order then by sheet, each kept when it writes a cell no earlier tile wrote, over the crop
   `fetch-rt` mosaics (the EPSG:3003 box round the part's rectangles, an L's notch included, until
-  issue #7). MATTM's lots are skipped, with their licence. It reports each tile's area and the holes
+  #17 writes a DTM file a tile). MATTM's lots are skipped, with their licence. It reports each tile's area and the holes
   left for the 10 m DTM, and without `--write` the difference from the manifest's `lidar`. `lucido`
   (19 s, 565 MB): the manifest's 66 tiles; holes 654 734 m² in 5 pieces, the largest 361 141 m²,
   exactly the cells `fetch-rt` fills from the 10 m DTM. PR #2 had found its 65 tiles with a
@@ -1533,12 +1533,15 @@ the tools print paths relative to the repository. Measured on `lucido` on 2026-1
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
   `lucido`'s largest, -1_-1, is 0.31 MB.
 
-Until issue #7 builds the map tile by tile, only `lucido` is fetched and built: `pnpm fetch-osm`
-and `pnpm map` cover the Lunigiana region's bounds (`BOUNDS`; `--region cesena` builds the separate
-Cesena map instead, and the part tools refuse it; a [test region](#test-regions) builds from
-Lunigiana's inputs and fetches none), and `pnpm fetch-rt` reads one part's manifest and
-stops when `PARTS` holds more than one (a second part would widen the mosaic's crop over the land
-between them, all of it holes for the 10 m DTM) or the manifest lists more than one 10 m DTM.
+Only `lucido` is fetched and built: `pnpm fetch-osm` and `pnpm map` cover the Lunigiana region's
+bounds (`BOUNDS`; `--region cesena` builds the separate Cesena map instead, and the part tools
+refuse it; a [test region](#test-regions) builds from Lunigiana's inputs and fetches none), and
+`pnpm fetch-rt` reads one part's manifest and stops when `PARTS` holds more than one (a second part
+would widen the mosaic's crop over the land between them, all of it holes for the 10 m DTM) or the
+manifest lists more than one 10 m DTM. The build works a tile at a time since issue #7
+([Pipeline](#pipeline)), but its inputs stay one OSM file and one DTM mosaic per region until #17
+(Fivizzano, the first part after lucido) brings the per-part raw layout (`osm/<part>.osm.gz`,
+`rt/dtm/<i>_<j>.bin`, a part adding files only) and `fetch-rt <part>`.
 
 A part's new inputs are pinned like any other: after `pnpm fetch-rt` and `pnpm map`, `pnpm pin-raw`
 uploads them and the lock goes into the part's PR ([Pinned inputs and CI](#pinned-inputs-and-ci)).
