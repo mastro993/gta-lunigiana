@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { after, test } from "node:test"
@@ -34,6 +34,51 @@ test("the build's closure reaches the sim and render code its bakes import, and 
   ])
     assert.ok(closure.includes(path), path)
   assert.ok(!closure.some((path) => /^src\/(?:hud|audio)\/|^src\/main\.ts$/.test(path)), "a host")
+})
+
+/**
+ * The Math functions V8 rounds differently on arm64 and x64 (Ritmo's `use-ops-for-math` list, less
+ * `hypot`: V8 computes it from + − × ÷ and `sqrt` alone, so both give the same bits), and any `**`
+ * but squaring. The build uses `Ops` from `@typeonce/ritmo-math` for them (docs/map.md).
+ */
+const ARCH_MATH =
+  /\bMath\.(?:a?sinh?|a?cosh?|a?tanh?|atan2|exp|expm1|log|log2|log10|log1p|cbrt|pow)\b/
+const POWER = /\*\*=?(?!\s*2(?![\w.]))/
+
+/** `path:line: code` for each line of `text` (comments dropped) that uses `ARCH_MATH` or `POWER`. */
+const archMath = (path: string, text: string): Array<string> =>
+  text
+    .replaceAll(/\/\*[\s\S]*?\*\//g, (comment) => comment.replaceAll(/[^\n]/g, ""))
+    .replaceAll(/\/\/.*$/gm, "")
+    .split("\n")
+    .flatMap((code, i) =>
+      ARCH_MATH.test(code) || POWER.test(code) ? [`${path}:${i + 1}: ${code.trim()}`] : [],
+    )
+
+test("archMath finds the calls that round differently on arm64 and x64, outside comments", () => {
+  const text = `const a = Math.sin(x) + Math.atan2(y, x)
+const b = x ** 2 + Math.hypot(x, y) + Math.sqrt(x)
+const d = y ** 2.5
+// Math.cos(x) in a comment
+/* Math.exp(x)
+   Math.log(x) */ z **= 3
+const c = Ops.sin(x) + 2 ** 31 + x ** 20`
+  assert.deepEqual(archMath("f.ts", text), [
+    "f.ts:1: const a = Math.sin(x) + Math.atan2(y, x)",
+    "f.ts:3: const d = y ** 2.5",
+    "f.ts:6: z **= 3",
+    "f.ts:7: const c = Ops.sin(x) + 2 ** 31 + x ** 20",
+  ])
+})
+
+test("the build calls no Math function that rounds differently on arm64 and x64", () => {
+  const root = join(import.meta.dirname, "../../..")
+  assert.deepEqual(
+    importClosure("src/tools/build-map.ts").flatMap((path) =>
+      archMath(path, readFileSync(join(root, path), "utf8")),
+    ),
+    [],
+  )
 })
 
 test("importClosure follows every import form and nothing else", () => {

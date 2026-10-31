@@ -87,7 +87,7 @@ All screenshots come from today’s map:
 
 You need:
 
-- **Node 24**: runs the TypeScript tests and map tools directly, with no build step
+- **Node 24**: runs the TypeScript tests and map tools directly, with no build step; CI pins the exact version in `.node-version`
 - **pnpm 10**: `packageManager` pins it in `package.json`, and `corepack enable` installs it
 - **The GitHub CLI** (`gh`), signed in (`gh auth login`): `pnpm fetch-raw` downloads the map's inputs with it
 - **A browser with WebGL**: plus Web Audio for the sound
@@ -224,6 +224,7 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `data/parts/` | each Lunigiana part's source manifest: the CTR sheets, LiDAR tiles and 10 m DTMs `fetch-rt` downloads for it |
 | `docs/` | architecture, map pipeline, gameplay, weather, water and audio notes; `docs/standards/` holds the checks for each part of the game |
 | `.github/` | the workflows (CI, Pages) and the action they share to restore or build the maps (`actions/maps/`) |
+| `.node-version` | the exact Node version CI and Pages install, so every job keys the maps cache alike |
 | `.oxlintrc.json`, `.oxfmtrc.json`, `lefthook.yml` | lint rules, formatter settings, and the git hooks that format and lint each commit and check each push |
 | `lint/` | the project's own oxlint plugins, one file each named after the plugin (`test-files.ts`: each test in a `__tests__` folder) |
 
@@ -236,7 +237,7 @@ pnpm fetch-raw
 pnpm maps
 ```
 
-`pnpm fetch-raw` downloads only the files `data/raw` lacks or holds with other bytes, so a second run downloads nothing. It checks every download's SHA-256 and size against `data/raw.lock.json` and fails, changing nothing, if one differs. `pnpm maps` runs `pnpm map`, which builds Lunigiana, then `pnpm map --region cesena`; `pnpm check` needs both. The Lunigiana build reads only `data/raw` and takes about 14 s. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine of the same CPU architecture and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). V8's `Math.sin`, `cos`, `atan2`, `exp`, `log` and `pow` round differently on arm64 and x64, so an Apple-silicon build and CI's x64 build differ: on 2026-10-30, by one parked car's spot in Lunigiana (`pnpm map-diff`), with Cesena the same (#68 makes them match). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test` fails until `pnpm map` and `pnpm map --region cesena` run again (`pnpm maps` runs both).
+`pnpm fetch-raw` downloads only the files `data/raw` lacks or holds with other bytes, so a second run downloads nothing. It checks every download's SHA-256 and size against `data/raw.lock.json` and fails, changing nothing, if one differs. `pnpm maps` runs `pnpm map`, which builds Lunigiana, then `pnpm map --region cesena`; `pnpm check` needs both. The Lunigiana build reads only `data/raw` and takes about 14 s. Its output is deterministic: with the same inputs, `monzone.bin` (1.9 MB, gzipped) and its 30 tiles (5.6 MB in all) gunzip to the same bytes on every machine, arm64 and x64 alike, and carry the same build hash, and come out byte-identical with the same Node build (another zlib or OS compresses differently). The build computes its trigonometry with Ritmo's `Ops`, not V8's `Math`, which rounds differently on arm64 and x64 ([docs/map.md](docs/map.md)). Never edit the map files by hand: when the code that bakes their tables changes, `pnpm test` fails until `pnpm map` and `pnpm map --region cesena` run again (`pnpm maps` runs both).
 
 Build Cesena without changing Lunigiana with `pnpm map --region cesena`. The pinned inputs are sufficient; only run `pnpm fetch-osm --region cesena` and `pnpm fetch-rer --region cesena` when intentionally updating them. `data/raw/cesena/source.json` records the terrain request, verified CC BY 4.0 licence and raster SHA-256. Preview it with `node src/tools/preview-map.ts 0.3 -2000,-2000,2000,2000 .research/cesena-preview.png --region cesena`, then run `pnpm check`.
 

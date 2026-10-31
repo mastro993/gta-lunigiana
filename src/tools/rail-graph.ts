@@ -2,6 +2,8 @@
 // pieces there), a line is the straightest way from one terminal to another, and the track no line
 // takes is a loop (it rejoins other track at both ends) or a siding (it ends in the open). Nothing
 // here knows this map: more railways need no code.
+import { Ops } from "@typeonce/ritmo-math"
+
 import type { LinePiece } from "../sim/map/index.ts"
 import type { RailKind } from "../sim/map/kinds.ts"
 import type { RailF } from "./features.ts"
@@ -129,7 +131,7 @@ export const findLines = (
         if (seen.has(o.piece)) continue
         const [lx, ly] = leaving(o.piece, o.end)
         // Going on means leaving into the next piece opposite to how this one leaves the node backwards.
-        const a = (Math.acos(Math.max(-1, Math.min(1, -(ox * lx + oy * ly)))) * 180) / Math.PI
+        const a = (Ops.acos(Math.max(-1, Math.min(1, -(ox * lx + oy * ly)))) * 180) / Math.PI
         if (a < turn) [next, turn] = [o, a]
       }
       if (next === undefined) return { pieces: out, end: endKey(rail[piece]!.pts, exit), turned }

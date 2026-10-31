@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { inflateSync } from "node:zlib"
 
+import { Ops } from "@typeonce/ritmo-math"
+
 import { latLonToGaussBoaga } from "./crs.ts"
 import { arcLengths, BOUNDS, fromLocal, segDist2, type V } from "./geometry.ts"
 
@@ -165,7 +167,7 @@ export const cellSlope = (g: Grid, i: number, j: number): number => {
     g.z[Math.min(g.rows - 1, Math.max(0, b)) * g.cols + Math.min(g.cols - 1, Math.max(0, a))]!
   const dx = (z(i + 2, j) + z(i + 2, j + 1) - z(i - 1, j) - z(i - 1, j + 1)) / (6 * g.cell)
   const dy = (z(i, j + 2) + z(i + 1, j + 2) - z(i, j - 1) - z(i + 1, j - 1)) / (6 * g.cell)
-  return (Math.atan(Math.hypot(dx, dy)) * 180) / Math.PI
+  return (Ops.atan(Math.hypot(dx, dy)) * 180) / Math.PI
 }
 
 /** Visits nodes within `r` of segment a-b with their distance and projection parameter. */

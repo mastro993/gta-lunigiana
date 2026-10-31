@@ -1,6 +1,8 @@
 // Matches a drawn track (OSM's rail) to the CTR's surveyed track centrelines: samples along it,
 // the nearest point of each CTR track within reach, and a Viterbi pass that keeps one sample run
 // on one CTR track through parallel stretches (station loops, sidings beside the line).
+import { Ops } from "@typeonce/ritmo-math"
+
 import { arcLengths, segDist2, type P, type V } from "./geometry.ts"
 
 /** A polyline with its arc length at each vertex. */
@@ -218,7 +220,7 @@ export const matchSamples = (
   rules = MATCH,
 ): Array<Match> => {
   const n = tracks.length,
-    cosMax = Math.cos((rules.angle * Math.PI) / 180)
+    cosMax = Ops.cos((rules.angle * Math.PI) / 180)
   // State k < n: matched on track k; state n + 1 + k: no match, last matched track k; state n: no match yet.
   const lastOf = (st: number) => (st < n ? st : st === n ? -1 : st - n - 1)
   const boxes = tracks.map(({ pts }) => {
