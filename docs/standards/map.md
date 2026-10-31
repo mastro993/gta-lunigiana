@@ -15,7 +15,8 @@ never compares a change's map with the map before it, so these runs are yours.
   still prints the trees' differences but exits 0 only when nothing else differs (a reorder of the
   walls or the trees counts as a difference: the physics resolves contacts in wall order).
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
-  of the map live there, not in `pnpm test`.
+  of the map live there, not in `pnpm test`, and so do the L test region's (`pnpm maps` builds it
+  into `test-maps/`; without it they are skipped).
 - Draw the changed area with `node src/tools/preview-map.ts` (a top-down PNG in `.research/`) and
   look at it.
 - A rebuilt map shifts pinned positions: test coordinates, bot waypoints and screenshot spots.

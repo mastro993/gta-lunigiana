@@ -11,7 +11,7 @@
     "test:map": "node --test \"src/**/*.map-test.ts\"",
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:map",
     "map": "node src/tools/build-map.ts",
-    "maps": "node src/tools/build-map.ts && node src/tools/build-map.ts --region cesena",
+    "maps": "node src/tools/build-map.ts && node src/tools/build-map.ts --region cesena && node src/tools/build-map.ts --region lunigiana-l",
     "fetch-raw": "node src/tools/fetch-raw.ts",
     "pin-raw": "node src/tools/pin-raw.ts",
     "fetch-osm": "node src/tools/fetch-osm.ts",

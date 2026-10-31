@@ -2015,6 +2015,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/tools/__tests__/bake.map-test.ts` and `cesena-bake.map-test.ts`: each map's baked tables
     and its place are what the game's code makes of it now ([map.md](map.md#checks-and-tools));
     `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB.
+  - `src/tools/__tests__/l-region.map-test.ts`: the L test region `lunigiana-l` as built in
+    `test-maps/` (`pnpm maps` builds it; skipped, saying how, without the build): its outline walls
+    close it, its road exits are capped, a flood on foot from the start stays in it, and every
+    graph node, spawn, POI and building lies in it ([map.md](map.md#test-regions)).
 
   Measured on 2026-10-30 on a 14-core Apple-silicon Mac under a load average of 50–95 from other
   work, each file run alone: the split took `pnpm test` from 1,177 tests in 181 files and 228 s of

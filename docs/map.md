@@ -86,8 +86,19 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
   the Carabinieri and the start, Gragnola's rail layout to lucido's north edge) and x 0…2400 by y
   0…1400 (Equi Terme and its station), 6 tiles; the notch, x 0…2400 by y 1400…3900 round Fazzano,
   Casciana and Codiponte, is real land, its two tiles unlisted. It builds in 4.3 s and peaks at
-  0.66 GB (arm64). `src/tools/__tests__/l-region.map-test.ts` (`pnpm test:map`, skipped without the
-  build) checks it.
+  0.66 GB (arm64). `pnpm maps` builds it after the two maps, and CI caches it with them (it reads
+  their inputs and code, so it shares their key, and the reproducible job's hash covers it).
+  `src/tools/__tests__/l-region.map-test.ts` (`pnpm test:map`; without the build every check is
+  skipped, saying how to build it) loads it and checks, through the game's own lookups:
+  - the outline walls, walk and drive, run end to end along every edge of the L, and `wallsNear`
+    answers them every 4 m along it, the notch's sides included (the cut keeps their walls in the
+    listed tiles beside the notch: [Map files](#map-files));
+  - every drivable road leaving it (52 cut ends, 15 on the notch's two sides) is crossed by a drive
+    wall off the outline within 8 m of its end (the build's cap, 4 m in);
+  - a flood on foot from the start, over 2 m cells, stops at the walk walls (`wallsNear`: walls and
+    trunks) and never leaves the play area, while it reaches every edge and 10.2 km² of the 12.72;
+    with the walls on the notch's west side left out of its lookups it gets out at (1, 3009);
+  - every graph node, spawn and POI lies in the play area, and every building's centroid.
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
@@ -911,7 +922,9 @@ change an input.
 - **CI** (`.github/workflows/ci.yml`, `.github/actions/maps/action.yml`): the check job restores
   the maps from the cache under `maps-<os>-<arch>-<node version>-<key>`, as the build's bytes
   depend on the architecture and on V8's math. On a miss it restores `data/raw` from the cache
-  under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`.
+  under the lock's hash, runs `pnpm fetch-raw` (saving `data/raw` once it checks) and `pnpm maps`,
+  which builds the L test region too (`test-maps/`, cached and hashed with the maps: [Test
+  regions](#test-regions)).
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
   imports, followed from import to import (93 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails

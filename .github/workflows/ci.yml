@@ -32,7 +32,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # The steps of `pnpm check`, one per step so a failure names its gate; lint and the tests read
-      # the built maps. `pnpm test:map` runs the checks whose cost grows with the map.
+      # the built maps. `pnpm test:map` runs the checks whose cost grows with the map, and those of
+      # the L test region, which the maps action builds (or restores) with the maps.
       - run: pnpm format:check
       - run: pnpm typecheck
       - id: maps
@@ -77,9 +78,12 @@ jobs:
             exit 1
           fi
 
+      # The same paths the maps action restores: another list is another cache version.
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             src/sim/map/*.bin
             src/sim/map/*/*.bin
+            test-maps/*.bin
+            test-maps/*/*.bin
           key: ${{ steps.maps.outputs.key }}
