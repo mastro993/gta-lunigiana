@@ -1933,19 +1933,22 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     warning until the arms are up; the skirt plumb at every angle and folded flat standing up.
   - `src/render/__tests__/rail.test.ts`: a chunk build of the track and stations, the roads and
     rivers, the lamps and the buildings by Monzone station keeping exactly its cut of the whole
-    build; nothing 3D
-    in a crossing's carriageway and the bed stopping a metre short of it; each panel, its rails and
-    the stop lines over the road ribbon, and no road's centre dash under a panel; sleepers and rails
-    at reading widths; the bed's top within 0.15 m of the terrain on 90 % of the line at grade; a
-    portal at every tunnel mouth, facing out of the hill; each arm hinged on its housing and the
-    road light's plate behind its lens, all clear of the trains.
+    build; over the railway within 4 km of Monzone station (its five crossings, Monzone's,
+    Gragnola's and Equi Terme's, and seven of its eight tunnel mouths, drawn from the pieces within
+    100 m more: the file reads 8 of the 30 tiles), nothing 3D in a crossing's carriageway and the
+    bed stopping a metre short of it; each panel, its rails and the stop lines over the road ribbon,
+    and no road's centre dash under a panel (the roads within 25 m of a crossing drawn); sleepers
+    and rails at reading widths; the bed's top within 0.15 m of the terrain on 90 % of the line at
+    grade; a portal at every tunnel mouth, facing out of the hill; each arm hinged on its housing
+    and the road light's plate behind its lens, all clear of the trains.
     `src/render/__tests__/portals.test.ts`: Lunigiana with its outline's east side moved onto its
     easternmost tunnel mouth (`editMap`), as a region whose outline cuts a tunnel gives: no portal
     there, one at each of the other seven mouths.
-  - `src/render/__tests__/stations.test.ts`: the platforms' tops following the rail profile,
-    their yellow lines, nothing standing in a train's way, one name board per platform people wait
-    on, the platform lamps, a canopy only where a platform runs along a station building, and no
-    render code naming a station.
+  - `src/render/__tests__/stations.test.ts`, over the stations within 4 km of Monzone station
+    (Monzone's, Gragnola's and Equi Terme's): the platforms' tops following the rail profile, their
+    yellow lines, nothing standing in a train's way, one name board per platform people wait on,
+    the platform lamps, a canopy only where a platform runs along a station building, and no render
+    code naming a station.
   - `src/render/__tests__/atr220.test.ts`: no piece of an ATR 220 car's side, its livery's
     patches included, painted twice over itself.
   - `src/render/sky/__tests__/*.test.ts`: the light (the settled look at 50.4°, the key's aim and
@@ -1988,7 +1991,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   a glob, and that name matches `*.test.ts`. They sit in `__tests__` beside the tests (the lint
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
-  `bridges.ts`, `lamp-checks.ts`, `tile-paint.ts`, `bakes.ts`):
+  `rail-checks.ts`, `station-checks.ts`, `bridges.ts`, `lamp-checks.ts`, `tile-paint.ts`,
+  `bakes.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined (see
     [map.md](map.md#checks-and-tools)); `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,
@@ -2008,7 +2012,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the chunk's, a crossing's chunk reading the ground under its road ribbons, and with only some
     tiles in every chunk that builds reading only those at every level crossing, platform, tunnel
     mouth and corner of the map; `trees.map-test.ts`, `chunks.map-test.ts` and `rail.map-test.ts`:
-    their checks over every chunk; `ground.map-test.ts`: every drivable bridge;
+    their checks over every chunk, and `rail.map-test.ts` `rail.test.ts`'s over every crossing and
+    tunnel mouth; `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;
+    `ground.map-test.ts`: every drivable bridge;
     `src/render/sky/__tests__/lamps.map-test.ts`: every lamp placed again as baked, on a wall
     between its windows, by a lit street and whole by day; `src/hud/__tests__/minimap.map-test.ts`:
     a tile's canvas, painted from only the features near it, getting every path the whole map
@@ -2033,13 +2039,15 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
 
   Measured on 2026-10-30 on a 14-core Apple-silicon Mac under a load average of 50–95 from other
   work, each file run alone: the split took `pnpm test` from 1,177 tests in 181 files and 228 s of
-  CPU (user and system, summed over the files) to 1,141 in 177 files and 207 s, and
-  `pnpm test:map` holds 58 in 20 files and 28 s (chunk-tiles 6.2 s, the map invariants 4.8 s). The
-  wall clock of `pnpm test` stayed about 28 s (28.6, 28.1 and 48.2 s before; 26.4, 40.7 and 28.3 s
-  after): it is the longest file's, `population.test.ts`, 17.6 s of CPU alone. `pnpm test:map`
-  takes 5.2–11 s. What still grows with the map in `pnpm test` is setup, not checks: every process
-  that loads the sim decodes the whole global file (the vectors stay in it until #63), and each
-  `World` builds every piece and plans every chunk.
+  CPU (user and system, summed over the files) to 1,141 in 177 files and 207 s, and `pnpm test:map`
+  holds 58 in 20 files and 28 s (chunk-tiles 6.2 s, the map invariants 4.8 s). The wall clock of
+  `pnpm test` stayed about 28 s (28.6, 28.1 and 48.2 s before; 26.4, 40.7 and 28.3 s after): it is
+  the longest file's, `population.test.ts`, 17.6 s of CPU alone. `pnpm test:map` takes 5.2–11 s. On
+  2026-10-31 the rail checks moved the same way: `rail.test.ts`, which drew every road and river to
+  find the dashes by the crossings, went from 30 tiles read and 2.1 s of CPU to 8 tiles and 1.3 s.
+  What still grows with the map in `pnpm test` is setup, not checks: every process that loads the
+  sim decodes the whole global file (the vectors stay in it until #63), and each `World` builds
+  every piece and plans every chunk.
 
 Git hooks come from `lefthook.yml`; `pnpm install` installs them (lefthook's own install script,
 allowed in `pnpm.onlyBuiltDependencies`). Before a commit, `oxfmt` rewrites the staged files and
