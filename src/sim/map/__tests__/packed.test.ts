@@ -36,12 +36,8 @@ const map: MonzoneMap = {
     cover: Uint8Array.from([0, 1, 21, 3, 0, 7]),
   },
   roads: [],
-  buildings: [],
-  water: [],
   rail: [],
   railway: { lines: [], stations: [], crossings: [], platforms: [] },
-  areas: [],
-  barriers: [],
   pois: [],
   districts: [{ name: "Monzone\nAlto", x: 0, y: 0, r: 30 }], // a newline in a string must not end the JSON line
   graph: { xy: [0, 0, 1, 1], edges: [0, 1, 0], traffic: [0], walk: [0] },

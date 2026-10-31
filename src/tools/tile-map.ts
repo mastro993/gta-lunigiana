@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
-import type { MonzoneMap, Spawn, Water } from "../sim/map/index.ts"
+import type { Area, Barrier, Building, MonzoneMap, Road, Spawn, Water } from "../sim/map/index.ts"
 import {
   HALO,
   TILE,
@@ -38,12 +38,17 @@ export interface BuiltMap extends Omit<
   | "walls"
   | "vectors"
   | "derived"
-  | "water"
+  | "roads"
   | "spawns"
   | "lanes"
   | "farms"
   | "lamps"
 > {
+  /** Every road, its attributes and its line (the cut keeps the attributes in the global file and puts the lines in the tiles). */
+  readonly roads: ReadonlyArray<Road>
+  readonly buildings: ReadonlyArray<Building>
+  readonly areas: ReadonlyArray<Area>
+  readonly barriers: ReadonlyArray<Barrier>
   /** `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in build-output.ts fits them to int16). */
   readonly heightmap: MonzoneMap["heightmap"] & { readonly data: Int16Array }
   /** The tiles to cut and write, the region's (`tiles` in region.ts): those of the bounds' box its parts leave out (an L's notch) are not. */
@@ -454,19 +459,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
       cover: coarseCover,
     },
   }
-  const {
-    roads,
-    buildings,
-    water,
-    rail,
-    railway,
-    areas,
-    barriers,
-    pois,
-    districts,
-    graph,
-    spawns,
-  } = map
+  const { roads, buildings, rail, railway, areas, pois, districts, graph, spawns } = map
   let bx = Infinity,
     by = Infinity,
     wx = Infinity,
@@ -538,8 +531,27 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     whole: { roads: map.roads, buildings: map.buildings, water: map.water },
     global: globalOf(
       header,
-      { roads, buildings, rail, railway, areas, barriers, pois, districts, graph, walls, vectors },
-      water,
+      {
+        // the roads' attributes: their lines are in the tiles
+        roads: roads.map((road) => {
+          const { pts: _, z: __, ...info } = road
+          return info
+        }),
+        rail,
+        railway,
+        pois,
+        districts,
+        graph,
+        walls,
+        vectors,
+      },
+      {
+        crossings: railway.crossings.map((c) => ({ pts: roads[c.road]!.pts, z: roads[c.road]!.z })),
+        platforms: railway.platforms.map((p) => areas[p.area]!.rings),
+        stations: railway.stations.map(
+          (st) => buildings.find((b) => b.style === "station" && b.name === st.name) ?? null,
+        ),
+      },
       spawns,
     ),
   }
@@ -569,30 +581,16 @@ const globalOf =
     header: Header,
     v: Pick<
       MonzoneMap,
-      | "roads"
-      | "buildings"
-      | "rail"
-      | "railway"
-      | "areas"
-      | "barriers"
-      | "pois"
-      | "districts"
-      | "graph"
-      | "walls"
-      | "vectors"
+      "roads" | "rail" | "railway" | "pois" | "districts" | "graph" | "walls" | "vectors"
     >,
-    water: BuiltMap["water"],
+    copies: Pick<MonzoneMap["derived"], "crossings" | "platforms" | "stations">,
     { player, parked, police }: BuiltMap["spawns"],
   ) =>
   (bakes: Bakes): Omit<MonzoneMap, "hash"> => ({
     ...header,
     roads: v.roads,
-    buildings: v.buildings,
-    water: water.map((w, i) => ({ ...w, floor: bakes.floors[i] ?? [] })),
     rail: v.rail,
     railway: v.railway,
-    areas: v.areas,
-    barriers: v.barriers,
     pois: v.pois,
     districts: v.districts,
     graph: v.graph,
@@ -607,14 +605,7 @@ const globalOf =
     farms: bakes.farms,
     lamps: bakes.lamps,
     derived: {
-      crossings: v.railway.crossings.map((c) => ({
-        pts: v.roads[c.road]!.pts,
-        z: v.roads[c.road]!.z,
-      })),
-      platforms: v.railway.platforms.map((p) => v.areas[p.area]!.rings),
-      stations: v.railway.stations.map(
-        (st) => v.buildings.find((b) => b.style === "station" && b.name === st.name) ?? null,
-      ),
+      ...copies,
       bells: bakes.bells,
       residents: bakes.residents,
       farms: bakes.farmCentres,

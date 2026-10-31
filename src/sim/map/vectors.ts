@@ -28,14 +28,14 @@ const indexIn = (ids: ReadonlyArray<number>, id: number): number => {
 }
 
 /**
- * Road `road`'s line (index into `MAP.roads`), read where a lookup at (x, y) reads: the point must
- * lie within `HALO` of the road (a vehicle on it, someone on its verge), or it throws.
+ * Road `road`'s line (index into `MAP.roads`), read where a lookup at (x, y) reads, or undefined
+ * when the road lies farther than `HALO` from that point's tile (a vehicle on it, someone on its
+ * verge always find it).
  */
-export const roadLine = (road: number, x: number, y: number): RoadLine => {
+export const roadLineAt = (road: number, x: number, y: number): RoadLine | undefined => {
   const { ids, items } = placeAt(x, y).vectors.roads,
     k = indexIn(ids, road)
-  if (k < 0) throw new Error(`map: road ${road} lies nowhere near (${x}, ${y})`)
-  return items[k]!
+  return k < 0 ? undefined : items[k]
 }
 
 /** A box [minX, minY, maxX, maxY], m. */

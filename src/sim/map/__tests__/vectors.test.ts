@@ -12,7 +12,7 @@ import {
   setTileSource,
   tilesOver,
 } from "../tiles.ts"
-import { buildingAt, buildingsIn, buildingsInMemory, roadLine } from "../vectors.ts"
+import { buildingAt, buildingsIn, buildingsInMemory, roadLineAt } from "../vectors.ts"
 
 // The checks over every tile's vectors live in vectors.map-test.ts (pnpm test:map); these read only
 // the tiles round Monzone station.
@@ -61,11 +61,9 @@ test("a lookup at a point reads the vectors of the point's tile: a road's line t
   const place = placeAt(-414.4, 433.1)
   assert.deepEqual(residentTiles(), ["-1_0"])
   const k = place.vectors.roads.ids.find((id) => MAP.roads[id]!.name === "Via Cesare Battisti")!
-  assert.deepEqual(roadLine(k, -414.4, 433.1), { pts: MAP.roads[k]!.pts, z: MAP.roads[k]!.z })
-  assert.throws(
-    () => roadLine(k, 4000, -5000),
-    new RegExp(`map: road ${k} lies nowhere near \\(4000, -5000\\)`),
-  )
+  const own = place.vectors.roads.items[place.vectors.roads.ids.indexOf(k)]
+  assert.equal(roadLineAt(k, -414.4, 433.1), own)
+  assert.equal(roadLineAt(k, 4000, -5000), undefined)
   setTileSource(undefined)
   dropTile("1_-3")
   assert.throws(() => placeAt(3000, -5000), /map tile 1_-3 not loaded/)

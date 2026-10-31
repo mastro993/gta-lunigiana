@@ -19,7 +19,6 @@
  *
  * @module map
  */
-import { staticGrid } from "../collide.ts"
 import type { VehicleModel } from "../vehicles.ts"
 import { MAP } from "./global.ts"
 import {
@@ -317,13 +316,10 @@ export interface MonzoneMap {
   /** The map's place for the sky: its low ground (m a.s.l., the 5th percentile of its nodes) and the way its ground falls (rad). */
   readonly place: { readonly floor: number; readonly downslope: number }
   readonly coarse: Coarse
-  readonly roads: ReadonlyArray<Road>
-  readonly buildings: ReadonlyArray<Building>
-  readonly water: ReadonlyArray<Water>
+  /** Every road's attributes, indexed by the graph's edges and the crossings; their lines are in the tiles (`./vectors.ts`). */
+  readonly roads: ReadonlyArray<RoadInfo>
   readonly rail: ReadonlyArray<Rail>
   readonly railway: Railway
-  readonly areas: ReadonlyArray<Area>
-  readonly barriers: ReadonlyArray<Barrier>
   readonly pois: ReadonlyArray<Poi>
   readonly districts: ReadonlyArray<District>
   /** Road graph: `xy` node coords, `edges` flat (a, b, roadIndex) triples, `traffic`/`walk` edge indices. Use `graph` instead. */
@@ -389,7 +385,8 @@ export interface MonzoneMapJson extends Omit<MonzoneMap, "coarse"> {
 }
 
 /** The road's class; the build only emits `ROAD_CLASSES` (checked by map.map-test.ts), anything else reads as "path". */
-export const roadClassOf = (road: Road): RoadClass => (isRoadClass(road.cls) ? road.cls : "path")
+export const roadClassOf = (road: Pick<RoadInfo, "cls">): RoadClass =>
+  isRoadClass(road.cls) ? road.cls : "path"
 
 const buildingStyles: ReadonlySet<string> = new Set(BUILDING_STYLES)
 const isBuildingStyle = (style: string): style is BuildingStyle => buildingStyles.has(style)
@@ -442,30 +439,6 @@ export const heightAt = (x: number, y: number): number => {
   const north = nw! + (ne! - nw!) * tx
   return (south + (north - south) * ty) / 10
 }
-
-/** Bounding box [minX, minY, maxX, maxY] of every building's outer ring, indexed like `MAP.buildings`. */
-export const buildingBoxes: ReadonlyArray<readonly [number, number, number, number]> =
-  MAP.buildings.map(({ outer }) => {
-    let x0 = outer[0]!,
-      y0 = outer[1]!,
-      x1 = x0,
-      y1 = y0
-    for (let k = 2; k + 1 < outer.length; k += 2)
-      [x0, y0, x1, y1] = [
-        Math.min(x0, outer[k]!),
-        Math.min(y0, outer[k + 1]!),
-        Math.max(x1, outer[k]!),
-        Math.max(y1, outer[k + 1]!),
-      ]
-    return [x0, y0, x1, y1] as const
-  })
-
-/**
- * Building broad phase (`staticGrid` over `buildingBoxes`, 64 m cells): calls `visit` with the
- * index into `MAP.buildings` of every building whose box may overlap the query box (run the exact
- * test). Shared by the sim and the audio host; `visit` must not query again.
- */
-export const buildingsIn = staticGrid(buildingBoxes.length, (i) => buildingBoxes[i]!, 64)
 
 /**
  * A straight graph edge. a -> b follows the vertex order of `MAP.roads[road].pts` (the OSM way

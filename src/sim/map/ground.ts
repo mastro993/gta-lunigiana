@@ -10,9 +10,10 @@
  */
 import { pointInRing, segDist2 } from "../collide.ts"
 import { addToBuckets, bucketItems, type Buckets, emptyBuckets } from "./buckets.ts"
-import { MAP, type RoadInfo } from "./index.ts"
-import { anchorOf, HALO, isRoadClass, type RoadClass, vergeOf } from "./kinds.ts"
+import { MAP, roadClassOf } from "./index.ts"
+import { anchorOf, HALO, type RoadClass, vergeOf } from "./kinds.ts"
 import { derived, nodeAt, type Place, placeAt } from "./tiles.ts"
+import { roadLineAt } from "./vectors.ts"
 
 /**
  * How far each road class's surface floats above its profile (m); wider classes on top, so junctions
@@ -79,7 +80,6 @@ interface RoadSegment {
 }
 
 /** A road's class (`roadClassOf`, which takes the whole road, line and all): an unknown one is a path. */
-const classOf = (road: RoadInfo): RoadClass => (isRoadClass(road.cls) ? road.cls : "path")
 
 /** Bucket side, m: 125 buckets to a tile's side, so a bucket lies in one tile. */
 const BUCKET = 16
@@ -96,8 +96,8 @@ const segmentsOf = derived((place: Place): Buckets<RoadSegment> => {
     const road = MAP.roads[ids[n]!]!,
       { pts, z } = items[n]!
     const lifted = road.bridge === true || road.tunnel === true
-    const lift = ROAD_LIFT[classOf(road)],
-      verge = Math.max(road.w / 2 + 0.3, (road.verge ?? vergeOf(classOf(road), road.w)) + 0.5)
+    const lift = ROAD_LIFT[roadClassOf(road)],
+      verge = Math.max(road.w / 2 + 0.3, (road.verge ?? vergeOf(roadClassOf(road), road.w)) + 0.5)
     for (let k = 0; k + 1 < z.length; k++) {
       const s: RoadSegment = {
         ax: pts[2 * k]!,
@@ -288,11 +288,10 @@ export const footZ = (x: number, y: number, near?: number): number => {
  * stands on it (its line is read from the tile holding (x, y), which holds every road within `HALO` of the point).
  */
 export const roadLevel = (road: number, x: number, y: number): number | undefined => {
-  const { ids, items } = placeAt(x, y).vectors.roads,
-    n = ids.indexOf(road)
-  if (n < 0) return undefined
+  const line = roadLineAt(road, x, y)
+  if (line === undefined) return undefined
   const info = MAP.roads[road]!,
-    { pts, z } = items[n]!
+    { pts, z } = line
   let best = Number.MAX_VALUE,
     level = z[0]!
   for (let k = 0; k + 1 < z.length; k++) {
@@ -300,7 +299,13 @@ export const roadLevel = (road: number, x: number, y: number): number | undefine
     if (d2 < best) [best, level] = [d2, z[k]! + (z[k + 1]! - z[k]!) * t]
   }
   if (best > HALO * HALO) return undefined
-  return roadZ(level, x, y, ROAD_LIFT[classOf(info)], info.bridge === true || info.tunnel === true)
+  return roadZ(
+    level,
+    x,
+    y,
+    ROAD_LIFT[roadClassOf(info)],
+    info.bridge === true || info.tunnel === true,
+  )
 }
 
 /** The ground at (x, y) on the level of the terrain there: a road at grade, never a deck above or a tunnel below. */

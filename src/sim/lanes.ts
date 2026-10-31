@@ -34,7 +34,7 @@ export interface Lane {
   readonly ry: number
 }
 
-/** The attributes of the road an edge belongs to (its line is in the tiles: `roadLine`). */
+/** The attributes of the road an edge belongs to (its line is in the tiles: `roadLineAt`). */
 export const roadOf = (edge: number): RoadInfo => MAP.roads[graph.edges[edge]!.road]!
 
 /** Edge `edge` travelled a -> b when `forward`, else b -> a. */
