@@ -84,7 +84,7 @@ test("cutMap cuts the dense layers into tiles that joinTiles puts back as they w
   assert.equal(global.walls.reach, 13) // the 24 m shore wall on the edge reaches 12 m past its midpoint, plus the margin
 })
 
-test("cutMap writes the listed tiles alone: a wall or tree in an unlisted one goes to the listed tile round it nearest it, and its land cover still reaches the coarse grid", () => {
+test("cutMap writes the listed tiles alone: a wall or tree in an unlisted one goes to the listed tile round it nearest it", () => {
   const whole = built(data)
   // (0, 0) unlisted, as an L leaves its notch; a wall and a tree in it
   const l: BuiltMap = {
@@ -112,9 +112,41 @@ test("cutMap writes the listed tiles alone: a wall or tree in an unlisted one go
   const joined = joinTiles(decodeMap(files.get("")!), tiles)
   assert.deepEqual(Array.from(joined.walls.walk), l.walls.walk)
   assert.deepEqual(Array.from(joined.trees), l.trees)
-  const all = filesOf(whole).global
-  assert.deepEqual(global.coarse.cover, all.coarse.cover)
-  assert.deepEqual(global.coarse.heights, all.coarse.heights)
+})
+
+test("an unlisted tile's coarse nodes and cells read the nearest listed node and cell, as the game's lookups there do", () => {
+  const whole = built(data)
+  const { global } = filesOf({ ...whole, tiles: whole.tiles.slice(0, 3) })
+  // The coarse nodes at x, y = -64, 0, 64: the grid's nodes (clamped) at columns and rows 0, 3, 6,
+  // and its cells at 0, 3, 5. Those in 0_0 (x, y ≥ 0) read the listed tiles round it nearest them,
+  // the first in key order (-1_-1, 0_-1, -1_0) on a tie: the node (6, 6) is 0_-1's (6, 3), and the
+  // cells (3, 3), (5, 3) and (5, 5) are 0_-1's (3, 2), (5, 2) and (5, 2), (3, 5) -1_0's (2, 5).
+  // The nodes on 0_0's south and west sides are its neighbours' too.
+  const node = (gi: number, gj: number) => data[gj * 7 + gi]!
+  // south to north, rows of west to east
+  assert.deepEqual(Array.from(global.coarse.heights), [
+    node(0, 0),
+    node(3, 0),
+    node(6, 0),
+    node(0, 3),
+    node(3, 3),
+    node(6, 3),
+    node(0, 6),
+    node(3, 6),
+    node(6, 3),
+  ])
+  const cell = (ci: number, cj: number) => cover[cj * 6 + ci]!
+  assert.deepEqual(Array.from(global.coarse.cover), [
+    cell(0, 0),
+    cell(3, 0),
+    cell(5, 0),
+    cell(0, 3),
+    cell(3, 2),
+    cell(5, 2),
+    cell(0, 5),
+    cell(2, 5),
+    cell(5, 2),
+  ])
 })
 
 test("joinTiles refuses a tile from another build", () => {

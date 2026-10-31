@@ -1057,7 +1057,11 @@ nearest it (`tilesRound` in `src/sim/map/kinds.ts`, the cut in `src/tools/tile-m
 item lies within a wall's reach of the play area, so its coordinates pack as the tile's own do. A
 wall or tree lookup over the notch reads the listed tiles round it. The tiles round it are what
 `tilesOver` names for a box over the notch, so the host keeps them in memory wherever a lookup there
-may read.
+may read. The coarse grid's nodes in the notch read the same nearest listed node and cell
+(`readAt` in the cut), so a host that falls back to it where those tiles are not in memory finds
+the ground and cover the tiles give: before, they held the notch's own land, up to 286 m off the
+extended edge on the L test region, and 1,140 of its 4,774 heights and 488 covers differed
+(`l-region.map-test.ts` checks every node against the tiles).
 
 | File | Lunigiana | Cesena |
 |---|---|---|
@@ -1094,7 +1098,7 @@ counter-clockwise, holes clockwise.
 | `heightmap` | the terrain lattice: `cell` (4 m), `cols`, `rows`, `x0`, `y0`, and `ax`, `ay`, the region's anchor (`region.ts`), only where it is not (x0, y0); its nodes are the tiles'. The lookups (`heightAt`, `terrainZ`, `coverAt`) and the land cover's raster (`coverBlocks`: its scanline and its cells near a wall or a road) measure a point's cell from the anchor (`anchorOf` in `src/sim/map/kinds.ts`), so a point keeps its height and its cover to the bit, and the bake its tables, when a part grows the box west or south; Lunigiana's and Cesena's anchors are their corners, so their files name none |
 | `tiles` | `{ i, j, zmin, zmax }` per tile, south to north then west to east: its lowest and highest node, decimetres |
 | `place` | `floor` and `downslope`, the sky's place ([weather.md](weather.md)), fitted over every node at build time |
-| `coarse` | `cell` (64 m), `cols`, `rows`, `x0`, `y0` on the origin's multiples over the bounds; the nodes' heights and the cover there are its two packed sections. For hosts reading far from the player, never the sim |
+| `coarse` | `cell` (64 m), `cols`, `rows`, `x0`, `y0` on the origin's multiples over the bounds; the nodes' heights and the cover there are its two packed sections, as the tiles' lookups read them (in an unlisted tile, the nearest listed node and cell). For hosts reading far from the player, never the sim |
 | `roads` | `id`, `cls`, `name?`, `ref?`, `w`, `surface`, `oneway?`, `bridge?`, `tunnel?`, `layer?`, `verge?` (where people walk, m from the centreline on either side, on the three roads pulled in off the railway; else w/2 + 0.8 m, 0.3 m on paths, steps and tracks), `pts`, `z` (surface elevation per vertex) |
 | `buildings` | `id` (OSM id, or negative for the CTR), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint), `style`, `ruins?`, `tint`, `outer`, `holes?` |
 | `water` | `id`, `kind` (`river` or `stream`), `name?`, `w` (the water's width), `bed` (the gravel bed's half-width), `depth` (the bed is carved `depth`/2 under `z`), `pts`, `z` (the built water surface per vertex), `area` (the catchment upstream of each vertex, km²), `floor` (baked: the bed under the centreline per vertex, m a.s.l.) |

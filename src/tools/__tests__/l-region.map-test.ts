@@ -20,6 +20,8 @@ const skip = existsSync(URL_L)
 if (skip !== false && process.env.CI === "true") throw new Error(skip)
 if (skip === false) await loadBuiltMap(REGION)
 const sim = skip === false ? await import("../../sim/map/index.ts") : undefined
+const coarse = skip === false ? await import("../../sim/map/coarse.ts") : undefined
+const cover = skip === false ? await import("../../sim/map/cover.ts") : undefined
 const WHOLE = skip === false ? readWholeMap(URL_L) : undefined
 
 /** The L's outline: counter-clockwise from its lowest (y, x) vertex, the notch's corner at (0, 1400). */
@@ -341,5 +343,25 @@ test(
     }
     // the notch's strip in the listed tiles, x 0…2400 by y 1400…2000, is mostly wood
     assert.ok(beyond > 15000, `${beyond} trees beyond the outline`)
+  },
+)
+
+// Hosts read the coarse grid where the tiles round a point are not in memory: it must answer as the
+// tiles do, in the notch too, where both extend the nearest listed tile's edge.
+test(
+  "the L's coarse grid holds its tiles' terrain and land cover at every node, the notch's too",
+  { skip },
+  () => {
+    const { heightAt, MAP } = sim!
+    const { coarseCoverAt, coarseHeightAt } = coarse!
+    const { coverAt } = cover!
+    const { cell, cols, rows, x0, y0 } = MAP.coarse
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) {
+        const x = x0 + c * cell,
+          y = y0 + r * cell
+        assert.equal(coarseHeightAt(x, y), heightAt(x, y), `height at ${x}, ${y}`)
+        assert.equal(coarseCoverAt(x, y), coverAt(x, y), `cover at ${x}, ${y}`)
+      }
   },
 )

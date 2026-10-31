@@ -138,7 +138,8 @@ export interface MapCut {
  * terrain nodes, its land cover (asked of `map.cover` for its cells alone), and its walls and trees
  * (with their ids) in the whole map's order. A wall or tree whose midpoint falls in a tile of the
  * bounds' box left off the list goes to the listed tile round it (`tilesRound`) nearest it, which a
- * lookup there reads; the coarse grid reads such a tile's land cover all the same. The global map
+ * lookup there reads, and the coarse grid's nodes there read what the game's lookups read: the
+ * nearest listed node and cell. The global map
  * keeps only the sparse parts, so the dense layers can go once the cut is done. Deterministic.
  */
 export const cutMap = (map: BuiltMap, name: string): MapCut => {
@@ -211,30 +212,53 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const treesOf = bySlot(map.trees.length / 3, slots, (t) =>
     slotAt(map.trees[3 * t]!, map.trees[3 * t + 1]!),
   )
-  // The coarse grid: every COARSE m on the origin's multiples, over the bounds; its cover is read in
-  // the tile whose cells hold each node's cell.
+  /**
+   * Where the game reads lattice point (ni, nj), counted from the origin, a node (`cells` 0: a tile
+   * holds N + 1 along each side) or a cell (1: N): in its tile when listed, else in the listed tile
+   * round it (`around`) holding the point nearest it, the first in key order on a tie (`nearest` in
+   * src/sim/map/tiles.ts). Gives [slot, ni, nj].
+   */
+  const readAt = (ni: number, nj: number, cells: 0 | 1): readonly [number, number, number] => {
+    const s = slotOf(indexOf(ni, range.i0, range.i1, n), indexOf(nj, range.j0, range.j1, n))
+    if (listed[s] === 1) return [s, ni, nj]
+    let best = Infinity,
+      at: readonly [number, number, number] = [s, ni, nj]
+    for (const [ti, tj] of around[s]!) {
+      const x = Math.min(cx + cols - 1 - cells, n * ti + n - cells, Math.max(cx, n * ti, ni)),
+        y = Math.min(cy + rows - 1 - cells, n * tj + n - cells, Math.max(cy, n * tj, nj)),
+        d = (x - ni) * (x - ni) + (y - nj) * (y - nj)
+      if (d < best) [best, at] = [d, [slotOf(ti, tj), x, y]]
+    }
+    return at
+  }
+  // The coarse grid: every COARSE m on the origin's multiples, over the bounds, each node the
+  // terrain's node there and the land cover of the cell north-east of it (both clamped to the
+  // grid), as the game's lookups read them: in an unlisted tile (an L's notch), the nearest listed.
   const gx0 = COARSE * Math.floor(map.bounds.minX / COARSE),
     gy0 = COARSE * Math.floor(map.bounds.minY / COARSE),
     gcols = (COARSE * Math.ceil(map.bounds.maxX / COARSE) - gx0) / COARSE + 1,
     grows = (COARSE * Math.ceil(map.bounds.maxY / COARSE) - gy0) / COARSE + 1
   const coarseHeights = new Int16Array(gcols * grows),
     coarseCover = new Uint8Array(gcols * grows)
-  const coarseCell = (c: number, r: number) =>
-    [
-      Math.min(cols - 2, Math.max(0, (gx0 + c * COARSE - x0) / cell)),
-      Math.min(rows - 2, Math.max(0, (gy0 + r * COARSE - y0) / cell)),
-    ] as const
-  const coarseOf = bySlot(gcols * grows, slots, (k) => {
-    const [ci, cj] = coarseCell(k % gcols, Math.floor(k / gcols))
-    return cellSlot((ci + cx) * cell, (cj + cy) * cell)
-  })
+  /** Coarse node k's lattice point (clamped to the grid's nodes, or cells), counted from the origin. */
+  const coarsePoint = (k: number, cells: 0 | 1) => {
+    const c = k % gcols,
+      r = Math.floor(k / gcols)
+    return readAt(
+      cx + Math.min(cols - 1 - cells, Math.max(0, (gx0 + c * COARSE - x0) / cell)),
+      cy + Math.min(rows - 1 - cells, Math.max(0, (gy0 + r * COARSE - y0) / cell)),
+      cells,
+    )
+  }
+  const coarseCells = Array.from({ length: gcols * grows }, (_, k) => coarsePoint(k, 1))
+  const coarseOf = bySlot(gcols * grows, slots, (k) => coarseCells[k]![0])
   const files = new Map<string, Buffer>(),
     sizes: Record<string, number> = {},
     list: Array<MonzoneMap["tiles"][number]> = []
   for (let j = range.j0; j <= range.j1; j++)
     for (let i = range.i0; i <= range.i1; i++) {
       const s = slotOf(i, j)
-      if (listed[s] !== 1 && coarseOf(s).length === 0) continue
+      if (listed[s] !== 1) continue
       const cover = new Uint8Array(TILE_CELLS * TILE_CELLS)
       // The tile's cells on the heightmap; cells past the bounds stay 0.
       const c0 = Math.max(0, n * i - cx),
@@ -251,11 +275,9 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
           cover[(r0 + r + cy - n * j) * TILE_CELLS + c0 + c + cx - n * i] =
             cells[r * block.cols + c]!
       for (const k of coarseOf(s)) {
-        const [ci, cj] = coarseCell(k % gcols, Math.floor(k / gcols))
-        coarseCover[k] = cover[(cj + cy - n * j) * TILE_CELLS + ci + cx - n * i]!
+        const [, ni, nj] = coarseCells[k]!
+        coarseCover[k] = cover[(nj - n * j) * TILE_CELLS + ni - n * i]!
       }
-      // An unlisted tile (an L's notch) gives the coarse grid its land cover, and no file.
-      if (listed[s] !== 1) continue
       const heights = new Int16Array(TILE_NODES * TILE_NODES)
       let zmin = Number.MAX_SAFE_INTEGER,
         zmax = -Number.MAX_SAFE_INTEGER
@@ -296,12 +318,10 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
         sizes[part] = (sizes[part] ?? 0) + bytes
       list.push({ i, j, zmin, zmax })
     }
-  for (let r = 0; r < grows; r++)
-    for (let c = 0; c < gcols; c++)
-      coarseHeights[r * gcols + c] = node(
-        (gx0 + c * COARSE - x0) / cell,
-        (gy0 + r * COARSE - y0) / cell,
-      )
+  for (let k = 0; k < gcols * grows; k++) {
+    const [, ni, nj] = coarsePoint(k, 0)
+    coarseHeights[k] = node(ni - cx, nj - cy)
+  }
   const corner = (
     ...kinds: ReadonlyArray<"walk" | "shore" | "drive">
   ): readonly [number, number] => [

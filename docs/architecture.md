@@ -608,8 +608,9 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   unlisted tile reads the nearest node or cell of the listed tiles round it, and a wall or tree lookup
   over it reads them all (the build keeps there what lies in the notch: an outline wall on its side,
   a house wall over it), so `tilesOver` names those for a box over it, and `isResidentAt` there
-  answers whether they are all in memory. On Lunigiana and Cesena every tile in the box is listed,
-  and nothing changes.
+  answers whether they are all in memory. The coarse grid holds the same ground and cover there, so
+  a host that falls back to it while they are not finds what the tiles give. On Lunigiana and
+  Cesena every tile in the box is listed, and nothing changes.
 - **`ready(player, extra)`**: whether every listed tile a step reads round the player, and round
   `extra` when given, is in memory; `main.ts` pauses the game while it is not ([Host
   loop](#host-loop)).
