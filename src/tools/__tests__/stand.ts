@@ -1,8 +1,9 @@
 // Run by x3-region.map-test.ts, once per map and seed: node src/tools/__tests__/stand.ts <region key>
 // [seed]. Loads that region's map as built, starts a game on the seed (1 by default) with the player
 // standing at the start for `FRAMES` frames, and prints the live vehicles then as JSON: parked (on a
-// spot), traffic, the rest (the Carabinieri's), the parked cars' spots, and the spots the game's
-// dice park a car on within `PARKING.fill[1]` of the start (`carOn`), with where each stands.
+// spot), traffic, the rest (the Carabinieri's), the parked cars' spots, each parked car by where its
+// spot stands, its model and paint, and the spots the game's dice park a car on within
+// `PARKING.fill[1]` of the start (`carOn`), with where each stands.
 import { loadBuiltMap } from "../map-file.ts"
 import { regionFromArgs } from "../region.ts"
 
@@ -30,6 +31,12 @@ console.log(
     traffic: vehicles.filter((v) => v.traffic).length,
     other: vehicles.filter((v) => v.parked === undefined && !v.traffic).length,
     spots: parked.map((v) => v.parked!).sort((a, b) => a - b),
+    cars: parked
+      .map((v) => {
+        const { x, y } = MAP.spawns.parked[v.parked!]!
+        return `${x},${y} ${v.model} ${v.color.toString(16)}`
+      })
+      .sort(),
     dice,
     near: spotsWithin(MAP.spawns.player, PARKING.fill[1])
       .map((i) => `${MAP.spawns.parked[i]!.x},${MAP.spawns.parked[i]!.y}`)

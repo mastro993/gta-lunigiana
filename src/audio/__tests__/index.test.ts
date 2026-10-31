@@ -399,13 +399,14 @@ test("hear: a worn engine misfires in the sim's windows for its seed, its load s
     revs = engineRevs(VEHICLES.panda, body, 12, 1, 0, { damage: 0.95, seed: worn.id })
   assert.deepEqual([worn.damage, worn.load, worn.misfire], [0.95, 1, revs.misfire])
 
-  // Sitting 4 s in a worn car, idling: whole 0.25 s windows misfire, as the sim's `misfires` draws them for the car's id.
+  // Sitting 12 s in a worn car, idling: whole 0.25 s windows misfire, as the sim's `misfires` draws them for the car's id. At 0.95
+  // one window in six misfires, so 48 windows hold both kinds whatever id the setup before leaves the car (all but 1 in 6,000).
   const seated = listen(press(1, "action"), door(ON_BATTISTI), {
     cars: [parkedCar("panda", 0xb8312b, ON_BATTISTI)],
   })
   seated.run(3)
   assert.ok(seated.runtime.tick(wear(0.95)).ok)
-  seated.run(240)
+  seated.run(720)
   const mine = seated.frames.slice(3).map((f) => f.vehicles.find((v) => v.mine)!)
   const id = mine[0]!.id,
     flags = mine.map((v) => v.misfire)

@@ -1,6 +1,5 @@
 // The parked cars round the player do not grow with the map (issue #7): Lunigiana with three times
-// its parked spots, its own and two copies of them 30 and 60 km east, appended so that no spot's
-// index (and so no spot's dice, `carOn`) moves.
+// its parked spots, its own and, after them, two copies of them 30 and 60 km east.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 

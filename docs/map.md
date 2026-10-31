@@ -145,18 +145,19 @@ stages were sped up (lucido's files the same, byte for byte):
 - **Live vehicles round Monzone** (`x3-region.map-test.ts`, which runs `stand.ts` on each map and
   seeds 1–6, each in a process of its own, and is skipped without the 3x build): after the player
   stands 60 s at the start, the parked cars on either map are exactly those the dice (`carOn`, a hash
-  of a spot's index and the seed) park on the 34 spots within 300 m of the start, which stand where
+  of a spot's place and the seed) park on the 34 spots within 300 m of the start, which stand where
   they do on lucido, beside 10 traffic and the Carabinieri's 2, within the 200 parked and 10 traffic
-  `PARKED` and `TRAFFIC.max` allow: 6, 7, 6, 6, 8 and 7 parked on lucido on seeds 1–6, and 6, 7, 6,
-  5, 7 and 8 on the 3x. So the count does not grow with the map, but one seed parks other cars on
-  the two: the 3x keeps 804 parked spots, not 805, as 9 buildings across lucido's edge, clipped to
-  its box on lucido (their centroid inside), are kept whole and dropped by their centroid there (OSM
-  building 700764389 by spot 367, at (−2892.7, 3095.5)), so every spot after 367 moves one index
-  down and its dice change (on seed 1, spots 228, 452, 652, 740, 788 and 801 on lucido; 228, 442,
-  451, 453, 776 and 801 on the 3x). Dice keyed on a spot's place rather than its index would keep
-  them, a change to the parked cars the user chose, not made. `src/sim/__tests__/parked-far.test.ts`
-  (`pnpm test`) gives Lunigiana three times its spots, copies 30 and 60 km east appended after its
-  own: the cars round the start are still the dice's on its own spots.
+  `PARKED` and `TRAFFIC.max` allow: 11, 3, 6, 10, 11 and 9 parked on seeds 1–6, the same cars on
+  the same spots in the same paint on both maps. So the count does not grow with the map, and the
+  cars stay as they were though the 3x keeps 804 parked spots, not 805: 9 buildings across lucido's
+  edge, clipped to its box on lucido (their centroid inside), are kept whole and dropped by their
+  centroid there (OSM building 700764389 by spot 367, at (−2892.7, 3095.5)), so every spot after
+  367 moves one index down, which dice keyed on the place do not see.
+  `src/sim/__tests__/parked-far.test.ts` (`pnpm test`) gives Lunigiana three times its spots, copies
+  30 and 60 km east after its own: the cars round the start are still the dice's on its own spots;
+  `parked-place.test.ts` lists each spot twice, once with a spot dropped before it and once with
+  all the others added before it, and both listings of a spot round the start hold the same car on
+  seeds 1–6.
 - **What else moves**: in lucido's rectangle the 3x's terrain, its land cover more than 50 m in
   from the edge and the tables it bakes are lucido's to the bit (`x3-region.map-test.ts`); the
   place, the catchments and what lucido's edge cuts differ ([What growing a region
@@ -1592,10 +1593,10 @@ carries the roads, water, rail and buildings across the old edge, which then are
 - **Buildings across the edge**: on lucido each is clipped to its box and kept by the centre of
   what is left; on the 3x the box reaches past it, so it is kept whole, or dropped, by the centre of
   the whole. 9 change and 9 go, none reaching more than 19.2 m in from the edge, and with them go
-  parked spot 367 (every later spot's index moves up one, so the spots' hash parks other cars:
-  [Test regions](#test-regions)), 2 farms (2 more move to their whole building), the paving in
-  front of them (6 land-cover cells within 6 m of the edge) and 10 m of a district disc of
-  Argigliano's (r 120 → 110 m).
+  parked spot 367 (every later spot's index moves one down, which the spots' hash, keyed on their
+  place, does not see: [Test regions](#test-regions)), 2 farms (2 more move to their whole
+  building), the paving in front of them (6 land-cover cells within 6 m of the edge) and 10 m of a
+  district disc of Argigliano's (r 120 → 110 m).
 - **Areas across the edge** are clipped to the box, not the play area, so on the 3x 19 run on
   whole past lucido's edge and 77 more lie beyond it. A cut is rounded to 0.1 m, which moves the
   cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs.

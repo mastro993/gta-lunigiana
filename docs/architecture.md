@@ -44,13 +44,13 @@ and `Input` (idle keys).
   each day's plan comes from the weather seed (kept in `Weather.seed`) and the day alone, so a
   storm never changes the days after it.
 - The railway draws from its own stream too, `RailRng`: which way each line's first train runs, its
-  dwells and the layovers ([gameplay.md](gameplay.md#trains)), so trains never change what traffic,
-  people or animals draw. Its seed is `seed ^ 0x7f4a7c15`, another offset on the same
-  mulberry32 cycle.
+  dwells and the layovers ([gameplay.md](gameplay.md#trains)), so the railway's draws never change
+  what traffic, people or animals draw (a train in a car's way still changes when it draws its next
+  turn). Its seed is `seed ^ 0x7f4a7c15`, another offset on the same mulberry32 cycle.
 - The parked cars draw from no stream: whether a spot holds a car, and which, comes from a hash of
-  the spot's index and `Parking.seed` (`src/sim/population/parked.ts`), so a spot holds the same
-  car each time the player comes back, whatever was drawn in between
-  ([gameplay.md](gameplay.md#parked-cars)).
+  the spot's place and `Parking.seed` (`src/sim/population/parked.ts`), so a spot holds the same
+  car each time the player comes back, whatever was drawn in between, and keeps it when a build
+  adds or drops other spots ([gameplay.md](gameplay.md#parked-cars)).
 - The clock, the sun and moon, the climate and the weather are pure functions in `src/sim/sky/`
   ([weather.md](weather.md)). The host calls the same functions to draw, play and show them, so the
   snow it draws is the snow the tyres feel.
@@ -230,7 +230,7 @@ Saved resources:
 | `Rng` | the world's random stream: traffic, people and animals |
 | `WeatherRng` | the weather's own random stream: the storm cell and lightning (its first state is the weather seed) |
 | `RailRng` | the railway's own random stream: which way each line's first train runs where either way passes the start, the dwells and the layovers |
-| `Parking` | `seed`, the game's seed (never changed): with a spot's index it hashes whether the spot holds a car, its model and its paint; `wrecked`, the spots whose car was destroyed and has gone, in the order they went, which hold no car again |
+| `Parking` | `seed`, the game's seed (never changed): with a spot's place it hashes whether the spot holds a car, its model and its paint; `wrecked`, the spots whose car was destroyed and has gone, in the order they went, which hold no car again |
 | `Score` | `stolen` (vehicles and trains), and `knocked`: people the player's car or train knocked down or killed |
 | `View` | `turns`, the net quarter turns of the camera; driving, the seat nearest the car's heading |
 | `Handling` | the 16 handling knobs ([gameplay.md](gameplay.md#handling)) |
@@ -2047,10 +2047,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `x3-region.map-test.ts`: on the 3x test region, every terrain node in lucido's rectangle is
     lucido's, its land cover more than 50 m inside lucido's edge, and the lamps, water beds and
     parked spots' rests it bakes, every platform lies in its play area, and after a 60 s stand at
-    the start, on seeds 1–6 and on both maps, the parked cars are the dice's on the same spots within
-    300 m of it (`stand.ts`, a process each; skipped without the 3x build, which only a hand builds;
-    [map.md](map.md#what-growing-a-region-changes)); `src/sim/__tests__/parked-far.test.ts` the
-    same with three times the spots, the new ones far away.
+    the start, on seeds 1–6, the parked cars within 300 m of it are the dice's and the same on both
+    maps, spot, model and paint (`stand.ts`, a process each; skipped without the 3x build, which
+    only a hand builds; [map.md](map.md#what-growing-a-region-changes));
+    `src/sim/__tests__/parked-far.test.ts` the dice's with three times the spots, the new ones far
+    away, and `parked-place.test.ts` the same car on a spot listed at two indices.
 
   Measured on 2026-10-30 on a 14-core Apple-silicon Mac under a load average of 50–95 from other
   work, each file run alone: the split took `pnpm test` from 1,177 tests in 181 files and 228 s of

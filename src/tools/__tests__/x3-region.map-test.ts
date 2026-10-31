@@ -119,6 +119,8 @@ interface Stand {
   readonly traffic: number
   readonly other: number
   readonly spots: ReadonlyArray<number>
+  /** Each parked car by where its spot stands, its model and its paint. */
+  readonly cars: ReadonlyArray<string>
   readonly dice: ReadonlyArray<number>
   readonly near: ReadonlyArray<string>
 }
@@ -128,12 +130,12 @@ const stand = async (key: string, seed: number): Promise<Stand> =>
     (await run(process.execPath, [STAND, key, String(seed)], { encoding: "utf8" })).stdout,
   ) as Stand
 
-// A spot's car is the dice's for its index and the seed (`carOn`), and the 3x leaves out one spot
-// past lucido's edge (docs/map.md, "Test regions"), so the same seed parks other cars round Monzone
-// there: what holds whatever the seed is that the cars are the dice's on the spots within 300 m of
-// the start, which stand where they do on lucido.
+// A spot's car is the dice's for its place and the seed (`carOn`), not its index, so though the 3x
+// leaves out one spot past lucido's edge, which moves every later spot's index (docs/map.md, "Test
+// regions"), each seed parks the same cars round Monzone on both: on the spots within 300 m of the
+// start, which stand where they do on lucido, the dice's.
 test(
-  "round Monzone the live vehicles do not grow with the map: on lucido and on three times its built terrain, the dice's cars on the same spots, within 200 parked and 10 traffic",
+  "round Monzone the live vehicles do not grow with the map: on lucido and on three times its built terrain, the same cars on the same spots, the dice's, within 200 parked and 10 traffic",
   { skip },
   async () => {
     const runs = await Promise.all(
@@ -141,10 +143,11 @@ test(
         ["lunigiana", X3.key].map(async (key) => ({ key, seed, ...(await stand(key, seed)) })),
       ),
     )
-    for (const { key, seed, parked, traffic, other, spots, dice, near } of runs) {
+    for (const { key, seed, parked, traffic, other, spots, cars, dice, near } of runs) {
       const on = `${key}, seed ${seed}`
       assert.deepEqual(spots, dice, on)
       assert.deepEqual(near, runs[0]!.near, on)
+      assert.deepEqual(cars, runs.find((r) => r.seed === seed)!.cars, on)
       assert.ok(parked + other <= PARKED && traffic <= TRAFFIC.max, on)
       assert.ok(parked > 0 && traffic > 0 && other === 2, on) // the Carabinieri's two
     }

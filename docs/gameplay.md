@@ -12,7 +12,7 @@ in Lunigiana, or beside a central connected street in Cesena. The map build reje
 buildings and requires an open walking route to the street, so the player can leave the starting
 spot. The two parked spots nearest the station (the one the build chose, `MAP.spawns.police`: in
 Cesena the Compagnia Carabinieri, not the Commissariato) get Carabinieri cars, and the spots within
-300 m of the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 6 for
+300 m of the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 11 for
 seed 1, in view as well as out of it, which the title card hides coming. Each car stands settled
 on its springs with the ground's slope. Settling reads the terrain at the spot, and a truck's
 clearance the walls, so the build works both out for every model on every spot (`bakeParked` in
@@ -489,7 +489,7 @@ by 1–4 s, except the Ape at 0.85, which reaches 30 km/h in 61–107 s:
 The Giulia's climb is held by its grip on the steepest grades (60% is as far as was tried), and the
 laden truck's by its tyres at about 15% whatever the damage. Traffic hardly wears itself out: with
 the player standing 3 minutes at the start while traffic fills the roads (seed 1, in Node), 8 of
-the 36 vehicles on the map in that time (17 at once) took any damage, at most 0.105.
+the 45 vehicles on the map in that time (23 at once) took any damage, at most 0.041.
 
 ### Explosions
 
@@ -847,19 +847,22 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
 (`src/sim/population/parked.ts` decides which).
 
 - **Which spots and which cars**: whether a spot holds a car, its model and its paint come from a
-  random stream seeded by a hash of the spot's index and the game's seed (`Parking`, saved), so
-  within one game a street looks the same each time the player comes back, and `?seed=N` parks
-  another set. A spot where a Panda would tilt more than 15° stays empty (in Lunigiana, 71 of the
-  805: the 4 m terrain puts some verges on a bank), and so do the Carabinieri's two.
+  random stream seeded by a hash of the spot's place (its x and y in whole decimetres, as the build
+  rounds them) and the game's seed (`Parking`, saved), so within one game a street looks the same
+  each time the player comes back, and `?seed=N` parks another set. A spot where a Panda would
+  tilt more than 15° stays empty (in Lunigiana, 71 of the 805: the 4 m terrain puts some verges on
+  a bank), and so do the Carabinieri's two.
 - **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
   over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had
   then (732 now), about 27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village
-  (seed 1): Monzone (Stazione) 8, Monzone Alto 2, Equi Terme 4, Gragnola 4, Colognola 4,
-  Campiglione 5, Viano 2, Vinca 10, Ugliancaldo 5, Tenerano 2. A spot's dice follow its index, so
-  a build that adds or drops a spot rolls every later spot's anew, and these counts move with it.
+  (seed 1): Monzone (Stazione) 12, Monzone Alto 6, Equi Terme 5, Gragnola 6, Colognola 2,
+  Campiglione 6, Viano 6, Vinca 12, Ugliancaldo 8, Tenerano 3. A spot's dice follow its place, not
+  its index, so a build that adds or drops other spots leaves its car as it was (the 3x test region
+  drops one by lucido's edge and parks the same cars round Monzone:
+  [map.md](map.md#test-regions)); a spot the build moves rolls anew.
 - **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
-  tertiary-road spot where a truck fits, a roll under 10% makes a marble truck instead: 3 of the
-  176 cars Lunigiana's spots hold for seed 1 (3–7 over seeds 1, 2, 3, 7 and 11), where the game
+  tertiary-road spot where a truck fits, a roll under 10% makes a marble truck instead: 6 of the
+  209 cars Lunigiana's spots hold for seed 1 (2–6 over seeds 1, 2, 3, 7 and 11), where the game
   that parked over the whole map held at most two.
 - **Coming**: a spot 90–300 m from the player (`PARKING.fill`, out of view) that should hold a car
   and has none gets it, unless a vehicle's body, or a person or an animal within 1 m (`ROOM`), is in
@@ -877,8 +880,8 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   back later, finds the street without it.
 - **At most**: none comes while 200 vehicles that are not traffic stand (`PARKED`), the
   Carabinieri's, the stolen and the wrecked ones included. Driving across the map through the ten
-  villages above (seed 1, 50 m every half second from 400 m out of each), at most 24 vehicles stood
-  at once, the player's car included, with at most 11 parked cars and 10 traffic.
+  villages above (seed 1, 50 m every half second from 400 m out of each), at most 27 vehicles stood
+  at once, the player's car included, with at most 14 parked cars and 10 traffic.
 - **Limits**: after a jump (`Respawn` at the start, a dev teleport) the spots within 90 m of the
   player stay empty until it is 90 m away from them; back at the start after a death, Monzone's
   street holds only the cars that stayed. A car a flood floats off its spot, or a blast shoves, stays
@@ -975,9 +978,9 @@ parties from 4 m (`FILL_NEAR`: round the player, none on them) to 120 m, and `Fi
 animals `PopulateAnimals` keeps, the cats out to 120 m and the farm animals to 140 m. The title card
 hides them coming; after it, people and animals spawn only out of view. Over 40 seeds at the start:
 9.2 people out (the target is 9), 2.2 of them within 45 m (the residents there are 28 % of those
-within 140 m), 2 cats and 2.8 free dogs. Standing still 3 minutes (seeds 11–14), the player has 3.1
-people within 45 m on average at the start (1.8–3.9 a seed), and 2.1 in Gragnola's centre
-(0.9–4.0).
+within 140 m), 2 cats and 2.8 free dogs. Standing still 3 minutes (seeds 11–14), the player has 2.4
+people within 45 m on average at the start (0.8–3.8 a seed), and 1.5 in Gragnola's centre
+(0.8–2.4).
 
 ### Limits
 
@@ -1145,7 +1148,8 @@ code:
   in the step its whole body runs past the drawn run, beyond view (`Dispatch`). The line's next
   train is then due after a layover of 60–180 s (`LAYOVER`), from that end, going the other way.
   The dwells and layovers are the "small random delays"; they draw from the railway's own stream,
-  `RailRng`, never from `Rng`, so trains change nothing traffic, people or animals draw.
+  `RailRng`, never from `Rng`, so the railway's draws change nothing traffic, people or animals
+  draw (a train in a car's way still changes when it draws its next turn).
 - **A stolen train** is its line's one train while the player has it: the line gets no other
   (unless a `SetTrains` call brings one in, which keeps 30 m behind it as behind any train). Once
   the player has left it and all of it is out of view (`VIEW_REACH`, 90 m, as people and cars are

@@ -1,7 +1,8 @@
 /**
- * Which of the map's parked spots hold a car, and which car: a hash of the spot's index and the
+ * Which of the map's parked spots hold a car, and which car: a hash of the spot's place and the
  * game's seed (`Parking`) decides both, so within one game a street looks the same each time the
- * player comes back to it, and `?seed=N` parks another set. Only the spots round the player hold
+ * player comes back to it, `?seed=N` parks another set, and a spot keeps its car when a build adds or
+ * drops others (its index, which they move, plays no part). Only the spots round the player hold
  * their cars: `SpawnWorld` parks those round the start, `PopulateParked` those the player nears.
  *
  * @module population/parked
@@ -71,14 +72,19 @@ interface ParkedLook {
   readonly color: number
 }
 
+/** A spot's place as one number: its x and y in whole decimetres (the build rounds spots to 0.1 m), hashed. */
+const placeOf = (spot: ParkedSpot): number =>
+  mix(Math.round(spot.x * 10) ^ mix(Math.round(spot.y * 10)))
+
 /**
  * The car the game of `seed` parks on spot `index`, or undefined when the spot stays empty (or is the Carabinieri's, or too steep
- * for a Panda): a random stream seeded by the hash of the two decides whether it holds one, then the model, then the paint.
+ * for a Panda): a random stream seeded by the hash of the seed and the spot's place decides whether it holds one, then the model,
+ * then the paint.
  */
 export const carOn = (seed: number, index: number): ParkedLook | undefined => {
   const spot = SPOTS[index]
   if (spot === undefined || !level("panda", spot) || CARABINIERI.includes(index)) return undefined
-  const random = Random.make(mix(seed ^ mix(index)))
+  const random = Random.make(mix(seed ^ placeOf(spot)))
   if (random.next() >= share) return undefined
   const roll = random.next()
   const model =

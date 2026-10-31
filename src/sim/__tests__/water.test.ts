@@ -423,11 +423,16 @@ test("saves: a snapshot taken mid-swim restores through JSON and plays on identi
     a.world().peds.some((p) => p.wet !== undefined),
     "a walker in the water",
   )
-  const b = start()
+  // The restored game plays on the keys `SWIM` holds from frame 300 (a scripted keyboard counts its own frames).
+  const b = start([
+    { frame: 0, press: ["up", "sprint"] },
+    { frame: 100, release: ["up", "sprint"], press: ["left"] },
+  ])
   assert.ok(b.runtime.restore(jsonSave(a.runtime)).ok)
   assert.deepEqual(b.world(), a.world())
   assert.deepEqual(b.view(), a.view())
   a.run(300)
   b.run(300)
   assert.deepEqual(b.world(), a.world())
+  assert.deepEqual(b.view(), a.view())
 })

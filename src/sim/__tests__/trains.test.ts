@@ -510,10 +510,15 @@ test("trains: no train runs past the end of its line's run-out, and in a tunnel 
 })
 
 test("trains: the railway draws from its own stream: other dwells, the same traffic, people and Rng", () => {
-  // A train coming slowly into Monzone, whose dwell is drawn as it stops.
+  // A train coming slowly into the line's last station, whose dwell is drawn as it stops: 3 km from the
+  // start, where nothing the world brings out round the player meets it (by Monzone a traffic car
+  // slowing for a train draws its next turn later, and the world's stream parts though the railway
+  // draws nothing from it).
   const play = (edit?: (saved: { resources: Record<string, unknown> }) => void) => {
     const a = start([], undefined, { trains: true })
-    assert.ok(a.runtime.tick(placeTrains([aiTrain(stopOf(MONZONE.station, 1) - 25, 1, 3)])).ok)
+    assert.ok(
+      a.runtime.tick(placeTrains([aiTrain(stopOf(line.stations.at(-1)!, 1) - 25, 1, 3)])).ok,
+    )
     if (edit === undefined) return a
     const saved = jsonSave(a.runtime) as {
       resources: Record<string, unknown>
