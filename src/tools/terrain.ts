@@ -125,26 +125,43 @@ const fractionOf = (f: number, o: number, i: number): number =>
   Math.min(1, Math.max(0, f - (i - o)))
 
 /**
- * Bilinear terrain at fractional cell (fx, fy) past node (ox, oy) of a `cols` × `rows` raster `a`
- * (component `c` of `stride`), clamped to its edge.
+ * Bilinear easting (`c` 0) or northing (1) at fractional cell (fx, fy) past node (ox, oy) of the
+ * projection lattice `a` (`cols` × `rows` nodes, two values each), clamped to its edge.
  */
 const bilinear = (
-  a: Float32Array | Float64Array,
+  a: Float64Array,
   cols: number,
   rows: number,
   fx: number,
   fy: number,
-  stride: number,
   c: number,
-  ox = 0,
-  oy = 0,
+  ox: number,
+  oy: number,
 ) => {
   const i = cellOf(fx, ox, cols),
     j = cellOf(fy, oy, rows)
   const tx = fractionOf(fx, ox, i),
     ty = fractionOf(fy, oy, j)
-  const v = (di: number, dj: number) => a[((j + dj) * cols + i + di) * stride + c]!
+  const v = (di: number, dj: number) => a[((j + dj) * cols + i + di) * 2 + c]!
   return (v(0, 0) * (1 - tx) + v(1, 0) * tx) * (1 - ty) + (v(0, 1) * (1 - tx) + v(1, 1) * tx) * ty
+}
+
+/**
+ * Bilinear height at fractional cell (fx, fy) of the DTM's `cols` × `rows` heights `z`, clamped to
+ * its edge: `bilinear`'s sum from the raster's first node. Kept apart from `bilinear` so V8 inlines
+ * it into the grid's 25 samples a node (through `bilinear`'s offsets it did not, and the grid
+ * stage took 2.0 s of lucido's build rather than 0.85 s).
+ */
+const dtmHeight = (z: Float32Array, cols: number, rows: number, fx: number, fy: number) => {
+  const i = Math.min(cols - 2, Math.max(0, Math.floor(fx))),
+    j = Math.min(rows - 2, Math.max(0, Math.floor(fy)))
+  const tx = Math.min(1, Math.max(0, fx - i)),
+    ty = Math.min(1, Math.max(0, fy - j))
+  const k = j * cols + i
+  return (
+    (z[k]! * (1 - tx) + z[k + 1]! * tx) * (1 - ty) +
+    (z[k + cols]! * (1 - tx) + z[k + cols + 1]! * tx) * ty
+  )
 }
 
 /**
@@ -194,9 +211,9 @@ export const dtmDem = (dtm: DtmData, ground: Ground = REGION): Dem => {
   const at = (x: number, y: number) => {
     const fx = (x - rx) / PROJ_STEP,
       fy = (y - ry) / PROJ_STEP
-    const e = bilinear(lattice, lcols, lrows, fx, fy, 2, 0, ri, rj),
-      n = bilinear(lattice, lcols, lrows, fx, fy, 2, 1, ri, rj)
-    return bilinear(z, dcols, drows, (e - e0) / dc, (n - n0) / dc, 1, 0)
+    const e = bilinear(lattice, lcols, lrows, fx, fy, 0, ri, rj),
+      n = bilinear(lattice, lcols, lrows, fx, fy, 1, ri, rj)
+    return dtmHeight(z, dcols, drows, (e - e0) / dc, (n - n0) / dc)
   }
   const grid = (span: Span): Grid => {
     const g = gridLattice(ground),
@@ -250,7 +267,7 @@ export const dtmDem = (dtm: DtmData, ground: Ground = REGION): Dem => {
           for (let k = 0; k < side; k++, q++) {
             const e = ea[q]! * uy + eb[q]! * ty,
               n = na[q]! * uy + nb[q]! * ty
-            sum += bilinear(z, dcols, drows, (e - e0) / dc, (n - n0) / dc, 1, 0)
+            sum += dtmHeight(z, dcols, drows, (e - e0) / dc, (n - n0) / dc)
           }
           sums[c] = sum
         }

@@ -2,7 +2,7 @@
 // built terrain, against lucido: the terrain and the tables the bake reads from it in lucido's
 // rectangle, and the live vehicles round Monzone (the same seed and the same stand at the start:
 // `stand.ts`, one child process a map, as a process loads one map). The 3x is built by hand (node
-// src/tools/build-map.ts --region lunigiana-3x, 16 s, 1.5 GB; CI never builds it), and without it
+// src/tools/build-map.ts --region lunigiana-3x, 15.5 s, 1.5 GB; CI never builds it), and without it
 // this is skipped.
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
