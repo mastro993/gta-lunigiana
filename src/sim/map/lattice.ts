@@ -16,7 +16,7 @@
 export const CELL = 16
 
 /** Marks of the items a query has visited, by id (`queryCells`), for items several tiles hold. */
-export interface Visited {
+interface Visited {
   /** `marks[id] === stamp` once the current query has visited the item with that id. */
   readonly marks: Int32Array
   stamp: number

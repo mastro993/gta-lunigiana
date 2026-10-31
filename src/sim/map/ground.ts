@@ -79,8 +79,6 @@ interface RoadSegment {
   readonly foot: number
 }
 
-/** A road's class (`roadClassOf`, which takes the whole road, line and all): an unknown one is a path. */
-
 /** Bucket side, m: 125 buckets to a tile's side, so a bucket lies in one tile. */
 const BUCKET = 16
 

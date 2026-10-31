@@ -154,7 +154,7 @@ export const tileTrees = (
   return { trees, ids }
 }
 
-/** Host only: the vectors of tile `key` in memory (`TileVectors`), for the renderer and the minimap to draw. */
+/** Host only: the vectors of tile `key` in memory (`TileVectors`), for the renderer to draw. */
 export const tileVectors = (key: string): TileVectors => {
   const [i, j] = key.split("_").map(Number)
   return tileAt(i!, j!).vectors

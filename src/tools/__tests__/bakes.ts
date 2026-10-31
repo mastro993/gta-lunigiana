@@ -1,5 +1,6 @@
 // The checks bake.test.ts, bake.map-test.ts and the Cesena pair share: the baked tables of the map the sim has loaded are
-// what the game's own code makes of it now (lanes, parking, water beds, farms, lamps, the sky's place). Change that code or
+// what the game's own code makes of it now (lanes, parking, water beds, farms, lamps, the sky's place, the bells, the walkers'
+// residents, the farms' centres, and the copies of what the railway points at). Change that code or
 // its tuning and the shipped maps are stale until `pnpm map` and `pnpm map --region cesena` bake them again.
 import assert from "node:assert/strict"
 
@@ -45,7 +46,7 @@ export const assertBakesCurrent = (map: MonzoneMap, run: typeof bake): void => {
   assert.deepEqual(
     fresh.bells,
     saved(map.derived.bells),
-    `MAP.derived.bells (src/audio/places.ts): ${hint}`,
+    `MAP.derived.bells (src/tools/bells.ts): ${hint}`,
   )
   assert.deepEqual(
     fresh.residents,

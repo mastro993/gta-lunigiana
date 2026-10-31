@@ -62,7 +62,7 @@ export interface MapPen {
 }
 
 /** A road as a paint reads it: its attributes and its line. */
-export interface PaintRoad {
+interface PaintRoad {
   readonly cls: string
   readonly w: number
   readonly tunnel?: boolean

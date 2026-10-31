@@ -99,6 +99,8 @@ const bySlot = (count: number, slots: number, slotOf: (item: number) => number) 
 
 /** A map cut into its tiles, and the global map: both completed by the bakes. */
 export interface MapCut {
+  /** Tile `key`'s gunzipped file with `bakes`, as `tiles` makes it: one at a time, for the bake to read. */
+  readonly tile: (key: string, bakes: Bakes) => Buffer
   /**
    * Each tile's gunzipped file with `bakes` (the water's floors) and an empty hash, by key, south to
    * north then west to east, and the bytes of each layer of vectors in them, summed.
@@ -118,11 +120,12 @@ export interface MapCut {
 /**
  * `map` named `name` cut into its tiles (`map.tiles`), one at a time, each packed as it is cut: its
  * terrain nodes, its land cover (asked of `map.cover` for its cells alone), and its walls and trees
- * (with their ids) in the whole map's order. A wall or tree whose midpoint falls in a tile of the
- * bounds' box left off the list goes to the listed tile round it (`tilesRound`) nearest it, which a
- * lookup there reads, and the coarse grid's nodes there read what the game's lookups read: the
- * nearest listed node and cell. The global map
- * keeps only the sparse parts, so the dense layers can go once the cut is done. Deterministic.
+ * (with their ids) in the whole map's order; and the vectors round it (tile-vectors.ts), which the
+ * bakes complete (`tiles`). A wall or tree whose midpoint falls in a tile of the bounds' box left
+ * off the list goes to the listed tile round it (`tilesRound`) nearest it, which a lookup there
+ * reads, and the coarse grid's nodes there read what the game's lookups read: the nearest listed
+ * node and cell. What the cut returns holds the packed tiles, the vectors and the global map's
+ * sparse parts alone, so the dense layers can go once the cut is done. Deterministic.
  */
 export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const { cell, cols, rows, x0, y0, ax, ay, data } = map.heightmap
@@ -365,28 +368,17 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
   }
   const { roads, buildings, rail, railway, areas, pois, districts, graph, spawns } = map
   const vectors = vectorFacts(map)
-  /** Each tile's file with its vectors, the water's floors from `bakes`. */
-  const tiles = (bakes: Bakes) => {
-    const out = new Map<string, Buffer>(),
-      bytes: Record<VectorLayer, number> = {
-        roads: 0,
-        buildings: 0,
-        water: 0,
-        areas: 0,
-        barriers: 0,
-      }
-    for (const [key, file] of files) {
+  const slotsOf = new Map(
+    [...files.keys()].map((key) => {
       const [i, j] = key.split("_").map(Number)
-      const tile = tileVectors(map, members, slotOf(i!, j!), bakes.floors)
-      for (const name of VECTOR_LAYERS) bytes[name] += JSON.stringify(tile[name]).length
-      out.set(key, relined(file, { vectors: tile }))
-    }
-    return { files: out, sizes: bytes }
-  }
+      return [key, slotOf(i!, j!)] as const
+    }),
+  )
+  const { water, barriers } = map
   return {
-    tiles,
+    ...tilesOf(files, slotsOf, { roads, buildings, water, areas, barriers }, members),
     sizes,
-    whole: { roads: map.roads, buildings: map.buildings, water: map.water },
+    whole: { roads, buildings, water },
     global: globalOf(
       header,
       {
@@ -412,6 +404,42 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
       },
       spawns,
     ),
+  }
+}
+
+/**
+ * Each tile's file (`files`, its dense layers packed, by key) with its vectors: those slot
+ * `slots.get(key)` holds of `whole` (`members`), the water's floors from the bakes. Made apart from
+ * `cutMap`, so the closures hold the vectors alone and not the dense layers the cut read.
+ */
+const tilesOf = (
+  files: ReadonlyMap<string, Buffer>,
+  slots: ReadonlyMap<string, number>,
+  whole: Pick<BuiltMap, VectorLayer>,
+  members: Readonly<Record<VectorLayer, ReadonlyArray<ReadonlyArray<number>>>>,
+): Pick<MapCut, "tile" | "tiles"> => {
+  const tile = (key: string, bakes: Bakes): Buffer =>
+    relined(files.get(key)!, {
+      vectors: tileVectors(whole, members, slots.get(key)!, bakes.floors),
+    })
+  return {
+    tile,
+    tiles: (bakes) => {
+      const out = new Map<string, Buffer>(),
+        sizes: Record<VectorLayer, number> = {
+          roads: 0,
+          buildings: 0,
+          water: 0,
+          areas: 0,
+          barriers: 0,
+        }
+      for (const key of files.keys()) {
+        const vectors = tileVectors(whole, members, slots.get(key)!, bakes.floors)
+        for (const name of VECTOR_LAYERS) sizes[name] += JSON.stringify(vectors[name]).length
+        out.set(key, relined(files.get(key)!, { vectors }))
+      }
+      return { files: out, sizes }
+    },
   }
 }
 

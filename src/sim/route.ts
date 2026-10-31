@@ -50,8 +50,6 @@ export const alongLane = (lane: Lane, x: number, y: number): number =>
 export const endNode = (edge: number, forward: boolean): number =>
   forward ? graph.edges[edge]!.b : graph.edges[edge]!.a
 
-/** A road's class (`roadClassOf`, which takes the whole road, line and all): an unknown one is a path. */
-
 /** Pedestrians keep to the verge of roads and to the middle of paths, steps and tracks, or where the road's `verge` says (off the railway). */
 export const walkSide = (road: RoadInfo): number => road.verge ?? vergeOf(roadClassOf(road), road.w)
 

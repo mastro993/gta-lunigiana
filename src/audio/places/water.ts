@@ -34,7 +34,7 @@ export interface WaterHeard {
 }
 
 /** A straight reach of one body: its line-source power, and what the synth needs at its nearest point. */
-export interface Reach extends LineSegment {
+interface Reach extends LineSegment {
   readonly key: string
   readonly river: boolean
   readonly flow: number

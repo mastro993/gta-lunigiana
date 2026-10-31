@@ -6,8 +6,8 @@
  * split into byte planes: the low byte of every value, then the next byte of every value. Neighbours
  * differ little and like bytes sit together, which is what gzip compresses best.
  *
- * The global file's line is `MonzoneMapJson` (everything sparse: the vectors, the graph, the
- * railway, the tile list, the baked tables); its sections are the coarse grid's heights and cover.
+ * The global file's line is `MonzoneMapJson` (everything sparse: the roads' attributes, the graph,
+ * the railway, the tile list, the baked tables); its sections are the coarse grid's heights and cover.
  * A tile's line is `TileJson`, which holds the vectors round its square (`TileVectors`, as JSON:
  * their doubles come back exact); its sections hold the dense layers of its square:
  *

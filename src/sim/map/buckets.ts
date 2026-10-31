@@ -9,7 +9,7 @@
  * @module map/buckets
  */
 
-/** Items in square buckets of `size` m from the origin: each non-empty bucket's, by `bucketKey`. */
+/** Items in square buckets of `size` m from the origin: each non-empty bucket's, by `keyOf`. */
 export interface Buckets<T> {
   readonly size: number
   readonly lists: Map<number, Array<T>>

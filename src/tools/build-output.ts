@@ -177,12 +177,12 @@ export const writeMap = async (
 ) => {
   provideMap(packMap({ ...cut.global(NO_BAKES), hash: "" }).file)
   const { dropTile, setTileSource } = await import("../sim/map/tiles.ts")
-  const resident: Array<string> = [],
-    provisional = cut.tiles(NO_BAKES).files
+  const resident: Array<string> = []
+  // Each tile made as the bake asks for it, with no floors yet (the bake makes them)
   setTileSource((key) => {
     resident.push(key)
     if (resident.length > RESIDENT) dropTile(resident.shift()!)
-    return provisional.get(key)!
+    return cut.tile(key, NO_BAKES)
   })
   const { bake } = await import("./bake.ts")
   const bakes = bake(cut.whole)

@@ -127,14 +127,71 @@ test("the overview downloads once, is decoded at each opening and let go at each
     "let go when it closes",
   )
   overview.want()
-  overview.release() // closed before the bitmap came
+  overview.release() // closed before its file came
   await settle()
   assert.deepEqual(
-    [overview.bitmap, bitmaps[1]!.closed, heard],
-    [undefined, true, [0]],
-    "a late one let go",
+    [overview.bitmap, bitmaps.length, heard],
+    [undefined, 1, [0]],
+    "an opening closed before the file came decodes nothing",
   )
   overview.want()
   await settle()
-  assert.deepEqual([downloads, overview.bitmap?.n, heard], [2, 2, [0, 2]], "downloaded once")
+  assert.deepEqual([downloads, overview.bitmap?.n, heard], [2, 1, [0, 1]], "downloaded once")
+})
+
+test("the overview decodes once for the opening still open when its file comes, and a download that failed while the map was shut is tried again", async () => {
+  let arrive: (blob: Blob) => void = () => {},
+    fail: (error: Error) => void = () => {},
+    downloads = 0,
+    decodes = 0
+  const overview = overviewBitmap(
+    () => {
+      downloads++
+      return new Promise<Blob>((resolve, reject) => {
+        arrive = resolve
+        fail = reject
+      })
+    },
+    () => {
+      decodes++
+      return Promise.resolve({ close() {} })
+    },
+    () => {},
+  )
+  const settle = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+  // opened and shut three times while the file downloads, then open when it comes
+  for (let k = 0; k < 3; k++) {
+    overview.want()
+    overview.release()
+  }
+  overview.want()
+  arrive(new Blob(["png"]))
+  await settle()
+  assert.deepEqual([downloads, decodes], [1, 1])
+  assert.ok(overview.bitmap !== undefined)
+  overview.release()
+  // a fresh overview whose download fails after the map has shut
+  const late = overviewBitmap(
+    () => {
+      downloads++
+      return new Promise<Blob>((resolve, reject) => {
+        arrive = resolve
+        fail = reject
+      })
+    },
+    () => Promise.resolve({ close() {} }),
+    () => {},
+  )
+  late.want()
+  late.release()
+  fail(new Error("offline"))
+  await settle()
+  late.want()
+  arrive(new Blob(["png"]))
+  await settle()
+  assert.equal(downloads, 3, "downloaded again at the next opening")
+  assert.ok(late.bitmap !== undefined)
 })

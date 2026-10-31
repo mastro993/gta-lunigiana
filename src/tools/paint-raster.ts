@@ -42,7 +42,7 @@ export const straightRgba = ({ pixels }: Raster): Uint8Array => {
 }
 
 /** Where a map point lands on the raster: x, y (m) to u, v (px). */
-export interface Projection {
+interface Projection {
   readonly u: (x: number) => number
   readonly v: (y: number) => number
 }

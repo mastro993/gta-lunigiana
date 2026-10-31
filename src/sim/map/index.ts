@@ -247,7 +247,7 @@ export interface ParkedSpot extends Spawn {
   readonly truck?: true
 }
 
-/** A farm, baked by the build from the land cover (src/sim/population/farms.ts): its building (index into `MAP.buildings`), whether it is rural and whether pigs are kept by it. */
+/** A farm, baked by the build from the land cover (src/sim/population/farms.ts): its building (index into the whole map's buildings, as the tiles' carry it), whether it is rural and whether pigs are kept by it. */
 export interface FarmEntry {
   readonly building: number
   readonly rural: boolean
@@ -278,7 +278,7 @@ export interface BellEntry {
  * holding them need not be in memory (src/tools/bake.ts; `bake.map-test.ts` checks it is current):
  * copies of the geometry the railway points at, and tables the game's own code bakes.
  */
-export interface Derived {
+interface Derived {
   /** Per level crossing (`railway.crossings` order), its road's line: the trains and the crossings read it anywhere. */
   readonly crossings: ReadonlyArray<RoadLine>
   /** Per platform (`railway.platforms` order), its area's rings: the trains' look-out reads them anywhere. */
@@ -441,7 +441,7 @@ export const heightAt = (x: number, y: number): number => {
 }
 
 /**
- * A straight graph edge. a -> b follows the vertex order of `MAP.roads[road].pts` (the OSM way
+ * A straight graph edge. a -> b follows the vertex order of the road's line (`roadLineAt`; the OSM way
  * direction), so a `oneway` road may only be driven from a to b.
  */
 interface GraphEdge {

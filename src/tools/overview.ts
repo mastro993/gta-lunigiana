@@ -19,7 +19,7 @@ export const OVERVIEW_SIDE = 4096
 /** Its pixels, at most: under Safari's 16.7 MP canvas limit, which a 4096 px square passes. */
 const OVERVIEW_PIXELS = 16_000_000
 /** Overview pixels per px of the look: its lines are as wide as on a map `OVERVIEW_SIDE / OVERVIEW_RATIO` px long shown at that pixel ratio. */
-export const OVERVIEW_RATIO = 5
+const OVERVIEW_RATIO = 5
 
 /** The box the overview spans, m: the map's bounds. */
 interface Bounds {

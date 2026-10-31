@@ -15,7 +15,7 @@ import { bellsOf } from "./bells.ts"
 import type { Bakes } from "./tile-map.ts"
 
 /** The whole map's vectors, in its order: what the bakes that read them all are given (the sim holds them only near the player). */
-export interface WholeVectors {
+interface WholeVectors {
   readonly roads: ReadonlyArray<Road>
   readonly buildings: ReadonlyArray<Building>
   readonly water: ReadonlyArray<Omit<Water, "floor">>
