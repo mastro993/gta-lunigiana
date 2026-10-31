@@ -80,10 +80,16 @@ export const tilesRound = (
 }
 
 /**
- * Highway classes the build emits, widest first. The build folds OSM `primary` (the SR445) into
- * tertiary, `living_street` into residential, `footway` and `pedestrian` into path.
+ * Highway classes the build emits, widest first. The build folds each link into the class below
+ * (`motorway_link` and `trunk_link` into primary, `primary_link` into secondary, `secondary_link`
+ * and `tertiary_link` into tertiary), `living_street` into residential, `footway` and `pedestrian`
+ * into path.
  */
 export const ROAD_CLASSES = [
+  "motorway",
+  "trunk",
+  "primary",
+  "secondary",
   "tertiary",
   "unclassified",
   "residential",
@@ -100,9 +106,16 @@ export const isRoadClass = (cls: string): cls is RoadClass => roadClasses.has(cl
 
 /**
  * Per class: carriageway width (m), whether it is asphalt when OSM names no surface, and who uses
- * it (AI traffic and the player's car, the player's car only, or only people on foot).
+ * it (AI traffic and the player's car, the player's car only, or only people on foot). The widths
+ * of the classes the Lucido valley lacks (motorway to secondary) are defaults per carriageway for
+ * the first part that maps one to measure on the orthophoto (issue #8); a `lanes` tag overrides
+ * them (`laneWidth`), and the CTR's road surfaces override both.
  */
 export const ROADS = {
+  motorway: { w: 11, paved: true, use: "traffic" },
+  trunk: { w: 8.5, paved: true, use: "traffic" },
+  primary: { w: 7, paved: true, use: "traffic" },
+  secondary: { w: 6.5, paved: true, use: "traffic" },
   tertiary: { w: 6.5, paved: true, use: "traffic" },
   unclassified: { w: 5, paved: true, use: "traffic" },
   residential: { w: 4.5, paved: true, use: "traffic" },
@@ -122,6 +135,14 @@ export const isDrivable = (cls: string): boolean => isRoadClass(cls) && ROADS[cl
 export const isTraffic = (cls: string): boolean => isRoadClass(cls) && ROADS[cls].use === "traffic"
 
 /**
+ * Whether a road is a motorway or a trunk road (an Italian "strada extraurbana principale"), or one of their slip roads
+ * (`ramp`, primary by class): the Codice della Strada keeps people on foot and mopeds such as the Ape 50 off them (art. 175)
+ * and bans stopping on their carriageways and ramps (art. 176, comma 5).
+ */
+export const isMotorRoad = (road: { readonly cls: string; readonly ramp?: boolean }): boolean =>
+  road.cls === "motorway" || road.cls === "trunk" || road.ramp === true
+
+/**
  * How far from a road's centreline people walk, m, on either side: its verge, 0.8 m past the
  * carriageway's edge, or 0.3 m off the middle of paths, steps and tracks. A road's own `verge`
  * (the build's, where the verge would run beside the railway) overrides it.
@@ -129,8 +150,45 @@ export const isTraffic = (cls: string): boolean => isRoadClass(cls) && ROADS[cls
 export const vergeOf = (cls: string, w: number): number =>
   cls === "path" || cls === "steps" || cls === "track" ? 0.3 : w / 2 + 0.8
 
-/** The nominal traffic lane offset, m right of a road's centreline (drive on the right): a quarter of the width plus 0.2 m on roads 5 m wide or more, 0.5 m on narrower ones. */
-export const laneOffset = (w: number): number => (w >= 5 ? w / 4 + 0.2 : 0.5)
+/** A traffic lane's width, m: a `lanes` tag on a main road (motorway to secondary) gives it this much per lane. */
+export const LANE = 3.5
+
+/** The hard shoulder right of a motorway carriageway's lanes, m. */
+export const SHOULDER = 3
+
+/** The classes whose `lanes` tag sets their width (`laneWidth`): the main roads, motorway to secondary. */
+const LANED: ReadonlySet<string> = new Set(["motorway", "trunk", "primary", "secondary"])
+
+/** A main road's carriageway width from its OSM `lanes` tag, m (lanes × LANE, plus SHOULDER on a motorway); undefined for other classes. */
+export const laneWidth = (cls: string, lanes: number): number | undefined =>
+  LANED.has(cls) ? lanes * LANE + (cls === "motorway" ? SHOULDER : 0) : undefined
+
+/**
+ * A carriageway's hard shoulder, m: a motorway's SHOULDER, narrowed to what its rightmost lane
+ * leaves when that lane's middle would fall left of the centreline (a one-lane carriageway, 6.5 m,
+ * keeps 1.5 m: a full shoulder put its lane 1.5 m left, and the lane offset, clamped at the
+ * centreline, ran traffic over the shoulder's line); none on other classes.
+ */
+export const shoulderOf = (road: { readonly cls: string; readonly w: number }): number =>
+  road.cls === "motorway" ? Math.max(0, Math.min(SHOULDER, road.w / 2 - LANE / 2)) : 0
+
+/**
+ * The nominal traffic lane offset, m right of a road's centreline (drive on the right). A two-way
+ * road: a quarter of the width plus 0.2 m on roads 5 m wide or more, 0.5 m on narrower ones. A
+ * oneway road: the middle of its rightmost lane (LANE wide, left of a motorway's shoulder,
+ * `shoulderOf`), or the centreline where the road is narrower than a lane, since w/4 + 0.2 put a
+ * car on a motorway's hard shoulder.
+ */
+export const laneOffset = (road: {
+  readonly cls: string
+  readonly w: number
+  readonly oneway?: boolean
+}): number =>
+  road.oneway === true
+    ? Math.max(0, road.w / 2 - shoulderOf(road) - LANE / 2)
+    : road.w >= 5
+      ? road.w / 4 + 0.2
+      : 0.5
 
 /** Facade styles the build emits. */
 export const BUILDING_STYLES = [

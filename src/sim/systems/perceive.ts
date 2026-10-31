@@ -64,7 +64,7 @@ const stepsOf = (seconds: number): number => Math.max(1, Math.round(seconds * ST
  * Speeding: a vehicle faster than 13.9 m/s (50 km/h, the limit in built-up areas, Codice della Strada art. 142) within 15 m,
  * or faster than 8.3 m/s (30 km/h, a village's zona 30) within 6 m, draws a look and, half the time, an angry cry (TUNED).
  * Only a vehicle faster than USUAL × the street's own traffic (`cruiseSpeed`) counts: people do not glare at every car on the
- * main road, whose traffic keeps 12 m/s 1 m from the verge.
+ * main roads, whose traffic keeps 12 m/s (16 on the SR445) 1 m from the verge.
  */
 const SPEEDING = [
   { speed: 13.9, range: 15 },

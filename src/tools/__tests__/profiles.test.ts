@@ -90,3 +90,30 @@ test("replayClaims writes a window's nodes, its seam with the next included, as 
   }
   assert.notDeepEqual(whole.z, base, "the claims wrote the grid")
 })
+
+// Regression: a bound inside a tunnel pinned both its portals at its z, so a road crossing over a motorway tunnel climbing 3%,
+// 50 m from its low portal, sank the high portal 10.5 m under the hill and the motorway out of it.
+test("profile carries a tilted bound inside a tunnel to its portals along the tunnel's slope", () => {
+  // A 1 km tunnel climbing 3% from 200 m under 23.5 m of cover; a bound 219.5 m at x 50, as a track
+  // over it at its natural level asks (225 − 5.5 m).
+  const ground = (x: number, y: number) =>
+    200 + 0.03 * x + (x > 20 && x < 980 && Math.abs(y) < 200 ? 23.5 : 0)
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(0, 0, "b"), v(1000, 0, "c")] }
+  const chain = [
+    { id: 1, pts: [v(-300, 0, "a"), v(0, 0, "b")] },
+    tunnel,
+    { id: 3, pts: [v(1000, 0, "c"), v(1300, 0, "d")] },
+  ].map((item) => ({ item, rev: false }))
+  const spec = { w: 10, rank: 0, grade: 0.06, half: 100 }
+  const portals = (tilt: boolean) => {
+    const { profile, zOf } = makeProfiler(ground)
+    profile(chain, spec, [{ x: 50, y: 0, z: 219.5, kind: "max", ...(tilt ? { tilt: true } : {}) }])
+    return zOf.get(tunnel)!
+  }
+  const [low, high] = portals(true)
+  // The deck under the track keeps the bound, and the high portal its own level (230 m).
+  assert.ok(low! + ((high! - low!) * 50) / 1000 <= 219.5 + 1e-6)
+  assert.ok(Math.abs(high! - 230) < 0.5, `high portal at ${high}`)
+  // Pinned flat, the high portal sank more than 10 m.
+  assert.ok(portals(false)[1]! < 220)
+})

@@ -13,12 +13,9 @@ import {
 import { eaveOf, windowCount } from "../../buildings.ts"
 import { type Sink, Triangles, WaterTriangles } from "../../geometry.ts"
 import { terrainY } from "../../ground.ts"
-import { lampPieces, streetLamps } from "../lamps.ts"
+import { lampPieces, LIT, streetLamps } from "../lamps.ts"
 
 type Lamp = ReturnType<typeof streetLamps>[number]
-
-/** The road classes that get street lamps. */
-const LIT = new Set(["tertiary", "unclassified", "residential", "service"])
 
 /** The wall (building and edge) the lamp's bracket meets: the outer edge through its mount point with its outward normal. */
 const wallOf = (lamp: Lamp) => {
@@ -78,7 +75,7 @@ export const assertOnWalls = (walls: ReadonlyArray<Lamp>): void => {
 
 /** The lit streets among `roads`: those out of tunnels whose class gets lamps. */
 export const litOf = (roads: ReadonlyArray<Road>): Array<Road> =>
-  roads.filter((r) => r.tunnel !== true && LIT.has(roadClassOf(r)))
+  roads.filter((r) => r.tunnel !== true && LIT[roadClassOf(r)] !== undefined)
 
 /** Asserts that each of the wall lanterns `walls` stands by a lit carriageway of `lit` in a village, and no two of them within 18 m. */
 export const assertOnLitStreets = (walls: ReadonlyArray<Lamp>, lit: ReadonlyArray<Road>): void => {

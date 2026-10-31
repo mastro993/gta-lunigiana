@@ -12,7 +12,7 @@ import { inPolygon, type CtrRail } from "./ctr-rail.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
 import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
 import { outlineEdgeAt } from "./play-area.ts"
-import { chainsOf, coreHalf } from "./profiles.ts"
+import { beatsRail, chainsOf, coreHalf } from "./profiles.ts"
 import { checkCrossings, slideCrossing, type Slid } from "./rail-crossings.ts"
 import { buildExtras, type Report as ExtraReport } from "./rail-extra.ts"
 import { splitAtJunctions } from "./rail-graph.ts"
@@ -350,7 +350,8 @@ export const conflateRail = (
 
   // Bridges keep what they span; streams under at-grade track share a culvert vertex with it. A
   // bridge reaches past the cells under it that the at-grade track cannot take: a wide stream's
-  // protected bed (w/2 + 1 m, build-grid.ts) and a tertiary road's core (rank 0 beats the rail),
+  // protected bed (w/2 + 1 m, build-grid.ts) and a main road's core (motorway to tertiary: their
+  // rank beats the rail's, profiles.ts),
   // plus a cell's diagonal, the farthest a corner of a cell the track runs through lies off it.
   const waterPts = osmWater.map((w) => moved(w.pts, moves))
   const corner = GRID_CELL * Math.SQRT2
@@ -366,7 +367,7 @@ export const conflateRail = (
     ...osmRoads.map((r) => ({
       what: `road ${r.id}`,
       w: r.w,
-      margin: r.cls === "tertiary" ? coreHalf(r.w, GRID_CELL) - r.w / 2 + corner : 0,
+      margin: beatsRail(r.cls) ? coreHalf(r.w, GRID_CELL) - r.w / 2 + corner : 0,
       osm: r.pts,
       pts: moved(r.pts, moves),
       water: false,

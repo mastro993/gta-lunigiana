@@ -11,8 +11,17 @@ import { MAP, type Road, roadClassOf } from "./index.ts"
 import { anchorOf, type RoadClass, vergeOf } from "./kinds.ts"
 import { nodeAt } from "./tiles.ts"
 
-/** How far each road class's surface floats above its profile (m); wider classes on top, so junctions never z-fight. */
+/**
+ * How far each road class's surface floats above its profile (m); wider classes on top, so junctions
+ * never z-fight. Primary, secondary and tertiary roads share one: they are the same asphalt. A step
+ * of 0.04 m keeps a class's painted lines (0.02 m over it) under the next class's asphalt where a
+ * slip road meets a trunk road or a motorway.
+ */
 export const ROAD_LIFT = {
+  motorway: 0.24,
+  trunk: 0.2,
+  primary: 0.16,
+  secondary: 0.16,
   tertiary: 0.16,
   unclassified: 0.14,
   residential: 0.12,

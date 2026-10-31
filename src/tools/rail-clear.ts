@@ -32,7 +32,9 @@ export interface ClearInput {
     readonly walk: ReadonlyArray<number>
     readonly traffic: ReadonlyArray<number>
   }
-  readonly roads: ReadonlyArray<Profiled & { readonly cls: string; readonly w: number }>
+  readonly roads: ReadonlyArray<
+    Profiled & { readonly cls: string; readonly w: number; readonly oneway?: boolean }
+  >
   /** At-grade running track pieces. */
   readonly track: ReadonlyArray<Profiled>
   /** Each box's road index and its nodes' positions. */
@@ -158,7 +160,7 @@ export const clearVerges = (
   const rule = makeRule(input)
   const { graph, roads } = input
   for (const e of graph.traffic) {
-    const bad = rule(e, laneOffset(roads[graph.edges[3 * e + 2]!]!.w))[0]
+    const bad = rule(e, laneOffset(roads[graph.edges[3 * e + 2]!]!))[0]
     if (bad !== undefined)
       throw new Error(
         `traffic lane of edge ${e} at (${bad.x.toFixed(1)}, ${bad.y.toFixed(1)}) is ${bad.d.toFixed(2)} m from the running track`,

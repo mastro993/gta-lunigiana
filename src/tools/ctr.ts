@@ -205,6 +205,10 @@ export const readCtr = (dir: string): Ctr => {
 
 /** Road classes whose width and name come from the road surfaces they run over. */
 const SURFACED: ReadonlySet<string> = new Set([
+  "motorway",
+  "trunk",
+  "primary",
+  "secondary",
   "tertiary",
   "unclassified",
   "residential",

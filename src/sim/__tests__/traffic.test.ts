@@ -8,9 +8,9 @@ import { REAL_HANDLING } from "../handling.ts"
 import { graph } from "../map/index.ts"
 import { roadOf } from "../route.ts"
 import { steerLimit } from "../systems/physics.ts"
-import { comfortSpeed, leans, roomToTurn } from "../systems/traffic.ts"
-import { BATTISTI } from "../testing.ts"
-import { VEHICLE_MODELS } from "../vehicles.ts"
+import { comfortSpeed, coneRange, followSpeed, leans, roomToTurn } from "../systems/traffic.ts"
+import { BATTISTI, drive } from "../testing.ts"
+import { VEHICLE_MODELS, VEHICLES } from "../vehicles.ts"
 
 // Regression: the AI planned with the real steering lock while the physics turned the wheels by the handling's, so at steering ×2 traffic cornered at twice its comfort.
 test("AI comfort: the curve a driver steers is taken under 3.5 m/s² sideways, or under 0.45 of what tips its vehicle over, whatever the handling, times the grip the weather leaves", () => {
@@ -66,4 +66,42 @@ test("AI turning round: never on a bridge or in a tunnel, nor on an edge next to
     (e) => graph.edges[e]!.length < 12 && roomToTurn(e),
   ).length
   assert.ok(short > 1000, `${short} short edges allow a turn`)
+})
+
+// Regression: the cone and its 0.8 m/s per metre were tuned for 12 m/s; at the trunk road's 25 m/s a laden truck found a car
+// standing in its lane 38 m out and hit it at 16 m/s, a Panda at the motorway's 30 m/s at 13 m/s.
+test("AI following: at every cruise speed a car finding one standing in its lane at the cone's edge stops short of the gap it keeps", () => {
+  const GAP = 2, // traffic.ts: the gap kept to whatever is ahead
+    car = VEHICLES.panda.length / 2 // the one standing ahead: its back this far from its centre
+  for (const model of VEHICLE_MODELS)
+    for (const cruise of [12, 16, 25, 30]) {
+      const half = VEHICLES[model].length / 2,
+        decel = VEHICLES[model].brakes.decel,
+        ahead = coneRange(cruise, 1, decel) + car // its centre, from where the driver starts
+      let least = Infinity
+      drive(
+        model,
+        60 * 20,
+        (_, { pose, motion }) => {
+          const gap = ahead - pose.x - half - car - GAP,
+            want = Math.min(cruise, followSpeed(gap, 1, decel))
+          return {
+            throttle: Math.max(-1, Math.min(1, (want - motion.vx) * 0.4)),
+            steer: 0,
+            handbrake: false,
+          }
+        },
+        {
+          speed: cruise,
+          each: (_, { pose }) => (least = Math.min(least, ahead - pose.x - half - car)),
+        },
+      )
+      assert.ok(
+        least > 0,
+        `a ${model} at ${cruise} m/s ran ${(-least).toFixed(1)} m into the car ahead`,
+      )
+    }
+  // Up to 2 × 0.6 × decel / 0.64 m out the cone's own 0.8 m/s per metre binds first: nothing changes at 12 m/s for a Panda.
+  for (const gap of [0, 5, 10, 15, 18.75])
+    assert.equal(followSpeed(gap, 1, VEHICLES.panda.brakes.decel), gap * 0.8)
 })

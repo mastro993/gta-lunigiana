@@ -1,5 +1,5 @@
 // Road graph from shared OSM node ids (clip points get their own nodes), edges densified to <= 25 m.
-import { isTraffic } from "../sim/map/kinds.ts"
+import { isMotorRoad, isTraffic } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
 
@@ -129,7 +129,7 @@ export const buildGraph = (
   const walk = largest(
     nodes,
     edges,
-    all.filter((e) => road(e).tunnel !== true),
+    all.filter((e) => road(e).tunnel !== true && !isMotorRoad(road(e))),
   )
   const degree = Array.from({ length: nodes }, () => 0)
   for (const e of all) {
