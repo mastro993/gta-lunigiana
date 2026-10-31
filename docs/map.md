@@ -415,7 +415,9 @@ part](#adding-a-part)).
   outline cuts.
 - **Points**: POIs, OSM place nodes, the player's spawn (1.3 m from the outline) and the parked
   spots (5 m) must lie in the play area (`inPlay`, an edge counting as in it). Trees cover the
-  built terrain, 1 m inside its box.
+  region's tiles, beyond the play area too, 1 m inside the built terrain's box ([section
+  12](#12-trees-spawns-districts-treests-spawnsts-districtsts)), so the tiles an L leaves unlisted
+  have none.
 
 ### 3. Features (`features.ts`)
 
@@ -1054,28 +1056,29 @@ A map is a global file and one file per 2 km tile, beside it. The global file ho
 sparse and topological: the vectors, the graph, the railway, the tile list and the tables baked from
 the dense layers. The tiles hold the dense layers: terrain, walls, trees and land cover. A tile is
 the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin, keyed `i_j` (`TILE` and
-`tileKey` in `src/sim/map/kinds.ts`). Every tile with ground in it is listed: Lunigiana's 30 are
-i −2…2 and j −4…1, Cesena's 4 are −1…0 both ways (`tileRange`). The render's 192 m apron past the
-bounds has no tiles of its own: it extends the edge nodes, as before. The game takes the box of tile
-indices from the listed tiles, not from the bounds, and a region whose parts make an L lists no tile
-in the notch the parts leave in the box round them: there a terrain or land-cover lookup reads the
-nearest node or cell of the listed tiles in the nearest ring of tiles round the unlisted one (a tie
-goes to the first in key order), so the ground past an inner edge of the play area extends that
+`tileKey` in `src/sim/map/kinds.ts`). The listed tiles are the region's, each tile one of its parts'
+rectangles meets (`tiles` in `region.ts`): Lunigiana's 30 are i −2…2 and j −4…1, Cesena's 4 are −1…0
+both ways, each the whole box round its one rectangle (`tileRange`). The render's 192 m apron past
+the bounds has no tiles of its own: it extends the edge nodes, as before. The game takes the box of
+tile indices from the listed tiles, not from the bounds, and a region whose parts make an L lists no
+tile in the notch the parts leave in the box round them: there a terrain or land-cover lookup reads
+the nearest node or cell of the listed tiles in the nearest ring of tiles round the unlisted one (a
+tie goes to the first in key order), so the ground past an inner edge of the play area extends that
 edge, as the apron does past the bounds (`src/sim/map/tiles.ts`; `notchMap` in
 `src/sim/map/__tests__/edit-map.ts` drops Lunigiana's four tiles north-east of (2000, 0), and the
 `notch.test.ts` beside each runtime reader of the tiles and the play area checks it there; the
 tunnel portals' `portals.test.ts` moves the outline onto a tunnel mouth instead). The build writes
-the listed tiles alone (the region's: `tiles` in `region.ts`) and keeps a wall or tree whose midpoint
-falls in the notch (an outline wall on its side, a house wall over it) in the listed tile round it
-nearest it (`tilesRound` in `src/sim/map/kinds.ts`, the cut in `src/tools/tile-map.ts`): such an
-item lies within a wall's reach of the play area, so its coordinates pack as the tile's own do. A
-wall or tree lookup over the notch reads the listed tiles round it. The tiles round it are what
-`tilesOver` names for a box over the notch, so the host keeps them in memory wherever a lookup there
-may read. The coarse grid's nodes in the notch read the same nearest listed node and cell
-(`readAt` in the cut), so a host that falls back to it where those tiles are not in memory finds
-the ground and cover the tiles give: before, they held the notch's own land, up to 286 m off the
-extended edge on the L test region, and 1,140 of its 4,774 heights and 488 covers differed
-(`l-region.map-test.ts` checks every node against the tiles).
+the listed tiles alone and keeps a wall or tree whose midpoint falls in the notch (an outline wall
+on its side, a house wall over it) in the listed tile round it nearest it (`tilesRound` in
+`src/sim/map/kinds.ts`, the cut in `src/tools/tile-map.ts`): such an item lies within a wall's reach
+of the play area, so its coordinates pack as the tile's own do. A wall or tree lookup over the notch
+reads the listed tiles round it. The tiles round it are what `tilesOver` names for a box over the
+notch, so the host keeps them in memory wherever a lookup there may read. The coarse grid's nodes in
+the notch read the same nearest listed node and cell (`readAt` in the cut), so a host that falls
+back to it where those tiles are not in memory finds the ground and cover the tiles give: before,
+they held the notch's own land, up to 286 m off the extended edge on the L test region, and 1,140 of
+its 4,774 heights and 488 covers differed (`l-region.map-test.ts` checks every node against the
+tiles).
 
 | File | Lunigiana | Cesena |
 |---|---|---|
@@ -1108,7 +1111,7 @@ counter-clockwise, holes clockwise.
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
 | `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
-| `outline` | the play area's outline (`src/tools/play-area.ts`): flat rings on 0.1 m, outer counter-clockwise, holes clockwise (the play area left of every edge), each from its lowest (y, x) vertex; `insideRings` and `ringsDistance` (`src/sim/map/outline.ts`) test points against it. Lunigiana's and Cesena's is one ring, `bounds` itself, and the game reads `bounds` as the play area |
+| `outline` | the play area's outline (`src/tools/play-area.ts`): flat rings on 0.1 m, outer counter-clockwise, holes clockwise (the play area left of every edge), each from its lowest (y, x) vertex; `insideRings` and `ringsDistance` (`src/sim/map/outline.ts`) test points against it. Lunigiana's and Cesena's is one ring, `bounds` itself. The game tests a point against the play area with it (`inPlay` and `outlineDistance` in `src/sim/map/index.ts`: teleports, bolts, herds, tunnel portals, the minimap and the full map); `bounds` is only the heightmap's extent |
 | `heightmap` | the terrain lattice: `cell` (4 m), `cols`, `rows`, `x0`, `y0`, and `ax`, `ay`, the region's anchor (`region.ts`), only where it is not (x0, y0); its nodes are the tiles'. The lookups (`heightAt`, `terrainZ`, `coverAt`) and the land cover's raster (`coverBlocks`: its scanline and its cells near a wall or a road) measure a point's cell from the anchor (`anchorOf` in `src/sim/map/kinds.ts`), so a point keeps its height and its cover to the bit, and the bake its tables, when a part grows the box west or south; Lunigiana's and Cesena's anchors are their corners, so their files name none |
 | `tiles` | `{ i, j, zmin, zmax }` per tile, south to north then west to east: its lowest and highest node, decimetres |
 | `place` | `floor` and `downslope`, the sky's place ([weather.md](weather.md)), fitted over every node at build time |
