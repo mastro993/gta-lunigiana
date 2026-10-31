@@ -80,7 +80,8 @@ map cannot: `region.ts` defines them beside the regions, and `node src/tools/bui
 <key>` (or `pnpm map --region <key>`) writes them to `test-maps/<key>.bin` and its tiles, gitignored;
 the game never loads them and nothing ships them. Each reads Lunigiana's inputs on its origin and
 tree anchor (a tree stands where it does on the shipped map, with the same id), and `fetch-osm`
-refuses one (its box is not its inputs'). `loadBuiltMap` in `src/tools/map-file.ts` hands one to the
+refuses one (`checkFetchable`: its box is not its inputs', and its id names the OSM file it would
+cut down). `loadBuiltMap` in `src/tools/map-file.ts` hands one to the
 sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
 
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
@@ -103,7 +104,9 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
     trunks) and never leaves the play area, while it reaches every edge and 10.2 km² of the 12.72;
     with the walls on the notch's west side left out of its lookups it gets out at (1, 3009);
   - every graph node, spawn, POI and platform lies in the play area, and every building's centroid;
-  - no tree beyond the outline stands on a road, in a stream or in a building of lucido's map.
+  - no tree beyond the outline stands on a road, in a stream or in a building of lucido's map;
+  - no wall lies wholly more than 5 m outside the play area: the walls stage blocks no cell whose
+    centre lies outside it, so the notch's slopes and banks are walled by the outline alone.
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
@@ -1336,7 +1339,8 @@ an answer with a top-level remark (a server timeout) but not from a tag named `r
 DTM; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule, first
 wins and the holes on synthetic grids; `footprint.test.ts` the outline of an L, clusters, a road
 that leaves and comes back, one that runs off the query box (unresolved) and a mistyped flag;
-`fetch-osm.test.ts` the split on HTTP 400 with a fake server; `coverage-grid.test.ts` and
+`fetch-osm.test.ts` the split on HTTP 400 with a fake server and the refusal of a test region
+(`checkFetchable`, before any request); `coverage-grid.test.ts` and
 `coverage.test.ts` first wins, the tally, ring assembly, no picks, and a WFS error answer never
 cached; `ortho.test.ts` and `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted
 sibling flight is look only) and an error answer for capabilities; `playtest.test.ts` the spots,

@@ -365,3 +365,21 @@ test(
       }
   },
 )
+
+// The walls stage blocks no cell whose centre lies outside the play area (walls.ts): beyond the
+// outline lie only its own walls, the caps 4 m in from it and the sides of a building kept whole
+// across it, none of them far out; the notch's slopes and banks are walled by the outline alone.
+test("no wall of the L lies wholly more than 5 m outside its play area", { skip }, () => {
+  const { inPlay, outlineDistance } = sim!
+  const out = (x: number, y: number) => !inPlay(x, y) && outlineDistance(x, y) > 5
+  for (const kind of ["walk", "shore", "drive"] as const) {
+    const flat = WHOLE!.walls[kind]
+    for (let w = 0; w < flat.length; w += 4) {
+      const ax = flat[w]!,
+        ay = flat[w + 1]!,
+        bx = flat[w + 2]!,
+        by = flat[w + 3]!
+      assert.ok(!(out(ax, ay) && out(bx, by)), `${kind} wall ${ax}, ${ay} to ${bx}, ${by}`)
+    }
+  }
+})

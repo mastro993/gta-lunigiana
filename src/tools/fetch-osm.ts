@@ -17,7 +17,7 @@ import { gzipSync } from "node:zlib"
 import { BOUNDS, fromLocal } from "./geometry.ts"
 import { getText, request } from "./net.ts"
 import { fetchedToday, recordSource } from "./raw-lock.ts"
-import { REGION } from "./region.ts"
+import { REGION, type Region } from "./region.ts"
 
 const API = "https://api.openstreetmap.org/api/0.6"
 const OUT = join(import.meta.dirname, `../../data/raw/${REGION.id}.osm.gz`)
@@ -74,10 +74,16 @@ const absorb = (xml: string): void => {
     elements[m[1] as keyof typeof elements].set(Number(m[2]), m[0])
 }
 
+/**
+ * Throws for a test region, before any request: its box is not its inputs', so fetching for it would
+ * cut down the file it shares (`data/raw/<id>.osm.gz`, which a test region's id names).
+ */
+export const checkFetchable = ({ key, id, test }: Pick<Region, "key" | "id" | "test">): void => {
+  if (test) throw new Error(`--region ${key} is a test region: it reads --region ${id}'s OSM`)
+}
+
 const main = async (): Promise<void> => {
-  // A test region's box is not its inputs': fetching for it would cut down the file it shares.
-  if (REGION.test)
-    throw new Error(`--region ${REGION.key} is a test region: it reads --region ${REGION.id}'s OSM`)
+  checkFetchable(REGION)
   const [s, w] = fromLocal(BOUNDS.minX - MARGIN, BOUNDS.minY - MARGIN),
     [n, e] = fromLocal(BOUNDS.maxX + MARGIN, BOUNDS.maxY + MARGIN)
   const box = (b: Bbox) => b.map((v) => v.toFixed(6)).join(",")

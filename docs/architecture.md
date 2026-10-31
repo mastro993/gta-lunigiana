@@ -2020,8 +2020,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/tools/__tests__/l-region.map-test.ts`: the L test region `lunigiana-l` as built in
     `test-maps/` (`pnpm maps` builds it; skipped, saying how, without the build, but failed in CI,
     which builds it): its outline walls close it, its road exits are capped, a flood on foot from
-    the start stays in it, every graph node, spawn, POI, platform and building lies in it, and no
-    tree beyond it stands on a road, stream or building of lucido's ([map.md](map.md#test-regions));
+    the start stays in it, every graph node, spawn, POI, platform and building lies in it, no wall
+    lies far outside it, and no tree beyond it stands on a road, stream or building of lucido's
+    ([map.md](map.md#test-regions));
     `x3-region.map-test.ts`: on the 3x test region, every terrain node in lucido's rectangle is
     lucido's, its land cover more than 50 m inside lucido's edge, and the lamps, water beds and
     parked spots' rests it bakes, every platform lies in its play area, and as many live vehicles round Monzone after a 60 s stand as on
