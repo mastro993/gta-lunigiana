@@ -2018,7 +2018,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/tools/__tests__/l-region.map-test.ts`: the L test region `lunigiana-l` as built in
     `test-maps/` (`pnpm maps` builds it; skipped, saying how, without the build): its outline walls
     close it, its road exits are capped, a flood on foot from the start stays in it, and every
-    graph node, spawn, POI and building lies in it ([map.md](map.md#test-regions)).
+    graph node, spawn, POI and building lies in it ([map.md](map.md#test-regions));
+    `x3-region.map-test.ts`: as many live vehicles round Monzone after a 60 s stand on the 3x test
+    region as on lucido (`stand.ts` on each in a process of its own; skipped without the 3x build,
+    which only a hand builds).
 
   Measured on 2026-10-30 on a 14-core Apple-silicon Mac under a load average of 50–95 from other
   work, each file run alone: the split took `pnpm test` from 1,177 tests in 181 files and 228 s of

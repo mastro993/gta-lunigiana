@@ -102,7 +102,41 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
-  synthetic, with no roads, buildings or land cover, for the build's memory and time only.
+  synthetic, with no roads, buildings or land cover, for the build's memory and time and the cars
+  round Monzone. It is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`); CI never
+  builds it.
+
+Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
+a load average of 7–12 from other work):
+
+| Build | Tiles | Wall clock | Peak resident |
+|---|---|---|---|
+| lucido (`pnpm map`), 2 runs | 30 | 12.41, 12.81 s | 1,117, 1,096 MB |
+| `lunigiana-3x`, 3 runs | 78 | 28.52, 28.27, 28.17 s | 1,594, 1,592, 1,598 MB |
+
+- **Memory**: 1.6 GB, under the 3 GB issue #3 asks of a 3× region, and 10 MB more a tile: the grid,
+  the catchments' arrays and the walls' bit sets still grow with the area ([Pipeline](#pipeline)).
+- **Time**: (28.32 − 12.61) s over 48 more tiles is 0.33 s a tile, over the 0.3 s issue #3 asks.
+  The 15.7 s more: the grid 5.7 s (0.12 s a tile: each node averages 25 DTM samples, each through
+  the projection lattice), the write 4.3 s, the catchments 2.1 s, the cut 1.4 s, the walls 1.1 s and
+  the trees 0.9 s. Gzip at level 9 takes 78 ms on a synthetic tile against 43 ms on a lucido one
+  (the edge drawn on repeats, which lengthens its match chains), so a real part's tiles write
+  faster but bring roads, walls and trees the synthetic ones lack.
+- **Live vehicles round Monzone** (`x3-region.map-test.ts`, which runs `stand.ts` on each map in a
+  process of its own and is skipped without the 3x build): after the player stands 60 s at the start
+  on seed 1, 18 on both, 6 parked, 10 traffic and the Carabinieri's 2, within the 200 parked and 10
+  traffic `PARKED` and `TRAFFIC.max` allow. Not the same cars: the 3x keeps 804 parked spots, not
+  805, as 9 buildings across lucido's edge, clipped to its box on lucido (their centroid inside),
+  are kept whole and dropped by their centroid there (CTR building 700764389 by spot 367, at
+  (−2892.7, 3095.5)), so every spot after 367 moves up one index and the spots' hash parks other
+  cars on them (spots 228, 452, 652, 740, 788 and 801 on lucido; 228, 442, 451, 453, 776 and 801 on
+  the 3x). Monzone's own spots stand where they did.
+- **What else moves**: the terrain under lucido is the same to the decimetre (every node), but the
+  lookups count from the heightmap's corner, so the spots' baked rests differ in the last bits; the
+  place is fitted over every node of the built terrain (`placeFrom`), so the 3x's floor is 258.5 m
+  and its downslope 1.919 rad against lucido's 230.3 m and 2.127 rad, and with it the weather
+  ([weather.md](weather.md)); and the catchments run over the synthetic land too, so the water's
+  areas change.
 
 The build's Lunigiana-only constants hold in a test region: the station and Carabinieri POIs may be
 out of play (a shipped map without them throws), and then no spots are kept for them, no car park
