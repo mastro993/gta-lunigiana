@@ -6,12 +6,14 @@
  * @module map/cover
  */
 import { MAP } from "./global.ts"
+import { anchorOf } from "./kinds.ts"
 import { type Cover, coverName } from "./raster.ts"
 import { coverCell } from "./tiles.ts"
 
 export { type Cover, coverName } from "./raster.ts"
 
-const { cell, x0, y0 } = MAP.heightmap,
+const { cell } = MAP.heightmap,
+  { x: AX, y: AY, i: AI, j: AJ } = anchorOf(MAP.heightmap),
   COLS = MAP.heightmap.cols - 1,
   ROWS = MAP.heightmap.rows - 1
 
@@ -19,6 +21,6 @@ const { cell, x0, y0 } = MAP.heightmap,
 export const coverIndexAt = (i: number, j: number): number =>
   coverCell(Math.min(COLS - 1, Math.max(0, i)), Math.min(ROWS - 1, Math.max(0, j)))
 
-/** The land cover of the 4 m cell under (x, y), clamped to the map. */
+/** The land cover of the 4 m cell under (x, y), clamped to the map; the cell measured from the region's anchor (`anchorOf`). */
 export const coverAt = (x: number, y: number): Cover =>
-  coverName(coverIndexAt(Math.floor((x - x0) / cell), Math.floor((y - y0) / cell)))
+  coverName(coverIndexAt(Math.floor((x - AX) / cell) + AI, Math.floor((y - AY) / cell) + AJ))

@@ -544,6 +544,25 @@ test("the heightmap's grid change is reported, and the nodes both grids share ar
   })
 })
 
+test("the heightmap's anchor is compared as the node its lookups count from, named or not", () => {
+  // Grown a column west round the same anchor: only the grid moved.
+  const grown = {
+    ...MAP.heightmap,
+    cols: 4,
+    x0: -56,
+    ax: -52,
+    ay: -24,
+    data: [0, 100, 110, 120, 0, 130, 140, 150],
+  }
+  assert.deepEqual(diffMaps(MAP, { ...MAP, heightmap: grown })[0]?.lines, [
+    "grid: cols 3 -> 4, x0 -52 -> -56; extent x -52..-44, y -24..-20 -> x -56..-44, y -24..-20",
+  ])
+  const moved = { ...MAP.heightmap, ax: -48, ay: -24 }
+  assert.deepEqual(diffMaps(MAP, { ...MAP, heightmap: moved })[0]?.lines, [
+    "grid: ax -52 -> -48; extent x -52..-44, y -24..-20 -> x -52..-44, y -24..-20",
+  ])
+})
+
 test("the report lists each block's lines, at most 10 per kind of change, then the categories that differ", () => {
   const pois = Array.from({ length: 12 }, (_, k) => ({
     id: 100 + k,

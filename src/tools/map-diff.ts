@@ -28,6 +28,7 @@
 //   the cells both share.
 import { pathToFileURL } from "node:url"
 
+import { anchorOf } from "../sim/map/kinds.ts"
 import {
   addFlat,
   type Bag,
@@ -100,7 +101,7 @@ const COMPARED: ReadonlyArray<readonly [string, (m: MonzoneMap) => object, Reado
         "lamps",
       ] satisfies ReadonlyArray<keyof MonzoneMap>,
     ],
-    ["heightmap", (m) => m.heightmap, ["cell", "cols", "rows", "x0", "y0", "data"]],
+    ["heightmap", (m) => m.heightmap, ["cell", "cols", "rows", "x0", "y0", "ax", "ay", "data"]],
     ["graph", (m) => m.graph, ["xy", "edges", "traffic", "walk"]],
     ["walls", (m) => m.walls, [...WALL_KINDS, "reach", "lattice", "counts"]],
     ["coarse", (m) => m.coarse, ["cell", "cols", "rows", "x0", "y0", "heights", "cover"]],
@@ -160,13 +161,25 @@ const gridOf = ({ cell, cols, rows, x0, y0 }: Omit<Heightmap, "data">) => ({
   x0,
   y0,
 })
+/**
+ * The two heightmaps' grids, each with the node its lookups count from (`anchorOf`) where either
+ * names one: else both count from (x0, y0), which the grid already says.
+ */
+const latticesOf = (a: Omit<Heightmap, "data">, b: Omit<Heightmap, "data">) => {
+  const named = [a, b].some((hm) => hm.ax !== undefined || hm.ay !== undefined)
+  const of = (hm: Omit<Heightmap, "data">) => {
+    const { x, y } = anchorOf(hm)
+    return named ? { ...gridOf(hm), ax: x, ay: y } : gridOf(hm)
+  }
+  return [of(a), of(b)] as const
+}
 const extent = ({ cell, cols, rows, x0, y0 }: Omit<Heightmap, "data">): string =>
   `x ${num(x0)}..${num(x0 + (cols - 1) * cell)}, y ${num(y0)}..${num(y0 + (rows - 1) * cell)}`
 
 /** The grid's change, then the nodes both grids share: how many differ, the largest and RMS difference (m), and their box. */
 const diffHeightmap = (a: Heightmap, b: Heightmap): Array<string> => {
   const out: Array<string> = []
-  const grid = fieldChanges(gridOf(a), gridOf(b))
+  const grid = fieldChanges(...latticesOf(a, b))
   if (grid.length > 0) out.push(`grid: ${grid.join(", ")}; extent ${extent(a)} -> ${extent(b)}`)
   // a's node (i, j) is b's node (i - di, j - dj)
   const di = (b.x0 - a.x0) / a.cell,

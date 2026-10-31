@@ -142,7 +142,7 @@ export interface MapCut {
  * keeps only the sparse parts, so the dense layers can go once the cut is done. Deterministic.
  */
 export const cutMap = (map: BuiltMap, name: string): MapCut => {
-  const { cell, cols, rows, x0, y0, data } = map.heightmap
+  const { cell, cols, rows, x0, y0, ax, ay, data } = map.heightmap
   const n = TILE / cell,
     cx = Math.round(x0 / cell),
     cy = Math.round(y0 / cell)
@@ -328,7 +328,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     mPerDeg: map.mPerDeg,
     bounds: map.bounds,
     outline: map.outline,
-    heightmap: { cell, cols, rows, x0, y0 },
+    heightmap: { cell, cols, rows, x0, y0, ...(ax === undefined ? {} : { ax, ay }) },
     tiles: list,
     place: { floor: place.floor, downslope: place.downslope },
     coarse: {

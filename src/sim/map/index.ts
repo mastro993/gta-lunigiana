@@ -23,6 +23,7 @@ import { staticGrid } from "../collide.ts"
 import type { VehicleModel } from "../vehicles.ts"
 import { MAP } from "./global.ts"
 import {
+  anchorOf,
   BUILDING_STYLES,
   type BuildingStyle,
   isRoadClass,
@@ -73,6 +74,12 @@ interface Heightmap {
   readonly rows: number
   readonly x0: number
   readonly y0: number
+  /**
+   * The region's anchor, a node of the lattice, where it is not (x0, y0) (a part grew the map west
+   * or south of it): the lookups measure a point's cell from it (`anchorOf` in `./kinds.ts`).
+   */
+  readonly ax?: number
+  readonly ay?: number
 }
 
 /** A tile of the map (`TILE` m square (i, j)): its lowest and highest terrain node, decimetres. */
@@ -355,18 +362,19 @@ export const outlineDistance = (x: number, y: number): number => ringsDistance(M
 
 const hm = MAP.heightmap
 const { minX, minY, maxX, maxY } = MAP.bounds
+const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
 
 /** Scratch for the four nodes of a cell. */
 const corners = new Int32Array(4)
 
 /** Bilinear terrain elevation (m) at (x, y), clamped to the map bounds; in an unlisted tile, from the nearest listed nodes (`./tiles.ts`). */
 export const heightAt = (x: number, y: number): number => {
-  const fx = (Math.min(maxX, Math.max(minX, x)) - hm.x0) / hm.cell
-  const fy = (Math.min(maxY, Math.max(minY, y)) - hm.y0) / hm.cell
-  const i = Math.min(hm.cols - 2, Math.max(0, Math.floor(fx)))
-  const j = Math.min(hm.rows - 2, Math.max(0, Math.floor(fy)))
-  const tx = fx - i
-  const ty = fy - j
+  const fx = (Math.min(maxX, Math.max(minX, x)) - AX) / hm.cell
+  const fy = (Math.min(maxY, Math.max(minY, y)) - AY) / hm.cell
+  const i = Math.min(hm.cols - 2, Math.max(0, Math.floor(fx) + AI))
+  const j = Math.min(hm.rows - 2, Math.max(0, Math.floor(fy) + AJ))
+  const tx = fx - (i - AI)
+  const ty = fy - (j - AJ)
   const [sw, se, nw, ne] = cellNodes(i, j, corners)
   const south = sw! + (se! - sw!) * tx
   const north = nw! + (ne! - nw!) * tx

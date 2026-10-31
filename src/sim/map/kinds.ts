@@ -35,6 +35,24 @@ export const tileRange = (bounds: {
   j1: Math.ceil(bounds.maxY / TILE) - 1,
 })
 
+/**
+ * The heightmap node a lookup measures a point's cell from, and its column `i` and row `j`: the
+ * region's anchor (src/tools/region.ts), which the map file names (`ax`, `ay`) where it is not the
+ * first node (x0, y0). Measured from a node fixed per region, with `i` and `j` added to the whole
+ * cells alone, a point's fraction of its cell keeps its bits as parts grow the map.
+ */
+export const anchorOf = (hm: {
+  readonly cell: number
+  readonly x0: number
+  readonly y0: number
+  readonly ax?: number
+  readonly ay?: number
+}): { readonly x: number; readonly y: number; readonly i: number; readonly j: number } => {
+  const x = hm.ax ?? hm.x0,
+    y = hm.ay ?? hm.y0
+  return { x, y, i: (x - hm.x0) / hm.cell, j: (y - hm.y0) / hm.cell }
+}
+
 /** How many rings round a tile `tilesRound` searches before it gives up: farther than any map's tiles reach. */
 const RINGS = 64
 

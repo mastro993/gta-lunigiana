@@ -61,6 +61,8 @@ export const assembleMap = (
       rows: grid.rows,
       x0: grid.x0,
       y0: grid.y0,
+      // The lookups' anchor, named only where it is not the first node (`anchorOf`).
+      ...(grid.ax === grid.x0 && grid.ay === grid.y0 ? {} : { ax: grid.ax, ay: grid.ay }),
       data: decimetres(grid),
     },
     roads: roads.map(roadOut),
