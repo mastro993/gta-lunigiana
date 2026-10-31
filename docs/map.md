@@ -1243,7 +1243,8 @@ every road line, river, barrier, building and area, each whole in every tile it 
 game downloads and decodes the vectors only near the player, as it does the dense layers: on
 Lunigiana the global file and the 4 tiles within 1 km of the start are 2.40 MB to download, where
 they were 3.10 MB with the vectors in the global file, and a production build's JS heap after a
-forced GC is 88 MB rather than 123–124 MB (`pnpm playtest heap`, three runs each, 2026-10-31).
+forced GC is 88–89 MB rather than 123–124 MB (`pnpm playtest heap`, three runs each, 2026-10-31,
+before and after main's water areas, #73).
 
 A tile is the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin, keyed `i_j`
 (`TILE` and `tileKey` in `src/sim/map/kinds.ts`). The listed tiles are the region's, each tile one
@@ -1879,7 +1880,7 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   pins each spot twice: first on the coarse grid's height where its tile is not in memory
   (`gta.heightAt` falls back to it), then, 2 s later, once the view's tiles have streamed in, on the
   exact ground. `lucido`, production build, `?seed=7`, three runs on 2026-10-31 interleaved with
-  main's build: first frame 0.32–0.35 s, slowest frame 16.8 ms, heap 88 MB (array buffers
+  main's build: first frame 0.32–0.35 s, slowest frame 16.8 ms, heap 88–89 MB (array buffers
   included), against main's 0.41–0.44 s and 123–124 MB with the vectors in the global file, where
   the whole map before the tiles took 0.92–0.98 s and 250 MB (dev build then 1.01 s and 274 MB).
 - **`pnpm playtest drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,…]`** (dev
