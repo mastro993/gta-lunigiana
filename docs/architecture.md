@@ -2055,11 +2055,16 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   Measured on 2026-10-30 on a 14-core Apple-silicon Mac under a load average of 50–95 from other
   work, each file run alone: the split took `pnpm test` from 1,177 tests in 181 files and 228 s of
   CPU (user and system, summed over the files) to 1,141 in 177 files and 207 s, and `pnpm test:map`
-  holds 58 in 20 files and 28 s (chunk-tiles 6.2 s, the map invariants 4.8 s). The wall clock of
-  `pnpm test` stayed about 28 s (28.6, 28.1 and 48.2 s before; 26.4, 40.7 and 28.3 s after): it is
-  the longest file's, `population.test.ts`, 17.6 s of CPU alone. `pnpm test:map` takes 5.2–11 s. On
-  2026-10-31 the rail checks moved the same way: `rail.test.ts`, which drew every road and river to
-  find the dashes by the crossings, went from 30 tiles read and 2.1 s of CPU to 8 tiles and 1.3 s.
+  then held 58 in 20 files and 28 s (chunk-tiles 6.2 s, the map invariants 4.8 s) and took 5.2–11 s.
+  The wall clock of `pnpm test` stayed about 28 s (28.6, 28.1 and 48.2 s before; 26.4, 40.7 and
+  28.3 s after): it is the longest file's, `population.test.ts`, 17.6 s of CPU alone. On 2026-10-31
+  the rail checks moved the same way: `rail.test.ts`, which drew every road and river to find the
+  dashes by the crossings, went from 30 tiles read and 2.1 s of CPU to 8 tiles and 1.3 s. With the
+  seams, the two test regions, and the lines, crossings, traffic steps, stations, rail bed and rail
+  joints moved or added since, `pnpm test:map` holds 100 tests in 29 files (2026-10-31, under a
+  load average of 4–26): 36 s of CPU with each file alone (chunk-tiles 6.2 s, the map invariants
+  4.7 s) and 5.9–6.3 s of wall clock, with the 3x test region's 5 checks skipped; with the 3x built
+  they add 46 s of CPU (`stand.ts` on 12 games, a process each) and the wall clock is 8.8–9.5 s.
   What still grows with the map in `pnpm test` is setup, not checks: every process that loads the
   sim decodes the whole global file (the vectors stay in it until #63), and each `World` builds
   every piece and plans every chunk.

@@ -1223,8 +1223,10 @@ The checks over the whole built map are map checks: `*.map-test.ts` files, which
 runs and `pnpm check` and CI run after `pnpm test`. `pnpm test` keeps only checks that read the
 tiles and features round named spots, mostly Monzone station, so what it checks does not grow with
 the map ([architecture.md](architecture.md#checks)). Run `pnpm test:map` after every `pnpm map`.
-On 2026-10-30 it ran 58 tests in 20 files in 5.2–11 s on a loaded 14-core Mac (28 s of CPU with
-each file alone), and the split took 21 s of CPU out of `pnpm test` (228 to 207 s).
+On 2026-10-31 it ran 100 tests in 29 files in 5.9–6.3 s on a loaded 14-core Mac (36 s of CPU with
+each file alone), the 3x test region's 5 skipped; with the 3x built, 8.8–9.5 s and 46 s of CPU
+more. The split took 21 s of CPU out of `pnpm test` on 2026-10-30 (228 to 207 s), when
+`pnpm test:map` held 58 tests in 20 files.
 
 `src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.3 s alone, read whole (`wholeMap`
 in `src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list and land
