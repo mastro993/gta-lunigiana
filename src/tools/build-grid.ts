@@ -5,12 +5,13 @@
 // 0.1 m and the rail bed levelled. Each of those writes a node from that node alone (its own value,
 // position, owner and the vectors), so a window needs no halo, and a node two tiles share comes out
 // the same in both: the pass checks it.
+import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
 import { segIndex } from "./geometry.ts"
 import { cellTile, gridTiles } from "./grid-tiles.ts"
 import { replayClaims, type Claim } from "./profiles.ts"
 import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
-import { gridLattice, sampleGrid, type Dem, type Grid, type Profile } from "./terrain.ts"
+import { gridLattice, sampleGrid, type Grid, type Profile } from "./terrain.ts"
 import { carveAll } from "./water.ts"
 
 /** What the tile pass reads. */

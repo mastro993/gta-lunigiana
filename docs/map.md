@@ -632,24 +632,25 @@ the pieces where tracks meet (`rail-graph.ts`).
   switches; the loop is cut in two
   at the stub's.
 
-### 5. Heightmap (`terrain.ts`)
+### 5. Heightmap (`dtm.ts`, `terrain.ts`)
 
 The LiDAR terrain is sampled through the projection (computed exactly on a 50 m lattice, bilinear in
 between). Each node of the 4 m grid over the bounds (1951 × 2501 nodes) is the mean of a 5 × 5 m
 square of samples, worked out tile by tile ([Pipeline](#pipeline)). A tile's nodes (`grid` of
-`dtmDem` in `terrain.ts`) read each sample's projection from the two terms of the lattice's
+`dtmDem` in `dtm.ts`) read each sample's projection from the two terms of the lattice's
 bilinear that one lattice row shares, worked out once per row and sample column, so the 25 samples
 of a node cost about one DTM read each: the same operations on the same doubles as the sampler
 (`makeGrid` on it, which Cesena's GeoTIFF still uses, gives the same bits:
-`terrain.test.ts`), and the grid's tile pass took 0.85 s rather than 3.6 s on Lunigiana and 2.1 s
+`dtm.test.ts`), and the grid's tile pass took 0.85 s rather than 3.6 s on Lunigiana and 2.1 s
 rather than 9.2 s on the 3x test region. The DTM read has a function of its own (`dtmHeight`), apart
 from the lattice's bilinear with its anchor's offsets: through that one V8 did not inline it into
 the 25 samples, and the pass took 2.0 s on Lunigiana and 5.6 s on the 3x. The lattice's nodes lie
 every 50 m from 100 m south-west of the region's anchor (`anchor` in `region.ts`), and a sample's
 fraction of a lattice cell is measured from there, not from the box's corner; the build's grid
 lookups (`sampleGrid`, `cellTile`, the catchments' and the rail bed's) measure a point's 4 m cell
-from the anchor the same way. A part that grows the box west or south so changes no bit of the terrain under the others
-(`terrain.test.ts`; before, 19,023 of 19,026 nodes of a synthetic DTM differed in their last bits).
+from the anchor the same way. A part that grows the box west or south so changes no bit of the
+terrain under the others (`dtm.test.ts` and `terrain.test.ts`; before, 19,023 of 19,026 nodes of a
+synthetic DTM differed in their last bits).
 Lucido's and Cesena's anchors are their boxes' corners, so their maps did not move. This grid is
 carved and flattened by the next steps; profiles and water sample the untouched terrain (the
 "ground").
@@ -1031,7 +1032,7 @@ change an input.
   which builds the L test region too (`test-maps/`, cached and hashed with the maps: [Test
   regions](#test-regions)).
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
-  imports, followed from import to import (95 files today, in `src/tools`, `src/sim` and
+  imports, followed from import to import (96 files today, in `src/tools`, `src/sim` and
   `src/render`, through the bakes), so a change anywhere else reuses the cached maps. It fails
   rather than miss a file: on a specifier that names no file, an `import(` without a string literal
   and any `require(`. When the check job built the maps, the `reproducible` job builds them again
@@ -1554,7 +1555,7 @@ carries the roads, water, rail and buildings across the old edge, which then are
   `x3-region.map-test.ts`), POIs, graph, lanes, lucido's trees (each with its id) and the coarse
   grid's nodes in lucido's box. The DTM's projection lattice, the build's grid lookups, the game's
   (`heightAt`, `terrainZ`, `coverAt`) and the land cover's raster count a point's cell from the
-  anchor ([section 5](#5-heightmap-terraints), [The global
+  anchor ([section 5](#5-heightmap-dtmts-terraints), [The global
   file](#the-global-file)). Counted from the box's corner, as they were before, the heights of 25
   buildings, 22,698 water-bed values, 133 lamps and the rests of 664 parked spots differed in their
   last bits, and 3 land-cover cells 0.8–3.6 km in from the edge, where an area's edge passes a

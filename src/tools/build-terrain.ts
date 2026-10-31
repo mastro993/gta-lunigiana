@@ -7,6 +7,7 @@ import type { Water } from "../sim/map/index.ts"
 import { tileByTile } from "./build-grid.ts"
 import type { Sources } from "./build-sources.ts"
 import { catchments } from "./catchment.ts"
+import type { Dem } from "./dtm.ts"
 import type { RoadF } from "./features.ts"
 import {
   along,
@@ -21,7 +22,7 @@ import {
 import { chainsOf, lifted, makeProfiler, type Linear } from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
-import { sampleGrid, type Dem } from "./terrain.ts"
+import { sampleGrid } from "./terrain.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**

@@ -8,6 +8,7 @@ import { conflateRail } from "./conflate.ts"
 import { readCtrRail } from "./ctr-rail.ts"
 import { fitRoads, readCtr } from "./ctr.ts"
 import { fitDistricts } from "./districts.ts"
+import { loadDtm, loadGeoDtm } from "./dtm.ts"
 import {
   extractAreas,
   extractBarriers,
@@ -22,7 +23,6 @@ import { pointInRing, r1 } from "./geometry.ts"
 import { readOsm } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
 import { REGION } from "./region.ts"
-import { loadDtm, loadGeoDtm } from "./terrain.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
 
