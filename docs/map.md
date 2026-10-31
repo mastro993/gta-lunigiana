@@ -596,7 +596,13 @@ the pieces where tracks meet (`rail-graph.ts`).
 
 The LiDAR terrain is sampled through the projection (computed exactly on a 50 m lattice, bilinear in
 between). Each node of the 4 m grid over the bounds (1951 × 2501 nodes) is the mean of a 5 × 5 m
-square of samples, worked out tile by tile ([Pipeline](#pipeline)). This grid is carved and
+square of samples, worked out tile by tile ([Pipeline](#pipeline)). A tile's nodes (`grid` of
+`dtmDem` in `terrain.ts`) read each sample's projection from the two terms of the lattice's
+bilinear that one lattice row shares, worked out once per row and sample column, so the 25 samples
+of a node cost about one DTM read each: the same operations on the same doubles as the sampler
+(`makeGrid` on it, which Cesena's GeoTIFF still uses, gives the same bits:
+`terrain.test.ts`), and the grid's tile pass took 1.0 s rather than 3.6 s on Lunigiana and 2.5 s
+rather than 9.2 s on the 3x test region. This grid is carved and
 flattened by the next steps; profiles and water sample the untouched terrain (the "ground").
 Elevations run from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
 Grondilice).

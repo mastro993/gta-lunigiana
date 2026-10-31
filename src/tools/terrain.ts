@@ -34,8 +34,17 @@ export interface Grid {
 /** Lattice step, m, on which local -> Gauss-Boaga is computed exactly; bilinear in between is exact to well under 1 mm. */
 const PROJ_STEP = 50
 
+/**
+ * The uncarved terrain: m a.s.l. at a local point (`at`), and a window of the grid's nodes, each
+ * the mean of `at` over the box `makeGrid` averages (`grid`).
+ */
+export interface Dem {
+  readonly at: (x: number, y: number) => number
+  readonly grid: (span: Span) => Grid
+}
+
 /** Samples a geographic GeoTIFF at pixel centres, rejecting missing terrain rather than inventing heights. */
-export const loadGeoDtm = async (file: string): Promise<(x: number, y: number) => number> => {
+export const loadGeoDtm = async (file: string): Promise<Dem> => {
   const { fromArrayBuffer } = await import("geotiff")
   const bytes = readFileSync(file)
   const tiff = await fromArrayBuffer(
@@ -66,7 +75,7 @@ export const loadGeoDtm = async (file: string): Promise<(x: number, y: number) =
   const noData = image.getGDALNoData()
   if (Array.from(samples).some((z) => !Number.isFinite(z) || z === noData || z < -500 || z > 3000))
     throw new Error("DTM contains missing or invalid heights")
-  return (x, y) => {
+  const at = (x: number, y: number) => {
     const [lat, lon] = fromLocal(x, y)
     const fx = ((lon - west!) / (east! - west!)) * cols - 0.5,
       fy = ((north! - lat) / (north! - south!)) * rows - 0.5
@@ -74,32 +83,69 @@ export const loadGeoDtm = async (file: string): Promise<(x: number, y: number) =
       row = Math.min(rows - 2, Math.max(0, Math.floor(fy)))
     const tx = Math.min(1, Math.max(0, fx - col)),
       ty = Math.min(1, Math.max(0, fy - row))
-    const at = row * cols + col
+    const k = row * cols + col
     return (
-      (samples[at]! * (1 - tx) + samples[at + 1]! * tx) * (1 - ty) +
-      (samples[at + cols]! * (1 - tx) + samples[at + cols + 1]! * tx) * ty
+      (samples[k]! * (1 - tx) + samples[k + 1]! * tx) * (1 - ty) +
+      (samples[k + cols]! * (1 - tx) + samples[k + cols + 1]! * tx) * ty
     )
   }
+  return { at, grid: (span) => makeGrid(at, span) }
 }
 
 /**
- * Bilinear sampler in local metres of the LiDAR DTM that `fetch-rt.ts` writes to `dir`
- * (dtm.json + dtm.bin, EPSG:3003, 2 m cells). Outside the crop it holds the edge value.
+ * The LiDAR DTM as `fetch-rt.ts` writes it: heights, m, on `cols` × `rows` cells of `cell` m in
+ * EPSG:3003 (Gauss-Boaga west), row-major from the cell centred on (`e0`, `n0`).
  */
-export const loadDtm = (dir: string): ((x: number, y: number) => number) => {
-  const meta = JSON.parse(readFileSync(join(dir, "dtm.json"), "utf8")) as {
-    e0: number
-    n0: number
-    cols: number
-    rows: number
-    cell: number
-  }
+export interface DtmData {
+  readonly e0: number
+  readonly n0: number
+  readonly cols: number
+  readonly rows: number
+  readonly cell: number
+  readonly z: Float32Array
+}
+
+/** Bilinear terrain at fractional cell (fx, fy) of a `cols` × `rows` raster `a` (component `c` of `stride`), clamped to its edge. */
+const bilinear = (
+  a: Float32Array | Float64Array,
+  cols: number,
+  rows: number,
+  fx: number,
+  fy: number,
+  stride: number,
+  c: number,
+) => {
+  const i = Math.min(cols - 2, Math.max(0, Math.floor(fx))),
+    j = Math.min(rows - 2, Math.max(0, Math.floor(fy)))
+  const tx = Math.min(1, Math.max(0, fx - i)),
+    ty = Math.min(1, Math.max(0, fy - j))
+  const v = (di: number, dj: number) => a[((j + dj) * cols + i + di) * stride + c]!
+  return (v(0, 0) * (1 - tx) + v(1, 0) * tx) * (1 - ty) + (v(0, 1) * (1 - tx) + v(1, 1) * tx) * ty
+}
+
+/**
+ * The LiDAR DTM that `fetch-rt.ts` writes to `dir` (dtm.json + dtm.bin, EPSG:3003, 2 m cells),
+ * sampled in local metres (`dtmDem`).
+ */
+export const loadDtm = (dir: string): Dem => {
+  const meta = JSON.parse(readFileSync(join(dir, "dtm.json"), "utf8")) as Omit<DtmData, "z">
   const raw = inflateSync(readFileSync(join(dir, "dtm.bin")))
   const z = new Float32Array(meta.cols * meta.rows)
   for (let k = 0, acc = 0; k < z.length; k++) {
     acc = (k % meta.cols === 0 ? 0 : acc) + raw.readInt16LE(2 * k)
     z[k] = acc / 10
   }
+  return dtmDem({ ...meta, z })
+}
+
+/**
+ * Bilinear sampler in local metres of `dtm`, through a lattice of exact projections every
+ * PROJ_STEP m over the built terrain and 100 m round it; outside the crop it holds the edge value.
+ * Its grid windows give the nodes `makeGrid` gives on the sampler, bit for bit, but read each
+ * sample's projection from terms worked out once per lattice row: the same operations on the
+ * same doubles, about twice as fast (the grid's tile pass took 3.5 s of Lunigiana's 12 s).
+ */
+export const dtmDem = (dtm: DtmData): Dem => {
   const margin = 2 * PROJ_STEP
   const lx0 = BOUNDS.minX - margin,
     ly0 = BOUNDS.minY - margin
@@ -112,29 +158,76 @@ export const loadDtm = (dir: string): ((x: number, y: number) => number) => {
         latLonToGaussBoaga(...fromLocal(lx0 + i * PROJ_STEP, ly0 + j * PROJ_STEP)),
         2 * (j * lcols + i),
       )
-  const at = (
-    a: Float32Array | Float64Array,
-    cols: number,
-    rows: number,
-    fx: number,
-    fy: number,
-    stride: number,
-    c: number,
-  ) => {
-    const i = Math.min(cols - 2, Math.max(0, Math.floor(fx))),
-      j = Math.min(rows - 2, Math.max(0, Math.floor(fy)))
-    const tx = Math.min(1, Math.max(0, fx - i)),
-      ty = Math.min(1, Math.max(0, fy - j))
-    const v = (di: number, dj: number) => a[((j + dj) * cols + i + di) * stride + c]!
-    return (v(0, 0) * (1 - tx) + v(1, 0) * tx) * (1 - ty) + (v(0, 1) * (1 - tx) + v(1, 1) * tx) * ty
-  }
-  return (x, y) => {
+  const { e0, n0, cell: dc, cols: dcols, rows: drows, z } = dtm
+  const at = (x: number, y: number) => {
     const fx = (x - lx0) / PROJ_STEP,
       fy = (y - ly0) / PROJ_STEP
-    const e = at(lattice, lcols, lrows, fx, fy, 2, 0),
-      n = at(lattice, lcols, lrows, fx, fy, 2, 1)
-    return at(z, meta.cols, meta.rows, (e - meta.e0) / meta.cell, (n - meta.n0) / meta.cell, 1, 0)
+    const e = bilinear(lattice, lcols, lrows, fx, fy, 2, 0),
+      n = bilinear(lattice, lcols, lrows, fx, fy, 2, 1)
+    return bilinear(z, dcols, drows, (e - e0) / dc, (n - n0) / dc, 1, 0)
   }
+  const grid = (span: Span): Grid => {
+    const g = gridLattice(),
+      side = 2 * BOX + 1
+    const { i0, j0, cols: w, rows: h } = span
+    // Each sample column (a node's column, then its box's dx): its lattice column and weights.
+    const m = w * side,
+      li = new Int32Array(m),
+      tx = new Float64Array(m),
+      ux = new Float64Array(m)
+    for (let c = 0; c < w; c++)
+      for (let dx = -BOX; dx <= BOX; dx++) {
+        const q = c * side + dx + BOX,
+          fx = (g.x0 + (i0 + c) * g.cell + dx - lx0) / PROJ_STEP
+        const i = Math.min(lcols - 2, Math.max(0, Math.floor(fx))),
+          t = Math.min(1, Math.max(0, fx - i))
+        li[q] = i
+        tx[q] = t
+        ux[q] = 1 - t
+      }
+    // A sample column's easting and northing along the lattice rows below (a) and above (b) it:
+    // the first halves of `bilinear`'s sum, the same for every sample of the column in that row.
+    const ea = new Float64Array(m),
+      eb = new Float64Array(m),
+      na = new Float64Array(m),
+      nb = new Float64Array(m)
+    let row = -1
+    const sums = new Float64Array(w),
+      out = new Float64Array(w * h)
+    for (let j = j0; j < j0 + h; j++) {
+      sums.fill(0)
+      for (let dy = -BOX; dy <= BOX; dy++) {
+        const fy = (g.y0 + j * g.cell + dy - ly0) / PROJ_STEP
+        const lj = Math.min(lrows - 2, Math.max(0, Math.floor(fy)))
+        const ty = Math.min(1, Math.max(0, fy - lj)),
+          uy = 1 - ty
+        if (lj !== row) {
+          row = lj
+          for (let q = 0; q < m; q++) {
+            const s = 2 * (lj * lcols + li[q]!),
+              t = s + 2 * lcols
+            ea[q] = lattice[s]! * ux[q]! + lattice[s + 2]! * tx[q]!
+            eb[q] = lattice[t]! * ux[q]! + lattice[t + 2]! * tx[q]!
+            na[q] = lattice[s + 1]! * ux[q]! + lattice[s + 3]! * tx[q]!
+            nb[q] = lattice[t + 1]! * ux[q]! + lattice[t + 3]! * tx[q]!
+          }
+        }
+        // Each node's box summed as makeGrid sums it: dy by dy, dx by dx within.
+        for (let c = 0, q = 0; c < w; c++) {
+          let sum = sums[c]!
+          for (let k = 0; k < side; k++, q++) {
+            const e = ea[q]! * uy + eb[q]! * ty,
+              n = na[q]! * uy + nb[q]! * ty
+            sum += bilinear(z, dcols, drows, (e - e0) / dc, (n - n0) / dc, 1, 0)
+          }
+          sums[c] = sum
+        }
+      }
+      for (let c = 0; c < w; c++) out[(j - j0) * w + c] = sums[c]! / side ** 2
+    }
+    return { ...g, z: out, span }
+  }
+  return { at, grid }
 }
 
 /** Half-width of the box each node averages, m: a 5 m square of 1 m samples, about one cell. */

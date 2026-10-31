@@ -29,13 +29,13 @@ const lap = (label: string) =>
   )
 
 /**
- * The sources and the terrain built on them. The DTM (`ground`), which only these two read, lives
- * in this function's frame alone: a value a running function holds is never collected, so it goes
+ * The sources and the terrain built on them. The DTM (`dem`), which only these two read, lives in
+ * this function's frame alone: a value a running function holds is never collected, so it goes
  * when this returns, before the world phase.
  */
 const sourcesAndTerrain = async () => {
-  const { ground, ...src } = await readSources(ROOT, lap)
-  return { src, terrain: buildTerrain(src, ground, lap) }
+  const { dem, ...src } = await readSources(ROOT, lap)
+  return { src, terrain: buildTerrain(src, dem, lap) }
 }
 
 /** The map cut into tiles, and what the report prints about the build; every other intermediate is gone once it returns. */

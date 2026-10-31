@@ -21,7 +21,7 @@ import {
 import { chainsOf, lifted, makeProfiler, type Linear } from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
-import { sampleGrid } from "./terrain.ts"
+import { sampleGrid, type Dem } from "./terrain.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**
@@ -35,13 +35,10 @@ const AULELLA_OFF_MAP = 161
 /** The finished terrain and what is read from it. */
 export type Terrain = ReturnType<typeof buildTerrain>
 
-/** Builds the terrain of `src` on `ground` (the uncarved DTM); `lap` marks the end of each stage. */
-export const buildTerrain = (
-  src: Sources,
-  ground: (x: number, y: number) => number,
-  lap: (label: string) => void,
-) => {
+/** Builds the terrain of `src` on `dem` (the uncarved DTM); `lap` marks the end of each stage. */
+export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => void) => {
   const { rail, extra, allRail, roads, water } = src
+  const ground = dem.at
   // ---- the vectors: water surfaces, road and rail profiles (their claims on the grid recorded),
   // the water kept under the decks; then the grid, one tile at a time ----
   const wp = waterProfiles(water, ground)
@@ -145,7 +142,7 @@ export const buildTerrain = (
     }),
   }))
   const grid = tileByTile({
-    ground,
+    dem,
     water,
     wp0,
     wp,

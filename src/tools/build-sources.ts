@@ -26,7 +26,7 @@ import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
 
 /** The features every later phase reads (the DTM apart: only the terrain reads it). */
-export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "ground">
+export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem">
 
 /** Reads the region's inputs under `root` into features; `lap` marks the end of each stage. */
 export const readSources = async (root: string, lap: (label: string) => void) => {
@@ -35,7 +35,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   const ctr = lunigiana
     ? readCtr(join(root, "data/raw/rt/ctr"))
     : { buildings: [], roadAreas: [], mapped: [] }
-  const ground = lunigiana
+  const dem = lunigiana
     ? loadDtm(join(root, "data/raw/rt"))
     : await loadGeoDtm(join(root, "data/raw/cesena/dtm.tif"))
   const ctrRail = lunigiana
@@ -47,7 +47,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   const { rail, extra, roads, water, moves, report } = conflateRail(
     extractRail(osm),
     extractRoads(osm),
-    extractWater(osm, ground),
+    extractWater(osm, dem.at),
     ctrRail,
     lunigiana ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
   )
@@ -79,8 +79,8 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   const districts: Array<District> = fitDistricts(osm, buildings)
   lap("features")
   return {
-    /** The uncarved terrain (the LiDAR DTM, or Cesena's GeoTIFF), m a.s.l. at a local point. */
-    ground,
+    /** The uncarved terrain (the LiDAR DTM, or Cesena's GeoTIFF). */
+    dem,
     rail,
     extra,
     allRail: [...rail, ...extra],

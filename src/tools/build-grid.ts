@@ -10,13 +10,13 @@ import { segIndex } from "./geometry.ts"
 import { cellTile, gridTiles } from "./grid-tiles.ts"
 import { replayClaims, type Claim } from "./profiles.ts"
 import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
-import { gridLattice, makeGrid, sampleGrid, type Grid, type Profile } from "./terrain.ts"
+import { gridLattice, sampleGrid, type Dem, type Grid, type Profile } from "./terrain.ts"
 import { carveAll } from "./water.ts"
 
 /** What the tile pass reads. */
 interface GridInput {
-  /** The uncarved terrain, m a.s.l. at a local point. */
-  readonly ground: (x: number, y: number) => number
+  /** The uncarved terrain, whose grid windows the tiles start from. */
+  readonly dem: Dem
   readonly water: ReadonlyArray<WaterF>
   /** The water's surfaces as first settled, and as kept under the decks (`capUnderDecks`). */
   readonly wp0: ReadonlyArray<Profile>
@@ -35,7 +35,7 @@ interface GridInput {
  * The finished grid, the uncarved one (the catchments read it), the carved grid before its rounding
  * under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed moved.
  */
-export const tileByTile = ({ ground, water, wp0, wp, claims, rail, levels }: GridInput) => {
+export const tileByTile = ({ dem, water, wp0, wp, claims, rail, levels }: GridInput) => {
   const lattice = gridLattice()
   const size = lattice.cols * lattice.rows
   const uncarved: Grid = { ...lattice, z: new Float64Array(size) },
@@ -60,7 +60,7 @@ export const tileByTile = ({ ground, water, wp0, wp, claims, rail, levels }: Gri
   const perched = wp.map((p) => new Float64Array(p.x.length))
   for (const tile of gridTiles(lattice)) {
     const { i0, j0, cols, rows } = tile.span
-    const win = makeGrid(ground, tile.span)
+    const win = dem.grid(tile.span)
     for (let r = 0; r < rows; r++)
       uncarved.z.set(win.z.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
     carveAll(win, water, wp0)
