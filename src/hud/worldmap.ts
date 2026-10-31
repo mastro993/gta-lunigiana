@@ -1,14 +1,17 @@
-import { css, PALETTE } from "../render/palette.ts"
 /**
  * The full map (M or a tap on the minimap; Esc or a tap closes it): the whole play area north-up
- * over the screen, painted afresh at screen resolution, with the villages and hamlets named and the
- * player as an arrow. While it is open the host stops ticking the simulation and drawing the world
- * (`main.ts`).
+ * over the screen, the build's overview of it (src/tools/overview.ts, downloaded when the map first
+ * opens) scaled to fit, with the frame, the villages and hamlets named, the scale bar and the player
+ * as an arrow painted afresh at screen resolution over it. While it is open the host stops ticking
+ * the simulation and drawing the world (`main.ts`).
  *
  * @module hud/worldmap
  */
+import { mapForSearch } from "../maps.ts"
+import { css, PALETTE } from "../render/palette.ts"
 import { districtAt, MAP } from "../sim/map/index.ts"
-import { paintArrow, paintMap } from "./minimap.ts"
+import { fetchFile } from "../stream.ts"
+import { paintArrow } from "./minimap.ts"
 import { element } from "./title.ts"
 
 /** Screen px kept clear around the map: the header above, the scale bar (and the two-line credits of narrow windows) below. */
@@ -105,8 +108,61 @@ const LABEL = {
 } as const
 const PAD = 2 // px around a label's box
 
-/** Binds the full map to its markup (#hud-map). `show` paints it for the player at (x, y) heading `angle` (radians CCW from east). */
-export const makeWorldMap = (document: Document) => {
+/**
+ * The overview's bitmap as the full map holds it: its file downloaded the first time the map opens
+ * (`want`; a failed download is tried again at the next opening), decoded at each opening, and
+ * released when the map closes (`release`), as Lunigiana's decodes to 52 MB. `ready` hears that the
+ * bitmap came while the map is still open; one that comes after it closed is let go at once.
+ */
+export const overviewBitmap = <B extends { close(): void }>(
+  download: () => Promise<Blob>,
+  decode: (file: Blob) => Promise<B>,
+  ready: () => void,
+) => {
+  let file: Promise<Blob> | undefined,
+    bitmap: B | undefined,
+    openings = 0,
+    /** The current opening's number; 0 while the map is closed. */
+    open = 0
+  return {
+    /** The decoded overview, while the map is open and it has come. */
+    get bitmap(): B | undefined {
+      return bitmap
+    },
+    /** The map opened: download the overview if it has not been, and decode it. */
+    want: (): void => {
+      if (open !== 0) return
+      const opening = (open = ++openings)
+      file ??= download()
+      file.then(decode).then(
+        (decoded) => {
+          if (open === opening) {
+            bitmap = decoded
+            ready()
+          } else decoded.close()
+        },
+        () => {
+          if (open === opening) file = undefined
+        },
+      )
+    },
+    /** The map closed: let the decoded overview go. */
+    release: (): void => {
+      open = 0
+      bitmap?.close()
+      bitmap = undefined
+    },
+  }
+}
+
+/**
+ * Binds the full map to its markup (#hud-map). `show` paints it for the player at (x, y) heading
+ * `angle` (radians CCW from east), over the overview at `overview` (the page's map's, `src/maps.ts`).
+ */
+export const makeWorldMap = (
+  document: Document,
+  overview: URL = mapForSearch(document.defaultView!.location.search).overview,
+) => {
   const root = element(document, "hud-map"),
     here = element(document, "hud-map-here")
   const window = document.defaultView!
@@ -138,9 +194,15 @@ export const makeWorldMap = (document: Document) => {
     const fit = fitMap(bounds, width, height)
     const px = (x: number) => fit.ox + (x - bounds.minX) * fit.scale,
       py = (y: number) => fit.oy + (bounds.maxY - y) * fit.scale
-    paintMap(ctx, fit.scale, bounds, { ox: fit.ox, oy: fit.oy, overview: true })
     const mapW = (bounds.maxX - bounds.minX) * fit.scale,
       mapH = (bounds.maxY - bounds.minY) * fit.scale
+    // The overview spans the bounds exactly, and is smoothed: it is drawn smaller than it is.
+    const image = overviewMap.bitmap
+    if (image !== undefined) {
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = "high"
+      ctx.drawImage(image, fit.ox, fit.oy, mapW, mapH)
+    }
     // The frame's corners and the labels' outlines are round, as the map's lines are.
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
@@ -234,6 +296,11 @@ export const makeWorldMap = (document: Document) => {
     }
   }
   const onResize = () => paint()
+  const overviewMap = overviewBitmap(
+    async () => (await fetchFile(overview)).blob(),
+    (file) => createImageBitmap(file),
+    paint,
+  )
 
   return {
     get open(): boolean {
@@ -246,10 +313,12 @@ export const makeWorldMap = (document: Document) => {
       root.hidden = false
       root.focus({ preventScroll: true }) // the dialog takes focus, so screen readers announce it
       paint()
+      overviewMap.want()
       window.addEventListener("resize", onResize)
     },
     hide: (): void => {
       root.hidden = true
+      overviewMap.release()
       window.removeEventListener("resize", onResize)
     },
   }

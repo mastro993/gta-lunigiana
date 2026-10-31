@@ -43,8 +43,9 @@ jobs:
       - run: pnpm test:map
 
   # When the check job built the maps (their inputs changed), build them again on an arm64 runner
-  # (the check job's is x64): the two builds must gunzip to the same bytes. Only then are the maps
-  # cached, so every new set of inputs is checked once, however often its run is re-run.
+  # (the check job's is x64): the two builds must gunzip (the overviews inflate) to the same bytes.
+  # Only then are the maps cached, so every new set of inputs is checked once, however often its run
+  # is re-run.
   reproducible:
     needs: check
     if: ${{ !cancelled() && needs.check.outputs.maps-hash != '' }}
@@ -84,6 +85,8 @@ jobs:
           path: |
             src/sim/map/*.bin
             src/sim/map/*/*.bin
+            src/sim/map/*/overview.png
             test-maps/*.bin
             test-maps/*/*.bin
+            test-maps/*/overview.png
           key: ${{ steps.maps.outputs.key }}

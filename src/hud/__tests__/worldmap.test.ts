@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { districtAt, inPlay, MAP } from "../../sim/map/index.ts"
-import { fitMap, PLACES, placeLabels } from "../worldmap.ts"
+import { fitMap, overviewBitmap, PLACES, placeLabels } from "../worldmap.ts"
 
 test("the map fits the screen inside the margins, centred, with north up and the aspect kept", () => {
   const b = MAP.bounds
@@ -78,4 +78,63 @@ test("places: the villages and hamlets the user asked for are named on the map",
     const p = PLACES.find((q) => q.name === name)!
     assert.equal(districtAt(p.x, p.y).name, name)
   }
+})
+
+test("the overview downloads once, is decoded at each opening and let go at each closing, even when it comes late", async () => {
+  const heard: Array<number | undefined> = []
+  let downloads = 0,
+    offline = true
+  const bitmaps: Array<{ readonly n: number; closed: boolean; close(): void }> = []
+  const overview = overviewBitmap(
+    () => {
+      downloads++
+      return offline ? Promise.reject(new Error("offline")) : Promise.resolve(new Blob(["png"]))
+    },
+    () => {
+      const bitmap = {
+        n: bitmaps.length,
+        closed: false,
+        close() {
+          this.closed = true
+        },
+      }
+      bitmaps.push(bitmap)
+      return Promise.resolve(bitmap)
+    },
+    () => heard.push(overview.bitmap?.n),
+  )
+  const settle = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+  overview.want()
+  await settle()
+  assert.deepEqual([downloads, overview.bitmap, heard], [1, undefined, []], "a failed download")
+  overview.release()
+  offline = false
+  overview.want()
+  overview.want() // a repaint while it is open
+  await settle()
+  assert.deepEqual(
+    [downloads, overview.bitmap?.n, heard],
+    [2, 0, [0]],
+    "tried again when it opens again",
+  )
+  overview.release()
+  assert.deepEqual(
+    [overview.bitmap, bitmaps[0]!.closed],
+    [undefined, true],
+    "let go when it closes",
+  )
+  overview.want()
+  overview.release() // closed before the bitmap came
+  await settle()
+  assert.deepEqual(
+    [overview.bitmap, bitmaps[1]!.closed, heard],
+    [undefined, true, [0]],
+    "a late one let go",
+  )
+  overview.want()
+  await settle()
+  assert.deepEqual([downloads, overview.bitmap?.n, heard], [2, 2, [0, 2]], "downloaded once")
 })

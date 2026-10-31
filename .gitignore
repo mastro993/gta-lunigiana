@@ -4,8 +4,9 @@ dist
 .DS_Store
 # Map inputs, pinned by data/raw.lock.json and fetched by `pnpm fetch-raw` (issue #6).
 /data/raw/
-# The built maps: `pnpm maps` writes them, CI caches them.
+# The built maps and their overviews: `pnpm maps` writes them, CI caches them.
 /src/sim/map/*.bin
 /src/sim/map/*/*.bin
+/src/sim/map/*/overview.png
 # Test regions' builds (`node src/tools/build-map.ts --region lunigiana-l`): never shipped.
 /test-maps/
