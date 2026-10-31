@@ -110,10 +110,12 @@ sim in a process of its own; `preview-map.ts` draws one with `--region <key>`.
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
-  synthetic, with no roads or buildings, only the OSM areas that reach past lucido (80 more, mostly
-  woods, and 0.98 million more trees in them), for the build's memory and time and the cars round
-  Monzone. It is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`); CI never
-  builds it.
+  synthetic, with no roads or buildings, only the land cover that reaches past lucido: 19 areas
+  run on whole past its edge, among them 4 woods of 97.4 km² that hold 0.98 million more trees, and
+  77 more lie beyond it, 62 of them the CTR's paved surfaces (1,215 areas and 1,988,627 trees
+  against lucido's 1,138 and 1,011,936 on 2026-10-31). It serves the build's memory and time and
+  the cars round Monzone, and is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`);
+  CI never builds it.
 
 Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
 three runs each, a load average of 5–6 from other work), before and after the build's per-tile
@@ -1590,7 +1592,7 @@ carries the roads, water, rail and buildings across the old edge, which then are
   front of them (6 land-cover cells within 6 m of the edge) and 10 m of a district disc of
   Argigliano's (r 120 → 110 m).
 - **Areas across the edge** are clipped to the box, not the play area, so on the 3x 19 run on
-  whole past lucido's edge and 80 more lie beyond it. A cut is rounded to 0.1 m, which moves the
+  whole past lucido's edge and 77 more lie beyond it. A cut is rounded to 0.1 m, which moves the
   cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs.
 - **Walls**: a cell's slope reads the nodes up to 8 m round it, and on lucido those past its edge
   are the edge's own (clamped), so the steep cells along the edge differ, and a loop of blocked
