@@ -4,8 +4,9 @@
 // broad phases' lattice corners).
 import type { MonzoneMap, Road } from "../sim/map/index.ts"
 import { HALO, vergeOf, WATER_VERTICES } from "../sim/map/kinds.ts"
-import type { TileVectors, VectorLayer } from "../sim/map/packed.ts"
-import type { BuiltMap } from "./tile-map.ts"
+import { type TileVectors, VECTOR_LAYERS, type VectorLayer } from "../sim/map/packed.ts"
+import { relined } from "./pack.ts"
+import type { Bakes, BuiltMap, MapCut } from "./tile-map.ts"
 
 /** No vectors: a tile's before the cut adds them. */
 export const NO_VECTORS: TileVectors = {
@@ -166,6 +167,43 @@ export const vectorFacts = (map: Vectors): MonzoneMap["vectors"] => {
     lattice: {
       buildings: lowest(map.buildings.map((b) => b.outer)),
       water: lowest(map.water.map((w) => w.pts)),
+    },
+  }
+}
+
+/**
+ * Each tile's file (`files`, its dense layers packed, by key) with its vectors: those slot
+ * `slots.get(key)` holds of `whole` (`members`), the water's floors from the bakes. Made apart from
+ * `cutMap` (tile-map.ts), so the closures hold the vectors alone and not the dense layers the cut
+ * read.
+ */
+export const tilesOf = (
+  files: ReadonlyMap<string, Buffer>,
+  slots: ReadonlyMap<string, number>,
+  whole: Pick<BuiltMap, VectorLayer>,
+  members: Readonly<Record<VectorLayer, ReadonlyArray<ReadonlyArray<number>>>>,
+): Pick<MapCut, "tile" | "tiles"> => {
+  const tile = (key: string, bakes: Bakes): Buffer =>
+    relined(files.get(key)!, {
+      vectors: tileVectors(whole, members, slots.get(key)!, bakes.floors),
+    })
+  return {
+    tile,
+    tiles: (bakes) => {
+      const out = new Map<string, Buffer>(),
+        sizes: Record<VectorLayer, number> = {
+          roads: 0,
+          buildings: 0,
+          water: 0,
+          areas: 0,
+          barriers: 0,
+        }
+      for (const key of files.keys()) {
+        const vectors = tileVectors(whole, members, slots.get(key)!, bakes.floors)
+        for (const name of VECTOR_LAYERS) sizes[name] += JSON.stringify(vectors[name]).length
+        out.set(key, relined(files.get(key)!, { vectors }))
+      }
+      return { files: out, sizes }
     },
   }
 }

@@ -8,10 +8,10 @@ import { createHash } from "node:crypto"
 import type { PixelBlock } from "../sim/collide.ts"
 import type { Area, Barrier, Building, MonzoneMap, Road, Spawn, Water } from "../sim/map/index.ts"
 import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
-import { TILE_CELLS, TILE_NODES, VECTOR_LAYERS, type VectorLayer } from "../sim/map/packed.ts"
+import { TILE_CELLS, TILE_NODES, type VectorLayer } from "../sim/map/packed.ts"
 import { placeFrom } from "../sim/sky/place.ts"
 import { packMap, packTile, relined } from "./pack.ts"
-import { NO_VECTORS, tileVectors, vectorFacts, vectorMembers } from "./tile-vectors.ts"
+import { NO_VECTORS, tilesOf, vectorFacts, vectorMembers } from "./tile-vectors.ts"
 
 /** The map as the build makes it: the global map's sparse parts with the dense layers whole, before the tables baked from them. */
 export interface BuiltMap extends Omit<
@@ -404,42 +404,6 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
       },
       spawns,
     ),
-  }
-}
-
-/**
- * Each tile's file (`files`, its dense layers packed, by key) with its vectors: those slot
- * `slots.get(key)` holds of `whole` (`members`), the water's floors from the bakes. Made apart from
- * `cutMap`, so the closures hold the vectors alone and not the dense layers the cut read.
- */
-const tilesOf = (
-  files: ReadonlyMap<string, Buffer>,
-  slots: ReadonlyMap<string, number>,
-  whole: Pick<BuiltMap, VectorLayer>,
-  members: Readonly<Record<VectorLayer, ReadonlyArray<ReadonlyArray<number>>>>,
-): Pick<MapCut, "tile" | "tiles"> => {
-  const tile = (key: string, bakes: Bakes): Buffer =>
-    relined(files.get(key)!, {
-      vectors: tileVectors(whole, members, slots.get(key)!, bakes.floors),
-    })
-  return {
-    tile,
-    tiles: (bakes) => {
-      const out = new Map<string, Buffer>(),
-        sizes: Record<VectorLayer, number> = {
-          roads: 0,
-          buildings: 0,
-          water: 0,
-          areas: 0,
-          barriers: 0,
-        }
-      for (const key of files.keys()) {
-        const vectors = tileVectors(whole, members, slots.get(key)!, bakes.floors)
-        for (const name of VECTOR_LAYERS) sizes[name] += JSON.stringify(vectors[name]).length
-        out.set(key, relined(files.get(key)!, { vectors }))
-      }
-      return { files: out, sizes }
-    },
   }
 }
 
