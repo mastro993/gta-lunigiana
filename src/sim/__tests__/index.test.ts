@@ -1,15 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { HostClock } from "@typeonce/ritmo"
 import { Keyboard } from "@typeonce/ritmo-browser"
-import { Determinism } from "@typeonce/ritmo-devtools"
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../../tools/geometry.ts"
 import { carClear, wrapAngle } from "../body.ts"
 import { settle, uprightness } from "../chassis.ts"
-import { STAGE_FROM, UNDAMAGED } from "../damage.ts"
+import { UNDAMAGED } from "../damage.ts"
 import {
   bindings,
   CarInput,
@@ -17,50 +15,30 @@ import {
   Damage,
   Game,
   KeyboardInput,
-  type Look,
   makeRuntime,
   Motion,
   Pose,
   type PoseValue,
   PrevPose,
-  SetClock,
   SetHandling,
-  SetWeather,
   setup,
-  update,
   Vehicle,
 } from "../index.ts"
 import { roadLevel } from "../map/ground.ts"
 import { graph, isDrivable, MAP, wallsNear } from "../map/index.ts"
 import { carOn, PARKING, spotsWithin } from "../population/parked.ts"
-import {
-  distanceToEdge,
-  laneOf,
-  lanePoint,
-  laneSide,
-  roadOf,
-  trafficIndex,
-  walkIndex,
-  walkSide,
-} from "../route.ts"
-import { animal, parkedCar, pedestrian, trafficCar } from "../spawning.ts"
+import { laneOf, lanePoint, laneSide, roadOf } from "../route.ts"
+import { parkedCar, trafficCar } from "../spawning.ts"
 import {
   BATTISTI,
   battistiTraffic,
-  burning,
   door,
-  facing,
-  FAR,
-  jsonSave,
   teleport,
-  LOOK,
   ON_BATTISTI,
   press,
   rolling,
-  stage,
   start,
   type Timeline,
-  TOWARD,
   walkClear,
   World,
 } from "../testing.ts"
@@ -438,26 +416,6 @@ test("carjacking: the driver is thrown out and flees, the car stops being traffi
   assert.ok(Vec2.distance(fled, ON_BATTISTI) > 4, `ran off: ${Vec2.distance(fled, ON_BATTISTI)}`)
 })
 
-test("traffic: a car follows the roads for 30 s, never inside walls", () => {
-  const { run, world } = start([], [MAP.spawns.player, { traffic: [battistiTraffic(0x74746f)] }])
-  const id = world().vehicles[0]!.id
-  let travelled = 0
-  let last: PoseValue = ON_BATTISTI
-  run(1800, () => {
-    const car = world().vehicles.find((v) => v.id === id)!
-    // Within a metre of a traffic road's carriageway (corners get cut): measured from every edge near it (an edge is at
-    // most 25.5 m, a carriageway 12 m), so a car turning out of a lane into a wider road is judged by the wider road.
-    let off = Infinity
-    for (const e of trafficIndex.around(car.x, car.y, [0, 40]))
-      off = Math.min(off, distanceToEdge(e, car.x, car.y) - roadOf(e).w / 2)
-    assert.ok(off < 1, `${off} m beyond the carriageway at (${car.x}, ${car.y})`)
-    assert.ok(carClear("panda", car, 0.02), "never inside a wall")
-    travelled += Vec2.distance(car, last)
-    last = car
-  })
-  assert.ok(travelled > 60, `travelled ${travelled} m`)
-})
-
 // Regression: waiting 3 s for a walker crossing in front counted as stuck, so cars backed up and turned round on narrow roads, onto the verge.
 test("traffic: a car waits for a person standing in its lane, without backing up or turning round, then drives on", () => {
   const lane = laneOf(BATTISTI.edge, BATTISTI.forward)
@@ -480,284 +438,6 @@ test("traffic: a car waits for a person standing in its lane, without backing up
   assert.ok(runtime.tick(Game.Schedule(teleport(MAP.spawns.player))).ok)
   run(180)
   assert.ok(along() > furthest + 5, `drove on: ${along()}`)
-})
-
-// Regression: waiting for a person never counted as stuck, so one who stood still in the lane (or beside the cab, or on
-// the verge inside the braking cone) held the car for good, and the cars queued behind it wedged turning round.
-test("traffic: a person who never moves holds a car ~12 s in its lane, and beside its cab no longer than a parked car would", () => {
-  const lane = laneOf(BATTISTI.edge, BATTISTI.forward)
-  const side = laneSide(BATTISTI, "panda")
-  const along = (p: PoseValue) => (p.x - lane.x) * lane.dx + (p.y - lane.y) * lane.dy
-  for (const [at, from, to] of [
-    [12, 8, 20],
-    [0.5, 2.5, 6],
-  ] as const) {
-    // In the lane 12 m ahead; or 1.3 m right of the standing car's axis, beside its cab (on the carriageway, clear of the body).
-    const me = { ...lanePoint(lane, at, at === 12 ? side : side + 1.3), angle: 0 }
-    assert.ok(
-      walkClear(me) && distanceToEdge(BATTISTI.edge, me.x, me.y) < roadOf(BATTISTI.edge).w / 2,
-    )
-    const { run, world } = start([], [me, { traffic: [battistiTraffic(0x74746f)] }])
-    const car = () => world().vehicles.find((v) => v.traffic)!
-    let furthest = along(car()),
-      gaveUp = -1
-    run(to * 60, (frame) => {
-      furthest = Math.max(furthest, along(car()))
-      if (
-        gaveUp < 0 &&
-        (along(car()) < furthest - 0.5 || car().route?.forward !== BATTISTI.forward)
-      )
-        gaveUp = frame / 60
-    })
-    assert.ok(
-      gaveUp >= from && gaveUp < to,
-      `person at ${at} m: backed up or turned round after ${gaveUp} s`,
-    )
-  }
-})
-
-/**
- * Walk to a car, drive it hard around Via Cesare Battisti, the view following it, get out and turn the view, while another car crashes into a house wall and
- * goes on pushing at it on its worn, misfiring engine, and a wreck across the road blows up, killing a bystander and setting
- * the car beside it on fire: every system has work to do.
- */
-const joyride: Timeline = [
-  { frame: 0, press: ["left"] },
-  { frame: 10, release: ["left"] },
-  ...press(12, "action"),
-  { frame: 14, press: ["up"] },
-  { frame: 100, press: ["left"] },
-  { frame: 130, release: ["left"], press: ["handbrake", "right"] },
-  { frame: 170, release: ["handbrake", "right"] },
-  { frame: 240, release: ["up"], press: ["down"] },
-  { frame: 300, release: ["down"] },
-  ...press(330, "action"),
-  ...press(334, "turnLeft"),
-  { frame: 340, press: ["up", "sprint"] },
-  { frame: 400, release: ["up", "sprint"] },
-]
-/**
- * Up the street, a mother with her son and their dog on a lead walk toward a man lying dead on their verge: they come on him in
- * about 2 s, stand shocked and run from him; a cat sits across the street. Followers, bodies, animals and reactions all replay.
- * A man walks by the burning wreck. Out of view, a parked car stands burnt out on `WRECKED`: it goes in the first half second,
- * and its spot stays empty (`Parking.wrecked`).
- */
-const BYSTANDER = { x: FAR.x, y: FAR.y + 2.5, angle: 0 }
-/** A parked spot 150–300 m from the joyride's start where seed 1 parks a car. */
-const WRECKED = spotsWithin(ON_BATTISTI, PARKING.fill[1]).find(
-  (i) => Vec2.distance(MAP.spawns.parked[i]!, ON_BATTISTI) > 150 && carOn(1, i) !== undefined,
-)!
-const joyrideCast = (() => {
-  const lane = laneOf(BATTISTI.edge, BATTISTI.forward),
-    verge = walkSide(roadOf(BATTISTI.edge)),
-    angle = Ops.atan2(-lane.dy, -lane.dx)
-  const back = { ...BATTISTI, forward: !BATTISTI.forward, side: -verge }
-  const mother: Look = { ...LOOK, female: true, height: 1.64, outfit: "dress", hairdo: "long" }
-  const son: Look = { ...LOOK, age: "kid", height: 1.25, outfit: "shorts" }
-  return [
-    door(ON_BATTISTI),
-    {
-      cars: [
-        parkedCar("panda", 0xb8312b, ON_BATTISTI),
-        rolling("panda", { ...facing(4.85), angle: TOWARD }, 34, 1),
-        burning("panda", FAR, 100),
-        parkedCar("panda", 0xf2efe6, {
-          x: FAR.x + VEHICLES.panda.length + 0.8,
-          y: FAR.y,
-          angle: 0,
-        }),
-      ],
-      wrecks: [WRECKED],
-      peds: [
-        pedestrian(
-          LOOK,
-          BYSTANDER,
-          { edge: walkIndex.nearest(BYSTANDER.x, BYSTANDER.y), forward: true, side: 0 },
-          { mood: "walk", until: 0, fx: 0, fy: 0 },
-        ),
-      ],
-      bodies: [
-        pedestrian(LOOK, { ...lanePoint(lane, 36, verge), angle }, back, {
-          mood: "walk",
-          until: 0,
-          fx: 0,
-          fy: 0,
-        }),
-      ],
-      parties: [
-        {
-          leader: pedestrian(mother, { ...lanePoint(lane, 48, verge), angle }, back, {
-            mood: "walk",
-            until: 0,
-            fx: 0,
-            fy: 0,
-          }),
-          people: [
-            {
-              draft: pedestrian(son, { ...lanePoint(lane, 48.4, verge - 0.5), angle }, back, {
-                mood: "walk",
-                until: 0,
-                fx: 0,
-                fy: 0,
-              }),
-              side: 0.5,
-              back: 0.4,
-            },
-          ],
-          animals: [
-            {
-              draft: animal(
-                { species: "dog", coat: 0xc49a6c, patch: 0xeee8dc, size: 1 },
-                { ...lanePoint(lane, 48.9, verge + 0.5), angle },
-              ),
-              side: -0.5,
-              back: 0.9,
-            },
-          ],
-        },
-      ],
-      animals: [
-        animal(
-          { species: "cat", coat: 0x2b2b2b, patch: 0x2b2b2b, size: 1 },
-          { ...lanePoint(lane, 44, -verge), angle: 0 },
-        ),
-      ],
-    },
-  ] as const
-})()
-
-test("determinism: the same scripted joyride replays bit for bit", () => {
-  const result = Determinism.check(
-    ({ hostClock }) => {
-      const made = makeRuntime({
-        seed: 7,
-        services: Game.Runtime.services(
-          Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, joyride)),
-        ),
-        debug: { hostClock },
-      })
-      if (!made.ok) throw new Error(JSON.stringify(made.error))
-      const ready = made.value.tick(setup, stage(...joyrideCast))
-      if (!ready.ok) throw new Error(JSON.stringify(ready.error))
-      // A handling off its real values: the knobs are part of what replays.
-      made.value.send(SetHandling, { key: "grip", value: 1.3 })
-      made.value.send(SetHandling, { key: "weightTransfer", value: 0.5 })
-      // Ten game minutes a step: 100 game hours of weather, its regimes drawn from WeatherRng, wetting and drying the roads under the car.
-      made.value.send(SetClock, { rate: 600 })
-      return { runtime: made.value, schedules: { update } }
-    },
-    { schedule: "update", frames: 600, hostClock: HostClock.test() },
-  )
-  assert.deepEqual(result, { ok: true, frames: 600 })
-})
-
-test("saves: a snapshot taken mid-joyride, in a thunderstorm, restores through JSON and plays on identically", () => {
-  const a = start(joyride, joyrideCast)
-  a.runtime.send(SetHandling, { key: "power", value: 1.5 })
-  // The clock fast and a storm over the map: the weather, its random stream and the storm cell are saved state too.
-  a.runtime.send(SetClock, { rate: 600 })
-  a.runtime.send(SetWeather, { regime: "storm", settle: true })
-  const modes: Array<string> = [],
-    seats: Array<number> = []
-  a.run(420, () => {
-    const { mode, turns } = a.view()!
-    if (modes.at(-1) !== mode) modes.push(mode)
-    if (seats.at(-1) !== turns) seats.push(turns)
-  })
-  assert.deepEqual(modes, ["foot", "driving", "foot"], "the joyride gets in, drives and gets out")
-  assert.ok(seats.length > 2, `the view follows the car through the seats ${seats.join(", ")}`)
-  assert.equal(seats.at(-1), seats.at(-2)! + 1, "and is turned once out")
-  assert.ok(
-    a.heard.cries.some((c) => c.feeling === "shock"),
-    "the family came on the body",
-  )
-  assert.ok(
-    a.world().peds.some((p) => p.leader !== undefined) &&
-      a.world().animals.some((p) => p.leader !== undefined),
-    "and walk on together",
-  )
-  assert.ok(
-    a
-      .world()
-      .vehicles.some(
-        (v) => v.damage.amount >= STAGE_FROM.severe && v.damage.amount < STAGE_FROM.destroyed,
-      ),
-    "and a car misfires after its crash",
-  )
-  assert.equal(a.heard.explosions.length, 1, "and a wreck blows up")
-  assert.ok(
-    a.world().peds.some((p) => p.dead !== undefined && p.dead > 0),
-    "killing a bystander (the staged body died at step 0)",
-  )
-  assert.ok(
-    a.world().vehicles.some((v) => !v.damage.exploded && v.damage.fuse > 0),
-    "and setting the car beside it burning",
-  )
-  assert.ok(
-    a.world().vehicles.some((v) => v.parked !== undefined),
-    "with cars parked round the player since",
-  )
-  assert.deepEqual(a.world().parking.wrecked, [WRECKED], "and the wreck out of view gone for good")
-  // Another seed's game: the restore brings back the save's random streams and its parking seed.
-  const b = start([], undefined, { seed: 2 })
-  assert.ok(b.runtime.restore(jsonSave(a.runtime)).ok)
-  assert.deepEqual(b.view(), a.view())
-  assert.deepEqual(b.world(), a.world())
-  const from = a.heard.lightning.length
-  a.run(1200)
-  b.run(1200)
-  assert.deepEqual(b.world(), a.world())
-  assert.ok(b.heard.lightning.length > 0, "lightning after the restore")
-  assert.deepEqual(b.heard.lightning, a.heard.lightning.slice(from), "the same lightning")
-})
-
-// Regression: no save reached a Witness, whose decision to gather or run is saved so that it survives one.
-test("saves: a snapshot taken while a walker stands shocked by a body restores through JSON, and the witnesses decide alike", () => {
-  const lane = laneOf(BATTISTI.edge, BATTISTI.forward),
-    verge = walkSide(roadOf(BATTISTI.edge)),
-    angle = Ops.atan2(lane.dy, lane.dx)
-  const walking = { mood: "walk", until: 0, fx: 0, fy: 0 } as const
-  const body = pedestrian(
-    LOOK,
-    { ...lanePoint(lane, 22, verge), angle },
-    { ...BATTISTI, side: verge },
-    walking,
-  )
-  // Up the right verge toward a man lying dead on it, 12 m off, and down the left verge 12 m beyond him; the player stands by.
-  const up = pedestrian(
-    LOOK,
-    { ...lanePoint(lane, 10, verge), angle },
-    { ...BATTISTI, side: verge },
-    walking,
-  )
-  const down = pedestrian(
-    LOOK,
-    { ...lanePoint(lane, 34, -verge), angle: angle + Math.PI },
-    { ...BATTISTI, forward: !BATTISTI.forward, side: verge },
-    walking,
-  )
-  const a = start([], [door(ON_BATTISTI), { bodies: [body], peds: [up, down] }])
-  for (let frame = 0; !a.world().peds.some((p) => p.witness); frame++) {
-    assert.ok(frame < 600, "they came on the body")
-    a.run(1)
-  }
-  a.run(60)
-  assert.ok(
-    a.world().peds.some((p) => p.witness && p.mood === "shock"),
-    "a witness stands shocked",
-  )
-  const b = start()
-  assert.ok(b.runtime.restore(jsonSave(a.runtime)).ok)
-  assert.deepEqual(b.world(), a.world())
-  const moods = new Set<string>()
-  for (let frame = 0; frame < 900; frame++) {
-    a.run(1)
-    b.run(1)
-    for (const p of a.world().peds) moods.add(p.mood)
-  }
-  assert.deepEqual(b.world(), a.world())
-  // Which way each goes is a roll; that both copies roll alike is the deepEqual above.
-  assert.ok(moods.has("gather") || moods.has("flee"), `they decided: ${[...moods]}`)
 })
 
 test("contacts: sprinting into a parked car does not knock the player down", () => {

@@ -7,72 +7,23 @@ import { Random, Vec2 } from "@typeonce/ritmo-math"
 import {
   Animal,
   bindings,
-  Dead,
   Follows,
   Game,
   KeyboardInput,
   makeRuntime,
   Pedestrian,
-  Person,
   Pose,
   setup,
-  update,
 } from "../index.ts"
 import { graph, MAP } from "../map/index.ts"
 import { PEOPLED, peopledIndex, residentsAlong, residentsNear } from "../population/density.ts"
 import { FEMALE, lookOf } from "../population/looks.ts"
 import { PLACES, randomParty } from "../population/parties.ts"
-import { noTrains } from "../rail/testing.ts"
 import { endNode, nextWalkEdge, walkIndex } from "../route.ts"
 import type { Age, Look } from "../schema.ts"
 import { ANIMALS } from "../systems/populate-animals.ts"
 import { PEDESTRIANS, peopleOut } from "../systems/populate.ts"
-import { start, teleport } from "../testing.ts"
-
-/** The people and the living dogs on a lead, with what the population tests read: look, party and whether they are alive. */
-const People = Game.Inspector(
-  "Test/People",
-  {
-    queries: {
-      people: Game.Query({
-        selection: {
-          pose: Game.Query.read(Pose),
-          person: Game.Query.read(Person),
-          ped: Game.Query.read(Pedestrian),
-          follows: Game.Query.optional(Follows),
-          dead: Game.Query.optional(Dead),
-        },
-      }),
-      // A dog a car killed lies where it fell, its lead let go: only the living walk with their owner.
-      leashed: Game.Query({
-        selection: {
-          pose: Game.Query.read(Pose),
-          animal: Game.Query.read(Animal),
-          follows: Game.Query.read(Follows),
-        },
-        without: [Dead],
-      }),
-    },
-  },
-  ({ queries }) => ({
-    people: queries.people.each().map(({ entity, data }) => {
-      const follows = data.follows.value()
-      return {
-        id: entity.id,
-        ...data.pose.get(),
-        look: data.person.get(),
-        mood: data.ped.get().mood,
-        dead: data.dead.present,
-        leader: follows === undefined ? undefined : Game.Entity.id(follows.leader),
-      }
-    }),
-    dogs: queries.leashed.each().map(({ data }) => ({
-      ...data.pose.get(),
-      species: data.animal.get().species,
-      leader: Game.Entity.id(data.follows.get().leader),
-    })),
-  }),
-)
+import { GRAGNOLA, ISOLATED, RURAL, share, VINCA } from "./spots.ts"
 
 /** The darker skin tones `lookOf` draws for a few people (looks.ts `DARKER_SKIN`). */
 const DARKER_SKIN: ReadonlySet<number> = new Set([0xa8704f, 0x8a5a3c, 0x6b4630, 0x4a2f20])
@@ -97,8 +48,6 @@ const Startup = Game.Inspector(
   }),
 )
 
-const share = <A>(items: ReadonlyArray<A>, is: (a: A) => boolean) =>
-  items.filter(is).length / items.length
 const mean = (xs: ReadonlyArray<number>) => xs.reduce((a, b) => a + b, 0) / xs.length
 
 test("looks: sexes, heights, hair and clothes by age, as the people of the Lunigiana villages", () => {
@@ -261,13 +210,6 @@ test("parties: a family shares its origin, and a parent's natural hair runs in i
   assert.ok(mean(kidsHair) > mean(natural.map((p) => ladder.indexOf(p.leader.hair))) + 0.3)
 })
 
-/** Calibrated spots: the village centres, and the SR445 between Gragnola and Monzone, with no house within 140 m. */
-const GRAGNOLA = { x: -1751.2, y: 3360.4 },
-  VINCA = { x: 2273, y: -2620 },
-  RURAL = { x: -279, y: 3736 }
-/** A lane by a lone house or two, between Equi Terme and Monzone: residents nearby, none of the walk edges around it peopled. */
-const ISOLATED = { x: 1049, y: 1388 }
-
 test("density: as many people are out as live nearby, and nobody on a country road or by a lone house", () => {
   const spots = [
     [-1751, 3360],
@@ -341,69 +283,6 @@ test("walk choice: a walker turns back only at a dead end", () => {
   assert.equal(step.forward, graph.edges[only!]!.a === end, "back out of the dead end")
 })
 
-/** A runtime with the player standing at `at` (nobody else about yet), and a reader of its people. */
-const standAt = (at: Vec2.Vec2) => {
-  const sim = start([], [{ ...at, angle: 0 }])
-  assert.ok(sim.runtime.tick(Game.Schedule(teleport({ ...at, angle: 0 }))).ok)
-  return { ...sim, people: () => sim.runtime.inspect(People) }
-}
-
-// A centre fills once and few join later, and 9 % of parties walk a dog (PARTY_WEIGHTS), so one
-// seeded fill may draw none: Gragnola's has drawn none since the rail moved onto the CTR (240 s
-// watched). The sightings of both centres count.
-test("populate: Gragnola's and Vinca's centres fill to their targets in parties; kids and dogs keep beside their grown-up", () => {
-  let dogs = 0
-  // How far each kid walking with its walking parent is from it, every half second.
-  const gaps: Array<number> = []
-  for (const centre of [GRAGNOLA, VINCA]) {
-    const { run, people } = standAt(centre)
-    const target = peopleOut(centre.x, centre.y)
-    let most = 0
-    run(2400, (frame) => {
-      if (frame % 30 !== 29) return
-      const { people: all, dogs: leashed } = people()
-      const living = all.filter((p) => !p.dead)
-      most = Math.max(most, living.length)
-      assert.ok(
-        living.length <= Math.min(PEDESTRIANS.max, target + 2),
-        `${living.length} people out`,
-      )
-      const byId = new Map(all.map((p) => [p.id, p]))
-      for (const kid of all.filter((p) => p.look.age === "kid")) {
-        const parent = kid.leader === undefined ? undefined : byId.get(kid.leader)
-        assert.ok(parent !== undefined && parent.look.age !== "kid", "a kid is never out alone")
-        if (parent.mood === "walk" && kid.mood === "walk") gaps.push(Vec2.distance(kid, parent))
-      }
-      for (const dog of leashed) {
-        const owner = byId.get(dog.leader)
-        if (owner?.mood !== "walk") continue
-        dogs++
-        assert.ok(
-          dog.species === "dog" && Vec2.distance(dog, owner) < 6,
-          `dog ${Vec2.distance(dog, owner).toFixed(2)} m from its owner`,
-        )
-      }
-    })
-    assert.ok(most >= target - 2, `${centre.x}: ${most} people out of a target of ${target}`)
-  }
-  assert.ok(gaps.length > 0 && dogs > 0, `${gaps.length} kid and ${dogs} dog sightings`)
-  // Kids walk beside their parent: a kid left behind by a flight (it runs slower) catches up within a few seconds.
-  assert.ok(
-    share(gaps, (d) => d < 2) > 0.9 && Math.max(...gaps) < 6,
-    `kids from their parent: ${gaps.map((d) => d.toFixed(1)).join(" ")}`,
-  )
-})
-
-test("populate: nobody comes out on the rural road or by a lone house over a minute", () => {
-  for (const at of [RURAL, ISOLATED]) {
-    const { run, people } = standAt(at)
-    run(3600, (frame) => {
-      if (frame % 60 === 59)
-        assert.equal(people().people.length, 0, `people out at ${at.x},${at.y}`)
-    })
-  }
-})
-
 test("first fill: at the start the village is already peopled, in view as well as out of it, and its cats are out", () => {
   const at = MAP.spawns.player
   const target = peopleOut(at.x, at.y)
@@ -450,80 +329,4 @@ test("first fill: at the start the village is already peopled, in view as well a
     `${mean.toFixed(2)} people within 45 m on average, against ${inView.toFixed(2)}`,
   )
   assert.ok(catsNear > 0, "cats within 45 m")
-})
-
-/** Everyone out talking: where they stand and whom they face. */
-const Talkers = Game.Inspector(
-  "Test/Talkers",
-  {
-    queries: {
-      people: Game.Query({
-        selection: { pose: Game.Query.read(Pose), ped: Game.Query.read(Pedestrian) },
-      }),
-    },
-  },
-  ({ queries }) =>
-    queries.people
-      .each()
-      .map(({ entity, data }) => ({ id: entity.id, ...data.pose.get(), ...data.ped.get() })),
-)
-
-test("parties: neighbours stop in the street to talk face to face, then go their ways", () => {
-  let pairs = 0,
-    natural = 0
-  // Most chats at the start are broken off by the traffic, a horn or a crash: of the 13 pairs over seeds 1-20, 4 ran their course.
-  for (const seed of [9, 10, 11, 12, 13, 14, 15, 16]) {
-    const made = makeRuntime({
-      seed,
-      services: Game.Runtime.services(
-        Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, [])),
-      ),
-    })
-    // By Monzone station: no train, as in every test that does not ask for one.
-    assert.ok(made.ok && made.value.tick(noTrains, setup).ok)
-    const runtime = made.value
-    const talking = runtime.inspect(Talkers).filter((p) => p.mood === "chat")
-    const partner = new Map<number, number>()
-    for (const p of talking) {
-      // Each faces the other, a conversation's distance away.
-      const other = talking.find(
-        (o) => o.id !== p.id && Vec2.distance(o, { x: p.fx, y: p.fy }) < 0.01,
-      )
-      assert.ok(other !== undefined && Vec2.distance(p, other) < 1.5, `${p.id} talks to nobody`)
-      assert.ok(
-        Vec2.distance({ x: other.fx, y: other.fy }, p) < 0.01,
-        `${p.id} and ${other.id} face each other`,
-      )
-      partner.set(p.id, other.id)
-    }
-    pairs += talking.length / 2
-    if (talking.length === 0) continue
-    // The chat ends within two minutes, and each walks off its own way: 3 s after a chat that ran its course, the two are well
-    // apart (one broken off by a passing car or a horn ends with both looking, where they stand). Once out of it, a talker may
-    // meet someone and stop for a new chat (perceive.ts), so what counts is leaving the chat it began in.
-    const ended = new Set<number>(),
-      left = new Set<number>()
-    for (let step = 1; step <= 125 * 60; step++) {
-      assert.ok(runtime.tick(update).ok)
-      const now = runtime.inspect(Talkers)
-      for (const p of talking) {
-        const me = now.find((o) => o.id === p.id),
-          other = now.find((o) => o.id === partner.get(p.id))
-        if (me?.mood !== "chat") left.add(p.id)
-        if (me === undefined || other === undefined) continue
-        if (step === p.until - 1 && me.mood === "chat" && other.mood === "chat") ended.add(p.id)
-        if (ended.has(p.id) && step === p.until + 180) {
-          assert.ok(
-            Vec2.distance(me, other) > 3,
-            `seed ${seed}: ${p.id} and ${other.id} ${Vec2.distance(me, other).toFixed(2)} m apart 3 s after parting`,
-          )
-        }
-      }
-    }
-    natural += ended.size / 2
-    for (const p of talking)
-      assert.ok(left.has(p.id), `seed ${seed}: ${p.id} still talking after two minutes`)
-  }
-  assert.ok(pairs >= 2, `${pairs} pairs of neighbours talking at the start over 8 seeds`)
-  assert.ok(natural >= 1, `${natural} chats ran their course`)
 })

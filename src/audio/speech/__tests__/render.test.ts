@@ -4,48 +4,17 @@ import { test } from "node:test"
 import { measure } from "../../measure.ts"
 import { lineFor } from "../lines.ts"
 import { tokenize } from "../phonemes.ts"
-import { lineSeconds, PAD, planLine } from "../plan.ts"
+import { PAD, planLine } from "../plan.ts"
 import { renderPlan, renderSpeech } from "../render.ts"
 import { f0Of, seeded, stretch } from "../testing.ts"
-import type { Line, Situation, Speaker, Tune } from "../types.ts"
+import type { Line, Speaker, Tune } from "../types.ts"
+import { MAN, RATE, rms, SITUATIONS, SPEAKERS } from "./speakers.ts"
 
-const RATE = 48000
-const MAN: Speaker = { voice: 0.5, age: "adult", female: false }
-const SPEAKERS: ReadonlyArray<Speaker> = [
-  MAN,
-  { voice: 0.2, age: "adult", female: true },
-  { voice: 0.7, age: "kid", female: false },
-  { voice: 0.9, age: "elder", female: true },
-  { voice: 0.1, age: "elder", female: false },
-]
-const SITUATIONS: ReadonlyArray<Situation> = [
-  "greet",
-  "chat",
-  "reply",
-  "laugh",
-  "farewell",
-  "fright",
-  "shock",
-  "pity",
-  "anger",
-  "surprise",
-  "helpMan",
-  "helpWoman",
-  "helpKid",
-  "grieve",
-  "mum",
-  "dad",
-  "nonna",
-  "nonno",
-  "thief",
-]
 const line = (words: ReadonlyArray<ReadonlyArray<string>>, tune: Tune = "say"): Line => ({
   text: words.map((w) => w.join("")).join(" "),
   words,
   tune,
 })
-const rms = (samples: Float32Array) =>
-  Math.sqrt(samples.reduce((s, v) => s + v * v, 0) / samples.length)
 
 /** The F0 over the first 50 ms of the first vowel and the last 50 ms of the last, Hz. */
 const ends = (l: Line, speaker: Speaker, loud = false) => {
@@ -59,25 +28,6 @@ const ends = (l: Line, speaker: Speaker, loud = false) => {
     last: f0Of(stretch(out, RATE, last.end - 0.06, last.end - 0.01), RATE),
   }
 }
-
-test("every line renders clean: peak ≈ 0.5, no NaN, starting silent and ringing out to silence, as long as lineSeconds", () => {
-  const random = seeded(1)
-  for (const situation of SITUATIONS)
-    for (const speaker of SPEAKERS)
-      for (const loud of [false, true]) {
-        const l = lineFor(situation, random),
-          out = renderSpeech({ speaker, line: l }, loud, RATE, random),
-          m = measure([out], RATE)
-        assert.ok(!m.nan, l.text)
-        assert.ok(m.peak >= 0.4 && m.peak <= 0.6, `${l.text}: peak ${m.peak}`)
-        assert.ok(Math.abs(out.length / RATE - lineSeconds(l, speaker, loud)) < 0.001, l.text)
-        // The tract rings into the trailing pad (≈ −66 dB re the peak 10 ms from the end), the fade takes the rest.
-        assert.ok(
-          rms(out.subarray(0, RATE * 0.01)) < 1e-3 && rms(out.subarray(-RATE * 0.005)) < 1e-3,
-          `${l.text}: not silent at the ends`,
-        )
-      }
-})
 
 test("the same seed renders the same samples", () => {
   const speech = { speaker: MAN, line: lineFor("chat", seeded(2)) }

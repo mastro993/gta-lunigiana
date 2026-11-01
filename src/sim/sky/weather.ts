@@ -82,7 +82,7 @@ const SETTLED = 1e9
  * each °C above 0 at the line (1 m an hour), twice that under rain. Design values: Capozzi et al.
  * (2025, The Cryosphere 19:565, CC BY 4.0) count 12.9, 22.0, 33.4 and 59.4 snow-cover days from
  * November to April at 648, 815, 1000 and 1290 m in the central and southern Apennines; near 42 N
- * the snow lies on 0.6–0.9 of them (calibration.test.ts), as many as its snowfall days reach of theirs.
+ * the snow lies on 0.6–0.9 of them (calibration.long-test.ts), as many as its snowfall days reach of theirs.
  */
 const SNOWING = 150 / 3600
 const MELTING = 1 / 3600

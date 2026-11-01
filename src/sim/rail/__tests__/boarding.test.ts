@@ -18,7 +18,7 @@ import {
 } from "../boarding.ts"
 import { LINES, pointAt } from "../lines.ts"
 import { TRAINS, trainLength } from "../models.ts"
-import { MONZONE, stopOf, UNDER_ROAD } from "../testing.ts"
+import { MONZONE, stopOf, underRoad } from "../testing.ts"
 
 const line = LINES[MONZONE.line]!,
   LENGTH = trainLength("atr220"),
@@ -176,9 +176,9 @@ test("boarding: getting out along a station's platforms, the player steps down o
 })
 
 test("boarding: under a road bridge someone gets out of the cab onto the track's level beside it, not the deck above; only someone on the track's level there, not on the deck, gets in", () => {
-  const under = { ...motion(), s: UNDER_ROAD + door, prev: UNDER_ROAD + door }
+  const under = { ...motion(), s: underRoad() + door, prev: underRoad() + door }
   const spot = exitSpot(line, under, "atr220", 0, [1, -1])!,
-    rail = pointAt(line, UNDER_ROAD).z
+    rail = pointAt(line, underRoad()).z
   assert.ok(Math.abs(footZ(spot.x, spot.y, rail) - rail) < 2, "beside the track")
   assert.ok(footZ(spot.x, spot.y) - rail > 2, "the deck over it")
   const d = doorsOf(line, under, "atr220")[0]!,

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP, TILE } from "../../sim/map/index.ts"
+import { TILE } from "../../sim/map/index.ts"
 import { chunkTiles } from "../chunk-tiles.ts"
 import { CHUNKS, chunkOf, chunkRect } from "../chunks.ts"
 import { bucketPieces } from "../world.ts"
-import { buildsWithSomeTiles, checkPlan } from "./chunk-tile-checks.ts"
+import { checkPlan } from "./chunk-tile-checks.ts"
 
 // chunk-tiles.map-test.ts (pnpm test:map) checks every tile, chunk and spot of the map; these, the
 // tiles and spots round Monzone.
@@ -56,20 +56,4 @@ test("chunk tiles: a piece that reads the ground across a seam far from what it 
     "its square reaches no other tile",
   )
   assert.ok(tiles.needs[key]!.includes(tiles.index.get("1_0")!), "its reads box does")
-})
-
-/** Monzone station. */
-const STATION = { x: -493.8, y: 436.9 }
-const near = ([x, y]: readonly [number, number]) => Math.hypot(x - STATION.x, y - STATION.y) < 1000
-
-test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those, by Monzone", () => {
-  // The tile corner (0, 0) by Monzone, and the level crossing and platforms by its station.
-  const spots: ReadonlyArray<readonly [number, number]> = [
-    [0, 0],
-    ...MAP.railway.crossings.map(({ x, y }) => [x, y] as const).filter(near),
-    ...MAP.railway.platforms.map(({ axis }) => [axis[0]!, axis[1]!] as const).filter(near),
-  ]
-  assert.ok(spots.length >= 3, `${spots.length} spots`)
-  const built = buildsWithSomeTiles(spots)
-  assert.ok(built > 100, `${built} chunks built with some tiles out`)
 })

@@ -1,17 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { Clock } from "@typeonce/ritmo"
 import { Vec2 } from "@typeonce/ritmo-math"
 
 import { stageOf } from "../damage.ts"
-import { MAP } from "../map/index.ts"
-import { laneOf, lanePoint, laneSide, walkIndex } from "../route.ts"
+import { walkIndex } from "../route.ts"
 import { Game } from "../schema.ts"
 import { parkedCar, pedestrian } from "../spawning.ts"
-import { WASTED } from "../systems/explosions.ts"
 import {
-  BATTISTI,
   battistiTraffic,
   burning,
   door,
@@ -22,14 +18,8 @@ import {
   teleport,
   wear,
 } from "../testing.ts"
+import { on } from "./battisti-lane.ts"
 
-const lane = laneOf(BATTISTI.edge, BATTISTI.forward)
-/** A spot `along` m down the Battisti lane, `out` m to its left (toward the north verge). */
-const on = (along: number, out = 0) => {
-  const p = lanePoint(lane, along, laneSide(BATTISTI, "panda")),
-    left = { x: -lane.dy, y: lane.dx }
-  return { x: p.x + left.x * out, y: p.y + left.y * out, angle: ON_BATTISTI.angle }
-}
 /** A pedestrian standing `out` m to the side of the wreck at `along` m, on the nearest walk edge. */
 const bystander = (along: number, out: number) => {
   const at = on(along, out)
@@ -135,57 +125,6 @@ test("explosions: people on foot die near the blast and stay down, those farther
     "the dead stay down; the knocked get up",
   )
   assert.equal(ped(killed!).mood, "walk", "the dead never flee")
-})
-
-test("explosions: the player sitting in the wreck dies with it, out of its door; 4 s later they come back on foot at the start", () => {
-  const { runtime, run, view, world } = start(press(0, "action"), [
-    door(on(30)),
-    { cars: [parkedCar("panda", 0x3d6155, on(30))] },
-  ])
-  run(2)
-  assert.equal(view()?.mode, "driving")
-  assert.ok(runtime.tick(wear(1)).ok)
-  const modes: Array<string> = []
-  let died = -1
-  run(900, (frame) => {
-    const mode = view()!.mode
-    if (modes.at(-1) !== mode) modes.push(mode)
-    if (died < 0 && mode === "dead") died = frame
-  })
-  assert.deepEqual(modes, ["driving", "dead", "foot"])
-  const me = view()!
-  assert.ok(
-    Vec2.distance(me.pose, MAP.spawns.player) < 1,
-    `back at the start: ${JSON.stringify(me.pose)}`,
-  )
-  assert.equal(
-    world().vehicles.some((v) => v.damage.exploded),
-    true,
-  )
-  // Lying dead the whole of WASTED, offered nothing to do.
-  const back = start(press(0, "action"), [
-    door(on(30)),
-    { cars: [parkedCar("panda", 0x3d6155, on(30))] },
-  ])
-  back.run(2)
-  assert.ok(back.runtime.tick(wear(1)).ok)
-  let deadFor = 0
-  const counted: Array<number> = []
-  back.run(900, () => {
-    const me = back.view()!
-    if (me.mode === "dead") {
-      deadFor++
-      assert.equal(me.nearby, undefined)
-      counted.push(me.respawnIn!)
-    } else assert.equal(me.respawnIn, undefined)
-  })
-  assert.ok(Math.abs(deadFor - Clock.steps(WASTED)) <= 1, `dead for ${deadFor} steps`)
-  // The host reads how long until the respawn (it fetches the start's tiles first): one step less each step, down to 0.
-  assert.ok(counted.every((left, k) => k === 0 || left === counted[k - 1]! - 1))
-  assert.ok(
-    counted.at(-1)! <= 1 && counted[0]! >= Clock.steps(WASTED) - 1,
-    JSON.stringify([counted[0], counted.at(-1)]),
-  )
 })
 
 test("explosions: the player on foot by a wreck dies too; inside another car they are shielded by it", () => {

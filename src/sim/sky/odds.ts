@@ -131,7 +131,7 @@ export interface DayOdds {
  * snowfall as a rain day whose air while it falls is under the phase rule's half point (`HALF_SNOW`): the day's mean normal at z, the
  * wet day's offset, the day's air mass (a Gaussian of `AIR_MASS.spread`) and the hour's swing (`RAIN_SWING`), and its event's own air
  * and cooling at its typical rate (a cold outbreak's cold front, frontal rain or a thunderstorm). How much of it is snow is left out,
- * so it reads the weather's own snowfall days within about a third (calibration.test.ts).
+ * so it reads the weather's own snowfall days within about a third (calibration.long-test.ts).
  */
 export const oddsAt = (t: number, lat: number = place().lat, z = 0): DayOdds => {
   const month = romeMonth(t),

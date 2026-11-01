@@ -11,55 +11,24 @@ import {
   Pose,
   type PoseValue,
   PrevPose,
-  SetPlayer,
   Vehicle,
 } from "../index.ts"
 import { MAP } from "../map/index.ts"
-import { CARABINIERI, carOn, PARKED, PARKING, pristine, spotsWithin } from "../population/parked.ts"
+import { PARKED, PARKING } from "../population/parked.ts"
 import { parkedCar } from "../spawning.ts"
 import { TRAFFIC } from "../systems/populate.ts"
-import { door, press, start } from "../testing.ts"
+import { door, start } from "../testing.ts"
 import { VIEW_REACH } from "../view.ts"
+import { type Run, FIRST, go, inFirst, outFrom, spotPose, START, VILLAGES } from "./parking.ts"
 
-const START = MAP.spawns.player
 /** No car is parked within this of a person or an animal, m (`ROOM` in systems/populate-parked.ts). */
 const ROOM = 1
-const spotPose = (index: number): PoseValue => {
-  const { x, y, angle } = MAP.spawns.parked[index]!
-  return { x, y, angle }
-}
-/** The spot nearest the start that seed 1 parks a Panda on. */
-const FIRST = spotsWithin(START, PARKING.fill[1])
-  .filter((i) => carOn(1, i)?.model === "panda")
-  .reduce((a, b) =>
-    Vec2.distanceSquared(spotPose(b), START) < Vec2.distanceSquared(spotPose(a), START) ? b : a,
-  )
-/** The point `m` m from `to` toward `from`, facing `to`. */
-const outFrom = (to: Vec2.Vec2, from: Vec2.Vec2, m: number): PoseValue => {
-  const d = Math.max(Vec2.distance(to, from), 1e-9),
-    ux = (from.x - to.x) / d,
-    uy = (from.y - to.y) / d
-  return { x: to.x + ux * m, y: to.y + uy * m, angle: Ops.atan2(-uy, -ux) }
-}
 /** The point `m` m along `pose`'s heading. */
 const along = (pose: PoseValue, m: number): PoseValue => ({
   ...pose,
   x: pose.x + Ops.cos(pose.angle) * m,
   y: pose.y + Ops.sin(pose.angle) * m,
 })
-type Run = ReturnType<typeof start>
-/** Sends the player (and the car they drive) to `at` and runs `frames` frames. */
-const go = (game: Run, at: PoseValue, frames: number, each?: () => void) => {
-  game.runtime.send(SetPlayer, at)
-  game.run(frames, each)
-}
-/** A game on seed 1 whose player has got into the Panda parked at `FIRST`. */
-const inFirst = () => {
-  const game = start(press(10, "action"))
-  go(game, door(spotPose(FIRST)), 20)
-  assert.equal(game.view()?.mode, "driving")
-  return game
-}
 /** The parked cars `game` holds within 300 m of `at`: each spot's model and paint. */
 const looks = (game: Run, at: Vec2.Vec2) =>
   new Map(
@@ -102,69 +71,6 @@ const touch = (
       },
     ),
   )
-
-/** The villages a drive across the map nears, by their HUD districts. */
-const VILLAGES = [
-  "Monzone (Stazione)",
-  "Monzone Alto",
-  "Equi Terme",
-  "Gragnola",
-  "Colognola",
-  "Campiglione",
-  "Viano",
-  "Vinca",
-  "Ugliancaldo",
-  "Tenerano",
-]
-
-test("parking: driving across the map, every village has traffic and parked cars once the player nears it, new ones come out of view, and the vehicles stay within 200 parked and 10 traffic", () => {
-  const game = inFirst()
-  const seen = new Set(game.world().vehicles.map((v) => v.id))
-  const check = () => {
-    const me = game.view()!.pose,
-      { vehicles } = game.world()
-    const traffic = vehicles.filter((v) => v.traffic).length
-    assert.ok(traffic <= TRAFFIC.max, `${traffic} traffic cars`)
-    assert.ok(vehicles.length - traffic <= PARKED, `${vehicles.length - traffic} parked`)
-    for (const v of vehicles) {
-      if (seen.has(v.id)) continue
-      seen.add(v.id)
-      assert.ok(
-        Vec2.distance(v, me) >= VIEW_REACH,
-        `a ${v.model} came ${Vec2.distance(v, me).toFixed(1)} m from the player`,
-      )
-    }
-  }
-  let from: Vec2.Vec2 = START
-  for (const name of VILLAGES) {
-    const village = MAP.districts.find((d) => d.name === name)!
-    // From 400 m out, 50 m every half second, on the way from the last village.
-    for (let m = 400; m >= 0; m -= 50) go(game, outFrom(village, from, m), 30, check)
-    game.run(60, check)
-    const { vehicles } = game.world()
-    assert.ok(
-      vehicles.some((v) => v.parked !== undefined && Vec2.distance(v, village) <= PARKING.fill[1]),
-      `parked cars in ${name}`,
-    )
-    assert.ok(
-      vehicles.some((v) => v.traffic && Vec2.distance(v, village) <= TRAFFIC.despawn),
-      `traffic in ${name}`,
-    )
-    assert.ok(
-      vehicles
-        .filter((v) => v.parked !== undefined && pristine(v.parked, v, v.damage))
-        .every((v) => Vec2.distance(v, village) <= PARKING.despawn),
-      `in ${name}, every untouched parked car is within ${PARKING.despawn} m`,
-    )
-    from = village
-  }
-  const carabinieri = game.world().vehicles.filter((v) => v.model === "carabinieri")
-  assert.deepEqual(
-    carabinieri.map((v) => [v.x, v.y]),
-    CARABINIERI.map((i) => [spotPose(i).x, spotPose(i).y]),
-    "the Carabinieri stay at their station",
-  )
-})
 
 test("parking: after a jump into a village, no car is parked within 1 m of a person or an animal, those brought out in the same half second included", () => {
   // Seed 1 at Campiglione and seed 3 at Monzone Alto, Viano and Vinca once parked a car on people who came out in its step.

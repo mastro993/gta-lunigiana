@@ -171,12 +171,13 @@ Every script runs with `pnpm`:
 | `pnpm dev` | Vite dev server on port 5173, open to the local network (`--host`) |
 | `pnpm build` | production build into `dist/` (the Pages workflow adds `--base=./`) |
 | `pnpm preview` | serves `dist/` on port 4173 |
-| `pnpm check` | `format:check`, then `typecheck`, then `lint`, then `test`, then `test:map` |
+| `pnpm check` | `format:check`, then `typecheck`, then `lint`, then `test`, then `test:long`, then `test:map` |
 | `pnpm format` | `oxfmt`: formats the code, JSON, YAML, HTML and CSS in place |
 | `pnpm format:check` | `oxfmt --check`: fails on any unformatted file |
 | `pnpm typecheck` | `tsc` (no emit) |
 | `pnpm lint` | type-aware `oxlint` with the Ritmo plugin and the project's own (`lint/`), warnings failing, then `ritmo-devtools lint src/lint.ts` |
-| `pnpm test` | `node --test` over `src/**/*.test.ts` and `lint/**/*.test.ts`, each in a `__tests__` folder beside the module it tests; none of them checks every tile or feature of the map |
+| `pnpm test` | `node --test` over `src/**/*.test.ts` and `lint/**/*.test.ts`, each in a `__tests__` folder beside the module it tests; none of them checks every tile or feature of the map or takes 0.4 s or more alone, so it runs in about 11 s on a 14-core Mac |
+| `pnpm test:long` | `node --test` over `src/**/*.long-test.ts`: the long checks (joyrides and replays, statistics over many seeds or renders, the weather calibration), each about 0.4 s or more alone |
 | `pnpm test:map` | `node --test` over `src/**/*.map-test.ts`: the map checks, over every tile, chunk and feature of the built maps (run it after `pnpm map`) |
 | `pnpm maps` | builds both maps and the L test region: `pnpm map`, then `pnpm map --region cesena`, then `pnpm map --region lunigiana-l` |
 | `pnpm map` | rebuilds `src/sim/map/monzone.bin` and its tiles (`src/sim/map/monzone/`) from `data/raw`, baking the tables the game reads from them |

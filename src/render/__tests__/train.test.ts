@@ -6,7 +6,7 @@ import { Box3, Mesh, Vector3 } from "three"
 import { terrainZ } from "../../sim/map/ground.ts"
 import { curvatureAt, LINES, pointAt } from "../../sim/rail/lines.ts"
 import { TRAINS, trainLength } from "../../sim/rail/models.ts"
-import { MONZONE, RAIL_BRIDGE } from "../../sim/rail/testing.ts"
+import { MONZONE, railBridge } from "../../sim/rail/testing.ts"
 import type { TrainMotionValue } from "../../sim/schema.ts"
 import { solidMaterial } from "../geometry.ts"
 import { yOf } from "../ground.ts"
@@ -74,7 +74,7 @@ test("every car stands on the rail head under its pivots: at grade, on a deck ov
   assert.ok(1 / Math.abs(curvatureAt(line, CURVE)) < 200, "a sharp curve")
   for (const [where, s] of [
     ["Monzone's platforms", STATION],
-    ["the highest deck", RAIL_BRIDGE],
+    ["the highest deck", railBridge()],
     ["the sharpest curve", CURVE],
   ] as const)
     for (const facing of [1, -1] as const) {
@@ -82,7 +82,7 @@ test("every car stands on the rail head under its pivots: at grade, on a deck ov
       assert.ok(off < 0.02, `${where}, facing ${facing}: a pivot ${off} m off the rails`)
     }
   // On the deck, not in the valley under it.
-  for (const car of drawn(RAIL_BRIDGE, 1).cars)
+  for (const car of drawn(railBridge(), 1).cars)
     assert.ok(car.position.y - yOf(terrainZ(car.position.x, -car.position.z)) > 10)
 })
 

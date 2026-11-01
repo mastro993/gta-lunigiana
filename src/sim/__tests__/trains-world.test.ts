@@ -12,14 +12,7 @@ import { LEVEL, onLevel } from "../rail/bodies.ts"
 import { LINES, linesNear, pointAt, speedAt } from "../rail/lines.ts"
 import { isHeld } from "../rail/models.ts"
 import { trainDraft } from "../rail/service.ts"
-import {
-  aiTrain,
-  DOWN_TO_BOX,
-  MONZONE,
-  OVER_ROAD,
-  placeTrains,
-  UNDERPASS_WAYS,
-} from "../rail/testing.ts"
+import { aiTrain, downToBox, overRoad, placeTrains, underpassWays } from "../rail/testing.ts"
 import {
   endNode,
   laneOf,
@@ -35,17 +28,8 @@ import { animal, pedestrian, trafficCar } from "../spawning.ts"
 import { footingAt } from "../systems/footing.ts"
 import { flood, LOOK, start, teleport } from "../testing.ts"
 import { waterUnder } from "../water/rivers.ts"
-
-const S = 60,
-  line = LINES[MONZONE.line]!
-/** The rivers in a spate (125 m³/s at the Soliera gauge), m³/s per km², as water.test.ts has them. */
-const SPATE = 0.6
-
-/** `bodies` as plain data without their entity ids (and their leaders'), which a train spawned before them shifts. */
-const anonymous = (bodies: ReadonlyArray<object>) =>
-  bodies.map((body) =>
-    Object.fromEntries(Object.entries(body).filter(([key]) => key !== "id" && key !== "leader")),
-  )
+import { SPATE } from "./flows.ts"
+import { anonymous, line, S } from "./railway.ts"
 
 /** Which side of the line's centreline a point lies on (±1) and how far off it is, m, by the line's nearest point. */
 const sideOf = (p: { readonly x: number; readonly y: number }) => {
@@ -207,10 +191,10 @@ test("trains: a swimmer swept under a rail bridge over the river in a spate is n
 })
 
 test("trains: someone on the track over a road tunnel is on the train's level: the player there is struck, and an AI driver holds for a man there", () => {
-  const at = pointAt(line, OVER_ROAD)
+  const at = pointAt(line, overRoad())
   assert.ok(at.z - footZ(at.x, at.y) > 2, "the tunnel's floor lies under the track there")
   // The player on the track, a driverless train 25 m off at 30 m/s.
-  const runaway = trainDraft("atr220", { line: line.index, s: OVER_ROAD - 25, facing: 1, v: 30 })
+  const runaway = trainDraft("atr220", { line: line.index, s: overRoad() - 25, facing: 1, v: 30 })
   const struck = start([], [{ x: at.x, y: at.y, angle: 0 }, { trains: [runaway] }], {
     trains: true,
     alone: true,
@@ -228,7 +212,7 @@ test("trains: someone on the track over a road tunnel is on the train's level: t
     { edge, forward: true, side: 0 },
     { mood: "look", until: 100 * S, fx: at.x + 20, fy: at.y },
   )
-  const s = OVER_ROAD - 300
+  const s = overRoad() - 300
   const held = start(
     [],
     [
@@ -249,8 +233,8 @@ test("trains: someone on the track over a road tunnel is on the train's level: t
 })
 
 test("trains: walking into a road underpass along the road, someone stays on its floor under the track, the bank the terrain smears over its mouths no matter: the player there is not struck by a train passing over", () => {
-  assert.ok(UNDERPASS_WAYS.length >= 4, `${UNDERPASS_WAYS.length} ways in`)
-  for (const { road, walk, s } of UNDERPASS_WAYS) {
+  assert.ok(underpassWays().length >= 4, `${underpassWays().length} ways in`)
+  for (const { road, walk, s } of underpassWays()) {
     let z = footingAt(undefined, walk[0]!.x, walk[0]!.y)
     for (const p of walk.slice(1)) z = footZ(p.x, p.y, z)
     const end = walk.at(-1)!
@@ -260,8 +244,8 @@ test("trains: walking into a road underpass along the road, someone stays on its
     )
   }
   // The player walks in along the first tunnel's ways, stands under the track, and a driverless train passes over at 25 m/s.
-  for (const { road, walk, s } of UNDERPASS_WAYS.filter(
-    (way) => way.road === UNDERPASS_WAYS[0]!.road,
+  for (const { road, walk, s } of underpassWays().filter(
+    (way) => way.road === underpassWays()[0]!.road,
   )) {
     const game = start([], [{ ...walk[0]!, angle: 0 }, {}], { trains: true, alone: true })
     for (const p of walk) {
@@ -286,7 +270,7 @@ test("trains: walking into a road underpass along the road, someone stays on its
 // Regression: nothing tested that a footing follows its body, so one frozen at its first value passed every test, and someone
 // who walked down a road onto a crossing kept the level they came from: a train passed through them.
 test("trains: walking down a road onto a level crossing, someone comes onto the rail's level, and a train passing over strikes them", () => {
-  const { way, s } = DOWN_TO_BOX,
+  const { way, s } = downToBox(),
     fall = footingAt(undefined, way[0]!.x, way[0]!.y) - pointAt(line, s).z
   assert.ok(fall > 2 * LEVEL, `the road ${fall.toFixed(1)} m over the rail 50 m out`)
   const game = start([], [{ ...way[0]!, angle: 0 }, {}], { trains: true, alone: true })
@@ -408,23 +392,4 @@ test("trains: an animal never walks onto the track or over it: a cow at home 6 m
   })
   assert.ok(walked > 0, "it walked about")
   assert.ok(nearest > 3 - FAUNA.cow.radius, `kept ${nearest.toFixed(2)} m off the centreline`)
-})
-
-test("trains: with a train far off, traffic, people, animals and the world's draws are the same as with none", () => {
-  // The train in the Ugliancaldo tunnel, kilometres from the player at Monzone.
-  const tunnel = line.tunnels.reduce((a, b) => (b.to - b.from > a.to - a.from ? b : a)),
-    s = (tunnel.from + tunnel.to) / 2
-  const withTrain = start([], undefined, { trains: true })
-  assert.ok(withTrain.runtime.tick(placeTrains([aiTrain(s, 1, speedAt(line, s))])).ok)
-  const without = start()
-  withTrain.run(20 * S)
-  without.run(20 * S)
-  const a = withTrain.world(),
-    b = without.world()
-  assert.ok(a.vehicles.some((v) => v.traffic) && a.peds.length > 0 && a.trains.length === 1)
-  // Each train spawned shifts the ids of everything spawned after it; nothing else differs.
-  assert.deepEqual(anonymous(a.vehicles), anonymous(b.vehicles))
-  assert.deepEqual(anonymous(a.peds), anonymous(b.peds))
-  assert.deepEqual(anonymous(a.animals), anonymous(b.animals))
-  assert.equal(a.rng, b.rng)
 })

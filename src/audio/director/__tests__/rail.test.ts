@@ -5,7 +5,7 @@ import { groundZ } from "../../../sim/map/ground.ts"
 import { CROSSINGS } from "../../../sim/rail/crossings.ts"
 import { LINES, pointAt } from "../../../sim/rail/lines.ts"
 import { TRAINS } from "../../../sim/rail/models.ts"
-import { RAIL_BRIDGE, RIOLO } from "../../../sim/rail/testing.ts"
+import { railBridge, RIOLO } from "../../../sim/rail/testing.ts"
 import { axesAt, followYaw } from "../../../sim/view.ts"
 import { dbToGain, gainToDb, panOf, spreading } from "../../acoustics.ts"
 import { heardCrossings, trainRevs } from "../../rail.ts"
@@ -55,7 +55,7 @@ test("a train's wheels are a line source: abreast its rear car it rolls about as
     director.hear(world(at, { trains: [train(1, s + 27.8, { v: FAST })] }))
     return gainToDb(director.held().get("rails:1")!.at.gain)
   }
-  const under = passing(beside(RAIL_BRIDGE, 0), RAIL_BRIDGE)
+  const under = passing(beside(railBridge(), 0), railBridge())
   assert.ok(Math.abs(under - passing(beside(OPEN, 22), OPEN)) < 6, `${under}`)
   assert.ok(passing(beside(OPEN, 1.5), OPEN) - under > 10, `${under}`)
   // The voice is given every axle and the joints around them.
@@ -75,8 +75,8 @@ test("a train's brakes squeal braking to a stand, not at speed", () => {
 })
 
 test("in a train's cab the ears ride over its rails, on a rail bridge 20 m over the valley too, behind the cab", () => {
-  const t = train(1, RAIL_BRIDGE, {}, true),
-    cab = beside(RAIL_BRIDGE - 2.5, 0)
+  const t = train(1, railBridge(), {}, true),
+    cab = beside(railBridge() - 2.5, 0)
   const heard = world(cab, { trains: [t] }, 1)
   const seat = seatOf(heard)
   assert.ok(Math.abs(seat.ground - (t.cab + 1.2)) < 1e-9 && seat.inside === "atr220")

@@ -270,7 +270,7 @@ taken straight between them and held beyond the outermost (`atLatitude`).
   each event's own air and cooling at its usual rate: a thunderstorm, frontal rain or, from December
   to March with the air mass 1.5 °C or more under the normal, a cold front. It leaves out how much
   of a day's water is snow, so it reads the weather's own snowfall days within about a third
-  (`calibration.test.ts` holds ×0.7–1.4).
+  (`calibration.long-test.ts` holds ×0.7–1.4).
 
 At 42 N (the year in days; snowfall at sea level and 1000 m):
 
@@ -353,7 +353,8 @@ moment is then a pure function of the plan and the time (`regimeAt`).
 - **Summer time.** A plan's times count seconds since its Rome day's midnight, and a day lasts 23,
   24 or 25 hours, so on the days the clocks change a day's rain falls as long as drawn.
 
-`plan.test.ts` holds the plan to the table over 300 simulated years at 38, 42 and 45.5 N, every
+`plan.long-test.ts` (`pnpm test:long`) holds the plan to the table over 300 simulated years at 38,
+42 and 45.5 N, every
 month's days of rain, heavy rain, rainstorms, thunder, fog, strong wind and overcast, the clear-ish
 share and p11 within their slack or four standard errors; and it checks the calm start, the same
 seed giving the same days, the wet day's shape, the rain at any hour and through midnight, the
@@ -425,7 +426,8 @@ than snapping, and the dev menu can force a regime over the plan.
 
 ## Calibration
 
-The weather as it falls is checked against the table it draws from. `calibration.test.ts` runs
+The weather as it falls is checked against the table it draws from. `calibration.long-test.ts`
+(`pnpm test:long`) runs
 `advanceWeather` for 30 simulated years in half-hour steps (seed 1) at sea level at 38, 42 and
 45.5 N (and on the shipped map's place for its snow cover), recording each Rome day as the
 Aeronautica Militare and SCIA count it:
@@ -859,11 +861,13 @@ Where each part of the weather is set:
 
 ## Tests
 
-The simulation's weather tests, 60 of them, run in about 5.6 s, most of it the 30-year calibration
-(5.5 s):
+The simulation's quick weather tests, 56 of them, run in about 1.5 s; its 6 long ones
+(`pnpm test:long`: the 30-year calibration, the 300 years of plans and the seed after a storm) in about
+5.3 s, most of it the calibration:
 
 ```sh
 node --test src/sim/sky/__tests__/*.test.ts src/sim/__tests__/sky.test.ts
+node --test src/sim/sky/__tests__/*.long-test.ts src/sim/__tests__/sky.long-test.ts
 ```
 
 - `calendar.test.ts` and `astro.test.ts`: the calendar, Rome's summer time, and the sun and moon
@@ -875,9 +879,10 @@ node --test src/sim/sky/__tests__/*.test.ts src/sim/__tests__/sky.test.ts
   summer peak and the south's autumn one, snowfall growing with height and northward and never at
   sea level in summer, and Rome's calendar month.
 - `plan.test.ts`: the calm start, the same seed giving the same days, a wet and a dry day's shape,
-  rain at any hour and through midnight, clock jumps, the first day, the summer-time days, and 300
-  years at three latitudes against the table.
-- `calibration.test.ts`: the weather as it falls against the table, the daily range, and snow
+  rain at any hour and through midnight, clock jumps, the first day and the summer-time days;
+  `plan.long-test.ts`: 300 years at three latitudes against the table.
+- `calibration.long-test.ts` (`pnpm test:long`): the weather as it falls against the table, the
+  daily range, and snow
   ([Calibration](#calibration)).
 - `weather.test.ts`: the regimes' words and targets, the requests, easing, the stopped clock's new
   day, wetting and drying, drizzle, the snow line and meltwater, fog, the cloud bases, wind, the
@@ -887,7 +892,8 @@ node --test src/sim/sky/__tests__/*.test.ts src/sim/__tests__/sky.test.ts
   of the map.
 - `src/sim/__tests__/sky.test.ts`: the clock and the weather in a runtime, requests applied before
   the first update, a forced storm's lightning, the weather seed kept and replayed, the seed alone
-  planning the days, `WeatherRng` kept apart from `Rng`, and a longer braking distance in the rain.
+  planning the days (`sky.long-test.ts`), `WeatherRng` kept apart from `Rng`, and a longer braking
+  distance in the rain.
 - Elsewhere: `handling.test.ts` (wet and snow braking, the lock following grip), `walls.test.ts`
   (traffic on a wet road), `index.test.ts` (determinism and saves at rate 600 with a forced storm),
   the render's `src/render/sky/__tests__/*.test.ts` (the sun and moon over the loaded map's place,

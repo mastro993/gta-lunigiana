@@ -295,7 +295,7 @@ tiles, and only the tiles round the player are in memory (`src/sim/map/tiles.ts`
 them over and lets them go ([Tile streaming](#tile-streaming)); in Node a lookup reads a missing tile
 from disk, and in the browser it throws "map tile i_j not loaded". Which tiles are in memory is never
 observable: every lookup gives the same answer, in the same order, whichever tiles are there and in
-whatever order they came (`tiles.test.ts`, `tiles.map-test.ts`, `seams.test.ts`), so a save holds
+whatever order they came (`tiles.test.ts`, `tiles.map-test.ts`, `seams.long-test.ts`), so a save holds
 nothing of them and the tiles in memory are shared by every runtime. The wall, tree, building and
 edge lookups, the
 per-model lane tables in `src/sim/route.ts` (read from the baked `MAP.lanes`) and the per-model rigs
@@ -304,7 +304,9 @@ threshold) are built once at load, a tile's broad phases the first time a query 
 never change, so they are safe to share between runtimes.
 A rig under a handling off its real values (`rigFor`) is a pure function of the model and the
 `Handling`, derived on first use and cached (the whole cache empties once it holds 64 rigs, 16
-for each of the four models), so it is safe to share too.
+for each of the four models), so it is safe to share too. Its key, the knobs in menu order, is
+kept per handling value read (a `WeakMap`): every car reads the one `Handling` each step, and
+building the key for each was 5 % of a 3-minute joyride's CPU.
 The railway's tables are too, built at load from `MAP.railway`: `LINES` (`src/sim/rail/lines.ts`:
 each line as one polyline in arc length, extended straight past both terminals by its run-outs,
 its speed limits, stations, tunnels and the track it runs on piece by piece, with a 32 m
@@ -1707,8 +1709,9 @@ sky store `SkyView`, and the dev trains store `TrainView`:
 
 ## Checks
 
-`pnpm check` runs the format, type, lint, test and map-test gates in that order; CI runs each as its
-own step, and git hooks run the first three before a commit or push. The lint and the tests read the
+`pnpm check` runs the format, type, lint, test, long-test and map-test gates in that order; CI runs
+each as its own step, and git hooks run the first three before a commit or push. The lint and the
+tests read the
 built maps, which are not in git: CI restores them from its cache, or builds them from the pinned
 inputs and checks a second build on another runner matches ([map.md](map.md#pinned-inputs-and-ci)).
 
@@ -1754,8 +1757,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   oxlint simulation override.
 - `node --test` over every `*.test.ts` in `src` and `lint`. A test lives in a `__tests__` folder
   beside the module it tests (`src/sim/route.ts` is tested by `src/sim/__tests__/route.test.ts`;
-  `test-files/in-tests-folder` enforces it). Beside the unit tests, these guard the architecture:
-  - `determinism` (`src/sim/__tests__/index.test.ts`): `Determinism.check` runs a 600-frame scripted
+  `test-files/in-tests-folder` enforces it). Beside the unit tests, these guard the architecture
+  (where a module's long ones sit in its `*.long-test.ts`, run by `pnpm test:long` below, both
+  files are named):
+  - `determinism` (`src/sim/__tests__/index.long-test.ts`): `Determinism.check` runs a 600-frame
+    scripted
     joyride twice, with the handling off its real values (`SetHandling`), the clock at ten game
     minutes a step (`SetClock { rate: 600 }`: 100 game hours of weather, its days planned from the
     weather seed, the roads wetting and drying under the car), a car crashing into a house wall to
@@ -1770,10 +1776,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     streams and `Parking` come from the save), and plays on identically for 1,200 frames, its
     lightning included (some, and the same); so does one taken while a walker stands shocked by a
     body (a `Witness`), whose choice to gather or run comes out alike.
-    `src/sim/__tests__/animals.test.ts` replays a walk about a farm with its animals, and restores
+    `src/sim/__tests__/animals.test.ts` (and `animals.long-test.ts`) replays a walk about a farm
+    with its animals, and restores
     animals mid-roam and a save taken in the step a car strikes a dog, the cat by it scared in that
     step (`Startle`).
-  - `src/sim/__tests__/sky.test.ts`: the clock in the runtime (08:00 in Rome on the start day, each
+  - `src/sim/__tests__/sky.test.ts` (and `sky.long-test.ts`): the clock in the runtime (08:00 in
+    Rome on the start day, each
     step's rate, none at rate 0, through a save), `SetClock` and `SetWeather` sent before the first
     update still applied, a forced storm's lightning (bolts on the map, with the clock stopped, the
     same in the same game), the weather seed kept through a save and replaying the same days, the
@@ -1782,11 +1790,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/sim/sky/__tests__/*.test.ts`: the calendar (every day from 1900 to 2100, the summer-time
     switches), the sun and the moon against JPL Horizons and USNO, the national normals, the odds
     and the day plan against their tables (300 years at 38, 42 and 45.5 N), the weather as it falls
-    against the table and the snow targets (30 years, `calibration.test.ts`), the weather's steps,
+    against the table and the snow targets (30 years, `calibration.long-test.ts`), the weather's
+    steps,
     ground, fog, wind, storm cell and lightning, and the readout's words; `mapfree.test.ts`: the
     schema, the train models and the map-free sky modules decode no map, and once the map is decoded
     `place()` is its origin and the floor and slope the build baked.
-  - `src/sim/__tests__/trains.test.ts`: the service (a new game's train dwelling at the station
+  - `src/sim/__tests__/trains.test.ts` (and `trains.long-test.ts`): the service (a new game's train
+    dwelling at the station
     nearest the start and its body passing the line's point nearest the start within 2 minutes, for
     seeds 1–8; a train running the whole line both ways, calling at every station within 3 m of its
     stop on dry and wet rail and under snow, never reaching a road box before its arms are down,
@@ -1803,32 +1813,36 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     Monzone over the crossing through its whole cycle, one arriving at a station, one whistling into
     a tunnel), and a save taken while the arms come down playing on alike. Its long runs step the
     railway alone (`railStep` in `src/sim/rail/testing.ts`). Beside it, with the whole `update`:
-    `trains-traffic.test.ts` (a queue at Via Riolo's closed box clear of the box and of the junction
+    `trains-traffic.test.ts` and `trains-traffic.long-test.ts` (a queue at Via Riolo's closed box
+    clear of the box and of the junction
     before it, patient, and a walker holding short of the track, all going on once it opens; a queue
     for a box a standing train holds down honking 6 s after 120 s, and a walker there going another
     way after them; keep-clear at an open box, and of a car standing on the road's axis past the box
     with the widest lanes, no car at cruise standing on the track; the warning's gentle stop or
     clearing; no car onto the track from Via Riolo's south-east arms, the arms down or no room past,
-    nor a truck from the north-west at 13 m/s), `trains-strikes.test.ts` (a car struck at 80 km/h
-    wrecked and thrown off; a car into a standing train taking a wall's hit; the player sprinting
+    nor a truck from the north-west at 13 m/s), `trains-strikes.test.ts` and
+    `trains-strikes.long-test.ts` (a car struck at 80 km/h wrecked and thrown off; a car into a
+    standing train taking a wall's hit; the player sprinting
     into a standing train's side stopped, not knocked down; a train creeping into a car pinned under
     the road bridge shoving it unharmed, one at 6 m/s wrecking it with two hits in all; a car shoved
-    against a wall beside the track (`BESIDE_WALL`) scraped past at a walk, unwrecked and never hit;
+    against a wall beside the track (`besideWall()`) scraped past at a walk, unwrecked and never hit;
     a man on the track running off at the alarm and the train stopping short; a train held for a car
     sounding the horn 10 s, keeping the box ahead down and creeping on; the player stepping on and
     off the track's edge in front of a held train hearing its alarm every 2 s, never two at once;
     someone too near struck, the player killed and back at the start; a `Determinism.check` over 20
     s of a train held, striking and wrecking a car, and a save taken mid-hold playing on alike) and
-    `trains-world.test.ts` (a car and a walker under the two rail bridges by Monzone as with no
+    `trains-world.test.ts` and `trains-world.long-test.ts` (a car and a walker under the two rail
+    bridges by Monzone as with no
     train; a swimmer under the Aulella's rail bridge in a spate as with no train; the player on the
     track over a road tunnel struck, and a man there held for; walking in along every road into the
-    road tunnels under the line (`UNDERPASS_WAYS`), the footing their floor under the track, and the
+    road tunnels under the line (`underpassWays()`), the footing their floor under the track, and the
     player there not struck by a train passing over; walking down a road onto a level crossing
-    (`DOWN_TO_BOX`), struck by a train passing over; animals brought out along the whole line, none
+    (`downToBox()`), struck by a train passing over; animals brought out along the whole line, none
     on its track at grade; a cow over the tunnel unmoved and one beside the track at grade running
     from the train's body and from a whistle, a cow keeping to its side of the track for 3 minutes,
     and traffic, people, animals and `Rng` the same with a train far off as with none) and
-    `trains-driving.test.ts` (the player's train, driven with `liveKeys`, keys a test plays as it
+    `trains-driving.test.ts` and `trains-driving.long-test.ts` (the player's train, driven with
+    `liveKeys`, keys a test plays as it
     goes, through `start`'s `keys`, or seated aboard with `aboard`: a train stolen at Monzone, its
     driver running from the cab's other door; the lever forward ringing Via Riolo's bell before the
     train moves; an AI train boarded at its far cab with its active cab on a bridge, its driver out
@@ -1842,11 +1856,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `Determinism.check` over 30 s of the theft and the drive). `src/sim/rail/__tests__/*.test.ts`:
     the lines (their s, run-outs from the end speeds, points, speed limits, `linesNear`, stops,
     shared track over three synthetic lines, one stretch over their joints; the map's within 4 km of
-    Monzone station, `lines.test.ts`), the cars on their pivots, the crossings' cycle, demand and
+    Monzone station, `lines.test.ts`), the cars on their pivots, the
+    crossings' cycle, demand and
     strike-in (`barriers.test.ts`), the boxes within 4 km of Monzone station (all five today), their
     lines at grade and their approaches with a second box on one road (`crossings.test.ts`), the
     train's dynamics against the FSE poster's figures, the AI driver's stops and limits, and in
-    `service.test.ts` a map whose second line runs the first's track the other way round: every box
+    `service.test.ts` (and `service.long-test.ts`) a map whose second line runs the first's track
+    the other way round: every box
     closing for either line's trains, an AI train keeping behind the other line's, and the
     dispatcher keeping an entry clear of it on their shared run-out, and the two lines' trains
     meeting on it, two AI trains running at each other both stopping 30 m apart, the dispatcher
@@ -1874,7 +1890,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     for 120 steps and moving again once `SetPlayer` brings the player within reach; a destroyed
     traffic car there abandoned only then, reading no tile before; a jump leaving
     no one behind, and 60 steps run with only the target's tiles in memory; `SetPlayer` on foot and
-    driving, and its bad requests dropped. `src/sim/__tests__/seams.test.ts`: two cars driven across
+    driving, and its bad requests dropped. `src/sim/__tests__/seams.long-test.ts`: two cars driven
+    across
     the x = 0 and y = 0 seams on Via Borgo Monzone by the station, every frame's world and the final
     save the same with the tiles read in lazily and dropped every 20 steps as with the nine tiles
     round (0, 0) in memory.
@@ -1882,7 +1899,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     whichever order it came (four boxes by Monzone and on the west edge, the tiles they read and
     their neighbours in, both ways round), every wall whose box overlaps a query found among the
     walls of the tiles within `walls.reach` of it, and a lookup in a tile not in memory throwing
-    with its name. `src/tools/__tests__/bake.test.ts` and `cesena-bake.test.ts`: the parked spots,
+    with its name, and `cellCorners` reading a cell's nodes as four `nodeAt` calls do round Monzone
+    station's seams. `src/tools/__tests__/bake.test.ts` and `cesena-bake.test.ts`: the parked spots,
     water beds and farms within 1 km of Monzone station and of Cesena's start are what the game's
     code makes of them now ([map.md](map.md#checks-and-tools)).
   - `src/__tests__/stream.test.ts`: the tile stream on fakes: the tiles the next step reads asked
@@ -1935,7 +1953,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the odds readout equal to `oddsAt`, and the regime's countdown;
     `src/hud/__tests__/title.test.ts`: the clock held behind the title card while the world moves
     on.
-  - `src/render/__tests__/index.test.ts`: every system of every described schedule (`render`,
+  - `src/render/__tests__/index.test.ts`: every system of every
+    described schedule (`render`,
     14 systems, and `audio`) declares no writes; a detached node frees its frames, pool and
     proxies, not a vehicle's or a train's shared bodies; people, animals, vehicles, trains and the
     crossings' arms draw with the actor material; traffic and the player's car shine and get the
@@ -1984,10 +2003,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     program with its own day term; in `src/render/__tests__/`, `stand-ins.test.ts`: every material a
     world build, the actors, a driven train and the crossings draw has a stand-in;
     `pipeline.test.ts`: `compile` builds into the scene's target; `actors.test.ts`: the vehicle
-    lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts`: the
-    glow and water meshes, the world and the crossings' nodes made without reading a tile, and a
+    lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts`
+    (and `world.long-test.ts`): the glow and water meshes, the world and the crossings' nodes made
+    without reading a tile, and a
     chunk built only once every tile its build reads is in and dropped when one goes;
-    `chunk-tiles.test.ts`: one tile planning each chunk with its box round the chunk's over the
+    `chunk-tiles.test.ts` (and `chunk-tiles.long-test.ts`): one tile planning each chunk with its
+    box round the chunk's over the
     four tiles round (0, 0), a road's segments and a piece's own reads box making its chunk read a
     tile past its square, and with only some tiles in every chunk that builds reading only those,
     round (0, 0) and Monzone's level crossing and platforms; `trees.test.ts`: each chunk's trees
@@ -2006,6 +2027,37 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   Its tests read the tiles round the spots they name (`residentAround` in `src/render/testing.ts`
   and `src/audio/testing.ts`), never the whole map, and no test in it checks every tile, chunk or
   feature of a layer: those checks are the map checks below.
+- `node --test` over every `*.long-test.ts` in `src` (`pnpm test:long`): the long checks, each a
+  test that takes about 0.4 s or more alone, so `pnpm test` stays near 10 s. Each file sits beside
+  the quick tests of its module and holds the long ones the bullets above name:
+  `src/sim/__tests__/index.long-test.ts` the `determinism` and `saves` replays and the 30 s traffic
+  runs; `animals`, `population`, `people`, `parked` and `reactions` the minute-long village, farm and
+  rural-road stands, the chats, the fill round a moving player, the drive across the map and the
+  quiet Gragnola; `aftermath`, `explosions`, `sky` and `water` the small-talk watch, the player dying
+  in a wreck, the weather seed after a storm and the spate replay; `seams` and `parked-far`, whole;
+  the `trains`, `trains-driving`, `trains-strikes`, `trains-traffic` and `trains-world` ones the
+  railway's `Determinism.check`s and saves, its own stream, the whole line on dry and wet rail, the
+  drive to the next station, the creeping shoves, the queues at Via Riolo and the world with a train
+  far off; `src/sim/rail/__tests__/service.long-test.ts` the two lines' first 15 minutes;
+  `src/sim/sky/__tests__/calibration.long-test.ts` (whole) and `plan.long-test.ts` the 30- and
+  300-year statistics; `src/render/__tests__/world.long-test.ts` and `chunk-tiles.long-test.ts` the
+  streaming and partial-tile builds; `src/audio/synth/crash/__tests__/crash.long-test.ts` every
+  check over the twenty-seed matrix, `thunder.long-test.ts` and `explosion.long-test.ts` theirs;
+  `src/audio/speech/__tests__/render.long-test.ts` and `lines.long-test.ts` every line rendered and
+  200,000 gibberish words; `src/tools/__tests__/walls.long-test.ts` the walls round a staged lake
+  and river polygon; `net.long-test.ts` the real 2 s retry and
+  `pin-raw.long-test.ts` the 1,001-file upload. The fixtures a file and its long tests share live in
+  one helper module in the same `__tests__` folder (`railway.ts` for the trains, `joyride.ts`,
+  `farms.ts`, `spots.ts`, `parking.ts`, `crossing-traffic.ts`, `killings.ts`, `lucido.ts`, `flows.ts`,
+  `battisti-lane.ts`, `two-lines.ts`, `plans.ts`, `cases.ts`, `thunders.ts`, `speakers.ts`,
+  `pin-fakes.ts`, `wall-segments.ts`). `two-lines.ts` stages its map as it loads, so it is imported
+  first and its files
+  run in a process of their own, as every test file does.
+
+  `pnpm test`, `test:long` and `test:map` set `NODE_COMPILE_CACHE` to
+  `node_modules/.cache/node-compile`, where Node keeps each module's compiled code: a test process
+  that loads the whole sim (`src/sim/index.ts`, as 59 of `pnpm test`'s 204 files do; 184 load the
+  map) then takes 0.39 s of CPU, not 0.53 (8 runs each, 2026-11-01).
 - `node --test` over every `*.map-test.ts` in `src` (`pnpm test:map`): the map checks, each over
   every tile, chunk or feature of a layer of the shipped maps, so their cost grows with the map;
   where one guards code rather than data, `pnpm test` keeps it over the tiles or features round
@@ -2067,8 +2119,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the start, on seeds 1–6, the parked cars within 300 m of it are the dice's and the same on both
     maps, spot, model and paint (`stand.ts`, a process each; skipped without the 3x build, which
     only a hand builds; [map.md](map.md#what-growing-a-region-changes));
-    `src/sim/__tests__/parked-far.test.ts` the dice's with three times the spots, the new ones far
-    away, and `parked-place.test.ts` the same car on a spot listed at two indices.
+    `src/sim/__tests__/parked-far.long-test.ts` the dice's with three times the spots, the new ones
+    far away, and `parked-place.test.ts` the same car on a spot listed at two indices.
 
   Measured on 2026-10-30 on a 14-core Apple-silicon Mac under a load average of 50–95 from other
   work, each file run alone: the split took `pnpm test` from 1,177 tests in 181 files and 228 s of
@@ -2086,6 +2138,22 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   What still grows with the map in `pnpm test` is setup, not checks: every process that loads the
   sim decodes the whole global file (the vectors stay in it until #63), and each `World` builds
   every piece and plans every chunk.
+
+  On 2026-11-01 (#70) the long checks left `pnpm test` for `pnpm test:long`, the chats' watch
+  stopped once every talker had left (seeds 12 and 20, which start four chats, two running their
+  course, instead of 9–16, whose four ran 7,500 steps each: 9.2 s to 1.6 s), the compile cache came
+  in, and two lookups every wheel and foot makes each step got cheaper with the same answers to the
+  bit (`terrainZ` reads a cell's four nodes in one tile lookup off its tile's last row and column,
+  over 2.6 million points; `rigFor`'s key above): a 3-minute joyride in Gragnola went from 3.77 to
+  3.21 s. Each file alone, `pnpm test` went from 1,246 tests in 203 files, 169 s of wall clock and
+  226 s of CPU summed, to 1,180 in 200 files, 62 s and 92 s; `pnpm test:long` holds 68 in 29 files,
+  73 s and 99 s, its longest `crash.long-test.ts` at 11.8 s. Run whole, `pnpm test` took 26.7–28.3 s
+  on main (246 s of CPU) and 10.8–10.9 s now (102–103 s), `pnpm test:long` 16 s; with #73's water
+  areas in, `pnpm test`'s 1,208 tests in 204 files take 10.9–11.6 s (105 s) and `pnpm test:long`'s
+  71 in 30 files 15 s, on the 14-core Apple-silicon Mac (10 performance and 4 efficiency cores)
+  under a load average of 11–48, two performance cores held by other work throughout. It is
+  throughput, not a long file, that sets the wall clock now: the 13 workers stay busy to the end,
+  and the slowest file takes 1.9 s alone.
 
 Git hooks come from `lefthook.yml`; `pnpm install` installs them (lefthook's own install script,
 allowed in `pnpm.onlyBuiltDependencies`). Before a commit, `oxfmt` rewrites the staged files and
@@ -2120,12 +2188,15 @@ dwelling), `crossedBy(box, line)` (where a box crosses a line), `wayInto(box, ap
 traffic step farthest back into a box and the one leading into it), `liveKeys()` (keys held, let go
 and tapped as a test goes, for `start`'s `keys`), `aboard` (the player seated in the first train's
 active cab), `atDoor(s, facing, end, side)` (where someone stands to board at a cab door) and the
-fixtures `MONZONE` (the station nearest the start), `RIOLO` (its level crossing), `RAIL_BRIDGE` (the
-line's highest bridge), `LOW_BRIDGE` (its longest over a stream, the ground beside on the rail's
-level), `TUNNEL_MOUTH` (3 m inside a portal whose cutting is on the rail's level), `UNDER_ROAD`
-(at grade under the road bridge by Equi Terme), `OVER_ROAD` (at grade over a road tunnel, the
-pedestrian underpass at Equi Terme), `BESIDE_WALL` (the first two stretches at grade with a wall
-3.3–5 m off the centreline) and `UNDERPASS_WAYS` (every way on foot along a road into a road tunnel
-under the line, to under the track), found by geometry. `src/sim/scene.ts` holds the
+fixtures `MONZONE` (the station nearest the start) and `RIOLO` (its level crossing), and the spots
+`railBridge()` (the line's highest bridge), `lowBridge()` (its longest over a stream, the ground
+beside on the rail's level), `tunnelMouth()` (3 m inside a portal whose cutting is on the rail's
+level), `underRoad()` (at grade under the road bridge by Equi Terme), `overRoad()` (at grade over a
+road tunnel, the pedestrian underpass at Equi Terme), `besideWall()` (the first two stretches at
+grade with a wall 3.3–5 m off the centreline) and `downToBox()` and `underpassWays()` (the ways on
+foot onto a level crossing and into the road tunnels under the line), found by geometry the first
+time a test asks for one: each searches the line, and most of the 55 test files that load the kit
+(37 of `pnpm test`'s 204) read none; found as the kit loaded, they cost each of those processes
+about 75 ms. `src/sim/scene.ts` holds the
 reaction tests' scenes on Via Cesare Battisti and a `start` on a seed of the test's choosing, so a
 rule that rolls dice is checked over several rolls.
