@@ -895,7 +895,8 @@ node --test src/sim/sky/__tests__/*.long-test.ts src/sim/__tests__/sky.long-test
   planning the days (`sky.long-test.ts`), `WeatherRng` kept apart from `Rng`, and a longer braking
   distance in the rain.
 - Elsewhere: `handling.test.ts` (wet and snow braking, the lock following grip), `walls.test.ts`
-  (traffic on a wet road), `index.test.ts` (determinism and saves at rate 600 with a forced storm),
+  (traffic on a wet road), `index.long-test.ts` (`pnpm test:long`: determinism and saves at rate 600
+  with a forced storm),
   the render's `src/render/sky/__tests__/*.test.ts` (the sun and moon over the loaded map's place,
   the melt band's line against `celsiusAt`, the buffers at 30 mm/h), the audio's
   `director/__tests__/weather.test.ts` (the wind's height law from the map's floor, the usual wind
