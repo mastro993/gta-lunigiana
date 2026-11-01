@@ -1,62 +1,22 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { basename, join } from "node:path"
+import { readFileSync, rmSync } from "node:fs"
+import { join } from "node:path"
 import { after, test } from "node:test"
 
-import { freeTags, MAX_ASSETS, NOTES, pinRaw, planPin } from "../pin-raw.ts"
-import { type Digest, digestOf, isPinned, type Lock, readLock, writeLock } from "../raw-lock.ts"
+import { freeTags, NOTES, pinRaw, planPin } from "../pin-raw.ts"
+import { type Digest, digestOf, type Lock, readLock } from "../raw-lock.ts"
+import { dirs, fakeGh, fetched, quiet, scratch } from "./pin-fakes.ts"
 
-const dirs: Array<string> = []
 after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
 })
 
-/** A data/raw holding `files` (path → text) and a lock holding `lock`. */
-const scratch = (files: Record<string, string>, lock: Lock) => {
-  const dir = mkdtempSync(join(tmpdir(), "pin-raw-test-")),
-    raw = join(dir, "raw"),
-    lockPath = join(dir, "raw.lock.json")
-  dirs.push(dir)
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(join(raw, path, ".."), { recursive: true })
-    writeFileSync(join(raw, path), text)
-  }
-  writeLock(lock, lockPath)
-  return { raw, lockPath }
-}
-
-/**
- * A fake GitHub CLI whose releases have the tags `taken`: it answers `release list` and records
- * each `release create` with its assets' names and texts, read when it is called.
- */
-const fakeGh = (taken: ReadonlyArray<string> = []) => {
-  const created: Array<{ tag: string; assets: Record<string, string>; flags: Array<string> }> = []
-  const run = (args: ReadonlyArray<string>): string => {
-    if (args[1] === "list") return taken.map((tag) => `${tag}\n`).join("")
-    assert.deepEqual(args.slice(0, 2), ["release", "create"])
-    const flag = args.indexOf("--title")
-    created.push({
-      tag: args[2]!,
-      assets: Object.fromEntries(
-        args.slice(3, flag).map((file) => [basename(file), readFileSync(file, "utf8")]),
-      ),
-      flags: args.slice(flag).filter((arg) => arg.startsWith("--")),
-    })
-    return ""
-  }
-  return { run, created }
-}
-
-const quiet = () => undefined
 const README = join(import.meta.dirname, "../../../README.md")
 const pinOf = (text: string, asset: string, source: string) => ({
   ...digestOf(Buffer.from(text)),
   asset,
   source,
 })
-/** What a fetch tool records for `text` from `source`. */
-const fetched = (text: string, source = "s") => ({ ...digestOf(Buffer.from(text)), source })
 
 test("planPin uploads the files a fetch tool wrote, and names each disagreement with its remedy", () => {
   const lock: Lock = {
@@ -131,31 +91,6 @@ test("pinRaw uploads only the fetched files, under their flattened names, and pi
   pinRaw(raw, lockPath, gh.run, "20261031", quiet)
   assert.equal(gh.created.length, 1)
   assert.equal(readFileSync(lockPath, "utf8"), lock)
-})
-
-test("pinRaw splits an upload over GitHub's 1000 assets a release", () => {
-  const files = Object.fromEntries(
-    Array.from({ length: MAX_ASSETS + 1 }, (_, i) => [
-      `ctr/${String(i).padStart(4, "0")}.gz`,
-      `${i}`,
-    ]),
-  )
-  const { raw, lockPath } = scratch(
-    files,
-    Object.fromEntries(Object.entries(files).map(([path, text]) => [path, fetched(text)])),
-  )
-  const gh = fakeGh()
-  pinRaw(raw, lockPath, gh.run, "20261030", quiet)
-  assert.deepEqual(
-    gh.created.map(({ tag, assets }) => [tag, Object.keys(assets).length]),
-    [
-      ["raw-20261030", MAX_ASSETS],
-      ["raw-20261030-2", 1],
-    ],
-  )
-  const lock = readLock(lockPath)
-  assert.ok(Object.values(lock).every(isPinned))
-  assert.equal((lock["ctr/1000.gz"] as { asset: string }).asset, "raw-20261030-2/ctr.1000.gz")
 })
 
 test("pinRaw uploads nothing while data/raw and the lock disagree", () => {

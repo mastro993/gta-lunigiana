@@ -186,7 +186,8 @@ stages were sped up (lucido's files the same, byte for byte), and that evening, 
   edge, clipped to its box on lucido (their centroid inside), are kept whole and dropped by their
   centroid there (OSM building 700764389 by spot 367, at (−2892.7, 3095.5)), so every spot after
   367 moves one index down, which dice keyed on the place do not see.
-  `src/sim/__tests__/parked-far.test.ts` (`pnpm test`) gives Lunigiana three times its spots, copies
+  `src/sim/__tests__/parked-far.long-test.ts` (`pnpm test:long`) gives Lunigiana three times its
+  spots, copies
   30 and 60 km east after its own: the cars round the start are still the dice's on its own spots;
   `parked-place.test.ts` lists each spot twice, once with a spot dropped before it and once with
   all the others added before it, and both listings of a spot round the start hold the same car on
@@ -1227,7 +1228,8 @@ change an input.
   `data/raw` and the built maps, and that no tracked file is over 1 MB. `fetch-raw.test.ts` and
   `pin-raw.test.ts` run against a fake `gh`: a second fetch downloads nothing, a download with other
   bytes fails with `data/raw` unchanged, a fetched file replaced since is refused, an upload of
-  1,001 files takes two releases, and the release notes carry the README's credits and licence
+  1,001 files takes two releases (`pin-raw.long-test.ts`), and the release notes carry the README's
+  credits and licence
   links. `map-key.test.ts` checks every import form it follows, that it throws on the ones it
   cannot, that the key moves with the lock and the imported code and with nothing else, and that
   no imported file calls a `Math` function or `**` that rounds differently on arm64 and x64.
@@ -1559,7 +1561,8 @@ need not be their lowest).
 answers the same in the same order whatever is in memory and in whichever order it came, that every
 wall whose box overlaps a query is found (among the walls of the tiles within `walls.reach` of it: a
 wall lives in the tile of its midpoint), and that a lookup in a tile not in memory throws, naming
-it. `src/sim/__tests__/seams.test.ts` drives two cars across the x = 0 and y = 0 seams on Via Borgo
+it. `src/sim/__tests__/seams.long-test.ts` (`pnpm test:long`) drives two cars across the x = 0 and
+y = 0 seams on Via Borgo
 Monzone by the station: every frame's world and the final save are the same with the tiles read in
 lazily and dropped every 20 steps as with the nine tiles round (0, 0) in memory.
 
@@ -1670,8 +1673,9 @@ under its level or a bank over it, its edge holding it but where a stream's chan
 level never over every node of its cells, and water in each lake but the two the LiDAR reads no
 hollow under; a river polygon's built surface falling downstream through it and its outer edge left
 over its river's bed; and no tree, parked car or player spawn in the water. `spawns.test.ts` keeps a
-parked car's box and the player's spawn out of a lake, `walls.test.ts` rings a lake with shore walls
-and leaves a river polygon's carved banks open, `cover.test.ts` pins the cover bytes and draws the
+parked car's box and the player's spawn out of a lake, `walls.long-test.ts` (`pnpm test:long`) rings
+a lake with shore walls and leaves a river polygon's carved banks open, `cover.test.ts` pins the
+cover bytes and draws the
 bars over the river and the line's bed only outside the water, and `features.test.ts` maps the
 water tags, `ele` and the POIs.
 
@@ -1742,9 +1746,10 @@ The part tools ([Adding a part](#adding-a-part)) are checked offline in `src/too
 multipolygon written as one `ms:GEOMETRY` per polygon, a tile in lots 004 and 006) and keeps
 `insidePoints` inside a wedge, a footprint with a hole and one under 100 m tall;
 `dtm-mosaic.test.ts` pins `lucido`'s crop to the formula `fetch-rt` used before parts and reads a
-synthetic grid; `net.test.ts` serves a local HTTP server to check the `User-Agent`, the retry of a
-5xx (after 2 s, so the file takes 2.2 s), the immediate 4xx and `overpass` moving on from a 504 or
-an answer with a top-level remark (a server timeout) but not from a tag named `remark`;
+synthetic grid; `net.test.ts` serves a local HTTP server to check the `User-Agent`, the immediate
+4xx and `overpass` moving on from a 504 or
+an answer with a top-level remark (a server timeout) but not from a tag named `remark`, and
+`net.long-test.ts` (`pnpm test:long`) the retry of a 5xx after 2 s;
 `manifest.test.ts` pins `lucido`'s 25 sheets, 66 tiles (47 of 2010 before 19 of 2012) and one 10 m
 DTM; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule, first
 wins and the holes on synthetic grids; `footprint.test.ts` the outline of an L, clusters, a road

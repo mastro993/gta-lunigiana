@@ -25,9 +25,7 @@ import { inPlay } from "../map/index.ts"
 import { noTrains } from "../rail/testing.ts"
 import { REGIME_SPECS } from "../sky/regimes.ts"
 import { jsonSave, ON_BATTISTI, rolling, start } from "../testing.ts"
-
-/** The player out of the way, in the map's empty south-west corner: Populate brings nobody near. */
-const FAR_AWAY = { x: -2800, y: -6000, angle: 0 }
+import { FAR_AWAY } from "./spots.ts"
 
 test("game clock: a new game starts at 08:00 in Rome on its start day; each step adds the rate's game seconds, none at rate 0; a save keeps the time", () => {
   const { runtime, run, world } = start()
@@ -126,37 +124,6 @@ test("the weather seed: a new game keeps WeatherRng's first state as the weather
   const restored = start()
   assert.ok(restored.runtime.restore(jsonSave(a.runtime)).ok)
   assert.deepEqual(restored.world().weather, a.runtime.inspect(SkyView).weather)
-})
-
-// Regression: the day plan drew from WeatherRng after the storm, whose draws follow where the player stands, so after a thunderstorm two
-// games from one seed planned other days.
-test("the weather seed alone plans the days: two games from one seed plan the same days, though their players stood apart in a storm", () => {
-  /** A game from seed 1 with its player at `at`: a forced storm for half a real minute, handed back to the plan, then six game days. */
-  const game = (at: { readonly x: number; readonly y: number; readonly angle: number }) => {
-    const played = start([], [at])
-    played.runtime.send(SetWeather, { regime: "storm", settle: true })
-    played.run(60 * 30)
-    played.runtime.send(SetWeather, { regime: null })
-    played.runtime.send(SetClock, { rate: 3600 })
-    const days: Array<PlanValue> = []
-    played.run(24 * 6, () => {
-      const { plan } = played.world().weather
-      if (days.at(-1)?.day !== plan.day) days.push(plan)
-    })
-    return {
-      days,
-      lightning: played.heard.lightning,
-      rng: jsonSave(played.runtime).resources["Lunigiana/WeatherRng"],
-    }
-  }
-  const a = game(FAR_AWAY),
-    b = game({ x: -412, y: 438, angle: 0 })
-  assert.ok(
-    a.lightning.length > 0 && b.lightning.length > 0 && a.rng !== b.rng,
-    "the storms drew differently",
-  )
-  assert.ok(a.days.length >= 6)
-  assert.deepEqual(b.days, a.days)
 })
 
 test("the weather's own random stream never reaches traffic or pedestrians: other weather draws, the same streets", () => {

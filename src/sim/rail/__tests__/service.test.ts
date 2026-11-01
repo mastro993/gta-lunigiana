@@ -1,62 +1,33 @@
-/**
- * The service on a map with more railways: a second line runs the first's track the other way round, as a branch shares the
- * main line's track up to its junction (the build's `findLines` makes lines that share track at any junction). The map
- * gets it, with its stations, before any rail module loads; this file runs in a process of its own.
- */
+// The map with two lines on one track (two-lines.ts) is staged before any rail module loads; this file runs in a process of its own.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP, type RailLine, type Station } from "../../map/index.ts"
-
-const main = MAP.railway.lines[0]!
-let total = 0
-for (const { rail } of main.pieces) {
-  const { pts } = MAP.rail[rail]!
-  for (let k = 2; k < pts.length; k += 2)
-    total += Math.sqrt((pts[k]! - pts[k - 2]!) ** 2 + (pts[k + 1]! - pts[k - 1]!) ** 2)
-}
-const back: RailLine = {
-  pieces: [...main.pieces].reverse().map(({ rail, rev }) => ({ rail, rev: !rev })),
-  maxspeed: [],
-}
-;(MAP.railway.lines as Array<RailLine>).push(back)
-;(MAP.railway.stations as Array<Station>).push(
-  ...MAP.railway.stations
-    .filter((station) => station.line === 0)
-    .reverse()
-    .map((station): Station => ({
-      ...station,
-      line: 1,
-      s0: total - station.s1,
-      s1: total - station.s0,
-      side: station.side === 1 ? -1 : 1,
-    })),
-)
-
-const { SHARED, sharedPart, LINES } = await import("../lines.ts")
-const { meet } = await import("../collisions.ts")
-const { CROSSINGS } = await import("../crossings.ts")
-const { KEEP_BEHIND, trainDraft } = await import("../service.ts")
-const { entryClear, FillTrains } = await import("../dispatch.ts")
-const { placeTrains, railStep, TrainWorld } = await import("../testing.ts")
-const { Game, Impact, SetTrains } = await import("../../schema.ts")
-const { start } = await import("../../testing.ts")
-const { bindings, KeyboardInput, makeRuntime } = await import("../../index.ts")
-const { Keyboard } = await import("@typeonce/ritmo-browser")
-
-const S = 60,
-  LENGTH = 55.57,
-  [ahead, behind] = LINES as [(typeof LINES)[number], (typeof LINES)[number]]
-const L = ahead.length
-
-/** A game with no trains, stepped by the railway alone. */
-const railway = () => {
-  const game = start()
-  const step = (frames: number) => {
-    for (let frame = 0; frame < frames; frame++) assert.ok(game.runtime.tick(railStep).ok)
-  }
-  return { ...game, step, inspect: () => game.runtime.inspect(TrainWorld) }
-}
+import {
+  ahead,
+  behind,
+  bindings,
+  CROSSINGS,
+  entryClear,
+  FillTrains,
+  Game,
+  KEEP_BEHIND,
+  Keyboard,
+  KeyboardInput,
+  L,
+  LENGTH,
+  listener,
+  makeRuntime,
+  meet,
+  placeTrains,
+  railStep,
+  railway,
+  S,
+  SetTrains,
+  SHARED,
+  sharedPart,
+  trainDraft,
+  TrainWorld,
+} from "./two-lines.ts"
 
 test("service, two lines on one track: the second runs the first's track the other way, run-outs and all, and every box holds both", () => {
   assert.ok(Math.abs(behind.length - L) < 1e-6)
@@ -209,18 +180,6 @@ test("service, two lines on one track: a new game stands their first trains on p
   }
 })
 
-/** Every Impact the schedules ticked with it hear, into `hits`. */
-const listener = (hits: Array<{ hit: string; speed: number }>) =>
-  Game.Schedule(
-    Game.System(
-      "Test/Hits",
-      { events: { impacts: Game.System.readEvent(Impact) } },
-      ({ events }) => {
-        hits.push(...events.impacts.all())
-      },
-    ),
-  )
-
 test("service, two lines on one track: AI trains of the two lines running at each other both brake to a stand KEEP_BEHIND m apart, striking nothing", () => {
   const game = railway()
   // Line 0's runs toward +s from 3000 and line 1's toward the same point from 1500 m beyond it, both at 20 m/s.
@@ -270,39 +229,6 @@ test("service, two lines on one track: the dispatcher lets no train in toward th
     game.inspect().trains.some((t) => t.line === 1 && t.run !== undefined),
     "then enters",
   )
-})
-
-test("service, two lines on one track: from a new game their trains run the same way, and come back the same way, so they never meet head-on: nothing strikes and nobody stands face to face in 15 min", () => {
-  for (let seed = 1; seed <= 3; seed++) {
-    const made = makeRuntime({
-      seed,
-      services: Game.Runtime.services(
-        Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, [])),
-      ),
-    })
-    assert.ok(made.ok)
-    const runtime = made.value
-    assert.ok(runtime.tick(Game.Schedule(FillTrains, Game.Schedule.applyDeferred())).ok)
-    // Line 1's cab faces the other way along line 0.
-    const [a, b] = runtime.inspect(TrainWorld).trains
-    assert.equal(a!.facing, -b!.facing, `seed ${seed}: the same way`)
-    const hits: Array<{ hit: string; speed: number }> = [],
-      listen = listener(hits)
-    for (let frame = 0; frame < 900 * S; frame++) assert.ok(runtime.tick(railStep, listen).ok)
-    assert.deepEqual(hits, [], `seed ${seed}`)
-    // On line 0's s: no train with its nose toward +s standing just short of one whose nose is toward −s.
-    const noses = runtime
-      .inspect(TrainWorld)
-      .trains.map((t) =>
-        t.line === 0
-          ? { s: t.s, facing: t.facing, v: t.v }
-          : { s: L - t.s, facing: -t.facing, v: t.v },
-      )
-    const facing = noses.some((a) =>
-      noses.some((b) => a.facing > 0 && b.facing < 0 && b.s > a.s && b.s - a.s < 2 * KEEP_BEHIND),
-    )
-    assert.ok(!facing, `seed ${seed}: ${JSON.stringify(noses)}`)
-  }
 })
 
 test("service, two lines on one track: it is one stretch, and two trains overlapping across a piece joint are pushed apart just to touch", () => {

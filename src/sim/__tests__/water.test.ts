@@ -1,9 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { HostClock } from "@typeonce/ritmo"
 import { Keyboard } from "@typeonce/ritmo-browser"
-import { Determinism } from "@typeonce/ritmo-devtools"
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import { rigFor } from "../chassis.ts"
@@ -22,63 +20,24 @@ import {
   SkyView,
   update,
 } from "../index.ts"
-import { roadsNear, waterNear } from "../map/__tests__/vectors-near.ts"
-import { deckNear } from "../map/ground.ts"
+import { roadsNear } from "../map/__tests__/vectors-near.ts"
 import { placeAt } from "../map/tiles.ts"
 import { walkIndex } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { stalled } from "../systems/physics.ts"
-import { flood, jsonSave, LOOK, press, stage, start, type Timeline } from "../testing.ts"
+import { flood, jsonSave, LOOK, press, start, type Timeline } from "../testing.ts"
 import { WALK_SPEED } from "../tuning.ts"
 import { VEHICLES } from "../vehicles.ts"
-import { screenAxes } from "../view.ts"
 import { waterUnder } from "../water/rivers.ts"
+import { MEAN, SPATE } from "./flows.ts"
+import { atLucido, LUCIDO, SWIM, swimCast } from "./lucido.ts"
 import { assertVergesDry } from "./verges.ts"
 
-/** The roads and rivers of the four tiles round Monzone station (-493.8, 436.9) and the tiles' corner (0, 0). */
-const ROADS = roadsNear(-493.8, 436.9, 1500),
-  WATER = waterNear(-493.8, 436.9, 1500)
+/** The roads of the four tiles round Monzone station (-493.8, 436.9) and the tiles' corner (0, 0). */
+const ROADS = roadsNear(-493.8, 436.9, 1500)
 
-/**
- * The Torrente Lucido below Monzone station, found by geometry: the vertex of its river part nearest the station with no bridge
- * within 30 m, the way it flows there, and the way across from its north bank to its south one.
- */
-const LUCIDO = (() => {
-  let best: { d: number; x: number; y: number; ux: number; uy: number } | undefined
-  for (const w of WATER.filter((o) => o.name === "Torrente Lucido" && o.kind === "river"))
-    for (let i = 1; i + 1 < w.pts.length / 2; i++) {
-      const x = w.pts[2 * i]!,
-        y = w.pts[2 * i + 1]!,
-        d = Ops.hypot(x + 493.8, y - 436.9)
-      if (best !== undefined && d >= best.d) continue
-      let bridge = false
-      for (let k = -30; k <= 30 && !bridge; k += 2)
-        for (let j = -30; j <= 30 && !bridge; j += 2)
-          bridge = deckNear(x + k, y + j, 1) !== undefined
-      if (bridge) continue
-      const ex = w.pts[2 * i + 2]! - w.pts[2 * i - 2]!,
-        ey = w.pts[2 * i + 3]! - w.pts[2 * i - 1]!,
-        l = Ops.hypot(ex, ey)
-      best = { d, x, y, ux: ex / l, uy: ey / l }
-    }
-  assert.ok(best !== undefined)
-  // Across: square to the flow, toward whichever bank the home view's up key walks to.
-  const { up } = screenAxes(0),
-    side = up.x * -best.uy + up.y * best.ux > 0 ? 1 : -1
-  return { ...best, ax: -best.uy * side, ay: best.ux * side }
-})()
-/** `across` m from the Lucido's middle toward the bank the up key walks to (negative: the far side), and `down` m downstream. */
-const atLucido = (across: number, down = 0, angle = 0) => ({
-  x: LUCIDO.x + LUCIDO.ax * across + LUCIDO.ux * down,
-  y: LUCIDO.y + LUCIDO.ay * across + LUCIDO.uy * down,
-  angle,
-})
 const acrossOf = (p: Vec2.Vec2) => (p.x - LUCIDO.x) * LUCIDO.ax + (p.y - LUCIDO.y) * LUCIDO.ay
 const downOf = (p: Vec2.Vec2) => (p.x - LUCIDO.x) * LUCIDO.ux + (p.y - LUCIDO.y) * LUCIDO.uy
-
-/** The rivers at about their mean (the Soliera gauge's 8.5 m³/s over 208 km²), and in a spate (125 m³/s there). */
-const MEAN = 0.041,
-  SPATE = 0.6
 
 test("the Lucido below Monzone at its mean flow is a third of a metre deep and slow; in a spate a metre, too fast to stand in", () => {
   const mean = waterUnder(LUCIDO.x, LUCIDO.y, true, MEAN)!,
@@ -423,53 +382,6 @@ test("the rivers rise under rain and fall back after it", () => {
   const after = runtime.inspect(SkyView).flow
   assert.ok(peak > 1.5 * before, `${before.toFixed(3)} rose to ${peak.toFixed(3)} m³/s per km²`)
   assert.ok(after < 0.7 * peak, `and fell back to ${after.toFixed(3)}`)
-})
-
-/** A spate scene: the player swimming across the Lucido, a walker and a dog in the water, a parked Panda floating off. */
-const SWIM: Timeline = [
-  { frame: 30, press: ["up"] },
-  { frame: 200, press: ["sprint"] },
-  { frame: 400, release: ["up", "sprint"], press: ["left"] },
-]
-const swimCast = () =>
-  [
-    atLucido(0, -6),
-    {
-      cars: [parkedCar("panda", 0xb8312b, atLucido(-2, 6))],
-      peds: [
-        pedestrian(
-          LOOK,
-          atLucido(1),
-          { edge: walkIndex.nearest(LUCIDO.x, LUCIDO.y), forward: true, side: 1 },
-          { mood: "walk", until: 0, fx: 0, fy: 0 },
-        ),
-      ],
-      animals: [
-        animal({ species: "dog", coat: 0x1c1a19, patch: 0x1c1a19, size: 1 }, atLucido(-1, 2)),
-      ],
-    },
-  ] as const
-
-test("determinism: swimming, wading and a car afloat in a spate replay bit for bit", () => {
-  const result = Determinism.check(
-    ({ hostClock }) => {
-      const made = makeRuntime({
-        seed: 5,
-        services: Game.Runtime.services(
-          Game.Runtime.service(KeyboardInput, Keyboard.scripted(bindings, SWIM)),
-        ),
-        debug: { hostClock },
-      })
-      if (!made.ok) throw new Error(JSON.stringify(made.error))
-      const ready = made.value.tick(setup, stage(...swimCast()), flood(SPATE))
-      if (!ready.ok) throw new Error(JSON.stringify(ready.error))
-      // A minute a step: the spate drains as it runs.
-      made.value.send(SetClock, { rate: 60 })
-      return { runtime: made.value, schedules: { update } }
-    },
-    { schedule: "update", frames: 600, hostClock: HostClock.test() },
-  )
-  assert.deepEqual(result, { ok: true, frames: 600 })
 })
 
 test("saves: a snapshot taken mid-swim restores through JSON and plays on identically", () => {

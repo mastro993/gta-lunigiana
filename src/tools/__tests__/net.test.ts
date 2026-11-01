@@ -48,7 +48,7 @@ let last: {
 } = { headers: {} }
 
 /**
- * A local server: /flaky fails once then answers, /down always fails, /missing… is 404, /file has a
+ * A local server: /down always fails, /missing… is 404, /file has a
  * size; /overpass/… answer as an Overpass instance: tagged, timed-out, out-of-memory, busy (504).
  */
 const server = createServer((req, res) => {
@@ -56,8 +56,7 @@ const server = createServer((req, res) => {
     hit = (hits.get(path) ?? 0) + 1
   hits.set(path, hit)
   last = { method: req.method, url: req.url, headers: req.headers }
-  if (path === "/flaky") res.writeHead(hit === 1 ? 500 : 200).end(hit === 1 ? "down" : "up")
-  else if (path === "/down") res.writeHead(503).end()
+  if (path === "/down") res.writeHead(503).end()
   else if (path.startsWith("/missing")) res.writeHead(404).end("no")
   else if (path === "/file")
     res
@@ -81,15 +80,6 @@ test("requests name only the project", async () => {
   assert.equal(last.headers["user-agent"], "gta-lunigiana map build")
   for (const name of ["from", "referer", "cookie", "authorization"])
     assert.equal(last.headers[name], undefined, name)
-})
-
-test("request retries a 5xx 2 s later and gives the answer that follows", async () => {
-  const start = performance.now()
-  const res = await request(`${base}/flaky`, "GET", 2)
-  assert.equal(res.status, 200)
-  assert.equal(await res.text(), "up")
-  assert.equal(hits.get("/flaky"), 2)
-  assert.ok(performance.now() - start >= 1900)
 })
 
 test("request gives a 4xx at once, and the last 5xx when the tries run out", async () => {

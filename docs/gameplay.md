@@ -758,7 +758,7 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
   nor reacts to a body, and a horn does not anger them.
 
 Measured with the player standing still: in Gragnola's centre traffic and its horns draw under
-1 cry of fright and 2 of anger a minute (`reactions.test.ts` checks it over two seeds of 3 min);
+1 cry of fright and 2 of anger a minute (`reactions.long-test.ts` checks it over two seeds of 3 min);
 at Monzone's start (seed 11, 3 min) people cry out 2.5 times a minute (surprise and anger) and cats
 3 times.
 
@@ -1522,7 +1522,8 @@ its level:
   mouth, on its centreline, its carriageway's edge and its verge, both sides, from 12 m out to 3 m
   in: 228 walks); off those walks it only held a few metres of verge at the road's level by a 7 m
   road tunnel whose road runs 5 m over the terrain, where every other stretch of that road's verge
-  lies on the terrain. Along every road into the road tunnels under the line (`UNDERPASS_WAYS`: both
+  lies on the terrain. Along every road into the road tunnels under the line (`underpassWays()` in
+  `src/sim/rail/testing.ts`: both
   ends of the four under its bridges and Equi Terme's pedestrian underpass from the street, nine
   ways), the footing under the track is the floor, 5.5–9.7 m under the rail; the player standing
   there, a train passes over at 25 m/s and they are not struck. Equi Terme's underpass from the
@@ -1654,7 +1655,7 @@ speed along the contact.
   creeps into it and shoves it along unharmed; a driverless train at 6 m/s strikes it at 6.2 m/s and
   wrecks it against the abutment 0.57 s later, two hits in all (21 when every step of the drag was
   one), and slid along the abutment it makes 3 wall hits there, not 24. Beside a wall 3.3–5 m off
-  the centreline (`BESIDE_WALL`, s 4300 and 4623), a Panda across the track that an AI train from
+  the centreline (`besideWall()`, s 4300 and 4623), a Panda across the track that an AI train from
   400 m at 15 m/s and from 600 m at 20 m/s stops for, then creeps into, is shoved against the wall
   and left beside the track 3.0–3.1 m off its centreline; the train creeps past it scraping its side
   at 1 m/s, then runs on 172 and 175 s after it set out, no hit and no damage. A Panda standing
@@ -1812,15 +1813,15 @@ with `src/sim/testing.ts`; `src/sim/__tests__/reactions.test.ts` and
 `src/sim/__tests__/aftermath.test.ts` stage reactions on Via Cesare Battisti with
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first
-fill, and `src/sim/__tests__/animals.test.ts` the animals in a village, at a farm and on a rural
-road; `src/sim/population/__tests__/density.test.ts` and `farms.test.ts` read the buildings round
+fill, `population.long-test.ts` the centres filling, the empty rural road and the chats, and
+`src/sim/__tests__/animals.long-test.ts` the animals in a village, at a farm and on a rural road; `src/sim/population/__tests__/density.test.ts` and `farms.test.ts` read the buildings round
 Monzone station (625 points every 50 m and 2,401 every 25 m, out to 600 m and over the x = 0 and
 y = 0 seams) with every tile dropped and then with only the tiles that run read handed back, in
 key order and reversed: the residents round a point, the ground checks, the buildings near a point,
 the farms' buildings and the spots off their walls come out the same, and their `*.map-test.ts`
 (6,000 and 20,000 points all over the map, half within 40 m of a seam, and every farm) match one
-64 m grid over the whole map's buildings; `src/sim/__tests__/parked.test.ts` drives across the
-map into ten villages for their parked cars and traffic, frees a stolen car's spot, leaves touched
+64 m grid over the whole map's buildings; `src/sim/__tests__/parked.long-test.ts` drives across
+the map into ten villages for their parked cars and traffic, frees a stolen car's spot, leaves touched
 cars and the Carabinieri behind, holds the caps and brings the same cars back on one seed;
 `src/sim/__tests__/trains.test.ts` runs the train service with `src/sim/rail/testing.ts` (the
 railway stepped alone), `trains-traffic.test.ts`,
@@ -1835,4 +1836,7 @@ model on flat, sloping and ramped test ground with `advance` (no walls), and
 `src/sim/__tests__/handling.test.ts` proves each handling knob's effect the same way, the weather
 grip loss's on wet and snowy ground included. Fixtures find map features by geometry, never by index
 (`BATTISTI` is the Via Cesare Battisti traffic edge nearest (-412, 438), eastbound), so they survive
-map rebuilds. Re-run `pnpm check` after any change.
+map rebuilds. A scenario that runs about 0.4 s or more alone (a minute's watch, a replay, a drive
+across the map) goes in the module's `*.long-test.ts` instead, which `pnpm test:long` runs, so
+`pnpm test` stays near 10 s ([architecture.md](architecture.md#checks)). Re-run `pnpm check` after
+any change.

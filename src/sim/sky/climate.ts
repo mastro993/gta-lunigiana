@@ -119,7 +119,7 @@ export const WET_OFFSET: Months = [0.5, 0, -0.5, -1, -1.5, -2, -2, -1.5, -1, -0.
  * Falling precipitation cools the air toward its wet-bulb temperature and, as snow melts in it, toward 0 °C; a thunderstorm's
  * downdraft cools it most. `base` °C from `from` mm/h at sea level, `perMm` more for each mm/h, at most `most`. Design values:
  * without them the phase rule, applied to the day's air, snows on the Apennines' 900–1200 m about a quarter as often as Capozzi et
- * al. (2025) count (calibration.test.ts).
+ * al. (2025) count (calibration.long-test.ts).
  */
 const COOLING = { from: 0.1, base: 1.5, perMm: 0.3, most: 3.5 } as const
 

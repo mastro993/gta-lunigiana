@@ -287,6 +287,15 @@ export const atDoor = (s: number, facing: 1 | -1, end: 0 | 1, side: 1 | -1, out 
   return { x: door.x + nx * out, y: door.y + ny * out, angle: Ops.atan2(-ny, -nx) }
 }
 
+/**
+ * `find`, run the first time it is asked for and kept: the spots below search the whole line, and most
+ * tests that load this kit read none of them.
+ */
+const once = <A>(find: () => A): (() => A) => {
+  let found: { readonly value: A } | undefined
+  return () => (found ??= { value: find() }).value
+}
+
 /** The bridges of Monzone's line: each run of bridge segments, from s to s. */
 const BRIDGES = (() => {
   const line = LINES[MONZONE.line]!,
@@ -305,23 +314,26 @@ const overGround = (s: number, off = 0) => {
   return at.z - groundZ(at.x + Ops.sin(at.angle) * off, at.y - Ops.cos(at.angle) * off)
 }
 /** Monzone's line's highest bridge: the s of the middle of its bridge at least 20 m long whose rail head stands farthest over the map's ground (which has no rail decks). */
-export const RAIL_BRIDGE = BRIDGES.filter((span) => span.to - span.from >= 20)
-  .map((span) => (span.from + span.to) / 2)
-  .reduce((a, b) => (overGround(b) > overGround(a) ? b : a))
+export const railBridge = once(() =>
+  BRIDGES.filter((span) => span.to - span.from >= 20)
+    .map((span) => (span.from + span.to) / 2)
+    .reduce((a, b) => (overGround(b) > overGround(a) ? b : a)),
+)
 /** Monzone's line's longest low bridge (over a stream): the s of the middle of the longest bridge whose ground beside it, 2 m out either side, is within 1 m of the rail head. */
-export const LOW_BRIDGE = (() => {
+export const lowBridge = once(() => {
   const { from, to } = BRIDGES.filter((span) =>
     [2, -2].every((off) => Math.abs(overGround((span.from + span.to) / 2, off)) < 1),
   ).reduce((a, b) => (b.to - b.from > a.to - a.from ? b : a))
   return (from + to) / 2
-})()
+})
 /** Just inside a tunnel of Monzone's line: the s 3 m in from a portal where the map's ground 2 m out either side is within 1 m of the rail head (a cutting's floor, not the hill above). */
-export const TUNNEL_MOUTH = LINES[MONZONE.line]!.tunnels.flatMap((t) => [
-  t.from + 3,
-  t.to - 3,
-]).find((s) => [2, -2].every((off) => Math.abs(overGround(s, off)) < 1))!
+export const tunnelMouth = once(() =>
+  LINES[MONZONE.line]!.tunnels.flatMap((t) => [t.from + 3, t.to - 3]).find((s) =>
+    [2, -2].every((off) => Math.abs(overGround(s, off)) < 1),
+  )!,
+)
 /** Where Monzone's line runs at grade under a road bridge: the first s (by the metre) whose ground on foot 2 m out either side is a deck more than 2 m over the rail head. */
-export const UNDER_ROAD = (() => {
+export const underRoad = once(() => {
   const line = LINES[MONZONE.line]!
   for (let s = 0; s < line.length; s++) {
     const at = pointAt(line, s)
@@ -331,17 +343,17 @@ export const UNDER_ROAD = (() => {
     if (over(2) && over(-2)) return s
   }
   throw new Error("no road bridge over the line")
-})()
+})
 
 /** Where Monzone's line runs at grade over a road tunnel (an underpass): the first s (by the metre) whose ground on foot with no height to go by, on the centreline, is a tunnel's floor more than 2 m under the rail head. */
-export const OVER_ROAD = (() => {
+export const overRoad = once(() => {
   const line = LINES[MONZONE.line]!
   for (let s = 0; s < line.length; s++) {
     const at = pointAt(line, s)
     if (!at.bridge && !at.tunnel && at.z - footZ(at.x, at.y) > 2) return s
   }
   throw new Error("no road tunnel under the line")
-})()
+})
 
 /** The nearest drive wall to (x, y) within `reach` m, its distance, m; `reach` when none is nearer. */
 const wallOff = (x: number, y: number, reach: number): number => {
@@ -355,7 +367,7 @@ const wallOff = (x: number, y: number, reach: number): number => {
  * and 60 m or more from every station and level crossing, whose nearest drive wall stands 3.3–5 m off the centreline. A car the
  * train shoves off the track there stays pinned against its side by the wall.
  */
-export const BESIDE_WALL = (() => {
+export const besideWall = once(() => {
   const line = LINES[MONZONE.line]!
   const clear = (s: number) =>
     !MAP.railway.stations.some(
@@ -373,7 +385,7 @@ export const BESIDE_WALL = (() => {
   }
   if (found.length < 2) throw new Error("no two walls beside the line")
   return found as [number, number]
-})()
+})
 
 /** A road's polyline as points. */
 const pointsOf = (road: RoadLine) =>
@@ -405,7 +417,7 @@ const lastOf = (walk: ReadonlyArray<Vec2.Vec2>, length: number): Array<Vec2.Vec2
  * The way on foot down a road into a level crossing on Monzone's line: the last 50 m along a road box's road, every 0.25 m, to
  * the box's centre, from the side where its road at grade stands highest over the rail head there; with the box and its s.
  */
-export const DOWN_TO_BOX = (() => {
+export const downToBox = once(() => {
   const line = LINES[MONZONE.line]!
   return CROSSINGS.flatMap((box, index) => {
     const on = box.on.find((at) => at.line === line.index)
@@ -422,7 +434,7 @@ export const DOWN_TO_BOX = (() => {
       return { box: index, s: on.s, way, fall: footZ(way[0]!.x, way[0]!.y) - rail }
     })
   }).reduce((a, b) => (b.fall > a.fall ? b : a))
-})()
+})
 
 /**
  * Every road of the tiles `line`'s track crosses (all within `HALO` of it are there), whole with its
@@ -452,7 +464,7 @@ const roadsAlong = (line: Line): Array<{ readonly index: number; readonly road: 
  * track where it passes under it (the rail head more than 2 m over its floor), every 0.05 m; with that tunnel's road, its index
  * in `MAP.roads` and the track's s over that point.
  */
-export const UNDERPASS_WAYS = (() => {
+export const underpassWays = once(() => {
   const line = LINES[MONZONE.line]!
   return roadsAlong(line).flatMap(({ index, road }) => {
     if (road.tunnel !== true) return []
@@ -490,4 +502,4 @@ export const UNDERPASS_WAYS = (() => {
       return [{ road, index, walk: along([...lastOf(into, 15), ...inside.slice(1)], 0.05), s }]
     })
   })
-})()
+})

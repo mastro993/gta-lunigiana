@@ -248,26 +248,6 @@ test("reactions: a car at 100 km/h in its lane makes walkers on the verge ahead 
   }
 })
 
-test("reactions: a quiet village stays quiet: in Gragnola's centre, traffic and its horns draw under 1 cry of fright and 2 of anger a minute", () => {
-  // The density calibration's spot, the busiest village street; the player stands still for 3 minutes, on two seeds.
-  const GRAGNOLA = { x: -1751, y: 3360, angle: 0 },
-    minutes = 3,
-    seeds = [1, 2]
-  const felt = { fright: 0, anger: 0 }
-  for (const seed of seeds) {
-    const { run, world, heard } = seeded(seed, [GRAGNOLA])
-    const people = new Set<number>()
-    run(minutes * 3600, (frame) => {
-      if (frame % 30 === 0) for (const p of world().peds) people.add(p.id)
-    })
-    for (const c of heard.cries)
-      if (people.has(c.who) && (c.feeling === "fright" || c.feeling === "anger")) felt[c.feeling]++
-  }
-  const perMinute = (n: number) => n / (minutes * seeds.length)
-  const said = `fright ${perMinute(felt.fright).toFixed(2)}, anger ${perMinute(felt.anger).toFixed(2)} a minute`
-  assert.ok(perMinute(felt.fright) < 1 && perMinute(felt.anger) < 2, said)
-})
-
 test("reactions: a death 12–25 m away shocks the witnesses (a shock cry each), then up to four gather by the body and the rest run, then walk on", () => {
   // The victim walks down the right lane into a car at 30 m/s; eight witnesses walk the far verge 10–24 m up the street.
   const witnesses = [18, 20, 22, 24, 26, 28, 30, 32].map((at) => walker(at, { side: -1 }))

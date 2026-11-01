@@ -7,8 +7,10 @@ import { heightAt, MAP, wallsNear } from "../index.ts"
 import { TILE, tileKey } from "../kinds.ts"
 import { decodeTile, readMapFile, tileUrl } from "../packed.ts"
 import {
+  cellCorners,
   dropTile,
   isResident,
+  nodeAt,
   provideTile,
   residentTiles,
   setTileSource,
@@ -127,4 +129,29 @@ test("a lookup in a tile that is not in memory throws, naming it; with the tile 
   } finally {
     setTileSource(fromDisk)
   }
+})
+
+test("cellCorners reads a cell's four nodes as four nodeAt calls do, on and either side of the seams by Monzone station", () => {
+  const hm = MAP.heightmap,
+    gi = (x: number) => Math.floor((x - hm.x0) / hm.cell),
+    gj = (y: number) => Math.floor((y - hm.y0) / hm.cell)
+  const out = new Int32Array(4)
+  let cells = 0
+  // The x = 0 seam along Monzone station's row, the y = 0 seam along its column, and the tile corner (0, 0).
+  // Two tiles hold a seam's nodes alike; which one a seam cell reads, ground.test.ts's farTerrainY checks.
+  for (const [x, y] of [
+    [0, 436.9],
+    [-493.8, 0],
+    [0, 0],
+  ] as const)
+    for (let i = gi(x) - 3; i <= gi(x) + 3; i++)
+      for (let j = gj(y) - 3; j <= gj(y) + 3; j++) {
+        cells++
+        assert.deepEqual(
+          [...cellCorners(i, j, out)],
+          [nodeAt(i, j), nodeAt(i + 1, j), nodeAt(i, j + 1), nodeAt(i + 1, j + 1)],
+          `cell ${i},${j}`,
+        )
+      }
+  assert.equal(cells, 147)
 })

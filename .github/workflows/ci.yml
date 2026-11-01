@@ -32,14 +32,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # The steps of `pnpm check`, one per step so a failure names its gate; lint and the tests read
-      # the built maps. `pnpm test:map` runs the checks whose cost grows with the map, and those of
-      # the L test region, which the maps action builds (or restores) with the maps.
+      # the built maps. `pnpm test:long` runs the long joyrides, replays and render statistics;
+      # `pnpm test:map` the checks whose cost grows with the map, and those of the L test region,
+      # which the maps action builds (or restores) with the maps.
       - run: pnpm format:check
       - run: pnpm typecheck
       - id: maps
         uses: ./.github/actions/maps
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm test:long
       - run: pnpm test:map
 
   # When the check job built the maps (their inputs changed), build them again on an arm64 runner
