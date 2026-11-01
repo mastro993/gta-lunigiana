@@ -44,11 +44,17 @@ import { type Part, dtmDir, partOf, rectsBox, regionOfPart } from "./region.ts"
 import { fetchZip, mustFind } from "./rt-cache.ts"
 import { readIndex } from "./rt-index-file.ts"
 import { parseShp } from "./shp.ts"
+import type { Source } from "./terrain-sources.ts"
 
 /** Cell size, m: 0.01 ha cells keep a 78 km² part under a million cells. */
 const RES = 10
-/** The fetched terrain's sources past the LiDAR, and their columns' titles. */
-const FILLS = { dsm2021: "DSM 2021", dtm10: "10 m DTM", rer: "DTM 5x5" } as const
+/** The fetched terrain's sources past the LiDAR, and their columns' titles: one for every source the chain has. */
+const FILLS = {
+  dsm2021: "DSM 2021",
+  dtm10: "10 m DTM",
+  rer: "DTM 5x5",
+} as const satisfies Record<Exclude<Source, "lidar">, string>
+const FILL_SOURCES: ReadonlyArray<string> = Object.keys(FILLS)
 /** UCS 2019 classes that are woods: broadleaf, conifer and mixed woods, and woodland in regrowth. */
 const WOODS: ReadonlySet<string> = new Set(["311", "312", "313", "324"])
 /** Archives downloaded at once. */
@@ -141,18 +147,23 @@ const ctrMapped = async (sheets: ReadonlyArray<string>): Promise<Array<Polygon>>
     })
   ).flat()
 
-/** Each cell's source past the LiDAR (`source` at its centre), 1-based into `fills`; 0 = the LiDAR. */
-const fillLayer = (
+/**
+ * Each cell's source past the LiDAR (`source` at its centre), 1-based into FILLS' columns; 0 = the
+ * LiDAR. Throws on a source with no column, which would otherwise count as LiDAR.
+ */
+export const fillLayer = (
   grid: ReturnType<typeof gridOver>,
   source: (x: number, y: number) => string,
-  fills: ReadonlyArray<string>,
 ): Uint16Array => {
   const out = new Uint16Array(grid.cols * grid.rows)
   for (let row = 0; row < grid.rows; row++)
-    for (let col = 0; col < grid.cols; col++)
-      out[row * grid.cols + col] =
-        fills.indexOf(source(grid.x0 + (col + 0.5) * grid.res, grid.y0 + (row + 0.5) * grid.res)) +
-        1
+    for (let col = 0; col < grid.cols; col++) {
+      const name = source(grid.x0 + (col + 0.5) * grid.res, grid.y0 + (row + 0.5) * grid.res)
+      if (name === "lidar") continue
+      const code = FILL_SOURCES.indexOf(name) + 1
+      if (code === 0) throw new Error(`no coverage column for terrain source ${name}`)
+      out[row * grid.cols + col] = code
+    }
   return out
 }
 
@@ -201,7 +212,6 @@ const main = async (): Promise<void> => {
   const region = regionOfPart(part),
     terrainDir = join(import.meta.dirname, "../..", dtmDir(region))
   const fetched = existsSync(join(terrainDir, "dtm-src.bin"))
-  const fills = Object.keys(FILLS)
   const comuni = comuniOf(readOsm(comuniPath))
   const woods = ucs.flatMap(({ attrs, polygons }) =>
     WOODS.has(attrs.ucs2019 ?? "") ? polygons.map(gbPolygon) : [],
@@ -220,13 +230,13 @@ const main = async (): Promise<void> => {
     ),
     ucs: mask(grid, woods),
     osm: mask(grid, forestPolygons(readOsm(forestPath))),
-    ...(fetched ? { fill: fillLayer(grid, loadDtm(terrainDir, region).source!, fills) } : {}),
+    ...(fetched ? { fill: fillLayer(grid, loadDtm(terrainDir, region).source!) } : {}),
   }
   const rows = tally(
     layers,
     comuni.map((c) => c.name),
     lots.length,
-    fetched ? fills.length : 0,
+    fetched ? FILL_SOURCES.length : 0,
   )
   const table = coverageTable(rows, lots, RES * RES, fetched ? Object.values(FILLS) : [])
   console.log(`${table}\n\n${LEGEND}`)

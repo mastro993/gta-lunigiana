@@ -1967,9 +1967,10 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   comune (OSM `admin_level=8` boundaries), the part's area mapped by the manifest's 2019 sheets, by
   each LiDAR lot (the index footprints in manifest order, first wins) and by no LiDAR, and, once
   `fetch-rt` has written the terrain of the part's region, by each source the chain took past the
-  LiDAR (surface model, 10 m DTM, DTM 5x5: `dtm-src.bin` at each cell's centre), and the UCS 2019
-  woods (311–313, 324) against OSM's forest, on 10 m cells; it stops when the manifest holds no
-  picks yet. It prints the markdown table for the PR and writes `coverage.md` and `coverage.png`.
+  LiDAR (surface model, 10 m DTM, DTM 5x5: `dtm-src.bin` at each cell's centre; a source the chain
+  gains fails the typecheck until it has a column, and `fillLayer` throws on one it does not know),
+  and the UCS 2019 woods (311–313, 324) against OSM's forest, on 10 m cells; it stops when the
+  manifest holds no picks yet. It prints the markdown table for the PR and writes `coverage.md` and `coverage.png`.
   `lucido`: 6 comuni (Fivizzano 50.62 km²); CTR 11.1%, lot 004 78.6%, lot 005 20.5%, no LiDAR 0.66
   km² (0.7% over the mosaic's holes: the footprints' slivers and the 10 m cells); OSM marks 92.7% of
   the 54.69 km² of UCS woods as forest. `sillara`: see [Test regions](#test-regions).

@@ -18,7 +18,7 @@ import { fillPolygon } from "./geometry.ts"
 /** The terrain's sources in the chain's order: a cell's source code is the index of its source here. */
 export const SOURCES = ["lidar", "dsm2021", "dtm10", "rer"] as const
 /** One of the terrain's sources. */
-type Source = (typeof SOURCES)[number]
+export type Source = (typeof SOURCES)[number]
 
 /** A source's code in the mosaic's source raster. */
 export const codeOf = (source: Source): number => SOURCES.indexOf(source)
