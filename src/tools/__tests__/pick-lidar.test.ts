@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Crop } from "../dtm-mosaic.ts"
-import { findHoles, replayTile } from "../pick-lidar.ts"
+import { elementsOverHoles, findHoles, replayTile } from "../pick-lidar.ts"
 
 const NODATA = -9999
 
@@ -71,4 +71,57 @@ test("a crop no tile touches is one hole", () => {
     count: 1,
     largest: { cells: 24, col: 2.5, row: 1.5, box: [0, 0, 5, 3] },
   })
+})
+
+/** CROP written whole but one hole cell (2, as findHoles marks it): col 4, row 2, centred on (1004.5, 2002.5). */
+const oneHole = (): Uint8Array => {
+  const written = new Uint8Array(CROP.cols * CROP.rows).fill(1)
+  written[2 * CROP.cols + 4] = 2
+  return written
+}
+
+/** An EPSG:3003 box (e0, n0)–(e1, n1) as one polygon of the index's footprint: its one ring, counter-clockwise. */
+const box = (e0: number, n0: number, e1: number, n1: number) => [[e0, n0, e1, n0, e1, n1, e0, n1]]
+
+/** An element of the 2021 surface model in the index: RT's, its archive answering 200, unless told. */
+const element = (
+  id: string,
+  polygons: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>,
+  owner = "RT",
+  status = 200,
+) => ({ element: id, owner, status, polygons })
+
+test("the surface model's elements over a hole are kept, by number; one over written cells only is not", () => {
+  const kept = elementsOverHoles(
+    [
+      element("234051", [box(1003, 2001, 1006, 2004)]),
+      element("234012", [box(1000, 2000, 1004, 2004)]),
+      // Its first polygon over written cells, its second over the hole.
+      element("234011", [box(1000, 2000, 1002, 2002), box(1004, 2002, 1005, 2003)]),
+    ],
+    oneHole(),
+    CROP,
+  )
+  assert.deepEqual(kept, ["234011", "234051"])
+})
+
+test("an element is kept only when its footprint holds a hole cell's centre, not when it just overlaps the cell", () => {
+  // Each misses the hole cell's centre (1004.5, 2002.5) by 0.1 m, one from the east, one from the north.
+  const near = [
+    element("234013", [box(1004.6, 2000, 1006, 2004)]),
+    element("234014", [box(1003, 2002.6, 1006, 2004)]),
+  ]
+  assert.deepEqual(elementsOverHoles(near, oneHole(), CROP), [])
+})
+
+test("an element not RT's, or whose archive did not answer 200, is never kept, though over a hole", () => {
+  const over = [box(1003, 2001, 1006, 2004)]
+  const others = [
+    element("234011", over, "MATTM"),
+    element("234012", over, "RT", 404),
+    // No HEAD answer recorded.
+    { element: "234013", owner: "RT", polygons: over },
+  ]
+  assert.deepEqual(elementsOverHoles(others, oneHole(), CROP), [])
+  assert.deepEqual(elementsOverHoles([element("234014", over)], oneHole(), CROP), ["234014"])
 })

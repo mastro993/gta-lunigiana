@@ -121,6 +121,10 @@ const GB_RESIDUAL = { e: -0.4, n: 0.5 }
 /** EPSG:6707 (CTR) easting, northing -> WGS84 lat, lon. */
 export const utm32ToLatLon = (e: number, n: number): [number, number] => tmInverse(UTM32, e, n)
 
+/** WGS84 lat, lon -> RDN2008 / UTM 32N easting, northing (EPSG:6707 and 7791: the DSM 2021, Emilia-Romagna's DTM). */
+export const latLonToUtm32 = (lat: number, lon: number): [number, number] =>
+  tmForward(UTM32, lat, lon)
+
 /** WGS84 lat, lon -> EPSG:3003 (LiDAR) easting, northing. */
 export const latLonToGaussBoaga = (lat: number, lon: number): [number, number] => {
   const [la, lo] = fromEcef(HAYFORD, ...helmert(-1, toEcef(WGS84, lat, lon)))

@@ -7,7 +7,9 @@
 // - CTR 2019: the AZR mapped areas of the manifest's sheets (the archives `fetch-rt` caches);
 // - LiDAR <lot>: the manifest's tiles in order, on the index's footprints; a cell takes the lot of
 //   the first tile holding it, as `fetch-rt`'s mosaic keeps the first value;
-// - no LiDAR: the cells no tile holds, which `fetch-rt` fills from the 10 m DTM;
+// - no LiDAR: the cells no tile holds, which `fetch-rt` fills through the fallback chain;
+// - DSM 2021, 10 m DTM, DTM 5x5: the sources `fetch-rt`'s chain took past the LiDAR, read from the
+//   terrain it wrote for the part's region (`dtm-src.bin`), once it has;
 // - forest: the UCS 2019 woods (311–313, 324; WFS, box + 500 m), OSM forest (landuse=forest,
 //   natural=wood; Overpass), and the share of the woods OSM also marks as forest.
 // Measured on 10 m cells, a cell counted when its centre lies in the play area (the union of the
@@ -32,18 +34,21 @@ import {
   tally,
 } from "./coverage-grid.ts"
 import { gaussBoagaToLatLon, utm32ToLatLon } from "./crs.ts"
+import { loadDtm } from "./dtm.ts"
 import { fromLocal, gaussBoagaBox, toLocal } from "./geometry.ts"
 import { type Manifest, readManifest } from "./manifest.ts"
 import { getText, overpass, pool } from "./net.ts"
 import { type Osm, assembleRings, readOsm } from "./osm.ts"
 import { encodePngRgb } from "./png.ts"
-import { type Part, partOf, rectsBox } from "./region.ts"
+import { type Part, dtmDir, partOf, rectsBox, regionOfPart } from "./region.ts"
 import { fetchZip, mustFind } from "./rt-cache.ts"
 import { readIndex } from "./rt-index-file.ts"
 import { parseShp } from "./shp.ts"
 
 /** Cell size, m: 0.01 ha cells keep a 78 km² part under a million cells. */
 const RES = 10
+/** The fetched terrain's sources past the LiDAR, and their columns' titles. */
+const FILLS = { dsm2021: "DSM 2021", dtm10: "10 m DTM", rer: "DTM 5x5" } as const
 /** UCS 2019 classes that are woods: broadleaf, conifer and mixed woods, and woodland in regrowth. */
 const WOODS: ReadonlySet<string> = new Set(["311", "312", "313", "324"])
 /** Archives downloaded at once. */
@@ -136,6 +141,21 @@ const ctrMapped = async (sheets: ReadonlyArray<string>): Promise<Array<Polygon>>
     })
   ).flat()
 
+/** Each cell's source past the LiDAR (`source` at its centre), 1-based into `fills`; 0 = the LiDAR. */
+const fillLayer = (
+  grid: ReturnType<typeof gridOver>,
+  source: (x: number, y: number) => string,
+  fills: ReadonlyArray<string>,
+): Uint16Array => {
+  const out = new Uint16Array(grid.cols * grid.rows)
+  for (let row = 0; row < grid.rows; row++)
+    for (let col = 0; col < grid.cols; col++)
+      out[row * grid.cols + col] =
+        fills.indexOf(source(grid.x0 + (col + 0.5) * grid.res, grid.y0 + (row + 0.5) * grid.res)) +
+        1
+  return out
+}
+
 /** An EPSG:3003 polygon (flat rings) in local metres. */
 const gbPolygon = (rings: ReadonlyArray<ReadonlyArray<number>>): Polygon =>
   rings.map((ring) =>
@@ -177,6 +197,11 @@ const main = async (): Promise<void> => {
     wfsUrl(UCS.map, UCS.layer, gaussBoagaBox(part.rects, UCS.pad)),
   )
 
+  // The terrain fetch-rt wrote for the part's region, if it has: each cell's source past the LiDAR.
+  const region = regionOfPart(part),
+    terrainDir = join(import.meta.dirname, "../..", dtmDir(region))
+  const fetched = existsSync(join(terrainDir, "dtm-src.bin"))
+  const fills = Object.keys(FILLS)
   const comuni = comuniOf(readOsm(comuniPath))
   const woods = ucs.flatMap(({ attrs, polygons }) =>
     WOODS.has(attrs.ucs2019 ?? "") ? polygons.map(gbPolygon) : [],
@@ -195,13 +220,15 @@ const main = async (): Promise<void> => {
     ),
     ucs: mask(grid, woods),
     osm: mask(grid, forestPolygons(readOsm(forestPath))),
+    ...(fetched ? { fill: fillLayer(grid, loadDtm(terrainDir, region).source!, fills) } : {}),
   }
   const rows = tally(
     layers,
     comuni.map((c) => c.name),
     lots.length,
+    fetched ? fills.length : 0,
   )
-  const table = coverageTable(rows, lots, RES * RES)
+  const table = coverageTable(rows, lots, RES * RES, fetched ? Object.values(FILLS) : [])
   console.log(`${table}\n\n${LEGEND}`)
   const legend = LEGEND.split("\n")
     .map((l) => `- ${l}`)
@@ -209,7 +236,9 @@ const main = async (): Promise<void> => {
   const notes = [
     `${RES} m cells, counted when their centre lies in the play area.`,
     `CTR 2019: the AZR of ${manifest.ctr.length} sheets. LiDAR: ${tiles.length} tiles, first wins in lot order ${lots.join(", ")}.`,
-    `no LiDAR: filled from ${manifest.dtm10.join(", ") || "nothing yet"}.`,
+    fetched
+      ? `no LiDAR: the fallback chain of ${relative(join(import.meta.dirname, "../.."), terrainDir)}/dtm-src.bin, the terrain fetch-rt wrote: ${Object.values(FILLS).join(", ")}.`
+      : "no LiDAR: the fallback chain's sources show once fetch-rt has written the part's terrain.",
     "Source columns: km² (share of the comune's play area).",
   ]
   const md = [

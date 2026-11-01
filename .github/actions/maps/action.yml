@@ -1,6 +1,8 @@
 # Puts the built maps and their overviews in src/sim/map, and the L test region pnpm test:map checks
 # in test-maps, for the steps after it: from the cache when their inputs are unchanged, else built
-# from the raw inputs data/raw.lock.json pins, which come through a cache of their own. The L is
+# from the raw inputs data/raw.lock.json pins, which come through a cache of their own. With `raw`
+# set, it puts the raw inputs in data/raw on a cache hit too, for the checks that read them
+# (terrain-seams.map-test.ts reads the terrain fetch-rt wrote and its sources). The L is
 # built from the same inputs and code (pnpm maps), so it shares the maps' key and is cached with
 # them: a hit needs no raw inputs. It never saves the maps: ci.yml's reproducible job does, once a
 # second build matches.
@@ -11,6 +13,9 @@ inputs:
   restore:
     description: '"false" builds the maps even when the cache holds them'
     default: "true"
+  raw:
+    description: '"true" puts the raw inputs in data/raw even when the maps come from the cache'
+    default: "false"
 outputs:
   key:
     description: The maps' cache key
@@ -48,21 +53,21 @@ runs:
         key: ${{ steps.key.outputs.key }}
 
     - id: raw
-      if: steps.maps.outputs.cache-hit != 'true'
+      if: steps.maps.outputs.cache-hit != 'true' || inputs.raw == 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: data/raw
         key: raw-${{ hashFiles('data/raw.lock.json') }}
 
     # Downloads only what the cache lacks, and checks every file's SHA-256 either way.
-    - if: steps.maps.outputs.cache-hit != 'true'
+    - if: steps.maps.outputs.cache-hit != 'true' || inputs.raw == 'true'
       shell: bash
       run: pnpm fetch-raw
       env:
         GH_TOKEN: ${{ github.token }}
 
     # Every file was just checked against the lock, so the raw cache is safe to save here.
-    - if: steps.maps.outputs.cache-hit != 'true' && steps.raw.outputs.cache-hit != 'true'
+    - if: (steps.maps.outputs.cache-hit != 'true' || inputs.raw == 'true') && steps.raw.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: data/raw

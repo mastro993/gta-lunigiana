@@ -23,7 +23,7 @@ import {
 import { centroid, pointInRing, r1 } from "./geometry.ts"
 import { readOsm } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
-import { REGION } from "./region.ts"
+import { REGION, dtmDir } from "./region.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
 
@@ -46,7 +46,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     ? readCtr(join(root, "data/raw/rt/ctr"))
     : { buildings: [], roadAreas: [], mapped: [] }
   const dem = lunigiana
-    ? loadDtm(join(root, "data/raw/rt"))
+    ? loadDtm(join(root, dtmDir(REGION)))
     : await loadGeoDtm(join(root, "data/raw/cesena/dtm.tif"))
   const ctrRail = lunigiana
     ? readCtrRail(join(root, "data/raw/rt/ctr"))

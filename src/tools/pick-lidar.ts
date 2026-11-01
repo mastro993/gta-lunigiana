@@ -7,9 +7,11 @@
 // tiles' archives through the cache (`rt-cache.ts`; needs `unzip` on the PATH). Only RT's tiles
 // (CC BY 4.0) are candidates: lots 006 and 007 (MATTM, CC BY-SA 3.0 IT) and the private lidar2k_noRT
 // layer never are. Prints the tiles skipped and why, each candidate's cells in the crop and cells
-// given first (1 m cells, m²), the holes no tile fills (the cells fetch-rt takes from the 10 m DTM:
-// count, 4-connected holes, the largest), and how the picks differ from data/parts/<part>.json,
-// order included. --write stores the picks there as `lidar`, in priority order.
+// given first (1 m cells, m²), the holes no tile fills (the cells fetch-rt fills through the
+// fallback chain, `fill-chain.ts`: count, 4-connected holes, the largest), the 2021 surface model's
+// elements whose index footprint meets a hole (the chain's second step), and how the picks differ
+// from data/parts/<part>.json, order included. --write stores the picks there as `lidar`, in
+// priority order, and the elements as `dsm2021`, by number.
 
 import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -18,7 +20,7 @@ import { parseArgs } from "node:util"
 import { lidarUrl } from "./cartoteca.ts"
 import { gaussBoagaToLatLon } from "./crs.ts"
 import { type Crop, cropOf, eachCell } from "./dtm-mosaic.ts"
-import { toLocal } from "./geometry.ts"
+import { fillPolygon, toLocal } from "./geometry.ts"
 import { manifestPath, readManifest, updateManifest } from "./manifest.ts"
 import { pool } from "./net.ts"
 import { diffLines, diffList } from "./pick-diff.ts"
@@ -109,6 +111,35 @@ export const findHoles = (
   return { cells, count, ...(largest === undefined ? {} : { largest }) }
 }
 
+/**
+ * The 2021 surface model's elements (RT's, archive answering 200) whose index footprint, EPSG:3003,
+ * holds the centre of a hole cell (`written` 2, as `findHoles` marks them), by number.
+ */
+export const elementsOverHoles = (
+  elements: ReadonlyArray<{
+    readonly element: string
+    readonly owner: string
+    readonly status?: number
+    readonly polygons: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>
+  }>,
+  written: Uint8Array,
+  crop: Crop,
+): Array<string> => {
+  const block = { c0: 0, r0: 0, cols: crop.cols, rows: crop.rows }
+  return elements
+    .filter(({ owner, status, polygons }) => {
+      if (owner !== "RT" || status !== 200) return false
+      let meets = false
+      for (const rings of polygons)
+        fillPolygon(rings, crop.e0 - 0.5, crop.n0 - 0.5, 1, block, (k) => {
+          meets ||= written[k] === 2
+        })
+      return meets
+    })
+    .map((e) => e.element)
+    .toSorted()
+}
+
 if (import.meta.main) {
   const { values, positionals } = parseArgs({
     options: { lots: { type: "string", default: "004,005" }, write: { type: "boolean" } },
@@ -173,11 +204,18 @@ if (import.meta.main) {
     )
   }
 
+  const dsm2021 = elementsOverHoles(index.dsm2021, written, crop)
+  console.log(`the 2021 surface model's elements over the holes: ${dsm2021.join(", ") || "none"}`)
+
   const path = relative(join(import.meta.dirname, "../.."), manifestPath(part.key))
-  for (const line of diffLines(diffList(readManifest(part.key).lidar, picks), path))
+  const manifest = readManifest(part.key)
+  for (const line of [
+    ...diffLines(diffList(manifest.lidar, picks), path),
+    ...diffLines(diffList(manifest.dsm2021, dsm2021), `${path} dsm2021`),
+  ])
     console.log(line)
   if (values.write === true) {
-    updateManifest(part.key, { lidar: picks })
+    updateManifest(part.key, { lidar: picks, dsm2021 })
     console.log(`wrote ${path}`)
   }
 }

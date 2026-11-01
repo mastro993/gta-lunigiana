@@ -23,6 +23,24 @@
     "asset": "raw-20261030/lunigiana.osm.gz",
     "source": "https://api.openstreetmap.org/api/0.6/map?bbox=10.092494,44.105952,10.192509,44.197749 and each area multipolygon's /relation/<id>/full, in git since 2026-10-20 (66ae295)"
   },
+  "rt/bagnone-ridge/dtm-src.bin": {
+    "sha256": "0650c2c3596002b3edb0f4b1a105c6aff3b8c405f8eefc35ecfaa4bc4ae1f0fb",
+    "bytes": 34030,
+    "asset": "raw-20261101/rt.bagnone-ridge.dtm-src.bin",
+    "source": "the lidar archives of data/parts/sillara.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 234011, 234012, 234013, 234014, 234051 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1581548.5,4909832.5,1586650.5,4914947.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; then https://servizigis.regione.emilia-romagna.it/wcs/dtm5x5?service=WCS&version=1.0.0&request=GetCoverage&coverage=DTM5X5_RDN32_RMD&crs=EPSG:7791&response_crs=EPSG:7791&bbox=582705,4912145,586135,4914440&width=686&height=459&format=GeoTIFF, fetched 2026-11-01"
+  },
+  "rt/bagnone-ridge/dtm.bin": {
+    "sha256": "e955731af87bb41b2ff91b630c3ebdb1e20de5d35cb2a9f90c5f1fb18782e707",
+    "bytes": 2277079,
+    "asset": "raw-20261101/rt.bagnone-ridge.dtm.bin",
+    "source": "the lidar archives of data/parts/sillara.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 234011, 234012, 234013, 234014, 234051 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1581548.5,4909832.5,1586650.5,4914947.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; then https://servizigis.regione.emilia-romagna.it/wcs/dtm5x5?service=WCS&version=1.0.0&request=GetCoverage&coverage=DTM5X5_RDN32_RMD&crs=EPSG:7791&response_crs=EPSG:7791&bbox=582705,4912145,586135,4914440&width=686&height=459&format=GeoTIFF, fetched 2026-11-01"
+  },
+  "rt/bagnone-ridge/dtm.json": {
+    "sha256": "72e1d04603ddbe6f868267ff94beedc8675af13cb0a6575ca63a1af0cf16eeba",
+    "bytes": 380,
+    "asset": "raw-20261101/rt.bagnone-ridge.dtm.json",
+    "source": "the lidar archives of data/parts/sillara.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 234011, 234012, 234013, 234014, 234051 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1581548.5,4909832.5,1586650.5,4914947.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; then https://servizigis.regione.emilia-romagna.it/wcs/dtm5x5?service=WCS&version=1.0.0&request=GetCoverage&coverage=DTM5X5_RDN32_RMD&crs=EPSG:7791&response_crs=EPSG:7791&bbox=582705,4912145,586135,4914440&width=686&height=459&format=GeoTIFF, fetched 2026-11-01"
+  },
   "rt/ctr/23D11_AED.dbf.gz": {
     "sha256": "7888be68489b6b5203e44cad26a0c7fb774c41ce0a23fb472058c9832d1bc5dc",
     "bytes": 6273,
@@ -1427,17 +1445,23 @@
     "asset": "raw-20261030/rt.ctr.23D55_AZR.shp.gz",
     "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_23D55_2019_6707.zip"
   },
+  "rt/dtm-src.bin": {
+    "sha256": "eb0128d9bf0346cb848b115e9e3bf51bbfcf0b0faadbaa22fd30ccee8c50c2f9",
+    "bytes": 22752,
+    "asset": "raw-20261101/rt.dtm-src.bin",
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip"
+  },
   "rt/dtm.bin": {
-    "sha256": "57d3736c5818d18354ebbead84bb4f30ba860ff1fd26c52dd6ed7487a4f45a6f",
-    "bytes": 14952701,
-    "asset": "raw-20261030/rt.dtm.bin",
-    "source": "the lidar and dtm10 archives of data/parts/lucido.json, mosaicked (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip, https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/<dtm10>.zip)"
+    "sha256": "39f4d157d6f5a9fe0e0bcc620d996a21cbaa695706933cf6cc4e8f7d6690a06e",
+    "bytes": 14952481,
+    "asset": "raw-20261101/rt.dtm.bin",
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip"
   },
   "rt/dtm.json": {
-    "sha256": "e40dddec90d96ae5e38bfb3f2818a64febeae94bcd17efb19c8edfe0381e4b69",
-    "bytes": 212,
-    "asset": "raw-20261030/rt.dtm.json",
-    "source": "the lidar and dtm10 archives of data/parts/lucido.json, mosaicked (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip, https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/<dtm10>.zip)"
+    "sha256": "f64137281e698a2a4abdb7915f16090ee7adcea33b9ffa0aa755e35d11c8c526",
+    "bytes": 380,
+    "asset": "raw-20261101/rt.dtm.json",
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip"
   },
   "rt/ucs.json.gz": {
     "sha256": "fb1585716f37ff93efe1b8f60a8e45f0e07dbcd94d7cd8b0bb65e933f2371ab6",

@@ -143,9 +143,12 @@ test("checkPicks throws for a part without a manifest (read as empty) or with no
   const message =
     "no picks in data/parts/x.json: run pnpm pick-sheets x --write and pnpm pick-lidar x --write first"
   assert.throws(() => checkPicks("x", readManifest("x")), { message })
-  assert.throws(() => checkPicks("x", { ctr: [], lidar: [], dtm10: ["MS_dtm10x10"] }), { message })
-  const ctr = { ctr: ["23D11"], lidar: [], dtm10: [] },
-    lidar = { ctr: [], lidar: ["23d42"], dtm10: [] }
+  assert.throws(
+    () => checkPicks("x", { ctr: [], lidar: [], dtm10: ["MS_dtm10x10"], dsm2021: [] }),
+    { message },
+  )
+  const ctr = { ctr: ["23D11"], lidar: [], dtm10: [], dsm2021: [] },
+    lidar = { ctr: [], lidar: ["23d42"], dtm10: [], dsm2021: [] }
   assert.equal(checkPicks("x", ctr), ctr)
   assert.equal(checkPicks("x", lidar), lidar)
 })
