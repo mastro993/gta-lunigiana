@@ -240,6 +240,33 @@ export const cellNodes = (gi: number, gj: number, out: Int32Array): Int32Array =
 }
 
 /**
+ * The four nodes of cell (gi, gj) as `nodeAt` reads them, each from the tile `nodeAt` reads it
+ * from, decimetres, in `out` as `cellNodes` orders them: one lookup off a listed tile's last row and
+ * column, where that tile holds all four, else `nodeAt` each (a seam cell's east or north nodes are
+ * the next tile's).
+ */
+export const cellCorners = (gi: number, gj: number, out: Int32Array): Int32Array => {
+  const ni = CORNER.x + gi,
+    nj = CORNER.y + gj,
+    ti = indexOf(ni, range.i0, range.i1),
+    tj = indexOf(nj, range.j0, range.j1)
+  if (listed[slotOf(ti, tj)] !== 1 || ni + 1 >= N * (ti + 1) || nj + 1 >= N * (tj + 1)) {
+    out[0] = nodeAt(gi, gj)
+    out[1] = nodeAt(gi + 1, gj)
+    out[2] = nodeAt(gi, gj + 1)
+    out[3] = nodeAt(gi + 1, gj + 1)
+    return out
+  }
+  const h = tileAt(ti, tj).data.heights,
+    k = (nj - N * tj) * TILE_NODES + ni - N * ti
+  out[0] = h[k]!
+  out[1] = h[k + 1]!
+  out[2] = h[k + TILE_NODES]!
+  out[3] = h[k + TILE_NODES + 1]!
+  return out
+}
+
+/**
  * The land-cover index of heightmap cell (ci, cj) (on the lattice: 0 ≤ ci < cols − 1, 0 ≤ cj < rows −
  * 1); in an unlisted tile, the nearest listed cell's (`nearest`).
  */

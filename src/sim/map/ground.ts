@@ -9,7 +9,7 @@
 import { pointInRing, segDist2 } from "../collide.ts"
 import { MAP, type Road, roadClassOf } from "./index.ts"
 import { anchorOf, type RoadClass, vergeOf } from "./kinds.ts"
-import { nodeAt } from "./tiles.ts"
+import { cellCorners, nodeAt } from "./tiles.ts"
 
 /**
  * How far each road class's surface floats above its profile (m); wider classes on top, so junctions
@@ -33,12 +33,18 @@ export const ROAD_LIFT = {
 
 const hm = MAP.heightmap
 const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
+/** Terrain node (i, j) in decimetres, its indices clamped to the grid (`terrainNodeZ`). */
+const clampedNode = (i: number, j: number): number =>
+  nodeAt(Math.min(hm.cols - 1, Math.max(0, i)), Math.min(hm.rows - 1, Math.max(0, j)))
+
 /**
  * Terrain node elevation at grid index (i, j), row 0 = south; indices outside the grid clamp to
  * the edge, which is how the apron beyond the map bounds continues the landscape.
  */
-export const terrainNodeZ = (i: number, j: number): number =>
-  nodeAt(Math.min(hm.cols - 1, Math.max(0, i)), Math.min(hm.rows - 1, Math.max(0, j))) / 10
+export const terrainNodeZ = (i: number, j: number): number => clampedNode(i, j) / 10
+
+/** Scratch for the four nodes of a cell. */
+const corners = new Int32Array(4)
 
 /**
  * Terrain elevation under (x, y) on the drawn mesh: each cell is split along its south-west to
@@ -53,10 +59,14 @@ export const terrainZ = (x: number, y: number): number => {
     v = fy - fj
   const i = fi + AI,
     j = fj + AJ
-  const sw = terrainNodeZ(i, j),
-    se = terrainNodeZ(i + 1, j),
-    nw = terrainNodeZ(i, j + 1),
-    ne = terrainNodeZ(i + 1, j + 1)
+  // Every wheel and foot reads here each step: on the grid, its nodes in one lookup where it can;
+  // on the apron each node clamps on its own.
+  if (i >= 0 && j >= 0 && i < hm.cols - 1 && j < hm.rows - 1) cellCorners(i, j, corners)
+  else for (let k = 0; k < 4; k++) corners[k] = clampedNode(i + (k & 1), j + (k >> 1))
+  const sw = corners[0]! / 10,
+    se = corners[1]! / 10,
+    nw = corners[2]! / 10,
+    ne = corners[3]! / 10
   return u >= v ? sw + (se - sw) * u + (ne - se) * v : sw + (ne - nw) * u + (nw - sw) * v
 }
 

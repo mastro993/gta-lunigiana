@@ -157,9 +157,17 @@ export const RIGS = {
 /** The last tuned rigs, by model and handling: the handling changes rarely, and a rig is cheap but not free to derive every step. */
 const tunedRigs = new Map<string, Rig>()
 const TUNED_KEPT = 16
+/** Each handling's key, by the value read: the resource hands the same value to every car, every step. */
+const keys = new WeakMap<HandlingValue, string>()
 /** A handling as a cache key, its knobs in menu order. */
-const keyOf = (handling: HandlingValue): string =>
-  HANDLING_KEYS.map((key) => handling[key]).join(" ")
+const keyOf = (handling: HandlingValue): string => {
+  let key = keys.get(handling)
+  if (key === undefined) {
+    key = HANDLING_KEYS.map((knob) => handling[knob]).join(" ")
+    keys.set(handling, key)
+  }
+  return key
+}
 const REAL_KEY = keyOf(REAL_HANDLING)
 
 /** Model `model`'s rig under `handling`: `RIGS` while every knob is real. */
