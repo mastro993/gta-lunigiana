@@ -120,11 +120,14 @@ const nearestTrack = (
   }
   return best
 }
-/** Its platforms people wait on. */
-const waitedOf = ({ platforms }: Stations) =>
-  platforms
-    .map((p) => MAP.railway.platforms[p]!)
-    .filter((p) => p.walkway !== true && p.name !== undefined)
+/** Of `platforms` (indices into `MAP.railway.platforms`; all of the map's by default), those people wait on (not the walkways). */
+const waitedOf = (platforms: ReadonlyArray<number> = [...MAP.railway.platforms.keys()]) =>
+  platforms.filter((i) => {
+    const p = MAP.railway.platforms[i]!
+    return p.walkway !== true && p.name !== undefined
+  })
+/** Platform `i`'s area's rings (`MAP.derived.platforms`): its rim, then its holes. */
+const ringsOf = (i: number) => MAP.derived.platforms[i]!
 
 /** The platforms' tops follow the rail profile, within 2 cm of the map's platform top (the rail head + 0.25 m), and rise along Monzone's. */
 export const checkTops = ({ all }: Stations): void => {
@@ -144,9 +147,9 @@ export const checkTops = ({ all }: Stations): void => {
     rise = Math.max(rise, h)
   }
   // Monzone's platforms rise with the line: a flat slab would be wrong by up to about half a metre at one end.
-  const rings = MAP.railway.platforms
-    .filter((p) => p.name?.startsWith("Monzone") === true)
-    .map((p) => MAP.areas[p.area]!.rings[0]!)
+  const rings = [...MAP.railway.platforms.keys()]
+    .filter((i) => MAP.railway.platforms[i]!.name?.startsWith("Monzone") === true)
+    .map((i) => ringsOf(i)[0]!)
   const monzone = tops
     .filter(([x, , z]) => rings.some((ring) => pointInRing(x, -z, ring)))
     .map(([, y]) => y)
@@ -163,8 +166,9 @@ export const checkYellowLines = (part: Stations): void => {
     const { d } = nearestTrack(part.rail, x, -z, (kind) => kind !== "siding")
     assert.ok(d < 2.2 + 0.7, `a yellow line ${d.toFixed(2)} m from the track`)
   }
-  for (const p of part.platforms.map((i) => MAP.railway.platforms[i]!)) {
-    const ring = MAP.areas[p.area]!.rings[0]!
+  for (const i of part.platforms) {
+    const p = MAP.railway.platforms[i]!,
+      ring = ringsOf(i)[0]!
     const on = yellow.filter(([x, , z]) => pointInRing(x, -z, ring)).length
     if (p.walkway === true) assert.equal(on, 0, "no line on a walkway")
     else assert.ok(on >= 30, `${p.name}: ${on / 3} yellow triangles`)
@@ -191,33 +195,33 @@ export const checkTrainsClear = ({ all, rail }: Stations): void => {
 /** One RFI-blue board on each of its platforms people wait on, every board drawn on one, its bottom over head height. */
 export const checkBoards = (part: Stations): void => {
   const blue = cornersOf(part.all.solid, PALETTE.rfiBlue),
-    waited = MAP.railway.platforms.filter((p) => p.walkway !== true && p.name !== undefined),
+    waited = waitedOf(),
     boards = new Map<number, number>()
   // A board is one blue box: 12 triangles.
   for (let b = 0; b < blue.length; b += 36) {
     const box = blue.slice(b, b + 36),
       x = box.reduce((n, [px]) => n + px, 0) / 36,
       y = -box.reduce((n, [, , pz]) => n + pz, 0) / 36
-    const on = waited.findIndex((p) => pointInRing(x, y, MAP.areas[p.area]!.rings[0]!))
+    const on = waited.find((i) => pointInRing(x, y, ringsOf(i)[0]!)) ?? -1
     assert.ok(on >= 0, `the board at ${x.toFixed(1)}, ${y.toFixed(1)} on a platform`)
     boards.set(on, (boards.get(on) ?? 0) + 1)
     const ground = platformTop(x, y)!
     const low = Math.min(...box.map(([, h]) => h))
     assert.ok(low - yOf(ground) > 2 && low - yOf(ground) < 2.3, "its bottom over head height")
   }
-  for (const p of waitedOf(part))
-    assert.equal(boards.get(waited.indexOf(p)), 1, `${p.name}: one board`)
+  for (const i of waitedOf(part.platforms))
+    assert.equal(boards.get(i), 1, `${MAP.railway.platforms[i]!.name}: one board`)
 }
 
 /** Lamp poles on each of its platforms people wait on, every one lit, Equi Terme's too (no street lamp within 60 m of it). */
 export const checkPlatformLamps = (part: Stations): void => {
   const spots = platformLamps()
-  for (const p of waitedOf(part)) {
-    const [outer, ...holes] = MAP.areas[p.area]!.rings
+  for (const i of waitedOf(part.platforms)) {
+    const [outer, ...holes] = ringsOf(i)
     const on = spots.filter(
       ({ x, y }) => pointInRing(x, y, outer!) && !holes.some((h) => pointInRing(x, y, h)),
     )
-    assert.ok(on.length >= 2, `${p.name}: ${on.length} lamps`)
+    assert.ok(on.length >= 2, `${MAP.railway.platforms[i]!.name}: ${on.length} lamps`)
   }
   assert.equal(
     streetLamps().filter((lamp) => lamp.kind === "pole" && part.holds(lamp.x, lamp.y)).length,
@@ -235,32 +239,31 @@ export const checkPlatformLamps = (part: Stations): void => {
 /** Of its stations, a canopy along the building's track side only where a platform runs along it (Gragnola's). */
 export const checkCanopies = ({ all, stations }: Stations): void => {
   const corners = cornersOf(all.solid, PALETTE.canopyGrey)
-  const along = stations
-    .map((s) => MAP.railway.stations[s]!)
-    .filter((station) => {
-      const building = MAP.buildings.find((b) => b.style === "station" && b.name === station.name)
-      if (building === undefined) return false
-      const ring = building.outer
-      // Some corner of a canopy meets the building's outline.
-      return corners.some(([x, , z]) => {
-        for (let k = 0; k < ring.length; k += 2)
-          if (
-            segDist2(
-              x,
-              -z,
-              ring[k]!,
-              ring[k + 1]!,
-              ring[(k + 2) % ring.length]!,
-              ring[(k + 3) % ring.length]!,
-            ).d2 <
-            0.05 ** 2
-          )
-            return true
-        return false
-      })
+  const along = stations.filter((s) => {
+    // The first station building of its name, which the map keeps a copy of.
+    const building = MAP.derived.stations[s] ?? null
+    if (building === null) return false
+    const ring = building.outer
+    // Some corner of a canopy meets the building's outline.
+    return corners.some(([x, , z]) => {
+      for (let k = 0; k < ring.length; k += 2)
+        if (
+          segDist2(
+            x,
+            -z,
+            ring[k]!,
+            ring[k + 1]!,
+            ring[(k + 2) % ring.length]!,
+            ring[(k + 3) % ring.length]!,
+          ).d2 <
+          0.05 ** 2
+        )
+          return true
+      return false
     })
+  })
   assert.deepEqual(
-    along.map((s) => s.name),
+    along.map((s) => MAP.railway.stations[s]!.name),
     ["Gragnola"],
   )
   // Along its wall, over the walkway round it: its corners over the platform's top, wider than 8 m.

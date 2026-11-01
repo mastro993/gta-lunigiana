@@ -10,13 +10,15 @@
 // The phases (docs/map.md, "Pipeline") run one after another, each a function whose intermediates
 // go out of scope when it returns: the sources (build-sources.ts), the terrain (build-terrain.ts),
 // the railway, walls, trees, graph and spawns on it (build-world.ts), then the map put together,
-// cut into tiles, baked and written (build-output.ts).
+// cut into tiles, baked and written (build-output.ts), and the full map's overview painted from
+// its vectors into `<file>/overview.png` beside the tiles (overview.ts).
 import { join } from "node:path"
 
 import { assembleMap, writeMap } from "./build-output.ts"
 import { readSources } from "./build-sources.ts"
 import { buildTerrain } from "./build-terrain.ts"
 import { buildWorld } from "./build-world.ts"
+import { writeOverview } from "./overview.ts"
 import { printRail, railSummary } from "./rail-report.ts"
 import { mapDir, REGION } from "./region.ts"
 import { cutMap } from "./tile-map.ts"
@@ -39,7 +41,7 @@ const sourcesAndTerrain = async () => {
   return { src, terrain: buildTerrain(src, dem, lap) }
 }
 
-/** The map cut into tiles, and what the report prints about the build; every other intermediate is gone once it returns. */
+/** The map cut into tiles, the vectors the overview paints, and what the report prints about the build; every other intermediate is gone once it returns. */
 const cutBuilt = async () => {
   const { src, terrain } = await sourcesAndTerrain()
   const world = buildWorld(src, terrain, lap)
@@ -49,6 +51,17 @@ const cutBuilt = async () => {
   lap("cut")
   return {
     cut,
+    overview: {
+      bounds: built.bounds,
+      layers: {
+        outline: built.outline,
+        areas: built.areas,
+        water: built.water,
+        rail: built.rail,
+        roads: built.roads,
+        buildings: built.buildings,
+      },
+    },
     report: {
       rail: src.railReport,
       running: src.rail.length,
@@ -64,16 +77,23 @@ const cutBuilt = async () => {
   }
 }
 
-const { cut, report } = await cutBuilt()
+const { cut, overview, report } = await cutBuilt()
 const dir = join(ROOT, mapDir(REGION))
 const written = await writeMap(cut, join(dir, `${REGION.file}.bin`), join(dir, REGION.file), lap)
 const map = written.global
+// After the tiles: writing them empties their directory first.
+const overviewBytes = writeOverview(
+  join(dir, REGION.file, "overview.png"),
+  overview.layers,
+  overview.bounds,
+)
+lap("overview")
 
 printRail(report.rail, report.platforms)
 
 /** Steepest vertex-to-vertex grade per road class (bridges included), over steps of >= 4 m. */
 const grades: Record<string, string> = {}
-for (const r of map.roads)
+for (const r of cut.whole.roads)
   for (let i = 1, j = 0; i < r.z.length; i++) {
     const ds = Math.hypot(r.pts[2 * i]! - r.pts[2 * j]!, r.pts[2 * i + 1]! - r.pts[2 * j + 1]!)
     if (ds < 4) continue
@@ -89,9 +109,10 @@ console.log({
   tiles: written.tiles,
   bytes: written.bytes,
   largestTile: written.largest,
-  roads: map.roads.length,
-  buildings: map.buildings.length,
-  water: map.water.length,
+  overview: kb(overviewBytes),
+  roads: map.vectors.counts.roads,
+  buildings: map.vectors.counts.buildings,
+  water: map.vectors.counts.water,
   rail: map.rail.length,
   ...railSummary({
     report: report.rail,
@@ -105,7 +126,8 @@ console.log({
     roadName: (i) => map.roads[i]!.name ?? String(map.roads[i]!.id),
     roadId: (i) => map.roads[i]!.id,
   }),
-  areas: map.areas.length,
+  areas: map.vectors.counts.areas,
+  barriers: map.vectors.counts.barriers,
   wallsWalk: map.walls.counts.walk,
   wallsShore: report.shoreWalls,
   wallsDrive: map.walls.counts.drive,
@@ -118,12 +140,10 @@ console.log({
   parked: map.spawns.parked.length,
   player: map.spawns.player,
   grades,
-  // the files' parts before gzip (the global JSON line and coarse grid, the tiles' sections summed), and the JSON line's biggest fields
+  // the files' parts before gzip (the global JSON line and coarse grid, the tiles' sections and vectors summed), and the JSON line's biggest fields
   sizes: {
     ...Object.fromEntries(Object.entries(written.sizes).map(([part, n]) => [part, kb(n)])),
     graph: jsonKb(map.graph),
     roads: jsonKb(map.roads),
-    buildings: jsonKb(map.buildings),
-    areas: jsonKb(map.areas),
   },
 })

@@ -55,16 +55,19 @@ export const trackNear = (x: number, y: number, reach: number): Array<TrackSegme
   return found.sort((a, b) => a - b).map((i) => SEGMENTS[i]!)
 }
 
-/** Each level crossing's road near it: its carriageway's half width and its centreline's segments within `BOX_REACH` m, flat (ax, ay, bx, by). */
-export const BOXES = MAP.railway.crossings.map((crossing) => {
-  const road = MAP.roads[crossing.road]!,
+/**
+ * Each level crossing's road near it: its carriageway's half width and its centreline's segments within `BOX_REACH` m, flat
+ * (ax, ay, bx, by), from the copy of its line the map keeps (`MAP.derived.crossings`), so no tile is read.
+ */
+export const BOXES = MAP.railway.crossings.map((crossing, b) => {
+  const { pts } = MAP.derived.crossings[b]!,
     segments: Array<number> = []
-  for (let k = 0; k + 3 < road.pts.length; k += 2) {
-    const [ax, ay, bx, by] = [road.pts[k]!, road.pts[k + 1]!, road.pts[k + 2]!, road.pts[k + 3]!]
+  for (let k = 0; k + 3 < pts.length; k += 2) {
+    const [ax, ay, bx, by] = [pts[k]!, pts[k + 1]!, pts[k + 2]!, pts[k + 3]!]
     if (segDist2(crossing.x, crossing.y, ax, ay, bx, by).d2 < BOX_REACH ** 2)
       segments.push(ax, ay, bx, by)
   }
-  return { x: crossing.x, y: crossing.y, half: road.w / 2, segments }
+  return { x: crossing.x, y: crossing.y, half: MAP.roads[crossing.road]!.w / 2, segments }
 })
 const boxGrid = staticGrid(
   BOXES.length,

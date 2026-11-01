@@ -1,10 +1,14 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { buildingPieces } from "../buildings.ts"
-import { lampPieces } from "../sky/lamps.ts"
-import { stationPieces } from "../stations.ts"
-import { assertChunkCut } from "./chunk-cut.ts"
+import { MAP } from "../../sim/map/index.ts"
+import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
+import { dropTile, setTileSource, tileVectors } from "../../sim/map/tiles.ts"
+import { chunkTiles } from "../chunk-tiles.ts"
+import { CHUNKS, chunkRect } from "../chunks.ts"
+import { Pieces } from "../pieces.ts"
+import { vectorsAround } from "../testing.ts"
+import { assertChunkCut, wholeBuild } from "./chunk-cut.ts"
 import {
   checkArms,
   checkBed,
@@ -13,8 +17,6 @@ import {
   checkPanelsOverRoads,
   checkPortals,
   checkReadingWidths,
-  lines,
-  pieces,
   railwayNear,
 } from "./rail-checks.ts"
 
@@ -27,12 +29,25 @@ const STATION = { x: -493.8, y: 436.9 }
 const HERE = railwayNear(STATION, 4000)
 
 // rail.map-test.ts checks every chunk of the map.
-test("rail, stations, roads and rivers, lamps and buildings: a chunk build by Monzone station keeps exactly its cut of the whole build", () => {
-  const station = { minX: -1000, minY: -100, maxX: 0, maxY: 900 }
-  for (const list of [pieces, stationPieces(), lines, lampPieces(), buildingPieces()]) {
-    const built = assertChunkCut(list, station)
-    // Monzone's two platforms are the fewest.
-    assert.ok(built >= 2, `${built} chunks hold some`)
+test("buildings, roads and rivers, rail, stations and lamps: a chunk by Monzone station built from the pieces of the tiles under it keeps exactly its cut of the whole build, whichever order the tiles come in", () => {
+  // Across the x = 0 and y = 0 seams by the station, and the whole build of everything the tiles round it hold.
+  const box = { minX: -1000, minY: -100, maxX: 0, maxY: 900 },
+    plan = chunkTiles()
+  const chunks = Array.from({ length: CHUNKS.x * CHUNKS.y }, (_, key) => key).filter((key) => {
+    const r = chunkRect(key)
+    return r.minX >= box.minX && r.maxX <= box.maxX && r.minY >= box.minY && r.maxY <= box.maxY
+  })
+  const whole = wholeBuild(vectorsAround([{ x: -500, y: 400 }], 600)),
+    tiles = [...new Set(chunks.flatMap((key) => plan.terrain[key]!))]
+  assert.ok(tiles.length >= 2, `${tiles.length} tiles`)
+  // Each time from no tile in memory: a lookup reads what it needs from disk.
+  for (const order of [tiles, tiles.toReversed()]) {
+    for (const { i, j } of MAP.tiles) dropTile(`${i}_${j}`)
+    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    const pieces = new Pieces(plan)
+    for (const t of order) pieces.provide(t, tileVectors(plan.keys[t]!))
+    const drawn = assertChunkCut(whole, pieces, chunks)
+    assert.ok(drawn >= 40, `${drawn} of ${chunks.length} chunks draw some`)
   }
 })
 

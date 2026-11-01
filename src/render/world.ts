@@ -3,11 +3,13 @@
  * chunk is one terrain mesh, one solid mesh (buildings, roofs, bridges, platforms, street-lamp
  * brackets), one decal mesh (roads, rail), one water mesh (rivers and streams), one glow mesh
  * (window panes and lantern glass, lit at night) and an InstancedMesh per tree kind; empty layers
- * make no mesh. Pieces are bucketed per chunk once, so a build reads only its own; trees are
- * bucketed per chunk as each map tile comes into memory (`tileProvided`). Streaming has two levels:
+ * make no mesh. As each map tile comes into memory (`tileProvided`) its buildings, roads and rivers
+ * become pieces and its trees are bucketed per chunk (render/pieces, render/trees), so a build reads
+ * only its own; the railway, stations and lamps are pieces from the start. Streaming has two levels:
  * the tiles are planned first, by the screen distance of their boxes, then the chunks of the tiles
  * in reach, so a frame's cost does not grow with the map. A chunk builds once every tile its build
- * reads is in (render/chunk-tiles). Dynamic actors are not here (see render/index.ts).
+ * reads is in, which it knows once the tiles its pieces come from are (render/chunk-tiles).
+ * Dynamic actors are not here (see render/index.ts).
  *
  * @module render/world
  */
@@ -20,7 +22,7 @@ import {
   type Vector3,
 } from "three"
 
-import { buildingPieces } from "./buildings.ts"
+import { tileVectors } from "../sim/map/tiles.ts"
 import { chunkTiles } from "./chunk-tiles.ts"
 import {
   CHUNKS,
@@ -41,15 +43,11 @@ import {
   Triangles,
   WaterTriangles,
   waterMaterial,
-  type Piece,
   type Sink,
 } from "./geometry.ts"
-import { linePieces } from "./lines.ts"
+import { Pieces } from "./pieces.ts"
 import { BEHIND, viewAxes } from "./pipeline.ts"
-import { railPieces } from "./rail.ts"
 import { glowMaterial } from "./sky/glow.ts"
-import { lampPieces } from "./sky/lamps.ts"
-import { stationPieces } from "./stations.ts"
 import { terrainChunk } from "./terrain.ts"
 import { bucketTileTrees, chunkTrees, treeMeshes } from "./trees.ts"
 import { poolWater } from "./water.ts"
@@ -76,37 +74,10 @@ const emptySink = (): Sink => ({
   pieces: [],
 })
 
-/**
- * Pieces per chunk key: flat (piece, k0, k1) triples, k0..k1 being the piece's segments whose
- * bounding box reaches the chunk (a one-point piece has the one segment 0).
- */
-export const bucketPieces = (pieces: ReadonlyArray<Piece>): Array<Array<number>> => {
-  const chunks = Array.from({ length: CHUNKS.x * CHUNKS.y }, (): Array<number> => [])
-  const range = new Map<number, [number, number]>()
-  pieces.forEach((piece, p) => {
-    range.clear()
-    const pts = piece.pts,
-      n = pts.length / 2
-    for (let k = 0; k < Math.max(1, n - 1); k++) {
-      const ax = pts[2 * k]!,
-        ay = pts[2 * k + 1]!,
-        b = Math.min(k + 1, n - 1),
-        bx = pts[2 * b]!,
-        by = pts[2 * b + 1]!
-      const lo = chunkOf(Math.min(ax, bx), Math.min(ay, by)),
-        hi = chunkOf(Math.max(ax, bx), Math.max(ay, by))
-      for (let cy = Math.floor(lo / CHUNKS.x); cy <= Math.floor(hi / CHUNKS.x); cy++) {
-        for (let cx = lo % CHUNKS.x; cx <= hi % CHUNKS.x; cx++) {
-          const key = cy * CHUNKS.x + cx,
-            seen = range.get(key)
-          if (seen === undefined) range.set(key, [k, k])
-          else seen[1] = k
-        }
-      }
-    }
-    for (const [key, [k0, k1]] of range) chunks[key]!.push(p, k0, k1)
-  })
-  return chunks
+/** What a chunk draws (`Pieces.entries`) and the tiles its build reads (`needs` in render/chunk-tiles). */
+interface Drawn {
+  readonly entries: ReadonlyArray<number>
+  readonly needs: ReadonlyArray<number>
 }
 
 /**
@@ -119,16 +90,13 @@ export class World {
   /** The meshes of every built chunk, by key. */
   readonly loaded = new Map<number, ReadonlyArray<Mesh>>()
   private readonly parent: Object3D
-  private readonly lines = linePieces()
-  private readonly pieces: ReadonlyArray<Piece> = [
-    ...buildingPieces(),
-    ...this.lines,
-    ...railPieces(this.lines),
-    ...stationPieces(),
-    ...lampPieces(),
-  ]
-  private readonly byChunk = bucketPieces(this.pieces)
-  private readonly tiles = chunkTiles(this.pieces, this.byChunk)
+  private readonly tiles = chunkTiles()
+  /** The pieces: the global ones from the start, those of each tile once it is in. */
+  private readonly pieces = new Pieces(this.tiles)
+  /** Per chunk, once every tile of its base is in: what it draws and reads (`drawnBy`). */
+  private readonly drawn: Array<Drawn | undefined> = []
+  /** Per tile, the chunks whose build reads it, of those whose needs are known. */
+  private readonly readers: ReadonlyArray<Set<number>> = this.tiles.keys.map(() => new Set())
   /** Each chunk's box: from its tiles' lowest and highest nodes until its terrain is in, then exact (`exact`). */
   private readonly boxes = this.tiles.boxes.slice()
   private readonly exact = new Uint8Array(CHUNKS.x * CHUNKS.y)
@@ -155,7 +123,7 @@ export class World {
    * all in, nearest first, until `budgetMs` is spent (always at least one).
    */
   update(focus: Vector3, yaw: number, reach: number, budgetMs: number): void {
-    const { keys, needs, owned } = this.tiles
+    const { keys, base, owned } = this.tiles
     if (yaw !== this.yaw) {
       this.axes = viewAxes(yaw)
       screenRects(this.tiles.tileBoxes, this.axes.right, this.axes.up, this.tileRects)
@@ -183,10 +151,13 @@ export class World {
           d = screenDistance(this.boxes, key, right, up, r, u)
           if (d > radii.load) continue
         }
+        // Until its base is in, a chunk does not know what it draws: it wants its base, then what its pieces read too.
+        const needs = this.drawnBy(key)?.needs
         // A chunk wholly behind the camera's near plane shows nowhere: built if its tiles are in (it may cast a shadow), but
         // never the reason to fetch one (the follow camera would swing such tiles in and out again and again).
-        if (!this.behind(key, focus)) for (const n of needs[key]!) this.wanting.add(keys[n]!)
-        if (!this.loaded.has(key) && needs[key]!.every(this.isIn)) distances.set(key, d)
+        if (!this.behind(key, focus))
+          for (const n of needs ?? base[key]!) this.wanting.add(keys[n]!)
+        if (!this.loaded.has(key) && needs?.every(this.isIn) === true) distances.set(key, d)
       }
     }
     const { build, drop } = plan(distances, this.loaded, radii)
@@ -213,22 +184,46 @@ export class World {
     return nearest > focus.dot(back) + BEHIND
   }
 
-  /** The keys of the tiles the chunks within the load radius read and that show in the view (as far as their boxes are known yet), as of the last `update`; the next one changes it. */
+  /** What chunk `key` draws and the tiles its build reads, worked out the first time every tile of its base is in; undefined until then. */
+  private drawnBy(key: number): Drawn | undefined {
+    let drawn = this.drawn[key]
+    if (drawn !== undefined || !this.tiles.base[key]!.every(this.isIn)) return drawn
+    const entries = this.pieces.entries(key)
+    const needs = this.tiles.needs(key, entries, (n) => this.pieces.piece(entries[n]!))
+    this.drawn[key] = drawn = { entries, needs }
+    for (const t of needs) this.readers[t]!.add(key)
+    return drawn
+  }
+
+  /**
+   * The keys of the tiles the chunks within the load radius read and that show in the view, as far as their boxes and
+   * needs are known yet (until its base is in, a chunk wants that alone), as of the last `update`; the next one changes it.
+   */
   wanted(): ReadonlySet<string> {
     return this.wanting
   }
 
-  /** Tile `key` is in memory (`provideTile`): buckets its trees, so the chunks it holds can build. */
+  /** Tile `key` is in memory (`provideTile`): makes its pieces and buckets its trees, so the chunks it holds can build. */
   tileProvided(key: string): void {
     const t = this.tileIndex(key)
-    this.trees[t] ??= bucketTileTrees(key)
+    if (this.trees[t] !== undefined) return
+    this.trees[t] = bucketTileTrees(key)
+    this.pieces.provide(t, tileVectors(key))
   }
 
-  /** Tile `key` is about to leave memory (`dropTile`): drops every built chunk that read it, and its trees. */
+  /**
+   * Tile `key` is about to leave memory (`dropTile`): drops every built chunk that read it, its pieces and its trees, and
+   * forgets what the chunks it is the base of draw.
+   */
   tileDropped(key: string): void {
     const t = this.tileIndex(key)
     if (this.trees[t] === undefined) return
-    for (const chunk of this.tiles.readers[t]!) if (this.loaded.has(chunk)) this.drop(chunk)
+    for (const chunk of this.readers[t]!) if (this.loaded.has(chunk)) this.drop(chunk)
+    for (const chunk of this.tiles.bases[t]!) {
+      for (const n of this.drawn[chunk]?.needs ?? []) this.readers[n]!.delete(chunk)
+      this.drawn[chunk] = undefined
+    }
+    this.pieces.drop(t)
     this.trees[t] = undefined
   }
 
@@ -256,9 +251,9 @@ export class World {
     const sink = emptySink(),
       elsewhere = emptySink()
     const at = (x: number, y: number): Sink => (chunkOf(x, y) === key ? sink : elsewhere)
-    const list = this.byChunk[key]!
-    for (let n = 0; n < list.length; n += 3)
-      this.pieces[list[n]!]!.draw(at, list[n + 1]!, list[n + 2]!)
+    const { entries, needs } = this.drawn[key]!
+    for (let n = 0; n < entries.length; n += 3)
+      this.pieces.piece(entries[n]!).draw(at, entries[n + 1]!, entries[n + 2]!)
     poolWater(key, sink.water)
     const meshes = [staticMesh(terrainChunk(key), terrainMaterial, false)]
     const solid = [...(sink.solid.empty ? [] : [sink.solid.geometry()]), ...sink.pieces]
@@ -267,7 +262,7 @@ export class World {
     if (!sink.water.empty) meshes.push(staticMesh(sink.water.geometry(), waterMaterial, false))
     // Unlit: it neither casts nor receives (an unlit program has no use for the shadow map).
     if (!sink.glow.empty) meshes.push(staticMesh(sink.glow.geometry(), glowMaterial, false, false))
-    const trees = chunkTrees(this.tiles.needs[key]!.map((t) => this.trees[t]?.get(key)))
+    const trees = chunkTrees(needs.map((t) => this.trees[t]?.get(key)))
     return trees === undefined ? meshes : [...meshes, ...treeMeshes(trees, treeMaterial)]
   }
 }

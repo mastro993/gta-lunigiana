@@ -14,6 +14,12 @@ test("Cesena's baked parked spots, water beds and farms round its start are what
   const { bakeParked } = await import("../../sim/parking.ts")
   const { bakeFarms } = await import("../../sim/population/farms.ts")
   const { bedOf } = await import("../../sim/water/channel.ts")
+  const { eachTile } = await import("../../sim/map/tiles.ts")
   assert.equal(MAP.name, "cesena")
-  assertBakesCurrentNear(MAP, MAP.spawns.player, 1000, { bakeParked, bedOf, bakeFarms })
+  assertBakesCurrentNear(MAP, MAP.spawns.player, 1000, {
+    bakeParked,
+    bedOf,
+    bakeFarms,
+    eachTile,
+  })
 })

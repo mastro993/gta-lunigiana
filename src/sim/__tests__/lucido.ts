@@ -7,8 +7,8 @@ import assert from "node:assert/strict"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { waterNear } from "../map/__tests__/vectors-near.ts"
 import { deckNear } from "../map/ground.ts"
-import { MAP } from "../map/index.ts"
 import { walkIndex } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { LOOK, type Timeline } from "../testing.ts"
@@ -20,7 +20,9 @@ import { screenAxes } from "../view.ts"
  */
 export const LUCIDO = (() => {
   let best: { d: number; x: number; y: number; ux: number; uy: number } | undefined
-  for (const w of MAP.water.filter((o) => o.name === "Torrente Lucido" && o.kind === "river"))
+  for (const w of waterNear(-493.8, 436.9, 1500).filter(
+    (o) => o.name === "Torrente Lucido" && o.kind === "river",
+  ))
     for (let i = 1; i + 1 < w.pts.length / 2; i++) {
       const x = w.pts[2 * i]!,
         y = w.pts[2 * i + 1]!,

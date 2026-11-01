@@ -20,7 +20,8 @@ import {
   SkyView,
   update,
 } from "../index.ts"
-import { MAP } from "../map/index.ts"
+import { roadsNear } from "../map/__tests__/vectors-near.ts"
+import { placeAt } from "../map/tiles.ts"
 import { walkIndex } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { stalled } from "../systems/physics.ts"
@@ -31,6 +32,9 @@ import { waterUnder } from "../water/rivers.ts"
 import { MEAN, SPATE } from "./flows.ts"
 import { atLucido, LUCIDO, SWIM, swimCast } from "./lucido.ts"
 import { assertVergesDry } from "./verges.ts"
+
+/** The roads of the four tiles round Monzone station (-493.8, 436.9) and the tiles' corner (0, 0). */
+const ROADS = roadsNear(-493.8, 436.9, 1500)
 
 const acrossOf = (p: Vec2.Vec2) => (p.x - LUCIDO.x) * LUCIDO.ax + (p.y - LUCIDO.y) * LUCIDO.ay
 const downOf = (p: Vec2.Vec2) => (p.x - LUCIDO.x) * LUCIDO.ux + (p.y - LUCIDO.y) * LUCIDO.uy
@@ -191,7 +195,8 @@ test("cars in the river: a Panda stands in the Lucido at its mean flow; in a spa
  * deepest point on a 2 m lattice over its box, with how deep the water stands there.
  */
 const EQUI_LAKE = (() => {
-  const lake = MAP.areas.find(
+  // the tile holding the point holds every area over it
+  const lake = placeAt(2410, 944).vectors.areas.items.find(
     (a) =>
       a.kind === "lake" &&
       a.rings.reduce((inside, r) => inside !== pointInRing(2410, 944, r), false),
@@ -332,7 +337,7 @@ test("stalling: water over a car's air intake stalls its engine; the truck breat
 
 test("bridges: a walker on a bridge over the Lucido stays dry in a spate; a swimmer under it is in the water", () => {
   const crossing = (() => {
-    for (const road of MAP.roads.filter((r) => r.bridge === true))
+    for (const road of ROADS.filter((r) => r.bridge === true))
       for (let k = 0; k + 1 < road.pts.length / 2; k++)
         for (let t = 0; t <= 1; t += 0.05) {
           const x = road.pts[2 * k]! + (road.pts[2 * k + 2]! - road.pts[2 * k]!) * t,
@@ -350,7 +355,7 @@ test("bridges: a walker on a bridge over the Lucido stays dry in a spate; a swim
 // Regression: the deck lookup skipped a bridge by its first vertex's height and read one 16 m bucket, putting verge walkers
 // in the river (water.map-test.ts checks every bridge of the map).
 test("bridges: every walker's verge over the water in a spate is on the deck, on the bridges within 2 km of Monzone", () => {
-  const near = MAP.roads.filter(
+  const near = roadsNear(-493.8, 436.9, 2000).filter(
     (r) => r.bridge === true && Ops.hypot(r.pts[0]! + 493.8, r.pts[1]! - 436.9) < 2000,
   )
   const checked = assertVergesDry(near, SPATE)

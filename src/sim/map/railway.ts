@@ -56,7 +56,8 @@ export interface LevelCrossing {
 
 /**
  * A station platform, or a rail-level walkway (a strip between two tracks, or one narrower than
- * 1.2 m): its rings are `MAP.areas[area]` (kind "platform", or "paved" for a walkway). Its top
+ * 1.2 m): its rings are those of the whole map's area `area` (kind "platform", or "paved" for a
+ * walkway), copied in `MAP.derived.platforms` so they read anywhere. Its top
  * follows the rail head of the running track beside it (`platformTop` in `./ground.ts`).
  */
 export interface Platform {

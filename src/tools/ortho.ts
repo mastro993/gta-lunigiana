@@ -5,13 +5,14 @@
 // (pnpm ortho ...). The rectangle is in local metres; the layer defaults to rt_ofc.2k10, the 2010
 // 1:2000 flight the stone cores were traced on; --px is metres per pixel (default 0.5). Writes an
 // SVG (default .research/ortho/<x0>_<y0>_<x1>_<y1>_<layer>.svg) with the photo embedded and, over
-// it, from src/sim/map/monzone.bin: the buildings' outlines, the STONE_CORES discs, each stream's
-// water width and bed; then a metre grid, a scale bar, the corners' local coordinates and the
-// photo's licence. The photo is a WMS 1.1.1 GetMap in EPSG:4326: the local frame is
-// equirectangular, so the photo maps linearly onto it and the overlay needs no reprojection. Over
-// 4096 px a side the request is split into tiles (`ortho-wms.ts`); over MAX_PIXELS the resolution
-// drops, and the tool says so. Both services' capabilities and every tile are cached under
-// .research/ortho/ (--refresh asks again); an answer listing no layer, a WMS error, is never kept.
+// it, from src/sim/map/monzone.bin and its tiles, joined (`wholeMap`): the buildings' outlines,
+// the STONE_CORES discs, each stream's water width and bed; then a metre grid, a scale bar, the
+// corners' local coordinates and the photo's licence. The photo is a WMS 1.1.1 GetMap in
+// EPSG:4326: the local frame is equirectangular, so the photo maps linearly onto it and the
+// overlay needs no reprojection. Over 4096 px a side the request is split into tiles
+// (`ortho-wms.ts`); over MAX_PIXELS the resolution drops, and the tool says so. Both services'
+// capabilities and every tile are cached under .research/ortho/ (--refresh asks again); an answer
+// listing no layer, a WMS error, is never kept.
 // A layer is traceable only when its abstract names Regione Toscana (or IGM-RT) as owner and it
 // links an RT metadata record granting CC BY (the licence table, ORTHO_LICENCES in ortho-wms.ts);
 // AGEA's flights, Blom's (10k07, 2k11.aulla), IGM-RT's 1960s flights (10k63/65/68), the layers
@@ -23,9 +24,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 
 import type { Water } from "../sim/map/index.ts"
-import { decodeMap, mapFile } from "../sim/map/packed.ts"
 import { STONE_CORES } from "./features.ts"
 import { fromLocal, r1, ringBox } from "./geometry.ts"
+import { wholeMap } from "./map-file.ts"
 import { getBytes, pool, request } from "./net.ts"
 import {
   type Frame,
@@ -394,7 +395,7 @@ if (import.meta.main) {
     }
   })
 
-  const map = decodeMap(mapFile())
+  const map = wholeMap()
   const svg = orthoSvg(
     frame,
     photos,

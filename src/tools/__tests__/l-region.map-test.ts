@@ -22,6 +22,7 @@ if (skip === false) await loadBuiltMap(REGION)
 const sim = skip === false ? await import("../../sim/map/index.ts") : undefined
 const coarse = skip === false ? await import("../../sim/map/coarse.ts") : undefined
 const cover = skip === false ? await import("../../sim/map/cover.ts") : undefined
+/** The L whole: its walls, trees and vectors live in its tiles, joined back in the whole map's order. */
 const WHOLE = skip === false ? readWholeMap(URL_L) : undefined
 
 /** The L's outline: counter-clockwise from its lowest (y, x) vertex, the notch's corner at (0, 1400). */
@@ -121,9 +122,9 @@ test(
   "a drivable road leaving the L is capped by a drive wall a few metres in, across its two sides' notch too",
   { skip },
   () => {
-    const { MAP, isDrivable, outlineDistance, wallsNear } = sim!
+    const { isDrivable, outlineDistance, wallsNear } = sim!
     const capped: Array<number> = []
-    for (const road of MAP.roads) {
+    for (const road of WHOLE!.roads) {
       if (!isDrivable(road.cls)) continue
       const n = road.pts.length / 2
       for (const [e, step] of [
@@ -286,14 +287,15 @@ test(
     const { MAP, graph, inPlay, outlineDistance } = sim!
     for (const n of graph.nodes) assert.ok(inPlay(n.x, n.y), `node at ${n.x}, ${n.y}`)
     for (const p of MAP.railway.platforms)
-      for (const ring of MAP.areas[p.area]!.rings)
+      for (const ring of WHOLE!.areas[p.area]!.rings)
         for (let i = 0; i < ring.length; i += 2)
           assert.ok(inPlay(ring[i]!, ring[i + 1]!), `platform at ${ring[i]}, ${ring[i + 1]}`)
     for (const s of [MAP.spawns.player, ...MAP.spawns.parked])
       assert.ok(inPlay(s.x, s.y, 1), `spawn at ${s.x}, ${s.y}`)
     for (const p of MAP.pois) assert.ok(inPlay(p.x, p.y), `poi ${p.id} at ${p.x}, ${p.y}`)
-    // kept by its centroid (rounded to 0.1 m since)
-    for (const b of MAP.buildings) {
+    // kept by its centroid (rounded to 0.1 m since); none at all would check nothing
+    assert.ok(WHOLE!.buildings.length > 0, "the L has no buildings")
+    for (const b of WHOLE!.buildings) {
       const [cx, cy] = centroid(b.outer)
       assert.ok(inPlay(cx, cy) || outlineDistance(cx, cy) < 0.1, `building ${b.id} at ${cx}, ${cy}`)
     }

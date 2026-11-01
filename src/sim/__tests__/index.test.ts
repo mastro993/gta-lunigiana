@@ -26,6 +26,7 @@ import {
 } from "../index.ts"
 import { roadLevel } from "../map/ground.ts"
 import { graph, isDrivable, MAP, wallsNear } from "../map/index.ts"
+import { placeAt } from "../map/tiles.ts"
 import { carOn, PARKING, spotsWithin } from "../population/parked.ts"
 import { laneOf, lanePoint, laneSide, roadOf } from "../route.ts"
 import { parkedCar, trafficCar } from "../spawning.ts"
@@ -568,24 +569,28 @@ test("sleep: a car on its roof with its handbrake off comes to rest and sleeps",
 // Regression: spawns settled onto the highest surface, so traffic spawned in a tunnel stood on the hillside above it and traffic on a
 // road under a bridge on the deck.
 test("spawns: traffic on a tunnel edge or under a bridge starts on its own road", () => {
+  // Whether a drivable bridge's carriageway is over the edge's midpoint: its tile holds every road that reaches it.
   const underDeck = (e: number) => {
     const ed = graph.edges[e]!,
       a = graph.nodes[ed.a]!,
       b = graph.nodes[ed.b]!,
       x = (a.x + b.x) / 2,
       y = (a.y + b.y) / 2
-    return MAP.roads.some(
-      (r) =>
+    const { ids, items } = placeAt(x, y).vectors.roads
+    return ids.some((id, n) => {
+      const r = MAP.roads[id]!,
+        { pts } = items[n]!
+      return (
         r.bridge === true &&
         isDrivable(r.cls) &&
-        r.pts.some(
+        pts.some(
           (_, k) =>
             k % 2 === 0 &&
-            k + 3 < r.pts.length &&
-            segDist2(x, y, r.pts[k]!, r.pts[k + 1]!, r.pts[k + 2]!, r.pts[k + 3]!).d2 <
-              (r.w / 2) ** 2,
-        ),
-    )
+            k + 3 < pts.length &&
+            segDist2(x, y, pts[k]!, pts[k + 1]!, pts[k + 2]!, pts[k + 3]!).d2 < (r.w / 2) ** 2,
+        )
+      )
+    })
   }
   const edges = [
     graph.trafficEdges.find((e) => roadOf(e).tunnel === true)!,
@@ -607,7 +612,7 @@ test("spawns: traffic on a tunnel edge or under a bridge starts on its own road"
     )
     const { world } = start([], [FAR_AWAY, { traffic: [car] }])
     const v = world().vehicles[0]!,
-      road = roadLevel(roadOf(edge), v.x, v.y)
+      road = roadLevel(graph.edges[edge]!.road, v.x, v.y)!
     assert.ok(
       Math.abs(v.chassis.z - VEHICLES.panda.cg - road) < 0.3,
       `edge ${edge}: ${(v.chassis.z - VEHICLES.panda.cg).toFixed(2)} m against its road at ${road.toFixed(2)}`,

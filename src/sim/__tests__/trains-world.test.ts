@@ -6,7 +6,7 @@ import { Ops, Random } from "@typeonce/ritmo-math"
 import { FAUNA, randomAnimal } from "../fauna.ts"
 import { Game, Roam, Whistle } from "../index.ts"
 import { atGrade, footZ, roadLevel } from "../map/ground.ts"
-import { MAP } from "../map/index.ts"
+import { graph, MAP } from "../map/index.ts"
 import { grazing } from "../population/farms.ts"
 import { LEVEL, onLevel } from "../rail/bodies.ts"
 import { LINES, linesNear, pointAt, speedAt } from "../rail/lines.ts"
@@ -68,7 +68,7 @@ const BRIDGES = (() => {
       along = (at.x - lane.x) * lane.dx + (at.y - lane.y) * lane.dy
     const under = lanePoint(lane, along, 0)
     if (along < 0 || along > lane.length || Ops.hypot(under.x - at.x, under.y - at.y) > 3) continue
-    if (at.z - roadLevel(roadOf(edge), at.x, at.y) < 4) continue
+    if (at.z - roadLevel(graph.edges[edge]!.road, at.x, at.y)! < 4) continue
     const far = Ops.hypot(at.x - start.x, at.y - start.y)
     if (far < (best.get(edge)?.far ?? Number.MAX_VALUE)) best.set(edge, { s, edge, along, far })
   }
@@ -234,12 +234,12 @@ test("trains: someone on the track over a road tunnel is on the train's level: t
 
 test("trains: walking into a road underpass along the road, someone stays on its floor under the track, the bank the terrain smears over its mouths no matter: the player there is not struck by a train passing over", () => {
   assert.ok(underpassWays().length >= 4, `${underpassWays().length} ways in`)
-  for (const { road, walk, s } of underpassWays()) {
+  for (const { road, index, walk, s } of underpassWays()) {
     let z = footingAt(undefined, walk[0]!.x, walk[0]!.y)
     for (const p of walk.slice(1)) z = footZ(p.x, p.y, z)
     const end = walk.at(-1)!
     assert.ok(
-      Math.abs(z - roadLevel(road, end.x, end.y)) < 0.5 && !onLevel(z, pointAt(line, s).z),
+      Math.abs(z - roadLevel(index, end.x, end.y)!) < 0.5 && !onLevel(z, pointAt(line, s).z),
       `${road.id} from ${walk[0]!.x.toFixed(0)}, ${walk[0]!.y.toFixed(0)}: ${z.toFixed(2)} under the track`,
     )
   }

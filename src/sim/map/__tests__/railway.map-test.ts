@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { wholeMap } from "../../../tools/map-file.ts"
 import { pointInRing, segDist2 } from "../../collide.ts"
 import { groundZ, platformTop, terrainZ } from "../ground.ts"
 import { graph, isDrivable, MAP, type RailLine } from "../index.ts"
@@ -10,6 +11,8 @@ import { RAIL_LIFT } from "../kinds.ts"
 
 const { hypot } = Ops
 const { railway } = MAP
+/** The roads and areas live in the tiles: these checks read them all, joined in the whole map's order. */
+const WHOLE = wholeMap()
 const running = MAP.rail.flatMap((r, i) => (r.kind === undefined ? [i] : []))
 
 /** A line's vertices in order (flat x, y), their bed z and their arc lengths. */
@@ -136,7 +139,7 @@ test("railway: the line calls at each station along its platforms, on their side
     // Its platforms beside the line project inside the extent, and the side 2.1 m off its middle is on one.
     const own = railway.platforms.filter((p) => p.name === st.name)
     for (const p of own) {
-      const ring = MAP.areas[p.area]!.rings[0]!
+      const ring = WHOLE.areas[p.area]!.rings[0]!
       const fs = Array.from({ length: ring.length / 2 }, (_, k) =>
         sOf(line, ring[2 * k]!, ring[2 * k + 1]!),
       )
@@ -150,7 +153,7 @@ test("railway: the line calls at each station along its platforms, on their side
       y: mid.y - mid.dx * st.side * d,
     }))
     assert.ok(
-      across.some(({ x, y }) => own.some((p) => inside(MAP.areas[p.area]!.rings, x, y))),
+      across.some(({ x, y }) => own.some((p) => inside(WHOLE.areas[p.area]!.rings, x, y))),
       `${st.name}: a platform on side ${st.side} of (${mid.x.toFixed(1)}, ${mid.y.toFixed(1)})`,
     )
   }
@@ -159,7 +162,7 @@ test("railway: the line calls at each station along its platforms, on their side
 test("railway: each level-crossing box holds the vertices its road shares with the rail, the line's s at one", () => {
   const roadNames: Array<string> = []
   for (const c of railway.crossings) {
-    const road = MAP.roads[c.road]!
+    const road = WHOLE.roads[c.road]!
     roadNames.push(road.name ?? road.cls)
     for (const n of c.nodes) {
       const { x, y } = graph.nodes[n]!
@@ -190,7 +193,7 @@ test("railway: each level-crossing box holds the vertices its road shares with t
     "path",
   ])
   assert.equal(
-    railway.crossings.find((c) => MAP.roads[c.road]!.name === "Via Castel dell'Aquila")!.nodes
+    railway.crossings.find((c) => WHOLE.roads[c.road]!.name === "Via Castel dell'Aquila")!.nodes
       .length,
     2,
   )
@@ -198,7 +201,7 @@ test("railway: each level-crossing box holds the vertices its road shares with t
   const boxed = new Set(railway.crossings.flatMap((c) => c.nodes))
   for (const r of MAP.rail) {
     if (r.bridge === true || r.tunnel === true) continue
-    for (const road of MAP.roads) {
+    for (const road of WHOLE.roads) {
       if (road.bridge === true || road.tunnel === true) continue
       for (let k = 0; k < road.pts.length; k += 2) {
         if (vertexOf(r.pts, road.pts[k]!, road.pts[k + 1]!) < 0) continue
@@ -211,7 +214,9 @@ test("railway: each level-crossing box holds the vertices its road shares with t
 
 test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the carriageways, their top over the rail head", () => {
   const tracks = MAP.rail.filter((r) => r.tunnel !== true)
-  const roads = MAP.roads.filter((r) => isDrivable(r.cls) && r.bridge !== true && r.tunnel !== true)
+  const roads = WHOLE.roads.filter(
+    (r) => isDrivable(r.cls) && r.bridge !== true && r.tunnel !== true,
+  )
   const dist = (pts: ReadonlyArray<number>, x: number, y: number) => {
     let d2 = Number.MAX_VALUE
     for (let k = 0; k + 3 < pts.length; k += 2)
@@ -232,7 +237,7 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
       return a0 < x1 + 20 && a1 > x0 - 20 && b0 < y1 + 20 && b1 > y0 - 20
     })
   for (const p of railway.platforms) {
-    const area = MAP.areas[p.area]!
+    const area = WHOLE.areas[p.area]!
     assert.equal(area.kind, p.walkway === true ? "paved" : "platform")
     const box = boxOf(area.rings[0]!),
       byTracks = near(tracks, box),
@@ -284,7 +289,7 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
       for (let y = Math.floor(box[1]); y <= box[3]; y++) {
         const top = platformTop(x, y)
         if (!inside(area.rings, x, y)) {
-          if (!railway.platforms.some((q) => inside(MAP.areas[q.area]!.rings, x, y)))
+          if (!railway.platforms.some((q) => inside(WHOLE.areas[q.area]!.rings, x, y)))
             assert.equal(top, undefined, `(${x}, ${y}) off every platform`)
           continue
         }

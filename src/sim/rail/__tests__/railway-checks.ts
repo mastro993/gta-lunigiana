@@ -94,14 +94,16 @@ export const checkTerminals = (lines: ReadonlyArray<number>): void => {
 
 /** Its crossings and stations lie at their s, the rail head `RAIL_LIFT` over the bed, and a box's road meets the rail at its level. */
 export const checkAtTheirS = ({ boxes, stations }: RailwayPart): void => {
-  for (const crossing of boxes.map((b) => MAP.railway.crossings[b]!).filter((c) => c.line >= 0)) {
-    const at = pointAt(LINES[crossing.line]!, crossing.s)
+  for (const b of boxes.filter((b) => MAP.railway.crossings[b]!.line >= 0)) {
+    const crossing = MAP.railway.crossings[b]!,
+      at = pointAt(LINES[crossing.line]!, crossing.s)
     const node = crossing.nodes
       .map((n) => graph.nodes[n]!)
       .find((n) => Ops.hypot(n.x - at.x, n.y - at.y) < 0.05)
     assert.ok(node !== undefined, `a node of the box at s ${crossing.s}`)
     assert.ok(!at.bridge && !at.tunnel, "at grade")
-    const road = MAP.roads[crossing.road]!
+    // the box's road's line, as the game reads it (`MAP.derived.crossings`: bakes.ts checks it is the road's)
+    const road = MAP.derived.crossings[b]!
     const k = road.pts.findIndex(
       (v, i) => i % 2 === 0 && v === node.x && road.pts[i + 1] === node.y,
     )

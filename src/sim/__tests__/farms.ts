@@ -12,6 +12,7 @@ import { distanceToEdge, edgeIndex } from "../edges.ts"
 import { FAUNA, randomAnimal } from "../fauna.ts"
 import { Cry, type Feeling, Game, Roam, type Species, update } from "../index.ts"
 import { graph, MAP, wallsNear } from "../map/index.ts"
+import { eachTile } from "../map/tiles.ts"
 import { residentsNear } from "../population/density.ts"
 import { farmsNear, openGround, pasture, RURAL, RURAL_REACH } from "../population/farms.ts"
 import { roadOf } from "../route.ts"
@@ -45,6 +46,17 @@ export const FARM = (() => {
   return { x: best.x, y: best.y, angle: 0 }
 })()
 
+/** Whether a vertex of a stream or river lies within `r` m of (x, y): any there is in a tile over the box round it. */
+const waterWithin = (x: number, y: number, r: number) => {
+  let near = false
+  eachTile(x - r, y - r, x + r, y + r, ({ vectors }) => {
+    near ||= vectors.water.items.some((w) =>
+      w.pts.some((v, k) => k % 2 === 0 && Ops.hypot(v - x, w.pts[k + 1]! - y) < r),
+    )
+  })
+  return near
+}
+
 /** Every metre of the herd test's ground east of the meadow, m. */
 const HERD = Array.from({ length: 13 }, (_, k) => 15 + k)
 
@@ -64,11 +76,7 @@ export const MEADOW = (() => {
       if (
         pasture(x, y) &&
         distanceToEdge(road, x, y) - roadOf(road).w / 2 > 60 &&
-        !MAP.water.some((w) =>
-          w.pts.some(
-            (v, k) => k % 2 === 0 && Ops.hypot(v - x, w.pts[k + 1]! - y) < FAUNA.cow.home + 10,
-          ),
-        ) &&
+        !waterWithin(x, y, FAUNA.cow.home + 10) &&
         HERD.every(
           (dx) =>
             openGround(x + dx, y) &&

@@ -77,6 +77,8 @@ test("the 3x bakes lucido's lamps, water beds and parked spots' rests", { skip }
   const key = (o: object) => JSON.stringify(o)
   assert.equal(x3.lamps.length, lucido.lamps.length)
   lucido.lamps.forEach((l, i) => assert.equal(key(x3.lamps[i]!), key(l), `lamp ${i}`))
+  // the water joined from each map's tiles, in the whole map's order: none would compare nothing
+  assert.ok(lucido.water.length > 0, "lucido has no water")
   assert.equal(x3.water.length, lucido.water.length)
   lucido.water.forEach((w, i) => {
     const v = x3.water[i]!

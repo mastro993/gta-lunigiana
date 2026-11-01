@@ -11,10 +11,11 @@ import { buildsWithSomeTiles } from "./chunk-tile-checks.ts"
 const STATION = { x: -493.8, y: 436.9 }
 const near = ([x, y]: readonly [number, number]) => Math.hypot(x - STATION.x, y - STATION.y) < 1000
 
-test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those, by Monzone", () => {
-  // The tile corner (0, 0) by Monzone, and the level crossing and platforms by its station.
+test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those and builds as with every tile in, by Monzone", () => {
+  // The tile corner (0, 0) by Monzone, the x = 0 seam east of its station, and the level crossing and platforms by it.
   const spots: ReadonlyArray<readonly [number, number]> = [
     [0, 0],
+    [0, STATION.y],
     ...MAP.railway.crossings.map(({ x, y }) => [x, y] as const).filter(near),
     ...MAP.railway.platforms.map(({ axis }) => [axis[0]!, axis[1]!] as const).filter(near),
   ]

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { buildingsIn, heightAt, MAP } from "../../sim/map/index.ts"
+import { type Building, heightAt } from "../../sim/map/index.ts"
+import { buildingsIn } from "../../sim/map/vectors.ts"
 import { pathDifference } from "../occlusion.ts"
 import { HELD, residentAround } from "../testing.ts"
 
@@ -30,9 +31,9 @@ test("the 30 m church tower of Monzone Alto shadows the street behind it, but no
 
 test("a bell at the top of the 30 m tower rings out over its own walls", () => {
   // Monzone Alto's church tower, the tallest building of its block (the map's tallest stand elsewhere).
-  const block: Array<number> = []
-  buildingsIn(-20, -340, 30, -310, (i) => block.push(i))
-  const tower = block.map((i) => MAP.buildings[i]!).reduce((a, b) => (b.h > a.h ? b : a))
+  const block: Array<Building> = []
+  buildingsIn(-20, -340, 30, -310, (_, building) => block.push(building))
+  const tower = block.reduce((a, b) => (b.h > a.h ? b : a))
   assert.ok(tower.kind === "church" && tower.h > 29, `${tower.kind} ${tower.h} m`)
   const xs = tower.outer.filter((_, k) => k % 2 === 0),
     ys = tower.outer.filter((_, k) => k % 2 === 1)

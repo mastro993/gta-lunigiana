@@ -1,17 +1,20 @@
 /**
  * The tiles in memory: the dense layers (terrain nodes, walls, trees, land cover) of the 2 km
- * squares the host has handed over (`provideTile`), and the lookups that read them. A lookup in a
- * listed tile that is not here asks the tile source (Node: the tile file on disk); with none, it
- * throws "map tile i_j not loaded". Every answer is a pure function of the map, never of which tiles
- * are here or in which order they came: each tile's broad phases are built from that tile alone (on
- * first use) on the whole map's lattice, and a query answers in the whole map's order whichever
- * tiles hold its items (`./lattice.ts`).
+ * squares the host has handed over (`provideTile`) and the vectors round them, and the terrain and
+ * cover lookups that read them (the walls' and trees' broad phases are `./walls.ts`, the vectors'
+ * `./vectors.ts`). A lookup in a listed tile that is not here asks the tile source (Node: the tile
+ * file on disk); with none, it throws "map tile i_j not loaded". Every answer is a pure function of
+ * the map, never of which tiles are here or in which order they came: what a lookup builds from a
+ * tile (a broad phase, a bucket of road segments) it builds from that tile alone, on first use
+ * (`derived`), and a query answers in the whole map's order whichever tiles hold its items
+ * (`./lattice.ts`).
  * The listed tiles (`MAP.tiles`) need not fill the box of tiles round them: an L-shaped map leaves
  * its notch unlisted, with no file. A terrain or land-cover lookup there reads the nearest node or
  * cell of the listed tiles round it (`nearest`); a wall or tree whose midpoint falls there (an
  * outline wall on the notch's side, a house wall over it) the cut kept in the one of those tiles
- * nearest its midpoint (the first in key order on a tie), so a wall or tree lookup over the notch
- * reads them all; and `tilesOver` names them, so the host's residency checks cover both.
+ * nearest its midpoint (the first in key order on a tie), and a vector near it in all of them, so a
+ * wall, tree or vector lookup over the notch reads them all (`placeAt`); and `tilesOver` names them,
+ * so the host's residency checks cover both.
  * So residency is never observable, and the host decides it alone: it keeps every listed tile
  * overlapping [player ± `STEP_REACH`]² before each step, and the sim reads nothing farther away
  * (vehicles past `FROZEN_BEYOND` stand frozen).
@@ -21,15 +24,16 @@
  * @module map/tiles
  */
 import { MAP } from "./global.ts"
-import { pushTrunk, TILE, tileKey, tilesRound, TRUNK } from "./kinds.ts"
-import { cellBox, type CellGrid, cellGrid, queryCells } from "./lattice.ts"
+import { TILE, tileKey, tilesRound } from "./kinds.ts"
 import {
   decodeTile,
+  type Layer,
   onDisk,
   readMapFile,
   TILE_CELLS,
   TILE_NODES,
   type TileData,
+  type TileVectors,
   tileUrl,
 } from "./packed.ts"
 
@@ -85,21 +89,12 @@ const around: ReadonlyArray<ReadonlyArray<number>> = Array.from({ length: slots 
   listed[s] === 1 ? [] : tilesRound(iOf(s), jOf(s), isListed).map(([i, j]) => slotOf(i, j)),
 )
 
-/** A wall broad phase over one tile's flat (ax, ay, bx, by) segments. */
-interface Walls {
-  readonly flat: ArrayLike<number>
-  readonly grid: CellGrid
-}
-/** A tile in memory: its data, and its broad phases once a query has needed them. */
-interface Tile {
+/** A tile in memory: its data, and the vectors in it (`./vectors.ts` reads them). */
+export interface Tile {
   readonly data: TileData
-  walls?: Partial<Record<WallKind, Walls>>
-  trees?: CellGrid
+  readonly vectors: TileVectors
 }
 const tiles: Array<Tile | undefined> = Array.from({ length: slots })
-
-/** The kinds of wall `wallsNear` answers. */
-export type WallKind = "walk" | "land" | "drive" | "traffic"
 
 /** Where a listed tile comes from when a lookup finds it missing: Node reads the file beside the global one; a browser has none. */
 let source: ((key: string) => Uint8Array) | undefined = onDisk()
@@ -121,14 +116,16 @@ export const provideTile = (file: Uint8Array): void => {
       `map tile ${key} is from another build (${data.hash}, not ${MAP.hash}); run pnpm map`,
     )
   if (s < 0 || listed[s] !== 1) throw new Error(`map tile ${key} is not on this map`)
-  tiles[s] ??= { data }
+  tiles[s] ??= { data, vectors: data.vectors }
 }
 
 /** Lets a tile go (the host, once nothing near the player or in view needs it). */
 export const dropTile = (key: string): void => {
   const [i, j] = key.split("_").map(Number)
   const s = slotOf(i!, j!)
-  if (s >= 0) tiles[s] = undefined
+  if (s < 0) return
+  tiles[s] = undefined
+  for (const t of reading[s]!) notches[t] = undefined
 }
 
 /** Whether tile `key` is in memory. */
@@ -155,6 +152,19 @@ export const tileTrees = (
   const [i, j] = key.split("_").map(Number)
   const { trees, ids } = tileAt(i!, j!).data
   return { trees, ids }
+}
+
+/** Host only: the vectors of tile `key` in memory (`TileVectors`), for the renderer to draw. */
+export const tileVectors = (key: string): TileVectors => {
+  const [i, j] = key.split("_").map(Number)
+  return tileAt(i!, j!).vectors
+}
+
+/** Host only: tile `key` if it is in memory, never read from the source. */
+export const residentTile = (key: string): Tile | undefined => {
+  const [i, j] = key.split("_").map(Number)
+  const s = slotOf(i!, j!)
+  return s < 0 ? undefined : tiles[s]
 }
 
 /** The keys of the tiles in memory, in key order. */
@@ -280,6 +290,59 @@ export const coverCell = (ci: number, cj: number): number => {
   return tileAt(ti, tj).data.cover[(nj - N * tj) * TILE_CELLS + ni - N * ti]!
 }
 
+/**
+ * A lookup's memo of what it builds from a tile (or a place, `placeAt`): `make`'s value for it,
+ * made on first use and kept while it is in memory (a dropped tile's goes with it).
+ */
+export const derived = <K extends object, T>(make: (key: K) => T): ((key: K) => T) => {
+  const made = new WeakMap<K, T>()
+  return (key) => {
+    let value = made.get(key)
+    if (value === undefined) made.set(key, (value = make(key)))
+    return value
+  }
+}
+
+/** What a lookup at a point reads of the vectors: those of the tile holding it (`placeAt`). */
+export type Place = Pick<Tile, "vectors">
+
+/** Per unlisted slot, its place once a lookup has read there: the vectors of the listed tiles round it, merged. */
+const notches: Array<Place | undefined> = Array.from({ length: slots })
+/** Per listed slot, the unlisted slots whose place reads it. */
+const reading: ReadonlyArray<Array<number>> = Array.from({ length: slots }, () => [])
+around.forEach((list, s) => {
+  for (const t of list) reading[t]!.push(s)
+})
+
+/** The features of `layers` (any order) as one layer: each once, in the whole map's order. */
+const mergedLayer = <T>(layers: ReadonlyArray<Layer<T>>): Layer<T> => {
+  const byId = new Map<number, T>()
+  for (const { ids, items } of layers) ids.forEach((id, k) => byId.set(id, items[k]!))
+  const ids = [...byId.keys()].sort((a, b) => a - b)
+  return { ids, items: ids.map((id) => byId.get(id)!) }
+}
+
+/**
+ * The place a lookup at (x, y) reads the vectors of: the listed tile holding the point (clamped to
+ * the list, as the terrain's lookups are), or in an unlisted one the vectors of the listed tiles
+ * round it (`around`), merged: the cut gave them every feature near it. A tile holds the features
+ * within `HALO` of its square, so any feature within that of the point is there.
+ */
+export const placeAt = (x: number, y: number): Place => {
+  const s = slotOf(indexOf(x / cell, range.i0, range.i1), indexOf(y / cell, range.j0, range.j1))
+  if (listed[s] === 1) return tileAt(iOf(s), jOf(s))
+  const near = around[s]!.map((t) => tileAt(iOf(t), jOf(t)).vectors)
+  return (notches[s] ??= {
+    vectors: {
+      roads: mergedLayer(near.map((v) => v.roads)),
+      buildings: mergedLayer(near.map((v) => v.buildings)),
+      water: mergedLayer(near.map((v) => v.water)),
+      areas: mergedLayer(near.map((v) => v.areas)),
+      barriers: mergedLayer(near.map((v) => v.barriers)),
+    },
+  })
+}
+
 /** Scratch for `eachTile`: the slots it visited for the unlisted ones in the box. */
 const visited: Array<number> = []
 
@@ -288,7 +351,7 @@ const visited: Array<number> = []
  * assigns them), in key order, then those round an unlisted one in it (`around`, where the cut kept
  * its walls and trees) not visited yet; each tile once.
  */
-const eachTile = (
+export const eachTile = (
   minX: number,
   minY: number,
   maxX: number,
@@ -343,175 +406,4 @@ export const tilesOver = (
       }
     }
   return (notch ? [...new Set(read)].sort((a, b) => a - b) : read).map(keyOf)
-}
-
-/** `a`'s values then `b`'s. */
-const joined = <A extends Float64Array | Int32Array>(
-  a: A,
-  b: ArrayLike<number>,
-  offset = 0,
-  make: (n: number) => A,
-): A => {
-  const out = make(a.length + b.length)
-  out.set(a)
-  for (let k = 0; k < b.length; k++) out[a.length + k] = b[k]! + offset
-  return out
-}
-
-/** The tile's broad phase of wall `kind`, built on first use on the kind's lattice, its walls answering in the whole map's order. */
-const wallsOf = (tile: Tile, kind: WallKind): Walls => {
-  const built = (tile.walls ??= {})[kind]
-  if (built !== undefined) return built
-  const { walls, wallIds } = tile.data,
-    { counts, lattice } = MAP.walls
-  // The land and traffic broad phases hold the walk or drive walls, then the shore's after every one of them.
-  const flat =
-      kind === "walk" || kind === "drive"
-        ? walls[kind]
-        : joined(
-            kind === "land" ? walls.walk : walls.drive,
-            walls.shore,
-            0,
-            (n) => new Float64Array(n),
-          ),
-    ids =
-      kind === "walk" || kind === "drive"
-        ? wallIds[kind]
-        : joined(
-            kind === "land" ? wallIds.walk : wallIds.drive,
-            wallIds.shore,
-            kind === "land" ? counts.walk : counts.drive,
-            (n) => new Int32Array(n),
-          )
-  const grid = cellGrid(
-    flat.length / 4,
-    (i) => {
-      const ax = flat[4 * i]!,
-        ay = flat[4 * i + 1]!,
-        bx = flat[4 * i + 2]!,
-        by = flat[4 * i + 3]!
-      return [Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)]
-    },
-    ids,
-    lattice[kind],
-  )
-  return (tile.walls[kind] = { flat, grid })
-}
-
-/** The tile's tree broad phase (trees as points), built on first use on the trees' lattice. */
-const treesOf = (tile: Tile): CellGrid => {
-  const { trees: t, ids } = tile.data
-  return (tile.trees ??= cellGrid(
-    t.length / 3,
-    (i) => [t[3 * i]!, t[3 * i + 1]!, t[3 * i]!, t[3 * i + 1]!],
-    ids,
-    MAP.walls.lattice.trees,
-  ))
-}
-
-/** Scratch for a query's tiles and their broad phases (reused: a query never nests). */
-const treeTiles: Array<Tile> = [],
-  treeGrids: Array<CellGrid> = []
-
-/**
- * Tree broad phase (trees as points): calls `visit` with the position, scale and id (its look's
- * seed, src/tools/trees.ts) of every tree in a cell the box overlaps, in the whole map's order (by
- * id) cell by cell; run the exact test. `visit` must not query again.
- */
-export const treesIn = (
-  minX: number,
-  minY: number,
-  maxX: number,
-  maxY: number,
-  visit: (x: number, y: number, scale: number, id: number) => void,
-): void => {
-  treeTiles.length = 0
-  treeGrids.length = 0
-  const [x0, y0, x1, y1] = cellBox(MAP.walls.lattice.trees, minX, minY, maxX, maxY)
-  eachTile(x0, y0, x1, y1, (tile) => {
-    treeTiles.push(tile)
-    treeGrids.push(treesOf(tile))
-  })
-  queryCells(treeGrids, MAP.walls.lattice.trees, minX, minY, maxX, maxY, (g, k) => {
-    const { trees, ids } = treeTiles[g]!.data
-    visit(trees[3 * k]!, trees[3 * k + 1]!, trees[3 * k + 2]!, ids[k]!)
-  })
-}
-
-/** A wall edge in metres. */
-export interface Segment {
-  readonly ax: number
-  readonly ay: number
-  readonly bx: number
-  readonly by: number
-}
-
-/** A reused answer and its reused segments. */
-interface Answer {
-  readonly found: Array<Segment>
-  readonly pool: Array<{ ax: number; ay: number; bx: number; by: number }>
-}
-const answer = (): Answer => ({ found: [], pool: [] })
-/** One reused answer per wall kind. */
-const answers: Readonly<Record<WallKind, Answer>> = {
-  walk: answer(),
-  land: answer(),
-  drive: answer(),
-  traffic: answer(),
-}
-/** Scratch for `pushTrunk`: the four edges of one trunk square, 16 numbers. */
-const trunk: Array<number> = []
-/** Scratch for a wall query's tiles' segments and broad phases. */
-const wallFlats: Array<ArrayLike<number>> = [],
-  wallGrids: Array<CellGrid> = []
-
-/**
- * Wall segments that may touch the box (a broad-phase superset: run the exact test, e.g.
- * `moveCircles`). "walk" stops anyone on foot (buildings, slopes > 35°, cliffs, walls, bounds,
- * trunks); "land" adds the water's edge, which people and animals appear clear of (none where a road
- * crosses); "drive" stops vehicles (`walk`'s plus slopes > 25° off-road, guard rails, parapets and
- * road-exit caps); "traffic" adds the water's edge to it, for what AI drivers keep to and where
- * vehicles spawn. Water stops neither feet nor wheels. Every tree trunk is a square of `pushTrunk`
- * edges. The walls come first, then the trunks, each in the order the whole map's broad phase gave
- * them (`./lattice.ts`: a wall lives in its midpoint's tile and sticks out of it by up to
- * `MAP.walls.reach`, so the tiles that far round the box are read). The array and the segments in it
- * are reused by the next call of the same kind: copy the coordinates to keep them.
- */
-export const wallsNear = (
-  kind: WallKind,
-  minX: number,
-  minY: number,
-  maxX: number,
-  maxY: number,
-): ReadonlyArray<Segment> => {
-  const { found, pool } = answers[kind]
-  found.length = 0
-  const add = (ax: number, ay: number, bx: number, by: number) => {
-    const s = pool[found.length] ?? (pool[found.length] = { ax: 0, ay: 0, bx: 0, by: 0 })
-    s.ax = ax
-    s.ay = ay
-    s.bx = bx
-    s.by = by
-    found.push(s)
-  }
-  const r = MAP.walls.reach
-  wallFlats.length = 0
-  wallGrids.length = 0
-  const [x0, y0, x1, y1] = cellBox(MAP.walls.lattice[kind], minX, minY, maxX, maxY)
-  eachTile(x0 - r, y0 - r, x1 + r, y1 + r, (tile) => {
-    const { flat, grid } = wallsOf(tile, kind)
-    wallFlats.push(flat)
-    wallGrids.push(grid)
-  })
-  queryCells(wallGrids, MAP.walls.lattice[kind], minX, minY, maxX, maxY, (g, i) => {
-    const flat = wallFlats[g]!
-    add(flat[4 * i]!, flat[4 * i + 1]!, flat[4 * i + 2]!, flat[4 * i + 3]!)
-  })
-  treesIn(minX - TRUNK / 2, minY - TRUNK / 2, maxX + TRUNK / 2, maxY + TRUNK / 2, (x, y) => {
-    trunk.length = 0
-    pushTrunk(trunk, x, y)
-    for (let k = 0; k < trunk.length; k += 4)
-      add(trunk[k]!, trunk[k + 1]!, trunk[k + 2]!, trunk[k + 3]!)
-  })
-  return found
 }

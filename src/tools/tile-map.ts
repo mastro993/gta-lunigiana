@@ -1,16 +1,17 @@
 // Cuts the map the build makes (one heightmap, every wall and tree, the land cover rasterised tile
-// by tile) into the global map and its 2 km tiles (src/sim/map/packed.ts), one tile at a time, and
-// stamps them with the build hash. The cut is exact: joining the tiles back (`joinTiles` in
-// map-file.ts, for the tools that read a whole map) gives back every node, wall, tree and cover
-// cell, in order (the trees in id order: merged by id, `mergeTrees` in trees.ts).
+// by tile, every vector) into the global map and its 2 km tiles (src/sim/map/packed.ts), one tile at
+// a time, and stamps them with the build hash. The cut is exact: joining the tiles back (`joinTiles`
+// in map-file.ts, for the tools that read a whole map) gives back every node, wall, tree, cover cell
+// and vector, in order (the trees in id order: merged by id, `mergeTrees` in trees.ts).
 import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
-import type { MonzoneMap, Spawn, Water } from "../sim/map/index.ts"
+import type { Area, Barrier, Building, MonzoneMap, Road, Spawn, Water } from "../sim/map/index.ts"
 import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
-import { TILE_CELLS, TILE_NODES } from "../sim/map/packed.ts"
+import { TILE_CELLS, TILE_NODES, type VectorLayer } from "../sim/map/packed.ts"
 import { placeFrom } from "../sim/sky/place.ts"
-import { packMap, packTile } from "./pack.ts"
+import { packMap, packTile, relined } from "./pack.ts"
+import { NO_VECTORS, tilesOf, vectorFacts, vectorMembers } from "./tile-vectors.ts"
 
 /** The map as the build makes it: the global map's sparse parts with the dense layers whole, before the tables baked from them. */
 export interface BuiltMap extends Omit<
@@ -22,12 +23,19 @@ export interface BuiltMap extends Omit<
   | "place"
   | "coarse"
   | "walls"
-  | "water"
+  | "vectors"
+  | "derived"
+  | "roads"
   | "spawns"
   | "lanes"
   | "farms"
   | "lamps"
 > {
+  /** Every road, its attributes and its line (the cut keeps the attributes in the global file and puts the lines in the tiles). */
+  readonly roads: ReadonlyArray<Road>
+  readonly buildings: ReadonlyArray<Building>
+  readonly areas: ReadonlyArray<Area>
+  readonly barriers: ReadonlyArray<Barrier>
   /** `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in build-output.ts fits them to int16). */
   readonly heightmap: MonzoneMap["heightmap"] & { readonly data: Int16Array }
   /** The tiles to cut and write, the region's (`tiles` in region.ts): those of the bounds' box its parts leave out (an L's notch) are not. */
@@ -49,11 +57,14 @@ export interface BuiltMap extends Omit<
   readonly spawns: Omit<MonzoneMap["spawns"], "parked"> & { readonly parked: ReadonlyArray<Spawn> }
 }
 
-/** The tables the build bakes from the dense layers (src/tools/bake.ts): what `cutMap` leaves empty. */
-export type Bakes = Pick<MonzoneMap, "lanes" | "farms" | "lamps"> & {
-  readonly floors: ReadonlyArray<ReadonlyArray<number>>
-  readonly parked: MonzoneMap["spawns"]["parked"]
-}
+/** The tables the build bakes from the dense layers and the vectors (src/tools/bake.ts): what `cutMap` leaves empty. */
+export type Bakes = Pick<MonzoneMap, "lanes" | "farms" | "lamps"> &
+  Pick<MonzoneMap["derived"], "bells" | "residents"> & {
+    readonly floors: ReadonlyArray<ReadonlyArray<number>>
+    readonly parked: MonzoneMap["spawns"]["parked"]
+    /** Each farm's building centre, flat x, y (`derived.farms`). */
+    readonly farmCentres: ReadonlyArray<number>
+  }
 
 /** No baked tables yet: what the bake itself runs on. */
 export const NO_BAKES: Bakes = {
@@ -62,6 +73,9 @@ export const NO_BAKES: Bakes = {
   lamps: [],
   floors: [],
   parked: [],
+  bells: [],
+  residents: [],
+  farmCentres: [],
 }
 
 /** Lattice step of the coarse grid (`MonzoneMap.coarse`), m. */
@@ -83,24 +97,35 @@ const bySlot = (count: number, slots: number, slotOf: (item: number) => number) 
   return (s: number) => items.subarray(starts[s], starts[s + 1])
 }
 
-/** A map cut into its tiles: each tile packed with no hash yet, and the global map the bakes complete. */
+/** A map cut into its tiles, and the global map: both completed by the bakes. */
 export interface MapCut {
-  /** Each tile's gunzipped file with an empty hash, by key, south to north then west to east. */
-  readonly tiles: ReadonlyMap<string, Buffer>
+  /** Tile `key`'s gunzipped file with `bakes`, as `tiles` makes it: one at a time, for the bake to read. */
+  readonly tile: (key: string, bakes: Bakes) => Buffer
+  /**
+   * Each tile's gunzipped file with `bakes` (the water's floors) and an empty hash, by key, south to
+   * north then west to east, and the bytes of each layer of vectors in them, summed.
+   */
+  readonly tiles: (bakes: Bakes) => {
+    readonly files: ReadonlyMap<string, Buffer>
+    readonly sizes: Readonly<Record<VectorLayer, number>>
+  }
   /** The global map with `bakes`, before its hash. */
   readonly global: (bakes: Bakes) => Omit<MonzoneMap, "hash">
-  /** The bytes of each part of the tiles, summed (`json` with the hash still empty). */
+  /** The whole map's vectors, for the bakes that read them all (the water before its floors). */
+  readonly whole: Pick<BuiltMap, "roads" | "buildings" | "water">
+  /** The bytes of each part of the tiles' dense layers, summed (`json` with the hash and the vectors still empty). */
   readonly sizes: Readonly<Record<string, number>>
 }
 
 /**
  * `map` named `name` cut into its tiles (`map.tiles`), one at a time, each packed as it is cut: its
  * terrain nodes, its land cover (asked of `map.cover` for its cells alone), and its walls and trees
- * (with their ids) in the whole map's order. A wall or tree whose midpoint falls in a tile of the
- * bounds' box left off the list goes to the listed tile round it (`tilesRound`) nearest it, which a
- * lookup there reads, and the coarse grid's nodes there read what the game's lookups read: the
- * nearest listed node and cell. The global map
- * keeps only the sparse parts, so the dense layers can go once the cut is done. Deterministic.
+ * (with their ids) in the whole map's order; and the vectors round it (tile-vectors.ts), which the
+ * bakes complete (`tiles`). A wall or tree whose midpoint falls in a tile of the bounds' box left
+ * off the list goes to the listed tile round it (`tilesRound`) nearest it, which a lookup there
+ * reads, and the coarse grid's nodes there read what the game's lookups read: the nearest listed
+ * node and cell. What the cut returns holds the packed tiles, the vectors and the global map's
+ * sparse parts alone, so the dense layers can go once the cut is done. Deterministic.
  */
 export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const { cell, cols, rows, x0, y0, ax, ay, data } = map.heightmap
@@ -172,6 +197,25 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
   const treesOf = bySlot(map.trees.length / 3, slots, (t) =>
     slotAt(map.trees[3 * t]!, map.trees[3 * t + 1]!),
   )
+  // Each vector in every listed tile it comes within the halo of (tile-vectors.ts), the tile
+  // indices clamped to the list as a lookup's are (`tilesOver` in src/sim/map/tiles.ts: on an
+  // edge tile, beyond the edge too); for an unlisted slot (an L's notch), the listed tiles round it.
+  const members = vectorMembers(map, slots, (x0, y0, x1, y1, add) => {
+    for (
+      let tj = indexOf(y0 / cell, range.j0, range.j1, n);
+      tj <= indexOf(y1 / cell, range.j0, range.j1, n);
+      tj++
+    )
+      for (
+        let ti = indexOf(x0 / cell, range.i0, range.i1, n);
+        ti <= indexOf(x1 / cell, range.i0, range.i1, n);
+        ti++
+      ) {
+        const t = slotOf(ti, tj)
+        if (listed[t] === 1) add(t)
+        else for (const [ai, aj] of around[t]!) add(slotOf(ai, aj))
+      }
+  })
   /**
    * Where the game reads lattice point (ni, nj), counted from the origin, a node (`cells` 0: a tile
    * holds N + 1 along each side) or a cell (1: N): in its tile when listed, else in the listed tile
@@ -272,6 +316,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
         trees: flatOf(map.trees, trees, 3),
         ids: Int32Array.from(trees, (k) => map.treeIds[k]!),
         cover,
+        vectors: NO_VECTORS,
       })
       files.set(tileKey(i, j), tile.file)
       for (const [part, bytes] of Object.entries(tile.sizes))
@@ -321,26 +366,42 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
       cover: coarseCover,
     },
   }
-  const {
-    roads,
-    buildings,
-    water,
-    rail,
-    railway,
-    areas,
-    barriers,
-    pois,
-    districts,
-    graph,
-    spawns,
-  } = map
+  const { roads, buildings, rail, railway, areas, pois, districts, graph, spawns } = map
+  const vectors = vectorFacts(map)
+  const slotsOf = new Map(
+    [...files.keys()].map((key) => {
+      const [i, j] = key.split("_").map(Number)
+      return [key, slotOf(i!, j!)] as const
+    }),
+  )
+  const { water, barriers } = map
   return {
-    tiles: files,
+    ...tilesOf(files, slotsOf, { roads, buildings, water, areas, barriers }, members),
     sizes,
+    whole: { roads, buildings, water },
     global: globalOf(
       header,
-      { roads, buildings, rail, railway, areas, barriers, pois, districts, graph, walls },
-      water,
+      {
+        // the roads' attributes: their lines are in the tiles
+        roads: roads.map((road) => {
+          const { pts: _, z: __, ...info } = road
+          return info
+        }),
+        rail,
+        railway,
+        pois,
+        districts,
+        graph,
+        walls,
+        vectors,
+      },
+      {
+        crossings: railway.crossings.map((c) => ({ pts: roads[c.road]!.pts, z: roads[c.road]!.z })),
+        platforms: railway.platforms.map((p) => areas[p.area]!.rings),
+        stations: railway.stations.map(
+          (st) => buildings.find((b) => b.style === "station" && b.name === st.name) ?? null,
+        ),
+      },
       spawns,
     ),
   }
@@ -370,33 +431,21 @@ const globalOf =
     header: Header,
     v: Pick<
       MonzoneMap,
-      | "roads"
-      | "buildings"
-      | "rail"
-      | "railway"
-      | "areas"
-      | "barriers"
-      | "pois"
-      | "districts"
-      | "graph"
-      | "walls"
+      "roads" | "rail" | "railway" | "pois" | "districts" | "graph" | "walls" | "vectors"
     >,
-    water: BuiltMap["water"],
+    copies: Pick<MonzoneMap["derived"], "crossings" | "platforms" | "stations">,
     { player, parked, police }: BuiltMap["spawns"],
   ) =>
   (bakes: Bakes): Omit<MonzoneMap, "hash"> => ({
     ...header,
     roads: v.roads,
-    buildings: v.buildings,
-    water: water.map((w, i) => ({ ...w, floor: bakes.floors[i] ?? [] })),
     rail: v.rail,
     railway: v.railway,
-    areas: v.areas,
-    barriers: v.barriers,
     pois: v.pois,
     districts: v.districts,
     graph: v.graph,
     walls: v.walls,
+    vectors: v.vectors,
     spawns: {
       player,
       parked: parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }),
@@ -405,15 +454,13 @@ const globalOf =
     lanes: bakes.lanes,
     farms: bakes.farms,
     lamps: bakes.lamps,
+    derived: {
+      ...copies,
+      bells: bakes.bells,
+      residents: bakes.residents,
+      farms: bakes.farmCentres,
+    },
   })
-
-/** A file's JSON line with `hash` set, the packed sections after it unchanged: what packing it with that hash gives. */
-const restamp = (file: Uint8Array, hash: string): Buffer => {
-  const end = file.indexOf(10)
-  const json = JSON.parse(Buffer.from(file.subarray(0, end)).toString()) as { hash: string }
-  json.hash = hash
-  return Buffer.concat([Buffer.from(JSON.stringify(json)), file.subarray(end)])
-}
 
 /**
  * The build hash of `global` and its unstamped `tiles` (16 hex digits of SHA-256 over the global
@@ -435,5 +482,5 @@ export const stampMap = (
   const hash = sha.digest("hex").slice(0, 16)
   const stamped: MonzoneMap = { ...global, hash }
   const { file, sizes } = packMap(stamped)
-  return { global: stamped, file, sizes, tile: (tile) => restamp(tile, hash) }
+  return { global: stamped, file, sizes, tile: (tile) => relined(tile, { hash }) }
 }

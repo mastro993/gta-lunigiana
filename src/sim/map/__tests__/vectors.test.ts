@@ -1,0 +1,93 @@
+import assert from "node:assert/strict"
+import { test } from "node:test"
+
+import { MAP } from "../index.ts"
+import { TILE, tileKey } from "../kinds.ts"
+import { readMapFile, tileUrl } from "../packed.ts"
+import {
+  dropTile,
+  placeAt,
+  provideTile,
+  residentTiles,
+  setTileSource,
+  tilesOver,
+} from "../tiles.ts"
+import { buildingAt, buildingsIn, buildingsInMemory, roadLineAt } from "../vectors.ts"
+
+// The checks over every tile's vectors live in vectors.map-test.ts (pnpm test:map); these read only
+// the tiles round Monzone station.
+const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
+const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
+
+/** Every tile out of memory, then the source back. */
+const emptied = () => {
+  for (const key of KEYS) dropTile(key)
+  setTileSource(fromDisk)
+}
+
+test("buildingsIn gives the same buildings, in the same order, whatever is in memory and in whichever order it came", () => {
+  // Boxes across the x = 0 and y = 0 seams by Monzone station, round the tile corner (0, 0), and 300 m across it.
+  const boxes = [
+    [0, 30, 40],
+    [-25, 0, 64],
+    [0, 0, 150],
+    [-400, 400, 120],
+  ] as const
+  const answer = () =>
+    boxes.map(([x, y, r]) => {
+      const found: Array<number> = []
+      buildingsIn(x - r, y - r, x + r, y + r, (i) => found.push(i))
+      return found
+    })
+  emptied()
+  const lazy = answer()
+  const touched = residentTiles()
+  const around = [
+    ...new Set(boxes.flatMap(([x, y]) => tilesOver(x - TILE, y - TILE, x + TILE, y + TILE))),
+  ]
+  for (const order of [around, [...around].reverse()]) {
+    emptied()
+    for (const key of order) provideTile(fromDisk(key))
+    assert.deepEqual(answer(), lazy)
+  }
+  assert.ok(touched.length >= 4, touched.join(" "))
+  assert.ok(lazy.every((found) => found.length > 0))
+  // each building once, though the tiles round a seam all hold it
+  for (const found of lazy) assert.equal(new Set(found).size, found.length)
+})
+
+test("a lookup at a point reads the vectors of the point's tile: a road's line there, and none far from it", () => {
+  emptied()
+  const place = placeAt(-414.4, 433.1)
+  assert.deepEqual(residentTiles(), ["-1_0"])
+  const k = place.vectors.roads.ids.find((id) => MAP.roads[id]!.name === "Via Cesare Battisti")!
+  const own = place.vectors.roads.items[place.vectors.roads.ids.indexOf(k)]
+  assert.equal(roadLineAt(k, -414.4, 433.1), own)
+  assert.equal(roadLineAt(k, 4000, -5000), undefined)
+  setTileSource(undefined)
+  dropTile("1_-3")
+  assert.throws(() => placeAt(3000, -5000), /map tile 1_-3 not loaded/)
+  setTileSource(fromDisk)
+})
+
+test("a building by its index near it, and a host's read of the buildings in memory, which never reads another tile", () => {
+  emptied()
+  const found: Array<number> = []
+  buildingsIn(-60, -60, 60, 60, (i, b, [x0, y0, x1, y1]) => {
+    found.push(i)
+    assert.deepEqual(buildingAt(i, (x0 + x1) / 2, (y0 + y1) / 2), b)
+  })
+  assert.ok(found.length > 0)
+  assert.throws(() => buildingAt(found[0]!, 4000, -5000), /map: building \d+ lies nowhere near/)
+  // with only the tiles round the origin in memory, the rest of a 4 km box is passed over
+  const resident = residentTiles()
+  setTileSource(undefined)
+  const near = new Set<number>()
+  buildingsInMemory(-2000, -2000, 2000, 2000, (i) => {
+    assert.ok(!near.has(i), `${i} twice`)
+    near.add(i)
+  })
+  assert.deepEqual(residentTiles(), resident)
+  for (const i of found) assert.ok(near.has(i), `${i}`)
+  setTileSource(fromDisk)
+})

@@ -2,16 +2,9 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { runInNewContext } from "node:vm"
 
-import { MAP } from "../../sim/map/index.ts"
-import { TILE } from "../../sim/map/kinds.ts"
-import {
-  chainRoad,
-  defaultRoute,
-  driveReport,
-  driveScript,
-  type Frame,
-  frameStats,
-} from "../playtest-drive.ts"
+import { chainRoad, driveReport, driveScript, type Frame, frameStats } from "../playtest-drive.ts"
+
+// The default route reads the whole map: playtest-drive.map-test.ts checks it.
 
 test("frameStats: slowest and the nearest-rank 99th percentile", () => {
   const deltas = Array.from({ length: 100 }, (_, i) => (i === 7 ? 50 : i === 9 ? 40 : 16))
@@ -50,25 +43,6 @@ test("chainRoad: chains pieces through shared end vertices from the free end nea
     [10, 0, 0, 0, 10, 0],
   )
   assert.throws(() => chainRoad([], { x: 0, y: 0 }, { x: 1, y: 1 }), /no road/)
-})
-
-test("defaultRoute: the SP59 from Monzone to Vinca, across the x = 0, y = 0, y = -2000 and x = 2000 seams", () => {
-  const route = defaultRoute()
-  const [x0, y0] = route,
-    [x1, y1] = route.slice(-2)
-  const start = MAP.spawns.player,
-    vinca = MAP.districts.find((d) => d.name === "Vinca")!
-  assert.ok(Math.hypot(x0! - start.x, y0! - start.y) < 600, `starts at ${x0}, ${y0}`)
-  assert.ok(Math.hypot(x1! - vinca.x, y1! - vinca.y) < 500, `ends at ${x1}, ${y1}`)
-  const seams = new Set<string>()
-  for (let k = 2; k < route.length; k += 2)
-    for (const [axis, a, b] of [
-      ["x", route[k - 2]!, route[k]!],
-      ["y", route[k - 1]!, route[k + 1]!],
-    ] as const)
-      if (Math.floor(a / TILE) !== Math.floor(b / TILE))
-        seams.add(`${axis}${TILE * Math.max(Math.floor(a / TILE), Math.floor(b / TILE))}`)
-  for (const seam of ["x0", "y0", "y-2000", "x2000"]) assert.ok(seams.has(seam), seam)
 })
 
 test("driveScript: teleports along the route at the speed each frame and records each frame's delta, player and tile count", async () => {

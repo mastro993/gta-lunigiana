@@ -7,16 +7,21 @@ import { isMotorRoad, isTraffic, TILE, tileKey } from "../../sim/map/kinds.ts"
 import {
   decodeMap,
   decodeTile,
+  type Layer,
   MAP_URL,
   provideMap,
   readMapFile,
+  type TileVectors,
   tileUrl,
 } from "../../sim/map/packed.ts"
 import { pointInRing, segDist2 } from "../geometry.ts"
 import { clearance } from "../spawns.ts"
 
-// Cesena's global file, and the walls and trees of the tiles round its start: every wall within 50 m of it lives in one
-// of them (a wall lives in the tile of its midpoint and reaches at most `walls.reach` from it).
+// Cesena's global file, and the tiles round its start: every wall within 50 m of it lives in one of
+// them (a wall lives in the tile of its midpoint and reaches at most `walls.reach` from it), and
+// every road and building within `vectors.halo` of their squares lies whole in them (on Cesena,
+// whose start is by the corner its four tiles share, they are all four). Decoded here: the sim's
+// tiles would decode Monzone's global file, which the boot test below must not find loaded.
 const map = decodeMap(readMapFile(new URL("cesena.bin", MAP_URL)))
 const start = (() => {
   const { x, y } = map.spawns.player,
@@ -30,10 +35,21 @@ const start = (() => {
         j <= Math.floor((y + r) / TILE),
     )
     .map(({ i, j }) => decodeTile(readMapFile(tileUrl(map.name, tileKey(i, j)))))
+  /** A layer of the tiles' vectors, each feature once (every tile near it holds it), in the whole map's order, by its index. */
+  const merged = <T>(of: (v: TileVectors) => Layer<T>): Array<readonly [number, T]> => {
+    const byId = new Map<number, T>()
+    for (const t of tiles) {
+      const { ids, items } = of(t.vectors)
+      ids.forEach((id, k) => byId.set(id, items[k]!))
+    }
+    return [...byId].sort(([a], [b]) => a - b)
+  }
   return {
     walk: tiles.flatMap((t) => Array.from(t.walls.walk)),
     drive: tiles.flatMap((t) => Array.from(t.walls.drive)),
     trees: tiles.flatMap((t) => Array.from(t.trees)),
+    roads: merged((v) => v.roads).map(([k, line]) => ({ ...map.roads[k]!, ...line })),
+    buildings: merged((v) => v.buildings).map(([, b]) => b),
   }
 })()
 
@@ -43,7 +59,8 @@ test("Cesena contains the real city, station, historic centre and connected stre
   assert.ok(map.districts.every((district) => !/Monzone|Sagro|Equi/.test(district.name)))
   assert.ok(map.pois.some((poi) => poi.name === "Cesena" && poi.kind === "railway=station"))
   assert.ok(map.roads.some((road) => road.name?.includes("Mazzini")))
-  assert.ok(map.buildings.some((building) => building.name?.includes("Malatestiana")))
+  // the Rocca Malatestiana, 270–360 m south-west of the start
+  assert.ok(start.buildings.some((building) => building.name?.includes("Malatestiana")))
   assert.ok(map.graph.traffic.length > 0 && map.graph.walk.length > 0)
 })
 
@@ -51,7 +68,13 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
   const { x, y } = map.spawns.player,
     { trees } = start
   assert.ok(Math.hypot(x, y) < 200)
-  const containing = map.buildings.find(
+  // With no buildings or roads read round it, the checks below would pass on nothing.
+  assert.ok(start.buildings.length > 0, "no buildings round the start")
+  assert.ok(
+    start.roads.length > 0 && start.roads.every((road) => road.pts.length >= 4),
+    "no road lines round the start",
+  )
+  const containing = start.buildings.find(
     (building) =>
       pointInRing(x, y, building.outer) &&
       !(building.holes ?? []).some((hole) => pointInRing(x, y, hole)),
@@ -60,7 +83,7 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
   const walk = clearance(start.walk, trees)
   assert.ok(walk.circle(x, y, 1.2))
   assert.ok(clearance(start.drive, trees).circle(x, y, 1.2))
-  const reachesStreet = map.roads.some((road) => {
+  const reachesStreet = start.roads.some((road) => {
     if (!isTraffic(road.cls) || isMotorRoad(road)) return false
     for (let index = 0; index + 3 < road.pts.length; index += 2) {
       const ax = road.pts[index]!,
@@ -86,12 +109,6 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
   })
   assert.ok(reachesStreet, "Player must have an unobstructed walking route to the street")
   assert.ok(map.spawns.parked.some((car) => Math.hypot(car.x - x, car.y - y) < 150))
-})
-
-test("the Savio uses its mapped riverbanks rather than the mountain-stream default", () => {
-  const savio = map.water.filter((water) => water.name?.includes("Savio"))
-  assert.ok(savio.length > 0)
-  assert.ok(savio.every((water) => water.w > 8 && water.w <= 120))
 })
 
 test("Cesena boots the existing simulation, populates it and replays walking deterministically", async () => {

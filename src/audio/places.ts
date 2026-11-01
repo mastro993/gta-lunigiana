@@ -15,17 +15,15 @@ import { segDist2 } from "../sim/collide.ts"
 import { type Cover, coverAt, coverIndexAt, coverName } from "../sim/map/cover.ts"
 import {
   type Building,
-  buildingBoxes,
-  buildingsIn,
   buildingStyleOf,
-  districtAt,
   heightAt,
   MAP,
   treesIn,
   TRUNK,
   wallsNear,
 } from "../sim/map/index.ts"
-import { isResident, tilesOver } from "../sim/map/tiles.ts"
+import { isResident, placeAt, tilesOver } from "../sim/map/tiles.ts"
+import { buildingsIn } from "../sim/map/vectors.ts"
 import { delayOf, EAR_HEIGHT } from "./acoustics.ts"
 import { landAt } from "./ground.ts"
 import type { Material } from "./types.ts"
@@ -73,33 +71,37 @@ const BANK_MATERIAL: Partial<Record<Cover, Material>> = {
 
 /** A trunk, building or barrier this much farther than the nearest drive wall is not the wall that was hit, m (a trunk's square wall against its circle, a contact a few cm off). */
 const SAME_WALL = 0.6
+/** A trunk, building or barrier is looked for this near the contact point, m: well within the vectors' `HALO`, so the point's tile holds every barrier that near. */
+const REACH = 3
 
 /**
  * What a vehicle hitting a drive wall at the contact point (x, y) hit, by how it sounds: the
- * nearest tree trunk, building wall or barrier within `reach` m, if it is the nearest drive wall;
- * else the bank itself, rock in the bare-stone covers and earth elsewhere (a steep bank, the end
- * of the map).
+ * nearest tree trunk, building wall or barrier within 3 m, if it is the nearest drive wall; else
+ * the bank itself, rock in the bare-stone covers and earth elsewhere (a steep bank, the end of the
+ * map). On a tie the first offered wins: trunks, buildings in the broad phase's order, then
+ * barriers in the whole map's.
  */
-export const wallAt = (x: number, y: number, reach = 3): Material => {
+export const wallAt = (x: number, y: number): Material => {
+  const x0 = x - REACH,
+    y0 = y - REACH,
+    x1 = x + REACH,
+    y1 = y + REACH
   let wall = Infinity
-  for (const s of wallsNear("drive", x - reach, y - reach, x + reach, y + reach))
+  for (const s of wallsNear("drive", x0, y0, x1, y1))
     wall = Math.min(wall, segDist2(x, y, s.ax, s.ay, s.bx, s.by).d2)
-  let nearest = Math.min(reach, Math.sqrt(wall) + SAME_WALL),
+  let nearest = Math.min(REACH, Math.sqrt(wall) + SAME_WALL),
     material: Material = BANK_MATERIAL[coverAt(x, y)] ?? "earth"
   const offer = (d: number, what: Material) => {
     if (d < nearest) [nearest, material] = [d, what]
   }
-  treesIn(x - reach, y - reach, x + reach, y + reach, (tx, ty) =>
-    offer(Math.hypot(tx - x, ty - y) - TRUNK / 2, "tree"),
-  )
-  buildingsIn(x - reach, y - reach, x + reach, y + reach, (i) => {
-    const building = MAP.buildings[i]!,
-      what = buildingMaterial(building)
+  treesIn(x0, y0, x1, y1, (tx, ty) => offer(Math.hypot(tx - x, ty - y) - TRUNK / 2, "tree"))
+  buildingsIn(x0, y0, x1, y1, (_, building) => {
+    const what = buildingMaterial(building)
     for (const ring of [building.outer, ...(building.holes ?? [])])
       offer(distanceTo(ring, true, x, y), what)
   })
-  // The map has a few dozen barriers: every one is measured.
-  for (const { kind, pts } of MAP.barriers) {
+  // A tile holds a dozen barriers at most: every one the point's tile holds is measured, in the whole map's order.
+  for (const { kind, pts } of placeAt(x, y).vectors.barriers.items) {
     const what = BARRIER_MATERIAL[kind]
     if (what !== undefined) offer(distanceTo(pts, false, x, y), what)
   }
@@ -233,12 +235,17 @@ export const streetAt = (x: number, y: number): number => {
       }
     }
   }
-  buildingsIn(x - PROBE_REACH, y - PROBE_REACH, x + PROBE_REACH, y + PROBE_REACH, (i) => {
-    const { z0, h, outer, holes } = MAP.buildings[i]!,
-      w = Math.min(1, Math.max(0, z0 + h - ground) / FULL_FACADE)
-    ring(outer, w)
-    for (const hole of holes ?? []) ring(hole, w)
-  })
+  buildingsIn(
+    x - PROBE_REACH,
+    y - PROBE_REACH,
+    x + PROBE_REACH,
+    y + PROBE_REACH,
+    (_, { z0, h, outer, holes }) => {
+      const w = Math.min(1, Math.max(0, z0 + h - ground) / FULL_FACADE)
+      ring(outer, w)
+      for (const hole of holes ?? []) ring(hole, w)
+    },
+  )
   return weight.reduce((sum, w) => sum + w, 0) / PROBES
 }
 
@@ -336,28 +343,11 @@ export interface Bell {
 /** Taller towers hang bigger bells: the prime falls an octave from 800 Hz (a 10 m tower) to 400 Hz (30 m). */
 const pitchOf = (h: number): number => 800 * 2 ** -Math.min(1, Math.max(0, (h - 10) / 20))
 
-/** The tallest church or tower of every district that has one. */
-const findBells = (): Array<Bell> => {
-  const tallest = new Map<string, number>()
-  MAP.buildings.forEach((b, i) => {
-    const style = buildingStyleOf(b)
-    if (style !== "church" && style !== "tower") return
-    const [bx0, by0, bx1, by1] = buildingBoxes[i]!,
-      district = districtAt((bx0 + bx1) / 2, (by0 + by1) / 2).name,
-      best = tallest.get(district)
-    if (best === undefined || b.h > MAP.buildings[best]!.h) tallest.set(district, i)
-  })
-  return [...tallest.values()].map((i) => {
-    const { id, z0, h } = MAP.buildings[i]!,
-      [bx0, by0, bx1, by1] = buildingBoxes[i]!
-    return {
-      key: `bell:${id}`,
-      x: (bx0 + bx1) / 2,
-      y: (by0 + by1) / 2,
-      z: z0 + h,
-      pitch: pitchOf(h),
-    }
-  })
-}
-/** One bell per settlement. */
-export const bells: ReadonlyArray<Bell> = findBells()
+/** One bell per settlement: the tallest church or tower of every district that has one (the build finds them, src/tools/bells.ts). */
+export const bells: ReadonlyArray<Bell> = MAP.derived.bells.map(({ id, x, y, z, h }) => ({
+  key: `bell:${id}`,
+  x,
+  y,
+  z,
+  pitch: pitchOf(h),
+}))

@@ -83,11 +83,14 @@ yet (since 0.14).
 
 In Node, setup takes 9.8–10.1 ms (seed 7, three runs in fresh processes; 10.7–11.9 ms measured the
 same way when it parked 200 cars over the whole map) with the start's four tiles in memory, as
-`boot.ts` hands them over first; the farm list, indexed from the farms the map file holds, takes
-4–8 ms on its own. A Node test reads each tile from disk the first time a lookup needs it: the
-start's four take 22 ms, read, gunzipped and decoded. The people and animals' fill draws from the
-world's `Rng`, `FillTrains` from `RailRng`, and the parked cars come from `Parking.seed`, so the
-fill replays with the seed.
+`boot.ts` hands them over first. Moving the vectors into the tiles left it as it was: on
+2026-10-31, under a load average of 6–10 from other work, it took 17.9–19.1 ms, and the build
+before 17.2–19.3 ms in four of five runs and 24.0 ms in the fifth (seed 7, fresh processes, run in
+turn); the farm list, indexed from the farms and their centres the map file holds, took 7.0–7.5 ms
+on its own (three runs). A Node test reads each tile from disk the first time a lookup needs it: the start's four take
+about 32 ms, read, gunzipped and decoded (about 22 ms before their vectors were in them). The
+people and animals' fill draws from the world's `Rng`, `FillTrains` from `RailRng`, and the parked
+cars come from `Parking.seed`, so the fill replays with the seed.
 
 `update` is one fixed step (`STEP = Clock.hz(60)`):
 
@@ -289,19 +292,22 @@ a snapshot between steps loses none and a restored save plays on alike.
 
 Static data is module content, not state. `MAP` (`src/sim/map/global.ts`, which
 `src/sim/map/index.ts` re-exports with `graph`) is the map's global file, decoded once at load: the
-vectors, the graph, the railway, the tile list and the tables baked from the dense layers
-([map.md](map.md#map-files)). The dense layers (terrain, walls, trees, land cover) live in 2 km
-tiles, and only the tiles round the player are in memory (`src/sim/map/tiles.ts`): the host hands
-them over and lets them go ([Tile streaming](#tile-streaming)); in Node a lookup reads a missing tile
-from disk, and in the browser it throws "map tile i_j not loaded". Which tiles are in memory is never
+roads' attributes, the rail, the graph, the railway, the tile list, the coarse grid and the tables
+baked from the tiles' layers ([map.md](map.md#map-files)), and no vector geometry. The dense layers
+(terrain, walls, trees, land cover) and the vectors (the roads' lines, the buildings, the water, the
+areas and the barriers) live in 2 km tiles, and only the tiles round the player are in memory
+(`src/sim/map/tiles.ts`, the vectors' lookups in `src/sim/map/vectors.ts`): the host hands them over
+and lets them go ([Tile streaming](#tile-streaming)); in Node a lookup reads a missing tile from
+disk, and in the browser it throws "map tile i_j not loaded". Which tiles are in memory is never
 observable: every lookup gives the same answer, in the same order, whichever tiles are there and in
-whatever order they came (`tiles.test.ts`, `tiles.map-test.ts`, `seams.long-test.ts`), so a save holds
-nothing of them and the tiles in memory are shared by every runtime. The wall, tree, building and
-edge lookups, the
-per-model lane tables in `src/sim/route.ts` (read from the baked `MAP.lanes`) and the per-model rigs
-in `src/sim/chassis.ts` (`RIGS`: static wheel loads, springs, inertias, steering lock, tipping
-threshold) are built once at load, a tile's broad phases the first time a query reaches it, and
-never change, so they are safe to share between runtimes.
+whatever order they came (`tiles.test.ts`, `vectors.test.ts`, `ground.test.ts`, `tiles.map-test.ts`,
+`vectors.map-test.ts`, `seams.long-test.ts`), so a save holds nothing of them and the tiles in memory are
+shared by every runtime. The edge lookups, the per-model lane tables in `src/sim/route.ts` (read
+from the baked `MAP.lanes`) and the per-model rigs in `src/sim/chassis.ts` (`RIGS`: static wheel
+loads, springs, inertias, steering lock, tipping threshold) are built once at load, and what a
+lookup builds from a tile (its walls', trees' and buildings' broad phases, its road and river
+buckets) the first time a query reaches it, dropped with the tile; none of it changes, so it is safe
+to share between runtimes.
 A rig under a handling off its real values (`rigFor`) is a pure function of the model and the
 `Handling`, derived on first use and cached (the whole cache empties once it holds 64 rigs, 16
 for each of the four models), so it is safe to share too. Its key, the knobs in menu order, is
@@ -316,7 +322,10 @@ in a row as they share), and `CROSSINGS`, `CROSSINGS_ON` and `APPROACHES`
 (`src/sim/rail/crossings.ts`: each level crossing's box, built once, the lines crossing it at grade
 with their s and strike-in, its stop lines and arms; per line the boxes it crosses, by s, which the
 AI drivers, the crossings' demand and the traffic's busy boxes walk instead of every box; and the
-traffic steps leading in, keyed by `stepKey`, each into the box it reaches first). The traffic edges
+traffic steps leading in, keyed by `stepKey`, each into the box it reaches first). Each box's road
+line is the copy the build keeps beside the railway (`MAP.derived.crossings`), its width and class
+the road's attributes in `MAP.roads`, so building them reads no tile: 4 of Lunigiana's 5 boxes lie
+2.4–3.4 km from the start, where no tile need be in memory. The traffic edges
 within 12 m of a line's track at grade, where no car turns round (`nearTrack` in
 `src/sim/rail/roads.ts`), are a set built at load too (40 of the map's 5877, in 3 ms). The
 crossings' cycle and demand are pure functions in `src/sim/rail/barriers.ts`; boarding a train and
@@ -339,23 +348,27 @@ and climate (`sky/__tests__/mapfree.test.ts` asserts both); `sky/weather.ts` dec
 heights (the tiles' lowest and highest nodes, `MAP.tiles`) and the bounds. `ORIGIN` in
 `src/sim/map/kinds.ts` now serves only the build.
 
-The tables a load would otherwise work out from the dense layers, which the game now holds only near
-the player, are baked into the global file by the game's own code at build time
+The tables a load would otherwise work out from the tiles' layers, which the game holds only near
+the player, are baked into the map files by the game's own code at build time
 ([map.md](map.md#the-global-file)): the lanes (`MAP.lanes`), the parked cars' rests
-(`MAP.spawns.parked`), the water's beds (`Water.floor`), the farms (`MAP.farms`) and the street
-lamps (`MAP.lamps`), each by its owner module's code (`src/tools/bake.ts` calls it), and the place;
+(`MAP.spawns.parked`), the water's beds (`Water.floor`, in the tiles with their water), the farms
+(`MAP.farms`) and the street lamps (`MAP.lamps`), each by its owner module's code
+(`src/tools/bake.ts` calls it, handing over the whole map's vectors joined from the tiles), and the
+place. So are what readers far from the player need of the vectors (`MAP.derived`): each level
+crossing's road line, each platform's rings and each station's building, which the railway and the
+trains' look-out read anywhere; the bells the audio hears all over the map (`bellsOf` in
+`src/tools/bells.ts`); the residents within 60 m of each walk edge; and each farm's centre.
 `src/tools/__tests__/bake.map-test.ts` (and `cesena-bake.map-test.ts` for Cesena, in a process of
-its own) runs the five and the place fit again and fails while one is stale; `bake.test.ts` and
-`cesena-bake.test.ts` do the parked spots, water beds and farms round Monzone and Cesena's start.
-The land cover is read from the tiles (`coverAt` and `coverIndexAt` in `src/sim/map/cover.ts`: each
-tile holds its 500 × 500 cells, rasterised for that tile at build time), and the road index of
-`surfaceAt`
-(`src/sim/map/surface.ts`) is built on first use, a pure function of `MAP` never written after. The
-lookups are compact static grids (`staticGrid` in `src/sim/collide.ts`, item indices packed into one
-`Int32Array`), the walls and trees one per tile on the whole map's lattice
-(`src/sim/map/lattice.ts`):
+its own) runs every bake and the place fit again, checks the railway's copies against the whole
+map's vectors, and fails while one is stale; `bake.test.ts` and `cesena-bake.test.ts` do the parked
+spots, water beds and farms round Monzone and Cesena's start. The land cover is read from the tiles
+(`coverAt` and `coverIndexAt` in `src/sim/map/cover.ts`: each tile holds its 500 × 500 cells,
+rasterised for that tile at build time), and `surfaceAt` (`src/sim/map/surface.ts`) buckets each
+tile's roads in 32 m cells the first time a query reaches it. The lookups are compact static grids
+(`staticGrid` in `src/sim/collide.ts`, item indices packed into one `Int32Array`), the walls, trees
+and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`):
 
-- `wallsNear` (`src/sim/map/tiles.ts`) indexes each tile's walls straight from its decoded flat
+- `wallsNear` (`src/sim/map/walls.ts`) indexes each tile's walls straight from its decoded flat
   arrays and its trees as points, building a tile's grids the first time a query reaches it, and
   makes each trunk's square (`pushTrunk` in `src/sim/map/kinds.ts`) only when a query reaches it. It
   walks the lattice's cells the box touches and takes each cell's items in the whole map's order
@@ -364,49 +377,77 @@ lookups are compact static grids (`staticGrid` in `src/sim/collide.ts`, item ind
   and keeps the first of equal-time hits, so another order would move collisions at corners. It
   reuses its answer array and the segment objects in it until the next call of the same kind: copy
   the coordinates to keep them.
-- `buildingsIn` (over `buildingBoxes`, 64 m cells, `src/sim/map/index.ts`) and `treesIn` (the trees
-  as points, `src/sim/map/tiles.ts`, handing each tree's position, scale and id) are broad phases
-  that call back with candidates; callers run the exact test. The sim (the residents, the farms, the
-  spawns' indoor checks) and the audio host (occlusion, streets, birds) share them.
+- `buildingsIn` (`src/sim/map/vectors.ts`: each tile's buildings in 64 m cells on the buildings'
+  lattice, `MAP.vectors.lattice.buildings`, handing each building's index in the whole map's list,
+  the building and its box) and `treesIn` (the trees as points, `src/sim/map/walls.ts`, handing each
+  tree's position, scale and id) are broad phases that call back with candidates; callers run the
+  exact test. A building lies whole in every tile round it, so `buildingsIn` reads every tile its
+  cells reach and marks each building by its index: it answers in the whole map's order, each
+  building once, as one broad phase over the whole map did. The sim (the residents, the farms, the
+  spawns' indoor checks), the renderer (the sight lines) and the audio host (streets, wall
+  materials, birds) share them. `buildingsInMemory` is the host's alone: it reads the buildings of
+  the tiles in memory and passes over the rest, in no set order, for the sound paths' occlusion and
+  the dogs ([audio.md](audio.md)), whose answers do not depend on the order.
 - `coarseHeightAt` and `coarseCoverAt` (`src/sim/map/coarse.ts`) read the global file's coarse grid
   (64 m) anywhere, for the hosts' reads far from the player (sound paths and their ground, the shadow
   fit, lightning); the sim never reads them.
 - `edgeIndex` (`src/sim/edges.ts`, re-exported by `src/sim/route.ts`), with its instances
   `trafficIndex` and `walkIndex` (`src/sim/route.ts`) and `peopledIndex`, answers nearest-edge and
   spawn-band lookups without scanning the whole graph.
-- `waterAt` (`src/sim/water/rivers.ts`) finds the lake or river polygon a point lies in (a 64 m grid
-  of their boxes, lakes first), else the nearest reach of a river or stream within its bed in a 32 m
-  grid of the map's reaches, each with its two vertices' bed, depth and speed per unit discharge
-  (`channelOf` in `src/sim/water/channel.ts`, built at load from each water's baked bed,
-  `Water.floor`); in a river polygon, the nearest reach of its own waterways in boxes doubling from
-  32 m. `waterIndex` builds these lookups over any water and areas, a test's too. `initialRivers`
-  keeps the rivers it has worked out for a start and seed (a pure function of them), and `petAt` the
-  evapotranspiration's heat index per latitude.
+- `waterAt` (`src/sim/water/rivers.ts`) finds the lake or river polygon a point lies in (lakes
+  first), else the nearest reach of a river or stream within its bed in 32 m buckets, all from the
+  tile holding the point (`placeAt`), each reach with its two vertices' bed, depth and speed per unit
+  discharge (`channelOf` in `src/sim/water/channel.ts`, from each water's baked bed, `Water.floor`),
+  built from the whole pieces and areas the tile holds the first time a query reaches it; in a river
+  polygon, the nearest reach of its own waterways (the cut puts them in every tile the polygon lies
+  in). Of equally near reaches it keeps the first in (water piece, vertex) order, as one grid over
+  the whole map did. `waterUnder` and `walkDry` read them the same way, and `waterIndex` builds these
+  lookups over any water and areas: a test's, or the whole map's as the map checks' oracle.
+  `initialRivers` keeps the rivers it has worked out for a start and seed (a pure function of
+  them), and `petAt` the evapotranspiration's heat index per latitude.
 - `groundZ` (`src/sim/map/ground.ts`) is where every wheel, foot, sound source and drawn actor
   stands, in m a.s.l.: the terrain as its mesh is drawn (each 4 m cell split along its SW–NE
   diagonal), or a station platform's top where that is higher (`platformTop`, from
-  `MAP.railway.platforms`), at-grade roads `ROAD_LIFT` above their profile (blended where several
-  overlap, so a junction's ground stays continuous where their profiles disagree), and bridge decks
+  `MAP.railway.platforms` and the rings `MAP.derived.platforms` keeps, so it reads no tile),
+  at-grade roads `ROAD_LIFT` above their profile (blended where several overlap, so a junction's
+  ground stays continuous where their profiles disagree), and bridge decks
   and tunnels kept to the level nearest the caller's previous height (with `verges`, a deck or a
   tunnel reaching out to its walkers' verges). `footZ` is where someone on
   foot stands: given their previous height, the ground nearest it with the decks out to their verges
   (what `FindFooting` keeps in `Footing`, and where getting out of a train steps down, nearest the
   rail head); with none to go by, on a road bridge's deck or in a road tunnel within its reach to
-  its verges, else the highest ground. Road segments and platforms are bucketed in 16 m cells at
-  load. The renderer converts it to render y (`src/render/ground.ts`).
+  its verges, else the highest ground. The platforms are bucketed in 16 m cells at load; the road
+  segments go into 16 m buckets on the origin's lattice, built from a tile's roads the first time a
+  query reaches it and dropped with it, and each bucket is read from the tile holding its middle, so
+  a pad across a seam reads each bucket from its own tile and the answers are the whole map's to the
+  bit, junction blends included (`ground.map-test.ts`). `groundZ`, `footZ`, `drawnZ`, `atGrade`,
+  `deckNear` and `surfaceAt` read the tile under the point (a box, each bucket's), which the host
+  keeps in memory round the player. `roadLevel(road, x, y)`, a road's level where a vehicle or
+  walker on it stands, reads the road's line from the tile under the point (`roadLineAt`), so it
+  answers within `HALO` (32 m) of the road and is undefined farther off, where nothing stands on it:
+  a spawn or a first footing there settles at grade. The renderer converts it to render y
+  (`src/render/ground.ts`).
 
-The population's tables are static data too, pure functions of `MAP` shared by every runtime: the
-residents of each home and within 60 m of each walk edge, and the walk edges people live along
-(`residentsNear`, `residentsAlong`, `peopledIndex` in `src/sim/population/density.ts`), built at
-load; the 2,405 farms in a 64 m grid (`farmsNear` and the ground checks in
-`src/sim/population/farms.ts`), indexed on first use from the farms the map file holds
-(`MAP.farms`), which `setup` makes (4–8 ms in Node); and the residents ahead of each way out of a
-junction (`nextWalkEdge` in `src/sim/route.ts`), cached as walkers first reach it.
+The population's tables are static data too, pure functions of the map shared by every runtime: the
+residents within 60 m of each walk edge, baked (`MAP.derived.residents`, since they read buildings
+all over the map), and the walk edges people live along (`residentsAlong`, `peopledIndex` in
+`src/sim/population/density.ts`), built at load from them; the 2,405 farms in a 64 m grid
+(`farmsNear` in `src/sim/population/farms.ts`), indexed on first use from the farms and their
+centres the map file holds (`MAP.farms`, `MAP.derived.farms`), which `setup` makes (7.0–7.5 ms in
+Node, three fresh processes); and the residents ahead of each way out of a junction (`nextWalkEdge`
+in `src/sim/route.ts`), cached as walkers first reach it. What reads the buildings round a point
+reads them from the tiles through `buildingsIn`, in the whole map's order: `residentsNear` works
+each home's residents out from its record (`residentsOf`, in float32, and its centre,
+`buildingCentre`), and the farms' ground checks (`indoors`, `buildingsNear`, which returns the
+buildings themselves, ruins left out, and `pasture`'s wall check) do the same; a farm's own building
+is read at its baked centre (`farmBuilding`, through `buildingAt`). A sum of residents depends only
+on which homes it counts, so its bits never depend on which tiles are in memory (`density.test.ts`,
+`density.map-test.ts`).
 
 Host state stays in the host: which map tiles are in memory and the tile stream's downloads
 (`src/stream.ts`), the camera, the render clock, the three.js scene and nodes, the streamed world's
-chunks and their trees, the minimap's tile canvases, the tyre marks and smoke, the wrecks' smoke and
-flames, the level crossings' arms and lights (set every frame from the saved `LevelCrossings`), the
+chunks and the pieces and trees of its tiles, the minimap's tile canvases, the full map's overview
+while it is open, the tyre marks and smoke, the wrecks' smoke and flames, the level crossings' arms and lights (set every frame from the saved `LevelCrossings`), the
 sky host (its lights, the eased exposure and lamps, the clouds' drift and the shared sky uniforms,
 worked out again from the saved clock and weather every frame, so a loaded save needs nothing), the
 HUD's DOM, the player's handling (a preset's name or the knobs set by hand, kept in `localStorage`
@@ -444,7 +485,7 @@ once the first frame is drawn.
    module), keeping simulation setup out of the entry module.
 2. `boot.ts` validates `?map=` and fetches the selected global file, a hashed asset: `monzone.bin`
    by default, or `cesena.bin` for `?map=cesena` ("Downloading map"). It counts the bytes against
-   `Content-Length` (the bar's first 36%, with "x / y MB"), gunzips with `DecompressionStream`
+   `Content-Length` (the bar's first 14%, with "x / y MB"), gunzips with `DecompressionStream`
    while the file arrives, then hands the bytes to `provideMap`. The files are named `.bin`, not
    `.gz`: Vite's server would label a `.gz` as `Content-Encoding: gzip`, and the browser would then
    gunzip it first.
@@ -452,16 +493,20 @@ once the first frame is drawn.
    modules the earlier ones left. "Decoding map" imports `src/sim/map/index.ts` (the global file
    decoded) and `src/sim/map/tiles.ts`. "Downloading terrain" fetches the start tiles: every listed
    tile over [`MAP.spawns.player` ± 1000 m]² (`tilesOver`, `NEAR`), on Lunigiana -1_-1, 0_-1, -1_0
-   and 0_0, 1,193,604 B gzipped. They come in parallel, all their headers first, so the bar (36% to
-   60%) counts the bytes against their summed `Content-Length` and never runs backwards. "Decoding
-   terrain" hands each to `provideTile` (about 3 ms a tile in Node). Then come `src/sim/route.ts`
+   and 0_0, 1,843,354 B gzipped: with the global file's 552,846 B, 2.40 MB before the first frame
+   (3.10 MB while the global file held the vectors). They come in parallel, all their headers
+   first, so the bar (14% to 60%: the two shares follow Lunigiana's bytes, `GLOBAL` and `DOWNLOAD`
+   in `boot.ts`) counts the bytes against their summed `Content-Length` and never runs backwards.
+   "Decoding terrain" hands each to `provideTile` (in Node, decoding a tile takes 2.6–2.7 ms at the
+   median over Lunigiana's 30 and 4.1–4.2 ms for the largest, 0_0). Then come `src/sim/route.ts`
    ("Planning traffic": each vehicle model's lanes, from the baked tables) and `main.ts` ("Loading
    the game").
 4. `main.ts` first makes the sky host, every light and weather mesh in it, so they exist before
    any shader compiles. It then builds the rest in steps with top-level `await`, each named on the
    card: the world ("Planting trees": `new World`, which reads no tile, then `tileProvided` for each
-   tile `boot.ts` handed over, bucketing its trees) and the tile stream, then the HUD, the runtime,
-   `setup` (about 18 ms in Node: the farm list and the first fill), the clock's hold and the first
+   tile `boot.ts` handed over, bucketing its trees and making its buildings, roads and rivers into
+   pieces) and the tile stream, then the HUD, the runtime, `setup` (about 18 ms in Node: the farm
+   list and the first fill), the clock's hold and the first
    audio tick, then every chunk of the first view. Every tile the first steps read is in memory
    already: `boot.ts` handed over every tile within 1 km of the start, more than the 600 m round the
    player a step reads.
@@ -493,15 +538,23 @@ cycle (its dev-server numbers are under [Measured](#measured)):
 | 4× CPU, 1.5 MB/s | the 15 MB script in at 9.8 s (a dead "Press any key" until then), one 3.5 s task, first frame at 13.5 s | map in at 4.6 s, ready at 7.1 s, longest task 0.64 s |
 
 With the map in tiles (production build served by `vite preview`, headless Chrome on an M-series
-Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each):
+Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the rows with the vectors in the
+tiles and in the global file measured in turn on 2026-10-31):
 
 | Map | First frame | Slowest frame, p99 | JS heap after GC |
 |---|---|---|---|
-| Lunigiana | 0.43 s | 16.8 ms, 16.8 ms | 125 MB |
-| Lunigiana, the whole 6.7 MB map before the tiles (`main`) | 0.92–0.98 s | 16.8 ms | 250 MB |
-| Cesena | 0.35 s | | 94 MB |
+| Lunigiana, the vectors in the tiles | 0.32–0.35 s | 16.8 ms, 16.8 ms | 88–89 MB |
+| Lunigiana, the vectors in the global file | 0.41–0.44 s | 16.8 ms, 16.8 ms | 123–124 MB |
+| Lunigiana, the whole 6.7 MB map before the tiles | 0.92–0.98 s | 16.8 ms | 250 MB |
+| Cesena, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 99–100 MB |
+| Cesena, the vectors in the global file | 0.36–0.37 s | 16.8 ms, 16.8 ms | 94–95 MB |
 
-The production JS is 1,201,078 B (`dist/assets/*.js`, about 1.19 MB before the tiles).
+Lunigiana holds 4 of its 30 tiles at the start, so the vectors of the other 26 stay on the server.
+Cesena's 4 tiles are the whole map, all in memory at once, so moving the vectors into them saves
+nothing and copies every feature into each tile it comes within 32 m of (a large area into all
+four): its download grows from 2.10 MB to 2.28 MB, and its heap by 5 MB. The production JS is
+1,218,450 B (`dist/assets/*.js`; 1,212,397 B with the vectors in the global file, about 1.19 MB
+before the tiles).
 
 ## Host loop
 
@@ -584,6 +637,24 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   go: `LeaveBehind` has taken its people and animals, and its vehicles are frozen. They go at the
   next frame's update, not the jump's: that frame's render and audio still read the ground and the
   walls where its earlier steps left events (a skid's mark, a crash's material).
+- **The vectors in the tiles** (`src/sim/map/vectors.ts`): every road line, river, barrier,
+  building and area lies whole, with its index in the whole map's list, in every listed tile it
+  comes within `HALO` (32 m, `src/sim/map/kinds.ts`) of. That is more than any carriageway, walkers'
+  verge or river bed reaches off its line (13 m at most, a river's bed; the build throws past the
+  halo), so every feature that can touch a point is in the point's tile, and a lookup at a point
+  reads that tile alone (`placeAt` in `src/sim/map/tiles.ts`): the ground, the surface, the water,
+  a road's line, a building by its index. A box over buildings (`buildingsIn`) reads every tile its
+  64 m cells reach and answers in the whole map's order, each building once. What a lookup builds
+  from a tile (a building broad phase, road and river buckets) it builds from that tile alone, on
+  first use, and drops with it, so residency stays unobservable: `vectors.map-test.ts` checks that
+  each tile holds exactly the features within the halo of it and that `buildingsIn` answers as one
+  broad phase over the whole map did, and `ground.map-test.ts` that the ground, the surface and the
+  water answer as the whole map's lookups did.
+  On Lunigiana a road lies in at most 5 tiles, a river in 6 and a forest over the whole box in all
+  30: summed over the 30 tiles, the vectors' JSON is 1.6 times the map's for the roads' lines and
+  the water, 1.08 for the buildings and 4.2 for the areas. Readers far from the player, where no
+  tile need be in memory, read the copies the global file keeps instead (`MAP.derived`, [Where state
+  lives](#where-state-lives)).
 - **What it asks for**: each animation frame `update(player, extra, wanted)` asks, most urgent
   first, for the tiles a step reads round the player and round `extra`, then every listed tile within
   `NEAR` (1000 m) of the player, the renderer's `wanted()` tiles and those within 1000 m of `extra`.
@@ -596,23 +667,25 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   tile's hashed name changing with the build hash), or `provideTile` refuses it (a tile from another
   build). `main.ts` then puts the title card back up with "The map changed since this page loaded
   … reload to play on." and a reload button. At most one downloaded tile a frame goes to
-  `provideTile`, the most urgent first, as decoding one takes about 3 ms; a download nothing needs
-  any more when it lands is let go unread.
+  `provideTile`, the most urgent first, as decoding one takes 2.6–2.7 ms at the median and up to
+  4.2 ms (Node); a download nothing needs any more when it lands is let go unread.
 - **What it keeps and drops**: a tile goes only once it lies outside [player ± `KEEP`]² (1500 m),
   the view does not want it and it is not within 1000 m of `extra`, at two updates running (the
   frame's render and audio read the events of steps run round where the last update found the
   player), so walking back and forth over a seam never fetches a tile twice. The world hears of each
   change: `tileProvided` after `provideTile`, `tileDropped` before `dropTile`
   ([Rendering](#rendering)). A tile in memory is its decoded arrays, 0.78–3.68 MB on Lunigiana (68
-  MB for all 30; walls and trees decode to 8-byte numbers), plus its broad phases once a query
-  reaches it; its gunzipped file is 0.76–1.78 MB. After a teleport to (1998, 2017) the tiles in
+  MB for all 30; walls and trees decode to 8-byte numbers), and its vectors, 0.13–0.96 MB of JS heap
+  (11.6 MB for all 30), plus what lookups build from it once they reach it and the world's pieces
+  and tree buckets; its gunzipped file is 0.87–2.30 MB. After a teleport to (1998, 2017) the tiles in
   memory settled at 4 (0_0, 1_0, 0_1, 1_1); along the SP59 to Vinca at 40 m/s at most 6 were in
   memory at once, and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1).
 - **Unlisted tiles**: the listed tiles need not fill the box round them (a region of parts in an L
   leaves its notch unlisted, [map.md](map.md#map-files)). A terrain or land-cover lookup in an
-  unlisted tile reads the nearest node or cell of the listed tiles round it, and a wall or tree lookup
-  over it reads them all (the build keeps there what lies in the notch: an outline wall on its side,
-  a house wall over it), so `tilesOver` names those for a box over it, and `isResidentAt` there
+  unlisted tile reads the nearest node or cell of the listed tiles round it, and a wall, tree or
+  vector lookup over it reads them all (the build keeps there what lies in the notch: an outline
+  wall on its side, a house wall over it, every vector near it; a point lookup there reads their
+  vectors merged), so `tilesOver` names those for a box over it, and `isResidentAt` there
   answers whether they are all in memory. The coarse grid holds the same ground and cover there, so
   a host that falls back to it while they are not finds what the tiles give. On Lunigiana and
   Cesena every tile in the box is listed, and nothing changes.
@@ -630,7 +703,7 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   shares its download and gunzip (`fetchFile`, `gunzipped`) before the map is loaded, and
   `src/__tests__/stream.test.ts` runs it on fakes. Each map's `tileUrl(key)` in `src/maps.ts` is a
   template, ``new URL(`./sim/map/<name>/${key}.bin`, import.meta.url)``, which Vite turns into a
-  lookup over the directory's files: every tile is a hashed asset (the smallest 8.4 kB, past Vite's
+  lookup over the directory's files: every tile is a hashed asset (the smallest 50 kB, past Vite's
   4 kB inline limit), and it resolves with `pnpm build --base=./`, as GitHub Pages serves the game.
 
 ## Rendering
@@ -882,36 +955,59 @@ Streaming has two levels: the tiles in memory are planned first, then the chunks
 reach, so a frame's cost does not grow with the map, and a chunk builds only once every tile its
 build reads is in memory.
 
-- `new World(scene)` prepares, once, and reads no map tile (52–54 ms in Node, the first in a fresh
-  process, five runs; 245–251 ms when it also built the whole map's land-cover raster, tree buckets,
-  chunk boxes, platforms and crossings): every static item as a `Piece` (an anchor polyline plus a
-  `draw` function; each lamp is a one-point piece at its lantern, from `MAP.lamps`), the pieces
-  bucketed per chunk with the range of segments that reach it, and which tiles each chunk reads
-  (`chunkTiles` in `src/render/chunk-tiles.ts`, with no terrain read). A chunk build reads only its
-  own bucket; it draws each piece's segments plus one neighbour on each side (for ribbon mitres) and
-  keeps exactly the triangles that fall in the chunk, so the result is the same as cutting a
-  whole-map build (`rail.map-test.ts` checks it for the rail, the stations, the roads and rivers,
-  the lamps and the buildings in every chunk, `rail.test.ts` in the chunks by Monzone station).
+- `new World(scene)` prepares, once, and reads no map tile (9.9–11.0 ms in Node, the first in a
+  fresh process, five runs on 2026-10-31 under a load average of 7–8, against 50.1–53.9 ms measured
+  in turn when it made every piece of the map; 245–251 ms when it also built the whole map's
+  land-cover raster, tree buckets, chunk boxes, platforms and crossings): the chunk plan (which
+  tiles each chunk reads and which tile plans it, `chunkTiles` in `src/render/chunk-tiles.ts`, with
+  no terrain read) and the global pieces, bucketed per chunk with the range of segments that reach
+  it. A `Piece` is an anchor polyline plus a `draw` function; the global ones are the track, the
+  crossings' fixed parts, the tunnel portals, the platforms, the name boards, the canopies and the
+  lamps (each a one-point piece at its lantern, from `MAP.lamps`), made from `MAP.rail`,
+  `MAP.railway`, `MAP.derived` and `MAP.lamps`. The buildings, roads and rivers come with the tiles
+  (below).
+- **Pieces per tile** (`Pieces` in `src/render/pieces.ts`): `tileProvided(key)` makes the pieces of
+  the tile's buildings, roads (a road's ribbons, then its deck on a bridge) and rivers from its
+  vectors (`tileVectors`) and the roads' attributes in `MAP.roads`. A feature lies whole in every
+  tile within the halo of it, so its piece is made once, however many of the tiles in memory hold
+  it, and goes with the last of them. Every piece has a key in the whole map's draw order (the
+  buildings by index, then each road's ribbons and deck, then the rivers, then the global pieces),
+  and a chunk draws the pieces of the tiles under its square, each once, in that order, then the
+  global ones (`entries`). It draws each piece's segments plus one neighbour on each side (for
+  ribbon mitres) and keeps exactly the triangles that fall in the chunk, so it gets the very
+  triangles, in the very order, that cutting a whole-map build gives it, whichever order the tiles
+  came in (`rail.map-test.ts` checks every chunk of the map against its cut of the whole build of
+  every tile's vectors joined, the tiles handed in reverse key order; `rail.test.ts` the chunks by
+  Monzone station, the tiles handed both ways).
 - **The tiles a chunk reads**: its terrain reads the tiles under its square (an apron chunk's, the
-  edge tiles it clamps to; a notch chunk's, the listed tiles round the notch, `tilesOver`). Its
-  build reads the tiles under its needs box: the square; for an apron chunk, the square mirrored
-  across the map edge too, where its mirrored trees stand; and each
-  piece's `reads` box (a building's footprint, a platform's rim, a canopy's footprint, the road
-  ribbons a crossing lies over) or the vertices k0−1…k1+2 it draws, all grown by 50 m (`REACH`: a
-  mitred ribbon's edge, the ballast bed's foot, a portal's throat). A chunk is ready once every tile
-  in its needs box has been handed to the world (`tileProvided`, after `provideTile`), and
-  `tileDropped(key)` (before `dropTile`) drops every built chunk that read the tile and frees its
-  tree buckets. On this map every piece the spot sweep covers reads within its own chunk's square,
-  so the 50 m and the `reads` boxes are a margin for maps to come; a miss throws "map tile … not
-  loaded" in the sweep test.
-- **Trees per tile**: `tileProvided(key)` buckets that tile's trees per chunk and kind, the apron's
-  mirrors included (`bucketTileTrees` in `src/render/trees.ts`): 1.41 ms at the median, 2.01 ms at
-  p90 and 2.65 ms at worst over the 30 tiles; 1.22 MB of buckets a tile at the median and 2.45 MB at
-  most (tile 1_1, 69,840 trees), 35.0 MB for all 30 (`Float64Array` quadruples of x, y, scale and
-  seed). A chunk merges its tiles' buckets in seed order, so its instances come in the whole-map
-  buckets' order, and every tree keeps its look (seed 3 × its id, a mirror's one more; the id is its
-  lattice cell's number, which no added part changes:
-  [map.md](map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)).
+  edge tiles it clamps to; a notch chunk's, the listed tiles round the notch, `tilesOver`), which
+  hold every building, road and river it draws. Its base is those and, for an apron chunk, the tiles
+  under its square mirrored across the map edge, where its mirrored trees stand (`base`). What the
+  chunk draws, and so what else it reads, is known only once its base is in, so its needs come in
+  two steps: until every base tile has been handed to the world (`tileProvided`, after
+  `provideTile`), the chunk wants its base alone; then its needs box is worked out, once: the base's
+  box and each piece's `reads` box (a building's footprint, a platform's rim, a canopy's footprint,
+  the road ribbons a crossing lies over) or the vertices k0−1…k1+2 it draws, all grown by 50 m
+  (`REACH`: a mitred ribbon's edge, the ballast bed's foot, a portal's throat), and the chunk builds
+  once every tile under that box is in. A chunk's draw list is a merge of the lists its tiles
+  already hold. `tileDropped(key)` (before `dropTile`) drops every built chunk whose
+  needs include the tile, forgets what the chunks whose base includes it draw, drops the tile's
+  pieces no other tile in memory holds and frees its tree buckets. The sweep test
+  (`buildsWithSomeTiles` in `chunk-tile-checks.ts`) builds a world round each spot with only some of
+  the tiles it wants in and the tile source off: every chunk that builds equals, vertex for vertex
+  and tree instances included, the chunk a world with every tile in builds, and a read of a tile
+  not handed over throws "map tile … not loaded".
+- **Trees per tile**: `tileProvided(key)` also buckets that tile's trees per chunk and kind, the
+  apron's mirrors included (`bucketTileTrees` in `src/render/trees.ts`): 1.41 ms at the median,
+  2.01 ms at p90 and 2.65 ms at worst over the 30 tiles; 1.22 MB of buckets a tile at the median and
+  2.45 MB at most (tile 1_1, 69,840 trees), 35.0 MB for all 30 (`Float64Array` quadruples of x, y,
+  scale and seed). With the tile's pieces, `tileProvided` takes 3.5–4.1 ms at the median, 5.6–7.3
+  ms at p90 and 7.3–9.7 ms at worst over the 30 tiles handed in key order, each just decoded (Node,
+  five fresh processes on 2026-10-31 under a load average of 7–8), where the trees alone took
+  1.8–2.2 ms at the median measured in turn on the build before. A chunk merges its tiles' buckets
+  in seed order, so its instances come in the whole-map buckets' order, and every tree keeps its
+  look (seed 3 × its id, a mirror's one more; the id is its lattice cell's number, which no added
+  part changes: [map.md](map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)).
 - **Two levels**: each tile plans the chunks whose middle it holds (18–272 a tile, median 225), and
   its box is the union of their boxes, so the apron chunks belong to the edge tiles. Distances are
   measured on the screen plane, from the focus to each box projected along the camera's right and up
@@ -928,19 +1024,25 @@ build reads is in memory.
   so a chunk loads early, never late. It turns exact (`exactBox`) the first time the chunk is within
   the load radius with its terrain's tiles in, and stays exact after they go (all 5,248 take 45 ms,
   about 9 µs a chunk).
-- **`wanted()`** lists the tiles the chunks within the load radius read, as far as their boxes are
-  known, but for chunks wholly behind the camera's near plane (`BEHIND` in `src/render/pipeline.ts`,
-  499 m back from the focus along the view's back axis): they show nowhere, so they never make the
-  stream fetch a tile (along the SP59, 151 of 312 views at 8 yaws held such a tile, which the follow
-  camera would swing in and out again and again); they still build when their tiles are in, as a
-  shadow may fall from them. The stream keeps the wanted tiles in memory. At the origin with reach
-  60 it is 4 tiles: -1_-1, -1_0, 0_-1 and 0_0.
+- **`wanted()`** lists the tiles the chunks within the load radius read, as far as their boxes and
+  needs are known, but for chunks wholly behind the camera's near plane (`BEHIND` in
+  `src/render/pipeline.ts`, 499 m back from the focus along the view's back axis): they show
+  nowhere, so they never make the stream fetch a tile (along the SP59, 151 of 312 views at 8 yaws
+  held such a tile, which the follow camera would swing in and out again and again); they still
+  build when their tiles are in, as a shadow may fall from them. The stream keeps the wanted tiles
+  in memory. At the origin with reach 60 it is 4 tiles: -1_-1, -1_0, 0_-1 and 0_0. A chunk whose
+  base is not all in wants its base alone, so a tile that only its pieces read past the base is
+  asked for one update after the base lands: on 104 views along the SP59 (every 30th point of the
+  drive's route, 4 yaws, reach 210) the wanted sets once settled are the build before's in all 104,
+  and the first update's is one tile smaller in 5.
 - `world.update(focus, yaw, reach, budgetMs)` runs every frame. `reach` is the half-diagonal of the
   view at the widest zoom (`WIDEST_ZOOM`, 5 texels/m), so zooming out never shows a missing chunk.
   Chunks within reach + 64 m are built, nearest first, until 4 ms of the frame are spent (at least
   one per frame). Chunks beyond reach + 64 + 128 m are dropped: removed from the scene, their
   geometry and instance buffers disposed (the tree shapes are shared and stay).
-- Before the first frame, `main.ts` builds every chunk the spawn view needs, so nothing pops in.
+- Before the first frame, `main.ts` builds every chunk the spawn view needs, so nothing pops in: one
+  `world.update` does, since a chunk's needs are worked out in the update that finds its base in, and
+  `boot.ts` has handed over every tile within 1 km of the start.
 - Measured (1280×720 and 2560×1440, focus swept at 40 m/s through Monzone, Equi Terme, Gragnola,
   Colognola, Campiglione and Viano): 20–37 chunks loaded, chunk builds ≈ 0.25 ms on average and
   under 3 ms at worst, first frame after ≈ 0.6–0.85 s, JS heap ≈ 185 MB (was ≈ 550 MB building the
@@ -952,7 +1054,10 @@ build reads is in memory.
   `pnpm playtest drive` along the SP59's 7,937 m to Vinca at 40 m/s, two runs) the slowest frame
   within 1 s of each of the five seam crossings was 16.8 ms; one run had one frame of 33.3 ms away
   from the seams, the other none over 16.8 ms. At most 6 tiles were in memory at once, and the JS
-  heap after GC at Vinca was 157 MB (a dev build).
+  heap after GC at Vinca was 157 MB (a dev build). With the vectors in the tiles too, the same drive
+  on 2026-10-31 had its slowest frame at 16.8 ms and none over 30 ms (the build before, driven the
+  same way: one of 33.3 ms), at most 6 tiles in memory and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1), and
+  the heap after GC at Vinca 123 MB (156 MB before).
 
 The pixel pipeline (`src/render/pipeline.ts`):
 
@@ -1031,10 +1136,16 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   under each track and two polished rails, 2 and 3 cm over the road ribbon drawn there (the
   nearby roads' own triangles, drawn again for the box by `surfaceNear` in `ribbons.ts`: the
   sim's `drawnZ` sat up to 11 cm under them at Via Castel dell'Aquila), and per approach a 0.5 m
-  white stop line across its lane at the sim's stop line. The piece is built on its first draw,
-  where it reads the ground under those ribbons (its `reads` box, from `surfaceReads`, which picks
-  the pieces as `surfaceNear` does), then copied. A road's centre dashes, as high over it
-  as the panels, stop under them (`underPanel` in `src/render/track-index.ts`): in a box, within
+  white stop line across its lane at the sim's stop line. The ribbons it lies over are the road and
+  river pieces of the tiles round its point (every one within the tiles' 32 m halo of it, more than
+  the 16 m it looks round, `BOX_REACH`), which come with the tiles, so the piece is global but
+  works out its `reads` box (the ground under those ribbons, from `surfaceReads`, which picks the
+  pieces as `surfaceNear` does) when first asked, once its chunk's base tiles are in, and its parts
+  on its first draw; both are kept for the piece's life, the world's, and copied, however the tiles
+  come and go. The stop lines and the road's half width come from `BOXES` (`track-index.ts`), the
+  road line the global file keeps beside each box (`MAP.derived.crossings`) and the road's width in
+  `MAP.roads`. A road's centre dashes, as high over it as the panels, stop under them
+  (`underPanel` in `src/render/track-index.ts`): in a box, within
   half a panel and a metre of a track centreline (at three tertiary crossings they cut through the
   panels and broke their rails). Beside each arm (render/crossings)
   stand its white barrier housing (the TD96/2's 0.6 m box) on the traffic's side of the arm's
@@ -1054,7 +1165,8 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   of the slope as a dark block about 16 m long; the home view's hill hides it. Ending the throat
   where its downhill side's cover reaches its height, or the tunnel piece where the cover reaches
   about 4.5 m in the map, would hide it.
-- **Platforms** (`MAP.railway.platforms`): each ring (holes included) is triangulated, then cut
+- **Platforms** (`MAP.railway.platforms`): each ring (holes included, from the copy of its area the
+  global file keeps, `MAP.derived.platforms`, so no tile is read) is triangulated, then cut
   into strips every 2 m along the platform's axis, each corner at the map's platform top over it
   (the rail head beside it + 0.25 m, the ground the sim stands people on), so the top follows the
   rail profile within 2 cm (Monzone's rises 0.5 m along it; a flat slab was up to that wrong at one
@@ -1067,8 +1179,9 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   station's name (0.16 m a character, 2–6 m), its words as white bars on both faces (lettering does
   not read at this pixel size), on two posts 1.8 m back from the track-side edge near the platform's
   middle, 2.1–2.6 m up.
-- **Canopies** come from the map alone: a station's building (the station-style building of its
-  name) gets a flat grey metal canopy like Gragnola's along its wall facing the track where a
+- **Canopies** come from the map alone: a station's building (the first station-style building of
+  its name, which the global file keeps a copy of: `MAP.derived.stations`) gets a flat grey metal
+  canopy like Gragnola's along its wall facing the track where a
   platform or walkway runs along that wall (its rim, holes left out, covers 80 % of the strip
   0.5–2.5 m out from the wall: a platform wrapping round its building has the eaves' footprint as
   a hole), along the whole wall, 4.5 m deep and 3.4 m up on posts (the roof's height read in its
@@ -1141,8 +1254,10 @@ nodes set from the sim's cycle; both draw with materials compiled before the fir
   block at every joint. On the line's sharpest curve (162 m in radius) no box reaches into its
   neighbour's.
 - **Crossings** (`src/render/crossings.ts`): `makeCrossings`, called by `makeEffects`, builds for
-  each road box of the sim's `CROSSINGS` a barrier per approach on the pivot the sim gives (on the
-  post right of the way in) and one mesh of road lights per box, for the page's life; the host hands
+  each road box of the sim's `CROSSINGS` (whose road lines are the global file's copies,
+  `MAP.derived.crossings`, so making them reads no tile: `world.test.ts`) a barrier per approach on
+  the pivot the sim gives (on the post right of the way in) and one mesh of road lights per box, for
+  the page's life; the host hands
   them to the schedule as the `Crossings` service (`Lunigiana/CrossingNodes`). Each box stays hidden
   until the ground under every way in is in memory (`terrainResident`), when `DrawCrossings` stands
   its posts and lights on the road and shows them; the stand-ins compile their programs (the actor
@@ -1188,14 +1303,20 @@ show behind houses, trees and hills.
   under their top (`sight`). Every 2 m up to 500 m along each they look for terrain over the line,
   and where they first meet it (past the tiles in memory on the coarse grid, `farTerrainY`); then
   every 0.75 m up to 100 m (50 m up) for a building (inside its walls, under its ridge: `topOf` in
-  `buildings.ts`) and a tree crown as drawn (`inCrown` in `trees.ts`: the broadleaf's ellipsoid, the
-  conifer's cone). Either line blocked holds the cut open; it opens over 0.2 s, stays 0.4 s after
-  the player was last hidden (it does not flicker at a wall's edge) and shuts over 0.2 s. Under
-  `prefers-reduced-motion` it opens and shuts at once. When sim time goes back (a state the devtools
-  replay restores), it forgets when the player was last hidden, so the cut is not held open until
-  the clock catches up. A sight line costs 0.004–0.06 ms in Node (in a forest, unblocked: the
-  longest march), two a frame. Baldur's Gate 3 traces from its characters toward the camera the same
-  way.
+  `buildings.ts`, kept by the building's index in the whole map's list once worked out) and a tree
+  crown as drawn (`inCrown` in `trees.ts`: the broadleaf's ellipsoid, the conifer's cone). The
+  buildings come through `buildingsIn`, which reads the tiles under the 64 m cell round each point
+  it tests: 100 m along the line is 87 m over the ground, so they lie within 151 m of the player
+  along either axis, inside the `STEP_REACH` the host keeps in memory. Either line blocked holds the
+  cut open; it opens over 0.2 s, stays 0.4 s after the player was last hidden (it does not flicker
+  at a wall's edge) and shuts over 0.2 s. Under `prefers-reduced-motion` it opens and shuts at
+  once. When sim time goes back (a state the devtools replay restores), it forgets when the player
+  was last hidden, so the cut is not held open until the clock catches up. A sight line costs
+  0.004–0.06 ms in Node (in a forest, unblocked: the longest march), two a frame. Reading the
+  buildings from the tiles made it dearer: from 441 points on a 50 m grid round the spawn it takes
+  0.049 ms at the median and 0.22 ms at most, against 0.033 and 0.20 ms on the build before (Node,
+  2026-10-31, two runs each in turn under a load average of 6–8). Baldur's Gate 3 traces from its
+  characters toward the camera the same way.
 - **What** (`src/render/see-through.ts`): a circle of 54 texels' radius on screen (6.75 m on foot,
   9 m in a car, 10.8 m above 16 m/s: 40 % of the view's height across) round the middle of the
   player's body. Inside it, a fragment
@@ -1379,14 +1500,18 @@ first frame.
   lit, their colour is divided by the exposure, so a window shines as bright at dusk as at
   midnight. The whole map holds 21,201 lit panes and 3,096 lantern-glass quads.
 - **Street lamps** (`lamps.ts`): OSM has no lamp data (two `street_lamp` nodes in the raw OSM), so
-  wall lanterns are placed from `MAP`: along primary, secondary, tertiary, unclassified, residential
+  wall lanterns are placed from the map's roads and buildings: along primary, secondary, tertiary,
+  unclassified, residential
   and service roads (`LIT`; no motorway or trunk road runs between houses),
   about every 28 m, on a house wall that fronts the road within 6 m, with at least four buildings
   within 40 m, the bracket 4.5 m up between two windows: 492 lamps. After them come the platforms'
   24 pole lamps (`platformLamps` in `src/render/stations.ts`,
   [Track and stations](#track-and-stations)), each `StreetLamp` saying which (`kind`: `wall` or
-  `pole`). Placing them reads the terrain under every house that fronts a lit road, so the build
-  places them (`bakeLamps`) and the map file keeps the list (`MAP.lamps`, the heights in m a.s.l.).
+  `pole`). Placing them reads the terrain and the buildings by every house that fronts a lit road,
+  all over the map, so the build places them (`bakeLamps(roads)`, handed the whole map's roads
+  joined from the tiles, in its order; it reads the buildings through `buildingsIn`, in the whole
+  map's order, so ties resolve as before) and the map file keeps the list (`MAP.lamps`, the
+  heights in m a.s.l.).
   The glow and the light pool read that one list: `streetLamps()`, 0.1 ms on first use in Node;
   `lampsIn` (32 m cells) finds them for the light pool. Bracket, cap, lantern body and foot are
   solid, a pole lamp's grey pole and bracket too; the glass glows.
@@ -1559,46 +1684,71 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   the HUD prompt and the `EnterExit` action, so the prompt never offers something the key will not
   do; so does `boardable` for getting out of a train, which only slower than 1.5 m/s lets the player
   out. The touch controls' action button shows the prompt's verb (`actionFor` in `src/hud/hud.ts`).
-- Location: the name of the nearest road within 15 m, if it has one (tracks and paths skipped,
-  so an unnamed road never borrows a side street's name), and the district disc from `districtAt`.
-  Looked up again only after moving 2 m.
+- Location (`src/hud/location.ts`): the name of the nearest road within 15 m, if it has one (tracks
+  and paths skipped, and a class the build does not emit read as a path, so an unnamed road never
+  borrows a side street's name), and the district disc from `districtAt`. The road is searched
+  among the roads of the player's place (`placeAt`: the tile's vectors, every road within 32 m of
+  it), with their names from `MAP.roads`, in the whole map's order, so a tie goes to the lowest road
+  index, then its first segment; where that place is not in memory, which never happens under the
+  player, it names none. Looked up again only after moving 2 m.
 - The minimap (`src/hud/minimap.ts`) is blitted around the player, 300 m across, turned with the
   view so that screen-up is up, from offscreen canvases of one 2 km tile each. At 0.3 px/m, the
   minimap's own scale (90 canvas px over 300 m, so the blit is 1:1), a tile's canvas is 602 × 602
   px: its 600 px and 1 px past each side, so neighbours overlap under a turned nearest-neighbour
   blit instead of leaving a seam (0.36 MP, 1.45 MB). One canvas of the whole region would pass
   Safari's 16.7 MP limit as the map grows (Lunigiana's was already 2340 × 3000 px, 7 MP). A tile
-  is painted from the global vectors (areas, the lakes and river polygons over them and the gravel
-  bars over those, water, rail, roads, buildings) whose boxes reach it
-  (± 1 px and 20 m, the widest stroke's half), on grass over the play area and clipped to it
-  (`MAP.outline`: an area reaches the built terrain's box, an L's notch included), once the player
-  comes within 1 km of it along either axis: one a frame, nearest first; only listed tiles are
-  painted (`isListed`), so an L's notch shows the dark background. Past 1.5 km it is let go (its
-  canvas set to 0 × 0, since Safari caps the memory of all canvases), so at most 9 are kept
-  (≈ 13 MB). The blit draws the tiles within 212 m, the turned square's half-diagonal. In headless
-  Chrome a tile paints in about 3 ms (Monzone's village tiles, -1_0 and 0_0), 1.3 ms (-1_-1, 0_-1)
-  or 0.9 ms (2_-4), the first in about 6 ms (it builds the features' boxes), where the whole map took
-  18.8 ms; the look is unchanged (crops at the spawn before and after match, and a four-tile corner
-  shows no seam, north-up or turned). hud.css shows its 90 px at 180 CSS px (120 in mobile mode),
-  and a click or tap on it opens the full map.
+  is painted from that tile's own vectors (`tileLayers`: its areas (the lakes and river polygons
+  over the land and the gravel bars over those), water, roads and buildings, every
+  one within the tiles' 32 m halo of its square, in the whole map's order, the roads' attributes
+  from `MAP.roads`) and the global rail whose boxes reach it (± 1 px and 20 m, the widest stroke's
+  half, inside the halo, so the tile holds every feature its canvas can show), in the minimap's
+  look (`src/render/map-style.ts`, which the full map's overview shares), on grass over the play
+  area and clipped to it (`MAP.outline`: an area reaches the built terrain's box, an L's notch
+  included). It is painted once the player comes within 1 km of it along either axis and the tile is
+  in memory (`residentTile`): one a frame, nearest first. The minimap never asks for a tile; the
+  stream fetches every listed tile within 1 km of the player (`NEAR`) anyway, so painting waits
+  only for the download. Only listed tiles are painted (`isListed`), so an L's notch shows the dark
+  background. Past 1.5 km it is let go (its canvas set to 0 × 0, since Safari caps the memory of all
+  canvases), so at most 9 are kept (≈ 13 MB). The blit draws the tiles within 212 m, the turned
+  square's half-diagonal. Painted from the global vectors, a tile took about 3 ms in headless Chrome
+  (Monzone's village tiles, -1_0 and 0_0), 1.3 ms (-1_-1, 0_-1) or 0.9 ms (2_-4), where the whole map
+  took 18.8 ms; from its own vectors it paints the same fills and strokes in the same order
+  (`minimap.map-test.ts`), not timed again in the browser. hud.css shows its 90 px at 180 CSS px
+  (120 in mobile mode), and a click or tap on it opens the full map.
 - The full map (`src/hud/worldmap.ts`, `#hud-map` in `index.html`): the key labelled M toggles it
   (matched by the character it types, so AZERTY works; non-Latin layouts fall back to the key's
   position) and Esc closes it; repeats and Ctrl/Cmd/Alt chords are ignored. A click or tap on the
-  minimap opens it, one on the map closes it. It paints the whole area north-up at the resolution of
-  its own box (the page's, which a phone held upright lays out sideways) with the same layers as the
-  minimap (`paintMap`, on grass over the play area and clipped to it, in a frame round the bounds),
-  but roads light (motorways and trunk roads yellow) and at least 1.5–3 px wide by class
-  (`OVERVIEW_MIN`: 3 motorway and trunk, 2.5 primary and secondary, 2 tertiary) so the network
-  reads; both paint the roads narrowest class first (`ROAD_ORDER`), so the main roads lie on top at
-  junctions and overpasses. It names
+  minimap opens it, one on the map closes it. It shows the whole area north-up in its own box (the
+  page's, which a phone held upright lays out sideways), fitted inside its margins, in a frame round
+  the bounds. The map itself is the build's overview, a picture of the whole play area
+  (`overview.png` beside the map's tiles, [map.md](map.md#the-overview)): drawing it from the
+  vectors would need every tile's at once, and the game holds only those round the player. The
+  overview is painted in the minimap's layers and order (`paintLayers` in `src/render/map-style.ts`,
+  on grass over the play area and clipped to it, transparent outside it), but roads light
+  (motorways and trunk roads yellow) and at least 1.5–3 px wide by class (`OVERVIEW_MIN`: 3
+  motorway and trunk, 2.5 primary and secondary, 2 tertiary) so the network reads; both paint the
+  roads narrowest class first, so the main roads lie on top at junctions and overpasses. Its look is
+  that of a map about 820 CSS px on its long side, painted at 5 overview pixels a CSS pixel
+  (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3195 × 4096 px for Lunigiana, 2.96 MB, and
+  4000 × 4000 px for Cesena, 4.75 MB), and it is drawn scaled to the fit and smoothed
+  (`imageSmoothingQuality` "high"). So its lines are as wide as the live paint drew them before the
+  overview on a map that long, and scale with the map elsewhere: 0.73 times as wide in a 1280 × 720
+  window (the map 600 px tall), 1.17 times in a 1920 × 1080 one (960 px) and 0.33 times on an
+  844 × 390 phone (270 px), antialiased where the live paint drew them crisp at screen resolution. The overview downloads the
+  first time M opens (a failed download is tried again at the next opening), is decoded with
+  `createImageBitmap` at each opening and released when the map closes (`overviewBitmap`): decoded,
+  Lunigiana's holds about 52 MB and Cesena's 64 MB. In headless Chrome with Metal on an M-series Mac,
+  Lunigiana's took about 10 ms to fetch from a local server, 57–64 ms to decode (Cesena's 90 ms)
+  and 18–29 ms to draw scaled (71 ms the first time). The frame, the labels, the north arrow, the
+  1 km bar and the player are painted live at screen resolution over it. It names
   the OSM villages (big, placed first) and hamlets (`place=*` POIs, localities left out), then the
   peaks that are HUD landmark districts (Monte Sagro, Pizzo d'Uccello...), once per name; a label
   that would overlap another or the north arrow is dropped with its dot. The player is a red arrow
   in a red ring (no label is red), drawn on its own canvas over the map so CSS blinks it (steady
   under `prefers-reduced-motion`), with a 1 km bar and the player's district in the header. It is
-  repainted on open, on resize, and when the pixel ratio changes. The dialog takes focus when it
-  opens, so screen readers announce its title and the district. The data credits (`.credits`)
-  show along its bottom edge; hud.css hides them while the map is closed, so play keeps a clear
+  repainted on open, on resize, when the pixel ratio changes and when the overview arrives while
+  it is open. The dialog takes focus when it opens, so screen readers announce its title and the
+  district. The data credits (`.credits`) show along its bottom edge; hud.css hides them while the map is closed, so play keeps a clear
   screen.
 - The settings (`src/hud/settings.ts`), in every build: Esc opens and closes them, except that
   Esc closes the full map first while it is open, and does nothing on the title card. In mobile
@@ -1900,9 +2050,21 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     their neighbours in, both ways round), every wall whose box overlaps a query found among the
     walls of the tiles within `walls.reach` of it, and a lookup in a tile not in memory throwing
     with its name, and `cellCorners` reading a cell's nodes as four `nodeAt` calls do round Monzone
-    station's seams. `src/tools/__tests__/bake.test.ts` and `cesena-bake.test.ts`: the parked spots,
-    water beds and farms within 1 km of Monzone station and of Cesena's start are what the game's
-    code makes of them now ([map.md](map.md#checks-and-tools)).
+    station's seams; `vectors.test.ts`: `buildingsIn` the same buildings in the same order, each once,
+    whatever is in memory and in whichever order it came (boxes across the x = 0 and y = 0 seams by
+    Monzone station and round the tile corner (0, 0)), a lookup at a point reading its tile alone
+    (a road's line there, none far from it), a building by its index near it, and
+    `buildingsInMemory` reading no tile not in memory; `ground.test.ts`: the ground, the surface and
+    the water the same whatever tiles are in memory and in whichever order they came, round the
+    tile corner (0, 0), and a road's level its surface's within the halo of it and none farther off.
+    `src/sim/population/__tests__/density.test.ts` and `farms.test.ts`: round Monzone station (625
+    points every 50 m and 2,401 every 25 m, out to 600 m, across the x = 0 and y = 0 seams), the
+    residents round a point, the farms' ground checks, the buildings near a point, the farms'
+    buildings and the spots off their walls the same with every tile dropped and read lazily as with
+    only the tiles that run read, handed over in key order and reversed with no tile source.
+    `src/tools/__tests__/bake.test.ts` and `cesena-bake.test.ts`: the parked spots, water beds and
+    farms within 1 km of Monzone station and of Cesena's start are what the game's code makes of
+    them now ([map.md](map.md#checks-and-tools)).
   - `src/__tests__/stream.test.ts`: the tile stream on fakes: the tiles the next step reads asked
     for first, then the rest within 1 km, three at a time; `ready` round the player and the extra
     point; a tile let go only past 1.5 km, never while the view or the extra point needs it and only
@@ -1921,8 +2083,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     those tiles, and `inPlay` and `outlineDistance` answer on the L; in `src/render/__tests__` the
     render plans every chunk once; in `src/sim/__tests__` a teleport into the notch is dropped and
     herds keep to the L; in `src/sim/sky/__tests__` bolts strike only the L; in `src/hud/__tests__`
-    the minimap lists no notch tile and the maps' grass and clip are the L; in
-    `src/audio/places/__tests__` no owl perches on an unlisted tile.
+    the minimap paints only listed tiles and lays its grass on the L and clips to it (the
+    overview's transparency outside the L is in `src/tools/__tests__/overview.test.ts`); in
+    `src/audio/places/__tests__` no owl perches on an unlisted tile. In `src/sim/map/__tests__` a
+    vector lookup in the notch reads the vectors of the listed tiles round it, merged.
     `src/sim/map/__tests__/anchor.test.ts`: Lunigiana's global file rewritten to start its
     heightmap a tile east and north of its anchor, which it names (`ax`, `ay`), as a region whose
     parts lie east or north of its anchor gives: `heightAt`, `terrainZ` and `coverAt` at 440 points
@@ -1936,9 +2100,18 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `src/hud/__tests__/hud.test.ts`: the Esc and M routing (`overlayKey`), the pause, and a
     train's prompt as a car's, offering to get out only below `BOARD_SPEED`;
     `src/hud/__tests__/minimap.test.ts`: the minimap turned screen-up to the top at every yaw, the
-    tiles its turned square can reach, nearest first and none off the map, and Monzone's tile
-    canvas, painted from only the features near it, getting every path the features within 1 km
-    would draw on it, in order;
+    tiles its turned square can reach, nearest first and none off the map, Monzone's tile canvas,
+    painted from only its own vectors, getting every fill and stroke (points, colour, width,
+    opacity) the 3 × 3 tiles round it would draw on it, in order (`tile-paint.ts`), and a tile
+    painted only once it is in memory, nearest first, the minimap never asking for one;
+    `src/hud/__tests__/location.test.ts`: the road named on a grid round Monzone and at every road
+    vertex in it the old answer over every road near them, in two residency orders, and none where
+    the tile is not in memory; `src/hud/__tests__/worldmap.test.ts`: the fit, the labels and
+    places, and the overview's download (once), decode (at each opening) and release (at each
+    closing, a late one included); `src/tools/__tests__/overview.test.ts` and
+    `paint-raster.test.ts`: the overview's size under Safari's 16.7 MP, the full map's look in it
+    (grass on the play area only, roads by class narrowest first, buildings on top), the same bytes
+    every run, and the raster painter's fills, strokes and clips;
     `src/hud/__tests__/touch.test.ts`: the stick and buttons as keys, a hidden control letting go
     of its key, and in a train only ◀ ▶ hidden (read from hud.css and
     index.html, and marked by `draw` on the controls, `data-vehicle="train"`).
@@ -1972,11 +2145,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     open and in the warning, across the road to the left of the way in closed, at 45° halfway; a
     demand while they rise lowering them from where they stood; the lamps and lights lit from the
     warning until the arms are up; the skirt plumb at every angle and folded flat standing up.
-  - `src/render/__tests__/rail.test.ts`: a chunk build of the track and stations, the roads and
-    rivers, the lamps and the buildings by Monzone station keeping exactly its cut of the whole
-    build; over the railway within 4 km of Monzone station (its five crossings, Monzone's,
+  - `src/render/__tests__/rail.test.ts`: the chunks in the box −1000…0 × −100…900 by Monzone
+    station (across the x = 0 and y = 0 seams), built from the pieces of the tiles under them with
+    every tile dropped first and the tiles handed in key order and reversed, keeping exactly their
+    cut of the whole build (track and stations, roads and rivers, lamps, buildings); over the
+    railway within 4 km of Monzone station (its five crossings, Monzone's,
     Gragnola's and Equi Terme's, and seven of its eight tunnel mouths, drawn from the pieces within
-    100 m more: the file reads 8 of the 30 tiles), nothing 3D in a crossing's carriageway and the
+    100 m more: the file reads 7 of the 30 tiles), nothing 3D in a crossing's carriageway and the
     bed stopping a metre short of it; each panel, its rails and the stop lines over the road ribbon,
     and no road's centre dash under a panel (the roads within 25 m of a crossing drawn); sleepers
     and rails at reading widths; the bed's top within 0.15 m of the terrain on 90 % of the line at
@@ -2003,15 +2178,18 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     program with its own day term; in `src/render/__tests__/`, `stand-ins.test.ts`: every material a
     world build, the actors, a driven train and the crossings draw has a stand-in;
     `pipeline.test.ts`: `compile` builds into the scene's target; `actors.test.ts`: the vehicle
-    lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts`
-    (and `world.long-test.ts`): the glow and water meshes, the world and the crossings' nodes made
-    without reading a tile, and a
-    chunk built only once every tile its build reads is in and dropped when one goes;
-    `chunk-tiles.test.ts` (and `chunk-tiles.long-test.ts`): one tile planning each chunk with its
-    box round the chunk's over the
-    four tiles round (0, 0), a road's segments and a piece's own reads box making its chunk read a
-    tile past its square, and with only some tiles in every chunk that builds reading only those,
-    round (0, 0) and Monzone's level crossing and platforms; `trees.test.ts`: each chunk's trees
+    lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts` (and
+    `world.long-test.ts`): the
+    glow and water meshes, the world and the crossings' nodes made without reading a tile, a
+    chunk built only once every tile its build reads is in and dropped when one goes, the same
+    chunks vertex for vertex with the tiles handed in either order or one let go and handed back,
+    and the tiles only chunks behind the near plane read not wanted;
+    `chunk-tiles.test.ts` (and `chunk-tiles.long-test.ts`): a chunk's base holding its terrain's
+    tiles and one tile planning each chunk with its box round the chunk's over the four tiles round (0, 0), a chunk's build reading
+    the ground round the segments it draws past its square and across a seam, a piece's own reads
+    box across a seam making its chunk read that tile, and with only some tiles in every chunk that
+    builds reading only those and building as with every tile in, round (0, 0), the x = 0 seam east
+    of Monzone station and its level crossing and platforms; `trees.test.ts`: each chunk's trees
     from its tiles the whole map's bucket for it, the apron's mirrors and order included, over the
     six tiles by Monzone and on the west edge; `chunks.test.ts`: the box from the tiles' lowest and
     highest nodes holding the exact one, for every chunk of the four tiles by Monzone;
@@ -2066,10 +2244,24 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
-  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `overpass-checks.ts`):
+  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `overpass-checks.ts`,
+  `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`, `road-oracle.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
-    `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined (see
-    [map.md](map.md#checks-and-tools)); `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,
+    `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined, every
+    vector layer included (see [map.md](map.md#checks-and-tools)); `vectors.map-test.ts`: each tile
+    holding, whole and in the whole map's order, exactly the vectors with a segment's or a ring's
+    box within the halo of it, and `buildingsIn` answering as one 64 m broad phase over the whole
+    map's buildings (the same buildings, in the same order, over 1,500 boxes 1–600 m across, half
+    of them within 80 m of a seam) with its lattice on their lowest corner; `ground.map-test.ts`,
+    `ground-cesena.map-test.ts` and `ground-l.map-test.ts` (the L test region, skipped without its
+    build): the ground, the surface and the water read from the tiles answering to the bit as the
+    whole map's broad phases did (`ground-oracle.ts`), at 6,000 seeded points (half of them within
+    40 m of a seam), every road and river vertex and every 16 m bucket of road;
+    `src/sim/population/__tests__/density.map-test.ts` and `farms.map-test.ts`: the residents round
+    6,000 points at four reaches, and the farms' ground checks and buildings near 20,000 points and
+    every farm (half of the random points within 40 m of a seam), as one 64 m broad phase over the
+    whole map's buildings gives them, and each farm's building read at its baked centre the one its
+    index names; `tiles.map-test.ts`: the tile list (30, i −2…2 and j −4…1,
     south to north then west to east) and its lowest and highest nodes, each wall and tree in its
     tile and no wall reaching past `walls.reach`, `heightAt`, `terrainZ` and `coverAt` bit for bit
     as the whole heightmap and land cover give them, and `wallsNear` and `treesIn` answering exactly
@@ -2086,23 +2278,36 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `src/sim/rail/__tests__/lines.map-test.ts` and `crossings.map-test.ts`: `lines.test.ts`'s and
     `crossings.test.ts`'s checks over every line, station and level crossing; `roads.map-test.ts`:
     the middle of every traffic step into a box inside its clearance, or the step long.
-  - `src/render/__tests__/chunk-tiles.map-test.ts`: one tile planning each chunk with its box round
-    the chunk's, a crossing's chunk reading the ground under its road ribbons, and with only some
-    tiles in every chunk that builds reading only those at every level crossing, platform, tunnel
-    mouth and corner of the map; `trees.map-test.ts`, `chunks.map-test.ts` and `rail.map-test.ts`:
-    their checks over every chunk, and `rail.map-test.ts` `rail.test.ts`'s over every crossing and
-    tunnel mouth; `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;
+  - `src/render/__tests__/chunk-tiles.map-test.ts`: a chunk's base holding its terrain's tiles and
+    one tile planning each chunk with its box round the chunk's, every chunk's build reading its
+    base and some chunk reading past its square (a crossing's chunk the ground under its road
+    ribbons), and with only some tiles in every chunk that builds reading only those and building
+    as with every tile in, at every level crossing, platform, tunnel mouth and corner of the map;
+    `trees.map-test.ts`, `chunks.map-test.ts` and `rail.map-test.ts`: their checks over every chunk,
+    `rail.map-test.ts`'s every one of the 5,248 chunks built from the pieces of all 30 tiles,
+    handed in reverse key order, against its cut of the whole build of every tile's vectors joined
+    (`chunk-cut.ts`), and `rail.test.ts`'s checks over every crossing and tunnel mouth;
+    `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;
     `ground.map-test.ts`: every drivable bridge;
     `src/render/sky/__tests__/lamps.map-test.ts`: every lamp placed again as baked, on a wall
     between its windows, by a lit street and whole by day; `src/hud/__tests__/minimap.map-test.ts`:
-    a tile's canvas, painted from only the features near it, getting every path the whole map
-    would draw on it, in order; `src/audio/__tests__/places.map-test.ts`: the ambience over the
-    whole map and its dogs and owls; `src/audio/places/__tests__/track.map-test.ts`: the rails'
-    joints and switches along every line, end to end.
+    a tile's canvas, painted from only that tile's vectors, getting every fill and stroke the whole
+    map would draw on it, in order and alike; `location.map-test.ts`: the road named the old answer
+    over the whole map's roads, by every road and along every tile seam;
+    `src/audio/__tests__/places.map-test.ts`: the ambience over the whole map and its dogs and owls;
+    `src/audio/places/__tests__/track.map-test.ts`: the rails' joints and switches along every
+    line, end to end; `water.map-test.ts`: the rivers' sound's reaches, over 1,500 boxes (half of
+    them within 80 m of a seam), as one 32 m broad phase over every reach of the whole map's water
+    gives them, in the same order, each once.
   - `src/tools/__tests__/bake.map-test.ts` and `cesena-bake.map-test.ts`: each map's baked tables
     and its place are what the game's code makes of it now ([map.md](map.md#checks-and-tools));
-    `cesena.map-test.ts`: the clearance under every Cesena road bridge, and its trunk road and slip
-    roads driven by traffic but no Ape, and nobody walking or parked by them;
+    `cesena.map-test.ts`, on Cesena read whole: every road with its line, every piece of the Savio
+    over 8 m and at most 120 m wide, the clearance under every road bridge, and its trunk road and
+    slip roads driven by traffic but no Ape, and nobody walking or parked by them;
+    `overview.map-test.ts`: each built overview the image its whole map paints now (a stale one,
+    after a change to the look, the palette or the vectors, wants `pnpm maps`);
+    `playtest-drive.map-test.ts`: the playtest bot's default drive, the SP59 from Monzone to Vinca
+    across the x = 0, y = 0, y = −2000 and x = 2000 seams, chained from the whole map's road lines;
     `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB;
     `src/tools/__tests__/seams.map-test.ts`: on both maps, one height for every node two tiles
     share, and every wall stored once, those across a seam carrying on and found from either side
@@ -2131,13 +2336,19 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   the rail checks moved the same way: `rail.test.ts`, which drew every road and river to find the
   dashes by the crossings, went from 30 tiles read and 2.1 s of CPU to 8 tiles and 1.3 s. With the
   seams, the two test regions, the water areas, and the lines, crossings, traffic steps, stations,
-  rail bed and rail joints moved or added since, `pnpm test:map` holds 117 tests in 31 files
-  (2026-10-31): 38 s of CPU with each file alone (chunk-tiles 6.3 s, the map invariants 4.7 s) and
-  5.8–6.0 s of wall clock, with the 3x test region's 5 checks skipped; with the 3x built they add
-  46 s of CPU (`stand.ts` on 12 games, a process each) and the wall clock is 8.8–9.0 s.
-  What still grows with the map in `pnpm test` is setup, not checks: every process that loads the
-  sim decodes the whole global file (the vectors stay in it until #63), and each `World` builds
-  every piece and plans every chunk.
+  rail bed and rail joints moved or added since, `pnpm test:map` holds 100 tests in 29 files (2026-10-31, under a
+  load average of 4–26): 36 s of CPU with each file alone (chunk-tiles 6.2 s, the map invariants
+  4.7 s) and 5.9–6.3 s of wall clock, with the 3x test region's 5 checks skipped; with the 3x built
+  they add 46 s of CPU (`stand.ts` on 12 games, a process each) and the wall clock is 8.8–9.5 s.
+  With the vectors in the tiles (#63), the checks that read them whole (the ground and surface
+  oracles, the vectors' cut, the residents and the farms, the overview, the location, the rivers'
+  sound, the default drive) joined `pnpm test:map` and `pnpm test` keeps their sampled versions
+  round Monzone: with the water areas (#73) too, `pnpm test` holds 1,299 tests in 213 files and
+  `pnpm test:map` 133 in 41 files, 128 passing and the 3x test region's 5 skipped, and `rail.test.ts` reads 7 tiles. What still
+  grows with the map in `pnpm test` is setup, not checks: every process that loads the sim decodes
+  the whole global file, though it now holds no vector geometry (Lunigiana's decodes in 9.2–9.5 ms
+  in Node, the first in a fresh process, against 30.1–30.4 ms while it held the vectors, three runs
+  each), and each `World` plans every chunk.
 
   On 2026-11-01 (#70) the long checks left `pnpm test` for `pnpm test:long`, the chats' watch
   stopped once every talker had left (seeds 12 and 20, which start four chats, two running their
@@ -2193,10 +2404,13 @@ fixtures `MONZONE` (the station nearest the start) and `RIOLO` (its level crossi
 beside on the rail's level), `tunnelMouth()` (3 m inside a portal whose cutting is on the rail's
 level), `underRoad()` (at grade under the road bridge by Equi Terme), `overRoad()` (at grade over a
 road tunnel, the pedestrian underpass at Equi Terme), `besideWall()` (the first two stretches at
-grade with a wall 3.3–5 m off the centreline) and `downToBox()` and `underpassWays()` (the ways on
-foot onto a level crossing and into the road tunnels under the line), found by geometry the first
-time a test asks for one: each searches the line, and most of the 55 test files that load the kit
-(37 of `pnpm test`'s 204) read none; found as the kit loaded, they cost each of those processes
-about 75 ms. `src/sim/scene.ts` holds the
+grade with a wall 3.3–5 m off the centreline), `downToBox()` (a way on foot down a road onto a
+level crossing, along the box's road line the global file keeps, `MAP.derived.crossings`) and
+`underpassWays()` (every way on foot along a road into a road tunnel under the line, to under the
+track, among the roads of the tiles Monzone's line crosses, in the whole map's order, and at each
+tunnel mouth those of the mouth's tile), found by geometry the first time a test asks for one: each
+searches the line, and most of the 55 test files that load the kit (37 of `pnpm test`'s 204) read
+none; found as the kit loaded, they cost each of those processes about 75 ms. `src/sim/scene.ts`
+holds the
 reaction tests' scenes on Via Cesare Battisti and a `start` on a seed of the test's choosing, so a
 rule that rolls dice is checked over several rolls.

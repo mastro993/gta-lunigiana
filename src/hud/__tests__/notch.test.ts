@@ -1,14 +1,16 @@
-// The maps on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`): the
-// minimap paints only listed tiles, and both maps lay their grass on the L and clip to it.
+// The minimap on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`): it
+// paints only listed tiles, and lays its grass on the L and clips to it (the full map's overview
+// does too: src/tools/__tests__/overview.test.ts).
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { L, notchMap } from "../../sim/map/__tests__/edit-map.ts"
 
 notchMap()
-const { paintMap, tilesNear } = await import("../minimap.ts")
+const { paintMap, tileLayers, tilesNear } = await import("../minimap.ts")
+const { tileVectors } = await import("../../sim/map/tiles.ts")
 
-test("an L: the minimap paints only listed tiles, and the maps lay their grass on the L and clip to it", () => {
+test("an L: the minimap paints only listed tiles, and lays its grass on the L and clips to it", () => {
   // 500 m off the notch's south and west sides: the notch's own two tiles in reach are left out
   assert.deepEqual(
     tilesNear(2500, 500, 1500).map((t) => t.key),
@@ -38,17 +40,15 @@ test("an L: the minimap paints only listed tiles, and the maps lay their grass o
     { set: () => true },
   )
   Object.assign(globalThis, { Path2D: Points })
-  // the full map's fit, painting only what reaches a box in the notch
+  // tile 0_0's canvas, whose east edge is the notch's west side
   paintMap(
     ctx as unknown as CanvasRenderingContext2D,
-    0.1,
-    { minX: -2900, maxY: 3900 },
-    {
-      overview: true,
-      within: [2500, 500, 2600, 600],
-    },
+    0.3,
+    { minX: 0, maxY: 2000 },
+    tileLayers(tileVectors("0_0"), 0, 0),
+    { ox: 1, oy: 1 },
   )
-  const px = L.map((v, k) => (k % 2 === 0 ? (v + 2900) * 0.1 : (3900 - v) * 0.1))
+  const px = L.map((v, k) => (k % 2 === 0 ? 1 + v * 0.3 : 1 + (2000 - v) * 0.3))
   assert.deepEqual(
     clips.map((p) => p.pts),
     [px],

@@ -9,7 +9,7 @@
  * @module systems/footing
  */
 import { atGrade, footZ, roadLevel } from "../map/ground.ts"
-import { roadOf } from "../route.ts"
+import { graph, MAP } from "../map/index.ts"
 import {
   Animal,
   Driving,
@@ -24,9 +24,11 @@ import {
 
 /** Where a body on foot at (x, y) with no footing stands, m a.s.l.: on `route`'s road when that is lifted (a deck, a tunnel's floor), else at the terrain's level. */
 const firstFooting = (x: number, y: number, route?: RouteValue): number => {
-  const road = route === undefined ? undefined : roadOf(route.edge)
-  return road !== undefined && (road.bridge === true || road.tunnel === true)
-    ? roadLevel(road, x, y)
+  if (route === undefined) return atGrade(x, y)
+  const road = graph.edges[route.edge]!.road,
+    { bridge, tunnel } = MAP.roads[road]!
+  return bridge === true || tunnel === true
+    ? (roadLevel(road, x, y) ?? atGrade(x, y))
     : atGrade(x, y)
 }
 

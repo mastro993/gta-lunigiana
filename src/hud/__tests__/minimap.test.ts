@@ -2,9 +2,11 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { MAP } from "../../sim/map/index.ts"
+import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
+import { dropTile, provideTile, residentTiles, setTileSource } from "../../sim/map/tiles.ts"
 import { QUARTER, screenAxes } from "../../sim/view.ts"
-import { minimapRotation, tileReach, tilesNear } from "../minimap.ts"
-import { checkTilePaint } from "./tile-paint.ts"
+import { makeMinimap, minimapRotation, tilesNear } from "../minimap.ts"
+import { checkTilePaint, layersAround } from "./tile-paint.ts"
 
 test("the minimap turns screen-up to the top, whichever way the view is turned", () => {
   for (const turns of [0, 1, 2, 3, -1]) {
@@ -50,8 +52,50 @@ test("the minimap shows the tiles its turned square can reach, nearest first, an
 })
 
 // minimap.map-test.ts (pnpm test:map) checks two tiles against the whole map painted; this one
-// against the features whose boxes come within 1 km of the tile, as no stroke is that wide.
-test("Monzone's tile, painted from only the features near it, gets every path the features within 1 km would draw on it, in order", () => {
-  const [minX, minY, maxX, maxY] = tileReach(-1, 0)
-  checkTilePaint(-1, 0, [minX - 1000, minY - 1000, maxX + 1000, maxY + 1000])
+// against the tiles round it (every feature within 2 km of it, as no stroke is that wide).
+test("Monzone's tile, painted from only its own vectors, gets every fill and stroke the tiles round it would draw on it, in order and alike", () => {
+  checkTilePaint(-1, 0, layersAround(-1, 0))
+})
+
+/** Monzone station, in tile -1_0. */
+const STATION = { x: -493.8, y: 436.9 }
+
+test("the minimap paints a tile once it is in memory, nearest first, and never asks for one", () => {
+  let canvases = 0,
+    blits = 0
+  const ctx = new Proxy(
+    {},
+    { get: (_, key) => (key === "drawImage" ? () => blits++ : () => {}), set: () => true },
+  )
+  const document = {
+    createElement: () => {
+      canvases++
+      return { width: 0, height: 0, getContext: () => ctx }
+    },
+  } as unknown as Document
+  Object.assign(globalThis, {
+    Path2D: class {
+      moveTo() {}
+      lineTo() {}
+      closePath() {}
+    },
+  })
+  setTileSource(undefined) // a read of a tile not in memory throws, as in the browser
+  try {
+    for (const key of residentTiles()) dropTile(key)
+    const minimap = makeMinimap(document)
+    const { x, y } = STATION
+    minimap.draw(x, y, 0, 0)
+    assert.deepEqual([canvases, blits], [1, 0], "no tile in memory: only the minimap's own canvas")
+    provideTile(readMapFile(tileUrl(MAP.name, "0_0")))
+    provideTile(readMapFile(tileUrl(MAP.name, "-1_0")))
+    minimap.draw(x, y, 0, 0)
+    assert.deepEqual([canvases, blits], [2, 1], "the station's tile first, the one in view")
+    minimap.draw(x, y, 0, 0)
+    assert.equal(canvases, 3, "then the next in memory")
+    minimap.draw(x, y, 0, 0)
+    assert.equal(canvases, 3, "the tiles round them are not in memory")
+  } finally {
+    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+  }
 })
