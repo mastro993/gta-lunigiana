@@ -1,10 +1,10 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { buildingPieces } from "../buildings.ts"
-import { lampPieces } from "../sky/lamps.ts"
-import { stationPieces } from "../stations.ts"
-import { assertChunkCut } from "./chunk-cut.ts"
+import { tileVectors } from "../../sim/map/tiles.ts"
+import { chunkTiles } from "../chunk-tiles.ts"
+import { Pieces } from "../pieces.ts"
+import { assertChunkCut, wholeBuild, wholeVectors } from "./chunk-cut.ts"
 import {
   checkArms,
   checkBed,
@@ -13,8 +13,6 @@ import {
   checkPanelsOverRoads,
   checkPortals,
   checkReadingWidths,
-  lines,
-  pieces,
   railwayNear,
 } from "./rail-checks.ts"
 
@@ -22,11 +20,17 @@ import {
 // rail.test.ts checks those by Monzone station.
 const ALL = railwayNear()
 
-test("rail, stations, roads and rivers, lamps and buildings: a chunk build keeps exactly its cut of the whole-map build", () => {
-  for (const list of [pieces, stationPieces(), lines, lampPieces(), buildingPieces()]) {
-    const built = assertChunkCut(list)
-    assert.ok(built >= 5, `${built} chunks hold some`)
-  }
+test("buildings, roads and rivers, rail, stations and lamps: every chunk built from the pieces of the tiles under it keeps exactly its cut of the whole-map build", () => {
+  const plan = chunkTiles(),
+    pieces = new Pieces(plan),
+    whole = wholeBuild(wholeVectors())
+  // The tiles in the reverse of their order (rail.test.ts tries both by Monzone).
+  for (const t of plan.keys.keys().toArray().toReversed())
+    pieces.provide(t, tileVectors(plan.keys[t]!))
+  let drawn = 0
+  // A tile's chunks at a time: the whole build's pieces near them drawn, then let go.
+  for (const chunks of plan.owned) drawn += assertChunkCut(whole, pieces, chunks)
+  assert.ok(drawn > 3000, `${drawn} chunks draw some`)
 })
 
 test("rail: nothing 3D stands in any crossing's carriageway, and the ballast bed stops a metre short of it", () => {

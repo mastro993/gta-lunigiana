@@ -7,6 +7,7 @@ import { inPlay } from "../map/index.ts"
 import { peopledIndex, residentsAlong, residentsNear } from "../population/density.ts"
 import {
   buildingsNear,
+  farmBuilding,
   farmsNear,
   grazing,
   indoors,
@@ -159,7 +160,11 @@ const dogSpot = (
   for (let k = 0; k < TRIES; k++) {
     const farm = random.pick(out)
     if (farm === undefined) break
-    const spot = offWall(farm.building, random.range(FARM_SPOT.dog[0], FARM_SPOT.dog[1]), random)
+    const spot = offWall(
+      farmBuilding(farm),
+      random.range(FARM_SPOT.dog[0], FARM_SPOT.dog[1]),
+      random,
+    )
     if (openGround(spot.x, spot.y) && fits("dog", spot, at, band)) return spot
   }
   return undefined
@@ -210,7 +215,11 @@ const litterSpots = (
   for (let k = 0; k < TRIES; k++) {
     const pen = random.pick(out)
     if (pen === undefined) break
-    const middle = offWall(pen.building, random.range(FARM_SPOT.pig[0], FARM_SPOT.pig[1]), random)
+    const middle = offWall(
+      farmBuilding(pen),
+      random.range(FARM_SPOT.pig[0], FARM_SPOT.pig[1]),
+      random,
+    )
     if (!openGround(middle.x, middle.y) || !fits("pig", middle, at, band)) continue
     const litter = Math.min(random.integer(ANIMALS.pig.litter[0], ANIMALS.pig.litter[1] + 1), most)
     const spots = [middle]

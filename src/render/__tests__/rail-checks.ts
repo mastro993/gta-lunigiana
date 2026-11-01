@@ -10,10 +10,11 @@ import { chunkOf } from "../chunks.ts"
 import { BARRIER, ROAD_LIGHT } from "../crossings.ts"
 import { boxOver, linear, type Piece, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
 import { atGradeY, terrainY, yOf } from "../ground.ts"
-import { linePieces } from "../lines.ts"
 import { PALETTE } from "../palette.ts"
+import { bucketPieces } from "../pieces.ts"
 import { railPieces } from "../rail.ts"
-import { bucketPieces } from "../world.ts"
+import { vectorsAround } from "../testing.ts"
+import { linesOf, wholeVectors } from "./chunk-cut.ts"
 
 const sink = (): Sink => ({
   solid: new Triangles(),
@@ -22,10 +23,6 @@ const sink = (): Sink => ({
   glow: new Triangles(),
   pieces: [],
 })
-/** The map's road and river pieces. */
-export const lines = linePieces()
-/** The map's rail pieces: the track, the crossings' fixed parts (over `lines`) and the portals. */
-export const pieces = railPieces(lines)
 /** Every piece of `list` drawn whole into one sink. */
 const whole = (list: ReadonlyArray<Piece>): Sink => {
   const all = sink()
@@ -66,27 +63,17 @@ const heightIn = ([a, b, c]: Tri, x: number, y: number): number | undefined => {
 /** How far map point (x, y) lies from crossing `b`'s road centreline near the box, and its half width. */
 const offRoad = (b: number, x: number, y: number) => {
   const crossing = MAP.railway.crossings[b]!,
-    road = MAP.roads[crossing.road]!
+    { pts } = MAP.derived.crossings[b]!
   let d2 = Number.MAX_VALUE
-  for (let k = 0; k + 3 < road.pts.length; k += 2)
+  for (let k = 0; k + 3 < pts.length; k += 2)
     if (
-      segDist2(
-        crossing.x,
-        crossing.y,
-        road.pts[k]!,
-        road.pts[k + 1]!,
-        road.pts[k + 2]!,
-        road.pts[k + 3]!,
-      ).d2 <
+      segDist2(crossing.x, crossing.y, pts[k]!, pts[k + 1]!, pts[k + 2]!, pts[k + 3]!).d2 <
       16 ** 2
     )
-      d2 = Math.min(
-        d2,
-        segDist2(x, y, road.pts[k]!, road.pts[k + 1]!, road.pts[k + 2]!, road.pts[k + 3]!).d2,
-      )
+      d2 = Math.min(d2, segDist2(x, y, pts[k]!, pts[k + 1]!, pts[k + 2]!, pts[k + 3]!).d2)
   return {
     off: Math.sqrt(d2),
-    half: road.w / 2,
+    half: MAP.roads[crossing.road]!.w / 2,
     near: Math.hypot(x - crossing.x, y - crossing.y) < 16,
   }
 }
@@ -98,6 +85,8 @@ const MARGIN = 100
 export interface Railway {
   /** The rail pieces within `MARGIN` of its crossings and mouths, drawn whole into one sink. */
   readonly all: Sink
+  /** The road and river pieces round its crossings: those of the tiles within `MARGIN` of each (all of the map's for all of its railway). */
+  readonly lines: ReadonlyArray<Piece>
   /** Its level crossings: indices into `MAP.railway.crossings` and `CROSSINGS`. */
   readonly crossings: ReadonlyArray<number>
   /** The track within `MARGIN` of it: indices into `MAP.rail`. */
@@ -108,8 +97,8 @@ export interface Railway {
 
 /**
  * The railway whose crossings and tunnel mouths lie within `reach` m of `spot` (all of the map's
- * with no spot): drawing only the pieces within `MARGIN` farther, a check of it reads only the
- * tiles round it.
+ * with no spot): drawing only the pieces within `MARGIN` farther, its crossings over the roads of
+ * the tiles round them, a check of it reads only the tiles round it.
  */
 export const railwayNear = (
   spot?: { readonly x: number; readonly y: number },
@@ -128,8 +117,13 @@ export const railwayNear = (
       reach + MARGIN
     )
   }
+  // The roads and rivers round every crossing drawn: each lies over those within 16 m of it.
+  const drawn = MAP.railway.crossings.filter(({ x, y }) => reaches([x, y])),
+    lines = linesOf(spot === undefined ? wholeVectors() : vectorsAround(drawn, MARGIN))
+  const pieces = railPieces(() => lines)
   return {
     all: whole(pieces.filter((piece) => reaches(piece.pts))),
+    lines,
     crossings: [...MAP.railway.crossings.keys()].filter((b) =>
       holds(MAP.railway.crossings[b]!.x, MAP.railway.crossings[b]!.y),
     ),
@@ -166,7 +160,7 @@ export const checkCarriageways = ({ all, crossings }: Railway): void => {
 }
 
 /** At each crossing the panel, its rails and the stop lines lie over the road ribbon drawn there. */
-export const checkPanelsOverRoads = ({ all, crossings }: Railway): void => {
+export const checkPanelsOverRoads = ({ all, crossings, lines }: Railway): void => {
   const byChunk = bucketPieces(lines)
   for (const b of crossings) {
     const crossing = MAP.railway.crossings[b]!,
@@ -211,7 +205,7 @@ const DASHES = 20
  * No road's centre dash within `DASHES` m of a crossing lies under its panels; the roads drawn are
  * those whose points come within 25 m of one, where any such dash lies.
  */
-export const checkDashes = ({ all, crossings }: Railway): void => {
+export const checkDashes = ({ all, crossings, lines }: Railway): void => {
   const boxes = crossings.map((b) => MAP.railway.crossings[b]!)
   const near = lines.filter((piece) => {
     const [minX, minY, maxX, maxY] = boxOver(piece.pts)

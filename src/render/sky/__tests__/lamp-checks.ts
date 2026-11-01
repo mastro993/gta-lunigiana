@@ -3,13 +3,8 @@
 import assert from "node:assert/strict"
 
 import { pointInRing } from "../../../sim/collide.ts"
-import {
-  buildingsIn,
-  buildingStyleOf,
-  MAP,
-  type Road,
-  roadClassOf,
-} from "../../../sim/map/index.ts"
+import { type Building, buildingStyleOf, type Road, roadClassOf } from "../../../sim/map/index.ts"
+import { buildingsIn } from "../../../sim/map/vectors.ts"
 import { eaveOf, windowCount } from "../../buildings.ts"
 import { type Sink, Triangles, WaterTriangles } from "../../geometry.ts"
 import { terrainY } from "../../ground.ts"
@@ -21,9 +16,9 @@ type Lamp = ReturnType<typeof streetLamps>[number]
 const wallOf = (lamp: Lamp) => {
   const wx = lamp.x - lamp.nx * 0.6,
     wy = lamp.y - lamp.ny * 0.6
-  let found: { building: number; len: number; along: number } | undefined
-  buildingsIn(wx - 1, wy - 1, wx + 1, wy + 1, (i) => {
-    const ring = MAP.buildings[i]!.outer
+  let found: { building: Building; len: number; along: number } | undefined
+  buildingsIn(wx - 1, wy - 1, wx + 1, wy + 1, (_i, b) => {
+    const ring = b.outer
     for (let k = 0; k < ring.length; k += 2) {
       const ax = ring[k]!,
         ay = ring[k + 1]!,
@@ -41,7 +36,7 @@ const wallOf = (lamp: Lamp) => {
         Math.abs(lamp.nx - ty) < 1e-9 &&
         Math.abs(lamp.ny + tx) < 1e-9
       )
-        found = { building: i, len, along }
+        found = { building: b, len, along }
     }
   })
   return found
@@ -55,7 +50,7 @@ export const assertOnWalls = (walls: ReadonlyArray<Lamp>): void => {
       wall !== undefined,
       `lamp at ${lamp.x.toFixed(1)}, ${lamp.y.toFixed(1)}: no wall behind it`,
     )
-    const b = MAP.buildings[wall.building]!
+    const b = wall.building
     assert.notEqual(buildingStyleOf(b), "ruin")
     const count = windowCount(wall.len)
     for (let w = 0; w < count; w++)
@@ -67,8 +62,8 @@ export const assertOnWalls = (walls: ReadonlyArray<Lamp>): void => {
       up = lamp.h - ground
     assert.ok(up >= 2.69 && up <= 4.21, `lantern ${up.toFixed(2)} m up`)
     assert.ok(lamp.h + 0.3 < eaveOf(b), "the bracket under the eaves")
-    buildingsIn(lamp.x, lamp.y, lamp.x, lamp.y, (i) =>
-      assert.ok(!pointInRing(lamp.x, lamp.y, MAP.buildings[i]!.outer), "the lantern hangs outside"),
+    buildingsIn(lamp.x, lamp.y, lamp.x, lamp.y, (_i, other) =>
+      assert.ok(!pointInRing(lamp.x, lamp.y, other.outer), "the lantern hangs outside"),
     )
   }
 }

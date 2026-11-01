@@ -101,17 +101,26 @@ follow from the discharge per km², q.
   0.24–0.31 m in a 0.6 m³/s per km² spate. The whole rail bed stays dry where the three streams
   cross it at every flow up to the gauge's record flood (688 m³/s at Soliera, 3.3 m³/s per km²)),
   and its grade the surface's fall over ±40 m. The bed reads the terrain along the whole water,
-  which the game holds only near the player, so the build works it out (`bedOf`) and the map file
-  keeps it per vertex (`Water.floor`), which `channelOf` reads. Depth and mean speed follow
-  Manning's equation with Jarrett's (1984) roughness for high-gradient streams, n = 0.39 S^0.38
-  R^−0.16, fitted on Colorado mountain streams of 0.2–5.2 % grade (flatter and steeper reaches are
-  held to that range); for a wide channel Q = w h^1.83 S^0.12 / 0.39, so the depth goes as q^0.547
-  and the speed as q^0.453.
+  which the game holds only near the player, so the build works it out (`bedOf`) and every tile
+  holding the piece keeps it per vertex (`Water.floor`), which `channelOf` reads. Depth and mean
+  speed follow Manning's equation with Jarrett's (1984) roughness for high-gradient streams,
+  n = 0.39 S^0.38 R^−0.16, fitted on Colorado mountain streams of 0.2–5.2 % grade (flatter and
+  steeper reaches are held to that range); for a wide channel Q = w h^1.83 S^0.12 / 0.39, so the
+  depth goes as q^0.547 and the speed as q^0.453.
 - **At a point** (`waterAt`, `rivers.ts`): the nearest reach within its gravel bed's half-width
   (`Water.bed`; a narrow stream's 3 m). Across the reach the surface is level, so the depth is the
   level less the floor a body stands on; the water spreads over the gravel as it rises. The current
   runs down the reach at the mean speed × (depth / mean depth)^0.83 (Manning's speed with depth,
   at most 1.5 times the mean depth's), so it slows to nothing at the water's edge.
+- **From the point's tile** (`placeAt` in `src/sim/map/tiles.ts`): every river and stream lies
+  whole in each tile it comes within 32 m of (`HALO`; the widest bed's half-width is 13 m), so the
+  tile under a point holds every reach whose bed reaches it, every lake and river polygon over it,
+  and each such polygon's waterways (the cut puts them in every tile the polygon lies in). A tile's reaches go into 32 m buckets
+  on its first use, each built from the whole piece the tile holds (`channelOf` over the whole
+  polyline and its baked floor), and go with the tile when it is dropped. Of equally near reaches
+  the first in (piece, vertex) order wins, as in the one grid over the whole map's water the game
+  had before the tiles, so `waterAt`, `waterUnder` and `walkDry` answer the same whichever tiles
+  are in memory.
 - **In a river polygon** (`Area.waters`,
   [map.md](map.md#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)): the nearest
   reach of its own waterways, however far across it, so the river's level and current hold out to
@@ -298,6 +307,7 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/render/__tests__/water.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes; the Aulella's polygon carried on over the apron; `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon |
 | `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores, the two dry ones, a river polygon's surface falling through it and its outer edge left, no tree, parked car or spawn in the water |
 | `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
+| `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 187,700 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered |
 | `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 km² and the Aulella's 208; no walk or drive wall in a wide river, shore walls by it |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
 

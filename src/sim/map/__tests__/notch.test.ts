@@ -84,6 +84,26 @@ test("an L: a wall or tree lookup over the notch reads the listed tiles round it
   assert.deepEqual(read, AROUND)
 })
 
+test("an L: a vector lookup in the notch reads the vectors of the listed tiles round it, merged", () => {
+  const read: Array<string> = []
+  for (const { i, j } of MAP.tiles) tiles.dropTile(`${i}_${j}`)
+  tiles.setTileSource((key) => {
+    read.push(key)
+    return readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL))
+  })
+  const { roads, buildings } = tiles.placeAt(2500, 500).vectors
+  assert.deepEqual(read, AROUND)
+  const union = (layer: "roads" | "buildings") =>
+    [...new Set(AROUND.flatMap((key) => tiles.tileVectors(key)[layer].ids))].sort((a, b) => a - b)
+  assert.deepEqual(roads.ids, union("roads"))
+  assert.deepEqual(buildings.ids, union("buildings"))
+  assert.ok(roads.ids.length > 0)
+  // read again once one of them has gone and come back
+  tiles.dropTile("0_0")
+  assert.notEqual(tiles.placeAt(2500, 500).vectors.roads, roads)
+  assert.deepEqual(tiles.placeAt(2500, 500).vectors.roads, roads)
+})
+
 test("an L: the play area is the outline's, its edge in it", () => {
   assert.ok(inPlay(1500, 500) && inPlay(2000, 1000) && inPlay(3000, 0) && inPlay(4900, -6100))
   assert.ok(!inPlay(2500, 500) && !inPlay(2000.1, 1000) && !inPlay(4800, 3800))

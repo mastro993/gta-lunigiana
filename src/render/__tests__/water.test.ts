@@ -7,17 +7,28 @@ import { type Area, isWaterArea, MAP } from "../../sim/map/index.ts"
 import { chunkCells, chunkOf, chunkRect } from "../chunks.ts"
 import { type Sink, Triangles, WaterTriangles } from "../geometry.ts"
 import { yOf } from "../ground.ts"
-import { linePieces } from "../lines.ts"
+import { waterPiece } from "../lines.ts"
 import { strips } from "../ribbons.ts"
-import { residentAround } from "../testing.ts"
+import { residentAround, vectorsAround } from "../testing.ts"
 import { inPool, poolWater } from "../water.ts"
 
 const hm = MAP.heightmap
 /** The grid's last cell along x and y: an apron cell continues the edge cell it lies beyond. */
 const LAST = { i: hm.cols - 2, j: hm.rows - 2 } as const
 
-/** The map's lakes and river polygons. */
-const POOL_AREAS = MAP.areas.filter(
+/**
+ * The vectors of the tiles round the Bozzetti pond by the Solco di Equi and the Aulella's river
+ * polygon at the map's north edge (found by geometry in them below), and their lakes and river
+ * polygons: never the whole map's.
+ */
+const NEAR = vectorsAround(
+  [
+    { x: 2220, y: 880 },
+    { x: 4350, y: 3870 },
+  ],
+  300,
+)
+const POOL_AREAS = NEAR.areas.items.filter(
   (a) => isWaterArea(a.kind) && (a.level !== undefined || a.waters !== undefined),
 )
 
@@ -136,7 +147,7 @@ const chunksOf = (cells: ReadonlyArray<{ readonly i: number; readonly j: number 
 
 /** The Bozzetti pond, a lake across two chunks: its cells, chunks, and the box round it whose tiles it reads. */
 const POND = (() => {
-  const area = MAP.areas.find((a) => a.kind === "lake" && a.name === "Bozzetti")
+  const area = NEAR.areas.items.find((a) => a.kind === "lake" && a.name === "Bozzetti")
   assert.ok(area?.level !== undefined, "the Bozzetti pond, a lake with its level")
   const cells = cellsOf(area),
     [x0, y0, x1, y1] = boxOf(area)
@@ -355,14 +366,14 @@ test("ribbons: a quad all four corners of which cover holds is left out, one wit
 })
 
 test("rivers' ribbons: the Aulella's stop where its river polygon draws the water", () => {
-  const pieces = linePieces().slice(-MAP.water.length),
-    [x0, y0, x1, y1] = boxOf(AULELLA.area)
+  const [x0, y0, x1, y1] = boxOf(AULELLA.area)
   let over = 0,
     past = 0
   for (const w of AULELLA.area.waters!) {
-    const piece = pieces[w]!,
+    const water = NEAR.water.items[NEAR.water.ids.indexOf(w)]!,
+      piece = waterPiece(water),
       { pts } = piece,
-      line = MAP.water[w]!.pts
+      line = water.pts
     // Its line, carried on across the apron where it leaves the map.
     const from = pts[0] === line[0] && pts[1] === line[1] ? 0 : 2
     assert.deepEqual(pts.slice(from, from + line.length), line, `piece ${w}: the river's line`)

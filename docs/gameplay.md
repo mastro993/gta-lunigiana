@@ -851,6 +851,11 @@ shows). The animals have their own system ([Animals](#animals)), and so do the p
   (`SPAWN_CLEAR`, `rail/roads.ts`: brought out at an edge's middle, a car could stand on the box),
   clear of walls, heads out of dead-end spurs, and starts at 0.6 × cruising speed. Each rule turns
   a spot down after its draws, so a spot turned down draws what one in a wall would.
+- It starts on its road's level, a bridge's deck or a tunnel's floor included (`roadLevel` in
+  `src/sim/map/ground.ts`). The road's line is read from the tile under the car, which holds every
+  road within 32 m of it (`HALO`), so the level is known within 32 m of the road, as a car brought
+  out on it always is; farther off (only a test that stages a car away from its road puts one
+  there) there is none, and the car settles at grade.
 - The player's car is never despawned. Stolen and carjacked cars are not traffic, so they stay
   where they are left, and so do parked cars once touched ([Parked cars](#parked-cars)). No traffic
   comes while 210 vehicles stand (`PARKED` + `TRAFFIC.max`), so the vehicles never outnumber what
@@ -917,15 +922,18 @@ fifth of the gross). Homes are the CTR's houses and the OSM homes (`house`, `res
 map's homes hold 3,247 residents.
 
 `peopleOut` is 0.09 (`OUT_SHARE`, an estimate of the share of residents out on the street by day) ×
-the residents within 140 m of the player, rounded, at most 22. Only the living count.
+the residents within 140 m of the player, rounded, at most 22. Only the living count. The sum
+(`residentsNear`) works each home's residents out from its building in the tiles round the point
+(`buildingsIn` in `src/sim/map/vectors.ts`) and adds them in the whole map's order, so it is the
+same whichever tiles are in memory.
 
 | Spot | Residents within 140 m | People out |
 |---|---|---|
 | Gragnola's centre (−1751, 3360) | 195 | 18 |
-| Vinca (2273, −2620) | 166 | 15 |
+| Vinca (2273, −2620) | 167 | 15 |
 | Monzone Alto (−34, −300) | 115 | 10 |
-| Monzone, the player's start (−412, 438) | 96 | 9 |
-| Equi Terme (1804, 721) | 98 | 9 |
+| Monzone, the player's start (−412, 438) | 97 | 9 |
+| Equi Terme (1804, 721) | 97 | 9 |
 | The SR445 out in the country (−279, 3736) | 0 | 0 |
 
 The most anywhere on the map is 19, at (−1700, 3367) in Gragnola, so the cap of 22 leaves room for
@@ -936,7 +944,9 @@ a party's followers and never binds.
 - A party comes out on a walk edge drawn by the residents within 60 m of its midpoint
   (`residentsAlong`), so the village centres fill first. An edge with fewer than 6 (`PEOPLED`, within
   `EDGE_REACH` = 60 m) never gets one: a lone house or two, the woods and the fields stay empty.
-  2,309 of the map's 23,228 walk edges are peopled.
+  2,309 of the map's 23,228 walk edges are peopled. Those sums read buildings all over the map, so
+  the build works them out (`bakeResidents`) and the map keeps one per walk edge
+  (`MAP.derived.residents`).
 - The leader stands on a verge at a random point along the edge, never inside a building (where a
   verge runs into houses that crowd the road) and clear of walk walls and the water's edge; 4
   spots are tried a party.
@@ -1092,7 +1102,9 @@ whose centre lies on meadow, grassland, farmland or farmyard cover. It is rural 
 residents live within 140 m (`RURAL`, TUNED), and a pen (pigs live there) when it is a barn, shed or
 `farm_auxiliary`, or stands on a farmyard. The map has 2,405 farms, 1,709 of them rural, 796 pens
 and 647 rural pens. Finding them reads the land cover under every building, so the build does it
-(`bakeFarms`) and the map file keeps the list (`MAP.farms`). A pasture for a herd is meadow,
+(`bakeFarms`) and the global file keeps the list (`MAP.farms`, each with its building's index in
+the whole map's buildings) and each farm's centre (`MAP.derived.farms`); a farm's own building is
+read from the tile at its centre (`farmBuilding`). A pasture for a herd is meadow,
 grassland or farmland no steeper than 0.47 (25°, TUNED), 15 m from any building, 5 m from any road's
 edge (roads in tunnels left out) and within 250 m of a rural farm.
 
@@ -1397,7 +1409,11 @@ they stand 6.5 s later, the dwelling train shoved 22 m along.
 are in `rail/barriers.ts`): today Via Riolo by Monzone, Viale 20 Settembre, Via Castel dell'Aquila
 (over Gragnola's two tracks) and Via Nuova, all automatic full barriers (half barriers need a median
 the roads lack, CdS art. 44), and Equi Terme's foot crossing, a path over the track: it runs the
-same cycle with no arms, light or bell, for walkers.
+same cycle with no arms, light or bell, for walkers. The boxes, the lines each crosses and their
+approaches (`CROSSINGS`, `CROSSINGS_ON`, `APPROACHES`) are built at load from the global file: each
+box's road line is the copy the build keeps beside the railway (`MAP.derived.crossings`), and its
+width and class are the road's (`MAP.roads`). So no tile is read, though 4 of the 5 boxes lie
+2.4–3.4 km from the start.
 
 - **The lines it crosses** (`on`): every line whose track passes within 0.5 m of one of the box's
   nodes (each node is a vertex both the road and a rail piece have; parallel tracks lie 4 m apart),
@@ -1513,7 +1529,8 @@ its level:
   north, its path joined 1.7 m over its floor, is a map limit ([Train limits](#train-limits)).
 - **The first.** One with none yet (just brought out, or from a save made before footings) takes
   its way's road where that is a deck or a tunnel's floor, else the ground at the terrain's level
-  (`firstFooting`).
+  (`firstFooting`). The road's level is read only within 32 m of the road (`roadLevel`, as a
+  spawned car's), which a body on its way always is; farther off it takes the terrain's level.
 - **Set down.** Getting out of a vehicle, the player stands on the ground beside it on the level
   its wheels stand on, out of a train on the rail's; thrown from a wreck, the same; coming back at
   the start, on the ground there. A driver who gets out and runs starts on the same level.
@@ -1796,10 +1813,17 @@ with `src/sim/testing.ts`; `src/sim/__tests__/reactions.test.ts` and
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first
 fill, and `src/sim/__tests__/animals.test.ts` the animals in a village, at a farm and on a rural
-road; `src/sim/__tests__/parked.test.ts` drives across the map into ten villages for their parked
-cars and traffic, frees a stolen car's spot, leaves touched cars and the Carabinieri behind, holds
-the caps and brings the same cars back on one seed; `src/sim/__tests__/trains.test.ts` runs the
-train service with `src/sim/rail/testing.ts` (the railway stepped alone), `trains-traffic.test.ts`,
+road; `src/sim/population/__tests__/density.test.ts` and `farms.test.ts` read the buildings round
+Monzone station (625 points every 50 m and 2,401 every 25 m, out to 600 m and over the x = 0 and
+y = 0 seams) with every tile dropped and then with only the tiles that run read handed back, in
+key order and reversed: the residents round a point, the ground checks, the buildings near a point,
+the farms' buildings and the spots off their walls come out the same, and their `*.map-test.ts`
+(6,000 and 20,000 points all over the map, half within 40 m of a seam, and every farm) match one
+64 m grid over the whole map's buildings; `src/sim/__tests__/parked.test.ts` drives across the
+map into ten villages for their parked cars and traffic, frees a stolen car's spot, leaves touched
+cars and the Carabinieri behind, holds the caps and brings the same cars back on one seed;
+`src/sim/__tests__/trains.test.ts` runs the train service with `src/sim/rail/testing.ts` (the
+railway stepped alone), `trains-traffic.test.ts`,
 `trains-strikes.test.ts` and `trains-world.test.ts` beside it stage the world around the trains
 (queues and walkers at Via Riolo, strikes and the look-out, the level under the bridges, in the
 river under one, over the tunnel and down a road onto a crossing, the animals brought out off the

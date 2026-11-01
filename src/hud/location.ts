@@ -4,34 +4,35 @@
  *
  * @module hud/location
  */
-import { districtAt, MAP, roadClassOf } from "../sim/map/index.ts"
+import { districtAt, MAP } from "../sim/map/index.ts"
+import { isRoadClass } from "../sim/map/kinds.ts"
+import { isResidentAt, placeAt } from "../sim/map/tiles.ts"
 import { segDist2 } from "../tools/geometry.ts"
 
-/** Roads the HUD can name, with their name or ref (undefined on unnamed roads), as segments `[ax, ay, bx, by, ...]`. */
-const roads = MAP.roads
-  .filter((road) => {
-    const cls = roadClassOf(road)
-    return cls !== "track" && cls !== "path"
-  })
-  .map((road) => ({ name: road.name ?? road.ref, pts: road.pts }))
+/** Whether the HUD can name a road of class `cls`: tracks and paths not (a class the build does not emit reads as a path). */
+const nameable = (cls: string): boolean => isRoadClass(cls) && cls !== "track" && cls !== "path"
 
-/** The name of the nearest road within `reach` metres of (x, y); undefined when that road has none. */
-// ponytail: brute force over ~4k segments (0.02 ms a call, at most one a frame); add a grid if it ever shows in a profile.
+/**
+ * The name (or ref) of the nearest road the HUD can name (`nameable`) within `reach` metres of
+ * (x, y); undefined when that road has none. It reads the roads of the point's place (`placeAt`:
+ * every road within the tiles' `HALO` of it, which is more than `reach`) in the whole map's order,
+ * so a tie goes to the lowest road index, then its first segment; where that place is not in
+ * memory (never under the player: the host keeps the tiles round it) it names none.
+ */
 const roadNear = (x: number, y: number, reach = 15): string | undefined => {
+  if (!isResidentAt(x, y)) return undefined
+  const { ids, items } = placeAt(x, y).vectors.roads
   let best = reach * reach,
     found: string | undefined
-  for (const road of roads)
-    for (let i = 0; i + 3 < road.pts.length; i += 2) {
-      const d = segDist2(
-        x,
-        y,
-        road.pts[i]!,
-        road.pts[i + 1]!,
-        road.pts[i + 2]!,
-        road.pts[i + 3]!,
-      ).d2
-      if (d < best) [best, found] = [d, road.name]
+  for (let k = 0; k < ids.length; k++) {
+    const road = MAP.roads[ids[k]!]!
+    if (!nameable(road.cls)) continue
+    const pts = items[k]!.pts
+    for (let i = 0; i + 3 < pts.length; i += 2) {
+      const d = segDist2(x, y, pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!).d2
+      if (d < best) [best, found] = [d, road.name ?? road.ref]
     }
+  }
   return found
 }
 

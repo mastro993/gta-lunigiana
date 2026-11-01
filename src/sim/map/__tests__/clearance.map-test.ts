@@ -3,10 +3,14 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { wholeMap } from "../../../tools/map-file.ts"
 import { pointInRing, segDist2 } from "../../collide.ts"
 import { allowsModel, laneSide, walkSide } from "../../route.ts"
 import { VEHICLE_MODELS } from "../../vehicles.ts"
-import { graph, MAP, vergeOf } from "../index.ts"
+import { graph, MAP, type Road, vergeOf } from "../index.ts"
+
+/** The roads and areas live in the tiles: these checks read them all, joined in the whole map's order. */
+const WHOLE = wholeMap()
 
 /** The ATR 220's half-width (1.44 m), a person's radius (0.35 m) and 1 m between them. */
 const CLEAR = 2.8
@@ -31,7 +35,7 @@ const track = (x: number, y: number) => {
   return { d: Math.sqrt(best.d2), z: best.z }
 }
 /** A road's profile at the point of it nearest (x, y), and how far that is. */
-const along = (road: (typeof MAP.roads)[number], x: number, y: number) => {
+const along = (road: Road, x: number, y: number) => {
   let best = { d2: Number.MAX_VALUE, z: 0 }
   for (let k = 0; k + 1 < road.z.length; k++) {
     const { d2, t } = segDist2(
@@ -49,7 +53,7 @@ const along = (road: (typeof MAP.roads)[number], x: number, y: number) => {
 /** Inside a level-crossing box: within 15 m of its nodes, on its road or that road's verges. */
 const inBox = (x: number, y: number, road: number) =>
   MAP.railway.crossings.some((c) => {
-    const box = MAP.roads[c.road]!
+    const box = WHOLE.roads[c.road]!
     return (
       c.nodes.some((n) => Ops.hypot(graph.nodes[n]!.x - x, graph.nodes[n]!.y - y) <= 15) &&
       (c.road === road || along(box, x, y).d <= vergeOf(box.cls, box.w) + 0.35)
@@ -57,7 +61,7 @@ const inBox = (x: number, y: number, road: number) =>
   })
 const onPlatform = (x: number, y: number) =>
   MAP.railway.platforms.some(({ area }) => {
-    const [outer, ...holes] = MAP.areas[area]!.rings
+    const [outer, ...holes] = WHOLE.areas[area]!.rings
     return pointInRing(x, y, outer!) && !holes.some((h) => pointInRing(x, y, h))
   })
 
@@ -97,15 +101,15 @@ test("rail: outside crossing boxes and platforms, no verge or lane comes within 
         x = cx + nx * off,
         y = cy + ny * off
       const t = track(x, y)
-      if (t.d >= CLEAR || Math.abs(along(MAP.roads[road]!, cx, cy).z - t.z) >= 2) continue
+      if (t.d >= CLEAR || Math.abs(along(WHOLE.roads[road]!, cx, cy).z - t.z) >= 2) continue
       if (inBox(x, y, road) || onPlatform(x, y)) continue
       offenders.push(
-        `${what} of edge ${e} (road ${MAP.roads[road]!.id}) at (${x.toFixed(1)}, ${y.toFixed(1)}): ${t.d.toFixed(2)} m`,
+        `${what} of edge ${e} (road ${WHOLE.roads[road]!.id}) at (${x.toFixed(1)}, ${y.toFixed(1)}): ${t.d.toFixed(2)} m`,
       )
     }
   }
   for (const e of graph.walkEdges) {
-    const verge = walkSide(MAP.roads[graph.edges[e]!.road]!)
+    const verge = walkSide(WHOLE.roads[graph.edges[e]!.road]!)
     check(e, verge, "verge")
     check(e, -verge, "verge")
   }

@@ -2,10 +2,11 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { pointInRing } from "../../sim/collide.ts"
-import { buildingsIn, heightAt, MAP, treesIn } from "../../sim/map/index.ts"
+import { type Barrier, type Building, heightAt, treesIn } from "../../sim/map/index.ts"
 import { decodeTile } from "../../sim/map/packed.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
-import { tilesOver } from "../../sim/map/tiles.ts"
+import { placeAt, tilesOver, tileVectors } from "../../sim/map/tiles.ts"
+import { buildingsIn } from "../../sim/map/vectors.ts"
 import { SPEED_OF_SOUND } from "../acoustics.ts"
 import {
   ambienceAt,
@@ -31,7 +32,28 @@ const QUARRY_FACE = { x: -2480, y: -5923.85 }
 
 // The tiles round the spots in memory, as around the player in the game: every place is worked out from the exact map
 // there (places.map-test.ts checks the places all over the map).
-residentAround([FOREST, MEADOW, GRAGNOLA, EQUI], HELD)
+const SPOTS = [FOREST, MEADOW, GRAGNOLA, EQUI]
+residentAround(SPOTS, HELD)
+
+/** The buildings within `HELD` of the spots, each once, in the broad phase's order round each spot in turn. */
+const BUILDINGS: ReadonlyArray<Building> = (() => {
+  const found = new Map<number, Building>()
+  for (const { x, y } of SPOTS)
+    buildingsIn(x - HELD, y - HELD, x + HELD, y + HELD, (i, building) => {
+      if (!found.has(i)) found.set(i, building)
+    })
+  return [...found.values()]
+})()
+/** The barriers of the tiles held round the spots, each once, in the whole map's order. */
+const BARRIERS: ReadonlyArray<Barrier> = (() => {
+  const found = new Map<number, Barrier>()
+  for (const { x, y } of SPOTS)
+    for (const key of tilesOver(x - HELD, y - HELD, x + HELD, y + HELD)) {
+      const { ids, items } = tileVectors(key).barriers
+      ids.forEach((id, k) => found.set(id, items[k]!))
+    }
+  return [...found.entries()].sort(([a], [b]) => a - b).map(([, barrier]) => barrier)
+})()
 
 test("walls: a tree trunk, buildings by kind and style, the guard rail, the stone wall and a cliff, each 0.3 m off; bare ground is earth, a quarry's bank rock", () => {
   /** 0.3 m off the middle of the longest edge of `pts`, on its right (outside a counter-clockwise ring). */
@@ -60,7 +82,7 @@ test("walls: a tree trunk, buildings by kind and style, the guard rail, the ston
     ["substation", "industrial", "sheet"],
   ] as const
   for (const [kind, style, expected] of buildings) {
-    const at = beside(MAP.buildings.find((b) => b.kind === kind && b.style === style)!.outer, true)
+    const at = beside(BUILDINGS.find((b) => b.kind === kind && b.style === style)!.outer, true)
     assert.equal(wallAt(at.x, at.y), expected, `${kind}/${style}`)
   }
   for (const [kind, expected] of [
@@ -68,7 +90,7 @@ test("walls: a tree trunk, buildings by kind and style, the guard rail, the ston
     ["wall", "stone"],
     ["cliff", "rock"],
   ] as const) {
-    const at = beside(MAP.barriers.find((b) => b.kind === kind)!.pts, false)
+    const at = beside(BARRIERS.find((b) => b.kind === kind)!.pts, false)
     assert.equal(wallAt(at.x, at.y), expected, kind)
   }
   let trunk: { readonly x: number; readonly y: number } | undefined
@@ -88,7 +110,7 @@ test("walls: a tree trunk, buildings by kind and style, the guard rail, the ston
 test("walls: the nearest source wins, a trunk by a house wall is the trunk; a bank is earth though trees stand 1.5–3 m off it", () => {
   const outside = (x: number, y: number) => {
     let free = true
-    buildingsIn(x, y, x, y, (i) => void (free &&= !pointInRing(x, y, MAP.buildings[i]!.outer)))
+    buildingsIn(x, y, x, y, (_, { outer }) => void (free &&= !pointInRing(x, y, outer)))
     return free
   }
   // A trunk 1–2.5 m from a rendered house's wall: 0.3 m off the trunk on its far side is the tree, 0.3 m off the wall the house.
@@ -103,7 +125,7 @@ test("walls: the nearest source wins, a trunk by a house wall is the trunk; a ba
         }
       }
     | undefined
-  for (const b of MAP.buildings) {
+  for (const b of BUILDINGS) {
     if (pair !== undefined || b.kind !== "house" || b.style !== "plaster") continue
     const pts = b.outer
     // oxlint-disable-next-line no-unmodified-loop-condition -- the treesIn callback sets pair
@@ -166,7 +188,8 @@ const wildBank = (walls: ArrayLike<number>) => {
         nearest > 1.5 &&
         nearest < 3 &&
         !built &&
-        MAP.barriers.every((b) =>
+        // A barrier within 20 m of the point is in its tile's vectors (within `HALO` of it).
+        placeAt(x, y).vectors.barriers.items.every((b) =>
           b.pts.every((_, k) => k % 2 === 1 || Math.hypot(b.pts[k]! - x, b.pts[k + 1]! - y) > 20),
         )
       )

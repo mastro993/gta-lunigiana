@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP } from "../../../sim/map/index.ts"
+import { wholeMap } from "../../../tools/map-file.ts"
 import { placeLamps, streetLamps } from "../lamps.ts"
 import { assertLanternsWhole, assertOnLitStreets, assertOnWalls, litOf } from "./lamp-checks.ts"
 
@@ -12,7 +12,7 @@ const walls = lamps.filter((lamp) => lamp.kind === "wall")
 
 test("street lamps: the same every time, hundreds over the valley", () => {
   // The map file keeps each lantern's height in m a.s.l. (`bakeLamps`): back in render y it is the placed one within rounding.
-  const placed = placeLamps()
+  const placed = placeLamps(wholeMap().roads)
   assert.equal(placed.length, walls.length)
   for (const [k, lamp] of placed.entries()) {
     const kept = walls[k]!
@@ -29,7 +29,7 @@ test("street lamps: each hangs 0.6 m out from a house wall between its windows, 
 })
 
 test("street lamps: on lit streets in villages, never two within 18 m, all over the map", () => {
-  assertOnLitStreets(walls, litOf(MAP.roads))
+  assertOnLitStreets(walls, litOf(wholeMap().roads))
 })
 
 // Regression: the lantern's body was only its glass, which is not drawn by day: a cap, a 0.36 m gap and a floating foot.

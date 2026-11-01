@@ -56,11 +56,12 @@ const data = Array.from({ length: 49 }, (_, k) => 2000 + 13 * k)
 
 /** The stamped global map and the files of `map` cut as the build cuts it: the global file under "", each tile under its key. */
 const filesOf = (map: BuiltMap) => {
-  const cut = cutMap(map, "test")
-  const stamped = stampMap(cut.global(NO_BAKES), cut.tiles.values())
+  const cut = cutMap(map, "test"),
+    tiles = cut.tiles(NO_BAKES).files
+  const stamped = stampMap(cut.global(NO_BAKES), tiles.values())
   const files = new Map<string, Uint8Array>([["", stamped.file]])
-  for (const [key, file] of cut.tiles) files.set(key, stamped.tile(file))
-  return { global: stamped.global, files, unstamped: cut.tiles }
+  for (const [key, file] of tiles) files.set(key, stamped.tile(file))
+  return { global: stamped.global, files, unstamped: tiles }
 }
 
 test("cutMap cuts the dense layers into tiles that joinTiles puts back as they were, walls and trees in order, trees merged by id", () => {
@@ -169,4 +170,121 @@ test("stamping a tile gives the file packTile packs with the build hash", () => 
     assert.equal(tile.hash, "")
     assert.deepEqual(files.get(key), packTile({ ...tile, hash: global.hash }).file)
   }
+})
+
+/** `built(data)` with vectors near and far from the seams (the bounds are only the terrain's: the cut clamps a feature past them to the edge tiles, as a lookup's tile is clamped). */
+const withVectors = (map: BuiltMap): BuiltMap => ({
+  ...map,
+  roads: [
+    // across the x = 0 seam, 50 m north of y = 0: both northern tiles
+    {
+      id: 1,
+      cls: "residential",
+      w: 4.5,
+      surface: "asphalt",
+      pts: [-100, 50, 100, 50],
+      z: [300, 301.5],
+    },
+    // 500 m into the south-east tile
+    { id: 2, cls: "track", w: 3, surface: "gravel", pts: [500, -500, 600, -500], z: [310, 311] },
+  ],
+  buildings: [
+    {
+      id: 3,
+      kind: "house",
+      h: 6,
+      z0: 290,
+      style: "stone",
+      tint: 1,
+      outer: [-300, -300, -290, -300, -290, -290],
+    },
+    // in the north-east tile alone
+    {
+      id: 4,
+      kind: "house",
+      h: 6,
+      z0: 290,
+      style: "stone",
+      tint: 1,
+      outer: [100, 100, 110, 100, 110, 110],
+    },
+  ],
+  // 10 m east of x = 0, south of y = 0: its bed's box within the halo of both southern tiles
+  water: [
+    {
+      id: 5,
+      kind: "stream",
+      w: 2,
+      bed: 3,
+      depth: 1,
+      pts: [10, -40, 10, -100],
+      z: [280, 279],
+      area: [1.5, 1.6],
+    },
+  ],
+  // over every tile
+  areas: [{ kind: "forest", rings: [[-500, -500, 500, -500, 500, 500, -500, 500]] }],
+  barriers: [{ kind: "wall", pts: [40, 40, 60, 60] }],
+})
+
+test("cutMap puts each vector whole in every tile it comes within the halo of, with its index, and joinTiles puts them back", () => {
+  const map = withVectors(built(data))
+  const cut = cutMap(map, "test")
+  const bakes = { ...NO_BAKES, floors: [[279.31, 278.123456789]] }
+  const { files } = cut.tiles(bakes)
+  const tiles = new Map([...files].map(([key, file]) => [key, decodeTile(file)]))
+  const ids = (layer: "roads" | "buildings" | "water" | "areas" | "barriers") =>
+    [...tiles].map(([key, t]) => `${key}:${t.vectors[layer].ids.join(",")}`)
+  assert.deepEqual(ids("roads"), ["-1_-1:", "0_-1:1", "-1_0:0", "0_0:0"])
+  assert.deepEqual(ids("buildings"), ["-1_-1:0", "0_-1:", "-1_0:", "0_0:1"])
+  assert.deepEqual(ids("water"), ["-1_-1:0", "0_-1:0", "-1_0:", "0_0:"])
+  assert.deepEqual(ids("areas"), ["-1_-1:0", "0_-1:0", "-1_0:0", "0_0:0"])
+  assert.deepEqual(ids("barriers"), ["-1_-1:", "0_-1:", "-1_0:", "0_0:0"])
+  assert.deepEqual(tiles.get("0_0")!.vectors.roads.items, [
+    { pts: [-100, 50, 100, 50], z: [300, 301.5] },
+  ])
+  assert.deepEqual(tiles.get("0_-1")!.vectors.water.items[0]!.floor, [279.31, 278.123456789])
+  const stamped = stampMap(cut.global(bakes), files.values())
+  const whole = joinTiles(
+    stamped.global,
+    [...files.values()].map((f) => decodeTile(stamped.tile(f))),
+  )
+  assert.deepEqual(whole.roads, map.roads)
+  assert.deepEqual(whole.buildings, map.buildings)
+  assert.deepEqual(whole.water, [{ ...map.water[0]!, floor: [279.31, 278.123456789] }])
+  assert.deepEqual(whole.areas, map.areas)
+  assert.deepEqual(whole.barriers, map.barriers)
+  assert.deepEqual(stamped.global.vectors, {
+    halo: 32,
+    counts: { roads: 2, buildings: 2, water: 1, areas: 1, barriers: 1 },
+    lattice: { buildings: [-300, -300], water: [10, -100] },
+  })
+})
+
+test("a vector by an unlisted tile goes to the listed tiles round it, which a lookup there reads", () => {
+  const map = withVectors(built(data))
+  const { files } = cutMap({ ...map, tiles: map.tiles.slice(0, 3) }, "test").tiles(NO_BAKES)
+  const of = (key: string) => decodeTile(files.get(key)!).vectors
+  // the north-east building and barrier, in the notch, are in all three tiles round it
+  for (const key of ["-1_-1", "0_-1", "-1_0"]) {
+    assert.ok(of(key).buildings.ids.includes(1), key)
+    assert.deepEqual(of(key).barriers.ids, [0], key)
+  }
+})
+
+test("cutMap refuses a road whose verge reaches past the halo", () => {
+  const map = built(data)
+  assert.throws(
+    () =>
+      cutMap(
+        {
+          ...map,
+          roads: [
+            { id: 9, cls: "motorway", w: 70, surface: "asphalt", pts: [0, 0, 1, 0], z: [1, 1] },
+          ],
+        },
+        "test",
+      ),
+    /road 9 reaches 36.3 m off its centreline, past the 32 m halo/,
+  )
 })

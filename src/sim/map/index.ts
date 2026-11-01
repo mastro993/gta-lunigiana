@@ -19,8 +19,8 @@
  *
  * @module map
  */
-import { staticGrid } from "../collide.ts"
 import type { VehicleModel } from "../vehicles.ts"
+import type { Derived } from "./derived.ts"
 import { MAP } from "./global.ts"
 import {
   anchorOf,
@@ -31,8 +31,10 @@ import {
   type RoadClass,
 } from "./kinds.ts"
 import { insideRings, ringsDistance } from "./outline.ts"
+import type { VectorLayer } from "./packed.ts"
 import type { Railway } from "./railway.ts"
-import { cellNodes, type WallKind } from "./tiles.ts"
+import { cellNodes } from "./tiles.ts"
+import type { WallKind } from "./walls.ts"
 
 export { MAP } from "./global.ts"
 export {
@@ -56,8 +58,9 @@ export {
   TRUNK,
   vergeOf,
 } from "./kinds.ts"
+export type { BellEntry } from "./derived.ts"
 export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
-export { type Segment, treesIn, type WallKind, wallsNear } from "./tiles.ts"
+export { type Segment, treesIn, type WallKind, wallsNear } from "./walls.ts"
 
 /** The built terrain's box, metres: the box round the map's parts, which the play area (`outline`) lies in. */
 interface Bounds {
@@ -110,8 +113,8 @@ export interface Coarse {
   readonly cover: Uint8Array
 }
 
-/** A road piece (OSM highway way clipped to the play area). `cls` narrows with `roadClassOf`. */
-export interface Road {
+/** A road piece's attributes (OSM highway way clipped to the play area). `cls` narrows with `roadClassOf`. */
+export interface RoadInfo {
   readonly id: number
   readonly cls: string
   readonly name?: string
@@ -129,11 +132,18 @@ export interface Road {
   readonly maxheight?: number
   /** Where people walk, m from the centreline on either side, when the build pulls the verge in off the railway beside it (else `vergeOf`). */
   readonly verge?: number
+}
+
+/** A road piece's line, which the tiles hold (`./vectors.ts`). */
+export interface RoadLine {
   /** The OSM vertices plus points on the OSM segments where the elevation profile bends (dips under the rail, crests). */
   readonly pts: ReadonlyArray<number>
   /** Road surface elevation per vertex (m); bridge decks and tunnels are straight between their ends. */
   readonly z: ReadonlyArray<number>
 }
+
+/** A road piece: its attributes and its line. */
+export interface Road extends RoadInfo, RoadLine {}
 
 /** `style` narrows with `buildingStyleOf`; `tint` is a colour variant 0..3. */
 export interface Building {
@@ -201,7 +211,7 @@ export interface Area {
   readonly rings: ReadonlyArray<ReadonlyArray<number>>
   /** Still water's surface, m a.s.l. (whole decimetres): OSM's `ele`, else the median of the LiDAR inside. */
   readonly level?: number
-  /** A river polygon's waterways: the indices in `MAP.water` of the pieces that run through it, whose bed and flow its water takes. */
+  /** A river polygon's waterways: the indices in the whole map's water (as the tiles carry them, `Layer.ids`) of the pieces that run through it, whose bed and flow its water takes; the cut puts them in every tile the polygon lies in. */
   readonly waters?: ReadonlyArray<number>
 }
 
@@ -249,7 +259,7 @@ export interface ParkedSpot extends Spawn {
   readonly truck?: true
 }
 
-/** A farm, baked by the build from the land cover (src/sim/population/farms.ts): its building (index into `MAP.buildings`), whether it is rural and whether pigs are kept by it. */
+/** A farm, baked by the build from the land cover (src/sim/population/farms.ts): its building (index into the whole map's buildings, as the tiles' carry it), whether it is rural and whether pigs are kept by it. */
 export interface FarmEntry {
   readonly building: number
   readonly rural: boolean
@@ -289,13 +299,10 @@ export interface MonzoneMap {
   /** The map's place for the sky: its low ground (m a.s.l., the 5th percentile of its nodes) and the way its ground falls (rad). */
   readonly place: { readonly floor: number; readonly downslope: number }
   readonly coarse: Coarse
-  readonly roads: ReadonlyArray<Road>
-  readonly buildings: ReadonlyArray<Building>
-  readonly water: ReadonlyArray<Water>
+  /** Every road's attributes, indexed by the graph's edges and the crossings; their lines are in the tiles (`./vectors.ts`). */
+  readonly roads: ReadonlyArray<RoadInfo>
   readonly rail: ReadonlyArray<Rail>
   readonly railway: Railway
-  readonly areas: ReadonlyArray<Area>
-  readonly barriers: ReadonlyArray<Barrier>
   readonly pois: ReadonlyArray<Poi>
   readonly districts: ReadonlyArray<District>
   /** Road graph: `xy` node coords, `edges` flat (a, b, roadIndex) triples, `traffic`/`walk` edge indices. Use `graph` instead. */
@@ -318,6 +325,22 @@ export interface MonzoneMap {
     readonly lattice: Readonly<Record<WallKind | "trees", readonly [number, number]>>
     readonly counts: { readonly walk: number; readonly drive: number }
   }
+  /**
+   * How the vectors are cut into the tiles (`./vectors.ts`): each feature lies whole in every tile
+   * it comes within `halo` m of (`HALO`), and `counts` says how many of each layer the whole map
+   * has (a feature's index runs up to it). `lattice` holds the corners of the broad phases that
+   * answer box queries in the whole map's order, where the whole map's broad phase put them: the
+   * buildings' (the lowest corner of any building's box) and the rivers' sound's (the lowest vertex
+   * of any water, src/audio/places/water.ts).
+   */
+  readonly vectors: {
+    readonly halo: number
+    readonly counts: Readonly<Record<VectorLayer, number>>
+    readonly lattice: {
+      readonly buildings: readonly [number, number]
+      readonly water: readonly [number, number]
+    }
+  }
   readonly spawns: {
     readonly player: Spawn
     readonly parked: ReadonlyArray<ParkedSpot>
@@ -336,6 +359,7 @@ export interface MonzoneMap {
   readonly lanes: Readonly<Record<VehicleModel, ReadonlyArray<number>>>
   readonly farms: ReadonlyArray<FarmEntry>
   readonly lamps: ReadonlyArray<Lamp>
+  readonly derived: Derived
 }
 
 /** Shape of the JSON line that opens the global file: the coarse grid's heights and cover travel as packed sections after it (see `./packed.ts`). */
@@ -344,7 +368,8 @@ export interface MonzoneMapJson extends Omit<MonzoneMap, "coarse"> {
 }
 
 /** The road's class; the build only emits `ROAD_CLASSES` (checked by map.map-test.ts), anything else reads as "path". */
-export const roadClassOf = (road: Road): RoadClass => (isRoadClass(road.cls) ? road.cls : "path")
+export const roadClassOf = (road: Pick<RoadInfo, "cls">): RoadClass =>
+  isRoadClass(road.cls) ? road.cls : "path"
 
 const buildingStyles: ReadonlySet<string> = new Set(BUILDING_STYLES)
 const isBuildingStyle = (style: string): style is BuildingStyle => buildingStyles.has(style)
@@ -398,32 +423,8 @@ export const heightAt = (x: number, y: number): number => {
   return (south + (north - south) * ty) / 10
 }
 
-/** Bounding box [minX, minY, maxX, maxY] of every building's outer ring, indexed like `MAP.buildings`. */
-export const buildingBoxes: ReadonlyArray<readonly [number, number, number, number]> =
-  MAP.buildings.map(({ outer }) => {
-    let x0 = outer[0]!,
-      y0 = outer[1]!,
-      x1 = x0,
-      y1 = y0
-    for (let k = 2; k + 1 < outer.length; k += 2)
-      [x0, y0, x1, y1] = [
-        Math.min(x0, outer[k]!),
-        Math.min(y0, outer[k + 1]!),
-        Math.max(x1, outer[k]!),
-        Math.max(y1, outer[k + 1]!),
-      ]
-    return [x0, y0, x1, y1] as const
-  })
-
 /**
- * Building broad phase (`staticGrid` over `buildingBoxes`, 64 m cells): calls `visit` with the
- * index into `MAP.buildings` of every building whose box may overlap the query box (run the exact
- * test). Shared by the sim and the audio host; `visit` must not query again.
- */
-export const buildingsIn = staticGrid(buildingBoxes.length, (i) => buildingBoxes[i]!, 64)
-
-/**
- * A straight graph edge. a -> b follows the vertex order of `MAP.roads[road].pts` (the OSM way
+ * A straight graph edge. a -> b follows the vertex order of the road's line (`roadLineAt`; the OSM way
  * direction), so a `oneway` road may only be driven from a to b.
  */
 interface GraphEdge {

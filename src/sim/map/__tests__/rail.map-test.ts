@@ -3,11 +3,14 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { wholeMap } from "../../../tools/map-file.ts"
 import { terrainZ } from "../ground.ts"
-import { heightAt, MAP, RAIL_KINDS, type Rail } from "../index.ts"
+import { heightAt, MAP, RAIL_KINDS, type Rail, type Road } from "../index.ts"
 import { isDrivable } from "../kinds.ts"
 
 const { hypot } = Ops
+/** The roads, water and buildings live in the tiles: these checks read them all, joined in the whole map's order. */
+const WHOLE = wholeMap()
 /** A flat polyline's vertices as "x,y" keys: shared vertices are bit-identical (both rounded to 0.1 m). */
 const keyAt = (pts: ReadonlyArray<number>, i: number) => `${pts[2 * i]},${pts[2 * i + 1]}`
 const ends = (r: Rail) => [keyAt(r.pts, 0), keyAt(r.pts, r.pts.length / 2 - 1)] as const
@@ -84,10 +87,10 @@ const meet = (a: ReadonlyArray<number>, b: ReadonlyArray<number>) => {
 }
 /** The vertices where at-grade rail and an at-grade road share a point: the level crossings. */
 const levelCrossings = (() => {
-  const out: Array<{ x: number; y: number; rail: Rail; road: (typeof MAP.roads)[number] }> = []
+  const out: Array<{ x: number; y: number; rail: Rail; road: Road }> = []
   for (const rail of atGrade) {
     const vs = new Set(rail.pts.map((_, i) => (i % 2 === 0 ? keyAt(rail.pts, i / 2) : "")))
-    for (const road of MAP.roads)
+    for (const road of WHOLE.roads)
       if (road.bridge !== true && road.tunnel !== true && meet(rail.pts, road.pts))
         for (let i = 0; i < road.pts.length / 2; i++)
           if (vs.has(keyAt(road.pts, i)))
@@ -117,7 +120,7 @@ test("rail: the running track runs unbroken from the north edge to the east edge
   for (const r of MAP.rail)
     assert.ok(r.kind === undefined || RAIL_KINDS.includes(r.kind), `rail ${r.id} kind ${r.kind}`)
   // Gragnola: the loop is the west track by the station building, the through track the east one.
-  const station = MAP.buildings.find((b) => b.style === "station" && b.name === "Gragnola")!
+  const station = WHOLE.buildings.find((b) => b.style === "station" && b.name === "Gragnola")!
   const sx =
     station.outer.filter((_, i) => i % 2 === 0).reduce((a, v) => a + v, 0) /
     (station.outer.length / 2)
@@ -141,8 +144,8 @@ test("rail: the running track runs unbroken from the north edge to the east edge
 test("rail: at grade, the rail meets roads and water only at vertices they share, level with the road", () => {
   for (const rail of atGrade) {
     for (const other of [
-      ...MAP.roads.filter((r) => r.bridge !== true && r.tunnel !== true),
-      ...MAP.water,
+      ...WHOLE.roads.filter((r) => r.bridge !== true && r.tunnel !== true),
+      ...WHOLE.water,
     ]) {
       if (!meet(rail.pts, other.pts)) continue
       for (const c of crossingsOf(rail.pts, other.pts)) {
@@ -182,8 +185,8 @@ test("rail: at grade, the rail meets roads and water only at vertices they share
 test("rail: no polyline repeats a vertex, and a rail segment under 1.85 m joins two shared vertices", () => {
   for (const [what, ls] of [
     ["rail", MAP.rail],
-    ["road", MAP.roads],
-    ["water", MAP.water],
+    ["road", WHOLE.roads],
+    ["water", WHOLE.water],
   ] as const)
     for (const l of ls)
       for (let i = 2; i < l.pts.length; i += 2)
@@ -193,7 +196,7 @@ test("rail: no polyline repeats a vertex, and a rail segment under 1.85 m joins 
         )
   // A vertex is shared when another line has it too (a switch, a joint, a level crossing, a culvert).
   const uses = new Map<string, number>()
-  for (const l of [...MAP.rail, ...MAP.roads, ...MAP.water])
+  for (const l of [...MAP.rail, ...WHOLE.roads, ...WHOLE.water])
     for (const k of new Set(l.pts.flatMap((_, i) => (i % 2 === 0 ? [keyAt(l.pts, i / 2)] : []))))
       uses.set(k, (uses.get(k) ?? 0) + 1)
   const shared = (pts: ReadonlyArray<number>, i: number) => uses.get(keyAt(pts, i))! > 1
@@ -238,7 +241,7 @@ test("rail: no terrain stands over at-grade track more than 6 m from a level cro
 // grid holds one level (by the Aiola tunnel's west portal the tertiary 542115787 runs 5.4 m beside
 // the line, 6 m below; south of Gragnola the Via Provinciale 9.6 m off, 6.7 m below).
 test("rail: at-grade track stands on the ground, but beside a lower road running along it", () => {
-  const roads = MAP.roads.filter((r) => r.bridge !== true && r.tunnel !== true)
+  const roads = WHOLE.roads.filter((r) => r.bridge !== true && r.tunnel !== true)
   const alongside = (x: number, y: number, z: number, dx: number, dy: number) =>
     roads.some((road) => {
       for (let k = 0; k + 1 < road.z.length; k++) {
@@ -380,7 +383,7 @@ test("rail: a drivable road tunnel under the track opens at both mouths, the ter
       }
     return false
   }
-  const under = MAP.roads.filter(
+  const under = WHOLE.roads.filter(
     (r) =>
       r.tunnel === true &&
       isDrivable(r.cls) &&

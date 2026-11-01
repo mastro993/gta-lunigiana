@@ -25,7 +25,7 @@ import {
 import { overpassShortfalls } from "./overpass-checks.ts"
 
 const { hypot } = Ops
-/** The dense layers live in the tiles: these checks read them all, joined. */
+/** The dense layers and the vectors live in the tiles: these checks read them all, joined in the whole map's order. */
 const WHOLE = wholeMap()
 const segsOf = (flat: ReadonlyArray<number>, closed = false): Array<Segment> => {
   const out: Array<Segment> = [],
@@ -173,7 +173,7 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
       ay: graph.nodes[a]!.y,
       bx: graph.nodes[b]!.x,
       by: graph.nodes[b]!.y,
-      half: MAP.roads[road]!.w / 2,
+      half: WHOLE.roads[road]!.w / 2,
     }
   })
   const lanesNear = bucketed(lanes, (l) => [l.ax, l.ay, l.bx, l.by], 10)
@@ -202,15 +202,15 @@ test("walls: none on a road; only buildings and barriers come inside w/2", () =>
   assert.ok(WHOLE.walls.walk.length > 0 && WHOLE.walls.drive.length > 0)
   const near = (x: number, y: number, ring: ReadonlyArray<number>, d: number) =>
     inRing(x, y, ring) || segsOf(ring, true).some((s) => segmentDistance(s, x, y) < d)
-  const buildings = bucketed(MAP.buildings, (b) => b.outer, 0.35),
-    barriers = bucketed(MAP.barriers, (b) => b.pts, 0.05)
+  const buildings = bucketed(WHOLE.buildings, (b) => b.outer, 0.35),
+    barriers = bucketed(WHOLE.barriers, (b) => b.pts, 0.05)
   const fixed = (s: Segment) => {
     const on = (x: number, y: number) =>
       buildings(x, y).some((b) => near(x, y, b.outer, 0.35)) ||
       barriers(x, y).some((b) => segsOf(b.pts).some((q) => segmentDistance(q, x, y) < 0.05))
     return on(s.ax, s.ay) && on(s.bx, s.by)
   }
-  for (const r of MAP.roads) {
+  for (const r of WHOLE.roads) {
     if (r.tunnel === true) continue
     for (const { x, y } of samples(r.pts, 2)) {
       if (outlineDistance(x, y) < 10) continue // road-exit caps
@@ -228,11 +228,11 @@ test("walls: none on a road; only buildings and barriers come inside w/2", () =>
 
 test("building interiors are closed: walking or driving in from the nearest road stops at the outline", () => {
   const roads = bucketed(
-    MAP.roads.flatMap((r) => segsOf(r.pts)),
+    WHOLE.roads.flatMap((r) => segsOf(r.pts)),
     (s) => [s.ax, s.ay, s.bx, s.by],
     40,
   )
-  for (const b of MAP.buildings) {
+  for (const b of WHOLE.buildings) {
     const xs = b.outer.filter((_, i) => i % 2 === 0),
       ys = b.outer.filter((_, i) => i % 2 === 1)
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
@@ -330,10 +330,12 @@ test("traffic graph: one component reaching the station, Monzone Alto and the vi
     graph.trafficEdges.every((e) => seen.has(graph.edges[e]!.a) && seen.has(graph.edges[e]!.b)),
     "traffic is connected",
   )
-  assert.ok(graph.edges.every((e) => e.length > 0 && e.length <= 25.5 && e.road < MAP.roads.length))
+  assert.ok(
+    graph.edges.every((e) => e.length > 0 && e.length <= 25.5 && e.road < WHOLE.roads.length),
+  )
   assert.ok(graph.walkEdges.length > graph.trafficEdges.length)
   assert.ok(
-    graph.walkEdges.every((e) => !isMotorRoad(MAP.roads[graph.edges[e]!.road]!)),
+    graph.walkEdges.every((e) => !isMotorRoad(WHOLE.roads[graph.edges[e]!.road]!)),
     "a walk edge on a motor road",
   )
   for (const e of graph.trafficEdges)
@@ -365,7 +367,7 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
       limit[cls] !== undefined || cls === "path" || cls === "steps",
       `${cls} has no grade limit`,
     )
-  const ends = bucketed(MAP.roads, (r) => r.pts, 0.1)
+  const ends = bucketed(WHOLE.roads, (r) => r.pts, 0.1)
   /** Both ends on another road: a link whose two junctions were set by roads profiled before it. */
   const pinned = (pts: ReadonlyArray<number>) =>
     [0, pts.length - 2].every((i) => {
@@ -375,7 +377,7 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
         (q) => q.pts !== pts && segsOf(q.pts).some((sg) => segmentDistance(sg, x, y) < 0.1),
       )
     })
-  for (const r of [...MAP.roads, ...MAP.rail.map((q) => ({ ...q, cls: "rail" }))]) {
+  for (const r of [...WHOLE.roads, ...MAP.rail.map((q) => ({ ...q, cls: "rail" }))]) {
     const max = limit[r.cls]
     if (max === undefined) continue
     const s = [0]
@@ -400,40 +402,40 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
         }
   }
   const decks = [
-    ...MAP.roads.filter((r) => r.bridge === true),
+    ...WHOLE.roads.filter((r) => r.bridge === true),
     ...MAP.rail.filter((r) => r.bridge === true),
   ]
-  for (const w of MAP.water)
+  for (const w of WHOLE.water)
     for (const d of decks)
       for (const c of crossings(w.pts, d.pts)) {
         const gap = zAt(d.z, c.j, c.u) - zAt(w.z, c.i, c.t)
         assert.ok(gap >= 2.4, `bridge ${d.id} only ${gap.toFixed(1)} m over water ${w.id}`)
       }
   for (const rl of MAP.rail)
-    for (const rd of MAP.roads)
+    for (const rd of WHOLE.roads)
       if (rl.bridge === true || rd.tunnel === true)
         for (const c of crossings(rl.pts, rd.pts)) {
           const gap = zAt(rl.z, c.i, c.t) - zAt(rd.z, c.j, c.u)
           assert.ok(gap >= 4.6, `rail ${rl.id} only ${gap.toFixed(1)} m over road ${rd.id}`)
         }
   // A road under a road bridge keeps its maxheight (4 m untagged) plus a 1.5 m deck (road-levels.ts).
-  assert.deepEqual(overpassShortfalls(MAP.roads), [])
+  assert.deepEqual(overpassShortfalls(WHOLE.roads), [])
   // A road bridge over the rail clears the ATR 220 (4.185 m over the rail head, 0.12 m over the
   // bed) under its 0.9 m deck, with 0.3 m to spare (rail-levels.ts; the Equi Terme overpass left
   // the roof 0.46 m in the deck).
   for (const rl of MAP.rail)
-    for (const rd of MAP.roads)
+    for (const rd of WHOLE.roads)
       if (rd.bridge === true && rl.tunnel !== true && rl.bridge !== true)
         for (const c of crossings(rl.pts, rd.pts)) {
           const gap = zAt(rd.z, c.j, c.u) - zAt(rl.z, c.i, c.t)
           assert.ok(gap >= 5.4, `road ${rd.id} only ${gap.toFixed(2)} m over rail ${rl.id}`)
         }
   const channels = bucketed(
-    MAP.water.flatMap((o) => segsOf(o.pts).map((s) => ({ ...s, w: o.w }))),
+    WHOLE.water.flatMap((o) => segsOf(o.pts).map((s) => ({ ...s, w: o.w }))),
     (s) => [s.ax, s.ay, s.bx, s.by],
-    Math.max(...MAP.water.map((o) => o.w / 2 + 1)),
+    Math.max(...WHOLE.water.map((o) => o.w / 2 + 1)),
   )
-  for (const w of MAP.water)
+  for (const w of WHOLE.water)
     for (let i = 0; i < w.z.length; i++) {
       const x = w.pts[2 * i]!,
         y = w.pts[2 * i + 1]!
@@ -447,7 +449,7 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
 })
 
 test("road names, classes, styles, area kinds and districts", () => {
-  const labels = new Set(MAP.roads.flatMap((r) => [r.name, r.ref]))
+  const labels = new Set(WHOLE.roads.flatMap((r) => [r.name, r.ref]))
   for (const name of [
     "SP59",
     "SP10",
@@ -458,18 +460,18 @@ test("road names, classes, styles, area kinds and districts", () => {
   ])
     assert.ok(labels.has(name), name)
   assert.ok(
-    MAP.roads.every(
+    WHOLE.roads.every(
       (r) =>
         (ROAD_CLASSES as ReadonlyArray<string>).includes(r.cls) && r.z.length * 2 === r.pts.length,
     ),
   )
   // OSM's primary, the SR445 della Garfagnana, keeps its class.
   assert.deepEqual(
-    new Set(MAP.roads.filter((r) => r.ref === "SR445").map((r) => r.cls)),
+    new Set(WHOLE.roads.filter((r) => r.ref === "SR445").map((r) => r.cls)),
     new Set(["primary"]),
   )
   assert.ok(
-    MAP.buildings.every(
+    WHOLE.buildings.every(
       (b) =>
         (BUILDING_STYLES as ReadonlyArray<string>).includes(b.style) &&
         b.tint >= 0 &&
@@ -479,22 +481,22 @@ test("road names, classes, styles, area kinds and districts", () => {
     ),
   )
   assert.ok(
-    MAP.areas.every((a) => isAreaKind(a.kind)),
+    WHOLE.areas.every((a) => isAreaKind(a.kind)),
     "every area kind is one of AREA_KINDS",
   )
   // The Regione Toscana land cover: the sparse vegetation of the high slopes (it alone has it) and the bare rock of Pizzo d'Uccello.
   assert.ok(
-    MAP.areas.some((a) => a.kind === "sparse"),
+    WHOLE.areas.some((a) => a.kind === "sparse"),
     "UCS sparse vegetation",
   )
   const uccello = MAP.pois.find((p) => p.kind === "natural=peak" && p.name === "Pizzo d'Uccello")!
   assert.ok(
-    MAP.areas.some((a) => a.kind === "rock" && inRing(uccello.x, uccello.y, a.rings[0]!)),
+    WHOLE.areas.some((a) => a.kind === "rock" && inRing(uccello.x, uccello.y, a.rings[0]!)),
     "Pizzo d'Uccello is bare rock",
   )
   // Regression: running on into the unmapped mountains, the road from Casciana lost the CTR name of its Ugliancaldo stretch.
   assert.ok(
-    MAP.roads.some((r) => r.name === "Via di Ugliancaldo"),
+    WHOLE.roads.some((r) => r.name === "Via di Ugliancaldo"),
     "Via di Ugliancaldo",
   )
   const names = new Set(MAP.districts.map((d) => d.name))
@@ -509,7 +511,7 @@ test("road names, classes, styles, area kinds and districts", () => {
     "Acquanera",
   ])
     assert.ok(names.has(name), name)
-  const centres = MAP.buildings.map((b) => {
+  const centres = WHOLE.buildings.map((b) => {
     const n = b.outer.length / 2
     return {
       x: b.outer.filter((_, i) => i % 2 === 0).reduce((a, v) => a + v, 0) / n,
@@ -544,26 +546,26 @@ test("road names, classes, styles, area kinds and districts", () => {
   // Regression: CTR names came out as "Via Xx Settembre" and "Via Castel Dell'aquila" (OSM spells it "Via Castel dell'Aquila").
   assert.ok(labels.has("Via Castel dell'Aquila") && labels.has("Via XX Settembre"))
   assert.ok(
-    MAP.roads.every((r) => !/\b(Xx|Ii|Xxiv)\b|\b(Dell|Dall|Sull|Nell)'/.test(r.name ?? "")),
+    WHOLE.roads.every((r) => !/\b(Xx|Ii|Xxiv)\b|\b(Dell|Dall|Sull|Nell)'/.test(r.name ?? "")),
     "mis-cased street name",
   )
   // Regression: its stone-core disc sat 54 m off the castle, which came out plaster.
-  assert.equal(MAP.buildings.find((b) => b.name === "Castello dell'Aquila")?.style, "stone")
+  assert.equal(WHOLE.buildings.find((b) => b.name === "Castello dell'Aquila")?.style, "stone")
 })
 
 // Regression: every way named Torrente Lucido was 8 m wide, up the Vinca valley to its source under the Garnerone.
 test("water: the Lucido is 8 m on the valley floor and 4 m above Vinca", () => {
-  const w = (id: number) => MAP.water.find((o) => o.id === id)?.w
+  const w = (id: number) => WHOLE.water.find((o) => o.id === id)?.w
   assert.deepEqual([w(254825035), w(140780317), w(696231807), w(687230881)], [8, 4, 8, 14])
 })
 
 test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, which leaves the map with Soliera's 208", () => {
-  for (const w of MAP.water)
+  for (const w of WHOLE.water)
     w.area.forEach((a, k) =>
       assert.ok(k === 0 || a >= w.area[k - 1]!, `water ${w.id} shrinks at ${k}`),
     )
   // Regression: a tributary's mouth read the receiving river's node, so a trickle's last vertex took the river's 45 km².
-  for (const w of MAP.water) {
+  for (const w of WHOLE.water) {
     const [before, mouth] = w.area.slice(-2)
     if (before !== undefined)
       assert.ok(
@@ -571,11 +573,11 @@ test("water: catchments grow downstream; the Lucido drains 47 km² where it meet
         `water ${w.id}: ${before} km² jumps to ${mouth} at its mouth`,
       )
   }
-  const lucido = MAP.water.filter((w) => w.name === "Torrente Lucido" && w.kind === "river")
+  const lucido = WHOLE.water.filter((w) => w.name === "Torrente Lucido" && w.kind === "river")
   const mouth = Math.max(...lucido.map((w) => w.area.at(-1)!))
   assert.ok(Math.abs(mouth - 47) < 2, `the Lucido drains ${mouth} km²`)
   const aulella = Math.max(
-    ...MAP.water.filter((w) => w.name === "Torrente Aulella").map((w) => w.area.at(-1)!),
+    ...WHOLE.water.filter((w) => w.name === "Torrente Aulella").map((w) => w.area.at(-1)!),
   )
   assert.ok(Math.abs(aulella - 208) < 3, `the Aulella leaves with ${aulella} km²`)
 })
@@ -585,13 +587,13 @@ test("walls: water stops neither feet nor wheels; the shore walls ring it, and p
   // within its bed.
   const { minX, minY, maxX, maxY } = MAP.bounds
   let checked = 0
-  for (const w of MAP.water.filter((o) => o.w >= 12))
+  for (const w of WHOLE.water.filter((o) => o.w >= 12))
     for (let k = 0; k < w.pts.length / 2; k += 5) {
       const x = w.pts[2 * k]!,
         y = w.pts[2 * k + 1]!
       if (
         Math.min(x - minX, maxX - x, y - minY, maxY - y) < 30 ||
-        MAP.roads.some((r) =>
+        WHOLE.roads.some((r) =>
           r.pts.some((v, i) => i % 2 === 0 && Ops.hypot(v - x, r.pts[i + 1]! - y) < 30),
         )
       )
@@ -607,8 +609,8 @@ test("walls: water stops neither feet nor wheels; the shore walls ring it, and p
 
 // Regression: OSM centrelines ran up to 3.5 m inside CTR houses; the walls opened a corridor the house drawn did not show.
 test("drivable roads never run inside a footprint: where OSM and the CTR disagree, the house gives way", () => {
-  const buildings = bucketed(MAP.buildings, (b) => b.outer, 0)
-  for (const r of MAP.roads) {
+  const buildings = bucketed(WHOLE.buildings, (b) => b.outer, 0)
+  for (const r of WHOLE.roads) {
     if (!isDrivable(r.cls) || r.tunnel === true) continue
     for (const { x, y } of samples(r.pts, 0.5)) {
       const hit = buildings(x, y).find(

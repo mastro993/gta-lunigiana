@@ -3,20 +3,24 @@
 import assert from "node:assert/strict"
 
 import { groundZ, ROAD_LIFT } from "../../sim/map/ground.ts"
-import { isDrivable, MAP, type Road, roadClassOf } from "../../sim/map/index.ts"
+import { isDrivable, type Road, roadClassOf } from "../../sim/map/index.ts"
 import { VEHICLES } from "../../sim/vehicles.ts"
 import { groundY, yOf } from "../ground.ts"
 
 /**
  * Asserts that a car's wheels and a walker crossing each drivable bridge of `roads`, both ways, from 12 m before it,
- * stay on the deck; returns how many crossings it made. The car's wheels are the sim's: each keeps to the level of its
- * previous contact, as the drive physics does; walkers stand where the renderer puts them.
+ * stay on the deck, but from the mouth of a tunnel of `around` (the roads round them); returns how many crossings it
+ * made. The car's wheels are the sim's: each keeps to the level of its previous contact, as the drive physics does;
+ * walkers stand where the renderer puts them.
  */
-export const assertBridgesCarry = (roads: ReadonlyArray<Road>): number => {
+export const assertBridgesCarry = (
+  roads: ReadonlyArray<Road>,
+  around: ReadonlyArray<Road>,
+): number => {
   const { wheels } = VEHICLES.carabinieri
   // The straight approach out of a tunnel runs through the hillside (the old marble road up the Solco di Equi bends between its tunnels and bridges).
   const tunnelEnd = (x: number, y: number) =>
-    MAP.roads.some(
+    around.some(
       (q) =>
         q.tunnel === true &&
         [0, q.pts.length - 2].some((i) => Math.hypot(q.pts[i]! - x, q.pts[i + 1]! - y) < 0.1),

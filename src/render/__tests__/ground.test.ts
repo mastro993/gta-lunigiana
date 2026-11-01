@@ -7,12 +7,14 @@ import { MAP } from "../../sim/map/index.ts"
 import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
 import { dropTile, nodeAt, setTileSource } from "../../sim/map/tiles.ts"
 import { farTerrainY, groundY, terrainResident, terrainY, yOf } from "../ground.ts"
-import { residentAround } from "../testing.ts"
+import { residentAround, vectorsAround } from "../testing.ts"
 import { assertBridgesCarry } from "./bridges.ts"
 
 const hm = MAP.heightmap
 /** Monzone station. */
 const STATION = { x: -493.8, y: 436.9 }
+/** The roads of the tiles within 2 km of it, in the map's order. */
+const ROADS = vectorsAround([STATION], 2000).roads.items
 
 test("terrainY hits the heightmap nodes (row 0 = south) and stays planar inside a triangle", () => {
   for (const [i, j] of [
@@ -56,7 +58,7 @@ test("farTerrainY is terrainY where the terrain is in memory and the coarse grid
 })
 
 test("groundY stands on a bridge deck from above and on the river bank from below", () => {
-  const bridge = MAP.roads.find((r) => r.bridge === true && r.cls === "tertiary")!
+  const bridge = ROADS.find((r) => r.bridge === true && r.cls === "tertiary")!
   const x = (bridge.pts[0]! + bridge.pts[2]!) / 2,
     y = (bridge.pts[1]! + bridge.pts[3]!) / 2
   const deck = yOf((bridge.z[0]! + bridge.z[1]!) / 2) + ROAD_LIFT.tertiary
@@ -74,9 +76,7 @@ test("groundY stands on a bridge deck from above and on the river bank from belo
 })
 
 test("groundY stands on an at-grade road when arriving from the terrain beside it", () => {
-  const road = MAP.roads.find(
-    (r) => r.bridge !== true && r.tunnel !== true && r.cls === "tertiary",
-  )!
+  const road = ROADS.find((r) => r.bridge !== true && r.tunnel !== true && r.cls === "tertiary")!
   const x = (road.pts[0]! + road.pts[2]!) / 2,
     y = (road.pts[1]! + road.pts[3]!) / 2
   assert.ok(groundY(x, y) > terrainY(x, y), "the road surface floats above the terrain")
@@ -92,13 +92,13 @@ test("groundY stands on an at-grade road when arriving from the terrain beside i
 // nearer than the climbing deck, so the car (and walkers) dropped 1.9 m under it (ground.map-test.ts crosses every bridge
 // of the map).
 test("a car's wheels and a walker crossing every drivable bridge within 2 km of Monzone, Colognola's among them, both ways, from 12 m before it, stay on the deck", () => {
-  const near = MAP.roads.filter(
+  const near = ROADS.filter(
     (r) => r.bridge === true && Math.hypot(r.pts[0]! - STATION.x, r.pts[1]! - STATION.y) < 2000,
   )
   assert.ok(
     near.some((r) => r.id === 810591030),
     "the bridge near Colognola",
   )
-  const passes = assertBridgesCarry(near)
+  const passes = assertBridgesCarry(near, ROADS)
   assert.ok(passes >= 10, `${passes} passes`)
 })

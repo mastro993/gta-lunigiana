@@ -16,7 +16,7 @@
 import { MAP, RAIL_LIFT } from "../sim/map/index.ts"
 import { CROSSINGS } from "../sim/rail/crossings.ts"
 import { BARRIER, ROAD_LIGHT } from "./crossings.ts"
-import { type Piece, type Sink, Triangles, WaterTriangles } from "./geometry.ts"
+import { type Box, type Piece, type Sink, Triangles, WaterTriangles } from "./geometry.ts"
 import { atGradeY, surfaceY, terrainY, yOf } from "./ground.ts"
 import { deck } from "./lines.ts"
 import { PALETTE } from "./palette.ts"
@@ -376,26 +376,36 @@ const crossingParts = (roads: ReadonlyArray<Piece>, b: number): Sink => {
   return built
 }
 
+/** The world's road and river pieces round map point (x, y) (those of the map tiles round it): every one within the tiles' halo of it. */
+export type RoadsNear = (x: number, y: number) => ReadonlyArray<Piece>
+
 /**
- * Each level crossing as one piece at its middle, whole in its chunk (`crossingParts`): built on its first draw, where it
- * reads the ground under the road ribbons it lies over, then copied.
+ * Each level crossing as one piece at its middle, whole in its chunk (`crossingParts`), laid over the road ribbons `roads`
+ * gives round it, which come with the map tiles: so where it reads the ground (`reads`) is worked out when first asked,
+ * and its parts on its first draw, then kept for the piece's life and copied, however the tiles come and go.
  */
-const crossings = (roads: ReadonlyArray<Piece>): Array<Piece> =>
+const crossings = (roads: RoadsNear): Array<Piece> =>
   MAP.railway.crossings.map((crossing, b) => {
-    let built: Sink | undefined
+    const { x, y } = BOXES[b]!
+    let built: Sink | undefined, reads: Box | undefined
     return {
       pts: [crossing.x, crossing.y],
-      reads: surfaceReads(roads, BOXES[b]!.x, BOXES[b]!.y, BOX_REACH),
+      get reads(): Box {
+        return (reads ??= surfaceReads(roads(x, y), x, y, BOX_REACH))
+      },
       draw: (at) => {
-        built ??= crossingParts(roads, b)
+        built ??= crossingParts(roads(x, y), b)
         const sink = at(crossing.x, crossing.y)
         for (const layer of ["solid", "decal"] as const) append(built[layer], sink[layer])
       },
     }
   })
 
-/** Every static railway piece of the map: the track, the crossings' fixed parts (laid over `roads`, the world's road pieces from `linePieces`) and the tunnel portals. */
-export const railPieces = (roads: ReadonlyArray<Piece>): Array<Piece> => [
+/**
+ * Every static railway piece of the map: the track, the crossings' fixed parts (laid over the road ribbons `roads` gives
+ * round each) and the tunnel portals. Making them reads no map tile.
+ */
+export const railPieces = (roads: RoadsNear): Array<Piece> => [
   ...track(),
   ...crossings(roads),
   ...portalPieces(),

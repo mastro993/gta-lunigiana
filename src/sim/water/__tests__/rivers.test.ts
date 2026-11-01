@@ -94,8 +94,8 @@ test("rivers: a lake stands still at its level, the bank toward its nearest shor
 test("rivers: a water area's surface whatever the flow, as the render draws it", () => {
   const [lake, river] = index.pools
   assert.equal(lake!.level, 95, "lakes first")
-  assert.deepEqual(index.surface(lake!, 320, 100), { bed: 95, stage: 0, ux: 1, uy: 0, speed: 0 })
-  const s = index.surface(river!, 140, 130)
+  assert.deepEqual(lake!.surface(320, 100), { bed: 95, stage: 0, ux: 1, uy: 0, speed: 0 })
+  const s = river!.surface(140, 130)
   assert.ok(Math.abs(s.bed - 96.6) < 1e-9, "the bed of the nearest reach, 40 m along it")
   assert.ok(s.stage > 0 && s.speed > 0 && s.ux === 1)
   const level = index.at(140, 130, 96, Q)!.level

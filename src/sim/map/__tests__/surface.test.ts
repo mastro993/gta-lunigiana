@@ -1,11 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP } from "../index.ts"
 import { surfaceAt } from "../surface.ts"
+import { roadsNear } from "./vectors-near.ts"
 
 const FOREST = { x: 500, y: -400 },
   MEADOW = { x: -329, y: 1078 }
+/** The roads of the four tiles round Monzone station (-493.8, 436.9) and the tiles' corner (0, 0). */
+const ROADS = roadsNear(-493.8, 436.9, 1500)
 
 test("surfaces: road carriageways by their OSM surface, the forest floor, a meadow", () => {
   // Midway along the longest segment of the first road of each surface, away from any junction.
@@ -16,7 +18,7 @@ test("surfaces: road carriageways by their OSM surface, the forest floor, a mead
     ["track", "gravel", "gravel"],
   ] as const
   for (const [cls, surface, expected] of cases) {
-    const { pts } = MAP.roads.find(
+    const { pts } = ROADS.find(
       (r) => r.cls === cls && r.surface === surface && r.tunnel !== true && r.bridge !== true,
     )!
     const length = (i: number) => (pts[i + 2]! - pts[i]!) ** 2 + (pts[i + 3]! - pts[i + 1]!) ** 2
@@ -34,8 +36,8 @@ test("surfaces: road carriageways by their OSM surface, the forest floor, a mead
 
 test("surfaces by level: the hillside over a tunnel is its own cover, the deck only on the deck", () => {
   const tunnel =
-    MAP.roads.find((r) => r.tunnel === true && r.surface === "unpaved" && r.cls === "track") ??
-    MAP.roads.find((r) => r.tunnel === true && r.cls === "track")!
+    ROADS.find((r) => r.tunnel === true && r.surface === "unpaved" && r.cls === "track") ??
+    ROADS.find((r) => r.tunnel === true && r.cls === "track")!
   const k = Math.floor(tunnel.z.length / 2) - 1
   const x = (tunnel.pts[2 * k]! + tunnel.pts[2 * k + 2]!) / 2,
     y = (tunnel.pts[2 * k + 1]! + tunnel.pts[2 * k + 3]!) / 2,

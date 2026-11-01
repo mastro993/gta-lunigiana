@@ -3,10 +3,10 @@ import { test } from "node:test"
 
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
-import { ringBox } from "../../tools/geometry.ts"
 import { pointInRing } from "../collide.ts"
 import { Game, type Look } from "../index.ts"
-import { buildingsIn, graph, MAP } from "../map/index.ts"
+import { graph, MAP } from "../map/index.ts"
+import { buildingsIn } from "../map/vectors.ts"
 import { EDGE_REACH } from "../population/density.ts"
 import { PARKING, pristine } from "../population/parked.ts"
 import {
@@ -319,8 +319,7 @@ test("populate: traffic and pedestrians fill in out of view around a moving play
 test("populate: pedestrians spawn in the villages, never inside a house, and none in the woods", () => {
   const indoors = (p: { readonly x: number; readonly y: number }) => {
     let inside = false
-    buildingsIn(p.x, p.y, p.x, p.y, (i) => {
-      const b = MAP.buildings[i]!
+    buildingsIn(p.x, p.y, p.x, p.y, (_, b) => {
       inside ||=
         pointInRing(p.x, p.y, b.outer) && !(b.holes ?? []).some((h) => pointInRing(p.x, p.y, h))
     })
@@ -330,8 +329,7 @@ test("populate: pedestrians spawn in the villages, never inside a house, and non
   const lonely = (n: { readonly x: number; readonly y: number }) => {
     const reach = EDGE_REACH + PEDESTRIANS.spawn[1]
     let alone = true
-    buildingsIn(n.x - reach, n.y - reach, n.x + reach, n.y + reach, (i) => {
-      const [x0, y0, x1, y1] = ringBox(MAP.buildings[i]!.outer)
+    buildingsIn(n.x - reach, n.y - reach, n.x + reach, n.y + reach, (_, __, [x0, y0, x1, y1]) => {
       alone &&= Ops.hypot(Math.max(x0 - n.x, 0, n.x - x1), Math.max(y0 - n.y, 0, n.y - y1)) > reach
     })
     return alone

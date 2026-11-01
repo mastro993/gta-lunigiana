@@ -1,14 +1,16 @@
 /**
  * What stands between a sound and the listener: the Maekawa path difference δ over the highest
  * obstacle on the straight path, from building walls (up to the eaves, `z0 + h`) and the terrain
- * profile (exact where its tiles are in memory, else the coarse grid's: `./ground.ts`). `diffraction`
- * (acoustics.ts) turns δ into a loss and a lowpass. Trees, water banks and the sim's collision walls
- * are not acoustic obstacles here.
+ * profile, each exact where its tiles are in memory: past them the terrain is the coarse grid's
+ * (`./ground.ts`) and the buildings are passed over (`buildingsInMemory`), so a path to a bell 5 km
+ * off reads no tile that is not there. `diffraction` (acoustics.ts) turns δ into a loss and a
+ * lowpass. Trees, water banks and the sim's collision walls are not acoustic obstacles here.
  *
  * @module audio/occlusion
  */
 import { pointInRing } from "../sim/collide.ts"
-import { buildingBoxes, buildingsIn, MAP } from "../sim/map/index.ts"
+import type { Building } from "../sim/map/index.ts"
+import { type Box, buildingsInMemory } from "../sim/map/vectors.ts"
 import { terrainAt } from "./ground.ts"
 
 /** A point in the world frame: x east, y north (m), z elevation a.s.l. (m). */
@@ -22,26 +24,23 @@ export interface Point3 {
 const STEP = 7,
   END = 3
 
-/** Whether (x, y) is within building i's walls (not in a courtyard). */
-const within = (i: number, x: number, y: number): boolean => {
-  const [x0, y0, x1, y1] = buildingBoxes[i]!,
-    { outer, holes } = MAP.buildings[i]!
-  return (
-    x >= x0 &&
-    x <= x1 &&
-    y >= y0 &&
-    y <= y1 &&
-    pointInRing(x, y, outer) &&
-    !(holes ?? []).some((hole) => pointInRing(x, y, hole))
-  )
-}
+/** Whether (x, y) is within the walls of `building`, whose outer ring's box is `box` (not in a courtyard). */
+const within = ({ outer, holes }: Building, [x0, y0, x1, y1]: Box, x: number, y: number): boolean =>
+  x >= x0 &&
+  x <= x1 &&
+  y >= y0 &&
+  y <= y1 &&
+  pointInRing(x, y, outer) &&
+  !(holes ?? []).some((hole) => pointInRing(x, y, hole))
 
 /**
  * The largest Maekawa path difference δ = |ST| + |TR| − |SR| (m) over the edges T that rise above
  * the straight path from `from` to `to`: building walls crossed (exact ring-edge crossings) and
  * terrain samples every 7 m. 0 when the line of sight is clear. Endpoints carry their own height:
  * callers add `EAR_HEIGHT` or the source's height above the ground. A building an endpoint stands
- * in hides nothing from it: a bell at its tower's top rings out over its own walls.
+ * in hides nothing from it: a bell at its tower's top rings out over its own walls. Only buildings
+ * on tiles in memory count: a path whose tiles are all in memory is exact (it takes the largest δ,
+ * so the order buildings come in does not matter).
  */
 export const pathDifference = (from: Point3, to: Point3): number => {
   const { x: sx, y: sy, z: sz } = from,
@@ -83,20 +82,25 @@ export const pathDifference = (from: Point3, to: Point3): number => {
     t1 = Math.min(t1, Math.max(lo / p, hi / p))
     return t0 <= t1
   }
-  buildingsIn(
+  buildingsInMemory(
     Math.min(sx, to.x),
     Math.min(sy, to.y),
     Math.max(sx, to.x),
     Math.max(sy, to.y),
-    (i) => {
-      const [x0, y0, x1, y1] = buildingBoxes[i]!,
-        { z0, h, outer, holes } = MAP.buildings[i]!,
+    (_, building, box) => {
+      const { z0, h, outer, holes } = building,
+        [x0, y0, x1, y1] = box,
         top = z0 + h
       t0 = 0
       t1 = 1
       if (!slab(dx, x0 - sx, x1 - sx) || !slab(dy, y0 - sy, y1 - sy)) return
       // The walls must rise above the path's lowest point over the box.
-      if (top <= sz + dz * (dz > 0 ? t0 : t1) || within(i, sx, sy) || within(i, to.x, to.y)) return
+      if (
+        top <= sz + dz * (dz > 0 ? t0 : t1) ||
+        within(building, box, sx, sy) ||
+        within(building, box, to.x, to.y)
+      )
+        return
       ring(outer, top)
       for (const hole of holes ?? []) ring(hole, top)
     },

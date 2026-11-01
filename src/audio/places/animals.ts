@@ -1,14 +1,15 @@
 /**
  * The animals the valley holds for the ear: farm dogs in their yards, owls in their woods, and the
  * trees songbirds sing from. Dogs and owls are found where they are first asked for, each once the
- * tiles it reads are in memory (`../ground.ts`), and kept: they stand where they always did, whichever
- * tiles came first.
+ * tiles it reads (a dog's building's and its yard's) are in memory (`../ground.ts`), and kept: they
+ * stand where they always did, whichever tiles came first.
  *
  * @module audio/places/animals
  */
 import { type Cover, coverAt } from "../../sim/map/cover.ts"
-import { buildingBoxes, buildingsIn, heightAt, MAP, TILE, treesIn } from "../../sim/map/index.ts"
+import { type Building, heightAt, MAP, TILE, treesIn } from "../../sim/map/index.ts"
 import { isListed } from "../../sim/map/tiles.ts"
+import { type Box, buildingsInMemory } from "../../sim/map/vectors.ts"
 import { hash01 } from "../../tools/geometry.ts"
 import { exactAt } from "../ground.ts"
 
@@ -27,19 +28,25 @@ const DOG_SHARE = 8,
   YARD = 5
 const YARD_COVERS: ReadonlySet<Cover> = new Set(["meadow", "grassland", "farmland", "farmyard"])
 
-/** Each kennel building's dog (null: none), by its index in `MAP.buildings`, once worked out. */
+/** Each kennel building's dog (null: none), by its index in the whole map's buildings, once worked out. */
 const dogs = new Map<number, Dog | null>()
+
+/** A building a dog search found: its index in the whole map's buildings, and its outer ring's box. */
+interface Found {
+  readonly i: number
+  readonly building: Building
+  readonly box: Box
+}
 
 /**
  * Building i's dog, if it has one: a hashed pick among the kennel buildings, in the first open yard
  * probed around it. None while a probe's tile is not in memory: it is worked out when asked again.
  */
-const dogOf = (i: number): Dog | undefined => {
-  const { id, kind } = MAP.buildings[i]!
+const dogOf = ({ i, building: { id, kind }, box }: Found): Dog | undefined => {
   if (!KENNELS.has(kind) || hash01(id, 1) * DOG_SHARE >= 1) return undefined
   const known = dogs.get(i)
   if (known !== undefined) return known ?? undefined
-  const [bx0, by0, bx1, by1] = buildingBoxes[i]!,
+  const [bx0, by0, bx1, by1] = box,
     cx = (bx0 + bx1) / 2,
     cy = (by0 + by1) / 2
   const probes = [
@@ -60,16 +67,21 @@ const dogOf = (i: number): Dog | undefined => {
   return dog ?? undefined
 }
 
-/** The dogs within `radius` m of (x, y), in the buildings' order. */
+/**
+ * The dogs within `radius` m of (x, y), in the buildings' order: those of the buildings on the
+ * tiles in memory (every one round the player), so no tile is read that is not there.
+ */
 export const dogsNear = (x: number, y: number, radius: number): ReadonlyArray<Dog> => {
-  const near: Array<number> = []
-  // A dog stands within `YARD` m of its building's box.
+  const near: Array<Found> = []
+  // A dog stands within `YARD` m of its building's box; sorted by index, the buildings come in the whole map's order.
   const reach = radius + YARD
-  buildingsIn(x - reach, y - reach, x + reach, y + reach, (i) => void near.push(i))
+  buildingsInMemory(x - reach, y - reach, x + reach, y + reach, (i, building, box) => {
+    near.push({ i, building, box })
+  })
   return near
-    .sort((a, b) => a - b)
-    .flatMap((i) => {
-      const dog = dogOf(i)
+    .sort((a, b) => a.i - b.i)
+    .flatMap((found) => {
+      const dog = dogOf(found)
       return dog !== undefined && (dog.x - x) ** 2 + (dog.y - y) ** 2 <= radius * radius
         ? [dog]
         : []

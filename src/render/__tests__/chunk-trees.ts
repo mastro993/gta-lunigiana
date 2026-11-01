@@ -51,17 +51,14 @@ export const assertChunkTrees = (
     for (const mx of xs)
       for (const my of ys) if (mx !== x || my !== y) put(mx, my, scale, 3 * id + 1)
   }
-  const tiles = chunkTiles(
-      [],
-      Array.from({ length: count }, () => []),
-    ),
+  const tiles = chunkTiles(),
     given = new Set(keys.map((key) => tiles.index.get(key)!)),
     buckets = new Map([...given].map((t) => [t, bucketTileTrees(tiles.keys[t]!)]))
   let checked = 0,
     mirrored = 0
   for (let key = 0; key < count; key++) {
-    if (!tiles.needs[key]!.every((t) => given.has(t))) continue
-    const got = chunkTrees(tiles.needs[key]!.map((t) => buckets.get(t)!.get(key)))
+    if (!tiles.base[key]!.every((t) => given.has(t))) continue
+    const got = chunkTrees(tiles.base[key]!.map((t) => buckets.get(t)!.get(key)))
     const expected = whole.get(key) ?? []
     if (got === undefined) {
       assert.equal(expected.length, 0, `chunk ${key} has trees`)

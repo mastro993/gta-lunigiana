@@ -37,10 +37,7 @@ import { World } from "../world.ts"
 
 const count = CHUNKS.x * CHUNKS.y
 /** Every chunk's box from its tiles' lowest and highest nodes (no tile read): it holds the exact one. */
-const bound = chunkTiles(
-  [],
-  Array.from({ length: count }, () => []),
-).boxes
+const bound = chunkTiles().boxes
 /** The exact boxes (`exactBox` reads the terrain) of the chunks measured so far, as a whole-map build would measure them. */
 const exact = new Float32Array(count * 6),
   measured = new Set<number>()
@@ -297,6 +294,7 @@ test("world streaming: a chunk builds only once every tile its build reads is in
   world.update(focus, 0, REACH, Infinity)
   const wanted = [...world.wanted()],
     every = within(focus, load)
+  // With no tile in, each chunk wants its base, the tiles under its square; what its pieces read past it, once that is in.
   assert.deepEqual(wanted.toSorted(), ["-1_-1", "-1_0", "0_-1", "0_0"])
   // Every tile but one in, that one out of memory and nowhere to read it from: a build reading it throws.
   const out = "0_0"
@@ -327,6 +325,44 @@ test("world streaming: a chunk builds only once every tile its build reads is in
   } finally {
     setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
   }
+})
+
+/** A built chunk's meshes as their vertices (a tree mesh's instances). */
+const shapes = (world: World) =>
+  new Map(
+    [...world.loaded].map(([key, meshes]) => [
+      key,
+      meshes.map((m) =>
+        m instanceof InstancedMesh
+          ? m.instanceMatrix.array
+          : m.geometry.getAttribute("position").array,
+      ),
+    ]),
+  )
+
+test("world streaming: handed its tiles in either order, or one let go and handed back, a world builds the same chunks, vertex for vertex", () => {
+  // Round the origin, where the roads and rivers crossing the seams lie in every tile they come near.
+  const focus = ground(0, 0),
+    first = new World(new Group())
+  streamAround(first, focus)
+  const keys = [...first.wanted()].toSorted(),
+    second = new World(new Group())
+  assert.ok(keys.length >= 4, keys.join(" "))
+  for (const key of keys.toReversed()) second.tileProvided(key)
+  second.update(focus, 0, REACH, Infinity)
+  assert.deepEqual(shapes(second), shapes(first))
+  // Let go, a tile takes only the pieces no other tile in holds: the chunks that do not read it build again the same with
+  // it out (their roads across the seam still the other tiles'); back in, the world is the first one again.
+  second.tileDropped("0_0")
+  second.update(ground(2000, 1500), 0, REACH, Infinity)
+  assert.equal(second.loaded.size, 0, "every chunk dropped")
+  second.update(focus, 0, REACH, Infinity)
+  const without = shapes(second)
+  assert.ok(without.size > 0 && without.size < first.loaded.size, `${without.size} chunks`)
+  for (const [key, meshes] of without) assert.deepEqual(meshes, shapes(first).get(key))
+  second.tileProvided("0_0")
+  second.update(focus, 0, REACH, Infinity)
+  assert.deepEqual(shapes(second), shapes(first))
 })
 
 // Regression (review of #5): chunks wholly behind the camera's near plane still asked for their tiles, so on mountain roads

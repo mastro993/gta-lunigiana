@@ -13,7 +13,7 @@ import { wrapAngle } from "../body.ts"
 import { resting } from "../chassis.ts"
 import { staticGrid } from "../collide.ts"
 import { mix } from "../hash.ts"
-import { MAP, type ParkedSpot, roadClassOf } from "../map/index.ts"
+import { MAP, type ParkedSpot } from "../map/index.ts"
 import { roadOf, trafficIndex } from "../route.ts"
 import { type DamageValue, Game, Parked, type PoseValue } from "../schema.ts"
 import { parkedCar, randomColor } from "../spawning.ts"
@@ -53,8 +53,7 @@ const SPOTS = MAP.spawns.parked
 const level = (model: VehicleModel, spot: ParkedSpot): boolean => spot.rest[model] !== undefined
 /** The kerbs a marble truck parks by: the main roads with parked spots (spawns.ts parks none by a motorway or trunk road). */
 const TRUCK_KERBS: ReadonlySet<string> = new Set(["primary", "secondary", "tertiary"])
-const onMainRoad = (s: Vec2.Vec2) =>
-  TRUCK_KERBS.has(roadClassOf(roadOf(trafficIndex.nearest(s.x, s.y))))
+const onMainRoad = (s: Vec2.Vec2) => TRUCK_KERBS.has(roadOf(trafficIndex.nearest(s.x, s.y)).cls)
 
 const police = MAP.spawns.police
 /** The two spots nearest the Carabinieri station the build chose where a Carabinieri car stands level: theirs, never a civilian's. */

@@ -36,12 +36,8 @@ const map: MonzoneMap = {
     cover: Uint8Array.from([0, 1, 21, 3, 0, 7]),
   },
   roads: [],
-  buildings: [],
-  water: [],
   rail: [],
   railway: { lines: [], stations: [], crossings: [], platforms: [] },
-  areas: [],
-  barriers: [],
   pois: [],
   districts: [{ name: "Monzone\nAlto", x: 0, y: 0, r: 30 }], // a newline in a string must not end the JSON line
   graph: { xy: [0, 0, 1, 1], edges: [0, 1, 0], traffic: [0], walk: [0] },
@@ -56,6 +52,11 @@ const map: MonzoneMap = {
     },
     counts: { walk: 12, drive: 9 },
   },
+  vectors: {
+    halo: 32,
+    counts: { roads: 0, buildings: 0, water: 0, areas: 0, barriers: 0 },
+    lattice: { buildings: [0, 0], water: [0, 0] },
+  },
   spawns: {
     player: { x: 1, y: 2, angle: -0.5 },
     parked: [{ x: 3, y: 4, angle: 1, rest: { panda: [301.2, 0.01, -0.02] }, truck: true }],
@@ -63,6 +64,14 @@ const map: MonzoneMap = {
   lanes: { panda: [1.8, -1], ape: [1.6, 1.6], truck: [-1, -1], carabinieri: [1.5, 0] },
   farms: [{ building: 0, rural: true, pen: false }],
   lamps: [{ x: 1, y: 2, z: 304.5, nx: 0, ny: 1, kind: "wall" }],
+  derived: {
+    crossings: [],
+    platforms: [],
+    stations: [],
+    bells: [{ id: 7, x: 1.5, y: 2.25, z: 320.5, h: 18 }],
+    residents: [0, Math.fround(1.3)],
+    farms: [3.5, 4.25],
+  },
 }
 
 test("packMap and decodeMap round-trip the global file (a newline inside a name, the coarse grid); a file of another version throws", () => {
@@ -71,7 +80,7 @@ test("packMap and decodeMap round-trip the global file (a newline inside a name,
   const old = Buffer.from(`${JSON.stringify({ version: 2 })}\n`)
   assert.throws(
     () => decodeMap(old),
-    /the global map file is version 2, this decoder reads 3; run pnpm map/,
+    /the global map file is version 2, this decoder reads 4; run pnpm map/,
   )
 })
 
@@ -96,6 +105,48 @@ const tile = {
   trees: Float64Array.from([-2100, -100, 0.8, 30667, 1999, 1.3]),
   ids: Int32Array.from([5, 1_000_000]),
   cover: Uint8Array.from({ length: TILE_CELLS * TILE_CELLS }, (_, k) => (k * 13) % 22),
+  // full-precision doubles (a baked floor) come back exact
+  vectors: {
+    roads: {
+      ids: [4, 9],
+      items: [
+        { pts: [-1990.1, 3.4, -1980, 3.4], z: [301.2, 302.25] },
+        { pts: [0, 0], z: [1] },
+      ],
+    },
+    buildings: {
+      ids: [2],
+      items: [
+        {
+          id: -7,
+          kind: "house",
+          h: 6.5,
+          z0: 300.1,
+          style: "stone",
+          tint: 2,
+          outer: [0, 0, 4, 0, 4, 3],
+        },
+      ],
+    },
+    water: {
+      ids: [0],
+      items: [
+        {
+          id: 11,
+          kind: "stream",
+          w: 2,
+          bed: 3,
+          depth: 1,
+          pts: [5, 5, 9, 9],
+          z: [299.4, 299.1],
+          area: [1.25, 1.31],
+          floor: [Math.PI * 95, 0.1 + 0.2],
+        },
+      ],
+    },
+    areas: { ids: [], items: [] },
+    barriers: { ids: [1], items: [{ kind: "guard_rail", pts: [1, 2, 3, 4] }] },
+  },
 }
 
 test("packTile and decodeTile round-trip a tile (negative values, the widest deltas, an empty section); a value too far throws", () => {

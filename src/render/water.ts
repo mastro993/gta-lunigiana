@@ -13,7 +13,7 @@ import { fillPolygon, pointInRing } from "../sim/collide.ts"
 import { terrainNodeZ } from "../sim/map/ground.ts"
 import { MAP } from "../sim/map/index.ts"
 import { anchorOf } from "../sim/map/kinds.ts"
-import { POOLS, poolSurface } from "../sim/water/rivers.ts"
+import { poolsAt, poolsIn } from "../sim/water/rivers.ts"
 import { chunkCells } from "./chunks.ts"
 import type { Flowing, WaterTriangles } from "./geometry.ts"
 import { yOf } from "./ground.ts"
@@ -43,7 +43,7 @@ export const inPool = (x: number, y: number): boolean => {
     cj = clampCell(Math.floor((y - anchor.y) / hm.cell) + anchor.j, LAST.j)
   const cx = hm.x0 + (ci + 0.5) * hm.cell,
     cy = hm.y0 + (cj + 0.5) * hm.cell
-  return POOLS.some((pool) => {
+  return poolsAt(cx, cy).some((pool) => {
     if (cx < pool.box[0] || cx > pool.box[2] || cy < pool.box[1] || cy > pool.box[3]) return false
     let inside = false
     for (const ring of pool.rings) if (pointInRing(cx, cy, ring)) inside = !inside
@@ -53,7 +53,8 @@ export const inPool = (x: number, y: number): boolean => {
 
 /**
  * Draws the lakes' and river polygons' cells of chunk `key` into `into`; in the apron, the edge cells'
- * water carried on as the terrain carries their nodes. Reads the terrain of the chunk's own cells.
+ * water carried on as the terrain carries their nodes. Reads the terrain and the water areas of the
+ * tiles under the chunk's own cells.
  */
 export const poolWater = (key: number, into: WaterTriangles): void => {
   const { i0, j0, i1, j1 } = chunkCells(key)
@@ -68,7 +69,7 @@ export const poolWater = (key: number, into: WaterTriangles): void => {
     minY = hm.y0 + r0 * hm.cell,
     maxX = hm.x0 + (c1 + 1) * hm.cell,
     maxY = hm.y0 + (r1 + 1) * hm.cell
-  for (const pool of POOLS) {
+  for (const pool of poolsIn(minX, minY, maxX, maxY)) {
     const [px0, py0, px1, py1] = pool.box
     if (px1 < minX || px0 > maxX || py1 < minY || py0 > maxY) continue
     const wet = new Uint8Array(cols * rows)
@@ -89,8 +90,7 @@ export const poolWater = (key: number, into: WaterTriangles): void => {
         key = nj * hm.cols + ni
       let v = nodes.get(key)
       if (v === undefined) {
-        const { bed, stage, ux, uy, speed } = poolSurface(
-          pool,
+        const { bed, stage, ux, uy, speed } = pool.surface(
           hm.x0 + ni * hm.cell,
           hm.y0 + nj * hm.cell,
         )

@@ -1,18 +1,36 @@
-// Cesena's roads as built (cesena.test.ts, in pnpm test, checks its landmarks and its start): the
-// clearance under every road bridge, and the Secante, the region's one trunk road, with its slip
-// roads: driven by traffic but no Ape, and nobody walking them or parked by them.
+// Cesena's roads and river as built (cesena.test.ts, in pnpm test, checks its landmarks and its
+// start): the clearance under every road bridge, the Secante, the region's one trunk road, with its
+// slip roads: driven by traffic but no Ape, and nobody walking them or parked by them; and every
+// piece of the Savio. The vectors live in the tiles: these checks read the map whole, joined.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { overpassShortfalls } from "../../sim/map/__tests__/overpass-checks.ts"
 import { isMotorRoad } from "../../sim/map/kinds.ts"
-import { decodeMap, MAP_URL, readMapFile } from "../../sim/map/packed.ts"
 import { segDist2 } from "../geometry.ts"
+import { wholeMap } from "../map-file.ts"
 
-const map = decodeMap(readMapFile(new URL("cesena.bin", MAP_URL)))
+const map = wholeMap("cesena")
 const roadOf = (edge: number) => map.roads[map.graph.edges[3 * edge + 2]!]!
 
+// A road without its line would pass every check below unchecked.
+test("Cesena: every road has its line", () => {
+  assert.ok(map.roads.length > 0, "no roads")
+  for (const r of map.roads)
+    assert.ok(r.pts.length >= 4 && r.z.length * 2 === r.pts.length, `road ${r.id} has no line`)
+})
+
+test("the Savio uses its mapped riverbanks rather than the mountain-stream default", () => {
+  const savio = map.water.filter((water) => water.name?.includes("Savio"))
+  assert.ok(savio.length > 0)
+  assert.ok(savio.every((water) => water.w > 8 && water.w <= 120))
+})
+
 test("Cesena: every road under a road bridge keeps its clearance", () => {
+  assert.ok(
+    map.roads.some((r) => r.bridge === true),
+    "no road bridge to check",
+  )
   assert.deepEqual(overpassShortfalls(map.roads), [])
 })
 
@@ -32,6 +50,7 @@ test("Cesena: the Secante (SS726) is trunk and its slip roads ramps; traffic dri
       )
   })
   // A parked car stands w/2 + 1 m off its road's centreline: none that near a motor road's.
+  assert.ok(map.spawns.parked.length > 0, "no parked spots")
   for (const s of map.spawns.parked)
     for (const r of motor)
       for (let i = 0; i + 3 < r.pts.length; i += 2)

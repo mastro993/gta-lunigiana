@@ -1,28 +1,21 @@
 /**
  * The minimap: the map round the player (areas, water, rail, roads, buildings), blitted every frame
  * from offscreen canvases of one 2 km tile each, turned with the view so that screen-up is
- * minimap-up, with the player as an arrow. A tile's canvas is painted from the map's global vectors
- * once the player comes within `PAINT` of it (one a frame, nearest first) and let go past `EVICT`,
- * so a few are kept whatever the map's size: one canvas of the whole region would pass Safari's
- * 16.7 MP. `paintMap` and `paintArrow` also draw the full map (`worldmap.ts`).
+ * minimap-up, with the player as an arrow. A tile's canvas is painted from that tile's own vectors
+ * (and the global rail reaching it) once the player comes within `PAINT` of it and the tile is in
+ * memory (one a frame, nearest first; it never asks for a tile), and let go past `EVICT`, so a few
+ * are kept whatever the map's size: one canvas of the whole region would pass Safari's 16.7 MP.
+ * `paintArrow` also draws the full map's marker (`worldmap.ts`).
  *
  * @module hud/minimap
  */
 import { roadHex } from "../render/lines.ts"
+import { faded, type MapLayers, paintLayers, type RoadLook } from "../render/map-style.ts"
 import { css, PALETTE } from "../render/palette.ts"
-import {
-  type AreaKind,
-  buildingBoxes,
-  isAreaKind,
-  isWaterArea,
-  MAP,
-  ROAD_CLASSES,
-  roadClassOf,
-  type RoadClass,
-  TILE,
-} from "../sim/map/index.ts"
+import { MAP, type Road, TILE } from "../sim/map/index.ts"
 import { tileKey } from "../sim/map/kinds.ts"
-import { isListed, TILE_RANGE } from "../sim/map/tiles.ts"
+import type { TileVectors } from "../sim/map/packed.ts"
+import { isListed, residentTile, TILE_RANGE } from "../sim/map/tiles.ts"
 import { screenAxes } from "../sim/view.ts"
 
 /** Base map pixels per metre: the minimap's own scale (90 canvas px over SPAN), so the blit is 1:1. */
@@ -35,44 +28,11 @@ const OVERLAP = 1
 const SIDE = TILE * BASE + 2 * OVERLAP
 /** How far the minimap shows from the player, m: the corner of its square, which a turn brings onto either axis. */
 const VIEW = (SPAN / 2) * Math.SQRT2
-/** Tiles within this of the player (m, along either axis) get painted, nearest first; those past `EVICT` are let go. */
+/** Tiles within this of the player (m, along either axis) get painted, nearest first, once in memory; those past `EVICT` are let go. */
 const PAINT = 1000
 const EVICT = 1500
-/** How far past a tile's square a feature may start and still reach its canvas, m: the widest stroke's half (a 12 m road drawn 1.6 times as wide), the overlap pixel and some spare. */
+/** How far past a tile's square a feature may start and still reach its canvas, m: the widest stroke's half (a 12 m road drawn 1.6 times as wide), the overlap pixel and some spare. Less than the tile's `HALO`, so its vectors hold every such feature. */
 const MARGIN = 20
-
-/** Area fills; kinds left out (grassland, residential) show the grass background. */
-const AREA_HEX: Partial<Record<AreaKind, number>> = {
-  forest: PALETTE.forest,
-  cemetery: PALETTE.plasterGrey,
-  pitch: PALETTE.forestLight,
-  park: PALETTE.forestLight,
-  parking: PALETTE.asphaltWorn,
-  vineyard: PALETTE.grassDry,
-  farmland: PALETTE.grassDry,
-  farmyard: PALETTE.dirtTrack,
-  industrial: PALETTE.stoneMid,
-  platform: PALETTE.asphaltWorn,
-  school: PALETTE.grass,
-  ruins: PALETTE.stoneMid,
-  paved: PALETTE.asphaltWorn,
-  quarry: PALETTE.marbleWhite,
-  rock: PALETTE.limestone,
-  scree: PALETTE.stoneLight,
-  sparse: PALETTE.grassDry,
-  scrub: PALETTE.forestLight,
-  pebble: PALETTE.limestone,
-  river: PALETTE.waterShallow,
-  lake: PALETTE.waterShallow,
-}
-
-/** The order the areas are filled in, by kind: the land, then the water over it, then a river's gravel bars over that. */
-const fillPass = (kind: string): number => (kind === "pebble" ? 2 : isWaterArea(kind) ? 1 : 0)
-/** The areas' indices in fill order (`fillPass`), each pass in the map's order. */
-const AREA_ORDER = MAP.areas
-  .map((area, k) => [fillPass(area.kind), k] as const)
-  .sort((a, b) => a[0] - b[0] || a[1] - b[1])
-  .map(([, k]) => k)
 
 const HOME_UP = screenAxes(0).up
 /**
@@ -101,133 +61,61 @@ const boxOf = (flat: ArrayLike<number>): Box => {
   return [x0, y0, x1, y1]
 }
 
-/** Each layer's features' boxes, in the layer's order, for painting a tile with only what reaches it; made on first use. */
-let layerBoxes:
-  | {
-      readonly areas: ReadonlyArray<Box>
-      readonly water: ReadonlyArray<Box>
-      readonly rail: ReadonlyArray<Box>
-      readonly roads: ReadonlyArray<Box>
-    }
-  | undefined
-const boxes = () =>
-  (layerBoxes ??= {
-    areas: MAP.areas.map((area) => boxOf(area.rings[0] ?? [])),
-    water: MAP.water.map((w) => boxOf(w.pts)),
-    rail: MAP.rail.map((r) => boxOf(r.pts)),
-    roads: MAP.roads.map((road) => boxOf(road.pts)),
-  })
+/** The rail's boxes, in `MAP.rail` order (the rail is global: a tile paints the pieces reaching it); made on first use. */
+let railBoxes: ReadonlyArray<Box> | undefined
 
-/** The roads in the order they are painted: the narrow classes first, so the main roads lie on top at junctions and overpasses. */
-const ROAD_ORDER = MAP.roads
-  .map((road, k) => [ROAD_CLASSES.indexOf(roadClassOf(road)), k] as const)
-  .sort((a, b) => b[0] - a[0] || a[1] - b[1])
-  .map(([, k]) => k)
-
-/** The full map's least road width by class, px (the rest: 1.5), so the main roads stand out at a few pixels per hundred metres. */
-const OVERVIEW_MIN: Readonly<Partial<Record<RoadClass, number>>> = {
-  motorway: 3,
-  trunk: 3,
-  primary: 2.5,
-  secondary: 2.5,
-  tertiary: 2,
-}
-
-/** How `paintMap` places the map, and what it paints. */
-interface PaintOptions {
-  /** The canvas pixel of the corner, px. */
-  readonly ox?: number
-  readonly oy?: number
-  /** The full map's look: roads light (motorways and trunk roads yellow) and at least `OVERVIEW_MIN` px wide. */
-  readonly overview?: boolean
-  /** Paint only the features whose boxes reach this box, m (a tile's canvas); else all of them. */
-  readonly within?: Box
-}
+/** The minimap's roads: in their surface's colour, at least 1 px wide and fading where thinner (`faded`). */
+const minimapRoad: RoadLook<Road> = (road, _, scale) => faded(road.w * 1.6, scale, roadHex(road))
 
 /**
- * Paints the map layers (areas, water, rail, roads, buildings) north-up at `scale` px/m, with the
- * map point `corner` (its west edge and north edge, m) at canvas pixel (ox, oy), on grass over the
- * play area and clipped to it (`MAP.outline`: the areas reach the built terrain's box, which an L's
- * notch lies in). Lines stay at least 1 px wide; those thinner than that at this scale fade instead.
- * `overview` (the full map) draws roads light, motorways and trunk roads yellow, and at least
- * `OVERVIEW_MIN` px wide, so the network reads at a few pixels per hundred metres. The lakes and
- * river polygons are filled over the other areas and the gravel bars over them (`AREA_ORDER`), and
- * roads are painted narrowest class first (`ROAD_ORDER`).
+ * Paints `layers` (a tile's features, `tileLayers`) in the minimap's look north-up at `scale` px/m,
+ * with the map point `corner` (its west edge and north edge, m) at canvas pixel (ox, oy), on grass
+ * over the play area and clipped to it (`paintLayers`: the areas reach the built terrain's box,
+ * which an L's notch lies in). Lines stay at least 1 px wide; those thinner than that at this scale
+ * fade instead. Roads are painted narrowest class first.
  */
 export const paintMap = (
   ctx: CanvasRenderingContext2D,
   scale: number,
   corner: { readonly minX: number; readonly maxY: number },
-  { ox = 0, oy = 0, overview = false, within }: PaintOptions = {},
+  layers: MapLayers<Road>,
+  { ox = 0, oy = 0 }: { readonly ox?: number; readonly oy?: number } = {},
 ): void => {
   const u = (x: number) => ox + (x - corner.minX) * scale,
     v = (y: number) => oy + (corner.maxY - y) * scale
-  const reaches = (box: Box | undefined) =>
-    within === undefined ||
-    (box !== undefined &&
-      box[0] <= within[2] &&
-      box[2] >= within[0] &&
-      box[1] <= within[3] &&
-      box[3] >= within[1])
-  const layers = within === undefined ? undefined : boxes()
   const path = (flat: ArrayLike<number>, closed: boolean, into = new Path2D()) => {
     into.moveTo(u(flat[0]!), v(flat[1]!))
     for (let i = 2; i + 1 < flat.length; i += 2) into.lineTo(u(flat[i]!), v(flat[i + 1]!))
     if (closed) into.closePath()
     return into
   }
-  const play = new Path2D()
-  for (const ring of MAP.outline) path(ring, true, play)
-  ctx.save()
-  ctx.clip(play, "evenodd")
-  ctx.fillStyle = css(PALETTE.grass)
-  ctx.fill(play, "evenodd")
-  for (const k of AREA_ORDER) {
-    const area = MAP.areas[k]!,
-      hex = isAreaKind(area.kind) ? AREA_HEX[area.kind] : undefined
-    if (hex === undefined || !reaches(layers?.areas[k])) continue
+  const rings = (list: ReadonlyArray<ReadonlyArray<number>>) => {
     const p = new Path2D()
-    for (const ring of area.rings) path(ring, true, p)
-    ctx.fillStyle = css(hex)
-    ctx.fill(p, "evenodd")
+    for (const ring of list) path(ring, true, p)
+    return p
   }
+  ctx.save()
   ctx.lineCap = "round"
   ctx.lineJoin = "round"
-  const stroke = (flat: ArrayLike<number>, width: number, hex: number, min = 1) => {
-    ctx.strokeStyle = css(hex)
-    ctx.lineWidth = Math.max(min, width * scale)
-    ctx.globalAlpha = Math.min(1, Math.max(0.3, (width * scale) / min))
-    ctx.stroke(path(flat, false))
-    ctx.globalAlpha = 1
-  }
-  MAP.water.forEach((w, k) => {
-    if (reaches(layers?.water[k])) stroke(w.pts, w.w, PALETTE.waterShallow)
-  })
-  MAP.rail.forEach((r, k) => {
-    if (r.tunnel !== true && reaches(layers?.rail[k])) stroke(r.pts, 2, PALETTE.stoneDark)
-  })
-  for (const k of ROAD_ORDER) {
-    const road = MAP.roads[k]!,
-      cls = roadClassOf(road)
-    if (road.tunnel === true || cls === "path" || !reaches(layers?.roads[k])) continue
-    if (overview) {
-      ctx.strokeStyle = css(
-        cls === "track"
-          ? PALETTE.stoneLight
-          : cls === "motorway" || cls === "trunk"
-            ? PALETTE.signYellow
-            : PALETTE.limestone,
-      )
-      ctx.lineWidth = Math.max(OVERVIEW_MIN[cls] ?? 1.5, road.w * 1.6 * scale)
-      ctx.stroke(path(road.pts, false))
-    } else {
-      stroke(road.pts, road.w * 1.6, roadHex(road))
-    }
-  }
-  ctx.fillStyle = css(PALETTE.roofTile)
-  MAP.buildings.forEach((b, k) => {
-    if (reaches(buildingBoxes[k])) ctx.fill(path(b.outer, true))
-  })
+  paintLayers(
+    {
+      clip: (outline) => ctx.clip(rings(outline), "evenodd"),
+      fill: (list, hex, rule) => {
+        ctx.fillStyle = css(hex)
+        ctx.fill(rings(list), rule)
+      },
+      stroke: (pts, width, hex, alpha) => {
+        ctx.strokeStyle = css(hex)
+        ctx.lineWidth = width
+        ctx.globalAlpha = alpha
+        ctx.stroke(path(pts, false))
+        ctx.globalAlpha = 1
+      },
+    },
+    layers,
+    scale,
+    minimapRoad,
+  )
   ctx.restore()
 }
 
@@ -276,21 +164,43 @@ export const tilesNear = (x: number, y: number, r: number): Array<TileRef> => {
   return near.sort((a, b) => a.d - b.d)
 }
 
-/** The box whose features tile (i, j)'s canvas paints, m: its square plus the overlap pixel and `MARGIN` all round. */
-export const tileReach = (i: number, j: number): Box => {
+/** The box whose features tile (i, j)'s canvas can show, m: its square plus the overlap pixel and `MARGIN` all round. */
+const tileReach = (i: number, j: number): Box => {
   const m = OVERLAP / BASE + MARGIN
   return [i * TILE - m, j * TILE - m, (i + 1) * TILE + m, (j + 1) * TILE + m]
 }
 
-/** Tile (i, j)'s canvas: its square at BASE plus `OVERLAP` px all round (`paintMap` clips it to the play area). */
-const paintTile = (document: Document, { i, j }: TileRef): HTMLCanvasElement => {
+/**
+ * What tile (i, j)'s canvas paints: the tile's `vectors` (every feature within `HALO` of its square,
+ * in the whole map's order), its roads with their attributes (`MAP.roads`), and the global rail
+ * whose boxes reach `tileReach`.
+ */
+export const tileLayers = (vectors: TileVectors, i: number, j: number): MapLayers<Road> => {
+  const { areas, water, roads, buildings } = vectors
+  const [x0, y0, x1, y1] = tileReach(i, j)
+  const rail = (railBoxes ??= MAP.rail.map((r) => boxOf(r.pts)))
+  return {
+    outline: MAP.outline,
+    areas: areas.items,
+    water: water.items,
+    rail: MAP.rail.filter((_, k) => {
+      const b = rail[k]!
+      return b[0] <= x1 && b[2] >= x0 && b[1] <= y1 && b[3] >= y0
+    }),
+    roads: roads.ids.map((id, k) => ({ ...MAP.roads[id]!, ...roads.items[k]! })),
+    buildings: buildings.items,
+  }
+}
+
+/** Tile (i, j)'s canvas, painted from its `vectors`: its square at BASE plus `OVERLAP` px all round (`paintMap` clips it to the play area). */
+const paintTile = (document: Document, { i, j }: TileRef, vectors: TileVectors) => {
   const canvas = document.createElement("canvas")
   canvas.width = canvas.height = SIDE
   const ctx = canvas.getContext("2d")
   if (ctx === null) return canvas
   const minX = i * TILE,
     maxY = (j + 1) * TILE
-  paintMap(ctx, BASE, { minX, maxY }, { ox: OVERLAP, oy: OVERLAP, within: tileReach(i, j) })
+  paintMap(ctx, BASE, { minX, maxY }, tileLayers(vectors, i, j), { ox: OVERLAP, oy: OVERLAP })
   return canvas
 }
 
@@ -308,9 +218,13 @@ export const makeMinimap = (document: Document) => {
     /** Draws the map around (x, y), turned with the view's `yaw`, with the player arrow pointing along `angle` (radians CCW from east). */
     draw: (x: number, y: number, angle: number, yaw: number): void => {
       if (ctx === null) return
-      // One tile a frame (painting one takes a few milliseconds), the nearest first: those in view come before those ahead.
-      const next = tilesNear(x, y, PAINT).find((tile) => !painted.has(tile.key))
-      if (next !== undefined) painted.set(next.key, paintTile(document, next))
+      // One tile a frame (painting one takes a few milliseconds), the nearest in memory first: those in view (always in memory, as the step reads round the player) come before those ahead.
+      for (const tile of tilesNear(x, y, PAINT)) {
+        const resident = painted.has(tile.key) ? undefined : residentTile(tile.key)
+        if (resident === undefined) continue
+        painted.set(tile.key, paintTile(document, tile, resident.vectors))
+        break
+      }
       const keep = new Set(tilesNear(x, y, EVICT).map((tile) => tile.key))
       for (const [key, tile] of painted)
         if (!keep.has(key)) {

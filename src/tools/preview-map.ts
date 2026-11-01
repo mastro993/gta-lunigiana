@@ -12,8 +12,9 @@ import { REGION } from "./region.ts"
 await loadBuiltMap(REGION)
 const { buildingStyleOf, graph, heightAt, isAreaKind, isWaterArea, MAP, ROAD_CLASSES } =
   await import("../sim/map/index.ts")
-// The trees and walls live in the tiles: read them all, joined.
-const { trees, walls } = readWholeMap(builtMapUrl(REGION))
+// The trees, walls and vectors live in the tiles: read them all, joined in the whole map's order,
+// which the alpha blending below follows.
+const { trees, walls, roads, buildings, water, areas, barriers } = readWholeMap(builtMapUrl(REGION))
 
 type RGB = readonly [number, number, number]
 const scale = Number(process.argv[2] ?? 1)
@@ -103,7 +104,7 @@ const AREA = {
   river: [60, 120, 220],
   lake: [60, 120, 220],
 } as const satisfies Record<AreaKind, RGB>
-for (const a of MAP.areas)
+for (const a of areas)
   fill(
     a.rings,
     isAreaKind(a.kind) ? AREA[a.kind] : [255, 0, 255],
@@ -111,7 +112,7 @@ for (const a of MAP.areas)
   )
 for (let i = 0; i + 2 < trees.length; i += 3)
   dot(trees[i]!, trees[i + 1]!, 0.9 * trees[i + 2]!, [20, 70, 30], 0.8)
-for (const w of MAP.water) polyline(w.pts, w.w / 2, [60, 120, 220])
+for (const w of water) polyline(w.pts, w.w / 2, [60, 120, 220])
 const ROAD = {
   motorway: [230, 120, 60],
   trunk: [240, 150, 70],
@@ -128,7 +129,7 @@ const ROAD = {
 // Narrowest class first, so the main roads lie on top.
 const order = [...ROAD_CLASSES].reverse()
 for (const cls of order)
-  for (const r of MAP.roads) {
+  for (const r of roads) {
     if (r.cls !== cls) continue
     if (r.bridge === true) polyline(r.pts, r.w / 2 + 1, [40, 40, 40])
     polyline(
@@ -150,7 +151,7 @@ for (const r of MAP.rail) {
 }
 // Platforms pale, rail-level walkways sandy, level-crossing nodes white.
 for (const p of MAP.railway.platforms)
-  fill(MAP.areas[p.area]!.rings, p.walkway === true ? [200, 180, 120] : [230, 230, 220], 0.9)
+  fill(areas[p.area]!.rings, p.walkway === true ? [200, 180, 120] : [230, 230, 220], 0.9)
 for (const c of MAP.railway.crossings)
   for (const n of c.nodes) dot(graph.nodes[n]!.x, graph.nodes[n]!.y, 1, [255, 255, 255])
 const STYLE = {
@@ -162,13 +163,12 @@ const STYLE = {
   station: [200, 80, 70],
   ruin: [120, 100, 80],
 } as const satisfies Record<BuildingStyle, RGB>
-for (const b of MAP.buildings) {
+for (const b of buildings) {
   fill([b.outer, ...(b.holes ?? [])], STYLE[buildingStyleOf(b)], 1)
   for (const ring of [b.outer, ...(b.holes ?? [])])
     polyline([...ring, ring[0]!, ring[1]!], 0.25, [60, 40, 30])
 }
-for (const b of MAP.barriers)
-  polyline(b.pts, 0.6, b.kind === "cliff" ? [90, 60, 60] : [100, 100, 100])
+for (const b of barriers) polyline(b.pts, 0.6, b.kind === "cliff" ? [90, 60, 60] : [100, 100, 100])
 const segs = (flat: ArrayLike<number>, c: RGB) => {
   for (let i = 0; i + 3 < flat.length; i += 4)
     line(flat[i]!, flat[i + 1]!, flat[i + 2]!, flat[i + 3]!, 0.15, c)
