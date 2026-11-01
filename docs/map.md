@@ -19,7 +19,9 @@ of its results by a last bit). `map-key.test.ts` fails on a `Math` call or `**` 
 file the build imports. It prints the end of each stage (seconds from the start and the process's
 resident memory then), the rail's fit to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)),
 each platform ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the
-build hash, the tile count, the bytes written and the largest tile, the overview's size, counts,
+build hash, the tile count, the bytes written and the largest tile, the overview's size, the play
+area's terrain by source (`terrain`: lucido's 77.35 km² of LiDAR, 0.02 of surface model and 0.63 of
+10 m DTM, `sourceAreas` on 10 m cells), counts,
 the rail on the CTR (OSM's offset from it, the shipped residual, the level crossings' slides, the
 bridge ends slid, the culverts, the at-grade track cut into the CTR's bridges and the rail bed), the
 railway (its lines, stations, level-crossing boxes and the verges pulled in off the track), the
@@ -141,6 +143,26 @@ process of its own; `preview-map.ts` draws one with `--region <key>`.
   against lucido's 1,210 and 1,010,210 on 2026-10-31). It serves the build's memory and time and
   the cars round Monzone, and is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`);
   CI never builds it.
+- **`bagnone-ridge`**: 4 × 4 km of the Apennine ridge round Monte Sillara, x −8000…−4000 by
+  y 20000…24000 (part `sillara`), with terrain of its own (`ownTerrain`) and nothing else: no OSM,
+  CTR or land cover reaches it, so no map is built for it (`build-map.ts` refuses it, as no road
+  leaves a place to start). It checks the terrain chain (issue #10) before part 6 (#22) exists: the
+  LiDAR stops 1–2 km below the crest, and the surface model, Massa-Carrara's 10 m DTM and, past the
+  regional border on the crest, Emilia-Romagna's DTM 5x5 fill the rest. `pnpm fetch-rt --region
+  bagnone-ridge` writes it into `data/raw/rt/bagnone-ridge/` from `data/parts/sillara.json` (8 LiDAR
+  tiles of 2010, 5 surface-model elements, the 10 m DTM), pinned with the rest. Of its 16 km²,
+  `pnpm coverage sillara` counts LiDAR on 4.11 km², the surface model on 1.00, the 10 m DTM on 7.62
+  and the DTM 5x5 on 3.27, over Bagnone (11.46 km²), Monchio delle Corti (3.12), Licciana Nardi
+  (0.87) and Corniglio (0.54). Of its 2.62 km² of open ground without LiDAR, the canopy filter
+  clears 1.64 km², so the surface model fills 0.98 km²: it keeps 50% of the pastures (0.59 of
+  1.17 km²) and 27% of the bare rock (0.39 of 1.44 km²), whose relief of 1–3 m it takes as it takes
+  a tree.
+  `src/tools/__tests__/terrain-seams.map-test.ts` reads it through the build's own sampler and 4 m
+  grid (`loadDtm`, `dtmDem`), as it reads lucido's: the highest node within 100 m of Monte
+  Sillara's summit (−5336, 22825) stands at 1860.9 m, within 5 m of its 1861 m, on the bent 10 m
+  DTM (the filter leaves the surface model 3% of the open ground within 100 m of it), and no seam
+  between two sources steps more than 1 m beyond the terrain's own steps round it ([Checks and
+  tools](#checks-and-tools)).
 
 Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
 three runs each, a load average of 5–6 from other work), before and after the build's per-tile
@@ -392,11 +414,59 @@ regions](#test-regions)).
   `crs.ts` converts with the EPSG:1660 datum shift plus a residual of (−0.4, +0.5) m, fitted by
   matching the 2010 surface model to the 2019 CTR building outlines. The MATTM 2008 flight (lot 006)
   adds nothing here and is CC BY-SA, so it is not used.
-- **10 m DTM**: the 0.65 km² neither flight covers (two patches on the slopes south of Tenerano,
-  one in the Sagro quarries) come from Regione Toscana's 10 m DTM of the province of Massa-Carrara
-  (derived from the CTR 1:10 000, CC BY 3.0 IT), bent onto the LiDAR: the LiDAR − DTM residual on
-  the cells around each patch (−47 to +20 m around the biggest) is spread over it by inverse
-  squared distance, so the patch meets the LiDAR without a step.
+- **Terrain beyond the LiDAR** (issue #10): the cells no flight covers are filled by a fallback
+  chain (`fill-chain.ts`; the sources as `terrain-sources.ts` reads them). Each source in turn fills
+  the 1 m cells still empty that it has data for and may fill, and is bent onto every source before
+  it (below), in this order:
+  1. Regione Toscana's 2021 surface model (`DSM_autocorrelazione_2021`, 1 m in EPSG:7791, CC BY
+     4.0, image matching of the 2021 flight), the elements the manifest lists (`dsm2021`), on open
+     ground alone: the UCS 2019 classes without canopy (211 arable land, 231 meadows, 321 pastures,
+     322 heath, 331 sand and gravel, 332 bare rock, 333 sparse vegetation, from the same WFS answer
+     as the land cover), less what stands on it or sinks into it (`clearCanopy`). Its height over
+     the 10 m DTM is opened and closed by a 9 m square; a cell 0.7 m over its opening or under its
+     closing is a tree, a shrub or a failure of the image matching (pits up to 25 m deep), and so is
+     every cell within 2 m of one (a crown's edge); the ground left is opened by the same square, so
+     no scrap or strip of it narrower than 9 m stays among the fill. The pastures in the Apennine
+     woods carry scattered trees, UCS's 1:10 000 polygons take in the woods' edge, and before this
+     filter the seams round them stood up to 15 m high. On bare rock the filter clears the rock's own
+     relief too, and is meant to: there the model stands metres over the survey. Monte Sillara's
+     summit, 1861 m on the maps and 1861.4 m on the 10 m DTM, tops out at 1863.8 m in the surface model; with
+     the rock let off the canopy test it stood at 1866.2 m on the game's grid, more than 5 m too
+     high, and the ridge's seams passed the terrain's own steps by 3.2 m.
+  2. The 10 m DTM of each province the manifest lists (`dtm10`, in its order: Massa-Carrara's, and
+     Lucca's with #17), Regione Toscana's, derived from the CTR 1:10 000 (CC BY 3.0 IT), whose data
+     stop at about the province's border: on the Bagnone ridge Massa-Carrara's run 0.4 km² past the
+     crest into Emilia (Monchio delle Corti, Corniglio), where it is taken before the DTM 5x5. The
+     canopy filter reads the 10 m DTMs together, the first with data at a cell.
+  3. Liguria's DTM ed. 2023, with #12's `fetch-lig`; nothing yet.
+  4. Past Tuscany, Regione Emilia-Romagna's DTM 5x5 (CC BY 4.0), its WCS's native 5 m grid in
+     EPSG:7791 over the box round the cells left. Issue #10 named TINITALY 1.1 (INGV, 10 m, CC BY
+     4.0) here; Emilia-Romagna's survey is finer, under the same licence and already fetched for
+     Cesena, and PR #2 had found TINITALY's valley floors 16–37 m off, so TINITALY is not used.
+
+  The bend: the residual (better − filler) on the better cells within 2 m of what the filler
+  filled is fitted by a membrane on a 50 m lattice (least squares on its bilinear, harmonic where no
+  residual is, solved by conjugate gradients) and read bilinearly per cell: the residual's long
+  waves, tens of metres across a big hole. What the lattice leaves at the cells beside the fill (the
+  better source's relief finer than 50 m, which a 10 m DTM lacks) is carried 50 m in by a membrane
+  on the 1 m cells (over-relaxed sweeps, held at that leftover beside the rim and at 0 past 50 m).
+  Both cost a bounded amount per cell: a 5 km square hole in a tilted LiDAR fills in 1.7 s, 62 ns a
+  cell (71 ns for a 1 km one), with no step over 0.1 m at its rim (`fill-chain.long-test.ts`); the
+  inverse-squared-distance spread before cost the cells times the rim. Within 2 m, not only beside
+  it: a pocket of surface model a cell or two off the LiDAR is bent onto it too, so the 10 m DTM
+  between them finds them agreeing. Wider, the fit reads relief the hole does not share: with the
+  better cells of the lattice cells round the hole it moved lucido's patches 1.6–3.7 m RMS from the
+  fill before; with those beside it alone, 0.5–0.7 m.
+
+  On lucido the chain fills the 0.65 km² of three patches: two on the slopes south of Tenerano,
+  under the Rocca di Tenerano (0.360 km² round (−2000, −2942) and 0.269 km² round (−1058, −2725)),
+  and one at the Cava Bardiglio by the Catino del Sagro (0.023 km² round (1666, −4468)). The surface
+  model fills 0.018 km², all but 112 m² of it at the Cava Bardiglio (its elements 249062 and
+  249064; the filter clears 0.014 km² of the 0.032 km² of open ground without LiDAR), within 1.1 m
+  of the LiDAR at its rim, and Massa-Carrara's 10 m DTM the rest, its residual on the rim from −46.7 to +19.9 m. Against
+  the inverse-squared-distance fill before, the 10 m DTM's cells moved 0.89 m RMS at the Cava
+  Bardiglio and 0.72 and 0.93 m under the Rocca di Tenerano, the surface model's 1.03 m: the ground
+  of 2021 in place of the 10 m map's.
 - **Land cover**: Regione Toscana's "Uso e copertura del suolo" 1:10 000, 2019 (UCS, CC BY 4.0,
   0.5 ha minimum unit), from its WFS. OSM maps the woods and the quarries well but only about a
   fifth of the Apuans' bare rock and half their pastures, so `ucs.ts` adds the open covers: quarries
@@ -418,25 +488,34 @@ regions](#test-regions)).
   on the line is raised to 55 cm (the platforms' height,
   [section 9](#9-the-railway-railwayts-platformsts-rail-clearts)).
 
-`pnpm fetch-rt` (`src/tools/fetch-rt.ts`) downloads the CTR sheets, the LiDAR tiles, the 10 m DTM
-and the land cover. The sheets, tiles and DTM it downloads are listed in the part's manifest,
-`data/parts/lucido.json` (`manifest.ts`: `ctr`, `lidar`, `dtm10`); a cell of the mosaic keeps the
-first tile's value, so the order of the `lidar` list is the priority. It copies the shapefile layers
-the build reads (`AED`, `AGE`, `AVI`, `AZR`, `AFE`) to `data/raw/rt/ctr`, and of `VLI` (42 MB over
-the 25 sheets, mostly contour lines) only the `0117` track centrelines (29 KB, 9 KB gzipped),
-through `subsetShp` in `shp.ts`, which renumbers the records and rewrites the file length, bounding
-box, z range and record count. It mosaics the LiDAR into `data/raw/rt/dtm.bin` + `dtm.json`: cropped
-to the play area plus 32 m, averaged to 2 m cells (the game grid is 4 m), stored as int16 decimetres
-with each row delta-coded and deflated (15 MB). It writes the kept land-cover polygons, in EPSG:3003
-to the decimetre, to `data/raw/rt/ucs.json.gz` (`crs.ts` has the inverse transform); the WFS box is
-padded by 500 m, because the server's box filter sometimes drops features near its edge. `pnpm
-fetch-rt ctr` fetches the CTR sheets alone (28 s with the downloads, 1.5 s from the cache), leaving
-the LiDAR and the land cover, which comes from a live service and would move the map, as they are;
-`pnpm fetch-rt ucs` fetches the land cover alone (on 2026-10-31 the service gave the 425 pinned
-polygons of the five open covers back byte for byte, and 83 of codes 331 and 512 besides). A
-file whose unpacked bytes equal the new ones is not rewritten, so another zlib never churns a pinned
-file, and a cached archive folder with no files left in it (macOS purges the temporary directory's
-files but keeps its folders) is fetched again. Requests name only the project in their `User-Agent`.
+`pnpm fetch-rt` (`src/tools/fetch-rt.ts`) downloads the CTR sheets, the LiDAR tiles, the terrain
+chain's sources and the land cover. The sheets, tiles, 10 m DTMs and surface-model elements it
+downloads are listed in the part's manifest, `data/parts/lucido.json` (`manifest.ts`: `ctr`,
+`lidar`, `dtm10`, `dsm2021`); a cell of the mosaic keeps the first tile's value, so the order of the
+`lidar` list is the priority, and Emilia-Romagna's DTM is asked for only when cells are left past
+the Tuscan sources. It copies the shapefile layers the build reads (`AED`, `AGE`, `AVI`, `AZR`,
+`AFE`) to `data/raw/rt/ctr`, and of `VLI` (42 MB over the 25 sheets, mostly contour lines) only the
+`0117` track centrelines (29 KB, 9 KB gzipped), through `subsetShp` in `shp.ts`, which renumbers the
+records and rewrites the file length, bounding box, z range and record count. It mosaics the LiDAR
+and the chain past it into `data/raw/rt/dtm.bin` + `dtm.json`: cropped to the play area plus 32 m,
+averaged to 2 m cells (the game grid is 4 m), stored as int16 decimetres with each row delta-coded
+and deflated (15 MB), and each 2 m cell's source (the most of its four 1 m cells', ties to the
+earlier; `sources` in `dtm.json` names them) into `dtm-src.bin`, deflated (23 KB). It holds the
+mosaic in 1 m cells of float decimetres, so a LiDAR cell keeps its whole decimetre and a 2 m mean of
+four LiDAR cells is what it was before the chain. With `--region bagnone-ridge` it writes that test
+region's terrain alone ([Test regions](#test-regions)) from `data/parts/sillara.json` into
+`data/raw/rt/bagnone-ridge/`. From the archive cache lucido takes 22.7 s and peaks at 1.80 GB
+resident (the LiDAR's text grids), the ridge 13.5 s and 1.31 GB (2026-11-01). It writes the kept
+land-cover polygons, in EPSG:3003 to the decimetre, to `data/raw/rt/ucs.json.gz` (`crs.ts` has the
+inverse transform); the WFS box is padded by 500 m, because the server's box filter sometimes drops
+features near its edge. `pnpm fetch-rt ctr` fetches the CTR sheets alone (28 s with the downloads,
+1.5 s from the cache), leaving the LiDAR and the land cover, which comes from a live service and
+would move the map, as they are; `pnpm fetch-rt ucs` fetches the land cover alone (on 2026-10-31 the
+service gave the 425 pinned polygons of the five open covers back byte for byte, and 83 of codes 331
+and 512 besides). A file whose unpacked bytes equal the new ones is not rewritten, so another zlib
+never churns a pinned file, and a cached archive folder with no files left in it (macOS purges the
+temporary directory's files but keeps its folders) is fetched again. Requests name only the project
+in their `User-Agent`.
 
 ### 2. Projection and play area (`geometry.ts`, `play-area.ts`)
 
@@ -1177,11 +1256,13 @@ change an input.
   tool wrote, so `pin-raw` uploads those bytes and no others. `readLock` (Valibot) rejects any other
   shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
   release. `writeLock` writes the fields in that
-  order, one per line, so a re-pin's diff shows only the files that changed. Today: 241 files,
-  24.1 MB, all in `raw-20261030`.
+  order, one per line, so a re-pin's diff shows only the files that changed. Today: 245 files,
+  26.4 MB: 238 in `raw-20261030`, the land cover in `raw-20261031` (#73) and the two terrains in
+  `raw-20261101` (#10, 6 files).
 - **Sources**: each fetch tool calls `recordSource` for every file it writes (`fetch-rt` also for
-  each file it finds unchanged). `fetch-rt` gives the
-  CTR sheet's archive URL, the manifest for the LiDAR mosaic (`dtm.bin`, `dtm.json`), and the WFS
+  each file it finds unchanged). `fetch-rt` gives the CTR sheet's archive URL, the terrain mosaic's
+  sources (`dtm.bin`, `dtm.json`, `dtm-src.bin`: the manifest's archives, the land-cover request
+  with the date when the surface model fills, and Emilia-Romagna's WCS when it does), and the WFS
   request with the date for the land cover. `fetch-osm` gives the `/map` box and the date, and
   `fetch-rer` the WCS request and the metadata URL, each with the date. An entry that already holds
   the file's bytes, pinned or fetched, stays as it is; any other file becomes fetched. The entries
@@ -1192,7 +1273,8 @@ change an input.
   `data/raw`. It checks each download against its SHA-256 and size and moves them into place only
   when all match, so a mismatch fails the run with `data/raw` unchanged. It reports the fetched
   files and the files the lock does not list, and leaves them; a fetched file whose bytes `data/raw`
-  no longer holds fails the run. From an empty folder: 241 files in 25 s; on a second run, none.
+  no longer holds fails the run. From an empty folder: 245 files in 44 s (241 in 25 s on
+  2026-10-30); on a second run, none.
 - **`pnpm pin-raw`** (`pin-raw.ts`) refuses while a file has no entry, a file's bytes differ from
   its entry's (pinned, or fetched and since replaced), or an entry's file is gone (`planPin`, each
   with its fix). Otherwise it copies the fetched files under their asset names, checks each copy
@@ -1210,7 +1292,9 @@ change an input.
   cached and hashed with the maps: [Test regions](#test-regions)). The cache's paths are the
   global files, the tiles and the overviews (`src/sim/map/*/overview.png`,
   `test-maps/*/overview.png`), the same in the restore and the reproducible job's save, so a hit
-  brings back every file `vite build` and the map tests read.
+  brings back every file `vite build` and the map tests read but the raw inputs: the check job
+  sets the action's `raw`, so on a hit too it restores `data/raw` and runs `pnpm fetch-raw`, for
+  `terrain-seams.map-test.ts`, which reads the terrain fetch-rt wrote (Pages leaves it unset).
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
   imports, followed from import to import (106 files today, in `src/tools`, `src/sim`, `src/render`
   and `src/maps.ts`, through the bakes and the overview's look, `src/render/map-style.ts`), so a
@@ -1606,6 +1690,20 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
 - `src/tools/__tests__/playtest-drive.map-test.ts`: the playtest bot's default drive
   (`defaultRoute`, below), chained from the whole map's roads, runs from within 600 m of the start
   to within 500 m of Vinca, across the x = 0, y = 0, y = −2000 and x = 2000 seams.
+- `src/tools/__tests__/terrain-seams.map-test.ts`: the seams between the terrain's sources (issue
+  #10), read from the DTM fetch-rt wrote (`dtm-src.bin`) on the build's own 4 m grid (`dtmDem`'s
+  nodes, each the mean of a 5 m square), over lucido and the `bagnone-ridge` test region, and Monte
+  Sillara's summit there ([Test regions](#test-regions)). A step is how far the height difference
+  across a seam lies outside the differences beside it, 3 nodes either side on its own line and the
+  two beside it, each within one source (`seamSteps` in `__tests__/seam-steps.ts`): a slope, a kink
+  or a cliff on one side gives none, a ledge its height. Rough ground has steps of its own (on the
+  ridge 0.6% of the LiDAR's node pairs step over 1 m, 0.006% of the 10 m DTM's and 0.001% of the
+  surface model's): so the test holds every seam to at most 1 m more than the largest step within
+  one source within 20 m of it. Lucido's seams pass it by 0.30 m at most, the ridge's by 0.94 m (a
+  strip of the surface model by the 10 m DTM); with the band left out, the ridge fails by 4.0 m,
+  with no bend at all by 12.4 m, and without the canopy filter by 8.6 m. The steps themselves reach
+  1.73 m on the ridge (3.42 m on lucido, under the Rocca di Tenerano), where a gully the LiDAR shows
+  ends against the 10 m DTM, as steep as the gully's walls round it.
 
 The overview's checks: `src/tools/__tests__/overview.map-test.ts` fails when a built overview (both
 maps' and, built or in CI, the L's) is not the image its whole map paints now, so a change to the
@@ -1747,13 +1845,21 @@ multipolygon written as one `ms:GEOMETRY` per polygon, a tile in lots 004 and 00
 `insidePoints` inside a wedge, a footprint with a hole and one under 100 m tall;
 `dtm-mosaic.test.ts` pins `lucido`'s crop to the formula `fetch-rt` used before parts and reads a
 synthetic grid; `net.test.ts` serves a local HTTP server to check the `User-Agent`, the immediate
-4xx and `overpass` moving on from a 504 or
-an answer with a top-level remark (a server timeout) but not from a tag named `remark`, and
-`net.long-test.ts` (`pnpm test:long`) the retry of a 5xx after 2 s;
-`manifest.test.ts` pins `lucido`'s 25 sheets, 66 tiles (47 of 2010 before 19 of 2012) and one 10 m
-DTM; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule, first
-wins and the holes on synthetic grids; `footprint.test.ts` the outline of an L, clusters, a road
-that leaves and comes back, one that runs off the query box (unresolved) and a mistyped flag;
+4xx and `overpass` moving on from a 504 or an answer with a top-level remark (a server timeout) but
+not from a tag named `remark`, and `net.long-test.ts` (`pnpm test:long`) the retry of a 5xx after 2
+s; `manifest.test.ts` pins `lucido`'s 25 sheets, 66 tiles (47 of 2010 before 19 of 2012), one 10 m
+DTM and two surface-model elements, and `sillara`'s picks; `pick-sheets.test.ts`,
+`pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule, first wins, the holes and the
+surface model's elements over them on synthetic grids; `fill-chain.test.ts` bends a filler into a
+100 m hole of a tilted LiDAR (no step over 0.1 m at its rim), carries a 20 m ripple the lattice
+cannot fit through the band, keeps a filler to its `where` and its data, and bends a second filler
+onto the LiDAR and a first filler a cell off it (`fill-chain.long-test.ts`: a 5 km hole, linear in
+its cells); `terrain-sources.test.ts` reads ASCII grid windows (corner and centre registered), a
+GeoTIFF in EPSG:7791, the WCS request, the projection lattice (within 1 mm; the box round its
+corners within 0.01 mm), the open ground and the canopy filter (a tree with its fringe, a pit,
+scraps and strips narrower than the square, a slope left alone); `crs.test.ts` inverts
+`utm32ToLatLon` within 1 mm; `footprint.test.ts` the outline of an L, clusters, a road that leaves
+and comes back, one that runs off the query box (unresolved) and a mistyped flag;
 `fetch-osm.test.ts` the split on HTTP 400 with a fake server and the refusal of a test region
 (`checkFetchable`, before any request); `coverage-grid.test.ts` and `coverage.test.ts` first wins,
 the tally, ring assembly, no picks, and a WFS error answer never cached; `ortho.test.ts` and
@@ -1845,23 +1951,29 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   (`dtm-mosaic.ts`, the same crop and reader) on a one-byte mask: RT's tiles of the named lots, in
   lot order then by sheet, each kept when it writes a cell no earlier tile wrote, over the crop
   `fetch-rt` mosaics (the EPSG:3003 box round the part's rectangles, an L's notch included, until
-  #17 writes a DTM file a tile). MATTM's lots are skipped, with their licence. It reports each tile's area and the holes
-  left for the 10 m DTM, and without `--write` the difference from the manifest's `lidar`. `lucido`
-  (19 s, 565 MB): the manifest's 66 tiles; holes 654 734 m² in 5 pieces, the largest 361 141 m²,
-  exactly the cells `fetch-rt` fills from the 10 m DTM. PR #2 had found its 65 tiles with a
-  GetFeatureInfo grid 640 m apart, which missed `22d14` of lot 004, a 98 m wide 2010 sliver below
-  Picco di Navola (19 518 m² in the crop, local x 3843–3943, y −5750…−5473) that `pick-lidar` added:
-  506 heightmap nodes moved there, 474 of them under 0.5 m and none on average, up to 8.4 m on the
-  steep rock face, where the 2010 and 2012 flights classify the ground differently. The `dtm10` list
-  is written by hand, from the provinces the holes lie in.
+  #17 writes a DTM file a tile). MATTM's lots are skipped, with their licence. It reports each
+  tile's area, the holes left for the terrain chain, and the surface model's elements whose index
+  footprint meets a hole (`elementsOverHoles`), and without `--write` the difference from the
+  manifest's `lidar` and `dsm2021`; `--write` stores both. `lucido` (19 s, 565 MB): the manifest's
+  66 tiles; holes 654 734 m² in 5 pieces, the largest 361 141 m², exactly the cells `fetch-rt`'s
+  chain fills; elements 249062 and 249064. `sillara`: 8 of its 13 tiles; one hole of 12.41 km²,
+  elements 234011–234014 and 234051. PR #2 had found its 65 tiles with a GetFeatureInfo grid 640 m
+  apart, which missed `22d14` of lot 004, a 98 m wide 2010 sliver below Picco di Navola (19 518 m²
+  in the crop, local x 3843–3943, y −5750…−5473) that `pick-lidar` added: 506 heightmap nodes moved
+  there, 474 of them under 0.5 m and none on average, up to 8.4 m on the steep rock face, where the
+  2010 and 2012 flights classify the ground differently. The `dtm10` list is written by hand, from
+  the provinces the holes lie in (the 10 m DTMs have no index layer).
 - **`pnpm coverage <part> [--refresh]`** (`coverage.ts`, raster in `coverage-grid.ts`) tallies, per
   comune (OSM `admin_level=8` boundaries), the part's area mapped by the manifest's 2019 sheets, by
-  each LiDAR lot (the index footprints in manifest order, first wins) and by no LiDAR, and the UCS
-  2019 woods (311–313, 324) against OSM's forest, on 10 m cells; it stops when the manifest holds no
-  picks yet. It prints the markdown table for the PR and writes `coverage.md` and `coverage.png`.
+  each LiDAR lot (the index footprints in manifest order, first wins) and by no LiDAR, and, once
+  `fetch-rt` has written the terrain of the part's region, by each source the chain took past the
+  LiDAR (surface model, 10 m DTM, DTM 5x5: `dtm-src.bin` at each cell's centre; a source the chain
+  gains fails the typecheck until it has a column, and `fillLayer` throws on one it does not know),
+  and the UCS 2019 woods (311–313, 324) against OSM's forest, on 10 m cells; it stops when the
+  manifest holds no picks yet. It prints the markdown table for the PR and writes `coverage.md` and `coverage.png`.
   `lucido`: 6 comuni (Fivizzano 50.62 km²); CTR 11.1%, lot 004 78.6%, lot 005 20.5%, no LiDAR 0.66
   km² (0.7% over the mosaic's holes: the footprints' slivers and the 10 m cells); OSM marks 92.7% of
-  the 54.69 km² of UCS woods as forest.
+  the 54.69 km² of UCS woods as forest. `sillara`: see [Test regions](#test-regions).
 - **`pnpm ortho <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>] [--refresh]`** (`ortho.ts`,
   `ortho-wms.ts`) draws a Regione Toscana orthophoto crop (WMS GetMap in EPSG:4326, which maps
   linearly onto the local frame; 0.5 m a pixel by default, tiled past 4096 px) with the built map's
@@ -1948,10 +2060,10 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
 
 Only `lucido` is fetched and built: `pnpm fetch-osm` and `pnpm map` cover the Lunigiana region's
 bounds (`BOUNDS`; `--region cesena` builds the separate Cesena map instead, and the part tools
-refuse it; a [test region](#test-regions) builds from Lunigiana's inputs and fetches none), and
-`pnpm fetch-rt` reads one part's manifest and stops when `PARTS` holds more than one (a second part
-would widen the mosaic's crop over the land between them, all of it holes for the 10 m DTM) or the
-manifest lists more than one 10 m DTM. The build works a tile at a time since issue #7
+refuse it; a [test region](#test-regions) builds from Lunigiana's inputs and fetches none, but
+`bagnone-ridge`'s terrain), and `pnpm fetch-rt` reads one part's manifest and stops when the region
+holds more than one part (a second part would widen the mosaic's crop over the land between them,
+all of it for the chain to fill). The build works a tile at a time since issue #7
 ([Pipeline](#pipeline)), but its inputs stay one OSM file and one DTM mosaic per region until #17
 (Fivizzano, the first part after lucido) brings the per-part raw layout (`osm/<part>.osm.gz`,
 `rt/dtm/<i>_<j>.bin`, a part adding files only) and `fetch-rt <part>`.
@@ -2021,15 +2133,22 @@ carries the roads, water, rail and buildings across the old edge, which then are
 
 ## Known data limitations
 
-- **The terrain is 4 m.** The LiDAR resolves 1 m (stored at 2 m), but the game grid averages it
-  over 4 m cells: terrace walls, steps and narrow road benches are smoothed into slopes. Slopes
-  come from a 12 m baseline. The LiDAR is from 2010 (2012 on the Carrara side), so earthworks
-  since then are missing: the quarry floors of the Sagro and Solco basins have moved since, and
-  the OSM and UCS quarry outlines (2019–2026) do not match the terrain cut there. The datum
-  residual is fitted on the 2010 flight; the 2012 tiles agree with it within about 0.2 m of
-  elevation, but their horizontal fit is not checked (no CTR buildings stand there). The three
-  10 m DTM patches (south of Tenerano, Cava Bardiglio) are smooth: the 1:10 000 map they come
-  from misses the small relief.
+- **The terrain is 4 m.** The LiDAR resolves 1 m (stored at 2 m), but the game grid averages it over
+  4 m cells: terrace walls, steps and narrow road benches are smoothed into slopes. Slopes come from
+  a 12 m baseline. The LiDAR is from 2010 (2012 on the Carrara side), so earthworks since then are
+  missing: the quarry floors of the Sagro and Solco basins have moved since, and the OSM and UCS
+  quarry outlines (2019–2026) do not match the terrain cut there. The datum residual is fitted on
+  the 2010 flight; the 2012 tiles agree with it within about 0.2 m of elevation, but their
+  horizontal fit is not checked (no CTR buildings stand there). The cells no flight covers ([section
+  1](#1-sources-osmts-ctrts-ctr-railts-shpts-ucsts-crsts)) are smoother: the 10 m DTM's (0.63 km² of
+  lucido, south of Tenerano and round the Cava Bardiglio) misses the small relief and shows its own
+  10 m creases, and the bend carries the LiDAR's relief only 50 m in, so a gully or a rock face the
+  LiDAR shows ends against the fill: where a face under the Rocca di Tenerano meets it, at (−1272,
+  −2660), the 2 m cells step up to 5.3 m (5.2 m with the fill before the chain). The surface model's
+  cells are the ground of 2021, a decade after the LiDAR, and its canopy filter takes any bump or
+  pit narrower than 9 m and 0.7 m high or deep for a tree or a failed match, the relief of bare rock
+  included: on the Bagnone ridge it keeps 50% of the pastures and 27% of the bare rock without
+  LiDAR, and the bent 10 m DTM fills the rest, Monte Sillara's summit included.
 - **The rail is the CTR's where the CTR maps it, and OSM disagrees at Gragnola.** OSM draws
   Gragnola's loop on the east track, its "main" way crossing over to the west track inside the
   station and a south switch at (−1674.0, 3189.9); the map follows the CTR, the orthophoto and

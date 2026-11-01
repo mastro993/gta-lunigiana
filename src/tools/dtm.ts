@@ -25,11 +25,13 @@ const PROJ_STEP = 50
 
 /**
  * The uncarved terrain: m a.s.l. at a local point (`at`), and a window of the grid's nodes, each
- * the mean of `at` over the box `makeGrid` averages (`grid`).
+ * the mean of `at` over the box `makeGrid` averages (`grid`); where the DTM says which source each
+ * cell came from (`fetch-rt`'s chain, issue #10), the source of the cell nearest a point.
  */
 export interface Dem {
   readonly at: (x: number, y: number) => number
   readonly grid: (span: Span) => Grid
+  readonly source?: (x: number, y: number) => string
 }
 
 /** Samples a geographic GeoTIFF at pixel centres, rejecting missing terrain rather than inventing heights. */
@@ -92,6 +94,8 @@ export interface DtmData {
   readonly rows: number
   readonly cell: number
   readonly z: Float32Array
+  /** Each cell's source, an index into `names` (`terrain-sources.ts`). */
+  readonly sources: { readonly names: ReadonlyArray<string>; readonly codes: Uint8Array }
 }
 
 /**
@@ -134,20 +138,26 @@ const dtmHeight = (z: Float32Array, cols: number, rows: number, fx: number, fy: 
   )
 }
 
-/**
- * The LiDAR DTM that `fetch-rt.ts` writes to `dir` (dtm.json + dtm.bin, EPSG:3003, 2 m cells),
- * sampled in local metres (`dtmDem`).
- */
-export const loadDtm = (dir: string): Dem => {
-  const meta = JSON.parse(readFileSync(join(dir, "dtm.json"), "utf8")) as Omit<DtmData, "z">
+/** The DTM that `fetch-rt.ts` writes to `dir`: dtm.json, dtm.bin and dtm-src.bin (EPSG:3003, 2 m cells). */
+export const readDtm = (dir: string): DtmData => {
+  const meta = JSON.parse(readFileSync(join(dir, "dtm.json"), "utf8")) as Omit<
+    DtmData,
+    "z" | "sources"
+  > & { readonly sources: ReadonlyArray<string> }
   const raw = inflateSync(readFileSync(join(dir, "dtm.bin")))
   const z = new Float32Array(meta.cols * meta.rows)
   for (let k = 0, acc = 0; k < z.length; k++) {
     acc = (k % meta.cols === 0 ? 0 : acc) + raw.readInt16LE(2 * k)
     z[k] = acc / 10
   }
-  return dtmDem({ ...meta, z })
+  const codes = new Uint8Array(inflateSync(readFileSync(join(dir, "dtm-src.bin"))))
+  if (codes.length !== z.length)
+    throw new Error(`${dir}/dtm-src.bin: ${codes.length} cells, not ${z.length}`)
+  return { ...meta, z, sources: { names: meta.sources, codes } }
 }
+
+/** The DTM that `fetch-rt.ts` writes to `dir`, sampled in local metres (`dtmDem`). */
+export const loadDtm = (dir: string, ground: Ground = REGION): Dem => dtmDem(readDtm(dir), ground)
 
 /**
  * Bilinear sampler in local metres of `dtm`, through a lattice of exact projections every
@@ -177,13 +187,22 @@ export const dtmDem = (dtm: DtmData, ground: Ground = REGION): Dem => {
         latLonToGaussBoaga(...fromLocal(lx0 + i * PROJ_STEP, ly0 + j * PROJ_STEP)),
         2 * (j * lcols + i),
       )
-  const { e0, n0, cell: dc, cols: dcols, rows: drows, z } = dtm
+  const { e0, n0, cell: dc, cols: dcols, rows: drows, z, sources } = dtm
   const at = (x: number, y: number) => {
     const fx = (x - rx) / PROJ_STEP,
       fy = (y - ry) / PROJ_STEP
     const e = bilinear(lattice, lcols, lrows, fx, fy, 0, ri, rj),
       n = bilinear(lattice, lcols, lrows, fx, fy, 1, ri, rj)
     return dtmHeight(z, dcols, drows, (e - e0) / dc, (n - n0) / dc)
+  }
+  const source = (x: number, y: number) => {
+    const fx = (x - rx) / PROJ_STEP,
+      fy = (y - ry) / PROJ_STEP
+    const e = bilinear(lattice, lcols, lrows, fx, fy, 0, ri, rj),
+      n = bilinear(lattice, lcols, lrows, fx, fy, 1, ri, rj)
+    const c = Math.min(dcols - 1, Math.max(0, Math.round((e - e0) / dc))),
+      r = Math.min(drows - 1, Math.max(0, Math.round((n - n0) / dc)))
+    return sources.names[sources.codes[r * dcols + c]!]!
   }
   const grid = (span: Span): Grid => {
     const g = gridLattice(ground),
@@ -246,5 +265,27 @@ export const dtmDem = (dtm: DtmData, ground: Ground = REGION): Dem => {
     }
     return { ...g, z: out, span }
   }
-  return { at, grid }
+  return { at, grid, source }
+}
+
+/** The step, m, at which `sourceAreas` samples the play area: a 0.01 ha cell keeps a part under a million samples. */
+const AREA_STEP = 10
+
+/**
+ * Each terrain source's share of the play area, km²: the source (`Dem.source`) at the centre of
+ * each AREA_STEP m cell over `bounds` that `inPlay` holds, as the build's summary prints it.
+ */
+export const sourceAreas = (
+  source: (x: number, y: number) => string,
+  bounds: Ground["bounds"],
+  inPlay: (x: number, y: number) => boolean,
+): Record<string, number> => {
+  const cells = new Map<string, number>()
+  for (let y = bounds.minY + AREA_STEP / 2; y < bounds.maxY; y += AREA_STEP)
+    for (let x = bounds.minX + AREA_STEP / 2; x < bounds.maxX; x += AREA_STEP)
+      if (inPlay(x, y)) {
+        const name = source(x, y)
+        cells.set(name, (cells.get(name) ?? 0) + 1)
+      }
+  return Object.fromEntries([...cells].map(([name, n]) => [name, (n * AREA_STEP ** 2) / 1e6]))
 }

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { dirname, join, relative } from "node:path"
 import { test } from "node:test"
 
 import { manifestPath, readManifest } from "../manifest.ts"
@@ -31,5 +33,28 @@ test("lucido's LiDAR tiles put the 2010 flight before the 2012 flight", () => {
 
 test("a part without a manifest reads as empty lists", () => {
   assert.ok(!existsSync(manifestPath("no-such-part")))
-  assert.deepEqual(readManifest("no-such-part"), { ctr: [], lidar: [], dtm10: [] })
+  assert.deepEqual(readManifest("no-such-part"), { ctr: [], lidar: [], dtm10: [], dsm2021: [] })
+})
+
+test("lucido's manifest lists the 2021 surface model's two elements over its holes", () => {
+  assert.deepEqual(readManifest("lucido").dsm2021, ["249062", "249064"])
+})
+
+test("sillara's manifest lists 8 LiDAR tiles of the 2010 flight, Massa-Carrara's 10 m DTM and 5 elements of the 2021 surface model", () => {
+  assert.ok(existsSync(manifestPath("sillara")))
+  const { lidar, dtm10, dsm2021 } = readManifest("sillara")
+  assert.equal(lidar.length, 8)
+  assert.equal(new Set(lidar).size, lidar.length)
+  for (const tile of lidar) assert.match(tile, /^\d\d[a-d]\d\d_1x1_dtm_004_2010_3003_[\da-f]{32}$/)
+  assert.deepEqual(dtm10, ["MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408"])
+  assert.deepEqual(dsm2021, ["234011", "234012", "234013", "234014", "234051"])
+})
+
+test("a manifest written before the 2021 surface model reads its elements as none", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "manifest-"))
+  t.after(() => rmSync(dir, { recursive: true }))
+  writeFileSync(join(dir, "old.json"), JSON.stringify({ ctr: ["23D11"], lidar: [], dtm10: [] }))
+  // A key relative to data/parts reaches the temp file, so the test writes nothing there.
+  const key = relative(dirname(manifestPath("old")), join(dir, "old"))
+  assert.deepEqual(readManifest(key), { ctr: ["23D11"], lidar: [], dtm10: [], dsm2021: [] })
 })

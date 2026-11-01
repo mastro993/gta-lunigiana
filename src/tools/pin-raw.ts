@@ -40,7 +40,7 @@ export const NOTES = `Raw map inputs, pinned by \`pnpm pin-raw\`. \`data/raw.loc
 The files are changed from their sources: cut to the play area, subset to the layers and classes the map uses, mosaicked, averaged or re-encoded. Credits and licences:
 
 - Map data © OpenStreetMap contributors, available under the Open Database License (ODbL) 1.0: https://www.openstreetmap.org/copyright
-- Fonte dei dati: Regione Toscana – Rilievi LIDAR. The Carta Tecnica Regionale 1:2000 and the Uso e copertura del suolo 2019, Regione Toscana, under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/), and the DTM 10x10 metri, Regione Toscana, under Creative Commons Attribution 3.0 Italia (https://creativecommons.org/licenses/by/3.0/it/), from the Geoscopio cartoteca: https://www502.regione.toscana.it/geoscopio/cartoteca.html
+- Fonte dei dati: Regione Toscana – Rilievi LIDAR. The Carta Tecnica Regionale 1:2000, the DSM 2021 ("Fonte dei dati: DSM_autocorrelazione_2021 – Regione Toscana") and the Uso e copertura del suolo 2019, Regione Toscana, under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/), and the DTM 10x10 metri, Regione Toscana, under Creative Commons Attribution 3.0 Italia (https://creativecommons.org/licenses/by/3.0/it/), from the Geoscopio cartoteca: https://www502.regione.toscana.it/geoscopio/cartoteca.html
 - DTM 5x5 - ultima edizione, Regione Emilia-Romagna, under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/): https://geoportale.regione.emilia-romagna.it/catalogo/dati-cartografici/altimetria/layer-2
 
 Each file's source is in its lock entry. The full credits: https://github.com/mastro993/gta-lunigiana#data-attribution-and-licences`

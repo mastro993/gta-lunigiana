@@ -1,6 +1,7 @@
 // A part's source manifest, `data/parts/<part>.json` (tracked): the Regione Toscana archives
-// `fetch-rt` downloads for it. `pick-sheets` writes `ctr`, `pick-lidar` writes `lidar`; `dtm10`
-// is written by hand, from the holes `pick-lidar` reports and the provinces they lie in.
+// `fetch-rt` downloads for it. `pick-sheets` writes `ctr`, `pick-lidar` writes `lidar` and
+// `dsm2021`; `dtm10` is written by hand, from the holes `pick-lidar` reports and the provinces they
+// lie in.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
@@ -12,8 +13,10 @@ const ManifestSchema = v.object({
   ctr: v.array(v.string()),
   /** LiDAR DTM tiles in priority order (a cell keeps the first value written), each the archive's name with its MD5, no `.zip`. */
   lidar: v.array(v.string()),
-  /** 10 m DTMs for the cells no LiDAR tile covers, by archive name (`MS_dtm10x10_epsg3003_md5_…`). */
+  /** 10 m DTMs for the cells no LiDAR tile covers, by archive name (`MS_dtm10x10_epsg3003_md5_…`), in priority order. */
   dtm10: v.array(v.string()),
+  /** Elements of the 2021 surface model (`234012`), for the open ground no LiDAR tile covers; none when absent. */
+  dsm2021: v.optional(v.array(v.string()), []),
 })
 
 /** What `fetch-rt` downloads for one part. */
@@ -28,7 +31,7 @@ export const readManifest = (key: string): Manifest => {
   const path = manifestPath(key)
   return existsSync(path)
     ? v.parse(ManifestSchema, JSON.parse(readFileSync(path, "utf8")))
-    : { ctr: [], lidar: [], dtm10: [] }
+    : { ctr: [], lidar: [], dtm10: [], dsm2021: [] }
 }
 
 /** Writes `change` over part `key`'s manifest, keeping the lists it does not name. */

@@ -6,6 +6,7 @@
 //   a lattice from a corner fixed for good (`anchor`, trees.ts).
 // - Test regions (issue #7): other shapes and sizes built from Lunigiana's inputs, in its frame and
 //   on its anchor, into `test-maps/` (gitignored), to check the build; the game never loads them.
+//   One far from lucido has terrain of its own (`ownTerrain`, issue #10).
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
@@ -38,8 +39,13 @@ export interface Region {
   readonly id: MapId
   /** Its files' name: the global file `<file>.bin` and the tiles `<file>/<i>_<j>.bin`, in `mapDir`. */
   readonly file: string
-  /** A test region: built from another region's inputs to check the build, into `test-maps/`; never shipped or fetched for. */
+  /** A test region: built from another region's inputs to check the build, into `test-maps/`; never shipped, and fetched for only when it has terrain of its own. */
   readonly test: boolean
+  /**
+   * A test region with terrain of its own (issue #10): `fetch-rt --region <key>` mosaics its part's
+   * manifest into `data/raw/rt/<key>` (`dtmDir`), which the build reads instead of Lunigiana's.
+   */
+  readonly ownTerrain: boolean
   readonly origin: { readonly lat: number; readonly lon: number }
   /** Its parts: the play area is the union of their masks, or their rectangles where they have none. */
   readonly parts: ReadonlyArray<Part>
@@ -208,7 +214,15 @@ const tilesOf = (rects: ReadonlyArray<Rect>): Region["tiles"] => {
 
 /** A region of `parts` with its tree lattice at `anchor`, each mask checked, its bounds the box round every rectangle. */
 const regionOf = (
-  { key, id, file, test }: Pick<Region, "key" | "id" | "file" | "test">,
+  {
+    key,
+    id,
+    file,
+    test,
+    ownTerrain = false,
+  }: Pick<Region, "key" | "id" | "file" | "test"> & {
+    readonly ownTerrain?: boolean
+  },
   origin: Region["origin"],
   parts: ReadonlyArray<Part>,
   anchor: Region["anchor"],
@@ -221,6 +235,7 @@ const regionOf = (
     id,
     file,
     test,
+    ownTerrain,
     origin,
     parts,
     bounds: { minX, minY, maxX, maxY },
@@ -261,6 +276,9 @@ const lucido = PARTS[0]!.rects[0]!
  *   terrain and 78 tiles; a mask on lucido's rectangle keeps the play area lucido's. Past the DTM's
  *   crop the terrain is the crop's edge drawn on (`loadDtm`): synthetic, for the build's memory and
  *   time and the cars round Monzone (docs/map.md, "Test regions").
+ * - `bagnone-ridge`: 4 × 4 km of the Apennine ridge round Monte Sillara, x −8000…−4000 by
+ *   y 20000…24000, with terrain of its own and nothing else: the LiDAR stops 1–2 km below the crest,
+ *   so it checks the fallback chain's seams and the summit (issue #10) before part 6 (#22) exists.
  */
 const TEST_REGIONS: ReadonlyArray<Region> = [
   regionOf(
@@ -291,6 +309,18 @@ const TEST_REGIONS: ReadonlyArray<Region> = [
     ],
     LUNIGIANA_ANCHOR,
   ),
+  regionOf(
+    { key: "bagnone-ridge", id: "lunigiana", file: "bagnone-ridge", test: true, ownTerrain: true },
+    LUNIGIANA_ORIGIN,
+    [
+      {
+        key: "sillara",
+        title: "The Bagnone ridge round Monte Sillara",
+        rects: [[-8000, 20000, -4000, 24000]],
+      },
+    ],
+    LUNIGIANA_ANCHOR,
+  ),
 ]
 
 const regions: ReadonlyArray<Region> = [
@@ -304,10 +334,16 @@ const regions: ReadonlyArray<Region> = [
   ...TEST_REGIONS,
 ]
 
-/** Selects a known region by its key, defaulting to the original map; invalid input fails before I/O. */
+/** Selects a known region by its key (`--region <key>` or `--region=<key>`), defaulting to the original map; invalid input fails before I/O. */
 export const regionFromArgs = (args: ReadonlyArray<string>): Region => {
-  const index = args.indexOf("--region")
-  const key = index < 0 ? "lunigiana" : args[index + 1]
+  const index = args.indexOf("--region"),
+    joined = args.find((a) => a.startsWith("--region="))
+  const key =
+    joined === undefined
+      ? index < 0
+        ? "lunigiana"
+        : args[index + 1]
+      : joined.slice("--region=".length)
   const region = regions.find((candidate) => candidate.key === key)
   if (region === undefined)
     throw new Error(
@@ -319,19 +355,32 @@ export const regionFromArgs = (args: ReadonlyArray<string>): Region => {
 /** Where the build writes `region`'s files, from the repository root: beside the game's map code, or a test region's in the gitignored `test-maps`. */
 export const mapDir = (region: Region): string => (region.test ? "test-maps" : "src/sim/map")
 
+/** Where `fetch-rt` writes the DTM mosaic `region` is built on, from the repository root: its own folder, or Lunigiana's. */
+export const dtmDir = (region: Region): string =>
+  region.ownTerrain ? `data/raw/rt/${region.key}` : "data/raw/rt"
+
 /** Build region for this Node invocation, fixed before the geometry modules load. */
 export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])
 
+/** Every part in Lunigiana's frame: its own, then its test regions'. */
+const LUNIGIANA_PARTS = [...PARTS, ...TEST_REGIONS.flatMap((r) => r.parts)]
+
+/** The region a Lunigiana part belongs to: Lunigiana for its own parts, the test region for a test region's. */
+export const regionOfPart = (part: Part): Region =>
+  TEST_REGIONS.find((r) => r.parts.includes(part)) ?? LUNIGIANA
+
 /**
- * The Lunigiana part with `key`; throws naming the known keys, so a tool run without one says what
- * to pass, and when the build region is not Lunigiana, whose local frame the parts' rectangles are
- * in.
+ * The Lunigiana part with `key`, a test region's included; throws naming the known keys, so a tool
+ * run without one says what to pass, and when the build region is not Lunigiana, whose local frame
+ * the parts' rectangles are in.
  */
 export const partOf = (key: string | undefined): Part => {
   if (REGION.id !== LUNIGIANA.id)
     throw new Error(`parts belong to the Lunigiana map, not --region ${REGION.id}`)
-  const part = PARTS.find((p) => p.key === key)
+  const part = LUNIGIANA_PARTS.find((p) => p.key === key)
   if (part === undefined)
-    throw new Error(`unknown part ${key}: use one of ${PARTS.map((p) => p.key).join(", ")}`)
+    throw new Error(
+      `unknown part ${key}: use one of ${LUNIGIANA_PARTS.map((p) => p.key).join(", ")}`,
+    )
   return part
 }

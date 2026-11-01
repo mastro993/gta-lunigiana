@@ -18,12 +18,18 @@ import { assembleMap, writeMap } from "./build-output.ts"
 import { readSources } from "./build-sources.ts"
 import { buildTerrain } from "./build-terrain.ts"
 import { buildWorld } from "./build-world.ts"
+import { sourceAreas } from "./dtm.ts"
 import { writeOverview } from "./overview.ts"
+import { inPlay } from "./play-area.ts"
 import { printRail, railSummary } from "./rail-report.ts"
 import { mapDir, REGION } from "./region.ts"
 import { cutMap } from "./tile-map.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
+if (REGION.ownTerrain)
+  throw new Error(
+    `--region ${REGION.key} has terrain alone and builds no map: terrain-seams.map-test.ts reads it`,
+  )
 const t0 = performance.now()
 // Each stage's end: seconds from the start and the process's resident memory then.
 const lap = (label: string) =>
@@ -38,12 +44,14 @@ const lap = (label: string) =>
  */
 const sourcesAndTerrain = async () => {
   const { dem, ...src } = await readSources(ROOT, lap)
-  return { src, terrain: buildTerrain(src, dem, lap) }
+  const sources =
+    dem.source === undefined ? undefined : sourceAreas(dem.source, REGION.bounds, inPlay)
+  return { src, terrain: buildTerrain(src, dem, lap), sources }
 }
 
 /** The map cut into tiles, the vectors the overview paints, and what the report prints about the build; every other intermediate is gone once it returns. */
 const cutBuilt = async () => {
-  const { src, terrain } = await sourcesAndTerrain()
+  const { src, terrain, sources } = await sourcesAndTerrain()
   const world = buildWorld(src, terrain, lap)
   const built = assembleMap(src, terrain, world)
   lap("map")
@@ -63,6 +71,7 @@ const cutBuilt = async () => {
       },
     },
     report: {
+      sources,
       rail: src.railReport,
       running: src.rail.length,
       extra: src.extra.length,
@@ -110,6 +119,14 @@ console.log({
   bytes: written.bytes,
   largestTile: written.largest,
   overview: kb(overviewBytes),
+  // the play area's terrain by source (fetch-rt's chain), km²
+  ...(report.sources === undefined
+    ? {}
+    : {
+        terrain: Object.fromEntries(
+          Object.entries(report.sources).map(([name, km2]) => [name, `${km2.toFixed(2)} km²`]),
+        ),
+      }),
   roads: map.vectors.counts.roads,
   buildings: map.vectors.counts.buildings,
   water: map.vectors.counts.water,

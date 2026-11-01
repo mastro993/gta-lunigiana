@@ -73,6 +73,8 @@ export interface Layers {
   readonly ucs: Uint16Array
   /** 1 in OSM forest. */
   readonly osm: Uint16Array
+  /** The source of the fetched terrain where it is not the LiDAR, 1-based into the fill sources; 0 = LiDAR, or no terrain fetched. */
+  readonly fill?: Uint16Array
 }
 
 /** One comune's play-area cells, and how many of them each source maps. */
@@ -84,6 +86,8 @@ interface Tally {
   readonly lots: Array<number>
   /** Cells no LiDAR tile holds. */
   none: number
+  /** Cells the fetched terrain takes from each fill source, in their order. */
+  readonly fills: Array<number>
   ucs: number
   osm: number
   /** UCS woods that OSM marks as forest too. */
@@ -96,18 +100,24 @@ const NO_COMUNE = "(no comune)"
  * The play area's cells counted per comune (`names[i]` is comune value i + 1), largest first; the
  * cells outside every comune make a last row of their own, when there are any.
  */
-export const tally = (layers: Layers, names: ReadonlyArray<string>, lots: number): Array<Tally> => {
+export const tally = (
+  layers: Layers,
+  names: ReadonlyArray<string>,
+  lots: number,
+  fills = 0,
+): Array<Tally> => {
   const rows: Array<Tally> = [NO_COMUNE, ...names].map((name) => ({
     name,
     cells: 0,
     ctr: 0,
     lots: Array.from({ length: lots }, () => 0),
     none: 0,
+    fills: Array.from({ length: fills }, () => 0),
     ucs: 0,
     osm: 0,
     both: 0,
   }))
-  const { play, comune, ctr, lot, ucs, osm } = layers
+  const { play, comune, ctr, lot, ucs, osm, fill } = layers
   for (let k = 0; k < play.length; k++) {
     if (play[k] === 0) continue
     const row = rows[comune[k]!]!
@@ -115,6 +125,7 @@ export const tally = (layers: Layers, names: ReadonlyArray<string>, lots: number
     row.ctr += ctr[k]!
     if (lot[k] === 0) row.none++
     else row.lots[lot[k]! - 1]!++
+    if (fill !== undefined && fill[k]! > 0) row.fills[fill[k]! - 1]!++
     row.ucs += ucs[k]!
     row.osm += osm[k]!
     row.both += ucs[k]! & osm[k]!
@@ -128,13 +139,15 @@ export const tally = (layers: Layers, names: ReadonlyArray<string>, lots: number
 
 /**
  * The markdown table of the tallies, plus a total row: the play area in km², the CTR 2019, each
- * LiDAR lot and no LiDAR as km² (share of the comune's play area), the UCS woods and OSM forest
- * in km², and the share of the UCS woods OSM also marks as forest. `cellArea` is in m².
+ * LiDAR lot, no LiDAR and each of the `fills` (the fetched terrain's sources past the LiDAR) as km²
+ * (share of the comune's play area), the UCS woods and OSM forest in km², and the share of the UCS
+ * woods OSM also marks as forest. `cellArea` is in m².
  */
 export const coverageTable = (
   rows: ReadonlyArray<Tally>,
   lots: ReadonlyArray<string>,
   cellArea: number,
+  fills: ReadonlyArray<string> = [],
 ): string => {
   const km = (cells: number) => ((cells * cellArea) / 1e6).toFixed(2)
   const pct = (n: number, of: number) => (of === 0 ? "–" : `${((100 * n) / of).toFixed(1)}%`)
@@ -146,6 +159,7 @@ export const coverageTable = (
     ctr: sum((r) => r.ctr),
     lots: lots.map((_, i) => sum((r) => r.lots[i]!)),
     none: sum((r) => r.none),
+    fills: fills.map((_, i) => sum((r) => r.fills[i]!)),
     ucs: sum((r) => r.ucs),
     osm: sum((r) => r.osm),
     both: sum((r) => r.both),
@@ -156,6 +170,7 @@ export const coverageTable = (
     "CTR 2019",
     ...lots.map((l) => `LiDAR ${l}`),
     "no LiDAR",
+    ...fills,
     "UCS woods, km²",
     "OSM forest, km²",
     "UCS woods OSM marks as forest",
@@ -171,6 +186,7 @@ export const coverageTable = (
         share(r.ctr, r.cells),
         ...r.lots.map((n) => share(n, r.cells)),
         share(r.none, r.cells),
+        ...r.fills.map((n) => share(n, r.cells)),
         km(r.ucs),
         km(r.osm),
         pct(r.both, r.ucs),

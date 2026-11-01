@@ -34,11 +34,14 @@ jobs:
       # The steps of `pnpm check`, one per step so a failure names its gate; lint and the tests read
       # the built maps. `pnpm test:long` runs the long joyrides, replays and render statistics;
       # `pnpm test:map` the checks whose cost grows with the map, and those of the L test region,
-      # which the maps action builds (or restores) with the maps.
+      # which the maps action builds (or restores) with the maps, and of the terrain's source seams,
+      # which read data/raw: so the action puts it there on a cache hit too (`raw`).
       - run: pnpm format:check
       - run: pnpm typecheck
       - id: maps
         uses: ./.github/actions/maps
+        with:
+          raw: "true"
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm test:long

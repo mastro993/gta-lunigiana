@@ -6,12 +6,14 @@ import {
   type Part,
   type Rect,
   checkMask,
+  dtmDir,
   inRects,
   mapDir,
   partOf,
   rectRing,
   rectsBox,
   regionFromArgs,
+  regionOfPart,
 } from "../region.ts"
 
 test("the default build keeps the pinned Lunigiana map", () => {
@@ -58,16 +60,22 @@ test("a region's tiles are those its parts' rectangles meet, and its tree anchor
   assert.deepEqual(regionFromArgs(["--region", "cesena"]).anchor, { x: -2000, y: -2000 })
 })
 
+test("--region=<key> selects a region as --region <key> does", () => {
+  assert.equal(regionFromArgs(["--region=bagnone-ridge"]).key, "bagnone-ridge")
+  assert.equal(regionFromArgs(["ctr", "--region=cesena"]).key, "cesena")
+  assert.throws(() => regionFromArgs(["--region="]), /Unknown or missing region/)
+})
+
 test("unknown regions and incomplete arguments fail before a fetch or build, naming the known keys", () => {
   assert.throws(() => regionFromArgs(["--region", "unknown"]), /region.*lunigiana-l/)
   assert.throws(() => regionFromArgs(["--region"]), /region/)
 })
 
-const TESTS = ["lunigiana-l", "lunigiana-3x"] as const
+const TESTS = ["lunigiana-l", "lunigiana-3x", "bagnone-ridge"] as const
 const lucido = partOf("lucido").rects[0]!
 const area = ([x0, y0, x1, y1]: Rect) => (x1 - x0) * (y1 - y0)
 
-test("the test regions build from Lunigiana's inputs, origin and tree anchor into test-maps; the shipped maps into src/sim/map", () => {
+test("the test regions take Lunigiana's origin and tree anchor and their files' place in test-maps (bagnone-ridge its terrain alone); the shipped maps go into src/sim/map", () => {
   const lunigiana = regionFromArgs([])
   for (const key of TESTS) {
     const region = regionFromArgs(["--region", key])
@@ -113,6 +121,35 @@ test("lunigiana-3x: lucido between terrain-only rectangles, 3 times its built te
   const { minX, minY, maxX, maxY } = x3.bounds
   assert.equal(area([minX, minY, maxX, maxY]), 3 * area(lucido))
   assert.equal(x3.tiles.length, 78)
+})
+
+test("bagnone-ridge: one part, sillara, 4 × 4 km round Monte Sillara on 4 tiles, the one region with terrain of its own", () => {
+  const ridge = regionFromArgs(["--region", "bagnone-ridge"])
+  assert.ok(ridge.ownTerrain)
+  assert.deepEqual(
+    ridge.parts.map((p) => [p.key, p.rects, p.mask]),
+    [["sillara", [[-8000, 20000, -4000, 24000]], undefined]],
+  )
+  assert.deepEqual(
+    ridge.tiles.map(({ i, j }) => `${i}_${j}`),
+    ["-4_10", "-3_10", "-4_11", "-3_11"],
+  )
+  for (const key of ["lunigiana", "cesena", "lunigiana-l", "lunigiana-3x"])
+    assert.ok(!regionFromArgs(["--region", key]).ownTerrain, key)
+})
+
+test("dtmDir is a region's own folder when it has terrain of its own, else Lunigiana's", () => {
+  assert.equal(dtmDir(regionFromArgs(["--region", "bagnone-ridge"])), "data/raw/rt/bagnone-ridge")
+  for (const key of ["lunigiana", "lunigiana-l"])
+    assert.equal(dtmDir(regionFromArgs(["--region", key])), "data/raw/rt", key)
+})
+
+test("partOf finds a test region's part too, and regionOfPart gives the region it belongs to", () => {
+  assert.equal(partOf("sillara"), regionFromArgs(["--region", "bagnone-ridge"]).parts[0])
+  assert.equal(partOf("lucido-l"), regionFromArgs(["--region", "lunigiana-l"]).parts[0])
+  assert.equal(regionOfPart(partOf("sillara")).key, "bagnone-ridge")
+  assert.equal(regionOfPart(partOf("lucido-l")).key, "lunigiana-l")
+  assert.equal(regionOfPart(partOf("lucido")).key, "lunigiana")
 })
 
 /** An L: a 200 by 100 m foot and a 100 by 200 m leg on its west half, the notch at its north-east. */

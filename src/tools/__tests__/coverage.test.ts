@@ -9,7 +9,7 @@ import { join } from "node:path"
 import { test } from "node:test"
 
 import { gridOver, mask } from "../coverage-grid.ts"
-import { checkPicks, forestPolygons, osmPolygon, readUcs } from "../coverage.ts"
+import { checkPicks, fillLayer, forestPolygons, osmPolygon, readUcs } from "../coverage.ts"
 import { fromLocal } from "../geometry.ts"
 import { readManifest } from "../manifest.ts"
 import type { Osm, Tags } from "../osm.ts"
@@ -143,11 +143,25 @@ test("checkPicks throws for a part without a manifest (read as empty) or with no
   const message =
     "no picks in data/parts/x.json: run pnpm pick-sheets x --write and pnpm pick-lidar x --write first"
   assert.throws(() => checkPicks("x", readManifest("x")), { message })
-  assert.throws(() => checkPicks("x", { ctr: [], lidar: [], dtm10: ["MS_dtm10x10"] }), { message })
-  const ctr = { ctr: ["23D11"], lidar: [], dtm10: [] },
-    lidar = { ctr: [], lidar: ["23d42"], dtm10: [] }
+  assert.throws(
+    () => checkPicks("x", { ctr: [], lidar: [], dtm10: ["MS_dtm10x10"], dsm2021: [] }),
+    { message },
+  )
+  const ctr = { ctr: ["23D11"], lidar: [], dtm10: [], dsm2021: [] },
+    lidar = { ctr: [], lidar: ["23d42"], dtm10: [], dsm2021: [] }
   assert.equal(checkPicks("x", ctr), ctr)
   assert.equal(checkPicks("x", lidar), lidar)
+})
+
+test("fillLayer codes each cell by its fill source, 0 on the LiDAR, and throws on a source it has no column for", () => {
+  const grid = gridOver([[0, 0, 40, 10]], 10)
+  const bySide = (x: number) => (x < 10 ? "lidar" : x < 20 ? "dsm2021" : x < 30 ? "dtm10" : "rer")
+  assert.deepEqual([...fillLayer(grid, bySide)], [0, 1, 2, 3])
+  // A source the chain gains (Liguria's DTM with #12) must get a column, not count as LiDAR.
+  assert.throws(
+    () => fillLayer(grid, () => "liguria"),
+    /no coverage column for terrain source liguria/,
+  )
 })
 
 test("coverage throws on a mistyped flag before it reads or asks for anything", () => {

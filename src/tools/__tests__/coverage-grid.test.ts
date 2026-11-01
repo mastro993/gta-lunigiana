@@ -73,8 +73,18 @@ const layers = (): Layers => ({
 
 test("tally: per comune, the play-area cells each source maps", () => {
   assert.deepEqual(tally(layers(), ["Uno", "Due"], 2), [
-    { name: "Uno", cells: 40, ctr: 6, lots: [25, 15], none: 0, ucs: 10, osm: 5, both: 5 },
-    { name: "Due", cells: 40, ctr: 0, lots: [25, 6], none: 9, ucs: 10, osm: 1, both: 1 },
+    {
+      name: "Uno",
+      cells: 40,
+      ctr: 6,
+      lots: [25, 15],
+      none: 0,
+      fills: [],
+      ucs: 10,
+      osm: 5,
+      both: 5,
+    },
+    { name: "Due", cells: 40, ctr: 0, lots: [25, 6], none: 9, fills: [], ucs: 10, osm: 1, both: 1 },
   ])
 })
 
@@ -110,6 +120,52 @@ test("coverageTable: km² and shares per comune, and a total row", () => {
   assert.equal(
     lines[4],
     "| **Total** | 0.80 | 0.06 (7.5%) | 0.50 (62.5%) | 0.21 (26.3%) | 0.09 (11.3%) | 0.20 | 0.06 | 30.0% |",
+  )
+})
+
+/** The fetched terrain's sources past the LiDAR, as coverage.ts heads their columns. */
+const FILLS = ["DSM 2021", "10 m DTM", "DTM 5x5"]
+
+/**
+ * `layers` with the terrain fetched: where it has no LiDAR, x 70–100, y 50–80, the DSM 2021 fills
+ * x 70–80, the 10 m DTM x 80–100 up to y 70 and the DTM 5x5 the rest, out past the play area.
+ */
+const filled = (): Layers => ({
+  ...layers(),
+  fill: paint(grid, [
+    { value: 1, polygons: [box(70, 50, 80, 80)] },
+    { value: 2, polygons: [box(80, 50, 100, 70)] },
+    { value: 3, polygons: [box(80, 70, 100, 100)] },
+  ]),
+})
+
+test("tally: per comune, the play-area cells each fill source gives the terrain", () => {
+  assert.deepEqual(
+    tally(filled(), ["Uno", "Due"], 2, FILLS.length).map((r) => [r.name, r.fills]),
+    [
+      ["Uno", [0, 0, 0]],
+      ["Due", [3, 4, 2]],
+    ],
+  )
+})
+
+test("coverageTable: each fill source's km² and share after no LiDAR, summed in the total row", () => {
+  const lines = coverageTable(
+    tally(filled(), ["Uno", "Due"], 2, FILLS.length),
+    ["004", "005"],
+    100 * 100,
+    FILLS,
+  ).split("\n")
+  assert.equal(lines.length, 5)
+  assert.match(lines[0]!, /\| no LiDAR \| DSM 2021 \| 10 m DTM \| DTM 5x5 \| UCS woods, km² \|/)
+  for (const line of lines) assert.equal(line.split(" | ").length, 12, line)
+  assert.equal(
+    lines[3],
+    "| Due | 0.40 | 0.00 (0.0%) | 0.25 (62.5%) | 0.06 (15.0%) | 0.09 (22.5%) | 0.03 (7.5%) | 0.04 (10.0%) | 0.02 (5.0%) | 0.10 | 0.01 | 10.0% |",
+  )
+  assert.equal(
+    lines[4],
+    "| **Total** | 0.80 | 0.06 (7.5%) | 0.50 (62.5%) | 0.21 (26.3%) | 0.09 (11.3%) | 0.03 (3.8%) | 0.04 (5.0%) | 0.02 (2.5%) | 0.20 | 0.06 | 30.0% |",
   )
 })
 
