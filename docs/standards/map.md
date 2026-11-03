@@ -14,6 +14,9 @@ never compares a change's map with the map before it, so these runs are yours.
   moved. When a change may move only some categories, name them: `pnpm map-diff … --except trees`
   still prints the trees' differences but exits 0 only when nothing else differs (a reorder of the
   walls or the trees counts as a difference: the physics resolves contacts in wall order).
+  Buildings that differ only in their id print as one `ids:` line under buildings, and a farm on
+  one is no difference: a survey's ids encode its source and section (`survey-ids.ts`), so a change
+  to that encoding shows as that line alone, which `--except buildings` accepts.
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
   of the map live there, not in `pnpm test`, and so do the L test region's (`pnpm maps` builds it
   into `test-maps/`; without it they are skipped, but fail in CI, which builds it).
@@ -34,9 +37,12 @@ never compares a change's map with the map before it, so these runs are yours.
 - **Licences**: accept CC BY and the ODbL (OpenStreetMap's). Ask the user before any other
   share-alike source (CC BY-SA and the like), and leave out non-commercial or unlicensed data.
 - **Records and credits**: record each accepted and rejected source, with the reason, in
-  [docs/map.md](../map.md). Credit each accepted one in the README, in both credit lines of
-  `index.html` (the HUD's and the title card's) and in the release notes `pin-raw` writes (`NOTES`
-  in `src/tools/pin-raw.ts`), keeping Regione Toscana's wording verbatim.
+  [docs/map.md](../map.md). Credit each accepted one in the README, in the three credit blocks of
+  `index.html` (the HUD's, the settings dialog's and the title card's) and in the release notes
+  `pin-raw` writes (`NOTES` in `src/tools/pin-raw.ts`), keeping Regione Toscana's wording verbatim.
+  Where two of a source's own statements name different licences (the CTR 1:2000's archive says CC
+  BY 4.0, the cartoteca's GetFeatureInfo CC BY 3.0 IT), record both and credit the one its archive
+  ships: the dataset's own licence file is what it is released under.
 - **Overpass** is often overloaded: the pipeline uses the OSM API's `/map` tiles, and the
   kumi.systems mirror serves one-off queries.
 
@@ -54,7 +60,10 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   name the issue that adds it and ask the user before building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw` then pins
-  the part's new inputs.
+  the part's new inputs. A part's older surveys (`ctr2009`, `ctr10k`, `dbt2k`) go into its manifest
+  by hand from `rt-index`'s lists ([Adding a part](../map.md#adding-a-part)); list a CTR 1:10 000
+  section only where no finer survey maps the part's buildings, since its mapped area drops every
+  OSM building in it.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
 - Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no lattice tree and
   changes no tree's id (its look's seed): the lattice starts at the region's fixed `anchor`
@@ -65,11 +74,14 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   map.md](../map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)). Trees cover the
   region's tiles, beyond the play area too, 1 m inside the box; `pnpm map-diff` names a tree that
   keeps its spot but not its id (`ids:` under trees). Each tile stores its trees in whole metres
-  from a point 100 m south-west of its corner. Nor does it move a bit of the terrain, the land
-  cover or the baked tables of the parts already built: the DTM's projection lattice and every
-  terrain and cover lookup count from the anchor too. What it does change there (the place, the
-  catchments, the walls and buildings along the old edge) is in [What growing a region
-  changes](../map.md#what-growing-a-region-changes); keep that list true when a part shows more.
+  from a point 100 m south-west of its corner. A survey's building keeps its id too: the id is its
+  source, its section's name and its record's own number (`survey-ids.ts`), never an index over the
+  map or a cut of the box, so `ids:` under buildings stays empty. Nor does it move a bit of the
+  terrain, the land cover or the baked tables of the parts already built: the DTM's projection
+  lattice and every terrain and cover lookup count from the anchor too. What it does change there
+  (the place, the catchments, the walls and buildings along the old edge) is in [What growing a
+  region changes](../map.md#what-growing-a-region-changes); keep that list true when a part shows
+  more.
 - A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.53 MB, Lunigiana's
   0_0 with the vectors round it, the build prints it, and `src/__tests__/maps.map-test.ts` fails past
   it).
