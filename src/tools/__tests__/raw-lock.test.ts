@@ -1,21 +1,32 @@
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { after, test } from "node:test"
+import { gzipSync } from "node:zlib"
 
 import * as v from "valibot"
 
 import {
   assetName,
   digestOf,
+  dropRaw,
   type Lock,
   rawFiles,
   readLock,
   recordSource,
   splitAsset,
   writeLock,
+  writeRaw,
 } from "../raw-lock.ts"
 
 const ROOT = join(import.meta.dirname, "../../..")
@@ -148,6 +159,36 @@ test("recordSource records a file's digest and source, unless the lock holds its
     () => recordSource(join(raw, "../elsewhere.bin"), "s", raw, lock),
     /not a raw input/,
   )
+})
+
+test("writeRaw leaves a file that unpacks to the same bytes alone, rewrites one that does not, and records both", () => {
+  const { raw, lock } = scratch()
+  const file = join(raw, "lig/x/uds.json.gz"),
+    json = Buffer.from('{"crs":"EPSG:25832"}')
+  writeRaw(file, json, "first", undefined, undefined, raw, lock)
+  const fetched = { ...digestOf(readFileSync(file)), source: "first" }
+  assert.deepEqual(readLock(lock)["lig/x/uds.json.gz"], fetched)
+  // Packed by another zlib (another level): the same bytes unpacked, so the file stays as it is.
+  writeFileSync(file, gzipSync(json, { level: 1 }))
+  const other = readFileSync(file)
+  writeRaw(file, json, "second", undefined, undefined, raw, lock)
+  assert.deepEqual(readFileSync(file), other)
+  // Other bytes: written, and the lock records them.
+  writeRaw(file, Buffer.from("{}"), "third", undefined, undefined, raw, lock)
+  assert.deepEqual(readLock(lock)["lig/x/uds.json.gz"], {
+    ...digestOf(readFileSync(file)),
+    source: "third",
+  })
+})
+
+test("dropRaw deletes an input and its lock entry, and refuses a file outside data/raw", () => {
+  const { raw, lock } = scratch({ "lig/x/dtm/-8_-5.tif": "crop", "lig/x/dtm/-7_-5.tif": "kept" })
+  for (const name of ["-8_-5.tif", "-7_-5.tif"])
+    recordSource(join(raw, "lig/x/dtm", name), "wcs", raw, lock)
+  dropRaw(join(raw, "lig/x/dtm/-8_-5.tif"), raw, lock)
+  assert.ok(!existsSync(join(raw, "lig/x/dtm/-8_-5.tif")))
+  assert.deepEqual(Object.keys(readLock(lock)), ["lig/x/dtm/-7_-5.tif"])
+  assert.throws(() => dropRaw(join(raw, "../raw.lock.json"), raw, lock), /not a raw input/)
 })
 
 test("data/raw and the built maps, the test regions' too, are ignored by git, and no tracked file is over 1 MB", () => {

@@ -4,6 +4,7 @@ import { test } from "node:test"
 import { hash01 } from "../geometry.ts"
 import {
   comune,
+  element5k,
   localOf,
   section10k,
   sheet2k,
@@ -23,7 +24,7 @@ const newId = (section: string, sheet: number, base: number, index: number, k: n
     localOf(sheet * 1e5 + base + index, k),
   )
 
-test("sheet2k, section10k and comune code a section by its name alone, and refuse other names", () => {
+test("sheet2k, section10k, element5k and comune code a section by its name alone, and refuse other names", () => {
   assert.deepEqual(sheet2k("23D11"), { section: 23 * 26 + 3, sheet: 11 })
   assert.deepEqual(sheet2k("22D04"), { section: 22 * 26 + 3, sheet: 4 })
   assert.deepEqual(sheet2k("25B24"), { section: 25 * 26 + 1, sheet: 24 })
@@ -35,6 +36,17 @@ test("sheet2k, section10k and comune code a section by its name alone, and refus
   assert.equal(section10k("249160"), 249 * 16 + 15)
   for (const name of ["249000", "249170", "249025", "24902", "S_249020", "249020x"])
     assert.throws(() => section10k(name), /not a 1:10 000 section name/, name)
+  // A 1:5000 element is one of the 4 of its 1:10 000 section, 1 to 4 (Sarzana's cathedral: 248082).
+  assert.equal(element5k("248081"), (248 * 16 + 7) * 4)
+  assert.equal(element5k("248082"), (248 * 16 + 7) * 4 + 1)
+  assert.equal(element5k("248164"), (248 * 16 + 15) * 4 + 3)
+  assert.ok(element5k("999164") < 2 ** 16)
+  for (const name of ["248080", "248085", "248171", "24808", "2480821"])
+    assert.throws(
+      () => element5k(name),
+      /not a 1:5000 element name|not a 1:10 000 section name/,
+      name,
+    )
   assert.equal(comune("045014"), 45 * 512 + 14) // Pontremoli
   assert.equal(comune("100001"), 100 * 512 + 1) // Prato's province, Tuscany's highest
   for (const name of ["45014", "045512", "04501a", "045014_un_vol"])

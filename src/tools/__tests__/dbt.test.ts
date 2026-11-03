@@ -50,7 +50,9 @@ test("kindOf: the building's state, type and use or the minor building's type, t
   assert.equal(minor("18"), "0203") // chapel
   assert.equal(building({ edifc_ty: "07" }), "0217")
   assert.equal(minor("05"), "0217") // tower or gate
-  for (const uso of ["060301", "060304"]) assert.equal(building({ edifc_uso: uso }), "0211", uso)
+  // 0603, rail services, is the NC5's for a station's other buildings (nc5.ts).
+  for (const uso of ["0603", "060301", "060304"])
+    assert.equal(building({ edifc_uso: uso }), "0211", uso)
   assert.equal(building({ edifc_uso: "080206" }), "0212")
   const industrial: ReadonlyArray<Record<string, string>> = [
     { edifc_ty: "08" },
@@ -62,6 +64,7 @@ test("kindOf: the building's state, type and use or the minor building's type, t
     { edifc_ty: "09" },
     { edifc_uso: "0902" }, // cowshed
     { edifc_uso: "0903" }, // hayloft
+    { edifc_ty: "95", edifc_uso: "09" }, // the NC5's farm building: "altro", agricultural use
   ]
   for (const a of rural) assert.equal(building(a), "0216", JSON.stringify(a))
   assert.equal(minor("07"), "0244")

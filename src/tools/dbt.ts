@@ -51,10 +51,10 @@ export const kindOf = (a: Attrs): string | undefined => {
   if (a.edifc_stat === "02" || min === "06") return "0205" // disused or ruined, archaeological
   if (ty === "07" || min === "05") return "0217" // bell tower (a place of worship too), tower or gate
   if (["06", "11", "22"].includes(ty) || uso === "05" || min === "18") return "0203" // baptistery, church, cathedral, place of worship, chapel
-  if (uso === "060301" || uso === "060304") return "0211" // passenger station, halt
+  if (uso === "0603" || uso === "060301" || uso === "060304") return "0211" // rail service (the NC5's), passenger station, halt
   if (uso === "080206") return "0212" // transformer station
   if (ty === "08" || uso.startsWith("08") || uso === "060302") return "0202" // shed, industrial, rail depot
-  if (ty === "09" || uso === "0902" || uso === "0903") return "0216" // rural building, cowshed, hayloft
+  if (ty === "09" || uso === "09" || uso === "0902" || uso === "0903") return "0216" // rural building, agricultural use (the NC5's), cowshed, hayloft
   if (min === "07") return "0244" // garage
   if (min === "14" || min === "17") return undefined
   if (min !== "" && min !== "-") return "0207" // huts, kiosks, tombs and the other minor buildings

@@ -6,6 +6,9 @@
 //   1 m ESRI ASCII grids in EPSG:7791, corner-registered on fractional metres; a surface model, so
 //   the chain takes it on open ground alone (`openGround`), less the trees and shrubs standing on
 //   it (`clearCanopy`);
+// - Regione Liguria's DTM ed. 2023 (CC BY 4.0): its WCS's native 5 m cells of whole metres in
+//   EPSG:3003, cropped per 2 km tile by `fetch-lig` (data/raw/lig/<part>/dtm), pasted onto its lattice
+//   and smoothed within half a metre of each whole metre (`ligRaster`, `unround`);
 // - Regione Emilia-Romagna's DTM 5x5 (CC BY 4.0): its WCS's native 5 m grid, EPSG:7791, a GeoTIFF.
 // EPSG:7791 is RDN2008 / UTM 32N. A cell's place there comes from exact transforms on a lattice
 // every PROJ_STEP m over the crop, bilinear between, as `dtm.ts` places the map's points.
@@ -16,7 +19,7 @@ import type { Filler } from "./fill-chain.ts"
 import { fillPolygon } from "./geometry.ts"
 
 /** The terrain's sources in the chain's order: a cell's source code is the index of its source here. */
-export const SOURCES = ["lidar", "dsm2021", "dtm10", "rer"] as const
+export const SOURCES = ["lidar", "dsm2021", "dtm10", "lig", "rer"] as const
 /** One of the terrain's sources. */
 export type Source = (typeof SOURCES)[number]
 
@@ -119,16 +122,40 @@ export const rerUrl = ([x0, y0, x1, y1]: readonly [number, number, number, numbe
   return `https://servizigis.regione.emilia-romagna.it/wcs/dtm5x5?service=WCS&version=1.0.0&request=GetCoverage&coverage=DTM5X5_RDN32_RMD&crs=EPSG:7791&response_crs=EPSG:7791&bbox=${a},${b},${c},${d}&width=${(c - a) / 5}&height=${(d - b) / 5}&format=GeoTIFF`
 }
 
-/** A one-band GeoTIFF in EPSG:7791 as a raster; heights below -1000 m, or its nodata value, are NaN. */
-export const geoTiffRaster = async (bytes: Buffer): Promise<Raster> => {
+/** A GeoTIFF's geo keys, as geotiff.js reads them. */
+type GeoKeys = Readonly<Record<string, unknown>> | null
+
+/**
+ * Whether `keys` name EPSG:3003: by its code, or as GeoServer writes it, user-defined (32767) with
+ * Gauss-Boaga west's projection on the International 1924 ellipsoid.
+ */
+const isGaussBoagaWest = (keys: GeoKeys): boolean =>
+  keys?.ProjectedCSTypeGeoKey === 3003 ||
+  (keys?.ProjectedCSTypeGeoKey === 32767 &&
+    keys.ProjNatOriginLongGeoKey === 9 &&
+    keys.ProjFalseEastingGeoKey === 1500000 &&
+    keys.ProjScaleAtNatOriginGeoKey === 0.9996 &&
+    keys.GeogSemiMajorAxisGeoKey === 6378388 &&
+    keys.GeogInvFlatteningGeoKey === 297)
+
+/**
+ * A one-band GeoTIFF in EPSG:7791 (Emilia-Romagna's) or EPSG:3003 (Liguria's) as a raster, rows
+ * north first in the file, its origin the north-west corner; heights below -1000 m, or its nodata
+ * value, are NaN.
+ */
+export const geoTiffRaster = async (bytes: Buffer, crs: 7791 | 3003 = 7791): Promise<Raster> => {
   const { fromArrayBuffer } = await import("geotiff")
   const tiff = await fromArrayBuffer(new Uint8Array(bytes).buffer)
   const image = await tiff.getImage()
-  if (image.getGeoKeys()?.ProjectedCSTypeGeoKey !== 7791)
-    throw new Error("the GeoTIFF is not in EPSG:7791")
+  const keys: GeoKeys = image.getGeoKeys()
+  if (crs === 7791 ? keys?.ProjectedCSTypeGeoKey !== 7791 : !isGaussBoagaWest(keys))
+    throw new Error(`the GeoTIFF is not in EPSG:${crs}`)
+  // A pixel scale gives the y step negative, GeoServer's model transformation positive (geotiff.js
+  // negates its −5); either way the rows run south from the origin.
   const [ox, oy] = image.getOrigin(),
     [rx, ry] = image.getResolution()
-  if (rx !== -ry!) throw new Error(`the GeoTIFF's cells are not square: ${rx} by ${ry}`)
+  if (!(rx! > 0) || Math.abs(ry!) !== rx)
+    throw new Error(`the GeoTIFF's cells are not square: ${rx} by ${ry}`)
   const cols = image.getWidth(),
     rows = image.getHeight(),
     nodata = image.getGDALNoData()
@@ -139,7 +166,109 @@ export const geoTiffRaster = async (bytes: Buffer): Promise<Raster> => {
       const v = north[(rows - 1 - r) * cols + c]!
       z[r * cols + c] = v === nodata || v < -1000 ? Number.NaN : v
     }
-  return { x0: ox! + rx / 2, y0: oy! + ry! * (rows - 0.5), cell: rx, cols, rows, z }
+  return { x0: ox! + rx / 2, y0: oy! - rx * (rows - 0.5), cell: rx, cols, rows, z }
+}
+
+/**
+ * How far the chain's bend of Liguria's DTM reaches past the cells it is fitted on, m (`Filler`'s
+ * `fade`): the NC5's eaves stand in the DTM's own frame, so the DTM keeps it away from the better
+ * sources (with the lattice's bend unfaded, the Sarzana test region's corner of LiDAR lifted the
+ * DTM 1.1 m all over).
+ */
+export const LIG_FADE = 500
+
+/**
+ * Liguria's DTM ed. 2023 over a part: its crops (`fetch-lig`'s GeoTIFFs, each on the DTM's 5 m
+ * lattice) pasted onto one raster in EPSG:3003, its whole metres smoothed (`unround`), with the
+ * smoothing's sweeps. Undefined without a crop.
+ */
+export const ligRaster = async (
+  crops: ReadonlyArray<Buffer>,
+): Promise<{ readonly raster: Raster; readonly sweeps: number } | undefined> => {
+  const rasters = await Promise.all(crops.map((b) => geoTiffRaster(b, 3003)))
+  if (rasters.length === 0) return undefined
+  const cell = rasters[0]!.cell
+  // Each crop's first cell, in whole cells from the first crop's.
+  const at = rasters.map((r) => [
+    Math.round((r.x0 - rasters[0]!.x0) / cell),
+    Math.round((r.y0 - rasters[0]!.y0) / cell),
+  ])
+  const c0 = Math.min(...at.map((a) => a[0]!)),
+    r0 = Math.min(...at.map((a) => a[1]!))
+  const cols = Math.max(...rasters.map((r, k) => at[k]![0]! + r.cols)) - c0,
+    rows = Math.max(...rasters.map((r, k) => at[k]![1]! + r.rows)) - r0
+  const z = new Float32Array(cols * rows).fill(Number.NaN)
+  rasters.forEach((r, k) => {
+    if (r.cell !== cell) throw new Error(`a crop of ${r.cell} m cells among ${cell} m ones`)
+    const dc = at[k]![0]! - c0,
+      dr = at[k]![1]! - r0
+    for (let b = 0; b < r.rows; b++)
+      for (let a = 0; a < r.cols; a++) {
+        const v = r.z[b * r.cols + a]!
+        if (!Number.isNaN(v)) z[(dr + b) * cols + dc + a] = v
+      }
+  })
+  return unround({
+    x0: rasters[0]!.x0 + c0 * cell,
+    y0: rasters[0]!.y0 + r0 * cell,
+    cell,
+    cols,
+    rows,
+    z,
+  })
+}
+
+/** How far a whole-metre height may lie from the height it was rounded from, m. */
+const ROUNDING = 0.5
+/** Over-relaxation of `unround`'s sweeps, and when they stop: no cell moved by more than STILL m, or MAX_SWEEPS. */
+const OMEGA = 1.9,
+  STILL = 0.001
+/** The most sweeps `unround` makes, which `fetch-rt` reports reaching. */
+export const MAX_SWEEPS = 2000
+
+/**
+ * The smoothest surface (a membrane: each cell the mean of its neighbours with data) within
+ * ROUNDING of each cell of `r`, a DTM of whole metres, by over-relaxed sweeps clamped to that band:
+ * where the ground rises less than a metre a cell, the whole metres step by a metre every so many
+ * cells, which the game's 4 m grid would draw as terraces, and a blur wide enough to hide them
+ * would flatten the relief as well. A slope comes out straight, a crest or a hollow within half a
+ * metre of its cells. A cell without data stays NaN and is no one's neighbour. It relaxes in 64 bits:
+ * in 32 the rounding of each stored height, over-relaxed, keeps cells above 1024 m moving by more
+ * than STILL for ever. With the sweeps it made: MAX_SWEEPS when it stopped unsettled.
+ */
+export const unround = (r: Raster): { readonly raster: Raster; readonly sweeps: number } => {
+  const { cols, rows } = r,
+    z = Float64Array.from(r.z)
+  let sweeps = 0
+  for (let moved = Infinity; sweeps < MAX_SWEEPS && moved > STILL; sweeps++) {
+    moved = 0
+    for (let b = 0; b < rows; b++)
+      for (let a = 0; a < cols; a++) {
+        const k = b * cols + a,
+          v = r.z[k]!
+        if (Number.isNaN(v)) continue
+        let sum = 0,
+          n = 0
+        for (const q of [
+          a > 0 ? k - 1 : -1,
+          a + 1 < cols ? k + 1 : -1,
+          b > 0 ? k - cols : -1,
+          b + 1 < rows ? k + cols : -1,
+        ])
+          if (q >= 0 && !Number.isNaN(z[q]!)) {
+            sum += z[q]!
+            n++
+          }
+        if (n === 0) continue
+        const next = Math.min(
+          v + ROUNDING,
+          Math.max(v - ROUNDING, z[k]! + OMEGA * (sum / n - z[k]!)),
+        )
+        moved = Math.max(moved, Math.abs(next - z[k]!))
+        z[k] = next
+      }
+  }
+  return { raster: { ...r, z: Float32Array.from(z) }, sweeps }
 }
 
 /**

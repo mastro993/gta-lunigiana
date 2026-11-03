@@ -2,7 +2,8 @@
 # in test-maps, for the steps after it: from the cache when their inputs are unchanged, else built
 # from the raw inputs data/raw.lock.json pins, which come through a cache of their own. With `raw`
 # set, it puts the raw inputs in data/raw on a cache hit too, for the checks that read them
-# (terrain-seams.map-test.ts reads the terrain fetch-rt wrote and its sources). The L is
+# (terrain-seams.map-test.ts the terrains fetch-rt wrote, pontremoli.map-test.ts the DBT and OSM
+# extract, sarzana.map-test.ts Liguria's sources fetch-lig wrote). The L is
 # built from the same inputs and code (pnpm maps), so it shares the maps' key and is cached with
 # them: a hit needs no raw inputs. It never saves the maps: ci.yml's reproducible job does, once a
 # second build matches.

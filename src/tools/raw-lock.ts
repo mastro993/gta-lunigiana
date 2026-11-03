@@ -7,8 +7,9 @@
 
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
-import { join, relative, sep } from "node:path"
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { dirname, join, relative, sep } from "node:path"
+import { gunzipSync, gzipSync } from "node:zlib"
 
 import * as v from "valibot"
 
@@ -142,4 +143,37 @@ export const recordSource = (
     digest = digestOf(readFileSync(file))
   if (lock[path]?.sha256 === digest.sha256) return
   writeLock({ ...lock, [path]: { ...digest, source } }, lockPath)
+}
+
+/**
+ * Writes `bytes`, packed (gzip at level 9 by default), to `file` under `raw` (data/raw), unless the
+ * file there already unpacks to the same bytes, so another zlib never churns a pinned file; then
+ * records it with where the bytes came from (`recordSource`). `fetch-rt` and `fetch-lig` write their
+ * inputs through it.
+ */
+export const writeRaw = (
+  file: string,
+  bytes: Buffer,
+  source: string,
+  pack: (b: Buffer) => Buffer = (b) => gzipSync(b, { level: 9 }),
+  unpack: (b: Buffer) => Buffer = gunzipSync,
+  raw = RAW_DIR,
+  lockPath = LOCK_PATH,
+): void => {
+  if (!existsSync(file) || !unpack(readFileSync(file)).equals(bytes)) {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, pack(bytes))
+    console.log(`wrote ${relative(ROOT, file)}`)
+  }
+  recordSource(file, source, raw, lockPath)
+}
+
+/** Deletes `file` under `raw` (data/raw), an input its fetch tool no longer writes, and its lock entry. */
+export const dropRaw = (file: string, raw = RAW_DIR, lockPath = LOCK_PATH): void => {
+  const path = relative(raw, file).split(sep).join("/")
+  if (!PATH.test(path)) throw new Error(`${file} is not a raw input under ${raw}`)
+  rmSync(file)
+  const { [path]: _gone, ...lock } = readLock(lockPath)
+  writeLock(lock, lockPath)
+  console.log(`removed ${relative(ROOT, file)}`)
 }

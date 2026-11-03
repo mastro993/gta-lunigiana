@@ -1,16 +1,16 @@
-// The ids of the surveyed buildings (ctr.ts, dbt.ts): negative, so they never meet an OSM id, and
-// unique across every source and section the map may read. An id is −(local + 2^32 · slot):
+// The ids of the surveyed buildings (ctr.ts, dbt.ts, nc5.ts): negative, so they never meet an OSM
+// id, and unique across every source and section the map may read. An id is −(local + 2^32 · slot):
 // - `local`, under 2^31, numbers the record within its sheet or section as the 2019 CTR's ids always
-//   did (sheet number, layer, record, polygon; `localOf`), or by RT's own serial in the DBT (dbt.ts),
-//   so `id | 0` and `-(id | 0)`, which seed a
-//   building's look (its tint in features.ts, its roof, shutters and windows in the renderer), give
-//   what they gave before the sources and sections were added;
+//   did (sheet number, layer, record, polygon; `localOf`), or by the source's own serial in the DBT
+//   and the NC5 (dbt.ts, nc5.ts), so `id | 0` and `-(id | 0)`, which seed a building's look (its
+//   tint in features.ts, its roof, shutters and windows in the renderer), give what they gave
+//   before the sources and sections were added;
 // - `slot` is the source (`SOURCES`) times 2^16 plus its section's code, fixed by the section's name
 //   alone, so adding a part never renumbers a building another part already holds.
 // The largest slot, 2^21 − 1, keeps every id a safe integer (2^21 · 2^32 = 2^53).
 
 /** Each survey source's number in the ids: one block of 2^16 sections each. */
-export const SOURCES = { ctr2019: 1, dbt2k: 2, ctr2009: 3, ctr10k: 4 } as const
+export const SOURCES = { ctr2019: 1, dbt2k: 2, ctr2009: 3, ctr10k: 4, nc5: 5 } as const
 
 /** A survey source of buildings, road surfaces and mapped areas. */
 export type SurveySource = keyof typeof SOURCES
@@ -34,6 +34,13 @@ export const section10k = (section: string): number => {
   if (m === null || !Number.isInteger(k) || k < 1 || k > 16)
     throw new Error(`not a 1:10 000 section name: ${section}`)
   return Number(m[1]) * 16 + k - 1
+}
+
+/** A 1:5000 element's code: "248082" is the 2nd of the 4 elements of 1:10 000 section 248080. */
+export const element5k = (element: string): number => {
+  const m = /^(\d{5})([1-4])$/.exec(element)
+  if (m === null) throw new Error(`not a 1:5000 element name: ${element}`)
+  return section10k(`${m[1]}0`) * 4 + Number(m[2]) - 1
 }
 
 /** A comune's code from its ISTAT number: "045014" is comune 14 of province 45 (provinces under 128, comuni under 512, so the code fits a section's 2^16). */
