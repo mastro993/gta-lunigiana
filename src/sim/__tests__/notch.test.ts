@@ -27,11 +27,21 @@ test("an L: a teleport into the notch is dropped, one just inside its corner is 
   assert.deepEqual(at(1999.5, 1000), [1999.5, 1000])
 })
 
+/** The first y from `from` up the notch's west side, `step` m apart, where `ok` holds; fails past the notch's north edge (y 3900). */
+const firstAlong = (what: string, from: number, step: number, ok: (y: number) => boolean) => {
+  for (let y = from; y <= 3900; y += step) if (ok(y)) return y
+  return assert.fail(`no ${what} along the notch's west side`)
+}
+
 test("an L: herds graze only the play area, a pasture by the notch included", () => {
   // The first rural pasture 20 m inside the notch's west side, from its south end: herds drawn 90-140 m off
   // fall in the notch about half the time.
-  let y = 100
-  while (!(pasture(1980, y) && residentsNear(1980, y, RURAL_REACH) < RURAL)) y += 40
+  const y = firstAlong(
+    "rural pasture",
+    100,
+    40,
+    (y) => pasture(1980, y) && residentsNear(1980, y, RURAL_REACH) < RURAL,
+  )
   const game = start([], [{ x: 1980, y, angle: 0 }])
   let cows = 0
   game.run(900, (frame) => {
@@ -50,15 +60,15 @@ test("an L: pigs root only by pens in the play area, pens in the notch in reach"
   // pens (enough to want a pig), all of them in the notch: a litter drawn by one would read a
   // building on an unlisted tile and throw.
   const pens = (y: number) => farmsNear(1982, y, ANIMALS.pig.reach).filter((f) => f.rural && f.pen)
-  let y = 0
-  while (
-    !(
+  const y = firstAlong(
+    "rural spot with only the notch's pens in reach",
+    0,
+    20,
+    (y) =>
       residentsNear(1982, y, RURAL_REACH) < RURAL &&
       pens(y).length >= 4 &&
-      pens(y).every((f) => !inPlay(f.x, f.y))
-    )
+      pens(y).every((f) => !inPlay(f.x, f.y)),
   )
-    y += 20
   const game = start([], [{ x: 1982, y, angle: 0 }])
   game.run(60)
   for (const a of game.world().animals)

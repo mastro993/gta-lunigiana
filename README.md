@@ -107,7 +107,7 @@ pnpm maps
 pnpm dev
 ```
 
-The maps are not in git, so a fresh clone or worktree builds them once: `pnpm fetch-raw` downloads 27.6 MB (the 26.4 MB before #11 took about 44 s), and `pnpm maps` builds both maps and the L test region in about 37 s. The tests and `pnpm lint` read the built maps too.
+The maps are not in git, so a fresh clone or worktree builds them once: `pnpm fetch-raw` downloads 27.6 MB in about 40 s, and `pnpm maps` builds both maps and the L test region in about 37 s. The tests and `pnpm lint` read the built maps too.
 
 Then open `http://localhost:5173`. The server listens on the local network too, so a phone or another computer on the same network can play: open the `Network` address that Vite prints. Anyone on that network can reach it, so stop it on a shared network you don't trust. Every load is a new world, starting on today’s date at 08:00 Rome time once you dismiss the title card. Add `?seed=N` (for example `http://localhost:5173/?seed=42`) to replay the same world: the seed drives every random choice, so the same seed and the same keys give the same game.
 
