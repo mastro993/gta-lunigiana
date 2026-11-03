@@ -1,6 +1,7 @@
 // The map build's first phase: the pinned inputs in data/raw (OSM, the surveys of the ground, the
-// DTM, the land cover) read into features, the rail conflated onto the CTR, and the districts
-// fitted, so the OSM and the surveys go out of scope before the terrain is built.
+// DTM, the land cover; Regione Toscana's and each part's Regione Liguria's) read into features, the
+// rail conflated onto the CTR, and the districts fitted, so the OSM and the surveys go out of scope
+// before the terrain is built.
 import { join } from "node:path"
 
 import type { Area, Barrier, District } from "../sim/map/index.ts"
@@ -21,6 +22,7 @@ import {
   nameFromAddresses,
 } from "./features.ts"
 import { centroid, pointInRing, r1 } from "./geometry.ts"
+import { ligFolders } from "./liguria.ts"
 import { readOsm } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
 import { REGION, dtmDir } from "./region.ts"
@@ -42,9 +44,11 @@ export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem">
 /** Reads the region's inputs under `root` into features; `lap` marks the end of each stage. */
 export const readSources = async (root: string, lap: (label: string) => void) => {
   const lunigiana = REGION.id === "lunigiana"
+  /** Each part's Regione Liguria sources (fetch-lig), where it has some. */
+  const lig = ligFolders(root, REGION.parts)
   const osm = readOsm(join(root, `data/raw/${REGION.id}.osm.gz`))
   const { survey, ctr2019 } = lunigiana
-    ? readSurveys(join(root, "data/raw/rt"))
+    ? readSurveys(join(root, "data/raw/rt"), lig)
     : { survey: NO_SURVEY, ctr2019: NO_SURVEY }
   const dem = lunigiana
     ? loadDtm(join(root, dtmDir(REGION)))
@@ -82,9 +86,10 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     // Rock, pastures and quarries OSM lacks above the woods, the rivers' gravel, and the water
     // bodies OSM lacks (OSM's own draws the same water finer, with its level).
     ...(lunigiana
-      ? readUcs(join(root, "data/raw/rt/ucs.json.gz")).filter(
-          (a) => !isWaterArea(a.kind) || !osmAreas.some((o) => overlap(a, o)),
-        )
+      ? readUcs([
+          join(root, "data/raw/rt/ucs.json.gz"),
+          ...lig.map((dir) => join(dir, "uds.json.gz")),
+        ]).filter((a) => !isWaterArea(a.kind) || !osmAreas.some((o) => overlap(a, o)))
       : []),
     ...survey.roadAreas.filter((a) => a.paved).map((a) => ({ kind: "paved", rings: a.rings })), // squares, lay-bys
   ]

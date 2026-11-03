@@ -1,12 +1,14 @@
 import assert from "node:assert/strict"
-import { cpSync, mkdtempSync, rmSync } from "node:fs"
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
+import { gzipSync } from "node:zlib"
 
 import { readCtr, readOldCtr, type RoadArea, type Survey, type SurveyBuilding } from "../ctr.ts"
 import { readDbt } from "../dbt.ts"
+import { readNc5 } from "../nc5.ts"
 import type { Rect } from "../region.ts"
 import { bySourcePriority, readSurveys } from "../surveys.ts"
 
@@ -61,7 +63,7 @@ test("bySourcePriority keeps a later source's building or road surface only wher
   assert.deepEqual(bySourcePriority([]), { buildings: [], roadAreas: [], mapped: [] })
 })
 
-test("readSurveys merges the sources in the order 2019 CTR, DBT 1:2000, CTR 2009, CTR 10k", (t) => {
+test("readSurveys merges the sources in the order 2019 CTR, DBT 1:2000, CTR 2009, NC5, CTR 10k", (t) => {
   const fixture = (name: string) => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url))
   // data/raw/rt's layout: the 2019 CTR in ctr, the others under their source's name.
   const rt = mkdtempSync(join(tmpdir(), "surveys-"))
@@ -73,25 +75,44 @@ test("readSurveys merges the sources in the order 2019 CTR, DBT 1:2000, CTR 2009
     ["ctr10k", "ctr10k"],
   ])
     cpSync(fixture(name!), join(rt, dir!), { recursive: true })
+  // A part's Liguria folder (data/raw/lig/<part>): one NC5 building, Sarzana's cathedral's nave.
+  const lig = join(rt, "lig")
+  mkdirSync(join(lig, "nc5"), { recursive: true })
+  const [e, n] = [577010, 4884780]
+  writeFileSync(
+    join(lig, "nc5", "L6871.json.gz"),
+    gzipSync(
+      JSON.stringify({
+        features: [
+          {
+            properties: { classref: "248082_1707522", edifc_ty: "11", edifc_uso: "05" },
+            polygons: [[[e, n, 39, e + 30, n, 39, e + 30, n + 30, 39, e, n + 30, 39, e, n, 39]]],
+          },
+        ],
+      }),
+    ),
+  )
   const box: Rect = [-1e5, -1e5, 1e5, 1e5]
-  const { survey, ctr2019 } = readSurveys(rt, box)
+  const { survey, ctr2019 } = readSurveys(rt, [lig], box)
   const sources = [
     readCtr(fixture("ctr2019"), box),
     readDbt(fixture("dbt2k"), box),
     readOldCtr(fixture("ctr2009"), "ctr2009", box),
+    readNc5([join(lig, "nc5")], box),
     readOldCtr(fixture("ctr10k"), "ctr10k", box),
   ]
+  assert.equal(sources[3]!.buildings.length, 1)
   assert.deepEqual(ctr2019, sources[0])
   assert.deepEqual(survey, bySourcePriority(sources))
   // The 10k's house 0201#398 and surface 0101#21 lie in 23D11's AZR: the 2019 CTR maps them.
-  const tenk = sources[3]!
+  const tenk = sources[4]!
   assert.deepEqual(
     survey.buildings.slice(-tenk.buildings.length + 1),
     tenk.buildings.filter((b) => (b.id | 0) !== -1),
   )
   assert.equal(survey.roadAreas.length, sources.reduce((n, s) => n + s.roadAreas.length, 0) - 1)
   // Where the sources are missing (Lunigiana fetches no DBT), none is read.
-  assert.deepEqual(readSurveys(join(rt, "nowhere"), box).survey, {
+  assert.deepEqual(readSurveys(join(rt, "nowhere"), [join(rt, "nowhere")], box).survey, {
     buildings: [],
     roadAreas: [],
     mapped: [],

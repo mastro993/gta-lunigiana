@@ -75,3 +75,35 @@ test("a filler with no rim is not bent", () => {
   assert.deepEqual(report.residual, [0, 0])
   assert.ok(Math.abs(m.dm[60 * 120 + 60]! - tenMetre().at(60, 60)) < 1e-3)
 })
+
+test("a filler's fade keeps its own heights away from the rim, where an unfaded bend lifts it all over", () => {
+  // LiDAR (the plane) on the west 100 m of a 1,500 × 300 m crop, a filler 10 m over it elsewhere.
+  const strip = () => {
+    const m = holed(300, 0)
+    const cols = 1500,
+      dm = new Float32Array(cols * 300).fill(Number.NaN),
+      src = new Uint8Array(cols * 300).fill(NONE)
+    for (let r = 0; r < 300; r++)
+      for (let c = 0; c < 100; c++) {
+        dm[r * cols + c] = plane(c, r)
+        src[r * cols + c] = 0
+      }
+    return { ...m, cols, dm, src }
+  }
+  const filler = { source: 1, at: (c: number, r: number) => plane(c, r) + 100 }
+  const far = 150 * 1500 + 1400
+  const lifted = strip()
+  fillStep(lifted, filler)
+  assert.ok(
+    Math.abs(lifted.dm[far]! - plane(1400, 150)) < 2,
+    `${lifted.dm[far]! - plane(1400, 150)} dm`,
+  )
+  const faded = strip()
+  fillStep(faded, { ...filler, fade: 200 })
+  assert.ok(
+    Math.abs(faded.dm[far]! - filler.at(1400, 150)) < 1,
+    `${faded.dm[far]! - filler.at(1400, 150)} dm`,
+  )
+  const { step } = largestStep(faded.cols, faded.rows, faded.dm, faded.src)
+  assert.ok(step <= 1, `step ${step / 10} m`)
+})

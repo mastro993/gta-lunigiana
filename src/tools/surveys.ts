@@ -6,6 +6,7 @@ import { staticGrid } from "../sim/collide.ts"
 import { type RoadArea, type Survey, type SurveyBuilding, readCtr, readOldCtr } from "./ctr.ts"
 import { readDbt } from "./dbt.ts"
 import { centroid, pointInRing, ringBox, TERRAIN_BOX } from "./geometry.ts"
+import { readNc5 } from "./nc5.ts"
 
 /** A region with no survey: Cesena. */
 export const NO_SURVEY: Survey = { buildings: [], roadAreas: [], mapped: [] }
@@ -36,14 +37,17 @@ export const bySourcePriority = (surveys: ReadonlyArray<Survey>): Survey => {
 }
 
 /**
- * Every survey under `rt` (data/raw/rt), clipped to `box`, merged by `bySourcePriority` in the order
- * of their precision and age: the CTR 1:2000 of 2019, then the DBT 1:2000 (2010), then the CTR 1:2000
- * of 2009, then the CTR 1:10 000 of 2010 (fetched only where the part's manifest lists it). OSM's
- * buildings stand where none maps the ground (features.ts). `ctr2019` alone is the 2019 CTR, whose
- * sheets also map the rail (`ctr-rail.ts`).
+ * Every survey under `rt` (data/raw/rt) and the parts' Liguria folders `lig` (data/raw/lig/<part>),
+ * clipped to `box`, merged by `bySourcePriority` in the order of their precision and age: the CTR
+ * 1:2000 of 2019, then the DBT 1:2000 (2010), then the CTR 1:2000 of 2009, then Liguria's NC5 1:5000
+ * (2018), then the CTR 1:10 000 of 2010 (fetched only where the part's manifest lists it). Regione
+ * Toscana's surveys stop at its border and the NC5 at Liguria's. OSM's buildings stand where none
+ * maps the ground (features.ts). `ctr2019` alone is the 2019 CTR, whose sheets also map the rail
+ * (`ctr-rail.ts`).
  */
 export const readSurveys = (
   rt: string,
+  lig: ReadonlyArray<string>,
   box = TERRAIN_BOX,
 ): { readonly survey: Survey; readonly ctr2019: Survey } => {
   const ctr2019 = readCtr(join(rt, "ctr"), box)
@@ -52,6 +56,10 @@ export const readSurveys = (
       ctr2019,
       readDbt(join(rt, "dbt2k"), box),
       readOldCtr(join(rt, "ctr2009"), "ctr2009", box),
+      readNc5(
+        lig.map((dir) => join(dir, "nc5")),
+        box,
+      ),
       readOldCtr(join(rt, "ctr10k"), "ctr10k", box),
     ]),
     ctr2019,

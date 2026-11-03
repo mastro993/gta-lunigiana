@@ -2082,7 +2082,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     server has not (404) gone, named and never asked for again; a download that lands once nothing
     needs it let go; the files gunzipped as they arrive, their bytes counted; a failed download
     naming the file and its status. `src/__tests__/maps.test.ts`: a tile each map's global file
-    lists has its file at its tile URL, in the map's own directory.
+    lists has its file at its tile URL, in the map's own directory. `src/__tests__/browser.test.ts`:
+    no module the pages load (`src/boot.ts`'s and `src/audio/lab.ts`'s imports, followed by
+    `importClosure` in `map-key.ts`: 238 for the game) imports a Node built-in, which Vite leaves out
+    of the page, so the game would fail to start on reading it: the game reads the map tools'
+    `geometry.ts` (`hash01`, `segDist2`), and through it `region.ts`.
   - The `notch.test.ts` beside each runtime reader of the map's tiles and play area, each on
     Lunigiana's global file rewritten before anything decodes it (`notchMap` in
     `src/sim/map/__tests__/edit-map.ts`) with its four tiles north-east of (2000, 0) unlisted and an

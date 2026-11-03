@@ -130,6 +130,8 @@ test("the release notes credit every source as the README does, with its licence
     "https://creativecommons.org/licenses/by/4.0/",
     "https://creativecommons.org/licenses/by/3.0/it/",
     "DTM 5x5 - ultima edizione",
+    "Contiene dati di Regione Liguria – Geoportale (DB Geotopografico NC5, DTM ed. 2023, Uso del Suolo ed. 2025), CC BY 4.0",
+    "DB Geotopografico National Core sc.1:5000 (NC5) - III Edizione 3D",
     "The files are changed from their sources",
   ]) {
     assert.ok(NOTES.includes(text), text)

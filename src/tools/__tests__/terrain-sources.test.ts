@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
+import { fileURLToPath } from "node:url"
 
 import { writeArrayBuffer } from "geotiff"
 
@@ -10,11 +12,15 @@ import {
   type Raster,
   ascWindow,
   clearCanopy,
+  codeOf,
   geoTiffRaster,
+  ligRaster,
+  MAX_SWEEPS,
   openGround,
   rasterFiller,
   rerUrl,
   sample,
+  unround,
   utmBox,
   utmOfCrop,
 } from "../terrain-sources.ts"
@@ -149,6 +155,67 @@ test("geoTiffRaster turns a GeoTIFF into a south-first raster on cell centres, n
     },
   )
   await assert.rejects(geoTiffRaster(tiff([1, 2, 3, 4, 5, 6], 3003)), /not in EPSG:7791/)
+  await assert.rejects(geoTiffRaster(tiff([1, 2, 3, 4, 5, 6]), 3003), /not in EPSG:3003/)
+})
+
+/**
+ * Liguria's DTM ed. 2023 as its WCS gives it (`dtmCropUrl`, 2026-11-03; Regione Liguria, CC BY 4.0):
+ * the 200 m square of 5 m cells by Piazza Matteotti, Sarzana (columns 39550…39589, rows
+ * 12460…12499 of its lattice, its north-west corner at EPSG:3003 1576804.19189, 4884784.40548), and
+ * two crops of it, each its own request, which overlap as fetch-lig's do: its columns 0…24 (west)
+ * and 15…39 (east).
+ */
+const lig = (name: string) =>
+  readFileSync(fileURLToPath(new URL(`fixtures/lig/${name}.tif`, import.meta.url)))
+
+test("geoTiffRaster reads Liguria's GeoTIFF: EPSG:3003 under GeoServer's own keys, rows south from its north-west corner", async () => {
+  const r = await geoTiffRaster(lig("matteotti"), 3003)
+  assert.deepEqual(
+    { x0: r.x0, y0: r.y0, cell: r.cell, cols: r.cols, rows: r.rows },
+    { x0: 1576806.69189, y0: 4884586.90548, cell: 5, cols: 40, rows: 40 },
+  )
+  // Whole metres, the old town's 17–22 m, rising to the north: rows run south from the first.
+  assert.ok(r.z.every((v) => Number.isInteger(v) && v >= 17 && v <= 22))
+  const row = (w: number) => r.z.slice(w * 40, w * 40 + 40).reduce((a, b) => a + b) / 40
+  assert.ok(row(0) < row(39), `south ${row(0)}, north ${row(39)}`)
+  await assert.rejects(geoTiffRaster(lig("matteotti")), /not in EPSG:7791/)
+  // Another transverse Mercator under GeoServer's keys: its false easting (a big-endian double in
+  // the file's geo parameters) moved from Gauss-Boaga west's 1,500,000 m to the east zone's.
+  const bytes = Buffer.from(lig("matteotti")),
+    at = bytes.indexOf(Buffer.from([0x41, 0x36, 0xe3, 0x60, 0, 0, 0, 0]))
+  assert.ok(at > 0, "the fixture's false easting")
+  bytes.writeDoubleBE(2520000, at)
+  await assert.rejects(geoTiffRaster(bytes, 3003), /not in EPSG:3003/)
+})
+
+test("ligRaster pastes overlapping crops on the DTM's lattice into one raster, as one crop of them all", async () => {
+  const whole = (await ligRaster([lig("matteotti")]))!
+  const parts = (await ligRaster([lig("matteotti-east"), lig("matteotti-west")]))!
+  assert.deepEqual(parts, whole)
+  assert.ok(whole.sweeps > 0 && whole.sweeps < MAX_SWEEPS)
+  assert.equal(await ligRaster([]), undefined)
+})
+
+test("unround: the smoothest surface within half a metre of each whole metre, cells without data left out", () => {
+  // A slope of 0.1 m a cell, rounded to whole metres: steps of a metre every ten cells.
+  const slope = (c: number) => 3 + 0.1 * c
+  const { raster: r, sweeps } = unround(
+    grid(41, 3, (c, w) => (w === 2 && c === 40 ? Number.NaN : Math.round(slope(c)))),
+  )
+  assert.ok(sweeps < MAX_SWEEPS, `${sweeps} sweeps`)
+  for (let w = 0; w < 3; w++)
+    for (let c = 0; c < 41; c++) {
+      const v = r.z[w * 41 + c]!
+      if (w === 2 && c === 40) {
+        assert.ok(Number.isNaN(v))
+        continue
+      }
+      assert.ok(Math.abs(v - Math.round(slope(c))) <= 0.5 + 1e-6, `${c}, ${w}: ${v}`)
+      // Straight again, but at the ends, whose rounding the membrane cannot see past.
+      if (c >= 5 && c <= 35) assert.ok(Math.abs(v - slope(c)) < 0.12, `${c}, ${w}: ${v}`)
+    }
+  // A plain stays flat.
+  assert.ok(unround(grid(5, 5, () => 4)).raster.z.every((v) => v === 4))
 })
 
 /** A crop round EPSG:3003 (1584000.5, 4912000.5), spanning several lattice nodes each way. */
@@ -238,7 +305,7 @@ test("rasterFiller samples through utm when given one and passes where through",
     },
     where,
   )
-  assert.equal(filler.source, 3)
+  assert.equal(filler.source, codeOf("rer"))
   assert.equal(filler.where, where)
   assert.equal(filler.at(2, 1), 3040)
 })
