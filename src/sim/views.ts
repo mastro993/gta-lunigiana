@@ -36,7 +36,7 @@ import {
 import { type RomeTime, romeTime } from "./sky/calendar.ts"
 import { WASTED } from "./systems/explosions.ts"
 import { footingAt } from "./systems/footing.ts"
-import { VEHICLES } from "./vehicles.ts"
+import { VEHICLES, type VehicleModel } from "./vehicles.ts"
 import { FLOW, specificDischarge } from "./water/flow.ts"
 
 /** Plain view data for the camera and HUD. */
@@ -49,9 +49,14 @@ export interface PlayerViewModel {
   readonly mode: "foot" | "driving" | "down" | "dead"
   /** While dead: the steps left before the respawn (`Respawn`) puts the player back at the start, which the host must have the map round by then. */
   readonly respawnIn?: number
-  /** The vehicle being driven: label, forward speed in m/s (negative when reversing), and `kind` "train" for a train. */
+  /** The vehicle being driven: label, forward speed in m/s (negative when reversing), a car's `model`, and `kind` "train" for a train. */
   readonly vehicle:
-    | { readonly label: string; readonly speed: number; readonly kind?: "train" }
+    | {
+        readonly label: string
+        readonly speed: number
+        readonly model?: VehicleModel
+        readonly kind?: "train"
+      }
     | undefined
   /** Driving a train, the ground under its active cab: the rail head there, m a.s.l. (on a rail bridge too, which the map's ground has not). */
   readonly z?: number
@@ -127,6 +132,7 @@ export const PlayerView = Game.Inspector(
         ? {
             label: VEHICLES[car.value.data.vehicle.get().model].label,
             speed: forwardSpeed(car.value.data.motion.get(), car.value.data.pose.get().angle),
+            model: car.value.data.vehicle.get().model,
           }
         : driven === undefined
           ? undefined

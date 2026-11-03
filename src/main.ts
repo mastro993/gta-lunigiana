@@ -56,6 +56,7 @@ import { SkyHost } from "./render/sky/host.ts"
 import { standIns } from "./render/stand-ins.ts"
 import { type Swing, swingView } from "./render/swing.ts"
 import { World } from "./render/world.ts"
+import { clearSpot } from "./sim/body.ts"
 import {
   bindings,
   Game,
@@ -301,9 +302,19 @@ warm.dispose()
 draw({ elapsedSeconds: 0, fixedSteps: 0, alpha: 0, droppedSeconds: 0 }, runtime.inspect(PlayerView))
 // Keys pressed while loading arrive during the steps: drop their presses (held keys stay held).
 controls.snapshot()
-/** A dev teleport (`gta.teleport`) waiting for its tiles: sent once they are in memory, forgotten once the player stands there. */
+/**
+ * A dev teleport (`gta.teleport`, a click on the full map) waiting for its tiles: once they are in
+ * memory its goal moves to the nearest spot clear of every structure (`clearSpot`), and once that
+ * spot's tiles are in too it is sent; forgotten once the player stands there, or when no spot is clear.
+ */
 let jump:
-  | { readonly x: number; readonly y: number; readonly angle: number; sent: boolean }
+  | {
+      readonly x: number
+      readonly y: number
+      readonly angle: number
+      readonly clear: boolean
+      sent: boolean
+    }
   | undefined
 /** Since when (ms) the game has waited for a tile; "Loading map…" shows once it is longer than `HINT_MS`. */
 let stalled: number | undefined
@@ -334,8 +345,17 @@ const follow = (player: PlayerViewModel): void => {
   hud.loadingMap(!lost && stalled !== undefined && now - stalled > HINT_MS)
   if (jump === undefined || dead) return
   if (!jump.sent && !waiting) {
-    runtime.send(SetPlayer, { x: jump.x, y: jump.y, angle: jump.angle })
-    jump.sent = true
+    if (!jump.clear) {
+      const spot = clearSpot(jump, player.vehicle?.model)
+      if (spot === undefined) console.warn("teleport: nowhere clear near", jump)
+      jump =
+        spot === undefined ? undefined : { ...spot, angle: jump.angle, clear: true, sent: false }
+    }
+    // Sent at once when the spot's tiles are in (as a step there reads them), else once they come.
+    if (jump !== undefined && stream.ready(pose, jump)) {
+      runtime.send(SetPlayer, { x: jump.x, y: jump.y, angle: jump.angle })
+      jump.sent = true
+    }
   } else if (jump.sent && Math.hypot(pose.x - jump.x, pose.y - jump.y) < 2) jump = undefined
 }
 const loop = startGuardedLoop(
@@ -375,8 +395,8 @@ routeOverlayKeys(window, {
 if (pad !== undefined) holdLandscape(window)
 titleReady(window, play)
 
-// Dev only: the Ritmo monitor (backslash toggles it), the debug menu (P: time, weather, handling, trains) and a handle for
-// measuring from the console. No HMR hooks: nothing accepts updates, so Vite reloads the page on every edit.
+// Dev only: the Ritmo monitor (backslash toggles it), the debug menu (P: time, weather, handling, trains), a click on the full map
+// to teleport there, and a handle for measuring from the console. No HMR hooks: nothing accepts updates, so Vite reloads the page on every edit.
 if (import.meta.env.DEV) {
   // The clock and the weather for the debug menu and `gta.sky`; like the handling store's, its sends run between ticks.
   const sky = makeSkyStore({
@@ -389,6 +409,12 @@ if (import.meta.env.DEV) {
     read: () => runtime.inspect(TrainView),
     send: (request) => runtime.send(SetTrains, request),
   })
+  // A jump to the spot nearest (x, y) clear of every structure, facing `angle`, made once the tiles there are in: `gta.teleport`, and
+  // a click on the full map (the player keeps their heading).
+  const teleport = (x: number, y: number, angle: number): void => {
+    jump = { x, y, angle, clear: false, sent: false }
+  }
+  hud.pickOnMap((x, y) => teleport(x, y, runtime.inspect(PlayerView)?.pose.angle ?? 0))
   const here = () => {
     const player = runtime.inspect(PlayerView)
     return player === undefined
@@ -406,11 +432,9 @@ if (import.meta.env.DEV) {
       heightAt: (x: number, y: number) =>
         isResidentAt(x, y) ? heightAt(x, y) : coarseHeightAt(x, y),
       player: () => runtime.inspect(PlayerView),
-      // The tiles in memory, in key order, and a jump to (x, y) facing `angle`, made once the tiles there are in.
+      // The tiles in memory, in key order, and the teleport above.
       tiles: () => residentTiles(),
-      teleport: (x: number, y: number, angle: number): void => {
-        jump = { x, y, angle, sent: false }
-      },
+      teleport,
       handling: () => runtime.inspect(HandlingView),
       audio: { speaker, level: speaker.level, context: speaker.context },
       sky,

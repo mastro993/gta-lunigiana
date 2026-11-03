@@ -49,10 +49,12 @@ this WebGL page, so drive headless Chrome over CDP:
    Load `?seed=N`, wait for `gta`, then press a key to dismiss the title card.
    - `gta.teleport(x, y, angle)` puts the player at (x east, y north) facing `angle` (radians from
      east toward north, as a spawn's), standing still, with the car they drive if any (dropped while
-     they drive a train). The game pauses while a tile a step reads round the goal is not in
-     memory, showing "Loading map…" after 300 ms, then `main.ts` sends `SetPlayer`, and it forgets
-     the goal once the player stands within 2 m of it. Wait until `gta.tiles()` holds still before
-     you measure or shoot there.
+     they drive a train), or on the nearest spot clear of every wall and out of every building
+     when that point is not (within 60 m, `clearSpot`). The game pauses while a tile a step reads
+     round the goal is not in memory, showing "Loading map…" after 300 ms, then `main.ts` sends
+     `SetPlayer`, and it forgets the goal once the player stands within 2 m of it. Wait until `gta.tiles()` holds still before
+     you measure or shoot there. A click on the full map's play area makes the same jump, keeping
+     the player's heading.
    - `gta.sky` is the debug menu's sky store: `now()` (the game time, its rate, Rome's wall clock
      in `local`, and the weather), `rate()`, `regime()` (the regime held, `null` in Auto),
      `heading()`, and the setters `setTime(secondOfDay)` (Rome time),
