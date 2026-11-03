@@ -7,11 +7,14 @@
 //   0203, #15 0208, #234 0201 (a courtyard), #235 0206; AGE #105 0244; AVI #6, #10; AZR #1. 23D14
 //   AED #0 0201, which lies outside lucido's terrain box.
 // - fixtures/ctr2009, from S_<sheet>_2009_6707.zip: 22D04 AE_a #1 0208, #3 0212, #4 0201, #7
-//   0203, #26 0202, #48 0240; AV_a #2 0102, #5 0101 (a hole), #15 0101; 22D05 AC_a #0, #1; 22D18
-//   (west of lucido's box) AE_a #0 0235 (no Quota_gr), #3 0207; AV_a #5 0101 (two parts), #21 0102.
+//   0203, #26 0202, #48 0240; AV_a #2 0102, #5 0101 (a hole), #15 0101; ML_l #0 0205 (an open wall
+//   stub), #5 0205 (a closed ring), #7 0502 (a closed ring); 22D05 AC_a #0, #1; 22D13 AV_a #1 0102,
+//   #40 0101 (in a tunnel, Sede 054); 22D18 (west of lucido's box) AE_a #0 0235 (no Quota_gr), #3
+//   0207; AV_a #5 0101 (two parts), #21 0102.
 // - fixtures/ctr10k, from S_249020_2010_6707.zip, by `Codice#Record`: AE_a 0204#1 (no Quota_gr),
 //   0201#398 (inside 23D11's AZR), 0211#3, 0208#6, 0201#970, 0207#262, 0201#1275 (a courtyard),
-//   0203#39; AV_a 0140#26, 0114#4, 0101#20, 0101#21 (inside 23D11's AZR), 0102#93; AC_a, whole.
+//   0203#39; AV_a 0140#26, 0114#4, 0101#20, 0101#21 (inside 23D11's AZR), 0102#93; ML_l 0205#18 (a
+//   closed ring); AC_a, whole.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
@@ -90,39 +93,44 @@ test("readCtr reads the 2019 road surfaces (0101 paved, 0102 dirt, named from th
     )
 })
 
-test("readOldCtr reads the CTR 2009: building codes kept and dropped, Quota_gr the eave, 0101 and 0102 surfaces, AC_a the mapped area, ids by sheet", () => {
+test("readOldCtr reads the CTR 2009: building codes kept and dropped, Quota_gr the eave, the closed ML_l 0205 rings as ruins, 0101 and 0102 surfaces out of tunnels, AC_a the mapped area, ids by sheet", () => {
   const ctr = readOldCtr(fixture("ctr2009"), "ctr2009", ANYWHERE)
   // Dropped: 22D04 AE_a 0 (0208 canopy) and 5 (0240 portico), 22D18 AE_a 0 (0235 semi-basement,
-  // the only record without a Quota_gr).
+  // the only record without a Quota_gr); 22D04 ML_l 0 (an open wall stub) and 2 (0502, not a ruin).
   assert.deepEqual(brief(ctr), [
     [-400001, "substation", "industrial", 1228.71, 4, 0],
     [-400002, "house", undefined, 1290.1, 6, 0],
     [-400003, "church", "church", 1334.73, 10, 0],
     [-400004, "industrial", "industrial", 1140.14, 6, 0],
     [-1800001, "shed", undefined, 241.59, 2.5, 0],
+    [-450001, "ruins", "ruin", undefined, 2.5, 0], // ML_l from 5e4, as 2019's AGE; no elevations
   ])
   // Source 3, section 22D (22 · 26 + 3), local part sheet · 1e5 + index as the 2019 CTR's.
   assert.equal(ctr.buildings[0]!.id, -(4 * 1e5 + 1 + 2 ** 32 * (3 * 2 ** 16 + 22 * 26 + 3)))
+  assert.equal(ctr.buildings[5]!.id, -(4 * 1e5 + 5e4 + 1 + 2 ** 32 * (3 * 2 ** 16 + 22 * 26 + 3)))
+  // The ruin is ML_l 1's ring as surveyed, 23.3 m² (ML_l 0 would be 20.3 m² were it closed).
+  assert.equal(Math.round(areaOf(ctr.buildings[5]!.outer)), 23)
   assert.deepEqual(roads(ctr), [
     [undefined, false, 1], // "STRADA COMUNALE PIANZA VALLINI", dirt
     [undefined, true, 2], // the same road, asphalt, round a hole
-    ["Via Martiri della Liberta'", true, 1],
+    ["Via Martiri della Libertà", true, 1],
+    [undefined, false, 1], // 22D13 AV_a 0, dirt; not AV_a 1, asphalt in a tunnel (Sede 054)
     ["Via Renzo Matazzoni", true, 1], // one record of two parts: two surfaces
     ["Via Renzo Matazzoni", true, 1],
     [undefined, false, 1],
   ])
   assert.equal(ctr.mapped.length, 2) // 22D05's AC_a: two rings where its frame is one rectangle
   assertWound(ctr)
-  // In lucido's box, the default, 22D18 is gone.
+  // In lucido's box, the default, 22D18 is gone, and so is 22D13 AV_a 0, south of it.
   const lucido = readOldCtr(fixture("ctr2009"), "ctr2009")
   assert.deepEqual(
     lucido.buildings.map((b) => b.id),
-    ctr.buildings.slice(0, 4).map((b) => b.id),
+    [...ctr.buildings.slice(0, 4), ctr.buildings[5]!].map((b) => b.id),
   )
   assert.equal(lucido.roadAreas.length, 3)
 })
 
-test("readOldCtr reads the CTR 10k: no eave without a Quota_gr, only 0101 and 0102 surfaces, ids by section", () => {
+test("readOldCtr reads the CTR 10k: no eave without a Quota_gr, the ML_l ruins, only 0101 and 0102 surfaces, ids by section", () => {
   const ctr = readOldCtr(fixture("ctr10k"), "ctr10k")
   // Dropped: AE_a 3 (0208 canopy). The local part is the record's index in the section's file.
   assert.deepEqual(brief(ctr), [
@@ -133,9 +141,11 @@ test("readOldCtr reads the CTR 10k: no eave without a Quota_gr, only 0101 and 01
     [-5, "shed", undefined, 230.06, 2.5, 0],
     [-6, "house", undefined, 315.6, 6, 1],
     [-7, "church", "church", 225.35, 10, 0],
+    [-5000000, "ruins", "ruin", undefined, 2.5, 0], // ML_l, numbered from 5e6
   ])
   // Source 4, section 249020: the 2nd of the 16 sections of 1:50 000 sheet 249.
   assert.equal(ctr.buildings[1]!.id, -(1 + 2 ** 32 * (4 * 2 ** 16 + 249 * 16 + 1)))
+  assert.equal(ctr.buildings[7]!.id, -(5e6 + 2 ** 32 * (4 * 2 ** 16 + 249 * 16 + 1)))
   // Dropped: 0140 (the rail bed) and 0114 (a track in a tunnel). The toponyms are road numbers.
   assert.deepEqual(roads(ctr), [
     [undefined, true, 1],
@@ -146,7 +156,7 @@ test("readOldCtr reads the CTR 10k: no eave without a Quota_gr, only 0101 and 01
   assertWound(ctr)
 })
 
-test("streetName title-cases street names, articles and elisions lower-case, Roman numerals kept; road kinds and places are not names", () => {
+test("streetName title-cases street names, articles and elisions lower-case, Roman numerals and initials kept, a final apostrophe the accent; road kinds and places are not names", () => {
   const cases: ReadonlyArray<readonly [string, string | undefined]> = [
     ["VIA CASTEL DELL'AQUILA", "Via Castel dell'Aquila"],
     ["VIA XX SETTEMBRE", "Via XX Settembre"],
@@ -155,10 +165,15 @@ test("streetName title-cases street names, articles and elisions lower-case, Rom
     ["VICOLO DEI MULINI", "Vicolo dei Mulini"],
     ["LARGO  DI   PORTA", "Largo di Porta"],
     ["SALITA ALLA ROCCA", "Salita alla Rocca"],
-    ["VIA DEL PRA'", "Via del Pra'"], // the CTR writes a final accent as an apostrophe
-    ["VIA DELLA LIBERTÀ", "Via della Libertà"], // the DBT writes it as a letter (UTF-8)
-    ["PIAZZA UNITA' D'ITALIA", "Piazza Unita' d'Italia"], // DBT, Pontremoli
+    ["VIA DEL PRA'", "Via del Prà"], // the CTR writes a final accent as an apostrophe
+    ["VIA DELLA LIBERTÀ", "Via della Libertà"], // a letter (UTF-8) stays one
+    ["PIAZZA UNITA' D'ITALIA", "Piazza Unità d'Italia"], // DBT, Pontremoli
     ["VIA SANT'ANTONIO", "Via Sant'Antonio"], // CTR 2009, 22D18
+    ["VIA G.B. NATALI", "Via G.B. Natali"], // initials keep their capitals (DBT)
+    ["VIA VETERANI DELLO SPORT", "Via Veterani dello Sport"], // DBT
+    ["VIALE DEI MILLE", "Viale dei Mille"], // DBT
+    ["PIAZZALE DELL'UCCELLIERA", "Piazzale dell'Uccelliera"], // CTR 2009
+    ["PIAZZETTA DI SOMMOBORGO", "Piazzetta di Sommoborgo"], // DBT
     ["S.P. DI TENERANO (N.10)", undefined],
     ["S.C. DI FAZZANO", undefined],
     ["STRADA SENZA NOME", undefined],

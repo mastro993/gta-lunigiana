@@ -8,23 +8,32 @@
 //   (02), #6925 bell tower (07), #7012 a courtyard, #7127 chapel (edi_min_ty 18), #7582 por 08,
 //   #11079 un_vol_av 1.06 m, #11311 por 03, #11404 por 04;
 // - mn_ind (020201): #28 transformer cabin (01), #58 tank (0702), #63 greenhouse (13), #77 silo (0703);
-// - ar_str (010104): #22 (no carriageway), #362 "VIA BELMESSERI", #522 (a paved and a dirt
-//   carriageway), #548 (a dirt one), #650 "LOCALITÀ GUINADI"; ac_vei (010101): their 4 carriageways
-//   (by ar_str_id); ar_vms (010105): #15, #230; zona_r (000201): #10, its zona_r_dt (the survey
-//   firms) blanked.
+// - ar_str (010104): #22 (no carriageway), #362 "VIA BELMESSERI", #411 "VICOLO SANTA CRISTINA" (no
+//   carriageway), #522 (a paved and a dirt carriageway), #548 (a dirt one), #650 "LOCALITÀ GUINADI"
+//   (no carriageway); ac_vei (010101): the 4 carriageways of those roads (by ar_str_id) and #1990,
+//   the A15's in a tunnel (ac_vei_sed 06); ar_vms (010105): #15, #230; zona_r (000201): #10, its
+//   zona_r_dt (the survey firms) blanked.
 import assert from "node:assert/strict"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
+import { gzipSync } from "node:zlib"
 
 import { DBT_RESIDUAL, gaussBoagaToLatLon } from "../crs.ts"
 import { ctrRecords } from "../ctr.ts"
 import { kindOf, readDbt, serialOf } from "../dbt.ts"
-import { r1, toLocal } from "../geometry.ts"
+import { type P, r1, signedArea, toLocal } from "../geometry.ts"
 import type { Rect } from "../region.ts"
+import { shapefile } from "./shapefile.ts"
 
 const DIR = fileURLToPath(new URL("fixtures/dbt2k", import.meta.url))
 /** A box round every fixture record: Pontremoli lies outside lucido's terrain box, the default. */
 const ANYWHERE: Rect = [-1e5, -1e5, 1e5, 1e5]
+/** A flat ring's vertices. */
+const vertices = (ring: ReadonlyArray<number>): Array<P> =>
+  Array.from({ length: ring.length / 2 }, (_, i) => [ring[2 * i]!, ring[2 * i + 1]!])
 
 test("kindOf: the building's state, type and use or the minor building's type, the first rule that holds", () => {
   const building = (a: Readonly<Record<string, string>>) =>
@@ -101,26 +110,54 @@ test("readDbt reads the units standing on the ground and the industrial artefact
   assert.deepEqual(readDbt(DIR), { buildings: [], roadAreas: [], mapped: [] })
 })
 
-test("readDbt reads the road surfaces, paved by most of their carriageways' area, the dirt tracks, the names and the zones", () => {
+test("readDbt reads the road surfaces from the carriageways, the road areas with none and the dirt tracks, and the zones", () => {
   const dbt = readDbt(DIR, ANYWHERE)
+  // [name, paved, outer ring's m²]: each carriageway (ac_vei) paved unless ac_vei_fon is 02, named
+  // from its own copy of ar_str_uff, and none in a tunnel (sed 06, the A15's 4,257 m²); then each
+  // road area (ar_str) whose road has no carriageway, paved; then the dirt tracks. A road area with
+  // carriageways is left out: it holds the sidewalks too (RT's catalogue v21).
   assert.deepEqual(
-    dbt.roadAreas.map((a) => [a.name, a.paved, a.rings.length]),
+    dbt.roadAreas.map((a) => [a.name, a.paved, r1(Math.abs(signedArea(vertices(a.rings[0]!))))]),
     [
-      [undefined, true, 1], // no carriageway: paved
-      ["Via Belmesseri", true, 1],
-      [undefined, false, 1], // dirt 407.8 m² against paved 22.6 m²
-      [undefined, false, 1], // "STRADA SENZA NOME", dirt
-      [undefined, true, 1], // "LOCALITÀ GUINADI": a place, not a street name
-      [undefined, false, 1], // ar_vms
-      [undefined, false, 1],
+      [undefined, false, 63.2], // "STRADA SENZA NOME", dirt
+      ["Via Belmesseri", true, 265.4], // its road area, with the sidewalks, is 406.9 m²
+      [undefined, false, 407.8], // a road's dirt carriageway
+      [undefined, true, 22.6], // and its paved one
+      [undefined, true, 39], // no carriageway
+      ["Vicolo Santa Cristina", true, 320.1], // no carriageway
+      [undefined, true, 145.3], // "LOCALITÀ GUINADI": a place, not a street name
+      [undefined, false, 34.5], // ar_vms
+      [undefined, false, 10.8],
     ],
   )
   assert.equal(dbt.mapped.length, 1)
-  // The tables are UTF-8: latin-1 would read "À" as two characters.
-  const uff = (encoding: "latin1" | "utf8") =>
-    ctrRecords(DIR, "ar_str", encoding)[4]!.rec.attrs.ar_str_uff
-  assert.equal(uff("utf8"), "LOCALITÀ GUINADI")
-  assert.equal(uff("latin1"), "LOCALITÃ\u0080 GUINADI")
+})
+
+test("readDbt reads the tables as UTF-8: an accented street name", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "dbt-"))
+  t.after(() => rmSync(dir, { recursive: true }))
+  const [e, n] = [1569322, 4912383]
+  const ring = [
+    [e, n, 0],
+    [e, n + 10, 0],
+    [e + 10, n + 10, 0],
+    [e + 10, n, 0],
+    [e, n, 0],
+  ] as const
+  // The helper writes latin-1: these are the UTF-8 bytes of "À" (c3 80), which latin-1 reads as "Ã\u0080".
+  const uff = Buffer.from("VIA DELLA LIBERTÀ", "utf8").toString("latin1")
+  const { shp, dbf } = shapefile(15, [
+    {
+      parts: [ring],
+      attrs: { ac_vei_fon: "01", ac_vei_sed: "01", ar_str_id: "1", ar_str_uff: uff },
+    },
+  ])
+  writeFileSync(join(dir, "045014_ac_vei.shp.gz"), gzipSync(shp))
+  writeFileSync(join(dir, "045014_ac_vei.dbf.gz"), gzipSync(dbf))
+  assert.deepEqual(
+    readDbt(dir, ANYWHERE).roadAreas.map((a) => a.name),
+    ["Via della Libertà"],
+  )
 })
 
 test("readDbt places the DBT's EPSG:3003 vertices with the DBT's residual", () => {
@@ -132,8 +169,5 @@ test("readDbt places the DBT's EPSG:3003 vertices with the DBT's residual", () =
   assert.deepEqual(at(DBT_RESIDUAL), [-20829.3, 22167.6])
   assert.deepEqual(at(), [-20829.8, 22167.8]) // the LiDAR's residual: 0.5 m off
   const greenhouse = readDbt(DIR, ANYWHERE).buildings.find((b) => b.kind === "greenhouse")!
-  const vertices = Array.from({ length: greenhouse.outer.length / 2 }, (_, i) =>
-    greenhouse.outer.slice(2 * i, 2 * i + 2),
-  )
-  assert.ok(vertices.some(([x, y]) => x === -20829.3 && y === 22167.6))
+  assert.ok(vertices(greenhouse.outer).some(([x, y]) => x === -20829.3 && y === 22167.6))
 })

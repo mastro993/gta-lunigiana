@@ -23,7 +23,18 @@ const ManifestSchema = v.object({
   /** CTR 1:10 000 2010 sections, each the archive's name with its MD5, no `.zip` (`S_249020_2010_6707_a797…`); none when absent. */
   ctr10k: v.optional(v.array(v.string()), []),
   /** DBT 1:2000 comuni, each the archive's name with its MD5, no `.7z` (`DBT2K_045014_PONTREMOLI_2010_2010_3003_21f4…`); none when absent. */
-  dbt2k: v.optional(v.array(v.string()), []),
+  dbt2k: v.optional(
+    v.pipe(
+      v.array(v.string()),
+      // fetch-rt pins a comune's layers under its ISTAT code alone, so a comune with two surveys
+      // (Minucciano's of 2011 and of 1988–2000) lists the one that maps the part.
+      v.check(
+        (names) => new Set(names.map((name) => name.split("_")[1])).size === names.length,
+        "dbt2k lists one comune twice: fetch-rt pins one survey a comune (rt/dbt2k/<ISTAT>_<layer>)",
+      ),
+    ),
+    [],
+  ),
 })
 
 /** What `fetch-rt` downloads for one part. */

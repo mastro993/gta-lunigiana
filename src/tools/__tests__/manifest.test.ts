@@ -62,6 +62,22 @@ test("a manifest written before the 2021 surface model and the older surveys rea
   assert.deepEqual(readManifest(key), { ...EMPTY, ctr: ["23D11"] })
 })
 
+test("a manifest listing two DBT surveys of one comune is refused", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "manifest-"))
+  t.after(() => rmSync(dir, { recursive: true }))
+  // Minucciano's two surveys, as rt-index lists them: fetch-rt pins a comune's layers under its
+  // ISTAT code alone, so the second would write over the first.
+  const dbt2k = [
+    "DBT2K_046019_MINUCCIANO_2011_2011_3003_55abb15279c81a6b3756d9bdfc1f6124",
+    "DBT2K_046019_MINUCCIANO_1988_2000_3003_53bfaef25ab5d865864f6b6a281009d9",
+  ]
+  writeFileSync(join(dir, "twice.json"), JSON.stringify({ ...EMPTY, dbt2k }))
+  writeFileSync(join(dir, "once.json"), JSON.stringify({ ...EMPTY, dbt2k: dbt2k.slice(0, 1) }))
+  const key = (name: string) => relative(dirname(manifestPath(name)), join(dir, name))
+  assert.throws(() => readManifest(key("twice")), /dbt2k lists one comune twice/)
+  assert.deepEqual(readManifest(key("once")).dbt2k, dbt2k.slice(0, 1))
+})
+
 test("pontremoli-town's manifest lists Pontremoli's DBT 1:2000 of 2010 and nothing else", () => {
   assert.ok(existsSync(manifestPath("pontremoli-town")))
   assert.deepEqual(readManifest("pontremoli-town"), {

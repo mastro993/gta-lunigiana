@@ -21,8 +21,10 @@
 //   where a track runs.
 // - ctr2009/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2009 flight, the old schema, EPSG:6707
 //   (CC BY: 3.0 IT as the cartoteca lists it, 4.0 as its archive's licence states): AE_a = buildings,
-//   AV_a = road areas, AC_a = the mapped area, with the surveyors' names blanked (`SURVEYORS`). A
-//   sheet may lack AE_a or AV_a (it maps no building or road: lucido's 22D02, 22D06, 22D07).
+//   AV_a = road areas, AC_a = the mapped area, with the surveyors' names blanked (`SURVEYORS`),
+//   ML_l = the ruins only (code 0205; the rest of the layer, other man-made lines, is dropped). A
+//   sheet may lack AE_a or AV_a (it maps no building or road: lucido's 22D02, 22D06, 22D07), and
+//   has an ML_l file only where it draws a ruin (not lucido's 22D06 and 22D07).
 // - ctr10k/<section>_<layer>.shp.gz + .dbf.gz: CTR 1:10 000, the 2010 edition of each section
 //   (CC BY 4.0), the same schema and layers.
 // - dbt2k/<ISTAT>_<layer>.shp.gz + .dbf.gz: DBT 1:2000 of a comune (CC BY 4.0), EPSG:3003, only
@@ -173,8 +175,22 @@ const pinLayer = (
   return true
 }
 
-/** The old schema's layers (`readOldCtr`): buildings and road areas, which a sheet may lack, and the mapped area. */
-const OLD_CTR_LAYERS = ["AE_a", "AV_a", "AC_a"] as const
+/** Old-schema code of a ruin, the only ML_l records kept (`readOldCtr` reads the closed ones). */
+const RUIN = "0205"
+/**
+ * The old schema's layers (`readOldCtr`) and how each is pinned: buildings and road areas, which a
+ * sheet may lack, whole; the mapped area with its surveyors blanked; the ruins of ML_l, none when a
+ * sheet draws none.
+ */
+const OLD_CTR_LAYERS = {
+  AE_a: { optional: true },
+  AV_a: { optional: true },
+  AC_a: { cut: withoutSurveyors },
+  ML_l: {
+    optional: true,
+    cut: (shp, dbf) => subsetShp(shp, dbf, (attrs) => attrs.Codice === RUIN),
+  },
+} satisfies Record<string, { readonly optional?: boolean; readonly cut?: Cut }>
 /** Pins the old-schema archive at `url` as `<folder>/<key>_<layer>`, from its files `member(layer)`. */
 const pinOldCtr = async (
   url: string,
@@ -183,14 +199,8 @@ const pinOldCtr = async (
   member: (layer: string) => string,
 ): Promise<void> => {
   const dir = await fetchZip(url)
-  for (const layer of OLD_CTR_LAYERS)
-    pinLayer(
-      dir,
-      member(layer),
-      join(SURVEYS, folder, `${key}_${layer}`),
-      url,
-      layer === "AC_a" ? { cut: withoutSurveyors } : { optional: true },
-    )
+  for (const [layer, how] of Object.entries(OLD_CTR_LAYERS))
+    pinLayer(dir, member(layer), join(SURVEYS, folder, `${key}_${layer}`), url, how)
 }
 
 /** The DBT's layers (`readDbt`) by the name they are pinned under, each its archive member's. */

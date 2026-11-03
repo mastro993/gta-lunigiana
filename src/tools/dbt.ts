@@ -9,9 +9,12 @@
 //   `un_vol_av` its height over the unit's foot, the height when the eave over the terrain is not
 //   plausible. Plus the greenhouses, silos and transformer cabins of `020201_mn_ind`, which no unit
 //   holds, their top (`mn_ind_qe`) as the eave.
-// - Road surfaces: `010104_ar_str`, paved where most of its carriageways (`010101_ac_vei`, the same
-//   `ar_str_id`) are by area (`ac_vei_fon` 01; one without any is paved), named from `ar_str_uff`,
-//   and the dirt tracks of `010105_ar_vms`.
+// - Road surfaces: the carriageways `010101_ac_vei`, each paved unless `ac_vei_fon` is 02, named
+//   from its own copy of `ar_str_uff`, and none in a tunnel (`ac_vei_sed` 06). At 1:2000 they leave
+//   out the sidewalks, as the CTR's road surfaces do, and the road areas `010104_ar_str` hold them
+//   (RT's catalogue v21), so a road area is read only where its road (`ar_str_id`) has no
+//   carriageway (161 of Pontremoli's 703, urban and local streets, the old town's vicoli among
+//   them): paved, named from `ar_str_uff`. Plus the dirt tracks of `010105_ar_vms`.
 // - The mapped area: the zones `000201_zona_r`.
 import { DBT_RESIDUAL, gaussBoagaToLatLon } from "./crs.ts"
 import {
@@ -19,11 +22,13 @@ import {
   ctrRecords,
   buildingsOf,
   polygonsOf,
+  type RoadArea,
   type Survey,
   specOf,
   streetName,
 } from "./ctr.ts"
 import { type P, TERRAIN_BOX, toLocal } from "./geometry.ts"
+import type { ShpRecord } from "./shp.ts"
 import { comune, surveyId } from "./survey-ids.ts"
 
 /** A DBT coordinate (EPSG:3003 easting, northing) in local metres. */
@@ -91,15 +96,6 @@ const spec = (code: string): BuildingSpec => {
   return s
 }
 
-/** The outer ring's area, m², of every polygon of a record (flat counter-clockwise rings). */
-const areaOf = (polygons: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>): number =>
-  polygons.reduce((sum, [outer]) => {
-    let a = 0
-    for (let i = 0, j = outer!.length - 2; i < outer!.length; j = i, i += 2)
-      a += outer![j]! * outer![i + 1]! - outer![i]! * outer![j + 1]!
-    return sum + a / 2
-  }, 0)
-
 /** The DBT 1:2000 in `dir`, clipped to `box`: see the module header. */
 export const readDbt = (dir: string, box = TERRAIN_BOX): Survey => {
   const layer = (name: string) => ctrRecords(dir, name, "utf8")
@@ -129,26 +125,24 @@ export const readDbt = (dir: string, box = TERRAIN_BOX): Survey => {
       )
     }),
   ]
-  // Each road's carriageway area in the box by surface.
-  const surfaces = new Map<string, { paved: number; dirt: number }>()
-  for (const { sheet, rec } of layer("ac_vei")) {
-    const key = `${sheet} ${rec.attrs.ar_str_id}`,
-      area = areaOf(polygonsOf(rec, local, box)),
-      s = surfaces.get(key) ?? { paved: 0, dirt: 0 }
-    if (rec.attrs.ac_vei_fon === "02") s.dirt += area
-    else s.paved += area
-    surfaces.set(key, s)
+  const carriageways = layer("ac_vei"),
+    roadsWithOne = new Set(carriageways.map(({ sheet, rec }) => `${sheet} ${rec.attrs.ar_str_id}`))
+  /** A record's road surfaces in the box, named from its `ar_str_uff` when that is a street name. */
+  const surfaces = (rec: ShpRecord, paved: boolean): Array<RoadArea> => {
+    const name = streetName(rec.attrs.ar_str_uff ?? "")
+    return polygonsOf(rec, local, box).map((rings) => ({
+      ...(name === undefined ? {} : { name }),
+      paved,
+      rings,
+    }))
   }
   const roadAreas = [
-    ...layer("ar_str").flatMap(({ sheet, rec }) => {
-      const name = streetName(rec.attrs.ar_str_uff ?? ""),
-        s = surfaces.get(`${sheet} ${rec.attrs.ar_str_id}`)
-      return polygonsOf(rec, local, box).map((rings) => ({
-        ...(name === undefined ? {} : { name }),
-        paved: s === undefined || s.paved >= s.dirt,
-        rings,
-      }))
-    }),
+    ...carriageways.flatMap(({ rec }) =>
+      rec.attrs.ac_vei_sed === "06" ? [] : surfaces(rec, rec.attrs.ac_vei_fon !== "02"),
+    ),
+    ...layer("ar_str").flatMap(({ sheet, rec }) =>
+      roadsWithOne.has(`${sheet} ${rec.attrs.ar_str_id}`) ? [] : surfaces(rec, true),
+    ),
     ...layer("ar_vms").flatMap(({ rec }) =>
       polygonsOf(rec, local, box).map((rings) => ({ paved: false, rings })),
     ),

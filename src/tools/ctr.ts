@@ -38,8 +38,8 @@ export interface BuildingSpec {
  * CTR codes read as buildings: what they are, a fixed facade style (otherwise plaster or stone by
  * place) and the wall height used when the record has no plausible elevations. Not buildings
  * here: overhangs (0206), canopies (0208), tents (0209), porticoes and loggias (0240, 0241), all
- * open at ground level, and semi-basements (0235). The old schema (`AE_a.Codice`) uses the same
- * codes.
+ * open at ground level, and semi-basements (0235). The old schema uses the same codes
+ * (`AE_a.Codice`, and 0205 for the ruins it draws as `ML_l` lines).
  */
 const BUILDING_CODES = {
   "0201": { kind: "house", h: 6 },
@@ -192,6 +192,7 @@ const SMALL_WORDS: ReadonlySet<string> = new Set([
   "DEL",
   "DELLA",
   "DELLE",
+  "DELLO",
   "DI",
   "E",
   "IL",
@@ -200,23 +201,27 @@ const SMALL_WORDS: ReadonlySet<string> = new Set([
 ])
 /** Articles and prepositions that elide before a vowel: "dell'Aquila", "d'Italia". */
 const ELIDED: ReadonlySet<string> = new Set(["ALL", "D", "DALL", "DELL", "L", "NELL", "SULL"])
+/** The accented vowel a final vowel and apostrophe stand for in the CTR's and the DBT's ASCII: "UNITA'" is "Unità". */
+const GRAVE: Readonly<Record<string, string>> = { A: "À", E: "È", I: "Ì", O: "Ò", U: "Ù" }
 const title = (w: string) => w[0] + w.slice(1).toLowerCase()
-/** One word of a street name: articles lower-case (elided ones too), Roman numerals upper-case, the rest title-cased, both sides of an elision ("Sant'Antonio"). */
-const streetWord = (w: string, i: number): string => {
+/** One word of a street name: a final apostrophe the accent, articles lower-case (elided ones too), Roman numerals and initials ("G.B.") upper-case, the rest title-cased, both sides of an elision ("Sant'Antonio"). */
+const streetWord = (raw: string, i: number): string => {
+  const w = raw.replace(/([AEIOU])'$/, (_, v: string) => GRAVE[v]!)
   if (i > 0 && SMALL_WORDS.has(w)) return w.toLowerCase()
   if (i > 0 && /^[IVXLC]+$/.test(w)) return w
+  if (/^([A-Z]\.)+$/.test(w)) return w
   const elided = /^([A-Z]+)'(.+)$/.exec(w)
   if (elided === null) return title(w)
   const head = elided[1]!
   return `${ELIDED.has(head) ? head.toLowerCase() : title(head)}'${title(elided[2]!)}`
 }
-/** "VIA CASTEL DELL'AQUILA" -> "Via Castel dell'Aquila", "VIA XX SETTEMBRE" -> "Via XX Settembre". Abbreviated road kinds (S.P., S.C., S.V.) and localities are not street names. */
+/** "VIA CASTEL DELL'AQUILA" -> "Via Castel dell'Aquila", "PIAZZA UNITA' D'ITALIA" -> "Piazza Unità d'Italia". Abbreviated road kinds (S.P., S.C., S.V.) and localities are not street names. */
 export const streetName = (toponym: string): string | undefined => {
-  if (!/^(VIA|PIAZZA|VICOLO|LARGO|SALITA) /.test(toponym)) return undefined
+  if (!/^(VIA|VIALE|PIAZZA|PIAZZALE|PIAZZETTA|VICOLO|LARGO|SALITA) /.test(toponym)) return undefined
   return toponym.split(/\s+/).map(streetWord).join(" ")
 }
 
-/** A 1:2000 sheet's records are numbered under this in each layer: AED's from 0, AGE's from it. */
+/** A 1:2000 sheet's records are numbered under this in each layer: AED's and AE_a's from 0, AGE's and ML_l's from it. */
 const LAYER = 5e4
 
 /** The local number of record `index` of sheet `sheet`'s layer from `base` (as the 2019 ids always were). */
@@ -263,34 +268,60 @@ export const readCtr = (dir: string, box = TERRAIN_BOX): Survey => {
 
 /** The old schema's road surfaces: 0101 asphalt, 0102 dirt (not 0114, track in a tunnel, nor 0140, the rail bed). */
 const OLD_ROAD_CODES: ReadonlySet<string> = new Set(["0101", "0102"])
+/** The old schema's `Sede` of a road surface in a tunnel: no ground to pave (`ctr-rail.ts` reads the rail's the same way). */
+const IN_TUNNEL = "054"
+/** The old schema's code of a ruin, a line in `ML_l`: a closed one outlines its walls. */
+const RUIN = "0205"
+/** A 1:10 000 section's records are numbered under this in each layer: AE_a's from 0, ML_l's from it. */
+const SECTION_LAYER = 5e6
+
+/** Whether a line closes on itself: its first vertex is its last. */
+const closed = (line: ReadonlyArray<readonly [number, number]>): boolean =>
+  line[0]![0] === line.at(-1)![0] && line[0]![1] === line.at(-1)![1]
 
 /**
  * Adapter (b), the CTR's old schema in `dir`, as the CTR 1:2000 of 2009 (`ctr2009`, files by sheet,
  * `22D04_AE_a`) and the CTR 1:10 000 of 2010 (`ctr10k`, files by section, `249020_AE_a`) share it:
- * buildings (`AE_a`, `Codice` through `BUILDING_CODES`, `Quota_gr` the eave), road surfaces
- * (`AV_a`, 0101 asphalt and 0102 dirt, `Toponimo`) and the mapped area (`AC_a`), clipped to `box`.
- * Garages and ruins have no polygons in this schema (the ruins are `ML_l` lines).
+ * buildings (`AE_a`, `Codice` through `BUILDING_CODES`, `Quota_gr` the eave), ruins (the closed
+ * `ML_l` lines of code 0205, through `BUILDING_CODES` with no eave: an open wall stub makes no
+ * footprint), road surfaces (`AV_a`, 0101 asphalt and 0102 dirt, `Toponimo`, none in a tunnel) and
+ * the mapped area (`AC_a`), clipped to `box`. The schema has no garage code (0244).
  */
 export const readOldCtr = (
   dir: string,
   source: Extract<SurveySource, "ctr2009" | "ctr10k">,
   box = TERRAIN_BOX,
 ): Survey => {
-  const unitOf = (key: string, index: number) => {
-    if (source === "ctr10k") return { section: section10k(key), unit: index }
+  /** Record `index` of layer `layer` (AE_a 0, ML_l 1) of `key`: its section and local number. */
+  const unitOf = (key: string, layer: 0 | 1, index: number) => {
+    if (source === "ctr10k") {
+      if (index >= SECTION_LAYER)
+        throw new Error(`section ${key}: record ${index} past ${SECTION_LAYER} in a layer`)
+      return { section: section10k(key), unit: layer * SECTION_LAYER + index }
+    }
     const { section, sheet } = sheet2k(key)
-    return { section, unit: sheetUnit(sheet, 0, index) }
+    return { section, unit: sheetUnit(sheet, layer * LAYER, index) }
   }
-  const buildings = ctrRecords(dir, "AE_a").flatMap(({ sheet, index, rec }) => {
-    const spec = specOf(rec.attrs.Codice!)
-    if (spec === undefined) return []
-    const { section, unit } = unitOf(sheet, index)
-    return buildingsOf(polygonsOf(rec, local, box), spec, Number(rec.attrs.Quota_gr), (k) =>
-      surveyId(source, section, localOf(unit, k)),
-    )
-  })
+  const buildings = [
+    ...ctrRecords(dir, "AE_a").flatMap(({ sheet, index, rec }) => {
+      const spec = specOf(rec.attrs.Codice!)
+      if (spec === undefined) return []
+      const { section, unit } = unitOf(sheet, 0, index)
+      return buildingsOf(polygonsOf(rec, local, box), spec, Number(rec.attrs.Quota_gr), (k) =>
+        surveyId(source, section, localOf(unit, k)),
+      )
+    }),
+    ...ctrRecords(dir, "ML_l").flatMap(({ sheet, index, rec }) => {
+      if (rec.attrs.Codice !== RUIN) return []
+      const { section, unit } = unitOf(sheet, 1, index)
+      const rings = { ...rec, parts: rec.parts.filter(closed) }
+      return buildingsOf(polygonsOf(rings, local, box), specOf(RUIN)!, 0, (k) =>
+        surveyId(source, section, localOf(unit, k)),
+      )
+    }),
+  ]
   const roadAreas = ctrRecords(dir, "AV_a").flatMap(({ rec }) => {
-    if (!OLD_ROAD_CODES.has(rec.attrs.Codice!)) return []
+    if (!OLD_ROAD_CODES.has(rec.attrs.Codice!) || rec.attrs.Sede === IN_TUNNEL) return []
     const name = streetName(rec.attrs.Toponimo ?? "")
     return polygonsOf(rec, local, box).map((rings) => ({
       ...(name === undefined ? {} : { name }),
