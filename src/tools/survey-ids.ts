@@ -1,7 +1,8 @@
 // The ids of the surveyed buildings (ctr.ts, dbt.ts): negative, so they never meet an OSM id, and
 // unique across every source and section the map may read. An id is −(local + 2^32 · slot):
-// - `local`, under 2^31, numbers the record within its sheet, section or comune as the 2019 CTR's
-//   ids always did (sheet number, layer, record, polygon), so `id | 0` and `-(id | 0)`, which seed a
+// - `local`, under 2^31, numbers the record within its sheet or section as the 2019 CTR's ids always
+//   did (sheet number, layer, record, polygon; `localOf`), or by RT's own serial in the DBT (dbt.ts),
+//   so `id | 0` and `-(id | 0)`, which seed a
 //   building's look (its tint in features.ts, its roof, shutters and windows in the renderer), give
 //   what they gave before the sources and sections were added;
 // - `slot` is the source (`SOURCES`) times 2^16 plus its section's code, fixed by the section's name
@@ -35,10 +36,11 @@ export const section10k = (section: string): number => {
   return Number(m[1]) * 16 + k - 1
 }
 
-/** A comune's code from its ISTAT number: "045014" is comune 14 of province 45. */
+/** A comune's code from its ISTAT number: "045014" is comune 14 of province 45 (provinces under 128, comuni under 512, so the code fits a section's 2^16). */
 export const comune = (istat: string): number => {
   const m = /^(\d{3})(\d{3})$/.exec(istat)
-  if (m === null || Number(m[2]) >= 512) throw new Error(`not an ISTAT comune code: ${istat}`)
+  if (m === null || Number(m[1]) >= 128 || Number(m[2]) >= 512)
+    throw new Error(`not an ISTAT comune code: ${istat}`)
   return Number(m[1]) * 512 + Number(m[2])
 }
 
@@ -50,9 +52,14 @@ export const localOf = (unit: number, k: number): number => {
   return unit + k * UNIT
 }
 
+/** Sections a source: 2^16 (written out, as the build calls no `**`: map-key.test.ts). */
+const SECTIONS = 65536
+/** A slot's step in an id: 2^32, so the slot leaves `id | 0` alone. */
+const SLOT = 4294967296
+
 /** The id of a building of `source` in section `section` (its code) with local number `local`. */
 export const surveyId = (source: SurveySource, section: number, local: number): number => {
-  if (!Number.isInteger(section) || section < 0 || section >= 2 ** 16)
-    throw new Error(`section code ${section} out of 0…65535`)
-  return -(local + 2 ** 32 * (SOURCES[source] * 2 ** 16 + section))
+  if (!Number.isInteger(section) || section < 0 || section >= SECTIONS)
+    throw new Error(`section code ${section} out of 0…${SECTIONS - 1}`)
+  return -(local + SLOT * (SOURCES[source] * SECTIONS + section))
 }

@@ -198,13 +198,17 @@ const SMALL_WORDS: ReadonlySet<string> = new Set([
   "LA",
   "LE",
 ])
+/** Articles and prepositions that elide before a vowel: "dell'Aquila", "d'Italia". */
+const ELIDED: ReadonlySet<string> = new Set(["ALL", "D", "DALL", "DELL", "L", "NELL", "SULL"])
 const title = (w: string) => w[0] + w.slice(1).toLowerCase()
-/** One word of a street name: articles lower-case (elided ones too), Roman numerals upper-case, the rest title-cased. */
+/** One word of a street name: articles lower-case (elided ones too), Roman numerals upper-case, the rest title-cased, both sides of an elision ("Sant'Antonio"). */
 const streetWord = (w: string, i: number): string => {
   if (i > 0 && SMALL_WORDS.has(w)) return w.toLowerCase()
   if (i > 0 && /^[IVXLC]+$/.test(w)) return w
-  const elided = /^(DELL|DALL|SULL|NELL|ALL|L)'(.+)$/.exec(w)
-  return elided === null ? title(w) : `${elided[1]!.toLowerCase()}'${title(elided[2]!)}`
+  const elided = /^([A-Z]+)'(.+)$/.exec(w)
+  if (elided === null) return title(w)
+  const head = elided[1]!
+  return `${ELIDED.has(head) ? head.toLowerCase() : title(head)}'${title(elided[2]!)}`
 }
 /** "VIA CASTEL DELL'AQUILA" -> "Via Castel dell'Aquila", "VIA XX SETTEMBRE" -> "Via XX Settembre". Abbreviated road kinds (S.P., S.C., S.V.) and localities are not street names. */
 export const streetName = (toponym: string): string | undefined => {
