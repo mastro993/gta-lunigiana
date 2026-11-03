@@ -274,3 +274,28 @@ test("the last bank cell's tree gets the largest id, whose look's seeds stay bel
     /past the 16384 cells the ids number/,
   )
 })
+
+test("the conifer and mixed woods grow the trees a forest there grows, and an open area over a wood keeps them out", () => {
+  const box: Rect = [100, 100, 400, 300]
+  const grown = (
+    kind: string,
+    over: ReadonlyArray<{ kind: string; rings: Array<Array<number>> }> = [],
+  ) =>
+    treeScatter(
+      {
+        areas: [{ kind, rings: [ring(box)] }, ...over],
+        roads: [],
+        buildings: [],
+        water: [],
+        rail: [],
+      },
+      LUCIDO,
+    )([0, 0, 500, 500])
+  const forest = grown("forest")
+  assert.ok(forest.ids.length > 1000, `${forest.ids.length} trees`)
+  for (const kind of ["conifer", "mixed"]) assert.deepEqual(grown(kind), forest, kind)
+  // A field across the wood's east half, as OSM's farmland over a UCS wood.
+  const field = grown("conifer", [{ kind: "farmland", rings: [ring([250, 100, 400, 300])] }])
+  assert.ok(field.ids.length > 0 && field.ids.length < forest.ids.length)
+  for (let k = 0; k < field.ids.length; k++) assert.ok(field.trees[3 * k]! < 251, `tree ${k}`)
+})

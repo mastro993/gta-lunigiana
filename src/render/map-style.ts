@@ -12,15 +12,22 @@ import {
   type AreaKind,
   isAreaKind,
   isRoadClass,
-  isWaterArea,
   ROAD_CLASSES,
   type RoadClass,
 } from "../sim/map/kinds.ts"
+import { fillRank } from "../sim/map/raster.ts"
 import { PALETTE } from "./palette.ts"
 
-/** Area fills; kinds left out (grassland, residential) show the grass background. */
-const AREA_HEX: Partial<Record<AreaKind, number>> = {
+/**
+ * Area fills. Grassland and residential land take the play area's grass, so they paint over a wood
+ * under them (a UCS wood under OSM's grassland) as the land cover's raster does.
+ */
+const AREA_HEX = {
+  grassland: PALETTE.grass,
+  residential: PALETTE.grass,
   forest: PALETTE.forest,
+  conifer: PALETTE.conifer,
+  mixed: PALETTE.forestDark,
   cemetery: PALETTE.plasterGrey,
   pitch: PALETTE.forestLight,
   park: PALETTE.forestLight,
@@ -41,10 +48,7 @@ const AREA_HEX: Partial<Record<AreaKind, number>> = {
   pebble: PALETTE.limestone,
   river: PALETTE.waterShallow,
   lake: PALETTE.waterShallow,
-}
-
-/** The order the areas are filled in, by kind: the land, then the water over it, then a river's gravel bars over that. */
-const fillPass = (kind: string): number => (kind === "pebble" ? 2 : isWaterArea(kind) ? 1 : 0)
+} as const satisfies Record<AreaKind, number>
 
 /** The full map's least road width by class, px (the rest: 1.5), so the main roads stand out at a few pixels per hundred metres. */
 const OVERVIEW_MIN: Readonly<Partial<Record<RoadClass, number>>> = {
@@ -131,10 +135,9 @@ const roadOrder = (roads: ReadonlyArray<{ readonly cls: string }>): Array<number
 
 /**
  * Paints `map` at `scale` px/m with `pen`: grass over the play area, clipped to it, then the areas
- * (even-odd, kinds without a colour left out; the lakes and river polygons over the land, a river's
- * gravel bars over them, `fillPass`), the water and the rail out of tunnels (`faded`), the
- * roads out of tunnels, paths left out (`roadOrder`, each as `road` says), and the buildings' outer
- * rings (non-zero).
+ * (even-odd, in the order the land cover's raster fills them, `fillRank`: the woods first, the
+ * rest of the land by kind, the lakes and river polygons over it, a river's gravel bars over them), the water and the rail out of tunnels (`faded`), the roads out of tunnels,
+ * paths left out (`roadOrder`, each as `road` says), and the buildings' outer rings (non-zero).
  */
 export const paintLayers = <R extends PaintRoad>(
   pen: MapPen,
@@ -145,7 +148,7 @@ export const paintLayers = <R extends PaintRoad>(
   pen.clip(map.outline)
   pen.fill(map.outline, PALETTE.grass, "evenodd")
   // each pass in the layer's order (a stable sort)
-  for (const area of [...map.areas].sort((a, b) => fillPass(a.kind) - fillPass(b.kind))) {
+  for (const area of [...map.areas].sort((a, b) => fillRank(a.kind) - fillRank(b.kind))) {
     const hex = isAreaKind(area.kind) ? AREA_HEX[area.kind] : undefined
     if (hex !== undefined) pen.fill(area.rings, hex, "evenodd")
   }

@@ -2130,9 +2130,9 @@
     "source": "the lidar archives of data/parts/sarzana-town.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the Liguria DTM ed. 2023's crops -7_-2.tif, -7_-3.tif, -7_-4.tif, -8_-2.tif, -8_-3.tif, -8_-4.tif in data/raw/lig/sarzana-town/dtm (pnpm fetch-lig sarzana-town)"
   },
   "rt/ucs.json.gz": {
-    "sha256": "fb1585716f37ff93efe1b8f60a8e45f0e07dbcd94d7cd8b0bb65e933f2371ab6",
-    "bytes": 208339,
-    "asset": "raw-20261031/rt.ucs.json.gz",
-    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-10-31"
+    "sha256": "ff5e0211defdd85937214e9977878bf00a0a2134ab68d18bda6a0b1d627cbbae",
+    "bytes": 648752,
+    "asset": "raw-20261103-3/rt.ucs.json.gz",
+    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-03"
   }
 }

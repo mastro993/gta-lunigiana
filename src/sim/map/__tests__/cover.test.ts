@@ -234,9 +234,9 @@ test("the cover is the same on two heightmaps round one anchor where an edge gra
   assert.deepEqual(cells(-10700), cells(-2900))
 })
 
-test("a cover keeps its byte: the old covers in their order, then river and lake", () => {
+test("a cover keeps its byte: the old covers in their order, then river and lake, then the conifer and mixed woods", () => {
   assert.deepEqual(
-    Array.from({ length: 25 }, (_, v) => coverName(v)),
+    Array.from({ length: 27 }, (_, v) => coverName(v)),
     [
       "meadow",
       "forest",
@@ -262,6 +262,8 @@ test("a cover keeps its byte: the old covers in their order, then river and lake
       "pebble",
       "river",
       "lake",
+      "conifer",
+      "mixed",
       "meadow", // past the list
     ],
   )
@@ -316,4 +318,27 @@ test("a lake draws over the forest round it, whichever comes first in the map", 
   assert.equal(at(raster, 22, 22), "lake")
   assert.equal(at(raster, 26, 26), "forest")
   assert.equal(at(raster, 2, 2), "forest")
+})
+
+test("the UCS's conifer and mixed woods refine a forest under them, and every other area draws over each wood, whichever comes first in the map", () => {
+  // Farmland and grassland listed before the woods, as OSM's areas come before the UCS's.
+  const raster = coverBlocks({
+    ...bare,
+    heightmap,
+    water: [],
+    areas: [
+      { kind: "farmland", rings: [[0, 32, 40, 32, 40, 40, 0, 40]] },
+      { kind: "grassland", rings: [[32, 0, 40, 0, 40, 32, 32, 32]] },
+      { kind: "forest", rings: [[0, 0, 24, 0, 24, 40, 0, 40]] },
+      { kind: "conifer", rings: [[0, 0, 12, 0, 12, 40, 0, 40]] },
+      { kind: "mixed", rings: [[12, 0, 40, 0, 40, 12, 12, 12]] },
+    ],
+  })(WHOLE)
+  assert.equal(at(raster, 2, 20), "conifer") // over the forest
+  assert.equal(at(raster, 14, 6), "mixed") // over the forest
+  assert.equal(at(raster, 26, 6), "mixed") // where nothing else is
+  assert.equal(at(raster, 18, 20), "forest")
+  assert.equal(at(raster, 2, 34), "farmland") // over the conifer wood
+  assert.equal(at(raster, 34, 6), "grassland") // over the mixed wood
+  assert.equal(at(raster, 30, 20), "meadow")
 })

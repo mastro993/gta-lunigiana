@@ -28,6 +28,7 @@ import {
   GRAGNOLA,
   HILLSIDE,
   MEADOW,
+  TREELESS,
   MORNING,
   person,
   RIDGE,
@@ -64,7 +65,7 @@ const flash = (
 test("rain plays a bed at the ears while it falls, at the rate falling there; dry, or falling as snow, none", () => {
   const rain = (weather: WeatherValue) => {
     const director = rig()
-    director.hear(world(MEADOW, { weather }))
+    director.hear(world(TREELESS, { weather }))
     return director.held().get("rain")
   }
   assert.equal(rain(CALM), undefined)
@@ -79,7 +80,7 @@ test("rain plays a bed at the ears while it falls, at the rate falling there; dr
   )
   assert.ok(
     heavy.sound.forest === 0 && heavy.at.pan === 0 && heavy.at.wet === 0,
-    "the meadow's open ground, all around, dry of reverb",
+    "the treeless meadow's open ground, all around, dry of reverb",
   )
   // 15 °C colder than the normal: about −2 °C on the meadow, where everything falls as snow.
   assert.equal(rain({ ...raining(20), anomaly: -15 }), undefined)

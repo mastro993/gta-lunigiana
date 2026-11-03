@@ -73,7 +73,9 @@ export const joyrideCast = (() => {
       cars: [
         parkedCar("panda", 0xb8312b, ON_BATTISTI),
         rolling("panda", { ...facing(4.85), angle: TOWARD }, 34, 1),
-        burning("panda", FAR, 100),
+        // Its blast at step 125 lights the neighbour's fuse, 5–10 s (300–600 steps) from step 126: still
+        // lit at the save, step 420, whatever the draw.
+        burning("panda", FAR, 125),
         parkedCar("panda", 0xf2efe6, {
           x: FAR.x + VEHICLES.panda.length + 0.8,
           y: FAR.y,

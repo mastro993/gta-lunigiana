@@ -10,7 +10,7 @@
  */
 import { fillPolygon, type PixelBlock, segDist2 } from "../collide.ts"
 import type { Area, AreaKind, Building, MonzoneMap, Road, Water } from "./index.ts"
-import { anchorOf } from "./kinds.ts"
+import { anchorOf, isWaterArea, isWood, WOODS } from "./kinds.ts"
 
 /** Cover kinds: meadow by default and the map's area kinds (a river's gravel bed is `pebble`). */
 export type Cover = "meadow" | AreaKind
@@ -43,12 +43,27 @@ const COVERS = [
   "pebble",
   "river",
   "lake",
+  "conifer",
+  "mixed",
 ] as const satisfies ReadonlyArray<Cover>
 
 const coverIndex = new Map<string, number>(COVERS.map((c, i) => [c, i]))
-/** The covers in fill order, later kinds drawing over earlier ones: a river's gravel bars over its water. */
-const FILL: ReadonlyArray<Cover> = [...COVERS.slice(0, -3), "river", "lake", "pebble"]
-const fillRank = new Map<string, number>(FILL.map((c, i) => [c, i]))
+/**
+ * The covers in fill order, later kinds drawing over earlier ones: the woods first, broadleaf then
+ * the UCS's conifer and mixed woods over it (they refine OSM's), then every other cover, so a wood
+ * holds only ground no other area claims; the water, and a river's gravel bars over it, last.
+ */
+const FILL: ReadonlyArray<Cover> = [
+  "meadow",
+  ...WOODS,
+  ...COVERS.filter((c) => c !== "meadow" && !isWood(c) && !isWaterArea(c) && c !== "pebble"),
+  "river",
+  "lake",
+  "pebble",
+]
+const ranks = new Map<string, number>(FILL.map((c, i) => [c, i]))
+/** Where an area of `kind` comes in `FILL`, the order areas are filled in (0 for a kind no cover has); the HUD's maps paint in it too (src/render/map-style.ts). */
+export const fillRank = (kind: string): number => ranks.get(kind) ?? 0
 
 /** Metres from a wall and from a road's edge within which open ground is paved: house fronts, sidewalks, alleys. */
 const FRONT = 3
@@ -100,14 +115,14 @@ interface CoverSource {
 /**
  * The cover of `map`'s terrain cells, a block at a time: the cells of `part`, a block of the
  * heightmap's `(cols − 1) × (rows − 1)` cells, row-major with row 0 = south.
- * Forest is filled first, so every other area and the river beds draw over it, and a block's cells
- * come out as in the whole raster. The areas are sorted and boxed once, and each block fills only
+ * The woods are filled first (`FILL`), so every other area and the river beds draw over them, and
+ * a block's cells come out as in the whole raster. The areas are sorted and boxed once, and each block fills only
  * those whose box comes within a cell of it (the build asks for every tile, and a scan of every
  * area's rows for each tile grew with the square of the map).
  */
 export const coverBlocks = (map: CoverSource): ((part: PixelBlock) => Uint8Array) => {
   const ordered = [...map.areas]
-    .sort((a, b) => (fillRank.get(a.kind) ?? 0) - (fillRank.get(b.kind) ?? 0))
+    .sort((a, b) => fillRank(a.kind) - fillRank(b.kind))
     .flatMap(({ kind, rings }) => {
       const cover = coverIndex.get(kind)
       if (cover === undefined) return []

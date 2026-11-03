@@ -25,6 +25,7 @@ import { fromDisk, HELD, residentAround } from "../testing.ts"
 const seeded = (seed: number) => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32
 const FOREST = { x: 500, y: -400 },
   MEADOW = { x: -329, y: 1078 },
+  TREELESS = { x: -2290, y: 990 },
   GRAGNOLA = { x: -1751.2, y: 3360.4 },
   EQUI = { x: 1804.9, y: 721 }
 /** 0.15 m off a drive wall in a quarry, with no trunk or building within 3 m and no barrier within 20 m: a cut face. */
@@ -32,7 +33,7 @@ const QUARRY_FACE = { x: -2480, y: -5923.85 }
 
 // The tiles round the spots in memory, as around the player in the game: every place is worked out from the exact map
 // there (places.map-test.ts checks the places all over the map).
-const SPOTS = [FOREST, MEADOW, GRAGNOLA, EQUI]
+const SPOTS = [FOREST, MEADOW, TREELESS, GRAGNOLA, EQUI]
 residentAround(SPOTS, HELD)
 
 /** The buildings within `HELD` of the spots, each once, in the broad phase's order round each spot in turn. */
@@ -281,5 +282,5 @@ test("dogs and owls are stable picks out in the farms and the woods, near ones t
     const d = Math.hypot(spot.x - FOREST.x, spot.y - FOREST.y)
     assert.ok(d >= 15 && d <= 70, `${d} m`)
   }
-  assert.equal(birdSpot(MEADOW.x, MEADOW.y, random), undefined)
+  assert.equal(birdSpot(TREELESS.x, TREELESS.y, random), undefined)
 })

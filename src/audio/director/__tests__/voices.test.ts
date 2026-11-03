@@ -438,7 +438,11 @@ test("animals call on their own: cows moo now and then, pigs grunt often, cats m
     world(MEADOW, { animals: herd.map((a) => ({ ...a, mood: "flee" as const })) }),
     60 * 60,
   )
-  assert.equal(director.plays.length, 0)
+  // The birds in the wood beside the meadow sing on.
+  assert.deepEqual(
+    (["moo", "grunt", "meow"] as const).map((voice) => director.take(voice).length),
+    [0, 0, 0],
+  )
 })
 
 test("an animal's Cry is its species' voice: a dog barks in anger and yelps in fright, a pig squeals, a cow moos, a cat hisses or meows", () => {

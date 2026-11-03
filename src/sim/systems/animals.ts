@@ -3,6 +3,7 @@ import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { walkBy } from "../body.ts"
 import { FAUNA } from "../fauna.ts"
+import { inPlay } from "../map/index.ts"
 import { grazing, indoors, openGround } from "../population/farms.ts"
 import { ownSide, trainCars } from "../rail/bodies.ts"
 import {
@@ -87,9 +88,13 @@ const stepsOf = (seconds: number): number => Math.round(seconds * STEP.hz)
 const restUntil = (species: Species, step: number, random: Random.Random): number =>
   step + stepsOf(random.range(IDLE[species][0], IDLE[species][1]))
 
-/** Where a species may walk to: herds keep to the grass, pigs to open ground, cats and dogs anywhere outdoors. */
+/**
+ * Where a species may walk to, in the play area: herds keep to the grass, pigs to open ground, cats and dogs anywhere
+ * outdoors. A point past the outline is never one (a cow 3 m inside the notch of an L walked at a point beyond it).
+ */
 const walkable = (species: Species, x: number, y: number): boolean =>
-  species === "cow" ? grazing(x, y) : species === "pig" ? openGround(x, y) : !indoors(x, y)
+  inPlay(x, y) &&
+  (species === "cow" ? grazing(x, y) : species === "pig" ? openGround(x, y) : !indoors(x, y))
 
 /**
  * Animals: each species idles, then walks to a random point near its home (never onto or over the railway's track at grade),

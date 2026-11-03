@@ -46,6 +46,7 @@ export {
   isDrivable,
   isMotorRoad,
   isWaterArea,
+  isWood,
   LANE,
   laneOffset,
   RAIL_KINDS,

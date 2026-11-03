@@ -17,6 +17,7 @@ import {
   type Building,
   buildingStyleOf,
   heightAt,
+  isWood,
   MAP,
   treesIn,
   TRUNK,
@@ -140,6 +141,8 @@ const AMBIENCE = {
   pebble: "none",
   river: "none",
   lake: "none",
+  conifer: "forest",
+  mixed: "forest",
 } as const satisfies Record<Cover, keyof Ambience | "none">
 
 /** Where each share of `Ambience` is kept in a block. */
@@ -252,14 +255,13 @@ export const streetAt = (x: number, y: number): number => {
 /** Forest along a path is sampled every this many metres. */
 const FOREST_STEP = 8
 
-/** Metres of forest on the straight path from (ax, ay) to (bx, by), for `foliageLoss` (the coarse cover's past the tiles in memory). */
+/** Metres of woods (`WOODS`) on the straight path from (ax, ay) to (bx, by), for `foliageLoss` (the coarse cover's past the tiles in memory). */
 export const forestAlong = (ax: number, ay: number, bx: number, by: number): number => {
   const length = Math.hypot(bx - ax, by - ay),
     n = Math.max(1, Math.ceil(length / FOREST_STEP))
   let forest = 0
   for (let k = 0; k < n; k++)
-    if (landAt(ax + ((bx - ax) * (k + 0.5)) / n, ay + ((by - ay) * (k + 0.5)) / n) === "forest")
-      forest++
+    if (isWood(landAt(ax + ((bx - ax) * (k + 0.5)) / n, ay + ((by - ay) * (k + 0.5)) / n))) forest++
   return (forest * length) / n
 }
 
