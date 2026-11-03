@@ -10,7 +10,7 @@
  */
 import { loop, smoothstep } from "../buffers.ts"
 import type { Continuous, Surface, VoiceFactory } from "../types.ts"
-import { fadeOut, glide, unit } from "./graph.ts"
+import { fadeOut, glide, shuffled, unit } from "./graph.ts"
 
 type TyreSound = Extract<Continuous, { readonly kind: "tyres" }>
 
@@ -110,13 +110,11 @@ export const tyres: VoiceFactory<TyreSound> = (io) => {
     return band
   })
   squeal.connect(output)
-  const grains = loop(ctx, kit.crackle),
+  const grainBand = new BiquadFilterNode(ctx, { type: "bandpass", frequency: 1800, Q: 0.7 }),
+    grains = shuffled(ctx, kit.crackle, grainBand, 1, io.cents),
     crunch = new GainNode(ctx, { gain: 0 })
-  grains
-    .connect(new BiquadFilterNode(ctx, { type: "bandpass", frequency: 1800, Q: 0.7 }))
-    .connect(crunch)
-    .connect(output)
-  for (const source of [pink, white, grains]) io.cents.connect(source.detune)
+  grainBand.connect(crunch).connect(output)
+  for (const source of [pink, white]) io.cents.connect(source.detune)
   setts.start()
 
   let first = true
@@ -132,8 +130,9 @@ export const tyres: VoiceFactory<TyreSound> = (io) => {
       glide(squeal.gain, t.squeal, now, false, 0.03)
       bands.forEach((band, i) => glide(band.frequency, SQUEAL[i]! * t.pitch, now, jump, 0.1))
       glide(crunch.gain, t.crunch, now, false)
-      glide(grains.playbackRate, t.grains, now, jump)
+      glide(grains.rate, t.grains, now, jump)
+      grains.update(now)
     },
-    stop: (now) => fadeOut(output, [pink, white, grains, setts], now),
+    stop: (now) => fadeOut(output, [pink, white, grains.control, setts], now),
   }
 }

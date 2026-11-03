@@ -16,7 +16,7 @@ import { bufferOf, crackleSamples, loop, smoothstep } from "../buffers.ts"
 import type { Continuous, VoiceFactory } from "../types.ts"
 import { bubbleTexture } from "./bubbles.ts"
 import { rayleigh } from "./crash/dsp.ts"
-import { fadeOut, glide, normalise, outlet, unit } from "./graph.ts"
+import { fadeOut, glide, normalise, outlet, shuffled, unit } from "./graph.ts"
 
 type Rain = Extract<Continuous, { readonly kind: "rain" }>
 type Roof = Extract<Continuous, { readonly kind: "roof" }>
@@ -168,12 +168,12 @@ export const rain: VoiceFactory<Rain> = ({ ctx, out, kit }) => {
     .connect(sheets)
   // The drops near the ears: a sparse layer of big ones and the kit's dense grains, through what they land on.
   const big = loop(ctx, sparseOf(ctx)),
-    small = loop(ctx, kit.crackle),
     sparse = layer(),
     dense = layer(),
+    small = shuffled(ctx, kit.crackle, dense),
     drops = new GainNode(ctx)
   big.connect(sparse).connect(drops)
-  small.connect(dense).connect(drops)
+  dense.connect(drops)
   const leaves = layer(),
     hard = layer(),
     ground = layer()
@@ -208,9 +208,10 @@ export const rain: VoiceFactory<Rain> = ({ ctx, out, kit }) => {
       set(ground, mix.ground)
       set(water, mix.water)
       glide(top.frequency, mix.top, now, first, TAU)
+      small.update(now)
       first = false
     },
-    stop: (now) => fadeOut(level, [pink, gust, brown, big, small, bubbles], now),
+    stop: (now) => fadeOut(level, [pink, gust, brown, big, small.control, bubbles], now),
   }
 }
 
@@ -330,11 +331,12 @@ export const roof: VoiceFactory<Roof> = ({ ctx, out, kit }) => {
   drums.connect(cabin)
   // The dense patter, the kit's grains ringing the panel's three strongest modes, and the sheet's roar: the panel, under 1 kHz.
   const panel = new BiquadFilterNode(ctx, { type: "lowpass", frequency: 1000, Q: 0.7 }),
-    grains = loop(ctx, kit.crackle),
+    patter = new GainNode(ctx),
+    grains = shuffled(ctx, kit.crackle, patter),
     dense = layer()
   panel.connect(cabin)
   for (const hz of [160, 380, 560])
-    grains
+    patter
       .connect(new BiquadFilterNode(ctx, { type: "bandpass", frequency: hz, Q: 4 }))
       .connect(dense)
   dense.connect(panel)
@@ -352,8 +354,9 @@ export const roof: VoiceFactory<Roof> = ({ ctx, out, kit }) => {
       glide(drums.gain, mix.drums, now, first, TAU)
       glide(dense.gain, mix.dense, now, first, TAU)
       glide(roar.gain, mix.roar, now, first, TAU)
+      grains.update(now)
       first = false
     },
-    stop: (now) => fadeOut(level, [one, two, grains, pink], now),
+    stop: (now) => fadeOut(level, [one, two, grains.control, pink], now),
   }
 }
