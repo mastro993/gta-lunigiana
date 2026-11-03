@@ -30,6 +30,10 @@ if (REGION.ownTerrain)
   throw new Error(
     `--region ${REGION.key} has terrain alone and builds no map: terrain-seams.map-test.ts reads it`,
   )
+if (REGION.ownBuildings)
+  throw new Error(
+    `--region ${REGION.key} has buildings alone and builds no map: pontremoli.map-test.ts reads them`,
+  )
 const t0 = performance.now()
 // Each stage's end: seconds from the start and the process's resident memory then.
 const lap = (label: string) =>

@@ -30,7 +30,7 @@ const HELD = new Set(tilesOver(SPAWN.x - REACH, SPAWN.y - REACH, SPAWN.x + REACH
 const LET_GO = MAP.tiles.map(({ i, j }) => tileKey(i, j)).filter((key) => !HELD.has(key))
 const gone = (p: { readonly x: number; readonly y: number }) =>
   !tilesOver(p.x, p.y, p.x, p.y).some((key) => HELD.has(key))
-/** Bell towers on the tiles let go (the first 5.3 km off), a level crossing 3.1 km off and a strike 4.8 km off. */
+/** Bell towers on the tiles let go, a level crossing 3.1 km off and a strike 4.8 km off. */
 const TOWERS = bells.filter(gone),
   CROSSING = CROSSINGS.findIndex(gone),
   STRIKE = { x: 3000, y: -3000 }
@@ -101,7 +101,8 @@ const edgeBlock = (x: number, y: number) => {
 test("far sources (bells km off, a crossing, a strike) read no tile out of memory, and the listener's surroundings are what more tiles in memory give", () => {
   assert.ok(TOWERS.length >= 10 && CROSSING >= 0, `${TOWERS.length} towers, crossing ${CROSSING}`)
   assert.ok(OPEN !== undefined, "a far tower on open ground")
-  const tower = TOWERS[0]!,
+  // The first tower whose woods' edge lies on a tile let go too (the edge may lie up to 640 m off).
+  const tower = TOWERS.find((t) => gone(edgeBlock(t.x, t.y)))!,
     open = OPEN,
     before = measured(),
     village = edgeBlock(SPAWN.x, SPAWN.y),

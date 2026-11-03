@@ -874,16 +874,16 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   random stream seeded by a hash of the spot's place (its x and y in whole decimetres, as the build
   rounds them) and the game's seed (`Parking`, saved), so within one game a street looks the same
   each time the player comes back, and `?seed=N` parks another set. A spot where a Panda would
-  tilt more than 15° stays empty (in Lunigiana, 71 of the 805: the 4 m terrain puts some verges on
+  tilt more than 15° stays empty (in Lunigiana, 69 of the 808: the 4 m terrain puts some verges on
   a bank), and so do the Carabinieri's two.
 - **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
   over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had
-  then (732 now), about 27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village
+  then (737 now), about 27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village
   (seed 1): Monzone (Stazione) 12, Monzone Alto 6, Equi Terme 5, Gragnola 6, Colognola 2,
   Campiglione 6, Viano 6, Vinca 12, Ugliancaldo 8, Tenerano 3. A spot's dice follow its place, not
   its index, so a build that adds or drops other spots leaves its car as it was (the 3x test region
-  drops one by lucido's edge and parks the same cars round Monzone:
-  [map.md](map.md#test-regions)); a spot the build moves rolls anew.
+  drops one by lucido's edge and parks the same cars round Monzone: [map.md](map.md#test-regions));
+  a spot the build moves rolls anew.
 - **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
   primary, secondary or tertiary road's spot where a truck fits, a roll under 10% makes a marble
   truck instead: 6 of the 209 cars Lunigiana's spots hold for seed 1 (2–6 over seeds 1, 2, 3, 7
@@ -917,9 +917,9 @@ Each home holds residents in proportion to its floor space (`src/sim/population/
 footprint × its floors (eave height / 3 m, 1–5) × 0.3 (`LIVED_IN`, an estimate: many village houses
 in the Apuan valleys are holiday homes or empty) / 56 m² (`GROSS_PER_RESIDENT`: ISTAT's 2023
 average occupied dwelling is 101 m² for 2.25 people, 45 m² each, and walls and stairs take about a
-fifth of the gross). Homes are the CTR's houses and the OSM homes (`house`, `residential`, `yes`,
+fifth of the gross). Homes are the surveys' houses and the OSM homes (`house`, `residential`, `yes`,
 `apartments`, `detached`, `semidetached_house`, `terrace`, `farm`, `bungalow`), ruins left out. The
-map's homes hold 3,247 residents.
+map's homes hold 3,244 residents.
 
 `peopleOut` is 0.09 (`OUT_SHARE`, an estimate of the share of residents out on the street by day) ×
 the residents within 140 m of the player, rounded, at most 22. Only the living count. The sum
@@ -944,7 +944,7 @@ a party's followers and never binds.
 - A party comes out on a walk edge drawn by the residents within 60 m of its midpoint
   (`residentsAlong`), so the village centres fill first. An edge with fewer than 6 (`PEOPLED`, within
   `EDGE_REACH` = 60 m) never gets one: a lone house or two, the woods and the fields stay empty.
-  2,309 of the map's 23,228 walk edges are peopled. Those sums read buildings all over the map, so
+  2,323 of the map's 23,228 walk edges are peopled. Those sums read buildings all over the map, so
   the build works them out (`bakeResidents`) and the map keeps one per walk edge
   (`MAP.derived.residents`).
 - The leader stands on a verge at a random point along the edge, never inside a building (where a
@@ -1100,8 +1100,8 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
 A farm (`src/sim/population/farms.ts`) is a house, barn, shed, `farm_auxiliary` or silo, not a ruin,
 whose centre lies on meadow, grassland, farmland or farmyard cover. It is rural when fewer than 60
 residents live within 140 m (`RURAL`, TUNED), and a pen (pigs live there) when it is a barn, shed or
-`farm_auxiliary`, or stands on a farmyard. The map has 2,405 farms, 1,709 of them rural, 796 pens
-and 647 rural pens. Finding them reads the land cover under every building, so the build does it
+`farm_auxiliary`, or stands on a farmyard. The map has 2,455 farms, 1,759 of them rural, 814 pens
+and 665 rural pens. Finding them reads the land cover under every building, so the build does it
 (`bakeFarms`) and the global file keeps the list (`MAP.farms`, each with its building's index in
 the whole map's buildings) and each farm's centre (`MAP.derived.farms`); a farm's own building is
 read from the tile at its centre (`farmBuilding`). A pasture for a herd is meadow,
@@ -1115,9 +1115,9 @@ pigs come out only where the player is out in the country, with fewer than 60 re
 | Kind | How many | At most | Where they come out | Despawned beyond |
 |---|---|---|---|---|
 | Cats | 0.02 × the residents within 140 m (Italy keeps about 0.2 pet cats a resident, 11.9 M cats for 59 M people, Assalco–Zoomark 2025; about one in ten out on the street at a time is an estimate) | 5 | 90–120 m out, on a peopled walk edge's verge 0.3–1.2 m past the walkers' line, or 1–3 m off the wall of a house along it | 140 m |
-| Free dogs | 0.15 × the farms within 140 m (TUNED: about one farm in seven has its dog lying out in the yard) | 3 | 90–140 m out, 4–8 m off a farm building, on open ground | 140 m |
+| Free dogs | 0.15 × the farms within 140 m (TUNED: about one farm in seven has its dog lying out in the yard) | 3 | 90–140 m out, 4–8 m off a farm building in the play area (`inPlay`: a farm in an L's notch has its building on a tile off the list), on open ground | 140 m |
 | Cows | 0.15 × the rural farms within 250 m (TUNED) | 8 | a herd of 2–5 around a middle 90–140 m out on pasture, each within 8 m of it on grass inside the play area (`inPlay`), 2.5 m apart | 180 m: a herd grazes up to 35 m from where it came out |
-| Pigs | 0.15 × the rural pens within 140 m (TUNED) | 5 | 1–3 by a pen, 5–15 m off it on open ground | 140 m |
+| Pigs | 0.15 × the rural pens within 140 m (TUNED) | 5 | 1–3 by a pen in the play area, 5–15 m off it on open ground | 140 m |
 
 - Each run brings out at most one cat, one dog, one herd and one litter, never indoors and clear of
   walk walls, the water's edge and the railway's track at grade (3 m or more off a line's

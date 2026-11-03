@@ -31,8 +31,12 @@ test("the 30 m church tower of Monzone Alto shadows the street behind it, but no
 
 test("a bell at the top of the 30 m tower rings out over its own walls", () => {
   // Monzone Alto's church tower, the tallest building of its block (the map's tallest stand elsewhere).
+  // The broad phase hands every building of the 64 m cells the box touches, whose corner the whole
+  // map's buildings set, so the block is those whose box meets it.
   const block: Array<Building> = []
-  buildingsIn(-20, -340, 30, -310, (_, building) => block.push(building))
+  buildingsIn(-20, -340, 30, -310, (_, building, [x0, y0, x1, y1]) => {
+    if (x1 >= -20 && x0 <= 30 && y1 >= -340 && y0 <= -310) block.push(building)
+  })
   const tower = block.reduce((a, b) => (b.h > a.h ? b : a))
   assert.ok(tower.kind === "church" && tower.h > 29, `${tower.kind} ${tower.h} m`)
   const xs = tower.outer.filter((_, k) => k % 2 === 0),

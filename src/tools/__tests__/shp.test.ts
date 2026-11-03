@@ -99,3 +99,35 @@ test("subsetShp writes nothing when no record matches", () => {
     undefined,
   )
 })
+
+test("subsetShp keeps records by their box too, and blanks the fields it is told to", () => {
+  const named = LINES.map((r, i) => ({ ...r, attrs: { ...r.attrs, Dir_lav: `Surveyor ${i}` } }))
+  const { shp, dbf } = shapefile(13, named)
+  // Only the records whose box reaches east of x = 20: the contour line and the two-part track.
+  const sub = subsetShp(shp, dbf, (_, box) => box !== undefined && box[2] > 20, ["Dir_lav"])
+  assert.ok(sub !== undefined)
+  const recs = parseShp(sub.shp, sub.dbf)
+  assert.deepEqual(
+    recs.map((r) => r.attrs),
+    [
+      { Cod_CTR: "0001", Dir_lav: "" },
+      { Cod_CTR: "0117", Dir_lav: "" },
+    ],
+  )
+  assert.throws(() => subsetShp(shp, dbf, () => true, ["Coll_fot"]), /no field Coll_fot/)
+})
+
+test("parseShp drops the NULs padding a number and reads UTF-8 tables when told to", () => {
+  const { shp, dbf } = shapefile(13, [
+    { ...LINES[0]!, attrs: { un_vol_av: "3.65xx", ar_str_uff: "LOCALITÀ " } },
+  ])
+  const nul = Buffer.from(dbf)
+  const at = nul.indexOf("3.65xx", 0, "latin1") + 4
+  nul.fill(0, at, at + 2)
+  // The DBT writes its text in UTF-8: "À" is the two bytes c3 80.
+  const utf8 = Buffer.from(nul)
+  utf8.write("LOCALITÃ\u0080", utf8.indexOf("LOCALIT", 0, "latin1"), "latin1")
+  assert.equal(parseShp(shp, nul)[0]!.attrs.un_vol_av, "3.65")
+  assert.equal(parseShp(shp, nul)[0]!.attrs.ar_str_uff, "LOCALITÀ")
+  assert.equal(parseShp(shp, utf8, "dbt", "utf8")[0]!.attrs.ar_str_uff, "LOCALITÀ")
+})

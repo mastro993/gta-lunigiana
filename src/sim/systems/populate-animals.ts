@@ -156,7 +156,10 @@ const dogSpot = (
   at: Vec2.Vec2,
   band: readonly [number, number],
 ): Vec2.Vec2 | undefined => {
-  const out = farmsNear(at.x, at.y, ANIMALS.dog.reach).filter((f) => !within(at, f, band[0]))
+  // A farm off the play area (one an L's notch leaves) has its building on a tile off the list.
+  const out = farmsNear(at.x, at.y, ANIMALS.dog.reach).filter(
+    (f) => inPlay(f.x, f.y) && !within(at, f, band[0]),
+  )
   for (let k = 0; k < TRIES; k++) {
     const farm = random.pick(out)
     if (farm === undefined) break
@@ -210,7 +213,7 @@ const litterSpots = (
   most: number,
 ) => {
   const out = farmsNear(at.x, at.y, ANIMALS.pig.reach).filter(
-    (f) => f.rural && f.pen && !within(at, f, band[0]),
+    (f) => f.rural && f.pen && inPlay(f.x, f.y) && !within(at, f, band[0]),
   )
   for (let k = 0; k < TRIES; k++) {
     const pen = random.pick(out)

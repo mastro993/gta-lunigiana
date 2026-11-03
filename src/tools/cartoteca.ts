@@ -1,14 +1,33 @@
-// Regione Toscana's Geoscopio services: the WMS/WFS endpoint, the download tree, and readers for
-// the two answers the map tools parse, a WFS 1.0.0 GetFeature (GML 2, EPSG:3003 polygons) and the
-// LiDAR layer's text/html GetFeatureInfo (the archive names with their MD5, the owner).
+// Regione Toscana's Geoscopio services: the WMS/WFS endpoint, the download tree, readers for the
+// answers the map tools parse, a WFS 1.0.0 GetFeature (GML 2, EPSG:3003 polygons) and the text/html
+// GetFeatureInfo of the LiDAR, CTR 1:10 000 and DBT 1:2000 layers (the archive names with their
+// MD5, the owner or the licence), and the cuts `fetch-rt` makes of the survey layers it pins.
+
+import { subsetShp } from "./shp.ts"
 
 /** The WMS and WFS endpoint; `map=` picks the service (`wmscartoteca`, `wmsucs`, `wmsofc`…). */
 export const RT_WMS = "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms"
 /** The root of the download tree (`ctr2k/SHP/…`, `altimetria/lidar/dtm/…`). */
 export const RT_DOWNLOAD = "https://www502.regione.toscana.it/geoscopio/download"
 
-/** A 2019 CTR 1:2000 sheet's shapefile archive (`sheet` like `23D11`). */
-export const ctrUrl = (sheet: string): string => `${RT_DOWNLOAD}/ctr2k/SHP/S_${sheet}_2019_6707.zip`
+/** A CTR 1:2000 sheet's shapefile archive (`sheet` like `23D11`) of `year`'s edition, 2019 or 2009 (the old schema), in EPSG:6707. */
+export const ctrUrl = (sheet: string, year = 2019): string =>
+  `${RT_DOWNLOAD}/ctr2k/SHP/S_${sheet}_${year}_6707.zip`
+/**
+ * A CTR 1:10 000 section's shapefile archive, by its name with the MD5 (`S_249020_2010_6707_a797…`,
+ * as the manifests list it), under its 1:50 000 sheet (the section's first three digits).
+ */
+export const ctr10kUrl = (name: string): string => {
+  const fog50k = /^S_(\d{3})\d{3}_\d{4}_\d{4}_[\da-f]*$/.exec(name)?.[1]
+  if (fog50k === undefined) throw new Error(`not a CTR 1:10 000 archive name: ${name}`)
+  return `${RT_DOWNLOAD}/ctr10k/SHP/${fog50k}/${name}.zip`
+}
+/** A comune's DBT 1:2000 archive, by its name with the MD5 (`DBT2K_045014_PONTREMOLI_2010_2010_3003_21f4…`). */
+export const dbt2kUrl = (name: string): string => {
+  if (!/^DBT2K_\d{6}_\w+_[\da-f]{32}$/.test(name))
+    throw new Error(`not a DBT 1:2000 archive name: ${name}`)
+  return `${RT_DOWNLOAD}/dbtopografico/dbt2k/7z/${name}.7z`
+}
 /** A LiDAR DTM tile's archive, by its name with the MD5 (as the manifests list it). */
 export const lidarUrl = (name: string): string => `${RT_DOWNLOAD}/altimetria/lidar/dtm/${name}.zip`
 /** A 10 m DTM's archive, by its name with the MD5. */
@@ -69,12 +88,14 @@ export const parseGml = (gml: string): Array<GmlFeature> => {
 }
 
 /**
- * A text/html GetFeatureInfo on the LiDAR index at (lat, lon): the tile whose data footprint holds
- * the point (the index's polygons are the footprints, not the sheet frames).
+ * A text/html GetFeatureInfo on the cartoteca's index `layer` (`rt_cartoteca.lidar2k`) at (lat, lon):
+ * the features whose polygons hold the point, with no tolerance, so one asks inside a polygon, never
+ * on a corner it shares (`insidePoints`). The LiDAR index's polygons are the tiles' data
+ * footprints, the CTR 1:10 000's the sections' frames, the DBT's the comuni.
  */
-export const lidarGfiUrl = (lat: number, lon: number): string => {
+export const gfiUrl = (layer: string, lat: number, lon: number): string => {
   const d = 0.0005
-  return `${RT_WMS}?map=wmscartoteca&SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=rt_cartoteca.lidar2k&QUERY_LAYERS=rt_cartoteca.lidar2k&SRS=EPSG:4326&BBOX=${lon - d},${lat - d},${lon + d},${lat + d}&WIDTH=101&HEIGHT=101&X=50&Y=50&INFO_FORMAT=text/html&FEATURE_COUNT=50&STYLES=`
+  return `${RT_WMS}?map=wmscartoteca&SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=${layer}&QUERY_LAYERS=${layer}&SRS=EPSG:4326&BBOX=${lon - d},${lat - d},${lon + d},${lat + d}&WIDTH=101&HEIGHT=101&X=50&Y=50&INFO_FORMAT=text/html&FEATURE_COUNT=50&STYLES=`
 }
 
 /** Below a footprint's top, m, where GetFeatureInfo answers: it is blank 50–70 m below a tile's north edge. */
@@ -145,20 +166,116 @@ interface LidarInfo {
   readonly dtm?: string
 }
 
+/** The features of a GetFeatureInfo answer, one block each, in the server's order. */
+const blocksOf = (html: string): Array<string> => html.split("<!-- rt_found -->").slice(1)
+/** The value a block gives after `label:` in bold, trimmed; empty when it gives none. */
+const field = (block: string, label: string): string =>
+  new RegExp(`${label}:<b>([^<]*)</b>`).exec(block)?.[1]?.trim() ?? ""
+/** The Creative Commons licence a block links (`…/licenses/by/3.0/it` is `CC BY 3.0 IT`), or "unknown". */
+const licenceOf = (block: string): string => {
+  const path =
+    /rel=["']license["'] href=["']https:\/\/creativecommons\.org\/licenses\/([^"']+)["']/.exec(
+      block,
+    )?.[1]
+  return path === undefined
+    ? "unknown"
+    : `CC ${path.replace(/\/$/, "").replaceAll("/", " ").toUpperCase()}`
+}
+
 /** The LiDAR tiles in a GetFeatureInfo answer, in the server's order. */
 export const parseLidarGfi = (html: string): Array<LidarInfo> =>
-  html
-    .split("<!-- rt_found -->")
-    .slice(1)
-    .map((block) => {
-      const field = (label: string) =>
-        new RegExp(`${label}:<b>([^<]*)</b>`).exec(block)?.[1]?.trim() ?? ""
-      const dtm = /href=\S*\/lidar\/dtm\/([^/>\s]+)\.zip>/.exec(block)?.[1]
-      return {
-        owner: field("Proprieta'"),
-        sheet: field("Foglio").toLowerCase(),
-        lot: field("Lotto"),
-        survey: field("Rilievo"),
-        ...(dtm === undefined ? {} : { dtm }),
-      }
-    })
+  blocksOf(html).map((block) => {
+    const dtm = /href=\S*\/lidar\/dtm\/([^/>\s]+)\.zip>/.exec(block)?.[1]
+    return {
+      owner: field(block, "Proprieta'"),
+      sheet: field(block, "Foglio").toLowerCase(),
+      lot: field(block, "Lotto"),
+      survey: field(block, "Rilievo"),
+      ...(dtm === undefined ? {} : { dtm }),
+    }
+  })
+
+/** One edition of a CTR 1:10 000 section in a GetFeatureInfo answer. */
+interface Ctr10kInfo {
+  /** The section (`249020`). */
+  readonly section: string
+  /**
+   * The shapefile archive in RDN2008 (EPSG:6707; 7791 for the 2021 editions), its name with the
+   * MD5 (the 2021 editions' have none) without `.zip`; absent when the edition offers none.
+   */
+  readonly shp?: string
+  /** The licence the edition states: CC BY 4.0 for 2010 and 2021, CC BY 3.0 IT for 1995 and 1998. */
+  readonly licence: string
+}
+
+/** The editions in a CTR 1:10 000 GetFeatureInfo answer (`rt_cartoteca.ctr10k`), oldest first as the server gives them. */
+export const parseCtr10kGfi = (html: string): Array<Ctr10kInfo> =>
+  blocksOf(html).map((block) => {
+    // Its links are single-quoted, unlike the LiDAR's.
+    const shp =
+      /href='[^']*\/ctr10k\/SHP\/\d{3}\/(S_\d{6}_\d{4}_(?:6707|7791)_[\da-f]*)\.zip'/.exec(
+        block,
+      )?.[1]
+    return {
+      section: field(block, "Sezione"),
+      ...(shp === undefined ? {} : { shp }),
+      licence: licenceOf(block),
+    }
+  })
+
+/** One block of the DBT 1:2000 in a GetFeatureInfo answer: a comune's archive of one survey. */
+interface DbtInfo {
+  /** The survey's first and last flight years (the WFS's `da_anno`, `a_anno`). */
+  readonly from: number
+  readonly to: number
+  /** The archive's name, MD5 included, without `.7z`; absent when the block offers none. */
+  readonly archive?: string
+  readonly licence: string
+}
+
+/** The blocks in a DBT 1:2000 GetFeatureInfo answer (`rt_cartoteca.dbt.2k`): every survey of the comune holding the point, its archive named after its ISTAT code. */
+export const parseDbtGfi = (html: string): Array<DbtInfo> =>
+  blocksOf(html).map((block) => {
+    const [, from = "", to = ""] = /Anni volo da (\d{4}) a (\d{4})<\/b>/.exec(block) ?? []
+    // Its link is double-quoted.
+    const archive = /href="[^"]*\/dbtopografico\/dbt2k\/7z\/([^"/]+)\.7z"/.exec(block)?.[1]
+    return {
+      from: Number(from),
+      to: Number(to),
+      ...(archive === undefined ? {} : { archive }),
+      licence: licenceOf(block),
+    }
+  })
+
+/**
+ * The fields of the old schema's mapped area (`AC_a`, CTR 1:2000 2009 and CTR 1:10 000) that name
+ * the people who led the work and did its survey, photography and drawing: a pinned copy, which is
+ * published, leaves them blank. Its survey firm (`Ditta_es`) stays.
+ */
+export const SURVEYORS = ["Dir_lav", "Coll_top", "Coll_fot", "Coll_inf"] as const
+
+/** An old-schema `AC_a` layer (main file and table) as `fetch-rt` pins it: every record, SURVEYORS blanked. */
+export const withoutSurveyors = (
+  shp: Buffer,
+  dbf: Buffer,
+): { readonly shp: Buffer; readonly dbf: Buffer } => {
+  const copy = subsetShp(shp, dbf, () => true, SURVEYORS)
+  if (copy === undefined) throw new Error("AC_a: no mapped area")
+  return copy
+}
+
+/**
+ * The records of a layer whose bounding box meets `box` [e0, n0, e1, n1], in the layer's own
+ * coordinates, as a smaller shapefile (`subsetShp`), undefined when none does: `fetch-rt` pins a
+ * comune's DBT this way round a part, not whole.
+ */
+export const meetingBox = (
+  shp: Buffer,
+  dbf: Buffer,
+  [e0, n0, e1, n1]: ReadonlyArray<number>,
+): { readonly shp: Buffer; readonly dbf: Buffer } | undefined =>
+  subsetShp(
+    shp,
+    dbf,
+    (_, b) => b !== undefined && b[0] <= e1! && b[2] >= e0! && b[1] <= n1! && b[3] >= n0!,
+  )

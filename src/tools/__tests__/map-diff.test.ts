@@ -373,6 +373,120 @@ test("a tree on a spot both maps plant that carries another id there is a differ
   )
 })
 
+// A building's id carries its survey sheet and source (survey-ids.ts): numbering them anew renumbers every CTR building
+// and moves none, which matched by id alone would read as each one removed and added, and each farm on one changed.
+test("buildings equal in every field but their id are one ids line, a farm on one is no difference, and --except buildings accepts it", () => {
+  const renumbered: MonzoneMap = { ...MAP, buildings: [{ ...MAP.buildings[0]!, id: -2 }] }
+  const blocks = diffMaps(MAP, renumbered)
+  assert.deepEqual(blocks, [
+    {
+      category: "buildings",
+      lines: [
+        "ids: 1 of 1 buildings both maps hold renumbered, in x 1..5, y 1..5",
+        "  renumbered building -1 -> -2",
+      ],
+    },
+  ])
+  // the farm's own change still is one
+  assert.deepEqual(
+    diffMaps(MAP, { ...renumbered, farms: [{ building: 0, rural: false, pen: false }] }).map(
+      (b) => b.category,
+    ),
+    ["buildings", "farms"],
+  )
+  const { except } = parseArgs(["a.bin", "b.bin", "--except", "buildings"])
+  assert.equal(exitCodeOf(blocks, new Set()), 1)
+  assert.equal(exitCodeOf(blocks, except), 0)
+  assert.match(
+    formatDiff(blocks, except),
+    /\n1 category differs: buildings; accepted \(--except\): buildings$/,
+  )
+})
+
+test("a renumbered building that also changed is listed as before, removed and added, and counts as no building both maps hold", () => {
+  const near = { ...MAP.buildings[0]!, id: -3, outer: [10, 10, 15, 10, 15, 15] },
+    far = { ...MAP.buildings[0]!, id: -4, outer: [20, 20, 25, 20, 25, 25] }
+  assert.deepEqual(
+    diffMaps(
+      { ...MAP, farms: [] },
+      { ...MAP, farms: [], buildings: [{ ...MAP.buildings[0]!, id: -2, h: 7 }] },
+    ),
+    [
+      {
+        category: "buildings",
+        lines: [
+          "1 added, 1 removed, in x 1..5, y 1..5",
+          "  removed building -1",
+          "  added building -2",
+        ],
+      },
+    ],
+  )
+  // Beside one renumbered, one the same in both and one changed under its id.
+  assert.deepEqual(
+    diffMaps(
+      { ...MAP, buildings: [MAP.buildings[0]!, near, far] },
+      { ...MAP, buildings: [{ ...MAP.buildings[0]!, id: -2 }, near, { ...far, h: 7 }] },
+    ),
+    [
+      {
+        category: "buildings",
+        lines: [
+          "1 changed, in x 20..25, y 20..25",
+          "  changed building -4: h 6 -> 7",
+          "ids: 1 of 2 buildings both maps hold renumbered, in x 1..5, y 1..5",
+          "  renumbered building -1 -> -2",
+        ],
+      },
+    ],
+  )
+})
+
+// The map holds buildings sharing an id (the pieces a road cut one into), and an identical copy must pair once.
+test("buildings equal but for their id pair one to one, in order of occurrence, so a farm finds its own copy", () => {
+  const piece = MAP.buildings[0]!,
+    other = { ...piece, outer: [10, 10, 15, 10, 15, 15] }
+  assert.deepEqual(
+    diffMaps(
+      { ...MAP, buildings: [piece, piece, { ...other, id: -1 }] },
+      {
+        ...MAP,
+        buildings: [piece, { ...piece, id: -2 }, { ...other, id: -2 }, { ...other, id: -2 }],
+      },
+    ),
+    [
+      {
+        category: "buildings",
+        lines: [
+          "1 added, in x 10..15, y 10..15",
+          "  added building -2",
+          "ids: 2 of 3 buildings both maps hold renumbered, in x 1..15, y 1..15",
+          "  renumbered building -1 -> -2",
+          "  renumbered building -1 -> -2",
+        ],
+      },
+    ],
+  )
+  // Five copies renumbered: the farm on the fourth stays on the fourth.
+  const copies = (ids: ReadonlyArray<number>) => ({
+    ...MAP,
+    buildings: ids.map((id) => ({ ...piece, id })),
+    farms: [{ building: 3, rural: true, pen: false }],
+  })
+  assert.deepEqual(diffMaps(copies([-1, -2, -3, -4, -5]), copies([-11, -12, -13, -14, -15])), [
+    {
+      category: "buildings",
+      lines: [
+        "ids: 5 of 5 buildings both maps hold renumbered, in x 1..5, y 1..5",
+        "  renumbered building -1 -> -11",
+        "  renumbered building -2 -> -12",
+        "  renumbered building -3 -> -13",
+        "  ... and 2 more",
+      ],
+    },
+  ])
+})
+
 test("an order change counts the fewest items that must move, the one moved from the front to the back alone", () => {
   const row = [0, 1, 2, 3, 4].flatMap((x) => [x, 0, 1]),
     ids = [0, 1, 2, 3, 4]

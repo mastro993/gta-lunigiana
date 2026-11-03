@@ -20,9 +20,14 @@
 //   reorder is a difference of its own, counted as the fewest items that must move (items with a
 //   copy added or removed left out). A tree on a spot both maps plant must keep its id there too:
 //   the id seeds its look.
+// - Buildings equal in every field but their id pair up first, one to one in order of occurrence,
+//   and are counted as renumbered (`ids:` under buildings) before the rest are matched by id: a new
+//   numbering of the survey's buildings (survey-ids.ts) is that one line, not every building
+//   removed and added.
 // - Indices into other lists are compared as what they point at: a graph edge as its two nodes'
-//   coordinates and its road's id, a level crossing's road as its id, so inserting one road does
-//   not renumber every edge into a difference.
+//   coordinates and its road's id, a level crossing's road as its id, a farm's building as its id
+//   (a renumbered one's in the second map) and first vertex, so inserting one road does not
+//   renumber every edge into a difference, nor does renumbering the buildings change every farm.
 // - The heightmap compares the nodes both grids share (they must line up: one cell size, origins
 //   whole cells apart): how many differ, by how much at most and RMS (m), and where; the land cover
 //   the cells both share.
@@ -31,7 +36,7 @@ import { pathToFileURL } from "node:url"
 import {
   addFlat,
   type Bag,
-  bagDiff,
+  bagOf,
   type Box,
   boxText,
   canon,
@@ -40,6 +45,8 @@ import {
   fieldChanges,
   flatLine,
   keyedDiff,
+  type Renumbered,
+  renumbered,
 } from "./diff-lists.ts"
 import { type Category, exitCodeOf, parseArgs } from "./map-diff-args.ts"
 import { diffCoarse, diffCover, diffHeightmap, idLines, orderedLines } from "./map-diff-dense.ts"
@@ -53,6 +60,8 @@ interface Block {
 
 /** Items listed per kind of change before "... and n more". */
 const LIST = 10
+/** Renumbered buildings listed before "... and n more": a new numbering renumbers them all alike. */
+const RENUMBERED = 3
 
 type MonzoneMap = JoinedMap
 
@@ -120,10 +129,10 @@ const unhandledKeys = (a: MonzoneMap, b: MonzoneMap): Array<string> =>
       )
   })
 
-/** Appends up to `LIST` entries, indented, then how many more there are. */
-const listed = (out: Array<string>, entries: ReadonlyArray<string>): void => {
-  for (const e of entries.slice(0, LIST)) out.push(`  ${e}`)
-  if (entries.length > LIST) out.push(`  ... and ${entries.length - LIST} more`)
+/** Appends up to `limit` entries, indented, then how many more there are. */
+const listed = (out: Array<string>, entries: ReadonlyArray<string>, limit = LIST): void => {
+  for (const e of entries.slice(0, limit)) out.push(`  ${e}`)
+  if (entries.length > limit) out.push(`  ... and ${entries.length - limit} more`)
 }
 
 /** Grows `box` round an item's geometry: `pts`, `outer`, `axis`, `rings` or its `x`, `y`. */
@@ -144,18 +153,6 @@ const itemBox = (box: Box, item: object): void => {
 /** One line per named part that differs, `name: counts, box`. */
 const partLines = (parts: ReadonlyArray<readonly [string, string | undefined]>): Array<string> =>
   parts.flatMap(([name, line]) => (line === undefined ? [] : [`${name}: ${line}`]))
-
-/** A multiset diff of items by their content. */
-const bagOf = (a: ReadonlyArray<unknown>, b: ReadonlyArray<unknown>): Bag => {
-  const ja = a.map(canon),
-    jb = b.map(canon)
-  return bagDiff(
-    a.length,
-    b.length,
-    (i) => ja[i]!,
-    (j) => jb[j]!,
-  )
-}
 
 /** The counts and box of a multiset diff of items by their content. */
 const bagLine = (
@@ -227,6 +224,38 @@ const keyedLines = <T extends Named>(
   return out
 }
 
+/**
+ * The buildings: those `ids` leaves unpaired matched by id (`keyedLines`), then how many of the
+ * buildings both maps hold equal in every field but their id are renumbered, their box and the
+ * first few as `a.id -> b.id`.
+ */
+const buildingLines = (
+  a: MonzoneMap["buildings"],
+  b: MonzoneMap["buildings"],
+  ids: Renumbered,
+): Array<string> => {
+  const inA = new Set(ids.pairs.map(([i]) => i)),
+    inB = new Set(ids.pairs.map(([, j]) => j))
+  const out = keyedLines(
+    "building",
+    a.filter((_, i) => !inA.has(i)),
+    b.filter((_, j) => !inB.has(j)),
+    (t) => t.id,
+  )
+  if (ids.pairs.length === 0) return out
+  const box = emptyBox()
+  for (const [i] of ids.pairs) itemBox(box, a[i]!)
+  out.push(
+    `ids: ${ids.pairs.length} of ${ids.shared} buildings both maps hold renumbered${boxText(box)}`,
+  )
+  listed(
+    out,
+    ids.pairs.map(([i, j]) => `renumbered building ${a[i]!.id} -> ${b[j]!.id}`),
+    RENUMBERED,
+  )
+  return out
+}
+
 /** `list[k]`, or an error naming the list when an index points past it (the map's parts disagree). */
 const at = <T>(list: ReadonlyArray<T>, k: number, what: string): T => {
   const item = list[k]
@@ -282,8 +311,16 @@ const railwayParts = (m: MonzoneMap) => {
   }
 }
 
-/** The baked tables with their indices resolved: each model's lanes per traffic edge (its two ends and road id, then the two sides), each farm by its building's id and first vertex. */
-const bakedParts = (m: MonzoneMap, edges: ReadonlyArray<number>) => {
+/**
+ * The baked tables with their indices resolved: each model's lanes per traffic edge (its two ends
+ * and road id, then the two sides), each farm by its building's id and first vertex; a building
+ * `renamed` holds (by its index) goes by the id it gives, the other map's.
+ */
+const bakedParts = (
+  m: MonzoneMap,
+  edges: ReadonlyArray<number>,
+  renamed: ReadonlyMap<number, number> = new Map(),
+) => {
   const traffic = m.graph.traffic.map((_, k) => edges.slice(5 * k, 5 * k + 5))
   return {
     lanes: Object.fromEntries(
@@ -294,7 +331,7 @@ const bakedParts = (m: MonzoneMap, edges: ReadonlyArray<number>) => {
     ),
     farms: m.farms.map((f) => {
       const b = at(m.buildings, f.building, "building")
-      return { ...f, building: `${b.id}@${b.outer[0]},${b.outer[1]}` }
+      return { ...f, building: `${renamed.get(f.building) ?? b.id}@${b.outer[0]},${b.outer[1]}` }
     }),
   }
 }
@@ -340,7 +377,8 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
       : pa === undefined
         ? [`added at ${pb.x}, ${pb.y}`]
         : fieldChanges(pa, pb)
-  const ba = bakedParts(a, ga.traffic),
+  const ids = renumbered(a.buildings, b.buildings)
+  const ba = bakedParts(a, ga.traffic, new Map(ids.pairs.map(([i, j]) => [i, b.buildings[j]!.id]))),
     bb = bakedParts(b, gb.traffic)
   const models = [...new Set([...Object.keys(ba.lanes), ...Object.keys(bb.lanes)])].sort()
   const blocks: ReadonlyArray<Block> = [
@@ -367,7 +405,7 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
       lines: [...orderedLines("", "trees", a.trees, b.trees, 3, 2), ...idLines(a, b)],
     },
     { category: "roads", lines: keyedLines("road", a.roads, b.roads, (r) => r.id) },
-    { category: "buildings", lines: keyedLines("building", a.buildings, b.buildings, (r) => r.id) },
+    { category: "buildings", lines: buildingLines(a.buildings, b.buildings, ids) },
     { category: "water", lines: keyedLines("water", a.water, b.water, (r) => r.id) },
     { category: "rail", lines: keyedLines("rail", a.rail, b.rail, (r) => r.id) },
     {

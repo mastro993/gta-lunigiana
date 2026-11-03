@@ -1,13 +1,13 @@
-// The map build's first phase: the pinned inputs in data/raw (OSM, the CTR, the DTM, the land
-// cover) read into features, the rail conflated onto the CTR, and the districts fitted, so the OSM
-// and the CTR go out of scope before the terrain is built.
+// The map build's first phase: the pinned inputs in data/raw (OSM, the surveys of the ground, the
+// DTM, the land cover) read into features, the rail conflated onto the CTR, and the districts
+// fitted, so the OSM and the surveys go out of scope before the terrain is built.
 import { join } from "node:path"
 
 import type { Area, Barrier, District } from "../sim/map/index.ts"
 import { isWaterArea } from "../sim/map/kinds.ts"
 import { conflateRail } from "./conflate.ts"
 import { readCtrRail } from "./ctr-rail.ts"
-import { fitRoads, readCtr } from "./ctr.ts"
+import { fitRoads } from "./ctr.ts"
 import { fitDistricts } from "./districts.ts"
 import { loadDtm, loadGeoDtm } from "./dtm.ts"
 import {
@@ -24,6 +24,7 @@ import { centroid, pointInRing, r1 } from "./geometry.ts"
 import { readOsm } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
 import { REGION, dtmDir } from "./region.ts"
+import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
 
@@ -42,9 +43,9 @@ export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem">
 export const readSources = async (root: string, lap: (label: string) => void) => {
   const lunigiana = REGION.id === "lunigiana"
   const osm = readOsm(join(root, `data/raw/${REGION.id}.osm.gz`))
-  const ctr = lunigiana
-    ? readCtr(join(root, "data/raw/rt/ctr"))
-    : { buildings: [], roadAreas: [], mapped: [] }
+  const { survey, ctr2019 } = lunigiana
+    ? readSurveys(join(root, "data/raw/rt"))
+    : { survey: NO_SURVEY, ctr2019: NO_SURVEY }
   const dem = lunigiana
     ? loadDtm(join(root, dtmDir(REGION)))
     : await loadGeoDtm(join(root, "data/raw/cesena/dtm.tif"))
@@ -65,9 +66,9 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     lunigiana ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
   )
   lap("rail")
-  fitRoads(roads, ctr.roadAreas, ctr.mapped)
+  fitRoads(roads, survey.roadAreas, survey.mapped)
   nameFromAddresses(osm, roads)
-  const { held, beyond: buildingsBeyond } = extractBuildings(osm, ctr)
+  const { held, beyond: buildingsBeyond } = extractBuildings(osm, survey)
   const buildings = clipBuildings(held, roads),
     barriers: Array<Barrier> = openBarriers(extractBarriers(osm), roads),
     // Stops and the Equi foot crossing stand where the rail took their nodes.
@@ -85,12 +86,13 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
           (a) => !isWaterArea(a.kind) || !osmAreas.some((o) => overlap(a, o)),
         )
       : []),
-    ...ctr.roadAreas.filter((a) => a.paved).map((a) => ({ kind: "paved", rings: a.rings })), // squares, lay-bys
+    ...survey.roadAreas.filter((a) => a.paved).map((a) => ({ kind: "paved", rings: a.rings })), // squares, lay-bys
   ]
   const inCtr = (ring: ReadonlyArray<number>) =>
-    ctr.mapped.some((m) => pointInRing(ring[0]!, ring[1]!, m))
-  // The platforms: the CTR's where its sheets map the ground, OSM's elsewhere; those the play area
-  // holds, as one beyond it would stand by the stub of rail its outline leaves.
+    ctr2019.mapped.some((m) => pointInRing(ring[0]!, ring[1]!, m))
+  // The platforms: the 2019 CTR's where its sheets map the ground (the only survey whose rail is
+  // read), OSM's elsewhere; those the play area holds, as one beyond it would stand by the stub of
+  // rail its outline leaves.
   const platforms = heldInPlay([
     ...ctrRail.platforms,
     ...osmAreas
@@ -99,14 +101,14 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   ])
   const districts: Array<District> = fitDistricts(osm, buildings)
   // What the map leaves out beyond the play area, in the built terrain's box: the trees keep off its
-  // roads (as wide as the CTR maps them), water, rail and buildings there as they do in play.
+  // roads (as wide as the surveys map them), water, rail and buildings there as they do in play.
   const beyond = {
     roads: extractRoads(osm, clipBeyond),
     water: extractWater(osm, dem.at, clipBeyond),
     rail: extractRail(osm, clipBeyond),
     buildings: buildingsBeyond,
   }
-  fitRoads(beyond.roads, ctr.roadAreas, ctr.mapped)
+  fitRoads(beyond.roads, survey.roadAreas, survey.mapped)
   lap("features")
   return {
     /** The uncarved terrain (the LiDAR DTM, or Cesena's GeoTIFF). */

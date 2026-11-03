@@ -1,11 +1,14 @@
 import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
 import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
-import { wholeMap } from "../../../tools/map-file.ts"
+import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { ROAD_PASSES } from "../../../tools/profiles.ts"
+import { regionFromArgs } from "../../../tools/region.ts"
+import { sheet2k, SOURCES } from "../../../tools/survey-ids.ts"
 import { moveCircles, segmentDistance, staticGrid } from "../../collide.ts"
 import {
   BUILDING_STYLES,
@@ -300,6 +303,56 @@ test("building interiors are closed: walking or driving in from the nearest road
   }
 })
 
+/** The least distance between two flat outer rings, m: from each one's vertices to the other's edges. */
+const ringGap = (a: ReadonlyArray<number>, b: ReadonlyArray<number>) => {
+  const toward = (p: ReadonlyArray<number>, q: ReadonlyArray<number>) => {
+    let d = Infinity
+    for (let i = 0; i < p.length; i += 2)
+      for (const s of segsOf(q, true)) d = Math.min(d, segmentDistance(s, p[i]!, p[i + 1]!))
+    return d
+  }
+  return Math.min(toward(a, b), toward(b, a))
+}
+/** Road clip pieces of one surveyed footprint lie at most this far apart, m (`clipBuildings` cuts a road's corridor through it: 4.11 m at most on Lunigiana). */
+const PIECE_GAP = 6
+
+test("buildings: no two share an id unless they are pieces of one footprint, on Lunigiana, Cesena and the L", (t) => {
+  // The L is built into test-maps/ by `pnpm maps`; CI, which sets CI=true, always builds it.
+  const lUrl = builtMapUrl(regionFromArgs(["--region", "lunigiana-l"]))
+  if (!existsSync(lUrl)) {
+    assert.notEqual(process.env.CI, "true", "no lunigiana-l build in test-maps")
+    t.diagnostic("no lunigiana-l build in test-maps: the L is not checked")
+  }
+  const maps: ReadonlyArray<readonly [string, JoinedMap]> = [
+    ["Lunigiana", WHOLE],
+    ["Cesena", wholeMap("cesena")],
+    ...(existsSync(lUrl) ? [["the L", readWholeMap(lUrl)] as const] : []),
+  ]
+  for (const [name, { buildings }] of maps) {
+    const byId = Map.groupBy(buildings, (b) => b.id)
+    for (const [id, pieces] of byId) {
+      if (pieces.length < 2) continue
+      // Pieces of one footprint: a surveyed unit cut by a road (`clipBuildings`), or for OSM also
+      // the outer rings of one multipolygon (Cesena's relations 1083815 and 2026837), any distance apart.
+      const [first] = pieces
+      for (const p of pieces)
+        assert.deepEqual(
+          [p.kind, p.name, p.style, p.ruins, p.tint],
+          [first!.kind, first!.name, first!.style, first!.ruins, first!.tint],
+          `${name}: building ${id}`,
+        )
+      if (id > 0) continue
+      for (const p of pieces) {
+        const gap = Math.min(...pieces.filter((q) => q !== p).map((q) => ringGap(p.outer, q.outer)))
+        assert.ok(
+          gap <= PIECE_GAP,
+          `${name}: building ${id} has a piece ${gap.toFixed(2)} m from the others`,
+        )
+      }
+    }
+  }
+})
+
 test("traffic graph: one component reaching the station, Monzone Alto and the villages, edges clear of walls, exits inside the caps", () => {
   const chord = (e: number): Segment => {
     const { a, b } = graph.edges[e]!
@@ -551,6 +604,22 @@ test("road names, classes, styles, area kinds and districts", () => {
   )
   // Regression: its stone-core disc sat 54 m off the castle, which came out plaster.
   assert.equal(WHOLE.buildings.find((b) => b.name === "Castello dell'Aquila")?.style, "stone")
+})
+
+test("the Carrara side's buildings come from the CTR 1:2000 of 2009", () => {
+  // A surveyed building's id slot is its source and section (survey-ids.ts): the 2009 sheets'
+  // section is 22D. readSurveys skips a missing source folder, so a build on a data/raw without
+  // the 2009 sheets keeps OSM's buildings there and fails no other check.
+  const slot = SOURCES.ctr2009 * 65536 + sheet2k("22D04").section
+  const slotOf = (id: number) => (id < 0 ? Math.floor(-id / 4294967296) : undefined)
+  assert.ok(
+    WHOLE.buildings.some((b) => slotOf(b.id) === slot),
+    "no building of the CTR 2009",
+  )
+  // The Chiesetta alpina, a 2009 unit in place of OSM's chapel 700633221.
+  const church = WHOLE.buildings.find((b) => b.style === "church" && inRing(-441, -4844, b.outer))
+  assert.ok(church !== undefined, "no church on (-441, -4844)")
+  assert.equal(slotOf(church.id), slot, `${church.name} ${church.id}`)
 })
 
 // Regression: every way named Torrente Lucido was 8 m wide, up the Vinca valley to its source under the Garnerone.

@@ -2,15 +2,26 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import {
+  RT_DOWNLOAD,
   RT_WMS,
+  SURVEYORS,
+  ctr10kUrl,
+  ctrUrl,
+  dbt2kUrl,
+  gfiUrl,
   insidePoints,
-  lidarGfiUrl,
   lidarLicence,
+  meetingBox,
+  parseCtr10kGfi,
+  parseDbtGfi,
   parseGml,
   parseLidarGfi,
   wfsUrl,
+  withoutSurveyors,
 } from "../cartoteca.ts"
 import { pointInRing } from "../geometry.ts"
+import { parseShp } from "../shp.ts"
+import { shapefile } from "./shapefile.ts"
 
 /** Trimmed from real WFS 1.0.0 answers of rt_cartoteca.ctr2k and lidar2k (2026-10-29), plus a block with a hole. */
 const GML = String.raw`<?xml version='1.0' encoding="UTF-8" ?>
@@ -166,11 +177,28 @@ test("wfsUrl writes the service, the layer and the box verbatim", () => {
   )
 })
 
-test("lidarGfiUrl asks the LiDAR index at the middle pixel of a box round the point", () => {
-  const url = new URL(lidarGfiUrl(44.15, 10.1))
+test("the archive URLs: the CTR 1:2000 by sheet and edition, the CTR 1:10 000 under its 1:50 000 sheet, the DBT's .7z", () => {
+  assert.equal(ctrUrl("23D11"), `${RT_DOWNLOAD}/ctr2k/SHP/S_23D11_2019_6707.zip`)
+  assert.equal(ctrUrl("22D04", 2009), `${RT_DOWNLOAD}/ctr2k/SHP/S_22D04_2009_6707.zip`)
+  assert.equal(
+    ctr10kUrl("S_249020_2010_6707_a797026656fac288e794d5fdc6336ae5"),
+    `${RT_DOWNLOAD}/ctr10k/SHP/249/S_249020_2010_6707_a797026656fac288e794d5fdc6336ae5.zip`,
+  )
+  assert.equal(
+    dbt2kUrl("DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b"),
+    `${RT_DOWNLOAD}/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z`,
+  )
+  // A name without its MD5, or a URL in its place, is a manifest's typo.
+  assert.throws(() => ctr10kUrl("249020"), /not a CTR 1:10 000 archive name/)
+  assert.throws(() => dbt2kUrl("DBT2K_045014_PONTREMOLI_2010_2010_3003"), /not a DBT 1:2000/)
+})
+
+test("gfiUrl asks a cartoteca layer at the middle pixel of a box round the point", () => {
+  const url = new URL(gfiUrl("rt_cartoteca.lidar2k", 44.15, 10.1))
   assert.equal(`${url.origin}${url.pathname}`, RT_WMS)
   const q = url.searchParams
   assert.equal(q.get("REQUEST"), "GetFeatureInfo")
+  assert.equal(q.get("LAYERS"), "rt_cartoteca.lidar2k")
   assert.equal(q.get("QUERY_LAYERS"), "rt_cartoteca.lidar2k")
   assert.equal(q.get("INFO_FORMAT"), "text/html")
   const [w, s, e, n] = q.get("BBOX")!.split(",").map(Number)
@@ -382,4 +410,152 @@ test("insidePoints on a footprint shorter than 100 m spreads its points inside i
   const pts = insidePoints([[short]])
   for (const [e, n] of pts) assert.ok(pointInRing(e, n, short), `${e},${n}`)
   assert.ok(new Set(pts.map(([, n]) => n)).size > 1)
+})
+
+/**
+ * Trimmed from the real text/html GetFeatureInfo on rt_cartoteca.ctr10k inside section 249030
+ * (2026-11-03): its 1995, 2010 and 2021 editions, each with fewer of its links.
+ */
+const CTR10K_GFI = `<tr><td><font size="-1" face="Arial">Strato: <b>Download dataset "sezione di Carta Tecnica Regionale scala 1:10.000" </b></font></td><td colspan="3">&nbsp;</td></tr>
+<!-- rt_found -->
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Sezione <b>249030</b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Titolo:<b>MINUCCIANO</b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Volo:<b>27061995</b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Sezione:<b>249030</b></font></td>
+		<tr><td><font size='-1' face='Arial'><a href='https://www502.regione.toscana.it/geoscopio/download/ctr10k/SHP/249/S_249030_1995_3003_39e50eb6ee2a92d43c0b442655826e30.zip'>Scarica il dataset in formato SHP in Gauss-Boaga Fuso Ovest (epsg:3003)</a></font></td></tr>
+		<tr><td><font size='-1' face='Arial'><a href='https://www502.regione.toscana.it/geoscopio/download/ctr10k/SHP/249/S_249030_1995_6707_9f0e3bd3e8bfe85d971eced47c88ac32.zip'>Scarica il dataset in formato SHP in RDN2008 (epsg:6707)</a></font></td></tr>
+		<br />Distribuzione con <a rel='license' href='https://creativecommons.org/licenses/by/3.0/it' target='_blank'>Licenza Creative Commons Attribuzione 3.0 Italia</a>.
+<!-- rt_found -->
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Sezione <b>249030</b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Titolo:<b>MINUCCIANO</b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Volo:<b>16072010</b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Sezione:<b>249030</b></font></td>
+		<tr><td><font size='-1' face='Arial'><a href='https://www502.regione.toscana.it/geoscopio/download/ctr10k/DXF_D/249/D_249030_2010_6707_23daddc98e010c6a0464bb471a49a248.zip'>Scarica il dataset in formato DXF vestito in RDN2008 (epsg:6707)</a></font></td></tr>
+		<tr><td><font size='-1' face='Arial'><a href='https://www502.regione.toscana.it/geoscopio/download/ctr10k/SHP/249/S_249030_2010_3003_0de7f719eac3b75e151f12493106df8d.zip'>Scarica il dataset in formato SHP in Gauss-Boaga Fuso Ovest (epsg:3003)</a></font></td></tr>
+		<tr><td><font size='-1' face='Arial'><a href='https://www502.regione.toscana.it/geoscopio/download/ctr10k/SHP/249/S_249030_2010_6707_d8e7c90d0ab22493e37b3172cb91b523.zip'>Scarica il dataset in formato SHP in RDN2008 (epsg:6707)</a></font></td></tr>
+		<br />Distribuzione con Licenza <a rel='license' href='https://creativecommons.org/licenses/by/4.0/'>Creative Commons Attribuzione 4.0 Internazionale</a>.
+<!-- rt_found -->
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Sezione <b>249030</b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Titolo:<b></b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Volo:<b>12082021</b></font></td>
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Sezione:<b>249030</b></font></td>
+		<tr><td><font size='-1' face='Arial'><a href='https://www502.regione.toscana.it/geoscopio/download/ctr10k/SHP/249/S_249030_2021_3003_.zip'>Scarica il dataset in formato SHP in Gauss-Boaga Fuso Ovest (epsg:3003)</a></font></td></tr>
+		<tr><td><font size='-1' face='Arial'><a href='https://www502.regione.toscana.it/geoscopio/download/ctr10k/SHP/249/S_249030_2021_7791_.zip'>Scarica il dataset in formato SHP in RDN2008 (epsg:7791)</a></font></td></tr>
+		<br />Distribuzione con Licenza <a rel='license' href='https://creativecommons.org/licenses/by/4.0/'>Creative Commons Attribuzione 4.0 Internazionale</a>.
+</table>
+`
+
+test("parseCtr10kGfi reads each edition's section, RDN2008 shapefile archive and licence", () => {
+  assert.deepEqual(parseCtr10kGfi(CTR10K_GFI), [
+    {
+      section: "249030",
+      shp: "S_249030_1995_6707_9f0e3bd3e8bfe85d971eced47c88ac32",
+      licence: "CC BY 3.0 IT",
+    },
+    {
+      section: "249030",
+      shp: "S_249030_2010_6707_d8e7c90d0ab22493e37b3172cb91b523",
+      licence: "CC BY 4.0",
+    },
+    // The 2021 editions name no MD5 and come in EPSG:7791.
+    {
+      section: "249030",
+      shp: "S_249030_2021_7791_",
+      licence: "CC BY 4.0",
+    },
+  ])
+  // The DXF and EPSG:3003 links are not the archive; an edition with no shapefile has none.
+  const noShp = CTR10K_GFI.replaceAll(/<a href='[^']*\/SHP\/[^']*'>/g, "<a href='x'>")
+  assert.ok(parseCtr10kGfi(noShp).every((e) => !("shp" in e)))
+  // The answer at a corner the sections share: no block.
+  assert.deepEqual(parseCtr10kGfi(CTR10K_GFI.slice(0, CTR10K_GFI.indexOf("<!-- rt_found -->"))), [])
+})
+
+/** Trimmed from the real text/html GetFeatureInfo on rt_cartoteca.dbt.2k in Minucciano (2026-11-03): the comune's two surveys. */
+const DBT_GFI = `<tr><td><font size="-1" face="Arial">Strato: <b>Download dataset "Database Topografico scala 1:2000 tagliato per comune" in formato shapefile</b></font></td><td colspan="3">&nbsp;</td></tr>
+<!-- rt_found -->
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Comune <b>MINUCCIANO : Anni volo da 2011 a 2011</b></font></td>
+        <td colspan="1" rowspan="1" align="left" valign="top"><font size="-1" face="Arial">Scarica il dataset <a href="https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_046019_MINUCCIANO_2011_2011_3003_55abb15279c81a6b3756d9bdfc1f6124.7z">&gt;&gt;&gt;</a></font></td>
+<br />Distribuzione con <a rel="license" href="https://creativecommons.org/licenses/by/4.0" target="_blank">Licenza Creative Commons Attribuzione 4.0</a>.
+<!-- rt_found -->
+        <td align="left" colspan="1" rowspan="1"><font size="-1" face="Arial">Comune <b>MINUCCIANO : Anni volo da 1988 a 2000</b></font></td>
+        <td colspan="1" rowspan="1" align="left" valign="top"><font size="-1" face="Arial">Scarica il dataset <a href="https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_046019_MINUCCIANO_1988_2000_3003_53bfaef25ab5d865864f6b6a281009d9.7z">&gt;&gt;&gt;</a></font></td>
+<br />Distribuzione con <a rel="license" href="https://creativecommons.org/licenses/by/4.0" target="_blank">Licenza Creative Commons Attribuzione 4.0</a>.
+</table>
+`
+
+test("parseDbtGfi reads each survey's flight years, archive and licence", () => {
+  assert.deepEqual(parseDbtGfi(DBT_GFI), [
+    {
+      from: 2011,
+      to: 2011,
+      archive: "DBT2K_046019_MINUCCIANO_2011_2011_3003_55abb15279c81a6b3756d9bdfc1f6124",
+      licence: "CC BY 4.0",
+    },
+    {
+      from: 1988,
+      to: 2000,
+      archive: "DBT2K_046019_MINUCCIANO_1988_2000_3003_53bfaef25ab5d865864f6b6a281009d9",
+      licence: "CC BY 4.0",
+    },
+  ])
+  const bare = DBT_GFI.replace(/<a href="[^"]*\.7z">/, "<a>").replaceAll(
+    /<a rel="license"[^>]*>/g,
+    "",
+  )
+  const [first, second] = parseDbtGfi(bare)
+  assert.ok(!("archive" in first!))
+  assert.equal(first!.licence, "unknown")
+  assert.equal(
+    second!.archive,
+    "DBT2K_046019_MINUCCIANO_1988_2000_3003_53bfaef25ab5d865864f6b6a281009d9",
+  )
+  // A comune with no DBT (Bagnone): no block.
+  assert.deepEqual(parseDbtGfi(DBT_GFI.slice(0, DBT_GFI.indexOf("<!-- rt_found -->"))), [])
+})
+
+/** A square ring [x0, y0]…[x0 + 10, y0 + 10] at height 0. */
+const square = (x0: number, y0: number) =>
+  [
+    [x0, y0, 0],
+    [x0, y0 + 10, 0],
+    [x0 + 10, y0 + 10, 0],
+    [x0 + 10, y0, 0],
+    [x0, y0, 0],
+  ] as const
+
+test("withoutSurveyors keeps every record of a mapped area and blanks only the surveyors' names", () => {
+  const people = Object.fromEntries(SURVEYORS.map((f) => [f, "Xxxx Yyyy"]))
+  const { shp, dbf } = shapefile(15, [
+    { parts: [square(0, 0)], attrs: { Codice: "0906", Ditta_es: "firm", ...people } },
+    { parts: [square(20, 0)], attrs: { Codice: "0906", Ditta_es: "firm", ...people } },
+  ])
+  const copy = withoutSurveyors(shp, dbf)
+  // The rings stay as they were, byte for byte.
+  assert.ok(copy.shp.equals(shp))
+  const blank = Object.fromEntries(SURVEYORS.map((f) => [f, ""]))
+  assert.deepEqual(
+    parseShp(copy.shp, copy.dbf).map((r) => r.attrs),
+    [0, 1].map(() => ({ Codice: "0906", Ditta_es: "firm", ...blank })),
+  )
+  assert.ok(!copy.dbf.includes("Xxxx"))
+  // A table without them is not the old schema's mapped area.
+  const other = shapefile(15, [{ parts: [square(0, 0)], attrs: { Codice: "0906" } }])
+  assert.throws(() => withoutSurveyors(other.shp, other.dbf), /no field Dir_lav/)
+})
+
+test("meetingBox keeps the records whose box meets the box, edges included, and none when none does", () => {
+  const { shp, dbf } = shapefile(15, [
+    { parts: [square(0, 0)], attrs: { id: "inside" } },
+    { parts: [square(95, 0)], attrs: { id: "across the edge" } },
+    { parts: [square(100, 50)], attrs: { id: "on the edge" } },
+    { parts: [square(200, 0)], attrs: { id: "outside" } },
+    { parts: [square(0, -11)], attrs: { id: "below" } },
+  ])
+  const kept = meetingBox(shp, dbf, [-5, -0.5, 100, 100])!
+  assert.deepEqual(
+    parseShp(kept.shp, kept.dbf).map((r) => r.attrs.id),
+    ["inside", "across the edge", "on the edge"],
+  )
+  assert.equal(meetingBox(shp, dbf, [1000, 1000, 2000, 2000]), undefined)
 })

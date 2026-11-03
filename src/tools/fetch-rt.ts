@@ -1,14 +1,17 @@
 // Downloads the Regione Toscana sources (Geoscopio cartoteca) and writes the pinned subsets the map
 // build reads to data/raw/rt. Run: node src/tools/fetch-rt.ts  (pnpm fetch-rt), or
-// `node src/tools/fetch-rt.ts ctr` (pnpm fetch-rt ctr) for the CTR sheets alone, which leaves the
-// terrain and the land cover as they are, or `ucs` for the land cover alone. What it downloads
-// comes from the part's manifest, data/parts/<part>.json (`manifest.ts`); it reads one part,
-// today's (`lucido` in `region.ts`), until #17 brings `fetch-rt <part>` and the per-part raw
-// layout. With `--region <key>` of a test region with terrain of its own (`ownTerrain`, issue #10)
-// it writes that region's terrain alone, to data/raw/rt/<key>. Needs `unzip` on the PATH. The
-// archives are cached in the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes equal
-// the new ones is not rewritten, so another zlib never churns a pinned file. Either way, a file whose
-// bytes the lock does not hold is recorded there with its source, for `pnpm pin-raw` (`raw-lock.ts`).
+// `node src/tools/fetch-rt.ts ctr` (pnpm fetch-rt ctr) for the surveys alone (the CTR sheets and
+// sections, the DBT), which leaves the terrain and the land cover as they are, or `ucs` for the
+// land cover alone. What it downloads comes from the part's manifest, data/parts/<part>.json
+// (`manifest.ts`); it reads one part, today's (`lucido` in `region.ts`), until #17 brings
+// `fetch-rt <part>` and the per-part raw layout. With `--region <key>` of a test region with terrain
+// of its own (`ownTerrain`, issue #10) it writes that region's terrain alone, to data/raw/rt/<key>;
+// of one with buildings of its own (`ownBuildings`, issue #11), the surveys its manifest lists
+// alone, to data/raw/rt/<key> (`surveyDir`). Needs `unzip` on the PATH, and `bsdtar` for the DBT.
+// The archives are cached in the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes
+// equal the new ones is not rewritten, so another zlib never churns a pinned file. Either way, a
+// file whose bytes the lock does not hold is recorded there with its source, for `pnpm pin-raw`
+// (`raw-lock.ts`).
 // - ctr/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2019 flight, EPSG:6707 (CC BY 4.0). AED =
 //   buildings, AGE = other areas (garages, ruins, station platforms, level crossings), AVI = road
 //   areas, AZR = the mapped area of each sheet, AFE = the rail ballast bed (its bridge and tunnel
@@ -16,6 +19,19 @@
 //   contour lines, is dropped). Some sheets map only part of their frame; where none does, OSM
 //   fills in. A sheet may lack AGE, AVI or AFE (nothing of the kind in it) and has a VLI file only
 //   where a track runs.
+// - ctr2009/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2009 flight, the old schema, EPSG:6707
+//   (CC BY: 3.0 IT as the cartoteca lists it, 4.0 as its archive's licence states): AE_a = buildings,
+//   AV_a = road areas, AC_a = the mapped area, with the surveyors' names blanked (`SURVEYORS`),
+//   ML_l = the ruins only (code 0205; the rest of the layer, other man-made lines, is dropped). A
+//   sheet may lack AE_a or AV_a (it maps no building or road: lucido's 22D02, 22D06, 22D07), and
+//   has an ML_l file only where it draws a ruin (not lucido's 22D06 and 22D07).
+// - ctr10k/<section>_<layer>.shp.gz + .dbf.gz: CTR 1:10 000, the 2010 edition of each section
+//   (CC BY 4.0), the same schema and layers.
+// - dbt2k/<ISTAT>_<layer>.shp.gz + .dbf.gz: DBT 1:2000 of a comune (CC BY 4.0), EPSG:3003, only
+//   the records whose box meets the part's EPSG:3003 box + 500 m (a comune's archive holds all of
+//   it): un_vol = volumetric units, mn_ind = industrial artefacts, ar_str = road areas, ac_vei =
+//   carriageways, ar_vms = dirt tracks, zona_r = the mapped zones. No field of these names a
+//   person (zona_r_dt names the survey firms).
 // - dtm.json + dtm.bin + dtm-src.bin: the terrain, EPSG:3003, on 1 m cells cropped to the play area
 //   plus MARGIN (`dtm-mosaic.ts`): the manifest's LiDAR DTM tiles (CC BY 4.0) in priority order (a
 //   cell keeps the first value written; for lucido the 2010 flight, then the 2012 flight for the
@@ -28,18 +44,32 @@
 //   the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse vegetation,
 //   pastures, heath), the rivers' gravel and the water bodies, from the WFS.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
 import { deflateSync, gunzipSync, gzipSync, inflateSync } from "node:zlib"
 
-import { UCS, ctrUrl, dsm2021Url, dtm10Url, lidarUrl, parseGml, wfsUrl } from "./cartoteca.ts"
+import {
+  UCS,
+  WFS_PAD,
+  ctr10kUrl,
+  ctrUrl,
+  dbt2kUrl,
+  dsm2021Url,
+  dtm10Url,
+  lidarUrl,
+  meetingBox,
+  parseGml,
+  wfsUrl,
+  withoutSurveyors,
+} from "./cartoteca.ts"
 import { cropOf, eachCell } from "./dtm-mosaic.ts"
 import { type Filler, NONE, fillStep } from "./fill-chain.ts"
+import { gaussBoagaBox } from "./geometry.ts"
 import { manifestPath, readManifest } from "./manifest.ts"
 import { getBytes, getText } from "./net.ts"
 import { fetchedToday, recordSource } from "./raw-lock.ts"
-import { REGION, dtmDir } from "./region.ts"
-import { fetchZip, findFile, mustFind } from "./rt-cache.ts"
+import { REGION, dtmDir, surveyDir } from "./region.ts"
+import { fetch7z, fetchZip, findFile, mustFind } from "./rt-cache.ts"
 import { subsetShp } from "./shp.ts"
 import {
   SOURCES,
@@ -61,15 +91,17 @@ const { positionals } = parseArgs({
   options: { region: { type: "string" } },
   strict: true,
 })
-/** `ctr` fetches the CTR sheets alone, `ucs` the land cover alone; no argument fetches everything. */
+/** `ctr` fetches the surveys alone, `ucs` the land cover alone; no argument fetches everything. */
 const stage = positionals[0]
 if (positionals.length > 1 || (stage !== undefined && stage !== "ctr" && stage !== "ucs"))
   throw new Error(`unknown stage ${positionals.join(" ")}: use ctr, ucs or none`)
 if (REGION.id !== "lunigiana") throw new Error(`fetch-rt fetches for Lunigiana, not ${REGION.key}`)
-if (REGION.test && !REGION.ownTerrain)
+if (REGION.test && !REGION.ownTerrain && !REGION.ownBuildings)
   throw new Error(`--region ${REGION.key} is built from Lunigiana's inputs: fetch none for it`)
-if (REGION.ownTerrain && stage !== undefined)
-  throw new Error(`--region ${REGION.key} has terrain alone: run fetch-rt without a stage`)
+/** What a test region has of its own, which is all fetch-rt writes for it. */
+const own = REGION.ownTerrain ? "terrain" : REGION.ownBuildings ? "buildings" : undefined
+if (own !== undefined && stage !== undefined)
+  throw new Error(`--region ${REGION.key} has ${own} alone: run fetch-rt without a stage`)
 // One part until #17 writes a DTM file a tile (rt/dtm/<i>_<j>): one mosaic over two parts would widen
 // its crop over the land between them.
 if (REGION.parts.length !== 1)
@@ -77,12 +109,19 @@ if (REGION.parts.length !== 1)
     `fetch-rt mosaics one part; ${REGION.key} has ${REGION.parts.length} (fetch-rt <part> comes with #17)`,
   )
 const [PART] = REGION.parts
-const OUT = join(ROOT, dtmDir(REGION))
+const OUT = join(ROOT, dtmDir(REGION)),
+  SURVEYS = join(ROOT, surveyDir(REGION))
 if (!existsSync(manifestPath(PART!.key)))
   throw new Error(`no data/parts/${PART!.key}.json: run pick-sheets and pick-lidar with --write`)
 const manifest = readManifest(PART!.key)
-/** The 2019 CTR 1:2000 sheets that map ground in the play area (cartoteca layer rt_cartoteca.ctr2k). */
-const CTR_SHEETS = REGION.ownTerrain ? [] : manifest.ctr
+/**
+ * The surveys of the ground the manifest lists, none for the land cover alone or a region with
+ * terrain alone: the 2019 CTR 1:2000 sheets that map ground in the play area (cartoteca layer
+ * rt_cartoteca.ctr2k), the 2009 ones (the same layer), the CTR 1:10 000 sections (ctr10k) and the
+ * DBT's comuni (dbt.2k).
+ */
+const surveys =
+  stage === "ucs" || REGION.ownTerrain ? { ctr: [], ctr2009: [], ctr10k: [], dbt2k: [] } : manifest
 /** Layers copied whole; AED and AZR are in every sheet. */
 const CTR_LAYERS = ["AED", "AGE", "AVI", "AZR", "AFE"] as const
 /** CTR code of a railway track centreline, the only VLI records kept. */
@@ -105,34 +144,114 @@ const pin = (
   unpack: (b: Buffer) => Buffer = gunzipSync,
 ): void => {
   if (!existsSync(path) || !unpack(readFileSync(path)).equals(bytes)) {
+    mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, pack(bytes))
     console.log(`wrote ${path.slice(ROOT.length + 1)}`)
   }
   recordSource(path, source)
 }
 
-mkdirSync(REGION.ownTerrain ? OUT : join(OUT, "ctr"), { recursive: true })
+/** A shapefile's main file and table, raw, cut to what is pinned of them; undefined when nothing is. */
+type Cut = (shp: Buffer, dbf: Buffer) => { readonly shp: Buffer; readonly dbf: Buffer } | undefined
+const whole: Cut = (shp, dbf) => ({ shp, dbf })
+/**
+ * Pins the layer `member` (.shp and .dbf) of an archive extracted in `dir` as `<out>.shp.gz` and
+ * `<out>.dbf.gz`, through `cut` (whole by default); a missing member throws unless `optional`.
+ * Whether it pinned anything: not when the member is missing or `cut` keeps no record.
+ */
+const pinLayer = (
+  dir: string,
+  member: string,
+  out: string,
+  source: string,
+  { optional = false, cut = whole }: { readonly optional?: boolean; readonly cut?: Cut } = {},
+): boolean => {
+  const shp = optional ? findFile(dir, `${member}.shp`) : mustFind(dir, `${member}.shp`)
+  if (shp === undefined) return false
+  const kept = cut(readFileSync(shp), readFileSync(mustFind(dir, `${member}.dbf`)))
+  if (kept === undefined) return false
+  pin(`${out}.shp.gz`, kept.shp, source)
+  pin(`${out}.dbf.gz`, kept.dbf, source)
+  return true
+}
 
-for (const sheet of stage === "ucs" ? [] : CTR_SHEETS) {
+/** Old-schema code of a ruin, the only ML_l records kept (`readOldCtr` reads the closed ones). */
+const RUIN = "0205"
+/**
+ * The old schema's layers (`readOldCtr`) and how each is pinned: buildings and road areas, which a
+ * sheet may lack, whole; the mapped area with its surveyors blanked; the ruins of ML_l, none when a
+ * sheet draws none.
+ */
+const OLD_CTR_LAYERS = {
+  AE_a: { optional: true },
+  AV_a: { optional: true },
+  AC_a: { cut: withoutSurveyors },
+  ML_l: {
+    optional: true,
+    cut: (shp, dbf) => subsetShp(shp, dbf, (attrs) => attrs.Codice === RUIN),
+  },
+} satisfies Record<string, { readonly optional?: boolean; readonly cut?: Cut }>
+/** Pins the old-schema archive at `url` as `<folder>/<key>_<layer>`, from its files `member(layer)`. */
+const pinOldCtr = async (
+  url: string,
+  folder: string,
+  key: string,
+  member: (layer: string) => string,
+): Promise<void> => {
+  const dir = await fetchZip(url)
+  for (const [layer, how] of Object.entries(OLD_CTR_LAYERS))
+    pinLayer(dir, member(layer), join(SURVEYS, folder, `${key}_${layer}`), url, how)
+}
+
+/** The DBT's layers (`readDbt`) by the name they are pinned under, each its archive member's. */
+const DBT_LAYERS = {
+  un_vol: "020101_un_vol",
+  mn_ind: "020201_mn_ind",
+  ar_str: "010104_ar_str",
+  ac_vei: "010101_ac_vei",
+  ar_vms: "010105_ar_vms",
+  zona_r: "000201_zona_r",
+} as const
+/** The part's EPSG:3003 box + WFS_PAD, on whole metres outwards: the DBT's records whose box meets it are pinned. */
+const dbtBox = gaussBoagaBox(PART!.rects, WFS_PAD).map((v, k) =>
+  k < 2 ? Math.floor(v) : Math.ceil(v),
+)
+
+for (const sheet of surveys.ctr) {
   const dir = await fetchZip(ctrUrl(sheet))
-  const out = (layer: string, ext: string) => join(OUT, "ctr", `${sheet}_${layer}.${ext}.gz`)
+  const out = (layer: string) => join(SURVEYS, "ctr", `${sheet}_${layer}`)
   for (const layer of CTR_LAYERS)
-    for (const ext of ["shp", "dbf"]) {
-      const name = `S_${sheet}_2019_${layer}.${ext}`,
-        file = layer === "AED" || layer === "AZR" ? mustFind(dir, name) : findFile(dir, name)
-      if (file !== undefined) pin(out(layer, ext), readFileSync(file), ctrUrl(sheet))
-    }
-  const tracks = subsetShp(
-    readFileSync(mustFind(dir, `S_${sheet}_2019_VLI.shp`)),
-    readFileSync(mustFind(dir, `S_${sheet}_2019_VLI.dbf`)),
-    (attrs) => attrs.Cod_CTR === TRACK,
+    pinLayer(dir, `S_${sheet}_2019_${layer}`, out(layer), ctrUrl(sheet), {
+      optional: layer !== "AED" && layer !== "AZR",
+    })
+  pinLayer(dir, `S_${sheet}_2019_VLI`, out("VLI"), ctrUrl(sheet), {
+    cut: (shp, dbf) => subsetShp(shp, dbf, (attrs) => attrs.Cod_CTR === TRACK),
+  })
+}
+for (const sheet of surveys.ctr2009)
+  // The archive's layers are `<sheet><layer>`, with no underscore between.
+  await pinOldCtr(ctrUrl(sheet, 2009), "ctr2009", sheet, (layer) => `${sheet}${layer}`)
+for (const name of surveys.ctr10k) {
+  const [, section, year] = name.split("_")
+  await pinOldCtr(ctr10kUrl(name), "ctr10k", section!, (layer) => `S_${section}_${year}_${layer}`)
+}
+for (const name of surveys.dbt2k) {
+  const url = dbt2kUrl(name),
+    source = `${url}, the records whose box meets EPSG:3003 ${dbtBox.join(",")}`
+  const dir = await fetch7z(
+    url,
+    Object.values(DBT_LAYERS).flatMap((member) => [`${member}.shp`, `${member}.dbf`]),
   )
-  if (tracks !== undefined) {
-    pin(out("VLI", "shp"), tracks.shp, ctrUrl(sheet))
-    pin(out("VLI", "dbf"), tracks.dbf, ctrUrl(sheet))
+  for (const [layer, member] of Object.entries(DBT_LAYERS)) {
+    const out = join(SURVEYS, "dbt2k", `${name.split("_")[1]}_${layer}`)
+    const pinned = pinLayer(dir, member, out, source, {
+      cut: (shp, dbf) => meetingBox(shp, dbf, dbtBox),
+    })
+    if (!pinned && layer === "zona_r")
+      throw new Error(`${name}: no mapped zone meets EPSG:3003 ${dbtBox.join(",")}`)
   }
 }
-if (stage === "ctr") process.exit(0)
+if (stage === "ctr" || REGION.ownBuildings) process.exit(0)
 
 // The crop: play-area corners in Gauss-Boaga, widened by MARGIN, on the tiles' cell centres (x.5).
 const crop = cropOf(PART!.rects)

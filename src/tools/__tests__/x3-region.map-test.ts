@@ -16,6 +16,7 @@ import { PARKED } from "../../sim/population/parked.ts"
 import { TRAFFIC } from "../../sim/systems/populate.ts"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../map-file.ts"
 import { PARTS, regionFromArgs } from "../region.ts"
+import { BUILDINGS_PER_SPOT } from "../spawns.ts"
 
 const X3 = regionFromArgs(["--region", "lunigiana-3x"])
 const skip = existsSync(builtMapUrl(X3))
@@ -90,15 +91,22 @@ test("the 3x bakes lucido's lamps, water beds and parked spots' rests", { skip }
       ),
     )
   })
-  // Every spot the 3x keeps is lucido's, rest and all; it leaves out only one by a building it
-  // drops across lucido's edge.
+  // Every spot the 3x keeps is lucido's, rest and all. It leaves out the one by a building it drops
+  // across lucido's edge, and, as it keeps a kerbside spot a BUILDINGS_PER_SPOT buildings and holds
+  // fewer, the last ones lucido takes (the spots come in the order they are taken) to make up the rest.
   const spots = new Set(lucido.spawns.parked.map(key)),
     kept = new Set(x3.spawns.parked.map(key))
   for (const spot of x3.spawns.parked) assert.ok(spots.has(key(spot)), `3x spot ${key(spot)}`)
-  const left = lucido.spawns.parked.filter((s) => !kept.has(key(s)))
+  const left = lucido.spawns.parked.flatMap((s, i) => (kept.has(key(s)) ? [] : [i])),
+    edge = left.filter(
+      (i) => inFromEdge(lucido.spawns.parked[i]!.x, lucido.spawns.parked[i]!.y) < 50,
+    )
+  const kerb = (m: JoinedMap) => Math.round(m.buildings.length / BUILDINGS_PER_SPOT),
+    short = kerb(lucido) - kerb(x3) - edge.length
+  assert.equal(edge.length, 1)
   assert.deepEqual(
-    left.map((s) => inFromEdge(s.x, s.y) < 50),
-    [true],
+    left.filter((i) => !edge.includes(i)),
+    Array.from({ length: short }, (_, k) => kerb(lucido) - short + k),
   )
 })
 

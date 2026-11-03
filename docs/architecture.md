@@ -431,7 +431,7 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
 The population's tables are static data too, pure functions of the map shared by every runtime: the
 residents within 60 m of each walk edge, baked (`MAP.derived.residents`, since they read buildings
 all over the map), and the walk edges people live along (`residentsAlong`, `peopledIndex` in
-`src/sim/population/density.ts`), built at load from them; the 2,405 farms in a 64 m grid
+`src/sim/population/density.ts`), built at load from them; the 2,455 farms in a 64 m grid
 (`farmsNear` in `src/sim/population/farms.ts`), indexed on first use from the farms and their
 centres the map file holds (`MAP.farms`, `MAP.derived.farms`), which `setup` makes (7.0–7.5 ms in
 Node, three fresh processes); and the residents ahead of each way out of a junction (`nextWalkEdge`
@@ -1729,8 +1729,8 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   motorway and trunk, 2.5 primary and secondary, 2 tertiary) so the network reads; both paint the
   roads narrowest class first, so the main roads lie on top at junctions and overpasses. Its look is
   that of a map about 820 CSS px on its long side, painted at 5 overview pixels a CSS pixel
-  (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3195 × 4096 px for Lunigiana, 2.96 MB, and
-  4000 × 4000 px for Cesena, 4.75 MB), and it is drawn scaled to the fit and smoothed
+  (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3195 × 4096 px for Lunigiana, 2.99 MB, and
+  4000 × 4000 px for Cesena, 4.74 MB), and it is drawn scaled to the fit and smoothed
   (`imageSmoothingQuality` "high"). So its lines are as wide as the live paint drew them before the
   overview on a map that long, and scale with the map elsewhere: 0.73 times as wide in a 1280 × 720
   window (the map 600 px tall), 1.17 times in a 1920 × 1080 one (960 px) and 0.33 times on an
@@ -2081,12 +2081,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     L outline, as a region of parts in an L gives: in `src/sim/map/__tests__` the lookups there read
     the nearest listed tiles' nodes and cells and never throw, `tilesOver` and `isResidentAt` name
     those tiles, and `inPlay` and `outlineDistance` answer on the L; in `src/render/__tests__` the
-    render plans every chunk once; in `src/sim/__tests__` a teleport into the notch is dropped and
-    herds keep to the L; in `src/sim/sky/__tests__` bolts strike only the L; in `src/hud/__tests__`
-    the minimap paints only listed tiles and lays its grass on the L and clips to it (the
-    overview's transparency outside the L is in `src/tools/__tests__/overview.test.ts`); in
-    `src/audio/places/__tests__` no owl perches on an unlisted tile. In `src/sim/map/__tests__` a
-    vector lookup in the notch reads the vectors of the listed tiles round it, merged.
+    render plans every chunk once; in `src/sim/__tests__` a teleport into the notch is dropped,
+    herds keep to the L, and so do pigs where every pen in their reach lies in the notch; in
+    `src/sim/sky/__tests__` bolts strike only the L; in `src/hud/__tests__` the minimap paints only
+    listed tiles and lays its grass on the L and clips to it (the overview's transparency outside
+    the L is in `src/tools/__tests__/overview.test.ts`); in `src/audio/places/__tests__` no owl
+    perches on an unlisted tile. In `src/sim/map/__tests__` a vector lookup in the notch reads the
+    vectors of the listed tiles round it, merged.
     `src/sim/map/__tests__/anchor.test.ts`: Lunigiana's global file rewritten to start its
     heightmap a tile east and north of its anchor, which it names (`ax`, `ay`), as a region whose
     parts lie east or north of its anchor gives: `heightAt`, `terrainZ` and `coverAt` at 440 points

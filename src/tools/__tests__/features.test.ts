@@ -1,9 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { extractAreas, extractPois, extractRoads } from "../features.ts"
-import { fromLocal, type V } from "../geometry.ts"
+import type { SurveyBuilding } from "../ctr.ts"
+import { extractAreas, extractBuildings, extractPois, extractRoads } from "../features.ts"
+import { fromLocal, hash01, type V } from "../geometry.ts"
 import type { Osm, Tags } from "../osm.ts"
+import { localOf, sheet2k, surveyId } from "../survey-ids.ts"
 
 /** An OSM extract with one two-node way per tag set, along y = 10 · its index. */
 const osmOf = (ways: ReadonlyArray<Tags>): Osm => {
@@ -192,5 +194,42 @@ test("extractPois: a named pond is an area:lake, a named river polygon an area:r
       ["area:lake", "Lago Verde", 110, 110],
       ["area:river", "Magra", 210, 110],
     ],
+  )
+})
+
+test("extractBuildings: a surveyed building's tint is the one its 2019 CTR id always gave, in any section", () => {
+  // The 2019 ids were -(sheet · 1e5 + layer base (AED 0, AGE 5e4) + index) - polygon · 1e7, and the
+  // tint hashed -id % 1e9: each record below, in three sections, a 10 m square round Monzone.
+  const records = [
+    [11, 0, 0, 0],
+    [20, 0, 234, 0],
+    [54, 5e4, 574, 0],
+    [19, 0, 7, 3],
+  ] as const
+  const buildings = records.flatMap(([sheet, base, index, k], i) =>
+    ["23D", "22D", "24C"].map((section, j): SurveyBuilding => {
+      const [x, y] = [20 * i, 20 * j]
+      return {
+        id: surveyId(
+          "ctr2019",
+          sheet2k(`${section}${sheet}`).section,
+          localOf(sheet * 1e5 + base + index, k),
+        ),
+        kind: "house",
+        h: 6,
+        outer: [x, y, x + 10, y, x + 10, y + 10, x, y + 10],
+      }
+    }),
+  )
+  const osm: Osm = { nodes: new Map(), ways: new Map(), relations: new Map() }
+  const { held, beyond } = extractBuildings(osm, { buildings, roadAreas: [], mapped: [] })
+  const tints = new Map([...held, ...beyond].map((b) => [b.id, b.tint]))
+  const old = records.flatMap(([sheet, base, index, k]) => {
+    const id = -(sheet * 1e5 + base + index) - k * 1e7
+    return [0, 1, 2].map(() => Math.floor(hash01(-id % 1e9, 7) * 4)) // the same in each section
+  })
+  assert.deepEqual(
+    buildings.map((b) => tints.get(b.id)),
+    old,
   )
 })

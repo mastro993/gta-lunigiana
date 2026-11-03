@@ -31,9 +31,12 @@ test("lucido's LiDAR tiles put the 2010 flight before the 2012 flight", () => {
   assert.ok(sliver >= 0 && sliver < lots.indexOf("005"), `22d14/004 at ${sliver}`)
 })
 
+/** A manifest with every list empty. */
+const EMPTY = { ctr: [], lidar: [], dtm10: [], dsm2021: [], ctr2009: [], ctr10k: [], dbt2k: [] }
+
 test("a part without a manifest reads as empty lists", () => {
   assert.ok(!existsSync(manifestPath("no-such-part")))
-  assert.deepEqual(readManifest("no-such-part"), { ctr: [], lidar: [], dtm10: [], dsm2021: [] })
+  assert.deepEqual(readManifest("no-such-part"), EMPTY)
 })
 
 test("lucido's manifest lists the 2021 surface model's two elements over its holes", () => {
@@ -50,11 +53,47 @@ test("sillara's manifest lists 8 LiDAR tiles of the 2010 flight, Massa-Carrara's
   assert.deepEqual(dsm2021, ["234011", "234012", "234013", "234014", "234051"])
 })
 
-test("a manifest written before the 2021 surface model reads its elements as none", (t) => {
+test("a manifest written before the 2021 surface model and the older surveys reads them as none", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "manifest-"))
   t.after(() => rmSync(dir, { recursive: true }))
   writeFileSync(join(dir, "old.json"), JSON.stringify({ ctr: ["23D11"], lidar: [], dtm10: [] }))
   // A key relative to data/parts reaches the temp file, so the test writes nothing there.
   const key = relative(dirname(manifestPath("old")), join(dir, "old"))
-  assert.deepEqual(readManifest(key), { ctr: ["23D11"], lidar: [], dtm10: [], dsm2021: [] })
+  assert.deepEqual(readManifest(key), { ...EMPTY, ctr: ["23D11"] })
+})
+
+test("a manifest listing two DBT surveys of one comune is refused", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "manifest-"))
+  t.after(() => rmSync(dir, { recursive: true }))
+  // Minucciano's two surveys, as rt-index lists them: fetch-rt pins a comune's layers under its
+  // ISTAT code alone, so the second would write over the first.
+  const dbt2k = [
+    "DBT2K_046019_MINUCCIANO_2011_2011_3003_55abb15279c81a6b3756d9bdfc1f6124",
+    "DBT2K_046019_MINUCCIANO_1988_2000_3003_53bfaef25ab5d865864f6b6a281009d9",
+  ]
+  writeFileSync(join(dir, "twice.json"), JSON.stringify({ ...EMPTY, dbt2k }))
+  writeFileSync(join(dir, "once.json"), JSON.stringify({ ...EMPTY, dbt2k: dbt2k.slice(0, 1) }))
+  const key = (name: string) => relative(dirname(manifestPath(name)), join(dir, name))
+  assert.throws(() => readManifest(key("twice")), /dbt2k lists one comune twice/)
+  assert.deepEqual(readManifest(key("once")).dbt2k, dbt2k.slice(0, 1))
+})
+
+test("pontremoli-town's manifest lists Pontremoli's DBT 1:2000 of 2010 and nothing else", () => {
+  assert.ok(existsSync(manifestPath("pontremoli-town")))
+  assert.deepEqual(readManifest("pontremoli-town"), {
+    ...EMPTY,
+    dbt2k: ["DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b"],
+  })
+})
+
+test("lucido's manifest lists the 12 sheets of 2009 on the Carrara side whose mapped area meets it, and no CTR 1:10 000 or DBT", () => {
+  const { ctr2009, ctr10k, dbt2k } = readManifest("lucido")
+  // 22D02–07 and 22D10–15, each mapping 5.6 ha (22D05) to 148.6 ha (22D03) of lucido.
+  assert.deepEqual(
+    ctr2009,
+    [2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15].map((n) => `22D${String(n).padStart(2, "0")}`),
+  )
+  // The CTR 1:10 000 only where a manifest lists it, so lucido keeps OSM's huts beyond the CTR 1:2000.
+  assert.deepEqual(ctr10k, [])
+  assert.deepEqual(dbt2k, [])
 })

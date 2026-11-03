@@ -517,8 +517,8 @@ snow line at or under the height at 08:00), November to April, the mean of seeds
 
 Each source considered for the climate model, with what it gives and why it was taken or left,
 following the licence rules in [the map standards](standards/map.md#data-sources-and-requests). The
-README and both credit lines of `index.html` credit the accepted data sources; the papers are cited
-here.
+README and the three credit blocks of `index.html` credit the accepted data sources; the papers are
+cited here.
 
 | Source | Used for | Licence or terms | Verdict |
 |---|---|---|---|

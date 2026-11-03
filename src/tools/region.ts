@@ -6,7 +6,8 @@
 //   a lattice from a corner fixed for good (`anchor`, trees.ts).
 // - Test regions (issue #7): other shapes and sizes built from Lunigiana's inputs, in its frame and
 //   on its anchor, into `test-maps/` (gitignored), to check the build; the game never loads them.
-//   One far from lucido has terrain of its own (`ownTerrain`, issue #10).
+//   One far from lucido has terrain of its own (`ownTerrain`, issue #10), one buildings of its own
+//   (`ownBuildings`, issue #11).
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
@@ -46,6 +47,13 @@ export interface Region {
    * manifest into `data/raw/rt/<key>` (`dtmDir`), which the build reads instead of Lunigiana's.
    */
   readonly ownTerrain: boolean
+  /**
+   * A test region with surveyed buildings of its own (issue #11): `fetch-rt --region <key>` writes
+   * the surveys its part's manifest lists into data/raw/rt/<key> (`surveyDir`), clipped to its box,
+   * and `fetch-osm --region <key>` OSM's buildings over it into data/raw/<key>.osm.gz; no map is
+   * built for it.
+   */
+  readonly ownBuildings: boolean
   readonly origin: { readonly lat: number; readonly lon: number }
   /** Its parts: the play area is the union of their masks, or their rectangles where they have none. */
   readonly parts: ReadonlyArray<Part>
@@ -220,8 +228,10 @@ const regionOf = (
     file,
     test,
     ownTerrain = false,
+    ownBuildings = false,
   }: Pick<Region, "key" | "id" | "file" | "test"> & {
     readonly ownTerrain?: boolean
+    readonly ownBuildings?: boolean
   },
   origin: Region["origin"],
   parts: ReadonlyArray<Part>,
@@ -236,6 +246,7 @@ const regionOf = (
     file,
     test,
     ownTerrain,
+    ownBuildings,
     origin,
     parts,
     bounds: { minX, minY, maxX, maxY },
@@ -279,6 +290,10 @@ const lucido = PARTS[0]!.rects[0]!
  * - `bagnone-ridge`: 4 × 4 km of the Apennine ridge round Monte Sillara, x −8000…−4000 by
  *   y 20000…24000, with terrain of its own and nothing else: the LiDAR stops 1–2 km below the crest,
  *   so it checks the fallback chain's seams and the summit (issue #10) before part 6 (#22) exists.
+ * - `pontremoli-town`: 1.6 × 1.6 km round Pontremoli's town, x −20700…−19100 by y 23100…24700
+ *   (lat 44.370–44.384, lon 9.872–9.890 rounded out to 100 m), with buildings of its own and nothing
+ *   else: the DBT 1:2000 of 2010 and OSM's buildings, so it checks the DBT's adapter (issue #11)
+ *   before part 8 (#24) exists.
  */
 const TEST_REGIONS: ReadonlyArray<Region> = [
   regionOf(
@@ -321,6 +336,24 @@ const TEST_REGIONS: ReadonlyArray<Region> = [
     ],
     LUNIGIANA_ANCHOR,
   ),
+  regionOf(
+    {
+      key: "pontremoli-town",
+      id: "lunigiana",
+      file: "pontremoli-town",
+      test: true,
+      ownBuildings: true,
+    },
+    LUNIGIANA_ORIGIN,
+    [
+      {
+        key: "pontremoli-town",
+        title: "Pontremoli's town",
+        rects: [[-20700, 23100, -19100, 24700]],
+      },
+    ],
+    LUNIGIANA_ANCHOR,
+  ),
 ]
 
 const regions: ReadonlyArray<Region> = [
@@ -358,6 +391,10 @@ export const mapDir = (region: Region): string => (region.test ? "test-maps" : "
 /** Where `fetch-rt` writes the DTM mosaic `region` is built on, from the repository root: its own folder, or Lunigiana's. */
 export const dtmDir = (region: Region): string =>
   region.ownTerrain ? `data/raw/rt/${region.key}` : "data/raw/rt"
+
+/** Where `fetch-rt` writes the surveys `region` is built on (`readSurveys`), from the repository root: its own folder, or Lunigiana's. */
+export const surveyDir = (region: Region): string =>
+  region.ownBuildings ? `data/raw/rt/${region.key}` : "data/raw/rt"
 
 /** Build region for this Node invocation, fixed before the geometry modules load. */
 export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])

@@ -1,7 +1,8 @@
-// Minimal ESRI shapefile + dBase III reader for the gzipped CTR layers: polygons and polylines
-// (Z and M variants too; extra dimensions are skipped), attributes as trimmed latin-1 strings.
+// Minimal ESRI shapefile + dBase III reader for the gzipped survey layers: polygons and polylines
+// (Z and M variants too; extra dimensions are skipped), attributes as trimmed strings, latin-1 (the
+// CTR's) or UTF-8 (the DBT's), with the NUL padding some tables put after a number dropped.
 // `subsetShp` writes the records a filter keeps as a smaller shapefile (fetch-rt.ts pins the CTR's
-// track centrelines that way).
+// track centrelines that way, and the DBT's layers round a part).
 import { readFileSync } from "node:fs"
 import { gunzipSync } from "node:zlib"
 
@@ -16,18 +17,31 @@ const LINEAR_TYPES: ReadonlySet<number> = new Set([3, 5, 13, 15, 23, 25])
 /** The Z variants: their records carry a z range after the points. */
 const Z_TYPES: ReadonlySet<number> = new Set([13, 15])
 
-const parseDbf = (b: Buffer): Array<Record<string, string>> => {
-  const count = b.readUInt32LE(4),
-    header = b.readUInt16LE(8),
-    size = b.readUInt16LE(10)
+/** How a table's text is encoded: the CTR's latin-1, the DBT's UTF-8. */
+export type DbfEncoding = "latin1" | "utf8"
+
+/** The table's field names and byte lengths, in row order. */
+const dbfFields = (b: Buffer): Array<{ readonly name: string; readonly len: number }> => {
   const fields: Array<{ name: string; len: number }> = []
   for (let o = 32; b[o] !== 0x0d; o += 32)
     fields.push({ name: b.toString("latin1", o, o + 11).replace(/\0.*$/, ""), len: b[o + 16]! })
+  return fields
+}
+
+const parseDbf = (b: Buffer, encoding: DbfEncoding = "latin1"): Array<Record<string, string>> => {
+  const count = b.readUInt32LE(4),
+    header = b.readUInt16LE(8),
+    size = b.readUInt16LE(10),
+    fields = dbfFields(b)
   return Array.from({ length: count }, (_, i) => {
     let o = header + i * size + 1 // skip the deletion flag
     const row: Record<string, string> = {}
     for (const f of fields) {
-      row[f.name] = b.toString("latin1", o, o + f.len).trim()
+      // The DBT pads its numbers with NULs ("3.650000\0"), which `trim` keeps.
+      row[f.name] = b
+        .toString(encoding, o, o + f.len)
+        .replaceAll("\0", "")
+        .trim()
       o += f.len
     }
     return row
@@ -43,8 +57,13 @@ const recordSpans = (b: Buffer): Array<{ readonly at: number; readonly bytes: nu
 }
 
 /** The records of a shapefile, from the raw bytes of its main file and its dBase table; `name` labels errors. */
-export const parseShp = (shp: Buffer, dbf: Buffer, name = "shp"): Array<ShpRecord> => {
-  const attrs = parseDbf(dbf)
+export const parseShp = (
+  shp: Buffer,
+  dbf: Buffer,
+  name = "shp",
+  encoding: DbfEncoding = "latin1",
+): Array<ShpRecord> => {
+  const attrs = parseDbf(dbf, encoding)
   return recordSpans(shp).map(({ at }, i) => {
     const content = at + 8,
       type = shp.readInt32LE(content)
@@ -67,29 +86,52 @@ export const parseShp = (shp: Buffer, dbf: Buffer, name = "shp"): Array<ShpRecor
 }
 
 /** `base` without extension: reads base.shp.gz and base.dbf.gz. */
-export const readShp = (base: string): Array<ShpRecord> =>
+export const readShp = (base: string, encoding: DbfEncoding = "latin1"): Array<ShpRecord> =>
   parseShp(
     gunzipSync(readFileSync(`${base}.shp.gz`)),
     gunzipSync(readFileSync(`${base}.dbf.gz`)),
     `${base}.shp`,
+    encoding,
   )
 
+/** A record's bounding box [xmin, ymin, xmax, ymax] from its header; undefined for a null shape. */
+const recordBox = (
+  shp: Buffer,
+  at: number,
+): readonly [number, number, number, number] | undefined =>
+  shp.readInt32LE(at + 8) === 0
+    ? undefined
+    : [
+        shp.readDoubleLE(at + 12),
+        shp.readDoubleLE(at + 20),
+        shp.readDoubleLE(at + 28),
+        shp.readDoubleLE(at + 36),
+      ]
+
 /**
- * The records whose attribute row `keep` accepts, as a new main file and dBase table (raw bytes),
- * or undefined when it keeps none. Records keep their bytes and order and are renumbered from 1;
- * the main file's length, bounding box and z range (Z types) are recomputed, its m range copied.
- * The table keeps its header, field list and date with the new record count.
+ * The records whose attribute row and bounding box (undefined for a null shape) `keep` accepts, as
+ * a new main file and dBase table (raw bytes), or undefined when it keeps none. Records keep their
+ * bytes and order and are renumbered from 1; the main file's length, bounding box and z range (Z
+ * types) are recomputed, its m range copied. The table keeps its header, field list and date with
+ * the new record count, and each field named in `blank` filled with spaces (the surveyors' names
+ * some layers carry, which a pinned copy leaves out).
  */
 export const subsetShp = (
   shp: Buffer,
   dbf: Buffer,
-  keep: (attrs: Readonly<Record<string, string>>) => boolean,
+  keep: (
+    attrs: Readonly<Record<string, string>>,
+    box: readonly [number, number, number, number] | undefined,
+  ) => boolean,
+  blank: ReadonlyArray<string> = [],
 ): { readonly shp: Buffer; readonly dbf: Buffer } | undefined => {
   const attrs = parseDbf(dbf),
     spans = recordSpans(shp)
   if (spans.length !== attrs.length)
     throw new Error(`${spans.length} shapes but ${attrs.length} attribute rows`)
-  const kept = spans.flatMap((span, i) => (keep(attrs[i]!) ? [{ ...span, row: i }] : []))
+  const kept = spans.flatMap((span, i) =>
+    keep(attrs[i]!, recordBox(shp, span.at)) ? [{ ...span, row: i }] : [],
+  )
   if (kept.length === 0) return undefined
   const out = Buffer.concat([
     shp.subarray(0, 100),
@@ -126,5 +168,13 @@ export const subsetShp = (
     dbf.subarray(header + attrs.length * size), // the end-of-file marker, when the file has one
   ])
   table.writeUInt32LE(kept.length, 4)
+  const fields = dbfFields(dbf)
+  for (const name of blank) {
+    const k = fields.findIndex((f) => f.name === name)
+    if (k < 0) throw new Error(`no field ${name} to blank`)
+    const at = 1 + fields.slice(0, k).reduce((sum, f) => sum + f.len, 0)
+    for (let row = 0; row < kept.length; row++)
+      table.fill(0x20, header + row * size + at, header + row * size + at + fields[k]!.len)
+  }
   return { shp: out, dbf: table }
 }

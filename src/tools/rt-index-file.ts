@@ -14,7 +14,7 @@ const RtIndexSchema = v.object({
   part: v.string(),
   /** The WFS box, EPSG:3003 [e0, n0, e1, n1]: the part's corners + 500 m. */
   box: v.tuple([v.number(), v.number(), v.number(), v.number()]),
-  /** CTR 1:2000 sheet frames, one per sheet and year; the 2019 ones with their archive's URL and HEAD. */
+  /** CTR 1:2000 sheet frames, one per sheet and year; the 2009 and 2019 ones with their archive's URL and HEAD. */
   ctr: v.array(
     v.object({
       sheet: v.string(),
@@ -38,8 +38,38 @@ const RtIndexSchema = v.object({
       polygons: Polygons,
     }),
   ),
-  /** DBT 1:2000 blocks, their attributes as the WFS gives them. */
-  dbt: v.array(v.object({ attrs: v.record(v.string(), v.string()), polygons: Polygons })),
+  /**
+   * CTR 1:10 000 sections of the 2010 edition, each its frame, with the EPSG:6707 shapefile archive
+   * (named with its MD5, no `.zip`) and the licence the GetFeatureInfo inside the frame states, and
+   * the archive's HEAD.
+   */
+  ctr10k: v.array(
+    v.object({
+      section: v.string(),
+      title: v.string(),
+      flight: v.string(),
+      archive: v.optional(v.string()),
+      licence: v.optional(v.string()),
+      url: v.optional(v.string()),
+      ...Head,
+      polygons: Polygons,
+    }),
+  ),
+  /**
+   * DBT 1:2000 blocks, one per comune and survey, their attributes as the WFS gives them and their
+   * polygon the comune's (not the area mapped), with the archive (named with its MD5, no `.7z`) and
+   * the licence the GetFeatureInfo inside the comune states, and the archive's HEAD.
+   */
+  dbt: v.array(
+    v.object({
+      attrs: v.record(v.string(), v.string()),
+      archive: v.optional(v.string()),
+      licence: v.optional(v.string()),
+      url: v.optional(v.string()),
+      ...Head,
+      polygons: Polygons,
+    }),
+  ),
   /** The 2021 surface model's elements. */
   dsm2021: v.array(
     v.object({

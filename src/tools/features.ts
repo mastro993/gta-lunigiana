@@ -12,7 +12,7 @@ import {
   type RoadClass,
   ROADS,
 } from "../sim/map/kinds.ts"
-import type { Ctr } from "./ctr.ts"
+import type { Survey } from "./ctr.ts"
 import {
   centroid,
   clipRing,
@@ -379,7 +379,7 @@ const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {
 }
 
 /**
- * Buildings: the CTR's where its sheets map the ground, OSM's elsewhere, each clipped to the built
+ * Buildings: the surveys' where they map the ground (`readSurveys`), OSM's elsewhere, each clipped to the built
  * terrain's box and kept (`held`) where the centre of its clipped outline is in the play area (an
  * outline edge inside the box may cut through a house, which then stands whole or not at all; one
  * across the box's edge stands clipped), the others `beyond` it, for the trees to keep off. A CTR
@@ -389,7 +389,7 @@ const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {
  */
 export const extractBuildings = (
   osm: Osm,
-  ctr: Ctr,
+  survey: Survey,
 ): { readonly held: Array<BuildingF>; readonly beyond: Array<BuildingF> } => {
   const fromOsm = osmBuildings(osm)
   const osmIn = staticGrid(fromOsm.length, (k) => ringBox(fromOsm[k]!.outer), 32)
@@ -401,11 +401,13 @@ export const extractBuildings = (
     })
     return first < fromOsm.length ? first : -1
   }
-  const hosts = ctr.buildings.map((c) => hostOf(...centroid(c.outer)))
+  const hosts = survey.buildings.map((c) => hostOf(...centroid(c.outer)))
   const surveyed = new Set(
-    ctr.buildings.flatMap((c, i) => (c.style !== undefined && hosts[i]! >= 0 ? [hosts[i]!] : [])),
+    survey.buildings.flatMap((c, i) =>
+      c.style !== undefined && hosts[i]! >= 0 ? [hosts[i]!] : [],
+    ),
   )
-  const fromCtr = ctr.buildings.map((c, i): BuildingF => {
+  const fromCtr = survey.buildings.map((c, i): BuildingF => {
     const [cx, cy] = centroid(c.outer)
     const host = fromOsm[hosts[i]!]
     const style =
@@ -421,13 +423,14 @@ export const extractBuildings = (
       ...(c.eave === undefined ? {} : { eave: c.eave }),
       style,
       ...(style === "ruin" ? { ruins: true } : {}),
-      tint: Math.floor(hash01(-c.id % 1e9, 7) * 4),
+      // The record's own number, below the id's section and source (survey-ids.ts), seeds the tint.
+      tint: Math.floor(hash01(-(c.id | 0), 7) * 4),
       outer: c.outer,
       ...(c.holes === undefined ? {} : { holes: c.holes }),
     }
   })
   const unmapped = fromOsm.filter(
-    (b) => !ctr.mapped.some((ring) => pointInRing(...centroid(b.outer), ring)),
+    (b) => !survey.mapped.some((ring) => pointInRing(...centroid(b.outer), ring)),
   )
   const all = [...unmapped, ...fromCtr],
     held = all.map((b) => inPlay(...centroid(b.outer)))

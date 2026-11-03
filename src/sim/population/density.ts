@@ -12,7 +12,7 @@ import { edgeIndex, midpointOf } from "../edges.ts"
 import { type Building, graph, MAP, TILE } from "../map/index.ts"
 import { buildingsIn } from "../map/vectors.ts"
 
-/** Building kinds people live in: the CTR's houses and the OSM tags for homes ("yes" is an untagged OSM building, nearly always a house). */
+/** Building kinds people live in: the surveys' houses (kind `house`) and the OSM tags for homes ("yes" is an untagged OSM building, nearly always a house). */
 const HOMES: ReadonlySet<string> = new Set([
   "house",
   "residential",
