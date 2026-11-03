@@ -6,8 +6,9 @@
 //   a lattice from a corner fixed for good (`anchor`, trees.ts).
 // - Test regions (issue #7): other shapes and sizes built from Lunigiana's inputs, in its frame and
 //   on its anchor, into `test-maps/` (gitignored), to check the build; the game never loads them.
-//   One far from lucido has terrain of its own (`ownTerrain`, issue #10), one buildings of its own
-//   (`ownBuildings`, issue #11).
+//   Two far from lucido have terrain of their own (`ownTerrain`, issues #10 and #12), one buildings
+//   of its own (`ownBuildings`, issue #11); a part's Regione Liguria sources are its own anyway
+//   (`ligDir`, issue #12).
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
@@ -205,7 +206,7 @@ const insideRing = (ring: ReadonlyArray<number>, x: number, y: number): boolean 
 }
 
 /** Every tile any of `rects` meets (more than along its edge), south to north, then west to east. */
-const tilesOf = (rects: ReadonlyArray<Rect>): Region["tiles"] => {
+export const tilesOf = (rects: ReadonlyArray<Rect>): Region["tiles"] => {
   const keys = new Set<string>(),
     tiles: Array<{ i: number; j: number }> = []
   for (const [minX, minY, maxX, maxY] of rects) {
@@ -294,6 +295,10 @@ const lucido = PARTS[0]!.rects[0]!
  *   (lat 44.370–44.384, lon 9.872–9.890 rounded out to 100 m), with buildings of its own and nothing
  *   else: the DBT 1:2000 of 2010 and OSM's buildings, so it checks the DBT's adapter (issue #11)
  *   before part 8 (#24) exists.
+ * - `sarzana-town`: 1.6 × 4.4 km of Sarzana, x −14400…−12800 by y −8000…−3600, from the Magra
+ *   plain's quarries through the old town to the hills below Sarzanello, with terrain of its own
+ *   (one LiDAR tile on those hills, then Liguria's DTM) and Regione Liguria's sources (`fetch-lig`):
+ *   it checks them (issue #12) before part 4 (#20) exists.
  */
 const TEST_REGIONS: ReadonlyArray<Region> = [
   regionOf(
@@ -354,6 +359,18 @@ const TEST_REGIONS: ReadonlyArray<Region> = [
     ],
     LUNIGIANA_ANCHOR,
   ),
+  regionOf(
+    { key: "sarzana-town", id: "lunigiana", file: "sarzana-town", test: true, ownTerrain: true },
+    LUNIGIANA_ORIGIN,
+    [
+      {
+        key: "sarzana-town",
+        title: "Sarzana's town",
+        rects: [[-14400, -8000, -12800, -3600]],
+      },
+    ],
+    LUNIGIANA_ANCHOR,
+  ),
 ]
 
 const regions: ReadonlyArray<Region> = [
@@ -395,6 +412,9 @@ export const dtmDir = (region: Region): string =>
 /** Where `fetch-rt` writes the surveys `region` is built on (`readSurveys`), from the repository root: its own folder, or Lunigiana's. */
 export const surveyDir = (region: Region): string =>
   region.ownBuildings ? `data/raw/rt/${region.key}` : "data/raw/rt"
+
+/** Where `fetch-lig` writes a part's Regione Liguria sources (NC5, the DTM's crops, the land use), from the repository root (issue #12). */
+export const ligDir = (part: Pick<Part, "key">): string => `data/raw/lig/${part.key}`
 
 /** Build region for this Node invocation, fixed before the geometry modules load. */
 export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])

@@ -29,6 +29,7 @@ const terrainOf = (key: string) => {
 for (const [key, pairs] of [
   ["lunigiana", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar"]],
   ["bagnone-ridge", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar", "dtm10-rer"]],
+  ["sarzana-town", ["lidar-lig"]],
 ] as const)
   test(`${key}: no seam between terrain sources steps over 1 m more than the terrain round it`, () => {
     const { g, z, src } = terrainOf(key)

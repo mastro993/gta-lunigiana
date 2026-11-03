@@ -9,12 +9,14 @@ import {
   dtmDir,
   surveyDir,
   inRects,
+  ligDir,
   mapDir,
   partOf,
   rectRing,
   rectsBox,
   regionFromArgs,
   regionOfPart,
+  tilesOf,
 } from "../region.ts"
 
 test("the default build keeps the pinned Lunigiana map", () => {
@@ -124,7 +126,7 @@ test("lunigiana-3x: lucido between terrain-only rectangles, 3 times its built te
   assert.equal(x3.tiles.length, 78)
 })
 
-test("bagnone-ridge: one part, sillara, 4 × 4 km round Monte Sillara on 4 tiles, the one region with terrain of its own", () => {
+test("bagnone-ridge: one part, sillara, 4 × 4 km round Monte Sillara on 4 tiles, with terrain of its own", () => {
   const ridge = regionFromArgs(["--region", "bagnone-ridge"])
   assert.ok(ridge.ownTerrain)
   assert.deepEqual(
@@ -139,6 +141,23 @@ test("bagnone-ridge: one part, sillara, 4 × 4 km round Monte Sillara on 4 tiles
     assert.ok(!regionFromArgs(["--region", key]).ownTerrain, key)
 })
 
+test("sarzana-town: one part, 1.6 × 4.4 km of Sarzana on 6 tiles, with terrain of its own, its Liguria sources in data/raw/lig", () => {
+  const town = regionFromArgs(["--region", "sarzana-town"])
+  assert.ok(town.ownTerrain && !town.ownBuildings && town.test)
+  assert.deepEqual(
+    town.parts.map((p) => [p.key, p.rects, p.mask]),
+    [["sarzana-town", [[-14400, -8000, -12800, -3600]], undefined]],
+  )
+  assert.deepEqual(
+    town.tiles.map(({ i, j }) => `${i}_${j}`),
+    ["-8_-4", "-7_-4", "-8_-3", "-7_-3", "-8_-2", "-7_-2"],
+  )
+  assert.equal(dtmDir(town), "data/raw/rt/sarzana-town")
+  assert.equal(ligDir(town.parts[0]!), "data/raw/lig/sarzana-town")
+  assert.equal(ligDir(partOf("lucido")), "data/raw/lig/lucido")
+  assert.deepEqual(tilesOf(town.parts[0]!.rects), town.tiles)
+})
+
 test("pontremoli-town: one part, 1.6 × 1.6 km round Pontremoli's town, the one region with buildings of its own", () => {
   const town = regionFromArgs(["--region", "pontremoli-town"])
   assert.ok(town.ownBuildings && !town.ownTerrain && town.test)
@@ -146,7 +165,14 @@ test("pontremoli-town: one part, 1.6 × 1.6 km round Pontremoli's town, the one 
     town.parts.map((p) => [p.key, p.rects, p.mask]),
     [["pontremoli-town", [[-20700, 23100, -19100, 24700]], undefined]],
   )
-  for (const key of ["lunigiana", "cesena", "lunigiana-l", "lunigiana-3x", "bagnone-ridge"])
+  for (const key of [
+    "lunigiana",
+    "cesena",
+    "lunigiana-l",
+    "lunigiana-3x",
+    "bagnone-ridge",
+    "sarzana-town",
+  ])
     assert.ok(!regionFromArgs(["--region", key]).ownBuildings, key)
 })
 

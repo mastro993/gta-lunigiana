@@ -37,16 +37,17 @@
 //   cell keeps the first value written; for lucido the 2010 flight, then the 2012 flight for the
 //   Carrara side of the ridge and Monte Sagro, which 2010 flew only in part), then the fallback
 //   chain for the cells no tile has (`fill-chain.ts`, `terrain-sources.ts`): the 2021 surface
-//   model on open ground, the province 10 m DTMs, Emilia-Romagna's DTM 5x5 beyond Tuscany, each
-//   bent onto the sources before it. Averaged to 2 m cells (the game grid is 4 m); int16
+//   model on open ground, the province 10 m DTMs, Liguria's DTM ed. 2023 from the crops `fetch-lig`
+//   wrote for the part (data/raw/lig/<part>/dtm: run it first), Emilia-Romagna's DTM 5x5 beyond
+//   Tuscany, each bent onto the sources before it. Averaged to 2 m cells (the game grid is 4 m); int16
 //   decimetres, each row delta-coded, deflated; dtm-src.bin holds each 2 m cell's source.
 // - ucs.json.gz: land cover 1:10 000, 2019 ("Uso e copertura del suolo", CC BY 4.0), EPSG:3003:
 //   the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse vegetation,
 //   pastures, heath), the rivers' gravel and the water bodies, from the WFS.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 import { parseArgs } from "node:util"
-import { deflateSync, gunzipSync, gzipSync, inflateSync } from "node:zlib"
+import { deflateSync, inflateSync } from "node:zlib"
 
 import {
   UCS,
@@ -67,8 +68,8 @@ import { type Filler, NONE, fillStep } from "./fill-chain.ts"
 import { gaussBoagaBox } from "./geometry.ts"
 import { manifestPath, readManifest } from "./manifest.ts"
 import { getBytes, getText } from "./net.ts"
-import { fetchedToday, recordSource } from "./raw-lock.ts"
-import { REGION, dtmDir, surveyDir } from "./region.ts"
+import { fetchedToday, writeRaw } from "./raw-lock.ts"
+import { REGION, dtmDir, ligDir, surveyDir } from "./region.ts"
 import { fetch7z, fetchZip, findFile, mustFind } from "./rt-cache.ts"
 import { subsetShp } from "./shp.ts"
 import {
@@ -77,6 +78,7 @@ import {
   clearCanopy,
   codeOf,
   geoTiffRaster,
+  ligRaster,
   openGround,
   rasterFiller,
   rerUrl,
@@ -132,25 +134,6 @@ const TRACK = "0117"
  */
 const DTM_TILES = manifest.lidar
 
-/**
- * Writes `bytes`, packed, to `path`, unless the file there already unpacks to the same bytes, and
- * records the file with where they came from (`source`) unless the lock holds it already.
- */
-const pin = (
-  path: string,
-  bytes: Buffer,
-  source: string,
-  pack: (b: Buffer) => Buffer = (b) => gzipSync(b, { level: 9 }),
-  unpack: (b: Buffer) => Buffer = gunzipSync,
-): void => {
-  if (!existsSync(path) || !unpack(readFileSync(path)).equals(bytes)) {
-    mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, pack(bytes))
-    console.log(`wrote ${path.slice(ROOT.length + 1)}`)
-  }
-  recordSource(path, source)
-}
-
 /** A shapefile's main file and table, raw, cut to what is pinned of them; undefined when nothing is. */
 type Cut = (shp: Buffer, dbf: Buffer) => { readonly shp: Buffer; readonly dbf: Buffer } | undefined
 const whole: Cut = (shp, dbf) => ({ shp, dbf })
@@ -170,8 +153,8 @@ const pinLayer = (
   if (shp === undefined) return false
   const kept = cut(readFileSync(shp), readFileSync(mustFind(dir, `${member}.dbf`)))
   if (kept === undefined) return false
-  pin(`${out}.shp.gz`, kept.shp, source)
-  pin(`${out}.dbf.gz`, kept.dbf, source)
+  writeRaw(`${out}.shp.gz`, kept.shp, source)
+  writeRaw(`${out}.dbf.gz`, kept.dbf, source)
   return true
 }
 
@@ -284,7 +267,7 @@ if (!REGION.ownTerrain) {
     )
     .sort((a, b) => a.id - b.id)
   if (ucs.length === 0) throw new Error("UCS WFS: no polygons")
-  pin(
+  writeRaw(
     join(OUT, "ucs.json.gz"),
     Buffer.from(JSON.stringify({ crs: "EPSG:3003", year: 2019, polygons: ucs })),
     fetchedToday(ucsUrl),
@@ -352,6 +335,13 @@ const dtm10 = async (names: ReadonlyArray<string>, box: Box): Promise<Filler> =>
   }
   return rasterFiller("dtm10", crop, rasters)
 }
+/** Liguria's DTM crops `fetch-lig` wrote for the part, by tile, none where it has not run. */
+const LIG = join(ROOT, ligDir(PART!), "dtm")
+const ligCrops = existsSync(LIG)
+  ? readdirSync(LIG)
+      .filter((f) => f.endsWith(".tif"))
+      .sort()
+  : []
 /** The chain after the LiDAR, each step loaded once cells are still empty, with where it comes from. */
 const steps: Array<(box: Box) => Promise<{ readonly filler: Filler; readonly source: string }>> = [
   ...(manifest.dsm2021.length === 0
@@ -386,6 +376,16 @@ const steps: Array<(box: Box) => Promise<{ readonly filler: Filler; readonly sou
     filler: await dtm10([name], box),
     source: dtm10Url(name),
   })),
+  ...(ligCrops.length === 0
+    ? []
+    : [
+        async () => ({
+          filler: rasterFiller("lig", crop, [
+            (await ligRaster(ligCrops.map((f) => readFileSync(join(LIG, f)))))!,
+          ]),
+          source: `the Liguria DTM ed. 2023's crops ${ligCrops.join(", ")} in ${ligDir(PART!)}/dtm (pnpm fetch-lig ${PART!.key})`,
+        }),
+      ]),
   async (box: Box) => {
     const url = rerUrl(utmAround(box, 10))
     return {
@@ -435,14 +435,14 @@ for (let j = 0, prev = 0; j < rows2; j++)
   }
 /** The mosaic's sources: the manifest's archives, each named with its MD5, and the services. */
 const mosaic = used.join("; then ")
-pin(
+writeRaw(
   join(OUT, "dtm.bin"),
   Buffer.from(deltas.buffer),
   mosaic,
   (b) => deflateSync(b, { level: 9 }),
   inflateSync,
 )
-pin(
+writeRaw(
   join(OUT, "dtm-src.bin"),
   Buffer.from(sources.buffer),
   mosaic,
@@ -461,7 +461,7 @@ const meta = {
   sources: SOURCES,
   sourceEncoding: "dtm-src.bin: uint8 per cell, its index in sources, row 0 = south, deflate",
 }
-pin(
+writeRaw(
   join(OUT, "dtm.json"),
   Buffer.from(`${JSON.stringify(meta, null, 2)}\n`),
   mosaic,

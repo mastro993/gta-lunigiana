@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
+import { fileURLToPath } from "node:url"
 
 import { writeArrayBuffer } from "geotiff"
 
@@ -10,11 +12,14 @@ import {
   type Raster,
   ascWindow,
   clearCanopy,
+  codeOf,
   geoTiffRaster,
+  ligRaster,
   openGround,
   rasterFiller,
   rerUrl,
   sample,
+  unround,
   utmBox,
   utmOfCrop,
 } from "../terrain-sources.ts"
@@ -151,6 +156,54 @@ test("geoTiffRaster turns a GeoTIFF into a south-first raster on cell centres, n
   await assert.rejects(geoTiffRaster(tiff([1, 2, 3, 4, 5, 6], 3003)), /not in EPSG:7791/)
 })
 
+/**
+ * Liguria's DTM ed. 2023 as its WCS gives it (`dtmCropUrl`, 2026-11-03; Regione Liguria, CC BY 4.0):
+ * the 200 m square of 5 m cells by Piazza Matteotti, Sarzana (columns 39550…39589, rows
+ * 12460…12499 of its lattice, its north-west corner at EPSG:3003 1576804.19189, 4884784.40548), and
+ * its west and east halves, each its own request.
+ */
+const lig = (name: string) =>
+  readFileSync(fileURLToPath(new URL(`fixtures/lig/${name}.tif`, import.meta.url)))
+
+test("geoTiffRaster reads Liguria's GeoTIFF: EPSG:3003 under GeoServer's own keys, rows south from its north-west corner", async () => {
+  const r = await geoTiffRaster(lig("matteotti"), 3003)
+  assert.deepEqual(
+    { x0: r.x0, y0: r.y0, cell: r.cell, cols: r.cols, rows: r.rows },
+    { x0: 1576806.69189, y0: 4884586.90548, cell: 5, cols: 40, rows: 40 },
+  )
+  // Whole metres, the old town's 17–22 m.
+  assert.ok(r.z.every((v) => Number.isInteger(v) && v >= 17 && v <= 22))
+  await assert.rejects(geoTiffRaster(lig("matteotti")), /not in EPSG:7791/)
+})
+
+test("ligRaster pastes crops on the DTM's lattice into one raster, as one crop of them all", async () => {
+  const whole = (await ligRaster([lig("matteotti")]))!
+  const halves = (await ligRaster([lig("matteotti-east"), lig("matteotti-west")]))!
+  assert.deepEqual(halves, whole)
+  assert.equal(await ligRaster([]), undefined)
+})
+
+test("unround: the smoothest surface within half a metre of each whole metre, cells without data left out", () => {
+  // A slope of 0.1 m a cell, rounded to whole metres: steps of a metre every ten cells.
+  const slope = (c: number) => 3 + 0.1 * c
+  const r = unround(
+    grid(41, 3, (c, w) => (w === 2 && c === 40 ? Number.NaN : Math.round(slope(c)))),
+  )
+  for (let w = 0; w < 3; w++)
+    for (let c = 0; c < 41; c++) {
+      const v = r.z[w * 41 + c]!
+      if (w === 2 && c === 40) {
+        assert.ok(Number.isNaN(v))
+        continue
+      }
+      assert.ok(Math.abs(v - Math.round(slope(c))) <= 0.5 + 1e-6, `${c}, ${w}: ${v}`)
+      // Straight again, but at the ends, whose rounding the membrane cannot see past.
+      if (c >= 5 && c <= 35) assert.ok(Math.abs(v - slope(c)) < 0.12, `${c}, ${w}: ${v}`)
+    }
+  // A plain stays flat.
+  assert.ok(unround(grid(5, 5, () => 4)).z.every((v) => v === 4))
+})
+
 /** A crop round EPSG:3003 (1584000.5, 4912000.5), spanning several lattice nodes each way. */
 const GB: Crop = { e0: 1584000.5, n0: 4912000.5, cols: 230, rows: 170 }
 
@@ -238,7 +291,7 @@ test("rasterFiller samples through utm when given one and passes where through",
     },
     where,
   )
-  assert.equal(filler.source, 3)
+  assert.equal(filler.source, codeOf("rer"))
   assert.equal(filler.where, where)
   assert.equal(filler.at(2, 1), 3040)
 })

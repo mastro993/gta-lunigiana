@@ -18,6 +18,7 @@
     "fetch-osm": "node src/tools/fetch-osm.ts",
     "fetch-rt": "node src/tools/fetch-rt.ts",
     "fetch-rer": "node src/tools/fetch-rer.ts",
+    "fetch-lig": "node src/tools/fetch-lig.ts",
     "rt-index": "node src/tools/rt-index.ts",
     "pick-sheets": "node src/tools/pick-sheets.ts",
     "pick-lidar": "node src/tools/pick-lidar.ts",
