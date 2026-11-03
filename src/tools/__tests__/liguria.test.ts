@@ -20,6 +20,7 @@ import {
   nc5Query,
   PAGE,
   polygonsOfFeature,
+  staleCrops,
   udsPolygons,
   udsQuery,
   type WfsFeature,
@@ -226,6 +227,17 @@ test("udsPolygons: one entry a polygon, the whole code, Z dropped, decimetres; a
     },
   ])
   assert.throws(() => udsPolygons([f("5111")], ["131", "512"]), /land use code 5111 not kept/)
+})
+
+test("staleCrops: the crops this run did not write, never a dotfile", () => {
+  // A `.DS_Store` in the folder would make dropRaw throw (it is no raw input) before the land use.
+  assert.deepEqual(
+    staleCrops(
+      [".DS_Store", "-7_-3.tif", "-8_-6.tif", "-7_-5.tif"],
+      new Set(["-7_-3.tif", "-7_-5.tif"]),
+    ),
+    ["-8_-6.tif"],
+  )
 })
 
 test("beyondCoverage: only the WCS's empty-subset 404 means nothing to keep", () => {

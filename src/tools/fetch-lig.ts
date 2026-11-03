@@ -33,6 +33,7 @@ import {
   NC5_LAYERS,
   nc5File,
   nc5Query,
+  staleCrops,
   udsPolygons,
   udsQuery,
   wfsUrl,
@@ -85,8 +86,11 @@ for (const { i, j } of dtmTiles(part.rects)) {
   )
   crops.add(name)
 }
-for (const name of existsSync(join(OUT, "dtm")) ? readdirSync(join(OUT, "dtm")) : [])
-  if (!crops.has(name)) dropRaw(join(OUT, "dtm", name))
+for (const name of staleCrops(
+  existsSync(join(OUT, "dtm")) ? readdirSync(join(OUT, "dtm")) : [],
+  crops,
+))
+  dropRaw(join(OUT, "dtm", name))
 console.log({ dtm: crops.size })
 
 const uq = udsQuery(box, Object.keys(UCS_CODES))

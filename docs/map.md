@@ -803,7 +803,8 @@ chain fills the whole crop and nothing past Liguria's DTM has data there), each 
 EPSG:3003 box plus 10 m. A tile wholly beyond the coverage (the server's 404 "Empty intersection
 after subsetting", `beyondCoverage`) or without a cell of data is left out, any other error stops
 the run, and a crop an earlier run wrote that this one does not (the part shrank) is deleted with
-its lock entry (`dropRaw`). `fetch-rt` reads the crops of those tiles as its chain's third step, so
+its lock entry (`staleCrops`, `dropRaw`; a dotfile such as Finder's `.DS_Store` is no input and
+stays). `fetch-rt` reads the crops of those tiles as its chain's third step, so
 `fetch-lig` runs first. On 2026-11-03 two runs for `sarzana-town`, its folder moved away between
 them, wrote the same 13 files in 3.5 s (890,274 B: the NC5's four 539,768 B, the eight crops
 348,116 B, the land use 2,390 B).
@@ -2302,7 +2303,8 @@ use's CQL filter, `fetchWfs` reading three pages and refusing a short answer, a 
 unsorted row, a count that moves while paging and an answer with no count, the polygons on whole
 centimetres, `nc5File` clipping the mapped area alone and keeping a building past the box whole,
 `udsPolygons` (a fourth-level code kept whole, Z dropped, decimetres; a code outside the classes
-refused), `beyondCoverage` (only the empty-subset 404), the crops of `dtmTiles` covering
+refused), `staleCrops` (a `.DS_Store` left alone, proven red), `beyondCoverage` (only the
+empty-subset 404), the crops of `dtmTiles` covering
 `fetch-rt`'s crop of a tile-aligned part 6 km tall, of an L with its notch and of the Sarzana test
 region (proven red with the tiles of the rectangles alone), and the DTM's crop on the lattice's
 edges, each edge 3 m inside its line, refused past 512 cells; `ucs.test.ts` the

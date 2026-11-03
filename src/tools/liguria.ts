@@ -250,6 +250,16 @@ export const dtmTiles = (rects: ReadonlyArray<Rect>): ReturnType<typeof tilesOf>
 export const dtmCropBox = (i: number, j: number): Rect =>
   gaussBoagaBox([[i * TILE, j * TILE, (i + 1) * TILE, (j + 1) * TILE]], DTM_PAD)
 
+/**
+ * The files of a part's `dtm/` folder (`names`) that an earlier run of fetch-lig wrote and this one,
+ * which wrote `written`, does not: the crops to delete. A dotfile (a `.DS_Store` Finder leaves) is
+ * no input, as `rawFiles` skips it, so it stays.
+ */
+export const staleCrops = (
+  names: ReadonlyArray<string>,
+  written: ReadonlySet<string>,
+): Array<string> => names.filter((name) => !written.has(name) && !name.startsWith("."))
+
 /** Whether a WCS answer says the crop lies wholly beyond the coverage's grid (`InvalidSubsetting`, "Empty intersection after subsetting"), so there is nothing to keep. */
 export const beyondCoverage = (status: number, body: string): boolean =>
   status === 404 && body.includes('exceptionCode="InvalidSubsetting"')
