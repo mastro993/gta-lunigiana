@@ -1,7 +1,4 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
 import { test } from "node:test"
 
 import {
@@ -13,7 +10,6 @@ import {
   surveyDir,
   inRects,
   ligDir,
-  ligFolders,
   mapDir,
   partOf,
   rectRing,
@@ -160,18 +156,6 @@ test("sarzana-town: one part, 1.6 × 4.4 km of Sarzana on 6 tiles, with terrain 
   assert.equal(ligDir(town.parts[0]!), "data/raw/lig/sarzana-town")
   assert.equal(ligDir(partOf("lucido")), "data/raw/lig/lucido")
   assert.deepEqual(tilesOf(town.parts[0]!.rects), town.tiles)
-})
-
-test("ligFolders: the parts' Liguria folders fetch-lig wrote under a root, in the parts' order", (t) => {
-  const root = mkdtempSync(join(tmpdir(), "lig-"))
-  t.after(() => rmSync(root, { recursive: true }))
-  const parts = [{ key: "sarzana-town" }, { key: "lucido" }, { key: "coast" }]
-  for (const key of ["coast", "sarzana-town"])
-    mkdirSync(join(root, "data/raw/lig", key), { recursive: true })
-  assert.deepEqual(ligFolders(root, parts), [
-    join(root, "data/raw/lig/sarzana-town"),
-    join(root, "data/raw/lig/coast"),
-  ])
 })
 
 test("pontremoli-town: one part, 1.6 × 1.6 km round Pontremoli's town, the one region with buildings of its own", () => {

@@ -14,9 +14,8 @@
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
 //   `footprint-check`), `fetch-rt` and `fetch-lig` take parts from here.
 
-import { existsSync } from "node:fs"
-import { join } from "node:path"
-
+// The game loads this module (through geometry.ts), so it imports no Node built-in
+// (`src/__tests__/browser.test.ts`).
 import type { MapId } from "../maps.ts"
 import { tileRange } from "../sim/map/kinds.ts"
 
@@ -418,10 +417,6 @@ export const surveyDir = (region: Region): string =>
 
 /** Where `fetch-lig` writes a part's Regione Liguria sources (NC5, the DTM's crops, the land use), from the repository root (issue #12). */
 export const ligDir = (part: Pick<Part, "key">): string => `data/raw/lig/${part.key}`
-
-/** The folders under `root` that `fetch-lig` wrote for any of `parts` (`ligDir`), in the parts' order: what the build reads of Liguria. */
-export const ligFolders = (root: string, parts: ReadonlyArray<Pick<Part, "key">>): Array<string> =>
-  parts.map((p) => join(root, ligDir(p))).filter((dir) => existsSync(dir))
 
 /** Build region for this Node invocation, fixed before the geometry modules load. */
 export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])

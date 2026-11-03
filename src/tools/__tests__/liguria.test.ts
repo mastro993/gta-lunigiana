@@ -1,4 +1,7 @@
 import assert from "node:assert/strict"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { test } from "node:test"
 
 import { gaussBoagaToLatLon } from "../crs.ts"
@@ -12,6 +15,7 @@ import {
   dtmCropUrl,
   dtmTiles,
   fetchWfs,
+  ligFolders,
   nc5File,
   nc5Query,
   PAGE,
@@ -265,4 +269,16 @@ test("dtmTiles' crops cover fetch-rt's crop of a part: a tall part on the tiles'
     dtmTiles(parts[2]!).map(({ i, j }) => `${i}_${j}`),
     ["-8_-5", "-7_-5", "-8_-4", "-7_-4", "-8_-3", "-7_-3", "-8_-2", "-7_-2"],
   )
+})
+
+test("ligFolders: the parts' Liguria folders fetch-lig wrote under a root, in the parts' order", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "lig-"))
+  t.after(() => rmSync(root, { recursive: true }))
+  const parts = [{ key: "sarzana-town" }, { key: "lucido" }, { key: "coast" }]
+  for (const key of ["coast", "sarzana-town"])
+    mkdirSync(join(root, "data/raw/lig", key), { recursive: true })
+  assert.deepEqual(ligFolders(root, parts), [
+    join(root, "data/raw/lig/sarzana-town"),
+    join(root, "data/raw/lig/coast"),
+  ])
 })

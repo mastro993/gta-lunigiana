@@ -22,9 +22,10 @@ import {
   nameFromAddresses,
 } from "./features.ts"
 import { centroid, pointInRing, r1 } from "./geometry.ts"
+import { ligFolders } from "./liguria.ts"
 import { readOsm } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
-import { REGION, dtmDir, ligFolders } from "./region.ts"
+import { REGION, dtmDir } from "./region.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"

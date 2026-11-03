@@ -13,11 +13,18 @@
 // that count. Its box filter is loose (a feature's bounding box against the box), a superset the
 // readers clip.
 
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+
 import { TILE } from "../sim/map/kinds.ts"
 import { gaussBoagaToLatLon } from "./crs.ts"
 import { cropOf } from "./dtm-mosaic.ts"
 import { clipRing, gaussBoagaBox, toLocal } from "./geometry.ts"
-import { type Rect, tilesOf } from "./region.ts"
+import { ligDir, type Part, type Rect, tilesOf } from "./region.ts"
+
+/** The folders under `root` that `fetch-lig` wrote for any of `parts` (`ligDir`), in the parts' order: what the build reads of Liguria. */
+export const ligFolders = (root: string, parts: ReadonlyArray<Pick<Part, "key">>): Array<string> =>
+  parts.map((p) => join(root, ligDir(p))).filter((dir) => existsSync(dir))
 
 /** The Geoportale's GeoServer. */
 const GEOSERVER = "https://geoservizi.regione.liguria.it/geoserver"

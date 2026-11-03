@@ -16,17 +16,9 @@ import { latLonToGaussBoaga } from "../crs.ts"
 import { local } from "../ctr.ts"
 import { loadDtm } from "../dtm.ts"
 import { centroid, flatRing, fromLocal, type P, pointInRing, toLocal } from "../geometry.ts"
-import { dtmTiles, NC5_LAYERS, type Nc5LayerFile } from "../liguria.ts"
+import { dtmTiles, ligFolders, NC5_LAYERS, type Nc5LayerFile } from "../liguria.ts"
 import { readNc5, referenceOf } from "../nc5.ts"
-import {
-  dtmDir,
-  inRects,
-  ligDir,
-  ligFolders,
-  type Rect,
-  rectsBox,
-  regionFromArgs,
-} from "../region.ts"
+import { dtmDir, inRects, ligDir, type Rect, rectsBox, regionFromArgs } from "../region.ts"
 import { localOf, SOURCES, surveyId } from "../survey-ids.ts"
 import { geoTiffRaster, ligRaster, MAX_SWEEPS, sample, unround } from "../terrain-sources.ts"
 import { readUcs } from "../ucs.ts"
