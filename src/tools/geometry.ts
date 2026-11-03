@@ -5,7 +5,7 @@
 import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../sim/collide.ts"
-import { latLonToGaussBoaga } from "./crs.ts"
+import { latLonToGaussBoaga, latLonToUtm32 } from "./crs.ts"
 import { REGION, type Rect } from "./region.ts"
 
 export type P = readonly [number, number]
@@ -73,6 +73,17 @@ export const clipRing = (ring: ReadonlyArray<P>, [X0, Y0, X1, Y1]: Rect): Array<
 export const gaussBoagaBox = (
   rects: ReadonlyArray<Rect>,
   pad = 0,
+): [number, number, number, number] => boxOfCorners(rects, pad, latLonToGaussBoaga)
+
+/** The UTM 32N box (EPSG:25832, 6707, 7791) [e0, n0, e1, n1] round every corner of local rectangles, widened by `pad` metres. */
+export const utm32Box = (rects: ReadonlyArray<Rect>, pad = 0): [number, number, number, number] =>
+  boxOfCorners(rects, pad, latLonToUtm32)
+
+/** The box round every corner of `rects`, each projected by `project`, widened by `pad`. */
+const boxOfCorners = (
+  rects: ReadonlyArray<Rect>,
+  pad: number,
+  project: (lat: number, lon: number) => [number, number],
 ): [number, number, number, number] => {
   const corners = rects.flatMap(([x0, y0, x1, y1]) =>
     [
@@ -80,7 +91,7 @@ export const gaussBoagaBox = (
       [x1, y0],
       [x0, y1],
       [x1, y1],
-    ].map(([x, y]) => latLonToGaussBoaga(...fromLocal(x!, y!))),
+    ].map(([x, y]) => project(...fromLocal(x!, y!))),
   )
   return [
     Math.min(...corners.map((c) => c[0])) - pad,

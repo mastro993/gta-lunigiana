@@ -1,6 +1,9 @@
-// Coordinate reference systems of the Regione Toscana sources, to and from WGS84 lat/lon (degrees).
-// - CTR 1:2000 (2019): EPSG:6707, RDN2008 / UTM 32N on GRS80. RDN2008 (ETRF2000) and WGS84 agree
-//   within a few centimetres here, so no datum shift.
+// Coordinate reference systems of the Regione Toscana and Regione Liguria sources, to and from WGS84
+// lat/lon (degrees).
+// - CTR 1:2000 (2019), the 2021 surface model, Emilia-Romagna's DTM, Liguria's NC5, DTM and land
+//   use: UTM 32N on GRS80, as EPSG:6707 and 7791 (RDN2008) or 25832 (ETRS89). RDN2008 (ETRF2000),
+//   ETRS89 and WGS84 agree within a few centimetres here, so one transform serves all three, with
+//   no datum shift.
 // - LiDAR, 10 m DTM, land cover: EPSG:3003, Monte Mario / Gauss-Boaga west, on the International
 //   1924 ellipsoid. The datum shift is the EPSG:1660 Helmert ("Monte Mario to WGS 84 (4)", mainland
 //   Italy, a few metres); `GB_RESIDUAL` removes what is left, fitted on Monzone's buildings.
@@ -133,10 +136,10 @@ const GB_RESIDUAL: Residual = { e: -0.4, n: 0.5 }
  */
 export const DBT_RESIDUAL: Residual = { e: -0.82, n: 0.7 }
 
-/** EPSG:6707 (CTR) easting, northing -> WGS84 lat, lon. */
+/** UTM 32N easting, northing (EPSG:6707, the CTR; 7791; 25832, Liguria's) -> WGS84 lat, lon. */
 export const utm32ToLatLon = (e: number, n: number): [number, number] => tmInverse(UTM32, e, n)
 
-/** WGS84 lat, lon -> RDN2008 / UTM 32N easting, northing (EPSG:6707 and 7791: the DSM 2021, Emilia-Romagna's DTM). */
+/** WGS84 lat, lon -> UTM 32N easting, northing (EPSG:6707, 7791 and 25832): the inverse of `utm32ToLatLon`. */
 export const latLonToUtm32 = (lat: number, lon: number): [number, number] =>
   tmForward(UTM32, lat, lon)
 

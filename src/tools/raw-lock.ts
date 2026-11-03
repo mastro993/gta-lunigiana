@@ -7,8 +7,9 @@
 
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
-import { join, relative, sep } from "node:path"
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { dirname, join, relative, sep } from "node:path"
+import { gunzipSync, gzipSync } from "node:zlib"
 
 import * as v from "valibot"
 
@@ -142,4 +143,24 @@ export const recordSource = (
     digest = digestOf(readFileSync(file))
   if (lock[path]?.sha256 === digest.sha256) return
   writeLock({ ...lock, [path]: { ...digest, source } }, lockPath)
+}
+
+/**
+ * Writes `bytes`, packed (gzip at level 9 by default), to `file` under data/raw, unless the file
+ * there already unpacks to the same bytes, so another zlib never churns a pinned file; then records
+ * it with where the bytes came from (`recordSource`). The fetch tools write every input through it.
+ */
+export const writeRaw = (
+  file: string,
+  bytes: Buffer,
+  source: string,
+  pack: (b: Buffer) => Buffer = (b) => gzipSync(b, { level: 9 }),
+  unpack: (b: Buffer) => Buffer = gunzipSync,
+): void => {
+  if (!existsSync(file) || !unpack(readFileSync(file)).equals(bytes)) {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, pack(bytes))
+    console.log(`wrote ${relative(ROOT, file)}`)
+  }
+  recordSource(file, source)
 }
