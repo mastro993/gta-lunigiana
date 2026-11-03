@@ -3,7 +3,7 @@
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map: the global file `src/sim/map/monzone.bin` (0.55 MB), 30 tiles of 2 km in
 `src/sim/map/monzone/` (8.9 MB in all, the largest 0.53 MB; see [Map files](#map-files)) and, beside
-the tiles, the full map's picture `overview.png` (2.98 MB; [The overview](#the-overview)). The build
+the tiles, the full map's picture `overview.png` (2.99 MB; [The overview](#the-overview)). The build
 is deterministic (gunzipped, its files are the same bytes on every machine, arm64 and x64 alike, and
 it prints the same build hash; gzipped, they are byte-identical with the same Node build, while
 another zlib or OS writes other compressed bytes; the overview's pixels are the same everywhere,
@@ -140,8 +140,8 @@ OSM file it would cut down) but one with buildings of its own, which has a file 
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
   synthetic, with no roads or buildings, only the land cover that reaches past lucido: 22 areas
   run on whole past its edge, among them 4 woods of 97.4 km² that hold 0.98 million more trees, and
-  84 more lie beyond it, 66 of them the surveys' paved surfaces (1,325 areas and 1,986,736 trees
-  against lucido's 1,241 and 1,010,254 on 2026-11-03). It serves the build's memory and time and the
+  84 more lie beyond it, 66 of them the surveys' paved surfaces (1,324 areas and 1,986,724 trees
+  against lucido's 1,240 and 1,010,251 on 2026-11-03). It serves the build's memory and time and the
   cars round Monzone, and is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`); CI
   never builds it.
 - **`bagnone-ridge`**: 4 × 4 km of the Apennine ridge round Monte Sillara, x −8000…−4000 by
@@ -177,7 +177,8 @@ OSM file it would cut down) but one with buildings of its own, which has a file 
   tracks and 2 of 45 zones, 12 files of 554,741 B. Over the rectangle, `readDbt` reads the same from
   the cut as from the whole comune: 2,020 buildings, all with a surveyed eave (house 1,357, shed
   312, garage 229, church 39, industrial 37, tower 14, barn 9, substation 9, station 6, ruins 5,
-  silo 3), 195 road surfaces (139 paved, 84 named) and 2 mapped zones. `pnpm fetch-osm --region
+  silo 3), 518 road surfaces (439 carriageways, the road areas of 25 roads with none and 54 dirt
+  tracks; 458 paved, 367 named) and 2 mapped zones. `pnpm fetch-osm --region
   pontremoli-town` writes OSM's buildings over the region plus 100 m into
   `data/raw/pontremoli-town.osm.gz`: one `/map` call and the 40 building multipolygons'
   `/relation/<id>/full`, 41 requests in 5.3 s, of which it keeps what the check reads
@@ -236,17 +237,17 @@ stages were sped up (lucido's files the same, byte for byte), and that evening, 
 - **Live vehicles round Monzone** (`x3-region.map-test.ts`, which runs `stand.ts` on each map and
   seeds 1–6, each in a process of its own, and is skipped without the 3x build): after the player
   stands 60 s at the start, the parked cars on either map are exactly those the dice (`carOn`, a hash
-  of a spot's place and the seed) park on the 33 spots within 300 m of the start, which stand where
+  of a spot's place and the seed) park on the 34 spots within 300 m of the start, which stand where
   they do on lucido, beside 10 traffic and the Carabinieri's 2, within the 200 parked and 10 traffic
-  `PARKED` and `TRAFFIC.max` allow: 11, 3, 6, 10, 10 and 9 parked on seeds 1–6, the same cars on the
+  `PARKED` and `TRAFFIC.max` allow: 11, 3, 6, 10, 11 and 9 parked on seeds 1–6, the same cars on the
   same spots in the same paint on both maps. So the count does not grow with the map, and the cars
-  stay as they were though the 3x keeps 802 parked spots, not lucido's 804. 9 buildings across
+  stay as they were though the 3x keeps 807 parked spots, not lucido's 808. 9 buildings across
   lucido's edge, clipped to its box on lucido (their centroid inside), are kept whole and dropped by
-  their centroid there (OSM building 700764389 by spot 367, at (−2892.7, 3095.5)), and the kerbside
-  spots are one per 8 buildings (`BUILDINGS_PER_SPOT`), so the 3x's 6,355 buildings keep 794 of them
-  against the 796 of lucido's 6,364: beside spot 367 it leaves out the last kerbside spot lucido
-  takes in hash order (index 795, at (−2287.2, 24.1)). Every spot after 367 moves one index down,
-  and the 8 car-park spots after 795 two, which dice keyed on the place do not see.
+  their centroid there (OSM building 700764389 by spot 367, at (−2892.7, 3095.5)), so every spot
+  after 367 moves one index down, which dice keyed on the place do not see. The kerbside spots are
+  one per 8 buildings (`BUILDINGS_PER_SPOT`): lucido's 6,399 buildings take 800 of them, and the
+  3x's 6,390 take 799, which are lucido's 800 without spot 367. A count that fell by more would also
+  leave out the last kerbside spots lucido takes in hash order, as `x3-region.map-test.ts` allows.
   `src/sim/__tests__/parked-far.long-test.ts` (`pnpm test:long`) gives Lunigiana three times its
   spots, copies 30 and 60 km east after its own: the cars round the start are still the dice's on
   its own spots; `parked-place.test.ts` lists each spot twice, once with a spot dropped before it
@@ -414,18 +415,23 @@ regions](#test-regions)).
     sheet with no garages or road surfaces has no `AGE` or `AVI` layer.
   - **The CTR 1:2000 of 2009** (adapter (b), `readOldCtr`), flown in August 2009 for the Carrara and
     Massa side: the old schema, `AE_a` (buildings, `Codice` the same codes as 2019's, `Quota_gr` the
-    eave), `AV_a` (road surfaces: 0101 asphalt and 0102 dirt; not 0114, a track in a tunnel) and
-    `AC_a` (code 0906, the area the sheet maps), in EPSG:6707, read through the same `utm32ToLatLon`
-    as 2019's (that way their corners land within 0.21 m east and 0.11 m north of round 100 m
-    Gauss-Boaga corners). Lucido's manifest lists the 12 sheets whose `AC_a` meets it (`ctr2009`:
-    22D02–07 and 22D10–15, 993.39 ha of it); no 2019 sheet's mapped area meets a 2009 sheet's. Over
-    lucido they give 140 buildings, all with an eave (house 65, shed 58, substation 10, industrial
-    5, silo 1, church 1), 89 road surfaces (11 named) and 14 mapped rings. The old schema draws no
-    garages (no 0244 in any layer of the 8 sheets read) and draws its ruins as lines (below). Its
-    licence: the archive's own `licenza_ccby_ver_4_2.pdf` says "Il dataset è rilasciato con licenza
-    CC BY 4.0", while the cartoteca's GetFeatureInfo labels every CTR 1:2000 year, 2019's included,
-    "Creative Commons Attribuzione 3.0 Italia". Both are CC BY; the credits follow the licence the
-    dataset ships with, 4.0, as for 2019.
+    eave), `ML_l` (man-made lines, among them the ruins, code 0205), `AV_a` (road surfaces: 0101
+    asphalt and 0102 dirt; not 0114, a track in a tunnel, nor any surface in a tunnel, `Sede` 054:
+    22D13's one, 444 m long and 1,724 m², would pave the hillside over the bore) and `AC_a` (code
+    0906, the area the sheet maps), in EPSG:6707, read through the same `utm32ToLatLon` as 2019's
+    (that way their corners land within 0.21 m east and 0.11 m north of round 100 m Gauss-Boaga
+    corners). Lucido's manifest lists the 12 sheets whose `AC_a` meets it (`ctr2009`: 22D02–07 and
+    22D10–15, 993.39 ha of it); no 2019 sheet's mapped area meets a 2009 sheet's. Over lucido they
+    give 175 buildings: 140 units, all with an eave (house 65, shed 58, substation 10, industrial 5,
+    silo 1, church 1), and 35 ruins of 4–263 m²; 88 road surfaces (12 named) and 14 mapped rings.
+    The old schema has no garage code (no 0244 in any layer of the 8 sheets read) and draws a ruin
+    as a line: of the 115 lines of code 0205 over the 12 sheets, the 61 that close on themselves
+    outline a ruin's walls and are read as ruins (2.5 m, no eave), and the 54 open ones are wall
+    stubs, which make no footprint (below). Its licence: the archive's own
+    `licenza_ccby_ver_4_2.pdf` says "Il dataset è rilasciato con licenza CC BY 4.0", while the
+    cartoteca's GetFeatureInfo labels every CTR 1:2000 year, 2019's included, "Creative Commons
+    Attribuzione 3.0 Italia". Both are CC BY; the credits follow the licence the dataset ships with,
+    4.0, as for 2019.
   - **The CTR 1:10 000 of 2010** (adapter (b) too): the same old schema and layers, one archive per
     section (`249020`), whose `AC_a` is the whole section; CC BY 4.0, as the 2010 edition's
     GetFeatureInfo and its `licenza_ccby_40.pdf` state. It maps all of Tuscany, so it is read only
@@ -441,13 +447,16 @@ regions](#test-regions)).
     the 2019 CTR leaves out (#24), Zeri's of 2010 9.1 km² of its comune (#26); a part's manifest
     lists them (`dbt2k`), today only the Pontremoli test region's ([Test regions](#test-regions)).
     Its layers: `020101_un_vol` (the volumetric units), `020201_mn_ind` (industrial artefacts),
-    `010104_ar_str` (road areas), `010101_ac_vei` (their carriageways), `010105_ar_vms` (dirt
-    tracks) and `000201_zona_r` (the zones it maps). `crs.ts` gives it a residual of its own,
-    `DBT_RESIDUAL` (−0.82, +0.70) m, fitted at Pontremoli on the 560 units the DBT and the 2019
-    sheets 25B24, 25B39 and 25C33 both map (those sheets carry the same 2010 survey, its elevations
-    equal to the centimetre): with it the two outlines lie within 0.01 m of each other, with the
-    LiDAR's `GB_RESIDUAL` 0.47 m apart and with none 1.08 m. The LiDAR's own residual at Pontremoli
-    is not known.
+    `010101_ac_vei` (the carriageways, its road surfaces: paved unless `ac_vei_fon` is 02, named
+    from their own copy of `ar_str_uff`, none in a tunnel, `ac_vei_sed` 06), `010104_ar_str` (road
+    areas, read only for a road, by `ar_str_id`, with no carriageway: 161 of Pontremoli's 703, its
+    old town's vicoli among them; paved and named), `010105_ar_vms` (dirt tracks) and
+    `000201_zona_r` (the zones it maps). `crs.ts` gives it a residual of its own, `DBT_RESIDUAL`
+    (−0.82, +0.70) m, fitted at Pontremoli on the 560 units the DBT and the 2019 sheets 25B24, 25B39
+    and 25C33 both map (those sheets carry the same 2010 survey, its elevations equal to the
+    centimetre): with it the two outlines lie within 0.01 m of each other, with the LiDAR's
+    `GB_RESIDUAL` 0.47 m apart and with none 1.08 m. The LiDAR's own residual at Pontremoli is not
+    known.
 
   Left out, with the reason:
   - **The WFS sheet frame as the old schema's mapped area** (the issue's design): on 22D05 and 22D13
@@ -459,8 +468,20 @@ regions](#test-regions)).
   - **The CTR 1:10 000 of 2021**: the 2019 schema (`AED`, `AZR`) in EPSG:7791, but `Qt_grmax` is 0
     on all 1,155 units of section 249030 (only `Qt_grmin` is filled), so adapter (a) would read no
     eave; the 2010 edition is read.
-  - **The old schema's ruins**: `ML_l` lines (code 0205; 101 over the 8 sheets of 2009 read, 53
-    closed rings and 48 open wall stubs), which no adapter reads: a wall stub makes no footprint.
+  - **The old schema's open ruin lines**: 54 of the 115 `ML_l` lines of code 0205 over the 12
+    sheets of 2009 are wall stubs, not rings, and a wall stub makes no footprint (of the 17 OSM
+    ruins the 2009 sheets replace that no 2009 ring holds, 13 lie within 10 m of a stub: [Known data
+    limitations](#known-data-limitations)). The rest of `ML_l`, other man-made lines, is not read.
+  - **The DBT's road areas as its road surfaces** (the issue's `010104_ar_str`): RT's catalogue
+    (v21) defines a road area as "il piano formato dalla carreggiata e dalle fasce di pertinenza,
+    cioè banchine, marciapiedi e piste", and leaves the sidewalks out of a carriageway at 1:2000
+    ("Nel caso del 2K vanno anche esclusi i marciapiedi"), as the CTR's road surfaces leave them out
+    ("I marciapiedi non fanno parte della sede stradale", the CTR's codebook). Over Pontremoli's
+    town rectangle the 116 road areas of roads with carriageways cover 242,669 m², their 440
+    carriageways 209,972 m² (the SS62's 1,675 m² in a tunnel among them), and of the 146 OSM streets
+    `fitRoads` fits on both, 47 came out 1 m or more wider on the road areas, 35 of them 2 m or
+    more, at most 7.4 m (a 49 m piece of the SS62, 12 m against its carriageways' 4.6 m; Via
+    Monsignior G. Sismondo, 471 m long, 12 m against 7.4 m).
   - **Porticoes, canopies and semi-basements**: the CTR codes 0240 and 0241, 0208 and 0235, and the
     DBT's units over porticoes (`un_vol_por` 03), underpasses (04), covered passages (09) and its
     semi-basements (08): open at ground level or under it ([section 3](#3-features-featurests)).
@@ -598,23 +619,27 @@ Emilia-Romagna's DTM is asked for only when cells are left past the Tuscan sourc
 2019 sheets' layers the build reads (`AED`, `AGE`, `AVI`, `AZR`, `AFE`) to `data/raw/rt/ctr`, and of
 `VLI` (42 MB over the 25 sheets, mostly contour lines) only the `0117` track centrelines (29 KB,
 9 KB gzipped), through `subsetShp` in `shp.ts`, which renumbers the records and rewrites the file
-length, bounding box, z range and record count. Of each 2009 sheet it copies `AE_a`, `AV_a` and
-`AC_a` to `data/raw/rt/ctr2009/<sheet>_<layer>` (the archive names them `<sheet><layer>`, with no
-underscore; a sheet that maps no building or road lacks the first two: lucido's 22D02, 22D06 and
-22D07 have no `AE_a`, the last two no `AV_a`), and of each 1:10 000 section the same to
-`rt/ctr10k/<section>_<layer>`, with the four fields of `AC_a` that name the people who led the work
-and did its survey, photography and drawing blanked (`SURVEYORS` in `cartoteca.ts`: `Dir_lav`,
-`Coll_top`, `Coll_fot`, `Coll_inf`; the firm, `Ditta_es`, stays), since a pinned file is published:
-the archives fill 56 such fields, the pinned copies none. Of a comune's DBT it pins the six layers
-to `rt/dbt2k/<ISTAT>_<layer>` (`045014_un_vol`), only the records whose box meets the part's
-EPSG:3003 box + 500 m on whole metres outwards (`meetingBox`), since the archive holds the whole
-comune, and throws when no mapped zone meets it; no field of the six names a person (`zona_r_dt`
-names the survey firms). The DBT comes as `.7z`, which `rt-cache.ts` extracts with `bsdtar`
-(libarchive's: on macOS by default, `libarchive-tools` on Debian and Ubuntu), every layer named in
-one call, since a call decodes the archive's whole solid stream (1.7 s for a comune's, whatever it
-extracts); a cached folder missing one is extracted again. CI never runs `fetch-rt`, so it needs
-neither `unzip` nor `bsdtar`. On 2026-11-03 the 12 sheets of 2009 (57,039,469 B) downloaded in
-66.5 s one at a time and `pnpm fetch-rt ctr` wrote their 62 files (315,749 B), the 2019 sheets' 234
+length, bounding box, z range and record count. Of each 2009 sheet it copies `AE_a`, `AV_a`, `AC_a`
+and, cut by `subsetShp` to the ruins (code 0205), `ML_l` to `data/raw/rt/ctr2009/<sheet>_<layer>`
+(the archive names them `<sheet><layer>`, with no underscore; a sheet that maps no building or road
+lacks the first two: lucido's 22D02, 22D06 and 22D07 have no `AE_a`, the last two no `AV_a`, and a
+sheet that draws no ruin gets no `ML_l`: 22D06 and 22D07 again), and of each 1:10 000 section the
+same to `rt/ctr10k/<section>_<layer>`, with the four fields of `AC_a` that name the people who led
+the work and did its survey, photography and drawing blanked (`SURVEYORS` in `cartoteca.ts`:
+`Dir_lav`, `Coll_top`, `Coll_fot`, `Coll_inf`; the firm, `Ditta_es`, stays), since a pinned file is
+published: the archives fill 56 such fields, the pinned copies none (`ML_l` has no such field). Of a
+comune's DBT it pins the six layers to `rt/dbt2k/<ISTAT>_<layer>` (`045014_un_vol`), only the
+records whose box meets the part's EPSG:3003 box + 500 m on whole metres outwards (`meetingBox`),
+since the archive holds the whole comune, and throws when no mapped zone meets it; no field of the
+six names a person (`zona_r_dt` names the survey firms). As the files go by the comune's ISTAT code
+alone, a manifest lists one survey a comune: `readManifest` refuses two ("dbt2k lists one comune
+twice"), whose files would overwrite each other. The DBT comes as `.7z`, which `rt-cache.ts`
+extracts with `bsdtar` (libarchive's: on macOS by default, `libarchive-tools` on Debian and Ubuntu),
+every layer named in one call, since a call decodes the archive's whole solid stream (1.7 s for a
+comune's, whatever it extracts); a cached folder missing one is extracted again. CI never runs
+`fetch-rt`, so it needs neither `unzip` nor `bsdtar`. On 2026-11-03 the 12 sheets of 2009
+(57,039,469 B) downloaded in 66.5 s one at a time and `pnpm fetch-rt ctr` wrote their 82 files
+(328,329 B; 20 of them the `ML_l` of the 10 sheets that draw a ruin, 12,580 B), the 2019 sheets' 234
 unchanged. It mosaics the LiDAR and the chain past it into `data/raw/rt/dtm.bin` + `dtm.json`:
 cropped to the play area plus 32 m, averaged to 2 m cells (the game grid is 4 m), stored as int16
 decimetres with each row delta-coded and deflated (15 MB), and each 2 m cell's source (the most of
@@ -630,11 +655,11 @@ lucido takes 22.7 s and peaks at 1.80 GB resident (the LiDAR's text grids), the 
 1.31 GB (2026-11-01). It writes the kept land-cover polygons, in EPSG:3003 to the decimetre, to
 `data/raw/rt/ucs.json.gz` (`crs.ts` has the inverse transform); the WFS box is padded by 500 m,
 because the server's box filter sometimes drops features near its edge. `pnpm fetch-rt ctr` fetches
-the surveys alone (the 2019 sheets took 28 s with their downloads; 2.58 s and 128.5 MB from the
-cache with the 2009 sheets, 2026-11-03), leaving the LiDAR and the land cover, which comes from a
-live service and would move the map, as they are; `pnpm fetch-rt ucs` fetches the land cover alone
-(on 2026-10-31 the service gave the 425 pinned polygons of the five open covers back byte for byte,
-and 83 of codes 331 and 512 besides). A file whose unpacked bytes equal the new ones is not
+the surveys alone (the 2019 sheets took 28 s with their downloads; 2.23 s and 128 MB from the cache
+with the 2009 sheets and their ruins, 2026-11-03), leaving the LiDAR and the land cover, which comes
+from a live service and would move the map, as they are; `pnpm fetch-rt ucs` fetches the land cover
+alone (on 2026-10-31 the service gave the 425 pinned polygons of the five open covers back byte for
+byte, and 83 of codes 331 and 512 besides). A file whose unpacked bytes equal the new ones is not
 rewritten, so another zlib never churns a pinned file, and a cached archive folder with no files
 left in it (macOS purges the temporary directory's files but keeps its folders) is fetched again.
 Requests name only the project in their `User-Agent`.
@@ -689,7 +714,7 @@ part](#adding-a-part)).
   window clips right. **Buildings** are clipped to it too, then kept only where the centre of the
   clipped outline (its vertices' mean) is in the play area: a house an outline edge inside the box
   cuts (an L's notch, a mask) stands whole or not at all, while one across the box's edge is clipped
-  to it and kept by the centre of what is left (23 of Lunigiana's 6,364 and 66 of Cesena's 9,690 end
+  to it and kept by the centre of what is left (24 of Lunigiana's 6,399 and 66 of Cesena's 9,690 end
   on its edge). So are the level crossings and platforms (`heldInPlay`), which belong to the rail
   and roads the outline cuts.
 - **Points**: POIs, OSM place nodes, the player's spawn (1.3 m from the outline) and the parked
@@ -721,22 +746,25 @@ part](#adding-a-part)).
     `lanes=2`: 7 m).
   - Width, surface and name come from the surveys' road surfaces (`fitRoads` in `ctr.ts`, given
     every source's road surfaces and mapped areas as `readSurveys` merged them: the 2019 CTR's
-    `AVI`, the old schema's `AV_a`, the DBT's road areas and dirt tracks). Every 4 m along a
-    drivable road (skipping 6 m at each end), a station on a surface measures the surface across the
-    centreline. Stations with more than 10 m on either side (squares, car parks) are skipped. A road
-    with at least half its stations, and three or more, on a surface takes the median width
-    (clamped to 3–12 m) and asphalt or dirt by most stations. It takes the street name most stations
-    share (the survey's upper-case toponym, cased like "Via Castel dell'Aquila", "Via XX Settembre"
-    and "Via Sant'Antonio": an article lower-case, elided or not, and both sides of any other
-    apostrophe title-cased) when the same holds for its stations inside the area the surveys map,
-    so a road that runs on into the unmapped mountains keeps the name of its village stretch (Via
-    di Ugliancaldo). OSM names stay, and so do specific OSM surfaces (cobblestone, gravel). Roads
-    no survey covers keep their class width (tertiary to steps: 6.5, 5, 4.5, 3.5, 3, 1.5 and 2 m) or
-    their `lanes` width: 6 of the SR445's 12 pieces, 7 m. On lucido the 2009 sheets' 89 road
-    surfaces give 30 roads their width, 4 of them their surface too, and none a name (the "Strada
-    comunale per Campo Cecina" 6.5 → 5.6 m, tracks 3 m → 3.2–9.4 m), and where a road widens its
-    profile's bench moves the terrain: 11,683 of 4,879,451 nodes, up to 16.1 m and 1.33 m RMS, on
-    the Carrara side (x −2268…1316, y −6100…−4252).
+    `AVI`, the old schema's `AV_a`, the DBT's carriageways, the road areas of its roads with no
+    carriageway and its dirt tracks). Every 4 m along a drivable road (skipping 6 m at each end), a
+    station on a surface measures the surface across the centreline. Stations with more than 10 m on
+    either side (squares, car parks) are skipped. A road with at least half its stations, and three
+    or more, on a surface takes the median width (clamped to 3–12 m) and asphalt or dirt by most
+    stations. It takes the street name most stations share (the survey's upper-case toponym when it
+    begins VIA, VIALE, PIAZZA, PIAZZALE, PIAZZETTA, VICOLO, LARGO or SALITA, cased like
+    "Via Castel dell'Aquila", "Via XX Settembre", "Via Sant'Antonio", "Via del Prà" and
+    "Via G.B. Natali": an article lower-case, elided or not, both sides of any other apostrophe
+    title-cased, a final vowel and apostrophe the vowel with a grave accent, as the surveys' ASCII
+    writes it, and dotted initials upper-case) when the same holds for its stations inside the area
+    the surveys map, so a road that runs on into the unmapped mountains keeps the name of its
+    village stretch (Via di Ugliancaldo). OSM names stay, and so do specific OSM surfaces
+    (cobblestone, gravel). Roads no survey covers keep their class width (tertiary to steps: 6.5, 5,
+    4.5, 3.5, 3, 1.5 and 2 m) or their `lanes` width: 6 of the SR445's 12 pieces, 7 m. On lucido the
+    2009 sheets' 88 road surfaces give 30 roads their width, 4 of them their surface too, and none a
+    name (the "Strada comunale per Campo Cecina" 6.5 → 5.6 m, tracks 3 m → 3.2–9.4 m), and where a
+    road widens its profile's bench moves the terrain: 11,683 of 4,879,451 nodes, up to 16.1 m and
+    1.33 m RMS, on the Carrara side (x −2268…1316, y −6100…−4252).
   - Roads still unnamed take a street name from `addr:street` votes (the nearest road to most
     addresses with that name).
 - **Water**: every `waterway` except culverts, with a water width, a gravel-bed half-width and a
@@ -776,9 +804,10 @@ part](#adding-a-part)).
     wherever two overlap, and a building is kept whole or left out, never cut at another survey's
     edge. The platforms alone go by the 2019 sheets' mapped area: theirs is the only rail the build
     reads (`ctr-rail.ts`), so OSM's platforms stand wherever those sheets do not map. On lucido the
-    2019 and 2009 areas do not meet, and the map holds 6,364 buildings: 5,765 of the 2019 CTR, 140
-    of the 2009 sheets, where OSM drew the Carrara side before (they replace 155 of OSM's 614, OSM's
-    church 700633221 at (−442, −4844) among them, now a 2009 unit at (−441, −4844)), and 459 of OSM.
+    2019 and 2009 areas do not meet, and the map holds 6,399 buildings: 5,765 of the 2019 CTR, 175
+    of the 2009 sheets (140 units and 35 ruins), where OSM drew the Carrara side before (they
+    replace 155 of OSM's 614, OSM's church 700633221 at (−442, −4844) among them, now a 2009 unit at
+    (−441, −4844)), and 459 of OSM.
   - **The ids**: a survey's building has a negative id, so it never meets an OSM id, unique over
     every source and section (`survey-ids.ts`): −(local + 2³² × slot). The slot is the source
     (`SOURCES`: the 2019 CTR 1, the DBT 2, the 2009 CTR 3, the 1:10 000 4) × 2¹⁶ plus its section's
@@ -786,13 +815,14 @@ part](#adding-a-part)).
     part holds: a 1:2000 sheet's section, 23D, is 23 × 26 + 3 (`sheet2k`), a 1:10 000 section,
     249020, 249 × 16 + 2 − 1 (`section10k`), and a DBT comune's ISTAT number, 045014, 45 × 512 + 14
     (`comune`, provinces under 128). Sheets 23D11, 22D11 and 24C11, whose ids would collide without
-    the section, differ. The local number, under 2³¹, numbers the record within its
-    sheet or section: on a 1:2000 sheet, its number × 10⁵ plus the layer's base (`AED` and `AE_a` 0,
-    `AGE` 5 × 10⁴) plus the record's index; in a 1:10 000 section, the record's index; in the DBT,
-    RT's own serial (the last 8 digits of `un_vol_id`, or of `suolo_id` for an artefact, from 10⁹),
-    not the record's place in the file, which moves with the box a part cuts the comune's layers to.
-    A record's further polygons step by 10⁷ (10⁸ in the DBT). The largest slot, 2²¹ − 1, keeps every
-    id a safe integer (2²¹ × 2³² = 2⁵³). So 23D11's `AED` record 0 is −(11 × 10⁵ + 2³² × 66,137) =
+    the section, differ. The local number, under 2³¹, numbers the record within its sheet or
+    section: on a 1:2000 sheet, its number × 10⁵ plus the layer's base (`AED` and `AE_a` 0, `AGE`
+    and `ML_l` 5 × 10⁴) plus the record's index; in a 1:10 000 section, the layer's base (`AE_a` 0,
+    `ML_l` 5 × 10⁶) plus the record's index; in the DBT, RT's own serial (the last 8 digits of
+    `un_vol_id`, or of `suolo_id` for an artefact, from 10⁹), not the record's place in the file,
+    which moves with the box a part cuts the comune's layers to. A record's further polygons step by
+    10⁷ (10⁸ in the DBT). The largest slot, 2²¹ − 1, keeps every id a safe integer
+    (2²¹ × 2³² = 2⁵³). So 23D11's `AED` record 0 is −(11 × 10⁵ + 2³² × 66,137) =
     −284,056,253,155,552.
   - **The looks kept**: the low 32 bits of a survey's id are its local number (`id | 0` is
     −local), which for the 2019 sheets is the whole id their buildings had before the sources and
@@ -801,7 +831,8 @@ part](#adding-a-part)).
     a seed to int32), so the 2019 buildings look as they did, where an offset of 10⁸ would have
     flipped the tint of 4,275 of the 5,765.
   - The 2019 CTR's buildings are the `AED` volumetric units plus garages and ruins from `AGE`; the
-    old schema's, its `AE_a` units, with no garages or ruins. Each unit is one building: a terrace
+    old schema's, its `AE_a` units plus the ruins `ML_l` draws as closed lines (code 0205; an open
+    one, a wall stub, makes no footprint), with no garages. Each unit is one building: a terrace
     of houses becomes one building per house, each with its own height and roof. Not buildings here:
     overhangs, canopies, tents, porticoes, loggias and semi-basements. The CTR code gives a kind
     and, for churches, towers, the station and industrial buildings, a fixed style.
@@ -815,18 +846,18 @@ part](#adding-a-part)).
     rail depot 0202, a rural building 0216, a garage 0244, the other minor buildings sheds 0207 and
     the rest houses 0201; loggias and pressurised tents are no buildings. The greenhouses, silos and
     transformer cabins of `020201_mn_ind`, which no unit holds, are buildings too.
-  - Height: the surveyed eave elevation (the 2019 CTR's `Qt_grmax`, the old schema's `Quota_gr`,
-    the DBT's `un_vol_qe`, an artefact's top `mn_ind_qe`) minus the lowest ground under the
-    footprint (see `z0` below), when that comes to 1.5–45 m. Otherwise the DBT's own height of the
-    unit over its foot (`un_vol_av`) where that is 1.5–45 m, else a default by kind (house 6 m,
-    shed 2.5 m, garage 2.6 m, ruin 2.5 m...), as for the 2019 CTR's garages and ruins, which carry
-    no elevations. The surveys' ground elevations are not used: the 2019 CTR's disagrees with the
-    LiDAR on a quarter of the units, and the LiDAR decides where the walls start.
+  - Height: the surveyed eave elevation (the 2019 CTR's `Qt_grmax`, the old schema's `Quota_gr`, the
+    DBT's `un_vol_qe`, an artefact's top `mn_ind_qe`) minus the lowest ground under the footprint
+    (see `z0` below), when that comes to 1.5–45 m. Otherwise the DBT's own height of the unit over
+    its foot (`un_vol_av`) where that is 1.5–45 m, else a default by kind (house 6 m, shed 2.5 m,
+    garage 2.6 m, ruin 2.5 m...), as for the 2019 CTR's garages and ruins and the old schema's
+    ruins, which carry no elevations. The surveys' ground elevations are not used: the 2019 CTR's
+    disagrees with the LiDAR on a quarter of the units, and the LiDAR decides where the walls start.
   - A surveyed building inside an OSM footprint takes that building's name, and its style when the
     survey only says "building" (the bell tower of San Prospero is an OSM tower) and surveyed no
     fixed-style unit inside the same footprint: where the CTR maps the church itself, the other
     units in an OSM church outline are the houses around it (Tenerano, Vinca, Viano).
-  - OSM buildings (outside the surveys' areas: 459 of lucido's 6,364, mountain huts and quarry
+  - OSM buildings (outside the surveys' areas: 459 of lucido's 6,399, mountain huts and quarry
     sheds among them): height is the `height` tag clamped to 2.5–22 m, otherwise 6 m (ruins
     2.5 m). Style comes from the tags: `ruin`, `church`, `tower`, `station`, `industrial`.
   - Generic buildings are `stone` inside the historic cores (`STONE_CORES`, discs traced on the
@@ -862,7 +893,7 @@ part](#adding-a-part)).
   The UCS land cover adds its quarries, rock (`rock`), sparse vegetation (`sparse`), pastures
   (`grassland`), heath (`scrub`), the rivers' gravel (`pebble`) and its water bodies (`lake`). The
   surveys' asphalt road surfaces are added as `paved` areas: squares, lay-bys and station forecourts
-  (579 of lucido's 582 `paved` areas, 31 of them the 2009 sheets').
+  (578 of lucido's 581 `paved` areas, 30 of them the 2009 sheets').
 - **Barriers**: `barrier=wall`, `barrier=guard_rail` and `natural=cliff` lines. Walls and cliffs
   are opened wherever a road (not a tunnel) comes within w/2 of them (`openBarriers` in
   `walls.ts`): OSM draws cliffs across the paths that climb through them and garden walls up to
@@ -1393,7 +1424,7 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   final rounded position must lie outside every building footprint and the water areas, and have a
   walk-clear route to its street centreline, sampled at intervals no greater than 0.5 m. Wall
   distance alone can accept a point deep inside a building, leaving the player trapped.
-- **Parked spots**: one per 8 buildings (796, `BUILDINGS_PER_SPOT`) on the right kerb of primary,
+- **Parked spots**: one per 8 buildings (800, `BUILDINGS_PER_SPOT`) on the right kerb of primary,
   secondary, tertiary, unclassified and residential roads (not bridges or tunnels; never by a motor
   road, where art. 176, comma 5 bans stopping on the carriageways and ramps), at least 12 m from
   junctions and 9 m from each other, with two or more buildings within 40 m, off every carriageway
@@ -1409,7 +1440,7 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
   come first (the sim parks their cars there: the station goes into the map as `spawns.police`, so
   the game never guesses it among the police POIs); the rest are drawn in hash order from every
   village's candidates, so each village gets its share. Car parks within 150 m of Monzone station
-  add up to 6 nose-in spots each (804 spots in all). The sim decides how many cars to park on them.
+  add up to 6 nose-in spots each (808 spots in all). The sim decides how many cars to park on them.
 - **Districts** (`districts.ts`): 14 hand-placed discs (name, centre, radius) for Monzone's
   station, streets and hill clusters, then a disc per OSM `village` and `hamlet` node outside
   them (26: Gragnola, Equi Terme, Viano, Vinca, Tenerano, Ugliancaldo...), then 35 hand-placed
@@ -1437,10 +1468,10 @@ change an input.
   tool wrote, so `pin-raw` uploads those bytes and no others. `readLock` (Valibot) rejects any other
   shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
   release. `writeLock` writes the fields in that
-  order, one per line, so a re-pin's diff shows only the files that changed. Today: 320 files,
+  order, one per line, so a re-pin's diff shows only the files that changed. Today: 340 files,
   27.6 MB: 238 in `raw-20261030`, the land cover in `raw-20261031` (#73), the two terrains in
-  `raw-20261101` (#10, 6 files) and #11's 75, 1.14 MB (the 2009 sheets' 62 files, Pontremoli's
-  12 DBT files and its OSM extract).
+  `raw-20261101` (#10, 6 files) and #11's 95 in `raw-20261103`, 1.16 MB (the 2009 sheets' 82
+  files, Pontremoli's 12 DBT files and its OSM extract).
 - **Sources**: each fetch tool calls `recordSource` for every file it writes (`fetch-rt` also for
   each file it finds unchanged). `fetch-rt` gives the archive URL of the CTR sheet or section a file
   came from, and of a DBT layer's comune with the EPSG:3003 box its records were cut to
@@ -1547,7 +1578,7 @@ m off the extended edge on the L test region, and 1,140 of its 4,774 heights and
 |---|---|---|
 | `src/sim/map/<name>.bin` (global) | 0.55 MB, 1.9 MB gunzipped | 0.62 MB, 2.4 MB gunzipped |
 | `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 30, 8.9 MB in all, 0.05 to 0.53 MB each | 4, 1.7 MB in all, 0.36 to 0.45 MB each |
-| `src/sim/map/<name>/overview.png` | 2.98 MB, 3195 × 4096 px | 4.75 MB, 4000 × 4000 px |
+| `src/sim/map/<name>/overview.png` | 2.99 MB, 3195 × 4096 px | 4.74 MB, 4000 × 4000 px |
 
 With the vectors in the global file, before #63, Lunigiana's was 1.89 MB (6.26 MB gunzipped) and its
 tiles 5.70 MB, the largest 0.31 MB. Each `.bin` file is gzip (level 9) of one JSON line, a newline,
@@ -1591,7 +1622,7 @@ counter-clockwise, holes clockwise.
 | `districts` | `name`, `x`, `y`, `r` |
 | `graph` | `xy` (node coordinates), `edges` (flat `a, b, roadIndex` triples), `traffic`, `walk` (edge indices) |
 | `walls` | `reach` (how far any wall sticks out of its midpoint along either axis, 33 m: the 64 m outline walls), `lattice` (each wall kind's and the trees' broad-phase corner, below) and `counts` (`walk`, `drive`) |
-| `vectors` | how the vectors are cut into the tiles: `halo` (32 m, `HALO`: each feature lies whole in every tile it comes that near), `counts` (how many roads, buildings, water pieces, areas and barriers the whole map has, which a feature's index runs up to: 1,039, 6,364, 581, 1,241 and 54 on Lunigiana) and `lattice`, the corners of the broad phases that answer a box query over the tiles in the whole map's order, where the whole map's broad phase put them: the buildings' (the lowest corner of any building's box) and the rivers' sound's (the lowest water vertex) |
+| `vectors` | how the vectors are cut into the tiles: `halo` (32 m, `HALO`: each feature lies whole in every tile it comes that near), `counts` (how many roads, buildings, water pieces, areas and barriers the whole map has, which a feature's index runs up to: 1,039, 6,399, 581, 1,240 and 54 on Lunigiana) and `lattice`, the corners of the broad phases that answer a box query over the tiles in the whole map's order, where the whole map's broad phase put them: the buildings' (the lowest corner of any building's box) and the rivers' sound's (the lowest water vertex) |
 | `spawns` | `player`: `{ x, y, angle }`; `parked`: `{ x, y, angle, rest, truck? }`, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked); `police?`: `{ x, y }`, the Carabinieri station the build chose (Lunigiana's POI 14183344901, Cesena's 806564311), whose two nearest level spots the game parks their cars on |
 | `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it |
 | `farms` | baked: `{ building, rural, pen }` per farm (`building` indexes the whole map's buildings, the index the tiles' buildings carry; its centre is in `derived.farms`) |
@@ -1624,7 +1655,7 @@ layer and one tile at a time and summed over Lunigiana's 30 tiles, the vectors a
 0.30 MB, the roads' lines 0.28 MB and the barriers 6 KB; before gzip 4.10, 3.37, 1.27, 0.73 and
 0.01 MB, the largest tile's JSON line 0.70 MB (0_0). A feature lies whole in every tile it comes
 near, so a tile's vectors repeat their neighbours': summed over the tiles, the roads' lines take
-1.59 times their bytes, the water 1.65, the barriers 1.37, the buildings 1.08 and the areas 4.03
+1.59 times their bytes, the water 1.65, the barriers 1.37, the buildings 1.08 and the areas 4.04
 (the box of one forest, area 202, spans the bounds but for their last 309 m east, so it lies, with
 its 61 rings, in every tile).
 
@@ -1681,8 +1712,8 @@ What goes in which tile:
   `packed.ts`, cut by `tile-vectors.ts`). The tile indices are clamped to the box of the listed
   tiles, so an edge tile holds what lies past the bounds by it too, and a feature near an unlisted
   tile goes to all the listed tiles round it (`tilesRound`). A feature thus lies in every tile it
-  comes near: on Lunigiana 821 of the 1,039 roads and 5,847 of the 6,364 buildings lie in one
-  tile, a road in up to 5, a river in up to 6, the 14 buildings by a tile corner in 4, and the
+  comes near: on Lunigiana 821 of the 1,039 roads and 5,878 of the 6,399 buildings lie in one
+  tile, a road in up to 5, a river in up to 6, the 15 buildings by a tile corner in 4, and the
   forest whose box spans the bounds in all 30. The halo is more than any carriageway, walkers'
   verge or river bed reaches off its line (13 m, the Aulella's bed; the build throws past it), so a
   lookup at a point reads the point's tile alone (`placeAt` in `src/sim/map/tiles.ts`), and more
@@ -1790,8 +1821,8 @@ in 7.4 s on a 14-core Mac (before #73's merge: 118 in 40 files in 7.7 s at a loa
 with the 3x built, those 5 pass in 5.4 s and 46 s of CPU alone. That morning it held 102 tests in 30
 files (5.7–6.0 s, 37 s of CPU). The split took 21 s of CPU out of `pnpm test` on 2026-10-30 (228 to
 207 s), when `pnpm test:map` held 58 tests in 20 files. On 2026-11-03, with #11's checks (the
-buildings' ids below, Pontremoli's town in [Test regions](#test-regions)), it held 141 tests in 43
-files, 136 passing and the 3x's 5 skipped.
+buildings' ids and the 2009 sheets' buildings below, Pontremoli's town in [Test
+regions](#test-regions)), it held 142 tests in 43 files, all passing with the 3x built, in 10.5 s.
 
 `src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.4 s alone, read whole (`wholeMap`
 in `src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list, land cover
@@ -1817,7 +1848,12 @@ within 6 m of another piece of its id (`clipBuildings` cuts a road's corridor th
 its pieces lie 4.11 m apart at most on Lunigiana), an OSM multipolygon's outer rings any distance
 apart (Cesena's relations 1083815 and 2026837). Lunigiana holds 5 such ids, all a survey's road
 clips of 2 pieces, Cesena 6 of OSM and the L 1; a far house given another's id, in a scratch copy,
-failed it 7,471 m off.
+failed it 7,471 m off. And it checks that the Carrara side's buildings come from the CTR 1:2000 of
+2009: some building carries the 2009 sheets' id slot (`SOURCES.ctr2009` × 2¹⁶ + section 22D,
+197,183), and so does the church whose outline holds (−441, −4844), the Chiesetta alpina, which
+OSM's chapel 700633221 drew before. `readSurveys` skips a source whose folder is missing, so a
+build on a `data/raw` without the 2009 sheets would keep OSM's buildings there and fail no other
+check; on #11's first build, whose buildings are OSM's there, it fails on both counts.
 
 `src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
 `decodeMap` (a newline inside a name, the coarse grid) and a tile through `packTile` and
@@ -1973,28 +2009,36 @@ bars over the river and the line's bed only outside the water, and `features.tes
 water tags, `ele` and the POIs.
 
 The survey adapters are checked on fixtures of a few records cut from real sheets
-(`src/tools/__tests__/fixtures/`, 30,546 B in all: cut by record with `subsetShp`, in file order,
+(`src/tools/__tests__/fixtures/`, 36,163 B in all: cut by record with `subsetShp`, in file order,
 and gzipped, the fields that name people blanked; each test's header says which records came from
 where): `ctr2019` (18 files from 23D11, 23D20 and 23D14, whose one unit lies outside lucido's box),
-`ctr2009` (10, from 22D04, 22D05 and 22D18), `ctr10k` (6, from section 249020, a unit and a road
-surface of them inside a 2019 sheet's `AZR`) and `dbt2k` (12, from Pontremoli). `ctr.test.ts` reads
-the 2019 sheets (kind, style, eave, height and courtyards by code, the box clip, the ids against the
-old encoding and 23D11's `AED` record 0 worked out by hand, the road surfaces, their names and the
-`AZR` rings) and the old schema (codes kept and dropped, `Quota_gr` the eave and none without it,
-only 0101 and 0102 surfaces, `AC_a` the mapped area, ids by sheet and by section, 22D18 outside the
-default box), and cases street names (proven red on "PIAZZA UNITA' D'ITALIA" and "VIA SANT'ANTONIO"
-before the elisions were cased); `dbt.test.ts` `kindOf`'s every rule in its order, the units
-standing on the ground (eave and height, the code's default where `un_vol_av` is 1.06 m, the
-artefacts, a tank left out, ids by comune), the road surfaces paved by most of their carriageways'
-area (dirt 407.8 m² over paved 22.6 m²; a road with no carriageway paved), the dirt tracks, the
-zones, a UTF-8 name, and a vertex placed with `DBT_RESIDUAL`; `survey-ids.test.ts` the section codes
-and their refusals, 23D11, 22D11 and 24C11 and the four sources apart, `id | 0` the old id and its
-seeds, and safe integers up to the last slot; `surveys.test.ts` `bySourcePriority` on squares and
-`readSurveys` on a copy of the fixtures, which drops those two 1:10 000 records; `features.test.ts`
-a surveyed building's tint the one its 2019 id gave, in any section (the old seed, `-id % 1e9`,
-breaks 10 of its 12 cases). `src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with
-`subsetShp` and reads it back, keeps records by their box and blanks the fields it is told to, and
-reads a table's NUL padding and UTF-8.
+`ctr2009` (14, from 22D04, 22D05, 22D13 and 22D18), `ctr10k` (8, from section 249020, a unit and a
+road surface of them inside a 2019 sheet's `AZR`) and `dbt2k` (12, from Pontremoli). `ctr.test.ts`
+reads the 2019 sheets (kind, style, eave, height and courtyards by code, the box clip, the ids
+against the old encoding and 23D11's `AED` record 0 worked out by hand, the road surfaces, their
+names and the `AZR` rings) and the old schema (codes kept and dropped, `Quota_gr` the eave and none
+without it, a ruin from a closed `ML_l` line of code 0205 alone, 23 m² as surveyed, with no eave and
+numbered from 5 × 10⁴ in a sheet and 5 × 10⁶ in a section, an open wall stub and a closed line of
+another code left out, only 0101 and 0102 surfaces and none in a tunnel (22D13's asphalt of `Sede`
+054), `AC_a` the mapped area, ids by sheet and by section, 22D18 outside the default box), and cases
+street names (proven red on "PIAZZA UNITA' D'ITALIA" and "VIA SANT'ANTONIO" before the elisions were
+cased, and on "VIA DEL PRA'", "VIA G.B. NATALI", "VIA VETERANI DELLO SPORT", "VIALE DEI MILLE",
+"PIAZZALE DELL'UCCELLIERA" and "PIAZZETTA DI SOMMOBORGO" before the accents, the initials, `DELLO`
+and those kinds); `dbt.test.ts` `kindOf`'s every rule in its order, the units standing on the ground
+(eave and height, the code's default where `un_vol_av` is 1.06 m, the artefacts, a tank left out,
+ids by comune), the road surfaces from the carriageways (a road's dirt 407.8 m² and paved 22.6 m²
+each its own surface; Via Belmesseri's 265.4 m² carriageway, not its 406.9 m² road area with the
+sidewalks; the A15's in a tunnel left out), the road areas of roads with none, paved and named
+(Vicolo Santa Cristina), the dirt tracks, the zones, a street name `readDbt` reads as UTF-8 (proven
+red with the tables read as latin-1, which garbles its "À"), and a vertex placed with
+`DBT_RESIDUAL`; `survey-ids.test.ts` the section codes and their refusals, 23D11, 22D11 and 24C11
+and the four sources apart, `id | 0` the old id and its seeds, and safe integers up to the last
+slot; `surveys.test.ts` `bySourcePriority` on squares and `readSurveys` on a copy of the fixtures,
+which drops those two 1:10 000 records; `features.test.ts` a surveyed building's tint the one its
+2019 id gave, in any section (the old seed, `-id % 1e9`, breaks 10 of its 12 cases).
+`src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with `subsetShp` and reads it back,
+keeps records by their box and blanks the fields it is told to, and reads a table's NUL padding and
+UTF-8.
 
 `src/tools/__tests__/ctr-rail.test.ts` checks the track chaining, the tunnel cut and the clip on
 synthetic lines and reads synthetic CTR rail layers (`shapefile.ts` beside them writes those).
@@ -2071,9 +2115,10 @@ parts and reads a synthetic grid; `net.test.ts` serves a local HTTP server to ch
 remark (a server timeout) but not from a tag named `remark`, and `net.long-test.ts` (`pnpm
 test:long`) the retry of a 5xx after 2 s; `manifest.test.ts` pins `lucido`'s 25 sheets, 66 tiles (47
 of 2010 before 19 of 2012), one 10 m DTM, two surface-model elements and the 12 sheets of 2009, with
-no CTR 1:10 000 or DBT, `sillara`'s picks and `pontremoli-town`'s one DBT, and reads a manifest
-written before the newer lists as listing none of them; `fetch-rt.test.ts` runs `fetch-rt` and
-checks that it refuses a stage for a test region with buildings of its own and any test region with
+no CTR 1:10 000 or DBT, `sillara`'s picks and `pontremoli-town`'s one DBT, reads a manifest
+written before the newer lists as listing none of them, and refuses one listing Minucciano's two
+DBT surveys but reads one of them alone; `fetch-rt.test.ts` runs `fetch-rt` and checks that it
+refuses a stage for a test region with buildings of its own and any test region with
 nothing of its own, before any request; `pick-sheets.test.ts`, `pick-lidar.test.ts` and
 `pick-diff.test.ts` check the area rule, first wins, the holes and the surface model's elements over
 them on synthetic grids; `fill-chain.test.ts` bends a filler into a 100 m hole of a tilted LiDAR (no
@@ -2149,11 +2194,15 @@ mapped area (`AC_a`) meets the part, among the frames `pick-sheets` lists with n
 `ctr10k` and `dbt2k` each section or comune by its archive's name with the MD5 and no extension, as
 `rt-index` found it (`S_249020_2010_6707_a797…`, `DBT2K_045014_PONTREMOLI_2010_2010_3003_21f4…`).
 List a 1:10 000 section only where nothing finer maps the part's buildings: its mapped area drops
-every OSM building in it. The tools below scope a part and check it. `rt-index`, `coverage` and
-`footprint-check` write their scratch in `.research/<part>/` (gitignored), `ortho` in
-`.research/ortho/` unless given a file, `playtest` in the folder it is given; every request names
-only the project in its `User-Agent` (`net.ts`), and the tools print paths relative to the
-repository. Measured on `lucido` on 2026-10-29.
+every OSM building in it. A comune with two DBT surveys, one of 2010–2013 and one of 1988–2006 (the
+cartoteca's `dbt.2k` index over Lunigiana and round it lists 20 on 2026-11-03, all in the province
+of Lucca, Minucciano, Piazza al Serchio, Sillano, Camporgiano, San Romano in Garfagnana and Vagli
+Sotto among them), lists the one that maps the part: `fetch-rt` pins a comune's layers by its ISTAT
+code alone, and `readManifest` refuses two of one comune. The tools below scope a part and check it.
+`rt-index`, `coverage` and `footprint-check` write their scratch in `.research/<part>/`
+(gitignored), `ortho` in `.research/ortho/` unless given a file, `playtest` in the folder it is
+given; every request names only the project in its `User-Agent` (`net.ts`), and the tools print
+paths relative to the repository. Measured on `lucido` on 2026-10-29.
 
 - **`pnpm footprint-check <part> [--refresh]`** (`footprint-check.ts`, geometry in `footprint.ts`)
   checks what the part's edges cut through: one Overpass query over the part's box + 1 km (place
@@ -2368,15 +2417,14 @@ carries the roads, water, rail and buildings across the old edge, which then are
   must take it off.
 - **Tiles**: the 4 tiles lucido's edge crosses whose lowest or highest node now lies past it
   (-2_-4, 2_-3, -2_-2, 2_0) change their `zmin` or `zmax`.
-- **Buildings across the edge**: on lucido each is clipped to its box and kept by the centre of
-  what is left; on the 3x the box reaches past it, so it is kept whole, or dropped, by the centre of
-  the whole. 9 change and 9 go, none reaching more than 19.2 m in from the edge, and with them go
-  parked spot 367 and, as the kerbside spots are one per 8 buildings, the last kerbside spot lucido
-  takes (index 795, at (−2287.2, 24.1)): every later spot's index moves one down, and the 8
-  car-park spots after 795 two, which the spots' hash, keyed on their place, does not see ([Test
-  regions](#test-regions)). 2 farms go too (2 more move to their whole building), the paving in
-  front of them (6 land-cover cells within 6 m of the edge) and 10 m of a district disc of
-  Argigliano's (r 120 → 110 m).
+- **Buildings across the edge**: on lucido each is clipped to its box and kept by the centre of what
+  is left; on the 3x the box reaches past it, so it is kept whole, or dropped, by the centre of the
+  whole. 9 change and 9 go, none reaching more than 19.2 m in from the edge, and with them goes
+  parked spot 367: every later spot's index moves one down, which the spots' hash, keyed on their
+  place, does not see. The kerbside spots are one per 8 buildings, 800 of lucido's 6,399 and 799 of
+  the 3x's 6,390, so the 3x leaves out no other ([Test regions](#test-regions)). 2 farms go too (2
+  more move to their whole building), the paving in front of them (6 land-cover cells within 6 m of
+  the edge) and 10 m of a district disc of Argigliano's (r 120 → 110 m).
 - **Areas across the edge** are clipped to the box, not the play area, so on the 3x 22 run on
   whole past lucido's edge and 84 more lie beyond it. A cut is rounded to 0.1 m, which moves the
   cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs.
@@ -2483,15 +2531,18 @@ carries the roads, water, rail and buildings across the old edge, which then are
   huts, quarry sheds). Road widths fall back to the class width where no survey has a road surface
   (parts of the SR445 keep 6.5 m), and a surface that spans several streets lends its name to all
   of them.
-- **The older surveys draw less.** The 2009 sheets draw no garages and their ruins only as lines,
-  which the map leaves out, and a sheet's mapped area replaces OSM's buildings in it with those
-  surveyed in 2009: 53 of the 155 OSM buildings they replace overlap no 2009 unit (46 tagged only
-  `building=yes` and 4 ruins among them), built since, ruins, or OSM's errors. Of the map's 140
-  buildings from the 2009 sheets, 130 (92.9%) take their height from the eave; the other 10 stand
-  at their kind's default. The DBT counts a bell tower as a tower however its use is coded
-  (Pontremoli's 2019 sheets call the 3 they share with it churches), and its residual is fitted at
-  Pontremoli alone. The CTR 1:10 000, which maps all of Tuscany, merges terraces into one unit and
-  lies about 1.9 m off the 1:2000, so no part lists it yet.
+- **The older surveys draw less.** The 2009 sheets draw no garages, and their ruins as lines: the
+  map reads the closed ones as ruins (35 on lucido, 4–263 m², all at the 2.5 m default, as they
+  carry no elevation) and leaves out the open wall stubs. A sheet's mapped area replaces OSM's
+  buildings in it with those surveyed in 2009: of the 33 OSM ruins among the 155 OSM buildings they
+  replace, 16 stand inside a 2009 ruin, and of the other 17, 13 lie within 10 m of a wall stub and 4
+  by none; 29 of the 155 overlap none of the map's 175 buildings of 2009 (26 tagged `building=yes`,
+  13 of them with a `ruins` tag, 2 `building=ruins` and 1 `residential`), built since, ruins, or
+  OSM's errors. Of the map's 140 units from the 2009 sheets, 130 (92.9%) take their height from the
+  eave; the other 10 stand at their kind's default. The DBT counts a bell tower as a tower however
+  its use is coded (Pontremoli's 2019 sheets call the 3 they share with it churches), and its
+  residual is fitted at Pontremoli alone. The CTR 1:10 000, which maps all of Tuscany, merges
+  terraces into one unit and lies about 1.9 m off the 1:2000, so no part lists it yet.
 - **Facade styles are a judgement.** The stone cores are discs traced by eye on the orthophoto;
   many old houses in the cores are plastered in reality, and a whole hamlet of up to 200
   buildings takes one style.

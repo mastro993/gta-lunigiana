@@ -874,19 +874,19 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   random stream seeded by a hash of the spot's place (its x and y in whole decimetres, as the build
   rounds them) and the game's seed (`Parking`, saved), so within one game a street looks the same
   each time the player comes back, and `?seed=N` parks another set. A spot where a Panda would
-  tilt more than 15° stays empty (in Lunigiana, 69 of the 804: the 4 m terrain puts some verges on
+  tilt more than 15° stays empty (in Lunigiana, 69 of the 808: the 4 m terrain puts some verges on
   a bank), and so do the Carabinieri's two.
 - **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
   over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had
-  then (733 now), about 27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village
+  then (737 now), about 27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village
   (seed 1): Monzone (Stazione) 12, Monzone Alto 6, Equi Terme 5, Gragnola 6, Colognola 2,
   Campiglione 6, Viano 6, Vinca 12, Ugliancaldo 8, Tenerano 3. A spot's dice follow its place, not
   its index, so a build that adds or drops other spots leaves its car as it was (the 3x test region
-  drops one by lucido's edge and one at the end of the kerbside spots, and parks the same cars round
-  Monzone: [map.md](map.md#test-regions)); a spot the build moves rolls anew.
+  drops one by lucido's edge and parks the same cars round Monzone: [map.md](map.md#test-regions));
+  a spot the build moves rolls anew.
 - **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
   primary, secondary or tertiary road's spot where a truck fits, a roll under 10% makes a marble
-  truck instead: 6 of the 208 cars Lunigiana's spots hold for seed 1 (2–6 over seeds 1, 2, 3, 7
+  truck instead: 6 of the 209 cars Lunigiana's spots hold for seed 1 (2–6 over seeds 1, 2, 3, 7
   and 11), where the game that parked over the whole map held at most two.
 - **Coming**: a spot 90–300 m from the player (`PARKING.fill`, out of view) that should hold a car
   and has none gets it, unless a vehicle's body, or a person or an animal within 1 m (`ROOM`), is in
