@@ -178,7 +178,7 @@ export const carClear = (model: VehicleModel, pose: PoseValue, slack = 0): boole
 const CENTRE: ReadonlyArray<Vec2.Vec2> = [Vec2.zero]
 
 /** How far (m) `clearSpot` looks from its goal: past the walls of the largest house round it. */
-export const CLEAR_WITHIN = 60
+const CLEAR_WITHIN = 60
 
 /**
  * The spot nearest `at` (to the metre) in the play area, which `SetPlayer` keeps to, where the
