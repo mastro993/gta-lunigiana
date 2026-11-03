@@ -62,7 +62,14 @@ export const makeHud = (document: Document) => {
   corner.append(minimap.canvas)
   // A touch screen has no M key: a tap on the minimap opens the map, and one on the map closes it.
   corner.addEventListener("click", toggleMap)
-  element(document, "hud-map").addEventListener("click", () => worldMap.hide())
+  const mapRoot = element(document, "hud-map")
+  /** Dev builds: who hears a click on the play area before the map closes (`pickOnMap`). */
+  let pick: ((x: number, y: number) => void) | undefined
+  mapRoot.addEventListener("click", (event) => {
+    const at = pick === undefined ? undefined : worldMap.pointAt(event)
+    if (at !== undefined) pick?.(at.x, at.y)
+    worldMap.hide()
+  })
   const show = (node: HTMLElement, visible: boolean) => {
     if (node.hidden === visible) node.hidden = !visible
   }
@@ -73,6 +80,16 @@ export const makeHud = (document: Document) => {
     /** Opens the full map at the last drawn player position, or closes it. */
     toggleMap,
     closeMap: (): void => worldMap.hide(),
+    /**
+     * Dev builds: a click or tap on the play area of the full map calls `heard` with the map point
+     * there (x east, y north), then closes the map; the header says so. Elsewhere it only closes.
+     */
+    pickOnMap: (heard: (x: number, y: number) => void): void => {
+      pick = heard
+      const hint = document.createElement("span")
+      hint.innerHTML = " · Dev: clic — vai <small>teleport</small>"
+      mapRoot.querySelector(".map-keys")?.append(hint)
+    },
     /** Repaints the open map (after the pixel ratio changes without a resize). */
     repaintMap: (): void => {
       if (worldMap.open) worldMap.show(last.x, last.y, last.angle)

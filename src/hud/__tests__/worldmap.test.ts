@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { districtAt, inPlay, MAP } from "../../sim/map/index.ts"
-import { fitMap, overviewBitmap, PLACES, placeLabels } from "../worldmap.ts"
+import { fitMap, mapPointAt, overviewBitmap, PLACES, placeLabels } from "../worldmap.ts"
 
 test("the map fits the screen inside the margins, centred, with north up and the aspect kept", () => {
   const b = MAP.bounds
@@ -23,6 +23,35 @@ test("the map fits the screen inside the margins, centred, with north up and the
         Math.abs(fit.oy - 64 - (h - 56 - fit.oy - mapH)) < 1e-6,
       "centred",
     )
+  }
+})
+
+test("a point on the map's screen is the map point painted there; one outside its frame is none", () => {
+  const b = MAP.bounds
+  for (const [w, h] of [
+    [1280, 720],
+    [844, 390],
+    [1920, 1080],
+  ] as const) {
+    const fit = fitMap(b, w, h)
+    for (const p of PLACES) {
+      const sx = fit.ox + (p.x - b.minX) * fit.scale,
+        sy = fit.oy + (b.maxY - p.y) * fit.scale
+      const at = mapPointAt(b, w, h, sx, sy)!
+      assert.ok(Math.hypot(at.x - p.x, at.y - p.y) < 1e-6, `${p.name} at ${w}x${h}`)
+    }
+    const mapW = (b.maxX - b.minX) * fit.scale,
+      mapH = (b.maxY - b.minY) * fit.scale
+    // The frame's top-left corner is the bounds' north-west, and its far corner is on the map.
+    assert.deepEqual(mapPointAt(b, w, h, fit.ox, fit.oy), { x: b.minX, y: b.maxY })
+    assert.ok(mapPointAt(b, w, h, fit.ox + mapW - 0.5, fit.oy + mapH - 0.5) !== undefined)
+    for (const [sx, sy] of [
+      [fit.ox - 1, fit.oy + 10],
+      [fit.ox + 10, fit.oy - 1],
+      [fit.ox + mapW + 1, fit.oy + 10],
+      [fit.ox + 10, fit.oy + mapH + 1],
+    ] as const)
+      assert.equal(mapPointAt(b, w, h, sx, sy), undefined, `off the frame at ${sx},${sy}`)
   }
 })
 

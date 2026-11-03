@@ -10,7 +10,8 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 import { overturned } from "./chassis.ts"
 import { moveCircles, segmentDistance } from "./collide.ts"
 import { destroyed } from "./damage.ts"
-import { type Segment, type WallKind, wallsNear } from "./map/index.ts"
+import { inPlay, type Segment, type WallKind, wallsNear } from "./map/index.ts"
+import { indoors } from "./population/farms.ts"
 import type { ChassisValue, PoseValue } from "./schema.ts"
 import { ENTER_GAP, PERSON_RADIUS } from "./tuning.ts"
 import { VEHICLES, type VehicleModel } from "./vehicles.ts"
@@ -175,6 +176,39 @@ export const carClear = (model: VehicleModel, pose: PoseValue, slack = 0): boole
 }
 
 const CENTRE: ReadonlyArray<Vec2.Vec2> = [Vec2.zero]
+
+/** How far (m) `clearSpot` looks from its goal: past the walls of the largest house round it. */
+const CLEAR_WITHIN = 60
+
+/**
+ * The spot nearest `at` (to the metre) in the play area, which `SetPlayer` keeps to, where the
+ * player fits clear of every structure: on foot (`model` undefined) standing clear of walk walls
+ * and out of every building; in a vehicle of `model` facing `at.angle`, its body clear of the walls
+ * traffic keeps to and each of its circles' centres out of every building. `at` itself when it
+ * fits; undefined when nothing within `CLEAR_WITHIN` m does. It reads the map within
+ * `CLEAR_WITHIN` m and a body's length of `at`: the dev teleport (`main.ts`) asks it.
+ */
+export const clearSpot = (
+  at: PoseValue,
+  model: VehicleModel | undefined,
+): Vec2.Vec2 | undefined => {
+  const circles = model === undefined ? CENTRE : carCircles(model, at.angle)
+  const fits = (p: Vec2.Vec2) =>
+    inPlay(p.x, p.y) &&
+    (model === undefined ? standClear(p) : carClear(model, { ...p, angle: at.angle })) &&
+    circles.every((o) => !indoors(p.x + o.x, p.y + o.y))
+  if (fits(at)) return { x: at.x, y: at.y }
+  // Rings a metre apart, each sampled about every metre round, from the east anticlockwise.
+  for (let r = 1; r <= CLEAR_WITHIN; r++) {
+    const n = Math.ceil(2 * Math.PI * r)
+    for (let k = 0; k < n; k++) {
+      const a = (2 * Math.PI * k) / n,
+        p = { x: at.x + r * Ops.cos(a), y: at.y + r * Ops.sin(a) }
+      if (fits(p)) return p
+    }
+  }
+  return undefined
+}
 
 /** Moves a body's circle of radius `r` (a person's by default) from `at` by `delta`, sliding along walk walls and never through them. */
 export const walkBy = (at: Vec2.Vec2, delta: Vec2.Vec2, r = PERSON_RADIUS) =>

@@ -282,9 +282,9 @@ with `runtime.send`:
   send it, and the dev trains store for the debug menu's Trains area and `gta.trains.call()`;
   `ApplyTrains` reads it.
 - `SetPlayer` (`x`, `y`, `angle`: put the player there, standing still): the tests send it, and in
-  dev builds `gta.teleport(x, y, angle)`, which the playtest's `drive` calls; `ApplyPlayer` reads
-  it. The step that applies it reads the map at the target, so the host sends it only once every
-  listed tile over [target ± `STEP_REACH`]² is in memory.
+  dev builds `gta.teleport(x, y, angle)`, which the playtest's `drive` calls, and a click on the
+  full map; `ApplyPlayer` reads it. The step that applies it reads the map at the target, so the
+  host sends it only once every listed tile over [target ± `STEP_REACH`]² is in memory.
 
 Snapshots hold no events: `CrashDamage`, `Perceive` and `Startle` read each `Impact`, `Perceive`
 each `Honk`, and `Perceive` and `Animals` each `Whistle`, in the step it is emitted (`thisTick`), so
@@ -696,9 +696,13 @@ so every tile a step reads is there before the step runs; the sim never sees whi
 - **The extras**: while the player is dead `extra` is the respawn point: its tiles download from
   the moment of death, and the game waits for them only in the last second before `Respawn`
   (`PlayerView.respawnIn`, the steps left, ≤ 60), so dying far from the start never freezes the
-  death itself. A dev teleport,
-  `gta.teleport(x, y, angle)`, is the `extra` until the player stands within 2 m of its goal: the
-  game waits until the goal's tiles are in, then `main.ts` sends `SetPlayer`.
+  death itself. A dev teleport, `gta.teleport(x, y, angle)` or a click on the full map, is the
+  `extra` until the player stands within 2 m of its goal: the game waits until the goal's tiles
+  are in, then moves the goal to the nearest spot within 60 m that the player, or the car they
+  drive, fits clear of every wall and out of every building (`clearSpot` in `src/sim/body.ts`), so
+  a teleport never leaves them inside a house; once that spot's tiles are in too (nearly always
+  the same tiles) `main.ts` sends `SetPlayer`. With no such spot it is dropped, with a console
+  warning.
 - **Its host**: the tile store comes in through `TileStreamHost` (`tilesOver`, `residentTiles`,
   `provideTile`, `dropTile`, `STEP_REACH`), so `src/stream.ts` imports no sim module: `boot.ts`
   shares its download and gunzip (`fetchFile`, `gunzipped`) before the map is loaded, and
@@ -1659,8 +1663,8 @@ yaw, sky)`) and the map; the handling store also reads the `HandlingView` inspec
 sky store `SkyView`, and the dev trains store `TrainView`:
 
 - `PlayerView` returns a `PlayerViewModel`: previous and current pose, velocity, mode (`foot`,
-  `driving`, `down`, `dead`), the driven vehicle's label and speed (`kind: "train"` for a train,
-  its speed toward the active cab's way), driving a train the cab's ground (`z`, the rail head
+  `driving`, `down`, `dead`), the driven vehicle's label and speed (a car's `model`, for the dev
+  teleport's `clearSpot`; `kind: "train"` for a train, its speed toward the active cab's way), driving a train the cab's ground (`z`, the rail head
   there, m a.s.l.), the vehicle or train in reach (label, occupied by a driver, stolen), and the
   view's quarter turns. The `Score` is not in it: the HUD shows no score until its design is settled.
 - `TrainView` (`src/sim/rail/view.ts`) returns a `TrainViewModel` for the dev trains store, which
@@ -1732,9 +1736,13 @@ sky store `SkyView`, and the dev trains store `TrainView`:
 - The full map (`src/hud/worldmap.ts`, `#hud-map` in `index.html`): the key labelled M toggles it
   (matched by the character it types, so AZERTY works; non-Latin layouts fall back to the key's
   position) and Esc closes it; repeats and Ctrl/Cmd/Alt chords are ignored. A click or tap on the
-  minimap opens it, one on the map closes it. It shows the whole area north-up in its own box (the
-  page's, which a phone held upright lays out sideways), fitted inside its margins, in a frame round
-  the bounds. The map itself is the build's overview, a picture of the whole play area
+  minimap opens it, one on the map closes it. In dev builds a click or tap on the play area
+  teleports the player there first, keeping their heading (`pickOnMap` in `hud.ts`, `pointAt` and
+  `mapPointAt` in `worldmap.ts`, the same jump as `gta.teleport`), and the header says so; one in
+  the margins, the header or outside the outline only closes it. The click's offset is read in the
+  dialog's own box, so it lands true on a phone held upright too. It shows the whole area north-up
+  in its own box (the page's, which a phone held upright lays out sideways), fitted inside its
+  margins, in a frame round the bounds. The map itself is the build's overview, a picture of the whole play area
   (`overview.png` beside the map's tiles, [map.md](map.md#the-overview)): drawing it from the
   vectors would need every tile's at once, and the game holds only those round the player. The
   overview is painted in the minimap's layers and order (`paintLayers` in `src/render/map-style.ts`,
