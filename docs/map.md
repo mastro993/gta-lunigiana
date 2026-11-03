@@ -201,6 +201,47 @@ OSM file it would cut down) but one with buildings of its own, which has a file 
   Without the files it fails at load, saying that `pnpm fetch-raw` restores them, as
   `terrain-seams.map-test.ts` does without the ridge's terrain: CI restores `data/raw` for the map
   tests ([Pinned inputs and CI](#pinned-inputs-and-ci)).
+- **`sarzana-town`**: 1.6 × 4.4 km of Sarzana, x −14400…−12800 by y −8000…−3600 (part
+  `sarzana-town`, 6 tiles), from the Magra plain's quarries in the south through the old town, its
+  cathedral and the Cittadella to the hills below Sarzanello, with terrain of its own (`ownTerrain`)
+  and Regione Liguria's sources (`fetch-lig`), no OSM, so no map is built for it (`build-map.ts`
+  refuses it). It checks issue #12's sources before part 4 (#20) exists: the Ligurian comuni have no
+  CTR or land cover of Regione Toscana's, and its LiDAR (lot 004) reaches only the hills at its
+  north-east corner. `pnpm fetch-lig sarzana-town` writes its NC5, DTM crops and land use into
+  `data/raw/lig/sarzana-town/` ([section 1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)),
+  and then `pnpm fetch-rt --region sarzana-town` its terrain into `data/raw/rt/sarzana-town/` from
+  `data/parts/sarzana-town.json` (the LiDAR tile 23c60 of 2010, which `pick-lidar` picked; its
+  surface-model elements are not listed, as no land cover of Tuscany's says where its ground is
+  open): over its mosaic's 7.70 km² (the play area plus 32 m, in EPSG:3003), the LiDAR on 0.34 km²
+  and Liguria's DTM on the other 7.36 km², bent onto the LiDAR near it (3.8 s; 2026-11-03).
+  `src/tools/__tests__/sarzana.map-test.ts` (`pnpm test:map`, 2.8 s) reads both through the build's
+  own readers (`readNc5`, `readUcs`, `loadDtm`, `ligRaster`) and checks issue #12's targets:
+  - every NC5 building and minor building whose outline's centroid lies in the play area is one
+    building, by its id, and no id is two: 2,927 polygons of the file's 3,032 buildings and 1,290 of
+    its 1,352 minor ones (the rest lie beyond the rectangle; one 0.3 m² sliver of `L6871` is dropped,
+    as every survey's reader drops a ring under 0.5 m², `flatRing`), and each layer's file holds the
+    server's count (`numberMatched`);
+  - at least 90% of the buildings (`L6871`) whose outline meets the rectangle, clipped to it, stand
+    1.5–45 m over the lowest ground at their outline, as the build measures a building's height
+    (`build-output.ts`): 2,872 of 2,959, 97.1%. Of the minor buildings 506 of 1,299 do: their eaves
+    stand 1.11 m over Liguria's DTM at the median, where over the LiDAR's ground they stand 2.23 m,
+    and the build gives the rest their default 2.5 m ([Known data
+    limitations](#known-data-limitations));
+  - the building under the cathedral's point (OSM's relation 14443127, the Basilica Cattedrale di
+    Santa Maria Assunta, at 44.1121353, 9.9623806: the nave, 946 m², its eave at 39.04 m) is a
+    church, the station's passenger building, at (−13564, −5850), a station, and every id is in the
+    NC5's slot. Of the 4,258 buildings and minor buildings clipped to the rectangle: house 2,735, shed
+    1,299, industrial 162, church 36 (the cathedral's bell tower among them, coded a church), ruins
+    12, construction 6, station 6, barn 2;
+  - the land use's kept polygons in the rectangle are the Magra plain's 8 natural basins (5121) and
+    2 quarries (131), all south of y −6800;
+  - south of y −6000, 2 km and more from the LiDAR, the terrain is Liguria's own DTM (`ligRaster`)
+    within 0.1 m at the median of its nodes (0.00 m), as the bend fades (`LIG_FADE`);
+  - `unround` settles on a crop of the DTM, and on the same raised 1,500 m, under `MAX_SWEEPS`
+    (relaxed in 32 bits, the raised one ran all 2,000 sweeps).
+
+  `terrain-seams.map-test.ts` checks its seam: the LiDAR's 0.34 km² meet Liguria's DTM at 298
+  nodes, and no step there passes the terrain's own steps round it (the worst is 0.06 m under them).
 
 Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
 three runs each, a load average of 5–6 from other work), before and after the build's per-tile
@@ -384,7 +425,7 @@ they fill, for a moment), the walls' bit sets (1 byte a cell each) and their tra
 parts that still grow with the area: 9 MB a tile on the 3x test region ([Test
 regions](#test-regions)).
 
-### 1. Sources (`osm.ts`, `ctr.ts`, `dbt.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
+### 1. Sources (`osm.ts`, `ctr.ts`, `dbt.ts`, `nc5.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
 - **OSM**: `data/raw/lunigiana.osm.gz`, written by `pnpm fetch-osm` (`src/tools/fetch-osm.ts`): the
   play area plus 100 m, asked for whole and split in four wherever the `/map` call answers HTTP 400
@@ -398,13 +439,15 @@ regions](#test-regions)).
   OSM gives the road network and its names, water, rail, land use, barriers, POIs and place names.
   `--region pontremoli-town` writes OSM's buildings alone over that test region ([Test
   regions](#test-regions)).
-- **The surveys of the ground**: Regione Toscana's large-scale surveys give the buildings with
-  their surveyed eave elevations, the road surfaces with their street names, and the area each
-  survey maps. Each source has an adapter that reads it into one record (`Survey` in `ctr.ts`,
-  [section 3](#3-features-featurests)), so the rest of the build reads every source alike; all four
-  are CC BY 4.0 and credited in the README, `index.html` and the release notes. `shp.ts` reads their
-  shapefiles (latin-1 tables, or the DBT's UTF-8, with the NULs some pad a number with dropped), and
-  a part's manifest lists what `fetch-rt` downloads of each ([Adding a part](#adding-a-part)).
+- **The surveys of the ground**: Regione Toscana's large-scale surveys, and Regione Liguria's NC5
+  past Tuscany's border, give the buildings with their surveyed eave elevations, the road surfaces
+  (Tuscany's with their street names), and the area each survey maps. Each source has an adapter
+  that reads it into one record (`Survey` in `ctr.ts`, [section 3](#3-features-featurests)), so the
+  rest of the build reads every source alike; all five are CC BY 4.0 and credited in the README,
+  `index.html` and the release notes. `shp.ts` reads Tuscany's shapefiles (latin-1 tables, or the
+  DBT's UTF-8, with the NULs some pad a number with dropped), and a part's manifest lists what
+  `fetch-rt` downloads of each ([Adding a part](#adding-a-part)); `fetch-lig` writes the NC5's
+  layers as JSON.
   - **The CTR 1:2000 of 2019** (Carta Tecnica Regionale, adapter (a), `readCtr`): the 25 sheets
     that map ground in the play area (23D11–15, 23D18–21, 23D26–31, 23D34–37, 23D43, 23D46, 23D47,
     23D53–55), listed in `data/parts/lucido.json` (`ctr`). `crs.ts` converts their EPSG:6707
@@ -458,6 +501,34 @@ regions](#test-regions)).
     centimetre): with it the two outlines lie within 0.01 m of each other, with the LiDAR's
     `GB_RESIDUAL` 0.47 m apart and with none 1.08 m. The LiDAR's own residual at Pontremoli is not
     known.
+  - **Liguria's NC5** (DB Geotopografico National Core 1:5000, III edizione 3D, Regione Liguria's
+    Geoportale id 2052; adapter (c) too, `readNc5` in `nc5.ts`): its La Spezia lot, valid from
+    2018-11-19 (`inizio_val`), in the DBT's national schema, from the Geoportale's WFS in EPSG:25832
+    (ETRS89 / UTM 32N, through `utm32ToLatLon` with no residual: Liguria's own transformer gives the
+    same UTM point within 1 mm at Sarzana and at Bolano), 3D, CC BY 4.0 in its ISO metadata.
+    `fetch-lig` writes a part's layers to `data/raw/lig/<part>/nc5/`. Its layers: `L6871`
+    (buildings, "Edificio (ingombro al suolo)"), each its kind from `edifc_ty`, `edifc_uso` and
+    `edifc_stat` through the DBT's `kindOf` (`edifc_ty` 11 a church, 07 a bell tower, `edifc_uso`
+    08… industrial, 0603 and 060301 a station, `edifc_stat` 01 and 02 under construction and
+    ruined, `edifc_uso` 09, the NC5's farm buildings, a barn, as 0902 and 0903 already were: 1,331
+    of the 1,467 agricultural buildings over La Spezia's province); `L6870` (minor buildings,
+    `edi_min_ty` and `edi_min_st` through the same rules: sheds);
+    `L6858` (carriageways, "Area di circolazione veicolare"), its road surfaces: paved, as no field
+    of it gives the surface, unnamed, and none in a tunnel (`ac_vei_sed` 03; 02, on a bridge, is
+    kept, as the CTR's road surfaces keep their bridges); and `L6945`, the area the lot restitutes
+    ("Porzione di territorio restituito"), one polygon of 942.57 km² over La Spezia's province, which
+    `fetch-lig` clips to the part's box. A footprint's Z is its eave, and no field gives a height:
+    2,092 of the 2,098 footprints round Sarzana's old town are flat, the five multipolygons step from
+    part to part (`L6871.55788`'s three at 32.05, 34.47 and 25.98 m), so each polygon is a building
+    with the highest Z of its rings. The minor buildings' Z is their eave too: over the LiDAR at the
+    Sarzana test region's north edge the sheds stand 2.23 m over the ground at the median (10 of 15
+    within 1.5–45 m) and the buildings 5.00 m (25 of 26). An id's section is the 1:5000 element of
+    the feature's own reference (`classref`, `248082_1707522`: element 248082) and its local number
+    the reference's serial and the polygon's place in the feature, the minor buildings' from 10⁹
+    ([section 3](#3-features-featurests)); `ogr_fid` and the server's key (`id1`, its feature id
+    `L6871.<id1>`) are serials of the database's load. A building or a carriageway on two parts'
+    boxes is in both their files and read once, by its reference (`subregid` for a carriageway); the
+    mapped area, one feature that `fetch-lig` clips to each part's box, is read from every part's.
 
   Left out, with the reason:
   - **The WFS sheet frame as the old schema's mapped area** (the issue's design): on 22D05 and 22D13
@@ -488,6 +559,11 @@ regions](#test-regions)).
     semi-basements (08): open at ground level or under it ([section 3](#3-features-featurests)).
   - **The 2000 edition of the 22D sheets** (flown in May 2000): the 2009 edition of the same sheets
     is newer.
+  - **The NC5's other layers**: its road elements (`L6864`, whose `el_str_fon` gives a surface, but
+    as lines to be matched to the carriageways), its administrative roads' names (`L6939`, `L6940`:
+    round Sarzana the A12, the SS1 and the SS62; no layer names a street, so the NC5's road surfaces
+    stay unnamed and the build's name vote reads OSM's), its sidewalks (`L6859`, left out of the
+    road surfaces as the CTR's leave them) and its spot heights (`L6911`).
 - **CTR rail** (`ctr-rail.ts`): the same CTR's railway layers, in the 9 sheets the line crosses
   (23D11, 23D15, 23D19, 23D27–30, 23D35, 23D36). The rail the map draws stands on these track
   centrelines, and the tracks only the CTR has come from them
@@ -561,7 +637,33 @@ regions](#test-regions)).
      stop at about the province's border: on the Bagnone ridge Massa-Carrara's run 0.4 km² past the
      crest into Emilia (Monchio delle Corti, Corniglio), where it is taken before the DTM 5x5. The
      canopy filter reads the 10 m DTMs together, the first with data at a cell.
-  3. Liguria's DTM ed. 2023, with #12's `fetch-lig`; nothing yet.
+  3. Regione Liguria's DTM ed. 2023 (Modello Digitale del Terreno, Geoportale id 2056, CC BY 4.0 in
+     its ISO metadata), from the crops `fetch-lig` wrote for the part
+     (`data/raw/lig/<part>/dtm/<i>_<j>.tif`: each 2 km tile round the chain's crop and 10 m round it,
+     `dtmTiles`, the WCS's native cells as one deflated GeoTIFF; `fetch-rt` reads those tiles' crops
+     alone): 5 m cells of whole metres in EPSG:3003, interpolated in La Spezia's
+     province from the NC5's own heights (not a LiDAR), clipped at Liguria's border (under 1% of the
+     Tuscan comuni beside it have data, the sea none). `ligRaster` pastes the crops onto the DTM's
+     lattice and smooths the whole metres (`unround`): the smoothest surface (a membrane, each cell
+     its neighbours' mean) within 0.5 m of each cell, by over-relaxed sweeps clamped to that band, in
+     64 bits (in 32 the stored heights' rounding kept cells over 1024 m moving for ever: a crop raised
+     1,500 m ran all 2,000 sweeps of `MAX_SWEEPS`, which `fetch-rt` reports reaching), 120 sweeps and
+     2.0 s for the 1.29 million cells of the Sarzana test region's eight crops, sampled bilinearly in
+     the crop's own EPSG:3003 (Liguria's transformer, on the IGM's
+     grids, puts Sarzana 0.33 m from ours, a fifteenth of a cell). Rounded to whole metres, a plain
+     that rises less than a metre a cell steps by a metre every few cells, which drew terraces across
+     Sarzana's plain on the hillshade of the 2 m mosaic; a 5-cell binomial left them, and a blur wide
+     enough to hide them would flatten the relief too. Over the 0.34 km² of LiDAR (2010, lot 004) in
+     the Sarzana test region's mosaic the LiDAR stands 0.54 m over it on average and 3.00 m RMS apart
+     at 342,976 points (0.51 m and 1.33 m at the 11,750 where the ground is under 3% steep), and the
+     residual at the rim runs from −9.2 to +9.7 m. Its bend fades over 500 m (`LIG_FADE`, the
+     filler's `fade`: the lattice pulls each node toward 0 by MU × (50 / 500)², so its membrane
+     decays over that distance), as the NC5's eaves stand in the DTM's own frame: unfaded, the
+     lattice carried the rim's residual on as a constant and lifted all of the test region's Liguria
+     1.10 m, 4 km from its LiDAR, and the buildings' eaves stood that much lower over it (93.5% of
+     them 1.5–45 m tall, against 97.1% faded). Faded, the terrain is Liguria's DTM within 0.04 m at
+     the median 1–2 km from the LiDAR and 0.00 m past 2 km, 0.87–0.94 m within 250 m of it ([Test
+     regions](#test-regions)).
   4. Past Tuscany, Regione Emilia-Romagna's DTM 5x5 (CC BY 4.0), its WCS's native 5 m grid in
      EPSG:7791 over the box round the cells left. Issue #10 named TINITALY 1.1 (INGV, 10 m, CC BY
      4.0) here; Emilia-Romagna's survey is finer, under the same licence and already fetched for
@@ -608,7 +710,18 @@ regions](#test-regions)).
   none), its 0.45 km² of
   conifer woods (all at 800–1400 m, the plantations) and 0.74 km² of mixed ones (600–1200 m) 82% and
   94% in OSM's forest. OSM's own `leaf_type` tags one wood in the box, so it is not read. Fields and
-  towns stay OSM's.
+  towns stay OSM's. Past Tuscany's border, Regione Liguria's land use 1:10 000, ed. 2025 (Uso
+  del Suolo, Geoportale id 2660, CC BY 4.0; its woods surveyed again to 2024, the rest of La
+  Spezia's province of 2019) takes the same place: Corine's classes, to the fourth level (5121
+  natural basins, 2211 vineyards mixed with olives, 3111 holm oak and maquis), in EPSG:25832, read
+  by their first three digits through the same `UCS_CODES`, so its broadleaf woods (3111–3115) are
+  `forest`. `fetch-lig` writes the polygons of the kept classes to
+  `data/raw/lig/<part>/uds.json.gz` as `ucs.json.gz` holds Tuscany's (each polygon's `ID_RLIG`, its
+  whole code, its rings on the decimetre), and `readUcs` reads each file by its `crs`, a polygon two
+  parts' files hold once. On the Sarzana test region, fetched before the woods were kept, it holds
+  8 natural basins (5121) and 2 of the Magra plain's quarries (131); `pnpm fetch-lig sarzana-town`
+  brings its woods. In the lower Val di Magra its sand (331) is the coast's beaches, and the Magra's
+  bed is a river bed (5111, with its channel), which no kept class takes.
 - **Forest inventory, for constants only**: Regione Toscana's Inventario Forestale (IFT, WFS
   `ms:rt_ucs.idift.rt.all` on `map=wmsucs`, 400 m cells with each sample point's species
   `SPECFOR_1`, `QUOTA` and `ESPOSIZ`) has no licence record (its capabilities say only
@@ -620,15 +733,14 @@ regions](#test-regions)).
   the conifers' at 800–1400 m and elsewhere (`CONIFERS`). A logistic fit to its forest points
   (maximum likelihood, flat ones out) puts the beech's belt at 1115 ± 15 m, 96 ± 6 m wide and 58 ±
   21 m lower on north faces over the 2,141 in Massa-Carrara, and 1134, 87 and 52 m over all 2,833.
-- **Liguria's land use** (UdS 2025, CC BY 4.0, 4th-level codes such as 3111 holm oak and maquis):
-  read with #12's `fetch-lig`, which does not exist yet; its codes then map as the UCS's do, and
-  3111 to `forest`.
 - **The Aulella's catchment**: one published figure, the 208 km² ARPAL's Annali Idrologici 2017
   (part II) give the Soliera gauge, taken as a fact (as the rivers' calibration takes the gauge's
   flows, [water.md](water.md#sources)); no ARPAL data is shipped.
 
 - **Verification only, never data**: the AGEA 2022 orthophoto (Regione Toscana's OFC WMS, "©
-  AGEA, licenza d'uso concessa a Regione Toscana"), read by eye to settle Gragnola's track layout
+  AGEA, licenza d'uso concessa a Regione Toscana"; Regione Liguria's copy, Geoportale id 2555, WMS
+  `M2555` layer `L10401`, 0.20 m, names AGEA its owner and no licence, only "Nessuna condizione
+  applicabile", so it is looked at, never traced), read by eye to settle Gragnola's track layout
   ([section 4](#4-the-rail-on-the-ctr)); RFI's station pages (rfi.it/it/stazioni: Gragnola,
   Monzone-Monte dei Bianchi-Isolano, Equi Terme), read for the tracks in use and that no platform
   on the line is raised to 55 cm (the platforms' height,
@@ -688,6 +800,38 @@ byte, and 83 of codes 331 and 512 besides; on 2026-11-03 the 508 pinned then, an
 unpacked bytes equal the new ones is not rewritten, so another zlib never churns a pinned file, and
 a cached archive folder with no files left in it (macOS purges the temporary directory's files but
 keeps its folders) is fetched again. Requests name only the project in their `User-Agent`.
+
+`pnpm fetch-lig <part>` (`src/tools/fetch-lig.ts`, the services in `liguria.ts`) downloads Regione
+Liguria's sources over a part's rectangles from the Geoportale's GeoServer into
+`data/raw/lig/<part>/` (`ligDir` in `region.ts`): the NC5's four layers, the DTM's crops and the land
+use, above. Its conversions are `liguria.ts`'s (`nc5File`, `clippedRings`, `udsPolygons`), and its
+files go through `writeRaw` in `raw-lock.ts`, as `fetch-rt`'s do. The WFS's box filter matches a feature's bounding box (a superset of the features that
+meet the box), a page holds at most 5,000 features whatever count is asked, and a page asked without
+a `startIndex` comes back unsorted, in an order that changes from call to call: so `fetchWfs` asks
+the count first (`resultType=hits`), then each page from its `startIndex`, sorted by a unique field
+(`ogr_fid`, or the land use's `ID_RLIG`), and refuses unless the pages hold that many features, each
+once, in order. The issue's pages repeating without `sortBy` did not reproduce: round Sarzana on
+2026-11-03, 25,513 buildings came back 25,513 unique either way while every page named its
+`startIndex`. The box is the part's EPSG:25832 box, on whole metres outward; the land use's is a CQL
+filter with the kept classes (`COD_USO LIKE '131%' OR …`), as the server takes a `bbox` or a filter,
+not both, and its sea, one polygon of 1,071 km² and 1.4 MB, would come with every box on the coast.
+Each feature's attributes are written as served (codes, their labels, ids and dates: no field names
+a person) and its coordinates on whole centimetres, without the answer's `timeStamp` and page links,
+which change on every call, so two runs write the same bytes. The DTM's crops are WCS 2.0.1
+`GetCoverage`s with their edges on the lattice's own (`X` and `Y` subsets at 1379054.19189 + 5i and
+4947084.40548 − 5j, `dtmCropUrl`): 1.0.0 resamples onto the box asked, moving the cells up to half a
+cell, and the server deflates a crop only when it fits one TIFF tile, so a crop is asked as one of
+512 cells a side. The tiles are those round `fetch-rt`'s crop of the part (`dtmTiles`: the local box
+round its EPSG:3003 corners, a notch between rectangles and the crop's margin included, as the
+chain fills the whole crop and nothing past Liguria's DTM has data there), each crop its tile's
+EPSG:3003 box plus 10 m. A tile wholly beyond the coverage (the server's 404 "Empty intersection
+after subsetting", `beyondCoverage`) or without a cell of data is left out, any other error stops
+the run, and a crop an earlier run wrote that this one does not (the part shrank) is deleted with
+its lock entry (`staleCrops`, `dropRaw`; a dotfile such as Finder's `.DS_Store` is no input and
+stays). `fetch-rt` reads the crops of those tiles as its chain's third step, so
+`fetch-lig` runs first. On 2026-11-03 two runs for `sarzana-town`, its folder moved away between
+them, wrote the same 13 files in 3.5 s (890,274 B: the NC5's four 539,768 B, the eight crops
+348,116 B, the land use 2,390 B).
 
 ### 2. Projection and play area (`geometry.ts`, `play-area.ts`)
 
@@ -822,8 +966,9 @@ part](#adding-a-part)).
     it maps. The build reads that record alone (`readSurveys` in `surveys.ts`), so a new source is
     an adapter, not a change through the pipeline.
   - **The priority**: `readSurveys` merges the surveys in the order of their precision and age, the
-    CTR 1:2000 of 2019, then the DBT 1:2000 (2010), then the CTR 1:2000 of 2009, then the CTR
-    1:10 000 of 2010 (`bySourcePriority`), and OSM stands where none maps the ground. A source's
+    CTR 1:2000 of 2019, then the DBT 1:2000 (2010), then the CTR 1:2000 of 2009, then Liguria's NC5
+    1:5000 (2018), then the CTR 1:10 000 of 2010 (`bySourcePriority`), and OSM stands where none maps
+    the ground; Tuscany's surveys stop at its border and the NC5 at Liguria's. A source's
     building or road surface is kept where no source before it maps the ground, by the centroid of
     its outline or outer ring, and every source's mapped area is kept: the newer, finer survey wins
     wherever two overlap, and a building is kept whole or left out, never cut at another survey's
@@ -835,17 +980,19 @@ part](#adding-a-part)).
     (−441, −4844)), and 459 of OSM.
   - **The ids**: a survey's building has a negative id, so it never meets an OSM id, unique over
     every source and section (`survey-ids.ts`): −(local + 2³² × slot). The slot is the source
-    (`SOURCES`: the 2019 CTR 1, the DBT 2, the 2009 CTR 3, the 1:10 000 4) × 2¹⁶ plus its section's
-    code, fixed by the section's name alone, so adding a part never renumbers a building another
-    part holds: a 1:2000 sheet's section, 23D, is 23 × 26 + 3 (`sheet2k`), a 1:10 000 section,
-    249020, 249 × 16 + 2 − 1 (`section10k`), and a DBT comune's ISTAT number, 045014, 45 × 512 + 14
-    (`comune`, provinces under 128). Sheets 23D11, 22D11 and 24C11, whose ids would collide without
+    (`SOURCES`: the 2019 CTR 1, the DBT 2, the 2009 CTR 3, the 1:10 000 4, the NC5 5) × 2¹⁶ plus
+    its section's code, fixed by the section's name alone, so adding a part never renumbers a
+    building another part holds: a 1:2000 sheet's section, 23D, is 23 × 26 + 3 (`sheet2k`), a
+    1:10 000 section, 249020, 249 × 16 + 2 − 1 (`section10k`), an NC5 1:5000 element, 248082,
+    its section's code × 4 + 2 − 1 (`element5k`), and a DBT comune's ISTAT number, 045014,
+    45 × 512 + 14 (`comune`, provinces under 128). Sheets 23D11, 22D11 and 24C11, whose ids would collide without
     the section, differ. The local number, under 2³¹, numbers the record within its sheet or
     section: on a 1:2000 sheet, its number × 10⁵ plus the layer's base (`AED` and `AE_a` 0, `AGE`
     and `ML_l` 5 × 10⁴) plus the record's index; in a 1:10 000 section, the layer's base (`AE_a` 0,
     `ML_l` 5 × 10⁶) plus the record's index; in the DBT, RT's own serial (the last 8 digits of
     `un_vol_id`, or of `suolo_id` for an artefact, from 10⁹), not the record's place in the file,
-    which moves with the box a part cuts the comune's layers to. A record's further polygons step by
+    which moves with the box a part cuts the comune's layers to; in the NC5, the serial of the
+    feature's `classref` (a minor building's from 10⁹). A record's further polygons step by
     10⁷ (10⁸ in the DBT). The largest slot, 2²¹ − 1, keeps every id a safe integer
     (2²¹ × 2³² = 2⁵³). So 23D11's `AED` record 0 is −(11 × 10⁵ + 2³² × 66,137) =
     −284,056,253,155,552.
@@ -1509,11 +1656,13 @@ change an input.
   tool wrote, so `pin-raw` uploads those bytes and no others. `readLock` (Valibot) rejects any other
   shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
   release. `writeLock` writes the fields in that
-  order, one per line, so a re-pin's diff shows only the files that changed. Today: 340 files,
-  28.0 MB: 238 in `raw-20261030`, the two terrains in `raw-20261101` (#10, 6 files), #11's 95 in
+  order, one per line, so a re-pin's diff shows only the files that changed. Today: 356 files,
+  29.3 MB: 238 in `raw-20261030`, the two terrains in `raw-20261101` (#10, 6 files), #11's 95 in
   `raw-20261103`, 1.16 MB (the 2009 sheets' 82 files, Pontremoli's 12 DBT files and its OSM
-  extract), and the land cover with its woods in `raw-20261103-3` (#14, 0.65 MB; `raw-20261031`
-  holds #73's, 0.21 MB, which an older lock still fetches).
+  extract), #12's 16 in `raw-20261103-2`, 1.22 MB (the Sarzana test region's 13 Liguria files and
+  its terrain's 3), and the land cover with its woods in `raw-20261103-3` (#14, 0.65 MB;
+  `raw-20261031` holds #73's, 0.21 MB, which an older lock still fetches). From an empty
+  `data/raw`, `pnpm fetch-raw` downloaded all 356 in 41.8 s (2026-11-03, with #73's land cover).
 - **Sources**: each fetch tool calls `recordSource` for every file it writes (`fetch-rt` also for
   each file it finds unchanged). `fetch-rt` gives the archive URL of the CTR sheet or section a file
   came from, and of a DBT layer's comune with the EPSG:3003 box its records were cut to
@@ -1521,8 +1670,9 @@ change an input.
   mosaic's sources (`dtm.bin`, `dtm.json`, `dtm-src.bin`: the manifest's archives, the land-cover
   request with the date when the surface model fills, and Emilia-Romagna's WCS when it does), and
   the WFS request with the date for the land cover. `fetch-osm` gives the `/map` box and the date
-  (and, for a test region's buildings, "buildings only"), and `fetch-rer` the WCS request and the
-  metadata URL, each with the date. An entry that already holds the file's bytes, pinned or fetched,
+  (and, for a test region's buildings, "buildings only"), `fetch-rer` the WCS request and the
+  metadata URL, and `fetch-lig` each layer's first page and each crop's request, each with the date;
+  `fetch-rt` names Liguria's crops among a terrain's sources when its chain takes them. An entry that already holds the file's bytes, pinned or fetched,
   stays as it is; any other file becomes fetched. The entries pinned on 2026-10-30 say when the file
   entered git (`in git since 2026-10-20 (66ae295)`) instead of a fetch date.
 - **`pnpm fetch-raw`** (`fetch-raw.ts`) hashes `data/raw`, then downloads every pinned file that is
@@ -1551,10 +1701,12 @@ change an input.
   `test-maps/*/overview.png`), the same in the restore and the reproducible job's save, so a hit
   brings back every file `vite build` and the map tests read but the raw inputs: the check job
   sets the action's `raw`, so on a hit too it restores `data/raw` and runs `pnpm fetch-raw`, for
-  `terrain-seams.map-test.ts`, which reads the terrain fetch-rt wrote, and `pontremoli.map-test.ts`,
-  which reads the DBT and the OSM extract fetch-rt and fetch-osm wrote (Pages leaves it unset).
+  `terrain-seams.map-test.ts`, which reads the terrain fetch-rt wrote, `pontremoli.map-test.ts`,
+  which reads the DBT and the OSM extract fetch-rt and fetch-osm wrote, and `sarzana.map-test.ts`,
+  which reads the NC5 fetch-lig wrote and the terrain fetch-rt wrote from it (Pages leaves it
+  unset).
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
-  imports, followed from import to import (111 files today, in `src/tools`, `src/sim`, `src/render`
+  imports, followed from import to import (113 files today, in `src/tools`, `src/sim`, `src/render`
   and `src/maps.ts`, through the bakes and the overview's look, `src/render/map-style.ts`), so a
   change anywhere else reuses the cached maps, and a change to the full map's look builds a new
   overview. It fails rather than miss a file: on a specifier that names no file, an `import(`
@@ -1566,7 +1718,8 @@ change an input.
   inflated to stdout), each in path order: another zlib compresses the same bytes differently, so
   the compressed files would not match. The x64 check job and Pages restore what it saved.
   Pages (`pages.yml`) runs the same action before `vite build` and saves nothing.
-- **Tests**: `raw-lock.test.ts` checks the lock's format and `recordSource`, that git ignores
+- **Tests**: `raw-lock.test.ts` checks the lock's format, `recordSource`, `writeRaw` leaving a
+  file that unpacks to the same bytes as it is and `dropRaw`, that git ignores
   `data/raw` and the built maps, and that no tracked file is over 1 MB. `fetch-raw.test.ts` and
   `pin-raw.test.ts` run against a fake `gh`: a second fetch downloads nothing, a download with other
   bytes fails with `data/raw` unchanged, a fetched file replaced since is refused, an upload of
@@ -1966,15 +2119,16 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   to within 500 m of Vinca, across the x = 0, y = 0, y = −2000 and x = 2000 seams.
 - `src/tools/__tests__/terrain-seams.map-test.ts`: the seams between the terrain's sources (issue
   #10), read from the DTM fetch-rt wrote (`dtm-src.bin`) on the build's own 4 m grid (`dtmDem`'s
-  nodes, each the mean of a 5 m square), over lucido and the `bagnone-ridge` test region, and Monte
-  Sillara's summit there ([Test regions](#test-regions)). A step is how far the height difference
+  nodes, each the mean of a 5 m square), over lucido and the `bagnone-ridge` and `sarzana-town`
+  test regions, and Monte Sillara's summit there ([Test regions](#test-regions)). A step is how far the height difference
   across a seam lies outside the differences beside it, 3 nodes either side on its own line and the
   two beside it, each within one source (`seamSteps` in `__tests__/seam-steps.ts`): a slope, a kink
   or a cliff on one side gives none, a ledge its height. Rough ground has steps of its own (on the
   ridge 0.6% of the LiDAR's node pairs step over 1 m, 0.006% of the 10 m DTM's and 0.001% of the
   surface model's): so the test holds every seam to at most 1 m more than the largest step within
   one source within 20 m of it. Lucido's seams pass it by 0.30 m at most, the ridge's by 0.94 m (a
-  strip of the surface model by the 10 m DTM); with the band left out, the ridge fails by 4.0 m,
+  strip of the surface model by the 10 m DTM), Sarzana's not at all (LiDAR to Liguria's DTM, its
+  worst 0.06 m under the steps round it); with the band left out, the ridge fails by 4.0 m,
   with no bend at all by 12.4 m, and without the canopy filter by 8.6 m. The steps themselves reach
   1.73 m on the ridge (3.42 m on lucido, under the Rocca di Tenerano), where a gully the LiDAR shows
   ends against the 10 m DTM, as steep as the gully's walls round it.
@@ -2068,17 +2222,24 @@ another code left out, only 0101 and 0102 surfaces and none in a tunnel (22D13's
 street names (proven red on "PIAZZA UNITA' D'ITALIA" and "VIA SANT'ANTONIO" before the elisions were
 cased, and on "VIA DEL PRA'", "VIA G.B. NATALI", "VIA VETERANI DELLO SPORT", "VIALE DEI MILLE",
 "PIAZZALE DELL'UCCELLIERA" and "PIAZZETTA DI SOMMOBORGO" before the accents, the initials, `DELLO`
-and those kinds); `dbt.test.ts` `kindOf`'s every rule in its order, the units standing on the ground
+and those kinds); `dbt.test.ts` `kindOf`'s every rule in its order (0603, the NC5's rail service,
+a station, and 09, its farm buildings' agricultural use, a barn), the units standing on the ground
 (eave and height, the code's default where `un_vol_av` is 1.06 m, the artefacts, a tank left out,
 ids by comune), the road surfaces from the carriageways (a road's dirt 407.8 m² and paved 22.6 m²
 each its own surface; Via Belmesseri's 265.4 m² carriageway, not its 406.9 m² road area with the
 sidewalks; the A15's in a tunnel left out), the road areas of roads with none, paved and named
 (Vicolo Santa Cristina), the dirt tracks, the zones, a street name `readDbt` reads as UTF-8 (proven
 red with the tables read as latin-1, which garbles its "À"), and a vertex placed with
-`DBT_RESIDUAL`; `survey-ids.test.ts` the section codes and their refusals, 23D11, 22D11 and 24C11
-and the four sources apart, `id | 0` the old id and its seeds, and safe integers up to the last
-slot; `surveys.test.ts` `bySourcePriority` on squares and `readSurveys` on a copy of the fixtures,
-which drops those two 1:10 000 records; `features.test.ts` a surveyed building's tint the one its
+`DBT_RESIDUAL`; `nc5.test.ts` on layer files written as `fetch-lig` writes them, Sarzana's
+cathedral's attributes among them: a footprint per polygon at its own eave (a multipolygon's two
+parts, a ring's highest Z), each kind and style of the DBT's codes, the minor buildings' ids from
+10⁹, the carriageways paved but the one in a tunnel, a building in two parts' files read once but
+each part's own clipped piece of the mapped area kept (proven red with it read once by its
+`classid`), and a feature without its `classref` refused; `survey-ids.test.ts` the section codes and
+their refusals (`element5k` too), 23D11, 22D11 and 24C11 and the five sources apart, `id | 0` the
+old id and its seeds, and safe integers up to the last slot; `surveys.test.ts` `bySourcePriority`
+on squares and `readSurveys` on a copy of the fixtures and an NC5 folder, in their order, which
+drops those two 1:10 000 records; `features.test.ts` a surveyed building's tint the one its
 2019 id gave, in any section (the old seed, `-id % 1e9`, breaks 10 of its 12 cases).
 `src/tools/__tests__/shp.test.ts` subsets a synthetic shapefile with `subsetShp` and reads it back,
 keeps records by their box and blanks the fields it is told to, and reads a table's NUL padding and
@@ -2159,60 +2320,81 @@ parts and reads a synthetic grid; `net.test.ts` serves a local HTTP server to ch
 remark (a server timeout) but not from a tag named `remark`, and `net.long-test.ts` (`pnpm
 test:long`) the retry of a 5xx after 2 s; `manifest.test.ts` pins `lucido`'s 25 sheets, 66 tiles (47
 of 2010 before 19 of 2012), one 10 m DTM, two surface-model elements and the 12 sheets of 2009, with
-no CTR 1:10 000 or DBT, `sillara`'s picks and `pontremoli-town`'s one DBT, reads a manifest written
-before the newer lists as listing none of them, and refuses one listing Minucciano's two DBT surveys
-but reads one of them alone; `fetch-rt.test.ts` runs `fetch-rt` and checks that it refuses a stage
-for a test region with buildings of its own and any test region with nothing of its own, before any
-request; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule,
-first wins, the holes and the surface model's elements over them on synthetic grids;
-`fill-chain.test.ts` bends a filler into a 100 m hole of a tilted LiDAR (no step over 0.1 m at its
-rim), carries a 20 m ripple the lattice cannot fit through the band, keeps a filler to its `where`
-and its data, and bends a second filler onto the LiDAR and a first filler a cell off it
-(`fill-chain.long-test.ts`: a 5 km hole, linear in its cells); `terrain-sources.test.ts` reads ASCII
-grid windows (corner and centre registered), a GeoTIFF in EPSG:7791, the WCS request, the projection
-lattice (within 1 mm; the box round its corners within 0.01 mm), the open ground and the canopy
-filter (a tree with its fringe, a pit, scraps and strips narrower than the square, a slope left
-alone); `crs.test.ts` inverts `utm32ToLatLon` within 1 mm; `footprint.test.ts` the outline of an L,
-clusters, a road that leaves and comes back, one that runs off the query box (unresolved) and a
-mistyped flag; `fetch-osm.test.ts` the split on HTTP 400 with a fake server, the refusal of a test
-region (`checkFetchable`, before any request) but one with buildings of its own and the file
-`osmFile` names each region, and `buildingsOnly` (a road, a `building:part`, a land-use multipolygon
-and a `type=building` relation left out, each element's XML as the API wrote it, and the rings
-`assembleRings` rebuilds from `osmXml`'s file); `coverage-grid.test.ts` and `coverage.test.ts` first
-wins, the tally, ring assembly, no picks, and a WFS error answer never cached; `ortho.test.ts` and
-`ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted sibling flight is look only) and
-an error answer for capabilities; `playtest.test.ts` the spots, the command line (shots, heap and
-drive with their defaults and flags) and the spot script; `playtest-drive.test.ts` the frame stats,
-the road chained through shared ends from the free end nearest the start and at a fork toward the
-goal, the page's drive script (run in a `vm` against a fake `gta`) and its report (the SP59 itself
-is `playtest-drive.map-test.ts`'s, above, as it reads the whole map's roads); `cdp.test.ts`, on a
-fake Chrome, a command's own timeout and the socket closed when a tab cannot open;
-`map-diff.test.ts` each category's change on small maps, a key it does not compare, walls and trees
-in another order (the fewest moved counted, copies of a removed segment left out), a tree on a spot
-both maps plant with another id there, buildings equal but for their id as one `ids:` line (a farm
-on one no difference, `--except buildings` accepting it; one that also changed removed and added;
-pieces sharing an id and identical copies paired one to one in order), a map from before the outline
-and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts` `clipRing` to a
-box; `ucs.test.ts` a wood cut on the 500 m squares, each piece 4 m past its square, filling the
+no CTR 1:10 000 or DBT, `sillara`'s picks and `pontremoli-town`'s one DBT, reads a manifest
+written before the newer lists as listing none of them, and refuses one listing Minucciano's two
+DBT surveys but reads one of them alone; `fetch-rt.test.ts` runs `fetch-rt` and checks that it
+refuses a stage for a test region with buildings of its own and any test region with
+nothing of its own, before any request; `pick-sheets.test.ts`, `pick-lidar.test.ts` and
+`pick-diff.test.ts` check the area rule, first wins, the holes and the surface model's elements over
+them on synthetic grids; `fill-chain.test.ts` bends a filler into a 100 m hole of a tilted LiDAR (no
+step over 0.1 m at its rim), carries a 20 m ripple the lattice cannot fit through the band, keeps a
+filler to its `where` and its data, bends a second filler onto the LiDAR and a first filler a
+cell off it, and keeps a filler with a `fade` to its own heights 1.3 km from a strip of LiDAR, where
+unfaded it is lifted onto the LiDAR all over (proven red with the fade ignored;
+`fill-chain.long-test.ts`: a 5 km hole, linear in its cells); `terrain-sources.test.ts`
+reads ASCII grid windows (corner and centre registered), a GeoTIFF in EPSG:7791 and Liguria's in
+EPSG:3003 (GeoServer's own keys and model transformation, `fixtures/lig`: the 200 m square of the
+DTM by Piazza Matteotti and two crops of it that overlap, each as the WCS gave it; its rows rising
+north as the town does), a 7791 file and another transverse Mercator under GeoServer's keys (its
+false easting moved) refused as 3003, the two crops pasted into the square (`ligRaster`), `unround`
+(a rounded slope straight again within 0.12 m, every cell within 0.5 m of its whole metre, a plain
+flat, a cell without data left out), the WCS request, the
+projection lattice (within 1 mm; the box round its corners within 0.01 mm), the open ground and the
+canopy filter (a tree with its fringe, a pit, scraps and strips narrower than the square, a slope
+left alone); `liguria.test.ts` the WFS's count and pages, sorted, from each `startIndex`, the land
+use's CQL filter, `fetchWfs` reading three pages and refusing a short answer, a repeated or
+unsorted row, a count that moves while paging and an answer with no count, the polygons on whole
+centimetres, `nc5File` clipping the mapped area alone and keeping a building past the box whole,
+`udsPolygons` (a fourth-level code kept whole, Z dropped, decimetres; a code outside the classes
+refused), `staleCrops` (a `.DS_Store` left alone, proven red), `beyondCoverage` (only the
+empty-subset 404), the crops of `dtmTiles` covering
+`fetch-rt`'s crop of a tile-aligned part 6 km tall, of an L with its notch and of the Sarzana test
+region (proven red with the tiles of the rectangles alone), and the DTM's crop on the lattice's
+edges, each edge 3 m inside its line, refused past 512 cells; `ucs.test.ts` the
+land cover in EPSG:3003 and 25832 by each file's `crs`, the classes by three digits (5121 a lake,
+5111 left out), a polygon two files hold read once, a multipolygon's every polygon, a file in
+another CRS refused, a wood cut on the 500 m squares, each piece 4 m past its square, filling the
 whole wood's pixels but within 6 cm of its edges, an open cover kept whole, and a clearing wider
-than a piece kept clear whichever vertex its ring starts at; `trees.test.ts` the tiles' scatters
-merged by id against the scatter of their whole box (with two lattice points rounding onto one spot
-from either side of a seam, and a stream beside another whose bank trees fall in its 4 m cells), a
-tile's trees and ids when the region's box grows, a stream's piece the outline cut keeping the whole
-stream's bank trees, a stream's banks in every listed tile and none in one left out, the last bank
-cell's tree getting the largest id (its look's seeds below 2³², a cell further throwing), and the
-conifer and mixed woods growing a forest's trees, an open area over one keeping them out;
-`region.test.ts` the regions' parts, bounds, tiles and tree anchors, `pontremoli-town` the one
-region with buildings of its own and `surveyDir`, and `checkMask` on a diagonal mask in an L and on
-each fault (too few vertices, off 0.1 m, clockwise, a repeated vertex, a fold, a crossing, a vertex
-or an edge outside the rectangles, a mask round a gap in a donut of rectangles); `play-area.test.ts`
-the outline of one rectangle (south, east, north, west), an L of two, overlapping rectangles,
-rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing off the 0.1 m lattice, a
-hole, two rings touching at a corner and a hole touching the outer ring or another hole at one,
-`onOutline` finding rail ends rounded off a slanted edge, the notch cutting a line in two with ids
-kept and cuts id-less, each piece's start along the whole line (`clipPieces`), a line past the L's
-inner corner (or a mask's slanted one) within a micrometre staying whole, and clipping to one
-rectangle against Liang–Barsky on 4000 random lines and lines through its corners;
+than a piece kept clear whichever vertex its ring starts at; `fetch-lig.test.ts` the tool's refusals of two parts and an unknown one
+before any request; `crs.test.ts` inverts `utm32ToLatLon` within 1 mm, on Liguria's side too; `footprint.test.ts` the
+outline of an L, clusters, a road that leaves and comes back, one that runs off the query box
+(unresolved) and a mistyped flag; `fetch-osm.test.ts` the split on HTTP 400 with a fake server, the
+refusal of a test region (`checkFetchable`, before any request) but one with buildings of its own
+and the file `osmFile` names each region, and `buildingsOnly` (a road, a `building:part`, a land-use
+multipolygon and a `type=building` relation left out, each element's XML as the API wrote it, and
+the rings `assembleRings` rebuilds from `osmXml`'s file); `coverage-grid.test.ts` and
+`coverage.test.ts` first wins, the tally, ring assembly, no picks, and a WFS error answer never
+cached; `ortho.test.ts` and `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted
+sibling flight is look only) and an error answer for capabilities; `playtest.test.ts` the spots, the
+command line (shots, heap and drive with their defaults and flags) and the spot script;
+`playtest-drive.test.ts` the frame stats, the road chained through shared ends from the free end
+nearest the start and at a fork toward the goal, the page's drive script (run in a `vm` against a
+fake `gta`) and its report (the SP59 itself is `playtest-drive.map-test.ts`'s, above, as it reads
+the whole map's roads); `cdp.test.ts`, on a fake Chrome, a command's own timeout and the socket
+closed when a tab cannot open; `map-diff.test.ts` each category's change on small maps, a key it
+does not compare, walls and trees in another order (the fewest moved counted, copies of a removed
+segment left out), a tree on a spot both maps plant with another id there, buildings equal but for
+their id as one `ids:` line (a farm on one no difference, `--except buildings` accepting it; one
+that also changed removed and added; pieces sharing an id and identical copies paired one to one in
+order), a map from before the outline and `--except`, and `map-diff-args.test.ts` its command line;
+`geometry.test.ts` `clipRing` to a box; `trees.test.ts` the tiles' scatters merged by id against the
+scatter of their whole box (with two lattice points rounding onto one spot from either side of a
+seam, and a stream beside another whose bank trees fall in its 4 m cells), a tile's trees and ids
+when the region's box grows, a stream's piece the outline cut keeping the whole stream's bank trees,
+a stream's banks in every listed tile and none in one left out, the last bank cell's tree
+getting the largest id (its look's seeds below 2³², a cell further throwing), and the conifer and
+mixed woods growing a forest's trees, an open area over one keeping them out; `region.test.ts` the
+regions' parts, bounds, tiles and tree anchors, `pontremoli-town` the one region with buildings of
+its own and `surveyDir`, `sarzana-town`'s 6 tiles, its terrain of its own and `ligDir`, and `checkMask` on a diagonal mask in an L and on each fault (too few
+vertices, off 0.1 m, clockwise, a repeated vertex, a fold, a crossing, a vertex or an edge outside
+the rectangles, a mask round a gap in a donut of rectangles); `play-area.test.ts` the outline of one
+rectangle (south, east, north, west), an L of two, overlapping rectangles, rectangles sharing a
+side, a diagonal mask, a mask and a rectangle crossing off the 0.1 m lattice, a hole, two rings
+touching at a corner and a hole touching the outer ring or another hole at one, `onOutline` finding
+rail ends rounded off a slanted edge, the notch cutting a line in two with ids kept and cuts
+id-less, each piece's start along the whole line (`clipPieces`), a line past the L's inner corner
+(or a mask's slanted one) within a micrometre staying whole, and clipping to one rectangle against
+Liang–Barsky on 4000 random lines and lines through its corners;
 `src/sim/map/__tests__/outline.test.ts` `insideRings`'s margins round the L's inner corner, a
 clockwise hole, and `edgeDistance` beside and past an edge; `walls.test.ts` the outline walls
 closing the L and a rectangle's running south, east, north, west.
@@ -2245,7 +2427,12 @@ every OSM building in it. A comune with two DBT surveys, one of 2010–2013 and 
 cartoteca's `dbt.2k` index over Lunigiana and round it lists 20 on 2026-11-03, all in the province
 of Lucca, Minucciano, Piazza al Serchio, Sillano, Camporgiano, San Romano in Garfagnana and Vagli
 Sotto among them), lists the one that maps the part: `fetch-rt` pins a comune's layers by its ISTAT
-code alone, and `readManifest` refuses two of one comune. The tools below scope a part and check it.
+code alone, and `readManifest` refuses two of one comune. A part in Liguria's comuni, which have no
+CTR or land cover of Regione Toscana's, runs `pnpm fetch-lig <part>` before `pnpm fetch-rt`: the
+build reads each of a region's parts' NC5 and land use from `data/raw/lig/<part>/`, and `fetch-rt`'s
+chain fills the cells its LiDAR leaves from the part's DTM crops there ([section
+1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). The tools below scope a part
+and check it.
 `rt-index`, `coverage` and `footprint-check` write their scratch in `.research/<part>/`
 (gitignored), `ortho` in `.research/ortho/` unless given a file, `playtest` in the folder it is
 given; every request names only the project in its `User-Agent` (`net.ts`), and the tools print
@@ -2316,7 +2503,8 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   comune (OSM `admin_level=8` boundaries), the part's area mapped by the manifest's 2019 sheets, by
   each LiDAR lot (the index footprints in manifest order, first wins) and by no LiDAR, and, once
   `fetch-rt` has written the terrain of the part's region, by each source the chain took past the
-  LiDAR (surface model, 10 m DTM, DTM 5x5: `dtm-src.bin` at each cell's centre; a source the chain
+  LiDAR (surface model, 10 m DTM, Liguria's DTM ed. 2023, DTM 5x5: `dtm-src.bin` at each cell's
+  centre; a source the chain
   gains fails the typecheck until it has a column, and `fillLayer` throws on one it does not know),
   and the UCS 2019 woods (311–313, 324) against OSM's forest, on 10 m cells; it stops when the
   manifest holds no picks yet. It prints the markdown table for the PR and writes `coverage.md` and `coverage.png`.
@@ -2420,12 +2608,15 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
 Only `lucido` is fetched and built: `pnpm fetch-osm` and `pnpm map` cover the Lunigiana region's
 bounds (`BOUNDS`; `--region cesena` builds the separate Cesena map instead, and the part tools
 refuse it; a [test region](#test-regions) builds from Lunigiana's inputs and fetches none, but
-`bagnone-ridge`'s terrain and `pontremoli-town`'s buildings), and `pnpm fetch-rt` reads one part's
+`bagnone-ridge`'s terrain, `pontremoli-town`'s buildings and `sarzana-town`'s terrain and Liguria
+sources), and `pnpm fetch-rt` reads one part's
 manifest and stops when the region holds more than one part (a second part would widen the mosaic's
 crop over the land between them, all of it for the chain to fill). The build works a tile at a time
 since issue #7 ([Pipeline](#pipeline)), but its inputs stay one OSM file and one DTM mosaic per
 region until #17 (Fivizzano, the first part after lucido) brings the per-part raw layout
 (`osm/<part>.osm.gz`, `rt/dtm/<i>_<j>.bin`, a part adding files only) and `fetch-rt <part>`.
+Regione Liguria's inputs are a part's already (`data/raw/lig/<part>/`, `fetch-lig <part>`), its DTM
+cropped a tile at a time.
 
 A part's new inputs are pinned like any other: after `pnpm fetch-rt` and `pnpm map`, `pnpm pin-raw`
 uploads them and the lock goes into the part's PR ([Pinned inputs and CI](#pinned-inputs-and-ci)).
@@ -2503,7 +2694,7 @@ carries the roads, water, rail and buildings across the old edge, which then are
   the 2010 flight; the 2012 tiles agree with it within about 0.2 m of elevation, but their
   horizontal fit is not checked (the 2009 sheets' buildings stand there, but nothing has matched
   them against the 2012 flight's surface model). The cells no flight covers ([section
-  1](#1-sources-osmts-ctrts-dbtts-ctr-railts-shpts-ucsts-crsts)) are smoother: the 10 m DTM's
+  1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)) are smoother: the 10 m DTM's
   (0.63 km² of lucido, south of Tenerano and round the Cava Bardiglio) misses the small relief and
   shows its own 10 m creases, and the bend carries the LiDAR's relief only 50 m in, so a gully or a
   rock face the LiDAR shows ends against the fill: where a face under the Rocca di Tenerano meets
@@ -2512,6 +2703,19 @@ carries the roads, water, rail and buildings across the old edge, which then are
   takes any bump or pit narrower than 9 m and 0.7 m high or deep for a tree or a failed match, the
   relief of bare rock included: on the Bagnone ridge it keeps 50% of the pastures and 27% of the
   bare rock without LiDAR, and the bent 10 m DTM fills the rest, Monte Sillara's summit included.
+- **Liguria's sources are coarser than Tuscany's** (issue #12; the Sarzana test region's today).
+  Its DTM ed. 2023 is a 5 m grid of whole metres interpolated from the NC5's 1:5000 restitution,
+  3.00 m RMS from the 2010 LiDAR where both cover the test region's mosaic (0.34 km², the DTM 0.54 m
+  lower on average; 1.33 m RMS on ground under 3% steep), smoothed between its metres, so a terrace
+  wall or an embankment a few metres wide is a slope there. Within about 1 km of the LiDAR the chain
+  bends it onto the LiDAR (0.87–0.94 m at the median within 250 m), while the NC5's eaves stay in
+  its own frame, so the buildings there stand that much shorter. It lies about a metre over the
+  minor buildings' foot: their eaves stand 1.11 m over it at the median, where over the LiDAR's
+  ground they stand 2.23 m, so 793 of the test region's 1,299 sheds take their default 2.5 m. The
+  NC5's carriageways are all paved, as no field of theirs gives the surface, and unnamed, and a road
+  with no carriageway has no surface (its road areas, `L6861`, are not read, where the DBT's fill
+  in); its bell towers may be coded churches (Sarzana's cathedral's is). The land use keeps the open
+  classes alone, and the Magra's gravel, inside its river bed (5111), is not drawn as pebble.
 - **The rail is the CTR's where the CTR maps it, and OSM disagrees at Gragnola.** OSM draws
   Gragnola's loop on the east track, its "main" way crossing over to the west track inside the
   station and a south switch at (−1674.0, 3189.9); the map follows the CTR, the orthophoto and
@@ -2621,7 +2825,8 @@ carries the roads, water, rail and buildings across the old edge, which then are
   at 200–400 m, 18.4% at 400–800 m, 18.0% at 800–1000 m and 11.1% at 1000–1200 m against its 39, 26,
   18, 23 and 10%. The hop-hornbeam and the riparian
   trees draw as chestnut, and the black pine and Douglas fir of the plantations as the conifers'
-  cone. Liguria's woods wait for #12.
+  cone. Liguria's woods come through `UCS_CODES` too (3111–3115 as `forest`), once `fetch-lig`
+  fetches a part again: the Sarzana test region's file predates them.
 - **Some names only exist on addresses.** The vote can pick the wrong piece of road. Culverted
   waterways are dropped; at-grade crossings imply a culvert instead.
 - **Re-downloading changes the map.** `pnpm fetch-osm` pulls current OSM edits;

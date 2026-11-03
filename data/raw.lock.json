@@ -17,6 +17,84 @@
     "asset": "raw-20261030/cesena.source.json",
     "source": "https://geoportale.regione.emilia-romagna.it/++api++/catalogo/dati-cartografici/altimetria/layer-2, in git since 2026-10-29 (847efac)"
   },
+  "lig/sarzana-town/dtm/-7_-2.tif": {
+    "sha256": "f803627a1e80aa38ff663797401e1dea9af7c9589dbe7f11a415035113ce4afc",
+    "bytes": 75187,
+    "asset": "raw-20261103-2/lig.sarzana-town.dtm.-7_-2.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1576394.19189,1578444.19189)&subset=Y(4886289.40548,4888334.40548), fetched 2026-11-03"
+  },
+  "lig/sarzana-town/dtm/-7_-3.tif": {
+    "sha256": "b1dd1a27cc0e8d123e3893beddc7b6b4e6868db97e2349c44f2ab8ec8980fbda",
+    "bytes": 44934,
+    "asset": "raw-20261103-2/lig.sarzana-town.dtm.-7_-3.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1576419.19189,1578469.19189)&subset=Y(4884289.40548,4886334.40548), fetched 2026-11-03"
+  },
+  "lig/sarzana-town/dtm/-7_-4.tif": {
+    "sha256": "644d19dd3387ad8c3643746d517f28f900315c4188bdd6a4cb411425f34466e8",
+    "bytes": 17798,
+    "asset": "raw-20261103-2/lig.sarzana-town.dtm.-7_-4.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1576439.19189,1578489.19189)&subset=Y(4882289.40548,4884339.40548), fetched 2026-11-03"
+  },
+  "lig/sarzana-town/dtm/-7_-5.tif": {
+    "sha256": "cf742b005911b75e45d28f3719e1d045e38e88d12861c77d2e4260eee8264669",
+    "bytes": 27065,
+    "asset": "raw-20261103-2/lig.sarzana-town.dtm.-7_-5.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1576464.19189,1578514.19189)&subset=Y(4880289.40548,4882339.40548), fetched 2026-11-03"
+  },
+  "lig/sarzana-town/dtm/-8_-2.tif": {
+    "sha256": "d6d801b5ba1199cfb4d76e3256049a2c260049914d07afba8bce738630e551f9",
+    "bytes": 48442,
+    "asset": "raw-20261103-2/lig.sarzana-town.dtm.-8_-2.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1574394.19189,1576444.19189)&subset=Y(4886264.40548,4888314.40548), fetched 2026-11-03"
+  },
+  "lig/sarzana-town/dtm/-8_-3.tif": {
+    "sha256": "b179848cd5c0cab3877e199f81f5c6692b996cb2c715c9b30010bf04260704c8",
+    "bytes": 21052,
+    "asset": "raw-20261103-2/lig.sarzana-town.dtm.-8_-3.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1574419.19189,1576464.19189)&subset=Y(4884264.40548,4886314.40548), fetched 2026-11-03"
+  },
+  "lig/sarzana-town/dtm/-8_-4.tif": {
+    "sha256": "96d651a66865f2812cac38b4321e7439c96d02b90ee055a29d93dc89d3f396ff",
+    "bytes": 39151,
+    "asset": "raw-20261103-2/lig.sarzana-town.dtm.-8_-4.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1574439.19189,1576489.19189)&subset=Y(4882264.40548,4884314.40548), fetched 2026-11-03"
+  },
+  "lig/sarzana-town/dtm/-8_-5.tif": {
+    "sha256": "0fc2b920287f5dbe014dd7596e82257c16a55faa9108f676413bc5a954afe2eb",
+    "bytes": 74487,
+    "asset": "raw-20261103-2/lig.sarzana-town.dtm.-8_-5.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1574464.19189,1576514.19189)&subset=Y(4880269.40548,4882314.40548), fetched 2026-11-03"
+  },
+  "lig/sarzana-town/nc5/L6858.json.gz": {
+    "sha256": "141c89773c2aaa6518ff39e33a8accf6f763dbe4ad93c699ee04b06be80d3920",
+    "bytes": 221364,
+    "asset": "raw-20261103-2/lig.sarzana-town.nc5.L6858.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2052/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2052%3AL6858&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=575997%2C4882280%2C577650%2C4886698%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-03"
+  },
+  "lig/sarzana-town/nc5/L6870.json.gz": {
+    "sha256": "eb4442318ed2dbb2eff631b9d4e7532c4de07f4bc5c467d48b16fd73fda5e1cb",
+    "bytes": 81799,
+    "asset": "raw-20261103-2/lig.sarzana-town.nc5.L6870.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2052/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2052%3AL6870&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=575997%2C4882280%2C577650%2C4886698%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-03"
+  },
+  "lig/sarzana-town/nc5/L6871.json.gz": {
+    "sha256": "94c47be000a4b129873ab12398b95836a937de0f04772bca06219c8f628136be",
+    "bytes": 236336,
+    "asset": "raw-20261103-2/lig.sarzana-town.nc5.L6871.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2052/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2052%3AL6871&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=575997%2C4882280%2C577650%2C4886698%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-03"
+  },
+  "lig/sarzana-town/nc5/L6945.json.gz": {
+    "sha256": "a37b0e8f45c05b6d22bf7b7239b27b848f4a9222e333914b030933cdfe8ae1e9",
+    "bytes": 269,
+    "asset": "raw-20261103-2/lig.sarzana-town.nc5.L6945.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2052/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2052%3AL6945&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=575997%2C4882280%2C577650%2C4886698%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-03"
+  },
+  "lig/sarzana-town/uds.json.gz": {
+    "sha256": "a5021f69b01fdba9d1d2e87bdc448e2471e78660a9de87da0b34f19745bcee55",
+    "bytes": 2390,
+    "asset": "raw-20261103-2/lig.sarzana-town.uds.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2660/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2660%3AL10449&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ID_RLIG&cql_filter=BBOX%28GEOMETRY%2C575997%2C4882280%2C577650%2C4886698%29+AND+%28COD_USO+LIKE+%27131%25%27+OR+COD_USO+LIKE+%27321%25%27+OR+COD_USO+LIKE+%27322%25%27+OR+COD_USO+LIKE+%27331%25%27+OR+COD_USO+LIKE+%27332%25%27+OR+COD_USO+LIKE+%27333%25%27+OR+COD_USO+LIKE+%27512%25%27%29, fetched 2026-11-03"
+  },
   "lunigiana.osm.gz": {
     "sha256": "761a3824f4fa31b74805d93e2b712a0627e805732309d91f310fce655a5d2709",
     "bytes": 1502516,
@@ -2032,6 +2110,24 @@
     "bytes": 13555,
     "asset": "raw-20261103/rt.pontremoli-town.dbt2k.045014_zona_r.shp.gz",
     "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/sarzana-town/dtm-src.bin": {
+    "sha256": "847c2c6627902a7e343b54c6d045290554a3da18f8bf5d094d4b0e03127ec78c",
+    "bytes": 2307,
+    "asset": "raw-20261103-2/rt.sarzana-town.dtm-src.bin",
+    "source": "the lidar archives of data/parts/sarzana-town.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the Liguria DTM ed. 2023's crops -7_-2.tif, -7_-3.tif, -7_-4.tif, -8_-2.tif, -8_-3.tif, -8_-4.tif in data/raw/lig/sarzana-town/dtm (pnpm fetch-lig sarzana-town)"
+  },
+  "rt/sarzana-town/dtm.bin": {
+    "sha256": "308914f6accbe4d8ac8674045f472fcd469463b7acfbd431cdbe2a5f5529c93b",
+    "bytes": 331873,
+    "asset": "raw-20261103-2/rt.sarzana-town.dtm.bin",
+    "source": "the lidar archives of data/parts/sarzana-town.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the Liguria DTM ed. 2023's crops -8_-5.tif, -7_-5.tif, -8_-4.tif, -7_-4.tif, -8_-3.tif, -7_-3.tif, -8_-2.tif, -7_-2.tif in data/raw/lig/sarzana-town/dtm (pnpm fetch-lig sarzana-town)"
+  },
+  "rt/sarzana-town/dtm.json": {
+    "sha256": "f2d7f41384ff8d67a170af42e0a6a4c76f230ce49edca295846d1fad5dd5a9e4",
+    "bytes": 390,
+    "asset": "raw-20261103-2/rt.sarzana-town.dtm.json",
+    "source": "the lidar archives of data/parts/sarzana-town.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the Liguria DTM ed. 2023's crops -7_-2.tif, -7_-3.tif, -7_-4.tif, -8_-2.tif, -8_-3.tif, -8_-4.tif in data/raw/lig/sarzana-town/dtm (pnpm fetch-lig sarzana-town)"
   },
   "rt/ucs.json.gz": {
     "sha256": "ff5e0211defdd85937214e9977878bf00a0a2134ab68d18bda6a0b1d627cbbae",

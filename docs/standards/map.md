@@ -27,9 +27,9 @@ never compares a change's map with the map before it, so these runs are yours.
 - Place hand-made tables (`STONE_CORES`, `LANDMARKS`, stream widths, district discs) on
   orthophotos and OSM nodes, with a comment saying how.
 - `data/raw` is pinned by `data/raw.lock.json`; `pnpm fetch-raw` restores it. Fetch again
-  (`pnpm fetch-osm`, `pnpm fetch-rt`) only to change the inputs on purpose: OSM returns current
-  edits, so the map moves. Then run `pnpm pin-raw` and commit the lock, or CI's `pnpm fetch-raw`
-  fails. Ask the user before each `pnpm pin-raw`: it publishes the files as release assets of the
+  (`pnpm fetch-osm`, `pnpm fetch-rt`, `pnpm fetch-lig`) only to change the inputs on purpose: OSM
+  returns current edits, so the map moves. Then run `pnpm pin-raw` and commit the lock, or CI's
+  `pnpm fetch-raw` fails. Ask the user before each `pnpm pin-raw`: it publishes the files as release assets of the
   public repository.
 
 ## Data sources and requests
@@ -56,8 +56,8 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the regions (Lunigiana,
   Cesena), their parts' rectangles and masks (`checkMask` throws on a bad one), and `play-area.ts`
   the outline of their union, which the map is clipped to and walled along (issue #7). A part's
-  mask comes with the part's own issue (#17 on), and `fetch-lig` with #12. When one is missing,
-  name the issue that adds it and ask the user before building it.
+  mask comes with the part's own issue (#17 on); a part in Liguria runs `fetch-lig` (#12) before
+  `fetch-rt`. When one is missing, name the issue that adds it and ask the user before building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw` then pins
   the part's new inputs. A part's older surveys (`ctr2009`, `ctr10k`, `dbt2k`) go into its manifest

@@ -8,8 +8,8 @@
 // - LiDAR <lot>: the manifest's tiles in order, on the index's footprints; a cell takes the lot of
 //   the first tile holding it, as `fetch-rt`'s mosaic keeps the first value;
 // - no LiDAR: the cells no tile holds, which `fetch-rt` fills through the fallback chain;
-// - DSM 2021, 10 m DTM, DTM 5x5: the sources `fetch-rt`'s chain took past the LiDAR, read from the
-//   terrain it wrote for the part's region (`dtm-src.bin`), once it has;
+// - DSM 2021, 10 m DTM, DTM Liguria, DTM 5x5: the sources `fetch-rt`'s chain took past the LiDAR,
+//   read from the terrain it wrote for the part's region (`dtm-src.bin`), once it has;
 // - forest: the UCS 2019 woods (311–313, 324; WFS, box + 500 m), OSM forest (landuse=forest,
 //   natural=wood; Overpass), and the share of the woods OSM also marks as forest.
 // Measured on 10 m cells, a cell counted when its centre lies in the play area (the union of the
@@ -52,6 +52,7 @@ const RES = 10
 const FILLS = {
   dsm2021: "DSM 2021",
   dtm10: "10 m DTM",
+  lig: "DTM Liguria",
   rer: "DTM 5x5",
 } as const satisfies Record<Exclude<Source, "lidar">, string>
 const FILL_SOURCES: ReadonlyArray<string> = Object.keys(FILLS)
