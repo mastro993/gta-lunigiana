@@ -1743,7 +1743,7 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   motorway and trunk, 2.5 primary and secondary, 2 tertiary) so the network reads; both paint the
   roads narrowest class first, so the main roads lie on top at junctions and overpasses. Its look is
   that of a map about 820 CSS px on its long side, painted at 5 overview pixels a CSS pixel
-  (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3195 × 4096 px for Lunigiana, 3.05 MB, and
+  (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3195 × 4096 px for Lunigiana, 3.06 MB, and
   4000 × 4000 px for Cesena, 4.74 MB), and it is drawn scaled to the fit and smoothed
   (`imageSmoothingQuality` "high"). So its lines are as wide as the live paint drew them before the
   overview on a map that long, and scale with the map elsewhere: 0.73 times as wide in a 1280 × 720

@@ -3,7 +3,7 @@
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map: the global file `src/sim/map/monzone.bin` (0.55 MB), 30 tiles of 2 km in
 `src/sim/map/monzone/` (9.4 MB in all, the largest 0.56 MB; see [Map files](#map-files)) and, beside
-the tiles, the full map's picture `overview.png` (3.05 MB; [The overview](#the-overview)). The build
+the tiles, the full map's picture `overview.png` (3.06 MB; [The overview](#the-overview)). The build
 is deterministic (gunzipped, its files are the same bytes on every machine, arm64 and x64 alike, and
 it prints the same build hash; gzipped, they are byte-identical with the same Node build, while
 another zlib or OS writes other compressed bytes; the overview's pixels are the same everywhere,
@@ -918,10 +918,11 @@ part](#adding-a-part)).
   The UCS land cover adds its quarries, rock (`rock`), sparse vegetation (`sparse`), pastures
   (`grassland`), heath (`scrub`), the rivers' gravel (`pebble`), its water bodies (`lake`) and its
   woods (`forest`, `conifer`, `mixed`: `WOODS` in `kinds.ts`). The land cover's raster fills the
-  woods first, broadleaf then conifer and mixed over it, and every other area over them (`FILL` in
-  `src/sim/map/raster.ts`; the minimap and the full map paint in that order too, `fillPass` in
-  `src/render/map-style.ts`), so a UCS conifer wood inside OSM's forest makes it conifer, and a UCS
-  wood holds only ground no OSM area claims. The woods come cut on a 500 m grid on the local origin,
+  woods first, broadleaf then conifer and mixed over it, and every other area over them by kind
+  (`FILL` in `src/sim/map/raster.ts`; the minimap, the full map and `preview-map` paint in that
+  order too, `fillRank`, grassland and residential land in the play area's grass, so a park over
+  residential land shows as on the ground), so a UCS conifer wood inside OSM's forest makes it
+  conifer, and a UCS wood holds only ground no OSM area claims. The woods come cut on a 500 m grid on the local origin,
   each piece 4 m past its square so the maps paint no seam (`piecesOf` in `ucs.ts`): an area lies
   whole in every tile its outer ring's box comes within the halo of, and one wood across the valley,
   10,254 vertices, lay in 19; whole, they took the tiles' areas from 0.69 to 8.0 MB before gzip and
@@ -1620,7 +1621,7 @@ m off the extended edge on the L test region, and 1,140 of its 4,774 heights and
 |---|---|---|
 | `src/sim/map/<name>.bin` (global) | 0.55 MB, 1.9 MB gunzipped | 0.62 MB, 2.4 MB gunzipped |
 | `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 30, 9.4 MB in all, 0.05 to 0.56 MB each | 4, 1.7 MB in all, 0.36 to 0.45 MB each |
-| `src/sim/map/<name>/overview.png` | 3.05 MB, 3195 × 4096 px | 4.74 MB, 4000 × 4000 px |
+| `src/sim/map/<name>/overview.png` | 3.06 MB, 3195 × 4096 px | 4.74 MB, 4000 × 4000 px |
 
 With the vectors in the global file, before #63, Lunigiana's was 1.89 MB (6.26 MB gunzipped) and its
 tiles 5.70 MB, the largest 0.31 MB. Each `.bin` file is gzip (level 9) of one JSON line, a newline,

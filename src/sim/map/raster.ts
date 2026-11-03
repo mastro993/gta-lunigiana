@@ -61,7 +61,9 @@ const FILL: ReadonlyArray<Cover> = [
   "lake",
   "pebble",
 ]
-const fillRank = new Map<string, number>(FILL.map((c, i) => [c, i]))
+const ranks = new Map<string, number>(FILL.map((c, i) => [c, i]))
+/** Where an area of `kind` comes in `FILL`, the order areas are filled in (0 for a kind no cover has); the HUD's maps paint in it too (src/render/map-style.ts). */
+export const fillRank = (kind: string): number => ranks.get(kind) ?? 0
 
 /** Metres from a wall and from a road's edge within which open ground is paved: house fronts, sidewalks, alleys. */
 const FRONT = 3
@@ -120,7 +122,7 @@ interface CoverSource {
  */
 export const coverBlocks = (map: CoverSource): ((part: PixelBlock) => Uint8Array) => {
   const ordered = [...map.areas]
-    .sort((a, b) => (fillRank.get(a.kind) ?? 0) - (fillRank.get(b.kind) ?? 0))
+    .sort((a, b) => fillRank(a.kind) - fillRank(b.kind))
     .flatMap(({ kind, rings }) => {
       const cover = coverIndex.get(kind)
       if (cover === undefined) return []

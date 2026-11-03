@@ -3,8 +3,8 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
-import { fillPass } from "../render/map-style.ts"
 import type { AreaKind, BuildingStyle, RoadClass } from "../sim/map/index.ts"
+import { fillRank } from "../sim/map/raster.ts"
 import { fillPolygon, segDist2 } from "./geometry.ts"
 import { builtMapUrl, loadBuiltMap, readWholeMap } from "./map-file.ts"
 import { encodePngRgb } from "./png.ts"
@@ -107,12 +107,12 @@ const AREA = {
   river: [60, 120, 220],
   lake: [60, 120, 220],
 } as const satisfies Record<AreaKind, RGB>
-// Each pixel takes the last area to fill it in the maps' order (`fillPass`: the woods first), blended
+// Each pixel takes the last area to fill it in the land cover's order (`fillRank`), blended
 // once: a wood's pieces overlap 4 m past their squares, and two blends would draw their seams.
 const top = new Int32Array(W * H).fill(-1)
 const fillOrder = areas
   .map((_, k) => k)
-  .sort((a, b) => fillPass(areas[a]!.kind) - fillPass(areas[b]!.kind))
+  .sort((a, b) => fillRank(areas[a]!.kind) - fillRank(areas[b]!.kind))
 for (const k of fillOrder)
   fillPolygon(areas[k]!.rings, minX, minY, 1 / scale, { c0: 0, r0: 0, cols: W, rows: H }, (p) => {
     top[p] = k

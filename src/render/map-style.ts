@@ -12,11 +12,10 @@ import {
   type AreaKind,
   isAreaKind,
   isRoadClass,
-  isWaterArea,
-  isWood,
   ROAD_CLASSES,
   type RoadClass,
 } from "../sim/map/kinds.ts"
+import { fillRank } from "../sim/map/raster.ts"
 import { PALETTE } from "./palette.ts"
 
 /**
@@ -50,14 +49,6 @@ const AREA_HEX = {
   river: PALETTE.waterShallow,
   lake: PALETTE.waterShallow,
 } as const satisfies Record<AreaKind, number>
-
-/**
- * The order the areas are filled in, by kind, as the land cover's raster fills them (`FILL` in
- * src/sim/map/raster.ts): the broadleaf woods, the conifer and mixed woods over them, the rest of
- * the land, then the water over it, then a river's gravel bars over that.
- */
-export const fillPass = (kind: string): number =>
-  kind === "pebble" ? 4 : isWaterArea(kind) ? 3 : kind === "forest" ? 0 : isWood(kind) ? 1 : 2
 
 /** The full map's least road width by class, px (the rest: 1.5), so the main roads stand out at a few pixels per hundred metres. */
 const OVERVIEW_MIN: Readonly<Partial<Record<RoadClass, number>>> = {
@@ -144,8 +135,8 @@ const roadOrder = (roads: ReadonlyArray<{ readonly cls: string }>): Array<number
 
 /**
  * Paints `map` at `scale` px/m with `pen`: grass over the play area, clipped to it, then the areas
- * (even-odd; the woods first, the lakes and river polygons over the land, a river's gravel bars
- * over them, `fillPass`), the water and the rail out of tunnels (`faded`), the roads out of tunnels,
+ * (even-odd, in the order the land cover's raster fills them, `fillRank`: the woods first, the
+ * rest of the land by kind, the lakes and river polygons over it, a river's gravel bars over them), the water and the rail out of tunnels (`faded`), the roads out of tunnels,
  * paths left out (`roadOrder`, each as `road` says), and the buildings' outer rings (non-zero).
  */
 export const paintLayers = <R extends PaintRoad>(
@@ -157,7 +148,7 @@ export const paintLayers = <R extends PaintRoad>(
   pen.clip(map.outline)
   pen.fill(map.outline, PALETTE.grass, "evenodd")
   // each pass in the layer's order (a stable sort)
-  for (const area of [...map.areas].sort((a, b) => fillPass(a.kind) - fillPass(b.kind))) {
+  for (const area of [...map.areas].sort((a, b) => fillRank(a.kind) - fillRank(b.kind))) {
     const hex = isAreaKind(area.kind) ? AREA_HEX[area.kind] : undefined
     if (hex !== undefined) pen.fill(area.rings, hex, "evenodd")
   }
