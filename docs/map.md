@@ -2,8 +2,8 @@
 
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map: the global file `src/sim/map/monzone.bin` (0.55 MB), 30 tiles of 2 km in
-`src/sim/map/monzone/` (8.9 MB in all, the largest 0.53 MB; see [Map files](#map-files)) and, beside
-the tiles, the full map's picture `overview.png` (2.99 MB; [The overview](#the-overview)). The build
+`src/sim/map/monzone/` (9.4 MB in all, the largest 0.56 MB; see [Map files](#map-files)) and, beside
+the tiles, the full map's picture `overview.png` (3.05 MB; [The overview](#the-overview)). The build
 is deterministic (gunzipped, its files are the same bytes on every machine, arm64 and x64 alike, and
 it prints the same build hash; gzipped, they are byte-identical with the same Node build, while
 another zlib or OS writes other compressed bytes; the overview's pixels are the same everywhere,
@@ -138,12 +138,13 @@ OSM file it would cut down) but one with buildings of its own, which has a file 
 - **`lunigiana-3x`**: lucido between two rectangles of terrain only as wide as it, x −10700…12700 by
   y −6100…3900, three times its built terrain and 78 tiles; a mask on lucido's rectangle keeps the
   play area lucido's. Past the DTM's crop the terrain is the crop's edge drawn on (`loadDtm`):
-  synthetic, with no roads or buildings, only the land cover that reaches past lucido: 22 areas
-  run on whole past its edge, among them 4 woods of 97.4 km² that hold 0.98 million more trees, and
-  84 more lie beyond it, 66 of them the surveys' paved surfaces (1,324 areas and 1,986,724 trees
-  against lucido's 1,240 and 1,010,251 on 2026-11-03). It serves the build's memory and time and the
-  cars round Monzone, and is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`); CI
-  never builds it.
+  synthetic, with no roads or buildings, only the land cover that reaches past lucido: 84 areas run
+  on whole past its edge, among them 66 woods of 103.9 km² (4 of OSM's, 97.4 km², and pieces of the
+  UCS's) that hold 1.10 million more trees, and 447 more lie beyond it, 66 of them the surveys'
+  paved surfaces (2,789 areas and 2,155,030 trees against lucido's 2,342 and 1,053,289 on
+  2026-11-03, with the UCS's woods). It serves the build's memory and time and the cars round
+  Monzone, and is built by hand (`node src/tools/build-map.ts --region lunigiana-3x`); CI never
+  builds it.
 - **`bagnone-ridge`**: 4 × 4 km of the Apennine ridge round Monte Sillara, x −8000…−4000 by
   y 20000…24000 (part `sillara`), with terrain of its own (`ownTerrain`) and nothing else: no OSM,
   CTR or land cover reaches it, so no map is built for it (`build-map.ts` refuses it, as no road
@@ -597,8 +598,31 @@ regions](#test-regions)).
   of the beds, 64 polygons and 17.9 ha on the Aulella and the lower Lucido, where OSM draws the
   woods the 2011–2014 floods scoured; the 2023 orthophoto shows open gravel there) and the water
   bodies ("corpi d'acqua", 512), but not one OSM already draws ([section
-  3](#3-features-featurests): the one in the bounds is OSM's lake by the Solco di Equi). Woods, fields
-  and towns stay OSM's.
+  3](#3-features-featurests): the one in the bounds is OSM's lake by the Solco di Equi). And it adds
+  the woods by type, the trees' species' first clue (`src/render/trees.ts`): broadleaf woods (311)
+  as `forest`, conifer woods (312) as `conifer` and mixed woods (313) as `mixed`. Inside OSM's
+  forest the conifer and mixed woods refine it, and elsewhere a UCS wood holds only ground no OSM
+  area claims ([section 3](#3-features-featurests)): in lucido's box the UCS's 51.5 km² of broadleaf
+  woods lie 48.2 km² in OSM's forest and 2.19 km² on ground OSM leaves bare (the 2023 orthophoto
+  shows the woods round the sound tests' meadow on Monte dei Bianchi, (−329, 1078), where OSM maps
+  none), its 0.45 km² of
+  conifer woods (all at 800–1400 m, the plantations) and 0.74 km² of mixed ones (600–1200 m) 82% and
+  94% in OSM's forest. OSM's own `leaf_type` tags one wood in the box, so it is not read. Fields and
+  towns stay OSM's.
+- **Forest inventory, for constants only**: Regione Toscana's Inventario Forestale (IFT, WFS
+  `ms:rt_ucs.idift.rt.all` on `map=wmsucs`, 400 m cells with each sample point's species
+  `SPECFOR_1`, `QUOTA` and `ESPOSIZ`) has no licence record (its capabilities say only
+  "AccessConstraints none"), so none of it is shipped. Issue #14 tabled its beech shares by band
+  over the 14 Lunigiana comuni, which `BEECH` in `src/render/trees.ts` follows and
+  `trees.map-test.ts` checks; on 2026-11-03 its 2,876 forest points round Fivizzano, Casola and
+  Comano (lon 10.0–10.3, lat 44.1–44.35) gave the oaks' shares of the broadleaf on south and north
+  faces by band (`OAKS`; the Massa-Carrara points alone give the same below 400 m to 0.1 point) and
+  the conifers' at 800–1400 m and elsewhere (`CONIFERS`). A logistic fit to its forest points
+  (maximum likelihood, flat ones out) puts the beech's belt at 1115 ± 15 m, 96 ± 6 m wide and 58 ±
+  21 m lower on north faces over the 2,141 in Massa-Carrara, and 1134, 87 and 52 m over all 2,833.
+- **Liguria's land use** (UdS 2025, CC BY 4.0, 4th-level codes such as 3111 holm oak and maquis):
+  read with #12's `fetch-lig`, which does not exist yet; its codes then map as the UCS's do, and
+  3111 to `forest`.
 - **The Aulella's catchment**: one published figure, the 208 km² ARPAL's Annali Idrologici 2017
   (part II) give the Soliera gauge, taken as a fact (as the rivers' calibration takes the gauge's
   flows, [water.md](water.md#sources)); no ARPAL data is shipped.
@@ -617,8 +641,8 @@ land cover. What it downloads is listed in the part's manifest, `data/parts/luci
 mosaic keeps the first tile's value, so the order of the `lidar` list is the priority, and
 Emilia-Romagna's DTM is asked for only when cells are left past the Tuscan sources. It copies the
 2019 sheets' layers the build reads (`AED`, `AGE`, `AVI`, `AZR`, `AFE`) to `data/raw/rt/ctr`, and of
-`VLI` (42 MB over the 25 sheets, mostly contour lines) only the `0117` track centrelines (29 KB,
-9 KB gzipped), through `subsetShp` in `shp.ts`, which renumbers the records and rewrites the file
+`VLI` (42 MB over the 25 sheets, mostly contour lines) only the `0117` track centrelines (29 KB, 9
+KB gzipped), through `subsetShp` in `shp.ts`, which renumbers the records and rewrites the file
 length, bounding box, z range and record count. Of each 2009 sheet it copies `AE_a`, `AV_a`, `AC_a`
 and, cut by `subsetShp` to the ruins (code 0205), `ML_l` to `data/raw/rt/ctr2009/<sheet>_<layer>`
 (the archive names them `<sheet><layer>`, with no underscore; a sheet that maps no building or road
@@ -659,10 +683,11 @@ the surveys alone (the 2019 sheets took 28 s with their downloads; 2.23 s and 12
 with the 2009 sheets and their ruins, 2026-11-03), leaving the LiDAR and the land cover, which comes
 from a live service and would move the map, as they are; `pnpm fetch-rt ucs` fetches the land cover
 alone (on 2026-10-31 the service gave the 425 pinned polygons of the five open covers back byte for
-byte, and 83 of codes 331 and 512 besides). A file whose unpacked bytes equal the new ones is not
-rewritten, so another zlib never churns a pinned file, and a cached archive folder with no files
-left in it (macOS purges the temporary directory's files but keeps its folders) is fetched again.
-Requests name only the project in their `User-Agent`.
+byte, and 83 of codes 331 and 512 besides; on 2026-11-03 the 508 pinned then, and 540 woods besides:
+478 broadleaf, 24 conifer and 38 mixed, which took the file from 208 KB to 649 KB). A file whose
+unpacked bytes equal the new ones is not rewritten, so another zlib never churns a pinned file, and
+a cached archive folder with no files left in it (macOS purges the temporary directory's files but
+keeps its folders) is fetched again. Requests name only the project in their `User-Agent`.
 
 ### 2. Projection and play area (`geometry.ts`, `play-area.ts`)
 
@@ -891,7 +916,20 @@ part](#adding-a-part)).
   Crespina) and the edge of the Aulella's bed by the Tassonaro, cut by the map's north edge,
   whose river lies beyond it; Cesena's, 12 river polygons along the Savio, a basin and a reservoir.
   The UCS land cover adds its quarries, rock (`rock`), sparse vegetation (`sparse`), pastures
-  (`grassland`), heath (`scrub`), the rivers' gravel (`pebble`) and its water bodies (`lake`). The
+  (`grassland`), heath (`scrub`), the rivers' gravel (`pebble`), its water bodies (`lake`) and its
+  woods (`forest`, `conifer`, `mixed`: `WOODS` in `kinds.ts`). The land cover's raster fills the
+  woods first, broadleaf then conifer and mixed over it, and every other area over them (`FILL` in
+  `src/sim/map/raster.ts`; the minimap and the full map paint in that order too, `fillPass` in
+  `src/render/map-style.ts`), so a UCS conifer wood inside OSM's forest makes it conifer, and a UCS
+  wood holds only ground no OSM area claims. The woods come cut on a 500 m grid on the local origin,
+  each piece 4 m past its square so the maps paint no seam (`piecesOf` in `ucs.ts`): an area lies
+  whole in every tile its outer ring's box comes within the halo of, and one wood across the valley,
+  10,254 vertices, lay in 19; whole, they took the tiles' areas from 0.69 to 8.0 MB before gzip and
+  the largest tile to 0.64 MB, cut 5.2 MB and 0.56 MB, with the same land cover to 5 cells and the
+  same trees. With the woods the raster turns 2.26 km² of meadow into woods and 1.06 km² of OSM's
+  forest into conifer and mixed; 94 buildings now stand in a UCS wood (90 on ground that was
+  meadow, most of them sheds and huts on a hamlet's edge or in the chestnut woods), and 44 of them,
+  30 sheds and 14 houses, are no longer farms. The
   surveys' asphalt road surfaces are added as `paved` areas: squares, lay-bys and station forecourts
   (578 of lucido's 581 `paved` areas, 30 of them the 2009 sheets').
 - **Barriers**: `barrier=wall`, `barrier=guard_rail` and `natural=cliff` lines. Walls and cliffs
@@ -1377,29 +1415,31 @@ id's node (`ids`), so the level-crossing boxes name their nodes without matching
 
 ### 12. Trees, spawns, districts (`trees.ts`, `spawns.ts`, `districts.ts`)
 
-- **Trees**: a jittered lattice at one tree per 50 m² inside forest areas. Trees stay out of other
-  areas, buildings (plus 2 m), roads (w/2 + 2 m), stream beds and the rail, its loops and sidings
-  included (6 m), and stand 1 m inside the built terrain's box on the region's tiles (`tiles` in
-  `region.ts`, those its parts' rectangles meet), outside the play area too. There the map holds no
-  roads, water, rail or buildings, so the trees keep off the inputs' own, cut to the box beyond the
-  outline (`clipBeyond` in `play-area.ts`; the roads as wide as the surveys map them, the buildings
-  whose centre lies beyond it). Before, on the L test region's notch, 1,763 more trees grew there,
-  467 of them on a road, 319 in a stream and 21 in a house of lucido's map, which holds those whole
-  (`l-region.map-test.ts` checks it). Sparse trees also line the banks of the streams the map holds
-  at least 4 m wide: a candidate every 9 m along the OSM way on each side, kept by a hash of the
-  way's id, the step and the side, at most one in a 4 m cell, and standing bed + 2 to bed + 5 m from
-  the centreline. The steps count from the way's start (`WaterF.from`, where the outline cut the
-  piece), so they stay put when the play area grows, but the bed is the piece's: where the outline
-  newly cuts a way sized by its piece (the Lucido and the Caldanella by the piece's mean ground,
-  Cesena's rivers by the piece's median width), its bank trees move with its width. Cesena's Savio
-  (way 1029104404) is cut into pieces 13.8 and 14 m wide; no Lunigiana way sized by its ground is
-  cut today, and a mask across one could switch its water between 8 and 4 m wide and move its bank
-  trees 2 m. The water areas and the rivers' gravel are areas too, so neither lattice nor bank trees
-  stand in them: 1,725 fewer on Lunigiana, 1,655 of them in the UCS gravel, mostly by the Aulella,
-  31 in the lakes and the river polygon and 39 at their edges, where the 2 m masks reach past the
-  outlines. No cap: 1 010 254 trees on Lunigiana (1 204 on the banks) and 5 521 on Cesena (171),
-  positions rounded to 1 m (at most one tree per spot) and a scale of 0.8–1.3. Placement uses a
-  fixed hash, not a random generator.
+- **Trees**: a jittered lattice at one tree per 50 m² inside the woods (`forest`, `conifer` and
+  `mixed` areas, `WOODS`). Trees stay out of other areas, buildings (plus 2 m), roads (w/2 + 2 m),
+  stream beds and the rail, its loops and sidings included (6 m), and stand 1 m inside the built
+  terrain's box on the region's tiles (`tiles` in `region.ts`, those its parts' rectangles meet),
+  outside the play area too. There the map holds no roads, water, rail or buildings, so the trees
+  keep off the inputs' own, cut to the box beyond the outline (`clipBeyond` in `play-area.ts`; the
+  roads as wide as the surveys map them, the buildings whose centre lies beyond it). Before, on the
+  L test region's notch, 1,763 more trees grew there, 467 of them on a road, 319 in a stream and 21
+  in a house of lucido's map, which holds those whole (`l-region.map-test.ts` checks it). Sparse
+  trees also line the banks of the streams the map holds at least 4 m wide: a candidate every 9 m
+  along the OSM way on each side, kept by a hash of the way's id, the step and the side, at most one
+  in a 4 m cell, and standing bed + 2 to bed + 5 m from the centreline. The steps count from the
+  way's start (`WaterF.from`, where the outline cut the piece), so they stay put when the play area
+  grows, but the bed is the piece's: where the outline newly cuts a way sized by its piece (the
+  Lucido and the Caldanella by the piece's mean ground, Cesena's rivers by the piece's median
+  width), its bank trees move with its width. Cesena's Savio (way 1029104404) is cut into pieces
+  13.8 and 14 m wide; no Lunigiana way sized by its ground is cut today, and a mask across one could
+  switch its water between 8 and 4 m wide and move its bank trees 2 m. The water areas and the
+  rivers' gravel are areas too, so neither lattice nor bank trees stand in them: 1,725 fewer on
+  Lunigiana, 1,655 of them in the UCS gravel, mostly by the Aulella, 31 in the lakes and the river
+  polygon and 39 at their edges, where the 2 m masks reach past the outlines. The UCS's woods add
+  43,294 lattice trees, and 256 bank trees standing in them give way: 43,038 more in all. No cap: 1
+  053 289 trees on Lunigiana (948 on the banks) and 5 521 on Cesena (171), positions rounded to 1 m
+  (at most one tree per spot) and a scale of 0.8–1.3. Placement uses a fixed hash, not a random
+  generator.
 - **A fixed lattice**: it starts at the region's anchor (`anchor` in `region.ts`: Lunigiana's
   (−2900, −6100), the corner of its first part, lucido; Cesena's (−2000, −2000)), set once and never
   taken from the bounds, and its cells run on past it either way, so adding a part moves no lattice
@@ -1469,9 +1509,10 @@ change an input.
   shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
   release. `writeLock` writes the fields in that
   order, one per line, so a re-pin's diff shows only the files that changed. Today: 340 files,
-  27.6 MB: 238 in `raw-20261030`, the land cover in `raw-20261031` (#73), the two terrains in
-  `raw-20261101` (#10, 6 files) and #11's 95 in `raw-20261103`, 1.16 MB (the 2009 sheets' 82
-  files, Pontremoli's 12 DBT files and its OSM extract).
+  28.0 MB: 238 in `raw-20261030`, the two terrains in `raw-20261101` (#10, 6 files), #11's 95 in
+  `raw-20261103`, 1.16 MB (the 2009 sheets' 82 files, Pontremoli's 12 DBT files and its OSM
+  extract), and the land cover with its woods in `raw-20261103-3` (#14, 0.65 MB; `raw-20261031`
+  holds #73's, 0.21 MB, which an older lock still fetches).
 - **Sources**: each fetch tool calls `recordSource` for every file it writes (`fetch-rt` also for
   each file it finds unchanged). `fetch-rt` gives the archive URL of the CTR sheet or section a file
   came from, and of a DBT layer's comune with the EPSG:3003 box its records were cut to
@@ -1543,10 +1584,11 @@ dense layers and the vectors, and what the vectors give readers far from the pla
 The tiles hold the dense layers (terrain, walls, trees and land cover) and the vectors round them:
 every road line, river, barrier, building and area, each whole in every tile it comes near. So the
 game downloads and decodes the vectors only near the player, as it does the dense layers: on
-Lunigiana the global file and the 4 tiles within 1 km of the start are 2.40 MB to download, where
-they were 3.10 MB with the vectors in the global file, and a production build's JS heap after a
-forced GC is 88–89 MB rather than 123–124 MB (`pnpm playtest heap`, three runs each, 2026-10-31,
-before and after main's water areas, #73).
+Lunigiana the global file and the 4 tiles within 1 km of the start are 2.51 MB to download (2.40 MB
+before the UCS's woods), where they were 3.10 MB with the vectors in the global file, and a
+production build's JS heap after a forced GC is 90 MB (88–89 MB before the woods) rather than
+123–124 MB (`pnpm playtest heap`, three runs each, 2026-10-31, before and after main's water
+areas, #73; 2026-11-03 with the woods).
 
 A tile is the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin, keyed `i_j`
 (`TILE` and `tileKey` in `src/sim/map/kinds.ts`). The listed tiles are the region's, each tile one
@@ -1577,8 +1619,8 @@ m off the extended edge on the L test region, and 1,140 of its 4,774 heights and
 | File | Lunigiana | Cesena |
 |---|---|---|
 | `src/sim/map/<name>.bin` (global) | 0.55 MB, 1.9 MB gunzipped | 0.62 MB, 2.4 MB gunzipped |
-| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 30, 8.9 MB in all, 0.05 to 0.53 MB each | 4, 1.7 MB in all, 0.36 to 0.45 MB each |
-| `src/sim/map/<name>/overview.png` | 2.99 MB, 3195 × 4096 px | 4.74 MB, 4000 × 4000 px |
+| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 30, 9.4 MB in all, 0.05 to 0.56 MB each | 4, 1.7 MB in all, 0.36 to 0.45 MB each |
+| `src/sim/map/<name>/overview.png` | 3.05 MB, 3195 × 4096 px | 4.74 MB, 4000 × 4000 px |
 
 With the vectors in the global file, before #63, Lunigiana's was 1.89 MB (6.26 MB gunzipped) and its
 tiles 5.70 MB, the largest 0.31 MB. Each `.bin` file is gzip (level 9) of one JSON line, a newline,
@@ -2004,7 +2046,8 @@ hollow under; a river polygon's built surface falling downstream through it and 
 over its river's bed; and no tree, parked car or player spawn in the water. `spawns.test.ts` keeps a
 parked car's box and the player's spawn out of a lake, `walls.long-test.ts` (`pnpm test:long`) rings
 a lake with shore walls and leaves a river polygon's carved banks open, `cover.test.ts` pins the
-cover bytes and draws the
+cover bytes (the conifer and mixed woods last), draws the woods first, the UCS's conifer and mixed
+over a forest and every other area over each wood, and draws the
 bars over the river and the line's bed only outside the water, and `features.test.ts` maps the
 water tags, `ele` and the POIs.
 
@@ -2115,57 +2158,60 @@ parts and reads a synthetic grid; `net.test.ts` serves a local HTTP server to ch
 remark (a server timeout) but not from a tag named `remark`, and `net.long-test.ts` (`pnpm
 test:long`) the retry of a 5xx after 2 s; `manifest.test.ts` pins `lucido`'s 25 sheets, 66 tiles (47
 of 2010 before 19 of 2012), one 10 m DTM, two surface-model elements and the 12 sheets of 2009, with
-no CTR 1:10 000 or DBT, `sillara`'s picks and `pontremoli-town`'s one DBT, reads a manifest
-written before the newer lists as listing none of them, and refuses one listing Minucciano's two
-DBT surveys but reads one of them alone; `fetch-rt.test.ts` runs `fetch-rt` and checks that it
-refuses a stage for a test region with buildings of its own and any test region with
-nothing of its own, before any request; `pick-sheets.test.ts`, `pick-lidar.test.ts` and
-`pick-diff.test.ts` check the area rule, first wins, the holes and the surface model's elements over
-them on synthetic grids; `fill-chain.test.ts` bends a filler into a 100 m hole of a tilted LiDAR (no
-step over 0.1 m at its rim), carries a 20 m ripple the lattice cannot fit through the band, keeps a
-filler to its `where` and its data, and bends a second filler onto the LiDAR and a first filler a
-cell off it (`fill-chain.long-test.ts`: a 5 km hole, linear in its cells); `terrain-sources.test.ts`
-reads ASCII grid windows (corner and centre registered), a GeoTIFF in EPSG:7791, the WCS request,
-the projection lattice (within 1 mm; the box round its corners within 0.01 mm), the open ground and
-the canopy filter (a tree with its fringe, a pit, scraps and strips narrower than the square, a
-slope left alone); `crs.test.ts` inverts `utm32ToLatLon` within 1 mm; `footprint.test.ts` the
-outline of an L, clusters, a road that leaves and comes back, one that runs off the query box
-(unresolved) and a mistyped flag; `fetch-osm.test.ts` the split on HTTP 400 with a fake server, the
-refusal of a test region (`checkFetchable`, before any request) but one with buildings of its own
-and the file `osmFile` names each region, and `buildingsOnly` (a road, a `building:part`, a land-use
-multipolygon and a `type=building` relation left out, each element's XML as the API wrote it, and
-the rings `assembleRings` rebuilds from `osmXml`'s file); `coverage-grid.test.ts` and
-`coverage.test.ts` first wins, the tally, ring assembly, no picks, and a WFS error answer never
-cached; `ortho.test.ts` and `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted
-sibling flight is look only) and an error answer for capabilities; `playtest.test.ts` the spots, the
-command line (shots, heap and drive with their defaults and flags) and the spot script;
-`playtest-drive.test.ts` the frame stats, the road chained through shared ends from the free end
-nearest the start and at a fork toward the goal, the page's drive script (run in a `vm` against a
-fake `gta`) and its report (the SP59 itself is `playtest-drive.map-test.ts`'s, above, as it reads
-the whole map's roads); `cdp.test.ts`, on a fake Chrome, a command's own timeout and the socket
-closed when a tab cannot open; `map-diff.test.ts` each category's change on small maps, a key it
-does not compare, walls and trees in another order (the fewest moved counted, copies of a removed
-segment left out), a tree on a spot both maps plant with another id there, buildings equal but for
-their id as one `ids:` line (a farm on one no difference, `--except buildings` accepting it; one
-that also changed removed and added; pieces sharing an id and identical copies paired one to one in
-order), a map from before the outline and `--except`, and `map-diff-args.test.ts` its command line;
-`geometry.test.ts` `clipRing` to a box; `trees.test.ts` the tiles' scatters merged by id against the
-scatter of their whole box (with two lattice points rounding onto one spot from either side of a
-seam, and a stream beside another whose bank trees fall in its 4 m cells), a tile's trees and ids
-when the region's box grows, a stream's piece the outline cut keeping the whole stream's bank trees,
-a stream's banks in every listed tile and none in one left out, and the last bank cell's tree
-getting the largest id (its look's seeds below 2³², a cell further throwing); `region.test.ts` the
-regions' parts, bounds, tiles and tree anchors, `pontremoli-town` the one region with buildings of
-its own and `surveyDir`, and `checkMask` on a diagonal mask in an L and on each fault (too few
-vertices, off 0.1 m, clockwise, a repeated vertex, a fold, a crossing, a vertex or an edge outside
-the rectangles, a mask round a gap in a donut of rectangles); `play-area.test.ts` the outline of one
-rectangle (south, east, north, west), an L of two, overlapping rectangles, rectangles sharing a
-side, a diagonal mask, a mask and a rectangle crossing off the 0.1 m lattice, a hole, two rings
-touching at a corner and a hole touching the outer ring or another hole at one, `onOutline` finding
-rail ends rounded off a slanted edge, the notch cutting a line in two with ids kept and cuts
-id-less, each piece's start along the whole line (`clipPieces`), a line past the L's inner corner
-(or a mask's slanted one) within a micrometre staying whole, and clipping to one rectangle against
-Liang–Barsky on 4000 random lines and lines through its corners;
+no CTR 1:10 000 or DBT, `sillara`'s picks and `pontremoli-town`'s one DBT, reads a manifest written
+before the newer lists as listing none of them, and refuses one listing Minucciano's two DBT surveys
+but reads one of them alone; `fetch-rt.test.ts` runs `fetch-rt` and checks that it refuses a stage
+for a test region with buildings of its own and any test region with nothing of its own, before any
+request; `pick-sheets.test.ts`, `pick-lidar.test.ts` and `pick-diff.test.ts` check the area rule,
+first wins, the holes and the surface model's elements over them on synthetic grids;
+`fill-chain.test.ts` bends a filler into a 100 m hole of a tilted LiDAR (no step over 0.1 m at its
+rim), carries a 20 m ripple the lattice cannot fit through the band, keeps a filler to its `where`
+and its data, and bends a second filler onto the LiDAR and a first filler a cell off it
+(`fill-chain.long-test.ts`: a 5 km hole, linear in its cells); `terrain-sources.test.ts` reads ASCII
+grid windows (corner and centre registered), a GeoTIFF in EPSG:7791, the WCS request, the projection
+lattice (within 1 mm; the box round its corners within 0.01 mm), the open ground and the canopy
+filter (a tree with its fringe, a pit, scraps and strips narrower than the square, a slope left
+alone); `crs.test.ts` inverts `utm32ToLatLon` within 1 mm; `footprint.test.ts` the outline of an L,
+clusters, a road that leaves and comes back, one that runs off the query box (unresolved) and a
+mistyped flag; `fetch-osm.test.ts` the split on HTTP 400 with a fake server, the refusal of a test
+region (`checkFetchable`, before any request) but one with buildings of its own and the file
+`osmFile` names each region, and `buildingsOnly` (a road, a `building:part`, a land-use multipolygon
+and a `type=building` relation left out, each element's XML as the API wrote it, and the rings
+`assembleRings` rebuilds from `osmXml`'s file); `coverage-grid.test.ts` and `coverage.test.ts` first
+wins, the tally, ring assembly, no picks, and a WFS error answer never cached; `ortho.test.ts` and
+`ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted sibling flight is look only) and
+an error answer for capabilities; `playtest.test.ts` the spots, the command line (shots, heap and
+drive with their defaults and flags) and the spot script; `playtest-drive.test.ts` the frame stats,
+the road chained through shared ends from the free end nearest the start and at a fork toward the
+goal, the page's drive script (run in a `vm` against a fake `gta`) and its report (the SP59 itself
+is `playtest-drive.map-test.ts`'s, above, as it reads the whole map's roads); `cdp.test.ts`, on a
+fake Chrome, a command's own timeout and the socket closed when a tab cannot open;
+`map-diff.test.ts` each category's change on small maps, a key it does not compare, walls and trees
+in another order (the fewest moved counted, copies of a removed segment left out), a tree on a spot
+both maps plant with another id there, buildings equal but for their id as one `ids:` line (a farm
+on one no difference, `--except buildings` accepting it; one that also changed removed and added;
+pieces sharing an id and identical copies paired one to one in order), a map from before the outline
+and `--except`, and `map-diff-args.test.ts` its command line; `geometry.test.ts` `clipRing` to a
+box; `ucs.test.ts` a wood cut on the 500 m squares, each piece 4 m past its square, filling the
+whole wood's pixels but within 6 cm of its edges, an open cover kept whole, and a clearing wider
+than a piece kept clear whichever vertex its ring starts at; `trees.test.ts` the tiles' scatters
+merged by id against the scatter of their whole box (with two lattice points rounding onto one spot
+from either side of a seam, and a stream beside another whose bank trees fall in its 4 m cells), a
+tile's trees and ids when the region's box grows, a stream's piece the outline cut keeping the whole
+stream's bank trees, a stream's banks in every listed tile and none in one left out, the last bank
+cell's tree getting the largest id (its look's seeds below 2³², a cell further throwing), and the
+conifer and mixed woods growing a forest's trees, an open area over one keeping them out;
+`region.test.ts` the regions' parts, bounds, tiles and tree anchors, `pontremoli-town` the one
+region with buildings of its own and `surveyDir`, and `checkMask` on a diagonal mask in an L and on
+each fault (too few vertices, off 0.1 m, clockwise, a repeated vertex, a fold, a crossing, a vertex
+or an edge outside the rectangles, a mask round a gap in a donut of rectangles); `play-area.test.ts`
+the outline of one rectangle (south, east, north, west), an L of two, overlapping rectangles,
+rectangles sharing a side, a diagonal mask, a mask and a rectangle crossing off the 0.1 m lattice, a
+hole, two rings touching at a corner and a hole touching the outer ring or another hole at one,
+`onOutline` finding rail ends rounded off a slanted edge, the notch cutting a line in two with ids
+kept and cuts id-less, each piece's start along the whole line (`clipPieces`), a line past the L's
+inner corner (or a mask's slanted one) within a micrometre staying whole, and clipping to one
+rectangle against Liang–Barsky on 4000 random lines and lines through its corners;
 `src/sim/map/__tests__/outline.test.ts` `insideRings`'s margins round the L's inner corner, a
 clockwise hole, and `edgeDistance` beside and past an edge; `walls.test.ts` the outline walls
 closing the L and a rectangle's running south, east, north, west.
@@ -2300,7 +2346,8 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   (`gta.heightAt` falls back to it), then, 2 s later, once the view's tiles have streamed in, on the
   exact ground. `lucido`, production build, `?seed=7`, three runs on 2026-10-31 interleaved with
   main's build: first frame 0.32–0.35 s, slowest frame 16.8 ms, heap 88–89 MB (array buffers
-  included), against main's 0.41–0.44 s and 123–124 MB with the vectors in the global file, where
+  included; on 2026-11-03 with the UCS's woods 0.35–0.37 s and 90 MB, against 0.34–0.38 s and 89 MB
+  before them), against main's 0.41–0.44 s and 123–124 MB with the vectors in the global file, where
   the whole map before the tiles took 0.92–0.98 s and 250 MB (dev build then 1.01 s and 274 MB).
 - **`pnpm playtest drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,…]`** (dev
   builds only: it needs `gta.player`, `gta.teleport` and `gta.tiles`) runs the tile streaming at
@@ -2320,7 +2367,7 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   slowest frame was 16.8 ms and none passed 30 ms, at most 6 tiles were in memory, 4 at Vinca (0_-2,
   1_-2, 0_-1, 1_-1), and the heap there was 123 MB; main's build then had one frame of 33.3 ms and
   156 MB (two runs before, each seam at 16.8 ms at worst, one with a 33.3 ms frame off the seams,
-  157 MB).
+  157 MB). On 2026-11-03, with the UCS's woods and the trees' species, the same but 124 MB.
 - **`pnpm map-diff <a.bin> <b.bin> [--except <category,...>]`** (`map-diff.ts`, `map-diff-args.ts`,
   `map-diff-dense.ts`, `diff-lists.ts`) prints, category by category, what differs between two
   built maps, each a global file with its tiles in the directory of its name beside it (keep a
@@ -2366,8 +2413,8 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   the cut moved every vector into the tiles unchanged (on Lunigiana, Cesena and the L test region).
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
-  `lucido`'s largest, 0_0, is 0.53 MB with its vectors (its JSON line 0.70 MB before gzip), where
-  −1_−1's 0.31 MB was the largest without them; Cesena's largest is 0.45 MB and the L's 0.47 MB.
+  `lucido`'s largest, 0_0, is 0.56 MB with its vectors (its JSON line 0.77 MB before gzip), where
+  −1_−1's 0.31 MB was the largest without them; Cesena's largest is 0.45 MB and the L's 0.52 MB.
 
 Only `lucido` is fetched and built: `pnpm fetch-osm` and `pnpm map` cover the Lunigiana region's
 bounds (`BOUNDS`; `--region cesena` builds the separate Cesena map instead, and the part tools
@@ -2425,8 +2472,9 @@ carries the roads, water, rail and buildings across the old edge, which then are
   the 3x's 6,390, so the 3x leaves out no other ([Test regions](#test-regions)). 2 farms go too (2
   more move to their whole building), the paving in front of them (6 land-cover cells within 6 m of
   the edge) and 10 m of a district disc of Argigliano's (r 120 → 110 m).
-- **Areas across the edge** are clipped to the box, not the play area, so on the 3x 22 run on
-  whole past lucido's edge and 84 more lie beyond it. A cut is rounded to 0.1 m, which moves the
+- **Areas across the edge** are clipped to the box, not the play area, so on the 3x 84 run on
+  whole past lucido's edge (64 of them pieces of the UCS's broadleaf woods) and 447 more lie beyond
+  it. A cut is rounded to 0.1 m, which moves the
   cut edge by up to 5 cm: 1 more land-cover cell, 2 m in, differs.
 - **Water areas across the edge**: a lake the box cuts takes its level from the nodes inside it,
   and a river polygon the waterways that run through the part of it inside, so a part that carries
@@ -2562,8 +2610,17 @@ carries the roads, water, rail and buildings across the old edge, which then are
   its river's depth, so on Cesena's Savio, whose catchment the map holds only 3 km² of, it is a few
   centimetres deep: 54 % of the polygons' cells are wet at the mean flow, 62 % in a spate.
 - **Land cover is 1:10 000.** The UCS polygons (0.5 ha minimum) generalise the edge between rock,
-  pasture and wood; tree species are not mapped tree by tree (conifers are a flat 3% of the woods,
-  their share in the UCS woodland around the valley).
+  pasture and wood, and their woods take in the gardens and sheds on a hamlet's edge.
+- **Tree species are drawn, not mapped.** No open source maps them tree by tree: each tree's comes
+  from its land cover, height and aspect by the forest inventory's shares (`speciesAt` in
+  `src/render/trees.ts`), so a beech wood or a chestnut grove has its mix, not its edge. On the
+  built map the beech's share of the woods' trees is 0% below 400 m, 1.3% at 400–800 m, 17.6% at
+  800–1000 m, 57.8% at 1000–1200 m, 89.5% at 1200–1400 m and 98.7% at 1400–1600 m, against the
+  inventory's 0, 0–1, 16, 55, 89 and 100% (`trees.map-test.ts`); the oaks' 31.6% below 200 m, 34.1%
+  at 200–400 m, 18.4% at 400–800 m, 18.0% at 800–1000 m and 11.1% at 1000–1200 m against its 39, 26,
+  18, 23 and 10%. The hop-hornbeam and the riparian
+  trees draw as chestnut, and the black pine and Douglas fir of the plantations as the conifers'
+  cone. Liguria's woods wait for #12.
 - **Some names only exist on addresses.** The vote can pick the wrong piece of road. Culverted
   waterways are dropped; at-grade crossings imply a culvert instead.
 - **Re-downloading changes the map.** `pnpm fetch-osm` pulls current OSM edits;

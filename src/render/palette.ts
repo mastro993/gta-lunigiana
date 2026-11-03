@@ -27,6 +27,12 @@ export const PALETTE = {
   forest: 0x47592f,
   forestDark: 0x2c3d22,
   conifer: 0x1b2c24,
+  // Beech and pine canopies (render/trees): forest scaled in linear light by their orthophoto medians over the chestnut woods'
+  // (400–800 m, north faces), on Regione Toscana's 2021 and 2023 summer flights (rt_ofc.5k21 and 5k23, CC BY 4.0), each pair
+  // in one flight strip and aspect: beech (0.82, 0.79, 0.57) over 17 patches above 1250 m; pine (0.59, 0.58, 0.86) over the
+  // pine woods on the Massa hills (the coast's stone pines read 4–7 times apart on the two flights).
+  beech: 0x404f22,
+  pine: 0x36442b,
   dirtTrack: 0x8f7a58,
   waterShallow: 0x8db4b0,
   waterDeep: 0x3f6d63,

@@ -3,6 +3,7 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
+import { fillPass } from "../render/map-style.ts"
 import type { AreaKind, BuildingStyle, RoadClass } from "../sim/map/index.ts"
 import { fillPolygon, segDist2 } from "./geometry.ts"
 import { builtMapUrl, loadBuiltMap, readWholeMap } from "./map-file.ts"
@@ -10,7 +11,7 @@ import { encodePngRgb } from "./png.ts"
 import { REGION } from "./region.ts"
 
 await loadBuiltMap(REGION)
-const { buildingStyleOf, graph, heightAt, isAreaKind, isWaterArea, MAP, ROAD_CLASSES } =
+const { buildingStyleOf, graph, heightAt, isAreaKind, isWaterArea, isWood, MAP, ROAD_CLASSES } =
   await import("../sim/map/index.ts")
 // The trees, walls and vectors live in the tiles: read them all, joined in the whole map's order,
 // which the alpha blending below follows.
@@ -81,6 +82,8 @@ for (let j = 0; j < H; j++)
   }
 const AREA = {
   forest: [40, 110, 50],
+  conifer: [20, 70, 45],
+  mixed: [30, 90, 48],
   cemetery: [150, 150, 170],
   pitch: [90, 200, 90],
   park: [120, 190, 100],
@@ -104,12 +107,25 @@ const AREA = {
   river: [60, 120, 220],
   lake: [60, 120, 220],
 } as const satisfies Record<AreaKind, RGB>
-for (const a of areas)
-  fill(
-    a.rings,
-    isAreaKind(a.kind) ? AREA[a.kind] : [255, 0, 255],
-    a.kind === "forest" ? 0.25 : isWaterArea(a.kind) ? 0.8 : 0.45,
-  )
+// Each pixel takes the last area to fill it in the maps' order (`fillPass`: the woods first), blended
+// once: a wood's pieces overlap 4 m past their squares, and two blends would draw their seams.
+const top = new Int32Array(W * H).fill(-1)
+const fillOrder = areas
+  .map((_, k) => k)
+  .sort((a, b) => fillPass(areas[a]!.kind) - fillPass(areas[b]!.kind))
+for (const k of fillOrder)
+  fillPolygon(areas[k]!.rings, minX, minY, 1 / scale, { c0: 0, r0: 0, cols: W, rows: H }, (p) => {
+    top[p] = k
+  })
+for (let p = 0; p < top.length; p++) {
+  const kind = areas[top[p]!]?.kind
+  if (kind !== undefined)
+    blend(
+      p,
+      isAreaKind(kind) ? AREA[kind] : [255, 0, 255],
+      isWood(kind) ? 0.25 : isWaterArea(kind) ? 0.8 : 0.45,
+    )
+}
 for (let i = 0; i + 2 < trees.length; i += 3)
   dot(trees[i]!, trees[i + 1]!, 0.9 * trees[i + 2]!, [20, 70, 30], 0.8)
 for (const w of water) polyline(w.pts, w.w / 2, [60, 120, 220])

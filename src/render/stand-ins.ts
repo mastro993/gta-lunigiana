@@ -44,11 +44,7 @@ export const standIns = (): { readonly group: Group; readonly dispose: () => voi
   const car = new VehicleNode("panda", 0xffffff, shape, actorMaterial)
   car.showXray(true) // x-ray boxes are built the first time they show
   // One broadleaf at the origin, on no ground (no tile need be in memory): an InstancedMesh with instance colours, as every chunk's trees are.
-  const trees: Array<InstancedMesh> = treeMeshes(
-    { broadleaf: [0, 0, 1, 1], conifer: [] },
-    treeMaterial,
-    () => 0,
-  )
+  const trees: Array<InstancedMesh> = treeMeshes([0, 0, 1, 1], treeMaterial, () => 0, ["broadleaf"])
   group.add(
     ...[
       solidMaterial,

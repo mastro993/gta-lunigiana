@@ -52,6 +52,8 @@ const COVER_LOOK = {
   pebble: { base: PALETTE.limestone, alt: PALETTE.marbleWhite, share: 0.4 },
   river: { base: PALETTE.limestone, alt: PALETTE.marbleWhite, share: 0.4 },
   lake: { base: PALETTE.dirtTrack, alt: PALETTE.stoneMid, share: 0.4 },
+  conifer: { base: PALETTE.forestDark, alt: PALETTE.conifer, share: 0.35 },
+  mixed: { base: PALETTE.forestDark, alt: PALETTE.forest, share: 0.35 },
 } as const satisfies Record<Cover, CoverLook>
 
 const PATCH = 4 // cells between noise lattice points: variant patches are blobs of ~16 m, not single cells

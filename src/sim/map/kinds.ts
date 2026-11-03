@@ -213,7 +213,7 @@ export const BUILDING_STYLES = [
 ] as const
 export type BuildingStyle = (typeof BUILDING_STYLES)[number]
 
-/** Land-use kinds the build emits: land covers, a river's gravel (`pebble`) and its water (`river`, `lake`). */
+/** Land-use kinds the build emits: land covers (the woods among them, `WOODS`), a river's gravel (`pebble`) and its water (`river`, `lake`). */
 export const AREA_KINDS = [
   "forest",
   "cemetery",
@@ -238,12 +238,23 @@ export const AREA_KINDS = [
   "pebble",
   "river",
   "lake",
+  "conifer",
+  "mixed",
 ] as const
 export type AreaKind = (typeof AREA_KINDS)[number]
 
 const areaKinds: ReadonlySet<string> = new Set(AREA_KINDS)
 /** Whether `kind` is one of AREA_KINDS. */
 export const isAreaKind = (kind: string): kind is AreaKind => areaKinds.has(kind)
+
+/** The woods, where the trees grow: broadleaf (`forest`, OSM's and the UCS's), and the UCS's conifer and mixed woods. */
+export const WOODS = ["forest", "conifer", "mixed"] as const satisfies ReadonlyArray<AreaKind>
+/** A kind of wood. */
+type Wood = (typeof WOODS)[number]
+
+const woods: ReadonlySet<string> = new Set(WOODS)
+/** Whether an area or a cover of `kind` is a wood (`WOODS`). */
+export const isWood = (kind: string): kind is Wood => woods.has(kind)
 
 /** Whether an area of `kind` holds water: a river's polygon (its bed, as wide as it spreads) or a lake; a river's gravel (`pebble`) does not. */
 export const isWaterArea = (kind: string): kind is "river" | "lake" =>

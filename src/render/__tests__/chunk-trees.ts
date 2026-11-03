@@ -10,8 +10,8 @@ import { bucketTileTrees, chunkTrees } from "../trees.ts"
 
 /**
  * Asserts that every chunk reading only tiles of `keys` gets, from them, the trees standing in it
- * and those mirrored into it past the edges they stand within the apron of, each kind in seed
- * order and both together the bucket a whole-map list of those tiles' trees gives it; returns how
+ * and those mirrored into it past the edges they stand within the apron of, in seed order: the
+ * bucket a whole-map list of those tiles' trees gives it; returns how
  * many such chunks hold trees and how many of them mirrored ones.
  */
 export const assertChunkTrees = (
@@ -64,16 +64,7 @@ export const assertChunkTrees = (
       assert.equal(expected.length, 0, `chunk ${key} has trees`)
       continue
     }
-    // Each kind in seed order, the two together the whole map's bucket.
-    const quads = [got.broadleaf, got.conifer].flatMap((list) =>
-      Array.from({ length: list.length / 4 }, (_, i) =>
-        Array.from({ length: 4 }, (_, n) => list[4 * i + n]!),
-      ),
-    )
-    for (const list of [got.broadleaf, got.conifer])
-      for (let i = 4; i < list.length; i += 4)
-        assert.ok(list[i + 3]! >= list[i - 1]!, `chunk ${key} in seed order`)
-    assert.deepEqual(quads.sort((a, b) => a[3]! - b[3]!).flat(), expected, `chunk ${key}`)
+    assert.deepEqual(Array.from(got), expected, `chunk ${key}`)
     checked++
     if (expected.some((v, i) => i % 4 === 3 && v % 3 === 1)) mirrored++
   }

@@ -1055,7 +1055,8 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   slack stream to its pasture, and in deeper or faster water an animal paddles for the nearer
   bank ([water.md](water.md#people-and-animals-in-the-water)).
 - **Roaming.** An animal rests (a cat 4–20 s, a dog 3–12, a cow 8–40 grazing, a pig 4–15; TUNED),
-  then walks to a random point within its home range of home where it may stand: cows on pasture
+  then walks to a random point within its home range of home, in the play area (`inPlay`: a cow 3 m
+  inside an L's notch once walked at a point past the outline), where it may stand: cows on pasture
   cover (meadow, grassland, farmland), pigs on open ground, cats and dogs anywhere outdoors. A
   point on the railway's track at grade or over it is brought back to the animal's side, 3 m off
   the centreline beside where it was drawn (`ownSide`, `rail/bodies.ts`, with the same draws), so
@@ -1100,8 +1101,8 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
 A farm (`src/sim/population/farms.ts`) is a house, barn, shed, `farm_auxiliary` or silo, not a ruin,
 whose centre lies on meadow, grassland, farmland or farmyard cover. It is rural when fewer than 60
 residents live within 140 m (`RURAL`, TUNED), and a pen (pigs live there) when it is a barn, shed or
-`farm_auxiliary`, or stands on a farmyard. The map has 2,455 farms, 1,759 of them rural, 814 pens
-and 665 rural pens. Finding them reads the land cover under every building, so the build does it
+`farm_auxiliary`, or stands on a farmyard. The map has 2,411 farms, 1,719 of them rural, 784 pens
+and 637 rural pens. Finding them reads the land cover under every building, so the build does it
 (`bakeFarms`) and the global file keeps the list (`MAP.farms`, each with its building's index in
 the whole map's buildings) and each farm's centre (`MAP.derived.farms`); a farm's own building is
 read from the tile at its centre (`farmBuilding`). A pasture for a herd is meadow,

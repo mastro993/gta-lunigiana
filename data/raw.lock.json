@@ -2034,9 +2034,9 @@
     "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
   },
   "rt/ucs.json.gz": {
-    "sha256": "fb1585716f37ff93efe1b8f60a8e45f0e07dbcd94d7cd8b0bb65e933f2371ab6",
-    "bytes": 208339,
-    "asset": "raw-20261031/rt.ucs.json.gz",
-    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-10-31"
+    "sha256": "ff5e0211defdd85937214e9977878bf00a0a2134ab68d18bda6a0b1d627cbbae",
+    "bytes": 648752,
+    "asset": "raw-20261103-3/rt.ucs.json.gz",
+    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-03"
   }
 }

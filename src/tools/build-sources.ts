@@ -79,8 +79,9 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   const osmAreas = extractAreas(osm)
   const areas: Array<Area> = [
     ...osmAreas.filter((a) => a.kind !== "platform"),
-    // Rock, pastures and quarries OSM lacks above the woods, the rivers' gravel, and the water
-    // bodies OSM lacks (OSM's own draws the same water finer, with its level).
+    // Rock, pastures and quarries OSM lacks above the woods, the rivers' gravel, the woods by type
+    // (they refine OSM's, and fill only ground no OSM area claims: `FILL` in sim/map/raster.ts),
+    // and the water bodies OSM lacks (OSM's own draws the same water finer, with its level).
     ...(lunigiana
       ? readUcs(join(root, "data/raw/rt/ucs.json.gz")).filter(
           (a) => !isWaterArea(a.kind) || !osmAreas.some((o) => overlap(a, o)),

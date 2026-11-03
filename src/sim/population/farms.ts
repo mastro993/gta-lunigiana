@@ -86,7 +86,7 @@ const build = () => {
   return { list, grid, roads }
 }
 /**
- * Built on first use from the baked farms: 2,455 on the current map, 1,759 of them rural. The first fill
+ * Built on first use from the baked farms: 2,411 on the current map, 1,719 of them rural. The first fill
  * (`FillAnimals`, in `setup`) asks for farms, so the build happens behind the title card, not in play.
  */
 let built: ReturnType<typeof build> | undefined

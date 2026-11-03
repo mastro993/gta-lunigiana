@@ -1,5 +1,5 @@
-// The deterministic tree scatter: a jittered lattice inside forest, plus sparse trees on the banks
-// of the wider streams. The lattice and its 2 m masks (forest, other areas, buildings) start at the
+// The deterministic tree scatter: a jittered lattice inside the woods, plus sparse trees on the banks
+// of the wider streams. The lattice and its 2 m masks (woods, other areas, buildings) start at the
 // region's anchor, fixed for good, and a tree's id is its lattice cell's number (a bank tree's, its
 // 4 m cell's, past every lattice cell's), so no lattice tree moves, and no tree changes its id or
 // its look, as parts are added (a bank tree keeps its step along its way, but stands off its
@@ -8,7 +8,7 @@
 // alone; a tree belongs to the window holding its rounded point, so two lattice points that round
 // onto one spot meet in one window, which keeps the first.
 import type { Area } from "../sim/map/index.ts"
-import { TILE } from "../sim/map/kinds.ts"
+import { isWood, TILE } from "../sim/map/kinds.ts"
 import type { BuildingF, RailF, RoadF, WaterF } from "./features.ts"
 import { arcLengths, fillPolygon, hash01, pointAt, r1, ringBox, segIndex } from "./geometry.ts"
 import type { Rect, Region } from "./region.ts"
@@ -40,7 +40,7 @@ interface KeptOff {
   readonly rail: ReadonlyArray<RailF>
 }
 
-/** What the trees grow in (forest areas) and keep out of (the other areas, and every feature). */
+/** What the trees grow in (the woods, `WOODS`) and keep out of (the other areas, and every feature). */
 export interface TreeFeatures extends KeptOff {
   readonly areas: ReadonlyArray<Area>
   /**
@@ -93,7 +93,7 @@ const bankCandidates = (water: ReadonlyArray<WaterF>) => {
 /**
  * The scatter of `features` on `ground`'s lattice. `(window)` gives the trees whose rounded point
  * lies in the window [x0, y0, x1, y1) (whole metres) in id order, flat (x, y, scale) triples on
- * whole metres: in forest, clear of the other areas, buildings (2 m), roads (w/2 + 2 m), stream
+ * whole metres: in the woods, clear of the other areas, buildings (2 m), roads (w/2 + 2 m), stream
  * beds and the rail (6 m), 1 m inside the built terrain. Any cut of the ground into windows gives
  * the same trees with the same ids.
  */
@@ -114,13 +114,13 @@ export const treeScatter = (
     for (const w of water) keepOut.addLine(w.pts, w.bed, null)
     for (const r of rail) if (r.tunnel !== true) keepOut.addLine(r.pts, 6, null)
   }
-  const FOREST = 0,
+  const WOOD = 0,
     OPEN = 1,
     BUILT = 2
   // Each mask's polygons, with their boxes.
   const kinds = [
-    areas.filter((a) => a.kind === "forest").map((a) => a.rings),
-    areas.filter((a) => a.kind !== "forest").map((a) => a.rings),
+    areas.filter((a) => isWood(a.kind)).map((a) => a.rings),
+    areas.filter((a) => !isWood(a.kind)).map((a) => a.rings),
     keptOff.flatMap(({ buildings }) => buildings.map((b) => [b.outer, ...(b.holes ?? [])])),
   ].map((polys) =>
     polys.map((rings) => {
@@ -199,7 +199,7 @@ export const treeScatter = (
           y = ay + (gj + hash01(gi, gj, 2)) * STEP
         const tx = Math.round(x),
           ty = Math.round(y)
-        if (mine(tx, ty) && at(FOREST, x, y) && free(x, y) && take(tx, ty)) {
+        if (mine(tx, ty) && at(WOOD, x, y) && free(x, y) && take(tx, ty)) {
           trees.push(tx, ty, r1(0.8 + 0.5 * hash01(gi, gj, 3)))
           ids.push(latticeId(gi, gj))
         }
@@ -210,7 +210,7 @@ export const treeScatter = (
     bankAt.forEach(([tx, ty], b) => {
       const x = bank.x[b]!,
         y = bank.y[b]!
-      if (!mine(tx, ty) || at(FOREST, x, y) || !free(x, y)) return
+      if (!mine(tx, ty) || at(WOOD, x, y) || !free(x, y)) return
       const id = bankId(Math.floor((tx - ax) / BANK_CELL), Math.floor((ty - ay) / BANK_CELL))
       if (cells.has(id) || !take(tx, ty)) return
       cells.add(id)

@@ -15,7 +15,7 @@ import { viewAxes } from "../pipeline.ts"
 import { CUT_UNIFORMS } from "../see-through.ts"
 import { SeeThrough, sight } from "../sightline.ts"
 import { residentAround, vectorsAround } from "../testing.ts"
-import { inCrown } from "../trees.ts"
+import { inCrown, kindAt } from "../trees.ts"
 
 const HOME = viewAxes(0).back
 const spawn = MAP.spawns.player
@@ -71,11 +71,12 @@ test("the player at the spawn, in the street, is not hidden", () => {
   assert.equal(hidden(at(spawn.x, spawn.y, 1.6)), false)
 })
 
-test("a person under a tree's crown is hidden by it", () => {
-  // The first tree near the spawn: from its trunk, 1.5 m up (a head under the crown), the line climbs through the crown.
+test("a person under a chestnut's crown is hidden by it", () => {
+  // The first broadleaf near the spawn (its crown from 1.7 m up a 2 m trunk; a pine's starts at 4.7 m): from its trunk,
+  // 1.5 m up (a head under the crown), the line climbs through the crown.
   let tree: readonly [number, number, number, number] | undefined
   treesIn(spawn.x - 300, spawn.y - 300, spawn.x + 300, spawn.y + 300, (x, y, scale, id) => {
-    tree ??= [x, y, scale, id]
+    if (tree === undefined && kindAt(x, y, 3 * id) === "broadleaf") tree = [x, y, scale, id]
   })
   assert.ok(tree !== undefined)
   const [x, y, scale] = tree

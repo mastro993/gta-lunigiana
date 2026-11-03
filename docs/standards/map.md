@@ -82,7 +82,7 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   (the place, the catchments, the walls and buildings along the old edge) is in [What growing a
   region changes](../map.md#what-growing-a-region-changes); keep that list true when a part shows
   more.
-- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.53 MB, Lunigiana's
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.56 MB, Lunigiana's
   0_0 with the vectors round it, the build prints it, and `src/__tests__/maps.map-test.ts` fails past
   it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,

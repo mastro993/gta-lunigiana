@@ -7,7 +7,7 @@
  * @module audio/places/animals
  */
 import { type Cover, coverAt } from "../../sim/map/cover.ts"
-import { type Building, heightAt, MAP, TILE, treesIn } from "../../sim/map/index.ts"
+import { type Building, heightAt, isWood, MAP, TILE, treesIn } from "../../sim/map/index.ts"
 import { isListed } from "../../sim/map/tiles.ts"
 import { type Box, buildingsInMemory } from "../../sim/map/vectors.ts"
 import { hash01 } from "../../tools/geometry.ts"
@@ -98,7 +98,7 @@ export interface Owl {
 
 /**
  * One owl territory in `OWL_SHARE` of the map's `OWL_CELL` m squares with woods in them (a tawny owl holds 20–30 ha), perched
- * `OWL_PERCH` m up a tree at the first of `OWL_TRIES` hashed points of the square that falls in forest on a listed tile (an
+ * `OWL_PERCH` m up a tree at the first of `OWL_TRIES` hashed points of the square that falls in a wood on a listed tile (an
  * L's notch has no woods of its own: its ground and cover extend its edge's).
  */
 const OWL_CELL = 500,
@@ -130,7 +130,7 @@ const owlOf = (i: number, j: number): Owl | undefined => {
       y = Math.min(maxY, minY + (j + hash01(i, j, k, 13)) * OWL_CELL)
     if (!isListed(Math.floor(x / TILE), Math.floor(y / TILE))) continue
     if (!exactAt(x, y)) return undefined
-    if (coverAt(x, y) !== "forest") continue
+    if (!isWood(coverAt(x, y))) continue
     owl = { key: `owl:${i},${j}`, x, y, z: heightAt(x, y) + OWL_PERCH }
     break
   }

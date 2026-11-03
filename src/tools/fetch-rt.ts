@@ -42,7 +42,8 @@
 //   decimetres, each row delta-coded, deflated; dtm-src.bin holds each 2 m cell's source.
 // - ucs.json.gz: land cover 1:10 000, 2019 ("Uso e copertura del suolo", CC BY 4.0), EPSG:3003:
 //   the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse vegetation,
-//   pastures, heath), the rivers' gravel and the water bodies, from the WFS.
+//   pastures, heath), the rivers' gravel, the water bodies and the broadleaf, conifer and mixed
+//   woods, from the WFS.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
