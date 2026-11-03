@@ -23,6 +23,11 @@
     "asset": "raw-20261030/lunigiana.osm.gz",
     "source": "https://api.openstreetmap.org/api/0.6/map?bbox=10.092494,44.105952,10.192509,44.197749 and each area multipolygon's /relation/<id>/full, in git since 2026-10-20 (66ae295)"
   },
+  "pontremoli-town.osm.gz": {
+    "sha256": "5feea676962bde1c9490d9e727fe036d51476841637611b1408ad603bfbddf25",
+    "bytes": 272337,
+    "source": "https://api.openstreetmap.org/api/0.6/map?bbox=9.869961,44.368742,9.892464,44.384941 and each building multipolygon's /relation/<id>/full, buildings only, fetched 2026-11-03"
+  },
   "rt/bagnone-ridge/dtm-src.bin": {
     "sha256": "0650c2c3596002b3edb0f4b1a105c6aff3b8c405f8eefc35ecfaa4bc4ae1f0fb",
     "bytes": 34030,

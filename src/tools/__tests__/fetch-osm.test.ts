@@ -1,7 +1,21 @@
 import assert from "node:assert/strict"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { test } from "node:test"
+import { gzipSync } from "node:zlib"
 
-import { type Answer, type Bbox, checkFetchable, fetchSplit } from "../fetch-osm.ts"
+import {
+  type Answer,
+  type Bbox,
+  buildingsOnly,
+  checkFetchable,
+  type Elements,
+  fetchSplit,
+  osmFile,
+  osmXml,
+} from "../fetch-osm.ts"
+import { assembleRings, readOsm } from "../osm.ts"
 import { regionFromArgs } from "../region.ts"
 
 /** A fake `/map`: nodes on a 0.01° grid, 400 for a box holding more than `limit` of them. */
@@ -76,11 +90,87 @@ test("fetchSplit stops splitting at a box too small to hold 50 000 nodes", async
 })
 
 test("fetch-osm refuses a test region, whose box would cut down the OSM file it shares with its map", () => {
-  for (const key of ["lunigiana-l", "lunigiana-3x"])
+  for (const key of ["lunigiana-l", "lunigiana-3x", "bagnone-ridge"])
     assert.throws(
       () => checkFetchable(regionFromArgs(["--region", key])),
       new RegExp(`--region ${key} is a test region: it reads --region lunigiana's OSM`),
     )
   checkFetchable(regionFromArgs([]))
   checkFetchable(regionFromArgs(["--region", "cesena"]))
+})
+
+test("fetch-osm fetches for a test region with buildings of its own, into a file of its own", () => {
+  const town = regionFromArgs(["--region", "pontremoli-town"])
+  checkFetchable(town)
+  assert.equal(osmFile(town), "data/raw/pontremoli-town.osm.gz")
+  assert.equal(osmFile(regionFromArgs([])), "data/raw/lunigiana.osm.gz")
+  assert.equal(osmFile(regionFromArgs(["--region", "cesena"])), "data/raw/cesena.osm.gz")
+  assert.equal(osmFile(regionFromArgs(["--region", "lunigiana-l"])), "data/raw/lunigiana.osm.gz")
+})
+
+/** Elements as the OSM API writes them, keyed by id. */
+const elementsOf = (xml: ReadonlyArray<string>): Elements => {
+  const all: Elements = { node: new Map(), way: new Map(), relation: new Map() }
+  for (const e of xml) {
+    const [, kind, id] = /^<(node|way|relation) id="(\d+)"/.exec(e)!
+    all[kind as keyof Elements].set(Number(id), e)
+  }
+  return all
+}
+const node = (id: number, tags = "") =>
+  `<node id="${id}" visible="true" version="1" lat="${44 + id / 1e4}" lon="${10 + (id % 7) / 1e4}"${tags === "" ? "/>" : `>\n    ${tags}\n  </node>`}`
+const way = (id: number, nds: ReadonlyArray<number>, tags: ReadonlyArray<string>) =>
+  [
+    `<way id="${id}" visible="true" version="1">`,
+    ...nds.map((n) => `    <nd ref="${n}"/>`),
+    ...tags.map((t) => `    ${t}`),
+    "  </way>",
+  ].join("\n")
+const relation = (id: number, members: ReadonlyArray<number>, tags: ReadonlyArray<string>) =>
+  [
+    `<relation id="${id}" visible="true" version="1">`,
+    ...members.map(
+      (m, k) => `    <member type="way" ref="${m}" role="${k === 0 ? "outer" : "inner"}"/>`,
+    ),
+    ...tags.map((t) => `    ${t}`),
+    "  </relation>",
+  ].join("\n")
+
+test("buildingsOnly keeps the building ways, the building multipolygons, their member ways and the nodes they use", (t) => {
+  const all = elementsOf([
+    ...Array.from({ length: 16 }, (_, k) => node(k + 1)),
+    node(17, '<tag k="amenity" v="bench"/>'),
+    way(101, [1, 2, 3, 1], ['<tag k="building" v="house"/>']),
+    way(102, [4, 5], ['<tag k="highway" v="residential"/>']),
+    way(103, [6, 7, 8, 6], []),
+    way(104, [9, 10, 11, 9], []),
+    way(105, [12, 13, 14, 12], ['<tag k="building:part" v="yes"/>']),
+    way(106, [15, 16, 4, 15], []),
+    relation(
+      201,
+      [103, 104],
+      ['<tag k="building" v="church"/>', '<tag k="type" v="multipolygon"/>'],
+    ),
+    relation(202, [106], ['<tag k="landuse" v="forest"/>', '<tag k="type" v="multipolygon"/>']),
+    relation(203, [101], ['<tag k="building" v="yes"/>', '<tag k="type" v="building"/>']),
+  ])
+  const kept = buildingsOnly(all)
+  assert.deepEqual([...kept.relation.keys()], [201])
+  assert.deepEqual([...kept.way.keys()], [101, 103, 104])
+  assert.deepEqual([...kept.node.keys()], [1, 2, 3, 6, 7, 8, 9, 10, 11])
+  // Kept whole: what the file holds is the API's own XML of each.
+  assert.equal(kept.way.get(101), all.way.get(101))
+  // readOsm reads the file it makes, and the church's rings assemble from it.
+  const dir = mkdtempSync(join(tmpdir(), "fetch-osm-")),
+    path = join(dir, "town.osm.gz")
+  t.after(() => rmSync(dir, { recursive: true }))
+  writeFileSync(path, gzipSync(osmXml(kept)))
+  const osm = readOsm(path),
+    church = osm.relations.get("201")!
+  assert.deepEqual([...osm.ways.keys()], ["101", "103", "104"])
+  assert.equal(osm.ways.get("101")!.tags.building, "house")
+  assert.deepEqual(church.tags, { building: "church", type: "multipolygon" })
+  assert.deepEqual(assembleRings(osm, church, "outer"), [["6", "7", "8", "6"]])
+  assert.deepEqual(assembleRings(osm, church, "inner"), [["9", "10", "11", "9"]])
+  assert.equal(osm.nodes.size, 9)
 })
