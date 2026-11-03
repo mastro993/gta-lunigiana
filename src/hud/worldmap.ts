@@ -9,7 +9,7 @@
  */
 import { mapForSearch } from "../maps.ts"
 import { css, PALETTE } from "../render/palette.ts"
-import { districtAt, MAP } from "../sim/map/index.ts"
+import { districtAt, inPlay, MAP } from "../sim/map/index.ts"
 import { fetchFile } from "../stream.ts"
 import { paintArrow } from "./minimap.ts"
 import { element } from "./title.ts"
@@ -39,6 +39,22 @@ export const fitMap = (bounds: Bounds, width: number, height: number): Fit => {
     h = Math.max(1, height - MARGIN.top - MARGIN.bottom)
   const scale = Math.min(w / bw, h / bh)
   return { scale, ox: MARGIN.left + (w - bw * scale) / 2, oy: MARGIN.top + (h - bh * scale) / 2 }
+}
+
+/** The map point (x east, y north) painted at (sx, sy) px on a `width` × `height` px screen fitted to `bounds`, or undefined off its frame. */
+export const mapPointAt = (
+  bounds: Bounds,
+  width: number,
+  height: number,
+  sx: number,
+  sy: number,
+): { readonly x: number; readonly y: number } | undefined => {
+  const fit = fitMap(bounds, width, height)
+  const x = bounds.minX + (sx - fit.ox) / fit.scale,
+    y = bounds.maxY - (sy - fit.oy) / fit.scale
+  return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY
+    ? { x, y }
+    : undefined
 }
 
 /** A named place: villages are `major` (big labels, placed first), hamlets and peaks are not. */
@@ -319,6 +335,23 @@ export const makeWorldMap = (
       paint()
       overviewMap.want()
       window.addEventListener("resize", onResize)
+    },
+    /**
+     * The play-area point (x east, y north) a click on the map lands on, or undefined off it: in
+     * the header, the margins or outside the outline. The click's offset is in the dialog's own
+     * box, which both canvases fill (the blinking marker lets clicks through while it is off), so a
+     * phone held upright (laid out sideways) reads true.
+     */
+    pointAt: (event: MouseEvent): { readonly x: number; readonly y: number } | undefined => {
+      if (event.target !== canvas && event.target !== marker) return undefined
+      const at = mapPointAt(
+        MAP.bounds,
+        root.clientWidth,
+        root.clientHeight,
+        event.offsetX,
+        event.offsetY,
+      )
+      return at !== undefined && inPlay(at.x, at.y) ? at : undefined
     },
     hide: (): void => {
       root.hidden = true

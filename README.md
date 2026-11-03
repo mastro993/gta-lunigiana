@@ -127,7 +127,7 @@ The same keys walk and drive; the table shows what each does in both modes:
 | Q / E | turn the view a quarter left / right | nothing: the view follows the car |
 | Space | | handbrake (in a train, the emergency brake) |
 | H | | horn while held; in the Carabinieri car, siren on or off; in a train, the train horn while held |
-| M | full map (pauses the game); M, Esc or a click closes it | same |
+| M | full map (pauses the game); M, Esc or a click closes it; in dev builds a click on the play area teleports the player there first, to the nearest spot clear of buildings and walls | same |
 | Esc | settings, which pause the game: the vehicle physics (Simulation, Balanced or Arcade; a new game starts on Balanced); Esc or Resume closes them. With the full map open, Esc closes the map instead | same |
 | P (dev builds only) | debug menu: the time of day, the clock’s speed and the date, the weather, the vehicle physics presets and handling knobs for every vehicle at once, and the trains and level crossings; P closes it, and so does Esc while it has the focus | same |
 
