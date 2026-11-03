@@ -31,9 +31,12 @@ test("lucido's LiDAR tiles put the 2010 flight before the 2012 flight", () => {
   assert.ok(sliver >= 0 && sliver < lots.indexOf("005"), `22d14/004 at ${sliver}`)
 })
 
+/** A manifest with every list empty. */
+const EMPTY = { ctr: [], lidar: [], dtm10: [], dsm2021: [], ctr2009: [], ctr10k: [], dbt2k: [] }
+
 test("a part without a manifest reads as empty lists", () => {
   assert.ok(!existsSync(manifestPath("no-such-part")))
-  assert.deepEqual(readManifest("no-such-part"), { ctr: [], lidar: [], dtm10: [], dsm2021: [] })
+  assert.deepEqual(readManifest("no-such-part"), EMPTY)
 })
 
 test("lucido's manifest lists the 2021 surface model's two elements over its holes", () => {
@@ -50,11 +53,19 @@ test("sillara's manifest lists 8 LiDAR tiles of the 2010 flight, Massa-Carrara's
   assert.deepEqual(dsm2021, ["234011", "234012", "234013", "234014", "234051"])
 })
 
-test("a manifest written before the 2021 surface model reads its elements as none", (t) => {
+test("a manifest written before the 2021 surface model and the older surveys reads them as none", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "manifest-"))
   t.after(() => rmSync(dir, { recursive: true }))
   writeFileSync(join(dir, "old.json"), JSON.stringify({ ctr: ["23D11"], lidar: [], dtm10: [] }))
   // A key relative to data/parts reaches the temp file, so the test writes nothing there.
   const key = relative(dirname(manifestPath("old")), join(dir, "old"))
-  assert.deepEqual(readManifest(key), { ctr: ["23D11"], lidar: [], dtm10: [], dsm2021: [] })
+  assert.deepEqual(readManifest(key), { ...EMPTY, ctr: ["23D11"] })
+})
+
+test("pontremoli-town's manifest lists Pontremoli's DBT 1:2000 of 2010 and nothing else", () => {
+  assert.ok(existsSync(manifestPath("pontremoli-town")))
+  assert.deepEqual(readManifest("pontremoli-town"), {
+    ...EMPTY,
+    dbt2k: ["DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b"],
+  })
 })

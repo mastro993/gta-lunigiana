@@ -1463,6 +1463,66 @@
     "asset": "raw-20261101/rt.dtm.json",
     "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip"
   },
+  "rt/pontremoli-town/dbt2k/045014_ac_vei.dbf.gz": {
+    "sha256": "4b319e7b888d3d620fc39a11e6a451837b9543707aa15b54a53e3e1a9fbdb4c4",
+    "bytes": 7947,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_ac_vei.shp.gz": {
+    "sha256": "535fa0278d88d44d755e98be14a2e60b2330f6b336095611f9570441ca5d8f0d",
+    "bytes": 104057,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_ar_str.dbf.gz": {
+    "sha256": "e48622e7b6d01eec22e6d0eae72ab8169c2fad2973fb7b88f2f6eabf2b5060d0",
+    "bytes": 2411,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_ar_str.shp.gz": {
+    "sha256": "1fc767e2d85bd204d687ad55fd97a968d882b174544a2d10a61661f9fa7ffc5a",
+    "bytes": 115883,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_ar_vms.dbf.gz": {
+    "sha256": "e10d09d7dc94a072a3fb6069c2df6dd236ebcccf76b2dfa8de48abad2962d529",
+    "bytes": 887,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_ar_vms.shp.gz": {
+    "sha256": "184184d4bcf000cd706dde614eac30ba2d4fde493fa5ed5ad38005b00bbb7ea2",
+    "bytes": 57827,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_mn_ind.dbf.gz": {
+    "sha256": "b8272b5ac8a29b503fbe19f273a405bb69541ee71da46a73b646882a1b12b1a7",
+    "bytes": 397,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_mn_ind.shp.gz": {
+    "sha256": "44ad043ea75b930b31f89017422e5952029efd7e73fa866b0cc56c6a71a92237",
+    "bytes": 2737,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_un_vol.dbf.gz": {
+    "sha256": "2189622a35bb0ff43f589c4fe89c93f33b003b5541cf5ea1342b52a095f67b46",
+    "bytes": 43855,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_un_vol.shp.gz": {
+    "sha256": "16f3e3c6fa8faea3b5fce68f48e9a299f8b414595ee38f32c3a1509319a67bcc",
+    "bytes": 204914,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_zona_r.dbf.gz": {
+    "sha256": "465bb695852f95b5386debfc6ed614073439fa7ede068c82e98ca73bef177470",
+    "bytes": 271,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
+  "rt/pontremoli-town/dbt2k/045014_zona_r.shp.gz": {
+    "sha256": "2acc3c0cd1244637f0c917d3e6256322dcc87ba3aaf42324d7188989d7238ad8",
+    "bytes": 13555,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/dbtopografico/dbt2k/7z/DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b.7z, the records whose box meets EPSG:3003 1568924,4912816,1571536,4915434"
+  },
   "rt/ucs.json.gz": {
     "sha256": "fb1585716f37ff93efe1b8f60a8e45f0e07dbcd94d7cd8b0bb65e933f2371ab6",
     "bytes": 208339,

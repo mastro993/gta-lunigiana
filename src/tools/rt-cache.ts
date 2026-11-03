@@ -1,6 +1,7 @@
-// The Regione Toscana archives the map tools download (CTR sheets, LiDAR tiles, the 10 m DTM),
-// cached unzipped in the OS temp directory, so `fetch-rt`, `pick-sheets` and `pick-lidar` download
-// each once. Needs `unzip` on the PATH.
+// The Regione Toscana archives the map tools download (CTR sheets and sections, LiDAR tiles, the
+// 10 m DTM, the DBT's comuni), cached extracted in the OS temp directory, so `fetch-rt`,
+// `pick-sheets` and `pick-lidar` download each once. Needs `unzip` on the PATH, and for the DBT's
+// .7z `bsdtar` (libarchive: on macOS by default, `libarchive-tools` on Debian and Ubuntu).
 
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs"
@@ -9,22 +10,50 @@ import { basename, join } from "node:path"
 
 import { getBytes } from "./net.ts"
 
-/** Where the archives and their unzipped folders live. */
+/** Where the archives and their extracted folders live. */
 const CACHE = join(tmpdir(), "gta-lunigiana-rt")
 
-/** Whether `dir` holds a file at any depth: macOS purges the temp directory's files but keeps its folders. */
-const holdsFiles = (dir: string): boolean =>
-  existsSync(dir) &&
-  readdirSync(dir, { recursive: true, withFileTypes: true }).some((e) => e.isFile())
+/**
+ * Whether `dir` holds a file at any depth, and one named each of `names`: macOS purges the temp
+ * directory's files but keeps its folders.
+ */
+const holdsFiles = (dir: string, names: ReadonlyArray<string> = []): boolean => {
+  if (!existsSync(dir)) return false
+  const files = new Set(
+    readdirSync(dir, { recursive: true, withFileTypes: true })
+      .filter((e) => e.isFile())
+      .map((e) => e.name),
+  )
+  return files.size > 0 && names.every((name) => files.has(name))
+}
+
+/** The archive at `url` under CACHE, downloaded when missing. */
+const cached = async (url: string): Promise<string> => {
+  mkdirSync(CACHE, { recursive: true })
+  const archive = join(CACHE, basename(url))
+  if (!existsSync(archive)) writeFileSync(archive, await getBytes(url))
+  return archive
+}
 
 /** The archive at `url`, extracted under CACHE; an extracted folder without files counts as missing. */
 export const fetchZip = async (url: string): Promise<string> => {
-  mkdirSync(CACHE, { recursive: true })
-  const zip = join(CACHE, basename(url)),
-    dir = zip.replace(/\.zip$/, "")
-  if (!holdsFiles(dir)) {
-    if (!existsSync(zip)) writeFileSync(zip, await getBytes(url))
-    execFileSync("unzip", ["-o", "-q", zip, "-d", dir])
+  const dir = join(CACHE, basename(url).replace(/\.zip$/, ""))
+  if (!holdsFiles(dir)) execFileSync("unzip", ["-o", "-q", await cached(url), "-d", dir])
+  return dir
+}
+
+/**
+ * The members named `names` (file names, at any depth) of the 7z archive at `url`, extracted under
+ * CACHE; a folder missing one of them is extracted again. One bsdtar call takes them all: each call
+ * decodes the archive's whole solid stream (1.7 s for a comune's DBT 1:2000, whatever it extracts).
+ * Throws when the archive lacks one.
+ */
+export const fetch7z = async (url: string, names: ReadonlyArray<string>): Promise<string> => {
+  const dir = join(CACHE, basename(url).replace(/\.7z$/, ""))
+  if (!holdsFiles(dir, names)) {
+    const archive = await cached(url)
+    mkdirSync(dir, { recursive: true })
+    execFileSync("bsdtar", ["-xf", archive, "-C", dir, ...names.map((name) => `*/${name}`)])
   }
   return dir
 }
