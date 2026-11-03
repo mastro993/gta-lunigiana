@@ -1,5 +1,5 @@
-// The sim on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`): teleports
-// and herds keep to the play area, the L.
+// The sim on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`): teleports,
+// herds and pigs keep to the play area, the L.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
@@ -9,8 +9,9 @@ notchMap()
 const { inPlay } = await import("../map/index.ts")
 const { SetPlayer } = await import("../index.ts")
 const { door, ON_BATTISTI, start } = await import("../testing.ts")
-const { pasture, RURAL, RURAL_REACH } = await import("../population/farms.ts")
+const { farmsNear, pasture, RURAL, RURAL_REACH } = await import("../population/farms.ts")
 const { residentsNear } = await import("../population/density.ts")
+const { ANIMALS } = await import("../systems/populate-animals.ts")
 
 test("an L: a teleport into the notch is dropped, one just inside its corner is not", () => {
   const game = start([], [door(ON_BATTISTI)])
@@ -42,4 +43,25 @@ test("an L: herds graze only the play area, a pasture by the notch included", ()
     }
   })
   assert.ok(cows > 0, `${cows} cows by (1980, ${y})`)
+})
+
+test("an L: pigs root only by pens in the play area, pens in the notch in reach", () => {
+  // The first rural spot 18 m inside the notch's west side whose pig reach holds 4 or more rural
+  // pens (enough to want a pig), all of them in the notch: a litter drawn by one would read a
+  // building on an unlisted tile and throw.
+  const pens = (y: number) => farmsNear(1982, y, ANIMALS.pig.reach).filter((f) => f.rural && f.pen)
+  let y = 0
+  while (
+    !(
+      residentsNear(1982, y, RURAL_REACH) < RURAL &&
+      pens(y).length >= 4 &&
+      pens(y).every((f) => !inPlay(f.x, f.y))
+    )
+  )
+    y += 20
+  const game = start([], [{ x: 1982, y, angle: 0 }])
+  game.run(60)
+  for (const a of game.world().animals)
+    if (a.species === "pig")
+      assert.ok(inPlay(a.x, a.y), `a pig at ${a.x.toFixed(1)}, ${a.y.toFixed(1)}`)
 })

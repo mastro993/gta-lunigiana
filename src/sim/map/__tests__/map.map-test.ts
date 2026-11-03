@@ -8,6 +8,7 @@ import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { ROAD_PASSES } from "../../../tools/profiles.ts"
 import { regionFromArgs } from "../../../tools/region.ts"
+import { sheet2k, SOURCES } from "../../../tools/survey-ids.ts"
 import { moveCircles, segmentDistance, staticGrid } from "../../collide.ts"
 import {
   BUILDING_STYLES,
@@ -603,6 +604,22 @@ test("road names, classes, styles, area kinds and districts", () => {
   )
   // Regression: its stone-core disc sat 54 m off the castle, which came out plaster.
   assert.equal(WHOLE.buildings.find((b) => b.name === "Castello dell'Aquila")?.style, "stone")
+})
+
+test("the Carrara side's buildings come from the CTR 1:2000 of 2009", () => {
+  // A surveyed building's id slot is its source and section (survey-ids.ts): the 2009 sheets'
+  // section is 22D. readSurveys skips a missing source folder, so a build on a data/raw without
+  // the 2009 sheets keeps OSM's buildings there and fails no other check.
+  const slot = SOURCES.ctr2009 * 65536 + sheet2k("22D04").section
+  const slotOf = (id: number) => (id < 0 ? Math.floor(-id / 4294967296) : undefined)
+  assert.ok(
+    WHOLE.buildings.some((b) => slotOf(b.id) === slot),
+    "no building of the CTR 2009",
+  )
+  // The Chiesetta alpina, a 2009 unit in place of OSM's chapel 700633221.
+  const church = WHOLE.buildings.find((b) => b.style === "church" && inRing(-441, -4844, b.outer))
+  assert.ok(church !== undefined, "no church on (-441, -4844)")
+  assert.equal(slotOf(church.id), slot, `${church.name} ${church.id}`)
 })
 
 // Regression: every way named Torrente Lucido was 8 m wide, up the Vinca valley to its source under the Garnerone.
