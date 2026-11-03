@@ -21,6 +21,7 @@ import {
   perContext,
   ping,
   playBuffer,
+  shuffled,
   trimmed,
   unit,
 } from "./graph.ts"
@@ -64,15 +65,12 @@ export const wind: VoiceFactory<Extract<Continuous, { readonly kind: "wind" }>> 
   white.connect(pipe).connect(gate).connect(whistle).connect(level)
   gust.connect(new WaveShaperNode(ctx, { curve: GUST_THRESHOLD })).connect(gate.gain)
   gust.connect(new GainNode(ctx, { gain: 120 })).connect(pipe.frequency)
-  // Leaves: grains in a 4 kHz band, swelling with the gusts.
-  const crackle = loop(ctx, kit.crackle, 2),
+  // Leaves: grains in a 4 kHz band, swelling with the gusts, at double speed, shuffled so the rustle never repeats.
+  const leafBand = new BiquadFilterNode(ctx, { type: "bandpass", frequency: 4000, Q: 0.6 }),
+    crackle = shuffled(ctx, kit.crackle, leafBand, 2),
     rustle = new GainNode(ctx, { gain: 0.5 }),
     leaves = new GainNode(ctx, { gain: 0 })
-  crackle
-    .connect(new BiquadFilterNode(ctx, { type: "bandpass", frequency: 4000, Q: 0.6 }))
-    .connect(rustle)
-    .connect(leaves)
-    .connect(level)
+  leafBand.connect(rustle).connect(leaves).connect(level)
   gust.connect(new GainNode(ctx, { gain: 0.5 })).connect(rustle.gain)
   let tau = 0.01
   return {
@@ -89,10 +87,11 @@ export const wind: VoiceFactory<Extract<Continuous, { readonly kind: "wind" }>> 
       whistle.gain.setTargetAtTime(8 * smoothstep(0.4, 1, w), now, tau)
       // Like the body, the leaves follow strength², so the bed's level law (`windDb`) holds for the whole voice.
       leaves.gain.setTargetAtTime(0.455 * unit(sound.forest) * w2, now, tau)
+      crackle.update(now)
       // The first update lands at once (the outlet fades the voice in); later ones glide.
       tau = WIND_TAU
     },
-    stop: (now) => fadeOut(level, [gust, brown, white, crackle], now),
+    stop: (now) => fadeOut(level, [gust, brown, white, crackle.control], now),
   }
 }
 

@@ -1,8 +1,8 @@
 /**
  * Web Audio building blocks every synth shares: moving params, a voice built from its first params,
- * a voice's output stage and its fade-out, struck sources, noise bursts and damped pings, one-shots
- * baked offline and cached per context, one-shots rendered in pure TypeScript per params object, and
- * playing a baked buffer with a little random variation.
+ * a voice's output stage and its fade-out, struck sources, noise bursts, textures that never repeat
+ * (`shuffled`) and damped pings, one-shots baked offline and cached per context, one-shots rendered
+ * in pure TypeScript per params object, and playing a baked buffer with a little random variation.
  *
  * Every function builds nodes only when called, so Node can import the synths.
  *
@@ -116,6 +116,100 @@ export const burst = (
   source.onended = () => amp.disconnect()
   source.start(t, Math.random() * (noise.duration - 1))
   source.stop(t + attack + 9 * tau)
+}
+
+/**
+ * A texture's segments: each lasts a draw from `length` s and cross-fades into the next over `seam`
+ * s; `update` schedules them `ahead` s ahead (the fire's crackle 0.3 s), more than a segment's
+ * shortest, so a frame that comes late finds the next one already planned.
+ */
+const TEXTURE = { length: [0.3, 0.9], seam: 0.03, ahead: 0.5 } as const
+
+/**
+ * The segments a texture starts at `now` to play on `TEXTURE.ahead` s, from `next` (or `now`, when
+ * a stalled frame left it behind): where each starts, s, how long it lasts and where in the buffer
+ * it starts (0…1); and where the one after them starts.
+ */
+export const segmentsUntil = (
+  next: number,
+  now: number,
+  random: () => number = Math.random,
+): {
+  readonly segments: ReadonlyArray<{
+    readonly at: number
+    readonly length: number
+    readonly offset: number
+  }>
+  readonly next: number
+} => {
+  const segments: Array<{ at: number; length: number; offset: number }> = []
+  let t = Math.max(next, now)
+  for (; t < now + TEXTURE.ahead; t += segments.at(-1)!.length) {
+    const [lo, hi] = TEXTURE.length
+    segments.push({ at: t, length: lo + (hi - lo) * random(), offset: random() })
+  }
+  return { segments, next: t }
+}
+
+/** Equal-power fades over a seam (16 steps): the next segment in, the last out; uncorrelated grains keep their power through it. */
+const FADE_IN = Float32Array.from({ length: 16 }, (_, i) => Math.sin(((i / 15) * Math.PI) / 2)),
+  FADE_OUT = FADE_IN.slice().reverse()
+
+/** A texture that never repeats (`shuffled`). */
+export interface Texture {
+  /** Schedules the texture to `TEXTURE.ahead` s past `now`: call it every frame. */
+  readonly update: (now: number) => void
+  /** The rate every segment plays the buffer at. */
+  readonly rate: AudioParam
+  /** The source that drives `rate`: stop it with the voice's sources (`fadeOut`); the segments end by themselves. */
+  readonly control: ConstantSourceNode
+}
+
+/**
+ * `buffer` into `out` at `rate` as a texture with no period: segments from random offsets,
+ * each cross-faded into the next (`TEXTURE`, `segmentsUntil`), each shifted by `detune` (cents)
+ * when given, as a source's own detune is, through one tap of the texture's own: the emitter
+ * disconnects its cents wholesale when it is freed, which would leave a segment's own disconnect
+ * nothing to cut (an InvalidAccessError as each tyre voice stopped). A plain `loop` of the kit's 3 s grains repeats its
+ * pattern every 3 s, every 1.5 s at double speed: the wind's leaves did, the same crackle landing
+ * on the same footstep at a walk.
+ */
+export const shuffled = (
+  ctx: BaseAudioContext,
+  buffer: AudioBuffer,
+  out: AudioNode,
+  rate = 1,
+  detune?: AudioNode,
+): Texture => {
+  const control = new ConstantSourceNode(ctx, { offset: rate })
+  control.start()
+  const tap = detune === undefined ? undefined : detune.connect(new GainNode(ctx))
+  let next = 0
+  return {
+    update: (now) => {
+      const planned = segmentsUntil(next, now)
+      for (const { at, length, offset } of planned.segments) {
+        // The rate is the control's alone: the segment's own is 0.
+        const source = new AudioBufferSourceNode(ctx, { buffer, loop: true, playbackRate: 0 }),
+          amp = new GainNode(ctx, { gain: 0 })
+        control.connect(source.playbackRate)
+        tap?.connect(source.detune)
+        source.connect(amp).connect(out)
+        amp.gain.setValueCurveAtTime(FADE_IN, at, TEXTURE.seam)
+        amp.gain.setValueCurveAtTime(FADE_OUT, at + length, TEXTURE.seam)
+        source.onended = () => {
+          amp.disconnect()
+          control.disconnect(source.playbackRate)
+          tap?.disconnect(source.detune)
+        }
+        source.start(at, offset * buffer.duration)
+        source.stop(at + length + TEXTURE.seam)
+      }
+      next = planned.next
+    },
+    rate: control.offset,
+    control,
+  }
 }
 
 /** A sine at `hz` struck at `t` with amplitude `peak`, decaying with time constant `tau` s for `seconds`: thumps, knocks, bell partials. */
