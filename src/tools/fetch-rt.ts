@@ -44,7 +44,7 @@
 // - ucs.json.gz: land cover 1:10 000, 2019 ("Uso e copertura del suolo", CC BY 4.0), EPSG:3003:
 //   the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse vegetation,
 //   pastures, heath), the rivers' gravel and the water bodies, from the WFS.
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
 import { deflateSync, inflateSync } from "node:zlib"
@@ -66,6 +66,7 @@ import {
 import { cropOf, eachCell } from "./dtm-mosaic.ts"
 import { type Filler, NONE, fillStep } from "./fill-chain.ts"
 import { gaussBoagaBox } from "./geometry.ts"
+import { dtmTiles } from "./liguria.ts"
 import { manifestPath, readManifest } from "./manifest.ts"
 import { getBytes, getText } from "./net.ts"
 import { fetchedToday, writeRaw } from "./raw-lock.ts"
@@ -78,7 +79,9 @@ import {
   clearCanopy,
   codeOf,
   geoTiffRaster,
+  LIG_FADE,
   ligRaster,
+  MAX_SWEEPS,
   openGround,
   rasterFiller,
   rerUrl,
@@ -335,13 +338,11 @@ const dtm10 = async (names: ReadonlyArray<string>, box: Box): Promise<Filler> =>
   }
   return rasterFiller("dtm10", crop, rasters)
 }
-/** Liguria's DTM crops `fetch-lig` wrote for the part, by tile, none where it has not run. */
+/** Liguria's DTM crops `fetch-lig` wrote for the part's tiles (`dtmTiles`): none where it has not run, or a tile has no data. */
 const LIG = join(ROOT, ligDir(PART!), "dtm")
-const ligCrops = existsSync(LIG)
-  ? readdirSync(LIG)
-      .filter((f) => f.endsWith(".tif"))
-      .sort()
-  : []
+const ligCrops = dtmTiles(PART!.rects)
+  .map(({ i, j }) => `${i}_${j}.tif`)
+  .filter((f) => existsSync(join(LIG, f)))
 /** The chain after the LiDAR, each step loaded once cells are still empty, with where it comes from. */
 const steps: Array<(box: Box) => Promise<{ readonly filler: Filler; readonly source: string }>> = [
   ...(manifest.dsm2021.length === 0
@@ -379,12 +380,18 @@ const steps: Array<(box: Box) => Promise<{ readonly filler: Filler; readonly sou
   ...(ligCrops.length === 0
     ? []
     : [
-        async () => ({
-          filler: rasterFiller("lig", crop, [
-            (await ligRaster(ligCrops.map((f) => readFileSync(join(LIG, f)))))!,
-          ]),
-          source: `the Liguria DTM ed. 2023's crops ${ligCrops.join(", ")} in ${ligDir(PART!)}/dtm (pnpm fetch-lig ${PART!.key})`,
-        }),
+        async () => {
+          const { raster, sweeps } = (await ligRaster(
+            ligCrops.map((f) => readFileSync(join(LIG, f))),
+          ))!
+          console.log(
+            `lig: its whole metres smoothed in ${sweeps} sweeps${sweeps === MAX_SWEEPS ? ", the most unround makes: not settled" : ""}`,
+          )
+          return {
+            filler: { ...rasterFiller("lig", crop, [raster]), fade: LIG_FADE },
+            source: `the Liguria DTM ed. 2023's crops ${ligCrops.join(", ")} in ${ligDir(PART!)}/dtm (pnpm fetch-lig ${PART!.key})`,
+          }
+        },
       ]),
   async (box: Box) => {
     const url = rerUrl(utmAround(box, 10))

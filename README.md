@@ -227,7 +227,7 @@ The simulation, the browser hosts and the map tools live in separate folders:
 | `data/raw/` | the map inputs, not in git: regional OSM extracts, Regione Toscana surveys (CTR, DBT), terrain and land cover, Regione Liguria NC5, DTM crops and land use by part, Emilia-Romagna DTM |
 | `test-maps/` | the test regions' builds (`pnpm map --region lunigiana-l`), not in git and never shipped |
 | `data/raw.lock.json` | the pin of `data/raw`: each file's SHA-256, size, release asset and source |
-| `data/parts/` | each Lunigiana part's source manifest (and the test regions' own, `sillara` for the Bagnone ridge and `pontremoli-town`): the CTR sheets of 2019 and 2009, the CTR 1:10 000 sections, the DBT 1:2000 comuni, LiDAR tiles, 10 m DTMs and DSM 2021 elements `fetch-rt` downloads for it |
+| `data/parts/` | each Lunigiana part's source manifest (and the test regions' own, `sillara` for the Bagnone ridge, `pontremoli-town` and `sarzana-town`): the CTR sheets of 2019 and 2009, the CTR 1:10 000 sections, the DBT 1:2000 comuni, LiDAR tiles, 10 m DTMs and DSM 2021 elements `fetch-rt` downloads for it |
 | `docs/` | architecture, map pipeline, gameplay, weather, water and audio notes; `docs/standards/` holds the checks for each part of the game |
 | `.github/` | the workflows (CI, Pages) and the action they share to restore or build the maps (`actions/maps/`) |
 | `.node-version` | the exact Node version CI and Pages install, so every job keys the maps cache alike |
@@ -271,7 +271,7 @@ The inputs in `data/raw` are:
   - `ucs.json.gz`: the land cover 1:10 000 (2019) polygons the build uses (quarries, bare rock, sparse vegetation, pastures, heath), from the Regione Toscana WFS.
 - `lig/<part>/`: Regione Liguria data from its Geoportale, written by `pnpm fetch-lig <part>` (`src/tools/fetch-lig.ts`) over the part's box; today the Sarzana test region's:
   - `nc5/<layer>.json.gz`: the DB Geotopografico NC5 1:5000, `L6871` (buildings, their Z the eave), `L6870` (minor buildings), `L6858` (carriageways) and `L6945` (the area it maps, clipped to the box), each feature's attributes as served and its polygons in EPSG:25832.
-  - `dtm/<i>_<j>.tif`: the DTM ed. 2023's native 5 m cells (whole metres, EPSG:3003) over each 2 km tile and 50 m round it, as its WCS gives them; `fetch-rt` mosaics them past the LiDAR.
+  - `dtm/<i>_<j>.tif`: the DTM ed. 2023's native 5 m cells (whole metres, EPSG:3003) over each 2 km tile round `fetch-rt`'s crop of the part and 10 m round it, as its WCS gives them; `fetch-rt` mosaics them past the LiDAR.
   - `uds.json.gz`: the land use ed. 2025 polygons of the classes the build uses (quarries and lakes on the Sarzana test region), in EPSG:25832, as `ucs.json.gz` holds Tuscany's.
 
 Downloading the OSM data again pulls current edits, so the map changes; `data/raw.lock.json` pins it. `node src/tools/preview-map.ts` draws a top-down PNG of the built map (see [docs/map.md](docs/map.md)).

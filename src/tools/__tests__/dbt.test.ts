@@ -64,6 +64,7 @@ test("kindOf: the building's state, type and use or the minor building's type, t
     { edifc_ty: "09" },
     { edifc_uso: "0902" }, // cowshed
     { edifc_uso: "0903" }, // hayloft
+    { edifc_ty: "95", edifc_uso: "09" }, // the NC5's farm building: "altro", agricultural use
   ]
   for (const a of rural) assert.equal(building(a), "0216", JSON.stringify(a))
   assert.equal(minor("07"), "0244")

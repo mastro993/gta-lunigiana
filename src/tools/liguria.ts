@@ -13,7 +13,11 @@
 // that count. Its box filter is loose (a feature's bounding box against the box), a superset the
 // readers clip.
 
-import { type Rect } from "./region.ts"
+import { TILE } from "../sim/map/kinds.ts"
+import { gaussBoagaToLatLon } from "./crs.ts"
+import { cropOf } from "./dtm-mosaic.ts"
+import { clipRing, gaussBoagaBox, toLocal } from "./geometry.ts"
+import { type Rect, tilesOf } from "./region.ts"
 
 /** The Geoportale's GeoServer. */
 const GEOSERVER = "https://geoservizi.regione.liguria.it/geoserver"
@@ -47,7 +51,7 @@ export const nc5Query = (layer: string, box: Rect): WfsQuery => ({
 /**
  * The land use's polygons whose bounding box meets the EPSG:25832 `box` and whose code starts with
  * one of `classes` (Corine's third level, `COD_USO` being the third or the fourth): a CQL filter, as
- * the server takes a `bbox` or a filter, not both, and the sea, one polygon of 1.07 million m², would
+ * the server takes a `bbox` or a filter, not both, and the sea, one polygon of 1,071 km², would
  * otherwise come with every box on the coast.
  */
 export const udsQuery = (box: Rect, classes: ReadonlyArray<string>): WfsQuery => ({
@@ -119,6 +123,76 @@ export const fetchWfs = async (
   return features
 }
 
+/** A layer's file as `fetch-lig` writes it (data/raw/lig/<part>/nc5/<layer>.json.gz). */
+export interface Nc5LayerFile {
+  readonly layer: string
+  readonly crs: "EPSG:25832"
+  /** The EPSG:25832 box asked, on whole metres. */
+  readonly box: Rect
+  /** The server's count for the box, which the features' number matched. */
+  readonly numberMatched: number
+  readonly features: ReadonlyArray<{
+    readonly properties: WfsFeature["properties"]
+    readonly polygons: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>
+  }>
+}
+
+/**
+ * The file of NC5 layer `q`'s `features` asked over `box`: each feature's attributes as served and
+ * its polygons (`polygonsOfFeature`), the mapped area's (L6945, one polygon of 942.57 km² over La
+ * Spezia's lot) clipped to the box (`clippedRings`).
+ */
+export const nc5File = (
+  q: WfsQuery,
+  box: Rect,
+  features: ReadonlyArray<WfsFeature>,
+): Nc5LayerFile => ({
+  layer: `${q.map}:${q.layer}`,
+  crs: "EPSG:25832",
+  box,
+  numberMatched: features.length,
+  features: features.flatMap((f) => {
+    const polygons = polygonsOfFeature(f)
+    const shapes =
+      q.layer === NC5_LAYERS.mapped ? polygons.map((rings) => clippedRings(rings, box)) : polygons
+    const left = shapes.filter((rings) => rings.length > 0)
+    return left.length === 0 ? [] : [{ properties: f.properties, polygons: left }]
+  }),
+})
+
+/** A polygon's rings [e, n, z, …] clipped to `box`, on whole centimetres and Z 0 (the mapped area's own), those left with an area. */
+export const clippedRings = (
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+  box: Rect,
+): Array<Array<number>> =>
+  rings.flatMap((ring) => {
+    const pairs: Array<readonly [number, number]> = []
+    for (let i = 0; i + 2 < ring.length; i += 3) pairs.push([ring[i]!, ring[i + 1]!])
+    const cut = clipRing(pairs, box)
+    return cut.length < 3 ? [] : [cut.flatMap(([e, n]) => [cm(e), cm(n), 0])]
+  })
+
+/**
+ * The land use's features as `ucs.json.gz` holds polygons, one entry a polygon: its `ID_RLIG`, its
+ * whole code (3 or 4 digits), its rings flat [e, n, …] on decimetres, Z dropped; throws on a code
+ * outside `classes` (the third level), which the query's filter should have left out.
+ */
+export const udsPolygons = (
+  features: ReadonlyArray<WfsFeature>,
+  classes: ReadonlyArray<string>,
+): Array<{ id: number; code: string; rings: Array<Array<number>> }> =>
+  features.flatMap((f) => {
+    const code = String(f.properties.COD_USO)
+    if (!classes.includes(code.slice(0, 3))) throw new Error(`land use code ${code} not kept`)
+    return polygonsOfFeature(f).map((rings) => ({
+      id: Number(f.properties.ID_RLIG),
+      code,
+      rings: rings.map((ring) =>
+        ring.flatMap((v, k) => (k % 3 === 2 ? [] : [Math.round(v * 10) / 10])),
+      ),
+    }))
+  })
+
 /** A feature's polygons: each its rings, each ring flat [e0, n0, z0, e1, …] on whole centimetres. */
 export const polygonsOfFeature = (f: WfsFeature): Array<Array<Array<number>>> => {
   const g = f.geometry
@@ -143,6 +217,35 @@ const cm = (v: number): number => Math.round(v * 100) / 100
 export const DTM_LATTICE = { e: 1379054.19189, n: 4947084.40548, cell: 5 } as const
 /** The largest crop asked in one piece, cells a side: the server deflates only a crop that fits one TIFF tile. */
 const DTM_TILE = 512
+/** How far past its tile a DTM crop reaches, m: two of its cells, the bilinear's neighbour across the tile's edge and Liguria's EPSG:3003, 0.3 m from ours. */
+const DTM_PAD = 10
+
+/**
+ * The 2 km tiles whose DTM crops fetch-lig asks for a part's `rects`: every tile the local box round
+ * fetch-rt's crop of them (`cropOf`, their EPSG:3003 box plus its margin) meets, a notch between
+ * rectangles included, as the chain fills the whole crop. Each crop is its tile's EPSG:3003 box
+ * plus DTM_PAD (`dtmCropBox`), so together they cover the crop.
+ */
+export const dtmTiles = (rects: ReadonlyArray<Rect>): ReturnType<typeof tilesOf> => {
+  const { e0, n0, cols, rows } = cropOf(rects)
+  const corners = [
+    [e0, n0],
+    [e0 + cols - 1, n0],
+    [e0, n0 + rows - 1],
+    [e0 + cols - 1, n0 + rows - 1],
+  ].map(([e, n]) => toLocal(...gaussBoagaToLatLon(e!, n!)))
+  const xs = corners.map((c) => c[0]),
+    ys = corners.map((c) => c[1])
+  return tilesOf([[Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]])
+}
+
+/** The EPSG:3003 box of tile (i, j)'s DTM crop: the tile's own box plus DTM_PAD. */
+export const dtmCropBox = (i: number, j: number): Rect =>
+  gaussBoagaBox([[i * TILE, j * TILE, (i + 1) * TILE, (j + 1) * TILE]], DTM_PAD)
+
+/** Whether a WCS answer says the crop lies wholly beyond the coverage's grid (`InvalidSubsetting`, "Empty intersection after subsetting"), so there is nothing to keep. */
+export const beyondCoverage = (status: number, body: string): boolean =>
+  status === 404 && body.includes('exceptionCode="InvalidSubsetting"')
 
 /**
  * The WCS 2.0.1 GetCoverage of the DTM's native cells over the EPSG:3003 `box`, its edges snapped

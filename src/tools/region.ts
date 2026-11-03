@@ -12,7 +12,10 @@
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
-//   `footprint-check`) and `fetch-rt` take parts from here.
+//   `footprint-check`), `fetch-rt` and `fetch-lig` take parts from here.
+
+import { existsSync } from "node:fs"
+import { join } from "node:path"
 
 import type { MapId } from "../maps.ts"
 import { tileRange } from "../sim/map/kinds.ts"
@@ -415,6 +418,10 @@ export const surveyDir = (region: Region): string =>
 
 /** Where `fetch-lig` writes a part's Regione Liguria sources (NC5, the DTM's crops, the land use), from the repository root (issue #12). */
 export const ligDir = (part: Pick<Part, "key">): string => `data/raw/lig/${part.key}`
+
+/** The folders under `root` that `fetch-lig` wrote for any of `parts` (`ligDir`), in the parts' order: what the build reads of Liguria. */
+export const ligFolders = (root: string, parts: ReadonlyArray<Pick<Part, "key">>): Array<string> =>
+  parts.map((p) => join(root, ligDir(p))).filter((dir) => existsSync(dir))
 
 /** Build region for this Node invocation, fixed before the geometry modules load. */
 export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])

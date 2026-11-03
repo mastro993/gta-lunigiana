@@ -1,8 +1,9 @@
 // The terrain's source seams (issue #10), on the build's own 4 m grid (`dtmDem`, the nodes the
 // heightmap starts from) of each terrain fetch-rt's chain wrote: lucido's, where the 10 m DTM fills
-// three patches, and the Bagnone ridge test region's, where the LiDAR stops 1–2 km below the crest
-// and the 2021 surface model, the 10 m DTM and Emilia-Romagna's DTM 5x5 fill the rest. A map test:
-// it walks every node of both.
+// three patches, the Bagnone ridge test region's, where the LiDAR stops 1–2 km below the crest and
+// the 2021 surface model, the 10 m DTM and Emilia-Romagna's DTM 5x5 fill the rest, and the Sarzana
+// test region's, where Liguria's DTM ed. 2023 meets a corner of LiDAR (issue #12). A map test: it
+// walks every node of each.
 import assert from "node:assert/strict"
 import { join } from "node:path"
 import { test } from "node:test"

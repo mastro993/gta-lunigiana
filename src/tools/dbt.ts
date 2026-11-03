@@ -54,7 +54,7 @@ export const kindOf = (a: Attrs): string | undefined => {
   if (uso === "0603" || uso === "060301" || uso === "060304") return "0211" // rail service (the NC5's), passenger station, halt
   if (uso === "080206") return "0212" // transformer station
   if (ty === "08" || uso.startsWith("08") || uso === "060302") return "0202" // shed, industrial, rail depot
-  if (ty === "09" || uso === "0902" || uso === "0903") return "0216" // rural building, cowshed, hayloft
+  if (ty === "09" || uso === "09" || uso === "0902" || uso === "0903") return "0216" // rural building, agricultural use (the NC5's), cowshed, hayloft
   if (min === "07") return "0244" // garage
   if (min === "14" || min === "17") return undefined
   if (min !== "" && min !== "-") return "0207" // huts, kiosks, tombs and the other minor buildings

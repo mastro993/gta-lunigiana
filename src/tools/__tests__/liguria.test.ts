@@ -1,17 +1,27 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { gaussBoagaToLatLon } from "../crs.ts"
+import { cropOf } from "../dtm-mosaic.ts"
+import { toLocal } from "../geometry.ts"
 import {
+  beyondCoverage,
+  clippedRings,
   DTM_LATTICE,
+  dtmCropBox,
   dtmCropUrl,
+  dtmTiles,
   fetchWfs,
+  nc5File,
   nc5Query,
   PAGE,
   polygonsOfFeature,
+  udsPolygons,
   udsQuery,
   type WfsFeature,
   wfsUrl,
 } from "../liguria.ts"
+import type { Rect } from "../region.ts"
 
 /** Sarzana's town in EPSG:25832, round metres (the test region's box, fetch-lig). */
 const BOX = [575997, 4882280, 577650, 4886698] as const
@@ -128,12 +138,13 @@ test("polygonsOfFeature: a polygon or a multipolygon as flat E, N, Z rings on wh
 
 test("dtmCropUrl asks the native 5 m cells, the box's edges snapped outward to the DTM's lattice", () => {
   const { e, n } = DTM_LATTICE
-  // Cells 39550…39589 by rows 12460…12499: Piazza Matteotti's 200 m square, nudged inside.
+  // Cells 39550…39589 by rows 12460…12499: Piazza Matteotti's 200 m square, every edge 3 m inside
+  // (over half a cell, so each edge's floor or ceil tells from a round).
   const url = dtmCropUrl([
-    e + 39550 * 5 + 1.3,
-    n - 12500 * 5 + 0.2,
-    e + 39590 * 5 - 4,
-    n - 12460 * 5,
+    e + 39550 * 5 + 3,
+    n - 12500 * 5 + 3,
+    e + 39590 * 5 - 3,
+    n - 12460 * 5 - 3,
   ])
   assert.match(
     url,
@@ -147,4 +158,111 @@ test("dtmCropUrl asks the native 5 m cells, the box's edges snapped outward to t
   // The server deflates a crop in one TIFF tile alone.
   assert.doesNotThrow(() => dtmCropUrl([e, n - 2560, e + 2560, n]))
   assert.throws(() => dtmCropUrl([e, n - 2560, e + 2561, n]), /513 × 512 cells: at most 512/)
+})
+
+test("nc5File keeps each feature's attributes and polygons, and clips the mapped area to the box", () => {
+  const ring = (e: number, n: number, s: number, z: number) => [
+    [e, n, z],
+    [e + s, n, z],
+    [e + s, n + s, z],
+    [e, n + s, z],
+    [e, n, z],
+  ]
+  const lot: WfsFeature = {
+    properties: { classid: "LASPEZIA_0000000001" },
+    geometry: {
+      type: "MultiPolygon",
+      coordinates: [[ring(570000, 4880000, 10000, 0)], [ring(0, 0, 1, 0)]],
+    },
+  }
+  const mapped = nc5File(nc5Query("L6945", BOX), BOX, [lot])
+  assert.equal(mapped.layer, "M2052:L6945")
+  assert.equal(mapped.numberMatched, 1)
+  // The lot clipped to the box, Z 0; its part far away is dropped.
+  assert.deepEqual(mapped.features, [
+    {
+      properties: lot.properties,
+      polygons: [
+        [[575997, 4886698, 0, 575997, 4882280, 0, 577650, 4882280, 0, 577650, 4886698, 0]],
+      ],
+    },
+  ])
+  // Another layer's features whole, even past the box (the WFS's filter is a superset).
+  const house: WfsFeature = {
+    properties: { classref: "248082_1707522" },
+    geometry: { type: "Polygon", coordinates: [ring(577640, 4884780, 30, 39.04)] },
+  }
+  assert.deepEqual(
+    nc5File(nc5Query("L6871", BOX), BOX, [house]).features[0]!.polygons,
+    polygonsOfFeature(house),
+  )
+  assert.deepEqual(clippedRings([[0, 0, 5, 1, 0, 5, 1, 1, 5]], [10, 10, 20, 20]), [])
+})
+
+test("udsPolygons: one entry a polygon, the whole code, Z dropped, decimetres; a code outside the classes refused", () => {
+  const f = (code: string): WfsFeature => ({
+    properties: { ID_RLIG: 23568, COD_USO: code },
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [576300.4272, 4883023.6185, 0],
+          [576310.05, 4883023.6185, 0],
+          [576310.05, 4883030.04, 0],
+          [576300.4272, 4883023.6185, 0],
+        ],
+      ],
+    },
+  })
+  assert.deepEqual(udsPolygons([f("5121")], ["131", "512"]), [
+    {
+      id: 23568,
+      code: "5121",
+      rings: [[576300.4, 4883023.6, 576310.1, 4883023.6, 576310.1, 4883030, 576300.4, 4883023.6]],
+    },
+  ])
+  assert.throws(() => udsPolygons([f("5111")], ["131", "512"]), /land use code 5111 not kept/)
+})
+
+test("beyondCoverage: only the WCS's empty-subset 404 means nothing to keep", () => {
+  const empty =
+    '<ows:Exception exceptionCode="InvalidSubsetting" locator=""><ows:ExceptionText>Empty intersection after subsetting</ows:ExceptionText>'
+  assert.ok(beyondCoverage(404, empty))
+  assert.ok(!beyondCoverage(404, '<ows:Exception exceptionCode="InvalidAxisLabel" locator="E">'))
+  assert.ok(!beyondCoverage(404, '<ows:Exception exceptionCode="NoSuchCoverage">'))
+  assert.ok(!beyondCoverage(500, empty))
+})
+
+test("dtmTiles' crops cover fetch-rt's crop of a part: a tall part on the tiles' edges, an L with its notch", () => {
+  const parts: ReadonlyArray<ReadonlyArray<Rect>> = [
+    [[-16000, -10000, -14000, -4000]],
+    [
+      [-16000, -8000, -14000, -2000],
+      [-14000, -8000, -10000, -6000],
+    ],
+    [[-14400, -8000, -12800, -3600]],
+  ]
+  for (const rects of parts) {
+    const crop = cropOf(rects),
+      boxes = dtmTiles(rects).map(({ i, j }) => dtmCropBox(i, j))
+    // Every 50th cell of the crop each way, its last row and column included, in some crop's box.
+    const steps = (n: number) => [
+      ...Array.from({ length: Math.ceil(n / 50) }, (_, k) => 50 * k),
+      n - 1,
+    ]
+    for (const c of steps(crop.cols))
+      for (const r of steps(crop.rows)) {
+        const e = crop.e0 + c,
+          n = crop.n0 + r
+        assert.ok(
+          boxes.some(([x0, y0, x1, y1]) => e >= x0 && e <= x1 && n >= y0 && n <= y1),
+          `${JSON.stringify(rects)}: cell ${c}, ${r} at ${toLocal(...gaussBoagaToLatLon(e, n)).map(Math.round)}`,
+        )
+      }
+  }
+  // The Sarzana test region's: its 6 tiles and the row south of them, which its crop reaches.
+  assert.deepEqual(
+    dtmTiles(parts[2]!).map(({ i, j }) => `${i}_${j}`),
+    ["-8_-5", "-7_-5", "-8_-4", "-7_-4", "-8_-3", "-7_-3", "-8_-2", "-7_-2"],
+  )
 })

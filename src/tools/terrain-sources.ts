@@ -170,11 +170,21 @@ export const geoTiffRaster = async (bytes: Buffer, crs: 7791 | 3003 = 7791): Pro
 }
 
 /**
- * Liguria's DTM ed. 2023 over a part: its crops (`fetch-lig`'s GeoTIFFs, each on the DTM's 5 m
- * lattice) pasted onto one raster in EPSG:3003, its whole metres smoothed (`unround`). Undefined
- * without a crop.
+ * How far the chain's bend of Liguria's DTM reaches past the cells it is fitted on, m (`Filler`'s
+ * `fade`): the NC5's eaves stand in the DTM's own frame, so the DTM keeps it away from the better
+ * sources (with the lattice's bend unfaded, the Sarzana test region's corner of LiDAR lifted the
+ * DTM 1.1 m all over).
  */
-export const ligRaster = async (crops: ReadonlyArray<Buffer>): Promise<Raster | undefined> => {
+export const LIG_FADE = 500
+
+/**
+ * Liguria's DTM ed. 2023 over a part: its crops (`fetch-lig`'s GeoTIFFs, each on the DTM's 5 m
+ * lattice) pasted onto one raster in EPSG:3003, its whole metres smoothed (`unround`), with the
+ * smoothing's sweeps. Undefined without a crop.
+ */
+export const ligRaster = async (
+  crops: ReadonlyArray<Buffer>,
+): Promise<{ readonly raster: Raster; readonly sweeps: number } | undefined> => {
   const rasters = await Promise.all(crops.map((b) => geoTiffRaster(b, 3003)))
   if (rasters.length === 0) return undefined
   const cell = rasters[0]!.cell
@@ -212,8 +222,9 @@ export const ligRaster = async (crops: ReadonlyArray<Buffer>): Promise<Raster | 
 const ROUNDING = 0.5
 /** Over-relaxation of `unround`'s sweeps, and when they stop: no cell moved by more than STILL m, or MAX_SWEEPS. */
 const OMEGA = 1.9,
-  STILL = 0.001,
-  MAX_SWEEPS = 2000
+  STILL = 0.001
+/** The most sweeps `unround` makes, which `fetch-rt` reports reaching. */
+export const MAX_SWEEPS = 2000
 
 /**
  * The smoothest surface (a membrane: each cell the mean of its neighbours with data) within
@@ -221,12 +232,15 @@ const OMEGA = 1.9,
  * where the ground rises less than a metre a cell, the whole metres step by a metre every so many
  * cells, which the game's 4 m grid would draw as terraces, and a blur wide enough to hide them
  * would flatten the relief as well. A slope comes out straight, a crest or a hollow within half a
- * metre of its cells. A cell without data stays NaN and is no one's neighbour.
+ * metre of its cells. A cell without data stays NaN and is no one's neighbour. It relaxes in 64 bits:
+ * in 32 the rounding of each stored height, over-relaxed, keeps cells above 1024 m moving by more
+ * than STILL for ever. With the sweeps it made: MAX_SWEEPS when it stopped unsettled.
  */
-export const unround = (r: Raster): Raster => {
+export const unround = (r: Raster): { readonly raster: Raster; readonly sweeps: number } => {
   const { cols, rows } = r,
-    z = Float32Array.from(r.z)
-  for (let sweep = 0, moved = Infinity; sweep < MAX_SWEEPS && moved > STILL; sweep++) {
+    z = Float64Array.from(r.z)
+  let sweeps = 0
+  for (let moved = Infinity; sweeps < MAX_SWEEPS && moved > STILL; sweeps++) {
     moved = 0
     for (let b = 0; b < rows; b++)
       for (let a = 0; a < cols; a++) {
@@ -254,7 +268,7 @@ export const unround = (r: Raster): Raster => {
         z[k] = next
       }
   }
-  return { ...r, z }
+  return { raster: { ...r, z: Float32Array.from(z) }, sweeps }
 }
 
 /**

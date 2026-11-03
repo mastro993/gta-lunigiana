@@ -29,6 +29,15 @@ export interface Filler {
   readonly at: (col: number, row: number) => number
   /** Whether it may fill cell k (the DSM: open ground only); every cell when absent. */
   readonly where?: (k: number) => boolean
+  /**
+   * How far its bend reaches from the cells it is fitted on before it fades, m: the lattice's pull
+   * toward 0 is then MU × (GRID / fade)² a node, so the membrane between the fitted nodes decays
+   * over about that distance instead of carrying their residual on as a constant. Absent, the pull
+   * is EPS's, and a filler wider than its rim is lifted by the rim's mean all over: right for a hole
+   * the better sources ring, wrong for a source whose own frame other data share (Liguria's DTM and
+   * the NC5's eaves).
+   */
+  readonly fade?: number
 }
 
 /** What one filler did: the cells it filled, its rim, the residuals there and what the lattice left of them, dm, and its work. */
@@ -61,7 +70,7 @@ const NEAR = 2
 const BAND = 50
 /** The membrane's weight against the rim's fit, per lattice edge; a node is fitted by tens of rim cells. */
 const MU = 1
-/** A pull of every node toward 0, so a lattice piece without a rim is solved (to no bend). */
+/** A pull of every node toward 0, so a lattice piece without a rim is solved (to no bend); a filler's `fade` makes it stronger. */
 const EPS = 1e-6
 /** Over-relaxation of the band's sweeps, and when they stop: no cell moved by more than STILL dm. */
 const OMEGA = 1.9,
@@ -133,8 +142,8 @@ const nearCurrent = (src: Uint8Array, cols: number, rows: number): Uint8Array =>
 /**
  * The lattice fit: node values (`ni` × `nj`, GRID m apart from cell (0, 0)) minimising the squared
  * misfit of their bilinear to the residuals `fitR` at cells `fitK`, plus MU × the membrane over
- * the edges between the nodes of the `reach` lattice cells, by conjugate gradients with a Jacobi
- * preconditioner.
+ * the edges between the nodes of the `reach` lattice cells, plus `pull` × each node's square, by
+ * conjugate gradients with a Jacobi preconditioner.
  */
 const fitLattice = (
   cols: number,
@@ -144,6 +153,7 @@ const fitLattice = (
   fitK: Int32Array,
   fitR: Float64Array,
   count: number,
+  pull: number,
 ): { x: Float64Array; iterations: number } => {
   const nodes = ni * nj
   // A node is solved for when a lattice cell beside it is in reach.
@@ -185,7 +195,7 @@ const fitLattice = (
     }
   }
   for (const p of active) {
-    a[p * 9 + 4]! += EPS
+    a[p * 9 + 4]! += pull
     const i = p % ni
     // East and north edges, each once.
     if (i + 1 < ni && on[p + 1] === 1) {
@@ -302,7 +312,8 @@ export const fillStep = (m: Mosaic, f: Filler): FillReport => {
     fitR.push(r)
     inReach(k)
   }
-  const { x, iterations } = fitLattice(cols, ni, nj, reach, fitK.a, fitR.a, fitK.n)
+  const pull = f.fade === undefined ? EPS : MU * (GRID / f.fade) * (GRID / f.fade)
+  const { x, iterations } = fitLattice(cols, ni, nj, reach, fitK.a, fitR.a, fitK.n, pull)
   for (let k = 0; k < n; k++) if (src[k] === CURRENT) dm[k]! += latticeAt(x, ni, cols, k)
   // What the lattice leaves at each rim cell: the band's fixed edge.
   const leftover = new Map<number, number>()

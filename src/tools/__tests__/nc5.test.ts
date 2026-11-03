@@ -9,7 +9,7 @@ import { type TestContext, test } from "node:test"
 import { gzipSync } from "node:zlib"
 
 import { utm32ToLatLon } from "../crs.ts"
-import { centroid, toLocal } from "../geometry.ts"
+import { centroid, pointInRing, toLocal } from "../geometry.ts"
 import { readNc5, referenceOf } from "../nc5.ts"
 import type { Rect } from "../region.ts"
 import { element5k, localOf, surveyId } from "../survey-ids.ts"
@@ -126,7 +126,7 @@ test("readNc5: a footprint per polygon at its own eave, the kind from the DBT's 
   assert.deepEqual(readNc5([dir], [ex - 10, ey - 10, ex, ey]).buildings, [])
 })
 
-test("readNc5: carriageways but those in a tunnel as paved road surfaces, the mapped area, a feature in two parts once", (t) => {
+test("readNc5: carriageways but those in a tunnel as paved road surfaces, a building in two parts once, every part's mapped area", (t) => {
   const carriageway = (subregid: string, ac_vei_sed: string, e: number) => ({
     properties: { subregid, ac_vei_sed, ac_vei_liv: "02", ac_vei_zon: "01" },
     polygons: [[square(e, N - 50, 8, 20)]],
@@ -145,8 +145,13 @@ test("readNc5: carriageways but those in a tunnel as paved road surfaces, the ma
       },
     ],
   }
+  // The next part east: the same buildings and carriageways (on both parts' boxes), and the lot's
+  // mapped area as fetch-lig clips it to that part's own box.
   const a = part(t, layers),
-    b = part(t, layers)
+    b = part(t, {
+      ...layers,
+      L6945: [{ ...layers.L6945[0]!, polygons: [[square(E + 500, N - 500, 1000, 0)]] }],
+    })
   const one = readNc5([a], ANYWHERE)
   assert.deepEqual(
     one.roadAreas.map((r) => [r.paved, r.name]),
@@ -156,7 +161,14 @@ test("readNc5: carriageways but those in a tunnel as paved road surfaces, the ma
     ],
   )
   assert.equal(one.mapped.length, 1)
-  assert.deepEqual(readNc5([a, b], ANYWHERE), one)
+  const both = readNc5([a, b], ANYWHERE)
+  assert.deepEqual(both.buildings, one.buildings)
+  assert.deepEqual(both.roadAreas, one.roadAreas)
+  // Each part's piece of the lot is mapped, though both are the one feature `LASPEZIA_0000000001`.
+  const east = toLocal(...utm32ToLatLon(E + 1200, N))
+  assert.equal(both.mapped.length, 2)
+  assert.ok(!one.mapped.some((ring) => pointInRing(east[0], east[1], ring)))
+  assert.ok(both.mapped.some((ring) => pointInRing(east[0], east[1], ring)))
   assert.deepEqual(readNc5([join(a, "nowhere")], ANYWHERE), {
     buildings: [],
     roadAreas: [],

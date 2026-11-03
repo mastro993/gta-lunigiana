@@ -75,9 +75,9 @@ export const gaussBoagaBox = (
   pad = 0,
 ): [number, number, number, number] => boxOfCorners(rects, pad, latLonToGaussBoaga)
 
-/** The UTM 32N box (EPSG:25832, 6707, 7791) [e0, n0, e1, n1] round every corner of local rectangles, widened by `pad` metres. */
-export const utm32Box = (rects: ReadonlyArray<Rect>, pad = 0): [number, number, number, number] =>
-  boxOfCorners(rects, pad, latLonToUtm32)
+/** The UTM 32N box (EPSG:25832, 6707, 7791) [e0, n0, e1, n1] round every corner of local rectangles. */
+export const utm32Box = (rects: ReadonlyArray<Rect>): [number, number, number, number] =>
+  boxOfCorners(rects, 0, latLonToUtm32)
 
 /** The box round every corner of `rects`, each projected by `project`, widened by `pad`. */
 const boxOfCorners = (

@@ -1,8 +1,9 @@
 // Adapter (c) on Regione Liguria's NC5 (DB Geotopografico National Core 1:5000, La Spezia's lot,
 // CC BY 4.0; `liguria.ts`): the national schema of DM 10/11/2011, as the DBT 1:2000 (dbt.ts), in
 // EPSG:25832, 3D, read into the survey record of ctr.ts from the files `fetch-lig` writes
-// (data/raw/lig/<part>/nc5/<layer>.json.gz). A feature on two parts' boxes is in both their files and
-// read once, by its source reference (`classref`, `subregid`).
+// (data/raw/lig/<part>/nc5/<layer>.json.gz). A building or a carriageway on two parts' boxes is in
+// both their files and read once, by its source reference (`classref`, `subregid`); the mapped area,
+// which fetch-lig clips to each part's box, is read from every part's file.
 // - Buildings: the footprints of L6871 ("Edificio", ingombro al suolo) and L6870 (minor buildings),
 //   their kind from `edifc_*` or `edi_min_*` through the DBT's `kindOf`. A footprint's Z is its eave
 //   (the restitution draws it at the eave): flat on 2,092 of the town's 2,098 L6871 footprints, each
@@ -12,7 +13,8 @@
 //   monument flag set.
 // - Road surfaces: the carriageways of L6858 ("Area di circolazione veicolare"), but those in a
 //   tunnel (`ac_vei_sed` 03), all paved (no field gives the surface) and unnamed. They leave out the
-//   sidewalks (L6859), so they are narrower than the CTR's road surfaces.
+//   sidewalks (L6859), as the CTR's road surfaces do; the road areas (L6861) are not read, so a road
+//   with no carriageway has no surface here, where the DBT falls back on its road areas.
 // - The mapped area: L6945, the lot's restitution ("Porzione di territorio restituito").
 // Ids (survey-ids.ts): the source `nc5`, the section its 1:5000 element (`classref`'s prefix,
 // `element5k`) and the local number its serial and the polygon's place in the feature.
@@ -23,18 +25,10 @@ import { gunzipSync } from "node:zlib"
 import { type BuildingSpec, buildingsOf, local, polygonsOf, type Survey, specOf } from "./ctr.ts"
 import { kindOf } from "./dbt.ts"
 import { TERRAIN_BOX } from "./geometry.ts"
-import { NC5_LAYERS } from "./liguria.ts"
+import { NC5_LAYERS, type Nc5LayerFile } from "./liguria.ts"
 import type { Rect } from "./region.ts"
 import type { ShpRecord } from "./shp.ts"
 import { element5k, localOf, surveyId } from "./survey-ids.ts"
-
-/** A layer's file as `fetch-lig` writes it. */
-interface Nc5File {
-  readonly features: ReadonlyArray<{
-    readonly properties: Readonly<Record<string, string | number | null>>
-    readonly polygons: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>
-  }>
-}
 
 /** A feature's attributes as strings, as the DBT's `kindOf` reads them (no value: ""). */
 type Attrs = Readonly<Record<string, string>>
@@ -72,17 +66,21 @@ const spec = (code: string): BuildingSpec => {
 
 /** The NC5 in the parts' folders `dirs` (data/raw/lig/<part>/nc5), clipped to `box`: see the module header. */
 export const readNc5 = (dirs: ReadonlyArray<string>, box: Rect = TERRAIN_BOX): Survey => {
-  /** Every feature of `layer` over the folders, each once by its reference `key`, attributes as strings. */
-  const layer = (name: string, key: string) => {
+  /**
+   * Every feature of `layer` over the folders, attributes as strings: each once by its reference
+   * `key`, or every folder's own when `key` is undefined.
+   */
+  const layer = (name: string, key?: string) => {
     const seen = new Set<string>()
     return dirs.flatMap((dir) => {
       const path = join(dir, `${name}.json.gz`)
       if (!existsSync(path)) return []
-      const file = JSON.parse(gunzipSync(readFileSync(path)).toString()) as Nc5File
+      const file = JSON.parse(gunzipSync(readFileSync(path)).toString()) as Nc5LayerFile
       return file.features.flatMap(({ properties, polygons }) => {
         const attrs: Attrs = Object.fromEntries(
           Object.entries(properties).map(([k, v]) => [k, v === null ? "" : String(v)]),
         )
+        if (key === undefined) return [{ ref: "", attrs, polygons }]
         const ref = attrs[key] ?? ""
         if (ref === "") throw new Error(`${name}: a feature without its ${key}`)
         if (seen.has(ref)) return []
@@ -121,7 +119,8 @@ export const readNc5 = (dirs: ReadonlyArray<string>, box: Rect = TERRAIN_BOX): S
           polygonsOf(recordOf(rings, attrs), local, box).map((r) => ({ paved: true, rings: r })),
         ),
   )
-  const mapped = layer(NC5_LAYERS.mapped, "classid").flatMap(({ attrs, polygons }) =>
+  // Each part's own piece of the lot: one feature, clipped to that part's box.
+  const mapped = layer(NC5_LAYERS.mapped).flatMap(({ attrs, polygons }) =>
     polygons.flatMap((rings) => polygonsOf(recordOf(rings, attrs), local, box).map((r) => r[0]!)),
   )
   return { buildings, roadAreas, mapped }

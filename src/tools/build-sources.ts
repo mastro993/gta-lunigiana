@@ -2,7 +2,6 @@
 // DTM, the land cover; Regione Toscana's and each part's Regione Liguria's) read into features, the
 // rail conflated onto the CTR, and the districts fitted, so the OSM and the surveys go out of scope
 // before the terrain is built.
-import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import type { Area, Barrier, District } from "../sim/map/index.ts"
@@ -25,7 +24,7 @@ import {
 import { centroid, pointInRing, r1 } from "./geometry.ts"
 import { readOsm } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
-import { REGION, dtmDir, ligDir } from "./region.ts"
+import { REGION, dtmDir, ligFolders } from "./region.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
@@ -45,7 +44,7 @@ export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem">
 export const readSources = async (root: string, lap: (label: string) => void) => {
   const lunigiana = REGION.id === "lunigiana"
   /** Each part's Regione Liguria sources (fetch-lig), where it has some. */
-  const lig = REGION.parts.map((p) => join(root, ligDir(p))).filter((dir) => existsSync(dir))
+  const lig = ligFolders(root, REGION.parts)
   const osm = readOsm(join(root, `data/raw/${REGION.id}.osm.gz`))
   const { survey, ctr2019 } = lunigiana
     ? readSurveys(join(root, "data/raw/rt"), lig)
@@ -88,7 +87,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     ...(lunigiana
       ? readUcs([
           join(root, "data/raw/rt/ucs.json.gz"),
-          ...lig.map((dir) => join(dir, "uds.json.gz")).filter((path) => existsSync(path)),
+          ...lig.map((dir) => join(dir, "uds.json.gz")),
         ]).filter((a) => !isWaterArea(a.kind) || !osmAreas.some((o) => overlap(a, o)))
       : []),
     ...survey.roadAreas.filter((a) => a.paved).map((a) => ({ kind: "paved", rings: a.rings })), // squares, lay-bys
