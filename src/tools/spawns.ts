@@ -280,7 +280,7 @@ const boxSegment = (
   return d
 }
 /** Kerbside spots kept: one per this many buildings (Monzone's 800 buildings had 100), drawn in hash order so every village gets its share. */
-const BUILDINGS_PER_SPOT = 8
+export const BUILDINGS_PER_SPOT = 8
 
 /** Kerbside spots in built-up streets (right kerb, >= 9 m apart, >= 12 m from junctions; the two nearest the Carabinieri first) plus a few in the Monzone station car parks. */
 export const parkedSpots = ({

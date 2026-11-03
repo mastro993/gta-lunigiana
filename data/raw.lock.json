@@ -1450,6 +1450,316 @@
     "asset": "raw-20261030/rt.ctr.23D55_AZR.shp.gz",
     "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_23D55_2019_6707.zip"
   },
+  "rt/ctr2009/22D02_AC_a.dbf.gz": {
+    "sha256": "d8308395b8b3306f84093dff0b11f5818ea326a729f46fac48a1fab450735e92",
+    "bytes": 352,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D02_2009_6707.zip"
+  },
+  "rt/ctr2009/22D02_AC_a.shp.gz": {
+    "sha256": "206ec991052f1ba684d46c74017c5d8f7d4ef5904e8186f23b19cfd960179bbf",
+    "bytes": 2699,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D02_2009_6707.zip"
+  },
+  "rt/ctr2009/22D02_AV_a.dbf.gz": {
+    "sha256": "2fc039baace7cfe875612ec780315b63e6d206e443f078dea0db7e62e252679a",
+    "bytes": 278,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D02_2009_6707.zip"
+  },
+  "rt/ctr2009/22D02_AV_a.shp.gz": {
+    "sha256": "71aa1a6fe2dbe51b2d9d8716190666c5e796398f34bcea4063293b3f3e9b2429",
+    "bytes": 7292,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D02_2009_6707.zip"
+  },
+  "rt/ctr2009/22D03_AC_a.dbf.gz": {
+    "sha256": "a54178472d5b6c9e7c03e75e07adae6b3b6e87ad910a4659793f02e143d22083",
+    "bytes": 356,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D03_2009_6707.zip"
+  },
+  "rt/ctr2009/22D03_AC_a.shp.gz": {
+    "sha256": "d6d1d5b19d13994082b1bec26c748af1eb57d2e22c8eca1e998ab64724981ad8",
+    "bytes": 3020,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D03_2009_6707.zip"
+  },
+  "rt/ctr2009/22D03_AE_a.dbf.gz": {
+    "sha256": "d1981cef280586684f3d33c2a301005d9e05a727209cdabe594798e60dbbb316",
+    "bytes": 752,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D03_2009_6707.zip"
+  },
+  "rt/ctr2009/22D03_AE_a.shp.gz": {
+    "sha256": "3e27b13b44f20da69e13aab31a0ef5509dff886bd212fc21872baff95686bd52",
+    "bytes": 3346,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D03_2009_6707.zip"
+  },
+  "rt/ctr2009/22D03_AV_a.dbf.gz": {
+    "sha256": "e54d17a5c06bfe859f3280e6ead942e549809ac761a7eeac9875a8b21aee601d",
+    "bytes": 329,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D03_2009_6707.zip"
+  },
+  "rt/ctr2009/22D03_AV_a.shp.gz": {
+    "sha256": "8c49b276587990b0ffa66a103c12742e98680787d4c921c636ea4fac9517d464",
+    "bytes": 30473,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D03_2009_6707.zip"
+  },
+  "rt/ctr2009/22D04_AC_a.dbf.gz": {
+    "sha256": "a18b8c77ca57ee1fa62c9356d0a9e4873c2e8207b19d85c7002851d5378003bb",
+    "bytes": 352,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D04_2009_6707.zip"
+  },
+  "rt/ctr2009/22D04_AC_a.shp.gz": {
+    "sha256": "2acea5d17c715a2fab6a0bcb420c25cfe652fd10f63354b255745a20eb02c3b4",
+    "bytes": 4356,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D04_2009_6707.zip"
+  },
+  "rt/ctr2009/22D04_AE_a.dbf.gz": {
+    "sha256": "3953eeedc271cd787151cc7548eb2dffefd69d79288d73f49680acf553e1a4b4",
+    "bytes": 981,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D04_2009_6707.zip"
+  },
+  "rt/ctr2009/22D04_AE_a.shp.gz": {
+    "sha256": "bee5f0f8033fa9ddcb8b816ce971b060318b517b3386b7adc66fc8882f6009ee",
+    "bytes": 4265,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D04_2009_6707.zip"
+  },
+  "rt/ctr2009/22D04_AV_a.dbf.gz": {
+    "sha256": "d144530f6aa6d81c9defdadf31f87b2babb8112e645002af62e41ada69ac9453",
+    "bytes": 433,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D04_2009_6707.zip"
+  },
+  "rt/ctr2009/22D04_AV_a.shp.gz": {
+    "sha256": "a2aebcd4bab0ff7356d874638d6d039a925b97a883e8d07eb90c1ba05ab5e5e4",
+    "bytes": 34501,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D04_2009_6707.zip"
+  },
+  "rt/ctr2009/22D05_AC_a.dbf.gz": {
+    "sha256": "ea0c324d4749a8bcb0f5f4ef5175dbea690be8be0a0dc10b922732771886cb4d",
+    "bytes": 362,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D05_2009_6707.zip"
+  },
+  "rt/ctr2009/22D05_AC_a.shp.gz": {
+    "sha256": "ac07a8b7a9cd3be0873906a388f6d5ce21df8a29af9751f3b14d9ff4d4c5a958",
+    "bytes": 2100,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D05_2009_6707.zip"
+  },
+  "rt/ctr2009/22D05_AE_a.dbf.gz": {
+    "sha256": "a2cc9df1b38d105894c60d2a4b4b069189bde826be6ecb7ab85421b5ae76a084",
+    "bytes": 181,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D05_2009_6707.zip"
+  },
+  "rt/ctr2009/22D05_AE_a.shp.gz": {
+    "sha256": "7c0e50b045a1624a79ba9fef3787d8b04baa142fe5aedd1a3089d6f8f45530ab",
+    "bytes": 253,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D05_2009_6707.zip"
+  },
+  "rt/ctr2009/22D05_AV_a.dbf.gz": {
+    "sha256": "949eca543ce95430bd2f201ccf6d0a7cf0604e1644e60b8bd19cb18efe55eaba",
+    "bytes": 252,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D05_2009_6707.zip"
+  },
+  "rt/ctr2009/22D05_AV_a.shp.gz": {
+    "sha256": "f7b93b34e2aa907587f2aef03e456a09034c68d66904e6a43cd0172c5ceb5baa",
+    "bytes": 2373,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D05_2009_6707.zip"
+  },
+  "rt/ctr2009/22D06_AC_a.dbf.gz": {
+    "sha256": "562a1d17d5da3bfb36e046512319eafdd8e4fde9af854e0595336f578f2fad42",
+    "bytes": 353,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D06_2009_6707.zip"
+  },
+  "rt/ctr2009/22D06_AC_a.shp.gz": {
+    "sha256": "94a724708f4ef7af907d9efb1d12bb44e7ec42be526e95d677ce710fa977cae7",
+    "bytes": 4854,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D06_2009_6707.zip"
+  },
+  "rt/ctr2009/22D07_AC_a.dbf.gz": {
+    "sha256": "bd178228eafe7be55ef66cee709a11cb04fcd143e7bccc6947323489a5fab541",
+    "bytes": 355,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D07_2009_6707.zip"
+  },
+  "rt/ctr2009/22D07_AC_a.shp.gz": {
+    "sha256": "3cbbd0189129d2ece27e413c2af406684f7627c50c45936f0627f5973b460d56",
+    "bytes": 3461,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D07_2009_6707.zip"
+  },
+  "rt/ctr2009/22D10_AC_a.dbf.gz": {
+    "sha256": "ff56b1555acc09e4f06ee1e3db4f4345027482b3e438e584cc6833d1e41afb45",
+    "bytes": 352,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D10_2009_6707.zip"
+  },
+  "rt/ctr2009/22D10_AC_a.shp.gz": {
+    "sha256": "9b5f852a5a9106d6a94ba5fd5a441e0f8a2e0f6290ff9428e60a5920b3f72476",
+    "bytes": 2249,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D10_2009_6707.zip"
+  },
+  "rt/ctr2009/22D10_AE_a.dbf.gz": {
+    "sha256": "0e563f345895bae7aff635076f9f0109a4e8161045db0e2139afe71990838f16",
+    "bytes": 1747,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D10_2009_6707.zip"
+  },
+  "rt/ctr2009/22D10_AE_a.shp.gz": {
+    "sha256": "a69aa9261e7b5c36350a3d9e8e36ad7c7fa2fc1576ad6d669c5d08d1ca1cffbd",
+    "bytes": 8569,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D10_2009_6707.zip"
+  },
+  "rt/ctr2009/22D10_AV_a.dbf.gz": {
+    "sha256": "9024816c1569738ebb9a2b7424496a75cab8749efb9c74ac026c4c3b83649225",
+    "bytes": 524,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D10_2009_6707.zip"
+  },
+  "rt/ctr2009/22D10_AV_a.shp.gz": {
+    "sha256": "b20403f8d11815cd4c97b631ed24b0a1f126f398e32a42295963867c4c0f5f9f",
+    "bytes": 26265,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D10_2009_6707.zip"
+  },
+  "rt/ctr2009/22D11_AC_a.dbf.gz": {
+    "sha256": "f29990bcb2c5813e8dfac3a7a054144a90bdd2f7732a88a20273af1f61d70a43",
+    "bytes": 355,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D11_2009_6707.zip"
+  },
+  "rt/ctr2009/22D11_AC_a.shp.gz": {
+    "sha256": "c9ef9c41f5a9a7d45fbbdbda0c9ec2bff6e22c0721391848d7d24b55a8cb8d18",
+    "bytes": 2212,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D11_2009_6707.zip"
+  },
+  "rt/ctr2009/22D11_AE_a.dbf.gz": {
+    "sha256": "7eb9b7b7e6e3ad1614e9844a7fbec1ceb76942c227a22ab9c21073674f414a87",
+    "bytes": 465,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D11_2009_6707.zip"
+  },
+  "rt/ctr2009/22D11_AE_a.shp.gz": {
+    "sha256": "178d4dec6b03740f93e92a135811ae19a257d8025902a8814521272ca7cefe19",
+    "bytes": 1666,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D11_2009_6707.zip"
+  },
+  "rt/ctr2009/22D11_AV_a.dbf.gz": {
+    "sha256": "3fb6578b2ecacab9256906e113ac5a27ef9f34b55526bd5d4ea4c807c511c42c",
+    "bytes": 423,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D11_2009_6707.zip"
+  },
+  "rt/ctr2009/22D11_AV_a.shp.gz": {
+    "sha256": "cd4da826307413a5bcce85294539d5092af264dde44c8adb3b7ac735633a84b0",
+    "bytes": 25208,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D11_2009_6707.zip"
+  },
+  "rt/ctr2009/22D12_AC_a.dbf.gz": {
+    "sha256": "6a56d745bc72805350c591fffc593055b6cd7605f23bfd8b41a0e3afc47124bf",
+    "bytes": 354,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D12_2009_6707.zip"
+  },
+  "rt/ctr2009/22D12_AC_a.shp.gz": {
+    "sha256": "67ccbcaf139f6ce9b53db2318d106d9736e15f40c51c438d7be71bc1c0e8bffc",
+    "bytes": 2464,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D12_2009_6707.zip"
+  },
+  "rt/ctr2009/22D12_AE_a.dbf.gz": {
+    "sha256": "1075e8523e44544472e4f869dc7d0d997efd700020b38202f7198466d7a70d4a",
+    "bytes": 1007,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D12_2009_6707.zip"
+  },
+  "rt/ctr2009/22D12_AE_a.shp.gz": {
+    "sha256": "e6279d148414ef43a8ca19aeb18e37829af4a63de9e36f07fd5fe198543ac397",
+    "bytes": 4284,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D12_2009_6707.zip"
+  },
+  "rt/ctr2009/22D12_AV_a.dbf.gz": {
+    "sha256": "d1188242e944e60effd9831ebfdb173cd3f50d0ba7ae68e2ae518f71e7ee8a72",
+    "bytes": 547,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D12_2009_6707.zip"
+  },
+  "rt/ctr2009/22D12_AV_a.shp.gz": {
+    "sha256": "d9a31743e171f621de9feadc12a60a890c6b8f9226da25934ff06a447573a52c",
+    "bytes": 45070,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D12_2009_6707.zip"
+  },
+  "rt/ctr2009/22D13_AC_a.dbf.gz": {
+    "sha256": "059a9704d94986eff59e4f888a587c4f0f9d6e1a27740b3536f3b1dc8261a07f",
+    "bytes": 367,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D13_2009_6707.zip"
+  },
+  "rt/ctr2009/22D13_AC_a.shp.gz": {
+    "sha256": "b25ad59a835dcd7fb91cc94e7a5ae12565ba0e28518ad694f8e99370145b3fb8",
+    "bytes": 4231,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D13_2009_6707.zip"
+  },
+  "rt/ctr2009/22D13_AE_a.dbf.gz": {
+    "sha256": "dfb526685aad2f76af3e746ccf144a7010b4b69fb712e5d6b1627d436f89cb12",
+    "bytes": 432,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D13_2009_6707.zip"
+  },
+  "rt/ctr2009/22D13_AE_a.shp.gz": {
+    "sha256": "b013e0cba2d01383fa772f255eb633ffcbd154d3253b5580f0b746ac7a67c40f",
+    "bytes": 1572,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D13_2009_6707.zip"
+  },
+  "rt/ctr2009/22D13_AV_a.dbf.gz": {
+    "sha256": "55eb69370856c814d1bcbf3f7670a2f47419218fbd2740e3a9b5a5522f12e6e2",
+    "bytes": 623,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D13_2009_6707.zip"
+  },
+  "rt/ctr2009/22D13_AV_a.shp.gz": {
+    "sha256": "41c6767a43b6bfb8079797a69e52305a7153df802351f3368ce68c473697893e",
+    "bytes": 51761,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D13_2009_6707.zip"
+  },
+  "rt/ctr2009/22D14_AC_a.dbf.gz": {
+    "sha256": "a28da743da69e462a1e725f353729c98cbe30d2d9b9f3f0ccb04df2548542e37",
+    "bytes": 354,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D14_2009_6707.zip"
+  },
+  "rt/ctr2009/22D14_AC_a.shp.gz": {
+    "sha256": "2832ac100bf6a0b986a2a422a23c305cc8114abd2156761d75bf78126600f69a",
+    "bytes": 1512,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D14_2009_6707.zip"
+  },
+  "rt/ctr2009/22D14_AE_a.dbf.gz": {
+    "sha256": "b018fc778dd4ee733a0462b78c99fead3a233d5dc2930d61d38747b0948cacfc",
+    "bytes": 362,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D14_2009_6707.zip"
+  },
+  "rt/ctr2009/22D14_AE_a.shp.gz": {
+    "sha256": "1e9c70d8bcb4f9075c177856cc4ebfc18074b40c4c5674cdd150f69529aa0493",
+    "bytes": 1091,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D14_2009_6707.zip"
+  },
+  "rt/ctr2009/22D14_AV_a.dbf.gz": {
+    "sha256": "6b02b226b643f0d14702b78c0c315dcc1353567ad1e5c27e6204d013ecaef1c7",
+    "bytes": 269,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D14_2009_6707.zip"
+  },
+  "rt/ctr2009/22D14_AV_a.shp.gz": {
+    "sha256": "3e1de3de29f3d88707055fd020ed7f70af2e2ccc7d0d8ece29b7e74feb9aed23",
+    "bytes": 7423,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D14_2009_6707.zip"
+  },
+  "rt/ctr2009/22D15_AC_a.dbf.gz": {
+    "sha256": "825fc7b7f545e782ab33c4ffe0b8a7db1204055c0c240c3f22a7c8c2b8b1f0e5",
+    "bytes": 352,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D15_2009_6707.zip"
+  },
+  "rt/ctr2009/22D15_AC_a.shp.gz": {
+    "sha256": "c385301fe0ea8c9dc81af916d66a8837e5962caefa85aec074fe9e7d0fb47a47",
+    "bytes": 1957,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D15_2009_6707.zip"
+  },
+  "rt/ctr2009/22D15_AE_a.dbf.gz": {
+    "sha256": "51706b70b3df88aee0bb98a25aa4dc8dfeabcfcba4865e18b3c2a970a25d0e22",
+    "bytes": 220,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D15_2009_6707.zip"
+  },
+  "rt/ctr2009/22D15_AE_a.shp.gz": {
+    "sha256": "81dbd681b58f9fc2fe09bd4fa1f0391b6167286823df8c6a628da740ea036238",
+    "bytes": 403,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D15_2009_6707.zip"
+  },
+  "rt/ctr2009/22D15_AV_a.dbf.gz": {
+    "sha256": "8367eee985e8ee89cdde6b8a5f71edad7f2087ea3f42f7e4ab8363e4bbe33879",
+    "bytes": 314,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D15_2009_6707.zip"
+  },
+  "rt/ctr2009/22D15_AV_a.shp.gz": {
+    "sha256": "35d67b5934fae27ddefa3c904128253c1ba2d7fcc057a2178a08fceecbf440ea",
+    "bytes": 10416,
+    "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D15_2009_6707.zip"
+  },
   "rt/dtm-src.bin": {
     "sha256": "eb0128d9bf0346cb848b115e9e3bf51bbfcf0b0faadbaa22fd30ccee8c50c2f9",
     "bytes": 22752,

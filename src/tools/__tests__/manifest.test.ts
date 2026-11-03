@@ -69,3 +69,15 @@ test("pontremoli-town's manifest lists Pontremoli's DBT 1:2000 of 2010 and nothi
     dbt2k: ["DBT2K_045014_PONTREMOLI_2010_2010_3003_21f45aa3f469081de7f71f76d5913f2b"],
   })
 })
+
+test("lucido's manifest lists the 12 sheets of 2009 on the Carrara side whose mapped area meets it, and no CTR 1:10 000 or DBT", () => {
+  const { ctr2009, ctr10k, dbt2k } = readManifest("lucido")
+  // 22D02–07 and 22D10–15, each mapping 5.6 ha (22D05) to 148.6 ha (22D03) of lucido.
+  assert.deepEqual(
+    ctr2009,
+    [2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15].map((n) => `22D${String(n).padStart(2, "0")}`),
+  )
+  // The CTR 1:10 000 only where a manifest lists it, so lucido keeps OSM's huts beyond the CTR 1:2000.
+  assert.deepEqual(ctr10k, [])
+  assert.deepEqual(dbt2k, [])
+})

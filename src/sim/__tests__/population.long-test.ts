@@ -68,51 +68,53 @@ const People = Game.Inspector(
   }),
 )
 
-/** A runtime with the player standing at `at` (nobody else about yet), and a reader of its people. */
-const standAt = (at: Vec2.Vec2) => {
-  const sim = start([], [{ ...at, angle: 0 }])
+/** A runtime on game seed `seed` with the player standing at `at` (nobody else about yet), and a reader of its people. */
+const standAt = (at: Vec2.Vec2, seed = 1) => {
+  const sim = start([], [{ ...at, angle: 0 }], { seed })
   assert.ok(sim.runtime.tick(Game.Schedule(teleport({ ...at, angle: 0 }))).ok)
   return { ...sim, people: () => sim.runtime.inspect(People) }
 }
 
 // A centre fills once and few join later, and 9 % of parties walk a dog (PARTY_WEIGHTS), so one
-// seeded fill may draw none: Gragnola's has drawn none since the rail moved onto the CTR (240 s
-// watched). The sightings of both centres count.
+// seeded fill draws none about a time in four: on seed 1 neither centre's has since the Carrara side
+// took its 2009 buildings (240 s watched each; seeds 2, 3 and 5 draw some). The sightings of both
+// centres on two seeds count, so a map change leaves the check with dogs to watch.
 test("populate: Gragnola's and Vinca's centres fill to their targets in parties; kids and dogs keep beside their grown-up", () => {
   let dogs = 0
   // How far each kid walking with its walking parent is from it, every half second.
   const gaps: Array<number> = []
-  for (const centre of [GRAGNOLA, VINCA]) {
-    const { run, people } = standAt(centre)
-    const target = peopleOut(centre.x, centre.y)
-    let most = 0
-    run(2400, (frame) => {
-      if (frame % 30 !== 29) return
-      const { people: all, dogs: leashed } = people()
-      const living = all.filter((p) => !p.dead)
-      most = Math.max(most, living.length)
-      assert.ok(
-        living.length <= Math.min(PEDESTRIANS.max, target + 2),
-        `${living.length} people out`,
-      )
-      const byId = new Map(all.map((p) => [p.id, p]))
-      for (const kid of all.filter((p) => p.look.age === "kid")) {
-        const parent = kid.leader === undefined ? undefined : byId.get(kid.leader)
-        assert.ok(parent !== undefined && parent.look.age !== "kid", "a kid is never out alone")
-        if (parent.mood === "walk" && kid.mood === "walk") gaps.push(Vec2.distance(kid, parent))
-      }
-      for (const dog of leashed) {
-        const owner = byId.get(dog.leader)
-        if (owner?.mood !== "walk") continue
-        dogs++
+  for (const seed of [1, 2])
+    for (const centre of [GRAGNOLA, VINCA]) {
+      const { run, people } = standAt(centre, seed)
+      const target = peopleOut(centre.x, centre.y)
+      let most = 0
+      run(2400, (frame) => {
+        if (frame % 30 !== 29) return
+        const { people: all, dogs: leashed } = people()
+        const living = all.filter((p) => !p.dead)
+        most = Math.max(most, living.length)
         assert.ok(
-          dog.species === "dog" && Vec2.distance(dog, owner) < 6,
-          `dog ${Vec2.distance(dog, owner).toFixed(2)} m from its owner`,
+          living.length <= Math.min(PEDESTRIANS.max, target + 2),
+          `${living.length} people out`,
         )
-      }
-    })
-    assert.ok(most >= target - 2, `${centre.x}: ${most} people out of a target of ${target}`)
-  }
+        const byId = new Map(all.map((p) => [p.id, p]))
+        for (const kid of all.filter((p) => p.look.age === "kid")) {
+          const parent = kid.leader === undefined ? undefined : byId.get(kid.leader)
+          assert.ok(parent !== undefined && parent.look.age !== "kid", "a kid is never out alone")
+          if (parent.mood === "walk" && kid.mood === "walk") gaps.push(Vec2.distance(kid, parent))
+        }
+        for (const dog of leashed) {
+          const owner = byId.get(dog.leader)
+          if (owner?.mood !== "walk") continue
+          dogs++
+          assert.ok(
+            dog.species === "dog" && Vec2.distance(dog, owner) < 6,
+            `dog ${Vec2.distance(dog, owner).toFixed(2)} m from its owner`,
+          )
+        }
+      })
+      assert.ok(most >= target - 2, `${centre.x}: ${most} people out of a target of ${target}`)
+    }
   assert.ok(gaps.length > 0 && dogs > 0, `${gaps.length} kid and ${dogs} dog sightings`)
   // Kids walk beside their parent: a kid left behind by a flight (it runs slower) catches up within a few seconds.
   assert.ok(
