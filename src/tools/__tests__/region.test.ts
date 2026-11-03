@@ -7,6 +7,7 @@ import {
   type Rect,
   checkMask,
   dtmDir,
+  surveyDir,
   inRects,
   mapDir,
   partOf,
@@ -136,6 +137,26 @@ test("bagnone-ridge: one part, sillara, 4 × 4 km round Monte Sillara on 4 tiles
   )
   for (const key of ["lunigiana", "cesena", "lunigiana-l", "lunigiana-3x"])
     assert.ok(!regionFromArgs(["--region", key]).ownTerrain, key)
+})
+
+test("pontremoli-town: one part, 1.6 × 1.6 km round Pontremoli's town, the one region with buildings of its own", () => {
+  const town = regionFromArgs(["--region", "pontremoli-town"])
+  assert.ok(town.ownBuildings && !town.ownTerrain && town.test)
+  assert.deepEqual(
+    town.parts.map((p) => [p.key, p.rects, p.mask]),
+    [["pontremoli-town", [[-20700, 23100, -19100, 24700]], undefined]],
+  )
+  for (const key of ["lunigiana", "cesena", "lunigiana-l", "lunigiana-3x", "bagnone-ridge"])
+    assert.ok(!regionFromArgs(["--region", key]).ownBuildings, key)
+})
+
+test("surveyDir is a region's own folder when it has buildings of its own, else Lunigiana's", () => {
+  assert.equal(
+    surveyDir(regionFromArgs(["--region", "pontremoli-town"])),
+    "data/raw/rt/pontremoli-town",
+  )
+  for (const key of ["lunigiana", "lunigiana-l", "bagnone-ridge"])
+    assert.equal(surveyDir(regionFromArgs(["--region", key])), "data/raw/rt", key)
 })
 
 test("dtmDir is a region's own folder when it has terrain of its own, else Lunigiana's", () => {

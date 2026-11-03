@@ -4,6 +4,7 @@
 // - LiDAR, 10 m DTM, land cover: EPSG:3003, Monte Mario / Gauss-Boaga west, on the International
 //   1924 ellipsoid. The datum shift is the EPSG:1660 Helmert ("Monte Mario to WGS 84 (4)", mainland
 //   Italy, a few metres); `GB_RESIDUAL` removes what is left, fitted on Monzone's buildings.
+// - DBT 1:2000: EPSG:3003 too, with a residual of its own (`DBT_RESIDUAL`), fitted at Pontremoli.
 // Transverse Mercator uses Krüger's series to n³, sub-millimetre within 3° of the central meridian.
 
 import { Ops } from "@typeonce/ritmo-math"
@@ -112,11 +113,25 @@ const helmert = (
   ]
 }
 
+/** What the EPSG:1660 shift leaves at a place, m, Gauss-Boaga east and north. */
+interface Residual {
+  readonly e: number
+  readonly n: number
+}
+
 /**
- * What the EPSG:1660 shift leaves at Monzone (m, Gauss-Boaga east and north), fitted by matching
- * the 2010 LiDAR surface model to the 2019 CTR building outlines.
+ * What the EPSG:1660 shift leaves at Monzone, fitted by matching the 2010 LiDAR surface model to
+ * the 2019 CTR building outlines.
  */
-const GB_RESIDUAL = { e: -0.4, n: 0.5 }
+const GB_RESIDUAL: Residual = { e: -0.4, n: 0.5 }
+
+/**
+ * What it leaves for the DBT 1:2000 (dbt.ts), fitted at Pontremoli on the 560 units the DBT of 2010
+ * and the 2019 CTR sheets 25B24, 25B39 and 25C33 both map (those sheets carry the same 2010 survey,
+ * its elevations to the centimetre): with it the two outlines lie within 0.01 m of each other, with
+ * `GB_RESIDUAL` 0.47 m apart and with none 1.08 m. The LiDAR's residual at Pontremoli is not known.
+ */
+export const DBT_RESIDUAL: Residual = { e: -0.82, n: 0.7 }
 
 /** EPSG:6707 (CTR) easting, northing -> WGS84 lat, lon. */
 export const utm32ToLatLon = (e: number, n: number): [number, number] => tmInverse(UTM32, e, n)
@@ -132,9 +147,13 @@ export const latLonToGaussBoaga = (lat: number, lon: number): [number, number] =
   return [e + GB_RESIDUAL.e, n + GB_RESIDUAL.n]
 }
 
-/** EPSG:3003 easting, northing -> WGS84 lat, lon: the inverse of `latLonToGaussBoaga`. */
-export const gaussBoagaToLatLon = (e: number, n: number): [number, number] =>
+/** EPSG:3003 easting, northing -> WGS84 lat, lon: the inverse of `latLonToGaussBoaga`, or with another source's `residual`. */
+export const gaussBoagaToLatLon = (
+  e: number,
+  n: number,
+  residual: Residual = GB_RESIDUAL,
+): [number, number] =>
   fromEcef(
     WGS84,
-    ...helmert(1, toEcef(HAYFORD, ...tmInverse(GB_WEST, e - GB_RESIDUAL.e, n - GB_RESIDUAL.n))),
+    ...helmert(1, toEcef(HAYFORD, ...tmInverse(GB_WEST, e - residual.e, n - residual.n))),
   )

@@ -1,7 +1,11 @@
-// Regione Toscana CTR 1:2000 (2019 flight, data/raw/rt/ctr) in local metres, clipped to the play
-// area: buildings with their surveyed eave elevation, road surfaces with their street names, and
-// the area the sheets map (the rail layers are `ctr-rail.ts`'s). `fetch-rt.ts` writes the files.
-import { readdirSync } from "node:fs"
+// Regione Toscana's surveys of the ground, in local metres, each read into one record (`Survey`):
+// buildings with their surveyed eave elevation or height, road surfaces with their street names,
+// and the area the source maps. Adapter (a) reads the CTR 1:2000 of 2019 (data/raw/rt/ctr:
+// `readCtr`), adapter (b) the old schema of the CTR 1:2000 of 2009 and the CTR 1:10 000 of 2010
+// (rt/ctr2009, rt/ctr10k: `readOldCtr`); dbt.ts holds adapter (c), the DBT 1:2000, and surveys.ts
+// merges them by priority. `fitRoads` fits the roads to the road surfaces. The rail layers are
+// `ctr-rail.ts`'s; `fetch-rt.ts` writes the files.
+import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
 import { staticGrid } from "../sim/collide.ts"
@@ -20,13 +24,22 @@ import {
   type P,
   type V,
 } from "./geometry.ts"
-import { readShp, type ShpRecord } from "./shp.ts"
+import { type DbfEncoding, readShp, type ShpRecord } from "./shp.ts"
+import { localOf, section10k, sheet2k, type SurveySource, surveyId } from "./survey-ids.ts"
+
+/** What a building code says: its kind, a fixed facade style (otherwise plaster or stone by place) and its default wall height, m. */
+export interface BuildingSpec {
+  readonly kind: string
+  readonly style?: BuildingStyle
+  readonly h: number
+}
 
 /**
  * CTR codes read as buildings: what they are, a fixed facade style (otherwise plaster or stone by
  * place) and the wall height used when the record has no plausible elevations. Not buildings
  * here: overhangs (0206), canopies (0208), tents (0209), porticoes and loggias (0240, 0241), all
- * open at ground level, and semi-basements (0235).
+ * open at ground level, and semi-basements (0235). The old schema (`AE_a.Codice`) uses the same
+ * codes.
  */
 const BUILDING_CODES = {
   "0201": { kind: "house", h: 6 },
@@ -43,15 +56,17 @@ const BUILDING_CODES = {
   "0217": { kind: "tower", style: "tower", h: 12 },
   "0218": { kind: "silo", style: "industrial", h: 8 },
   "0244": { kind: "garage", h: 2.6 },
-} as const satisfies Record<
-  string,
-  { readonly kind: string; readonly style?: BuildingStyle; readonly h: number }
->
+} as const satisfies Record<string, BuildingSpec>
 type BuildingCode = keyof typeof BUILDING_CODES
 const isBuildingCode = (code: string): code is BuildingCode => Object.hasOwn(BUILDING_CODES, code)
 
-interface CtrBuilding {
-  /** Negative, so it never collides with an OSM id: sheet, layer, record and polygon in decimal digits. */
+/** A CTR code's building, or undefined when the code is not one. */
+export const specOf = (code: string): BuildingSpec | undefined =>
+  isBuildingCode(code) ? BUILDING_CODES[code] : undefined
+
+/** A surveyed building, as every survey source is read into it. */
+export interface SurveyBuilding {
+  /** Negative, so it never collides with an OSM id, and unique over every source and section (survey-ids.ts). */
   readonly id: number
   readonly kind: string
   readonly style?: BuildingStyle
@@ -67,48 +82,67 @@ interface CtrBuilding {
 }
 
 /** A road surface polygon: `rings[0]` outer (counter-clockwise), then holes; `paved` = asphalt (else dirt). */
-interface RoadArea {
+export interface RoadArea {
   readonly name?: string
   readonly paved: boolean
   readonly rings: ReadonlyArray<ReadonlyArray<number>>
 }
 
-/** What `readCtr` reads: buildings, road surfaces and the mapped area. */
-export interface Ctr {
-  readonly buildings: ReadonlyArray<CtrBuilding>
+/** What a survey source maps: its buildings, road surfaces and mapped area. */
+export interface Survey {
+  readonly buildings: ReadonlyArray<SurveyBuilding>
   readonly roadAreas: ReadonlyArray<RoadArea>
-  /** Outer rings of the area each sheet maps (counter-clockwise). */
+  /** Outer rings of the area each sheet, section or zone maps (counter-clockwise). */
   readonly mapped: ReadonlyArray<ReadonlyArray<number>>
 }
 
 /** A CTR coordinate (EPSG:6707 easting, northing) in local metres. */
 export const local = ([e, n]: readonly [number, number]): P => toLocal(...utm32ToLatLon(e, n))
 
-/** One record of a CTR layer: its sheet ("23D19"), its place in the sheet's file (from 0) and its shape. */
+/** One record of a survey layer: its sheet, section or comune ("23D19"), its place in that file (from 0) and its shape. */
 export interface CtrRecord {
   readonly sheet: string
   readonly index: number
   readonly rec: ShpRecord
 }
 
-/** Every record of a layer over the sheets that have it (a sheet with no garages has no AGE), sheets in name order, records in file order. */
-export const ctrRecords = (dir: string, layer: string): Array<CtrRecord> =>
-  readdirSync(dir)
-    .filter((f) => f.endsWith(`_${layer}.shp.gz`))
-    .sort()
-    .flatMap((f) => {
-      const sheet = f.slice(0, -`_${layer}.shp.gz`.length)
-      return readShp(join(dir, `${sheet}_${layer}`)).map((rec, index) => ({ sheet, index, rec }))
-    })
+/**
+ * Every record of a layer over the sheets that have it (a sheet with no garages has no AGE), sheets
+ * in name order, records in file order: the files `<sheet>_<layer>.shp.gz` in `dir`, none when it
+ * does not exist.
+ */
+export const ctrRecords = (
+  dir: string,
+  layer: string,
+  encoding: DbfEncoding = "latin1",
+): Array<CtrRecord> =>
+  existsSync(dir)
+    ? readdirSync(dir)
+        .filter((f) => f.endsWith(`_${layer}.shp.gz`))
+        .sort()
+        .flatMap((f) => {
+          const sheet = f.slice(0, -`_${layer}.shp.gz`.length)
+          return readShp(join(dir, `${sheet}_${layer}`), encoding).map((rec, index) => ({
+            sheet,
+            index,
+            rec,
+          }))
+        })
+    : []
 
 /**
- * A record's polygons, each as flat outer (counter-clockwise) plus holes (clockwise), clipped to
- * the built terrain's box (`TERRAIN_BOX`). Rings are sorted by size: one inside an earlier outer ring is its hole,
+ * A record's polygons, each as flat outer (counter-clockwise) plus holes (clockwise), in local metres
+ * through `project` (the CTR's EPSG:6707 by default) and clipped to `box` (the built terrain's,
+ * `TERRAIN_BOX`, by default). Rings are sorted by size: one inside an earlier outer ring is its hole,
  * otherwise it starts a polygon (so the file's ring order and winding do not matter).
  */
-export const polygonsOf = (r: ShpRecord): Array<Array<Array<number>>> => {
+export const polygonsOf = (
+  r: ShpRecord,
+  project: (en: readonly [number, number]) => P = local,
+  box = TERRAIN_BOX,
+): Array<Array<Array<number>>> => {
   const rings = r.parts
-    .map((part) => part.map(local))
+    .map((part) => part.map(project))
     .sort((a, b) => Math.abs(signedArea(b)) - Math.abs(signedArea(a)))
   const polys: Array<{ outer: Array<P>; flat: Array<number>; holes: Array<Array<P>> }> = []
   for (const ring of rings) {
@@ -120,18 +154,33 @@ export const polygonsOf = (r: ShpRecord): Array<Array<Array<number>>> => {
     }
   }
   return polys.flatMap((p) => {
-    const outer = flatRing(clipRing(p.outer, TERRAIN_BOX), true)
+    const outer = flatRing(clipRing(p.outer, box), true)
     if (outer === undefined) return []
     return [
       [
         outer,
-        ...p.holes
-          .map((h) => flatRing(clipRing(h, TERRAIN_BOX), false))
-          .filter((h) => h !== undefined),
+        ...p.holes.map((h) => flatRing(clipRing(h, box), false)).filter((h) => h !== undefined),
       ],
     ]
   })
 }
+
+/** The buildings a record's polygons make, polygon `k` numbered `id(k)`, with `spec`'s kind, style and height and the eave elevation when one is surveyed (positive). */
+export const buildingsOf = (
+  polygons: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>,
+  spec: BuildingSpec,
+  eave: number,
+  id: (k: number) => number,
+): Array<SurveyBuilding> =>
+  polygons.map(([outer, ...holes], k) => ({
+    id: id(k),
+    kind: spec.kind,
+    ...(spec.style === undefined ? {} : { style: spec.style }),
+    ...(eave > 0 ? { eave } : {}),
+    h: spec.h,
+    outer: outer!,
+    ...(holes.length > 0 ? { holes } : {}),
+  }))
 
 const SMALL_WORDS: ReadonlySet<string> = new Set([
   "A",
@@ -158,48 +207,96 @@ const streetWord = (w: string, i: number): string => {
   return elided === null ? title(w) : `${elided[1]!.toLowerCase()}'${title(elided[2]!)}`
 }
 /** "VIA CASTEL DELL'AQUILA" -> "Via Castel dell'Aquila", "VIA XX SETTEMBRE" -> "Via XX Settembre". Abbreviated road kinds (S.P., S.C., S.V.) and localities are not street names. */
-const streetName = (toponym: string): string | undefined => {
+export const streetName = (toponym: string): string | undefined => {
   if (!/^(VIA|PIAZZA|VICOLO|LARGO|SALITA) /.test(toponym)) return undefined
   return toponym.split(/\s+/).map(streetWord).join(" ")
 }
 
-/** Buildings, road surfaces and mapped areas of every sheet in `dir`. */
-export const readCtr = (dir: string): Ctr => {
-  /** A layer's records, each with an id from its sheet number, `base` and its index. */
-  const layer = (name: string, base = 0) =>
-    ctrRecords(dir, name).map(({ sheet, index, rec }) => ({
-      rec,
-      id: -(Number(sheet.slice(3)) * 1e5 + base + index),
-    }))
-  const buildings: Array<CtrBuilding> = []
-  for (const { rec, id } of [...layer("AED"), ...layer("AGE", 5e4)]) {
-    const code = rec.attrs.Cod_CTR!
-    if (!isBuildingCode(code)) continue
-    const spec: { readonly kind: string; readonly style?: BuildingStyle; readonly h: number } =
-      BUILDING_CODES[code]
-    const top = Number(rec.attrs.Qt_grmax ?? Number.NaN),
-      eave = top > 0 ? top : undefined
-    polygonsOf(rec).forEach(([outer, ...holes], k) => {
-      buildings.push({
-        id: id - k * 1e7,
-        kind: spec.kind,
-        ...(spec.style === undefined ? {} : { style: spec.style }),
-        ...(eave === undefined ? {} : { eave }),
-        h: spec.h,
-        outer: outer!,
-        ...(holes.length > 0 ? { holes } : {}),
-      })
-    })
-  }
-  const roadAreas = layer("AVI").flatMap(({ rec }) => {
+/** A 1:2000 sheet's records are numbered under this in each layer: AED's from 0, AGE's from it. */
+const LAYER = 5e4
+
+/** The local number of record `index` of sheet `sheet`'s layer from `base` (as the 2019 ids always were). */
+const sheetUnit = (sheet: number, base: number, index: number): number => {
+  if (index >= LAYER) throw new Error(`sheet ${sheet}: record ${index} past ${LAYER} in a layer`)
+  return sheet * 1e5 + base + index
+}
+
+/**
+ * Adapter (a), the CTR 1:2000 of 2019 in `dir`: buildings (`AED` volumetric units, `AGE` garages
+ * and ruins; `Cod_CTR` through `BUILDING_CODES`, `Qt_grmax` the eave), road surfaces (`AVI`,
+ * 0101 asphalt, 0102 dirt, `Toponimo`) and the mapped area (`AZR`), clipped to `box`.
+ */
+export const readCtr = (dir: string, box = TERRAIN_BOX): Survey => {
+  const buildings: Array<SurveyBuilding> = []
+  for (const [layer, base] of [
+    ["AED", 0],
+    ["AGE", LAYER],
+  ] as const)
+    for (const { sheet, index, rec } of ctrRecords(dir, layer)) {
+      const spec = specOf(rec.attrs.Cod_CTR!)
+      if (spec === undefined) continue
+      const { section, sheet: n } = sheet2k(sheet),
+        unit = sheetUnit(n, base, index)
+      buildings.push(
+        ...buildingsOf(polygonsOf(rec, local, box), spec, Number(rec.attrs.Qt_grmax), (k) =>
+          surveyId("ctr2019", section, localOf(unit, k)),
+        ),
+      )
+    }
+  const roadAreas = ctrRecords(dir, "AVI").flatMap(({ rec }) => {
     const name = streetName(rec.attrs.Toponimo ?? "")
-    return polygonsOf(rec).map((rings) => ({
+    return polygonsOf(rec, local, box).map((rings) => ({
       ...(name === undefined ? {} : { name }),
       paved: rec.attrs.Cod_CTR === "0101",
       rings,
     }))
   })
-  const mapped = layer("AZR").flatMap(({ rec }) => polygonsOf(rec).map((rings) => rings[0]!))
+  const mapped = ctrRecords(dir, "AZR").flatMap(({ rec }) =>
+    polygonsOf(rec, local, box).map((rings) => rings[0]!),
+  )
+  return { buildings, roadAreas, mapped }
+}
+
+/** The old schema's road surfaces: 0101 asphalt, 0102 dirt (not 0114, track in a tunnel, nor 0140, the rail bed). */
+const OLD_ROAD_CODES: ReadonlySet<string> = new Set(["0101", "0102"])
+
+/**
+ * Adapter (b), the CTR's old schema in `dir`, as the CTR 1:2000 of 2009 (`ctr2009`, files by sheet,
+ * `22D04_AE_a`) and the CTR 1:10 000 of 2010 (`ctr10k`, files by section, `249020_AE_a`) share it:
+ * buildings (`AE_a`, `Codice` through `BUILDING_CODES`, `Quota_gr` the eave), road surfaces
+ * (`AV_a`, 0101 asphalt and 0102 dirt, `Toponimo`) and the mapped area (`AC_a`), clipped to `box`.
+ * Garages and ruins have no polygons in this schema (the ruins are `ML_l` lines).
+ */
+export const readOldCtr = (
+  dir: string,
+  source: Extract<SurveySource, "ctr2009" | "ctr10k">,
+  box = TERRAIN_BOX,
+): Survey => {
+  const unitOf = (key: string, index: number) => {
+    if (source === "ctr10k") return { section: section10k(key), unit: index }
+    const { section, sheet } = sheet2k(key)
+    return { section, unit: sheetUnit(sheet, 0, index) }
+  }
+  const buildings = ctrRecords(dir, "AE_a").flatMap(({ sheet, index, rec }) => {
+    const spec = specOf(rec.attrs.Codice!)
+    if (spec === undefined) return []
+    const { section, unit } = unitOf(sheet, index)
+    return buildingsOf(polygonsOf(rec, local, box), spec, Number(rec.attrs.Quota_gr), (k) =>
+      surveyId(source, section, localOf(unit, k)),
+    )
+  })
+  const roadAreas = ctrRecords(dir, "AV_a").flatMap(({ rec }) => {
+    if (!OLD_ROAD_CODES.has(rec.attrs.Codice!)) return []
+    const name = streetName(rec.attrs.Toponimo ?? "")
+    return polygonsOf(rec, local, box).map((rings) => ({
+      ...(name === undefined ? {} : { name }),
+      paved: rec.attrs.Codice === "0101",
+      rings,
+    }))
+  })
+  const mapped = ctrRecords(dir, "AC_a").flatMap(({ rec }) =>
+    polygonsOf(rec, local, box).map((rings) => rings[0]!),
+  )
   return { buildings, roadAreas, mapped }
 }
 
