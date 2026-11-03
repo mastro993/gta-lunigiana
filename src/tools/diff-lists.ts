@@ -1,6 +1,7 @@
 // Comparison of two lists, for map-diff.ts: multisets (equal items pair up wherever they stand),
-// the order of the items two lists share, items matched by a key that may repeat, what changed
-// between two versions of an item, the box round the changes, and the report's counts of them.
+// the order of the items two lists share, items equal but for their id, items matched by a key that
+// may repeat, what changed between two versions of an item, the box round the changes, and the
+// report's counts of them.
 
 /** A box [minX, minY, maxX, maxY], m; empty while minX > maxX. */
 export type Box = [number, number, number, number]
@@ -98,6 +99,18 @@ export const bagDiff = (
   for (let j = head; j < nb - tail; j++) if (left.get(keyB(j))?.pop() === undefined) added.push(j)
   const removed = [...left.values()].flat().sort((i, j) => i - j)
   return { removed, added }
+}
+
+/** `bagDiff` of items by their content (`canon`). */
+export const bagOf = (a: ReadonlyArray<unknown>, b: ReadonlyArray<unknown>): Bag => {
+  const ja = a.map(canon),
+    jb = b.map(canon)
+  return bagDiff(
+    a.length,
+    b.length,
+    (i) => ja[i]!,
+    (j) => jb[j]!,
+  )
 }
 
 /** Tuple `i` of a flat list of `stride`-number tuples as a key. */
@@ -208,6 +221,40 @@ export const outOfOrder = (
   return items.filter((_, n) => on[n] === 0)
 }
 
+/** Pairs of items two lists hold equal in every field but a differing `id`, and how many of a's items the other holds equal, the id aside. */
+export interface Renumbered {
+  /** Each pair's index into a and into b, in a's order. */
+  readonly pairs: ReadonlyArray<readonly [number, number]>
+  /** How many of a's items pair with one of b's equal in every field but `id`: the pairs and the identical twins. */
+  readonly shared: number
+}
+
+/**
+ * The items of `a` and `b` equal in every field but `id` whose id differs, one to one: items with
+ * an identical twin drop out wherever they stand, as in `keyedDiff`, then the rest pair up by their
+ * other fields in order of occurrence, so copies (the pieces that share an id) pair in their order.
+ */
+export const renumbered = <T extends { readonly id: number }>(
+  a: ReadonlyArray<T>,
+  b: ReadonlyArray<T>,
+): Renumbered => {
+  const bag = bagOf(a, b)
+  const bare = (item: T) => canon({ ...item, id: 0 })
+  const later = new Map<string, Array<number>>()
+  for (const j of bag.added) {
+    const key = bare(b[j]!),
+      list = later.get(key)
+    if (list === undefined) later.set(key, [j])
+    else list.push(j)
+  }
+  const pairs: Array<readonly [number, number]> = []
+  for (const i of bag.removed) {
+    const j = later.get(bare(a[i]!))?.shift()
+    if (j !== undefined) pairs.push([i, j])
+  }
+  return { pairs, shared: a.length - bag.removed.length + pairs.length }
+}
+
 /** Items matched by key: the versions that differ (`changed`), and the items only `a` or only `b` has. */
 interface Keyed<T> {
   readonly removed: ReadonlyArray<T>
@@ -225,14 +272,7 @@ export const keyedDiff = <T>(
   b: ReadonlyArray<T>,
   key: (item: T) => string | number,
 ): Keyed<T> => {
-  const ja = a.map(canon),
-    jb = b.map(canon)
-  const bag = bagDiff(
-    a.length,
-    b.length,
-    (i) => ja[i]!,
-    (j) => jb[j]!,
-  )
+  const bag = bagOf(a, b)
   const later = new Map<string | number, Array<T>>()
   for (const j of bag.added) {
     const item = b[j]!,
