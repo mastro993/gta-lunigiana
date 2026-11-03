@@ -1615,10 +1615,12 @@ change an input.
   tool wrote, so `pin-raw` uploads those bytes and no others. `readLock` (Valibot) rejects any other
   shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
   release. `writeLock` writes the fields in that
-  order, one per line, so a re-pin's diff shows only the files that changed. Today: 340 files,
-  27.6 MB: 238 in `raw-20261030`, the land cover in `raw-20261031` (#73), the two terrains in
-  `raw-20261101` (#10, 6 files) and #11's 95 in `raw-20261103`, 1.16 MB (the 2009 sheets' 82
-  files, Pontremoli's 12 DBT files and its OSM extract).
+  order, one per line, so a re-pin's diff shows only the files that changed. Today: 356 files,
+  28.8 MB: 238 in `raw-20261030`, the land cover in `raw-20261031` (#73), the two terrains in
+  `raw-20261101` (#10, 6 files), #11's 95 in `raw-20261103`, 1.16 MB (the 2009 sheets' 82
+  files, Pontremoli's 12 DBT files and its OSM extract), and #12's 16 in `raw-20261103-2`,
+  1.22 MB (the Sarzana test region's 13 Liguria files and its terrain's 3). From an empty
+  `data/raw`, `pnpm fetch-raw` downloads all 356 in 41.8 s (2026-11-03).
 - **Sources**: each fetch tool calls `recordSource` for every file it writes (`fetch-rt` also for
   each file it finds unchanged). `fetch-rt` gives the archive URL of the CTR sheet or section a file
   came from, and of a DBT layer's comune with the EPSG:3003 box its records were cut to
