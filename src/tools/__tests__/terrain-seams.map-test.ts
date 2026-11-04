@@ -1,7 +1,9 @@
 // The terrain's source seams (issue #10), on the build's own 4 m grid (`dtmDem`, the nodes the
-// heightmap starts from) of each terrain fetch-rt's chain wrote: lucido's, where the 10 m DTM fills
-// three patches, the Bagnone ridge test region's, where the LiDAR stops 1–2 km below the crest and
-// the 2021 surface model, the 10 m DTM and Emilia-Romagna's DTM 5x5 fill the rest, and the Sarzana
+// heightmap starts from) of each terrain fetch-rt's chain wrote, over the nodes its listed tiles
+// hold: Lunigiana's, where the 10 m DTM fills three patches of lucido and, with the 2021 surface
+// model, Fivizzano's ground past its LiDAR, and Emilia-Romagna's DTM 5x5 its strip along the
+// Emilian border; the Bagnone ridge test region's, where the LiDAR stops 1–2 km below the crest and
+// the 2021 surface model, the 10 m DTM and Emilia-Romagna's DTM 5x5 fill the rest; and the Sarzana
 // test region's, where Liguria's DTM ed. 2023 meets a corner of LiDAR (issue #12). A map test: it
 // walks every node of each.
 import assert from "node:assert/strict"
@@ -9,32 +11,43 @@ import { join } from "node:path"
 import { test } from "node:test"
 
 import { loadDtm } from "../dtm.ts"
+import { listedNodes } from "../grid-tiles.ts"
 import { dtmDir, regionFromArgs } from "../region.ts"
 import { gridLattice } from "../terrain.ts"
 import { seamSteps } from "./seam-steps.ts"
 
 const ROOT = join(import.meta.dirname, "../../..")
 
-/** A region's terrain on its whole 4 m grid: heights and each node's source. */
+/** The source of a node no listed tile holds (an L's notch). */
+const UNLISTED = "unlisted"
+
+/**
+ * A region's terrain on its whole 4 m grid: heights and each node's source, UNLISTED where no
+ * listed tile holds it: the build reads no terrain there, and the DTM draws its edge on into it.
+ */
 const terrainOf = (key: string) => {
   const region = regionFromArgs(["--region", key])
   const dem = loadDtm(join(ROOT, dtmDir(region)), region)
   const g = gridLattice(region)
   const z = dem.grid({ i0: 0, j0: 0, cols: g.cols, rows: g.rows }).z
+  const listed = listedNodes(g, region.tiles)
   const src: Array<string> = []
   for (let j = 0; j < g.rows; j++)
-    for (let i = 0; i < g.cols; i++) src.push(dem.source!(g.x0 + i * g.cell, g.y0 + j * g.cell))
+    for (let i = 0; i < g.cols; i++)
+      src.push(
+        listed[j * g.cols + i] === 1 ? dem.source!(g.x0 + i * g.cell, g.y0 + j * g.cell) : UNLISTED,
+      )
   return { g, z, src }
 }
 
 for (const [key, pairs] of [
-  ["lunigiana", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar"]],
+  ["lunigiana", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar", "dtm10-rer", "lidar-rer"]],
   ["bagnone-ridge", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar", "dtm10-rer"]],
   ["sarzana-town", ["lidar-lig"]],
 ] as const)
   test(`${key}: no seam between terrain sources steps over 1 m more than the terrain round it`, () => {
     const { g, z, src } = terrainOf(key)
-    const seams = seamSteps(g.cols, g.rows, z, src)
+    const seams = seamSteps(g.cols, g.rows, z, src).filter((s) => !s.pair.includes(UNLISTED))
     assert.deepEqual([...new Set(seams.map((s) => s.pair))].sort(), pairs)
     const worst = seams.reduce((a, b) => (b.excess > a.excess ? b : a))
     const x = g.x0 + (worst.at % g.cols) * g.cell,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { wholeMap } from "../../../tools/map-file.ts"
+import { inRects, PARTS } from "../../../tools/region.ts"
 import { placeLamps, streetLamps } from "../lamps.ts"
 import { assertLanternsWhole, assertOnLitStreets, assertOnWalls, litOf } from "./lamp-checks.ts"
 
@@ -21,7 +22,10 @@ test("street lamps: the same every time, hundreds over the valley", () => {
       assert.ok(lamp[field] === kept[field], `lamp ${k}: ${field}`)
     assert.ok(Math.abs(lamp.h - kept.h) < 1e-9, `lamp ${k}: ${lamp.h} placed, ${kept.h} kept`)
   }
-  assert.ok(walls.length > 300 && walls.length < 1500, `${walls.length} lamps`)
+  // Counted in lucido's rectangle, the bounds lucido's map was checked on: a part added beside it
+  // brings its own villages' lamps.
+  const lucido = walls.filter((lamp) => inRects([PARTS[0]!.rects[0]!], lamp.x, lamp.y))
+  assert.ok(lucido.length > 300 && lucido.length < 1500, `${lucido.length} lamps on lucido`)
 })
 
 test("street lamps: each hangs 0.6 m out from a house wall between its windows, 4.2 m or less over the street, under the eaves, outside every house, all over the map", () => {

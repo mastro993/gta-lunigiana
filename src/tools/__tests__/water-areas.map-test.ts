@@ -1,6 +1,6 @@
 // The lakes and river polygons of both built maps (water-areas.ts) read from their heights: their
 // levels and waterways, a lake's nodes carved under its level, its edge holding it and no level
-// over all its nodes, the two lakes the LiDAR reads no hollow under left dry, the surface a river
+// over all its nodes, the lakes the LiDAR reads no hollow under left dry, the surface a river
 // polygon is carved under falling downstream, its outer edge left as the ground was, and no tree,
 // parked car or player spawn in the water.
 import assert from "node:assert/strict"
@@ -11,7 +11,9 @@ import type { Area, Water } from "../../sim/map/index.ts"
 import { anchorOf, isWaterArea } from "../../sim/map/kinds.ts"
 import { reachOf } from "../../sim/water/channel.ts"
 import { ringBox, segDist2 } from "../geometry.ts"
+import { listedNodes } from "../grid-tiles.ts"
 import { type JoinedMap, wholeMap } from "../map-file.ts"
+import { inRects, PARTS } from "../region.ts"
 import { inRings } from "../water-areas.ts"
 
 /** Each map, and the lakes in it the LiDAR reads no hollow under (a point inside each). */
@@ -23,6 +25,13 @@ const MAPS: ReadonlyArray<readonly [string, JoinedMap, ReadonlyArray<readonly [n
       [
         [-114, -4678], // the intermittent pond at Prati di Campocecina, on a 24 % slope
         [2934, -2611], // the 18 m² pool on the Canale Doglio's cascade
+        // The Arlia power station's forebay, 300 m along a hillside: its outline's foot reaches 3–5 m
+        // under the basin, where its level spills.
+        [688, 10840],
+        // A 24 × 29 m pond on a slope 320 m past the play area's east edge, its foot 1.6 m under it.
+        [10432, 8160],
+        // A 7 × 9 m pond 200 m east of Pieve San Lorenzo's rectangle: every node of its cells is its edge.
+        [6901, 3597],
       ],
     ],
     ["Cesena", wholeMap("cesena"), []],
@@ -57,12 +66,16 @@ interface AreaNode {
 }
 
 /**
- * The nodes of the water areas of `map`, by area: every node one of its cells touches, on the edge
- * where a cell of it lies in no water area (the seam between two polygons is no edge).
+ * The nodes of the water areas of `map`, by area: every node one of its cells touches that a listed
+ * tile holds, on the edge where a cell of it lies in no water area (the seam between two polygons is
+ * no edge). The build reads no terrain in a tile the region leaves off its list (an L's notch), and
+ * the joined heightmap holds 0 there: a lake in one (the 1 km one in Fivizzano's notch, x 9150…10110
+ * by y −150…910) has no node.
  */
 const areaNodes = (map: JoinedMap, areas: ReadonlyArray<Area>) => {
   const hm = map.heightmap,
-    cols = hm.cols - 1
+    cols = hm.cols - 1,
+    listed = listedNodes(hm, map.tiles)
   const cells = areas.map((a) => cellsOf(map, a.rings)),
     wet = new Set(cells.flat().map(([i, j]) => j * cols + i))
   return cells.map((own) => {
@@ -74,17 +87,18 @@ const areaNodes = (map: JoinedMap, areas: ReadonlyArray<Area>) => {
         [i, j + 1],
         [i + 1, j + 1],
       ] as const)
-        nodes.set(nj * hm.cols + ni, {
-          x: hm.x0 + ni * hm.cell,
-          y: hm.y0 + nj * hm.cell,
-          z: hm.data[nj * hm.cols + ni]! / 10,
-          edge: [
-            [ni - 1, nj - 1],
-            [ni, nj - 1],
-            [ni - 1, nj],
-            [ni, nj],
-          ].some(([ci, cj]) => !wet.has(cj! * cols + ci!)),
-        })
+        if (listed[nj * hm.cols + ni] === 1)
+          nodes.set(nj * hm.cols + ni, {
+            x: hm.x0 + ni * hm.cell,
+            y: hm.y0 + nj * hm.cell,
+            z: hm.data[nj * hm.cols + ni]! / 10,
+            edge: [
+              [ni - 1, nj - 1],
+              [ni, nj - 1],
+              [ni - 1, nj],
+              [ni, nj],
+            ].some(([ci, cj]) => !wet.has(cj! * cols + ci!)),
+          })
     return [...nodes.values()]
   })
 }
@@ -123,9 +137,17 @@ const passesInside = (w: Water, rings: ReadonlyArray<ReadonlyArray<number>>) => 
   return false
 }
 
-test("water areas: the 8 OSM water polygons of Lunigiana as 7 lakes with their levels and the Aulella's river polygon on every stream with a sample in it, the Fosso di Tufo too", () => {
+/** Whether a vertex of `ring` lies in lucido's rectangle: its water areas, the Aulella's polygon across its north edge too. */
+const onLucido = (ring: ReadonlyArray<number>) => {
+  for (let k = 0; k < ring.length; k += 2)
+    if (inRects([PARTS[0]!.rects[0]!], ring[k]!, ring[k + 1]!)) return true
+  return false
+}
+
+test("water areas: lucido's 8 OSM water polygons as 7 lakes with their levels and the Aulella's river polygon on every stream with a sample in it, the Fosso di Tufo too", () => {
   const [, map] = MAPS[0]!
-  const water = map.areas.filter((a) => isWaterArea(a.kind))
+  // A part beside lucido brings its own lakes and river polygons.
+  const water = map.areas.filter((a) => isWaterArea(a.kind) && onLucido(a.rings[0]!))
   assert.equal(water.filter((a) => a.kind === "lake").length, 7)
   assert.equal(water.filter((a) => a.kind === "river").length, 1)
   const lakeAt = (x: number, y: number) =>
@@ -175,8 +197,13 @@ for (const [name, map, dry] of MAPS) {
       const level = a.level
       if (level === undefined) return
       for (const { x, y, z, edge } of nodes[n]!) {
+        // The lines are carved after the lakes (`carveAreas`), out to their bed's half-width and a
+        // cell more (`carve` in terrain.ts): where one leaves a lake, or runs in or along it (the
+        // Canale di Agnolo's and the Canale della Fola's ponds), its banks cut the lake's edge and
+        // its own banks.
+        const channel = () =>
+          map.water.some((w) => within(w, x, y, reachOf(w) + map.heightmap.cell))
         if (edge) {
-          const channel = () => map.water.some((w) => within(w, x, y, w.w / 2 + 2))
           assert.ok(z >= level - ROUND || channel(), `edge (${x}, ${y}) at ${z} under ${level}`)
           continue
         }
@@ -184,7 +211,7 @@ for (const [name, map, dry] of MAPS) {
         const d = inRings(a.rings, x, y) ? shore(a.rings, x, y) : 0,
           bed: number = level - Math.min(3, 0.1 * d)
         assert.ok(
-          z >= level + 1 - ROUND || z <= bed + ROUND,
+          z >= level + 1 - ROUND || z <= bed + ROUND || channel(),
           `(${x}, ${y}) at ${z}: neither a bank over ${level + 1} nor carved to ${bed}`,
         )
       }
@@ -193,7 +220,7 @@ for (const [name, map, dry] of MAPS) {
 
   test(`water areas, ${name}: a lake's level is no higher than the highest node of its cells, so it never floats over them all (where a stream's channel crosses its whole edge too)`, () => {
     areas.forEach((a, n) => {
-      if (a.level === undefined) return
+      if (a.level === undefined || nodes[n]!.length === 0) return
       const highest = Math.max(...nodes[n]!.map((v) => v.z))
       assert.ok(highest >= a.level - ROUND, `${a.kind} round ${a.rings[0]!.slice(0, 2)}`)
     })
@@ -203,8 +230,8 @@ for (const [name, map, dry] of MAPS) {
     let lakes = 0
     areas.forEach((a, n) => {
       const level = a.level
-      if (level === undefined || a.kind !== "lake") return
-      lakes++
+      if (level === undefined || a.kind !== "lake" || nodes[n]!.length === 0) return
+      if (name === "Cesena" || onLucido(a.rings[0]!)) lakes++
       const own = nodes[n]!,
         at = `lake round ${a.rings[0]!.slice(0, 2)} at ${level}`
       const lowest = Math.min(...own.map((v) => v.z)),
@@ -266,7 +293,8 @@ for (const [name, map, dry] of MAPS) {
           }
         }
         edges++
-        assert.ok(z >= bed, `edge (${x}, ${y}) at ${z} under the bed at ${bed.toFixed(2)}`)
+        // The bed reads the waterway's surface in whole decimetres, as the grid holds the edge.
+        assert.ok(z >= bed - ROUND, `edge (${x}, ${y}) at ${z} under the bed at ${bed.toFixed(2)}`)
       }
     })
     assert.ok(edges > (name === "Lunigiana" ? 100 : 500), `${edges} edge nodes`)

@@ -1,14 +1,16 @@
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
+import { join } from "node:path"
 import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { type Dem, loadDtm } from "../../../tools/dtm.ts"
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
 import { listedNodes } from "../../../tools/grid-tiles.ts"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { ROAD_PASSES } from "../../../tools/profiles.ts"
-import { regionFromArgs } from "../../../tools/region.ts"
+import { dtmDir, inRects, PARTS, regionFromArgs } from "../../../tools/region.ts"
 import { sheet2k, SOURCES } from "../../../tools/survey-ids.ts"
 import { moveCircles, segmentDistance, staticGrid } from "../../collide.ts"
 import {
@@ -22,6 +24,7 @@ import {
   isMotorRoad,
   MAP,
   outlineDistance,
+  type Road,
   ROAD_CLASSES,
   type Segment,
   wallsNear,
@@ -153,10 +156,10 @@ test("heightAt: station on the valley floor, Monzone Alto on its spur", () => {
 
 test("player spawn and parked cars are inside the play area, clear of walls and off traffic lanes", () => {
   const spots = [MAP.spawns.player, ...MAP.spawns.parked]
-  assert.ok(
-    MAP.spawns.parked.length >= 700 && MAP.spawns.parked.length <= 950,
-    `${MAP.spawns.parked.length} parked`,
-  )
+  // Counted in lucido's rectangle, the bounds lucido's map was checked on: a spot is kept by its own
+  // place (spawns.ts), so a part added beside it moves only those near the seam.
+  const lucido = MAP.spawns.parked.filter((p) => inRects([PARTS[0]!.rects[0]!], p.x, p.y))
+  assert.ok(lucido.length >= 700 && lucido.length <= 950, `${lucido.length} parked on lucido`)
   for (const name of Object.keys(VILLAGES))
     assert.ok(
       MAP.spawns.parked.some((p) => districtAt(p.x, p.y).name === name),
@@ -270,22 +273,26 @@ test("building interiors are closed: walking or driving in from the nearest road
         if (d > depth) [tx, ty, depth] = [x, y, d]
       }
     if (depth < 0.8) continue
-    let sx = 0,
-      sy = 0,
-      best = 40
+    // Starts on the roads' centrelines outside the footprint within 40 m, nearest first (ties in order).
+    const starts: Array<{ readonly x: number; readonly y: number; readonly d: number }> = []
     for (const s of centrelines)
       for (let t = 0; t <= 1; t += 0.05) {
         const x = s.ax + (s.bx - s.ax) * t,
           y = s.ay + (s.by - s.ay) * t,
           d = hypot(x - tx, y - ty)
-        if (d < best && !inRing(x, y, b.outer)) [sx, sy, best] = [x, y, d]
+        if (d < 40 && !inRing(x, y, b.outer)) starts.push({ x, y, d })
       }
-    if (best >= 40) continue
+    starts.sort((p, q) => p.d - q.d)
     for (const [kind, r] of [
       ["walk", 0.35],
       ["drive", 0.9],
     ] as const) {
-      let p = { x: sx, y: sy }
+      // From the nearest the body stands clear at: one already in two walls is pushed out by them in
+      // the order the broad phase hands them, which a grown region moves (the car's 0.9 m on a 1.5 m
+      // path between a house and a bank at Monte dei Bianchi went in on the 2-part map, out on lucido's).
+      const start = starts.find((q) => clear(kind, q.x, q.y, r))
+      if (start === undefined) continue
+      let p = { x: start.x, y: start.y }
       for (let step = 0; step < 400; step++) {
         const dx = tx - p.x,
           dy = ty - p.y,
@@ -428,15 +435,37 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
       `${cls} has no grade limit`,
     )
   const ends = bucketed(WHOLE.roads, (r) => r.pts, 0.1)
+  /** Whether vertex k of `pts` lies on another road: a junction a road profiled before it may pin. */
+  const shared = (pts: ReadonlyArray<number>, k: number) => {
+    const x = pts[2 * k]!,
+      y = pts[2 * k + 1]!
+    return ends(x, y).some(
+      (q) => q.pts !== pts && segsOf(q.pts).some((sg) => segmentDistance(sg, x, y) < 0.1),
+    )
+  }
   /** Both ends on another road: a link whose two junctions were set by roads profiled before it. */
-  const pinned = (pts: ReadonlyArray<number>) =>
-    [0, pts.length - 2].every((i) => {
-      const x = pts[i]!,
-        y = pts[i + 1]!
-      return ends(x, y).some(
-        (q) => q.pts !== pts && segsOf(q.pts).some((sg) => segmentDistance(sg, x, y) < 0.1),
-      )
-    })
+  const pinned = (pts: ReadonlyArray<number>) => shared(pts, 0) && shared(pts, pts.length / 2 - 1)
+  /** The survey's ground (the uncarved DTM the build starts from), read only for a steep pinned stretch. */
+  let dem: Dem | undefined
+  const LUNIGIANA = regionFromArgs([])
+  /**
+   * Whether vertices i…j of `r` (arc lengths `s`) lie in a stretch between two junctions that the fit
+   * drew straight (pins it cannot meet within the grade: the line between them), over ground the
+   * survey reads climbing steeper than `max` itself: old lanes straight up a village's hillside
+   * (Sercognano's Via Vittorio Emanuele at 29 % on the LiDAR, the lane down from Posara at 43 %).
+   */
+  const steepPinned = (r: Road, s: ReadonlyArray<number>, i: number, j: number, max: number) => {
+    let a = i,
+      b = j
+    while (a > 0 && !shared(r.pts, a)) a--
+    while (b + 1 < r.z.length && !shared(r.pts, b)) b++
+    if (!shared(r.pts, a) || !shared(r.pts, b)) return false
+    const line = (k: number) => r.z[a]! + ((r.z[b]! - r.z[a]!) * (s[k]! - s[a]!)) / (s[b]! - s[a]!)
+    for (let k = a; k <= b; k++) if (Math.abs(r.z[k]! - line(k)) >= 0.15) return false
+    dem ??= loadDtm(join(import.meta.dirname, "../../../..", dtmDir(LUNIGIANA)), LUNIGIANA)
+    const ground = (k: number) => dem!.at(r.pts[2 * k]!, r.pts[2 * k + 1]!)
+    return Math.abs(ground(b) - ground(a)) / (s[b]! - s[a]!) > max
+  }
   for (const r of [...WHOLE.roads, ...MAP.rail.map((q) => ({ ...q, cls: "rail" }))]) {
     const max = limit[r.cls]
     if (max === undefined) continue
@@ -455,7 +484,7 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
         if (s[j]! - s[i]! >= 8) {
           const g = Math.abs(r.z[j]! - r.z[i]!) / (s[j]! - s[i]!)
           assert.ok(
-            g <= max,
+            g <= max || (r.cls !== "rail" && steepPinned(r as Road, s, i, j, max)),
             `${r.cls} ${r.id} grade ${(g * 100).toFixed(1)}% at ${r.pts[2 * i]},${r.pts[2 * i + 1]}`,
           )
           break
