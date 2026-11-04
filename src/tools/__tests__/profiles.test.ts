@@ -160,3 +160,43 @@ test("profile lays a road's bridge of two pieces as one deck, straight from end 
   assert.ok(Math.abs(joint(true) - 100) < 1e-6, `the joint at ${joint(true)}`)
   assert.ok(joint(false) < 99, `a deck a piece sags at its joint: ${joint(false)}`)
 })
+
+// Regression: Pieve San Lorenzo's underpass (road 756577583) under the station's tracks opened under
+// neither mouth: Via della Stazione, a tertiary road crossing over it 4.5 m from the south mouth,
+// held that mouth's cell 5.8 m over the floor, and Via Bugliatico, at a junction 4.2 m beyond the
+// north one, held its cell 1.6 m over (its level there smoothed 1.6 m over the ground's dip).
+test("profile: a road tunnel's approaches hold the grid round its mouths at their level, against a road over it and one beside it", () => {
+  // Flat ground at 100 m; a tunnel from x 100 to 200 kept 6 m under it (a track's clearance over
+  // it); a tertiary road over it 4 m inside its east mouth, and an equal road across its west
+  // approach 4.2 m out, both profiled first.
+  const ground = () => 100
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(100, 0, "m0"), v(200, 0, "m1")] }
+  const chain = [
+    { id: 1, pts: [v(0, 0), v(100, 0, "m0")] },
+    tunnel,
+    { id: 3, pts: [v(200, 0, "m1"), v(400, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const mouths = (on: boolean) => {
+    const { profile, claims, zOf } = makeProfiler(ground)
+    profile([{ item: { pts: [v(196, -20), v(196, 20)] }, rev: false }], { ...SPEC, rank: 1 })
+    profile([{ item: { pts: [v(95.8, -20), v(95.8, 20)] }, rev: false }], { ...SPEC, rank: 3 })
+    profile(
+      chain,
+      { w: 4.5, rank: 3, grade: 0.15, half: 20, decks: true, ...(on ? { mouths: true } : {}) },
+      [{ x: 150, y: 0, z: 94, kind: "max", tilt: true }],
+    )
+    const g = grid()
+    replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+    const at = (x: number, y: number) => g.z[((y + 20) / 4) * 161 + (x + 20) / 4]!
+    const [z0, z1] = zOf.get(tunnel)!
+    return { banks: [at(100, 0) - z0!, at(200, 0) - z1!], over: at(196, 0), beside: at(96, -16) }
+  }
+  const { banks, over, beside } = mouths(true)
+  for (const bank of banks)
+    assert.ok(Math.abs(bank) < 0.5, `a mouth ${bank.toFixed(2)} m under the terrain`)
+  // The road over the tunnel keeps its cells over it, behind the mouth; the other away from it.
+  assert.equal(over, 100)
+  assert.equal(beside, 100)
+  // Without: both mouths buried about 6 m.
+  for (const bank of mouths(false).banks) assert.ok(bank > 5, `${bank}`)
+})

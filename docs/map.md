@@ -1410,6 +1410,18 @@ Grondilice).
   culvert, and under the rail its channel dips under the bed ([section
   8](#8-water-under-decks-waterts)), so neither is protected. Bridges and tunnels write nothing.
   Paths and steps are not profiled.
+- A road tunnel's mouth opens at its approaches' level: each approach's first 5.7 m out of the
+  mouth (a cell's diagonal, the farthest a corner of the cell holding the mouth lies), within its
+  chain's core and ahead of the mouth (the road over the tunnel keeps its cells over it), is
+  written before every other claim and kept against all of them (`mouths` in `profiles.ts`). A
+  road over the tunnel or beside the mouth took that cell at its own level otherwise: at Pieve San
+  Lorenzo's underpass under the station (756577583) Via della Stazione, a tertiary road over it
+  4.5 m from its south mouth, held that mouth 5.8 m over the floor, and Via Bugliatico, at a
+  junction 4.2 m beyond the north one, 1.6 m over (its level there smoothed 1.6 m over the
+  LiDAR's dip). Both now open 0.7 and 0.9 m over the floor; Gragnola's 52 m tunnel under Via Nuova,
+  1.2 m before, at its floor, two nodes beside its west mouth 5.1–5.3 m lower (163.4–163.6 to
+  158.3 m, the LiDAR 159.1–160.8 m), and the other road tunnels' approaches own their cells,
+  0.1–0.6 m from what a road beside them wrote.
 - Rail (`rail-levels.ts`): at a level crossing the rail keeps its own grade and the road meets it
   (the road's profile, after the rail's, is pinned to it at the shared node): a rail pinned to the
   road's natural level made a V of 3.8–5.1% in its grade within ±5 m (an 82 m vertical curve at

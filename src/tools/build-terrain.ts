@@ -132,7 +132,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
   for (const { classes, rank, grade, half } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
-      profile(ch, { w: widest(ch), rank, grade, half, decks: true }, [
+      profile(ch, { w: widest(ch), rank, grade, half, decks: true, mouths: true }, [
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])

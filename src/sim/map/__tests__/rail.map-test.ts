@@ -401,7 +401,8 @@ test("rail: a drivable road tunnel under the track opens at both mouths, the ter
   for (const road of under)
     for (const k of [0, road.z.length - 1]) {
       const bank = heightAt(road.pts[2 * k]!, road.pts[2 * k + 1]!) - road.z[k]!
-      // Gragnola's 52 m tunnel keeps the 1.2 m bank at its mouth that main's map has, and traffic drives it.
+      // Within a cell of the floor: the 4 m grid holds Pieve San Lorenzo's north mouth 0.9 m over
+      // it, a cell from Via Bugliatico's carriageway.
       assert.ok(bank < 1.5, `road ${road.id}: its mouth ${bank.toFixed(1)} m under the terrain`)
     }
 })

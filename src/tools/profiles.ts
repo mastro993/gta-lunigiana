@@ -75,6 +75,12 @@ export const coreHalf = (w: number, cell: number): number => Math.max(w / 2 + 0.
 /** A bridge's or tunnel's end may take the elevation of the ground this far (m) out of it along the chain. */
 const PORTAL = 4
 
+/**
+ * How far (m) along its approach a road tunnel's mouth holds the grid (`mouths` in `Spec`): a cell's
+ * diagonal, the farthest a corner of the cell holding the mouth lies from it.
+ */
+const MOUTH = GRID_CELL * Math.SQRT2
+
 /** An elevation at a point of a chain (nearest sample); `min`/`max` only bind when the fit crosses them. */
 export interface Bound {
   readonly x: number
@@ -130,7 +136,13 @@ export const beatsRail = (cls: string): boolean =>
  * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output, and
  * whether consecutive bridge (or tunnel) pieces make one deck, straight from end to end: the roads'.
  * The rail keeps a deck a piece: its 2.5 % grade and 100 m smoothing hold a joint to the line
- * between its deck's ends, and its platforms and crossings are fitted on that profile.
+ * between its deck's ends, and its platforms and crossings are fitted on that profile. With
+ * `mouths` (the roads'), a tunnel's approaches hold the grid round each of its mouths at their level
+ * against every other claim: the first MOUTH m out of it, in their core, before anything else is
+ * written. A road over the tunnel or beside the mouth took that cell at its own level otherwise:
+ * Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m from its south mouth,
+ * buried that mouth 5.8 m. The rail's portals open in their hills, and its bridges over an
+ * underpass's mouth (`underpasses` in rail-spans.ts) write nothing there.
  */
 interface Spec {
   readonly w: number
@@ -139,6 +151,7 @@ interface Spec {
   readonly half: number
   readonly tol?: number
   readonly decks?: true
+  readonly mouths?: true
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -198,6 +211,10 @@ const minHeap = () => {
 export interface Claim {
   readonly p: Profile
   readonly core: number
+  /** Metres its writes reach past its core, blending back to the terrain. */
+  readonly blend: number
+  /** A point and a direction (x, y, dx, dy): it writes only the nodes abeam or ahead of the point (a mouth's claim, out of its tunnel). */
+  readonly ahead?: readonly [number, number, number, number]
   readonly rank: number
   readonly skip: Uint8Array
   /** The box its writes reach: [minX, minY, maxX, maxY]. */
@@ -206,6 +223,9 @@ export interface Claim {
 
 /** Metres a claim's writes reach past its core: the blend back to the terrain. */
 const BLEND = 8
+
+/** The rank of a tunnel mouth's claim: every other claim's equal or above, and it is written first. */
+const MOUTH_RANK = 0
 
 /**
  * Writes `claims` into the nodes `g` holds, in order: what one pass over the whole grid writes
@@ -222,9 +242,21 @@ export const replayClaims = (
     minY = g.y0 + j0 * g.cell,
     maxX = g.x0 + (i0 + cols - 1) * g.cell,
     maxY = g.y0 + (j0 + rows - 1) * g.cell
-  for (const { p, core, rank, skip, box } of claims)
+  for (const { p, core, blend, ahead, rank, skip, box } of claims)
     if (box[0] <= maxX && box[2] >= minX && box[1] <= maxY && box[3] >= minY)
-      flatten(g, p, core, BLEND, rank, owner, protect, (k) => skip[k] === 1)
+      flatten(
+        g,
+        p,
+        core,
+        blend,
+        rank,
+        owner,
+        protect,
+        (k) => skip[k] === 1,
+        ahead === undefined
+          ? undefined
+          : (x, y) => (x - ahead[0]) * ahead[2] + (y - ahead[1]) * ahead[3] >= 0,
+      )
 }
 
 /**
@@ -236,11 +268,19 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
   const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
   const denseOf = new Map<Linear, Dense>()
+  /** The claims in the order they are written: the tunnels' mouths first, then the rest as made. */
   const claims: Array<Claim> = []
-  /** Claims the grid along profile `p` of a line `w` m wide at `rank`, but for segments from samples where `skip`. */
-  const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) => {
+  let mouthClaims = 0
+  /** A claim along profile `p` of a line `w` m wide at `rank`, blending `blend` m, but for segments from samples where `skip`. */
+  const claimOf = (
+    p: Profile,
+    w: number,
+    rank: number,
+    blend: number,
+    skip: (k: number) => boolean,
+  ): Claim => {
     const core = coreHalf(w, GRID_CELL),
-      reach = core + BLEND
+      reach = core + blend
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
@@ -251,13 +291,45 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
       maxX = Math.max(maxX, p.x[k]! + reach)
       maxY = Math.max(maxY, p.y[k]! + reach)
     }
-    claims.push({
+    return {
       p,
       core,
+      blend,
       rank,
       skip: Uint8Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) => (skip(k) ? 1 : 0)),
       box: [minX, minY, maxX, maxY],
-    })
+    }
+  }
+  /** Claims the grid along profile `p` of a line `w` m wide at `rank`, but for segments from samples where `skip`. */
+  const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) => {
+    claims.push(claimOf(p, w, rank, BLEND, skip))
+  }
+  /**
+   * The approach to a mouth at sample `k` of `p`, walking `step` (±1) along it to MOUTH m out while
+   * `atGrade` holds of each segment (by its first sample): a profile of its own; undefined where
+   * none leaves it at grade (the chain ends there, at a junction, or a bridge does).
+   */
+  const approach = (
+    p: Profile,
+    k: number,
+    step: 1 | -1,
+    atGrade: (segment: number) => boolean,
+  ): Profile | undefined => {
+    const x = [p.x[k]!],
+      y = [p.y[k]!],
+      z = [p.z[k]!]
+    for (let o = k; o + step >= 0 && o + step < p.z.length; o += step) {
+      if (!atGrade(Math.min(o, o + step))) break
+      const n = o + step,
+        from = Math.abs(p.s[o]! - p.s[k]!),
+        to = Math.abs(p.s[n]! - p.s[k]!),
+        t = to <= MOUTH ? 1 : (MOUTH - from) / (to - from)
+      x.push(p.x[o]! + (p.x[n]! - p.x[o]!) * t)
+      y.push(p.y[o]! + (p.y[n]! - p.y[o]!) * t)
+      z.push(p.z[o]! + (p.z[n]! - p.z[o]!) * t)
+      if (to >= MOUTH) break
+    }
+    return x.length === 1 ? undefined : { x, y, s: [], z: Float64Array.from(z), vertexSample: [] }
   }
   const profile = <T extends Linear>(
     chain: ReadonlyArray<Link<T>>,
@@ -365,6 +437,34 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
     // A sample's segment belongs to the piece whose first vertex precedes it; the last sample closes the last piece.
     // The core reaches half a cell past the carriageway's edge, so the terrain under the carriageway is (nearly) level across it.
     claim(p, spec.w, spec.rank, (k) => isLifted(pieceOfSample(k)))
+    // A tunnel's mouths, with `mouths`: each approach's first MOUTH m, in its core ahead of the
+    // mouth alone (the road over the tunnel keeps its cells), at MOUTH_RANK, written first. An end
+    // the outline cut is no mouth.
+    if (spec.mouths === true)
+      for (let i = 0; i < runs.length; i++) {
+        if (!isTunnel(i)) continue
+        const [i0, i1] = deckOf(i)
+        i = i1
+        const [v0, v1] = deckEnds([i0, i1])
+        for (const [v, step] of [
+          [v0, -1],
+          [v1, 1],
+        ] as const) {
+          if (pts[v]!.id === undefined) continue
+          const out = approach(p, p.vertexSample[v]!, step, (k) => !isLifted(pieceOfSample(k)))
+          if (out === undefined) continue
+          const ahead = [
+            out.x[0]!,
+            out.y[0]!,
+            out.x[1]! - out.x[0]!,
+            out.y[1]! - out.y[0]!,
+          ] as const
+          claims.splice(mouthClaims++, 0, {
+            ...claimOf(out, spec.w, MOUTH_RANK, 0, () => false),
+            ahead,
+          })
+        }
+      }
     runs.forEach((r, i) => {
       const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!)
       if (isLifted(i)) {
