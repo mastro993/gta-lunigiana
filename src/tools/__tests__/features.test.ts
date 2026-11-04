@@ -107,6 +107,20 @@ test("extractRoads: a motorway, its links and a roundabout are oneway unless tag
   )
 })
 
+// Regression: OSM draws Pieve San Lorenzo's platform as two `highway=footway` lines along its
+// edge (ways 1442184593 and 1442184594), tagged railway=platform: the platform, not a path beside
+// the track.
+test("extractRoads: a highway drawn as a line and tagged railway=platform is the platform, no road", () => {
+  const roads = extractRoads(
+    osmOf([{ highway: "footway", railway: "platform" }, { highway: "footway" }]),
+    whole,
+  )
+  assert.deepEqual(
+    roads.map((r) => [r.id, r.cls]),
+    [[2, "path"]],
+  )
+})
+
 // Regression: an edit glued four streams' junctions 0.008–0.073 m from their next node (the Torrente
 // Mommio's 788514676 at (6132.2, 9771.2)), so the shipped line, rounded to 0.1 m, repeated a vertex.
 test("extractWater, extractRoads: two nodes in a row on one 0.1 m point are one vertex, the one another way shares", () => {
