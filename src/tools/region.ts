@@ -267,6 +267,33 @@ const regionOf = (
  */
 export const PARTS: ReadonlyArray<Part> = [
   { key: "lucido", title: "Valle del Lucido", rects: [[-2900, -6100, 4900, 3900]] },
+  {
+    key: "fivizzano",
+    title: "Fivizzano, Casola and the upper Aulella",
+    // The issue's L (#17), and two rectangles of Lucca land the runbook's critic added (issue #3,
+    // step 1) so no permanent edge cuts a village: Pieve San Lorenzo, Novella and Renzano whole
+    // (x 5700…6700), and Magliano, Varliano and Montale (x 10100…10600).
+    rects: [
+      [-5300, 3900, 10100, 13000],
+      [4900, -900, 5700, 3900],
+      [5700, 2900, 6700, 3900],
+      [10100, 4600, 10600, 7800],
+    ],
+    // The rectangles less Emilia-Romagna at Cima Belfiore: Regione Toscana's regional border as OSM
+    // maps it (ways 783897858, 866778403 and 443598856, admin_level 4, fetched 2026-11-04), in the
+    // local frame to 0.1 m, from x 10100 to y 13000; round the summit, whose peak node (9706, 12014)
+    // OSM puts 4.1 m beyond the border, it bends out to (9726, 12014), so the summit plays.
+    mask: [
+      4900, -900, 5700, -900, 5700, 2900, 6700, 2900, 6700, 3900, 10100, 3900, 10100, 4600, 10600,
+      4600, 10600, 7800, 10100, 7800, 10100, 11909.4, 10029.7, 11854.3, 9924.6, 11826.6, 9756,
+      11948.9, 9730.6, 11968.6, 9726, 12014, 9703.5, 12042.7, 9685, 12202.9, 9664.6, 12284.8,
+      9637.1, 12311.8, 9611.9, 12346.1, 9568.7, 12370.3, 9515.7, 12425.9, 9464.3, 12475, 9452.4,
+      12482.6, 9366.5, 12544.1, 9324.9, 12579, 9262.6, 12597, 9221.6, 12619.4, 9147.2, 12669.2,
+      9124, 12762, 9091.3, 12779.6, 9048.6, 12851, 9008.5, 12876.5, 8992.6, 12901.4, 8978.2,
+      12918.1, 8966.6, 12942.4, 8954.2, 12968.3, 8939.6, 13000, -5300, 13000, -5300, 3900, 4900,
+      3900,
+    ],
+  },
 ]
 
 const LUNIGIANA_ORIGIN = { lat: 44.16175, lon: 10.13 }

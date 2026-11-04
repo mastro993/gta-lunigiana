@@ -16,8 +16,8 @@
 //   areas, AZR = the mapped area of each sheet, AFE = the rail ballast bed (its bridge and tunnel
 //   spans), VLI = the railway track centrelines only (code 0117; the rest of the layer, mostly
 //   contour lines, is dropped). Some sheets map only part of their frame; where none does, OSM
-//   fills in. A sheet may lack AGE, AVI or AFE (nothing of the kind in it) and has a VLI file only
-//   where a track runs. Two parts listing one sheet write the same files.
+//   fills in. A sheet may lack AED, AGE, AVI or AFE (nothing of the kind in it: fivizzano's 24E41
+//   maps no building) and has a VLI file only where a track runs. Two parts listing one sheet write the same files.
 // - ctr2009/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2009 flight, the old schema, EPSG:6707
 //   (CC BY: 3.0 IT as the cartoteca lists it, 4.0 as its archive's licence states): AE_a = buildings,
 //   AV_a = road areas, AC_a = the mapped area, with the surveyors' names blanked (`SURVEYORS`),
@@ -121,7 +121,7 @@ const manifest = readManifest(PART.key)
  */
 const surveys =
   stage === "ucs" || REGION.ownTerrain ? { ctr: [], ctr2009: [], ctr10k: [], dbt2k: [] } : manifest
-/** Layers copied whole; AED and AZR are in every sheet. */
+/** Layers copied whole; AZR is in every sheet, AED in every sheet that maps a building (not 24E41). */
 const CTR_LAYERS = ["AED", "AGE", "AVI", "AZR", "AFE"] as const
 /** CTR code of a railway track centreline, the only VLI records kept. */
 const TRACK = "0117"
@@ -196,7 +196,7 @@ for (const sheet of surveys.ctr) {
   const out = (layer: string) => join(SURVEYS, "ctr", `${sheet}_${layer}`)
   for (const layer of CTR_LAYERS)
     pinLayer(dir, `S_${sheet}_2019_${layer}`, out(layer), ctrUrl(sheet), {
-      optional: layer !== "AED" && layer !== "AZR",
+      optional: layer !== "AZR",
     })
   pinLayer(dir, `S_${sheet}_2019_VLI`, out("VLI"), ctrUrl(sheet), {
     cut: (shp, dbf) => subsetShp(shp, dbf, (attrs) => attrs.Cod_CTR === TRACK),

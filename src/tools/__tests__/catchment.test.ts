@@ -166,3 +166,24 @@ test("catchments: an unlisted tile's nodes are outlets, as the box's edge is: th
     `${masked.area.at(-1)} km² at the mouth against ${whole.area.at(-1)} with the notch's ground`,
   )
 })
+
+test("catchments: an inflow from beyond the grid is carried down its stream from its node, and only there", () => {
+  const wp = [
+    profile([
+      [8, 80],
+      [392, 80],
+    ]),
+  ]
+  const ids = [["a", "b"]]
+  const fresh = () => ({ ...grid, z: Float64Array.from(grid.z) })
+  const [plain] = catchments(fresh(), wp, ids)
+  const [fed] = catchments(fresh(), wp, ids, undefined, [{ x: 40, y: 80, km2: 12.5 }])
+  const k40 = wp[0]!.x.indexOf(40)
+  // Above the inflow's node the stream gathers its own ground alone; from it on, 12.5 km² more.
+  assert.equal(fed![k40 - 4], plain![k40 - 4])
+  for (let k = k40; k < wp[0]!.x.length; k++)
+    assert.ok(
+      Math.abs(fed![k]! - plain![k]! - 12.5) < 1e-9,
+      `sample ${k}: ${fed![k]} - ${plain![k]}`,
+    )
+})

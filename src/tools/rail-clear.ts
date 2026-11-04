@@ -182,10 +182,12 @@ export const clearVerges = (
       const worst = Math.min(...bad.map((o) => o.d))
       before ??= worst
       verge = Math.floor((verge - (RAIL_CLEAR - worst) - SPARE) * 100 + 1e-9) / 100
-      if (verge < MIN_VERGE)
+      if (verge < MIN_VERGE) {
+        const at = bad.find((o) => o.d === worst)!
         throw new Error(
-          `road ${r}: its verge would come within ${MIN_VERGE} m of its middle beside the railway`,
+          `road ${r}: its verge would come within ${MIN_VERGE} m of its middle beside the railway, at (${at.x.toFixed(1)}, ${at.y.toFixed(1)})`,
         )
+      }
     }
     if (before !== undefined) {
       verges.set(r, verge)

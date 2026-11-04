@@ -71,13 +71,21 @@ const heap = (z: Float64Array) => {
   }
 }
 
+/** Area flowing in from beyond the grid, km², added at the node nearest (x, y): a stream's first sample inside it. */
+export interface Inflow {
+  readonly x: number
+  readonly y: number
+  readonly km2: number
+}
+
 /**
  * Upstream area (km²) at every sample of each profile in `wp`, from grid `g` before carving, whose
  * nodes it overwrites (the water burned in, the pits filled); `ids`
  * holds each profile's OSM vertex ids, where pieces meet. The
  * water is burned in BURN m under its own profile, the grid filled so every node drains (its edge
  * the outlet), each node routed to its steepest lower neighbour (D8) and the 4 m cells accumulated
- * downstream. Area flowing in from beyond the grid is not counted. A node `listed` leaves out (0:
+ * downstream. Area flowing in from beyond the grid counts only as `inflows` give it, carried down
+ * from their nodes like their own. A node `listed` leaves out (0:
  * one no listed tile holds, in an L's notch) is beyond the grid too, and never read: an outlet below
  * any ground, so the listed nodes beside it are an edge, as the grid's outermost are.
  */
@@ -86,6 +94,7 @@ export const catchments = (
   wp: ReadonlyArray<Profile>,
   ids: ReadonlyArray<ReadonlyArray<string | undefined>>,
   listed?: Uint8Array,
+  inflows: ReadonlyArray<Inflow> = [],
 ): Array<Float64Array> => {
   const { cols, rows, cell } = g,
     [oi, oj] = anchorNode(g)
@@ -164,6 +173,7 @@ export const catchments = (
   // taken for a ridge again). A stack of the ridges gave the same order, and the same sums.
   const DONE = 255
   const area = new Float64Array(cols * rows).fill((cell * cell) / 1e6)
+  for (const { x, y, km2 } of inflows) area[nodeOf(x, y)]! += km2
   for (let top = area.length - 1; top >= 0; top--) {
     if (inflow[top] !== 0) continue
     for (let n = top; to[n]! >= 0;) {

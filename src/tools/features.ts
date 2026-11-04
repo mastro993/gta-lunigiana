@@ -139,7 +139,10 @@ export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
   [...osm.ways.values()].flatMap((w) => {
     const t = w.tags,
       cls = classOf(t)
-    if (cls === undefined) return []
+    // A platform OSM draws as a line (a `highway=footway` along its edge, Pieve San Lorenzo's) is
+    // the platform, not a path beside the track: the map takes the platforms from the CTR's outlines
+    // or OSM's areas (`extractAreas`).
+    if (cls === undefined || t.railway === "platform") return []
     // OSM implies `oneway` on motorways, their links and roundabouts, drawn in their direction of travel.
     const oneway =
       t.oneway === "yes" ||

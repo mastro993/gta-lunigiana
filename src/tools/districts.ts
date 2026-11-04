@@ -1,5 +1,5 @@
 // HUD district discs (`districtAt` in src/sim/map/index.ts): Monzone's named clusters, placed by
-// hand, every OSM village and hamlet elsewhere, centred on its place node with a radius fitted to
+// hand, every OSM town, village and hamlet elsewhere, centred on its place node with a radius fitted to
 // the buildings nearest it, and the mountains' landmarks, placed by hand.
 import type { District } from "../sim/map/index.ts"
 import type { BuildingF } from "./features.ts"
@@ -70,8 +70,11 @@ const LANDMARKS: ReadonlyArray<District> = [
   { name: "Capanne di Navola", x: 3460, y: -5560, r: 350 },
 ]
 
-/** Populated places only: a `locality` (a named hillside, a field) would claim the village's buildings around it. */
-const PLACES: ReadonlySet<string> = new Set(["village", "hamlet"])
+/**
+ * Populated places only: a `locality` (a named hillside, a field) would claim the village's
+ * buildings around it. Fivizzano, OSM's one town in Lunigiana's play area, is one.
+ */
+const PLACES: ReadonlySet<string> = new Set(["town", "village", "hamlet"])
 /** A building farther than this (m) from every place node is a farmhouse, no village's. */
 const REACH = 600
 /** Share of a place's buildings its disc covers; the rest are outliers. */
