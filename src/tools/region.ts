@@ -281,8 +281,9 @@ export const PARTS: ReadonlyArray<Part> = [
     ],
     // The rectangles less Emilia-Romagna at Cima Belfiore: Regione Toscana's regional border as OSM
     // maps it (ways 783897858, 866778403 and 443598856, admin_level 4, fetched 2026-11-04), in the
-    // local frame to 0.1 m, from x 10100 to y 13000; round the summit, whose peak node (9706, 12014)
-    // OSM puts 4.1 m beyond the border, it bends out to (9726, 12014), so the summit plays.
+    // local frame to 0.1 m, from x 10100 to y 13000; round the summit, whose peak node 577763720 at
+    // (9705.5, 12014.0) OSM puts 3.6 m beyond the border (the landmark point (9706, 12014) 4.1 m),
+    // it bends out to (9726, 12014), so the summit plays.
     mask: [
       4900, -900, 5700, -900, 5700, 2900, 6700, 2900, 6700, 3900, 10100, 3900, 10100, 4600, 10600,
       4600, 10600, 7800, 10100, 7800, 10100, 11909.4, 10029.7, 11854.3, 9924.6, 11826.6, 9756,
@@ -315,10 +316,13 @@ const lucido = PARTS[0]!.rects[0]!
  *   lucido's north edge; the foot, x 0…2400 by y 0…1400, Equi Terme and its station. The notch, round
  *   Fazzano, Casciana and Codiponte, is real land, so roads leave the play area across its two sides
  *   and are capped there (`l-region.map-test.ts`, which CI runs on it).
+ * - `lunigiana-lucido`: part lucido alone, as the shipped map was before Fivizzano joined it (issue
+ *   #17): what `x3-region.map-test.ts` compares the 3x with, built by hand as the 3x is.
  * - `lunigiana-3x`: lucido between two rectangles of terrain only, as wide as it, 3 times its built
- *   terrain and 78 tiles; a mask on lucido's rectangle keeps the play area lucido's. Past the DTM's
- *   crop the terrain is the crop's edge drawn on (`loadDtm`): synthetic, for the build's memory and
- *   time and the cars round Monzone (docs/map.md, "Test regions").
+ *   terrain and 78 tiles; a mask on lucido's rectangle keeps the play area lucido's. Past lucido the
+ *   terrain is the tile files' where Lunigiana's grown box filled them (x ≈ −4050…6050, and north
+ *   of y ≈ 1950 from x ≈ −5350 to 10650) and their edge drawn on elsewhere (`loadDtm`), for the
+ *   build's memory and time and the cars round Monzone (docs/map.md, "Test regions").
  * - `bagnone-ridge`: 4 × 4 km of the Apennine ridge round Monte Sillara, x −8000…−4000 by
  *   y 20000…24000, with terrain of its own and nothing else: the LiDAR stops 1–2 km below the crest,
  *   so it checks the fallback chain's seams and the summit (issue #10) before part 6 (#22) exists.
@@ -345,6 +349,12 @@ const TEST_REGIONS: ReadonlyArray<Region> = [
         ],
       },
     ],
+    LUNIGIANA_ANCHOR,
+  ),
+  regionOf(
+    { key: "lunigiana-lucido", id: "lunigiana", file: "lunigiana-lucido", test: true },
+    LUNIGIANA_ORIGIN,
+    [PARTS[0]!],
     LUNIGIANA_ANCHOR,
   ),
   regionOf(
@@ -472,12 +482,15 @@ export const osmFiles = (region: Region): Array<string> =>
 /** Build region for this Node invocation, fixed before the geometry modules load. */
 export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])
 
-/** Every part in Lunigiana's frame: its own, then its test regions'. */
-const LUNIGIANA_PARTS = [...PARTS, ...TEST_REGIONS.flatMap((r) => r.parts)]
+/** Every part in Lunigiana's frame, each once (`lunigiana-lucido` shares lucido): its own, then its test regions'. */
+const LUNIGIANA_PARTS = [...new Set([...PARTS, ...TEST_REGIONS.flatMap((r) => r.parts)])]
 
-/** The region a Lunigiana part belongs to: Lunigiana for its own parts, the test region for a test region's. */
+/**
+ * The region a Lunigiana part belongs to: Lunigiana for its own parts, lucido too though
+ * `lunigiana-lucido` is built of it, and the test region for a test region's.
+ */
 export const regionOfPart = (part: Part): Region =>
-  TEST_REGIONS.find((r) => r.parts.includes(part)) ?? LUNIGIANA
+  PARTS.includes(part) ? LUNIGIANA : (TEST_REGIONS.find((r) => r.parts.includes(part)) ?? LUNIGIANA)
 
 /**
  * The Lunigiana part with `key`, a test region's included; throws naming the known keys, so a tool
