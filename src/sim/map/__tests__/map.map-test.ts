@@ -694,6 +694,19 @@ test("water: the Lucido is 8 m on the valley floor and 4 m above Vinca", () => {
   assert.deepEqual([w(254825035), w(140780317), w(696231807), w(687230881)], [8, 4, 8, 14])
 })
 
+// Issue #17: the Aulella's valley row keeps lucido's ways; its gorge above the Tassonaro's mouth, the
+// Rosaro above Fivizzano and the Mommio below 775 m are wooded torrents; the Rosaro's river part has
+// its own bed; their heads are named streams.
+test("water: the Aulella, Rosaro and Mommio take their measured widths by reach", () => {
+  const w = (id: number) => WHOLE.water.find((o) => o.id === id)?.w
+  // Aulella: lucido's 788520105 (205 m), the gorge's 788514364 (294 m), the head's 788514391 (363 m).
+  assert.deepEqual([w(788520105), w(788514364), w(788514391)], [12, 6, 4])
+  // Rosaro: its river part 687230888, a stream above Fivizzano 790403608.
+  assert.deepEqual([w(687230888), w(790403608)], [7, 6])
+  // Mommio: 788514606 (303 m) and 788514696 (766 m) wooded, 788514702 (782 m) a named stream.
+  assert.deepEqual([w(788514606), w(788514696), w(788514702)], [6, 6, 4])
+})
+
 test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, which leaves the map with Soliera's 208", () => {
   for (const w of WHOLE.water)
     w.area.forEach((a, k) =>

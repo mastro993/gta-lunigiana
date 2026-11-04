@@ -204,25 +204,48 @@ export const nameFromAddresses = (osm: Osm, roads: ReadonlyArray<RoadF>): void =
 
 /** Mean ground (m) below which a Lucido or Caldanella way runs on the valley floor; above it, the stream is a wooded mountain gully. */
 const MAIN_BELOW = 500
+/**
+ * Mean ground (m) below which a Torrente Aulella way runs in its open valley bed: halfway between
+ * lucido's 788514356 (282.2 m), its last way under the Tassonaro's mouth, and 788514364 (294.3 m),
+ * the first of the wooded gorge above it.
+ */
+const AULELLA_VALLEY_BELOW = 288
+/** Mean ground (m) below which the Aulella's gorge keeps its bed: above it, past its first big tributary over Casola, its floor narrows to a headwater's (LiDAR 4–6.5 m against 6–8 m). */
+const AULELLA_GORGE_BELOW = 350
+/** Mean ground (m) below which the Torrente Mommio keeps its bed: its floor narrows between 766 m (way 788514696) and 782 m (788514702). */
+const MOMMIO_GORGE_BELOW = 775
 
 /**
  * Water width, gravel-bed half-width and depth, m, from the way's name, kind and mean ground `z`
  * (LiDAR, over its vertices). The rivers are measured on the 2010 orthophoto: the Aulella runs in
  * a 25-35 m gravel bed at Gragnola (a wooded 10 m channel at Codiponte), the Lucido in a 22 m one
- * below Monzone. The Lucido's Vinca branch and the Caldanella (from Equi) are the main streams on
- * the valley floor (5-16 m of open marble gravel below 400 m). Above Vinca the Lucido runs in a
- * beech-wood gully with only 3-6 m of bed showing, like the other named streams (4 m); unnamed ones are 2 m.
+ * below Monzone, the Rosaro in a 10-28 m one (median 13-15 m, its water 2-8 m) from Fivizzano to
+ * Soliera. The Lucido's Vinca branch and the Caldanella (from Equi) are the main streams on the
+ * valley floor (5-16 m of open marble gravel below 400 m). The Aulella's gorge above the Tassonaro's
+ * mouth, the Rosaro above Fivizzano and the Mommio are torrents of 9-49 km² in closed woods, whose
+ * canopy gaps show 3-10 m of bed over a LiDAR floor of 7-7.5 m (`wooded`, issue #17). Above Vinca
+ * the Lucido runs in a beech-wood gully with only 3-6 m of bed showing, like the other named
+ * streams (4 m); unnamed ones are 2 m. The depths are the classes' own, as no photo shows them.
  */
 const waterSize = (
   name: string | undefined,
   kind: "river" | "stream",
   z: number,
 ): { readonly w: number; readonly bed: number; readonly depth: number } => {
-  if (name === "Torrente Aulella") return { w: 12, bed: 13, depth: 2.5 }
+  if (name === "Torrente Aulella" && z < AULELLA_VALLEY_BELOW) return { w: 12, bed: 13, depth: 2.5 }
   if (name === "Torrente Lucido" && kind === "river") return { w: 14, bed: 11, depth: 2.5 }
+  if (name === "Torrente Rosaro" && kind === "river") return { w: 7, bed: 7, depth: 2.5 }
   const main = (name === "Torrente Lucido" || name === "Torrente Caldanella") && z < MAIN_BELOW
-  const w = main ? 8 : name === undefined ? 2 : 4
-  return { w, bed: Math.max(w / 2 + 1, 3), depth: kind === "river" ? 2.5 : main ? 1.5 : 1 }
+  const wooded =
+    (name === "Torrente Aulella" && z < AULELLA_GORGE_BELOW) ||
+    name === "Torrente Rosaro" ||
+    (name === "Torrente Mommio" && z < MOMMIO_GORGE_BELOW)
+  const w = main ? 8 : wooded ? 6 : name === undefined ? 2 : 4
+  return {
+    w,
+    bed: Math.max(w / 2 + 1, 3),
+    depth: kind === "river" ? 2.5 : main || wooded ? 1.5 : 1,
+  }
 }
 
 /** Median cross-section between mapped riverbanks; missing outlines leave the existing default. */
