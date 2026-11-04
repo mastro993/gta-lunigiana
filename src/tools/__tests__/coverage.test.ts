@@ -9,10 +9,20 @@ import { join } from "node:path"
 import { test } from "node:test"
 
 import { gridOver, mask } from "../coverage-grid.ts"
-import { checkPicks, fillLayer, forestPolygons, osmPolygon, readUcs } from "../coverage.ts"
-import { fromLocal } from "../geometry.ts"
+import {
+  checkPicks,
+  fillLayer,
+  forestPolygons,
+  osmPolygon,
+  readUcs,
+  tileSource,
+} from "../coverage.ts"
+import { gaussBoagaToLatLon } from "../crs.ts"
+import { CELL, emptyTile } from "../dtm-tiles.ts"
+import { fromLocal, toLocal } from "../geometry.ts"
 import { readManifest } from "../manifest.ts"
 import type { Osm, Tags } from "../osm.ts"
+import { SOURCES } from "../terrain-sources.ts"
 
 /** An Osm of the given nodes (id: local x, y), ways (id: node ids, tags) and relations. */
 const osmOf = (
@@ -151,15 +161,49 @@ test("checkPicks throws for a part without a manifest (read as empty) or with no
   assert.equal(checkPicks("x", lidar), lidar)
 })
 
-test("fillLayer codes each cell by its fill source, 0 on the LiDAR, and throws on a source it has no column for", () => {
-  const grid = gridOver([[0, 0, 50, 10]], 10)
+test("fillLayer codes each play-area cell by its fill source, 0 on the LiDAR, and throws on a source it has no column for", () => {
+  const grid = gridOver([[0, 0, 50, 10]], 10),
+    all = new Uint16Array([1, 1, 1, 1, 1])
   const sides = ["lidar", "dsm2021", "dtm10", "lig", "rer"]
-  assert.deepEqual([...fillLayer(grid, (x) => sides[Math.floor(x / 10)]!)], [0, 1, 2, 3, 4])
+  assert.deepEqual([...fillLayer(grid, all, (x) => sides[Math.floor(x / 10)])!], [0, 1, 2, 3, 4])
   // A source the chain gains must get a column, not count as LiDAR.
   assert.throws(
-    () => fillLayer(grid, () => "tinitaly"),
+    () => fillLayer(grid, all, () => "tinitaly"),
     /no coverage column for terrain source tinitaly/,
   )
+})
+
+test("fillLayer never asks outside the play area, and has no layer while a play-area cell has no terrain", () => {
+  const grid = gridOver([[0, 0, 50, 10]], 10),
+    play = new Uint16Array([0, 1, 1, 1, 0])
+  // The cells outside the play area have no terrain, and an unknown source: neither is asked.
+  const source = (x: number) => (x < 10 ? "tinitaly" : x > 40 ? undefined : "dtm10")
+  assert.deepEqual([...fillLayer(grid, play, source)!], [0, 2, 2, 2, 0])
+  assert.equal(
+    fillLayer(grid, play, (x) => (x > 30 ? undefined : "lidar")),
+    undefined,
+  )
+})
+
+test("tileSource reads a point's source from the nearest cell of the file of the tile holding it, none where no file holds one", () => {
+  // Tile 0_0's file: its cells west of column C the LiDAR's, the rest the 10 m DTM's, none north
+  // of row R; tile 1_0 has no file.
+  const t = emptyTile(0, 0, SOURCES),
+    C = 600,
+    R = 700
+  for (let r = 0; r <= R; r++)
+    for (let c = 0; c < t.cols; c++) t.codes[r * t.cols + c] = c < C ? 0 : 2
+  const source = tileSource([{ i: 0, j: 0, tile: t }])
+  /** The local point at EPSG:3003 (e, n) past cell (C, 300)'s centre. */
+  const at = (de: number, dn: number) =>
+    toLocal(...gaussBoagaToLatLon(t.e0 + CELL * C + de, t.n0 + CELL * 300 + dn))
+  // Nearest cell C (0.9 m west of its centre), then C − 1 (1.1 m west).
+  assert.equal(source(...at(-0.9, 0)), "dtm10")
+  assert.equal(source(...at(-1.1, 0)), "lidar")
+  assert.equal(source(...at(-1.1, CELL * (R - 300) + 0.9)), "lidar")
+  assert.equal(source(...at(-1.1, CELL * (R - 300) + 1.1)), undefined)
+  assert.equal(source(2500, 1000), undefined)
+  assert.equal(source(1000, -10), undefined)
 })
 
 test("coverage throws on a mistyped flag before it reads or asks for anything", () => {

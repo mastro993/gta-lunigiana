@@ -13,15 +13,16 @@
 //   heights, int16 decimetres, row 0 south, each row delta-coded from its first, then a byte a cell,
 //   its source's index in the names, or NONE. A cell without a height repeats the one before it in
 //   its row (0 at a row's start), so the deflate packs it into next to nothing.
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { inflateSync } from "node:zlib"
 
 import { TILE } from "../sim/map/kinds.ts"
+import type { Crop } from "./dtm-mosaic.ts"
 import type { DtmData } from "./dtm.ts"
 import { NONE } from "./fill-chain.ts"
 import { gaussBoagaBox } from "./geometry.ts"
-import type { Rect } from "./region.ts"
+import { type Rect, tilesOf } from "./region.ts"
 
 /** The centre of the lattice's cell (0, 0) in EPSG:3003: lucido's mosaic's first cell. */
 export const LATTICE = { e: 1587397, n: 4884308 } as const
@@ -74,17 +75,16 @@ export const tileRect = (i: number, j: number): Rect => [
 export const tileGrid = (i: number, j: number): Cells =>
   cellsOver(gaussBoagaBox([tileRect(i, j)], HALO))
 
-/** The cells tile (i, j) must hold for a map whose terrain spans `bounds`: its square cut to them, widened by HALO, within its file. */
-export const tileNeed = (
-  i: number,
-  j: number,
-  bounds: {
-    readonly minX: number
-    readonly minY: number
-    readonly maxX: number
-    readonly maxY: number
-  },
-): Cells | undefined => {
+/** A map's built terrain in local metres: its region's `bounds`. */
+interface Bounds {
+  readonly minX: number
+  readonly minY: number
+  readonly maxX: number
+  readonly maxY: number
+}
+
+/** Tile (i, j)'s square cut to `bounds`, undefined when it lies wholly past them. */
+export const tileCut = (i: number, j: number, bounds: Bounds): Rect | undefined => {
   const [x0, y0, x1, y1] = tileRect(i, j)
   const cut: Rect = [
     Math.max(x0, bounds.minX),
@@ -92,9 +92,52 @@ export const tileNeed = (
     Math.min(x1, bounds.maxX),
     Math.min(y1, bounds.maxY),
   ]
-  if (cut[0] >= cut[2] || cut[1] >= cut[3]) return undefined
-  return intersect(cellsOver(gaussBoagaBox([cut], HALO)), tileGrid(i, j))
+  return cut[0] >= cut[2] || cut[1] >= cut[3] ? undefined : cut
 }
+
+/** The cells tile (i, j) must hold for a map whose terrain spans `bounds`: its square cut to them, widened by HALO, within its file. */
+export const tileNeed = (i: number, j: number, bounds: Bounds): Cells | undefined => {
+  const cut = tileCut(i, j, bounds)
+  return cut === undefined
+    ? undefined
+    : intersect(cellsOver(gaussBoagaBox([cut], HALO)), tileGrid(i, j))
+}
+
+/**
+ * The tiles a part's terrain fetch writes for a map whose terrain spans `bounds`: those its
+ * rectangles meet (`tilesOf`), south to north, then west to east, each with the cells it must hold.
+ */
+export const partTiles = (
+  rects: ReadonlyArray<Rect>,
+  bounds: Bounds,
+): Array<{ readonly i: number; readonly j: number; readonly need: Cells }> =>
+  tilesOf(rects).flatMap(({ i, j }) => {
+    const need = tileNeed(i, j, bounds)
+    return need === undefined ? [] : [{ i, j, need }]
+  })
+
+/** The box of lattice cells round `blocks`. */
+export const blockOf = (blocks: ReadonlyArray<Cells>): Cells => {
+  const e0 = Math.min(...blocks.map((b) => b.e0)),
+    n0 = Math.min(...blocks.map((b) => b.n0))
+  return {
+    e0,
+    n0,
+    cols: (Math.max(...blocks.map((b) => b.e0 + CELL * b.cols)) - e0) / CELL,
+    rows: (Math.max(...blocks.map((b) => b.n0 + CELL * b.rows)) - n0) / CELL,
+  }
+}
+
+/**
+ * The 1 m crop over a block of lattice cells, on the LiDAR's cell centres (x.5): the block's cell
+ * (c, r) is the mean of the crop's (2c, 2r) to (2c + 1, 2r + 1), its centre 0.5 m past theirs.
+ */
+export const cropOver = (block: Cells): Crop => ({
+  e0: block.e0 - 0.5,
+  n0: block.n0 - 0.5,
+  cols: 2 * block.cols,
+  rows: 2 * block.rows,
+})
 
 /** The cells two blocks share, undefined when none. */
 export const intersect = (a: Cells, b: Cells): Cells | undefined => {
@@ -168,6 +211,18 @@ export const readTile = (dir: string, i: number, j: number): DtmTile | undefined
   const path = tilePath(dir, i, j)
   return existsSync(path) ? decodeTile(inflateSync(readFileSync(path)), path) : undefined
 }
+
+/** The tile of every file in `dir` (`<i>_<j>.bin`), in the order of their names; none when `dir` does not exist. */
+export const tileKeys = (dir: string): Array<{ readonly i: number; readonly j: number }> =>
+  existsSync(dir)
+    ? readdirSync(dir)
+        .filter((f) => /^-?\d+_-?\d+\.bin$/.test(f))
+        .sort()
+        .map((f) => {
+          const [i, j] = f.slice(0, -4).split("_").map(Number)
+          return { i: i!, j: j! }
+        })
+    : []
 
 /** An empty tile (i, j): its file's cells, none holding a height. */
 export const emptyTile = (i: number, j: number, names: ReadonlyArray<string>): DtmTile => {

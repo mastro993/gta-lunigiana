@@ -6,7 +6,7 @@
 // cells their files already hold (`tileCrop`): the LiDAR and the chain fill only the cells none
 // holds, and the chain's bend meets the held ones, so a part's fetch never moves another's cell and
 // joins it without a step.
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { deflateSync, inflateSync } from "node:zlib"
 
@@ -16,11 +16,14 @@ import {
   CELL,
   type Cells,
   type DtmTile,
+  blockOf,
+  cropOver,
   emptyTile,
   encodeTile,
   intersect,
   readTile,
   tileGrid,
+  tileKeys,
   tilePath,
 } from "./dtm-tiles.ts"
 import { type Filler, type Mosaic, NONE, OUT, fillStep } from "./fill-chain.ts"
@@ -304,17 +307,13 @@ const inSources = (t: DtmTile, name: string): DtmTile => {
 }
 
 /** Every tile file in `dir`, by key. */
-export const tileFiles = (dir: string): Map<string, DtmTile> => {
-  const tiles = new Map<string, DtmTile>()
-  if (!existsSync(dir)) return tiles
-  for (const file of readdirSync(dir)
-    .filter((f) => /^-?\d+_-?\d+\.bin$/.test(f))
-    .sort()) {
-    const [i, j] = file.slice(0, -4).split("_").map(Number)
-    tiles.set(`${i}_${j}`, inSources(readTile(dir, i!, j!)!, file))
-  }
-  return tiles
-}
+export const tileFiles = (dir: string): Map<string, DtmTile> =>
+  new Map(
+    tileKeys(dir).map(({ i, j }) => [
+      `${i}_${j}`,
+      inSources(readTile(dir, i, j)!, `${i}_${j}.bin`),
+    ]),
+  )
 
 /**
  * The 1 m crop over the 2 m cells `needs` lists (each the cells a tile must hold), seeded: a cell
@@ -331,15 +330,9 @@ export const tileCrop = (
   readonly block: Cells
   readonly empty: number
 } => {
-  const e0 = Math.min(...needs.map((b) => b.e0)),
-    n0 = Math.min(...needs.map((b) => b.n0))
-  const block: Cells = {
-    e0,
-    n0,
-    cols: (Math.max(...needs.map((b) => b.e0 + CELL * b.cols)) - e0) / CELL,
-    rows: (Math.max(...needs.map((b) => b.n0 + CELL * b.rows)) - n0) / CELL,
-  }
-  const crop: Crop = { e0: e0 - 0.5, n0: n0 - 0.5, cols: 2 * block.cols, rows: 2 * block.rows }
+  const block = blockOf(needs),
+    { e0, n0 } = block
+  const crop = cropOver(block)
   const dm = new Float32Array(crop.cols * crop.rows),
     src = new Uint8Array(crop.cols * crop.rows).fill(OUT)
   /** Sets 2 m cell (c, r) of the block's four 1 m cells. */

@@ -2382,11 +2382,18 @@ DBT surveys but reads one of them alone; `fetch-rt.test.ts` runs `fetch-rt` and 
 refuses a stage for a test region with buildings of its own and any test region with
 nothing of its own, before any request; `pick-sheets.test.ts`, `pick-lidar.test.ts` and
 `pick-diff.test.ts` check the area rule, first wins, the holes and the surface model's elements over
-them on synthetic grids; `fill-chain.test.ts` bends a filler into a 100 m hole of a tilted LiDAR (no
-step over 0.1 m at its rim), carries a 20 m ripple the lattice cannot fit through the band, keeps a
-filler to its `where` and its data, bends a second filler onto the LiDAR and a first filler a
-cell off it, and keeps a filler with a `fade` to its own heights 1.3 km from a strip of LiDAR, where
-unfaded it is lifted onto the LiDAR all over (proven red with the fade ignored;
+them on synthetic grids, and `pick-lidar`'s mask against `tileCrop`'s seeded crop on an L's tiles
+(a cell is left to the replay exactly where the crop leaves it to the LiDAR, the notch out though
+its tile's file holds it), the earlier parts' tiles before the candidates and a cell out of the
+replay never counted, each proven red; `rt-index-file.test.ts` the index's box (lucido's its
+rectangles' to the metre, Fivizzano's rectangles' reaching their tiles' cells, a test region's with
+terrain of its own its rectangles') and an index a metre short of it on any side refused;
+`dtm-tiles.test.ts` a part's tiles and their cells (`partTiles`, an L's notch tile none) and the
+tile files a folder holds (`tileKeys`); `fill-chain.test.ts` bends a filler into a 100 m hole of a
+tilted LiDAR (no step over 0.1 m at its rim), carries a 20 m ripple the lattice cannot fit through
+the band, keeps a filler to its `where` and its data, bends a second filler onto the LiDAR and a
+first filler a cell off it, and keeps a filler with a `fade` to its own heights 1.3 km from a strip
+of LiDAR, where unfaded it is lifted onto the LiDAR all over (proven red with the fade ignored;
 `fill-chain.long-test.ts`: a 5 km hole, linear in its cells); `terrain-sources.test.ts`
 reads ASCII grid windows (corner and centre registered), a GeoTIFF in EPSG:7791 and Liguria's in
 EPSG:3003 (GeoServer's own keys and model transformation, `fixtures/lig`: the 200 m square of the
@@ -2428,7 +2435,9 @@ left out, each element's XML as the API wrote it, and the rings `assembleRings` 
 `osmXml`'s file); `osm.test.ts` the merge of a region's parts' extracts (`mergeOsm`, `readOsms`:
 the first part's element of a duplicate id kept, each kind ordered by numeric id, not as strings,
 and one extract read back in its own order); `coverage-grid.test.ts` and `coverage.test.ts` first
-wins, the tally, ring assembly, no picks, and a WFS error answer never cached; `ortho.test.ts` and
+wins, the tally, ring assembly, no picks, a WFS error answer never cached, a mask's play area, each
+fill source read from the nearest cell of a tile file (none where no file holds one) and no fill
+columns while a play-area cell has no terrain, each proven red; `ortho.test.ts` and
 `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted sibling flight is look only)
 and an error answer for capabilities; `playtest.test.ts` the spots, the command line (shots, heap
 and drive with their defaults and flags) and the spot script;
@@ -2526,11 +2535,21 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   (Argigliano, 188 buildings, is cut 2 m inside the east edge), 16 drivable re-entries (the SR445
   runs 780 m outside the north edge), 15 path notes, 7 unresolved roads (the SR445 north, the SP10
   west) and 2 paths; 99 s with the query, 0.2 s cached.
-- **`pnpm rt-index <part>`** (`rt-index.ts`, readers in `cartoteca.ts`) lists the cartoteca over
-  the part's EPSG:3003 box + 500 m: WFS GetFeature on `rt_cartoteca.ctr2k` (sheet frames by year),
-  `ctr10k` (section frames by edition), `lidar2k` (the tiles' data footprints by lot), `dbt.2k` (a
-  block per comune and survey, its polygon the comune's, not the area it maps) and
-  `lidar2k_DSM_autocorrelazione_2021`. The index has no archive names, so it asks a text/html
+- **`pnpm rt-index <part>`** (`rt-index.ts`, readers in `cartoteca.ts`, the box in
+  `rt-index-file.ts`) lists the cartoteca over the box round every cell `fetch-rt` may read for the
+  part, + 500 m (`indexBox`): for a Lunigiana part, the EPSG:3003 box round its tiles' squares cut to
+  the region's bounds, whose cells its fetch writes (`tileNeed`); for a test region with terrain of
+  its own, its rectangles' box, round the mosaic it writes. The tiles' box holds the rectangles' and
+  is wider where a rectangle stops short of its tiles' edges: lucido's is its rectangles' to the
+  metre (1586928, 4883839 to 1595866, 4894945), as is every part's of today's regions, so their
+  indexes stand, while Fivizzano's rectangles (issue #17) beside lucido's reach 1,112 m further
+  south, where the leg's tile runs to y −2000, and 29 m further east.
+  `pick-lidar` refuses an index whose box is short of today's (`checkIndexBox`), as when a later part
+  grows the region's bounds and so the part's tiles' cells. It asks WFS GetFeature on
+  `rt_cartoteca.ctr2k` (sheet frames by year), `ctr10k` (section frames by edition), `lidar2k` (the
+  tiles' data footprints by lot), `dbt.2k` (a block per comune and survey, its polygon the comune's,
+  not the area it maps) and `lidar2k_DSM_autocorrelazione_2021`. The index has no archive names, so
+  it asks a text/html
   GetFeatureInfo (`gfiUrl`) inside each tile's own footprint (`insidePoints`: the widest inside
   spans first, clear of the 50–70 m band below the north edge where the server answers nothing, up
   to 16 points, because the server's footprints do not match the WFS's to the metre) for the
@@ -2558,33 +2577,59 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   with only 1987, 1993 or 2009 sheets (22D02–15 of 2009 on the Carrara side; the 12 of them whose
   `AC_a` meets lucido, 22D02–07 and 22D10–15, are its `ctr2009`).
 - **`pnpm pick-lidar <part> [--lots 004,005] [--write]`** replays `fetch-rt`'s first-wins mosaic
-  (`dtm-mosaic.ts`, the same crop and reader) on a one-byte mask: RT's tiles of the named lots, in
-  lot order then by sheet, each kept when it writes a cell no earlier tile wrote, over the crop
-  `fetch-rt` mosaics (the EPSG:3003 box round the part's rectangles, an L's notch included, until
-  #17 writes a DTM file a tile). MATTM's lots are skipped, with their licence. It reports each
-  tile's area, the holes left for the terrain chain, and the surface model's elements whose index
-  footprint meets a hole (`elementsOverHoles`), and without `--write` the difference from the
-  manifest's `lidar` and `dsm2021`; `--write` stores both. `lucido` (19 s, 565 MB): the manifest's
+  (`dtm-mosaic.ts`'s reader) on a one-byte mask of the 1 m cells `fetch-rt` fills for the part. For
+  a Lunigiana part those are the cells its tiles need (`partTiles`: each tile's square cut to the
+  region's bounds, HALO round it, two 1 m cells a lattice cell each way as `tileCrop` takes them;
+  `needMask`), and every other cell of the box round them is out of the replay, so an L's notch
+  tile is never a hole; for a test region with terrain of its own, its rectangles' crop (`cropOf`),
+  all of it to fill. A cell a tile file in `data/raw/rt/dtm` holds counts as written first, as
+  `fetch-rt` keeps it; then every earlier part's manifest tiles write, in `PARTS` order, as
+  `fetch-rt` mosaics them before the part's (those the index lists: any other lies past its box);
+  then RT's tiles of the named lots, in lot order then by sheet, each kept when it writes a needed
+  cell nothing wrote before. MATTM's lots are skipped, with their licence. It refuses an index whose
+  box is short of `indexBox`'s, which may lack tiles over the rest. It reports the cells needed and
+  held, each tile's area, the holes left for the terrain chain, and the surface model's elements
+  whose index footprint meets a hole (`elementsOverHoles`), and without `--write` the difference
+  from the manifest's `lidar` and `dsm2021`; `--write` stores both. Run it before the part's first
+  `fetch-rt`: after that its own cells are held too, so a run keeps only the tiles a fetch would
+  still take (where a grown box adds cells) and `--write` drops the rest; to pick a fetched part
+  again from the start, delete its tiles' files first, as to fetch it again. On 2026-11-04 every one
+  of the 79,588,544 m² lucido's 30 tiles need is held, so a run keeps none of its tiles. Its numbers
+  below are from 2026-10-29, on its rectangles' crop before the tile files; on its tiles' cells
+  without them they were not measured again, as 36 of its 66 archives are not in the cache and the
+  run needs its index (`rt-index`), both over the network. `lucido` (19 s, 565 MB): the manifest's
   66 tiles; holes 654 734 m² in 5 pieces, the largest 361 141 m², exactly the cells `fetch-rt`'s
-  chain fills; elements 249062 and 249064. `sillara`: 8 of its 13 tiles; one hole of 12.41 km²,
-  elements 234011–234014 and 234051. PR #2 had found its 65 tiles with a GetFeatureInfo grid 640 m
-  apart, which missed `22d14` of lot 004, a 98 m wide 2010 sliver below Picco di Navola (19 518 m²
-  in the crop, local x 3843–3943, y −5750…−5473) that `pick-lidar` added: 506 heightmap nodes moved
-  there, 474 of them under 0.5 m and none on average, up to 8.4 m on the steep rock face, where the
-  2010 and 2012 flights classify the ground differently. The `dtm10` list is written by hand, from
-  the provinces the holes lie in (the 10 m DTMs have no index layer).
+  chain fills; elements 249062 and 249064. Fivizzano's rectangles (issue #17) beside lucido's, on
+  2026-11-04 from the archive cache with its index over its rectangles' box (so before
+  `checkIndexBox`) and lot 004's 151 tiles: its 56 tiles need 179.90 km², 20.53 km² of them held by
+  lucido's files, and lucido's 30 tiles in its index write 8.97 km² first; 92 tiles kept, holes
+  1.26 km² in 2 (the largest 0.97 km², 372 × 3,301 m along its east edge), elements 234123, 234124,
+  234164 and 249074, in 34 s and 838 MB (the mask 236 MB), where its rectangles' crop with no held
+  cells and no earlier part kept 130 and left 2.57 km². `sillara`: 8 of its 13 tiles; one hole of
+  12.41 km², elements 234011–234014 and 234051. PR #2 had found its 65 tiles with a GetFeatureInfo
+  grid 640 m apart, which missed `22d14` of lot 004, a 98 m wide 2010 sliver below Picco di Navola
+  (19 518 m² in the crop, local x 3843–3943, y −5750…−5473) that `pick-lidar` added: 506 heightmap
+  nodes moved there, 474 of them under 0.5 m and none on average, up to 8.4 m on the steep rock
+  face, where the 2010 and 2012 flights classify the ground differently. The `dtm10` list is written
+  by hand, from the provinces the holes lie in (the 10 m DTMs have no index layer).
 - **`pnpm coverage <part> [--refresh]`** (`coverage.ts`, raster in `coverage-grid.ts`) tallies, per
-  comune (OSM `admin_level=8` boundaries), the part's area mapped by the manifest's 2019 sheets, by
-  each LiDAR lot (the index footprints in manifest order, first wins) and by no LiDAR, and, once
-  `fetch-rt` has written the terrain of the part's region, by each source the chain took past the
-  LiDAR (surface model, 10 m DTM, Liguria's DTM ed. 2023, DTM 5x5: `dtm-src.bin` at each cell's
-  centre; a source the chain
-  gains fails the typecheck until it has a column, and `fillLayer` throws on one it does not know),
-  and the UCS 2019 woods (311–313, 324) against OSM's forest, on 10 m cells; it stops when the
-  manifest holds no picks yet. It prints the markdown table for the PR and writes `coverage.md` and `coverage.png`.
-  `lucido`: 6 comuni (Fivizzano 50.62 km²); CTR 11.1%, lot 004 78.6%, lot 005 20.5%, no LiDAR 0.66
-  km² (0.7% over the mosaic's holes: the footprints' slivers and the 10 m cells); OSM marks 92.7% of
-  the 54.69 km² of UCS woods as forest. `sillara`: see [Test regions](#test-regions).
+  comune (OSM `admin_level=8` boundaries), the part's play area (its mask, or else its rectangles)
+  mapped by the manifest's 2019 sheets, by each LiDAR lot (the index footprints in manifest order,
+  first wins) and by no LiDAR, and, once `fetch-rt` has written the part's terrain under every cell
+  of its play area, by each source the chain took past the LiDAR (surface model, 10 m DTM, Liguria's
+  DTM ed. 2023, DTM 5x5) at each cell's centre: for a Lunigiana part from the files of its tiles
+  (`tileSource`: the nearest lattice cell, in the file of the tile whose square holds the centre),
+  for a test region with terrain of its own from its `dtm-src.bin`. A source the chain gains fails
+  the typecheck until it has a column, and `fillLayer` throws on one it does not know. It tallies
+  the UCS 2019 woods (311–313, 324) against OSM's forest too, on 10 m cells counted when their
+  centre lies in the play area; it stops when the manifest holds no picks yet. It prints the
+  markdown table for the PR and writes `coverage.md` and `coverage.png`. `lucido`: 6 comuni
+  (Fivizzano 50.62 km²); CTR 11.1%, lot 004 78.6%, lot 005 20.5%, no LiDAR 0.66 km² (0.7% over the
+  mosaic's holes: the footprints' slivers and the 10 m cells); OSM marks 92.7% of the 54.69 km² of
+  UCS woods as forest. From its tile files the chain's columns read the surface model on 0.02 km²
+  and the 10 m DTM on 0.63 km², each of the 780,000 cells' source the build's sampler's (`loadDtm`)
+  too (2026-11-04, the columns alone: the whole run needs its index and the Overpass answers).
+  `sillara`: see [Test regions](#test-regions).
 - **`pnpm ortho <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>] [--refresh]`** (`ortho.ts`,
   `ortho-wms.ts`) draws a Regione Toscana orthophoto crop (WMS GetMap in EPSG:4326, which maps
   linearly onto the local frame; 0.5 m a pixel by default, tiled past 4096 px) with the built map's
@@ -2689,20 +2734,25 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   `lucido`'s largest, 0_0, is 0.56 MB with its vectors (its JSON line 0.77 MB before gzip), where
   −1_−1's 0.31 MB was the largest without them; Cesena's largest is 0.45 MB and the L's 0.52 MB.
 
-Only `lucido` is fetched and built: `pnpm map` covers the Lunigiana region's bounds (`BOUNDS`;
-`--region cesena` builds the separate Cesena map instead, and the part tools refuse it; a [test
-region](#test-regions) builds from Lunigiana's inputs and fetches none, but `bagnone-ridge`'s
-terrain, `pontremoli-town`'s buildings and `sarzana-town`'s terrain and Liguria sources), and `pnpm
-fetch-rt` reads one part's manifest and stops when the region holds more than one part (a second
-part would widen the mosaic's crop over the land between them, all of it for the chain to fill).
-The build works a tile at a time since issue #7 ([Pipeline](#pipeline)), and its OSM is a part's
-already: `pnpm fetch-osm <part>` writes the part's own extract, `data/raw/osm/<part>.osm.gz`, over
-its rectangles alone, and the build merges every part's by id ([section
-1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)), so a part adds a file and
-changes none, and overlapping parts are harmless. Its terrain stays one DTM mosaic per region until
-#17 (Fivizzano, the first part after lucido) brings the per-part terrain (`rt/dtm/<i>_<j>.bin`) and
-`fetch-rt <part>`. Regione Liguria's inputs are a part's already (`data/raw/lig/<part>/`,
-`fetch-lig <part>`), its DTM cropped a tile at a time.
+Each part's inputs are its own files since #17 (Fivizzano, the first part after lucido), so a part
+adds files and cells and moves none (`--region cesena` builds the separate Cesena map instead, and
+the part tools refuse it; a [test region](#test-regions) builds from Lunigiana's inputs and fetches
+none, but `bagnone-ridge`'s terrain, `pontremoli-town`'s buildings and `sarzana-town`'s terrain and
+Liguria sources). `pnpm fetch-osm <part>` writes the part's own extract, `data/raw/osm/<part>.osm.gz`,
+over its rectangles alone, and the build merges every part's by id ([section
+1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)), so overlapping parts are
+harmless. `pnpm fetch-rt <part>` adds the cells the part's tiles need to a file a tile
+(`rt/dtm/<i>_<j>.bin`), keeping every cell another part's fetch wrote, and its land cover to
+`rt/ucs/<part>.json.gz`. The part tools above work on those cells: `rt-index` asks over the box
+round them, `pick-lidar` replays the mosaic on them after the cells held and the earlier parts'
+tiles, and `coverage` reads the chain's sources from the part's tiles' files. The build works a
+tile at a time since issue #7 ([Pipeline](#pipeline)). Regione Liguria's inputs are a part's
+already (`data/raw/lig/<part>/`, `fetch-lig <part>`), its DTM cropped a tile at a time round the
+crop of the part's rectangles (`dtmTiles`), which holds the cells its tiles need only where the
+rectangles reach within the crop's margin of the tiles' outer edges or the region's bounds stop
+there: for `sarzana-town`'s rectangle as a part beside lucido, 47,467 of those 2 m cells, in the
+HALO bands past its tiles' north and east edges, lie beyond every crop, so a Liguria part of
+Lunigiana needs `dtmTiles` taken round its tiles first.
 
 A part's new inputs are pinned like any other: after `pnpm fetch-osm <part>`, `pnpm fetch-rt` and
 `pnpm map`, `pnpm pin-raw`

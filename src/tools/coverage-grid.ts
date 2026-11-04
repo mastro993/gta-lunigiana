@@ -2,8 +2,8 @@
 // cell inside a polygon when its centre is (`fillPolygon`), and the per-comune tally, markdown
 // table and picture of what each source maps there.
 
-import { fillPolygon } from "./geometry.ts"
-import { type Rect, inRects, rectsBox } from "./region.ts"
+import { fillPolygon, pointInRing } from "./geometry.ts"
+import { type Part, type Rect, inRects, rectsBox } from "./region.ts"
 
 /** Cells of `res` m in local metres: cell (col, row) is centred on (x0 + (col + 0.5) res, y0 + (row + 0.5) res), row 0 south. */
 interface Grid {
@@ -29,13 +29,18 @@ export const gridOver = (rects: ReadonlyArray<Rect>, res: number): Grid => {
   return { x0, y0, res, cols: Math.ceil((x1 - x0) / res), rows: Math.ceil((y1 - y0) / res) }
 }
 
-/** 1 in each cell whose centre lies in one of the rectangles (the play area), else 0. */
-export const playMask = (grid: Grid, rects: ReadonlyArray<Rect>): Uint16Array => {
-  const { x0, y0, res, cols, rows } = grid
+/** 1 in each cell whose centre lies in the part's play area (its mask, or else one of its rectangles), else 0. */
+export const playMask = (grid: Grid, part: Pick<Part, "rects" | "mask">): Uint16Array => {
+  const { x0, y0, res, cols, rows } = grid,
+    { rects, mask } = part
   const out = new Uint16Array(cols * rows)
   for (let row = 0; row < rows; row++)
-    for (let col = 0; col < cols; col++)
-      if (inRects(rects, x0 + (col + 0.5) * res, y0 + (row + 0.5) * res)) out[row * cols + col] = 1
+    for (let col = 0; col < cols; col++) {
+      const x = x0 + (col + 0.5) * res,
+        y = y0 + (row + 0.5) * res
+      if (mask === undefined ? inRects(rects, x, y) : pointInRing(x, y, mask))
+        out[row * cols + col] = 1
+    }
   return out
 }
 
@@ -73,7 +78,7 @@ export interface Layers {
   readonly ucs: Uint16Array
   /** 1 in OSM forest. */
   readonly osm: Uint16Array
-  /** The source of the fetched terrain where it is not the LiDAR, 1-based into the fill sources; 0 = LiDAR, or no terrain fetched. */
+  /** The source of the fetched terrain where it is not the LiDAR, 1-based into the fill sources; 0 = LiDAR, or outside the play area. */
   readonly fill?: Uint16Array
 }
 

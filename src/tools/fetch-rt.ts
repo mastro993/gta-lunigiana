@@ -67,7 +67,7 @@ import {
   withoutSurveyors,
 } from "./cartoteca.ts"
 import { cropOf } from "./dtm-mosaic.ts"
-import { type DtmTile, tileNeed } from "./dtm-tiles.ts"
+import { type DtmTile, partTiles } from "./dtm-tiles.ts"
 import { fillCrop, tileCrop, tileFiles, writeMosaic, writeTiles } from "./fetch-dtm.ts"
 import { NONE } from "./fill-chain.ts"
 import { gaussBoagaBox } from "./geometry.ts"
@@ -75,7 +75,7 @@ import { dtmTiles } from "./liguria.ts"
 import { manifestPath, readManifest } from "./manifest.ts"
 import { getText } from "./net.ts"
 import { fetchedToday, writeRaw } from "./raw-lock.ts"
-import { REGION, dtmDir, ligDir, surveyDir, tilesOf, ucsFile } from "./region.ts"
+import { REGION, dtmDir, ligDir, surveyDir, ucsFile } from "./region.ts"
 import { fetch7z, fetchZip, findFile, mustFind } from "./rt-cache.ts"
 import { subsetShp } from "./shp.ts"
 import { UCS_CODES, readUcsFile } from "./ucs.ts"
@@ -233,12 +233,7 @@ if (stage === "ctr" || REGION.ownBuildings) process.exit(0)
 // tiles' cell centres (x.5), all of it to fill.
 const DTM = join(OUT, "dtm"),
   held = REGION.ownTerrain ? new Map<string, DtmTile>() : tileFiles(DTM)
-const tiles = REGION.ownTerrain
-  ? []
-  : tilesOf(PART.rects).flatMap(({ i, j }) => {
-      const need = tileNeed(i, j, REGION.bounds)
-      return need === undefined ? [] : [{ i, j, need }]
-    })
+const tiles = REGION.ownTerrain ? [] : partTiles(PART.rects, REGION.bounds)
 const { crop, mosaic, block, empty } = REGION.ownTerrain
   ? (() => {
       const c = cropOf(PART.rects),

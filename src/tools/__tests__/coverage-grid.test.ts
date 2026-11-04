@@ -30,10 +30,22 @@ test("gridOver and playMask: the grid spans the rectangles' box, the play area o
   ]
   const g = gridOver(rects, 10)
   assert.deepEqual(g, { x0: 0, y0: 0, res: 10, cols: 15, rows: 10 })
-  const play = playMask(g, rects)
+  const play = playMask(g, { rects })
   assert.equal(count(play, 1), 10 * 5 + 5 * 10)
   assert.equal(play[9 * 15 + 0], 0, "the north-west cell lies outside both rectangles")
   assert.equal(play[9 * 15 + 14], 1, "the north-east cell lies in the second")
+})
+
+test("playMask: a part with a mask plays only the cells whose centre lies in it", () => {
+  // A triangle under the line 0.9 x + y = 90, no cell's centre on it.
+  const play = playMask(grid, { rects: [[0, 0, 100, 100]], mask: [0, 0, 100, 0, 0, 90] })
+  for (let row = 0; row < 10; row++)
+    for (let col = 0; col < 10; col++) {
+      const x = col * 10 + 5,
+        y = row * 10 + 5
+      assert.equal(play[row * 10 + col], 0.9 * x + y < 90 ? 1 : 0, `cell ${col}, ${row}`)
+    }
+  assert.equal(count(play, 1), 45)
 })
 
 test("paint: a cell takes the value of the first layer that holds it", () => {
@@ -57,7 +69,7 @@ test("mask: holes stay empty, and overlapping polygons add up instead of cancell
  * are y 60–80, OSM forest x 0–60, y 70–100.
  */
 const layers = (): Layers => ({
-  play: playMask(grid, [[0, 0, 100, 80]]),
+  play: playMask(grid, { rects: [[0, 0, 100, 80]] }),
   comune: paint(grid, [
     { value: 1, polygons: [box(0, 0, 50, 100)] },
     { value: 2, polygons: [box(50, 0, 100, 100)] },

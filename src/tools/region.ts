@@ -260,9 +260,10 @@ const regionOf = (
 }
 
 /**
- * Every Lunigiana part, in build order; `fetch-rt` reads one until #17 brings `fetch-rt <part>` and
- * the per-part terrain. `lucido`: lat 44.1069–44.1968, lon 10.0937–10.1913, the whole Lucido
- * catchment, ridge to ridge, plus the Aulella side by Gragnola and Codiponte.
+ * Every Lunigiana part, in build order: `fetch-rt` mosaics every part's LiDAR in this order and
+ * `pick-lidar` replays the earlier parts' before a part's own candidates, so a later part's tiles
+ * never take a cell an earlier part's give. `lucido`: lat 44.1069–44.1968, lon 10.0937–10.1913,
+ * the whole Lucido catchment, ridge to ridge, plus the Aulella side by Gragnola and Codiponte.
  */
 export const PARTS: ReadonlyArray<Part> = [
   { key: "lucido", title: "Valle del Lucido", rects: [[-2900, -6100, 4900, 3900]] },

@@ -1,4 +1,7 @@
 import assert from "node:assert/strict"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { test } from "node:test"
 
 import { cropOf, MARGIN } from "../dtm-mosaic.ts"
@@ -8,12 +11,18 @@ import {
   HALO,
   LATTICE,
   assembleTiles,
+  blockOf,
   cellsOver,
+  cropOver,
   decodeTile,
   drawEdgesOn,
   emptyTile,
   encodeTile,
+  intersect,
+  partTiles,
+  tileCut,
   tileGrid,
+  tileKeys,
   tileNeed,
   tileRect,
 } from "../dtm-tiles.ts"
@@ -155,4 +164,45 @@ test("an empty tile is its file's cells, none holding a height", () => {
   const t = emptyTile(1, -2, NAMES)
   assert.deepEqual([t.e0, t.n0, t.cols, t.rows], Object.values(tileGrid(1, -2)))
   assert.ok(t.codes.every((c) => c === NONE))
+})
+
+test("a part's tiles are those its rectangles meet, each needing its square cut to the region's box, an L's notch tile none", () => {
+  // An L round the corner of four tiles: the north-east tile, its notch, is not the part's.
+  const rects: ReadonlyArray<Rect> = [
+      [1800, 1800, 2000, 2200],
+      [2000, 1800, 2200, 2000],
+    ],
+    bounds = { minX: 1800, minY: 1800, maxX: 2200, maxY: 2200 }
+  const tiles = partTiles(rects, bounds)
+  assert.deepEqual(
+    tiles.map(({ i, j }) => `${i}_${j}`),
+    ["0_0", "1_0", "0_1"],
+  )
+  for (const { i, j, need } of tiles) assert.deepEqual(need, tileNeed(i, j, bounds))
+  assert.deepEqual(tileCut(0, 1, bounds), [1800, 2000, 2000, 2200])
+  assert.equal(tileCut(3, 0, bounds), undefined)
+  // The block round them holds each, and its 1 m crop lies on the LiDAR's cell centres, two to a
+  // lattice cell.
+  const block = blockOf(tiles.map((t) => t.need))
+  for (const { need } of tiles) assert.deepEqual(intersect(need, block), need)
+  assert.deepEqual(blockOf([tiles[0]!.need, block]), block)
+  assert.deepEqual(cropOver(block), {
+    e0: block.e0 - 0.5,
+    n0: block.n0 - 0.5,
+    cols: 2 * block.cols,
+    rows: 2 * block.rows,
+  })
+})
+
+test("tileKeys lists the tile files in a folder, by name, and none of a folder that is not there", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "dtm-tiles-test-"))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  for (const name of ["0_-1.bin", "-2_3.bin", "1_0.bin", ".DS_Store", "1_0.tif", "notes.bin"])
+    writeFileSync(join(dir, name), "")
+  assert.deepEqual(tileKeys(dir), [
+    { i: -2, j: 3 },
+    { i: 0, j: -1 },
+    { i: 1, j: 0 },
+  ])
+  assert.deepEqual(tileKeys(join(dir, "missing")), [])
 })
