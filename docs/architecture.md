@@ -494,12 +494,14 @@ once the first frame is drawn.
    modules the earlier ones left. "Decoding map" imports `src/sim/map/index.ts` (the global file
    decoded) and `src/sim/map/tiles.ts`. "Downloading terrain" fetches the start tiles: every listed
    tile over [`MAP.spawns.player` ± 1000 m]² (`tilesOver`, `NEAR`), on Lunigiana -1_-1, 0_-1, -1_0
-   and 0_0, 1,952,293 B gzipped: with the global file's 553,207 B, 2.51 MB before the first frame
-   (3.10 MB while the global file held the vectors). They come in parallel, all their headers
-   first, so the bar (14% to 60%: the two shares follow Lunigiana's bytes, `GLOBAL` and `DOWNLOAD`
-   in `boot.ts`) counts the bytes against their summed `Content-Length` and never runs backwards.
-   "Decoding terrain" hands each to `provideTile` (in Node, decoding a tile takes 2.6–2.7 ms at the
-   median over Lunigiana's 30 and 4.1–4.2 ms for the largest, 0_0). Then come `src/sim/route.ts`
+   and 0_0, 2,031,275 B gzipped: with the global file's 1,540,308 B, 3.57 MB before the first
+   frame (on lucido alone 1,952,293 and 553,207 B, 2.51 MB; 3.10 MB while the global file held the
+   vectors). They come in parallel, all their headers first, so the bar (26% to 60%, `GLOBAL` and
+   `DOWNLOAD` in `boot.ts`, shares set by the bytes: the global file 1.54 MB against its start
+   tiles' 2.03 MB) counts the bytes against their summed `Content-Length` and never runs backwards. "Decoding terrain" hands each to `provideTile` (in
+   Node, decoding a tile takes 3.6–3.7 ms at the median over Lunigiana's 79 and 4.6–7.7 ms for the
+   largest, 2_1, in eight fresh processes on 2026-11-04 under a load average of 4–5; over lucido's
+   30, its largest 0_0, 3.1–3.2 and 4.1–4.9 ms in three more). Then come `src/sim/route.ts`
    ("Planning traffic": each vehicle model's lanes, from the baked tables) and `main.ts` ("Loading
    the game").
 4. `main.ts` first makes the sky host, every light and weather mesh in it, so they exist before
@@ -539,24 +541,27 @@ cycle (its dev-server numbers are under [Measured](#measured)):
 | 4× CPU, 1.5 MB/s | the 15 MB script in at 9.8 s (a dead "Press any key" until then), one 3.5 s task, first frame at 13.5 s | map in at 4.6 s, ready at 7.1 s, longest task 0.64 s |
 
 With the map in tiles (production build served by `vite preview`, headless Chrome on an M-series
-Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the rows with the vectors in the
-tiles and in the global file measured in turn on 2026-10-31, the first row again on 2026-11-03 with
-the UCS's woods and the trees' species, against 0.34–0.38 s and 89 MB on the build before):
+Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the first row on 2026-11-04 with
+Fivizzano's part, against 0.33–0.36 s and 89–90 MB for lucido alone in turn; the lucido rows with
+the vectors in the tiles and in the global file measured in turn on 2026-10-31, the first of them
+again on 2026-11-03 with the UCS's woods and the trees' species, against 0.34–0.38 s and 89 MB on
+the build before):
 
 | Map | First frame | Slowest frame, p99 | JS heap after GC |
 |---|---|---|---|
-| Lunigiana, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 90 MB |
-| Lunigiana, the vectors in the global file | 0.41–0.44 s | 16.8 ms, 16.8 ms | 123–124 MB |
-| Lunigiana, the whole 6.7 MB map before the tiles | 0.92–0.98 s | 16.8 ms | 250 MB |
+| Lunigiana, lucido and Fivizzano's part, 79 tiles | 0.41 s | 16.8 ms | 130–131 MB |
+| Lunigiana, lucido alone, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 90 MB |
+| Lunigiana, lucido alone, the vectors in the global file | 0.41–0.44 s | 16.8 ms, 16.8 ms | 123–124 MB |
+| Lunigiana, lucido alone, the whole 6.7 MB map before the tiles | 0.92–0.98 s | 16.8 ms | 250 MB |
 | Cesena, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 99–100 MB |
 | Cesena, the vectors in the global file | 0.36–0.37 s | 16.8 ms, 16.8 ms | 94–95 MB |
 
-Lunigiana holds 4 of its 30 tiles at the start, so the vectors of the other 26 stay on the server.
+Lunigiana holds 4 of its 79 tiles at the start, so the vectors of the other 75 stay on the server.
 Cesena's 4 tiles are the whole map, all in memory at once, so moving the vectors into them saves
 nothing and copies every feature into each tile it comes within 32 m of (a large area into all
 four): its download grows from 2.10 MB to 2.28 MB, and its heap by 5 MB. The production JS is
-1,226,792 B (`dist/assets/*.js`; 1,224,715 B before the trees' species, 1,212,397 B with the vectors
-in the global file, about 1.19 MB before the tiles).
+1,237,029 B (`dist/assets/*.js`; 1,226,792 B before Fivizzano's part, 1,224,715 B before the trees'
+species, 1,212,397 B with the vectors in the global file, about 1.19 MB before the tiles).
 
 ## Host loop
 
@@ -652,10 +657,11 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   tile holds exactly the features within the halo of it and that `buildingsIn` answers as one broad
   phase over the whole map did, and `ground.map-test.ts` that the ground, the surface and the water
   answer as the whole map's lookups did. On Lunigiana a road lies in at most 5 tiles, a river in 6
-  and a forest over the whole box in all 30: summed over the 30 tiles, the vectors' JSON is 1.6
-  times the map's for the roads' lines and the water, 1.08 for the buildings and 4.2 for the areas
-  (by each tile's JSON against the whole map's, 4.0 before the UCS's woods and 3.1 with them, cut on
-  500 m squares). Readers far from the player, where no tile need be in memory, read the copies the
+  and a forest in 37 of the 79: summed over the 79 tiles, the vectors' JSON is 1.65 times the map's
+  for the roads' lines, 1.51 for the water, 1.08 for the buildings and 3.04 for the areas (by each
+  tile's JSON against the whole map's; on lucido alone, where a forest lay over all 30 tiles, 1.59,
+  1.65, 1.08 and 3.09, the areas 4.0 before the UCS's woods, which are cut on 500 m squares).
+  Readers far from the player, where no tile need be in memory, read the copies the
   global file keeps instead (`MAP.derived`, [Where state lives](#where-state-lives)).
 - **What it asks for**: each animation frame `update(player, extra, wanted)` asks, most urgent
   first, for the tiles a step reads round the player and round `extra`, then every listed tile within
@@ -669,19 +675,22 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   tile's hashed name changing with the build hash), or `provideTile` refuses it (a tile from another
   build). `main.ts` then puts the title card back up with "The map changed since this page loaded
   … reload to play on." and a reload button. At most one downloaded tile a frame goes to
-  `provideTile`, the most urgent first, as decoding one takes 2.6–2.7 ms at the median and up to
-  4.2 ms (Node); a download nothing needs any more when it lands is let go unread.
+  `provideTile`, the most urgent first, as decoding one takes 3.6–3.7 ms at the median and 4.6–7.7
+  ms for the largest (Node, [Start-up](#start-up)); a download nothing needs any more when it lands
+  is let go unread.
 - **What it keeps and drops**: a tile goes only once it lies outside [player ± `KEEP`]² (1500 m),
   the view does not want it and it is not within 1000 m of `extra`, at two updates running (the
   frame's render and audio read the events of steps run round where the last update found the
   player), so walking back and forth over a seam never fetches a tile twice. The world hears of each
   change: `tileProvided` after `provideTile`, `tileDropped` before `dropTile`
-  ([Rendering](#rendering)). A tile in memory is its decoded arrays, 0.78–3.68 MB on Lunigiana (68
-  MB for all 30; walls and trees decode to 8-byte numbers), and its vectors, 0.13–0.96 MB of JS heap
-  (11.6 MB for all 30), plus what lookups build from it once they reach it and the world's pieces
-  and tree buckets; its gunzipped file is 0.87–2.30 MB. After a teleport to (1998, 2017) the tiles in
-  memory settled at 4 (0_0, 1_0, 0_1, 1_1); along the SP59 to Vinca at 40 m/s at most 6 were in
-  memory at once, and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1).
+  ([Rendering](#rendering)). A tile in memory is its decoded arrays, 0.79–3.79 MB on Lunigiana (212
+  MB for all 79; walls and trees decode to 8-byte numbers), and its vectors, 0.05–1.19 MB of JS heap
+  (40.7 MB for all 79), plus what lookups build from it once they reach it and the world's pieces
+  and tree buckets; its gunzipped file is 0.91–2.59 MB (Node, 2026-11-04; lucido's 30 then
+  0.79–3.70 MB of arrays, 69.4 MB in all, and 0.13–1.09 MB of vectors, 13.4 MB). After a teleport to
+  (1998, 2017) the tiles in memory settled at 4 (0_0, 1_0, 0_1, 1_1); along the SP59 to Vinca at
+  40 m/s at most 6 were in memory at once, and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1); on a 19.8 km
+  drive at 40 m/s through Fivizzano's part, 13 seams, at most 10 ([Rendering](#rendering)).
 - **Unlisted tiles**: the listed tiles need not fill the box round them (a region of parts in an L
   leaves its notch unlisted, [map.md](map.md#map-files)). A terrain or land-cover lookup in an
   unlisted tile reads the nearest node or cell of the listed tiles round it, and a wall, tree or
@@ -689,8 +698,10 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   wall on its side, a house wall over it, every vector near it; a point lookup there reads their
   vectors merged), so `tilesOver` names those for a box over it, and `isResidentAt` there
   answers whether they are all in memory. The coarse grid holds the same ground and cover there, so
-  a host that falls back to it while they are not finds what the tiles give. On Lunigiana and
-  Cesena every tile in the box is listed, and nothing changes.
+  a host that falls back to it while they are not finds what the tiles give. Cesena lists every
+  tile of its box. Lunigiana, lucido and Fivizzano's part, lists 79 of its box's 99 (i −3…5, j
+  −4…6): the 20 at i −3 and i 3…5 for j −4…0, west and east of lucido's south half and south of
+  Fivizzano's part, are its notch.
 - **`ready(player, extra)`**: whether every listed tile a step reads round the player, and round
   `extra` when given, is in memory; `main.ts` pauses the game while it is not ([Host
   loop](#host-loop)).
@@ -762,8 +773,9 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
   at the render alpha, then every car from the sim's `carsOf` at that s (`src/sim/rail/consist.ts`,
   shared with the sim and the audio): its middle on the rail head (`pointAt`'s z, the profile plus
   `RAIL_LIFT`, at grade and on decks), heading, then pitch. Blending each car's pose instead would
-  cut the chord inside a curve, 0.25 m off the rails for a 20 m step on the line's sharpest curve
-  (162 m in radius, on the deck by the east edge). Below, [Trains](#trains-and-crossings).
+  cut the chord inside a curve, up to 0.33 m off the rails (the chord's sagitta) for a 20 m step on
+  the line's sharpest curve (151 m in radius, at grade by Pian del Molino). Below,
+  [Trains](#trains-and-crossings).
 - `SpreadPools` spreads each dead body's blood pool under its node as placed this frame (below).
 - `DrawEffects` reads the `Skid` and `Explosion` events since the last frame and every vehicle's
   `Damage`, and feeds the effects host (`makeEffects` in `src/render/effects.ts`, made in `main.ts`
@@ -1009,39 +1021,44 @@ build reads is in memory.
   and tree instances included, the chunk a world with every tile in builds, and a read of a tile
   not handed over throws "map tile … not loaded".
 - **Trees per tile**: `tileProvided(key)` also buckets that tile's trees per chunk, the apron's
-  mirrors included (`bucketTileTrees` in `src/render/trees.ts`): 1.74–1.94 ms at the median, 3.3–3.5
-  ms at p90 and 4.5–4.9 ms at worst over the 30 tiles, each just decoded (Node, five fresh processes
-  on 2026-11-03 under a load average of 5; the build before, which bucketed by kind with a hash,
-  took 2.0–2.2 ms at the median the same way); 1.26 MB of buckets a tile at the median and 2.45 MB
-  at most (tile 1_1, 69,918 trees), 36.3 MB for all 30 (`Float64Array` quadruples of x, y, scale and
-  seed). A chunk's build works out each tree's kind (`kindAt`: its land cover, and its height and
-  aspect on its tile's 20 m squares, each square's corners read once a build; a mirror is its tree's
-  kind), 0.14 ms a chunk at the median and 0.18 ms at p90 over the 1,172 chunks of six tiles round
-  Monzone, against 0.04 and 0.07 ms when a hash picked the kind; bucketing by kind at the tile took
-  `tileProvided` to 6.7–7.0 ms at the median and 12.4–13.6 ms at worst, so the kinds wait for the
-  chunk's build, which the stream budgets (4 ms a frame). With the tile's pieces, `tileProvided`
-  takes 3.2–3.6 ms at the median, 5.0–6.9 ms at p90 and 8.5–15.7 ms at worst over the 30 tiles
-  handed in key order, each just decoded (Node, five fresh processes on 2026-11-03 under a load
-  average of 5; the build before 3.7–3.9, 6.0–7.9 and 7.4–9.6 ms). A chunk merges its tiles' buckets
-  in seed order, so its instances come in the whole-map buckets' order, and every tree keeps its
-  look (seed 3 × its id, a mirror's one more; the id is its lattice cell's number, which no added
-  part changes: [map.md](map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)).
-- **Two levels**: each tile plans the chunks whose middle it holds (18–272 a tile, median 225), and
-  its box is the union of their boxes, so the apron chunks belong to the edge tiles. Distances are
-  measured on the screen plane, from the focus to each box projected along the camera's right and up
-  axes, terrain relief included: a valley far below a ridge counts as near when the camera shows it
-  beside the focus. The 30 tile boxes are projected again whenever the view's yaw changes, which is
-  every frame of a turn and every frame the view follows a turning car; a frame then measures only
-  the chunks of the tiles within the load radius, plus every built chunk (for the drops). At the
-  spawn, the origin and the Sagro summit (2364, −5129) that is 3–6 tiles and 526–1,360 chunks at
-  reach 60–300 m, where all 5,248 chunk boxes were projected before; a steady update takes 0.043 ms
-  at the median and 0.059 ms at p90 with the yaw changing every frame (Node, reach 210, 62 chunks
-  built, 200 frames).
+  mirrors included (`bucketTileTrees` in `src/render/trees.ts`): 1.50–1.63 ms at the median,
+  2.5–3.3 ms at p90 and 5.3–6.0 ms at worst over Lunigiana's 79 tiles, each just decoded (Node, five
+  fresh processes on 2026-11-04 under a load average of 5; on lucido's 30 on 2026-11-03 1.74–1.94,
+  3.3–3.5 and 4.5–4.9 ms, and the build before, which bucketed by kind with a hash, took 2.0–2.2 ms
+  at the median the same way); 1.70 MB of buckets a tile at the median and 2.49 MB at most (tile
+  -2_-2, 77,937 trees), 122.4 MB for all 79 (lucido's 30: 1.26 MB, 2.45 MB in 1_1 and 36.3 MB;
+  `Float64Array` quadruples of x, y, scale and seed). A chunk's build works out each tree's kind
+  (`kindAt`: its land cover, and its height and aspect on its tile's 20 m squares, each square's
+  corners read once a build; a mirror is its tree's kind), 0.14 ms a chunk at the median and 0.18
+  ms at p90 over the 1,172 chunks of six tiles round Monzone, against 0.04 and 0.07 ms when a hash
+  picked the kind; bucketing by kind at the tile took `tileProvided` to 6.7–7.0 ms at the median and
+  12.4–13.6 ms at worst, so the kinds wait for the chunk's build, which the stream budgets (4 ms a
+  frame). With the tile's pieces, `tileProvided` takes 3.5–3.7 ms at the median, 8.7–12.9 ms at p90
+  and 17.6–23.5 ms at worst over Lunigiana's 79 tiles handed in key order, each just decoded (Node,
+  five fresh processes on 2026-11-04 under a load average of 5–5.5; lucido's 30 in turn 4.0–4.1,
+  6.7–7.1 and 8.5–8.6 ms; on 2026-11-03 3.2–3.6, 5.0–6.9 and 8.5–15.7 ms, the build before
+  3.7–3.9, 6.0–7.9 and 7.4–9.6 ms). A chunk merges its tiles' buckets in seed order, so its
+  instances come in the whole-map buckets' order, and every tree keeps its look (seed 3 × its id, a
+  mirror's one more; the id is its lattice cell's number, which no added part changes:
+  [map.md](map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)).
+- **Two levels**: each tile plans the chunks whose middle it holds, a notch chunk's the first
+  listed tile its middle reads (30–1,084 a tile, median 240, of Lunigiana's 19,584 chunks; 2_-4,
+  beside the notch, plans 1,084; on lucido alone 18–272, median 225, of 5,248), and its box is the
+  union of their boxes, so the apron chunks belong to the edge tiles. Distances are measured on the
+  screen plane, from the focus to each box projected along the camera's right and up axes, terrain
+  relief included: a valley far below a ridge counts as near when the camera shows it beside the
+  focus. The 79 tile boxes are projected again whenever the view's yaw changes, which is every
+  frame of a turn and every frame the view follows a turning car; a frame then measures only the
+  chunks of the tiles within the load radius, plus every built chunk (for the drops). At the spawn,
+  the origin and the Sagro summit (2364, −5129) on lucido alone that was 3–6 tiles and 526–1,360
+  chunks at reach 60–300 m, where all its 5,248 chunk boxes were projected before; a steady update
+  took 0.043 ms at the median and 0.059 ms at p90 with the yaw changing every frame (Node, reach
+  210, 62 chunks built, 200 frames).
 - **Chunk boxes**: until its terrain's tiles are in, a chunk's box spans the lowest and highest
   nodes of the tiles under its square (`MAP.tiles`' `zmin` and `zmax`), larger than the exact box,
   so a chunk loads early, never late. It turns exact (`exactBox`) the first time the chunk is within
-  the load radius with its terrain's tiles in, and stays exact after they go (all 5,248 take 45 ms,
-  about 9 µs a chunk).
+  the load radius with its terrain's tiles in, and stays exact after they go (lucido's 5,248 took
+  45 ms, about 9 µs a chunk).
 - **`wanted()`** lists the tiles the chunks within the load radius read, as far as their boxes and
   needs are known, but for chunks wholly behind the camera's near plane (`BEHIND` in
   `src/render/pipeline.ts`, 499 m back from the focus along the view's back axis): they show
@@ -1080,6 +1097,13 @@ build reads is in memory.
   MB at Vinca against 123 MB on the build before, driven in turn; a frame draws 49 calls over the
   beech above Vinca (39 before), 62 at Codiponte (49) and 90 at the start (76), with up to four
   tree meshes a chunk where two were (the oak shares the broadleaf's).
+- Measured with Fivizzano's part (dev build, 2026-11-04): `pnpm playtest drive` at 40 m/s over
+  19,838 m from Monzone station through Gragnola, across the y = 3900 seam with lucido,
+  through Gassano, Fivizzano, Casola and Pieve San Lorenzo, and back over the x = 4900 seam to
+  Ugliancaldo's slope crossed 13 tile seams with its slowest frame at 16.8 ms everywhere and none
+  over 30 ms; at most 10 tiles were in memory at once, and the heap after GC at the end was 187 MB.
+  Standing in Fivizzano (`--at -321,8511`, two runs) the first frame came at 0.45–0.54 s and the
+  heap was 160 MB.
 
 The pixel pipeline (`src/render/pipeline.ts`):
 
@@ -1273,7 +1297,7 @@ nodes set from the sim's cycle; both draw with materials compiled before the fir
 - **The x-ray** on the driven train: one box per car, trimmed 0.3 m at each Jacobs joint and open
   there. A whole-car box cut into its neighbour's at the joints, and seen along the train (the
   follow camera's view) the next car stood in front of a box's end face, which showed as a yellow
-  block at every joint. On the line's sharpest curve (162 m in radius) no box reaches into its
+  block at every joint. On the line's sharpest curve (151 m in radius) no box reaches into its
   neighbour's.
 - **Crossings** (`src/render/crossings.ts`): `makeCrossings`, called by `makeEffects`, builds for
   each road box of the sim's `CROSSINGS` (whose road lines are the global file's copies,
@@ -1762,7 +1786,7 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   motorway and trunk, 2.5 primary and secondary, 2 tertiary) so the network reads; both paint the
   roads narrowest class first, so the main roads lie on top at junctions and overpasses. Its look is
   that of a map about 820 CSS px on its long side, painted at 5 overview pixels a CSS pixel
-  (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3195 × 4096 px for Lunigiana, 3.06 MB, and
+  (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3410 × 4096 px for Lunigiana, 4.40 MB, and
   4000 × 4000 px for Cesena, 4.74 MB), and it is drawn scaled to the fit and smoothed
   (`imageSmoothingQuality` "high"). So its lines are as wide as the live paint drew them before the
   overview on a map that long, and scale with the map elsewhere: 0.73 times as wide in a 1280 × 720
@@ -1770,9 +1794,10 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   844 × 390 phone (270 px), antialiased where the live paint drew them crisp at screen resolution. The overview downloads the
   first time M opens (a failed download is tried again at the next opening), is decoded with
   `createImageBitmap` at each opening and released when the map closes (`overviewBitmap`): decoded,
-  Lunigiana's holds about 52 MB and Cesena's 64 MB. In headless Chrome with Metal on an M-series Mac,
-  Lunigiana's took about 10 ms to fetch from a local server, 57–64 ms to decode (Cesena's 90 ms)
-  and 18–29 ms to draw scaled (71 ms the first time). The frame, the labels, the north arrow, the
+  Lunigiana's holds about 56 MB (3410 × 4096 × 4 B) and Cesena's 64 MB. In headless Chrome with
+  Metal on an M-series Mac, lucido's alone (3195 × 4096 px, 3.06 MB) took about 10 ms to fetch from
+  a local server, 57–64 ms to decode (Cesena's 90 ms) and 18–29 ms to draw scaled (71 ms the first
+  time). The frame, the labels, the north arrow, the
   1 km bar and the player are painted live at screen resolution over it. It names
   the OSM villages (big, placed first) and hamlets (`place=*` POIs, localities left out), then the
   peaks that are HUD landmark districts (Monte Sagro, Pizzo d'Uccello...), once per name; a label
@@ -2189,8 +2214,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     every tile dropped first and the tiles handed in key order and reversed, keeping exactly their
     cut of the whole build (track and stations, roads and rivers, lamps, buildings); over the
     railway within 4 km of Monzone station (its five crossings, Monzone's,
-    Gragnola's and Equi Terme's, and seven of its eight tunnel mouths, drawn from the pieces within
-    100 m more: the file reads 7 of the 30 tiles), nothing 3D in a crossing's carriageway and the
+    Gragnola's and Equi Terme's, and seven of its eleven tunnel mouths, drawn from the pieces within
+    100 m more: the file reads 14 of the 79 tiles), nothing 3D in a crossing's carriageway and the
     bed stopping a metre short of it; each panel, its rails and the stop lines over the road ribbon,
     and no road's centre dash under a panel (the roads within 25 m of a crossing drawn); sleepers
     and rails at reading widths; the bed's top within 0.15 m of the terrain on 90 % of the line at
@@ -2329,7 +2354,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `trees.map-test.ts`, `chunks.map-test.ts` and `rail.map-test.ts`: their checks over every chunk
     (`trees.map-test.ts` also the beech's share of the woods' trees in each band of height within
     10 points of the forest inventory's, [map.md](map.md#known-data-limitations)),
-    `rail.map-test.ts`'s every one of the 5,248 chunks built from the pieces of all 30 tiles,
+    `rail.map-test.ts`'s every one of the 19,584 chunks built from the pieces of all 79 tiles,
     handed in reverse key order, against its cut of the whole build of every tile's vectors joined
     (`chunk-cut.ts`), and `rail.test.ts`'s checks over every crossing and tunnel mouth;
     `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;

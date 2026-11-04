@@ -89,9 +89,14 @@ follow from the discharge per km², q.
   keeps what came down to it: D8 may route the water it joins through a tail running beside it.
   The grid's edge is the outlet, and so is every node no listed map tile holds (an L-shaped
   region's notch, which the build reads no terrain in: [map.md](map.md#pipeline)), so no ground
-  beyond either counts. The Torrente Lucido drains 47 km² where it meets the Aulella. The bounds
-  hold only the Aulella's left bank, so it takes 161 km² from beyond them (the Soliera gauge's
-  208 km² less the Lucido's), and leaves the map with 208.
+  beyond either counts. The Torrente Lucido drains 47 km² where it meets the Aulella at Gragnola;
+  the Aulella brings 59.6 km² there, all of them on the map, and drains 106 below the mouth.
+  The bounds hold the whole basin above the Soliera gauge but the heads of the streams that come
+  down from north of y 13000 under the Cerreto pass, 26.2 km² (the gauge's 208 km² less the 181.8
+  the map's own ground gives just below the Torrente Rosaro's mouth at Soliera): the Rosaro, their
+  main stem, brings them in at its entry node, 12 m inside the edge (`OFF_MAP` in
+  `src/tools/build-terrain.ts`), so it reaches the Aulella with 93.1 km², the Aulella reads the
+  gauge's 208 there and leaves the map with 210.5 by the west edge.
 - **The channel** (`channelOf`, `channel.ts`): as wide as the water (`Water.w`), its bed the terrain
   drawn under the centreline (except under an at-grade road, where it stays `depth`/2 under the
   culvert's dip, so the road stays dry until a flood overtops it; and near the track, on the ground
@@ -130,9 +135,10 @@ follow from the discharge per km², q.
   the polygon's outline over the bed the map build carves flat to the river's floor; its gravel bars
   stand dry 0.3 m over the build's surface until a spate tops them. Its waterways are every piece
   with a sample inside it, a tributary running in too, which `settle` brings to the river's level
-  where they meet: near the Fosso di Tufo's mouth in the Aulella's polygon at the north edge the
-  water is the Fosso's, whose catchment the map holds none of, so it stays as low as at the mean
-  flow (0.12 m under the Tassonaro's beside it in a spate). The way to the bank is square to the
+  where they meet: 4 m from the Fosso di Tufo's mouth in the Aulella's polygon by Argigliano the
+  water is the Fosso's, whose 0.86 km² lift it 0.18 m from the mean flow to a spate, while the
+  Tassonaro's 17.7 km² at the mouth lift theirs 0.92 m, so there it stands 0.80 m under the
+  Tassonaro's in a spate. The way to the bank is square to the
   reach, as on a line: an edge of the polygon may be another polygon's of the same river (the Savio
   is 12 of them in Cesena).
 - **In a lake** (`Area.level`): still water at its level, whatever the rivers carry, with no
@@ -143,11 +149,12 @@ follow from the discharge per km², q.
 | Where | at 1 m³/s (Soliera) | 9 m³/s, the mean | 21 m³/s | 125 m³/s, a spate |
 |---|---|---|---|---|
 | Torrente Lucido below Monzone station (34.8 km², 14 m, 1.9 %) | 0.07 m, 0.18 m/s | 0.22 m, 0.46 m/s | 0.36 m, 0.69 m/s | 0.96 m, 1.55 m/s |
-| Torrente Aulella at Gragnola (161.5 km², 12 m, 1.1 %) | 0.18 m, 0.37 m/s | 0.58 m, 0.95 m/s | 0.94 m, 1.43 m/s | 2.52 m, 3.21 m/s |
+| Torrente Aulella at Gragnola, above the Lucido's mouth (59.6 km², 12 m, 1.1 %) | 0.10 m, 0.23 m/s | 0.35 m, 0.62 m/s | 0.55 m, 0.91 m/s | 1.46 m, 2.04 m/s |
 | Torrente Caldanella at Equi (10.9 km², 8 m, 2.3 %) | 0.05 m, 0.14 m/s | 0.16 m, 0.35 m/s | 0.26 m, 0.53 m/s | 0.69 m, 1.19 m/s |
 
-At the mean flow 93 % of the 2 m streams' length and 97 % of the 4 m streams' carry water; the
-rest are headwater gullies, dry as real ones are.
+At the mean flow 95 % of the 2 m streams' 320 km and 99 % of the 4 m streams' 297 km carry water
+(a catchment over 0 km²; 93 % and 98 % on lucido alone); the rest are headwater gullies, dry as
+real ones are.
 
 ## People and animals in the water
 
@@ -310,7 +317,7 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/render/__tests__/water.test.ts`, `water-cesena.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes; on Cesena, the Savio's polygon carried on over the apron north of the map (no lake or river polygon of Lunigiana reaches its bounds since Fivizzano joined); `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon |
 | `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores, the dry ones, a river polygon's surface falling through it and its outer edge left, no tree, parked car or spawn in the water |
 | `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
-| `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 187,700 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered |
+| `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 658,633 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered |
 | `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 km² and the Aulella's 208; no walk or drive wall in a wide river, shore walls by it |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
 
@@ -330,8 +337,9 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
   shore. Lakes make no sound.
 - **A river polygon's depth** comes from its river's channel (`Water.w`), not the polygon's width:
   where the polygon is wider than the river, the water runs deeper over it than a spate spreading
-  over the gravel would. The Tassonaro's 4 m channel holds 0.04 m at the mean flow across the
-  Aulella's polygon at the north edge, and Cesena's Savio, whose catchment the map holds only 3 km²
+  over the gravel would. The Tassonaro's 4 m channel, draining 16.9–19.1 km² there, holds
+  0.29–0.34 m at the mean flow across the Aulella's polygon by Argigliano and 1.21–1.45 m in a
+  spate, and Cesena's Savio, whose catchment the map holds only 3 km²
   of, a few centimetres over its polygons: 54 % of their cells are wet at the mean flow, 62 % in a
   spate.
 - **Snow at one height.** The snowpack lies at 667 m; the high Apuan snow and its spring melt are

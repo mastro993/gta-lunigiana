@@ -30,7 +30,7 @@ const HELD = new Set(tilesOver(SPAWN.x - REACH, SPAWN.y - REACH, SPAWN.x + REACH
 const LET_GO = MAP.tiles.map(({ i, j }) => tileKey(i, j)).filter((key) => !HELD.has(key))
 const gone = (p: { readonly x: number; readonly y: number }) =>
   !tilesOver(p.x, p.y, p.x, p.y).some((key) => HELD.has(key))
-/** Bell towers on the tiles let go, a level crossing 3.1 km off and a strike 4.8 km off. */
+/** Bell towers on the tiles let go, a level crossing 2.7 km off and a strike 4.8 km off. */
 const TOWERS = bells.filter(gone),
   CROSSING = CROSSINGS.findIndex(gone),
   STRIKE = { x: 3000, y: -3000 }

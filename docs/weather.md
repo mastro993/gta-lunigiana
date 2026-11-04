@@ -71,12 +71,13 @@ new map needs no weather data of its own.
 | `floor` | the map's low ground, m: the 5th percentile of its heightmap | 213.6 m |
 | `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | 2.982 (toward the west, 9° north of it) |
 
-- **Baked at build time.** The fit reads every one of the 4.9 million height nodes, which the game
-  now holds only in the tiles near the player, so the build runs `placeFrom` over the heightmap
-  (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file (`MAP.place`). It
-  reads the nodes the map's listed tiles hold (`listedNodes`, all of Lunigiana's): a region whose
-  parts leave tiles of its box unlisted, an L's notch, has no ground there, and its heightmap
-  joined from the tiles holds 0 ([map.md](map.md#pipeline)). `src/sim/map/global.ts` calls
+- **Baked at build time.** The fit reads every height node the map's listed tiles hold
+  (`listedNodes`): on the shipped map 16.0 of the 19.0 million in its box, the rest lying in its 20
+  unlisted tiles south of Fivizzano's part. The game holds them only in the tiles near the player,
+  so the build runs `placeFrom` over the heightmap (src/tools/tile-map.ts) and writes `floor` and
+  `downslope` into the global file (`MAP.place`). A region whose parts leave tiles of its box
+  unlisted, an L's notch, has no ground there, and its heightmap joined from the tiles holds 0
+  ([map.md](map.md#pipeline)). `src/sim/map/global.ts` calls
   `providePlace({ ...MAP.origin, ...MAP.place })` right after decoding, as the host hands the map
   file to `provideMap`.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,

@@ -34,7 +34,7 @@ const MAX_FLOORS = 5
 const GROSS_PER_RESIDENT = 56
 /**
  * Share of homes lived in: an estimate, since many village houses in the Apuan valleys are holiday homes or empty. At 0.3 the
- * map's homes hold about 3,250 residents.
+ * homes of the Valle del Lucido (part lucido) hold about 3,250 residents.
  */
 const LIVED_IN = 0.3
 

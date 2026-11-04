@@ -27,10 +27,10 @@ never compares a change's map with the map before it, so these runs are yours.
 - Place hand-made tables (`STONE_CORES`, `LANDMARKS`, stream widths, district discs) on
   orthophotos and OSM nodes, with a comment saying how.
 - `data/raw` is pinned by `data/raw.lock.json`; `pnpm fetch-raw` restores it. Fetch again
-  (`pnpm fetch-osm`, `pnpm fetch-rt`, `pnpm fetch-lig`) only to change the inputs on purpose: OSM
-  returns current edits, so the map moves. Then run `pnpm pin-raw` and commit the lock, or CI's
-  `pnpm fetch-raw` fails. Ask the user before each `pnpm pin-raw`: it publishes the files as release assets of the
-  public repository.
+  (`pnpm fetch-osm <part>`, `pnpm fetch-rt <part>`, `pnpm fetch-lig <part>`) only to change the
+  inputs on purpose: OSM returns current edits, so the map moves. Then run `pnpm pin-raw` and
+  commit the lock, or CI's `pnpm fetch-raw` fails. Ask the user before each `pnpm pin-raw`: it
+  publishes the files as release assets of the public repository.
 
 ## Data sources and requests
 
@@ -59,11 +59,11 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   mask comes with the part's own issue (#17 on); a part in Liguria runs `fetch-lig` (#12) before
   `fetch-rt`. When one is missing, name the issue that adds it and ask the user before building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
-  `pnpm fetch-rt`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw` then pins
-  the part's new inputs. A part's older surveys (`ctr2009`, `ctr10k`, `dbt2k`) go into its manifest
-  by hand from `rt-index`'s lists ([Adding a part](../map.md#adding-a-part)); list a CTR 1:10 000
-  section only where no finer survey maps the part's buildings, since its mapped area drops every
-  OSM building in it.
+  `pnpm fetch-rt <part>`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw`
+  then pins the part's new inputs. A part's older surveys (`ctr2009`, `ctr10k`, `dbt2k`) go into
+  its manifest by hand from `rt-index`'s lists ([Adding a part](../map.md#adding-a-part)); list a
+  CTR 1:10 000 section only where no finer survey maps the part's buildings, since its mapped area
+  drops every OSM building in it.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
 - Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no lattice tree and
   changes no tree's id (its look's seed): the lattice starts at the region's fixed `anchor`
@@ -82,9 +82,9 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   (the place, the catchments, the walls and buildings along the old edge) is in [What growing a
   region changes](../map.md#what-growing-a-region-changes); keep that list true when a part shows
   more.
-- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.56 MB, Lunigiana's
-  0_0 with the vectors round it, the build prints it, and `src/__tests__/maps.map-test.ts` fails past
-  it).
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.60 MB, Lunigiana's
+  2_1 by Pieve San Lorenzo with the vectors round it, 604,290 B, the build prints it, and
+  `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents and the farms' centres) needs both
   `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and `cesena-bake.map-test.ts`
