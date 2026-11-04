@@ -1,18 +1,20 @@
 /**
- * The railway tests' kit, shared by the `trains*.test.ts` files and their `*.long-test.ts`: Monzone's
- * line, the way from Monzone toward Via Riolo and to its nearer neighbour, the train dwelling there
- * for the player to steal, and a game stepped by the railway alone.
+ * The railway tests' kit, shared by the `trains*.test.ts` files and their `*.long-test.ts` and
+ * `*.map-test.ts`: Monzone's line, the way from Monzone toward Via Riolo and to its nearer neighbour,
+ * the train dwelling there for the player to steal, a game stepped by the railway alone, and the
+ * animals brought out beside the line.
  *
  * @module sim/__tests__/railway
  */
 import assert from "node:assert/strict"
 
 import type { Descriptor } from "@typeonce/ritmo"
+import { Ops } from "@typeonce/ritmo-math"
 
 import { Game, Whistle } from "../index.ts"
 import { MARGIN } from "../rail/barriers.ts"
 import { CROSSINGS } from "../rail/crossings.ts"
-import { LINES, nextStop, pointAt, speedAt } from "../rail/lines.ts"
+import { LINES, linesNear, nextStop, pointAt, speedAt } from "../rail/lines.ts"
 import { trainLength } from "../rail/models.ts"
 import { DWELL } from "../rail/service.ts"
 import {
@@ -102,6 +104,40 @@ export const JOYRIDE: Timeline = [...press(1, "action"), { frame: 10, press: ["u
 export const TRIP = Math.ceil(
   (line.end - line.start) / (60 / 3.6) + line.stations.length * (DWELL[1] + 60),
 )
+
+/** The point `off` m to the left (+) of the line's centreline at s. */
+export const beside = (s: number, off: number) => {
+  const at = pointAt(line, s)
+  return { x: at.x - Ops.sin(at.angle) * off, y: at.y + Ops.cos(at.angle) * off, angle: at.angle }
+}
+
+/**
+ * Games started with the player 45 m either side of the line every `step` m of s from `from` to `to`, tunnels skipped, each run
+ * a second: how many animals they brought out, and each one within 3 m of a line's centreline where its track lies at grade.
+ */
+export const broughtOut = (from: number, to: number, step: number) => {
+  const on: Array<string> = []
+  let brought = 0
+  for (let s = Math.max(0, from); s < Math.min(to, line.length); s += step)
+    for (const off of [45, -45]) {
+      if (pointAt(line, s).tunnel) continue
+      const game = start([], [{ ...beside(s, off), angle: 0 }, {}])
+      const seen = new Set<number>()
+      game.run(S, () => {
+        for (const a of game.world().animals) {
+          if (seen.has(a.id)) continue
+          seen.add(a.id)
+          for (const near of linesNear(a.x, a.y, 3)) {
+            const at = pointAt(LINES[near.line]!, near.s)
+            if (!at.bridge && !at.tunnel)
+              on.push(`a ${a.species} ${near.distance.toFixed(2)} m off s ${near.s.toFixed(0)}`)
+          }
+        }
+      })
+      brought += seen.size
+    }
+  return { brought, on }
+}
 
 /** An AI train entering the line from its start (s 0 end), its tail at the run-out's end, at line speed. */
 export const entering = () => aiTrain(line.start + LENGTH, 1, speedAt(line, line.start + LENGTH))
