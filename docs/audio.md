@@ -267,7 +267,9 @@ Input (horn) ──────────────────────�
   of the tiles under its box); the owls within 600 m 0.13–0.15 ms and `ambienceAt` 0.16–0.17 ms
   (the same); `streetAt` 0.27–0.34 ms (0.22–0.29) and `echoesAt` 0.37–0.42 ms (0.39–0.48); all 209
   owls of the map 0.49–0.52 ms and all 225 farm dogs the map held then (230 since #11's 2009
-  sheets, and 216 owls and 226 dogs since #14's woods) 3.6–3.7 ms (1.9–2.2).
+  sheets, and 216 owls and 226 dogs since #14's woods) 3.6–3.7 ms (1.9–2.2). Since #17's Fivizzano
+  the map holds 711 owls and 658 dogs: 2.4–2.5 ms and 9.3–9.8 ms, each the first call in a fresh
+  process with every tile in memory (no director).
 - **Randomness** in the director (birds, owls, farm dogs, animal calls, what people say) and the
   synths (variants, jitter, a fire's crackle, a texture's segments, a backfire) is `Math.random`:
   `?seed=N` replays the world, not the birds. The owls draw after the farm dogs and only at night,
@@ -689,10 +691,13 @@ weather.
   et al. 2002); a last round at dusk, 1.3 times, all roosting under −6°; none at night; heavy rain
   silences them (0.5–8 mm/h).
 - **Owls**: the tawny owl calls once the sun is 2–6° under (10–20 minutes after sunset) until as
-  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 216 territories,
+  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 711 territories,
   one in 70 % of the map's 500 m squares with woods, each 8 m up a tree in a wood (any of `WOODS`:
   broadleaf, conifer or mixed); those within
-  600 m call, each resting 30 s after a call, then calling about once in 20 s.
+  600 m call, each resting 30 s after a call, then calling about once in 20 s. The squares count
+  from the region's anchor (`anchorOf`), as the trees' lattice does, never from the box's corner,
+  so a part that grows the box moves no owl of the parts before it: Fivizzano moved 4 of lucido's
+  216, those lucido's east edge had held at x 4900, 3 of them now 54–104 m past it and one gone.
 - **Crickets** sing where open ground outweighs buildings, in air of 10 °C or more at the ears
   (chirping faster as it warms) and dry. They follow the temperature and the rain, not the hour,
   so an October evening's cooling slows them and its night silences them.
@@ -1655,6 +1660,7 @@ it. They never hold the whole map: `places.map-test.ts` and `places/__tests__/wa
 | `src/audio/director/__tests__/rail.test.ts` (trains from `train` and `beside` in `director/testing.ts`) | the train part on the director's rig: two power packs heard from the end cars, the near one louder; the wheels a line source (abreast the rear car as loud as the middle, under a rail bridge 22 m up as far off as its height) given every axle and the joints; the brakes squealing to a stand, not at speed; in the cab the ears over the rails on a rail bridge, its own engines from under the end cars through the cab's 1.2 kHz, the cab idling within 3 dB of a car's seat and over the wind, louder under power, H holding its horn there (none on foot); an AI whistle 20 m away at its 2 dB cap, echoing; a crossing's bell while it rings, one per box, two at most, at the box's centre no louder than at its posts; riding through the long tunnel no wind, rain, roof or crickets and the own wheels as loud as in the open; the wheels' summed level stepping under 1 dB a frame as a train passes each portal of the short tunnels, 20–60 m off; a train deep in the long tunnel silent under 440 m of hill, one wholly in a short tunnel heard from its portals, its power pack quieter than through the rock; a crash into a train's steel, a car the player's own train strikes crashing open at the cap and grinding along it open, a person struck by one thudding and groaning |
 | `src/audio/synth/__tests__/rail.test.ts`, `crossing.test.ts` | the wheels' law (30 dB per decade, the band at v / 2.5 cm), each axle clacking once over each joint at the time it gets there at any frame length, backing up and after a stall; the brakes squealing on every stop below 6 m/s, braking harder than a tenth of the emergency rate (the AI stops at about half of it), not coasting; the horn's tones within EN 15153-2's bands, a long blast 1–2 s, the alarm's more than three short ones in turn and over within 2 s; the bell's period 1.287 s with its stroke at the start, −20 dB a second on, and its loop sample for sample the steady ring of 40 strokes, wrapping with no seam |
 | `src/audio/places/__tests__/notch.test.ts` (Lunigiana with its north-east tiles unlisted, `notchMap` in `src/sim/map/__tests__/edit-map.ts`) | no owl perched on an unlisted tile, none in the woods the notch borrows from the listed tiles round it |
+| `src/audio/places/__tests__/animals.test.ts` (the tiles within 1.5 km of Monzone station) | each owl within 1 km of the station in its 500 m square counted from the region's anchor, not the box's corner |
 | `src/audio/places/__tests__/track.test.ts` | a joint every 36 m along the line within 4 km of Monzone station and a switch only where a piece of track off the line ends on it (the Gragnola loop's found); a tunnel's two portals with the depths that sum to its length, none out of a tunnel |
 | `src/audio/places/__tests__/track.map-test.ts` (`pnpm test:map`) | the joints and switches along every line of the map, end to end |
 

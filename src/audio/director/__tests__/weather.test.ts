@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { Ops } from "@typeonce/ritmo-math"
+
 import { groundZ } from "../../../sim/map/ground.ts"
 import type { WeatherValue } from "../../../sim/schema.ts"
 import { DAY, daysFromCivil, utcFromRome } from "../../../sim/sky/calendar.ts"
@@ -504,11 +506,22 @@ test("songbirds sing a dawn chorus, louder than the day's song; at dusk they roo
 })
 
 test("at night a tawny owl calls from its wood, no owl more than once in 30 s; none by day", () => {
-  const owls = owlsNear(HILLSIDE.x, HILLSIDE.y, 600)
-  assert.ok(owls.length > 0)
+  // Under the owl nearest the woods above Isolano, 40 m from its tree: from `HILLSIDE` itself that owl, 123 m off through the
+  // woods, stood within half a dB of the masking cull: the wind of a map's floor 5–8 m lower lost its every call.
+  const [owl] = owlsNear(HILLSIDE.x, HILLSIDE.y, 600).toSorted(
+      (a, b) =>
+        Ops.hypot(a.x - HILLSIDE.x, a.y - HILLSIDE.y) -
+        Ops.hypot(b.x - HILLSIDE.x, b.y - HILLSIDE.y),
+    ),
+    off = Ops.hypot(owl!.x - HILLSIDE.x, owl!.y - HILLSIDE.y)
+  assert.ok(owl !== undefined && off > 40)
+  const under = {
+    x: owl.x + ((HILLSIDE.x - owl.x) * 40) / off,
+    y: owl.y + ((HILLSIDE.y - owl.y) * 40) / off,
+  }
   const calls = (sky: Heard["sky"]) => {
     const director = rig()
-    director.hear(world(HILLSIDE, { sky }), 180 * 60)
+    director.hear(world(under, { sky }), 180 * 60)
     return director.take("bird").filter((p) => p.sound.kind === "bird" && p.sound.species === "owl")
   }
   const night = calls(NIGHT)
