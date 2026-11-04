@@ -2,6 +2,7 @@
 // and spawn, and parked-car spots.
 import { Ops } from "@typeonce/ritmo-math"
 
+import type { MapId } from "../maps.ts"
 import { staticGrid } from "../sim/collide.ts"
 import type { Area, Poi, Spawn } from "../sim/map/index.ts"
 import { isMotorRoad, pushTrunk, TRUNK } from "../sim/map/kinds.ts"
@@ -220,6 +221,8 @@ interface ParkingInput {
   readonly rail: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly running: boolean }>
   /** Level-crossing nodes: no car is parked near one. */
   readonly crossings: ReadonlyArray<readonly [number, number]>
+  /** The share of the kerbside candidates kept (`KERB_SHARE`). */
+  readonly share: number
 }
 
 /** The roads with kerbs to park by: no motor road (`isMotorRoad`: a motorway, a trunk road or their slip roads), where the Codice della Strada bans stopping (art. 176, comma 5). */
@@ -279,8 +282,15 @@ const boxSegment = (
     d = Math.min(d, Math.sqrt(segDist2(cu, cv, au, av, bu, bv).d2))
   return d
 }
-/** Kerbside spots kept: one per this many buildings (Monzone's 800 buildings had 100), drawn in hash order so every village gets its share. */
-export const BUILDINGS_PER_SPOT = 8
+/**
+ * The share of the kerbside candidates each map keeps, by the hash of their place: about one spot
+ * per 8 buildings, as lucido's 6,399 took 799 and Cesena's 9,690 take 1,210 (once a share of the
+ * whole map's count, cut where its hash order reached it, which a part's roads and buildings
+ * reshuffled). A candidate is kept or not by its own place and those near it, so a part that grows
+ * the region keeps every other part's spots. A town's streets offer more candidates a building than
+ * a village's: Cesena's share is smaller.
+ */
+export const KERB_SHARE: Readonly<Record<MapId, number>> = { lunigiana: 0.135, cesena: 0.0613 }
 
 /** Kerbside spots in built-up streets (right kerb, >= 9 m apart, >= 12 m from junctions; the two nearest the Carabinieri first) plus a few in the Monzone station car parks. */
 export const parkedSpots = ({
@@ -295,6 +305,7 @@ export const parkedSpots = ({
   police,
   rail,
   crossings,
+  share,
 }: ParkingInput): Array<Spawn> => {
   // Bucketed lookups: building centroids within 40 m, junctions within 12 m, footprints by bounding box.
   const centroids = segIndex<null>(),
@@ -358,7 +369,7 @@ export const parkedSpots = ({
     box(x, y, angle, CAR_GAP).every(([px, py]) => !wet(px, py)) &&
     Math.hypot(x - avoid.x, y - avoid.y) > 6
   const candidates: Array<Spawn & { readonly order: number }> = []
-  roads.forEach((r, ri) => {
+  roads.forEach((r) => {
     if (!KERB_CLASSES.has(r.cls) || isMotorRoad(r) || r.bridge === true || r.tunnel === true) return
     const s = arcLengths(r.pts),
       total = s.at(-1)!
@@ -371,7 +382,8 @@ export const parkedSpots = ({
       if (corners.covers(p.x, p.y) || housesNear(x, y) < 2) continue
       if (carriage.covers(x, y) || box(x, y, angle, 0).some(([qx, qy]) => lanes.covers(qx, qy)))
         continue // overlaps a carriageway (another road, or this one on a bend)
-      if (fits(x, y, angle)) candidates.push({ x, y, angle, order: hash01(ri, Math.round(d), 11) })
+      if (fits(x, y, angle))
+        candidates.push({ x, y, angle, order: hash01(Math.round(x * 10), Math.round(y * 10), 11) })
     }
   })
   const spots: Array<Spawn> = []
@@ -388,9 +400,10 @@ export const parkedSpots = ({
       2,
     )
   }
+  // In hash order, 9 m apart: a spot is kept, or not, by the candidates with a lower hash near it.
   take(
-    candidates.sort((a, b) => a.order - b.order),
-    Math.round(buildings.length / BUILDINGS_PER_SPOT),
+    candidates.filter((c) => c.order < share).sort((a, b) => a.order - b.order),
+    Infinity,
   )
   // Station car parks: rows across the lot's longest edge, cars nose-in.
   for (const lot of areas.filter((a) => a.kind === "parking")) {

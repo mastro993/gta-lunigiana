@@ -12,7 +12,7 @@ import { lifted } from "./profiles.ts"
 import { clearVerges } from "./rail-clear.ts"
 import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
 import { REGION } from "./region.ts"
-import { clearance, parkedSpots, playerSpawn, regionPoi, startNear } from "./spawns.ts"
+import { clearance, KERB_SHARE, parkedSpots, playerSpawn, regionPoi, startNear } from "./spawns.ts"
 import { sampleGrid } from "./terrain.ts"
 import { scatterTrees } from "./trees.ts"
 import { buildWalls } from "./walls.ts"
@@ -117,6 +117,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
       lifted(r) ? [] : [{ pts, running: kinds[i] === undefined }],
     ),
     crossings: crossingNodes.map(({ x, y }) => [x, y] as const),
+    share: KERB_SHARE[REGION.id],
   })
   lap("spawns")
   return {
