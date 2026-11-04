@@ -7,7 +7,7 @@
 // holds, and the chain's bend meets the held ones, so a part's fetch never moves another's cell and
 // joins it without a step.
 import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { join, relative, sep } from "node:path"
 import { deflateSync, inflateSync } from "node:zlib"
 
 import { dsm2021Url, dtm10Url, lidarUrl } from "./cartoteca.ts"
@@ -28,7 +28,7 @@ import {
 } from "./dtm-tiles.ts"
 import { type Filler, type Mosaic, NONE, OUT, fillStep } from "./fill-chain.ts"
 import { getBytes } from "./net.ts"
-import { writeRaw } from "./raw-lock.ts"
+import { RAW_DIR, readLock, writeRaw } from "./raw-lock.ts"
 import { fetchZip, mustFind } from "./rt-cache.ts"
 import {
   LIG_FADE,
@@ -370,10 +370,16 @@ export const tileCrop = (
 const putTile = (file: string, bytes: Buffer, source: string): void =>
   writeRaw(file, bytes, source, (b) => deflateSync(b, { level: 9 }), inflateSync)
 
+/** The source the lock records for `file` under data/raw; undefined when it records none. */
+const lockedSource = (file: string): string | undefined =>
+  readLock()[relative(RAW_DIR, file).split(sep).join("/")]?.source
+
 /**
  * Writes each of `tiles` (i, j and the cells it must hold) into its file in `dir` through `put`:
  * the cells its file already holds (`held`) stay, and each it must hold and lacks takes the filled
- * crop's 2 × 2 mean over `block` and the most of their sources.
+ * crop's 2 × 2 mean over `block` and the most of their sources. The lock keeps one source a file,
+ * so a file that held cells keeps the source `prior` gives for them, this fetch's following it for
+ * the cells it adds; a new file takes this fetch's alone.
  */
 export const writeTiles = (
   dir: string,
@@ -383,6 +389,7 @@ export const writeTiles = (
   m: Mosaic,
   used: ReadonlyArray<string>,
   put: (file: string, bytes: Buffer, source: string) => void = putTile,
+  prior: (file: string) => string | undefined = lockedSource,
 ): void => {
   const source = used.join("; then "),
     votes = new Uint8Array(SOURCES.length)
@@ -409,6 +416,16 @@ export const writeTiles = (
         added++
       }
     console.log(`tile ${i}_${j}: ${added} cells added`)
-    put(tilePath(dir, i, j), encodeTile({ ...t, names: SOURCES, dm, codes }), source)
+    const file = tilePath(dir, i, j),
+      before = held.has(`${i}_${j}`) ? prior(file) : undefined
+    // A file this fetch adds no cell to keeps its source alone: its bytes change only where its
+    // sources' names are put in today's order (`inSources`), and none of its cells is this fetch's.
+    const named =
+      before === undefined
+        ? source
+        : added === 0
+          ? before
+          : `${before}; then, for the ${added} cells it lacked: ${source}`
+    put(file, encodeTile({ ...t, names: SOURCES, dm, codes }), named)
   }
 }

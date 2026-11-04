@@ -1,7 +1,15 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { CELL, LATTICE, type Cells, type DtmTile, decodeTile, tileGrid } from "../dtm-tiles.ts"
+import {
+  CELL,
+  LATTICE,
+  type Cells,
+  type DtmTile,
+  decodeTile,
+  intersect,
+  tileGrid,
+} from "../dtm-tiles.ts"
 import { tileCrop, writeTiles } from "../fetch-dtm.ts"
 import { NONE, OUT, fillStep } from "../fill-chain.ts"
 import { SOURCES } from "../terrain-sources.ts"
@@ -84,6 +92,7 @@ test("writeTiles keeps the cells a file holds and adds the means of those it nee
     mosaic,
     ["test"],
     (path, bytes) => out.set(path, bytes),
+    () => undefined,
   )
   const t = decodeTile(out.get("dtm/0_0.bin")!, "0_0")
   assert.deepEqual([t.dm[0], t.codes[0]], [777, 0])
@@ -92,4 +101,44 @@ test("writeTiles keeps the cells a file holds and adds the means of those it nee
   assert.deepEqual([t.dm[g.cols], t.codes[g.cols]], [101, 2])
   assert.equal(t.codes[2], NONE)
   assert.equal(t.codes.filter((c) => c !== NONE).length, 4)
+})
+
+test("writeTiles records a file it completes with the source of the cells it held, then its own", () => {
+  // Four cells by the corner tiles 0_0, 1_0 and 0_1 share, in each one's need: 0_0's file holds one
+  // of them, 0_1's all four, and 1_0 has no file.
+  const [g00, g10, g01] = [tileGrid(0, 0), tileGrid(1, 0), tileGrid(0, 1)]
+  const need = { ...intersect(intersect(g00, g10)!, g01)!, cols: 2, rows: 2 }
+  /** A file over `g` holding the first `n` of the need's cells, row by row. */
+  const holding = (g: Cells, n: number) =>
+    held(g, (c, r) => {
+      const a = (g.e0 - need.e0) / CELL + c,
+        b = (g.n0 - need.n0) / CELL + r
+      return a >= 0 && a < 2 && b >= 0 && b < 2 && a + 2 * b < n ? 777 : Number.NaN
+    })
+  const files = new Map([
+    ["0_0", holding(g00, 1)],
+    ["0_1", holding(g01, 4)],
+  ])
+  const { mosaic, block, empty } = tileCrop([need], files.values())
+  assert.equal(empty, 0)
+  const sources = new Map<string, string>()
+  writeTiles(
+    "dtm",
+    [
+      { i: 0, j: 0, need },
+      { i: 1, j: 0, need },
+      { i: 0, j: 1, need },
+    ],
+    files,
+    block,
+    mosaic,
+    ["B"],
+    (path, _bytes, source) => sources.set(path, source),
+    () => "A",
+  )
+  assert.deepEqual(Object.fromEntries(sources), {
+    "dtm/0_0.bin": "A; then, for the 3 cells it lacked: B",
+    "dtm/1_0.bin": "B",
+    "dtm/0_1.bin": "A",
+  })
 })
