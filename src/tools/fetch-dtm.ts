@@ -48,13 +48,13 @@ import {
 } from "./terrain-sources.ts"
 
 /** A UCS polygon as the WFS answers it (`parseGml`): its attributes and its rings in EPSG:3003. */
-export interface UcsFeature {
+interface UcsFeature {
   readonly attrs: Readonly<Record<string, string>>
   readonly polygons: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>
 }
 
 /** What the fill takes past a crop's seeds: the archives, Liguria's crops and the land cover, and how its source string names them. */
-export interface ChainInputs {
+interface ChainInputs {
   /** The LiDAR DTM tiles' archives in priority order (a cell keeps the first value written). */
   readonly lidar: ReadonlyArray<string>
   /** How the source names the list the LiDAR comes from (`data/parts/lucido.json`). */

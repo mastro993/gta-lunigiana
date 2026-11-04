@@ -41,7 +41,7 @@ export const UCS_CODES = {
 } as const satisfies Record<string, AreaKind>
 
 /** A land cover file: its CRS and its polygons, each an id, a class code and its rings (outer first, flat). */
-export interface UcsFile {
+interface UcsFile {
   readonly crs: string
   readonly polygons: ReadonlyArray<{
     readonly id: number

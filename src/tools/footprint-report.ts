@@ -200,7 +200,7 @@ export const footprintReport = (part: Part, others: ReadonlyArray<Part>, osm: Os
 }
 
 /** The report footprint-check writes to footprint.json. */
-export type FootprintReport = ReturnType<typeof footprintReport>
+type FootprintReport = ReturnType<typeof footprintReport>
 
 /** The lines footprint-check prints for `report` on `part`. */
 export const reportLines = (part: Part, report: FootprintReport): Array<string> => {
