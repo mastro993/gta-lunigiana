@@ -2413,20 +2413,23 @@ its track past a nearer parallel one, tunnels and track ends stay unmatched), th
 the smoothing spline, `insertOn` giving its id to a vertex already there and `pruneShort`;
 `conflate.test.ts` conflates a synthetic line with a tunnel, a level crossing, a culvert, a loop and
 a siding crossed by roads, the half-segment guard, Gragnola-style swaps, a line no CTR maps (kept as
-OSM has it) and the CTR's crossing polygons; `rail-spans.test.ts` slides a bridge end to keep its
-river (and its margin), adds a culvert, leaves a stream under a CTR bridge alone and cuts at-grade
-track into the CTR's bridges; `rail-graph.test.ts` cuts a piece at a switch, finds a line straight
+OSM has it), the CTR's crossing polygons and a siding the CTR draws from beside its switch (it starts
+at the switch); `rail-spans.test.ts` slides a bridge end to keep its river (and its margin), adds a
+culvert, leaves a stream under a CTR bridge alone, cuts at-grade track into the CTR's bridges and
+takes one out past a stream crossing under it (`spanned`); `rail-graph.test.ts` cuts a piece at a switch, finds a line straight
 through turnouts past a passing loop, a yard and a spur, takes junction headings over 5 m, and finds
 no line on a ring, with each piece's kind; `rail-levels.test.ts` bounds the rail over a tagged and
-an untagged underpass, under a road bridge, at a level crossing (no pin) and over a river and a
-stream; `road-levels.test.ts` bounds a road under a bridge by its `maxheight` (4 m untagged) plus
+an untagged underpass, under a road bridge, at a level crossing (no pin) and over a river, a
+2 m stream and a 4 m one; `road-levels.test.ts` bounds a road under a bridge by its `maxheight` (4 m untagged) plus
 the 1.5 m deck, 2 m either side of the crossing, a bridge or tunnel in an earlier pass by the other
 road's natural level, and never a road at grade over a tunnel; `features.test.ts` folds each link
 into the class below, gives a main road its `lanes` width, and makes a motorway, its links and a
-roundabout oneway and a motorway's or trunk road's link a ramp; `profiles.test.ts` levels a tunnel's
-portals and a bridge's ends with the ground outside them, carries a tilted bound inside a climbing
-tunnel to its portals along its slope, and writes two roads' claims into two windows that share a
-seam just as into the whole grid; `rail-bed.test.ts` lowers a grid under a line, raises the corners
+roundabout oneway and a motorway's or trunk road's link a ramp, keeps one vertex of two in a row on
+one 0.1 m point (the one another way shares) and drops a culvert but under a bridge;
+`profiles.test.ts` levels a tunnel's portals and a bridge's ends with the ground outside them,
+carries a tilted bound inside a climbing tunnel to its portals along its slope, writes two roads'
+claims into two windows that share a seam just as into the whole grid, and opens a road tunnel's
+mouths at its approaches' level against a road over it and one beside it; `rail-bed.test.ts` lowers a grid under a line, raises the corners
 far under it but a kept one, moves a window's nodes as it moves the whole grid's, and levels a
 siding on the line beside it; `grid-tiles.test.ts` checks that the tiles' windows cover the grid,
 neighbours sharing their border nodes, and that the tile `cellTile` names for a point (on and off
@@ -2437,8 +2440,9 @@ notch's 285,000, and that `extendEdges` gives each of those the listed node the 
 notch's nodes are outlets ([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts));
 `spawns.test.ts` parks
 cars off running track, off a siding and away from a level crossing; `platforms.test.ts` clips a
-platform off a track, a road and a crossing area, makes a strip between close tracks and a narrow
-one walkways, and leaves out the ground far under a platform's top; `railway.test.ts` checks the
+platform off a track, a road and a crossing area, makes a strip between close tracks, a narrow one
+and one no edge of which comes within 2.2 m of a track walkways, and leaves out the ground far under
+a platform's top; `railway.test.ts` checks the
 speed limits, crossing boxes and stations; `rail-clear.test.ts` narrows a verge beside a track,
 leaves one at another level, in a box or on a platform alone, and throws for a lane.
 `src/sim/map/__tests__/railway.map-test.ts` checks `MAP.railway`: each line runs terminal to
@@ -3081,6 +3085,10 @@ carries the roads, water, rail and buildings across the old edge, which then are
   cone. Liguria's woods come through `UCS_CODES` too (3111–3115 as `forest`), once `fetch-lig`
   fetches a part again: the Sarzana test region's file predates them.
 - **Some names only exist on addresses.** The vote can pick the wrong piece of road. Culverted
-  waterways are dropped; at-grade crossings imply a culvert instead.
+  waterways are dropped, but under a CTR rail bridge; at-grade crossings imply a culvert instead.
+- **The named streams' width is a guess.** A stream OSM names is 4 m wide wherever the build
+  measured none ([section 3](#3-features-featurests)): the Canale di Campiglia runs in a channel
+  about 2.5–3 m wide by Gassano on the 2023 orthophoto, and its protected bed, 3 m either side,
+  takes its CTR bridge out to 17.5 m (the bridge is 6.7 m).
 - **Re-downloading changes the map.** `pnpm fetch-osm <part>` pulls current OSM edits;
   `data/raw.lock.json` pins the inputs the map is built from.
