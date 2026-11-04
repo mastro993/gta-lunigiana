@@ -32,6 +32,7 @@ import {
   cutAtBridges,
   keepSpans,
   onBridge,
+  spanned,
   underpasses,
   type Crossed,
   type SpanReport,
@@ -377,10 +378,17 @@ export const conflateRail = (
     osmWater.flatMap((w) => w.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
   )
   const spanReport: SpanReport = { slid: [], culverts: [], cut: [] }
-  // The CTR's bridges, and the track over a drivable road's tunnel by its mouth (the road's profile cuts the mouth then, a path
-  // keeps the terrain's), out past the road's core cells and a cell's diagonal.
+  // The CTR's bridges, out past what they span by its margin (`spanned`), and the track over a drivable road's tunnel by its
+  // mouth (the road's profile cuts the mouth then, a path keeps the terrain's), out past the road's core cells and a cell's
+  // diagonal.
+  const ctrBridges = ctr.bridges.map((b) => b.rings)
   const bridges = [
-    ...ctr.bridges.map((b) => b.rings),
+    ...ctrBridges,
+    ...spanned(
+      chains.map((c) => c.line),
+      crossed.flatMap((f) => (f.margin > 0 ? [{ pts: f.pts, half: f.w / 2 + f.margin }] : [])),
+      (x, y) => ctrBridges.some((poly) => inPolygon(x, y, poly)),
+    ),
     ...underpasses(
       chains.map((c) => c.line),
       osmRoads.flatMap((r) =>

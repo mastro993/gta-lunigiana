@@ -967,7 +967,14 @@ part](#adding-a-part)).
     1.33 m RMS, on the Carrara side (x −2268…1316, y −6100…−4252).
   - Roads still unnamed take a street name from `addr:street` votes (the nearest road to most
     addresses with that name).
-- **Water**: every `waterway` except culverts, with a water width, a gravel-bed half-width and a
+- **Water**: every `waterway` except culverts (a stream crossing a road at grade dips under it,
+  [section 8](#8-water-under-decks-waterts)), but for a culvert under a CTR rail bridge (`AFE`
+  `Sede` 063), which runs in the open under its span (`openCulvert` in `build-sources.ts`): OSM
+  maps the Canale di Campiglia's pass under the line by Gassano as a culvert (way 865496237), under
+  the CTR's 6.7 m bridge, its channel open under the span on the 2010 and 2023 orthophotos; dropped,
+  its two ends dug the bank beside the bridge and left 1.0 m of track over the ground. Two more stay
+  on lucido: the Canale della Selva's under the 22 m bridge south of Gragnola and a stream's under
+  the 114 m bridge by Equi Terme. Each water way has a water width, a gravel-bed half-width and a
   depth, measured on the 2010 orthophoto:
 
   | Water | Width | Bed half-width | Depth |
@@ -1189,13 +1196,19 @@ the pieces where tracks meet (`rail-graph.ts`).
   m (the tertiary under it left 4.5 m of track 5.1 m over its carved core).
 - **The CTR's bridges**: where the CTR maps the ballast on a bridge (`AFE` `Sede`
   063) and OSM draws the track at grade, the piece is cut at the polygon's edges (vertices
-  `afe:<way>:<n>`; a stretch under 2 m joins its neighbour) and the stretch inside is a bridge: 24
-  stretches, 308.9 m with the underpasses' below, among them 41.8 m over the Fosso di Rubiana,
+  `afe:<way>:<n>`; a stretch under 2 m joins its neighbour) and the stretch inside is a bridge: 31
+  stretches, 410.5 m with the underpasses' below, among them 41.8 m over the Fosso di Rubiana,
   which hung 12 m over the stream at grade, the whole 38.4 m of way 700698462 by Equi Terme and
-  22.0 m south of Gragnola at (−1223, 2130). A stream under one runs under the bridge: only
+  25.8 m south of Gragnola at (−1223, 2130). A stream under one runs under the bridge: only
   797861191 and 797865913 still cross at-grade track, each sharing a culvert vertex with it
   (797865758 keeps OSM's own, now on a CTR bridge). A level crossing inside such a polygon stops
-  the build (none is).
+  the build (none is). A bridge reaches past what it spans as OSM's do (`spanned` in
+  `rail-spans.ts`): where the track crosses a wide stream or a main road under a CTR bridge, a
+  square about the crossing joins the polygons, reaching the line's half width and its margin
+  across it either way. The CTR's 6.7 m bridge over the Canale di Campiglia by Gassano, its stream
+  crossing 1.3 m from the east end, left the track past that end 1.2 m over the stream's protected
+  bed; it grows to 17.5 m. South of Gragnola the 22.0 m bridge over the Canale della Selva grows to
+  25.8 m, its south end 3.7 m on.
 - **Over an underpass's mouth** (`underpasses` in `rail-spans.ts`): where the track crosses a
   drivable road's tunnel within reach of one of its mouths, a square about the crossing joins the
   CTR's bridge polygons, reaching the road's core half width plus a cell's diagonal (w/2 + 2.3 m +
@@ -1442,8 +1455,11 @@ Grondilice).
   grade changed 4.2% over 20 m. Both now run at grade, the viaduct level at 162.8 m over them; in
   Cesena the line ran 2.9 m under its ground below the Viadotto Pontescolle and 4.1 m below the
   Viadotto John Fitzgerald Kennedy, and now runs at grade under both. The
-  rail stays at least 3 m above a river it bridges (w ≥ 4 m); over narrower streams, under the
-  CTR's short bridges, it keeps its level and the water dips under the deck ([section 8](#8-water-under-decks-waterts)). A rail tunnel
+  rail stays at least 3 m above a river it bridges (wider than 4 m); over the rest, under the
+  CTR's short bridges, it keeps its level and the water dips under the deck ([section 8](#8-water-under-decks-waterts)).
+  The named streams' 4 m is the build's guess where it measured none ([section 3](#3-features-featurests)):
+  under the CTR's 6.7 m bridge by Gassano the Canale di Campiglia runs 1.5 m under the line, and
+  held 3 m under it the line rose 1.9 m, its grade changing 4.1% over 20 m. A rail tunnel
   passes under everything: the 3.2 km of the line's tunnel from Equi Terme to Argigliano run under
   the streams on the hillside. The rail's output keeps the profile samples where its elevation
   bends by more than 0.03 m (roads: 0.25 m), so the line drawn and driven follows the grid it was

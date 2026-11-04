@@ -138,6 +138,30 @@ test("extractWater, extractRoads: two nodes in a row on one 0.1 m point are one 
   assert.deepEqual(ids(extractRoads(osm, whole)), [["r0", "r1"]])
 })
 
+// Regression: OSM maps the Canale di Campiglia's pass under the line by Gassano as a culvert (way
+// 865496237), where the CTR surveys a 6.7 m rail bridge and the orthophotos show its channel open
+// under the span; dropped, the stream's two ends dug the bank beside the bridge, under the track.
+test("extractWater: a culvert is dropped but where `open` says it runs in the open, under a bridge", () => {
+  const osm = osmOf([
+    { waterway: "stream", tunnel: "culvert" },
+    { waterway: "stream", tunnel: "culvert", name: "Canale di Campiglia" },
+    { waterway: "stream" },
+  ])
+  const water = extractWater(
+    osm,
+    () => 0,
+    whole,
+    (pts) => pts[0]!.y > 5,
+  )
+  assert.deepEqual(
+    water.map((w) => [w.id, w.w]),
+    [
+      [2, 4],
+      [3, 2],
+    ],
+  )
+})
+
 test("extractAreas: a river's banks are a river, still water a lake, other water nothing; ruins win over water, shingle is a river's pebble", () => {
   const { osm, square } = areaOsm()
   const tagged: ReadonlyArray<Tags> = [

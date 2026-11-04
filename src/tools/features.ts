@@ -313,11 +313,16 @@ const mappedRiverWidth = (
   return width === undefined ? undefined : r1(width)
 }
 
-/** The waterways but culverts, cut by `clip`, sized by `ground` under each piece. */
+/**
+ * The waterways, cut by `clip`, sized by `ground` under each piece. A culvert is dropped, as a stream
+ * crossing a road at grade dips under it (water.ts), but where `open` says it runs in the open: under
+ * a bridge the surveys map (`openCulvert` in build-sources.ts).
+ */
 export const extractWater = (
   osm: Osm,
   ground: (x: number, y: number) => number,
   clip: Clip = toPlay,
+  open: (pts: ReadonlyArray<V>) => boolean = () => false,
 ): Array<WaterF> => {
   const banks =
     REGION.id === "cesena"
@@ -333,16 +338,13 @@ export const extractWater = (
         ]
       : []
   return [...osm.ways.values()]
-    .filter(
-      (w) =>
-        w.tags.waterway !== undefined &&
-        w.tags.waterway !== "riverbank" &&
-        w.tags.tunnel !== "culvert",
-    )
+    .filter((w) => w.tags.waterway !== undefined && w.tags.waterway !== "riverbank")
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"
-      return clip(lineVertices(osm, w.nds)).map(({ pts, from }): WaterF => {
+      const line = lineVertices(osm, w.nds)
+      if (t.tunnel === "culvert" && !open(line)) return []
+      return clip(line).map(({ pts, from }): WaterF => {
         const z = pts.reduce((s, p) => s + ground(p.x, p.y), 0) / pts.length
         const size = waterSize(t.name, kind, z)
         const measured =

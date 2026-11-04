@@ -37,7 +37,8 @@ const roads = [
   road(12, [v(200, -20), v(200, 20)]), // an untagged one
   road(13, [v(350, -20), v(350, 20)], { bridge: true }), // a road bridge over the track
 ]
-const water = [stream(20, 2, 250), stream(21, 8, 270)]
+// A 2 m stream, an 8 m river and a 4 m stream (the named streams' width, unmeasured).
+const water = [stream(20, 2, 250), stream(21, 8, 270), stream(22, 4, 230)]
 const wp: Array<Profile> = water.map(() => ({
   x: [0, 0],
   y: [-50, 50],
@@ -79,9 +80,11 @@ test("railLevels bounds the rail over a tagged underpass from below, under a roa
   // The level crossing pins nothing on the rail: the road meets it there (a V of up to 5% before).
   assert.deepEqual(at(50), [])
   assert.equal(levels.levels.length, 1)
-  // Over the 8 m river the rail keeps 3 m; over the 2 m stream the line keeps its level.
+  // Over the 8 m river the rail keeps 3 m; over the 2 m and the 4 m streams the line keeps its
+  // level (the Canale di Campiglia's 6.7 m bridge by Gassano lifted the line 1.9 m, a 4.1 % bend).
   assert.deepEqual(at(270), [{ x: 270, y: 0, z: 102, kind: "min" }])
   assert.deepEqual(at(250), [])
+  assert.deepEqual(at(230), [])
 })
 
 // Regression: the line between the ends' ground of the SR445's 396 m viaduct north of Gragnola, down in the valley, held the

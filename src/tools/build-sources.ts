@@ -7,7 +7,7 @@ import { join } from "node:path"
 import type { Area, Barrier, District } from "../sim/map/index.ts"
 import { isWaterArea } from "../sim/map/kinds.ts"
 import { conflateRail } from "./conflate.ts"
-import { readCtrRail } from "./ctr-rail.ts"
+import { readCtrRail, splitIn } from "./ctr-rail.ts"
 import { fitRoads } from "./ctr.ts"
 import { fitDistricts } from "./districts.ts"
 import { loadDtm, loadGeoDtm } from "./dtm.ts"
@@ -21,7 +21,7 @@ import {
   extractWater,
   nameFromAddresses,
 } from "./features.ts"
-import { centroid, pointInRing, r1 } from "./geometry.ts"
+import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
@@ -60,13 +60,18 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   // The level crossings the play area holds: the rail and roads are cut at its outline, so one
   // beyond it would hold no level-crossing node.
   const crossings = heldInPlay(ctrRail.crossings)
+  // A culvert under a CTR rail bridge runs in the open, under its span: OSM maps the Canale di
+  // Campiglia's pass under the line by Gassano as one (way 865496237), under the CTR's 6.7 m bridge,
+  // its channel open under it on the 2010 and 2023 orthophotos.
+  const bridges = ctrRail.bridges.map((b) => b.rings)
+  const openCulvert = (pts: ReadonlyArray<V>) => splitIn(pts, bridges).some((run) => run.inside)
   // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has; level-crossing nodes
   // slide along their roads with it, and what its bridges span stays under them (water widths
   // depend on the way's mean ground, so the terrain is loaded first).
   const { rail, extra, roads, water, moves, report } = conflateRail(
     extractRail(osm),
     extractRoads(osm),
-    extractWater(osm, dem.at),
+    extractWater(osm, dem.at, undefined, openCulvert),
     { ...ctrRail, crossings },
     lunigiana ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
   )
@@ -111,7 +116,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   // roads (as wide as the surveys map them), water, rail and buildings there as they do in play.
   const beyond = {
     roads: extractRoads(osm, clipBeyond),
-    water: extractWater(osm, dem.at, clipBeyond),
+    water: extractWater(osm, dem.at, clipBeyond, openCulvert),
     rail: extractRail(osm, clipBeyond),
     buildings: buildingsBeyond,
   }
