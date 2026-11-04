@@ -5,8 +5,9 @@
 // on a mistyped flag. The rows are the comuni, OSM boundary=administrative admin_level=8
 // relations meeting the part's box (one Overpass query); the columns:
 // - CTR 2019: the AZR mapped areas of the manifest's sheets (the archives `fetch-rt` caches);
-// - LiDAR <lot>: the manifest's tiles in order, on the index's footprints; a cell takes the lot of
-//   the first tile holding it, as `fetch-rt`'s mosaic keeps the first value;
+// - LiDAR <lot>: the tiles in fetch-rt's order (every earlier part's manifest's, then the part's), on
+//   the index's footprints; a cell takes the lot of the first tile holding it, as `fetch-rt`'s
+//   mosaic keeps the first value;
 // - no LiDAR: the cells no tile holds, which `fetch-rt` fills through the fallback chain;
 // - DSM 2021, 10 m DTM, DTM Liguria, DTM 5x5: the sources `fetch-rt`'s chain took past the LiDAR,
 //   read from the terrain it wrote for the part, once it has written every play-area cell's: for a
@@ -44,6 +45,7 @@ import { fromLocal, gaussBoagaBox, toLocal } from "./geometry.ts"
 import { type Manifest, readManifest } from "./manifest.ts"
 import { getText, overpass, pool } from "./net.ts"
 import { type Osm, assembleRings, readOsm } from "./osm.ts"
+import { earlierParts } from "./pick-lidar.ts"
 import { encodePngRgb } from "./png.ts"
 import { type Part, dtmDir, partOf, rectsBox, regionOfPart } from "./region.ts"
 import { fetchZip, mustFind } from "./rt-cache.ts"
@@ -123,6 +125,30 @@ export const readUcs = async (
   url: string,
 ): Promise<ReturnType<typeof parseGml>> =>
   parseGml(await cached(path, refresh, () => getText(url).then((t) => (parseGml(t), t))))
+
+/**
+ * The LiDAR tiles in the order `fetch-rt` mosaics them for `part`, each its index footprint: every
+ * earlier part's manifest's (`earlierParts`), whose tiles hold the cells they wrote first (lucido's
+ * strip beside Fivizzano's), then the part's own. An earlier part's tile the part's index does not
+ * list lies past its box; one of its own throws.
+ */
+export const mosaicTiles = <T>(
+  part: Part,
+  footprints: ReadonlyMap<string, T>,
+  manifestOf: (p: Part) => Pick<Manifest, "lidar">,
+): Array<T> => [
+  ...earlierParts(part).flatMap((p) =>
+    manifestOf(p).lidar.flatMap((name) => {
+      const tile = footprints.get(name)
+      return tile === undefined ? [] : [tile]
+    }),
+  ),
+  ...manifestOf(part).lidar.map((name) => {
+    const tile = footprints.get(name)
+    if (tile === undefined) throw new Error(`${name} not in the index: run rt-index ${part.key}`)
+    return tile
+  }),
+]
 
 /** Part `key`'s `manifest` when it picks CTR sheets or LiDAR tiles (a part without one reads as empty); throws saying to pick them otherwise. */
 export const checkPicks = (key: string, manifest: Manifest): Manifest => {
@@ -216,13 +242,8 @@ const main = async (): Promise<void> => {
   const dir = join(import.meta.dirname, "../../.research", part.key)
   mkdirSync(dir, { recursive: true })
 
-  // The LiDAR tiles in the manifest's order, each on its index footprint.
   const footprints = new Map(index.lidar.flatMap((t) => (t.dtm === undefined ? [] : [[t.dtm, t]])))
-  const tiles = manifest.lidar.map((name) => {
-    const tile = footprints.get(name)
-    if (tile === undefined) throw new Error(`${name} not in the index: run rt-index ${part.key}`)
-    return tile
-  })
+  const tiles = mosaicTiles(part, footprints, (p) => readManifest(p.key))
   const lots = [...new Set(tiles.map((t) => t.lot))]
 
   const bbox = overpassBox(part)

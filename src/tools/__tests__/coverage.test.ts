@@ -13,6 +13,7 @@ import {
   checkPicks,
   fillLayer,
   forestPolygons,
+  mosaicTiles,
   osmPolygon,
   readUcs,
   tileSource,
@@ -22,6 +23,7 @@ import { CELL, emptyTile } from "../dtm-tiles.ts"
 import { fromLocal, toLocal } from "../geometry.ts"
 import { readManifest } from "../manifest.ts"
 import type { Osm, Tags } from "../osm.ts"
+import { partOf } from "../region.ts"
 import { SOURCES } from "../terrain-sources.ts"
 
 /** An Osm of the given nodes (id: local x, y), ways (id: node ids, tags) and relations. */
@@ -214,4 +216,28 @@ test("coverage throws on a mistyped flag before it reads or asks for anything", 
   )
   assert.notEqual(run.status, 0)
   assert.match(run.stderr, /Unknown option '--refesh'/)
+})
+
+// Regression: the LiDAR columns read the part's own manifest alone, so Fivizzano's strip, which
+// lucido's tiles hold, counted 10.6 km² of its play area as without LiDAR.
+test("mosaicTiles puts every earlier part's tiles first, as fetch-rt mosaics them, skipping those past the part's box", () => {
+  const parts = [partOf("lucido"), partOf("fivizzano")]
+  const lists: Record<string, ReadonlyArray<string>> = {
+    lucido: ["l1", "far", "l2"],
+    fivizzano: ["f1", "l1"],
+  }
+  const footprints = new Map([
+    ["l1", "L1"],
+    ["l2", "L2"],
+    ["f1", "F1"],
+  ])
+  assert.deepEqual(
+    mosaicTiles(parts[1]!, footprints, (p) => ({ lidar: [...lists[p.key]!] })),
+    ["L1", "L2", "F1", "L1"],
+  )
+  assert.throws(
+    () =>
+      mosaicTiles(parts[1]!, footprints, (p) => ({ lidar: p.key === "lucido" ? [] : ["gone"] })),
+    /gone not in the index: run rt-index fivizzano/,
+  )
 })
