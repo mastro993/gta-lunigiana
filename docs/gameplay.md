@@ -1161,8 +1161,10 @@ code:
   ([Level crossings](#level-crossings)) plus the longest train's length, and never less than the
   drawn run, so a train entering at that speed is beyond view and finds even that box down before
   it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. Today's one line, Lucca–Aulla from
-  the east edge by Minucciano to the north edge toward Fivizzano, is 10,910.9 m, with Equi Terme at
-  s 4103.7–4239.3, Monzone at 6675.7–6779.4 and Gragnola at 10093.9–10240.
+  the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del Lupacino, which OSM tags
+  140 km/h: its run-out is 2298.6 m) to its west edge by Rometta, is 16,854.7 m, with
+  Minucciano-Pieve-Casola at s 1558.6–1668.6, Equi Terme at 5921.4–6057.0, Monzone at
+  8493.3–8597.1, Gragnola at 11911.6–12057.7 and the Fivizzano-Gassano halt at 14454.2–14550.8.
 - **Shared track.** Lines that run on the same pieces of `MAP.rail`, or past the same terminal,
   share that track (`SHARED`): one line's s there maps onto the other's, either way round, one
   stretch for as many pieces in a row as they share (`sharedTrack` joins them, so two trains
@@ -1259,8 +1261,11 @@ m/s².
   dwell ends it runs on to the next station, or off the line past the last.
 - **Whistle.** 30 m before the mouth of a tunnel 200 m long or more (RFI's signal rules, art. 5:
   curved tunnels and long straight ones), it sounds a moderately long whistle (`Whistle`, about
-  1.5 s, for the audio to play): the Ugliancaldo tunnel (3194.5 m), and those of 271.2 and 225.0 m;
-  the 66.8 m one gets none.
+  1.5 s, for the audio to play): the Ugliancaldo tunnel (3194.6 m), and those of 271.1 and 225.0 m;
+  the 169.3 and 66.8 m ones get none. A tunnel's end at a terminal is where the map cuts it, no
+  mouth: a train coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's bore
+  already (1324.6 m of it in the map), and whistles only running into it from Pieve, 30 m before
+  its portal.
 - **The look-out** (`rail/lookout.ts`; RFI's signal rules art. 5(e): people on or next to the track
   call for the whistle; the Italian investigation report on the Caluso crossing crash of 2018, of a
   driver at Bojano: the urgent brake and the horn together). A person, an animal or a vehicle on the

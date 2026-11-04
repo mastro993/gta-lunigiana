@@ -14,6 +14,7 @@ import { MARGIN } from "../rail/barriers.ts"
 import { CROSSINGS } from "../rail/crossings.ts"
 import { LINES, nextStop, pointAt, speedAt } from "../rail/lines.ts"
 import { trainLength } from "../rail/models.ts"
+import { DWELL } from "../rail/service.ts"
 import {
   aiTrain,
   atDoor,
@@ -93,6 +94,14 @@ export const dwelling = () => aiTrain(AT_MONZONE, WAY, 0, 60 * S)
 export const AT_CAB = atDoor(AT_MONZONE, WAY, 0, MONZONE.side)
 /** The player at the cab of the train dwelling at Monzone: in at frame 1, the up key held from frame 10. */
 export const JOYRIDE: Timeline = [...press(1, "action"), { frame: 10, press: ["up"] }]
+
+/**
+ * The most a train takes to run the line end to end, s: its whole track, run-outs included, at 60 km/h on average (its line
+ * speed is 80–140), and each call's longest dwell with a minute to brake and start again. 1817 s on today's 16.9 km line.
+ */
+export const TRIP = Math.ceil(
+  (line.end - line.start) / (60 / 3.6) + line.stations.length * (DWELL[1] + 60),
+)
 
 /** An AI train entering the line from its start (s 0 end), its tail at the run-out's end, at line speed. */
 export const entering = () => aiTrain(line.start + LENGTH, 1, speedAt(line, line.start + LENGTH))

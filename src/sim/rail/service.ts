@@ -210,10 +210,12 @@ export const TrainAI = Game.System(
         length = trainLength(model),
         { dir } = run,
         head = motion.s
-      // Entering a long tunnel: the head passed the whistle point during the last step.
+      // Entering a long tunnel: the head passed the whistle point during the last step. A tunnel's end at a terminal is where
+      // the map cuts it, no mouth: a train coming in there is in the bore already (the Galleria del Lupacino at x 6700).
       for (const tunnel of line.tunnels) {
-        if (tunnel.to - tunnel.from < LONG_TUNNEL) continue
-        const at = dir > 0 ? tunnel.from - WHISTLE_LEAD : tunnel.to + WHISTLE_LEAD
+        const mouth = dir > 0 ? tunnel.from : tunnel.to
+        if (tunnel.to - tunnel.from < LONG_TUNNEL || mouth <= 0 || mouth >= line.length) continue
+        const at = mouth - dir * WHISTLE_LEAD
         if ((motion.prev - at) * dir < 0 && (head - at) * dir >= 0) {
           const { x, y } = pointAt(line, head)
           events.whistle.emit({ train: entity.id, x, y, urgent: false })
