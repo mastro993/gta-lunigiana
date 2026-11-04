@@ -98,6 +98,36 @@ const vertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> =>
     const [x, y] = toLocal(n.lat, n.lon)
     return { x, y, id }
   })
+/** The nodes of `osm` more than one way runs through, by id. */
+const sharedNodes = (() => {
+  const of = new WeakMap<Osm, Set<string>>()
+  return (osm: Osm): Set<string> => {
+    let shared = of.get(osm)
+    if (shared !== undefined) return shared
+    const seen = new Set<string>()
+    shared = new Set()
+    for (const w of osm.ways.values())
+      for (const id of new Set(w.nds)) (seen.has(id) ? shared : seen).add(id)
+    of.set(osm, shared)
+    return shared
+  }
+})()
+/**
+ * A way's vertices as a line, each on its own 0.1 m point (the grid `flatLine` rounds to): of two
+ * nodes in a row on one point, the one another way shares stays, else the first, so a junction
+ * keeps the id the road graph, the catchments and the culverts join by. An edit glued four
+ * streams' junctions 0.008–0.073 m from their next node (the Torrente Mommio's twice).
+ */
+const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
+  const shared = sharedNodes(osm),
+    out: Array<V> = []
+  for (const v of vertices(osm, nds)) {
+    const last = out.at(-1)
+    if (last === undefined || r1(last.x) !== r1(v.x) || r1(last.y) !== r1(v.y)) out.push(v)
+    else if (!shared.has(last.id!) && shared.has(v.id!)) out[out.length - 1] = v
+  }
+  return out
+}
 const ringOf = (osm: Osm, nds: ReadonlyArray<string>): Array<P> =>
   vertices(osm, nds.slice(0, -1)).map((v) => [v.x, v.y])
 const closed = (w: OsmWay) => w.nds.length > 3 && w.nds[0] === w.nds.at(-1)
@@ -153,7 +183,7 @@ export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
           t.junction === "circular"))
     const lanes = parseInt(t.lanes ?? "", 10),
       width = (lanes >= 1 ? laneWidth(cls, lanes) : undefined) ?? ROADS[cls].w
-    return clip(vertices(osm, w.nds)).map(({ pts }): RoadF => ({
+    return clip(lineVertices(osm, w.nds)).map(({ pts }): RoadF => ({
       id: +w.id,
       cls,
       ...(t.name ? { name: t.name } : {}),
@@ -312,7 +342,7 @@ export const extractWater = (
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"
-      return clip(vertices(osm, w.nds)).map(({ pts, from }): WaterF => {
+      return clip(lineVertices(osm, w.nds)).map(({ pts, from }): WaterF => {
         const z = pts.reduce((s, p) => s + ground(p.x, p.y), 0) / pts.length
         const size = waterSize(t.name, kind, z)
         const measured =
@@ -335,7 +365,7 @@ export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
   [...osm.ways.values()]
     .filter((w) => w.tags.railway === "rail")
     .flatMap((w) =>
-      clip(vertices(osm, w.nds)).map(({ pts }): RailF => ({
+      clip(lineVertices(osm, w.nds)).map(({ pts }): RailF => ({
         id: +w.id,
         ...(w.tags.bridge !== undefined && w.tags.bridge !== "no" ? { bridge: true } : {}),
         ...(w.tags.tunnel !== undefined && w.tags.tunnel !== "no" ? { tunnel: true } : {}),
@@ -692,7 +722,7 @@ export const extractBarriers = (osm: Osm): Array<Barrier> =>
         w.tags.barrier === "wall" || w.tags.barrier === "guard_rail" || w.tags.natural === "cliff",
     )
     .flatMap((w) =>
-      toPlay(vertices(osm, w.nds)).map(({ pts }) => ({
+      toPlay(lineVertices(osm, w.nds)).map(({ pts }) => ({
         kind: w.tags.natural === "cliff" ? "cliff" : w.tags.barrier!,
         pts: flatLine(pts),
       })),

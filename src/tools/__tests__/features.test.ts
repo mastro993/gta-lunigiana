@@ -2,7 +2,13 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { SurveyBuilding } from "../ctr.ts"
-import { extractAreas, extractBuildings, extractPois, extractRoads } from "../features.ts"
+import {
+  extractAreas,
+  extractBuildings,
+  extractPois,
+  extractRoads,
+  extractWater,
+} from "../features.ts"
 import { fromLocal, hash01, type V } from "../geometry.ts"
 import type { Osm, Tags } from "../osm.ts"
 import { localOf, sheet2k, surveyId } from "../survey-ids.ts"
@@ -99,6 +105,37 @@ test("extractRoads: a motorway, its links and a roundabout are oneway unless tag
       ["secondary", 6.5, false, false],
     ],
   )
+})
+
+// Regression: an edit glued four streams' junctions 0.008–0.073 m from their next node (the Torrente
+// Mommio's 788514676 at (6132.2, 9771.2)), so the shipped line, rounded to 0.1 m, repeated a vertex.
+test("extractWater, extractRoads: two nodes in a row on one 0.1 m point are one vertex, the one another way shares", () => {
+  const osm: Osm = { nodes: new Map(), ways: new Map(), relations: new Map() }
+  for (const [id, x, y] of [
+    ["j", 10.02, 5.01], // a junction of the two streams
+    ["a", 10.04, 5.03], // 0.03 m on, the same 0.1 m point
+    ["b", 30, 5],
+    ["c", 10, 40],
+    ["d", 10.01, 5.04], // 0.03 m short of the junction
+    ["r0", 0, 20],
+    ["r1", 40.01, 20.02],
+    ["r2", 40.03, 20.04], // neither shared: the first stays
+  ] as const) {
+    const [lat, lon] = fromLocal(x, y)
+    osm.nodes.set(id, { id, lat, lon, tags: {} })
+  }
+  const way = (id: string, nds: ReadonlyArray<string>, tags: Tags) =>
+    osm.ways.set(id, { id, nds, tags })
+  way("1", ["j", "a", "b"], { waterway: "stream" })
+  way("2", ["c", "d", "j"], { waterway: "stream" })
+  way("3", ["r0", "r1", "r2"], { highway: "track" })
+  const ids = (lines: ReadonlyArray<{ readonly pts: ReadonlyArray<V> }>) =>
+    lines.map((l) => l.pts.map((v) => v.id))
+  assert.deepEqual(ids(extractWater(osm, () => 0, whole)), [
+    ["j", "b"],
+    ["c", "j"],
+  ])
+  assert.deepEqual(ids(extractRoads(osm, whole)), [["r0", "r1"]])
 })
 
 test("extractAreas: a river's banks are a river, still water a lake, other water nothing; ruins win over water, shingle is a river's pebble", () => {

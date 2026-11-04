@@ -988,6 +988,11 @@ part](#adding-a-part)).
   4 m. Other rivers would be 2.5 m deep with the stream widths.
 - **Rail**: `railway=rail` (the Lucca–Aulla line), with bridges and tunnels, moved onto the
   CTR's tracks next ([section 4](#4-the-rail-on-the-ctr)).
+- **A line's vertices** (roads, water, rail, barriers; `lineVertices`): of two nodes in a row that
+  round to one 0.1 m point (the grid the map is written on), the one another way shares stays,
+  else the first, so no shipped line repeats a vertex and a junction keeps the id the road graph,
+  the catchments and the culverts join by. An edit glued four streams' junctions 0.008–0.073 m
+  from their next node in fivizzano (the Torrente Mommio's twice).
 - **Buildings**: the surveys' wherever they map the ground, OSM's elsewhere (an OSM building is
   dropped when its centroid lies in any survey's mapped area).
   - **One record**: each adapter reads its source into `Survey` (`ctr.ts`): its buildings
