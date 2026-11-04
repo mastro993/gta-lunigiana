@@ -2021,23 +2021,155 @@
     "asset": "raw-20261103/rt.ctr2009.22D15_ML_l.shp.gz",
     "source": "https://www502.regione.toscana.it/geoscopio/download/ctr2k/SHP/S_22D15_2009_6707.zip"
   },
-  "rt/dtm-src.bin": {
-    "sha256": "eb0128d9bf0346cb848b115e9e3bf51bbfcf0b0faadbaa22fd30ccee8c50c2f9",
-    "bytes": 22752,
-    "asset": "raw-20261101/rt.dtm-src.bin",
-    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip"
+  "rt/dtm/-1_-1.bin": {
+    "sha256": "e7cae4d0040459c96e1ed555dacb456445b4f275e8d32e8d1d959fa54d89459f",
+    "bytes": 811810,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
   },
-  "rt/dtm.bin": {
-    "sha256": "39f4d157d6f5a9fe0e0bcc620d996a21cbaa695706933cf6cc4e8f7d6690a06e",
-    "bytes": 14952481,
-    "asset": "raw-20261101/rt.dtm.bin",
-    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip"
+  "rt/dtm/-1_-2.bin": {
+    "sha256": "3a8a1e98754d02bb4ea898786a09a16b53e2f9662eb747b6b208fdd11606b13e",
+    "bytes": 770345,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
   },
-  "rt/dtm.json": {
-    "sha256": "f64137281e698a2a4abdb7915f16090ee7adcea33b9ffa0aa755e35d11c8c526",
-    "bytes": 380,
-    "asset": "raw-20261101/rt.dtm.json",
-    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip"
+  "rt/dtm/-1_-3.bin": {
+    "sha256": "49888ed240a9e818724505933d4c46866a88f6ceefbbe87d19faeeafc18688d4",
+    "bytes": 772194,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-1_-4.bin": {
+    "sha256": "23ea6dd91ecd51b9986d8e2b25c586ba59316048e705edbd5a53ffcf15e29b21",
+    "bytes": 92334,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-1_0.bin": {
+    "sha256": "696f55c519cd47df6f12d5e8938a23b1e1c2478ee2dfd4bbe60986355515263a",
+    "bytes": 742325,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-1_1.bin": {
+    "sha256": "a10e47993d92e9ea9a29dfa6af7d90a686ea5351ae70d50bf045e11f077cf3f8",
+    "bytes": 683947,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-2_-1.bin": {
+    "sha256": "0a14e5026e4d3377252af81801b8ef535c74ec76ef2d0c2ce1934238866c4ed5",
+    "bytes": 428233,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-2_-2.bin": {
+    "sha256": "6dde02af715e3cd69682787d53f758d1405be77e4eebb1ec069d6c67d04a39c0",
+    "bytes": 443571,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-2_-3.bin": {
+    "sha256": "57f11e933cf59609e8390a39ba2a2b7fefd47f00b111b6c8e62af3b89d12de14",
+    "bytes": 467408,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-2_-4.bin": {
+    "sha256": "27497f49a824d90f93fbbfa9907b441c000e263d4f274529c0017d00a7f6e1b8",
+    "bytes": 46879,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-2_0.bin": {
+    "sha256": "45b724feace05f6282c85d366696031b41c984e77b7204ca37e30ea20447c7de",
+    "bytes": 392646,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/-2_1.bin": {
+    "sha256": "02d149f6ba9f6b282cf52e1eb055e7e2ac413025b431b4d481817352a65a0e21",
+    "bytes": 378147,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/0_-1.bin": {
+    "sha256": "88248d473d7578bda5f7f841c9ac65ee9fb82225df55958500d3f4caaa855fa1",
+    "bytes": 877506,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/0_-2.bin": {
+    "sha256": "3dcb2d5cbaf99433ab2458770788a12f284b77333639dfc6cbecb570c79ec633",
+    "bytes": 862790,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/0_-3.bin": {
+    "sha256": "f1b35461e987dd7fee63946b4c9495266f826df9843cc9981571d9907e7f0916",
+    "bytes": 783661,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/0_-4.bin": {
+    "sha256": "887111a5bc54667cbfa0ddebb01347c81531771825db8c70bf01a03576b936da",
+    "bytes": 111894,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/0_0.bin": {
+    "sha256": "87b0349a4079949ab100565881dabc97b4e8ffb5784ed10eb5fbb126fcce8895",
+    "bytes": 750616,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/0_1.bin": {
+    "sha256": "abc1a2774e0a4a996710367f3e22cebbff02e9db179d6b925798a01a32ce65f0",
+    "bytes": 697907,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/1_-1.bin": {
+    "sha256": "63eaa2c1d9c625ae7c0d507371893d8a2d8ad0561fa90ef9cdee957e02302cd9",
+    "bytes": 873073,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/1_-2.bin": {
+    "sha256": "d8ea8b28cc511bce5afc47af5d10986d09965c68073450eef58855bbaae7e12f",
+    "bytes": 789691,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/1_-3.bin": {
+    "sha256": "105057fac565fc7ffc9f6e66f44c1ce81586426a4f9a46affe8fa12cb5c2add3",
+    "bytes": 877739,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/1_-4.bin": {
+    "sha256": "539ba83e066128ebab564b2aa3bb42fb61d98f7f854f0d0b6fdcb68be907034d",
+    "bytes": 130798,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/1_0.bin": {
+    "sha256": "de18848f0ff3019db5520dee63df9e0def21c85c690259ea596b0120509d1f8d",
+    "bytes": 818449,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/1_1.bin": {
+    "sha256": "6a31017cdad682c635cc6f1d2936124dd813f3a693e3aa9c662c47ed8da8083b",
+    "bytes": 733517,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/2_-1.bin": {
+    "sha256": "f78f9018eba8ed41a81a1c010403e20c8121cd0d6c423467e97ff7aabe81f7cc",
+    "bytes": 445355,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/2_-2.bin": {
+    "sha256": "2a5d9dedb8c363f541294e299c692fca653fb249b874721d04016773df52fc51",
+    "bytes": 471131,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/2_-3.bin": {
+    "sha256": "9dbb97209dec171cf03d6ee5aeeff9ff0fd910c2771c138b487038118de7c78d",
+    "bytes": 474310,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/2_-4.bin": {
+    "sha256": "56df324105df314816c32150ed957571cc04b14c56b2dfad5359de4ffd9c2d9d",
+    "bytes": 75896,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/2_0.bin": {
+    "sha256": "e48993e4b272645e0417fadca6b3308cec1e38d532a915003102a91ce5ec9d4a",
+    "bytes": 433297,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
+  },
+  "rt/dtm/2_1.bin": {
+    "sha256": "96266e697a98ed32bef8a4ffc917a8b1530a9abf88c7babcb9f37fb9208fc6cf",
+    "bytes": 407337,
+    "source": "the lidar archives of data/parts/lucido.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249064 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1586896.5,4883807.5,1595898.5,4894977.5, fetched 2026-11-01, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; cut a tile at a time from rt/dtm.bin of raw-20261101 (issue #17)"
   },
   "rt/pontremoli-town/dbt2k/045014_ac_vei.dbf.gz": {
     "sha256": "4b319e7b888d3d620fc39a11e6a451837b9543707aa15b54a53e3e1a9fbdb4c4",
@@ -2129,7 +2261,7 @@
     "asset": "raw-20261103-2/rt.sarzana-town.dtm.json",
     "source": "the lidar archives of data/parts/sarzana-town.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the Liguria DTM ed. 2023's crops -7_-2.tif, -7_-3.tif, -7_-4.tif, -8_-2.tif, -8_-3.tif, -8_-4.tif in data/raw/lig/sarzana-town/dtm (pnpm fetch-lig sarzana-town)"
   },
-  "rt/ucs.json.gz": {
+  "rt/ucs/lucido.json.gz": {
     "sha256": "ff5e0211defdd85937214e9977878bf00a0a2134ab68d18bda6a0b1d627cbbae",
     "bytes": 648752,
     "asset": "raw-20261103-3/rt.ucs.json.gz",

@@ -40,7 +40,8 @@ export const UCS_CODES = {
   "512": "lake", // corpi d'acqua
 } as const satisfies Record<string, AreaKind>
 
-interface UcsFile {
+/** A land cover file: its CRS and its polygons, each an id, a class code and its rings (outer first, flat). */
+export interface UcsFile {
   readonly crs: string
   readonly polygons: ReadonlyArray<{
     readonly id: number
@@ -109,23 +110,40 @@ export const ucsAreas = (
 
 /**
  * The kept polygons of the land cover files at `paths` as areas, clipped to `box` (`ucsAreas`). A
- * polygon in two files (two parts' Liguria files hold the polygons across their edge) is read once:
- * the same CRS, id and outer ring.
+ * polygon in two files (two parts' files hold the polygons across their edge) is read from the
+ * first that holds its id (in its CRS), so a later part's fetch, which may see it edited since,
+ * never moves an earlier part's cover; within a file, a polygon twice (the same id and outer ring)
+ * is read once, while the pieces of one multipolygon share its id.
  */
 export const readUcs = (paths: ReadonlyArray<string>, box: Rect = TERRAIN_BOX): Array<Area> => {
   const seen = new Set<string>()
-  return paths.flatMap((path) => readOne(path, seen, box))
+  return paths.flatMap((path) => {
+    const file = readUcsFile(path),
+      ids = file.polygons.map(({ id }) => `${file.crs} ${id}`)
+    const areas = readOne(path, file, seen, box)
+    for (const id of ids) seen.add(id)
+    return areas
+  })
 }
 
-const readOne = (path: string, seen: Set<string>, box: Rect): Array<Area> => {
-  const file = JSON.parse(gunzipSync(readFileSync(path)).toString()) as UcsFile
+/** A land cover file as `fetch-rt` and `fetch-lig` write it. */
+export const readUcsFile = (path: string): UcsFile =>
+  JSON.parse(gunzipSync(readFileSync(path)).toString()) as UcsFile
+
+const readOne = (
+  path: string,
+  file: UcsFile,
+  seen: ReadonlySet<string>,
+  box: Rect,
+): Array<Area> => {
   const project = PROJECTIONS[file.crs]
   if (project === undefined) throw new Error(`${path}: land cover in ${file.crs}`)
+  const twice = new Set<string>()
   return file.polygons.flatMap(({ id, code, rings }) => {
-    const key = `${file.crs} ${id} ${rings[0]!.join(",")}`,
+    const key = `${id} ${rings[0]!.join(",")}`,
       kind = UCS_CODES[code.slice(0, 3) as keyof typeof UCS_CODES]
-    if (seen.has(key) || kind === undefined) return []
-    seen.add(key)
+    if (seen.has(`${file.crs} ${id}`) || twice.has(key) || kind === undefined) return []
+    twice.add(key)
     const [outer, ...holes] = rings.map((r) => {
       const ring: Array<P> = []
       for (let i = 0; i + 1 < r.length; i += 2) ring.push(toLocal(...project(r[i]!, r[i + 1]!)))

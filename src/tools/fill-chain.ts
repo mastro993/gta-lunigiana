@@ -62,6 +62,12 @@ export const NONE = 255
 /** The filler's own cells while it runs, and those of them in the band. */
 const CURRENT = 254,
   BANDED = 253
+/**
+ * `src` of a cell the chain leaves alone, its height set (not NaN) so no filler takes it: beyond
+ * what a run fills (a tile's cells past the region's box, issue #17), neither filled nor a source
+ * the fill must meet.
+ */
+export const OUT = 252
 /** The lattice's step, m: one node per 2 500 m². */
 const GRID = 50
 /** How near the filler's cells a better cell fits the lattice, m (a square round each). */
@@ -95,7 +101,7 @@ class List<T extends Int32Array | Float64Array> {
 }
 
 /** Whether `s` is a source before the running filler: a cell it must meet. */
-const better = (s: number) => s < BANDED
+const better = (s: number) => s < OUT
 
 /**
  * The 4 neighbours of cell k in a `cols` × `rows` grid, -1 past its edge; `out` is overwritten and

@@ -25,7 +25,7 @@ import { centroid, pointInRing, r1 } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsm } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
-import { REGION, dtmDir } from "./region.ts"
+import { REGION, dtmDir, inputParts, ucsFile } from "./region.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
@@ -51,7 +51,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     ? readSurveys(join(root, "data/raw/rt"), lig)
     : { survey: NO_SURVEY, ctr2019: NO_SURVEY }
   const dem = lunigiana
-    ? loadDtm(join(root, dtmDir(REGION)))
+    ? loadDtm(join(root, dtmDir(REGION)), REGION)
     : await loadGeoDtm(join(root, "data/raw/cesena/dtm.tif"))
   const ctrRail = lunigiana
     ? readCtrRail(join(root, "data/raw/rt/ctr"))
@@ -88,7 +88,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     // and the water bodies OSM lacks (OSM's own draws the same water finer, with its level).
     ...(lunigiana
       ? readUcs([
-          join(root, "data/raw/rt/ucs.json.gz"),
+          ...inputParts(REGION).map((part) => join(root, ucsFile(part))),
           ...lig.map((dir) => join(dir, "uds.json.gz")),
         ]).filter((a) => !isWaterArea(a.kind) || !osmAreas.some((o) => overlap(a, o)))
       : []),

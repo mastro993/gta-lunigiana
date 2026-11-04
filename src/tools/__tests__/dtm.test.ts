@@ -147,7 +147,7 @@ test("loadDtm samples the DTM fetch-rt wrote as dtmDem samples it, its sources i
   const dir = tempDir(t),
     d = halves()
   write(dir, d)
-  const read = loadDtm(dir, first),
+  const read = loadDtm(dir, { ...first, ownTerrain: true, test: true, tiles: [] }),
     made = dtmDem(d, first)
   for (const [x, y] of points(200)) {
     if (!Object.is(read.at(x, y), made.at(x, y)))

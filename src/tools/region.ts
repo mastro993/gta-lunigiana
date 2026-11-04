@@ -415,6 +415,9 @@ export const dtmDir = (region: Region): string =>
 export const surveyDir = (region: Region): string =>
   region.ownBuildings ? `data/raw/rt/${region.key}` : "data/raw/rt"
 
+/** Where `fetch-rt` writes a Lunigiana part's land cover (the UCS 2019), from the repository root (issue #17). */
+export const ucsFile = (part: Pick<Part, "key">): string => `data/raw/rt/ucs/${part.key}.json.gz`
+
 /** Where `fetch-lig` writes a part's Regione Liguria sources (NC5, the DTM's crops, the land use), from the repository root (issue #12). */
 export const ligDir = (part: Pick<Part, "key">): string => `data/raw/lig/${part.key}`
 
@@ -423,6 +426,13 @@ export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])
 
 /** Every part in Lunigiana's frame: its own, then its test regions'. */
 const LUNIGIANA_PARTS = [...PARTS, ...TEST_REGIONS.flatMap((r) => r.parts)]
+
+/**
+ * The parts whose fetched inputs (OSM, land cover) `region` is built from, in order: its own, or a
+ * test region's built from Lunigiana's inputs, Lunigiana's.
+ */
+export const inputParts = (region: Region): ReadonlyArray<Part> =>
+  region.test && !region.ownBuildings && region.id === LUNIGIANA.id ? PARTS : region.parts
 
 /** The region a Lunigiana part belongs to: Lunigiana for its own parts, the test region for a test region's. */
 export const regionOfPart = (part: Part): Region =>
