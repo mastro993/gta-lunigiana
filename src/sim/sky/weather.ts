@@ -18,14 +18,14 @@ import { romeDay } from "./calendar.ts"
 import {
   airAt,
   celsiusAt,
-  dailyMean,
   freezingLevel,
-  normalsAt,
   NO_SNOW,
   orographic,
   rainCooling,
+  seasonSnowLine,
 } from "./climate.ts"
 import { sunOver } from "./day.ts"
+import { SNOW_REACH } from "./local.ts"
 import { place } from "./place.ts"
 import { calmPlan, dayWarmth, planFor, rainingAt, regimeAt } from "./plan.ts"
 import { isRegime, RAINS_FROM, type Regime, REGIME_SPECS } from "./regimes.ts"
@@ -90,11 +90,10 @@ const MELTING = 1 / 3600
 /** A storm cell far off the map: no storm near. */
 const FAR = 100000
 
-/** The snow line a new game starts with at UTC second `t`: where the day's mean normal is 0 °C, none when that lies above the map. */
-const startingSnowLine = (t: number): number => {
-  const normals = normalsAt(t),
-    zero = (1000 * dailyMean(normals, 0)) / normals.lapse
-  return zero >= TOP ? NO_SNOW : Math.max(LOWEST_SNOW, zero)
+/** The snow line the season leaves on the map at UTC second `t` (`seasonSnowLine`), none while it reaches no ground: a new game starts with it, and Settle brings it back. */
+const seasonOnMap = (t: number): number => {
+  const line = seasonSnowLine(t)
+  return line >= TOP + SNOW_REACH ? NO_SNOW : Math.max(LOWEST_SNOW, line)
 }
 
 /**
@@ -117,7 +116,7 @@ export const initialWeather = (t: number, seed: number): WeatherValue => {
     fog: spec.fog,
     anomaly: 0,
     wet: 0,
-    snowLine: startingSnowLine(t),
+    snowLine: seasonOnMap(t),
     cellX: FAR,
     cellY: FAR,
     plan: calmPlan(t),
@@ -225,6 +224,12 @@ const wetAfter = (wet: number, rain: number, tau: number, seconds: number): numb
 }
 
 /**
+ * Where falling snow brings the snow line down from: the line where one lies (over the map's top it may still whiten its north
+ * faces), else the top.
+ */
+const fallsFrom = (snowLine: number): number => (snowLine < NO_SNOW ? snowLine : TOP)
+
+/**
  * The ground after `rate` game seconds under `weather` at UTC second `t`, the sun at `sun`: where the snow line lies (coming down as
  * snow settles, going up as it melts) and how wet the precipitation leaves the ground.
  */
@@ -238,16 +243,14 @@ const groundAfter = (
     level = freezingLevel(air),
     low = celsiusAt(air, place().floor)
   let { snowLine } = weather
-  if (weather.precip > DRIZZLE && level < Math.min(snowLine, TOP)) {
-    // Snow sticks from the top of the map down toward the freezing level, as fast as it falls.
-    snowLine = Math.max(
-      level,
-      Math.min(snowLine, TOP) - SNOWING * weather.precip * orographic(snowLine) * rate,
-    )
+  const from = fallsFrom(snowLine)
+  if (weather.precip > DRIZZLE && level < from) {
+    // Snow sticks from the line (or the top of the map) down toward the freezing level, as fast as it falls.
+    snowLine = Math.max(level, from - SNOWING * weather.precip * orographic(snowLine) * rate)
   } else if (snowLine < NO_SNOW) {
     const thaw = celsiusAt(air, snowLine)
     if (thaw > 0) snowLine += MELTING * thaw * (weather.precip > DRIZZLE ? 2 : 1) * rate
-    if (snowLine > TOP) snowLine = NO_SNOW
+    if (snowLine > TOP + SNOW_REACH) snowLine = NO_SNOW
   }
   return {
     wet: wetAfter(weather.wet, weather.precip, dryingTime(weather, sun, low), rate),
@@ -360,7 +363,10 @@ export const stormStep = (
   }
 }
 
-/** The weather `weather`'s regime settles into at UTC second `t`: every value at its target (the day's plan's), the ground as wet as its rain and drying balance, and where it snows, the snow lying down to the freezing level. */
+/**
+ * The weather `weather`'s regime settles into at UTC second `t`: every value at its target (the day's plan's), the ground as wet as
+ * its rain and drying balance, and the snow line the season's on that date (`seasonOnMap`), or where it snows down to the freezing level.
+ */
 const settled = (weather: WeatherValue, t: number): WeatherValue => {
   const target = targetsOf(weather, t, REGIME_SPECS[weather.regime].cloud),
     sun = sunOver(t)
@@ -376,7 +382,8 @@ const settled = (weather: WeatherValue, t: number): WeatherValue => {
     anomaly: target.anomaly,
   }
   const air = airAt(t, at, sun),
-    level = freezingLevel(air)
+    level = freezingLevel(air),
+    season = seasonOnMap(t)
   return {
     ...at,
     wet: wetAfter(
@@ -386,9 +393,7 @@ const settled = (weather: WeatherValue, t: number): WeatherValue => {
       SETTLED,
     ),
     snowLine:
-      at.precip > DRIZZLE && level < Math.min(weather.snowLine, TOP)
-        ? Math.max(LOWEST_SNOW, level)
-        : weather.snowLine,
+      at.precip > DRIZZLE && level < fallsFrom(season) ? Math.max(LOWEST_SNOW, level) : season,
   }
 }
 

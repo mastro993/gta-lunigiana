@@ -10,11 +10,14 @@ import { BufferGeometry, Float32BufferAttribute } from "three"
 
 import { type Cover, coverIndexAt, coverName } from "../sim/map/cover.ts"
 import { MAP } from "../sim/map/index.ts"
+import { ROCK_NORMAL_Y } from "../sim/sky/local.ts"
 import { hash01 } from "../tools/geometry.ts"
 import { chunkCells } from "./chunks.ts"
 import { linear } from "./geometry.ts"
-import { ROCK_NORMAL_Y, terrainNodeY } from "./ground.ts"
+import { terrainNodeY, zOf } from "./ground.ts"
+import type { Crown } from "./leaves.ts"
 import { PALETTE } from "./palette.ts"
+import type { TreeKind } from "./trees.ts"
 
 const hm = MAP.heightmap
 
@@ -56,6 +59,12 @@ const COVER_LOOK = {
   mixed: { base: PALETTE.forestDark, alt: PALETTE.forest, share: 0.35 },
 } as const satisfies Record<Cover, CoverLook>
 
+/** A broadleaf wood's floor out of leaf (`crownsOn`): its leaf litter, the evergreen undergrowth showing through; a mixed wood's half its conifers' shade. */
+const OUT_OF_LEAF = {
+  forest: { base: PALETTE.litter, alt: PALETTE.forestDark, share: 0.35 },
+  mixed: { base: PALETTE.forestDark, alt: PALETTE.litter, share: 0.5 },
+} as const satisfies Partial<Record<Cover, CoverLook>>
+
 const PATCH = 4 // cells between noise lattice points: variant patches are blobs of ~16 m, not single cells
 /** Smooth value noise in [0, 1): hashed lattice values blended bilinearly. */
 const patchNoise = (i: number, j: number): number => {
@@ -74,8 +83,14 @@ const patchNoise = (i: number, j: number): number => {
 const shade = (look: CoverLook, i: number, j: number): number =>
   (look.stripes === true ? (i & 1) === 1 : patchNoise(i, j) < look.share) ? look.alt : look.base
 
-/** Builds the terrain chunk `key` (see `chunkOf`) coloured by the land cover; its tiles must be in memory. */
-export const terrainChunk = (key: number): BufferGeometry => {
+/**
+ * Builds the terrain chunk `key` (see `chunkOf`) coloured by the land cover, a broadleaf wood's floor as its broadleaf wears
+ * `crowns` say at the cell's height (in leaf by default); its tiles must be in memory.
+ */
+export const terrainChunk = (
+  key: number,
+  crowns?: (kind: TreeKind, z: number) => Crown,
+): BufferGeometry => {
   const { i0, j0, i1, j1 } = chunkCells(key)
   const cells = (i1 - i0) * (j1 - j0)
   const position = new Float32Array(cells * 18),
@@ -138,7 +153,7 @@ export const terrainChunk = (key: number): BufferGeometry => {
   for (let j = j0; j < j1; j++)
     for (let i = i0; i < i1; i++) {
       // The apron takes the cover of the edge cell it continues (`coverIndexAt` clamps).
-      const look = COVER_LOOK[coverName(coverIndexAt(i, j))]
+      const cover = coverName(coverIndexAt(i, j))
       const x = hm.x0 + i * hm.cell,
         y = hm.y0 + j * hm.cell,
         x1 = x + hm.cell,
@@ -147,6 +162,12 @@ export const terrainChunk = (key: number): BufferGeometry => {
         se = terrainNodeY(i + 1, j),
         nw = terrainNodeY(i, j + 1),
         ne = terrainNodeY(i + 1, j + 1)
+      const look =
+        (cover === "forest" || cover === "mixed") &&
+        crowns !== undefined &&
+        crowns("broadleaf", zOf((sw + se + nw + ne) / 4)) !== "leafy"
+          ? OUT_OF_LEAF[cover]
+          : COVER_LOOK[cover]
       // Split along the south-west → north-east diagonal, as `terrainY` assumes.
       tri(x, y, sw, x1, y, se, x1, y1, ne, look, i, j)
       tri(x, y, sw, x1, y1, ne, x, y1, nw, look, i, j)

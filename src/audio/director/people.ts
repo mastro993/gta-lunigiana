@@ -17,6 +17,7 @@
  *
  * @module audio/director/people
  */
+import { facingAt } from "../../sim/map/ground.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
 import { snowCoverAt } from "../../sim/sky/local.ts"
 import { hash01 } from "../../tools/geometry.ts"
@@ -218,7 +219,7 @@ export const makePeople = () => {
           kind: "step",
           surface: surfaceAt(p.x, p.y),
           run,
-          snow: snowCoverAt(heard.weather.snowLine, p.x, p.y, z) >= SNOWY,
+          snow: snowCoverAt(heard.weather.snowLine, p.x, p.y, z, facingAt) >= SNOWY,
         } as const
         frame.play(
           sound,

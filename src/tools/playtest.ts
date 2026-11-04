@@ -1,19 +1,22 @@
 // The CDP bot of the map runbook: drives an already-running headless Chrome over its remote-debugging
 // port (start it as docs/standards/playtest.md step 2 says), each run in a new tab of its own,
 // closed at the end, at 1280×720 and a device pixel ratio of 1.
-// Run: node src/tools/playtest.ts shots <url> <outdir> <name>:<x>,<y>[,<texels/m>] … [map] [--port N] [--wait s]
-//      node src/tools/playtest.ts heap <url> [--port N] [--seconds s]  (pnpm playtest …)
+// Run: node src/tools/playtest.ts shots <url> <outdir> <name>:<x>,<y>[,<texels/m>] … [map] [--port N] [--wait s] [--date YYYY-MM-DD]
+//      node src/tools/playtest.ts heap <url> [--port N] [--seconds s] [--at x,y] [--date YYYY-MM-DD]  (pnpm playtest …)
 //      node src/tools/playtest.ts drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,x2,y2,…]
 // - shots needs a dev build (`pnpm exec vite`), whose page has `window.gta`, and fails on a
 //   production one. It dismisses the title card, then for each spot shows only the canvas, pins the
 //   zoom when given (texels per metre; else the game's own), pins the view's focus on the ground at
 //   (x east, y north) in map metres, waits --wait s (6) for the world to stream and writes
-//   <outdir>/<name>.png. `map` opens the full map (M) with the HUD shown and writes map.png.
+//   <outdir>/<name>.png. `map` opens the full map (M) with the HUD shown and writes map.png. With
+//   --date the game starts on that day (the page's clock is moved there before it loads), so its
+//   snow and its trees' leaves are that day's, and the clock stands at noon under a clear sky.
 // - heap works on dev and production builds (`pnpm build && pnpm preview`). It reports the first
 //   frame (s from navigation start to the card's "Press any key", which the game shows once its
 //   first frame is drawn), the slowest frame and the 99th percentile over --seconds s (10) after the
 //   card goes (ms between animation frames), and the JS heap after a forced GC (MB, 10^6 bytes), as
-//   one JSON line.
+//   one JSON line. --at (a dev build's: `gta.teleport`) measures standing at (x, y) once the tiles
+//   there are in memory, and --date on that day as shots does (a production build's clock runs on).
 // - drive needs a dev build too (`gta.teleport`, `gta.tiles`). It dismisses the title card, puts the
 //   player at the route's start and waits for the resident tiles to hold still, then each animation
 //   frame teleports the player to where --speed m/s (40) has reached along the route (held at its
@@ -38,8 +41,8 @@ import {
   lengthOf,
 } from "./playtest-drive.ts"
 
-const USAGE = `usage: node src/tools/playtest.ts shots <url> <outdir> <name>:<x>,<y>[,<texels/m>] … [map] [--port N] [--wait s]
-       node src/tools/playtest.ts heap <url> [--port N] [--seconds s]
+const USAGE = `usage: node src/tools/playtest.ts shots <url> <outdir> <name>:<x>,<y>[,<texels/m>] … [map] [--port N] [--wait s] [--date YYYY-MM-DD]
+       node src/tools/playtest.ts heap <url> [--port N] [--seconds s] [--at x,y] [--date YYYY-MM-DD]
        node src/tools/playtest.ts drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,x2,y2,…]
 shots and drive need a dev build (pnpm exec vite: window.gta); heap works on dev and production builds`
 
@@ -63,12 +66,18 @@ export type Command =
       readonly spots: ReadonlyArray<Spot>
       readonly port: number
       readonly waitS: number
+      /** Unset: the day the game starts on. */
+      readonly date?: Day
     }
   | {
       readonly command: "heap"
       readonly url: string
       readonly port: number
       readonly seconds: number
+      /** Unset: where the game starts the player. */
+      readonly at?: { readonly x: number; readonly y: number }
+      /** Unset: the day the game starts on. */
+      readonly date?: Day
     }
   | {
       readonly command: "drive"
@@ -81,6 +90,39 @@ export type Command =
       /** Flat x, y pairs in map metres; unset: `defaultRoute()`. */
       readonly route?: ReadonlyArray<number>
     }
+
+/** A calendar day. */
+interface Day {
+  readonly year: number
+  readonly month: number
+  readonly day: number
+}
+
+/** Parses `YYYY-MM-DD`. */
+const parseDay = (text: string): Day => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
+  const [year, month, day] = [match?.[1], match?.[2], match?.[3]].map(Number)
+  if (match === null || month! < 1 || month! > 12 || day! < 1 || day! > 31)
+    throw new Error(`bad --date "${text}": want YYYY-MM-DD`)
+  return { year: year!, month: month!, day: day! }
+}
+
+/**
+ * The script each new document runs first so the game starts on `date`: the page's clock moved there at this time of day, running
+ * on from it (`main.ts` starts a new game on the browser's date).
+ */
+export const startOnScript = (date: Day): string => `(() => {
+  const Real = Date, now = new Real(), on = new Real(now)
+  on.setFullYear(${date.year}, ${date.month - 1}, ${date.day})
+  const offset = on.getTime() - now.getTime()
+  globalThis.Date = class extends Real {
+    constructor(...args) { super(...(args.length === 0 ? [Real.now() + offset] : args)) }
+    static now() { return Real.now() + offset }
+  }
+})()`
+
+/** The page script that stops the game's clock at noon (Rome) under a clear sky, settled (a dev build's sky store, `gta.sky`; a production build's clock runs on). */
+const NOON_SCRIPT = `window.gta?.sky !== undefined && (gta.sky.setRate(0), gta.sky.setTime(12 * 3600), gta.sky.force("clear"), gta.sky.settle())`
 
 /** Parses `map` or `<name>:<x>,<y>[,<texels/m>]`; the name becomes a file name, so it holds only letters, digits, `_` and `-`. */
 export const parseSpot = (text: string): Spot => {
@@ -119,6 +161,8 @@ export const parseCli = (argv: ReadonlyArray<string>): Command => {
       seconds: { type: "string" },
       speed: { type: "string" },
       route: { type: "string" },
+      date: { type: "string" },
+      at: { type: "string" },
     },
   })
   const port = positive(values.port, 9333, "--port")
@@ -134,10 +178,22 @@ export const parseCli = (argv: ReadonlyArray<string>): Command => {
       spots: spots.map(parseSpot),
       port,
       waitS: positive(values.wait, 6, "--wait"),
+      ...(values.date === undefined ? {} : { date: parseDay(values.date) }),
     }
   }
-  if (command === "heap" && url !== undefined && rest.length === 0)
-    return { command, url, port, seconds: positive(values.seconds, 10, "--seconds") }
+  if (command === "heap" && url !== undefined && rest.length === 0) {
+    const at = values.at?.split(",").map((v) => (v.trim() === "" ? Number.NaN : Number(v)))
+    if (at !== undefined && (at.length !== 2 || !at.every(Number.isFinite)))
+      throw new Error(`bad --at "${values.at}": want x,y`)
+    return {
+      command,
+      url,
+      port,
+      seconds: positive(values.seconds, 10, "--seconds"),
+      ...(at === undefined ? {} : { at: { x: at[0]!, y: at[1]! } }),
+      ...(values.date === undefined ? {} : { date: parseDay(values.date) }),
+    }
+  }
   if (command === "drive" && url !== undefined && rest.length === 0)
     return {
       command,
@@ -277,10 +333,19 @@ const shoot = async (tab: Tab, path: string): Promise<void> => {
 }
 
 const shots = async (tab: Tab, command: Extract<Command, { command: "shots" }>): Promise<void> => {
-  const seconds = await load(tab, command.url)
+  const seconds = await load(
+    tab,
+    command.url,
+    command.date === undefined ? undefined : startOnScript(command.date),
+  )
   console.log(`ready in ${seconds.toFixed(1)} s`)
   await needDevBuild(tab, "shots", ["heightAt"])
   await dismissTitle(tab)
+  if (command.date !== undefined) {
+    // After the card: its going sets the clock running. The game takes the requests on its next steps.
+    await evaluate(tab, NOON_SCRIPT)
+    await sleep(1000)
+  }
   mkdirSync(command.outdir, { recursive: true })
   for (const spot of command.spots) {
     if (spot.kind === "map") {
@@ -303,10 +368,21 @@ const shots = async (tab: Tab, command: Extract<Command, { command: "shots" }>):
 }
 
 const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): Promise<void> => {
-  await load(tab, command.url, FIRST_FRAME_SCRIPT)
+  await load(
+    tab,
+    command.url,
+    command.date === undefined
+      ? FIRST_FRAME_SCRIPT
+      : `${startOnScript(command.date)};${FIRST_FRAME_SCRIPT}`,
+  )
   const firstFrame = await evaluate<number | undefined>(tab, "window.__firstFrame")
   if (firstFrame === undefined) throw new Error("the first frame went unrecorded")
   await dismissTitle(tab)
+  if (command.date !== undefined) await evaluate(tab, NOON_SCRIPT)
+  if (command.at !== undefined) {
+    await needDevBuild(tab, "heap --at", ["teleport", "tiles"])
+    await settle(tab, command.at.x, command.at.y, 0)
+  }
   // The script resolves by seconds + 5 s: its command waits 5 s longer than that.
   const { slowest, p99 } = frameStats(
     await evaluate<Array<number>>(

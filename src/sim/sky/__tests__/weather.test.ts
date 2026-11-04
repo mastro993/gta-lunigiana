@@ -10,14 +10,24 @@ import { DAY, daysFromCivil, romeDay, utcFromRome } from "../calendar.ts"
 import {
   airAt,
   celsiusAt,
-  dailyMean,
   freezingLevel,
-  normalsAt,
   NO_SNOW,
   rainCooling,
+  seasonSnowLine,
 } from "../climate.ts"
 import { MAX_RATE, SECONDS_RANGE, setClock } from "../clock.ts"
-import { conditionsAt, DRY, fogAt, fogLayers, groundAt, snowCoverAt, windAt } from "../local.ts"
+import {
+  conditionsAt,
+  DRY,
+  fogAt,
+  fogLayers,
+  groundAt,
+  HIGHEST_SNOW,
+  SNOW_ASPECT,
+  SNOW_REACH,
+  snowCoverAt,
+  windAt,
+} from "../local.ts"
 import { place } from "../place.ts"
 import { calmPlan, dayWarmth, planFor, rainingAt, regimeAt } from "../plan.ts"
 import { describeWeather } from "../readout.ts"
@@ -92,15 +102,17 @@ test("a new game: clear and calm at the clear regime's targets with its weather 
     [0x1a2b3c4d, "clear", false, REGIME_SPECS.clear.cloud, 0, 0, 0, 0, NO_SNOW],
   )
   assert.deepEqual(october.plan, calmPlan(OCTOBER))
-  // January: snow down to where the day's mean normal is 0 °C, about 1490 m at the map's latitude.
-  const normals = normalsAt(JANUARY),
-    line = initialWeather(JANUARY, 1).snowLine
+  // 22 October: the season's line stands more than SNOW_REACH over the map's top, so no face of the map holds snow: none lies.
+  const top = Math.max(...MAP.tiles.map((t) => t.zmax)) / 10
+  assert.ok(seasonSnowLine(OCTOBER) > top + SNOW_REACH, `${seasonSnowLine(OCTOBER)} m`)
+  // Mid-January: snow on level ground from MODIS's 926 m over Lunigiana, 28 m higher at the map's latitude (9 km south of its
+  // window's middle); mid-July none.
+  const line = initialWeather(JANUARY, 1).snowLine
   assert.ok(
-    Math.abs(line - (1000 * dailyMean(normals, 0)) / normals.lapse) < 1e-9 &&
-      line > 1300 &&
-      line < 1700,
+    line === seasonSnowLine(JANUARY) && line > 900 && line < 1000,
     `January starts with snow on the high ground from ${line} m`,
   )
+  assert.equal(initialWeather(utc(2027, 7, 15, 12), 1).snowLine, NO_SNOW)
   assert.ok(Ops.hypot(october.cellX, october.cellY) > 50000, "no storm near")
 })
 
@@ -173,6 +185,29 @@ test("setWeather: settling the plan's own rain takes the plan's rate; forcing an
   assert.equal(regimeAt(plan, t), "rain")
   assert.equal(settledAt(weather, "rain", t).precip, plan.precip)
   assert.equal(settledAt(weather, "storm", t).precip, REGIME_SPECS.storm.precip)
+})
+
+test("setWeather: settling lays the season's snow line for the clock's date, or the snow down to the freezing level where it falls", () => {
+  // A deep January snowfall, then the clock moved to 1 March and to mid-July (the dev menu's date) and the weather settled.
+  const deep = { ...fresh(JANUARY), snowLine: 400 },
+    march = utc(2027, 3, 1, 11)
+  const clear = setWeather(deep, { regime: "clear", settle: true }, march)!
+  assert.ok(
+    clear.snowLine === seasonSnowLine(march) && clear.snowLine > 1300 && clear.snowLine < 1450,
+    `March's season: ${clear.snowLine} m`,
+  )
+  assert.equal(
+    setWeather(deep, { regime: "clear", settle: true }, utc(2027, 7, 15, 12))!.snowLine,
+    NO_SNOW,
+  )
+  const snowing = setWeather(deep, { regime: "snow", settle: true }, march)!
+  const level = freezingLevel(airAt(march, snowing))
+  assert.ok(
+    level < clear.snowLine && Math.abs(snowing.snowLine - level) < 1e-6,
+    `a March snowfall settles down to ${level} m`,
+  )
+  // Unsettled, a forced regime leaves the snow where it lay.
+  assert.equal(setWeather(deep, { regime: "clear" }, march)!.snowLine, 400)
 })
 
 test("advance: the clock standing still changes nothing while its day lasts; a forced regime keeps its day's plan; a new game's first step draws its day", () => {
@@ -399,6 +434,78 @@ test("local: snow lies above the snow line's ragged edge only, and wet ground un
     "frozen: no meltwater",
   )
   assert.deepEqual(groundAt({ wet: 0, snowLine: 1000 }, 0, 0, 700, mild), DRY)
+})
+
+test("local: snow lies lower on north faces and higher on south ones, and none on faces steep toward bare rock", () => {
+  // 30° faces, their normal half north or half south, and a 55° one: bare rock, as the terrain paints it.
+  const north = () => ({ north: 0.5, up: Math.sqrt(0.75) }),
+    south = () => ({ north: -0.5, up: Math.sqrt(0.75) }),
+    steep = () => ({ north: 0.82, up: 0.57 })
+  const mild = airAt(JANUARY, { cloud: 0, wind: 2, anomaly: 4 })
+  // 150 m under a 1000 m line: past the ragged edge's 60 m reach, but within the 220 m a 30° north face holds snow lower.
+  for (let k = 0; k < 200; k++) {
+    assert.equal(snowCoverAt(1000, k * 7, 0, 850, north), 1, "snowy above the north face's line")
+    assert.equal(
+      snowCoverAt(1000, k * 7, 0, 850, south),
+      0,
+      "bare on a south face at the same height",
+    )
+    assert.equal(snowCoverAt(1000, k * 7, 0, 850), 0, "bare on level ground there")
+    assert.equal(
+      snowCoverAt(1000, k * 7, 0, 1300, steep),
+      0,
+      "bare when steep, 300 m over the line",
+    )
+    assert.deepEqual(groundAt({ wet: 0, snowLine: 1000 }, k * 7, 0, 850, mild, north), {
+      wet: 0,
+      snow: 1,
+    })
+    assert.equal(groundAt({ wet: 0, snowLine: 1000 }, k * 7, 0, 1300, mild, steep).snow, 0)
+  }
+  // A south face's line stands 220 m higher: 1150 m on it is bare, and wet with meltwater from the snow above in a thaw.
+  const slush = Array.from({ length: 200 }, (_, k) =>
+    groundAt({ wet: 0, snowLine: 1000 }, k * 7, 0, 1150, mild, south),
+  )
+  assert.ok(
+    slush.every((g) => g.snow === 0) && slush.some((g) => g.wet > 0.5),
+    "the meltwater band under a south face's snow",
+  )
+  assert.equal(SNOW_ASPECT * 0.5, 220)
+  // A face too steep to hold snow takes the rain where it shows bare, above the snow line as below it.
+  for (let k = 0; k < 200; k++)
+    assert.deepEqual(groundAt({ wet: 1, snowLine: 1000 }, k * 7, 0, 1300, mild, steep), {
+      wet: 1,
+      snow: 0,
+    })
+})
+
+test("ground: the season's snow on the map's highest north faces lasts while its line stands within SNOW_REACH over the top, and goes past it", () => {
+  // 1 November: the season's line over the map's top (1799 m), and still within reach of its steepest snowy north faces.
+  const t = utc(2026, 11, 1, 7),
+    top = Math.max(...MAP.tiles.map((t) => t.zmax)) / 10,
+    start = fresh(t).snowLine
+  assert.ok(start > top && start < top + SNOW_REACH, `${start} m`)
+  assert.ok(SNOW_REACH < HIGHEST_SNOW)
+  // A clear day's thaw lifts it, and the snow lasts.
+  const day = run(fresh(t), t, 6 * 3600, 60)
+  assert.ok(
+    day.snowLine > start && day.snowLine < top + SNOW_REACH,
+    `six hours on: ${day.snowLine} m`,
+  )
+  // A snowfall brings such a line down from where it stands, not from the map's top in one step.
+  const january = utc(2027, 1, 15, 12),
+    snowing = { ...settledAt(fresh(january), "snow", january), snowLine: top + 300 },
+    minute = advanceWeather(snowing, january + 60, 60)
+  assert.ok(
+    minute.snowLine < top + 300 && minute.snowLine > top + 250,
+    `a minute of snow from ${top + 300} m: ${minute.snowLine} m`,
+  )
+  // Past the reach no face holds any: the line is gone.
+  assert.equal(
+    advanceWeather({ ...fresh(t), snowLine: top + SNOW_REACH - 0.001 }, t + 5 * 3600, 3600)
+      .snowLine,
+    NO_SNOW,
+  )
 })
 
 test("local: a January front rains on the low ground and snows on the high ground; the wind grows to 2.5 times the low ground's 1550 m above it", () => {

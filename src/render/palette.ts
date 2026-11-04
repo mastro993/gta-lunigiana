@@ -33,6 +33,11 @@ export const PALETTE = {
   // pine woods on the Massa hills (the coast's stone pines read 4–7 times apart on the two flights).
   beech: 0x404f22,
   pine: 0x36442b,
+  // Out of leaf (render/leaves): the grey-brown twigs of a bare chestnut or beech crown, the dull tan of the dead leaves a downy
+  // oak holds through the winter, and the leaf litter on a broadleaf wood's floor. Design values, not measured.
+  bareCrown: 0x7a6a5f,
+  oakDead: 0x8c6a48,
+  litter: 0x6e5b44,
   dirtTrack: 0x8f7a58,
   waterShallow: 0x8db4b0,
   waterDeep: 0x3f6d63,

@@ -45,11 +45,12 @@ import {
   waterMaterial,
   type Sink,
 } from "./geometry.ts"
+import type { Crown } from "./leaves.ts"
 import { Pieces } from "./pieces.ts"
 import { BEHIND, viewAxes } from "./pipeline.ts"
 import { glowMaterial } from "./sky/glow.ts"
 import { terrainChunk } from "./terrain.ts"
-import { bucketTileTrees, chunkTrees, treeMeshes } from "./trees.ts"
+import { bucketTileTrees, chunkTrees, treeMeshes, type TreeKind } from "./trees.ts"
 import { poolWater } from "./water.ts"
 
 const staticMesh = (
@@ -111,9 +112,13 @@ export class World {
   private axes = viewAxes(0)
   /** The view yaw `tileRects` were projected for. */
   private yaw = Number.NaN
+  /** What each tree kind wears at each height for the session (`crownsOn`): fixed, so no chunk is built again for the season. */
+  private readonly crowns: ((kind: TreeKind, z: number) => Crown) | undefined
 
-  constructor(parent: Object3D) {
+  /** The world under `parent`, its woods in leaf, or as `crowns` says (`crownsOn` the day the game starts). */
+  constructor(parent: Object3D, crowns?: (kind: TreeKind, z: number) => Crown) {
     this.parent = parent
+    this.crowns = crowns
   }
 
   /**
@@ -255,7 +260,7 @@ export class World {
     for (let n = 0; n < entries.length; n += 3)
       this.pieces.piece(entries[n]!).draw(at, entries[n + 1]!, entries[n + 2]!)
     poolWater(key, sink.water)
-    const meshes = [staticMesh(terrainChunk(key), terrainMaterial, false)]
+    const meshes = [staticMesh(terrainChunk(key, this.crowns), terrainMaterial, false)]
     const solid = [...(sink.solid.empty ? [] : [sink.solid.geometry()]), ...sink.pieces]
     if (solid.length > 0) meshes.push(staticMesh(merge(solid), solidMaterial, true))
     if (!sink.decal.empty) meshes.push(staticMesh(sink.decal.geometry(), decalMaterial, false))
@@ -263,6 +268,8 @@ export class World {
     // Unlit: it neither casts nor receives (an unlit program has no use for the shadow map).
     if (!sink.glow.empty) meshes.push(staticMesh(sink.glow.geometry(), glowMaterial, false, false))
     const trees = chunkTrees(needs.map((t) => this.trees[t]?.get(key)))
-    return trees === undefined ? meshes : [...meshes, ...treeMeshes(trees, treeMaterial)]
+    return trees === undefined
+      ? meshes
+      : [...meshes, ...treeMeshes(trees, treeMaterial, undefined, undefined, this.crowns)]
   }
 }

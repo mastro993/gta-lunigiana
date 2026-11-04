@@ -25,7 +25,8 @@ this WebGL page, so drive headless Chrome over CDP:
    slowest frame and the heap, and for a 40 m/s run across the map's tile seams (the slowest frame
    at each seam, the tiles in memory and the heap at the end), run
    `pnpm playtest shots|heap|drive … --port <port>` ([docs/map.md](../map.md#adding-a-part));
-   `shots` and `drive` need the dev server. For play,
+   `shots` and `heap` take `--date YYYY-MM-DD` to start the game on another day (its snow and its
+   woods' leaves), and `shots` and `drive` need the dev server. For play,
    `.research/playtest/bot.ts <seed>` walks, steals the Carabinieri car, drives and gets out;
    `cdp.ts` sends single steps. `.research/` is gitignored, so these scripts live only
    in the main checkout (`git worktree list`): copy them over, then change their hard-coded CDP port

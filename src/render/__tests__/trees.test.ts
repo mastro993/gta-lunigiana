@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MeshBasicMaterial } from "three"
+import { type InstancedMesh, MeshBasicMaterial } from "three"
 
 import { type Cover, coverAt } from "../../sim/map/cover.ts"
 import { isWood, MAP, TILE } from "../../sim/map/index.ts"
@@ -146,4 +146,43 @@ test("kindAt: a tree's species takes its height and aspect from its tile's 20 m 
     }),
   )
   assert.notDeepEqual(drawn[0], drawn[1], "the faces draw apart")
+})
+
+test("treeMeshes: out of leaf a broadleaf or a beech is drawn bare and half the oaks with their dead leaves, each by its height; the counts stay", () => {
+  const material = new MeshBasicMaterial()
+  // Three trees on flat ground at render y 0 (200 m a.s.l.) and 400 of each kind at 1000 m, in a row.
+  const kinds: Array<TreeKind> = ["broadleaf", "beech", "conifer"],
+    trees: Array<number> = [],
+    each: Array<TreeKind> = []
+  const high: ReadonlyArray<TreeKind> = ["broadleaf", "beech", "oak"]
+  kinds.forEach((kind, k) => {
+    trees.push(9 * k, 0, 1, 3 * k)
+    each.push(kind)
+  })
+  for (let n = 0; n < 1200; n++) {
+    trees.push(n, 50, 1, 3 * (n + 3))
+    each.push(high[n % 3]!)
+  }
+  const base = (_x: number, y: number) => (y === 0 ? 0 : 800)
+  // The season: in leaf below 900 m a.s.l. (render y 800 is 1000 m; read as a render y it would stay in leaf).
+  const crowns = (kind: TreeKind, z: number) =>
+    kind === "conifer" || z < 900 ? "leafy" : kind === "oak" ? "dead" : "bare"
+  const leafy = treeMeshes(trees, material, base, each),
+    seasonal = treeMeshes(trees, material, base, each, crowns)
+  // In leaf the low trees keep their crowns; out of leaf the broadleaf and the beech go bare, an oak bare or brown by its seed.
+  const by = (meshes: ReadonlyArray<InstancedMesh>) =>
+    new Map(meshes.map((m) => [m.geometry.uuid, m.count]))
+  const before = by(leafy),
+    after = by(seasonal)
+  assert.deepEqual([...before.values()], [801, 401, 1])
+  const [broadleaf, beech, conifer] = [...before.keys()]
+  assert.deepEqual([after.get(broadleaf!), after.get(beech!), after.get(conifer!)], [1, 1, 1])
+  const [bareBroadleaf, bareBeech, deadOak] = seasonal.slice(3).map((m) => m.count)
+  assert.equal(bareBeech, 400)
+  assert.equal(bareBroadleaf! + deadOak!, 800)
+  assert.ok(deadOak! > 160 && deadOak! < 240, `${deadOak} of 400 oaks hold their dead leaves`)
+  assert.equal(
+    seasonal.reduce((n, m) => n + m.count, 0),
+    trees.length / 4,
+  )
 })

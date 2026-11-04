@@ -59,6 +59,3 @@ export const atGradeY = (x: number, y: number): number => yOf(atGrade(x, y))
  */
 export const drawnY = (x: number, y: number, near: number): number =>
   yOf(drawnZ(x, y, groundZ(x, y, near + ELEVATION_BASE)))
-
-/** Faces steeper than this (normal y below it, ≈ 50°) show bare rock, and hold no snow (render/terrain, render/sky/surface). */
-export const ROCK_NORMAL_Y = 0.64

@@ -5,10 +5,12 @@ the moon, the air's temperature, the rain and snow falling, the wet and the snow
 fog and the wind at any point of the map. The physics, the traffic, the renderer, the audio and the
 HUD all read the weather through those same functions, so a road grips, looks and sounds as wet as
 it is. The weather is Italy's, from national statistics: it works unchanged on any Italian map,
-which enters only through its latitude and its heights ([The map's place](#the-maps-place)). The
-code is in `src/sim/sky/` and `src/sim/systems/sky.ts`; the systems' order and the saved resources
-are in [architecture.md](architecture.md#schedules-and-system-order). Heights are metres above sea
-level, the map frame is x east and y north, and times of day are Rome's.
+which enters only through its latitude and its heights ([The map's place](#the-maps-place)); only
+the snow a season leaves is measured over Lunigiana, and moved to other latitudes. The woods wear
+the season's leaves ([The woods' leaves](#the-woods-leaves)). The code is in `src/sim/sky/` and
+`src/sim/systems/sky.ts`; the systems' order and the saved resources are in
+[architecture.md](architecture.md#schedules-and-system-order). Heights are metres above sea level,
+the map frame is x east and y north, and times of day are Rome's.
 
 ## The game clock
 
@@ -411,15 +413,17 @@ than snapping, and the dev menu can force a regime over the plan.
   by hand takes its day's plan and, unless the regime is forced, the regime that plan sets for the
   new hour.
 - **A new game** starts clear and calm, at the clear regime's targets with no anomaly, on dry ground
-  under the season's snow line (where the day's mean normal is 0 °C, none when that lies above the
-  map: on the shipped map 1489 m on 15 January, 1521 m on 15 February, 1685 m on 15 December, none
-  from March to November), with no storm near. Its plan holds clear and calm for 90 game minutes
-  (`CALM_START`), so the first stretch of play (and the first frames of every scenario test) is
-  calm.
+  under the season's snow line ([The season's snow line](#the-seasons-snow-line): at 08:00 on the
+  shipped map 1401 m on 15 November, 907 m on 15 December, 952 m on 15 January, 1351 m on 15
+  February, 1413 m on 15 March and 1861 m on 15 April; from 30 April to 22 October it stands too
+  high for any face of the map to hold snow), with no storm near. Its plan holds clear and calm for
+  90 game minutes (`CALM_START`), so the first stretch of play (and the first frames of every
+  scenario test) is calm.
 - **Forcing.** `SetWeather { regime, settle? }` from the dev menu (`setWeather`, `weather.ts`)
   forces a regime over the plan (`forced`). With `settle` every value jumps to the regime's targets,
-  the ground to the wetness it would settle at, and where it snows the snow line down to the
-  freezing level; settling the plan's own rain takes the plan's rate. `regime: null` hands the
+  the ground to the wetness it would settle at, and the snow line to the season's on the clock's
+  date, or down to the freezing level where it snows, so a clock moved to March and settled shows
+  March's snow; settling the plan's own rain takes the plan's rate. `regime: null` hands the
   weather back to the day's plan and its regime at once, settled on the plan's values with
   `settle`. A request applies under the plan of the day the clock is on, so a clock stopped and
   moved to another day settles on that day's plan. An unknown regime is dropped.
@@ -510,8 +514,8 @@ snow line at or under the height at 08:00), November to April, the mean of seeds
 - **The far south's coasts** (38 N, sea level) see 0.19 a year, and no place sees snow at sea level
   from June to September.
 - **The shipped map** (seed 1): snowfall 6.3 days a year on its floor (230 m), 10.5 at 600 m, 18.1
-  at 1000 m, 29.8 at 1400 m and 44.9 on its top (1799 m); snow lies 56.7 days a year at 1100 m and
-  124 at 1750 m (asserted 25–70 and 90–170).
+  at 1000 m, 29.8 at 1400 m and 44.9 on its top (1799 m); snow lies on level ground 56.7 days a
+  year at 1100 m and 123 at 1750 m (asserted 25–70 and 90–170).
 
 ## The climate sources record
 
@@ -527,6 +531,14 @@ cited here.
 | Aeronautica Militare, *Atlante Climatico d'Italia* 1971–2000, 41 station sheets (terms: <https://www.meteoam.it/it/condizioni-utilizzo>) | from 31 lowland airports in four bands: the share of observations with cumulonimbus 1973–2000 (the thunder's months), fog days, clear-ish days (at most 4/8 at 06 and 18 UTC), observations with wind over 20 knots; the exposed capes, islands and hill stations for the wind's growth with height | free use with a mandatory credit line: "Informazioni elaborate utilizzando, tra l'altro, dati e prodotti del Servizio Meteorologico dell'Aeronautica Militare pubblicati sul sito www.meteoam.it" | accepted by the user, credited verbatim. The sheets were read from web-archive copies of `clima.meteoam.it`, which is offline; the cumulonimbus tables were read by OCR. Only band means are used: reporting cumulonimbus depends on the observer (Firenze 0.7–3.8 % against Pisa 3.3–9.4 %) |
 | Jennings, Winchell, Livneh & Molotch (2018), *Nat. Commun.* 9:1148 (<https://doi.org/10.1038/s41467-018-03629-7>) | the rain–snow threshold of 1.0 °C | CC BY 4.0 | accepted, cited (a method) |
 | Capozzi et al. (2025), *The Cryosphere* 19:565 (<https://tc.copernicus.org/articles/19/565/2025/>) | snowfall days and snow-cover days with height in the central and southern Apennines | CC BY 4.0 | accepted, cited (calibration targets) |
+| NASA MODIS snow cover, MOD10A1 and MYD10A1 version 6.1 (Hall & Riggs, NSIDC DAAC, <https://doi.org/10.5067/MODIS/MOD10A1.061>, <https://doi.org/10.5067/MODIS/MYD10A1.061>), as the `MODIS_Terra_NDSI_Snow_Cover` and `MODIS_Aqua_NDSI_Snow_Cover` images of NASA's GIBS (<https://gibs.earthdata.nasa.gov/>) | the season's snow line on level ground by half-month and its aspect ([The season's snow line](#the-seasons-snow-line)); 2,016 images were fetched once with the project's User-Agent, none ship | NASA's Earth science data carry no restriction on use (CC0 unless marked; <https://www.earthdata.nasa.gov/learn/use-data/data-use-policy>); NSIDC asks the data to be cited | accepted, cited, credited |
+| Terrain Tiles (Mapzen/Tilezen on AWS Open Data, terrarium tiles at zoom 11) | the 100 m elevation model the MODIS pixels were binned by | its sources' terms (SRTM public domain; EU-DEM free with the Copernicus credit) | an intermediate step: none of its heights ship |
+| Copernicus HR-WSI snow phenology (60 m) | considered for the season's snow line | free reuse with attribution ("Generated using European Union's Copernicus Land Monitoring Service information") | not used yet: the issue's later calibration |
+| MeteoSwiss phenological observations (<https://opendatadocs.meteoswiss.ch/a-data-groundbased/a9-phenological-observations>) and climate normals 1991–2020 | the woods' leaf-out and leaf fall ([The woods' leaves](#the-woods-leaves)): fits over 138 stations' beech (at least 10 years each) and 10 stations' chestnut south of the Alps, and the normal on each station's mean date | CC BY 4.0, credit "Source: MeteoSwiss" | accepted, cited, credited |
+| Čufar et al. (2012), *Trees* 26:1091; Dantec et al. (2014), *Int. J. Biometeorol.*; Vitasse et al. (2009), *Agric. For. Meteorol.* 149:735 | beech's leaf-out and leaf colouring with height: in Slovenia 2.6 days a 100 m for its first leaves and 1.9 for its colouring, in the Pyrenees 1.1–3.4 in spring by species | all rights reserved | facts only: cross-checks of the gradients |
+| Kulfan et al. (2018), *Plant Protect. Sci.* 54:272 | the Turkey oak's budburst about two weeks after the other oaks' | CC BY-NC 4.0 | a fact only: the oaks' lag |
+| Škvareninová et al. (2024), *Front. Plant Sci.* 15:1242695; Gričar et al. (2020), *Forests* 11:1104 | beech in the Western Carpathians, 2.2 days a 100 m in spring; the downy oak's and hop-hornbeam's leaf-out on the Slovenian karst | CC BY 4.0 | accepted, cited (cross-checks) |
+| European Atlas of Forest Tree Species (JRC, 2016): *Quercus pubescens* and *Quercus cerris* | the downy oak holds its dead leaves through the winter; the Turkey oak mostly sheds them | reuse with acknowledgement | facts only: `MARCESCENT` |
 | Morgenstern, Stucke, Mayr, Zeileis & Simon (2023), *Weather Clim. Dynam.* 4:489 (<https://wcd.copernicus.org/articles/4/489/2023/>) | 20–40 thunder days a year over most of Europe's lowlands, over 60 on northern Italy's mountains (after Taszarek et al. 2019), and the seasons north and south | CC BY 4.0 | accepted, cited |
 | Anderson & Klugmann (2014), *NHESS* 14:815 (<https://nhess.copernicus.org/articles/14/815/2014/>) | lightning by latitude band: 30–40 N peaks in September (20.8 % of the year's flashes), 40–50 N in July (26.3 %) | CC BY 3.0 | accepted, cited (checks the thunder's shape) |
 | Feudale, Manzato & Micheletti (2013), *Adv. Sci. Res.* 10:77 (<https://asr.copernicus.org/articles/10/77/2013/>) | north-east Italy's lightning: April to November, peaking in July and August, daily at 16–17 UTC | CC BY 3.0 | accepted, cited (the afternoon storms) |
@@ -587,34 +599,93 @@ and how snow-covered the ground is there, each 0 to 1.
 - **Drizzle.** Where wetting and drying balance the ground settles: overcast's 0.03 mm/h damps dry
   roads to 0.08 after a game hour and 0.27–0.30 after six, toward a balance of 0.37 (22 October,
   08:00) to 0.41 (15 January, noon).
-- **The snow line** is the lowest ground with snow cover (`NO_SNOW`, 6000 m, when none lies). While
-  more than drizzle falls and the freezing level lies under the line, snow settles from the map's
-  top (its tiles' highest node, `MAP.tiles`: 1799 m on the shipped map) down toward the freezing
-  level at 150 m per game hour for each mm/h, × `orographic` at the line (`SNOWING`). Otherwise it
-  rises by a degree-day melt of 1 m per game hour for each °C above 0 at the line, twice that under
-  rain (`MELTING`), and once above the map's top no snow is left. It never falls below the map's
-  lowest ground less 50 m (97 m on the shipped map), so all the map can lie white. The rates are
-  design values fitted to Capozzi et al.'s snow-cover days ([Snow](#snow)).
+- **The snow line** is the lowest level ground with snow cover (`NO_SNOW`, 6000 m, when none lies);
+  north faces hold snow below it and south faces only above it (the next item). While more than
+  drizzle falls and the freezing level lies under the line, snow settles from the line where one
+  lies (over the map's top it can still whiten north faces), else from the map's top (its tiles'
+  highest node, `MAP.tiles`: 1799 m on the shipped map), down toward the freezing level at 150 m per
+  game hour for each mm/h, × `orographic` at the line (`SNOWING`). Otherwise it rises by a
+  degree-day melt of 1 m per game hour for each °C above 0 at the line, twice that under rain
+  (`MELTING`), and once 408 m over the map's top (`SNOW_REACH`: the steepest face that holds snow,
+  at the edge's highest reach) no snow is left. It never falls below the map's lowest ground less 50
+  m (97 m on the shipped map), so all the map can lie white. The rates are design values fitted to
+  Capozzi et al.'s snow-cover days ([Snow](#snow)).
+- **Aspect and slope.** The line stands 440 m lower (`SNOW_ASPECT`) for each unit of the ground's
+  normal that points north, higher on a south face: a 30° north face (its normal 0.5 north) holds
+  snow 220 m under level ground's line, a 30° south face only 220 m over it. North faces see less
+  sun, and the snow lasts there: MODIS over Lunigiana measures the fit
+  ([The season's snow line](#the-seasons-snow-line)). Faces steeper than about 50° (the normal's up
+  part under 0.64, `ROCK_NORMAL_Y`, which the terrain paints as bare rock) hold none, and it thins
+  out from about 37° (0.8, `SNOW_SETTLES`). Which way the ground faces is the terrain mesh's own
+  triangle (`facingAt`, `src/sim/map/ground.ts`, the cell split as the renderer draws it); a road, a
+  bridge deck, a platform or a tunnel's floor counts as level. The wheels (`VehiclePhysics` and the
+  traffic's caution, through `underfoot`) and the footsteps' crunch read it; the rail, the HUD's
+  readout and the sounds' ambience take level ground. A face too steep for the snow takes the
+  weather's wet where it shows bare.
 - **The ragged edge.** Snow covers ground above the line's edge, fading in over ±10 m of height
   (`FEATHER`). The edge wanders by two octaves of value noise, ±45 m over 80 m cells plus ±15 m over
   20 m cells (`EDGE`), locked to the world and the same every game. Its lattice hash uses only
   32-bit integer arithmetic, so the renderer's shader draws the same edge (within 2 mm on the GPU)
-  and the white line on screen is where the grip drops.
+  and the white line on screen is where the grip drops, north faces and steep ones included.
 - **Meltwater.** Below the edge, a band 100 m deep (`MELT_BAND`) runs wet with meltwater where the
   air at that height is above 0 °C, fully from 1 °C (`MELT_FULL`), wetter toward the snow. Snowmelt
   wets only that band, never the map's `wet` (the lead's call): sunny valley roads 1000 m under the
-  snow stay dry. On a clear 15 January on the shipped map, from the season's 1489 m snow line with
-  the day's air mass at the normal, the map's `wet` stays 0 all day; by 11:00 (the line at 1.3 °C)
-  the band wets 2.9 % of the map's 21,776 road vertices, the lowest at 1367 m, while the line climbs
-  to 1517 m by 18:00. In a frost the band stays dry.
+  snow stay dry. On a clear 15 January on the shipped map, a new game's (seed 1) settled clear, from
+  the season's 952 m snow line, the map's `wet` stays 0 all day; by 11:00 (the line at 3.5 °C) the
+  band wets 6.0 % of the map's 21,769 road vertices, the lowest at 817 m, while the line climbs to
+  998 m by 18:00. In a frost the band stays dry.
 - **Where it falls short.** One wetness and one snow line serve the whole map, so tunnels and
-  bridges get wet and white too.
+  bridges get wet and white too, and a road takes the level line where the slope it cuts across holds
+  snow lower or higher.
 - **The rivers** take the same precipitation: it fills their catchments and they rise and fall
   with it ([water.md](water.md#the-rivers-flow)).
 
 `conditionsAt(t, weather, x, y, z)` gathers it all for one point: the air's temperature, the rain
 and the snow falling (mm/h of water, the precipitation at sea level × `orographic(z)` split by
 `snowShare`), the ground's wetness and snow cover, and the fog.
+
+## The season's snow line
+
+The snow a new game starts with, and the line Settle brings back, is what the season leaves on level
+ground on that date (`seasonSnowLine`, `climate.ts`), measured over Lunigiana from space, with the
+aspect fit `groundAt` and the renderer apply.
+
+- **The measure.** NASA's MODIS snow cover (the normalised difference snow index of MOD10A1 and
+  MYD10A1, Terra and Aqua) through NASA's GIBS imagery: every second day from 1 November to 31 May
+  of the ten seasons 2015/16–2024/25, 2,016 images of 156 × 116 pixels over 9.62–10.32 E and
+  43.98–44.50 N, crossed with a 100 m elevation model averaged over 500 m. A pixel is snowy at an
+  index of 10 or more, and a half-month counts where snow was seen at least once in it. The line is
+  the height where half the seasons saw snow, straight between 100 m bands.
+- **Level ground and the aspect.** In each half-month the line is found in nine classes of the
+  slopes' north part (the unit normal's horizontal north component, −0.34 to +0.33 at the classes'
+  means) and fitted straight: its value at 0 is level ground's line, its slope the aspect.
+- **The table.** `SNOW_SEASON` holds level ground's line at mid-month, the mean of the month's two
+  halves, and the line runs straight between the months' middles:
+
+  | Month | First half, m | Second half, m | `SNOW_SEASON`, m |
+  |---|---|---|---|
+  | November | 1601 | 1113 | 1357 |
+  | December | 733 | 984 | 859 |
+  | January | 979 | 872 | 926 |
+  | February | 1249 | 1417 | 1333 |
+  | March | 1369 | 1444 | 1407 |
+  | April | 1762 (every slope at once) | about 1980 | 1870 |
+
+  In late April no band reaches half (28–42 % from 1500 to 1800 m, rising about 4.5 points a
+  100 m), so its 1980 m is extrapolated. May's 2600 m and October's 2400 m carry the line off the
+  map's tops (October's meets early November's 1601 m late on the 8th; 1618 m at noon), and June to
+  September lay none (`NO_SNOW`). On the shipped map the season's snow can lie on some face from 23
+  October to 29 April.
+- **The aspect.** One slope with an intercept per half-month, over the ten half-months from November
+  to March, gives −436 m for each unit of north (`SNOW_ASPECT`, 440). It runs from −832 and −888 in
+  December and −816 and −669 in January, when the low sun leaves north faces in shade all day, to
+  −112 and +18 in March; in April only the north classes still hold snow, too few to fit. The same
+  images give issue #16's table (the lowest 100 m band on the line by region and aspect class) to
+  the band.
+- **Elsewhere in Italy.** This is the climate model's one table fitted to a place. A map at another
+  latitude gets the line moved by as much as its 0 °C line (where the day's mean normal is 0 °C)
+  stands above the one at 44.24 N, the window's middle: on the shipped map 28 m higher in
+  mid-January, in Sicily (38 N) about 1.3 km higher.
 
 ## Fog
 
@@ -791,8 +862,9 @@ sim functions; how the sky host, the materials and the post pass fit in the fram
   road stay readable) up to 0.92 for ground 400 m deeper, and thinner around the player. From a
   slope the low ground's fog reads as a white sea; it is lit mostly by the sky, so it turns warm
   only with the sun low (blue/red 0.70 with the sun 6° up, 0.92 at 10.7°). Rain and snow add a haze.
-- **The ground.** Snow lies above the sim's ragged edge on faces flatter than the bare-rock cliffs,
-  in a clumpy, world-locked stipple, with roads keeping 0.6 of it. Wet ground darkens (up to 0.4 of
+- **The ground.** Snow lies above the sim's ragged edge, lower on the terrain's north faces, on
+  faces flatter than the bare-rock cliffs, in a clumpy, world-locked stipple, with roads keeping 0.6
+  of it and crowns flecked on their sides. Wet ground darkens (up to 0.4 of
   its albedo, walls less), flat roads gather puddles (about 11 % of them fully wet) that mirror the
   sky, and rain rings the rivers. Wetness and meltwater follow `groundAt`. Trees sway by whole
   texels from 2 m/s of wind, at most 0.12 m.
@@ -822,6 +894,48 @@ sim functions; how the sky host, the materials and the post pass fit in the fram
   `prefers-reduced-motion` the bolt does not flicker and the flash is halved. At night a near flash
   lights the scene to about daylight for a quarter of a second.
 
+## The woods' leaves
+
+The deciduous trees wear the season the game starts in (`crownsOn`, `src/render/leaves.ts`): in
+leaf, bare, or (an oak) holding last year's dead leaves. The renderer fixes them for the session at
+the start's date, so no chunk is built again as the days pass, and a clock moved in the dev menu
+keeps them; `pnpm playtest shots --date` starts the game on another day
+([map.md](map.md#adding-a-part)).
+
+- **Leaf-out** (half the leaves unfolded) comes the first day from the spring equinox (day 80 of the
+  year, a floor that never binds at Lunigiana's latitude) when the daily-mean normal at the tree's
+  height reaches 13.5 °C on the coast, 2.8 °C less for each km up (`LEAF_OUT`), and then each kind's
+  lag (`LAG`): the beech none, the broadleaf (most of it chestnut) 6 days, the oaks 16 (between the
+  downy oak's 9, after the hop-hornbeam that greens with the beech, and the Turkey oak's 23, two
+  weeks after the other oaks; half each). At the shipped map's latitude the beech is in leaf from
+  day 102 of the year (12 April) at sea level, 113 at 500 m, 123 at 1000 m and 135 at 1500 m: about
+  2.2 days later per 100 m.
+- **Leaf fall** (half the leaves down) comes on day 285 + 2.3 × the September–November mean normal
+  at the tree's height (`FALL`): every kind is bare from day 322 (18 November) at sea level, 316 at
+  500 m, 310 at 1000 m and 304 at 1500 m, about 1.2 days earlier per 100 m.
+- **One height a day.** Leaf-out climbs the slopes and leaf fall comes down them, so on any day a
+  kind is in leaf below one height: `crownsOn` works it out once per kind from the normals, and a
+  tree's look is a comparison.
+- **The look.** A bare broadleaf or beech keeps its crown's shape in the grey-brown of its twigs
+  (`bareCrown`); out of leaf half the oaks (`MARCESCENT`, by each tree's seed: the downy oak holds
+  its dead leaves through the winter, the Turkey oak mostly sheds them) keep a crown in their tan
+  (`oakDead`) and the rest go bare; a broadleaf wood's floor shows its leaf litter (`litter`), a
+  mixed wood's half of it. Snow clings to every crown's sides at half the share it settles on flat
+  ground (`CANOPY_SNOW`), so a snowy wood is flecked white, conifers included. Conifers and pines
+  keep their needles.
+- **The fit.** The constants rest on MeteoSwiss's phenology network, 1991–2020 (CC BY 4.0), each
+  number checked again from its station files: 138 stations' beech leaf-out (101.8 days + 2.22 a 100
+  m), the chestnut 6 days behind it (the median of 1,081 station-years, 1991–2025), the daily-mean
+  normal at leaf-out falling 2.4–2.9 °C a km of height, and beech's leaf fall 0.93 ± 0.21 days
+  earlier a 100 m (1.22 south of the Alps). The leaf-fall rule is a design value between them: 1.2
+  days a 100 m, and at 300 m 14 November against the 9 November of Ticino's beech and the 8 November
+  of its chestnut (1991–2025), where the game's autumn runs about 1 °C warmer. Slovenia's network
+  (2.6 days a 100 m for the first leaves, 1.9 for the leaves' colouring, Čufar et al. 2012), the
+  Pyrenees' (Dantec et al. 2014) and the Western Carpathians' (2.21 in spring, Škvareninová et al.
+  2024) bound the gradients; a downy-oak and hop-hornbeam wood on the Slovenian karst (Gričar et al.
+  2020) and Kulfan et al. (2018: the Turkey oak about two weeks after the other oaks) the oaks' lag.
+  No open Italian series pairs these dates with height.
+
 ## How it sounds
 
 The audio director reads the clock, the weather at the ears and the lightning; the sounds and their
@@ -848,15 +962,16 @@ Where each part of the weather is set:
 | Where | What |
 |---|---|
 | `src/sim/sky/place.ts` | `REFERENCE_PLACE`, the place without a map; how the floor and the slope are worked out (`placeFrom`) |
-| `src/sim/sky/climate.ts` | the temperature normals (`SEA_LEVEL`, `LAPSE`, `RANGE`, `RANGE_MIN`), the sky tables shared with the odds (`RAIN_DAYS`, `CLEAR_SHARE`, `CLEAR_OF_CLEARISH`, `OVERCAST_DRY`), the air mass (`AIR_MASS`, `WET_OFFSET`), the cooling under rain (`COOLING`), the day's cycle (`WARMEST`, `NIGHT_DECAY`, `rangeShare`, `usualShare`), `snowShare`, `NO_SNOW`, `orographic` |
+| `src/sim/sky/climate.ts` | the temperature normals (`SEA_LEVEL`, `LAPSE`, `RANGE`, `RANGE_MIN`), the sky tables shared with the odds (`RAIN_DAYS`, `CLEAR_SHARE`, `CLEAR_OF_CLEARISH`, `OVERCAST_DRY`), the air mass (`AIR_MASS`, `WET_OFFSET`), the cooling under rain (`COOLING`), the day's cycle (`WARMEST`, `NIGHT_DECAY`, `rangeShare`, `usualShare`), `snowShare`, `NO_SNOW`, `orographic`, the season's snow line (`SNOW_SEASON`, `SNOW_SEASON_LAT`) |
 | `src/sim/sky/odds.ts` | `HEAVY_SHARE`, `RAINSTORM_SHARE`, `THUNDER_YEAR`, `THUNDER_SHAPE`, `FOG_DAYS`, `STRONG_WIND`, `WINDY_DAY`, `WET_PERSISTENCE`, `COLD_OUTBREAK`, `RAIN_SWING` |
 | `src/sim/sky/plan.ts` | the day plan: `CALM_START`, `LEAD`, `CONVECTIVE`, `AMOUNT`, `HOURS`, `HEAVIEST`, `RUNS_ON`, `WINDY_HOURS`, `FOG_FORMS`, `STRATUS` |
 | `src/sim/sky/regimes.ts` | `REGIME_SPECS`: each regime's targets; `RAINS_FROM` |
 | `src/sim/sky/weather.ts` | `EASE`, `TOWARD`, `BREEZE_TURNS`; wetting and drying (`WETTING`, `PRECIP_FULL`, `DRYING`, `DRIZZLE`); the snow line (`SNOWING`, `MELTING`); the storm (`UPWIND`, `DRIFT`, `FLASHES`, `BOLTS`, `SCATTER`, `OVERHEAD`, `IN_VIEW`, `STRIP`, `REDRAWS`) |
-| `src/sim/sky/local.ts` | the snow edge (`EDGE`, `FEATHER`), the meltwater band (`MELT_BAND`, `MELT_FULL`), the fog (`FOG_TOP`, `BASE`, `CLOUD_FOG`), the wind's growth over the floor (`WIND_UP`) |
+| `src/sim/sky/local.ts` | the snow edge (`EDGE`, `FEATHER`), its aspect and slope (`SNOW_ASPECT`, `ROCK_NORMAL_Y`, `SNOW_SETTLES`, `SNOW_REACH`), the meltwater band (`MELT_BAND`, `MELT_FULL`), the fog (`FOG_TOP`, `BASE`, `CLOUD_FOG`), the wind's growth over the floor (`WIND_UP`) |
 | `src/sim/sky/readout.ts` | the readout's thresholds |
 | `src/sim/tyres.ts`, `src/sim/handling.ts` | wet and snow grip (`WET`, `SNOW`), the `weatherGrip` knob and its presets |
-| `src/render/sky/` | the look: `light.ts` (dimming, lamps, night), `post.ts` (fog, grades), `surface.ts` (snow, wet, clouds, sway), `precipitation.ts`, `lightning.ts`, `lamps.ts`, `night-lights.ts` |
+| `src/render/sky/` | the look: `light.ts` (dimming, lamps, night), `post.ts` (fog, grades), `surface.ts` (snow, `CANOPY_SNOW`, wet, clouds, sway), `precipitation.ts`, `lightning.ts`, `lamps.ts`, `night-lights.ts` |
+| `src/render/leaves.ts`, `src/render/trees.ts`, `src/render/palette.ts` | the woods' leaves: `LEAF_OUT`, `LAG`, `FALL`; `MARCESCENT`; `bareCrown`, `oakDead`, `litter` |
 | `src/audio/director/sky.ts` | how the time of day and the weather move the sounds |
 
 ## Tests
@@ -874,7 +989,8 @@ node --test src/sim/sky/__tests__/*.long-test.ts src/sim/__tests__/sky.long-test
   against JPL Horizons and USNO at the reference site.
 - `climate.test.ts`: the normals give the national tables back, the day's cycle (coldest at
   sunrise, warmest at 14:30, a clear calm day wider than an overcast one, no jump at night), the
-  phase rule, the freezing level, `orographic` and the cooling under rain.
+  phase rule, the freezing level, `orographic`, the cooling under rain, and the season's snow line
+  (MODIS's at mid-month, moved with the 0 °C line elsewhere, none in summer).
 - `odds.test.ts`: the table at 42 N, thunder at 40 a year under the rain days with the north's
   summer peak and the south's autumn one, snowfall growing with height and northward and never at
   sea level in summer, and Rome's calendar month.
@@ -884,9 +1000,12 @@ node --test src/sim/sky/__tests__/*.long-test.ts src/sim/__tests__/sky.long-test
 - `calibration.long-test.ts` (`pnpm test:long`): the weather as it falls against the table, the
   daily range, and snow
   ([Calibration](#calibration)).
-- `weather.test.ts`: the regimes' words and targets, the requests, easing, the stopped clock's new
-  day, wetting and drying, drizzle, the snow line and meltwater, fog, the cloud bases, wind, the
-  storm cell and lightning, the readout, and the map's place.
+- `weather.test.ts`: the regimes' words and targets, the requests (Settle laying the season's snow
+  line), easing, the stopped clock's new day, wetting and drying, drizzle, the snow line and
+  meltwater, snow lower on north faces and none on steep ones (which take the rain), the season's
+  snow lasting within `SNOW_REACH` over the top, fog, the cloud bases, wind, the storm cell and
+  lightning, the readout, and the map's place; `underfoot.test.ts`: a wheel on a north face near
+  Monzone takes the snow it holds where level ground lies bare.
 - `mapfree.test.ts`: the modules the schema and the HUD import decode no map, and the place once
   the map is decoded; `place.map-test.ts` (`pnpm test:map`): the place fitted again over every node
   of the map.
@@ -898,7 +1017,10 @@ node --test src/sim/sky/__tests__/*.long-test.ts src/sim/__tests__/sky.long-test
   (traffic on a wet road), `index.long-test.ts` (`pnpm test:long`: determinism and saves at rate 600
   with a forced storm),
   the render's `src/render/sky/__tests__/*.test.ts` (the sun and moon over the loaded map's place,
-  the melt band's line against `celsiusAt`, the buffers at 30 mm/h), the audio's
+  the shader's snow against `groundAt` on faces of every slope and aspect, the melt band's line
+  against `celsiusAt`, the buffers at 30 mm/h), `src/sim/map/__tests__/ground.test.ts` and
+  `src/render/__tests__/terrain.test.ts` (`facingAt` the terrain mesh's own faces, level on roads;
+  the litter out of leaf), `leaves.test.ts` and `trees.test.ts` (the woods' leaves), the audio's
   `director/__tests__/weather.test.ts` (the wind's height law from the map's floor, the usual wind
   against the weather's own), and the HUD's `clock.test.ts`, `sky.test.ts` (Auto heads for and
   settles on the day's plan), `debug-sky.test.ts` (the odds and seed text, the odds readout equal
@@ -942,6 +1064,24 @@ What the model leaves out, or matches only roughly:
   values the same at every latitude and month), so a month's total follows its rain days and
   classes.
 - **One wetness and one snow line** for the whole map: tunnels and bridges get wet and white too.
+- **The season's snow line** counts snow seen at least once in a half-month, so it sits lower than
+  the snow lying on a given day, and 2015–2025 was a poor decade (a long-term mean puts the lines
+  100–200 m lower). It is the one place-fitted table, moved to other latitudes by the 0 °C line
+  alone; late April's line, May's and October's are extrapolated.
+- **One aspect all winter**: MODIS measures −850 m a unit of north in December and January and
+  about 0 in March, the game −440 all year, and a fresh snowfall lies 440 m lower on north faces at
+  once. A road takes the level line across a slope that holds snow lower or higher.
+- **The woods' leaves** are fixed at the start's date for the session (a clock moved in the dev menu
+  keeps them), the broadleaf greens on the chestnut's date though its hop-hornbeam greens with the
+  beech, the beech may green up to 6 days late at its own heights (the model's spring there runs
+  about 1 °C warmer than the Swiss stations'), years vary by about 7 days in spring and 9 in autumn,
+  the autumn's colours are not drawn (a crown is green until it is bare), and the bare and dead
+  crowns' colours are design values. The sounds keep the summer's leaves: the wind's rustle and the
+  rain on leaves follow the forest's share alone, stilled only by snow, so a bare wood rustles.
+- **Crowns take the level snow line**, as roads do, while the ground under them follows its aspect:
+  on a south face up to 220 m under its line a wood's crowns can be white over a bare floor, and on
+  a north face the floor white under bare crowns. Each tree would need its ground's facing as an
+  instance attribute.
 - **Storms on small maps.** The storm cell is placed by the player, so a small map drops more bolts
   off its edges; the bolt rates above are the shipped map's.
 - **Lightning needs a player**; without one the cell does not move and nothing flashes.

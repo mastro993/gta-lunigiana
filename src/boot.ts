@@ -58,7 +58,7 @@ try {
   if (map.id === "cesena")
     for (const credit of document.querySelectorAll(".credits, .fine"))
       credit.textContent =
-        "Map data © OpenStreetMap contributors (ODbL) · Terrain: Regione Emilia-Romagna, DTM 5x5 - ultima edizione (CC BY 4.0) · Dati climatici: ISPRA SCIA (CC BY 4.0) · Informazioni elaborate utilizzando, tra l'altro, dati e prodotti del Servizio Meteorologico dell'Aeronautica Militare pubblicati sul sito www.meteoam.it"
+        "Map data © OpenStreetMap contributors (ODbL) · Terrain: Regione Emilia-Romagna, DTM 5x5 - ultima edizione (CC BY 4.0) · Dati climatici: ISPRA SCIA (CC BY 4.0) · Neve: NASA MODIS (MOD10A1, MYD10A1) · Fenologia: Source: MeteoSwiss (CC BY 4.0) · Informazioni elaborate utilizzando, tra l'altro, dati e prodotti del Servizio Meteorologico dell'Aeronautica Militare pubblicati sul sito www.meteoam.it"
   for (const link of document.querySelectorAll<HTMLAnchorElement>("#map-choice a")) {
     const url = new URL(link.href)
     const seed = new URLSearchParams(location.search).get("seed")

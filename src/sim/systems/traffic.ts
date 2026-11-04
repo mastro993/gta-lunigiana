@@ -52,7 +52,7 @@ import {
   Weather,
 } from "../schema.ts"
 import { airAt } from "../sky/climate.ts"
-import { groundAt } from "../sky/local.ts"
+import { underfoot } from "../sky/underfoot.ts"
 import { PERSON_RADIUS } from "../tuning.ts"
 import { weatherFactor } from "../tyres.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
@@ -274,7 +274,7 @@ export const TrafficAI = Game.System(
     const { step } = resources.time.get(),
       handling = resources.handling.get(),
       weather = resources.weather.get(),
-      air = airAt(resources.clock.get().seconds, weather)
+      under = underfoot(weather, airAt(resources.clock.get().seconds, weather))
     const random = Random.draw(resources.rng)
     const states = resources.crossings.get()
     const trains = queries.trains.each().map(({ entity, data }) => ({
@@ -402,7 +402,7 @@ export const TrafficAI = Game.System(
         fy = Ops.sin(pose.angle)
       // The share of its dry grip the road leaves (wet or snowy): it drives, follows and backs up that much more carefully.
       const grip = weatherFactor(
-        groundAt(weather, pose.x, pose.y, data.chassis.get().z - spec.cg, air),
+        under(pose.x, pose.y, data.chassis.get().z - spec.cg),
         handling.weatherGrip,
       )
 

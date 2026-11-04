@@ -13,7 +13,14 @@ import {
 
 import { DAY, daysFromCivil, utcFromRome } from "../../../sim/sky/calendar.ts"
 import { airAt, type Air, celsiusAt, NO_SNOW, normalsAt } from "../../../sim/sky/climate.ts"
-import { EDGE, groundAt, MELT_BAND, REACH, snowCoverAt, snowEdge } from "../../../sim/sky/local.ts"
+import {
+  EDGE,
+  groundAt,
+  HIGHEST_SNOW,
+  MELT_BAND,
+  snowCoverAt,
+  snowEdge,
+} from "../../../sim/sky/local.ts"
 import {
   actorMaterial,
   decalMaterial,
@@ -182,16 +189,20 @@ const lattice = (i: number, j: number): number => {
   return (h >>> 0) / 2147483648 - 1
 }
 
-/** The shader's snow cover and wetness at three point (x, y, z), mirrored from its GLSL with the constants read out of it. */
+/** The terrain's snow cover and wetness at three point (x, y, z), mirrored from its GLSL with the constants read out of it. */
 const mirror = (() => {
   const f = lambert()
-  patchShader(f, "solid")
+  patchShader(f, "terrain")
   const edge = [...f.fragmentShader.matchAll(/([\d.]+) \* weatherNoise\(p, ([\d.]+)\)/g)].map(
     (m) => ({ height: Number(m[1]), cell: Number(m[2]) }),
   )
   const feather = Number(/#define WEATHER_FEATHER ([\d.]+)/.exec(f.fragmentShader)?.[1])
   const melt = Number(/#define WEATHER_MELT ([\d.]+)/.exec(f.fragmentShader)?.[1])
   const meltFull = Number(/#define WEATHER_MELT_FULL ([\d.]+)/.exec(f.fragmentShader)?.[1])
+  const aspect = Number(/([\d.]+) \* north - uSnowLineY/.exec(f.fragmentShader)?.[1])
+  const [, bare, full] = /rock = smoothstep\(([\d.]+), ([\d.]+), weatherNormal\.y\)/
+    .exec(f.fragmentShader)!
+    .map(Number)
   const mix = (a: number, b: number, t: number) => a * (1 - t) + b * t
   const noise = (px: number, py: number, cell: number) => {
     const fx = px / cell,
@@ -216,39 +227,58 @@ const mirror = (() => {
     edge,
     feather,
     melt,
+    aspect,
     edgeAt: (mx: number, my: number) =>
       edge.reduce((sum, { height, cell }) => sum + height * noise(mx, my, cell), 0),
-    /** The cover and wetness at three point (x, y, z) from the cells `applySurface` wrote. */
-    ground: (x: number, y: number, z: number) => {
+    /** The cover, the share of it that settles and the wetness at three point (x, y, z) on a face whose world normal is `n`, from the cells `applySurface` wrote. */
+    ground: (x: number, y: number, z: number, n: Vector3 = new Vector3(0, 1, 0)) => {
       const { uSnowLineY, uWet, uMelt } = SKY_UNIFORMS
       const above =
         y +
-        edge.reduce((sum, { height, cell }) => sum + height * noise(x, -z, cell), 0) -
+        edge.reduce((sum, { height, cell }) => sum + height * noise(x, -z, cell), 0) +
+        aspect * -n.z -
         uSnowLineY.value
       const cover = smoothstep(-feather, feather, above)
       const thaw = Math.max(
         0,
         Math.min(1, (uMelt.value.x + uMelt.value.y * (y - uSnowLineY.value)) / meltFull),
       )
+      const settles = smoothstep(bare!, full!, n.y)
       return {
         cover,
-        wet: Math.max(uWet.value, thaw * Math.max(0, Math.min(1, 1 + above / melt))) * (1 - cover),
+        settles,
+        wet:
+          Math.max(uWet.value, thaw * Math.max(0, Math.min(1, 1 + above / melt))) *
+          (1 - cover * settles),
       }
     },
   }
 })()
 
-test("the GLSL holds verbatim the hash, noise, snow and wet lines `mirror` copies: map north is three's −z, the edge raises the ground, wet only off the snow", () => {
+test("the GLSL holds verbatim the hash, noise, snow and wet lines `mirror` copies: map north is three's −z, the edge raises the ground, a north face lowers the line but a road's does not, wet only off the snow", () => {
   const f = lambert()
   patchShader(f, "solid")
+  // Only the terrain's snow line follows its faces' aspect: roads, decks, roofs and crowns take the level line, as the sim's
+  // facingAt gives all but the terrain.
+  for (const variant of VARIANTS) {
+    const g = lambert()
+    patchShader(g, variant)
+    assert.equal(
+      g.fragmentShader.includes("#define WEATHER_ASPECT"),
+      variant === "terrain",
+      variant,
+    )
+  }
   for (const line of [
     ...NOISE_GLSL,
     `float weatherSnowEdge(vec2 p) { return ${EDGE.map(({ height, cell }) => `${height.toFixed(1)} * weatherNoise(p, ${cell.toFixed(1)})`).join(" + ")}; }`,
     "vec2 weatherMap = vec2(vWeatherWorld.x, -vWeatherWorld.z);",
-    "float above = vWeatherWorld.y + weatherSnowEdge(weatherMap) - uSnowLineY;",
+    "float north = 0.0;",
+    "float north = -weatherNormal.z;",
+    `float above = vWeatherWorld.y + weatherSnowEdge(weatherMap) + ${mirror.aspect.toFixed(1)} * north - uSnowLineY;`,
     "float cover = smoothstep(-WEATHER_FEATHER, WEATHER_FEATHER, above);",
     "float thaw = clamp((uMelt.x + uMelt.y * (vWeatherWorld.y - uSnowLineY)) / WEATHER_MELT_FULL, 0.0, 1.0);",
-    "float wet = max(uWet, thaw * clamp(1.0 + above / WEATHER_MELT, 0.0, 1.0)) * (1.0 - cover);",
+    "float wet = max(uWet, thaw * clamp(1.0 + above / WEATHER_MELT, 0.0, 1.0)) * (1.0 - cover * rock);",
   ])
     assert.equal(count(f.fragmentShader, line), 1, line)
 })
@@ -290,14 +320,23 @@ test("the white edge on screen is where the tyres lose grip: the shader's snow c
     for (let k = 0; k < 2000; k++) {
       const x = 2000 + ((k * 7919) % 900),
         north = -5400 + ((k * 104729) % 700),
-        z = snowLine - 200 + ((k * 31) % 320)
-      const shader = mirror.ground(x, yOf(z), -north)
-      const sim = groundAt({ wet, snowLine }, x, north, z, air)
+        z = snowLine - 420 + ((k * 31) % 720)
+      // A face of every slope up to 55° (bare rock from 50°) and every aspect: its normal in three space, and as the sim's facing.
+      const slope = (((k * 17) % 56) * Math.PI) / 180,
+        aspect = k * 2.399963,
+        n = new Vector3(
+          Math.sin(slope) * Math.sin(aspect),
+          Math.cos(slope),
+          -Math.sin(slope) * Math.cos(aspect),
+        ),
+        facing = () => ({ north: -n.z, up: n.y })
+      const shader = mirror.ground(x, yOf(z), -north, n)
+      const sim = groundAt({ wet, snowLine }, x, north, z, air, facing)
       assert.ok(
-        Math.abs(shader.cover - snowCoverAt(snowLine, x, north, z)) < 1e-9,
+        Math.abs(shader.cover * shader.settles - snowCoverAt(snowLine, x, north, z, facing)) < 1e-9,
         `cover at (${x}, ${north}, ${z} m)`,
       )
-      assert.ok(Math.abs(shader.cover - sim.snow) < 1e-9)
+      assert.ok(Math.abs(shader.cover * shader.settles - sim.snow) < 1e-9)
       worst = Math.max(worst, Math.abs(shader.wet - sim.wet))
       if (shader.cover > 0.05 && shader.cover < 0.95) edges++
       if (sim.wet > wet + 0.05) melting++
@@ -317,7 +356,7 @@ test("the white edge on screen is where the tyres lose grip: the shader's snow c
   )
   // No snow anywhere, and the plain wetness, under the sim's no-snow line.
   applySurface({ ...calm, snowLine: NO_SNOW, wet: 0.4, air: january(14, 6) })
-  assert.deepEqual(mirror.ground(2364, yOf(1748), 5129), { cover: 0, wet: 0.4 })
+  assert.deepEqual(mirror.ground(2364, yOf(1748), 5129), { cover: 0, settles: 1, wet: 0.4 })
 })
 
 test("the meltwater band's air is the sim's: a straight line in height wherever snow can lie in Italy, in every month, hour and weather", () => {
@@ -333,7 +372,7 @@ test("the meltwater band's air is the sim's: a straight line in height wherever 
         for (let snowLine = 0; snowLine <= 4810; snowLine += 370) {
           applySurface({ ...calm, snowLine, air })
           const { x: atLine, y: perMetre } = SKY_UNIFORMS.uMelt.value
-          for (let z = snowLine - REACH - MELT_BAND; z <= snowLine + REACH; z += 10)
+          for (let z = snowLine - HIGHEST_SNOW - MELT_BAND; z <= snowLine + HIGHEST_SNOW; z += 10)
             worst = Math.max(
               worst,
               Math.abs(atLine + perMetre * (z - snowLine) - celsiusAt(air, z)),
