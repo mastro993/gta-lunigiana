@@ -1227,6 +1227,12 @@ the pieces where tracks meet (`rail-graph.ts`).
   noise: a 9.4° turn on a 0.54 m segment at (−1055.4, 917.8), ±6–7° zig-zags on 1.1 m segments at
   the Ugliancaldo tunnel's west portal. The line's sharpest vertex turn is now 5.5°, the CTR's own
   at (−1253.1, 2271.8); 3 rail segments under 2 m are left, each between two shared vertices.
+- **A way's end at another's switch**: a way that leaves another at a switch node, which the other
+  way's chain placed on its own CTR track first, ends at that node, not at the foot of its end on
+  its own CTR track, where the two lie under 1 m apart (the residual the build allows): the CTR
+  draws Pieve San Lorenzo's yard siding 621942965 from 0.9 m beside the loop's switch, and the foot
+  hung a 0.9 m stub past it. Farther apart (2.0 m at the yard's east end, where the CTR draws the
+  tracks parallel to the switch) the line keeps to its CTR track and joins the node.
 - **The build checks** that every shared id survives and that the shipped (rounded) line keeps to
   the surveyed track on the matched at-grade and bridge samples: median 0.02 m, p90 0.04 m, at
   most 0.15 m, where the line cuts the corner of the CTR's 7° kink at the Via Castel dell'Aquila

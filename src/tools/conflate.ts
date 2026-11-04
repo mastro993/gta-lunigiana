@@ -287,7 +287,21 @@ export const conflateRail = (
       const line = lines[run.track]!,
         lo = Math.min(run.sig[0]!, run.sig.at(-1)!),
         hi = Math.max(run.sig[0]!, run.sig.at(-1)!)
-      for (const k of [run.k0, run.k1]) items.push({ key: k * h, v: match[k]!.foot! })
+      // A run's ends are vertices of the line, but where a chain's end node an earlier chain placed
+      // (a switch, on the track it leaves) lies within RESIDUAL.max of its foot on this track, the
+      // node is the end: the foot hung a stub past it (Pieve San Lorenzo's yard siding 621942965,
+      // 0.9 m out of its switch, where the CTR's siding starts beside the loop). Farther, the line
+      // keeps to the CTR and joins the node (the yard's east end, its tracks drawn 2 m apart).
+      for (const k of [run.k0, run.k1]) {
+        const foot = match[k]!.foot!,
+          end = k === 0 ? pts[0]! : k === samples.length - 1 ? pts.at(-1)! : undefined,
+          placed = end?.id === undefined ? undefined : moves.get(end.id)
+        if (
+          placed === undefined ||
+          Math.hypot(placed.x - foot.x, placed.y - foot.y) >= RESIDUAL.max
+        )
+          items.push({ key: k * h, v: foot })
+      }
       line.pts.forEach(([x, y], j) => {
         if (line.s[j]! > lo && line.s[j]! < hi)
           items.push({ key: keyOf(run, line.s[j]!), v: { x, y } })
