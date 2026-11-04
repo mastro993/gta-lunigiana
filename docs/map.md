@@ -1398,7 +1398,7 @@ the pieces where tracks meet (`rail-graph.ts`).
   bridge reaches past it as far as the cells the at-grade track beyond cannot take: a wide stream's
   protected bed (w ≥ 4 m: w/2 + 1 m) and a main road's core (motorway to tertiary, whose rank beats
   the rail's, [section
-  7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts-road-levelsts-junction-reachts): w/2 + 2.3 m), each
+  7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts): w/2 + 2.3 m), each
   plus a cell's diagonal (5.7 m, the farthest a corner of a cell the track runs through lies off
   it). A bridge end that falls short slides along the track: 9 ends, among them the Aulella bridge
   261445433's north end by 13.9 m (OSM ended it 3.1 m inside the river, and the track beyond hung
@@ -1590,7 +1590,7 @@ from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
   for a river polygon's outer edge, and the river polygons again after them, under the water kept
   below the decks.
 
-### 7. Road and rail profiles (`profiles.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`)
+### 7. Road and rail profiles (`profiles.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`)
 
 - Pieces are chained through nodes where exactly two ends meet. Each chain is resampled every 4 m
   from the ground and smoothed with a moving average. Bridges and tunnels are straight between
@@ -1673,7 +1673,8 @@ from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
 - A road tunnel's mouth opens at its approaches' level: each approach's first 5.7 m out of the
   mouth (a cell's diagonal, the farthest a corner of the cell holding the mouth lies), within its
   chain's core and ahead of the mouth (the road over the tunnel keeps its cells over it), is
-  written before every other claim and kept against all of them (`mouths` in `profiles.ts`). A
+  written before every other claim and kept against all of them (`mouths` in `profiles.ts`,
+  `mouthClaim` in `grid-claims.ts`). A
   road over the tunnel or beside the mouth took that cell at its own level otherwise: at Pieve San
   Lorenzo's underpass under the station (756577583) Via della Stazione, a tertiary road over it
   4.5 m from its south mouth, held that mouth 5.8 m over the floor, and Via Bugliatico, at a
@@ -2126,7 +2127,7 @@ change an input.
   which reads the NC5 fetch-lig wrote and the terrain fetch-rt wrote from it (Pages leaves it
   unset).
   `map-key.ts` hashes the raw lock, `package.json`, `pnpm-lock.yaml` and every file `build-map.ts`
-  imports, followed from import to import (117 files today, in `src/tools`, `src/sim`, `src/render`
+  imports, followed from import to import (118 files today, in `src/tools`, `src/sim`, `src/render`
   and `src/maps.ts`, through the bakes and the overview's look, `src/render/map-style.ts`), so a
   change anywhere else reuses the cached maps, and a change to the full map's look builds a new
   overview. It fails rather than miss a file: on a specifier that names no file, an `import(`
@@ -3526,7 +3527,7 @@ longer lucido:
   carry no heights. On the line's at-grade track, sampled every 2 m against the LiDAR's ground
   (`loadDtm`), the bed lies within 0.09 m of it at the median and 0.56 m at p90 (0.10 and 0.90 m on
   lucido alone, whose figures by an earlier measure were 0.10 and 0.86 m: [section
-  7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts-road-levelsts-junction-reachts));
+  7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts));
   where the ground is steeper than the limit allows or bends within the 100 m smoothing it stays
   off: up to 1.3 m under the ground and 3.2 m over it along Monzone's station (s 8568–8818), 2.2 m
   under it south of Gragnola (s 11318–11568), 4.5 m over it past the Aulella bridge north of

@@ -3,7 +3,8 @@ import { test } from "node:test"
 
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
-import { makeProfiler, replayClaims, type Linear } from "../profiles.ts"
+import { replayClaims } from "../grid-claims.ts"
+import { makeProfiler, type Linear } from "../profiles.ts"
 import { roadLevels } from "../road-levels.ts"
 import type { Grid } from "../terrain.ts"
 
