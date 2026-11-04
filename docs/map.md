@@ -2511,7 +2511,9 @@ carries the 2009 sheets' id slot (`SOURCES.ctr2009` × 2¹⁶ + section 22D, 197
 church whose outline holds (−441, −4844), the Chiesetta alpina, which OSM's chapel 700633221 drew
 before. `readSurveys` skips a source whose folder is missing, so a build on a `data/raw` without the
 2009 sheets would keep OSM's buildings there and fail no other check; on #11's first build, whose
-buildings are OSM's there, it fails on both counts.
+buildings are OSM's there, it fails on both counts. And that Fivizzano's walled centre is stone:
+every building whose centre lies 5 m and more inside one of its four cores (`STONE_CORES`, traced
+on the walls' outline to 5 m) is stone, but its churches (#17's acceptance).
 
 `src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
 `decodeMap` (a newline inside a name, the coarse grid) and a tile through `packTile` and

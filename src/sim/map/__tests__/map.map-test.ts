@@ -6,6 +6,7 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { type Dem, loadDtm } from "../../../tools/dtm.ts"
+import { STONE_CORES } from "../../../tools/features.ts"
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
 import { listedNodes } from "../../../tools/grid-tiles.ts"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
@@ -731,6 +732,31 @@ test("the Carrara side's buildings come from the CTR 1:2000 of 2009", () => {
 })
 
 // Regression: every way named Torrente Lucido was 8 m wide, up the Vinca valley to its source under the Garnerone.
+test("Fivizzano's walled centre is stone: every building in its cores but the churches", () => {
+  // Issue #17. OSM maps no city walls: the cores trace the walls' outline, each disc the smallest,
+  // to 5 m, holding its buildings (STONE_CORES), so a building within 5 m of a disc's rim may stand
+  // outside the walls.
+  const cores = STONE_CORES.filter(
+    ([x, y]) => Ops.hypot(x - VILLAGES.Fivizzano.x, y - VILLAGES.Fivizzano.y) < 500,
+  )
+  assert.equal(cores.length, 4)
+  let inside = 0
+  for (const b of WHOLE.buildings) {
+    let x = 0,
+      y = 0
+    for (let k = 0; k < b.outer.length; k += 2) {
+      x += b.outer[k]!
+      y += b.outer[k + 1]!
+    }
+    x /= b.outer.length / 2
+    y /= b.outer.length / 2
+    if (!cores.some(([cx, cy, r]) => Ops.hypot(x - cx, y - cy) < r - 5)) continue
+    inside++
+    assert.equal(b.style, b.kind === "church" ? "church" : "stone", `${b.kind} ${b.id}`)
+  }
+  assert.ok(inside > 150, `${inside} buildings in Fivizzano's cores`)
+})
+
 test("water: the Lucido is 8 m on the valley floor and 4 m above Vinca", () => {
   const w = (id: number) => WHOLE.water.find((o) => o.id === id)?.w
   assert.deepEqual([w(254825035), w(140780317), w(696231807), w(687230881)], [8, 4, 8, 14])
