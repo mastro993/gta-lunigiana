@@ -358,6 +358,28 @@ export const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
   [4205, 1405, 60], // Ugliancaldo, the borgo along the ridge
   [4270, 1320, 65], // Ugliancaldo, the borgo down to Sant'Andrea
   [4805, 3225, 65], // Argigliano, the borgo below Santa Maria
+  // Fivizzano's part (#17): each core traced as an outline on rt_ofc.2k10 crops (checked on
+  // rt_ofc.5k23.32bit, CC BY 4.0) with the built buildings over them, each disc the smallest, to
+  // 5 m, holding the outline's buildings, but where a comment says it was grown so the borgo
+  // carries its hamlet's one style (HAMLET). OSM maps no city walls: Fivizzano's are traced.
+  [-630, 8340, 95], // Fivizzano, the walls' south-west round Piazza Garibaldi
+  [-565, 8450, 105], // Fivizzano, the walled centre round Piazza Medicea
+  [-520, 8575, 60], // Fivizzano, the walls' north, Via Pognana up to the gate
+  [-450, 8505, 60], // Fivizzano, the walls' east, the Via Roma row
+  [485, 8990, 45], // Verrucola, the fortress and the church below it
+  [565, 8995, 50], // Verrucola, the borgo east to the road's bend
+  [3610, 4200, 50], // Casola, the borgo round Santa Felicita
+  [3670, 4200, 35], // Casola, the borgo's eastern houses
+  [-5025, 4830, 70], // Soliera, the castle borgo on Via Soleria di Castello
+  [-4905, 5060, 75], // Soliera, the borgo along Via del Convento
+  [-3055, 4700, 85], // Gassano, the borgo round its church
+  [-3305, 6600, 95], // Moncigoli, the borgo round its church
+  [5055, 9840, 40], // Mommio, the borgo at the village node
+  [5015, 9965, 40], // Mommio, the houses round the church
+  [5095, 9910, 40], // Mommio, the eastern lane's row: untraced, so the borgo carries its 104 (63 stone)
+  [5285, 4970, 95], // Pugliano, the borgo round its two churches
+  [5330, 3585, 70], // Pieve San Lorenzo by the station: its outline's 55 m grown to carry the hamlet
+  [5405, 3425, 75], // Pieve San Lorenzo round the pieve: its outline's 65 m grown to carry the hamlet
 ]
 /** Generic buildings closer than this (m) form a hamlet: up to HAMLET of them take one facade style. */
 const HAMLET_LINK = 25

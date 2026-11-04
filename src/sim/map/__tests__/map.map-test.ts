@@ -109,6 +109,22 @@ const VILLAGES = {
   Vinca: { x: 2273.6, y: -2620.3 },
   Ugliancaldo: { x: 4157.6, y: 1461.8 },
   Tenerano: { x: -2169.5, y: -986.6 },
+  // Fivizzano's part (#17), each toLocal of its OSM place node to 0.1 m.
+  Fivizzano: { x: -320.8, y: 8511.4 }, // 61753605, place=town
+  "Casola in Lunigiana": { x: 3636.2, y: 4245.8 }, // 61753608
+  Gassano: { x: -2931.1, y: 4708.6 }, // 1267021147
+  Soliera: { x: -4821.2, y: 5160.6 }, // 1267021078
+  Moncigoli: { x: -3288.1, y: 6589.5 }, // 1267021341
+  Mommio: { x: 5044.1, y: 9835.6 }, // 1293345469
+  Pugliano: { x: 5494.5, y: 5007.8 }, // 1293344699, Minucciano (LU)
+  "Pieve San Lorenzo": { x: 5305.7, y: 3596 }, // 686999380, Minucciano (LU)
+  Vigneta: { x: 4280.6, y: 5462.6 }, // 689297699
+  Castiglioncello: { x: 4440, y: 5894.1 }, // 691864868
+  Signano: { x: 1240.2, y: 9427.5 }, // 1293344812
+  Turano: { x: 1712.1, y: 9444 }, // 1293345648
+  Antognano: { x: 6014.3, y: 4363.9 }, // 1293344553, Minucciano (LU)
+  "Pieve San Paolo": { x: 3450.9, y: 10553.7 }, // 1293344540
+  Verrucola: { x: 639.8, y: 8993.7 }, // 1467639451: its disc holds the Fortezza della Verrucola
 }
 
 test("bounds and heightmap cover the play area", () => {
@@ -626,10 +642,18 @@ test("road names, classes, styles, area kinds and districts", () => {
   for (const [name, p] of Object.entries(VILLAGES)) assert.equal(districtAt(p.x, p.y).name, name)
   assert.ok(MAP.districts.includes(districtAt(MAP.bounds.maxX, MAP.bounds.minY))) // far corner: nearest rim
   // Regression: by the nearest rim, the HUD named Vinca on the summits above it; a wide Balzone disc then took Vinca's hairpins.
-  for (const name of ["Monte Sagro", "Pizzo d'Uccello"]) {
+  for (const name of ["Monte Sagro", "Pizzo d'Uccello", "Cima Belfiore", "Monte Tondo"]) {
     const peak = MAP.pois.find((p) => p.kind === "natural=peak" && p.name === name)!
     assert.equal(districtAt(peak.x, peak.y).name, name)
   }
+  // Issue #17: the passes name their own districts, Carpinelli's inside Casone Carpinelli's disc.
+  for (const name of ["Passo dei Carpinelli", "Passo di Tea", "Passo del Romito"]) {
+    const pass = MAP.pois.find((p) => p.kind === "natural=saddle" && p.name === name)
+    assert.ok(pass !== undefined, `${name}'s OSM node`)
+    assert.equal(districtAt(pass.x, pass.y).name, name)
+  }
+  // The Fortezza della Verrucola is the hamlet's, by the castle rule: its own disc holds it.
+  assert.equal(districtAt(468, 9009).name, "Verrucola")
   assert.equal(districtAt(1379, -2603).name, "Vinca", "the SP59 hairpins below Vinca")
   // Regression: the I Pianelli locality (a hillside above the railway) took Equi Terme's station and spa.
   for (const p of MAP.pois.filter(
