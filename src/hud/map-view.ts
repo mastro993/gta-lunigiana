@@ -196,8 +196,9 @@ export const mapGestures = (
   let travel = 0
   root.addEventListener("pointerdown", (event) => {
     const e = event as unknown as Pointer
-    if (!onMap(event.target) || (e.pointerType === "mouse" && e.button !== 0)) return
+    // Every new press starts as a tap, on the map or off it: a click on the header after a drag closes the map.
     if (down.size === 0) travel = 0
+    if (!onMap(event.target) || (e.pointerType === "mouse" && e.button !== 0)) return
     down.set(e.pointerId, { x: e.offsetX, y: e.offsetY })
     surface.setPointerCapture(e.pointerId)
   })

@@ -214,6 +214,18 @@ test("gestures: the wheel zooms about the cursor, a trackpad's pinch faster, and
   assert.deepEqual(g.zooms[0]!.slice(1), [5, 6])
 })
 
+test("gestures: a press off the map after a drag is a tap again, so a click on the header closes the map", () => {
+  const g = bound()
+  g.send("pointerdown", { pointerId: 1, pointerType: "mouse", offsetX: 100, offsetY: 100 })
+  g.send("pointermove", { pointerId: 1, offsetX: 160, offsetY: 100 })
+  g.send("pointerup", { pointerId: 1 })
+  assert.equal(g.gestures.dragged(), true)
+  g.offMap()
+  g.send("pointerdown", { pointerId: 1, pointerType: "mouse", offsetX: 10, offsetY: 10 })
+  g.send("pointerup", { pointerId: 1 })
+  assert.equal(g.gestures.dragged(), false)
+})
+
 test("gestures: presses off the map, and the mouse's other buttons, move nothing", () => {
   const g = bound()
   g.send("pointerdown", { pointerId: 1, pointerType: "mouse", button: 2, offsetX: 0, offsetY: 0 })
