@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { groundZ } from "../../../sim/map/ground.ts"
+import { MAP } from "../../../sim/map/index.ts"
 import { CROSSINGS } from "../../../sim/rail/crossings.ts"
 import { LINES, pointAt } from "../../../sim/rail/lines.ts"
 import { TRAINS } from "../../../sim/rail/models.ts"
@@ -17,8 +18,15 @@ import { rollingOf } from "../rail.ts"
 import { away, beside, car, HOUSE_WALL, MEADOW, person, rig, train, world } from "../testing.ts"
 
 const LINE = LINES[0]!
-/** An open stretch at grade by Equi Terme, straight and clear for 400 m (s 3600–4300). */
-const OPEN = 4000
+/** The line's longest tunnel, from Equi Terme toward Pieve San Lorenzo. */
+const LONGEST = LINE.tunnels.reduce((a, b) => (b.to - b.from > a.to - a.from ? b : a))
+/** Deep in it: its middle, 1.6 km from either portal. */
+const DEEP = Math.round((LONGEST.from + LONGEST.to) / 2)
+/** An open stretch at grade by Equi Terme, straight and clear for 400 m: 100 m short of its platforms, toward the long tunnel. */
+const OPEN = (() => {
+  const equi = MAP.railway.stations.find((st) => st.name === "Equi Terme")!
+  return Math.round(LONGEST.to < equi.s0 ? equi.s0 - 100 : equi.s1 + 100)
+})()
 const FAST = 80 / 3.6
 
 test("a train's two power packs are heard from its end cars, the nearer one louder", () => {
@@ -202,7 +210,7 @@ test("riding through a tunnel no wind, rain or crickets play, and the own wheels
     )
     return director.held()
   }
-  const bore = ride(1900),
+  const bore = ride(DEEP),
     open = ride(OPEN)
   assert.ok(open.has("wind"))
   assert.deepEqual(
@@ -238,7 +246,7 @@ test("a train's wheels roll on with no jump as its cars pass into and out of a t
 })
 
 test("a train deep in the long tunnel is not heard through 440 m of hill; one in a short tunnel is heard from its portal, not through the hill over it", () => {
-  const deep = 1900,
+  const deep = DEEP,
     over = pointAt(LINE, deep)
   const director = rig()
   director.hear(world(over, { trains: [train(1, deep, { v: FAST, power: 1 })] }))

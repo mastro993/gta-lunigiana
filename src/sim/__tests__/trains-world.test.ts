@@ -135,22 +135,26 @@ test("trains: under the rail bridges by Monzone a car and a walker go on as if n
 })
 
 /**
- * The point of the line on a bridge nearest the player's start with water 1.5 m deep or more under it in a spate, out of a
- * swimmer's depth (on the Aulella's bridge at Gragnola, 9 m over its bed), found by geometry: its s and where it is.
+ * The deepest point under the line's bridge nearest the player's start whose water there is 1.5 m deep or more in a spate, out
+ * of a swimmer's depth, found by geometry: its s and where it is. The Aulella's bridge by Soliera, 15.6 m over its bed, 2.25 m
+ * deep: at Gragnola the Aulella drains 41–60 km² of the map's own, no longer the 161 km² it brought in at the map's old edge,
+ * and is 1.39 m deep at most, where a swimmer stands again within 5 s.
  */
 const OVER_RIVER = (() => {
   const start = MAP.spawns.player
-  let best: { s: number; x: number; y: number; far: number } | undefined
-  for (let s = 0; s < line.length; s += 1) {
-    const at = pointAt(line, s)
-    if (!at.bridge) continue
-    const water = waterUnder(at.x, at.y, true, SPATE)
-    if (water === undefined || water.depth < 1.5) continue
-    const far = Ops.hypot(at.x - start.x, at.y - start.y)
-    if (far < (best?.far ?? Number.MAX_VALUE)) best = { s, x: at.x, y: at.y, far }
+  const deepest: Array<{ s: number; x: number; y: number; depth: number }> = []
+  for (let s = 0, on = false; s < line.length; s += 1) {
+    const at = pointAt(line, s),
+      water = at.bridge ? waterUnder(at.x, at.y, true, SPATE) : undefined
+    const last = deepest.at(-1)
+    if (water !== undefined && on && water.depth > last!.depth)
+      deepest[deepest.length - 1] = { s, x: at.x, y: at.y, depth: water.depth }
+    else if (water !== undefined && !on) deepest.push({ s, x: at.x, y: at.y, depth: water.depth })
+    on = water !== undefined
   }
-  assert.ok(best !== undefined)
-  return best
+  const far = (p: { x: number; y: number }) => Ops.hypot(p.x - start.x, p.y - start.y)
+  const best = deepest.filter((p) => p.depth >= 1.5).reduce((a, b) => (far(b) < far(a) ? b : a))
+  return { ...best, far: far(best) }
 })()
 
 test("trains: a swimmer swept under a rail bridge over the river in a spate is not on the track: a train crossing over leaves them as with no train", () => {

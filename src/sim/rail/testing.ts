@@ -13,7 +13,7 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import { wallsAlong } from "../body.ts"
 import { segDist2 } from "../collide.ts"
-import { footZ, groundZ, roadLevel } from "../map/ground.ts"
+import { footZ, groundZ, platformTop, roadLevel } from "../map/ground.ts"
 import { graph, MAP, type Road, type RoadLine } from "../map/index.ts"
 import { eachTile, placeAt, type Tile } from "../map/tiles.ts"
 import { laneOf, type Step } from "../route.ts"
@@ -326,6 +326,26 @@ export const lowBridge = once(() => {
   ).reduce((a, b) => (b.to - b.from > a.to - a.from ? b : a))
   return (from + to) / 2
 })
+/**
+ * Where Monzone's line runs at grade off every platform, its ground level with the rail: the first s (by 10 m) on from its
+ * platforms toward +s with no bridge or tunnel within 60 m either way, whose ground on foot 2 and 4 m out either side is within
+ * 0.5 m of the rail head. A train's body fits on the track round it, a car beside it at grade.
+ */
+export const atGrade = once(() => {
+  const line = LINES[MONZONE.line]!
+  const lifted = (s: number) =>
+    line.level.some((lv, k) => lv !== 0 && line.s[k]! < s + 60 && line.s[k + 1]! > s - 60)
+  for (let s = MONZONE.s1 + 60; s < line.length - 60; s += 10) {
+    const at = pointAt(line, s)
+    const level = [-4, -2, 2, 4].every((d) => {
+      const x = at.x - Ops.sin(at.angle) * d,
+        y = at.y + Ops.cos(at.angle) * d
+      return Math.abs(footZ(x, y) - at.z) < 0.5 && platformTop(x, y) === undefined
+    })
+    if (level && !lifted(s)) return s
+  }
+  throw new Error("no stretch at grade past Monzone")
+})
 /** Just inside a tunnel of Monzone's line: the s 3 m in from a portal where the map's ground 2 m out either side is within 1 m of the rail head (a cutting's floor, not the hill above). */
 export const tunnelMouth = once(() =>
   LINES[MONZONE.line]!.tunnels.flatMap((t) => [t.from + 3, t.to - 3]).find((s) =>
@@ -437,19 +457,25 @@ export const downToBox = once(() => {
 })
 
 /**
- * Every road of the tiles `line`'s track crosses (all within `HALO` of it are there), whole with its
- * attributes, each once with its index into `MAP.roads`, in the whole map's order.
+ * Every road of the tiles `line`'s track crosses where a segment of it ends within `reach` m of `spot` (all within `HALO` of
+ * it are there), whole with its attributes, each once with its index into `MAP.roads`, in the whole map's order.
  */
-const roadsAlong = (line: Line): Array<{ readonly index: number; readonly road: Road }> => {
+const roadsAlong = (
+  line: Line,
+  spot: Vec2.Vec2,
+  reach: number,
+): Array<{ readonly index: number; readonly road: Road }> => {
   const tiles = new Set<Tile>()
+  const near = (k: number) => Vec2.distance({ x: line.x[k]!, y: line.y[k]! }, spot) <= reach
   for (let k = 0; k + 1 < line.x.length; k++)
-    eachTile(
-      Math.min(line.x[k]!, line.x[k + 1]!),
-      Math.min(line.y[k]!, line.y[k + 1]!),
-      Math.max(line.x[k]!, line.x[k + 1]!),
-      Math.max(line.y[k]!, line.y[k + 1]!),
-      (tile) => tiles.add(tile),
-    )
+    if (near(k) || near(k + 1))
+      eachTile(
+        Math.min(line.x[k]!, line.x[k + 1]!),
+        Math.min(line.y[k]!, line.y[k + 1]!),
+        Math.max(line.x[k]!, line.x[k + 1]!),
+        Math.max(line.y[k]!, line.y[k + 1]!),
+        (tile) => tiles.add(tile),
+      )
   const lines = new Map<number, RoadLine>()
   for (const { vectors } of tiles)
     vectors.roads.ids.forEach((id, k) => lines.set(id, vectors.roads.items[k]!))
@@ -459,14 +485,16 @@ const roadsAlong = (line: Line): Array<{ readonly index: number; readonly road: 
 }
 
 /**
- * Every way on foot into a road tunnel under Monzone's line, at grade or on the bridge over a tunnel's mouth: from 15 m out along
- * a road at grade through one of its mouths at its floor's level (one per mouth), through that mouth, to its point nearest the
- * track where it passes under it (the rail head more than 2 m over its floor), every 0.05 m; with that tunnel's road, its index
- * in `MAP.roads` and the track's s over that point.
+ * Every way on foot into a road tunnel under Monzone's line within 4 km of its station (the tiles round it; rail.map-test.ts
+ * checks every underpass's mouths), at grade or on the bridge over a tunnel's mouth: from 15 m out along a road at grade through
+ * one of its mouths at its floor's level (one per mouth), through that mouth, to its point nearest the track where it passes
+ * under it (the rail head more than 2 m over its floor), every 0.05 m; with that tunnel's road, its index in `MAP.roads` and the
+ * track's s over that point.
  */
 export const underpassWays = once(() => {
-  const line = LINES[MONZONE.line]!
-  return roadsAlong(line).flatMap(({ index, road }) => {
+  const line = LINES[MONZONE.line]!,
+    station = pointAt(line, (MONZONE.s0 + MONZONE.s1) / 2)
+  return roadsAlong(line, station, 4000).flatMap(({ index, road }) => {
     if (road.tunnel !== true) return []
     const pts = pointsOf(road)
     // Its point nearest the centreline, segment by segment, where the track runs over it at grade.

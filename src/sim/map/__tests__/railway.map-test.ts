@@ -4,9 +4,10 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { wholeMap } from "../../../tools/map-file.ts"
+import { PARTS } from "../../../tools/region.ts"
 import { pointInRing, segDist2 } from "../../collide.ts"
 import { groundZ, platformTop, terrainZ } from "../ground.ts"
-import { graph, isDrivable, MAP, type RailLine } from "../index.ts"
+import { graph, isDrivable, MAP, outlineDistance, type RailLine } from "../index.ts"
 import { RAIL_LIFT } from "../kinds.ts"
 
 const { hypot } = Ops
@@ -34,6 +35,29 @@ const chained = (line: RailLine) => {
   return { pts, z, s }
 }
 const lines = railway.lines.map(chained)
+/** The bed's z at arc length `at` along a chained line. */
+const zAt = ({ z, s }: ReturnType<typeof chained>, at: number) => {
+  let k = 1
+  while (k < s.length - 1 && s[k]! < at) k++
+  return z[k - 1]! + ((z[k]! - z[k - 1]!) * (at - s[k - 1]!)) / (s[k]! - s[k - 1]! || 1)
+}
+/** Where `line` runs in a tunnel, consecutive tunnel pieces merged: from s to s along its chained vertices. */
+const tunnelsOf = (line: RailLine): Array<[number, number]> => {
+  const out: Array<[number, number]> = []
+  let walked = 0
+  for (const { rail } of line.pieces) {
+    const { pts, tunnel } = MAP.rail[rail]!
+    let length = 0
+    for (let k = 2; k < pts.length; k += 2)
+      length += hypot(pts[k]! - pts[k - 2]!, pts[k + 1]! - pts[k - 1]!)
+    const last = out.at(-1)
+    if (tunnel === true && last !== undefined && Math.abs(last[1] - walked) < 1e-6)
+      last[1] = walked + length
+    else if (tunnel === true) out.push([walked, walked + length])
+    walked += length
+  }
+  return out
+}
 /** The point at arc length `at` along a chained line and its unit direction. */
 const pointAt = ({ pts, s }: ReturnType<typeof chained>, at: number) => {
   let k = 1
@@ -84,21 +108,24 @@ test("railway: each line runs terminal to terminal, its pieces sharing their end
     [],
     "every running piece is on one line",
   )
-  // Today one line: the Lucca–Aulla line from the east edge (towards Minucciano) to the north edge (towards Fivizzano).
+  // Today one line: the Lucca–Aulla line from the play area's outline at Pieve San Lorenzo (in the Galleria del Lupacino,
+  // towards Piazza al Serchio) to its outline by Rometta (towards Aulla), where the build cuts it (to 0.1 m).
   assert.equal(railway.lines.length, 1)
-  const { pts, s } = lines[0]!
-  assert.equal(pts[0], MAP.bounds.maxX, "it starts on the east edge")
-  assert.equal(pts.at(-1), MAP.bounds.maxY, "and ends on the north edge")
-  assert.ok(s.at(-1)! > 10_850 && s.at(-1)! < 10_950, `${s.at(-1)!.toFixed(0)} m`)
+  const { pts } = lines[0]!
+  assert.ok(outlineDistance(pts[0]!, pts[1]!) < 0.08, "it starts on the outline")
+  assert.ok(outlineDistance(pts.at(-2)!, pts.at(-1)!) < 0.08, "and ends on it")
 })
 
 test("railway: OSM's speed limits run along the line, 80 km/h from Equi Terme's stop to Gragnola's", () => {
   const line = railway.lines[0]!,
     { s } = lines[0]!
+  const tunnels = tunnelsOf(line)
   let at = 0
   for (const [from, to, kmh] of line.maxspeed) {
     assert.ok(Math.abs(from - at) < 0.11 && to > from, `span ${from}–${to} follows on from ${at}`)
-    assert.ok(kmh === 80 || kmh === 85, `${kmh} km/h`)
+    // 80 or 85 km/h; OSM tags the Galleria del Lupacino, in from the line's start, 140.
+    const bored = tunnels.some(([a, b]) => from > a - 0.11 && to < b + 0.11)
+    assert.ok(kmh === 80 || kmh === 85 || (kmh === 140 && bored), `${kmh} km/h at ${from}–${to}`)
     at = to
   }
   assert.ok(Math.abs(at - s.at(-1)!) < 0.11, "the spans cover the line")
@@ -121,19 +148,24 @@ test("railway: OSM's speed limits run along the line, 80 km/h from Equi Terme's 
 })
 
 test("railway: the line calls at each station along its platforms, on their side", () => {
+  // OSM's five from Pieve San Lorenzo to Gassano: Fivizzano-Gassano a halt.
   assert.deepEqual(
     railway.stations.map((st) => [st.name, st.line]),
     [
+      ["Minucciano-Pieve-Casola", 0],
       ["Equi Terme", 0],
       ["Monzone-Monte dei Bianchi-Isolano", 0],
       ["Gragnola", 0],
+      ["Fivizzano-Gassano", 0],
     ],
   )
   for (const st of railway.stations) {
     const line = lines[st.line]!
     assert.ok(st.s1 - st.s0 > 60 && st.s1 - st.s0 < 200, `${st.name}: ${st.s0}–${st.s1}`)
-    // The station node (on the building) lies beside the extent.
-    const node = MAP.pois.find((p) => p.kind === "railway=station" && p.name === st.name)!
+    // The station or halt node (on the building) lies beside the extent.
+    const node = MAP.pois.find(
+      (p) => (p.kind === "railway=station" || p.kind === "railway=halt") && p.name === st.name,
+    )!
     const f = sOf(line, node.x, node.y)
     assert.ok(f.s > st.s0 - 20 && f.s < st.s1 + 20 && f.d < 20, `${st.name}'s station node`)
     // Its platforms beside the line project inside the extent, and the side 2.1 m off its middle is on one.
@@ -177,6 +209,11 @@ test("railway: each level-crossing box holds the vertices its road shares with t
     const mx = c.nodes.reduce((a, n) => a + graph.nodes[n]!.x, 0) / c.nodes.length,
       my = c.nodes.reduce((a, n) => a + graph.nodes[n]!.y, 0) / c.nodes.length
     assert.ok(hypot(c.x - mx, c.y - my) < 0.08, "x, y is the nodes' mean")
+    // A box over a loop or siding alone names no line (−1): Pieve San Lorenzo's foot crossing of its loop.
+    if (c.line < 0) {
+      assert.equal(c.s, -1)
+      continue
+    }
     assert.equal(c.line, 0)
     const p = pointAt(lines[0]!, c.s)
     assert.ok(
@@ -184,13 +221,16 @@ test("railway: each level-crossing box holds the vertices its road shares with t
       `${road.name}: the line at s ${c.s} is on a node`,
     )
   }
-  // OSM's five road crossings (Via Castel dell'Aquila over both Gragnola tracks, one box) and Equi Terme's foot crossing.
+  // OSM's six road crossings (Via Castel dell'Aquila over both Gragnola tracks, one box; an unnamed road by Gassano) and two
+  // foot crossings, Equi Terme's and Pieve San Lorenzo's.
   assert.deepEqual(roadNames.sort(), [
     "Via Castel dell'Aquila",
     "Via Nuova",
     "Via Riolo",
     "Viale 20 Settembre",
     "path",
+    "path",
+    "unclassified",
   ])
   assert.equal(
     railway.crossings.find((c) => WHOLE.roads[c.road]!.name === "Via Castel dell'Aquila")!.nodes
@@ -295,16 +335,24 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
         }
         probes++
         assert.ok(top !== undefined, `(${x}, ${y}) on ${p.name}`)
-        assert.equal(groundZ(x, y), Math.max(top, terrainZ(x, y)), `(${x}, ${y}) on ${p.name}`)
+        // Or a footway OSM draws along it, as at Fivizzano-Gassano: a path follows the terrain, 0.06 m over it, so it lies
+        // up to 0.09 m over the top there.
+        const ground = groundZ(x, y),
+          top0 = Math.max(top, terrainZ(x, y))
+        assert.ok(ground >= top0 && ground - top0 < 0.1, `(${x}, ${y}) on ${p.name}: ${ground}`)
       }
     assert.ok(probes > 100, `${p.name}: ${probes} probes`)
   }
-  // Gragnola's strip between its two tracks is a walkway at the rails' level; the other four are platforms.
+  // Gragnola's strip between its two tracks is a walkway at the rails' level; the other eight are platforms.
   assert.deepEqual(
     railway.platforms.map((p) => [p.name, p.walkway === true]),
     [
+      ["Fivizzano-Gassano", false],
       ["Gragnola", true],
       ["Gragnola", false],
+      ["Minucciano-Pieve-Casola", false],
+      ["Minucciano-Pieve-Casola", false],
+      ["Minucciano-Pieve-Casola", false],
       ["Equi Terme", false],
       ["Monzone-Monte dei Bianchi-Isolano", false],
       ["Monzone-Monte dei Bianchi-Isolano", false],
@@ -316,15 +364,13 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
 // 3.8–5.1% within ±5 m (an 82 m vertical curve at Via Nuova, 6.8 m/s² at 85 km/h).
 test("railway: the line's grade changes by under 4% over 20 m, under 2% through a level crossing", () => {
   const L = 20
-  railway.lines.forEach((line, l) => {
-    const { z, s } = lines[l]!
-    const zAt = (at: number) => {
-      let k = 1
-      while (k < s.length - 1 && s[k]! < at) k++
-      return z[k - 1]! + ((z[k]! - z[k - 1]!) * (at - s[k - 1]!)) / (s[k]! - s[k - 1]! || 1)
-    }
+  railway.lines.forEach((_, l) => {
+    const chain = lines[l]!,
+      { s } = chain
     const change = (at: number) =>
-      Math.abs((zAt(at + L) - zAt(at)) / L - (zAt(at) - zAt(at - L)) / L)
+      Math.abs(
+        (zAt(chain, at + L) - zAt(chain, at)) / L - (zAt(chain, at) - zAt(chain, at - L)) / L,
+      )
     for (let at = L; at <= s.at(-1)! - L; at += 1)
       assert.ok(change(at) < 0.04, `grade changes ${(change(at) * 100).toFixed(1)}% at s ${at}`)
     for (const c of railway.crossings.filter((x) => x.line === l))
@@ -333,4 +379,59 @@ test("railway: the line's grade changes by under 4% over 20 m, under 2% through 
         `grade changes ${(change(c.s) * 100).toFixed(1)}% at the crossing at s ${c.s}`,
       )
   })
+})
+
+// Issue #17: the rail stays within 2.5% through its tunnels, the rail's grade limit (`RAIL_PASS`). Each stretch of 100 m or
+// more (the whole of a shorter tunnel) climbs or falls 2.5% of its length at most, and 0.1 m more, the bed's rounding: lucido's
+// tunnels average 2.51–2.54% over 67–271 m, and the Galleria del Lupacino, which the outline cuts, runs level from its portal.
+test("railway: the line climbs or falls 2.5% at most through its tunnels, over 100 m or more", () => {
+  railway.lines.forEach((line, l) => {
+    const chain = lines[l]!
+    for (const [from, to] of tunnelsOf(line)) {
+      const n = Math.floor(to - from),
+        zs = Array.from({ length: n + 1 }, (_, m) => zAt(chain, from + m))
+      const shortest = Math.min(100, n),
+        widths = [
+          ...Array.from(
+            { length: Math.floor((n - shortest) / 10) + 1 },
+            (_, k) => shortest + 10 * k,
+          ),
+          n,
+        ]
+      for (const w of widths)
+        for (let a = 0; a + w <= n; a++) {
+          const rise = Math.abs(zs[a + w]! - zs[a]!)
+          assert.ok(
+            rise <= 0.025 * w + 0.1,
+            `${((100 * rise) / w).toFixed(2)}% over ${w} m from s ${(from + a).toFixed(0)}`,
+          )
+        }
+    }
+  })
+})
+
+// Issue #17: the rail is continuous through Gragnola, over lucido's seam with fivizzano (lucido's north edge): one line runs on
+// across it, between stations on either side, its grade there within the line's 2.5% over 100 m either way.
+test("railway: the line runs on through Gragnola over lucido's seam with fivizzano, its grade there within 2.5%", () => {
+  const [x0, , x1, y1] = PARTS.find((p) => p.key === "lucido")!.rects[0]!
+  const chain = lines[0]!,
+    { pts, s } = chain
+  const over: Array<number> = []
+  for (let k = 0; k + 3 < pts.length; k += 2) {
+    const [ax, ay, bx, by] = [pts[k]!, pts[k + 1]!, pts[k + 2]!, pts[k + 3]!]
+    if (ay < y1 === by < y1) continue
+    const t = (y1 - ay) / (by - ay),
+      x = ax + (bx - ax) * t
+    if (x >= x0 && x <= x1) over.push(s[k / 2]! + (s[k / 2 + 1]! - s[k / 2]!) * t)
+  }
+  assert.equal(over.length, 1, `the line crosses the seam ${over.length} times`)
+  const at = over[0]!
+  assert.ok(
+    railway.stations.some((st) => st.s1 < at) && railway.stations.some((st) => st.s0 > at),
+    "a station on either side",
+  )
+  for (const way of [-1, 1]) {
+    const rise = Math.abs(zAt(chain, at + 100 * way) - zAt(chain, at))
+    assert.ok(rise <= 2.5 + 0.1, `${rise.toFixed(2)} m over 100 m ${way > 0 ? "on" : "back"}`)
+  }
 })

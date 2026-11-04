@@ -7,7 +7,7 @@ import type { TrainRunValue } from "../../schema.ts"
 import { LINES, pointAt } from "../lines.ts"
 import { fouledAhead, HORN, lookout, lookoutReach, touchingAlong } from "../lookout.ts"
 import { TRAINS } from "../models.ts"
-import { MONZONE } from "../testing.ts"
+import { atGrade, MONZONE } from "../testing.ts"
 
 const S = 60,
   line = LINES[MONZONE.line]!,
@@ -22,7 +22,7 @@ test("lookout: a driver looks out as far as its emergency stop and 20 m more: 33
 })
 
 test("lookout: something on the track ahead within reach holds a train, none behind it or beyond reach", () => {
-  const head = 6000,
+  const head = atGrade(),
     on = (s: number) => {
       const at = pointAt(line, s)
       return {
@@ -44,7 +44,9 @@ test("lookout: something on the track ahead within reach holds a train, none beh
 })
 
 test("lookout: a car beside a train's body, touching its side, holds it from nose to tail; one 0.3 m off, or beside the track past its tail, does not", () => {
-  // A train's body from 5945 to 6000; a Panda parallel to the track, its side `gap` m off the train's at s.
+  // A train's body 55 m long on the track at grade by Monzone; a Panda parallel to the track, its side `gap` m off the train's at s.
+  const lo = atGrade(),
+    hi = lo + 55
   const beside = (s: number, gap: number) => {
     const at = pointAt(line, s),
       off = HALF + gap + 0.83
@@ -57,9 +59,9 @@ test("lookout: a car beside a train's body, touching its side, holds it from nos
       ground: () => at.z,
     }
   }
-  assert.equal(touchingAlong(line, 5945, 6000, HALF, [beside(5970, 0.05)]), true)
-  assert.equal(touchingAlong(line, 5945, 6000, HALF, [beside(5970, 0.3)]), false, "clear of it")
-  assert.equal(touchingAlong(line, 5945, 6000, HALF, [beside(5930, 0.05)]), false, "past its tail")
+  assert.equal(touchingAlong(line, lo, hi, HALF, [beside(lo + 25, 0.05)]), true)
+  assert.equal(touchingAlong(line, lo, hi, HALF, [beside(lo + 25, 0.3)]), false, "clear of it")
+  assert.equal(touchingAlong(line, lo, hi, HALF, [beside(lo - 15, 0.05)]), false, "past its tail")
 })
 
 test("lookout: held, a driver brakes to a stand, sounds the horn 10 s while the track stays fouled, then creeps; clear, it runs again", () => {

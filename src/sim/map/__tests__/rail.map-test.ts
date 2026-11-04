@@ -4,8 +4,9 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { wholeMap } from "../../../tools/map-file.ts"
+import { segDist2 } from "../../collide.ts"
 import { terrainZ } from "../ground.ts"
-import { heightAt, MAP, RAIL_KINDS, type Rail, type Road } from "../index.ts"
+import { heightAt, MAP, outlineDistance, RAIL_KINDS, type Rail, type Road } from "../index.ts"
 import { isDrivable } from "../kinds.ts"
 
 const { hypot } = Ops
@@ -14,12 +15,6 @@ const WHOLE = wholeMap()
 /** A flat polyline's vertices as "x,y" keys: shared vertices are bit-identical (both rounded to 0.1 m). */
 const keyAt = (pts: ReadonlyArray<number>, i: number) => `${pts[2 * i]},${pts[2 * i + 1]}`
 const ends = (r: Rail) => [keyAt(r.pts, 0), keyAt(r.pts, r.pts.length / 2 - 1)] as const
-const lengthOf = (pts: ReadonlyArray<number>) => {
-  let s = 0
-  for (let i = 2; i < pts.length; i += 2)
-    s += hypot(pts[i]! - pts[i - 2]!, pts[i + 1]! - pts[i - 1]!)
-  return s
-}
 const running = MAP.rail.filter((r) => r.kind === undefined)
 const atGrade = MAP.rail.filter((r) => r.bridge !== true && r.tunnel !== true)
 
@@ -99,24 +94,37 @@ const levelCrossings = (() => {
   return out
 })()
 
-test("rail: the running track runs unbroken from the north edge to the east edge, its loop's ends on it", () => {
+test("rail: the running track runs unbroken from edge to edge of the play area, through every station, its loop's ends on it", () => {
   const pts = line()
   const first = [pts[0]!, pts[1]!],
     last = [pts.at(-2)!, pts.at(-1)!]
-  const onEdge = ([x, y]: Array<number>) => y === MAP.bounds.maxY || x === MAP.bounds.maxX
+  // The build cuts the line at the play area's outline (to 0.1 m): out of the strip's east edge at Pieve San Lorenzo, in the
+  // Lupacino tunnel, and out of the west edge by Rometta, 16 854.7 m in this build.
+  const onEdge = ([x, y]: Array<number>) => outlineDistance(x!, y!) < 0.08
   assert.ok(onEdge(first) && onEdge(last), `ends at (${first.join(", ")}) and (${last.join(", ")})`)
-  // 10 910.9 m in this build; OSM's chain was 10 901 m (the Lucca–Aulla line from Minucciano's side to Gragnola's).
-  const length = lengthOf(pts)
-  assert.ok(length > 10_850 && length < 10_950, `${length.toFixed(0)} m`)
+  for (const station of MAP.railway.stations) {
+    const stop = MAP.pois.find(
+      (p) => (p.kind === "railway=station" || p.kind === "railway=halt") && p.name === station.name,
+    )
+    assert.ok(stop !== undefined, station.name)
+    let near = Number.MAX_VALUE
+    for (let i = 0; i + 3 < pts.length; i += 2)
+      near = Math.min(
+        near,
+        Math.sqrt(segDist2(stop.x, stop.y, pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!).d2),
+      )
+    assert.ok(near < 30, `${station.name}'s station ${near.toFixed(1)} m off the line`)
+  }
   const vertices = new Set(pts.map((_, i) => (i % 2 === 0 ? keyAt(pts, i / 2) : "")))
   const loops = MAP.rail.filter((r) => r.kind === "loop")
   assert.ok(loops.length > 0, "a loop (Gragnola's track 1)")
-  // Its pieces (cut where the stub leaves it) chain end to end; the chain's two ends are on the line.
+  // Their pieces (cut where a stub or another loop leaves them) chain end to end; each chain's two ends are on the line:
+  // Gragnola's and Pieve San Lorenzo's.
   const loopEnds = new Map<string, number>()
   for (const r of loops) for (const k of ends(r)) loopEnds.set(k, (loopEnds.get(k) ?? 0) + 1)
   const free = [...loopEnds].filter(([, n]) => n === 1).map(([k]) => k)
-  assert.equal(free.length, 2, `the loop has ${free.length} ends`)
-  for (const k of free) assert.ok(vertices.has(k), `the loop ends at ${k}, off the running track`)
+  assert.ok(free.length >= 2 && free.length % 2 === 0, `the loops have ${free.length} ends`)
+  for (const k of free) assert.ok(vertices.has(k), `a loop ends at ${k}, off the running track`)
   for (const r of MAP.rail)
     assert.ok(r.kind === undefined || RAIL_KINDS.includes(r.kind), `rail ${r.id} kind ${r.kind}`)
   // Gragnola: the loop is the west track by the station building, the through track the east one.

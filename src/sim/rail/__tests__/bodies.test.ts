@@ -8,7 +8,7 @@ import { CLEARANCE, foulsAt, LEVEL, offCar, onLevel, ownSide, trainCars } from "
 import { carsOf } from "../consist.ts"
 import { LINES, linesNear, pointAt } from "../lines.ts"
 import { TRAINS, trainLength } from "../models.ts"
-import { MONZONE } from "../testing.ts"
+import { atGrade, MONZONE } from "../testing.ts"
 
 const line = LINES[MONZONE.line]!,
   HALF = TRAINS.atr220.width / 2
@@ -24,18 +24,8 @@ const leftOf = (p: { readonly x: number; readonly y: number }) => {
     at = pointAt(line, near.s)
   return (p.x - at.x) * -Ops.sin(at.angle) + (p.y - at.y) * Ops.cos(at.angle)
 }
-/** An at-grade stretch of the line off any platform, its ground level with the rail 4 m either side, and one in its longest tunnel. */
-const GRADE = (() => {
-  for (let s = 0; s < line.length; s += 10) {
-    const at = pointAt(line, s)
-    const level = [-4, -2, 2, 4].every((d) => {
-      const p = beside(s, d)
-      return Math.abs(footZ(p.x, p.y) - at.z) < 0.5 && platformTop(p.x, p.y) === undefined
-    })
-    if (!at.bridge && !at.tunnel && level) return s
-  }
-  return -1
-})()
+/** An at-grade stretch of the line by Monzone off any platform, its ground level with the rail 4 m either side, and one in its longest tunnel. */
+const GRADE = atGrade()
 const TUNNEL = (() => {
   const t = line.tunnels.reduce((a, b) => (b.to - b.from > a.to - a.from ? b : a))
   return (t.from + t.to) / 2
@@ -102,10 +92,12 @@ test("bodies: a body fouls the track inside the envelope on the train's level, o
     "off it, it fouls",
   )
   assert.equal(foulsAt(line.index, body(edge), HALF), undefined)
-  // At the platform's very edge, 1.7 m off: reaching into where the train's body passes.
-  const brink = [-1.7, 1.7]
-    .map((d) => beside(mid, d))
-    .find((p) => platformTop(p.x, p.y) !== undefined)!
+  // At the platform's very edge, its first point out from the track (the map keeps platforms 1.6 m off; at Monzone's
+  // middle it begins 1.78 m out): reaching into where the train's body passes.
+  const brink = Array.from({ length: 30 }, (_, k) => 1.6 + 0.01 * k)
+    .flatMap((d) => [beside(mid, d), beside(mid, -d)])
+    .find((p) => platformTop(p.x, p.y) !== undefined)
+  assert.ok(brink !== undefined, "Monzone's platform within 1.9 m of the track")
   assert.notEqual(foulsAt(line.index, body(brink), HALF), undefined)
   assert.equal(LEVEL, 2)
 })
