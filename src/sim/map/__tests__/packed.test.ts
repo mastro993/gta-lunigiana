@@ -3,7 +3,14 @@ import { test } from "node:test"
 
 import { packMap, packTile } from "../../../tools/pack.ts"
 import type { MonzoneMap } from "../index.ts"
-import { decodeMap, decodeTile, MAP_VERSION, TILE_CELLS, TILE_NODES } from "../packed.ts"
+import {
+  decodeMap,
+  decodeTile,
+  decodeTileVectors,
+  MAP_VERSION,
+  TILE_CELLS,
+  TILE_NODES,
+} from "../packed.ts"
 
 /** The value with its typed arrays as plain arrays, for deepEqual. */
 const plain = (value: unknown): unknown =>
@@ -151,6 +158,12 @@ const tile = {
 
 test("packTile and decodeTile round-trip a tile (negative values, the widest deltas, an empty section); a value too far throws", () => {
   assert.deepEqual(plain(decodeTile(packTile(tile).file)), plain(tile))
+  // The full map's detail reads the vectors alone, with which tile and build they are.
+  const alone = decodeTileVectors(packTile(tile).file)
+  assert.deepEqual(
+    [alone.hash, alone.i, alone.j, plain(alone.vectors)],
+    [tile.hash, tile.i, tile.j, plain(tile.vectors)],
+  )
   assert.throws(
     () =>
       packTile({

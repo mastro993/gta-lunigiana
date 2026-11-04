@@ -2,7 +2,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { districtAt, MAP } from "../../sim/map/index.ts"
-import { fitMap, mapLabels, PLACES } from "../worldmap.ts"
+import { fitMap } from "../map-view.ts"
+import { mapLabels, PLACES } from "../worldmap.ts"
 
 // Map check (pnpm test:map): the names the full map draws over the whole map's places, which crowd
 // as the map grows; worldmap.test.ts checks how labels are placed on made-up ones.
@@ -30,7 +31,7 @@ const ASKED = [
 const named = (width: number, height: number, here: string) =>
   new Set(
     mapLabels(
-      fitMap(MAP.bounds, width, height),
+      fitMap({ bounds: MAP.bounds, width, height }),
       (text, size) => (text.length * 1229 * size) / 2048,
       here,
     ).map((l) => l.name),

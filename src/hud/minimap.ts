@@ -72,14 +72,19 @@ const minimapRoad: RoadLook<Road> = (road, _, scale) => faded(road.w * 1.6, scal
  * with the map point `corner` (its west edge and north edge, m) at canvas pixel (ox, oy), on grass
  * over the play area and clipped to it (`paintLayers`: the areas reach the built terrain's box,
  * which an L's notch lies in). Lines stay at least 1 px wide; those thinner than that at this scale
- * fade instead. Roads are painted narrowest class first.
+ * fade instead. Roads are painted narrowest class first, as `road` says (the minimap's look; the
+ * full map's zoomed-in detail paints its own).
  */
 export const paintMap = (
   ctx: CanvasRenderingContext2D,
   scale: number,
   corner: { readonly minX: number; readonly maxY: number },
   layers: MapLayers<Road>,
-  { ox = 0, oy = 0 }: { readonly ox?: number; readonly oy?: number } = {},
+  {
+    ox = 0,
+    oy = 0,
+    road = minimapRoad,
+  }: { readonly ox?: number; readonly oy?: number; readonly road?: RoadLook<Road> } = {},
 ): void => {
   const u = (x: number) => ox + (x - corner.minX) * scale,
     v = (y: number) => oy + (corner.maxY - y) * scale
@@ -114,7 +119,7 @@ export const paintMap = (
     },
     layers,
     scale,
-    minimapRoad,
+    road,
   )
   ctx.restore()
 }

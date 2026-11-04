@@ -189,6 +189,8 @@ body {
   z-index: 1;
   background: var(--shadow);
   pointer-events: auto;
+  /* Its drags and pinches move the map (map-view.ts), not the page, on a desktop touch screen too. */
+  touch-action: none;
 }
 #hud-map:focus {
   outline: none;

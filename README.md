@@ -138,7 +138,7 @@ The same keys walk and drive; the table shows what each does in both modes:
 | Q / E | turn the view a quarter left / right | nothing: the view follows the car |
 | Space | | handbrake (in a train, the emergency brake) |
 | H | | horn while held; in the Carabinieri car, siren on or off; in a train, the train horn while held |
-| M | full map (pauses the game); M, Esc or a click closes it; in dev builds a click on the play area teleports the player there first, to the nearest spot clear of buildings and walls | same |
+| M | full map (pauses the game); the wheel zooms it and a drag pans it; M, Esc or a click closes it; in dev builds a click on the play area teleports the player there first, to the nearest spot clear of buildings and walls | same |
 | Esc | settings, which pause the game: the vehicle physics (Simulation, Balanced or Arcade; a new game starts on Balanced); Esc or Resume closes them. With the full map open, Esc closes the map instead | same |
 | P (dev builds only) | debug menu: the time of day, the clock’s speed and the date, the weather, the vehicle physics presets and handling knobs for every vehicle at once, and the trains and level crossings; P closes it, and so does Esc while it has the focus | same |
 
@@ -146,7 +146,7 @@ Crashes wear vehicles out, the truck far less than a small car: a damaged engine
 
 The rivers rise in a storm and fall back over the following days. Shallow water slows you; deep or fast water lifts you off your feet and the current carries you downstream until you swim out, but you never drown. A flood floats parked cars off, and water over a car's air intake stalls its engine ([docs/water.md](docs/water.md)).
 
-The bindings live in `bindings` in `src/sim/schema.ts`. The HUD shows the street and district you’re in, the time in Rome (HH:MM) with the weather and the temperature where you stand (for example “Rain · 9 °C”), the action the key would take, a speedometer while driving, a minimap, and “Sei morto” when you are killed. On screens 600 px wide or narrower the clock moves to the top-right corner. M, or a click on the minimap, opens the full map: the whole area north-up, drawn from a picture of it the map build paints (downloaded the first time you open it), with the villages, hamlets and main peaks named and your position marked.
+The bindings live in `bindings` in `src/sim/schema.ts`. The HUD shows the street and district you’re in, the time in Rome (HH:MM) with the weather and the temperature where you stand (for example “Rain · 9 °C”), the action the key would take, a speedometer while driving, a minimap, and “Sei morto” when you are killed. On screens 600 px wide or narrower the clock moves to the top-right corner. M, or a click on the minimap, opens the full map: the whole area north-up, drawn from a picture of it the map build paints (downloaded the first time you open it), with the villages, hamlets and main peaks named and your position marked; zoom in to see the streets and name the places it has no room for.
 
 ### Touch controls on a phone or tablet
 
@@ -162,7 +162,7 @@ Where a touch screen is the main pointer, the game runs in mobile mode: the cont
 | ↺ / ↻ | turn the view a quarter left / right | hidden: the view follows the car |
 | Hand brake | | handbrake (in a train, the emergency brake) |
 | Horn | | horn while held; in the Carabinieri car, siren on or off; in a train, the train horn while held |
-| A tap on the minimap | full map (pauses the game); a tap closes it | same |
+| A tap on the minimap | full map (pauses the game); a pinch zooms it and a drag pans it; a tap closes it | same |
 | II, top right | settings (pauses the game); Resume closes them | same |
 
 ## How the game sounds

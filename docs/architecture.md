@@ -1761,7 +1761,9 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   one within the tiles' 32 m halo of its square, in the whole map's order, the roads' attributes
   from `MAP.roads`) and the global rail whose boxes reach it (± 1 px and 20 m, the widest stroke's
   half, inside the halo, so the tile holds every feature its canvas can show), in the minimap's
-  look (`src/render/map-style.ts`, which the full map's overview shares), on grass over the play
+  look (`src/render/map-style.ts`, which the full map's overview and detail share: water in one
+  opaque colour at least 1 px wide, since a faded stream showed darker wherever two strokes
+  overlapped), on grass over the play
   area and clipped to it (`MAP.outline`: an area reaches the built terrain's box, an L's notch
   included). It is painted once the player comes within 1 km of it along either axis and the tile is
   in memory (`residentTile`): one a frame, nearest first. The minimap never asks for a tile; the
@@ -1777,15 +1779,47 @@ sky store `SkyView`, and the dev trains store `TrainView`:
 - The full map (`src/hud/worldmap.ts`, `#hud-map` in `index.html`): the key labelled M toggles it
   (matched by the character it types, so AZERTY works; non-Latin layouts fall back to the key's
   position) and Esc closes it; repeats and Ctrl/Cmd/Alt chords are ignored. A click or tap on the
-  minimap opens it, one on the map closes it. In dev builds a click or tap on the play area
-  teleports the player there first, keeping their heading (`pickOnMap` in `hud.ts`, `pointAt` and
-  `mapPointAt` in `worldmap.ts`, the same jump as `gta.teleport`), and the header says so; one in
-  the margins, the header or outside the outline only closes it. The click's offset is read in the
-  dialog's own box, so it lands true on a phone held upright too. It shows the whole area north-up
+  minimap opens it, one on the map closes it, but a click that ends a drag or a pinch of the map
+  (one that moved more than 6 px, `TAP_SLOP`) leaves it open. In dev builds a click or tap on the
+  play area teleports the player there first, keeping their heading (`pickOnMap` in `hud.ts`,
+  `pointAt` in `worldmap.ts` and `mapPointAt` in `map-view.ts`, the same jump as `gta.teleport`,
+  where the map is zoomed to), and the header says so; one in the margins, the header or outside
+  the outline only closes it. The click's offset is read in the dialog's own box, so it lands true
+  on a phone held upright too. It shows the whole area north-up
   in its own box (the page's, which a phone held upright lays out sideways), fitted inside its
-  margins, in a frame round the bounds. The map itself is the build's overview, a picture of the
-  whole play area (`overview.png` beside the map's tiles, [map.md](map.md#the-overview)): drawing it
-  from the vectors would need every tile's at once, and the game holds only those round the player.
+  margins, in a frame round the bounds.
+  It zooms and pans (`src/hud/map-view.ts`): the mouse wheel zooms about the cursor (e^(−deltaY /
+  500) a notch, a trackpad's pinch, which Chrome sends as a wheel with Ctrl, e^(−deltaY / 100)), a
+  pinch zooms about the fingers' midpoint and pans with it, and a drag with the main button or one
+  finger pans; the header names the gestures. Each opening shows the whole map again. Zoomed in, the
+  map fills the room inside the margins and never pans past its own edges, and along a side where it
+  still fits it stays centred; the frame is drawn round the part on screen, the north arrow and the
+  scale bar stand at that part's corners, and only the places on it are named, so zooming in names
+  the ones the whole map leaves out. The most zoom is 2 px/m (`MAX_SCALE`: 1 km 2000 px), 40 times
+  the whole map at 1920 × 1080, 64 at 1280 × 720 and 142 on an 844 × 390 phone. The scale bar is
+  1 km, or, once that passes 160 px, the longest of 500, 200, 100 and 50 m that does not. A gesture
+  repaints at the next animation frame, the overview's part under the frame drawn alone. hud.css
+  gives the dialog `touch-action: none`, so a desktop touch screen's pinch and drag move the map
+  and not the page.
+  The overview's lines are baked as wide as the whole map needs them (a road at least 7.5 overview
+  px, about 35 m at Lunigiana's 0.21 px/m), so zoomed in they would grow wider than the villages.
+  Once the frame shows 64 km² or less (`DETAIL_AREA`, 16 tiles' worth: from 0.107 px/m at 1280 ×
+  720, 0.058 on the phone and 0.167 at 1920 × 1080), the detail (`src/hud/map-detail.ts`) paints
+  the tiles under the frame over it from their own vectors, in the overview's look at screen
+  resolution (`paintMap` with `overviewRoad`: roads 1.6 times their width, or `OVERVIEW_MIN` px,
+  whichever is wider), each clipped to its own square on whole device pixels so no seam shows the
+  overview through. A tile in memory lends its vectors (`residentTile`); any other is downloaded
+  (`tileUrl`, the stream's own files, which the browser caches) and only its JSON line read
+  (`decodeTileVectors`), the vectors kept while the map is open (past 16, `KEPT`, those off the
+  frame go first) and let go when it closes. The detail is painted once for the frame as it stands
+  and again 120 ms (`SETTLE`) after the map last moved or a tile came; in between, it is drawn
+  moved and scaled with the gesture over the overview. Zoomed onto Fivizzano at 1280 × 720 in
+  headless Chrome with Metal, the frame needed 15 tiles, the painting cost one dropped frame (33 ms)
+  and no task of 50 ms or more, a drag kept every frame at 16.7–16.8 ms, and the heap after GC grew
+  9 MB (154 to 163 MB) and fell back to 155 MB once the map closed.
+  The map itself is the build's overview, a picture of the whole play area (`overview.png` beside
+  the map's tiles, [map.md](map.md#the-overview)): drawing it from the vectors would need every
+  tile's at once, and the game holds only those round the player.
   The overview is painted in the minimap's layers and order (`paintLayers` in
   `src/render/map-style.ts`, on grass over the play area and clipped to it, transparent outside it),
   but roads light (motorways and trunk roads yellow) and at least 1.5–3 px wide by class
@@ -1803,7 +1837,7 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   (`overviewBitmap`): decoded, Lunigiana's holds about 56 MB (3410 × 4096 × 4 B) and Cesena's 64 MB.
   In headless Chrome with Metal on an M-series Mac, lucido's alone (3195 × 4096 px, 3.06 MB) took
   about 10 ms to fetch from a local server, 57–64 ms to decode (Cesena's 90 ms) and 18–29 ms to draw
-  scaled (71 ms the first time). The frame, the labels, the north arrow, the 1 km bar and the player
+  scaled (71 ms the first time). The frame, the labels, the north arrow, the scale bar and the player
   are painted live at screen resolution over it. It names the OSM town and villages (big) and
   hamlets (`place=*` POIs, localities left out), then the peaks that are HUD landmark districts
   (Monte Sagro, Pizzo d'Uccello...), once per name: Lunigiana's 116, 1 town, 11 villages, 93 hamlets
@@ -1812,10 +1846,10 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   player is in; within a kind the label with the fewest free sides goes first (the earlier on a
   tie), so a name with room to spare does not take another's last side. A name goes above its dot,
   else below, right or left of it: on the first side that overlaps no name or dot placed, the north
-  arrow, the 1 km bar, its own dot or a dot of its kind still to place (a name over a dot reads as
+  arrow, the scale bar, its own dot or a dot of its kind still to place (a name over a dot reads as
   that place's). A place with no side free, or whose dot lies under a name or dot placed, the north
-  arrow or the 1 km bar, is left out with its dot. The full map has no zoom or pan (that would
-  change its look and controls, the user's call), so a small screen still leaves villages unnamed.
+  arrow or the scale bar, is left out with its dot. Showing the whole map, a small screen still
+  leaves villages unnamed; zoomed in, it names them.
   With the player at the start, whose district (Monzone's station) names no place, and the names as
   wide as Chrome draws Courier New, every village is named at 1920 × 1080 (102 names) and 1280 × 720
   (68), and an 844 × 390 phone (21) leaves out Casola in Lunigiana, Casciana, Pieve San Lorenzo and
@@ -1827,10 +1861,11 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   about 12 ms the first call in a process (5.7 and about 15 ms at 1920 × 1080, 1.0–1.3 and 4–5 ms on
   the phone), more in the browser, which measures the text. The player is a red arrow in a red ring
   (no label is red), drawn on its own canvas over the map so CSS blinks it (steady under
-  `prefers-reduced-motion`), with a 1 km bar and the player's district in the header. It is
-  repainted on open, on resize, when the pixel ratio changes and when the overview arrives while it
-  is open. The dialog takes focus when it opens, so screen readers announce its title and the
-  district. The data credits (`.credits`) show along its bottom edge; hud.css hides them while the
+  `prefers-reduced-motion`; zoomed away from the player, it is not drawn), with a scale bar and the
+  player's district in the header. It is repainted on open, on resize, when the pixel ratio changes,
+  when the overview arrives while it is open, and at the next frame after a zoom or a pan. The
+  dialog takes focus when it opens, so screen readers announce its title and the district. The data
+  credits (`.credits`) show along its bottom edge; hud.css hides them while the
   map is closed, so play keeps a clear screen.
 - The settings (`src/hud/settings.ts`), in every build: Esc opens and closes them, except that
   Esc closes the full map first while it is open, and does nothing on the title card. In mobile

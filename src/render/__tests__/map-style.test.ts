@@ -40,3 +40,35 @@ test("paintLayers fills the areas in the land cover's order, whatever their orde
     PALETTE.forestLight,
   ])
 })
+
+test("paintLayers strokes every stream and river in one opaque water colour, at least 1 px wide, so crossings never darken", () => {
+  const strokes: Array<{ readonly width: number; readonly hex: number; readonly alpha: number }> =
+    []
+  const pen: MapPen = {
+    clip: () => {},
+    fill: () => {},
+    stroke: (_pts, width, hex, alpha) => strokes.push({ width, hex, alpha }),
+  }
+  paintLayers(
+    pen,
+    {
+      outline: [square(0, 0, 100, 100)],
+      areas: [],
+      water: [
+        { w: 0.5, pts: [0, 50, 100, 50] },
+        { w: 2, pts: [50, 0, 50, 100] },
+        { w: 30, pts: [0, 0, 100, 100] },
+      ],
+      rail: [],
+      roads: [],
+      buildings: [],
+    },
+    0.1,
+    overviewRoad,
+  )
+  assert.deepEqual(strokes, [
+    { width: 1, hex: PALETTE.waterShallow, alpha: 1 },
+    { width: 1, hex: PALETTE.waterShallow, alpha: 1 },
+    { width: 3, hex: PALETTE.waterShallow, alpha: 1 },
+  ])
+})
