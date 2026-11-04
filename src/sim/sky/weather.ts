@@ -224,6 +224,12 @@ const wetAfter = (wet: number, rain: number, tau: number, seconds: number): numb
 }
 
 /**
+ * Where falling snow brings the snow line down from: the line where one lies (over the map's top it may still whiten its north
+ * faces), else the top.
+ */
+const fallsFrom = (snowLine: number): number => (snowLine < NO_SNOW ? snowLine : TOP)
+
+/**
  * The ground after `rate` game seconds under `weather` at UTC second `t`, the sun at `sun`: where the snow line lies (coming down as
  * snow settles, going up as it melts) and how wet the precipitation leaves the ground.
  */
@@ -237,12 +243,10 @@ const groundAfter = (
     level = freezingLevel(air),
     low = celsiusAt(air, place().floor)
   let { snowLine } = weather
-  if (weather.precip > DRIZZLE && level < Math.min(snowLine, TOP)) {
-    // Snow sticks from the top of the map down toward the freezing level, as fast as it falls.
-    snowLine = Math.max(
-      level,
-      Math.min(snowLine, TOP) - SNOWING * weather.precip * orographic(snowLine) * rate,
-    )
+  const from = fallsFrom(snowLine)
+  if (weather.precip > DRIZZLE && level < from) {
+    // Snow sticks from the line (or the top of the map) down toward the freezing level, as fast as it falls.
+    snowLine = Math.max(level, from - SNOWING * weather.precip * orographic(snowLine) * rate)
   } else if (snowLine < NO_SNOW) {
     const thaw = celsiusAt(air, snowLine)
     if (thaw > 0) snowLine += MELTING * thaw * (weather.precip > DRIZZLE ? 2 : 1) * rate
@@ -389,7 +393,7 @@ const settled = (weather: WeatherValue, t: number): WeatherValue => {
       SETTLED,
     ),
     snowLine:
-      at.precip > DRIZZLE && level < Math.min(season, TOP) ? Math.max(LOWEST_SNOW, level) : season,
+      at.precip > DRIZZLE && level < fallsFrom(season) ? Math.max(LOWEST_SNOW, level) : season,
   }
 }
 

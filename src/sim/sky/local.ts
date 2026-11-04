@@ -65,15 +65,16 @@ const REACH = EDGE.reduce((sum, { height }) => sum + height, 0) + FEATHER
  */
 export const SNOW_ASPECT = 440
 /**
- * How far above the snow line its edge can reach, m: on a face looking due north (bare rock included), at the edge's highest
- * reach. It bounds the meltwater band and the ground the snow line can touch at all.
+ * How far the snow line can stand over ground its edge still reaches, m: on a face looking due north (bare rock included), at the
+ * edge's highest reach; a face looking due south has its edge as far over the line. It bounds the meltwater band and the ground
+ * the snow line can touch at all.
  */
 export const HIGHEST_SNOW = SNOW_ASPECT + REACH
 /** Faces steeper than this (their normal's up part below it, about 50°) are bare rock: the terrain paints them so and no snow lies on them. */
 export const ROCK_NORMAL_Y = 0.64
 /**
- * How far above the snow line snow can still lie, m: on the steepest face that holds any (its normal's up part at `ROCK_NORMAL_Y`,
- * 0.77 north), at the edge's highest reach. A line this far over the map's top leaves none on it.
+ * How far the snow line can stand over ground that still holds snow, m: the steepest face that holds any (its normal's up part at
+ * `ROCK_NORMAL_Y`, 0.77 north), at the edge's highest reach. A line this far over the map's top leaves none on it.
  */
 export const SNOW_REACH = SNOW_ASPECT * Math.sqrt(1 - ROCK_NORMAL_Y * ROCK_NORMAL_Y) + REACH
 /** Snow settles fully on faces whose normal's up part is above this; it thins out down to the bare rock (`ROCK_NORMAL_Y`). */

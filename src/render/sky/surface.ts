@@ -65,7 +65,7 @@ const CANOPY_SNOW = 0.5
 const ROAD_SNOW = 0.6
 /** Fully wet level ground loses this share of its albedo (Lagarde: porous surfaces darken by up to half), walls about a third as much. */
 const WET_DARK = 0.4
-/** The heights around the snow line the meltwater band spans, m: the snow's highest reach above (a north face), and that plus the band (MELT_BAND) below (a south face). */
+/** The heights around the snow line the meltwater band spans, m: a south face's edge up to HIGHEST_SNOW over it, and a north face's edge as far under it, with the band (MELT_BAND) under that. */
 const MELT_SPAN = { above: HIGHEST_SNOW, below: HIGHEST_SNOW + MELT_BAND } as const
 /** Snow's albedo, linear: off-white below 1, so a sunlit slope keeps its facets instead of clipping. */
 const SNOW = new Color(PALETTE.snow)

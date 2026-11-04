@@ -492,6 +492,14 @@ test("ground: the season's snow on the map's highest north faces lasts while its
     day.snowLine > start && day.snowLine < top + SNOW_REACH,
     `six hours on: ${day.snowLine} m`,
   )
+  // A snowfall brings such a line down from where it stands, not from the map's top in one step.
+  const january = utc(2027, 1, 15, 12),
+    snowing = { ...settledAt(fresh(january), "snow", january), snowLine: top + 300 },
+    minute = advanceWeather(snowing, january + 60, 60)
+  assert.ok(
+    minute.snowLine < top + 300 && minute.snowLine > top + 250,
+    `a minute of snow from ${top + 300} m: ${minute.snowLine} m`,
+  )
   // Past the reach no face holds any: the line is gone.
   assert.equal(
     advanceWeather({ ...fresh(t), snowLine: top + SNOW_REACH - 0.001 }, t + 5 * 3600, 3600)

@@ -514,8 +514,8 @@ snow line at or under the height at 08:00), November to April, the mean of seeds
 - **The far south's coasts** (38 N, sea level) see 0.19 a year, and no place sees snow at sea level
   from June to September.
 - **The shipped map** (seed 1): snowfall 6.3 days a year on its floor (230 m), 10.5 at 600 m, 18.1
-  at 1000 m, 29.8 at 1400 m and 44.9 on its top (1799 m); snow lies on level ground 56.8 days a
-  year at 1100 m and 124 at 1750 m (asserted 25–70 and 90–170).
+  at 1000 m, 29.8 at 1400 m and 44.9 on its top (1799 m); snow lies on level ground 56.7 days a
+  year at 1100 m and 123 at 1750 m (asserted 25–70 and 90–170).
 
 ## The climate sources record
 
@@ -601,9 +601,10 @@ and how snow-covered the ground is there, each 0 to 1.
   08:00) to 0.41 (15 January, noon).
 - **The snow line** is the lowest level ground with snow cover (`NO_SNOW`, 6000 m, when none lies);
   north faces hold snow below it and south faces only above it (the next item). While more than
-  drizzle falls and the freezing level lies under the line, snow settles from the map's top (its
-  tiles' highest node, `MAP.tiles`: 1799 m on the shipped map) down toward the freezing level at 150
-  m per game hour for each mm/h, × `orographic` at the line (`SNOWING`). Otherwise it rises by a
+  drizzle falls and the freezing level lies under the line, snow settles from the line where one
+  lies (over the map's top it can still whiten north faces), else from the map's top (its tiles'
+  highest node, `MAP.tiles`: 1799 m on the shipped map), down toward the freezing level at 150 m per
+  game hour for each mm/h, × `orographic` at the line (`SNOWING`). Otherwise it rises by a
   degree-day melt of 1 m per game hour for each °C above 0 at the line, twice that under rain
   (`MELTING`), and once 408 m over the map's top (`SNOW_REACH`: the steepest face that holds snow,
   at the edge's highest reach) no snow is left. It never falls below the map's lowest ground less 50
