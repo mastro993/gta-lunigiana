@@ -276,13 +276,17 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
     }
     const isLifted = (i: number) => lifted(chain[i]!.item)
     const isTunnel = (i: number) => chain[i]!.item.tunnel === true
-    // A deck: the consecutive lifted pieces of one kind round piece i, first and last (OSM splits a
-    // bridge where its tags change), straight from end to end. Taken piece by piece, the joint of the
-    // SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m under it: 4.9 m.
+    // A deck: the consecutive lifted pieces of one kind round piece i, first and last, straight from
+    // end to end. OSM splits a bridge or a bore where its tags change: taken piece by piece, the
+    // joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m
+    // under it (4.9 m), and the joint inside the Galleria del Lupacino, at its speed limit, took the
+    // hill's surface over it. A tunnel's pieces always join; a bridge's only on a profile whose spec
+    // asks for it (`decks`, the roads': the rail keeps a deck a piece, as the CTR draws its spans).
     const deckOf = (i: number): readonly [number, number] => {
       let a = i,
         b = i
-      const joins = (k: number) => spec.decks === true && isLifted(k) && isTunnel(k) === isTunnel(i)
+      const joins = (k: number) =>
+        isLifted(k) && isTunnel(k) === isTunnel(i) && (isTunnel(i) || spec.decks === true)
       while (a > 0 && joins(a - 1)) a--
       while (b + 1 < runs.length && joins(b + 1)) b++
       return [a, b]
@@ -292,14 +296,14 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
       [first[a]!, first[b]! + runs[b]!.length - 1] as const
     for (let i = 0; i < runs.length; i++) {
       if (!isLifted(i)) continue
-      const deck = deckOf(i)
-      i = deck[1]
-      const [k0, k1] = deckEnds(deck).map((v) => p.vertexSample[v]!) as [number, number]
+      const [i0, i1] = deckOf(i)
+      i = i1
+      const [k0, k1] = deckEnds([i0, i1]).map((v) => p.vertexSample[v]!) as [number, number]
       // Each end takes the ground PORTAL m out of it when that is nearer the line's level: at a
       // tunnel's portal the terrain model climbs the hill's face (3.6 m over the cutting at the
       // Ugliancaldo tunnel's west portal), and a bridge's end may stand on the slope of what it
       // spans (the Lucido's banks at Monzone).
-      const tunnel = isTunnel(i)
+      const tunnel = isTunnel(i0)
       for (const [k, step] of [
         [k0, -1],
         [k1, 1],
@@ -310,6 +314,14 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
         if (o !== k && Math.abs(p.s[o]! - p.s[k]!) >= PORTAL)
           p.z[k] = tunnel ? Math.min(p.z[k]!, p.z[o]!) : Math.max(p.z[k]!, p.z[o]!)
       }
+      // An end the play area's outline cut (the chain's own end, with no id: `clipPieces` gives a
+      // cut point none) is no portal or abutment: the ground there is the hill over the tunnel or
+      // the valley under the bridge, so it takes its other end's level. The Galleria del Lupacino,
+      // cut 1325 m in at x 6700, fell 3.7% from the hill's 528 m there to its portal at 357 m.
+      const cut0 = i0 === 0 && runs[i0]![0]!.id === undefined,
+        cut1 = i1 === runs.length - 1 && runs[i1]!.at(-1)!.id === undefined
+      if (cut0 && !cut1) p.z[k0] = p.z[k1]!
+      if (cut1 && !cut0) p.z[k1] = p.z[k0]!
       for (let k = k0 + 1; k < k1; k++)
         p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
     }

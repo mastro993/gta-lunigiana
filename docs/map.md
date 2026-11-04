@@ -1215,7 +1215,7 @@ the pieces where tracks meet (`rail-graph.ts`).
   crossing (its two vertices stood within 2 m of the crossing node); it throws over 0.2, 0.5 and
   1 m. It prints both figures per piece. It also checks the CTR's level-crossing polygons (`AGE`
   `0122`): each holds a crossing node, and no node within 10 m of one lies outside
-  it (the five road nodes lie 1.4–3.0 m inside). The running line is 10 911 m long.
+  it (the five road nodes lie 1.4–3.0 m inside). The running line is 16 854.7 m long.
 - **The tracks only the CTR has** are drawn and driven by no train: an end within 1 m of another
   track, heading along it within 20°, joins it at a switch vertex both share (`ctr:<line>:<end>`;
   where the track already has a vertex there, that one: Gragnola's stub ends on one of the loop's
@@ -1343,13 +1343,18 @@ Grondilice).
   tunnel's the lower, a bridge's the higher): at the Ugliancaldo tunnel's west portal the terrain
   model climbs 3.6 m up the hill's face, and the rail's 2.5% grade limit carried 1.2–1.6 m of it
   600 m along the line past Equi Terme; a bridge end on the slope of the Lucido's bank pulled
-  Monzone's line 0.7 m under the ground. A road's bridge (or tunnel) that OSM splits into pieces in
-  a row is one deck, straight from its first piece's start to its last piece's end: taken piece by
-  piece, the joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground
-  12 m under it, and the deck sagged 4.9 m there (12% and 6%), so a walker crossing it stayed 0.5 m
-  under the deck.
-  The rail keeps a deck a piece: its 2.5% grade and 100 m smoothing hold a joint to the line
-  between its deck's ends, and its platforms and crossings are fitted on that profile.
+  Monzone's line 0.7 m under the ground. A tunnel that OSM splits into pieces in a row (where its
+  tags change) is one bore, straight from portal to portal, and so is a road's bridge: taken piece
+  by piece, the joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the
+  ground 12 m under it, and the deck sagged 4.9 m there (12% and 6%), so a walker crossing it stayed
+  0.5 m under the deck; and the joint inside the Galleria del Lupacino, at its 140 km/h limit, took
+  the hill's 391 m. The rail keeps a bridge a piece: its 2.5% grade and 100 m smoothing hold a
+  joint to the line between its deck's ends, and its platforms and crossings are fitted on that
+  profile. An end the play area's outline cuts (a chain's end with no id) takes its other end's
+  level: the ground there is the hill over the bore or the valley under the deck. The Lupacino, cut
+  1,325 m in at x 6700, took the hill's 528 m at the cut and fell 3.7% to its portal at 357 m; it
+  now runs level from it. The SS63's bridge cut at y 13000 fell 17.9 m (15%) to the valley floor;
+  it now runs level at 971.3 m.
 - Within each pass, the next chain profiled is the longest one that touches a node an earlier
   chain already set, else the longest left. Elevations spread along the network from where it is
   pinned, so a short link is not pinned at both ends by chains fitted apart (a lane in Codiponte
@@ -1411,9 +1416,17 @@ Grondilice).
   the rail keeps its surface at least 5.5 m over the rail's bed (the rail head 0.12 m, the ATR
   220's 4.185 m, 0.3 m clear and the render's 0.9 m deck), the rail held under the line between
   the uncarved ground at the bridge's ends less 5.5 m: at the Equi Terme overpass the roof
-  stood 0.46 m in the deck, and now clears it by 1.14 m. The rail stays at least 3 m above a river
-  it bridges (w ≥ 4 m); over narrower streams, under the CTR's short bridges, it keeps its level
-  and the water dips under the deck ([section 8](#8-water-under-decks-waterts)). A rail tunnel
+  stood 0.46 m in the deck, and now clears it by 1.14 m. That deck stands at least 5.5 m over the
+  uncarved ground at the crossing, where the track runs (the bare-earth model has no deck), so the
+  rail is never held under its ground there and the road, profiled after it, rises instead: the
+  line between the ends' ground of the SR445's 396 m viaduct north of Gragnola (152.6 and 144.9 m,
+  its ends down in the valley; the track's ground 157.3 m) held the line 12 m under the ground, and
+  a 22 m residential bridge by Gassano, 4.7 m over the track's ground, dipped it 0.8 m in a V whose
+  grade changed 4.2% over 20 m. Both now run at grade, the viaduct level at 162.8 m over them; in
+  Cesena the line ran 2.9 m under its ground below the Viadotto Pontescolle and 4.1 m below the
+  Viadotto John Fitzgerald Kennedy, and now runs at grade under both. The
+  rail stays at least 3 m above a river it bridges (w ≥ 4 m); over narrower streams, under the
+  CTR's short bridges, it keeps its level and the water dips under the deck ([section 8](#8-water-under-decks-waterts)). A rail tunnel
   passes under everything: the 3.2 km of the line's tunnel from Equi Terme to Argigliano run under
   the streams on the hillside. The rail's output keeps the profile samples where its elevation
   bends by more than 0.03 m (roads: 0.25 m), so the line drawn and driven follows the grid it was
@@ -1494,11 +1507,12 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   ends at another terminal is a line, and of two between one pair of terminals the one turning
   less in all. A dead end inside the map (a siding's buffer) is no terminal, and a ring with no way
   off the map gives no line. Each line runs the way most of its length was drawn.
-  One line here: the Lucca–Aulla line's 75 pieces, 10,910.9 m from the east edge at (4900,
-  3609.4) to the north edge at (−1859.6, 3900), every piece in its OSM direction; 3 757.6 m in
-  tunnels, 1 181.6 m on bridges. Its speed limits are OSM's `maxspeed`, pieces with one limit
-  merged: 85 km/h to Equi Terme's stop (s 4162.2), 80 to Gragnola's track-2 stop (s 10199.1), 85
-  on to the north edge.
+  One line here: the Lucca–Aulla line's 102 pieces, 16,854.7 m from the outline at Pieve San
+  Lorenzo (6700, 3423.2), in the Galleria del Lupacino, to the west edge by Rometta (−5300,
+  4621.2), every piece in its OSM direction; 5 251.4 m in tunnels, 1 502.3 m on bridges. Its speed
+  limits are OSM's `maxspeed`, pieces with one limit merged: 140 km/h through the Lupacino to s
+  873.7, 85 to Equi Terme's stop (s 5979.8), 80 to Gragnola's track-2 stop (s 12016.7), 85 on to
+  the west edge.
 - **Kinds** (`kindsOf`): a piece on no line is a `siding` when it leads only to dead ends (pieces
   with an end no other track shares, other than on a line, are taken away until none is left), else
   a `loop`: Gragnola's track 1 (two pieces) is the one loop; its stub, Monzone's siding and Equi
@@ -2333,8 +2347,9 @@ UTF-8.
 `src/tools/__tests__/ctr-rail.test.ts` checks the track chaining, the tunnel cut and the clip on
 synthetic lines and reads synthetic CTR rail layers (`shapefile.ts` beside them writes those).
 `src/sim/map/__tests__/rail.map-test.ts` checks the rail in the built map: the running line is one
-chain from the north edge to the east edge (10.85–10.95 km), its loop (two pieces) ending on it and
-Gragnola's loop the track by the station building, every kind one of `RAIL_KINDS`; at grade, the
+chain from edge to edge of the play area's outline, past every station, its loops (Gragnola's and
+Pieve San Lorenzo's) ending on it and Gragnola's loop the track by the station building, every kind
+one of `RAIL_KINDS`; at grade, the
 rail meets roads and water only at vertices they share, level with the road (Via Riolo, Viale 20
 Settembre, Via Castel dell'Aquila twice, Via Nuova, and Equi Terme's foot crossing); no rail, road
 or water polyline repeats a vertex, and a rail segment under 1.85 m joins two shared vertices; no
@@ -2382,15 +2397,21 @@ speed limits, crossing boxes and stations; `rail-clear.test.ts` narrows a verge 
 leaves one at another level, in a box or on a platform alone, and throws for a lane.
 `src/sim/map/__tests__/railway.map-test.ts` checks `MAP.railway`: each line runs terminal to
 terminal, its pieces sharing their end vertices bit-identically, every running piece on one (today
-the one line, east edge to north edge); the speed limits cover it, 80 km/h from Equi Terme's stop to
-Gragnola's; the three stations lie along their platforms, a platform within 4 m of the line's side
+the one line, from the outline at Pieve San Lorenzo to the outline by Rometta); the speed limits
+cover it, 80 or 85 km/h but in the Galleria del Lupacino (OSM's 140), 80 km/h from Equi Terme's stop
+to Gragnola's; the five stations lie along their platforms, a platform within 4 m of the line's side
 at each one's middle; each crossing box's nodes are vertices of its road and of the rail, the line's
-s on one of them, and every vertex an at-grade road shares with at-grade rail is in a box; the
+s on one of them (a box on a loop alone, Pieve's foot crossing, names no line), and every vertex an
+at-grade road shares with at-grade rail is in a box; the
 platforms stand 1.55 m or more from every track and 0.44 m or more past every carriageway's edge
 (0.5 m less the rings' 0.06 m simplification), their top the rail head plus 0.25 m (Gragnola's
-walkway 0.02 m) and `groundZ` on them their top or the terrain where that is higher; the line's
-grade changes by under 4% over 20 m, and under 2% through a level crossing (the map before the fixes
-changed it 4.1% at s 6269). `src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule
+walkway 0.02 m) and `groundZ` on them their top or the terrain where that is higher, or a footway
+OSM draws along one up to 0.09 m over it (Fivizzano-Gassano's); the line's grade changes by under 4%
+over 20 m, and under 2% through a level crossing (the map before the fixes changed it 4.1% at s
+6269); through its tunnels each stretch of 100 m or more (the whole of a shorter tunnel) climbs or
+falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17); and it runs on over lucido's
+seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
+`src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule
 on the verges people walk (`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car
 stands within 20 m of a crossing node; on a map built without the narrowed verges and the parking
 rule, both fail (Piazza Paolo Sist at 2.75 m and Via Riolo at 1.92 m, a car 19.4 m from Viale 20

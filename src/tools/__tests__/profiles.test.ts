@@ -46,6 +46,26 @@ test("profile takes a tunnel portal's and a bridge end's level from the ground j
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
 })
 
+// Regression: the Galleria del Lupacino, cut by the play area's outline 1325 m in and split by OSM where its speed limit
+// changes, took the hill's surface at the cut and at the joint, and fell 3.7% to its portal.
+test("profile runs a tunnel the outline cuts, in two pieces, level from its one portal: no hill's surface at the cut or the joint", () => {
+  // A hill 30 m high over x < 200; the bore comes in at the cut x 0 (no id), in two pieces joined at x 100, and leaves its
+  // portal at x 200 onto flat ground at 100 m.
+  const ground = (x: number) => (x < 200 ? 130 : 100)
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, tunnel: true, pts: [v(0, 0), v(100, 0, "j")] },
+    { id: 2, tunnel: true, pts: [v(100, 0, "j"), v(200, 0, "p")] },
+    { id: 3, pts: [v(200, 0, "p"), v(600, 0)] },
+  ]
+  const { profile, zOf } = makeProfiler((x) => ground(x))
+  profile(
+    pieces.map((item) => ({ item, rev: false })),
+    SPEC,
+  )
+  for (const p of pieces)
+    for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
+})
+
 test("replayClaims writes a window's nodes, its seam with the next included, as it writes the whole grid's", () => {
   // Two crossing roads over a sloping grid: the rank-0 road keeps the junction, the other blends.
   const ground = (x: number, y: number) => 100 + 0.05 * x + 0.1 * y
