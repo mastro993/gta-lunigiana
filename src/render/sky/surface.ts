@@ -20,9 +20,18 @@ import {
 } from "three"
 
 import { type Air, celsiusAt } from "../../sim/sky/climate.ts"
-import { EDGE, FEATHER, MELT_BAND, MELT_FULL, REACH } from "../../sim/sky/local.ts"
+import {
+  EDGE,
+  FEATHER,
+  HIGHEST_SNOW,
+  MELT_BAND,
+  MELT_FULL,
+  ROCK_NORMAL_Y,
+  SNOW_ASPECT,
+  SNOW_SETTLES,
+} from "../../sim/sky/local.ts"
 import { SPEED, STAGE } from "../../sim/water/channel.ts"
-import { ROCK_NORMAL_Y, yOf } from "../ground.ts"
+import { yOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
 import { CUT_GLSL, CUT_UNIFORMS } from "../see-through.ts"
 import { phaseLocked, SKY_UNIFORMS } from "./uniforms.ts"
@@ -33,8 +42,9 @@ export const VARIANTS = ["solid", "terrain", "road", "tree", "water", "actor"] a
 export type Variant = (typeof VARIANTS)[number]
 
 /**
- * What each variant draws, as the GLSL macros it defines: snow and wet ground (`GROUND`), roads half
- * cleared of snow with puddles (`ROAD`), canopies that sway (`TREE`), rain rings (`WATER`), and how
+ * What each variant draws, as the GLSL macros it defines: snow and wet ground (`GROUND`), the snow
+ * line lower on the terrain's north faces (`ASPECT`), roads half cleared of snow with puddles
+ * (`ROAD`), canopies that sway and hold snow on their sides (`TREE`), rain rings (`WATER`), and how
  * the see-through cut takes it (`render/see-through`): buildings and trees above the player's feet
  * (`CUT_ABOVE`), the ground above their feet on screen (`CUT_GROUND`). Every variant takes cloud
  * shadows; actors (people, vehicles, tyre marks, smoke) take nothing else: a person crossing the snow
@@ -42,21 +52,21 @@ export type Variant = (typeof VARIANTS)[number]
  */
 const DEFINES = {
   solid: ["WEATHER_GROUND", "CUT_ABOVE"],
-  terrain: ["WEATHER_GROUND", "CUT_GROUND"],
+  terrain: ["WEATHER_GROUND", "WEATHER_ASPECT", "CUT_GROUND"],
   road: ["WEATHER_GROUND", "WEATHER_ROAD", "CUT_GROUND"],
   tree: ["WEATHER_GROUND", "WEATHER_TREE", "CUT_ABOVE"],
   water: ["WEATHER_WATER", "CUT_GROUND"],
   actor: [],
 } as const satisfies Record<Variant, ReadonlyArray<string>>
 
-/** Snow settles fully on faces whose world normal's y is above this; it thins out down to the terrain's bare rock faces (`ROCK_NORMAL_Y`), which hold none. */
-const SNOW_SETTLES = 0.8
+/** Share of the snow that clings to a crown's sides, where it is too steep to settle on (TUNED by eye: a flocked conifer, its green showing through). */
+const CANOPY_SNOW = 0.5
 /** Share of the snow that stays on a road: traffic packs it into ruts and clears the rest. */
 const ROAD_SNOW = 0.6
 /** Fully wet level ground loses this share of its albedo (Lagarde: porous surfaces darken by up to half), walls about a third as much. */
 const WET_DARK = 0.4
-/** The heights around the snow line the meltwater band spans, m: the edge's reach above, and the reach plus the band (MELT_BAND) below. */
-const MELT_SPAN = { above: REACH, below: REACH + MELT_BAND } as const
+/** The heights around the snow line the meltwater band spans, m: the snow's highest reach above (a north face), and that plus the band (MELT_BAND) below (a south face). */
+const MELT_SPAN = { above: HIGHEST_SNOW, below: HIGHEST_SNOW + MELT_BAND } as const
 /** Snow's albedo, linear: off-white below 1, so a sunlit slope keeps its facets instead of clipping. */
 const SNOW = new Color(PALETTE.snow)
 
@@ -163,6 +173,7 @@ varying float vStill;
 #endif
 #ifdef WEATHER_TREE
 attribute float canopy;
+varying float vCanopy;
 uniform float uTime;
 uniform float uSway;
 uniform float uSwayLean;
@@ -188,6 +199,9 @@ const VERTEX_SWAY = /* glsl */ `
   vRiverFlow = flow;
 #endif
 vec3 weatherRest = transformed;
+#ifdef WEATHER_TREE
+  vCanopy = canopy;
+#endif
 #if defined( WEATHER_TREE ) && defined( USE_INSTANCING )
 {
   vec3 root = instanceMatrix[3].xyz;
@@ -221,6 +235,9 @@ uniform vec2 uCloudOffset;
 uniform vec3 uSkyColour;
 uniform float uTime;
 uniform float uRipples;
+#ifdef WEATHER_TREE
+varying float vCanopy;
+#endif
 #ifdef WEATHER_WATER
 varying vec3 vRiverFlow;
 varying float vRiverDepth;
@@ -238,8 +255,9 @@ ${CUT_GLSL}
 
 /**
  * Before `lights_lambert_fragment` reads the albedo: snow and wetness as the sim's `groundAt` has
- * them at this point (cover over ±FEATHER m of the ragged edge; meltwater wetting a MELT m band
- * below it where the air thaws, fully from MELT_FULL °C), snow only on faces flatter than the
+ * them at this point (cover over ±FEATHER m of the ragged edge, which stands SNOW_ASPECT m lower
+ * for each unit of the face's normal toward the north, except on roads; meltwater wetting a MELT m
+ * band below it where the air thaws, fully from MELT_FULL °C), snow only on faces flatter than the
  * cliffs, drawn as a world-locked stipple of 0.25 m grains clumped by 1.5 m patches (a crisp
  * pixel-art edge); puddles on flat road that mirror the sky (≈ 11 % of it, fully wet); the current's
  * streaks and rain rings on the water; and the cloud over this point, which `weatherSun` takes off the directional light below.
@@ -249,13 +267,26 @@ vec3 weatherNormal = transformNormalByInverseViewMatrix(normal, viewMatrix);
 vec2 weatherMap = vec2(vWeatherWorld.x, -vWeatherWorld.z);
 #ifdef WEATHER_GROUND
 {
-  float above = vWeatherWorld.y + weatherSnowEdge(weatherMap) - uSnowLineY;
+  // On the terrain the snow line stands lower on north faces (three z is south), as the sim's groundAt has it; roads, decks, roofs
+  // and crowns take the level line, as the sim's facingAt gives what is not the terrain.
+  #ifdef WEATHER_ASPECT
+    float north = -weatherNormal.z;
+  #else
+    float north = 0.0;
+  #endif
+  float above = vWeatherWorld.y + weatherSnowEdge(weatherMap) + ${num(SNOW_ASPECT)} * north - uSnowLineY;
   float cover = smoothstep(-WEATHER_FEATHER, WEATHER_FEATHER, above);
   float thaw = clamp((uMelt.x + uMelt.y * (vWeatherWorld.y - uSnowLineY)) / WEATHER_MELT_FULL, 0.0, 1.0);
-  float wet = max(uWet, thaw * clamp(1.0 + above / WEATHER_MELT, 0.0, 1.0)) * (1.0 - cover);
-  float settles = smoothstep(${num(ROCK_NORMAL_Y)}, ${num(SNOW_SETTLES)}, weatherNormal.y);
+  // A face too steep for the snow to settle on takes the wet where it shows bare, as the sim's groundAt has it.
+  float rock = smoothstep(${num(ROCK_NORMAL_Y)}, ${num(SNOW_SETTLES)}, weatherNormal.y);
+  float wet = max(uWet, thaw * clamp(1.0 + above / WEATHER_MELT, 0.0, 1.0)) * (1.0 - cover * rock);
+  float settles = rock;
   #ifdef WEATHER_ROAD
     settles *= ${num(ROAD_SNOW)};
+  #endif
+  #ifdef WEATHER_TREE
+    // Snow clings to a crown's twigs and needles on its sides too, not only on its tops: a flocked crown, never solid.
+    settles = max(settles, vCanopy * ${num(CANOPY_SNOW)} * smoothstep(-0.2, 0.4, weatherNormal.y));
   #endif
   float grain = 0.5 + 0.5 * weatherLattice(floor(weatherMap * 4.0) + vec2(7919.0, 7907.0));
   float clump = 0.5 + 0.5 * weatherNoise(weatherMap + vec2(613.0, 307.0), 1.5);
@@ -426,7 +457,7 @@ export const applySurface = (s: Surface): void => {
   const u = SKY_UNIFORMS
   u.uSnowLineY.value = yOf(s.snowLine)
   u.uWet.value = clamp01(s.wet)
-  // The air's temperature across the meltwater band (70 m above the line down to 170 m below it) as a straight line: the sim's own, as
+  // The air's temperature across the meltwater band (510 m above the line down to 610 m below it) as a straight line: the sim's own, as
   // `celsiusAt` falls straight with height up to where the daily range reaches its floor, above 5.2 km in every month at Italy's
   // latitudes (surface.test.ts).
   const below = celsiusAt(s.air, s.snowLine - MELT_SPAN.below),

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { runInNewContext } from "node:vm"
 
-import { parseCli, parseSpot, spotScript } from "../playtest.ts"
+import { parseCli, parseSpot, spotScript, startOnScript } from "../playtest.ts"
 
 test("parseSpot: name, map metres and an optional zoom; map; bad spots throw", () => {
   assert.deepEqual(parseSpot("monzone:-494,436.9"), {
@@ -46,6 +46,22 @@ test("parseCli: shots, heap and drive with their defaults and flags; bad lines t
     (parseCli(["shots", "http://h/", "o", "map", "--wait", "1.5"]) as { waitS: number }).waitS,
     1.5,
   )
+  assert.deepEqual(
+    (parseCli(["shots", "http://h/", "o", "map", "--date", "2027-03-01"]) as { date: object }).date,
+    { year: 2027, month: 3, day: 1 },
+  )
+  assert.deepEqual(parseCli(["heap", "http://h/", "--at", "4210,-2454", "--date", "2027-03-01"]), {
+    command: "heap",
+    url: "http://h/",
+    port: 9333,
+    seconds: 10,
+    at: { x: 4210, y: -2454 },
+    date: { year: 2027, month: 3, day: 1 },
+  })
+  for (const bad of ["4210", "4210,", "a,b", "1,2,3"])
+    assert.throws(() => parseCli(["heap", "http://h/", "--at", bad]), /bad --at/)
+  for (const bad of ["2027-3-1", "2027-13-01", "1 March"])
+    assert.throws(() => parseCli(["shots", "http://h/", "o", "map", "--date", bad]), /bad --date/)
   assert.deepEqual(parseCli(["drive", "http://h/"]), {
     command: "drive",
     url: "http://h/",
@@ -123,4 +139,13 @@ test("spotScript: pins the focus on the ground (render y = elevation − 200, z 
   view.texelsPerMetre = 6
   assert.equal(view.texelsPerMetre, 6)
   assert.deepEqual([view.focus.x, view.focus.y, view.focus.z], [0, 100, 0])
+})
+
+test("startOnScript moves the page's clock to the day asked, at the same time of day, still running", () => {
+  const read = runInNewContext(
+    `${startOnScript({ year: 2027, month: 3, day: 1 })}
+    const a = new Date(), t = Date.now()
+    ;[a.getFullYear(), a.getMonth() + 1, a.getDate(), Math.abs(t - a.getTime()) < 1000, new Date(0).getTime()]`,
+  ) as Array<unknown>
+  assert.deepEqual([...read], [2027, 3, 1, true, 0])
 })

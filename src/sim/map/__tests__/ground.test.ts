@@ -1,8 +1,18 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { LEVEL } from "../../sky/local.ts"
 import { waterAt, waterUnder } from "../../water/rivers.ts"
-import { atGrade, deckNear, drawnZ, footZ, groundZ, roadLevel, terrainZ } from "../ground.ts"
+import {
+  atGrade,
+  deckNear,
+  drawnZ,
+  facingAt,
+  footZ,
+  groundZ,
+  roadLevel,
+  terrainZ,
+} from "../ground.ts"
 import { MAP } from "../index.ts"
 import { HALO, tileKey } from "../kinds.ts"
 import { readMapFile, tileUrl } from "../packed.ts"
@@ -58,6 +68,7 @@ const answer = () =>
       atGrade(x, y),
       deckNear(x, y, 1),
       drawnZ(x, y, ground),
+      facingAt(x, y, ground),
       surfaceAt(x, y),
       surfaceAt(x, y, terrain + 30),
       waterAt(x, y, ground - 1, 0.6),
@@ -86,8 +97,8 @@ test("the ground, the surface and the water give the same answers whatever tiles
   // the points cover roads, a deck, rivers and land
   const kinds = (k: number) => new Set(lazy.map((a) => a[k] === undefined))
   assert.deepEqual(kinds(5), new Set([true, false]), "on a deck and off")
-  assert.deepEqual(kinds(9), new Set([true, false]), "in the water and out")
-  assert.ok(new Set(lazy.map((a) => a[7])).size >= 4, "on several surfaces")
+  assert.deepEqual(kinds(10), new Set([true, false]), "in the water and out")
+  assert.ok(new Set(lazy.map((a) => a[8])).size >= 4, "on several surfaces")
 })
 
 test("a road's level is its surface's within the halo of it, and none farther off: nothing stands on it there", () => {
@@ -99,4 +110,52 @@ test("a road's level is its surface's within the halo of it, and none farther of
   assert.ok(Number.isFinite(roadLevel(road, x! + HALO - 0.1, y!)))
   assert.equal(roadLevel(road, -1990, 1990), undefined, "2 km off in its own tile")
   assert.equal(roadLevel(road, 4000, -5000), undefined, "in a tile far from it")
+})
+
+test("facingAt: the terrain triangle's unit normal where the ground is the terrain, level on a road, a deck or in a tunnel", () => {
+  let terrain = 0,
+    roads = 0
+  for (const [x, y, road] of POINTS) {
+    const ground = groundZ(x, y),
+      face = facingAt(x, y, ground)
+    if (road !== undefined && ground > terrainZ(x, y)) {
+      assert.deepEqual(face, LEVEL, `on road ${road} at (${x}, ${y})`)
+      roads++
+      continue
+    }
+    if (face === LEVEL) continue
+    // The slope across a millimetre round the point, away from its triangle's edges (a cell's sides and its south-west to
+    // north-east diagonal), against the normal's north and up parts.
+    const frac = (v: number) => (((v - Math.floor(v)) % 1) + 1) % 1,
+      fx = frac((x - MAP.heightmap.x0) / MAP.heightmap.cell),
+      fy = frac((y - MAP.heightmap.y0) / MAP.heightmap.cell)
+    if (Math.min(fx, fy, 1 - fx, 1 - fy, Math.abs(fx - fy)) < 0.01) continue
+    const gx = (terrainZ(x + 0.001, y) - terrainZ(x - 0.001, y)) / 0.002,
+      gy = (terrainZ(x, y + 0.001) - terrainZ(x, y - 0.001)) / 0.002,
+      length = Math.sqrt(1 + gx * gx + gy * gy)
+    assert.ok(
+      Math.abs(face.north + gy / length) < 1e-6 && Math.abs(face.up - 1 / length) < 1e-6,
+      `(${x}, ${y}): ${JSON.stringify(face)} against the slope ${gx}, ${gy}`,
+    )
+    terrain++
+  }
+  // Tunnel floors under the hillside, found by geometry in the tiles round the station: level, never the slope over them.
+  let tunnels = 0
+  const { ids, items } = placeAt(1, 1).vectors.roads
+  items.forEach(({ pts }, n) => {
+    const id = ids[n]!
+    if (MAP.roads[id]!.tunnel !== true) return
+    for (let k = 0; k + 3 < pts.length; k += 2) {
+      const x = (pts[k]! + pts[k + 2]!) / 2,
+        y = (pts[k + 1]! + pts[k + 3]!) / 2,
+        floor = roadLevel(id, x, y)
+      if (floor === undefined || floor > terrainZ(x, y) - 0.5) continue
+      assert.deepEqual(facingAt(x, y, floor), LEVEL, `in tunnel ${id} at (${x}, ${y})`)
+      tunnels++
+    }
+  })
+  assert.ok(
+    terrain > 2000 && roads > 50 && tunnels > 0,
+    `${terrain} points on the terrain, ${roads} on roads, ${tunnels} in tunnels`,
+  )
 })

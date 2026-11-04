@@ -56,26 +56,83 @@ export const MELT_BAND = 100
 /** The air's temperature (°C) from which the meltwater band is fully wet; it wets in proportion from 0 °C up. */
 export const MELT_FULL = 1
 /** How far the snow's edge reaches either side of the snow line, m: its wander (the EDGE heights) and its fade (FEATHER). */
-export const REACH = EDGE.reduce((sum, { height }) => sum + height, 0) + FEATHER
+const REACH = EDGE.reduce((sum, { height }) => sum + height, 0) + FEATHER
+/**
+ * How much lower the snow line stands on a face, m for each unit of its normal's north part (higher on a south face): the fit
+ * across slopes of NASA's MODIS snow cover over Lunigiana (climate.ts, `SNOW_SEASON`), one slope with an intercept per half-month,
+ * over November to March: −436. It runs from about −850 in December and January, when the low sun leaves north faces in shade all
+ * day, to about 0 in March. A 30° north face (its normal 0.5 north) holds snow 220 m lower than level ground.
+ */
+export const SNOW_ASPECT = 440
+/**
+ * How far above the snow line its edge can reach, m: on a face looking due north (bare rock included), at the edge's highest
+ * reach. It bounds the meltwater band and the ground the snow line can touch at all.
+ */
+export const HIGHEST_SNOW = SNOW_ASPECT + REACH
+/** Faces steeper than this (their normal's up part below it, about 50°) are bare rock: the terrain paints them so and no snow lies on them. */
+export const ROCK_NORMAL_Y = 0.64
+/**
+ * How far above the snow line snow can still lie, m: on the steepest face that holds any (its normal's up part at `ROCK_NORMAL_Y`,
+ * 0.77 north), at the edge's highest reach. A line this far over the map's top leaves none on it.
+ */
+export const SNOW_REACH = SNOW_ASPECT * Math.sqrt(1 - ROCK_NORMAL_Y * ROCK_NORMAL_Y) + REACH
+/** Snow settles fully on faces whose normal's up part is above this; it thins out down to the bare rock (`ROCK_NORMAL_Y`). */
+export const SNOW_SETTLES = 0.8
 
 /** How many metres the snow line's edge stands lower at (x, y) (a fixed, world-locked pattern, the same every game; negative where it stands higher). */
 export const snowEdge = (x: number, y: number): number =>
   EDGE.reduce((sum, { cell, height }) => sum + height * noise(x, y, cell), 0)
 
-/** How much snow covers ground `above` m over the snow line's ragged edge: none below it, all of it above, fading over ±`FEATHER` m. */
-const coverAbove = (above: number): number => {
-  const s = Math.max(0, Math.min(1, (above + FEATHER) / (2 * FEATHER)))
+/** `x` past `from` toward `to`, smoothed, 0…1 (GLSL's `smoothstep`). */
+const smooth = (from: number, to: number, x: number): number => {
+  const s = Math.max(0, Math.min(1, (x - from) / (to - from)))
   return s * s * (3 - 2 * s)
 }
 
-/** How much snow covers ground at (x, y, z) under a snow line at `snowLine` m a.s.l.: 0 below its ragged edge, 1 above it. */
-export const snowCoverAt = (snowLine: number, x: number, y: number, z: number): number =>
-  snowLine >= NO_SNOW || z < snowLine - REACH ? 0 : coverAbove(z + snowEdge(x, y) - snowLine)
+/** How much snow covers ground `above` m over the snow line's ragged edge: none below it, all of it above, fading over ±`FEATHER` m. */
+const coverAbove = (above: number): number => smooth(-FEATHER, FEATHER, above)
+
+/** Which way the ground faces: the north and up parts of its unit normal. */
+export interface Facing {
+  readonly north: number
+  readonly up: number
+}
+/** Level ground: what a road, a bridge deck, a platform or a tunnel's floor counts as. */
+export const LEVEL: Facing = { north: 0, up: 1 }
+/** Which way the ground at a point faces (`facingAt` in src/sim/map/ground.ts gives the map's; it reads the tiles there). */
+export type FacingAt = (x: number, y: number, near: number) => Facing
+/** Level ground everywhere: for points off the map's tiles in memory, or where the slope does not matter. */
+const levelGround: FacingAt = () => LEVEL
+
+/** How many metres ground at (x, y, z) facing `face` stands over the snow line's edge under a snow line at `snowLine` m a.s.l. */
+const overEdge = (snowLine: number, x: number, y: number, z: number, face: Facing): number =>
+  z + snowEdge(x, y) + SNOW_ASPECT * face.north - snowLine
+
+/** How much of a face's cover settles on it, by its normal's up part: all of it on gentle ground, none on bare rock. */
+const settles = (face: Facing): number => smooth(ROCK_NORMAL_Y, SNOW_SETTLES, face.up)
 
 /**
- * The ground at (x, y, z) under `weather`, the air `air` (`airAt`): snow above the snow line's ragged edge; where none lies, the
- * weather's wetness, and, where the air at z is above freezing, wetter toward the edge from `MELT_BAND` m below it, where meltwater
- * runs (only there: the snowmelt wets no other ground). In a frost the ground below the snow stays as dry as the weather left it.
+ * How much snow covers ground at (x, y, z) under a snow line at `snowLine` m a.s.l., the ground facing as `facing` says (level by
+ * default): 0 below its ragged edge, which stands lower on north faces, 1 above it, thinning out on faces steep toward bare rock.
+ */
+export const snowCoverAt = (
+  snowLine: number,
+  x: number,
+  y: number,
+  z: number,
+  facing: FacingAt = levelGround,
+): number => {
+  if (snowLine >= NO_SNOW || z < snowLine - HIGHEST_SNOW) return 0
+  const face = facing(x, y, z)
+  return coverAbove(overEdge(snowLine, x, y, z, face)) * settles(face)
+}
+
+/**
+ * The ground at (x, y, z) under `weather`, the air `air` (`airAt`), facing as `facing` says (level by default): snow above the snow
+ * line's ragged edge, which stands `SNOW_ASPECT` lower on north faces and thins out on faces steep toward bare rock (what the renderer
+ * draws, src/render/sky/surface.ts); where none lies, the weather's wetness, and, where the air at z is above freezing, wetter toward
+ * the edge from `MELT_BAND` m below it, where meltwater runs (only there: the snowmelt wets no other ground). In a frost the ground
+ * below the snow stays as dry as the weather left it.
  */
 export const groundAt = (
   weather: Pick<WeatherValue, "wet" | "snowLine">,
@@ -83,16 +140,20 @@ export const groundAt = (
   y: number,
   z: number,
   air: Air,
+  facing: FacingAt = levelGround,
 ): GroundWeather => {
   const { snowLine, wet } = weather
-  if (snowLine >= NO_SNOW || z < snowLine - REACH - MELT_BAND)
+  if (snowLine >= NO_SNOW || z < snowLine - HIGHEST_SNOW - MELT_BAND)
     return wet === 0 ? DRY : { wet, snow: 0 }
-  const above = z + snowEdge(x, y) - snowLine,
-    snow = coverAbove(above)
-  const thaw = Math.max(0, Math.min(1, celsiusAt(air, z) / MELT_FULL))
+  const face = facing(x, y, z),
+    above = overEdge(snowLine, x, y, z, face),
+    cover = coverAbove(above)
+  const thaw = Math.max(0, Math.min(1, celsiusAt(air, z) / MELT_FULL)),
+    lies = cover * settles(face)
+  // The ground the snow leaves bare (a face too steep for it to settle on) takes the weather's wet.
   return {
-    wet: Math.max(wet, thaw * Math.max(0, Math.min(1, 1 + above / MELT_BAND))) * (1 - snow),
-    snow,
+    wet: Math.max(wet, thaw * Math.max(0, Math.min(1, 1 + above / MELT_BAND))) * (1 - lies),
+    snow: lies,
   }
 }
 
@@ -102,12 +163,6 @@ export interface FogLayers {
   readonly valleyDensity: number
   readonly cloudBase: number
   readonly cloudDensity: number
-}
-
-/** `x` past `from` toward `to`, smoothed, 0…1. */
-const smooth = (from: number, to: number, x: number): number => {
-  const s = Math.max(0, Math.min(1, (x - from) / (to - from)))
-  return s * s * (3 - 2 * s)
 }
 
 /**

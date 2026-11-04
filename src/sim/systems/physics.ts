@@ -27,7 +27,8 @@ import {
   Weather,
 } from "../schema.ts"
 import { airAt } from "../sky/climate.ts"
-import { DRY, groundAt, type GroundWeather } from "../sky/local.ts"
+import { DRY, type GroundWeather } from "../sky/local.ts"
+import { underfoot } from "../sky/underfoot.ts"
 import { weathered } from "../tyres.ts"
 import type { VehicleModel, VehicleSpec } from "../vehicles.ts"
 import { FLOW, specificDischarge } from "../water/flow.ts"
@@ -345,7 +346,7 @@ export const VehiclePhysics = Game.System(
       weather = resources.weather.get()
     if (dt <= 0) return
     const air = airAt(resources.clock.get().seconds, weather),
-      under = (x: number, y: number, level: number) => groundAt(weather, x, y, level, air),
+      under = underfoot(weather, air),
       q = specificDischarge(resources.rivers.get(), FLOW),
       player = queries.player.each()[0]?.data.pose.get()
     for (const { entity, data } of queries.vehicles.each()) {

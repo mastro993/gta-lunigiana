@@ -2530,7 +2530,11 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   ([docs/standards/playtest.md](standards/playtest.md)) in a tab of its own: `shots <url> <outdir>
   <name>:<x>,<y>[,<texels/m>] … [map]` pins the view on each spot (dev builds only: it needs
   `window.gta`) and writes a PNG each, `map` the full map; `heap <url>` prints the first frame (the
-  card's "Press any key"), the slowest and p99 frame and the JS heap after a forced GC. `shots`
+  card's "Press any key"), the slowest and p99 frame and the JS heap after a forced GC, with `--at
+  x,y` (dev builds) standing at that point once its tiles are in memory. `--date YYYY-MM-DD` (both)
+  starts the game on that day, the page's clock moved there before it loads, so its snow line and
+  its woods' leaves are that day's ([weather.md](weather.md#the-seasons-snow-line)), and on a dev
+  build stops the clock at noon under a clear sky, settled. `shots`
   pins each spot twice: first on the coarse grid's height where its tile is not in memory
   (`gta.heightAt` falls back to it), then, 2 s later, once the view's tiles have streamed in, on the
   exact ground. `lucido`, production build, `?seed=7`, three runs on 2026-10-31 interleaved with
@@ -2538,6 +2542,12 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   included; on 2026-11-03 with the UCS's woods 0.35–0.37 s and 90 MB, against 0.34–0.38 s and 89 MB
   before them), against main's 0.41–0.44 s and 123–124 MB with the vectors in the global file, where
   the whole map before the tiles took 0.92–0.98 s and 250 MB (dev build then 1.01 s and 274 MB).
+  On 2026-11-04 with the season's snow and leaves (the game starting that day: snow on the high
+  north faces, the woods bare above about 1200 m), seven runs each interleaved with main's build:
+  first frame 0.33–0.36 s against 0.32–0.35 (one cold first load after the build at 0.66 s), heap
+  89–90 MB against 88–90, slowest frame 16.8 ms in every run. Standing on Pizzo d'Uccello on 1 March
+  (`--at 4210,-2454 --date 2027-03-01`, dev build, the snow down to 1384 m and every wood bare):
+  slowest frame 16.8 ms in three runs, heap 100 MB, the same as main's.
 - **`pnpm playtest drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,…]`** (dev
   builds only: it needs `gta.player`, `gta.teleport` and `gta.tiles`) runs the tile streaming at
   speed. It dismisses the title card, teleports the player to the route's start and waits until the

@@ -184,6 +184,47 @@ export const normalsAt = (t: number, lat: number = place().lat): Normals => ({
 export const dailyMean = (normals: Normals, z: number): number =>
   normals.sea - (normals.lapse * z) / 1000
 
+/**
+ * The snow line each season leaves on level ground at mid-month, m a.s.l., January first, where it was measured
+ * (`SNOW_SEASON_LAT`): the one place-fitted table here. NASA's MODIS snow cover (NDSI ≥ 10, Terra and Aqua through GIBS, every
+ * second day of the ten seasons 2015/16–2024/25) over Lunigiana (43.98–44.50 N, 9.62–10.32 E), crossed with a 100 m DEM: the height
+ * where snow was seen at least once in a half-month in half the seasons, on level ground (the fit across the slopes' north part,
+ * `SNOW_ASPECT` in local.ts), the mean of each month's halves. November 1357 m (1601 early, 1113 late), December 859, January 926,
+ * February 1333, March 1407, April 1870 (1762 early; late April's 1980 extrapolated from its bands, none of which reaches half). May's
+ * 2600 and October's 2400 carry the line off the map's tops: October's meets early November's 1601 m on the 8th. June to September
+ * lay none. A poor decade: a long-term mean puts the lines 100–200 m lower.
+ */
+const SNOW_SEASON: Months = [
+  926,
+  1333,
+  1407,
+  1870,
+  2600,
+  NO_SNOW,
+  NO_SNOW,
+  NO_SNOW,
+  NO_SNOW,
+  2400,
+  1357,
+  859,
+]
+/** Where `SNOW_SEASON` was measured, degrees north: the middle of its window. */
+const SNOW_SEASON_LAT = 44.24
+
+/** The height (m a.s.l.) where the day's mean normal is 0 °C at UTC second `t` and latitude `lat`. */
+const zeroLine = (t: number, lat: number): number => {
+  const normals = normalsAt(t, lat)
+  return (1000 * dailyMean(normals, 0)) / normals.lapse
+}
+
+/**
+ * The snow line the season leaves on level ground at UTC second `t` and latitude `lat`, m a.s.l.: `SNOW_SEASON` straight between the
+ * months' middles, moved by as much as the 0 °C line at `lat` stands above the one where it was measured, so a map elsewhere in
+ * Italy gets its own season. A new game starts with it (weather.ts).
+ */
+export const seasonSnowLine = (t: number, lat: number = place().lat): number =>
+  inTime((month) => SNOW_SEASON[month]!, t) + zeroLine(t, lat) - zeroLine(t, SNOW_SEASON_LAT)
+
 /** The hour of local solar time when the day is warmest; the coldest is at sunrise. */
 const WARMEST = 14.5
 

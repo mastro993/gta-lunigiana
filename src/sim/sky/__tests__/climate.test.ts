@@ -7,9 +7,12 @@ import {
   airAt,
   celsiusAt,
   freezingLevel,
+  dailyMean,
+  NO_SNOW,
   normalsAt,
   orographic,
   rainCooling,
+  seasonSnowLine,
   snowShare,
 } from "../climate.ts"
 import { place, REFERENCE_PLACE } from "../place.ts"
@@ -205,4 +208,31 @@ test("precipitation: rain above 1.5 °C, snow below 0.5 °C, half and half at 1.
     [0, 0, 1.8, 3, 3.5].every((c, k) => Math.abs(cooling[k]! - c) < 1e-12),
     `${cooling}`,
   )
+})
+
+test("the season's snow line: MODIS's over Lunigiana at mid-month where it was measured, straight between, moved with the 0 °C line elsewhere; none in summer", () => {
+  // Level ground, m a.s.l., January to December (the source's half-months averaged; NO_SNOW from June to September).
+  const MODIS = [926, 1333, 1407, 1870, 2600, NO_SNOW, NO_SNOW, NO_SNOW, NO_SNOW, 2400, 1357, 859]
+  MODIS.forEach((line, k) =>
+    assert.ok(Math.abs(seasonSnowLine(middle(k + 1), 44.24) - line) < 1e-9, `month ${k + 1}`),
+  )
+  // Early November's 1601 m on the 8th, late November's 1113 m on the 23rd, early April's 1762 m on the 8th: within the halves.
+  assert.ok(Math.abs(seasonSnowLine(utc(2026, 11, 8, 12), 44.24) - 1601) < 40)
+  assert.ok(Math.abs(seasonSnowLine(utc(2026, 11, 23, 12), 44.24) - 1113) < 150)
+  assert.ok(Math.abs(seasonSnowLine(utc(2026, 4, 8, 12), 44.24) - 1762) < 20)
+  // Another latitude moves it as far as the 0 °C line: Sicily's (38 N) stands about 1.3 km higher in January.
+  const zero = (t: number, lat: number) =>
+    (1000 * dailyMean(normalsAt(t, lat), 0)) / normalsAt(t, lat).lapse
+  for (const t of [middle(1), utc(2026, 3, 3, 9), utc(2026, 11, 20, 18)])
+    for (const lat of [38, 42, 44.16, 46])
+      assert.ok(
+        Math.abs(
+          seasonSnowLine(t, lat) - seasonSnowLine(t, 44.24) - (zero(t, lat) - zero(t, 44.24)),
+        ) < 1e-9,
+      )
+  const sicily = seasonSnowLine(middle(1), 38) - seasonSnowLine(middle(1), 44.24)
+  assert.ok(sicily > 1200 && sicily < 1500, `${sicily} m`)
+  // The map's own latitude defaults; the summer lays none on any Italian summit (4808 m).
+  assert.equal(seasonSnowLine(middle(2)), seasonSnowLine(middle(2), place().lat))
+  for (const month of [6, 7, 8, 9]) assert.ok(seasonSnowLine(middle(month), 38) > 4808)
 })

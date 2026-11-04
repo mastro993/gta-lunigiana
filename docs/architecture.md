@@ -945,14 +945,17 @@ level the rivers run at, [water.md](water.md#how-it-looks); and a quad over each
 and river polygons, `src/render/water.ts`, from the chunk's own cells), a glow mesh (lit window
 panes and lantern glass) and one `InstancedMesh` per tree crown (broadleaf, beech, conifer, pine;
 an oak is a broadleaf in its own tint: `speciesAt` in `src/render/trees.ts`,
-[map.md](map.md#known-data-limitations)); the water,
+[map.md](map.md#known-data-limitations); out of leaf a bare broadleaf or beech and an oak holding
+its dead leaves, as the season the game starts in says, `crownsOn` in `src/render/leaves.ts`,
+[weather.md](weather.md#the-woods-leaves)); the water,
 glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
 the terrain, lines and trees beyond the map bounds, the built terrain's box; inside it, past an
 inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground and cover the
 nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a line
 ending on the bounds runs on across the apron). Terrain cells take their colours from the land
 cover, read from the tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts`, painted by
-`COVER_LOOK` in `src/render/terrain.ts`): the map's areas, meadow where none covers a cell, paving
+`COVER_LOOK` in `src/render/terrain.ts`, a broadleaf wood's floor in its leaf litter out of leaf):
+the map's areas, meadow where none covers a cell, paving
 where open ground lies within 3 m of both a wall and a road's edge (house fronts, sidewalks,
 alleys), and pebble beds along the wide streams outside the lakes and river polygons. A cover's byte
 in the tiles is its place in `COVERS` (`src/sim/map/raster.ts`; new kinds go at the end), and the
@@ -1468,10 +1471,10 @@ never recompiles a shader.
 | Material | Variant | Draws | Weather on it |
 |---|---|---|---|
 | `solidMaterial` | `solid` | buildings, bridges, the ballast bed, platforms, canopies, name boards, crossing housings, tunnel portals, the lamps' iron and poles | snow, wet darkening, cloud shadows |
-| `terrainMaterial` | `terrain` | the terrain | snow, wet darkening, cloud shadows |
+| `terrainMaterial` | `terrain` | the terrain | snow (lower on north faces), wet darkening, cloud shadows |
 | `decalMaterial` | `road` | roads, sleepers and rails, crossing panels and stop lines, platform lines | snow (0.6 of it), wet darkening, puddles, cloud shadows |
 | `waterMaterial` | `water` | rivers, streams | the level and the current's streaks the rivers run at, rain rings, cloud shadows; no snow, no darkening |
-| `treeMaterial` | `tree` | the instanced trees | snow on the canopy tops, wet darkening, cloud shadows, sway |
+| `treeMaterial` | `tree` | the instanced trees | snow on the canopy tops and half of it on their sides, wet darkening, cloud shadows, sway |
 | `actorMaterial` | `actor` | people, animals, vehicles, tyre marks, smoke | cloud shadows only |
 | `bloodMaterial` | `actor` | blood pools, pulled toward the camera like the decals | cloud shadows only |
 
@@ -1481,13 +1484,20 @@ never recompiles a shader.
   night lights. The terrain and the solid variant differ only in how the see-through cut takes
   them ([See-through cut](#see-through-cut)).
 - The snow cover and the wetness are the sim's (`groundAt`): the snow edge's lattice hash and value
-  noise are ported to 32-bit unsigned GLSL, with the sim's `EDGE`, `FEATHER`, `MELT_BAND` and
-  `MELT_FULL` written into the shader text, so the white edge on screen is where the tyres lose
-  grip. On the GPU the edge came within 2 mm of the sim's over 65,536 map points;
+  noise are ported to 32-bit unsigned GLSL, with the sim's `EDGE`, `FEATHER`, `MELT_BAND`,
+  `MELT_FULL`, `SNOW_ASPECT`, `ROCK_NORMAL_Y` and `SNOW_SETTLES` written into the shader text, so the
+  white edge on screen is where the tyres lose grip. The season's snow line and its aspect are in
+  [weather.md](weather.md#the-seasons-snow-line): on the terrain (`WEATHER_ASPECT`, the terrain
+  variant's alone) the line stands `SNOW_ASPECT` m lower for each unit of the face's normal toward
+  the north, as the sim's `facingAt` gives the same triangle (`terrain.test.ts` compares every face
+  of a chunk), and roads, decks, roofs and crowns take the level line, as `facingAt` gives what is
+  not the terrain. On the GPU the edge came within 2 mm of the sim's over 65,536 map points;
   `surface.test.ts` holds the key GLSL lines verbatim and checks a line-for-line port against the
   sim.
-- Snow settles only on faces flatter than `ROCK_NORMAL_Y` (0.64, `terrain.ts`), the slope the
-  terrain paints as bare rock, so cliffs stay bare.
+- Snow settles only on faces flatter than `ROCK_NORMAL_Y` (0.64, `src/sim/sky/local.ts`), the slope
+  the terrain paints as bare rock, so cliffs stay bare; the sim's `groundAt` thins it the same way.
+  A crown (`canopy` 1) holds `CANOPY_SNOW` (0.5) of the cover on its sides as well, so a snowy wood
+  is flecked white.
 - Rivers and streams left the decal mesh for their own layer (`RibbonSpec.flowing` in `ribbons.ts`),
   cut by the same chunk rule, so a chunk still equals a cut: water takes no snow and no wet
   darkening. Its vertices lie on the bed and carry `stage` and `flow` (`WaterTriangles` in

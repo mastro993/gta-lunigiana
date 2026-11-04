@@ -30,7 +30,8 @@ import { tileTrees } from "../sim/map/tiles.ts"
 import { hash01 } from "../tools/geometry.ts"
 import { APRON, chunkOf } from "./chunks.ts"
 import { merge, paint } from "./geometry.ts"
-import { terrainY } from "./ground.ts"
+import { terrainY, zOf } from "./ground.ts"
+import type { Crown } from "./leaves.ts"
 import { PALETTE } from "./palette.ts"
 
 /**
@@ -41,11 +42,38 @@ import { PALETTE } from "./palette.ts"
 const KINDS = ["broadleaf", "oak", "beech", "conifer", "pine"] as const
 /** A tree kind (`KINDS`). */
 export type TreeKind = (typeof KINDS)[number]
-/** The crowns the kinds are drawn with, each its own InstancedMesh a chunk: the oak's is the broadleaf's, in its own tint. */
-const SHAPES = ["broadleaf", "beech", "conifer", "pine"] as const
+/**
+ * The crowns the kinds are drawn with, each its own InstancedMesh a chunk: the oak's is the broadleaf's, in its own tint; out of
+ * leaf, a broadleaf's or a beech's crown bare, an oak's holding its dead leaves (`Crown`).
+ */
+const SHAPES = [
+  "broadleaf",
+  "beech",
+  "conifer",
+  "pine",
+  "bareBroadleaf",
+  "bareBeech",
+  "deadOak",
+] as const
 type Shape = (typeof SHAPES)[number]
-/** The crown kind `kind` is drawn with. */
-const shapeOf = (kind: TreeKind): Shape => (kind === "oak" ? "broadleaf" : kind)
+/** The crown a tree of `kind` wearing `crown` is drawn with. */
+const shapeOf = (kind: TreeKind, crown: Crown): Shape =>
+  crown === "dead"
+    ? "deadOak"
+    : crown === "bare"
+      ? kind === "beech"
+        ? "bareBeech"
+        : "bareBroadleaf"
+      : kind === "oak"
+        ? "broadleaf"
+        : kind
+/**
+ * Of the oaks out of leaf, the share that holds its dead leaves: the downy oak's marcescence (the Turkey oak's grown trees
+ * mostly shed theirs). A design value: the IFT lumps the two oaks, so each is taken as half.
+ */
+const MARCESCENT = 0.5
+/** Every tree in leaf: what a chunk wears unless told the season (`crownsOn` in render/leaves.ts). */
+const IN_LEAF = (): Crown => "leafy"
 /** A record of `of(kind)` for every kind. */
 const byKind = <T>(of: (kind: TreeKind) => T): Record<TreeKind, T> =>
   Object.fromEntries(KINDS.map((kind) => [kind, of(kind)])) as Record<TreeKind, T>
@@ -118,6 +146,9 @@ const shapes = {
     ),
   ]),
   pine: roundTree("pine", PALETTE.pine, 5),
+  bareBroadleaf: roundTree("broadleaf", PALETTE.bareCrown, 2),
+  bareBeech: roundTree("beech", PALETTE.bareCrown, 2.5),
+  deadOak: roundTree("oak", PALETTE.oakDead, 2),
 } as const satisfies Record<Shape, BufferGeometry>
 
 /** Linear multipliers on the canopy colour: mid, sunlit, shaded. */
@@ -380,25 +411,34 @@ const matrix = new Matrix4(),
   size = new Vector3()
 /**
  * The tree meshes of one chunk, one per crown it has (`shapeOf`), each tree tinted as its kind
- * (`kinds` says each tree's; their kinds `kindAt` gives by default, which reads their tiles), each
- * tree's trunk base `base(x, y)` (render y; a little into the terrain there by default). Dispose
- * them with `InstancedMesh.dispose` (the shapes are shared).
+ * (`kinds` says each tree's; their kinds `kindAt` gives by default, which reads their tiles) and
+ * wearing what `crowns` says for its kind at its height (all in leaf by default), each tree's trunk
+ * base `base(x, y)` (render y; a little into the terrain there by default). Dispose them with
+ * `InstancedMesh.dispose` (the shapes are shared).
  */
 export const treeMeshes = (
   trees: ChunkTrees,
   material: Material,
   base: (x: number, y: number) => number = baseY,
   kinds: ReadonlyArray<TreeKind> = kindsOf(trees),
+  crowns: (kind: TreeKind, z: number) => Crown = IN_LEAF,
 ): Array<InstancedMesh> => {
   const meshes: Array<InstancedMesh> = []
+  const worn = kinds.map((kind, n) => {
+    const crown = crowns(kind, zOf(base(trees[4 * n]!, trees[4 * n + 1]!)))
+    return shapeOf(
+      kind,
+      crown === "dead" && hash01(trees[4 * n + 3]!, 17) >= MARCESCENT ? "bare" : crown,
+    )
+  })
   for (const shape of SHAPES) {
-    const count = kinds.reduce((n, k) => (shapeOf(k) === shape ? n + 1 : n), 0)
+    const count = worn.reduce((sum, s) => (s === shape ? sum + 1 : sum), 0)
     if (count === 0) continue
     const mesh = new InstancedMesh(shapes[shape], material, count)
     for (let n = 0, i = 0; n < kinds.length; n++) {
-      const kind = kinds[n]!
-      if (shapeOf(kind) !== shape) continue
-      const tints = TINTS_OF[kind]
+      if (worn[n] !== shape) continue
+      // Out of leaf no kind's green tint applies.
+      const tints = shape === shapeOf(kinds[n]!, "leafy") ? TINTS_OF[kinds[n]!] : TINTS
       const x = trees[4 * n]!,
         y = trees[4 * n + 1]!,
         scale = trees[4 * n + 2]!,

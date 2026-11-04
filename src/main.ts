@@ -50,6 +50,7 @@ import {
   Trains,
   Vehicles,
 } from "./render/index.ts"
+import { crownsOn } from "./render/leaves.ts"
 import { PixelView, WIDEST_ZOOM, zoomFor } from "./render/pipeline.ts"
 import { SeeThrough } from "./render/sightline.ts"
 import { SkyHost } from "./render/sky/host.ts"
@@ -107,7 +108,12 @@ const scene = new Scene()
 // and weather mesh is made here, before the first frame compiles the shaders (the clear colour too is the sky's, each frame).
 const skyHost = new SkyHost(scene, { reduced: () => reduceMotion.matches })
 await step(document, "Planting trees", 0.86)
-const world = new World(scene)
+// A new game starts today (the browser's local date) at 08:00 in Rome; the woods wear that day's leaves all session.
+const today = new Date()
+const start = utcFromRome(
+  daysFromCivil(today.getFullYear(), today.getMonth() + 1, today.getDate()) * DAY + 8 * 3600,
+)
+const world = new World(scene, crownsOn(start))
 // The tiles boot.ts handed over cover the start; from here on the stream brings them in round the player and the view.
 for (const key of residentTiles()) world.tileProvided(key)
 const stream = makeTileStream({
@@ -167,17 +173,13 @@ const speaker = makeSpeaker(
   { ...VEHICLE_SHOTS, ...WORLD_SHOTS } satisfies Shots,
 )
 const director = makeDirector(speaker)
-// A new game starts today (the browser's local date) at 08:00 in Rome.
-const today = new Date()
 const made = makeRuntime({
   // `?seed=123` replays a world; otherwise every load is a new one.
   seed:
     Number(
       new URLSearchParams(location.search).get("seed") ?? Math.floor(Math.random() * 2 ** 32),
     ) >>> 0,
-  start: utcFromRome(
-    daysFromCivil(today.getFullYear(), today.getMonth() + 1, today.getDate()) * DAY + 8 * 3600,
-  ),
+  start,
   services: Game.Runtime.services(
     Game.Runtime.service(KeyboardInput, controls),
     Game.Runtime.service(People, people),

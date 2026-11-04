@@ -347,7 +347,7 @@ export const weatherArea = (
   const about = make("p", {
     id: "debug-weather-settle-about",
     textContent:
-      "Jumps the weather to where its regime settles: every value at its target, the roads soaked or dry, snow down to the freezing level.",
+      "Jumps the weather to where its regime settles: every value at its target, the roads soaked or dry, the season's snow line for the date, or snow down to the freezing level where it falls.",
   })
   settle.setAttribute("aria-describedby", about.id)
   settle.addEventListener("click", () => sky.settle())

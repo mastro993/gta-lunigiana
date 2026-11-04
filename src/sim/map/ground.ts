@@ -9,6 +9,7 @@
  * @module map/ground
  */
 import { pointInRing, segDist2 } from "../collide.ts"
+import { type FacingAt, LEVEL } from "../sky/local.ts"
 import { addToBuckets, bucketItems, type Buckets, emptyBuckets } from "./buckets.ts"
 import { MAP, roadClassOf } from "./index.ts"
 import { anchorOf, HALO, type RoadClass, vergeOf } from "./kinds.ts"
@@ -50,6 +51,16 @@ export const terrainNodeZ = (i: number, j: number): number => clampedNode(i, j) 
 /** Scratch for the four nodes of a cell. */
 const corners = new Int32Array(4)
 
+/** Reads the four nodes (dm) of cell (fi, fj), counted from the region's anchor (`anchorOf`), into `corners`. */
+const readCorners = (fi: number, fj: number): void => {
+  const i = fi + AI,
+    j = fj + AJ
+  // Every wheel and foot reads here each step: on the grid, its nodes in one lookup where it can;
+  // on the apron each node clamps on its own.
+  if (i >= 0 && j >= 0 && i < hm.cols - 1 && j < hm.rows - 1) cellCorners(i, j, corners)
+  else for (let k = 0; k < 4; k++) corners[k] = clampedNode(i + (k & 1), j + (k >> 1))
+}
+
 /**
  * Terrain elevation under (x, y) on the drawn mesh: each cell is split along its south-west to
  * north-east diagonal. The cell is measured from the region's anchor (`anchorOf`).
@@ -61,12 +72,7 @@ export const terrainZ = (x: number, y: number): number => {
     fj = Math.floor(fy)
   const u = fx - fi,
     v = fy - fj
-  const i = fi + AI,
-    j = fj + AJ
-  // Every wheel and foot reads here each step: on the grid, its nodes in one lookup where it can;
-  // on the apron each node clamps on its own.
-  if (i >= 0 && j >= 0 && i < hm.cols - 1 && j < hm.rows - 1) cellCorners(i, j, corners)
-  else for (let k = 0; k < 4; k++) corners[k] = clampedNode(i + (k & 1), j + (k >> 1))
+  readCorners(fi, fj)
   const sw = corners[0]! / 10,
     se = corners[1]! / 10,
     nw = corners[2]! / 10,
@@ -251,6 +257,33 @@ export const groundZ = (x: number, y: number, near?: number, verges = false): nu
     if (sc < score) [best, score] = [h, sc]
   }
   return best
+}
+
+/** Ground within this of the terrain mesh is the terrain, m: under the lowest road's lift (`ROAD_LIFT.path`). */
+const ON_TERRAIN = 0.01
+
+/**
+ * Which way the ground at (x, y) on the level nearest `near` (m a.s.l., as `groundZ`) faces: where that ground is the terrain, its
+ * triangle's (split as `terrainZ` splits the cell, the faces the renderer draws); on a road, a deck, a platform or in a tunnel,
+ * `LEVEL`. The snow reads it (`groundAt`, src/sim/sky/local.ts): north faces hold it lower, steep ones none.
+ */
+export const facingAt: FacingAt = (x, y, near) => {
+  if (Math.abs(groundZ(x, y, near) - terrainZ(x, y)) > ON_TERRAIN) return LEVEL
+  const fx = (x - AX) / hm.cell,
+    fy = (y - AY) / hm.cell
+  const fi = Math.floor(fx),
+    fj = Math.floor(fy)
+  readCorners(fi, fj)
+  const sw = corners[0]!,
+    se = corners[1]!,
+    nw = corners[2]!,
+    ne = corners[3]!
+  // The slope east and north, m a metre, from the nodes in decimetres.
+  const lower = fx - fi >= fy - fj,
+    gx = (lower ? se - sw : ne - nw) / (10 * hm.cell),
+    gy = (lower ? ne - se : nw - sw) / (10 * hm.cell),
+    length = Math.sqrt(1 + gx * gx + gy * gy)
+  return { north: -gy / length, up: 1 / length }
 }
 
 /**
