@@ -288,6 +288,28 @@ test("water areas: a gravel bar in a river polygon is raised 0.3 m over the surf
   assert.ok(lifted > 10, `${lifted} nodes of the bar raised`)
 })
 
+// Regression: OSM maps the Tassonaro 6 m off the LiDAR's channel above its mouth, and the ground at
+// its river polygon's outline lay under its floor: the water drawn to the outline stood over it.
+test("water areas: a river polygon's outer edge under its waterways' floor is raised to it in the pass before the claims, and left by the pass after them", () => {
+  // A ditch 5 m deep along the west polygon's south outline, x 40…80.
+  const lowered = demOf((x, y) => ground(true)(x, y) - (y < 43 && x > 37 && x < 83 ? 5 : 0))
+  const before = lowered.grid(WHOLE),
+    after = lowered.grid(WHOLE)
+  carveAreas(before, carved, WATER, wp, false)
+  carveAreas(after, carved, WATER, wp, true)
+  let edge = 0
+  for (let x = 40; x <= 80; x += 4) {
+    assert.ok(onEdge(x, 40) && touches(WEST, x, 40))
+    const z0 = at(lowered.grid(WHOLE), x, 40),
+      { surface, depth } = nearest([0], x, 40)
+    assert.ok(z0 < surface - depth / 2, `(${x}, 40) under the floor`)
+    close(at(before, x, 40), surface - depth / 2 + 0.05, `(${x}, 40) raised`)
+    assert.equal(at(after, x, 40), z0, `(${x}, 40) left`)
+    edge++
+  }
+  assert.equal(edge, 11)
+})
+
 test("water areas: the seam between two river polygons across the river is carved as their inside, not left as an edge", () => {
   let seam = 0
   for (let y = 44; y <= 156; y += 4) {

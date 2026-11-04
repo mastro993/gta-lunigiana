@@ -163,12 +163,14 @@ const freeWidth = (walls: ReadonlyArray<Segment>, lane: Lane, along: number): nu
 }
 
 /**
- * `sides` with only the largest connected part of its usable edges (≥ 0)
- * kept: where narrow roads cut a model's network in two, it keeps off the
- * smaller piece rather than bounce between its dead ends.
+ * `sides` with only the largest connected part of its usable edges kept: where narrow roads cut a
+ * model's network in two, it keeps off the smaller piece rather than bounce between its dead ends.
+ * An edge joins the network where the model fits it both ways (≥ 0 each way, as `allowsModel` in
+ * route.ts asks): one it fits only one way (its body clears the walls on the centreline headed one
+ * way alone) joined a piece to the rest that traffic could not then reach.
  */
 const largestPart = (sides: Float64Array): Float64Array => {
-  const usable = (edge: number) => sides[edge * 2]! >= 0
+  const usable = (edge: number) => sides[edge * 2]! >= 0 && sides[edge * 2 + 1]! >= 0
   const part = new Int32Array(graph.nodes.length).fill(-1)
   const sizes: Array<number> = []
   graph.nodes.forEach((_, seed) => {

@@ -540,10 +540,13 @@ the lane helpers in `src/sim/route.ts`.
   wall along every traffic edge. A model only uses edges where it fits, and where the drive walls
   across the road leave room for it and an oncoming Panda plus 0.3 m (`PASS_MARGIN`): in single-file
   lanes between houses two cars met head-on with no room to back out or turn round. It only uses the
-  largest connected part of those edges, so villages reached only by such lanes (Terma, Monte dei
-  Bianchi, Vezzanello) get no AI traffic; the player can still drive there. Trucks keep to the main
-  roads (motorway to tertiary) and unclassified roads and to the loops of that network, because they
-  cannot turn round. Apes keep off motor roads (`isMotorRoad`: motorways, trunk roads and their slip
+  largest connected part of the edges it fits both ways, so villages reached only by such lanes
+  (Terma, Monte dei Bianchi, Vezzanello) get no AI traffic; the player can still drive there. An
+  edge it fits one way alone (its body clears the walls on the centreline headed one way) joins
+  nothing: counted as a link, it kept pieces that traffic could not reach, two lanes in Turano for
+  the Panda (each a tree of dead ends whose last edge was flagged one way) and 49 edges by Vinca
+  for the Carabinieri. Trucks keep to the main roads (motorway to tertiary) and unclassified roads
+  and to the loops of that network, because they cannot turn round. Apes keep off motor roads (`isMotorRoad`: motorways, trunk roads and their slip
   roads), which the Codice della Strada (art. 175) closes to mopeds such as the Ape 50.
 - **Steering.** The car aims at a point 6 m + 0.6 s × speed ahead along this edge and the next.
 - **Route choice.** At each node the car picks a random legal edge. Oneways are driven a → b only.

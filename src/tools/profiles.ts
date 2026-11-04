@@ -127,7 +127,10 @@ export const beatsRail = (cls: string): boolean =>
 
 /**
  * Road core half-width written into the grid, rank (lower wins at junctions), grade limit,
- * smoothing half-window (m) and the elevation tolerance (m) of the bend samples kept in the output.
+ * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output, and
+ * whether consecutive bridge (or tunnel) pieces make one deck, straight from end to end: the roads'.
+ * The rail keeps a deck a piece: its 2.5 % grade and 100 m smoothing hold a joint to the line
+ * between its deck's ends, and its platforms and crossings are fitted on that profile.
  */
 interface Spec {
   readonly w: number
@@ -135,6 +138,7 @@ interface Spec {
   readonly grade: number
   readonly half: number
   readonly tol?: number
+  readonly decks?: true
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -271,15 +275,31 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
       return i
     }
     const isLifted = (i: number) => lifted(chain[i]!.item)
-    runs.forEach((r, i) => {
-      if (!isLifted(i)) return
-      const k0 = p.vertexSample[first[i]!]!,
-        k1 = p.vertexSample[first[i]! + r.length - 1]!
+    const isTunnel = (i: number) => chain[i]!.item.tunnel === true
+    // A deck: the consecutive lifted pieces of one kind round piece i, first and last (OSM splits a
+    // bridge where its tags change), straight from end to end. Taken piece by piece, the joint of the
+    // SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m under it: 4.9 m.
+    const deckOf = (i: number): readonly [number, number] => {
+      let a = i,
+        b = i
+      const joins = (k: number) => spec.decks === true && isLifted(k) && isTunnel(k) === isTunnel(i)
+      while (a > 0 && joins(a - 1)) a--
+      while (b + 1 < runs.length && joins(b + 1)) b++
+      return [a, b]
+    }
+    /** The first and last vertex of deck `[a, b]`, as indices into `pts`. */
+    const deckEnds = ([a, b]: readonly [number, number]) =>
+      [first[a]!, first[b]! + runs[b]!.length - 1] as const
+    for (let i = 0; i < runs.length; i++) {
+      if (!isLifted(i)) continue
+      const deck = deckOf(i)
+      i = deck[1]
+      const [k0, k1] = deckEnds(deck).map((v) => p.vertexSample[v]!) as [number, number]
       // Each end takes the ground PORTAL m out of it when that is nearer the line's level: at a
       // tunnel's portal the terrain model climbs the hill's face (3.6 m over the cutting at the
       // Ugliancaldo tunnel's west portal), and a bridge's end may stand on the slope of what it
       // spans (the Lucido's banks at Monzone).
-      const tunnel = chain[i]!.item.tunnel === true
+      const tunnel = isTunnel(i)
       for (const [k, step] of [
         [k0, -1],
         [k1, 1],
@@ -292,15 +312,15 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
       }
       for (let k = k0 + 1; k < k1; k++)
         p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
-    })
+    }
     smooth(p, spec.half)
     const pins: Array<Pin> = []
     pts.forEach((v, i) => {
       const z = v.id === undefined ? undefined : nodeZ.get(v.id)
       if (z !== undefined) pins.push({ k: p.vertexSample[i]!, z })
     })
-    // A bound inside a bridge or tunnel holds at both of its ends: the deck is straight between them
-    // (a `tilt` bound, shifted along the deck's slope).
+    // A bound inside a bridge or tunnel holds at both ends of its deck, straight between them (a
+    // `tilt` bound, shifted along the deck's slope).
     const strictest = new Map<string, Pin>()
     for (const b of bounds) {
       let best = 0,
@@ -310,9 +330,7 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
         if (e < d2) [best, d2] = [k, e]
       }
       const i = pieceOfSample(Math.min(best, p.z.length - 2))
-      const at = isLifted(i)
-        ? [p.vertexSample[first[i]!]!, p.vertexSample[first[i]! + runs[i]!.length - 1]!]
-        : [best]
+      const at = isLifted(i) ? deckEnds(deckOf(i)).map((v) => p.vertexSample[v]!) : [best]
       const [k0, k1] = [at[0]!, at.at(-1)!],
         t = k1 === k0 ? 0 : (p.s[best]! - p.s[k0]!) / (p.s[k1]! - p.s[k0]!),
         deck = p.z[k0]! + (p.z[k1]! - p.z[k0]!) * t
@@ -338,9 +356,14 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
     runs.forEach((r, i) => {
       const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!)
       if (isLifted(i)) {
-        const s = arcLengths(r)
-        for (let j = 1; j + 1 < z.length; j++)
-          z[j] = z[0]! + ((z.at(-1)! - z[0]!) * s[j]!) / s.at(-1)!
+        const [v0, v1] = deckEnds(deckOf(i)),
+          s = arcLengths(pts.slice(v0, v1 + 1)),
+          z0 = p.z[p.vertexSample[v0]!]!,
+          z1 = p.z[p.vertexSample[v1]!]!
+        for (let j = 0; j < z.length; j++) {
+          const v = first[i]! + j
+          if (v > v0 && v < v1) z[j] = z0 + ((z1 - z0) * s[v - v0]!) / s.at(-1)!
+        }
       }
       r.forEach((v, j) => {
         if (v.id !== undefined && !nodeZ.has(v.id)) nodeZ.set(v.id, z[j]!)

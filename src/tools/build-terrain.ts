@@ -132,7 +132,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
   for (const { classes, rank, grade, half } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
-      profile(ch, { w: widest(ch), rank, grade, half }, [
+      profile(ch, { w: widest(ch), rank, grade, half, decks: true }, [
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])
@@ -206,6 +206,8 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     wp,
     areas: wet.carved,
     claims,
+    // Under a deck: its carriageway and a metre either side.
+    decks: roads.filter((r) => r.bridge === true).map((r) => ({ pts: r.pts, half: r.w / 2 + 1 })),
     // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings.
     rail: railLines.filter(({ r }) => !lifted(r)),
     levels: levels.map(({ v }) => [v.x, v.y] as const),

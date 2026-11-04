@@ -1301,14 +1301,18 @@ Grondilice).
   inside), but no higher than its spill, the lowest uncarved node of its edge, in whole decimetres.
   On the bare median the 4 m grid read an edge node up to 3.1 m under the level, where an outline
   runs up a slope or a cascade, and the water drew over the ground beside it. Capped, the lake by the
-  Solco di Equi stands at 272.0 m (median 272.2) and Bozzetti at 261.5 m (262.0), and two of the
-  seven hold no water at all, the LiDAR reading no hollow under them: the intermittent pond at Prati
-  di Campocecina, on a 24 % slope, and the 18 m² pool on the Canale Doglio's cascade, whose water is
-  the stream's. A river polygon follows its waterways: every water piece with a 2 m sample inside
-  it, a tributary running in too (the Tassonaro's two pieces and the Fosso di Tufo, which joins it,
-  at the north edge; the Savio's in Cesena), which the game's water takes its level and current
-  from ([water.md](water.md#depth-and-current)). The map file keeps a lake's `level` and a river
-  polygon's `waters`.
+  Solco di Equi stands at 272.0 m (median 272.2) and Bozzetti at 261.5 m (262.0), and two of
+  lucido's seven hold no water at all, the LiDAR reading no hollow under them: the intermittent pond
+  at Prati di Campocecina, on a 24 % slope, and the 18 m² pool on the Canale Doglio's cascade, whose
+  water is the stream's. Fivizzano adds three more: the Arlia power station's forebay, 300 m along a
+  hillside, whose outline's foot reaches 3–5 m under the basin; a 24 × 29 m pond on a slope 320 m
+  past the play area's east edge (x 10420…10444, y 8145…8174), its foot 1.6 m under it; and a 7 ×
+  9 m pond 200 m east of Pieve San Lorenzo's rectangle (x 6898…6905, y 3593…3602), every node of
+  whose cells is its edge. A river polygon follows its waterways: every water piece with a 2 m
+  sample inside it, a tributary running in too (the Tassonaro's two pieces and the Fosso di Tufo,
+  which joins it, at lucido's north edge; the Savio's in Cesena), which the game's water takes its
+  level and current from ([water.md](water.md#depth-and-current)). The map file keeps a lake's
+  `level` and a river polygon's `waters`.
 - They are carved node by node, each node from its own position and the vectors alone, so a tile's
   window needs no halo. A node is the area's when one of its four cells is (the cell's centre inside,
   filled from the anchor as the land cover is), and on the water's edge when one of its cells is in
@@ -1319,7 +1323,10 @@ Grondilice).
   at their nearest point (their surface less depth/2, as the line itself is carved within w/2, and
   0.05 m more, so no node rounds above the floor the game's water stands on), and its outer edge is
   left, so the bank starts on its outline (riverside paths keep their ground) and the terrain hides
-  the water's edge. Its gravel bars (`pebble` cells inside it) are raised to 0.3 m over the
+  the water's edge; where it lies under that floor it is raised to it (and 0.05 m over, so it does
+  not round below), before the claims, so a road on it keeps its own level: OSM maps the Tassonaro
+  6 m off the LiDAR's channel above its mouth, and the water drawn to the outline stood 0.7 m over
+  the channel's gravel there. Its gravel bars (`pebble` cells inside it) are raised to 0.3 m over the
   surface, dry until a spate tops them: in the pass under the water kept below the decks, so a bar
   never stands over a capped surface. Ground more than 1 m over the water's top (a lake's level,
   the ground a river was sampled on) is left: an island, a quarry face a pond's outline climbs. The
@@ -1336,7 +1343,13 @@ Grondilice).
   tunnel's the lower, a bridge's the higher): at the Ugliancaldo tunnel's west portal the terrain
   model climbs 3.6 m up the hill's face, and the rail's 2.5% grade limit carried 1.2–1.6 m of it
   600 m along the line past Equi Terme; a bridge end on the slope of the Lucido's bank pulled
-  Monzone's line 0.7 m under the ground.
+  Monzone's line 0.7 m under the ground. A road's bridge (or tunnel) that OSM splits into pieces in
+  a row is one deck, straight from its first piece's start to its last piece's end: taken piece by
+  piece, the joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground
+  12 m under it, and the deck sagged 4.9 m there (12% and 6%), so a walker crossing it stayed 0.5 m
+  under the deck.
+  The rail keeps a deck a piece: its 2.5% grade and 100 m smoothing hold a joint to the line
+  between its deck's ends, and its platforms and crossings are fitted on that profile.
 - Within each pass, the next chain profiled is the longest one that touches a node an earlier
   chain already set, else the longest left. Elevations spread along the network from where it is
   pinned, so a short link is not pinned at both ends by chains fitted apart (a lane in Codiponte
@@ -1379,8 +1392,14 @@ Grondilice).
   (the old yards lie level with the line; Equi's sidings are 17 m from it), set right after the
   rail pass so a road crossing one is pinned to it there. They are written last (rank 5), into
   cells no road took.
-- Grid nodes inside the wider streams (w ≥ 4 m) are protected: no road writes them. Bridges and
-  tunnels write nothing. Paths and steps are not profiled.
+- Grid nodes inside the wider streams (w ≥ 4 m) are protected: no road writes them; so are a
+  narrower stream's (within w/2 + 1 m of its line) under a road bridge's deck (its carriageway and
+  1 m either side, between the deck's ends), where no road stands on the ground: an approach road's
+  core reaches its full width past its end, and under the SP41's 12 m bridge at Pognana it filled a
+  2 m stream's bed to the deck, where its spate then stood. At grade the stream runs in the road's
+  culvert, and under the rail its channel dips under the bed ([section
+  8](#8-water-under-decks-waterts)), so neither is protected. Bridges and tunnels write nothing.
+  Paths and steps are not profiled.
 - Rail (`rail-levels.ts`): at a level crossing the rail keeps its own grade and the road meets it
   (the road's profile, after the rail's, is pinned to it at the shared node): a rail pinned to the
   road's natural level made a V of 3.8–5.1% in its grade within ±5 m (an 82 m vertical curve at
@@ -1556,7 +1575,7 @@ majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 | `guard_rail` barriers | no | no | yes |
 | The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
 | Road-exit caps (4 m inside, where drivable roads leave the area) | no | no | yes |
-| Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them; open where any other road, tunnels included, crosses under, joins or carries on) | no | no | yes |
+| Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them; open where any other road, tunnels included, crosses under, joins or carries on, and on the inside of the deck's own bends, where one segment's piece runs on across the next one's carriageway) | no | no | yes |
 
 Water stops neither feet nor wheels: the player wades and swims, and vehicles float
 ([water.md](water.md)). The shore walls are the water's edge: the game joins them to the walk walls
@@ -2081,10 +2100,14 @@ attributes and its line), as `rail.map-test.ts`, `railway.map-test.ts` and `clea
 read it: heightmap coverage, spawns clear of walls and off traffic lanes (with parking in each
 village the map was widened for: Equi Terme, Gragnola, Colognola, Campiglione, Viano, Vinca,
 Ugliancaldo and Tenerano), no walls on roads, no drivable road inside a footprint, closed building
-interiors, one traffic component reaching the station, Monzone Alto and each of those villages,
-grades within 1.5× the class limits, plus the 0.1 m elevations' rounding over the 8 m measured
-(every class but paths and steps has one; a track shortcut pinned at both ends by the bends of one
-quarry road may only be the straight line between them), bridge and underpass clearances (a road
+interiors (a body starts on the nearest road where it stands clear of the walls: one already in two
+is pushed out in the order the broad phase hands them, which a grown region moves), one traffic
+component reaching the station, Monzone Alto and each of those villages, grades within 1.5× the
+class limits, plus the 0.1 m elevations' rounding over the 8 m measured (every class but paths and
+steps has one; a track shortcut pinned at both ends by the bends of one quarry road may only be the
+straight line between them, and so may any road's stretch between two junctions where the uncarved
+DTM between them climbs steeper than that itself: Sercognano's Via Vittorio Emanuele at 29%, the
+lane down from Posara at 43%, a track at Pieve San Lorenzo at 37%), bridge and underpass clearances (a road
 bridge 5.4 m or more over the rail's bed; a drivable road under a road bridge its `maxheight`, 4 m
 untagged, plus the 1.5 m deck, less that rounding), no perched water, the Lucido's widths,
 catchments growing downstream with no jump at a tributary's mouth (the Lucido's 47 km² at its mouth,
@@ -2245,18 +2268,22 @@ expected height: a lake on a flat basin (its median, capped at a low outlet's sp
 over both; its bed shelving from the shore to 3 m, an island over it left, its edge raised to hold
 it), two river polygons meeting across a river and a tributary (carved to the floor at the nearest
 point, the seam between them carved as their inside, a bank over the river and the outer edge
-left, a gravel bar raised only in the pass that raises bars) and a river polygon no river reaches
+left, but raised to the floor where a ditch along it lies under it in the pass before the claims, a
+gravel bar raised only in the pass that raises bars) and a river polygon no river reaches
 (still water); that windows meeting at a column through the lake and its outlet, or at a row across
 the river polygons and the bar, carve every node as the whole grid does (red with the ring of cells
 round a window left out); and which nodes the roads may not claim. `water.test.ts` checks that
-`dropPerched` keeps a lake's samples. `water-areas.map-test.ts` checks both maps: Lunigiana's 7
-lakes (the one by the Solco di Equi OSM's, at 272.0 m) and the Aulella's river polygon on every
-stream with a sample in it, the Fosso di Tufo too; the UCS gravel at Pian del Molino; each water
-area's level in whole decimetres or its waterways, and at least one cell; a lake's nodes carved
-under its level or a bank over it, its edge holding it but where a stream's channel leaves, its
-level never over every node of its cells, and water in each lake but the two the LiDAR reads no
-hollow under; a river polygon's built surface falling downstream through it and its outer edge left
-over its river's bed; and no tree, parked car or player spawn in the water. `spawns.test.ts` keeps a
+`dropPerched` keeps a lake's samples. `water-areas.map-test.ts` checks both maps, on the nodes
+their listed tiles hold (the joined heightmap holds 0 in a notch, where Fivizzano's 1 km lake at x
+9150…10110 by y −150…910 lies): lucido's 7 lakes (the one by the Solco di Equi OSM's, at 272.0 m)
+and the Aulella's river polygon on every stream with a sample in it, the Fosso di Tufo too; the UCS
+gravel at Pian del Molino; each water area's level in whole decimetres or its waterways, and at
+least one cell; a lake's nodes carved under its level or a bank over it, its edge holding it but
+where a stream's channel (its bed's half-width and a cell, as `carve` reaches) runs in, out or
+along; its level never over every node of its cells, and water in each lake but the five the LiDAR
+reads no hollow under; a river polygon's built surface falling downstream through it and its outer
+edge left over its river's bed (to the 0.1 m both are read in); and no tree, parked car or player
+spawn in the water. `spawns.test.ts` keeps a
 parked car's box and the player's spawn out of a lake, `walls.long-test.ts` (`pnpm test:long`) rings
 a lake with shore walls and leaves a river polygon's carved banks open, `cover.test.ts` pins the
 cover bytes (the conifer and mixed woods last), draws the woods first, the UCS's conifer and mixed

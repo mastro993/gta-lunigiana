@@ -117,3 +117,26 @@ test("profile carries a tilted bound inside a tunnel to its portals along the tu
   // Pinned flat, the high portal sank more than 10 m.
   assert.ok(portals(false)[1]! < 220)
 })
+
+// Regression: the SS63's bridge over the Rosaro at Soliera is two OSM ways; taken piece by piece,
+// their joint fell toward the ground 12 m under it, and the deck sagged 4.9 m there (12 % and 6 %).
+test("profile lays a road's bridge of two pieces as one deck, straight from end to end; the rail keeps a deck a piece", () => {
+  // Flat ground at 100 m, a gorge 10 m deep over x 300–400 under the bridge, its joint at x 330.
+  const ground = (x: number) => (x > 300 && x < 400 ? 90 : 100)
+  const halves = [
+    { id: 4, bridge: true as const, pts: [v(300, 0, "b0"), v(330, 0, "j")] },
+    { id: 5, bridge: true as const, pts: [v(330, 0, "j"), v(400, 0, "b1")] },
+  ]
+  const chain = [
+    { id: 3, pts: [v(0, 0), v(300, 0, "b0")] },
+    ...halves,
+    { id: 6, pts: [v(400, 0, "b1"), v(700, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const joint = (decks: boolean) => {
+    const { profile, zOf } = makeProfiler((x) => ground(x))
+    profile(chain, { w: 9, rank: 1, grade: 0.1, half: 20, ...(decks ? { decks: true } : {}) })
+    return zOf.get(halves[0]!)!.at(-1)!
+  }
+  assert.ok(Math.abs(joint(true) - 100) < 1e-6, `the joint at ${joint(true)}`)
+  assert.ok(joint(false) < 99, `a deck a piece sags at its joint: ${joint(false)}`)
+})

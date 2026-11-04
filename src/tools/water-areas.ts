@@ -288,10 +288,11 @@ const nearestOn = (
  * no higher than its spill), so the shore holds the water drawn over its cells; a river polygon's
  * inner nodes to its waterways' floor at the nearest point (depth/2 under their surface, where the
  * river line itself is carved, and HALF_STEP more), its edge left, so its bank starts on its
- * outline, and with `raiseBars` its bars raised to BAR over that surface (the pass under the water
- * kept below the decks: a bar never stands over a capped surface). Ground BANK over the water's top
- * is left. Run this before the lines are carved, which then cut their channels through a lake's
- * edge and a river's bars.
+ * outline, but raised to that floor (and HALF_STEP over it) where it lies lower in the pass without
+ * `raiseBars`, and with `raiseBars` its bars raised to BAR over that surface (the pass under the
+ * water kept below the decks: a bar never stands over a capped surface). Ground BANK over the
+ * water's top is left. Run this before the lines are carved, which then cut their channels through
+ * a lake's edge and a river's bars.
  */
 export const carveAreas = (
   g: Grid,
@@ -331,8 +332,14 @@ export const carveAreas = (
           }
           return
         }
-        if (edge && bar[k] === 0) return
         const { surface, depth } = nearest(x, y)
+        if (edge && bar[k] === 0) {
+          // Raised to the floor where it lies under it, before the claims (a road keeps its own):
+          // OSM maps the Tassonaro 6 m off the LiDAR's channel above its mouth, and the water drawn
+          // to the outline stood 0.7 m over the channel's gravel there.
+          if (!raiseBars) g.z[k] = Math.max(z, surface - depth / 2 + HALF_STEP)
+          return
+        }
         if (bar[k] === 1) {
           if (raiseBars) g.z[k] = Math.max(z, surface + BAR)
         } else if (z <= surface + depth / 2 + BANK)

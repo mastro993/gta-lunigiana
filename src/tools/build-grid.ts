@@ -10,7 +10,7 @@
 // L's notch) is never worked: no terrain is read there.
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
-import { segIndex } from "./geometry.ts"
+import { segIndex, type V } from "./geometry.ts"
 import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
 import { replayClaims, ROAD_RANKS, type Claim } from "./profiles.ts"
 import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
@@ -30,6 +30,8 @@ interface GridInput {
   readonly areas: ReadonlyArray<CarvedArea>
   /** The road and rail profiles' claims, in the order they were made. */
   readonly claims: ReadonlyArray<Claim>
+  /** The road bridges: each centreline, and how far either side of it its deck reaches, m. */
+  readonly decks: ReadonlyArray<{ readonly pts: ReadonlyArray<V>; readonly half: number }>
   /** The at-grade rail as shipped, and the level crossings' nodes. */
   readonly rail: ReadonlyArray<{
     readonly pts: ReadonlyArray<number>
@@ -47,15 +49,49 @@ interface GridInput {
  * buildings' floors and the water on the play area's inner edge read the edge extended, not a
  * cliff down to 0 m.
  */
-export const tileByTile = ({ dem, water, wp0, wp, areas, claims, rail, levels }: GridInput) => {
+export const tileByTile = ({
+  dem,
+  water,
+  wp0,
+  wp,
+  areas,
+  claims,
+  decks,
+  rail,
+  levels,
+}: GridInput) => {
   const lattice = gridLattice()
   const size = lattice.cols * lattice.rows
   const uncarved: Grid = { ...lattice, z: new Float64Array(size) },
     grid: Grid = { ...lattice, z: new Float64Array(size) }
   const written = new Uint8Array(size)
-  // Roads may claim river banks but never the water itself.
-  const wet = segIndex<null>()
-  for (const w of water) if (w.w >= 4) wet.addLine(w.pts, w.w / 2 + 1, null)
+  // Roads may claim river banks but never the water itself: a wide stream's anywhere, and a narrow
+  // one's under a road bridge's deck, between its ends, where no road stands on the ground (at grade
+  // it runs in the road's culvert; under the rail the channel dips under the bed, channel.ts). An
+  // approach road's core reaches its full width past its end, under the bridge: at Pognana the
+  // SP41's filled a 2 m stream's bed under its 12 m bridge to the deck, and the spate stood on it.
+  const wet = segIndex<null>(),
+    narrow = segIndex<null>(),
+    under = segIndex<{ readonly first: boolean; readonly last: boolean }>()
+  for (const w of water)
+    if (w.w >= 4) wet.addLine(w.pts, w.w / 2 + 1, null)
+    else narrow.addLine(w.pts, w.w / 2 + 1, null)
+  for (const { pts, half } of decks)
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i]!,
+        b = pts[i + 1]!
+      under.add(a.x, a.y, b.x, b.y, half, { first: i === 0, last: i + 2 === pts.length })
+    }
+  /** Under a deck, not past either of its ends (a segment's t is clamped there). */
+  const underDeck = (x: number, y: number) => {
+    let hit = false
+    under.within(x, y, (s, _, t) => {
+      if ((t > 0 || !s.data.first) && (t < 1 || !s.data.last)) hit = true
+    })
+    return hit
+  }
+  const isWet = (x: number, y: number) =>
+    wet.covers(x, y) || (narrow.covers(x, y) && underDeck(x, y))
   const limits = bedLimits(lattice, rail, levels)
   const moved = new Map<number, number>()
   // Each water sample is read in the tile whose own cells hold its cell.
@@ -81,7 +117,7 @@ export const tileByTile = ({ dem, water, wp0, wp, areas, claims, rail, levels }:
       owner = new Uint8Array(cols * rows).fill(255)
     for (let k = 0; k < protect.length; k++)
       if (protect[k] === 0)
-        protect[k] = wet.covers(
+        protect[k] = isWet(
           lattice.x0 + (i0 + (k % cols)) * lattice.cell,
           lattice.y0 + (j0 + Math.floor(k / cols)) * lattice.cell,
         )
