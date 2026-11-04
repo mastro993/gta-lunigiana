@@ -60,12 +60,14 @@ export const makeHud = (document: Document) => {
     worldMap.open ? worldMap.hide() : worldMap.show(last.x, last.y, last.angle)
   const corner = element(document, "hud-minimap")
   corner.append(minimap.canvas)
-  // A touch screen has no M key: a tap on the minimap opens the map, and one on the map closes it.
+  // A touch screen has no M key: a tap on the minimap opens the map, and one on the map closes it;
+  // a click that ends a drag or a pinch of the map leaves it open.
   corner.addEventListener("click", toggleMap)
   const mapRoot = element(document, "hud-map")
   /** Dev builds: who hears a click on the play area before the map closes (`pickOnMap`). */
   let pick: ((x: number, y: number) => void) | undefined
   mapRoot.addEventListener("click", (event) => {
+    if (worldMap.dragged()) return
     const at = pick === undefined ? undefined : worldMap.pointAt(event)
     if (at !== undefined) pick?.(at.x, at.y)
     worldMap.hide()

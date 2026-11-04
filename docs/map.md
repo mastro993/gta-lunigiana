@@ -2419,14 +2419,14 @@ in memory throws "map tile i_j not loaded" in the browser; the host makes sure t
 ### The overview
 
 The overview is the full map's picture of the whole play area, painted once by the build, so the
-full map (M, `src/hud/worldmap.ts`) needs no tile's vectors: it downloads `<name>/overview.png` the
-first time it opens and draws it scaled over the map's bounds, smoothed, with its frame, labels,
-north arrow, scale bar and the player's marker still painted live
+full map (M, `src/hud/worldmap.ts`) needs no tile's vectors until it is zoomed in: it downloads
+`<name>/overview.png` the first time it opens and draws it scaled over the map's bounds, smoothed,
+with its frame, labels, north arrow, scale bar and the player's marker still painted live
 ([architecture.md](architecture.md)). `src/tools/overview.ts` paints it after the files
 ([Pipeline](#pipeline)) from the built map's areas, water, rail, roads and buildings, in the full
 map's look (`paintLayers` in `src/render/map-style.ts`, which the minimap's canvases paint through
-too: grass over the play area, clipped to it, then the areas, the water, the rail, the roads by
-class, narrowest first and at least `OVERVIEW_MIN` px wide, and the buildings).
+too: grass over the play area, clipped to it, then the areas, the water in one opaque colour, the
+rail, the roads by class, narrowest first and at least `OVERVIEW_MIN` px wide, and the buildings).
 
 - **Size**: 4096 px on its long side (`OVERVIEW_SIDE`), or fewer where that would pass 16 MP, under
   Safari's 16.7 MP canvas limit; whole pixels across and down, so the bounds span it exactly.
@@ -2437,7 +2437,9 @@ class, narrowest first and at least `OVERVIEW_MIN` px wide, and the buildings).
   long side, between a 1280 × 720 window's map (600 px tall) and a 1920 × 1080 window's (960 px).
   Shown on those, they come out 0.73 and 1.17 times as wide as the full map painted them live
   before #63: one picture cannot keep a line's width in screen pixels on every window, and 820 px
-  keeps it nearest the old on the common ones.
+  keeps it nearest the old on the common ones. Zoomed in, its lines would grow with the map (a
+  road about 35 m wide), so the full map paints the tiles' own vectors over it there
+  ([architecture.md](architecture.md)).
 - **Determinism**: `src/tools/paint-raster.ts` paints with + − × ÷, sqrt, floor, ceil, round, min
   and max alone, antialiased (a fill over 4 sub-scanlines a row, each covered exactly across; a
   stroke by how far inside its edge a pixel's centre lies), so every machine paints the same

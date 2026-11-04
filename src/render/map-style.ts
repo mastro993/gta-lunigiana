@@ -136,7 +136,7 @@ const roadOrder = (roads: ReadonlyArray<{ readonly cls: string }>): Array<number
 /**
  * Paints `map` at `scale` px/m with `pen`: grass over the play area, clipped to it, then the areas
  * (even-odd, in the order the land cover's raster fills them, `fillRank`: the woods first, the
- * rest of the land by kind, the lakes and river polygons over it, a river's gravel bars over them), the water and the rail out of tunnels (`faded`), the roads out of tunnels,
+ * rest of the land by kind, the lakes and river polygons over it, a river's gravel bars over them), the water (opaque, at least 1 px wide), the rail out of tunnels (`faded`), the roads out of tunnels,
  * paths left out (`roadOrder`, each as `road` says), and the buildings' outer rings (non-zero).
  */
 export const paintLayers = <R extends PaintRoad>(
@@ -154,7 +154,9 @@ export const paintLayers = <R extends PaintRoad>(
   }
   const line = (pts: ReadonlyArray<number>, { hex, width, alpha }: Stroke) =>
     pen.stroke(pts, width, hex, alpha)
-  for (const w of map.water) line(w.pts, faded(w.w, scale, PALETTE.waterShallow))
+  // Water in one colour, opaque: faded streams darkened where they crossed or met a river.
+  for (const w of map.water)
+    line(w.pts, { hex: PALETTE.waterShallow, width: Math.max(1, w.w * scale), alpha: 1 })
   for (const r of map.rail) if (r.tunnel !== true) line(r.pts, faded(2, scale, PALETTE.stoneDark))
   for (const k of roadOrder(map.roads)) {
     const r = map.roads[k]!,

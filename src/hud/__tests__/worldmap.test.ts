@@ -2,58 +2,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { districtAt, inPlay, MAP } from "../../sim/map/index.ts"
-import { fitMap, mapPointAt, overviewBitmap, PLACES, placeLabels } from "../worldmap.ts"
-
-test("the map fits the screen inside the margins, centred, with north up and the aspect kept", () => {
-  const b = MAP.bounds
-  for (const [w, h] of [
-    [1280, 720],
-    [720, 1280],
-    [2560, 1440],
-  ] as const) {
-    const fit = fitMap(b, w, h)
-    const mapW = (b.maxX - b.minX) * fit.scale,
-      mapH = (b.maxY - b.minY) * fit.scale
-    assert.ok(fit.ox >= 24 - 1e-9 && fit.ox + mapW <= w - 24 + 1e-9, `fits across at ${w}x${h}`)
-    assert.ok(fit.oy >= 64 - 1e-9 && fit.oy + mapH <= h - 56 + 1e-9, `fits down at ${w}x${h}`)
-    // One side touches its margins: the scale is as large as it can be.
-    assert.ok(Math.abs(fit.ox - 24) < 1e-6 || Math.abs(fit.oy - 64) < 1e-6)
-    assert.ok(
-      Math.abs(fit.ox - (w - fit.ox - mapW)) < 1e-6 ||
-        Math.abs(fit.oy - 64 - (h - 56 - fit.oy - mapH)) < 1e-6,
-      "centred",
-    )
-  }
-})
-
-test("a point on the map's screen is the map point painted there; one outside its frame is none", () => {
-  const b = MAP.bounds
-  for (const [w, h] of [
-    [1280, 720],
-    [844, 390],
-    [1920, 1080],
-  ] as const) {
-    const fit = fitMap(b, w, h)
-    for (const p of PLACES) {
-      const sx = fit.ox + (p.x - b.minX) * fit.scale,
-        sy = fit.oy + (b.maxY - p.y) * fit.scale
-      const at = mapPointAt(b, w, h, sx, sy)!
-      assert.ok(Math.hypot(at.x - p.x, at.y - p.y) < 1e-6, `${p.name} at ${w}x${h}`)
-    }
-    const mapW = (b.maxX - b.minX) * fit.scale,
-      mapH = (b.maxY - b.minY) * fit.scale
-    // The frame's top-left corner is the bounds' north-west, and its far corner is on the map.
-    assert.deepEqual(mapPointAt(b, w, h, fit.ox, fit.oy), { x: b.minX, y: b.maxY })
-    assert.ok(mapPointAt(b, w, h, fit.ox + mapW - 0.5, fit.oy + mapH - 0.5) !== undefined)
-    for (const [sx, sy] of [
-      [fit.ox - 1, fit.oy + 10],
-      [fit.ox + 10, fit.oy - 1],
-      [fit.ox + mapW + 1, fit.oy + 10],
-      [fit.ox + 10, fit.oy + mapH + 1],
-    ] as const)
-      assert.equal(mapPointAt(b, w, h, sx, sy), undefined, `off the frame at ${sx},${sy}`)
-  }
-})
+import { fitMap, wholeMap } from "../map-view.ts"
+import { mapLabels, PLACES, placeLabels } from "../worldmap.ts"
 
 /** A 10 px square label box at (x, y). */
 const box = (x: number, y = 0) => ({ x0: x, x1: x + 10, y0: y, y1: y + 10 })
@@ -142,118 +92,22 @@ test("places: the villages, hamlets and peaks the user asked for, one per name, 
   }
 })
 
-test("the overview downloads once, is decoded at each opening and let go at each closing, even when it comes late", async () => {
-  const heard: Array<number | undefined> = []
-  let downloads = 0,
-    offline = true
-  const bitmaps: Array<{ readonly n: number; closed: boolean; close(): void }> = []
-  const overview = overviewBitmap(
-    () => {
-      downloads++
-      return offline ? Promise.reject(new Error("offline")) : Promise.resolve(new Blob(["png"]))
-    },
-    () => {
-      const bitmap = {
-        n: bitmaps.length,
-        closed: false,
-        close() {
-          this.closed = true
-        },
-      }
-      bitmaps.push(bitmap)
-      return Promise.resolve(bitmap)
-    },
-    () => heard.push(overview.bitmap?.n),
-  )
-  const settle = () =>
-    new Promise((resolve) => {
-      setTimeout(resolve, 0)
-    })
-  overview.want()
-  await settle()
-  assert.deepEqual([downloads, overview.bitmap, heard], [1, undefined, []], "a failed download")
-  overview.release()
-  offline = false
-  overview.want()
-  overview.want() // a repaint while it is open
-  await settle()
-  assert.deepEqual(
-    [downloads, overview.bitmap?.n, heard],
-    [2, 0, [0]],
-    "tried again when it opens again",
-  )
-  overview.release()
-  assert.deepEqual(
-    [overview.bitmap, bitmaps[0]!.closed],
-    [undefined, true],
-    "let go when it closes",
-  )
-  overview.want()
-  overview.release() // closed before its file came
-  await settle()
-  assert.deepEqual(
-    [overview.bitmap, bitmaps.length, heard],
-    [undefined, 1, [0]],
-    "an opening closed before the file came decodes nothing",
-  )
-  overview.want()
-  await settle()
-  assert.deepEqual([downloads, overview.bitmap?.n, heard], [2, 1, [0, 1]], "downloaded once")
-})
-
-test("the overview decodes once for the opening still open when its file comes, and a download that failed while the map was shut is tried again", async () => {
-  let arrive: (blob: Blob) => void = () => {},
-    fail: (error: Error) => void = () => {},
-    downloads = 0,
-    decodes = 0
-  const overview = overviewBitmap(
-    () => {
-      downloads++
-      return new Promise<Blob>((resolve, reject) => {
-        arrive = resolve
-        fail = reject
-      })
-    },
-    () => {
-      decodes++
-      return Promise.resolve({ close() {} })
-    },
-    () => {},
-  )
-  const settle = () =>
-    new Promise((resolve) => {
-      setTimeout(resolve, 0)
-    })
-  // opened and shut three times while the file downloads, then open when it comes
-  for (let k = 0; k < 3; k++) {
-    overview.want()
-    overview.release()
+test("zoomed in, the map names only the places on its frame, inside it, and names some the whole map leaves out", () => {
+  const screen = { bounds: MAP.bounds, width: 1280, height: 720 }
+  const p = PLACES.find((q) => q.name === "Gragnola")!
+  const fit = fitMap(screen, { zoom: 8, x: p.x, y: p.y }),
+    { frame } = fit
+  const labels = mapLabels(fit, (text, size) => (text.length * 1229 * size) / 2048)
+  assert.ok(labels.some((l) => l.name === "Gragnola"))
+  for (const l of labels) {
+    assert.ok(l.dotX >= frame.x0 && l.dotX <= frame.x1, l.name)
+    assert.ok(l.dotY >= frame.y0 && l.dotY <= frame.y1, l.name)
+    assert.ok(l.box.x0 >= frame.x0 && l.box.x1 <= frame.x1, `${l.name} across`)
   }
-  overview.want()
-  arrive(new Blob(["png"]))
-  await settle()
-  assert.deepEqual([downloads, decodes], [1, 1])
-  assert.ok(overview.bitmap !== undefined)
-  overview.release()
-  // a fresh overview whose download fails after the map has shut
-  const late = overviewBitmap(
-    () => {
-      downloads++
-      return new Promise<Blob>((resolve, reject) => {
-        arrive = resolve
-        fail = reject
-      })
-    },
-    () => Promise.resolve({ close() {} }),
-    () => {},
+  const whole = new Set(
+    mapLabels(fitMap(screen, wholeMap(MAP.bounds)), (t, s) => (t.length * 1229 * s) / 2048).map(
+      (l) => l.name,
+    ),
   )
-  late.want()
-  late.release()
-  fail(new Error("offline"))
-  await settle()
-  late.want()
-  arrive(new Blob(["png"]))
-  await settle()
-  assert.equal(downloads, 3, "downloaded again at the next opening")
-  assert.ok(late.bitmap !== undefined)
+  assert.ok(labels.some((l) => !whole.has(l.name)))
 })

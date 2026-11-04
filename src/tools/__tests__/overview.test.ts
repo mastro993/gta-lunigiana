@@ -37,7 +37,7 @@ const MAP = {
 
 const rgba = (hex: number) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255, 255]
 
-test("the overview paints the full map's look: grass on the play area only, areas, water, roads by class narrowest first, no tunnels or paths, buildings on top", () => {
+test("the overview paints the full map's look: grass on the play area only, areas, opaque water, roads by class narrowest first, no tunnels or paths, buildings on top", () => {
   const { width, height, rgba: pixels } = paintOverview(MAP, BOUNDS)
   assert.deepEqual([width, height], [4096, 2048])
   const at = (x: number, y: number) => {
@@ -51,12 +51,8 @@ test("the overview paints the full map's look: grass on the play area only, area
   assert.deepEqual(at(2501, 1001), rgba(PALETTE.signYellow), "the motorway over the street")
   assert.deepEqual(at(3001, 3001), rgba(PALETTE.grass), "no tunnel")
   assert.deepEqual(at(3501, 1501), rgba(PALETTE.grass), "no path")
-  // a stream: its least 1 px (4 overview px), faded to 30 %
-  const [w, g] = [rgba(PALETTE.waterShallow), rgba(PALETTE.grass)]
-  assert.deepEqual(
-    at(5501, 501),
-    w.map((c, k) => (k === 3 ? 255 : Math.round(c * 0.3 + g[k]! * 0.7))),
-  )
+  // a stream: its least 1 px (4 overview px), in the water's one opaque colour
+  assert.deepEqual(at(5501, 501), rgba(PALETTE.waterShallow))
   // the motorway at its least 3 px, the street 1.5, 5 overview px each (whole pixels: the edges blend)
   const count = (hex: number, k0: number, step: number, n: number) => {
     const want = rgba(hex).join()

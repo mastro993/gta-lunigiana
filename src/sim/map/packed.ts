@@ -261,6 +261,10 @@ export interface TileData {
   readonly vectors: TileVectors
 }
 
+/** A tile's vectors alone from its gunzipped file, with which tile and build it is (`TileJson`): its sections are left unread. */
+export const decodeTileVectors = (file: Uint8Array): TileJson =>
+  sectionsOf(file, "a tile file").json as TileJson
+
 /** A tile from its gunzipped file. */
 export const decodeTile = (file: Uint8Array): TileData => {
   const { json, section, end } = sectionsOf(file, "a tile file")

@@ -2,8 +2,9 @@
  * The full map (M or a tap on the minimap; Esc or a tap closes it): the whole play area north-up
  * over the screen, the build's overview of it (src/tools/overview.ts, downloaded when the map first
  * opens) scaled to fit, with the frame, the villages and hamlets named, the scale bar and the player
- * as an arrow painted afresh at screen resolution over it. While it is open the host stops ticking
- * the simulation and drawing the world (`main.ts`).
+ * as an arrow painted afresh at screen resolution over it. The wheel or a pinch zooms it and a drag
+ * pans it (`map-view.ts`). While it is open the host stops ticking the simulation and drawing the
+ * world (`main.ts`).
  *
  * @module hud/worldmap
  */
@@ -11,51 +12,20 @@ import { mapForSearch } from "../maps.ts"
 import { css, PALETTE } from "../render/palette.ts"
 import { districtAt, inPlay, MAP } from "../sim/map/index.ts"
 import { fetchFile } from "../stream.ts"
+import { makeMapDetail } from "./map-detail.ts"
+import {
+  type Box,
+  type Fit,
+  fitMap,
+  mapGestures,
+  mapPointAt,
+  panView,
+  wholeMap,
+  zoomView,
+} from "./map-view.ts"
 import { paintArrow } from "./minimap.ts"
+import { overviewBitmap } from "./overview-bitmap.ts"
 import { element } from "./title.ts"
-
-/** Screen px kept clear around the map: the header above, the scale bar (and the two-line credits of narrow windows) below. */
-const MARGIN = { top: 64, right: 24, bottom: 56, left: 24 } as const
-
-/** North-up placement: `scale` px per metre, the map's north-west corner at (ox, oy). */
-interface Fit {
-  readonly scale: number
-  readonly ox: number
-  readonly oy: number
-}
-
-interface Bounds {
-  readonly minX: number
-  readonly minY: number
-  readonly maxX: number
-  readonly maxY: number
-}
-
-/** The largest north-up scale that fits `bounds` in a `width` × `height` px screen inside MARGIN, centred. */
-export const fitMap = (bounds: Bounds, width: number, height: number): Fit => {
-  const bw = bounds.maxX - bounds.minX,
-    bh = bounds.maxY - bounds.minY
-  const w = Math.max(1, width - MARGIN.left - MARGIN.right),
-    h = Math.max(1, height - MARGIN.top - MARGIN.bottom)
-  const scale = Math.min(w / bw, h / bh)
-  return { scale, ox: MARGIN.left + (w - bw * scale) / 2, oy: MARGIN.top + (h - bh * scale) / 2 }
-}
-
-/** The map point (x east, y north) painted at (sx, sy) px on a `width` × `height` px screen fitted to `bounds`, or undefined off its frame. */
-export const mapPointAt = (
-  bounds: Bounds,
-  width: number,
-  height: number,
-  sx: number,
-  sy: number,
-): { readonly x: number; readonly y: number } | undefined => {
-  const fit = fitMap(bounds, width, height)
-  const x = bounds.minX + (sx - fit.ox) / fit.scale,
-    y = bounds.maxY - (sy - fit.oy) / fit.scale
-  return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY
-    ? { x, y }
-    : undefined
-}
 
 /**
  * A named place: `rank` is its kind's place in RANKS, the order labels are placed in; towns and
@@ -96,14 +66,6 @@ export const PLACES: ReadonlyArray<Place> = [
       : [],
   ),
 ].filter((p, i, all) => all.findIndex((q) => q.name === p.name) === i)
-
-/** A label's screen box. */
-interface Box {
-  readonly x0: number
-  readonly y0: number
-  readonly x1: number
-  readonly y1: number
-}
 
 const apart = (a: Box, b: Box): boolean =>
   a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0
@@ -164,18 +126,32 @@ const LABEL = {
 } as const
 const PAD = 2 // px around a label's box
 
-/** Where the north arrow stands over a map fitted as `fit`: by its top-right corner. */
-const northOf = (fit: Fit) => ({
-  x: fit.ox + (MAP.bounds.maxX - MAP.bounds.minX) * fit.scale - 20,
-  y: fit.oy + 12,
-})
+/** The most zoom, px/m (1 km 2000 px): a street and its houses across a good part of the screen. */
+const MAX_SCALE = 2
+/** How long the map holds still before its detail is painted again for where it stands, ms. */
+const SETTLE = 120
 
-/** Where the 1 km scale bar starts under a map fitted as `fit` (below its bottom-left corner), and its length in px. */
-const barOf = (fit: Fit) => ({
-  x: fit.ox,
-  y: fit.oy + (MAP.bounds.maxY - MAP.bounds.minY) * fit.scale + 12,
-  length: 1000 * fit.scale,
-})
+/** Where the north arrow stands over a map fitted as `fit`: by its frame's top-right corner. */
+const northOf = ({ frame }: Fit) => ({ x: frame.x1 - 20, y: frame.y0 + 12 })
+
+/** The scale bar's lengths, m, longest first: the first no longer than BAR_MOST px is drawn. */
+const BAR_METRES = [1000, 500, 200, 100, 50] as const
+const BAR_MOST = 160
+
+/**
+ * Where the scale bar starts under a map fitted as `fit` (below its frame's bottom-left corner),
+ * its length in px and its label: 1 km, or as zoomed in the longest of 500, 200, 100 and 50 m no
+ * longer than BAR_MOST px.
+ */
+const barOf = (fit: Fit) => {
+  const metres = BAR_METRES.find((m) => m * fit.scale <= BAR_MOST) ?? BAR_METRES.at(-1)!
+  return {
+    x: fit.frame.x0,
+    y: fit.frame.y1 + 12,
+    length: metres * fit.scale,
+    text: metres === 1000 ? "1 km" : `${metres} m`,
+  }
+}
 
 /** A place's name as the full map paints it: its dot's centre, and the name in `box`. */
 interface MapLabel {
@@ -189,27 +165,30 @@ interface MapLabel {
 
 /**
  * The place names the full map paints over the map fitted as `fit`, `measure` giving a text's
- * width in px at a font size: each centred above its dot, else below it, right or left of it, kept
- * inside the frame across; one with no side free is left out with its dot (`placeLabels`). The
- * place named `first` (the player's district, as the header names it) goes before every other, so
- * a crowded map still names the village the player is in.
+ * width in px at a font size: each place whose dot is on the frame (the part of the map on screen)
+ * named centred above its dot, else below it, right or left of it, kept inside the frame across;
+ * one with no side free is left out with its dot (`placeLabels`). The place named `first` (the
+ * player's district, as the header names it) goes before every other, so a crowded map still
+ * names the village the player is in.
  */
 export const mapLabels = (
   fit: Fit,
   measure: (text: string, size: number) => number,
   first?: string,
 ): Array<MapLabel> => {
-  const { bounds } = MAP
-  const west = fit.ox,
-    east = fit.ox + (bounds.maxX - bounds.minX) * fit.scale
-  const labels = PLACES.map((p) => {
+  const { bounds } = MAP,
+    { frame } = fit
+  const west = frame.x0,
+    east = frame.x1
+  const labels = PLACES.flatMap((p) => {
+    const dotX = fit.ox + (p.x - bounds.minX) * fit.scale,
+      dotY = fit.oy + (bounds.maxY - p.y) * fit.scale
+    if (dotX < frame.x0 || dotX > frame.x1 || dotY < frame.y0 || dotY > frame.y1) return []
     const look = p.major ? LABEL.major : LABEL.minor,
       text = p.major ? p.name.toUpperCase() : p.name
     const w = measure(text, look.size),
       h = look.size,
       d = look.dot
-    const dotX = fit.ox + (p.x - bounds.minX) * fit.scale,
-      dotY = fit.oy + (bounds.maxY - p.y) * fit.scale
     // The name's box centred at (x, y), slid across to stay inside the frame.
     const box = (x: number, y: number): Box => {
       const cx = Math.min(east - w / 2 - PAD, Math.max(west + w / 2 + PAD, x))
@@ -220,24 +199,26 @@ export const mapLabels = (
         y1: y + h / 2 + PAD,
       }
     }
-    return {
-      name: p.name,
-      text,
-      look,
-      dotX,
-      dotY,
-      rank: p.name === first ? -1 : p.rank,
-      // The dot's box leaves out its 1 px outline: the names' 2 px padding keeps them clear of it.
-      dot: { x0: dotX - d / 2, x1: dotX + d / 2, y0: dotY - d / 2, y1: dotY + d / 2 },
-      sides: [
-        box(dotX, dotY - d - h / 2),
-        box(dotX, dotY + d + h / 2),
-        box(dotX + d + w / 2, dotY),
-        box(dotX - d - w / 2, dotY),
-      ],
-    }
+    return [
+      {
+        name: p.name,
+        text,
+        look,
+        dotX,
+        dotY,
+        rank: p.name === first ? -1 : p.rank,
+        // The dot's box leaves out its 1 px outline: the names' 2 px padding keeps them clear of it.
+        dot: { x0: dotX - d / 2, x1: dotX + d / 2, y0: dotY - d / 2, y1: dotY + d / 2 },
+        sides: [
+          box(dotX, dotY - d - h / 2),
+          box(dotX, dotY + d + h / 2),
+          box(dotX + d + w / 2, dotY),
+          box(dotX - d - w / 2, dotY),
+        ],
+      },
+    ]
   })
-  // The north arrow, and the scale bar with its end ticks and "1 km" after it: a name below a dot
+  // The north arrow, and the scale bar with its end ticks and its length after it: a name below a dot
   // near the bottom edge can reach down into the bar's margin.
   const n = northOf(fit),
     bar = barOf(fit)
@@ -245,7 +226,7 @@ export const mapLabels = (
     { x0: n.x - 6, x1: n.x + 6, y0: n.y - 9, y1: n.y + 14 },
     {
       x0: bar.x,
-      x1: bar.x + bar.length + 8 + measure("1 km", 14),
+      x1: bar.x + bar.length + 8 + measure(bar.text, 14),
       y0: bar.y - 5,
       y1: bar.y + 9,
     },
@@ -257,63 +238,15 @@ export const mapLabels = (
 }
 
 /**
- * The overview's bitmap as the full map holds it: its file downloaded the first time the map opens
- * (`want`; a failed download is tried again at the next opening), decoded at each opening still open
- * when the file is in (so openings while it downloads decode it once), and released when the map
- * closes (`release`), as Lunigiana's decodes to about 56 MB (3410 × 4096 × 4 B). `ready` hears that
- * the bitmap came while the map is still open; one that comes after it closed is let go at once.
- */
-export const overviewBitmap = <B extends { close(): void }>(
-  download: () => Promise<Blob>,
-  decode: (file: Blob) => Promise<B>,
-  ready: () => void,
-) => {
-  let file: Promise<Blob> | undefined,
-    bitmap: B | undefined,
-    openings = 0,
-    /** The current opening's number; 0 while the map is closed. */
-    open = 0
-  return {
-    /** The decoded overview, while the map is open and it has come. */
-    get bitmap(): B | undefined {
-      return bitmap
-    },
-    /** The map opened: download the overview if it has not been, and decode it. */
-    want: (): void => {
-      if (open !== 0) return
-      const opening = (open = ++openings),
-        pending = (file ??= download())
-      // A failed download (or decode) is tried again at the next opening, whenever it failed.
-      const failed = () => {
-        if (file === pending) file = undefined
-      }
-      pending.then((blob) => {
-        // An opening closed before the file came decodes nothing: only the current one does.
-        if (open !== opening) return
-        decode(blob).then((decoded) => {
-          if (open === opening) {
-            bitmap = decoded
-            ready()
-          } else decoded.close()
-        }, failed)
-      }, failed)
-    },
-    /** The map closed: let the decoded overview go. */
-    release: (): void => {
-      open = 0
-      bitmap?.close()
-      bitmap = undefined
-    },
-  }
-}
-
-/**
  * Binds the full map to its markup (#hud-map). `show` paints it for the player at (x, y) heading
- * `angle` (radians CCW from east), over the overview at `overview` (the page's map's, `src/maps.ts`).
+ * `angle` (radians CCW from east), over the overview and, zoomed in, the tiles' detail of `map` (the
+ * page's map, `src/maps.ts`).
  */
 export const makeWorldMap = (
   document: Document,
-  overview: URL = mapForSearch(document.defaultView!.location.search).overview,
+  map: { readonly overview: URL; readonly tileUrl: (key: string) => URL } = mapForSearch(
+    document.defaultView!.location.search,
+  ),
 ) => {
   const root = element(document, "hud-map"),
     here = element(document, "hud-map-here")
@@ -327,42 +260,67 @@ export const makeWorldMap = (
     mark = marker.getContext("2d")
   let player = { x: Number.NaN, y: Number.NaN, angle: 0 },
     /** The player's district, which the header names and whose place is labelled first; "" with no position. */
-    district = ""
+    district = "",
+    /** How the map is zoomed and panned: the whole map at each opening. */
+    view = wholeMap(MAP.bounds),
+    /** The repaint `schedule` asked for, until its frame comes. */
+    pending = 0,
+    /** The detail's painting `refine` waits to make, until the map holds still. */
+    settling: ReturnType<typeof setTimeout> | undefined
+
+  // The dialog's own box, not the window's: a phone held upright lays the page out sideways (hud.css).
+  const screen = () => ({ bounds: MAP.bounds, width: root.clientWidth, height: root.clientHeight })
+  /** The most zoom: MAX_SCALE, as a zoom of the whole map. */
+  const most = (): number => MAX_SCALE / fitMap(screen()).scale
 
   const paint = () => {
     if (ctx === null || mark === null) return
-    // The dialog's own box, not the window's: a phone held upright lays the page out sideways (hud.css).
-    const width = root.clientWidth,
-      height = root.clientHeight,
+    const s = screen(),
+      { width, height } = s,
       dpr = window.devicePixelRatio
     for (const [c, g] of [
       [canvas, ctx],
       [marker, mark],
     ] as const) {
-      c.width = Math.round(width * dpr)
-      c.height = Math.round(height * dpr)
+      // Sized only when the box or the pixel ratio changed: a drag repaints every frame.
+      const w = Math.round(width * dpr),
+        h = Math.round(height * dpr)
+      if (c.width !== w || c.height !== h) [c.width, c.height] = [w, h]
       g.setTransform(dpr, 0, 0, dpr, 0, 0)
       g.clearRect(0, 0, width, height)
     }
     const { bounds } = MAP
-    const fit = fitMap(bounds, width, height)
+    const fit = fitMap(s, view),
+      { frame } = fit
     const px = (x: number) => fit.ox + (x - bounds.minX) * fit.scale,
       py = (y: number) => fit.oy + (bounds.maxY - y) * fit.scale
-    const mapW = (bounds.maxX - bounds.minX) * fit.scale,
-      mapH = (bounds.maxY - bounds.minY) * fit.scale
-    // The overview spans the bounds exactly, and is smoothed: it is drawn smaller than it is.
+    // The overview spans the bounds exactly: the part of it under the frame is drawn there,
+    // smoothed, as it is drawn smaller than it is (zoomed in, larger: the detail then covers it).
     const image = overviewMap.bitmap
     if (image !== undefined) {
+      const ix = image.width / ((bounds.maxX - bounds.minX) * fit.scale),
+        iy = image.height / ((bounds.maxY - bounds.minY) * fit.scale)
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = "high"
-      ctx.drawImage(image, fit.ox, fit.oy, mapW, mapH)
+      ctx.drawImage(
+        image,
+        (frame.x0 - fit.ox) * ix,
+        (frame.y0 - fit.oy) * iy,
+        (frame.x1 - frame.x0) * ix,
+        (frame.y1 - frame.y0) * iy,
+        frame.x0,
+        frame.y0,
+        frame.x1 - frame.x0,
+        frame.y1 - frame.y0,
+      )
     }
+    detail.draw(ctx, fit, width, height)
     // The frame's corners and the labels' outlines are round, as the map's lines are.
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
     ctx.lineWidth = 2
     ctx.strokeStyle = css(PALETTE.marbleWhite)
-    ctx.strokeRect(fit.ox - 1, fit.oy - 1, mapW + 2, mapH + 2)
+    ctx.strokeRect(frame.x0 - 1, frame.y0 - 1, frame.x1 - frame.x0 + 2, frame.y1 - frame.y0 + 2)
 
     // Place names: a dot on the place, the name beside it; names that would collide are left out.
     ctx.textAlign = "center"
@@ -411,17 +369,20 @@ export const makeWorldMap = (
     ctx.lineTo(nx + 5, ny - 1)
     ctx.closePath()
     ctx.fill()
-    const { x: bx, y: by, length: bar } = barOf(fit)
+    const { x: bx, y: by, length: bar, text: barText } = barOf(fit)
     ctx.fillStyle = css(PALETTE.marbleWhite)
     ctx.fillRect(bx, by, bar, 3)
     ctx.fillRect(bx, by - 4, 2, 11)
     ctx.fillRect(bx + bar - 2, by - 4, 2, 11)
     ctx.textAlign = "left"
-    ctx.fillText("1 km", bx + bar + 8, by - 5)
+    ctx.fillText(barText, bx + bar + 8, by - 5)
 
-    // The player, on the blinking canvas above everything, in red: no label is red, so it never melts into a village name.
-    if (Number.isFinite(player.x)) {
-      mark.translate(Math.round(px(player.x)), Math.round(py(player.y)))
+    // The player, on the blinking canvas above everything, in red: no label is red, so it never
+    // melts into a village name. Zoomed away from them, it is not drawn.
+    const mx = px(player.x),
+      my = py(player.y)
+    if (mx >= frame.x0 && mx <= frame.x1 && my >= frame.y0 && my <= frame.y1) {
+      mark.translate(Math.round(mx), Math.round(my))
       mark.beginPath()
       mark.arc(0, 0, 13, 0, 2 * Math.PI)
       mark.lineWidth = 5
@@ -434,47 +395,81 @@ export const makeWorldMap = (
       paintArrow(mark, 18, PALETTE.signalRed)
     }
   }
-  const onResize = () => paint()
   const overviewMap = overviewBitmap(
-    async () => (await fetchFile(overview)).blob(),
+    async () => (await fetchFile(map.overview)).blob(),
     (file) => createImageBitmap(file),
     paint,
   )
+  /** Paints the detail for where the map stands, then the map. */
+  const settle = () => {
+    settling = undefined
+    if (root.hidden) return
+    const s = screen()
+    detail.paint(fitMap(s, view), s.width, s.height, window.devicePixelRatio)
+    paint()
+  }
+  /** Paints the detail again once the map has held still for SETTLE ms (a tile came, or a gesture moved it). */
+  const refine = () => {
+    clearTimeout(settling)
+    settling = setTimeout(settle, SETTLE)
+  }
+  const detail = makeMapDetail(document, map.tileUrl, refine)
+  const onResize = () => {
+    paint()
+    refine()
+  }
+  /** Repaints at the next frame, once however many gestures come before it, and the detail once they stop. */
+  const schedule = () => {
+    pending ||= window.requestAnimationFrame(() => {
+      pending = 0
+      if (!root.hidden) paint()
+    })
+    refine()
+  }
+  const gestures = mapGestures(root, canvas, (target) => target === canvas || target === marker, {
+    pan: (dx, dy) => {
+      view = panView(screen(), view, dx, dy)
+      schedule()
+    },
+    zoom: (factor, sx, sy) => {
+      view = zoomView(screen(), view, factor, sx, sy, most())
+      schedule()
+    },
+  })
 
   return {
     get open(): boolean {
       return !root.hidden
     },
-    /** Opens (or repaints) the map for the player at (x, y) heading `angle`. */
+    /** Opens the map for the player at (x, y) heading `angle`, the whole of it in view, or repaints it as zoomed when it is open. */
     show: (x: number, y: number, angle: number): void => {
       player = { x, y, angle }
       district = here.textContent = Number.isFinite(x) ? districtAt(x, y).name : ""
+      if (root.hidden) view = wholeMap(MAP.bounds)
       root.hidden = false
       root.focus({ preventScroll: true }) // the dialog takes focus, so screen readers announce it
-      paint()
+      settle()
       overviewMap.want()
       window.addEventListener("resize", onResize)
     },
     /**
-     * The play-area point (x east, y north) a click on the map lands on, or undefined off it: in
-     * the header, the margins or outside the outline. The click's offset is in the dialog's own
+     * The play-area point (x east, y north) a click on the map lands on, as zoomed, or undefined
+     * off it: in the header, the margins or outside the outline. The click's offset is in the dialog's own
      * box, which both canvases fill (the blinking marker lets clicks through while it is off), so a
      * phone held upright (laid out sideways) reads true.
      */
     pointAt: (event: MouseEvent): { readonly x: number; readonly y: number } | undefined => {
       if (event.target !== canvas && event.target !== marker) return undefined
-      const at = mapPointAt(
-        MAP.bounds,
-        root.clientWidth,
-        root.clientHeight,
-        event.offsetX,
-        event.offsetY,
-      )
+      const at = mapPointAt(MAP.bounds, fitMap(screen(), view), event.offsetX, event.offsetY)
       return at !== undefined && inPlay(at.x, at.y) ? at : undefined
     },
+    /** Whether the click now heard ends a drag or a pinch of the map, rather than a tap. */
+    dragged: gestures.dragged,
     hide: (): void => {
       root.hidden = true
+      clearTimeout(settling)
       overviewMap.release()
+      detail.release()
       window.removeEventListener("resize", onResize)
     },
   }
