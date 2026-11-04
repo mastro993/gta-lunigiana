@@ -2315,12 +2315,21 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   none, a ledge its height. Rough ground has steps of its own (on the ridge 0.6% of the LiDAR's node
   pairs step over 1 m, 0.005% of the 10 m DTM's and none of the surface model's): so the test holds
   every seam to at most 1 m more than the largest step within one source within 20 m of it.
-  Lucido's seams pass it by 0.30 m at most, the ridge's by 0.59 m (the LiDAR by the 10 m DTM;
-  0.94 m, a strip of the surface model, with the canopy filter's one pass), Sarzana's not at all
-  (LiDAR to Liguria's DTM, its worst 0.06 m under the steps round it); with the band left out, the
-  ridge fails by 3.9 m, with no bend at all by 12.0 m, and without the canopy filter by 8.6 m. The
-  steps themselves reach 1.73 m on the ridge (3.42 m on lucido, under the Rocca di Tenerano), where
-  a gully the LiDAR shows ends against the 10 m DTM, as steep as the gully's walls round it.
+  Lunigiana's seams pass it by 0.53 m at most (Fivizzano's surface model by the 10 m DTM at (9860,
+  11596); lucido's by 0.30 m), the ridge's by 0.59 m (the LiDAR by the 10 m DTM; 0.94 m, a strip of
+  the surface model, with the canopy filter's one pass), Sarzana's not at all (LiDAR to Liguria's
+  DTM, its worst 0.06 m under the steps round it); with the band left out, the ridge fails by
+  3.9 m, with no bend at all by 12.0 m, and without the canopy filter by 8.6 m. The steps
+  themselves reach 1.73 m on the ridge (3.42 m on lucido, under the Rocca di Tenerano), where a
+  gully the LiDAR shows ends against the 10 m DTM, as steep as the gully's walls round it. One place
+  is excused (`SCARPS`), where the real ground steps at a seam and the test cannot see it: a step
+  of the LiDAR's at its last node has no LiDAR node past it to bound it, so it never counts among the
+  terrain's own. Under Fivizzano's ridge, at (9808, 10444), the 2010 flight's strip ends at the foot
+  of a rock band its last metres climb (on the 2021 orthophoto, `rt_ofc.5k21.32bit`, grey rock and
+  boulders, the west face in shadow; the 2021 surface model climbs 7–8 m over 3 m along it), and the
+  10 m DTM past the strip has none: the seam there steps 2.03 m, 1.10 m more than the terrain round
+  it. A seam within 8 m of the place may step as far as the band's own face there (4.1 m between two
+  LiDAR nodes), no further, and the test fails when no seam is left there to excuse.
 
 The overview's checks: `src/tools/__tests__/overview.map-test.ts` fails when a built overview (both
 maps' and, built or in CI, the L's) is not the image its whole map paints now, so a change to the
@@ -3005,8 +3014,10 @@ carries the roads, water, rail and buildings across the old edge, which then are
   (0.63 km² of lucido, south of Tenerano and round the Cava Bardiglio) misses the small relief and
   shows its own 10 m creases, and the bend carries the LiDAR's relief only 50 m in, so a gully or a
   rock face the LiDAR shows ends against the fill: where a face under the Rocca di Tenerano meets
-  it, at (−1272, −2660), the 2 m cells step up to 5.3 m (5.2 m with the fill before the chain).
-  The surface model's cells are the ground of 2021, a decade after the LiDAR, and its canopy
+  it, at (−1272, −2660), the 2 m cells step up to 5.3 m (5.2 m with the fill before the chain);
+  under Fivizzano's ridge, at (9808, 10444), the LiDAR's strip ends on a rock band the 10 m DTM past
+  it lacks, and the game's 4 m grid steps 2.03 m at the seam (`terrain-seams.map-test.ts` excuses
+  it). The surface model's cells are the ground of 2021, a decade after the LiDAR, and its canopy
   filter takes any bump or pit narrower than 9 m and 0.7 m high or deep for a tree or a failed
   match, the relief of bare rock included, and, in its second pass, a few metres of ground round
   what the first cleared: on the Bagnone ridge it keeps 45% of the pastures and 22% of the bare rock

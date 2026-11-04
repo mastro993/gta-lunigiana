@@ -40,6 +40,23 @@ const terrainOf = (key: string) => {
   return { g, z, src }
 }
 
+/** How far round a scarp's place its seams are its own, m: two nodes. */
+const SCARP_REACH = 8
+
+/**
+ * Seams where the real ground steps and the check cannot see it, by region: the LiDAR's step at
+ * its last node has no LiDAR node past it to bound it, so it never counts among the terrain's own
+ * steps round a seam. Under Fivizzano's ridge the 2010 flight's strip ends at the foot of a rock
+ * band, which its last metres climb: the 2021 orthophoto (`pnpm ortho 9770,10410,9850,10480
+ * rt_ofc.5k21.32bit --px 0.2`) shows its grey rock and boulders, its west face in shadow, and the
+ * 2021 surface model climbs 7–8 m over 3 m along it, as the LiDAR's last cells do where they reach
+ * it; the 10 m DTM past the strip has no band. A seam within SCARP_REACH of one may step as far as
+ * the band's own face (the steepest climb between two LiDAR nodes there), no further.
+ */
+const SCARPS: Readonly<
+  Record<string, ReadonlyArray<{ readonly pair: string; readonly x: number; readonly y: number }>>
+> = { lunigiana: [{ pair: "dtm10-lidar", x: 9808, y: 10444 }] }
+
 for (const [key, pairs] of [
   ["lunigiana", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar", "dtm10-rer", "lidar-rer"]],
   ["bagnone-ridge", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar", "dtm10-rer"]],
@@ -47,8 +64,33 @@ for (const [key, pairs] of [
 ] as const)
   test(`${key}: no seam between terrain sources steps over 1 m more than the terrain round it`, () => {
     const { g, z, src } = terrainOf(key)
-    const seams = seamSteps(g.cols, g.rows, z, src).filter((s) => !s.pair.includes(UNLISTED))
-    assert.deepEqual([...new Set(seams.map((s) => s.pair))].sort(), pairs)
+    const all = seamSteps(g.cols, g.rows, z, src).filter((s) => !s.pair.includes(UNLISTED))
+    assert.deepEqual([...new Set(all.map((s) => s.pair))].sort(), pairs)
+    /** Whether node k lies within SCARP_REACH of (x, y). */
+    const near = (k: number, x: number, y: number) =>
+      Math.hypot(g.x0 + (k % g.cols) * g.cell - x, g.y0 + Math.floor(k / g.cols) * g.cell - y) <=
+      SCARP_REACH
+    const excused = new Set<(typeof all)[number]>()
+    for (const { pair, x, y } of SCARPS[key] ?? []) {
+      const own = all.filter((s) => s.pair === pair && near(s.at, x, y))
+      assert.ok(
+        own.length > 0,
+        `no ${pair} seam within ${SCARP_REACH} m of the scarp at (${x}, ${y})`,
+      )
+      let face = 0
+      for (let k = 0; k < z.length; k++)
+        for (const q of [k + 1, k + g.cols])
+          if (src[k] === "lidar" && src[q] === "lidar" && near(k, x, y) && near(q, x, y))
+            face = Math.max(face, Math.abs(z[q]! - z[k]!))
+      for (const s of own) {
+        assert.ok(
+          s.step <= face,
+          `${pair} by the scarp at (${x}, ${y}): a step of ${s.step.toFixed(2)} m, past its face's ${face.toFixed(2)} m`,
+        )
+        excused.add(s)
+      }
+    }
+    const seams = all.filter((s) => !excused.has(s))
     const worst = seams.reduce((a, b) => (b.excess > a.excess ? b : a))
     const x = g.x0 + (worst.at % g.cols) * g.cell,
       y = g.y0 + Math.floor(worst.at / g.cols) * g.cell
