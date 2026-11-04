@@ -347,7 +347,7 @@ const ringGap = (a: ReadonlyArray<number>, b: ReadonlyArray<number>) => {
 /** Road clip pieces of one surveyed footprint lie at most this far apart, m (`clipBuildings` cuts a road's corridor through it: 4.11 m at most on Lunigiana). */
 const PIECE_GAP = 6
 
-test("buildings: no two share an id unless they are pieces of one footprint, on Lunigiana, Cesena and the L", (t) => {
+test("buildings: no two share an id unless they are pieces of one footprint, nor an outline, and none of OSM stands on a DBT unit, on Lunigiana, Cesena and the L", (t) => {
   // The L is built into test-maps/ by `pnpm maps`; CI, which sets CI=true, always builds it.
   const lUrl = builtMapUrl(regionFromArgs(["--region", "lunigiana-l"]))
   if (!existsSync(lUrl)) {
@@ -390,6 +390,26 @@ test("buildings: no two share an id unless they are pieces of one footprint, on 
         1,
         `${name}: buildings ${same.map((b) => b.id).join(", ")} share one outline`,
       )
+    // Regression: the mapped area kept the copy of a Minucciano zone that Giuncugnano's archive cut
+    // at its edge, so 7 OSM buildings by the Carpinelli road stood on the DBT's own units.
+    const dbt = buildings
+      .filter((b) => b.id < 0 && Math.floor(-b.id / 4294967296 / 65536) === SOURCES.dbt2k)
+      .map((b) => ({ id: b.id, outer: b.outer, box: ringBox(b.outer) }))
+    for (const { id, outer } of buildings.filter((b) => b.id > 0)) {
+      let x = 0,
+        y = 0
+      for (let k = 0; k < outer.length; k += 2) {
+        x += outer[k]!
+        y += outer[k + 1]!
+      }
+      x /= outer.length / 2
+      y /= outer.length / 2
+      const under = dbt.find(
+        (d) =>
+          x >= d.box[0] && y >= d.box[1] && x <= d.box[2] && y <= d.box[3] && inRing(x, y, d.outer),
+      )
+      assert.equal(under, undefined, `${name}: OSM building ${id} stands on DBT unit ${under?.id}`)
+    }
   }
 })
 
