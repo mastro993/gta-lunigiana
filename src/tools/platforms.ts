@@ -3,7 +3,7 @@
 // areas (AGE 0122), then sorted into raised platforms and rail-level walkways. Each one's top
 // follows the rail head of the running track beside it, so the sim's ground and the render share it
 // (`platformTop` in src/sim/map/ground.ts).
-import { RAIL_LIFT } from "../sim/map/kinds.ts"
+import { PLATFORM_EDGE, RAIL_LIFT } from "../sim/map/kinds.ts"
 import type { Polygon } from "./ctr-rail.ts"
 import {
   centroid,
@@ -355,7 +355,6 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
         between++
     }
     const share = sampled === 0 ? 0 : between / sampled
-    const walkway = 2 * deepest < WALKWAY_WIDTH || share >= 0.5
     // Traced and simplified, then each vertex rounded to the nearest 0.1 m grid point that keeps every clearance.
     const mask = new Uint8Array(cw * ch)
     for (const k of cells) mask[k] = 1
@@ -393,6 +392,10 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
       }
     if (least < PLATFORM_CLEAR - 0.05)
       throw new Error(`platform ${src}: ${least.toFixed(2)} m from a track`)
+    // A walkway: too narrow, between close tracks, or with no edge a train's step reaches (the CTR's
+    // strip north of Pieve San Lorenzo's line, 23D15 AGE 252, 2.45 m off it: bare ground on the
+    // 2010 orthophoto, a service path and the line's equipment on the 2023 one).
+    const walkway = 2 * deepest < WALKWAY_WIDTH || share >= 0.5 || least > PLATFORM_EDGE
     const verts = ringsOut[0]!
     let s0 = Number.MAX_VALUE,
       s1 = -Number.MAX_VALUE

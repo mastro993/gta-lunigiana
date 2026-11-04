@@ -343,7 +343,9 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
       }
     assert.ok(probes > 100, `${p.name}: ${probes} probes`)
   }
-  // Gragnola's strip between its two tracks is a walkway at the rails' level; the other eight are platforms.
+  // Gragnola's strip between its two tracks is a walkway at the rails' level, and so is the strip the
+  // CTR maps north of Pieve San Lorenzo's line, 2.45 m off it (bare ground in 2010, the line's
+  // equipment in 2023: no train's step reaches it); the other seven are platforms.
   assert.deepEqual(
     railway.platforms.map((p) => [p.name, p.walkway === true]),
     [
@@ -352,7 +354,7 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
       ["Gragnola", false],
       ["Minucciano-Pieve-Casola", false],
       ["Minucciano-Pieve-Casola", false],
-      ["Minucciano-Pieve-Casola", false],
+      ["Minucciano-Pieve-Casola", true],
       ["Equi Terme", false],
       ["Monzone-Monte dei Bianchi-Isolano", false],
       ["Monzone-Monte dei Bianchi-Isolano", false],

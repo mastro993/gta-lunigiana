@@ -1557,11 +1557,18 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   the edge of every at-grade carriageway, outside the CTR's level-crossing areas, and no more than
   1 m under the platform's top (Gragnola's polygon wraps the station building, whose forecourt side
   lies 2 m under the track). Each piece left is traced, simplified to 0.06 m and rounded to the
-  0.1 m grid point that keeps those clearances; the shipped rings stand 1.63–1.69 m from the
-  nearest track. A piece narrower than 1.2 m, or with tracks under 6 m apart on both sides of
-  most of it, is a rail-level walkway, not a platform: Gragnola's strip between tracks 1 and 2
+  0.1 m grid point that keeps those clearances; the platforms' shipped rings stand 1.63–1.73 m
+  from the nearest track. A piece narrower than 1.2 m, or with tracks under 6 m apart on both sides
+  of most of it, is a rail-level walkway, not a platform: Gragnola's strip between tracks 1 and 2
   (4.3–5.0 m apart; 1.74 m wide once clipped). Equi Terme's island platform lies between tracks
-  7.1–7.6 m apart and stays one. A platform's top follows the rail head of the line beside it plus
+  7.1–7.6 m apart and stays one. So is a piece no edge of which comes within `PLATFORM_EDGE` (2.2 m,
+  `src/sim/map/kinds.ts`, the reach of the render's yellow line) of a track: no train's step reaches
+  it, and nobody waits there. The CTR maps a strip north of Pieve San Lorenzo's line as a platform
+  (`23D15 AGE#252`, 381 m²), 2.45 m off it, between the track and Via Bugliatico's bank (the ground
+  stands up to 5 m over its top on 42% of it): bare ground on the 2010 orthophoto, a 1 m path along
+  the track and three low dark structures and a cabinet on the 2023 one, while the platform by the
+  building and the island between the loop and the line stand 1.63 m off their tracks.
+  A platform's top follows the rail head of the line beside it plus
   0.25 m (a walkway's plus 0.02 m): the 2015 line study calls the platforms low, "secondo vecchi
   standard", and RFI lists none raised to 55 cm; the exact height is not known. It is emitted per
   vertex of an axis along the line, from 1 m before the platform to 1 m past it, because the line

@@ -271,6 +271,14 @@ export type RailKind = (typeof RAIL_KINDS)[number]
 /** The rail head over a rail piece's `z` (the bed its sleepers lie on), m: where trains run (`src/sim/rail/lines.ts`) and the rails are drawn (`src/render/rail.ts`). */
 export const RAIL_LIFT = 0.12
 
+/**
+ * How near its track a platform's edge comes, m: the map's stand 1.63–1.73 m off their tracks'
+ * centrelines, and its edges within this of a running track or loop take the yellow line
+ * (`src/render/platforms.ts`). A piece no edge of which comes this near any track is no platform
+ * people wait on but a walkway (`src/tools/platforms.ts`): a train's step reaches no further.
+ */
+export const PLATFORM_EDGE = 2.2
+
 /** Side of the square wall around every tree trunk, m. */
 export const TRUNK = 0.5
 

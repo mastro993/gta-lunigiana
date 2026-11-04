@@ -11,6 +11,7 @@ import { ShapeUtils, Vector2 } from "three"
 
 import { segDist2 } from "../sim/collide.ts"
 import { MAP, type Platform } from "../sim/map/index.ts"
+import { PLATFORM_EDGE } from "../sim/map/kinds.ts"
 import { boxOver, type Piece, Triangles } from "./geometry.ts"
 import { terrainY, yOf } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
@@ -21,8 +22,6 @@ import { trackNear } from "./track-index.ts"
 const CUT = 2
 /** A platform's yellow line: its band in from the track-side edge, m (a reading width), and how far over the top it lies. */
 const LINE = { from: 0.45, to: 0.65, over: 0.01 } as const
-/** A ring edge is track-side when it lies this near the centreline of a running track or loop, m (the map keeps platforms 1.6–1.7 m off). */
-const TRACK_SIDE = 2.2
 
 /** A map point. */
 export type P2 = readonly [number, number]
@@ -157,7 +156,7 @@ const platformFaces = (
           [ox, 0, -oy],
           PALETTE.kerb,
         )
-        if (p.walkway === true || !byTrack((q0[0] + q1[0]) / 2, (q0[1] + q1[1]) / 2, TRACK_SIDE))
+        if (p.walkway === true || !byTrack((q0[0] + q1[0]) / 2, (q0[1] + q1[1]) / 2, PLATFORM_EDGE))
           continue
         const band = (q: P2, d: number) => {
           const at: P2 = [q[0] - ox * d, q[1] - oy * d]

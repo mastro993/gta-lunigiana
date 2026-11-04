@@ -8,6 +8,7 @@ import { join } from "node:path"
 import { pointInRing, segDist2 } from "../../sim/collide.ts"
 import { groundZ, platformTop } from "../../sim/map/ground.ts"
 import { MAP, RAIL_LIFT } from "../../sim/map/index.ts"
+import { PLATFORM_EDGE } from "../../sim/map/kinds.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
 import { boxOver, linear, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
 import { yOf } from "../ground.ts"
@@ -164,7 +165,7 @@ export const checkYellowLines = (part: Stations): void => {
   const yellow = cornersOf(part.all.decal, PALETTE.signYellow)
   for (const [x, , z] of yellow) {
     const { d } = nearestTrack(part.rail, x, -z, (kind) => kind !== "siding")
-    assert.ok(d < 2.2 + 0.7, `a yellow line ${d.toFixed(2)} m from the track`)
+    assert.ok(d < PLATFORM_EDGE + 0.7, `a yellow line ${d.toFixed(2)} m from the track`)
   }
   for (const i of part.platforms) {
     const p = MAP.railway.platforms[i]!,
