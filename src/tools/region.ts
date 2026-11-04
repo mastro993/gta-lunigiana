@@ -1,6 +1,6 @@
 // The maps the build makes and the parts each is made of.
-// - Regions: separately built maps (Lunigiana, Cesena), never sharing survey inputs; the build,
-//   `fetch-osm` and the geometry read the one `--region` names (REGION, Lunigiana by default). A
+// - Regions: separately built maps (Lunigiana, Cesena), never sharing survey inputs; the build
+//   and the geometry read the one `--region` names (REGION, Lunigiana by default). A
 //   region's play area is the union of its parts' (play-area.ts); its built terrain is the box round
 //   every part's rectangles (`bounds`), its tiles those the rectangles meet, and its trees stand on
 //   a lattice from a corner fixed for good (`anchor`, trees.ts).
@@ -12,7 +12,8 @@
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
-//   `footprint-check`), `fetch-rt` and `fetch-lig` take parts from here.
+//   `footprint-check`), `fetch-rt`, `fetch-lig` and `fetch-osm` take parts from here, and each part
+//   has an OSM extract of its own (`osmFile`), which the build merges with its region's others'.
 
 // The game loads this module (through geometry.ts), so it imports no Node built-in
 // (`src/__tests__/browser.test.ts`).
@@ -39,7 +40,7 @@ export interface Part {
 export interface Region {
   /** The `--region` argument that selects it. */
   readonly key: string
-  /** The map whose inputs and local frame it is built from (`data/raw/<id>.osm.gz`, …). */
+  /** The map whose inputs and local frame it is built from (its parts' OSM, `osmFiles`, …). */
   readonly id: MapId
   /** Its files' name: the global file `<file>.bin` and the tiles `<file>/<i>_<j>.bin`, in `mapDir`. */
   readonly file: string
@@ -53,8 +54,8 @@ export interface Region {
   /**
    * A test region with surveyed buildings of its own (issue #11): `fetch-rt --region <key>` writes
    * the surveys its part's manifest lists into data/raw/rt/<key> (`surveyDir`), clipped to its box,
-   * and `fetch-osm --region <key>` OSM's buildings over it into data/raw/<key>.osm.gz; no map is
-   * built for it.
+   * and `fetch-osm <part>` OSM's buildings over its part into data/raw/osm/<part>.osm.gz (`osmFile`);
+   * no map is built for it.
    */
   readonly ownBuildings: boolean
   readonly origin: { readonly lat: number; readonly lon: number }
@@ -260,7 +261,7 @@ const regionOf = (
 
 /**
  * Every Lunigiana part, in build order; `fetch-rt` reads one until #17 brings `fetch-rt <part>` and
- * the per-part raw layout. `lucido`: lat 44.1069–44.1968, lon 10.0937–10.1913, the whole Lucido
+ * the per-part terrain. `lucido`: lat 44.1069–44.1968, lon 10.0937–10.1913, the whole Lucido
  * catchment, ridge to ridge, plus the Aulella side by Gragnola and Codiponte.
  */
 export const PARTS: ReadonlyArray<Part> = [
@@ -421,18 +422,30 @@ export const ucsFile = (part: Pick<Part, "key">): string => `data/raw/rt/ucs/${p
 /** Where `fetch-lig` writes a part's Regione Liguria sources (NC5, the DTM's crops, the land use), from the repository root (issue #12). */
 export const ligDir = (part: Pick<Part, "key">): string => `data/raw/lig/${part.key}`
 
-/** Build region for this Node invocation, fixed before the geometry modules load. */
-export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])
-
-/** Every part in Lunigiana's frame: its own, then its test regions'. */
-const LUNIGIANA_PARTS = [...PARTS, ...TEST_REGIONS.flatMap((r) => r.parts)]
+/** Where `fetch-osm` writes a part's OpenStreetMap extract, from the repository root (issue #7). */
+export const osmFile = (part: Pick<Part, "key">): string => `data/raw/osm/${part.key}.osm.gz`
 
 /**
  * The parts whose fetched inputs (OSM, land cover) `region` is built from, in order: its own, or a
  * test region's built from Lunigiana's inputs, Lunigiana's.
  */
 export const inputParts = (region: Region): ReadonlyArray<Part> =>
-  region.test && !region.ownBuildings && region.id === LUNIGIANA.id ? PARTS : region.parts
+  region.test && !region.ownBuildings ? PARTS : region.parts
+
+/**
+ * The OSM extracts the build of `region` merges, in this order (`readOsms`), from the repository
+ * root: its parts'. A test region, built from Lunigiana's inputs, reads Lunigiana's parts' (`PARTS`)
+ * instead, but for one with buildings of its own: its own part's extract is what its map test
+ * checks the surveys against.
+ */
+export const osmFiles = (region: Region): Array<string> =>
+  inputParts(region).map((part) => osmFile(part))
+
+/** Build region for this Node invocation, fixed before the geometry modules load. */
+export const REGION = regionFromArgs(globalThis.process?.argv?.slice(2) ?? [])
+
+/** Every part in Lunigiana's frame: its own, then its test regions'. */
+const LUNIGIANA_PARTS = [...PARTS, ...TEST_REGIONS.flatMap((r) => r.parts)]
 
 /** The region a Lunigiana part belongs to: Lunigiana for its own parts, the test region for a test region's. */
 export const regionOfPart = (part: Part): Region =>

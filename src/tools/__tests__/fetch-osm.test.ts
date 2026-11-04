@@ -9,14 +9,16 @@ import {
   type Answer,
   type Bbox,
   buildingsOnly,
-  checkFetchable,
   type Elements,
   fetchSplit,
-  osmFile,
   osmXml,
+  partBoxes,
+  partToFetch,
+  sourceOf,
 } from "../fetch-osm.ts"
+import { toLocal } from "../geometry.ts"
 import { assembleRings, readOsm } from "../osm.ts"
-import { regionFromArgs } from "../region.ts"
+import { partOf, regionFromArgs } from "../region.ts"
 
 /** A fake `/map`: nodes on a 0.01° grid, 400 for a box holding more than `limit` of them. */
 const fakeMap = (limit: number) => {
@@ -89,23 +91,57 @@ test("fetchSplit stops splitting at a box too small to hold 50 000 nodes", async
   assert.ok(asked < 12)
 })
 
-test("fetch-osm refuses a test region, whose box would cut down the OSM file it shares with its map", () => {
-  for (const key of ["lunigiana-l", "lunigiana-3x", "bagnone-ridge"])
-    assert.throws(
-      () => checkFetchable(regionFromArgs(["--region", key])),
-      new RegExp(`--region ${key} is a test region: it reads --region lunigiana's OSM`),
-    )
-  checkFetchable(regionFromArgs([]))
-  checkFetchable(regionFromArgs(["--region", "cesena"]))
+test("fetch-osm fetches the Lunigiana part its argument names, or another map's one part", () => {
+  const lucido = partToFetch(["lucido"])
+  assert.equal(lucido.part, partOf("lucido"))
+  assert.equal(lucido.region.key, "lunigiana")
+  const cesena = regionFromArgs(["--region", "cesena"])
+  assert.deepEqual(partToFetch([], cesena), { part: cesena.parts[0], region: cesena })
+  assert.throws(() => partToFetch([]), /usage: fetch-osm <part>/)
+  assert.throws(() => partToFetch(["lucido", "lucido-l"]), /usage: fetch-osm <part>/)
+  assert.throws(() => partToFetch(["fivizzano"]), /unknown part fivizzano: use one of lucido, /)
+  assert.throws(() => partToFetch(["lucido"], cesena), /usage: fetch-osm --region cesena/)
 })
 
-test("fetch-osm fetches for a test region with buildings of its own, into a file of its own", () => {
-  const town = regionFromArgs(["--region", "pontremoli-town"])
-  checkFetchable(town)
-  assert.equal(osmFile(town), "data/raw/pontremoli-town.osm.gz")
-  assert.equal(osmFile(regionFromArgs([])), "data/raw/lunigiana.osm.gz")
-  assert.equal(osmFile(regionFromArgs(["--region", "cesena"])), "data/raw/cesena.osm.gz")
-  assert.equal(osmFile(regionFromArgs(["--region", "lunigiana-l"])), "data/raw/lunigiana.osm.gz")
+test("fetch-osm refuses a test region's part, built from Lunigiana's parts' OSM, but one with buildings of its own", () => {
+  for (const [key, region] of [
+    ["lucido-l", "lunigiana-l"],
+    ["lucido-3x", "lunigiana-3x"],
+    ["sillara", "bagnone-ridge"],
+    ["sarzana-town", "sarzana-town"],
+  ] as const)
+    assert.throws(
+      () => partToFetch([key]),
+      new RegExp(`part ${key} is test region ${region}'s, built from Lunigiana's parts' OSM`),
+    )
+  const town = partToFetch(["pontremoli-town"])
+  assert.equal(town.region.key, "pontremoli-town")
+  assert.ok(town.region.ownBuildings)
+})
+
+test("fetch-osm asks for each of a part's rectangles plus 100 m, never the box round them", () => {
+  // lucido's one rectangle gives the box its pinned extract was fetched over (data/raw.lock.json).
+  assert.equal(
+    sourceOf(partBoxes(partOf("lucido")), false),
+    "https://api.openstreetmap.org/api/0.6/map?bbox=10.092494,44.105952,10.192509,44.197749 and each area multipolygon's /relation/<id>/full",
+  )
+  assert.equal(
+    sourceOf(partBoxes(partOf("pontremoli-town")), true),
+    "https://api.openstreetmap.org/api/0.6/map?bbox=9.869961,44.368742,9.892464,44.384941 and each building multipolygon's /relation/<id>/full, buildings only",
+  )
+  // The L's two rectangles are two boxes, each 100 m round its rectangle; the notch is in neither.
+  const boxes = partBoxes(partOf("lucido-l"))
+  const local = boxes.map(([w, s, e, n]) =>
+    [...toLocal(s, w), ...toLocal(n, e)].map((v) => Math.round(v)),
+  )
+  assert.deepEqual(local, [
+    [-2500, -100, 100, 4000],
+    [-100, -100, 2500, 1500],
+  ])
+  assert.match(
+    sourceOf(boxes, false),
+    /^https:\/\/api\.openstreetmap\.org\/api\/0\.6\/map\?bbox=[\d.,]+, https:\/\/api\.openstreetmap\.org\/api\/0\.6\/map\?bbox=[\d.,]+ and each area multipolygon's/,
+  )
 })
 
 /** Elements as the OSM API writes them, keyed by id. */

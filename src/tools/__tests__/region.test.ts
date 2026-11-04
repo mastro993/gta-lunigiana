@@ -11,6 +11,8 @@ import {
   inRects,
   ligDir,
   mapDir,
+  osmFile,
+  osmFiles,
   partOf,
   rectRing,
   rectsBox,
@@ -189,6 +191,19 @@ test("dtmDir is a region's own folder when it has terrain of its own, else Lunig
   assert.equal(dtmDir(regionFromArgs(["--region", "bagnone-ridge"])), "data/raw/rt/bagnone-ridge")
   for (const key of ["lunigiana", "lunigiana-l"])
     assert.equal(dtmDir(regionFromArgs(["--region", key])), "data/raw/rt", key)
+})
+
+test("osmFile is a part's OSM extract under data/raw/osm, and osmFiles every extract a region's build merges, in build order", () => {
+  assert.equal(osmFile(partOf("lucido")), "data/raw/osm/lucido.osm.gz")
+  const lunigiana = PARTS.map((p) => `data/raw/osm/${p.key}.osm.gz`)
+  assert.deepEqual(lunigiana, ["data/raw/osm/lucido.osm.gz"])
+  // A test region is built from Lunigiana's inputs, its OSM included, but for its own buildings.
+  for (const key of ["lunigiana", "lunigiana-l", "lunigiana-3x", "bagnone-ridge", "sarzana-town"])
+    assert.deepEqual(osmFiles(regionFromArgs(["--region", key])), lunigiana, key)
+  assert.deepEqual(osmFiles(regionFromArgs(["--region", "pontremoli-town"])), [
+    "data/raw/osm/pontremoli-town.osm.gz",
+  ])
+  assert.deepEqual(osmFiles(regionFromArgs(["--region", "cesena"])), ["data/raw/osm/cesena.osm.gz"])
 })
 
 test("partOf finds a test region's part too, and regionOfPart gives the region it belongs to", () => {

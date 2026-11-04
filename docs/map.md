@@ -47,8 +47,8 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
   `cesena`: the local square −2000 to 2000 m on both axes, played whole. This covers a 4 by 4 km
   city-centre area, not the whole comune.
 - **Accepted sources**: OpenStreetMap (ODbL) supplies roads, buildings, water, land use and names.
-  `pnpm fetch-osm --region cesena` pins a separate `data/raw/cesena.osm.gz` with the same API
-  fetcher, which splits a box the API refuses as too large. Regione Emilia-Romagna's
+  `pnpm fetch-osm --region cesena` pins its one part's extract, `data/raw/osm/cesena.osm.gz`, with
+  the same API fetcher, which splits a box the API refuses as too large. Regione Emilia-Romagna's
   [DTM 5x5 - ultima edizione](https://geoportale.regione.emilia-romagna.it/catalogo/dati-cartografici/altimetria/layer-2)
   is accepted under the catalogue's CC BY 4.0 licence. `pnpm fetch-rer --region cesena` checks that
   licence and requests WCS coverage `DTM5X5_RDN32_RMD` as an EPSG:4326 GeoTIFF. The pinned
@@ -98,9 +98,10 @@ map cannot: `region.ts` defines them beside the regions, and `node src/tools/bui
 <key>` (or `pnpm map --region <key>`) writes them to `test-maps/<key>.bin`, its tiles and its
 overview, gitignored; the game never loads them and nothing ships them. Each reads Lunigiana's
 inputs on its origin and tree anchor (a tree stands where it does on the shipped map, with the same
-id), and `fetch-osm` refuses one (`checkFetchable`: its box is not its inputs', and its id names the
-OSM file it would cut down) but one with buildings of its own, which has a file of its own
-(`osmFile`). `loadBuiltMap` in `src/tools/map-file.ts` hands one to the sim in a process of its own;
+id), its OSM every Lunigiana part's extract (`osmFiles`), and `fetch-osm` refuses its part
+(`partToFetch`: no build would read the file) but one with buildings of its own, whose own part's
+extract (`osmFile`) is what it reads. `loadBuiltMap` in `src/tools/map-file.ts` hands one to the sim
+in a process of its own;
 `preview-map.ts` draws one with `--region <key>`.
 
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
@@ -179,14 +180,14 @@ OSM file it would cut down) but one with buildings of its own, which has a file 
   the cut as from the whole comune: 2,020 buildings, all with a surveyed eave (house 1,357, shed
   312, garage 229, church 39, industrial 37, tower 14, barn 9, substation 9, station 6, ruins 5,
   silo 3), 518 road surfaces (439 carriageways, the road areas of 25 roads with none and 54 dirt
-  tracks; 458 paved, 367 named) and 2 mapped zones. `pnpm fetch-osm --region
-  pontremoli-town` writes OSM's buildings over the region plus 100 m into
-  `data/raw/pontremoli-town.osm.gz`: one `/map` call and the 40 building multipolygons'
+  tracks; 458 paved, 367 named) and 2 mapped zones. `pnpm fetch-osm pontremoli-town` writes OSM's
+  buildings over the region's part plus 100 m into
+  `data/raw/osm/pontremoli-town.osm.gz`: one `/map` call and the 40 building multipolygons'
   `/relation/<id>/full`, 41 requests in 5.3 s, of which it keeps what the check reads
   (`buildingsOnly`: the ways tagged `building`, the building multipolygons, their member ways and
   the nodes those ways use; 14,161 nodes, 2,320 ways and 40 relations of the answer's 22,180 nodes
   and 3,066 ways), in the API's own XML, 272,337 B. `src/tools/__tests__/pontremoli.map-test.ts`
-  (`pnpm test:map`, 0.3 s) reads both through the build's own readers (`readDbt`, `readOsm`) and
+  (`pnpm test:map`, 0.3 s) reads both through the build's own readers (`readDbt`, `readOsms`) and
   checks issue #11's targets and the ids:
   - at least 90% of OSM's building centroids in the rectangle lie in a DBT building, outside its
     holes (OSM's outlines as `osmBuildings` builds them): 1,884 of 2,049, 91.9%. OSM's outlines
@@ -427,17 +428,26 @@ regions](#test-regions)).
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `dbt.ts`, `nc5.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
-- **OSM**: `data/raw/lunigiana.osm.gz`, written by `pnpm fetch-osm` (`src/tools/fetch-osm.ts`): the
-  play area plus 100 m, asked for whole and split in four wherever the `/map` call answers HTTP 400
-  (over 50 000 nodes in a box), each quarter in turn, then every multipolygon relation with a
-  land-use, natural, building, leisure or amenity tag fetched whole (`/relation/<id>/full`), because
-  most of a forest's member ways lie outside the play area.
-  Elements are merged by id and written sorted. A regex reader parses the XML into nodes, ways
-  and relations, and assembles multipolygon rings from member ways (unclosed chains are dropped).
-  It copies each tag's value out of the XML text: a match is a slice of the text, and one kept
-  name held it all (Lunigiana's 37 MB, Cesena's 60 MB) until the map was written.
+- **OSM**: one extract a part, `data/raw/osm/<part>.osm.gz` (`osmFile`; today `lucido.osm.gz`, and
+  Cesena's `cesena.osm.gz`), written by `pnpm fetch-osm <part>` (`--region cesena` for Cesena's
+  one part; `src/tools/fetch-osm.ts`): each of the part's rectangles plus 100 m in turn, not the
+  box round them (an L's notch would come too), asked for whole and split in four wherever the
+  `/map` call answers HTTP 400 (over 50 000 nodes in a box), each quarter in turn, then every
+  multipolygon relation with a land-use, natural, building, leisure or amenity tag fetched whole
+  (`/relation/<id>/full`), because most of a forest's member ways lie outside the play area.
+  Elements are merged by id and written sorted: nodes, ways, then relations, each by numeric id.
+  The build reads every part's extract of its region (`osmFiles`, in `PARTS` order) and merges
+  them by id the same way (`readOsms`, `mergeOsm`): the earlier part's element wins where two hold
+  one (neighbouring parts overlap by the margin at least, and one fetched on another day may
+  differ), and each kind is ordered by numeric id, so the merge is what one fetch over every part
+  would have written, and a region of one part reads exactly as its file does (the maps built from
+  the moved `osm/lucido.osm.gz` and `osm/cesena.osm.gz` gunzip to the same bytes as from the single
+  files before, and `pnpm map-diff` finds no differences, 2026-11-04). A regex reader parses the XML
+  into nodes, ways and relations, and assembles multipolygon rings from member ways (unclosed chains
+  are dropped). It copies each tag's value out of the XML text: a match is a slice of the text, and
+  one kept name held it all (Lunigiana's 37 MB, Cesena's 60 MB) until the map was written.
   OSM gives the road network and its names, water, rail, land use, barriers, POIs and place names.
-  `--region pontremoli-town` writes OSM's buildings alone over that test region ([Test
+  `pnpm fetch-osm pontremoli-town` writes OSM's buildings alone over that test region's part ([Test
   regions](#test-regions)).
 - **The surveys of the ground**: Regione Toscana's large-scale surveys, and Regione Liguria's NC5
   past Tuscany's border, give the buildings with their surveyed eave elevations, the road surfaces
@@ -1651,7 +1661,12 @@ change an input.
 
 - **The lock** holds one entry per file in `data/raw`, by its `/`-separated path, sorted. A pinned
   entry holds `sha256`, `bytes`, `asset` (`raw-YYYYMMDD/<path with / as .>`, or
-  `raw-YYYYMMDD-2/…` past the first release of a day) and `source`. A fetched one, written by a
+  `raw-YYYYMMDD-2/…` past the first release of a day) and `source`. The asset is named after the
+  path the file was pinned at: a file moved since keeps its entry's fields under its new path, and
+  `fetch-raw` downloads it by the asset's name to that path, so a move uploads nothing. The OSM
+  extracts moved into `osm/`, one a part, that way: `osm/lucido.osm.gz` is still
+  `raw-20261030/lunigiana.osm.gz`, `osm/cesena.osm.gz` `raw-20261030/cesena.osm.gz` and
+  `osm/pontremoli-town.osm.gz` `raw-20261103/pontremoli-town.osm.gz`. A fetched one, written by a
   fetch tool and not uploaded yet, holds the same without `asset`: its digest is of the bytes the
   tool wrote, so `pin-raw` uploads those bytes and no others. `readLock` (Valibot) rejects any other
   shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
@@ -1669,8 +1684,9 @@ change an input.
   (`…/DBT2K_045014_PONTREMOLI_…7z, the records whose box meets EPSG:3003 1568924,…`), the terrain
   mosaic's sources (`dtm.bin`, `dtm.json`, `dtm-src.bin`: the manifest's archives, the land-cover
   request with the date when the surface model fills, and Emilia-Romagna's WCS when it does), and
-  the WFS request with the date for the land cover. `fetch-osm` gives the `/map` box and the date
-  (and, for a test region's buildings, "buildings only"), `fetch-rer` the WCS request and the
+  the WFS request with the date for the land cover. `fetch-osm` gives every `/map` box, one a
+  rectangle of the part, and the date (and, for a test region's buildings, "buildings only"),
+  `fetch-rer` the WCS request and the
   metadata URL, and `fetch-lig` each layer's first page and each crop's request, each with the date;
   `fetch-rt` names Liguria's crops among a terrain's sources when its chain takes them. An entry that already holds the file's bytes, pinned or fetched,
   stays as it is; any other file becomes fetched. The entries pinned on 2026-10-30 say when the file
@@ -1681,7 +1697,11 @@ change an input.
   when all match, so a mismatch fails the run with `data/raw` unchanged. It reports the fetched
   files and the files the lock does not list, and leaves them; a fetched file whose bytes `data/raw`
   no longer holds fails the run. From an empty folder: the 245 files before #11's in 44 s (241 in
-  25 s on 2026-10-30); on a second run, none.
+  25 s on 2026-10-30); on a second run, none. A `data/raw` from before a move still holds the file
+  at its old path, which `fetch-raw` reports as unlisted after downloading it to the new one, and
+  which `pin-raw` refuses: move it there first (`mkdir -p data/raw/osm; mv
+  data/raw/lunigiana.osm.gz data/raw/osm/lucido.osm.gz`, and `cesena.osm.gz` and
+  `pontremoli-town.osm.gz` under their own names), or delete it.
 - **`pnpm pin-raw`** (`pin-raw.ts`) refuses while a file has no entry, a file's bytes differ from
   its entry's (pinned, or fetched and since replaced), or an entry's file is gone (`planPin`, each
   with its fix). Otherwise it copies the fetched files under their asset names, checks each copy
@@ -1721,7 +1741,9 @@ change an input.
 - **Tests**: `raw-lock.test.ts` checks the lock's format, `recordSource`, `writeRaw` leaving a
   file that unpacks to the same bytes as it is and `dropRaw`, that git ignores
   `data/raw` and the built maps, and that no tracked file is over 1 MB. `fetch-raw.test.ts` and
-  `pin-raw.test.ts` run against a fake `gh`: a second fetch downloads nothing, a download with other
+  `pin-raw.test.ts` run against a fake `gh`: a second fetch downloads nothing, a file moved since it
+  was pinned comes by its old asset's name to its new path (the one at the old path reported and
+  left), a download with other
   bytes fails with `data/raw` unchanged, a fetched file replaced since is refused, an upload of
   1,001 files takes two releases (`pin-raw.long-test.ts`), and the release notes carry the README's
   credits and licence
@@ -2359,10 +2381,15 @@ than a piece kept clear whichever vertex its ring starts at; `fetch-lig.test.ts`
 before any request; `crs.test.ts` inverts `utm32ToLatLon` within 1 mm, on Liguria's side too; `footprint.test.ts` the
 outline of an L, clusters, a road that leaves and comes back, one that runs off the query box
 (unresolved) and a mistyped flag; `fetch-osm.test.ts` the split on HTTP 400 with a fake server, the
-refusal of a test region (`checkFetchable`, before any request) but one with buildings of its own
-and the file `osmFile` names each region, and `buildingsOnly` (a road, a `building:part`, a land-use
-multipolygon and a `type=building` relation left out, each element's XML as the API wrote it, and
-the rings `assembleRings` rebuilds from `osmXml`'s file); `coverage-grid.test.ts` and
+part its arguments name (`partToFetch`: a Lunigiana part, Cesena's one part, a missing or unknown
+key), the refusal of a test region's part (before any request) but one with buildings of its own,
+the boxes it asks for (`partBoxes`: lucido's and Pontremoli's the boxes their pinned extracts'
+sources name, the L's two rectangles two boxes, not its notch), and `buildingsOnly` (a road, a
+`building:part`, a land-use multipolygon and a `type=building` relation left out, each element's
+XML as the API wrote it, and the rings `assembleRings` rebuilds from `osmXml`'s file); `osm.test.ts`
+the merge of a region's parts' extracts (`mergeOsm`, `readOsms`: the first part's element of a
+duplicate id kept, each kind ordered by numeric id, not as strings, and one extract read back in its
+own order); `coverage-grid.test.ts` and
 `coverage.test.ts` first wins, the tally, ring assembly, no picks, and a WFS error answer never
 cached; `ortho.test.ts` and `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted
 sibling flight is look only) and an error answer for capabilities; `playtest.test.ts` the spots, the
@@ -2385,7 +2412,9 @@ a stream's banks in every listed tile and none in one left out, the last bank ce
 getting the largest id (its look's seeds below 2³², a cell further throwing), and the conifer and
 mixed woods growing a forest's trees, an open area over one keeping them out; `region.test.ts` the
 regions' parts, bounds, tiles and tree anchors, `pontremoli-town` the one region with buildings of
-its own and `surveyDir`, `sarzana-town`'s 6 tiles, its terrain of its own and `ligDir`, and `checkMask` on a diagonal mask in an L and on each fault (too few
+its own and `surveyDir`, `sarzana-town`'s 6 tiles, its terrain of its own and `ligDir`, the OSM
+extracts each region's build merges (`osmFile`, `osmFiles`: a test region Lunigiana's parts', but
+`pontremoli-town` its own), and `checkMask` on a diagonal mask in an L and on each fault (too few
 vertices, off 0.1 m, clockwise, a repeated vertex, a fold, a crossing, a vertex or an edge outside
 the rectangles, a mask round a gap in a donut of rectangles); `play-area.test.ts` the outline of one
 rectangle (south, east, north, west), an L of two, overlapping rectangles, rectangles sharing a
@@ -2615,20 +2644,23 @@ paths relative to the repository. Measured on `lucido` on 2026-10-29.
   `lucido`'s largest, 0_0, is 0.56 MB with its vectors (its JSON line 0.77 MB before gzip), where
   −1_−1's 0.31 MB was the largest without them; Cesena's largest is 0.45 MB and the L's 0.52 MB.
 
-Only `lucido` is fetched and built: `pnpm fetch-osm` and `pnpm map` cover the Lunigiana region's
-bounds (`BOUNDS`; `--region cesena` builds the separate Cesena map instead, and the part tools
-refuse it; a [test region](#test-regions) builds from Lunigiana's inputs and fetches none, but
-`bagnone-ridge`'s terrain, `pontremoli-town`'s buildings and `sarzana-town`'s terrain and Liguria
-sources), and `pnpm fetch-rt` reads one part's
-manifest and stops when the region holds more than one part (a second part would widen the mosaic's
-crop over the land between them, all of it for the chain to fill). The build works a tile at a time
-since issue #7 ([Pipeline](#pipeline)), but its inputs stay one OSM file and one DTM mosaic per
-region until #17 (Fivizzano, the first part after lucido) brings the per-part raw layout
-(`osm/<part>.osm.gz`, `rt/dtm/<i>_<j>.bin`, a part adding files only) and `fetch-rt <part>`.
-Regione Liguria's inputs are a part's already (`data/raw/lig/<part>/`, `fetch-lig <part>`), its DTM
-cropped a tile at a time.
+Only `lucido` is fetched and built: `pnpm map` covers the Lunigiana region's bounds (`BOUNDS`;
+`--region cesena` builds the separate Cesena map instead, and the part tools refuse it; a [test
+region](#test-regions) builds from Lunigiana's inputs and fetches none, but `bagnone-ridge`'s
+terrain, `pontremoli-town`'s buildings and `sarzana-town`'s terrain and Liguria sources), and `pnpm
+fetch-rt` reads one part's manifest and stops when the region holds more than one part (a second
+part would widen the mosaic's crop over the land between them, all of it for the chain to fill).
+The build works a tile at a time since issue #7 ([Pipeline](#pipeline)), and its OSM is a part's
+already: `pnpm fetch-osm <part>` writes the part's own extract, `data/raw/osm/<part>.osm.gz`, over
+its rectangles alone, and the build merges every part's by id ([section
+1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)), so a part adds a file and
+changes none, and overlapping parts are harmless. Its terrain stays one DTM mosaic per region until
+#17 (Fivizzano, the first part after lucido) brings the per-part terrain (`rt/dtm/<i>_<j>.bin`) and
+`fetch-rt <part>`. Regione Liguria's inputs are a part's already (`data/raw/lig/<part>/`,
+`fetch-lig <part>`), its DTM cropped a tile at a time.
 
-A part's new inputs are pinned like any other: after `pnpm fetch-rt` and `pnpm map`, `pnpm pin-raw`
+A part's new inputs are pinned like any other: after `pnpm fetch-osm <part>`, `pnpm fetch-rt` and
+`pnpm map`, `pnpm pin-raw`
 uploads them and the lock goes into the part's PR ([Pinned inputs and CI](#pinned-inputs-and-ci)).
 
 ### What growing a region changes
@@ -2839,5 +2871,5 @@ carries the roads, water, rail and buildings across the old edge, which then are
   fetches a part again: the Sarzana test region's file predates them.
 - **Some names only exist on addresses.** The vote can pick the wrong piece of road. Culverted
   waterways are dropped; at-grade crossings imply a culvert instead.
-- **Re-downloading changes the map.** `pnpm fetch-osm` pulls current OSM edits;
+- **Re-downloading changes the map.** `pnpm fetch-osm <part>` pulls current OSM edits;
   `data/raw.lock.json` pins the inputs the map is built from.

@@ -23,9 +23,9 @@ import {
 } from "./features.ts"
 import { centroid, pointInRing, r1 } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
-import { readOsm } from "./osm.ts"
+import { readOsms } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
-import { REGION, dtmDir, inputParts, ucsFile } from "./region.ts"
+import { REGION, dtmDir, inputParts, osmFiles, ucsFile } from "./region.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
@@ -46,7 +46,8 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   const lunigiana = REGION.id === "lunigiana"
   /** Each part's Regione Liguria sources (fetch-lig), where it has some. */
   const lig = ligFolders(root, REGION.parts)
-  const osm = readOsm(join(root, `data/raw/${REGION.id}.osm.gz`))
+  // Every part's extract, merged by id (fetch-osm writes one a part).
+  const osm = readOsms(osmFiles(REGION).map((file) => join(root, file)))
   const { survey, ctr2019 } = lunigiana
     ? readSurveys(join(root, "data/raw/rt"), lig)
     : { survey: NO_SURVEY, ctr2019: NO_SURVEY }

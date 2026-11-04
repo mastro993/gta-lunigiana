@@ -1,10 +1,4 @@
 {
-  "cesena.osm.gz": {
-    "sha256": "7ce566b19c02d8d2177f360af35878ad9fc23761c610c307158ab42f1fc121c9",
-    "bytes": 2302259,
-    "asset": "raw-20261030/cesena.osm.gz",
-    "source": "https://api.openstreetmap.org/api/0.6/map?bbox=12.216614,44.120201,12.269186,44.157999 and each area multipolygon's /relation/<id>/full, in git since 2026-10-29 (847efac)"
-  },
   "cesena/dtm.tif": {
     "sha256": "0bc20d789f9b4bff507dd2488e5ac4bcb2f7db84c6a74780e97035f120fb9fef",
     "bytes": 3212472,
@@ -95,13 +89,19 @@
     "asset": "raw-20261103-2/lig.sarzana-town.uds.json.gz",
     "source": "https://geoservizi.regione.liguria.it/geoserver/M2660/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2660%3AL10449&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ID_RLIG&cql_filter=BBOX%28GEOMETRY%2C575997%2C4882280%2C577650%2C4886698%29+AND+%28COD_USO+LIKE+%27131%25%27+OR+COD_USO+LIKE+%27321%25%27+OR+COD_USO+LIKE+%27322%25%27+OR+COD_USO+LIKE+%27331%25%27+OR+COD_USO+LIKE+%27332%25%27+OR+COD_USO+LIKE+%27333%25%27+OR+COD_USO+LIKE+%27512%25%27%29, fetched 2026-11-03"
   },
-  "lunigiana.osm.gz": {
+  "osm/cesena.osm.gz": {
+    "sha256": "7ce566b19c02d8d2177f360af35878ad9fc23761c610c307158ab42f1fc121c9",
+    "bytes": 2302259,
+    "asset": "raw-20261030/cesena.osm.gz",
+    "source": "https://api.openstreetmap.org/api/0.6/map?bbox=12.216614,44.120201,12.269186,44.157999 and each area multipolygon's /relation/<id>/full, in git since 2026-10-29 (847efac)"
+  },
+  "osm/lucido.osm.gz": {
     "sha256": "761a3824f4fa31b74805d93e2b712a0627e805732309d91f310fce655a5d2709",
     "bytes": 1502516,
     "asset": "raw-20261030/lunigiana.osm.gz",
     "source": "https://api.openstreetmap.org/api/0.6/map?bbox=10.092494,44.105952,10.192509,44.197749 and each area multipolygon's /relation/<id>/full, in git since 2026-10-20 (66ae295)"
   },
-  "pontremoli-town.osm.gz": {
+  "osm/pontremoli-town.osm.gz": {
     "sha256": "5feea676962bde1c9490d9e727fe036d51476841637611b1408ad603bfbddf25",
     "bytes": 272337,
     "asset": "raw-20261103/pontremoli-town.osm.gz",

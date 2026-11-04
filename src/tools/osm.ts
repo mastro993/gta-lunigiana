@@ -1,5 +1,6 @@
-// OSM API 0.6 XML reader (regex based; the file comes from the API via fetch-osm.ts, so the layout is fixed)
-// and multipolygon ring assembly. Ported from .research/scratch-osm-monzone/{lib,geo}.ts.
+// OSM API 0.6 XML reader (regex based; the files come from the API via fetch-osm.ts, so the layout
+// is fixed), the merge of a region's parts' files into one, and multipolygon ring assembly. Ported
+// from .research/scratch-osm-monzone/{lib,geo}.ts.
 import { readFileSync } from "node:fs"
 import { gunzipSync } from "node:zlib"
 
@@ -90,6 +91,40 @@ export const readOsm = (path: string): Osm => {
   const raw = readFileSync(path)
   return parseOsm((path.endsWith(".gz") ? gunzipSync(raw) : raw).toString("utf8"))
 }
+
+/** Adds to `into` each element of `from` whose id it does not hold yet. */
+const addNew = <T>(into: Map<string, T>, from: ReadonlyMap<string, T>): void => {
+  for (const [id, element] of from) if (!into.has(id)) into.set(id, element)
+}
+
+/** `elements` ordered by numeric id, as `osmXml` (fetch-osm.ts) writes each kind. */
+const byId = <T>(elements: ReadonlyMap<string, T>): Map<string, T> =>
+  new Map([...elements].sort((a, b) => Number(a[0]) - Number(b[0])))
+
+/**
+ * `osms`, a region's parts' extracts in build order, as one: each id's element from the first of
+ * them that holds it, and each kind ordered by numeric id, as one fetch over all the parts would
+ * have written them (`osmXml` in fetch-osm.ts). Neighbouring parts' extracts overlap by fetch-osm's
+ * margin at least, and an element fetched on another day may differ: the earlier part's stays.
+ * fetch-osm writes each file in that order already, so one part's merge holds the same elements in
+ * the same order as its file read alone.
+ */
+export const mergeOsm = (osms: Iterable<Osm>): Osm => {
+  const merged: Osm = { nodes: new Map(), ways: new Map(), relations: new Map() }
+  for (const osm of osms) {
+    addNew(merged.nodes, osm.nodes)
+    addNew(merged.ways, osm.ways)
+    addNew(merged.relations, osm.relations)
+  }
+  return { nodes: byId(merged.nodes), ways: byId(merged.ways), relations: byId(merged.relations) }
+}
+
+/**
+ * Reads the OSM files at `paths` (`osmFiles` in region.ts) into one (`mergeOsm`), a file at a time,
+ * so the merge and one file's parse are all it holds at once.
+ */
+export const readOsms = (paths: ReadonlyArray<string>): Osm =>
+  mergeOsm(paths.values().map((path) => readOsm(path)))
 
 /** Joins a relation's member ways with `role` into closed rings of node ids (first id repeated last). Unclosed chains are dropped. */
 export const assembleRings = (osm: Osm, rel: OsmRelation, role: string): Array<Array<string>> => {

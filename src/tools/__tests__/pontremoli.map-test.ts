@@ -2,8 +2,8 @@
 // (`pontremoli-town`, region.ts), over its raw inputs alone, as no map is built for it: the DBT's
 // buildings hold at least 90% of OSM's building centroids in the town, and at least 90% of its units
 // standing on the ground are 1.5–45 m tall. `fetch-rt --region pontremoli-town` wrote the DBT's
-// layers (data/raw/rt/pontremoli-town/dbt2k), `fetch-osm --region pontremoli-town` OSM's buildings
-// (data/raw/pontremoli-town.osm.gz), and `pnpm fetch-raw` restores both, as it does the Bagnone
+// layers (data/raw/rt/pontremoli-town/dbt2k), `fetch-osm pontremoli-town` OSM's buildings
+// (data/raw/osm/pontremoli-town.osm.gz), and `pnpm fetch-raw` restores both, as it does the Bagnone
 // ridge's terrain for terrain-seams.map-test.ts. A map test: it walks every building of both.
 import assert from "node:assert/strict"
 import { join, relative } from "node:path"
@@ -13,10 +13,9 @@ import { staticGrid } from "../../sim/collide.ts"
 import { DBT_RESIDUAL, gaussBoagaToLatLon } from "../crs.ts"
 import { ctrRecords, polygonsOf, specOf } from "../ctr.ts"
 import { readDbt } from "../dbt.ts"
-import { osmFile } from "../fetch-osm.ts"
 import { centroid, type P, pointInRing, ringBox, toLocal } from "../geometry.ts"
-import { assembleRings, readOsm } from "../osm.ts"
-import { inRects, type Rect, rectsBox, regionFromArgs, surveyDir } from "../region.ts"
+import { assembleRings, readOsms } from "../osm.ts"
+import { inRects, osmFiles, type Rect, rectsBox, regionFromArgs, surveyDir } from "../region.ts"
 import { comune, SOURCES } from "../survey-ids.ts"
 
 const ROOT = join(import.meta.dirname, "../../..")
@@ -39,7 +38,7 @@ const atLeast = (t: TestContext, what: string, hit: number, all: number, min: nu
  * closed building ways in no building multipolygon, and each multipolygon's outer rings.
  */
 const osmOutlines = (): Array<Array<number>> => {
-  const osm = readOsm(join(ROOT, osmFile(REGION)))
+  const osm = readOsms(osmFiles(REGION).map((file) => join(ROOT, file)))
   const ring = (nds: ReadonlyArray<string>) =>
     nds.slice(0, -1).flatMap((id) => {
       const node = osm.nodes.get(id)
