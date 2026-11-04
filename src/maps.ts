@@ -17,7 +17,8 @@ const maps = {
   lunigiana: {
     id: "lunigiana",
     name: "Lunigiana",
-    subtitle: "Monzone · Equi Terme · Vinca · Gragnola — Valle del Lucido (MS)",
+    subtitle:
+      "Fivizzano · Casola · Monzone · Equi Terme · Gragnola — Valle del Lucido e alta Aulella (MS, LU)",
     url: new URL("./sim/map/monzone.bin", import.meta.url),
     tileUrl: (key) => new URL(`./sim/map/monzone/${key}.bin`, import.meta.url),
     overview: new URL("./sim/map/monzone/overview.png", import.meta.url),
