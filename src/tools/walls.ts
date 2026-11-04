@@ -344,6 +344,9 @@ export const buildWalls = (
     driveBlocked = new Uint8Array(cw * ch),
     driveShoreBlocked = new Uint8Array(cw * ch)
   // Tile by tile: a tile's cells, and the ring of cells around them that the majority filter reads.
+  // The listed tiles alone: an unlisted one's cells lie outside the play area, where none is
+  // blocked, and its nodes, which the ring and the slopes beside it read, are the edge's
+  // (`extendEdges` in grid-tiles.ts).
   for (const { span } of gridTiles(g)) {
     const ci0 = span.i0,
       ci1 = span.i0 + span.cols - 1,

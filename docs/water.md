@@ -86,7 +86,10 @@ follow from the discharge per km², q.
   shares them among its arms, so a braid's rejoin adds back to the whole), and each
   vertex keeps the most its own burned nodes gather within a node of it, never less than upstream
   (`Water.area`, km²). Nodes within two of another water's are left out, and a piece's last vertex
-  keeps what came down to it: D8 may route the water it joins through a tail running beside it. The Torrente Lucido drains 47 km² where it meets the Aulella. The bounds
+  keeps what came down to it: D8 may route the water it joins through a tail running beside it.
+  The grid's edge is the outlet, and so is every node no listed map tile holds (an L-shaped
+  region's notch, which the build reads no terrain in: [map.md](map.md#pipeline)), so no ground
+  beyond either counts. The Torrente Lucido drains 47 km² where it meets the Aulella. The bounds
   hold only the Aulella's left bank, so it takes 161 km² from beyond them (the Soliera gauge's
   208 km² less the Lucido's), and leaves the map with 208.
 - **The channel** (`channelOf`, `channel.ts`): as wide as the water (`Water.w`), its bed the terrain
@@ -301,7 +304,7 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/sim/water/__tests__/channel.map-test.ts` (`pnpm test:map`) | the whole rail bed of the map dry where a stream crosses it, at the same three flows |
 | `src/sim/water/__tests__/swim.test.ts` | the hold (an adult's 1.2 m²/s, a child's 0.4), off the feet and back on, wading's slowing, a sprint slowed to a wade by knee depth |
 | `src/sim/__tests__/water.test.ts` | the Lucido's depth and current at the mean and in a spate; the player wading across, swept, swimming and out, and dry once he gets into a car in the water; people and animals swimming out and the dead drifting; a calm dog stopping at a spate's edge; a Panda holding in the Lucido and floating off in a spate; buoyancy at 0.3 and 0.7 m; a Panda ploughing to a third slower in a second of ankle-deep water, the truck hardly; stalling; a bridge keeping a walker dry, on its centreline and on every verge over the water of the bridges within 2 km of Monzone; the rivers rising under rain and falling back; determinism and a save mid-swim (determinism in `water.long-test.ts`) |
-| `src/tools/__tests__/catchment.test.ts` | a braid's arms sharing the river's area at the fork and adding back to it at the rejoin |
+| `src/tools/__tests__/catchment.test.ts` | a braid's arms sharing the river's area at the fork and adding back to it at the rejoin; an unlisted tile's nodes (an L's notch) never read, outlets as the grid's edge is, so the ground beside them drains out and they bring no area |
 | `src/sim/water/__tests__/rivers.test.ts` | over a synthetic river polygon with an island and a lake a stream runs through (`waterIndex`): the river's level and current across the polygon, the island dry, the river's own bed beyond it; the bank square to the reach either side of the seam between two polygons of one river; the lake still at its level, its bank the nearest shore, winning over the stream; a water area's surface as the render draws it |
 | `src/sim/__tests__/water.test.ts` (the lake) | the player swimming in the lake by the Solco di Equi and out; a Panda afloat there, drifting under 1 m with no current |
 | `src/render/__tests__/water.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes; the Aulella's polygon carried on over the apron; `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon |

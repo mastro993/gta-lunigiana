@@ -42,16 +42,24 @@ interface Heights {
   readonly data: ArrayLike<number>
 }
 
-/** The place of a map with origin `origin` and heights `heights`: its 5th-percentile height and the way a plane fitted to its heights falls. */
+/**
+ * The place of a map with origin `origin` and heights `heights`: its 5th-percentile height and the
+ * way a plane fitted to its heights falls, over the nodes `listed` holds (1; every node without it).
+ * A map's are those its listed tiles hold (`listedNodes` in src/tools/grid-tiles.ts): an L's notch
+ * has no ground of its own.
+ */
 export const placeFrom = (
   origin: { readonly lat: number; readonly lon: number },
   heights: Heights,
+  listed?: ArrayLike<number>,
 ): Place => {
   const { cell, cols, rows, data } = heights
+  const held = (k: number) => listed === undefined || listed[k] === 1
   let low = Number.MAX_SAFE_INTEGER,
-    high = -Number.MAX_SAFE_INTEGER
+    high = -Number.MAX_SAFE_INTEGER,
+    n = 0
   for (let k = 0; k < data.length; k++)
-    [low, high] = [Math.min(low, data[k]!), Math.max(high, data[k]!)]
+    if (held(k)) [low, high, n] = [Math.min(low, data[k]!), Math.max(high, data[k]!), n + 1]
   // Decimetres are whole numbers: count them, then walk up to the 5th percentile.
   const counts = new Uint32Array(high - low + 1)
   let sx = 0,
@@ -64,6 +72,7 @@ export const placeFrom = (
     syz = 0
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
+      if (!held(j * cols + i)) continue
       const z = data[j * cols + i]!,
         x = i * cell,
         y = j * cell
@@ -78,8 +87,7 @@ export const placeFrom = (
       syz += y * z
     }
   }
-  const n = cols * rows,
-    rank = Math.floor(0.05 * (n - 1))
+  const rank = Math.floor(0.05 * (n - 1))
   let floor = low,
     seen = counts[0]!
   while (seen <= rank) seen += counts[++floor - low]!

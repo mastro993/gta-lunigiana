@@ -12,6 +12,7 @@ import type { bakeFarms } from "../../sim/population/farms.ts"
 import { placeFrom } from "../../sim/sky/place.ts"
 import type { bedOf } from "../../sim/water/channel.ts"
 import type { bake } from "../bake.ts"
+import { listedNodes } from "../grid-tiles.ts"
 import { wholeMap } from "../map-file.ts"
 
 /** As the map file holds it: JSON keeps no −0 and no undefined. */
@@ -21,7 +22,7 @@ const saved = (value: unknown): unknown => JSON.parse(JSON.stringify(value))
 const hintFor = (map: MonzoneMap) =>
   `run pnpm map${map.name === "monzone" ? "" : " --region cesena"}`
 
-/** Asserts `map`'s baked tables equal a fresh `run()` of the bake and its place a fresh fit over its whole heightmap. */
+/** Asserts `map`'s baked tables equal a fresh `run()` of the bake and its place a fresh fit over its listed tiles' nodes. */
 export const assertBakesCurrent = (map: MonzoneMap, run: typeof bake): void => {
   const whole = wholeMap(map.name)
   const fresh = saved(run(whole)) as ReturnType<typeof bake>
@@ -58,7 +59,11 @@ export const assertBakesCurrent = (map: MonzoneMap, run: typeof bake): void => {
     saved(map.derived.farms),
     `MAP.derived.farms (src/sim/population/density.ts): ${hint}`,
   )
-  const { floor, downslope } = placeFrom(map.origin, whole.heightmap)
+  const { floor, downslope } = placeFrom(
+    map.origin,
+    whole.heightmap,
+    listedNodes(whole.heightmap, map.tiles),
+  )
   assert.deepEqual({ floor, downslope }, map.place, `MAP.place (src/sim/sky/place.ts): ${hint}`)
   // the copies of what the railway points at
   const { crossings, platforms, stations } = map.railway

@@ -1,16 +1,17 @@
-// The terrain grid, built one 2 km tile at a time: on each tile's window of nodes the LiDAR is
-// averaged, the lakes and river polygons carved (water-areas.ts) and the beds under the water as
+// The terrain grid, built one listed 2 km tile at a time: on each tile's window of nodes the LiDAR
+// is averaged, the lakes and river polygons carved (water-areas.ts) and the beds under the water as
 // first settled, the road and rail claims written in the build's order (never on the water), the
 // river polygons (their gravel bars raised now) and the beds (outside the road cores) carved again
 // under the water kept below the decks, the terrain under each water sample read for the perched
 // check, the grid rounded to
 // 0.1 m and the rail bed levelled. Each of those writes a node from that node alone (its own value,
 // position, owner and the vectors), so a window needs no halo, and a node two tiles share comes out
-// the same in both: the pass checks it.
+// the same in both: the pass checks it. A tile of the bounds' box the region leaves off its list (an
+// L's notch) is never worked: no terrain is read there.
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
 import { segIndex } from "./geometry.ts"
-import { cellTile, gridTiles } from "./grid-tiles.ts"
+import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
 import { replayClaims, ROAD_RANKS, type Claim } from "./profiles.ts"
 import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { gridLattice, sampleGrid, type Grid, type Profile } from "./terrain.ts"
@@ -38,8 +39,13 @@ interface GridInput {
 }
 
 /**
- * The finished grid, the uncarved one (the catchments read it), the carved grid before its rounding
- * under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed moved.
+ * The finished grid, the uncarved one (the catchments read it), the nodes the listed tiles hold
+ * (`listed`, 1, as `listedNodes` in grid-tiles.ts), the carved grid before its rounding under every
+ * water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed moved. A node no listed
+ * tile holds (an L's notch) is 0 in the uncarved grid, which the catchments leave out, and in the
+ * finished grid the listed node the game reads there (`extendEdges`), so the walls' slopes, the
+ * buildings' floors and the water on the play area's inner edge read the edge extended, not a
+ * cliff down to 0 m.
  */
 export const tileByTile = ({ dem, water, wp0, wp, areas, claims, rail, levels }: GridInput) => {
   const lattice = gridLattice()
@@ -106,6 +112,17 @@ export const tileByTile = ({ dem, water, wp0, wp, areas, claims, rail, levels }:
         grid.z[n] = z
         written[n] = 1
       }
+    samples.delete(tile.key)
   }
-  return { grid, uncarved, perched, bed: bedReport(moved) }
+  extendEdges(grid, written)
+  // A sample whose cell lies in an unlisted tile (one on the notch's west or south side, where the
+  // play area cuts the water, reads the cell east or north of it) reads the finished grid there, as
+  // the game does: on the side the notch's nodes weigh nothing, and past it they are the edge's.
+  for (const own of samples.values())
+    for (let m = 0; m < own.length; m += 2) {
+      const p = wp[own[m]!]!,
+        k = own[m + 1]!
+      perched[own[m]!]![k] = sampleGrid(grid, p.x[k]!, p.y[k]!)
+    }
+  return { grid, uncarved, listed: written, perched, bed: bedReport(moved) }
 }

@@ -107,12 +107,16 @@ in a process of its own;
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
   the Carabinieri and the start, Gragnola's rail layout to lucido's north edge) and x 0…2400 by y
   0…1400 (Equi Terme and its station), 6 tiles; the notch, x 0…2400 by y 1400…3900 round Fazzano,
-  Casciana and Codiponte, is real land, its two tiles unlisted. It builds in 5.3–5.5 s and peaks
-  at 0.77–0.78 GB, 2.1 s of it the overview (arm64, three runs on 2026-10-31 at a load average of
-  about 6 from other work; 3.1–3.2 s and 0.64–0.68 GB before the overview and the vectors in the
-  tiles, #63). `pnpm maps` builds it after the two maps, and CI caches it with them (it reads their
-  inputs and code, so it shares their key, and the reproducible job's hash covers it, its overview
-  included).
+  Casciana and Codiponte, is real land, its two tiles unlisted, and the build reads no terrain
+  there: the grid's tile pass works the 6 listed tiles alone, the catchments end at the notch's
+  sides and the place leaves it out ([Pipeline](#pipeline), [What growing a region
+  changes](#what-growing-a-region-changes)). It builds in 5.5–6.0 s and peaks at 0.79–0.80 GB,
+  2.2 s of it the overview and 0.25–0.26 s the grid's tile pass (arm64, three runs on 2026-11-04 at
+  a load average of 5–6 from other work, beside 5.6–6.2 s, 0.79–0.81 GB and 0.31–0.32 s when the
+  pass worked the notch's 2 tiles too; 5.3–5.5 s and 0.77–0.78 GB on 2026-10-31, and 3.1–3.2 s and
+  0.64–0.68 GB before the overview and the vectors in the tiles, #63). `pnpm maps` builds it after
+  the two maps, and CI caches it with them (it reads their inputs and code, so it shares their key,
+  and the reproducible job's hash covers it, its overview included).
   `src/tools/__tests__/l-region.map-test.ts` (`pnpm test:map`; without the build every check is
   skipped, saying how to build it, but in CI, which builds it, the file fails instead, so a broken
   `maps` script or cache path cannot pass with nothing checked) loads it and checks, through the
@@ -128,7 +132,10 @@ in a process of its own;
   - every graph node, spawn, POI and platform lies in the play area, and every building's centroid;
   - no tree beyond the outline stands on a road, in a stream or in a building of lucido's map;
   - no wall lies wholly more than 5 m outside the play area: the walls stage blocks no cell whose
-    centre lies outside it, so the notch's slopes and banks are walled by the outline alone.
+    centre lies outside it, so the notch's slopes and banks are walled by the outline alone;
+  - its place is the one fitted over its listed tiles' nodes (`placeFrom` over `listedNodes`):
+    over every node of the joined heightmap, whose notch holds 0, its floor would be 0 m, and an L
+    built when the place was fitted over the notch's terrain fails it (floor 179.4 m against 173.1).
 
   It reads the L's roads, platform areas and buildings joined from its tiles (`readWholeMap`).
   Beside it, `src/sim/map/__tests__/ground-l.map-test.ts` checks that the ground, surface and water
@@ -378,19 +385,33 @@ Lunigiana and 2.1 s on the L test region ([The overview](#the-overview)).
 
 The terrain phase works out the vectors first: the water's surfaces, the road and rail profiles,
 whose writes into the grid are recorded in order as claims, and the water capped under the decks.
-Then `build-grid.ts` builds the grid one 2 km tile at a time (`gridTiles` in `grid-tiles.ts`, south
-to north then west to east): on the window of the tile's 501 × 501 nodes, cut to the grid, it
-averages the LiDAR, carves the lakes and river polygons and the beds under the water as first
-settled, writes the claims in their order (never on the water), carves the river polygons and the
-beds again under the capped water outside the road cores, reads the terrain under
-the water samples whose cells are the tile's own (for the perched check, section 8), rounds to 0.1 m
-and lays the rail bed. A window keeps the whole grid's lattice (`Grid.span` in `terrain.ts`):
+Then `build-grid.ts` builds the grid one listed 2 km tile at a time (`gridTiles` in `grid-tiles.ts`,
+the region's tiles, south to north then west to east): on the window of the tile's 501 × 501 nodes,
+cut to the grid, it averages the LiDAR, carves the lakes and river polygons and the beds under the
+water as first settled, writes the claims in their order (never on the water), carves the river
+polygons and the beds again under the capped water outside the road cores, reads the terrain under
+the water samples whose cells are the tile's own (for the perched check, section 8), rounds to
+0.1 m and lays the rail bed. A window keeps the whole grid's lattice (`Grid.span` in `terrain.ts`):
 positions, index ranges and clamps are worked out as on the whole grid, so its nodes are the same
 doubles. Each of those stages writes a node from that node alone (its own value, position and owner,
 and the vectors), so a window needs no halo. The perched check reads the 4 nodes of one cell, all in
 the tile that owns the cell, and the walls' slope test, which reads 3 nodes around a cell, reads the
 grid the tiles put together. A node two tiles share is worked out in both, and the pass fails the
 build if the two differ. The catchments then run on the uncarved grid the tiles put together.
+
+A tile of the box the region's parts leave out (an L's notch, [Map files](#map-files)) is never
+worked, so the build reads no terrain there and needs none there (#17 grows Lunigiana with 20 such
+tiles). A node only such tiles hold stays 0 in the uncarved grid, as `joinTiles`
+leaves it in a map read whole, and the catchments take it for an outlet (section 6); the place is
+fitted without it ([The global file](#the-global-file)). In the finished grid it then takes the
+listed node the game reads there (`extendEdges`: the nearest one in the listed tiles round its own,
+as `nodeAt` in `src/sim/map/tiles.ts` and the coarse grid's `readAt` read it), so what reads the
+grid past the play area's inner edge reads the edge extended, as the grid's clamp gives past the
+bounds: the walls' slope test and majority filter beside the notch, a building's floor and a road's
+height there, and a water sample on the notch's side, whose cell is the one past it (4 on the L
+test region, at x 0, which read the finished grid after the pass). Left at 0, the cliff down to it
+blocked the leg's cells along the notch's west side: on the L test region 296 walk and 259 drive
+walls more, and 68 and 164 others gone (2026-11-04).
 
 Pairings that would grow with the square of the region are indexed: the level crossings, the
 water's mouths and the catchments' inflows by node id, the chains' growth order (section 7) by the
@@ -1226,7 +1247,8 @@ the pieces where tracks meet (`rail-graph.ts`).
 
 The LiDAR terrain is sampled through the projection (computed exactly on a 50 m lattice, bilinear in
 between). Each node of the 4 m grid over the bounds (1951 × 2501 nodes) is the mean of a 5 × 5 m
-square of samples, worked out tile by tile ([Pipeline](#pipeline)). A tile's nodes (`grid` of
+square of samples, worked out tile by tile over the listed tiles ([Pipeline](#pipeline): an L's
+notch reads none). A tile's nodes (`grid` of
 `dtmDem` in `dtm.ts`) read each sample's projection from the two terms of the lattice's
 bilinear that one lattice row shares, worked out once per row and sample column, so the 25 samples
 of a node cost about one DTM read each: the same operations on the same doubles as the sampler
@@ -1256,7 +1278,12 @@ Grondilice).
   the samples are burned 100 m under their own surface into a copy of the grid, which is filled so
   every node drains (priority-flood with an epsilon, Barnes et al. 2014; the grid's edge is the
   outlet), each node routed to its steepest lower neighbour (D8), and the 4 m cells accumulated
-  downstream. Each piece starts with what the pieces ending where it begins bring (shared among the arms of a
+  downstream. A node no listed tile holds (an L's notch, never built: [Pipeline](#pipeline)) is
+  an outlet too, below any ground and never read: the flood starts from it, so the listed nodes
+  beside it are an edge, D8 drains them out of the grid into it, and it brings no area of its own,
+  as no ground beyond the edge does (`catchment.test.ts` checks that a notch's ground, however high,
+  changes nothing, and that it gives the fill and areas of a pit there the box's edge drains). Each
+  piece starts with what the pieces ending where it begins bring (shared among the arms of a
   fork), and a sample
   keeps the most its own burned nodes gather within a node of it (D8 cuts a bend's corner past a
   node), never less than upstream; nodes within two of another water's are left out, and a piece's
@@ -1779,7 +1806,8 @@ edge of the play area extends that edge, as the apron does past the bounds (`src
 `notchMap` in `src/sim/map/__tests__/edit-map.ts` drops Lunigiana's four tiles north-east of (2000,
 0), and the `notch.test.ts` beside each runtime reader of the tiles and the play area checks it
 there; the tunnel portals' `portals.test.ts` moves the outline onto a tunnel mouth instead). The
-build writes the listed tiles alone and keeps a wall or tree whose midpoint falls in the notch (an
+build works the terrain of the listed tiles alone, reading none in the notch
+([Pipeline](#pipeline)), writes the listed tiles alone and keeps a wall or tree whose midpoint falls in the notch (an
 outline wall on its side, a house wall over it) in the listed tile round it nearest it (`tilesRound`
 in `src/sim/map/kinds.ts`, the cut in `src/tools/tile-map.ts`): such an item lies within a wall's
 reach of the play area, so its coordinates pack as the tile's own do. A vector near the notch goes
@@ -1831,7 +1859,7 @@ counter-clockwise, holes clockwise.
 | `outline` | the play area's outline (`src/tools/play-area.ts`): flat rings on 0.1 m, outer counter-clockwise, holes clockwise (the play area left of every edge), each from its lowest (y, x) vertex; `insideRings` and `ringsDistance` (`src/sim/map/outline.ts`) test points against it. Lunigiana's and Cesena's is one ring, `bounds` itself. The game tests a point against the play area with it (`inPlay` and `outlineDistance` in `src/sim/map/index.ts`: teleports, bolts, herds, tunnel portals), the minimap clips to it, and the build's overview is transparent outside it; `bounds` is only the heightmap's extent |
 | `heightmap` | the terrain lattice: `cell` (4 m), `cols`, `rows`, `x0`, `y0`, and `ax`, `ay`, the region's anchor (`region.ts`), only where it is not (x0, y0); its nodes are the tiles'. The lookups (`heightAt`, `terrainZ`, `coverAt`) and the land cover's raster (`coverBlocks`: its scanline and its cells near a wall or a road) measure a point's cell from the anchor (`anchorOf` in `src/sim/map/kinds.ts`), so a point keeps its height and its cover to the bit, and the bake its tables, when a part grows the box west or south; Lunigiana's and Cesena's anchors are their corners, so their files name none |
 | `tiles` | `{ i, j, zmin, zmax }` per tile, south to north then west to east: its lowest and highest node, decimetres |
-| `place` | `floor` and `downslope`, the sky's place ([weather.md](weather.md)), fitted over every node at build time |
+| `place` | `floor` and `downslope`, the sky's place ([weather.md](weather.md)), fitted at build time over every node the listed tiles hold (`listedNodes` in `grid-tiles.ts`: an L's notch has none) |
 | `coarse` | `cell` (64 m), `cols`, `rows`, `x0`, `y0` on the origin's multiples over the bounds; the nodes' heights and the cover there are its two packed sections, as the tiles' lookups read them (in an unlisted tile, the nearest listed node and cell). For hosts reading far from the player, never the sim |
 | `roads` | each road's attributes (`RoadInfo`), indexed by the graph's edges and the level crossings: `id`, `cls`, `name?`, `ref?`, `w`, `surface`, `oneway?`, `ramp?` (a motorway's or trunk road's slip road), `bridge?`, `tunnel?`, `layer?`, `maxheight?` (an underpass's OSM clear height, m), `verge?` (where people walk, m from the centreline on either side, on the three roads pulled in off the railway; else w/2 + 0.8 m, 0.3 m on paths, steps and tracks). Its line, `pts` and `z`, is in the tiles ([A tile](#a-tile)) |
 | `rail` | `id` (OSM way, negative for a track only the CTR has; not unique: the pieces cut from one way at its switches and the CTR's bridges share it), `kind?` (none on a line; off the lines `loop` or `siding`, from the topology), `bridge?`, `tunnel?`, `pts`, `z` (the bed under the sleepers per vertex, the rail head `RAIL_LIFT` 0.12 m higher, where the rails are drawn; at grade, more than 6 m from a level crossing, the terrain is at most 0.05 m higher and 0.5 m lower, but beside a lower road along the line). Tracks meet only at piece ends; no polyline repeats a vertex |
@@ -1856,8 +1884,9 @@ the parked rests by `bakeParked` (`src/sim/parking.ts`), the water's floor by `b
 residents by `bakeResidents` (both `src/sim/population/density.ts`), the lamps by `bakeLamps`
 (`src/render/sky/lamps.ts`) and the bells by `bellsOf` (`src/tools/bells.ts`).
 `src/tools/__tests__/bake.map-test.ts` runs them again on the shipped map, refits the place over
-the joined heightmap and checks `derived`'s copies against the whole map's vectors, so a change to
-that code fails `pnpm test:map` until `pnpm map` bakes the tables again; `cesena-bake.map-test.ts`
+the joined heightmap's listed nodes and checks `derived`'s copies against the whole map's vectors,
+so a change to that code fails `pnpm test:map` until `pnpm map` bakes the tables again;
+`cesena-bake.map-test.ts`
 does the same for Cesena in a process of its own (a process loads one map), so a change needs
 `pnpm map --region cesena` too. `bake.test.ts` and `cesena-bake.test.ts` bake again only the
 parked spots, water beds and farms within 1 km of Monzone station and of Cesena's start, so
@@ -2167,11 +2196,11 @@ its width with round ends, each pixel once however many segments reach it, and t
 paint through by its coverage.
 
 `src/tools/__tests__/bake.map-test.ts` runs the bakes again on the shipped map, given the whole
-map's vectors joined from its tiles, and compares them, and the place refitted over the joined
-heightmap and `derived`'s copies of the railway's roads, platforms and stations, with what it holds
-(the check is `assertBakesCurrent` in `src/tools/__tests__/bakes.ts`), so code that changes a baked
-table fails `pnpm test:map` until `pnpm map` runs; `cesena-bake.map-test.ts` checks Cesena's (`pnpm
-map --region cesena`). `bake.test.ts` and `cesena-bake.test.ts` bake again the parked spots, water
+map's vectors joined from its tiles, and compares them, and the place refitted over the nodes of
+the joined heightmap its listed tiles hold and `derived`'s copies of the railway's roads, platforms
+and stations, with what it holds (the check is `assertBakesCurrent` in
+`src/tools/__tests__/bakes.ts`), so code that changes a baked table fails `pnpm test:map` until
+`pnpm map` runs; `cesena-bake.map-test.ts` checks Cesena's (`pnpm map --region cesena`). `bake.test.ts` and `cesena-bake.test.ts` bake again the parked spots, water
 beds and farms within 1 km of Monzone station and of Cesena's start (`assertBakesCurrentNear`,
 through `bakeParked`, `bedOf` and `bakeFarms` given just those: the water pieces and buildings of
 the tiles over the box round the spot with a vertex, a building's first, within 1 km, 22 and 970
@@ -2306,7 +2335,12 @@ seam just as into the whole grid; `rail-bed.test.ts` lowers a grid under a line,
 far under it but a kept one, moves a window's nodes as it moves the whole grid's, and levels a
 siding on the line beside it; `grid-tiles.test.ts` checks that the tiles' windows cover the grid,
 neighbours sharing their border nodes, and that the tile `cellTile` names for a point (on and off
-the seams and the grid's edge) holds the four nodes of the cell read there; `spawns.test.ts` parks
+the seams and the grid's edge) holds the four nodes of the cell read there, and on the L test
+region's lattice that its notch's tiles get no window, `listedNodes` holding every node but the
+notch's 285,000, and that `extendEdges` gives each of those the listed node the game reads there
+(by its sides, its corner and its far corner) and leaves the rest; `catchment.test.ts` that a
+notch's nodes are outlets ([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts));
+`spawns.test.ts` parks
 cars off running track, off a siding and away from a level crossing; `platforms.test.ts` clips a
 platform off a track, a road and a crossing area, makes a strip between close tracks and a narrow
 one walkways, and leaves out the ground far under a platform's top; `railway.test.ts` checks the
@@ -2699,14 +2733,14 @@ carries the roads, water, rail and buildings across the old edge, which then are
   corner, as they were before, the heights of 25 buildings, 22,698 water-bed values, 133 lamps and
   the rests of 664 parked spots differed in their last bits, and 3 land-cover cells 0.8–3.6 km in
   from the edge, where an area's edge passes a cell's centre to within a few ulps.
-- **The place** (`placeFrom`) is fitted over every node of the built terrain: the 3x's floor is
-  258.5 m and its downslope 1.919 rad against lucido's 230.3 m and 2.127 rad, and the weather
-  moves with them ([weather.md](weather.md)).
-- **The catchments** route D8 over the whole grid, its edge the outlet, so what drains across
-  lucido's edge from the land beyond now counts: 68 of the 581 water pieces gather other areas,
-  2,148 values in all, the Torrente Tassonaro's most (0.16 → 8.63 km²). The Aulella's 161 km²
-  from beyond the map (`AULELLA_OFF_MAP`) is lucido's: a part that takes in some of that catchment
-  must take it off.
+- **The place** (`placeFrom`) is fitted over every node of the built terrain the listed tiles hold
+  (all of the 3x's): the 3x's floor is 258.5 m and its downslope 1.919 rad against lucido's 230.3 m
+  and 2.127 rad, and the weather moves with them ([weather.md](weather.md)).
+- **The catchments** route D8 over the listed tiles' nodes, the grid's edge the outlet, so what
+  drains across lucido's edge from the land beyond now counts: 68 of the 581 water pieces gather
+  other areas, 2,148 values in all, the Torrente Tassonaro's most (0.16 → 8.63 km²). The Aulella's
+  161 km² from beyond the map (`AULELLA_OFF_MAP`) is lucido's: a part that takes in some of that
+  catchment must take it off.
 - **Tiles**: the 4 tiles lucido's edge crosses whose lowest or highest node now lies past it
   (-2_-4, 2_-3, -2_-2, 2_0) change their `zmin` or `zmax`.
 - **Buildings across the edge**: on lucido each is clipped to its box and kept by the centre of what
@@ -2736,6 +2770,20 @@ carries the roads, water, rail and buildings across the old edge, which then are
   fixed for good.
 - **The coarse grid** covers the box: its nodes past lucido's edge (x −2944 and 4928) read the
   land there, where lucido's read its edge.
+- **A notch**: where a part's rectangles leave tiles of the box off the list (#17's grow
+  Lunigiana's box to x −5300…10100 by y −6100…13000, 20 of its 99 tiles unlisted), the build reads
+  no terrain ([Pipeline](#pipeline)): the place leaves those tiles out, and the catchments and the
+  walls' slopes stop at the notch's sides as at the box's edge. Measured on the L test region on
+  2026-11-04 against its build from main at ca52d42, which still worked the notch's 2 tiles (`pnpm
+  map-diff`): its listed nodes, land cover, coarse grid, tiles' `zmin` and `zmax`, trees, roads,
+  buildings, rail, areas, railway and baked tables, and its water but the catchments, are the same
+  to the bit. Its place moves, the floor 179.4 → 173.1 m and the downslope 2.517 → 2.630 rad. Its
+  catchments lose what the notch drained into them: 25 of its 136 water pieces, 743 of their 8,079
+  values, the Torrente Aulella's most (166.52 → 161.29 km², the 161 from beyond the map included:
+  it comes in from Codiponte, in the notch), Il Canalaccio's 0.23 → 0.01 km² and the Canale della
+  Selva's up to 0.11 km². Its walls move within 16 m (walk: 12 added, 19 gone) and 34 m (drive: 99
+  added, 102 gone) of the notch's west side, where a cell's slope reads the leg's edge extended in
+  place of the notch's ground.
 
 ## Known data limitations
 

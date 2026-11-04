@@ -72,17 +72,21 @@ new map needs no weather data of its own.
 | `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | 2.127 (toward the north-north-west) |
 
 - **Baked at build time.** The fit reads every one of the 4.9 million height nodes, which the game
-  now holds only in the tiles near the player, so the build runs `placeFrom` over the whole
-  heightmap (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file
-  (`MAP.place`). `src/sim/map/global.ts` calls `providePlace({ ...MAP.origin, ...MAP.place })` right
-  after decoding, as the host hands the map file to `provideMap`.
+  now holds only in the tiles near the player, so the build runs `placeFrom` over the heightmap
+  (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file (`MAP.place`). It
+  reads the nodes the map's listed tiles hold (`listedNodes`, all of Lunigiana's): a region whose
+  parts leave tiles of its box unlisted, an L's notch, has no ground there, and its heightmap
+  joined from the tiles holds 0 ([map.md](map.md#pipeline)). `src/sim/map/global.ts` calls
+  `providePlace({ ...MAP.origin, ...MAP.place })` right after decoding, as the host hands the map
+  file to `provideMap`.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,
   `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 230 m, downslope 2.13, the shipped map's own place
   rounded, so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
   the sky modules decode no map, and that once the map is decoded `place()` is the map's origin and
   the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the reference;
-  `place.map-test.ts` (`pnpm test:map`) fits them again over the whole heightmap joined from the
-  tiles, the floor its 5th-percentile height.
+  `place.map-test.ts` (`pnpm test:map`) fits them again over the listed tiles' nodes of the
+  heightmap joined from the tiles, the floor their 5th-percentile height, and `place.test.ts` checks
+  that a notch holding 0 moves neither the floor nor the slope.
 - **Absolute or over the floor.** Temperature, precipitation and snow follow the height above sea
   level, so a high map is colder and snowier. What relief sets counts from the floor instead: the
   low-ground fog, the cloud base, the wind's growth on exposed ground, the drying air and the
@@ -1008,7 +1012,8 @@ node --test src/sim/sky/__tests__/*.long-test.ts src/sim/__tests__/sky.long-test
   Monzone takes the snow it holds where level ground lies bare.
 - `mapfree.test.ts`: the modules the schema and the HUD import decode no map, and the place once
   the map is decoded; `place.map-test.ts` (`pnpm test:map`): the place fitted again over every node
-  of the map.
+  of the map's listed tiles; `place.test.ts`: the fit over the listed nodes alone, a notch holding 0
+  moving neither the floor nor the slope.
 - `src/sim/__tests__/sky.test.ts`: the clock and the weather in a runtime, requests applied before
   the first update, a forced storm's lightning, the weather seed kept and replayed, the seed alone
   planning the days (`sky.long-test.ts`), `WeatherRng` kept apart from `Rng`, and a longer braking

@@ -339,9 +339,10 @@ states and the map. The train models (`TRAINS` in
 The sky's tables (the national temperature normals, the odds' rows, the regimes' `REGIME_SPECS`)
 are module content as well. The map's place (`place()`, `src/sim/sky/place.ts`: its origin, its
 5th-percentile height and the way its ground falls) is per-load map content: the build fits it over
-the whole heightmap and writes it into the global file (`MAP.place`), and `src/sim/map/global.ts`
-hands it over with `providePlace` once it decodes the map, as the host hands the map file to
-`provideMap`; with no map loaded it is the reference site, the shipped map's place. So the sky
+the heightmap of the map's listed tiles and writes it into the global file (`MAP.place`), and
+`src/sim/map/global.ts` hands it over with `providePlace` once it decodes the map, as the host hands
+the map file to `provideMap`; with no map loaded it is the reference site, the shipped map's place.
+So the sky
 modules the schema and the HUD import (`regimes`, `clock`, `calendar`, `astro`, `place`, `day`,
 `climate`, `odds`, `plan`, `local`, `readout`) decode no map, and every Italian map gets its own sun
 and climate (`sky/__tests__/mapfree.test.ts` asserts both); `sky/weather.ts` decodes it, for the
@@ -2312,7 +2313,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     returning its four edges, for every tenth tree and every one within a metre of a seam;
     `water.map-test.ts`: every bridge's verges over the water on the deck in a spate;
     `src/sim/water/__tests__/channel.map-test.ts`: the whole rail bed dry where a stream crosses it;
-    `src/sim/sky/__tests__/place.map-test.ts`: the place fitted again over every node;
+    `src/sim/sky/__tests__/place.map-test.ts`: the place fitted again over every node of the
+    listed tiles;
     `src/sim/rail/__tests__/lines.map-test.ts` and `crossings.map-test.ts`: `lines.test.ts`'s and
     `crossings.test.ts`'s checks over every line, station and level crossing; `roads.map-test.ts`:
     the middle of every traffic step into a box inside its clearance, or the step long.

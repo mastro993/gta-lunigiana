@@ -18,7 +18,11 @@ const grid: Grid = {
   ay: 0,
   z: Float64Array.from({ length: cols * rows }, (_, n) => 100 - 0.02 * 4 * (n % cols)),
 }
-const profile = (pts: ReadonlyArray<readonly [number, number]>): Profile => {
+/** A polyline sampled every 2 m, its surface `surface` there (the plane above less 0.5 m when not given). */
+const profile = (
+  pts: ReadonlyArray<readonly [number, number]>,
+  surface: (x: number, y: number) => number = (x) => 99.5 - 0.02 * x,
+): Profile => {
   const x: Array<number> = [],
     y: Array<number> = [],
     s: Array<number> = [],
@@ -36,7 +40,7 @@ const profile = (pts: ReadonlyArray<readonly [number, number]>): Profile => {
     }
     along += l
   })
-  return { x, y, s, z: Float64Array.from(x, (xi) => 99.5 - 0.02 * xi), vertexSample }
+  return { x, y, s, z: Float64Array.from(x, (xi, k) => surface(xi, y[k]!)), vertexSample }
 }
 
 // Regression: each arm of a braid carried the whole river's area from the fork, so the rejoin added them up, doubling it.
@@ -113,4 +117,52 @@ test("catchments fills and routes a grid of flats and pits to the same heights a
   digest.update(new Uint8Array(g.z.buffer))
   for (const a of areas) digest.update(new Uint8Array(a.buffer))
   assert.equal(digest.digest("hex").slice(0, 16), "1f425d940e4a6bd8")
+})
+
+test("catchments: an unlisted tile's nodes are outlets, as the box's edge is: they are never read, ground beside them drains out and they bring no area", () => {
+  // A 4 m grid over 320 × 240 m rising 2 % east and 3 % north, its north-east corner (x 204…320,
+  // y 144…240) unlisted, as an L's notch is, and a stream across the plane 44 m south of it that
+  // the corner drains into (D8 runs south-west).
+  const cols = 81,
+    rows = 61
+  const plane = (x: number, y: number) => 100 + 0.02 * x + 0.03 * y
+  const inNotch = (n: number) => n % cols >= 51 && Math.floor(n / cols) >= 36
+  const listed = Uint8Array.from({ length: cols * rows }, (_, n) => (inNotch(n) ? 0 : 1))
+  const run = (notch: number | undefined, mask?: Uint8Array) => {
+    const g: Grid = {
+      cell: 4,
+      cols,
+      rows,
+      x0: 0,
+      y0: 0,
+      ax: 0,
+      ay: 0,
+      z: Float64Array.from({ length: cols * rows }, (_, n) =>
+        notch !== undefined && inNotch(n) ? notch : plane(4 * (n % cols), 4 * Math.floor(n / cols)),
+      ),
+    }
+    const wp = [
+      profile(
+        [
+          [312, 100],
+          [8, 100],
+        ],
+        (x, y) => plane(x, y) - 0.5,
+      ),
+    ]
+    const [area] = catchments(g, wp, [["source", "mouth"]], mask)
+    return { area: area!, z: g.z.filter((_, n) => listed[n] === 1) }
+  }
+  const masked = run(undefined, listed)
+  // Peaks in the notch change nothing: its ground is never read.
+  assert.deepEqual(run(1e4, listed), masked)
+  // Its nodes are outlets below every node of ground, the listed nodes beside them an edge: the same
+  // fill and areas as a pit there that the box's edge drains.
+  assert.deepEqual(run(-1e6), masked)
+  // Read whole, the corner's ground drains into the stream.
+  const whole = run(undefined)
+  assert.ok(
+    masked.area.at(-1)! < whole.area.at(-1)! - 0.01,
+    `${masked.area.at(-1)} km² at the mouth against ${whole.area.at(-1)} with the notch's ground`,
+  )
 })

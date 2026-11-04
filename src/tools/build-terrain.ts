@@ -175,6 +175,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     grid.uncarved,
     wp0,
     water.map((w) => w.pts.map((v) => v.id)),
+    grid.listed,
   )
   dropPerched(water, wp, crossed, grid.perched, inStill(wet.carved))
   lap("water")
