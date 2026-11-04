@@ -5,7 +5,7 @@ import { coarseCoverAt, coarseHeightAt } from "../../sim/map/coarse.ts"
 import { coverAt } from "../../sim/map/cover.ts"
 import { groundZ } from "../../sim/map/ground.ts"
 import { heightAt, MAP } from "../../sim/map/index.ts"
-import { tileKey } from "../../sim/map/kinds.ts"
+import { anchorOf, tileKey } from "../../sim/map/kinds.ts"
 import { dropTile, setTileSource, tilesOver } from "../../sim/map/tiles.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { EAR_HEIGHT } from "../acoustics.ts"
@@ -70,28 +70,30 @@ const ring = () => {
 }
 
 /**
- * A 32 m ambience block near (x, y) on the woods' edge (some of its cells forest, not all): its centre,
- * where its own shares are heard unblended, and its forest share counted cell by cell.
+ * A 32 m ambience block near (x, y) on the woods' edge (some of its cells forest, not all), the
+ * blocks counted from the region's anchor: its centre, where its own shares are heard unblended, and
+ * its forest share counted cell by cell.
  */
 const edgeBlock = (x: number, y: number) => {
-  const { cell, x0, y0 } = MAP.heightmap,
+  const { cell } = MAP.heightmap,
+    { x: AX, y: AY } = anchorOf(MAP.heightmap),
     side = 8 * cell,
-    bi = Math.floor((x - x0) / side),
-    bj = Math.floor((y - y0) / side)
+    bi = Math.floor((x - AX) / side),
+    bj = Math.floor((y - AY) / side)
   for (let j = bj - 20; j <= bj + 20; j++)
     for (let i = bi - 20; i <= bi + 20; i++) {
       let forest = 0
       for (let k = 0; k < 64; k++) {
         const cover = coverAt(
-          x0 + (8 * i + (k % 8) + 0.5) * cell,
-          y0 + (8 * j + Math.floor(k / 8) + 0.5) * cell,
+          AX + (8 * i + (k % 8) + 0.5) * cell,
+          AY + (8 * j + Math.floor(k / 8) + 0.5) * cell,
         )
         if (cover === "forest") forest++
       }
       if (forest > 0 && forest < 64)
         return {
-          x: x0 + (i + 0.5) * side,
-          y: y0 + (j + 0.5) * side,
+          x: AX + (i + 0.5) * side,
+          y: AY + (j + 0.5) * side,
           forest: Math.fround(forest / 64),
         }
     }

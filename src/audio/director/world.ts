@@ -12,7 +12,6 @@
 import type { WeatherValue } from "../../sim/schema.ts"
 import type { Conditions } from "../../sim/sky/local.ts"
 import { place } from "../../sim/sky/place.ts"
-import { hash01 } from "../../tools/geometry.ts"
 import { audibility, CABIN, dbToGain, EAR_HEIGHT, mixGain, spreading, sumDb } from "../acoustics.ts"
 import { smoothstep } from "../buffers.ts"
 import {
@@ -97,7 +96,7 @@ const OWL_MEAN = 20,
 const BARK_MEAN = 45,
   EXCITED = 4,
   EXCITED_NEAR = 30
-/** Hour strokes are this far apart (s); each tower starts up to `TOWER_LAG` s late (its own, stable); a stroke is scheduled `STROKE_AHEAD` s early. */
+/** Hour strokes are this far apart (s); each tower starts up to `TOWER_LAG` s late by its seed (`Bell.seed`, from its building's id, so no part that reorders the towers moves it); a stroke is scheduled `STROKE_AHEAD` s early. */
 const STROKE_GAP = 2.5,
   TOWER_LAG = 6,
   STROKE_AHEAD = 0.1
@@ -344,9 +343,9 @@ export const makeWorld = () => {
         rung = ring
         strokes.length = 0
         const count = sky.hour % 12 || 12
-        const towers = bells.flatMap((bell, i) => {
+        const towers = bells.flatMap((bell) => {
           const at = frame.path(bell.key, bell, LEVELS.bell)
-          return at.audible ? [{ bell, lag: TOWER_LAG * hash01(i, 7), level: at.level }] : []
+          return at.audible ? [{ bell, lag: TOWER_LAG * bell.seed, level: at.level }] : []
         })
         for (const { bell, lag } of towers.sort((a, b) => b.level - a.level).slice(0, TOWERS)) {
           for (let k = 0; k < count; k++) strokes.push({ bell, at: now + lag + k * STROKE_GAP })
