@@ -55,19 +55,52 @@ test("a point on the map's screen is the map point painted there; one outside it
   }
 })
 
-test("labels: villages win over overlapping hamlets, apart labels all stay, order is kept", () => {
-  const box = (x: number, major: boolean) => ({ x0: x, x1: x + 50, y0: 0, y1: 10, major })
-  assert.deepEqual(placeLabels([box(0, false), box(30, true), box(100, false)]), [1, 2]) // the hamlet at 0 overlaps the village
-  assert.deepEqual(placeLabels([box(0, false), box(50, false), box(100, true)]), [0, 1, 2]) // touching edges do not overlap
-  assert.deepEqual(placeLabels([box(0, false), box(10, false)]), [0]) // the first hamlet wins a tie
-  // A fixed box (the north arrow) beats every label, village or not.
-  assert.deepEqual(
-    placeLabels([box(0, true), box(100, false)], [{ x0: 40, x1: 52, y0: 0, y1: 20 }]),
-    [1],
-  )
+/** A 10 px square label box at (x, y). */
+const box = (x: number, y = 0) => ({ x0: x, x1: x + 10, y0: y, y1: y + 10 })
+/** A label of `rank`, its dot at x = `dot` on a row of its own, its name taking one of `sides`. */
+const label = (rank: number, dot: number, ...sides: Array<ReturnType<typeof box>>) => ({
+  rank,
+  dot: box(dot, 100),
+  sides,
 })
 
-test("places: the villages and hamlets the user asked for are named on the map", () => {
+test("labels: ranks in order, each name on its first free side, fewest free sides first", () => {
+  // The player's place (rank -1, `mapLabels`), the town, then villages, hamlets and peaks, whatever
+  // their order.
+  assert.deepEqual(
+    placeLabels([
+      label(3, 0, box(0)),
+      label(2, 20, box(0)),
+      label(1, 40, box(0)),
+      label(-1, 60, box(0)),
+      label(0, 80, box(0)),
+    ]),
+    [undefined, undefined, undefined, 0, undefined],
+  )
+  // A name taken on its first side goes on its next; touching boxes do not overlap.
+  assert.deepEqual(placeLabels([label(0, 0, box(0)), label(1, 20, box(5), box(20))]), [0, 1])
+  assert.deepEqual(placeLabels([label(1, 0, box(0)), label(1, 20, box(10))]), [0, 0])
+  // Of two with as many free sides, the earlier wins; one with fewer goes first.
+  assert.deepEqual(placeLabels([label(1, 0, box(0)), label(1, 20, box(5))]), [0, undefined])
+  assert.deepEqual(placeLabels([label(1, 0, box(0), box(20)), label(1, 20, box(5))]), [1, 0])
+  // A fixed box (the north arrow, the scale bar) beats every label.
+  assert.deepEqual(placeLabels([label(0, 0, box(0)), label(1, 20, box(20))], [box(0)]), [
+    undefined,
+    0,
+  ])
+})
+
+test("labels: a name never covers a dot, and a dot under a name goes with its label", () => {
+  // Its own dot, a placed one, and one its rank has still to place are all kept clear.
+  assert.deepEqual(placeLabels([label(1, 0, box(0, 100), box(20))]), [1])
+  assert.deepEqual(placeLabels([label(0, 0, box(20)), label(1, 40, box(0, 100), box(60))]), [0, 1])
+  assert.deepEqual(placeLabels([label(1, 0, box(20, 100), box(40)), label(1, 20, box(60))]), [1, 0])
+  // A hamlet's dot under a village's name is left out with its name, though its side is free.
+  assert.deepEqual(placeLabels([label(1, 0, box(20, 100)), label(2, 20, box(40))]), [0, undefined])
+})
+
+test("places: the villages, hamlets and peaks the user asked for, one per name, each in play and in the HUD district of its name", () => {
+  // worldmap.map-test.ts checks that the full map draws them.
   const names = new Set(PLACES.map((p) => p.name))
   for (const name of [
     "Monzone",
