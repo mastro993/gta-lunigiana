@@ -89,14 +89,18 @@ follow from the discharge per km², q.
   keeps what came down to it: D8 may route the water it joins through a tail running beside it.
   The grid's edge is the outlet, and so is every node no listed map tile holds (an L-shaped
   region's notch, which the build reads no terrain in: [map.md](map.md#pipeline)), so no ground
-  beyond either counts. The Torrente Lucido drains 47 km² where it meets the Aulella at Gragnola;
+  beyond either counts. The Torrente Lucido drains 46.4 km² where it meets the Aulella at Gragnola;
   the Aulella brings 59.6 km² there, all of them on the map, and drains 106 below the mouth.
   The bounds hold the whole basin above the Soliera gauge but the heads of the streams that come
-  down from north of y 13000 under the Cerreto pass, 26.2 km² (the gauge's 208 km² less the 181.8
-  the map's own ground gives just below the Torrente Rosaro's mouth at Soliera): the Rosaro, their
-  main stem, brings them in at its entry node, 12 m inside the edge (`OFF_MAP` in
-  `src/tools/build-terrain.ts`), so it reaches the Aulella with 93.1 km², the Aulella reads the
-  gauge's 208 there and leaves the map with 210.5 by the west edge.
+  down from north of y 13000 under the Cerreto pass: 14.7 km², by a D8 on Massa-Carrara's 10 m DTM,
+  all of which reach the Torrente Rosaro above Fivizzano, 13.1 of them down its own head and 1.6
+  down rivulets west of it. The Rosaro brings them all in at its entry node, 12 m inside the edge
+  (`OFF_MAP` in `src/tools/build-terrain.ts`), so it reaches the Aulella at Soliera with 81.6 km²,
+  the Aulella reads 196.5 just below its mouth (181.8 of the map's own ground and the 14.7), 196.8
+  by the gauge, and leaves the map with 199.0 by the west edge. ARPAL gives the gauge 208 km², more
+  than the DTMs' basins there (the 10 m DTM's is 200.7 km², 186.1 of them inside the box, where the
+  map's 4 m D8 gathers 181.8), so the flows per km² come from the gauge's 208 and the map's Aulella
+  at Soliera carries 196.8/208 of the gauge's flow.
 - **The channel** (`channelOf`, `channel.ts`): as wide as the water (`Water.w`), its bed the terrain
   drawn under the centreline (except under an at-grade road, where it stays `depth`/2 under the
   culvert's dip, so the road stays dry until a flood overtops it; and near the track, on the ground
@@ -318,7 +322,7 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores, the dry ones, a river polygon's surface falling through it and its outer edge left, no tree, parked car or spawn in the water |
 | `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
 | `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 658,633 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered |
-| `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 km² and the Aulella's 208; no walk or drive wall in a wide river, shore walls by it |
+| `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 ± 2 km², the Rosaro's 14.7 ± 0.5 at its entry and the Aulella's 199 ± 3 leaving the map; no walk or drive wall in a wide river, shore walls by it |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
 
 ## Known limits

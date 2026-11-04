@@ -248,12 +248,13 @@ Input (horn) ──────────────────────�
   heard (`places/track.ts`); the crossing bell's loop is rendered once per context on its first
   ring (1.287 s of samples, 1.9 ms at 48 kHz in Node); a tile's water reaches on the first water
   query that reads the tile, kept while it is in memory and dropped with it ([Point and line
-  sources](#point-and-line-sources)). The 32 m ambience blocks, the farm dogs (per
-  building) and the owls (per 500 m square, on the same squares and in the same order and draws as
-  over the whole map) are each worked out where first asked for, round the ears, once the tiles they
-  read are in memory, and then kept: at most 4096 ambience blocks (about a 2 km square), the oldest
-  dropped first. Until a block's tiles are in memory it reads as the coarse cover's kind at its
-  centre for that ask, and is not kept. In an unlisted tile (an L's notch,
+  sources](#point-and-line-sources)). The 32 m ambience blocks (counted, as the owls' squares are,
+  from the region's anchor, `anchorOf`, so a part that grows the box moves none of them), the farm
+  dogs (per building) and the owls (per 500 m square, on the same squares and in the same order and
+  draws as over the whole map) are each worked out where first asked for, round the ears, once the
+  tiles they read are in memory, and then kept: at most 4096 ambience blocks (about a 2 km
+  square), the oldest dropped first. Until a block's tiles are in memory it reads as the coarse
+  cover's kind at its centre for that ask, and is not kept. In an unlisted tile (an L's notch,
   [map.md](map.md#map-files)) a block reads the cover the nearest listed cells extend into it, and
   an owl's tries there are skipped, so no owl calls from woods the notch only borrows. The
   road-surface index is built on the first footstep or tyre, unless the physics built it first.
@@ -268,8 +269,9 @@ Input (horn) ──────────────────────�
   (the same); `streetAt` 0.27–0.34 ms (0.22–0.29) and `echoesAt` 0.37–0.42 ms (0.39–0.48); all 209
   owls of the map 0.49–0.52 ms and all 225 farm dogs the map held then (230 since #11's 2009
   sheets, and 216 owls and 226 dogs since #14's woods) 3.6–3.7 ms (1.9–2.2). Since #17's Fivizzano
-  the map holds 711 owls and 658 dogs: 2.4–2.5 ms and 9.3–9.8 ms, each the first call in a fresh
-  process with every tile in memory (no director).
+  the map holds 711 owls and 618 dogs: 2.3–2.8 ms and 9.0–10.4 ms, each the first call in a fresh
+  process with every tile in memory (no director; 20 processes on 2026-11-04 under a load average
+  of 5–7).
 - **Randomness** in the director (birds, owls, farm dogs, animal calls, what people say) and the
   synths (variants, jitter, a fire's crackle, a texture's segments, a backfire) is `Math.random`:
   `?seed=N` replays the world, not the birds. The owls draw after the farm dogs and only at night,
@@ -802,9 +804,9 @@ One-shots:
 | `scream` | `synth/voices.ts`: a sawtooth glottis on a pitch contour, breath noise, three vowel formants and a fast roughness, in the person's own register (`cueVoice`), so a child screams at the top of a woman's range; each person keeps one voice | a fright `Cry` from a child, and from 35 % of grown-ups (by id, `SCREAMERS`, TUNED); at most one cue per person per 4 s | 100 (1 m) |
 | `talk` | `src/audio/speech`: a line of Italian-sounding speech in the speaker's own voice ([Speech](#speech)) | a turn in a conversation, a gatherer's question to the victim ([Conversations and cries](#conversations-and-cries)) | 58 (1 m) for a man, 55 for a woman or a child (Pearsons, Bennett and Fidell 1977: normal effort) |
 | `yell` | the same line, yelled: higher, brighter, its vowels longer | a person's `Cry` that is not a scream, a gatherer's call, a robbed driver ([Conversations and cries](#conversations-and-cries)) | 89 (1 m) for a man, 82 for a woman or a child (Pearsons et al. 1977: shouted) |
-| `bell` | `synth/nature.ts`: a bell's inharmonic partials (hum, prime, tierce, quint, nominal...), each split to beat; four primes rendered, any pitch resampled from the nearest | the game clock, in Rome time: the hours only (1–12 strokes, 2.5 s apart) from 07:00 to 21:00, from the 4 loudest towers in earshot, each starting up to 6 s late ([Day, night and weather](#day-night-and-weather)) | 118 (5 m) |
+| `bell` | `synth/nature.ts`: a bell's inharmonic partials (hum, prime, tierce, quint, nominal...), each split to beat; four primes rendered, any pitch resampled from the nearest | the game clock, in Rome time: the hours only (1–12 strokes, 2.5 s apart) from 07:00 to 21:00, from the 4 loudest towers in earshot, each starting up to 6 s late by a seed hashed from its building's id (`Bell.seed`), which no part that reorders the map's towers moves ([Day, night and weather](#day-night-and-weather)) | 118 (5 m) |
 | `bird` | `synth/nature.ts`: autumn calls of the robin, great tit, blackbird ("chink" or "seee") and chaffinch ("pink"), 35/30/20/15 %; the tawny owl (`owl`): the male's hoot sequence, about 6 s, or in 30 % of calls the female's "kewick" (0.46 s) | songbirds from a tree 15–70 m away: 0.3 calls a second in full forest, plus 0.05 near houses, by the sun and the rain (`birdActivity`); owls at night from their woods ([Day, night and weather](#day-night-and-weather)) | songbirds 85 (1 m); the owl 90 (1 m, `OWL`, estimated) |
-| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 658 farm dogs (about one in eight barns, sheds, houses and farm buildings with open ground and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
+| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 618 farm dogs (about one in eight barns, sheds, houses and farm buildings with open ground and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
 | `moo` | `synth/animals.ts` ([Animal calls](#animal-calls)) | a cow on its own (every 40 s on average), its `Cry`, its pain after a hit | 92 (1 m), an estimate between a man's shout and a bark |
 | `grunt` | `synth/animals.ts` | a pig on its own (every 6 s on average), a `Cry` that is not a fright | 70 (1 m), an estimate within pigs' 60–90 dB |
 | `squeal` | `synth/animals.ts` | a pig's fright `Cry`, its pain after a hit | 105 (1 m): piglets peaked at 101.9 dB (Engenharia Agrícola 2018), a grown pig's squeal is commonly put at 110–115 |
@@ -1096,7 +1098,13 @@ browser shows long tasks.
 The bells are the tallest church or tower of each district (the district its box's centre lies
 in; the first of the tallest), 84 in all (27 on lucido alone), found by the build over the whole
 map's buildings (`bellsOf` in `src/tools/bells.ts`) and kept in the map (`MAP.derived.bells`). A
-tower of 10 m or less rings an 800 Hz prime; taller towers ring lower, down to 400 Hz at 30 m.
+tower of 10 m or less rings an 800 Hz prime; taller towers ring lower, down to 400 Hz at 30 m. Each
+starts the hour up to 6 s late (`TOWER_LAG` in `src/audio/director/world.ts`) by a seed hashed from
+its building's id (`Bell.seed` in `src/audio/places.ts`), not from its place in the list. The
+build lists the towers in the whole map's building order, so a part reorders them: Fivizzano's 57
+moved each of lucido's 27 to another place, and a lag keyed on the place would have changed all
+27, by up to 4.9 s. Keyed on the building, they changed once against main, by 0.04–4.69 s, and no
+later part moves them.
 
 ### Explosions
 
@@ -1643,9 +1651,9 @@ it. They never hold the whole map: `places.map-test.ts` and `places/__tests__/wa
 | `src/render/__tests__/index.test.ts` | every system of the render and audio schedules declares no writes |
 | `src/audio/__tests__/acoustics.test.ts` | the laws: the line source against the exact table, the air cutoffs, Doppler, the pan, diffraction, ground, foliage, masking, the mix calibration |
 | `src/audio/__tests__/occlusion.test.ts` | path differences on real map spots: a flat meadow, Monzone Alto's 30 m tower, a bell over its own walls, Monte San Giorgio between its flanks |
-| `src/audio/__tests__/ground.test.ts` | with only the 4 tiles within 1.2 km of the spawn in memory and no tile source: reading a far tower's tile directly throws; `terrainAt`, `groundAt` and `landAt` there equal the coarse grid's; the paths and forest to the 72 towers on dropped tiles are finite; a far ambience block is one kind or none; a strike 4.8 km off thunders and a crossing 2.7 km off rings without reading a missing tile; the street, the echoes, a 300 m path's δ and forest and the ground at the listener equal the values with the tiles round it in; a way across a far tower on a dropped tile, 40 m each side of its bell and 3 m under its top, over coarse ground below it, has δ = 0 (its walls are not read), and once the tile is back its walls give δ over 0.2 m (2·√(40² + 3²) − 80 ≈ 0.22 m); the dogs within 200 m and the owls within 600 m are the near ones of a search twice as wide, in its order, with the tiles 2.4 km round the listener back in memory; a woods'-edge block's forest share is its cells' count; the nearest tower's 09:00 strokes are unchanged; with the tiles back, the far block is its own cells' value (the coarse stand-in was not kept) |
+| `src/audio/__tests__/ground.test.ts` | with only the 4 tiles within 1.2 km of the spawn in memory and no tile source: reading a far tower's tile directly throws; `terrainAt`, `groundAt` and `landAt` there equal the coarse grid's; the paths and forest to the 72 towers on dropped tiles are finite; a far ambience block is one kind or none; a strike 4.8 km off thunders and a crossing 2.7 km off rings without reading a missing tile; the street, the echoes, a 300 m path's δ and forest and the ground at the listener equal the values with the tiles round it in; a way across a far tower on a dropped tile, 40 m each side of its bell and 3 m under its top, over coarse ground below it, has δ = 0 (its walls are not read), and once the tile is back its walls give δ over 0.2 m (2·√(40² + 3²) − 80 ≈ 0.22 m); the dogs within 200 m and the owls within 600 m are the near ones of a search twice as wide, in its order, with the tiles 2.4 km round the listener back in memory; a woods'-edge block's forest share (the blocks counted from the region's anchor) is its cells' count; the nearest tower's 09:00 strokes are unchanged; with the tiles back, the far block is its own cells' value (the coarse stand-in was not kept) |
 | `src/sim/map/__tests__/surface.test.ts` | the surfaces the tyres and the sounds share: carriageways by their OSM surface, the forest floor, a meadow; by level, the hillside over a tunnel and the deck only on the deck |
-| `src/audio/__tests__/places.test.ts` | wall materials (a trunk, the first building of each kind and style and the first barrier of each kind round the held spots: the guard rail, the stone wall, a cliff; bare ground, a quarry's bank; the nearer of a trunk and a house wall 1.2–2.5 m apart wins; a bank with trees 1.5–3 m off it and no barrier of its tile within 20 m is earth), ambience shares round Monzone, streets, echoes off the rock at Equi Terme, none on an open meadow nor at any Monzone street with no slope as steep as bare rock (50°) in sight, bells, dogs and owls stable and the near ones those of a wider search in its order, birds (none on a meadow with no tree within 100 m) |
+| `src/audio/__tests__/places.test.ts` | wall materials (a trunk, the first building of each kind and style and the first barrier of each kind round the held spots: the guard rail, the stone wall, a cliff; bare ground, a quarry's bank; the nearer of a trunk and a house wall 1.2–2.5 m apart wins; a bank with trees 1.5–3 m off it and no barrier of its tile within 20 m is earth), ambience shares round Monzone, streets, echoes off the rock at Equi Terme, none on an open meadow nor at any Monzone street with no slope as steep as bare rock (50°) in sight, bells, each tower's seed (its hour-strike lag) the same with the towers listed in another order, dogs and owls stable and the near ones those of a wider search in its order, birds (none on a meadow with no tree within 100 m) |
 | `src/audio/places/__tests__/water.test.ts` (the tiles round Monzone station, the Fontana di Aiola and the Lucido at the x = 0 seam, (16, 343)) | the Torrente Lucido from Monzone station, the Fontana di Aiola; the reaches in 5 boxes across the x = 0 and y = 0 seams in the whole map's order, each once; at the seam spot the same water heard whichever of its 4 tiles are in memory and in whichever order they came, and with one of them dropped and no tile source none read (`reachesIn` false) and only the fountains heard |
 | `src/audio/__tests__/places.map-test.ts` (`pnpm test:map`, every tile in memory) | ambience shares within 1 all over the map; the whole map's dogs and owls stable, the near ones those of the whole map in its order |
 | `src/audio/places/__tests__/water.map-test.ts` (`pnpm test:map`, every tile in memory) | the reaches over 1,500 boxes up to 800 m across, half of them within 80 m of a seam, are those one 32 m grid over every reach of the whole map's water gives: the same, in the same order, each once, with their geometry; the rivers' lattice corner is that grid's origin |

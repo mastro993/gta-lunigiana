@@ -75,9 +75,9 @@ export const TRAFFIC = {
 /**
  * Pedestrians, in parties: at most `max` living people, spawned out of view (`spawn` m away) on the streets people live on, despawned
  * beyond `despawn` m (the dead too), or beyond `unseen` m (out of view) when blocked for good; a party's followers out of view go
- * with their leader. The most crowded spot of the Valle del Lucido, in Gragnola's centre at (−1700, 3367), calls for 19 (`peopleOut`), so
- * `max` leaves room for a party's followers there; Fivizzano's walled centre at (−526, 8474) calls for 37, and `max` caps its crowd
- * at 22, the walkers a frame affords.
+ * with their leader. `max` is the first prototype's ceiling. Fivizzano's walled centre at (−526, 8474) would put 37 out (`peopleOut`)
+ * and the cap holds it at 22: there the target is the cap, so a party whose leader is the 21st or 22nd out leaves home the followers
+ * or neighbour that do not fit. Everywhere else the most is 19, in Gragnola's centre at (−1700, 3367), which leaves room for them.
  */
 export const PEDESTRIANS = {
   max: 22,

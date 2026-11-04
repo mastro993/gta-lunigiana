@@ -64,6 +64,12 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   its manifest by hand from `rt-index`'s lists ([Adding a part](../map.md#adding-a-part)); list a
   CTR 1:10 000 section only where no finer survey maps the part's buildings, since its mapped area
   drops every OSM building in it.
+- A part's OSM extract (`pnpm fetch-osm <part>`) holds the ground of its tiles and the ground its
+  box adds to the earlier parts' tiles (`partGround`), as `fetch-rt` completes their terrain tiles:
+  the trees cover every listed tile in the box, and keep off OSM's roads, buildings, water and rail
+  only where some extract holds them. The earlier parts' extracts stay as pinned, since fetching
+  one again brings OSM's current edits into its play area; `fetch-osm.test.ts` checks that the
+  lock's extracts hold every listed tile's ground in the box.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
 - Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no lattice tree and
   changes no tree's id (its look's seed): the lattice starts at the region's fixed `anchor`
@@ -76,14 +82,32 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   keeps its spot but not its id (`ids:` under trees). Each tile stores its trees in whole metres
   from a point 100 m south-west of its corner. A survey's building keeps its id too: the id is its
   source, its section's name and its record's own number (`survey-ids.ts`), never an index over the
-  map or a cut of the box, so `ids:` under buildings stays empty. Nor does it move a bit of the
-  terrain, the land cover or the baked tables of the parts already built: the DTM's projection
-  lattice and every terrain and cover lookup count from the anchor too. What it does change there
-  (the place, the catchments, the walls and buildings along the old edge) is in [What growing a
-  region changes](../map.md#what-growing-a-region-changes); keep that list true when a part shows
-  more.
+  map or a cut of the box, so `ids:` under buildings stays empty.
+- Growing the box alone, with no new part beside the earlier ones, moves no bit of their terrain,
+  nor of their land cover more than 50 m in from their old edge, nor of a baked table farther in
+  than a count over the buildings across that edge reaches: the box no longer clips them, so it
+  keeps each whole or drops it (they reach up to 19.2 m in on the 3x), and the walkers' residents
+  count the homes within 60 m of a walk edge's midpoint (`EDGE_REACH`), a farm's rural flag those
+  within 140 m (`RURAL_REACH`). The DTM's projection lattice, every terrain and cover lookup, the
+  terrain's colour patches, the owls' squares and the ambience blocks count from the anchor too.
+  `x3-region.map-test.ts` checks the terrain, the land cover, and the lamps, water beds and parked
+  spots' rests on the 3x test region against lucido alone (`lunigiana-lucido`, as the shipped map
+  is no longer lucido). What the grown box alone does change (the place, the catchments, the
+  tiles' `zmin` and `zmax`, the walls near the old edge, the buildings, areas and farms across it,
+  and the residents of the walk edges near it: on the 3x, 13 of lucido's, their midpoints up to
+  54.5 m in, 7 of them crossing `PEOPLED`) is in [What growing a region
+  changes](../map.md#what-growing-a-region-changes).
+- A part's own data moves more, near it, since roads, rail and rivers are carved and fitted whole:
+  the place and the catchments; terrain nodes within a few hundred metres of the seams and along
+  the lines the seams no longer cut; land-cover cells, parked spots, their flags and the lanes by
+  the seams; walls and buildings along the old edge; the tiles' `zmin` and `zmax`; the railway; and
+  trees in the strip along the old box edges. [What growing a region
+  changes](../map.md#what-growing-a-region-changes) counts each for each part (Fivizzano moved
+  9,422 of lucido's 4,879,451 terrain nodes, up to 12.3 m, all north of y 0). Keep that list true
+  when a part shows more, and treat a move far from every seam and from every line the part makes
+  whole as a bug.
 - A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.60 MB, Lunigiana's
-  2_1 by Pieve San Lorenzo with the vectors round it, 604,290 B, the build prints it, and
+  2_1 by Pieve San Lorenzo with the vectors round it, 604,635 B, the build prints it, and
   `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents and the farms' centres) needs both
