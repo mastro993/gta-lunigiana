@@ -43,10 +43,13 @@ test("lanes: AI traffic keeps off lanes where the walls leave no room to pass an
         `${model} on ${roadOf(edge).name ?? roadOf(edge).id} at ${x},${y}`,
       )
   }
+  // Monzone's, by the station: Fivizzano's Via Cesare Battisti narrows to single file between its houses.
+  const battisti = graph.trafficEdges.filter(
+    (e) => roadOf(e).name === "Via Cesare Battisti" && near(midpointOf(e)),
+  )
+  assert.ok(battisti.length > 10, `${battisti.length} edges of Via Cesare Battisti`)
   assert.ok(
-    graph.trafficEdges
-      .filter((e) => roadOf(e).name === "Via Cesare Battisti")
-      .every((e) => allowsModel(e, "panda")),
+    battisti.every((e) => allowsModel(e, "panda")),
     "two cars pass on Via Cesare Battisti",
   )
 })
