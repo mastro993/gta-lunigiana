@@ -1188,7 +1188,7 @@ the pieces where tracks meet (`rail-graph.ts`).
   bridge reaches past it as far as the cells the at-grade track beyond cannot take: a wide stream's
   protected bed (w ≥ 4 m: w/2 + 1 m) and a main road's core (motorway to tertiary, whose rank beats
   the rail's, [section
-  7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts-road-levelsts): w/2 + 2.3 m), each
+  7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts-road-levelsts-junction-reachts): w/2 + 2.3 m), each
   plus a cell's diagonal (5.7 m, the farthest a corner of a cell the track runs through lies off
   it). A bridge end that falls short slides along the track: 9 ends, among them the Aulella bridge
   261445433's north end by 13.9 m (OSM ended it 3.1 m inside the river, and the track beyond hung
@@ -1359,7 +1359,7 @@ Grondilice).
   for a river polygon's outer edge, and the river polygons again after them, under the water kept
   below the decks.
 
-### 7. Road and rail profiles (`profiles.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`)
+### 7. Road and rail profiles (`profiles.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`)
 
 - Pieces are chained through nodes where exactly two ends meet. Each chain is resampled every 4 m
   from the ground and smoothed with a moving average. Bridges and tunnels are straight between
@@ -1383,9 +1383,19 @@ Grondilice).
   chain already set, else the longest left. Elevations spread along the network from where it is
   pinned, so a short link is not pinned at both ends by chains fitted apart (a lane in Codiponte
   between two levels got a 93% straight line that way).
+- A junction a road's fit sets stays within reach of each junction already set that a road not
+  yet fitted leads it to (`junction-reach.ts`): that road's steepest grade (1.5× its class limit)
+  over the way there, along it and on through joints no other road meets, or the ground's own
+  climb between the two where that is steeper. A link fitted after both its ends were set is the
+  straight line between them, however steep: east of Collegnago the fit of a road round a hill,
+  one end pinned, left its free junction 3.3 m over the ground, and the 12 m unclassified link
+  from there to the junction an earlier fit set climbed 53% where the ground climbs 18%; it now
+  climbs 22%. A 55 m residential link at Giuncugnano went from 24.7% to its ground's 23.0%, and
+  Sercognano's Via Vittorio Emanuele from 32–34% to its ground's 28–29%. The rail keeps its own
+  grade: the roads meet it at level crossings.
 - The profile is then fitted to a grade limit through hard pins: elevations already set at
-  shared nodes by earlier chains, and the rail's and the overpasses' clearance bounds. The fit is
-  the midpoint of the two grade envelopes, so cut and fill split evenly.
+  shared nodes by earlier chains, and the rail's, the overpasses' and the junctions' bounds. The fit
+  is the midpoint of the two grade envelopes, so cut and fill split evenly.
 - Where the fit strays more than 4 m from the smoothed ground, the grade limit within 60 m is
   raised in 10% steps, up to 1.5× the class limit.
 
@@ -1458,14 +1468,17 @@ Grondilice).
   line between the ends' ground of the SR445's 396 m viaduct north of Gragnola (152.6 and 144.9 m,
   its ends down in the valley; the track's ground 157.3 m) held the line 12 m under the ground, and
   a 22 m residential bridge by Gassano, 4.7 m over the track's ground, dipped it 0.8 m in a V whose
-  grade changed 4.2% over 20 m. Both now run at grade, the viaduct level at 162.8 m over them; in
-  Cesena the line ran 2.9 m under its ground below the Viadotto Pontescolle and 4.1 m below the
-  Viadotto John Fitzgerald Kennedy, and now runs at grade under both. The
-  rail stays at least 3 m above a river it bridges (wider than 4 m); over the rest, under the
-  CTR's short bridges, it keeps its level and the water dips under the deck ([section 8](#8-water-under-decks-waterts)).
-  The named streams' 4 m is the build's guess where it measured none ([section 3](#3-features-featurests)):
-  under the CTR's 6.7 m bridge by Gassano the Canale di Campiglia runs 1.5 m under the line, and
-  held 3 m under it the line rose 1.9 m, its grade changing 4.1% over 20 m. A rail tunnel
+  grade changed 4.2% over 20 m. Both now run at grade, the viaduct level at 162.8 m over them: its
+  ends' ground is the valley's as the LiDAR flew it before the road's 2017 variant was built (the
+  2010 orthophoto shows no road there, the 2023 one the deck's shadow cast far off it over the
+  Aulella and the line), so the line between them is no guess of its deck. In Cesena the line ran
+  2.9 m under its ground below the Viadotto Pontescolle and 4.1 m below the Viadotto John
+  Fitzgerald Kennedy, and now runs at grade under both. The rail stays at least 3 m above a river
+  it bridges (wider than 4 m); over the rest, under the CTR's short bridges, it keeps its level and
+  the water dips under the deck ([section 8](#8-water-under-decks-waterts)). The named streams' 4 m
+  is the build's guess where it measured none ([section 3](#3-features-featurests)): under the
+  CTR's 6.7 m bridge by Gassano the Canale di Campiglia runs 1.5 m under the line, and held 3 m
+  under it the line rose 1.9 m, its grade changing 4.1% over 20 m. A rail tunnel
   passes under everything: the 3.2 km of the line's tunnel from Equi Terme to Argigliano run under
   the streams on the hillside. The rail's output keeps the profile samples where its elevation
   bends by more than 0.03 m (roads: 0.25 m), so the line drawn and driven follows the grid it was
@@ -1479,20 +1492,28 @@ Grondilice).
   rail does over a tagged underpass: a junction pinned under a Cesena slip road's bridge held a
   service road 1.6 m under its deck (0.18 m over its natural level, which without the 0.3 m left it
   5.32 m), and the Secante's tunnels ran 2.8 m under Cesena's streets. A road at grade never rises
-  over a tunnel: a car park's ramp under a Cesena square lifted the square 5.6 m. Each bound holds
-  at the profile samples on both sides of the crossing (2 m either way), as one at the nearest
-  sample left 0.1–0.2 m short between samples. Inside a bridge or tunnel it holds at both ends along
-  the deck's slope (`tilt` in `profiles.ts`), so a climbing tunnel's far portal keeps its level, and
-  bounds on one sample keep the strictest (several crossings under one deck). In the Lucido valley
-  the rule dropped the residential 328463362 1.2 m under the bridge 328463361 at (1643, 3286), from
-  4.36 to 5.52 m below its deck, and Via Gioco di Sopra in its tunnel under the tertiary 1001748732
-  at (−1661, 3550), from 5.27 to 5.57 m. In Cesena the least clearance under a road bridge went from
-  1.25 m to 5.50 m (3.92 m under the Ponte Europa Unita, over a road tagged `maxheight` 2.4), and
-  the Secante's tunnels run 5.41 m or more under its streets. Both maps' checks (`map.map-test.ts`,
-  `cesena.map-test.ts`) read every road bridge. Two Cesena tunnels keep less: the car park ramp
-  68296970 (a service road in its square's pass, which no pass before it bounds) stays at the
-  square's level, and Via Giovanni Spadolini's 166880964 runs 5.1 m under two service roads, its
-  ends pinned by junctions.
+  over a tunnel: a car park's ramp under a Cesena square lifted the square 5.6 m. One chain that
+  crosses itself (the SR445's loop at Gassano, built in 2017, runs under its own bridge 13.6 m from
+  where it leaves it) takes both bounds from one natural level, as one fit sets both roads: the road
+  below stays at most 0.3 m over its own, and a bridge keeps the clearance over that (over its own
+  tunnel, a road at grade stays at least 0.3 m under its natural level, and the tunnel the clearance
+  under that). The bridge stood 0.85 m over the loop; it now stands 5.86 m over it, its deck 5 m
+  higher (143.0 m falling to 139.2), and the loop leaves it there and falls round to pass under it
+  at the ground. Each bound holds on its own road's samples (`on` in `profiles.ts`): where a chain
+  crosses itself, the chain's nearest sample may lie on the other level, and the bridge's bound
+  lifted the loop to it. And it holds at the profile samples on both sides of the crossing (2 m
+  either way), as one at the nearest sample left 0.1–0.2 m short between samples. Inside a bridge
+  or tunnel it holds at both ends along the deck's slope (`tilt` in `profiles.ts`), so a climbing
+  tunnel's far portal keeps its level, and bounds on one sample keep the strictest (several
+  crossings under one deck). In the Lucido valley the rule dropped the residential 328463362 1.2 m
+  under the bridge 328463361 at (1643, 3286), from 4.36 to 5.52 m below its deck, and Via Gioco di
+  Sopra in its tunnel under the tertiary 1001748732 at (−1661, 3550), from 5.27 to 5.57 m. In Cesena
+  the least clearance under a road bridge went from 1.25 m to 5.50 m (3.92 m under the Ponte Europa
+  Unita, over a road tagged `maxheight` 2.4), and the Secante's tunnels run 5.41 m or more under its
+  streets. Both maps' checks (`map.map-test.ts`, `cesena.map-test.ts`) read every road bridge. Two
+  Cesena tunnels keep less: the car park ramp 68296970 (a service road in its square's pass, which
+  no pass before it bounds) stays at the square's level, and Via Giovanni Spadolini's 166880964 runs
+  5.1 m under two service roads, its ends pinned by junctions.
 - The bed against the LiDAR (every 2 m of at-grade line, leaving out the 4 m+ gaps of streams):
   0.26 m off at the mean, 0.10 m at the median and 0.86 m at p90, 432 m of the line more than 1 m
   off (before these rules: 1.18, 0.87 and 2.77 m, 2 932 m). Its grade changes by at most 3.4% over
@@ -2993,7 +3014,7 @@ carries the roads, water, rail and buildings across the old edge, which then are
   retaining walls between them are for the render to draw.
 - **The rail's level is the LiDAR's, smoothed under a 2.5% grade limit.** The CTR's track lines
   carry no heights. The bed lies within 0.10 m of the LiDAR at the median and 0.86 m at p90
-  ([section 7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts-road-levelsts)); where
+  ([section 7](#7-road-and-rail-profiles-profilests-terraints-rail-levelsts-road-levelsts-junction-reachts)); where
   the ground is steeper than the limit allows or bends within the 100 m smoothing it stays off: 1.1
   m under the ground west of Equi Terme (s 4250–4500), 0.89 m along Monzone's station (s 6750–7000),
   1.3 m south of Gragnola (s 9500–9750), 0.75 m either side of the Terma tunnel, and up to 2.5 m

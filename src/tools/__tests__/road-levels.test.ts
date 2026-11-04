@@ -80,3 +80,33 @@ test("roadLevels: a road under a bridge keeps maxheight (4 m untagged) plus a 1.
   assert.deepEqual(make([]).bounds([{ item: ramp }]), [])
   assert.deepEqual(zs(make([square]).bounds([{ item: ramp }])), ["max 104.5"])
 })
+
+// Regression: the SR445's loop at Gassano runs under its own bridge 13.6 m from where it leaves it;
+// one chain held both, so neither was bound and the bridge stood 0.85 m over the loop.
+test("roadLevels: a chain over itself is bound from one natural level, the bridge clear over the road below it", () => {
+  // Ground flat at 100 m. A bridge from E to W, then a loop from W round south and back north,
+  // under the bridge 14 m from W; the same loop, at grade, over a tunnel that leaves it.
+  const loop = (bridge: boolean) => {
+    const over = road(10, "primary", [v(80, 0, "E"), v(0, 0, "W")], bridge ? { bridge: true } : {})
+    const under = road(
+      11,
+      "primary",
+      [v(0, 0, "W"), v(-30, -30), v(0, -60), v(14, -30), v(14, 20)],
+      bridge ? {} : { tunnel: true },
+    )
+    const levels = roadLevels({
+      roads: [over, under],
+      ground: () => 100,
+      fitted: () => false,
+      zAt: () => 110,
+    })
+    const bounds = levels.bounds([{ item: over }, { item: under }])
+    assert.equal(bounds.length, 6, "the crossing and 2 m either side, on each road")
+    return zs(bounds)
+  }
+  // The road below stays at most 0.3 m over its natural level, and the bridge 5.5 m over that...
+  assert.deepEqual(loop(true), ["max 100.3", "min 105.8"])
+  // ...or, over its own tunnel, the road at grade keeps 0.3 m under its natural level at least,
+  // the tunnel 5.5 m under that.
+  assert.deepEqual(loop(false), ["max 94.2", "min 99.7"])
+})

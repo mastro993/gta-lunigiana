@@ -254,7 +254,8 @@ export interface Pin {
 
 const FADE = 30 // m over which a pin pulls the profile before the grade fit
 const CAP = 4 // m a fitted profile may stray from the smoothed ground before its grade limit is relaxed there
-const RELAX = 1.5 // largest factor on a grade limit (tertiary 15%, rail 3.75%)
+/** Largest factor on a grade limit (tertiary 15%, rail 3.75%). */
+export const RELAX = 1.5
 const RELAX_REACH = 60 // m around a stray sample whose segments get relaxed
 
 /** Envelope of z within the grade budget `t` (cumulative grade x arc length): `dir` = 1 the highest profile at or below z, -1 the lowest at or above. */

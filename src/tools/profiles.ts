@@ -3,6 +3,7 @@
 // into the terrain grid (except under bridges and tunnels).
 import type { RoadClass } from "../sim/map/kinds.ts"
 import { arcLengths, type V } from "./geometry.ts"
+import { type Graded, junctionReach } from "./junction-reach.ts"
 import {
   fitProfile,
   flatten,
@@ -88,6 +89,12 @@ export interface Bound {
   readonly z: number
   readonly kind?: "min" | "max"
   /**
+   * The piece of the chain it holds on, its nearest sample: where a chain crosses itself, the
+   * nearest of all is as likely on the other level (the SR445's loop under its own bridge at
+   * Gassano took the bridge's bound).
+   */
+  readonly on?: Linear
+  /**
    * Inside a bridge or tunnel, carry the bound to each end along the deck's slope (the profile's
    * line between its ends before the fit) rather than pin both ends at `z`: the straight deck still
    * keeps it where it applies, and a climbing tunnel's far portal stays at its level (pinned flat,
@@ -133,16 +140,18 @@ export const beatsRail = (cls: string): boolean =>
 
 /**
  * Road core half-width written into the grid, rank (lower wins at junctions), grade limit,
- * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output, and
- * whether consecutive bridge (or tunnel) pieces make one deck, straight from end to end: the roads'.
- * The rail keeps a deck a piece: its 2.5 % grade and 100 m smoothing hold a joint to the line
- * between its deck's ends, and its platforms and crossings are fitted on that profile. With
- * `mouths` (the roads'), a tunnel's approaches hold the grid round each of its mouths at their level
- * against every other claim: the first MOUTH m out of it, in their core, before anything else is
- * written. A road over the tunnel or beside the mouth took that cell at its own level otherwise:
- * Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m from its south mouth,
- * buried that mouth 5.8 m. The rail's portals open in their hills, and its bridges over an
- * underpass's mouth (`underpasses` in rail-spans.ts) write nothing there.
+ * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output,
+ * whether consecutive bridge (or tunnel) pieces make one deck, straight from end to end, and whether
+ * each junction the fit sets keeps within reach of the junctions already set that a road not yet
+ * fitted leads it to (`junctionReach`): the roads'. The rail keeps a deck a piece: its 2.5 % grade
+ * and 100 m smoothing hold a joint to the line between its deck's ends, and its platforms and
+ * crossings are fitted on that profile. It keeps its own grade at a level crossing too: the road
+ * meets it there. With `mouths` (the roads'), a tunnel's approaches hold the grid round each of its
+ * mouths at their level against every other claim: the first MOUTH m out of it, in their core,
+ * before anything else is written. A road over the tunnel or beside the mouth took that cell at its
+ * own level otherwise: Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m
+ * from its south mouth, buried that mouth 5.8 m. The rail's portals open in their hills, and its
+ * bridges over an underpass's mouth (`underpasses` in rail-spans.ts) write nothing there.
  */
 interface Spec {
   readonly w: number
@@ -152,6 +161,7 @@ interface Spec {
   readonly tol?: number
   readonly decks?: true
   readonly mouths?: true
+  readonly reach?: true
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -262,14 +272,19 @@ export const replayClaims = (
 /**
  * Profiles chains against `ground` (the uncarved terrain) and records the claims they make on the
  * grid, in order (`replayClaims` writes them). Elevations set at shared nodes (`nodeZ`) pin every
- * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline.
+ * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline. `links` are
+ * the roads a chain's junctions keep within reach of (`Spec.reach`).
  */
-export const makeProfiler = (ground: (x: number, y: number) => number) => {
+export const makeProfiler = (
+  ground: (x: number, y: number) => number,
+  links: ReadonlyArray<Graded> = [],
+) => {
   const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
   const denseOf = new Map<Linear, Dense>()
   /** The claims in the order they are written: the tunnels' mouths first, then the rest as made. */
   const claims: Array<Claim> = []
+  const junctions = junctionReach(links, ground)
   let mouthClaims = 0
   /** A claim along profile `p` of a line `w` m wide at `rank`, blending `blend` m, but for segments from samples where `skip`. */
   const claimOf = (
@@ -403,13 +418,40 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
       const z = v.id === undefined ? undefined : nodeZ.get(v.id)
       if (z !== undefined) pins.push({ k: p.vertexSample[i]!, z })
     })
+    // Bounds of a kind on one sample (a deck's end, under several crossings) keep the strictest: the
+    // fit enforces one bound per sample.
+    const strictest = new Map<string, Pin>()
+    const keep = (k: number, z: number, kind: "min" | "max") => {
+      const key = `${kind}:${k}`,
+        was = strictest.get(key)
+      if (was === undefined || (kind === "min" ? z > was.z : z < was.z))
+        strictest.set(key, { k, z, kind })
+    }
+    // A junction this fit sets keeps within reach of those set before, along the roads fitted after
+    // it, at its own vertex.
+    if (spec.reach === true) {
+      const members = new Set<Linear>(chain.map((m) => m.item))
+      const open = (l: Linear) => !zOf.has(l) && !members.has(l)
+      pts.forEach((v, i) => {
+        const r =
+          v.id === undefined || nodeZ.has(v.id)
+            ? undefined
+            : junctions(v.id, (n) => nodeZ.get(n), open)
+        if (r === undefined) return
+        keep(p.vertexSample[i]!, r[0], "min")
+        keep(p.vertexSample[i]!, r[1], "max")
+      })
+    }
     // A bound inside a bridge or tunnel holds at both ends of its deck, straight between them (a
     // `tilt` bound, shifted along the deck's slope).
-    const strictest = new Map<string, Pin>()
     for (const b of bounds) {
-      let best = 0,
+      // The samples it may take: its own piece's, from its first vertex to its last.
+      const on = b.on === undefined ? -1 : chain.findIndex((m) => m.item === b.on)
+      const from = on < 0 ? 0 : p.vertexSample[first[on]!]!,
+        to = on < 0 ? p.z.length - 1 : p.vertexSample[first[on]! + runs[on]!.length - 1]!
+      let best = from,
         d2 = Number.MAX_VALUE
-      for (let k = 0; k < p.z.length; k++) {
+      for (let k = from; k <= to; k++) {
         const e = (p.x[k]! - b.x) ** 2 + (p.y[k]! - b.y) ** 2
         if (e < d2) [best, d2] = [k, e]
       }
@@ -420,16 +462,8 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
         deck = p.z[k0]! + (p.z[k1]! - p.z[k0]!) * t
       for (const k of at) {
         const z = b.tilt === true ? b.z + p.z[k]! - deck : b.z
-        if (b.kind === undefined) {
-          pins.push({ k, z })
-          continue
-        }
-        // Bounds of a kind on one sample (a deck's end, under several crossings) keep the strictest:
-        // the fit enforces one bound per sample.
-        const key = `${b.kind}:${k}`,
-          was = strictest.get(key)
-        if (was === undefined || (b.kind === "min" ? z > was.z : z < was.z))
-          strictest.set(key, { k, z, kind: b.kind })
+        if (b.kind === undefined) pins.push({ k, z })
+        else keep(k, z, b.kind)
       }
     }
     pins.push(...strictest.values())

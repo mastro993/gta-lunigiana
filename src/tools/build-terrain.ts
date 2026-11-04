@@ -32,7 +32,7 @@ import {
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { roadLevels } from "./road-levels.ts"
-import { type Profile, sampleGrid } from "./terrain.ts"
+import { type Profile, RELAX, sampleGrid } from "./terrain.ts"
 import { inStill, waterAreas } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
@@ -99,7 +99,14 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   // platform's area is its index there).
   const wet = waterAreas(src.areas, water, wp0, dem)
   wet.areas.forEach((a, i) => (src.areas[i] = a))
-  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(ground)
+  // Every road a pass profiles, at the steepest grade its fit draws: a junction keeps within reach
+  // of the junctions set before along the roads not yet fitted (junction-reach.ts).
+  const links = ROAD_PASSES.flatMap(({ classes, grade }) =>
+    roads
+      .filter((r) => (classes as ReadonlyArray<string>).includes(r.cls))
+      .map((piece) => ({ piece, grade: RELAX * grade })),
+  )
+  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(ground, links)
   const zAt = (l: Linear, s: number) => along(arcLengths(l.pts), zOf.get(l)!, s)
 
   const { railRoad, levels, roadBounds, railBounds } = railLevels({
@@ -132,7 +139,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
   for (const { classes, rank, grade, half } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
-      profile(ch, { w: widest(ch), rank, grade, half, decks: true, mouths: true }, [
+      profile(ch, { w: widest(ch), rank, grade, half, decks: true, mouths: true, reach: true }, [
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])
