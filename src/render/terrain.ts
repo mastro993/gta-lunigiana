@@ -2,7 +2,9 @@
  * The terrain mesh: one faceted, vertex-coloured mesh per chunk (render/chunks), cut from the 4 m
  * heightmap (row 0 = south) and continued by an apron beyond the map bounds so the edges never
  * show the void. Cells take their land-cover colour (`coverIndexAt`, from the tiles); very steep
- * faces show bare limestone.
+ * faces show bare limestone. The colour patches and stripes count from the region's anchor
+ * (`anchorOf`), never the box's corner, so a part that grows the box west or south repaints none
+ * of the ground already built.
  *
  * @module render/terrain
  */
@@ -10,6 +12,7 @@ import { BufferGeometry, Float32BufferAttribute } from "three"
 
 import { type Cover, coverIndexAt, coverName } from "../sim/map/cover.ts"
 import { MAP } from "../sim/map/index.ts"
+import { anchorOf } from "../sim/map/kinds.ts"
 import { ROCK_NORMAL_Y } from "../sim/sky/local.ts"
 import { hash01 } from "../tools/geometry.ts"
 import { chunkCells } from "./chunks.ts"
@@ -19,10 +22,11 @@ import type { Crown } from "./leaves.ts"
 import { PALETTE } from "./palette.ts"
 import type { TreeKind } from "./trees.ts"
 
-const hm = MAP.heightmap
+const hm = MAP.heightmap,
+  { i: AI, j: AJ } = anchorOf(hm)
 
 /** Base colour, variant colour and the noise level under which a cell takes the variant (`stripes`: alternate columns). */
-interface CoverLook {
+export interface CoverLook {
   readonly base: number
   readonly alt: number
   readonly share: number
@@ -30,7 +34,7 @@ interface CoverLook {
 }
 
 /** How each cover is painted. */
-const COVER_LOOK = {
+export const COVER_LOOK = {
   meadow: { base: PALETTE.grass, alt: PALETTE.grassDry, share: 0.3 },
   forest: { base: PALETTE.forestDark, alt: PALETTE.forest, share: 0.35 },
   grassland: { base: PALETTE.grassDry, alt: PALETTE.grass, share: 0.35 },
@@ -79,8 +83,8 @@ const patchNoise = (i: number, j: number): number => {
   return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v
 }
 
-/** Picks the base or variant colour of a look for cell (i, j). */
-const shade = (look: CoverLook, i: number, j: number): number =>
+/** Picks the base or variant colour of a look for cell (i, j), counted from the region's anchor. */
+export const shade = (look: CoverLook, i: number, j: number): number =>
   (look.stripes === true ? (i & 1) === 1 : patchNoise(i, j) < look.share) ? look.alt : look.base
 
 /**
@@ -145,7 +149,7 @@ export const terrainChunk = (
     nx /= l
     ny /= l
     nz /= l
-    const rgb = linear(shade(ny < ROCK_NORMAL_Y ? COVER_LOOK.rock : look, i, j))
+    const rgb = linear(shade(ny < ROCK_NORMAL_Y ? COVER_LOOK.rock : look, i - AI, j - AJ))
     put(ax, ah, -ay, nx, ny, nz, rgb)
     put(bx, bh, -by, nx, ny, nz, rgb)
     put(cx, ch, -cy, nx, ny, nz, rgb)
