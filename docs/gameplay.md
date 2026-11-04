@@ -12,7 +12,7 @@ in Lunigiana, or beside a central connected street in Cesena. The map build reje
 buildings and requires an open walking route to the street, so the player can leave the starting
 spot. The two parked spots nearest the station (the one the build chose, `MAP.spawns.police`: in
 Cesena the Compagnia Carabinieri, not the Commissariato) get Carabinieri cars, and the spots within
-300 m of the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 11 for
+300 m of the start get the cars the spots' hash gives them ([Parked cars](#parked-cars)): 9 for
 seed 1, in view as well as out of it, which the title card hides coming. Each car stands settled
 on its springs with the ground's slope. Settling reads the terrain at the spot, and a truck's
 clearance the walls, so the build works both out for every model on every spot (`bakeParked` in
@@ -540,11 +540,15 @@ the lane helpers in `src/sim/route.ts`.
   wall along every traffic edge. A model only uses edges where it fits, and where the drive walls
   across the road leave room for it and an oncoming Panda plus 0.3 m (`PASS_MARGIN`): in single-file
   lanes between houses two cars met head-on with no room to back out or turn round. It only uses the
-  largest connected part of those edges, so villages reached only by such lanes (Terma, Monte dei
-  Bianchi, Vezzanello) get no AI traffic; the player can still drive there. Trucks keep to the main
-  roads (motorway to tertiary) and unclassified roads and to the loops of that network, because they
-  cannot turn round. Apes keep off motor roads (`isMotorRoad`: motorways, trunk roads and their slip
-  roads), which the Codice della Strada (art. 175) closes to mopeds such as the Ape 50.
+  largest connected part of the edges it fits both ways, so villages reached only by such lanes
+  (Terma, Monte dei Bianchi, Vezzanello) get no AI traffic; the player can still drive there. An
+  edge it fits one way alone (its body clears the walls on the centreline headed one way) joins
+  nothing: counted as a link, it kept pieces that traffic could not reach, two lanes in Turano for
+  the Panda (each a tree of dead ends whose last edge was flagged one way) and 49 edges by Vinca
+  for the Carabinieri. Trucks keep to the main roads (motorway to tertiary) and unclassified roads
+  and to the loops of that network, because they cannot turn round. Apes keep off motor roads
+  (`isMotorRoad`: motorways, trunk roads and their slip roads), which the Codice della Strada
+  (art. 175) closes to mopeds such as the Ape 50.
 - **Steering.** The car aims at a point 6 m + 0.6 s × speed ahead along this edge and the next.
 - **Route choice.** At each node the car picks a random legal edge. Oneways are driven a → b only.
   It avoids dead-end spurs, then hairpins, while another way exists, and makes a U-turn only at a
@@ -649,8 +653,9 @@ happens around them. `Perceive` (`systems/perceive.ts`, with the vehicle checks 
   (`WALK_AHEAD`, TUNED: about a village block) plus 0.5 (`WALK_FLOOR`, TUNED), and turns back
   only at dead ends. The ways are weighed by where they lead, not by the edge itself, because
   residents are counted within 60 m of each edge, so all the edges at one junction count about the
-  same houses. With the floor, a lane into the fields draws about 1 walker in 35 against a typical
-  village street (17 residents, the median of the peopled walk edges). Of 200 walkers set off for
+  same houses. With the floor, a lane into the fields draws about 1 walker in 32 against a typical
+  village street (15.6 residents, the median of the peopled walk edges; 17 on lucido alone, 1 in
+  35). Of 200 walkers set off for
   1.5 km from each centre, the share of the distance walked on peopled streets:
 
   | Centre | This choice | The edge's own residents | Random |
@@ -874,20 +879,22 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   random stream seeded by a hash of the spot's place (its x and y in whole decimetres, as the build
   rounds them) and the game's seed (`Parking`, saved), so within one game a street looks the same
   each time the player comes back, and `?seed=N` parks another set. A spot where a Panda would
-  tilt more than 15° stays empty (in Lunigiana, 69 of the 808: the 4 m terrain puts some verges on
-  a bank), and so do the Carabinieri's two.
+  tilt more than 15° stays empty (in Lunigiana, 178 of the 2,501: the 4 m terrain puts some verges
+  on a bank), and so do the Carabinieri's two.
 - **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
   over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had
-  then (737 now), about 27%, and 198 of Cesena's 1,223, about 16%. Within 300 m of each village
-  (seed 1): Monzone (Stazione) 12, Monzone Alto 6, Equi Terme 5, Gragnola 6, Colognola 2,
-  Campiglione 6, Viano 6, Vinca 12, Ugliancaldo 8, Tenerano 3. A spot's dice follow its place, not
-  its index, so a build that adds or drops other spots leaves its car as it was (the 3x test region
-  drops one by lucido's edge and parks the same cars round Monzone: [map.md](map.md#test-regions));
-  a spot the build moves rolls anew.
+  then (2,321 since Fivizzano's part), about 27%, and 198 of Cesena's 1,223, about 16%. Within
+  300 m of each village (seed 1): Monzone (Stazione) 9, Monzone Alto 6, Equi Terme 4, Gragnola 9,
+  Colognola 3, Campiglione 7, Viano 10, Vinca 10, Ugliancaldo 1, Tenerano 0; in Fivizzano's part
+  Fivizzano 20, Casola in Lunigiana 12, Soliera 11, Gassano 8. A spot's dice follow its place, not
+  its index, so a build that adds or drops other spots leaves its car as it was (the 3x test region,
+  which drops 9 buildings across lucido's edge, keeps lucido alone's 807 spots and parks the same
+  cars round Monzone: [map.md](map.md#test-regions)); a spot the build moves rolls anew.
 - **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
   primary, secondary or tertiary road's spot where a truck fits, a roll under 10% makes a marble
-  truck instead: 6 of the 209 cars Lunigiana's spots hold for seed 1 (2–6 over seeds 1, 2, 3, 7
-  and 11), where the game that parked over the whole map held at most two.
+  truck instead: 23 of the 588 cars Lunigiana's spots hold for seed 1 (11–23 of 588–643 over
+  seeds 1, 2, 3, 7 and 11; 2–7 of 167–202 on lucido alone), where the game that parked over the
+  whole map held at most two.
 - **Coming**: a spot 90–300 m from the player (`PARKING.fill`, out of view) that should hold a car
   and has none gets it, unless a vehicle's body, or a person or an animal within 1 m (`ROOM`), is in
   the way: it is tried again every 0.5 s.
@@ -904,8 +911,9 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   back later, finds the street without it.
 - **At most**: none comes while 200 vehicles that are not traffic stand (`PARKED`), the
   Carabinieri's, the stolen and the wrecked ones included. Driving across the map through the ten
-  villages above (seed 1, 50 m every half second from 400 m out of each), at most 27 vehicles stood
-  at once, the player's car included, with at most 14 parked cars and 10 traffic.
+  villages of lucido above, Monzone (Stazione) to Tenerano (seed 1, 50 m every half second from
+  400 m out of each), at most 24 vehicles stood at once, the player's car included, with at most
+  11 parked cars and 10 traffic.
 - **Limits**: after a jump (`Respawn` at the start, a dev teleport) the spots within 90 m of the
   player stay empty until it is 90 m away from them; back at the start after a death, Monzone's
   street holds only the cars that stayed. A car a flood floats off its spot, or a blast shoves, stays
@@ -919,7 +927,7 @@ in the Apuan valleys are holiday homes or empty) / 56 m² (`GROSS_PER_RESIDENT`:
 average occupied dwelling is 101 m² for 2.25 people, 45 m² each, and walls and stairs take about a
 fifth of the gross). Homes are the surveys' houses and the OSM homes (`house`, `residential`, `yes`,
 `apartments`, `detached`, `semidetached_house`, `terrace`, `farm`, `bungalow`), ruins left out. The
-map's homes hold 3,244 residents.
+map's 9,763 homes hold 10,347 residents (lucido's alone 3,244).
 
 `peopleOut` is 0.09 (`OUT_SHARE`, an estimate of the share of residents out on the street by day) ×
 the residents within 140 m of the player, rounded, at most 22. Only the living count. The sum
@@ -929,22 +937,29 @@ same whichever tiles are in memory.
 
 | Spot | Residents within 140 m | People out |
 |---|---|---|
+| Fivizzano's walled centre (−526, 8474) | 409 | 22 (37 without the cap) |
 | Gragnola's centre (−1751, 3360) | 195 | 18 |
 | Vinca (2273, −2620) | 167 | 15 |
 | Monzone Alto (−34, −300) | 115 | 10 |
 | Monzone, the player's start (−412, 438) | 97 | 9 |
 | Equi Terme (1804, 721) | 97 | 9 |
+| Casola in Lunigiana (3636, 4246) | 162 | 15 |
 | The SR445 out in the country (−279, 3736) | 0 | 0 |
 
-The most anywhere on the map is 19, at (−1700, 3367) in Gragnola, so the cap of 22 leaves room for
-a party's followers and never binds.
+The cap of 22 is the first prototype's ceiling (`PEDESTRIANS.max` in `src/sim/systems/populate.ts`).
+It binds only in Fivizzano's walled centre, the most anywhere on the map at (−526, 8474): on a 10 m
+grid over the map, the 529 points where 0.09 × the residents rounds past 22 all lie within 235 m of
+it. There the target is the cap, and a party's followers and neighbour count against it too
+(`placeParties`), so a party whose leader is the 21st or 22nd out leaves home the followers or
+neighbour that do not fit. Everywhere else the most is 19, on 8 points of the grid in Gragnola's
+centre round (−1700, 3380), which leaves room for them.
 
 ### Where they come out
 
 - A party comes out on a walk edge drawn by the residents within 60 m of its midpoint
   (`residentsAlong`), so the village centres fill first. An edge with fewer than 6 (`PEOPLED`, within
   `EDGE_REACH` = 60 m) never gets one: a lone house or two, the woods and the fields stay empty.
-  2,323 of the map's 23,228 walk edges are peopled. Those sums read buildings all over the map, so
+  7,877 of the map's 61,091 walk edges are peopled. Those sums read buildings all over the map, so
   the build works them out (`bakeResidents`) and the map keeps one per walk edge
   (`MAP.derived.residents`).
 - The leader stands on a verge at a random point along the edge, never inside a building (where a
@@ -1101,13 +1116,13 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
 A farm (`src/sim/population/farms.ts`) is a house, barn, shed, `farm_auxiliary` or silo, not a ruin,
 whose centre lies on meadow, grassland, farmland or farmyard cover. It is rural when fewer than 60
 residents live within 140 m (`RURAL`, TUNED), and a pen (pigs live there) when it is a barn, shed or
-`farm_auxiliary`, or stands on a farmyard. The map has 2,411 farms, 1,719 of them rural, 784 pens
-and 637 rural pens. Finding them reads the land cover under every building, so the build does it
-(`bakeFarms`) and the global file keeps the list (`MAP.farms`, each with its building's index in
-the whole map's buildings) and each farm's centre (`MAP.derived.farms`); a farm's own building is
-read from the tile at its centre (`farmBuilding`). A pasture for a herd is meadow,
-grassland or farmland no steeper than 0.47 (25°, TUNED), 15 m from any building, 5 m from any road's
-edge (roads in tunnels left out) and within 250 m of a rural farm.
+`farm_auxiliary`, or stands on a farmyard. The map has 6,559 farms, 5,439 of them rural, 2,214 pens
+and 1,966 rural pens (2,411, 1,719, 784 and 637 on lucido alone). Finding them reads the land cover
+under every building, so the build does it (`bakeFarms`) and the global file keeps the list
+(`MAP.farms`, each with its building's index in the whole map's buildings) and each farm's centre
+(`MAP.derived.farms`); a farm's own building is read from the tile at its centre (`farmBuilding`). A
+pasture for a herd is meadow, grassland or farmland no steeper than 0.47 (25°, TUNED), 15 m from any
+building, 5 m from any road's edge (roads in tunnels left out) and within 250 m of a rural farm.
 
 `PopulateAnimals` runs every 0.5 s and keeps each kind's count near the player (`ANIMALS`); cows and
 pigs come out only where the player is out in the country, with fewer than 60 residents within
@@ -1158,8 +1173,10 @@ code:
   ([Level crossings](#level-crossings)) plus the longest train's length, and never less than the
   drawn run, so a train entering at that speed is beyond view and finds even that box down before
   it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. Today's one line, Lucca–Aulla from
-  the east edge by Minucciano to the north edge toward Fivizzano, is 10,910.9 m, with Equi Terme at
-  s 4103.7–4239.3, Monzone at 6675.7–6779.4 and Gragnola at 10093.9–10240.
+  the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del Lupacino, which OSM tags
+  140 km/h: its run-out is 2298.6 m) to its west edge by Rometta, is 16,854.7 m, with
+  Minucciano-Pieve-Casola at s 1558.6–1668.6, Equi Terme at 5921.4–6057.0, Monzone at
+  8493.3–8597.1, Gragnola at 11911.6–12057.7 and the Fivizzano-Gassano halt at 14454.2–14550.8.
 - **Shared track.** Lines that run on the same pieces of `MAP.rail`, or past the same terminal,
   share that track (`SHARED`): one line's s there maps onto the other's, either way round, one
   stretch for as many pieces in a row as they share (`sharedTrack` joins them, so two trains
@@ -1208,19 +1225,21 @@ code:
 - **`SetTrains`** makes a train due now on every line no AI train runs on (`ApplyTrains`): the
   tests send it, and so do the dev debug menu's "Call trains now" (P, Trains) and
   `gta.trains.call()`. Measured at seed 1 with the player's stolen train standing at Monzone: the
-  call made the line's train due, and it entered at once from the Equi Terme end at 85 km/h.
+  call made the line's train due, and it entered at once from the end past Equi Terme, in the
+  Galleria del Lupacino by Pieve San Lorenzo, at its line speed of 140 km/h.
 
-Measured over a round trip from the east end (dry rail unless named; the dwells are those seed 1
-draws):
+Measured over a round trip from the east end, a train entering at Pieve San Lorenzo's terminal and
+coming back from Rometta's (`railStep` alone; dry rail unless named; the dwells are those seed 1
+draws; the leading end's time from one terminal to the other):
 
-| Run | Terminal to terminal | Of it dwelling | Top speed under 85 / 80 / 85 km/h |
+| Run | Terminal to terminal | Of it dwelling | Top speed under each limit, in running order |
 |---|---|---|---|
-| east to north, dry | 745.9 s | 112.4 s | 85.0 / 80.0 / 82.6 km/h (the last 711 m start from Gragnola) |
-| east to north, wet / under snow | 746.6 s / 750.9 s | 112.4 s | the same; 82.2 km/h out of Gragnola under snow |
-| north to east, dry | 825.2 s | 127.4 s | 85.0 / 80.0 / 79.8 km/h (the climb to the east edge, 21 ‰ in the Ugliancaldo tunnel) |
-| north to east, wet / under snow | 826.1 s / 831.9 s | 127.4 s | the same |
+| east to west, dry | 1187.3 s | 202.7 s | 130.0 / 85.0 / 80.0 / 85.0 km/h under 140 / 85 / 80 / 85 (130 is the ATR 220's top speed) |
+| east to west, wet / under snow | 1188.5 s / 1195.9 s | 202.7 s | the same |
+| west to east, dry | 1289.0 s | 223.3 s | 85.0 / 80.0 / 77.6 / 98.2 km/h under 85 / 80 / 85 / 140 (77.6 on the climb from Equi Terme through the Ugliancaldo tunnel, 21.7 ‰; 98.2 at the terminal, 1.6 km out of Minucciano-Pieve-Casola) |
+| west to east, wet / under snow | 1290.4 s / 1299.6 s | 223.3 s | the same, but 98.0 km/h at the terminal under snow |
 
-Every stop of those runs landed 0.22 m short of its stop point, and the hardest braking was 0.612
+Every stop of those runs landed 0.22 m short of its stop point, and the hardest braking was 0.615
 m/s².
 
 ### The AI driver
@@ -1256,8 +1275,11 @@ m/s².
   dwell ends it runs on to the next station, or off the line past the last.
 - **Whistle.** 30 m before the mouth of a tunnel 200 m long or more (RFI's signal rules, art. 5:
   curved tunnels and long straight ones), it sounds a moderately long whistle (`Whistle`, about
-  1.5 s, for the audio to play): the Ugliancaldo tunnel (3194.5 m), and those of 271.2 and 225.0 m;
-  the 66.8 m one gets none.
+  1.5 s, for the audio to play): the Ugliancaldo tunnel (3194.6 m), and those of 271.1 and 225.0 m;
+  the 169.3 and 66.8 m ones get none. A tunnel's end at a terminal is where the map cuts it, no
+  mouth: a train coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's bore
+  already (1324.6 m of it in the map), and whistles only running into it from Pieve, 30 m before
+  its portal.
 - **The look-out** (`rail/lookout.ts`; RFI's signal rules art. 5(e): people on or next to the track
   call for the whistle; the Italian investigation report on the Caluso crossing crash of 2018, of a
   driver at Bojano: the urgent brake and the horn together). A person, an animal or a vehicle on the
@@ -1825,11 +1847,12 @@ the farms' buildings and the spots off their walls come out the same, and their 
 the map into ten villages for their parked cars and traffic, frees a stolen car's spot, leaves touched
 cars and the Carabinieri behind, holds the caps and brings the same cars back on one seed;
 `src/sim/__tests__/trains.test.ts` runs the train service with `src/sim/rail/testing.ts` (the
-railway stepped alone), `trains-traffic.test.ts`,
-`trains-strikes.test.ts` and `trains-world.test.ts` beside it stage the world around the trains
-(queues and walkers at Via Riolo, strikes and the look-out, the level under the bridges, in the
-river under one, over the tunnel and down a road onto a crossing, the animals brought out off the
-track and kept to their side, the draws), `trains-driving.test.ts` the player's train (driven with
+railway stepped alone), `trains-traffic.test.ts`, `trains-strikes.test.ts` and
+`trains-world.test.ts` beside it stage the world around the trains (queues and walkers at Via
+Riolo, strikes and the look-out, the level under the bridges, in the river under one, over the
+tunnel and down a road onto a crossing, the animals brought out off the track within 1.5 km of
+Monzone station, along the whole line in `trains-world.map-test.ts`, which `pnpm test:map` runs,
+and kept to their side, the draws), `trains-driving.test.ts` the player's train (driven with
 `liveKeys`, keys a test plays as it goes), and `src/sim/rail/__tests__/` checks the lines, the cars,
 the crossings, the dynamics, the AI driver, the bodies, the look-out, the crossing rules for
 traffic, the senses, boarding and the collisions; `src/sim/__tests__/physics.test.ts` drives each

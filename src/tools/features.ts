@@ -98,6 +98,36 @@ const vertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> =>
     const [x, y] = toLocal(n.lat, n.lon)
     return { x, y, id }
   })
+/** The nodes of `osm` more than one way runs through, by id. */
+const sharedNodes = (() => {
+  const of = new WeakMap<Osm, Set<string>>()
+  return (osm: Osm): Set<string> => {
+    let shared = of.get(osm)
+    if (shared !== undefined) return shared
+    const seen = new Set<string>()
+    shared = new Set()
+    for (const w of osm.ways.values())
+      for (const id of new Set(w.nds)) (seen.has(id) ? shared : seen).add(id)
+    of.set(osm, shared)
+    return shared
+  }
+})()
+/**
+ * A way's vertices as a line, each on its own 0.1 m point (the grid `flatLine` rounds to): of two
+ * nodes in a row on one point, the one another way shares stays, else the first, so a junction
+ * keeps the id the road graph, the catchments and the culverts join by. An edit glued four
+ * streams' junctions 0.008–0.073 m from their next node (the Torrente Mommio's twice).
+ */
+const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
+  const shared = sharedNodes(osm),
+    out: Array<V> = []
+  for (const v of vertices(osm, nds)) {
+    const last = out.at(-1)
+    if (last === undefined || r1(last.x) !== r1(v.x) || r1(last.y) !== r1(v.y)) out.push(v)
+    else if (!shared.has(last.id!) && shared.has(v.id!)) out[out.length - 1] = v
+  }
+  return out
+}
 const ringOf = (osm: Osm, nds: ReadonlyArray<string>): Array<P> =>
   vertices(osm, nds.slice(0, -1)).map((v) => [v.x, v.y])
 const closed = (w: OsmWay) => w.nds.length > 3 && w.nds[0] === w.nds.at(-1)
@@ -139,7 +169,10 @@ export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
   [...osm.ways.values()].flatMap((w) => {
     const t = w.tags,
       cls = classOf(t)
-    if (cls === undefined) return []
+    // A platform OSM draws as a line (a `highway=footway` along its edge, Pieve San Lorenzo's) is
+    // the platform, not a path beside the track: the map takes the platforms from the CTR's outlines
+    // or OSM's areas (`extractAreas`).
+    if (cls === undefined || t.railway === "platform") return []
     // OSM implies `oneway` on motorways, their links and roundabouts, drawn in their direction of travel.
     const oneway =
       t.oneway === "yes" ||
@@ -150,7 +183,7 @@ export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
           t.junction === "circular"))
     const lanes = parseInt(t.lanes ?? "", 10),
       width = (lanes >= 1 ? laneWidth(cls, lanes) : undefined) ?? ROADS[cls].w
-    return clip(vertices(osm, w.nds)).map(({ pts }): RoadF => ({
+    return clip(lineVertices(osm, w.nds)).map(({ pts }): RoadF => ({
       id: +w.id,
       cls,
       ...(t.name ? { name: t.name } : {}),
@@ -201,25 +234,48 @@ export const nameFromAddresses = (osm: Osm, roads: ReadonlyArray<RoadF>): void =
 
 /** Mean ground (m) below which a Lucido or Caldanella way runs on the valley floor; above it, the stream is a wooded mountain gully. */
 const MAIN_BELOW = 500
+/**
+ * Mean ground (m) below which a Torrente Aulella way runs in its open valley bed: halfway between
+ * lucido's 788514356 (282.2 m), its last way under the Tassonaro's mouth, and 788514364 (294.3 m),
+ * the first of the wooded gorge above it.
+ */
+const AULELLA_VALLEY_BELOW = 288
+/** Mean ground (m) below which the Aulella's gorge keeps its bed: above it, past its first big tributary over Casola, its floor narrows to a headwater's (LiDAR 4–6.5 m against 6–8 m). */
+const AULELLA_GORGE_BELOW = 350
+/** Mean ground (m) below which the Torrente Mommio keeps its bed: its floor narrows between 766 m (way 788514696) and 782 m (788514702). */
+const MOMMIO_GORGE_BELOW = 775
 
 /**
  * Water width, gravel-bed half-width and depth, m, from the way's name, kind and mean ground `z`
  * (LiDAR, over its vertices). The rivers are measured on the 2010 orthophoto: the Aulella runs in
  * a 25-35 m gravel bed at Gragnola (a wooded 10 m channel at Codiponte), the Lucido in a 22 m one
- * below Monzone. The Lucido's Vinca branch and the Caldanella (from Equi) are the main streams on
- * the valley floor (5-16 m of open marble gravel below 400 m). Above Vinca the Lucido runs in a
- * beech-wood gully with only 3-6 m of bed showing, like the other named streams (4 m); unnamed ones are 2 m.
+ * below Monzone, the Rosaro in a 10-28 m one (median 13-15 m, its water 2-8 m) from Fivizzano to
+ * Soliera. The Lucido's Vinca branch and the Caldanella (from Equi) are the main streams on the
+ * valley floor (5-16 m of open marble gravel below 400 m). The Aulella's gorge above the Tassonaro's
+ * mouth, the Rosaro above Fivizzano and the Mommio are torrents of 9-49 km² in closed woods, whose
+ * canopy gaps show 3-10 m of bed over a LiDAR floor of 7-7.5 m (`wooded`, issue #17). Above Vinca
+ * the Lucido runs in a beech-wood gully with only 3-6 m of bed showing, like the other named
+ * streams (4 m); unnamed ones are 2 m. The depths are the classes' own, as no photo shows them.
  */
 const waterSize = (
   name: string | undefined,
   kind: "river" | "stream",
   z: number,
 ): { readonly w: number; readonly bed: number; readonly depth: number } => {
-  if (name === "Torrente Aulella") return { w: 12, bed: 13, depth: 2.5 }
+  if (name === "Torrente Aulella" && z < AULELLA_VALLEY_BELOW) return { w: 12, bed: 13, depth: 2.5 }
   if (name === "Torrente Lucido" && kind === "river") return { w: 14, bed: 11, depth: 2.5 }
+  if (name === "Torrente Rosaro" && kind === "river") return { w: 7, bed: 7, depth: 2.5 }
   const main = (name === "Torrente Lucido" || name === "Torrente Caldanella") && z < MAIN_BELOW
-  const w = main ? 8 : name === undefined ? 2 : 4
-  return { w, bed: Math.max(w / 2 + 1, 3), depth: kind === "river" ? 2.5 : main ? 1.5 : 1 }
+  const wooded =
+    (name === "Torrente Aulella" && z < AULELLA_GORGE_BELOW) ||
+    name === "Torrente Rosaro" ||
+    (name === "Torrente Mommio" && z < MOMMIO_GORGE_BELOW)
+  const w = main ? 8 : wooded ? 6 : name === undefined ? 2 : 4
+  return {
+    w,
+    bed: Math.max(w / 2 + 1, 3),
+    depth: kind === "river" ? 2.5 : main || wooded ? 1.5 : 1,
+  }
 }
 
 /** Median cross-section between mapped riverbanks; missing outlines leave the existing default. */
@@ -257,11 +313,16 @@ const mappedRiverWidth = (
   return width === undefined ? undefined : r1(width)
 }
 
-/** The waterways but culverts, cut by `clip`, sized by `ground` under each piece. */
+/**
+ * The waterways, cut by `clip`, sized by `ground` under each piece. A culvert is dropped, as a stream
+ * crossing a road at grade dips under it (water.ts), but where `open` says it runs in the open: under
+ * a bridge the surveys map (`openCulvert` in build-sources.ts).
+ */
 export const extractWater = (
   osm: Osm,
   ground: (x: number, y: number) => number,
   clip: Clip = toPlay,
+  open: (pts: ReadonlyArray<V>) => boolean = () => false,
 ): Array<WaterF> => {
   const banks =
     REGION.id === "cesena"
@@ -277,16 +338,13 @@ export const extractWater = (
         ]
       : []
   return [...osm.ways.values()]
-    .filter(
-      (w) =>
-        w.tags.waterway !== undefined &&
-        w.tags.waterway !== "riverbank" &&
-        w.tags.tunnel !== "culvert",
-    )
+    .filter((w) => w.tags.waterway !== undefined && w.tags.waterway !== "riverbank")
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"
-      return clip(vertices(osm, w.nds)).map(({ pts, from }): WaterF => {
+      const line = lineVertices(osm, w.nds)
+      if (t.tunnel === "culvert" && !open(line)) return []
+      return clip(line).map(({ pts, from }): WaterF => {
         const z = pts.reduce((s, p) => s + ground(p.x, p.y), 0) / pts.length
         const size = waterSize(t.name, kind, z)
         const measured =
@@ -309,7 +367,7 @@ export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
   [...osm.ways.values()]
     .filter((w) => w.tags.railway === "rail")
     .flatMap((w) =>
-      clip(vertices(osm, w.nds)).map(({ pts }): RailF => ({
+      clip(lineVertices(osm, w.nds)).map(({ pts }): RailF => ({
         id: +w.id,
         ...(w.tags.bridge !== undefined && w.tags.bridge !== "no" ? { bridge: true } : {}),
         ...(w.tags.tunnel !== undefined && w.tags.tunnel !== "no" ? { tunnel: true } : {}),
@@ -355,6 +413,28 @@ export const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
   [4205, 1405, 60], // Ugliancaldo, the borgo along the ridge
   [4270, 1320, 65], // Ugliancaldo, the borgo down to Sant'Andrea
   [4805, 3225, 65], // Argigliano, the borgo below Santa Maria
+  // Fivizzano's part (#17): each core traced as an outline on rt_ofc.2k10 crops (checked on
+  // rt_ofc.5k23.32bit, CC BY 4.0) with the built buildings over them, each disc the smallest, to
+  // 5 m, holding the outline's buildings, but where a comment says it was grown so the borgo
+  // carries its hamlet's one style (HAMLET). OSM maps no city walls: Fivizzano's are traced.
+  [-630, 8340, 95], // Fivizzano, the walls' south-west round Piazza Garibaldi
+  [-565, 8450, 105], // Fivizzano, the walled centre round Piazza Medicea
+  [-520, 8575, 60], // Fivizzano, the walls' north, Via Pognana up to the gate
+  [-450, 8505, 60], // Fivizzano, the walls' east, the Via Roma row
+  [485, 8990, 45], // Verrucola, the fortress and the church below it
+  [565, 8995, 50], // Verrucola, the borgo east to the road's bend
+  [3610, 4200, 50], // Casola, the borgo round Santa Felicita
+  [3670, 4200, 35], // Casola, the borgo's eastern houses
+  [-5025, 4830, 70], // Soliera, the castle borgo on Via Soleria di Castello
+  [-4905, 5060, 75], // Soliera, the borgo along Via del Convento
+  [-3055, 4700, 85], // Gassano, the borgo round its church
+  [-3305, 6600, 95], // Moncigoli, the borgo round its church
+  [5055, 9840, 40], // Mommio, the borgo at the village node
+  [5015, 9965, 40], // Mommio, the houses round the church
+  [5095, 9910, 40], // Mommio, the eastern lane's row: untraced, so the borgo carries its 104 (63 stone)
+  [5285, 4970, 95], // Pugliano, the borgo round its two churches
+  [5330, 3585, 70], // Pieve San Lorenzo by the station: its outline's 55 m grown to carry the hamlet
+  [5405, 3425, 75], // Pieve San Lorenzo round the pieve: its outline's 65 m grown to carry the hamlet
 ]
 /** Generic buildings closer than this (m) form a hamlet: up to HAMLET of them take one facade style. */
 const HAMLET_LINK = 25
@@ -644,7 +724,7 @@ export const extractBarriers = (osm: Osm): Array<Barrier> =>
         w.tags.barrier === "wall" || w.tags.barrier === "guard_rail" || w.tags.natural === "cliff",
     )
     .flatMap((w) =>
-      toPlay(vertices(osm, w.nds)).map(({ pts }) => ({
+      toPlay(lineVertices(osm, w.nds)).map(({ pts }) => ({
         kind: w.tags.natural === "cliff" ? "cliff" : w.tags.barrier!,
         pts: flatLine(pts),
       })),

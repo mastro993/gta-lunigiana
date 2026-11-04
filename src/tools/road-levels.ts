@@ -5,7 +5,8 @@
 // tunnel in an earlier pass than the other road (ROAD_PASSES) takes it too, from that road's natural
 // level, as the rail does over a tagged underpass: a junction pinned under a slip road's bridge held
 // a Cesena service road 1.6 m under it, and the Secante's tunnels ran 2.8 m under Cesena's streets.
-// A road at grade never rises over a tunnel.
+// A road at grade never rises over a tunnel. One chain crossing itself takes both bounds from one
+// natural level.
 import { isDrivable } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt } from "./geometry.ts"
@@ -105,16 +106,27 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
     const arc = arcLengths(l.pts)
     return [s - SPREAD, s, s + SPREAD].map((at) => {
       const { x, y } = pointAt(l.pts, arc, Math.min(arc.at(-1)!, Math.max(0, at)))
-      return { x, y, z, kind, tilt: true }
+      return { x, y, z, kind, tilt: true, on: l }
     })
   }
   /** Whether `a`'s pass comes after `b`'s (ROAD_PASSES): `a` is fitted after `b` for sure. */
   const later = (a: RoadF, b: RoadF) => passOf(a.cls) > passOf(b.cls)
-  /** The bounds on `chain` from the crossings it has one road of. */
+  /** The bounds on `chain` from the crossings it has a road of. */
   const bounds = (chain: ReadonlyArray<{ readonly item: Linear }>): Array<Bound> => {
     const has = (l: Linear) => chain.some((m) => m.item === l)
     return over.flatMap(({ up, down, c, clear }): Array<Bound> => {
-      if (has(up) === has(down)) return []
+      if (has(up) && has(down)) {
+        // A chain over itself (the SR445's loop at Gassano runs under its own bridge, 13.6 m from
+        // where it leaves it): one fit sets both, so both are bound from one natural level, the
+        // road below's under a bridge (it stays SLACK over it at most), the road above's over a
+        // tunnel (the road above stays SLACK under it at least, as no road at grade rises over one).
+        const below =
+          up.bridge === true
+            ? naturalAt(ground, down, c.sb) + SLACK
+            : naturalAt(ground, up, c.sa) - SLACK - clear
+        return [...around(down, c.sb, below, "max"), ...around(up, c.sa, below + clear, "min")]
+      }
+      if (!has(up) && !has(down)) return []
       if (has(down)) {
         // Any road dips under a fitted one above it; a tunnel also under a later pass's road's
         // natural level (a bridge in a later pass rises over the road instead).

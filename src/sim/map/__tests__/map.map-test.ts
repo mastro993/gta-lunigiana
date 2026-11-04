@@ -1,14 +1,19 @@
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
+import { join } from "node:path"
 import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { type Dem, loadDtm } from "../../../tools/dtm.ts"
+import { STONE_CORES } from "../../../tools/features.ts"
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
+import { listedNodes } from "../../../tools/grid-tiles.ts"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { ROAD_PASSES } from "../../../tools/profiles.ts"
-import { regionFromArgs } from "../../../tools/region.ts"
+import { dtmDir, inRects, PARTS, regionFromArgs } from "../../../tools/region.ts"
 import { sheet2k, SOURCES } from "../../../tools/survey-ids.ts"
+import { PERCH } from "../../../tools/water.ts"
 import { moveCircles, segmentDistance, staticGrid } from "../../collide.ts"
 import {
   BUILDING_STYLES,
@@ -21,6 +26,7 @@ import {
   isMotorRoad,
   MAP,
   outlineDistance,
+  type Road,
   ROAD_CLASSES,
   type Segment,
   wallsNear,
@@ -105,22 +111,44 @@ const VILLAGES = {
   Vinca: { x: 2273.6, y: -2620.3 },
   Ugliancaldo: { x: 4157.6, y: 1461.8 },
   Tenerano: { x: -2169.5, y: -986.6 },
+  // Fivizzano's part (#17), each toLocal of its OSM place node to 0.1 m.
+  Fivizzano: { x: -320.8, y: 8511.4 }, // 61753605, place=town
+  "Casola in Lunigiana": { x: 3636.2, y: 4245.8 }, // 61753608
+  Gassano: { x: -2931.1, y: 4708.6 }, // 1267021147
+  Soliera: { x: -4821.2, y: 5160.6 }, // 1267021078
+  Moncigoli: { x: -3288.1, y: 6589.5 }, // 1267021341
+  Mommio: { x: 5044.1, y: 9835.6 }, // 1293345469
+  Pugliano: { x: 5494.5, y: 5007.8 }, // 1293344699, Minucciano (LU)
+  "Pieve San Lorenzo": { x: 5305.7, y: 3596 }, // 686999380, Minucciano (LU)
+  Vigneta: { x: 4280.6, y: 5462.6 }, // 689297699
+  Castiglioncello: { x: 4440, y: 5894.1 }, // 691864868
+  Signano: { x: 1240.2, y: 9427.5 }, // 1293344812
+  Turano: { x: 1712.1, y: 9444 }, // 1293345648
+  Antognano: { x: 6014.3, y: 4363.9 }, // 1293344553, Minucciano (LU)
+  "Pieve San Paolo": { x: 3450.9, y: 10553.7 }, // 1293344540
+  Verrucola: { x: 639.8, y: 8993.7 }, // 1467639451: its disc holds the Fortezza della Verrucola
 }
 
 test("bounds and heightmap cover the play area", () => {
-  assert.deepEqual(MAP.bounds, { minX: -2900, minY: -6100, maxX: 4900, maxY: 3900 })
-  const hm = WHOLE.heightmap
-  assert.deepEqual(MAP.heightmap, {
-    cell: hm.cell,
-    cols: hm.cols,
-    rows: hm.rows,
-    x0: hm.x0,
-    y0: hm.y0,
-  })
-  assert.equal(hm.data.length, hm.cols * hm.rows)
+  const region = regionFromArgs([])
+  assert.deepEqual(MAP.bounds, region.bounds)
+  const { data, ...hm } = WHOLE.heightmap
+  assert.deepEqual(MAP.heightmap, hm)
+  // Its lattice counts from the region's anchor, west of its first node once Fivizzano grew it.
+  assert.deepEqual([hm.ax ?? hm.x0, hm.ay ?? hm.y0], [region.anchor.x, region.anchor.y])
+  assert.equal(data.length, hm.cols * hm.rows)
   assert.ok(hm.x0 <= MAP.bounds.minX && hm.x0 + (hm.cols - 1) * hm.cell >= MAP.bounds.maxX)
   assert.ok(hm.y0 <= MAP.bounds.minY && hm.y0 + (hm.rows - 1) * hm.cell >= MAP.bounds.maxY)
-  assert.ok(Array.from(hm.data).every((v) => Number.isInteger(v) && v > 1400 && v < 18500)) // the Aulella below Gragnola to the Apuan ridge
+  // The listed tiles' nodes, from the Aulella at the map's west edge (105 m) to the Emilian ridge
+  // by Cima Belfiore (1856 m); the notch's, which no tile holds, are 0 in the joined map.
+  const listed = listedNodes(hm, MAP.tiles)
+  for (let k = 0; k < data.length; k++) {
+    const v = data[k]!
+    assert.ok(
+      listed[k] === 1 ? Number.isInteger(v) && v > 1000 && v < 19000 : v === 0,
+      `node ${k}: ${v}`,
+    )
+  }
 })
 
 // Regression: rounded to the metre, neighbouring lattice trees could land on one spot (drawn and collided twice).
@@ -146,10 +174,10 @@ test("heightAt: station on the valley floor, Monzone Alto on its spur", () => {
 
 test("player spawn and parked cars are inside the play area, clear of walls and off traffic lanes", () => {
   const spots = [MAP.spawns.player, ...MAP.spawns.parked]
-  assert.ok(
-    MAP.spawns.parked.length >= 700 && MAP.spawns.parked.length <= 950,
-    `${MAP.spawns.parked.length} parked`,
-  )
+  // Counted in lucido's rectangle, the bounds lucido's map was checked on: a spot is kept by its own
+  // place (spawns.ts), so a part added beside it moves only those near the seam.
+  const lucido = MAP.spawns.parked.filter((p) => inRects([PARTS[0]!.rects[0]!], p.x, p.y))
+  assert.ok(lucido.length >= 700 && lucido.length <= 950, `${lucido.length} parked on lucido`)
   for (const name of Object.keys(VILLAGES))
     assert.ok(
       MAP.spawns.parked.some((p) => districtAt(p.x, p.y).name === name),
@@ -263,22 +291,26 @@ test("building interiors are closed: walking or driving in from the nearest road
         if (d > depth) [tx, ty, depth] = [x, y, d]
       }
     if (depth < 0.8) continue
-    let sx = 0,
-      sy = 0,
-      best = 40
+    // Starts on the roads' centrelines outside the footprint within 40 m, nearest first (ties in order).
+    const starts: Array<{ readonly x: number; readonly y: number; readonly d: number }> = []
     for (const s of centrelines)
       for (let t = 0; t <= 1; t += 0.05) {
         const x = s.ax + (s.bx - s.ax) * t,
           y = s.ay + (s.by - s.ay) * t,
           d = hypot(x - tx, y - ty)
-        if (d < best && !inRing(x, y, b.outer)) [sx, sy, best] = [x, y, d]
+        if (d < 40 && !inRing(x, y, b.outer)) starts.push({ x, y, d })
       }
-    if (best >= 40) continue
+    starts.sort((p, q) => p.d - q.d)
     for (const [kind, r] of [
       ["walk", 0.35],
       ["drive", 0.9],
     ] as const) {
-      let p = { x: sx, y: sy }
+      // From the nearest the body stands clear at: one already in two walls is pushed out by them in
+      // the order the broad phase hands them, which a grown region moves (the car's 0.9 m on a 1.5 m
+      // path between a house and a bank at Monte dei Bianchi went in on the 2-part map, out on lucido's).
+      const start = starts.find((q) => clear(kind, q.x, q.y, r))
+      if (start === undefined) continue
+      let p = { x: start.x, y: start.y }
       for (let step = 0; step < 400; step++) {
         const dx = tx - p.x,
           dy = ty - p.y,
@@ -316,7 +348,7 @@ const ringGap = (a: ReadonlyArray<number>, b: ReadonlyArray<number>) => {
 /** Road clip pieces of one surveyed footprint lie at most this far apart, m (`clipBuildings` cuts a road's corridor through it: 4.11 m at most on Lunigiana). */
 const PIECE_GAP = 6
 
-test("buildings: no two share an id unless they are pieces of one footprint, on Lunigiana, Cesena and the L", (t) => {
+test("buildings: no two share an id unless they are pieces of one footprint, nor an outline, and none of OSM stands on a DBT unit, on Lunigiana, Cesena and the L", (t) => {
   // The L is built into test-maps/ by `pnpm maps`; CI, which sets CI=true, always builds it.
   const lUrl = builtMapUrl(regionFromArgs(["--region", "lunigiana-l"]))
   if (!existsSync(lUrl)) {
@@ -349,6 +381,35 @@ test("buildings: no two share an id unless they are pieces of one footprint, on 
           `${name}: building ${id} has a piece ${gap.toFixed(2)} m from the others`,
         )
       }
+    }
+    // Regression: two comuni's DBT archives of one survey hold the same units, and the map drew 528
+    // of Minucciano's and Giuncugnano's twice, under each comune's ids.
+    const outlines = Map.groupBy(buildings, (b) => b.outer.join(","))
+    for (const [, same] of outlines)
+      assert.equal(
+        same.length,
+        1,
+        `${name}: buildings ${same.map((b) => b.id).join(", ")} share one outline`,
+      )
+    // Regression: the mapped area kept the copy of a Minucciano zone that Giuncugnano's archive cut
+    // at its edge, so 7 OSM buildings by the Carpinelli road stood on the DBT's own units.
+    const dbt = buildings
+      .filter((b) => b.id < 0 && Math.floor(-b.id / 4294967296 / 65536) === SOURCES.dbt2k)
+      .map((b) => ({ id: b.id, outer: b.outer, box: ringBox(b.outer) }))
+    for (const { id, outer } of buildings.filter((b) => b.id > 0)) {
+      let x = 0,
+        y = 0
+      for (let k = 0; k < outer.length; k += 2) {
+        x += outer[k]!
+        y += outer[k + 1]!
+      }
+      x /= outer.length / 2
+      y /= outer.length / 2
+      const under = dbt.find(
+        (d) =>
+          x >= d.box[0] && y >= d.box[1] && x <= d.box[2] && y <= d.box[3] && inRing(x, y, d.outer),
+      )
+      assert.equal(under, undefined, `${name}: OSM building ${id} stands on DBT unit ${under?.id}`)
     }
   }
 })
@@ -421,15 +482,37 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
       `${cls} has no grade limit`,
     )
   const ends = bucketed(WHOLE.roads, (r) => r.pts, 0.1)
+  /** Whether vertex k of `pts` lies on another road: a junction a road profiled before it may pin. */
+  const shared = (pts: ReadonlyArray<number>, k: number) => {
+    const x = pts[2 * k]!,
+      y = pts[2 * k + 1]!
+    return ends(x, y).some(
+      (q) => q.pts !== pts && segsOf(q.pts).some((sg) => segmentDistance(sg, x, y) < 0.1),
+    )
+  }
   /** Both ends on another road: a link whose two junctions were set by roads profiled before it. */
-  const pinned = (pts: ReadonlyArray<number>) =>
-    [0, pts.length - 2].every((i) => {
-      const x = pts[i]!,
-        y = pts[i + 1]!
-      return ends(x, y).some(
-        (q) => q.pts !== pts && segsOf(q.pts).some((sg) => segmentDistance(sg, x, y) < 0.1),
-      )
-    })
+  const pinned = (pts: ReadonlyArray<number>) => shared(pts, 0) && shared(pts, pts.length / 2 - 1)
+  /** The survey's ground (the uncarved DTM the build starts from), read only for a steep pinned stretch. */
+  let dem: Dem | undefined
+  const LUNIGIANA = regionFromArgs([])
+  /**
+   * Whether vertices i…j of `r` (arc lengths `s`) lie in a stretch between two junctions that the fit
+   * drew straight (pins it cannot meet within the grade: the line between them), over ground the
+   * survey reads climbing steeper than `max` itself: old lanes straight up a village's hillside
+   * (Sercognano's Via Vittorio Emanuele at 29 % on the LiDAR, the lane down from Posara at 43 %).
+   */
+  const steepPinned = (r: Road, s: ReadonlyArray<number>, i: number, j: number, max: number) => {
+    let a = i,
+      b = j
+    while (a > 0 && !shared(r.pts, a)) a--
+    while (b + 1 < r.z.length && !shared(r.pts, b)) b++
+    if (!shared(r.pts, a) || !shared(r.pts, b)) return false
+    const line = (k: number) => r.z[a]! + ((r.z[b]! - r.z[a]!) * (s[k]! - s[a]!)) / (s[b]! - s[a]!)
+    for (let k = a; k <= b; k++) if (Math.abs(r.z[k]! - line(k)) >= 0.15) return false
+    dem ??= loadDtm(join(import.meta.dirname, "../../../..", dtmDir(LUNIGIANA)), LUNIGIANA)
+    const ground = (k: number) => dem!.at(r.pts[2 * k]!, r.pts[2 * k + 1]!)
+    return Math.abs(ground(b) - ground(a)) / (s[b]! - s[a]!) > max
+  }
   for (const r of [...WHOLE.roads, ...MAP.rail.map((q) => ({ ...q, cls: "rail" }))]) {
     const max = limit[r.cls]
     if (max === undefined) continue
@@ -448,7 +531,7 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
         if (s[j]! - s[i]! >= 8) {
           const g = Math.abs(r.z[j]! - r.z[i]!) / (s[j]! - s[i]!)
           assert.ok(
-            g <= max,
+            g <= max || (r.cls !== "rail" && steepPinned(r as Road, s, i, j, max)),
             `${r.cls} ${r.id} grade ${(g * 100).toFixed(1)}% at ${r.pts[2 * i]},${r.pts[2 * i + 1]}`,
           )
           break
@@ -488,12 +571,24 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
     (s) => [s.ax, s.ay, s.bx, s.by],
     Math.max(...WHOLE.water.map((o) => o.w / 2 + 1)),
   )
+  // A lake's water stands over its carved bed, up to 3 m under its level (water-areas.ts): a stream
+  // within PERCH of the level of a lake round it is the lake's (dropPerched), as the stream through
+  // the pond 560 m east of Soliera, 0.3 m under its level and 2.6 m over its bed.
+  const lakes = bucketed(
+    WHOLE.areas.filter((a) => a.level !== undefined),
+    (a) => a.rings[0]!,
+    0,
+  )
+  const lakeWater = (x: number, y: number, z: number) =>
+    lakes(x, y).some(
+      (a) => a.rings.filter((r) => inRing(x, y, r)).length % 2 === 1 && z <= a.level! + PERCH,
+    )
   for (const w of WHOLE.water)
     for (let i = 0; i < w.z.length; i++) {
       const x = w.pts[2 * i]!,
         y = w.pts[2 * i + 1]!
       const joins = channels(x, y).some((s) => s.w > w.w && segmentDistance(s, x, y) < s.w / 2 + 1)
-      if (!joins)
+      if (!joins && !lakeWater(x, y, w.z[i]!))
         assert.ok(
           w.z[i]! - heightAt(x, y) <= 2.5,
           `water ${w.id} perched ${(w.z[i]! - heightAt(x, y)).toFixed(1)} m at ${x},${y}`,
@@ -518,11 +613,17 @@ test("road names, classes, styles, area kinds and districts", () => {
         (ROAD_CLASSES as ReadonlyArray<string>).includes(r.cls) && r.z.length * 2 === r.pts.length,
     ),
   )
-  // OSM's primary, the SR445 della Garfagnana, keeps its class.
-  assert.deepEqual(
-    new Set(WHOLE.roads.filter((r) => r.ref === "SR445").map((r) => r.cls)),
-    new Set(["primary"]),
-  )
+  // OSM's primary, the SR445 della Garfagnana, keeps its class, but for its slip roads (OSM's
+  // primary_link, folded into secondary: kinds.ts), each under 60 m: six at one junction by Lago
+  // Fario, 173 m of its 24.5 km.
+  const sr445 = WHOLE.roads.filter((r) => r.ref === "SR445")
+  for (const r of sr445) {
+    let length = 0
+    for (let k = 2; k < r.pts.length; k += 2)
+      length += hypot(r.pts[k]! - r.pts[k - 2]!, r.pts[k + 1]! - r.pts[k - 1]!)
+    assert.ok(r.cls === "primary" || (r.cls === "secondary" && length < 60), `${r.id} ${r.cls}`)
+  }
+  assert.ok(sr445.filter((r) => r.cls === "primary").length > 50)
   assert.ok(
     WHOLE.buildings.every(
       (b) =>
@@ -584,10 +685,18 @@ test("road names, classes, styles, area kinds and districts", () => {
   for (const [name, p] of Object.entries(VILLAGES)) assert.equal(districtAt(p.x, p.y).name, name)
   assert.ok(MAP.districts.includes(districtAt(MAP.bounds.maxX, MAP.bounds.minY))) // far corner: nearest rim
   // Regression: by the nearest rim, the HUD named Vinca on the summits above it; a wide Balzone disc then took Vinca's hairpins.
-  for (const name of ["Monte Sagro", "Pizzo d'Uccello"]) {
+  for (const name of ["Monte Sagro", "Pizzo d'Uccello", "Cima Belfiore", "Monte Tondo"]) {
     const peak = MAP.pois.find((p) => p.kind === "natural=peak" && p.name === name)!
     assert.equal(districtAt(peak.x, peak.y).name, name)
   }
+  // Issue #17: the passes name their own districts, Carpinelli's inside Casone Carpinelli's disc.
+  for (const name of ["Passo dei Carpinelli", "Passo di Tea", "Passo del Romito"]) {
+    const pass = MAP.pois.find((p) => p.kind === "natural=saddle" && p.name === name)
+    assert.ok(pass !== undefined, `${name}'s OSM node`)
+    assert.equal(districtAt(pass.x, pass.y).name, name)
+  }
+  // The Fortezza della Verrucola is the hamlet's, by the castle rule: its own disc holds it.
+  assert.equal(districtAt(468, 9009).name, "Verrucola")
   assert.equal(districtAt(1379, -2603).name, "Vinca", "the SP59 hairpins below Vinca")
   // Regression: the I Pianelli locality (a hillside above the railway) took Equi Terme's station and spa.
   for (const p of MAP.pois.filter(
@@ -623,12 +732,50 @@ test("the Carrara side's buildings come from the CTR 1:2000 of 2009", () => {
 })
 
 // Regression: every way named Torrente Lucido was 8 m wide, up the Vinca valley to its source under the Garnerone.
+test("Fivizzano's walled centre is stone: every building in its cores but the churches", () => {
+  // Issue #17. OSM maps no city walls: the cores trace the walls' outline, each disc the smallest,
+  // to 5 m, holding its buildings (STONE_CORES), so a building within 5 m of a disc's rim may stand
+  // outside the walls.
+  const cores = STONE_CORES.filter(
+    ([x, y]) => Ops.hypot(x - VILLAGES.Fivizzano.x, y - VILLAGES.Fivizzano.y) < 500,
+  )
+  assert.equal(cores.length, 4)
+  let inside = 0
+  for (const b of WHOLE.buildings) {
+    let x = 0,
+      y = 0
+    for (let k = 0; k < b.outer.length; k += 2) {
+      x += b.outer[k]!
+      y += b.outer[k + 1]!
+    }
+    x /= b.outer.length / 2
+    y /= b.outer.length / 2
+    if (!cores.some(([cx, cy, r]) => Ops.hypot(x - cx, y - cy) < r - 5)) continue
+    inside++
+    assert.equal(b.style, b.kind === "church" ? "church" : "stone", `${b.kind} ${b.id}`)
+  }
+  assert.ok(inside > 150, `${inside} buildings in Fivizzano's cores`)
+})
+
 test("water: the Lucido is 8 m on the valley floor and 4 m above Vinca", () => {
   const w = (id: number) => WHOLE.water.find((o) => o.id === id)?.w
   assert.deepEqual([w(254825035), w(140780317), w(696231807), w(687230881)], [8, 4, 8, 14])
 })
 
-test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, which leaves the map with Soliera's 208", () => {
+// Issue #17: the Aulella's valley row keeps lucido's ways; its gorge above the Tassonaro's mouth, the
+// Rosaro above Fivizzano and the Mommio below 775 m are wooded torrents; the Rosaro's river part has
+// its own bed; their heads are named streams.
+test("water: the Aulella, Rosaro and Mommio take their measured widths by reach", () => {
+  const w = (id: number) => WHOLE.water.find((o) => o.id === id)?.w
+  // Aulella: lucido's 788520105 (205 m), the gorge's 788514364 (294 m), the head's 788514391 (363 m).
+  assert.deepEqual([w(788520105), w(788514364), w(788514391)], [12, 6, 4])
+  // Rosaro: its river part 687230888, a stream above Fivizzano 790403608.
+  assert.deepEqual([w(687230888), w(790403608)], [7, 6])
+  // Mommio: 788514606 (303 m) and 788514696 (766 m) wooded, 788514702 (782 m) a named stream.
+  assert.deepEqual([w(788514606), w(788514696), w(788514702)], [6, 6, 4])
+})
+
+test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, and the Aulella leaves the map with 199", () => {
   for (const w of WHOLE.water)
     w.area.forEach((a, k) =>
       assert.ok(k === 0 || a >= w.area[k - 1]!, `water ${w.id} shrinks at ${k}`),
@@ -645,10 +792,20 @@ test("water: catchments grow downstream; the Lucido drains 47 km² where it meet
   const lucido = WHOLE.water.filter((w) => w.name === "Torrente Lucido" && w.kind === "river")
   const mouth = Math.max(...lucido.map((w) => w.area.at(-1)!))
   assert.ok(Math.abs(mouth - 47) < 2, `the Lucido drains ${mouth} km²`)
+  // Regression: the Rosaro's heads beyond y 13000 were sized as the Soliera gauge's 208 km² less
+  // what the map's D8 gathers, 26.2 km², near twice the 14.7 a D8 on the MS 10 m DTM gives them.
+  const head = Math.max(
+    ...WHOLE.water
+      .filter((w) => w.name === "Torrente Rosaro")
+      .flatMap((w) => w.area.filter((_, k) => w.pts[2 * k + 1]! > 12900)),
+  )
+  assert.ok(Math.abs(head - 14.7) < 0.5, `the Rosaro brings ${head} km² in`)
+  // ARPAL gives the gauge 208 km²; the DTMs' own basins are smaller (the MS 10 m DTM's 200.7 at
+  // Soliera), and the map's ground and the Rosaro's heads give 196.8 there.
   const aulella = Math.max(
     ...WHOLE.water.filter((w) => w.name === "Torrente Aulella").map((w) => w.area.at(-1)!),
   )
-  assert.ok(Math.abs(aulella - 208) < 3, `the Aulella leaves with ${aulella} km²`)
+  assert.ok(Math.abs(aulella - 199) < 3, `the Aulella leaves with ${aulella} km²`)
 })
 
 test("walls: water stops neither feet nor wheels; the shore walls ring it, and people and animals keep to them", () => {

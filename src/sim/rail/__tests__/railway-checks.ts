@@ -6,7 +6,7 @@ import assert from "node:assert/strict"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../../collide.ts"
-import { graph, type LevelCrossing, MAP, RAIL_LIFT } from "../../map/index.ts"
+import { graph, type LevelCrossing, MAP, outlineDistance, RAIL_LIFT } from "../../map/index.ts"
 import { endNode, laneOf, lanePoint } from "../../route.ts"
 import { strikeIn } from "../barriers.ts"
 import { approachesOf, APPROACHES, CROSSINGS, linesAtGrade } from "../crossings.ts"
@@ -57,9 +57,8 @@ export const railwayAround = (
   }
 }
 
-const { bounds } = MAP
-const onEdge = (x: number, y: number) =>
-  Math.min(x - bounds.minX, bounds.maxX - x, y - bounds.minY, bounds.maxY - y) < 0.5
+/** Whether (x, y) lies on the play area's outline, where the build cuts a line (its bounds are the box round it). */
+const onEdge = (x: number, y: number) => outlineDistance(x, y) < 0.5
 
 /** Each of `lines` runs its pieces terminal to terminal from s 0, then its run-out straight on past each, level. */
 export const checkTerminals = (lines: ReadonlyArray<number>): void => {
@@ -78,7 +77,7 @@ export const checkTerminals = (lines: ReadonlyArray<number>): void => {
     )
     for (const s of [0, line.length]) {
       const end = pointAt(line, s)
-      assert.ok(onEdge(end.x, end.y), `terminal at (${end.x}, ${end.y}) on the map's edge`)
+      assert.ok(onEdge(end.x, end.y), `terminal at (${end.x}, ${end.y}) on the play area's outline`)
       // Straight on and level past it, over the drawn run to the run-out's end.
       const way = s === 0 ? -1 : 1
       for (const out of [DRAWN_RUN, s === 0 ? -line.start : line.end - line.length]) {

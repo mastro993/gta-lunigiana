@@ -405,6 +405,23 @@ test("a strip of ground narrower than CANOPY_SIDE along the open area's edge goe
   )
 })
 
+test("a wood's smooth edge the first pass leaves standing over the clearing goes with the wood", () => {
+  // A wood 12 m tall on the pasture, its crowns 3 m over it every 6 m to column 32 (the first pass
+  // clears them and the canopy between, their fringes to column 34), then a smooth edge 3 m wide
+  // and its flank down to the clearing at column 41, as the 2021 surface model draws a wood's edge
+  // (Fivizzano's pastures under the ridge, (10196, 10796)). Over the canopy left standing beside
+  // the wood's rough crowns, the edge is as high as its square's lowest, so the first pass keeps
+  // it as ground, 3–12 m over the clearing.
+  const wood = (c: number, r: number) => {
+    if (c <= 32 && c % 6 <= 2 && r % 6 <= 2) return 150
+    return c <= 37 ? 120 : c <= 40 ? 30 * (41 - c) : 0
+  }
+  assert.deepEqual(
+    wrong(wood, (c) => c >= 41),
+    [],
+  )
+})
+
 test("an open area narrower than CANOPY_SIDE with nothing on it stays open", () => {
   const area: Box = [30, 0, 34, 79]
   assert.deepEqual(

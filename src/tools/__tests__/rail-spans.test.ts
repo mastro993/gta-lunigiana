@@ -6,6 +6,7 @@ import {
   cutAtBridges,
   keepSpans,
   onBridge,
+  spanned,
   underpasses,
   type Crossed,
   type Span,
@@ -146,4 +147,28 @@ test("underpasses: track over a road tunnel's mouth is cut into a bridge reachin
     [40, 60],
   )
   assert.ok(onBridge([v(40, 0), v(60, 0)], polygons) && !onBridge([v(60, 0), v(100, 0)], polygons))
+})
+
+// Regression: OSM's culvert under the CTR's 6.7 m bridge over the Canale di Campiglia crosses the
+// track 1.3 m from the bridge's east end; the stream's protected bed, 3 m either side, left the track
+// there 1.2 m over the ground.
+test("spanned: a CTR bridge reaches `half` m either side of a line crossing under it; a crossing at grade gets none", () => {
+  const track = [v(0, 0), v(100, 0)]
+  // The CTR's bridge over x 40–46.7; a stream crossing square under it at x 45.4, another at x 80.
+  const ctr = (x: number, y: number) => x >= 40 && x <= 46.7 && Math.abs(y) < 3
+  const polygons = spanned(
+    [track],
+    [
+      { pts: [v(45.4, -20), v(45.4, 20)], half: 8.66 },
+      { pts: [v(80, -20), v(80, 20)], half: 8.66 },
+    ],
+    ctr,
+  )
+  assert.equal(polygons.length, 1)
+  const line = [...track]
+  cutAtBridges(line, [{ id: 1, bridge: false, tunnel: false }], polygons, none, empty())
+  assert.deepEqual(
+    line.filter((p) => p.id?.startsWith("afe:") === true).map((p) => Math.round(p.x * 100) / 100),
+    [36.74, 54.06],
+  )
 })

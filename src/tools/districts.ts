@@ -1,5 +1,5 @@
 // HUD district discs (`districtAt` in src/sim/map/index.ts): Monzone's named clusters, placed by
-// hand, every OSM village and hamlet elsewhere, centred on its place node with a radius fitted to
+// hand, every OSM town, village and hamlet elsewhere, centred on its place node with a radius fitted to
 // the buildings nearest it, and the mountains' landmarks, placed by hand.
 import type { District } from "../sim/map/index.ts"
 import type { BuildingF } from "./features.ts"
@@ -27,10 +27,12 @@ const MONZONE: ReadonlyArray<District> = [
 ]
 
 /**
- * The unpopulated mountains, so the HUD never names the nearest village on Monte Sagro: peaks,
- * saddles and huts on their OSM nodes, quarries on their pits, localities and ridges centred by
- * hand on the slope they name. None overlaps a village disc. The Carrara and Massa sides of the
- * ridge are in the rectangle too.
+ * The unpopulated mountains, so the HUD never names the nearest village on Monte Sagro or Cima
+ * Belfiore: peaks, saddles and huts on their OSM nodes, quarries on their pits, localities and
+ * ridges centred by hand on the slope they name. None overlaps a village disc but Passo dei
+ * Carpinelli, inside Casone Carpinelli's, kept small enough to take none of its buildings: the pass
+ * names its own district (issue #17). The Carrara and Massa sides of the ridge are in the
+ * rectangle too.
  */
 const LANDMARKS: ReadonlyArray<District> = [
   { name: "Torre di Monzone", x: 300, y: -2560, r: 380 },
@@ -68,10 +70,22 @@ const LANDMARKS: ReadonlyArray<District> = [
   { name: "Cave del Morlungo", x: 270, y: -5203, r: 310 },
   { name: "Il Boscaccio", x: 1140, y: -5900, r: 350 },
   { name: "Capanne di Navola", x: 3460, y: -5560, r: 350 },
+  // Fivizzano's part (#17): on their OSM nodes, radii fitted on rt_ofc.5k23.32bit with the built
+  // terrain's contours over it. The Fortezza della Verrucola stands in the hamlet's own disc.
+  { name: "Passo dei Carpinelli", x: 8127, y: 4287, r: 70 }, // saddle 1449319916, in Casone Carpinelli's disc: its pass, and none of its buildings or spots
+  { name: "Passo di Tea", x: 7993, y: 6034, r: 200 }, // saddle 577776308: the road's loop and the Spedale di Tea's ruins
+  { name: "Passo del Romito", x: 2854, y: 10936, r: 200 }, // saddle 2453324916: the SS63's hairpin by the old road house
+  { name: "Cima Belfiore", x: 9706, y: 12014, r: 400 }, // peak 577763720: the summit meadow, its Emilia side out of play
+  { name: "Monte Tondo", x: 10006, y: 10324, r: 400 }, // peak 577763716: the summit meadow, its east half past the play area
+  { name: "Monte Cucu", x: 8184, y: 9997, r: 260 }, // peak 2453127410: a knoll in beech wood; past 260 m the ridge climbs over it
+  { name: "Monte Chiaro", x: 1083, y: 6242, r: 300 }, // Castello di Monte Chiaro's node 12089556144, on the hilltop (OSM's peak 72 m east)
 ]
 
-/** Populated places only: a `locality` (a named hillside, a field) would claim the village's buildings around it. */
-const PLACES: ReadonlySet<string> = new Set(["village", "hamlet"])
+/**
+ * Populated places only: a `locality` (a named hillside, a field) would claim the village's
+ * buildings around it. Fivizzano, OSM's one town in Lunigiana's play area, is one.
+ */
+const PLACES: ReadonlySet<string> = new Set(["town", "village", "hamlet"])
 /** A building farther than this (m) from every place node is a farmhouse, no village's. */
 const REACH = 600
 /** Share of a place's buildings its disc covers; the rest are outliers. */

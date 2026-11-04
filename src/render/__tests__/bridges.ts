@@ -3,14 +3,14 @@
 import assert from "node:assert/strict"
 
 import { groundZ, ROAD_LIFT } from "../../sim/map/ground.ts"
-import { isDrivable, type Road, roadClassOf } from "../../sim/map/index.ts"
+import { isDrivable, outlineDistance, type Road, roadClassOf } from "../../sim/map/index.ts"
 import { VEHICLES } from "../../sim/vehicles.ts"
 import { groundY, yOf } from "../ground.ts"
 
 /**
  * Asserts that a car's wheels and a walker crossing each drivable bridge of `roads`, both ways, from 12 m before it,
- * stay on the deck, but from the mouth of a tunnel of `around` (the roads round them); returns how many crossings it
- * made. The car's wheels are the sim's: each keeps to the level of its previous contact, as the drive physics does;
+ * stay on the deck, but from the mouth of a tunnel of `around` (the roads round them) or the play area's edge; returns
+ * how many crossings it made. The car's wheels are the sim's: each keeps to the level of its previous contact, as the drive physics does;
  * walkers stand where the renderer puts them.
  */
 export const assertBridgesCarry = (
@@ -39,7 +39,8 @@ export const assertBridgesCarry = (
         d = Math.hypot(x1 - x0, y1 - y0),
         ux = (x1 - x0) / d,
         uy = (y1 - y0) / d
-      if (tunnelEnd(x0, y0)) continue
+      // A bridge the play area's outline cuts ends there in mid-span, walled by its road-exit cap: nothing comes on from there.
+      if (tunnelEnd(x0, y0) || outlineDistance(x0, y0) <= 0.5) continue
       let contacts: ReadonlyArray<number> | undefined, feet: number | undefined
       const place = (x: number, y: number, angle: number) => {
         const c = Math.cos(angle),

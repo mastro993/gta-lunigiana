@@ -215,11 +215,36 @@ export const underpasses = (
   lines: ReadonlyArray<ReadonlyArray<V>>,
   tunnels: ReadonlyArray<{ readonly pts: ReadonlyArray<V>; readonly half: number }>,
 ): Array<Polygon> =>
-  tunnels.flatMap(({ pts, half }) => {
+  squaresWhere(lines, tunnels, (c, s, half) => c.sb <= half || c.sb >= s.at(-1)! - half)
+
+/**
+ * Where track crosses a line inside one of the CTR's bridges (`bridged`), a square about the crossing reaching `half` m across
+ * the line's centreline either way, for `cutAtBridges` to take the bridge out past the cells under it the at-grade track
+ * cannot take (a wide stream's protected bed, a main road's core, and a cell's diagonal), as `keepSpans` slides OSM's bridges'
+ * ends. OSM's culvert under the CTR's 6.7 m bridge over the Canale di Campiglia by Gassano crosses the track 1.3 m from its
+ * east end; the stream's protected bed, 3 m either side, left the track there 1.2 m over the ground.
+ */
+export const spanned = (
+  lines: ReadonlyArray<ReadonlyArray<V>>,
+  crossed: ReadonlyArray<{ readonly pts: ReadonlyArray<V>; readonly half: number }>,
+  bridged: (x: number, y: number) => boolean,
+): Array<Polygon> => squaresWhere(lines, crossed, (c) => bridged(c.x, c.y))
+
+/** A square about each crossing of `lines` with each of `crossed` that `keep` says, reaching `half` across it (twice that along it). */
+const squaresWhere = (
+  lines: ReadonlyArray<ReadonlyArray<V>>,
+  crossed: ReadonlyArray<{ readonly pts: ReadonlyArray<V>; readonly half: number }>,
+  keep: (
+    c: ReturnType<typeof crossings>[number],
+    s: ReadonlyArray<number>,
+    half: number,
+  ) => boolean,
+): Array<Polygon> =>
+  crossed.flatMap(({ pts, half }) => {
     const s = arcLengths(pts)
     return lines.flatMap((line) =>
       crossings(line, pts).flatMap((c) => {
-        if (c.sb > half && c.sb < s.at(-1)! - half) return []
+        if (!keep(c, s, half)) return []
         const { tx, ty } = pointAt(pts, s, c.sb)
         const corner = (a: number, b: number) => [c.x + tx * a - ty * b, c.y + ty * a + tx * b]
         return [

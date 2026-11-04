@@ -10,6 +10,7 @@ import type { Area, Barrier, Building, MonzoneMap, Road, Spawn, Water } from "..
 import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
 import { TILE_CELLS, TILE_NODES, type VectorLayer } from "../sim/map/packed.ts"
 import { placeFrom } from "../sim/sky/place.ts"
+import { listedNodes } from "./grid-tiles.ts"
 import { packMap, packTile, relined } from "./pack.ts"
 import { NO_VECTORS, tilesOf, vectorFacts, vectorMembers } from "./tile-vectors.ts"
 
@@ -36,7 +37,11 @@ export interface BuiltMap extends Omit<
   readonly buildings: ReadonlyArray<Building>
   readonly areas: ReadonlyArray<Area>
   readonly barriers: ReadonlyArray<Barrier>
-  /** `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in build-output.ts fits them to int16). */
+  /**
+   * `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in
+   * build-output.ts fits them to int16); a node no listed tile holds is the edge's (`extendEdges` in
+   * grid-tiles.ts), which no tile writes and the place leaves out.
+   */
   readonly heightmap: MonzoneMap["heightmap"] & { readonly data: Int16Array }
   /** The tiles to cut and write, the region's (`tiles` in region.ts): those of the bounds' box its parts leave out (an L's notch) are not. */
   readonly tiles: ReadonlyArray<{ readonly i: number; readonly j: number }>
@@ -345,7 +350,8 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
     },
     counts: { walk: map.walls.walk.length / 4, drive: map.walls.drive.length / 4 },
   }
-  const place = placeFrom(map.origin, map.heightmap)
+  // Over the listed tiles' nodes: an unlisted tile's have no ground of their own.
+  const place = placeFrom(map.origin, map.heightmap, listedNodes(map.heightmap, map.tiles))
   const header = {
     version: map.version,
     name,

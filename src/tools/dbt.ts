@@ -16,9 +16,13 @@
 //   carriageway (161 of Pontremoli's 703, urban and local streets, the old town's vicoli among
 //   them): paved, named from `ar_str_uff`. Plus the dirt tracks of `010105_ar_vms`.
 // - The mapped area: the zones `000201_zona_r`.
+// Two comuni's archives of one survey both hold the land between them, under the same RT numbers
+// (Minucciano's and Giuncugnano's of 2011: 982 units), each copy cut at its own archive's edge, so a
+// record two archives hold is read once (`layer`).
 import { DBT_RESIDUAL, gaussBoagaToLatLon } from "./crs.ts"
 import {
   type BuildingSpec,
+  type CtrRecord,
   ctrRecords,
   buildingsOf,
   polygonsOf,
@@ -27,7 +31,7 @@ import {
   specOf,
   streetName,
 } from "./ctr.ts"
-import { type P, TERRAIN_BOX, toLocal } from "./geometry.ts"
+import { type P, signedArea, TERRAIN_BOX, toLocal } from "./geometry.ts"
 import type { ShpRecord } from "./shp.ts"
 import { comune, surveyId } from "./survey-ids.ts"
 
@@ -96,11 +100,58 @@ const spec = (code: string): BuildingSpec => {
   return s
 }
 
+/**
+ * The RT number of a record in the layers whose records each hold one: which one survey gives the
+ * same in every comune's archive it maps.
+ */
+const RECORD_ID: Readonly<Record<string, string>> = {
+  un_vol: "un_vol_id",
+  mn_ind: "suolo_id",
+  ac_vei: "ac_vei_id",
+  ar_vms: "ar_vms_id",
+}
+
+/** The ground a record's rings cover, m²: an archive's edge cuts its copy of a record smaller. */
+const groundOf = ({ rec }: CtrRecord): number =>
+  rec.parts.reduce((sum, ring) => sum + Math.abs(signedArea(ring)), 0)
+
+/**
+ * Layer `name`'s records in `dir`, a record two comuni's archives hold read once. In a layer of
+ * `RECORD_ID`, the copy that covers the most ground, as the other archive cut its own at its edge
+ * (the first comune's by ISTAT code on a tie). A road area's `ar_str_id` names its road, which
+ * several of one archive's records share, so a road area is dropped only as the same road's copy of
+ * the same rings. The zones are all read: the mapped area is their union, which each archive's cut
+ * copy of a zone only shrinks.
+ */
+const layer = (dir: string, name: string): Array<CtrRecord> => {
+  const records = ctrRecords(dir, name, "utf8"),
+    key = RECORD_ID[name]
+  if (key !== undefined) {
+    const kept = new Map<string, CtrRecord>()
+    for (const r of records) {
+      const id = r.rec.attrs[key] ?? "",
+        best = kept.get(id)
+      if (id !== "" && (best === undefined || groundOf(r) > groundOf(best))) kept.set(id, r)
+    }
+    return records.filter((r) => {
+      const id = r.rec.attrs[key] ?? ""
+      return id === "" || kept.get(id) === r
+    })
+  }
+  if (name !== "ar_str") return records
+  const seen = new Set<string>()
+  return records.filter(({ rec }) => {
+    const copy = `${rec.attrs.ar_str_id} ${JSON.stringify(rec.parts)}`
+    if (seen.has(copy)) return false
+    seen.add(copy)
+    return true
+  })
+}
+
 /** The DBT 1:2000 in `dir`, clipped to `box`: see the module header. */
 export const readDbt = (dir: string, box = TERRAIN_BOX): Survey => {
-  const layer = (name: string) => ctrRecords(dir, name, "utf8")
   const buildings = [
-    ...layer("un_vol").flatMap(({ sheet, rec }) => {
+    ...layer(dir, "un_vol").flatMap(({ sheet, rec }) => {
       const code = rec.attrs.un_vol_por === "01" ? kindOf(rec.attrs) : undefined
       if (code === undefined) return []
       const s = spec(code),
@@ -113,7 +164,7 @@ export const readDbt = (dir: string, box = TERRAIN_BOX): Survey => {
         (k) => surveyId("dbt2k", comune(sheet), localId(0, serial, k)),
       )
     }),
-    ...layer("mn_ind").flatMap(({ sheet, rec }) => {
+    ...layer(dir, "mn_ind").flatMap(({ sheet, rec }) => {
       const code = ARTEFACTS[rec.attrs.mn_ind_ty ?? ""]
       if (code === undefined) return []
       const serial = serialOf(rec.attrs.suolo_id, "020201")
@@ -125,8 +176,12 @@ export const readDbt = (dir: string, box = TERRAIN_BOX): Survey => {
       )
     }),
   ]
-  const carriageways = layer("ac_vei"),
-    roadsWithOne = new Set(carriageways.map(({ sheet, rec }) => `${sheet} ${rec.attrs.ar_str_id}`))
+  // A road's area holds its sidewalks wherever an archive maps a carriageway of it, its own copy read
+  // or not.
+  const carriageways = layer(dir, "ac_vei"),
+    roadsWithOne = new Set(
+      ctrRecords(dir, "ac_vei", "utf8").map(({ sheet, rec }) => `${sheet} ${rec.attrs.ar_str_id}`),
+    )
   /** A record's road surfaces in the box, named from its `ar_str_uff` when that is a street name. */
   const surfaces = (rec: ShpRecord, paved: boolean): Array<RoadArea> => {
     const name = streetName(rec.attrs.ar_str_uff ?? "")
@@ -140,14 +195,14 @@ export const readDbt = (dir: string, box = TERRAIN_BOX): Survey => {
     ...carriageways.flatMap(({ rec }) =>
       rec.attrs.ac_vei_sed === "06" ? [] : surfaces(rec, rec.attrs.ac_vei_fon !== "02"),
     ),
-    ...layer("ar_str").flatMap(({ sheet, rec }) =>
+    ...layer(dir, "ar_str").flatMap(({ sheet, rec }) =>
       roadsWithOne.has(`${sheet} ${rec.attrs.ar_str_id}`) ? [] : surfaces(rec, true),
     ),
-    ...layer("ar_vms").flatMap(({ rec }) =>
+    ...layer(dir, "ar_vms").flatMap(({ rec }) =>
       polygonsOf(rec, local, box).map((rings) => ({ paved: false, rings })),
     ),
   ]
-  const mapped = layer("zona_r").flatMap(({ rec }) =>
+  const mapped = layer(dir, "zona_r").flatMap(({ rec }) =>
     polygonsOf(rec, local, box).map((rings) => rings[0]!),
   )
   return { buildings, roadAreas, mapped }

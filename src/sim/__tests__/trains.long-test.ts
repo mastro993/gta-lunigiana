@@ -13,7 +13,7 @@ import { DRAWN_RUN, pointAt, speedAt } from "../rail/lines.ts"
 import { DWELL, LONG_TUNNEL, WHISTLE_LEAD } from "../rail/service.ts"
 import { aiTrain, groundTo, placeTrains, RIOLO, stopOf } from "../rail/testing.ts"
 import { jsonSave, stage, start } from "../testing.ts"
-import { atMonzone, entering, LENGTH, line, railway, S, service, toRiolo } from "./railway.ts"
+import { atMonzone, entering, LENGTH, line, railway, S, service, toRiolo, TRIP } from "./railway.ts"
 
 test("trains: the railway draws from its own stream: other dwells, the same traffic, people and Rng", () => {
   // A train coming slowly into the line's last station, whose dwell is drawn as it stops: 3 km from the
@@ -100,7 +100,8 @@ test("trains: determinism: a train leaving Monzone over Via Riolo, one arriving 
 test("trains: a train runs the whole line both ways, calling at every station for 30–60 s within 3 m of its stop, never on an open box, lays over 60–180 s, and is removed past the drawn run", () => {
   const game = railway()
   assert.ok(game.runtime.tick(placeTrains([entering()])).ok)
-  const { calls, removed, entered, onOpenBox } = service(game, 2400 * S, 2)
+  // Two trips and their layovers, then the third train in.
+  const { calls, removed, entered, onOpenBox } = service(game, 2 * (TRIP + LAYOVER[1]) * S, 2)
   const stations = line.stations
   assert.deepEqual(
     calls.map((c) => [c.station, c.dir]),
@@ -139,12 +140,16 @@ test("trains: a train runs the whole line both ways, calling at every station fo
     assert.equal(next.s, gone.from === 1 ? line.end - LENGTH : line.start + LENGTH)
     assert.equal(Math.abs(next.v), speedAt(line, next.s))
   }
-  // A moderately long whistle entering each tunnel of 200 m or more, WHISTLE_LEAD m before its mouth, each way.
+  // A moderately long whistle entering each tunnel of 200 m or more, WHISTLE_LEAD m before its mouth, each way; none where the
+  // map cuts a tunnel at a terminal (the Galleria del Lupacino at s 0), a train coming in there in the bore already.
   const long = line.tunnels.filter((t) => t.to - t.from >= LONG_TUNNEL)
   assert.ok(long.length > 0)
   const portals = [
-    ...long.map((t) => t.from - WHISTLE_LEAD),
-    ...[...long].reverse().map((t) => t.to + WHISTLE_LEAD),
+    ...long.filter((t) => t.from > 0).map((t) => t.from - WHISTLE_LEAD),
+    ...[...long]
+      .reverse()
+      .filter((t) => t.to < line.length)
+      .map((t) => t.to + WHISTLE_LEAD),
   ]
   assert.equal(game.whistles.length, portals.length)
   for (const [i, whistle] of game.whistles.entries()) {
@@ -158,7 +163,8 @@ test("trains: on wet rail and under snow a train still stops within 3 m at every
   for (const ground of [{ wet: 1 }, { snow: true }]) {
     const game = railway()
     assert.ok(game.runtime.tick(groundTo(ground), placeTrains([entering()])).ok)
-    const { calls, onOpenBox } = service(game, 840 * S)
+    // One trip: until the next train comes in.
+    const { calls, onOpenBox } = service(game, (TRIP + LAYOVER[1]) * S, 1)
     assert.equal(calls.length, line.stations.length)
     for (const call of calls)
       assert.ok(Math.abs(call.off) < 3, `${JSON.stringify(ground)}: ${call.off} m off`)

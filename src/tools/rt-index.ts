@@ -1,9 +1,14 @@
 // What Regione Toscana's cartoteca holds over a part: the first step of the runbook's data
 // coverage (issue #3). Run: node src/tools/rt-index.ts <part>  (pnpm rt-index <part>).
-// - WFS GetFeature over the part's EPSG:3003 box + 500 m on five index layers: rt_cartoteca.ctr2k
-//   (CTR 1:2000 sheet frames by year), ctr10k (CTR 1:10 000 section frames by edition), lidar2k
-//   (LiDAR tiles by lot), dbt.2k (the DBT 1:2000 blocks, a comune's survey each, the comune's
-//   polygon) and lidar2k_DSM_autocorrelazione_2021 (the 2021 surface model's elements).
+// - WFS GetFeature on five index layers: rt_cartoteca.ctr2k (CTR 1:2000 sheet frames by year),
+//   ctr10k (CTR 1:10 000 section frames by edition), lidar2k (LiDAR tiles by lot), dbt.2k (the DBT
+//   1:2000 blocks, a comune's survey each, the comune's polygon) and
+//   lidar2k_DSM_autocorrelazione_2021 (the 2021 surface model's elements). The box holds every cell
+//   `fetch-rt` may read for the part, plus 500 m (`indexBox`): for a Lunigiana part, the EPSG:3003
+//   box round its tiles' squares cut to the region's bounds, whose cells its fetch writes and
+//   `pick-lidar` replays, which holds its rectangles' box and is wider where a rectangle stops short
+//   of its tiles' edges; for a test region with terrain of its own, its rectangles' box, round the
+//   mosaic it writes.
 // - A text/html GetFeatureInfo inside each LiDAR tile's footprint, each 2010 CTR 1:10 000 frame and
 //   each DBT comune: the index has no archive names, the answers have them with their MD5, and the
 //   tile's owner, whose licence the answer states, or the licence itself. The server answers
@@ -17,7 +22,6 @@ import { join, relative } from "node:path"
 import { parseArgs } from "node:util"
 
 import {
-  WFS_PAD,
   ctr10kUrl,
   ctrUrl,
   dbt2kUrl,
@@ -33,10 +37,9 @@ import {
   wfsUrl,
 } from "./cartoteca.ts"
 import { gaussBoagaToLatLon } from "./crs.ts"
-import { gaussBoagaBox } from "./geometry.ts"
 import { type Head, getText, head, pool } from "./net.ts"
 import { partOf } from "./region.ts"
-import { type RtIndex, indexPath } from "./rt-index-file.ts"
+import { type RtIndex, indexBox, indexPath } from "./rt-index-file.ts"
 
 /** Requests in flight at once. */
 const LIMIT = 4
@@ -44,13 +47,7 @@ const LIMIT = 4
 const { positionals } = parseArgs({ allowPositionals: true, strict: true })
 if (positionals.length !== 1) throw new Error("usage: node src/tools/rt-index.ts <part>")
 const part = partOf(positionals[0])
-const [e0, n0, e1, n1] = gaussBoagaBox(part.rects, WFS_PAD)
-const box: [number, number, number, number] = [
-  Math.floor(e0),
-  Math.floor(n0),
-  Math.ceil(e1),
-  Math.ceil(n1),
-]
+const box = indexBox(part)
 const layer = async (name: string) =>
   parseGml(await getText(wfsUrl("wmscartoteca", `rt_cartoteca.${name}`, box)))
 const [ctrIndex, ctr10kIndex, lidarIndex, dbtIndex, dsmIndex] = await Promise.all(

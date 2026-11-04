@@ -2,7 +2,13 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { SurveyBuilding } from "../ctr.ts"
-import { extractAreas, extractBuildings, extractPois, extractRoads } from "../features.ts"
+import {
+  extractAreas,
+  extractBuildings,
+  extractPois,
+  extractRoads,
+  extractWater,
+} from "../features.ts"
 import { fromLocal, hash01, type V } from "../geometry.ts"
 import type { Osm, Tags } from "../osm.ts"
 import { localOf, sheet2k, surveyId } from "../survey-ids.ts"
@@ -97,6 +103,75 @@ test("extractRoads: a motorway, its links and a roundabout are oneway unless tag
       ["secondary", 3.5, true, false], // a one-lane roundabout, driven one way round
       ["primary", 7, false, true],
       ["secondary", 6.5, false, false],
+    ],
+  )
+})
+
+// Regression: OSM draws Pieve San Lorenzo's platform as two `highway=footway` lines along its
+// edge (ways 1442184593 and 1442184594), tagged railway=platform: the platform, not a path beside
+// the track.
+test("extractRoads: a highway drawn as a line and tagged railway=platform is the platform, no road", () => {
+  const roads = extractRoads(
+    osmOf([{ highway: "footway", railway: "platform" }, { highway: "footway" }]),
+    whole,
+  )
+  assert.deepEqual(
+    roads.map((r) => [r.id, r.cls]),
+    [[2, "path"]],
+  )
+})
+
+// Regression: an edit glued four streams' junctions 0.008–0.073 m from their next node (the Torrente
+// Mommio's 788514676 at (6132.2, 9771.2)), so the shipped line, rounded to 0.1 m, repeated a vertex.
+test("extractWater, extractRoads: two nodes in a row on one 0.1 m point are one vertex, the one another way shares", () => {
+  const osm: Osm = { nodes: new Map(), ways: new Map(), relations: new Map() }
+  for (const [id, x, y] of [
+    ["j", 10.02, 5.01], // a junction of the two streams
+    ["a", 10.04, 5.03], // 0.03 m on, the same 0.1 m point
+    ["b", 30, 5],
+    ["c", 10, 40],
+    ["d", 10.01, 5.04], // 0.03 m short of the junction
+    ["r0", 0, 20],
+    ["r1", 40.01, 20.02],
+    ["r2", 40.03, 20.04], // neither shared: the first stays
+  ] as const) {
+    const [lat, lon] = fromLocal(x, y)
+    osm.nodes.set(id, { id, lat, lon, tags: {} })
+  }
+  const way = (id: string, nds: ReadonlyArray<string>, tags: Tags) =>
+    osm.ways.set(id, { id, nds, tags })
+  way("1", ["j", "a", "b"], { waterway: "stream" })
+  way("2", ["c", "d", "j"], { waterway: "stream" })
+  way("3", ["r0", "r1", "r2"], { highway: "track" })
+  const ids = (lines: ReadonlyArray<{ readonly pts: ReadonlyArray<V> }>) =>
+    lines.map((l) => l.pts.map((v) => v.id))
+  assert.deepEqual(ids(extractWater(osm, () => 0, whole)), [
+    ["j", "b"],
+    ["c", "j"],
+  ])
+  assert.deepEqual(ids(extractRoads(osm, whole)), [["r0", "r1"]])
+})
+
+// Regression: OSM maps the Canale di Campiglia's pass under the line by Gassano as a culvert (way
+// 865496237), where the CTR surveys a 6.7 m rail bridge and the orthophotos show its channel open
+// under the span; dropped, the stream's two ends dug the bank beside the bridge, under the track.
+test("extractWater: a culvert is dropped but where `open` says it runs in the open, under a bridge", () => {
+  const osm = osmOf([
+    { waterway: "stream", tunnel: "culvert" },
+    { waterway: "stream", tunnel: "culvert", name: "Canale di Campiglia" },
+    { waterway: "stream" },
+  ])
+  const water = extractWater(
+    osm,
+    () => 0,
+    whole,
+    (pts) => pts[0]!.y > 5,
+  )
+  assert.deepEqual(
+    water.map((w) => [w.id, w.w]),
+    [
+      [2, 4],
+      [3, 2],
     ],
   )
 })

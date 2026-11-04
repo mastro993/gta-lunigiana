@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { Ops } from "@typeonce/ritmo-math"
+
 import { groundZ } from "../../../sim/map/ground.ts"
 import type { WeatherValue } from "../../../sim/schema.ts"
 import { DAY, daysFromCivil, utcFromRome } from "../../../sim/sky/calendar.ts"
@@ -18,6 +20,7 @@ import type { Happening, Heard, OneShot } from "../../types.ts"
 import { BEDS, GALE_DB, MOST_DB, windDb } from "../levels.ts"
 import { birdActivity, floorDb, USUAL_WIND } from "../sky.ts"
 import {
+  ACROSS_MEADOW,
   at,
   away,
   BELFRY,
@@ -86,11 +89,14 @@ test("rain plays a bed at the ears while it falls, at the rate falling there; dr
   assert.equal(rain({ ...raining(20), anomaly: -15 }), undefined)
 })
 
-test("heavy rain raises the masking floor: a car at full load 300 m across the meadow, heard in the dry, is lost in a downpour", () => {
+test("heavy rain raises the masking floor: a car at full load 250 m across the meadow, heard in the dry, is lost in a downpour", () => {
   const engine = (weather: WeatherValue) => {
     const director = rig()
     director.hear(
-      world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, 300, SOUTH), FULL)], weather }),
+      world(MEADOW, {
+        vehicles: [car(1, "panda", away(MEADOW, ACROSS_MEADOW, SOUTH), FULL)],
+        weather,
+      }),
     )
     return director.held().has("engine:1")
   }
@@ -347,12 +353,13 @@ const windAt = (
 
 test("in the usual wind the wind voice is the one tuned before the weather, by altitude, open ground and streets", () => {
   // Regression: a law rebased for the gale's headroom ran the usual wind's voice at 0.75 of its strength, 5 dB up: as loud, but
-  // duller, and a ridge hardly whistled. The law was tuned on this map from 150 to 1000 m a.s.l.; it now counts from the map's floor
-  // (230.3 m here), so it holds to the floor's 0.3 m: under 0.001 of strength, 0.01 dB.
+  // duller, and a ridge hardly whistled. The law was tuned on lucido from 150 to 1000 m a.s.l., over its floor of 230.3 m; it
+  // counts from the map's floor, so it holds to that floor's 0.3 m: under 0.001 of strength, 0.01 dB.
+  const { floor } = place()
   for (const spot of [RIDGE, MEADOW, STREET, HILLSIDE, SPAWN]) {
     const tuned =
       0.15 +
-      0.7 * smoothstep(150, 1000, groundZ(spot.x, spot.y)) +
+      0.7 * smoothstep(floor - (230.3 - 150), floor + (1000 - 230.3), groundZ(spot.x, spot.y)) +
       0.15 * ambienceAt(spot.x, spot.y).open -
       0.3 * streetAt(spot.x, spot.y)
     const still = 10 ** ((floorDb(MORNING.sun) - BEDS.wind) / 40)
@@ -504,11 +511,22 @@ test("songbirds sing a dawn chorus, louder than the day's song; at dusk they roo
 })
 
 test("at night a tawny owl calls from its wood, no owl more than once in 30 s; none by day", () => {
-  const owls = owlsNear(HILLSIDE.x, HILLSIDE.y, 600)
-  assert.ok(owls.length > 0)
+  // Under the owl nearest the woods above Isolano, 40 m from its tree: from `HILLSIDE` itself that owl, 123 m off through the
+  // woods, stood within half a dB of the masking cull: the wind of a map's floor 5–8 m lower lost its every call.
+  const [owl] = owlsNear(HILLSIDE.x, HILLSIDE.y, 600).toSorted(
+      (a, b) =>
+        Ops.hypot(a.x - HILLSIDE.x, a.y - HILLSIDE.y) -
+        Ops.hypot(b.x - HILLSIDE.x, b.y - HILLSIDE.y),
+    ),
+    off = Ops.hypot(owl!.x - HILLSIDE.x, owl!.y - HILLSIDE.y)
+  assert.ok(owl !== undefined && off > 40)
+  const under = {
+    x: owl.x + ((HILLSIDE.x - owl.x) * 40) / off,
+    y: owl.y + ((HILLSIDE.y - owl.y) * 40) / off,
+  }
   const calls = (sky: Heard["sky"]) => {
     const director = rig()
-    director.hear(world(HILLSIDE, { sky }), 180 * 60)
+    director.hear(world(under, { sky }), 180 * 60)
     return director.take("bird").filter((p) => p.sound.kind === "bird" && p.sound.species === "owl")
   }
   const night = calls(NIGHT)

@@ -1,8 +1,23 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { latLonToGaussBoaga } from "../crs.ts"
 import type { Crop } from "../dtm-mosaic.ts"
-import { elementsOverHoles, findHoles, replayTile } from "../pick-lidar.ts"
+import { type DtmTile, emptyTile, partTiles } from "../dtm-tiles.ts"
+import { tileCrop } from "../fetch-dtm.ts"
+import { OUT } from "../fill-chain.ts"
+import { fromLocal } from "../geometry.ts"
+import {
+  OUTSIDE,
+  earlierParts,
+  elementsOverHoles,
+  findHoles,
+  keptAndPicked,
+  needMask,
+  replayPart,
+  replayTile,
+} from "../pick-lidar.ts"
+import { type Part, type Rect, partOf } from "../region.ts"
 
 const NODATA = -9999
 
@@ -62,6 +77,101 @@ test("holes are counted by cell and by 4-connected run, the largest located", ()
   assert.equal(holes.count, 3)
   assert.deepEqual(holes.largest, { cells: 3, col: 2, row: 0, box: [1, 0, 3, 0] })
   assert.deepEqual(picture(written), ["121111", "112111", "111111", "122211"])
+})
+
+/** A grid to replay: its name and its lines, as the archive's file gives them. */
+const grid = (name: string, e: number, n: number, rows: ReadonlyArray<string>) => ({
+  name,
+  lines: () => asc(e, n, rows),
+})
+
+test("the earlier parts' tiles write first, then the candidates; a cell out of the replay or held never counts", () => {
+  // Column 5 is out of the replay (no tile of the part needs it); cell (0, 0) a tile file holds.
+  const written = new Uint8Array(CROP.cols * CROP.rows)
+  for (let r = 0; r < CROP.rows; r++) written[r * CROP.cols + 5] = OUTSIDE
+  written[0] = 1
+  const replayed = replayPart(
+    written,
+    CROP,
+    // An earlier part's tile over columns 0–1: all but the held cell are its.
+    [grid("earlier", 1000.5, 2000.5, ["##", "##", "##", "##"])],
+    [
+      // Under the earlier part's tile: dropped, though it comes first among the candidates.
+      grid("under", 1000.5, 2000.5, ["##", "##", "##", "##"]),
+      // Columns 4–5: only column 4 is needed.
+      grid("edge", 1004.5, 2000.5, ["##", "##", "##", "##"]),
+      // Column 5 alone: nothing it holds is needed.
+      grid("out", 1005.5, 2000.5, ["#", "#", "#", "#"]),
+      // Columns 2–3, the two south rows.
+      grid("south", 1002.5, 2000.5, ["##", "##"]),
+    ],
+  )
+  assert.deepEqual(replayed, {
+    earlier: 7,
+    candidates: [
+      { inCrop: 8, first: 0 },
+      { inCrop: 4, first: 4 },
+      { inCrop: 0, first: 0 },
+      { inCrop: 4, first: 4 },
+    ],
+  })
+  // The cells out of the replay are never holes: the one hole is the north of columns 2–3.
+  const holes = findHoles(written, CROP.cols, CROP.rows)
+  assert.deepEqual([holes.cells, holes.count], [4, 1])
+  assert.deepEqual(picture(written), ["112213", "112213", "111113", "111113"])
+})
+
+test("the earlier parts are those before a part in build order; a test region's part has none", () => {
+  const part = (key: string): Part => ({ key, title: key, rects: [[0, 0, 100, 100]] })
+  const [a, b, c] = [part("a"), part("b"), part("c")]
+  assert.deepEqual(earlierParts(c, [a, b, c]), [a, b])
+  assert.deepEqual(earlierParts(a, [a, b, c]), [])
+  assert.deepEqual(earlierParts(part("x"), [a, b, c]), [])
+  assert.deepEqual(earlierParts(partOf("lucido")), [])
+  assert.deepEqual(earlierParts(partOf("sillara")), [])
+})
+
+/** A tile file of tile (i, j) holding a height (dm 500, the LiDAR's) at each cell `holds` picks. */
+const heldTile = (i: number, j: number, holds: (c: number, r: number) => boolean): DtmTile => {
+  const t = emptyTile(i, j, ["lidar"])
+  for (let r = 0; r < t.rows; r++)
+    for (let c = 0; c < t.cols; c++)
+      if (holds(c, r)) {
+        t.dm[r * t.cols + c] = 500
+        t.codes[r * t.cols + c] = 0
+      }
+  return t
+}
+
+test("the mask leaves to the replay exactly the cells fetch-rt's crop leaves to the LiDAR, an L's notch out", () => {
+  // An L round the corner of four tiles, in a region no wider: its notch tile is not the part's.
+  const rects: ReadonlyArray<Rect> = [
+      [1800, 1800, 2000, 2200],
+      [2000, 1800, 2200, 2000],
+    ],
+    needs = partTiles(rects, { minX: 1800, minY: 1800, maxX: 2200, maxY: 2200 }).map((t) => t.need)
+  // Tile 0_0's file holds a scatter of its cells; the notch tile's holds all of its own.
+  const held = [heldTile(0, 0, (c, r) => (c * 7 + r * 3) % 5 === 0), heldTile(1, 1, () => true)]
+  const mask = needMask(needs, held),
+    seeded = tileCrop(needs, held)
+  assert.deepEqual(mask.crop, seeded.crop)
+  for (let k = 0; k < mask.written.length; k++)
+    if ((mask.written[k] === 0) !== Number.isNaN(seeded.mosaic.dm[k]!))
+      assert.fail(`1 m cell ${k}: mask ${mask.written[k]}, crop ${seeded.mosaic.dm[k]}`)
+  // Without the held files, the cells out of the replay are those fetch-rt leaves out.
+  const bare = needMask(needs, []),
+    unseeded = tileCrop(needs, [])
+  for (let k = 0; k < bare.written.length; k++)
+    if ((bare.written[k] === OUTSIDE) !== (unseeded.mosaic.src[k] === OUT))
+      assert.fail(`1 m cell ${k}: mask ${bare.written[k]}, crop source ${unseeded.mosaic.src[k]}`)
+  assert.equal(bare.needed, unseeded.empty)
+  // The held files hold some of the needed cells, and none past them: the notch stays out.
+  assert.equal(mask.needed, bare.needed)
+  assert.equal(mask.held, mask.needed - seeded.empty)
+  assert.ok(mask.held > 0 && seeded.empty > 0)
+  const [e, n] = latLonToGaussBoaga(...fromLocal(2150, 2150))
+  const notch = Math.round(n - mask.crop.n0) * mask.crop.cols + Math.round(e - mask.crop.e0)
+  assert.equal(mask.written[notch], OUTSIDE)
 })
 
 test("a crop no tile touches is one hole", () => {
@@ -124,4 +234,16 @@ test("an element not RT's, or whose archive did not answer 200, is never kept, t
   ]
   assert.deepEqual(elementsOverHoles(others, oneHole(), CROP), [])
   assert.deepEqual(elementsOverHoles([element("234014", over)], oneHole(), CROP), ["234014"])
+})
+
+// Regression: --write on a fetched part (lucido, once Fivizzano grew the box) stored only the tiles
+// for the cells the grown box added, dropping those that wrote its held cells.
+test("--write keeps the manifest's tiles and elements and adds the new picks after them", () => {
+  const { lidar, elements } = keptAndPicked(
+    { lidar: ["b_004", "a_005"], dsm2021: ["249064"] },
+    ["c_004", "b_004"],
+    ["234123", "249064"],
+  )
+  assert.deepEqual(lidar, ["b_004", "a_005", "c_004"])
+  assert.deepEqual(elements, ["234123", "249064"])
 })

@@ -372,6 +372,16 @@ export const CANOPY_SIDE = 9
 export const CANOPY_RISE = 7
 /** How far round a canopy or pit cell the cells go with it, m: a crown's edge, under the rise but above the ground. */
 const FRINGE = 2
+/**
+ * How many times the filter runs, each over the ground the one before left. The first clears a wood
+ * wider than the square by its rough crowns alone and leaves the smooth canopy along its edge,
+ * as high as the lowest of a square on the wood; the second measures that edge against the clearing
+ * beside it and takes it. A third would take ground: where the surface model's ground and the 10 m
+ * DTM part by more than CANOPY_RISE across a square, the edge of what the pass before cleared stands
+ * over its opening too, and each pass eats a few metres more (docs/map.md, "Terrain beyond the
+ * LiDAR").
+ */
+const PASSES = 2
 
 /**
  * Clears from `open` the cells in `box` (crop columns and rows [c0, r0, c1, r1]) where the surface
@@ -382,7 +392,8 @@ const FRINGE = 2
  * cell more than CANOPY_RISE above its opening or below its closing is cleared, and so are the
  * cells within FRINGE m of one (a crown's edge). The pastures of the Apennine ridge carry scattered trees and
  * shrubs, UCS's 1:10 000 polygons take in the edge of the woods round them, and the image matching
- * the model comes from fails here and there in pits tens of metres deep.
+ * the model comes from fails here and there in pits tens of metres deep. It runs PASSES times, each
+ * over the ground the one before left.
  */
 export const clearCanopy = (
   open: Uint8Array,
@@ -398,26 +409,31 @@ export const clearCanopy = (
     for (let c = 0; c < w; c++)
       if (open[(r0 + r) * crop.cols + c0 + c] === 1)
         rise[r * w + c] = dsm.at(c0 + c, r0 + r) - ground.at(c0 + c, r0 + r)
-  const opened = extreme(extreme(rise, w, h, Math.min), w, h, Math.max),
-    closed = extreme(extreme(rise, w, h, Math.max), w, h, Math.min)
-  const canopy = new Uint8Array(w * h)
-  for (let k = 0; k < w * h; k++)
-    if (rise[k]! - opened[k]! > CANOPY_RISE || closed[k]! - rise[k]! > CANOPY_RISE) {
-      const c = k % w,
-        r = (k - c) / w
-      for (let b = Math.max(0, r - FRINGE); b <= Math.min(h - 1, r + FRINGE); b++)
-        for (let a = Math.max(0, c - FRINGE); a <= Math.min(w - 1, c + FRINGE); a++)
-          canopy[b * w + a] = 1
-    }
-  // The ground left, opened by the same square: a strip or a scrap of it narrower than the square,
-  // between trees or along a gully the woods hide, would stand out of the smooth fill round it.
-  const left = new Float32Array(w * h)
-  for (let k = 0; k < w * h; k++)
-    left[k] = Number.isNaN(rise[k]!) ? Number.NaN : canopy[k] === 1 ? 0 : 1
-  const kept = extreme(extreme(left, w, h, Math.min), w, h, Math.max)
-  for (let k = 0; k < w * h; k++)
-    if (canopy[k] === 1 || kept[k] !== 1)
-      open[(r0 + Math.floor(k / w)) * crop.cols + c0 + (k % w)] = 0
+  for (let pass = 0; pass < PASSES; pass++) {
+    const opened = extreme(extreme(rise, w, h, Math.min), w, h, Math.max),
+      closed = extreme(extreme(rise, w, h, Math.max), w, h, Math.min)
+    const canopy = new Uint8Array(w * h)
+    for (let k = 0; k < w * h; k++)
+      if (rise[k]! - opened[k]! > CANOPY_RISE || closed[k]! - rise[k]! > CANOPY_RISE) {
+        const c = k % w,
+          r = (k - c) / w
+        for (let b = Math.max(0, r - FRINGE); b <= Math.min(h - 1, r + FRINGE); b++)
+          for (let a = Math.max(0, c - FRINGE); a <= Math.min(w - 1, c + FRINGE); a++)
+            canopy[b * w + a] = 1
+      }
+    // The ground left, opened by the same square: a strip or a scrap of it narrower than the
+    // square, between trees or along a gully the woods hide, would stand out of the smooth fill
+    // round it.
+    const left = new Float32Array(w * h)
+    for (let k = 0; k < w * h; k++)
+      left[k] = Number.isNaN(rise[k]!) ? Number.NaN : canopy[k] === 1 ? 0 : 1
+    const kept = extreme(extreme(left, w, h, Math.min), w, h, Math.max)
+    for (let k = 0; k < w * h; k++)
+      if (!Number.isNaN(rise[k]!) && (canopy[k] === 1 || kept[k] !== 1)) {
+        rise[k] = Number.NaN
+        open[(r0 + Math.floor(k / w)) * crop.cols + c0 + (k % w)] = 0
+      }
+  }
 }
 
 /** `pick` (Math.min or Math.max) over the CANOPY_SIDE m square round each cell of a `w` × `h` grid with data, NaN skipped: rows, then columns. */

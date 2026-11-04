@@ -1,7 +1,8 @@
-// Lunigiana with its heightmap starting a tile east and north of its anchor, the old first node, as
-// a region whose parts all lie east or north of its anchor gives (the L test region's starts 500 m
-// east and 6.1 km north of it): the lookups count a point's cell from the anchor (`anchorOf`), so
-// they answer to the bit as on Lunigiana itself, which `lookups.ts` reads in a process of its own.
+// Lunigiana with its heightmap starting a tile east and north of its anchor, as a region whose parts
+// all lie east or north of its anchor gives (the L test region's starts 500 m east and 6.1 km north
+// of it), where Lunigiana's own, grown west by Fivizzano, starts west of it: the lookups count a
+// point's cell from the anchor (`anchorOf`), so they answer to the bit as on Lunigiana itself,
+// which `lookups.ts` reads in a process of its own.
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
 import { test } from "node:test"
@@ -32,12 +33,11 @@ for (let k = 0; k < 20; k++) {
 }
 
 editMap((json) => {
-  const { cell, cols, rows, x0, y0 } = json.heightmap,
+  const { cell, cols, rows, x0, y0, ax = x0, ay = y0 } = json.heightmap,
     { maxX, maxY } = json.bounds,
-    minX = x0 + TILE,
-    minY = y0 + TILE,
+    minX = ax + TILE,
+    minY = ay + TILE,
     range = tileRange({ minX, minY, maxX, maxY })
-  assert.equal(json.heightmap.ax, undefined, "Lunigiana's anchor is its first node")
   return {
     ...json,
     bounds: { minX, minY, maxX, maxY },
@@ -46,10 +46,10 @@ editMap((json) => {
       ...json.heightmap,
       x0: minX,
       y0: minY,
-      cols: cols - TILE / cell,
-      rows: rows - TILE / cell,
-      ax: x0,
-      ay: y0,
+      cols: cols - (minX - x0) / cell,
+      rows: rows - (minY - y0) / cell,
+      ax,
+      ay,
     },
     tiles: json.tiles.filter(({ i, j }) => i >= range.i0 && j >= range.j0),
   }

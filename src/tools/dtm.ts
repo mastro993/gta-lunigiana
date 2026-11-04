@@ -1,5 +1,6 @@
 // The DTMs the map build reads, sampled in local metres: Regione Toscana's LiDAR DTM as fetch-rt
-// writes it (`loadDtm`), or a geographic GeoTIFF (`loadGeoDtm`, Cesena's). Each gives the height at
+// writes it, a file a tile (`dtm-tiles.ts`) or a test region's own mosaic (`loadDtm`), or a
+// geographic GeoTIFF (`loadGeoDtm`, Cesena's). Each gives the height at
 // a point and windows of the terrain grid's nodes (terrain.ts), each node the mean of the heights
 // round it.
 import { readFileSync } from "node:fs"
@@ -7,8 +8,9 @@ import { join } from "node:path"
 import { inflateSync } from "node:zlib"
 
 import { latLonToGaussBoaga } from "./crs.ts"
+import { assembleTiles, drawEdgesOn, readTile, tileNeed } from "./dtm-tiles.ts"
 import { BOUNDS, fromLocal } from "./geometry.ts"
-import { REGION } from "./region.ts"
+import { REGION, type Region } from "./region.ts"
 import {
   BOX,
   cellOf,
@@ -156,8 +158,49 @@ export const readDtm = (dir: string): DtmData => {
   return { ...meta, z, sources: { names: meta.sources, codes } }
 }
 
-/** The DTM that `fetch-rt.ts` writes to `dir`, sampled in local metres (`dtmDem`). */
-export const loadDtm = (dir: string, ground: Ground = REGION): Dem => dtmDem(readDtm(dir), ground)
+/** What of a region its terrain's files depend on: whether it has its own mosaic, its tiles, its box and anchor, and whether the game ships it. */
+type TerrainOf = Pick<Region, "ownTerrain" | "test" | "tiles" | "bounds" | "anchor">
+
+/**
+ * The terrain `fetch-rt.ts` writes to `dir` for `region`, sampled in local metres (`dtmDem`): the
+ * mosaic of a test region with terrain of its own (`ownTerrain`), or else the tile files of its
+ * listed tiles in `dir`/dtm (`readTiles`).
+ */
+export const loadDtm = (dir: string, region: TerrainOf = REGION): Dem =>
+  dtmDem(region.ownTerrain ? readDtm(dir) : readTiles(join(dir, "dtm"), region), region)
+
+/**
+ * The tile files in `dir` of `region`'s listed tiles as one DTM (`assembleTiles`), each cell no
+ * file holds drawn on from the edge (`drawEdgesOn`). The shipped map (not a test region) throws when
+ * a listed tile has no file, or its file leaves a cell empty that a fetch for the region's box
+ * writes (`tileNeed`: the tile's square cut to the box, HALO round it), naming the tile: the fetch of
+ * the part it belongs to has not run since a part grew the box. A test region builds on what there
+ * is, the rest the edge drawn on.
+ */
+export const readTiles = (dir: string, region: TerrainOf): DtmData => {
+  const tiles = region.tiles.flatMap(({ i, j }) => {
+    const tile = readTile(dir, i, j)
+    if (tile === undefined && !region.test)
+      throw new Error(`no terrain for tile ${i}_${j}: run fetch-rt for the part it belongs to`)
+    return tile === undefined ? [] : [{ key: `${i}_${j}`, tile }]
+  })
+  const { dtm, held } = assembleTiles(tiles)
+  if (!region.test)
+    for (const { i, j } of region.tiles) {
+      const need = tileNeed(i, j, region.bounds)
+      if (need === undefined) continue
+      const dc = (need.e0 - dtm.e0) / dtm.cell,
+        dr = (need.n0 - dtm.n0) / dtm.cell
+      for (let r = 0; r < need.rows; r++)
+        for (let c = 0; c < need.cols; c++)
+          if (held[(dr + r) * dtm.cols + dc + c] === 0)
+            throw new Error(
+              `tile ${i}_${j} has no terrain at EPSG:3003 ${need.e0 + dtm.cell * c}, ${need.n0 + dtm.cell * r}: run fetch-rt for its part`,
+            )
+    }
+  drawEdgesOn(dtm, held)
+  return dtm
+}
 
 /**
  * Bilinear sampler in local metres of `dtm`, through a lattice of exact projections every

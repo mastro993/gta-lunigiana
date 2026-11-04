@@ -35,7 +35,7 @@ test("platform lamps: poles on every platform people wait on, every one lit, Equ
   checkPlatformLamps(ALL)
 })
 
-test("canopies: one along a station building's track side wherever a platform runs along it (Gragnola's), none elsewhere on the map", () => {
+test("canopies: one along a station building's track side wherever a platform runs along it (Pieve San Lorenzo's, Gragnola's and Gassano's), none elsewhere on the map", () => {
   checkCanopies(ALL)
 })
 

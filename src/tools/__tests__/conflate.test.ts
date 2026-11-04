@@ -222,3 +222,24 @@ test("conflateRail throws when a level crossing misses the CTR's crossing polygo
     /level crossing ctr:23D01 VLI#3\.0:x0 lies 3\.00 m outside CTR C/,
   )
 })
+
+// Regression: Pieve San Lorenzo's yard siding 621942965 leaves the loop at a switch the loop's way
+// placed on the loop's CTR track; the CTR draws the siding from 0.9 m beside it, and the siding's
+// first sample, matched there, hung a 0.9 m stub past the switch.
+test("conflateRail starts a way that leaves another at a switch at the switch, where the CTR draws it from beside the track", () => {
+  const tracks = [
+    track("23D01 VLI#0.0", [0, 0], [600, 0]),
+    track("23D01 VLI#1.0", [300, -0.9], [340, -4.9], [500, -12.9]),
+  ]
+  const rail: ReadonlyArray<RailF> = [
+    { id: 1, pts: [v(0, 0.3, "a"), v(300, 0.3, "sw"), v(600, 0.3, "b")] },
+    { id: 2, pts: [v(300, 0.3, "sw"), v(340, -4.6), v(500, -12.6, "e")] },
+  ]
+  const c = conflateRail(rail, [], [], ctr(tracks), NONE)
+  const siding = c.rail.find((r) => r.id === 2)!
+  assert.deepEqual(siding.pts[0], { x: 300, y: 0, id: "sw" })
+  assert.ok(
+    c.rail.filter((r) => r.id === 1).some((r) => r.pts.some((p) => p.id === "sw" && p.y === 0)),
+    "the switch on the line",
+  )
+})

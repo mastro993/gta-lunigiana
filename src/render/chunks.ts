@@ -19,7 +19,9 @@ const CHUNK_CELLS = 32
 const CHUNK = CHUNK_CELLS * hm.cell
 /**
  * Apron cells beyond each map edge (192 m): more than the camera shows past the bounds from any
- * road, mountain edges included (where the SP10 leaves the map the view reaches about 150 m out).
+ * road, mountain edges included (where the SP68 leaves the map on the north edge, at 828 m, the
+ * view reaches about 120 m out). From a footpath on a ridge by the edge the clear colour can show
+ * past it.
  */
 export const APRON = 48
 /** Heightmap cells along x and y. */

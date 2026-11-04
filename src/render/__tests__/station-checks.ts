@@ -6,8 +6,9 @@ import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { pointInRing, segDist2 } from "../../sim/collide.ts"
-import { platformTop } from "../../sim/map/ground.ts"
+import { groundZ, platformTop } from "../../sim/map/ground.ts"
 import { MAP, RAIL_LIFT } from "../../sim/map/index.ts"
+import { PLATFORM_EDGE } from "../../sim/map/kinds.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
 import { boxOver, linear, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
 import { yOf } from "../ground.ts"
@@ -164,7 +165,7 @@ export const checkYellowLines = (part: Stations): void => {
   const yellow = cornersOf(part.all.decal, PALETTE.signYellow)
   for (const [x, , z] of yellow) {
     const { d } = nearestTrack(part.rail, x, -z, (kind) => kind !== "siding")
-    assert.ok(d < 2.2 + 0.7, `a yellow line ${d.toFixed(2)} m from the track`)
+    assert.ok(d < PLATFORM_EDGE + 0.7, `a yellow line ${d.toFixed(2)} m from the track`)
   }
   for (const i of part.platforms) {
     const p = MAP.railway.platforms[i]!,
@@ -205,7 +206,8 @@ export const checkBoards = (part: Stations): void => {
     const on = waited.find((i) => pointInRing(x, y, ringsOf(i)[0]!)) ?? -1
     assert.ok(on >= 0, `the board at ${x.toFixed(1)}, ${y.toFixed(1)} on a platform`)
     boards.set(on, (boards.get(on) ?? 0) + 1)
-    const ground = platformTop(x, y)!
+    // Over the head of someone standing under it: on the platform's top, or the terrain where that stands higher.
+    const ground = groundZ(x, y)
     const low = Math.min(...box.map(([, h]) => h))
     assert.ok(low - yOf(ground) > 2 && low - yOf(ground) < 2.3, "its bottom over head height")
   }
@@ -236,7 +238,7 @@ export const checkPlatformLamps = (part: Stations): void => {
   assert.ok(near("pole") >= 4, `${near("pole")} platform lamps at Equi Terme`)
 }
 
-/** Of its stations, a canopy along the building's track side only where a platform runs along it (Gragnola's). */
+/** Of its stations, a canopy along the building's track side only where a platform runs along it (Pieve San Lorenzo's, Gragnola's and Gassano's). */
 export const checkCanopies = ({ all, stations }: Stations): void => {
   const corners = cornersOf(all.solid, PALETTE.canopyGrey)
   const along = stations.filter((s) => {
@@ -262,17 +264,29 @@ export const checkCanopies = ({ all, stations }: Stations): void => {
       return false
     })
   })
+  // Gragnola's, and since the map took in Fivizzano's part Pieve San Lorenzo's and Gassano's, whose platforms run along their
+  // buildings too (the CTR's at Pieve wraps the building's track side); Equi Terme's and Monzone's have grass or a forecourt.
+  const canopied = new Set(["Minucciano-Pieve-Casola", "Gragnola", "Fivizzano-Gassano"]),
+    name = (s: number) => MAP.railway.stations[s]!.name
   assert.deepEqual(
-    along.map((s) => MAP.railway.stations[s]!.name),
-    ["Gragnola"],
+    along.map(name),
+    stations.map(name).filter((n) => canopied.has(n)),
   )
-  // Along its wall, over the walkway round it: its corners over the platform's top, wider than 8 m.
+  // Along their walls, over the walkway round them: each canopy's corners within 40 m of its building, wider than 8 m in all.
   const xs = corners.map(([x]) => x),
     ys = corners.map(([, , z]) => -z)
   assert.ok(Math.max(...xs) - Math.min(...xs) + (Math.max(...ys) - Math.min(...ys)) > 8)
+  const centres = along.map((s) => {
+    const ring = MAP.derived.stations[s]!.outer,
+      n = ring.length / 2
+    let x = 0,
+      y = 0
+    for (let k = 0; k < ring.length; k += 2) [x, y] = [x + ring[k]! / n, y + ring[k + 1]! / n]
+    return { x, y }
+  })
   assert.ok(
-    corners.every(([x, , z]) => Math.hypot(x + 1661, -z - 3261) < 40),
-    "at Gragnola",
+    corners.every(([x, , z]) => centres.some((c) => Math.hypot(x - c.x, -z - c.y) < 40)),
+    "at their buildings",
   )
 }
 

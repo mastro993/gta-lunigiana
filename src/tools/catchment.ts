@@ -71,22 +71,39 @@ const heap = (z: Float64Array) => {
   }
 }
 
+/** Area flowing in from beyond the grid, km², added at the node nearest (x, y): a stream's first sample inside it. */
+export interface Inflow {
+  readonly x: number
+  readonly y: number
+  readonly km2: number
+}
+
 /**
  * Upstream area (km²) at every sample of each profile in `wp`, from grid `g` before carving, whose
  * nodes it overwrites (the water burned in, the pits filled); `ids`
  * holds each profile's OSM vertex ids, where pieces meet. The
  * water is burned in BURN m under its own profile, the grid filled so every node drains (its edge
  * the outlet), each node routed to its steepest lower neighbour (D8) and the 4 m cells accumulated
- * downstream. Area flowing in from beyond the grid is not counted.
+ * downstream. Area flowing in from beyond the grid counts only as `inflows` give it, carried down
+ * from their nodes like their own. A node `listed` leaves out (0:
+ * one no listed tile holds, in an L's notch) is beyond the grid too, and never read: an outlet below
+ * any ground, so the listed nodes beside it are an edge, as the grid's outermost are.
  */
 export const catchments = (
   g: Grid,
   wp: ReadonlyArray<Profile>,
   ids: ReadonlyArray<ReadonlyArray<string | undefined>>,
+  listed?: Uint8Array,
+  inflows: ReadonlyArray<Inflow> = [],
 ): Array<Float64Array> => {
   const { cols, rows, cell } = g,
     [oi, oj] = anchorNode(g)
   const z = g.z // burned and filled in place: the grid is the build's uncarved copy
+  const outside = (n: number) => listed?.[n] === 0
+  // An outlet below every listed node: the flood raises none beside it, D8 drains each of those out
+  // of the grid into it, and it routes nothing on, so a listed node beside it gathers what an edge
+  // node would.
+  for (let n = 0; n < cols * rows; n++) if (outside(n)) z[n] = -Infinity
   // The nearest node, measured from the anchor (the same on any grid round it).
   const nodeOf = (x: number, y: number) =>
     Math.min(rows - 1, Math.max(0, Math.round((y - g.ay) / cell) + oj)) * cols +
@@ -96,17 +113,19 @@ export const catchments = (
   wp.forEach((p, w) => {
     for (let k = 0; k < p.z.length; k++) {
       const n = nodeOf(p.x[k]!, p.y[k]!)
+      if (outside(n)) continue
       z[n] = Math.min(z[n]!, p.z[k]! - BURN)
       owner[n] = owner[n] === -1 || owner[n] === w ? w : -2
     }
   })
-  // Priority-flood from the edge: a node first reached from a lower one is raised just above it.
+  // Priority-flood from the edge and the nodes beyond the grid: a node first reached from a lower
+  // one is raised just above it.
   const seen = new Uint8Array(cols * rows)
   const open = heap(z)
   for (let n = 0; n < cols * rows; n++) {
     const i = n % cols,
       j = (n - i) / cols
-    if (i > 0 && j > 0 && i < cols - 1 && j < rows - 1) continue
+    if (i > 0 && j > 0 && i < cols - 1 && j < rows - 1 && !outside(n)) continue
     seen[n] = 1
     open.push(n)
   }
@@ -127,13 +146,15 @@ export const catchments = (
       }
   }
   // D8: each inner node drains to its steepest lower neighbour (`to`: its direction, the index of
-  // (di, dj) in the 3 × 3 block, row by row; −1 for none); edge nodes leave the grid.
+  // (di, dj) in the 3 × 3 block, row by row; −1 for none); edge nodes and those beyond the grid
+  // leave it.
   const step = [-cols - 1, -cols, -cols + 1, -1, 0, 1, cols - 1, cols, cols + 1]
   const to = new Int8Array(cols * rows).fill(-1),
     inflow = new Uint8Array(cols * rows)
   for (let j = 1; j < rows - 1; j++)
     for (let i = 1; i < cols - 1; i++) {
       const n = j * cols + i
+      if (outside(n)) continue
       let best = 0
       for (let dj = -1; dj <= 1; dj++)
         for (let di = -1; di <= 1; di++) {
@@ -152,6 +173,7 @@ export const catchments = (
   // taken for a ridge again). A stack of the ridges gave the same order, and the same sums.
   const DONE = 255
   const area = new Float64Array(cols * rows).fill((cell * cell) / 1e6)
+  for (const { x, y, km2 } of inflows) area[nodeOf(x, y)]! += km2
   for (let top = area.length - 1; top >= 0; top--) {
     if (inflow[top] !== 0) continue
     for (let n = top; to[n]! >= 0;) {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { pointInRing } from "../../sim/collide.ts"
-import { type Barrier, type Building, heightAt, treesIn } from "../../sim/map/index.ts"
+import { type Barrier, type Building, heightAt, MAP, treesIn } from "../../sim/map/index.ts"
 import { decodeTile } from "../../sim/map/packed.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
 import { placeAt, tilesOver, tileVectors } from "../../sim/map/tiles.ts"
@@ -11,6 +11,7 @@ import { SPEED_OF_SOUND } from "../acoustics.ts"
 import {
   ambienceAt,
   bells,
+  bellsFrom,
   birdSpot,
   dogsNear,
   echoesAt,
@@ -264,6 +265,14 @@ test("one bell per settlement, lower in taller towers", () => {
   // Monzone Alto's 30 m church tower hangs the deepest bell.
   const alto = bells.find((b) => Math.hypot(b.x - 6, b.y + 326) < 5)
   assert.ok(alto?.pitch === 400 && alto.z > 325)
+})
+
+// Regression: a tower's hour-strike lag was hashed from its place in `MAP.derived.bells`, which every part that grows the map
+// reorders: Fivizzano's moved Equi Terme's tower from 0 to 3 and its lag from 0.02 to 1.74 s.
+test("each tower's seed, which sets how late it strikes the hour, is its own: listed in another order, every tower keeps it", () => {
+  const reordered = new Map(bellsFrom(MAP.derived.bells.toReversed()).map((b) => [b.key, b.seed]))
+  for (const b of bells) assert.equal(reordered.get(b.key), b.seed, b.key)
+  assert.equal(new Set(bells.map((b) => b.seed)).size, bells.length)
 })
 
 test("dogs and owls are stable picks out in the farms and the woods, near ones those of a wider search in its order; birds sing from a nearby tree, never on a treeless meadow", () => {

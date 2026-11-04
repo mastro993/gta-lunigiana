@@ -26,7 +26,8 @@ const stream = (id: number, w: number, x: number): WaterF => ({
   from: 0,
 })
 // The rail along y 0: at grade to x 100, a bridge over x 100–300, at grade on. Ground is flat at
-// 100 m; the rail stands at 110 m wherever a road's bound reads it.
+// 100 m but for the 7 m deep cutting the road bridge at x 350 spans; the rail stands at 110 m
+// wherever a road's bound reads it.
 const atGrade: RailF = { id: 1, pts: [v(0, 0), v(50, 0, "lc"), v(100, 0, "b0")] }
 const bridge: RailF = { id: 2, bridge: true, pts: [v(100, 0, "b0"), v(300, 0, "b1")] }
 const beyond: RailF = { id: 3, pts: [v(300, 0, "b1"), v(400, 0)] }
@@ -36,7 +37,8 @@ const roads = [
   road(12, [v(200, -20), v(200, 20)]), // an untagged one
   road(13, [v(350, -20), v(350, 20)], { bridge: true }), // a road bridge over the track
 ]
-const water = [stream(20, 2, 250), stream(21, 8, 270)]
+// A 2 m stream, an 8 m river and a 4 m stream (the named streams' width, unmeasured).
+const water = [stream(20, 2, 250), stream(21, 8, 270), stream(22, 4, 230)]
 const wp: Array<Profile> = water.map(() => ({
   x: [0, 0],
   y: [-50, 50],
@@ -49,7 +51,7 @@ const levels = railLevels({
   roads,
   water,
   wp,
-  ground: () => 100,
+  ground: (x, y) => (Math.abs(x - 350) < 10 && Math.abs(y) < 5 ? 93 : 100),
   zAt: () => 110,
 })
 const rail = [atGrade, bridge, beyond].map((item) => ({ item }))
@@ -78,7 +80,32 @@ test("railLevels bounds the rail over a tagged underpass from below, under a roa
   // The level crossing pins nothing on the rail: the road meets it there (a V of up to 5% before).
   assert.deepEqual(at(50), [])
   assert.equal(levels.levels.length, 1)
-  // Over the 8 m river the rail keeps 3 m; over the 2 m stream the line keeps its level.
+  // Over the 8 m river the rail keeps 3 m; over the 2 m and the 4 m streams the line keeps its
+  // level (the Canale di Campiglia's 6.7 m bridge by Gassano lifted the line 1.9 m, a 4.1 % bend).
   assert.deepEqual(at(270), [{ x: 270, y: 0, z: 102, kind: "min" }])
   assert.deepEqual(at(250), [])
+  assert.deepEqual(at(230), [])
+})
+
+// Regression: the line between the ends' ground of the SR445's 396 m viaduct north of Gragnola, down in the valley, held the
+// line 12 m under its ground; a 22 m bridge by Gassano, 4.7 m over the track's ground, dipped it 0.8 m in a V.
+test("railLevels never holds the rail under the ground where a road bridge crosses it: the road rises over it instead", () => {
+  // A viaduct whose ends lie 10 m under the track's ground, and a bridge whose ends stand 4 m over it.
+  for (const ends of [90, 104]) {
+    const over = road(14, [v(350, -200), v(350, 200)], { bridge: true })
+    const at = railLevels({
+      allRail: [atGrade, bridge, beyond],
+      roads: [over],
+      water: [],
+      wp: [],
+      ground: (_x, y) => (Math.abs(y) > 100 ? ends : 100),
+      zAt: () => 110,
+    })
+    assert.deepEqual(
+      at.railBounds(rail).filter((b) => b.x === 350),
+      [{ x: 350, y: 0, z: 100, kind: "max" }],
+      `ends at ${ends} m`,
+    )
+    assert.deepEqual(at.roadBounds([{ item: over }]), [{ x: 350, y: 0, z: 115.5, kind: "min" }])
+  }
 })

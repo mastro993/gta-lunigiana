@@ -9,10 +9,17 @@ import { atGrade, footZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
 import { grazing } from "../population/farms.ts"
 import { LEVEL, onLevel } from "../rail/bodies.ts"
-import { LINES, linesNear, pointAt, speedAt } from "../rail/lines.ts"
+import { linesNear, pointAt, speedAt } from "../rail/lines.ts"
 import { isHeld } from "../rail/models.ts"
 import { trainDraft } from "../rail/service.ts"
-import { aiTrain, downToBox, overRoad, placeTrains, underpassWays } from "../rail/testing.ts"
+import {
+  aiTrain,
+  downToBox,
+  MONZONE,
+  overRoad,
+  placeTrains,
+  underpassWays,
+} from "../rail/testing.ts"
 import {
   endNode,
   laneOf,
@@ -29,7 +36,7 @@ import { footingAt } from "../systems/footing.ts"
 import { flood, LOOK, start, teleport } from "../testing.ts"
 import { waterUnder } from "../water/rivers.ts"
 import { SPATE } from "./flows.ts"
-import { anonymous, line, S } from "./railway.ts"
+import { anonymous, beside, broughtOut, line, S } from "./railway.ts"
 
 /** Which side of the line's centreline a point lies on (±1) and how far off it is, m, by the line's nearest point. */
 const sideOf = (p: { readonly x: number; readonly y: number }) => {
@@ -45,12 +52,6 @@ const cow = (pose: { readonly x: number; readonly y: number }, until = 1e6) =>
     animal(randomAnimal("cow", Random.make(3)), { x: pose.x, y: pose.y, angle: 0 }),
     [Roam, { mood: "idle", until, hx: pose.x, hy: pose.y, tx: pose.x, ty: pose.y }],
   )
-
-/** The point `off` m to the left (+) of the line's centreline at s. */
-const beside = (s: number, off: number) => {
-  const at = pointAt(line, s)
-  return { x: at.x - Ops.sin(at.angle) * off, y: at.y + Ops.cos(at.angle) * off, angle: at.angle }
-}
 
 /**
  * The two rail bridges nearest the player's start over traffic roads at least 4 m under them, found by geometry (by Monzone: an
@@ -135,22 +136,26 @@ test("trains: under the rail bridges by Monzone a car and a walker go on as if n
 })
 
 /**
- * The point of the line on a bridge nearest the player's start with water 1.5 m deep or more under it in a spate, out of a
- * swimmer's depth (on the Aulella's bridge at Gragnola, 9 m over its bed), found by geometry: its s and where it is.
+ * The deepest point under the line's bridge nearest the player's start whose water there is 1.5 m deep or more in a spate, out
+ * of a swimmer's depth, found by geometry: its s and where it is. The Aulella's bridge by Soliera, 15.6 m over its bed, 2.25 m
+ * deep: at Gragnola the Aulella drains 41–60 km² of the map's own, no longer the 161 km² it brought in at the map's old edge,
+ * and is 1.39 m deep at most, where a swimmer stands again within 5 s.
  */
 const OVER_RIVER = (() => {
   const start = MAP.spawns.player
-  let best: { s: number; x: number; y: number; far: number } | undefined
-  for (let s = 0; s < line.length; s += 1) {
-    const at = pointAt(line, s)
-    if (!at.bridge) continue
-    const water = waterUnder(at.x, at.y, true, SPATE)
-    if (water === undefined || water.depth < 1.5) continue
-    const far = Ops.hypot(at.x - start.x, at.y - start.y)
-    if (far < (best?.far ?? Number.MAX_VALUE)) best = { s, x: at.x, y: at.y, far }
+  const deepest: Array<{ s: number; x: number; y: number; depth: number }> = []
+  for (let s = 0, on = false; s < line.length; s += 1) {
+    const at = pointAt(line, s),
+      water = at.bridge ? waterUnder(at.x, at.y, true, SPATE) : undefined
+    const last = deepest.at(-1)
+    if (water !== undefined && on && water.depth > last!.depth)
+      deepest[deepest.length - 1] = { s, x: at.x, y: at.y, depth: water.depth }
+    else if (water !== undefined && !on) deepest.push({ s, x: at.x, y: at.y, depth: water.depth })
+    on = water !== undefined
   }
-  assert.ok(best !== undefined)
-  return best
+  const far = (p: { x: number; y: number }) => Ops.hypot(p.x - start.x, p.y - start.y)
+  const best = deepest.filter((p) => p.depth >= 1.5).reduce((a, b) => (far(b) < far(a) ? b : a))
+  return { ...best, far: far(best) }
 })()
 
 test("trains: a swimmer swept under a rail bridge over the river in a spate is not on the track: a train crossing over leaves them as with no train", () => {
@@ -291,29 +296,11 @@ test("trains: walking down a road onto a level crossing, someone comes onto the 
 })
 
 // Regression: animals were brought out with no regard to the railway, so an AI train braked hard and sounded its alarm for a cow
-// that had come out on its track.
-test("trains: animals brought out anywhere along the line come out off its track at grade, 3 m or more off any centreline", () => {
-  const on: Array<string> = []
-  let brought = 0
-  for (let s = 250; s < line.length; s += 250)
-    for (const off of [45, -45]) {
-      if (pointAt(line, s).tunnel) continue
-      const game = start([], [{ ...beside(s, off), angle: 0 }, {}])
-      const seen = new Set<number>()
-      game.run(S, () => {
-        for (const a of game.world().animals) {
-          if (seen.has(a.id)) continue
-          seen.add(a.id)
-          for (const near of linesNear(a.x, a.y, 3)) {
-            const at = pointAt(LINES[near.line]!, near.s)
-            if (!at.bridge && !at.tunnel)
-              on.push(`a ${a.species} ${near.distance.toFixed(2)} m off s ${near.s.toFixed(0)}`)
-          }
-        }
-      })
-      brought += seen.size
-    }
-  assert.ok(brought > 200, `${brought} brought out`)
+// that had come out on its track. trains-world.map-test.ts walks the whole line.
+test("trains: animals brought out along the line within 1.5 km of Monzone station come out off its track at grade, 3 m or more off any centreline", () => {
+  const mid = (MONZONE.s0 + MONZONE.s1) / 2
+  const { brought, on } = broughtOut(mid - 1500, mid + 1500, 125)
+  assert.ok(brought > 100, `${brought} brought out`)
   assert.deepEqual(on, [])
 })
 

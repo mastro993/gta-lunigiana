@@ -132,7 +132,7 @@ export const cellSlope = (g: Grid, i: number, j: number): number => {
   return (Ops.atan(Math.hypot(dx, dy)) * 180) / Math.PI
 }
 
-/** Visits the nodes `g` holds within `r` of segment a-b, by their index in `g.z`, with their distance and projection parameter. */
+/** Visits the nodes `g` holds within `r` of segment a-b, by their index in `g.z`, with their distance, projection parameter and place. */
 const forNodesNear = (
   g: Grid,
   ax: number,
@@ -140,7 +140,7 @@ const forNodesNear = (
   bx: number,
   by: number,
   r: number,
-  visit: (k: number, d: number, t: number) => void,
+  visit: (k: number, d: number, t: number, x: number, y: number) => void,
 ) => {
   const {
     i0: si,
@@ -155,8 +155,10 @@ const forNodesNear = (
     j1 = Math.min(sj + h - 1, Math.ceil((Math.max(ay, by) + r - g.ay) / g.cell) + oj)
   for (let j = j0; j <= j1; j++)
     for (let i = i0; i <= i1; i++) {
-      const { d2, t } = segDist2(g.x0 + i * g.cell, g.y0 + j * g.cell, ax, ay, bx, by)
-      if (d2 <= r * r) visit((j - sj) * w + i - si, Math.sqrt(d2), t)
+      const x = g.x0 + i * g.cell,
+        y = g.y0 + j * g.cell
+      const { d2, t } = segDist2(x, y, ax, ay, bx, by)
+      if (d2 <= r * r) visit((j - sj) * w + i - si, Math.sqrt(d2), t, x, y)
     }
 }
 
@@ -252,7 +254,8 @@ export interface Pin {
 
 const FADE = 30 // m over which a pin pulls the profile before the grade fit
 const CAP = 4 // m a fitted profile may stray from the smoothed ground before its grade limit is relaxed there
-const RELAX = 1.5 // largest factor on a grade limit (tertiary 15%, rail 3.75%)
+/** Largest factor on a grade limit (tertiary 15%, rail 3.75%). */
+export const RELAX = 1.5
 const RELAX_REACH = 60 // m around a stray sample whose segments get relaxed
 
 /** Envelope of z within the grade budget `t` (cumulative grade x arc length): `dir` = 1 the highest profile at or below z, -1 the lowest at or above. */
@@ -370,7 +373,8 @@ export const carve = (
  * Writes a road profile into the grid: nodes within `core` take the road elevation, the next
  * `blend` m fade back to the terrain. `owner` holds the rank of the road that wrote each core
  * node (255 = none): ranks <= `rank` win, so earlier (higher) classes keep junctions.
- * `protect` marks river nodes no road may touch; segments from sample k with `skip(k)` (bridges, tunnels) write nothing.
+ * `protect` marks river nodes no road may touch; segments from sample k with `skip(k)` (bridges, tunnels) write nothing,
+ * and nodes where `at` is false neither.
  */
 export const flatten = (
   g: Grid,
@@ -381,11 +385,13 @@ export const flatten = (
   owner: Uint8Array,
   protect: Uint8Array,
   skip: (k: number) => boolean,
+  at: (x: number, y: number) => boolean = () => true,
 ): void => {
   const best = new Map<number, { d: number; z: number }>()
   for (let k = 0; k + 1 < p.z.length; k++)
     if (!skip(k))
-      forNodesNear(g, p.x[k]!, p.y[k]!, p.x[k + 1]!, p.y[k + 1]!, core + blend, (n, d, t) => {
+      forNodesNear(g, p.x[k]!, p.y[k]!, p.x[k + 1]!, p.y[k + 1]!, core + blend, (n, d, t, x, y) => {
+        if (!at(x, y)) return
         const cur = best.get(n)
         if (cur === undefined || d < cur.d) best.set(n, { d, z: lerp(p.z[k]!, p.z[k + 1]!, t) })
       })

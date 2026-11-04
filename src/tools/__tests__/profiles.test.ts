@@ -1,8 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
-import { makeProfiler, replayClaims, type Linear } from "../profiles.ts"
+import { replayClaims } from "../grid-claims.ts"
+import { makeProfiler, type Linear } from "../profiles.ts"
+import { roadLevels } from "../road-levels.ts"
 import type { Grid } from "../terrain.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
@@ -36,6 +39,26 @@ test("profile takes a tunnel portal's and a bridge end's level from the ground j
     { id: 3, pts: [v(200, 0, "p1"), v(300, 0, "b0")] },
     { id: 4, bridge: true, pts: [v(300, 0, "b0"), v(400, 0, "b1")] },
     { id: 5, pts: [v(400, 0, "b1"), v(600, 0)] },
+  ]
+  const { profile, zOf } = makeProfiler((x) => ground(x))
+  profile(
+    pieces.map((item) => ({ item, rev: false })),
+    SPEC,
+  )
+  for (const p of pieces)
+    for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
+})
+
+// Regression: the Galleria del Lupacino, cut by the play area's outline 1325 m in and split by OSM where its speed limit
+// changes, took the hill's surface at the cut and at the joint, and fell 3.7% to its portal.
+test("profile runs a tunnel the outline cuts, in two pieces, level from its one portal: no hill's surface at the cut or the joint", () => {
+  // A hill 30 m high over x < 200; the bore comes in at the cut x 0 (no id), in two pieces joined at x 100, and leaves its
+  // portal at x 200 onto flat ground at 100 m.
+  const ground = (x: number) => (x < 200 ? 130 : 100)
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, tunnel: true, pts: [v(0, 0), v(100, 0, "j")] },
+    { id: 2, tunnel: true, pts: [v(100, 0, "j"), v(200, 0, "p")] },
+    { id: 3, pts: [v(200, 0, "p"), v(600, 0)] },
   ]
   const { profile, zOf } = makeProfiler((x) => ground(x))
   profile(
@@ -116,4 +139,124 @@ test("profile carries a tilted bound inside a tunnel to its portals along the tu
   assert.ok(Math.abs(high! - 230) < 0.5, `high portal at ${high}`)
   // Pinned flat, the high portal sank more than 10 m.
   assert.ok(portals(false)[1]! < 220)
+})
+
+// Regression: the SS63's bridge over the Rosaro at Soliera is two OSM ways; taken piece by piece,
+// their joint fell toward the ground 12 m under it, and the deck sagged 4.9 m there (12 % and 6 %).
+test("profile lays a road's bridge of two pieces as one deck, straight from end to end; the rail keeps a deck a piece", () => {
+  // Flat ground at 100 m, a gorge 10 m deep over x 300–400 under the bridge, its joint at x 330.
+  const ground = (x: number) => (x > 300 && x < 400 ? 90 : 100)
+  const halves = [
+    { id: 4, bridge: true as const, pts: [v(300, 0, "b0"), v(330, 0, "j")] },
+    { id: 5, bridge: true as const, pts: [v(330, 0, "j"), v(400, 0, "b1")] },
+  ]
+  const chain = [
+    { id: 3, pts: [v(0, 0), v(300, 0, "b0")] },
+    ...halves,
+    { id: 6, pts: [v(400, 0, "b1"), v(700, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const joint = (decks: boolean) => {
+    const { profile, zOf } = makeProfiler((x) => ground(x))
+    profile(chain, { w: 9, rank: 1, grade: 0.1, half: 20, ...(decks ? { decks: true } : {}) })
+    return zOf.get(halves[0]!)!.at(-1)!
+  }
+  assert.ok(Math.abs(joint(true) - 100) < 1e-6, `the joint at ${joint(true)}`)
+  assert.ok(joint(false) < 99, `a deck a piece sags at its joint: ${joint(false)}`)
+})
+
+// Regression: Pieve San Lorenzo's underpass (road 756577583) under the station's tracks opened under
+// neither mouth: Via della Stazione, a tertiary road crossing over it 4.5 m from the south mouth,
+// held that mouth's cell 5.8 m over the floor, and Via Bugliatico, at a junction 4.2 m beyond the
+// north one, held its cell 1.6 m over (its level there smoothed 1.6 m over the ground's dip).
+test("profile: a road tunnel's approaches hold the grid round its mouths at their level, against a road over it and one beside it", () => {
+  // Flat ground at 100 m; a tunnel from x 100 to 200 kept 6 m under it (a track's clearance over
+  // it); a tertiary road over it 4 m inside its east mouth, and an equal road across its west
+  // approach 4.2 m out, both profiled first.
+  const ground = () => 100
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(100, 0, "m0"), v(200, 0, "m1")] }
+  const chain = [
+    { id: 1, pts: [v(0, 0), v(100, 0, "m0")] },
+    tunnel,
+    { id: 3, pts: [v(200, 0, "m1"), v(400, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const mouths = (on: boolean) => {
+    const { profile, claims, zOf } = makeProfiler(ground)
+    profile([{ item: { pts: [v(196, -20), v(196, 20)] }, rev: false }], { ...SPEC, rank: 1 })
+    profile([{ item: { pts: [v(95.8, -20), v(95.8, 20)] }, rev: false }], { ...SPEC, rank: 3 })
+    profile(
+      chain,
+      { w: 4.5, rank: 3, grade: 0.15, half: 20, decks: true, ...(on ? { mouths: true } : {}) },
+      [{ x: 150, y: 0, z: 94, kind: "max", tilt: true }],
+    )
+    const g = grid()
+    replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+    const at = (x: number, y: number) => g.z[((y + 20) / 4) * 161 + (x + 20) / 4]!
+    const [z0, z1] = zOf.get(tunnel)!
+    return { banks: [at(100, 0) - z0!, at(200, 0) - z1!], over: at(196, 0), beside: at(96, -16) }
+  }
+  const { banks, over, beside } = mouths(true)
+  for (const bank of banks)
+    assert.ok(Math.abs(bank) < 0.5, `a mouth ${bank.toFixed(2)} m under the terrain`)
+  // The road over the tunnel keeps its cells over it, behind the mouth; the other away from it.
+  assert.equal(over, 100)
+  assert.equal(beside, 100)
+  // Without: both mouths buried about 6 m.
+  for (const bank of mouths(false).banks) assert.ok(bank > 5, `${bank}`)
+})
+
+// Regression: east of Collegnago a road fitted round a hill, one end pinned, left its free junction
+// 3.3 m over the ground, and the 12 m link from there to the junction an earlier fit set, fitted
+// last between the two, climbed 53 % where the ground between them climbs 18 %.
+test("profile keeps a junction it sets within reach of the short link to a junction set before", () => {
+  // Flat ground at 100 m to y 12; then a hill climbing 27 % to 127 m at y 112, falling 10 % to C.
+  const ground = (_x: number, y: number) =>
+    y <= 12 ? 100 : y <= 112 ? 100 + 0.27 * (y - 12) : 127 - 0.1 * (y - 112)
+  const west = { pts: [v(-100, 0), v(0, 0, "A")] }
+  const top = { pts: [v(0, 212, "C"), v(100, 212)] }
+  const hill = { pts: [v(0, 12, "B"), v(0, 62), v(0, 112), v(0, 162), v(0, 212, "C")] }
+  const link = { pts: [v(0, 0, "A"), v(0, 12, "B")] }
+  const spec = { w: 5, rank: 3, grade: 0.15, half: 20, decks: true as const }
+  const climb = (reach: boolean) => {
+    const graded = [west, top, hill, link].map((piece) => ({ piece, grade: 1.5 * spec.grade }))
+    const { profile, zOf } = makeProfiler(ground, graded)
+    for (const piece of [top, west, hill, link])
+      profile([{ item: piece, rev: false }], reach ? { ...spec, reach: true } : spec)
+    const [a, b] = zOf.get(link)!
+    return (b! - a!) / 12
+  }
+  assert.ok(climb(true) <= 1.5 * 0.15 + 1e-9, `the link climbs ${climb(true)}`)
+  // Unbounded, the hill's fit lifts B and the link climbs far over its grade.
+  assert.ok(climb(false) > 0.25, `the link climbs ${climb(false)}`)
+})
+
+// Regression: the SR445's loop at Gassano runs under its own bridge, both in one chain; a bound at
+// the crossing took the chain's nearest sample, on the loop, so the bridge's lifted the loop to it
+// and the bridge stood 1.4 m over it.
+test("profile holds each bound on its own piece where a chain crosses itself: a loop clears its own bridge", () => {
+  // Flat ground at 100 m: a loop from under the bridge, south and round to W, then the bridge on
+  // east from W; they cross at (14, 0), the loop's nearest sample 0.8 m off it, the bridge's 2 m.
+  const primary = (id: number, pts: ReadonlyArray<V>, bridge = false): RoadF => ({
+    id,
+    cls: "primary",
+    w: 7,
+    surface: "asphalt",
+    private: false,
+    pts,
+    ...(bridge ? { bridge: true } : {}),
+  })
+  const loop = primary(1, [v(14, 20), v(14, -30), v(0, -60), v(-30, -30), v(0, 0, "W")])
+  const bridge = primary(2, [v(0, 0, "W"), v(80, 0, "E")], true)
+  const chain = [loop, bridge].map((item) => ({ item, rev: false }))
+  const { bounds } = roadLevels({
+    roads: [loop, bridge],
+    ground: () => 100,
+    fitted: () => false,
+    zAt: () => 0,
+  })
+  const { profile, zOf } = makeProfiler(() => 100)
+  profile(chain, { w: 7, rank: 1, grade: 0.1, half: 20, decks: true }, bounds(chain))
+  const [w, e] = zOf.get(bridge)!,
+    [l0, l1] = zOf.get(loop)!
+  const gap = w! + ((e! - w!) * 14) / 80 - (l0! + ((l1! - l0!) * 20) / 50)
+  assert.ok(gap >= 5.5 - 1e-6, `the bridge ${gap.toFixed(2)} m over the loop`)
 })

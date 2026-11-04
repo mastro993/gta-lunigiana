@@ -3,7 +3,7 @@
 import assert from "node:assert/strict"
 
 import { segDist2 } from "../../sim/collide.ts"
-import { MAP } from "../../sim/map/index.ts"
+import { inPlay, MAP, outlineDistance } from "../../sim/map/index.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
 import { chunkOf } from "../chunks.ts"
@@ -279,14 +279,8 @@ export const checkBed = ({ all }: Railway, least: number): void => {
   for (const tri of trianglesOf(all.solid, PALETTE.ballast)) {
     const level = tri.every(([, y]) => Math.abs(y - tri[0][1]) < 0.1)
     if (!level) continue
-    for (const [x, y, z] of tri)
-      if (
-        x > MAP.bounds.minX &&
-        x < MAP.bounds.maxX &&
-        -z > MAP.bounds.minY &&
-        -z < MAP.bounds.maxY
-      )
-        over.push(y - terrainY(x, -z))
+    // In the play area: past its outline the drawn run lies on the apron, or in the hill the map cuts a tunnel's bore off.
+    for (const [x, y, z] of tri) if (inPlay(x, -z)) over.push(y - terrainY(x, -z))
   }
   over.sort((a, b) => a - b)
   assert.ok(over.length > least, `${over.length} corners of the bed's top`)
@@ -311,16 +305,8 @@ export const checkPortals = ({ all, rail: track, holds }: Railway, least: number
           j !== i && [0, o.z.length - 1].some((k) => o.pts[2 * k] === x && o.pts[2 * k + 1] === y)
         )
       })
-      const { minX, minY, maxX, maxY } = MAP.bounds
-      if (
-        !holds(x, y) ||
-        shared ||
-        x <= minX + 0.5 ||
-        x >= maxX - 0.5 ||
-        y <= minY + 0.5 ||
-        y >= maxY - 0.5
-      )
-        continue
+      // Off the play area's outline, where the map cuts a tunnel (the Galleria del Lupacino at x 6700) and no mouth stands.
+      if (!holds(x, y) || shared || outlineDistance(x, y) <= 0.5) continue
       mouths++
       const inner = end === 0 ? 1 : rail.z.length - 2,
         ox = x - rail.pts[2 * inner]!,

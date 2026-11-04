@@ -1,17 +1,19 @@
-// The terrain grid, built one 2 km tile at a time: on each tile's window of nodes the LiDAR is
-// averaged, the lakes and river polygons carved (water-areas.ts) and the beds under the water as
+// The terrain grid, built one listed 2 km tile at a time: on each tile's window of nodes the LiDAR
+// is averaged, the lakes and river polygons carved (water-areas.ts) and the beds under the water as
 // first settled, the road and rail claims written in the build's order (never on the water), the
 // river polygons (their gravel bars raised now) and the beds (outside the road cores) carved again
 // under the water kept below the decks, the terrain under each water sample read for the perched
 // check, the grid rounded to
 // 0.1 m and the rail bed levelled. Each of those writes a node from that node alone (its own value,
 // position, owner and the vectors), so a window needs no halo, and a node two tiles share comes out
-// the same in both: the pass checks it.
+// the same in both: the pass checks it. A tile of the bounds' box the region leaves off its list (an
+// L's notch) is never worked: no terrain is read there.
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
-import { segIndex } from "./geometry.ts"
-import { cellTile, gridTiles } from "./grid-tiles.ts"
-import { replayClaims, ROAD_RANKS, type Claim } from "./profiles.ts"
+import { segIndex, type V } from "./geometry.ts"
+import { type Claim, replayClaims } from "./grid-claims.ts"
+import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
+import { ROAD_RANKS } from "./profiles.ts"
 import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { gridLattice, sampleGrid, type Grid, type Profile } from "./terrain.ts"
 import { carveAreas, waterNodes, type CarvedArea } from "./water-areas.ts"
@@ -29,6 +31,8 @@ interface GridInput {
   readonly areas: ReadonlyArray<CarvedArea>
   /** The road and rail profiles' claims, in the order they were made. */
   readonly claims: ReadonlyArray<Claim>
+  /** The road bridges: each centreline, and how far either side of it its deck reaches, m. */
+  readonly decks: ReadonlyArray<{ readonly pts: ReadonlyArray<V>; readonly half: number }>
   /** The at-grade rail as shipped, and the level crossings' nodes. */
   readonly rail: ReadonlyArray<{
     readonly pts: ReadonlyArray<number>
@@ -38,18 +42,57 @@ interface GridInput {
 }
 
 /**
- * The finished grid, the uncarved one (the catchments read it), the carved grid before its rounding
- * under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed moved.
+ * The finished grid, the uncarved one (the catchments read it), the nodes the listed tiles hold
+ * (`listed`, 1, as `listedNodes` in grid-tiles.ts), the carved grid before its rounding under every
+ * water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed moved. A node no listed
+ * tile holds (an L's notch) is 0 in the uncarved grid, which the catchments leave out, and in the
+ * finished grid the listed node the game reads there (`extendEdges`), so the walls' slopes, the
+ * buildings' floors and the water on the play area's inner edge read the edge extended, not a
+ * cliff down to 0 m.
  */
-export const tileByTile = ({ dem, water, wp0, wp, areas, claims, rail, levels }: GridInput) => {
+export const tileByTile = ({
+  dem,
+  water,
+  wp0,
+  wp,
+  areas,
+  claims,
+  decks,
+  rail,
+  levels,
+}: GridInput) => {
   const lattice = gridLattice()
   const size = lattice.cols * lattice.rows
   const uncarved: Grid = { ...lattice, z: new Float64Array(size) },
     grid: Grid = { ...lattice, z: new Float64Array(size) }
   const written = new Uint8Array(size)
-  // Roads may claim river banks but never the water itself.
-  const wet = segIndex<null>()
-  for (const w of water) if (w.w >= 4) wet.addLine(w.pts, w.w / 2 + 1, null)
+  // Roads may claim river banks but never the water itself: a wide stream's anywhere, and a narrow
+  // one's under a road bridge's deck, between its ends, where no road stands on the ground (at grade
+  // it runs in the road's culvert; under the rail the channel dips under the bed, channel.ts). An
+  // approach road's core reaches its full width past its end, under the bridge: at Pognana the
+  // SP41's filled a 2 m stream's bed under its 12 m bridge to the deck, and the spate stood on it.
+  const wet = segIndex<null>(),
+    narrow = segIndex<null>(),
+    under = segIndex<{ readonly first: boolean; readonly last: boolean }>()
+  for (const w of water)
+    if (w.w >= 4) wet.addLine(w.pts, w.w / 2 + 1, null)
+    else narrow.addLine(w.pts, w.w / 2 + 1, null)
+  for (const { pts, half } of decks)
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i]!,
+        b = pts[i + 1]!
+      under.add(a.x, a.y, b.x, b.y, half, { first: i === 0, last: i + 2 === pts.length })
+    }
+  /** Under a deck, not past either of its ends (a segment's t is clamped there). */
+  const underDeck = (x: number, y: number) => {
+    let hit = false
+    under.within(x, y, (s, _, t) => {
+      if ((t > 0 || !s.data.first) && (t < 1 || !s.data.last)) hit = true
+    })
+    return hit
+  }
+  const isWet = (x: number, y: number) =>
+    wet.covers(x, y) || (narrow.covers(x, y) && underDeck(x, y))
   const limits = bedLimits(lattice, rail, levels)
   const moved = new Map<number, number>()
   // Each water sample is read in the tile whose own cells hold its cell.
@@ -75,7 +118,7 @@ export const tileByTile = ({ dem, water, wp0, wp, areas, claims, rail, levels }:
       owner = new Uint8Array(cols * rows).fill(255)
     for (let k = 0; k < protect.length; k++)
       if (protect[k] === 0)
-        protect[k] = wet.covers(
+        protect[k] = isWet(
           lattice.x0 + (i0 + (k % cols)) * lattice.cell,
           lattice.y0 + (j0 + Math.floor(k / cols)) * lattice.cell,
         )
@@ -106,6 +149,17 @@ export const tileByTile = ({ dem, water, wp0, wp, areas, claims, rail, levels }:
         grid.z[n] = z
         written[n] = 1
       }
+    samples.delete(tile.key)
   }
-  return { grid, uncarved, perched, bed: bedReport(moved) }
+  extendEdges(grid, written)
+  // A sample whose cell lies in an unlisted tile (one on the notch's west or south side, where the
+  // play area cuts the water, reads the cell east or north of it) reads the finished grid there, as
+  // the game does: on the side the notch's nodes weigh nothing, and past it they are the edge's.
+  for (const own of samples.values())
+    for (let m = 0; m < own.length; m += 2) {
+      const p = wp[own[m]!]!,
+        k = own[m + 1]!
+      perched[own[m]!]![k] = sampleGrid(grid, p.x[k]!, p.y[k]!)
+    }
+  return { grid, uncarved, listed: written, perched, bed: bedReport(moved) }
 }

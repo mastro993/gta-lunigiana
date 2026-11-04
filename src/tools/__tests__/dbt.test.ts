@@ -14,7 +14,7 @@
 //   the A15's in a tunnel (ac_vei_sed 06); ar_vms (010105): #15, #230; zona_r (000201): #10, its
 //   zona_r_dt (the survey firms) blanked.
 import assert from "node:assert/strict"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { copyFileSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -173,4 +173,77 @@ test("readDbt places the DBT's EPSG:3003 vertices with the DBT's residual", () =
   assert.deepEqual(at(), [-20829.8, 22167.8]) // the LiDAR's residual: 0.5 m off
   const greenhouse = readDbt(DIR, ANYWHERE).buildings.find((b) => b.kind === "greenhouse")!
   assert.ok(vertices(greenhouse.outer).some(([x, y]) => x === -20829.3 && y === 22167.6))
+})
+
+// Regression: Minucciano's and Giuncugnano's DBT of 2011, one survey, both hold the 982 units of the
+// land between them, and the map drew 528 buildings twice, under each comune's ids.
+test("readDbt reads a record two comuni's archives both hold once, under the first comune's ids", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "dbt-twice-"))
+  t.after(() => rmSync(dir, { recursive: true }))
+  for (const file of readdirSync(DIR))
+    for (const istat of ["045014", "045099"])
+      copyFileSync(join(DIR, file), join(dir, file.replace("045014", istat)))
+  const once = readDbt(DIR, ANYWHERE),
+    twice = readDbt(dir, ANYWHERE)
+  assert.deepEqual(twice.buildings, once.buildings)
+  assert.deepEqual(twice.roadAreas, once.roadAreas)
+  // The zones are all read: their union, the mapped area, is the same.
+  assert.deepEqual(twice.mapped, [...once.mapped, ...once.mapped])
+})
+
+// Regression: each archive cuts its copy of a record at its own edge, and the copy read first, the
+// cut one, left 3 ha of a Minucciano zone unmapped, so 7 OSM buildings stood on the DBT's own there,
+// and kept 17 m² of an 80 m² unit.
+test("readDbt reads the larger copy of a record two archives hold, every zone, and a road's areas but an identical copy", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "dbt-cut-"))
+  t.after(() => rmSync(dir, { recursive: true }))
+  const [e, n] = [1569322, 4912383]
+  /** A w x h m rectangle at (e + de, n). */
+  const rect = (w: number, h: number, de = 0) =>
+    [
+      [e + de, n, 0],
+      [e + de, n + h, 0],
+      [e + de + w, n + h, 0],
+      [e + de + w, n, 0],
+      [e + de, n, 0],
+    ] as const
+  const unit = {
+    un_vol_id: "RT0201010201051763",
+    un_vol_por: "01",
+    un_vol_av: "6",
+    un_vol_qe: "0",
+    edifc_ty: "01",
+    edifc_uso: "01",
+    edifc_stat: "03",
+    edi_min_ty: "-",
+  }
+  const write = (istat: string, name: string, records: Parameters<typeof shapefile>[1]) => {
+    const { shp, dbf } = shapefile(15, records)
+    writeFileSync(join(dir, `${istat}_${name}.shp.gz`), gzipSync(shp))
+    writeFileSync(join(dir, `${istat}_${name}.dbf.gz`), gzipSync(dbf))
+  }
+  // Giuncugnano's copies, read first, are cut to 10 x 2 m and 100 x 50 m.
+  write("046016", "un_vol", [{ parts: [rect(10, 2)], attrs: unit }])
+  write("046019", "un_vol", [{ parts: [rect(10, 8)], attrs: unit }])
+  write("046016", "zona_r", [{ parts: [rect(100, 50)], attrs: { zona_r_id: "Z" } }])
+  write("046019", "zona_r", [{ parts: [rect(100, 100)], attrs: { zona_r_id: "Z" } }])
+  // One road's two areas in Giuncugnano's archive, the second of them in Minucciano's too.
+  const road = (de: number) => ({ parts: [rect(5, 20, de)], attrs: { ar_str_id: "R" } })
+  write("046016", "ar_str", [road(200), road(300)])
+  write("046019", "ar_str", [road(300)])
+  const dbt = readDbt(dir, ANYWHERE)
+  const m2 = (ring: ReadonlyArray<number>) => Math.round(Math.abs(signedArea(vertices(ring))))
+  assert.deepEqual(
+    dbt.buildings.map((b) => m2(b.outer)),
+    [80],
+  )
+  // In hundreds of m²: local metres are 0.2% longer than EPSG:3003's here.
+  assert.deepEqual(
+    dbt.mapped.map((ring) => Math.round(m2(ring) / 100)),
+    [50, 100],
+  )
+  assert.deepEqual(
+    dbt.roadAreas.map((a) => m2(a.rings[0]!)),
+    [100, 100],
+  )
 })

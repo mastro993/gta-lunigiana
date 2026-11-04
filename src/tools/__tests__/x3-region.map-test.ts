@@ -1,9 +1,10 @@
 // The 3x test region (`lunigiana-3x`, region.ts), whose play area is lucido's on three times its
-// built terrain, against lucido: the terrain and the tables the bake reads from it in lucido's
-// rectangle, and the live vehicles round Monzone (six seeds and the same stand at the start:
-// `stand.ts`, one child process a map and seed, as a process loads one map). The 3x is built by
-// hand (node src/tools/build-map.ts --region lunigiana-3x, 15.5 s, 1.5 GB; CI never builds it), and
-// without it this is skipped.
+// built terrain, against lucido alone (`lunigiana-lucido`): the terrain and the tables the bake
+// reads from it in lucido's rectangle, and the live vehicles round Monzone (six seeds and the same
+// stand at the start: `stand.ts`, one child process a map and seed, as a process loads one map).
+// The shipped map is no longer lucido alone (issue #17), so both are built by hand (node
+// src/tools/build-map.ts --region lunigiana-lucido, 15 s and 1.3 GB, then --region lunigiana-3x,
+// 22 s and 1.9 GB; CI builds neither), and without either this is skipped.
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
 import { existsSync } from "node:fs"
@@ -14,21 +15,22 @@ import { promisify } from "node:util"
 import { insideRings } from "../../sim/map/outline.ts"
 import { PARKED } from "../../sim/population/parked.ts"
 import { TRAFFIC } from "../../sim/systems/populate.ts"
-import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../map-file.ts"
+import { builtMapUrl, type JoinedMap, readWholeMap } from "../map-file.ts"
 import { PARTS, regionFromArgs } from "../region.ts"
-import { BUILDINGS_PER_SPOT } from "../spawns.ts"
 
-const X3 = regionFromArgs(["--region", "lunigiana-3x"])
-const skip = existsSync(builtMapUrl(X3))
+const LUCIDO_ONLY = regionFromArgs(["--region", "lunigiana-lucido"]),
+  X3 = regionFromArgs(["--region", "lunigiana-3x"])
+const skip = [LUCIDO_ONLY, X3].every((r) => existsSync(builtMapUrl(r)))
   ? false
-  : `no ${X3.key} build in test-maps: run node src/tools/build-map.ts --region ${X3.key}`
+  : `needs both builds in test-maps: run node src/tools/build-map.ts --region ${LUCIDO_ONLY.key}, then --region ${X3.key}`
 const STAND = fileURLToPath(new URL("stand.ts", import.meta.url))
 const run = promisify(execFile)
 const LUCIDO = PARTS[0]!.rects[0]!
 
 let both: { readonly lucido: JoinedMap; readonly x3: JoinedMap } | undefined
-/** Lucido's map and the 3x's, whole, read once. */
-const maps = () => (both ??= { lucido: wholeMap(), x3: readWholeMap(builtMapUrl(X3)) })
+/** Lucido's map alone and the 3x's, whole, read once. */
+const maps = () =>
+  (both ??= { lucido: readWholeMap(builtMapUrl(LUCIDO_ONLY)), x3: readWholeMap(builtMapUrl(X3)) })
 
 /** Metres from (x, y) in to lucido's edge. */
 const inFromEdge = (x: number, y: number) => {
@@ -91,23 +93,14 @@ test("the 3x bakes lucido's lamps, water beds and parked spots' rests", { skip }
       ),
     )
   })
-  // Every spot the 3x keeps is lucido's, rest and all. It leaves out the one by a building it drops
-  // across lucido's edge, and, as it keeps a kerbside spot a BUILDINGS_PER_SPOT buildings and holds
-  // fewer, the last ones lucido takes (the spots come in the order they are taken) to make up the rest.
+  // Every spot the 3x keeps is lucido's, rest and all, and it keeps every other: a kerbside spot is
+  // kept by its own place's hash and those near it (`KERB_SHARE`), so only one by a building it
+  // drops across lucido's edge may go (none does today: both keep the same 807).
   const spots = new Set(lucido.spawns.parked.map(key)),
     kept = new Set(x3.spawns.parked.map(key))
   for (const spot of x3.spawns.parked) assert.ok(spots.has(key(spot)), `3x spot ${key(spot)}`)
-  const left = lucido.spawns.parked.flatMap((s, i) => (kept.has(key(s)) ? [] : [i])),
-    edge = left.filter(
-      (i) => inFromEdge(lucido.spawns.parked[i]!.x, lucido.spawns.parked[i]!.y) < 50,
-    )
-  const kerb = (m: JoinedMap) => Math.round(m.buildings.length / BUILDINGS_PER_SPOT),
-    short = kerb(lucido) - kerb(x3) - edge.length
-  assert.equal(edge.length, 1)
-  assert.deepEqual(
-    left.filter((i) => !edge.includes(i)),
-    Array.from({ length: short }, (_, k) => kerb(lucido) - short + k),
-  )
+  const left = lucido.spawns.parked.filter((s) => !kept.has(key(s)))
+  for (const s of left) assert.ok(inFromEdge(s.x, s.y) < 50, `lucido spot ${key(s)} left out`)
 })
 
 // Outside the play area the map holds terrain, land cover and trees alone (issue #7): no platform
@@ -140,8 +133,8 @@ const stand = async (key: string, seed: number): Promise<Stand> =>
     (await run(process.execPath, [STAND, key, String(seed)], { encoding: "utf8" })).stdout,
   ) as Stand
 
-// A spot's car is the dice's for its place and the seed (`carOn`), not its index, so though the 3x
-// leaves out one spot past lucido's edge, which moves every later spot's index (docs/map.md, "Test
+// A spot's car is the dice's for its place and the seed (`carOn`), not its index, so though a spot
+// the 3x left out past lucido's edge would move every later spot's index (docs/map.md, "Test
 // regions"), each seed parks the same cars round Monzone on both: on the spots within 300 m of the
 // start, which stand where they do on lucido, the dice's.
 test(
@@ -150,7 +143,7 @@ test(
   async () => {
     const runs = await Promise.all(
       [1, 2, 3, 4, 5, 6].flatMap((seed) =>
-        ["lunigiana", X3.key].map(async (key) => ({ key, seed, ...(await stand(key, seed)) })),
+        [LUCIDO_ONLY.key, X3.key].map(async (key) => ({ key, seed, ...(await stand(key, seed)) })),
       ),
     )
     for (const { key, seed, parked, traffic, other, spots, cars, dice, near } of runs) {

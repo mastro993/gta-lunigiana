@@ -88,6 +88,18 @@ test("buildPlatforms makes a strip between two close tracks, or one under 1.2 m 
   assert.equal(wide[0]!.walkway, false, `${wide[0]!.width.toFixed(2)} m wide`)
 })
 
+// Regression: the CTR maps a strip north of Pieve San Lorenzo's line (23D15 AGE 252) as a platform,
+// 2.45 m off the track: bare ground on the 2010 orthophoto, a service path and the line's equipment
+// on the 2023 one. Its edge too far for any train's step, it got no yellow line, though a platform.
+test("buildPlatforms makes a piece no edge of which comes within reach of a train's door a walkway", () => {
+  const off = (y: number) =>
+    buildPlatforms({ ...base, polygons: [{ src: `${y}`, rings: [box(0, y, 40, 9)] }] })[0]!
+  const far = off(2.45),
+    near = off(2.1)
+  assert.equal(far.walkway, true, `${far.clear.toFixed(2)} m off`)
+  assert.equal(near.walkway, false, `${near.clear.toFixed(2)} m off`)
+})
+
 test("buildPlatforms leaves out ground more than 1 m under the platform's top, and pieces under 4 m²", () => {
   const out = buildPlatforms({
     ...base,

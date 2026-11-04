@@ -120,6 +120,23 @@ test("fetchRaw downloads the missing and different files, release by release, th
   assert.deepEqual(lines, ["data/raw matches the lock: 3 files"])
 })
 
+test("a pinned file moved since keeps its asset: fetchRaw downloads it by the asset's name to its new path", () => {
+  // data/raw/lunigiana.osm.gz became data/raw/osm/lucido.osm.gz with no new upload.
+  const lock: Lock = {
+    "osm/lucido.osm.gz": { ...pin("lunigiana.osm.gz", "osm"), source: "osm" },
+  }
+  const raw = rawWith({ "lunigiana.osm.gz": "osm" })
+  const gh = fakeGh({ "raw-20261030": { "lunigiana.osm.gz": "osm" } })
+  const lines: Array<string> = []
+  fetchRaw(lock, raw, gh.run, (line) => lines.push(line))
+  // The file at its old path is no longer listed: reported and left alone.
+  assert.deepEqual(contents(raw), { "lunigiana.osm.gz": "osm", "osm/lucido.osm.gz": "osm" })
+  assert.deepEqual(lines, [
+    "not in the lock, left as it is (the build may read it): lunigiana.osm.gz",
+    "downloaded 1 of 1 files (0.0 MB), replacing 0",
+  ])
+})
+
 test("a download whose bytes differ from the lock fails loudly, leaving data/raw as it was", () => {
   const lock: Lock = {
     "rt/dtm.bin": pin("rt/dtm.bin", "dtm"),

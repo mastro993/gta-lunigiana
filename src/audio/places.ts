@@ -14,6 +14,7 @@
 import { segDist2 } from "../sim/collide.ts"
 import { type Cover, coverAt, coverIndexAt, coverName } from "../sim/map/cover.ts"
 import {
+  type BellEntry,
   type Building,
   buildingStyleOf,
   heightAt,
@@ -23,8 +24,10 @@ import {
   TRUNK,
   wallsNear,
 } from "../sim/map/index.ts"
+import { anchorOf } from "../sim/map/kinds.ts"
 import { isResident, placeAt, tilesOver } from "../sim/map/tiles.ts"
 import { buildingsIn } from "../sim/map/vectors.ts"
+import { hash01 } from "../tools/geometry.ts"
 import { delayOf, EAR_HEIGHT } from "./acoustics.ts"
 import { landAt } from "./ground.ts"
 import type { Material } from "./types.ts"
@@ -32,7 +35,8 @@ import type { Material } from "./types.ts"
 export { birdSpot, type Dog, dogsNear, type Owl, owlsNear } from "./places/animals.ts"
 export { waterNear, type WaterHeard } from "./places/water.ts"
 
-const { cell, x0, y0 } = MAP.heightmap,
+const { cell } = MAP.heightmap,
+  { x: AX, y: AY, i: AI, j: AJ } = anchorOf(MAP.heightmap),
   COLS = MAP.heightmap.cols - 1,
   ROWS = MAP.heightmap.rows - 1
 
@@ -150,30 +154,39 @@ const SHARE = { forest: 0, open: 1, built: 2 } as const satisfies Record<keyof A
 /** Each land-cover index's share. */
 const KINDS = Array.from({ length: 256 }, (_, v) => AMBIENCE[coverName(v)])
 
-/** An ambience block is this many cover cells a side (32 m), on the cover's lattice; at most `BLOCKS` are kept (2 km square of them). */
+/**
+ * An ambience block is this many cover cells a side (32 m), on the cover's lattice; at most `BLOCKS`
+ * are kept (2 km square of them). The blocks count from the region's anchor (`anchorOf`), never the
+ * box's corner, as the owls' squares do: a part that grows the box west or south moves no block of
+ * the parts before it. Block (i, j) starts at cell (`AI + i * BLOCK`, `AJ + j * BLOCK`).
+ */
 const BLOCK = 8,
   BLOCKS = 4096
-const blockCols = Math.ceil(COLS / BLOCK),
-  blockRows = Math.ceil(ROWS / BLOCK)
-/** The blocks worked out, by `j * blockCols + i`: their forest, open and built shares. */
+/** The blocks that meet the box along x and along y: the first's index (negative west or south of the anchor) and the last's. */
+const blockCols = { first: Math.floor(-AI / BLOCK), last: Math.ceil((COLS - AI) / BLOCK) - 1 },
+  blockRows = { first: Math.floor(-AJ / BLOCK), last: Math.ceil((ROWS - AJ) / BLOCK) - 1 }
+/** The blocks worked out, by `slot`: their forest, open and built shares. */
 const blocks = new Map<number, Float32Array>()
+/** Block (i, j)'s place in `blocks`. */
+const slot = (i: number, j: number) =>
+  (j - blockRows.first) * (blockCols.last - blockCols.first + 1) + i - blockCols.first
 
 /**
  * The shares of block (i, j), its cells counted once the tiles under it are in memory (and kept); until
  * then, all of its share is the coarse cover's at its centre.
  */
 const blockAt = (i: number, j: number): Float32Array => {
-  const k = j * blockCols + i,
+  const k = slot(i, j),
     known = blocks.get(k)
   if (known !== undefined) return known
-  // Blocks on the north and east edges are cut short.
-  const ci0 = i * BLOCK,
-    cj0 = j * BLOCK,
-    ci1 = Math.min(COLS, ci0 + BLOCK),
-    cj1 = Math.min(ROWS, cj0 + BLOCK)
+  // Blocks on the box's edges are cut short.
+  const ci0 = Math.max(0, AI + i * BLOCK),
+    cj0 = Math.max(0, AJ + j * BLOCK),
+    ci1 = Math.min(COLS, AI + (i + 1) * BLOCK),
+    cj1 = Math.min(ROWS, AJ + (j + 1) * BLOCK)
   const shares = new Float32Array(3)
-  const sw = { x: x0 + (ci0 + 0.5) * cell, y: y0 + (cj0 + 0.5) * cell },
-    ne = { x: x0 + (ci1 - 0.5) * cell, y: y0 + (cj1 - 0.5) * cell }
+  const sw = { x: AX + (ci0 - AI + 0.5) * cell, y: AY + (cj0 - AJ + 0.5) * cell },
+    ne = { x: AX + (ci1 - AI - 0.5) * cell, y: AY + (cj1 - AJ - 0.5) * cell }
   if (!tilesOver(sw.x, sw.y, ne.x, ne.y).every(isResident)) {
     const kind = AMBIENCE[landAt((sw.x + ne.x) / 2, (sw.y + ne.y) / 2)]
     if (kind !== "none") shares[SHARE[kind]] = 1
@@ -193,10 +206,10 @@ const blockAt = (i: number, j: number): Float32Array => {
 /** The ambience around (x, y): the 32 m blocks' shares, bilinear between block centres. */
 export const ambienceAt = (x: number, y: number): Ambience => {
   const size = cell * BLOCK
-  const fx = Math.min(blockCols - 1, Math.max(0, (x - x0) / size - 0.5)),
-    fy = Math.min(blockRows - 1, Math.max(0, (y - y0) / size - 0.5))
-  const i = Math.min(blockCols - 2, Math.floor(fx)),
-    j = Math.min(blockRows - 2, Math.floor(fy)),
+  const fx = Math.min(blockCols.last, Math.max(blockCols.first, (x - AX) / size - 0.5)),
+    fy = Math.min(blockRows.last, Math.max(blockRows.first, (y - AY) / size - 0.5))
+  const i = Math.min(blockCols.last - 1, Math.floor(fx)),
+    j = Math.min(blockRows.last - 1, Math.floor(fy)),
     tx = fx - i,
     ty = fy - j
   const sw = blockAt(i, j),
@@ -333,23 +346,33 @@ export const echoesAt = (x: number, y: number): ReadonlyArray<Echo> => {
     .map(({ d, dx, dy, loss }) => ({ delay: delayOf(2 * d), loss, dx, dy }))
 }
 
-/** A church bell: its tower top and the prime partial of its bell, Hz. */
+/** A church bell: its tower top, the prime partial of its bell, Hz, and its seed 0…1, which sets how late it strikes the hour. */
 export interface Bell {
   readonly key: string
   readonly x: number
   readonly y: number
   readonly z: number
   readonly pitch: number
+  readonly seed: number
 }
 
 /** Taller towers hang bigger bells: the prime falls an octave from 800 Hz (a 10 m tower) to 400 Hz (30 m). */
 const pitchOf = (h: number): number => 800 * 2 ** -Math.min(1, Math.max(0, (h - 10) / 20))
 
+/**
+ * The bells of the towers the build found (`MAP.derived.bells`). A bell's seed is hashed from its
+ * building's id (salt 15: the renderer's roof hashes it with 7), never from its place in the list,
+ * which every part that grows the map reorders.
+ */
+export const bellsFrom = (towers: ReadonlyArray<BellEntry>): ReadonlyArray<Bell> =>
+  towers.map(({ id, x, y, z, h }) => ({
+    key: `bell:${id}`,
+    x,
+    y,
+    z,
+    pitch: pitchOf(h),
+    seed: hash01(id, 15),
+  }))
+
 /** One bell per settlement: the tallest church or tower of every district that has one (the build finds them, src/tools/bells.ts). */
-export const bells: ReadonlyArray<Bell> = MAP.derived.bells.map(({ id, x, y, z, h }) => ({
-  key: `bell:${id}`,
-  x,
-  y,
-  z,
-  pitch: pitchOf(h),
-}))
+export const bells: ReadonlyArray<Bell> = bellsFrom(MAP.derived.bells)

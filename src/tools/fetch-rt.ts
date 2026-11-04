@@ -1,24 +1,23 @@
 // Downloads the Regione Toscana sources (Geoscopio cartoteca) and writes the pinned subsets the map
-// build reads to data/raw/rt. Run: node src/tools/fetch-rt.ts  (pnpm fetch-rt), or
-// `node src/tools/fetch-rt.ts ctr` (pnpm fetch-rt ctr) for the surveys alone (the CTR sheets and
-// sections, the DBT), which leaves the terrain and the land cover as they are, or `ucs` for the
-// land cover alone. What it downloads comes from the part's manifest, data/parts/<part>.json
-// (`manifest.ts`); it reads one part, today's (`lucido` in `region.ts`), until #17 brings
-// `fetch-rt <part>` and the per-part raw layout. With `--region <key>` of a test region with terrain
-// of its own (`ownTerrain`, issue #10) it writes that region's terrain alone, to data/raw/rt/<key>;
-// of one with buildings of its own (`ownBuildings`, issue #11), the surveys its manifest lists
-// alone, to data/raw/rt/<key> (`surveyDir`). Needs `unzip` on the PATH, and `bsdtar` for the DBT.
-// The archives are cached in the OS temp directory (`rt-cache.ts`). A file whose unpacked bytes
-// equal the new ones is not rewritten, so another zlib never churns a pinned file. Either way, a
-// file whose bytes the lock does not hold is recorded there with its source, for `pnpm pin-raw`
-// (`raw-lock.ts`).
+// build reads to data/raw/rt. Run: node src/tools/fetch-rt.ts <part>  (pnpm fetch-rt <part>), or
+// `node src/tools/fetch-rt.ts <part> ctr` for the part's surveys alone (the CTR sheets and
+// sections, the DBT), which leaves the terrain and the land cover as they are, or `<part> ucs` for
+// its land cover alone. What it downloads comes from the part's manifest, data/parts/<part>.json
+// (`manifest.ts`); the terrain mosaics every Lunigiana part's in order. With `--region <key>` of a
+// test region with terrain of its own (`ownTerrain`, issue #10) it writes that region's terrain
+// alone, to data/raw/rt/<key>; of one with buildings of its own (`ownBuildings`, issue #11), the
+// surveys its manifest lists alone, to data/raw/rt/<key> (`surveyDir`). Needs `unzip` on the PATH,
+// and `bsdtar` for the DBT. The archives are cached in the OS temp directory (`rt-cache.ts`). A file
+// whose unpacked bytes equal the new ones is not rewritten, so another zlib never churns a pinned
+// file. Either way, a file whose bytes the lock does not hold is recorded there with its source,
+// for `pnpm pin-raw` (`raw-lock.ts`).
 // - ctr/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2019 flight, EPSG:6707 (CC BY 4.0). AED =
 //   buildings, AGE = other areas (garages, ruins, station platforms, level crossings), AVI = road
 //   areas, AZR = the mapped area of each sheet, AFE = the rail ballast bed (its bridge and tunnel
 //   spans), VLI = the railway track centrelines only (code 0117; the rest of the layer, mostly
 //   contour lines, is dropped). Some sheets map only part of their frame; where none does, OSM
-//   fills in. A sheet may lack AGE, AVI or AFE (nothing of the kind in it) and has a VLI file only
-//   where a track runs.
+//   fills in. A sheet may lack AED, AGE, AVI or AFE (nothing of the kind in it: fivizzano's 24E41
+//   maps no building) and has a VLI file only where a track runs. Two parts listing one sheet write the same files.
 // - ctr2009/<sheet>_<layer>.shp.gz + .dbf.gz: CTR 1:2000, 2009 flight, the old schema, EPSG:6707
 //   (CC BY: 3.0 IT as the cartoteca lists it, 4.0 as its archive's licence states): AE_a = buildings,
 //   AV_a = road areas, AC_a = the mapped area, with the surveyors' names blanked (`SURVEYORS`),
@@ -32,23 +31,29 @@
 //   it): un_vol = volumetric units, mn_ind = industrial artefacts, ar_str = road areas, ac_vei =
 //   carriageways, ar_vms = dirt tracks, zona_r = the mapped zones. No field of these names a
 //   person (zona_r_dt names the survey firms).
-// - dtm.json + dtm.bin + dtm-src.bin: the terrain, EPSG:3003, on 1 m cells cropped to the play area
-//   plus MARGIN (`dtm-mosaic.ts`): the manifest's LiDAR DTM tiles (CC BY 4.0) in priority order (a
-//   cell keeps the first value written; for lucido the 2010 flight, then the 2012 flight for the
-//   Carrara side of the ridge and Monte Sagro, which 2010 flew only in part), then the fallback
-//   chain for the cells no tile has (`fill-chain.ts`, `terrain-sources.ts`): the 2021 surface
-//   model on open ground, the province 10 m DTMs, Liguria's DTM ed. 2023 from the crops `fetch-lig`
-//   wrote for the part (data/raw/lig/<part>/dtm: run it first), Emilia-Romagna's DTM 5x5 beyond
-//   Tuscany, each bent onto the sources before it. Averaged to 2 m cells (the game grid is 4 m); int16
-//   decimetres, each row delta-coded, deflated; dtm-src.bin holds each 2 m cell's source.
-// - ucs.json.gz: land cover 1:10 000, 2019 ("Uso e copertura del suolo", CC BY 4.0), EPSG:3003:
-//   the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse vegetation,
-//   pastures, heath), the rivers' gravel, the water bodies and the broadleaf, conifer and mixed
-//   woods, from the WFS.
+// - dtm/<i>_<j>.bin: the terrain, a file a 2 km map tile (`dtm-tiles.ts`, issue #17): the tiles the
+//   part's rectangles meet, each over its square cut to the region's box and HALO round it, on 2 m
+//   cells in EPSG:3003. Each cell a tile's file holds stays as it is; the others are the 2 × 2 means
+//   of a 1 m mosaic (`fetch-dtm.ts`): every Lunigiana part's manifest's LiDAR DTM tiles (CC BY 4.0)
+//   in the parts' order, then each its own order (a cell keeps the first value written; for lucido
+//   the 2010 flight, then the 2012 flight for the Carrara side of the ridge and Monte Sagro, which
+//   2010 flew only in part), then the fallback chain for the cells no tile has (`fill-chain.ts`,
+//   `terrain-sources.ts`): the 2021 surface model on open ground, the province 10 m DTMs, Liguria's
+//   DTM ed. 2023 from the crops `fetch-lig` wrote for the parts (data/raw/lig/<part>/dtm: run it
+//   first), Emilia-Romagna's DTM 5x5 beyond Tuscany, each bent onto the cells before it, the held
+//   ones among them. So a part adds its tiles, and fills in the cells its grown box adds to tiles
+//   another part's fetch wrote, without moving one (run the fetch of every part whose tiles the box
+//   grew into; the build names any it lacks). To fetch a part's terrain again, delete its tiles'
+//   files first. A test region with terrain of its own writes one mosaic instead, on its own cells:
+//   dtm.json + dtm.bin + dtm-src.bin (`writeMosaic`).
+// - ucs/<part>.json.gz: land cover 1:10 000, 2019 ("Uso e copertura del suolo", CC BY 4.0),
+//   EPSG:3003: the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse
+//   vegetation, pastures, heath), the rivers' gravel, the water bodies and the broadleaf, conifer
+//   and mixed woods, from the WFS over the part's terrain; the polygons the file already holds stay
+//   as they are (by id), so a later fetch only adds.
 import { existsSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { join, relative } from "node:path"
 import { parseArgs } from "node:util"
-import { deflateSync, inflateSync } from "node:zlib"
 
 import {
   UCS,
@@ -56,40 +61,24 @@ import {
   ctr10kUrl,
   ctrUrl,
   dbt2kUrl,
-  dsm2021Url,
-  dtm10Url,
-  lidarUrl,
   meetingBox,
   parseGml,
   wfsUrl,
   withoutSurveyors,
 } from "./cartoteca.ts"
-import { cropOf, eachCell } from "./dtm-mosaic.ts"
-import { type Filler, NONE, fillStep } from "./fill-chain.ts"
+import { cropOf } from "./dtm-mosaic.ts"
+import { type DtmTile, partTiles } from "./dtm-tiles.ts"
+import { fillCrop, tileCrop, tileFiles, writeMosaic, writeTiles } from "./fetch-dtm.ts"
+import { NONE } from "./fill-chain.ts"
 import { gaussBoagaBox } from "./geometry.ts"
 import { dtmTiles } from "./liguria.ts"
 import { manifestPath, readManifest } from "./manifest.ts"
-import { getBytes, getText } from "./net.ts"
+import { getText } from "./net.ts"
 import { fetchedToday, writeRaw } from "./raw-lock.ts"
-import { REGION, dtmDir, ligDir, surveyDir } from "./region.ts"
+import { REGION, dtmDir, ligDir, surveyDir, ucsFile } from "./region.ts"
 import { fetch7z, fetchZip, findFile, mustFind } from "./rt-cache.ts"
 import { subsetShp } from "./shp.ts"
-import {
-  SOURCES,
-  ascWindow,
-  clearCanopy,
-  codeOf,
-  geoTiffRaster,
-  LIG_FADE,
-  ligRaster,
-  MAX_SWEEPS,
-  openGround,
-  rasterFiller,
-  rerUrl,
-  utmBox,
-  utmOfCrop,
-} from "./terrain-sources.ts"
-import { UCS_CODES } from "./ucs.ts"
+import { UCS_CODES, readUcsFile } from "./ucs.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
 const { positionals } = parseArgs({
@@ -97,29 +86,33 @@ const { positionals } = parseArgs({
   options: { region: { type: "string" } },
   strict: true,
 })
-/** `ctr` fetches the surveys alone, `ucs` the land cover alone; no argument fetches everything. */
-const stage = positionals[0]
-if (positionals.length > 1 || (stage !== undefined && stage !== "ctr" && stage !== "ucs"))
-  throw new Error(`unknown stage ${positionals.join(" ")}: use ctr, ucs or none`)
 if (REGION.id !== "lunigiana") throw new Error(`fetch-rt fetches for Lunigiana, not ${REGION.key}`)
 if (REGION.test && !REGION.ownTerrain && !REGION.ownBuildings)
   throw new Error(`--region ${REGION.key} is built from Lunigiana's inputs: fetch none for it`)
 /** What a test region has of its own, which is all fetch-rt writes for it. */
 const own = REGION.ownTerrain ? "terrain" : REGION.ownBuildings ? "buildings" : undefined
-if (own !== undefined && stage !== undefined)
+if (own !== undefined && positionals.length > 0)
   throw new Error(`--region ${REGION.key} has ${own} alone: run fetch-rt without a stage`)
-// One part until #17 writes a DTM file a tile (rt/dtm/<i>_<j>): one mosaic over two parts would widen
-// its crop over the land between them.
-if (REGION.parts.length !== 1)
+/** The part fetched for: a Lunigiana part named first, or a test region's own one. */
+const PART =
+  own === undefined
+    ? REGION.parts.find((p) => p.key === positionals[0])
+    : REGION.parts.length === 1
+      ? REGION.parts[0]
+      : undefined
+if (PART === undefined)
   throw new Error(
-    `fetch-rt mosaics one part; ${REGION.key} has ${REGION.parts.length} (fetch-rt <part> comes with #17)`,
+    `usage: fetch-rt <part> [ctr | ucs], the part one of ${REGION.parts.map((p) => p.key).join(", ")}`,
   )
-const [PART] = REGION.parts
+/** `ctr` fetches the surveys alone, `ucs` the land cover alone; none fetches everything. */
+const stage = own === undefined ? positionals[1] : undefined
+if (positionals.length > 2 || (stage !== undefined && stage !== "ctr" && stage !== "ucs"))
+  throw new Error(`unknown stage ${positionals.slice(1).join(" ")}: use ctr, ucs or none`)
 const OUT = join(ROOT, dtmDir(REGION)),
   SURVEYS = join(ROOT, surveyDir(REGION))
-if (!existsSync(manifestPath(PART!.key)))
-  throw new Error(`no data/parts/${PART!.key}.json: run pick-sheets and pick-lidar with --write`)
-const manifest = readManifest(PART!.key)
+if (!existsSync(manifestPath(PART.key)))
+  throw new Error(`no data/parts/${PART.key}.json: run pick-sheets and pick-lidar with --write`)
+const manifest = readManifest(PART.key)
 /**
  * The surveys of the ground the manifest lists, none for the land cover alone or a region with
  * terrain alone: the 2019 CTR 1:2000 sheets that map ground in the play area (cartoteca layer
@@ -128,16 +121,10 @@ const manifest = readManifest(PART!.key)
  */
 const surveys =
   stage === "ucs" || REGION.ownTerrain ? { ctr: [], ctr2009: [], ctr10k: [], dbt2k: [] } : manifest
-/** Layers copied whole; AED and AZR are in every sheet. */
+/** Layers copied whole; AZR is in every sheet, AED in every sheet that maps a building (not 24E41). */
 const CTR_LAYERS = ["AED", "AGE", "AVI", "AZR", "AFE"] as const
 /** CTR code of a railway track centreline, the only VLI records kept. */
 const TRACK = "0117"
-/**
- * The LiDAR DTM tiles with data in the crop (cartoteca layer rt_cartoteca.lidar2k; the suffix is
- * the archive's MD5), in priority order: a cell keeps the first value written.
- */
-const DTM_TILES = manifest.lidar
-
 /** A shapefile's main file and table, raw, cut to what is pinned of them; undefined when nothing is. */
 type Cut = (shp: Buffer, dbf: Buffer) => { readonly shp: Buffer; readonly dbf: Buffer } | undefined
 const whole: Cut = (shp, dbf) => ({ shp, dbf })
@@ -200,7 +187,7 @@ const DBT_LAYERS = {
   zona_r: "000201_zona_r",
 } as const
 /** The part's EPSG:3003 box + WFS_PAD, on whole metres outwards: the DBT's records whose box meets it are pinned. */
-const dbtBox = gaussBoagaBox(PART!.rects, WFS_PAD).map((v, k) =>
+const dbtBox = gaussBoagaBox(PART.rects, WFS_PAD).map((v, k) =>
   k < 2 ? Math.floor(v) : Math.ceil(v),
 )
 
@@ -209,7 +196,7 @@ for (const sheet of surveys.ctr) {
   const out = (layer: string) => join(SURVEYS, "ctr", `${sheet}_${layer}`)
   for (const layer of CTR_LAYERS)
     pinLayer(dir, `S_${sheet}_2019_${layer}`, out(layer), ctrUrl(sheet), {
-      optional: layer !== "AED" && layer !== "AZR",
+      optional: layer !== "AZR",
     })
   pinLayer(dir, `S_${sheet}_2019_VLI`, out("VLI"), ctrUrl(sheet), {
     cut: (shp, dbf) => subsetShp(shp, dbf, (attrs) => attrs.Cod_CTR === TRACK),
@@ -240,15 +227,38 @@ for (const name of surveys.dbt2k) {
 }
 if (stage === "ctr" || REGION.ownBuildings) process.exit(0)
 
-// The crop: play-area corners in Gauss-Boaga, widened by MARGIN, on the tiles' cell centres (x.5).
-const crop = cropOf(PART!.rects)
+// The terrain's crop. A Lunigiana part's: the 2 m cells its tiles must hold (each tile's square cut
+// to the region's box, HALO round it), as 1 m cells seeded from what every tile file holds
+// (`tileCrop`); a test region's own: its rectangles' EPSG:3003 box widened by MARGIN, on the 1 m
+// tiles' cell centres (x.5), all of it to fill.
+const DTM = join(OUT, "dtm"),
+  held = REGION.ownTerrain ? new Map<string, DtmTile>() : tileFiles(DTM)
+const tiles = REGION.ownTerrain ? [] : partTiles(PART.rects, REGION.bounds)
+const { crop, mosaic, block, empty } = REGION.ownTerrain
+  ? (() => {
+      const c = cropOf(PART.rects),
+        n = c.cols * c.rows
+      const dm = new Float32Array(n).fill(Number.NaN),
+        src = new Uint8Array(n).fill(NONE)
+      return {
+        crop: c,
+        mosaic: { cols: c.cols, rows: c.rows, dm, src },
+        block: undefined,
+        empty: n,
+      }
+    })()
+  : tileCrop(
+      tiles.map((t) => t.need),
+      held.values(),
+    )
 const { e0, n0, cols, rows } = crop
 
 // Land cover: every polygon whose box meets the crop. The server's BBOX filter sometimes loses
-// features near the box's edge, so the box is padded by UCS.pad (readUcs clips). Lucido pins those
-// of the kept classes, sorted by id, in EPSG:3003 to the decimetre, rings as gml gives them (outer
-// first); the open ground among them is where the surface model may fill the terrain. A region
-// with terrain alone asks only when its manifest lists the surface model.
+// features near the box's edge, so the box is padded by UCS.pad (readUcs clips). A Lunigiana part
+// pins those of the kept classes, sorted by id, in EPSG:3003 to the decimetre, rings as gml gives
+// them (outer first), adding them to those its file holds; the open ground among them is where the
+// surface model may fill the terrain. A region with terrain alone asks only when its manifest lists
+// the surface model.
 const ucsUrl = wfsUrl(UCS.map, UCS.layer, [
   e0 - UCS.pad,
   n0 - UCS.pad,
@@ -258,227 +268,58 @@ const ucsUrl = wfsUrl(UCS.map, UCS.layer, [
 const asksUcs = !REGION.ownTerrain || manifest.dsm2021.length > 0
 const features = asksUcs ? parseGml(await getText(ucsUrl)) : []
 if (!REGION.ownTerrain) {
+  const file = join(ROOT, ucsFile(PART)),
+    before = existsSync(file) ? readUcsFile(file).polygons : []
+  const ids = new Set(before.map((p) => p.id))
   // One entry per polygon (a multipolygon has several), each its outer ring then its holes.
-  const ucs = features
-    .flatMap(({ attrs, polygons }) =>
-      Object.hasOwn(UCS_CODES, attrs.ucs2019 ?? "")
-        ? polygons.map((rings) => ({
-            id: Number(attrs.pk_uid),
-            code: attrs.ucs2019!,
-            rings: rings.map((ring) => ring.map((v) => Math.round(v * 10) / 10)),
-          }))
-        : [],
-    )
-    .sort((a, b) => a.id - b.id)
+  const fetched = features.flatMap(({ attrs, polygons }) =>
+    Object.hasOwn(UCS_CODES, attrs.ucs2019 ?? "") && !ids.has(Number(attrs.pk_uid))
+      ? polygons.map((rings) => ({
+          id: Number(attrs.pk_uid),
+          code: attrs.ucs2019!,
+          rings: rings.map((ring) => ring.map((v) => Math.round(v * 10) / 10)),
+        }))
+      : [],
+  )
+  const ucs = [...before, ...fetched].sort((a, b) => a.id - b.id)
   if (ucs.length === 0) throw new Error("UCS WFS: no polygons")
   writeRaw(
-    join(OUT, "ucs.json.gz"),
+    file,
     Buffer.from(JSON.stringify({ crs: "EPSG:3003", year: 2019, polygons: ucs })),
     fetchedToday(ucsUrl),
   )
-  console.log({ ucs: ucs.length })
+  console.log({ ucs: ucs.length, added: fetched.length })
 }
 if (stage === "ucs") process.exit(0)
-
-// The LiDAR, decimetres, a cell keeping the first tile's value; NaN where no tile has one.
-const dm = new Float32Array(cols * rows).fill(Number.NaN) // row 0 = south
-const src = new Uint8Array(cols * rows).fill(NONE)
-for (const tile of DTM_TILES) {
-  const lines = readFileSync(mustFind(await fetchZip(lidarUrl(tile)), "*.asc"), "latin1").split(
-    "\n",
-  )
-  eachCell(lines, crop, tile, (k, z) => {
-    if (Number.isNaN(dm[k]!)) {
-      dm[k] = Math.round(z * 10)
-      src[k] = codeOf("lidar")
-    }
-  })
+if (empty === 0) {
+  console.log(`every terrain cell ${PART.key}'s tiles need is held: nothing to fetch`)
+  process.exit(0)
 }
 
-/** A box of crop cells [c0, r0, c1, r1], ends included. */
-type Box = [number, number, number, number]
-/** The crop cells still empty, as a box; undefined when none is. */
-const emptyBox = (): Box | undefined => {
-  let c0 = cols,
-    r0 = rows,
-    c1 = -1,
-    r1 = -1
-  for (let k = 0; k < dm.length; k++)
-    if (Number.isNaN(dm[k]!)) {
-      const c = k % cols,
-        r = Math.floor(k / cols)
-      ;[c0, r0, c1, r1] = [Math.min(c0, c), Math.min(r0, r), Math.max(c1, c), Math.max(r1, r)]
-    }
-  return c1 < 0 ? undefined : [c0, r0, c1, r1]
-}
-/** The EPSG:3003 box round a box of crop cells' centres, padded by `pad` m. */
-const gbAround = ([c0, r0, c1, r1]: Box, pad: number): Box => [
-  e0 + c0 - pad,
-  n0 + r0 - pad,
-  e0 + c1 + pad,
-  n0 + r1 + pad,
-]
-/** The EPSG:7791 box round a box of crop cells' centres, padded by `pad` m. */
-const utmAround = ([c0, r0, c1, r1]: Box, pad: number): Box => {
-  const [x0, y0, x1, y1] = utmBox({
-    e0: e0 + c0,
-    n0: n0 + r0,
-    cols: c1 - c0 + 1,
-    rows: r1 - r0 + 1,
-  })
-  return [x0 - pad, y0 - pad, x1 + pad, y1 + pad]
-}
-const utm = utmOfCrop(crop)
-/** The 10 m DTMs of the manifest named, over a box of crop cells, as one filler: the first with data at a cell wins. */
-const dtm10 = async (names: ReadonlyArray<string>, box: Box): Promise<Filler> => {
-  const rasters = []
-  for (const name of names) {
-    const file = mustFind(await fetchZip(dtm10Url(name)), "*.asc")
-    const raster = ascWindow(readFileSync(file), gbAround(box, 10), name)
-    if (raster !== undefined) rasters.push(raster)
-  }
-  return rasterFiller("dtm10", crop, rasters)
-}
-/** Liguria's DTM crops `fetch-lig` wrote for the part's tiles (`dtmTiles`): none where it has not run, or a tile has no data. */
-const LIG = join(ROOT, ligDir(PART!), "dtm")
-const ligCrops = dtmTiles(PART!.rects)
-  .map(({ i, j }) => `${i}_${j}.tif`)
-  .filter((f) => existsSync(join(LIG, f)))
-/** The chain after the LiDAR, each step loaded once cells are still empty, with where it comes from. */
-const steps: Array<(box: Box) => Promise<{ readonly filler: Filler; readonly source: string }>> = [
-  ...(manifest.dsm2021.length === 0
-    ? []
-    : [
-        async (box: Box) => {
-          if (manifest.dtm10.length === 0)
-            throw new Error("the surface model needs a 10 m DTM to tell canopy from ground")
-          const open = openGround(features, crop),
-            window = utmAround(box, 2)
-          const rasters = []
-          for (const element of manifest.dsm2021) {
-            const file = mustFind(await fetchZip(dsm2021Url(element)), "*.asc")
-            const raster = ascWindow(readFileSync(file), window, element)
-            if (raster !== undefined) rasters.push(raster)
-          }
-          const dsm = rasterFiller("dsm2021", crop, rasters, utm)
-          const bare = () =>
-            open.reduce((n, o, k) => n + Number(o === 1 && Number.isNaN(dm[k]!)), 0)
-          const before = bare()
-          clearCanopy(open, dsm, await dtm10(manifest.dtm10, box), crop, box)
-          console.log(
-            `dsm2021: ${before} m² of open ground without LiDAR, ${before - bare()} m² of it canopy, pits or scraps`,
-          )
-          return {
-            filler: { ...dsm, where: (k: number) => open[k] === 1 },
-            source: `the 2021 surface model's elements ${manifest.dsm2021.join(", ")} (${dsm2021Url("<element>")}) on the open ground of ${fetchedToday(ucsUrl)}, less its canopy (its height over the 10 m DTMs)`,
-          }
+/** Every Lunigiana part whose inputs the terrain reads: the test region's own, or the region's, in order. */
+const parts = REGION.ownTerrain ? [PART] : REGION.parts
+const manifests = parts.map((p) => readManifest(p.key))
+const unique = (lists: ReadonlyArray<ReadonlyArray<string>>) => [...new Set(lists.flat())]
+/** Liguria's DTM crops `fetch-lig` wrote for the parts' tiles (`dtmTiles`): none where it has not run, or a tile has no data. */
+const ligCrops = parts.flatMap((p) =>
+  dtmTiles(p.rects)
+    .map(({ i, j }) => join(ROOT, ligDir(p), "dtm", `${i}_${j}.tif`))
+    .filter((f) => existsSync(f)),
+)
+const used = await fillCrop(crop, mosaic, {
+  lidar: unique(manifests.map((m) => m.lidar)),
+  lidarFrom: parts.map((p) => `data/parts/${p.key}.json`).join(", "),
+  dsm2021: unique(manifests.map((m) => m.dsm2021)),
+  dtm10: unique(manifests.map((m) => m.dtm10)),
+  lig:
+    ligCrops.length === 0
+      ? undefined
+      : {
+          files: ligCrops,
+          from: `the Liguria DTM ed. 2023's crops ${ligCrops.map((f) => relative(ROOT, f)).join(", ")} (pnpm fetch-lig <part>)`,
         },
-      ]),
-  ...manifest.dtm10.map((name) => async (box: Box) => ({
-    filler: await dtm10([name], box),
-    source: dtm10Url(name),
-  })),
-  ...(ligCrops.length === 0
-    ? []
-    : [
-        async () => {
-          const { raster, sweeps } = (await ligRaster(
-            ligCrops.map((f) => readFileSync(join(LIG, f))),
-          ))!
-          console.log(
-            `lig: its whole metres smoothed in ${sweeps} sweeps${sweeps === MAX_SWEEPS ? ", the most unround makes: not settled" : ""}`,
-          )
-          return {
-            filler: { ...rasterFiller("lig", crop, [raster]), fade: LIG_FADE },
-            source: `the Liguria DTM ed. 2023's crops ${ligCrops.join(", ")} in ${ligDir(PART!)}/dtm (pnpm fetch-lig ${PART!.key})`,
-          }
-        },
-      ]),
-  async (box: Box) => {
-    const url = rerUrl(utmAround(box, 10))
-    return {
-      filler: rasterFiller("rer", crop, [await geoTiffRaster(await getBytes(url))], utm),
-      source: fetchedToday(url),
-    }
-  },
-]
-const filling = { cols, rows, dm, src },
-  used = [`the lidar archives of data/parts/${PART!.key}.json (${lidarUrl("<lidar>")})`]
-for (const step of steps) {
-  const box = emptyBox()
-  if (box === undefined) break
-  const { filler, source } = await step(box)
-  const r = fillStep(filling, filler)
-  if (r.cells === 0) continue
-  used.push(source)
-  const name = SOURCES[r.source]!,
-    m = (v: number) => (v / 10).toFixed(1)
-  console.log(
-    `${name}: ${r.cells} m², rim ${r.rim} cells (better - ${name} ${m(r.residual[0])} to ${m(r.residual[1])} m), ${r.fit} fitted; the lattice leaves ≤ ${m(r.leftover)} m (${r.iterations} iterations), the band ${r.band} cells in ${r.sweeps} sweeps`,
-  )
-}
-const left = emptyBox()
-if (left !== undefined)
-  throw new Error(
-    `no terrain source covers EPSG:3003 ${gbAround(left, 0).join(", ")} (the box round the cells left)`,
-  )
-
-// 2 × 2 means: cell (i, j) covers 1 m cells 2i..2i+1, 2j..2j+1, so its centre is 0.5 m past theirs;
-// its source is the most of its four cells', ties to the earlier.
-const cols2 = Math.floor(cols / 2),
-  rows2 = Math.floor(rows / 2)
-const deltas = new Int16Array(cols2 * rows2),
-  sources = new Uint8Array(cols2 * rows2),
-  votes = new Uint8Array(SOURCES.length)
-for (let j = 0, prev = 0; j < rows2; j++)
-  for (let i = 0; i < cols2; i++) {
-    const k = 2 * j * cols + 2 * i,
-      four = [k, k + 1, k + cols, k + cols + 1]
-    const mean = Math.round((dm[k]! + dm[k + 1]! + dm[k + cols]! + dm[k + cols + 1]!) / 4)
-    deltas[j * cols2 + i] = i === 0 ? mean : mean - prev
-    prev = mean
-    votes.fill(0)
-    for (const q of four) votes[src[q]!]!++
-    sources[j * cols2 + i] = votes.indexOf(Math.max(...votes))
-  }
-/** The mosaic's sources: the manifest's archives, each named with its MD5, and the services. */
-const mosaic = used.join("; then ")
-writeRaw(
-  join(OUT, "dtm.bin"),
-  Buffer.from(deltas.buffer),
-  mosaic,
-  (b) => deflateSync(b, { level: 9 }),
-  inflateSync,
-)
-writeRaw(
-  join(OUT, "dtm-src.bin"),
-  Buffer.from(sources.buffer),
-  mosaic,
-  (b) => deflateSync(b, { level: 9 }),
-  inflateSync,
-)
-const meta = {
-  crs: "EPSG:3003",
-  e0: e0 + 0.5,
-  n0: n0 + 0.5,
-  cols: cols2,
-  rows: rows2,
-  cell: 2,
-  unit: "dm",
-  encoding: "int16le, row 0 = south, each row delta-coded from its first value, deflate",
-  sources: SOURCES,
-  sourceEncoding: "dtm-src.bin: uint8 per cell, its index in sources, row 0 = south, deflate",
-}
-writeRaw(
-  join(OUT, "dtm.json"),
-  Buffer.from(`${JSON.stringify(meta, null, 2)}\n`),
-  mosaic,
-  (b) => b,
-  (b) => b,
-)
-const counts = SOURCES.map((_, code) => sources.reduce((n, s) => n + (s === code ? 1 : 0), 0))
-console.log({
-  ...meta,
-  bytes: readFileSync(join(OUT, "dtm.bin")).length,
-  km2: Object.fromEntries(SOURCES.map((s, code) => [s, (counts[code]! * 4) / 1e6])),
+  features,
+  ucsFrom: fetchedToday(ucsUrl),
 })
+if (REGION.ownTerrain) writeMosaic(OUT, crop, mosaic, used)
+else writeTiles(DTM, tiles, held, block!, mosaic, used)

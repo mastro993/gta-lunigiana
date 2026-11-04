@@ -25,8 +25,10 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
   // 0.3 m of clearance and the 0.9 m deck the render draws under a road bridge.
   const UNDER_ROAD = 5.5
   const RAIL_OVER_WATER = 3 // minimum rail height over the river it bridges, m (more fights the station level crossing 25 m away)
-  // Water at least this wide (m) is a river the rail bridges high; under the CTR's short bridges over
-  // narrower streams the line keeps its level (the water dips under the deck, water.ts).
+  // Water wider than this (m) is a river the rail bridges high; under the CTR's short bridges over
+  // the rest the line keeps its level (the water dips under the deck, water.ts). The named streams'
+  // 4 m is the build's guess where it measured none (`waterSize` in features.ts): the Canale di
+  // Campiglia's channel, open under a 6.7 m bridge by Gassano 1.5 m under the line, lifted it 1.9 m.
   const RIVER = 4
   /** A level crossing: rail and road share a vertex where they cross. */
   const level = (rl: RailF, rd: RoadF, c: V) =>
@@ -63,11 +65,14 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
             ? crossings(rl.pts, rd.pts)
                 .filter((c) => !level(rl, rd, c))
                 .map((c) => {
-                  // The deck before the roads are profiled: the line between the uncarved ground at its ends.
+                  // The deck before the roads are profiled: the line between the uncarved ground at its ends, but at least
+                  // a train's clearance over the ground at the crossing, where the track runs (the bare-earth model has no
+                  // deck): lower, the line says nothing of the deck, and the road, profiled after the rail, rises over it.
                   const a = rd.pts[0]!,
                     b = rd.pts.at(-1)!,
                     t = c.sb / (arcLengths(rd.pts).at(-1)! || 1)
-                  return { rl, rd, c, deck: ground(a.x, a.y) * (1 - t) + ground(b.x, b.y) * t }
+                  const line = ground(a.x, a.y) * (1 - t) + ground(b.x, b.y) * t
+                  return { rl, rd, c, deck: Math.max(line, ground(c.x, c.y) + UNDER_ROAD) }
                 })
             : [],
         ),
@@ -105,7 +110,12 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
    * The rail stays at least maxheight + DECK over the natural level of a tagged underpass (a
    * sign gives the least clearance: the Via delle Cave deck stands 1.1–3.3 m higher, and pinning
    * the rail to it held the line 2.7 m under its bed for 1.9 km), UNDER_ROAD under a road bridge's
-   * deck, and RAIL_OVER_WATER above the river it bridges.
+   * deck, and RAIL_OVER_WATER above the river it bridges. Under a road bridge it is never held under
+   * the ground at the crossing (the deck there at least UNDER_ROAD over it): the road rises instead.
+   * The line between the ends' ground of the SR445's 396 m viaduct north of Gragnola (152.6 and
+   * 144.9 m, its ends down in the valley) held the line 12 m under the ground at 157.3 m, and a
+   * 22 m residential bridge by Gassano, 4.7 m over the ground at the crossing, dipped it 0.8 m in a
+   * V whose grade changed 4.2% over 20 m.
    */
   const railBounds = (chain: Chain): Array<Bound> => [
     ...railRoad
@@ -123,7 +133,7 @@ export const railLevels = ({ allRail, roads, water, wp, ground, zAt }: LevelsInp
       .filter((m) => m.item.bridge === true)
       .flatMap((m) =>
         water.flatMap((w, wi) =>
-          (w.w < RIVER ? [] : crossings(m.item.pts, w.pts)).map((c) => ({
+          (w.w <= RIVER ? [] : crossings(m.item.pts, w.pts)).map((c) => ({
             x: c.x,
             y: c.y,
             z: along(wp[wi]!.s, wp[wi]!.z, c.sb) + RAIL_OVER_WATER,

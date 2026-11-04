@@ -32,7 +32,7 @@ const houses: Array<BuildingF> = Array.from({ length: 80 }, (_, i) => {
   }
 })
 const open = clearance([], [])
-/** The street's input to `parkedSpots`: no rail, the station far off, the Carabinieri at its middle. */
+/** The street's input to `parkedSpots`: no rail, the station far off, the Carabinieri at its middle, a quarter of its kerb's candidates kept. */
 const STREET = {
   roads: [street],
   buildings: houses,
@@ -45,6 +45,7 @@ const STREET = {
   police: { x: 200, y: -3.5 },
   rail: [],
   crossings: [],
+  share: 0.25,
 }
 const spots = (
   rail: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly running: boolean }>,
@@ -54,15 +55,41 @@ const spots = (
 // Regression: the rule measured the car's centre, so a car 2.87 m from Gragnola's
 // through track had its side 2.02 m from it.
 test("parkedSpots keeps a car's box 2.8 m from running track, 1.94 m from a siding, and 20 m from a level crossing", () => {
-  assert.equal(spots([]).length, 10, "80 houses: one spot per 8")
+  const free = spots([]).length
+  assert.ok(free > 2, `${free} spots`)
   // The car's side is at y −4.35: a track at y −6.5 passes 2.15 m from it.
   const beside = [0, -6.5, 400, -6.5]
   assert.equal(spots([{ pts: beside, running: true }]).length, 0)
-  assert.equal(spots([{ pts: beside, running: false }]).length, 10)
-  assert.equal(spots([{ pts: [0, -7.2, 400, -7.2], running: true }]).length, 10)
+  assert.equal(spots([{ pts: beside, running: false }]).length, free)
+  assert.equal(spots([{ pts: [0, -7.2, 400, -7.2], running: true }]).length, free)
   // A level crossing at x 200: no spot within 20 m of it.
   const near = spots([], [[200, 0]])
   assert.ok(near.length > 0 && near.every((p) => Math.abs(p.x - 200) >= 20))
+})
+
+// Regression: the spots were the first buildings/8 candidates in an order hashed on the road's
+// index, so a part's roads and buildings reshuffled every other part's spots (736 of lucido's 808).
+test("parkedSpots keeps a street's spots whatever lies far off: more roads, more houses", () => {
+  const far: RoadF = {
+    ...street,
+    id: 2,
+    pts: [
+      { x: 0, y: 5000 },
+      { x: 400, y: 5000 },
+    ],
+  }
+  const more = houses.map((h, i) => ({
+    ...h,
+    id: 1000 + i,
+    outer: h.outer.map((v, k) => (k % 2 === 1 ? v + 5000 : v)),
+  }))
+  const alone = spots([])
+  const grown = parkedSpots({ ...STREET, roads: [far, street], buildings: [...more, ...houses] })
+  assert.deepEqual(
+    grown.filter((p) => p.y < 1000),
+    alone,
+  )
+  assert.ok(grown.length > alone.length)
 })
 
 // A car park south of the street, x 180…220 by y −40…−20.
@@ -71,7 +98,6 @@ const LOT: Area = { kind: "parking", rings: [[180, -40, 220, -40, 220, -20, 180,
 test("parkedSpots without the station and Carabinieri, which a test region may leave out of play, keeps the street's share and fills no car park", () => {
   const all = parkedSpots({ ...STREET, areas: [LOT], station: { x: 200, y: -30 } })
   const inLot = (p: { readonly y: number }) => p.y < -15
-  assert.equal(all.filter((p) => !inLot(p)).length, 10)
   assert.equal(all.filter(inLot).length, 6, "the station's car park")
   // first the two nearest the Carabinieri (x 200), 9 m apart, then the rest in hash order
   assert.deepEqual(
@@ -79,9 +105,12 @@ test("parkedSpots without the station and Carabinieri, which a test region may l
     [201, 210],
   )
   const none = parkedSpots({ ...STREET, areas: [LOT], station: undefined, police: undefined })
-  assert.equal(none.length, 10, "80 houses: one spot per 8, none in the car park")
-  assert.ok(!none.some(inLot))
-  assert.deepEqual(none.slice(0, 8), all.slice(2, 10), "hash order, no pair kept first")
+  assert.ok(none.length > 0 && !none.some(inLot), "the street's share, none in the car park")
+  // The Carabinieri's two are kept first, then the share, each 9 m from every spot before it.
+  const kerb = all.filter((p) => !inLot(p))
+  kerb.forEach((p, i) =>
+    kerb.slice(0, i).forEach((q) => assert.ok(Math.hypot(p.x - q.x, p.y - q.y) >= 9)),
+  )
 })
 
 // A lake along the right kerb, x 100…300, its shore at y −4: past a kerb spot's centre (y −3.5)
@@ -113,7 +142,7 @@ test("parkedSpots parks no car with its box's centre or a corner of its grown bo
     "without the lake, cars park where it lies",
   )
   const kept = parkedSpots({ ...STREET, areas: [KERB_LAKE] })
-  assert.equal(kept.length, 10, "80 houses: one spot per 8, all beyond the lake")
+  assert.ok(kept.length > 0, "the kerb's share beyond the lake")
   for (const p of kept)
     assert.ok(
       grownBox(p).every(([x, y]) => !wet(x, y)),

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { tileRange } from "../../sim/map/kinds.ts"
 import {
   PARTS,
   type Part,
@@ -11,6 +12,8 @@ import {
   inRects,
   ligDir,
   mapDir,
+  osmFile,
+  osmFiles,
   partOf,
   rectRing,
   rectsBox,
@@ -48,16 +51,28 @@ test("a region's bounds, its built terrain, are the box round its parts' rectang
   }
   const lunigiana = regionFromArgs([])
   assert.equal(lunigiana.parts, PARTS)
-  assert.deepEqual(lunigiana.bounds, { minX: -2900, minY: -6100, maxX: 4900, maxY: 3900 })
+  // Fivizzano's L to the west and north, lucido's rectangle to the south, Magliano's to the east
+  assert.deepEqual(lunigiana.bounds, { minX: -5300, minY: -6100, maxX: 10600, maxY: 13000 })
+  // An L: ground in the box no part's rectangle holds, west of lucido and east of it
+  const rects = PARTS.flatMap((p) => p.rects)
+  assert.ok(!inRects(rects, -4000, 0) && !inRects(rects, 8000, 0) && inRects(rects, 0, 0))
 })
 
 test("a region's tiles are those its parts' rectangles meet, and its tree anchor is its first part's south-west corner", () => {
   const keys = (id: string) => regionFromArgs(["--region", id]).tiles.map(({ i, j }) => `${i}_${j}`)
-  // Lunigiana's 30: i −2…2, j −4…1, south to north, then west to east.
+  // Lunigiana's 79 of the box's 99 (i −3…5, j −4…6), south to north, then west to east: lucido's
+  // i −2…2 alone up to j 0, then Fivizzano's i −3…5. Its notch, the 20 tiles no rectangle meets:
+  // i −3 and i 3…5, j −4…0.
   const lunigiana = keys("lunigiana")
-  assert.equal(lunigiana.length, 30)
+  const { i0, i1, j0, j1 } = tileRange(regionFromArgs([]).bounds)
+  assert.deepEqual([i0, i1, j0, j1], [-3, 5, -4, 6])
+  assert.equal(lunigiana.length, 79)
   assert.deepEqual(lunigiana.slice(0, 6), ["-2_-4", "-1_-4", "0_-4", "1_-4", "2_-4", "-2_-3"])
-  assert.equal(lunigiana.at(-1), "2_1")
+  assert.deepEqual(lunigiana.slice(20, 27), ["-2_0", "-1_0", "0_0", "1_0", "2_0", "-3_1", "-2_1"])
+  assert.equal(lunigiana.at(-1), "5_6")
+  for (let j = j0; j <= j1; j++)
+    for (let i = i0; i <= i1; i++)
+      assert.equal(lunigiana.includes(`${i}_${j}`), j > 0 || (i >= -2 && i <= 2), `${i}_${j}`)
   assert.deepEqual(keys("cesena"), ["-1_-1", "0_-1", "-1_0", "0_0"])
   assert.deepEqual(regionFromArgs([]).anchor, { x: -2900, y: -6100 })
   assert.deepEqual(regionFromArgs(["--region", "cesena"]).anchor, { x: -2000, y: -2000 })
@@ -191,6 +206,19 @@ test("dtmDir is a region's own folder when it has terrain of its own, else Lunig
     assert.equal(dtmDir(regionFromArgs(["--region", key])), "data/raw/rt", key)
 })
 
+test("osmFile is a part's OSM extract under data/raw/osm, and osmFiles every extract a region's build merges, in build order", () => {
+  assert.equal(osmFile(partOf("lucido")), "data/raw/osm/lucido.osm.gz")
+  const lunigiana = PARTS.map((p) => `data/raw/osm/${p.key}.osm.gz`)
+  assert.deepEqual(lunigiana, ["data/raw/osm/lucido.osm.gz", "data/raw/osm/fivizzano.osm.gz"])
+  // A test region is built from Lunigiana's inputs, its OSM included, but for its own buildings.
+  for (const key of ["lunigiana", "lunigiana-l", "lunigiana-3x", "bagnone-ridge", "sarzana-town"])
+    assert.deepEqual(osmFiles(regionFromArgs(["--region", key])), lunigiana, key)
+  assert.deepEqual(osmFiles(regionFromArgs(["--region", "pontremoli-town"])), [
+    "data/raw/osm/pontremoli-town.osm.gz",
+  ])
+  assert.deepEqual(osmFiles(regionFromArgs(["--region", "cesena"])), ["data/raw/osm/cesena.osm.gz"])
+})
+
 test("partOf finds a test region's part too, and regionOfPart gives the region it belongs to", () => {
   assert.equal(partOf("sillara"), regionFromArgs(["--region", "bagnone-ridge"]).parts[0])
   assert.equal(partOf("lucido-l"), regionFromArgs(["--region", "lunigiana-l"]).parts[0])
@@ -205,7 +233,7 @@ const L: ReadonlyArray<Rect> = [
   [0, 100, 100, 300],
 ]
 
-test("partOf gives the part with the key: lucido is today's map", () => {
+test("partOf gives the part with the key: lucido, the region's first part", () => {
   const lucido = partOf("lucido")
   assert.equal(lucido.title, "Valle del Lucido")
   assert.deepEqual(lucido.rects, [[-2900, -6100, 4900, 3900]])

@@ -1,12 +1,14 @@
 import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
 import { test } from "node:test"
 
 import { wholeMap } from "../../../tools/map-file.ts"
+import { regionFromArgs } from "../../../tools/region.ts"
 import { staticGrid } from "../../collide.ts"
 import { coverAt, coverName } from "../cover.ts"
 import { terrainZ } from "../ground.ts"
 import { heightAt, MAP, treesIn, wallsNear } from "../index.ts"
-import { pushTrunk, TILE, tileKey, tileRange, TRUNK } from "../kinds.ts"
+import { anchorOf, pushTrunk, TILE, tileKey, tileRange, tilesRound, TRUNK } from "../kinds.ts"
 import { decodeTile, readMapFile, TILE_CELLS, tileUrl } from "../packed.ts"
 
 // Map checks (pnpm test:map): every tile of the shipped map, and the whole map joined from them
@@ -15,15 +17,23 @@ const WHOLE = wholeMap()
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
 const tiles = new Map(KEYS.map((key) => [key, decodeTile(readMapFile(tileUrl(MAP.name, key)))]))
 
-/** The listed tile range: every tile with ground in it (`tileRange`). */
+/** The bounds' tile range (`tileRange`): the listed tiles and the notch's of an L. */
 const RANGE = tileRange(MAP.bounds)
 
-test("the tiles cover the bounds: every tile of tileRange, listed south to north, then west to east (Lunigiana's 30)", () => {
-  const expected: Array<string> = []
+test("the tiles are the region's, those its parts' rectangles meet, listed south to north, then west to east, each with a file (Lunigiana's 79 of the bounds' 99: an L)", () => {
+  const box: Array<string> = []
   for (let j = RANGE.j0; j <= RANGE.j1; j++)
-    for (let i = RANGE.i0; i <= RANGE.i1; i++) expected.push(tileKey(i, j))
-  assert.deepEqual(KEYS, expected)
-  assert.equal(KEYS.length, 30, "today's Lunigiana")
+    for (let i = RANGE.i0; i <= RANGE.i1; i++) box.push(tileKey(i, j))
+  const region = regionFromArgs([]).tiles.map(({ i, j }) => tileKey(i, j))
+  assert.deepEqual(KEYS, region)
+  assert.deepEqual(
+    KEYS,
+    box.filter((key) => KEYS.includes(key)),
+  )
+  assert.deepEqual([KEYS.length, box.length], [79, 99], "today's Lunigiana")
+  // the notch's tiles have no file
+  for (const key of box)
+    assert.equal(existsSync(tileUrl(MAP.name, key)), KEYS.includes(key), `${key}'s file`)
   for (const t of MAP.tiles) {
     const heights = tiles.get(tileKey(t.i, t.j))!.heights
     assert.equal(
@@ -74,31 +84,62 @@ test("each wall lives in the tile of its midpoint and each tree in the tile of i
   assert.equal(trees, WHOLE.trees.length / 3)
 })
 
-test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole heightmap and land cover give them", () => {
-  const { cell, cols, rows, x0, y0, data } = WHOLE.heightmap
+test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole heightmap and land cover give them, an L's notch the nearest listed node and cell", () => {
+  const { cell, cols, rows, x0, y0 } = WHOLE.heightmap,
+    { x: ax, y: ay, i: ai, j: aj } = anchorOf(WHOLE.heightmap)
+  // The joined map holds 0 in the notch, which no tile holds: the game reads there the nearest
+  // node or cell of the listed tiles round it (`tilesRound`), the first in key order on a tie, as
+  // the cut's coarse grid does (tile-map.ts).
+  const n = TILE / cell,
+    cx = x0 / cell,
+    cy = y0 / cell,
+    listed = new Set(KEYS),
+    isListed = (i: number, j: number) => listed.has(tileKey(i, j))
+  /** The index of node (`cells` 0) or cell (1) (gi, gj), on the grid, the game reads. */
+  const readAt = (gi: number, gj: number, cells: 0 | 1) => {
+    const ni = cx + gi,
+      nj = cy + gj,
+      ti = Math.min(RANGE.i1, Math.max(RANGE.i0, Math.floor(ni / n))),
+      tj = Math.min(RANGE.j1, Math.max(RANGE.j0, Math.floor(nj / n))),
+      across = cols - cells
+    if (isListed(ti, tj)) return gj * across + gi
+    let best = Infinity,
+      at = -1
+    for (const [ri, rj] of tilesRound(ti, tj, isListed)) {
+      const x = Math.min(cx + cols - 1 - cells, n * ri + n - cells, Math.max(cx, n * ri, ni)),
+        y = Math.min(cy + rows - 1 - cells, n * rj + n - cells, Math.max(cy, n * rj, nj)),
+        d = (x - ni) * (x - ni) + (y - nj) * (y - nj)
+      if (d < best) [best, at] = [d, (y - cy) * across + x - cx]
+    }
+    return at
+  }
+  const data = (k: number) => WHOLE.heightmap.data[readAt(k % cols, Math.floor(k / cols), 0)]!
   const node = (i: number, j: number) =>
-    data[Math.min(rows - 1, Math.max(0, j)) * cols + Math.min(cols - 1, Math.max(0, i))]! / 10
+    data(Math.min(rows - 1, Math.max(0, j)) * cols + Math.min(cols - 1, Math.max(0, i))) / 10
   const { minX, minY, maxX, maxY } = MAP.bounds
-  // Today's formulas over the whole grid (src/sim/map/index.ts and ground.ts before the tiles).
+  // Today's formulas over the whole grid (src/sim/map/index.ts and ground.ts before the tiles), a
+  // point's cell counted from the anchor.
   const bilinear = (x: number, y: number) => {
-    const fx = (Math.min(maxX, Math.max(minX, x)) - x0) / cell,
-      fy = (Math.min(maxY, Math.max(minY, y)) - y0) / cell
-    const i = Math.min(cols - 2, Math.max(0, Math.floor(fx))),
-      j = Math.min(rows - 2, Math.max(0, Math.floor(fy)))
-    const tx = fx - i,
-      ty = fy - j,
+    const fx = (Math.min(maxX, Math.max(minX, x)) - ax) / cell,
+      fy = (Math.min(maxY, Math.max(minY, y)) - ay) / cell
+    const i = Math.min(cols - 2, Math.max(0, Math.floor(fx) + ai)),
+      j = Math.min(rows - 2, Math.max(0, Math.floor(fy) + aj))
+    const tx = fx - (i - ai),
+      ty = fy - (j - aj),
       k = j * cols + i
-    const south = data[k]! + (data[k + 1]! - data[k]!) * tx
-    const north = data[k + cols]! + (data[k + cols + 1]! - data[k + cols]!) * tx
+    const south = data(k) + (data(k + 1) - data(k)) * tx
+    const north = data(k + cols) + (data(k + cols + 1) - data(k + cols)) * tx
     return (south + (north - south) * ty) / 10
   }
   const drawn = (x: number, y: number) => {
-    const fx = (x - x0) / cell,
-      fy = (y - y0) / cell,
-      i = Math.floor(fx),
-      j = Math.floor(fy),
-      u = fx - i,
-      v = fy - j
+    const fx = (x - ax) / cell,
+      fy = (y - ay) / cell,
+      fi = Math.floor(fx),
+      fj = Math.floor(fy),
+      u = fx - fi,
+      v = fy - fj,
+      i = fi + ai,
+      j = fj + aj
     const sw = node(i, j),
       se = node(i + 1, j),
       nw = node(i, j + 1),
@@ -123,10 +164,12 @@ test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole hei
   for (const [x, y] of points) {
     assert.equal(heightAt(x, y), bilinear(x, y), `heightAt ${x},${y}`)
     assert.equal(terrainZ(x, y), drawn(x, y), `terrainZ ${x},${y}`)
-    const ci = Math.min(cols - 2, Math.max(0, Math.floor((x - x0) / cell))),
-      cj = Math.min(rows - 2, Math.max(0, Math.floor((y - y0) / cell)))
-    assert.equal(coverAt(x, y), coverName(WHOLE.cover[cj * (cols - 1) + ci]!), `coverAt ${x},${y}`)
+    const ci = Math.min(cols - 2, Math.max(0, Math.floor((x - ax) / cell) + ai)),
+      cj = Math.min(rows - 2, Math.max(0, Math.floor((y - ay) / cell) + aj))
+    assert.equal(coverAt(x, y), coverName(WHOLE.cover[readAt(ci, cj, 1)]!), `coverAt ${x},${y}`)
   }
+  // the notch's, the bounds' south-west and south-east corners, among them
+  assert.ok(!isListed(RANGE.i0, RANGE.j0) && !isListed(RANGE.i1, RANGE.j0))
 })
 
 test("wallsNear and treesIn answer exactly as one broad phase over the whole map does: the same walls and trunks, in the same order, across the seams too", () => {

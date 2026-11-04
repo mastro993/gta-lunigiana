@@ -14,17 +14,17 @@ import { getBytes } from "./net.ts"
 const CACHE = join(tmpdir(), "gta-lunigiana-rt")
 
 /**
- * Whether `dir` holds a file at any depth, and one named each of `names`: macOS purges the temp
- * directory's files but keeps its folders.
+ * Whether `dir` holds a file named each of `names`, at any depth: macOS purges the temp directory's
+ * files but keeps its folders.
  */
-const holdsFiles = (dir: string, names: ReadonlyArray<string> = []): boolean => {
+const holdsFiles = (dir: string, names: ReadonlyArray<string>): boolean => {
   if (!existsSync(dir)) return false
   const files = new Set(
     readdirSync(dir, { recursive: true, withFileTypes: true })
       .filter((e) => e.isFile())
       .map((e) => e.name),
   )
-  return files.size > 0 && names.every((name) => files.has(name))
+  return names.every((name) => files.has(name))
 }
 
 /** The archive at `url` under CACHE, downloaded when missing. */
@@ -35,10 +35,19 @@ const cached = async (url: string): Promise<string> => {
   return archive
 }
 
-/** The archive at `url`, extracted under CACHE; an extracted folder without files counts as missing. */
+/**
+ * The archive at `url`, extracted under CACHE, and again whenever its folder lacks a file the
+ * archive lists: macOS purges the temp directory's files one by one, so a folder may keep some of
+ * them (a 10 m DTM's folder its licence and not its grid). An archive purged too is downloaded again.
+ */
 export const fetchZip = async (url: string): Promise<string> => {
-  const dir = join(CACHE, basename(url).replace(/\.zip$/, ""))
-  if (!holdsFiles(dir)) execFileSync("unzip", ["-o", "-q", await cached(url), "-d", dir])
+  const dir = join(CACHE, basename(url).replace(/\.zip$/, "")),
+    archive = await cached(url)
+  const members = execFileSync("unzip", ["-Z1", archive], { encoding: "utf8" })
+    .split("\n")
+    .filter((m) => m !== "" && !m.endsWith("/"))
+  if (!members.every((m) => existsSync(join(dir, m))))
+    execFileSync("unzip", ["-o", "-q", archive, "-d", dir])
   return dir
 }
 

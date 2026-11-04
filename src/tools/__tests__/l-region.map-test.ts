@@ -1,5 +1,6 @@
 // The L test region (`lunigiana-l`, region.ts) as built: its outline walls close its play area,
-// nothing on foot gets out of it, and everything the map places lies in it. This process loads
+// nothing on foot gets out of it, everything the map places lies in it, and its place reads no
+// ground of its notch. This process loads
 // the L (`loadBuiltMap`), from test-maps/, which `node src/tools/build-map.ts --region lunigiana-l`
 // writes. Without that build every check here is skipped, but in CI, which builds it with the maps
 // (`pnpm maps`), a missing build fails: a skip there would pass with nothing checked.
@@ -7,7 +8,9 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
+import { placeFrom } from "../../sim/sky/place.ts"
 import { centroid, pointInRing, ringBox, segDist2 } from "../geometry.ts"
+import { listedNodes } from "../grid-tiles.ts"
 import { builtMapUrl, loadBuiltMap, readWholeMap, wholeMap } from "../map-file.ts"
 import { regionFromArgs } from "../region.ts"
 
@@ -365,6 +368,20 @@ test(
         assert.equal(coarseHeightAt(x, y), heightAt(x, y), `height at ${x}, ${y}`)
         assert.equal(coarseCoverAt(x, y), coverAt(x, y), `cover at ${x}, ${y}`)
       }
+  },
+)
+
+// The build reads no terrain in the notch's tiles (grid-tiles.ts), and the joined heightmap holds 0
+// there: fitted over every node, the place would take those for the map's low ground.
+test(
+  "the L's place is fitted over the nodes of its listed tiles alone, none of its notch's",
+  { skip },
+  () => {
+    const { MAP } = sim!
+    const { heightmap } = WHOLE!
+    const { floor, downslope } = placeFrom(MAP.origin, heightmap, listedNodes(heightmap, MAP.tiles))
+    assert.deepEqual({ floor, downslope }, MAP.place)
+    assert.equal(placeFrom(MAP.origin, heightmap).floor, 0)
   },
 )
 

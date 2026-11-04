@@ -20,6 +20,7 @@ import {
   type TrackPiece,
 } from "../lines.ts"
 import { trainLength } from "../models.ts"
+import { MONZONE } from "../testing.ts"
 import {
   checkAtTheirS,
   checkLinesNear,
@@ -108,12 +109,17 @@ test("lines: line speed from OSM's limits, a stretch with none at its lower neig
     [85, 85, 60, 60, 60],
   )
   assert.equal(speedAt(makeLine(0, pieces), 500), DEFAULT_SPEED)
-  // The map's Lucca–Aulla line: OSM's 85 / 80 / 85 km/h.
-  const map = LINES[0]!
+  // The map's Lucca–Aulla line: OSM's limits along it, each at its stretch's middle, the run-outs at their ends'.
+  const map = LINES[0]!,
+    { maxspeed } = MAP.railway.lines[0]!
   assert.deepEqual(
-    [-50, 100, 5000, 10500, map.length + 50].map((s) => Math.round(speedAt(map, s) * 3.6)),
-    [85, 85, 80, 85, 85],
+    [map.start, ...maxspeed.map(([from, to]) => (from + to) / 2), map.end].map((s) =>
+      Math.round(speedAt(map, s) * 3.6),
+    ),
+    [maxspeed[0]![2], ...maxspeed.map(([, , kmh]) => kmh), maxspeed.at(-1)![2]],
   )
+  // OSM's 80 km/h from Equi Terme's stop to Gragnola's, through Monzone.
+  assert.equal(Math.round(speedAt(map, (MONZONE.s0 + MONZONE.s1) / 2) * 3.6), 80)
 })
 
 test("lines, by Monzone station: linesNear finds each line's s and the distance off it, and nothing out of reach", () => {

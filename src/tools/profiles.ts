@@ -3,17 +3,9 @@
 // into the terrain grid (except under bridges and tunnels).
 import type { RoadClass } from "../sim/map/kinds.ts"
 import { arcLengths, type V } from "./geometry.ts"
-import {
-  fitProfile,
-  flatten,
-  GRID_CELL,
-  keepSamples,
-  resample,
-  smooth,
-  type Grid,
-  type Pin,
-  type Profile,
-} from "./terrain.ts"
+import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
+import { type Graded, junctionReach } from "./junction-reach.ts"
+import { fitProfile, keepSamples, resample, smooth, type Pin, type Profile } from "./terrain.ts"
 
 export interface Linear {
   readonly pts: ReadonlyArray<V>
@@ -66,12 +58,6 @@ export const chainsOf = <T extends Linear>(items: ReadonlyArray<T>): Array<Array
     .map(([c]) => c)
 }
 
-/**
- * Half-width (m) of the core a line `w` m wide writes into a grid of `cell` m: half a cell past
- * the carriageway's edge, so the terrain under it is (nearly) level across it.
- */
-export const coreHalf = (w: number, cell: number): number => Math.max(w / 2 + 0.3 + cell / 2, 3)
-
 /** A bridge's or tunnel's end may take the elevation of the ground this far (m) out of it along the chain. */
 const PORTAL = 4
 
@@ -81,6 +67,12 @@ export interface Bound {
   readonly y: number
   readonly z: number
   readonly kind?: "min" | "max"
+  /**
+   * The piece of the chain it holds on, its nearest sample: where a chain crosses itself, the
+   * nearest of all is as likely on the other level (the SR445's loop under its own bridge at
+   * Gassano took the bridge's bound).
+   */
+  readonly on?: Linear
   /**
    * Inside a bridge or tunnel, carry the bound to each end along the deck's slope (the profile's
    * line between its ends before the fit) rather than pin both ends at `z`: the straight deck still
@@ -127,7 +119,18 @@ export const beatsRail = (cls: string): boolean =>
 
 /**
  * Road core half-width written into the grid, rank (lower wins at junctions), grade limit,
- * smoothing half-window (m) and the elevation tolerance (m) of the bend samples kept in the output.
+ * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output,
+ * whether consecutive bridge (or tunnel) pieces make one deck, straight from end to end, and whether
+ * each junction the fit sets keeps within reach of the junctions already set that a road not yet
+ * fitted leads it to (`junctionReach`): the roads'. The rail keeps a deck a piece: its 2.5 % grade
+ * and 100 m smoothing hold a joint to the line between its deck's ends, and its platforms and
+ * crossings are fitted on that profile. It keeps its own grade at a level crossing too: the road
+ * meets it there. With `mouths` (the roads'), a tunnel's approaches hold the grid round each of its
+ * mouths at their level against every other claim: the first MOUTH m out of it, in their core,
+ * before anything else is written. A road over the tunnel or beside the mouth took that cell at its
+ * own level otherwise: Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m
+ * from its south mouth, buried that mouth 5.8 m. The rail's portals open in their hills, and its
+ * bridges over an underpass's mouth (`underpasses` in rail-spans.ts) write nothing there.
  */
 interface Spec {
   readonly w: number
@@ -135,6 +138,9 @@ interface Spec {
   readonly grade: number
   readonly half: number
   readonly tol?: number
+  readonly decks?: true
+  readonly mouths?: true
+  readonly reach?: true
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -188,72 +194,25 @@ const minHeap = () => {
 }
 
 /**
- * A profile to write into the grid (`flatten`): its core half-width, rank, and the samples whose
- * segment writes nothing (bridges, tunnels).
- */
-export interface Claim {
-  readonly p: Profile
-  readonly core: number
-  readonly rank: number
-  readonly skip: Uint8Array
-  /** The box its writes reach: [minX, minY, maxX, maxY]. */
-  readonly box: readonly [number, number, number, number]
-}
-
-/** Metres a claim's writes reach past its core: the blend back to the terrain. */
-const BLEND = 8
-
-/**
- * Writes `claims` into the nodes `g` holds, in order: what one pass over the whole grid writes
- * there, since a node's writes read only that node. `owner` and `protect` are indexed like `g.z`.
- */
-export const replayClaims = (
-  g: Grid,
-  claims: ReadonlyArray<Claim>,
-  owner: Uint8Array,
-  protect: Uint8Array,
-): void => {
-  const { i0, j0, cols, rows } = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
-  const minX = g.x0 + i0 * g.cell,
-    minY = g.y0 + j0 * g.cell,
-    maxX = g.x0 + (i0 + cols - 1) * g.cell,
-    maxY = g.y0 + (j0 + rows - 1) * g.cell
-  for (const { p, core, rank, skip, box } of claims)
-    if (box[0] <= maxX && box[2] >= minX && box[1] <= maxY && box[3] >= minY)
-      flatten(g, p, core, BLEND, rank, owner, protect, (k) => skip[k] === 1)
-}
-
-/**
  * Profiles chains against `ground` (the uncarved terrain) and records the claims they make on the
  * grid, in order (`replayClaims` writes them). Elevations set at shared nodes (`nodeZ`) pin every
- * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline.
+ * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline. `links` are
+ * the roads a chain's junctions keep within reach of (`Spec.reach`).
  */
-export const makeProfiler = (ground: (x: number, y: number) => number) => {
+export const makeProfiler = (
+  ground: (x: number, y: number) => number,
+  links: ReadonlyArray<Graded> = [],
+) => {
   const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
   const denseOf = new Map<Linear, Dense>()
+  /** The claims in the order they are written: the tunnels' mouths first, then the rest as made. */
   const claims: Array<Claim> = []
+  const junctions = junctionReach(links, ground)
+  let mouthClaims = 0
   /** Claims the grid along profile `p` of a line `w` m wide at `rank`, but for segments from samples where `skip`. */
   const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) => {
-    const core = coreHalf(w, GRID_CELL),
-      reach = core + BLEND
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity
-    for (let k = 0; k < p.x.length; k++) {
-      minX = Math.min(minX, p.x[k]! - reach)
-      minY = Math.min(minY, p.y[k]! - reach)
-      maxX = Math.max(maxX, p.x[k]! + reach)
-      maxY = Math.max(maxY, p.y[k]! + reach)
-    }
-    claims.push({
-      p,
-      core,
-      rank,
-      skip: Uint8Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) => (skip(k) ? 1 : 0)),
-      box: [minX, minY, maxX, maxY],
-    })
+    claims.push(claimOf(p, w, rank, BLEND, skip))
   }
   const profile = <T extends Linear>(
     chain: ReadonlyArray<Link<T>>,
@@ -271,15 +230,35 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
       return i
     }
     const isLifted = (i: number) => lifted(chain[i]!.item)
-    runs.forEach((r, i) => {
-      if (!isLifted(i)) return
-      const k0 = p.vertexSample[first[i]!]!,
-        k1 = p.vertexSample[first[i]! + r.length - 1]!
+    const isTunnel = (i: number) => chain[i]!.item.tunnel === true
+    // A deck: the consecutive lifted pieces of one kind round piece i, first and last, straight from
+    // end to end. OSM splits a bridge or a bore where its tags change: taken piece by piece, the
+    // joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m
+    // under it (4.9 m), and the joint inside the Galleria del Lupacino, at its speed limit, took the
+    // hill's surface over it. A tunnel's pieces always join; a bridge's only on a profile whose spec
+    // asks for it (`decks`, the roads': the rail keeps a deck a piece, as the CTR draws its spans).
+    const deckOf = (i: number): readonly [number, number] => {
+      let a = i,
+        b = i
+      const joins = (k: number) =>
+        isLifted(k) && isTunnel(k) === isTunnel(i) && (isTunnel(i) || spec.decks === true)
+      while (a > 0 && joins(a - 1)) a--
+      while (b + 1 < runs.length && joins(b + 1)) b++
+      return [a, b]
+    }
+    /** The first and last vertex of deck `[a, b]`, as indices into `pts`. */
+    const deckEnds = ([a, b]: readonly [number, number]) =>
+      [first[a]!, first[b]! + runs[b]!.length - 1] as const
+    for (let i = 0; i < runs.length; i++) {
+      if (!isLifted(i)) continue
+      const [i0, i1] = deckOf(i)
+      i = i1
+      const [k0, k1] = deckEnds([i0, i1]).map((v) => p.vertexSample[v]!) as [number, number]
       // Each end takes the ground PORTAL m out of it when that is nearer the line's level: at a
       // tunnel's portal the terrain model climbs the hill's face (3.6 m over the cutting at the
       // Ugliancaldo tunnel's west portal), and a bridge's end may stand on the slope of what it
       // spans (the Lucido's banks at Monzone).
-      const tunnel = chain[i]!.item.tunnel === true
+      const tunnel = isTunnel(i0)
       for (const [k, step] of [
         [k0, -1],
         [k1, 1],
@@ -290,44 +269,69 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
         if (o !== k && Math.abs(p.s[o]! - p.s[k]!) >= PORTAL)
           p.z[k] = tunnel ? Math.min(p.z[k]!, p.z[o]!) : Math.max(p.z[k]!, p.z[o]!)
       }
+      // An end the play area's outline cut (the chain's own end, with no id: `clipPieces` gives a
+      // cut point none) is no portal or abutment: the ground there is the hill over the tunnel or
+      // the valley under the bridge, so it takes its other end's level. The Galleria del Lupacino,
+      // cut 1325 m in at x 6700, fell 3.7% from the hill's 528 m there to its portal at 357 m.
+      const cut0 = i0 === 0 && runs[i0]![0]!.id === undefined,
+        cut1 = i1 === runs.length - 1 && runs[i1]!.at(-1)!.id === undefined
+      if (cut0 && !cut1) p.z[k0] = p.z[k1]!
+      if (cut1 && !cut0) p.z[k1] = p.z[k0]!
       for (let k = k0 + 1; k < k1; k++)
         p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
-    })
+    }
     smooth(p, spec.half)
     const pins: Array<Pin> = []
     pts.forEach((v, i) => {
       const z = v.id === undefined ? undefined : nodeZ.get(v.id)
       if (z !== undefined) pins.push({ k: p.vertexSample[i]!, z })
     })
-    // A bound inside a bridge or tunnel holds at both of its ends: the deck is straight between them
-    // (a `tilt` bound, shifted along the deck's slope).
+    // Bounds of a kind on one sample (a deck's end, under several crossings) keep the strictest: the
+    // fit enforces one bound per sample.
     const strictest = new Map<string, Pin>()
+    const keep = (k: number, z: number, kind: "min" | "max") => {
+      const key = `${kind}:${k}`,
+        was = strictest.get(key)
+      if (was === undefined || (kind === "min" ? z > was.z : z < was.z))
+        strictest.set(key, { k, z, kind })
+    }
+    // A junction this fit sets keeps within reach of those set before, along the roads fitted after
+    // it, at its own vertex.
+    if (spec.reach === true) {
+      const members = new Set<Linear>(chain.map((m) => m.item))
+      const open = (l: Linear) => !zOf.has(l) && !members.has(l)
+      pts.forEach((v, i) => {
+        const r =
+          v.id === undefined || nodeZ.has(v.id)
+            ? undefined
+            : junctions(v.id, (n) => nodeZ.get(n), open)
+        if (r === undefined) return
+        keep(p.vertexSample[i]!, r[0], "min")
+        keep(p.vertexSample[i]!, r[1], "max")
+      })
+    }
+    // A bound inside a bridge or tunnel holds at both ends of its deck, straight between them (a
+    // `tilt` bound, shifted along the deck's slope).
     for (const b of bounds) {
-      let best = 0,
+      // The samples it may take: its own piece's, from its first vertex to its last.
+      const on = b.on === undefined ? -1 : chain.findIndex((m) => m.item === b.on)
+      const from = on < 0 ? 0 : p.vertexSample[first[on]!]!,
+        to = on < 0 ? p.z.length - 1 : p.vertexSample[first[on]! + runs[on]!.length - 1]!
+      let best = from,
         d2 = Number.MAX_VALUE
-      for (let k = 0; k < p.z.length; k++) {
+      for (let k = from; k <= to; k++) {
         const e = (p.x[k]! - b.x) ** 2 + (p.y[k]! - b.y) ** 2
         if (e < d2) [best, d2] = [k, e]
       }
       const i = pieceOfSample(Math.min(best, p.z.length - 2))
-      const at = isLifted(i)
-        ? [p.vertexSample[first[i]!]!, p.vertexSample[first[i]! + runs[i]!.length - 1]!]
-        : [best]
+      const at = isLifted(i) ? deckEnds(deckOf(i)).map((v) => p.vertexSample[v]!) : [best]
       const [k0, k1] = [at[0]!, at.at(-1)!],
         t = k1 === k0 ? 0 : (p.s[best]! - p.s[k0]!) / (p.s[k1]! - p.s[k0]!),
         deck = p.z[k0]! + (p.z[k1]! - p.z[k0]!) * t
       for (const k of at) {
         const z = b.tilt === true ? b.z + p.z[k]! - deck : b.z
-        if (b.kind === undefined) {
-          pins.push({ k, z })
-          continue
-        }
-        // Bounds of a kind on one sample (a deck's end, under several crossings) keep the strictest:
-        // the fit enforces one bound per sample.
-        const key = `${b.kind}:${k}`,
-          was = strictest.get(key)
-        if (was === undefined || (b.kind === "min" ? z > was.z : z < was.z))
-          strictest.set(key, { k, z, kind: b.kind })
+        if (b.kind === undefined) pins.push({ k, z })
+        else keep(k, z, b.kind)
       }
     }
     pins.push(...strictest.values())
@@ -335,12 +339,40 @@ export const makeProfiler = (ground: (x: number, y: number) => number) => {
     // A sample's segment belongs to the piece whose first vertex precedes it; the last sample closes the last piece.
     // The core reaches half a cell past the carriageway's edge, so the terrain under the carriageway is (nearly) level across it.
     claim(p, spec.w, spec.rank, (k) => isLifted(pieceOfSample(k)))
+    // A tunnel's mouths, with `mouths`, written first (`mouthClaim`). An end the outline cut is no
+    // mouth.
+    if (spec.mouths === true)
+      for (let i = 0; i < runs.length; i++) {
+        if (!isTunnel(i)) continue
+        const [i0, i1] = deckOf(i)
+        i = i1
+        const [v0, v1] = deckEnds([i0, i1])
+        for (const [v, step] of [
+          [v0, -1],
+          [v1, 1],
+        ] as const) {
+          if (pts[v]!.id === undefined) continue
+          const mouth = mouthClaim(
+            p,
+            p.vertexSample[v]!,
+            step,
+            spec.w,
+            (k) => !isLifted(pieceOfSample(k)),
+          )
+          if (mouth !== undefined) claims.splice(mouthClaims++, 0, mouth)
+        }
+      }
     runs.forEach((r, i) => {
       const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!)
       if (isLifted(i)) {
-        const s = arcLengths(r)
-        for (let j = 1; j + 1 < z.length; j++)
-          z[j] = z[0]! + ((z.at(-1)! - z[0]!) * s[j]!) / s.at(-1)!
+        const [v0, v1] = deckEnds(deckOf(i)),
+          s = arcLengths(pts.slice(v0, v1 + 1)),
+          z0 = p.z[p.vertexSample[v0]!]!,
+          z1 = p.z[p.vertexSample[v1]!]!
+        for (let j = 0; j < z.length; j++) {
+          const v = first[i]! + j
+          if (v > v0 && v < v1) z[j] = z0 + ((z1 - z0) * s[v - v0]!) / s.at(-1)!
+        }
       }
       r.forEach((v, j) => {
         if (v.id !== undefined && !nodeZ.has(v.id)) nodeZ.set(v.id, z[j]!)

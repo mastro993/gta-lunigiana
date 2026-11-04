@@ -8,6 +8,7 @@
  */
 import { type Cover, coverAt } from "../../sim/map/cover.ts"
 import { type Building, heightAt, isWood, MAP, TILE, treesIn } from "../../sim/map/index.ts"
+import { anchorOf } from "../../sim/map/kinds.ts"
 import { isListed } from "../../sim/map/tiles.ts"
 import { type Box, buildingsInMemory } from "../../sim/map/vectors.ts"
 import { hash01 } from "../../tools/geometry.ts"
@@ -107,34 +108,43 @@ const OWL_CELL = 500,
   OWL_PERCH = 8
 
 const { minX, minY, maxX, maxY } = MAP.bounds
-/** How many owl squares from `lo` start short of `hi`. */
-const squares = (lo: number, hi: number) => {
-  let n = 0
-  while (lo + n * OWL_CELL < hi) n++
-  return n
-}
-/** The owl squares along x and along y, from the map's south-west corner. */
-const owlCols = squares(minX, maxX),
-  owlRows = squares(minY, maxY)
-/** Each owl square's owl (null: none), by `i * owlRows + j`, once worked out. */
+/**
+ * The squares count from the region's anchor (`anchorOf`), never the box's corner, as the trees' lattice does: a part that grows
+ * the box west or south moves no owl of the parts before it. Square (i, j) spans x from `AX + i * OWL_CELL`, y likewise.
+ */
+const { x: AX, y: AY } = anchorOf(MAP.heightmap)
+/** The squares that meet the box along x and along y: the first's index (negative west or south of the anchor) and the last's. */
+const owlCols = {
+    first: Math.floor((minX - AX) / OWL_CELL),
+    last: Math.ceil((maxX - AX) / OWL_CELL) - 1,
+  },
+  owlRows = {
+    first: Math.floor((minY - AY) / OWL_CELL),
+    last: Math.ceil((maxY - AY) / OWL_CELL) - 1,
+  }
+/** Each owl square's owl (null: none), by its `slot`, once worked out. */
 const owls = new Map<number, Owl | null>()
+/** Square (i, j)'s place in `owls`. */
+const slot = (i: number, j: number) =>
+  (i - owlCols.first) * (owlRows.last - owlRows.first + 1) + j - owlRows.first
 
 /** Square (i, j)'s owl, if it has one. None while a point it tries is not in memory: it is worked out when asked again. */
 const owlOf = (i: number, j: number): Owl | undefined => {
   if (hash01(i, j, 11) >= OWL_SHARE) return undefined
-  const known = owls.get(i * owlRows + j)
+  const known = owls.get(slot(i, j))
   if (known !== undefined) return known ?? undefined
   let owl: Owl | null = null
   for (let k = 0; k < OWL_TRIES; k++) {
-    const x = Math.min(maxX, minX + (i + hash01(i, j, k, 12)) * OWL_CELL),
-      y = Math.min(maxY, minY + (j + hash01(i, j, k, 13)) * OWL_CELL)
+    // A point past the box's edge (a square it cuts) tries the edge.
+    const x = Math.min(maxX, Math.max(minX, AX + (i + hash01(i, j, k, 12)) * OWL_CELL)),
+      y = Math.min(maxY, Math.max(minY, AY + (j + hash01(i, j, k, 13)) * OWL_CELL))
     if (!isListed(Math.floor(x / TILE), Math.floor(y / TILE))) continue
     if (!exactAt(x, y)) return undefined
     if (!isWood(coverAt(x, y))) continue
     owl = { key: `owl:${i},${j}`, x, y, z: heightAt(x, y) + OWL_PERCH }
     break
   }
-  owls.set(i * owlRows + j, owl)
+  owls.set(slot(i, j), owl)
   return owl ?? undefined
 }
 
@@ -142,11 +152,12 @@ const owlOf = (i: number, j: number): Owl | undefined => {
 export const owlsNear = (x: number, y: number, radius: number): ReadonlyArray<Owl> => {
   const out: Array<Owl> = []
   // The squares the disc's box reaches.
-  const first = (v: number, lo: number) => Math.max(0, Math.floor((v - radius - lo) / OWL_CELL)),
-    last = (v: number, lo: number, n: number) =>
-      Math.min(n - 1, Math.floor((v + radius - lo) / OWL_CELL))
-  for (let i = first(x, minX), i1 = last(x, minX, owlCols); i <= i1; i++)
-    for (let j = first(y, minY), j1 = last(y, minY, owlRows); j <= j1; j++) {
+  const first = (v: number, a: number, n: typeof owlCols) =>
+      Math.max(n.first, Math.floor((v - radius - a) / OWL_CELL)),
+    last = (v: number, a: number, n: typeof owlCols) =>
+      Math.min(n.last, Math.floor((v + radius - a) / OWL_CELL))
+  for (let i = first(x, AX, owlCols), i1 = last(x, AX, owlCols); i <= i1; i++)
+    for (let j = first(y, AY, owlRows), j1 = last(y, AY, owlRows); j <= j1; j++) {
       const owl = owlOf(i, j)
       if (owl !== undefined && (owl.x - x) ** 2 + (owl.y - y) ** 2 <= radius * radius) out.push(owl)
     }

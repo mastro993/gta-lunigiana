@@ -6,10 +6,11 @@
 import type { Water } from "../sim/map/index.ts"
 import { tileByTile } from "./build-grid.ts"
 import type { Sources } from "./build-sources.ts"
-import { catchments } from "./catchment.ts"
+import { catchments, type Inflow } from "./catchment.ts"
 import type { Dem } from "./dtm.ts"
 import type { RoadF } from "./features.ts"
 import {
+  BOUNDS,
   along,
   arcLengths,
   boxesMeet,
@@ -31,17 +32,57 @@ import {
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { roadLevels } from "./road-levels.ts"
-import { sampleGrid } from "./terrain.ts"
-import { inStill, waterAreas } from "./water-areas.ts"
+import { type Profile, RELAX, sampleGrid } from "./terrain.ts"
+import { stillLevel, waterAreas } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**
- * Catchment of the Torrente Aulella beyond the map, km²: the bounds hold only its left bank, so
- * the D8 areas miss nearly all of it. The Soliera gauge, 4 km below Gragnola, drains 208 km²
- * (ARPAL, Annali Idrologici 2017, part II); less the Lucido's 47 km² at its mouth (D8), the Aulella
- * brings 161 km² to Gragnola. The few km² between Gragnola and the gauge count to it.
+ * Catchments beyond the map's box that drain into it, km², each at the point on the box's edge
+ * where its stream comes in. The box holds the Torrente Aulella's basin down to the Soliera gauge,
+ * 4 km below Gragnola and below the Torrente Rosaro's mouth, but the heads of the streams that come
+ * down from north of y 13000 under the Cerreto pass: 14.7 km², by a D8 on the MS 10 m DTM, all of
+ * which reach the Rosaro above Fivizzano, 13.1 of them down the Rosaro's own head and 1.6 down
+ * rivulets west of it, so the Rosaro brings them all. The Bardine and the land south-west of the
+ * box join the Aulella below the gauge.
  */
-const AULELLA_OFF_MAP = 161
+const OFF_MAP: ReadonlyArray<{
+  readonly name: string
+  readonly at: readonly [number, number]
+  readonly km2: number
+}> = [{ name: "Torrente Rosaro", at: [3528, 13000], km2: 14.7 }]
+
+/**
+ * Where each OFF_MAP stream's area comes in: the sample of its water nearest its point, at least
+ * INSET m inside the box (D8 drains no edge node), none where the map holds no such water.
+ */
+const inflowsOf = (
+  water: ReadonlyArray<{ readonly name?: string }>,
+  wp: ReadonlyArray<Profile>,
+  box: {
+    readonly minX: number
+    readonly minY: number
+    readonly maxX: number
+    readonly maxY: number
+  },
+): Array<Inflow> =>
+  OFF_MAP.flatMap(({ name, at: [ax, ay], km2 }) => {
+    let best: Inflow | undefined,
+      least = Infinity
+    water.forEach((w, i) => {
+      if (w.name !== name) return
+      const p = wp[i]!
+      for (let k = 0; k < p.x.length; k++) {
+        const x = p.x[k]!,
+          y = p.y[k]!
+        if (Math.min(x - box.minX, box.maxX - x, y - box.minY, box.maxY - y) < INSET) continue
+        const d = Math.hypot(x - ax, y - ay)
+        if (d < least) [best, least] = [{ x, y, km2 }, d]
+      }
+    })
+    return best === undefined ? [] : [best]
+  })
+/** How far inside the box an inflow's node lies, m: past the edge nodes, which drain off the grid. */
+const INSET = 12
 
 /** The finished terrain and what is read from it. */
 export type Terrain = ReturnType<typeof buildTerrain>
@@ -59,7 +100,14 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   // platform's area is its index there).
   const wet = waterAreas(src.areas, water, wp0, dem)
   wet.areas.forEach((a, i) => (src.areas[i] = a))
-  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(ground)
+  // Every road a pass profiles, at the steepest grade its fit draws: a junction keeps within reach
+  // of the junctions set before along the roads not yet fitted (junction-reach.ts).
+  const links = ROAD_PASSES.flatMap(({ classes, grade }) =>
+    roads
+      .filter((r) => (classes as ReadonlyArray<string>).includes(r.cls))
+      .map((piece) => ({ piece, grade: RELAX * grade })),
+  )
+  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(ground, links)
   const zAt = (l: Linear, s: number) => along(arcLengths(l.pts), zOf.get(l)!, s)
 
   const { railRoad, levels, roadBounds, railBounds } = railLevels({
@@ -92,7 +140,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
   for (const { classes, rank, grade, half } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
-      profile(ch, { w: widest(ch), rank, grade, half }, [
+      profile(ch, { w: widest(ch), rank, grade, half, decks: true, mouths: true, reach: true }, [
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])
@@ -166,6 +214,8 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     wp,
     areas: wet.carved,
     claims,
+    // Under a deck: its carriageway and a metre either side.
+    decks: roads.filter((r) => r.bridge === true).map((r) => ({ pts: r.pts, half: r.w / 2 + 1 })),
     // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings.
     rail: railLines.filter(({ r }) => !lifted(r)),
     levels: levels.map(({ v }) => [v.x, v.y] as const),
@@ -175,8 +225,10 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     grid.uncarved,
     wp0,
     water.map((w) => w.pts.map((v) => v.id)),
+    grid.listed,
+    inflowsOf(water, wp0, BOUNDS),
   )
-  dropPerched(water, wp, crossed, grid.perched, inStill(wet.carved))
+  dropPerched(water, wp, crossed, grid.perched, stillLevel(wet.carved))
   lap("water")
   // Everything below reads the finished grid.
   const at = (x: number, y: number) => sampleGrid(grid.grid, x, y)
@@ -195,8 +247,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
       vertex: (denseOf.get(rl)?.pts ?? rl.pts).findIndex((u) => u.id === v.id),
     })),
     water: water.map((w, i): Omit<Water, "floor"> => {
-      const line = waterLine(w.pts, wp[i]!),
-        off = w.name === "Torrente Aulella" ? AULELLA_OFF_MAP : 0
+      const line = waterLine(w.pts, wp[i]!)
       return {
         id: w.id,
         kind: w.kind,
@@ -206,7 +257,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
         depth: w.depth,
         pts: flatLine(line.pts),
         z: line.z.map(r1),
-        area: line.keep.map((k) => Math.round((off + drained[i]![k]!) * 100) / 100),
+        area: line.keep.map((k) => Math.round(drained[i]![k]! * 100) / 100),
       }
     }),
   }

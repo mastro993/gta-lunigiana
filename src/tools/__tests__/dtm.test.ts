@@ -6,7 +6,18 @@ import { type TestContext, test } from "node:test"
 import { deflateSync } from "node:zlib"
 
 import { gaussBoagaToLatLon, latLonToGaussBoaga } from "../crs.ts"
-import { type DtmData, dtmDem, loadDtm, readDtm, sourceAreas } from "../dtm.ts"
+import {
+  CELL,
+  type Cells,
+  emptyTile,
+  encodeTile,
+  LATTICE,
+  tileGrid,
+  tileNeed,
+  tilePath,
+} from "../dtm-tiles.ts"
+import { type DtmData, dtmDem, loadDtm, readDtm, readTiles, sourceAreas } from "../dtm.ts"
+import { NONE } from "../fill-chain.ts"
 import { fromLocal, toLocal } from "../geometry.ts"
 import { gridLattice, makeGrid, type Span } from "../terrain.ts"
 import { first, grown, points } from "./grounds.ts"
@@ -147,13 +158,87 @@ test("loadDtm samples the DTM fetch-rt wrote as dtmDem samples it, its sources i
   const dir = tempDir(t),
     d = halves()
   write(dir, d)
-  const read = loadDtm(dir, first),
+  const read = loadDtm(dir, { ...first, ownTerrain: true, test: true, tiles: [] }),
     made = dtmDem(d, first)
   for (const [x, y] of points(200)) {
     if (!Object.is(read.at(x, y), made.at(x, y)))
       assert.fail(`at(${x}, ${y}): ${read.at(x, y)} != ${made.at(x, y)}`)
     assert.equal(read.source?.(x, y), made.source?.(x, y))
   }
+})
+
+/**
+ * What `readTiles` reads of a region with two tiles side by side, its box tile 0_0 and the west
+ * half of 1_0: the shipped map's (`test` false) or a test region's.
+ */
+const pair = (test: boolean) => ({
+  ownTerrain: false,
+  test,
+  tiles: [
+    { i: 0, j: 0 },
+    { i: 1, j: 0 },
+  ],
+  bounds: { minX: 0, minY: 0, maxX: 3000, maxY: 2000 },
+  anchor: { x: 0, y: 0 },
+})
+
+/** The centre in EPSG:3003 of the cell in the middle of `b`. */
+const middle = (b: Cells) =>
+  [b.e0 + CELL * Math.floor(b.cols / 2), b.n0 + CELL * Math.floor(b.rows / 2)] as const
+
+/**
+ * Writes tile (i, j)'s file into `dir` as fetch-rt does, each cell a LiDAR height rising 0.1 m a
+ * lattice column eastward, but the cells centred on `lack` (EPSG:3003), which hold none.
+ */
+const writeTile = (
+  dir: string,
+  i: number,
+  j: number,
+  lack: ReadonlyArray<readonly [number, number]> = [],
+) => {
+  const t = emptyTile(i, j, ["lidar"])
+  for (let k = 0; k < t.codes.length; k++) {
+    t.codes[k] = 0
+    t.dm[k] = (t.e0 - LATTICE.e) / CELL + (k % t.cols)
+  }
+  for (const [e, n] of lack) t.codes[((n - t.n0) / CELL) * t.cols + (e - t.e0) / CELL] = NONE
+  writeFileSync(tilePath(dir, i, j), deflateSync(encodeTile(t)))
+}
+
+// The shipped map's guards catch a box a part grew before each earlier part's fetch ran again.
+test("readTiles: the shipped map throws naming a listed tile with no file; a test region builds on the files there are, the edge drawn on", (t) => {
+  const dir = tempDir(t),
+    lack = middle(tileNeed(0, 0, pair(false).bounds)!)
+  writeTile(dir, 0, 0, [lack])
+  assert.throws(
+    () => readTiles(dir, pair(false)),
+    /^Error: no terrain for tile 1_0: run fetch-rt for the part it belongs to$/,
+  )
+  const dtm = readTiles(dir, pair(true))
+  assert.deepEqual([dtm.e0, dtm.n0, dtm.cols, dtm.rows], Object.values(tileGrid(0, 0)))
+  assert.ok(!dtm.z.some(Number.isNaN))
+  // The cell missing from 0_0's file holds the height west of it, drawn on along its row.
+  const k = ((lack[1] - dtm.n0) / CELL) * dtm.cols + (lack[0] - dtm.e0) / CELL
+  assert.equal(dtm.z[k], dtm.z[k - 1])
+})
+
+test("readTiles: the shipped map throws naming a tile and the cell its file lacks within the box, not one past it", (t) => {
+  const dir = tempDir(t),
+    g = tileGrid(1, 0),
+    [e, n] = middle(tileNeed(1, 0, pair(false).bounds)!)
+  writeTile(dir, 0, 0)
+  // It also lacks its file's south-east corner, past the box, which no fetch for this box writes
+  // and a scan of the whole file would meet first.
+  writeTile(dir, 1, 0, [
+    [g.e0 + CELL * (g.cols - 1), g.n0],
+    [e, n],
+  ])
+  assert.throws(
+    () => readTiles(dir, pair(false)),
+    new RegExp(
+      `^Error: tile 1_0 has no terrain at EPSG:3003 ${e}, ${n}: run fetch-rt for its part$`,
+    ),
+  )
 })
 
 test("sourceAreas gives each source's km² over the 10 m cells in play", () => {

@@ -251,13 +251,16 @@ const PARAPET = 0.25
 
 /**
  * The parapets along both sides of every drivable bridge deck, as walls for the cars: one piece per
- * deck segment and side, opened (`openBarriers`) where any other road crosses under the bridge or
- * joins or carries on from its deck, tunnels and other pieces of the same bridge included (OSM
- * splits bridges). Walkers keep their verge across.
+ * deck segment and side, opened (`openBarriers`) wherever a road's carriageway reaches it: where any
+ * other road crosses under the bridge or joins or carries on from its deck, tunnels and other
+ * pieces of the same bridge included (OSM splits bridges), and on the inside of the deck's own
+ * bends, where the piece along one segment runs on across the next one's carriageway (a 2.4 m
+ * segment off a junction on the SR445's bridge by Montefiore put it 3.6 m from the centreline,
+ * inside the 7.6 m deck). Walkers keep their verge across.
  */
 const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> => {
-  const ways = segIndex<RoadF>()
-  for (const r of roads) ways.addLine(r.pts, r.w / 2, r)
+  const ways = segIndex<null>()
+  for (const r of roads) ways.addLine(r.pts, r.w / 2, null)
   return roads
     .filter((r) => r.bridge === true && isDrivable(r.cls))
     .flatMap((r) =>
@@ -275,7 +278,8 @@ const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> => {
             }
           })
         }),
-        (x, y) => ways.covers(x, y, (q) => q !== r),
+        // A piece stands PARAPET past its own segment's carriageway, so only another segment covers it.
+        (x, y) => ways.covers(x, y),
       ),
     )
 }
@@ -344,6 +348,9 @@ export const buildWalls = (
     driveBlocked = new Uint8Array(cw * ch),
     driveShoreBlocked = new Uint8Array(cw * ch)
   // Tile by tile: a tile's cells, and the ring of cells around them that the majority filter reads.
+  // The listed tiles alone: an unlisted one's cells lie outside the play area, where none is
+  // blocked, and its nodes, which the ring and the slopes beside it read, are the edge's
+  // (`extendEdges` in grid-tiles.ts).
   for (const { span } of gridTiles(g)) {
     const ci0 = span.i0,
       ci1 = span.i0 + span.cols - 1,

@@ -5,15 +5,18 @@
 // on a mistyped flag. The rows are the comuni, OSM boundary=administrative admin_level=8
 // relations meeting the part's box (one Overpass query); the columns:
 // - CTR 2019: the AZR mapped areas of the manifest's sheets (the archives `fetch-rt` caches);
-// - LiDAR <lot>: the manifest's tiles in order, on the index's footprints; a cell takes the lot of
-//   the first tile holding it, as `fetch-rt`'s mosaic keeps the first value;
+// - LiDAR <lot>: the tiles in fetch-rt's order (every earlier part's manifest's, then the part's), on
+//   the index's footprints; a cell takes the lot of the first tile holding it, as `fetch-rt`'s
+//   mosaic keeps the first value;
 // - no LiDAR: the cells no tile holds, which `fetch-rt` fills through the fallback chain;
 // - DSM 2021, 10 m DTM, DTM Liguria, DTM 5x5: the sources `fetch-rt`'s chain took past the LiDAR,
-//   read from the terrain it wrote for the part's region (`dtm-src.bin`), once it has;
+//   read from the terrain it wrote for the part, once it has written every play-area cell's: for a
+//   Lunigiana part the files of its tiles (data/raw/rt/dtm/<i>_<j>.bin, `tileSource`), for a test
+//   region with terrain of its own its mosaic (`dtm-src.bin`);
 // - forest: the UCS 2019 woods (311–313, 324; WFS, box + 500 m), OSM forest (landuse=forest,
 //   natural=wood; Overpass), and the share of the woods OSM also marks as forest.
-// Measured on 10 m cells, a cell counted when its centre lies in the play area (the union of the
-// part's rectangles). Prints the table and the picture's legend; writes .research/<part>/coverage.md
+// Measured on 10 m cells, a cell counted when its centre lies in the play area (the part's mask, or
+// else its rectangles). Prints the table and the picture's legend; writes .research/<part>/coverage.md
 // and coverage.png. The Overpass and WFS answers are cached in .research/<part>/ (comuni.osm,
 // forest.osm, ucs.gml), each once it reads as complete; --refresh asks again.
 
@@ -21,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, relative } from "node:path"
 import { parseArgs } from "node:util"
 
+import { TILE } from "../sim/map/kinds.ts"
 import { UCS, ctrUrl, parseGml, wfsUrl } from "./cartoteca.ts"
 import {
   LEGEND,
@@ -33,12 +37,15 @@ import {
   playMask,
   tally,
 } from "./coverage-grid.ts"
-import { gaussBoagaToLatLon, utm32ToLatLon } from "./crs.ts"
+import { gaussBoagaToLatLon, latLonToGaussBoaga, utm32ToLatLon } from "./crs.ts"
+import { CELL, type DtmTile, partTiles, readTile } from "./dtm-tiles.ts"
 import { loadDtm } from "./dtm.ts"
+import { NONE } from "./fill-chain.ts"
 import { fromLocal, gaussBoagaBox, toLocal } from "./geometry.ts"
 import { type Manifest, readManifest } from "./manifest.ts"
 import { getText, overpass, pool } from "./net.ts"
 import { type Osm, assembleRings, readOsm } from "./osm.ts"
+import { earlierParts } from "./pick-lidar.ts"
 import { encodePngRgb } from "./png.ts"
 import { type Part, dtmDir, partOf, rectsBox, regionOfPart } from "./region.ts"
 import { fetchZip, mustFind } from "./rt-cache.ts"
@@ -119,6 +126,30 @@ export const readUcs = async (
 ): Promise<ReturnType<typeof parseGml>> =>
   parseGml(await cached(path, refresh, () => getText(url).then((t) => (parseGml(t), t))))
 
+/**
+ * The LiDAR tiles in the order `fetch-rt` mosaics them for `part`, each its index footprint: every
+ * earlier part's manifest's (`earlierParts`), whose tiles hold the cells they wrote first (lucido's
+ * strip beside Fivizzano's), then the part's own. An earlier part's tile the part's index does not
+ * list lies past its box; one of its own throws.
+ */
+export const mosaicTiles = <T>(
+  part: Part,
+  footprints: ReadonlyMap<string, T>,
+  manifestOf: (p: Part) => Pick<Manifest, "lidar">,
+): Array<T> => [
+  ...earlierParts(part).flatMap((p) =>
+    manifestOf(p).lidar.flatMap((name) => {
+      const tile = footprints.get(name)
+      return tile === undefined ? [] : [tile]
+    }),
+  ),
+  ...manifestOf(part).lidar.map((name) => {
+    const tile = footprints.get(name)
+    if (tile === undefined) throw new Error(`${name} not in the index: run rt-index ${part.key}`)
+    return tile
+  }),
+]
+
 /** Part `key`'s `manifest` when it picks CTR sheets or LiDAR tiles (a part without one reads as empty); throws saying to pick them otherwise. */
 export const checkPicks = (key: string, manifest: Manifest): Manifest => {
   if (manifest.ctr.length === 0 && manifest.lidar.length === 0)
@@ -149,23 +180,47 @@ const ctrMapped = async (sheets: ReadonlyArray<string>): Promise<Array<Polygon>>
   ).flat()
 
 /**
- * Each cell's source past the LiDAR (`source` at its centre), 1-based into FILLS' columns; 0 = the
- * LiDAR. Throws on a source with no column, which would otherwise count as LiDAR.
+ * Each play-area cell's source past the LiDAR (`source` at its centre), 1-based into FILLS' columns;
+ * 0 = the LiDAR, or outside the play area (`play` 0), which is never asked. Undefined when `source`
+ * has none for a play-area cell: its terrain is not fetched yet. Throws on a source with no column,
+ * which would otherwise count as LiDAR.
  */
 export const fillLayer = (
   grid: ReturnType<typeof gridOver>,
-  source: (x: number, y: number) => string,
-): Uint16Array => {
+  play: Uint16Array,
+  source: (x: number, y: number) => string | undefined,
+): Uint16Array | undefined => {
   const out = new Uint16Array(grid.cols * grid.rows)
   for (let row = 0; row < grid.rows; row++)
     for (let col = 0; col < grid.cols; col++) {
+      if (play[row * grid.cols + col] === 0) continue
       const name = source(grid.x0 + (col + 0.5) * grid.res, grid.y0 + (row + 0.5) * grid.res)
+      if (name === undefined) return undefined
       if (name === "lidar") continue
       const code = FILL_SOURCES.indexOf(name) + 1
       if (code === 0) throw new Error(`no coverage column for terrain source ${name}`)
       out[row * grid.cols + col] = code
     }
   return out
+}
+
+/**
+ * The terrain source at a local point from the tile files of a part's tiles (`files`, as `readTile`
+ * reads them): the source of the lattice cell nearest the point, in the file of the tile whose square
+ * holds it, which reaches HALO past it. Undefined where that tile has no file, or its file holds no
+ * height there: its part's fetch has not written it.
+ */
+export const tileSource = (
+  files: ReadonlyArray<{ readonly i: number; readonly j: number; readonly tile: DtmTile }>,
+): ((x: number, y: number) => string | undefined) => {
+  const byKey = new Map(files.map(({ i, j, tile }) => [`${i}_${j}`, tile]))
+  return (x, y) => {
+    const t = byKey.get(`${Math.floor(x / TILE)}_${Math.floor(y / TILE)}`)
+    if (t === undefined) return undefined
+    const [e, n] = latLonToGaussBoaga(...fromLocal(x, y))
+    const code = t.codes[Math.round((n - t.n0) / CELL) * t.cols + Math.round((e - t.e0) / CELL)]!
+    return code === NONE ? undefined : t.names[code]
+  }
 }
 
 /** An EPSG:3003 polygon (flat rings) in local metres. */
@@ -187,13 +242,8 @@ const main = async (): Promise<void> => {
   const dir = join(import.meta.dirname, "../../.research", part.key)
   mkdirSync(dir, { recursive: true })
 
-  // The LiDAR tiles in the manifest's order, each on its index footprint.
   const footprints = new Map(index.lidar.flatMap((t) => (t.dtm === undefined ? [] : [[t.dtm, t]])))
-  const tiles = manifest.lidar.map((name) => {
-    const tile = footprints.get(name)
-    if (tile === undefined) throw new Error(`${name} not in the index: run rt-index ${part.key}`)
-    return tile
-  })
+  const tiles = mosaicTiles(part, footprints, (p) => readManifest(p.key))
   const lots = [...new Set(tiles.map((t) => t.lot))]
 
   const bbox = overpassBox(part)
@@ -209,17 +259,34 @@ const main = async (): Promise<void> => {
     wfsUrl(UCS.map, UCS.layer, gaussBoagaBox(part.rects, UCS.pad)),
   )
 
-  // The terrain fetch-rt wrote for the part's region, if it has: each cell's source past the LiDAR.
-  const region = regionOfPart(part),
-    terrainDir = join(import.meta.dirname, "../..", dtmDir(region))
-  const fetched = existsSync(join(terrainDir, "dtm-src.bin"))
   const comuni = comuniOf(readOsm(comuniPath))
   const woods = ucs.flatMap(({ attrs, polygons }) =>
     WOODS.has(attrs.ucs2019 ?? "") ? polygons.map(gbPolygon) : [],
   )
-  const grid = gridOver(part.rects, RES)
+  const grid = gridOver(part.rects, RES),
+    play = playMask(grid, part)
+  // The terrain fetch-rt wrote for the part, once it has: each play-area cell's source past the
+  // LiDAR, from the files of the part's tiles, or a test region's own mosaic.
+  const region = regionOfPart(part),
+    root = join(import.meta.dirname, "../.."),
+    terrainDir = join(root, dtmDir(region))
+  const terrain = region.ownTerrain
+    ? `${relative(root, terrainDir)}/dtm-src.bin`
+    : `the files of its tiles in ${relative(root, terrainDir)}/dtm`
+  const source = region.ownTerrain
+    ? existsSync(join(terrainDir, "dtm-src.bin"))
+      ? loadDtm(terrainDir, region).source!
+      : undefined
+    : tileSource(
+        partTiles(part.rects, region.bounds).flatMap(({ i, j }) => {
+          const tile = readTile(join(terrainDir, "dtm"), i, j)
+          return tile === undefined ? [] : [{ i, j, tile }]
+        }),
+      )
+  const fill = source === undefined ? undefined : fillLayer(grid, play, source),
+    fetched = fill !== undefined
   const layers = {
-    play: playMask(grid, part.rects),
+    play,
     comune: paint(
       grid,
       comuni.map((c, i) => ({ value: i + 1, polygons: [c.polygon] })),
@@ -231,7 +298,7 @@ const main = async (): Promise<void> => {
     ),
     ucs: mask(grid, woods),
     osm: mask(grid, forestPolygons(readOsm(forestPath))),
-    ...(fetched ? { fill: fillLayer(grid, loadDtm(terrainDir, region).source!) } : {}),
+    ...(fill === undefined ? {} : { fill }),
   }
   const rows = tally(
     layers,
@@ -245,11 +312,11 @@ const main = async (): Promise<void> => {
     .map((l) => `- ${l}`)
     .join("\n")
   const notes = [
-    `${RES} m cells, counted when their centre lies in the play area.`,
+    `${RES} m cells, counted when their centre lies in the play area (${part.mask === undefined ? "the part's rectangles" : "the part's mask"}).`,
     `CTR 2019: the AZR of ${manifest.ctr.length} sheets. LiDAR: ${tiles.length} tiles, first wins in lot order ${lots.join(", ")}.`,
     fetched
-      ? `no LiDAR: the fallback chain of ${relative(join(import.meta.dirname, "../.."), terrainDir)}/dtm-src.bin, the terrain fetch-rt wrote: ${Object.values(FILLS).join(", ")}.`
-      : "no LiDAR: the fallback chain's sources show once fetch-rt has written the part's terrain.",
+      ? `no LiDAR: the fallback chain of ${terrain}, the terrain fetch-rt wrote: ${Object.values(FILLS).join(", ")}.`
+      : `no LiDAR: the fallback chain's sources show once fetch-rt has written the part's terrain (${terrain}) over its play area.`,
     "Source columns: km² (share of the comune's play area).",
   ]
   const md = [

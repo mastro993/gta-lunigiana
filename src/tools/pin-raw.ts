@@ -37,7 +37,7 @@ export const MAX_ASSETS = 1000
  */
 export const NOTES = `Raw map inputs, pinned by \`pnpm pin-raw\`. \`data/raw.lock.json\` maps each file in \`data/raw\` to its asset here, its SHA-256 and its source; \`pnpm fetch-raw\` downloads them.
 
-The files are changed from their sources: cut to the play area, subset to the layers and classes the map uses, mosaicked, averaged or re-encoded. Credits and licences:
+The files are changed from their sources: cut to a part's box, or the terrain to the 2 km map tiles, a file a tile; subset to the layers and classes the map uses; mosaicked, averaged or re-encoded. Credits and licences:
 
 - Map data © OpenStreetMap contributors, available under the Open Database License (ODbL) 1.0: https://www.openstreetmap.org/copyright
 - Fonte dei dati: Regione Toscana – Rilievi LIDAR. The Carta Tecnica Regionale 1:2000 (2019 and 2009), the Carta Tecnica Regionale 1:10 000 (2010), the Database Topografico scala 1:2000, the DSM 2021 ("Fonte dei dati: DSM_autocorrelazione_2021 – Regione Toscana") and the Uso e copertura del suolo 2019, Regione Toscana, under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/), and the DTM 10x10 metri, Regione Toscana, under Creative Commons Attribution 3.0 Italia (https://creativecommons.org/licenses/by/3.0/it/), from the Geoscopio cartoteca: https://www502.regione.toscana.it/geoscopio/cartoteca.html

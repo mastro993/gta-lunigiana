@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { wholeMap } from "../../../tools/map-file.ts"
 import { staticGrid } from "../../collide.ts"
 import { MAP } from "../index.ts"
-import { HALO, TILE, tileKey, tileRange } from "../kinds.ts"
+import { HALO, TILE, tileKey, tileRange, tilesRound } from "../kinds.ts"
 import { decodeTile, readMapFile, tileUrl, VECTOR_LAYERS } from "../packed.ts"
 import { buildingsIn } from "../vectors.ts"
 
@@ -30,13 +30,21 @@ const boxOf = (flat: ReadonlyArray<number>): [number, number, number, number] =>
   return box
 }
 
-/** The listed tiles a box comes within the halo of, its tile indices clamped to the range (Lunigiana lists every tile of it). */
+const LISTED = new Set(tiles.keys())
+const isListed = (i: number, j: number) => LISTED.has(tileKey(i, j))
+
+/**
+ * The listed tiles a box comes within the halo of, its tile indices clamped to the range: for one
+ * the region leaves off its list (an L's notch, Lunigiana's west and east of lucido), the listed
+ * tiles round it (`tilesRound`), which a lookup there reads.
+ */
 const tilesNear = ([x0, y0, x1, y1]: readonly [number, number, number, number]): Array<string> => {
   const at = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.floor(v / TILE)))
   const out: Array<string> = []
   for (let j = at(y0 - HALO, RANGE.j0, RANGE.j1); j <= at(y1 + HALO, RANGE.j0, RANGE.j1); j++)
     for (let i = at(x0 - HALO, RANGE.i0, RANGE.i1); i <= at(x1 + HALO, RANGE.i0, RANGE.i1); i++)
-      out.push(tileKey(i, j))
+      if (isListed(i, j)) out.push(tileKey(i, j))
+      else for (const [ri, rj] of tilesRound(i, j, isListed)) out.push(tileKey(ri, rj))
   return out
 }
 
@@ -46,8 +54,7 @@ const segments = (pts: ReadonlyArray<number>) =>
     ? [boxOf(pts)]
     : Array.from({ length: pts.length / 2 - 1 }, (_, k) => boxOf(pts.slice(2 * k, 2 * k + 4)))
 
-test("each tile holds, whole and in the whole map's order, exactly the vectors with a segment or ring box within the halo of it", () => {
-  assert.equal(MAP.tiles.length, (RANGE.i1 - RANGE.i0 + 1) * (RANGE.j1 - RANGE.j0 + 1))
+test("each tile holds, whole and in the whole map's order, exactly the vectors with a segment or ring box within the halo of it (or of an unlisted tile it is round), and the waterways of its river polygons", () => {
   const near = {
     roads: WHOLE.roads.map((r) => segments(r.pts)),
     water: WHOLE.water.map((w) => segments(w.pts)),
@@ -55,11 +62,26 @@ test("each tile holds, whole and in the whole map's order, exactly the vectors w
     buildings: WHOLE.buildings.map((b) => [boxOf(b.outer)]),
     areas: WHOLE.areas.map((a) => [boxOf(a.rings[0]!)]),
   }
+  const wants = Object.fromEntries(
+    VECTOR_LAYERS.map((layer) => {
+      const want = new Map([...tiles.keys()].map((key) => [key, [] as Array<number>]))
+      near[layer].forEach((boxes, id) => {
+        for (const key of new Set(boxes.flatMap(tilesNear))) want.get(key)!.push(id)
+      })
+      return [layer, want]
+    }),
+  ) as Record<(typeof VECTOR_LAYERS)[number], Map<string, Array<number>>>
+  // A river polygon's water is its waterways': a tile holding the polygon holds them too.
+  for (const [key, areas] of wants.areas) {
+    const ways = areas.flatMap((k) => WHOLE.areas[k]!.waters ?? [])
+    if (ways.length > 0)
+      wants.water.set(
+        key,
+        [...new Set([...wants.water.get(key)!, ...ways])].sort((a, b) => a - b),
+      )
+  }
   for (const layer of VECTOR_LAYERS) {
-    const want = new Map([...tiles.keys()].map((key) => [key, [] as Array<number>]))
-    near[layer].forEach((boxes, id) => {
-      for (const key of new Set(boxes.flatMap(tilesNear))) want.get(key)!.push(id)
-    })
+    const want = wants[layer]
     for (const [key, tile] of tiles) {
       assert.deepEqual(tile.vectors[layer].ids, want.get(key), `${layer} in ${key}`)
       const whole: ReadonlyArray<object> = WHOLE[layer]
@@ -76,19 +98,21 @@ test("each tile holds, whole and in the whole map's order, exactly the vectors w
 test("buildingsIn answers exactly as one broad phase over the whole map does: the same buildings, in the same order, across the seams too", () => {
   const boxes = WHOLE.buildings.map((b) => boxOf(b.outer))
   const grid = staticGrid(boxes.length, (i) => boxes[i]!, 64)
-  // Boxes from 1 to 600 m across (the dogs' 205 m reach, an occlusion path), half of them within 80 m of a seam.
+  // Boxes from 1 to 600 m across (the dogs' 205 m reach, an occlusion path), half of them within
+  // 80 m of a seam, the rest within 300 m of a building: the box round the parts holds land with
+  // none (an L's notch, the woods), where a box drawn anywhere would find nothing.
   let seed = 11,
     found = 0
   const next = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
   for (let k = 0; k < 1500; k++) {
-    const seam = k % 2 === 0
-    const { minX, minY, maxX, maxY } = MAP.bounds
+    const seam = k % 2 === 0,
+      near = boxes[Math.floor(next() * boxes.length)]!
     const x = seam
         ? TILE * (RANGE.i0 + Math.floor(next() * (RANGE.i1 - RANGE.i0 + 2))) + (next() - 0.5) * 160
-        : minX - 50 + next() * (maxX - minX + 100),
+        : near[0] + (next() - 0.5) * 600,
       y = seam
         ? TILE * (RANGE.j0 + Math.floor(next() * (RANGE.j1 - RANGE.j0 + 2))) + (next() - 0.5) * 160
-        : minY - 50 + next() * (maxY - minY + 100),
+        : near[1] + (next() - 0.5) * 600,
       r = 0.5 + next() ** 2 * 300
     const box = [x - r, y - r, x + r, y + r * (0.5 + next())] as const
     const got: Array<number> = [],

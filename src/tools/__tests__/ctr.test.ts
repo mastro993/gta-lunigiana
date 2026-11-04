@@ -5,12 +5,12 @@
 // - fixtures/ctr2019, from data/raw/rt/ctr (the CTR 1:2000 of 2019, lucido's sheets): 23D11 AED
 //   #7 0201, #40 0241, #58 0211, #426 0216; AGE #53 0205; AVI #5, #6, #7, #8; AZR #0. 23D20 AED #8
 //   0203, #15 0208, #234 0201 (a courtyard), #235 0206; AGE #105 0244; AVI #6, #10; AZR #1. 23D14
-//   AED #0 0201, which lies outside lucido's terrain box.
+//   AED #0 0201, which lies outside lucido's rectangle.
 // - fixtures/ctr2009, from S_<sheet>_2009_6707.zip: 22D04 AE_a #1 0208, #3 0212, #4 0201, #7
 //   0203, #26 0202, #48 0240; AV_a #2 0102, #5 0101 (a hole), #15 0101; ML_l #0 0205 (an open wall
 //   stub), #5 0205 (a closed ring), #7 0502 (a closed ring); 22D05 AC_a #0, #1; 22D13 AV_a #1 0102,
-//   #40 0101 (in a tunnel, Sede 054); 22D18 (west of lucido's box) AE_a #0 0235 (no Quota_gr), #3
-//   0207; AV_a #5 0101 (two parts), #21 0102.
+//   #40 0101 (in a tunnel, Sede 054); 22D18 (west of lucido's rectangle) AE_a #0 0235 (no
+//   Quota_gr), #3 0207; AV_a #5 0101 (two parts), #21 0102.
 // - fixtures/ctr10k, from S_249020_2010_6707.zip, by `Codice#Record`: AE_a 0204#1 (no Quota_gr),
 //   0201#398 (inside 23D11's AZR), 0211#3, 0208#6, 0201#970, 0207#262, 0201#1275 (a courtyard),
 //   0203#39; AV_a 0140#26, 0114#4, 0101#20, 0101#21 (inside 23D11's AZR), 0102#93; ML_l 0205#18 (a
@@ -21,11 +21,13 @@ import { fileURLToPath } from "node:url"
 
 import { readCtr, readOldCtr, streetName, type Survey } from "../ctr.ts"
 import { centroid, pointInRing, signedArea, type P } from "../geometry.ts"
-import type { Rect } from "../region.ts"
+import { partOf, type Rect } from "../region.ts"
 
 const fixture = (name: string) => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url))
 /** A box round every fixture record, so none is clipped away. */
 const ANYWHERE: Rect = [-1e5, -1e5, 1e5, 1e5]
+/** Lucido's rectangle, which the fixtures were cut for: the box a record outside of is dropped. */
+const LUCIDO = partOf("lucido").rects[0]!
 /** A flat ring's signed area: positive counter-clockwise. */
 const areaOf = (flat: ReadonlyArray<number>) =>
   signedArea(Array.from({ length: flat.length / 2 }, (_, i): P => [flat[2 * i]!, flat[2 * i + 1]!]))
@@ -50,7 +52,7 @@ const assertWound = ({ buildings, roadAreas, mapped }: Survey) => {
 }
 
 test("readCtr reads the 2019 buildings: kind, style, eave and height by code, courtyards, ids as before within section 23D", () => {
-  const ctr = readCtr(fixture("ctr2019"))
+  const ctr = readCtr(fixture("ctr2019"), LUCIDO)
   // Old ids: -(sheet · 1e5 + layer base (AED 0, AGE 5e4) + index); AED of every sheet, then AGE.
   // Dropped: 23D11 AED 1 (0241 loggia), 23D20 AED 1 (0208 canopy) and 3 (0206 overhang), and
   // 23D14's house, outside lucido's box.
@@ -76,7 +78,7 @@ test("readCtr reads the 2019 buildings: kind, style, eave and height by code, co
 })
 
 test("readCtr reads the 2019 road surfaces (0101 paved, 0102 dirt, named from the toponym) and each sheet's AZR as the mapped area", () => {
-  const ctr = readCtr(fixture("ctr2019"))
+  const ctr = readCtr(fixture("ctr2019"), LUCIDO)
   assert.deepEqual(roads(ctr), [
     ["Via Colle", true, 1],
     ["Via Castel dell'Aquila", true, 1],
@@ -121,8 +123,8 @@ test("readOldCtr reads the CTR 2009: building codes kept and dropped, Quota_gr t
   ])
   assert.equal(ctr.mapped.length, 2) // 22D05's AC_a: two rings where its frame is one rectangle
   assertWound(ctr)
-  // In lucido's box, the default, 22D18 is gone, and so is 22D13 AV_a 0, south of it.
-  const lucido = readOldCtr(fixture("ctr2009"), "ctr2009")
+  // In lucido's rectangle, 22D18 is gone, and so is 22D13 AV_a 0, south of it.
+  const lucido = readOldCtr(fixture("ctr2009"), "ctr2009", LUCIDO)
   assert.deepEqual(
     lucido.buildings.map((b) => b.id),
     [...ctr.buildings.slice(0, 4), ctr.buildings[5]!].map((b) => b.id),
