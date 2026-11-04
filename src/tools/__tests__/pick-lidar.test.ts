@@ -12,6 +12,7 @@ import {
   earlierParts,
   elementsOverHoles,
   findHoles,
+  keptAndPicked,
   needMask,
   replayPart,
   replayTile,
@@ -233,4 +234,16 @@ test("an element not RT's, or whose archive did not answer 200, is never kept, t
   ]
   assert.deepEqual(elementsOverHoles(others, oneHole(), CROP), [])
   assert.deepEqual(elementsOverHoles([element("234014", over)], oneHole(), CROP), ["234014"])
+})
+
+// Regression: --write on a fetched part (lucido, once Fivizzano grew the box) stored only the tiles
+// for the cells the grown box added, dropping those that wrote its held cells.
+test("--write keeps the manifest's tiles and elements and adds the new picks after them", () => {
+  const { lidar, elements } = keptAndPicked(
+    { lidar: ["b_004", "a_005"], dsm2021: ["249064"] },
+    ["c_004", "b_004"],
+    ["234123", "249064"],
+  )
+  assert.deepEqual(lidar, ["b_004", "a_005", "c_004"])
+  assert.deepEqual(elements, ["234123", "249064"])
 })

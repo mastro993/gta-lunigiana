@@ -18,11 +18,12 @@
 // given first (1 m cells, m²), the holes no tile fills (the cells fetch-rt fills through the
 // fallback chain, `fill-chain.ts`: count, 4-connected holes, the largest), the 2021 surface model's
 // elements whose index footprint meets a hole (the chain's second step), and how the picks differ
-// from data/parts/<part>.json, order included. --write stores the picks there as `lidar`, in
-// priority order, and the elements as `dsm2021`, by number. Run it before the part's first fetch:
-// once its fetch has run, the cells it wrote are held too, so a run keeps only the tiles a fetch
-// would still take (where a grown region box adds cells) and `--write` drops the rest; to pick a
-// fetched part again from the start, delete its tiles' files first, as to fetch it again.
+// from data/parts/<part>.json, order included. --write keeps the tiles and elements the manifest
+// lists, which wrote the cells its fetch holds, and adds the picks it lacks after them (`lidar`, in
+// priority order) and the elements (`dsm2021`, by number): once a part's fetch has run, its cells
+// are held, so a run picks only the tiles a fetch would still take, where a grown region box adds
+// cells (lucido's when Fivizzano grew the box, issue #17). To pick a part from the start, empty its
+// `lidar` and `dsm2021` and delete its tiles' files first, as to fetch it again.
 
 import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -260,6 +261,19 @@ export const elementsOverHoles = (
     .toSorted()
 }
 
+/**
+ * What `--write` stores: the manifest's tiles as they are, which wrote the cells its fetch holds,
+ * then the picks it lacks; its surface model's elements and the new ones, by number.
+ */
+export const keptAndPicked = (
+  manifest: { readonly lidar: ReadonlyArray<string>; readonly dsm2021: ReadonlyArray<string> },
+  picks: ReadonlyArray<string>,
+  dsm2021: ReadonlyArray<string>,
+): { readonly lidar: Array<string>; readonly elements: Array<string> } => ({
+  lidar: [...manifest.lidar, ...picks.filter((t) => !manifest.lidar.includes(t))],
+  elements: [...new Set([...manifest.dsm2021, ...dsm2021])].toSorted(),
+})
+
 if (import.meta.main) {
   const { values, positionals } = parseArgs({
     options: { lots: { type: "string", default: "004,005" }, write: { type: "boolean" } },
@@ -370,13 +384,14 @@ if (import.meta.main) {
 
   const path = relative(root, manifestPath(part.key))
   const manifest = readManifest(part.key)
+  const { lidar, elements } = keptAndPicked(manifest, picks, dsm2021)
   for (const line of [
-    ...diffLines(diffList(manifest.lidar, picks), path),
-    ...diffLines(diffList(manifest.dsm2021, dsm2021), `${path} dsm2021`),
+    ...diffLines(diffList(manifest.lidar, lidar), path),
+    ...diffLines(diffList(manifest.dsm2021, elements), `${path} dsm2021`),
   ])
     console.log(line)
   if (values.write === true) {
-    updateManifest(part.key, { lidar: picks, dsm2021 })
+    updateManifest(part.key, { lidar, dsm2021: elements })
     console.log(`wrote ${path}`)
   }
 }
