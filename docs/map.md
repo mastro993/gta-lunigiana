@@ -1544,13 +1544,21 @@ Bridges keep 2.5 m of clearance over the water: the surface is capped there, set
 downstream, and re-carved outside road cores. At-grade road crossings imply a culvert, where the
 water dips 0.3 m below the road (the two fords over the Aulella, at and below Codiponte, are such
 crossings). Water left perched more than 1 m above the terrain (streams that end at a road cut)
-drops to the terrain, except inside a wider channel it flows into, and there only while it still
-runs downhill (a stream dropped into a river's carved bed never steps back up), or in a lake, whose
-carved bed lies under it (the Canale Doglio through the 18 m² lake at (2934, −2611)). The grid is
-then rounded to 0.1 m and stored as integer decimetres. The capping and settling read no terrain and
-run before the grid is built (`capUnderDecks`); the re-carve runs in each tile's window, which then
-reads the terrain under the water samples of its own cells before rounding; the culverts and the
-perched drop run on those readings once every tile is built (`dropPerched`).
+drops to the terrain, except inside a wider channel it flows into or in a lake's water, whose
+carved beds lie under it, and there only while it still runs downhill (a stream dropped into a
+river's carved bed never steps back up): the Canale Doglio through the 18 m² lake at (2934, −2611).
+A lake's water stands within 1 m of its level; higher, a surface inside its outline is the stream's
+on the bank, and drops no lower than the level, where it meets the lake's. The Canale della Fola
+runs into a pond 570 m from Arlia at its ground, 1.7 m over the level the pond's outlet caps it at
+(its lowest edge node, down the outlet's cascade), and its last sample there, over the cascade
+carved 4 m under it, stood 3.4 m over the ground; it now meets the pond at its level. Two streams
+into ponds by Agnolo drop to their levels: 791367422 up to 1.4 m on the bank its pond's outline
+reaches up, and the Rio di Antigo to a level 0.4 m under its own surface leaving the pond, where it
+steps back up. The grid is then rounded to 0.1 m and stored as integer decimetres. The capping and
+settling read no terrain and run before the grid is built (`capUnderDecks`); the re-carve runs in
+each tile's window, which then reads the terrain under the water samples of its own cells before
+rounding; the culverts and the perched drop run on those readings once every tile is built
+(`dropPerched`).
 
 ### 9. The railway (`railway.ts`, `platforms.ts`, `rail-clear.ts`)
 
@@ -2190,7 +2198,9 @@ straight line between them, and so may any road's stretch between two junctions 
 DTM between them climbs steeper than that itself: Sercognano's Via Vittorio Emanuele at 29%, the
 lane down from Posara at 43%, a track at Pieve San Lorenzo at 37%), bridge and underpass clearances (a road
 bridge 5.4 m or more over the rail's bed; a drivable road under a road bridge its `maxheight`, 4 m
-untagged, plus the 1.5 m deck, less that rounding), no perched water, the Lucido's widths,
+untagged, plus the 1.5 m deck, less that rounding), no perched water (but a lake's own, within 1 m
+of its level, over its carved bed: the stream through the pond 560 m east of Soliera stands 2.6 m
+over its bed), the Lucido's widths,
 catchments growing downstream with no jump at a tributary's mouth (the Lucido's 47 km² at its mouth,
 the Aulella's 208 leaving the map), no walk or drive wall in a wide river and shore walls by it, and
 valid names, classes, styles, area kinds and districts (each of those villages is its own HUD name,

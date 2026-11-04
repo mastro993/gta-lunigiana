@@ -12,6 +12,7 @@ import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../to
 import { ROAD_PASSES } from "../../../tools/profiles.ts"
 import { dtmDir, inRects, PARTS, regionFromArgs } from "../../../tools/region.ts"
 import { sheet2k, SOURCES } from "../../../tools/survey-ids.ts"
+import { PERCH } from "../../../tools/water.ts"
 import { moveCircles, segmentDistance, staticGrid } from "../../collide.ts"
 import {
   BUILDING_STYLES,
@@ -540,12 +541,24 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
     (s) => [s.ax, s.ay, s.bx, s.by],
     Math.max(...WHOLE.water.map((o) => o.w / 2 + 1)),
   )
+  // A lake's water stands over its carved bed, up to 3 m under its level (water-areas.ts): a stream
+  // within PERCH of the level of a lake round it is the lake's (dropPerched), as the stream through
+  // the pond 560 m east of Soliera, 0.3 m under its level and 2.6 m over its bed.
+  const lakes = bucketed(
+    WHOLE.areas.filter((a) => a.level !== undefined),
+    (a) => a.rings[0]!,
+    0,
+  )
+  const lakeWater = (x: number, y: number, z: number) =>
+    lakes(x, y).some(
+      (a) => a.rings.filter((r) => inRing(x, y, r)).length % 2 === 1 && z <= a.level! + PERCH,
+    )
   for (const w of WHOLE.water)
     for (let i = 0; i < w.z.length; i++) {
       const x = w.pts[2 * i]!,
         y = w.pts[2 * i + 1]!
       const joins = channels(x, y).some((s) => s.w > w.w && segmentDistance(s, x, y) < s.w / 2 + 1)
-      if (!joins)
+      if (!joins && !lakeWater(x, y, w.z[i]!))
         assert.ok(
           w.z[i]! - heightAt(x, y) <= 2.5,
           `water ${w.id} perched ${(w.z[i]! - heightAt(x, y)).toFixed(1)} m at ${x},${y}`,

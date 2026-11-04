@@ -33,7 +33,7 @@ import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { roadLevels } from "./road-levels.ts"
 import { type Profile, RELAX, sampleGrid } from "./terrain.ts"
-import { inStill, waterAreas } from "./water-areas.ts"
+import { stillLevel, waterAreas } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**
@@ -227,7 +227,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     grid.listed,
     inflowsOf(water, wp0, BOUNDS),
   )
-  dropPerched(water, wp, crossed, grid.perched, inStill(wet.carved))
+  dropPerched(water, wp, crossed, grid.perched, stillLevel(wet.carved))
   lap("water")
   // Everything below reads the finished grid.
   const at = (x: number, y: number) => sampleGrid(grid.grid, x, y)

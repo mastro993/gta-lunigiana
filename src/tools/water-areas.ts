@@ -350,20 +350,35 @@ export const carveAreas = (
   }
 }
 
-/** Whether (x, y) lies in one of `areas` (rings and box). */
-const inAny =
-  (
-    areas: ReadonlyArray<{ readonly rings: CarvedArea["rings"]; readonly box: CarvedArea["box"] }>,
-  ) =>
-  (x: number, y: number): boolean =>
-    areas.some(
-      (a) =>
-        x >= a.box[0] && x <= a.box[2] && y >= a.box[1] && y <= a.box[3] && inRings(a.rings, x, y),
-    )
+/** An area's rings and the box of its outer one. */
+interface Ringed {
+  readonly rings: CarvedArea["rings"]
+  readonly box: CarvedArea["box"]
+}
 
-/** Whether (x, y) lies in a lake (or another still water area) of `areas`: the water there is the lake's. */
-export const inStill = (areas: ReadonlyArray<CarvedArea>) =>
-  inAny(areas.filter((a) => a.level !== undefined))
+/** Whether (x, y) lies in `a` (its box, then its rings). */
+const holds = (a: Ringed, x: number, y: number): boolean =>
+  x >= a.box[0] && x <= a.box[2] && y >= a.box[1] && y <= a.box[3] && inRings(a.rings, x, y)
+
+/** Whether (x, y) lies in one of `areas`. */
+const inAny =
+  (areas: ReadonlyArray<Ringed>) =>
+  (x: number, y: number): boolean =>
+    areas.some((a) => holds(a, x, y))
+
+/**
+ * The level of the lake (or another still water area) of `areas` holding (x, y), the highest of
+ * several; undefined where none does. The water there at that level is the lake's.
+ */
+export const stillLevel = (areas: ReadonlyArray<CarvedArea>) => {
+  const still = areas.filter((a) => a.level !== undefined)
+  return (x: number, y: number): number | undefined => {
+    let level: number | undefined
+    for (const a of still)
+      if (holds(a, x, y) && (level === undefined || a.level! > level)) level = a.level
+    return level
+  }
+}
 
 /** Whether (x, y) lies in a water area (`isWaterArea`) of `areas`. */
 export const inWater = (areas: ReadonlyArray<Area>) =>

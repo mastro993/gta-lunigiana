@@ -7,7 +7,11 @@ import { carve, keepSamples, resample, type Grid, type Profile } from "./terrain
 const TAIL = 0.25 // extra slope a tributary tail gets when lowered to meet the water it joins
 const BRIDGE_CLEAR = 2.5 // m between a bridge deck and the water under it
 const CULVERT = 0.3 // m an at-grade road sits above the stream it crosses (implied culvert)
-const PERCH = 1 // m a surface may stand above depth/2 over the final terrain before it is dropped (a steep river's bed alone reaches ~1 m)
+/**
+ * A surface may stand this far (m) above depth/2 over the final terrain before it is dropped (a
+ * steep river's bed alone reaches ~1 m), and this far over a lake's level and still be its water.
+ */
+export const PERCH = 1
 
 const runningMin = (p: Profile) => {
   for (let k = 1; k < p.z.length; k++) p.z[k] = Math.min(p.z[k]!, p.z[k - 1]!)
@@ -133,17 +137,21 @@ export const capUnderDecks = (
  * Once the beds are carved again under the capped water (`carveAll` outside the road cores):
  * at-grade roads pass over an implied culvert (a local dip, hidden under the road and its
  * approaches); then water left perched over a road cut (culverted streams end at the road) drops
- * to the terrain, except inside a wider channel it flows into, as long as it still runs downhill
- * there (a stream dropped into a river's carved bed never steps back up), or in a lake (`still`),
- * whose carved bed lies under it. `terrain[i][k]` is the carved grid, before its rounding, under
- * sample k of water i.
+ * to the terrain, except inside a wider channel it flows into or a lake's water, whose carved beds
+ * lie under it, as long as it still runs downhill there (a stream dropped into a river's carved bed
+ * never steps back up). A lake's water stands within PERCH of its level (`still` gives the level of
+ * the lake at a point); higher, a surface inside its outline is the stream's on the bank, and drops
+ * no lower than the level, where it meets the lake's: the Canale della Fola runs into a pond 570 m
+ * from Arlia at its ground, 1.7 m over the level the pond's outlet caps it at, and its last sample
+ * there, over the outlet's cascade carved 4 m under it, stood 3.4 m over the ground. `terrain[i][k]`
+ * is the carved grid, before its rounding, under sample k of water i.
  */
 export const dropPerched = (
   water: ReadonlyArray<WaterF>,
   wp: ReadonlyArray<Profile>,
   crossed: ReadonlyArray<Crossed>,
   terrain: ReadonlyArray<ArrayLike<number>>,
-  still: (x: number, y: number) => boolean = () => false,
+  still: (x: number, y: number) => number | undefined = () => undefined,
 ): void => {
   for (const c of crossed) if (!c.bridge) cap(wp[c.water]!, c.at, c.half, c.deck - CULVERT, true)
   const channels = segIndex<number>()
@@ -152,10 +160,14 @@ export const dropPerched = (
     const p = wp[i]!
     for (let k = 0; k < p.z.length; k++) {
       const top = terrain[i]![k]! + w.depth / 2
+      if (p.z[k]! <= top + PERCH) continue
+      const downhill = k === 0 || p.z[k]! <= p.z[k - 1]!,
+        lake = still(p.x[k]!, p.y[k]!)
       const joins =
-        (k === 0 || p.z[k]! <= p.z[k - 1]!) &&
-        channels.covers(p.x[k]!, p.y[k]!, (j) => j !== i && water[j]!.w > w.w)
-      if (p.z[k]! > top + PERCH && !joins && !still(p.x[k]!, p.y[k]!)) p.z[k] = top
+        downhill &&
+        ((lake !== undefined && p.z[k]! <= lake + PERCH) ||
+          channels.covers(p.x[k]!, p.y[k]!, (j) => j !== i && water[j]!.w > w.w))
+      if (!joins) p.z[k] = Math.min(p.z[k]!, Math.max(top, lake ?? top))
     }
   })
 }
