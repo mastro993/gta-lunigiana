@@ -38,17 +38,18 @@ import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } fr
 
 /**
  * Catchments beyond the map's box that drain into it, km², each at the point on the box's edge
- * where its stream comes in. The Soliera gauge on the Torrente Aulella, 4 km below Gragnola and
- * below the Torrente Rosaro's mouth, drains 208 km² (ARPAL, Annali Idrologici 2017, part II); the
- * box holds all of it but the heads of the streams that come down from north of y 13000 under the
- * Cerreto pass, so the D8 areas give 181.8 km² there, and the Rosaro, their main stem, brings the
- * other 26.2. The Bardine and the land south-west of the box join the Aulella below the gauge.
+ * where its stream comes in. The box holds the Torrente Aulella's basin down to the Soliera gauge,
+ * 4 km below Gragnola and below the Torrente Rosaro's mouth, but the heads of the streams that come
+ * down from north of y 13000 under the Cerreto pass: 14.7 km², by a D8 on the MS 10 m DTM, all of
+ * which reach the Rosaro above Fivizzano, 13.1 of them down the Rosaro's own head and 1.6 down
+ * rivulets west of it, so the Rosaro brings them all. The Bardine and the land south-west of the
+ * box join the Aulella below the gauge.
  */
 const OFF_MAP: ReadonlyArray<{
   readonly name: string
   readonly at: readonly [number, number]
   readonly km2: number
-}> = [{ name: "Torrente Rosaro", at: [3528, 13000], km2: 26.2 }]
+}> = [{ name: "Torrente Rosaro", at: [3528, 13000], km2: 14.7 }]
 
 /**
  * Where each OFF_MAP stream's area comes in: the sample of its water nearest its point, at least

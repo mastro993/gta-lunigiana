@@ -749,7 +749,7 @@ test("water: the Aulella, Rosaro and Mommio take their measured widths by reach"
   assert.deepEqual([w(788514606), w(788514696), w(788514702)], [6, 6, 4])
 })
 
-test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, which leaves the map with Soliera's 208", () => {
+test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, and the Aulella leaves the map with 199", () => {
   for (const w of WHOLE.water)
     w.area.forEach((a, k) =>
       assert.ok(k === 0 || a >= w.area[k - 1]!, `water ${w.id} shrinks at ${k}`),
@@ -766,10 +766,20 @@ test("water: catchments grow downstream; the Lucido drains 47 km² where it meet
   const lucido = WHOLE.water.filter((w) => w.name === "Torrente Lucido" && w.kind === "river")
   const mouth = Math.max(...lucido.map((w) => w.area.at(-1)!))
   assert.ok(Math.abs(mouth - 47) < 2, `the Lucido drains ${mouth} km²`)
+  // Regression: the Rosaro's heads beyond y 13000 were sized as the Soliera gauge's 208 km² less
+  // what the map's D8 gathers, 26.2 km², near twice the 14.7 a D8 on the MS 10 m DTM gives them.
+  const head = Math.max(
+    ...WHOLE.water
+      .filter((w) => w.name === "Torrente Rosaro")
+      .flatMap((w) => w.area.filter((_, k) => w.pts[2 * k + 1]! > 12900)),
+  )
+  assert.ok(Math.abs(head - 14.7) < 0.5, `the Rosaro brings ${head} km² in`)
+  // ARPAL gives the gauge 208 km²; the DTMs' own basins are smaller (the MS 10 m DTM's 200.7 at
+  // Soliera), and the map's ground and the Rosaro's heads give 196.8 there.
   const aulella = Math.max(
     ...WHOLE.water.filter((w) => w.name === "Torrente Aulella").map((w) => w.area.at(-1)!),
   )
-  assert.ok(Math.abs(aulella - 208) < 3, `the Aulella leaves with ${aulella} km²`)
+  assert.ok(Math.abs(aulella - 199) < 3, `the Aulella leaves with ${aulella} km²`)
 })
 
 test("walls: water stops neither feet nor wheels; the shore walls ring it, and people and animals keep to them", () => {
