@@ -10,15 +10,29 @@ import { hash01 } from "../../tools/geometry.ts"
 import { bucketTileTrees, kindAt, speciesAt, treeMeshes, type TreeKind } from "../trees.ts"
 import { assertChunkTrees } from "./chunk-trees.ts"
 
+/**
+ * Where two listed tiles meet on the map's west edge, the bounds' (the apron mirrors trees across
+ * it): the seam over the southmost listed tile there, found by geometry, as the box grows with parts.
+ */
+const WEST_SEAM = (() => {
+  const { minX } = MAP.bounds,
+    i = Math.floor(minX / TILE),
+    j = Math.min(...MAP.tiles.flatMap((t) => (t.i === i ? [t.j] : [])))
+  assert.ok(
+    MAP.tiles.some((t) => t.i === i && t.j === j + 1),
+    "two listed tiles on the west edge",
+  )
+  return { x: minX, y: (j + 1) * TILE }
+})()
+
 // trees.map-test.ts (pnpm test:map) checks every tile and every chunk; this, the tiles round Monzone and on the west edge.
 test("trees: each chunk's from the tiles it reads are the whole map's bucket for it, by Monzone and in the west edge's apron", () => {
-  const { minX } = MAP.bounds
   const keys = [
     ...new Set([
       // The four tiles meeting at (0, 0), by Monzone.
       ...tilesOver(-1, -1, 1, 1),
-      // The two meeting the west edge at y = 0, whose apron chunks hold the trees mirrored across it.
-      ...tilesOver(minX, -1, minX, 1),
+      // The two meeting at the west edge's seam, whose apron chunks hold the trees mirrored across it.
+      ...tilesOver(WEST_SEAM.x, WEST_SEAM.y - 1, WEST_SEAM.x, WEST_SEAM.y + 1),
     ]),
   ]
   assert.equal(keys.length, 6, keys.join(" "))
@@ -73,8 +87,8 @@ test("speciesAt: oaks most on south faces and none above 1200 m, pines among the
 test("treeMeshes: a chunk draws each tree as its kind (kindAt), and a tree mirrored into the apron as the tree", () => {
   const { minX } = MAP.bounds
   const material = new MeshBasicMaterial()
-  // The west edge's tile at y = 0, and the chunks holding its trees and their mirrors past the edge.
-  const [key] = tilesOver(minX, 1, minX, 1)
+  // The west edge's tile north of its seam, and the chunks holding its trees and their mirrors past the edge.
+  const [key] = tilesOver(minX, WEST_SEAM.y + 1, minX, WEST_SEAM.y + 1)
   let mirrors = 0
   for (const trees of bucketTileTrees(key!).values()) {
     const kinds: Array<TreeKind> = []

@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { coverAt } from "../../sim/map/cover.ts"
 import { facingAt, terrainZ } from "../../sim/map/ground.ts"
 import { LEVEL } from "../../sim/sky/local.ts"
-import { chunkOf } from "../chunks.ts"
+import { chunkOf, chunkRect } from "../chunks.ts"
 import { linear } from "../geometry.ts"
 import { PALETTE } from "../palette.ts"
 import { terrainChunk } from "../terrain.ts"
@@ -38,10 +38,15 @@ test("each face of the terrain mesh faces as the sim's facingAt says over it, so
 })
 
 test("out of leaf a broadleaf wood's floor shows its leaf litter: only the woods change colour, and only to the litter or their dark shade", () => {
-  // The wood nearest Monzone station, along a line east of it.
+  // The chunk nearest Monzone station along a line east of it whose middle stands in a broadleaf wood: found by its
+  // middle, not by the wood's edge, as the chunks count from the map's west edge, which moves as parts join.
   residentAround([STATION], 600)
   let x = STATION.x
-  while (coverAt(x, STATION.y) !== "forest") x += 8
+  const middle = (at: number) => {
+    const { minX, minY, maxX, maxY } = chunkRect(chunkOf(at, STATION.y))
+    return coverAt((minX + maxX) / 2, (minY + maxY) / 2)
+  }
+  while (middle(x) !== "forest") x += 8
   const key = chunkOf(x, STATION.y),
     leafy = terrainChunk(key).getAttribute("color"),
     heights: Array<number> = [],

@@ -47,7 +47,9 @@ test("buildings, roads and rivers, rail, stations and lamps: a chunk by Monzone 
     const pieces = new Pieces(plan)
     for (const t of order) pieces.provide(t, tileVectors(plan.keys[t]!))
     const drawn = assertChunkCut(whole, pieces, chunks)
-    assert.ok(drawn >= 40, `${drawn} of ${chunks.length} chunks draw some`)
+    // A share, not a count: the chunks count from the map's west edge, so which of them fit in the box moves as parts join
+    // (49 with lucido's edge, 42 since Fivizzano's, 38 of them drawing some).
+    assert.ok(drawn >= 0.8 * chunks.length, `${drawn} of ${chunks.length} chunks draw some`)
   }
 })
 

@@ -1,149 +1,31 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { pointInRing } from "../../sim/collide.ts"
 import { terrainNodeZ } from "../../sim/map/ground.ts"
-import { type Area, isWaterArea, MAP } from "../../sim/map/index.ts"
-import { chunkCells, chunkOf, chunkRect } from "../chunks.ts"
+import { MAP } from "../../sim/map/index.ts"
 import { type Sink, Triangles, WaterTriangles } from "../geometry.ts"
 import { yOf } from "../ground.ts"
 import { waterPiece } from "../lines.ts"
 import { strips } from "../ribbons.ts"
 import { residentAround, vectorsAround } from "../testing.ts"
-import { inPool, poolWater } from "../water.ts"
+import { inPool } from "../water.ts"
+import { boxOf, cellsOf, centreOf, chunksOf, drawn, holds, poolAreas, wetCells } from "./pools.ts"
+
+// water-cesena.test.ts checks the apron's water on Cesena, whose Savio reaches its map's edge: since
+// Fivizzano joined, every lake and river polygon of Lunigiana stands inside its bounds.
 
 const hm = MAP.heightmap
-/** The grid's last cell along x and y: an apron cell continues the edge cell it lies beyond. */
-const LAST = { i: hm.cols - 2, j: hm.rows - 2 } as const
+/** A point in the box of the Aulella's river polygon, across lucido's north edge (y 3900). */
+const ON_AULELLA = { x: 4350, y: 3870 }
 
 /**
  * The vectors of the tiles round the Bozzetti pond by the Solco di Equi and the Aulella's river
- * polygon at the map's north edge (found by geometry in them below), and their lakes and river
- * polygons: never the whole map's.
+ * polygon (found by geometry in them below), and their lakes and river polygons: never the whole
+ * map's.
  */
-const NEAR = vectorsAround(
-  [
-    { x: 2220, y: 880 },
-    { x: 4350, y: 3870 },
-  ],
-  300,
-)
-const POOL_AREAS = NEAR.areas.items.filter(
-  (a) => isWaterArea(a.kind) && (a.level !== undefined || a.waters !== undefined),
-)
-
-/** Whether `rings` hold (x, y), even-odd over them all, as the land cover fills them. */
-const holds = (rings: ReadonlyArray<ReadonlyArray<number>>, x: number, y: number): boolean =>
-  rings.reduce((inside, r) => inside !== pointInRing(x, y, r), false)
-
-/** The box of an area's outer ring: minX, minY, maxX, maxY. */
-const boxOf = (area: Area): readonly [number, number, number, number] => {
-  const ring = area.rings[0]!,
-    xs = ring.filter((_, k) => k % 2 === 0),
-    ys = ring.filter((_, k) => k % 2 === 1)
-  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
-}
-
-/** The centre of grid cell (i, j), or in the apron of the edge cell it continues. */
-const centreOf = (i: number, j: number) => ({
-  x: hm.x0 + (Math.min(LAST.i, Math.max(0, i)) + 0.5) * hm.cell,
-  y: hm.y0 + (Math.min(LAST.j, Math.max(0, j)) + 0.5) * hm.cell,
-})
-
-/** Whether a water area holds the centre of cell (i, j) (in the apron, of the edge cell it continues). */
-const wetCell = (i: number, j: number): boolean => {
-  const { x, y } = centreOf(i, j)
-  return POOL_AREAS.some((a) => holds(a.rings, x, y))
-}
-
-/** The cells of chunk `key` the water areas cover, as "i,j", sorted. */
-const wetCellsOf = (key: number): Array<string> => {
-  const { i0, j0, i1, j1 } = chunkCells(key),
-    out: Array<string> = []
-  for (let j = j0; j < j1; j++)
-    for (let i = i0; i < i1; i++) if (wetCell(i, j)) out.push(`${i},${j}`)
-  return out.sort()
-}
-
-/** The grid cells of `area` (their centres inside its rings), as (i, j). */
-const cellsOf = (area: Area): Array<{ readonly i: number; readonly j: number }> => {
-  const [x0, y0, x1, y1] = boxOf(area),
-    out: Array<{ i: number; j: number }> = []
-  for (let j = Math.floor((y0 - hm.y0) / hm.cell); j <= Math.ceil((y1 - hm.y0) / hm.cell); j++)
-    for (let i = Math.floor((x0 - hm.x0) / hm.cell); i <= Math.ceil((x1 - hm.x0) / hm.cell); i++) {
-      const { x, y } = centreOf(i, j)
-      if (holds(area.rings, x, y)) out.push({ i, j })
-    }
-  return out
-}
-
-/** A drawn water vertex: its node (i, j: the grid index of its map point, unclamped), render height and attributes. */
-interface Corner {
-  readonly i: number
-  readonly j: number
-  readonly h: number
-  readonly stage: number
-  readonly flow: ReadonlyArray<number>
-  readonly still: number
-}
-
-/** A quad of water over cell (i, j): its corners south-west, south-east, north-east, north-west. */
-interface Quad {
-  readonly i: number
-  readonly j: number
-  readonly corners: readonly [Corner, Corner, Corner, Corner]
-}
-
-/** The quads `poolWater` drew into `w`, each checked to be two triangles over exactly one grid cell. */
-const quadsOf = (w: WaterTriangles): Array<Quad> => {
-  const vertex = (v: number) => ({
-    x: w.position[3 * v]!,
-    y: -w.position[3 * v + 2]!,
-    h: w.position[3 * v + 1]!,
-    stage: w.stage[v]!,
-    flow: w.flow.slice(3 * v, 3 * v + 3),
-    still: w.still[v]!,
-  })
-  const corner = ({ x, y, ...rest }: ReturnType<typeof vertex>): Corner => ({
-    i: (x - hm.x0) / hm.cell,
-    j: (y - hm.y0) / hm.cell,
-    ...rest,
-  })
-  assert.equal(w.position.length % 18, 0, "whole quads")
-  return Array.from({ length: w.position.length / 18 }, (_, q) => {
-    const [sw, se, ne, sw2, ne2, nw] = [0, 1, 2, 3, 4, 5].map((k) => corner(vertex(6 * q + k)))
-    assert.deepEqual([sw2, ne2], [sw, ne], "two triangles of one quad")
-    const { i, j } = sw!
-    assert.ok(Number.isInteger(i) && Number.isInteger(j), `on the grid's nodes: ${i}, ${j}`)
-    assert.deepEqual(
-      [se, ne, nw].map((c) => [c!.i, c!.j]),
-      [
-        [i + 1, j],
-        [i + 1, j + 1],
-        [i, j + 1],
-      ],
-      "over one cell",
-    )
-    return { i, j, corners: [sw!, se!, ne!, nw!] }
-  })
-}
-
-/** The quads `poolWater` draws for chunk `key`. */
-const drawn = (key: number): Array<Quad> => {
-  const w = new WaterTriangles()
-  poolWater(key, w)
-  return quadsOf(w)
-}
-
-/** The distinct chunks holding `cells`. */
-const chunksOf = (cells: ReadonlyArray<{ readonly i: number; readonly j: number }>) => [
-  ...new Set(
-    cells.map(({ i, j }) => {
-      const { x, y } = centreOf(i, j)
-      return chunkOf(x, y)
-    }),
-  ),
-]
+const NEAR = vectorsAround([{ x: 2220, y: 880 }, ON_AULELLA], 300)
+const POOL_AREAS = poolAreas(NEAR)
+const { wetCell, wetCellsOf } = wetCells(POOL_AREAS)
 
 /** The Bozzetti pond, a lake across two chunks: its cells, chunks, and the box round it whose tiles it reads. */
 const POND = (() => {
@@ -161,10 +43,14 @@ const POND = (() => {
   }
 })()
 
-/** The Aulella's river polygon at the north edge of the map, found by geometry: the one reaching the edge. */
+/** The Aulella's river polygon, found by geometry: the river polygon whose box holds `ON_AULELLA`. */
 const AULELLA = (() => {
-  const area = POOL_AREAS.find((a) => a.waters !== undefined && boxOf(a)[3] >= MAP.bounds.maxY)
-  assert.ok(area !== undefined, "a river polygon reaching the map's north edge")
+  const { x, y } = ON_AULELLA
+  const area = POOL_AREAS.find((a) => {
+    const [x0, y0, x1, y1] = boxOf(a)
+    return a.waters !== undefined && x0 <= x && x1 >= x && y0 <= y && y1 >= y
+  })
+  assert.ok(area !== undefined, "the Aulella's river polygon")
   const cells = cellsOf(area)
   return { area, cells, chunks: chunksOf(cells) }
 })()
@@ -249,40 +135,6 @@ test("poolWater: neighbouring chunks draw the same water at the nodes they share
         }
     assert.ok(shared > 0, `${name}: chunks sharing nodes`)
   }
-})
-
-test("poolWater: in the apron north of the Aulella its edge cells' water carries on, its nodes the edge nodes'", () => {
-  const edgeCell = AULELLA.cells.find(({ j }) => j === LAST.j)
-  assert.ok(edgeCell !== undefined, "the Aulella's polygon holds an edge cell")
-  const edge = chunksOf([edgeCell])[0]!,
-    { x } = centreOf(edgeCell.i, edgeCell.j),
-    apron = chunkOf(x, chunkRect(edge).maxY + hm.cell / 2)
-  assert.ok(chunkCells(apron).j0 > LAST.j && apron !== edge, "a chunk all apron, north of the edge")
-  const quads = drawn(apron)
-  assert.ok(quads.length > 0, "water in the apron")
-  assert.deepEqual(
-    quads.map((q) => `${q.i},${q.j}`).sort(),
-    wetCellsOf(apron),
-    "a quad over each apron cell beyond a cell of a water area",
-  )
-  // The edge chunk's nodes on the edge, where the apron's take their water from.
-  const onEdge = new Map<number, ReadonlyArray<number>>()
-  for (const { corners } of drawn(edge))
-    for (const c of corners)
-      if (c.j === hm.rows - 1) onEdge.set(c.i, [c.h, c.stage, ...c.flow, c.still])
-  for (const { corners } of quads)
-    for (const c of corners)
-      assert.deepEqual(
-        [c.h, c.stage, ...c.flow, c.still],
-        onEdge.get(c.i),
-        `node ${c.i},${c.j}: the edge node's water`,
-      )
-  const { i0, j0, i1, j1 } = chunkCells(apron),
-    y = hm.y0 + ((j0 + j1) / 2) * hm.cell
-  const dry = Array.from({ length: i1 - i0 }, (_, k) => i0 + k).find((i) => !wetCell(i, LAST.j))
-  assert.ok(dry !== undefined, "an apron column beyond dry ground")
-  assert.equal(inPool(x, y), true, "inPool in the apron beyond a cell of the polygon")
-  assert.equal(inPool(hm.x0 + (dry + 0.5) * hm.cell, y), false, "inPool beyond dry ground")
 })
 
 test("inPool: a cell whose centre a water area holds is pool all over, a cell beside it whose centre none holds is none of it", () => {
