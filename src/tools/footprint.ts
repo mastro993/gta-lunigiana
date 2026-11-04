@@ -1,19 +1,25 @@
-// The geometry behind `footprint-check` (issue #3, runbook step 1): a part's outline as labelled
-// edges with its seams, single-linkage clusters, and the stretches of a line that leave the play
-// area and come back, or run to the edge of the box the lines were fetched over.
+// The geometry behind `footprint-check` (issue #3, runbook step 1): a part's play area (its mask, or
+// else its rectangles' union) as labelled edges with its seams, the built parts' play area a road
+// leaves, single-linkage clusters, and the stretches of a line that leave that area and come back,
+// or run to the edge of the box the lines were fetched over.
 
-import { type P, segDist2 } from "./geometry.ts"
+import { type Rings, insideRings, ringsDistance } from "../sim/map/outline.ts"
+import { type P, r1, segDist2 } from "./geometry.ts"
+import { outlineOf } from "./play-area.ts"
 import { type Part, type Rect, inRects } from "./region.ts"
 
-/** A compass side of the play area. */
-export type Side = "N" | "S" | "E" | "W"
+/** A compass point: the way an edge faces out of the play area. */
+export type Side = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW"
 
 /**
- * A straight piece of the play area's outline, local m, x0 ≤ x1 and y0 ≤ y1: `side` is the side of
- * the play area it bounds, `seam` the part beyond it when one is.
+ * A straight piece of a part's play area's outline, local m, its ends in (x, y) order: `side` is
+ * the way it faces out, N/S/E/W on a vertical or horizontal edge and on a slanted one the nearest of
+ * the eight points, with `bearing` its whole degrees clockwise from north; `seam` is the part
+ * beyond it when one is.
  */
 export interface Edge {
   readonly side: Side
+  readonly bearing?: number
   readonly x0: number
   readonly y0: number
   readonly x1: number
@@ -21,82 +27,124 @@ export interface Edge {
   readonly seam?: string
 }
 
-/** A probe's offset beside an edge, m: rectangles lie on 100 m multiples. */
-const EPS = 1e-3
-
-const sortedUnique = (vs: ReadonlyArray<number>): Array<number> =>
-  [...new Set(vs)].sort((a, b) => a - b)
-
+/** How far beside a piece's middle its outer side is probed, m: this, or a hundredth of a shorter piece. */
+const PROBE = 1e-3
 /**
- * The outline of the union of `rects`: an edge shared by two rectangles, or lying inside another,
- * is interior and left out. Every rectangle corner of `rects` and `others` cuts the edges, and
- * pieces on one line with the same side and seam are merged back.
+ * Within this distance (m) a vertex of another outline lies on an edge; a piece shorter than this
+ * lies between two cuts at one point that rounding set apart, and is left to its neighbours.
  */
-export const outline = (
-  rects: ReadonlyArray<Rect>,
-  others: ReadonlyArray<Part> = [],
-): Array<Edge> => {
-  const all = [...rects, ...others.flatMap((p) => p.rects)]
-  const xs = sortedUnique(all.flatMap((r) => [r[0], r[2]])),
-    ys = sortedUnique(all.flatMap((r) => [r[1], r[3]]))
-  const seamAt = (x: number, y: number) => others.find((p) => inRects(p.rects, x, y))?.key
-  const edges: Array<Edge> = []
-  const push = (edge: Edge) => {
-    const last = edges.at(-1)
-    const joins =
-      last !== undefined &&
-      last.side === edge.side &&
-      last.seam === edge.seam &&
-      (edge.side === "E" || edge.side === "W"
-        ? last.x0 === edge.x0 && last.y1 === edge.y0
-        : last.y0 === edge.y0 && last.x1 === edge.x0)
-    if (joins) edges[edges.length - 1] = { ...last, x1: edge.x1, y1: edge.y1 }
-    else edges.push(edge)
+const ON = 1e-6
+const COMPASS: ReadonlyArray<Side> = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+
+type Segment = readonly [number, number, number, number]
+
+/** The edges [ax, ay, bx, by] of flat rings, each vertex to the next. */
+const ringEdges = (rings: Rings): Array<Segment> =>
+  rings.flatMap((ring) =>
+    Array.from({ length: ring.length / 2 }, (_, i) => {
+      const j = (2 * i + 2) % ring.length
+      return [ring[2 * i]!, ring[2 * i + 1]!, ring[j]!, ring[j + 1]!] as const
+    }),
+  )
+
+/** Where along edge a → b (0 at a, 1 at b) edge c → d crosses it or ends on it, its ends left out. */
+const cutsBy = ([ax, ay, bx, by]: Segment, [cx, cy, dx, dy]: Segment): Array<number> => {
+  const ts: Array<number> = []
+  for (const [x, y] of [
+    [cx, cy],
+    [dx, dy],
+  ] as const) {
+    const { d2, t } = segDist2(x, y, ax, ay, bx, by)
+    if (d2 <= ON * ON) ts.push(t)
   }
-  for (const x of sortedUnique(rects.flatMap((r) => [r[0], r[2]])))
-    for (let k = 1; k < ys.length; k++) {
-      const y0 = ys[k - 1]!,
-        y1 = ys[k]!,
-        ym = (y0 + y1) / 2
-      const west = inRects(rects, x - EPS, ym),
-        east = inRects(rects, x + EPS, ym)
-      if (west === east) continue
-      const seam = seamAt(west ? x + EPS : x - EPS, ym)
-      push({
-        side: west ? "E" : "W",
-        x0: x,
-        y0,
-        x1: x,
-        y1,
-        ...(seam === undefined ? {} : { seam }),
-      })
-    }
-  for (const y of sortedUnique(rects.flatMap((r) => [r[1], r[3]])))
-    for (let k = 1; k < xs.length; k++) {
-      const x0 = xs[k - 1]!,
-        x1 = xs[k]!,
-        xm = (x0 + x1) / 2
-      const south = inRects(rects, xm, y - EPS),
-        north = inRects(rects, xm, y + EPS)
-      if (south === north) continue
-      const seam = seamAt(xm, south ? y + EPS : y - EPS)
-      push({
-        side: south ? "N" : "S",
-        x0,
-        y0: y,
-        x1,
-        y1: y,
-        ...(seam === undefined ? {} : { seam }),
-      })
-    }
-  return edges
+  const ex = bx - ax,
+    ey = by - ay,
+    fx = dx - cx,
+    fy = dy - cy,
+    den = ex * fy - ey * fx
+  if (den !== 0) {
+    const t = ((cx - ax) * fy - (cy - ay) * fx) / den,
+      u = ((cx - ax) * ey - (cy - ay) * ex) / den
+    if (u > 0 && u < 1) ts.push(t)
+  }
+  return ts.filter((t) => t > 0 && t < 1)
 }
 
-/** An edge as the report names it: `E x=4900 y -6100..3900`, plus the seam's part. */
+/** The way the play area, left of a → b, faces out across it. */
+const facing = (dx: number, dy: number): Pick<Edge, "side" | "bearing"> => {
+  if (dx === 0) return { side: dy > 0 ? "E" : "W" }
+  if (dy === 0) return { side: dx > 0 ? "S" : "N" }
+  // The outward normal (dy, −dx), clockwise from north.
+  const bearing = Math.round((Math.atan2(dy, -dx) * 180) / Math.PI + 360) % 360
+  return { side: COMPASS[Math.round(bearing / 45) % 8]!, bearing }
+}
+
+const kind = (e: Edge) => (e.x0 === e.x1 ? 0 : e.y0 === e.y1 ? 1 : 2)
+// Vertical edges west to east, then horizontal ones south to north, then slanted ones by their west
+// end; on one line, in order along it. A rectangle's edges keep the order the report listed them
+// in before masks, which `nearestEdge` breaks a tie by.
+const byPlace = (a: Edge, b: Edge) =>
+  kind(a) - kind(b) ||
+  (kind(a) === 1 ? a.y0 - b.y0 || a.x0 - b.x0 : a.x0 - b.x0 || a.y0 - b.y0) ||
+  a.x1 - b.x1 ||
+  a.y1 - b.y1
+
+/**
+ * The outline of `part`'s play area (`outlineOf`: its mask, or its rectangles' union) as straight
+ * edges, vertical ones west to east, then horizontal ones south to north, then slanted ones by
+ * their west end. Each edge of its rings is cut wherever an edge of another part's play area
+ * crosses it or ends on it, which is where that area may start or stop beside it; a piece is a seam
+ * with the first of `others` whose play area holds the point just outside its middle, and the
+ * pieces of one edge with the same seam, or none, are merged back.
+ */
+export const partEdges = (part: Part, others: ReadonlyArray<Part> = []): Array<Edge> => {
+  const beyond = others.map((p) => ({ key: p.key, rings: outlineOf([p]) }))
+  const theirs = beyond.flatMap((b) => ringEdges(b.rings))
+  const seamAt = (x: number, y: number) => beyond.find((b) => insideRings(b.rings, x, y))?.key
+  const edges: Array<Edge> = []
+  for (const edge of ringEdges(outlineOf([part]))) {
+    const [ax, ay, bx, by] = edge,
+      dx = bx - ax,
+      dy = by - ay,
+      len = Math.hypot(dx, dy)
+    const ts = [...new Set([0, 1, ...theirs.flatMap((f) => cutsBy(edge, f))])].sort((s, t) => s - t)
+    // Runs of pieces with one seam, each to where it stops along the edge.
+    const runs: Array<{ to: number; readonly seam: string | undefined }> = []
+    for (let k = 1; k < ts.length; k++) {
+      const s = ts[k - 1]!,
+        t = ts[k]!
+      if ((t - s) * len < ON) continue
+      const m = (s + t) / 2,
+        h = Math.min(PROBE, ((t - s) * len) / 100)
+      const seam = seamAt(ax + dx * m + (dy / len) * h, ay + dy * m - (dx / len) * h)
+      const last = runs.at(-1)
+      if (last !== undefined && last.seam === seam) last.to = t
+      else runs.push({ to: t, seam })
+    }
+    const at = (t: number): P =>
+      t === 0 ? [ax, ay] : t === 1 ? [bx, by] : [r1(ax + dx * t), r1(ay + dy * t)]
+    let from = 0
+    runs.forEach(({ to, seam }, k) => {
+      const p = at(from),
+        q = at(k === runs.length - 1 ? 1 : to),
+        [[x0, y0], [x1, y1]] = p[0] < q[0] || (p[0] === q[0] && p[1] < q[1]) ? [p, q] : [q, p]
+      edges.push({ ...facing(dx, dy), x0, y0, x1, y1, ...(seam === undefined ? {} : { seam }) })
+      from = to
+    })
+  }
+  return edges.sort(byPlace)
+}
+
+/**
+ * An edge as the report names it, plus the seam's part: `E x=4900 y -6100..3900` along a vertical
+ * line, `N y=3900 x -2900..4900` along a horizontal one, `NE 53° 800,2000..2000,400` on a slant.
+ */
 export const edgeLabel = (e: Edge): string =>
-  (e.side === "E" || e.side === "W"
-    ? `${e.side} x=${e.x0} y ${e.y0}..${e.y1}`
-    : `${e.side} y=${e.y0} x ${e.x0}..${e.x1}`) +
+  (e.bearing === undefined
+    ? e.x0 === e.x1
+      ? `${e.side} x=${e.x0} y ${e.y0}..${e.y1}`
+      : `${e.side} y=${e.y0} x ${e.x0}..${e.x1}`
+    : `${e.side} ${e.bearing}° ${e.x0},${e.y0}..${e.x1},${e.y1}`) +
   (e.seam === undefined ? "" : ` (seam with ${e.seam})`)
 
 /** The nearest of `edges` to local (x, y) with its distance, m; undefined for no edges. */
@@ -112,6 +160,65 @@ export const nearestEdge = (
   }
   return best
 }
+
+/**
+ * Whether local (x, y) lies in the play area of one of `parts`: its mask, or else one of its
+ * rectangles, edges included.
+ */
+export const inArea = (parts: ReadonlyArray<Part>, x: number, y: number): boolean =>
+  parts.some((p) => (p.mask === undefined ? inRects(p.rects, x, y) : insideRings([p.mask], x, y)))
+
+/** The distance from local (x, y) to the nearest of `rects`, m: 0 inside one. */
+const rectsDistance = (rects: ReadonlyArray<Rect>, x: number, y: number): number =>
+  Math.min(
+    ...rects.map(([x0, y0, x1, y1]) =>
+      Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1)),
+    ),
+  )
+
+/**
+ * The distance from local (x, y) to the play area of `parts` (`inArea`), m: 0 inside it. A part
+ * without a mask is measured to its rectangles as before masks were judged (`Math.hypot`), so its
+ * report does not move by a rounding.
+ */
+const areaDistance = (parts: ReadonlyArray<Part>, x: number, y: number): number =>
+  Math.min(
+    ...parts.map((p) =>
+      p.mask === undefined
+        ? rectsDistance(p.rects, x, y)
+        : insideRings([p.mask], x, y)
+          ? 0
+          : ringsDistance([p.mask], x, y),
+    ),
+  )
+
+/** (b − a) × (c − a): its sign says which side of a → b point c lies on. */
+const cross = (a: P, b: P, c: P) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+/**
+ * Whether the play area of one of `parts` holds all of segment a–b, which `excursions` then need
+ * not probe: one of its rectangles holds both ends, or its mask holds them and none of its edges
+ * meets the segment. A touch or a collinear edge counts as meeting, so this may say no to a
+ * segment the mask holds (probed for nothing), never yes to one it does not.
+ */
+const areaHolds = (parts: ReadonlyArray<Part>, a: P, b: P): boolean =>
+  parts.some(({ rects, mask }) => {
+    if (mask === undefined)
+      return rects.some(
+        ([x0, y0, x1, y1]) =>
+          Math.min(a[0], b[0]) >= x0 &&
+          Math.max(a[0], b[0]) <= x1 &&
+          Math.min(a[1], b[1]) >= y0 &&
+          Math.max(a[1], b[1]) <= y1,
+      )
+    if (!insideRings([mask], a[0], a[1]) || !insideRings([mask], b[0], b[1])) return false
+    for (let i = 0, n = mask.length; i < n; i += 2) {
+      const c: P = [mask[i]!, mask[i + 1]!],
+        d: P = [mask[(i + 2) % n]!, mask[(i + 3) % n]!]
+      if (cross(c, d, a) * cross(c, d, b) <= 0 && cross(a, b, c) * cross(a, b, d) <= 0) return false
+    }
+    return true
+  })
 
 /**
  * Single-linkage clusters of `pts`: points at most `link` m apart share one. Each cluster lists its
@@ -149,23 +256,15 @@ export const clusters = (pts: ReadonlyArray<P>, link: number): Array<Array<numbe
   return [...groups.values()].sort((a, b) => a[0]! - b[0]!)
 }
 
-/** The distance from local (x, y) to the nearest of `rects`, m: 0 inside one. */
-const rectsDistance = (rects: ReadonlyArray<Rect>, x: number, y: number): number =>
-  Math.min(
-    ...rects.map(([x0, y0, x1, y1]) =>
-      Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1)),
-    ),
-  )
-
 const dist = (a: P, b: P) => Math.hypot(b[0] - a[0], b[1] - a[1])
 
-/** The outline point between `inside` (in `rects`) and `outside`, by bisection to under 1 mm. */
-const crossing = (rects: ReadonlyArray<Rect>, inside: P, outside: P): P => {
+/** The outline point between `inside` (in the play area of `parts`) and `outside`, by bisection to under 1 mm. */
+const crossing = (parts: ReadonlyArray<Part>, inside: P, outside: P): P => {
   let a = inside,
     b = outside
   while (dist(a, b) > 1e-3) {
     const m: P = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-    if (inRects(rects, m[0], m[1])) a = m
+    if (inArea(parts, m[0], m[1])) a = m
     else b = m
   }
   return b
@@ -249,16 +348,17 @@ export interface Unresolved {
 const EDGE = 50
 
 /**
- * Where the network of `lines`, fetched over the local `box`, leaves the union of `rects`: the
- * re-entries, and the roads that run out to the box's edge without one (unresolved). Lines join
- * where they share a vertex, so a road split into several ways counts. From each place a line
- * crosses the outline, the shortest way outside to another crossing is a re-entry; each pair of
- * crossings is reported once. A segment that no single rectangle holds is probed every `step` m,
- * so one cutting across the inner corner of an L of rectangles counts.
+ * Where the network of `lines`, fetched over the local `box`, leaves the play area of `parts`
+ * (`inArea`): the re-entries, and the roads that run out to the box's edge without one
+ * (unresolved). Lines join where they share a vertex, so a road split into several ways counts.
+ * From each place a line crosses the outline, the shortest way outside to another crossing is a
+ * re-entry; each pair of crossings is reported once. A segment that no single rectangle or mask
+ * holds whole (`areaHolds`) is probed every `step` m, so one cutting across the inner corner of an
+ * L of rectangles, or across a mask's notch, counts.
  */
 export const excursions = (
   lines: ReadonlyArray<Line>,
-  rects: ReadonlyArray<Rect>,
+  parts: ReadonlyArray<Part>,
   box: Rect,
   step = 10,
 ): { readonly reentries: Array<Reentry>; readonly unresolved: Array<Unresolved> } => {
@@ -271,7 +371,7 @@ export const excursions = (
       known = shared ? byVertex.get(key) : undefined
     if (known !== undefined) return known
     pts.push(p)
-    inside.push(inRects(rects, p[0], p[1]))
+    inside.push(inArea(parts, p[0], p[1]))
     adj.push([])
     if (shared) byVertex.set(key, pts.length - 1)
     return pts.length - 1
@@ -282,21 +382,13 @@ export const excursions = (
     adj[a]!.push({ to: b, len, line })
     adj[b]!.push({ to: a, len, line })
   }
-  const held = (a: P, b: P) =>
-    rects.some(
-      ([x0, y0, x1, y1]) =>
-        Math.min(a[0], b[0]) >= x0 &&
-        Math.max(a[0], b[0]) <= x1 &&
-        Math.min(a[1], b[1]) >= y0 &&
-        Math.max(a[1], b[1]) <= y1,
-    )
   const atEdge = ([x, y]: P) =>
     x < box[0] + EDGE || y < box[1] + EDGE || x > box[2] - EDGE || y > box[3] - EDGE
   for (const { id, pts: line } of lines)
     line.forEach((b, i) => {
       const a = line[i - 1]
       if (a === undefined) return
-      const n = held(a, b) ? 1 : Math.max(1, Math.ceil(dist(a, b) / step))
+      const n = areaHolds(parts, a, b) ? 1 : Math.max(1, Math.ceil(dist(a, b) / step))
       let last = node(a, true)
       for (let k = 1; k < n; k++) {
         const mid = node([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n], false)
@@ -311,7 +403,7 @@ export const excursions = (
     inside[u]
       ? es
           .filter((e) => !inside[e.to])
-          .map((e) => ({ at: crossing(rects, pts[u]!, pts[e.to]!), out: e.to, line: e.line }))
+          .map((e) => ({ at: crossing(parts, pts[u]!, pts[e.to]!), out: e.to, line: e.line }))
       : [],
   )
   const crossingsAt = new Map<number, Array<number>>()
@@ -373,14 +465,14 @@ export const excursions = (
     pairs.add(pair)
     const { path, lines: ids } = trail(to.out, [to.line])
     const far = path.reduce((a, b) =>
-      rectsDistance(rects, ...pts[b]!) > rectsDistance(rects, ...pts[a]!) ? b : a,
+      areaDistance(parts, ...pts[b]!) > areaDistance(parts, ...pts[a]!) ? b : a,
     )
     reentries.push({
       exit: from.at,
       entry: to.at,
       far: pts[far]!,
       length: best.len,
-      depth: rectsDistance(rects, ...pts[far]!),
+      depth: areaDistance(parts, ...pts[far]!),
       lines: ids,
     })
   })

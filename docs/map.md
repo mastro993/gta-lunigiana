@@ -2379,21 +2379,25 @@ another CRS refused, a wood cut on the 500 m squares, each piece 4 m past its sq
 whole wood's pixels but within 6 cm of its edges, an open cover kept whole, and a clearing wider
 than a piece kept clear whichever vertex its ring starts at; `fetch-lig.test.ts` the tool's refusals of two parts and an unknown one
 before any request; `crs.test.ts` inverts `utm32ToLatLon` within 1 mm, on Liguria's side too; `footprint.test.ts` the
-outline of an L, clusters, a road that leaves and comes back, one that runs off the query box
-(unresolved) and a mistyped flag; `fetch-osm.test.ts` the split on HTTP 400 with a fake server, the
-part its arguments name (`partToFetch`: a Lunigiana part, Cesena's one part, a missing or unknown
-key), the refusal of a test region's part (before any request) but one with buildings of its own,
-the boxes it asks for (`partBoxes`: lucido's and Pontremoli's the boxes their pinned extracts'
-sources name, the L's two rectangles two boxes, not its notch), and `buildingsOnly` (a road, a
-`building:part`, a land-use multipolygon and a `type=building` relation left out, each element's
-XML as the API wrote it, and the rings `assembleRings` rebuilds from `osmXml`'s file); `osm.test.ts`
-the merge of a region's parts' extracts (`mergeOsm`, `readOsms`: the first part's element of a
-duplicate id kept, each kind ordered by numeric id, not as strings, and one extract read back in its
-own order); `coverage-grid.test.ts` and
-`coverage.test.ts` first wins, the tally, ring assembly, no picks, and a WFS error answer never
-cached; `ortho.test.ts` and `ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted
-sibling flight is look only) and an error answer for capabilities; `playtest.test.ts` the spots, the
-command line (shots, heap and drive with their defaults and flags) and the spot script;
+edges of an L and of a mask (a slanted edge's bearing, a seam along a neighbour's rectangle or
+mask, an edge cut where a neighbour's mask stops), clusters, a road that leaves and comes back,
+across a mask's slanted edge too, one out through a seam that never leaves, one that runs off the
+query box (unresolved) and a mistyped flag; `footprint-report.test.ts` lucido's report and two
+unmasked parts' as they were before masks were judged, a road out and back through a neighbour,
+and a masked part's findings on its slanted edge; `fetch-osm.test.ts` the split on HTTP 400 with a
+fake server, the part its arguments name (`partToFetch`: a Lunigiana part, Cesena's one part, a
+missing or unknown key), the refusal of a test region's part (before any request) but one with
+buildings of its own, the boxes it asks for (`partBoxes`: lucido's and Pontremoli's the boxes their
+pinned extracts' sources name, the L's two rectangles two boxes, not its notch), and
+`buildingsOnly` (a road, a `building:part`, a land-use multipolygon and a `type=building` relation
+left out, each element's XML as the API wrote it, and the rings `assembleRings` rebuilds from
+`osmXml`'s file); `osm.test.ts` the merge of a region's parts' extracts (`mergeOsm`, `readOsms`:
+the first part's element of a duplicate id kept, each kind ordered by numeric id, not as strings,
+and one extract read back in its own order); `coverage-grid.test.ts` and `coverage.test.ts` first
+wins, the tally, ring assembly, no picks, and a WFS error answer never cached; `ortho.test.ts` and
+`ortho-wms.test.ts` the pixel mapping, tiles, licences (an unlisted sibling flight is look only)
+and an error answer for capabilities; `playtest.test.ts` the spots, the command line (shots, heap
+and drive with their defaults and flags) and the spot script;
 `playtest-drive.test.ts` the frame stats, the road chained through shared ends from the free end
 nearest the start and at a fork toward the goal, the page's drive script (run in a `vm` against a
 fake `gta`) and its report (the SP59 itself is `playtest-drive.map-test.ts`'s, above, as it reads
@@ -2467,20 +2471,27 @@ and check it.
 given; every request names only the project in its `User-Agent` (`net.ts`), and the tools print
 paths relative to the repository. Measured on `lucido` on 2026-10-29.
 
-- **`pnpm footprint-check <part> [--refresh]`** (`footprint-check.ts`, geometry in `footprint.ts`)
-  checks what the part's edges cut through: one Overpass query over the part's box + 1 km (place
-  nodes, building centres, highway ways; cached in `footprint-osm.json`). It reports the places
-  within 300 m of an edge, clusters of 5 or more buildings linked at 50 m with a member within 300 m
-  of one, and the roads that leave the part and come back (ways join at shared nodes, so a road
-  split into several ways counts); paths and steps are notes, not findings. It judges the part's
-  rectangles, never its mask, so on a masked part it reports the rectangles' edges, not the play
-  area's (judging a mask's slanted outline comes with #17, the first part with one). An edge along
-  another part's rectangle is a seam and never a finding. A road whose way out runs to within 50 m
-  of the query box's edge without coming back is listed as unresolved: the 1 km pad is how deep the
-  check sees. It writes `footprint.json`. `lucido`: 32 places, 23 clusters (Argigliano, 188 buildings, is
-  cut 2 m inside the east edge), 16 drivable re-entries (the SR445 runs 780 m outside the north
-  edge), 15 path notes, 7 unresolved roads (the SR445 north, the SP10 west) and 2 paths; 99 s with
-  the query, 0.2 s cached.
+- **`pnpm footprint-check <part> [--refresh]`** (`footprint-check.ts`, the report in
+  `footprint-report.ts`, geometry in `footprint.ts`) checks what the part's edges cut through: one
+  Overpass query over the box round the part's rectangles + 1 km (place nodes, building centres,
+  highway ways; cached in `footprint-osm.json`). It judges the part's play area, its mask where it
+  has one, else its rectangles' union, cut into straight edges named by the way they face out:
+  `E x=4900 y -6100..3900` along a vertical or horizontal line, and on a mask's slanted edge the
+  nearest compass point, the bearing and the ends, `NE 53° 800,2000..2000,400`. An edge is cut
+  wherever another part's play area starts or stops beside it, and a piece whose outer side lies in
+  another part's play area (its mask, or its rectangles without one) is a seam with that part:
+  listed, never a finding. It reports the places within 300 m of an edge that is not a seam,
+  clusters of 5 or more buildings linked at 50 m with a member within 300 m of one, and the roads
+  that leave the play area across such an edge and come back (ways join at shared nodes, so a road
+  split into several ways counts); paths and steps are notes, not findings. The play area a road
+  leaves, and a place or building lies inside, is every built part's, so a road out through a seam
+  runs on a built part and never leaves, and one out and back across another part's edges alone is
+  that part's to judge. A road whose way out runs to within 50 m of the query box's edge without
+  coming back is listed as unresolved: the 1 km pad is how deep the check sees. It writes
+  `footprint.json`, with the mask when the part has one. `lucido`: 32 places, 23 clusters
+  (Argigliano, 188 buildings, is cut 2 m inside the east edge), 16 drivable re-entries (the SR445
+  runs 780 m outside the north edge), 15 path notes, 7 unresolved roads (the SR445 north, the SP10
+  west) and 2 paths; 99 s with the query, 0.2 s cached.
 - **`pnpm rt-index <part>`** (`rt-index.ts`, readers in `cartoteca.ts`) lists the cartoteca over
   the part's EPSG:3003 box + 500 m: WFS GetFeature on `rt_cartoteca.ctr2k` (sheet frames by year),
   `ctr10k` (section frames by edition), `lidar2k` (the tiles' data footprints by lot), `dbt.2k` (a
