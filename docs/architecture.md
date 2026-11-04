@@ -2114,8 +2114,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `geometry.ts` (`hash01`, `segDist2`), and through it `region.ts`.
   - The `notch.test.ts` beside each runtime reader of the map's tiles and play area, each on
     Lunigiana's global file rewritten before anything decodes it (`notchMap` in
-    `src/sim/map/__tests__/edit-map.ts`) with its four tiles north-east of (2000, 0) unlisted and an
-    L outline, as a region of parts in an L gives: in `src/sim/map/__tests__` the lookups there read
+    `src/sim/map/__tests__/edit-map.ts`), cut to lucido's rectangle with its four tiles north-east
+    of (2000, 0) unlisted and an L outline, as a region of parts in an L gives, a notch that stays
+    put however the region grows: in `src/sim/map/__tests__` the lookups there read
     the nearest listed tiles' nodes and cells and never throw, `tilesOver` and `isResidentAt` name
     those tiles, and `inPlay` and `outlineDistance` answer on the L; in `src/render/__tests__` the
     render plans every chunk once; in `src/sim/__tests__` a teleport into the notch is dropped,
@@ -2289,9 +2290,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined, every
     vector layer included (see [map.md](map.md#checks-and-tools)); `vectors.map-test.ts`: each tile
     holding, whole and in the whole map's order, exactly the vectors with a segment's or a ring's
-    box within the halo of it, and `buildingsIn` answering as one 64 m broad phase over the whole
-    map's buildings (the same buildings, in the same order, over 1,500 boxes 1–600 m across, half
-    of them within 80 m of a seam) with its lattice on their lowest corner; `ground.map-test.ts`,
+    box within the halo of it, or of an unlisted tile it is round, and the waterways of each river
+    polygon it holds, and `buildingsIn` answering as one 64 m broad phase over the whole map's
+    buildings (the same buildings, in the same order, over 1,500 boxes 1–600 m across, half of them
+    within 80 m of a seam, the rest within 300 m of a building) with its lattice on their lowest
+    corner; `ground.map-test.ts`,
     `ground-cesena.map-test.ts` and `ground-l.map-test.ts` (the L test region, skipped without its
     build): the ground, the surface and the water read from the tiles answering to the bit as the
     whole map's broad phases did (`ground-oracle.ts`), at 6,000 seeded points (half of them within

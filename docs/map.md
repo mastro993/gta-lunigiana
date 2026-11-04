@@ -1795,17 +1795,20 @@ areas, #73; 2026-11-03 with the woods).
 
 A tile is the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin, keyed `i_j`
 (`TILE` and `tileKey` in `src/sim/map/kinds.ts`). The listed tiles are the region's, each tile one
-of its parts' rectangles meets (`tiles` in `region.ts`): Lunigiana's 30 are i −2…2 and j −4…1,
-Cesena's 4 are −1…0 both ways, each the whole box round its one rectangle (`tileRange`). The
-render's 192 m apron past the bounds has no tiles of its own: it extends the edge nodes, as before.
-The game takes the box of tile indices from the listed tiles, not from the bounds, and a region
-whose parts make an L lists no tile in the notch the parts leave in the box round them: there a
-terrain or land-cover lookup reads the nearest node or cell of the listed tiles in the nearest ring
-of tiles round the unlisted one (a tie goes to the first in key order), so the ground past an inner
-edge of the play area extends that edge, as the apron does past the bounds (`src/sim/map/tiles.ts`;
-`notchMap` in `src/sim/map/__tests__/edit-map.ts` drops Lunigiana's four tiles north-east of (2000,
-0), and the `notch.test.ts` beside each runtime reader of the tiles and the play area checks it
-there; the tunnel portals' `portals.test.ts` moves the outline onto a tunnel mouth instead). The
+of its parts' rectangles meets (`tiles` in `region.ts`): Lunigiana's 79 of the 99 in its box (i
+−3…5, j −4…6) are lucido's i −2…2 up to j 0 and Fivizzano's i −3…5 from j 1 up, the 20 tiles i −3
+and i 3…5 of j −4…0 its notch; Cesena's 4 are −1…0 both ways, the whole box round its one rectangle
+(`tileRange`). The render's 192 m apron past the bounds has no tiles of its own: it extends the
+edge nodes, as before. The game takes the box of tile indices from the listed tiles, not from the
+bounds, and a region whose parts make an L lists no tile in the notch the parts leave in the box
+round them: there a terrain or land-cover lookup reads the nearest node or cell of the listed tiles
+in the nearest ring of tiles round the unlisted one (a tie goes to the first in key order), so the
+ground past an inner edge of the play area extends that edge, as the apron does past the bounds
+(`src/sim/map/tiles.ts`; `notchMap` in `src/sim/map/__tests__/edit-map.ts` cuts Lunigiana to
+lucido's rectangle, anchor kept, and drops its four tiles north-east of (2000, 0), a notch that
+stays put however the region grows, and the `notch.test.ts` beside each runtime reader of the tiles
+and the play area checks it there; the tunnel portals' `portals.test.ts` moves the outline onto a
+tunnel mouth instead). The
 build works the terrain of the listed tiles alone, reading none in the notch
 ([Pipeline](#pipeline)), writes the listed tiles alone and keeps a wall or tree whose midpoint falls in the notch (an
 outline wall on its side, a house wall over it) in the listed tile round it nearest it (`tilesRound`
@@ -2111,11 +2114,13 @@ global file to start its heightmap a tile east and north of its anchor, which th
 and checks that `heightAt`, `terrainZ` and `coverAt` answer to the bit as on Lunigiana itself (read
 by `lookups.ts` in a process of its own) at 440 points round Monzone station; measuring from the
 first node instead, as before the anchor, it fails on all three.
-`src/sim/map/__tests__/tiles.map-test.ts` checks the cut: the 30 tiles cover the bounds (i −2…2, j
-−4…1, south to north then west to east) with their lowest and highest nodes (the nodes two tiles
-share are `seams.map-test.ts`'s, below), each wall lives in the tile of its midpoint and each tree
-in the tile of its point and no wall reaches farther than `walls.reach`, `heightAt`, `terrainZ` and
-`coverAt` read the tiles bit for bit as the whole heightmap and land cover give them, and
+`src/sim/map/__tests__/tiles.map-test.ts` checks the cut: the listed tiles are the region's
+(Lunigiana's 79 of its bounds' 99, south to north then west to east), each with a file and the
+notch's none, with their lowest and highest nodes (the nodes two tiles share are
+`seams.map-test.ts`'s, below), each wall lives in the tile of its midpoint and each tree in the tile
+of its point and no wall reaches farther than `walls.reach`, `heightAt`, `terrainZ` and `coverAt`
+read the tiles bit for bit as the whole heightmap and land cover give them, a point's cell counted
+from the anchor and the notch's nodes and cells the nearest listed ones, and
 `wallsNear` and `treesIn` answer exactly as one broad phase over the whole map does (1,500 boxes
 1–60 m across, half of them within 40 m of a seam; the trees' on the region's fixed corner, which
 need not be their lowest).
@@ -2132,11 +2137,13 @@ The vectors read from the tiles answer as the whole map's did, and the checks co
 broad phase over the whole map joined from the tiles (`wholeMap`), as the game had before #63:
 
 - `src/sim/map/__tests__/vectors.map-test.ts`: each tile holds, whole and in the whole map's order,
-  exactly the features with a segment's or outer ring's box within the halo of it, and
-  `buildingsIn` hands the same buildings in the same order as one `staticGrid` of 64 m cells over
-  the whole map's (1,500 boxes 1–600 m across, half of them within 80 m of a seam), its lattice on
-  the lowest corner of any building's box. `vectors.test.ts` checks round Monzone station that
-  `buildingsIn` answers the same whatever is in memory and in whichever order it came, each
+  exactly the features with a segment's or outer ring's box within the halo of it, or of an
+  unlisted tile it is round, and the waterways of each river polygon it holds, and `buildingsIn`
+  hands the same buildings in the same order as one `staticGrid` of 64 m cells over the whole map's
+  (1,500 boxes 1–600 m across, half of them within 80 m of a seam and the rest within 300 m of a
+  building: 38,080 found on Lunigiana), its lattice on the lowest corner of any building's box.
+  `vectors.test.ts` checks round Monzone station that `buildingsIn` answers the same whatever is in
+  memory and in whichever order it came, each
   building once though the tiles round a seam all hold it; that a lookup reads its point's tile
   alone (`placeAt`, `roadLineAt`, none for a road 6.6 km off, a throw for a tile not in memory); and
   that `buildingAt` finds a building by its index near it while `buildingsInMemory` reads no tile.
@@ -2374,8 +2381,9 @@ under 100 m tall; `dtm-mosaic.test.ts` pins `lucido`'s crop to the formula `fetc
 parts and reads a synthetic grid; `net.test.ts` serves a local HTTP server to check the
 `User-Agent`, the immediate 4xx and `overpass` moving on from a 504 or an answer with a top-level
 remark (a server timeout) but not from a tag named `remark`, and `net.long-test.ts` (`pnpm
-test:long`) the retry of a 5xx after 2 s; `manifest.test.ts` pins `lucido`'s 25 sheets, 66 tiles (47
-of 2010 before 19 of 2012), one 10 m DTM, two surface-model elements and the 12 sheets of 2009, with
+test:long`) the retry of a 5xx after 2 s; `manifest.test.ts` pins `lucido`'s 25 sheets, 85 tiles
+(its rectangle's 66, 47 of 2010 before 19 of 2012, then the 19 its tiles needed once Fivizzano grew
+the box, 17 before 2), one 10 m DTM, three surface-model elements and the 12 sheets of 2009, with
 no CTR 1:10 000 or DBT, `sillara`'s picks and `pontremoli-town`'s one DBT, reads a manifest
 written before the newer lists as listing none of them, and refuses one listing Minucciano's two
 DBT surveys but reads one of them alone; `fetch-rt.test.ts` runs `fetch-rt` and checks that it

@@ -5,6 +5,7 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
+import { listedNodes } from "../../../tools/grid-tiles.ts"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { ROAD_PASSES } from "../../../tools/profiles.ts"
 import { regionFromArgs } from "../../../tools/region.ts"
@@ -108,19 +109,25 @@ const VILLAGES = {
 }
 
 test("bounds and heightmap cover the play area", () => {
-  assert.deepEqual(MAP.bounds, { minX: -2900, minY: -6100, maxX: 4900, maxY: 3900 })
-  const hm = WHOLE.heightmap
-  assert.deepEqual(MAP.heightmap, {
-    cell: hm.cell,
-    cols: hm.cols,
-    rows: hm.rows,
-    x0: hm.x0,
-    y0: hm.y0,
-  })
-  assert.equal(hm.data.length, hm.cols * hm.rows)
+  const region = regionFromArgs([])
+  assert.deepEqual(MAP.bounds, region.bounds)
+  const { data, ...hm } = WHOLE.heightmap
+  assert.deepEqual(MAP.heightmap, hm)
+  // Its lattice counts from the region's anchor, west of its first node once Fivizzano grew it.
+  assert.deepEqual([hm.ax ?? hm.x0, hm.ay ?? hm.y0], [region.anchor.x, region.anchor.y])
+  assert.equal(data.length, hm.cols * hm.rows)
   assert.ok(hm.x0 <= MAP.bounds.minX && hm.x0 + (hm.cols - 1) * hm.cell >= MAP.bounds.maxX)
   assert.ok(hm.y0 <= MAP.bounds.minY && hm.y0 + (hm.rows - 1) * hm.cell >= MAP.bounds.maxY)
-  assert.ok(Array.from(hm.data).every((v) => Number.isInteger(v) && v > 1400 && v < 18500)) // the Aulella below Gragnola to the Apuan ridge
+  // The listed tiles' nodes, from the Aulella at the map's west edge (105 m) to the Emilian ridge
+  // by Cima Belfiore (1856 m); the notch's, which no tile holds, are 0 in the joined map.
+  const listed = listedNodes(hm, MAP.tiles)
+  for (let k = 0; k < data.length; k++) {
+    const v = data[k]!
+    assert.ok(
+      listed[k] === 1 ? Number.isInteger(v) && v > 1000 && v < 19000 : v === 0,
+      `node ${k}: ${v}`,
+    )
+  }
 })
 
 // Regression: rounded to the metre, neighbouring lattice trees could land on one spot (drawn and collided twice).
@@ -518,11 +525,17 @@ test("road names, classes, styles, area kinds and districts", () => {
         (ROAD_CLASSES as ReadonlyArray<string>).includes(r.cls) && r.z.length * 2 === r.pts.length,
     ),
   )
-  // OSM's primary, the SR445 della Garfagnana, keeps its class.
-  assert.deepEqual(
-    new Set(WHOLE.roads.filter((r) => r.ref === "SR445").map((r) => r.cls)),
-    new Set(["primary"]),
-  )
+  // OSM's primary, the SR445 della Garfagnana, keeps its class, but for its slip roads (OSM's
+  // primary_link, folded into secondary: kinds.ts), each under 60 m: six at one junction by Lago
+  // Fario, 173 m of its 24.5 km.
+  const sr445 = WHOLE.roads.filter((r) => r.ref === "SR445")
+  for (const r of sr445) {
+    let length = 0
+    for (let k = 2; k < r.pts.length; k += 2)
+      length += hypot(r.pts[k]! - r.pts[k - 2]!, r.pts[k + 1]! - r.pts[k - 1]!)
+    assert.ok(r.cls === "primary" || (r.cls === "secondary" && length < 60), `${r.id} ${r.cls}`)
+  }
+  assert.ok(sr445.filter((r) => r.cls === "primary").length > 50)
   assert.ok(
     WHOLE.buildings.every(
       (b) =>

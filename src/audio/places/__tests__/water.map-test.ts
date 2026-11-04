@@ -38,9 +38,10 @@ test("the reaches come as one broad phase over every reach of the whole map gave
       boxes.push([Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)])
     }
   })
+  // Folded, not spread: Lunigiana's reaches outnumber the arguments a call may take.
   assert.deepEqual(MAP.vectors.lattice.water, [
-    Math.min(...boxes.map((b) => b[0])),
-    Math.min(...boxes.map((b) => b[1])),
+    boxes.reduce((low, b) => Math.min(low, b[0]), Infinity),
+    boxes.reduce((low, b) => Math.min(low, b[1]), Infinity),
   ])
   const grid = staticGrid(boxes.length, (k) => boxes[k]!, 32)
   // Boxes from 1 to 800 m across (the 400 m disc), half of them within 80 m of a seam.
