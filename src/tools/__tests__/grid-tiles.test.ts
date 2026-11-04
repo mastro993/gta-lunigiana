@@ -1,8 +1,10 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { tileRange } from "../../sim/map/kinds.ts"
+import { BOUNDS } from "../geometry.ts"
 import { cellTile, extendEdges, gridTiles, listedNodes } from "../grid-tiles.ts"
-import { regionFromArgs } from "../region.ts"
+import { REGION, regionFromArgs } from "../region.ts"
 import { gridLattice } from "../terrain.ts"
 
 const lattice = gridLattice()
@@ -32,8 +34,15 @@ test("gridTiles gives each tile its 501 × 501 nodes cut to the grid, neighbours
 })
 
 test("cellTile names the tile whose window holds all four nodes of the cell read at a point", () => {
-  const spans = new Map(gridTiles(lattice).map((t) => [t.key, t.span]))
+  // Every tile of the box has a window, listed or not: on an L, a point in the notch is read in a
+  // tile off the list (Lunigiana's south-west corner is one).
+  const { i0, i1, j0, j1 } = tileRange(BOUNDS),
+    box: Array<{ i: number; j: number }> = []
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) box.push({ i, j })
+  const spans = new Map(gridTiles(lattice, box).map((t) => [t.key, t.span]))
   const tileOf = cellTile(lattice)
+  const listed = new Set(REGION.tiles.map(({ i, j }) => `${i}_${j}`))
+  assert.ok(!listed.has(tileOf(lattice.x0, lattice.y0)) && listed.has(tileOf(0, 0)))
   const { x0, y0, cell, cols, rows } = lattice
   const xs = [x0 - 50, x0, x0 + 0.5, 0, -0.01, 2000, 1999.99, 2003.9, x0 + (cols - 1) * cell, 1e5],
     ys = [y0 - 50, y0, -2000, -2000.01, 0, 1996, 1999.9, y0 + (rows - 1) * cell, 1e5]

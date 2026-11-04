@@ -3,19 +3,23 @@ import { test } from "node:test"
 
 import { latLonToGaussBoaga } from "../crs.ts"
 import { type Crop, MARGIN, ascHeader, cropOf, eachCell } from "../dtm-mosaic.ts"
-import { BOUNDS, fromLocal } from "../geometry.ts"
+import { fromLocal } from "../geometry.ts"
 import { partOf } from "../region.ts"
 
 test("cropOf(lucido) is the crop fetch-rt mosaicked before the parts, on the tiles' cell centres", () => {
-  const crop = cropOf(partOf("lucido").rects)
+  const lucido = partOf("lucido").rects
+  const crop = cropOf(lucido)
   assert.equal(crop.e0 % 1, 0.5)
   assert.equal(crop.n0 % 1, 0.5)
-  // fetch-rt's formula before region.ts: the play area's corners, MARGIN out, floored to x.5.
+  // fetch-rt's formula before region.ts: the play area's corners, lucido's rectangle's then, MARGIN
+  // out, floored to x.5.
+  assert.equal(lucido.length, 1)
+  const [minX, minY, maxX, maxY] = lucido[0]!
   const corners = [
-    [BOUNDS.minX, BOUNDS.minY],
-    [BOUNDS.maxX, BOUNDS.minY],
-    [BOUNDS.minX, BOUNDS.maxY],
-    [BOUNDS.maxX, BOUNDS.maxY],
+    [minX, minY],
+    [maxX, minY],
+    [minX, maxY],
+    [maxX, maxY],
   ].map(([x, y]) => latLonToGaussBoaga(...fromLocal(x!, y!)))
   const e0 = Math.floor(Math.min(...corners.map((c) => c[0])) - MARGIN) + 0.5,
     n0 = Math.floor(Math.min(...corners.map((c) => c[1])) - MARGIN) + 0.5

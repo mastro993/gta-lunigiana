@@ -25,9 +25,16 @@ const [minX, minY, maxX, maxY] = rectsBox([...partOf("lucido").rects, ...NORTH.r
 const GROWN = { ownTerrain: false, bounds: { minX, minY, maxX, maxY } }
 
 test("the index box of a part that fills its tiles to the region's edge is its rectangles' box, as before the tiles", () => {
-  const lucido = partOf("lucido")
-  assert.deepEqual(indexBox(lucido), [1586928, 4883839, 1595866, 4894945])
-  assert.deepEqual(indexBox(lucido), rectsIndexBox(lucido))
+  // lucido in a region of its own, as before Fivizzano grew Lunigiana's box
+  const lucido = partOf("lucido"),
+    [x0, y0, x1, y1] = rectsBox(lucido.rects),
+    alone = { ownTerrain: false, bounds: { minX: x0, minY: y0, maxX: x1, maxY: y1 } }
+  const box = indexBox(lucido, alone)
+  assert.deepEqual(box, [1586928, 4883839, 1595866, 4894945])
+  assert.deepEqual(box, rectsIndexBox(lucido))
+  // In today's region its tiles' cuts reach past its rectangles, west, east and north.
+  const today = indexBox(lucido)
+  assert.ok(today[0] < box[0] && today[2] > box[2] && today[3] > box[3])
 })
 
 test("the index box holds every cell the part's tiles need, past where its rectangles stop short of them", () => {

@@ -8,6 +8,7 @@ import { gzipSync } from "node:zlib"
 import { chainTracks, readCtrRail, type CtrLine } from "../ctr-rail.ts"
 import { local } from "../ctr.ts"
 import type { P } from "../geometry.ts"
+import { OUTLINE } from "../play-area.ts"
 import { shapefile, type TestRecord } from "./shapefile.ts"
 
 const line = (src: string, ...pts: ReadonlyArray<P>): CtrLine => ({ src, pts })
@@ -41,13 +42,24 @@ test("chainTracks joins ends within 1 m that head on, nearest first, at their mi
   assert.deepEqual(chainTracks([b, kink, a, c], [])[0], chained)
 })
 
+/** The middle (x, y) of the play area's first edge facing east: its outer ring's first edge running north. */
+const EAST = (() => {
+  const ring = OUTLINE[0]!
+  for (let k = 0; k < ring.length; k += 2) {
+    const [ax, ay, bx, by] = [0, 1, 2, 3].map((d) => ring[(k + d) % ring.length]!)
+    if (ax === bx && by! > ay!) return { x: ax!, y: (ay! + by!) / 2 }
+  }
+  throw new Error("the outline has no edge facing east")
+})()
+
 test("chainTracks cuts the lines out of tunnels, clips them to the play area and drops slivers", () => {
   const tunnel = [[40, -5, 60, -5, 60, 5, 40, 5]] // x 40..60
+  const { x, y } = EAST
   const tracks = chainTracks(
     [
       line("bored", [0, 0], [100, 0]),
-      line("east edge", [4890, 0], [4910, 0]), // the play area ends at x 4900
-      line("sliver", [4899.5, 10], [4910, 10]), // 0.5 m inside
+      line("east edge", [x - 10, y], [x + 10, y]), // the play area ends at x
+      line("sliver", [x - 0.5, y + 10], [x + 10, y + 10]), // 0.5 m inside
     ],
     [tunnel],
   )
@@ -69,8 +81,8 @@ test("chainTracks cuts the lines out of tunnels, clips them to the play area and
     {
       src: ["east edge"],
       pts: [
-        [4890, 0],
-        [4900, 0],
+        [x - 10, y],
+        [x, y],
       ],
     },
   ])

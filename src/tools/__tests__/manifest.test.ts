@@ -6,11 +6,13 @@ import { test } from "node:test"
 
 import { manifestPath, readManifest } from "../manifest.ts"
 
-test("lucido's manifest lists today's 25 CTR sheets, 66 LiDAR tiles and one 10 m DTM", () => {
+test("lucido's manifest lists its 25 CTR sheets, 85 LiDAR tiles and one 10 m DTM", () => {
   assert.ok(existsSync(manifestPath("lucido")))
   const { ctr, lidar, dtm10 } = readManifest("lucido")
   assert.equal(ctr.length, 25)
-  assert.equal(lidar.length, 66)
+  // The 66 its rectangle's crop took, then the 19 its tiles needed once Fivizzano grew the
+  // region's box past it (pick-lidar --write, issue #17)
+  assert.equal(lidar.length, 85)
   assert.deepEqual(dtm10, ["MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408"])
   assert.equal(new Set(ctr).size, ctr.length)
   assert.equal(new Set(lidar).size, lidar.length)
@@ -18,11 +20,18 @@ test("lucido's manifest lists today's 25 CTR sheets, 66 LiDAR tiles and one 10 m
   for (const tile of lidar) assert.match(tile, /^\d\dd\d\d_1x1_dtm_\d{3}_\d{4}_3003_[\da-f]{32}$/)
 })
 
-test("lucido's LiDAR tiles put the 2010 flight before the 2012 flight", () => {
+test("lucido's LiDAR tiles put the 2010 flight before the 2012 flight, in each of its two picks", () => {
   const lots = readManifest("lucido").lidar.map((tile) => tile.split("_")[3])
-  assert.equal(lots.filter((lot) => lot === "004").length, 47)
-  assert.equal(lots.filter((lot) => lot === "005").length, 19)
-  assert.ok(lots.lastIndexOf("004") < lots.indexOf("005"))
+  // pick-lidar --write keeps a manifest's tiles and adds the new picks after them: its rectangle's
+  // 66 (47 of 2010, 19 of 2012), then the 19 the grown box added (17 and 2).
+  for (const [pick, n2010, n2012] of [
+    [lots.slice(0, 66), 47, 19],
+    [lots.slice(66), 17, 2],
+  ] as const) {
+    assert.equal(pick.filter((lot) => lot === "004").length, n2010)
+    assert.equal(pick.filter((lot) => lot === "005").length, n2012)
+    assert.ok(pick.lastIndexOf("004") < pick.indexOf("005"))
+  }
   // The 2010 sliver below Picco di Navola that PR #2's 65 tiles missed, in its place among the
   // 2010 tiles.
   const sliver = readManifest("lucido").lidar.indexOf(
@@ -39,8 +48,9 @@ test("a part without a manifest reads as empty lists", () => {
   assert.deepEqual(readManifest("no-such-part"), EMPTY)
 })
 
-test("lucido's manifest lists the 2021 surface model's two elements over its holes", () => {
-  assert.deepEqual(readManifest("lucido").dsm2021, ["249062", "249064"])
+test("lucido's manifest lists the 2021 surface model's three elements over its holes", () => {
+  // 249063 over the holes its tiles' cells past its rectangle left once Fivizzano grew the box
+  assert.deepEqual(readManifest("lucido").dsm2021, ["249062", "249063", "249064"])
 })
 
 test("sillara's manifest lists 8 LiDAR tiles of the 2010 flight, Massa-Carrara's 10 m DTM and 5 elements of the 2021 surface model", () => {
