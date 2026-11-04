@@ -161,16 +161,18 @@ in a process of its own;
   regional border on the crest, Emilia-Romagna's DTM 5x5 fill the rest. `pnpm fetch-rt --region
   bagnone-ridge` writes it into `data/raw/rt/bagnone-ridge/` from `data/parts/sillara.json` (8 LiDAR
   tiles of 2010, 5 surface-model elements, the 10 m DTM), pinned with the rest. Of its 16 km²,
-  `pnpm coverage sillara` counts LiDAR on 4.11 km², the surface model on 1.00, the 10 m DTM on 7.62
-  and the DTM 5x5 on 3.27, over Bagnone (11.46 km²), Monchio delle Corti (3.12), Licciana Nardi
-  (0.87) and Corniglio (0.54). Of its 2.62 km² of open ground without LiDAR, the canopy filter
-  clears 1.64 km², so the surface model fills 0.98 km²: it keeps 50% of the pastures (0.59 of
-  1.17 km²) and 27% of the bare rock (0.39 of 1.44 km²), whose relief of 1–3 m it takes as it takes
-  a tree.
+  `pnpm coverage sillara` counts LiDAR on 4.11 km², the surface model on 0.83, the 10 m DTM on 7.79
+  and the DTM 5x5 on 3.27 (fetched again on 2026-11-04 with the canopy filter's second pass, the
+  sources counted on the same 10 m cells by `sourceAreas`; 1.00 and 7.62 with one pass), over
+  Bagnone (11.46 km²), Monchio delle Corti (3.12), Licciana Nardi (0.87) and Corniglio (0.54). Of
+  its 2.62 km² of open ground without LiDAR, the canopy filter clears 1.80 km², so the surface model
+  fills 0.81 km²: on the mosaic's 2 m cells it keeps 45% of the pastures (0.52 of 1.17 km²) and 22%
+  of the bare rock (0.32 of 1.44 km²), whose relief of 1–3 m it takes as it takes a tree (one pass
+  cleared 1.64 km² and kept 52% and 28%).
   `src/tools/__tests__/terrain-seams.map-test.ts` reads it through the build's own sampler and 4 m
-  grid (`loadDtm`, `dtmDem`), as it reads lucido's: the highest node within 100 m of Monte
-  Sillara's summit (−5336, 22825) stands at 1860.9 m, within 5 m of its 1861 m, on the bent 10 m
-  DTM (the filter leaves the surface model 3% of the open ground within 100 m of it), and no seam
+  grid (`loadDtm`, `dtmDem`), as it reads Lunigiana's: the highest node within 100 m of Monte
+  Sillara's summit (−5336, 22825) stands at 1859.4 m, within 5 m of its 1861 m, on the bent 10 m
+  DTM (the surface model holds 17 of the 1,960 nodes within 100 m of it), and no seam
   between two sources steps more than 1 m beyond the terrain's own steps round it ([Checks and
   tools](#checks-and-tools)).
 - **`pontremoli-town`**: 1.6 × 1.6 km round Pontremoli's town, x −20700…−19100 by y 23100…24700
@@ -658,8 +660,22 @@ regions](#test-regions)).
      every cell within 2 m of one (a crown's edge); the ground left is opened by the same square, so
      no scrap or strip of it narrower than 9 m stays among the fill. The pastures in the Apennine
      woods carry scattered trees, UCS's 1:10 000 polygons take in the woods' edge, and before this
-     filter the seams round them stood up to 15 m high. On bare rock the filter clears the rock's own
-     relief too, and is meant to: there the model stands metres over the survey. Monte Sillara's
+     filter the seams round them stood up to 15 m high. It runs twice (`PASSES`), the second time
+     over the ground the first left: a wood the pasture's polygon takes in is wider than the square,
+     so the first clears it by its rough crowns alone, and the smooth canopy along its edge, as high
+     as the lowest of a square on the wood, stayed as ground, its flank 3–12 m over the clearing.
+     Under Fivizzano's ridge, at (10196, 10796), the 10 m DTM bent onto such a flank stepped 1.86 m
+     at the seam, 1.70 m more than the terrain round it; measured on the clearing beside it alone, the
+     second pass takes it. A third would take ground: where the surface model's ground and the 10 m
+     DTM part by more than 0.7 m across a square, the edge of what the pass before cleared stands
+     over its opening too, and each pass eats a few metres more (in the 300 m square round that
+     pasture, 29,513 m² of open ground, the first pass clears 8,683 m², the second 1,820 with the
+     wood's edge, the next four 627, 362, 377 and 273, at 1.4–2.7 m over the 10 m DTM like the
+     clearing beside them). On Fivizzano the second pass clears 29,596 m² more of the 557,884 m² of
+     open ground without LiDAR (236,469 m² in all), and the surface model fills 321,415 m² rather
+     than 351,011; on the Bagnone ridge 0.16 km² more ([Test regions](#test-regions)). On bare
+     rock the filter clears the rock's own relief too, and is meant to: there the model stands
+     metres over the survey. Monte Sillara's
      summit, 1861 m on the maps and 1861.4 m on the 10 m DTM, tops out at 1863.8 m in the surface model; with
      the rock let off the canopy test it stood at 1866.2 m on the game's grid, more than 5 m too
      high, and the ridge's seams passed the terrain's own steps by 3.2 m.
@@ -2291,19 +2307,20 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   to within 500 m of Vinca, across the x = 0, y = 0, y = −2000 and x = 2000 seams.
 - `src/tools/__tests__/terrain-seams.map-test.ts`: the seams between the terrain's sources (issue
   #10), read from the DTM fetch-rt wrote (`dtm-src.bin`) on the build's own 4 m grid (`dtmDem`'s
-  nodes, each the mean of a 5 m square), over lucido and the `bagnone-ridge` and `sarzana-town`
-  test regions, and Monte Sillara's summit there ([Test regions](#test-regions)). A step is how far the height difference
-  across a seam lies outside the differences beside it, 3 nodes either side on its own line and the
-  two beside it, each within one source (`seamSteps` in `__tests__/seam-steps.ts`): a slope, a kink
-  or a cliff on one side gives none, a ledge its height. Rough ground has steps of its own (on the
-  ridge 0.6% of the LiDAR's node pairs step over 1 m, 0.006% of the 10 m DTM's and 0.001% of the
-  surface model's): so the test holds every seam to at most 1 m more than the largest step within
-  one source within 20 m of it. Lucido's seams pass it by 0.30 m at most, the ridge's by 0.94 m (a
-  strip of the surface model by the 10 m DTM), Sarzana's not at all (LiDAR to Liguria's DTM, its
-  worst 0.06 m under the steps round it); with the band left out, the ridge fails by 4.0 m,
-  with no bend at all by 12.4 m, and without the canopy filter by 8.6 m. The steps themselves reach
-  1.73 m on the ridge (3.42 m on lucido, under the Rocca di Tenerano), where a gully the LiDAR shows
-  ends against the 10 m DTM, as steep as the gully's walls round it.
+  nodes, each the mean of a 5 m square), over Lunigiana's listed tiles (lucido's and Fivizzano's)
+  and the `bagnone-ridge` and `sarzana-town` test regions, and Monte Sillara's summit there ([Test
+  regions](#test-regions)). A step is how far the height difference across a seam lies outside the
+  differences beside it, 3 nodes either side on its own line and the two beside it, each within one
+  source (`seamSteps` in `__tests__/seam-steps.ts`): a slope, a kink or a cliff on one side gives
+  none, a ledge its height. Rough ground has steps of its own (on the ridge 0.6% of the LiDAR's node
+  pairs step over 1 m, 0.005% of the 10 m DTM's and none of the surface model's): so the test holds
+  every seam to at most 1 m more than the largest step within one source within 20 m of it.
+  Lucido's seams pass it by 0.30 m at most, the ridge's by 0.59 m (the LiDAR by the 10 m DTM;
+  0.94 m, a strip of the surface model, with the canopy filter's one pass), Sarzana's not at all
+  (LiDAR to Liguria's DTM, its worst 0.06 m under the steps round it); with the band left out, the
+  ridge fails by 3.9 m, with no bend at all by 12.0 m, and without the canopy filter by 8.6 m. The
+  steps themselves reach 1.73 m on the ridge (3.42 m on lucido, under the Rocca di Tenerano), where
+  a gully the LiDAR shows ends against the 10 m DTM, as steep as the gully's walls round it.
 
 The overview's checks: `src/tools/__tests__/overview.map-test.ts` fails when a built overview (both
 maps' and, built or in CI, the L's) is not the image its whole map paints now, so a change to the
@@ -2541,7 +2558,9 @@ false easting moved) refused as 3003, the two crops pasted into the square (`lig
 flat, a cell without data left out), the WCS request, the
 projection lattice (within 1 mm; the box round its corners within 0.01 mm), the open ground and the
 canopy filter (a tree with its fringe, a pit, scraps and strips narrower than the square, a slope
-left alone); `liguria.test.ts` the WFS's count and pages, sorted, from each `startIndex`, the land
+left alone, and the smooth edge of a wood wider than the square, which one pass left standing over
+the clearing, proven red); `liguria.test.ts` the WFS's count and pages, sorted, from each
+`startIndex`, the land
 use's CQL filter, `fetchWfs` reading three pages and refusing a short answer, a repeated or
 unsorted row, a count that moves while paging and an answer with no count, the polygons on whole
 centimetres, `nc5File` clipping the mapped area alone and keeping a building past the box whole,
@@ -2986,11 +3005,14 @@ carries the roads, water, rail and buildings across the old edge, which then are
   (0.63 km² of lucido, south of Tenerano and round the Cava Bardiglio) misses the small relief and
   shows its own 10 m creases, and the bend carries the LiDAR's relief only 50 m in, so a gully or a
   rock face the LiDAR shows ends against the fill: where a face under the Rocca di Tenerano meets
-  it, at (−1272, −2660), the 2 m cells step up to 5.3 m (5.2 m with the fill before the chain). The
-  surface model's cells are the ground of 2021, a decade after the LiDAR, and its canopy filter
-  takes any bump or pit narrower than 9 m and 0.7 m high or deep for a tree or a failed match, the
-  relief of bare rock included: on the Bagnone ridge it keeps 50% of the pastures and 27% of the
-  bare rock without LiDAR, and the bent 10 m DTM fills the rest, Monte Sillara's summit included.
+  it, at (−1272, −2660), the 2 m cells step up to 5.3 m (5.2 m with the fill before the chain).
+  The surface model's cells are the ground of 2021, a decade after the LiDAR, and its canopy
+  filter takes any bump or pit narrower than 9 m and 0.7 m high or deep for a tree or a failed
+  match, the relief of bare rock included, and, in its second pass, a few metres of ground round
+  what the first cleared: on the Bagnone ridge it keeps 45% of the pastures and 22% of the bare rock
+  without LiDAR, and the bent 10 m DTM fills the rest, Monte Sillara's summit included. A wood wider
+  than the square whose canopy is smooth all over would still stand as ground: the filter clears a
+  wood by its rough crowns, and the second pass its edge.
 - **Liguria's sources are coarser than Tuscany's** (issue #12; the Sarzana test region's today).
   Its DTM ed. 2023 is a 5 m grid of whole metres interpolated from the NC5's 1:5000 restitution,
   3.00 m RMS from the 2010 LiDAR where both cover the test region's mosaic (0.34 km², the DTM 0.54 m
