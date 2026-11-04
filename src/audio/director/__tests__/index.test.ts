@@ -14,6 +14,7 @@ import { stepRate } from "../../synth/steps.ts"
 import type { Happening, Zone } from "../../types.ts"
 import { MOST_DB, TOWERS, windDb } from "../levels.ts"
 import {
+  ACROSS_MEADOW,
   at as clock,
   away,
   BANK,
@@ -69,9 +70,11 @@ test("the stereo image turns with the view: a car ahead of the home seat's scree
   assert.ok(Math.abs(centred) < 1e-9, `${centred}`)
 })
 
-test("a car at full load 300 m across the open meadow is heard; 400 m away behind Monte San Giorgio it is not", () => {
+test("a car at full load 250 m across the open meadow is heard; 400 m away behind Monte San Giorgio it is not", () => {
   const open = rig()
-  open.hear(world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, 300, SOUTH), FULL)] }))
+  open.hear(
+    world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, ACROSS_MEADOW, SOUTH), FULL)] }),
+  )
   assert.equal(open.held().has("engine:1"), true)
   const behind = rig()
   behind.hear(world(WEST_FLANK, { vehicles: [car(1, "panda", EAST_FLANK, FULL)] }))

@@ -42,6 +42,11 @@ import { USUAL_WIND } from "./sky.ts"
  * stand 21 m off, and 134 and 126 m of them lie on those paths.
  */
 export const MEADOW = { x: -329, y: 1078 }
+/**
+ * How far south across `MEADOW` a Panda at full load is heard in the tests' calm, m: all the way to 284 m on the map's floor of
+ * 213.6 m, which puts the meadow's usual wind 0.6 dB over lucido's floor of 230.3 m (all the way to 288 m, then to 322 m with gaps).
+ */
+export const ACROSS_MEADOW = 250
 /** A meadow 2 km west of Monzone with no tree within 99 m nor building within 158 m. */
 export const TREELESS = { x: -2290, y: 990 }
 /** A lane at Pian del Molino with a 10.7 m building 30 m east (`BEHIND`) and open ground 30 m north-west (`OPEN`). */

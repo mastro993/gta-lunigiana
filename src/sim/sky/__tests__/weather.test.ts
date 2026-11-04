@@ -97,14 +97,19 @@ test("a new game: clear and calm at the clear regime's targets with its weather 
       october.storm,
       october.wet,
       october.anomaly,
-      october.snowLine,
     ],
-    [0x1a2b3c4d, "clear", false, REGIME_SPECS.clear.cloud, 0, 0, 0, 0, NO_SNOW],
+    [0x1a2b3c4d, "clear", false, REGIME_SPECS.clear.cloud, 0, 0, 0, 0],
   )
   assert.deepEqual(october.plan, calmPlan(OCTOBER))
-  // 22 October: the season's line stands more than SNOW_REACH over the map's top, so no face of the map holds snow: none lies.
-  const top = Math.max(...MAP.tiles.map((t) => t.zmax)) / 10
-  assert.ok(seasonSnowLine(OCTOBER) > top + SNOW_REACH, `${seasonSnowLine(OCTOBER)} m`)
+  // The season's line, none where it stands SNOW_REACH or more over the map's top: no face of the map holds snow there. On
+  // 1 October it stands far over any; on 22 October (2222 m) it stands within reach of the top since Fivizzano's crest (1856 m)
+  // joined lucido's (1799 m), whose steepest north faces may hold some.
+  const top = Math.max(...MAP.tiles.map((t) => t.zmax)) / 10,
+    season = (t: number) => (seasonSnowLine(t) >= top + SNOW_REACH ? NO_SNOW : seasonSnowLine(t))
+  const first = utc(2026, 10, 1, 6)
+  assert.ok(seasonSnowLine(first) > top + SNOW_REACH, `${seasonSnowLine(first)} m`)
+  assert.equal(initialWeather(first, 1).snowLine, NO_SNOW)
+  assert.equal(october.snowLine, season(OCTOBER))
   // Mid-January: snow on level ground from MODIS's 926 m over Lunigiana, 28 m higher at the map's latitude (9 km south of its
   // window's middle); mid-July none.
   const line = initialWeather(JANUARY, 1).snowLine
@@ -480,7 +485,7 @@ test("local: snow lies lower on north faces and higher on south ones, and none o
 })
 
 test("ground: the season's snow on the map's highest north faces lasts while its line stands within SNOW_REACH over the top, and goes past it", () => {
-  // 1 November: the season's line over the map's top (1799 m), and still within reach of its steepest snowy north faces.
+  // 1 November: the season's line over the map's top (1856 m), and still within reach of its steepest snowy north faces.
   const t = utc(2026, 11, 1, 7),
     top = Math.max(...MAP.tiles.map((t) => t.zmax)) / 10,
     start = fresh(t).snowLine
@@ -753,10 +758,14 @@ test("readout: one word for the weather where the player stands, from what falls
   )
 })
 
-// place.map-test.ts checks the place is the one fitted over the whole heightmap.
-test("place: the sky's place is the map's, its low ground about 230 m and its slope falling west-north-west", () => {
+// place.map-test.ts checks the place is the one fitted over the listed tiles' heights; this, by the tiles' lowest and highest
+// nodes, that it is a low ground and a fall the map's relief gives, whichever parts it holds: down from the Apennine crest
+// to the north-east toward the Aulella and the Magra.
+test("place: the sky's place is the map's, its low ground in the lowest tenth of its heights and its slope falling west", () => {
+  const bottom = Math.min(...MAP.tiles.map((t) => t.zmin)) / 10,
+    top = Math.max(...MAP.tiles.map((t) => t.zmax)) / 10
   assert.ok(
-    FLOOR > 220 && FLOOR < 240 && place().downslope > 2 && place().downslope < 2.3,
-    JSON.stringify(place()),
+    FLOOR > bottom && FLOOR < bottom + (top - bottom) / 10 && Ops.cos(place().downslope) < 0,
+    JSON.stringify({ ...place(), bottom, top }),
   )
 })

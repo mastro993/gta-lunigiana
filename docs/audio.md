@@ -526,7 +526,7 @@ roof's drumming). The wind bed is never stiller than the rural background: 35 dB
 (`AMBIENT_DB`), falling to 28 at night (`NIGHT_DB`) as the sun sinks from 0° to 10° under the
 horizon (`floorDb` in `director/sky.ts`). What masks is what plays: the background is the wind bed,
 not a silent number, so from a closed car in a calm street the floor is 20 dB(A), and a downpour
-drowns a car at full load 300 m across a meadow that the dry day lets through. A sound at most 5 dB
+drowns a car at full load 250 m across a meadow that the dry day lets through. A sound at most 5 dB
 under the floor plays at full gain. Below that it fades linearly in dB, and 15 dB under the floor it
 is culled: a one-shot is dropped, a voice is no longer held and fades out. The margin is there
 because a narrow-band sound stays detectable 5–10 dB under a broadband dB(A) floor.
@@ -535,11 +535,16 @@ The wind's strength comes from the place and the weather. In the usual wind (3 m
 map's low ground, `USUAL_WIND`: a cloudy day's, a little over the weather's own mean, 2.5 m/s in
 October and 2.3–2.7 by month over 30 simulated years) it rises with the ears' height over the
 map's floor (`place().floor`, its 5th-percentile height), from 0.15 at 80 m under the floor to
-0.85 at 770 m over it (a smoothstep; on the shipped map, floor 230 m and lowest ground 147 m, that
-is the 150–1,000 m it was tuned on, within 0.3 m), up to 0.15 more on open ground, and 0.3 less in
-a street; the weather's low-ground wind scales that by wind / 3 m/s (`windFactor`). Counting from
-the floor, a flat coastal map hears its floor as the shipped map's valley does, and an Alpine map
-its own floor as calm rather than a gale everywhere. It is never under the floor's stillest,
+0.85 at 770 m over it (a smoothstep: tuned by ear on lucido alone, whose floor of 230.3 m over its
+lowest ground of 147 m made that the 150–1,000 m it was tuned on, within 0.3 m), up to 0.15 more on
+open ground, and 0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s
+(`windFactor`). Counting from the floor, a flat coastal map hears its floor as the shipped map's
+valley does, and an Alpine map its own floor as calm rather than a gale everywhere. A part moves
+the floor: with Fivizzano's lower valleys (down to 105 m) it is 213.6 m, so the law spans 134–984 m
+and lucido blows as 16.7 m higher did, up to 0.02 stronger: the meadow on Monte dei Bianchi (316 m)
+0.355 → 0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 → 0.277 (1.0 dB), the ridge above
+Aiola (899 m) 0.926 → 0.934, Monzone's streets at the stillest as before; a car at full load across
+that meadow is heard all the way to 284 m rather than 288. It is never under the floor's stillest,
 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds themselves: leaves and the far
 valley, heard even in a sheltered street), and at most 1.33, a gale's bed at `GALE_DB`
 (65 dB(A)). Its level is 60 + 40·log10(strength) dB(A): in the usual wind 35 in Monzone's streets,

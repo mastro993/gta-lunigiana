@@ -68,8 +68,8 @@ new map needs no weather data of its own.
 | Field | What it is | On the shipped map |
 |---|---|---|
 | `lat`, `lon` | the map's origin (`MAP.origin`, degrees north and east): the sun and the moon are worked out for it, and the latitude picks the climate | 44.16175 N, 10.13 E |
-| `floor` | the map's low ground, m: the 5th percentile of its heightmap | 230.3 m |
-| `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | 2.127 (toward the north-north-west) |
+| `floor` | the map's low ground, m: the 5th percentile of its heightmap | 213.6 m |
+| `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | 2.982 (toward the west, 9° north of it) |
 
 - **Baked at build time.** The fit reads every one of the 4.9 million height nodes, which the game
   now holds only in the tiles near the player, so the build runs `placeFrom` over the heightmap
@@ -80,7 +80,7 @@ new map needs no weather data of its own.
   `providePlace({ ...MAP.origin, ...MAP.place })` right after decoding, as the host hands the map
   file to `provideMap`.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,
-  `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 230 m, downslope 2.13, the shipped map's own place
+  `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 214 m, downslope 2.98, the shipped map's own place
   rounded, so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
   the sky modules decode no map, and that once the map is decoded `place()` is the map's origin and
   the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the reference;
@@ -95,6 +95,17 @@ new map needs no weather data of its own.
 - **Why a plane.** The night's drainage breeze blows down the map's slope and the day's breeze up
   it; on a coastal plain the plane's fall is roughly the land and sea breeze. The earlier,
   Lunigiana-only weather took the Lucido's axis (2.5 rad) by hand.
+- **A part moves it.** The place is fitted over every listed tile, so a part that joins the map
+  moves it for the parts already there ([map.md](map.md#what-growing-a-region-changes)), and
+  `REFERENCE_PLACE` follows the shipped map. Fivizzano's lower valleys (issue #17, its lowest ground
+  105 m against lucido's 147) took the floor from lucido's 230.3 m to 213.6 m and the downslope
+  from 2.127 rad (toward the north-north-west) to 2.982 (toward the west). On lucido the low-ground
+  fog, the cloud base, the wind's growth with height and the audio's wind law now count from 16.7 m
+  lower, and the night's breeze blows west rather than north-north-west (the day's east rather
+  than south-south-east). What follows the height above sea level, the air's temperature and the
+  rain, is as it was; the snow line moves only with the map's top, Fivizzano's 1856 m against
+  lucido's 1799 m ([The ground](#the-ground-wetness-snow-and-meltwater)): level ground at 1100 m
+  holds snow 57.1 days a year rather than 56.7 (seed 1).
 
 ## The sun and the moon
 
@@ -162,12 +173,12 @@ two nearest mid-month values.
 anchor latitude, held beyond them, the lapse rate and the range's fit. The normals on the 15th,
 before any weather (°C, maximum / minimum as the mean ± half the range):
 
-| Month | 38 N, 0 m | 42 N, 0 m | 45.5 N, 0 m | Shipped map (44.16 N), 230 m | 1000 m | 1800 m |
+| Month | 38 N, 0 m | 42 N, 0 m | 45.5 N, 0 m | Shipped map (44.16 N), 214 m | 1000 m | 1800 m |
 |---|---|---|---|---|---|---|
 | January | 14.4 / 8.3 | 12.3 / 5.1 | 8.1 / 0.0 | 8.9 / 1.3 | 5.6 / −1.7 | 2.3 / −4.8 |
-| April | 19.9 / 11.6 | 19.5 / 9.9 | 19.1 / 8.2 | 17.7 / 7.5 | 12.9 / 3.5 | 8.0 / −0.6 |
-| July | 31.5 / 21.7 | 31.4 / 20.3 | 30.4 / 18.1 | 29.3 / 17.6 | 24.5 / 13.5 | 19.5 / 9.2 |
-| October | 24.4 / 16.5 | 22.4 / 13.7 | 19.6 / 10.1 | 19.4 / 10.4 | 15.2 / 6.9 | 10.8 / 3.2 |
+| April | 19.9 / 11.6 | 19.5 / 9.9 | 19.1 / 8.2 | 17.8 / 7.6 | 12.9 / 3.5 | 8.0 / −0.6 |
+| July | 31.5 / 21.7 | 31.4 / 20.3 | 30.4 / 18.1 | 29.4 / 17.7 | 24.5 / 13.5 | 19.5 / 9.2 |
+| October | 24.4 / 16.5 | 22.4 / 13.7 | 19.6 / 10.1 | 19.5 / 10.5 | 15.2 / 6.9 | 10.8 / 3.2 |
 
 ### The day's cycle
 
@@ -401,7 +412,7 @@ make of the days.
 - **Snow** is a cold front: steady precipitation 2.5 °C colder than the day's air, cooled 1.95 °C
   more by its 1.5 mm/h. With the day's air mass at the normal, settled on 15 January at noon on the
   shipped map it brings the snow line down to 392 m; on 22 October the freezing level stays at
-  2142 m and on 15 July at 3609 m, above the map's highest ground (1799 m), so it falls as a cold
+  2142 m and on 15 July at 3609 m, above the map's highest ground (1856 m), so it falls as a cold
   rain everywhere.
 
 ### Easing and forcing
@@ -419,8 +430,10 @@ than snapping, and the dev menu can force a regime over the plan.
 - **A new game** starts clear and calm, at the clear regime's targets with no anomaly, on dry ground
   under the season's snow line ([The season's snow line](#the-seasons-snow-line): at 08:00 on the
   shipped map 1401 m on 15 November, 907 m on 15 December, 952 m on 15 January, 1351 m on 15
-  February, 1413 m on 15 March and 1861 m on 15 April; from 30 April to 22 October it stands too
-  high for any face of the map to hold snow), with no storm near. Its plan holds clear and calm for
+  February, 1413 m on 15 March and 1861 m on 15 April; from 2 May to 20 October it stands too
+  high for any face of the map to hold snow, and on `DEFAULT_START`'s 22 October at 2222 m it
+  reaches only the steepest north faces near the map's top, 1856 m on the Apennine crest in
+  Fivizzano's part), with no storm near. Its plan holds clear and calm for
   90 game minutes (`CALM_START`), so the first stretch of play (and the first frames of every
   scenario test) is calm.
 - **Forcing.** `SetWeather { regime, settle? }` from the dev menu (`setWeather`, `weather.ts`)
@@ -517,8 +530,8 @@ snow line at or under the height at 08:00), November to April, the mean of seeds
   test holds it there so it gets no worse ([Known limits](#known-limits)).
 - **The far south's coasts** (38 N, sea level) see 0.19 a year, and no place sees snow at sea level
   from June to September.
-- **The shipped map** (seed 1): snowfall 6.3 days a year on its floor (230 m), 10.5 at 600 m, 18.1
-  at 1000 m, 29.8 at 1400 m and 44.9 on its top (1799 m); snow lies on level ground 56.7 days a
+- **The shipped map** (seed 1): snowfall 6.3 days a year on its floor (214 m), 10.5 at 600 m, 18.1
+  at 1000 m, 29.8 at 1400 m and 46.7 on its top (1856 m); snow lies on level ground 57.1 days a
   year at 1100 m and 123 at 1750 m (asserted 25–70 and 90–170).
 
 ## The climate sources record
@@ -607,12 +620,12 @@ and how snow-covered the ground is there, each 0 to 1.
   north faces hold snow below it and south faces only above it (the next item). While more than
   drizzle falls and the freezing level lies under the line, snow settles from the line where one
   lies (over the map's top it can still whiten north faces), else from the map's top (its tiles'
-  highest node, `MAP.tiles`: 1799 m on the shipped map), down toward the freezing level at 150 m per
+  highest node, `MAP.tiles`: 1856 m on the shipped map), down toward the freezing level at 150 m per
   game hour for each mm/h, × `orographic` at the line (`SNOWING`). Otherwise it rises by a
   degree-day melt of 1 m per game hour for each °C above 0 at the line, twice that under rain
   (`MELTING`), and once 408 m over the map's top (`SNOW_REACH`: the steepest face that holds snow,
   at the edge's highest reach) no snow is left. It never falls below the map's lowest ground less 50
-  m (97 m on the shipped map), so all the map can lie white. The rates are design values fitted to
+  m (55 m on the shipped map), so all the map can lie white. The rates are design values fitted to
   Capozzi et al.'s snow-cover days ([Snow](#snow)).
 - **Aspect and slope.** The line stands 440 m lower (`SNOW_ASPECT`) for each unit of the ground's
   normal that points north, higher on a south face: a 30° north face (its normal 0.5 north) holds
@@ -636,8 +649,8 @@ and how snow-covered the ground is there, each 0 to 1.
   wets only that band, never the map's `wet` (the lead's call): sunny valley roads 1000 m under the
   snow stay dry. On a clear 15 January on the shipped map, a new game's (seed 1) settled clear, from
   the season's 952 m snow line, the map's `wet` stays 0 all day; by 11:00 (the line at 3.5 °C) the
-  band wets 6.0 % of the map's 21,769 road vertices, the lowest at 817 m, while the line climbs to
-  998 m by 18:00. In a frost the band stays dry.
+  band wets 7.2 % of the map's 56,585 road vertices (6.0 % of lucido's 21,769), the lowest at 817 m,
+  while the line climbs to 998 m by 18:00. In a frost the band stays dry.
 - **Where it falls short.** One wetness and one snow line serve the whole map, so tunnels and
   bridges get wet and white too, and a road takes the level line where the slope it cuts across holds
   snow lower or higher.
@@ -678,8 +691,8 @@ aspect fit `groundAt` and the renderer apply.
   In late April no band reaches half (28–42 % from 1500 to 1800 m, rising about 4.5 points a
   100 m), so its 1980 m is extrapolated. May's 2600 m and October's 2400 m carry the line off the
   map's tops (October's meets early November's 1601 m late on the 8th; 1618 m at noon), and June to
-  September lay none (`NO_SNOW`). On the shipped map the season's snow can lie on some face from 23
-  October to 29 April.
+  September lay none (`NO_SNOW`). On the shipped map the season's snow can lie on some face from 21
+  October to 2 May (on lucido alone, under its 1799 m top, from 23 October to 29 April).
 - **The aspect.** One slope with an intercept per half-month, over the ten half-months from November
   to March, gives −436 m for each unit of north (`SNOW_ASPECT`, 440). It runs from −832 and −888 in
   December and −816 and −669 in January, when the low sun leaves north faces in shade all day, to
@@ -702,7 +715,7 @@ floor; `fogAt(z)` blends each in over 50 m of height.
   gone by 0.55) and the air calm (wind under 2 m/s, gone by 3.5): it forms from 01:00, is thickest
   from 05:00 and burns off from 09:00 to 11:00. Which mornings bring it follows the weather seed,
   so another game has fog on other days. On a fog morning it stands 23 m over the floor at density
-  0.16 at 02:00, 75 m at 0.5 at 03:00, 150 m at 1 from 05:00 to 09:00 (380 m on the shipped map),
+  0.16 at 02:00, 75 m at 0.5 at 03:00, 150 m at 1 from 05:00 to 09:00 (364 m on the shipped map),
   75 m at 0.5 at 10:00, and is gone at 11:00.
 - **The fog regime** is a low stratus: the low ground's fog reaches 450 × fog m over the floor,
   405 m at its 0.9.
@@ -714,15 +727,15 @@ floor; `fogAt(z)` blends each in over 50 m of height.
 
   | Regime | Cloud base over the floor (m) | On the shipped map (m) | Density |
   |---|---|---|---|
-  | clear | 2325 | 2555 | 0 |
-  | fair | 1950 | 2180 | 0 |
-  | cloudy | 1425 | 1655 | 0.19 |
-  | overcast | 975 | 1205 | 0.60 |
-  | fog | 350 | 580 | 1.00 |
-  | rain | 900 | 1130 | 0.60 |
-  | storm | 1150 | 1380 | 0.60 |
-  | windy | 2100 | 2330 | 0 |
-  | snow | 848 | 1078 | 0.63 |
+  | clear | 2325 | 2539 | 0 |
+  | fair | 1950 | 2164 | 0 |
+  | cloudy | 1425 | 1639 | 0.19 |
+  | overcast | 975 | 1189 | 0.60 |
+  | fog | 350 | 564 | 1.00 |
+  | rain | 900 | 1114 | 0.60 |
+  | storm | 1150 | 1364 | 0.60 |
+  | windy | 2100 | 2314 | 0 |
+  | snow | 848 | 1062 | 0.63 |
 
 ## Wind
 
@@ -730,7 +743,7 @@ floor; `fogAt(z)` blends each in over 50 m of height.
 (`windAngle`, rad counter-clockwise from east) and the gust factor (`gust`, peak over mean).
 `windAt(weather, z)` gives the air's velocity at a height, stronger on exposed ground: ×1 on the
 map's floor, rising in a straight line to ×2.5 at 1550 m over it (`WIND_UP`); on the shipped map
-×1.36 at 600 m and ×1.78 at 1040 m. That is a national design value, ×2–2.5 on crests: the
+×1.37 at 600 m and ×1.80 at 1040 m. That is a national design value, ×2–2.5 on crests: the
 Aeronautica Militare's exposed capes, islands and hill stations see a wind over 20 knots 2.7–3.9
 times as often as its lowland airports, by month. The earlier local fit took the same ×2.5 from
 Passo della Cisa (about 6.1 m/s at 1048 m) against Sarzana-Luni (3.0 m/s on the coast). Over 30
@@ -760,11 +773,13 @@ storms.
   the player and 60–600 m toward the camera (the driving view's, while the player drives:
   `restAxes` in `src/sim/view.ts`), where a vertical bolt crosses the whole screen.
 - **Measured on the shipped map**, a settled storm, 8 seeds × 3 real minutes at each spot: Gragnola
-  321 flashes, 105 of them bolts (33 %); Monzone 343 and 127 (37 %); Equi Terme 345 and 131 (38 %),
-  so 0.22–0.24 flashes a real second once the bolts off the map are dropped. Near the map's edge
-  more of the cloud flashes lie off the map: 78 % at Gragnola, 50 % at Monzone, 29 % at Equi. The
-  cell is placed by the player, not the map, so a smaller map (Cesena's is 4 × 4 km) drops more
-  bolts off its edges.
+  337 flashes, 121 of them bolts (36 %); Monzone 345 and 130 (38 %); Equi Terme 350 and 136 (39 %),
+  so 0.23–0.24 flashes a real second once the bolts off the map are dropped. Near the map's edge
+  more of the cloud flashes lie off the map: 48 % at Gragnola, 41 % at Monzone, 16 % at Equi. The
+  cell is placed by the player, not the map, so a smaller map drops more bolts off its edges: on
+  lucido alone, before Fivizzano's play area joined north and east of it, Gragnola, 540 m inside
+  its north edge, saw 321 flashes and 105 bolts (33 %), 78 % of its cloud flashes off the map, and
+  Cesena's is 4 × 4 km.
 - **The event.** Each flash is a `Lightning` event: where, whether it is a bolt, its `power`
   (0.3–1), a `seed` for the bolt's shape and the thunder, and the step. The renderer draws it
   ([What it looks like](#what-it-looks-like)) and the audio thunders it

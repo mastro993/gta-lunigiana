@@ -21,7 +21,7 @@ export interface Place {
 }
 
 /** The reference site, the shipped map's place (Monzone, 44.16175 N, 10.13 E): what a page or test that loads no map uses. */
-export const REFERENCE_PLACE: Place = { lat: 44.16175, lon: 10.13, floor: 230, downslope: 2.13 }
+export const REFERENCE_PLACE: Place = { lat: 44.16175, lon: 10.13, floor: 214, downslope: 2.98 }
 
 /** The place the map module handed over, else the reference site. */
 let current: Place = REFERENCE_PLACE
