@@ -14,7 +14,7 @@
 //   the A15's in a tunnel (ac_vei_sed 06); ar_vms (010105): #15, #230; zona_r (000201): #10, its
 //   zona_r_dt (the survey firms) blanked.
 import assert from "node:assert/strict"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { copyFileSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -173,4 +173,19 @@ test("readDbt places the DBT's EPSG:3003 vertices with the DBT's residual", () =
   assert.deepEqual(at(), [-20829.8, 22167.8]) // the LiDAR's residual: 0.5 m off
   const greenhouse = readDbt(DIR, ANYWHERE).buildings.find((b) => b.kind === "greenhouse")!
   assert.ok(vertices(greenhouse.outer).some(([x, y]) => x === -20829.3 && y === 22167.6))
+})
+
+// Regression: Minucciano's and Giuncugnano's DBT of 2011, one survey, both hold the 982 units of the
+// land between them, and the map drew 528 buildings twice, under each comune's ids.
+test("readDbt reads a record two comuni's archives both hold once, under the first comune's ids", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "dbt-twice-"))
+  t.after(() => rmSync(dir, { recursive: true }))
+  for (const file of readdirSync(DIR))
+    for (const istat of ["045014", "045099"])
+      copyFileSync(join(DIR, file), join(dir, file.replace("045014", istat)))
+  const once = readDbt(DIR, ANYWHERE),
+    twice = readDbt(dir, ANYWHERE)
+  assert.deepEqual(twice.buildings, once.buildings)
+  assert.deepEqual(twice.roadAreas, once.roadAreas)
+  assert.deepEqual(twice.mapped, once.mapped)
 })

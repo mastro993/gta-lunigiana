@@ -381,6 +381,15 @@ test("buildings: no two share an id unless they are pieces of one footprint, on 
         )
       }
     }
+    // Regression: two comuni's DBT archives of one survey hold the same units, and the map drew 528
+    // of Minucciano's and Giuncugnano's twice, under each comune's ids.
+    const outlines = Map.groupBy(buildings, (b) => b.outer.join(","))
+    for (const [, same] of outlines)
+      assert.equal(
+        same.length,
+        1,
+        `${name}: buildings ${same.map((b) => b.id).join(", ")} share one outline`,
+      )
   }
 })
 

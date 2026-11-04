@@ -96,9 +96,31 @@ const spec = (code: string): BuildingSpec => {
   return s
 }
 
-/** The DBT 1:2000 in `dir`, clipped to `box`: see the module header. */
+/**
+ * Each layer's RT number of a record, which one survey gives the same in every comune's archive it
+ * maps: Minucciano's and Giuncugnano's of 2011 both hold 982 units of the land between them.
+ */
+const RECORD_ID: Readonly<Record<string, string>> = {
+  un_vol: "un_vol_id",
+  mn_ind: "suolo_id",
+  ac_vei: "ac_vei_id",
+  ar_str: "ar_str_id",
+  ar_vms: "ar_vms_id",
+  zona_r: "zona_r_id",
+}
+
+/** The DBT 1:2000 in `dir`, clipped to `box`: see the module header. A record two comuni's archives hold is read once, from the first comune by its ISTAT code. */
 export const readDbt = (dir: string, box = TERRAIN_BOX): Survey => {
-  const layer = (name: string) => ctrRecords(dir, name, "utf8")
+  const layer = (name: string) => {
+    const seen = new Set<string>()
+    return ctrRecords(dir, name, "utf8").filter(({ rec }) => {
+      const id = rec.attrs[RECORD_ID[name]!]
+      if (id === undefined || id === "") return true
+      if (seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+  }
   const buildings = [
     ...layer("un_vol").flatMap(({ sheet, rec }) => {
       const code = rec.attrs.un_vol_por === "01" ? kindOf(rec.attrs) : undefined
