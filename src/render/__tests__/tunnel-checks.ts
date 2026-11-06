@@ -28,6 +28,9 @@ import {
 } from "./mouth-checks.ts"
 import { heightIn, type Tri, trianglesOf } from "./rail-checks.ts"
 
+/** A point inside the SR445's tunnel by Groppoli, Lunigiana (tunnels.test.ts, world.test.ts). */
+export const SR445 = { x: -2330, y: 4420 }
+
 /** Points every `step` m along `road`'s line (its ends left out), each with the road's profile there, m a.s.l. */
 const along = (
   road: Road,
@@ -132,7 +135,7 @@ export const checkBore = (road: Road): number => {
   const sinks = roadPieces(road).slice(1).map(drawn),
     buried = sinks.map((sink) => sink.buried)
   assert.ok(
-    sinks.every((sink) => sink.solid.empty),
+    sinks.every((sink) => sink.solid.empty && sink.pieces.length === 0),
     `road ${road.id} in a tunnel: nothing in the solid layer, which casts shadows`,
   )
   const all = buried.flatMap((tris) => trianglesOf(tris, PALETTE.tunnelDark))

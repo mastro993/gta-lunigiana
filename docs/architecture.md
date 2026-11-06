@@ -1310,7 +1310,10 @@ the hill and a portal at each mouth the hill stands over (`src/render/bores.ts`,
   drive through it (`pnpm playtest drive --route=-2185,4334,…,-2453,4487`, 309 m along the SR445)
   had no frame over 16.8 ms, at most 4 tiles in memory and 157 MB at its end.
 - **Limits**: inside a throat the car is hidden behind its lining, as a train is, since the cut
-  opens only where the terrain, a building or a tree hides the player. The bore's road gets the
+  opens only where the terrain, a building or a tree hides the player. Through the cut the bore's
+  road lies in the sun as the road outside, the hill and its walls casting no shadow on it (before
+  the walls left the solid mesh, the sun-side wall shaded part of it; by the SR445, whose hill is
+  gentler than the shadows' 20° floor, that was all their shadows reached, 2026-11-06). The bore's road gets the
   snow and the wet of the road outside, as the sim's grip does ([weather.md](weather.md)). Between
   a mouth and a portal stood back from it the road runs on as the map's ground lets it, so where
   the hill already stands over the floor there it is hidden (the 87 m path's north mouth lies
@@ -2465,7 +2468,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     there, one at each of the other seven mouths, and a road tunnel ending on that edge baked a
     mouth at its other end alone. `src/render/__tests__/tunnels.test.ts`, found by geometry (the
     tiles round them read): the SR445's tunnel by Groppoli drawn at its floor every 2 m, its bore's
-    dark walls on both sides every 2 m where the hill stands 0.5 m over the floor and every edge of
+    dark walls in the chunk's buried layer, nothing of it in the solid one, on both sides every 2 m where the hill stands 0.5 m over the floor and every edge of
     them, every 0.1 m, 0.2 m or more under the terrain; a concrete portal at both its mouths and an
     old stone one at both of the 196 m track's, each dark mouth facing out of the hill with its
     crown over the clearance and standing on no other road nor the track (`checkClear` in
@@ -2497,7 +2500,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     above the fit, shrinking a second after the view asks for less, no step within a tenth of the
     300 m cap, and a zoom change on the flat moving it once); `actors.test.ts`: the vehicle
     lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts` (and
-    `world.long-test.ts`): the glow and water meshes, the world and the crossings' nodes made
+    `world.long-test.ts`): the glow and water meshes, the SR445 tunnel's walls in a mesh of the
+    solid's material that casts no shadow, the world and the crossings' nodes made
     without reading a tile, a chunk built only once every tile its build reads is in and dropped
     when one goes, the same chunks vertex for vertex with the tiles handed in either order or one
     let go and handed back, and the tiles only chunks behind the near plane read not wanted;

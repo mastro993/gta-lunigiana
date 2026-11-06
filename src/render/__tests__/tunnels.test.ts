@@ -7,16 +7,15 @@ import { PALETTE } from "../palette.ts"
 import { bakeMouths } from "../portals.ts"
 import { vectorsAround } from "../testing.ts"
 import { checkClear, checkNoPortal, checkPortal, checkStoodBack, endsOf } from "./mouth-checks.ts"
-import { checkBore, checkRibbon } from "./tunnel-checks.ts"
+import { checkBore, checkRibbon, SR445 } from "./tunnel-checks.ts"
 
 // Road tunnels as drawn, found by geometry: the SR445's 172 m tunnel by Groppoli, west of Gragnola,
 // the 196 m track tunnel south-east of Equi Terme, the 87 m path under the line at Equi Terme and
 // Via Casola's building passage in Casola; the tunnels map tests check every road tunnel of each
 // built region.
 
-/** Inside each: the SR445's tunnel, the track's, the path's and Via Casola's passage. */
-const SR445 = { x: -2330, y: 4420 },
-  TRACK = { x: 2855, y: 65 },
+/** Inside each: the track's tunnel, the path's and Via Casola's passage (the SR445's: `SR445`). */
+const TRACK = { x: 2855, y: 65 },
   PATH = { x: 1969, y: 920 },
   CASOLA = { x: 3577, y: 4152 }
 /** The roads of the tiles round them (every one within 300 m). */

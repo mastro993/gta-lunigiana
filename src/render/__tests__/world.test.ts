@@ -33,6 +33,7 @@ import { glowMaterial } from "../sky/glow.ts"
 import { lampsIn } from "../sky/lamps.ts"
 import { streamAround } from "../testing.ts"
 import { World } from "../world.ts"
+import { SR445 } from "./tunnel-checks.ts"
 
 const count = CHUNKS.x * CHUNKS.y
 /** Every chunk's box from its tiles' lowest and highest nodes (no tile read): it holds the exact one. */
@@ -244,7 +245,7 @@ test("world streaming: rivers draw in their own water mesh (no snow on them), ro
 test("world streaming: the SR445's tunnel by Groppoli: its bore walls in a mesh of their own, the solid's material, casting no shadow", () => {
   const parent = new Group(),
     world = new World(parent)
-  streamAround(world, ground(-2330, 4420))
+  streamAround(world, ground(SR445.x, SR445.y))
   const buried = [...world.loaded.values()]
       .flat()
       .filter((m) => m.material === solidMaterial && !m.castShadow),

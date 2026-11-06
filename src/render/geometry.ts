@@ -170,7 +170,7 @@ export class WaterTriangles extends Triangles {
   }
 }
 
-/** The per-chunk buckets static builders write into: merged into one mesh per material per chunk. */
+/** The per-chunk buckets static builders write into: merged into one mesh per layer per chunk (`solid` and `buried` share `solidMaterial`, `buried` casting no shadow). */
 export interface Sink {
   /** Opaque world geometry (terrain-like depth). */
   readonly solid: Triangles
