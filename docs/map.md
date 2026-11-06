@@ -2852,6 +2852,21 @@ over 20 m, and under 2% through a level crossing (the map before the fixes chang
 6269); through its tunnels each stretch of 100 m or more (the whole of a shorter tunnel) climbs or
 falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17); and it runs on over lucido's
 seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
+`src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onLevel`, 2 m, in
+`src/sim/rail/bodies.ts`) rests on, on Lunigiana, Cesena and, when built, the L (in CI always):
+wherever two ways cross on two levels with no node in common (a road or rail bridge over a road, a
+path, steps or the rail, or a road or the rail over a tunnel: `passesOver` in `road-levels.ts`),
+unless only people use both or both are the rail, the way above stands more than 2.5 m over the one
+below between any two of their points within 3.225 m of each other and of the crossing
+(`ENTER_GAP` and the truck's half-width: how far from a car's axis the person who gets into it
+stands), so a deck's slope toward its end counts too. The 0.5 m over `LEVEL` covers the surfaces'
+lifts over their profiles (0.06–0.24 m), the 0.1 m rounding and a truck's wheels rolled 25°
+(0.16 m). It visits 49 crossings on Lunigiana (the least 4.44 m, a path over the rail's tunnel at
+(2544, 1057)), 149 on Cesena (3.13 m, a service road over a pedestrian underpass at (1450, 293))
+and 18 on the L, in 2.3 s. Cesena's crossings that keep less are listed by OSM id ([Known data
+limitations](#known-data-limitations)), and each must still fall short, so a fix drops it from the
+list. With the SR445's viaduct west of Gragnola lowered 4 m in a scratch copy, it fails at 1.99 m
+over the residential road under it.
 `src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule
 on the verges people walk (`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car
 stands within 20 m of a crossing node; on a map built without the narrowed verges and the parking
@@ -3501,6 +3516,18 @@ longer lucido:
 
 ## Known data limitations
 
+- **Cesena's footbridges and two of its tunnels stand too near the ways they cross for the level
+  check.** Paths and steps are not profiled, so a footbridge runs straight between its ends at the
+  terrain's level
+  ([section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)):
+  within 3.2 m of where they cross, 57046028 stands 2.19–2.36 m over Viale Europa and Via Arturo
+  Carlo Jemolo at (−296, 563), and 137735218 and 137735231 1.92 and 1.69 m over Via Riccione at
+  (−684, 470) and (−687, 485). The pedestrian underpass 69488617 runs 0.70 m under Via Giuseppe Di
+  Vittorio at (−1243, 440), and the car park ramp 68296970 stays at its square's level, 0.23 m over
+  Via Piazzale Sanguinetti at (586, 579). Within 2 m the level rule takes the two ways for one
+  level: from the footbridges over Via Riccione, or the underpass under Via Giuseppe Di Vittorio, a
+  person can get into a car on the road under or over them (`levels.map-test.ts` lists all four
+  places).
 - **The terrain is 4 m.** The LiDAR resolves 1 m (stored at 2 m), but the game grid averages it over
   4 m cells: terrace walls, steps and narrow road benches are smoothed into slopes. Slopes come from
   a 12 m baseline. The LiDAR is from 2010 (2012 on the Carrara side), so earthworks since then are

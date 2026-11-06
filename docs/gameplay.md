@@ -82,10 +82,19 @@ back once it rests on a seat.
 train is boarded at its cab doors ([Driving a train](#driving-a-train)); the rest is about vehicles:
 
 - **Enter**: on foot and standing, the player enters the vehicle whose body is nearest, within
-  2 m (`ENTER_GAP`), with no walk wall in between, unless it lies on its side or roof or is
-  destroyed ([Damage](#damage)), or a train's door nearer still. The HUD prompt uses the same test
-  (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it shows exactly what the key would
-  do: `steal`, `enter` or `carjack`.
+  2 m (`ENTER_GAP`), on his level, with no walk wall in between, unless it lies on its side or roof
+  or is destroyed ([Damage](#damage)), or a train's door nearer still. The HUD prompt uses the same
+  test (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it shows exactly what the key
+  would do: `steal`, `enter` or `carjack`.
+- **On his level**: the ground under the vehicle's wheels (`chassis.z − cg`) stands within 2 m of
+  his `Footing` ([Footing](#footing)), the rule a train's door keeps (`LEVEL`), so under the SR445's
+  viaduct west of Gragnola, 6.07 m under its deck, he cannot take a car on the deck over him, nor
+  from the deck one on the road under it. The wheels' ground is taken under the point of the
+  vehicle's axis nearest him, along its pitch, as a door is where it stands: 1.8 m off the front
+  bumper of the marble truck on a 40% lane (the lane down from Posara climbs 42.6%), the ground
+  under its middle lies 2.36 m under his, under the end of its axis 1.33 m. In a river he gets into
+  a car from the water beside it, or from a bank within 2 m of its wheels
+  ([water.md](water.md#vehicles-in-the-water)).
 - **Steal**: the first entry of any vehicle or train scores one theft and tags it `Stolen`.
   Entering it again scores nothing.
 - **Carjack**: entering a traffic car removes its AI. Its driver gets out at the first free door
@@ -1528,8 +1537,8 @@ What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/s
 
 #### Footing
 
-Where each body on foot stands (`Footing`, `systems/footing.ts`), so the railway's rules can tell
-its level:
+Where each body on foot stands (`Footing`, `systems/footing.ts`), so the railway's rules and
+getting into a vehicle ([Entering](#entering-stealing-carjacking-exiting)) can tell its level:
 
 - **Kept from step to step.** Each step, before anything moves (`FindFooting`), every body on foot
   (the player out of a vehicle, each pedestrian and each animal) keeps to the level it was on: the
@@ -1836,7 +1845,7 @@ speed along the contact.
 | `src/sim/rail/dynamics.ts` | `POWER_EASE`, `BRAKE_EASE`, `HOLD_SPEED`, `REVERSE_MAX`, the brakes' share of the adhesion |
 | `src/sim/rail/barriers.ts` | `WARNING`, `LOWERING`, `RAISING`, `RELEASE`, `MARGIN`, `CROSSING_HOLD`, `DEPARTURE`, `SPARE` (in `strikeIn`) |
 | `src/sim/rail/crossings.ts` | the stop line's clearance, the arms, how near a line passes a box's node (`NODE_REACH`), how far back the approaches go |
-| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule keeps to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
+| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule and getting into a vehicle keep to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
 | `src/sim/rail/lookout.ts` | the look-out's planned brake and margin (`lookoutReach`), `HELD_SIGHT`, `HORN`, `CREEP`, how often the alarm sounds, `SCRAPE` (a vehicle touching a train's side) |
 | `src/sim/rail/roads.ts` | `STOP_DECEL`, `HARD_DECEL`, `LINE_SLACK`, `ENVELOPE_SLACK` (how far outside the trains' envelope a car holds), the room past a box (`ROOM`, `KEEP_REACH`, `SLOW`, `LANE_CLEAR`, `PATH_SLACK`), `JUNCTION_CLEAR`, `PATIENT_FOR` (drivers' and walkers'), the queue's reach and heading, `SPAWN_CLEAR`, `TURN_SWEEP` (no turning round nearer a line's track) |
 | `src/sim/rail/senses.ts` | `WHISTLE_RANGE`, the alarm's path (`PATH_WIDE`, `PATH_REACH`), the hold at a crossing (`HOLD_LOOK`, `HOLD_CLEAR`, `HOLD_NEAR`, `HOLD_SPAN`) |
@@ -1852,9 +1861,10 @@ speed along the contact.
 
 Gameplay changes need a test: the scenario tests in `src/sim/__tests__/index.test.ts`,
 `src/sim/__tests__/walls.test.ts`, `src/sim/__tests__/people.test.ts`,
-`src/sim/__tests__/damage.test.ts` and `src/sim/__tests__/explosions.test.ts` stage exact situations
-with `src/sim/testing.ts`; `src/sim/__tests__/reactions.test.ts` and
-`src/sim/__tests__/aftermath.test.ts` stage reactions on Via Cesare Battisti with
+`src/sim/__tests__/damage.test.ts`, `src/sim/__tests__/explosions.test.ts` and
+`src/sim/__tests__/levels.test.ts` (on and under the SR445's viaduct west of Gragnola, found by its
+OSM way in `viaduct.ts`) stage exact situations with `src/sim/testing.ts`;
+`src/sim/__tests__/reactions.test.ts` and `src/sim/__tests__/aftermath.test.ts` stage reactions on Via Cesare Battisti with
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first
 fill, `population.long-test.ts` the centres filling, the empty rural road and the chats, and

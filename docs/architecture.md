@@ -222,8 +222,9 @@ motion; a `Train` has a
 or hears point bodies takes them in. The systems that meet trains (`TrafficAI`, `TrainAI`'s
 look-out, `Pedestrians` through `Perceive`, `Animals`, `TrainContacts`) take each car as a capsule
 moving with its train (`trainCars`, `rail/bodies.ts`), and only where the other body's ground
-stands within 2 m of the rail head (`LEVEL`). Spawns put a vehicle on its springs at rest on the
-ground (`settle` in `src/sim/chassis.ts`), in the gear for its speed, undamaged. No save is ever
+stands within 2 m of the rail head (`LEVEL`); getting into a vehicle keeps to that level too
+(`vehicleInReach`). Spawns put a vehicle on its springs at rest on the ground (`settle` in
+`src/sim/chassis.ts`), in the gear for its speed, undamaged. No save is ever
 persisted, so the new and reshaped state (`Chassis`, `Damage`, `Dead`, the wider `Person` and
 `Pedestrian`, `Handling` with its `weatherGrip` knob, `GameClock`, `WeatherRng`, `Weather`,
 `Rivers` and `InWater`, the trains, `RailRng`, `Railway`, `LevelCrossings`, `Footing`, `Parked`
@@ -1906,10 +1907,11 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   (`#hud-loading`, `role="status"`, so screen readers hear it politely), in the prompt's panel above
   the prompt; the frame is not drawn meanwhile, so the HUD keeps its last text.
 - `boardingAt` (`src/sim/rail/boarding.ts`: the vehicle in reach by `vehicleInReach` in
-  `src/sim/body.ts`, else the nearest train door in reach from the player's `Footing`) answers both
-  the HUD prompt and the `EnterExit` action, so the prompt never offers something the key will not
-  do; so does `boardable` for getting out of a train, which only slower than 1.5 m/s lets the player
-  out. The touch controls' action button shows the prompt's verb (`actionFor` in `src/hud/hud.ts`).
+  `src/sim/body.ts`, else the nearest train door in reach, each only on the level of the player's
+  `Footing`, within 2 m, `LEVEL`) answers both the HUD prompt and the `EnterExit` action, so the
+  prompt never offers something the key will not do; so does `boardable` for getting out of a
+  train, which only slower than 1.5 m/s lets the player out. The touch controls' action button
+  shows the prompt's verb (`actionFor` in `src/hud/hud.ts`).
 - Location (`src/hud/location.ts`): the name of the nearest road within 15 m, if it has one (tracks
   and paths skipped, and a class the build does not emit read as a path, so an unnamed road never
   borrows a side street's name), and the district disc from `districtAt`. The road is searched
@@ -2554,6 +2556,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   `pin-raw.long-test.ts` the 1,001-file upload. The fixtures a file and its long tests share live in
   one helper module in the same `__tests__` folder (`railway.ts` for the trains, `joyride.ts`,
   `farms.ts`, `spots.ts`, `parking.ts`, `crossing-traffic.ts`, `killings.ts`, `lucido.ts`, `flows.ts`,
+  `viaduct.ts`,
   `battisti-lane.ts`, `two-lines.ts`, `plans.ts`, `cases.ts`, `thunders.ts`, `speakers.ts`,
   `pin-fakes.ts`, `wall-segments.ts`, `shadow-turns.ts`). `two-lines.ts` stages its map as it
   loads, so it is imported first and its files
@@ -2574,9 +2577,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `overpass-checks.ts`,
   `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`, `road-oracle.ts`,
   `shadow-turns.ts`):
-  - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
-    `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined, every
-    vector layer included (see [map.md](map.md#checks-and-tools)); `vectors.map-test.ts`: each tile
+  - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts`,
+    `clearance.map-test.ts` and `levels.map-test.ts`: the generated map's invariants, read whole,
+    its tiles joined, every vector layer included (see [map.md](map.md#checks-and-tools));
+    `vectors.map-test.ts`: each tile
     holding, whole and in the whole map's order, exactly the vectors with a segment's or a ring's
     box within the halo of it, or of an unlisted tile it is round, and the waterways of each river
     polygon it holds, and `buildingsIn` answering as one 64 m broad phase over the whole map's

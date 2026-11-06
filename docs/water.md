@@ -233,6 +233,16 @@ quarter of its underbody by the water over that quarter:
   flood does not move it until the player comes near
   ([gameplay.md](gameplay.md#vehicles-far-from-the-player)).
 
+- **Getting in** keeps to the player's level ([gameplay.md](gameplay.md#entering-stealing-carjacking-exiting)):
+  the ground under the car's wheels within 2 m of his `Footing`, which in the water is the bed. A
+  car standing on the bed is in reach from the water beside it, and from the bank where that stands
+  within 2 m of the bed under it: 0.6 m off the side of a Panda at the water's edge, every 4 m along
+  both banks of Lunigiana's water where no walk wall lies between, at 98.8% of 32,186 places by the
+  rivers 6 m wide or more and 99.9% of 478,539 by the streams (2 m off, 96.1% and 97.9%). From a
+  steeper bank the player wades down to it. Afloat, its wheels' ground rises with the water, 1.98 m
+  over the bed for a Panda in 2.5 m of still water and 2.11 m for an Ape (the truck stays down in
+  3.5 m), so a swimmer gets into a car afloat in water up to about 2.4 m deep.
+
 AI drivers keep to their lanes; a car shoved into a river is carried off like any other.
 
 ## Walls
@@ -353,3 +363,6 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 - **Under a bridge.** A body that walks under a bridge on the bank (not yet in the water) is taken
   to be on its deck there.
 - **Engines.** An engine that stalled in the water runs again once out of it: nothing hydrolocks.
+- **Afloat in deep water.** A swimmer's level is the bed under him, so a car afloat in water deeper
+  than about 2.4 m is out of his reach: 0.39 ha of Lunigiana's water at the mean flow, 1.51 ha in a
+  spate (on a 4 m lattice).
