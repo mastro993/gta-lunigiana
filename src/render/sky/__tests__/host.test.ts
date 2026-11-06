@@ -10,7 +10,6 @@ import { place, providePlace } from "../../../sim/sky/place.ts"
 import type { Regime } from "../../../sim/sky/regimes.ts"
 import { initialWeather, setWeather } from "../../../sim/sky/weather.ts"
 import { yOf } from "../../ground.ts"
-import { shadowFit, viewAxes } from "../../pipeline.ts"
 import { SkyHost } from "../host.ts"
 import { SHADOW_FLOOR } from "../light.ts"
 import { makePost } from "../post.ts"
@@ -22,15 +21,7 @@ const X = -412.9,
 const view = (x = X, y = Y, yaw = 0) => {
   const focus = new Vector3(x, yOf(heightAt(x, y)), -y),
     size = new Vector2(427, 240)
-  return {
-    focus,
-    yaw,
-    texelsPerMetre: 8,
-    view: size,
-    post: makePost(),
-    shadowFit: (toSun: Vector3, groundAt: (x: number, z: number) => number) =>
-      shadowFit(focus, viewAxes(yaw), size.x / 8, size.y / 8, toSun, groundAt),
-  }
+  return { focus, yaw, texelsPerMetre: 8, view: size, post: makePost() }
 }
 const renderer = () => ({
   shadowMap: { autoUpdate: true, needsUpdate: false },

@@ -1156,15 +1156,43 @@ The pixel pipeline (`src/render/pipeline.ts`):
   no longer in memory.
 - The key light (the sun, or the moon at night) stands on its real arc for the game time over the
   map's origin, fixed in the sky whichever way the view looks ([Lights](#lights)): a turn moves the
-  camera, never the shadows. Its shadow box follows the view, snapped to shadow-map texels. The box
-  covers the ground the view shows (`shadowFit`): a 5 × 5 grid of rays across the view is marched
-  down to the terrain, because a slope falling away from the camera shows ground far past the flat
-  rectangle (at most 300 m across the light) and a valley seen between the view's edges can lie
-  hundreds of metres deeper along the light. Its depth also reaches 1.5 km toward the sun for the
-  ridges that shade a valley. The depth bias stays 0.45 m whatever the depth range. The rays, which
-  reach up to 2.5 km off, read the terrain through `farTerrainY` (`src/render/ground.ts`): the
-  exact terrain where the tiles of the cell's four nodes are in memory (`terrainResident`), else the
-  coarse 64 m grid's height, so nothing changes near the player.
+  camera, never the shadows. Its shadow box (`src/render/shadow-box.ts`, which the sky host fits and
+  places each frame) follows the view, snapped to shadow-map texels. The box covers the ground the
+  view shows (`shadowFit`): a 5 × 5 grid of rays across the view is marched down to the terrain,
+  because a slope falling away from the camera shows ground far past the flat rectangle (at most
+  300 m across the light) and a valley seen between the view's edges can lie hundreds of metres
+  deeper along the light. Its depth also reaches 1.5 km toward the sun for the ridges that shade a
+  valley. The depth bias stays 0.45 m whatever the depth range. The rays, which reach up to 2.5 km
+  off, read the terrain through `farTerrainY` (`src/render/ground.ts`): the exact terrain where the
+  tiles of the cell's four nodes are in memory (`terrainResident`), else the coarse 64 m grid's
+  height, so nothing changes near the player.
+- The box's size changes only in a few fixed steps per zoom (`holdBox`), so the shadows hold still
+  through a turn. The texel snap holds a shadow edge still only while the box keeps its size: each
+  change of size rescales the 2048 map and moves its texel grid, which redraws every edge at once.
+  Sized for each frame's yaw, the box changed size on 220 of the 359 degrees of a turn by the trees
+  at Cortila (50.2–236.6 m on foot, a texel from 4.9 to 23.1 cm), and the shadows blinked. The
+  steps start at the zoom's flat fit (`shadowBase`: 50.2 m on foot, 63.5 m in a car and 74.2 m above
+  16 m/s on a 1280 × 720 screen) and each is √2 the last, up to 300 m (on foot 50.2, 70.9, 100.3,
+  141.9, 200.6, 283.7 and 300 m). The box:
+  - grows at once when the fit outgrows it, so no ground shown goes without shadows, to the step
+    that holds the fit with a tenth to spare, so a fit still growing through a turn seldom takes
+    another step the next frame;
+  - drops at once to the fit's own step when it stands more than a step above it, so shadows are
+    never more than a step coarser than the fit asks;
+  - otherwise shrinks only once the view has asked for a smaller step for 1 s of sim time, to the
+    step that holds the most it asked meanwhile, so a turn or a winding road does not pump it.
+
+  At rest the home view keeps its own step (50.2 m on foot at Cortila, Monzone and the SR445
+  viaduct, as before). While the zoom eases between two, the steps are the wider zoom's, so a zoom
+  change moves the box once. Through a whole turn at a degree a frame (60 fps, the follow camera's
+  fastest), the box changed size 2–8 times at those three spots on foot and in a car, never on two
+  frames in a row (`shadow-box.long-test.ts`), and 4–16 times at Lunigiana's steepest fall,
+  deepest gully and flattest ground (2–8 at Cesena's; `shadow-box.map-test.ts`). There, as a ray of
+  the fit finds or loses a cliff's foot from one degree to the next, the fit itself jumps steps back
+  and forth, and the box follows it on consecutive frames. In the browser (2026-11-06, 08:00 on 4
+  November, Cortila) one E changed the box's size 3 times, to 283.7 m, where it changed 18 times
+  before; two of the 3 came on consecutive frames, as the fit leaps from 51 to 134 m between two
+  frames of the turn, past what a step above the fit allows.
 - The far plane is 3 km from the camera (2.5 km past the focus): from the Apuan summits the
   deepest ground in view is ≈ 2.45 km from the camera, past the 1 km the plane used to stop at.
 
@@ -1433,8 +1461,9 @@ atmosphere and the weather on screen every frame; the parts it drives live besid
      space) and the lamps (1.2 s), landing both at once after a clock jump of more than 1,800 game
      seconds beyond the clock's own run (the dev menu);
   3. strikes the steps' lightning and takes the scene flash;
-  4. aims, colours and fits the key light and its shadows, and sets the hemisphere (which carries
-     the flash) and the clear colour (dark forest, lit like the ground, where nothing is drawn);
+  4. aims, colours and fits the key light and its shadow box (its size held in steps, `holdBox`),
+     and sets the hemisphere (which carries the flash) and the clear colour (dark forest, lit like
+     the ground, where nothing is drawn);
   5. builds the `SkyFrame` every effect reads (sim time, night and lamp levels, ambient light,
      flash, wind, rain and snow at the focus), writes the shared uniforms (`applyFrame`), the post
      pass (`writePost`) and the surface weather (`applySurface`), and moves the rain, the snow and
@@ -2325,7 +2354,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     light pool, the phase-locked sines, and every lamp material, a vehicle's or a signal's, one
     program with its own day term; in `src/render/__tests__/`, `stand-ins.test.ts`: every material a
     world build, the actors, a driven train and the crossings draw has a stand-in;
-    `pipeline.test.ts`: `compile` builds into the scene's target; `actors.test.ts`: the vehicle
+    `pipeline.test.ts`: `compile` builds into the scene's target; `shadow-box.test.ts`: the shadow
+    box over a slope falling away and a gully between the view's edges, and its steps (the home
+    view's 50.2 m on foot, growing at once with a tenth to spare, dropping at once from two steps
+    above the fit, shrinking a second after the view asks for less, and a zoom change moving it
+    once); `actors.test.ts`: the vehicle
     lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts` (and
     `world.long-test.ts`): the glow and water meshes, the world and the crossings' nodes made
     without reading a tile, a chunk built only once every tile its build reads is in and dropped
@@ -2369,8 +2402,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   far off; `src/sim/rail/__tests__/service.long-test.ts` the two lines' first 15 minutes;
   `src/sim/sky/__tests__/calibration.long-test.ts` (whole) and `plan.long-test.ts` the 30- and
   300-year statistics; `src/render/__tests__/world.long-test.ts` and `chunk-tiles.long-test.ts` the
-  streaming and partial-tile builds; `src/audio/synth/crash/__tests__/crash.long-test.ts` every
-  check over the twenty-seed matrix, `thunder.long-test.ts` and `explosion.long-test.ts` theirs;
+  streaming and partial-tile builds, `shadow-box.long-test.ts` the shadow box through whole turns
+  at Cortila, Monzone and the SR445 viaduct; `src/audio/synth/crash/__tests__/crash.long-test.ts`
+  every check over the twenty-seed matrix, `thunder.long-test.ts` and `explosion.long-test.ts`
+  theirs;
   `src/audio/speech/__tests__/render.long-test.ts` and `lines.long-test.ts` every line rendered and
   200,000 gibberish words; `src/tools/__tests__/walls.long-test.ts` the walls round a staged lake
   and river polygon; `net.long-test.ts` the real 2 s retry and
@@ -2378,8 +2413,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   one helper module in the same `__tests__` folder (`railway.ts` for the trains, `joyride.ts`,
   `farms.ts`, `spots.ts`, `parking.ts`, `crossing-traffic.ts`, `killings.ts`, `lucido.ts`, `flows.ts`,
   `battisti-lane.ts`, `two-lines.ts`, `plans.ts`, `cases.ts`, `thunders.ts`, `speakers.ts`,
-  `pin-fakes.ts`, `wall-segments.ts`). `two-lines.ts` stages its map as it loads, so it is imported
-  first and its files
+  `pin-fakes.ts`, `wall-segments.ts`, `shadow-turns.ts`). `two-lines.ts` stages its map as it
+  loads, so it is imported first and its files
   run in a process of their own, as every test file does.
 
   `pnpm test`, `test:long` and `test:map` set `NODE_COMPILE_CACHE` to
@@ -2395,7 +2430,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
   `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `overpass-checks.ts`,
-  `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`, `road-oracle.ts`):
+  `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`, `road-oracle.ts`,
+  `shadow-turns.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined, every
     vector layer included (see [map.md](map.md#checks-and-tools)); `vectors.map-test.ts`: each tile
@@ -2446,7 +2482,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     handed in reverse key order, against its cut of the whole build of every tile's vectors joined
     (`chunk-cut.ts`), and `rail.test.ts`'s checks over every crossing and tunnel mouth;
     `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;
-    `ground.map-test.ts`: every drivable bridge;
+    `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
+    `shadow-box-cesena.map-test.ts`: the shadow box through whole turns at the map's steepest fall,
+    deepest gully and flattest ground, found over its whole coarse lattice (Lunigiana's and
+    Cesena's);
     `src/render/sky/__tests__/lamps.map-test.ts`: every lamp placed again as baked, on a wall
     between its windows, by a lit street and whole by day; `src/hud/__tests__/minimap.map-test.ts`:
     a tile's canvas, painted from only that tile's vectors, getting every fill and stroke the whole
