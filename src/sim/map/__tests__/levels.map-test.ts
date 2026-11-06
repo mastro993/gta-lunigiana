@@ -1,11 +1,11 @@
 // Every crossing of two ways on two levels on every built region (Lunigiana, Cesena and the L): a
-// road or rail bridge over a road, a path, steps or the rail, and a road or the rail over a tunnel.
-// Within reach of the crossing the two stand more than the level rule's 2 m apart (`onLevel`,
-// src/sim/rail/bodies.ts), with a margin, so the rule tells what is on the deck from what runs under
-// it: which car a person gets into (`vehicleInReach`), what a driver brakes for (`TrafficAI`), and
-// what a train meets. The rule is code, so a
-// new map can break it only through its data: a deck too low over what it crosses. Where only people
-// walk both ways, or both are the rail, no vehicle meets anything across them and they are left out.
+// road, path or rail bridge over a road, a path, steps or the rail, and a road, a path or the rail
+// over a tunnel. Within reach of the crossing the two stand more than the level rule's 2 m apart
+// (`onLevel`, src/sim/rail/bodies.ts), with a margin, so the rule tells what is on the deck from what
+// runs under it: which car a person gets into (`vehicleInReach`), what a driver brakes for
+// (`TrafficAI`), what a vehicle hits and who steps apart from whom (`Contacts`), and what a train
+// meets. The rule is code, so a new map can break it only through its data: a deck too low over what
+// it crosses. Where both are the rail, nothing meets across them and they are left out.
 // The L's build lives in test-maps/ (`pnpm maps`): without it its check is skipped, but in CI, which
 // builds it, a missing build fails.
 import assert from "node:assert/strict"
@@ -20,15 +20,16 @@ import { passesOver } from "../../../tools/road-levels.ts"
 import { LEVEL } from "../../rail/bodies.ts"
 import { ENTER_GAP } from "../../tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../../vehicles.ts"
-import { isDrivable } from "../kinds.ts"
 
 /**
  * How far from a crossing (m, in plan) two things on its two ways can meet: a person within
  * ENTER_GAP of the widest vehicle's side (the truck's 1.225 m half-width) gets into it (3.225 m),
  * and a driver judges a vehicle ahead by the ground its way comes to where that vehicle reaches into
- * its path, up to its half-diagonal from its middle (the truck's 3.99 m). A train's car is judged by
- * the rail head under its middle: the line climbs 2.83% at most, so within 0.28 m of the rail head
- * where the car reaches the path, half an ATR 220's 19.5 m end car along.
+ * its path, up to its half-diagonal from its middle (the truck's 3.99 m). Two bodies touching are
+ * judged where they touch, each under its own axis or middle there: two trucks' half-widths apart at
+ * most (2.45 m). A train's car is judged by the rail head under its middle: the line climbs 2.83% at
+ * most, so within 0.28 m of the rail head where the car reaches the path, half an ATR 220's 19.5 m
+ * end car along.
  */
 const REACH = Math.max(
   ENTER_GAP + Math.max(...VEHICLE_MODELS.map((m) => VEHICLES[m].width)) / 2,
@@ -53,7 +54,7 @@ interface Way {
   readonly pts: ReadonlyArray<number>
   readonly z: ReadonlyArray<number>
 }
-const usedBy = (w: Way) => (w.cls === "rail" ? "rail" : isDrivable(w.cls) ? "drive" : "walk")
+const rail = (w: Way) => w.cls === "rail"
 
 /** The [minX, minY, maxX, maxY] box of a flat polyline. */
 const boxOf = (pts: ReadonlyArray<number>) => {
@@ -140,8 +141,7 @@ const shortfalls = (map: JoinedMap): Array<Shortfall> => {
   ways.forEach((up, i) => {
     const [ax0, ay0, ax1, ay1] = boxes[i]!
     ways.forEach((down, j) => {
-      const by = usedBy(up)
-      if (i === j || (by === usedBy(down) && by !== "drive") || !passesOver(up, down)) return
+      if (i === j || (rail(up) && rail(down)) || !passesOver(up, down)) return
       const [bx0, by0, bx1, by1] = boxes[j]!
       if (ax0 > bx1 || bx0 > ax1 || ay0 > by1 || by0 > ay1) return
       for (const { x, y, gap } of gapsOver(up, down))
@@ -158,18 +158,25 @@ const shortfalls = (map: JoinedMap): Array<Shortfall> => {
 
 /**
  * Crossings a region's build keeps too low, by the OSM ids of the way above and the one below
- * (docs/map.md, "Known data limitations"): Cesena's footbridges over Viale Europa and Via Riccione,
- * straight between their ends at the terrain's level as every path's bridge, its pedestrian
- * underpass under Via Giuseppe Di Vittorio, and the car park ramp its square's pass leaves at the
- * square's level. Each must still fall short, so a fix drops it from here.
+ * (docs/map.md, "Known data limitations"): Cesena's footbridges over Viale Europa, Via Riccione,
+ * the paths beside them and the Ippodromo's, and the path bridge over the Sottopasso Cervese, each
+ * straight between its ends at the terrain's level as every path's bridge, its pedestrian underpass
+ * under Via Giuseppe Di Vittorio, and the car park ramp its square's pass leaves at the square's
+ * level. Each must still fall short, so a fix drops it from here.
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [
     [57046028, 23775230],
     [57046028, 23775264],
     [57046028, 24064921],
+    [57046028, 1504871870],
     [137735218, 23918932],
+    [137735218, 24920865],
+    [137735218, 136347032],
     [137735231, 23918932],
+    [137735231, 136347032],
+    [23775268, 807711296],
+    [683510421, 22776463],
     [1148557052, 69488617],
     [1148557053, 69488617],
     [55016697, 68296970],

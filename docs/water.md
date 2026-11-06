@@ -242,6 +242,9 @@ quarter of its underbody by the water over that quarter:
   steeper bank the player wades down to it. Afloat, its wheels' ground rises with the water, 1.98 m
   over the bed for a Panda in 2.5 m of still water and 2.11 m for an Ape (the truck stays down in
   3.5 m), so a swimmer gets into a car afloat in water up to about 2.4 m deep.
+- **Touching** keeps to the same level ([gameplay.md](gameplay.md#knockdowns-deaths-and-score)): a
+  car afloat strikes or shoves a wader or a swimmer only where its wheels' ground stands within 2 m
+  of the bed under them, in water up to about 2.4 m deep.
 
 AI drivers keep to their lanes; a car shoved into a river is carried off like any other.
 
@@ -364,5 +367,7 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
   to be on its deck there.
 - **Engines.** An engine that stalled in the water runs again once out of it: nothing hydrolocks.
 - **Afloat in deep water.** A swimmer's level is the bed under him, so a car afloat in water deeper
-  than about 2.4 m is out of his reach: 0.39 ha of Lunigiana's water at the mean flow, 1.51 ha in a
-  spate (on a 4 m lattice).
+  than about 2.4 m is out of his reach, and drifts through him and any other swimmer there, people
+  and animals, as through someone on another level
+  ([gameplay.md](gameplay.md#knockdowns-deaths-and-score)): 0.39 ha of Lunigiana's water at the
+  mean flow, 1.51 ha in a spate (on a 4 m lattice).

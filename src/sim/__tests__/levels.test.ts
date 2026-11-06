@@ -4,44 +4,33 @@ import { test } from "node:test"
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import type { PoseValue } from "../index.ts"
-import { atGrade, footZ, roadLevel } from "../map/ground.ts"
+import { footZ, roadLevel } from "../map/ground.ts"
 import { graph } from "../map/index.ts"
 import { LEVEL } from "../rail/bodies.ts"
 import { linesNear, pointAt, speedAt } from "../rail/lines.ts"
 import { aiTrain } from "../rail/testing.ts"
 import { edgeIndex, laneOf, lanePoint, laneSide } from "../route.ts"
 import { animal, parkedCar, pedestrian, trafficCar } from "../spawning.ts"
-import { door, LOOK, press, type stage, start, type Timeline } from "../testing.ts"
+import { door, LOOK, type stage, start } from "../testing.ts"
 import { ENTER_GAP, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES } from "../vehicles.ts"
 import { line } from "./railway.ts"
 import {
+  AWAY,
   BELOW,
   BENEATH,
   comingTo,
   DECK_LANE,
   DECK_Z,
-  footing,
   lanesThrough,
   OVER,
   PlayerFooting,
   ROAD_Z,
   roadById,
+  staged,
   standingOn,
   trafficPanda,
 } from "./viaduct.ts"
-
-/** The player at `at` with their `Footing` on `z`, the `keys` played, and `cast` round them; nobody else comes. */
-const staged = (
-  at: PoseValue,
-  z: number,
-  cast: Parameters<typeof stage>[1],
-  keys: Timeline = press(5, "action"),
-) => {
-  const game = start(keys, [at, cast], { alone: true })
-  assert.ok(game.runtime.tick(footing(z)).ok)
-  return game
-}
 
 // Regression (#84): standing under a bridge, the player stole a traffic car on the deck right over them.
 test("enter: under the SR445's viaduct the player cannot take a car on the deck over them, and the HUD offers none", () => {
@@ -80,18 +69,9 @@ test("enter: on the viaduct's deck the player cannot take a car on the road unde
   assert.equal(on.world().score.stolen, 1)
 })
 
-/** Out of everyone's way: 40 m to the right of the deck's lane at OVER, at the terrain's level. */
-const ASIDE = (() => {
-  const lane = laneOf(DECK_LANE.edge, true),
-    x = OVER.x + lane.rx * 40,
-    y = OVER.y + lane.ry * 40
-  return { pose: { x, y, angle: 0 }, z: atGrade(x, y) }
-})()
-
 /**
- * The traffic Panda `car` coming toward `mark` for 10 s, the player at `at` on `z` and `cast` round them: step by step its place
- * and speed until it first comes within 5 m of `mark` in plan (before it could touch a Panda standing across its way there), how
- * near it came, its speed at the end, and the game.
+ * The traffic Panda `car` coming toward `mark` for 10 s, the player at `at` on `z` and `cast` round them: its place and speed step
+ * by step, how near it came to `mark` in plan and its speed there, its speed at the end, and the game.
  */
 const coming = (
   car: ReturnType<typeof trafficCar>,
@@ -103,15 +83,20 @@ const coming = (
   const game = staged(at, z, { ...cast, traffic: [car] }, [])
   const id = game.world().vehicles.find((v) => v.traffic)!.id,
     way: Array<readonly [number, number, number]> = []
-  let least = Infinity
+  let least = Infinity,
+    there = 0
   game.run(600, () => {
-    const it = game.world().vehicles.find((v) => v.id === id)!
-    least = Math.min(least, Vec2.distance(it, mark))
-    if (least >= 5) way.push([it.x, it.y, Ops.hypot(it.vx, it.vy)])
+    const it = game.world().vehicles.find((v) => v.id === id)!,
+      speed = Ops.hypot(it.vx, it.vy)
+    if (Vec2.distance(it, mark) < least) [least, there] = [Vec2.distance(it, mark), speed]
+    way.push([it.x, it.y, speed])
   })
-  const it = game.world().vehicles.find((v) => v.id === id)!
-  return { way, least, speed: Ops.hypot(it.vx, it.vy), game }
+  return { way, least, there, speed: way.at(-1)![2], game }
 }
+
+/** What the car of a `coming` run hit, where and how hard (the ids left out: the cast's spawn order sets them). */
+const felt = (run: ReturnType<typeof coming>) =>
+  run.game.heard.impacts.map((i) => [i.hit, i.x, i.y, i.speed] as const)
 
 /** It stopped short of `mark` by a Panda's half-length, a person's radius and a metre more, and stands there, no one struck. */
 const stoppedShort = (run: ReturnType<typeof coming>) => {
@@ -130,22 +115,23 @@ const stoppedShort = (run: ReturnType<typeof coming>) => {
 test("traffic: a car on the SR445's viaduct comes over the player, a car and a dead dog on the road under it as over nobody, at 15 m/s, and stops for the player standing in its lane on the deck", () => {
   const car = () => comingTo(DECK_LANE.edge, 10),
     here = { ...OVER, angle: 0 }
-  const clear = coming(car(), OVER, ASIDE.pose, ASIDE.z)
+  const clear = coming(car(), OVER, AWAY.pose, AWAY.z)
   assert.ok(clear.least < 0.5, "its lane passes over OVER")
-  const last = clear.way.at(-1)!
-  assert.ok(last[2] > 15, `at ${last[2].toFixed(2)} m/s`)
+  assert.ok(clear.there > 15, `at ${clear.there.toFixed(2)} m/s`)
   const dog = animal({ species: "dog", coat: 0x1c1a19, patch: 0x1c1a19, size: 1 }, BENEATH)
   for (const [what, under] of [
     ["the player", coming(car(), OVER, here, ROAD_Z)],
     [
       "a parked car",
-      coming(car(), OVER, ASIDE.pose, ASIDE.z, {
+      coming(car(), OVER, AWAY.pose, AWAY.z, {
         cars: [parkedCar("panda", 0xb8312b, BENEATH, standingOn("panda", BENEATH, ROAD_Z))],
       }),
     ],
-    ["a dead dog", coming(car(), OVER, ASIDE.pose, ASIDE.z, { carcasses: [dog] })],
-  ] as const)
+    ["a dead dog", coming(car(), OVER, AWAY.pose, AWAY.z, { carcasses: [dog] })],
+  ] as const) {
     assert.deepEqual(under.way, clear.way, `${what} under the deck`)
+    assert.deepEqual(felt(under), felt(clear), `${what} untouched`)
+  }
   stoppedShort(coming(car(), OVER, here, DECK_Z))
 })
 
@@ -153,7 +139,7 @@ test("traffic: a car on the road under the viaduct passes under the player and a
   const car = () => comingTo(BELOW, 5),
     mark = BENEATH,
     here = { ...OVER, angle: 0 }
-  const clear = coming(car(), mark, ASIDE.pose, ASIDE.z)
+  const clear = coming(car(), mark, AWAY.pose, AWAY.z)
   assert.ok(clear.least < 1, "its lane passes under OVER")
   const walker = pedestrian(LOOK, here, DECK_LANE, {
     mood: "chat",
@@ -163,9 +149,11 @@ test("traffic: a car on the road under the viaduct passes under the player and a
   })
   for (const [what, over] of [
     ["the player", coming(car(), mark, here, DECK_Z)],
-    ["a passer-by", coming(car(), mark, ASIDE.pose, ASIDE.z, { peds: [walker] })],
-  ] as const)
+    ["a passer-by", coming(car(), mark, AWAY.pose, AWAY.z, { peds: [walker] })],
+  ] as const) {
     assert.deepEqual(over.way, clear.way, `${what} on the deck`)
+    assert.deepEqual(felt(over), felt(clear), `${what} untouched`)
+  }
   stoppedShort(coming(car(), mark, { ...mark, angle: 0 }, ROAD_Z))
 })
 

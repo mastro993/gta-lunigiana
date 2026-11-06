@@ -833,6 +833,15 @@ through a wall.
   (2 × `KNOCK_SPEED`) does she fall, or die. A Panda nudging a cow at walking pace shoves her.
 - **People and animals** step apart, each moving by the other's share of the mass (a person 70 kg,
   an animal its species' mass × its size³). The members of a party do not.
+- **On one level**: only bodies on one level touch (`onLevel`, within 2 m, `LEVEL`): a vehicle by
+  the ground under its wheels where its axis passes nearest the contact, along its pitch from under
+  its middle (`chassis.z − cg`), a person or an animal by its `Footing` ([Footing](#footing)). So a
+  Panda rolling at 11 m/s along the SR445's viaduct west of Gragnola passes over the player, a
+  passer-by, a parked Panda and a dead dog on the road 6.07 m under its deck as over nobody, and the
+  player standing under the deck and a passer-by over him on it do not step apart; before, it
+  knocked the player down at 11.0 m/s, and hit the parked Panda at 10.7 m/s and stopped dead. Read
+  under their middles, two trucks bumper to bumper on a 30% lane stand 2.5 m apart and would pass
+  into each other; read where they touch, they meet.
 
 A vehicle that knocks a pedestrian or an animal down kills them with the chance
 1 / (1 + e^((h − v) / 3.59)), v the impact speed and h the speed that kills half the time, rolled
@@ -1556,8 +1565,9 @@ What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/s
 #### Footing
 
 Where each body on foot stands (`Footing`, `systems/footing.ts`), so the railway's rules, getting
-into a vehicle ([Entering](#entering-stealing-carjacking-exiting)) and what traffic brakes for
-([Traffic AI](#traffic-ai)) can tell its level:
+into a vehicle ([Entering](#entering-stealing-carjacking-exiting)), what traffic brakes for
+([Traffic AI](#traffic-ai)) and what bodies touch
+([Knockdowns](#knockdowns-deaths-and-score)) can tell its level:
 
 - **Kept from step to step.** Each step, before anything moves (`FindFooting`), every body on foot
   (the player out of a vehicle, each pedestrian and each animal) keeps to the level it was on: the
@@ -1864,7 +1874,7 @@ speed along the contact.
 | `src/sim/rail/dynamics.ts` | `POWER_EASE`, `BRAKE_EASE`, `HOLD_SPEED`, `REVERSE_MAX`, the brakes' share of the adhesion |
 | `src/sim/rail/barriers.ts` | `WARNING`, `LOWERING`, `RAISING`, `RELEASE`, `MARGIN`, `CROSSING_HOLD`, `DEPARTURE`, `SPARE` (in `strikeIn`) |
 | `src/sim/rail/crossings.ts` | the stop line's clearance, the arms, how near a line passes a box's node (`NODE_REACH`), how far back the approaches go |
-| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule, getting into a vehicle and what traffic brakes for keep to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
+| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule, getting into a vehicle, what traffic brakes for and what bodies touch keep to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
 | `src/sim/rail/lookout.ts` | the look-out's planned brake and margin (`lookoutReach`), `HELD_SIGHT`, `HORN`, `CREEP`, how often the alarm sounds, `SCRAPE` (a vehicle touching a train's side) |
 | `src/sim/rail/roads.ts` | `STOP_DECEL`, `HARD_DECEL`, `LINE_SLACK`, `ENVELOPE_SLACK` (how far outside the trains' envelope a car holds), the room past a box (`ROOM`, `KEEP_REACH`, `SLOW`, `LANE_CLEAR`, `PATH_SLACK`), `JUNCTION_CLEAR`, `PATIENT_FOR` (drivers' and walkers'), the queue's reach and heading, `SPAWN_CLEAR`, `TURN_SWEEP` (no turning round nearer a line's track) |
 | `src/sim/rail/senses.ts` | `WHISTLE_RANGE`, the alarm's path (`PATH_WIDE`, `PATH_REACH`), the hold at a crossing (`HOLD_LOOK`, `HOLD_CLEAR`, `HOLD_NEAR`, `HOLD_SPAN`) |
@@ -1881,9 +1891,10 @@ speed along the contact.
 Gameplay changes need a test: the scenario tests in `src/sim/__tests__/index.test.ts`,
 `src/sim/__tests__/walls.test.ts`, `src/sim/__tests__/people.test.ts`,
 `src/sim/__tests__/damage.test.ts`, `src/sim/__tests__/explosions.test.ts` and
-`src/sim/__tests__/levels.test.ts` (on and under the SR445's viaduct west of Gragnola, found by its
-OSM way in `viaduct.ts`, and through the SR445's dip and over its deck over the railway east of
-it) stage exact situations with `src/sim/testing.ts`;
+`src/sim/__tests__/levels.test.ts` and `levels-contacts.test.ts` (on and under the SR445's viaduct
+west of Gragnola, found by its OSM way in `viaduct.ts`, through the SR445's dip and over its deck
+over the railway east of it, and two trucks on a 30% lane) stage exact situations with
+`src/sim/testing.ts`;
 `src/sim/__tests__/reactions.test.ts` and `src/sim/__tests__/aftermath.test.ts` stage reactions on Via Cesare Battisti with
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first

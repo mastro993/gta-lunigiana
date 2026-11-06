@@ -2,8 +2,9 @@
  * The bridge-level tests' spot: the SR445's viaduct west of Gragnola (OSM way 552592654) over the
  * residential road under it (OSM way 140780578), both found by their OSM ids and the deck's lane by
  * geometry, so the fixtures survive a map rebuild; traffic coming along a run of lanes with no
- * junction; and a setter for the player's `Footing`, which `stage` and `teleport` keep from where
- * the player was.
+ * junction; the player staged there with their `Footing` set on a level (`stage` and `teleport`
+ * keep it from where the player was); a spot out of everyone's way; and an unmanned Panda rolling
+ * along the deck over the road below.
  *
  * @module sim/__tests__/viaduct
  */
@@ -12,11 +13,12 @@ import assert from "node:assert/strict"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { Footing, Game, Player, Pose, type PoseValue, type RouteValue } from "../index.ts"
-import { groundZ, roadLevel } from "../map/ground.ts"
+import { atGrade, groundZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
 import { LEVEL } from "../rail/bodies.ts"
 import { alongLane, edgeIndex, laneOf, lanePoint, laneSide, type Step } from "../route.ts"
 import { rollingChassis, trafficCar } from "../spawning.ts"
+import { press, rolling, type stage, start, type Timeline } from "../testing.ts"
 import type { VehicleModel } from "../vehicles.ts"
 
 /** The index into `MAP.roads` of the road whose OSM way is `id`. */
@@ -135,7 +137,7 @@ export const standingOn = (model: VehicleModel, pose: PoseValue, level: number) 
   rollingChassis(model, pose, 0, level)
 
 /** Sets the player's `Footing` to `z`, m a.s.l. (`runtime.tick` it after `start`). */
-export const footing = (z: number) =>
+const footing = (z: number) =>
   Game.Schedule(
     Game.System(
       "Test/Footing",
@@ -150,6 +152,43 @@ export const footing = (z: number) =>
       },
     ),
     Game.Schedule.applyDeferred(),
+  )
+
+/** The player at `at` with their `Footing` on `z`, the `keys` played, and `cast` round them; nobody else comes. */
+export const staged = (
+  at: PoseValue,
+  z: number,
+  cast: Parameters<typeof stage>[1],
+  keys: Timeline = press(5, "action"),
+) => {
+  const game = start(keys, [at, cast], { alone: true })
+  assert.ok(game.runtime.tick(footing(z)).ok)
+  return game
+}
+
+/** Out of everyone's way: 40 m to the right of the deck's lane at OVER, at the terrain's level. */
+export const AWAY = (() => {
+  const x = OVER.x + lane.rx * 40,
+    y = OVER.y + lane.ry * 40
+  return { pose: { x, y, angle: 0 }, z: atGrade(x, y) }
+})()
+
+/**
+ * An unmanned Panda on the deck 25 m short of OVER along its lane's heading there, rolling at 10 m/s at a fifth of its
+ * throttle: it passes over OVER at 11 m/s. No `Traffic`: a driver would brake for what stands in its way on the deck.
+ */
+export const overDeck = () =>
+  rolling(
+    "panda",
+    {
+      x: OVER.x - Ops.cos(OVER.angle) * 25,
+      y: OVER.y - Ops.sin(OVER.angle) * 25,
+      angle: OVER.angle,
+    },
+    10,
+    0.2,
+    0,
+    DECK_Z,
   )
 
 /** The player's `Footing`, m a.s.l. (undefined with none yet). */

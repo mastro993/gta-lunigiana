@@ -3,13 +3,16 @@ import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carRadius, moveCar, walkBy, wallsAlong } from "../body.ts"
 import { FAUNA } from "../fauna.ts"
+import { onLevel } from "../rail/bodies.ts"
 import {
   type Age,
   Animal,
+  Chassis,
   Dead,
   Down,
   Driving,
   Follows,
+  Footing,
   Game,
   Impact,
   Motion,
@@ -27,6 +30,7 @@ import {
 } from "../schema.ts"
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
+import { footingAt } from "./footing.ts"
 import { FLEE_TIME, runFrom } from "./pedestrians.ts"
 import { inReach, playerPose } from "./reach.ts"
 
@@ -109,6 +113,10 @@ interface Car extends Mover {
   readonly r: number
   readonly reach: number
   readonly angle: number
+  /** Its wheels' level, m a.s.l. (`chassis.z − cg`): the ground under its middle, which what it touches is read from (`wheelsAt`). */
+  readonly ground: number
+  /** How far its wheels' ground rises a metre ahead: its pitch's tangent. */
+  readonly rise: number
 }
 /** A person or an animal: one circle. */
 interface Body extends Mover {
@@ -124,6 +132,8 @@ interface Body extends Mover {
   readonly heavy: boolean
   /** Its party (the leader's entity id, or its own): a parent and child, or a dog on its lead, walk touching. */
   readonly party: number
+  /** The ground it stands on, m a.s.l.: its `Footing` (`footingAt`). */
+  readonly ground: number
 }
 
 /** Moves `body` `by` metres along (nx, ny), as far as `move` lets it go; returns how far it got. */
@@ -141,6 +151,20 @@ const shove = (
   body.moved = true
   return got
 }
+/**
+ * The ground under `car`'s wheels where its axis passes nearest (x, y), m a.s.l.: along its pitch from under its middle, so two
+ * vehicles touching end to end on a steep lane meet on one level: bumper to bumper on a 30% lane, the ground under two trucks'
+ * middles stands 2.5 m apart.
+ */
+const wheelsAt = (car: Car, x: number, y: number): number => {
+  const k = car.reach - car.r
+  const along = Math.max(
+    -k,
+    Math.min(k, (x - car.x) * Ops.cos(car.angle) + (y - car.y) * Ops.sin(car.angle)),
+  )
+  return car.ground + along * car.rise
+}
+
 /** Shoves a car without passing through (or deeper into) drive walls. */
 const shoveCar = (car: Car, nx: number, ny: number, by: number): number =>
   shove(
@@ -173,9 +197,11 @@ const stopInto = (body: Body, nx: number, ny: number) => {
  * impulse); a vehicle hitting a standing person or a light animal faster than KNOCK_SPEED knocks them down and throws them, and
  * may kill them (`deathChance`: a point for the player when it was their car and a person), slower it pushes them aside, and one
  * pinned against a wall stops the vehicle instead; a cow meets a vehicle like another vehicle, falling only to a hit twice
- * KNOCK_SPEED; people and animals step apart. Vehicles closing on each other, hits on people and animals, and a vehicle stopped
- * against a wall through one pinned (faster than KNOCK_SPEED) are Impact events. A vehicle beyond the player's reach (`inReach`)
- * touches nothing, frozen.
+ * KNOCK_SPEED; people and animals step apart. Only bodies on one level touch (`onLevel`, within 2 m): a vehicle's from the
+ * ground under its wheels where they touch, a person's or an animal's from its `Footing`, so a car on a bridge passes over what
+ * stands or drives under its deck. Vehicles closing on each other, hits on people and animals, and a vehicle stopped against a
+ * wall through one pinned (faster than KNOCK_SPEED) are Impact events. A vehicle beyond the player's reach (`inReach`) touches
+ * nothing, frozen.
  */
 export const Contacts = Game.System(
   "Lunigiana/Contacts",
@@ -186,6 +212,7 @@ export const Contacts = Game.System(
           pose: Game.Query.write(Pose),
           motion: Game.Query.write(Motion),
           vehicle: Game.Query.read(Vehicle),
+          chassis: Game.Query.read(Chassis),
         },
       }),
       people: Game.Query({
@@ -196,6 +223,7 @@ export const Contacts = Game.System(
           down: Game.Query.optional(Down),
           player: Game.Query.optional(Player),
           follows: Game.Query.optional(Follows),
+          footing: Game.Query.optional(Footing),
         },
         without: [Driving],
       }),
@@ -206,6 +234,7 @@ export const Contacts = Game.System(
           animal: Game.Query.read(Animal),
           down: Game.Query.optional(Down),
           follows: Game.Query.optional(Follows),
+          footing: Game.Query.optional(Footing),
         },
       }),
       driver: Game.Query({ selection: { driving: Game.Query.read(Driving) }, with: [Player] }),
@@ -241,6 +270,8 @@ export const Contacts = Game.System(
         vx: motion.vx,
         vy: motion.vy,
         moved: false,
+        ground: match.data.chassis.get().z - VEHICLES[model].cg,
+        rise: Ops.tan(match.data.chassis.get().pitch),
       }
       return [{ match, car }]
     })
@@ -253,7 +284,7 @@ export const Contacts = Game.System(
           b = cars[j]!.car
         if (Vec2.distanceSquared(a, b) > (a.reach + b.reach) ** 2) continue
         const { depth, nx, ny, px, py } = deepest(circlesOf(a), a.r, circlesOf(b), b.r)
-        if (depth <= 0) continue
+        if (depth <= 0 || !onLevel(wheelsAt(a, px, py), wheelsAt(b, px, py))) continue
         // a takes its mass share of the separation; b the rest, including what a's walls refused.
         const share = depth * (b.mass / (a.mass + b.mass))
         const rest = depth - shoveCar(a, nx, ny, share)
@@ -298,6 +329,7 @@ export const Contacts = Game.System(
         half,
         heavy: false,
         party: follows === undefined ? match.entity.id : Game.Entity.id(follows.leader),
+        ground: footingAt(data.footing.value(), pose.x, pose.y),
       }
       return { match, body }
     })
@@ -321,6 +353,7 @@ export const Contacts = Game.System(
         half: fauna.lethal,
         heavy: fauna.mass >= HEAVY,
         party: follows === undefined ? match.entity.id : Game.Entity.id(follows.leader),
+        ground: footingAt(data.footing.value(), pose.x, pose.y),
       }
       return { match, body }
     })
@@ -343,7 +376,7 @@ export const Contacts = Game.System(
       for (const { match: owner, car } of cars) {
         if (Vec2.distanceSquared(body, car) > (car.reach + body.r) ** 2) continue
         const { depth, nx, ny } = deepest([body], body.r, circlesOf(car), car.r)
-        if (depth <= 0) continue
+        if (depth <= 0 || !onLevel(body.ground, wheelsAt(car, body.x, body.y))) continue
         if (body.heavy) {
           // Like two vehicles: the cow takes its mass share of the separation (walls permitting), the car the rest, and an impulse.
           const rest = depth - shoveBody(body, nx, ny, depth * (car.mass / (body.mass + car.mass)))
@@ -416,12 +449,12 @@ export const Contacts = Game.System(
           resources.score.update((score) => ({ ...score, knocked: score.knocked + 1 }))
       }
 
-    // People and animals step apart, each moving by the other's share of the mass; a party walks touching.
+    // People and animals on one level step apart, each moving by the other's share of the mass; a party walks touching.
     for (let i = 0; i < bodies.length; i++)
       for (let j = i + 1; j < bodies.length; j++) {
         const a = bodies[i]!.body,
           b = bodies[j]!.body
-        if (a.party === b.party) continue
+        if (a.party === b.party || !onLevel(a.ground, b.ground)) continue
         const dx = a.x - b.x,
           dy = a.y - b.y
         const d2 = dx * dx + dy * dy,
