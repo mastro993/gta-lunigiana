@@ -4,6 +4,7 @@ import { walkBy } from "../body.ts"
 import {
   Down,
   Driving,
+  Footing,
   Game,
   Input,
   InWater,
@@ -15,11 +16,12 @@ import {
   Time,
   View,
 } from "../schema.ts"
-import { SPRINT_SPEED, WALK_SPEED } from "../tuning.ts"
+import { PERSON_RADIUS, SPRINT_SPEED, WALK_SPEED } from "../tuning.ts"
 import { screenAxes } from "../view.ts"
 import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterUnder } from "../water/rivers.ts"
 import { HARD_STROKE, STROKE, waterVelocity } from "../water/swim.ts"
+import { footingAt } from "./footing.ts"
 import { personBuild } from "./water.ts"
 
 /** On-foot acceleration toward the wanted velocity, m/s². */
@@ -48,6 +50,7 @@ export const PlayerFoot = Game.System(
           down: Game.Query.optional(Down),
           look: Game.Query.read(Person),
           wet: Game.Query.optional(InWater),
+          footing: Game.Query.optional(Footing),
         },
         with: [Player],
         without: [Driving],
@@ -97,7 +100,12 @@ export const PlayerFoot = Game.System(
         velocity = data.down.present
           ? slide(current, dt)
           : Vec2.moveToward(current, wanted, FOOT_ACCEL * dt)
-      const moved = walkBy(pose, Vec2.scale(velocity, dt))
+      const moved = walkBy(
+        pose,
+        Vec2.scale(velocity, dt),
+        PERSON_RADIUS,
+        footingAt(data.footing.value(), pose.x, pose.y),
+      )
       // Velocity is what actually happened, so walls stop it instead of storing it up.
       const real =
         dt > 0

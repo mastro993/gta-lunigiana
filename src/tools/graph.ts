@@ -69,12 +69,12 @@ const pruneSpurs = (
 }
 
 /**
- * The road graph. Traffic drops tunnel spurs and dead-end tips where `roomy(x, y)` is false
- * (no room for a car to stop and turn: lanes that end between houses).
+ * The road graph. Traffic drops tunnel spurs and dead-end tips where `roomy(x, y, road)` is false
+ * (no room for a car to stop and turn on road `road`, its index: lanes that end between houses).
  */
 export const buildGraph = (
   roads: ReadonlyArray<RoadF>,
-  roomy: (x: number, y: number) => boolean,
+  roomy: (x: number, y: number, road: number) => boolean,
 ): GraphOut => {
   const ids = new Map<string, number>()
   const xy: Array<number> = [],
@@ -123,7 +123,7 @@ export const buildGraph = (
     pruneSpurs(
       edges,
       drivable,
-      (e, n) => road(e).tunnel === true || !roomy(xy[2 * n]!, xy[2 * n + 1]!),
+      (e, n) => road(e).tunnel === true || !roomy(xy[2 * n]!, xy[2 * n + 1]!, edges[3 * e + 2]!),
     ),
   )
   const walk = largest(

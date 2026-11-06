@@ -12,7 +12,7 @@
 //   graph, walls, railway, spawns, place), is listed under "unhandled keys" whether or not it differs, so
 //   a key a later map adds is never passed over as "no differences".
 // - Order is ignored, but for the walls and the trees: lists compare as multisets of their items
-//   (wall segments, trees, areas, barriers, graph nodes and edges), or matched by id where items
+//   (wall segments with their levels, trees, areas, barriers, graph nodes and edges), or matched by id where items
 //   have one (roads, buildings, water, rail, pois; districts by name), the pieces that share an id
 //   in order of occurrence. The walls of each kind and the trees both maps hold must also stand in
 //   the same order: the physics resolves contacts in wall order (another order lets a car into a
@@ -69,6 +69,22 @@ const TOP_FIELDS = ["origin", "mPerDeg", "bounds", "place"] as const
 const WALL_KINDS = ["walk", "shore", "drive"] as const
 const RAILWAY_PARTS = ["lines", "stations", "crossings", "platforms"] as const
 
+/**
+ * The walls of `kind` as (ax, ay, bx, by, level) tuples, a wall with no level (the shore's, and most
+ * others) at −Infinity, so equal walls compare equal: a wall that only took a level differs.
+ */
+const levelled = (walls: MonzoneMap["walls"], kind: (typeof WALL_KINDS)[number]): Float64Array => {
+  const flat = walls[kind],
+    levels = kind === "shore" ? undefined : walls.levels[kind],
+    out = new Float64Array((flat.length / 4) * 5)
+  for (let w = 0; w < flat.length / 4; w++) {
+    for (let c = 0; c < 4; c++) out[5 * w + c] = flat[4 * w + c]!
+    const level = levels?.[w] ?? NaN
+    out[5 * w + 4] = Number.isNaN(level) ? -Infinity : level
+  }
+  return out
+}
+
 /** The keys `diffMaps` compares, per part it reads key by key ("" the top level); any other key is unhandled. */
 const COMPARED: ReadonlyArray<readonly [string, (m: MonzoneMap) => object, ReadonlyArray<string>]> =
   [
@@ -109,7 +125,7 @@ const COMPARED: ReadonlyArray<readonly [string, (m: MonzoneMap) => object, Reado
     ],
     ["heightmap", (m) => m.heightmap, ["cell", "cols", "rows", "x0", "y0", "ax", "ay", "data"]],
     ["graph", (m) => m.graph, ["xy", "edges", "traffic", "walk"]],
-    ["walls", (m) => m.walls, [...WALL_KINDS, "reach", "lattice", "counts"]],
+    ["walls", (m) => m.walls, [...WALL_KINDS, "levels", "reach", "lattice", "counts"]],
     ["coarse", (m) => m.coarse, ["cell", "cols", "rows", "x0", "y0", "heights", "cover"]],
     ["railway", (m) => m.railway, RAILWAY_PARTS],
     ["spawns", (m) => m.spawns, ["player", "parked", "police"]],
@@ -391,7 +407,9 @@ export const diffMaps = (a: MonzoneMap, b: MonzoneMap): ReadonlyArray<Block> => 
     {
       category: "walls",
       lines: [
-        ...WALL_KINDS.flatMap((k) => orderedLines(k, "segments", a.walls[k], b.walls[k], 4, 4)),
+        ...WALL_KINDS.flatMap((k) =>
+          orderedLines(k, "segments", levelled(a.walls, k), levelled(b.walls, k), 5, 4),
+        ),
         ...(a.walls.reach === b.walls.reach ? [] : [`reach: ${a.walls.reach} -> ${b.walls.reach}`]),
         ...(["lattice", "counts"] as const).flatMap((k) => {
           const changes = fieldChanges(a.walls[k], b.walls[k])

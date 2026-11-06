@@ -6,7 +6,7 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 import { carCircles, carClear, carRadius, crossesAny, moveCar, wallsAlong } from "../body.ts"
 import { settle, tiltOf, turn } from "../chassis.ts"
 import { UNDAMAGED } from "../damage.ts"
-import { groundZ } from "../map/ground.ts"
+import { atGrade, groundZ } from "../map/ground.ts"
 import { graph } from "../map/index.ts"
 import { tileTrees, tilesOver } from "../map/tiles.ts"
 import {
@@ -104,13 +104,8 @@ test("contacts: a car pushing or knocking a pedestrian against a house wall neve
         depth(ped()) < -PERSON_RADIUS + 0.02 && walkClear(ped()),
         `${speed} m/s: pedestrian at ${depth(ped())}`,
       )
-      assert.ok(
-        carClear(
-          "panda",
-          world().vehicles.find((v) => v.id === carId)!,
-          0.1,
-        ),
-      )
+      const car = world().vehicles.find((v) => v.id === carId)!
+      assert.ok(carClear("panda", car, car.chassis.z - VEHICLES.panda.cg, 0.1))
     })
     // Down or, at 8 m/s about 1 time in 20, killed (the dead are down too): which one is the death roll's, not the walls'.
     if (speed > 5) assert.ok(ped().down, "knocked down")
@@ -147,7 +142,10 @@ test("contacts: a car rammed sideways into a house wall stays out of it", () => 
   const ours = () => world().vehicles.filter((car) => ids.has(car.id))
   run(120, () => {
     for (const car of ours())
-      assert.ok(carClear("panda", car, 0.1) && depth(car) < 0, JSON.stringify(car))
+      assert.ok(
+        carClear("panda", car, car.chassis.z - VEHICLES.panda.cg, 0.1) && depth(car) < 0,
+        JSON.stringify(car),
+      )
   })
   assert.ok(
     ours().some((car) => Vec2.distance(car, parked) > 0.05),
@@ -162,7 +160,7 @@ test("physics: steering into a wall alongside never wedges the car in it", () =>
   let last = world().vehicles[0]!
   run(90, () => {
     const now = world().vehicles.find((v) => v.id === id)!
-    assert.ok(carClear("panda", now, 0.1), JSON.stringify(now))
+    assert.ok(carClear("panda", now, now.chassis.z - VEHICLES.panda.cg, 0.1), JSON.stringify(now))
     assert.ok(
       !crossesAny(wallsAlong("drive", now.x, now.y, last.x - now.x, last.y - now.y, 1), last, now),
       "no jump through a wall",
@@ -333,7 +331,7 @@ const trafficAmong = (
   { regime, speed = 0 }: { readonly regime?: Regime; readonly speed?: number } = {},
 ) => {
   assert.ok(
-    [at, ...parked].every((pose) => carClear("panda", pose)),
+    [at, ...parked].every((pose) => carClear("panda", pose, atGrade(pose.x, pose.y))),
     "staged clear of walls",
   )
   const { runtime, run, world, heard } = seeded(
@@ -504,7 +502,10 @@ test("pedestrians: a walker whose verge is blocked by a parked car gets past it"
   const heading = Ops.atan2(lane.dy, lane.dx)
   const at = { ...lanePoint(lane, 2, side), angle: heading }
   const blocker = { ...lanePoint(lane, 8, side), angle: heading }
-  assert.ok(walkClear(at) && carClear("panda", blocker), "a clear verge to stage on")
+  assert.ok(
+    walkClear(at) && carClear("panda", blocker, atGrade(blocker.x, blocker.y)),
+    "a clear verge to stage on",
+  )
   const walker = pedestrian(
     LOOK,
     at,

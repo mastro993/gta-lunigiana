@@ -4,6 +4,8 @@ import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 import { carClear, clearOf, wallsAlong } from "../body.ts"
 import { destroyed } from "../damage.ts"
 import { FAUNA } from "../fauna.ts"
+import { atGrade, roadLevel } from "../map/ground.ts"
+import { graph } from "../map/index.ts"
 import { peopledIndex, residentsAlong, residentsNear } from "../population/density.ts"
 import { indoors } from "../population/farms.ts"
 import { PARKED } from "../population/parked.ts"
@@ -223,16 +225,18 @@ const placeParties = (
 }
 
 /**
- * Whether a traffic car of `model` may be brought out at `pose`, the vehicles `taken` standing about: `TRAFFIC.spacing` m from each,
- * clear of walls, and not by a level crossing, where it could stand on the box. A spot is drawn first and then turned down.
+ * Whether a traffic car of `model` may be brought out at `pose`, its wheels at `z` (m a.s.l.), the vehicles `taken` standing about:
+ * `TRAFFIC.spacing` m from each, clear of the walls on its level, and not by a level crossing, where it could stand on the box. A
+ * spot is drawn first and then turned down.
  */
 export const roomFor = (
   model: VehicleModel,
   pose: PoseValue,
+  z: number,
   taken: ReadonlyArray<{ readonly x: number; readonly y: number }>,
 ): boolean =>
   !taken.some((p) => Vec2.distanceSquared(p, pose) < TRAFFIC.spacing ** 2) &&
-  carClear(model, pose) &&
+  carClear(model, pose, z) &&
   !nearCrossing(pose.x, pose.y)
 
 /** A random traffic model for `edge` (panda 75%, ape 15%, truck 10%), falling back to smaller ones that fit; undefined if none does. */
@@ -360,7 +364,9 @@ export const Populate = Game.System(
           ...lanePoint(lane, lane.length / 2, side),
           angle: Ops.atan2(lane.dy, lane.dx),
         }
-        if (!roomFor(model, pose, taken)) continue
+        // On its road's level, as `trafficCar` stands it (a deck, or at grade).
+        const level = roadLevel(graph.edges[edge]!.road, pose.x, pose.y) ?? atGrade(pose.x, pose.y)
+        if (!roomFor(model, pose, level, taken)) continue
         const next = nextTrafficEdge(endNode(edge, forward), edge, model, random)
         commands.spawn(
           trafficCar(

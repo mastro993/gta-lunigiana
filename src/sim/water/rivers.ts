@@ -368,11 +368,12 @@ export const waterUnder = (
   )
 
 /**
- * Moves a person or animal of radius `r` at `at` by `step` at `q` m³/s per km²: one keeping out of
- * the water by choice (`careful`) and still dry takes no step into it, the water's edge where the
- * level stands now, past the shore walls too (a rising river, a stream's gravel bed); one already in
- * the water, or taking no care (fleeing), goes where it is going. Both keep to the walk walls, so
- * one that comes out on a river's bed walks off it.
+ * Moves a person or animal of radius `r` at `at`, whose ground stands at `z` (m a.s.l.), by `step`
+ * at `q` m³/s per km²: one keeping out of the water by choice (`careful`) and still dry takes no
+ * step into it, the water's edge where the level stands now, past the shore walls too (a rising
+ * river, a stream's gravel bed); one already in the water, or taking no care (fleeing), goes where
+ * it is going. Both keep to the walk walls they meet on their level, so one that comes out on a
+ * river's bed walks off it.
  */
 export const walkDry = (
   at: { readonly x: number; readonly y: number },
@@ -381,7 +382,8 @@ export const walkDry = (
   careful: boolean,
   wet: boolean,
   q: number,
+  z: number,
 ) =>
   careful && !wet && waterUnder(at.x + step.x, at.y + step.y, false, q) !== undefined
-    ? walkBy(at, { x: 0, y: 0 }, r)
-    : walkBy(at, step, r)
+    ? walkBy(at, { x: 0, y: 0 }, r, z)
+    : walkBy(at, step, r, z)

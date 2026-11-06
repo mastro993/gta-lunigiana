@@ -49,6 +49,8 @@ export interface BuiltMap extends Omit<
     readonly walk: ArrayLike<number>
     readonly shore: ArrayLike<number>
     readonly drive: ArrayLike<number>
+    /** Each walk and drive wall's level, m a.s.l. (a bridge's parapet's), NaN for one that stands at every level. */
+    readonly levels: { readonly walk: ArrayLike<number>; readonly drive: ArrayLike<number> }
   }
   /** Flat (x, y, scale) triples, in id order. */
   readonly trees: ArrayLike<number>
@@ -319,6 +321,10 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
           drive: flatOf(map.walls.drive, drive, 4),
         },
         wallIds: { walk, shore, drive },
+        wallLevels: {
+          walk: flatOf(map.walls.levels.walk, walk, 1),
+          drive: flatOf(map.walls.levels.drive, drive, 1),
+        },
         trees: flatOf(map.trees, trees, 3),
         ids: Int32Array.from(trees, (k) => map.treeIds[k]!),
         cover,

@@ -6,6 +6,8 @@ export const ENTER_GAP = 2
 export const DOOR_GAP = 0.6
 /** Radius of a person's collision circle, metres. */
 export const PERSON_RADIUS = 0.35
+/** How tall a person stands, m: under a bridge's deck someone goes only where its underside stands at least this high over the ground (the walls under the decks, src/tools/deck-walls.ts). */
+export const PERSON_HEIGHT = 1.8
 /** On-foot speeds, m/s. */
 export const WALK_SPEED = 2.2
 export const SPRINT_SPEED = 5.5

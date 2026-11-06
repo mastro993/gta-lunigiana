@@ -12,29 +12,11 @@ import { pointInRing, segDist2 } from "../collide.ts"
 import { type FacingAt, LEVEL } from "../sky/local.ts"
 import { addToBuckets, bucketItems, type Buckets, emptyBuckets } from "./buckets.ts"
 import { MAP, roadClassOf } from "./index.ts"
-import { anchorOf, HALO, type RoadClass, vergeOf } from "./kinds.ts"
+import { anchorOf, footReach, HALO, ON_DECK, ROAD_LIFT, ROAD_PAD } from "./kinds.ts"
 import { cellCorners, derived, nodeAt, type Place, placeAt } from "./tiles.ts"
 import { roadLineAt } from "./vectors.ts"
 
-/**
- * How far each road class's surface floats above its profile (m); wider classes on top, so junctions
- * never z-fight. Primary, secondary and tertiary roads share one: they are the same asphalt. A step
- * of 0.04 m keeps a class's painted lines (0.02 m over it) under the next class's asphalt where a
- * slip road meets a trunk road or a motorway.
- */
-export const ROAD_LIFT = {
-  motorway: 0.24,
-  trunk: 0.2,
-  primary: 0.16,
-  secondary: 0.16,
-  tertiary: 0.16,
-  unclassified: 0.14,
-  residential: 0.12,
-  service: 0.1,
-  track: 0.08,
-  steps: 0.07,
-  path: 0.06,
-} as const satisfies Record<RoadClass, number>
+export { ON_DECK, ROAD_LIFT }
 
 const hm = MAP.heightmap
 const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
@@ -111,7 +93,7 @@ const segmentsOf = derived((place: Place): Buckets<RoadSegment> => {
       { pts, z } = items[n]!
     const lifted = road.bridge === true || road.tunnel === true
     const lift = ROAD_LIFT[roadClassOf(road)],
-      verge = Math.max(road.w / 2 + 0.3, (road.verge ?? vergeOf(roadClassOf(road), road.w)) + 0.5)
+      verge = footReach(roadClassOf(road), road.w, road.verge)
     for (let k = 0; k + 1 < z.length; k++) {
       const s: RoadSegment = {
         ax: pts[2 * k]!,
@@ -120,7 +102,7 @@ const segmentsOf = derived((place: Place): Buckets<RoadSegment> => {
         by: pts[2 * k + 3]!,
         za: z[k]!,
         zb: z[k + 1]!,
-        half: road.w / 2 + 0.3,
+        half: road.w / 2 + ROAD_PAD,
         lift,
         lifted,
         foot: lifted ? verge : 0,
@@ -229,9 +211,6 @@ const onVerge = (s: RoadSegment, x: number, y: number): number | undefined => {
     past = Math.max(0, -u, u - 1)
   return past * past * l2 > s.half * s.half ? undefined : onSegment(s, x, y, s.foot)
 }
-
-/** A bridge deck or tunnel within this height (m) of where an actor was is the one it is on. */
-export const ON_DECK = 0.5
 
 /**
  * Where an actor at (x, y) stands, m a.s.l. On a platform the ground is its top (`platformTop`), or

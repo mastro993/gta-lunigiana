@@ -9,7 +9,9 @@
  */
 import { Ops } from "@typeonce/ritmo-math"
 
-import { carCircles, carRadius, clearOf } from "./body.ts"
+import { carCircles, carRadius, clearOf, meets } from "./body.ts"
+import { segDist2 } from "./collide.ts"
+import { roadLevel } from "./map/ground.ts"
 import {
   graph,
   isMotorRoad,
@@ -18,6 +20,7 @@ import {
   type RoadClass,
   type RoadInfo,
   type Segment,
+  type Wall,
   wallsNear,
 } from "./map/index.ts"
 import { VEHICLE_MODELS, VEHICLES, type VehicleModel } from "./vehicles.ts"
@@ -116,15 +119,38 @@ const PASS_REACH = 3
 
 /**
  * Copies of the drive walls (`wallsNear` reuses its answer) around `edge` that reach within `pad` m
- * of the line through `ab`, its lane a -> b: one query per edge. The lane tests take a min or a max
- * over walls, so given every wall that can narrow or block a sample they answer as they would over
- * a query per sample and side step, at a fraction of the cost.
+ * of the line through `ab`, its lane a -> b, and that a car on the edge meets: a wall with a level (a
+ * bridge's parapet) only where the road's surface at the point of the edge nearest the wall is on its
+ * level (`meets`), so a deck's parapets crowd no road under it, however the road climbs beside it.
+ * One query per edge. The lane tests take a min or a max over walls, so given every wall that can
+ * narrow or block a sample they answer as they would over a query per sample and side step, at a
+ * fraction of the cost.
  */
 const wallsBeside = (edge: number, ab: Lane, pad: number): ReadonlyArray<Segment> => {
-  const { a, b } = graph.edges[edge]!,
+  const { a, b, road } = graph.edges[edge]!,
     p = graph.nodes[a]!,
     q = graph.nodes[b]!
   const across = (x: number, y: number) => (x - ab.x) * ab.rx + (y - ab.y) * ab.ry
+  const metOnEdge = (s: Wall) => {
+    if (s.level === undefined) return true
+    // The point of the edge nearest the wall, read along the wall every metre or less.
+    const n = Math.max(1, Math.ceil(Ops.hypot(s.bx - s.ax, s.by - s.ay)))
+    let best = Infinity,
+      at = p
+    for (let k = 0; k <= n; k++) {
+      const { d2, t } = segDist2(
+        s.ax + ((s.bx - s.ax) * k) / n,
+        s.ay + ((s.by - s.ay) * k) / n,
+        p.x,
+        p.y,
+        q.x,
+        q.y,
+      )
+      if (d2 < best) [best, at] = [d2, { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t }]
+    }
+    const z = roadLevel(road, at.x, at.y)
+    return z === undefined || meets(s, z)
+  }
   return wallsNear(
     "traffic",
     Math.min(p.x, q.x) - pad,
@@ -135,7 +161,8 @@ const wallsBeside = (edge: number, ab: Lane, pad: number): ReadonlyArray<Segment
     .filter(
       (s) =>
         Math.max(across(s.ax, s.ay), across(s.bx, s.by)) >= -pad &&
-        Math.min(across(s.ax, s.ay), across(s.bx, s.by)) <= pad,
+        Math.min(across(s.ax, s.ay), across(s.bx, s.by)) <= pad &&
+        metOnEdge(s),
     )
     .map(({ ax, ay, bx, by }) => ({ ax, ay, bx, by }))
 }

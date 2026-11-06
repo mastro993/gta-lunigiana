@@ -11,7 +11,7 @@ import { CREEP } from "../rail/lookout.ts"
 import { isHeld } from "../rail/models.ts"
 import { trainDraft } from "../rail/service.ts"
 import { WRECK_SPEED } from "../rail/strikes.ts"
-import { aiTrain, besideWall, underRoad } from "../rail/testing.ts"
+import { acrossWall, aiTrain, besideWall } from "../rail/testing.ts"
 import { parkedCar, pedestrian } from "../spawning.ts"
 import { jsonSave, LOOK, stage, start } from "../testing.ts"
 import { LENGTH, line, NEARBY, ON_TRACK, riolo, ROAD, ROUTE, S } from "./railway.ts"
@@ -67,16 +67,21 @@ test("trains: determinism and saves: trains holding for what is on the track, st
   )
 })
 
-test("trains: a train creeping on at a walk shoves a car pinned under the road bridge along, unharmed; driving it there at 6 m/s wrecks it: the blow and the crush, no hit more for the drag", () => {
-  // A Panda square across the track between the road bridge's abutments.
-  const at = pointAt(line, underRoad() + 5)
+test("trains: a train creeping on at a walk shoves a car pinned against a wall across the track along, unharmed; driving it there at 6 m/s wrecks it: the blow and the crush, no hit more for the drag", () => {
+  // A Panda square across the track 3 m short of a wall across it (a cutting's slope): the road
+  // bridge by Equi Terme pinned one before, but its parapets stand on the deck's level (issue #91).
+  const at = pointAt(line, acrossWall() - 3)
   const pinned = parkedCar("panda", 0x8b8170, { x: at.x, y: at.y, angle: at.angle + Math.PI / 2 })
   const away = { x: at.x + 40, y: at.y + 40, angle: 0 }
   // An AI train 600 m back: it stops for the car, sounds the horn and creeps on into it.
-  const creep = start([], [away, { cars: [pinned], trains: [aiTrain(underRoad() - 600, 1, 20)] }], {
-    trains: true,
-    alone: true,
-  })
+  const creep = start(
+    [],
+    [away, { cars: [pinned], trains: [aiTrain(acrossWall() - 603, 1, 20)] }],
+    {
+      trains: true,
+      alone: true,
+    },
+  )
   let touched = false
   creep.run(150 * S, () => {
     touched ||=
@@ -96,7 +101,7 @@ test("trains: a train creeping on at a walk shoves a car pinned under the road b
       away,
       {
         cars: [pinned],
-        trains: [trainDraft("atr220", { line: line.index, s: underRoad() - 5, facing: 1, v: 6 })],
+        trains: [trainDraft("atr220", { line: line.index, s: acrossWall() - 13, facing: 1, v: 6 })],
       },
     ],
     { trains: true, alone: true },
@@ -112,7 +117,7 @@ test("trains: a train creeping on at a walk shoves a car pinned under the road b
     hits[1]!.speed < WRECK_SPEED,
     `slower than a wreck by the blow alone (${hits[1]!.speed} m/s)`,
   )
-  // Dragged along the abutment at the train's pace, it slides along it rather than into it: no wall hit each step.
+  // Dragged along the wall at the train's pace, it slides along it rather than into it: no wall hit each step.
   const walls = fast.heard.impacts.filter((i) => i.hit === "wall").length
   assert.ok(walls < 8, `${walls} wall hits`)
   assert.equal(fast.world().vehicles[0]!.damage.amount, 1, "destroyed")

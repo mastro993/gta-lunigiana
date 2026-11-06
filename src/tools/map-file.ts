@@ -8,6 +8,7 @@ import { TILE, tileKey } from "../sim/map/kinds.ts"
 import {
   decodeMap,
   decodeTile,
+  decodeTileVectors,
   MAP_URL,
   MAP_VERSION,
   provideMap,
@@ -19,7 +20,7 @@ import {
   type TileVectors,
   type VectorLayer,
 } from "../sim/map/packed.ts"
-import { relined } from "./pack.ts"
+import { packLevels, relined } from "./pack.ts"
 import { mapDir, type Region } from "./region.ts"
 import { mergeTrees } from "./trees.ts"
 
@@ -41,6 +42,8 @@ export interface JoinedMap extends Omit<
     readonly walk: ArrayLike<number>
     readonly shore: ArrayLike<number>
     readonly drive: ArrayLike<number>
+    /** Each walk and drive wall's level, m a.s.l. (a bridge's parapet's), NaN for one that stands at every level. */
+    readonly levels: { readonly walk: ArrayLike<number>; readonly drive: ArrayLike<number> }
   }
   /** Flat (x, y, scale) triples in the whole map's order: by id. */
   readonly trees: ArrayLike<number>
@@ -82,6 +85,11 @@ export const joinTiles = (
       t.wallIds[kind].forEach((id, k) => out.set(t.walls[kind].subarray(4 * k, 4 * k + 4), 4 * id))
     return out
   }
+  const levels = (kind: "walk" | "drive") => {
+    const out = new Float64Array(listed.reduce((sum, t) => sum + t.wallIds[kind].length, 0))
+    for (const t of listed) t.wallIds[kind].forEach((id, k) => (out[id] = t.wallLevels[kind][k]!))
+    return out
+  }
   for (const t of listed) {
     const { i, j } = t
     for (let r = 0; r < TILE_NODES; r++)
@@ -105,7 +113,13 @@ export const joinTiles = (
     ...rest,
     ...(vectors ?? joinVectors(global, listed)),
     heightmap: { ...heightmap, data },
-    walls: { ...global.walls, walk: flat("walk"), shore: flat("shore"), drive: flat("drive") },
+    walls: {
+      ...global.walls,
+      walk: flat("walk"),
+      shore: flat("shore"),
+      drive: flat("drive"),
+      levels: { walk: levels("walk"), drive: levels("drive") },
+    },
     trees,
     treeIds: ids,
     cover,
@@ -144,18 +158,28 @@ const joinVectors = (
 export const readWholeMap = (url: URL): JoinedMap => {
   const file = readMapFile(url)
   // A build before the vectors' cut (version 3, issue #63) holds them all in its global file and
-  // none in its tiles: read as one, so map-diff compares it with a tiled build.
+  // none in its tiles, and one before the walls' levels (versions 3 and 4, issue #91) has no levels
+  // in its tiles, the last sections: read as one whose every wall stands at every level, so
+  // map-diff compares them with today's.
   const line = JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as {
     readonly version?: unknown
   } & Pick<JoinedMap, VectorLayer>
   const v3 = line.version === 3,
-    read = (f: Uint8Array) => (v3 ? relined(f, { version: MAP_VERSION }) : f)
+    old = v3 || line.version === 4
+  const read = (f: Uint8Array) => (old ? relined(f, { version: MAP_VERSION }) : f)
+  const readTile = (f: Uint8Array) => {
+    if (!old) return f
+    const tile = relined(f, { version: MAP_VERSION }),
+      { walls } = decodeTileVectors(tile),
+      none = (n: number) => packLevels(new Float64Array(n).fill(NaN), "no levels")
+    return Buffer.concat([tile, none(walls.walk), none(walls.drive)])
+  }
   const global = decodeMap(read(file))
   const { roads, buildings, water, areas, barriers } = line
   return joinTiles(
     global,
     global.tiles.map(({ i, j }) =>
-      decodeTile(read(readMapFile(new URL(`${global.name}/${tileKey(i, j)}.bin`, url)))),
+      decodeTile(readTile(readMapFile(new URL(`${global.name}/${tileKey(i, j)}.bin`, url)))),
     ),
     v3 ? { roads, buildings, water, areas, barriers } : undefined,
   )

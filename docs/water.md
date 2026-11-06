@@ -194,13 +194,14 @@ takes it away on dry ground.
   dead float where the current takes them.
 - **Never drowning.** Swept far, the player swims out wherever he heads; there is no breath or
   stamina.
-- **Keeping out by choice** (`walkDry`). People and animals keep to the walk walls like the
-  player, but one still dry takes no step into the water unless it flees: it stops at the water's
-  edge where the level stands now, so a rising river pushes it back and it can walk off a river's
-  dry gravel bed. In the water, they carry on as they were where it is slack and below their knees
-  (under 0.3 of their height deep and 0.25 of their hold), so a cow wades a trickle to its
-  pasture; deeper or faster, they head square across for the nearer bank. A witness in the water
-  never stays by a body: it runs ([gameplay.md](gameplay.md#witnesses-and-the-dead)).
+- **Keeping out by choice** (`walkDry`). People and animals keep to the walk walls they meet on
+  their footing's level like the player, but one still dry takes no step into the water unless it
+  flees: it stops at the water's edge where the level stands now, so a rising river pushes it back
+  and it can walk off a river's dry gravel bed. In the water, they carry on as they were where it is
+  slack and below their knees (under 0.3 of their height deep and 0.25 of their hold), so a cow
+  wades a trickle to its pasture; deeper or faster, they head square across for the nearer bank. A
+  witness in the water never stays by a body: it runs
+  ([gameplay.md](gameplay.md#witnesses-and-the-dead)).
 
 ## Vehicles in the water
 
@@ -256,9 +257,9 @@ shore, and `wallsNear` answers four kinds:
 
 | Kind | Walls | Who keeps to them |
 |---|---|---|
-| `walk` | buildings, slopes over 35°, cliffs, walls, the play area's outline, trunks | everyone on foot and every animal |
+| `walk` | buildings, slopes over 35°, cliffs, walls, the play area's outline, trunks, the low space under a road deck (on the ground's level, under 1.8 m of headroom) | everyone on foot and every animal |
 | `land` | `walk` and the shore | where people and animals spawn; a follower's way to its leader |
-| `drive` | `walk`'s, slopes over 25° off the roads, guard rails, parapets, road-exit caps | every vehicle's physics |
+| `drive` | `walk`'s but those under the decks, slopes over 25° off the roads, guard rails, parapets (on their deck's level), the low space under a road deck (on the ground's level, under 2.65 m of headroom), road-exit caps | every vehicle's physics |
 | `traffic` | `drive` and the shore | AI drivers' lanes (`lanesFor`), where vehicles spawn |
 
 Traffic's dead ends and the spawns are worked out against the water's edge, as before, so the road

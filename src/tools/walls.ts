@@ -50,12 +50,23 @@ export const pushOutline = (outs: ReadonlyArray<Array<number>>, rings: Rings): v
         pushSplit(out, ring[2 * i]!, ring[2 * i + 1]!, ring[2 * j]!, ring[2 * j + 1]!, 64)
       }
 }
-const pushPolyline = (out: Array<number>, pts: ReadonlyArray<number>, closed: boolean) => {
+/** `pts`'s edges (and the closing one when `closed`) into `out`, as pieces of at most `run` m. */
+export const pushPolyline = (
+  out: Array<number>,
+  pts: ReadonlyArray<number>,
+  closed: boolean,
+  run = RUN,
+) => {
   const n = pts.length / 2
   for (let i = 0; i < (closed ? n : n - 1); i++) {
     const j = (i + 1) % n
-    pushSplit(out, pts[2 * i]!, pts[2 * i + 1]!, pts[2 * j]!, pts[2 * j + 1]!)
+    pushSplit(out, pts[2 * i]!, pts[2 * i + 1]!, pts[2 * j]!, pts[2 * j + 1]!, run)
   }
+}
+
+/** Appends `walls` to `out` one by one: spread into `push`, a list past about 120,000 numbers overflows the call stack. */
+const append = (out: Array<number>, walls: ReadonlyArray<number>) => {
+  for (const v of walls) out.push(v)
 }
 
 /** Walls around the blocked cells: traced loops, simplified within `tol` m, split into <= RUN m segments, into every list in `outs`. */
@@ -198,7 +209,7 @@ const OPEN_STEP = 0.25
  * draws cliffs across the paths that climb through them and garden walls up to the road's
  * centreline; the way itself is open (a gap, a gate, steps cut in the rock). Original vertices are
  * kept; each opening ends at the last free sample. Guard rails run along their road and stay whole.
- * Tunnels open nothing (a bridge's parapets do open where the road runs on into one).
+ * Tunnels open nothing (a bridge's parapets do open where the road runs on into one: parapets.ts).
  */
 export const openBarriers = (
   barriers: ReadonlyArray<Barrier>,
@@ -210,7 +221,7 @@ export const openBarriers = (
 }
 
 /** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` says. */
-const opened = (
+export const opened = (
   barriers: ReadonlyArray<Barrier>,
   open: (x: number, y: number) => boolean,
 ): Array<Barrier> =>
@@ -246,44 +257,6 @@ const opened = (
     return out
   })
 
-/** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */
-const PARAPET = 0.25
-
-/**
- * The parapets along both sides of every drivable bridge deck, as walls for the cars: one piece per
- * deck segment and side, opened (`openBarriers`) wherever a road's carriageway reaches it: where any
- * other road crosses under the bridge or joins or carries on from its deck, tunnels and other
- * pieces of the same bridge included (OSM splits bridges), and on the inside of the deck's own
- * bends, where the piece along one segment runs on across the next one's carriageway (a 2.4 m
- * segment off a junction on the SR445's bridge by Montefiore put it 3.6 m from the centreline,
- * inside the 7.6 m deck). Walkers keep their verge across.
- */
-const parapets = (roads: ReadonlyArray<RoadF>): Array<Barrier> => {
-  const ways = segIndex<null>()
-  for (const r of roads) ways.addLine(r.pts, r.w / 2, null)
-  return roads
-    .filter((r) => r.bridge === true && isDrivable(r.cls))
-    .flatMap((r) =>
-      opened(
-        r.pts.slice(1).flatMap((b, i) => {
-          const a = r.pts[i]!,
-            len = Math.hypot(b.x - a.x, b.y - a.y) || 1,
-            nx = -(b.y - a.y) / len,
-            ny = (b.x - a.x) / len
-          return [-1, 1].map((side): Barrier => {
-            const o = side * (r.w / 2 + PARAPET)
-            return {
-              kind: "wall",
-              pts: [r1(a.x + nx * o), r1(a.y + ny * o), r1(b.x + nx * o), r1(b.y + ny * o)],
-            }
-          })
-        }),
-        // A piece stands PARAPET past its own segment's carriageway, so only another segment covers it.
-        (x, y) => ways.covers(x, y),
-      ),
-    )
-}
-
 /**
  * Building edges into every list in `outs`. Where a tunnel, path or steps centreline comes within
  * min(w/2, ARCH) of the footprint, the walls are instead the outline of the footprint minus those
@@ -305,11 +278,27 @@ interface Walls {
   readonly drive: Array<number>
   /** The water's edge for `drive` (open where a drivable road crosses): kept clear by traffic's dead ends and the spawns, never stored. */
   readonly driveShore: Array<number>
+  /**
+   * Each walk and drive wall's level, m a.s.l.: a parapet's is its deck's top, a wall under a deck's
+   * the ground's there, and it stops only a body whose ground stands within ONE_LEVEL of it; NaN for
+   * every other wall, which stops anyone.
+   */
+  readonly levels: { readonly walk: Array<number>; readonly drive: Array<number> }
   readonly walkCells: number
   readonly shoreCells: number
   readonly driveCells: number
 }
 
+/** Walls with a level: flat (ax, ay, bx, by) pieces and each one's level, m a.s.l. */
+export interface Levelled {
+  readonly walls: ReadonlyArray<number>
+  readonly levels: ReadonlyArray<number>
+}
+
+/**
+ * The walls on grid `g` (`Walls`): the bridges' `parapets` (parapets.ts) among the drive walls, and
+ * the walls `under` the decks (deck-walls.ts) last of the walk and the drive walls.
+ */
 export const buildWalls = (
   g: Grid,
   roads: ReadonlyArray<RoadF>,
@@ -317,6 +306,8 @@ export const buildWalls = (
   buildings: ReadonlyArray<BuildingF>,
   barriers: ReadonlyArray<Barrier>,
   areas: ReadonlyArray<Area>,
+  parapets: Levelled,
+  under: { readonly walk: Levelled; readonly drive: Levelled },
 ): Walls => {
   // The lakes' and river polygons' cells are water too: those whose centre each fills, as the
   // land cover paints them.
@@ -443,7 +434,8 @@ export const buildWalls = (
     if (b.kind !== "guard_rail") pushPolyline(walk, b.pts, false)
     pushPolyline(drive, b.pts, false)
   }
-  for (const p of parapets(roads)) pushPolyline(drive, p.pts, false)
+  const first = drive.length / 4
+  append(drive, parapets.walls)
   pushOutline([walk, drive], OUTLINE)
   // Road-block caps a few metres inside the outline where drivable roads leave the play area (their
   // cut ends, which have no id).
@@ -463,11 +455,23 @@ export const buildWalls = (
       pushSplit(drive, cx - ty * h, cy + tx * h, cx + ty * h, cy - tx * h)
     }
   }
+  // The parapets' levels, and the walls under the decks' after every other; every other wall
+  // stands at every level.
+  const levels = {
+    walk: [...Array.from({ length: walk.length / 4 }, () => NaN), ...under.walk.levels],
+    drive: [
+      ...Array.from({ length: drive.length / 4 }, (_, w) => parapets.levels[w - first] ?? NaN),
+      ...under.drive.levels,
+    ],
+  }
+  append(walk, under.walk.walls)
+  append(drive, under.drive.walls)
   return {
     walk,
     shore,
     drive,
     driveShore,
+    levels,
     walkCells: walkBlocked.reduce((s, v) => s + v, 0),
     shoreCells: shoreBlocked.reduce((s, v) => s + v, 0),
     driveCells: driveBlocked.reduce((s, v) => s + v, 0),

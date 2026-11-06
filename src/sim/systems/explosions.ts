@@ -202,15 +202,15 @@ export const Explode = Game.System(
         const car = vehicles.find((v) => v.entity.id === blast.id)!,
           pose = car.data.pose.get(),
           model = car.data.vehicle.get().model
-        const out = freeDoor(pose, model) ?? pose,
+        // On the ground beside the wreck, on the level its wheels stood on.
+        const wheels = car.data.chassis.get().z - VEHICLES[model].cg
+        const out = freeDoor(pose, model, wheels) ?? pose,
           away = Vec2.normalizeOr(Vec2.subtract(out, pose), { x: 1, y: 0 })
         data.pose.set({ x: out.x, y: out.y, angle: pose.angle })
         data.motion.set({ vx: away.x * BLAST.throw, vy: away.y * BLAST.throw, spin: 0 })
         // Nobody's foot on the pedals any more: the shell is left on its handbrake, as when the player gets out.
         car.data.input.set({ throttle: 0, steer: 0, handbrake: true })
         commands.remove(entity, Driving)
-        // On the ground beside the wreck, on the level its wheels stood on.
-        const wheels = car.data.chassis.get().z - VEHICLES[model].cg
         commands.insert(
           entity,
           [Down, { until: step }],

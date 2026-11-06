@@ -8,6 +8,10 @@ import { buildWalls } from "../walls.ts"
 import { inRings } from "../water-areas.ts"
 import { segments } from "./wall-segments.ts"
 
+/** No bridge, so no parapet and no wall under a deck. */
+const NO_PARAPETS = { walls: [], levels: [] },
+  NOTHING_UNDER = { walk: NO_PARAPETS, drive: NO_PARAPETS }
+
 /** Points every metre or less along each of the walls' segments. */
 const samples = (flat: ReadonlyArray<number>) =>
   segments(flat).flatMap(([ax, ay, bx, by]) => {
@@ -65,11 +69,20 @@ const walled = () => {
       if (inRings(RIVER.rings, g.x0 + i * CELL, g.y0 + j * CELL)) z[j * g.cols + i] = -CARVE
   return {
     /** With both areas. */
-    both: buildWalls({ ...g, z }, [], [], [], [], [LAKE, RIVER]),
+    both: buildWalls({ ...g, z }, [], [], [], [], [LAKE, RIVER], NO_PARAPETS, NOTHING_UNDER),
     /** The same ground with no river polygon over its carve. */
-    lakeOnly: buildWalls({ ...g, z }, [], [], [], [], [LAKE]),
+    lakeOnly: buildWalls({ ...g, z }, [], [], [], [], [LAKE], NO_PARAPETS, NOTHING_UNDER),
     /** The same polygon holding still water, its river not in the map: carved as a lake is. */
-    still: buildWalls({ ...g, z }, [], [], [], [], [LAKE, { ...STILL, rings: RIVER.rings }]),
+    still: buildWalls(
+      { ...g, z },
+      [],
+      [],
+      [],
+      [],
+      [LAKE, { ...STILL, rings: RIVER.rings }],
+      NO_PARAPETS,
+      NOTHING_UNDER,
+    ),
   }
 }
 let built: ReturnType<typeof walled> | undefined
@@ -123,4 +136,30 @@ test("buildWalls walls the steep banks round a river polygon whose river the map
     samples(flat).filter(([x, y]) => toOutline(RIVER, x, y) < 2 * CELL)
   assert.deepEqual(nearBend(still.walk), nearBend(lakeOnly.walk))
   assert.deepEqual(nearBend(still.drive), nearBend(lakeOnly.drive))
+})
+
+// Regression: the parapets and the walls under the decks were spread into `push`, one argument per
+// number, which overflows the call stack past about 120,000 of them (30,000 walls): a map with a few
+// times today's bridges (Lunigiana's walk walls under its decks already hold 33,452 numbers).
+test("buildWalls appends 50,000 parapets and as many walls under the decks, each with its level", () => {
+  const g = gridLattice()
+  const many = {
+    walls: Array.from({ length: 200_000 }, (_, k) => k % 97),
+    levels: Array.from({ length: 50_000 }, (_, k) => k % 89),
+  }
+  const walls = buildWalls(
+    { ...g, z: new Float64Array(g.cols * g.rows) },
+    [],
+    [],
+    [],
+    [],
+    [],
+    many,
+    { walk: many, drive: many },
+  )
+  assert.deepEqual(walls.walk.slice(-many.walls.length), many.walls)
+  assert.deepEqual(walls.drive.slice(-many.walls.length), many.walls)
+  assert.deepEqual(walls.levels.walk.slice(-many.levels.length), many.levels)
+  assert.equal(walls.levels.drive.length * 4, walls.drive.length)
+  assert.equal(walls.levels.drive.filter((l) => !Number.isNaN(l)).length, 2 * many.levels.length)
 })

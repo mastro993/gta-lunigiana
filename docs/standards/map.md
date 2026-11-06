@@ -71,6 +71,89 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   one again brings OSM's current edits into its play area; `fetch-osm.test.ts` checks that the
   lock's extracts hold every listed tile's ground in the box.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
+- Every bridge's deck keeps the ground out of it: `deck-ground.map-test.ts` reads every road and
+  rail deck of Lunigiana, Cesena and the L, and fails where the terrain stands within the 0.9 m slab
+  under a deck's top more than 4 m in from its outer ends (a joint with the next piece of the bridge
+  is none), or more than 0.05 m over its profile nearer them, but at its abutments ([Ground under the
+  decks](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
+  The build lowers the ground (`deck-ground.ts`) for every deck from the shipped lines alone, so a
+  failure on a new part is the data's (a bridge's ends or profile, two decks at odds) or the pass's:
+  fix that for every deck alike, never with an exception for one bridge or one part.
+- Every bridge's parapets hold on its deck's level and only there: `parapets.map-test.ts` reads
+  every drivable bridge of Lunigiana, Cesena and the L, and fails where a car on the deck meets no
+  wall and no road on the deck's level (within 2 m of its top) reaches the parapet, where a car on a
+  drivable road reaching it meets a parapet (a junction on the deck closed, a road under it walled
+  off by a parapet's wrong level), or where a wall with no level stands on the parapet over a road
+  under or over the deck ([Collision
+  walls](../map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)). The build (`parapets.ts`)
+  opens and levels every parapet from the shipped roads alone, so a failure on a new part is the
+  data's (a bridge's or a road's profile, a junction's roads at odds by 2 m or more, a barrier drawn
+  along a deck's edge) or the build's: fix that for every bridge alike, never with an exception for
+  one bridge or one part.
+- Nobody comes up onto a bridge's deck from under it: `under-decks.map-test.ts` and its Cesena and L
+  twins walk the game's own walker (`footZ`, `walkBy`) under every road deck, from where there is
+  room to stand (2.7 m under its top) toward the ground near its top, drive a Panda (`groundZ`,
+  `moveCar`) the same way under every drivable one, from where there is room for the tallest vehicle,
+  and walk every road meeting its ends onto it, on its centreline and its verges, and drive it, and
+  fail where the walker or the car comes up onto the deck or where a wall with a level shuts an end
+  that led onto it ([Walls under the
+  decks](../map.md#walls-under-the-decks)). The build (`deck-walls.ts`) walls every road deck from
+  the shipped roads and the ground as lowered under the decks alone, so a failure on a new part is
+  the data's (a road at grade meeting a deck's level with no junction between them, a deck's or an
+  approach's profile at odds with the ground at its end, ground left near a deck's top) or the
+  pass's: fix that for every deck alike, never with an exception for one bridge or one part.
+- What stands on a bridge stays apart from what runs under it:
+  `src/sim/map/__tests__/levels.map-test.ts` reads every crossing of two ways on two levels with no
+  node in common on Lunigiana, Cesena and the L (a road, path or rail bridge over a road, a path,
+  steps or the rail; a road, a path or the rail over a tunnel; rail over rail left out), and fails
+  where the way above stands 2.5 m or less (the level rule's 2 m, `LEVEL`, and a 0.5 m margin) over
+  the one below between points of the two within 3.99 m of each other and of the crossing, but at
+  the Cesena crossings it lists by OSM id, each of which must still fall short ([Checks and
+  tools](../map.md#checks-and-tools)). The level rule (`onLevel`) is code, so a failure on a new
+  part is the data's (a deck too low over what it crosses, a footbridge or an underpass between its
+  ends at the terrain's level) or the profiles' pass's: fix that for every crossing alike, never by
+  listing a new part's crossing.
+- A driver reads its way on its level onto and off every bridge and tunnel:
+  `src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts`
+  stand a driver on its lane up to 40 m before every joint where a Panda drives from a road onto or
+  off a bridge or a tunnel, or from one bridge way onto the next, with no junction and no turn of
+  30° or more, and fail where it reads a Panda standing in its lane past the joint off its level
+  (`onPathLevel`, `joint-checks.ts`), but at the mouth of Pieve San Lorenzo's underpass the
+  Lunigiana test lists, which must still fail ([Checks and tools](../map.md#checks-and-tools)).
+  The reading follows the map's surfaces, so a failure on a new part is the data's or the profiles'
+  (a joint whose two profiles meet a step apart, a deck whose start stands off its approach): fix
+  that for every joint alike, never by listing a new part's joint.
+- Every road tunnel is drawn at its floor under the hill: `src/render/__tests__/tunnels.map-test.ts`
+  and its Cesena and L twins check every road in a tunnel drawn at its floor along its whole line,
+  its bore's dark walls under the hill along both its sides (none in a building passage), its
+  mouths baked as `mouthsOf` finds them, each portal facing out of the hill clear of every other
+  road and the track and an open mouth with none, and the chunks round it as a whole-map build cuts
+  them, and pin each region's counts (roads in tunnels, passages, metres, wall triangles, mouths,
+  portals and mouths open for want of room) ([Road and rail
+  profiles](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
+  A new part changes the counts: look at its tunnels drawn, then pin the new counts. A failure of
+  the checks themselves is the data's (a tunnel's profile over the hill, a mouth's road) or the
+  build's (the mouths' bake, `portals.ts`, `bores.ts`): fix that for every tunnel alike, never with
+  an exception for one tunnel or one part.
+- The shadow box holds its size through a turn over the region's ground:
+  `src/render/__tests__/shadow-box.map-test.ts` and `shadow-box-cesena.map-test.ts` turn the view
+  a whole turn each way at 8 and 6 texels a metre at Lunigiana's and Cesena's steepest fall,
+  deepest gully and flattest ground (found by the terrain's shape on the coarse lattice, so a new
+  part may move them), and fail where the box changes size more than 20 times a turn, on two frames
+  in a row more than once or where the view did not force it, back to the size it held two frames
+  before (a strobe), or below what the fit asks or more than a step over it
+  ([Rendering](../architecture.md#rendering)). The box's steps are render code
+  (`src/render/shadow-box.ts`), so a failure on a new part's ground is fixed there for every spot
+  alike, never by loosening the bounds for one region or one part.
+- A car's wheels and a walker crossing a bridge stay on its deck:
+  `src/render/__tests__/ground.map-test.ts` crosses every drivable bridge of Lunigiana both ways
+  from 12 m before it, each wheel keeping to the level of its last contact as the drive physics
+  does and the walker to its footing as `FindFooting` does, drawn where the renderer draws it, and
+  fails where the wheels or the walker stand 0.5 m or more off the deck's top, but on a bridge
+  starting at a tunnel's mouth or the play area's edge ([Footing](../gameplay.md#footing)). A
+  failure on a new part is the data's (a bridge's ends or profile off its approach, two spans at
+  odds where they join) or the ground's (`groundZ`, `footZ`, the decks' verges): fix that for every
+  bridge alike, never by skipping one.
 - Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no lattice tree and
   changes no tree's id (its look's seed): the lattice starts at the region's fixed `anchor`
   (`region.ts`), never at the box, and a tree's id is its lattice cell's number. Never move an
@@ -106,8 +189,8 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   9,422 of lucido's 4,879,451 terrain nodes, up to 12.3 m, all north of y 0). Keep that list true
   when a part shows more, and treat a move far from every seam and from every line the part makes
   whole as a bug.
-- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.60 MB, Lunigiana's
-  2_1 by Pieve San Lorenzo with the vectors round it, 604,635 B, the build prints it, and
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.61 MB, Lunigiana's
+  2_1 by Pieve San Lorenzo with the vectors round it, 608,135 B, the build prints it, and
   `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road

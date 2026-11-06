@@ -383,7 +383,20 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   same walls in the same order ([map.md](map.md#a-tile)): the physics pushes out of walls one by one
   and keeps the first of equal-time hits, so another order would move collisions at corners. It
   reuses its answer array and the segment objects in it until the next call of the same kind: copy
-  the coordinates to keep them.
+  the coordinates to keep them. Each wall it hands carries its level when it has one (a bridge's
+  parapet stands at its deck's top, a wall under a deck at the ground's level there,
+  [map.md](map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)), and the query answers every
+  level: `wallsAlong` (`src/sim/body.ts`) keeps the walls a body meets standing at the level it is
+  given (`meets`: a wall with no level, or one within `LEVEL`, 2 m, of it), every wall when it is
+  given none. The physics, the contacts and the trains' strikes give a car's wheels
+  (`chassis.z − cg`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
+  spot's settled wheels, a teleport's ground), and the baked lanes their road's surface where the
+  edge passes nearest a parapet. Everyone on foot gives their `Footing` (`footingAt` before
+  `FindFooting` has given one): the player's step (`PlayerFoot`), the pedestrians' and the animals'
+  (`walkBy`, `walkDry`, a follower's way round a wall), the contacts' shoves, the trains' strikes, a
+  witness's line of sight (`inSight`) and the vehicle in reach (`vehicleInReach`); the doors give
+  the vehicle's wheels (`freeDoor`) and a train's exit the ground beside its cab. Only the people's
+  and animals' spawn checks still meet every wall, which only keeps them a little further off one.
 - `buildingsIn` (`src/sim/map/vectors.ts`: each tile's buildings in 64 m cells on the buildings'
   lattice, `MAP.vectors.lattice.buildings`, handing each building's index in the whole map's list,
   the building and its box) and `treesIn` (the trees as points, `src/sim/map/walls.ts`, handing each
@@ -1260,7 +1273,7 @@ the hill and a portal at each mouth the hill stands over (`src/render/bores.ts`,
   it inside the hill, the far wall whole and the near one a stub above the feet, as a building's
   walls ([See-through cut](#see-through-cut)). A building passage (`passage`, OSM's
   `tunnel=building_passage`: 21 on Lunigiana, 22 on Cesena) has no bore: its house hides its road,
-  and the cut shows it. Lunigiana's bores are 3,166 triangles in 22 chunks, Cesena's 18,124 in 48.
+  and the cut shows it. Lunigiana's bores are 3,166 triangles in 22 chunks, Cesena's 18,120 in 48.
 - **Portals**: at each road tunnel mouth (`MAP.derived.mouths`, which the build bakes:
   [map.md](map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts))
   with a portal, the railway's shape round the bore
@@ -2263,8 +2276,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     nor a truck from the north-west at 13 m/s), `trains-strikes.test.ts` and
     `trains-strikes.long-test.ts` (a car struck at 80 km/h wrecked and thrown off; a car into a
     standing train taking a wall's hit; the player sprinting
-    into a standing train's side stopped, not knocked down; a train creeping into a car pinned under
-    the road bridge shoving it unharmed, one at 6 m/s wrecking it with two hits in all; a car shoved
+    into a standing train's side stopped, not knocked down; a train creeping into a car pinned
+    against a wall across the track (`acrossWall()`) shoving it unharmed, one at 6 m/s wrecking it
+    with two hits in all; a car shoved
     against a wall beside the track (`besideWall()`) scraped past at a walk, unwrecked and never hit;
     a man on the track running off at the alarm and the train stopping short; a train held for a car
     sounding the horn 10 s, keeping the box ahead down and creeping on; the player stepping on and
@@ -2326,6 +2340,20 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     backs up short of the car queued behind, waits for a car beside its front as it steers back
     into its lane, backs up straight past a car alongside, and keeps slower and further back on a
     wet road.
+  - `src/sim/__tests__/viaduct.test.ts` (parapets, issue #91, at the crossing `viaduct.ts` finds
+    for the level tests too): a Panda driven across the SR445's viaduct west of Gragnola over the
+    residential road under it, either way, stays on the deck (before, it dropped 8 m onto that
+    road), and a traffic car on that road passes under it (with the parapets meeting every level,
+    it stops 9.1 m off the deck's centreline).
+  - `src/sim/__tests__/under-decks.test.ts` (issue #87): under the decks of Via Nuova in Gragnola,
+    Via Borgo Lucido and Via delle Cave (each the road bridge nearest the point the issue walked
+    from), the player walking up the bank with the arrow keys, from beside the wall where there is
+    2.7–3.3 m of room under the deck's top (on Via delle Cave's bank, 1.85 m steep a metre, the
+    nearest spot clear of the wall with more), ends up against a wall more than 0.5 m under the
+    deck's top (before, it stepped from 164.27 m onto Via Nuova's 164.76 m, from 158.03 onto Via
+    Borgo Lucido's 158.52 and from 210.03 onto Via delle Cave's 210.48), and from 6 m back on the
+    road at each end the player walks onto the deck and a Panda rolling from 8 m back drives across
+    it to 4 m past its far end, its wheels within 0.3 m of the deck's top all the way over it.
   - `src/sim/__tests__/freeze.test.ts`: `inReach` (within `FROZEN_BEYOND` along both axes, and
     everywhere with no player); a car rolling at 5 m/s and a parked car touching its tail about
     5.7 km from the start, their tiles dropped and no tile source, keeping their state bit for bit
@@ -2575,9 +2603,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
-  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `overpass-checks.ts`,
-  `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`, `road-oracle.ts`,
-  `shadow-turns.ts`, `joint-checks.ts`):
+  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `decks.ts`, `parapets.ts`,
+  `under-decks.ts`, `overpass-checks.ts`, `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`,
+  `road-oracle.ts`, `shadow-turns.ts`, `joint-checks.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts`,
     `clearance.map-test.ts` and `levels.map-test.ts`: the generated map's invariants, read whole,
     its tiles joined, every vector layer included (see [map.md](map.md#checks-and-tools));
@@ -2611,6 +2639,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     may drive clear of the walls, and `edgeIndex.nearest` the nearest edge by brute force over the
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square
     returning its four edges, for every tenth tree and every one within a metre of a seam;
+    `under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and `under-decks-l.map-test.ts`
+    (the L's skipped without its build): on every road bridge of the three, a walker from where there
+    is room to stand under the deck, and a Panda from where there is room for the tallest vehicle,
+    never come up onto it, and the roads meeting its ends still lead onto it on foot, on their
+    centreline and their verges, and by car ([map.md](map.md#checks-and-tools));
     `water.map-test.ts`: every bridge's verges over the water on the deck in a spate;
     `trains-world.map-test.ts`: animals brought out along the whole of Monzone's line, 250 m apart
     (92 games, 337 animals), none on its track at grade;
@@ -2643,7 +2676,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     built from the tiles' pieces as a whole-map build cuts them; each pins its counts (roads in
     tunnels, passages, metres, wall triangles, mouths, portals and the open mouths the ground over
     which does rise to `leastCover`, crowded: Lunigiana 35, 21, 967 m, 3,166, 28, 12, 2; Cesena
-    64, 22, 5,264 m, 18,124, 77, 9, 2; the L 7, 1, 194 m, 633, 12, 3, 1), so a new part's tunnels
+    64, 22, 5,264 m, 18,120, 77, 9, 2; the L 7, 1, 194 m, 633, 12, 3, 1), so a new part's tunnels
     show;
     `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
     `shadow-box-cesena.map-test.ts`: the shadow box through whole turns at the map's steepest fall,
@@ -2773,7 +2806,8 @@ fixtures `MONZONE` (the station nearest the start) and `RIOLO` (its level crossi
 beside on the rail's level), `tunnelMouth()` (3 m inside a portal whose cutting is on the rail's
 level), `underRoad()` (at grade under the road bridge by Equi Terme), `overRoad()` (at grade over a
 road tunnel, the pedestrian underpass at Equi Terme), `besideWall()` (the first two stretches at
-grade with a wall 3.3–5 m off the centreline), `downToBox()` (a way on foot down a road onto a
+grade with a wall 3.3–5 m off the centreline), `acrossWall()` (the first metre at grade crossing a
+drive wall on the track's level, a cutting's slope), `downToBox()` (a way on foot down a road onto a
 level crossing, along the box's road line the global file keeps, `MAP.derived.crossings`) and
 `underpassWays()` (every way on foot along a road into a road tunnel under the line, to under the
 track, among the roads of the tiles Monzone's line crosses, in the whole map's order, and at each

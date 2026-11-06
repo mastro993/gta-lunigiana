@@ -7,6 +7,7 @@ import type { Water } from "../sim/map/index.ts"
 import { tileByTile } from "./build-grid.ts"
 import type { Sources } from "./build-sources.ts"
 import { catchments, type Inflow } from "./catchment.ts"
+import { railSlab, roadSlab } from "./deck-ground.ts"
 import type { Dem } from "./dtm.ts"
 import type { RoadF } from "./features.ts"
 import {
@@ -200,13 +201,11 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
       ? { pts: flatLine(l.pts), z: zLine(l, terrain) }
       : { pts: flatLine(d.pts), z: d.z.map(r1) }
   }
-  // Every rail piece is profiled, so its line reads no terrain.
-  const railLines = allRail.map((r) => ({
-    r,
-    ...lineOut(r, () => {
-      throw new Error(`rail ${r.id} has no profile`)
-    }),
-  }))
+  // Every rail piece is profiled, so its line reads no terrain; nor does a bridge, profiled or lone.
+  const unread = (what: string) => () => {
+    throw new Error(`${what} has no profile`)
+  }
+  const railLines = allRail.map((r) => ({ r, ...lineOut(r, unread(`rail ${r.id}`)) }))
   const grid = tileByTile({
     dem,
     water,
@@ -216,6 +215,13 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     claims,
     // Under a deck: its carriageway and a metre either side.
     decks: roads.filter((r) => r.bridge === true).map((r) => ({ pts: r.pts, half: r.w / 2 + 1 })),
+    // The ground under every deck's slab, as shipped.
+    slabs: [
+      ...roads
+        .filter((r) => r.bridge === true)
+        .map((r) => roadSlab(r, lineOut(r, unread(`bridge ${r.id}`)))),
+      ...railLines.filter(({ r }) => r.bridge === true).map(railSlab),
+    ],
     // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings.
     rail: railLines.filter(({ r }) => !lifted(r)),
     levels: levels.map(({ v }) => [v.x, v.y] as const),
@@ -239,6 +245,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     railLines,
     roadLines: roads.map((r) => lineOut(r, at)),
     bed: grid.bed,
+    decks: grid.decks,
     /** The level crossings: the road and rail piece sharing a vertex (with its index in the piece's output polyline). */
     levels: levels.map(({ rl, rd, v }) => ({
       road: roadOf.get(rd)!,

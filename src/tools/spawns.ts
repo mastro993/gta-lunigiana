@@ -5,7 +5,7 @@ import { Ops } from "@typeonce/ritmo-math"
 import type { MapId } from "../maps.ts"
 import { staticGrid } from "../sim/collide.ts"
 import type { Area, Poi, Spawn } from "../sim/map/index.ts"
-import { isMotorRoad, pushTrunk, TRUNK } from "../sim/map/kinds.ts"
+import { isMotorRoad, ONE_LEVEL, pushTrunk, TRUNK } from "../sim/map/kinds.ts"
 import type { BuildingF, RoadF } from "./features.ts"
 import {
   arcLengths,
@@ -29,11 +29,28 @@ const REACH = 3
  * Clearance checks against flat (ax, ay, bx, by) `walls` plus the TRUNK square of every tree in
  * flat (x, y, scale) `trees`. Trees are indexed as points and their squares made on query, as
  * `wallsNear` does in the game: a segment per trunk edge would take gigabytes at a million trees.
+ * With `levelled`, a wall with a level (NaN for none: a bridge's parapet, parapets.ts) counts only
+ * for a query within ONE_LEVEL of it, a query standing at its own level or on `ground` at its point,
+ * as a body meets it in the game; without, every wall counts.
  */
-export const clearance = (walls: ReadonlyArray<number>, trees: ArrayLike<number>) => {
-  const idx = segIndex<null>()
+export const clearance = (
+  walls: ReadonlyArray<number>,
+  trees: ArrayLike<number>,
+  levelled?: {
+    readonly levels: ArrayLike<number>
+    readonly ground: (x: number, y: number) => number
+  },
+) => {
+  const idx = segIndex<number>()
   for (let i = 0; i + 3 < walls.length; i += 4)
-    idx.add(walls[i]!, walls[i + 1]!, walls[i + 2]!, walls[i + 3]!, REACH, null)
+    idx.add(
+      walls[i]!,
+      walls[i + 1]!,
+      walls[i + 2]!,
+      walls[i + 3]!,
+      REACH,
+      levelled?.levels[i / 4] ?? NaN,
+    )
   const treesIn = staticGrid(
     trees.length / 3,
     (i) => [trees[3 * i]!, trees[3 * i + 1]!, trees[3 * i]!, trees[3 * i + 1]!],
@@ -41,16 +58,20 @@ export const clearance = (walls: ReadonlyArray<number>, trees: ArrayLike<number>
   )
   const trunk: Array<number> = [],
     edge = { ax: 0, ay: 0, bx: 0, by: 0 }
-  /** Calls `visit` for every wall and trunk edge within REACH of (x, y), with its squared distance. */
+  /** Calls `visit` for every wall a body at level `z` meets and every trunk edge within REACH of (x, y), with its squared distance. */
   const near = (
     x: number,
     y: number,
+    z: number | undefined,
     visit: (
       seg: { readonly ax: number; readonly ay: number; readonly bx: number; readonly by: number },
       d2: number,
     ) => void,
   ) => {
-    idx.within(x, y, visit)
+    idx.within(x, y, (seg, d2) => {
+      if (Number.isNaN(seg.data) || z === undefined || Math.abs(seg.data - z) < ONE_LEVEL)
+        visit(seg, d2)
+    })
     const r = REACH + TRUNK
     treesIn(x - r, y - r, x + r, y + r, (i) => {
       trunk.length = 0
@@ -67,17 +88,18 @@ export const clearance = (walls: ReadonlyArray<number>, trees: ArrayLike<number>
       }
     })
   }
-  const circle = (x: number, y: number, r: number) => {
+  /** No segment comes within `r` of (x, y), for a body at level `z` (m a.s.l.: on the ground there by default). */
+  const circle = (x: number, y: number, r: number, z = levelled?.ground(x, y)) => {
     let ok = true
-    near(x, y, (_, d2) => (ok &&= d2 >= r * r))
+    near(x, y, z, (_, d2) => (ok &&= d2 >= r * r))
     return ok
   }
-  /** No segment crosses or lies inside the oriented box (half-length hl along `angle`, half-width hw). */
+  /** No segment crosses or lies inside the oriented box (half-length hl along `angle`, half-width hw), for a body on the ground. */
   const box = (x: number, y: number, angle: number, hl: number, hw: number) => {
     const c = Ops.cos(angle),
       s = Ops.sin(angle)
     let ok = true
-    near(x, y, (seg) => {
+    near(x, y, levelled?.ground(x, y), (seg) => {
       const ax = (seg.ax - x) * c + (seg.ay - y) * s,
         ay = -(seg.ax - x) * s + (seg.ay - y) * c
       const dx = (seg.bx - x) * c + (seg.by - y) * s - ax,

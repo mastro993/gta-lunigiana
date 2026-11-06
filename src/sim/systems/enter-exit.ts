@@ -36,7 +36,7 @@ import {
   Vehicle,
 } from "../schema.ts"
 import { pedestrian, randomLook } from "../spawning.ts"
-import { DOOR_GAP } from "../tuning.ts"
+import { DOOR_GAP, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
 import { footingAt } from "./footing.ts"
 import { FLEE_TIME } from "./pedestrians.ts"
@@ -56,10 +56,15 @@ const doors = (pose: PoseValue, model: VehicleModel) => {
   ]
 }
 
-/** The first door someone can get out at: clear of walk walls, with no wall between it and the vehicle's centre. */
-export const freeDoor = (pose: PoseValue, model: VehicleModel) =>
+/**
+ * The first door someone can get out at of a vehicle whose wheels stand at `level` (m a.s.l.): clear of the walk walls they meet
+ * on that level, with no such wall between it and the vehicle's centre.
+ */
+export const freeDoor = (pose: PoseValue, model: VehicleModel, level: number) =>
   doors(pose, model).find(
-    (door) => standClear(door) && !walkBy(pose, Vec2.subtract(door, pose)).blocked,
+    (door) =>
+      standClear(door, level) &&
+      !walkBy(pose, Vec2.subtract(door, pose), PERSON_RADIUS, level).blocked,
   )
 
 /**
@@ -100,7 +105,7 @@ export const fleeingDriver = (
   random: Random.Random,
   until: number,
 ) => {
-  const door = freeDoor(pose, model)
+  const door = freeDoor(pose, model, level)
   return door === undefined ? undefined : fleeingFrom(door, pose, level, random, until)
 }
 
@@ -173,11 +178,11 @@ export const EnterExit = Game.System(
         if (car.ok) {
           const pose = car.value.data.pose.get(),
             { model } = car.value.data.vehicle.get()
-          const door = freeDoor(pose, model)
-          if (door === undefined) continue
-          data.pose.set({ x: door.x, y: door.y, angle: pose.angle })
           // On the ground beside it, on the level its wheels stand on.
           const wheels = car.value.data.chassis.get().z - VEHICLES[model].cg
+          const door = freeDoor(pose, model, wheels)
+          if (door === undefined) continue
+          data.pose.set({ x: door.x, y: door.y, angle: pose.angle })
           commands.insert(entity, [Footing, { z: footZ(door.x, door.y, wheels) }])
           car.value.data.input.set({ throttle: 0, steer: 0, handbrake: true })
         } else {

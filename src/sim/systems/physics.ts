@@ -392,11 +392,20 @@ export const VehiclePhysics = Game.System(
         water,
       )
 
-      // The planar move against the walls. A turn that wedges the body into a wall is undone; if moving at all does, the car stays put.
+      // The planar move against the walls on its wheels' level (a deck's parapets stop no car under it). A turn that wedges the
+      // body into a wall is undone; if moving at all does, the car stays put.
       let vx = body.vx,
         vy = body.vy
       const delta = { x: body.x - pose.x, y: body.y - pose.y }
-      const walls = wallsAlong("drive", pose.x, pose.y, delta.x, delta.y, spec.length / 2 + 0.5)
+      const walls = wallsAlong(
+        "drive",
+        pose.x,
+        pose.y,
+        delta.x,
+        delta.y,
+        spec.length / 2 + 0.5,
+        chassis.z - spec.cg,
+      )
       const turned = moveCar(model, pose, body.angle, delta, walls)
       const moved = turned ?? moveCar(model, pose, pose.angle, delta, walls)
       // An undone turn keeps the heading, plus the half turn if the body's angles folded past vertical this step.

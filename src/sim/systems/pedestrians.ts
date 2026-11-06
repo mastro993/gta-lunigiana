@@ -17,6 +17,7 @@ import {
   Dead,
   Down,
   Follows,
+  Footing,
   Game,
   InWater,
   type Look,
@@ -38,6 +39,7 @@ import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterUnder, walkDry } from "../water/rivers.ts"
 import { outOfDepth, STROKE, waterVelocity } from "../water/swim.ts"
 import { slide } from "./foot.ts"
+import { footingAt } from "./footing.ts"
 import { personBuild } from "./water.ts"
 
 /**
@@ -125,7 +127,8 @@ const vergeAhead = (lane: Lane, along: number, side: number, most = lane.length)
  * up when behind and stands when the leader stands. Farther than CATCH_UP from its place it makes for the leader itself. When
  * a wall stands in the way of either (the leader has turned a corner, or skirts one on the follower's side), it heads LOOK m on
  * along the leader's lane (`route`, the leader's), on the line through the leader rather than the verge (which may run into the
- * wall the leader slides along), and no nearer the leader than its place is: in single file round the corner.
+ * wall the leader slides along), and no nearer the leader than its place is: in single file round the corner. The walls are those
+ * the follower meets on its ground at `z` (m a.s.l.; every one when left out).
  */
 export const followVelocity = (
   at: Vec2.Vec2,
@@ -134,10 +137,11 @@ export const followVelocity = (
   leaderVelocity: Vec2.Vec2,
   run: number,
   route: RouteValue,
+  z?: number,
 ): Vec2.Vec2 => {
   const goal = Vec2.distanceSquared(at, place) > CATCH_UP ** 2 ? leader : place
   const way = Vec2.subtract(goal, at)
-  if (crossesAny(wallsAlong("land", at.x, at.y, way.x, way.y, 0), at, goal)) {
+  if (crossesAny(wallsAlong("land", at.x, at.y, way.x, way.y, 0, z), at, goal)) {
     const lane = laneOf(route.edge, route.forward),
       side = (leader.x - lane.x) * lane.rx + (leader.y - lane.y) * lane.ry
     const target = vergeAhead(
@@ -227,6 +231,7 @@ export const Pedestrians = Game.System(
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
           wet: Game.Query.optional(InWater),
+          footing: Game.Query.optional(Footing),
         },
       }),
       leaders: Game.Query({
@@ -266,7 +271,8 @@ export const Pedestrians = Game.System(
       const wet = data.wet.value(),
         water = wet === undefined ? undefined : waterUnder(pose.x, pose.y, true, q)
       const lying = data.down.present || data.dead.present,
-        build = personBuild(data.look.get().height)
+        build = personBuild(data.look.get().height),
+        ground = footingAt(data.footing.value(), pose.x, pose.y)
       if (
         wet !== undefined &&
         water !== undefined &&
@@ -285,7 +291,7 @@ export const Pedestrians = Game.System(
           ACCEL,
           dt,
         )
-        const moved = walkBy(pose, Vec2.scale(velocity, dt))
+        const moved = walkBy(pose, Vec2.scale(velocity, dt), PERSON_RADIUS, ground)
         const real = Vec2.scale(Vec2.subtract(moved.position, pose), 1 / dt)
         const angle =
           lying || Vec2.lengthSquared(real) <= STILL * STILL
@@ -297,7 +303,7 @@ export const Pedestrians = Game.System(
       }
       if (data.down.present || data.dead.present) {
         const velocity = slide({ x: motion.vx, y: motion.vy }, dt)
-        const moved = walkBy(pose, Vec2.scale(velocity, dt))
+        const moved = walkBy(pose, Vec2.scale(velocity, dt), PERSON_RADIUS, ground)
         const angle =
           Vec2.lengthSquared(velocity) > 0.01 ? Ops.atan2(velocity.y, velocity.x) : pose.angle
         data.pose.set({ x: moved.position.x, y: moved.position.y, angle })
@@ -333,6 +339,7 @@ export const Pedestrians = Game.System(
           { x: going.vx, y: going.vy },
           pace.run,
           route,
+          ground,
         )
         face = mood.mood === "walk" || mood.mood === "flee" ? at.angle : toward
         mood = { ...mood, blocked: 0 }
@@ -395,6 +402,7 @@ export const Pedestrians = Game.System(
         mood.mood !== "flee",
         wet !== undefined,
         q,
+        ground,
       )
       const real = Vec2.scale(Vec2.subtract(moved.position, pose), 1 / dt)
       const still = Vec2.lengthSquared(real) <= (face === undefined ? 0.01 : STILL * STILL)

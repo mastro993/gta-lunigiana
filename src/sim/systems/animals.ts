@@ -44,6 +44,7 @@ import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterUnder, walkDry } from "../water/rivers.ts"
 import { outOfDepth, waterVelocity } from "../water/swim.ts"
 import { slide } from "./foot.ts"
+import { footingAt } from "./footing.ts"
 import { type Car, type Folk, fright, MOVING, scare } from "./fright.ts"
 import { followVelocity, placeBeside } from "./pedestrians.ts"
 import { animalBuild } from "./water.ts"
@@ -227,7 +228,8 @@ export const Animals = Game.System(
       const careful = data.roam.get().mood !== "flee"
       const wet = data.wet.value(),
         water = wet === undefined ? undefined : waterUnder(pose.x, pose.y, true, q),
-        build = animalBuild(data.animal.get())
+        build = animalBuild(data.animal.get()),
+        ground = footingAt(data.footing.value(), pose.x, pose.y)
       const place = (wanted: Vec2.Vec2, facing?: Vec2.Vec2) => {
         // Wading, it keeps to what it was doing, slower and pushed by the current.
         const velocity =
@@ -243,7 +245,15 @@ export const Animals = Game.System(
                 WADE_ACCEL,
                 dt,
               )
-        const moved = walkDry(pose, Vec2.scale(velocity, dt), r, careful, wet !== undefined, q)
+        const moved = walkDry(
+          pose,
+          Vec2.scale(velocity, dt),
+          r,
+          careful,
+          wet !== undefined,
+          q,
+          ground,
+        )
         const real = Vec2.scale(Vec2.subtract(moved.position, pose), 1 / dt)
         const look = facing ?? (Vec2.lengthSquared(real) > 0.01 ? real : undefined)
         data.pose.set({
@@ -272,7 +282,7 @@ export const Animals = Game.System(
           WADE_ACCEL,
           dt,
         )
-        const moved = walkBy(pose, Vec2.scale(velocity, dt), r)
+        const moved = walkBy(pose, Vec2.scale(velocity, dt), r, ground)
         const real = Vec2.scale(Vec2.subtract(moved.position, pose), 1 / dt)
         data.pose.set({
           x: moved.position.x,
@@ -284,7 +294,7 @@ export const Animals = Game.System(
       }
       if (data.down.present || data.dead.present) {
         const velocity = slide({ x: motion.vx, y: motion.vy }, dt)
-        const moved = walkBy(pose, Vec2.scale(velocity, dt), r)
+        const moved = walkBy(pose, Vec2.scale(velocity, dt), r, ground)
         data.pose.set({ x: moved.position.x, y: moved.position.y, angle: pose.angle })
         data.motion.set({ vx: velocity.x, vy: velocity.y, spin: 0 })
         continue
@@ -317,7 +327,7 @@ export const Animals = Game.System(
         const still = vx * vx + vy * vy < 0.01 && Vec2.distanceSquared(spot, pose) < NEAR * NEAR
         const velocity = still
           ? Vec2.zero
-          : followVelocity(pose, spot, at, { x: vx, y: vy }, fauna.run, leader.route.get())
+          : followVelocity(pose, spot, at, { x: vx, y: vy }, fauna.run, leader.route.get(), ground)
         const real = place(
           velocity,
           still ? { x: Ops.cos(at.angle), y: Ops.sin(at.angle) } : undefined,
@@ -336,17 +346,7 @@ export const Animals = Game.System(
       let facing: Vec2.Vec2 | undefined
       const cry = (feeling: Feeling) =>
         events.cries.emit({ who: entity.id, x: pose.x, y: pose.y, feeling })
-      const threat = scare(
-        species,
-        pose,
-        data.footing.value(),
-        cars,
-        folks,
-        honks,
-        random,
-        trains,
-        whistles,
-      )
+      const threat = scare(species, pose, ground, cars, folks, honks, random, trains, whistles)
       if (threat !== undefined) roam = fright(roam, species, threat, step, random, cry)
       else if (species === "dog" && (roam.mood === "walk" || step >= roam.until)) {
         const coming = (f: Folk, r: number) =>

@@ -13,7 +13,7 @@
  *
  * @module render/rail
  */
-import { MAP, RAIL_LIFT } from "../sim/map/index.ts"
+import { DECK_BALLAST, MAP, RAIL_LIFT } from "../sim/map/index.ts"
 import { CROSSINGS } from "../sim/rail/crossings.ts"
 import { BARRIER, ROAD_LIGHT } from "./crossings.ts"
 import { type Box, emptySink, type Piece, type Sink, type Triangles } from "./geometry.ts"
@@ -36,8 +36,6 @@ const RAIL = 0.24
  * the centreline and at least `drop` under the top, down to the terrain where the line runs on a bank.
  */
 const BED = { top: 0.02, half: 1.6, foot: 2.1, drop: 0.25 } as const
-/** On a bridge the ballast is a flat strip over the deck, m. */
-const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
 /** The bed stops this far short of a box's carriageway, m. */
 const BED_CLEAR = 1
 /** How far over the road ribbon a crossing's panel (`PANEL` m across the track), its rails and the stop lines lie, m. */

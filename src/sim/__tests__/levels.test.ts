@@ -147,8 +147,14 @@ test("traffic: a car on the road under the viaduct passes under the player and a
   const car = () => comingTo(BELOW, 5),
     mark = BENEATH,
     here = { ...OVER, angle: 0 }
-  const clear = coming(car(), mark, AWAY.pose, AWAY.z)
-  assert.ok(clear.least < 1, "its lane passes under OVER")
+  // It passes under OVER, where the player and the passer-by stand, near enough to strike someone standing there on its level: its
+  // centre within a Panda's half-width and a person's radius (1.18 m) of OVER, 0.57 m off it. Its line under the deck moves with
+  // the walls and the ground built there (1.21 m off its lane's point BENEATH), so it is read against OVER itself.
+  const clear = coming(car(), OVER, AWAY.pose, AWAY.z)
+  assert.ok(
+    clear.least < VEHICLES.panda.width / 2 + PERSON_RADIUS,
+    `it passes ${clear.least.toFixed(2)} m from OVER`,
+  )
   const walker = pedestrian(LOOK, here, DECK_LANE, {
     mood: "chat",
     until: 100_000,

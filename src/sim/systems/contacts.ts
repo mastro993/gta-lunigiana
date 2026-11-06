@@ -113,7 +113,10 @@ interface Car extends Mover {
   readonly r: number
   readonly reach: number
   readonly angle: number
-  /** Its wheels' level, m a.s.l. (`chassis.z − cg`): the ground under its middle, which what it touches is read from (`wheelsAt`). */
+  /**
+   * Its wheels' level, m a.s.l. (`chassis.z − cg`): the ground under its middle, which the drive walls it meets and what it
+   * touches (`wheelsAt`) are read from.
+   */
   readonly ground: number
   /** How far its wheels' ground rises a metre ahead: its pitch's tangent. */
   readonly rise: number
@@ -132,7 +135,7 @@ interface Body extends Mover {
   readonly heavy: boolean
   /** Its party (the leader's entity id, or its own): a parent and child, or a dog on its lead, walk touching. */
   readonly party: number
-  /** The ground it stands on, m a.s.l.: its `Footing` (`footingAt`). */
+  /** The ground it stands on, m a.s.l.: its `Footing` (`footingAt`), which the walk walls it meets and what it touches read. */
   readonly ground: number
 }
 
@@ -165,7 +168,7 @@ const wheelsAt = (car: Car, x: number, y: number): number => {
   return car.ground + along * car.rise
 }
 
-/** Shoves a car without passing through (or deeper into) drive walls. */
+/** Shoves a car without passing through (or deeper into) the drive walls on its level. */
 const shoveCar = (car: Car, nx: number, ny: number, by: number): number =>
   shove(
     car,
@@ -178,12 +181,12 @@ const shoveCar = (car: Car, nx: number, ny: number, by: number): number =>
         car,
         car.angle,
         delta,
-        wallsAlong("drive", car.x, car.y, delta.x, delta.y, car.reach + 0.5),
+        wallsAlong("drive", car.x, car.y, delta.x, delta.y, car.reach + 0.5, car.ground),
       )?.position ?? car,
   )
-/** Shoves a person or an animal without passing through walk walls. */
+/** Shoves a person or an animal without passing through the walk walls on its level. */
 const shoveBody = (body: Body, nx: number, ny: number, by: number): number =>
-  shove(body, nx, ny, by, (delta) => walkBy(body, delta, body.r).position)
+  shove(body, nx, ny, by, (delta) => walkBy(body, delta, body.r, body.ground).position)
 /** A standing body stops walking into what pushed it along (nx, ny), so a walker can tell it is blocked. */
 const stopInto = (body: Body, nx: number, ny: number) => {
   const into = body.vx * nx + body.vy * ny
@@ -193,15 +196,15 @@ const stopInto = (body: Body, nx: number, ny: number) => {
 }
 
 /**
- * Bodies touching after physics, never shoved through walls: vehicles shove each other (mass-weighted separation and an
- * impulse); a vehicle hitting a standing person or a light animal faster than KNOCK_SPEED knocks them down and throws them, and
- * may kill them (`deathChance`: a point for the player when it was their car and a person), slower it pushes them aside, and one
- * pinned against a wall stops the vehicle instead; a cow meets a vehicle like another vehicle, falling only to a hit twice
- * KNOCK_SPEED; people and animals step apart. Only bodies on one level touch (`onLevel`, within 2 m): a vehicle's from the
- * ground under its wheels where they touch, a person's or an animal's from its `Footing`, so a car on a bridge passes over what
- * stands or drives under its deck. Vehicles closing on each other, hits on people and animals, and a vehicle stopped against a
- * wall through one pinned (faster than KNOCK_SPEED) are Impact events. A vehicle beyond the player's reach (`inReach`) touches
- * nothing, frozen.
+ * Bodies touching after physics, never shoved through the walls on their level: vehicles shove each other (mass-weighted
+ * separation and an impulse); a vehicle hitting a standing person or a light animal faster than KNOCK_SPEED knocks them down and
+ * throws them, and may kill them (`deathChance`: a point for the player when it was their car and a person), slower it pushes
+ * them aside, and one pinned against a wall stops the vehicle instead; a cow meets a vehicle like another vehicle, falling only
+ * to a hit twice KNOCK_SPEED; people and animals step apart. Only bodies on one level touch (`onLevel`, within 2 m): a vehicle's
+ * from the ground under its wheels where they touch, a person's or an animal's from its `Footing`, so a car on a bridge passes
+ * over what stands or drives under its deck. Vehicles closing on each other, hits on people and animals, and a vehicle stopped
+ * against a wall through one pinned (faster than KNOCK_SPEED) are Impact events. A vehicle beyond the player's reach (`inReach`)
+ * touches nothing, frozen.
  */
 export const Contacts = Game.System(
   "Lunigiana/Contacts",

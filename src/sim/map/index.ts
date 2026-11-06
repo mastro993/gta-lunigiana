@@ -42,6 +42,8 @@ export {
   type AreaKind,
   BUILDING_STYLES,
   type BuildingStyle,
+  DECK_BALLAST,
+  DECK_SLAB,
   isAreaKind,
   isDrivable,
   isMotorRoad,
@@ -61,7 +63,7 @@ export {
 } from "./kinds.ts"
 export type { BellEntry, MouthEntry } from "./derived.ts"
 export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
-export { type Segment, treesIn, type WallKind, wallsNear } from "./walls.ts"
+export { type Segment, treesIn, type Wall, type WallKind, wallsNear } from "./walls.ts"
 
 /** The built terrain's box, metres: the box round the map's parts, which the play area (`outline`) lies in. */
 interface Bounds {

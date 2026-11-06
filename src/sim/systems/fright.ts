@@ -16,7 +16,6 @@ import {
   Down,
   type Feeling,
   Follows,
-  type FootingValue,
   Game,
   Impact,
   Pose,
@@ -27,7 +26,6 @@ import {
   STEP,
   Time,
 } from "../schema.ts"
-import { footingAt } from "./footing.ts"
 
 /** `seconds` as whole steps. */
 const stepsOf = (seconds: number): number => Math.round(seconds * STEP.hz)
@@ -108,14 +106,15 @@ const near = (p: Vec2.Vec2, at: Vec2.Vec2, r: number) =>
   r > 0 && Vec2.distanceSquared(p, at) <= r * r
 
 /**
- * What `species` at `at`, standing on `footing`, runs from this step, if anything: the point to run away from. A vehicle or a
- * train's car scares it only on its level: a vehicle where the ground its wheels come to rolling straight from under its middle to
- * `at` (`rolledTo`: the deck it drives, or the road under it) stands within LEVEL of its footing, a train's car by its rail head.
+ * What `species` at `at`, standing on `ground` (m a.s.l., its Footing's level), runs from this step, if anything: the point to run
+ * away from. A vehicle or a train's car scares it only on its level: a vehicle where the ground its wheels come to rolling straight
+ * from under its middle to `at` (`rolledTo`: the deck it drives, or the road under it) stands within LEVEL of `ground`, a train's
+ * car by its rail head.
  */
 export const scare = (
   species: Species,
   at: Vec2.Vec2,
-  footing: FootingValue | undefined,
+  ground: number,
   cars: ReadonlyArray<Car>,
   folks: ReadonlyArray<Folk>,
   honks: ReadonlyArray<{ readonly x: number; readonly y: number }>,
@@ -124,13 +123,11 @@ export const scare = (
   whistles: ReadonlyArray<{ readonly x: number; readonly y: number }>,
 ): Vec2.Vec2 | undefined => {
   const fear = FEARS[species]
-  let ground: number | undefined
-  const groundOf = () => (ground ??= footingAt(footing, at.x, at.y))
   const car = cars.find(
     (c) =>
       c.speed > fear.speed &&
       near(c, at, fear.car) &&
-      onLevel(groundOf(), rolledTo(c.x, c.y, c.ground, at.x, at.y)),
+      onLevel(ground, rolledTo(c.x, c.y, c.ground, at.x, at.y)),
   )
   if (car !== undefined) return pathPoint(car, at, random)
   const train = trains.find(
@@ -138,7 +135,7 @@ export const scare = (
       c.speed > fear.speed &&
       nearCar(c, at.x, at.y, fear.car + c.r) &&
       offCar(c, at.x, at.y) <= fear.car &&
-      onLevel(groundOf(), c.z),
+      onLevel(ground, c.z),
   )
   if (train !== undefined) return pathPoint(train, at, random)
   return (

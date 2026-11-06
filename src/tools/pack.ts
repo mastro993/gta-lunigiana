@@ -2,6 +2,7 @@
 // are in src/sim/map/packed.ts. Every value must fit its section, or the build throws.
 import type { MonzoneMap, MonzoneMapJson } from "../sim/map/index.ts"
 import {
+  NO_LEVEL,
   packOrigin,
   TILE_CELLS,
   TILE_NODES,
@@ -61,6 +62,20 @@ const packWalls = (flat: ArrayLike<number>, corner: Corner, what: string): Buffe
   )
 }
 
+/** Walls' levels (m a.s.l., NaN for none) as decimetres, `NO_LEVEL` for none: each must fit int16 above it, as the terrain does. */
+export const packLevels = (levels: ArrayLike<number>, what: string): Buffer =>
+  pack(
+    Array.from(levels, (v, k) => {
+      if (Number.isNaN(v)) return NO_LEVEL
+      const dm = Math.round(v * 10)
+      if (dm <= NO_LEVEL || dm > 32767) throw new Error(`${what}: ${v} at ${k} does not fit int16`)
+      return dm
+    }),
+    4,
+    1,
+    what,
+  )
+
 /** Trees (x, y, scale) on whole metres: metres from `treeOrigin(corner)`, the scale in hundredths. */
 const packTrees = (flat: ArrayLike<number>, corner: Corner): Buffer => {
   const o = treeOrigin(corner)
@@ -97,18 +112,24 @@ export const packMap = (
 
 /** The gunzipped tile file `decodeTile` reads back into `tile`, and the bytes of each of its parts. */
 export const packTile = (
-  tile: Omit<TileData, "heights" | "cover"> & {
+  tile: Omit<TileData, "heights" | "cover" | "wallLevels"> & {
     readonly heights: ArrayLike<number>
     readonly cover: ArrayLike<number>
+    readonly wallLevels: { readonly walk: ArrayLike<number>; readonly drive: ArrayLike<number> }
   },
 ): { readonly file: Buffer; readonly sizes: Readonly<Record<string, number>> } => {
-  const { hash, i, j, heights, walls, wallIds, trees, ids, cover, vectors } = tile
+  const { hash, i, j, heights, walls, wallIds, wallLevels, trees, ids, cover, vectors } = tile
   if (heights.length !== TILE_NODES * TILE_NODES || cover.length !== TILE_CELLS * TILE_CELLS)
     throw new Error(`tile ${i}_${j}: ${heights.length} nodes and ${cover.length} cells`)
   for (const kind of ["walk", "shore", "drive"] as const)
     if (4 * wallIds[kind].length !== walls[kind].length)
       throw new Error(
         `tile ${i}_${j}: ${walls[kind].length / 4} ${kind} walls, ${wallIds[kind].length} ids`,
+      )
+  for (const kind of ["walk", "drive"] as const)
+    if (4 * wallLevels[kind].length !== walls[kind].length)
+      throw new Error(
+        `tile ${i}_${j}: ${walls[kind].length / 4} ${kind} walls, ${wallLevels[kind].length} levels`,
       )
   if (3 * ids.length !== trees.length)
     throw new Error(`tile ${i}_${j}: ${trees.length / 3} trees, ${ids.length} ids`)
@@ -139,6 +160,8 @@ export const packTile = (
     trees: packTrees(trees, corner),
     ids: pack(ids, 4, 1, `tile ${i}_${j} tree ids`),
     cover: pack(cover, 1, TILE_CELLS, `tile ${i}_${j} cover`),
+    walkLevels: packLevels(wallLevels.walk, `tile ${i}_${j} walk wall levels`),
+    driveLevels: packLevels(wallLevels.drive, `tile ${i}_${j} drive wall levels`),
   }
   return {
     file: Buffer.concat(Object.values(parts)),

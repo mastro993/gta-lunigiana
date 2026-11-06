@@ -116,6 +116,54 @@ const roadClasses: ReadonlySet<string> = new Set(ROAD_CLASSES)
 export const isRoadClass = (cls: string): cls is RoadClass => roadClasses.has(cls)
 
 /**
+ * How far each road class's surface floats above its profile (m); wider classes on top, so junctions
+ * never z-fight. Primary, secondary and tertiary roads share one: they are the same asphalt. A step
+ * of 0.04 m keeps a class's painted lines (0.02 m over it) under the next class's asphalt where a
+ * slip road meets a trunk road or a motorway. Here, not in `./ground.ts`, so the map build reads it
+ * without a map loaded (a bridge's deck tops it: `DECK_SLAB`).
+ */
+export const ROAD_LIFT = {
+  motorway: 0.24,
+  trunk: 0.2,
+  primary: 0.16,
+  secondary: 0.16,
+  tertiary: 0.16,
+  unclassified: 0.14,
+  residential: 0.12,
+  service: 0.1,
+  track: 0.08,
+  steps: 0.07,
+  path: 0.06,
+} as const satisfies Record<RoadClass, number>
+
+/**
+ * A bridge's deck as `src/render/lines.ts` draws it: a slab from the deck's top (a road's surface,
+ * its profile plus `ROAD_LIFT`, or a rail deck's ballast, `DECK_BALLAST`) `depth` m down, reaching
+ * `margin` m past the carriageway or the ballast on either side. The map build keeps the terrain out
+ * of it (`src/tools/deck-ground.ts`).
+ */
+export const DECK_SLAB = { depth: 0.9, margin: 0.4 } as const
+
+/** On a rail bridge the ballast is a flat strip over the deck, m: its width, and its top over the bed's profile. */
+export const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
+
+/**
+ * A bridge deck or tunnel within this height (m) of where an actor was is the one it is on
+ * (`groundZ` in `./ground.ts`). Here so the map build reads it without a map loaded: the walls under
+ * the decks stand farther than ONE_LEVEL and this under a deck's top (src/tools/deck-walls.ts).
+ */
+export const ON_DECK = 0.5
+
+/**
+ * Two grounds this near in height (m) are one level. A body meets a train only where its ground
+ * stands this near the rail head, and a wall with a level (a bridge's parapet) only where its ground
+ * stands this near the wall's (`LEVEL` and `onLevel` in src/sim/rail/bodies.ts); a parapet opens
+ * only where a road this near its deck reaches it (src/tools/parapets.ts). Here so the map build
+ * reads it without a map loaded.
+ */
+export const ONE_LEVEL = 2
+
+/**
  * Per class: carriageway width (m), whether it is asphalt when OSM names no surface, and who uses
  * it (AI traffic and the player's car, the player's car only, or only people on foot). The widths
  * of the classes the Lucido valley lacks (motorway to secondary) are defaults per carriageway for
@@ -160,6 +208,17 @@ export const isMotorRoad = (road: { readonly cls: string; readonly ramp?: boolea
  */
 export const vergeOf = (cls: string, w: number): number =>
   cls === "path" || cls === "steps" || cls === "track" ? 0.3 : w / 2 + 0.8
+
+/** How far past its carriageway a road's surface reaches, m: where a wheel stands on it (`groundZ` in `./ground.ts`). */
+export const ROAD_PAD = 0.3
+
+/**
+ * How far either side of a bridge's or tunnel's centreline someone on foot is on it, m: half a metre
+ * past its walkers' verge (`vergeOf`, or the road's own `verge`), and at least ROAD_PAD past its
+ * carriageway (`groundZ` in `./ground.ts`; the walls under the decks stand there, src/tools/deck-walls.ts).
+ */
+export const footReach = (cls: string, w: number, verge?: number): number =>
+  Math.max(w / 2 + ROAD_PAD, (verge ?? vergeOf(cls, w)) + 0.5)
 
 /** A traffic lane's width, m: a `lanes` tag on a main road (motorway to secondary) gives it this much per lane. */
 export const LANE = 3.5
