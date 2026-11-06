@@ -118,8 +118,8 @@ test("AI following: at every cruise speed a car finding one standing in its lane
 const DECK = 106.07
 const deckOver = (x: number, y: number, near: number) =>
   Math.abs(y) <= 4 && Math.abs(x) <= 60 && Math.abs(near - DECK) < Math.abs(near - 100) ? DECK : 100
-/** A driver heading east (+x) from (x, 0), its wheels' ground `ground`, rising `rise` a metre ahead. */
-const east = (x: number, ground: number, rise = 0) => ({ x, y: 0, angle: 0, ground, rise })
+/** A driver heading east (+x) from (x, 0), its wheels' ground `ground`. */
+const east = (x: number, ground: number) => ({ x, y: 0, angle: 0, ground })
 /** Something whose middle is `front` m ahead on the path's axis, a circle of radius `wide`. */
 const ahead = (front: number, wide = 0.35) => ({ front, across: 0, off: 0, wide, circle: 0 })
 
@@ -172,10 +172,27 @@ test("AI level: through a dip a driver holds for a car standing on the far side,
   // 25 m down the descent, one 15 m past the foot: 4.5 m off that ground carried along the driver's pitch.
   assert.ok(Math.abs(dip(-25) - 0.15 * 40 - dip(15)) > LEVEL)
   assert.equal(
-    onPathLevel(east(-25, dip(-25), -0.15), ahead(40, 0.83), dip(15), surface),
+    onPathLevel(east(-25, dip(-25)), ahead(40, 0.83), dip(15), surface),
     true,
     "from the descent",
   )
+})
+
+// Regression (review of #85): carried along the driver's pitch from under its middle, its way's level came nearer the ground under
+// a deck rising from a sag than the deck, and it ran into the car standing there.
+test("AI level: coming down through a sag onto a deck rising from its start, a driver holds for a car standing on the deck, where the ground carried along its pitch reads the ground under it", () => {
+  // An approach falling 9% east to a deck starting at x = 0 at 100 m and rising 7% from there, 8 m wide, over ground 2.6 m under it.
+  const deck = (x: number) => 100 + 0.07 * x,
+    sag = (x: number, y: number, near: number) =>
+      x < 0
+        ? 100 - 0.09 * x
+        : Math.abs(y) <= 4 && Math.abs(near - deck(x)) <= Math.abs(near - deck(x) + 2.6)
+          ? deck(x)
+          : deck(x) - 2.6
+  // Its middle 1 m short of the deck, still pitched down the approach; a car standing on the deck 10 m ahead.
+  const carried = sag(-1, 0, 0) - 0.09 * 10
+  assert.ok(Math.abs(carried - deck(9) + 2.6) < Math.abs(carried - deck(9)))
+  assert.equal(onPathLevel(east(-1, sag(-1, 0, 0)), ahead(10, 0.83), deck(9), sag), true)
 })
 
 test("AI level: steering round a bend, a driver reads the level on the arc its wheels steer, where the car ahead stands, not off the road along its heading", () => {

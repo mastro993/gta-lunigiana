@@ -28,6 +28,8 @@ import {
   PlayerFooting,
   ROAD_Z,
   roadById,
+  onto,
+  FROM_EAST,
   staged,
   standingOn,
   trafficPanda,
@@ -252,7 +254,7 @@ const DIP = (() => {
 
 // A driver reads its level where what is ahead stands. Read under its own middle, a car at the dip's foot ran into the Panda
 // standing 40 m up the climb (at 0.83 m/s); carried along its pitch from there, a car 25 m down the descent ran into the one
-// 15 m past the foot (at 5.68 m/s). Read where they stand, it stops 6.7 m short of either.
+// 15 m past the foot (at 5.68 m/s). Rolled there, it stops 6.7 m short of either.
 test("traffic: through the SR445's dip a car at 16 m/s stops for a Panda standing in its lane 40 m ahead, from the dip's foot up the climb and from the descent across the dip", () => {
   const foot = DIP.at(0, true),
     player = {
@@ -301,6 +303,45 @@ test("traffic: through the SR445's dip a car at 16 m/s stops for a Panda standin
   }
 })
 
+// Regression (review of #85): reading its way's level from the ground under its middle carried along its pitch, a car coming down
+// through a sag onto a bridge took the ground under the deck for it, and ran into a Panda standing on the deck: at 9.5 m/s onto the
+// SR445's viaduct, at 11.7 m/s onto OSM way 237828927, where before the levels it stopped 6.2–6.4 m short. Rolled along its way it
+// keeps to the deck.
+test("traffic: coming down through a sag onto a bridge, a car stops for a Panda standing in its lane on the deck", () => {
+  const primary = onto(1362959047, 237828927)
+  for (const [label, sag, from, speed, ahead] of [
+    ["onto the SR445's viaduct from 30.5 m at 12 m/s", FROM_EAST, -18.5, 12, 12],
+    ["onto the SR445's viaduct from 30.5 m at 15 m/s", FROM_EAST, -18.5, 15, 12],
+    ["onto the SR445's viaduct from 25.5 m at 15 m/s", FROM_EAST, -13.5, 15, 12],
+    ["onto OSM way 237828927, one 6.5 m onto it", primary, primary.from, 16, 6.5],
+    ["onto OSM way 237828927, one 8 m onto it", primary, primary.from, 16, 8],
+  ] as const) {
+    const a = sag.at(from),
+      b = sag.at(ahead)
+    const game = start(
+      [],
+      [
+        { x: a.x + 80, y: a.y + 80, angle: 0 },
+        {
+          traffic: [trafficPanda(a, speed, a.step, a.next)],
+          cars: [parkedCar("panda", 0xb8312b, b, standingOn("panda", b, sag.z(b)))],
+        },
+      ],
+      { alone: true },
+    )
+    const id = game.world().vehicles.find((v) => v.traffic)!.id,
+      car = () => game.world().vehicles.find((v) => v.id === id)!
+    let least = Infinity
+    game.run(600, () => (least = Math.min(least, Vec2.distance(car(), b))))
+    assert.deepEqual(
+      game.heard.impacts.filter((i) => i.hit === "car"),
+      [],
+      label,
+    )
+    assert.ok(least > VEHICLES.panda.length + 1, `${label}: stopped ${least.toFixed(2)} m from it`)
+  }
+})
+
 /**
  * The SR445's deck over Monzone's line east of the dip (OSM way 552592643, a bridge): its traffic edge whose middle lies nearest
  * the line, and the line's s nearest there, found by the way's OSM id and geometry.
@@ -321,8 +362,8 @@ const OVERPASS = (() => {
   return best
 })()
 
-// Read under a train's middle, its level would be the ground beside the deck, not the deck: a car on the SR445's deck
-// would brake for a train passing under it at 9 of 26 timings.
+// Rolled to a train's middle, its level would be the ground beside the deck, not the deck: a car on the SR445's deck changed
+// its way for a train passing under it at 16 of 26 timings (60 m before the deck to 60 m past it every 10 m, both ways).
 test("traffic: a car on the SR445's deck over the railway goes on as if no train passed under it", () => {
   const under = pointAt(line, OVERPASS.s),
     deck = roadLevel(graph.edges[OVERPASS.edge]!.road, under.x, under.y)!,

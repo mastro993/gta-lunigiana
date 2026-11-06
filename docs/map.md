@@ -2880,6 +2880,20 @@ carriageway in plan without crossing it and the two stand 2.5 m apart or less, t
 deck there, within 25 m of a node they share, or else joins its approach within three joints and
 comes within 4.8 m of its end (10 ways on Lunigiana, 3 of them on the L, none on Cesena): on its
 level there.
+`src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts`
+(each region in its own process, the L skipped without its build but required in CI) check what a
+driver's level rests on where its way meets a bridge's deck or a tunnel's floor: at every joint
+where a Panda may drive from a road onto or off a bridge or a tunnel, or from one bridge way onto
+the next, with no junction and no turn of 30° or more, a driver standing on its lane up to 40 m
+before the joint reads a Panda standing in its lane past it, together up to 40 m apart and every 2
+m along both, on its level, rolled along the arc it steers to it (`onPathLevel`, where that arc
+keeps to the carriageways; `joint-checks.ts`). 40 m covers a Panda at the primary roads' 16 m/s,
+which starts braking for a car standing 27.1 m ahead. It checks 58,814 places at 463 joints on
+Lunigiana, 16,189 at 105 on Cesena and 8,393 at 63 on the L, in 0.9 s. Read as before, nearest
+the driver's ground carried along its lane's slope, the check fails at 30 joints on Lunigiana
+(among them the SR445 coming down 15% onto its viaduct from the east), 7 on Cesena and 8 on the L;
+rolled, only at a mouth of Pieve San Lorenzo's underpass (756577583) on Lunigiana, listed
+([Known data limitations](#known-data-limitations)), which must still fail, so a fix drops it.
 `src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule
 on the verges people walk (`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car
 stands within 20 m of a crossing node; on a map built without the narrowed verges and the parking
@@ -3547,6 +3561,13 @@ longer lucido:
   underpass under it, can hit them, and they run from it; on the footbridges and the paths under
   them people step apart as if they met (`levels.map-test.ts` lists each crossing by its two ways'
   OSM ids).
+- **Pieve San Lorenzo's underpass meets the road out of one mouth a step over its floor.** The
+  underpass under the station (756577583) lies level at 350.6 m to its mouth at (5040, 3634), where
+  the road out of it, 1191727402, starts 0.9 m higher, as that mouth opens
+  ([section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)),
+  and climbs with the terrain to 352.6 m 2 m on. A driver in the underpass reads a car standing just
+  past that mouth off its level and does not brake for it (`joints.map-test.ts` lists the joint by
+  its two ways' OSM ids).
 - **The terrain is 4 m.** The LiDAR resolves 1 m (stored at 2 m), but the game grid averages it over
   4 m cells: terrace walls, steps and narrow road benches are smoothed into slopes. Slopes come from
   a 12 m baseline. The LiDAR is from 2010 (2012 on the Carrara side), so earthworks since then are

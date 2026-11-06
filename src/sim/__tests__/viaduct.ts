@@ -2,7 +2,8 @@
  * The bridge-level tests' spot: the SR445's viaduct west of Gragnola (OSM way 552592654) over the
  * residential road under it (OSM way 140780578), both found by their OSM ids and the deck's lane by
  * geometry, so the fixtures survive a map rebuild; traffic coming along a run of lanes with no
- * junction; a setter for the player's or the animals' `Footing` (`stage` and `teleport` keep the
+ * junction; a road coming down through a sag onto a bridge (the SR445 onto the viaduct from the
+ * east); a setter for the player's or the animals' `Footing` (`stage` and `teleport` keep the
  * player's from where they were, and an animal's first is at the terrain's level); the player staged
  * there with their `Footing` set on a level; a spot out of everyone's way; and an unmanned Panda
  * rolling along the deck over the road below. Also a steep lane, where what touches or scares a
@@ -142,6 +143,50 @@ export const comingTo = (edge: number, speed: number) => {
     { edge: next, forward: true },
   )
 }
+
+/**
+ * A road coming onto a bridge (OSM way `approach` onto `deck`, found by their ids, travelled a -> b): `at(s)`, the point `s` m along
+ * its lanes from the deck's start (before it, negative) at a Panda's side, heading along them, with its step and the next; `from`
+ * where the lanes start, two edges before the deck's first; and `z(p)` the deck's surface at `p`, m a.s.l.
+ */
+export const onto = (approach: number, deck: number) => {
+  const up = roadById(approach),
+    on = roadById(deck)
+  const first = graph.trafficEdges.find((e) => {
+    const { road, a } = graph.edges[e]!
+    return (
+      road === on &&
+      graph.adjacency[a]!.some(
+        (f) => traffic.has(f) && graph.edges[f]!.road === up && graph.edges[f]!.b === a,
+      )
+    )
+  })
+  assert.ok(first !== undefined, `OSM way ${approach} comes onto ${deck}, a -> b`)
+  const chain = lanesThrough(first, 2, 1),
+    lengths = chain.map((e) => laneOf(e, true).length),
+    starts = lengths.map((_, k) =>
+      lengths.slice(0, k).reduce((sum, l) => sum + l, -lengths[0]! - lengths[1]!),
+    )
+  return {
+    from: starts[0]!,
+    at: (s: number) => {
+      const k = starts.findLastIndex((start) => start <= s)
+      assert.ok(k >= 0 && k + 1 < chain.length, `${s} m along the lanes onto OSM way ${deck}`)
+      const step = { edge: chain[k]!, forward: true },
+        lane = laneOf(step.edge, true)
+      return {
+        ...lanePoint(lane, s - starts[k]!, laneSide(step, "panda")),
+        angle: Ops.atan2(lane.dy, lane.dx),
+        step,
+        next: { edge: chain[k + 1]!, forward: true },
+      }
+    },
+    z: (p: { readonly x: number; readonly y: number }) => roadLevel(on, p.x, p.y)!,
+  }
+}
+
+/** The SR445 coming down 15% from the east (OSM way 552592644) onto the viaduct's level deck (`onto`): a sag at its start. */
+export const FROM_EAST = onto(552592644, 552592654)
 
 /** A standing `model`'s chassis at `pose` on the level nearest `level` (m a.s.l.): the deck's or the road's under it. */
 export const standingOn = (model: VehicleModel, pose: PoseValue, level: number) =>

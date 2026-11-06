@@ -1,7 +1,7 @@
 import { Clock } from "@typeonce/ritmo"
-import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
+import { Random, Vec2 } from "@typeonce/ritmo-math"
 
-import { groundZ } from "../map/ground.ts"
+import { rolledTo } from "../map/ground.ts"
 import { onLevel } from "../rail/bodies.ts"
 import { railSense } from "../rail/senses.ts"
 import { cruiseSpeed, roadOf, trafficIndex } from "../route.ts"
@@ -317,9 +317,8 @@ export const Perceive = Game.System(
     for (const w of walkers)
       if (w.leader !== undefined && (w.down || w.dead))
         fallen.set(w.leader, [...(fallen.get(w.leader) ?? []), w])
-    // The moving vehicles, and by id each one's wheels' level under its middle (m a.s.l., `chassis.z − cg`) and how far it rises a
-    // metre ahead (its pitch's tangent).
-    const wheels = new Map<number, { readonly ground: number; readonly rise: number }>()
+    // The moving vehicles, and by id each one's wheels' ground under its middle (m a.s.l., `chassis.z − cg`).
+    const wheels = new Map<number, number>()
     const cars: ReadonlyArray<Car> = queries.vehicles.each().flatMap(({ entity, data }) => {
       const pose = data.pose.get(),
         { vx, vy } = data.motion.get()
@@ -327,10 +326,7 @@ export const Perceive = Game.System(
       const usual = cruiseSpeed(roadOf(trafficIndex.nearest(pose.x, pose.y))),
         { model } = data.vehicle.get(),
         chassis = data.chassis.get()
-      wheels.set(entity.id, {
-        ground: chassis.z - VEHICLES[model].cg,
-        rise: Ops.tan(chassis.pitch),
-      })
+      wheels.set(entity.id, chassis.z - VEHICLES[model].cg)
       return [carOf(entity.id, model, pose, vx, vy, usual)]
     })
     const positions = new Map(
@@ -495,14 +491,15 @@ export const Perceive = Game.System(
       const found: Array<Reaction> = []
       let ground: number | undefined
       const groundOf = () => (ground ??= footingAt(w.footing, w.at.x, w.at.y))
-      // A vehicle on its level: where it stands, the surface nearest the vehicle's wheels' ground carried along its pitch (the deck
-      // the vehicle drives, or the road under it, as a driver reads its way) within LEVEL of its footing. A train's car in `moving`
-      // is on it. Asked only of what would move it.
+      // A vehicle on its level: the ground its wheels come to rolling straight from under its middle to where it stands (`rolledTo`:
+      // the deck the vehicle drives, or the road under it, as a driver reads its way) within LEVEL of its footing. A train's car in
+      // `moving` is on it. Asked only of what would move it.
       const sensed = (car: Car) => {
-        const v = wheels.get(car.id)
-        if (v === undefined) return true
-        const ahead = (w.at.x - car.x) * Ops.cos(car.angle) + (w.at.y - car.y) * Ops.sin(car.angle)
-        return onLevel(groundOf(), groundZ(w.at.x, w.at.y, v.ground + ahead * v.rise, true))
+        const ground = wheels.get(car.id)
+        return (
+          ground === undefined ||
+          onLevel(groundOf(), rolledTo(car.x, car.y, ground, w.at.x, w.at.y))
+        )
       }
       // A train's cars within reach of its senses, on its level.
       const moving =

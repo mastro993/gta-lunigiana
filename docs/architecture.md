@@ -121,7 +121,7 @@ fill replays with the seed.
 | 19 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
 | 20 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
 | 21 | `Crossings` | `rail/systems.ts` | each level crossing moves on through its cycle (`LevelCrossings`: open, warning, lowering, closed, raising) from whether a train demands it now: moving at it, standing ready (an AI train about to go, the player's with its lever forward) or on it |
-| 22 | `TrafficAI` | `systems/traffic.ts` | AI drivers write their `CarInput`, braking for vehicles, people, animals and the cars of trains on their level (`onPathLevel`: their wheels', `Footing` or rail head within 2 m, `LEVEL`, of the ground the driver's way comes to where each reaches into its path), slower and keeping further back where the road is wet or snowy; at a level crossing (`rail/roads.ts`, reading `LevelCrossings` this step) they stop for a box not open (from the lowering on always, and short of the trains' envelope) and keep it and the junction before it clear, patient while it is closed for a train; a driver held up honks (`Honk`), and backs up rather than turn round beside a line's track; a car beyond the player's reach (`inReach`) is skipped, its route and controls kept |
+| 22 | `TrafficAI` | `systems/traffic.ts` | AI drivers write their `CarInput`, braking for vehicles, people, animals and the cars of trains on their level (`onPathLevel`: their wheels', `Footing` or rail head within 2 m, `LEVEL`, of the ground the driver's wheels come to rolling along its path to where each reaches into it, `rolledTo` in `map/ground.ts`), slower and keeping further back where the road is wet or snowy; at a level crossing (`rail/roads.ts`, reading `LevelCrossings` this step) they stop for a box not open (from the lowering on always, and short of the trains' envelope) and keep it and the junction before it clear, patient while it is closed for a train; a driver held up honks (`Honk`), and backs up rather than turn round beside a line's track; a car beyond the player's reach (`inReach`) is skipped, its route and controls kept |
 | 23 | `TrainAI` | `rail/service.ts` | AI train drivers write their lever (`CarInput`): line speed, braking curves to the next station's stop point, behind a train ahead on their track (any line's, on shared track; short of where one coming at them will stand) and short of a crossing whose arms are not down, standing where they are while one within their braking distance comes down; they dwell at stations while the game clock runs (`TrainRun`), drawing from `RailRng`, and whistle entering long tunnels (`Whistle`); a person, an animal or a vehicle on the track ahead on their level, a vehicle touching their body alongside, or another train against either end, holds them (`rail/lookout.ts`): the emergency brake and the urgent whistle, the horn, then a creep on; shoved while dwelling, they pull the emergency brake |
 | 24 | `Pedestrians` | `systems/pedestrians.ts` | people move as their mood says: walk their routes, keep by their leader, stop, gather, run; the down and the dead slide; out of their depth in the water they make for the bank, and the current takes the down and the dead |
 | 25 | `Animals` | `systems/animals.ts` | animals rest, wander (in the play area, never onto the track), keep by their walker and run from what scares them, a vehicle or a train only on their level, and this step's whistles too; free dogs bark; the down and the dead slide; out of their depth in the water they paddle for the bank; cries are `Cry` events |
@@ -2577,7 +2577,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
   `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `overpass-checks.ts`,
   `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`, `road-oracle.ts`,
-  `shadow-turns.ts`):
+  `shadow-turns.ts`, `joint-checks.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts`,
     `clearance.map-test.ts` and `levels.map-test.ts`: the generated map's invariants, read whole,
     its tiles joined, every vector layer included (see [map.md](map.md#checks-and-tools));
@@ -2587,7 +2587,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     polygon it holds, and `buildingsIn` answering as one 64 m broad phase over the whole map's
     buildings (the same buildings, in the same order, over 1,500 boxes 1–600 m across, half of them
     within 80 m of a seam, the rest within 300 m of a building) with its lattice on their lowest
-    corner; `ground.map-test.ts`,
+    corner; `joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts` (the L
+    skipped without its build): a driver coming onto or off a bridge or a tunnel reads a car standing
+    in its lane past the joint on its level (`joint-checks.ts`, see
+    [map.md](map.md#checks-and-tools)); `ground.map-test.ts`,
     `ground-cesena.map-test.ts` and `ground-l.map-test.ts` (the L test region, skipped without its
     build): the ground, the surface and the water read from the tiles answering to the bit as the
     whole map's broad phases did (`ground-oracle.ts`), at 6,000 seeded points (half of them within

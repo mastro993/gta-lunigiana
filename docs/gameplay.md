@@ -594,20 +594,33 @@ the lane helpers in `src/sim/route.ts`.
   `LEVEL`): a vehicle by its wheels' ground (`chassis.z − cg`), a person or an animal by its
   `Footing` ([Footing](#footing)), a train's car by its rail head. The car reads its own level where
   the obstacle reaches into its path (the obstacle's middle moved toward the cone's axis by as far
-  as it reaches across): the surface there nearest its wheels' ground carried along its pitch
-  (`groundZ`, as its wheels find theirs; `onPathLevel` in `systems/traffic.ts`). So on the SR445's
-  viaduct west of Gragnola a car comes at 15 m/s over the player, a parked car or a dead dog on the
-  road 6.07 m under its deck, as over nobody, and a car on that road passes under the player or a
-  passer-by on the deck; before, each stopped 4.8–5.1 m short of the player. Read under the car's
-  own middle, the level would lose the car ahead on a hill: along Lunigiana's drivable roads,
-  sampled every 2 m, one 15 m ahead stands 2 m or more off that ground at 18% of places, one 20 m
-  ahead at 29%, and still at 0.4% and 1.6% with it carried along the car's pitch. In the SR445's dip
-  500 m east of the viaduct, 15% down into it and 15% up out of it, a car at 16 m/s then ran into a
-  Panda standing 40 m up the climb from the dip's foot (at 0.8 m/s) or, carried along its pitch,
-  into one 15 m past the foot from 25 m down the descent (at 5.7 m/s); read where they stand, it
-  stops 6.7 m short of either. Read under the obstacle's middle, a train's car passing under a road
-  bridge may lie off the deck: a car on the SR445's deck over the railway, 340 m east of the dip,
-  braked for a train passing under it at 9 of 26 timings, and now goes on as if none did.
+  as it reaches across): the ground its wheels come to rolling there from under its middle along the
+  cone's axis, read every metre, each the surface nearest the last (`rolledTo` in `map/ground.ts`,
+  over `groundZ` with the decks out to their walkers' verges; `onPathLevel` in
+  `systems/traffic.ts`), so it keeps to the deck it drives, or the road under it, through a sag and
+  over a crest. So on the SR445's viaduct west of Gragnola a car comes at 15 m/s over the player, a
+  parked car or a dead dog on the road 6.07 m under its deck, as over nobody, and a car on that road
+  passes under the player or a passer-by on the deck; before, each stopped 4.8–5.1 m short of the
+  player. Backing up on the deck, a car backs over the player on the road under it as over nobody,
+  and stops short of them standing behind it on the deck. Read under the car's own middle, the
+  level would lose the car ahead on a hill: along Lunigiana's traffic lanes, sampled every 2 m, a
+  car standing 15 m ahead along them (no junction between) stands 2 m or more off that ground at
+  6.6% of 301,195 places, one 20 m ahead at 14.1% of 285,790. In the SR445's dip 500 m east of the
+  viaduct, 15% down into it and 15% up out of it, a car at 16 m/s then ran into a Panda standing 40
+  m up the climb from the dip's foot (at 0.8 m/s), or, with that ground carried along its pitch,
+  into one 15 m past the foot from 25 m down the descent (at 5.7 m/s); rolled there, it stops 6.7 m
+  short of either. Read where the obstacle stands nearest its wheels' ground carried along its pitch
+  (the reading before this one), the level would lose a car standing on a bridge past a sag: coming
+  down 15% onto the SR445's viaduct from the east, a car ran into a Panda standing 12 m onto the
+  deck at 3.7–9.5 m/s, and coming down 8% onto the primary road's bridge OSM way 237828927, into
+  one 6.5 m onto its deck at 11.7 m/s; rolled there, it stops 6.1–6.4 m short. With a lane's slope
+  for the pitch, that reading loses such a car at 30 of Lunigiana's 463 joints between a road and a
+  bridge or a tunnel, 7 of Cesena's 105 and 8 of the L's 63; rolled, at none but a mouth of Pieve
+  San Lorenzo's underpass ([map.md](map.md#known-data-limitations)). Rolled to the obstacle's
+  middle, a train's car passing under a road bridge may lie off the deck: a car on the SR445's deck
+  over the railway, 340 m east of the dip, then changed its way for a train passing under it at 16
+  of 26 timings (from 60 m before the deck to 60 m past it every 10 m, both ways), and now goes on
+  as if none did.
 - **Level crossings.** The car stops for a box that is not open and keeps boxes and the junctions
   before them clear ([Traffic at the crossings](#traffic-at-the-crossings)).
 - **Unsticking.** A car stuck below 1 m/s for 3 s reverses for 1.5 s at 3 m/s. If it is lined up
@@ -644,7 +657,10 @@ the lane helpers in `src/sim/route.ts`.
   queued 4.5 m behind one that backs up (the backing limit), a car alongside one backing up askew
   (the straight wheel), a driver steering back into its lane beside a standing car (the bent cone),
   and the same road wet (slower, easing off sooner, stopping and backing further from the cars
-  around it).
+  around it). `src/sim/__tests__/levels.test.ts` stages the level rule on and under the SR445's
+  viaduct, forward and backing up, through its dip, down the sags onto its deck and onto OSM way
+  237828927's, and over its deck over the railway; `traffic.test.ts` reads `onPathLevel` over
+  made-up ground (a deck, a train's car under it, a dip, a sag onto a rising deck, a bend).
 - **How it flows.** With the player standing 3 real minutes while traffic fills the roads, on a
   new game (22 October 2026 from 08:00, Balanced handling) with the weather held clear, the share
   of the traffic's time under 1 m/s and the honks were 0.18 and 82 in Monzone's street, 0.13 and
@@ -764,14 +780,19 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
   without a flight or a glare. Only people on its level sense it: under a rail bridge, over a
   tunnel or on a road bridge over the line it passes them by
   ([Around the trains](#around-the-trains)).
-- **On their level.** A vehicle counts to the Danger and Speeding stimuli only on their level:
-  where they stand, the surface nearest its wheels' ground (`chassis.z − cg`) carried along its
-  pitch to them (the deck it drives, or the road under it) stands within 2 m of their `Footing`
-  (`LEVEL`, [Footing](#footing)). Under the SR445's viaduct west of Gragnola a passer-by stands as a
-  Panda rolls over them on its deck; before, they ran 10.5 m from it, crying out in fright. Read
-  under the car's middle, the level would lose a car coming down a hill at them: at the foot of a
-  30% lane a passer-by then ran from a Panda coming down at 8 m/s only 6.4 m short of it, and was
-  struck; now they run 14.4 m short of it, its wheels 4.3 m over them.
+- **On their level.** A vehicle counts to the Danger and Speeding stimuli only on their level: the
+  ground its wheels come to rolling straight from under its middle (`chassis.z − cg`) to where they
+  stand, read every metre, each the surface nearest the last (`rolledTo`: the deck it drives, or the
+  road under it, as a driver reads its way), stands within 2 m of their `Footing` (`LEVEL`,
+  [Footing](#footing)). Under the SR445's viaduct west of Gragnola a passer-by stands as a Panda
+  rolls over them on its deck; before, they ran 10.5 m from it, crying out in fright. Nor do they
+  look at one speeding over them there at 22 m/s, as they do standing beside its lane on the deck.
+  Read under the car's middle, the level would lose a car coming down a hill at them: at the foot of
+  a 30% lane a passer-by then ran from a Panda coming down at 8 m/s only 6.4 m short of it, and was
+  struck; now they run 12.4 m short of it (middle to middle), its wheels 4.0 m over them. Read where
+  they stand nearest its wheels' ground carried along its pitch, a passer-by under the viaduct's
+  deck 12 m past the sag at its east end, where the ground lies 3.5 m under the deck, ran from a
+  Panda still coming down the 15% approach 14–22 m off; rolled, its level keeps to the deck.
 - **The gap, not the distance.** Danger is the gap to the car's body, because a distance from its
   centre made every walker on the verge run from ordinary traffic. A Panda in its lane passes a
   walker on the verge with 0.88 m or more between its body and them on 95 % of the map's 12 m/s
@@ -1131,9 +1152,9 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   | pig | faster than 5 m/s within 8 m | within 3 m | | within 30 m | within 20 m | fright, 80 % |
 
   A train's car counts as a vehicle by the distance to its body (a car's middle can be 10 m from
-  an animal beside its end), and only on the animal's level. So does a vehicle: where the animal
-  stands, the surface nearest its wheels' ground (`chassis.z − cg`) carried along its pitch stands
-  within 2 m of its `Footing` (`LEVEL`). Under the SR445's viaduct west of Gragnola a cat, a dog, a
+  an animal beside its end), and only on the animal's level. So does a vehicle: the ground its
+  wheels come to rolling straight from under its middle (`chassis.z − cg`) to the animal
+  (`rolledTo`, as people read it) stands within 2 m of its `Footing` (`LEVEL`). Under the SR445's viaduct west of Gragnola a cat, a dog, a
   cow and a pig stay as a Panda rolls over them on its deck, where before they ran 15.2, 13.9, 7.8
   and 9.7 m, the cat, the cow and the pig crying out; at the foot of a 30% lane a cat runs from a
   Panda coming down at it 7.8 m off, its wheels 2.3 m over it (6.2 m off, read under its middle).
@@ -1906,9 +1927,9 @@ Gameplay changes need a test: the scenario tests in `src/sim/__tests__/index.tes
 `src/sim/__tests__/walls.test.ts`, `src/sim/__tests__/people.test.ts`,
 `src/sim/__tests__/damage.test.ts`, `src/sim/__tests__/explosions.test.ts` and
 `src/sim/__tests__/levels.test.ts`, `levels-contacts.test.ts` and `levels-senses.test.ts` (on and
-under the SR445's viaduct west of Gragnola, found by its OSM way in `viaduct.ts`, through the
-SR445's dip and over its deck over the railway east of it, and on a 30% lane) stage exact
-situations with `src/sim/testing.ts`;
+under the SR445's viaduct west of Gragnola, found by its OSM way in `viaduct.ts`, down the sags
+onto its deck and onto OSM way 237828927's, through the SR445's dip and over its deck over the
+railway east of it, and on a 30% lane) stage exact situations with `src/sim/testing.ts`;
 `src/sim/__tests__/reactions.test.ts` and `src/sim/__tests__/aftermath.test.ts` stage reactions on Via Cesare Battisti with
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first

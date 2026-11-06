@@ -5,7 +5,7 @@ import { forwardSpeed, wrapAngle } from "../body.ts"
 import { GRAVITY, rigFor, RIGS } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { type HandlingValue, REAL_HANDLING } from "../handling.ts"
-import { groundZ } from "../map/ground.ts"
+import { rolledTo } from "../map/ground.ts"
 import { graph } from "../map/index.ts"
 import { onLevel, trainCars } from "../rail/bodies.ts"
 import { atCrossings, backRoom, busyBoxes, nearTrack, type Occupant } from "../rail/roads.ts"
@@ -182,26 +182,19 @@ interface Meeting {
 
 /**
  * Whether ground at `z` (m a.s.l.) under something in a driver's path is on the driver's level. The driver stands at `at`, its
- * wheels' ground `ground` under its middle, rising `rise` m a metre ahead (its pitch). The other's middle is `front` m ahead and
- * `across` m to its left, `off` m from the path's axis (the line ahead or behind, or the arc its wheels steer round (0,
- * `circle`); 0, a line), and it reaches `wide` m toward that axis. Where it reaches into the path (its middle moved toward the
- * axis's nearest point by `wide`, or that point where it reaches across the axis), the ground the driver's way comes to
- * (`surface` nearest its own carried along its pitch, as its wheels find theirs: the deck it drives, or the road under it)
- * stands within LEVEL of `z`. Read there, not under the driver's middle, so the car ahead stays in sight through a dip; nor
- * under the other's middle, which may lie off the deck (a train's car passing under it).
+ * wheels' ground `ground` under its middle. The other's middle is `front` m ahead and `across` m to its left, `off` m from the
+ * path's axis (the line ahead or behind, or the arc its wheels steer round (0, `circle`); 0, a line), and it reaches `wide` m toward
+ * that axis. Where it reaches into the path (its middle moved toward the axis's nearest point by `wide`, or that point where it
+ * reaches across the axis), the ground the driver's wheels come to rolling along the axis to that point and on to there
+ * (`rolledTo` over `surface`: the deck it drives, or the road under it, through a sag or over a crest) stands within LEVEL of `z`.
+ * Read there, not under the driver's middle, so the car ahead stays in sight through a dip; nor under the other's middle, which may
+ * lie off the deck (a train's car passing under it).
  */
 export const onPathLevel = (
-  at: {
-    readonly x: number
-    readonly y: number
-    readonly angle: number
-    readonly ground: number
-    readonly rise: number
-  },
+  at: { readonly x: number; readonly y: number; readonly angle: number; readonly ground: number },
   { front, across, off, wide, circle }: Meeting,
   z: number,
-  surface: (x: number, y: number, near: number) => number = (x, y, near) =>
-    groundZ(x, y, near, true),
+  surface?: (x: number, y: number, near: number) => number,
 ): boolean => {
   // The axis's point nearest the other's middle: abeam it on the line, or on the arc toward it from the arc's centre.
   const out = circle === 0 ? 0 : Math.abs(circle) / Ops.hypot(front, across - circle),
@@ -212,10 +205,32 @@ export const onPathLevel = (
     a = across + (axisAcross - across) * pull,
     fx = Ops.cos(at.angle),
     fy = Ops.sin(at.angle)
-  return onLevel(
-    surface(at.x + fx * f - fy * a, at.y + fy * f + fx * a, at.ground + f * at.rise),
-    z,
-  )
+  // Rolled from the driver's middle along the line, or round the arc a metre's chord at a time (swept by `sweep` round its centre
+  // in all), then on to where the other reaches in.
+  let level = at.ground,
+    pf = 0,
+    pa = 0
+  const roll = (tf: number, ta: number) => {
+    level = rolledTo(
+      at.x + fx * pf - fy * pa,
+      at.y + fy * pf + fx * pa,
+      level,
+      at.x + fx * tf - fy * ta,
+      at.y + fy * tf + fx * ta,
+      surface,
+    )
+    pf = tf
+    pa = ta
+  }
+  if (circle === 0) roll(axisFront, 0)
+  else {
+    const sweep = Ops.atan2(circle * axisFront, circle * (circle - axisAcross)),
+      chords = Math.ceil(Math.abs(sweep * circle))
+    for (let k = 1; k <= chords; k++)
+      roll(circle * Ops.sin((sweep * k) / chords), circle * (1 - Ops.cos((sweep * k) / chords)))
+  }
+  roll(f, a)
+  return onLevel(level, z)
 }
 
 /** Lifted roads: a bridge deck or a tunnel. */
@@ -426,10 +441,9 @@ export const TrafficAI = Game.System(
       const { model } = data.vehicle.get()
       const spec = VEHICLES[model]
       const speed = forwardSpeed(data.motion.get(), pose.angle)
-      // Its wheels' ground under its middle, and how much that rises a metre ahead (its pitch).
+      // Its wheels' ground under its middle.
       const chassis = data.chassis.get(),
-        ground = chassis.z - spec.cg,
-        rise = Ops.tan(chassis.pitch)
+        ground = chassis.z - spec.cg
       let route = data.route.get()
       let pilot = data.pilot.get()
       if (distanceToEdge(route.edge, pose.x, pose.y) > LOST) {
@@ -471,7 +485,7 @@ export const TrafficAI = Game.System(
       const steer = Math.max(-1, Math.min(1, error * 2.5))
       const fx = Ops.cos(pose.angle),
         fy = Ops.sin(pose.angle)
-      const driver = { ...pose, ground, rise },
+      const driver = { ...pose, ground },
         level = (z: number, front: number, across: number, off: number, wide: number, circle = 0) =>
           onPathLevel(driver, { front, across, off, wide, circle }, z)
       // The share of its dry grip the road leaves (wet or snowy): it drives, follows and backs up that much more carefully.

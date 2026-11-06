@@ -174,23 +174,21 @@ export const Animals = Game.System(
       q = specificDischarge(resources.rivers.get(), FLOW)
     // Vehicles are where last step's physics left them; parked ones scare nobody.
     const cars: ReadonlyArray<Car> = queries.vehicles.each().flatMap(({ data }) => {
-      const { x, y, angle } = data.pose.get(),
+      const { x, y } = data.pose.get(),
         { vx, vy } = data.motion.get(),
         speed = Math.sqrt(vx * vx + vy * vy)
-      if (speed <= 1) return []
-      const chassis = data.chassis.get()
-      return [
-        {
-          x,
-          y,
-          vx,
-          vy,
-          speed,
-          angle,
-          ground: chassis.z - VEHICLES[data.vehicle.get().model].cg,
-          rise: Ops.tan(chassis.pitch),
-        },
-      ]
+      return speed > 1
+        ? [
+            {
+              x,
+              y,
+              vx,
+              vy,
+              speed,
+              ground: data.chassis.get().z - VEHICLES[data.vehicle.get().model].cg,
+            },
+          ]
+        : []
     })
     const folks: ReadonlyArray<Folk> = queries.people.each().flatMap(({ data }) => {
       if (data.down.present || data.dead.present) return []
