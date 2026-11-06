@@ -16,7 +16,7 @@ import { crossesAny, standClear, vehicleInReach, walkBy, wallsAlong, wrapAngle }
 import { footZ } from "../map/ground.ts"
 import { MAP } from "../map/index.ts"
 import type { ChassisValue, PoseValue, TrainMotionValue } from "../schema.ts"
-import { DOOR_GAP, ENTER_GAP } from "../tuning.ts"
+import { DOOR_GAP, ENTER_GAP, PERSON_RADIUS } from "../tuning.ts"
 import type { VehicleModel } from "../vehicles.ts"
 import { onLevel } from "./bodies.ts"
 import { type Line, LINES, pointAt } from "./lines.ts"
@@ -99,7 +99,7 @@ export const trainInReach = <T>(
     for (const door of doorsOf(line, motion, model)) {
       const gap = Ops.hypot(door.x - at.x, door.y - at.y)
       if (gap > (found?.gap ?? ENTER_GAP) || !onLevel(ground, door.z)) continue
-      const walls = wallsAlong("walk", at.x, at.y, door.x - at.x, door.y - at.y, 0.5)
+      const walls = wallsAlong("walk", at.x, at.y, door.x - at.x, door.y - at.y, 0.5, ground)
       if (crossesAny(walls, at, door)) continue
       found = { train, door, gap }
     }
@@ -131,7 +131,7 @@ export const boardingAt = <V, T>(
   of: (train: T) => Boardable,
 ): Boarding<V, T> | undefined => {
   const door = trainInReach(at, ground, trains, of),
-    vehicle = vehicleInReach(at, vehicles, bodyOf, door?.gap)
+    vehicle = vehicleInReach(at, vehicles, bodyOf, door?.gap, ground)
   if (vehicle !== undefined) return { kind: "vehicle", vehicle }
   return door === undefined ? undefined : { kind: "train", train: door.train, door: door.door }
 }
@@ -181,8 +181,9 @@ export const exitSpot = (
       x: door.x + Ops.sin(at.angle) * side * DOOR_GAP,
       y: door.y - Ops.cos(at.angle) * side * DOOR_GAP,
     }
-    if (!onLevel(footZ(spot.x, spot.y, at.z), at.z) || !standClear(spot)) return []
-    if (walkBy(at, { x: spot.x - at.x, y: spot.y - at.y }).blocked) return []
+    const ground = footZ(spot.x, spot.y, at.z)
+    if (!onLevel(ground, at.z) || !standClear(spot, ground)) return []
+    if (walkBy(at, { x: spot.x - at.x, y: spot.y - at.y }, PERSON_RADIUS, ground).blocked) return []
     // Facing the way the train's end faces: the active cab's way, the far cab's the other.
     return [{ side, pose: { ...spot, angle: end === 0 ? angle : wrapAngle(angle + Math.PI) } }]
   })

@@ -142,9 +142,9 @@ export const honkedAt = (at: Vec2.Vec2, car: PoseValue): boolean => {
   return rx * fx + ry * fy > 0 && Math.abs(ry * fx - rx * fy) < HORN_AIM
 }
 
-/** Whether no walk wall stands between `a` and `b`. */
-export const inSight = (a: Vec2.Vec2, b: Vec2.Vec2): boolean =>
-  !crossesAny(wallsAlong("walk", a.x, a.y, b.x - a.x, b.y - a.y, 0), a, b)
+/** Whether no walk wall stands between `a` and `b` that someone at `a` meets standing at `z` (m a.s.l.; every one when left out). */
+export const inSight = (a: Vec2.Vec2, b: Vec2.Vec2, z?: number): boolean =>
+  !crossesAny(wallsAlong("walk", a.x, a.y, b.x - a.x, b.y - a.y, 0, z), a, b)
 
 /**
  * The verge of `route` on the person's own side of a vehicle's path, so they never cross in front of it (either, when they stand

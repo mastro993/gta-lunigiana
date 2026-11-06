@@ -11,6 +11,7 @@ import {
   Down,
   Driving,
   Follows,
+  Footing,
   Game,
   Impact,
   Motion,
@@ -28,6 +29,7 @@ import {
 } from "../schema.ts"
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
+import { footingAt } from "./footing.ts"
 import { FLEE_TIME, runFrom } from "./pedestrians.ts"
 import { inReach, playerPose } from "./reach.ts"
 
@@ -127,6 +129,8 @@ interface Body extends Mover {
   readonly heavy: boolean
   /** Its party (the leader's entity id, or its own): a parent and child, or a dog on its lead, walk touching. */
   readonly party: number
+  /** Its footing, m a.s.l.: the walk walls it meets. */
+  readonly ground: number
 }
 
 /** Moves `body` `by` metres along (nx, ny), as far as `move` lets it go; returns how far it got. */
@@ -162,7 +166,7 @@ const shoveCar = (car: Car, nx: number, ny: number, by: number): number =>
   )
 /** Shoves a person or an animal without passing through walk walls. */
 const shoveBody = (body: Body, nx: number, ny: number, by: number): number =>
-  shove(body, nx, ny, by, (delta) => walkBy(body, delta, body.r).position)
+  shove(body, nx, ny, by, (delta) => walkBy(body, delta, body.r, body.ground).position)
 /** A standing body stops walking into what pushed it along (nx, ny), so a walker can tell it is blocked. */
 const stopInto = (body: Body, nx: number, ny: number) => {
   const into = body.vx * nx + body.vy * ny
@@ -200,6 +204,7 @@ export const Contacts = Game.System(
           down: Game.Query.optional(Down),
           player: Game.Query.optional(Player),
           follows: Game.Query.optional(Follows),
+          footing: Game.Query.optional(Footing),
         },
         without: [Driving],
       }),
@@ -210,6 +215,7 @@ export const Contacts = Game.System(
           animal: Game.Query.read(Animal),
           down: Game.Query.optional(Down),
           follows: Game.Query.optional(Follows),
+          footing: Game.Query.optional(Footing),
         },
       }),
       driver: Game.Query({ selection: { driving: Game.Query.read(Driving) }, with: [Player] }),
@@ -303,6 +309,7 @@ export const Contacts = Game.System(
         half,
         heavy: false,
         party: follows === undefined ? match.entity.id : Game.Entity.id(follows.leader),
+        ground: footingAt(data.footing.value(), pose.x, pose.y),
       }
       return { match, body }
     })
@@ -326,6 +333,7 @@ export const Contacts = Game.System(
         half: fauna.lethal,
         heavy: fauna.mass >= HEAVY,
         party: follows === undefined ? match.entity.id : Game.Entity.id(follows.leader),
+        ground: footingAt(data.footing.value(), pose.x, pose.y),
       }
       return { match, body }
     })

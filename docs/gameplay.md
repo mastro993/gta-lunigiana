@@ -65,9 +65,16 @@ back once it rests on a seat.
   each quarter turn of the view swings both a quarter. The body turns to face the keys.
 - Walking speed is 2.2 m/s, sprinting (Shift) 5.5 m/s, with an acceleration of 30 m/s². Wet
   ground and snow slow only tyres, not feet.
-- The body is a circle of radius 0.35 m. It slides along walk walls and never passes through them
-  (`walkBy` in `src/sim/body.ts`). Velocity is what actually happened, so a wall stops it. Water is
-  no wall.
+- The body is a circle of radius 0.35 m. It slides along the walk walls it meets on its footing's
+  level and never passes through them (`walkBy` in `src/sim/body.ts`). Velocity is what actually
+  happened, so a wall stops it. Water is no wall.
+- **Under a bridge** (issue #87) walls stand round the space where the deck's underside, 0.9 m under
+  the road, is less than a person's height (1.8 m, `PERSON_HEIGHT`) over the ground, and round the
+  ground that comes up to within 0.5 m of the deck, where the deck would take the footing: going up
+  a bank under a deck, the player stops where the headroom runs out, and comes onto the deck only at
+  its level, along the road at its ends. The walls stand at the ground's level, 2.5 m or more under
+  the deck, so nobody on the deck or on the road onto it meets them
+  ([map.md](map.md#walls-under-the-decks)).
 - Knocked down, the player cannot steer and slides to a stop (10 m/s²).
 - **In a river, a stream or a lake** the player wades, slower the deeper it is (a sprint most of
   all) and pushed by the current, until the water reaches his chest or the current takes his feet
@@ -92,9 +99,9 @@ train is boarded at its cab doors ([Driving a train](#driving-a-train)); the res
   as a pedestrian, on the verge on that side, and flees for 4 s. If no door is free, no driver
   appears.
 - **Exit**: the player gets out at the first free door, tried in this order: left (the driver's
-  side, in Italy), right, front, back. A door is free when it is clear of walk walls with no wall
-  between it and the car. If no door is free, the player stays in. The car is left with its
-  handbrake on.
+  side, in Italy), right, front, back. A door is free when it is clear of the walk walls a person
+  meets on the level of the car's wheels, with none of them between it and the car. If no door is
+  free, the player stays in. The car is left with its handbrake on.
 
 Entering or leaving sets the player's velocity to zero. The camera's look-ahead follows velocity,
 not the pose, so the hop to the seat or the door does not swing the view.
@@ -182,9 +189,11 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
 - **Walls**: the body is a row of circles of radius width/2 along its length. Its planar move sweeps
   against the drive walls on its level: a bridge's parapets stand at the deck's top and stop a car
   whose wheels stand within 2 m of it (`LEVEL`), on the deck, and not one on a road under it (issue
-  #91; [map.md](map.md#10-collision-walls-wallsts-parapetsts)). A hit keeps the sliding part of the
-  motion, bounces back 0.2 of the impact speed, and loses 4% of its speed per m/s of impact (keeping
-  at least 20%). A turn that would wedge the body into a wall is undone; if any move would, the car
+  #91; [map.md](map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)); under a deck, walls on
+  the ground's level stop a car where the deck's underside stands lower over the ground than the
+  tallest vehicle, the truck's 2.65 m (issue #87). A hit keeps the sliding part of the motion,
+  bounces back 0.2 of the impact speed, and loses 4% of its speed per m/s of impact (keeping at
+  least 20%). A turn that would wedge the body into a wall is undone; if any move would, the car
   stops.
 - **Sleep**: a vehicle with its pedal up that has been still (under 0.05 m/s) for two steps
   without gathering speed is tried 10 steps from exact rest under the same pedals. If it ends

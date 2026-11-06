@@ -194,13 +194,14 @@ takes it away on dry ground.
   dead float where the current takes them.
 - **Never drowning.** Swept far, the player swims out wherever he heads; there is no breath or
   stamina.
-- **Keeping out by choice** (`walkDry`). People and animals keep to the walk walls like the
-  player, but one still dry takes no step into the water unless it flees: it stops at the water's
-  edge where the level stands now, so a rising river pushes it back and it can walk off a river's
-  dry gravel bed. In the water, they carry on as they were where it is slack and below their knees
-  (under 0.3 of their height deep and 0.25 of their hold), so a cow wades a trickle to its
-  pasture; deeper or faster, they head square across for the nearer bank. A witness in the water
-  never stays by a body: it runs ([gameplay.md](gameplay.md#witnesses-and-the-dead)).
+- **Keeping out by choice** (`walkDry`). People and animals keep to the walk walls they meet on
+  their footing's level like the player, but one still dry takes no step into the water unless it
+  flees: it stops at the water's edge where the level stands now, so a rising river pushes it back
+  and it can walk off a river's dry gravel bed. In the water, they carry on as they were where it is
+  slack and below their knees (under 0.3 of their height deep and 0.25 of their hold), so a cow
+  wades a trickle to its pasture; deeper or faster, they head square across for the nearer bank. A
+  witness in the water never stays by a body: it runs
+  ([gameplay.md](gameplay.md#witnesses-and-the-dead)).
 
 ## Vehicles in the water
 

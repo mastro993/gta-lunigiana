@@ -10,7 +10,7 @@ import { r1, segDist2, segIndex } from "./geometry.ts"
 import { opened, pushPolyline } from "./walls.ts"
 
 /** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */
-const PARAPET = 0.25
+export const PARAPET = 0.25
 
 /** A road's line as shipped: its flat polyline and its profile per vertex. */
 interface Line {

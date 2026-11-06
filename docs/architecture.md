@@ -382,14 +382,19 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   and keeps the first of equal-time hits, so another order would move collisions at corners. It
   reuses its answer array and the segment objects in it until the next call of the same kind: copy
   the coordinates to keep them. Each wall it hands carries its level when it has one (a bridge's
-  parapet stands at its deck's top, [map.md](map.md#10-collision-walls-wallsts-parapetsts)), and the
-  query answers every level: `wallsAlong` (`src/sim/body.ts`) keeps the walls a body meets standing
-  at the level it is given (`meets`: a wall with no level, or one within `LEVEL`, 2 m, of it), every
-  wall when it is given none. The physics, the contacts and the trains' strikes give a car's wheels
+  parapet stands at its deck's top, a wall under a deck at the ground's level there,
+  [map.md](map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)), and the query answers every
+  level: `wallsAlong` (`src/sim/body.ts`) keeps the walls a body meets standing at the level it is
+  given (`meets`: a wall with no level, or one within `LEVEL`, 2 m, of it), every wall when it is
+  given none. The physics, the contacts and the trains' strikes give a car's wheels
   (`chassis.z − cg`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
   spot's settled wheels, a teleport's ground), and the baked lanes their road's surface where the
-  edge passes nearest a parapet; `walkBy` and `standClear` take an optional level, and no walk wall
-  has one yet.
+  edge passes nearest a parapet. Everyone on foot gives their `Footing` (`footingAt` before
+  `FindFooting` has given one): the player's step (`PlayerFoot`), the pedestrians' and the animals'
+  (`walkBy`, `walkDry`, a follower's way round a wall), the contacts' shoves, the trains' strikes, a
+  witness's line of sight (`inSight`) and the vehicle in reach (`vehicleInReach`); the doors give
+  the vehicle's wheels (`freeDoor`) and a train's exit the ground beside its cab. Only the people's
+  and animals' spawn checks still meet every wall, which only keeps them a little further off one.
 - `buildingsIn` (`src/sim/map/vectors.ts`: each tile's buildings in 64 m cells on the buildings'
   lattice, `MAP.vectors.lattice.buildings`, handing each building's index in the whole map's list,
   the building and its box) and `treesIn` (the trees as points, `src/sim/map/walls.ts`, handing each
@@ -2335,6 +2340,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the residential road under it, either way, stays on the deck (before, it dropped 8 m onto that
     road), and a traffic car on that road passes under it (with the parapets meeting every level, it
     stops 9.1 m off the deck's centreline).
+  - `src/sim/__tests__/under-decks.test.ts` (issue #87): under the decks of Via Nuova in Gragnola,
+    Via Borgo Lucido and Via delle Cave (each the road bridge nearest the point the issue walked
+    from), the player walking up the bank with the arrow keys from where there is room to stand is
+    stopped by a wall more than 0.5 m under the deck's top (before, it stepped from 164.26 m onto
+    Via Nuova's 164.76 m and from 158.03 onto Via Borgo Lucido's 158.52), and from 6 m back on the
+    road at each end the player walks onto the deck and a Panda rolling from 8 m back drives onto it.
   - `src/sim/__tests__/freeze.test.ts`: `inReach` (within `FROZEN_BEYOND` along both axes, and
     everywhere with no player); a car rolling at 5 m/s and a parked car touching its tail about
     5.7 km from the start, their tiles dropped and no tile source, keeping their state bit for bit
@@ -2584,8 +2595,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
   `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `decks.ts`, `parapets.ts`,
-  `overpass-checks.ts`, `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`, `road-oracle.ts`,
-  `shadow-turns.ts`):
+  `under-decks.ts`, `overpass-checks.ts`, `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`,
+  `road-oracle.ts`, `shadow-turns.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
     `clearance.map-test.ts`: the generated map's invariants, read whole, its tiles joined, every
     vector layer included (see [map.md](map.md#checks-and-tools)); `vectors.map-test.ts`: each tile
@@ -2615,6 +2626,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     may drive clear of the walls, and `edgeIndex.nearest` the nearest edge by brute force over the
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square
     returning its four edges, for every tenth tree and every one within a metre of a seam;
+    `under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and `under-decks-l.map-test.ts`
+    (the L's skipped without its build): on every road bridge of the three, a walker from where there
+    is room to stand under the deck never comes up onto it, and the roads meeting its ends still lead
+    onto it on foot and by car ([map.md](map.md#checks-and-tools));
     `water.map-test.ts`: every bridge's verges over the water on the deck in a spate;
     `trains-world.map-test.ts`: animals brought out along the whole of Monzone's line, 250 m apart
     (92 games, 337 animals), none on its track at grade;

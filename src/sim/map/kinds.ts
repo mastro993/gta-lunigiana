@@ -148,6 +148,13 @@ export const DECK_SLAB = { depth: 0.9, margin: 0.4 } as const
 export const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
 
 /**
+ * A bridge deck or tunnel within this height (m) of where an actor was is the one it is on
+ * (`groundZ` in `./ground.ts`). Here so the map build reads it without a map loaded: the walls under
+ * the decks stand farther than ONE_LEVEL and this under a deck's top (src/tools/deck-walls.ts).
+ */
+export const ON_DECK = 0.5
+
+/**
  * Two grounds this near in height (m) are one level. A body meets a train only where its ground
  * stands this near the rail head, and a wall with a level (a bridge's parapet) only where its ground
  * stands this near the wall's (`LEVEL` and `onLevel` in src/sim/rail/bodies.ts); a parapet opens
@@ -201,6 +208,17 @@ export const isMotorRoad = (road: { readonly cls: string; readonly ramp?: boolea
  */
 export const vergeOf = (cls: string, w: number): number =>
   cls === "path" || cls === "steps" || cls === "track" ? 0.3 : w / 2 + 0.8
+
+/** How far past its carriageway a road's surface reaches, m: where a wheel stands on it (`groundZ` in `./ground.ts`). */
+export const ROAD_PAD = 0.3
+
+/**
+ * How far either side of a bridge's or tunnel's centreline someone on foot is on it, m: half a metre
+ * past its walkers' verge (`vergeOf`, or the road's own `verge`), and at least ROAD_PAD past its
+ * carriageway (`groundZ` in `./ground.ts`; the walls under the decks stand there, src/tools/deck-walls.ts).
+ */
+export const footReach = (cls: string, w: number, verge?: number): number =>
+  Math.max(w / 2 + ROAD_PAD, (verge ?? vergeOf(cls, w)) + 0.5)
 
 /** A traffic lane's width, m: a `lanes` tag on a main road (motorway to secondary) gives it this much per lane. */
 export const LANE = 3.5

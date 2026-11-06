@@ -12,11 +12,11 @@ import { pointInRing, segDist2 } from "../collide.ts"
 import { type FacingAt, LEVEL } from "../sky/local.ts"
 import { addToBuckets, bucketItems, type Buckets, emptyBuckets } from "./buckets.ts"
 import { MAP, roadClassOf } from "./index.ts"
-import { anchorOf, HALO, ROAD_LIFT, vergeOf } from "./kinds.ts"
+import { anchorOf, footReach, HALO, ON_DECK, ROAD_LIFT, ROAD_PAD } from "./kinds.ts"
 import { cellCorners, derived, nodeAt, type Place, placeAt } from "./tiles.ts"
 import { roadLineAt } from "./vectors.ts"
 
-export { ROAD_LIFT }
+export { ON_DECK, ROAD_LIFT }
 
 const hm = MAP.heightmap
 const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
@@ -93,7 +93,7 @@ const segmentsOf = derived((place: Place): Buckets<RoadSegment> => {
       { pts, z } = items[n]!
     const lifted = road.bridge === true || road.tunnel === true
     const lift = ROAD_LIFT[roadClassOf(road)],
-      verge = Math.max(road.w / 2 + 0.3, (road.verge ?? vergeOf(roadClassOf(road), road.w)) + 0.5)
+      verge = footReach(roadClassOf(road), road.w, road.verge)
     for (let k = 0; k + 1 < z.length; k++) {
       const s: RoadSegment = {
         ax: pts[2 * k]!,
@@ -102,7 +102,7 @@ const segmentsOf = derived((place: Place): Buckets<RoadSegment> => {
         by: pts[2 * k + 3]!,
         za: z[k]!,
         zb: z[k + 1]!,
-        half: road.w / 2 + 0.3,
+        half: road.w / 2 + ROAD_PAD,
         lift,
         lifted,
         foot: lifted ? verge : 0,
@@ -211,9 +211,6 @@ const onVerge = (s: RoadSegment, x: number, y: number): number | undefined => {
     past = Math.max(0, -u, u - 1)
   return past * past * l2 > s.half * s.half ? undefined : onSegment(s, x, y, s.foot)
 }
-
-/** A bridge deck or tunnel within this height (m) of where an actor was is the one it is on. */
-export const ON_DECK = 0.5
 
 /**
  * Where an actor at (x, y) stands, m a.s.l. On a platform the ground is its top (`platformTop`), or

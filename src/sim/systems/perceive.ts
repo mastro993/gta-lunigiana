@@ -432,7 +432,7 @@ export const Perceive = Game.System(
           grown &&
           !w.wet &&
           crowd < GATHER_MOST &&
-          inSight(w.at, victim) &&
+          inSight(w.at, victim, footingAt(w.footing, w.at.x, w.at.y)) &&
           random.next() < GATHER_SHARE
         )
           gather(w, victim, stepsOf(random.range(...GATHER_DEATH)))
@@ -509,7 +509,7 @@ export const Perceive = Game.System(
           !near(w.at, hit, STRUCK.sight)
         )
           continue
-        if (!near(w.at, hit, STRUCK.hear) && !inSight(w.at, hit)) continue
+        if (!near(w.at, hit, STRUCK.hear) && !inSight(w.at, hit, groundOf())) continue
         const car = positions.get(hit.car) ?? hit,
           killed = hit.hit === "person" && hit.fatal === true
         // Jumping back from the car, a witness of a killing keeps the victim in mind (its point) to take in once clear.
@@ -535,7 +535,7 @@ export const Perceive = Game.System(
           )
       }
       if (w.mood.mood === "walk" && w.mood.until <= step) {
-        const body = bodies.find((b) => near(w.at, b, BODY_RANGE) && inSight(w.at, b))
+        const body = bodies.find((b) => near(w.at, b, BODY_RANGE) && inSight(w.at, b, groundOf()))
         if (body !== undefined)
           found.push(
             reaction("shock", Clock.steps(BODY_SHOCK), body, { feeling: "shock", witness: true }),

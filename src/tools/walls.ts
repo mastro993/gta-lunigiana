@@ -50,12 +50,17 @@ export const pushOutline = (outs: ReadonlyArray<Array<number>>, rings: Rings): v
         pushSplit(out, ring[2 * i]!, ring[2 * i + 1]!, ring[2 * j]!, ring[2 * j + 1]!, 64)
       }
 }
-/** `pts`'s edges (and the closing one when `closed`) into `out`, as pieces of at most RUN m. */
-export const pushPolyline = (out: Array<number>, pts: ReadonlyArray<number>, closed: boolean) => {
+/** `pts`'s edges (and the closing one when `closed`) into `out`, as pieces of at most `run` m. */
+export const pushPolyline = (
+  out: Array<number>,
+  pts: ReadonlyArray<number>,
+  closed: boolean,
+  run = RUN,
+) => {
   const n = pts.length / 2
   for (let i = 0; i < (closed ? n : n - 1); i++) {
     const j = (i + 1) % n
-    pushSplit(out, pts[2 * i]!, pts[2 * i + 1]!, pts[2 * j]!, pts[2 * j + 1]!)
+    pushSplit(out, pts[2 * i]!, pts[2 * i + 1]!, pts[2 * j]!, pts[2 * j + 1]!, run)
   }
 }
 
@@ -269,8 +274,9 @@ interface Walls {
   /** The water's edge for `drive` (open where a drivable road crosses): kept clear by traffic's dead ends and the spawns, never stored. */
   readonly driveShore: Array<number>
   /**
-   * Each walk and drive wall's level, m a.s.l.: a parapet's is its deck's top, and it stops only a
-   * body whose ground stands within ONE_LEVEL of it; NaN for every other wall, which stops anyone.
+   * Each walk and drive wall's level, m a.s.l.: a parapet's is its deck's top, a wall under a deck's
+   * the ground's there, and it stops only a body whose ground stands within ONE_LEVEL of it; NaN for
+   * every other wall, which stops anyone.
    */
   readonly levels: { readonly walk: Array<number>; readonly drive: Array<number> }
   readonly walkCells: number
@@ -278,7 +284,16 @@ interface Walls {
   readonly driveCells: number
 }
 
-/** The walls on grid `g` (`Walls`), the bridges' `parapets` (parapets.ts) among the drive walls. */
+/** Walls with a level: flat (ax, ay, bx, by) pieces and each one's level, m a.s.l. */
+export interface Levelled {
+  readonly walls: ReadonlyArray<number>
+  readonly levels: ReadonlyArray<number>
+}
+
+/**
+ * The walls on grid `g` (`Walls`): the bridges' `parapets` (parapets.ts) among the drive walls, and
+ * the walls `under` the decks (deck-walls.ts) last of the walk and the drive walls.
+ */
 export const buildWalls = (
   g: Grid,
   roads: ReadonlyArray<RoadF>,
@@ -286,7 +301,8 @@ export const buildWalls = (
   buildings: ReadonlyArray<BuildingF>,
   barriers: ReadonlyArray<Barrier>,
   areas: ReadonlyArray<Area>,
-  parapets: { readonly walls: ReadonlyArray<number>; readonly levels: ReadonlyArray<number> },
+  parapets: Levelled,
+  under: { readonly walk: Levelled; readonly drive: Levelled },
 ): Walls => {
   // The lakes' and river polygons' cells are water too: those whose centre each fills, as the
   // land cover paints them.
@@ -434,11 +450,17 @@ export const buildWalls = (
       pushSplit(drive, cx - ty * h, cy + tx * h, cx + ty * h, cy - tx * h)
     }
   }
-  // The parapets' levels; every other wall stands at every level.
+  // The parapets' levels, and the walls under the decks' after every other; every other wall
+  // stands at every level.
   const levels = {
-    walk: Array.from({ length: walk.length / 4 }, () => NaN),
-    drive: Array.from({ length: drive.length / 4 }, (_, w) => parapets.levels[w - first] ?? NaN),
+    walk: [...Array.from({ length: walk.length / 4 }, () => NaN), ...under.walk.levels],
+    drive: [
+      ...Array.from({ length: drive.length / 4 }, (_, w) => parapets.levels[w - first] ?? NaN),
+      ...under.drive.levels,
+    ],
   }
+  walk.push(...under.walk.walls)
+  drive.push(...under.drive.walls)
   return {
     walk,
     shore,

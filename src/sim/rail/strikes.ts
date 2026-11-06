@@ -298,6 +298,7 @@ export const TrainContacts = Game.System(
           at,
           { x: n.x * (depth + 0.01), y: n.y * (depth + 0.01) },
           r,
+          ground,
         ).position
         at.x = position.x
         at.y = position.y

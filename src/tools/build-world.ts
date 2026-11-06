@@ -5,6 +5,7 @@
 import { isDrivable } from "../sim/map/kinds.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
+import { deckWalls } from "./deck-walls.ts"
 import { flatLine, r1 } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
 import { parapets, surfaceAt } from "./parapets.ts"
@@ -49,8 +50,9 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   lap("railway")
 
   // ---- collision, graph, trees, spawns ----
-  const decks = parapets(roads, roadLines)
-  const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks)
+  const decks = parapets(roads, roadLines),
+    under = deckWalls(grid, roads, roadLines)
+  const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks, under)
   lap("walls")
   const trees = scatterTrees(
     { areas, roads, buildings, water, rail: allRail, beyond: src.beyond },
@@ -160,6 +162,8 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     },
     /** The parapets' walls, and the bridges whose parapets close over a road on another level, for the build's report. */
     parapets: { walls: decks.levels.length, over: decks.over },
+    /** The walls under the decks, walk and drive, and the decks they wall, for the build's report. */
+    underDecks: under.report,
     /** Each rail piece's kind (none on a line). */
     kinds,
     /** The lines and platforms as laid, for the build's report. */

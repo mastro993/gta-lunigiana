@@ -32,8 +32,11 @@ over the tiles). Inputs and attribution are in the [README](../README.md).
 
 `src/sim/map/kinds.ts` holds the vocabulary that the build and the game share: road classes and
 their default widths, where people walk and cars drive across them (`vergeOf`, `laneOffset`), how
-far each class's surface floats over its profile (`ROAD_LIFT`), a bridge's deck as drawn
-(`DECK_SLAB`, `DECK_BALLAST`), building styles, area kinds, rail kinds (`RAIL_KINDS`), the rail head
+far each class's surface floats over its profile (`ROAD_LIFT`) and reaches past its carriageway
+(`ROAD_PAD`), how far off a bridge's or a tunnel's centreline someone on foot is on it
+(`footReach`), a bridge's deck as drawn (`DECK_SLAB`, `DECK_BALLAST`), how near a deck a body's
+level must be for the deck to take it (`ON_DECK`) and two grounds to be one level (`ONE_LEVEL`),
+building styles, area kinds, rail kinds (`RAIL_KINDS`), the rail head
 over the bed (`RAIL_LIFT`) the tree-trunk size, the tile grid (`TILE`, `tileKey`, `tileRange`) and
 how far round its square a tile holds the vectors (`HALO`). It imports no data, so the build can use
 it before the map exists.
@@ -1962,7 +1965,7 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
 
 The stage takes about 0.55 s, most of it rasterising the platforms.
 
-### 10. Collision walls (`walls.ts`, `parapets.ts`)
+### 10. Collision walls (`walls.ts`, `parapets.ts`, `deck-walls.ts`)
 
 Walls are segments of at most 16 m. Blocked 4 m cells are traced with marching squares and
 simplified (Douglas–Peucker, 1.5 m tolerance); a cell whose centre lies outside the play area is
@@ -1980,6 +1983,7 @@ majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 | The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
 | Road-exit caps (4 m inside, where drivable roads leave the area) | no | no | yes |
 | Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them, each at its deck's level; open where a road on the deck's own level reaches them: a junction on the deck, the next piece of the same bridge, a road or tunnel carrying on from it, and the inside of the deck's own bends, where one segment's piece runs on across the next one's carriageway) | no | no | yes, on the deck's level |
+| The low space under a road bridge's deck ([below](#walls-under-the-decks)), on the ground's level | where the deck's underside stands under 1.8 m over the ground | no | under 2.65 m |
 
 Water stops neither feet nor wheels: the player wades and swims, and vehicles float
 ([water.md](water.md)). The shore walls are the water's edge: the game joins them to the walk walls
@@ -2010,7 +2014,8 @@ walls held them before, and stores neither of those.
 - **Walls with a level** (issue #91): a wall may carry a level, m a.s.l., and then stops only a body
   whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, the game's `LEVEL`): a car whose
   wheels, or a person whose footing, stand there. Every other wall stands at every level. The
-  bridges' parapets are the walls with a level (`parapets.ts`): walls are flat lines, so a parapet
+  bridges' parapets and the walls under their decks ([below](#walls-under-the-decks)) are the walls
+  with a level. A parapet (`parapets.ts`) needs one: walls are flat lines, so a parapet
   that stopped everyone would close the road under its deck too, and so it used to open wherever any
   road's carriageway reached it, the road under the deck included, and a car on the SR445's viaduct
   west of Gragnola (552592654, at (−2674, 4584)) drove off it there and dropped from 148.5 m onto
@@ -2030,6 +2035,54 @@ walls held them before, and stores neither of those.
   before; and on Cesena the closed parapets along 137735208's 200 m deck split into 15.4 m walls
   where gaps cut them into 9.5–14.8 m ones, so their ends lie up to 0.05 m nearer or farther from
   the centreline, and the truck's lane there is 1.45 m off it both ways, not 1.2 m one way.
+
+#### Walls under the decks
+
+A deck within `ON_DECK` (0.5 m) of the level a body was on takes its footing (`groundZ` in
+`src/sim/map/ground.ts`), so the ground rising toward a deck's underside led onto its top, the head
+through the 0.9 m slab first (issue #87): under Via Nuova's bridge in Gragnola (313852513) a walker
+went up the bank from (−1600.7, 3675.3) and stepped from 164.26 m onto the deck's 164.76 m. The
+build walls off the low space under every road deck, as an abutment would (`deck-walls.ts`, from
+the ground as lowered under the decks: [Ground under the
+decks](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)):
+walk walls where the deck's underside (`DECK_SLAB.depth`, 0.9 m, under its top) stands less than a
+person (`PERSON_HEIGHT`, 1.8 m) over the ground, drive walls where it stands less than the tallest
+vehicle (the truck's 2.65 m). Someone under a bridge goes only where there is headroom, and onto its
+deck only from its level, along the road at its ends.
+
+- **The low space** (`deck-space.ts`) runs round each deck's line out to where its walls stand:
+  past where its walkers go (`footReach`, w/2 + 1.3 m on a road, and the slab's 0.4 m past the
+  carriageway at least) for the walk walls, half a metre past its parapets for the drive walls; and
+  round its ends too, the top there the end's. There the ground at the terrain's level, as the game
+  reads it (`atGrade`: the terrain, or a road at grade over it, an approach's carriageway floating
+  at the deck's level over far lower ground included), stands within that headroom of the deck's
+  top. Decks whose walls would touch are one space.
+- **The walls** trace its outline on a lattice 0.25 m apart (marching squares with the crossings
+  between the nodes, `traceContours` in `loops.ts`; simplified within 0.1 m, in pieces of at most
+  4 m), and, inside it, the outline of the ground on the deck's level (within `ON_DECK` of its top)
+  where the low space lies beyond: so nobody under the deck's level reaches that ground from below,
+  even along a road passing through.
+- **Their level**: each wall takes the ground just outside it (0.25 and 0.5 m out, every 0.5 m along
+  it; a wall is split where that ground spans 3 m or more, along a step), midway through it, but
+  stands at least `ONE_LEVEL` + `ON_DECK` (2.5 m) under every deck over it, to 0.1 m: anyone a deck
+  holds, on it or on the road at its ends, passes every wall, and anyone on the ground below,
+  within 2 m of that level, meets them. So a deck's ends stay open to its road's level by the walls'
+  level alone.
+- **Roads**: a road passing under a deck, its surface as the game reads it 2 m or more under the
+  deck's top wherever it comes within the walls, keeps a corridor through the low space, 0.25 m past
+  where its bodies go, where its ground stands 2 m or more under the top, walled along its sides;
+  where a bank its carriageway's edge climbs rises nearer, the walls stand across it. Any other road
+  opens a wall across its carriageway where its surface, as far along it either way as half the
+  longest vehicle (3.8 m), comes within 2 m of the wall's level: a road carrying on from a deck's
+  end, leaving it at an angle (the path 1240691428 off the end of 140780504 by Equi Terme), or
+  passing through. No wall stands on a road on its level.
+
+Lunigiana has 8,363 walk walls and 8,035 drive walls under its 167 road decks, Cesena 2,862 and 3,139
+under its 50, the L 1,179 and 1,145 under its 23 (the build prints them as `underDecks`;
+2026-11-06). They add 51.8 KB to Lunigiana's files gzipped (32.02 to 32.07 MB), 15.5 KB to Cesena's
+and 6.8 KB to the L's, and `pnpm map-diff` against the build before moves the walls alone (on Cesena
+their extent moves the walk walls' lattice 2.3 m). They take the walls stage about half a second
+longer on Lunigiana (7.85 s, from 7.40).
 
 ### 11. Road graph (`graph.ts`)
 
@@ -2422,7 +2475,7 @@ Its sections follow the newline in file order:
 | trees | (x, y) whole metres from the same point (trees stand on whole metres), the scale in hundredths | 2 | 3: the previous tree |
 | tree ids | each tree's id (its lattice cell's number, [Trees](#12-trees-spawns-districts-treests-spawnsts-districtsts); its look's seed), ascending | 4 | 1 |
 | cover | 500 × 500 cells, the land-cover index | 1 | 500: the cell to the south |
-| walk, drive wall levels | each wall's level (a bridge's parapet's, its deck's top: [section 10](#10-collision-walls-wallsts-parapetsts)), decimetres a.s.l., or −32768 (`NO_LEVEL`) for a wall that stands at every level | 4 | 1 |
+| walk, drive wall levels | each wall's level (a bridge's parapet's, its deck's top; a wall under a deck's, the ground's there: [section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)), decimetres a.s.l., or −32768 (`NO_LEVEL`) for a wall that stands at every level | 4 | 1 |
 
 The levels come last, so a build from before them reads as one whose every wall stands at every
 level (`readWholeMap`). They add 15 KB to Lunigiana's tiles gzipped (30.47 to 30.48 MB) and 2.5 KB
@@ -2690,6 +2743,18 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   deck. It fails on 4 of Lunigiana's bridges and 16 of Cesena's built before the walls had levels
   (none of the L's), and on 4 and 17 with the levels dropped from today's build; 1.4 s alone, most
   of it reading the three maps.
+- `src/sim/__tests__/under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and
+  `under-decks-l.map-test.ts` (the L's skipped without its build, failing in CI): on every road
+  bridge, the game's own walking (`under-decks.ts`). From every point under its slab, every metre
+  along and across it, where someone stands clear on the ground (not on another deck) with room to
+  stand (2.7 m under the deck's top) next to one with less, a walker heads straight for the nearest
+  ground under the slab within 0.45 m of the top and 4 m or more from its ends (the issue's
+  measure), 5 cm a step, keeping to its level (`footZ`) and stopped by the first walk wall it meets
+  (`walkBy`), or by stepping onto another deck: it never comes up onto the deck at a point abeam of
+  it. And along each road meeting each end, from 6 m back along it to 6 m onto the deck, a walker
+  and a Panda that with nothing in their way are on the deck as they cross its end meet no wall
+  with a level. It fails on 56 of Lunigiana's 167 road decks, 27 of Cesena's 50 and 10 of the L's 23
+  built without the walls under the decks, and takes 1.9, 1.0 and 0.3 s.
 - `src/sim/population/__tests__/density.map-test.ts` sums the residents at 6,000 points, half of
   them within 40 m of a seam, by 4 reaches (45, 60, 140 and 250 m), and `farms.map-test.ts` reads
   the buildings near 20,000 points and every farm by 3 reaches (10, 25 and 40 m), whether each
@@ -3084,7 +3149,12 @@ closing the L and a rectangle's running south, east, north, west; `parapets.test
 parapets closed over a road 7 m under it at the deck's top, 150.2 m, and open where a road on its
 level joins it from one side alone, on 0.1 m and in pieces of 16 m at most, and `parapetFaults`
 finding the opening the old rule left over the road under it, a parapet across the joining road
-and the parapets with no level over the road under it.
+and the parapets with no level over the road under it; `deck-walls.test.ts` `traceContours` ringing
+a disc anticlockwise on its circle, and over a valley under a deck the walk walls crossing its line
+where the ground stands 2.7 and 0.5 m under its top and running along it at its walkers' reach,
+every wall 2.5 m or more under its top and within 2 m of the ground under it, none on the road
+carrying on from its ends, a footpath 2.5 m under it keeping a walled corridor and one 1.2 m under
+it opening the walls across it.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees, walls, roads, buildings, water, areas and barriers read whole from the
@@ -3388,9 +3458,9 @@ issue #17's part, on 2026-11-04 (arm64, Node 24.14.1).
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
   Lunigiana's largest, 2_1 (x 4000…6000 by y 2000…4000: Argigliano, Pieve San Lorenzo and its
-  station), is 0.60 MB (604,891 B; its JSON line 0.88 MB before gzip); `lucido`'s alone, 0_0, is
+  station), is 0.61 MB (608,471 B; its JSON line 0.88 MB before gzip); `lucido`'s alone, 0_0, is
   0.56 MB with its vectors (its JSON line 0.77 MB), where −1_−1's 0.31 MB was the largest without
-  them; Cesena's largest is 0.45 MB and the L's 0.52 MB.
+  them; Cesena's largest is 0.45 MB and the L's 0.53 MB.
 
 Each part's inputs are its own files since #17 (Fivizzano, the first part after lucido), so a part
 adds files and cells and moves none (`--region cesena` builds the separate Cesena map instead, and
