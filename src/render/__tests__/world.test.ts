@@ -33,6 +33,7 @@ import { glowMaterial } from "../sky/glow.ts"
 import { lampsIn } from "../sky/lamps.ts"
 import { streamAround } from "../testing.ts"
 import { World } from "../world.ts"
+import { SR445 } from "./tunnel-checks.ts"
 
 const count = CHUNKS.x * CHUNKS.y
 /** Every chunk's box from its tiles' lowest and highest nodes (no tile read): it holds the exact one. */
@@ -237,6 +238,31 @@ test("world streaming: rivers draw in their own water mesh (no snow on them), ro
     "buildings in the solid variant, the terrain in its own",
   )
   assert.ok(meshes.some((m) => m.material === terrainMaterial))
+})
+
+// Regression: the bore walls stood in the solid mesh, which casts shadows, under a hill that casts
+// none, so a low sun threw a wall's shadow through the hill onto lit ground past it.
+test("world streaming: the SR445's tunnel by Groppoli: its bore walls in a mesh of their own, the solid's material, casting no shadow", () => {
+  const parent = new Group(),
+    world = new World(parent)
+  streamAround(world, ground(SR445.x, SR445.y))
+  const buried = [...world.loaded.values()]
+      .flat()
+      .filter((m) => m.material === solidMaterial && !m.castShadow),
+    dark = linear(PALETTE.tunnelDark)
+      .map((v) => v.toFixed(4))
+      .join(",")
+  assert.ok(buried.length > 0, "the tunnel's chunks hold its walls")
+  for (const m of buried) {
+    assert.ok(m.receiveShadow, "they still receive shadows, as the solid does")
+    const c = m.geometry.getAttribute("color")
+    for (let i = 0; i < c.count; i++)
+      assert.equal(
+        `${c.getX(i).toFixed(4)},${c.getY(i).toFixed(4)},${c.getZ(i).toFixed(4)}`,
+        dark,
+        "nothing but the bore's dark walls",
+      )
+  }
 })
 
 test("world streaming: the railway in its layers: a crossing's panel, rails and stop lines in the decal mesh, its housings and the ballast bed in the solid one; a platform's yellow line a decal, its name board solid", () => {

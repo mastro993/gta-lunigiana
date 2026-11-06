@@ -1,7 +1,8 @@
 /**
  * The static world, streamed around the camera focus in the chunks of render/chunks. A built
  * chunk is one terrain mesh, one solid mesh (buildings, roofs, bridges, platforms, street-lamp
- * brackets), one decal mesh (roads, rail), one water mesh (rivers and streams), one glow mesh
+ * brackets), one buried mesh (the road tunnels' walls: the solid's material, casting no shadow, as the
+ * terrain over them casts none), one decal mesh (roads, rail), one water mesh (rivers and streams), one glow mesh
  * (window panes and lantern glass, lit at night) and an InstancedMesh per tree kind; empty layers
  * make no mesh. As each map tile comes into memory (`tileProvided`) its buildings, roads and rivers
  * become pieces and its trees are bucketed per chunk (render/pieces, render/trees), so a build reads
@@ -36,14 +37,13 @@ import {
 } from "./chunks.ts"
 import {
   decalMaterial,
+  emptySink,
   merge,
+  type Sink,
   solidMaterial,
   terrainMaterial,
   treeMaterial,
-  Triangles,
-  WaterTriangles,
   waterMaterial,
-  type Sink,
 } from "./geometry.ts"
 import type { Crown } from "./leaves.ts"
 import { Pieces } from "./pieces.ts"
@@ -66,14 +66,6 @@ const staticMesh = (
   mesh.updateMatrix()
   return mesh
 }
-
-const emptySink = (): Sink => ({
-  solid: new Triangles(),
-  decal: new Triangles(),
-  water: new WaterTriangles(),
-  glow: new Triangles(),
-  pieces: [],
-})
 
 /** What a chunk draws (`Pieces.entries`) and the tiles its build reads (`needs` in render/chunk-tiles). */
 interface Drawn {
@@ -263,6 +255,7 @@ export class World {
     const meshes = [staticMesh(terrainChunk(key, this.crowns), terrainMaterial, false)]
     const solid = [...(sink.solid.empty ? [] : [sink.solid.geometry()]), ...sink.pieces]
     if (solid.length > 0) meshes.push(staticMesh(merge(solid), solidMaterial, true))
+    if (!sink.buried.empty) meshes.push(staticMesh(sink.buried.geometry(), solidMaterial, false))
     if (!sink.decal.empty) meshes.push(staticMesh(sink.decal.geometry(), decalMaterial, false))
     if (!sink.water.empty) meshes.push(staticMesh(sink.water.geometry(), waterMaterial, false))
     // Unlit: it neither casts nor receives (an unlit program has no use for the shadow map).

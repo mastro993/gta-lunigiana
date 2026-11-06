@@ -16,7 +16,7 @@
 import { MAP, RAIL_LIFT } from "../sim/map/index.ts"
 import { CROSSINGS } from "../sim/rail/crossings.ts"
 import { BARRIER, ROAD_LIGHT } from "./crossings.ts"
-import { type Box, type Piece, type Sink, Triangles, WaterTriangles } from "./geometry.ts"
+import { type Box, emptySink, type Piece, type Sink, type Triangles } from "./geometry.ts"
 import { atGradeY, surfaceY, terrainY, yOf } from "./ground.ts"
 import { deck } from "./lines.ts"
 import { PALETTE } from "./palette.ts"
@@ -358,13 +358,7 @@ const cabinet = (sink: Sink, b: number): void => {
 
 /** Crossing `b`'s fixed parts, laid over the ribbons of `roads` (drawn again for it): the panels and rails, and per approach the stop line and the housing. */
 const crossingParts = (roads: ReadonlyArray<Piece>, b: number): Sink => {
-  const built: Sink = {
-    solid: new Triangles(),
-    decal: new Triangles(),
-    water: new WaterTriangles(),
-    glow: new Triangles(),
-    pieces: [],
-  }
+  const built = emptySink()
   const { x, y } = BOXES[b]!,
     surface = surfaceNear(roads, x, y, BOX_REACH)
   panels(built.decal, b, surface)

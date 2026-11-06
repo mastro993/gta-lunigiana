@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import { terrainNodeZ } from "../../sim/map/ground.ts"
 import { MAP } from "../../sim/map/index.ts"
-import { type Sink, Triangles, WaterTriangles } from "../geometry.ts"
+import { emptySink, type Triangles } from "../geometry.ts"
 import { yOf } from "../ground.ts"
 import { waterPiece } from "../lines.ts"
 import { strips } from "../ribbons.ts"
@@ -54,15 +54,6 @@ const AULELLA = (() => {
   const cells = cellsOf(area)
   return { area, cells, chunks: chunksOf(cells) }
 })()
-
-/** A sink to draw ribbons into. */
-const sink = (): Sink => ({
-  solid: new Triangles(),
-  decal: new Triangles(),
-  water: new WaterTriangles(),
-  glow: new Triangles(),
-  pieces: [],
-})
 
 /** The quads of `tris` (drawn by `quad`: a-b-c, a-c-d) as their four corners' map (x, y). */
 const ribbonQuads = (tris: Triangles): Array<ReadonlyArray<readonly [number, number]>> => {
@@ -193,7 +184,7 @@ test("ribbons: a quad all four corners of which cover holds is left out, one wit
     y: (_x: number, _y: number, z: number) => yOf(z),
   }
   const draw = (cover?: (x: number, y: number) => boolean) => {
-    const into = sink()
+    const into = emptySink()
     strips(spec, [cover === undefined ? spec : { ...spec, cover }]).draw(() => into, 0, 0)
     return ribbonQuads(into.decal)
   }
@@ -241,7 +232,7 @@ test("rivers' ribbons: the Aulella's stop where its river polygon draws the wate
       k1 = k
     }
     if (k0 < 0) continue
-    const into = sink()
+    const into = emptySink()
     piece.draw(() => into, k0, k1)
     for (const quad of ribbonQuads(into.water)) {
       const under = quad.filter(([x, y]) => inPool(x, y)).length

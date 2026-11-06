@@ -110,10 +110,13 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   2_1 by Pieve San Lorenzo with the vectors round it, 604,635 B, the build prints it, and
   `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
-  lamps, and in `derived` the bells, the walkers' residents and the farms' centres) needs both
-  `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and `cesena-bake.map-test.ts`
-  (`pnpm test:map`) fail until each is baked again, and `bake.test.ts` and `cesena-bake.test.ts`
-  (`pnpm test`) already for the parked spots, water beds and farms within 1 km of Monzone station
-  and of Cesena's start. A change to the full map's look (`src/render/map-style.ts`, the palette,
+  lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road
+  tunnels' mouths) needs both `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and
+  `cesena-bake.map-test.ts` (`pnpm test:map`) fail until each is baked again, and `bake.test.ts`
+  and `cesena-bake.test.ts` (`pnpm test`) already for the parked spots, water beds and farms within
+  1 km of Monzone station and of Cesena's start. Some of that code is render code: the mouths'
+  portals take their shape and room from `src/render/portals.ts`, `src/render/portal-clear.ts` and
+  the bore's size in `src/render/bores.ts` (`tunnels.test.ts` bakes three tunnels' mouths again in
+  `pnpm test`). A change to the full map's look (`src/render/map-style.ts`, the palette,
   `src/tools/overview.ts`) likewise needs the maps built again: `overview.map-test.ts` fails on a
   stale overview.

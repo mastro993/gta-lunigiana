@@ -1,8 +1,9 @@
 /**
  * Roads and rivers as pieces the streamed world draws chunk by chunk: ribbons along their
  * polylines (render/ribbons), densified so they follow the terrain facets, in the decal layer and
- * rivers in the water layer, and the decks under road bridges. Each is made from one road or river
- * whole, as the map tiles hold them (render/pieces). The track is in render/rail.
+ * rivers in the water layer, the decks under road bridges and the bores round road tunnels
+ * (render/bores). Each is made from one road or river whole, as the map tiles hold them
+ * (render/pieces). The track is in render/rail.
  *
  * @module render/lines
  */
@@ -12,10 +13,12 @@ import {
   roadClassOf,
   type Road,
   type RoadClass,
+  type RoadInfo,
   shoulderOf,
   type Water,
 } from "../sim/map/index.ts"
 import { channelOf, reachOf } from "../sim/water/channel.ts"
+import { borePiece, isBored } from "./bores.ts"
 import type { Flowing, Piece, SinkAt } from "./geometry.ts"
 import { surfaceY, yOf } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
@@ -75,8 +78,8 @@ const MARKED: ReadonlySet<RoadClass> = new Set([
   "tertiary",
 ])
 
-/** Old masonry for small and historic bridges, concrete for the main, provincial and unclassified roads. */
-const bridgeHex = (road: Road): number => {
+/** Old masonry for small and historic bridges and tunnels' portals, concrete for the main, provincial and unclassified roads'. */
+export const bridgeHex = (road: RoadInfo): number => {
   const cls = roadClassOf(road)
   return MARKED.has(cls) || cls === "unclassified" ? PALETTE.plasterGrey : PALETTE.stoneMid
 }
@@ -112,12 +115,19 @@ export const deck = (
   hex: number,
 ): Piece => ({ pts, draw: (at, k0, k1) => bridge(at, pts, y, width, hex, k0, k1) })
 
-/** Road `road`'s pieces: its ribbons (with their painted lines on the main and provincial roads, `roadLines`), then its deck on a bridge; none in a tunnel, which is not drawn. */
+/** Whether road `road` has a second piece (`roadPieces`): a deck on a bridge, or a bore in a tunnel. */
+export const twoPieces = (road: RoadInfo): boolean => road.bridge === true || isBored(road)
+
+/**
+ * Road `road`'s pieces: its ribbons (with their painted lines on the main and provincial roads,
+ * `roadLines`), then its deck on a bridge or its bore in a tunnel (none through a building
+ * passage, under its house). On a deck or in a tunnel the ribbons follow the road's profile, where
+ * the sim stands wheels and feet, under the hill or over the ground.
+ */
 export const roadPieces = (road: Road): Array<Piece> => {
-  if (road.tunnel === true) return []
   const cls = roadClassOf(road),
     lift = ROAD_LIFT[cls],
-    lifted = road.bridge === true
+    lifted = road.bridge === true || road.tunnel === true
   const line = throughApron(road.pts, road.z)
   const specs: Array<RibbonSpec> = [
     {
@@ -140,7 +150,11 @@ export const roadPieces = (road: Road): Array<Piece> => {
     })
   return [
     strips(line, specs),
-    ...(lifted ? [deck(road.pts, (k) => yOf(road.z[k]!) + lift, road.w, bridgeHex(road))] : []),
+    ...(road.bridge === true
+      ? [deck(road.pts, (k) => yOf(road.z[k]!) + lift, road.w, bridgeHex(road))]
+      : isBored(road)
+        ? [borePiece(road)]
+        : []),
   ]
 }
 

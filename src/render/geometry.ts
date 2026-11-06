@@ -170,10 +170,12 @@ export class WaterTriangles extends Triangles {
   }
 }
 
-/** The per-chunk buckets static builders write into: merged into one mesh per material per chunk. */
+/** The per-chunk buckets static builders write into: merged into one mesh per layer per chunk (`solid` and `buried` share `solidMaterial`, `buried` casting no shadow). */
 export interface Sink {
   /** Opaque world geometry (terrain-like depth). */
   readonly solid: Triangles
+  /** Opaque geometry under the hill (the road tunnels' walls): the solid's material, but it casts no shadow, as the terrain over it casts none. */
+  readonly buried: Triangles
   /** Ground decals (roads, rail) drawn with a polygon offset over what they cover. */
   readonly decal: Triangles
   /** Rivers and streams: decals with their own material (`waterMaterial`), so no snow lies on them; their level and current are the shader's. */
@@ -183,6 +185,15 @@ export interface Sink {
   /** Ready-made solid pieces (extrusions) merged with `solid`. */
   readonly pieces: Array<BufferGeometry>
 }
+/** A sink with nothing in it. */
+export const emptySink = (): Sink => ({
+  solid: new Triangles(),
+  buried: new Triangles(),
+  decal: new Triangles(),
+  water: new WaterTriangles(),
+  glow: new Triangles(),
+  pieces: [],
+})
 /** The sink of the chunk holding map point (x, y). */
 export type SinkAt = (x: number, y: number) => Sink
 

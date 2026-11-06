@@ -42,13 +42,14 @@ const SPOTS: ReadonlyArray<readonly [number, number]> = [
   ...MAP.rail.flatMap((rail) =>
     rail.tunnel === true ? [[rail.pts[0]!, rail.pts[1]!] as const] : [],
   ),
+  ...MAP.derived.mouths.flatMap((mouth) => ("open" in mouth ? [] : [[mouth.x, mouth.y] as const])),
   [MAP.bounds.minX, MAP.bounds.minY],
   [MAP.bounds.maxX, MAP.bounds.maxY],
   [MAP.bounds.minX, 0],
   [0, MAP.bounds.maxY],
 ]
 
-test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those and builds as with every tile in, at every crossing, platform, tunnel mouth and corner", () => {
+test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those and builds as with every tile in, at every crossing, platform, tunnel mouth, road tunnel portal and corner", () => {
   const built = buildsWithSomeTiles(SPOTS)
   assert.ok(built > 100, `${built} chunks built with some tiles out`)
 })

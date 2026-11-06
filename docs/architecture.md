@@ -966,16 +966,18 @@ The static world (`src/render/world.ts`) is cut into 128 m chunks (`src/render/c
 the chunks around the camera exist as meshes. A built chunk has a terrain mesh, a solid mesh
 (buildings, roofs, bridges, the railway's ballast bed, platforms, canopies and name boards, the
 level crossings' housings and cabinets, tunnel portals, the lamps' iron, poles and lantern bodies),
-a decal mesh (roads, the track's sleepers and rails, crossing panels and stop lines, the platforms'
-yellow lines), a water mesh (rivers and streams, laid on their beds: the shader lifts them to the
-level the rivers run at, [water.md](water.md#how-it-looks); and a quad over each cell of the lakes
+a buried mesh (the road tunnels' walls: the solid's material, casting no shadow, as the terrain over
+them casts none), a decal mesh (roads, in their tunnels too, the track's sleepers and
+rails, crossing panels and stop lines, the platforms' yellow lines), a water mesh (rivers and
+streams, laid on their beds: the shader lifts them to the level the rivers run at,
+[water.md](water.md#how-it-looks); and a quad over each cell of the lakes
 and river polygons, `src/render/water.ts`, from the chunk's own cells), a glow mesh (lit window
 panes and lantern glass) and one `InstancedMesh` per tree crown (broadleaf, beech, conifer, pine;
 an oak is a broadleaf in its own tint: `speciesAt` in `src/render/trees.ts`,
 [map.md](map.md#known-data-limitations); out of leaf a bare broadleaf or beech and an oak holding
 its dead leaves, as the season the game starts in says, `crownsOn` in `src/render/leaves.ts`,
-[weather.md](weather.md#the-woods-leaves)); the water,
-glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
+[weather.md](weather.md#the-woods-leaves)); the buried,
+water, glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
 the terrain, lines and trees beyond the map bounds, the built terrain's box; inside it, past an
 inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground and cover the
 nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a line
@@ -1001,23 +1003,24 @@ build reads is in memory.
   tiles each chunk reads and which tile plans it, `chunkTiles` in `src/render/chunk-tiles.ts`, with
   no terrain read) and the global pieces, bucketed per chunk with the range of segments that reach
   it. A `Piece` is an anchor polyline plus a `draw` function; the global ones are the track, the
-  crossings' fixed parts, the tunnel portals, the platforms, the name boards, the canopies and the
-  lamps (each a one-point piece at its lantern, from `MAP.lamps`), made from `MAP.rail`,
-  `MAP.railway`, `MAP.derived` and `MAP.lamps`. The buildings, roads and rivers come with the tiles
-  (below).
+  crossings' fixed parts, the tunnel portals (the railway's, then the road tunnels', each a
+  one-point piece at its mouth, from `MAP.derived.mouths`: [Road tunnels](#road-tunnels)), the
+  platforms, the name boards, the canopies and the lamps (each a one-point piece at its lantern,
+  from `MAP.lamps`), made from `MAP.rail`, `MAP.railway`, `MAP.derived` and `MAP.lamps`. The
+  buildings, roads and rivers come with the tiles (below).
 - **Pieces per tile** (`Pieces` in `src/render/pieces.ts`): `tileProvided(key)` makes the pieces of
-  the tile's buildings, roads (a road's ribbons, then its deck on a bridge) and rivers from its
-  vectors (`tileVectors`) and the roads' attributes in `MAP.roads`. A feature lies whole in every
-  tile within the halo of it, so its piece is made once, however many of the tiles in memory hold
-  it, and goes with the last of them. Every piece has a key in the whole map's draw order (the
-  buildings by index, then each road's ribbons and deck, then the rivers, then the global pieces),
-  and a chunk draws the pieces of the tiles under its square, each once, in that order, then the
-  global ones (`entries`). It draws each piece's segments plus one neighbour on each side (for
-  ribbon mitres) and keeps exactly the triangles that fall in the chunk, so it gets the very
-  triangles, in the very order, that cutting a whole-map build gives it, whichever order the tiles
-  came in (`rail.map-test.ts` checks every chunk of the map against its cut of the whole build of
-  every tile's vectors joined, the tiles handed in reverse key order; `rail.test.ts` the chunks by
-  Monzone station, the tiles handed both ways).
+  the tile's buildings, roads (a road's ribbons, then its deck on a bridge or its bore in a tunnel)
+  and rivers from its vectors (`tileVectors`) and the roads' attributes in `MAP.roads`. A feature
+  lies whole in every tile within the halo of it, so its piece is made once, however many of the
+  tiles in memory hold it, and goes with the last of them. Every piece has a key in the whole map's
+  draw order (the buildings by index, then each road's ribbons and deck or bore, then the rivers,
+  then the global pieces), and a chunk draws the pieces of the tiles under its square, each once,
+  in that order, then the global ones (`entries`). It draws each piece's segments plus one
+  neighbour on each side (for ribbon mitres) and keeps exactly the triangles that fall in the
+  chunk, so it gets the very triangles, in the very order, that cutting a whole-map build gives it,
+  whichever order the tiles came in (`rail.map-test.ts` checks every chunk of the map against its
+  cut of the whole build of every tile's vectors joined, the tiles handed in reverse key order;
+  `rail.test.ts` the chunks by Monzone station, the tiles handed both ways).
 - **The tiles a chunk reads**: its terrain reads the tiles under its square (an apron chunk's, the
   edge tiles it clamps to; a notch chunk's, the listed tiles round the notch, `tilesOver`), which
   hold every building, road and river it draws. Its base is those and, for an apron chunk, the tiles
@@ -1228,6 +1231,94 @@ The pixel pipeline (`src/render/pipeline.ts`):
 - The far plane is 3 km from the camera (2.5 km past the focus): from the Apuan summits the
   deepest ground in view is ≈ 2.45 km from the camera, past the 1 km the plane used to stop at.
 
+### Road tunnels
+
+Every road in a tunnel is drawn as the sim drives it, at its tunnel's floor, with dark walls through
+the hill and a portal at each mouth the hill stands over (`src/render/bores.ts`,
+`src/render/portals.ts`); a building passage gets only its road, under its house.
+
+- **The road**: `roadPieces` draws a road in a tunnel's ribbons and painted lines as a deck's, on
+  its profile and `ROAD_LIFT` (`surfaceY` with `lifted`), where `groundZ` stands wheels and feet,
+  never on the hill over it, and the terrain hides them by depth. Lunigiana's 35 roads in tunnels
+  (967 m) draw 1,260 decal triangles, Cesena's 64 (5,264 m) 10,172.
+- **The bore** (`borePiece`, the road's second piece, where a bridge's is its deck): a dark wall
+  (`tunnelDark`, in the chunk's buried mesh: the solid's material, casting no shadow, as the terrain
+  over it casts none; in the solid mesh a low sun threw a wall's shadow through the hill onto lit
+  ground past it) along each side of its cross-section (`boreOf`: the carriageway and 1 m each
+  side), from 0.3 m under the road up to the springing (OSM's `maxheight`, 4 m untagged, and 0.5 m),
+  or 0.25 m under the terrain over it where that is lower. Each segment's wall is cut at most every
+  2 m and wherever its line crosses a fold of the terrain mesh (a 4 m cell's side or its south-west
+  to north-east diagonal, `foldsAlong`), its top meets the springing or it runs out under the
+  ground, so between two cuts the ground over it is straight and its top runs straight 0.25 m under
+  it: a wall never stands out of the hill, between its corners as at them (cut every 2 m alone, a
+  top crossed folds between its ends and stood up to 0.59 m out of the grass). It reaches on to
+  where the hill meets the floor, and none stands where the ground over a road under a bridge is
+  lower still. No roof and no lamps. While the hill hides the player the see-through cut takes the
+  ground nearer the camera than where their sight line meets it, so it shows the road and the car on
+  it inside the hill, the far wall whole and the near one a stub above the feet, as a building's
+  walls ([See-through cut](#see-through-cut)). A building passage (`passage`, OSM's
+  `tunnel=building_passage`: 21 on Lunigiana, 22 on Cesena) has no bore: its house hides its road,
+  and the cut shows it. Lunigiana's bores are 3,166 triangles in 22 chunks, Cesena's 18,124 in 48.
+- **Portals**: at each road tunnel mouth (`MAP.derived.mouths`, which the build bakes:
+  [map.md](map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts))
+  with a portal, the railway's shape round the bore
+  (`portalRound`): the dark mouth as wide as the bore, its arch springing at the springing and
+  rising half the bore's half width over it in three steps, the face wall 2.6 m past the mouth's
+  sides and 1.7 m over its crown with its cornice, and the lined throat 0.8 m past and 0.4 m over;
+  the railway's single-track portal is the same shape round a 2.4 m half width springing at 4.6 m.
+  It is concrete (`plasterGrey`, a `limestone` cornice) on the main, provincial and unclassified
+  roads and old stone on the rest, as their bridges (`bridgeHex`). A portal stands where the ground
+  over its tunnel rises, somewhere along it, as high over the road as the springing and the face
+  wall (`leastCover`: 6.2 m untagged); under a lower hill than its arch needs (an underpass through
+  an embankment) the arch rises only as far as leaves its face wall under that ground (Via Gioco di
+  Sopra's east mouth: its crown 4.83 m, the railway's proportions giving 7.6 m). The throat runs in
+  from 3 m, a metre at a time, until the hill stands 0.5 m over its top, at most 40 m and never
+  past the tunnel's middle, all baked: the SR445's 12 and 13 m, the 196 m track's south mouth 6 m
+  and its north mouth 40 m, where the ground over the first 50 m of the tunnel stands 2.7 m over
+  the track at most, so its throat stands out of the slope as a lined gallery.
+- **Clear of the roads round it**: no part of a portal stands on another road. The build tests its
+  footprint (the face wall under its cornice, which stands 0.2 m proud of it all round, and the
+  throat; `clearance` in `src/render/portal-clear.ts`) against every road's carriageway but those of
+  its own tunnel, and the track's bed (2.1 m either side), at points every 0.25 m along them, from
+  the portal's foot to its top, but where a road carrying on out of the mouth fills the arch (the
+  bore's width). A throat stops short of a road over it; a portal whose face wall would stand on one
+  (its mouth at a junction, or a road crossing just in front of the hill) stands back into its
+  tunnel along its line a metre at a time (`back`), facing out along it, at most 40 m and short of
+  the tunnel's middle, and with no spot clear the mouth is open. On Lunigiana the 87 m path under
+  the line at Equi Terme stands back 7 m from the tertiary road its south mouth opens onto (whose
+  face wall stood 7 m over it) and 1 m from its own steep approach at the north mouth, whose throat
+  stops at 3 m, short of the track over it (40 m before); Via Gioco di Sopra's west mouth and a 16 m
+  underpass under the SS63 (OSM 145347886) stay open, the road over each lower than a portal's top
+  there. On Cesena Via Spadolini's two mouths stay open (its cycle path's own tunnel runs beside
+  it), the Secante's west throat stops at 6 m, short of Via Santa Rita da Cascia (33 m before), and
+  the Sottopasso del Mare's portal stands back 2 m. Open mouths: 16 of Lunigiana's 28 (2 of them for
+  want of room), 68 of Cesena's 77 (the centre's arcades among them; 2 for want of room) and 9 of
+  the L's 12 (1).
+- **Why baked**: a mouth is an end no other road in a tunnel goes on from, and the road that would
+  can lie in a tile that does not hold the mouth's own piece (the far end of a 196 m tunnel), so a
+  mouth found tile by tile would depend on which tile came in first, and a chunk build would stop
+  matching a whole-map build; whether a portal stands clear reads every road round it too. Baked
+  like the lamps, each portal is a global one-point piece where it stands, after the railway's,
+  reading only the terrain under its face wall's ends (within 10 m; `REACH` is 50); a bore reads the
+  terrain along its own segments. Lunigiana's 12 portals are 504 solid triangles, Cesena's 9 are
+  378.
+- **Measured** (2026-11-06, Node and headless Chrome on an M-series Mac under other work, dev
+  build, `?seed=7`): the chunks within 200 m of the SR445's tunnel build in 0.66–0.68 ms each on
+  average (44 chunks, the median of five builds, two runs), those by Monzone station 0.59–0.60 ms
+  (46); standing by its east mouth (`pnpm playtest heap --at=-2228,4365`, two runs) the first frame
+  came at 0.47–0.73 s, the slowest frame was 16.8 ms and the heap after GC 151 MB, and a 40 m/s
+  drive through it (`pnpm playtest drive --route=-2185,4334,…,-2453,4487`, 309 m along the SR445)
+  had no frame over 16.8 ms, at most 4 tiles in memory and 157 MB at its end.
+- **Limits**: inside a throat the car is hidden behind its lining, as a train is, since the cut
+  opens only where the terrain, a building or a tree hides the player. Through the cut the bore's
+  road lies in the sun as the road outside, the hill and its walls casting no shadow on it (before
+  the walls left the solid mesh, the sun-side wall shaded part of it; by the SR445, whose hill is
+  gentler than the shadows' 20° floor, that was all their shadows reached, 2026-11-06). The bore's road gets the
+  snow and the wet of the road outside, as the sim's grip does ([weather.md](weather.md)). Between
+  a mouth and a portal stood back from it the road runs on as the map's ground lets it, so where
+  the hill already stands over the floor there it is hidden (the 87 m path's north mouth lies
+  1.6 m under the terrain). A mouth open for want of room shows its road running into the bank.
+
 ### Track and stations
 
 The railway's static parts are chunk pieces like the roads: the track and the crossings' fixed
@@ -1278,7 +1369,8 @@ nodes ([Trains and crossings](#trains-and-crossings)).
 - **Tunnel portals**, at each end of a tunnel piece that no other tunnel piece carries on and that
   is not within 0.5 m of the play area's edge, where the line runs on past it (`outlineDistance`;
   8 on this map): a stone face wall 10 m wide and 7.5 m over the rail head with a cornice, the
-  dark mouth of a single-track tunnel (4.8 m wide, an arch in three steps to 5.8 m) on its face,
+  dark mouth of a single-track tunnel (4.8 m wide, an arch in three steps to 5.8 m) on its face
+  (`portalRound`, which shapes the road tunnels' portals too: [Road tunnels](#road-tunnels)),
   and behind it a lined throat 6.4 m wide and 6.2 m tall that runs into the hill until the hill
   stands over its centreline (3–40 m): the map's ground over the first 5–15 m of a tunnel is too
   low to hide a train. A train passing the mouth vanishes behind its dark face.
@@ -1573,7 +1665,7 @@ never recompiles a shader.
 
 | Material | Variant | Draws | Weather on it |
 |---|---|---|---|
-| `solidMaterial` | `solid` | buildings, bridges, the ballast bed, platforms, canopies, name boards, crossing housings, tunnel portals, the lamps' iron and poles | snow, wet darkening, cloud shadows |
+| `solidMaterial` | `solid` | buildings, bridges, the ballast bed, platforms, canopies, name boards, crossing housings, tunnel portals, the road tunnels' walls, the lamps' iron and poles | snow, wet darkening, cloud shadows |
 | `terrainMaterial` | `terrain` | the terrain | snow (lower on north faces), wet darkening, cloud shadows |
 | `decalMaterial` | `road` | roads, sleepers and rails, crossing panels and stop lines, platform lines | snow (0.6 of it), wet darkening, puddles, cloud shadows |
 | `waterMaterial` | `water` | rivers, streams | the level and the current's streaks the rivers run at, rain rings, cloud shadows; no snow, no darkening |
@@ -1838,9 +1930,12 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   half, inside the halo, so the tile holds every feature its canvas can show), in the minimap's
   look (`src/render/map-style.ts`, which the full map's overview and detail share: water in one
   opaque colour at least 1 px wide, since a faded stream showed darker wherever two strokes
-  overlapped), on grass over the play
-  area and clipped to it (`MAP.outline`: an area reaches the built terrain's box, an L's notch
-  included). It is painted once the player comes within 1 km of it along either axis and the tile is
+  overlapped; a road in a tunnel dashed in its own look along its whole line, its dashes and the
+  gaps between them each twice its width and 2 px long from its first vertex, `dashesOf`, so the
+  SR445 reads unbroken through its tunnel by Groppoli; a path in a tunnel, as every path, left
+  out), on grass over the play area and clipped to it (`MAP.outline`: an area reaches the built
+  terrain's box, an L's notch included). It is painted once the player comes within 1 km of it
+  along either axis and the tile is
   in memory (`residentTile`): one a frame, nearest first. The minimap never asks for a tile; the
   stream fetches every listed tile within 1 km of the player (`NEAR`) anyway, so painting waits
   only for the download. Only listed tiles are painted (`isListed`), so an L's notch shows the dark
@@ -1902,7 +1997,7 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   reads; both paint the roads narrowest class first, so the main roads lie on top at junctions and
   overpasses. Its look is that of a map about 820 CSS px on its long side, painted at 5 overview
   pixels a CSS pixel (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3410 × 4096 px for Lunigiana,
-  4.40 MB, and 4000 × 4000 px for Cesena, 4.74 MB), and it is drawn scaled to the fit and smoothed
+  4.52 MB, and 4000 × 4000 px for Cesena, 4.76 MB), and it is drawn scaled to the fit and smoothed
   (`imageSmoothingQuality` "high"). So its lines are as wide as the live paint drew them before the
   overview on a map that long, and scale with the map elsewhere: 0.73 times as wide in a 1280 × 720
   window (the map 600 px tall), 1.17 times in a 1920 × 1080 one (960 px) and 0.33 times on an
@@ -2313,8 +2408,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     opening) and release (at each closing, a late one included);
     `src/tools/__tests__/overview.test.ts` and `paint-raster.test.ts`: the overview's size under
     Safari's 16.7 MP, the full map's look in it (grass on the play area only, roads by class
-    narrowest first, buildings on top), the same bytes every run, and the raster painter's fills,
-    strokes and clips;
+    narrowest first, a tunnel dashed, buildings on top), the same bytes every run, and the raster
+    painter's fills, strokes and clips; `src/render/__tests__/map-style.test.ts`: the areas in the
+    land cover's order, the water opaque, and a road in a tunnel dashed in its own look from its
+    start, half its line drawn, a path in a tunnel left out;
     `src/hud/__tests__/touch.test.ts`: the stick and buttons as keys, a hidden control letting go
     of its key, and in a train only ◀ ▶ hidden (read from hud.css and
     index.html, and marked by `draw` on the controls, `data-vehicle="train"`).
@@ -2368,7 +2465,17 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     and the road light's plate behind its lens, all clear of the trains.
     `src/render/__tests__/portals.test.ts`: Lunigiana with its outline's east side moved onto its
     easternmost tunnel mouth (`editMap`), as a region whose outline cuts a tunnel gives: no portal
-    there, one at each of the other seven mouths.
+    there, one at each of the other seven mouths, and a road tunnel ending on that edge baked a
+    mouth at its other end alone. `src/render/__tests__/tunnels.test.ts`, found by geometry (the
+    tiles round them read): the SR445's tunnel by Groppoli drawn at its floor every 2 m, its bore's
+    dark walls in the chunk's buried layer, nothing of it in the solid one, on both sides every 2 m where the hill stands 0.5 m over the floor and every edge of
+    them, every 0.1 m, 0.2 m or more under the terrain; a concrete portal at both its mouths and an
+    old stone one at both of the 196 m track's, each dark mouth facing out of the hill with its
+    crown over the clearance and standing on no other road nor the track (`checkClear` in
+    `mouth-checks.ts`: its tops every 0.25 m against their carriageways); the 87 m path under the
+    line at Equi Terme, its south portal stood back 5 m or more from the tertiary road it opens onto
+    and on its line, both clear; Via Casola's building passage drawn at its floor with no wall and
+    no portal; and those six mouths baked as `bakeMouths` makes them now.
   - `src/render/__tests__/stations.test.ts`, over the stations within 4 km of Monzone station
     (Monzone's, Gragnola's and Equi Terme's): the platforms' tops following the rail profile, their
     yellow lines, nothing standing in a train's way, one name board per platform people wait on,
@@ -2393,7 +2500,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     above the fit, shrinking a second after the view asks for less, no step within a tenth of the
     300 m cap, and a zoom change on the flat moving it once); `actors.test.ts`: the vehicle
     lamps and the x-ray's yellow; `buildings.test.ts`: lit panes on homes only; `world.test.ts` (and
-    `world.long-test.ts`): the glow and water meshes, the world and the crossings' nodes made
+    `world.long-test.ts`): the glow and water meshes, the SR445 tunnel's walls in a mesh of the
+    solid's material that casts no shadow, the world and the crossings' nodes made
     without reading a tile, a chunk built only once every tile its build reads is in and dropped
     when one goes, the same chunks vertex for vertex with the tiles handed in either order or one
     let go and handed back, and the tiles only chunks behind the near plane read not wanted;
@@ -2508,7 +2616,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     one tile planning each chunk with its box round the chunk's, every chunk's build reading its
     base and some chunk reading past its square (a crossing's chunk the ground under its road
     ribbons), and with only some tiles in every chunk that builds reading only those and building
-    as with every tile in, at every level crossing, platform, tunnel mouth and corner of the map;
+    as with every tile in, at every level crossing, platform, tunnel mouth, road tunnel portal and
+    corner of the map;
     `trees.map-test.ts`, `chunks.map-test.ts` and `rail.map-test.ts`: their checks over every chunk
     (`trees.map-test.ts` also the beech's share of the woods' trees in each band of height within
     10 points of the forest inventory's, [map.md](map.md#known-data-limitations)),
@@ -2516,6 +2625,18 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     handed in reverse key order, against its cut of the whole build of every tile's vectors joined
     (`chunk-cut.ts`), and `rail.test.ts`'s checks over every crossing and tunnel mouth;
     `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;
+    `tunnels.map-test.ts`, `tunnels-cesena.map-test.ts` and `tunnels-l.map-test.ts`, each in a
+    process of its own (`tunnel-checks.ts`): over every road in a tunnel of Lunigiana, Cesena and
+    the L, its ribbon at its floor every 2 m, its bore's walls as `tunnels.test.ts` checks the
+    SR445's (none through a building passage), the baked mouths exactly the tunnels' mouths found
+    again from the roads, a stood-back portal on its road's line facing out along it, a portal
+    facing out of the hill in its road bridges' colour and clear of every other road and the track
+    at each with one, none at an open one, and the chunks within 60 m of every road in a tunnel
+    built from the tiles' pieces as a whole-map build cuts them; each pins its counts (roads in
+    tunnels, passages, metres, wall triangles, mouths, portals and the open mouths the ground over
+    which does rise to `leastCover`, crowded: Lunigiana 35, 21, 967 m, 3,166, 28, 12, 2; Cesena
+    64, 22, 5,264 m, 18,124, 77, 9, 2; the L 7, 1, 194 m, 633, 12, 3, 1), so a new part's tunnels
+    show;
     `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
     `shadow-box-cesena.map-test.ts`: the shadow box through whole turns at the map's steepest fall,
     deepest gully and flattest ground, found over its whole coarse lattice (Lunigiana's and

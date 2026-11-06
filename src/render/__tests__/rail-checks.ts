@@ -8,7 +8,7 @@ import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
 import { chunkOf } from "../chunks.ts"
 import { BARRIER, ROAD_LIGHT } from "../crossings.ts"
-import { boxOver, linear, type Piece, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
+import { boxOver, emptySink, linear, type Piece, type Sink, type Triangles } from "../geometry.ts"
 import { atGradeY, terrainY, yOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
 import { bucketPieces } from "../pieces.ts"
@@ -16,22 +16,15 @@ import { railPieces } from "../rail.ts"
 import { vectorsAround } from "../testing.ts"
 import { linesOf, wholeVectors } from "./chunk-cut.ts"
 
-const sink = (): Sink => ({
-  solid: new Triangles(),
-  decal: new Triangles(),
-  water: new WaterTriangles(),
-  glow: new Triangles(),
-  pieces: [],
-})
 /** Every piece of `list` drawn whole into one sink. */
 const whole = (list: ReadonlyArray<Piece>): Sink => {
-  const all = sink()
+  const all = emptySink()
   for (const piece of list) piece.draw(() => all, 0, Math.max(0, piece.pts.length / 2 - 2))
   return all
 }
 type P3 = readonly [number, number, number]
 /** A triangle's three corners, three space. */
-type Tri = readonly [P3, P3, P3]
+export type Tri = readonly [P3, P3, P3]
 /** Triangle `t` (its first value's index) of `tris`. */
 const triAt = (tris: Triangles, t: number): Tri => {
   const p = tris.position
@@ -42,7 +35,7 @@ const triAt = (tris: Triangles, t: number): Tri => {
   ]
 }
 /** The triangles of `tris` in colour `hex`. */
-const trianglesOf = (tris: Triangles, hex: number): Array<Tri> => {
+export const trianglesOf = (tris: Triangles, hex: number): Array<Tri> => {
   const [r, g, b] = linear(hex),
     found: Array<Tri> = []
   for (let t = 0; t < tris.position.length; t += 9)
@@ -51,7 +44,7 @@ const trianglesOf = (tris: Triangles, hex: number): Array<Tri> => {
   return found
 }
 /** The render height of triangle `tri` over map (x, y), if it covers it (seen from above). */
-const heightIn = ([a, b, c]: Tri, x: number, y: number): number | undefined => {
+export const heightIn = ([a, b, c]: Tri, x: number, y: number): number | undefined => {
   const z = -y,
     d = (b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2])
   if (Math.abs(d) < 1e-12) return undefined
@@ -165,8 +158,8 @@ export const checkPanelsOverRoads = ({ all, crossings, lines }: Railway): void =
   for (const b of crossings) {
     const crossing = MAP.railway.crossings[b]!,
       key = chunkOf(crossing.x, crossing.y),
-      chunk = sink(),
-      elsewhere = sink()
+      chunk = emptySink(),
+      elsewhere = emptySink()
     const entries = byChunk[key]!
     for (let n = 0; n < entries.length; n += 3)
       lines[entries[n]!]!.draw(

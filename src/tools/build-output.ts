@@ -45,6 +45,7 @@ export const assembleMap = (
     ...(r.ramp ? { ramp: true } : {}),
     ...(r.bridge ? { bridge: true } : {}),
     ...(r.tunnel ? { tunnel: true } : {}),
+    ...(r.passage ? { passage: true } : {}),
     ...(r.layer === undefined ? {} : { layer: r.layer }),
     ...(r.maxheight === undefined ? {} : { maxheight: r.maxheight }),
     ...(verges.has(i) ? { verge: verges.get(i)! } : {}),

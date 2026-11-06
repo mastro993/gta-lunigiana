@@ -44,6 +44,8 @@ export interface RoadF {
   readonly ramp?: true
   readonly bridge?: true
   readonly tunnel?: true
+  /** A tunnel through a building (OSM `tunnel=building_passage`). */
+  readonly passage?: true
   readonly layer?: number
   /** OSM maxheight (m) of an underpass. */
   readonly maxheight?: number
@@ -194,6 +196,7 @@ export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
       ...(t.highway === "motorway_link" || t.highway === "trunk_link" ? { ramp: true } : {}),
       ...(t.bridge !== undefined && t.bridge !== "no" ? { bridge: true } : {}),
       ...(t.tunnel !== undefined && t.tunnel !== "no" ? { tunnel: true } : {}),
+      ...(t.tunnel === "building_passage" ? { passage: true } : {}),
       ...(t.layer ? { layer: +t.layer } : {}),
       ...(t.maxheight !== undefined && !Number.isNaN(parseFloat(t.maxheight))
         ? { maxheight: parseFloat(t.maxheight) }

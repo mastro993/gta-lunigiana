@@ -1,10 +1,11 @@
 // Lunigiana with its outline's east side moved west onto its easternmost tunnel mouth, as a region
 // whose outline cuts a tunnel gives (the build clips the tunnel's piece there, issue #7): an end on
-// the play area's edge is where a line runs on past it, not a mouth.
+// the play area's edge is where a line runs on past it, not a mouth, the railway's or a road's.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { editMap } from "../../sim/map/__tests__/edit-map.ts"
+import type { Road } from "../../sim/map/index.ts"
 
 /** Each tunnel mouth in the global file's railway: an end of a tunnel piece no other tunnel piece goes on from. */
 let mouths: Array<readonly [number, number]> = []
@@ -21,9 +22,14 @@ editMap((json) => {
   cut = mouths.reduce((east, m) => (m[0] > east[0] ? m : east))
   const { minX, minY, maxY } = json.bounds
   maxX = json.bounds.maxX
-  return { ...json, outline: [[minX, minY, cut[0], minY, cut[0], maxY, minX, maxY]] }
+  // The road tunnels' portals left out: the railway's alone are drawn.
+  return {
+    ...json,
+    outline: [[minX, minY, cut[0], minY, cut[0], maxY, minX, maxY]],
+    derived: { ...json.derived, mouths: [] },
+  }
 })
-const { portalPieces } = await import("../portals.ts")
+const { bakeMouths, portalPieces } = await import("../portals.ts")
 
 test("a tunnel ending on the play area's edge has no portal there, every other mouth has one", () => {
   assert.ok(cut[0] < maxX - 100, `the cut at ${cut[0]}, 100 m or more inside the bounds' edge`)
@@ -32,5 +38,22 @@ test("a tunnel ending on the play area's edge has no portal there, every other m
   assert.deepEqual(
     drawn,
     mouths.filter((m) => m !== cut),
+  )
+})
+
+test("a road tunnel ending on the play area's edge has no mouth there, and one at its other end", () => {
+  const [x, y] = cut,
+    road: Road = {
+      id: 1,
+      cls: "track",
+      w: 3,
+      surface: "unpaved",
+      tunnel: true,
+      pts: [x - 60, y, x, y],
+      z: [0, 0],
+    }
+  assert.deepEqual(
+    bakeMouths({ ids: [7], items: [road] }).map((mouth) => [mouth.road, mouth.x, mouth.y]),
+    [[7, x - 60, y]],
   )
 })
