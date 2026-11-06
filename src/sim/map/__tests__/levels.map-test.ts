@@ -20,6 +20,7 @@ import { passesOver } from "../../../tools/road-levels.ts"
 import { LEVEL } from "../../rail/bodies.ts"
 import { ENTER_GAP } from "../../tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../../vehicles.ts"
+import { boxOf, crossings } from "./overpass-checks.ts"
 
 /**
  * How far from a crossing (m, in plan) two things on its two ways can meet: a person within
@@ -56,21 +57,6 @@ interface Way {
 }
 const rail = (w: Way) => w.cls === "rail"
 
-/** The [minX, minY, maxX, maxY] box of a flat polyline. */
-const boxOf = (pts: ReadonlyArray<number>) => {
-  let x0 = Infinity,
-    y0 = Infinity,
-    x1 = -Infinity,
-    y1 = -Infinity
-  for (let i = 0; i + 1 < pts.length; i += 2) {
-    x0 = Math.min(x0, pts[i]!)
-    y0 = Math.min(y0, pts[i + 1]!)
-    x1 = Math.max(x1, pts[i]!)
-    y1 = Math.max(y1, pts[i + 1]!)
-  }
-  return [x0, y0, x1, y1] as const
-}
-
 /** Points of `w`'s profile every STEP m within REACH of (x, y): x, y and z. */
 const near = (w: Way, x: number, y: number) => {
   const out: Array<readonly [number, number, number]> = []
@@ -97,32 +83,14 @@ const near = (w: Way, x: number, y: number) => {
  */
 const gapsOver = (up: Way, down: Way) => {
   const out: Array<{ readonly x: number; readonly y: number; readonly gap: number }> = []
-  for (let k = 0; k + 3 < up.pts.length; k += 2)
-    for (let m = 0; m + 3 < down.pts.length; m += 2) {
-      const px = up.pts[k]!,
-        py = up.pts[k + 1]!,
-        ex = up.pts[k + 2]! - px,
-        ey = up.pts[k + 3]! - py,
-        qx = down.pts[m]!,
-        qy = down.pts[m + 1]!,
-        fx = down.pts[m + 2]! - qx,
-        fy = down.pts[m + 3]! - qy,
-        den = ex * fy - ey * fx
-      if (den === 0) continue
-      const t = ((qx - px) * fy - (qy - py) * fx) / den,
-        u = ((qx - px) * ey - (qy - py) * ex) / den
-      if (t < 0 || t > 1 || u < 0 || u > 1) continue
-      const atVertex = (s: number) => s < 1e-6 || s > 1 - 1e-6
-      if (atVertex(t) && atVertex(u)) continue
-      const x = px + ex * t,
-        y = py + ey * t,
-        below = near(down, x, y)
-      let gap = Infinity
-      for (const [ax, ay, az] of near(up, x, y))
-        for (const [bx, by, bz] of below)
-          if (Ops.hypot(ax - bx, ay - by) <= REACH) gap = Math.min(gap, az - bz)
-      out.push({ x, y, gap })
-    }
+  for (const { x, y } of crossings(up.pts, down.pts)) {
+    const below = near(down, x, y)
+    let gap = Infinity
+    for (const [ax, ay, az] of near(up, x, y))
+      for (const [bx, by, bz] of below)
+        if (Ops.hypot(ax - bx, ay - by) <= REACH) gap = Math.min(gap, az - bz)
+    out.push({ x, y, gap })
+  }
   return out
 }
 
