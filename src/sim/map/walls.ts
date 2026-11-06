@@ -13,9 +13,10 @@ import { derived, eachTile, type Tile } from "./tiles.ts"
 /** The kinds of wall `wallsNear` answers. */
 export type WallKind = "walk" | "land" | "drive" | "traffic"
 
-/** A wall broad phase over one tile's flat (ax, ay, bx, by) segments. */
+/** A wall broad phase over one tile's flat (ax, ay, bx, by) segments, and each one's level (NaN for none). */
 interface Walls {
   readonly flat: ArrayLike<number>
+  readonly levels: ArrayLike<number>
   readonly grid: CellGrid
 }
 
@@ -34,7 +35,7 @@ const joined = <A extends Float64Array | Int32Array>(
 
 /** The tile's broad phase of wall `kind` on the kind's lattice, its walls answering in the whole map's order. */
 const wallGrid = (tile: Tile, kind: WallKind): Walls => {
-  const { walls, wallIds } = tile.data,
+  const { walls, wallIds, wallLevels } = tile.data,
     { counts, lattice } = MAP.walls
   // The land and traffic broad phases hold the walk or drive walls, then the shore's after every one of them.
   const flat =
@@ -54,6 +55,16 @@ const wallGrid = (tile: Tile, kind: WallKind): Walls => {
             wallIds.shore,
             kind === "land" ? counts.walk : counts.drive,
             (n) => new Int32Array(n),
+          ),
+    // The shore's walls have no level.
+    levels =
+      kind === "walk" || kind === "drive"
+        ? wallLevels[kind]
+        : joined(
+            kind === "land" ? wallLevels.walk : wallLevels.drive,
+            new Float64Array(walls.shore.length / 4).fill(NaN),
+            0,
+            (n) => new Float64Array(n),
           )
   const grid = cellGrid(
     flat.length / 4,
@@ -68,7 +79,7 @@ const wallGrid = (tile: Tile, kind: WallKind): Walls => {
     lattice[kind],
     CELL,
   )
-  return { flat, grid }
+  return { flat, levels, grid }
 }
 
 /** Each tile's broad phase of each wall kind, built on first use. */
@@ -128,10 +139,25 @@ export interface Segment {
   readonly by: number
 }
 
-/** A reused answer and its reused segments. */
+/**
+ * A wall edge in metres, and its level (m a.s.l.) when it has one: a bridge's parapet stands at its
+ * deck's top, and stops only a body whose ground stands within `LEVEL` of it (`meets` in
+ * src/sim/body.ts); a wall with none stops anyone.
+ */
+export interface Wall extends Segment {
+  readonly level: number | undefined
+}
+
+/** A reused answer and its reused walls. */
 interface Answer {
-  readonly found: Array<Segment>
-  readonly pool: Array<{ ax: number; ay: number; bx: number; by: number }>
+  readonly found: Array<Wall>
+  readonly pool: Array<{
+    ax: number
+    ay: number
+    bx: number
+    by: number
+    level: number | undefined
+  }>
 }
 const answer = (): Answer => ({ found: [], pool: [] })
 /** One reused answer per wall kind. */
@@ -143,8 +169,8 @@ const answers: Readonly<Record<WallKind, Answer>> = {
 }
 /** Scratch for `pushTrunk`: the four edges of one trunk square, 16 numbers. */
 const trunk: Array<number> = []
-/** Scratch for a wall query's tiles' segments and broad phases. */
-const wallFlats: Array<ArrayLike<number>> = [],
+/** Scratch for a wall query's tiles' walls and broad phases. */
+const wallTiles: Array<Walls> = [],
   wallGrids: Array<CellGrid> = []
 
 /**
@@ -156,8 +182,10 @@ const wallFlats: Array<ArrayLike<number>> = [],
  * vehicles spawn. Water stops neither feet nor wheels. Every tree trunk is a square of `pushTrunk`
  * edges. The walls come first, then the trunks, each in the order the whole map's broad phase gave
  * them (`./lattice.ts`: a wall lives in its midpoint's tile and sticks out of it by up to
- * `MAP.walls.reach`, so the tiles that far round the box are read). The array and the segments in it
- * are reused by the next call of the same kind: copy the coordinates to keep them.
+ * `MAP.walls.reach`, so the tiles that far round the box are read). Each wall carries its level, a
+ * trunk none: the query answers every level, and `wallsAlong` (src/sim/body.ts) keeps those a body
+ * meets. The array and the walls in it are reused by the next call of the same kind: copy the
+ * coordinates to keep them.
  */
 export const wallsNear = (
   kind: WallKind,
@@ -165,35 +193,37 @@ export const wallsNear = (
   minY: number,
   maxX: number,
   maxY: number,
-): ReadonlyArray<Segment> => {
+): ReadonlyArray<Wall> => {
   const { found, pool } = answers[kind]
   found.length = 0
-  const add = (ax: number, ay: number, bx: number, by: number) => {
-    const s = pool[found.length] ?? (pool[found.length] = { ax: 0, ay: 0, bx: 0, by: 0 })
+  const add = (ax: number, ay: number, bx: number, by: number, level: number) => {
+    const s =
+      pool[found.length] ?? (pool[found.length] = { ax: 0, ay: 0, bx: 0, by: 0, level: undefined })
     s.ax = ax
     s.ay = ay
     s.bx = bx
     s.by = by
+    s.level = Number.isNaN(level) ? undefined : level
     found.push(s)
   }
   const r = MAP.walls.reach
-  wallFlats.length = 0
+  wallTiles.length = 0
   wallGrids.length = 0
   const [x0, y0, x1, y1] = cellBox(MAP.walls.lattice[kind], CELL, minX, minY, maxX, maxY)
   eachTile(x0 - r, y0 - r, x1 + r, y1 + r, (tile) => {
-    const { flat, grid } = wallsOf[kind](tile)
-    wallFlats.push(flat)
-    wallGrids.push(grid)
+    const walls = wallsOf[kind](tile)
+    wallTiles.push(walls)
+    wallGrids.push(walls.grid)
   })
   queryCells(wallGrids, MAP.walls.lattice[kind], CELL, minX, minY, maxX, maxY, (g, i) => {
-    const flat = wallFlats[g]!
-    add(flat[4 * i]!, flat[4 * i + 1]!, flat[4 * i + 2]!, flat[4 * i + 3]!)
+    const { flat, levels } = wallTiles[g]!
+    add(flat[4 * i]!, flat[4 * i + 1]!, flat[4 * i + 2]!, flat[4 * i + 3]!, levels[i]!)
   })
   treesIn(minX - TRUNK / 2, minY - TRUNK / 2, maxX + TRUNK / 2, maxY + TRUNK / 2, (x, y) => {
     trunk.length = 0
     pushTrunk(trunk, x, y)
     for (let k = 0; k < trunk.length; k += 4)
-      add(trunk[k]!, trunk[k + 1]!, trunk[k + 2]!, trunk[k + 3]!)
+      add(trunk[k]!, trunk[k + 1]!, trunk[k + 2]!, trunk[k + 3]!, NaN)
   })
   return found
 }

@@ -381,7 +381,15 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   same walls in the same order ([map.md](map.md#a-tile)): the physics pushes out of walls one by one
   and keeps the first of equal-time hits, so another order would move collisions at corners. It
   reuses its answer array and the segment objects in it until the next call of the same kind: copy
-  the coordinates to keep them.
+  the coordinates to keep them. Each wall it hands carries its level when it has one (a bridge's
+  parapet stands at its deck's top, [map.md](map.md#10-collision-walls-wallsts-parapetsts)), and the
+  query answers every level: `wallsAlong` (`src/sim/body.ts`) keeps the walls a body meets standing
+  at the level it is given (`meets`: a wall with no level, or one within `LEVEL`, 2 m, of it), every
+  wall when it is given none. The physics, the contacts and the trains' strikes give a car's wheels
+  (`chassis.z − cg`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
+  spot's settled wheels, a teleport's ground), and the baked lanes their road's surface where the
+  edge passes nearest a parapet; `walkBy` and `standClear` take an optional level, and no walk wall
+  has one yet.
 - `buildingsIn` (`src/sim/map/vectors.ts`: each tile's buildings in 64 m cells on the buildings'
   lattice, `MAP.vectors.lattice.buildings`, handing each building's index in the whole map's list,
   the building and its box) and `treesIn` (the trees as points, `src/sim/map/walls.ts`, handing each
@@ -2260,8 +2268,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     nor a truck from the north-west at 13 m/s), `trains-strikes.test.ts` and
     `trains-strikes.long-test.ts` (a car struck at 80 km/h wrecked and thrown off; a car into a
     standing train taking a wall's hit; the player sprinting
-    into a standing train's side stopped, not knocked down; a train creeping into a car pinned under
-    the road bridge shoving it unharmed, one at 6 m/s wrecking it with two hits in all; a car shoved
+    into a standing train's side stopped, not knocked down; a train creeping into a car pinned
+    against a wall across the track (`acrossWall()`) shoving it unharmed, one at 6 m/s wrecking it
+    with two hits in all; a car shoved
     against a wall beside the track (`besideWall()`) scraped past at a walk, unwrecked and never hit;
     a man on the track running off at the alarm and the train stopping short; a train held for a car
     sounding the horn 10 s, keeping the box ahead down and creeping on; the player stepping on and
@@ -2322,7 +2331,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/sim/__tests__/walls.test.ts` (traffic): a driver stops for a car standing across its lane,
     backs up short of the car queued behind, waits for a car beside its front as it steers back
     into its lane, backs up straight past a car alongside, and keeps slower and further back on a
-    wet road.
+    wet road; (parapets, issue #91) a Panda driven across the SR445's viaduct west of Gragnola over
+    the residential road under it, either way, stays on the deck (before, it dropped 8 m onto that
+    road), and a traffic car on that road passes under it (with the parapets meeting every level, it
+    stops 9.1 m off the deck's centreline).
   - `src/sim/__tests__/freeze.test.ts`: `inReach` (within `FROZEN_BEYOND` along both axes, and
     everywhere with no player); a car rolling at 5 m/s and a parked car touching its tail about
     5.7 km from the start, their tiles dropped and no tile source, keeping their state bit for bit
@@ -2571,7 +2583,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   rule above), and their shared checks in helper modules there (`route-checks.ts`,
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
-  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `decks.ts`,
+  `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `decks.ts`, `parapets.ts`,
   `overpass-checks.ts`, `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`, `road-oracle.ts`,
   `shadow-turns.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts` and
@@ -2765,7 +2777,8 @@ fixtures `MONZONE` (the station nearest the start) and `RIOLO` (its level crossi
 beside on the rail's level), `tunnelMouth()` (3 m inside a portal whose cutting is on the rail's
 level), `underRoad()` (at grade under the road bridge by Equi Terme), `overRoad()` (at grade over a
 road tunnel, the pedestrian underpass at Equi Terme), `besideWall()` (the first two stretches at
-grade with a wall 3.3–5 m off the centreline), `downToBox()` (a way on foot down a road onto a
+grade with a wall 3.3–5 m off the centreline), `acrossWall()` (the first metre at grade crossing a
+drive wall on the track's level, a cutting's slope), `downToBox()` (a way on foot down a road onto a
 level crossing, along the box's road line the global file keeps, `MAP.derived.crossings`) and
 `underpassWays()` (every way on foot along a road into a road tunnel under the line, to under the
 track, among the roads of the tiles Monzone's line crosses, in the whole map's order, and at each

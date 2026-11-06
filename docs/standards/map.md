@@ -79,6 +79,16 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   The build lowers the ground (`deck-ground.ts`) for every deck from the shipped lines alone, so a
   failure on a new part is the data's (a bridge's ends or profile, two decks at odds) or the pass's:
   fix that for every deck alike, never with an exception for one bridge or one part.
+- Every bridge's parapets hold on its deck's level and only there: `parapets.map-test.ts` reads
+  every drivable bridge of Lunigiana, Cesena and the L, and fails where a car on the deck meets no
+  wall and no road on the deck's level (within 2 m of its top) reaches the parapet, where a car on a
+  road reaching it meets a parapet (a junction on the deck closed, a road under it walled off by a
+  parapet's wrong level), or where a wall with no level stands on the parapet over a road under or
+  over the deck ([Collision walls](../map.md#10-collision-walls-wallsts-parapetsts)). The build
+  (`parapets.ts`) opens and levels every parapet from the shipped roads alone, so a failure on a
+  new part is the data's (a bridge's or a road's profile, a junction's roads at odds by 2 m or
+  more, a barrier drawn along a deck's edge) or the build's: fix that for every bridge alike, never
+  with an exception for one bridge or one part.
 - Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no lattice tree and
   changes no tree's id (its look's seed): the lattice starts at the region's fixed `anchor`
   (`region.ts`), never at the box, and a tree's id is its lattice cell's number. Never move an
@@ -115,7 +125,7 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   when a part shows more, and treat a move far from every seam and from every line the part makes
   whole as a bug.
 - A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.60 MB, Lunigiana's
-  2_1 by Pieve San Lorenzo with the vectors round it, 604,635 B, the build prints it, and
+  2_1 by Pieve San Lorenzo with the vectors round it, 604,891 B, the build prints it, and
   `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road

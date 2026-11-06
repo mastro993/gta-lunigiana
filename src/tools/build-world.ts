@@ -7,6 +7,7 @@ import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import { flatLine, r1 } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
+import { parapets, surfaceAt } from "./parapets.ts"
 import { onOutline } from "./play-area.ts"
 import { lifted } from "./profiles.ts"
 import { clearVerges } from "./rail-clear.ts"
@@ -48,17 +49,30 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   lap("railway")
 
   // ---- collision, graph, trees, spawns ----
-  const walls = buildWalls(grid, roads, water, buildings, barriers, areas)
+  const decks = parapets(roads, roadLines)
+  const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks)
   lap("walls")
   const trees = scatterTrees(
     { areas, roads, buildings, water, rail: allRail, beyond: src.beyond },
     REGION,
   )
   lap("trees")
-  // Spawns and traffic's dead ends keep off the water as well.
-  const walkClear = clearance([...walls.walk, ...walls.shore], trees.trees),
-    driveClear = clearance([...walls.drive, ...walls.driveShore], trees.trees)
-  const graph = buildGraph(roads, (x, y) => driveClear.circle(x, y, TURN))
+  // Spawns and traffic's dead ends keep off the water as well. They stand on the ground, but a dead
+  // end on its road's surface (a deck's, where its parapets stand).
+  const levelled = (levels: ReadonlyArray<number>) => ({ levels, ground: at })
+  const walkClear = clearance(
+      [...walls.walk, ...walls.shore],
+      trees.trees,
+      levelled(walls.levels.walk),
+    ),
+    driveClear = clearance(
+      [...walls.drive, ...walls.driveShore],
+      trees.trees,
+      levelled(walls.levels.drive),
+    )
+  const graph = buildGraph(roads, (x, y, road) =>
+    driveClear.circle(x, y, TURN, surfaceAt(roadLines[road]!, roads[road]!.cls, x, y)),
+  )
   // Level crossings: boxes of crossing nodes on one road; then no verge or lane beside the running track.
   const crossingNodes = levels.map(({ road, piece, v, vertex }) => ({
     road,
@@ -121,7 +135,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   })
   lap("spawns")
   return {
-    walls: { walk: walls.walk, shore: walls.shore, drive: walls.drive },
+    walls: { walk: walls.walk, shore: walls.shore, drive: walls.drive, levels: walls.levels },
     blockedCells: { walk: walls.walkCells, shore: walls.shoreCells, drive: walls.driveCells },
     trees,
     graph: { xy: graph.xy, edges: graph.edges, traffic: graph.traffic, walk: graph.walk },
@@ -144,6 +158,8 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
         top: p.top,
       })),
     },
+    /** The parapets' walls, and the bridges whose parapets close over a road on another level, for the build's report. */
+    parapets: { walls: decks.levels.length, over: decks.over },
     /** Each rail piece's kind (none on a line). */
     kinds,
     /** The lines and platforms as laid, for the build's report. */

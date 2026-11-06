@@ -5,6 +5,7 @@ import assert from "node:assert/strict"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { carClear } from "../body.ts"
+import { atGrade, roadLevel } from "../map/ground.ts"
 import { graph } from "../map/index.ts"
 import {
   allowsModel,
@@ -42,8 +43,10 @@ export const assertLanesClear = (edges: ReadonlyArray<number>): Record<string, n
         const angle = Ops.atan2(lane.dy, lane.dx)
         for (let f = 0.15; f < 0.9; f += 0.1) {
           const at = lanePoint(lane, lane.length * f, laneSide({ edge, forward }, model))
+          // On its road's level, as traffic stands there (a deck, or at grade).
+          const level = roadLevel(graph.edges[edge]!.road, at.x, at.y) ?? atGrade(at.x, at.y)
           assert.ok(
-            carClear(model, { ...at, angle }, 0.05),
+            carClear(model, { ...at, angle }, level, 0.05),
             `${model} on edge ${edge} (${forward ? "a -> b" : "b -> a"}) at ${f.toFixed(2)}`,
           )
         }

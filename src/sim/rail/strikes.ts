@@ -208,7 +208,7 @@ export const TrainContacts = Game.System(
             pose,
             pose.angle,
             delta,
-            wallsAlong("drive", pose.x, pose.y, delta.x, delta.y, spec.length / 2 + 0.5),
+            wallsAlong("drive", pose.x, pose.y, delta.x, delta.y, spec.length / 2 + 0.5, ground),
           )?.position ?? pose
         const got = (to.x - pose.x) * nx + (to.y - pose.y) * ny,
           dragged = want - got > 1e-3 && car.speed > MOVING
@@ -222,7 +222,15 @@ export const TrainContacts = Game.System(
                 pose,
                 pose.angle,
                 along,
-                wallsAlong("drive", pose.x, pose.y, along.x, along.y, spec.length / 2 + 0.5),
+                wallsAlong(
+                  "drive",
+                  pose.x,
+                  pose.y,
+                  along.x,
+                  along.y,
+                  spec.length / 2 + 0.5,
+                  ground,
+                ),
               )?.position ?? pose
           ;[vx, vy] = [(slid.x - pose.x) / dt, (slid.y - pose.y) / dt]
         } else if (closing > 0) [vx, vy] = [vx + closing * nx, vy + closing * ny]

@@ -10,8 +10,10 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 import { overturned } from "./chassis.ts"
 import { moveCircles, segmentDistance } from "./collide.ts"
 import { destroyed } from "./damage.ts"
-import { inPlay, type Segment, type WallKind, wallsNear } from "./map/index.ts"
+import { atGrade } from "./map/ground.ts"
+import { inPlay, type Segment, type Wall, type WallKind, wallsNear } from "./map/index.ts"
 import { indoors } from "./population/farms.ts"
+import { onLevel } from "./rail/bodies.ts"
 import type { ChassisValue, PoseValue } from "./schema.ts"
 import { ENTER_GAP, PERSON_RADIUS } from "./tuning.ts"
 import { VEHICLES, type VehicleModel } from "./vehicles.ts"
@@ -45,7 +47,23 @@ export const offBody = (model: VehicleModel, pose: PoseValue, x: number, y: numb
   return Math.max(0, segmentDistance(axis, x, y) - r)
 }
 
-/** Wall segments that may touch a body of half-extent `pad` moving from (x, y) by (dx, dy). */
+/** Whether a body whose ground stands at `z` (m a.s.l.) meets `wall`: any wall without a level, one with a level within `LEVEL` of it. */
+export const meets = (wall: Wall, z: number): boolean =>
+  wall.level === undefined || onLevel(z, wall.level)
+
+/** Scratch for `wallsAlong`'s answer on a body's level, one per kind (reused by the next call of the same kind, as `wallsNear`'s). */
+const onItsLevel: Readonly<Record<WallKind, Array<Wall>>> = {
+  walk: [],
+  land: [],
+  drive: [],
+  traffic: [],
+}
+
+/**
+ * Wall segments that may touch a body of half-extent `pad` moving from (x, y) by (dx, dy): those it
+ * meets (`meets`) when its ground stands at `z` (m a.s.l.: a car's wheels, `chassis.z − cg`), every
+ * one when `z` is left out. Reused by the next call of the same kind.
+ */
 export const wallsAlong = (
   kind: WallKind,
   x: number,
@@ -53,14 +71,21 @@ export const wallsAlong = (
   dx: number,
   dy: number,
   pad: number,
-): ReadonlyArray<Segment> =>
-  wallsNear(
+  z?: number,
+): ReadonlyArray<Wall> => {
+  const near = wallsNear(
     kind,
     Math.min(x, x + dx) - pad,
     Math.min(y, y + dy) - pad,
     Math.max(x, x + dx) + pad,
     Math.max(y, y + dy) + pad,
   )
+  if (z === undefined) return near
+  const out = onItsLevel[kind]
+  out.length = 0
+  for (const wall of near) if (meets(wall, z)) out.push(wall)
+  return out
+}
 
 /** Whether a circle of radius `r` at (x, y) overlaps no segment (by more than `slack`). */
 export const clearOf = (
@@ -71,9 +96,9 @@ export const clearOf = (
   slack = 0,
 ): boolean => segs.every((s) => segmentDistance(s, x, y) >= r - slack)
 
-/** Whether a person can stand at `at`: clear of walk walls. */
-export const standClear = (at: Vec2.Vec2): boolean =>
-  clearOf(wallsAlong("walk", at.x, at.y, 0, 0, PERSON_RADIUS + 0.5), at.x, at.y, PERSON_RADIUS)
+/** Whether a person can stand at `at`: clear of the walk walls they meet standing at `z` (m a.s.l.; every one when left out). */
+export const standClear = (at: Vec2.Vec2, z?: number): boolean =>
+  clearOf(wallsAlong("walk", at.x, at.y, 0, 0, PERSON_RADIUS + 0.5, z), at.x, at.y, PERSON_RADIUS)
 
 /** How deep (m) circles of radius `r` at `at` + each of `offsets` reach into `segs`; 0 when clear. */
 const depthIn = (
@@ -169,9 +194,12 @@ export const moveCar = (
   return sound ? { position, blocked } : undefined
 }
 
-/** Whether a vehicle of `model` at `pose` overlaps no wall traffic keeps to, the water's edge included (by more than `slack`). */
-export const carClear = (model: VehicleModel, pose: PoseValue, slack = 0): boolean => {
-  const segs = wallsAlong("traffic", pose.x, pose.y, 0, 0, VEHICLES[model].length / 2 + 1)
+/**
+ * Whether a vehicle of `model` at `pose`, its wheels at `z` (m a.s.l.), overlaps no wall traffic
+ * keeps to on its level, the water's edge included (by more than `slack`).
+ */
+export const carClear = (model: VehicleModel, pose: PoseValue, z: number, slack = 0): boolean => {
+  const segs = wallsAlong("traffic", pose.x, pose.y, 0, 0, VEHICLES[model].length / 2 + 1, z)
   return depthIn(segs, pose, carCircles(model, pose.angle), carRadius(model)) <= slack
 }
 
@@ -182,11 +210,12 @@ const CLEAR_WITHIN = 60
 
 /**
  * The spot nearest `at` (to the metre) in the play area, which `SetPlayer` keeps to, where the
- * player fits clear of every structure: on foot (`model` undefined) standing clear of walk walls
- * and out of every building; in a vehicle of `model` facing `at.angle`, its body clear of the walls
- * traffic keeps to and each of its circles' centres out of every building. `at` itself when it
- * fits; undefined when nothing within `CLEAR_WITHIN` m does. It reads the map within
- * `CLEAR_WITHIN` m and a body's length of `at`: the dev teleport (`main.ts`) asks it.
+ * player fits clear of every structure on the ground there (`atGrade`, where `SetPlayer` sets
+ * them): on foot (`model` undefined) standing clear of walk walls and out of every building; in a
+ * vehicle of `model` facing `at.angle`, its body clear of the walls traffic keeps to and each of its
+ * circles' centres out of every building. `at` itself when it fits; undefined when nothing within
+ * `CLEAR_WITHIN` m does. It reads the map within `CLEAR_WITHIN` m and a body's length of `at`: the
+ * dev teleport (`main.ts`) asks it.
  */
 export const clearSpot = (
   at: PoseValue,
@@ -195,7 +224,9 @@ export const clearSpot = (
   const circles = model === undefined ? CENTRE : carCircles(model, at.angle)
   const fits = (p: Vec2.Vec2) =>
     inPlay(p.x, p.y) &&
-    (model === undefined ? standClear(p) : carClear(model, { ...p, angle: at.angle })) &&
+    (model === undefined
+      ? standClear(p, atGrade(p.x, p.y))
+      : carClear(model, { ...p, angle: at.angle }, atGrade(p.x, p.y))) &&
     circles.every((o) => !indoors(p.x + o.x, p.y + o.y))
   if (fits(at)) return { x: at.x, y: at.y }
   // Rings a metre apart, each sampled about every metre round, from the east anticlockwise.
@@ -210,9 +241,12 @@ export const clearSpot = (
   return undefined
 }
 
-/** Moves a body's circle of radius `r` (a person's by default) from `at` by `delta`, sliding along walk walls and never through them. */
-export const walkBy = (at: Vec2.Vec2, delta: Vec2.Vec2, r = PERSON_RADIUS) =>
-  moveCircles(at, CENTRE, delta, r, wallsAlong("walk", at.x, at.y, delta.x, delta.y, r + 0.5))
+/**
+ * Moves a body's circle of radius `r` (a person's by default) from `at` by `delta`, sliding along the
+ * walk walls it meets standing at `z` (m a.s.l.; every one when left out) and never through them.
+ */
+export const walkBy = (at: Vec2.Vec2, delta: Vec2.Vec2, r = PERSON_RADIUS, z?: number) =>
+  moveCircles(at, CENTRE, delta, r, wallsAlong("walk", at.x, at.y, delta.x, delta.y, r + 0.5, z))
 
 /** Speed along the heading `angle` (negative when reversing). */
 export const forwardSpeed = (

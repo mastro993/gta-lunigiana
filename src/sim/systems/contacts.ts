@@ -6,6 +6,7 @@ import { FAUNA } from "../fauna.ts"
 import {
   type Age,
   Animal,
+  Chassis,
   Dead,
   Down,
   Driving,
@@ -109,6 +110,8 @@ interface Car extends Mover {
   readonly r: number
   readonly reach: number
   readonly angle: number
+  /** Its wheels' level, m a.s.l. (`chassis.z − cg`): the drive walls it meets. */
+  readonly ground: number
 }
 /** A person or an animal: one circle. */
 interface Body extends Mover {
@@ -141,7 +144,7 @@ const shove = (
   body.moved = true
   return got
 }
-/** Shoves a car without passing through (or deeper into) drive walls. */
+/** Shoves a car without passing through (or deeper into) the drive walls on its level. */
 const shoveCar = (car: Car, nx: number, ny: number, by: number): number =>
   shove(
     car,
@@ -154,7 +157,7 @@ const shoveCar = (car: Car, nx: number, ny: number, by: number): number =>
         car,
         car.angle,
         delta,
-        wallsAlong("drive", car.x, car.y, delta.x, delta.y, car.reach + 0.5),
+        wallsAlong("drive", car.x, car.y, delta.x, delta.y, car.reach + 0.5, car.ground),
       )?.position ?? car,
   )
 /** Shoves a person or an animal without passing through walk walls. */
@@ -186,6 +189,7 @@ export const Contacts = Game.System(
           pose: Game.Query.write(Pose),
           motion: Game.Query.write(Motion),
           vehicle: Game.Query.read(Vehicle),
+          chassis: Game.Query.read(Chassis),
         },
       }),
       people: Game.Query({
@@ -241,6 +245,7 @@ export const Contacts = Game.System(
         vx: motion.vx,
         vy: motion.vy,
         moved: false,
+        ground: match.data.chassis.get().z - VEHICLES[model].cg,
       }
       return [{ match, car }]
     })

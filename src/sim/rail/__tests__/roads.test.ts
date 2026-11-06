@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { atGrade } from "../../map/ground.ts"
 import { graph } from "../../map/index.ts"
 import { alongLane, laneOf, lanePoint, laneSide, roadOf, type Step } from "../../route.ts"
 import { roomFor } from "../../systems/populate.ts"
@@ -249,8 +250,11 @@ test("roads: a box is busy while a train moves within its strike-in, and no traf
   const lane = laneOf(way.step.edge, way.step.forward),
     spot = lanePoint(lane, lane.length / 2, laneSide(way.step, "panda"))
   assert.ok(Ops.hypot(spot.x - box.x, spot.y - box.y) < SPAWN_CLEAR)
-  assert.equal(roomFor("panda", { ...spot, angle: Ops.atan2(lane.dy, lane.dx) }, []), false)
-  assert.equal(roomFor("panda", ON_BATTISTI, []), true)
+  assert.equal(
+    roomFor("panda", { ...spot, angle: Ops.atan2(lane.dy, lane.dx) }, atGrade(spot.x, spot.y), []),
+    false,
+  )
+  assert.equal(roomFor("panda", ON_BATTISTI, atGrade(ON_BATTISTI.x, ON_BATTISTI.y), []), true)
 })
 
 // Regression (PR review): a car that had cleared Via Riolo and stood stuck in the queue past it backed up onto the track behind it

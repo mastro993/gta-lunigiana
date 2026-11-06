@@ -14,7 +14,9 @@ import { ROAD_PASSES } from "../../../tools/profiles.ts"
 import { dtmDir, inRects, PARTS, regionFromArgs } from "../../../tools/region.ts"
 import { sheet2k, SOURCES } from "../../../tools/survey-ids.ts"
 import { PERCH } from "../../../tools/water.ts"
+import { meets } from "../../body.ts"
 import { moveCircles, segmentDistance, staticGrid } from "../../collide.ts"
+import { roadLevel } from "../ground.ts"
 import {
   BUILDING_STYLES,
   districtAt,
@@ -94,8 +96,22 @@ const bucketed = <T>(
     return found.sort((a, b) => a - b).map((k) => items[k]!)
   }
 }
-const clear = (kind: "walk" | "drive", x: number, y: number, r: number) =>
-  wallsNear(kind, x - r, y - r, x + r, y + r).every((s) => segmentDistance(s, x, y) >= r)
+/**
+ * No wall of `kind` within `r` of (x, y) that a body whose ground stands at `level()` meets, read
+ * only for a wall with a level (a bridge's parapet stands on its deck's); every wall with no `level`.
+ */
+const clear = (
+  kind: "walk" | "drive",
+  x: number,
+  y: number,
+  r: number,
+  level?: () => number | undefined,
+) =>
+  wallsNear(kind, x - r, y - r, x + r, y + r).every((s) => {
+    if (segmentDistance(s, x, y) >= r) return true
+    const z = s.level === undefined ? undefined : level?.()
+    return z !== undefined && !meets(s, z)
+  })
 /** Strictly inside the built terrain's box, where the trees stand. */
 const inside = (x: number, y: number) =>
   x > MAP.bounds.minX && x < MAP.bounds.maxX && y > MAP.bounds.minY && y < MAP.bounds.maxY
@@ -241,20 +257,26 @@ test("walls: none on a road; only buildings and barriers come inside w/2", () =>
       barriers(x, y).some((b) => segsOf(b.pts).some((q) => segmentDistance(q, x, y) < 0.05))
     return on(s.ax, s.ay) && on(s.bx, s.by)
   }
-  for (const r of WHOLE.roads) {
-    if (r.tunnel === true) continue
+  WHOLE.roads.forEach((r, i) => {
+    if (r.tunnel === true) return
     for (const { x, y } of samples(r.pts, 2)) {
       if (outlineDistance(x, y) < 10) continue // road-exit caps
       const where = `${r.cls} ${r.id} at ${x.toFixed(1)},${y.toFixed(1)}`
-      assert.ok(clear("walk", x, y, Math.min(0.6, r.w / 2)), `walk wall on ${where}`)
-      if (isDrivable(r.cls)) assert.ok(clear("drive", x, y, 1), `drive wall within 1 m of ${where}`)
+      // On the road's level: a bridge's parapets over it stand on the deck's.
+      const z = () => roadLevel(i, x, y)
+      assert.ok(clear("walk", x, y, Math.min(0.6, r.w / 2), z), `walk wall on ${where}`)
+      if (isDrivable(r.cls))
+        assert.ok(clear("drive", x, y, 1, z), `drive wall within 1 m of ${where}`)
       const h = r.w / 2 - 0.05
       for (const kind of isDrivable(r.cls) ? (["walk", "drive"] as const) : (["walk"] as const))
-        for (const s of wallsNear(kind, x - h, y - h, x + h, y + h))
-          if (segmentDistance(s, x, y) < h)
+        for (const s of wallsNear(kind, x - h, y - h, x + h, y + h)) {
+          if (segmentDistance(s, x, y) >= h) continue
+          const on = s.level === undefined ? undefined : z()
+          if (on === undefined || meets(s, on))
             assert.ok(fixed(s), `terrain/trunk ${kind} wall inside w/2 of ${where}`)
+        }
     }
-  }
+  })
 })
 
 test("building interiors are closed: walking or driving in from the nearest road stops at the outline", () => {
@@ -452,16 +474,18 @@ test("traffic graph: one component reaching the station, Monzone Alto and the vi
     graph.walkEdges.every((e) => !isMotorRoad(WHOLE.roads[graph.edges[e]!.road]!)),
     "a walk edge on a motor road",
   )
+  // On each edge's road's level: a bridge's parapets over it stand on the deck's.
   for (const e of graph.trafficEdges)
     for (const { x, y } of samples([chord(e).ax, chord(e).ay, chord(e).bx, chord(e).by], 1))
       assert.ok(
-        clear("drive", x, y, 1),
+        clear("drive", x, y, 1, () => roadLevel(graph.edges[e]!.road, x, y)),
         `traffic edge ${e} within 1 m of a drive wall at ${x.toFixed(1)},${y.toFixed(1)}`,
       )
   graph.nodes.forEach((n, i) => {
-    const degree = graph.adjacency[i]!.filter((e) => traffic.has(e)).length
+    const edges = graph.adjacency[i]!.filter((e) => traffic.has(e))
     assert.ok(
-      degree !== 1 || clear("drive", n.x, n.y, 2.3),
+      edges.length !== 1 ||
+        clear("drive", n.x, n.y, 2.3, () => roadLevel(graph.edges[edges[0]!]!.road, n.x, n.y)),
       `a car at traffic dead end ${i} (${n.x},${n.y}) touches a wall`,
     )
   })

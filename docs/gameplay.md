@@ -179,10 +179,13 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
   ignores a sample more than 0.3 m off, the far side of a step): a car rolls onto its side or
   roof and slides to a stop there. An overturned vehicle cannot be driven or entered (`vehicleInReach`); the player
   can still get out.
-- **Walls**: the body is a row of circles of radius width/2 along its length. Its planar move
-  sweeps against drive walls. A hit keeps the sliding part of the motion, bounces back 0.2 of the
-  impact speed, and loses 4% of its speed per m/s of impact (keeping at least 20%). A turn that
-  would wedge the body into a wall is undone; if any move would, the car stops.
+- **Walls**: the body is a row of circles of radius width/2 along its length. Its planar move sweeps
+  against the drive walls on its level: a bridge's parapets stand at the deck's top and stop a car
+  whose wheels stand within 2 m of it (`LEVEL`), on the deck, and not one on a road under it (issue
+  #91; [map.md](map.md#10-collision-walls-wallsts-parapetsts)). A hit keeps the sliding part of the
+  motion, bounces back 0.2 of the impact speed, and loses 4% of its speed per m/s of impact (keeping
+  at least 20%). A turn that would wedge the body into a wall is undone; if any move would, the car
+  stops.
 - **Sleep**: a vehicle with its pedal up that has been still (under 0.05 m/s) for two steps
   without gathering speed is tried 10 steps from exact rest under the same pedals. If it ends
   under 0.002 m/s, or creeping no faster than half way through and under 0.045 m/s (the creep a
@@ -537,18 +540,22 @@ the lane helpers in `src/sim/route.ts`.
   it. The offset shrinks in 0.25 m steps where houses crowd the road, until the body clears the
   walls. Each model has its own lane table, worked out at build time (`bakeLanes` in
   `src/sim/lanes.ts`) and kept in the map file (`MAP.lanes`), since fitting it reads every drive
-  wall along every traffic edge. A model only uses edges where it fits, and where the drive walls
-  across the road leave room for it and an oncoming Panda plus 0.3 m (`PASS_MARGIN`): in single-file
-  lanes between houses two cars met head-on with no room to back out or turn round. It only uses the
-  largest connected part of the edges it fits both ways, so villages reached only by such lanes
-  (Terma, Monte dei Bianchi, Vezzanello) get no AI traffic; the player can still drive there. An
-  edge it fits one way alone (its body clears the walls on the centreline headed one way) joins
-  nothing: counted as a link, it kept pieces that traffic could not reach, two lanes in Turano for
-  the Panda (each a tree of dead ends whose last edge was flagged one way) and 49 edges by Vinca
-  for the Carabinieri. Trucks keep to the main roads (motorway to tertiary) and unclassified roads
-  and to the loops of that network, because they cannot turn round. Apes keep off motor roads
-  (`isMotorRoad`: motorways, trunk roads and their slip roads), which the Codice della Strada
-  (art. 175) closes to mopeds such as the Ape 50.
+  wall along every traffic edge, a bridge's parapet only where the edge passes it on the deck's
+  level (its road's surface, where the edge passes nearest the wall, within 2 m of the wall's). Read
+  at the road's point nearest the parapet's middle instead, Cesena's primary road 23635384, which
+  passes 5.7 m under a bridge and climbs beside it, stood 1.5 m under one of its parapets there: its
+  lane under the bridge shut one way, and the truck's loop with it. A model only uses edges where it
+  fits, and where the drive walls across the road leave room for it and an oncoming Panda plus 0.3 m
+  (`PASS_MARGIN`): in single-file lanes between houses two cars met head-on with no room to back out
+  or turn round. It only uses the largest connected part of the edges it fits both ways, so villages
+  reached only by such lanes (Terma, Monte dei Bianchi, Vezzanello) get no AI traffic; the player
+  can still drive there. An edge it fits one way alone (its body clears the walls on the centreline
+  headed one way) joins nothing: counted as a link, it kept pieces that traffic could not reach, two
+  lanes in Turano for the Panda (each a tree of dead ends whose last edge was flagged one way) and
+  49 edges by Vinca for the Carabinieri. Trucks keep to the main roads (motorway to tertiary) and
+  unclassified roads and to the loops of that network, because they cannot turn round. Apes keep off
+  motor roads (`isMotorRoad`: motorways, trunk roads and their slip roads), which the Codice della
+  Strada (art. 175) closes to mopeds such as the Ape 50.
 - **Steering.** The car aims at a point 6 m + 0.6 s × speed ahead along this edge and the next.
 - **Route choice.** At each node the car picks a random legal edge. Oneways are driven a → b only.
   It avoids dead-end spurs, then hairpins, while another way exists, and makes a U-turn only at a
@@ -1693,18 +1700,21 @@ speed along the contact.
   it along, and the AI driver creeps for as long as a vehicle touches its body
   ([The AI driver](#the-ai-driver)). A contact is one `Impact`: only one that begins (the two were
   apart when the step began) is a hit, so a car held against the train is not struck again each
-  step, and the blow that wrecks it is the other. Measured under the road bridge by Equi Terme, a
-  Panda across the track between the abutments: an AI train coming at 20 m/s stops, sounds the horn,
-  creeps into it and shoves it along unharmed; a driverless train at 6 m/s strikes it at 6.2 m/s and
-  wrecks it against the abutment 0.57 s later, two hits in all (21 when every step of the drag was
-  one), and slid along the abutment it makes 3 wall hits there, not 24. Beside a wall 3.3–5 m off
-  the centreline (`besideWall()`, s 4300 and 4623), a Panda across the track that an AI train from
-  400 m at 15 m/s and from 600 m at 20 m/s stops for, then creeps into, is shoved against the wall
-  and left beside the track 3.0–3.1 m off its centreline; the train creeps past it scraping its side
-  at 1 m/s, then runs on 172 and 175 s after it set out, no hit and no damage. A Panda standing
-  across Via Riolo, struck at 18.9 m/s by a train coming at 80 km/h from 60 m (its emergency brake
-  on from the first step), is destroyed and thrown 47 m along, off the track and down its bank into
-  the Torrente Lucido beside it, where it comes to rest 5 m off the centreline in 0.3 m of water; a
+  step, and the blow that wrecks it is the other. Measured 3 m short of a cutting's slope walled
+  across Monzone's line (`acrossWall()`, s 1328, at (5388, 3627)), a Panda across the track: an AI
+  train coming at 20 m/s stops, sounds the horn, creeps into it and shoves it along unharmed; a
+  driverless train at 6 m/s strikes it at 5.9 m/s and wrecks it against the slope 0.32 s later, two
+  hits in all, and slid along the slope it makes 3 wall hits there (2026-11-06). Under the road
+  bridge by Equi Terme, where it was measured before, nothing holds it now: what held it there were
+  the bridge's parapets, which stand on the deck's level, 6.3 m over the track (issue #91). Beside a
+  wall 3.3–5 m off the centreline (`besideWall()`, s 4300 and 4623), a Panda across the track that
+  an AI train from 400 m at 15 m/s and from 600 m at 20 m/s stops for, then creeps into, is shoved
+  against the wall and left beside the track 3.0–3.1 m off its centreline; the train creeps past it
+  scraping its side at 1 m/s, then runs on 172 and 175 s after it set out, no hit and no damage. A
+  Panda standing across Via Riolo, struck at 18.9 m/s by a train coming at 80 km/h from 60 m (its
+  emergency brake on from the first step), is destroyed and thrown 47 m along, off the track and
+  down its bank into the Torrente Lucido beside it, where it comes to rest 5 m off the centreline in
+  0.3 m of water; a
   Panda rolling at 8 m/s into a standing train's side takes a wall's hit at 8 m/s and stops against
   it.
 - **A person or an animal** is pushed aside; struck by the train's own speed into them faster than 3
@@ -1763,9 +1773,10 @@ speed along the contact.
   as the look-out then holds the train for them.
 - **A train keeps its speed** whatever vehicle, person or animal it strikes, and a car it drags is
   never let go until the wall that held it ends. Trains are never damaged. A car wedged where it can
-  move neither off nor along (under the road bridge by Equi Terme, between its abutments) is not
-  moved at all: the creeping train passes through it, up to 1.34 m deep for 1.1 s, measured; a
-  train that stopped for it instead would block its line for good.
+  move neither off nor along (walls across the track ahead of it and beside it) is not moved at
+  all: the creeping train passes through it, up to 1.34 m deep for 1.1 s, measured under the road
+  bridge by Equi Terme while that bridge's parapets still stood at every level, across the track
+  (#91); a train that stopped for it instead would block its line for good.
 - **Animals can still end up on the track**: brought out off it and walking only to its own side,
   an animal that bolts runs straight away from its fright, over the track too, and a cow shoved by
   its herd can stand inside the envelope (by Gragnola, one rested 1.3 m off the centreline after

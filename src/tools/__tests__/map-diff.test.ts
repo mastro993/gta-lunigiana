@@ -82,6 +82,7 @@ const MAP: MonzoneMap = {
     walk: [1, 1, 5, 1, 5, 1, 5, 5],
     shore: [-11, -10, -11, 10],
     drive: [1, 1, 5, 1],
+    levels: { walk: [NaN, NaN], drive: [NaN] },
     reach: 3,
     lattice: {
       walk: [1, 1],
@@ -171,6 +172,12 @@ const CASES: ReadonlyArray<readonly [string, Partial<MonzoneMap>, RegExp]> = [
     /^drive: 1 added, in x 0\.\.2, y 0\.\.2$/,
   ],
   ["walls", { walls: { ...MAP.walls, shore: [] } }, /^shore: 1 removed/],
+  // A wall that only took a level (a bridge's parapet) is another wall.
+  [
+    "walls",
+    { walls: { ...MAP.walls, levels: { ...MAP.walls.levels, drive: [148.5] } } },
+    /^drive: 1 added, 1 removed, in x 1\.\.5, y 1\.\.1$/,
+  ],
   ["trees", { trees: [12, 10, 0.8], treeIds: [7] }, /^1 removed, in x 10\.\.10, y 10\.\.10$/],
   ["trees", { trees: [10, 10, 1.1, 12, 10, 0.8] }, /^1 added, 1 removed, in x 10\.\.10/],
   [

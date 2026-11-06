@@ -19,6 +19,7 @@
  * | trees | (x, y) whole metres from `treeOrigin` (they are planted on whole metres), the scale in hundredths | 2 | 3 (the previous tree) |
  * | tree ids | each tree's id, ascending (its look's seed; its lattice cell's number, src/tools/trees.ts) | 4 | 1 |
  * | cover | 500 × 500 cells, the land-cover index (`./cover.ts`) | 1 | 500 (the cell to the south) |
+ * | walk, drive wall levels | each wall's level (a bridge's parapet's: its deck's top), decimetres a.s.l., `NO_LEVEL` for a wall that stands at every level | 4 | 1 |
  *
  * Decoding is exact: every coordinate is an integer number of decimetres divided by 10, the same
  * double JSON would give for a one-decimal number. The sim never fetches: the browser host downloads
@@ -44,8 +45,11 @@ interface Corner {
   readonly minY: number
 }
 
-/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors. */
-export const MAP_VERSION = 4
+/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors, 5 gave the walls their levels. */
+export const MAP_VERSION = 5
+
+/** A wall's level in a tile file where it has none, and stands at every level: below any ground (int16's least, decimetres). */
+export const NO_LEVEL = -32768
 
 /** Where wall coordinates count from, decimetres: 100 m south-west of the corner. */
 export const packOrigin = (corner: Corner): { readonly x: number; readonly y: number } => ({
@@ -143,6 +147,10 @@ const unpackWalls = (dm: Int32Array, corner: Corner): Float64Array => {
   for (let k = 0; k < dm.length; k++) out[k] = (dm[k]! + (k % 2 === 0 ? o.x : o.y)) / 10
   return out
 }
+
+/** Walls' levels in metres from decimetres, NaN for `NO_LEVEL`. */
+const unpackLevels = (dm: Int32Array): Float64Array =>
+  Float64Array.from(dm, (v) => (v === NO_LEVEL ? NaN : v / 10))
 
 /** Trees (x, y, scale): whole metres from `treeOrigin(corner)`, the scale in hundredths. */
 const unpackTrees = (w: Int32Array, corner: Corner): Float64Array => {
@@ -252,6 +260,8 @@ export interface TileData {
     readonly shore: Int32Array
     readonly drive: Int32Array
   }
+  /** Each walk and drive wall's level, m a.s.l. (a bridge's parapet's: its deck's top), NaN for one that stands at every level; the shore's have none. */
+  readonly wallLevels: { readonly walk: Float64Array; readonly drive: Float64Array }
   /** Flat (x, y, scale) triples of the trees standing in the tile, in the whole map's order. */
   readonly trees: Float64Array
   /** Each tree's id (its lattice cell's number, or its bank cell's past them; src/tools/trees.ts), ascending. */
@@ -282,6 +292,10 @@ export const decodeTile = (file: Uint8Array): TileData => {
   const treeData = unpackTrees(section(3 * trees, 2, 3), corner)
   const ids = section(trees, 4, 1)
   const cover = Uint8Array.from(section(TILE_CELLS * TILE_CELLS, 1, TILE_CELLS))
+  const wallLevels = {
+    walk: unpackLevels(section(walls.walk, 4, 1)),
+    drive: unpackLevels(section(walls.drive, 4, 1)),
+  }
   end()
   return {
     hash,
@@ -290,6 +304,7 @@ export const decodeTile = (file: Uint8Array): TileData => {
     heights,
     walls: { walk, shore, drive },
     wallIds,
+    wallLevels,
     trees: treeData,
     ids,
     cover,

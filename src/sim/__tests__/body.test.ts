@@ -4,6 +4,7 @@ import { test } from "node:test"
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carClear, clearSpot, standClear } from "../body.ts"
+import { atGrade } from "../map/ground.ts"
 import { buildingsIn } from "../map/vectors.ts"
 import { indoors } from "../population/farms.ts"
 import { ON_BATTISTI } from "../testing.ts"
@@ -30,7 +31,10 @@ const INSIDE = (() => {
 
 test("clearSpot: a spot already clear is kept, on foot and in a car", () => {
   assert.deepEqual(clearSpot(ON_BATTISTI, undefined), { x: ON_BATTISTI.x, y: ON_BATTISTI.y })
-  assert.ok(carClear("panda", ON_BATTISTI), "the lane fits a Panda")
+  assert.ok(
+    carClear("panda", ON_BATTISTI, atGrade(ON_BATTISTI.x, ON_BATTISTI.y)),
+    "the lane fits a Panda",
+  )
   assert.deepEqual(clearSpot(ON_BATTISTI, "panda"), { x: ON_BATTISTI.x, y: ON_BATTISTI.y })
 })
 
@@ -49,7 +53,7 @@ test("clearSpot: inside a house, in a car, the whole car is put out of it and cl
     const spot = clearSpot({ ...INSIDE, angle }, "panda")!
     assert.ok(spot !== undefined)
     const pose = { ...spot, angle }
-    assert.ok(carClear("panda", pose), `clear of the walls at ${angle}`)
+    assert.ok(carClear("panda", pose, atGrade(pose.x, pose.y)), `clear of the walls at ${angle}`)
     for (const o of carCircles("panda", angle))
       assert.ok(!indoors(spot.x + o.x, spot.y + o.y), `out of the house at ${angle}`)
     assert.ok(Vec2.distance(spot, INSIDE) <= INSIDE.reach + 8)

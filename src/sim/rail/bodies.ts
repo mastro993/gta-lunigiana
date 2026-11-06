@@ -13,13 +13,14 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../collide.ts"
 import { platformTop } from "../map/ground.ts"
+import { ONE_LEVEL } from "../map/kinds.ts"
 import type { TrainMotionValue } from "../schema.ts"
 import { carsOf } from "./consist.ts"
 import { LINES, linesNear, pointAt, SHARED, sharedPart, speedAt } from "./lines.ts"
 import { spanOf, TRAIN_MODELS, TRAINS, trainLength, type TrainModel } from "./models.ts"
 
 /** A body meets a train only when its ground stands this near the rail head there, m: a bridge, an underpass or a tunnel's roof keeps them apart. */
-export const LEVEL = 2
+export const LEVEL = ONE_LEVEL
 /** The envelope a train sweeps reaches this far past its body either side, m: what its driver sees on the track. */
 export const CLEARANCE = 0.3
 /** The widest train's half-width, m: on a platform, only what reaches in that far stands in a train's way. */

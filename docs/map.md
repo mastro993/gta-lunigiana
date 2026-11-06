@@ -1962,7 +1962,7 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
 
 The stage takes about 0.55 s, most of it rasterising the platforms.
 
-### 10. Collision walls (`walls.ts`)
+### 10. Collision walls (`walls.ts`, `parapets.ts`)
 
 Walls are segments of at most 16 m. Blocked 4 m cells are traced with marching squares and
 simplified (Douglas–Peucker, 1.5 m tolerance); a cell whose centre lies outside the play area is
@@ -1979,7 +1979,7 @@ majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 | `guard_rail` barriers | no | no | yes |
 | The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
 | Road-exit caps (4 m inside, where drivable roads leave the area) | no | no | yes |
-| Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them; open where any other road, tunnels included, crosses under, joins or carries on, and on the inside of the deck's own bends, where one segment's piece runs on across the next one's carriageway) | no | no | yes |
+| Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them, each at its deck's level; open where a road on the deck's own level reaches them: a junction on the deck, the next piece of the same bridge, a road or tunnel carrying on from it, and the inside of the deck's own bends, where one segment's piece runs on across the next one's carriageway) | no | no | yes, on the deck's level |
 
 Water stops neither feet nor wheels: the player wades and swims, and vehicles float
 ([water.md](water.md)). The shore walls are the water's edge: the game joins them to the walk walls
@@ -2007,19 +2007,42 @@ walls held them before, and stores neither of those.
   tunnel under a house in Cesena a 2.4 m gap, too narrow for traffic, which cut 1.45 km of it off.
 - Tree trunks are not stored as walls. `wallsNear` indexes the trees as points and adds a 0.5 m
   square (`pushTrunk`, `TRUNK` in `kinds.ts`) around each tree a query reaches.
+- **Walls with a level** (issue #91): a wall may carry a level, m a.s.l., and then stops only a body
+  whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, the game's `LEVEL`): a car whose
+  wheels, or a person whose footing, stand there. Every other wall stands at every level. The
+  bridges' parapets are the walls with a level (`parapets.ts`): walls are flat lines, so a parapet
+  that stopped everyone would close the road under its deck too, and so it used to open wherever any
+  road's carriageway reached it, the road under the deck included, and a car on the SR445's viaduct
+  west of Gragnola (552592654, at (−2674, 4584)) drove off it there and dropped from 148.5 m onto
+  the residential road 140780578 under it. Each parapet wall takes its deck's top at its middle (its
+  profile plus `ROAD_LIFT`, to 0.1 m), and a parapet opens only where a road's surface, where its
+  carriageway reaches the parapet, stands within 2 m of the deck's top there: a road carrying on
+  from the deck, at any angle, opens it however the two are tagged, and one passing under it does
+  not, even the SR445 itself, which runs on from its bridge 552592647 west of Gragnola and turns
+  back under it 5.8 m lower. Lunigiana has 667 parapet walls, and the parapets of 4 bridges close
+  over a road on another level (the viaduct; 552592647, over that loop; the SR445's 552592643, over
+  a track 15.8 m under it; the Ponte di Codiponte, 328463361, over a residential road 5.5 m under
+  it), Cesena 602 walls and 17 bridges, the L 79 walls and none (the build prints them as
+  `parapets`; 2026-11-06). The build's clearance meets a wall with a level as the game does, at the
+  query's level: the ground at a spawn or a parked spot, a road's surface at a traffic dead end. So
+  the service road 1501392819, which ends 2.2 m off 552592647's north parapet and 6 m under it, at
+  (−3267, 4478), keeps its last 6 m edge in traffic, where that parapet took its turning room
+  before; and on Cesena the closed parapets along 137735208's 200 m deck split into 15.4 m walls
+  where gaps cut them into 9.5–14.8 m ones, so their ends lie up to 0.05 m nearer or farther from
+  the centreline, and the truck's lane there is 1.45 m off it both ways, not 1.2 m one way.
 
 ### 11. Road graph (`graph.ts`)
 
 Nodes come from shared OSM node ids (clip points get their own), and edges are split to at most
-25 m. Where a road leaves the play area, its end is pulled back 8 m, past the exit cap. `traffic`
-is the largest connected component of the `motorway` to `service` edges (`isTraffic`: living
-streets and links included), minus private roads, dead-end tunnel spurs, and dead-end tips with
-no room for a car to turn (a 2.3 m circle clear of drive walls and trunks: lanes that end between
-houses); tracks are drivable by the player but get no AI traffic. `walk` is the largest connected
-component of every edge except tunnels and motor roads (`isMotorRoad`: motorways, trunk roads and
-their slip roads, where the Codice della Strada, art. 175, bans people on foot), so nobody walks
-the Secante. The build keeps each vertex
-id's node (`ids`), so the level-crossing boxes name their nodes without matching coordinates.
+25 m. Where a road leaves the play area, its end is pulled back 8 m, past the exit cap. `traffic` is
+the largest connected component of the `motorway` to `service` edges (`isTraffic`: living streets
+and links included), minus private roads, dead-end tunnel spurs, and dead-end tips with no room for
+a car to turn (a 2.3 m circle clear of trunks and of the drive walls on the road's level, at its
+surface there: lanes that end between houses); tracks are drivable by the player but get no AI
+traffic. `walk` is the largest connected component of every edge except tunnels and motor roads
+(`isMotorRoad`: motorways, trunk roads and their slip roads, where the Codice della Strada,
+art. 175, bans people on foot), so nobody walks the Secante. The build keeps each vertex id's node
+(`ids`), so the level-crossing boxes name their nodes without matching coordinates.
 
 ### 12. Trees, spawns, districts (`trees.ts`, `spawns.ts`, `districts.ts`)
 
@@ -2315,7 +2338,7 @@ counter-clockwise, holes clockwise.
 
 | Field | Contents |
 |---|---|
-| `version` | `4` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles). `readWholeMap` in `src/tools/map-file.ts` still reads a version-3 build, its vectors from its global file, so `pnpm map-diff` compares a build from before #63 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
+| `version` | `5` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels). `readWholeMap` in `src/tools/map-file.ts` still reads a version-3 build, its vectors from its global file, and a version-3 or 4 build's walls each at every level, so `pnpm map-diff` compares a build from before #63 or #91 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
 | `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
@@ -2399,6 +2422,11 @@ Its sections follow the newline in file order:
 | trees | (x, y) whole metres from the same point (trees stand on whole metres), the scale in hundredths | 2 | 3: the previous tree |
 | tree ids | each tree's id (its lattice cell's number, [Trees](#12-trees-spawns-districts-treests-spawnsts-districtsts); its look's seed), ascending | 4 | 1 |
 | cover | 500 × 500 cells, the land-cover index | 1 | 500: the cell to the south |
+| walk, drive wall levels | each wall's level (a bridge's parapet's, its deck's top: [section 10](#10-collision-walls-wallsts-parapetsts)), decimetres a.s.l., or −32768 (`NO_LEVEL`) for a wall that stands at every level | 4 | 1 |
+
+The levels come last, so a build from before them reads as one whose every wall stands at every
+level (`readWholeMap`). They add 15 KB to Lunigiana's tiles gzipped (30.47 to 30.48 MB) and 2.5 KB
+to Cesena's: most walls have none, so each tile's level sections are runs of one value.
 
 Each section holds n integers as the zigzag-coded difference (0, −1, 1, −2... stored as 0, 1, 2,
 3...) from the value `stride` places back, split into byte planes: the low byte of every value, then
@@ -2415,7 +2443,8 @@ What goes in which tile:
   its tile, so `heightAt`, `terrainZ` and `groundZ` give the same doubles as the whole heightmap did.
 - **Walls**: each segment lives in the tile of its midpoint, clamped to the box of the listed tiles
   (Cesena's outline walls lie on a seam), or, where that tile is not listed, in the listed tile round
-  it nearest the midpoint. A tile's walls keep the whole map's order and carry their index in it.
+  it nearest the midpoint. A tile's walls keep the whole map's order and carry their index in it,
+  and its walk and drive walls their level.
 - **Trees**: each in the tile of its point, the same way (the scatter already made it there), with
   its id.
 - **Cover**: the 500 × 500 cells of the whole map's raster that fall in the tile (`coverBlocks` in
@@ -2553,8 +2582,9 @@ read it: heightmap coverage, spawns clear of walls and off traffic lanes (with p
 village the map was widened for: Equi Terme, Gragnola, Colognola, Campiglione, Viano, Vinca,
 Ugliancaldo and Tenerano, and the 15 of Fivizzano's part: Fivizzano, Casola in Lunigiana, Gassano,
 Soliera, Moncigoli, Mommio, Pugliano, Pieve San Lorenzo, Vigneta, Castiglioncello, Signano, Turano,
-Antognano, Pieve San Paolo and Verrucola), no walls on roads, no drivable road inside a footprint,
-closed building interiors (a body starts on the nearest road where it stands clear of the walls: one
+Antognano, Pieve San Paolo and Verrucola), no walls on roads (read on the road's level, `roadLevel`:
+a bridge's parapets over one stand on the deck's), no drivable road inside a footprint, closed
+building interiors (a body starts on the nearest road where it stands clear of the walls: one
 already in two is pushed out in the order the broad phase hands them, which a grown region moves),
 one traffic component reaching the station, Monzone Alto and each of those villages, grades within
 1.5× the class limits, plus the 0.1 m elevations' rounding over the 8 m measured (every class but
@@ -2596,9 +2626,10 @@ on the walls' outline to 5 m) is stone, but its churches (#17's acceptance).
 
 `src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
 `decodeMap` (a newline inside a name, the coarse grid) and a tile through `packTile` and
-`decodeTile` (negative values, the widest deltas, an empty section), and checks that a file of
-another version, or a value too far for its section, throws; `stale-map.test.ts` that the game
-refuses a global file without the play area's outline. `anchor.test.ts` rewrites Lunigiana's
+`decodeTile` (negative values, the widest deltas, an empty section, walls with and without a
+level), and checks that a file of another version, a value too far for its section, or a level for
+every wall but one, throws; `stale-map.test.ts` that the game refuses a global file without the
+play area's outline. `anchor.test.ts` rewrites Lunigiana's
 global file to start its heightmap a tile east and north of its anchor, which the file then names,
 and checks that `heightAt`, `terrainZ` and `coverAt` answer to the bit as on Lunigiana itself (read
 by `lookups.ts` in a process of its own) at 440 points round Monzone station; measuring from the
@@ -2649,6 +2680,16 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   slab on the drawn mesh; where a node behind the deck's ends is a corner of the triangle drawn
   there (its abutment) the approach's ground decides (section 7). It fails on 56 of Lunigiana's 219
   decks, 23 of Cesena's 56 and 10 of the L's 57 built without the pass, and takes 1.3 s.
+- `src/tools/__tests__/parapets.map-test.ts`: on Lunigiana, Cesena and the L, every drivable
+  bridge's parapets read every 0.25 m along both sides of each deck segment (`parapetFaults` in
+  `parapets.ts` beside it): a car on the deck meets a wall wherever no road on the deck's level (its
+  surface within 2 m of the deck's top, 0.15 m to spare) reaches the parapet (its carriageway, 0.5
+  m to spare: the build reads it every 0.25 m, on 0.1 m); a car on a road well inside its
+  carriageway there meets no parapet, which a junction on the deck closed or a parapet with the
+  wrong level would; and no wall with no level stands there over a road passing under or over the
+  deck. It fails on 4 of Lunigiana's bridges and 16 of Cesena's built before the walls had levels
+  (none of the L's), and on 4 and 17 with the levels dropped from today's build; 1.4 s alone, most
+  of it reading the three maps.
 - `src/sim/population/__tests__/density.map-test.ts` sums the residents at 6,000 points, half of
   them within 40 m of a seam, by 4 reaches (45, 60, 140 and 250 m), and `farms.map-test.ts` reads
   the buildings near 20,000 points and every farm by 3 reaches (10, 25 and 40 m), whether each
@@ -2723,7 +2764,7 @@ round the spot with a vertex, a building's first, within 1 km, 22 and 970 by the
 the residents are worked out map-wide, so only the map check catches a change to them.
 `src/tools/__tests__/tile-map.test.ts` cuts a 24 m map into its four
 tiles and joins them back as they were (walls in order, trees with sparse ids merged back in id
-order, which is not their tiles' order), with the region's tree corner;
+order, which is not their tiles' order) and the walls' levels, with the region's tree corner;
 puts each vector whole, with its index and the water's baked floor, in every tile it comes within
 the halo of, joins them back and writes the vectors' counts and lattice corners; gives a vector by
 an unlisted tile to the listed tiles round it; refuses a road whose verge reaches past the halo and
@@ -3015,7 +3056,8 @@ does not compare, walls and trees in another order (the fewest moved counted, co
 segment left out), a tree on a spot both maps plant with another id there, buildings equal but for
 their id as one `ids:` line (a farm on one no difference, `--except buildings` accepting it; one
 that also changed removed and added; pieces sharing an id and identical copies paired one to one in
-order), a map from before the outline and `--except`, and `map-diff-args.test.ts` its command line;
+order), a wall that only took a level as another wall, a map from before the outline and
+`--except`, and `map-diff-args.test.ts` its command line;
 `geometry.test.ts` `clipRing` to a box; `trees.test.ts` the tiles' scatters merged by id against the
 scatter of their whole box (with two lattice points rounding onto one spot from either side of a
 seam, and a stream beside another whose bank trees fall in its 4 m cells), a tile's trees and ids
@@ -3038,7 +3080,11 @@ id-less, each piece's start along the whole line (`clipPieces`), a line past the
 Liang–Barsky on 4000 random lines and lines through its corners;
 `src/sim/map/__tests__/outline.test.ts` `insideRings`'s margins round the L's inner corner, a
 clockwise hole, and `edgeDistance` beside and past an edge; `walls.test.ts` the outline walls
-closing the L and a rectangle's running south, east, north, west.
+closing the L and a rectangle's running south, east, north, west; `parapets.test.ts` a deck's
+parapets closed over a road 7 m under it at the deck's top, 150.2 m, and open where a road on its
+level joins it from one side alone, on 0.1 m and in pieces of 16 m at most, and `parapetFaults`
+finding the opening the old rule left over the road under it, a parapet across the joining road
+and the parapets with no level over the road under it.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees, walls, roads, buildings, water, areas and barriers read whole from the
@@ -3342,7 +3388,7 @@ issue #17's part, on 2026-11-04 (arm64, Node 24.14.1).
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
   Lunigiana's largest, 2_1 (x 4000…6000 by y 2000…4000: Argigliano, Pieve San Lorenzo and its
-  station), is 0.60 MB (604,635 B; its JSON line 0.88 MB before gzip); `lucido`'s alone, 0_0, is
+  station), is 0.60 MB (604,891 B; its JSON line 0.88 MB before gzip); `lucido`'s alone, 0_0, is
   0.56 MB with its vectors (its JSON line 0.77 MB), where −1_−1's 0.31 MB was the largest without
   them; Cesena's largest is 0.45 MB and the L's 0.52 MB.
 

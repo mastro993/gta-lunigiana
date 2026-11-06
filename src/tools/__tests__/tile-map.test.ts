@@ -33,11 +33,13 @@ const built = (data: ReadonlyArray<number>): BuiltMap => ({
   pois: [],
   districts: [],
   graph: { xy: [], edges: [], traffic: [], walk: [] },
-  // A wall across the x = 0 seam (its midpoint east of it), one in the south-west tile, a shore wall on the edge.
+  // A wall across the x = 0 seam (its midpoint east of it), one in the south-west tile, a shore wall
+  // on the edge; the drive wall at a level (a parapet's).
   walls: {
     walk: [-3, 5, 1, 5, -10, -10, -8, -9],
     shore: [12, -12, 12, 12],
     drive: [-3, 5, 1, 5],
+    levels: { walk: [NaN, NaN], drive: [148.5] },
   },
   // Sparse ids, as the scatter numbers trees (lattice cells, bank trees past 2^28): in id order the
   // trees are not in their tiles' order (0_0's comes before 0_-1's).
@@ -75,6 +77,8 @@ test("cutMap cuts the dense layers into tiles that joinTiles puts back as they w
   assert.deepEqual(Array.from(whole.heightmap.data), data)
   for (const kind of ["walk", "shore", "drive"] as const)
     assert.deepEqual(Array.from(whole.walls[kind]), built(data).walls[kind])
+  for (const kind of ["walk", "drive"] as const)
+    assert.deepEqual(Array.from(whole.walls.levels[kind]), built(data).walls.levels[kind])
   assert.deepEqual(Array.from(whole.trees), built(data).trees)
   assert.deepEqual(Array.from(whole.treeIds), built(data).treeIds)
   assert.deepEqual(
@@ -92,7 +96,11 @@ test("cutMap writes the listed tiles alone: a wall or tree in an unlisted one go
   const l: BuiltMap = {
     ...whole,
     tiles: whole.tiles.slice(0, 3),
-    walls: { ...whole.walls, walk: [...Array.from(whole.walls.walk), 2, 2, 4, 2] },
+    walls: {
+      ...whole.walls,
+      walk: [...Array.from(whole.walls.walk), 2, 2, 4, 2],
+      levels: { ...whole.walls.levels, walk: [...Array.from(whole.walls.levels.walk), NaN] },
+    },
   }
   const { global, files } = filesOf(l)
   assert.deepEqual([...files.keys()], ["", "-1_-1", "0_-1", "-1_0"])

@@ -8,6 +8,9 @@ import { buildWalls } from "../walls.ts"
 import { inRings } from "../water-areas.ts"
 import { segments } from "./wall-segments.ts"
 
+/** No bridge, so no parapet. */
+const NO_PARAPETS = { walls: [], levels: [] }
+
 /** Points every metre or less along each of the walls' segments. */
 const samples = (flat: ReadonlyArray<number>) =>
   segments(flat).flatMap(([ax, ay, bx, by]) => {
@@ -65,11 +68,19 @@ const walled = () => {
       if (inRings(RIVER.rings, g.x0 + i * CELL, g.y0 + j * CELL)) z[j * g.cols + i] = -CARVE
   return {
     /** With both areas. */
-    both: buildWalls({ ...g, z }, [], [], [], [], [LAKE, RIVER]),
+    both: buildWalls({ ...g, z }, [], [], [], [], [LAKE, RIVER], NO_PARAPETS),
     /** The same ground with no river polygon over its carve. */
-    lakeOnly: buildWalls({ ...g, z }, [], [], [], [], [LAKE]),
+    lakeOnly: buildWalls({ ...g, z }, [], [], [], [], [LAKE], NO_PARAPETS),
     /** The same polygon holding still water, its river not in the map: carved as a lake is. */
-    still: buildWalls({ ...g, z }, [], [], [], [], [LAKE, { ...STILL, rings: RIVER.rings }]),
+    still: buildWalls(
+      { ...g, z },
+      [],
+      [],
+      [],
+      [],
+      [LAKE, { ...STILL, rings: RIVER.rings }],
+      NO_PARAPETS,
+    ),
   }
 }
 let built: ReturnType<typeof walled> | undefined

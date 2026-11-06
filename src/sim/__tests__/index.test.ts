@@ -184,13 +184,17 @@ test("driving into a building: the car stops at the wall without tunnelling, los
   const id = world().vehicles[0]!.id
   const progress = (p: { readonly x: number; readonly y: number }) =>
     (p.x - car.x) * Ops.cos(car.angle) + (p.y - car.y) * Ops.sin(car.angle)
-  const frames: Array<{ pose: PoseValue; speed: number }> = []
+  const frames: Array<{ pose: PoseValue; wheels: number; speed: number }> = []
   run(150, () => {
     const v = world().vehicles[0]!
-    frames.push({ pose: v, speed: v.vx * Ops.cos(v.angle) + v.vy * Ops.sin(v.angle) })
+    frames.push({
+      pose: v,
+      wheels: v.chassis.z - VEHICLES.panda.cg,
+      speed: v.vx * Ops.cos(v.angle) + v.vy * Ops.sin(v.angle),
+    })
   })
   assert.ok(
-    frames.every(({ pose }) => carClear("panda", pose, 0.02)),
+    frames.every(({ pose, wheels }) => carClear("panda", pose, wheels, 0.02)),
     "never inside a wall",
   )
   assert.ok(

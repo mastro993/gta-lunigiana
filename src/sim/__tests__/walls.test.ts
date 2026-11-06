@@ -1,20 +1,22 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { Ops, Vec2 } from "@typeonce/ritmo-math"
+import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carClear, carRadius, crossesAny, moveCar, wallsAlong } from "../body.ts"
 import { settle, tiltOf, turn } from "../chassis.ts"
 import { UNDAMAGED } from "../damage.ts"
-import { groundZ } from "../map/ground.ts"
+import { atGrade, groundZ } from "../map/ground.ts"
 import { graph } from "../map/index.ts"
 import { tileTrees, tilesOver } from "../map/tiles.ts"
 import {
   edgeIndex,
+  endNode,
   facesForward,
   laneOf,
   lanePoint,
   laneSide,
+  nextTrafficEdge,
   roadOf,
   walkIndex,
   walkSide,
@@ -35,7 +37,7 @@ import {
   Vehicle,
 } from "../schema.ts"
 import type { Regime } from "../sky/regimes.ts"
-import { parkedCar, pedestrian } from "../spawning.ts"
+import { parkedCar, pedestrian, trafficCar } from "../spawning.ts"
 import { BACK_GAP, HONK_STEPS } from "../systems/traffic.ts"
 import {
   BATTISTI,
@@ -60,6 +62,7 @@ import { PERSON_RADIUS } from "../tuning.ts"
 import { weatherFactor } from "../tyres.ts"
 import { VEHICLES } from "../vehicles.ts"
 import { assertTrunkCorners } from "./trunk-corners.ts"
+import { acrossDeck, ASIDE, offDeck, UNDER, VIADUCT } from "./viaduct.ts"
 
 // Trees are indexed as points and their trunk squares made on query: the broad phase must still return them
 // (walls.map-test.ts checks every tree of the map).
@@ -104,13 +107,8 @@ test("contacts: a car pushing or knocking a pedestrian against a house wall neve
         depth(ped()) < -PERSON_RADIUS + 0.02 && walkClear(ped()),
         `${speed} m/s: pedestrian at ${depth(ped())}`,
       )
-      assert.ok(
-        carClear(
-          "panda",
-          world().vehicles.find((v) => v.id === carId)!,
-          0.1,
-        ),
-      )
+      const car = world().vehicles.find((v) => v.id === carId)!
+      assert.ok(carClear("panda", car, car.chassis.z - VEHICLES.panda.cg, 0.1))
     })
     // Down or, at 8 m/s about 1 time in 20, killed (the dead are down too): which one is the death roll's, not the walls'.
     if (speed > 5) assert.ok(ped().down, "knocked down")
@@ -147,7 +145,10 @@ test("contacts: a car rammed sideways into a house wall stays out of it", () => 
   const ours = () => world().vehicles.filter((car) => ids.has(car.id))
   run(120, () => {
     for (const car of ours())
-      assert.ok(carClear("panda", car, 0.1) && depth(car) < 0, JSON.stringify(car))
+      assert.ok(
+        carClear("panda", car, car.chassis.z - VEHICLES.panda.cg, 0.1) && depth(car) < 0,
+        JSON.stringify(car),
+      )
   })
   assert.ok(
     ours().some((car) => Vec2.distance(car, parked) > 0.05),
@@ -162,7 +163,7 @@ test("physics: steering into a wall alongside never wedges the car in it", () =>
   let last = world().vehicles[0]!
   run(90, () => {
     const now = world().vehicles.find((v) => v.id === id)!
-    assert.ok(carClear("panda", now, 0.1), JSON.stringify(now))
+    assert.ok(carClear("panda", now, now.chassis.z - VEHICLES.panda.cg, 0.1), JSON.stringify(now))
     assert.ok(
       !crossesAny(wallsAlong("drive", now.x, now.y, last.x - now.x, last.y - now.y, 1), last, now),
       "no jump through a wall",
@@ -333,7 +334,7 @@ const trafficAmong = (
   { regime, speed = 0 }: { readonly regime?: Regime; readonly speed?: number } = {},
 ) => {
   assert.ok(
-    [at, ...parked].every((pose) => carClear("panda", pose)),
+    [at, ...parked].every((pose) => carClear("panda", pose, atGrade(pose.x, pose.y))),
     "staged clear of walls",
   )
   const { runtime, run, world, heard } = seeded(
@@ -504,7 +505,10 @@ test("pedestrians: a walker whose verge is blocked by a parked car gets past it"
   const heading = Ops.atan2(lane.dy, lane.dx)
   const at = { ...lanePoint(lane, 2, side), angle: heading }
   const blocker = { ...lanePoint(lane, 8, side), angle: heading }
-  assert.ok(walkClear(at) && carClear("panda", blocker), "a clear verge to stage on")
+  assert.ok(
+    walkClear(at) && carClear("panda", blocker, atGrade(blocker.x, blocker.y)),
+    "a clear verge to stage on",
+  )
   const walker = pedestrian(
     LOOK,
     at,
@@ -555,4 +559,56 @@ test("pedestrians: a walker wedged in a house corner on its verge turns back", (
     if (ped !== undefined) away = Math.max(away, Vec2.distance(ped, at))
   })
   assert.ok(away > 3, `stayed within ${away.toFixed(2)} m`)
+})
+
+// Regression (issue #91): a deck's parapet opened wherever any road's carriageway reached it, the
+// road under the bridge included, so a car on the SR445's viaduct west of Gragnola drove off it
+// there and dropped 5–7 m onto the residential road under it. The parapet holds now, and stands at
+// the deck's level alone: the road under it stays open.
+test("parapets: a Panda driven across the SR445's viaduct over the road under it, either way, stays on the deck", () => {
+  for (const side of [1, -1] as const) {
+    const game = start(
+      [],
+      [ASIDE, { cars: [rolling("panda", acrossDeck(side), 8, 0.6, 0, VIADUCT.level)] }],
+      { alone: true },
+    )
+    let widest = 0,
+      lowest = Infinity
+    game.run(180, () => {
+      const car = game.world().vehicles[0]!
+      widest = Math.max(widest, Math.abs(offDeck(car)))
+      lowest = Math.min(lowest, car.chassis.z - VEHICLES.panda.cg)
+    })
+    assert.ok(
+      widest < VIADUCT.half + 0.25 && lowest > VIADUCT.level - 0.5,
+      `driven to the ${side > 0 ? "left" : "right"}: ${widest.toFixed(2)} m off the centreline (the parapet at ${VIADUCT.half + 0.25} m), its wheels down to ${lowest.toFixed(2)} m (the deck at ${VIADUCT.level.toFixed(2)} m)`,
+    )
+  }
+})
+
+test("parapets: a traffic car on the residential road under the SR445's viaduct passes under it", () => {
+  const forward = true,
+    lane = laneOf(UNDER.edge, forward),
+    side = laneSide({ edge: UNDER.edge, forward }, "panda")
+  const pose = { ...lanePoint(lane, 0, side), angle: Ops.atan2(lane.dy, lane.dx) }
+  const next = nextTrafficEdge(endNode(UNDER.edge, forward), UNDER.edge, "panda", Random.make(1))
+  const car = trafficCar("panda", 0x3d6155, pose, 5, { edge: UNDER.edge, forward, side }, next)
+  const game = start([], [ASIDE, { traffic: [car] }], { alone: true })
+  const from = Math.sign(offDeck(pose))
+  // Its wheels while under the deck.
+  let highest = -Infinity
+  game.run(360, () => {
+    const it = game.world().vehicles[0]!
+    if (Math.abs(offDeck(it)) < VIADUCT.half)
+      highest = Math.max(highest, it.chassis.z - VEHICLES.panda.cg)
+  })
+  const end = game.world().vehicles[0]!
+  assert.ok(
+    Math.sign(offDeck(end)) === -from && Math.abs(offDeck(end)) > VIADUCT.half + 2,
+    `the car ends ${offDeck(end).toFixed(1)} m off the viaduct's centreline, from ${offDeck(pose).toFixed(1)} m`,
+  )
+  assert.ok(
+    highest < UNDER.level + 0.5,
+    `its wheels up to ${highest.toFixed(2)} m under a deck at ${VIADUCT.level.toFixed(2)} m (the road under it at ${UNDER.level.toFixed(2)} m)`,
+  )
 })

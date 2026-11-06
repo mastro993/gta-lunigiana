@@ -81,6 +81,7 @@ const cutBuilt = async () => {
       extra: src.extra.length,
       bed: terrain.bed,
       decks: terrain.decks,
+      parapets: world.parapets,
       lines: world.lines,
       platforms: world.platforms,
       clear: world.clearReport,
@@ -150,6 +151,8 @@ console.log({
   }),
   // the terrain lowered under the bridges' decks (deck-ground.ts): nodes, and the deepest cut, m
   decks: { nodes: report.decks.nodes, deepest: +report.decks.deepest.toFixed(2) },
+  // the bridges' parapets (parapets.ts): their walls, and the bridges whose parapets close over a road on another level
+  parapets: report.parapets,
   areas: map.vectors.counts.areas,
   barriers: map.vectors.counts.barriers,
   wallsWalk: map.walls.counts.walk,

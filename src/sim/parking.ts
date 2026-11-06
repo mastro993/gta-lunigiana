@@ -11,7 +11,7 @@ import { Ops } from "@typeonce/ritmo-math"
 import { carClear } from "./body.ts"
 import { settle, uprightness } from "./chassis.ts"
 import { MAP, type ParkedSpot, type Rest, type Spawn } from "./map/index.ts"
-import { VEHICLE_MODELS } from "./vehicles.ts"
+import { VEHICLE_MODELS, VEHICLES } from "./vehicles.ts"
 
 /**
  * A vehicle that would stand tilted more than this (rad, 15°) on a spot is not parked there: the 4 m terrain puts some verges on a
@@ -32,6 +32,9 @@ export const bakeParked = (spots: ReadonlyArray<Spawn> = MAP.spawns.parked): Arr
     return {
       ...spot,
       rest,
-      ...(rest.truck !== undefined && carClear("truck", spot) ? { truck: true as const } : {}),
+      // On the level its wheels stand at there.
+      ...(rest.truck !== undefined && carClear("truck", spot, rest.truck[0] - VEHICLES.truck.cg)
+        ? { truck: true as const }
+        : {}),
     }
   })

@@ -11,7 +11,7 @@ import { Clock } from "@typeonce/ritmo"
 import type { Keyboard } from "@typeonce/ritmo-browser"
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
-import { wallsAlong } from "../body.ts"
+import { crossesAny, wallsAlong } from "../body.ts"
 import { segDist2 } from "../collide.ts"
 import { footZ, groundZ, platformTop, roadLevel } from "../map/ground.ts"
 import { graph, MAP, type Road, type RoadLine } from "../map/index.ts"
@@ -373,6 +373,24 @@ export const overRoad = once(() => {
     if (!at.bridge && !at.tunnel && at.z - footZ(at.x, at.y) > 2) return s
   }
   throw new Error("no road tunnel under the line")
+})
+
+/**
+ * Where Monzone's line runs at grade into a wall: the first s (by the metre) whose next metre of
+ * centreline crosses a drive wall that a car on the track meets (a cutting's slope traced across it).
+ * A car the train shoves along the track there is pinned against it. A road bridge's parapets over
+ * the line stand at the deck's level, and pin nothing on the track (issue #91).
+ */
+export const acrossWall = once(() => {
+  const line = LINES[MONZONE.line]!
+  for (let s = 0; s + 1 < line.length; s++) {
+    const at = pointAt(line, s),
+      next = pointAt(line, s + 1)
+    if (at.bridge || at.tunnel || next.tunnel) continue
+    const walls = wallsAlong("drive", at.x, at.y, next.x - at.x, next.y - at.y, 0.5, at.z)
+    if (crossesAny(walls, at, next)) return s
+  }
+  throw new Error("no wall across the line")
 })
 
 /** The nearest drive wall to (x, y) within `reach` m, its distance, m; `reach` when none is nearer. */

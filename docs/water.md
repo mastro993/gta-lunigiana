@@ -245,7 +245,7 @@ shore, and `wallsNear` answers four kinds:
 |---|---|---|
 | `walk` | buildings, slopes over 35°, cliffs, walls, the play area's outline, trunks | everyone on foot and every animal |
 | `land` | `walk` and the shore | where people and animals spawn; a follower's way to its leader |
-| `drive` | `walk`'s, slopes over 25° off the roads, guard rails, parapets, road-exit caps | every vehicle's physics |
+| `drive` | `walk`'s, slopes over 25° off the roads, guard rails, parapets (on their deck's level), road-exit caps | every vehicle's physics |
 | `traffic` | `drive` and the shore | AI drivers' lanes (`lanesFor`), where vehicles spawn |
 
 Traffic's dead ends and the spawns are worked out against the water's edge, as before, so the road

@@ -42,6 +42,7 @@ import {
   start,
   walkClear,
 } from "../testing.ts"
+import { VEHICLES } from "../vehicles.ts"
 import { joyride, joyrideCast, WRECKED } from "./joyride.ts"
 
 test("traffic: a car follows the roads for 30 s, never inside walls", () => {
@@ -57,7 +58,10 @@ test("traffic: a car follows the roads for 30 s, never inside walls", () => {
     for (const e of trafficIndex.around(car.x, car.y, [0, 40]))
       off = Math.min(off, distanceToEdge(e, car.x, car.y) - roadOf(e).w / 2)
     assert.ok(off < 1, `${off} m beyond the carriageway at (${car.x}, ${car.y})`)
-    assert.ok(carClear("panda", car, 0.02), "never inside a wall")
+    assert.ok(
+      carClear("panda", car, car.chassis.z - VEHICLES.panda.cg, 0.02),
+      "never inside a wall",
+    )
     travelled += Vec2.distance(car, last)
     last = car
   })

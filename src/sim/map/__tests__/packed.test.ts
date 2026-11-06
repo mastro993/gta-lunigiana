@@ -91,7 +91,7 @@ test("packMap and decodeMap round-trip the global file (a newline inside a name,
   const old = Buffer.from(`${JSON.stringify({ version: 2 })}\n`)
   assert.throws(
     () => decodeMap(old),
-    /the global map file is version 2, this decoder reads 4; run pnpm map/,
+    /the global map file is version 2, this decoder reads 5; run pnpm map/,
   )
 })
 
@@ -112,6 +112,8 @@ const tile = {
     shore: Int32Array.from([3]),
     drive: new Int32Array(),
   },
+  // a wall at every level, and one at the highest level that fits
+  wallLevels: { walk: Float64Array.from([NaN, 3276.7]), drive: new Float64Array() },
   // tree x from the origin: 0 then 32767 m, the widest 2-byte delta; scales in hundredths
   trees: Float64Array.from([-2100, -100, 0.8, 30667, 1999, 1.3]),
   ids: Int32Array.from([5, 1_000_000]),
@@ -160,7 +162,7 @@ const tile = {
   },
 }
 
-test("packTile and decodeTile round-trip a tile (negative values, the widest deltas, an empty section); a value too far throws", () => {
+test("packTile and decodeTile round-trip a tile (negative values, the widest deltas, an empty section, walls with and without a level); a value too far throws", () => {
   assert.deepEqual(plain(decodeTile(packTile(tile).file)), plain(tile))
   // The full map's detail reads the vectors alone, with which tile and build they are.
   const alone = decodeTileVectors(packTile(tile).file)
@@ -174,6 +176,7 @@ test("packTile and decodeTile round-trip a tile (negative values, the widest del
         ...tile,
         walls: { ...tile.walls, drive: Float64Array.from([-2100, -100, 1176.8, 0]) },
         wallIds: { ...tile.wallIds, drive: Int32Array.from([0]) },
+        wallLevels: { ...tile.wallLevels, drive: [NaN] },
       }),
     /tile -1_0 drive walls: 32768 at 2 is 32768 from the value 2 back, too far for 2 bytes/,
   )
@@ -184,5 +187,13 @@ test("packTile and decodeTile round-trip a tile (negative values, the widest del
   assert.throws(
     () => packTile({ ...tile, cover: new Uint8Array(3) }),
     /tile -1_0: 251001 nodes and 3 cells/,
+  )
+  assert.throws(
+    () => packTile({ ...tile, wallLevels: { ...tile.wallLevels, walk: [NaN, 3276.8] } }),
+    /tile -1_0 walk wall levels: 3276.8 at 1 does not fit int16/,
+  )
+  assert.throws(
+    () => packTile({ ...tile, wallLevels: { ...tile.wallLevels, walk: [NaN] } }),
+    /tile -1_0: 2 walk walls, 1 levels/,
   )
 })

@@ -148,6 +148,15 @@ export const DECK_SLAB = { depth: 0.9, margin: 0.4 } as const
 export const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
 
 /**
+ * Two grounds this near in height (m) are one level. A body meets a train only where its ground
+ * stands this near the rail head, and a wall with a level (a bridge's parapet) only where its ground
+ * stands this near the wall's (`LEVEL` and `onLevel` in src/sim/rail/bodies.ts); a parapet opens
+ * only where a road this near its deck reaches it (src/tools/parapets.ts). Here so the map build
+ * reads it without a map loaded.
+ */
+export const ONE_LEVEL = 2
+
+/**
  * Per class: carriageway width (m), whether it is asphalt when OSM names no surface, and who uses
  * it (AI traffic and the player's car, the player's car only, or only people on foot). The widths
  * of the classes the Lucido valley lacks (motorway to secondary) are defaults per carriageway for
