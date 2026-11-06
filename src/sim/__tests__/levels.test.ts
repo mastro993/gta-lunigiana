@@ -9,8 +9,9 @@ import { graph } from "../map/index.ts"
 import { LEVEL } from "../rail/bodies.ts"
 import { linesNear, pointAt, speedAt } from "../rail/lines.ts"
 import { aiTrain } from "../rail/testing.ts"
-import { edgeIndex, laneOf, lanePoint, laneSide } from "../route.ts"
+import { alongLane, edgeIndex, laneOf, lanePoint, laneSide } from "../route.ts"
 import { animal, parkedCar, pedestrian, trafficCar } from "../spawning.ts"
+import { BACK_GAP } from "../systems/traffic.ts"
 import { door, LOOK, type stage, start } from "../testing.ts"
 import { ENTER_GAP, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES } from "../vehicles.ts"
@@ -155,6 +156,55 @@ test("traffic: a car on the road under the viaduct passes under the player and a
     assert.deepEqual(felt(over), felt(clear), `${what} untouched`)
   }
   stoppedShort(coming(car(), mark, { ...mark, angle: 0 }, ROAD_Z))
+})
+
+// Backing up, a driver held for what stood behind it on any level: a car on the deck for the player on the road under it.
+test("traffic: a car backing up on the SR445's viaduct backs over the player on the road under it as over nobody, and stops short of them standing behind it on the deck", () => {
+  const lane = laneOf(DECK_LANE.edge, true),
+    over = alongLane(lane, OVER.x, OVER.y),
+    on = (d: number) => ({ ...lanePoint(lane, over + d, DECK_LANE.side), angle: OVER.angle }),
+    [, after] = lanesThrough(DECK_LANE.edge, 0, 1) as [number, number]
+  /** A traffic Panda 4 m past OVER behind a Panda parked 6.5 m ahead of it, the player at `at` on `z`: stuck 3 s, it backs up toward OVER. */
+  const backing = (at: PoseValue, z: number) => {
+    const game = staged(
+      at,
+      z,
+      {
+        traffic: [
+          trafficPanda(
+            on(4),
+            0,
+            { edge: DECK_LANE.edge, forward: true },
+            { edge: after, forward: true },
+          ),
+        ],
+        cars: [parkedCar("panda", 0xb8312b, on(10.5), standingOn("panda", on(10.5), DECK_Z))],
+      },
+      [],
+    )
+    const id = game.world().vehicles.find((v) => v.traffic)!.id,
+      way: Array<readonly [number, number, number]> = []
+    let least = Infinity
+    game.run(330, () => {
+      const it = game.world().vehicles.find((v) => v.id === id)!
+      least = Math.min(least, Vec2.distance(it, OVER))
+      way.push([it.x, it.y, Ops.hypot(it.vx, it.vy)])
+    })
+    return { way, least, game }
+  }
+  const clear = backing(AWAY.pose, AWAY.z),
+    here = { ...OVER, angle: 0 }
+  assert.ok(clear.least < 1.5, `backed to ${clear.least.toFixed(2)} m from OVER`)
+  assert.deepEqual(backing(here, ROAD_Z).way, clear.way, "the player under the deck")
+  const behind = backing(here, DECK_Z)
+  assert.ok(
+    behind.least > VEHICLES.panda.length / 2 + PERSON_RADIUS + BACK_GAP,
+    `stopped ${behind.least.toFixed(2)} m from them`,
+  )
+  assert.deepEqual(
+    behind.game.heard.impacts.filter((i) => i.hit === "person"),
+    [],
+  )
 })
 
 /**

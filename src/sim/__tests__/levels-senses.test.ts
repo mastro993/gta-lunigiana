@@ -1,9 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { Ops } from "@typeonce/ritmo-math"
+
 import { Animal, type PoseValue } from "../index.ts"
 import { LEVEL } from "../rail/bodies.ts"
+import { cruiseSpeed, roadOf } from "../route.ts"
 import { pedestrian } from "../spawning.ts"
+import { USUAL } from "../systems/senses.ts"
 import { LOOK, rolling, start } from "../testing.ts"
 import { VEHICLES } from "../vehicles.ts"
 import { beast } from "./farms.ts"
@@ -22,13 +26,14 @@ import {
 /** Right under the deck's lane at OVER, or over it on the deck. */
 const HERE: PoseValue = { ...OVER, angle: 0 }
 
-/** The Panda rolling over the deck (`overDeck`) for 4 s, `cast` round it, the player aside; the game and `each` step's reading. */
+/** `car` (the Panda rolling over the deck, `overDeck`) for 4 s, `cast` round it, the player aside; the game and `each` step's reading. */
 const passing = <T>(
   cast: Parameters<typeof staged>[2],
   each: (game: ReturnType<typeof staged>) => T,
   level?: number,
+  car = overDeck(),
 ) => {
-  const game = staged(AWAY.pose, AWAY.z, { ...cast, cars: [overDeck()] }, [])
+  const game = staged(AWAY.pose, AWAY.z, { ...cast, cars: [car] }, [])
   if (level !== undefined) assert.ok(game.runtime.tick(footing(level, Animal)).ok)
   const seen: Array<T> = []
   game.run(240, () => seen.push(each(game)))
@@ -56,6 +61,36 @@ test("perceive: a passer-by standing on the road under the SR445's viaduct stays
     )
     assert.equal(seen.includes("flee"), runs, `${where}: ${[...new Set(seen)].join(", ")}`)
     if (!runs) assert.deepEqual(game.heard.cries, [], `${where}: no cry`)
+  }
+})
+
+test("perceive: a passer-by under the SR445's viaduct pays no heed to a Panda speeding over them on its deck; beside its lane on the deck, they look", () => {
+  // Across the deck's other lane, 5 m left of OVER, or under it on the road below; the Panda at 22 m/s, over 1.2 × the SR445's 16.
+  const left = { x: -Ops.sin(OVER.angle) * 5, y: Ops.cos(OVER.angle) * 5 },
+    spot = { x: OVER.x + left.x, y: OVER.y + left.y, angle: 0 },
+    from = { x: OVER.x - Ops.cos(OVER.angle) * 30, y: OVER.y - Ops.sin(OVER.angle) * 30 }
+  assert.ok(cruiseSpeed(roadOf(DECK_LANE.edge)) * USUAL < 22)
+  for (const [where, route, looks] of [
+    ["under the deck", { edge: BELOW, forward: true, side: 0 }, false],
+    ["on the deck", DECK_LANE, true],
+  ] as const) {
+    const { seen } = passing(
+      {
+        peds: [
+          pedestrian(LOOK, spot, route, {
+            mood: "chat",
+            until: 100_000,
+            fx: spot.x,
+            fy: spot.y + 1,
+          }),
+        ],
+      },
+      (g) => g.world().peds[0]!.mood,
+      undefined,
+      rolling("panda", { ...from, angle: OVER.angle }, 22, 0.6, 0, DECK_Z),
+    )
+    assert.equal(seen.includes("look"), looks, `${where}: ${[...new Set(seen)].join(", ")}`)
+    assert.ok(!seen.includes("flee"), `${where}: out of its way`)
   }
 })
 

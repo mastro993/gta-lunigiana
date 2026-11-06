@@ -63,11 +63,12 @@ export const OVER: PoseValue = {
   angle: Ops.atan2(lane.dy, lane.dx),
 }
 
-/** The deck's surface at OVER and the road's under it, m a.s.l. (148.49 and 142.41). */
 const road = roadLevel(UNDER, OVER.x, OVER.y)
 assert.ok(road !== undefined, "the road under the deck passes under OVER")
-export const DECK_Z = roadLevel(VIADUCT, OVER.x, OVER.y)!,
-  ROAD_Z = groundZ(OVER.x, OVER.y, road)
+/** The deck's surface at OVER, m a.s.l. (148.49). */
+export const DECK_Z = roadLevel(VIADUCT, OVER.x, OVER.y)!
+/** The road's surface under it, m a.s.l. (142.41). */
+export const ROAD_Z = groundZ(OVER.x, OVER.y, road)
 assert.ok(DECK_Z - ROAD_Z > 3 * LEVEL, `the deck ${(DECK_Z - ROAD_Z).toFixed(2)} m over the road`)
 
 /** The road below's traffic edge nearest OVER, travelled a -> b (northward): it runs under the deck there. */
