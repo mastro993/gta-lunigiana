@@ -17,10 +17,14 @@ this WebGL page, so drive headless Chrome over CDP:
 
    Vite listens on `localhost`, not `127.0.0.1`.
 2. Start Chrome with `--headless=new`, `--remote-debugging-port=<port>`,
-   `--user-data-dir=$(mktemp -d)`, `--window-size=1280,720` and `--force-device-scale-factor=1`,
-   plus `--use-angle=metal --enable-gpu --ignore-gpu-blocklist` on macOS
-   (`--use-angle=swiftshader --enable-unsafe-swiftshader` elsewhere). For sound, add
-   `--autoplay-policy=no-user-gesture-required --mute-audio`.
+   `--user-data-dir=$(mktemp -d)`, `--window-size=1280,720`, `--force-device-scale-factor=1` and
+   `--mute-audio`, plus `--use-angle=metal --enable-gpu --ignore-gpu-blocklist` on macOS
+   (`--use-angle=swiftshader --enable-unsafe-swiftshader` elsewhere). Always `--mute-audio`, sound
+   checks included: the user works beside these runs, and an unmuted Chrome plays the game through
+   their speakers once a key dismisses the title card. It silences the output only, so the game's
+   meter still reads its sound (`gta.audio.level()`: −38.3 to −43.7 dBFS at the spawn, `?seed=3`,
+   over the 6 s after the card, on 2026-11-06). For sound, add
+   `--autoplay-policy=no-user-gesture-required`.
 3. Drive it over CDP. For screenshots of map spots and the full map, for the first frame, the
    slowest frame and the heap, and for a 40 m/s run across the map's tile seams (the slowest frame
    at each seam, the tiles in memory and the heap at the end), run

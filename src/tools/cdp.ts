@@ -33,7 +33,7 @@ export const openTab = async (port: number): Promise<Tab> => {
     browser = version.webSocketDebuggerUrl
   } catch {
     throw new Error(
-      `no Chrome on port ${port}: start it headless with --remote-debugging-port=${port} (docs/standards/playtest.md step 2)`,
+      `no Chrome on port ${port}: start it headless with --remote-debugging-port=${port} --mute-audio (docs/standards/playtest.md step 2)`,
     )
   }
   const ws = new WebSocket(browser)
