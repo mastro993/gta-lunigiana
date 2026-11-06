@@ -23,6 +23,7 @@ import { SkyHost } from "../sky/host.ts"
 import { makePost } from "../sky/post.ts"
 import { followToward, turnToward } from "../swing.ts"
 import { residentAround } from "../testing.ts"
+import { nextStep, stepFor } from "./shadow-steps.ts"
 
 /** 08:00 in Rome on 4 November 2026, the playtest of issue #89: the sun 8.9° up, cast from SHADOW_FLOOR's 20°. */
 const MORNING = utcFromRome(daysFromCivil(2026, 11, 4) * DAY + 8 * 3600)
@@ -30,11 +31,6 @@ const MORNING = utcFromRome(daysFromCivil(2026, 11, 4) * DAY + 8 * 3600)
 const SCREEN = new Vector2(427, 240)
 /** A frame at 60 fps, s. */
 const FRAME = 1 / 60
-/** The box's steps: × √2 from the zoom's flat fit up to the 300 m cap, which a step landing within a tenth of it gives way to (docs/architecture.md). */
-const STEP = Math.SQRT2,
-  LEAST = 1.1,
-  CAP = 300
-
 /** A map point to turn the view at. */
 interface Spot {
   readonly name: string
@@ -57,16 +53,6 @@ interface Frame {
 /** The box over flat ground at `texelsPerMetre` on a 1280 × 720 screen, m: the view's ground rectangle's circumscribed circle plus 10 m (50.2 m on foot). */
 export const flatHalf = (texelsPerMetre: number): number =>
   Math.hypot(SCREEN.x / texelsPerMetre, SCREEN.y / texelsPerMetre / Math.sin(Math.PI / 6)) / 2 + 10
-
-/** The step above `half`. */
-const nextStep = (half: number): number => (half * STEP * LEAST > CAP ? CAP : half * STEP)
-
-/** The smallest step from `base` that holds `need`. */
-const stepFor = (base: number, need: number): number => {
-  let half = base
-  while (half < need && half < CAP) half = nextStep(half)
-  return half
-}
 
 /** A whole turn, one degree a frame, `dir` 1 to the left or −1 to the right, at `texelsPerMetre`, then `settle` s at home. */
 export const wholeTurn = (texelsPerMetre: number, dir: 1 | -1, settle = 2): Array<Pose> =>

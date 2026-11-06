@@ -5,6 +5,7 @@ import { Vector2, Vector3 } from "three"
 
 import { viewAxes } from "../pipeline.ts"
 import { type HeldBox, holdBox, shadowBase, shadowFit } from "../shadow-box.ts"
+import { ladder } from "./shadow-steps.ts"
 
 // Regression: sized for flat ground, the shadow box left most of a mountain view unshadowed.
 test("the shadow box covers the view's ground rectangle on the flat and the far ground a falling slope shows", () => {
@@ -42,13 +43,6 @@ test("the shadow box reaches ground that shows only between the view's edges", (
   assert.ok(shadowFit(focus, axes, 100, 60, toSun, gully).below < -400)
 })
 
-/** The steps from `base`: each × √2 the last, up to the 300 m cap, which a step landing within a tenth of it gives way to. */
-const ladder = (base: number): Array<number> => {
-  const steps = [base]
-  while (steps.at(-1)! < 300)
-    steps.push(steps.at(-1)! * Math.SQRT2 * 1.1 > 300 ? 300 : steps.at(-1)! * Math.SQRT2)
-  return steps
-}
 /** A 1280 × 720 screen's view, texels; the steps on foot (50.2, 70.9, 100.3, 141.9, 200.6 and 300 m); a sun 50° up. */
 const SCREEN = new Vector2(427, 240),
   FOOT = shadowBase(SCREEN, 8),

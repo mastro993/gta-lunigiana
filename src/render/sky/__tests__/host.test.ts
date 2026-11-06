@@ -10,6 +10,7 @@ import { place, providePlace } from "../../../sim/sky/place.ts"
 import type { Regime } from "../../../sim/sky/regimes.ts"
 import { initialWeather, setWeather } from "../../../sim/sky/weather.ts"
 import { QUARTER } from "../../../sim/view.ts"
+import { ladder } from "../../__tests__/shadow-steps.ts"
 import { yOf } from "../../ground.ts"
 import { shadowBase } from "../../shadow-box.ts"
 import { turnToward } from "../../swing.ts"
@@ -184,10 +185,7 @@ test("through an E turn the sky host holds the shadow box on its steps, changing
     r = renderer(),
     t = at(8),
     w = weather("clear", t)
-  // On foot: from the flat fit, each × √2 the last, up to the 300 m cap, which a step within a tenth of it gives way to.
-  const steps = [shadowBase(view().view, 8)]
-  while (steps.at(-1)! < 300)
-    steps.push(steps.at(-1)! * Math.SQRT2 * 1.1 > 300 ? 300 : steps.at(-1)! * Math.SQRT2)
+  const steps = ladder(shadowBase(view().view, 8))
   let yaw = 0
   const halves = Array.from({ length: 45 }, (_, k) => {
     if (k > 10) yaw = turnToward(yaw, -QUARTER, 1 / 60)
