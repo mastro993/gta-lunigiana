@@ -120,7 +120,8 @@ const holds = ([a, b, c]: Tri, p: readonly [number, number, number]): boolean =>
 }
 
 /**
- * Road `road` in a tunnel draws its bore's walls, dark, and nothing else solid: none for a building
+ * Road `road` in a tunnel draws its bore's walls, dark, in the buried layer, and nothing solid: so
+ * nothing of it under the hill casts a shadow, as the hill over it casts none. None for a building
  * passage, whose house stands over it. Every edge of them stands 0.2 m or more under the terrain
  * (sampled every 0.1 m: they never stand out of the hill, between their corners as at them), and
  * they stand on both sides of the road all along it (Decision 3): every 2 m along each side, where
@@ -128,13 +129,16 @@ const holds = ([a, b, c]: Tri, p: readonly [number, number, number]): boolean =>
  * height. Returns how many wall triangles it draws.
  */
 export const checkBore = (road: Road): number => {
-  const solid = roadPieces(road)
-    .slice(1)
-    .map((piece) => drawn(piece).solid)
-  const all = solid.flatMap((tris) => trianglesOf(tris, PALETTE.tunnelDark))
+  const sinks = roadPieces(road).slice(1).map(drawn),
+    buried = sinks.map((sink) => sink.buried)
+  assert.ok(
+    sinks.every((sink) => sink.solid.empty),
+    `road ${road.id} in a tunnel: nothing in the solid layer, which casts shadows`,
+  )
+  const all = buried.flatMap((tris) => trianglesOf(tris, PALETTE.tunnelDark))
   assert.equal(
     all.length,
-    solid.reduce((n, tris) => n + tris.position.length / 9, 0),
+    buried.reduce((n, tris) => n + tris.position.length / 9, 0),
     `road ${road.id} in a tunnel: nothing but its dark walls`,
   )
   for (const tri of all)

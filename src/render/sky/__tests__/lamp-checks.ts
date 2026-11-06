@@ -6,7 +6,7 @@ import { pointInRing } from "../../../sim/collide.ts"
 import { type Building, buildingStyleOf, type Road, roadClassOf } from "../../../sim/map/index.ts"
 import { buildingsIn } from "../../../sim/map/vectors.ts"
 import { eaveOf, windowCount } from "../../buildings.ts"
-import { type Sink, Triangles, WaterTriangles } from "../../geometry.ts"
+import { emptySink, type Sink, type Triangles } from "../../geometry.ts"
 import { terrainY } from "../../ground.ts"
 import { lampPieces, LIT, streetLamps } from "../lamps.ts"
 
@@ -131,13 +131,7 @@ export const boxesOf = (tris: Triangles, lamp: Lamp) => {
 
 /** Lamp `i`'s piece drawn into a sink of its own. */
 export const drawnLamp = (pieces: ReturnType<typeof lampPieces>, i: number): Sink => {
-  const sink: Sink = {
-    solid: new Triangles(),
-    decal: new Triangles(),
-    water: new WaterTriangles(),
-    glow: new Triangles(),
-    pieces: [],
-  }
+  const sink = emptySink()
   pieces[i]!.draw(() => sink, 0, 0)
   return sink
 }

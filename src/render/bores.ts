@@ -1,8 +1,8 @@
 /**
  * A road tunnel's bore: the cross-section its portals are sized to (render/portals), and its dark
  * walls along the whole tunnel, either side of the road (whose ribbon render/lines draws at the
- * tunnel's floor). The walls stand under the hill, never out of it: the terrain hides them, and the
- * see-through cut, which opens while the hill hides the player, shows the road between them, the
+ * tunnel's floor). The walls stand under the hill, never out of it: the terrain hides them, they cast
+ * no shadow (the chunk's `buried` layer), as the hill over them casts none, and the see-through cut, which opens while the hill hides the player, shows the road between them, the
  * wall nearer the camera cut to a stub as a building's are. A building passage has none: its house
  * stands over its road.
  *
@@ -78,7 +78,7 @@ const foldsAlong = (x0: number, y0: number, x1: number, y1: number): Array<numbe
  * wherever its line crosses a fold of the terrain mesh, its top meets the springing, or it runs out
  * under the ground, so its top runs straight between cuts under ground that is straight there: it
  * never stands out of the hill, between the cuts as at them. The stretches face the road and go into
- * the chunk of their middle on the centreline, so a chunk drawing some of the segments gets the
+ * the `buried` layer of the chunk of their middle on the centreline, so a chunk drawing some of the segments gets the
  * very triangles a whole build gives it.
  */
 export const borePiece = (road: Road): Piece => {
@@ -135,7 +135,7 @@ export const borePiece = (road: Road): Piece => {
               ...(a.room * b.room < 0 ? [a.t + ((b.t - a.t) * a.room) / (a.room - b.room)] : []),
             ].sort((p, q) => p - q)
             for (const c of [...mids.map(wall), b]) {
-              const sink = at(ax + (dx * (a.t + c.t)) / 2, ay + (dy * (a.t + c.t)) / 2).solid,
+              const sink = at(ax + (dx * (a.t + c.t)) / 2, ay + (dy * (a.t + c.t)) / 2).buried,
                 upA = a.top - a.bottom > 1e-6,
                 upC = c.top - c.bottom > 1e-6
               const pa: Point3 = [a.x, a.bottom, -a.y],

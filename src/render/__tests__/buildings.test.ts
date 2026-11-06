@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { type Building, MAP } from "../../sim/map/index.ts"
 import { buildingsIn } from "../../sim/map/vectors.ts"
 import { buildingPiece } from "../buildings.ts"
-import { linear, Triangles, type Sink, WaterTriangles } from "../geometry.ts"
+import { emptySink, linear } from "../geometry.ts"
 import { PALETTE } from "../palette.ts"
 
 const shutters = [linear(PALETTE.shutterGreen), linear(PALETTE.woodBrown)],
@@ -25,13 +25,7 @@ const nearSpawn = (reach: number): Array<Building> => {
 /** One building drawn into a fresh sink: its windows (shutters, 1.2 m tall, two triangles each), its glass panes (two triangles each) and the sink. */
 const drawn = (b: Building) => {
   const piece = buildingPiece(b)
-  const sink: Sink = {
-    solid: new Triangles(),
-    decal: new Triangles(),
-    water: new WaterTriangles(),
-    glow: new Triangles(),
-    pieces: [],
-  }
+  const sink = emptySink()
   piece.draw(() => sink, 0, 0)
   let triangles = 0
   for (let t = 0; t < sink.solid.position.length; t += 9) {

@@ -8,7 +8,7 @@ import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
 import { chunkOf } from "../chunks.ts"
 import { BARRIER, ROAD_LIGHT } from "../crossings.ts"
-import { boxOver, linear, type Piece, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
+import { boxOver, emptySink, linear, type Piece, type Sink, type Triangles } from "../geometry.ts"
 import { atGradeY, terrainY, yOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
 import { bucketPieces } from "../pieces.ts"
@@ -16,16 +16,9 @@ import { railPieces } from "../rail.ts"
 import { vectorsAround } from "../testing.ts"
 import { linesOf, wholeVectors } from "./chunk-cut.ts"
 
-const sink = (): Sink => ({
-  solid: new Triangles(),
-  decal: new Triangles(),
-  water: new WaterTriangles(),
-  glow: new Triangles(),
-  pieces: [],
-})
 /** Every piece of `list` drawn whole into one sink. */
 const whole = (list: ReadonlyArray<Piece>): Sink => {
-  const all = sink()
+  const all = emptySink()
   for (const piece of list) piece.draw(() => all, 0, Math.max(0, piece.pts.length / 2 - 2))
   return all
 }
@@ -165,8 +158,8 @@ export const checkPanelsOverRoads = ({ all, crossings, lines }: Railway): void =
   for (const b of crossings) {
     const crossing = MAP.railway.crossings[b]!,
       key = chunkOf(crossing.x, crossing.y),
-      chunk = sink(),
-      elsewhere = sink()
+      chunk = emptySink(),
+      elsewhere = emptySink()
     const entries = byChunk[key]!
     for (let n = 0; n < entries.length; n += 3)
       lines[entries[n]!]!.draw(

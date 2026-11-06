@@ -13,12 +13,11 @@ import { APRON } from "./chunks.ts"
 import {
   type Box,
   boxOver,
+  emptySink,
   type Flowing,
   type Piece,
-  type Sink,
   type SinkAt,
-  Triangles,
-  WaterTriangles,
+  type Triangles,
 } from "./geometry.ts"
 import { yOf } from "./ground.ts"
 
@@ -400,13 +399,7 @@ export const surfaceNear = (
   y: number,
   reach: number,
 ): ((x: number, y: number) => number) => {
-  const scratch: Sink = {
-    solid: new Triangles(),
-    decal: new Triangles(),
-    water: new WaterTriangles(),
-    glow: new Triangles(),
-    pieces: [],
-  }
+  const scratch = emptySink()
   piecesNear(pieces, x, y, reach, (piece, k0, k1) => piece.draw(() => scratch, k0, k1))
   const tris = scratch.decal,
     cells = new Map<number, Array<number>>(),

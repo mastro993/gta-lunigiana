@@ -8,7 +8,7 @@ import { ROAD_LIFT, roadZ } from "../../sim/map/ground.ts"
 import { MAP, outlineDistance, type Road, roadClassOf } from "../../sim/map/index.ts"
 import type { Layer } from "../../sim/map/packed.ts"
 import { boreOf } from "../bores.ts"
-import { type Piece, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
+import { emptySink, type Piece, type Sink } from "../geometry.ts"
 import { yOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
 import { portalPieces } from "../portals.ts"
@@ -16,13 +16,7 @@ import { type Tri, trianglesOf } from "./rail-checks.ts"
 
 /** `piece` drawn whole into one sink. */
 export const drawn = (piece: Piece): Sink => {
-  const all: Sink = {
-    solid: new Triangles(),
-    decal: new Triangles(),
-    water: new WaterTriangles(),
-    glow: new Triangles(),
-    pieces: [],
-  }
+  const all = emptySink()
   piece.draw(() => all, 0, Math.max(0, piece.pts.length / 2 - 2))
   return all
 }

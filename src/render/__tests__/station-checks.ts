@@ -10,7 +10,7 @@ import { groundZ, platformTop } from "../../sim/map/ground.ts"
 import { MAP, RAIL_LIFT } from "../../sim/map/index.ts"
 import { PLATFORM_EDGE } from "../../sim/map/kinds.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
-import { boxOver, linear, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
+import { boxOver, emptySink, linear, type Sink, type Triangles } from "../geometry.ts"
 import { yOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
 import { lampPieces, streetLamps } from "../sky/lamps.ts"
@@ -55,13 +55,7 @@ export const stationsNear = (
       reach + margin
     )
   }
-  const all: Sink = {
-    solid: new Triangles(),
-    decal: new Triangles(),
-    water: new WaterTriangles(),
-    glow: new Triangles(),
-    pieces: [],
-  }
+  const all = emptySink()
   for (const piece of stationPieces().filter((p) => within(MARGIN)(p.pts)))
     piece.draw(() => all, 0, Math.max(0, piece.pts.length / 2 - 2))
   const lamps = lampPieces()

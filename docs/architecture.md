@@ -965,8 +965,9 @@ People and animals (`src/render/people.ts`, `src/render/animals.ts`, sharing `fi
 The static world (`src/render/world.ts`) is cut into 128 m chunks (`src/render/chunks.ts`), and only
 the chunks around the camera exist as meshes. A built chunk has a terrain mesh, a solid mesh
 (buildings, roofs, bridges, the railway's ballast bed, platforms, canopies and name boards, the
-level crossings' housings and cabinets, tunnel portals, the road tunnels' walls, the lamps' iron,
-poles and lantern bodies), a decal mesh (roads, in their tunnels too, the track's sleepers and
+level crossings' housings and cabinets, tunnel portals, the lamps' iron, poles and lantern bodies),
+a buried mesh (the road tunnels' walls: the solid's material, casting no shadow, as the terrain over
+them casts none), a decal mesh (roads, in their tunnels too, the track's sleepers and
 rails, crossing panels and stop lines, the platforms' yellow lines), a water mesh (rivers and
 streams, laid on their beds: the shader lifts them to the level the rivers run at,
 [water.md](water.md#how-it-looks); and a quad over each cell of the lakes
@@ -975,8 +976,8 @@ panes and lantern glass) and one `InstancedMesh` per tree crown (broadleaf, beec
 an oak is a broadleaf in its own tint: `speciesAt` in `src/render/trees.ts`,
 [map.md](map.md#known-data-limitations); out of leaf a bare broadleaf or beech and an oak holding
 its dead leaves, as the season the game starts in says, `crownsOn` in `src/render/leaves.ts`,
-[weather.md](weather.md#the-woods-leaves)); the water,
-glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
+[weather.md](weather.md#the-woods-leaves)); the buried,
+water, glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
 the terrain, lines and trees beyond the map bounds, the built terrain's box; inside it, past an
 inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground and cover the
 nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a line
@@ -1241,7 +1242,9 @@ the hill and a portal at each mouth the hill stands over (`src/render/bores.ts`,
   never on the hill over it, and the terrain hides them by depth. Lunigiana's 35 roads in tunnels
   (967 m) draw 1,260 decal triangles, Cesena's 64 (5,264 m) 10,172.
 - **The bore** (`borePiece`, the road's second piece, where a bridge's is its deck): a dark wall
-  (`tunnelDark`, solid) along each side of its cross-section (`boreOf`: the carriageway and 1 m each
+  (`tunnelDark`, in the chunk's buried mesh: the solid's material, casting no shadow, as the terrain
+  over it casts none; in the solid mesh a low sun threw a wall's shadow through the hill onto lit
+  ground past it) along each side of its cross-section (`boreOf`: the carriageway and 1 m each
   side), from 0.3 m under the road up to the springing (OSM's `maxheight`, 4 m untagged, and 0.5 m),
   or 0.25 m under the terrain over it where that is lower. Each segment's wall is cut at most every
   2 m and wherever its line crosses a fold of the terrain mesh (a 4 m cell's side or its south-west

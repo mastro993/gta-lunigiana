@@ -5,21 +5,13 @@ import assert from "node:assert/strict"
 import { MAP } from "../../sim/map/index.ts"
 import { buildingPiece } from "../buildings.ts"
 import { chunkRect, chunkOf } from "../chunks.ts"
-import { boxOver, type Piece, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
+import { boxOver, emptySink, type Piece, type Sink } from "../geometry.ts"
 import { roadPieces, waterPiece } from "../lines.ts"
 import type { Pieces } from "../pieces.ts"
 import { railPieces } from "../rail.ts"
 import { lampPieces } from "../sky/lamps.ts"
 import { stationPieces } from "../stations.ts"
 import { type Vectors, vectorsAround } from "../testing.ts"
-
-const sink = (): Sink => ({
-  solid: new Triangles(),
-  decal: new Triangles(),
-  water: new WaterTriangles(),
-  glow: new Triangles(),
-  pieces: [],
-})
 
 /** Every road, building and river of the map, joined from every tile (map tests only), each by its index. */
 export const wholeVectors = (): Vectors => {
@@ -85,7 +77,7 @@ export const assertChunkCut = (
       (x, y) => {
         const key = chunkOf(x, y)
         let s = cut.get(key)
-        if (s === undefined) cut.set(key, (s = sink()))
+        if (s === undefined) cut.set(key, (s = emptySink()))
         return s
       },
       0,
@@ -94,8 +86,8 @@ export const assertChunkCut = (
   let drawn = 0
   for (const key of chunks) {
     const entries = pieces.entries(key),
-      mine = sink(),
-      elsewhere = sink()
+      mine = emptySink(),
+      elsewhere = emptySink()
     for (let n = 0; n < entries.length; n += 3)
       pieces
         .piece(entries[n]!)
@@ -104,8 +96,8 @@ export const assertChunkCut = (
           entries[n + 1]!,
           entries[n + 2]!,
         )
-    const expected = cut.get(key) ?? sink()
-    for (const layer of ["solid", "decal", "water", "glow"] as const) {
+    const expected = cut.get(key) ?? emptySink()
+    for (const layer of ["solid", "buried", "decal", "water", "glow"] as const) {
       assert.deepEqual(mine[layer].position, expected[layer].position, `chunk ${key} ${layer}`)
       assert.deepEqual(mine[layer].color, expected[layer].color, `chunk ${key} ${layer} colours`)
     }
