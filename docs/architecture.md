@@ -2340,10 +2340,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     backs up short of the car queued behind, waits for a car beside its front as it steers back
     into its lane, backs up straight past a car alongside, and keeps slower and further back on a
     wet road.
-  - `src/sim/__tests__/viaduct.test.ts` (parapets, issue #91): a Panda driven across the SR445's
-    viaduct west of Gragnola over the residential road under it, either way, stays on the deck
-    (before, it dropped 8 m onto that road), and a traffic car on that road passes under it (with
-    the parapets meeting every level, it stops 9.1 m off the deck's centreline).
+  - `src/sim/__tests__/viaduct.test.ts` (parapets, issue #91, at the crossing `viaduct.ts` finds
+    for the level tests too): a Panda driven across the SR445's viaduct west of Gragnola over the
+    residential road under it, either way, stays on the deck (before, it dropped 8 m onto that
+    road), and a traffic car on that road passes under it (with the parapets meeting every level,
+    it stops 9.1 m off the deck's centreline).
   - `src/sim/__tests__/under-decks.test.ts` (issue #87): under the decks of Via Nuova in Gragnola,
     Via Borgo Lucido and Via delle Cave (each the road bridge nearest the point the issue walked
     from), the player walking up the bank with the arrow keys, from beside the wall where there is

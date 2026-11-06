@@ -5,9 +5,10 @@
  * junction; a road coming down through a sag onto a bridge (the SR445 onto the viaduct from the
  * east); a setter for the player's or the animals' `Footing` (`stage` and `teleport` keep the
  * player's from where they were, and an animal's first is at the terrain's level); the player staged
- * there with their `Footing` set on a level; a spot out of everyone's way; and an unmanned Panda
- * rolling along the deck over the road below. Also a steep lane, where what touches or scares a
- * body must not be read under a vehicle's middle.
+ * there with their `Footing` set on a level; a spot out of everyone's way; an unmanned Panda
+ * rolling along the deck over the road below; and the deck's centreline where the road below
+ * crosses it, which the parapet tests (issue #91) drive across and under. Also a steep lane, where
+ * what touches or scares a body must not be read under a vehicle's middle.
  *
  * @module sim/__tests__/viaduct
  */
@@ -15,6 +16,7 @@ import assert from "node:assert/strict"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { segDist2 } from "../collide.ts"
 import {
   type Animal,
   Footing,
@@ -26,6 +28,7 @@ import {
 } from "../index.ts"
 import { atGrade, groundZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
+import { roadLineAt } from "../map/vectors.ts"
 import { LEVEL } from "../rail/bodies.ts"
 import { alongLane, edgeIndex, laneOf, lanePoint, laneSide, type Step } from "../route.ts"
 import { rollingChassis, trafficCar } from "../spawning.ts"
@@ -87,6 +90,37 @@ export const BENEATH: PoseValue = (() => {
       laneSide({ edge: BELOW, forward: true }, "panda"),
     ),
     angle: Ops.atan2(l.dy, l.dx),
+  }
+})()
+
+/**
+ * The viaduct's centreline over the road below, from its segment nearest OVER: where BELOW's line crosses it (`at`), the deck's
+ * half-width (`half`, m), its heading's unit vector (`along`) and its left (`across`), and the deck's surface there and the road
+ * below's (`deck` 148.49, `road` 142.28, m a.s.l.).
+ */
+export const CENTRELINE = (() => {
+  const { pts } = roadLineAt(VIADUCT, OVER.x, OVER.y)!
+  let nearest = Infinity,
+    k = 0
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    const { d2 } = segDist2(OVER.x, OVER.y, pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!)
+    if (d2 < nearest) [nearest, k] = [d2, i]
+  }
+  const [ax, ay, bx, by] = [pts[k]!, pts[k + 1]!, pts[k + 2]!, pts[k + 3]!],
+    len = Ops.hypot(bx - ax, by - ay)
+  const p = graph.nodes[graph.edges[BELOW]!.a]!,
+    q = graph.nodes[graph.edges[BELOW]!.b]!
+  const t =
+    ((ax - p.x) * (by - ay) - (ay - p.y) * (bx - ax)) /
+    ((q.x - p.x) * (by - ay) - (q.y - p.y) * (bx - ax))
+  const at = { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t }
+  return {
+    at,
+    half: MAP.roads[VIADUCT]!.w / 2,
+    along: { x: (bx - ax) / len, y: (by - ay) / len },
+    across: { x: -(by - ay) / len, y: (bx - ax) / len },
+    deck: roadLevel(VIADUCT, at.x, at.y)!,
+    road: roadLevel(UNDER, at.x, at.y)!,
   }
 })()
 
