@@ -1271,7 +1271,7 @@ the hill and a portal at each mouth the hill stands over (`src/render/bores.ts`,
   it inside the hill, the far wall whole and the near one a stub above the feet, as a building's
   walls ([See-through cut](#see-through-cut)). A building passage (`passage`, OSM's
   `tunnel=building_passage`: 21 on Lunigiana, 22 on Cesena) has no bore: its house hides its road,
-  and the cut shows it. Lunigiana's bores are 3,166 triangles in 22 chunks, Cesena's 18,124 in 48.
+  and the cut shows it. Lunigiana's bores are 3,166 triangles in 22 chunks, Cesena's 18,120 in 48.
 - **Portals**: at each road tunnel mouth (`MAP.derived.mouths`, which the build bakes:
   [map.md](map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts))
   with a portal, the railway's shape round the bore
@@ -2667,7 +2667,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     built from the tiles' pieces as a whole-map build cuts them; each pins its counts (roads in
     tunnels, passages, metres, wall triangles, mouths, portals and the open mouths the ground over
     which does rise to `leastCover`, crowded: Lunigiana 35, 21, 967 m, 3,166, 28, 12, 2; Cesena
-    64, 22, 5,264 m, 18,124, 77, 9, 2; the L 7, 1, 194 m, 633, 12, 3, 1), so a new part's tunnels
+    64, 22, 5,264 m, 18,120, 77, 9, 2; the L 7, 1, 194 m, 633, 12, 3, 1), so a new part's tunnels
     show;
     `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
     `shadow-box-cesena.map-test.ts`: the shadow box through whole turns at the map's steepest fall,

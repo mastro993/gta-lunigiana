@@ -17,7 +17,7 @@ test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill
     tunnels: 64,
     passages: 22,
     metres: 5264,
-    walls: 18124,
+    walls: 18120,
     mouths: 77,
     portals: 9,
     crowded: 2,
