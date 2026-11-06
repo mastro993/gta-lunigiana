@@ -1534,9 +1534,14 @@ its level:
 - **Kept from step to step.** Each step, before anything moves (`FindFooting`), every body on foot
   (the player out of a vehicle, each pedestrian and each animal) keeps to the level it was on: the
   ground where it is now nearest its last footing, a road bridge's deck or a road tunnel's floor
-  reaching out to its walkers' verges (`footZ` with that height, as the render places a figure).
-  So it walks onto a deck or into a tunnel along the road, and stays on the track over a road
-  tunnel or under a road bridge.
+  reaching out to its walkers' verges alongside it, and past its ends no farther along it than a
+  wheel's reach (`footZ` with that height; the render draws each figure there). So it walks onto a
+  deck or into a tunnel along the road, and stays on the track over a road tunnel or under a road
+  bridge. The verges once reached as far past a span's end as beside it, which held a walker on
+  the level of a span's end over the next span rising from there: 0.54 m under its deck between
+  OSM ways 689547598 and 1312766682, the one joint of the 297 crossings of every drivable bridge,
+  both ways, from 12 m before it, where a walker kept to its footing strayed 0.5 m or more from the
+  deck (`ground.map-test.ts` in `src/render`).
 - **Into a road tunnel's mouth.** An at-grade road's surface never dips under the terrain, and the
   map build cuts the mouths of the underpasses (it once buried them 5.0–5.4 m deep,
   [map.md](map.md)), so walking in along a road keeps to it and onto the tunnel's floor, with no

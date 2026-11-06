@@ -16,22 +16,26 @@ import {
   KeyboardInput,
   makeRuntime,
   Motion,
+  PlayerView,
   Pose,
   type PoseValue,
   PrevPose,
+  SetPlayer,
   setup,
   STEP,
   update,
   Vehicle,
 } from "../../sim/index.ts"
+import { atGrade, roadLevel } from "../../sim/map/ground.ts"
+import { graph, MAP } from "../../sim/map/index.ts"
 import { LOWERING } from "../../sim/rail/barriers.ts"
 import { carsOf } from "../../sim/rail/consist.ts"
 import { LINES, pointAt } from "../../sim/rail/lines.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
 import { trainDraft } from "../../sim/rail/service.ts"
 import { aboard, aiTrain, MONZONE, RIOLO, setCrossing, TrainWorld } from "../../sim/rail/testing.ts"
-import { lanePoint, laneOf, laneSide } from "../../sim/route.ts"
-import { parkedCar, rollingChassis } from "../../sim/spawning.ts"
+import { alongLane, lanePoint, laneOf, laneSide, roadOf, walkSide } from "../../sim/route.ts"
+import { animal, parkedCar, pedestrian, rollingChassis } from "../../sim/spawning.ts"
 import {
   BATTISTI,
   battistiTraffic,
@@ -75,6 +79,7 @@ import type { LitCar } from "../sky/night-lights.ts"
 import { shownProxy } from "../testing.ts"
 import { TrainNode } from "../train.ts"
 import { PLUMES_AT_ONCE } from "../wrecks.ts"
+import { type Underpass, underpassesAround, walkEdgeOf } from "./underpasses.ts"
 
 /**
  * A runtime of `seed` drawing into a scene of its own with every service the render schedule reads: the `keys`, the registries,
@@ -85,6 +90,7 @@ const drawing = (seed: number, keys: Timeline = []) => {
     registries = makeRegistries(scene),
     effects = makeEffects(scene),
     sky = new SkyHost(scene, { reduced: () => false }),
+    cut = new SeeThrough({ yaw: 0, texelsPerMetre: 8 }, () => false),
     clock = { alpha: 0 }
   const made = makeRuntime({
     seed,
@@ -98,11 +104,22 @@ const drawing = (seed: number, keys: Timeline = []) => {
       Game.Runtime.service(Effects, effects),
       Game.Runtime.service(Crossings, effects.crossings),
       Game.Runtime.service(Sky, sky),
-      Game.Runtime.service(Cut, new SeeThrough({ yaw: 0, texelsPerMetre: 8 }, () => false)),
+      Game.Runtime.service(Cut, cut),
     ),
   })
   assert.ok(made.ok)
-  return { runtime: made.value, scene, ...registries, effects, sky, clock }
+  return { runtime: made.value, scene, ...registries, effects, sky, cut, clock }
+}
+
+/** The render y of the feet `cut` is handed each frame from here on (the last is the frame just drawn). */
+const feetOf = (cut: SeeThrough): Array<number> => {
+  const feet: Array<number> = [],
+    follow = cut.follow.bind(cut)
+  cut.follow = (x, y, z, height, now) => {
+    feet.push(y)
+    follow(x, y, z, height, now)
+  }
+  return feet
 }
 
 // Regression: detached vehicle nodes kept their x-ray geometry, so despawned traffic leaked GPU buffers.
@@ -600,21 +617,132 @@ test("in the water a person shows no x-ray, and a swimmer floats with the water 
   person.showXray(true)
   person.speed = 1
   person.floating(true, undefined, false)
-  person.place(0, 0, 0)
+  person.place(0, 0, 0, atGrade(0, 0))
   person.pose()
   assert.equal(shownProxy(person), undefined, "wading: the water hides the legs, not a wall")
   const bed = person.position.y
   person.floating(true, bed + 5, true)
-  person.place(0, 0, 0)
+  person.place(0, 0, 0, atGrade(0, 0))
   person.pose()
   assert.ok(Math.abs(person.position.y - (bed + 5 - 0.66 * LOOK.height)) < 1e-9)
   assert.ok(
     person.body.geometry === person.frames.swim1 || person.body.geometry === person.frames.swim2,
   )
   person.floating(true, bed + 0.5, true)
-  person.place(0, 0, 0)
+  person.place(0, 0, 0, atGrade(0, 0))
   assert.equal(person.position.y, bed, "in shallow water it rests on the bed")
   person.floating(false, undefined, false)
   person.pose()
   assert.notEqual(shownProxy(person), undefined, "out of the water, the x-ray again")
+})
+
+/** The SR445 viaduct west of Gragnola (OSM way 552592654), over the road a jump to (−2673.3, 4587.9) drew the player on (#93). */
+const SR445 = { x: -2673.3, y: 4587.9 }
+let found: ReadonlyArray<Underpass> | undefined
+/** The roads under a deck within 1.5 km of it, found by geometry in the tiles round it: the SR445's own among them. */
+const underpasses = (): ReadonlyArray<Underpass> => {
+  found ??= underpassesAround(SR445, 1500)
+  assert.ok(found.length >= 3, `${found.length} underpasses`)
+  assert.ok(
+    found.some((u) => Math.hypot(u.x - SR445.x, u.y - SR445.y) < 5),
+    "the jump under the SR445",
+  )
+  return found
+}
+/** Where `node` stands, m a.s.l., and the map point under it. */
+const standing = (node: { readonly position: Vector3 }) => ({
+  x: node.position.x,
+  y: -node.position.z,
+  z: node.position.y - yOf(0),
+})
+
+// Regression (#93): the renderer kept its own height for each figure and the camera, the highest level where it had none, so
+// after a jump under a bridge the player, the camera and the see-through cut stood on its deck, as did anyone appearing there.
+test("under a road bridge's deck, the player after a jump, the camera, the cut, and a passer-by and a cat appearing there stand on the road; one walking the bridge on its deck", () => {
+  const { runtime, people, animals, cut } = drawing(1)
+  assert.ok(runtime.tick(setup).ok)
+  const feet = feetOf(cut)
+  /** A walker on `edge` at its walking side, abreast of (x, y). */
+  const walker = (edge: number, x: number, y: number) => {
+    const lane = laneOf(edge, true),
+      side = walkSide(roadOf(edge))
+    return pedestrian(
+      LOOK,
+      { ...lanePoint(lane, alongLane(lane, x, y), side), angle: Math.atan2(lane.dy, lane.dx) },
+      { edge, forward: true, side },
+      { mood: "walk", until: 0, fx: 0, fy: 0 },
+    )
+  }
+  let walkers = 0
+  for (const u of underpasses()) {
+    const under = walkEdgeOf(u.road, u.x, u.y),
+      over = walkEdgeOf(u.bridge, u.x, u.y)
+    const peds = [under, over].flatMap((e) => (e === undefined ? [] : [walker(e, u.x, u.y)]))
+    walkers += peds.length
+    const cat = animal(
+      { species: "cat", coat: 0x8a857c, patch: 0x4e4a45, size: 1 },
+      { x: u.x, y: u.y, angle: 0 },
+    )
+    assert.ok(runtime.tick(stage({ x: u.x, y: u.y, angle: 0 }, { peds, animals: [cat] })).ok)
+    const at = `under road ${MAP.roads[u.bridge]!.id}'s deck at ${u.x.toFixed(1)},${u.y.toFixed(1)} (deck ${u.deck.toFixed(2)}, road ${u.ground.toFixed(2)})`
+    // Drawn as they appear, before the sim has given them a footing; then after the jump's step, with one.
+    for (const when of ["appearing", "a step on"]) {
+      if (when === "a step on") {
+        runtime.send(SetPlayer, { x: u.x, y: u.y, angle: 0 })
+        assert.ok(runtime.tick(update, render).ok)
+      } else assert.ok(runtime.tick(render).ok)
+      const world = runtime.inspect(World)
+      for (const ped of world.peds) {
+        const s = standing(people.get(ped.id)!),
+          onDeck = graph.edges[ped.route.edge]!.road === u.bridge,
+          ground = onDeck ? roadLevel(u.bridge, s.x, s.y)! : atGrade(s.x, s.y)
+        assert.ok(
+          Math.abs(s.z - ground) < 0.5,
+          `${at}, ${when}: a walker ${onDeck ? "on the bridge" : "on the road"} drawn at ${s.z.toFixed(2)}, not ${ground.toFixed(2)}`,
+        )
+      }
+      for (const beast of world.animals) {
+        const s = standing(animals.get(beast.id)!)
+        assert.ok(
+          Math.abs(s.z - atGrade(s.x, s.y)) < 0.5,
+          `${at}, ${when}: the cat drawn at ${s.z.toFixed(2)}`,
+        )
+      }
+    }
+    const view = runtime.inspect(PlayerView)!,
+      walking = new Set(runtime.inspect(World).peds.map((p) => people.get(p.id))),
+      me = standing([...people.entries()].find(([, node]) => !walking.has(node))![1])
+    assert.ok(Math.abs(me.z - u.ground) < 0.5, `${at}: the player drawn at ${me.z.toFixed(2)}`)
+    assert.ok(Math.abs(view.z - u.ground) < 0.5, `${at}: the camera's ground at ${view.z}`)
+    assert.ok(
+      Math.abs(feet.at(-1)! - yOf(u.ground)) < 0.5,
+      `${at}: the cut round feet at ${feet.at(-1)! - yOf(0)}`,
+    )
+  }
+  assert.ok(walkers >= 3, `${walkers} walkers`)
+})
+
+// Regression (#93): driving, the camera stood on the ground nearest its own last height, the deck after a jump under one.
+test("driving, after a jump under a road bridge's deck the camera and the cut stand with the car on the road under it", () => {
+  const { runtime, cut } = drawing(1, press(0, "action"))
+  assert.ok(runtime.tick(setup).ok)
+  assert.ok(
+    runtime.tick(stage(door(ON_BATTISTI), { cars: [parkedCar("panda", 0xb8312b, ON_BATTISTI)] }))
+      .ok,
+  )
+  assert.ok(runtime.tick(update).ok)
+  assert.equal(runtime.inspect(PlayerView)?.mode, "driving")
+  const feet = feetOf(cut)
+  for (const u of underpasses()) {
+    runtime.send(SetPlayer, { x: u.x, y: u.y, angle: 0 })
+    assert.ok(runtime.tick(update, render).ok)
+    const view = runtime.inspect(PlayerView)!,
+      at = `under road ${MAP.roads[u.bridge]!.id}'s deck at ${u.x.toFixed(1)},${u.y.toFixed(1)} (deck ${u.deck.toFixed(2)}, road ${u.ground.toFixed(2)})`
+    assert.equal(view.mode, "driving")
+    assert.ok(Math.abs(view.z - u.ground) < 0.5, `${at}: the camera's ground at ${view.z}`)
+    assert.ok(
+      Math.abs(feet.at(-1)! - yOf(u.ground)) < 0.5,
+      `${at}: the cut round the car's ground at ${feet.at(-1)! - yOf(0)}`,
+    )
+  }
 })

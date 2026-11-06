@@ -206,6 +206,7 @@ test("drawn in a train, the touch controls are marked as a train's, so hud.css h
     velocity: { x: 0, y: 0 },
     mode: vehicle === undefined ? "foot" : "driving",
     vehicle,
+    z: 0,
     nearby: undefined,
     turns: 0,
   })

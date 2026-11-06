@@ -32,9 +32,13 @@ const firstFooting = (x: number, y: number, route?: RouteValue): number => {
     : atGrade(x, y)
 }
 
-/** The ground a body on foot at (x, y) stands on, m a.s.l.: its `footing`, or, with none yet, `firstFooting`. */
-export const footingAt = (footing: FootingValue | undefined, x: number, y: number): number =>
-  footing?.z ?? firstFooting(x, y)
+/** The ground a body on foot at (x, y) stands on, m a.s.l.: its `footing`, or, with none yet, `firstFooting` (on its `route`'s level, given one). */
+export const footingAt = (
+  footing: FootingValue | undefined,
+  x: number,
+  y: number,
+  route?: RouteValue,
+): number => footing?.z ?? firstFooting(x, y, route)
 
 /** Each step, once getting in and out is applied: every body on foot finds its footing on the level it was on; one with none takes its first. */
 export const FindFooting = Game.System(
