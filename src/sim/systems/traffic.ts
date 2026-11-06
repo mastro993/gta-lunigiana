@@ -509,19 +509,20 @@ export const TrafficAI = Game.System(
             extent = reach(other, fx, fy)
           const across = ry * fx - rx * fy,
             clear = Math.abs(across) - extent.across - spec.width / 2
-          const behind = front < 0 && clear < CONE_CLEARANCE,
+          // Behind the tail: slower the nearer it is, as when following forward, stopping `BACK_GAP` short of it. Its level is asked
+          // only of what would slow it or keep its wheel straight, as going forward, so nothing far behind reads the ground.
+          const slower = -Math.max(
+              0,
+              (-front - extent.along - spec.length / 2 - BACK_GAP) * 0.8 * grip,
+            ),
+            behind = front < 0 && clear < CONE_CLEARANCE && slower > back,
             alongside = Math.abs(front) < spec.length / 2 + extent.along && clear < ALONGSIDE
           if (
             (!behind && !alongside) ||
             !level(other.z, front, across, Math.abs(across), extent.across)
           )
             continue
-          // Behind the tail: slower the nearer it is, as when following forward, stopping `BACK_GAP` short of it.
-          if (behind)
-            back = Math.max(
-              back,
-              -Math.max(0, (-front - extent.along - spec.length / 2 - BACK_GAP) * 0.8 * grip),
-            )
+          if (behind) back = slower
           if (alongside) beside = true
         }
         // Never back onto a line's track at a level crossing that is not open (stuck in the queue past one it has cleared).

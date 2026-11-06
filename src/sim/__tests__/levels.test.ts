@@ -5,7 +5,10 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import type { PoseValue } from "../index.ts"
 import { footZ, roadLevel } from "../map/ground.ts"
-import { graph } from "../map/index.ts"
+import { graph, MAP } from "../map/index.ts"
+import { tileKey } from "../map/kinds.ts"
+import { readMapFile, tileUrl } from "../map/packed.ts"
+import { dropTile, provideTile, setTileSource, STEP_REACH, tilesOver } from "../map/tiles.ts"
 import { LEVEL } from "../rail/bodies.ts"
 import { linesNear, pointAt, speedAt } from "../rail/lines.ts"
 import { aiTrain } from "../rail/testing.ts"
@@ -34,6 +37,8 @@ import {
   standingOn,
   trafficPanda,
 } from "./viaduct.ts"
+
+const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 
 // Regression (#84): standing under a bridge, the player stole a traffic car on the deck right over them.
 test("enter: under the SR445's viaduct the player cannot take a car on the deck over them, and the HUD offers none", () => {
@@ -207,6 +212,69 @@ test("traffic: a car backing up on the SR445's viaduct backs over the player on 
     behind.game.heard.impacts.filter((i) => i.hit === "person"),
     [],
   )
+})
+
+// Review of #98: backing up, a driver asked the level of every vehicle in the strip behind it, however far, reading the ground all
+// the way there: in a browser, past the tiles in memory, "map tile i_j not loaded" stopped the game.
+test("traffic: a car backing up on the SR445's viaduct reads no ground past the tiles round the player for a car parked a kilometre behind it", () => {
+  const lane = laneOf(DECK_LANE.edge, true),
+    over = alongLane(lane, OVER.x, OVER.y),
+    on = (d: number) => ({ ...lanePoint(lane, over + d, DECK_LANE.side), angle: OVER.angle }),
+    [, after] = lanesThrough(DECK_LANE.edge, 0, 1) as [number, number],
+    far = {
+      x: OVER.x - Ops.cos(OVER.angle) * 1000,
+      y: OVER.y - Ops.sin(OVER.angle) * 1000,
+      angle: OVER.angle,
+    }
+  const near = tilesOver(
+    AWAY.pose.x - STEP_REACH,
+    AWAY.pose.y - STEP_REACH,
+    AWAY.pose.x + STEP_REACH,
+    AWAY.pose.y + STEP_REACH,
+  )
+  const there = tilesOver(far.x, far.y, far.x, far.y)
+  assert.ok(
+    there.length === 1 && !near.includes(there[0]!),
+    "the parked car stands on a tile of the map off the tiles round the player",
+  )
+  const game = staged(
+    AWAY.pose,
+    AWAY.z,
+    {
+      traffic: [
+        trafficPanda(
+          on(4),
+          0,
+          { edge: DECK_LANE.edge, forward: true },
+          { edge: after, forward: true },
+        ),
+      ],
+      cars: [
+        parkedCar("panda", 0xb8312b, on(10.5), standingOn("panda", on(10.5), DECK_Z)),
+        parkedCar("panda", 0x2b5fb8, far, standingOn("panda", far, DECK_Z)),
+      ],
+    },
+    [],
+  )
+  const id = game.world().vehicles.find((v) => v.traffic)!.id
+  let least = Infinity
+  try {
+    for (const key of near) provideTile(fromDisk(key))
+    setTileSource(undefined)
+    for (const { i, j } of MAP.tiles) if (!near.includes(tileKey(i, j))) dropTile(tileKey(i, j))
+    game.run(330, () => {
+      least = Math.min(
+        least,
+        Vec2.distance(
+          game.world().vehicles.find((v) => v.id === id)!,
+          OVER,
+        ),
+      )
+    })
+  } finally {
+    setTileSource(fromDisk)
+  }
+  assert.ok(least < 1.5, `backed to ${least.toFixed(2)} m from OVER`)
 })
 
 /**
