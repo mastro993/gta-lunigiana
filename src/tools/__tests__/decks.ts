@@ -1,7 +1,7 @@
 // The check deck-ground.test.ts runs on made-up grids and deck-ground.map-test.ts on every built
 // map: where the ground reaches into a bridge's deck, read on the mesh the game draws.
 import { DECK_SLAB } from "../../sim/map/kinds.ts"
-import { abeamOf, clearRun, railSlab, roadSlab, sections, type Slab } from "../deck-ground.ts"
+import { abeamOf, jointsOf, railSlab, roadSlab, type Slab } from "../deck-ground.ts"
 import type { JoinedMap } from "../map-file.ts"
 import { BED } from "../rail-bed.ts"
 
@@ -63,28 +63,38 @@ export const meshOf = (map: Pick<JoinedMap, "heightmap">): Mesh => {
 
 /** How far apart the check reads the ground under a slab, along and across it, at most, m. */
 const STEP = 0.5
+/** Past this far in from a deck's outer ends no ground stands in its slab, m: issue #92's "more than a few metres", as it measured. */
+const IN_FROM_ENDS = 4
 
 /**
- * Where the terrain reaches into a deck, read every STEP m along and across its slab: between its
- * end runs (from its first clear cross-section to its last, `clearRun`) within DECK_SLAB.depth of
- * its top, or along them more than BED over its profile (a road's surface floats `ROAD_LIFT` over
- * it: the ground buries the road). Where a node behind the deck's ends is a corner of the triangle
- * drawn there, the abutment, the approach's ground decides. One line per deck, at its worst; empty
- * when the ground keeps out of every one.
+ * Where the terrain reaches into a deck, read every STEP m along and across its slab: more than
+ * IN_FROM_ENDS from its outer ends (a joint with the next piece of the bridge is none, `jointsOf`)
+ * within DECK_SLAB.depth of its top, or nearer them more than BED over its profile (a road's surface
+ * floats `ROAD_LIFT` over it: the ground buries the road). Where a node behind the deck's ends and
+ * its joined pieces' is a corner of the triangle drawn there, the abutment, the approach's ground
+ * decides. One line per deck, at its worst; empty when the ground keeps out of every one.
  */
 export const deckShortfalls = (
   decks: ReadonlyArray<readonly [string, Slab]>,
   mesh: Mesh,
-): Array<string> =>
-  decks.flatMap(([name, slab]) => {
-    const run = clearRun(sections(slab, mesh.at)),
-      { pts, z, half, lift } = slab
+): Array<string> => {
+  const joints = jointsOf(decks.map(([, slab]) => slab))
+  return decks.flatMap(([name, slab], i) => {
+    const { pts, z, half, lift } = slab,
+      [first, last] = joints[i]!,
+      joined = [slab, ...[...first, ...last].map((j) => decks[j]![1])]
+    const lengths = z
+        .slice(1)
+        .map((_, k) =>
+          Math.hypot(pts[2 * k + 2]! - pts[2 * k]!, pts[2 * k + 3]! - pts[2 * k + 1]!),
+        ),
+      total = lengths.reduce((sum, l) => sum + l, 0)
     let worst = 0,
       at = ""
-    for (let k = 0, s = 0; k + 1 < z.length; k++) {
+    for (let k = 0, s = 0; k + 1 < z.length; s += lengths[k]!, k++) {
       const ax = pts[2 * k]!,
         ay = pts[2 * k + 1]!,
-        len = Math.hypot(pts[2 * k + 2]! - ax, pts[2 * k + 3]! - ay)
+        len = lengths[k]!
       if (len === 0) continue
       const ux = (pts[2 * k + 2]! - ax) / len,
         uy = (pts[2 * k + 3]! - ay) / len
@@ -93,22 +103,24 @@ export const deckShortfalls = (
       for (let a = 0; a <= along; a++) {
         const d = (len * a) / along,
           top = z[k]! + ((z[k + 1]! - z[k]!) * d) / len + lift
-        const need =
-          run !== undefined && s + d >= run[0] - 1e-9 && s + d <= run[1] + 1e-9
-            ? DECK_SLAB.depth
-            : lift - BED
+        const fromEnd = Math.min(
+          first.length === 0 ? s + d : Infinity,
+          last.length === 0 ? total - s - d : Infinity,
+        )
+        const need = fromEnd > IN_FROM_ENDS + 1e-9 ? DECK_SLAB.depth : lift - BED
         for (let c = 0; c <= across; c++) {
           const o = -half + (2 * half * c) / across,
             x = ax + ux * d - uy * o,
             y = ay + uy * d + ux * o,
             gap = top - mesh.at(x, y)
           if (need - gap <= worst + 1e-6) continue
-          if (!mesh.corners(x, y).every(([cx, cy]) => abeamOf(slab, cx, cy))) continue
+          if (!mesh.corners(x, y).every(([cx, cy]) => joined.some((j) => abeamOf(j, cx, cy))))
+            continue
           worst = need - gap
           at = `${gap.toFixed(2)} m under its top at (${x.toFixed(1)}, ${y.toFixed(1)}), ${(s + d).toFixed(1)} m along, ${need.toFixed(2)} m wanted`
         }
       }
-      s += len
     }
     return worst > 0 ? [`${name}: the ground ${at}`] : []
   })
+}

@@ -2,10 +2,12 @@
 // rail deck's slab (DECK_SLAB, as src/render/lines.ts draws it) is lowered so it shows through no
 // deck. A deck meets the ground at its ends, where its approaches' cores hold their cells: walking in
 // from each end, its end run lasts until its slab first stands clear of the ground across its width,
-// and there the ground only stays within the rail bed's BED over its profile, under every road's
-// surface (the road is never buried); between the end runs, the ground stays under the slab. The
-// bare-earth model has no decks, so it rose into them (issue #92).
-import { DECK_BALLAST, DECK_SLAB, isRoadClass, ROAD_LIFT } from "../sim/map/kinds.ts"
+// END_RUN m at most, and there the ground only stays within the rail bed's BED over its profile,
+// under every road's surface (the road is never buried); between the end runs, the ground stays
+// under the slab. A deck's pieces (OSM splits a bridge into ways) join where they share a vertex on
+// one level: a joint is mid-bridge, with no end run. The bare-earth model has no decks, so it rose
+// into them (issue #92).
+import { DECK_BALLAST, DECK_SLAB, isRoadClass, ON_DECK, ROAD_LIFT } from "../sim/map/kinds.ts"
 import { BED } from "./rail-bed.ts"
 import { anchorNode, type Grid } from "./terrain.ts"
 
@@ -41,6 +43,42 @@ export const railSlab = (line: Line): Slab => ({
 
 /** How far apart a deck's cross-sections lie along it, and their points across it at most, m. */
 const STEP = 0.5
+
+/**
+ * How far in from a deck's end its end run reaches at most, m: issue #92 asks for no ground in the
+ * slab more than a few metres from either end (it measured past 4 m). Past it a deck lying on a bank
+ * (an OSM bridge drawn over the ground, 143 m of one in Cesena) has the ground lowered under its slab.
+ */
+export const END_RUN = 4
+
+/**
+ * Per slab, the other slabs joined to it at its first and at its last vertex: those with a vertex at
+ * the same point whose top there lies within ON_DECK of its own, the next piece of the same bridge
+ * or a deck it meets on its level. An end with none is an outer end, where the deck meets the ground.
+ */
+export const jointsOf = (
+  slabs: ReadonlyArray<Slab>,
+): Array<readonly [ReadonlyArray<number>, ReadonlyArray<number>]> => {
+  const at = new Map<string, Array<readonly [number, number]>>()
+  const key = (slab: Slab, k: number) => `${slab.pts[2 * k]},${slab.pts[2 * k + 1]}`
+  slabs.forEach((slab, i) => {
+    for (let k = 0; k < slab.z.length; k++)
+      at.set(key(slab, k), [...(at.get(key(slab, k)) ?? []), [i, slab.z[k]! + slab.lift]])
+  })
+  return slabs.map((slab, i) => {
+    const joined = (k: number) => {
+      const top = slab.z[k]! + slab.lift
+      return [
+        ...new Set(
+          (at.get(key(slab, k)) ?? []).flatMap(([j, t]) =>
+            j !== i && Math.abs(t - top) < ON_DECK ? [j] : [],
+          ),
+        ),
+      ]
+    }
+    return [joined(0), joined(slab.z.length - 1)] as const
+  })
+}
 
 /** A deck's cross-section: how far along it, and the least height of its top over the terrain across its slab, m. */
 export interface Section {
@@ -88,12 +126,21 @@ export const sections = (slab: Slab, terrain: (x: number, y: number) => number):
 const isClear = (section: Section): boolean => section.gap >= DECK_SLAB.depth - 1e-9
 
 /**
- * The stretch between a deck's end runs, [s0, s1] (m along it): from its first clear cross-section
- * to its last (`sections`, `isClear`). Undefined when none is: the deck lies on the ground all along.
+ * The stretch between a deck's end runs, [s0, s1] (m along it), from its cross-sections (`sections`)
+ * and whether each end is an outer end (`jointsOf`): from its first clear cross-section (`isClear`),
+ * or END_RUN in where that lies farther, to its last, or END_RUN short of its far end; at a joint the
+ * stretch reaches the end itself. s0 > s1 on a deck under 2 END_RUN long that is clear nowhere: its
+ * end runs then cover it.
  */
-export const clearRun = (cuts: ReadonlyArray<Section>): readonly [number, number] | undefined => {
-  const first = cuts.find(isClear)
-  return first === undefined ? undefined : [first.s, cuts.findLast(isClear)!.s]
+export const clearRun = (
+  cuts: ReadonlyArray<Section>,
+  outer: readonly [boolean, boolean],
+): readonly [number, number] => {
+  const length = cuts.at(-1)!.s
+  return [
+    outer[0] ? Math.min(cuts.find(isClear)?.s ?? Infinity, END_RUN) : 0,
+    outer[1] ? Math.max(cuts.findLast(isClear)?.s ?? -Infinity, length - END_RUN) : length,
+  ]
 }
 
 /** The terrain at (x, y) as the game draws it: each 4 m cell of `g` (the whole grid) split along its south-west to north-east diagonal (`terrainZ` in src/sim/map/ground.ts). */
@@ -329,10 +376,10 @@ export const slabNodes = (
 /**
  * Lowers the ground of `g` (the whole grid) under every deck's slab, leaving `keep`'s nodes: along
  * its end runs to BED over its profile (an approach's core, its profile rounded to 0.1 m, stays),
- * between them (`clearRun`, read on the drawn mesh) out of its slab, DECK_SLAB.depth under its top.
- * A deck whose clear cross-sections then lie apart (the lowered ground cleared some in an end run)
- * is laid again from the first to the last, until they lie together. Returns each node moved, by
- * whole-grid index, with how far (negative), ascending.
+ * between them (`clearRun`, read on the drawn mesh, at its outer ends, `jointsOf`) out of its slab,
+ * DECK_SLAB.depth under its top. A deck with a cross-section between its end runs left in its slab
+ * (the lowered ground cleared some in an end run) is laid again over the new stretch, until it lies
+ * still. Returns each node moved, by whole-grid index, with how far (negative), ascending.
  */
 export const deckGround = (
   g: Grid,
@@ -346,20 +393,21 @@ export const deckGround = (
     g.z[n] = z
   }
   const terrain = (x: number, y: number) => meshZ(g, x, y)
+  const outer = jointsOf(slabs).map(
+    ([first, last]) => [first.length === 0, last.length === 0] as const,
+  )
   const laid = new Map<Slab, string>()
   for (let settled = false; !settled;) {
     settled = true
-    for (const slab of slabs) {
+    for (const [i, slab] of slabs.entries()) {
       const cuts = sections(slab, terrain),
-        run = clearRun(cuts),
-        key = String(run)
-      const together =
-        run === undefined || cuts.every((cut) => cut.s < run[0] || cut.s > run[1] || isClear(cut))
+        [s0, s1] = clearRun(cuts, outer[i]!),
+        key = `${s0},${s1}`
+      const together = cuts.every((cut) => cut.s < s0 || cut.s > s1 || isClear(cut))
       if (laid.has(slab) && (laid.get(slab) === key || together)) continue
       laid.set(slab, key)
       settled = false
-      const [s0, s1] = run ?? [Infinity, Infinity],
-        end = slab.lift - BED
+      const end = slab.lift - BED
       for (let k = 0, s = 0; k + 1 < slab.z.length; k++) {
         const seg = segmentOf(slab, k)
         if (seg === undefined) continue

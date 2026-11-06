@@ -36,9 +36,10 @@ const LEVEL_MARGIN = 0.15
  * parapet lines (w/2 + PARAPET off its centreline):
  * - an opening, where a car on the deck meets no wall (none, or only one with a level ONE_LEVEL or
  *   more off the deck's top), that no road on the deck's own level reaches (issue #91);
- * - a parapet (a wall with a level) that a car on a road well inside it there meets, its level within
- *   ONE_LEVEL of that road's surface: a junction on the deck closed, or a road under it walled off;
- * - a wall with no level, which stops anyone, over a road passing under or over the deck.
+ * - a parapet (a wall with a level) that a car on a drivable road well inside it there meets, its
+ *   level within ONE_LEVEL of that road's surface: a junction on the deck closed, or a road under it
+ *   walled off (a path is for people on foot, whom no drive wall stops);
+ * - a wall with no level, which stops any car, over a drivable road passing under or over the deck.
  * One line per bridge, at its first failure; empty when every parapet holds where it should and only
  * there.
  */
@@ -94,7 +95,8 @@ export const parapetFaults = (
             if (road === r && j === k) return
             const z = surface(road, j, t)
             if (Math.abs(z - top) < ONE_LEVEL + LEVEL_MARGIN) reached = true
-            if (Math.sqrt(d2) < road.w / 2 - MARGIN) inside.push({ id: road.id, z })
+            if (Math.sqrt(d2) < road.w / 2 - MARGIN && isDrivable(road.cls))
+              inside.push({ id: road.id, z })
           })
           let closed = false,
             stops: string | undefined

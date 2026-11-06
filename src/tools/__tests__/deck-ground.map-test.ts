@@ -12,7 +12,7 @@ import { deckShortfalls, mapDecks, meshOf } from "./decks.ts"
 
 const L_URL = builtMapUrl(regionFromArgs(["--region", "lunigiana-l"]))
 
-test("decks: the ground keeps out of every road and rail deck's slab between its end runs, and off the road along them, on Lunigiana, Cesena and the L", (t) => {
+test("decks: the ground keeps out of every road and rail deck's slab more than 4 m in from its outer ends, and off the road nearer them, on Lunigiana, Cesena and the L", (t) => {
   // GitHub Actions sets CI=true.
   if (!existsSync(L_URL)) {
     assert.notEqual(process.env.CI, "true", "no lunigiana-l build in test-maps")

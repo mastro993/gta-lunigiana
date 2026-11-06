@@ -5,6 +5,8 @@ import {
   clearRun,
   deckGround,
   deckReport,
+  END_RUN,
+  jointsOf,
   meshZ,
   railSlab,
   roadSlab,
@@ -33,14 +35,18 @@ const grid = (z: (x: number, y: number) => number): Grid => {
   }
 }
 const node = (g: Grid, i: number, j: number) => j * g.cols + i
-/** Where the ground reaches into `slab` on `g`'s mesh (decks.ts). */
-const short = (g: Grid, slab: Slab) =>
+/** Where the ground reaches into `slabs`, one bridge's pieces, on `g`'s mesh (decks.ts). */
+const short = (g: Grid, ...slabs: ReadonlyArray<Slab>) =>
   deckShortfalls(
-    [["deck", slab]],
+    slabs.map((slab, k) => [`piece ${k}`, slab] as const),
     meshOf({ heightmap: { ...g, data: Array.from(g.z, (z) => Math.round(z * 10)) } }),
   )
-/** The stretch between `slab`'s end runs on `g`'s mesh. */
-const runOf = (g: Grid, slab: Slab) => clearRun(sections(slab, (x, y) => meshZ(g, x, y)))
+/** The stretch between `slab`'s end runs on `g`'s mesh, both its ends outer ones. */
+const runOf = (g: Grid, slab: Slab) =>
+  clearRun(
+    sections(slab, (x, y) => meshZ(g, x, y)),
+    [true, true],
+  )
 /** A tertiary road's deck 6.5 m wide along y 40 from x 22 to x 138 (mid-cell, clear of the nodes), its profile `za` to `zb`. */
 const tertiary = (za: number, zb: number) =>
   roadSlab(
@@ -104,16 +110,19 @@ test("deckGround leaves a bank its slab's edge grazes, lowering the ground under
   assert.ok(h.z[node(h, 20, 11)]! < 9.26, `${h.z[node(h, 20, 11)]}`)
 })
 
-test("deckGround keeps a deck's end runs, where it meets the ground, under the road, and the ground out of its slab from where it first stands clear", () => {
+test("deckGround keeps a deck's end runs, where it meets the ground, under the road, END_RUN m at most, and the ground out of its slab past them", () => {
   // The SP59's bridge by Vinca (310573976): falling 5% from its end on a hillside 0.34 m over the
-  // road, the deck stands clear of the valley only 19 m along.
+  // road, the deck stands clear of the valley only 19 m along. Its end run stops END_RUN in.
   const g = grid((x) => (x <= 40 ? 12.5 : 0))
   const deck = tertiary(12, 6)
-  assert.equal(runOf(g, deck)?.[0], 19)
+  assert.deepEqual(runOf(g, deck), [END_RUN, 116])
+  assert.equal(short(g, deck).length, 1)
   deckGround(g, [deck], () => false)
   assert.deepEqual(short(g, deck), [])
   // The hillside comes down along the end run, under the road: at x 24 the profile is 11.90 m.
   assert.ok(g.z[node(g, 6, 10)]! <= 11.9, `${g.z[node(g, 6, 10)]}`)
+  // Past it, out of the slab: at x 32 (10 m along) the top is 11.64 m, its underside 10.74 m.
+  assert.ok(g.z[node(g, 8, 10)]! <= 10.74, `${g.z[node(g, 8, 10)]}`)
   // Behind the end, and a cell either side of the cells the slab reaches over, it stays.
   for (const [i, j] of [
     [4, 10],
@@ -121,17 +130,27 @@ test("deckGround keeps a deck's end runs, where it meets the ground, under the r
     [10, 12],
   ] as const)
     assert.equal(g.z[node(g, i, j)], 12.5)
-  // The ground lowered at the end run's foot clears half a metre more of the deck.
-  assert.deepEqual(runOf(g, deck), [18.5, 116])
 })
 
-test("deckGround keeps a deck that never stands clear of the ground all end run, and a rail deck's ground off its ballast", () => {
-  // A deck on the ground the whole way (a culvert's), a bump 0.3 m over its profile at x 80.
+test("deckGround lowers the ground under a deck lying on it past its end runs, and a rail deck's off its ballast", () => {
+  // A deck on the ground the whole way (an OSM bridge drawn over a bank: 143 m of a Cesena one), a
+  // bump 0.3 m over its profile at x 80. Past END_RUN its slab's underside is 9.26 m.
   const g = grid((x, y) => (x === 80 && y === 40 ? 10.3 : 10))
   const deck = tertiary(10, 10)
-  assert.equal(runOf(g, deck), undefined)
+  assert.deepEqual(runOf(g, deck), [END_RUN, 112])
   deckGround(g, [deck], () => false)
-  assert.equal(g.z[node(g, 20, 10)], 10)
+  assert.deepEqual(
+    [9, 10, 11].map((j) => g.z[node(g, 20, j)]),
+    [9.1, 9.2, 9.2],
+  )
+  // Behind its ends and two rows off its line, the bank stays.
+  for (const [i, j] of [
+    [5, 10],
+    [35, 10],
+    [20, 8],
+    [20, 12],
+  ] as const)
+    assert.equal(g.z[node(g, i, j)], 10)
   assert.deepEqual(short(g, deck), [])
   // A rail deck over the same bump: the ballast's top is 0.04 m over the bed.
   const h = grid((x, y) => (x === 80 && y === 40 ? 10.3 : 0))
@@ -140,6 +159,34 @@ test("deckGround keeps a deck that never stands clear of the ground all end run,
   deckGround(h, [rail], () => false)
   assert.equal(h.z[node(h, 20, 10)], 9.1)
   assert.deepEqual(short(h, rail), [])
+})
+
+test("deckGround lowers the ground at a joint between two pieces of a deck as under the deck whole", () => {
+  // The first test's hump under x 80, where OSM splits the deck into two ways: the joint is
+  // mid-bridge, no end run, though each piece's slab first lies in the ground there.
+  const ground = (x: number, y: number) =>
+    x <= 20 || x >= 140 ? 10 : x === 80 && y >= 32 && y <= 48 ? 9.8 : 0
+  const whole = grid(ground),
+    split = grid(ground)
+  const pieces = [
+    roadSlab({ cls: "tertiary", w: 6.5 }, { pts: [22, 40, 80, 40], z: [10, 10] }),
+    roadSlab({ cls: "tertiary", w: 6.5 }, { pts: [80, 40, 138, 40], z: [10, 10] }),
+  ]
+  assert.deepEqual(jointsOf(pieces), [
+    [[], [1]],
+    [[0], []],
+  ])
+  assert.equal(short(split, ...pieces).length, 2)
+  const approach = (n: number) => n % whole.cols <= 5 || n % whole.cols >= 35
+  deckGround(whole, [tertiary(10, 10)], approach)
+  deckGround(split, pieces, approach)
+  assert.deepEqual(split.z, whole.z)
+  assert.deepEqual(short(split, ...pieces), [])
+  // A deck meeting the joint 0.5 m or more off its level is no piece of it.
+  assert.deepEqual(jointsOf([pieces[0]!, { ...pieces[1]!, lift: pieces[1]!.lift + 0.5 }]), [
+    [[], []],
+    [[], []],
+  ])
 })
 
 test("slabNodes lists the corners of the cells a slab reaches over, flagging those abeam of its deck", () => {
