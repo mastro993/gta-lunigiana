@@ -9,6 +9,7 @@
  */
 import { ROAD_LIFT } from "../sim/map/ground.ts"
 import {
+  DECK_SLAB,
   LANE,
   roadClassOf,
   type Road,
@@ -36,6 +37,7 @@ const bridge = (
   k0: number,
   k1: number,
 ): void => {
+  const { depth, margin } = DECK_SLAB
   for (let k = 2 * k0; k <= 2 * k1 && k + 3 < pts.length; k += 2) {
     const ax = pts[k]!,
       ay = pts[k + 1]!,
@@ -44,7 +46,7 @@ const bridge = (
     const tris = at((ax + bx) / 2, (ay + by) / 2).solid
     const ya = y(k / 2),
       yb = y(k / 2 + 1)
-    prism(tris, ax, ay, ya, bx, by, yb, 0, width + 0.8, -0.9, -0.05, hex)
+    prism(tris, ax, ay, ya, bx, by, yb, 0, width + 2 * margin, -depth, -0.05, hex)
     for (const side of [-1, 1])
       prism(tris, ax, ay, ya, bx, by, yb, side * (width / 2 + 0.25), 0.35, -0.1, 0.8, hex)
   }

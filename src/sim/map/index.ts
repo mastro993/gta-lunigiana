@@ -42,6 +42,8 @@ export {
   type AreaKind,
   BUILDING_STYLES,
   type BuildingStyle,
+  DECK_BALLAST,
+  DECK_SLAB,
   isAreaKind,
   isDrivable,
   isMotorRoad,

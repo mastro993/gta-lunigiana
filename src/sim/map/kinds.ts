@@ -116,6 +116,38 @@ const roadClasses: ReadonlySet<string> = new Set(ROAD_CLASSES)
 export const isRoadClass = (cls: string): cls is RoadClass => roadClasses.has(cls)
 
 /**
+ * How far each road class's surface floats above its profile (m); wider classes on top, so junctions
+ * never z-fight. Primary, secondary and tertiary roads share one: they are the same asphalt. A step
+ * of 0.04 m keeps a class's painted lines (0.02 m over it) under the next class's asphalt where a
+ * slip road meets a trunk road or a motorway. Here, not in `./ground.ts`, so the map build reads it
+ * without a map loaded (a bridge's deck tops it: `DECK_SLAB`).
+ */
+export const ROAD_LIFT = {
+  motorway: 0.24,
+  trunk: 0.2,
+  primary: 0.16,
+  secondary: 0.16,
+  tertiary: 0.16,
+  unclassified: 0.14,
+  residential: 0.12,
+  service: 0.1,
+  track: 0.08,
+  steps: 0.07,
+  path: 0.06,
+} as const satisfies Record<RoadClass, number>
+
+/**
+ * A bridge's deck as `src/render/lines.ts` draws it: a slab from the deck's top (a road's surface,
+ * its profile plus `ROAD_LIFT`, or a rail deck's ballast, `DECK_BALLAST`) `depth` m down, reaching
+ * `margin` m past the carriageway or the ballast on either side. The map build keeps the terrain out
+ * of it (`src/tools/deck-ground.ts`).
+ */
+export const DECK_SLAB = { depth: 0.9, margin: 0.4 } as const
+
+/** On a rail bridge the ballast is a flat strip over the deck, m: its width, and its top over the bed's profile. */
+export const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
+
+/**
  * Per class: carriageway width (m), whether it is asphalt when OSM names no surface, and who uses
  * it (AI traffic and the player's car, the player's car only, or only people on foot). The widths
  * of the classes the Lucido valley lacks (motorway to secondary) are defaults per carriageway for

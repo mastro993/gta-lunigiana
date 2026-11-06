@@ -15,8 +15,8 @@ export interface Dense {
 
 /** Rail profile samples kept in the output where the elevation bends by more than this, m. */
 export const RAIL_TOL = 0.03
-/** Terrain may stand this far over an at-grade rail centreline, m (the grid is stored to 0.1 m). */
-const BED = 0.05
+/** Terrain may stand this far over an at-grade rail centreline (m: the grid is stored to 0.1 m), and over a deck's profile along its end runs (deck-ground.ts). */
+export const BED = 0.05
 /**
  * And lie this far under it, m: the corners of a cell the line clips stand up to 5.7 m off it,
  * outside the 4.3 m the profile writes, and a river's carve left one 7 m under the track north of

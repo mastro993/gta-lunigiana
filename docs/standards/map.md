@@ -71,6 +71,14 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   one again brings OSM's current edits into its play area; `fetch-osm.test.ts` checks that the
   lock's extracts hold every listed tile's ground in the box.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
+- Every bridge's deck keeps the ground out of it: `deck-ground.map-test.ts` reads every road and
+  rail deck of Lunigiana, Cesena and the L, and fails where the terrain stands within the 0.9 m slab
+  under a deck's top between its end runs, or more than 0.05 m over its profile along them, but at
+  its abutments ([Ground under the
+  decks](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
+  The build lowers the ground (`deck-ground.ts`) for every deck from the shipped lines alone, so a
+  failure on a new part is the data's (a bridge's ends or profile, two decks at odds) or the pass's:
+  fix that for every deck alike, never with an exception for one bridge or one part.
 - Adding a part, or growing the built terrain's box (`BOUNDS`) with it, moves no lattice tree and
   changes no tree's id (its look's seed): the lattice starts at the region's fixed `anchor`
   (`region.ts`), never at the box, and a tree's id is its lattice cell's number. Never move an

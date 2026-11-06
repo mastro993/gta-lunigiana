@@ -12,29 +12,11 @@ import { pointInRing, segDist2 } from "../collide.ts"
 import { type FacingAt, LEVEL } from "../sky/local.ts"
 import { addToBuckets, bucketItems, type Buckets, emptyBuckets } from "./buckets.ts"
 import { MAP, roadClassOf } from "./index.ts"
-import { anchorOf, HALO, type RoadClass, vergeOf } from "./kinds.ts"
+import { anchorOf, HALO, ROAD_LIFT, vergeOf } from "./kinds.ts"
 import { cellCorners, derived, nodeAt, type Place, placeAt } from "./tiles.ts"
 import { roadLineAt } from "./vectors.ts"
 
-/**
- * How far each road class's surface floats above its profile (m); wider classes on top, so junctions
- * never z-fight. Primary, secondary and tertiary roads share one: they are the same asphalt. A step
- * of 0.04 m keeps a class's painted lines (0.02 m over it) under the next class's asphalt where a
- * slip road meets a trunk road or a motorway.
- */
-export const ROAD_LIFT = {
-  motorway: 0.24,
-  trunk: 0.2,
-  primary: 0.16,
-  secondary: 0.16,
-  tertiary: 0.16,
-  unclassified: 0.14,
-  residential: 0.12,
-  service: 0.1,
-  track: 0.08,
-  steps: 0.07,
-  path: 0.06,
-} as const satisfies Record<RoadClass, number>
+export { ROAD_LIFT }
 
 const hm = MAP.heightmap
 const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
