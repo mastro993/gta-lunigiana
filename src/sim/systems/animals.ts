@@ -346,17 +346,7 @@ export const Animals = Game.System(
       let facing: Vec2.Vec2 | undefined
       const cry = (feeling: Feeling) =>
         events.cries.emit({ who: entity.id, x: pose.x, y: pose.y, feeling })
-      const threat = scare(
-        species,
-        pose,
-        data.footing.value(),
-        cars,
-        folks,
-        honks,
-        random,
-        trains,
-        whistles,
-      )
+      const threat = scare(species, pose, ground, cars, folks, honks, random, trains, whistles)
       if (threat !== undefined) roam = fright(roam, species, threat, step, random, cry)
       else if (species === "dog" && (roam.mood === "walk" || step >= roam.until)) {
         const coming = (f: Folk, r: number) =>
