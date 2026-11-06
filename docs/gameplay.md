@@ -764,6 +764,14 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
   without a flight or a glare. Only people on its level sense it: under a rail bridge, over a
   tunnel or on a road bridge over the line it passes them by
   ([Around the trains](#around-the-trains)).
+- **On their level.** A vehicle counts to the Danger and Speeding stimuli only on their level:
+  where they stand, the surface nearest its wheels' ground (`chassis.z − cg`) carried along its
+  pitch to them (the deck it drives, or the road under it) stands within 2 m of their `Footing`
+  (`LEVEL`, [Footing](#footing)). Under the SR445's viaduct west of Gragnola a passer-by stands as a
+  Panda rolls over them on its deck; before, they ran 10.5 m from it, crying out in fright. Read
+  under the car's middle, the level would lose a car coming down a hill at them: at the foot of a
+  30% lane a passer-by then ran from a Panda coming down at 8 m/s only 6.4 m short of it, and was
+  struck; now they run 14.4 m short of it, its wheels 4.3 m over them.
 - **The gap, not the distance.** Danger is the gap to the car's body, because a distance from its
   centre made every walker on the verge run from ordinary traffic. A Panda in its lane passes a
   walker on the verge with 0.88 m or more between its body and them on 95 % of the map's 12 m/s
@@ -1123,7 +1131,13 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   | pig | faster than 5 m/s within 8 m | within 3 m | | within 30 m | within 20 m | fright, 80 % |
 
   A train's car counts as a vehicle by the distance to its body (a car's middle can be 10 m from
-  an animal beside its end), and only on the animal's level. A train's horn sounds 120–125 dB(A)
+  an animal beside its end), and only on the animal's level. So does a vehicle: where the animal
+  stands, the surface nearest its wheels' ground (`chassis.z − cg`) carried along its pitch stands
+  within 2 m of its `Footing` (`LEVEL`). Under the SR445's viaduct west of Gragnola a cat, a dog, a
+  cow and a pig stay as a Panda rolls over them on its deck, where before they ran 15.2, 13.9, 7.8
+  and 9.7 m, the cat, the cow and the pig crying out; at the foot of a 30% lane a cat runs from a
+  Panda coming down at it 7.8 m off, its wheels 2.3 m over it (6.2 m off, read under its middle).
+  A train's horn sounds 120–125 dB(A)
   at 5 m (UIC 644), about 20 dB over a car's (an estimate), so its whistle carries further than an
   AI horn.
 
@@ -1566,8 +1580,8 @@ What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/s
 
 Where each body on foot stands (`Footing`, `systems/footing.ts`), so the railway's rules, getting
 into a vehicle ([Entering](#entering-stealing-carjacking-exiting)), what traffic brakes for
-([Traffic AI](#traffic-ai)) and what bodies touch
-([Knockdowns](#knockdowns-deaths-and-score)) can tell its level:
+([Traffic AI](#traffic-ai)), what bodies touch ([Knockdowns](#knockdowns-deaths-and-score)) and
+what people and animals run from ([Reactions](#reactions), [Animals](#animals)) can tell its level:
 
 - **Kept from step to step.** Each step, before anything moves (`FindFooting`), every body on foot
   (the player out of a vehicle, each pedestrian and each animal) keeps to the level it was on: the
@@ -1874,7 +1888,7 @@ speed along the contact.
 | `src/sim/rail/dynamics.ts` | `POWER_EASE`, `BRAKE_EASE`, `HOLD_SPEED`, `REVERSE_MAX`, the brakes' share of the adhesion |
 | `src/sim/rail/barriers.ts` | `WARNING`, `LOWERING`, `RAISING`, `RELEASE`, `MARGIN`, `CROSSING_HOLD`, `DEPARTURE`, `SPARE` (in `strikeIn`) |
 | `src/sim/rail/crossings.ts` | the stop line's clearance, the arms, how near a line passes a box's node (`NODE_REACH`), how far back the approaches go |
-| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule, getting into a vehicle, what traffic brakes for and what bodies touch keep to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
+| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule, getting into a vehicle, what traffic brakes for, what bodies touch and what people and animals run from keep to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
 | `src/sim/rail/lookout.ts` | the look-out's planned brake and margin (`lookoutReach`), `HELD_SIGHT`, `HORN`, `CREEP`, how often the alarm sounds, `SCRAPE` (a vehicle touching a train's side) |
 | `src/sim/rail/roads.ts` | `STOP_DECEL`, `HARD_DECEL`, `LINE_SLACK`, `ENVELOPE_SLACK` (how far outside the trains' envelope a car holds), the room past a box (`ROOM`, `KEEP_REACH`, `SLOW`, `LANE_CLEAR`, `PATH_SLACK`), `JUNCTION_CLEAR`, `PATIENT_FOR` (drivers' and walkers'), the queue's reach and heading, `SPAWN_CLEAR`, `TURN_SWEEP` (no turning round nearer a line's track) |
 | `src/sim/rail/senses.ts` | `WHISTLE_RANGE`, the alarm's path (`PATH_WIDE`, `PATH_REACH`), the hold at a crossing (`HOLD_LOOK`, `HOLD_CLEAR`, `HOLD_NEAR`, `HOLD_SPAN`) |
@@ -1891,10 +1905,10 @@ speed along the contact.
 Gameplay changes need a test: the scenario tests in `src/sim/__tests__/index.test.ts`,
 `src/sim/__tests__/walls.test.ts`, `src/sim/__tests__/people.test.ts`,
 `src/sim/__tests__/damage.test.ts`, `src/sim/__tests__/explosions.test.ts` and
-`src/sim/__tests__/levels.test.ts` and `levels-contacts.test.ts` (on and under the SR445's viaduct
-west of Gragnola, found by its OSM way in `viaduct.ts`, through the SR445's dip and over its deck
-over the railway east of it, and two trucks on a 30% lane) stage exact situations with
-`src/sim/testing.ts`;
+`src/sim/__tests__/levels.test.ts`, `levels-contacts.test.ts` and `levels-senses.test.ts` (on and
+under the SR445's viaduct west of Gragnola, found by its OSM way in `viaduct.ts`, through the
+SR445's dip and over its deck over the railway east of it, and on a 30% lane) stage exact
+situations with `src/sim/testing.ts`;
 `src/sim/__tests__/reactions.test.ts` and `src/sim/__tests__/aftermath.test.ts` stage reactions on Via Cesare Battisti with
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first

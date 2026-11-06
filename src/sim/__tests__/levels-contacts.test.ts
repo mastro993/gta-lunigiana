@@ -4,10 +4,7 @@ import { test } from "node:test"
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import type { PoseValue } from "../index.ts"
-import { roadLevel } from "../map/ground.ts"
-import { graph } from "../map/index.ts"
 import { LEVEL } from "../rail/bodies.ts"
-import { edgeIndex, laneOf, lanePoint, laneSide } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { LOOK, rolling, type stage, start } from "../testing.ts"
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
@@ -21,9 +18,9 @@ import {
   OVER,
   overDeck,
   ROAD_Z,
-  roadById,
   staged,
   standingOn,
+  STEEP,
 } from "./viaduct.ts"
 
 /** The player standing right under the deck's lane at OVER, or over it on the deck. */
@@ -115,37 +112,12 @@ test("contacts: the player under the SR445's viaduct and a passer-by standing ov
   )
 })
 
-/**
- * A service road's lane (OSM way 337406860), straight down at 30% over its 16 m: its traffic edge nearest (3160, 8920),
- * travelled downhill, found by the way's OSM id and geometry.
- */
-const STEEP = (() => {
-  const road = roadById(337406860),
-    edge = edgeIndex(graph.trafficEdges.filter((e) => graph.edges[e]!.road === road)).nearest(
-      3160,
-      8920,
-    ),
-    ab = laneOf(edge, true),
-    end = lanePoint(ab, ab.length, 0),
-    forward = roadLevel(road, ab.x, ab.y)! > roadLevel(road, end.x, end.y)!,
-    lane = laneOf(edge, forward),
-    side = laneSide({ edge, forward }, "truck")
-  return {
-    lane,
-    at: (s: number): PoseValue => ({
-      ...lanePoint(lane, s, side),
-      angle: Ops.atan2(lane.dy, lane.dx),
-    }),
-    z: (p: PoseValue) => roadLevel(road, p.x, p.y)!,
-  }
-})()
-
 // The level is read where they touch: bumper to bumper on a 30% lane, the ground under the two trucks' middles stands 2.5 m
 // apart, and read there they ran 1.2 m into each other before they met (their middles 6.40 m apart).
 test("contacts: on a 30% lane a truck rolling down into a truck standing below it hits it, though the ground under their middles stands more than 2 m apart", () => {
   const { length } = VEHICLES.truck,
-    lower = STEEP.at(STEEP.lane.length - 0.5 - length / 2),
-    upper = STEEP.at(STEEP.lane.length - 0.5 - length / 2 - length - 0.5)
+    lower = STEEP.at(STEEP.lane.length - 0.5 - length / 2, "truck"),
+    upper = STEEP.at(STEEP.lane.length - 0.5 - length / 2 - length - 0.5, "truck")
   assert.ok(
     STEEP.z(upper) - STEEP.z(lower) > LEVEL,
     `${(STEEP.z(upper) - STEEP.z(lower)).toFixed(2)} m between their middles' ground`,

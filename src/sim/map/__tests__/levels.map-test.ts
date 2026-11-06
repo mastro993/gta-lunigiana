@@ -1,13 +1,13 @@
 // Every crossing of two ways on two levels on every built region (Lunigiana, Cesena and the L): a
 // road, path or rail bridge over a road, a path, steps or the rail, and a road, a path or the rail
 // over a tunnel. Within reach of the crossing the two stand more than the level rule's 2 m apart
-// (`onLevel`, src/sim/rail/bodies.ts), with a margin, so the rule tells what is on the deck from what
-// runs under it: which car a person gets into (`vehicleInReach`), what a driver brakes for
-// (`TrafficAI`), what a vehicle hits and who steps apart from whom (`Contacts`), and what a train
-// meets. The rule is code, so a new map can break it only through its data: a deck too low over what
-// it crosses. Where both are the rail, nothing meets across them and they are left out.
-// The L's build lives in test-maps/ (`pnpm maps`): without it its check is skipped, but in CI, which
-// builds it, a missing build fails.
+// (`onLevel`, src/sim/rail/bodies.ts), with a margin, so the rule tells what is on the deck from
+// what runs under it: which car a person gets into (`vehicleInReach`), what a driver brakes for
+// (`TrafficAI`), what a vehicle hits and who steps apart from whom (`Contacts`), what people and
+// animals run from (`Perceive`, `Animals`), and what a train meets. The rule is code, so a new map
+// can break it only through its data: a deck too low over what it crosses. Where both are the rail,
+// nothing meets across them and they are left out. The L's build lives in test-maps/ (`pnpm maps`):
+// without it its check is skipped, but in CI, which builds it, a missing build fails.
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
@@ -24,12 +24,12 @@ import { VEHICLE_MODELS, VEHICLES } from "../../vehicles.ts"
 /**
  * How far from a crossing (m, in plan) two things on its two ways can meet: a person within
  * ENTER_GAP of the widest vehicle's side (the truck's 1.225 m half-width) gets into it (3.225 m),
- * and a driver judges a vehicle ahead by the ground its way comes to where that vehicle reaches into
- * its path, up to its half-diagonal from its middle (the truck's 3.99 m). Two bodies touching are
- * judged where they touch, each under its own axis or middle there: two trucks' half-widths apart at
- * most (2.45 m). A train's car is judged by the rail head under its middle: the line climbs 2.83% at
- * most, so within 0.28 m of the rail head where the car reaches the path, half an ATR 220's 19.5 m
- * end car along.
+ * and a driver judges a vehicle ahead by the ground its way comes to where that vehicle reaches
+ * into its path, up to its half-diagonal from its middle (the truck's 3.99 m). Two bodies touching
+ * are judged where they touch, each under its own axis or middle there: two trucks' half-widths
+ * apart at most (2.45 m); what a person or an animal runs from, where it stands. A train's car is
+ * judged by the rail head under its middle: the line climbs 2.83% at most, so within 0.28 m of the
+ * rail head where the car reaches the path, half an ATR 220's 19.5 m end car along.
  */
 const REACH = Math.max(
   ENTER_GAP + Math.max(...VEHICLE_MODELS.map((m) => VEHICLES[m].width)) / 2,

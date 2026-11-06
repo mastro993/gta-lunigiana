@@ -5,8 +5,9 @@
  *
  * @module systems/fright
  */
-import { Random, Vec2 } from "@typeonce/ritmo-math"
+import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
+import { groundZ } from "../map/ground.ts"
 import { nearCar, offCar, onLevel, type TrainCar } from "../rail/bodies.ts"
 import {
   Animal,
@@ -65,13 +66,21 @@ const CRIES = {
 export const MOVING = 0.3
 /** A vehicle hitting a wall, a car or the ground at this closing speed or more is a crash, m/s (TUNED). */
 const CRASH_SPEED = 4
-/** A moving vehicle: where it is and its velocity. */
+/**
+ * A moving vehicle: where it is, its velocity and heading, and its wheels' level under its middle and how far it rises a metre
+ * ahead.
+ */
 export interface Car {
   readonly x: number
   readonly y: number
   readonly vx: number
   readonly vy: number
   readonly speed: number
+  readonly angle: number
+  /** m a.s.l.: `chassis.z − cg`. */
+  readonly ground: number
+  /** Its pitch's tangent. */
+  readonly rise: number
 }
 /** A person on their feet: where they are, where they were at the start of the step, and their speed. */
 export interface Folk {
@@ -87,7 +96,11 @@ export interface Folk {
  * The point to run from to get out of `car`'s way: beside the animal on the car's path ahead (running from it is running
  * off the path), or the car itself once it has passed; a side picked at random when the animal stands right on the path.
  */
-const pathPoint = (car: Car, at: Vec2.Vec2, random: Random.Random): Vec2.Vec2 => {
+const pathPoint = (
+  car: Pick<Car, "x" | "y" | "vx" | "vy" | "speed">,
+  at: Vec2.Vec2,
+  random: Random.Random,
+): Vec2.Vec2 => {
   const ux = car.vx / car.speed,
     uy = car.vy / car.speed
   const along = (at.x - car.x) * ux + (at.y - car.y) * uy
@@ -101,7 +114,11 @@ const pathPoint = (car: Car, at: Vec2.Vec2, random: Random.Random): Vec2.Vec2 =>
 const near = (p: Vec2.Vec2, at: Vec2.Vec2, r: number) =>
   r > 0 && Vec2.distanceSquared(p, at) <= r * r
 
-/** What `species` at `at`, standing on `footing`, runs from this step, if anything: the point to run away from. */
+/**
+ * What `species` at `at`, standing on `footing`, runs from this step, if anything: the point to run away from. A vehicle or a
+ * train's car scares it only on its level: a vehicle where the surface at `at` nearest its wheels' ground carried along its pitch
+ * (the deck it drives, or the road under it) stands within LEVEL of its footing, a train's car by its rail head.
+ */
 export const scare = (
   species: Species,
   at: Vec2.Vec2,
@@ -114,15 +131,26 @@ export const scare = (
   whistles: ReadonlyArray<{ readonly x: number; readonly y: number }>,
 ): Vec2.Vec2 | undefined => {
   const fear = FEARS[species]
-  const car = cars.find((c) => c.speed > fear.speed && near(c, at, fear.car))
-  if (car !== undefined) return pathPoint(car, at, random)
   let ground: number | undefined
+  const groundOf = () => (ground ??= footingAt(footing, at.x, at.y))
+  /** `c`'s level where the animal stands: the surface there nearest its wheels' ground carried along its pitch. */
+  const levelOf = (c: Car) =>
+    groundZ(
+      at.x,
+      at.y,
+      c.ground + ((at.x - c.x) * Ops.cos(c.angle) + (at.y - c.y) * Ops.sin(c.angle)) * c.rise,
+      true,
+    )
+  const car = cars.find(
+    (c) => c.speed > fear.speed && near(c, at, fear.car) && onLevel(groundOf(), levelOf(c)),
+  )
+  if (car !== undefined) return pathPoint(car, at, random)
   const train = trains.find(
     (c) =>
       c.speed > fear.speed &&
       nearCar(c, at.x, at.y, fear.car + c.r) &&
       offCar(c, at.x, at.y) <= fear.car &&
-      onLevel((ground ??= footingAt(footing, at.x, at.y)), c.z),
+      onLevel(groundOf(), c.z),
   )
   if (train !== undefined) return pathPoint(train, at, random)
   return (

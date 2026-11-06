@@ -2,9 +2,11 @@
  * The bridge-level tests' spot: the SR445's viaduct west of Gragnola (OSM way 552592654) over the
  * residential road under it (OSM way 140780578), both found by their OSM ids and the deck's lane by
  * geometry, so the fixtures survive a map rebuild; traffic coming along a run of lanes with no
- * junction; the player staged there with their `Footing` set on a level (`stage` and `teleport`
- * keep it from where the player was); a spot out of everyone's way; and an unmanned Panda rolling
- * along the deck over the road below.
+ * junction; a setter for the player's or the animals' `Footing` (`stage` and `teleport` keep the
+ * player's from where they were, and an animal's first is at the terrain's level); the player staged
+ * there with their `Footing` set on a level; a spot out of everyone's way; and an unmanned Panda
+ * rolling along the deck over the road below. Also a steep lane, where what touches or scares a
+ * body must not be read under a vehicle's middle.
  *
  * @module sim/__tests__/viaduct
  */
@@ -12,7 +14,15 @@ import assert from "node:assert/strict"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { Footing, Game, Player, Pose, type PoseValue, type RouteValue } from "../index.ts"
+import {
+  type Animal,
+  Footing,
+  Game,
+  Player,
+  Pose,
+  type PoseValue,
+  type RouteValue,
+} from "../index.ts"
 import { atGrade, groundZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
 import { LEVEL } from "../rail/bodies.ts"
@@ -136,14 +146,14 @@ export const comingTo = (edge: number, speed: number) => {
 export const standingOn = (model: VehicleModel, pose: PoseValue, level: number) =>
   rollingChassis(model, pose, 0, level)
 
-/** Sets the player's `Footing` to `z`, m a.s.l. (`runtime.tick` it after `start`). */
-const footing = (z: number) =>
+/** Sets the `Footing` of the player, or with `Animal` every animal's, to `z`, m a.s.l. (`runtime.tick` it after `start`). */
+export const footing = (z: number, of: typeof Player | typeof Animal = Player) =>
   Game.Schedule(
     Game.System(
       "Test/Footing",
       {
         queries: {
-          player: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [Player] }),
+          player: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [of] }),
         },
         commands: Game.System.commands(Game.System.inserts(Footing)),
       },
@@ -190,6 +200,32 @@ export const overDeck = () =>
     0,
     DECK_Z,
   )
+
+/**
+ * A service road's lane (OSM way 337406860), straight down at 30% over its 16 m: its traffic edge nearest (3160, 8920), travelled
+ * downhill (`lane`), found by the way's OSM id and geometry; `at(s, model)` the pose `s` m down it at `model`'s side, heading
+ * down, and `z(p)` the road's surface at `p`, m a.s.l.
+ */
+export const STEEP = (() => {
+  const road = roadById(337406860),
+    edge = edgeIndex(graph.trafficEdges.filter((e) => graph.edges[e]!.road === road)).nearest(
+      3160,
+      8920,
+    ),
+    ab = laneOf(edge, true),
+    end = lanePoint(ab, ab.length, 0),
+    forward = roadLevel(road, ab.x, ab.y)! > roadLevel(road, end.x, end.y)!,
+    lane = laneOf(edge, forward)
+  return {
+    lane,
+    step: { edge, forward },
+    at: (s: number, model: VehicleModel): PoseValue => ({
+      ...lanePoint(lane, s, laneSide({ edge, forward }, model)),
+      angle: Ops.atan2(lane.dy, lane.dx),
+    }),
+    z: (p: { readonly x: number; readonly y: number }) => roadLevel(road, p.x, p.y)!,
+  }
+})()
 
 /** The player's `Footing`, m a.s.l. (undefined with none yet). */
 export const PlayerFooting = Game.Inspector(
