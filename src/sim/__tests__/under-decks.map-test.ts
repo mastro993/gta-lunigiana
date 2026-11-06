@@ -6,7 +6,7 @@ import { deckClimbs, deckEndsShut } from "./under-decks.ts"
 
 // Map check (pnpm test:map) on every road bridge of Lunigiana (issue #87); under-decks-cesena.map-test.ts and
 // under-decks-l.map-test.ts load the other regions.
-test("under decks: on Lunigiana a walker with room to stand under a road deck never comes up onto it, and its ends still lead onto it on foot and by car", () => {
+test("under decks: on Lunigiana a walker or a car with room under a road deck never comes up onto it, and its ends still lead onto it on foot, verges included, and by car", () => {
   const map = wholeMap()
   const climbs = deckClimbs(map)
   assert.deepEqual(

@@ -8,7 +8,7 @@ provideMap(readMapFile(new URL("cesena.bin", MAP_URL)))
 const { wholeMap } = await import("../../tools/map-file.ts")
 const { deckClimbs, deckEndsShut } = await import("./under-decks.ts")
 
-test("under decks: on Cesena a walker with room to stand under a road deck never comes up onto it, and its ends still lead onto it on foot and by car", () => {
+test("under decks: on Cesena a walker or a car with room under a road deck never comes up onto it, and its ends still lead onto it on foot, verges included, and by car", () => {
   const map = wholeMap("cesena")
   const climbs = deckClimbs(map)
   assert.deepEqual(

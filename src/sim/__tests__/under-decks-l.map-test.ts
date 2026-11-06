@@ -19,7 +19,7 @@ if (skip === false) await loadBuiltMap(REGION)
 const checks = skip === false ? await import("./under-decks.ts") : undefined
 
 test(
-  "under decks: on the L a walker with room to stand under a road deck never comes up onto it, and its ends still lead onto it on foot and by car",
+  "under decks: on the L a walker or a car with room under a road deck never comes up onto it, and its ends still lead onto it on foot, verges included, and by car",
   { skip },
   () => {
     const map = readWholeMap(URL_L)
