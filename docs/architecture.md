@@ -2336,16 +2336,20 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/sim/__tests__/walls.test.ts` (traffic): a driver stops for a car standing across its lane,
     backs up short of the car queued behind, waits for a car beside its front as it steers back
     into its lane, backs up straight past a car alongside, and keeps slower and further back on a
-    wet road; (parapets, issue #91) a Panda driven across the SR445's viaduct west of Gragnola over
-    the residential road under it, either way, stays on the deck (before, it dropped 8 m onto that
-    road), and a traffic car on that road passes under it (with the parapets meeting every level, it
-    stops 9.1 m off the deck's centreline).
+    wet road.
+  - `src/sim/__tests__/viaduct.test.ts` (parapets, issue #91): a Panda driven across the SR445's
+    viaduct west of Gragnola over the residential road under it, either way, stays on the deck
+    (before, it dropped 8 m onto that road), and a traffic car on that road passes under it (with
+    the parapets meeting every level, it stops 9.1 m off the deck's centreline).
   - `src/sim/__tests__/under-decks.test.ts` (issue #87): under the decks of Via Nuova in Gragnola,
     Via Borgo Lucido and Via delle Cave (each the road bridge nearest the point the issue walked
-    from), the player walking up the bank with the arrow keys from where there is room to stand is
-    stopped by a wall more than 0.5 m under the deck's top (before, it stepped from 164.26 m onto
-    Via Nuova's 164.76 m and from 158.03 onto Via Borgo Lucido's 158.52), and from 6 m back on the
-    road at each end the player walks onto the deck and a Panda rolling from 8 m back drives onto it.
+    from), the player walking up the bank with the arrow keys, from beside the wall where there is
+    2.7–3.3 m of room under the deck's top (on Via delle Cave's bank, 1.85 m steep a metre, the
+    nearest spot clear of the wall with more), ends up against a wall more than 0.5 m under the
+    deck's top (before, it stepped from 164.27 m onto Via Nuova's 164.76 m, from 158.03 onto Via
+    Borgo Lucido's 158.52 and from 210.03 onto Via delle Cave's 210.48), and from 6 m back on the
+    road at each end the player walks onto the deck and a Panda rolling from 8 m back drives across
+    it to 4 m past its far end, its wheels within 0.3 m of the deck's top all the way over it.
   - `src/sim/__tests__/freeze.test.ts`: `inReach` (within `FROZEN_BEYOND` along both axes, and
     everywhere with no player); a car rolling at 5 m/s and a parked car touching its tail about
     5.7 km from the start, their tiles dropped and no tile source, keeping their state bit for bit
