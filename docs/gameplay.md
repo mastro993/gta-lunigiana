@@ -89,10 +89,10 @@ back once it rests on a seat.
 train is boarded at its cab doors ([Driving a train](#driving-a-train)); the rest is about vehicles:
 
 - **Enter**: on foot and standing, the player enters the vehicle whose body is nearest, within
-  2 m (`ENTER_GAP`), on his level, with no walk wall in between, unless it lies on its side or roof
-  or is destroyed ([Damage](#damage)), or a train's door nearer still. The HUD prompt uses the same
-  test (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it shows exactly what the key
-  would do: `steal`, `enter` or `carjack`.
+  2 m (`ENTER_GAP`), on his level, with no walk wall he meets on that level in between, unless it
+  lies on its side or roof or is destroyed ([Damage](#damage)), or a train's door nearer still. The
+  HUD prompt uses the same test (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it
+  shows exactly what the key would do: `steal`, `enter` or `carjack`.
 - **On his level**: the ground under the vehicle's wheels (`chassis.z − cg`) stands within 2 m of
   his `Footing` ([Footing](#footing)), the rule a train's door keeps (`LEVEL`), so under the SR445's
   viaduct west of Gragnola, 6.07 m under its deck, he cannot take a car on the deck over him, nor
@@ -621,7 +621,7 @@ the lane helpers in `src/sim/route.ts`.
   and stops short of them standing behind it on the deck. Read under the car's own middle, the
   level would lose the car ahead on a hill: along Lunigiana's traffic lanes, sampled every 2 m, a
   car standing 15 m ahead along them (no junction between) stands 2 m or more off that ground at
-  6.6% of 301,195 places, one 20 m ahead at 14.1% of 285,790. In the SR445's dip 500 m east of the
+  6.6% of 301,202 places, one 20 m ahead at 14.1% of 285,796. In the SR445's dip 500 m east of the
   viaduct, 15% down into it and 15% up out of it, a car at 16 m/s then ran into a Panda standing 40
   m up the climb from the dip's foot (at 0.8 m/s), or, with that ground carried along its pitch,
   into one 15 m past the foot from 25 m down the descent (at 5.7 m/s); rolled there, it stops 6.7 m
