@@ -2,15 +2,15 @@
  * The render schedule: mirrors people, animals, vehicles and trains into three nodes with
  * RenderSync (render/registries; a vehicle that blew up as its charred shell), places them between
  * fixed steps (PrevPose → Pose at the loop's alpha, a train's s blended along its line), people and
- * animals on the ground or road under them in the frame for what they do, vehicles at their centre
- * of mass from their Chassis and every train's cars on the rails (render/train), spreads the blood
- * pools under the dead, marks the player's car or train for the x-ray silhouette, sets the level
- * crossings' arms and lights (render/crossings), lays tyre marks and smoke from the Skid events,
- * draws the damaged engines' smoke and fire and the Explosion events' blasts (render/effects), and
- * hands the sky host the clock, the weather, the lightning and the cars and trains with their lamps
- * on, and the see-through cut the player as drawn. Read-only towards the world
- * (__tests__/index.test.ts checks every system's declared access); the host ticks it once per
- * animation frame after writing `RenderClock.alpha`.
+ * animals on the ground under them on the level of their sim Footing, in the frame for what they
+ * do, vehicles at their centre of mass from their Chassis and every train's cars on the rails
+ * (render/train), spreads the blood pools under the dead, marks the player's car or train for the
+ * x-ray silhouette, sets the level crossings' arms and lights (render/crossings), lays tyre marks
+ * and smoke from the Skid events, draws the damaged engines' smoke and fire and the Explosion
+ * events' blasts (render/effects), and hands the sky host the clock, the weather, the lightning and
+ * the cars and trains with their lamps on, and the see-through cut the player as drawn. Read-only
+ * towards the world (__tests__/index.test.ts checks every system's declared access); the host ticks
+ * it once per animation frame after writing `RenderClock.alpha`.
  *
  * @module render
  */
@@ -27,6 +27,8 @@ import {
   Dead,
   Down,
   Driving,
+  Footing,
+  type FootingValue,
   Game,
   GameClock,
   InWater,
@@ -40,6 +42,8 @@ import {
   PrevPose,
   Rivers,
   type RiversValue,
+  Route,
+  type RouteValue,
   STEP,
   Time,
   Traffic,
@@ -49,6 +53,7 @@ import {
   Weather,
 } from "../sim/index.ts"
 import { TRAINS } from "../sim/rail/models.ts"
+import { footingAt } from "../sim/systems/footing.ts"
 import { VEHICLES } from "../sim/vehicles.ts"
 import { FLOW, specificDischarge } from "../sim/water/flow.ts"
 import { waterUnder } from "../sim/water/rivers.ts"
@@ -188,31 +193,86 @@ export const blend = (from: PoseValue, to: PoseValue, alpha: number): PoseValue 
   angle: from.angle + wrapAngle(to.angle - from.angle) * alpha,
 })
 
-const PlacePeople = RenderSync.interpolate(Game, {
-  name: "Lunigiana/PlacePeople",
-  registry: People,
-  previous: PrevPose,
-  current: Pose,
-  clock: RenderClock,
-  blend,
-  place: (node, { x, y, angle }) => {
-    node.place(x, y, angle)
-    node.pose()
-  },
-})
+/**
+ * Puts a person's or an animal's node `alpha` of the way through the last step, the pose blended PrevPose → Pose, standing on
+ * the level of its sim `Footing`, or, while it has none yet (it appeared this step), its first footing on its `route`'s level as
+ * `FindFooting` will give it (`footingAt`), and shows the frame for what it does.
+ */
+const placeFigure = (
+  node: PersonNode | AnimalNode,
+  prev: PoseValue,
+  pose: PoseValue,
+  footing: FootingValue | undefined,
+  route: RouteValue | undefined,
+  alpha: number,
+): void => {
+  const { x, y, angle } = blend(prev, pose, alpha)
+  node.place(x, y, angle, footingAt(footing, x, y, route))
+  node.pose()
+}
 
-const PlaceAnimals = RenderSync.interpolate(Game, {
-  name: "Lunigiana/PlaceAnimals",
-  registry: Animals,
-  previous: PrevPose,
-  current: Pose,
-  clock: RenderClock,
-  blend,
-  place: (node, { x, y, angle }) => {
-    node.place(x, y, angle)
-    node.pose()
+const PlacePeople = Game.System(
+  "Lunigiana/PlacePeople",
+  {
+    queries: {
+      people: Game.Query({
+        selection: {
+          prev: Game.Query.read(PrevPose),
+          pose: Game.Query.read(Pose),
+          footing: Game.Query.optional(Footing),
+          route: Game.Query.optional(Route),
+        },
+        with: [Person],
+      }),
+    },
+    services: { nodes: Game.System.service(People), clock: Game.System.service(RenderClock) },
   },
-})
+  ({ queries, services }) => {
+    for (const { entity, data } of queries.people.each()) {
+      const node = services.nodes.get(entity.id)
+      if (node !== undefined)
+        placeFigure(
+          node,
+          data.prev.get(),
+          data.pose.get(),
+          data.footing.value(),
+          data.route.value(),
+          services.clock.alpha,
+        )
+    }
+  },
+)
+
+const PlaceAnimals = Game.System(
+  "Lunigiana/PlaceAnimals",
+  {
+    queries: {
+      animals: Game.Query({
+        selection: {
+          prev: Game.Query.read(PrevPose),
+          pose: Game.Query.read(Pose),
+          footing: Game.Query.optional(Footing),
+        },
+        with: [Animal],
+      }),
+    },
+    services: { nodes: Game.System.service(Animals), clock: Game.System.service(RenderClock) },
+  },
+  ({ queries, services }) => {
+    for (const { entity, data } of queries.animals.each()) {
+      const node = services.nodes.get(entity.id)
+      if (node !== undefined)
+        placeFigure(
+          node,
+          data.prev.get(),
+          data.pose.get(),
+          data.footing.value(),
+          undefined,
+          services.clock.alpha,
+        )
+    }
+  },
+)
 
 /**
  * Puts a vehicle's node at its centre of mass `alpha` of the way through the last step: the pose

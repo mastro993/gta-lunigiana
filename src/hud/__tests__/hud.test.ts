@@ -24,6 +24,7 @@ const view = (patch: Partial<PlayerViewModel>): PlayerViewModel => ({
   velocity: { x: 0, y: 0 },
   mode: "foot",
   vehicle: undefined,
+  z: 0,
   nearby: undefined,
   turns: 0,
   ...patch,

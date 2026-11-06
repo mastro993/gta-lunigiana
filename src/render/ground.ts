@@ -8,7 +8,15 @@
  * @module render/ground
  */
 import { coarseHeightAt } from "../sim/map/coarse.ts"
-import { atGrade, drawnZ, groundZ, roadZ, terrainNodeZ, terrainZ } from "../sim/map/ground.ts"
+import {
+  atGrade,
+  drawnZ,
+  footZ,
+  groundZ,
+  roadZ,
+  terrainNodeZ,
+  terrainZ,
+} from "../sim/map/ground.ts"
 import { MAP } from "../sim/map/index.ts"
 import { isResidentAt } from "../sim/map/tiles.ts"
 
@@ -30,7 +38,7 @@ export const terrainY = (x: number, y: number): number => yOf(terrainZ(x, y))
 const { cell } = MAP.heightmap
 /**
  * Whether the terrain under (x, y) is in memory: the tiles of its cell's four nodes, which straddle
- * a seam in a tile's last row or column. `terrainY`, `groundY` and `atGradeY` there read nothing else.
+ * a seam in a tile's last row or column. `terrainY`, `groundY`, `footY` and `atGradeY` there read nothing else.
  */
 export const terrainResident = (x: number, y: number): boolean =>
   isResidentAt(x, y) &&
@@ -46,9 +54,15 @@ export const farTerrainY = (x: number, y: number): number =>
 export const surfaceY = (z: number, x: number, y: number, lift: number, lifted: boolean): number =>
   yOf(roadZ(z, x, y, lift, lifted))
 
-/** Where an actor at (x, y) stands in render y, keeping to the level nearest `near` (its previous render height); see `groundZ`. */
+/** The ground at (x, y) in render y on the level nearest `near` (render y: a wreck's for its blast's pieces), else the highest; see `groundZ`. */
 export const groundY = (x: number, y: number, near?: number): number =>
   yOf(groundZ(x, y, near === undefined ? undefined : near + ELEVATION_BASE))
+
+/**
+ * Where a person or animal at (x, y) whose footing is `footing` (m a.s.l., the sim's `Footing`) stands, in render y: the ground
+ * on the level nearest it, the decks and tunnels out to their walkers' verges, as the sim's `footZ` finds it each step.
+ */
+export const footY = (x: number, y: number, footing: number): number => yOf(footZ(x, y, footing))
 
 /** The ground at (x, y) on the terrain's level, in render y: a road at grade, never a deck above or a tunnel below (`atGrade`). */
 export const atGradeY = (x: number, y: number): number => yOf(atGrade(x, y))

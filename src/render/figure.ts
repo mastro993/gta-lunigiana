@@ -11,7 +11,7 @@ import { ON_DECK } from "../sim/map/ground.ts"
 import { ActorNode } from "./actors.ts"
 import { BloodPool, poolRadius } from "./blood.ts"
 import { Triangles } from "./geometry.ts"
-import { atGradeY, drawnY, groundY } from "./ground.ts"
+import { atGradeY, drawnY, footY } from "./ground.ts"
 
 /** A point or direction in a figure's frame, m: +x forward, +y up, +z to its right. */
 export type Vec = readonly [number, number, number]
@@ -156,8 +156,6 @@ export interface Bleeding {
 export class FigureNode<Frame extends string> extends ActorNode {
   readonly frames: Readonly<Record<Frame, BufferGeometry>>
   readonly pool: BloodPool
-  /** Render height last frame (keeps the figure on the deck or lane it was on). */
-  elevation: number | undefined = undefined
   /** Metres covered (they drive the gait's frame). */
   walked = 0
   /** Down or dead. */
@@ -188,12 +186,11 @@ export class FigureNode<Frame extends string> extends ActorNode {
   }
 
   /**
-   * Stands the node on the ground under map point (x, y), or floats it `sink` under the water's surface (never under the bed),
-   * facing `angle`, and adds the metres covered to `walked`.
+   * Stands the node on the ground under map point (x, y) on the level of `footing` (m a.s.l., the sim's `Footing`: `footY`), or
+   * floats it `sink` under the water's surface (never under the bed), facing `angle`, and adds the metres covered to `walked`.
    */
-  place(x: number, y: number, angle: number): void {
-    const h = groundY(x, y, this.elevation)
-    this.elevation = h
+  place(x: number, y: number, angle: number, footing: number): void {
+    const h = footY(x, y, footing)
     this.position.set(x, this.afloat === undefined ? h : Math.max(h, this.afloat - this.sink), -y)
     this.rotation.y = angle
     if (this.last !== undefined) this.walked += Math.hypot(x - this.last.x, y - this.last.y)

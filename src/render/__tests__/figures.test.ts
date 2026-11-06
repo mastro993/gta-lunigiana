@@ -5,13 +5,14 @@ import { Random } from "@typeonce/ritmo-math"
 import { Box3, Vector3, type BufferGeometry } from "three"
 
 import type { AnimalValue, Look } from "../../sim/index.ts"
+import { atGrade } from "../../sim/map/ground.ts"
 import { MAP } from "../../sim/map/index.ts"
 import { lookOf } from "../../sim/population/looks.ts"
 import { LOOK } from "../../sim/testing.ts"
 import { AnimalNode, frameAnimal, markings } from "../animals.ts"
 import { poolRadius, SPREAD } from "../blood.ts"
 import { solidMaterial } from "../geometry.ts"
-import { drawnY, groundY } from "../ground.ts"
+import { drawnY, groundY, zOf } from "../ground.ts"
 import { type Doing, framePerson, longSleeves, PersonNode, PERSON_FRAMES } from "../people.ts"
 import { shownProxy, vectorsAround } from "../testing.ts"
 
@@ -148,7 +149,7 @@ test("a blood pool grows as √t to its full size over SPREAD seconds and lies j
   assert.equal(poolRadius(60, 0.8), 0.8)
 
   const node = new PersonNode(LOOK, solidMaterial, 7)
-  node.place(GRAGNOLA.x, GRAGNOLA.y, 0.7)
+  node.place(GRAGNOLA.x, GRAGNOLA.y, 0.7, atGrade(GRAGNOLA.x, GRAGNOLA.y))
   node.lie(false, false)
   assert.equal(node.pool.visible, false, "the living do not bleed")
   node.lie(true, false)
@@ -178,10 +179,10 @@ test("a blood pool grows as √t to its full size over SPREAD seconds and lies j
 /** The roads of the tiles within 2 km of the player's start (by Monzone station), in the map's order. */
 const ROADS = vectorsAround([MAP.spawns.player], 2000).roads.items
 
-/** Where each corner of a dead body's full-grown pool lies, in world space, the body at map (x, y) facing `angle`. */
-const poolCorners = (x: number, y: number, angle: number) => {
+/** Where each corner of a dead body's full-grown pool lies, in world space, the body at map (x, y) facing `angle` with its footing `footing` (m a.s.l.). */
+const poolCorners = (x: number, y: number, angle: number, footing: number) => {
   const node = new PersonNode(LOOK, solidMaterial, 5)
-  node.place(x, y, angle)
+  node.place(x, y, angle, footing)
   node.lie(false, true)
   node.bleed(SPREAD)
   node.updateMatrixWorld(true)
@@ -211,7 +212,7 @@ test("a blood pool by a bridge deck's edge lies flat on the deck, and one on a s
       y = (ay + by) / 2 + ux * off
     const deck = groundY(x, y)
     if (groundY(x - uy * 2.3, y + ux * 2.3, deck) > deck - 2) continue
-    const { node, corners } = poolCorners(x, y, Math.atan2(uy, ux))
+    const { node, corners } = poolCorners(x, y, Math.atan2(uy, ux), zOf(deck))
     if (Math.abs(node.position.y - deck) > 0.05) continue
     for (const c of corners)
       assert.ok(
@@ -240,7 +241,7 @@ test("a blood pool by a bridge deck's edge lies flat on the deck, and one on a s
             : []
         }),
   )[0]!
-  const { node, corners } = poolCorners(steep.x, steep.y, steep.angle)
+  const { node, corners } = poolCorners(steep.x, steep.y, steep.angle, atGrade(steep.x, steep.y))
   for (const c of corners) {
     const over = c.y - drawnY(c.x, -c.z, node.position.y)
     assert.ok(over > 0.04 && over < 0.06, `on the steep road a corner ${over} m over the ground`)

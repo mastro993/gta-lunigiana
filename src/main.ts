@@ -34,7 +34,7 @@ import { crashed, element, holdClock, step, stopped, titleReady } from "./hud/ti
 import { holdLandscape, makeTouchControls, withTouch } from "./hud/touch.ts"
 import { makeTrainStore } from "./hud/trains.ts"
 import { mapForSearch } from "./maps.ts"
-import { groundY, yOf } from "./render/ground.ts"
+import { yOf } from "./render/ground.ts"
 import {
   Animals,
   blend,
@@ -235,7 +235,7 @@ await step(document, "Building the first view", 0.97)
 const spawn = runtime.inspect(PlayerView)
 if (spawn !== undefined)
   world.update(
-    new Vector3(spawn.pose.x, groundY(spawn.pose.x, spawn.pose.y), -spawn.pose.y),
+    new Vector3(spawn.pose.x, yOf(spawn.z), -spawn.pose.y),
     spawn.turns * QUARTER,
     reach(),
     Infinity,
@@ -264,12 +264,9 @@ const draw = (frame: FixedLoop.Frame, player: PlayerViewModel | undefined): void
   const ease = camera.placed ? 1 - Math.exp(-5 * dt) : 1
   camera.x += (x + lead.x - camera.x) * ease
   camera.y += (y + lead.y - camera.y) * ease
-  // In a train the cab's own ground, which a rail bridge has and the map's ground has not.
-  const ground =
-    player.z === undefined
-      ? groundY(x, y, camera.placed ? camera.elevation : undefined)
-      : yOf(player.z)
-  camera.elevation += (ground - camera.elevation) * ease
+  // The ground on the player's level as the sim has it (their footing, their car's wheels, a train's rail head), never the
+  // highest level there: after a jump under a bridge, the road, not the deck.
+  camera.elevation += (yOf(player.z) - camera.elevation) * ease
   view.focus.set(camera.x, camera.elevation, -camera.y)
   swing = swingView(
     swing,

@@ -2,6 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import type { Vec2 } from "@typeonce/ritmo-math"
 
 import { forwardSpeed } from "./body.ts"
+import { footZ, groundZ } from "./map/ground.ts"
 import { boardingAt, cabOf } from "./rail/boarding.ts"
 import { LINES } from "./rail/lines.ts"
 import { TRAINS } from "./rail/models.ts"
@@ -58,8 +59,13 @@ export interface PlayerViewModel {
         readonly kind?: "train"
       }
     | undefined
-  /** Driving a train, the ground under its active cab: the rail head there, m a.s.l. (on a rail bridge too, which the map's ground has not). */
-  readonly z?: number
+  /**
+   * The ground under the player on the level the sim has them on, m a.s.l., where the camera stands: on foot (down or dead too)
+   * the ground their `Footing` keeps them to at their pose (`footZ`; their first footing while they have none), driving a car
+   * the ground on its wheels' level, driving a train the rail head under its active cab (on a rail bridge too, which the map's
+   * ground has not). Never the highest level there: after a jump under a bridge, the road, not the deck.
+   */
+  readonly z: number
   /** The vehicle or train the action key would enter right now, when on foot (not knocked down). */
   readonly nearby:
     | { readonly label: string; readonly occupied: boolean; readonly stolen: boolean }
@@ -142,12 +148,23 @@ export const PlayerView = Game.Inspector(
               speed: driven.motion.facing > 0 ? driven.motion.v : 0 - driven.motion.v,
               kind: "train" as const,
             }
+    const footing = footingAt(data.footing.value(), pose.x, pose.y)
+    const z =
+      driven !== undefined && line !== undefined
+        ? cabOf(line, driven.motion, driven.model).z
+        : car?.ok === true
+          ? groundZ(
+              pose.x,
+              pose.y,
+              car.value.data.chassis.get().z - VEHICLES[car.value.data.vehicle.get().model].cg,
+            )
+          : footZ(pose.x, pose.y, footing)
     const near =
       driving !== undefined || data.down.present
         ? undefined
         : boardingAt(
             pose,
-            footingAt(data.footing.value(), pose.x, pose.y),
+            footing,
             queries.vehicles.each(),
             ({ data: v }) => ({
               model: v.vehicle.get().model,
@@ -176,9 +193,7 @@ export const PlayerView = Game.Inspector(
             respawnIn: Math.max(0, dead.since + Clock.steps(WASTED) - resources.time.get().step),
           }),
       vehicle,
-      ...(driven === undefined || line === undefined
-        ? {}
-        : { z: cabOf(line, driven.motion, driven.model).z }),
+      z,
       nearby:
         near === undefined
           ? undefined

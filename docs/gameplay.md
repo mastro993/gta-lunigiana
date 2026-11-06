@@ -1534,9 +1534,29 @@ its level:
 - **Kept from step to step.** Each step, before anything moves (`FindFooting`), every body on foot
   (the player out of a vehicle, each pedestrian and each animal) keeps to the level it was on: the
   ground where it is now nearest its last footing, a road bridge's deck or a road tunnel's floor
-  reaching out to its walkers' verges (`footZ` with that height, as the render places a figure).
-  So it walks onto a deck or into a tunnel along the road, and stays on the track over a road
-  tunnel or under a road bridge.
+  reaching out to its walkers' verges alongside it, and past its ends no farther along it than a
+  wheel's reach (`footZ` with that height; the render draws each figure there). So it walks onto a
+  deck along its carriageway (at the verge, see the limit below) or into a tunnel along the road,
+  and stays on the track over a road tunnel or under a road bridge. The verges once reached as far
+  past a span's end as beside it, which held a walker on the level of a span's end over the next
+  span rising from there: 0.54 m under its deck between OSM ways 689547598 and 1312766682, the one
+  joint of the 297 crossings of every drivable bridge, both ways, from 12 m before it, where a
+  walker kept to its footing strayed 0.5 m or more from the deck (`ground.map-test.ts` in
+  `src/render`).
+- **Onto a deck at the verge (a limit).** A body comes onto a deck only where its footing at the
+  deck's end stands within 0.5 m of it (`ON_DECK` in `src/sim/map/ground.ts`). Where a road comes
+  onto its bridge on an embankment, the walkers' verge beside it lies on the terrain, lower, so a
+  pedestrian there walks on under the deck, and the render draws them there. Walking every
+  drivable bridge at the walkers' verge (`walkSide`), both sides, both ways, from 12 m before it
+  (594 walks), 49 walks stray 0.5 m or more from the deck, on 37 of the 150 bridges; in 47 of them,
+  each by more than 2 m, the footing just before the deck's end stands more than 0.5 m under it.
+  Within 2 km of Monzone it is 8 of 60 walks, all by more than 2 m, on 5 of the 15 bridges: on OSM
+  way 140780485 the verges before one end lie 3.7 and 7.1 m under the deck, and a walker there
+  keeps to the ground, up to 10.0 m under it. The 17 path and steps bridges fare worse: walked the
+  same way on their centreline and both verges (102 walks), 71 stray, 54 by more than 2 m, on 15
+  of them, so over every bridge 120 of 993 walks do. The drivable bridges' centreline crossings
+  above stray nowhere, and `assertBridgesCarry` (`src/render/__tests__/bridges.ts`) walks only
+  those until the sim keeps the verge and path walkers on the deck.
 - **Into a road tunnel's mouth.** An at-grade road's surface never dips under the terrain, and the
   map build cuts the mouths of the underpasses (it once buried them 5.0–5.4 m deep,
   [map.md](map.md)), so walking in along a road keeps to it and onto the tunnel's floor, with no

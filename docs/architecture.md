@@ -193,7 +193,7 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `Witness` | pedestrians | tag: saw a person killed or came on a body; its shock ends in the choice to gather or run |
 | `Down` | knocked-down and dead people and animals | step at which they get up; for the `Dead`, the step they died, and `Recover` never lifts them |
 | `Dead` | the killed: pedestrians and animals a vehicle struck, people and animals on foot a train struck, people on foot by a blast, the player in a wreck that blew up | step they died (`since`); always with `Down` |
-| `Footing` | the player, pedestrians and animals, once `FindFooting` has seen them | the ground it stands on, m a.s.l., kept on the level it was on: the railway's rules read it (`footingAt`, which takes `firstFooting` for one with none yet) |
+| `Footing` | the player, pedestrians and animals, once `FindFooting` has seen them | the ground it stands on, m a.s.l., kept on the level it was on: the railway's rules read it (`footingAt`, which takes `firstFooting` for one with none yet, on its `Route`'s level when given one), the render stands each figure on its level, and `PlayerView.z` gives the player's to the camera |
 | `Animal` | animals | species (`dog`, `cat`, `cow`, `pig`), coat and patch colours, size × the species' usual (immutable) |
 | `InWater` | the player on foot, pedestrians, animals in a river, a stream or a lake | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
 | `Roam` | animals | mood (`idle`, `walk`, `flee`), the step it ends, home (hx, hy), and the point (tx, ty) it walks to or runs from |
@@ -417,7 +417,9 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   at-grade roads `ROAD_LIFT` above their profile (blended where several overlap, so a junction's
   ground stays continuous where their profiles disagree), and bridge decks
   and tunnels kept to the level nearest the caller's previous height (with `verges`, a deck or a
-  tunnel reaching out to its walkers' verges). `footZ` is where someone on
+  tunnel reaching out to its walkers' verges alongside it, and past its ends no farther along it
+  than a wheel's reach, so the verges at a span's end hold no walker on its level over the next
+  span rising from there). `footZ` is where someone on
   foot stands: given their previous height, the ground nearest it with the decks out to their verges
   (what `FindFooting` keeps in `Footing`, and where getting out of a train steps down, nearest the
   rail head); with none to go by, on a road bridge's deck or in a road tunnel within its reach to
@@ -757,10 +759,16 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
   since `Driving` holds a `CarInput` handle for both). `SyncPeople` shows it on the player's
   figure. Its yellow is divided by the post pass's exposure, as the lamps are, so it stays the same
   yellow at night as at noon (at a night's exposure of 4 it would clip to lemon).
-- `PlacePeople` and `PlaceAnimals` (`RenderSync.interpolate`) blend `PrevPose` → `Pose` at the
-  render alpha, stand each figure on the ground or road under it (`groundY` in
-  `src/render/ground.ts`, kept to the level it was on), add the metres it covered, and show the
-  frame for what it does (below).
+- `PlacePeople` and `PlaceAnimals` blend `PrevPose` → `Pose` at the render alpha, stand each
+  figure on the ground under it on the level of its sim `Footing` (`footY` in
+  `src/render/ground.ts`: the sim's `footZ` there, decks and tunnels out to their walkers' verges),
+  or, while it has none yet (it appeared this step), its first footing as `FindFooting` will give
+  it, on its `Route`'s level (`footingAt`), add the metres it covered, and show the frame for what
+  it does (below). The renderer keeps no height of its own: once it stood each figure on the level
+  nearest the height it last drew it at, or the highest level where it had none, so after a jump
+  to the road under the SR445 viaduct west of Gragnola the player was drawn on the deck at
+  148.49 m while the sim stood them on the road at 142.41 m, where they are drawn now, and so was
+  anyone appearing under a deck.
 - `PlaceVehicles` puts each vehicle's node at its centre of mass from the sim, with no ground
   lookup of its own: x and y blended `PrevPose` → `Pose`, and the `Chassis` height, pitch and
   roll stepped back from the current step along their rates (`vz`, `pitchRate`, `rollRate`) by
@@ -1138,9 +1146,12 @@ The pixel pipeline (`src/render/pipeline.ts`):
   static world never shimmers, but the view still scrolls smoothly.
 - Zoom (`zoomFor`): 8 texels/m on foot, 6 in a car, 5 above 16 m/s (back to 6 below 13 m/s).
 - The camera leads the player by 0.6 s of velocity, at most 14 m (`LOOK_AHEAD`), and eases
-  toward its target, at the height of the ground under the player (`groundY`, on the level nearest
-  the camera's), or driving a train the cab's (`PlayerView.z`), which a rail bridge has and the map's
-  ground has not. It trails the player by about 26 m at most, so when they are more than 200 m off
+  toward its target, at the height of the ground under the player on the level the sim has them on
+  (`PlayerView.z`): on foot where their `Footing` stands them, driving a car the ground on its
+  wheels' level, driving a train the cab's rail head, which a rail bridge has and the map's ground
+  has not. It never takes the highest level there, as it once did after a jump: under the SR445
+  viaduct west of Gragnola it stood on the deck at 148.49 m, over the player on the road at
+  142.41 m. It trails the player by about 26 m at most, so when they are more than 200 m off
   (`CUT_BEYOND` in `main.ts`: the respawn, a teleport) it cuts to them instead of gliding over tiles
   no longer in memory.
 - The key light (the sun, or the moon at night) stands on its real arc for the game time over the
@@ -1705,9 +1716,12 @@ sky store `SkyView`, and the dev trains store `TrainView`:
 
 - `PlayerView` returns a `PlayerViewModel`: previous and current pose, velocity, mode (`foot`,
   `driving`, `down`, `dead`), the driven vehicle's label and speed (a car's `model`, for the dev
-  teleport's `clearSpot`; `kind: "train"` for a train, its speed toward the active cab's way), driving a train the cab's ground (`z`, the rail head
-  there, m a.s.l.), the vehicle or train in reach (label, occupied by a driver, stolen), and the
-  view's quarter turns. The `Score` is not in it: the HUD shows no score until its design is settled.
+  teleport's `clearSpot`; `kind: "train"` for a train, its speed toward the active cab's way), the
+  ground under the player on their sim level (`z`, m a.s.l.: on foot `footZ` from their `Footing`,
+  their first while they have none; driving a car the ground on its wheels' level, `Chassis.z`
+  less its `cg`; driving a train the rail head under the active cab), the vehicle or train in
+  reach (label, occupied by a driver, stolen), and the view's quarter turns. The `Score` is not in
+  it: the HUD shows no score until its design is settled.
 - `TrainView` (`src/sim/rail/view.ts`) returns a `TrainViewModel` for the dev trains store, which
   the debug menu's Trains area and `gta.trains()` read: per line the seconds until its next train
   may enter (null when none is due) and the end it enters from; per train its id, label, line, s,
@@ -2261,7 +2275,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     crossings' arms draw with the actor material; traffic and the player's car shine and get the
     headlight beams, parked cars stay dark; the player's and an AI train shine, the player's beam
     in the driven slot from its leading nose, its x-ray shown and the cut at its cab, a train left
-    alone dark; a crossing drawn as `LevelCrossings` has it at the drawn moment, step plus alpha.
+    alone dark; a crossing drawn as `LevelCrossings` has it at the drawn moment, step plus alpha;
+    under the decks over roads within 1.5 km of the SR445 viaduct west of Gragnola (found by
+    geometry in the tiles, `underpasses.ts`: three today, the issue's own among them), the player
+    after a jump, the camera's ground (`PlayerView.z`) and the cut on the road, a passer-by and a
+    cat appearing there on it too, before and after their first footing, and one walking the bridge
+    on its deck at its verge; driving, the camera and the cut on the road with the car after a jump
+    under each.
   - `src/render/__tests__/train.test.ts`: every car on the rail head under its pivots at grade, on
     the highest deck and round the sharpest curve, both ways; the train's s blended, never the
     cars' poses; the same cars with the cab facing either way; the head lamps at the leading nose
@@ -2324,7 +2344,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     and mixed woods, oaks, pines); `chunks.test.ts`: the box from the tiles' lowest and highest
     nodes holding the exact one, for every chunk of the four tiles by Monzone; `ground.test.ts`:
     `farTerrainY` the terrain where it is in memory and the coarse grid's height where not, and a
-    car and a walker on the deck of every drivable bridge within 2 km of Monzone; `index.test.ts`:
+    car and a walker on the deck of every drivable bridge within 2 km of Monzone (the walker kept to
+    its footing as `FindFooting` keeps it, drawn by `footY` on that); `index.test.ts`:
     no x-ray in the water, a swimmer floating at its shoulders; `sightline.test.ts`: a person behind
     a house near the spawn, under a chestnut's crown or under the ground is hidden, the player at the
     spawn is not, a hill hiding a road within 1.5 km of the spawn says where it meets the line, and

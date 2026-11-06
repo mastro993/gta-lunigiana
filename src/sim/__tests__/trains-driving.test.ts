@@ -192,10 +192,8 @@ test("driving trains: on a rail bridge the view's ground is the cab's rail head,
   const view = game.view()!,
     under = pointAt(line, railBridge())
   assert.equal(view.vehicle?.kind, "train")
-  assert.ok(Math.abs(view.z! - under.z) < 0.5, `${view.z} against the rail head ${under.z}`)
-  assert.ok(view.z! - groundZ(view.pose.x, view.pose.y) > 3, "high over the map's ground")
-  // On foot or in a car the host finds the ground itself.
-  assert.equal(start().view()!.z, undefined)
+  assert.ok(Math.abs(view.z - under.z) < 0.5, `${view.z} against the rail head ${under.z}`)
+  assert.ok(view.z - groundZ(view.pose.x, view.pose.y) > 3, "high over the map's ground")
 })
 
 test("driving trains: SCMT brakes a driven train to a stop at the buffer stop at the drawn run past the line's end, at full power; one too fast to stop pulls the emergency brake and strikes it, an Impact", () => {

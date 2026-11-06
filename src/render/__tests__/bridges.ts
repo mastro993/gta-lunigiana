@@ -2,16 +2,16 @@
 // wheels and a walker crossing a drivable bridge stay on its deck.
 import assert from "node:assert/strict"
 
-import { groundZ, ROAD_LIFT } from "../../sim/map/ground.ts"
+import { footZ, groundZ, ROAD_LIFT } from "../../sim/map/ground.ts"
 import { isDrivable, outlineDistance, type Road, roadClassOf } from "../../sim/map/index.ts"
 import { VEHICLES } from "../../sim/vehicles.ts"
-import { groundY, yOf } from "../ground.ts"
+import { footY, yOf } from "../ground.ts"
 
 /**
  * Asserts that a car's wheels and a walker crossing each drivable bridge of `roads`, both ways, from 12 m before it,
  * stay on the deck, but from the mouth of a tunnel of `around` (the roads round them) or the play area's edge; returns
  * how many crossings it made. The car's wheels are the sim's: each keeps to the level of its previous contact, as the drive physics does;
- * walkers stand where the renderer puts them.
+ * the walker keeps to its footing as `FindFooting` does and stands where the renderer draws it on that.
  */
 export const assertBridgesCarry = (
   roads: ReadonlyArray<Road>,
@@ -41,14 +41,20 @@ export const assertBridgesCarry = (
         uy = (y1 - y0) / d
       // A bridge the play area's outline cuts ends there in mid-span, walled by its road-exit cap: nothing comes on from there.
       if (tunnelEnd(x0, y0) || outlineDistance(x0, y0) <= 0.5) continue
-      let contacts: ReadonlyArray<number> | undefined, feet: number | undefined
+      let contacts: ReadonlyArray<number> | undefined,
+        footing: number | undefined,
+        feet = 0
       const place = (x: number, y: number, angle: number) => {
         const c = Math.cos(angle),
           s = Math.sin(angle)
         contacts = wheels.map((w, i) =>
           groundZ(x + w.x * c - w.y * s, y + w.x * s + w.y * c, contacts?.[i]),
         )
-        feet = groundY(x, y, feet)
+        // Drawn on the footing the sim found where it last stood, which it finds again here for the next step. It sets out on
+        // the highest ground: the road leading onto the bridge, a viaduct's previous span's deck where the road is one.
+        footing ??= groundZ(x, y)
+        feet = footY(x, y, footing)
+        footing = footZ(x, y, footing)
       }
       for (let s = -12; s < 0; s += 0.4) place(x0 + ux * s, y0 + uy * s, Math.atan2(uy, ux))
       for (let i = 0; i + 1 < pts.length; i++) {
@@ -62,8 +68,8 @@ export const assertBridgesCarry = (
           const deck = az + ((bz - az) * s) / len + ROAD_LIFT[roadClassOf(r)],
             car = contacts!.reduce((a, b) => a + b) / contacts!.length
           assert.ok(
-            Math.abs(car - deck) < 0.5 && Math.abs(feet! - yOf(deck)) < 0.5,
-            `road ${r.id} ${reverse ? "b -> a" : "a -> b"} at ${x.toFixed(1)},${y.toFixed(1)}: deck ${deck.toFixed(2)}, wheels ${car.toFixed(2)}, walker ${(feet! - yOf(0)).toFixed(2)} m a.s.l.`,
+            Math.abs(car - deck) < 0.5 && Math.abs(feet - yOf(deck)) < 0.5,
+            `road ${r.id} ${reverse ? "b -> a" : "a -> b"} at ${x.toFixed(1)},${y.toFixed(1)}: deck ${deck.toFixed(2)}, wheels ${car.toFixed(2)}, walker ${(feet - yOf(0)).toFixed(2)} m a.s.l.`,
           )
         }
       }
