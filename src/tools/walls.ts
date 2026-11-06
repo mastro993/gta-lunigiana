@@ -64,6 +64,11 @@ export const pushPolyline = (
   }
 }
 
+/** Appends `walls` to `out` one by one: spread into `push`, a list past about 120,000 numbers overflows the call stack. */
+const append = (out: Array<number>, walls: ReadonlyArray<number>) => {
+  for (const v of walls) out.push(v)
+}
+
 /** Walls around the blocked cells: traced loops, simplified within `tol` m, split into <= RUN m segments, into every list in `outs`. */
 const boundary = (
   g: Pick<Grid, "cell" | "cols" | "rows" | "x0" | "y0">,
@@ -430,7 +435,7 @@ export const buildWalls = (
     pushPolyline(drive, b.pts, false)
   }
   const first = drive.length / 4
-  drive.push(...parapets.walls)
+  append(drive, parapets.walls)
   pushOutline([walk, drive], OUTLINE)
   // Road-block caps a few metres inside the outline where drivable roads leave the play area (their
   // cut ends, which have no id).
@@ -459,8 +464,8 @@ export const buildWalls = (
       ...under.drive.levels,
     ],
   }
-  walk.push(...under.walk.walls)
-  drive.push(...under.drive.walls)
+  append(walk, under.walk.walls)
+  append(drive, under.drive.walls)
   return {
     walk,
     shore,

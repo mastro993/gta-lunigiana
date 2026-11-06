@@ -137,3 +137,29 @@ test("buildWalls walls the steep banks round a river polygon whose river the map
   assert.deepEqual(nearBend(still.walk), nearBend(lakeOnly.walk))
   assert.deepEqual(nearBend(still.drive), nearBend(lakeOnly.drive))
 })
+
+// Regression: the parapets and the walls under the decks were spread into `push`, one argument per
+// number, which overflows the call stack past about 120,000 of them (30,000 walls): a map with a few
+// times today's bridges (Lunigiana's walk walls under its decks already hold 33,452 numbers).
+test("buildWalls appends 50,000 parapets and as many walls under the decks, each with its level", () => {
+  const g = gridLattice()
+  const many = {
+    walls: Array.from({ length: 200_000 }, (_, k) => k % 97),
+    levels: Array.from({ length: 50_000 }, (_, k) => k % 89),
+  }
+  const walls = buildWalls(
+    { ...g, z: new Float64Array(g.cols * g.rows) },
+    [],
+    [],
+    [],
+    [],
+    [],
+    many,
+    { walk: many, drive: many },
+  )
+  assert.deepEqual(walls.walk.slice(-many.walls.length), many.walls)
+  assert.deepEqual(walls.drive.slice(-many.walls.length), many.walls)
+  assert.deepEqual(walls.levels.walk.slice(-many.levels.length), many.levels)
+  assert.equal(walls.levels.drive.length * 4, walls.drive.length)
+  assert.equal(walls.levels.drive.filter((l) => !Number.isNaN(l)).length, 2 * many.levels.length)
+})
