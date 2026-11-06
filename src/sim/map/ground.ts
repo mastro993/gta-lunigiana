@@ -273,6 +273,34 @@ export const groundZ = (x: number, y: number, near?: number, verges = false): nu
   return best
 }
 
+/** How far apart `rolledTo` reads the ground along its way, m: a deck or a ramp rises less than ON_DECK over it up to a 50% grade. */
+const STRIDE = 1
+
+/**
+ * The ground a wheel standing on ground at `z` (m a.s.l.) at (x0, y0) comes to rolling straight to (x1, y1), m a.s.l.: read every
+ * STRIDE along the way, each the level nearest the last (`surface`, by default `groundZ` with the decks and tunnels out to their
+ * walkers' verges), as a wheel finds its ground, so it keeps to the deck or the road it rolls on through a sag onto a deck or over
+ * a crest into a tunnel, and drops off a deck's side. Where a vehicle's way comes to someone or something, it is on their level
+ * when this stands within `LEVEL` of theirs.
+ */
+export const rolledTo = (
+  x0: number,
+  y0: number,
+  z: number,
+  x1: number,
+  y1: number,
+  surface: (x: number, y: number, near: number) => number = (x, y, near) =>
+    groundZ(x, y, near, true),
+): number => {
+  const dx = x1 - x0,
+    dy = y1 - y0,
+    strides = Math.ceil(Math.sqrt(dx * dx + dy * dy) / STRIDE)
+  let level = z
+  for (let k = 1; k <= strides; k++)
+    level = surface(x0 + (dx * k) / strides, y0 + (dy * k) / strides, level)
+  return level
+}
+
 /** Ground within this of the terrain mesh is the terrain, m: under the lowest road's lift (`ROAD_LIFT.path`). */
 const ON_TERRAIN = 0.01
 

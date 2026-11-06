@@ -2852,6 +2852,48 @@ over 20 m, and under 2% through a level crossing (the map before the fixes chang
 6269); through its tunnels each stretch of 100 m or more (the whole of a shorter tunnel) climbs or
 falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17); and it runs on over lucido's
 seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
+`src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onLevel`, 2 m, in
+`src/sim/rail/bodies.ts`) rests on, on Lunigiana, Cesena and, when built, the L (in CI always):
+wherever two ways cross on two levels with no node in common (a road, path or rail bridge over a
+road, a path, steps or the rail, or a road, a path or the rail over a tunnel: `passesOver` in
+`road-levels.ts`), unless both are the rail, the way above stands more than 2.5 m over the one below
+between any two of their points within 3.99 m of each other and of the crossing, so a deck's slope
+toward its end counts too. That reach is the farthest of how far from a car's axis the person who
+gets into it stands (`ENTER_GAP` and the truck's half-width, 3.225 m), how far from its middle a
+vehicle reaches into a driver's path, where the driver reads its level (the truck's half-diagonal,
+3.99 m), and how far apart two bodies touching are read, each under its own axis or middle where
+they touch (two trucks' half-widths, 2.45 m); a vehicle a person or an animal may run from is read
+where they stand; a train's car is read at the rail head under its middle, which the line's 2.83% at
+most keeps within 0.28 m of the rail head where it reaches the path. Paths over paths count since
+people step apart only on one level. The 0.5 m over `LEVEL` covers the surfaces' lifts over their
+profiles (0.06–0.24 m), the 0.1 m rounding and a truck's wheels rolled 25° (0.16 m). It visits 49
+crossings on Lunigiana (the least 4.24 m, a path over the rail's tunnel at (2544, 1057)), 161 on
+Cesena (2.63 m, a path bridge over a path at (−1044, −1321)) and 18 on the L (5.39 m), in 1.9 s;
+Lunigiana and the L have no path over a path. Out to 12 m of a crossing, where two bodies may still
+touch across an oblique one, no road over a road or a path, or path over a road, comes nearer than
+4.95 m on Lunigiana, 3.06 m on Cesena and 5.02 m on the L outside the listed ones. Cesena's
+crossings that keep less are listed by OSM id ([Known data limitations](#known-data-limitations)),
+and each must still fall short, so a fix drops it from the list. With the SR445's viaduct west of
+Gragnola lowered 4 m in memory, it falls short at 1.94 m over the residential road under it. Only
+crossings are visited: where a deck lifted 2.5 m or more over the terrain overlaps another way's
+carriageway in plan without crossing it and the two stand 2.5 m apart or less, that way meets the
+deck there, within 25 m of a node they share, or else joins its approach within three joints and
+comes within 4.8 m of its end (10 ways on Lunigiana, 3 of them on the L, none on Cesena): on its
+level there.
+`src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts`
+(each region in its own process, the L skipped without its build but required in CI) check what a
+driver's level rests on where its way meets a bridge's deck or a tunnel's floor: at every joint
+where a Panda may drive from a road onto or off a bridge or a tunnel, or from one bridge way onto
+the next, with no junction and no turn of 30° or more, a driver standing on its lane up to 40 m
+before the joint reads a Panda standing in its lane past it, together up to 40 m apart and every 2
+m along both, on its level, rolled along the arc it steers to it (`onPathLevel`, where that arc
+keeps to the carriageways; `joint-checks.ts`). 40 m covers a Panda at the primary roads' 16 m/s,
+which starts braking for a car standing 27.1 m ahead. It checks 58,814 places at 463 joints on
+Lunigiana, 16,189 at 105 on Cesena and 8,393 at 63 on the L, in 0.9 s. Read as before, nearest
+the driver's ground carried along its lane's slope, the check fails at 30 joints on Lunigiana
+(among them the SR445 coming down 15% onto its viaduct from the east), 7 on Cesena and 8 on the L;
+rolled, only at a mouth of Pieve San Lorenzo's underpass (756577583) on Lunigiana, listed
+([Known data limitations](#known-data-limitations)), which must still fail, so a fix drops it.
 `src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule
 on the verges people walk (`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car
 stands within 20 m of a crossing node; on a map built without the narrowed verges and the parking
@@ -3501,6 +3543,31 @@ longer lucido:
 
 ## Known data limitations
 
+- **Cesena's footbridges and two of its tunnels stand too near the ways they cross for the level
+  check.** Paths and steps are not profiled, so a footbridge runs straight between its ends at the
+  terrain's level
+  ([section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)):
+  within 4 m of where they cross, 57046028 stands 2.17–2.34 m over Viale Europa and Via Arturo
+  Carlo Jemolo at (−296, 563) and 2.18 m over the path beside them, 137735218 and 137735231 1.90
+  and 1.68 m over Via Riccione at (−684, 470) and (−687, 485) and 1.09–1.64 m over the Ciclovia del
+  Savio and Via Riccione's footway at (−680, 471), (−663, 477) and (−665, 492), and the Passerella
+  dell'Ippodromo 23775268 2.27 m over the path under it at (−683, 1001); the path bridge 683510421
+  even lies 0.72 m under the Sottopasso Cervese, the path it crosses at (763, 629). The pedestrian
+  underpass 69488617 runs 0.68 m under Via Giuseppe Di Vittorio at (−1243, 440), and the car park
+  ramp 68296970 stays at its square's level, 0.24 m over Via Piazzale Sanguinetti at (586, 579).
+  Within 2 m the level rule takes the two ways for one level: from the footbridges over Via
+  Riccione, or the underpass under Via Giuseppe Di Vittorio, a person can get into a car on the road
+  under or over them, and a car on the road brakes for someone on the footbridge over it or in the
+  underpass under it, can hit them, and they run from it; on the footbridges and the paths under
+  them people step apart as if they met (`levels.map-test.ts` lists each crossing by its two ways'
+  OSM ids).
+- **Pieve San Lorenzo's underpass meets the road out of one mouth a step over its floor.** The
+  underpass under the station (756577583) lies level at 350.6 m to its mouth at (5040, 3634), where
+  the road out of it, 1191727402, starts 0.9 m higher, as that mouth opens
+  ([section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)),
+  and climbs with the terrain to 352.6 m 2 m on. A driver in the underpass reads a car standing just
+  past that mouth off its level and does not brake for it (`joints.map-test.ts` lists the joint by
+  its two ways' OSM ids).
 - **The terrain is 4 m.** The LiDAR resolves 1 m (stored at 2 m), but the game grid averages it over
   4 m cells: terrace walls, steps and narrow road benches are smoothed into slopes. Slopes come from
   a 12 m baseline. The LiDAR is from 2010 (2012 on the Carrara side), so earthworks since then are

@@ -82,10 +82,19 @@ back once it rests on a seat.
 train is boarded at its cab doors ([Driving a train](#driving-a-train)); the rest is about vehicles:
 
 - **Enter**: on foot and standing, the player enters the vehicle whose body is nearest, within
-  2 m (`ENTER_GAP`), with no walk wall in between, unless it lies on its side or roof or is
-  destroyed ([Damage](#damage)), or a train's door nearer still. The HUD prompt uses the same test
-  (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it shows exactly what the key would
-  do: `steal`, `enter` or `carjack`.
+  2 m (`ENTER_GAP`), on his level, with no walk wall in between, unless it lies on its side or roof
+  or is destroyed ([Damage](#damage)), or a train's door nearer still. The HUD prompt uses the same
+  test (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it shows exactly what the key
+  would do: `steal`, `enter` or `carjack`.
+- **On his level**: the ground under the vehicle's wheels (`chassis.z − cg`) stands within 2 m of
+  his `Footing` ([Footing](#footing)), the rule a train's door keeps (`LEVEL`), so under the SR445's
+  viaduct west of Gragnola, 6.07 m under its deck, he cannot take a car on the deck over him, nor
+  from the deck one on the road under it. The wheels' ground is taken under the point of the
+  vehicle's axis nearest him, along its pitch, as a door is where it stands: 1.8 m off the front
+  bumper of the marble truck on a 40% lane (the lane down from Posara climbs 42.6%), the ground
+  under its middle lies 2.36 m under his, under the end of its axis 1.33 m. In a river he gets into
+  a car from the water beside it, or from a bank within 2 m of its wheels
+  ([water.md](water.md#vehicles-in-the-water)).
 - **Steal**: the first entry of any vehicle or train scores one theft and tags it `Stolen`.
   Entering it again scores nothing.
 - **Carjack**: entering a traffic car removes its AI. Its driver gets out at the first free door
@@ -579,8 +588,39 @@ the lane helpers in `src/sim/route.ts`.
   per m), and is as wide as the car plus 0.15 m to either side (`CONE_CLEARANCE`); an obstacle
   counts by its footprint (half its length and width turned to the car's heading, a person or an
   animal a circle), so a car standing across the road holds it back as well as one ahead. For a
-  Panda following a Panda in line that is 1.8 m to either side of its axis. Each car of a train on
-  its level is such an obstacle too, one that moves on. Standing still, it holds the handbrake.
+  Panda following a Panda in line that is 1.8 m to either side of its axis. Each car of a train is
+  such an obstacle too, one that moves on. Standing still, it holds the handbrake.
+- **On its level.** Only an obstacle on the car's level holds it back (`onLevel`, within 2 m,
+  `LEVEL`): a vehicle by its wheels' ground (`chassis.z − cg`), a person or an animal by its
+  `Footing` ([Footing](#footing)), a train's car by its rail head. The car reads its own level where
+  the obstacle reaches into its path (the obstacle's middle moved toward the cone's axis by as far
+  as it reaches across): the ground its wheels come to rolling there from under its middle along the
+  cone's axis, read every metre, each the surface nearest the last (`rolledTo` in `map/ground.ts`,
+  over `groundZ` with the decks out to their walkers' verges; `onPathLevel` in
+  `systems/traffic.ts`), so it keeps to the deck it drives, or the road under it, through a sag and
+  over a crest. So on the SR445's viaduct west of Gragnola a car comes at 15 m/s over the player, a
+  parked car or a dead dog on the road 6.07 m under its deck, as over nobody, and a car on that road
+  passes under the player or a passer-by on the deck; before, each stopped 4.8–5.1 m short of the
+  player. Backing up on the deck, a car backs over the player on the road under it as over nobody,
+  and stops short of them standing behind it on the deck. Read under the car's own middle, the
+  level would lose the car ahead on a hill: along Lunigiana's traffic lanes, sampled every 2 m, a
+  car standing 15 m ahead along them (no junction between) stands 2 m or more off that ground at
+  6.6% of 301,195 places, one 20 m ahead at 14.1% of 285,790. In the SR445's dip 500 m east of the
+  viaduct, 15% down into it and 15% up out of it, a car at 16 m/s then ran into a Panda standing 40
+  m up the climb from the dip's foot (at 0.8 m/s), or, with that ground carried along its pitch,
+  into one 15 m past the foot from 25 m down the descent (at 5.7 m/s); rolled there, it stops 6.7 m
+  short of either. Read where the obstacle stands nearest its wheels' ground carried along its pitch
+  (the reading before this one), the level would lose a car standing on a bridge past a sag: coming
+  down 15% onto the SR445's viaduct from the east, a car ran into a Panda standing 12 m onto the
+  deck at 3.7–9.5 m/s, and coming down 8% onto the primary road's bridge OSM way 237828927, into
+  one 6.5 m onto its deck at 11.7 m/s; rolled there, it stops 6.1–6.4 m short. With a lane's slope
+  for the pitch, that reading loses such a car at 30 of Lunigiana's 463 joints between a road and a
+  bridge or a tunnel, 7 of Cesena's 105 and 8 of the L's 63; rolled, at none but a mouth of Pieve
+  San Lorenzo's underpass ([map.md](map.md#known-data-limitations)). Rolled to the obstacle's
+  middle, a train's car passing under a road bridge may lie off the deck: a car on the SR445's deck
+  over the railway, 340 m east of the dip, then changed its way for a train passing under it at 16
+  of 26 timings (from 60 m before the deck to 60 m past it every 10 m, both ways), and now goes on
+  as if none did.
 - **Level crossings.** The car stops for a box that is not open and keeps boxes and the junctions
   before them clear ([Traffic at the crossings](#traffic-at-the-crossings)).
 - **Unsticking.** A car stuck below 1 m/s for 3 s reverses for 1.5 s at 3 m/s. If it is lined up
@@ -617,7 +657,10 @@ the lane helpers in `src/sim/route.ts`.
   queued 4.5 m behind one that backs up (the backing limit), a car alongside one backing up askew
   (the straight wheel), a driver steering back into its lane beside a standing car (the bent cone),
   and the same road wet (slower, easing off sooner, stopping and backing further from the cars
-  around it).
+  around it). `src/sim/__tests__/levels.test.ts` stages the level rule on and under the SR445's
+  viaduct, forward and backing up, through its dip, down the sags onto its deck and onto OSM way
+  237828927's, and over its deck over the railway; `traffic.test.ts` reads `onPathLevel` over
+  made-up ground (a deck, a train's car under it, a dip, a sag onto a rising deck, a bend).
 - **How it flows.** With the player standing 3 real minutes while traffic fills the roads, on a
   new game (22 October 2026 from 08:00, Balanced handling) with the weather held clear, the share
   of the traffic's time under 1 m/s and the honks were 0.18 and 82 in Monzone's street, 0.13 and
@@ -737,6 +780,19 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
   without a flight or a glare. Only people on its level sense it: under a rail bridge, over a
   tunnel or on a road bridge over the line it passes them by
   ([Around the trains](#around-the-trains)).
+- **On their level.** A vehicle counts to the Danger and Speeding stimuli only on their level: the
+  ground its wheels come to rolling straight from under its middle (`chassis.z − cg`) to where they
+  stand, read every metre, each the surface nearest the last (`rolledTo`: the deck it drives, or the
+  road under it, as a driver reads its way), stands within 2 m of their `Footing` (`LEVEL`,
+  [Footing](#footing)). Under the SR445's viaduct west of Gragnola a passer-by stands as a Panda
+  rolls over them on its deck; before, they ran 10.5 m from it, crying out in fright. Nor do they
+  look at one speeding over them there at 22 m/s, as they do standing beside its lane on the deck.
+  Read under the car's middle, the level would lose a car coming down a hill at them: at the foot of
+  a 30% lane a passer-by then ran from a Panda coming down at 8 m/s only 6.4 m short of it, and was
+  struck; now they run 12.4 m short of it (middle to middle), its wheels 4.0 m over them. Read where
+  they stand nearest its wheels' ground carried along its pitch, a passer-by under the viaduct's
+  deck 12 m past the sag at its east end, where the ground lies 3.5 m under the deck, ran from a
+  Panda still coming down the 15% approach 14–22 m off; rolled, its level keeps to the deck.
 - **The gap, not the distance.** Danger is the gap to the car's body, because a distance from its
   centre made every walker on the verge run from ordinary traffic. A Panda in its lane passes a
   walker on the verge with 0.88 m or more between its body and them on 95 % of the map's 12 m/s
@@ -806,6 +862,15 @@ through a wall.
   (2 × `KNOCK_SPEED`) does she fall, or die. A Panda nudging a cow at walking pace shoves her.
 - **People and animals** step apart, each moving by the other's share of the mass (a person 70 kg,
   an animal its species' mass × its size³). The members of a party do not.
+- **On one level**: only bodies on one level touch (`onLevel`, within 2 m, `LEVEL`): a vehicle by
+  the ground under its wheels where its axis passes nearest the contact, along its pitch from under
+  its middle (`chassis.z − cg`), a person or an animal by its `Footing` ([Footing](#footing)). So a
+  Panda rolling at 11 m/s along the SR445's viaduct west of Gragnola passes over the player, a
+  passer-by, a parked Panda and a dead dog on the road 6.07 m under its deck as over nobody, and the
+  player standing under the deck and a passer-by over him on it do not step apart; before, it
+  knocked the player down at 11.0 m/s, and hit the parked Panda at 10.7 m/s and stopped dead. Read
+  under their middles, two trucks bumper to bumper on a 30% lane stand 2.5 m apart and would pass
+  into each other; read where they touch, they meet.
 
 A vehicle that knocks a pedestrian or an animal down kills them with the chance
 1 / (1 + e^((h − v) / 3.59)), v the impact speed and h the speed that kills half the time, rolled
@@ -1087,7 +1152,13 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   | pig | faster than 5 m/s within 8 m | within 3 m | | within 30 m | within 20 m | fright, 80 % |
 
   A train's car counts as a vehicle by the distance to its body (a car's middle can be 10 m from
-  an animal beside its end), and only on the animal's level. A train's horn sounds 120–125 dB(A)
+  an animal beside its end), and only on the animal's level. So does a vehicle: the ground its
+  wheels come to rolling straight from under its middle (`chassis.z − cg`) to the animal
+  (`rolledTo`, as people read it) stands within 2 m of its `Footing` (`LEVEL`). Under the SR445's viaduct west of Gragnola a cat, a dog, a
+  cow and a pig stay as a Panda rolls over them on its deck, where before they ran 15.2, 13.9, 7.8
+  and 9.7 m, the cat, the cow and the pig crying out; at the foot of a 30% lane a cat runs from a
+  Panda coming down at it 7.8 m off, its wheels 2.3 m over it (6.2 m off, read under its middle).
+  A train's horn sounds 120–125 dB(A)
   at 5 m (UIC 644), about 20 dB over a car's (an estimate), so its whistle carries further than an
   AI horn.
 
@@ -1528,8 +1599,10 @@ What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/s
 
 #### Footing
 
-Where each body on foot stands (`Footing`, `systems/footing.ts`), so the railway's rules can tell
-its level:
+Where each body on foot stands (`Footing`, `systems/footing.ts`), so the railway's rules, getting
+into a vehicle ([Entering](#entering-stealing-carjacking-exiting)), what traffic brakes for
+([Traffic AI](#traffic-ai)), what bodies touch ([Knockdowns](#knockdowns-deaths-and-score)) and
+what people and animals run from ([Reactions](#reactions), [Animals](#animals)) can tell its level:
 
 - **Kept from step to step.** Each step, before anything moves (`FindFooting`), every body on foot
   (the player out of a vehicle, each pedestrian and each animal) keeps to the level it was on: the
@@ -1836,7 +1909,7 @@ speed along the contact.
 | `src/sim/rail/dynamics.ts` | `POWER_EASE`, `BRAKE_EASE`, `HOLD_SPEED`, `REVERSE_MAX`, the brakes' share of the adhesion |
 | `src/sim/rail/barriers.ts` | `WARNING`, `LOWERING`, `RAISING`, `RELEASE`, `MARGIN`, `CROSSING_HOLD`, `DEPARTURE`, `SPARE` (in `strikeIn`) |
 | `src/sim/rail/crossings.ts` | the stop line's clearance, the arms, how near a line passes a box's node (`NODE_REACH`), how far back the approaches go |
-| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule keeps to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
+| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule, getting into a vehicle, what traffic brakes for, what bodies touch and what people and animals run from keep to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
 | `src/sim/rail/lookout.ts` | the look-out's planned brake and margin (`lookoutReach`), `HELD_SIGHT`, `HORN`, `CREEP`, how often the alarm sounds, `SCRAPE` (a vehicle touching a train's side) |
 | `src/sim/rail/roads.ts` | `STOP_DECEL`, `HARD_DECEL`, `LINE_SLACK`, `ENVELOPE_SLACK` (how far outside the trains' envelope a car holds), the room past a box (`ROOM`, `KEEP_REACH`, `SLOW`, `LANE_CLEAR`, `PATH_SLACK`), `JUNCTION_CLEAR`, `PATIENT_FOR` (drivers' and walkers'), the queue's reach and heading, `SPAWN_CLEAR`, `TURN_SWEEP` (no turning round nearer a line's track) |
 | `src/sim/rail/senses.ts` | `WHISTLE_RANGE`, the alarm's path (`PATH_WIDE`, `PATH_REACH`), the hold at a crossing (`HOLD_LOOK`, `HOLD_CLEAR`, `HOLD_NEAR`, `HOLD_SPAN`) |
@@ -1852,9 +1925,12 @@ speed along the contact.
 
 Gameplay changes need a test: the scenario tests in `src/sim/__tests__/index.test.ts`,
 `src/sim/__tests__/walls.test.ts`, `src/sim/__tests__/people.test.ts`,
-`src/sim/__tests__/damage.test.ts` and `src/sim/__tests__/explosions.test.ts` stage exact situations
-with `src/sim/testing.ts`; `src/sim/__tests__/reactions.test.ts` and
-`src/sim/__tests__/aftermath.test.ts` stage reactions on Via Cesare Battisti with
+`src/sim/__tests__/damage.test.ts`, `src/sim/__tests__/explosions.test.ts` and
+`src/sim/__tests__/levels.test.ts`, `levels-contacts.test.ts` and `levels-senses.test.ts` (on and
+under the SR445's viaduct west of Gragnola, found by its OSM way in `viaduct.ts`, down the sags
+onto its deck and onto OSM way 237828927's, through the SR445's dip and over its deck over the
+railway east of it, and on a 30% lane) stage exact situations with `src/sim/testing.ts`;
+`src/sim/__tests__/reactions.test.ts` and `src/sim/__tests__/aftermath.test.ts` stage reactions on Via Cesare Battisti with
 `src/sim/scene.ts`, over several seeds where a rule rolls dice;
 `src/sim/__tests__/population.test.ts` checks the looks, parties, density, walk choice and first
 fill, `population.long-test.ts` the centres filling, the empty rural road and the chats, and

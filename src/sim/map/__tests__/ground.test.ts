@@ -11,6 +11,7 @@ import {
   footZ,
   groundZ,
   roadLevel,
+  rolledTo,
   terrainZ,
 } from "../ground.ts"
 import { MAP } from "../index.ts"
@@ -158,4 +159,22 @@ test("facingAt: the terrain triangle's unit normal where the ground is the terra
     terrain > 2000 && roads > 50 && tunnels > 0,
     `${terrain} points on the terrain, ${roads} on roads, ${tunnels} in tunnels`,
   )
+})
+
+test("rolledTo: a wheel keeps to the deck it rolls onto through a sag, where the surface nearest its ground reads the ground under the deck, and drops off the deck's side", () => {
+  // An approach falling 9% east to a deck starting at x = 0 at 100 m and rising 7% from there, 8 m wide, over ground 2.6 m under it.
+  const deck = (x: number) => 100 + 0.07 * x,
+    sag = (x: number, y: number, near: number) =>
+      x < 0
+        ? 100 - 0.09 * x
+        : Math.abs(y) <= 4 && Math.abs(near - deck(x)) <= Math.abs(near - deck(x) + 2.6)
+          ? deck(x)
+          : deck(x) - 2.6
+  // From 5 m up the approach to 30 m along the deck: there the ground (99.5 m) lies nearer its start (100.45) than the deck (102.1).
+  assert.equal(sag(30, 0, 100.45), deck(30) - 2.6)
+  assert.equal(rolledTo(-5, 0, 100.45, 30, 0, sag), deck(30))
+  // Off the deck's side the ground; back under the deck, it stays on the ground.
+  assert.equal(rolledTo(10, 0, deck(10), 10, 8, sag), deck(10) - 2.6)
+  assert.equal(rolledTo(10, 0, deck(10), 30, 8, sag), deck(30) - 2.6)
+  assert.equal(rolledTo(10, 8, deck(10) - 2.6, 10, 0, sag), deck(10) - 2.6)
 })

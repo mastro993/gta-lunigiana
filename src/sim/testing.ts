@@ -593,13 +593,17 @@ export const press = (frame: number, ...keys: Array<keyof typeof bindings>): Tim
 export const walkClear = (p: { readonly x: number; readonly y: number }) =>
   clearOf(wallsAlong("land", p.x, p.y, 0, 0, 1), p.x, p.y, PERSON_RADIUS, 0.02)
 
-/** An unmanned vehicle at `pose` already rolling at `speed` along its heading, its controls held at `throttle` and `steer`. */
+/**
+ * An unmanned vehicle at `pose` already rolling at `speed` along its heading, its controls held at `throttle` and `steer`: on the
+ * level `level` (m a.s.l.: a bridge's deck), or at grade.
+ */
 export const rolling = (
   model: VehicleModel,
   pose: PoseValue,
   speed: number,
   throttle: number,
   steer = 0,
+  level?: number,
 ) =>
   Game.Command.spawn(
     [Vehicle, { model, color: 0x8b8170 }],
@@ -607,7 +611,7 @@ export const rolling = (
     [PrevPose, pose],
     [Motion, { vx: Ops.cos(pose.angle) * speed, vy: Ops.sin(pose.angle) * speed, spin: 0 }],
     [CarInput, { throttle, steer, handbrake: false }],
-    [Chassis, rollingChassis(model, pose, speed)],
+    [Chassis, rollingChassis(model, pose, speed, level)],
     [Damage, UNDAMAGED],
   )
 

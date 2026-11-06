@@ -134,7 +134,7 @@ The same keys walk and drive; the table shows what each does in both modes:
 |---|---|---|
 | W A S D or arrow keys | walk along the screen directions; in a river, wade or swim | up: throttle, down: brake and reverse, left/right: steer; in a train up and down drive toward and away from the cab’s way, against the motion they brake, and it backs up at 30 km/h at most |
 | Shift | sprint; swimming, a hard crawl | |
-| F or Enter | enter the nearest vehicle (steal, enter or carjack), or a train at a cab door when it is all but stopped | get out (from a train, only at a stand at grade) |
+| F or Enter | enter the nearest vehicle on your level (steal, enter or carjack), or a train at a cab door when it is all but stopped | get out (from a train, only at a stand at grade) |
 | Q / E | turn the view a quarter left / right | nothing: the view follows the car |
 | Space | | handbrake (in a train, the emergency brake) |
 | H | | horn while held; in the Carabinieri car, siren on or off; in a train, the train horn while held |

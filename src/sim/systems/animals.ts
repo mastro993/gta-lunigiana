@@ -8,6 +8,7 @@ import { grazing, indoors, openGround } from "../population/farms.ts"
 import { ownSide, trainCars } from "../rail/bodies.ts"
 import {
   Animal,
+  Chassis,
   Cry,
   Dead,
   Down,
@@ -38,6 +39,7 @@ import {
   Vehicle,
   Whistle,
 } from "../schema.ts"
+import { VEHICLES } from "../vehicles.ts"
 import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterUnder, walkDry } from "../water/rivers.ts"
 import { outOfDepth, waterVelocity } from "../water/swim.ts"
@@ -142,8 +144,12 @@ export const Animals = Game.System(
         without: [Driving],
       }),
       vehicles: Game.Query({
-        selection: { pose: Game.Query.read(Pose), motion: Game.Query.read(Motion) },
-        with: [Vehicle],
+        selection: {
+          pose: Game.Query.read(Pose),
+          motion: Game.Query.read(Motion),
+          vehicle: Game.Query.read(Vehicle),
+          chassis: Game.Query.read(Chassis),
+        },
       }),
       trains: Game.Query({
         selection: { motion: Game.Query.read(TrainMotion), train: Game.Query.read(Train) },
@@ -171,7 +177,18 @@ export const Animals = Game.System(
       const { x, y } = data.pose.get(),
         { vx, vy } = data.motion.get(),
         speed = Math.sqrt(vx * vx + vy * vy)
-      return speed > 1 ? [{ x, y, vx, vy, speed }] : []
+      return speed > 1
+        ? [
+            {
+              x,
+              y,
+              vx,
+              vy,
+              speed,
+              ground: data.chassis.get().z - VEHICLES[data.vehicle.get().model].cg,
+            },
+          ]
+        : []
     })
     const folks: ReadonlyArray<Folk> = queries.people.each().flatMap(({ data }) => {
       if (data.down.present || data.dead.present) return []

@@ -5,6 +5,7 @@ import { forwardSpeed, wrapAngle } from "../body.ts"
 import { GRAVITY, rigFor, RIGS } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { type HandlingValue, REAL_HANDLING } from "../handling.ts"
+import { rolledTo } from "../map/ground.ts"
 import { graph } from "../map/index.ts"
 import { onLevel, trainCars } from "../rail/bodies.ts"
 import { atCrossings, backRoom, busyBoxes, nearTrack, type Occupant } from "../rail/roads.ts"
@@ -33,6 +34,7 @@ import {
   type ChassisValue,
   Dead,
   Driving,
+  Footing,
   Game,
   GameClock,
   Handling,
@@ -56,6 +58,7 @@ import { underfoot } from "../sky/underfoot.ts"
 import { PERSON_RADIUS } from "../tuning.ts"
 import { weatherFactor } from "../tyres.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
+import { footingAt } from "./footing.ts"
 import { steerLimit } from "./physics.ts"
 import { inReach, playerPose } from "./reach.ts"
 
@@ -168,6 +171,68 @@ export const comfortSpeed = (
 export const leans = (model: VehicleModel, chassis: Pick<ChassisValue, "roll">): boolean =>
   Math.abs(chassis.roll) > LEANING * Ops.atan(RIGS[model].tipping)
 
+/** Where something meets a driver's path, in the driver's frame (m): see `onPathLevel`. */
+interface Meeting {
+  readonly front: number
+  readonly across: number
+  readonly off: number
+  readonly wide: number
+  readonly circle: number
+}
+
+/**
+ * Whether ground at `z` (m a.s.l.) under something in a driver's path is on the driver's level. The driver stands at `at`, its
+ * wheels' ground `ground` under its middle. The other's middle is `front` m ahead and `across` m to its left, `off` m from the
+ * path's axis (the line ahead or behind, or the arc its wheels steer round (0, `circle`); 0, a line), and it reaches `wide` m toward
+ * that axis. Where it reaches into the path (its middle moved toward the axis's nearest point by `wide`, or that point where it
+ * reaches across the axis), the ground the driver's wheels come to rolling along the axis to that point and on to there
+ * (`rolledTo` over `surface`: the deck it drives, or the road under it, through a sag or over a crest) stands within LEVEL of `z`.
+ * Read there, not under the driver's middle, so the car ahead stays in sight through a dip; nor under the other's middle, which may
+ * lie off the deck (a train's car passing under it).
+ */
+export const onPathLevel = (
+  at: { readonly x: number; readonly y: number; readonly angle: number; readonly ground: number },
+  { front, across, off, wide, circle }: Meeting,
+  z: number,
+  surface?: (x: number, y: number, near: number) => number,
+): boolean => {
+  // The axis's point nearest the other's middle: abeam it on the line, or on the arc toward it from the arc's centre.
+  const out = circle === 0 ? 0 : Math.abs(circle) / Ops.hypot(front, across - circle),
+    axisFront = circle === 0 ? front : front * out,
+    axisAcross = circle === 0 ? 0 : circle + (across - circle) * out,
+    pull = off > 0 ? Math.min(1, wide / off) : 0,
+    f = front + (axisFront - front) * pull,
+    a = across + (axisAcross - across) * pull,
+    fx = Ops.cos(at.angle),
+    fy = Ops.sin(at.angle)
+  // Rolled from the driver's middle along the line, or round the arc a metre's chord at a time (swept by `sweep` round its centre
+  // in all), then on to where the other reaches in.
+  let level = at.ground,
+    pf = 0,
+    pa = 0
+  const roll = (tf: number, ta: number) => {
+    level = rolledTo(
+      at.x + fx * pf - fy * pa,
+      at.y + fy * pf + fx * pa,
+      level,
+      at.x + fx * tf - fy * ta,
+      at.y + fy * tf + fx * ta,
+      surface,
+    )
+    pf = tf
+    pa = ta
+  }
+  if (circle === 0) roll(axisFront, 0)
+  else {
+    const sweep = Ops.atan2(circle * axisFront, circle * (circle - axisAcross)),
+      chords = Math.ceil(Math.abs(sweep * circle))
+    for (let k = 1; k <= chords; k++)
+      roll(circle * Ops.sin((sweep * k) / chords), circle * (1 - Ops.cos((sweep * k) / chords)))
+  }
+  roll(f, a)
+  return onLevel(level, z)
+}
+
 /** Lifted roads: a bridge deck or a tunnel. */
 const lifted = (edge: number): boolean =>
   roadOf(edge).bridge === true || roadOf(edge).tunnel === true
@@ -204,9 +269,10 @@ const arrived = (
 /**
  * AI drivers on graph.trafficEdges: keep right (Route.side), steer at a point
  * ahead along this edge and the next, pick the next edge at random at each
- * node, slow for sharp turns and for anything in a cone ahead (people and
- * animals, living or dead, and the cars of a train on their level included),
- * and back up along the lane after standing still for 3 s (sometimes turning
+ * node, slow for sharp turns and for anything in a cone ahead on their level
+ * (people and animals, living or dead, other vehicles and the cars of a
+ * train: not what is on a deck over them or a road under them), and back up
+ * along the lane after standing still for 3 s (sometimes turning
  * round, and always from its second time on, dead end or not); waiting for a
  * living person or animal, or a train, ahead on the carriageway counts four
  * times slower. Half-way to backing up it honks, once (a Honk event). The cone
@@ -241,13 +307,18 @@ export const TrafficAI = Game.System(
           pose: Game.Query.read(Pose),
           motion: Game.Query.read(Motion),
           vehicle: Game.Query.read(Vehicle),
+          chassis: Game.Query.read(Chassis),
         },
       }),
       trains: Game.Query({
         selection: { motion: Game.Query.read(TrainMotion), train: Game.Query.read(Train) },
       }),
       people: Game.Query({
-        selection: { pose: Game.Query.read(Pose), dead: Game.Query.optional(Dead) },
+        selection: {
+          pose: Game.Query.read(Pose),
+          footing: Game.Query.optional(Footing),
+          dead: Game.Query.optional(Dead),
+        },
         with: [Person],
         without: [Driving],
       }),
@@ -255,6 +326,7 @@ export const TrafficAI = Game.System(
         selection: {
           pose: Game.Query.read(Pose),
           animal: Game.Query.read(Animal),
+          footing: Game.Query.optional(Footing),
           dead: Game.Query.optional(Dead),
         },
       }),
@@ -283,21 +355,25 @@ export const TrafficAI = Game.System(
       model: data.train.get().model,
     }))
     const busy = busyBoxes(trains)
-    // The vehicles as the crossing rules see them: footprints and speeds.
-    const occupants: ReadonlyArray<Occupant> = queries.vehicles.each().map(({ entity, data }) => {
-      const { length, width } = VEHICLES[data.vehicle.get().model],
-        { vx, vy } = data.motion.get()
-      return {
-        id: entity.id,
-        ...data.pose.get(),
-        long: length / 2,
-        wide: width / 2,
-        speed: Math.sqrt(vx * vx + vy * vy),
-      }
-    })
-    // Each obstacle's footprint, half its length and half its width (a person or an animal a circle), and whether it moves on: the
-    // living do, and a train; a body lying dead is waited for no longer than a parked car, not queued behind until it is gone. A
-    // train's car is an obstacle only to a car on its level (`z`, its rail head).
+    // The vehicles as the crossing rules see them (footprints and speeds), and their wheels' ground under their middle (`z`).
+    const occupants: ReadonlyArray<Occupant & { readonly z: number }> = queries.vehicles
+      .each()
+      .map(({ entity, data }) => {
+        const { length, width, cg } = VEHICLES[data.vehicle.get().model],
+          { vx, vy } = data.motion.get()
+        return {
+          id: entity.id,
+          ...data.pose.get(),
+          long: length / 2,
+          wide: width / 2,
+          speed: Math.sqrt(vx * vx + vy * vy),
+          z: data.chassis.get().z - cg,
+        }
+      })
+    // Each obstacle's footprint, half its length and half its width (a person or an animal a circle), whether it moves on (the
+    // living do, and a train; a body lying dead is waited for no longer than a parked car, not queued behind until it is gone), its
+    // level (`z`, m a.s.l.: a vehicle's wheels' ground, a train's rail head, a person's or an animal's Footing) and whether it is a
+    // train's car: an obstacle only to a car on its level.
     const obstacles: ReadonlyArray<{
       readonly id: number
       readonly x: number
@@ -306,9 +382,10 @@ export const TrafficAI = Game.System(
       readonly long: number
       readonly wide: number
       readonly movesOn: boolean
-      readonly z?: number
+      readonly z: number
+      readonly train: boolean
     }> = [
-      ...occupants.map((o) => ({ ...o, movesOn: false })),
+      ...occupants.map((o) => ({ ...o, movesOn: false, train: false })),
       ...trainCars(trains).map((car) => ({
         id: car.train,
         x: car.x,
@@ -318,24 +395,33 @@ export const TrafficAI = Game.System(
         wide: car.width / 2,
         movesOn: true,
         z: car.z,
+        train: true,
       })),
-      ...queries.people.each().map(({ entity, data }) => ({
-        id: entity.id,
-        ...data.pose.get(),
-        long: PERSON_RADIUS,
-        wide: PERSON_RADIUS,
-        movesOn: !data.dead.present,
-      })),
+      ...queries.people.each().map(({ entity, data }) => {
+        const pose = data.pose.get()
+        return {
+          id: entity.id,
+          ...pose,
+          long: PERSON_RADIUS,
+          wide: PERSON_RADIUS,
+          movesOn: !data.dead.present,
+          z: footingAt(data.footing.value(), pose.x, pose.y),
+          train: false,
+        }
+      }),
       // An animal, standing or knocked down in the road, is waited for as a person is: it usually moves on.
       ...queries.animals.each().map(({ entity, data }) => {
         const { species, size } = data.animal.get(),
-          r = FAUNA[species].radius * size
+          r = FAUNA[species].radius * size,
+          pose = data.pose.get()
         return {
           id: entity.id,
-          ...data.pose.get(),
+          ...pose,
           long: r,
           wide: r,
           movesOn: !data.dead.present,
+          z: footingAt(data.footing.value(), pose.x, pose.y),
+          train: false,
         }
       }),
     ]
@@ -355,10 +441,9 @@ export const TrafficAI = Game.System(
       const { model } = data.vehicle.get()
       const spec = VEHICLES[model]
       const speed = forwardSpeed(data.motion.get(), pose.angle)
-      // What stands on its level: the ground under it.
-      const ground = data.chassis.get().z - spec.cg,
-        level = (other: (typeof obstacles)[number]) =>
-          other.z === undefined || onLevel(ground, other.z)
+      // Its wheels' ground under its middle.
+      const chassis = data.chassis.get(),
+        ground = chassis.z - spec.cg
       let route = data.route.get()
       let pilot = data.pilot.get()
       if (distanceToEdge(route.edge, pose.x, pose.y) > LOST) {
@@ -400,11 +485,11 @@ export const TrafficAI = Game.System(
       const steer = Math.max(-1, Math.min(1, error * 2.5))
       const fx = Ops.cos(pose.angle),
         fy = Ops.sin(pose.angle)
+      const driver = { ...pose, ground },
+        level = (z: number, front: number, across: number, off: number, wide: number, circle = 0) =>
+          onPathLevel(driver, { front, across, off, wide, circle }, z)
       // The share of its dry grip the road leaves (wet or snowy): it drives, follows and backs up that much more carefully.
-      const grip = weatherFactor(
-        under(pose.x, pose.y, data.chassis.get().z - spec.cg),
-        handling.weatherGrip,
-      )
+      const grip = weatherFactor(under(pose.x, pose.y, ground), handling.weatherGrip)
 
       if (step < pilot.reverseUntil) {
         // Backing up, the tail aims at a point behind on the lane (steering works mirrored in reverse). With anything close behind the
@@ -417,19 +502,28 @@ export const TrafficAI = Game.System(
         let back = REVERSE_SPEED,
           beside = false
         for (const other of obstacles) {
-          if (other.id === entity.id || !level(other)) continue
+          if (other.id === entity.id) continue
           const rx = other.x - pose.x,
             ry = other.y - pose.y,
             front = rx * fx + ry * fy,
             extent = reach(other, fx, fy)
-          const clear = Math.abs(ry * fx - rx * fy) - extent.across - spec.width / 2
-          // Behind the tail: slower the nearer it is, as when following forward, stopping `BACK_GAP` short of it.
-          if (front < 0 && clear < CONE_CLEARANCE)
-            back = Math.max(
-              back,
-              -Math.max(0, (-front - extent.along - spec.length / 2 - BACK_GAP) * 0.8 * grip),
-            )
-          if (Math.abs(front) < spec.length / 2 + extent.along && clear < ALONGSIDE) beside = true
+          const across = ry * fx - rx * fy,
+            clear = Math.abs(across) - extent.across - spec.width / 2
+          // Behind the tail: slower the nearer it is, as when following forward, stopping `BACK_GAP` short of it. Its level is asked
+          // only of what would slow it or keep its wheel straight, as going forward, so nothing far behind reads the ground.
+          const slower = -Math.max(
+              0,
+              (-front - extent.along - spec.length / 2 - BACK_GAP) * 0.8 * grip,
+            ),
+            behind = front < 0 && clear < CONE_CLEARANCE && slower > back,
+            alongside = Math.abs(front) < spec.length / 2 + extent.along && clear < ALONGSIDE
+          if (
+            (!behind && !alongside) ||
+            !level(other.z, front, across, Math.abs(across), extent.across)
+          )
+            continue
+          if (behind) back = slower
+          if (alongside) beside = true
         }
         // Never back onto a line's track at a level crossing that is not open (stuck in the queue past one it has cleared).
         const room = backRoom(
@@ -465,7 +559,7 @@ export const TrafficAI = Game.System(
       want = Math.min(want * Math.sqrt(grip), comfortSpeed(model, steer, speed, handling, grip))
       const range = coneRange(speed, grip, spec.brakes.decel)
       // The path the front wheels steer: a circle of radius `radius` m, its centre to the left (+) or right; nearly straight, a line (0).
-      const bend = Ops.tan(data.chassis.get().steer) / RIGS[model].wheelbase,
+      const bend = Ops.tan(chassis.steer) / RIGS[model].wheelbase,
         radius = Math.abs(bend) < 1e-3 ? 0 : 1 / bend
       // The carriageway or its verge, where walkers keep (`walkSide`).
       const inWay = (edge: number, p: { readonly x: number; readonly y: number }) =>
@@ -477,7 +571,7 @@ export const TrafficAI = Game.System(
       // its verge), or a train across it, which moves on.
       let forPerson = false
       for (const other of obstacles) {
-        if (other.id === entity.id || !level(other)) continue
+        if (other.id === entity.id) continue
         const rx = other.x - pose.x,
           ry = other.y - pose.y
         const front = rx * fx + ry * fy,
@@ -494,10 +588,10 @@ export const TrafficAI = Game.System(
           grip,
           spec.brakes.decel,
         )
-        if (limit < want)
+        if (limit < want && level(other.z, front, across, off, extent.across, radius))
           [want, forPerson] = [
             limit,
-            other.movesOn && front > spec.length / 2 && (other.z !== undefined || onRoad(other)),
+            other.movesOn && front > spec.length / 2 && (other.train || onRoad(other)),
           ]
       }
       // The level crossings: a stop for a box not open, or to keep one or the junction before it clear; patience at a closed one.
@@ -529,7 +623,7 @@ export const TrafficAI = Game.System(
       const holding = want < 0.5 && Math.abs(speed) < 0.5,
         slow = Math.abs(speed) < 0.5
       data.input.set(
-        leans(model, data.chassis.get())
+        leans(model, chassis)
           ? { throttle: slow ? 0 : throttleFor(0, speed), steer: slow ? 0 : steer, handbrake: slow }
           : holding
             ? { throttle: 0, steer, handbrake: true }
