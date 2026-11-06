@@ -216,6 +216,20 @@ const onSegment = (s: RoadSegment, x: number, y: number, reach = s.half): number
   return d2 > reach * reach ? undefined : roadZ(s.za + (s.zb - s.za) * t, x, y, s.lift, s.lifted)
 }
 
+/**
+ * Surface elevation of bridge or tunnel segment `s` at (x, y) for someone on foot, or undefined beyond its walkers' verges: within
+ * `foot` m of it, and past its ends no farther along it than its carriageway's `half` (a wheel's reach), so the verges at a span's
+ * end do not hold a walker on its level over the next span rising from there (consecutive bridge ways), where a wheel goes on.
+ */
+const onVerge = (s: RoadSegment, x: number, y: number): number | undefined => {
+  const ex = s.bx - s.ax,
+    ey = s.by - s.ay,
+    l2 = ex * ex + ey * ey,
+    u = l2 > 0 ? ((x - s.ax) * ex + (y - s.ay) * ey) / l2 : 0,
+    past = Math.max(0, -u, u - 1)
+  return past * past * l2 > s.half * s.half ? undefined : onSegment(s, x, y, s.foot)
+}
+
 /** A bridge deck or tunnel within this height (m) of where an actor was is the one it is on. */
 export const ON_DECK = 0.5
 
@@ -250,7 +264,7 @@ export const groundZ = (x: number, y: number, near?: number, verges = false): nu
   let score = near === undefined ? -best : Math.abs(best - near)
   for (const s of segments) {
     if (!s.lifted) continue
-    const h = onSegment(s, x, y, verges ? s.foot : s.half)
+    const h = verges ? onVerge(s, x, y) : onSegment(s, x, y)
     if (h === undefined) continue
     const off = near === undefined ? 0 : Math.abs(h - near)
     const sc = near === undefined ? -h : off < ON_DECK ? off - ON_DECK : off
@@ -317,8 +331,8 @@ export const footZ = (x: number, y: number, near?: number): number => {
   if (near !== undefined) return groundZ(x, y, near, true)
   for (const s of segmentsIn(Math.floor(x / BUCKET), Math.floor(y / BUCKET))) {
     if (s.foot === 0) continue
-    const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
-    if (d2 <= s.foot * s.foot) return roadZ(s.za + (s.zb - s.za) * t, x, y, s.lift, true)
+    const h = onVerge(s, x, y)
+    if (h !== undefined) return h
   }
   return groundZ(x, y)
 }
