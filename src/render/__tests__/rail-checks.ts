@@ -31,7 +31,7 @@ const whole = (list: ReadonlyArray<Piece>): Sink => {
 }
 type P3 = readonly [number, number, number]
 /** A triangle's three corners, three space. */
-type Tri = readonly [P3, P3, P3]
+export type Tri = readonly [P3, P3, P3]
 /** Triangle `t` (its first value's index) of `tris`. */
 const triAt = (tris: Triangles, t: number): Tri => {
   const p = tris.position
@@ -42,7 +42,7 @@ const triAt = (tris: Triangles, t: number): Tri => {
   ]
 }
 /** The triangles of `tris` in colour `hex`. */
-const trianglesOf = (tris: Triangles, hex: number): Array<Tri> => {
+export const trianglesOf = (tris: Triangles, hex: number): Array<Tri> => {
   const [r, g, b] = linear(hex),
     found: Array<Tri> = []
   for (let t = 0; t < tris.position.length; t += 9)
@@ -51,7 +51,7 @@ const trianglesOf = (tris: Triangles, hex: number): Array<Tri> => {
   return found
 }
 /** The render height of triangle `tri` over map (x, y), if it covers it (seen from above). */
-const heightIn = ([a, b, c]: Tri, x: number, y: number): number | undefined => {
+export const heightIn = ([a, b, c]: Tri, x: number, y: number): number | undefined => {
   const z = -y,
     d = (b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2])
   if (Math.abs(d) < 1e-12) return undefined

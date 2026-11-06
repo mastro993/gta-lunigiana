@@ -2,9 +2,9 @@
  * How the HUD's maps look, shared by the minimap (src/hud/minimap.ts, painting a tile's canvas) and
  * the full map's overview, which the build bakes into a raster (src/tools/overview.ts): the layers
  * in order (the play area's grass, then areas, water, rail, roads narrowest class first so the main
- * roads lie on top at junctions and overpasses, buildings), their colours and their widths, drawn
- * through a pen (a canvas, or the build's raster). It imports no module that decodes the map, so
- * the build can paint before the map exists.
+ * roads lie on top at junctions and overpasses, a road in a tunnel dashed, buildings), their colours
+ * and their widths, drawn through a pen (a canvas, or the build's raster). It imports no module
+ * that decodes the map, so the build can paint before the map exists.
  *
  * @module render/map-style
  */
@@ -126,6 +126,45 @@ export const overviewRoad: RoadLook<PaintRoad> = (road, cls, scale) => ({
   alpha: 1,
 })
 
+/**
+ * The stretches of the polyline `pts` a dashed line draws: from its start, every other `dash` m
+ * along it. Only + − × ÷ and sqrt, so the build's raster paints the same bits on every machine.
+ */
+export const dashesOf = (pts: ReadonlyArray<number>, dash: number): Array<Array<number>> => {
+  const out: Array<Array<number>> = []
+  let current = [pts[0]!, pts[1]!],
+    on = true,
+    left = dash
+  for (let k = 2; k + 1 < pts.length; k += 2) {
+    let ax = pts[k - 2]!,
+      ay = pts[k - 1]!
+    const bx = pts[k]!,
+      by = pts[k + 1]!
+    let length = Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay))
+    while (length > left) {
+      const t = left / length,
+        cx = ax + (bx - ax) * t,
+        cy = ay + (by - ay) * t
+      if (on) {
+        current.push(cx, cy)
+        out.push(current)
+      } else current = [cx, cy]
+      on = !on
+      ax = cx
+      ay = cy
+      length -= left
+      left = dash
+    }
+    if (on) current.push(bx, by)
+    left -= length
+  }
+  if (on && current.length >= 4) out.push(current)
+  return out
+}
+
+/** A tunnel's dashes, and the gaps between them, are twice the road's width and this many px long: the round caps eat a width of each gap. */
+const DASH_PAD = 2
+
 /** The order roads are painted in, as indices into `roads`: the narrow classes first, then by index. */
 const roadOrder = (roads: ReadonlyArray<{ readonly cls: string }>): Array<number> =>
   roads
@@ -136,8 +175,8 @@ const roadOrder = (roads: ReadonlyArray<{ readonly cls: string }>): Array<number
 /**
  * Paints `map` at `scale` px/m with `pen`: grass over the play area, clipped to it, then the areas
  * (even-odd, in the order the land cover's raster fills them, `fillRank`: the woods first, the
- * rest of the land by kind, the lakes and river polygons over it, a river's gravel bars over them), the water (opaque, at least 1 px wide), the rail out of tunnels (`faded`), the roads out of tunnels,
- * paths left out (`roadOrder`, each as `road` says), and the buildings' outer rings (non-zero).
+ * rest of the land by kind, the lakes and river polygons over it, a river's gravel bars over them), the water (opaque, at least 1 px wide), the rail out of tunnels (`faded`), the roads,
+ * paths left out (`roadOrder`, each as `road` says, a road in a tunnel dashed in its own look: `dashesOf`), and the buildings' outer rings (non-zero).
  */
 export const paintLayers = <R extends PaintRoad>(
   pen: MapPen,
@@ -161,7 +200,11 @@ export const paintLayers = <R extends PaintRoad>(
   for (const k of roadOrder(map.roads)) {
     const r = map.roads[k]!,
       cls = classOf(r.cls)
-    if (r.tunnel !== true && cls !== "path") line(r.pts, road(r, cls, scale))
+    if (cls === "path") continue
+    const look = road(r, cls, scale)
+    if (r.tunnel === true)
+      for (const dash of dashesOf(r.pts, (2 * look.width + DASH_PAD) / scale)) line(dash, look)
+    else line(r.pts, look)
   }
   for (const b of map.buildings) pen.fill([b.outer], PALETTE.roofTile, "nonzero")
 }

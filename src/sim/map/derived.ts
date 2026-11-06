@@ -16,6 +16,25 @@ export interface BellEntry {
 }
 
 /**
+ * A road tunnel's mouth the build found (`bakeMouths` in src/render/portals.ts): an end of a road in
+ * a tunnel (not a building passage) that no other road in a tunnel goes on from, inside the play
+ * area. A portal stands there, its arch's crown `crown` m over the road and its lined throat
+ * `throat` m into the hill, unless the ground over the tunnel never rises high enough for one
+ * (`open`: a road under a bridge, or under a cover the map's ground does not hold).
+ */
+export type MouthEntry = {
+  /** The tunnel's road: its index in the whole map's roads. */
+  readonly road: number
+  /** The mouth, the end of the road's line. */
+  readonly x: number
+  readonly y: number
+  /** The road's surface there (its profile and `ROAD_LIFT`), m a.s.l. */
+  readonly z: number
+  /** The heading out of the hill, rad. */
+  readonly angle: number
+} & ({ readonly crown: number; readonly throat: number } | { readonly open: true })
+
+/**
  * What the build works out from the vectors for the readers far from the player, where the tiles
  * holding them need not be in memory (src/tools/bake.ts; `bake.map-test.ts` checks it is current):
  * copies of the geometry the railway points at, and tables the game's own code bakes.
@@ -33,4 +52,6 @@ export interface Derived {
   readonly residents: ReadonlyArray<number>
   /** Per farm (`farms` order), its building's centre, flat x, y (`buildingCentre`). */
   readonly farms: ReadonlyArray<number>
+  /** Every road tunnel's mouth, by road and then the road's first end first: where the portals stand. */
+  readonly mouths: ReadonlyArray<MouthEntry>
 }

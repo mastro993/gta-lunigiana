@@ -18,7 +18,7 @@ test("the overview is about 4096 px on its long side and under Safari's 16.7 MP,
   })
 })
 
-/** A map 8192 × 4096 m (so 0.5 px/m, the paint's look at 0.125 px/m) in an L, its notch north-east of (4096, 2000). */
+/** A map 8192 × 4096 m (so 0.5 px/m, the paint's look at 0.1 px/m) in an L, its notch north-east of (4096, 2000). */
 const BOUNDS = { minX: 0, minY: 0, maxX: 8192, maxY: 4096 }
 const road = (cls: string, pts: Array<number>, tunnel?: true) => ({ cls, w: 7, pts, tunnel })
 const MAP = {
@@ -37,7 +37,7 @@ const MAP = {
 
 const rgba = (hex: number) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255, 255]
 
-test("the overview paints the full map's look: grass on the play area only, areas, opaque water, roads by class narrowest first, no tunnels or paths, buildings on top", () => {
+test("the overview paints the full map's look: grass on the play area only, areas, opaque water, roads by class narrowest first, a tunnel dashed, no paths, buildings on top", () => {
   const { width, height, rgba: pixels } = paintOverview(MAP, BOUNDS)
   assert.deepEqual([width, height], [4096, 2048])
   const at = (x: number, y: number) => {
@@ -49,7 +49,9 @@ test("the overview paints the full map's look: grass on the play area only, area
   assert.deepEqual(at(1201, 2701), rgba(PALETTE.forest))
   assert.deepEqual(at(1501, 3001), rgba(PALETTE.roofTile))
   assert.deepEqual(at(2501, 1001), rgba(PALETTE.signYellow), "the motorway over the street")
-  assert.deepEqual(at(3001, 3001), rgba(PALETTE.grass), "no tunnel")
+  // The tunnel's dashes and gaps 70 m each from its start at x 101 (twice its 2.5 px and 2 px, at 0.1 px/m): the middles of the 22nd.
+  assert.deepEqual(at(3076, 3001), rgba(PALETTE.limestone), "a tunnel's dash")
+  assert.deepEqual(at(3146, 3001), rgba(PALETTE.grass), "a tunnel's gap")
   assert.deepEqual(at(3501, 1501), rgba(PALETTE.grass), "no path")
   // a stream: its least 1 px (4 overview px), in the water's one opaque colour
   assert.deepEqual(at(5501, 501), rgba(PALETTE.waterShallow))

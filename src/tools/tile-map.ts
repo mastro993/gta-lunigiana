@@ -64,7 +64,7 @@ export interface BuiltMap extends Omit<
 
 /** The tables the build bakes from the dense layers and the vectors (src/tools/bake.ts): what `cutMap` leaves empty. */
 export type Bakes = Pick<MonzoneMap, "lanes" | "farms" | "lamps"> &
-  Pick<MonzoneMap["derived"], "bells" | "residents"> & {
+  Pick<MonzoneMap["derived"], "bells" | "residents" | "mouths"> & {
     readonly floors: ReadonlyArray<ReadonlyArray<number>>
     readonly parked: MonzoneMap["spawns"]["parked"]
     /** Each farm's building centre, flat x, y (`derived.farms`). */
@@ -81,6 +81,7 @@ export const NO_BAKES: Bakes = {
   bells: [],
   residents: [],
   farmCentres: [],
+  mouths: [],
 }
 
 /** Lattice step of the coarse grid (`MonzoneMap.coarse`), m. */
@@ -465,6 +466,7 @@ const globalOf =
       bells: bakes.bells,
       residents: bakes.residents,
       farms: bakes.farmCentres,
+      mouths: bakes.mouths,
     },
   })
 

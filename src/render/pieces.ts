@@ -4,8 +4,8 @@
  * to the world), each whole in every tile it comes within the tiles' halo of: a piece is made once,
  * however many of the tiles in hold it, and goes with the last of them (`drop`). The railway, the
  * stations and the lamps come from the global map, made with the world, reading no tile. Every
- * piece has a key in the whole map's draw order (the buildings, each road's ribbons then its deck,
- * the rivers, then the track, the crossings, the portals, the platforms, the name boards, the
+ * piece has a key in the whole map's draw order (the buildings, each road's ribbons then its deck or
+ * bore, the rivers, then the track, the crossings, the portals, the platforms, the name boards, the
  * canopies and the lamps, each by its index), and a chunk draws its pieces in that order
  * (`entries`), so it gets the very triangles, in the very order, a whole-map build sends it.
  *
@@ -17,7 +17,7 @@ import { tilesOver } from "../sim/map/tiles.ts"
 import { buildingPiece } from "./buildings.ts"
 import { CHUNKS, chunkOf } from "./chunks.ts"
 import type { Piece } from "./geometry.ts"
-import { roadPieces, waterPiece } from "./lines.ts"
+import { roadPieces, twoPieces, waterPiece } from "./lines.ts"
 import { railPieces, type RoadsNear } from "./rail.ts"
 import { lampPieces } from "./sky/lamps.ts"
 import { stationPieces } from "./stations.ts"
@@ -62,7 +62,7 @@ export const bucketPieces = (pieces: ReadonlyArray<Piece>): Array<Array<number>>
 }
 
 const { buildings: BUILDINGS, roads: ROADS, water: WATER } = MAP.vectors.counts
-/** The key of road `r`'s ribbons (`part` 0) or its deck (1); building `i`'s is `i`. */
+/** The key of road `r`'s ribbons (`part` 0) or its deck or bore (1); building `i`'s is `i`. */
 const roadKey = (r: number, part: 0 | 1): number => BUILDINGS + 2 * r + part
 /** The key of river `w`. */
 const waterKey = (w: number): number => BUILDINGS + 2 * ROADS + w
@@ -146,12 +146,11 @@ export class Pieces {
     buildings.ids.forEach((i, k) => hold(i, () => buildingPiece(buildings.items[k]!)))
     roads.ids.forEach((r, k) => {
       const info = MAP.roads[r]!
-      if (info.tunnel === true) return
       let made: Array<Piece> | undefined
       const part = (n: 0 | 1) => () => (made ??= roadPieces({ ...info, ...roads.items[k]! }))[n]!
       hold(roadKey(r, 0), part(0))
       lines.push(roadKey(r, 0))
-      if (info.bridge !== true) return
+      if (!twoPieces(info)) return
       hold(roadKey(r, 1), part(1))
       lines.push(roadKey(r, 1))
     })

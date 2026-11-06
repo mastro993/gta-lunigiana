@@ -59,7 +59,7 @@ export {
   TRUNK,
   vergeOf,
 } from "./kinds.ts"
-export type { BellEntry } from "./derived.ts"
+export type { BellEntry, MouthEntry } from "./derived.ts"
 export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
 export { type Segment, treesIn, type WallKind, wallsNear } from "./walls.ts"
 
@@ -128,6 +128,8 @@ export interface RoadInfo {
   readonly ramp?: boolean
   readonly bridge?: boolean
   readonly tunnel?: boolean
+  /** A `tunnel` through a building (OSM `tunnel=building_passage`): drawn on under the house, with no bore or portal (render/lines). */
+  readonly passage?: boolean
   readonly layer?: number
   /** OSM `maxheight` of an underpass, m: the clear height it keeps under a bridge (4 m where untagged, road-levels.ts). */
   readonly maxheight?: number
