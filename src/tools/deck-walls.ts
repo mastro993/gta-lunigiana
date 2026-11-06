@@ -17,7 +17,7 @@
 // keeps a corridor through the low space, walled along its sides; any other road opens the walls
 // across its carriageway where its surface is on their level, so no wall stands on a road.
 import { DECK_SLAB, footReach, isDrivable, ON_DECK, ONE_LEVEL } from "../sim/map/kinds.ts"
-import { PERSON_HEIGHT } from "../sim/tuning.ts"
+import { PERSON_HEIGHT, PERSON_RADIUS } from "../sim/tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../sim/vehicles.ts"
 import { meshZ } from "./deck-ground.ts"
 import {
@@ -57,6 +57,8 @@ const OUTSIDE = [0.25, 0.5] as const
 const SPAN = 2 * ONE_LEVEL - 1
 /** A corridor reaches this far past where the bodies on its road go, m: its walls stand off them. */
 const CORRIDOR = 0.25
+/** How far past a deck's end, along it, a road meeting the end opens the walk walls round it, m (`open`). */
+const ONTO = 2
 /** How far past its carriageway a car on a road reaches, m. */
 const CAR_PAD = 0.5
 
@@ -81,6 +83,11 @@ interface Kind {
   readonly reach: (road: Way) => number
   /** Whether this body uses a road of `cls`: only such roads open the walls or keep a corridor. */
   readonly uses: (cls: string) => boolean
+  /**
+   * How far off the centreline of a road meeting a deck's end its bodies walk onto the deck, m, when
+   * they keep to its verges (walkers): it opens the walls round the end that far (`open`).
+   */
+  readonly onto?: (road: Way) => number
 }
 
 /** Walk walls: under PERSON_HEIGHT of headroom, round where someone on foot is on the deck (its slab, its walkers' reach). */
@@ -89,6 +96,7 @@ const WALK: Kind = {
   side: (d) => Math.max(d.w / 2 + DECK_SLAB.margin, footReach(d.cls, d.w)),
   reach: (r) => footReach(r.cls, r.w),
   uses: () => true,
+  onto: (r) => footReach(r.cls, r.w) + PERSON_RADIUS,
 }
 
 /** Drive walls: under the tallest vehicle's headroom, half a metre past the parapets (and so past the slab). */
@@ -128,6 +136,49 @@ const wallsOf = (
         by = seg.ay + seg.uy * seg.len
       ways.add(seg.ax, seg.ay, bx, by, reach, { road: i, seg })
       wide.add(seg.ax, seg.ay, bx, by, reach + widest, i)
+    }
+  })
+  // The decks' ends: each one's top, and the way into its deck from it (a unit vector). The roads
+  // meeting one (a vertex of theirs there): each of their segments from it, out to the widest walls
+  // round an end, as far as its bodies walk onto the deck (`onto`), with the end.
+  interface End {
+    readonly x: number
+    readonly y: number
+    readonly top: number
+    readonly ux: number
+    readonly uy: number
+  }
+  const ends = new Map<string, End>()
+  for (const d of decks) {
+    const first = d.segs[0],
+      last = d.segs.at(-1)
+    if (first === undefined || last === undefined) continue
+    ends.set(`${first.ax},${first.ay}`, {
+      x: first.ax,
+      y: first.ay,
+      top: first.za,
+      ux: first.ux,
+      uy: first.uy,
+    })
+    const bx = lines[d.road]!.pts.at(-2)!,
+      by = lines[d.road]!.pts.at(-1)!
+    ends.set(`${bx},${by}`, { x: bx, y: by, top: last.zb, ux: -last.ux, uy: -last.uy })
+  }
+  const meeting = segIndex<{ readonly road: number; readonly end: End }>()
+  roads.forEach((r, i) => {
+    const onto = kind.onto?.(r)
+    if (onto === undefined || !kind.uses(r.cls)) return
+    const { pts } = lines[i]!
+    for (let k = 0; 2 * k < pts.length; k++) {
+      const end = ends.get(`${pts[2 * k]},${pts[2 * k + 1]}`)
+      if (end === undefined) continue
+      for (const j of [k - 1, k + 1]) {
+        if (j < 0 || 2 * j >= pts.length) continue
+        const dx = pts[2 * j]! - end.x,
+          dy = pts[2 * j + 1]! - end.y,
+          f = Math.min(1, (widest + onto) / (Math.hypot(dx, dy) || 1))
+        meeting.add(end.x, end.y, end.x + dx * f, end.y + dy * f, onto, { road: i, end })
+      }
     }
   })
   // A road's surface at (x, y) on it, its profile `z` there: ROAD_LIFT over the profile, and over
@@ -247,10 +298,24 @@ const wallsOf = (
     // walled: on a deck's level a body passes the walls anyway, and under it a carriageway floating
     // over far lower ground (its surface never dips under the terrain) would let the ground under
     // it in. One passing under the nearest deck opens none of its walls: it keeps its corridor.
+    // A road meeting a deck at its end opens them behind the end as far as its bodies walk onto the
+    // deck (`onto`: its verges, for walkers), where the ground stands within ONE_LEVEL of the end's
+    // top: a pedestrian walks on along its verge, which climbs to the deck's level there. Under the
+    // deck they stay, so nobody comes up onto it from under its end.
     const mine = new Set(cluster.map((di) => decks[di]!.road))
     const open = (level: number) => (x: number, y: number) => {
       const under = passing[nearest(x, y).deck]!
       let through = false
+      meeting.within(x, y, ({ data: { road, end } }) => {
+        if (
+          !mine.has(road) &&
+          !under.has(road) &&
+          (x - end.x) * end.ux + (y - end.y) * end.uy <= ONTO &&
+          end.top - ground(x, y) < ONE_LEVEL
+        )
+          through = true
+      })
+      if (through) return true
       ways.within(x, y, ({ data: { road, seg } }, d2, t) => {
         if (mine.has(road) || under.has(road) || Math.sqrt(d2) >= roads[road]!.w / 2) return
         const z = (a: number) => {
