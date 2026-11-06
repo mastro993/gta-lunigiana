@@ -3,7 +3,7 @@
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map of its two parts, lucido and fivizzano ([section
 2](#2-projection-and-play-area-geometryts-play-areats)): the global file `src/sim/map/monzone.bin`
-(1.54 MB), 79 tiles of 2 km in `src/sim/map/monzone/` (30.5 MB in all, the largest 0.60 MB; see [Map
+(1.54 MB), 79 tiles of 2 km in `src/sim/map/monzone/` (30.5 MB in all, the largest 0.61 MB; see [Map
 files](#map-files)) and, beside the tiles, the full map's picture `overview.png` (4.52 MB; [The
 overview](#the-overview)). The build is deterministic (gunzipped, its files are the same bytes on
 every machine, arm64 and x64 alike, and it prints the same build hash; gzipped, they are
@@ -1808,36 +1808,46 @@ from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
   368), the abutment of the rail bridge 140780349 over Via delle Cave and the Lucido, which the
   river's carve (its gravel bed, outside the protected water) had cut 11.3 m under the LiDAR.
 - **Ground under the decks** (`deck-ground.ts`, issue #92): the bare-earth model has no decks, and
-  nothing else writes the ground under one, so it reached into them: past their ends on 56 of
-  Lunigiana's 219 decks (51 of its 167 road bridges, 5 of its 52 rail bridges), 23 of Cesena's 56
-  and 10 of the L's 57. On the SP59's bridge by Vinca (310573976, at (1003, −1884)) the hillside
-  stood 0.93 m over the road 9 m from its end, covering it and its parapet, and on Via delle Cave's
-  (140780480, at (−368, 391)) 0.21 m over it. Once every tile is written, each road and rail deck's
-  slab as drawn (`DECK_SLAB` in `kinds.ts`: 0.9 m deep under the deck's top, 0.4 m past the
-  carriageway or the rail deck's 3.2 m of ballast either side, `src/render/lines.ts`) is read every
-  0.5 m along it, each cross-section across the slab every 0.5 m on the mesh the game draws. Walking
-  in from each end, the deck's end run lasts until its slab first stands clear of the ground all
-  across: there it rests on the ground, which only stays at most 0.05 m (the rail bed's `BED`) over
-  its profile, under every road's surface (`ROAD_LIFT`, 0.06 m or more). From its first clear
-  cross-section to its last, the ground stays under the slab. The pass is exact: the mesh and the
-  deck's planes are linear on each triangle, so on each one the slab reaches over it holds the
-  corners of the slab's part of the triangle under the plane, lowering the triangle's corner that
-  weighs most there first, just enough and at most 0.9 m under the plane, floored to 0.1 m. A deck
-  whose clear cross-sections then lie apart (the lowered ground cleared some in an end run) is laid
-  again from the first to the last. A road's or the rail's core holds its nodes only behind a
-  deck's ends (its approach): abeam of a deck, between the lines across its ends, a core is an
-  approach's reaching past its end, beside or under it. Lunigiana's pass lowers 288 nodes, 257 of
-  them by less than 0.5 m, the deepest by 3.8 m at (1840, 11124): the end of a 12 m footbridge
-  (1161691572) climbing 60%, which as a bridge no chain profiles takes the elevation model's point
-  there (below), 3.4 m under the averaged node beside it. Cesena's lowers 201, at most 5.1 m where two footbridges pass
-  under a residential bridge's start at (−296, 576), and the L's 54, at most 1.1 m. The SP59's
-  bridge now has the ground 0.12–0.35 m under its top along its first 13 m and clear of its slab
-  from 13.3 m on, and Via delle Cave's 0.11–0.25 m under its top in its south end run. Beside the
-  nodes, Lunigiana's map moves walls at three spots (16 walk walls added and 15 removed, 3 and 5
-  shore, 11 and 8 drive), one vertex of 12 paths and tracks at grade where they meet a deck's end
-  (they follow the ground), a building's height by 0.1 m and 12 streams' floors under decks by up to
-  0.19 m. A first cut, capping every corner of each cell the slab reaches over as the rail bed does,
-  lowered 1,204 nodes and cut a hillside 11.2 m at (2944, −88), 7.3 m off a track bridge whose slab only
+  nothing else writes the ground under one, so it reached into them: more than 4 m from an end on
+  125 of Lunigiana's 219 decks on `main` (93 of its 167 road bridges, 32 of its 52 rail bridges), 49
+  of Cesena's 56 and 32 of the L's 57. On the SP59's bridge by Vinca (310573976, at (1003, −1884))
+  the hillside stood 0.93 m over the road 9 m from its end, covering it and its parapet, and on Via
+  delle Cave's (140780480, at (−368, 391)) 0.21 m over it. Once every tile is written, each road and
+  rail deck's slab as drawn (`DECK_SLAB` in `kinds.ts`: 0.9 m deep under the deck's top, 0.4 m past
+  the carriageway or the rail deck's 3.2 m of ballast either side, `src/render/lines.ts`) is read
+  every 0.5 m along it, each cross-section across the slab every 0.5 m on the mesh the game draws.
+  Walking in from each outer end, the deck's end run lasts until its slab first stands clear of the
+  ground all across, and `END_RUN` (4 m, the issue's "more than a few metres") at most: there it
+  meets the ground, which only stays at most 0.05 m (the rail bed's `BED`) over its profile, under
+  every road's surface (`ROAD_LIFT`, 0.06 m or more). Between its end runs, the ground stays under
+  the slab. A deck's pieces join where they share a vertex with tops within `ON_DECK` (`jointsOf`):
+  OSM splits a viaduct into ways mid-span (24 of Lunigiana's pieces, 27 of Cesena's, 13 of the
+  L's), and a joint is no end. Read on `main`'s build, the slab first stood clear more than 4 m from
+  an outer end on 120 of Lunigiana's decks, 24 of them nowhere, up to 20.4 m in (the rail bridge
+  621942962) and 19.1 m on a road (260987314); on 43 of Cesena's, up to 143 m of the primary
+  70194399's 246 m, an OSM bridge drawn over a bank; on 26 of the L's, up to 12.8 m. Past 4 m the
+  pass now lowers the ground under all of them. The pass is exact: the mesh and the deck's planes
+  are linear on each triangle, so on each one the slab reaches over it holds the corners of the
+  slab's part of the triangle under the plane, lowering the triangle's corner that weighs most there
+  first, just enough and at most 0.9 m under the plane, floored to 0.1 m. A deck with a
+  cross-section between its end runs left in its slab (the lowered ground cleared some in an end
+  run) is laid again over the new stretch, until it lies still. A road's or the rail's core holds
+  its nodes only behind a deck's ends (its approach): abeam of a deck, between the lines across its
+  ends, a core is an approach's reaching past its end, beside or under it. Lunigiana's pass lowers
+  618 nodes, 208 of them by less than 0.5 m, the deepest by 3.8 m at (1840, 11124): the end of a 12
+  m footbridge (1161691572) climbing 60%, which as a bridge no chain profiles takes the elevation
+  model's point there (below), 3.4 m under the averaged node beside it. Cesena's lowers 510, at most
+  5.2 m at (−676, −568), and the L's 132, at most 1.8 m at (−368, 388), under Via delle Cave's
+  bridge. The SP59's bridge now has the ground 0.12–0.92 m under its top along its first 4 m and
+  clear of its slab past them, and Via delle Cave's 0.12–0.81 m under its top along its south end
+  run and 1.03 m or more under it past 4 m from its ends. Beside the nodes, Lunigiana's map moves a
+  vertex or two of 12 roads at grade where they meet a deck's end, by up to 1.6 m (they follow the
+  ground), 6 buildings' floor or height by up to 0.6 m, 16 streams' floors under decks by up to
+  0.54 m, two wall lamps with their buildings, the west end of Minucciano-Pieve-Casola's platform
+  by 1.1 m (its lamp pole 5 cm), and a parked spot at (−40.3, 346.2) that now takes a truck;
+  Cesena's a vertex of 24 roads, by up to 3.9 m, and the L's one road, 2 buildings and a stream. A
+  first cut, capping every corner of each cell the slab reaches over as the rail bed does, lowered
+  1,204 nodes and cut a hillside 11.2 m at (2944, −88), 7.3 m off a track bridge whose slab only
   grazed that cell; digging as deep as it took made a 6.1 m pit in a stream's bed by an abutment.
   `deck-ground.map-test.ts` checks every deck of Lunigiana, Cesena and the L ([Checks and
   tools](#checks-and-tools)).
@@ -2076,13 +2086,26 @@ deck only from its level, along the road at its ends.
   longest vehicle (3.8 m), comes within 2 m of the wall's level: a road carrying on from a deck's
   end, leaving it at an angle (the path 1240691428 off the end of 140780504 by Equi Terme), or
   passing through. No wall stands on a road on its level.
+- **The verges at a deck's end**: pedestrians walk a road's verges (`walkSide`), off its
+  carriageway, and onto a deck's at its end, where their ground comes within `ON_DECK` of it. A
+  verge a few tenths of a metre to a metre under the end's top lies in the low space, so the walk
+  walls round the end stopped them there (18 of Lunigiana's deck ends, 7 of Cesena's, 2 of the L's).
+  A road meeting a deck's end (a vertex of its at the end) opens the walk walls round it as far as
+  its walkers go (`footReach` + `PERSON_RADIUS`), behind the end and up to `ONTO` (2 m) past it,
+  where the ground stands within 2 m (`ONE_LEVEL`) of the end's top. Farther under the deck the
+  walls stay: opening as far as the walkers' reach round the end let a walker up onto bridge
+  798008343 5.1 m from its end. A verge that dips 2 m or more under the end on its way (a ditch: 6.7
+  m under 102308011's), or runs beside the deck more than 2 m past its end (a road turning back
+  along it, as 145347889 by 1362959048), still meets the walls, as anyone under or beside a deck
+  does: 5 of Lunigiana's deck ends and 1 of Cesena's.
 
-Lunigiana has 8,363 walk walls and 8,035 drive walls under its 167 road decks, Cesena 2,862 and 3,139
-under its 50, the L 1,179 and 1,145 under its 23 (the build prints them as `underDecks`;
-2026-11-06). They add 51.8 KB to Lunigiana's files gzipped (32.02 to 32.07 MB), 15.5 KB to Cesena's
-and 6.8 KB to the L's, and `pnpm map-diff` against the build before moves the walls alone (on Cesena
-their extent moves the walk walls' lattice 2.3 m). They take the walls stage about half a second
-longer on Lunigiana (7.85 s, from 7.40).
+Lunigiana has 5,120 walk walls and 8,580 drive walls under its 167 road decks, Cesena 2,044 and 3,109
+under its 50, the L 758 and 1,219 under its 23 (the build prints them as `underDecks`; 2026-11-06).
+They add 44.4 KB to Lunigiana's files gzipped (32.02 to 32.06 MB), 13.1 KB to Cesena's and 6.0 KB to
+the L's, and against the same build without them `pnpm map-diff` moves the walls alone (on Cesena
+their extent moves the walk walls' lattice 1.8 m). They take
+the walls stage under half a second longer on Lunigiana (7.70 and 8.04 s over two builds, from 7.65
+s without them).
 
 ### 11. Road graph (`graph.ts`)
 
@@ -2360,7 +2383,7 @@ and #23 join at y 13000. Lucido's south edge, which Fivizzano's part leaves as i
 | File | Lunigiana | Cesena |
 |---|---|---|
 | `src/sim/map/<name>.bin` (global) | 1.54 MB, 5.76 MB gunzipped | 0.62 MB, 2.4 MB gunzipped |
-| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 79, 30.5 MB in all, 0.05 (5_6) to 0.60 MB (2_1) each | 4, 1.7 MB in all, 0.36 to 0.45 MB each |
+| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 79, 30.5 MB in all, 0.05 (5_6) to 0.61 MB (2_1) each | 4, 1.7 MB in all, 0.37 to 0.45 MB each |
 | `src/sim/map/<name>/overview.png` | 4.52 MB, 3410 × 4096 px | 4.76 MB, 4000 × 4000 px |
 
 On lucido alone they are 0.55 MB (1.9 MB gunzipped), 30 tiles of 9.4 MB in all (the largest 0.56 MB)
@@ -2478,8 +2501,10 @@ Its sections follow the newline in file order:
 | walk, drive wall levels | each wall's level (a bridge's parapet's, its deck's top; a wall under a deck's, the ground's there: [section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)), decimetres a.s.l., or −32768 (`NO_LEVEL`) for a wall that stands at every level | 4 | 1 |
 
 The levels come last, so a build from before them reads as one whose every wall stands at every
-level (`readWholeMap`). They add 15 KB to Lunigiana's tiles gzipped (30.47 to 30.48 MB) and 2.5 KB
-to Cesena's: most walls have none, so each tile's level sections are runs of one value.
+level (`readWholeMap`). With the parapets' levels alone they added 15 KB to Lunigiana's tiles
+gzipped (30.47 to 30.48 MB) and 2.5 KB to Cesena's: most walls have none, so each tile's level
+sections are runs of one value (the walls under the decks, levels and all, add 44.4 and 13.1 KB:
+[section 10](#walls-under-the-decks)).
 
 Each section holds n integers as the zigzag-coded difference (0, −1, 1, −2... stored as 0, 1, 2,
 3...) from the value `stride` places back, split into byte planes: the low byte of every value, then
@@ -2728,11 +2753,14 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   (0, 0) that they answer the same whatever tiles are in memory and in whichever order they came,
   and that a road's level is its surface's within the halo and none farther off.
 - `src/tools/__tests__/deck-ground.map-test.ts`: on Lunigiana, Cesena and the L, the ground
-  keeps out of every road and rail deck's slab (its 0.9 m under the deck's top) between its end
-  runs, and along them stays at most 0.05 m over its profile, read every 0.5 m along and across the
-  slab on the drawn mesh; where a node behind the deck's ends is a corner of the triangle drawn
-  there (its abutment) the approach's ground decides (section 7). It fails on 56 of Lunigiana's 219
-  decks, 23 of Cesena's 56 and 10 of the L's 57 built without the pass, and takes 1.3 s.
+  keeps out of every road and rail deck's slab (its 0.9 m under the deck's top) more than 4 m in
+  from its outer ends (the issue's measure, its own constant, not the pass's end runs; a joint with
+  the next piece of the bridge is no end, `jointsOf`), and nearer them stays at most 0.05 m over its
+  profile, read every 0.5 m along and across the slab on the drawn mesh; where a node behind the
+  ends of the deck and of the pieces joined to it is a corner of the triangle drawn there (its
+  abutment) the approach's ground decides (section 7). It fails on 125 of Lunigiana's 219 decks, 49
+  of Cesena's 56 and 32 of the L's 57 built on `main`, without the pass, and on 115, 45 and 30 with
+  the pass's first end runs, as long as the slab took to stand clear; it takes 1.1 s.
 - `src/tools/__tests__/parapets.map-test.ts`: on Lunigiana, Cesena and the L, every drivable
   bridge's parapets read every 0.25 m along both sides of each deck segment (`parapetFaults` in
   `parapets.ts` beside it): a car on the deck meets a wall wherever no road on the deck's level (its
@@ -2740,21 +2768,31 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   m to spare: the build reads it every 0.25 m, on 0.1 m); a car on a road well inside its
   carriageway there meets no parapet, which a junction on the deck closed or a parapet with the
   wrong level would; and no wall with no level stands there over a road passing under or over the
-  deck. It fails on 4 of Lunigiana's bridges and 16 of Cesena's built before the walls had levels
-  (none of the L's), and on 4 and 17 with the levels dropped from today's build; 1.4 s alone, most
-  of it reading the three maps.
+  deck. A car keeps to the drivable roads: a levelled wall across a footpath (the walls under a deck
+  across the path off the end of 140780504) stops none. It fails on 4 of Lunigiana's bridges and
+  16 of Cesena's built before the walls had levels (none of the L's), and on 4 and 14 with the
+  levels dropped from today's build; 1.3 s alone, most of it reading the three maps.
 - `src/sim/__tests__/under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and
   `under-decks-l.map-test.ts` (the L's skipped without its build, failing in CI): on every road
-  bridge, the game's own walking (`under-decks.ts`). From every point under its slab, every metre
-  along and across it, where someone stands clear on the ground (not on another deck) with room to
-  stand (2.7 m under the deck's top) next to one with less, a walker heads straight for the nearest
-  ground under the slab within 0.45 m of the top and 4 m or more from its ends (the issue's
-  measure), 5 cm a step, keeping to its level (`footZ`) and stopped by the first walk wall it meets
-  (`walkBy`), or by stepping onto another deck: it never comes up onto the deck at a point abeam of
-  it. And along each road meeting each end, from 6 m back along it to 6 m onto the deck, a walker
-  and a Panda that with nothing in their way are on the deck as they cross its end meet no wall
-  with a level. It fails on 56 of Lunigiana's 167 road decks, 27 of Cesena's 50 and 10 of the L's 23
-  built without the walls under the decks, and takes 1.9, 1.0 and 0.3 s.
+  bridge, the game's own walking and driving (`under-decks.ts`). From every point under its slab,
+  every metre along and across it, where someone stands clear on the ground (not on another deck)
+  with room to stand (2.7 m under the deck's top) next to one with less, a walker heads straight for
+  the nearest ground under the slab within 0.45 m of the top and 4 m or more from its ends (the
+  issue's measure), 5 cm a step, keeping to its level (`footZ`) and stopped by the first walk wall
+  it meets (`walkBy`), or by stepping onto another deck: it never comes up onto the deck at a point
+  abeam of it. Under a drivable deck a Panda does the same from where there is room for the tallest
+  vehicle (3.55 m under the top), 0.1 m a step, its wheels on `groundZ` and stopped by the drive
+  walls on their level (`moveCar`). And along each road meeting each end, from 6 m back along it to
+  6 m onto the deck, a walker on its centreline and on either verge (`walkSide`, the road's then the
+  deck's) and a Panda on its centreline that with nothing in their way are on the deck as they cross
+  its end meet no wall with a level. A verge dipping 2 m (`ONE_LEVEL`) under the deck's end on its
+  way, or running beside the deck more than 2 m past its end, is left out: 14 of Lunigiana's verge
+  walks, 16 of Cesena's and 2 of the L's, the walls stopping 5 Lunigiana deck ends' and 1 Cesena
+  one's ([Walls under the decks](#walls-under-the-decks)). Built without the walls under the decks it
+  fails on 7 of Lunigiana's 167 road decks on foot and 7 by car, 1 of Cesena's 50 on foot and 2 and 2
+  of the L's 23 (the ground the pass lowers keeps most decks out of reach), and on the build before
+  the verges' openings round the ends (and the ground past 4 m) on 18 Lunigiana deck ends, 7 Cesena
+  and 2 on the L. It takes 2.3, 0.3 and 0.3 s.
 - `src/sim/population/__tests__/density.map-test.ts` sums the residents at 6,000 points, half of
   them within 40 m of a seam, by 4 reaches (45, 60, 140 and 250 m), and `farms.map-test.ts` reads
   the buildings near 20,000 points and every farm by 3 reaches (10, 25 and 40 m), whether each
@@ -2977,9 +3015,11 @@ far under it but a kept one, moves a window's nodes as it moves the whole grid's
 siding on the line beside it; `deck-ground.test.ts` reads a cell as the game draws it, lowers a
 hump under a deck's slab and no node off it, leaves a bank the slab's edge grazes (the ground under
 the slab goes instead), brings a hillside down under the road along a deck's end run (the SP59's
-by Vinca) and clears the slab from where it first stands clear, keeps a deck that never stands clear
-all end run, keeps a rail deck's ground off its ballast, and flags the nodes round a slab abeam of
-its deck or behind its ends; `grid-tiles.test.ts` checks that the tiles' windows cover the grid,
+by Vinca) and clears the slab past `END_RUN` (4 m) though it first stands clear 19 m in, lowers the
+ground under a deck lying on it all along past its end runs, keeps a rail deck's ground off its
+ballast, lowers the ground at a joint between two pieces of a deck as under the deck whole (a deck
+0.5 m off the joint's level is no piece of it), and flags the nodes round a slab abeam of its deck
+or behind its ends; `grid-tiles.test.ts` checks that the tiles' windows cover the grid,
 neighbours sharing their border nodes, and that the tile `cellTile` names for a point (on and off
 the seams and the grid's edge) holds the four nodes of the cell read there, and on the L test
 region's lattice that its notch's tiles get no window, `listedNodes` holding every node but the
@@ -3458,7 +3498,7 @@ issue #17's part, on 2026-11-04 (arm64, Node 24.14.1).
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
   Lunigiana's largest, 2_1 (x 4000…6000 by y 2000…4000: Argigliano, Pieve San Lorenzo and its
-  station), is 0.61 MB (608,471 B; its JSON line 0.88 MB before gzip); `lucido`'s alone, 0_0, is
+  station), is 0.61 MB (608,135 B; its JSON line 0.88 MB before gzip); `lucido`'s alone, 0_0, is
   0.56 MB with its vectors (its JSON line 0.77 MB), where −1_−1's 0.31 MB was the largest without
   them; Cesena's largest is 0.45 MB and the L's 0.53 MB.
 

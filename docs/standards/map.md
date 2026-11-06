@@ -73,8 +73,8 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
 - Every bridge's deck keeps the ground out of it: `deck-ground.map-test.ts` reads every road and
   rail deck of Lunigiana, Cesena and the L, and fails where the terrain stands within the 0.9 m slab
-  under a deck's top between its end runs, or more than 0.05 m over its profile along them, but at
-  its abutments ([Ground under the
+  under a deck's top more than 4 m in from its outer ends (a joint with the next piece of the bridge
+  is none), or more than 0.05 m over its profile nearer them, but at its abutments ([Ground under the
   decks](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
   The build lowers the ground (`deck-ground.ts`) for every deck from the shipped lines alone, so a
   failure on a new part is the data's (a bridge's ends or profile, two decks at odds) or the pass's:
@@ -82,9 +82,9 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 - Every bridge's parapets hold on its deck's level and only there: `parapets.map-test.ts` reads
   every drivable bridge of Lunigiana, Cesena and the L, and fails where a car on the deck meets no
   wall and no road on the deck's level (within 2 m of its top) reaches the parapet, where a car on a
-  road reaching it meets a parapet (a junction on the deck closed, a road under it walled off by a
-  parapet's wrong level), or where a wall with no level stands on the parapet over a road under or
-  over the deck ([Collision
+  drivable road reaching it meets a parapet (a junction on the deck closed, a road under it walled
+  off by a parapet's wrong level), or where a wall with no level stands on the parapet over a road
+  under or over the deck ([Collision
   walls](../map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)). The build (`parapets.ts`)
   opens and levels every parapet from the shipped roads alone, so a failure on a new part is the
   data's (a bridge's or a road's profile, a junction's roads at odds by 2 m or more, a barrier drawn
@@ -92,9 +92,11 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   one bridge or one part.
 - Nobody comes up onto a bridge's deck from under it: `under-decks.map-test.ts` and its Cesena and L
   twins walk the game's own walker (`footZ`, `walkBy`) under every road deck, from where there is
-  room to stand (2.7 m under its top) toward the ground near its top, and along every road meeting
-  its ends onto it on foot and by car, and fail where the walker comes up onto the deck or where a
-  wall with a level shuts an end that led onto it ([Walls under the
+  room to stand (2.7 m under its top) toward the ground near its top, drive a Panda (`groundZ`,
+  `moveCar`) the same way under every drivable one, from where there is room for the tallest vehicle,
+  and walk every road meeting its ends onto it, on its centreline and its verges, and drive it, and
+  fail where the walker or the car comes up onto the deck or where a wall with a level shuts an end
+  that led onto it ([Walls under the
   decks](../map.md#walls-under-the-decks)). The build (`deck-walls.ts`) walls every road deck from
   the shipped roads and the ground as lowered under the decks alone, so a failure on a new part is
   the data's (a road at grade meeting a deck's level with no junction between them, a deck's or an
@@ -136,7 +138,7 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   when a part shows more, and treat a move far from every seam and from every line the part makes
   whole as a bug.
 - A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.61 MB, Lunigiana's
-  2_1 by Pieve San Lorenzo with the vectors round it, 608,471 B, the build prints it, and
+  2_1 by Pieve San Lorenzo with the vectors round it, 608,135 B, the build prints it, and
   `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road

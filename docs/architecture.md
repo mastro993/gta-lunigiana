@@ -2632,8 +2632,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     returning its four edges, for every tenth tree and every one within a metre of a seam;
     `under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and `under-decks-l.map-test.ts`
     (the L's skipped without its build): on every road bridge of the three, a walker from where there
-    is room to stand under the deck never comes up onto it, and the roads meeting its ends still lead
-    onto it on foot and by car ([map.md](map.md#checks-and-tools));
+    is room to stand under the deck, and a Panda from where there is room for the tallest vehicle,
+    never come up onto it, and the roads meeting its ends still lead onto it on foot, on their
+    centreline and their verges, and by car ([map.md](map.md#checks-and-tools));
     `water.map-test.ts`: every bridge's verges over the water on the deck in a spate;
     `trains-world.map-test.ts`: animals brought out along the whole of Monzone's line, 250 m apart
     (92 games, 337 animals), none on its track at grade;

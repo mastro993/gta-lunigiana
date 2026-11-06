@@ -1572,7 +1572,11 @@ its level:
   same way on their centreline and both verges (102 walks), 71 stray, 54 by more than 2 m, on 15
   of them, so over every bridge 120 of 993 walks do. The drivable bridges' centreline crossings
   above stray nowhere, and `assertBridgesCarry` (`src/render/__tests__/bridges.ts`) walks only
-  those until the sim keeps the verge and path walkers on the deck.
+  those until the sim keeps the verge and path walkers on the deck. The walls under the decks
+  (issue #87) now stop such a walker where the deck's underside comes within 1.8 m of its head, and a
+  pedestrian turns back there; they open round a deck's end along the verges of the roads meeting
+  it, up to 2 m past the end, where the ground stands within 2 m of the end's top, so a verge rising
+  to the deck there still leads onto it ([map.md](map.md#walls-under-the-decks)).
 - **Into a road tunnel's mouth.** An at-grade road's surface never dips under the terrain, and the
   map build cuts the mouths of the underpasses (it once buried them 5.0–5.4 m deep,
   [map.md](map.md)), so walking in along a road keeps to it and onto the tunnel's floor, with no

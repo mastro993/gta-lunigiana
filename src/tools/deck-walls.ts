@@ -15,7 +15,9 @@
 // a body a deck holds, on it or on the road at its ends, never meets one. A road passing under a
 // deck, its surface ONE_LEVEL or more under the deck's top wherever it comes within the walls,
 // keeps a corridor through the low space, walled along its sides; any other road opens the walls
-// across its carriageway where its surface is on their level, so no wall stands on a road.
+// across its carriageway where its surface is on their level, so no wall stands on a road. A road
+// meeting a deck's end opens the walk walls round it along its verges too, where pedestrians walk
+// onto the deck, up to ONTO past the end where the ground stands within ONE_LEVEL of its top.
 import { DECK_SLAB, footReach, isDrivable, ON_DECK, ONE_LEVEL } from "../sim/map/kinds.ts"
 import { PERSON_HEIGHT, PERSON_RADIUS } from "../sim/tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../sim/vehicles.ts"
