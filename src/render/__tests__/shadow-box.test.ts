@@ -42,21 +42,27 @@ test("the shadow box reaches ground that shows only between the view's edges", (
   assert.ok(shadowFit(focus, axes, 100, 60, toSun, gully).below < -400)
 })
 
-/** A 1280 × 720 screen's view, texels; the steps on foot (from 50.2 m, each × √2 the last); a sun 50° up. */
+/** The steps from `base`: each × √2 the last, up to the 300 m cap, which a step landing within a tenth of it gives way to. */
+const ladder = (base: number): Array<number> => {
+  const steps = [base]
+  while (steps.at(-1)! < 300)
+    steps.push(steps.at(-1)! * Math.SQRT2 * 1.1 > 300 ? 300 : steps.at(-1)! * Math.SQRT2)
+  return steps
+}
+/** A 1280 × 720 screen's view, texels; the steps on foot (50.2, 70.9, 100.3, 141.9, 200.6 and 300 m); a sun 50° up. */
 const SCREEN = new Vector2(427, 240),
   FOOT = shadowBase(SCREEN, 8),
-  STEPS = [FOOT],
+  STEPS = ladder(FOOT),
   SUN = new Vector3(-0.75, 1, 0.35).normalize()
-while (STEPS.length < 4) STEPS.push(STEPS.at(-1)! * Math.SQRT2)
 /** `n` frames asking for `need` m. */
 const asking = (n: number, need: number): Array<number> => Array.from({ length: n }, () => need)
 /** The flat ground's fit for the view at `texelsPerMetre`. */
 const flatFit = (texelsPerMetre: number): number =>
   shadowFit(new Vector3(), viewAxes(0), 427 / texelsPerMetre, 240 / texelsPerMetre, SUN, () => 0)
     .half
-/** The box after each of `needs`, one 60 fps frame apart, from `box`. */
-const held = (box: HeldBox | undefined, needs: ReadonlyArray<number>): Array<number> =>
-  needs.map((need) => (box = holdBox(box, need, FOOT, 1 / 60)).half)
+/** The box after each of `needs`, one 60 fps frame apart, from `box`, on the steps from `base`. */
+const held = (box: HeldBox | undefined, needs: ReadonlyArray<number>, base = FOOT): Array<number> =>
+  needs.map((need) => (box = holdBox(box, need, base, 1 / 60)).half)
 
 test("the home view's box on foot is its own flat fit, 50.2 m on a 1280 × 720 screen, and stays so", () => {
   assert.equal(FOOT, flatFit(8))
@@ -89,6 +95,22 @@ test("a box more than one step above what the view asks for drops to the view's 
   const wide = holdBox(holdBox(undefined, FOOT, FOOT, 0), 120, FOOT, 1 / 60)
   assert.equal(wide.half, STEPS[3])
   assert.deepEqual(held(wide, [90, 60, 52]), [STEPS[3], STEPS[1], STEPS[1]])
+})
+
+// Regression (review of #89): the last step below the cap was 283.7 m on foot (× 1.06) and 297 m at zoom 5
+// (× 1.01), and most turns crossed it, redrawing every shadow edge for a texel 6 % or 1 % finer.
+test("no step lands within a tenth of the 300 m cap: the box grows from the step below it straight to the cap, and waits there a second", () => {
+  for (const texelsPerMetre of [8, 5]) {
+    const base = shadowBase(SCREEN, texelsPerMetre),
+      below = ladder(base).at(-2)!
+    const start = holdBox(undefined, below, base, 0)
+    assert.equal(start.half, below)
+    // Outgrown, it takes the cap at once, and a fit still growing toward the cap moves it no more.
+    assert.deepEqual(held(start, [below + 5, below * 1.3, 295, 299], base), asking(4, 300))
+    // Asked for the step below again, it stands one step above it: it waits, not drops.
+    const capped = holdBox(start, 299, base, 1 / 60)
+    assert.deepEqual(held(capped, asking(50, below - 1), base), asking(50, 300))
+  }
 })
 
 test("easing from foot to car and back, the box changes size once each way, never under the view's ground", () => {

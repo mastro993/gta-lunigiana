@@ -89,6 +89,8 @@ export const shadowFit = (
 
 /** Each step of the box's size is this many times the one below it, from the zoom's flat fit (`shadowBase`) up to SHADOW_CAP. */
 const STEP = Math.SQRT2
+/** A step landing within this factor of SHADOW_CAP gives way to the cap: a step of a few per cent would redraw every shadow edge for a texel hardly finer (283.7 m on foot, 297 m at zoom 5). */
+const LEAST = 1.1
 /** Growing, the box takes the step that holds the fit with this share to spare, so a fit still growing through a turn does not take another step the next frame. */
 const SPARE = 0.1
 /** The box shrinks once the view has asked for a smaller step this long, s: a turn or a winding road does not pump its size. */
@@ -112,10 +114,14 @@ export const shadowBase = (view: Vector2, texelsPerMetre: number): number => {
   return flatHalf(view.x / zoom, view.y / zoom)
 }
 
+/** The step above `half`: STEP times it, or SHADOW_CAP once that lands within LEAST of the cap. */
+const nextStep = (half: number): number =>
+  half * STEP * LEAST > SHADOW_CAP ? SHADOW_CAP : half * STEP
+
 /** The smallest step from `base` (base × STEPᵏ, the last SHADOW_CAP) that holds `need` m. */
 const stepFor = (base: number, need: number): number => {
   let half = base
-  while (half < need && half < SHADOW_CAP) half = Math.min(SHADOW_CAP, half * STEP)
+  while (half < need && half < SHADOW_CAP) half = nextStep(half)
   return half
 }
 
@@ -136,7 +142,7 @@ export const holdBox = (
   const fits = stepFor(base, need)
   if (box === undefined) return { half: fits, lower: 0, peak: 0 }
   if (need > box.half) return { half: stepFor(base, need * (1 + SPARE)), lower: 0, peak: 0 }
-  if (box.half > Math.min(SHADOW_CAP, fits * STEP)) return { half: fits, lower: 0, peak: 0 }
+  if (box.half > nextStep(fits)) return { half: fits, lower: 0, peak: 0 }
   if (box.half <= fits) return box.lower === 0 ? box : { half: box.half, lower: 0, peak: 0 }
   const lower = box.lower + dt,
     peak = Math.max(box.peak, need)

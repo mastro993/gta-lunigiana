@@ -1,7 +1,7 @@
 /**
- * Fixtures for the shadow box's turn checks (`shadow-box.long-test.ts` at the spots of issue #89,
- * `shadow-box.map-test.ts` at spots found by the terrain's shape): a sky host's view turned through
- * a whole turn, one degree a frame, and what its key light's shadow box did.
+ * Fixtures for the shadow box's checks (`shadow-box.long-test.ts` at the spots of issue #89,
+ * `shadow-box.map-test.ts` at spots found by the terrain's shape): a sky host's view turned or zoomed
+ * frame by frame, and what its key light's shadow box did.
  *
  * @module render/__tests__/shadow-turns
  */
@@ -15,32 +15,41 @@ import { TILE } from "../../sim/map/kinds.ts"
 import { isListed } from "../../sim/map/tiles.ts"
 import { DAY, daysFromCivil, utcFromRome } from "../../sim/sky/calendar.ts"
 import { initialWeather, setWeather } from "../../sim/sky/weather.ts"
+import { QUARTER } from "../../sim/view.ts"
 import { farTerrainY } from "../ground.ts"
 import { viewAxes } from "../pipeline.ts"
 import { shadowFit } from "../shadow-box.ts"
 import { SkyHost } from "../sky/host.ts"
 import { makePost } from "../sky/post.ts"
+import { followToward, turnToward } from "../swing.ts"
 import { residentAround } from "../testing.ts"
 
 /** 08:00 in Rome on 4 November 2026, the playtest of issue #89: the sun 8.9° up, cast from SHADOW_FLOOR's 20°. */
 const MORNING = utcFromRome(daysFromCivil(2026, 11, 4) * DAY + 8 * 3600)
 /** A 1280 × 720 screen's view, texels. */
 const SCREEN = new Vector2(427, 240)
-/** A frame, s: one degree a frame at 60 fps is the follow camera's fastest turn (0.017 rad a frame). */
+/** A frame at 60 fps, s. */
 const FRAME = 1 / 60
-/** The box's steps: ×√2 from the zoom's flat fit up to the 300 m cap (docs/architecture.md). */
+/** The box's steps: × √2 from the zoom's flat fit up to the 300 m cap, which a step landing within a tenth of it gives way to (docs/architecture.md). */
 const STEP = Math.SQRT2,
+  LEAST = 1.1,
   CAP = 300
 
 /** A map point to turn the view at. */
-export interface Spot {
+interface Spot {
   readonly name: string
   readonly x: number
   readonly y: number
 }
 
-/** One frame of a turn: the shadow box's half size and what `shadowFit` asked for, m. */
-export interface Frame {
+/** The view in one frame: its yaw, rad to the left of the home seat, and its zoom, texels per metre. */
+interface Pose {
+  readonly yaw: number
+  readonly texelsPerMetre: number
+}
+
+/** One frame: the shadow box's half size and what `shadowFit` asked for, m. */
+interface Frame {
   readonly held: number
   readonly need: number
 }
@@ -49,25 +58,63 @@ export interface Frame {
 export const flatHalf = (texelsPerMetre: number): number =>
   Math.hypot(SCREEN.x / texelsPerMetre, SCREEN.y / texelsPerMetre / Math.sin(Math.PI / 6)) / 2 + 10
 
+/** The step above `half`. */
+const nextStep = (half: number): number => (half * STEP * LEAST > CAP ? CAP : half * STEP)
+
 /** The smallest step from `base` that holds `need`. */
 const stepFor = (base: number, need: number): number => {
   let half = base
-  while (half < need && half < CAP) half = Math.min(CAP, half * STEP)
+  while (half < need && half < CAP) half = nextStep(half)
   return half
 }
 
+/** A whole turn, one degree a frame, `dir` 1 to the left or −1 to the right, at `texelsPerMetre`, then `settle` s at home. */
+export const wholeTurn = (texelsPerMetre: number, dir: 1 | -1, settle = 2): Array<Pose> =>
+  Array.from({ length: 361 + Math.round(settle / FRAME) }, (_, k) => ({
+    yaw: (dir * Math.min(k, 360) * Math.PI) / 180,
+    texelsPerMetre,
+  }))
+
 /**
- * The frames of a fresh sky host (08:00, a clear sky) whose view at `spot` turns from the home seat
- * through a whole turn, `dir` 1 to the left or −1 to the right, one degree a frame at
- * `texelsPerMetre`, then rests at home for `settle` s. Reads the tiles within 600 m of the spot, as
- * the host holds round the player (farther, the terrain is the coarse grid's).
+ * Half a second at home, then a quarter turn eased as Q (`dir` 1) or E (−1) eases it
+ * (`turnToward`, about a third of a second, 16° in its first frame), then 2 s at the new seat.
  */
-export const turnAt = (
-  spot: Spot,
-  texelsPerMetre: number,
-  dir: 1 | -1,
-  settle = 2,
-): Array<Frame> => {
+export const quarterTurn = (texelsPerMetre: number, dir: 1 | -1): Array<Pose> => {
+  let yaw = 0
+  return Array.from({ length: Math.round(3 / FRAME) }, (_, k) => {
+    if (k > 30) yaw = turnToward(yaw, dir * QUARTER, FRAME)
+    return { yaw, texelsPerMetre }
+  })
+}
+
+/**
+ * Half a second at rest, then the follow spring's half turn (`followToward`, as when the car turns
+ * round; up to 4.4° a frame), the spring's fastest from rest, then rest again: 4 s in all.
+ */
+export const followTurn = (texelsPerMetre: number, dir: 1 | -1): Array<Pose> => {
+  let spin = { yaw: 0, rate: 0 }
+  return Array.from({ length: Math.round(4 / FRAME) }, (_, k) => {
+    if (k > 30) spin = followToward(spin, dir * Math.PI, FRAME)
+    return { yaw: spin.yaw, texelsPerMetre }
+  })
+}
+
+/** Two seconds at `from` texels per metre and yaw `yaw`, then the zoom eased to `to` as the host eases it (main.ts), 4 s in all. */
+export const zoomEase = (yaw: number, from: number, to: number): Array<Pose> => {
+  let zoom = from
+  return Array.from({ length: Math.round(6 / FRAME) }, (_, k) => {
+    if (k > 120)
+      zoom += Math.abs(to - zoom) < 0.01 ? to - zoom : (to - zoom) * (1 - Math.exp(-3 * FRAME))
+    return { yaw, texelsPerMetre: zoom }
+  })
+}
+
+/**
+ * The frames of a fresh sky host (08:00, a clear sky) whose view at `spot` takes each of `poses`,
+ * a 60 fps frame apart. Reads the tiles within 600 m of the spot, as the host holds round the
+ * player (farther, the terrain is the coarse grid's).
+ */
+export const framesAt = (spot: Spot, poses: ReadonlyArray<Pose>): Array<Frame> => {
   residentAround([spot], 600)
   const host = new SkyHost(new Group(), { reduced: () => false }),
     renderer = {
@@ -82,56 +129,61 @@ export const turnAt = (
   const focus = new Vector3(spot.x, farTerrainY(spot.x, spot.y), -spot.y),
     groundAt = (x: number, z: number) => farTerrainY(x, -z),
     post = makePost()
-  const frames: Array<Frame> = []
-  const turn = 360,
-    rest = Math.round(settle / FRAME)
-  for (let k = 0; k <= turn + rest; k++) {
-    const yaw = (dir * Math.min(k, turn) * Math.PI) / 180,
-      axes = viewAxes(yaw),
-      width = SCREEN.x / texelsPerMetre,
-      height = SCREEN.y / texelsPerMetre
+  return poses.map(({ yaw, texelsPerMetre }, k) => {
     host.sky(MORNING + k * FRAME, 1, weather, 10 + k * FRAME, 0.04)
     host.draw({ focus, yaw, texelsPerMetre, view: SCREEN, post }, renderer)
-    frames.push({
+    const width = SCREEN.x / texelsPerMetre,
+      height = SCREEN.y / texelsPerMetre
+    return {
       held: host.key.shadow.camera.right,
-      need: shadowFit(focus, axes, width, height, host.toKey, groundAt).half,
-    })
-  }
-  return frames
+      need: shadowFit(focus, viewAxes(yaw), width, height, host.toKey, groundAt).half,
+    }
+  })
 }
 
+/** The frames on which the box changed size. */
+export const changesOf = (frames: ReadonlyArray<Frame>): Array<number> =>
+  frames.flatMap((f, k) => (k > 0 && f.held !== frames[k - 1]!.held ? [k] : []))
+
 /**
- * Checks a turn's frames: the box changes size at most `most` times and never on two frames in a
- * row (with `forced`, only when the view forces the second: its ground outgrew the box, or the box
- * stood more than a step above it), never holds less than `shadowFit` asks for nor more than one
- * step above the step that holds it, and starts and ends on that step at the home seat. Returns how
- * many times it changed.
+ * Checks the frames of a turn at a fixed zoom: the box changes size at most `most` times; on two
+ * frames in a row at most `pairs` times, and each such second change only where the view forced it
+ * (its ground outgrew the box, or the box stood more than a step above it); never back on the frame
+ * after to the size it held two frames before (a strobe); never holds less than `shadowFit` asks
+ * for nor more than one step above the step that holds it; and starts and ends at rest on that
+ * step. Returns how many times it changed.
  */
 export const assertTurn = (
   frames: ReadonlyArray<Frame>,
   texelsPerMetre: number,
-  most: number,
+  limits: { readonly most: number; readonly pairs: number },
   label: string,
-  forced = false,
 ): number => {
   const base = flatHalf(texelsPerMetre),
-    above = (need: number) => Math.min(CAP, stepFor(base, need) * STEP)
-  const changed = frames.flatMap((f, k) => (k > 0 && f.held !== frames[k - 1]!.held ? [k] : []))
+    above = (need: number) => nextStep(stepFor(base, need))
+  const changed = changesOf(frames)
   assert.ok(
-    changed.length <= most,
-    `${label}: the box changed size ${changed.length} times in a turn (at most ${most})`,
+    changed.length <= limits.most,
+    `${label}: the box changed size ${changed.length} times (at most ${limits.most})`,
   )
-  const twice = changed.find((k, n) => {
-    if (n === 0 || changed[n - 1] !== k - 1) return false
+  const twice = changed.filter((k, n) => n > 0 && changed[n - 1] === k - 1)
+  assert.ok(
+    twice.length <= limits.pairs,
+    `${label}: the box changed size on two frames in a row ${twice.length} times, at frames ${twice.join(", ")} (at most ${limits.pairs})`,
+  )
+  for (const k of twice) {
     const was = frames[k - 1]!.held,
       need = frames[k]!.need
-    return !forced || (need <= was && was <= above(need))
-  })
-  assert.equal(
-    twice,
-    undefined,
-    `${label}: the box changed size on frames ${twice! - 1} and ${twice}`,
-  )
+    assert.ok(
+      need > was || was > above(need),
+      `${label}: the box changed size on frames ${k - 1} and ${k}, where ${was} m still held the ${need} m asked`,
+    )
+    assert.notEqual(
+      frames[k]!.held,
+      frames[k - 2]!.held,
+      `${label}: the box strobed ${frames[k - 2]!.held} → ${was} → ${frames[k]!.held} m on frames ${k - 2}–${k}`,
+    )
+  }
   frames.forEach(({ held, need }, k) => {
     assert.ok(held >= need, `${label} frame ${k}: ${held} m holds less than the ${need} m asked`)
     assert.ok(
@@ -143,7 +195,7 @@ export const assertTurn = (
     assert.equal(
       frames[k]!.held,
       stepFor(base, frames[k]!.need),
-      `${label}: the home view's own step`,
+      `${label}: at rest, frame ${k}, the view's own step`,
     )
   return changed.length
 }
@@ -165,11 +217,11 @@ const onMap = (i: number, j: number, margin: number): boolean => {
 }
 
 /**
- * Three spots of the loaded map found by the terrain's shape on the coarse 64 m lattice, so the turn
- * checks cover any map's ground: the top of its steepest fall over 192 m along a lattice axis (a
- * slope falling away shows ground far past the view), the floor of its deepest gully (both sides
- * 128 m off along an axis rising the most), and its flattest ground (the least relief within a
- * 384 m square). Only nodes on listed tiles at least 600 m inside the lattice count.
+ * Three spots of the loaded map found by the terrain's shape on the coarse 64 m lattice: the top of
+ * its steepest fall over 192 m along a lattice axis (a slope falling away shows ground far past the
+ * view), the floor of its deepest gully (both sides 128 m off along an axis rising the most), and its
+ * flattest ground (the least relief within a 384 m square). Only nodes on listed tiles at least
+ * 600 m inside the lattice count. They are not where the fit leaps most (docs/architecture.md).
  */
 export const shapedSpots = (): Array<Spot> => {
   const h = (i: number, j: number) => coarseHeightAt(x0 + i * cell, y0 + j * cell)

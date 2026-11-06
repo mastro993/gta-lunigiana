@@ -9,7 +9,10 @@ import { DAY, daysFromCivil, utcFromRome } from "../../../sim/sky/calendar.ts"
 import { place, providePlace } from "../../../sim/sky/place.ts"
 import type { Regime } from "../../../sim/sky/regimes.ts"
 import { initialWeather, setWeather } from "../../../sim/sky/weather.ts"
+import { QUARTER } from "../../../sim/view.ts"
 import { yOf } from "../../ground.ts"
+import { shadowBase } from "../../shadow-box.ts"
+import { turnToward } from "../../swing.ts"
 import { SkyHost } from "../host.ts"
 import { SHADOW_FLOOR } from "../light.ts"
 import { makePost } from "../post.ts"
@@ -171,4 +174,33 @@ test("the fog is lit mostly by the sky: the sun falls on it as on level ground, 
       `${when}: a light grey on screen`,
     )
   }
+})
+
+// Sampled (shadow-box.long-test.ts and shadow-box.map-test.ts turn the view at more spots). Regression (#89): the host
+// sized the key light's shadow box for each frame's yaw, so a turn changed its size on most frames, each change
+// redrawing every shadow edge.
+test("through an E turn the sky host holds the shadow box on its steps, changing its size a few times", () => {
+  const host = new SkyHost(new Group(), { reduced: () => false }),
+    r = renderer(),
+    t = at(8),
+    w = weather("clear", t)
+  // On foot: from the flat fit, each × √2 the last, up to the 300 m cap, which a step within a tenth of it gives way to.
+  const steps = [shadowBase(view().view, 8)]
+  while (steps.at(-1)! < 300)
+    steps.push(steps.at(-1)! * Math.SQRT2 * 1.1 > 300 ? 300 : steps.at(-1)! * Math.SQRT2)
+  let yaw = 0
+  const halves = Array.from({ length: 45 }, (_, k) => {
+    if (k > 10) yaw = turnToward(yaw, -QUARTER, 1 / 60)
+    host.sky(t + k / 60, 1, w, 10 + k / 60, 0.04)
+    host.draw(view(X, Y, yaw), r)
+    return host.key.shadow.camera.right
+  })
+  assert.equal(yaw, -QUARTER, "the turn ended")
+  for (const [k, half] of halves.entries())
+    assert.ok(
+      steps.includes(half),
+      `frame ${k}: ${half} m is none of the steps ${steps.join(", ")}`,
+    )
+  const changes = halves.filter((half, k) => k > 0 && half !== halves[k - 1]).length
+  assert.ok(changes > 0 && changes <= 4, `${changes} changes: ${halves.join(", ")}`)
 })

@@ -1845,7 +1845,7 @@ speed along the contact.
 | `src/sim/sky/` | the clock, the map's place, the climate, the odds, the day plan, the regimes and the ground's weather (see [weather.md](weather.md#tuning)) |
 | `src/sim/map/kinds.ts` | road widths and which classes carry traffic, the player's car, or only people |
 | `src/render/pipeline.ts` | `zoomFor` zoom levels |
-| `src/render/shadow-box.ts` | the shadow box's steps (`STEP`), its spare when it grows (`SPARE`), how long it waits to shrink (`HOLD`) and its widest size (`SHADOW_CAP`) |
+| `src/render/shadow-box.ts` | the shadow box's steps (`STEP`), the least last step below its widest size (`LEAST`), its spare when it grows (`SPARE`), how long it waits to shrink (`HOLD`) and its widest size (`SHADOW_CAP`) |
 | `src/render/swing.ts` | `turnToward` view turn speed; the follow spring's `FOLLOW`, `HOLD`, `SETTLE` and `LAND` |
 | `src/render/people.ts`, `src/render/animals.ts`, `src/render/blood.ts` | the figures' proportions and `STOOP`, the frame choice (`STILL_SPEED`, `RUN_GAIT`, `WALK_STEP`, `RUN_STEP`, `TALK_BEAT`), the animals' builds, the blood pools' sizes and `SPREAD` |
 | `src/audio/director/levels.ts` | how loud each sound is and how far it carries (see [audio.md](audio.md#known-limits-and-tuning)) |

@@ -7,7 +7,8 @@
  * light pool, and hands the surface weather (snow, wet ground, cloud shadows, sway) its uniforms.
  * Every light and weather mesh is made here at construction, before the first frame
  * compiles the shaders, and is driven only by colour and intensity after. Host state for the page's
- * life: it is recomputed from the saved clock and weather each frame, so a loaded save needs nothing.
+ * life: it is recomputed from the saved clock and weather each frame, and the shadow box's held size
+ * starts afresh on the view's own step, so a loaded save needs nothing.
  *
  * @module render/sky/host
  */
@@ -123,8 +124,9 @@ export class SkyHost {
   private shadows = true
   private axes = viewAxes(0)
   private axesYaw = 0
-  /** The key light's shadow box, its size held in steps (`holdBox`). */
+  /** The key light's shadow box, its size held in steps (`holdBox`), and the zoom it was held at, texels per metre. */
   private box: HeldBox | undefined
+  private boxZoom = 0
   private readonly clear = new Color()
   private readonly skyRadiance = new Color()
   /** How far the cloud shadows have drifted with the wind, map metres. */
@@ -224,7 +226,14 @@ export class SkyHost {
         this.toKey,
         (gx, gz) => farTerrainY(gx, -gz),
       )
-    this.box = holdBox(this.box, fit.half, shadowBase(view.view, zoom), dt)
+    // Its wait to shrink holds while the zoom eases (about 1.8 s), so a zoom change moves it once.
+    this.box = holdBox(
+      this.box,
+      fit.half,
+      shadowBase(view.view, zoom),
+      zoom === this.boxZoom ? dt : 0,
+    )
+    this.boxZoom = zoom
     followSun(this.key, focus, this.toKey, { ...fit, half: this.box.half })
     // Dark, or every texel under an overcast sky's cloud shadow: no shadow to draw.
     const shadows = key.intensity * light.direct > KEY_DARK
