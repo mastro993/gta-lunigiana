@@ -1117,7 +1117,8 @@ for `fetch-rt` and the part tools: [Adding a part](#adding-a-part)), 223.8 km²:
   ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)). Other highway values are
   skipped. The ways keep `oneway`, `bridge`, `tunnel`, `layer`, `maxheight` and private access, and
   a tunnel through a house (`tunnel=building_passage`) is a `passage` too, which the game draws on
-  under the house with no bore or portal (21 on Lunigiana, 22 on Cesena). A motorway, a `motorway_link` and a roundabout are oneway unless tagged otherwise, as OSM implies
+  under the house with no bore or portal (21 on Lunigiana, 22 on Cesena). A motorway, a
+  `motorway_link` and a roundabout are oneway unless tagged otherwise, as OSM implies
   (they are drawn in their direction of travel): a one-lane roundabout untagged was a two-way road
   3.5 m wide. A `motorway_link` or `trunk_link` is a `ramp`: primary by class, but a motor road
   (`isMotorRoad` in `kinds.ts`) with its motorway or trunk road, where nobody walks or parks and no
@@ -1685,28 +1686,34 @@ from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
   158.3 m, the LiDAR 159.1–160.8 m), and the other road tunnels' approaches own their cells,
   0.1–0.6 m from what a road beside them wrote.
 - What a road tunnel's mouth holds for the game is baked (`bakeMouths` in
-  `src/render/portals.ts`, the global file's `derived.mouths`), since its tunnel reaches past the
-  tiles round it: a mouth is an end of a road in a tunnel, not a building passage, that no other
-  road in a tunnel goes on from, more than 0.5 m inside the play area. It holds its road, its
-  place, the road's surface there (the profile and `ROAD_LIFT`) and the heading out of the hill
-  over 5 m, and either a portal (its arch's crown and how far its throat runs in:
-  [architecture.md](architecture.md#road-tunnels)) or `open`, where the ground over the tunnel
-  (the roads in a tunnel joined end to end with it, every 2 m) never rises as high over the road as
-  a portal's springing and face wall (`leastCover`: 6.2 m where the way has no `maxheight`). On
-  Lunigiana 28 mouths, 14
-  with a portal: the SR445's 172 m tunnel by Groppoli, the 196 m track south-east of Equi Terme
-  (OSM 214324514), the 147 m quarry track (424169576), the 87 m path under the line at Equi Terme
-  (1133296350), the 33 m track (1181149122), Via Gioco di Sopra's 52 m under Via Nuova and the
-  line in Gragnola and a 16 m unclassified road under a primary (145347886); 14 open: four roads
-  under rail bridges (the SR445's 7.7 m by Gassano among them), Pieve San Lorenzo's 29 m underpass
-  under the station (the ground 5.7 m over it at most), and Via S. Nicola's 19 m in Gragnola and
-  an 11 m path (757045013), whose cover the map's ground does not hold. Cesena has 77 mouths, 11 with a portal (the
-  Secante's four, Via del Tunnel's two, Via Spadolini's two, the Sottopasso Cervese's two and the
-  Sottopasso del Mare's one, its other end on the outline), the centre's arcades open; the L 12,
-  4 with a portal. A part's road tunnels need nothing more: the build finds and bakes their mouths
-  in any region, and `src/render/__tests__/tunnels.map-test.ts` (with its Cesena and L twins)
-  checks every one drawn and pins each region's counts of roads in tunnels, passages, metres,
-  mouths and portals, so it fails until a new part's are looked at and pinned.
+  `src/render/portals.ts`, the global file's `derived.mouths`), since its tunnel, and the roads
+  round it, reach past the tiles round it: a mouth is an end of a road in a tunnel, not a building
+  passage, that no other road in a tunnel goes on from, more than 0.5 m inside the play area. It
+  holds its road, where its portal stands (the road's end, or `back` m into the tunnel along its
+  line where a portal at the end would stand on another road), the road's surface there (the
+  profile and `ROAD_LIFT`) and the heading out of the hill over 5 m, and either a portal (its
+  arch's crown and how far its throat runs in: [architecture.md](architecture.md#road-tunnels)) or
+  `open`: where the ground over the tunnel (the roads in a tunnel joined end to end with it, every
+  2 m) never rises as high over the road as a portal's springing and face wall (`leastCover`:
+  6.2 m where the way has no `maxheight`), or where no spot within 40 m of the end, short of the
+  tunnel's middle, leaves a portal clear of the other roads and the track. On Lunigiana 28 mouths,
+  12 with a portal: both of the SR445's 172 m tunnel by Groppoli, of the 196 m track south-east of
+  Equi Terme (OSM 214324514), of the 147 m quarry track (424169576), of the 87 m path under the
+  line at Equi Terme (1133296350, stood back 7 and 1 m) and of the 33 m track (1181149122), and
+  the east mouths of Via Gioco di Sopra's 52 m under Via Nuova and the line in Gragnola and of a
+  16 m unclassified road under the SS63 (145347886); 16 open: four roads under rail bridges (the
+  SR445's 7.7 m by Gassano among them), Pieve San Lorenzo's 29 m underpass under the station (the
+  ground 5.7 m over it at most), Via S. Nicola's 19 m in Gragnola and an 11 m path (757045013),
+  whose cover the map's ground does not hold, and the west mouths of those two underpasses, where
+  Via Nuova and the SS63 pass over lower than a portal's top. Cesena has 77 mouths, 9 with a
+  portal (the Secante's four, Via del Tunnel's two, the Sottopasso Cervese's two and the
+  Sottopasso del Mare's one, stood back 2 m, its other end on the outline); Via Spadolini's two,
+  beside its cycle path's own tunnel, and the centre's arcades are open. The L has 12, 3 with a
+  portal. A part's road tunnels need nothing more: the build finds and bakes their mouths in any
+  region, and `src/render/__tests__/tunnels.map-test.ts` (with its Cesena and L twins) checks every
+  one drawn and pins each region's counts of roads in tunnels, passages, metres, wall triangles,
+  mouths, portals and mouths open for want of room, so it fails until a new part's are looked at
+  and pinned.
 - Rail (`rail-levels.ts`): at a level crossing the rail keeps its own grade and the road meets it
   (the road's profile, after the rail's, is pinned to it at the shared node): a rail pinned to the
   road's natural level made a V of 3.8–5.1% in its grade within ±5 m (an 82 m vertical curve at
@@ -2207,9 +2214,10 @@ ground past an inner edge of the play area extends that edge, as the apron does 
 lucido's rectangle, anchor kept, and drops its four tiles north-east of (2000, 0), a notch that
 stays put however the region grows, and the `notch.test.ts` beside each runtime reader of the tiles
 and the play area checks it there; the tunnel portals' `portals.test.ts` moves the outline onto a
-tunnel mouth instead, where neither the railway's nor a road's tunnel has a mouth). The build works the terrain of the listed tiles alone, reading none in the
-notch ([Pipeline](#pipeline)), writes the listed tiles alone and keeps a wall or tree whose midpoint
-falls in the notch (an outline wall on its side, a house wall over it) in the listed tile round it
+tunnel mouth instead, where neither the railway's nor a road's tunnel has a mouth). The build
+works the terrain of the listed tiles alone, reading none in the notch ([Pipeline](#pipeline)),
+writes the listed tiles alone and keeps a wall or tree whose midpoint falls in the notch (an
+outline wall on its side, a house wall over it) in the listed tile round it
 nearest it (`tilesRound` in `src/sim/map/kinds.ts`, the cut in `src/tools/tile-map.ts`): such an
 item lies within a wall's reach of the play area, so its coordinates pack as the tile's own do. A
 vector near the notch goes to every listed tile round it. A wall or tree lookup over the notch reads
@@ -2287,7 +2295,7 @@ counter-clockwise, holes clockwise.
 | `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it |
 | `farms` | baked: `{ building, rural, pen }` per farm (`building` indexes the whole map's buildings, the index the tiles' buildings carry; its centre is in `derived.farms`) |
 | `lamps` | baked: every street lamp's lantern, `{ x, y, z, nx, ny, kind }` |
-| `derived` | what the build works out from the vectors for the readers far from the player, where the tiles holding them need not be in memory (`Derived` in `index.ts`): copies of what the railway points at, `crossings` (per level crossing, its road's line, which the trains and the crossings read anywhere), `platforms` (per platform, its area's rings, for the trains' look-out) and `stations` (per station, the first station building of its name, or null: its canopy's wall); and tables the game's own code bakes, `bells` (`{ id, x, y, z, h }`, the tallest church or tower of every district that has one, heard all over the map: 84 on Lunigiana), `residents` (per walk edge, `graph.walk` order, the residents of the homes within 60 m of its midpoint, float32), `farms` (per farm, its building's centre, flat x, y: the mean of its outer ring's vertices) and `mouths` (every road tunnel's mouth, by road and its first end first: `{ road, x, y, z, angle }` and either `crown` and `throat` for its portal or `open: true`, [section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts); 28 on Lunigiana) |
+| `derived` | what the build works out from the vectors for the readers far from the player, where the tiles holding them need not be in memory (`Derived` in `index.ts`): copies of what the railway points at, `crossings` (per level crossing, its road's line, which the trains and the crossings read anywhere), `platforms` (per platform, its area's rings, for the trains' look-out) and `stations` (per station, the first station building of its name, or null: its canopy's wall); and tables the game's own code bakes, `bells` (`{ id, x, y, z, h }`, the tallest church or tower of every district that has one, heard all over the map: 84 on Lunigiana), `residents` (per walk edge, `graph.walk` order, the residents of the homes within 60 m of its midpoint, float32), `farms` (per farm, its building's centre, flat x, y: the mean of its outer ring's vertices) and `mouths` (every road tunnel's mouth, by road and its first end first: `{ road, x, y, z, angle }` where its portal stands, and either `crown`, `throat` and `back` (how far it stands back into the tunnel from the road's end, m) for its portal or `open: true` at the road's end, [section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts); 28 on Lunigiana) |
 
 The baked tables are what the game would otherwise work out at load from the dense layers and the
 vectors, which it now holds only near the player. Each is computed by the game's own code at build
@@ -2307,12 +2315,13 @@ does the same for Cesena in a process of its own (a process loads one map), so a
 parked spots, water beds and farms within 1 km of Monzone station and of Cesena's start, so
 `pnpm test` already fails on most such changes (the lanes, the lamps, the bells, the residents and
 the mouths are worked out map-wide, and only the map checks catch them; `tunnels.test.ts` bakes
-the SR445's and the 196 m track's mouths again).
+the SR445's, the 196 m track's and the 87 m path's mouths again).
 
 Gzipped on their own, the global JSON line's biggest fields on Lunigiana are the graph 0.80 MB, the
 spawns 0.30 MB (the parked rests, most of it), `derived` 161 KB (the residents 98 KB, the farms'
-centres 57 KB, the mouths 0.8 KB) and the lamps 74 KB; the POIs are 23 KB, the farms 20 KB, the roads' attributes 20 KB
-and the lanes 16 KB (gzip at level 9, as the files are). The line is 5.54 MB before gzip (lucido's
+centres 57 KB, the mouths 0.9 KB) and the lamps 74 KB; the POIs are 23 KB, the farms 20 KB, the
+roads' attributes 20 KB and the lanes 16 KB (gzip at level 9, as the files are). The line is
+5.54 MB before gzip (lucido's
 alone 1.88 MB, where it was 6.20 MB with the vectors). Gzipped one layer and one tile at a time and
 summed over Lunigiana's 79 tiles, the vectors are the areas 7.24 MB, the water 3.18 MB, the
 buildings 0.81 MB, the roads' lines 0.76 MB and the barriers 8 KB; before gzip 20.19, 10.34, 3.42,
@@ -2647,10 +2656,10 @@ look, the palette or the vectors needs `pnpm maps` again, as a stale bake does; 
 checks its size (3195 × 4096 px for lucido's bounds, 4000 × 4000 for Cesena's), the look on an
 L-shaped map (grass on the play area alone, the areas, the water, the roads by class narrowest
 first, a tunnel dashed, no paths, the buildings on top, transparent in the notch) and that two
-paints give the same bytes, which `pngData` gives back as the pixels; `paint-raster.test.ts` checks that a
-fill covers the pixels inside and a pixel half inside by half by either rule, that a stroke covers
-its width with round ends, each pixel once however many segments reach it, and that a clip lets
-paint through by its coverage.
+paints give the same bytes, which `pngData` gives back as the pixels; `paint-raster.test.ts`
+checks that a fill covers the pixels inside and a pixel half inside by half by either rule, that
+a stroke covers its width with round ends, each pixel once however many segments reach it, and
+that a clip lets paint through by its coverage.
 
 `src/tools/__tests__/bake.map-test.ts` runs the bakes again on the shipped map, given the whole
 map's vectors joined from its tiles, and compares them, and the place refitted over the nodes of
