@@ -94,25 +94,29 @@ const onDeck = (deck: Deck, at: Vec2.Vec2) => {
 
 /**
  * The point under `deck`'s slab nearest `at` (on a 0.25 m lattice, within 6 m) where a person stands
- * on the ground with 0.3–3 m more than ROOM under its top, a metre or more clear of every walk wall
- * they meet there: some way down the bank from the wall.
+ * on the ground with ROOM to ROOM + 0.6 m under its top (the issue's 2.5–3.3 m, from where the walls
+ * stand: 2.5 m is inside them), clear of every walk wall they meet there: by the wall. Where no spot
+ * in that band stands clear of the wall (Via delle Cave's bank rises 1.85 m a metre), the nearest
+ * with up to ROOM + 3 m.
  */
 const roomUnder = (deck: Deck, at: Vec2.Vec2): Vec2.Vec2 => {
-  let best: Vec2.Vec2 | undefined
+  let best: { readonly p: Vec2.Vec2; readonly rank: number } | undefined
   for (let dy = -6; dy <= 6; dy += 0.25)
     for (let dx = -6; dx <= 6; dx += 0.25) {
       const p = { x: at.x + dx, y: at.y + dy },
         on = onDeck(deck, p),
         ground = atGrade(p.x, p.y),
         room = on.level - ground
-      if (!on.abeam || on.d > deck.half + DECK_SLAB.margin || room < ROOM + 0.3 || room > ROOM + 3)
+      if (!on.abeam || on.d > deck.half + DECK_SLAB.margin || room < ROOM || room > ROOM + 3)
         continue
-      const walls = wallsAlong("walk", p.x, p.y, 0, 0, PERSON_RADIUS + 1.5, ground)
-      if (!clearOf(walls, p.x, p.y, PERSON_RADIUS + 1)) continue
-      if (best === undefined || Vec2.distance(p, at) < Vec2.distance(best, at)) best = p
+      const walls = wallsAlong("walk", p.x, p.y, 0, 0, PERSON_RADIUS + 0.5, ground)
+      if (!clearOf(walls, p.x, p.y, PERSON_RADIUS + 0.05)) continue
+      // In the band first, then the nearest.
+      const rank = (room > ROOM + 0.6 ? 100 : 0) + Vec2.distance(p, at)
+      if (best === undefined || rank < best.rank) best = { p, rank }
     }
   assert.ok(best !== undefined, `no room to stand under the deck by (${at.x}, ${at.y})`)
-  return best
+  return best.p
 }
 
 /** The arrow keys held for each way to walk at the home view: ← → and ↓ ↑ along its screen axes. */
@@ -211,22 +215,24 @@ for (const { name, from } of BRIDGES) {
     // From under the deck, where there is room to stand, toward its nearer end, where the ground rises to it.
     const start = roomUnder(deck, from),
       { end } = endNear(deck, start)
-    let nearest = Vec2.distance(start, end)
-    walk(start, atGrade(start.x, start.y), [end], 240, (footing, at) => {
+    const last = walk(start, atGrade(start.x, start.y), [end], 240, (footing, at) => {
       const on = onDeck(deck, at)
       assert.ok(
         footing < on.level - ON_DECK,
         `the player at (${at.x.toFixed(2)}, ${at.y.toFixed(2)}) stands at ${footing.toFixed(2)} m, the deck's top ${on.level.toFixed(2)} m over it`,
       )
-      nearest = Math.min(nearest, Vec2.distance(at, end))
     })
+    // Up against a wall it meets on its level, short of the end.
+    const walls = wallsAlong("walk", last.at.x, last.at.y, 0, 0, PERSON_RADIUS + 0.5, last.footing)
     assert.ok(
-      nearest < Vec2.distance(start, end) - 0.5,
-      `the player walked from ${Vec2.distance(start, end).toFixed(2)} m of the deck's end to ${nearest.toFixed(2)} m`,
+      Vec2.distance(last.at, start) > 0.1 &&
+        !clearOf(walls, last.at.x, last.at.y, PERSON_RADIUS + 0.05) &&
+        Vec2.distance(last.at, end) > 0.3,
+      `the player walked from (${start.x}, ${start.y}) to (${last.at.x.toFixed(2)}, ${last.at.y.toFixed(2)}), ${Vec2.distance(last.at, end).toFixed(2)} m from the deck's end, at ${last.footing.toFixed(2)} m`,
     )
   })
 
-  test(`under decks: from the road at each end of ${name} bridge, the player walks onto its deck and a Panda drives onto it`, () => {
+  test(`under decks: from the road at each end of ${name} bridge, the player walks onto its deck and a Panda drives across it, on its top`, () => {
     for (const end of deck.ends) {
       const { onto } = endNear(deck, end)
       // On foot: from 6 m back along the deck's line, on the road there, to 4 m onto the deck.
@@ -239,9 +245,13 @@ for (const { name, from } of BRIDGES) {
         `walking onto it at (${end.x}, ${end.y}): at (${reached.at.x.toFixed(2)}, ${reached.at.y.toFixed(2)}), ${reached.footing.toFixed(2)} m, its top ${on.level.toFixed(2)} m`,
       )
       if (!isDrivable(deck.cls)) continue
-      // By car: a Panda rolling onto it from 8 m back along its line, at 4 m/s.
-      const car = Vec2.add(end, Vec2.scale(onto, -8)),
-        pose = { ...car, angle: Ops.atan2(onto.y, onto.x) }
+      // By car: a Panda rolling onto it from 8 m back along its line, at 4 m/s, on until it is 4 m
+      // past the far end, its wheels on the deck's top while over it.
+      const far = deck.ends[deck.ends[0] === end ? 1 : 0],
+        car = Vec2.add(end, Vec2.scale(onto, -8)),
+        heading = Vec2.normalizeOr(Vec2.subtract(far, car), Vec2.zero),
+        pose = { ...car, angle: Ops.atan2(heading.y, heading.x) },
+        frames = Math.ceil(((Vec2.distance(car, far) + 4) / 4) * 60)
       const game = start(
         [],
         [
@@ -250,13 +260,21 @@ for (const { name, from } of BRIDGES) {
         ],
         { alone: true },
       )
-      game.run(180)
-      const panda = game.world().vehicles[0]!,
-        wheels = panda.chassis.z - VEHICLES.panda.cg,
-        under = onDeck(deck, panda)
+      let worst = 0,
+        at = ""
+      game.run(frames, () => {
+        const panda = game.world().vehicles[0]!,
+          wheels = panda.chassis.z - VEHICLES.panda.cg,
+          over = onDeck(deck, panda)
+        if (!over.abeam || over.d > deck.half || Math.abs(wheels - over.level) <= worst) return
+        worst = Math.abs(wheels - over.level)
+        at = `at (${panda.x.toFixed(2)}, ${panda.y.toFixed(2)}), its wheels at ${wheels.toFixed(2)} m, the deck's top ${over.level.toFixed(2)} m`
+      })
+      const panda = game.world().vehicles[0]!
+      assert.ok(worst < 0.3, `driving across it from (${end.x}, ${end.y}): the Panda ${at}`)
       assert.ok(
-        under.abeam && under.d < deck.half && Math.abs(wheels - under.level) < 0.3,
-        `driving onto it at (${end.x}, ${end.y}): the Panda at (${panda.x.toFixed(2)}, ${panda.y.toFixed(2)}), its wheels at ${wheels.toFixed(2)} m, the deck's top ${under.level.toFixed(2)} m`,
+        Vec2.dot(Vec2.subtract(panda, far), heading) > 2,
+        `driving across it from (${end.x}, ${end.y}): the Panda stops at (${panda.x.toFixed(2)}, ${panda.y.toFixed(2)}), short of its far end (${far.x}, ${far.y})`,
       )
     }
   })
