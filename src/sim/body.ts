@@ -122,14 +122,17 @@ export const crossesAny = (segs: ReadonlyArray<Segment>, p: Vec2.Vec2, q: Vec2.V
   })
 
 /**
- * Of `vehicles`, the one a person at `at` gets into with the action key: the nearest body (the
- * capsule around its circles) within `reach` m (ENTER_GAP), the later one on a tie, with no walk wall
- * between the person and its axis that they meet standing at `z` (m a.s.l.; every one when left
- * out); never one lying on its side or roof, nor a destroyed one. The action (EnterExit) and the HUD
- * prompt (PlayerView) both ask this, through `boardingAt` (rail/boarding.ts).
+ * Of `vehicles`, the one a person at `at` standing on `ground` (m a.s.l.) gets into with the action
+ * key: the nearest body (the capsule around its circles) within `reach` m (ENTER_GAP), the later one
+ * on a tie, on their level (`onLevel`, as a train's door: its wheels' ground under the point of its
+ * axis nearest them, so a deck over them or a road under them is not), with no walk wall between the
+ * person and its axis that they meet on `ground` (`meets`); never one lying on its side or roof, nor
+ * a destroyed one. The action (EnterExit) and the HUD prompt (PlayerView) both ask this, through
+ * `boardingAt` (rail/boarding.ts).
  */
 export const vehicleInReach = <T>(
   at: Vec2.Vec2,
+  ground: number,
   vehicles: ReadonlyArray<T>,
   bodyOf: (vehicle: T) => {
     readonly model: VehicleModel
@@ -138,7 +141,6 @@ export const vehicleInReach = <T>(
     readonly damage: number
   },
   reach = ENTER_GAP,
-  z?: number,
 ): T | undefined => {
   let best = reach,
     found: T | undefined
@@ -154,8 +156,11 @@ export const vehicleInReach = <T>(
     const dx = at.x - axis.x,
       dy = at.y - axis.y
     const gap = Math.sqrt(dx * dx + dy * dy) - width / 2
-    if (gap > best || crossesAny(wallsAlong("walk", at.x, at.y, -dx, -dy, 0.5, z), at, axis))
-      continue
+    // Its wheels' ground under that point of its axis: along its pitch from under its middle, so a long body on a steep lane is
+    // judged where the person stands by it.
+    const wheels = chassis.z - VEHICLES[model].cg + along * Ops.tan(chassis.pitch)
+    if (gap > best || !onLevel(ground, wheels)) continue
+    if (crossesAny(wallsAlong("walk", at.x, at.y, -dx, -dy, 0.5, ground), at, axis)) continue
     best = gap
     found = vehicle
   }

@@ -114,8 +114,8 @@ export type Boarding<V, T> =
 
 /**
  * What a person at `at` standing on `ground` (m a.s.l.) gets into with the action key: the vehicle in reach (`vehicleInReach`)
- * nearer than any train's door in reach (`trainInReach`), else that train. The action (EnterExit) and the HUD's prompt
- * (PlayerView) both ask this.
+ * nearer than any train's door in reach (`trainInReach`), else that train, each only on their level (`onLevel`). The action
+ * (EnterExit) and the HUD's prompt (PlayerView) both ask this.
  */
 export const boardingAt = <V, T>(
   at: Vec2.Vec2,
@@ -131,7 +131,7 @@ export const boardingAt = <V, T>(
   of: (train: T) => Boardable,
 ): Boarding<V, T> | undefined => {
   const door = trainInReach(at, ground, trains, of),
-    vehicle = vehicleInReach(at, vehicles, bodyOf, door?.gap, ground)
+    vehicle = vehicleInReach(at, ground, vehicles, bodyOf, door?.gap)
   if (vehicle !== undefined) return { kind: "vehicle", vehicle }
   return door === undefined ? undefined : { kind: "train", train: door.train, door: door.door }
 }
