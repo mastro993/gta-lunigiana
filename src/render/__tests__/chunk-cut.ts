@@ -41,7 +41,7 @@ export const linesOf = ({ roads, water }: Vectors): Array<Piece> => [
 
 /**
  * Every piece of `vectors` (all of the map's, or all of them round a spot) in the whole map's draw order, as a whole-map
- * build makes them: the buildings, each road's ribbons and deck, the rivers, then the railway (its crossings laid over
+ * build makes them: the buildings, each road's ribbons and deck or bore, the rivers, then the railway (its crossings laid over
  * every road ribbon of `vectors`), the stations and the lamps.
  */
 export const wholeBuild = (vectors: Vectors): Array<Piece> => {

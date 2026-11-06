@@ -19,15 +19,17 @@ const chunkCut = skip === false ? await import("./chunk-cut.ts") : undefined
 const checks = skip === false ? await import("./tunnel-checks.ts") : undefined
 
 test(
-  "the L: every road in a tunnel drawn at its floor, its bore under the hill, a portal at every mouth the hill stands over, its chunks as a whole-map build cuts them",
+  "the L: every road in a tunnel drawn at its floor, its bore under the hill along both sides, a portal clear of every other road at every mouth the hill stands over and leaves room for, its chunks as a whole-map build cuts them",
   { skip },
   () => {
     assert.deepEqual(checks!.checkTunnels(chunkCut!.wholeVectors()), {
       tunnels: 7,
       passages: 1,
       metres: 194,
+      walls: 633,
       mouths: 12,
-      portals: 4,
+      portals: 3,
+      crowded: 1,
     })
   },
 )

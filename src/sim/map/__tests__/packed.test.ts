@@ -79,7 +79,7 @@ const map: MonzoneMap = {
     residents: [0, Math.fround(1.3)],
     farms: [3.5, 4.25],
     mouths: [
-      { road: 0, x: 1, y: 2, z: 160.06, angle: 2.6, crown: 6.75, throat: 12 },
+      { road: 0, x: 1, y: 2, z: 160.06, angle: 2.6, crown: 6.75, throat: 12, back: 2 },
       { road: 0, x: 5, y: 6, z: 157.36, angle: -0.5, open: true },
     ],
   },

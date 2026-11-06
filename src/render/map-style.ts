@@ -130,7 +130,7 @@ export const overviewRoad: RoadLook<PaintRoad> = (road, cls, scale) => ({
  * The stretches of the polyline `pts` a dashed line draws: from its start, every other `dash` m
  * along it. Only + − × ÷ and sqrt, so the build's raster paints the same bits on every machine.
  */
-export const dashesOf = (pts: ReadonlyArray<number>, dash: number): Array<Array<number>> => {
+const dashesOf = (pts: ReadonlyArray<number>, dash: number): Array<Array<number>> => {
   const out: Array<Array<number>> = []
   let current = [pts[0]!, pts[1]!],
     on = true,

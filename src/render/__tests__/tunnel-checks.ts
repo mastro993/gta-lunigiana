@@ -1,39 +1,32 @@
-// The checks tunnels.test.ts (the SR445's tunnel by Groppoli, the 196 m track east of Equi Terme
-// and Via Casola's building passage) and the tunnels map tests (every road tunnel of Lunigiana,
-// Cesena and the L) share: a road in a tunnel drawn at its floor, its bore's dark walls under the
-// hill, a portal at every mouth the hill stands over, a passage's road on under its house.
+// The checks tunnels.test.ts (the SR445's tunnel by Groppoli, the 196 m track east of Equi Terme,
+// the 87 m path under the line at Equi Terme and Via Casola's building passage) and the tunnels map
+// tests (every road tunnel of Lunigiana, Cesena and the L) share: a road in a tunnel drawn at its
+// floor, its bore's dark walls under the hill along both its sides, a portal clear of every other
+// road at every mouth the hill stands over (mouth-checks.ts), a passage's road on under its house.
 import assert from "node:assert/strict"
 
 import { ROAD_LIFT, terrainZ } from "../../sim/map/ground.ts"
-import { MAP, outlineDistance, type Road, roadClassOf } from "../../sim/map/index.ts"
-import type { Layer } from "../../sim/map/packed.ts"
+import { MAP, type Road, roadClassOf } from "../../sim/map/index.ts"
 import { tileVectors } from "../../sim/map/tiles.ts"
+import { boreOf, isBored } from "../bores.ts"
 import { chunkTiles } from "../chunk-tiles.ts"
 import { CHUNKS, chunkOf } from "../chunks.ts"
-import { type Piece, type Sink, Triangles, WaterTriangles } from "../geometry.ts"
 import { terrainY, yOf } from "../ground.ts"
 import { bridgeHex, roadHex, roadPieces } from "../lines.ts"
 import { PALETTE } from "../palette.ts"
 import { Pieces } from "../pieces.ts"
-import { leastCover, portalPieces } from "../portals.ts"
+import { leastCover } from "../portals.ts"
 import type { Vectors } from "../testing.ts"
 import { assertChunkCut, wholeBuild } from "./chunk-cut.ts"
+import {
+  checkClear,
+  checkNoPortal,
+  checkPortal,
+  checkStoodBack,
+  drawn,
+  mouthsOf,
+} from "./mouth-checks.ts"
 import { heightIn, type Tri, trianglesOf } from "./rail-checks.ts"
-
-const sink = (): Sink => ({
-  solid: new Triangles(),
-  decal: new Triangles(),
-  water: new WaterTriangles(),
-  glow: new Triangles(),
-  pieces: [],
-})
-
-/** `piece` drawn whole into one sink. */
-const drawn = (piece: Piece): Sink => {
-  const all = sink()
-  piece.draw(() => all, 0, Math.max(0, piece.pts.length / 2 - 2))
-  return all
-}
 
 /** Points every `step` m along `road`'s line (its ends left out), each with the road's profile there, m a.s.l. */
 const along = (
@@ -106,10 +99,33 @@ export const checkRibbon = (road: Road): number => {
   return points.length
 }
 
+/** Whether triangle `tri` (three space) holds point `p`, within 1 cm of its plane. */
+const holds = ([a, b, c]: Tri, p: readonly [number, number, number]): boolean => {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+    v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]],
+    w = [p[0] - a[0], p[1] - a[1], p[2] - a[2]]
+  const dot = (x: ReadonlyArray<number>, y: ReadonlyArray<number>) =>
+    x[0]! * y[0]! + x[1]! * y[1]! + x[2]! * y[2]!
+  const uu = dot(u, u),
+    uv = dot(u, v),
+    vv = dot(v, v),
+    wu = dot(w, u),
+    wv = dot(w, v),
+    det = uu * vv - uv * uv
+  if (det < 1e-9) return false
+  const s = (vv * wu - uv * wv) / det,
+    t = (uu * wv - uv * wu) / det,
+    off = w.map((x, i) => x - s * u[i]! - t * v[i]!)
+  return s >= -1e-6 && t >= -1e-6 && s + t <= 1 + 1e-6 && Math.hypot(...off) < 0.01
+}
+
 /**
- * Road `road` in a tunnel draws its bore's walls, dark, every corner of them 0.2 m or more under
- * the terrain (they never stand out of the hill), and nothing else solid: none for a building
- * passage, whose house stands over it. Returns how many wall triangles it draws.
+ * Road `road` in a tunnel draws its bore's walls, dark, and nothing else solid: none for a building
+ * passage, whose house stands over it. Every edge of them stands 0.2 m or more under the terrain
+ * (sampled every 0.1 m: they never stand out of the hill, between their corners as at them), and
+ * they stand on both sides of the road all along it (Decision 3): every 2 m along each side, where
+ * the terrain stands 0.5 m or more over the road's floor, a wall holds the point at the floor's
+ * height. Returns how many wall triangles it draws.
  */
 export const checkBore = (road: Road): number => {
   const solid = roadPieces(road)
@@ -122,111 +138,59 @@ export const checkBore = (road: Road): number => {
     `road ${road.id} in a tunnel: nothing but its dark walls`,
   )
   for (const tri of all)
-    for (const [x, h, z] of tri)
-      assert.ok(
-        h <= terrainY(x, -z) - 0.2 + 1e-6,
-        `road ${road.id}: a wall corner ${(h - terrainY(x, -z)).toFixed(2)} m over the terrain at (${x.toFixed(1)}, ${(-z).toFixed(1)})`,
-      )
+    for (let i = 0; i < 3; i++) {
+      const p = tri[i]!,
+        q = tri[(i + 1) % 3]!,
+        n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[2] - p[2]) / 0.1))
+      for (let j = 0; j <= n; j++) {
+        const x = p[0] + ((q[0] - p[0]) * j) / n,
+          h = p[1] + ((q[1] - p[1]) * j) / n,
+          y = -(p[2] + ((q[2] - p[2]) * j) / n)
+        assert.ok(
+          h <= terrainY(x, y) - 0.2 + 1e-6,
+          `road ${road.id}: a wall ${(h - terrainY(x, y)).toFixed(2)} m over the terrain at (${x.toFixed(1)}, ${y.toFixed(1)})`,
+        )
+      }
+    }
+  if (!isBored(road)) return all.length
+  const { half } = boreOf(road),
+    lift = ROAD_LIFT[roadClassOf(road)],
+    near = bucketed(all)
+  for (let k = 0; k + 1 < road.z.length; k++) {
+    const ax = road.pts[2 * k]!,
+      ay = road.pts[2 * k + 1]!,
+      dx = road.pts[2 * k + 2]! - ax,
+      dy = road.pts[2 * k + 3]! - ay,
+      l = Math.hypot(dx, dy),
+      n = Math.max(2, Math.ceil(l / 2))
+    for (let j = 1; j < n; j++)
+      for (const side of [-1, 1]) {
+        const x = ax + (dx * j) / n - (dy / l) * half * side,
+          y = ay + (dy * j) / n + (dx / l) * half * side,
+          floor = yOf(road.z[k]! + ((road.z[k + 1]! - road.z[k]!) * j) / n + lift)
+        if (terrainY(x, y) - floor < 0.5) continue
+        assert.ok(
+          near(x, y).some((tri) => holds(tri, [x, floor, -y])),
+          `road ${road.id} in a tunnel: no wall at (${x.toFixed(1)}, ${y.toFixed(1)}), ${(terrainY(x, y) - floor).toFixed(1)} m under the hill`,
+        )
+      }
+  }
   return all.length
 }
 
-/** A road tunnel's mouth: its road (index in the whole map's roads), its end and the heading out of the hill (rad). */
-export interface Mouth {
-  readonly road: number
-  readonly x: number
-  readonly y: number
-  readonly angle: number
-}
-
-/** An end of a road's line, and the heading out along it from the vertex before it over 5 m or more. */
-const endOf = (road: Road, end: 0 | 1) => {
-  const n = road.z.length,
-    k = end === 0 ? 0 : n - 1,
-    step = end === 0 ? 1 : -1,
-    x = road.pts[2 * k]!,
-    y = road.pts[2 * k + 1]!
-  let i = k + step
-  while (i > 0 && i < n - 1 && Math.hypot(road.pts[2 * i]! - x, road.pts[2 * i + 1]! - y) < 5)
-    i += step
-  return { x, y, angle: Math.atan2(y - road.pts[2 * i + 1]!, x - road.pts[2 * i]!) }
-}
-
-/**
- * The mouths of the road tunnels of `roads` (the whole map's, or every road within reach of the
- * tunnels it is asked about): each end of a road in a tunnel, not a building passage, that no other
- * road in a tunnel ends at, inside the play area (farther than 0.5 m from its outline, where a road
- * runs on past it).
- */
-export const mouthsOf = ({ ids, items }: Layer<Road>): Array<Mouth> => {
-  const ends = new Map<string, number>()
-  for (const road of items)
-    if (road.tunnel === true)
-      for (const k of [0, road.z.length - 1]) {
-        const key = `${road.pts[2 * k]},${road.pts[2 * k + 1]}`
-        ends.set(key, (ends.get(key) ?? 0) + 1)
-      }
-  return items.flatMap((road, n) =>
-    road.tunnel !== true || road.passage === true
-      ? []
-      : ([0, 1] as const).flatMap((end) => {
-          const { x, y, angle } = endOf(road, end)
-          return ends.get(`${x},${y}`) === 1 && outlineDistance(x, y) > 0.5
-            ? [{ road: ids[n]!, x, y, angle }]
-            : []
-        }),
-  )
-}
-
-/**
- * The portal at `mouth` of road `road`: a dark mouth of 6 triangles or more facing out of the hill,
- * its crown over the road's clearance (OSM's `maxheight`, 4 m untagged), and a face in `face`'s
- * colour (concrete on the main, provincial and unclassified roads, old stone on the rest).
- */
-export const checkPortal = (road: Road, mouth: Mouth, face: number): void => {
-  const piece = portalPieces().find(({ pts }) => pts[0] === mouth.x && pts[1] === mouth.y)
-  assert.ok(piece !== undefined, `no portal at road ${road.id}'s mouth (${mouth.x}, ${mouth.y})`)
-  const { solid } = drawn(piece),
-    reach = road.w / 2 + 2
-  const dark = trianglesOf(solid, PALETTE.tunnelDark).filter((tri) =>
-    tri.every(([px, , pz]) => Math.hypot(px - mouth.x, -pz - mouth.y) < reach),
-  )
-  assert.ok(dark.length >= 6, `the mouth at ${mouth.x}, ${mouth.y}: ${dark.length} dark triangles`)
-  const end = mouth.x === road.pts[0] && mouth.y === road.pts[1] ? 0 : road.z.length - 1,
-    floor = yOf(road.z[end]!)
-  assert.ok(
-    dark.some((tri) => tri.some(([, h]) => h > floor + (road.maxheight ?? 4))),
-    "a crown over the road's clearance",
-  )
-  const ox = Math.cos(mouth.angle),
-    oy = Math.sin(mouth.angle)
-  for (const [a, b, c] of dark) {
-    // The triangle's normal across (x, z of three space) against the way out (map ox, oy is three ox, −oy).
-    const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]),
-      nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-    assert.ok((nx * ox - nz * oy) / Math.hypot(nx, nz) > 0.8, "facing out of the hill")
-  }
-  assert.ok(trianglesOf(solid, face).length >= 6, "its face in the road bridges' colour")
-}
-
-/** No portal stands within 5 m of map point (x, y). */
-export const checkNoPortal = (x: number, y: number): void => {
-  const near = portalPieces().filter(({ pts }) => Math.hypot(pts[0]! - x, pts[1]! - y) < 5)
-  assert.equal(near.length, 0, `a portal by (${x}, ${y})`)
-}
-
-/** The ends of `road` as mouths, heading out along it. */
-export const endsOf = (road: Road, id: number): Array<Mouth> =>
-  ([0, 1] as const).map((end) => ({ road: id, ...endOf(road, end) }))
-
 /** What a region's road tunnels are, which its map test pins so that a change to them shows. */
-export interface TunnelCounts {
+interface TunnelCounts {
   /** Roads in a tunnel, the building passages among them, and how long they are together, whole metres. */
   readonly tunnels: number
   readonly passages: number
   readonly metres: number
+  /** The triangles of their bores' walls. */
+  readonly walls: number
   /** The tunnels' mouths, and the portals at those the hill stands over (the rest are open). */
   readonly mouths: number
   readonly portals: number
+  /** The open mouths the hill does stand over, with no spot clear of the roads round them for a portal. */
+  readonly crowded: number
 }
 
 /** The chunks over the map box (minX, minY)–(maxX, maxY). */
@@ -241,23 +205,27 @@ const chunksOver = (minX: number, minY: number, maxX: number, maxY: number): Arr
 
 /**
  * Checks every road tunnel of the map the sim has loaded (`whole`: all its vectors): each road in a
- * tunnel draws its ribbon at its floor and its bore's walls under the hill (none through a building
- * passage); the build baked its mouths (`MAP.derived.mouths`) as `mouthsOf` finds them, every one
- * and no other; at each with a portal the portal faces out of the hill in the road bridges' colour,
- * and at each open one no portal stands and the ground over its road never rises high enough for
- * one (`leastCover`); and the chunks over each road in a tunnel, 60 m round, built from the pieces of the
- * map's tiles, keep exactly their cut of a whole-map build. Returns the counts.
+ * tunnel draws its ribbon at its floor and its bore's walls under the hill, along both its sides
+ * (none through a building passage); the build baked its mouths (`MAP.derived.mouths`) as `mouthsOf`
+ * finds them, every one and no other, each portal at its road's end or stood back along its line;
+ * at each with a portal the portal faces out of the hill in the road bridges' colour and stands on
+ * no other road nor the track (`checkClear`), and at each open one no portal stands (where the
+ * ground over its road rises high enough for one, `leastCover`, it is crowded); and the chunks
+ * over each road in a tunnel, 60 m round, built from the pieces of the map's tiles, keep exactly
+ * their cut of a whole-map build. Returns the counts.
  */
 export const checkTunnels = (whole: Vectors): TunnelCounts => {
   const { roads } = whole,
     tunnels = roads.items.flatMap((road, k) =>
       road.tunnel === true ? [[road, roads.ids[k]!] as const] : [],
     )
-  let metres = 0
+  let metres = 0,
+    walls = 0
   for (const [road] of tunnels) {
     checkRibbon(road)
-    const walls = checkBore(road)
-    if (road.passage === true) assert.equal(walls, 0, `building passage ${road.id}: no walls`)
+    const sides = checkBore(road)
+    if (road.passage === true) assert.equal(sides, 0, `building passage ${road.id}: no walls`)
+    walls += sides
     for (let k = 2; k < road.pts.length; k += 2)
       metres += Math.hypot(road.pts[k]! - road.pts[k - 2]!, road.pts[k + 1]! - road.pts[k - 1]!)
   }
@@ -265,28 +233,31 @@ export const checkTunnels = (whole: Vectors): TunnelCounts => {
   const found = mouthsOf(roads),
     baked = MAP.derived.mouths
   assert.deepEqual(
-    baked.map(({ road, x, y }) => [road, x, y]),
-    found.map(({ road, x, y }) => [road, x, y]),
+    baked.map(({ road }) => road),
+    found.map(({ road }) => road),
     "the baked mouths are the tunnels' mouths",
   )
-  let portals = 0
+  let portals = 0,
+    crowded = 0
   for (const [n, mouth] of baked.entries()) {
-    const road = MAP.roads[mouth.road]!,
-      line = roads.items[roads.ids.indexOf(mouth.road)]!
-    assert.ok(
-      Math.abs(mouth.angle - found[n]!.angle) < 1e-9,
-      `the mouth at ${mouth.x}, ${mouth.y} heads out of the hill`,
-    )
+    const end = found[n]!,
+      road = MAP.roads[mouth.road]!,
+      line = roads.items[roads.ids.indexOf(mouth.road)]!,
+      back = "open" in mouth ? 0 : mouth.back
+    if (back === 0) {
+      assert.deepEqual([mouth.x, mouth.y], [end.x, end.y], `road ${road.id}'s mouth`)
+      assert.ok(
+        Math.abs(mouth.angle - end.angle) < 1e-9,
+        `the mouth at ${mouth.x}, ${mouth.y} heads out of the hill`,
+      )
+    } else checkStoodBack(line, end, mouth, back)
     if ("open" in mouth) {
       checkNoPortal(mouth.x, mouth.y)
       const least = leastCover(road)
-      for (const { x, y, z } of along(line, 2))
-        assert.ok(
-          terrainZ(x, y) - z < least,
-          `open mouth at ${mouth.x}, ${mouth.y}: the ground ${(terrainZ(x, y) - z).toFixed(1)} m over its road at (${x.toFixed(1)}, ${y.toFixed(1)})`,
-        )
+      if (along(line, 2).some(({ x, y, z }) => terrainZ(x, y) - z >= least)) crowded++
     } else {
       checkPortal(line, mouth, bridgeHex(road))
+      checkClear(roads, end, mouth)
       portals++
     }
   }
@@ -313,7 +284,9 @@ export const checkTunnels = (whole: Vectors): TunnelCounts => {
     tunnels: tunnels.length,
     passages: tunnels.filter(([road]) => road.passage === true).length,
     metres: Math.round(metres),
+    walls,
     mouths: baked.length,
     portals,
+    crowded,
   }
 }

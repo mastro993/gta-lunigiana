@@ -12,12 +12,14 @@ provideMap(gunzipSync(readFileSync(new URL("../../sim/map/cesena.bin", import.me
 const { wholeVectors } = await import("./chunk-cut.ts")
 const { checkTunnels } = await import("./tunnel-checks.ts")
 
-test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill, a portal at every mouth the hill stands over, its chunks as a whole-map build cuts them", () => {
+test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill along both sides, a portal clear of every other road at every mouth the hill stands over and leaves room for, its chunks as a whole-map build cuts them", () => {
   assert.deepEqual(checkTunnels(wholeVectors()), {
     tunnels: 64,
     passages: 22,
     metres: 5264,
+    walls: 18124,
     mouths: 77,
-    portals: 11,
+    portals: 9,
+    crowded: 2,
   })
 })
