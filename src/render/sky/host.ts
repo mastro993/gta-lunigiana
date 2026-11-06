@@ -7,7 +7,8 @@
  * light pool, and hands the surface weather (snow, wet ground, cloud shadows, sway) its uniforms.
  * Every light and weather mesh is made here at construction, before the first frame
  * compiles the shaders, and is driven only by colour and intensity after. Host state for the page's
- * life: it is recomputed from the saved clock and weather each frame, so a loaded save needs nothing.
+ * life: it is recomputed from the saved clock and weather each frame, and the shadow box's held size
+ * starts afresh on the view's own step, so a loaded save needs nothing.
  *
  * @module render/sky/host
  */
@@ -22,7 +23,8 @@ import { place } from "../../sim/sky/place.ts"
 import { linear } from "../geometry.ts"
 import { farTerrainY, yOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
-import { followSun, type PixelView, viewAxes, WIDEST_ZOOM } from "../pipeline.ts"
+import { type PixelView, viewAxes, WIDEST_ZOOM } from "../pipeline.ts"
+import { followSun, type HeldBox, holdBox, shadowBase, shadowFit } from "../shadow-box.ts"
 import { type SkyFrame } from "./frame.ts"
 import {
   aimToward,
@@ -70,8 +72,8 @@ interface SkyRead {
   readonly flow: number
 }
 
-/** What the sky host reads of the view (a `PixelView`): where it looks, its turn and zoom, its size, its post uniforms and its shadow fit. */
-type HostView = Pick<PixelView, "focus" | "yaw" | "texelsPerMetre" | "view" | "post" | "shadowFit">
+/** What the sky host reads of the view (a `PixelView`): where it looks, its turn and zoom, its size and its post uniforms. */
+type HostView = Pick<PixelView, "focus" | "yaw" | "texelsPerMetre" | "view" | "post">
 /** What the sky host sets on the renderer (a `WebGLRenderer`): the shadow pass's switch and the clear colour. */
 interface HostRenderer {
   readonly shadowMap: { autoUpdate: boolean; needsUpdate: boolean }
@@ -122,6 +124,9 @@ export class SkyHost {
   private shadows = true
   private axes = viewAxes(0)
   private axesYaw = 0
+  /** The key light's shadow box, its size held in steps (`holdBox`), and the zoom it was held at, texels per metre. */
+  private box: HeldBox | undefined
+  private boxZoom = 0
   private readonly clear = new Color()
   private readonly skyRadiance = new Color()
   /** How far the cloud shadows have drifted with the wind, map metres. */
@@ -210,12 +215,26 @@ export class SkyHost {
     keyDirection(this.aim, this.toKey)
     setRgb(this.key.color, key.color)
     this.key.intensity = key.intensity
-    followSun(
-      this.key,
-      focus,
-      this.toKey,
-      view.shadowFit(this.toKey, (gx, gz) => farTerrainY(gx, -gz)),
+    // Its shadow box covers the ground the view shows, its size held in steps (a change of size redraws every shadow edge).
+    if (view.yaw !== this.axesYaw) [this.axes, this.axesYaw] = [viewAxes(view.yaw), view.yaw]
+    const zoom = view.texelsPerMetre,
+      fit = shadowFit(
+        focus,
+        this.axes,
+        view.view.x / zoom,
+        view.view.y / zoom,
+        this.toKey,
+        (gx, gz) => farTerrainY(gx, -gz),
+      )
+    // Its wait to shrink holds while the zoom eases (about 1.8 s), so a zoom change moves it once.
+    this.box = holdBox(
+      this.box,
+      fit.half,
+      shadowBase(view.view, zoom),
+      zoom === this.boxZoom ? dt : 0,
     )
+    this.boxZoom = zoom
+    followSun(this.key, focus, this.toKey, { ...fit, half: this.box.half })
     // Dark, or every texel under an overcast sky's cloud shadow: no shadow to draw.
     const shadows = key.intensity * light.direct > KEY_DARK
     if (shadows !== this.shadows || this.frame === undefined) {
@@ -269,7 +288,6 @@ export class SkyHost {
       z: focus.z,
     })
 
-    if (view.yaw !== this.axesYaw) [this.axes, this.axesYaw] = [viewAxes(view.yaw), view.yaw]
     applySurface({
       snowLine: weather.snowLine,
       wet: weather.wet,

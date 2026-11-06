@@ -9,8 +9,11 @@ import { DAY, daysFromCivil, utcFromRome } from "../../../sim/sky/calendar.ts"
 import { place, providePlace } from "../../../sim/sky/place.ts"
 import type { Regime } from "../../../sim/sky/regimes.ts"
 import { initialWeather, setWeather } from "../../../sim/sky/weather.ts"
+import { QUARTER } from "../../../sim/view.ts"
+import { ladder } from "../../__tests__/shadow-steps.ts"
 import { yOf } from "../../ground.ts"
-import { shadowFit, viewAxes } from "../../pipeline.ts"
+import { shadowBase } from "../../shadow-box.ts"
+import { turnToward } from "../../swing.ts"
 import { SkyHost } from "../host.ts"
 import { SHADOW_FLOOR } from "../light.ts"
 import { makePost } from "../post.ts"
@@ -22,15 +25,7 @@ const X = -412.9,
 const view = (x = X, y = Y, yaw = 0) => {
   const focus = new Vector3(x, yOf(heightAt(x, y)), -y),
     size = new Vector2(427, 240)
-  return {
-    focus,
-    yaw,
-    texelsPerMetre: 8,
-    view: size,
-    post: makePost(),
-    shadowFit: (toSun: Vector3, groundAt: (x: number, z: number) => number) =>
-      shadowFit(focus, viewAxes(yaw), size.x / 8, size.y / 8, toSun, groundAt),
-  }
+  return { focus, yaw, texelsPerMetre: 8, view: size, post: makePost() }
 }
 const renderer = () => ({
   shadowMap: { autoUpdate: true, needsUpdate: false },
@@ -180,4 +175,30 @@ test("the fog is lit mostly by the sky: the sun falls on it as on level ground, 
       `${when}: a light grey on screen`,
     )
   }
+})
+
+// Sampled (shadow-box.long-test.ts and shadow-box.map-test.ts turn the view at more spots). Regression (#89): the host
+// sized the key light's shadow box for each frame's yaw, so a turn changed its size on most frames, each change
+// redrawing every shadow edge.
+test("through an E turn the sky host holds the shadow box on its steps, changing its size a few times", () => {
+  const host = new SkyHost(new Group(), { reduced: () => false }),
+    r = renderer(),
+    t = at(8),
+    w = weather("clear", t)
+  const steps = ladder(shadowBase(view().view, 8))
+  let yaw = 0
+  const halves = Array.from({ length: 45 }, (_, k) => {
+    if (k > 10) yaw = turnToward(yaw, -QUARTER, 1 / 60)
+    host.sky(t + k / 60, 1, w, 10 + k / 60, 0.04)
+    host.draw(view(X, Y, yaw), r)
+    return host.key.shadow.camera.right
+  })
+  assert.equal(yaw, -QUARTER, "the turn ended")
+  for (const [k, half] of halves.entries())
+    assert.ok(
+      steps.includes(half),
+      `frame ${k}: ${half} m is none of the steps ${steps.join(", ")}`,
+    )
+  const changes = halves.filter((half, k) => k > 0 && half !== halves[k - 1]).length
+  assert.ok(changes > 0 && changes <= 4, `${changes} changes: ${halves.join(", ")}`)
 })
