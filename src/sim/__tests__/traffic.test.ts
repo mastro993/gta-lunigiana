@@ -6,9 +6,17 @@ import { Ops } from "@typeonce/ritmo-math"
 import { GRAVITY, rigFor, RIGS } from "../chassis.ts"
 import { REAL_HANDLING } from "../handling.ts"
 import { graph } from "../map/index.ts"
+import { LEVEL } from "../rail/bodies.ts"
 import { roadOf } from "../route.ts"
 import { steerLimit } from "../systems/physics.ts"
-import { comfortSpeed, coneRange, followSpeed, leans, roomToTurn } from "../systems/traffic.ts"
+import {
+  comfortSpeed,
+  coneRange,
+  followSpeed,
+  leans,
+  onPathLevel,
+  roomToTurn,
+} from "../systems/traffic.ts"
 import { BATTISTI, drive } from "../testing.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../vehicles.ts"
 
@@ -104,4 +112,81 @@ test("AI following: at every cruise speed a car finding one standing in its lane
   // Up to 2 × 0.6 × decel / 0.64 m out the cone's own 0.8 m/s per metre binds first: nothing changes at 12 m/s for a Panda.
   for (const gap of [0, 5, 10, 15, 18.75])
     assert.equal(followSpeed(gap, 1, VEHICLES.panda.brakes.decel), gap * 0.8)
+})
+
+/** A deck 6.07 m over flat ground at 100 m (the SR445's viaduct over the road under it), along x and 8 m wide; which of the two a point is on goes by the level nearest `near`, as `groundZ` does. */
+const DECK = 106.07
+const deckOver = (x: number, y: number, near: number) =>
+  Math.abs(y) <= 4 && Math.abs(x) <= 60 && Math.abs(near - DECK) < Math.abs(near - 100) ? DECK : 100
+/** A driver heading east (+x) from (x, 0), its wheels' ground `ground`, rising `rise` a metre ahead. */
+const east = (x: number, ground: number, rise = 0) => ({ x, y: 0, angle: 0, ground, rise })
+/** Something whose middle is `front` m ahead on the path's axis, a circle of radius `wide`. */
+const ahead = (front: number, wide = 0.35) => ({ front, across: 0, off: 0, wide, circle: 0 })
+
+test("AI level: on a deck a driver passes over what stands on the ground under its path and holds for what stands on the deck; under the deck, the other way round", () => {
+  assert.equal(
+    onPathLevel(east(-20, DECK), ahead(20), 100, deckOver),
+    false,
+    "on the deck, a person under it",
+  )
+  assert.equal(
+    onPathLevel(east(-20, DECK), ahead(20), DECK, deckOver),
+    true,
+    "on the deck, a person on it",
+  )
+  assert.equal(
+    onPathLevel(east(-20, 100), ahead(20), DECK, deckOver),
+    false,
+    "under the deck, a person on it",
+  )
+  assert.equal(
+    onPathLevel(east(-20, 100), ahead(20), 100, deckOver),
+    true,
+    "under the deck, a person under it",
+  )
+  // A car standing on the deck in line, 1.95 m to the left of the path's axis: it reaches into the path on the deck.
+  const beside = { front: 20, across: 1.95, off: 1.95, wide: 0.83, circle: 0 }
+  assert.equal(onPathLevel(east(-20, DECK), beside, DECK + 0.1, deckOver), true)
+})
+
+test("AI level: a train's car crossing under a deck is read where it reaches into the path, under the deck, however far its middle lies off it", () => {
+  // An ATR 220's end car (19.5 m by 2.88) heading north under the deck, its middle 9 m south of the path, its rail head 100.12 m.
+  const train = { front: 20, across: -9, off: 9, wide: 19.535 / 2, circle: 0 },
+    rail = 100.12
+  assert.equal(deckOver(20, -9, DECK), 100, "its middle off the deck")
+  assert.equal(onPathLevel(east(0, DECK), train, rail, deckOver), false, "from the deck")
+  assert.equal(onPathLevel(east(0, 100), train, rail, deckOver), true, "from the road under it")
+})
+
+test("AI level: through a dip a driver holds for a car standing on the far side, where the ground under its own middle, or that carried along its pitch, loses it", () => {
+  // 15% down into a dip at x = 0 and 15% up out of it, as the SR445's east of the viaduct.
+  const dip = (x: number) => 100 + 0.15 * Math.abs(x)
+  const surface = (x: number) => dip(x)
+  // At the foot, a car 40 m up the climb: 6 m over the ground under the driver's middle.
+  assert.ok(dip(40) - dip(0) > LEVEL)
+  assert.equal(
+    onPathLevel(east(0, dip(0)), ahead(40, 0.83), dip(40), surface),
+    true,
+    "from the foot",
+  )
+  // 25 m down the descent, one 15 m past the foot: 4.5 m off that ground carried along the driver's pitch.
+  assert.ok(Math.abs(dip(-25) - 0.15 * 40 - dip(15)) > LEVEL)
+  assert.equal(
+    onPathLevel(east(-25, dip(-25), -0.15), ahead(40, 0.83), dip(15), surface),
+    true,
+    "from the descent",
+  )
+})
+
+test("AI level: steering round a bend, a driver reads the level on the arc its wheels steer, where the car ahead stands, not off the road along its heading", () => {
+  // A road on a ledge, 6 m wide along a circle of radius 30 m round (0, 30), at 100 m; off it the hillside falls to 90 m.
+  const circle = 30,
+    ledge = (x: number, y: number) => (Math.abs(Ops.hypot(x, y - circle) - circle) <= 3 ? 100 : 90)
+  // A car standing on the arc 15 m ahead: 4 m left of the heading there.
+  const across = circle - Math.sqrt(circle * circle - 15 * 15)
+  assert.equal(ledge(15, 0), 90, "off the road along the heading")
+  assert.equal(
+    onPathLevel(east(0, 100), { front: 15, across, off: 0, wide: 0.83, circle }, 100, ledge),
+    true,
+  )
 })

@@ -2,7 +2,8 @@
 // road or rail bridge over a road, a path, steps or the rail, and a road or the rail over a tunnel.
 // Within reach of the crossing the two stand more than the level rule's 2 m apart (`onLevel`,
 // src/sim/rail/bodies.ts), with a margin, so the rule tells what is on the deck from what runs under
-// it: which car a person gets into (`vehicleInReach`), and what a train meets. The rule is code, so a
+// it: which car a person gets into (`vehicleInReach`), what a driver brakes for (`TrafficAI`), and
+// what a train meets. The rule is code, so a
 // new map can break it only through its data: a deck too low over what it crosses. Where only people
 // walk both ways, or both are the rail, no vehicle meets anything across them and they are left out.
 // The L's build lives in test-maps/ (`pnpm maps`): without it its check is skipped, but in CI, which
@@ -23,9 +24,16 @@ import { isDrivable } from "../kinds.ts"
 
 /**
  * How far from a crossing (m, in plan) two things on its two ways can meet: a person within
- * ENTER_GAP of the widest vehicle's side (the truck's 1.225 m half-width) gets into it.
+ * ENTER_GAP of the widest vehicle's side (the truck's 1.225 m half-width) gets into it (3.225 m),
+ * and a driver judges a vehicle ahead by the ground its way comes to where that vehicle reaches into
+ * its path, up to its half-diagonal from its middle (the truck's 3.99 m). A train's car is judged by
+ * the rail head under its middle: the line climbs 2.83% at most, so within 0.28 m of the rail head
+ * where the car reaches the path, half an ATR 220's 19.5 m end car along.
  */
-const REACH = ENTER_GAP + Math.max(...VEHICLE_MODELS.map((m) => VEHICLES[m].width)) / 2
+const REACH = Math.max(
+  ENTER_GAP + Math.max(...VEHICLE_MODELS.map((m) => VEHICLES[m].width)) / 2,
+  ...VEHICLE_MODELS.map((m) => Ops.hypot(VEHICLES[m].length, VEHICLES[m].width) / 2),
+)
 /**
  * Past LEVEL, m: the spread of the surfaces over their profiles (a path's 0.06 m to a motorway's
  * 0.24, `ROAD_LIFT`), the profiles' 0.1 m rounding, and a wheel's ground under a truck rolled 25°
@@ -184,7 +192,7 @@ const REGIONS: ReadonlyArray<readonly [string, () => JoinedMap, string | false]>
 
 for (const [region, read, skip] of REGIONS)
   test(
-    `levels: on ${region}, every way over another stands more than ${LEVEL + MARGIN} m over it within ${REACH} m of where they cross`,
+    `levels: on ${region}, every way over another stands more than ${LEVEL + MARGIN} m over it within ${REACH.toFixed(2)} m of where they cross`,
     {
       skip,
     },
