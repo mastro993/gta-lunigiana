@@ -232,11 +232,10 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
   // place (spawns.ts), so a part added beside it moves only those near the seam.
   const lucido = MAP.spawns.parked.filter((p) => inRects([PARTS[0]!.rects[0]!], p.x, p.y))
   assert.ok(lucido.length >= 700 && lucido.length <= 950, `${lucido.length} parked on lucido`)
-  for (const name of Object.keys(VILLAGES))
-    assert.ok(
-      MAP.spawns.parked.some((p) => districtAt(p.x, p.y).name === name),
-      `no parking in ${name}`,
-    )
+  // Each village's own district, not one of its name: Aulla's Bardine shares Fivizzano's.
+  const parkedIn = new Set(MAP.spawns.parked.map((s) => districtAt(s.x, s.y)))
+  for (const [name, p] of Object.entries(VILLAGES))
+    assert.ok(parkedIn.has(districtAt(p.x, p.y)), `no parking in ${name}`)
   for (const s of spots) {
     assert.ok(inPlay(s.x, s.y), JSON.stringify(s))
     assert.ok(clear("walk", s.x, s.y, 1.2) && clear("drive", s.x, s.y, 1.2), JSON.stringify(s))
