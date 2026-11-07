@@ -5,8 +5,9 @@
  * area), in old stone round a single track, and at each road tunnel's mouth the hill stands over
  * (`MAP.derived.mouths`, which the build bakes: `bakeMouths`), sized to the road's bore
  * (render/bores), coloured like its bridges (`bridgeHex`) and clear of the roads and the track round
- * it (render/portal-clear). A train or a car passing a mouth vanishes behind its dark face; the
- * throat hides it where the hill over the tunnel is too low to.
+ * it (render/portal-clear); under a bank too low for one, an underpass's head wall in the same
+ * pieces, over a flat-lintelled opening. A train or a car passing a mouth vanishes behind its dark
+ * face; the throat hides it where the hill over the tunnel is too low to.
  *
  * @module render/portals
  */
@@ -14,6 +15,7 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { ROAD_LIFT, terrainZ } from "../sim/map/ground.ts"
 import {
+  type Building,
   MAP,
   type MouthEntry,
   outlineDistance,
@@ -23,13 +25,22 @@ import {
   roadClassOf,
 } from "../sim/map/index.ts"
 import type { Layer } from "../sim/map/packed.ts"
-import { type Bore, boreOf, isBored } from "./bores.ts"
+import { type Bore, boreOf, isBored, UNDER } from "./bores.ts"
 import type { Piece } from "./geometry.ts"
 import { terrainY, yOf } from "./ground.ts"
 import { bridgeHex } from "./lines.ts"
 import { PALETTE } from "./palette.ts"
 import { clearance, type Footprint, nearMouth } from "./portal-clear.ts"
 import { block } from "./ribbons.ts"
+import {
+  groundOver,
+  housed,
+  housesNear,
+  inFrom,
+  linesIn,
+  measure,
+  tunnelsOf,
+} from "./tunnel-lines.ts"
 
 /**
  * A portal's shape, m: the face wall's half width and height over the floor; the lined throat's
@@ -54,7 +65,10 @@ const CORNICE = { proud: 0.2, high: 0.3 } as const
  * steps to `crown` (half of `half` over the springing, as the railway's, unless given lower), the
  * face wall and the throat round it (FACE, LINING).
  */
-const portalRound = ({ half, spring }: Bore, crown = spring + half / 2): Portal => {
+const portalRound = (
+  { half, spring }: Pick<Bore, "half" | "spring">,
+  crown = spring + half / 2,
+): Portal => {
   const rise = crown - spring
   return {
     half: half + FACE.side,
@@ -70,14 +84,32 @@ const portalRound = ({ half, spring }: Bore, crown = spring + half / 2): Portal 
 
 /** A single-track tunnel's portal: its mouth 4.8 m wide, springing 4.6 m over the rail head, 5.8 m to its crown. */
 const RAIL_PORTAL = portalRound({ half: 2.4, spring: 4.6 })
+
+/**
+ * An underpass's head wall, m: how far it stands past its opening's sides (over the box's lining,
+ * LINING, and as far again as a cornice stands proud), and its flat lintel over the opening, as
+ * high as the bore's headroom, so it reaches where a portal's arch would spring.
+ */
+const HEAD = { side: 1, lintel: 0.5 } as const
+
+/**
+ * The head wall round a tunnel's cross-section, where the hill is too low for a portal's arch (an
+ * underpass under an embankment): a plain wall over a flat-lintelled opening as wide as the bore
+ * and as high as its clear height, under a coping (the portals' cornice), and the box behind it
+ * lined round the opening as a portal's throat.
+ */
+const headWall = ({ half, clear }: Bore): Portal => ({
+  half: half + HEAD.side,
+  high: clear + HEAD.lintel,
+  throat: { half: half + LINING.side, high: clear + LINING.over },
+  mouth: [[half, clear]],
+})
 /** The face wall's thickness, m. */
 const THICK = 1
 /** The throat runs into the hill at least this far, at most this far, m, until the hill stands over it. */
 const THROAT = { shortest: 3, longest: 40 } as const
 /** A tunnel's mouth faces along its line over this chord, m. */
 const CHORD = 5
-/** The ground over a road tunnel is sampled every this many metres along it. */
-const SAMPLE = 2
 
 /** What a portal is built of: its face wall, cornice and throat. */
 interface Stone {
@@ -163,26 +195,24 @@ const mouthsOf = <L extends Line>(
 const sidesLow = (x: number, y: number, ux: number, uy: number, half: number): number =>
   Math.min(terrainZ(x - uy * half, y + ux * half), terrainZ(x + uy * half, y - ux * half))
 
+/** The height (render y) the hill must stand at over the end of `portal`'s throat, its floor `floor`: 0.5 m over the throat's top. */
+const overThroat = (floor: number, portal: Portal): number => floor + portal.throat.high + 0.5
+
 /**
- * How far (m) the throat of `portal` at (x, y), heading out (ux, uy), runs into the hill: from
- * THROAT.shortest on, a metre at a time, until the hill over its centreline stands 0.5 m over its
- * top (`floor` + its height, render y), at most `most` m.
+ * How far (m) the throat of a portal at (x, y), heading out (ux, uy), runs into the hill: from
+ * THROAT.shortest on, a metre at a time, until the hill over its centreline stands at `top` (render
+ * y), at most `most` m.
  */
 const throatOf = (
   x: number,
   y: number,
   ux: number,
   uy: number,
-  floor: number,
-  portal: Portal,
+  top: number,
   most: number,
 ): number => {
   let deep = Math.min(THROAT.shortest, most)
-  while (
-    deep < most &&
-    terrainY(x - ux * (THICK + deep), y - uy * (THICK + deep)) < floor + portal.throat.high + 0.5
-  )
-    deep++
+  while (deep < most && terrainY(x - ux * (THICK + deep), y - uy * (THICK + deep)) < top) deep++
   return deep
 }
 
@@ -236,7 +266,7 @@ const portalPiece = (
       stone.cornice,
     )
     // The throat runs into the hill until the hill stands over it (a lined cut and cover where the map's ground is low).
-    const deep = throat ?? throatOf(x, y, ux, uy, floor, portal, THROAT.longest),
+    const deep = throat ?? throatOf(x, y, ux, uy, overThroat(floor, portal), THROAT.longest),
       { half, high } = portal.throat
     const [tx, tz] = centre(-THICK - deep / 2)
     block(
@@ -274,9 +304,18 @@ const stoneOf = (road: RoadInfo): Stone =>
  * The least height (m over the road) the ground over road `road`'s tunnel must rise to somewhere
  * along it for a portal to stand at its mouth: the face wall over a flat arch at the springing.
  */
-export const leastCover = (road: RoadInfo): number => boreOf(road).spring + FACE.over
+const leastCover = (road: RoadInfo): number => boreOf(road).spring + FACE.over
 
-/** A portal at each railway tunnel mouth, then at each road tunnel mouth the hill stands over, each whole in its chunk. */
+/**
+ * The least height (m over the road) the ground over the end of road `road`'s tunnel by a mouth
+ * must rise to for a head wall to stand there: its coping's top (the clear height, the lintel and
+ * the coping: 4.8 m untagged) and the margin the bore's walls keep under the terrain (UNDER), so a
+ * head wall never stands out of its bank.
+ */
+export const leastWall = (road: RoadInfo): number =>
+  headWall(boreOf(road)).high + CORNICE.high + UNDER
+
+/** A portal at each railway tunnel mouth, then a portal or a head wall at each road tunnel mouth the hill stands over, each whole in its chunk. */
 export const portalPieces = (): Array<Piece> => [
   ...mouthsOf(
     MAP.rail,
@@ -288,115 +327,47 @@ export const portalPieces = (): Array<Piece> => [
   ...MAP.derived.mouths.flatMap((mouth) => {
     if ("open" in mouth) return []
     const road = MAP.roads[mouth.road]!,
-      portal = portalRound(boreOf(road), mouth.crown)
+      bore = boreOf(road),
+      shape = "head" in mouth ? headWall(bore) : portalRound(bore, mouth.crown)
     return [
-      portalPiece(mouth.x, mouth.y, yOf(mouth.z), mouth.angle, portal, stoneOf(road), mouth.throat),
+      portalPiece(mouth.x, mouth.y, yOf(mouth.z), mouth.angle, shape, stoneOf(road), mouth.throat),
     ]
   }),
 ]
 
-/** The roads in a tunnel joined end to end with each road of `roads` that is in one (each a list of indices into `roads`). */
-const tunnelsOf = (roads: ReadonlyArray<Road>): Map<number, Array<number>> => {
-  const at = new Map<string, Array<number>>()
-  roads.forEach((road, i) => {
-    if (road.tunnel !== true) return
-    for (const k of [0, road.z.length - 1]) {
-      const key = `${road.pts[2 * k]},${road.pts[2 * k + 1]}`
-      at.set(key, [...(at.get(key) ?? []), i])
-    }
-  })
-  const tunnels = new Map<number, Array<number>>()
-  roads.forEach((road, i) => {
-    if (road.tunnel !== true || tunnels.has(i)) return
-    const tunnel = [i]
-    for (let n = 0; n < tunnel.length; n++) {
-      const { pts, z } = roads[tunnel[n]!]!
-      for (const k of [0, z.length - 1])
-        for (const j of at.get(`${pts[2 * k]},${pts[2 * k + 1]}`)!)
-          if (!tunnel.includes(j)) tunnel.push(j)
-    }
-    for (const j of tunnel) tunnels.set(j, tunnel)
-  })
-  return tunnels
-}
-
-/** How long the roads `tunnel` of `roads` are together, m, and how high the ground stands over them at most (m over the road's profile, every SAMPLE m along them). */
-const measure = (
-  roads: ReadonlyArray<Road>,
-  tunnel: ReadonlyArray<number>,
-): { readonly length: number; readonly cover: number } => {
-  let length = 0,
-    cover = Number.NEGATIVE_INFINITY
-  for (const i of tunnel) {
-    const { pts, z } = roads[i]!
-    for (let k = 0; k + 1 < z.length; k++) {
-      const ax = pts[2 * k]!,
-        ay = pts[2 * k + 1]!,
-        dx = pts[2 * k + 2]! - ax,
-        dy = pts[2 * k + 3]! - ay,
-        l = Math.hypot(dx, dy),
-        n = Math.max(1, Math.ceil(l / SAMPLE))
-      length += l
-      for (let j = 0; j <= n; j++)
-        cover = Math.max(
-          cover,
-          terrainZ(ax + (dx * j) / n, ay + (dy * j) / n) - (z[k]! + ((z[k + 1]! - z[k]!) * j) / n),
-        )
-    }
-  }
-  return { length, cover }
-}
-
-/** A road portal stands back at most this far into its tunnel, m, to keep off the roads at its mouth. */
+/** A road portal or head wall stands back at most this far into its tunnel, m, to keep off the roads at its mouth. */
 const SETBACK = 40
 
 /**
- * The point `s` m into the tunnel along `road`'s line from its end `end` (index of its first or
- * last vertex), or its other end past that: map x, y and the profile there (m a.s.l.).
+ * Every road tunnel's mouth of `roads` (the whole map's, `ids` their indices) under `buildings`
+ * (the whole map's): an end of a road in a tunnel, not a building passage, that no other road in a
+ * tunnel goes on from, inside the play area. Its end of the tunnel is its road's line from there,
+ * run on along the roads of its tunnel that go on from it (`linesIn`), THROAT.longest m in, short
+ * of the tunnel's middle; where a house stands over the way there at its level, the ground under
+ * its lowest corner less than the bore's clear height over the road (a covered way, which the house
+ * hides as it hides a building passage), the mouth is open.
+ * - A portal stands there where the ground over its tunnel (the roads in a tunnel joined end to end
+ *   with it) rises somewhere along it to `leastCover` over the road: its arch rises as the
+ *   railway's, or as far under that ground as its face wall leaves room for. Its throat runs in
+ *   until the hill stands over it. Where its face wall would stand on another road (the mouth at a
+ *   junction, a road crossing just in front of the hill) it stands back into the tunnel along its
+ *   line, a metre at a time, until it stands clear, short of the tunnel's middle.
+ * - Else an underpass's head wall stands at the mouth where the ground over its end rises to
+ *   `leastWall`: its box runs in until the hill stands that high over the road, and must get there,
+ *   so its top never stands over the bank it meets. It never stands back: in a bank lower than a
+ *   portal's, the road in front of it would run under the ground.
+ * A throat or a box never runs past the tunnel's middle nor onto a road or the track (`clearance`).
+ * Elsewhere the mouth is open: the ground over its end lower than a head wall (a road under a
+ * bridge, or under a cover the map's ground does not hold), or no room for either. The build bakes
+ * them (src/tools/bake.ts): a mouth's tunnel, and the roads and the houses round it, reach past the
+ * tiles round it.
  */
-const inFrom = (
-  road: Line,
-  end: number,
-  s: number,
-): { readonly x: number; readonly y: number; readonly z: number } => {
-  const step = end === 0 ? 1 : -1
-  let left = s,
-    k = end
-  for (; k + step >= 0 && k + step < road.z.length; k += step) {
-    const ax = road.pts[2 * k]!,
-      ay = road.pts[2 * k + 1]!,
-      bx = road.pts[2 * (k + step)]!,
-      by = road.pts[2 * (k + step) + 1]!,
-      l = Math.hypot(bx - ax, by - ay)
-    if (left <= l) {
-      const t = l > 0 ? left / l : 0
-      return {
-        x: ax + (bx - ax) * t,
-        y: ay + (by - ay) * t,
-        z: road.z[k]! + (road.z[k + step]! - road.z[k]!) * t,
-      }
-    }
-    left -= l
-  }
-  return { x: road.pts[2 * k]!, y: road.pts[2 * k + 1]!, z: road.z[k]! }
-}
-
-/**
- * Every road tunnel's mouth of `roads` (the whole map's, `ids` their indices): an end of a road in
- * a tunnel, not a building passage, that no other road in a tunnel goes on from, inside the play
- * area. A portal stands there where the ground over its tunnel (the roads in a tunnel joined end to
- * end with it) rises somewhere along it to `leastCover` over the road: its arch rises as the
- * railway's, or as far under that ground as its face wall leaves room for (an underpass under an
- * embankment), and its throat runs in until the hill stands over it, never past the tunnel's
- * middle nor onto a road or the track (`clearance`). Where the face wall would stand on one (the
- * mouth at a junction, a road crossing just in front of the hill), the portal stands back into the
- * tunnel along its line, a metre at a time, until it stands clear, short of the tunnel's middle.
- * Elsewhere the mouth is open (a road under a bridge, or under a cover the map's ground does not
- * hold, or one with no room for a portal). The build bakes them (src/tools/bake.ts): a mouth's
- * tunnel reaches past the tiles round it.
- */
-export const bakeMouths = ({ ids, items }: Layer<Road>): Array<MouthEntry> => {
-  const tunnels = tunnelsOf(items)
+export const bakeMouths = (
+  { ids, items }: Layer<Road>,
+  buildings: ReadonlyArray<Building>,
+): Array<MouthEntry> => {
+  const tunnels = tunnelsOf(items),
+    houses = housesNear(buildings)
   return mouthsOf(items, (road) => road.tunnel === true, isBored).map(
     ({ line, end, x, y, angle }) => {
       const road = items[line]!,
@@ -404,57 +375,94 @@ export const bakeMouths = ({ ids, items }: Layer<Road>): Array<MouthEntry> => {
         lift = ROAD_LIFT[roadClassOf(road)],
         open = { road: ids[line]!, x, y, z: road.z[end]! + lift, angle, open: true as const }
       const tunnel = tunnels.get(line)!,
-        { length, cover } = measure(items, tunnel)
-      if (cover < leastCover(road)) return open
-      const crown = Math.min(bore.spring + bore.half / 2, cover - FACE.over),
-        portal = portalRound(bore, crown),
-        print: Footprint = {
-          face: {
-            from: -CORNICE.proud,
-            to: THICK + CORNICE.proud,
-            half: portal.half + CORNICE.proud,
-            top: portal.high + CORNICE.high,
+        { length, cover } = measure(items, tunnel),
+        span = Math.min(THROAT.longest, length / 2),
+        lines = linesIn(items, tunnel, line, end, span)
+      if (housed(lines, span, bore.clear, houses(x, y, span))) return open
+      // The first spot, from the road's end up to `setback` m in, where `shape` stands clear of the
+      // roads round it and its throat runs `box` m in (at (x, y) heading out (ux, uy) on the floor
+      // `floor`, render y, at most `most` m; undefined where it cannot stand there): the entry,
+      // `kind` its own fields.
+      const stand = <K extends object>(
+        shape: Portal,
+        kind: K,
+        setback: number,
+        box: (
+          x: number,
+          y: number,
+          ux: number,
+          uy: number,
+          floor: number,
+          most: number,
+        ) => number | undefined,
+      ) => {
+        const print: Footprint = {
+            face: {
+              from: -CORNICE.proud,
+              to: THICK + CORNICE.proud,
+              half: shape.half + CORNICE.proud,
+              top: shape.high + CORNICE.high,
+            },
+            throat: { from: THICK, half: shape.throat.half, top: shape.throat.high },
+            arch: bore.half,
           },
-          throat: { from: THICK, half: portal.throat.half, top: portal.throat.high },
-          arch: bore.half,
-        },
-        near = nearMouth(
-          items,
-          tunnel,
-          x,
-          y,
-          Ops.cos(angle),
-          Ops.sin(angle),
-          // As far as a portal stood back its most, its throat and its face wall's side reach.
-          SETBACK + THICK + THROAT.longest + portal.half + 10,
-        )
-      const own = measure(items, [line]).length
-      for (
-        let back = 0;
-        back === 0 || back <= Math.min(SETBACK, own - 1, length / 2 - THICK - 1);
-        back++
-      ) {
-        // Stood back, the portal faces out along the line over the CHORD m behind it.
-        const at = inFrom(road, end, back),
-          behind = inFrom(road, end, back + CHORD),
-          heading = back === 0 ? angle : Ops.atan2(at.y - behind.y, at.x - behind.x),
-          ux = Ops.cos(heading),
-          uy = Ops.sin(heading),
-          z = at.z + lift,
-          most = Math.max(1, Math.min(THROAT.longest, Math.floor(length / 2 - THICK - back))),
-          foot = Math.min(sidesLow(at.x, at.y, ux, uy, portal.half), z) - 0.5,
-          clear = clearance(near, at.x, at.y, z, ux, uy, foot, print)
-        if (clear === undefined || clear < Math.min(THROAT.shortest, most)) continue
-        return {
-          road: ids[line]!,
-          x: at.x,
-          y: at.y,
-          z,
-          angle: heading,
-          crown,
-          throat: throatOf(at.x, at.y, ux, uy, yOf(z), portal, Math.min(most, Math.floor(clear))),
-          back,
+          near = nearMouth(
+            items,
+            tunnel,
+            x,
+            y,
+            Ops.cos(angle),
+            Ops.sin(angle),
+            // As far as one stood back its most, its throat and its face wall's side reach.
+            setback + THICK + THROAT.longest + shape.half + 10,
+          )
+        const own = measure(items, [line]).length
+        for (
+          let back = 0;
+          back === 0 || back <= Math.min(setback, own - 1, length / 2 - THICK - 1);
+          back++
+        ) {
+          // Stood back, it faces out along the line over the CHORD m behind it.
+          const at = inFrom(road, end, back),
+            behind = inFrom(road, end, back + CHORD),
+            heading = back === 0 ? angle : Ops.atan2(at.y - behind.y, at.x - behind.x),
+            ux = Ops.cos(heading),
+            uy = Ops.sin(heading),
+            z = at.z + lift,
+            most = Math.max(1, Math.min(THROAT.longest, Math.floor(length / 2 - THICK - back))),
+            foot = Math.min(sidesLow(at.x, at.y, ux, uy, shape.half), z) - 0.5,
+            clear = clearance(near, at.x, at.y, z, ux, uy, foot, print)
+          if (clear === undefined || clear < Math.min(THROAT.shortest, most)) continue
+          const throat = box(at.x, at.y, ux, uy, yOf(z), Math.min(most, Math.floor(clear)))
+          if (throat === undefined) continue
+          return { road: ids[line]!, x: at.x, y: at.y, z, angle: heading, ...kind, throat, back }
         }
+        return undefined
+      }
+      if (cover >= leastCover(road)) {
+        const crown = Math.min(bore.spring + bore.half / 2, cover - FACE.over),
+          portal = portalRound(bore, crown),
+          placed = stand(portal, { crown }, SETBACK, (px, py, ux, uy, floor, most) =>
+            throatOf(px, py, ux, uy, overThroat(floor, portal), most),
+          )
+        if (placed !== undefined) return placed
+      }
+      // A head wall's box runs in until the hill stands `leastWall` over the floor, and must get
+      // there; it stands at the mouth or not at all.
+      const least = leastWall(road)
+      if (groundOver(lines, span) >= least) {
+        const placed = stand(
+          headWall(bore),
+          { head: true as const },
+          0,
+          (px, py, ux, uy, floor, most) => {
+            const deep = throatOf(px, py, ux, uy, floor + least, most)
+            return terrainY(px - ux * (THICK + deep), py - uy * (THICK + deep)) >= floor + least
+              ? deep
+              : undefined
+          },
+        )
+        if (placed !== undefined) return placed
       }
       return open
     },
