@@ -53,7 +53,7 @@ test("a road tunnel ending on the play area's edge has no mouth there, and one a
       z: [0, 0],
     }
   assert.deepEqual(
-    bakeMouths({ ids: [7], items: [road] }).map((mouth) => [mouth.road, mouth.x, mouth.y]),
+    bakeMouths({ ids: [7], items: [road] }, []).map((mouth) => [mouth.road, mouth.x, mouth.y]),
     [[7, x - 60, y]],
   )
 })

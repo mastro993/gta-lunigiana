@@ -18,16 +18,16 @@ export interface BellEntry {
 /**
  * A road tunnel's mouth the build found (`bakeMouths` in src/render/portals.ts): an end of a road in
  * a tunnel (not a building passage) that no other road in a tunnel goes on from, inside the play
- * area. A portal stands there, its arch's crown `crown` m over the road and its lined throat
- * `throat` m into the hill, `back` m into the tunnel from the road's end where it would otherwise
- * stand on another road, unless the ground over the tunnel never rises high enough for one or no
- * spot is clear of the roads round it (`open`: a road under a bridge, or under a cover the map's
- * ground does not hold).
+ * area. A portal stands there, its arch's crown `crown` m over the road, or under a lower hill an
+ * underpass's head wall (`head`), its lined throat `throat` m into the hill, `back` m into the
+ * tunnel from the road's end where it would otherwise stand on another road; the mouth is `open`
+ * under a house, where the ground over it is lower than a head wall, or where no spot is clear of
+ * the roads round it.
  */
 export type MouthEntry = {
   /** The tunnel's road: its index in the whole map's roads. */
   readonly road: number
-  /** Where the portal stands on the road's line (the end of the line, or `back` m in), or the open mouth (the end). */
+  /** Where the portal or head wall stands on the road's line (the end of the line, or `back` m in), or the open mouth (the end). */
   readonly x: number
   readonly y: number
   /** The road's surface there (its profile and `ROAD_LIFT`), m a.s.l. */
@@ -36,6 +36,7 @@ export type MouthEntry = {
   readonly angle: number
 } & (
   | { readonly crown: number; readonly throat: number; readonly back: number }
+  | { readonly head: true; readonly throat: number; readonly back: number }
   | { readonly open: true }
 )
 
@@ -57,6 +58,6 @@ export interface Derived {
   readonly residents: ReadonlyArray<number>
   /** Per farm (`farms` order), its building's centre, flat x, y (`buildingCentre`). */
   readonly farms: ReadonlyArray<number>
-  /** Every road tunnel's mouth, by road and then the road's first end first: where the portals stand. */
+  /** Every road tunnel's mouth, by road and then the road's first end first: where the portals and head walls stand. */
   readonly mouths: ReadonlyArray<MouthEntry>
 }

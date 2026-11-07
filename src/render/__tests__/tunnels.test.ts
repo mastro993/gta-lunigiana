@@ -18,8 +18,8 @@ import { checkBore, checkRibbon, SR445 } from "./tunnel-checks.ts"
 const TRACK = { x: 2855, y: 65 },
   PATH = { x: 1969, y: 920 },
   CASOLA = { x: 3577, y: 4152 }
-/** The roads of the tiles round them (every one within 300 m). */
-const ROADS = vectorsAround([SR445, TRACK, PATH, CASOLA], 300).roads
+/** The roads and buildings of the tiles round them (every one within 300 m). */
+const { roads: ROADS, buildings: HOUSES } = vectorsAround([SR445, TRACK, PATH, CASOLA], 300)
 
 /** The road in a tunnel whose line passes nearest `at`, within 20 m, and its index in the whole map's roads. */
 const tunnelAt = (at: { readonly x: number; readonly y: number }): readonly [Road, number] => {
@@ -109,7 +109,7 @@ const saved = (value: unknown): unknown => JSON.parse(JSON.stringify(value))
 // past the tiles round it.
 test("the SR445's, the track's and the path's mouths are baked as the game's code bakes them now, each with a portal (run pnpm map when this fails)", () => {
   const roads = new Set([tunnelAt(SR445)[1], tunnelAt(TRACK)[1], tunnelAt(PATH)[1]]),
-    fresh = bakeMouths(ROADS).filter((mouth) => roads.has(mouth.road))
+    fresh = bakeMouths(ROADS, HOUSES.items).filter((mouth) => roads.has(mouth.road))
   assert.equal(fresh.length, 6)
   assert.ok(fresh.every((mouth) => !("open" in mouth)))
   assert.deepEqual(saved(fresh), saved(MAP.derived.mouths.filter((mouth) => roads.has(mouth.road))))
