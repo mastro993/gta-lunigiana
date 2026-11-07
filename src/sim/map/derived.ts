@@ -21,8 +21,8 @@ export interface BellEntry {
  * area. A portal stands there, its arch's crown `crown` m over the road, or under a lower hill an
  * underpass's head wall (`head`), its lined throat `throat` m into the hill, `back` m into the
  * tunnel from the road's end where it would otherwise stand on another road; the mouth is `open`
- * under a house, where the ground over it is lower than a head wall, or where no spot is clear of
- * the roads round it.
+ * under a house at the road's level, where the ground over it is lower than a head wall, or where
+ * no spot is clear of the roads round it.
  */
 export type MouthEntry = {
   /** The tunnel's road: its index in the whole map's roads. */
