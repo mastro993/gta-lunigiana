@@ -118,6 +118,49 @@ test("Pieve San Lorenzo's underpass under the station: an old stone head wall at
   assert.equal(whyOpen(AROUND, north), "low")
 })
 
+test("Pieve San Lorenzo's underpass split into two ways 2 m from its south mouth, on the same line: the same head wall, the ground over its end read on along the second way", () => {
+  const [road, id] = tunnelAt(PIEVE),
+    [south] = endsOf(road, id).sort((a, b) => a.y - b.y) as [Mouth, Mouth],
+    first = road.pts[0] === south.x && road.pts[1] === south.y,
+    n = road.z.length,
+    // Its points from the south mouth in: x, y and the profile.
+    line = Array.from({ length: n }, (_, i) => {
+      const k = first ? i : n - 1 - i
+      return [road.pts[2 * k]!, road.pts[2 * k + 1]!, road.z[k]!] as const
+    })
+  // The point 2 m in, on its line.
+  let left = 2,
+    i = 0
+  for (; ; i++) {
+    const l = Math.hypot(line[i + 1]![0] - line[i]![0], line[i + 1]![1] - line[i]![1])
+    if (left <= l) break
+    left -= l
+  }
+  const [a, b] = [line[i]!, line[i + 1]!],
+    t = left / Math.hypot(b[0] - a[0], b[1] - a[1]),
+    cut = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t] as const
+  const way = (points: ReadonlyArray<readonly [number, number, number]>): Road => ({
+    ...road,
+    pts: points.flatMap(([x, y]) => [x, y]),
+    z: points.map(([, , z]) => z),
+  })
+  const k = ROADS.ids.indexOf(id),
+    split = {
+      ids: [...ROADS.ids, Number.MAX_SAFE_INTEGER],
+      items: [
+        ...ROADS.items.map((other, j) => (j === k ? way([...line.slice(0, i + 1), cut]) : other)),
+        way([cut, ...line.slice(i + 1)]),
+      ],
+    }
+  const wall = bakeMouths(split, HOUSES.items).find(
+    (mouth) => mouth.road === id && mouth.x === south.x && mouth.y === south.y,
+  )
+  assert.ok(wall !== undefined && "head" in wall, "a head wall at the split way's south mouth")
+  assert.equal(wall.throat, bakedAt(south, id).throat)
+  // Nor does `whyOpen` find the ground over its end too low to leave it open.
+  assert.throws(() => whyOpen({ ...AROUND, roads: split }, south), /is open, though/)
+})
+
 /** A house 7 m high on a 10 m square round map point (x, y), its lowest corner's ground `z0` m a.s.l. */
 const houseAt = (x: number, y: number, z0: number): Building => ({
   id: 0,

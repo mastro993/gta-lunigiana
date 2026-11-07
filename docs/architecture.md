@@ -1316,21 +1316,22 @@ only its road, under its house.
   lintel over it (the bore's headroom, so it reaches where a portal's arch would spring) under a
   coping (the portals' cornice, 0.3 m), and the box behind it lined round the opening as a portal's
   throat (0.8 m past its sides, 0.4 m over it), coloured as the portals (`bridgeHex`). One stands
-  where the ground over its end of the tunnel (its road's line 40 m in, short of the middle) rises
-  as high over the road as its coping and the 0.25 m the bore's walls keep under the terrain
-  (`leastWall`: 5.05 m untagged): an opening of the clear height, the lintel and coping over it,
-  never standing out of its bank. It stands clear of the other roads and the track as a portal does
-  (`clearance`, above), and its box runs in from 3 m, a metre at a time, until the hill stands that
-  high over the road, and must get there short of any road in its way and of the tunnel's middle,
-  so its top always stands under the bank it meets; it never stands back (in a bank lower than a
-  portal's, its road would run under the ground in front of it). Lunigiana has 2: Pieve San
-  Lorenzo's 29 m underpass under the station, at its south mouth, in old stone under Via della
-  Stazione (its coping 1 m under that road's surface, the bank its box meets 5.67 m over the road),
-  and the SS63's 16 m underpass at its west mouth, in concrete (the bank 6.67 m). Cesena has 6: Via
-  Spadolini's two (concrete, their boxes 10 and 11 m, the bank 5.10 and 5.13 m), and both mouths of
-  the Sottopasso Ravennate and of the path under the station by Piazza Giorgio Sanguinetti (OSM
-  43076054), whose ramps the map's ground does not hold, so the ground already stands 5.3–6.1 m
-  over their floors at their mouths and the walls stand under it. The L has none.
+  where the ground over its end of the tunnel (its road's line, run on along the roads of its tunnel
+  that go on from it, 40 m in, short of the middle) rises as high over the road as its coping and
+  the 0.25 m the bore's walls keep under the terrain (`leastWall`: 5.05 m untagged): an opening of
+  the clear height, the lintel and coping over it, never standing out of its bank. It stands clear
+  of the other roads and the track as a portal does (`clearance`, above), and its box runs in from
+  3 m, a metre at a time, until the hill stands that high over the road, and must get there short of
+  any road in its way and of the tunnel's middle, so its top always stands under the bank it meets;
+  it never stands back (in a bank lower than a portal's, its road would run under the ground in
+  front of it). Lunigiana has 2: Pieve San Lorenzo's 29 m underpass under the station, at its south
+  mouth, in old stone under Via della Stazione (its coping 1 m under that road's surface, the bank
+  its box meets 5.67 m over the road), and the SS63's 16 m underpass at its west mouth, in concrete
+  (the bank 6.67 m). Cesena has 6: Via Spadolini's two (concrete, their boxes 10 and 11 m, the bank
+  5.10 and 5.13 m), and both mouths of the Sottopasso Ravennate and of the path under the station by
+  Piazza Giorgio Sanguinetti (OSM 43076054), whose ramps the map's ground does not hold, so the
+  ground already stands 5.3–6.1 m over their floors at their mouths and the walls stand under it.
+  The L has none.
 - **Open mouths**: at the rest, for one reason the tunnels map tests find again by geometry
   (`whyOpen` in `mouth-checks.ts`): a house stands over the way within the mouth's end of the tunnel
   at its level, the ground under its lowest corner (`z0`) less than the bore's clear height over the
@@ -2554,12 +2555,14 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     and on its line, both clear; Pieve San Lorenzo's underpass under the station, an old stone head
     wall at its south mouth (`checkHeadWall`: its opening facing out, as wide as the bore and flat
     at its clear height, its top 0.25 m or more under the bank its box meets) clear of Via della
-    Stazione over it, and its north mouth open, the ground over its end too low (`whyOpen`); a
-    house standing at the road's level over the first metres of the SR445's east mouth opening it,
-    a covered way (`whyOpen`: "housed"), and one on the hill 20 m in, some 16 m over the road,
-    keeping its portal, which `whyOpen` finds no reason to leave open; Via Casola's building
-    passage drawn at its floor with no wall and no portal; and those eight mouths baked as
-    `bakeMouths` makes them now (six portals, a head wall and an open mouth).
+    Stazione over it, and its north mouth open, the ground over its end too low (`whyOpen`); a house
+    standing at the road's level over the first metres of the SR445's east mouth opening it, a
+    covered way (`whyOpen`: "housed"), and one on the hill 20 m in, some 16 m over the road, keeping
+    its portal, which `whyOpen` finds no reason to leave open; Pieve San Lorenzo's underpass split
+    into two ways 2 m from its south mouth, on the same line, keeping its head wall and its box, the
+    ground over its end read on along the second way, by the bake and by `whyOpen` alike; Via
+    Casola's building passage drawn at its floor with no wall and no portal; and those eight mouths
+    baked as `bakeMouths` makes them now (six portals, a head wall and an open mouth).
   - `src/render/__tests__/stations.test.ts`, over the stations within 4 km of Monzone station
     (Monzone's, Gragnola's and Equi Terme's): the platforms' tops following the rail profile, their
     yellow lines, nothing standing in a train's way, one name board per platform people wait on,

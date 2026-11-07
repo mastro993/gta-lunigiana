@@ -1,8 +1,9 @@
 /**
  * The road tunnels' lines, as the bake of their mouths reads them (`bakeMouths` in render/portals):
  * the roads in a tunnel joined end to end, how long they are and how high the ground stands over
- * them, a point along one, and, over a tunnel's end by its mouth, how high the ground stands and
- * whether a house stands over the way at its level (a covered way, which the house hides).
+ * them, a point along one, a tunnel's end by its mouth (its lines from the mouth in, on along those
+ * roads), and over that end how high the ground stands and whether a house stands over the way at
+ * its level (a covered way, which the house hides).
  *
  * @module render/tunnel-lines
  */
@@ -102,30 +103,88 @@ export const inFrom = (
   return { x: road.pts[2 * k]!, y: road.pts[2 * k + 1]!, z: road.z[k]! }
 }
 
-/** The points every PROBE m along `road`'s line from `from` to `to` m in from its end `end`, each with the profile there. */
-const probes = (road: Line, end: number, from: number, to: number) => {
-  const n = Math.max(1, Math.ceil((to - from) / PROBE))
-  return Array.from({ length: n + 1 }, (_, j) => inFrom(road, end, from + ((to - from) * j) / n))
+/**
+ * A tunnel's end by its mouth, the end `end` (index of its first or last vertex) of road `line` of
+ * `roads`: its lines from the mouth in, each the road's line run on from where it ends along each
+ * road of `tunnel` (the roads in a tunnel joined end to end with it, indices into `roads`) that
+ * goes on from there, one for each way a fork takes, until `to` m long or the tunnel ends. A way
+ * split into pieces inside a tunnel reads as the whole way.
+ */
+export const linesIn = (
+  roads: ReadonlyArray<Road>,
+  tunnel: ReadonlyArray<number>,
+  line: number,
+  end: number,
+  to: number,
+): Array<Line> => {
+  // Road `i`'s line from its vertex `k` (its first or last) on, and how long it is.
+  const from = (i: number, k: number) => {
+    const { pts, z } = roads[i]!,
+      order = z.map((_, j) => (k === 0 ? j : z.length - 1 - j)),
+      line = {
+        pts: order.flatMap((j) => [pts[2 * j]!, pts[2 * j + 1]!]),
+        z: order.map((j) => z[j]!),
+      }
+    let length = 0
+    for (let j = 2; j < line.pts.length; j += 2)
+      length += Math.hypot(line.pts[j]! - line.pts[j - 2]!, line.pts[j + 1]! - line.pts[j - 1]!)
+    return { ...line, length, road: i }
+  }
+  // The line `pts`, `z` (`length` m long, through the roads `used`) run on from where it ends.
+  const grow = (
+    pts: ReadonlyArray<number>,
+    z: ReadonlyArray<number>,
+    length: number,
+    used: ReadonlyArray<number>,
+  ): Array<Line> => {
+    if (length >= to) return [{ pts, z }]
+    const x = pts.at(-2)!,
+      y = pts.at(-1)!,
+      on = tunnel.flatMap((j) => {
+        const { pts: next, z: rises } = roads[j]!
+        return used.includes(j)
+          ? []
+          : [0, rises.length - 1].flatMap((k) =>
+              next[2 * k] === x && next[2 * k + 1] === y ? [from(j, k)] : [],
+            )
+      })
+    if (on.length === 0) return [{ pts, z }]
+    return on.flatMap((leg) =>
+      grow([...pts, ...leg.pts.slice(2)], [...z, ...leg.z.slice(1)], length + leg.length, [
+        ...used,
+        leg.road,
+      ]),
+    )
+  }
+  const own = from(line, end)
+  return grow(own.pts, own.z, own.length, [line])
 }
 
-/** How high the ground stands at most (m over the profile) over `road`'s line from `from` to `to` m in from its end `end`, every PROBE m. */
-export const groundOver = (road: Line, end: number, from: number, to: number): number =>
-  Math.max(...probes(road, end, from, to).map(({ x, y, z }) => terrainZ(x, y) - z))
+/** The points every PROBE m along each of `lines` (from a mouth in) up to `to` m in, each with the profile there. */
+const probes = (lines: ReadonlyArray<Line>, to: number) => {
+  const n = Math.max(1, Math.ceil(to / PROBE))
+  return lines.flatMap((line) =>
+    Array.from({ length: n + 1 }, (_, j) => inFrom(line, 0, (to * j) / n)),
+  )
+}
+
+/** How high the ground stands at most (m over the profile) over `lines` (a tunnel's end by its mouth, `linesIn`) up to `to` m in, every PROBE m. */
+export const groundOver = (lines: ReadonlyArray<Line>, to: number): number =>
+  Math.max(...probes(lines, to).map(({ x, y, z }) => terrainZ(x, y) - z))
 
 /**
- * Whether a building of `houses` stands over `road`'s line at the way's level within `to` m in from
- * its end `end` (probed every PROBE m), the ground under its lowest corner (`z0`) less than `clear`
- * m over the road there: a covered way, which the house hides. A house on the hill over a bore
- * hides nothing.
+ * Whether a building of `houses` stands over `lines` (a tunnel's end by its mouth, `linesIn`) at
+ * the way's level up to `to` m in (probed every PROBE m), the ground under its lowest corner (`z0`)
+ * less than `clear` m over the road there: a covered way, which the house hides. A house on the hill
+ * over a bore hides nothing.
  */
 export const housed = (
-  road: Line,
-  end: number,
+  lines: ReadonlyArray<Line>,
   to: number,
   clear: number,
   houses: ReadonlyArray<Building>,
 ): boolean =>
-  probes(road, end, 0, to).some(({ x, y, z }) =>
+  probes(lines, to).some(({ x, y, z }) =>
     houses.some(
       ({ outer, holes, z0 }) =>
         z0 - z < clear &&

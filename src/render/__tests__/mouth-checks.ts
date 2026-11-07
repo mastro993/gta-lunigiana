@@ -369,12 +369,13 @@ export type Open = "housed" | "low" | "crowded"
 /**
  * Why the mouth `end` (of the whole map's roads and buildings, or those round it, `vectors`) is
  * open, from what stands round it. Its end of the tunnel is its road's line from the mouth 40 m in,
- * short of the tunnel's middle, probed every 0.25 m: a house stands over the way there at its level,
- * the ground under its lowest corner less than the clear height over the road ("housed": a covered
- * way, which the house hides); else the ground over it never rises as high over the road as a head
- * wall's top and its margin (`leastWall`: "low"); else another road or the track runs through the
- * room a head wall and its box would take, beside the bore's axis and between the road and that
- * height ("crowded"), or it fails.
+ * run on along the roads of its tunnel that go on from it, short of the tunnel's middle, probed
+ * every 0.25 m: a house stands over the way there at its level, the ground under its lowest corner
+ * less than the clear height over the road ("housed": a covered way, which the house hides); else
+ * the ground over it never rises as high over the road as a head wall's top and its margin
+ * (`leastWall`: "low"); else another road or the track runs through the room a head wall and its
+ * box would take, beside the bore's axis and between the road and that height ("crowded"), or it
+ * fails.
  */
 export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   const own = tunnelOf(roads, end.road),
@@ -386,27 +387,43 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
         length += Math.hypot(pts[k]! - pts[k - 2]!, pts[k + 1]! - pts[k - 1]!)
   })
   const span = Math.min(40, length / 2),
-    first = road.pts[0] === end.x && road.pts[1] === end.y,
-    n = road.z.length,
-    order = Array.from({ length: n }, (_, k) => (first ? k : n - 1 - k)),
     probes: Array<{ readonly x: number; readonly y: number; readonly z: number }> = []
-  for (let i = 0, s = 0; i + 1 < n && s <= span; i++) {
-    const a = order[i]!,
-      b = order[i + 1]!,
-      l = Math.hypot(
-        road.pts[2 * b]! - road.pts[2 * a]!,
-        road.pts[2 * b + 1]! - road.pts[2 * a + 1]!,
-      )
-    for (let d = Math.ceil(s / 0.25) * 0.25 - s; d <= l && s + d <= span; d += 0.25) {
-      const t = l > 0 ? d / l : 0
-      probes.push({
-        x: road.pts[2 * a]! + (road.pts[2 * b]! - road.pts[2 * a]!) * t,
-        y: road.pts[2 * a + 1]! + (road.pts[2 * b + 1]! - road.pts[2 * a + 1]!) * t,
-        z: road.z[a]! + (road.z[b]! - road.z[a]!) * t,
-      })
+  // Along `line` from its first vertex (`ahead`) or its last, `from` m into the tunnel there, then
+  // on along each road of the tunnel that goes on from where it ends (each way a fork takes).
+  const walk = (line: Road, ahead: boolean, from: number, used: ReadonlySet<Road>): void => {
+    const n = line.z.length,
+      order = Array.from({ length: n }, (_, k) => (ahead ? k : n - 1 - k))
+    let s = from
+    for (let i = 0; i + 1 < n && s <= span; i++) {
+      const a = order[i]!,
+        b = order[i + 1]!,
+        l = Math.hypot(
+          line.pts[2 * b]! - line.pts[2 * a]!,
+          line.pts[2 * b + 1]! - line.pts[2 * a + 1]!,
+        )
+      for (let d = Math.ceil(s / 0.25) * 0.25 - s; d <= l && s + d <= span; d += 0.25) {
+        const t = l > 0 ? d / l : 0
+        probes.push({
+          x: line.pts[2 * a]! + (line.pts[2 * b]! - line.pts[2 * a]!) * t,
+          y: line.pts[2 * a + 1]! + (line.pts[2 * b + 1]! - line.pts[2 * a + 1]!) * t,
+          z: line.z[a]! + (line.z[b]! - line.z[a]!) * t,
+        })
+      }
+      s += l
     }
-    s += l
+    if (s > span) return
+    const x = line.pts[2 * order[n - 1]!]!,
+      y = line.pts[2 * order[n - 1]! + 1]!
+    roads.items.forEach((next, i) => {
+      if (!own.has(roads.ids[i]!) || used.has(next)) return
+      const last = next.z.length - 1
+      for (const k of [0, last])
+        if (next.pts[2 * k] === x && next.pts[2 * k + 1] === y)
+          walk(next, k === 0, s, new Set([...used, next]))
+    })
   }
+  const first = road.pts[0] === end.x && road.pts[1] === end.y
+  walk(road, first, 0, new Set([road]))
   // The houses whose box comes within `span` of the mouth.
   const houses = buildings.items.filter(({ outer }) => {
     const [minX, minY, maxX, maxY] = boxOver(outer)
@@ -430,7 +447,7 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
     return "housed"
   const least = leastWall(road)
   if (Math.max(...probes.map(({ x, y, z }) => terrainZ(x, y) - z)) < least) return "low"
-  const floor = yOf(road.z[order[0]!]! + ROAD_LIFT[roadClassOf(road)]),
+  const floor = yOf(road.z[first ? 0 : road.z.length - 1]! + ROAD_LIFT[roadClassOf(road)]),
     ux = Math.cos(end.angle),
     uy = Math.sin(end.angle),
     room = boreOf(road).half + 2
