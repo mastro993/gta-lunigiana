@@ -619,9 +619,10 @@ the lane helpers in `src/sim/route.ts`.
   passes under the player or a passer-by on the deck; before, each stopped 4.8–5.1 m short of the
   player. Backing up on the deck, a car backs over the player on the road under it as over nobody,
   and stops short of them standing behind it on the deck. Read under the car's own middle, the
-  level would lose the car ahead on a hill: along Lunigiana's traffic lanes, sampled every 2 m, a
-  car standing 15 m ahead along them (no junction between) stands 2 m or more off that ground at
-  6.6% of 301,202 places, one 20 m ahead at 14.1% of 285,796. In the SR445's dip 500 m east of the
+  level would lose the car ahead on a hill: along Lunigiana's traffic lanes, sampled every 2 m on
+  2026-11-06 (before Fosdinovo's part, as the joints below), a car standing 15 m ahead along them
+  (no junction between) stands 2 m or more off that ground at 6.6% of 301,202 places, one 20 m
+  ahead at 14.1% of 285,796. In the SR445's dip 500 m east of the
   viaduct, 15% down into it and 15% up out of it, a car at 16 m/s then ran into a Panda standing 40
   m up the climb from the dip's foot (at 0.8 m/s), or, with that ground carried along its pitch,
   into one 15 m past the foot from 25 m down the descent (at 5.7 m/s); rolled there, it stops 6.7 m
@@ -630,9 +631,11 @@ the lane helpers in `src/sim/route.ts`.
   down 15% onto the SR445's viaduct from the east, a car ran into a Panda standing 12 m onto the
   deck at 3.7–9.5 m/s, and coming down 8% onto the primary road's bridge OSM way 237828927, into
   one 6.5 m onto its deck at 11.7 m/s; rolled there, it stops 6.1–6.4 m short. With a lane's slope
-  for the pitch, that reading loses such a car at 30 of Lunigiana's 463 joints between a road and a
-  bridge or a tunnel, 7 of Cesena's 105 and 8 of the L's 63; rolled, at none but a mouth of Pieve
-  San Lorenzo's underpass ([map.md](map.md#known-data-limitations)). Rolled to the obstacle's
+  for the pitch, that reading lost such a car at 30 of Lunigiana's 463 joints between a road and a
+  bridge or a tunnel, 7 of Cesena's 105 and 8 of the L's 63 before #18 (541 and 67 joints now,
+  2026-11-07); rolled, at none but a mouth of Pieve
+  San Lorenzo's underpass ([map.md](map.md#known-data-limitations)), with Fosdinovo's joints too
+  (`joints.map-test.ts`). Rolled to the obstacle's
   middle, a train's car passing under a road bridge may lie off the deck: a car on the SR445's deck
   over the railway, 340 m east of the dip, then changed its way for a train passing under it at 16
   of 26 timings (from 60 m before the deck to 60 m past it every 10 m, both ways), and now goes on
@@ -713,8 +716,8 @@ happens around them. `Perceive` (`systems/perceive.ts`, with the vehicle checks 
   only at dead ends. The ways are weighed by where they lead, not by the edge itself, because
   residents are counted within 60 m of each edge, so all the edges at one junction count about the
   same houses. With the floor, a lane into the fields draws about 1 walker in 32 against a typical
-  village street (15.6 residents, the median of the peopled walk edges; 17 on lucido alone, 1 in
-  35). Of 200 walkers set off for
+  village street (15.3 residents, the median of the peopled walk edges; 15.6 before Fosdinovo's
+  part; 17 on lucido alone, 1 in 35). Of 200 walkers set off for
   1.5 km from each centre, the share of the distance walked on peopled streets:
 
   | Centre | This choice | The edge's own residents | Random |
@@ -960,22 +963,27 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   random stream seeded by a hash of the spot's place (its x and y in whole decimetres, as the build
   rounds them) and the game's seed (`Parking`, saved), so within one game a street looks the same
   each time the player comes back, and `?seed=N` parks another set. A spot where a Panda would
-  tilt more than 15° stays empty (in Lunigiana, 178 of the 2,501: the 4 m terrain puts some verges
+  tilt more than 15° stays empty (in Lunigiana, 230 of the 3,512: the 4 m terrain puts some verges
   on a bank), and so do the Carabinieri's two.
 - **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
   over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had
-  then (2,321 since Fivizzano's part), about 27%, and 198 of Cesena's 1,223, about 16%. Within
+  then (3,280 since Fosdinovo's part), about 27%, and 198 of Cesena's 1,223, about 16%. Within
   300 m of each village (seed 1): Monzone (Stazione) 9, Monzone Alto 6, Equi Terme 4, Gragnola 9,
-  Colognola 3, Campiglione 7, Viano 10, Vinca 10, Ugliancaldo 1, Tenerano 0; in Fivizzano's part
-  Fivizzano 20, Casola in Lunigiana 12, Soliera 11, Gassano 8. A spot's dice follow its place, not
-  its index, so a build that adds or drops other spots leaves its car as it was (the 3x test region,
-  which drops 9 buildings across lucido's edge, keeps lucido alone's 807 spots and parks the same
-  cars round Monzone: [map.md](map.md#test-regions)); a spot the build moves rolls anew.
+  Colognola 3, Campiglione 9, Viano 10, Vinca 10, Ugliancaldo 1, Tenerano 0; in Fivizzano's part
+  Fivizzano 20, Casola in Lunigiana 12, Soliera 11, Gassano 8; in Fosdinovo's part Fosdinovo 7,
+  Caniparola 11, Tendola 2, Ponzanello 1, Ceserano 6, San Terenzo Monti 7, Bardine di San
+  Terenzo 5, Marciaso 3, Pulica 2, Gignago 2, Colla 5, Castelpoggio 7. A spot's dice follow its
+  place, not its index, so a build that adds or drops other spots leaves its car as it was (the 3x
+  test region, which drops 9 buildings across lucido's edge, keeps lucido alone's 808 spots and
+  parks the same cars round Monzone: [map.md](map.md#test-regions)); a spot the build moves rolls
+  anew: Campiglione's held 7 cars before Fosdinovo's part, when its Via Provinciale (way
+  175092604) began at lucido's west edge, x −2900; it now begins by Colla, at (−4985, 2559), and
+  the build lays a road's kerbside candidates every 3 m from its start, so its spots moved.
 - **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
   primary, secondary or tertiary road's spot where a truck fits, a roll under 10% makes a marble
-  truck instead: 23 of the 588 cars Lunigiana's spots hold for seed 1 (11–23 of 588–643 over
-  seeds 1, 2, 3, 7 and 11; 2–7 of 167–202 on lucido alone), where the game that parked over the
-  whole map held at most two.
+  truck instead: 29 of the 842 cars Lunigiana's spots hold for seed 1 (16–29 of 842–903 over
+  seeds 1, 2, 3, 7 and 11; 11–23 of 588–643 before Fosdinovo's part, 2–7 of 167–202 on lucido
+  alone), where the game that parked over the whole map held at most two.
 - **Coming**: a spot 90–300 m from the player (`PARKING.fill`, out of view) that should hold a car
   and has none gets it, unless a vehicle's body, or a person or an animal within 1 m (`ROOM`), is in
   the way: it is tried again every 0.5 s.
@@ -1008,7 +1016,8 @@ in the Apuan valleys are holiday homes or empty) / 56 m² (`GROSS_PER_RESIDENT`:
 average occupied dwelling is 101 m² for 2.25 people, 45 m² each, and walls and stairs take about a
 fifth of the gross). Homes are the surveys' houses and the OSM homes (`house`, `residential`, `yes`,
 `apartments`, `detached`, `semidetached_house`, `terrace`, `farm`, `bungalow`), ruins left out. The
-map's 9,763 homes hold 10,347 residents (lucido's alone 3,244).
+map's 14,776 homes hold 15,408 residents (9,763 and 10,347 before Fosdinovo's part; lucido's alone
+3,244).
 
 `peopleOut` is 0.09 (`OUT_SHARE`, an estimate of the share of residents out on the street by day) ×
 the residents within 140 m of the player, rounded, at most 22. Only the living count. The sum
@@ -1025,6 +1034,7 @@ same whichever tiles are in memory.
 | Monzone, the player's start (−412, 438) | 97 | 9 |
 | Equi Terme (1804, 721) | 97 | 9 |
 | Casola in Lunigiana (3636, 4246) | 162 | 15 |
+| Fosdinovo's centre (−8890, −3090) | 189 | 17 |
 | The SR445 out in the country (−279, 3736) | 0 | 0 |
 
 The cap of 22 is the first prototype's ceiling (`PEDESTRIANS.max` in `src/sim/systems/populate.ts`).
@@ -1033,16 +1043,17 @@ grid over the map, the 529 points where 0.09 × the residents rounds past 22 all
 it. There the target is the cap, and a party's followers and neighbour count against it too
 (`placeParties`), so a party whose leader is the 21st or 22nd out leaves home the followers or
 neighbour that do not fit. Everywhere else the most is 19, on 8 points of the grid in Gragnola's
-centre round (−1700, 3380), which leaves room for them.
+centre round (−1700, 3380), which leaves room for them; Fosdinovo's part reaches 17 at most, on 15
+points of its centre round (−8910, −3090) (2026-11-07).
 
 ### Where they come out
 
 - A party comes out on a walk edge drawn by the residents within 60 m of its midpoint
   (`residentsAlong`), so the village centres fill first. An edge with fewer than 6 (`PEOPLED`, within
   `EDGE_REACH` = 60 m) never gets one: a lone house or two, the woods and the fields stay empty.
-  7,877 of the map's 61,091 walk edges are peopled. Those sums read buildings all over the map, so
-  the build works them out (`bakeResidents`) and the map keeps one per walk edge
-  (`MAP.derived.residents`).
+  11,441 of the map's 87,868 walk edges are peopled (7,877 of 61,091 before Fosdinovo's part).
+  Those sums read buildings all over the map, so the build works them out (`bakeResidents`) and
+  the map keeps one per walk edge (`MAP.derived.residents`).
 - The leader stands on a verge at a random point along the edge, never inside a building (where a
   verge runs into houses that crowd the road) and clear of walk walls and the water's edge; 4
   spots are tried a party.
@@ -1204,8 +1215,9 @@ A farm (`src/sim/population/farms.ts`) is a house, barn, shed, `farm_auxiliary` 
 whose centre lies on meadow, grassland, farmland, farmyard, vineyard or olive grove cover (a house in
 its olive grove is a farm, as it was when the grove was meadow). It is rural when fewer than 60
 residents live within 140 m (`RURAL`, TUNED), and a pen (pigs live there) when it is a barn, shed or
-`farm_auxiliary`, or stands on a farmyard. The map has 6,604 farms, 5,479 of them rural, 2,256 pens
-and 2,006 rural pens (2,436, 1,739, 806 and 657 on lucido alone). Finding them reads the land cover
+`farm_auxiliary`, or stands on a farmyard. The map has 10,548 farms, 8,003 of them rural, 3,529
+pens and 3,027 rural pens (6,604, 5,479, 2,256 and 2,006 before Fosdinovo's part; 2,436, 1,739,
+806 and 657 on lucido alone). Finding them reads the land cover
 under every building, so the build does it (`bakeFarms`) and the global file keeps the list
 (`MAP.farms`, each with its building's index in the whole map's buildings) and each farm's centre
 (`MAP.derived.farms`); a farm's own building is read from the tile at its centre (`farmBuilding`). A
@@ -1838,8 +1850,13 @@ speed along the contact.
   past a terminal, over the terrain the apron extends. On a map of parts in an L (issue #7) a
   terminal on an inner edge of the play area would send them across the notch, over ground that
   only extends the edge's (no tile is listed there, [map.md](map.md#map-files)), and a long run-out
-  could come back over the other arm. Lunigiana's and Cesena's terminals lie on the bounds; a
-  region with such a terminal needs a run-out that bends or stops short.
+  could come back over the other arm. Cesena's terminals lie on the bounds, Lunigiana's on inner
+  edges of its play area: the east one since Fivizzano's part (x 6700, in the Galleria del
+  Lupacino, its 2,298.6 m run-out over Fivizzano's tiles past the play area), the west one since
+  Fosdinovo's moved the box's west edge from x −5300 to −11500 (by Rometta: of its 1,128.6 m
+  run-out, the last 423 m, past x −6000, lie over the north-west notch, out to (−6419, 4475)).
+  Neither comes back over another arm; a region whose run-out would needs one that bends or stops
+  short.
 - **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
   over the line speed, through a box whose arms are not down and onto another train. The lever
   forward rings the bell at once, but driven off Monzone at full power the train's nose reaches
