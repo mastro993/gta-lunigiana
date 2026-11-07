@@ -43,8 +43,8 @@ import { USUAL_WIND } from "./sky.ts"
  */
 export const MEADOW = { x: -329, y: 1078 }
 /**
- * How far south across `MEADOW` a Panda at full load is heard in the tests' calm, m: all the way to 284 m on the map's floor of
- * 213.6 m, which puts the meadow's usual wind 0.6 dB over lucido's floor of 230.3 m (all the way to 288 m, then to 322 m with gaps).
+ * How far south across `MEADOW` a Panda at full load is heard in the tests' calm, m: all the way to 265 m on the map's floor of
+ * 162.3 m, which puts the meadow's usual wind 2.7 dB over lucido's floor of 230.3 m (all the way to 288 m, then to 322 m with gaps).
  */
 export const ACROSS_MEADOW = 250
 /**

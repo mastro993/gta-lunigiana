@@ -86,20 +86,22 @@ test("speciesAt: oaks most on south faces and none above 1200 m, pines among the
 })
 
 test("treeMeshes: a chunk draws each tree as its kind (kindAt), and a tree mirrored into the apron as the tree", () => {
-  const { minX } = MAP.bounds
   const material = new MeshBasicMaterial()
-  // The west edge's tile north of its seam, and the chunks holding its trees and their mirrors past the edge.
-  const [key] = tilesOver(minX, WEST_SEAM.y + 1, minX, WEST_SEAM.y + 1)
+  // The west edge's tile north of its seam, and the chunks holding its trees and their mirrors past the edges (the west
+  // one, and the south one too where the seam lies within the apron's reach of the bounds' corner).
+  const [key] = tilesOver(WEST_SEAM.x, WEST_SEAM.y + 1, WEST_SEAM.x, WEST_SEAM.y + 1)
+  // Each of the tile's trees where it stands, by its seed (3 × its id): a mirror (its seed + 1) is drawn as that tree.
+  const { trees: own, ids } = tileTrees(key!)
+  const where = new Map(Array.from(ids, (id, k) => [3 * id, k]))
   let mirrors = 0
   for (const trees of bucketTileTrees(key!).values()) {
     const kinds: Array<TreeKind> = []
     for (let n = 0; n < trees.length; n += 4) {
       const seed = trees[n + 3]!,
-        mirror = seed % 3 === 1
-      if (mirror) mirrors++
-      kinds.push(
-        kindAt(mirror ? 2 * minX - trees[n]! : trees[n]!, trees[n + 1]!, seed - (seed % 3)),
-      )
+        tree = seed - (seed % 3),
+        k = where.get(tree)!
+      if (seed % 3 === 1) mirrors++
+      kinds.push(kindAt(own[3 * k]!, own[3 * k + 1]!, tree))
     }
     const drawn = treeMeshes(trees, material),
       expected = treeMeshes(trees, material, undefined, kinds)

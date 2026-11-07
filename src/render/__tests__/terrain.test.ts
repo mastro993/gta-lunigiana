@@ -130,16 +130,24 @@ test("each face of the terrain mesh faces as the sim's facingAt says over it, so
 })
 
 test("out of leaf a broadleaf wood's floor shows its leaf litter: only the woods change colour, and only to the litter or their dark shade", () => {
-  // The chunk nearest Monzone station along a line east of it whose middle stands in a broadleaf wood: found by its
-  // middle, not by the wood's edge, as the chunks' squares count from the map's west edge, which moves as parts join
-  // (their cells' colours count from the anchor).
+  // The chunk nearest Monzone station along a line east of it most of whose cells stand in a broadleaf wood: found by its
+  // cells, not by its middle nor the wood's edge, as the chunks' squares count from the map's west edge, which moves as
+  // parts join (their cells' colours count from the anchor), so a chunk's middle can fall on a sliver of wood.
   residentAround([STATION], 600)
-  let x = STATION.x
-  const middle = (at: number) => {
+  const { cell } = MAP.heightmap
+  const wooded = (at: number) => {
     const { minX, minY, maxX, maxY } = chunkRect(chunkOf(at, STATION.y))
-    return coverAt((minX + maxX) / 2, (minY + maxY) / 2)
+    let woods = 0,
+      cells = 0
+    for (let py = minY + cell / 2; py < maxY; py += cell)
+      for (let px = minX + cell / 2; px < maxX; px += cell) {
+        cells++
+        if (coverAt(px, py) === "forest") woods++
+      }
+    return woods > cells / 2
   }
-  while (middle(x) !== "forest") x += 8
+  let x = STATION.x
+  while (!wooded(x)) x = chunkRect(chunkOf(x, STATION.y)).maxX
   const key = chunkOf(x, STATION.y),
     leafy = terrainChunk(key).getAttribute("color"),
     heights: Array<number> = [],

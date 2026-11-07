@@ -1,8 +1,8 @@
 // The lakes and river polygons of both built maps (water-areas.ts) read from their heights: their
 // levels and waterways, a lake's nodes carved under its level, its edge holding it and no level
-// over all its nodes, the lakes the LiDAR reads no hollow under left dry, the surface a river
-// polygon is carved under falling downstream, its outer edge left as the ground was, and no tree,
-// parked car or player spawn in the water.
+// over all its nodes, the lakes the LiDAR reads no hollow under or with no node inside their edge
+// left dry, the surface a river polygon is carved under falling downstream, its outer edge left as
+// the ground was, and no tree, parked car or player spawn in the water.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
@@ -16,7 +16,12 @@ import { type JoinedMap, wholeMap } from "../map-file.ts"
 import { inRects, PARTS } from "../region.ts"
 import { inRings } from "../water-areas.ts"
 
-/** Each map, and the lakes in it the LiDAR reads no hollow under (a point inside each). */
+/**
+ * Each map, and the lakes in it the LiDAR reads no hollow under (a point inside each). A lake every
+ * node of whose cells is its edge (no node all four of whose cells are water) holds none either,
+ * and the test finds it by its nodes: the carve lowers only the nodes inside a lake's edge
+ * (`carveAreas`), and its level is no higher than its spill (`levelOf`).
+ */
 const MAPS: ReadonlyArray<readonly [string, JoinedMap, ReadonlyArray<readonly [number, number]>]> =
   [
     [
@@ -24,14 +29,11 @@ const MAPS: ReadonlyArray<readonly [string, JoinedMap, ReadonlyArray<readonly [n
       wholeMap("monzone"),
       [
         [-114, -4678], // the intermittent pond at Prati di Campocecina, on a 24 % slope
-        [2934, -2611], // the 18 m² pool on the Canale Doglio's cascade
         // The Arlia power station's forebay, 300 m along a hillside: its outline's foot reaches 3–5 m
         // under the basin, where its level spills.
         [688, 10840],
         // A 24 × 29 m pond on a slope 320 m past the play area's east edge, its foot 1.6 m under it.
         [10432, 8160],
-        // A 7 × 9 m pond 200 m east of Pieve San Lorenzo's rectangle: every node of its cells is its edge.
-        [6901, 3597],
       ],
     ],
     ["Cesena", wholeMap("cesena"), []],
@@ -226,7 +228,7 @@ for (const [name, map, dry] of MAPS) {
     })
   })
 
-  test(`water areas, ${name}: every lake holds water but where the LiDAR reads no hollow, where it stands at its spill over every node of it`, () => {
+  test(`water areas, ${name}: every lake holds water but where the LiDAR reads no hollow or no node lies inside its edge, where it stands at its spill over every node of it`, () => {
     let lakes = 0
     areas.forEach((a, n) => {
       const level = a.level
@@ -236,7 +238,7 @@ for (const [name, map, dry] of MAPS) {
         at = `lake round ${a.rings[0]!.slice(0, 2)} at ${level}`
       const lowest = Math.min(...own.map((v) => v.z)),
         spill = Math.min(...own.filter((v) => v.edge).map((v) => v.z))
-      if (dry.some(([x, y]) => inRings(a.rings, x, y))) {
+      if (own.every((v) => v.edge) || dry.some(([x, y]) => inRings(a.rings, x, y))) {
         assert.equal(spill, level, `${at}: its spill`)
         assert.ok(lowest >= level - ROUND, `${at}: a node at ${lowest}`)
       } else assert.ok(lowest < level - ROUND, `${at}: dry, its lowest node ${lowest}`)

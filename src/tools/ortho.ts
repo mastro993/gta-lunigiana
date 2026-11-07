@@ -1,5 +1,5 @@
 // Draws a Regione Toscana orthophoto crop with the built map over it, for tracing the hand tables
-// (STONE_CORES and the stream widths in features.ts, LANDMARKS in districts.ts) as step 5 of the
+// (STONE_CORES in stone-cores.ts, the stream widths in features.ts, LANDMARKS in districts.ts) as step 5 of the
 // runbook in issue #3 describes. Run:
 // node src/tools/ortho.ts <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>] [--refresh]
 // (pnpm ortho ...). The rectangle is in local metres; the layer defaults to rt_ofc.2k10, the 2010
@@ -24,7 +24,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 
 import type { Water } from "../sim/map/index.ts"
-import { STONE_CORES } from "./features.ts"
 import { fromLocal, r1, ringBox } from "./geometry.ts"
 import { wholeMap } from "./map-file.ts"
 import { getBytes, pool, request } from "./net.ts"
@@ -42,6 +41,7 @@ import {
   type WmsLayer,
 } from "./ortho-wms.ts"
 import type { Rect } from "./region.ts"
+import { STONE_CORES } from "./stone-cores.ts"
 
 /** The widest tile requested, px: the services take 5000 and 5130. */
 const MAX_SIDE = 4096

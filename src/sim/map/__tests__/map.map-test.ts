@@ -6,12 +6,12 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { type Dem, loadDtm } from "../../../tools/dtm.ts"
-import { STONE_CORES } from "../../../tools/features.ts"
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
 import { listedNodes } from "../../../tools/grid-tiles.ts"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { ROAD_PASSES } from "../../../tools/profiles.ts"
 import { dtmDir, inRects, PARTS, regionFromArgs } from "../../../tools/region.ts"
+import { STONE_CORES } from "../../../tools/stone-cores.ts"
 import { sheet2k, SOURCES } from "../../../tools/survey-ids.ts"
 import { PERCH } from "../../../tools/water.ts"
 import { meets } from "../../body.ts"
@@ -143,6 +143,43 @@ const VILLAGES = {
   Antognano: { x: 6014.3, y: 4363.9 }, // 1293344553, Minucciano (LU)
   "Pieve San Paolo": { x: 3450.9, y: 10553.7 }, // 1293344540
   Verrucola: { x: 639.8, y: 8993.7 }, // 1467639451: its disc holds the Fortezza della Verrucola
+  // Fosdinovo's part (#18), each toLocal of its OSM place node to 0.1 m: the issue's ten, then
+  // every other village and hamlet in its play area that the traffic graph reaches.
+  Fosdinovo: { x: -8889.1, y: -3103.5 }, // 61753606: its disc holds the Castello Malaspina
+  Caniparola: { x: -10575.6, y: -5990.5 }, // 6216431816
+  Tendola: { x: -7377.9, y: -56.6 }, // 251991765
+  Ponzanello: { x: -10377.7, y: 425.1 }, // 6550116039; the issue's (-10265, 634) is its castle's node 6910610606
+  "San Terenzo Monti": { x: -6375.3, y: 1266.2 }, // 1267019877
+  Ceserano: { x: -6021, y: 3373.4 }, // 251993868
+  Bardine: { x: -9182.4, y: 2895.5 }, // 1267020593, Aulla's; Fivizzano's Bardine (1411140437) shares the name
+  Marciaso: { x: -4174, y: -1608 }, // 1267021604
+  Pulica: { x: -6751.4, y: -1728.8 }, // 1267019411
+  Gignago: { x: -8601.1, y: -4305.5 }, // 616791768
+  Colla: { x: -5009, y: 2602.5 }, // 1267019481
+  Castelpoggio: { x: -4409.2, y: -5498.8 }, // 579493397, Carrara: the mask bends out for it
+  "Bardine di San Terenzo": { x: -5296, y: 1661.9 }, // 1267021422
+  "Cà della Vacca": { x: -9498.6, y: -5688.1 }, // 616625011, Castelnuovo Magra (SP)
+  Canova: { x: -7973.1, y: 3393.1 }, // 1267021246
+  Caprignano: { x: -8664.2, y: -5132.1 }, // 616625695, Castelnuovo Magra (SP)
+  Caprognano: { x: -8823.7, y: -4697.4 }, // 616625842
+  Cecina: { x: -3724.7, y: -877.6 }, // 1267019643
+  Celso: { x: -11091, y: -3931.4 }, // 1411140343
+  Colletto: { x: -11197.8, y: -3740.1 }, // 1411140753
+  Corsano: { x: -3187.4, y: 2037.9 }, // 1267021377
+  Gallogna: { x: -3872.7, y: 2042.5 }, // 1267020398
+  Gignola: { x: -9081.3, y: -2180.8 }, // 1267019579
+  Giucano: { x: -10521.5, y: -1991 }, // 1267020222
+  Gorasco: { x: -8063.4, y: 2315.8 }, // 1267020909
+  "La Vagina": { x: -9050.8, y: -1111.8 }, // 1267020986
+  Maglietola: { x: -4281.3, y: 2070.8 }, // 1267020741
+  "Monte Carboli": { x: -8260.1, y: -2302.8 }, // 1267020365
+  Montecchio: { x: -9725.4, y: -6007.8 }, // 1411140963, Castelnuovo Magra (SP)
+  Pomarino: { x: -10151.6, y: 2796.8 }, // 1267021765
+  Porredo: { x: -10140.8, y: -5106.7 }, // 1411140877
+  Posterla: { x: -4591.4, y: 306.7 }, // 1267020947
+  Vallecchia: { x: -7893.4, y: -5782.9 }, // 1411140583, Castelnuovo Magra (SP)
+  Vercalda: { x: -9593.6, y: -3728.2 }, // 1411140955
+  "Villaggio Bertani": { x: -10530.7, y: -5256.7 }, // 1411140648
 }
 
 test("bounds and heightmap cover the play area", () => {
@@ -155,13 +192,14 @@ test("bounds and heightmap cover the play area", () => {
   assert.equal(data.length, hm.cols * hm.rows)
   assert.ok(hm.x0 <= MAP.bounds.minX && hm.x0 + (hm.cols - 1) * hm.cell >= MAP.bounds.maxX)
   assert.ok(hm.y0 <= MAP.bounds.minY && hm.y0 + (hm.rows - 1) * hm.cell >= MAP.bounds.maxY)
-  // The listed tiles' nodes, from the Aulella at the map's west edge (105 m) to the Emilian ridge
-  // by Cima Belfiore (1856 m); the notch's, which no tile holds, are 0 in the joined map.
+  // The listed tiles' nodes, from the Magra plain by Sarzana at the map's south-west corner (18.1 m)
+  // to the Emilian ridge by Cima Belfiore (1856 m); the notches', which no tile holds, are 0 in the
+  // joined map.
   const listed = listedNodes(hm, MAP.tiles)
   for (let k = 0; k < data.length; k++) {
     const v = data[k]!
     assert.ok(
-      listed[k] === 1 ? Number.isInteger(v) && v > 1000 && v < 19000 : v === 0,
+      listed[k] === 1 ? Number.isInteger(v) && v > 100 && v < 19000 : v === 0,
       `node ${k}: ${v}`,
     )
   }
@@ -696,25 +734,50 @@ test("road names, classes, styles, area kinds and districts", () => {
       y: b.outer.filter((_, i) => i % 2 === 1).reduce((a, v) => a + v, 0) / n,
     }
   })
-  const covered = centres.filter((c) =>
+  // A settlement's buildings, found by geometry rather than by OSM's place nodes (the discs' own
+  // centres, so a village OSM leaves without a node, or tags `locality`, still counts against
+  // them): those with 10 or more others within 150 m. The rest are farmhouses, mountain huts and
+  // quarry sheds: 9% of lucido's and Fivizzano's part's buildings, 18% of Fosdinovo's.
+  const near = bucketed(centres, (c) => [c.x, c.y], 0)
+  const settled = centres.filter(
+    (c) =>
+      near(c.x - 150, c.y - 150, c.x + 150, c.y + 150).filter(
+        (o) => hypot(o.x - c.x, o.y - c.y) <= 150,
+      ).length > 10,
+  )
+  const covered = settled.filter((c) =>
     MAP.districts.some((d) => hypot(c.x - d.x, c.y - d.y) <= d.r),
   ).length
-  // Most buildings are in a village; the rest are farmhouses, mountain huts and quarry sheds.
+  // Most are inside a district disc: 86.8% (lucido's 90.0%, Fivizzano's part's 88.7%, Fosdinovo's
+  // 80.5%, where 24 of its 38 discs stand at the 400 m cap and Ceserano's node is 506 m off its
+  // church).
   assert.ok(
-    covered >= 0.8 * centres.length,
-    `${covered}/${centres.length} buildings inside a district disc`,
+    covered >= 0.8 * settled.length,
+    `${covered}/${settled.length} settled buildings inside a district disc`,
   )
   assert.equal(districtAt(STATION.x, STATION.y).name, "Monzone (Stazione)")
   assert.equal(districtAt(ALTO.x, ALTO.y).name, "Monzone Alto")
   for (const [name, p] of Object.entries(VILLAGES)) assert.equal(districtAt(p.x, p.y).name, name)
   assert.ok(MAP.districts.includes(districtAt(MAP.bounds.maxX, MAP.bounds.minY))) // far corner: nearest rim
   // Regression: by the nearest rim, the HUD named Vinca on the summits above it; a wide Balzone disc then took Vinca's hairpins.
-  for (const name of ["Monte Sagro", "Pizzo d'Uccello", "Cima Belfiore", "Monte Tondo"]) {
+  for (const name of [
+    "Monte Sagro",
+    "Pizzo d'Uccello",
+    "Cima Belfiore",
+    "Monte Tondo",
+    "La Pizza",
+  ]) {
     const peak = MAP.pois.find((p) => p.kind === "natural=peak" && p.name === name)!
     assert.equal(districtAt(peak.x, peak.y).name, name)
   }
-  // Issue #17: the passes name their own districts, Carpinelli's inside Casone Carpinelli's disc.
-  for (const name of ["Passo dei Carpinelli", "Passo di Tea", "Passo del Romito"]) {
+  // Issues #17 and #18: the passes name their own districts, Carpinelli's inside Casone Carpinelli's
+  // disc.
+  for (const name of [
+    "Passo dei Carpinelli",
+    "Passo di Tea",
+    "Passo del Romito",
+    "Foce del Cucco",
+  ]) {
     const pass = MAP.pois.find((p) => p.kind === "natural=saddle" && p.name === name)
     assert.ok(pass !== undefined, `${name}'s OSM node`)
     assert.equal(districtAt(pass.x, pass.y).name, name)

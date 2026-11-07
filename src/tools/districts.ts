@@ -79,6 +79,13 @@ const LANDMARKS: ReadonlyArray<District> = [
   { name: "Monte Tondo", x: 10006, y: 10324, r: 400 }, // peak 577763716: the summit meadow, its east half past the play area
   { name: "Monte Cucu", x: 8184, y: 9997, r: 260 }, // peak 2453127410: a knoll in beech wood; past 260 m the ridge climbs over it
   { name: "Monte Chiaro", x: 1083, y: 6242, r: 300 }, // Castello di Monte Chiaro's node 12089556144, on the hilltop (OSM's peak 72 m east)
+  // Fosdinovo's part (#18): on their OSM nodes, radii fitted on rt_ofc.5k23.32bit with the built
+  // terrain's contours over it. The Castello Malaspina stands in Fosdinovo's own disc; the Castello
+  // di Ponzanello, 67 m past Ponzanello's, takes the hamlet's name by the nearest rim.
+  { name: "Foce del Cucco", x: -8448, y: -1684, r: 200 }, // saddle 251988270: the SP72's and SP9's junction on the pass and its 17 houses; Monte Carboli's disc 47 m off
+  { name: "La Pizza", x: -3774, y: -4254, r: 300 }, // peak 4884214211: the wooded cone down to about its 800 m contour, and the Campo Cecina road's bends under its faces
+  { name: "Monte La Pianaccia", x: -4815, y: -4449, r: 300 }, // peak 4878663147: the wooded dome, the Campo Cecina road across its south flank and its picnic site; past 300 m east the saddle holds Maestà's houses
+  { name: "Monte Grugola", x: -7395, y: -3672, r: 250 }, // peak 4885328769: the wooded top and the SP73 under its west flank; past 250 m the ridge climbs to Monte Primicerri
 ]
 
 /**

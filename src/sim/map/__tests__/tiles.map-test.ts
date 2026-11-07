@@ -20,7 +20,7 @@ const tiles = new Map(KEYS.map((key) => [key, decodeTile(readMapFile(tileUrl(MAP
 /** The bounds' tile range (`tileRange`): the listed tiles and the notch's of an L. */
 const RANGE = tileRange(MAP.bounds)
 
-test("the tiles are the region's, those its parts' rectangles meet, listed south to north, then west to east, each with a file (Lunigiana's 79 of the bounds' 99: an L)", () => {
+test("the tiles are the region's, those its parts' rectangles meet, listed south to north, then west to east, each with a file (Lunigiana's 102 of the bounds' 132: two notches)", () => {
   const box: Array<string> = []
   for (let j = RANGE.j0; j <= RANGE.j1; j++)
     for (let i = RANGE.i0; i <= RANGE.i1; i++) box.push(tileKey(i, j))
@@ -30,8 +30,8 @@ test("the tiles are the region's, those its parts' rectangles meet, listed south
     KEYS,
     box.filter((key) => KEYS.includes(key)),
   )
-  assert.deepEqual([KEYS.length, box.length], [79, 99], "today's Lunigiana")
-  // the notch's tiles have no file
+  assert.deepEqual([KEYS.length, box.length], [102, 132], "today's Lunigiana")
+  // the notches' tiles have no file
   for (const key of box)
     assert.equal(existsSync(tileUrl(MAP.name, key)), KEYS.includes(key), `${key}'s file`)
   for (const t of MAP.tiles) {
@@ -146,9 +146,11 @@ test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole hei
       ne = node(i + 1, j + 1)
     return u >= v ? sw + (se - sw) * u + (ne - se) * v : sw + (ne - nw) * u + (nw - sw) * v
   }
-  // Points on and beside every seam, inside every tile, and far outside the bounds.
+  // Points on and beside every seam, inside every tile, and far outside the bounds past each corner.
   const points: Array<readonly [number, number]> = [
     [-1e6, -1e6],
+    [1e6, -1e6],
+    [-1e6, 1e6],
     [1e6, 1e6],
     [maxX, maxY],
     [minX - 150, maxY + 150],
@@ -161,15 +163,29 @@ test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole hei
   for (let j = RANGE.j0; j <= RANGE.j1 + 1; j++)
     for (const d of [-0.05, 0, 0.05, 3.9])
       for (let t = minX; t <= maxX; t += 413.1) points.push([t, TILE * j + d])
+  const read = new Set<string>()
   for (const [x, y] of points) {
+    read.add(
+      tileKey(
+        Math.min(RANGE.i1, Math.max(RANGE.i0, Math.floor(x / TILE))),
+        Math.min(RANGE.j1, Math.max(RANGE.j0, Math.floor(y / TILE))),
+      ),
+    )
     assert.equal(heightAt(x, y), bilinear(x, y), `heightAt ${x},${y}`)
     assert.equal(terrainZ(x, y), drawn(x, y), `terrainZ ${x},${y}`)
     const ci = Math.min(cols - 2, Math.max(0, Math.floor((x - ax) / cell) + ai)),
       cj = Math.min(rows - 2, Math.max(0, Math.floor((y - ay) / cell) + aj))
     assert.equal(coverAt(x, y), coverName(WHOLE.cover[readAt(ci, cj, 1)]!), `coverAt ${x},${y}`)
   }
-  // the notch's, the bounds' south-west and south-east corners, among them
-  assert.ok(!isListed(RANGE.i0, RANGE.j0) && !isListed(RANGE.i1, RANGE.j0))
+  // Points read in every tile of the bounds, each notch's too, and a notch at a corner of the bounds,
+  // found from the list (Lunigiana's north-west and south-east corners today)
+  for (let j = RANGE.j0; j <= RANGE.j1; j++)
+    for (let i = RANGE.i0; i <= RANGE.i1; i++)
+      assert.ok(read.has(tileKey(i, j)), `a point read in ${tileKey(i, j)}`)
+  assert.ok(
+    [RANGE.i0, RANGE.i1].some((i) => [RANGE.j0, RANGE.j1].some((j) => !isListed(i, j))),
+    "a notch at a corner of the bounds",
+  )
 })
 
 test("wallsNear and treesIn answer exactly as one broad phase over the whole map does: the same walls and trunks, in the same order, across the seams too", () => {

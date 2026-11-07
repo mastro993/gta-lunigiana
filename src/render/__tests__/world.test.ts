@@ -100,7 +100,8 @@ test("world streaming: nearest chunk first on a tight budget, everything in the 
   world.update(focus, 0, REACH, 0)
   assert.equal(world.loaded.size, 1, "a zero budget still builds one chunk")
   assert.ok(within(focus, 0).includes([...world.loaded.keys()][0]!), "the one under the focus")
-  world.update(focus, 0, REACH, Infinity)
+  // Once its base is in, a chunk wants the tiles its pieces read too: handed them, a free budget builds them all.
+  streamAround(world, focus, 0, REACH)
   assert.deepEqual(
     [...world.loaded.keys()].sort((a, b) => a - b),
     within(focus, radiiFor(REACH).load),

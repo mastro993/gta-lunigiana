@@ -31,6 +31,7 @@ import {
 import { assembleRings, type Osm, type OsmWay, type Tags } from "./osm.ts"
 import { clipPieces, inPlay, OUTLINE, type Piece } from "./play-area.ts"
 import { REGION } from "./region.ts"
+import { STONE_CORES } from "./stone-cores.ts"
 
 export interface RoadF {
   readonly id: number
@@ -247,32 +248,73 @@ const AULELLA_VALLEY_BELOW = 288
 const AULELLA_GORGE_BELOW = 350
 /** Mean ground (m) below which the Torrente Mommio keeps its bed: its floor narrows between 766 m (way 788514696) and 782 m (788514702). */
 const MOMMIO_GORGE_BELOW = 775
+/**
+ * Mean ground (m) below which a Torrente Bardine way runs in its open valley bed: halfway between
+ * fosdinovo's 790365291 (87.8 m), its last above the Fosso del Lombardello's mouth by Bardine (OSM
+ * node 7389111706), and 790365292 (81.8 m), the first below it: below that mouth its gravel bed
+ * widens to the Aulella valley's (a median 27 m against the trunk's 15 m above).
+ */
+const BARDINE_VALLEY_BELOW = 85
+/**
+ * Mean ground (m) below which a Torrente Bardine way carries the Bardinello's water: halfway between
+ * 797861302 (141.0 m), its first below the Bardinello's mouth (node 7462482431), and 797861301
+ * (149.5 m), its 3.6 km² head down from the Canale del Vezzanello.
+ */
+const BARDINE_BED_BELOW = 145
+/**
+ * Mean ground (m) below which a Torrente Bardinello way runs in the Bardine's gravel bed: halfway
+ * between 797861257 (150.4 m), its first below the Torrente Pesciola's mouth (node 7462482051, 33
+ * km² there), and 797861254 (156.9 m, 15 km²), its last above it.
+ */
+const BARDINELLO_BED_BELOW = 154
+/**
+ * Mean ground (m) below which the Torrente Bardinello is a wooded torrent: halfway between 797860930
+ * (265.7 m), its first below the Canale Caldia's mouth (node 7462477158), where it drains 9.3 km²
+ * and its LiDAR floor widens from a headwater's 6 m to the wooded torrents' 7-7.5 m, and 797860907
+ * (268.9 m, 7.0 km²).
+ */
+const BARDINELLO_GORGE_BELOW = 267
 
 /**
  * Water width, gravel-bed half-width and depth, m, from the way's name, kind and mean ground `z`
  * (LiDAR, over its vertices). The rivers are measured on the 2010 orthophoto: the Aulella runs in
  * a 25-35 m gravel bed at Gragnola (a wooded 10 m channel at Codiponte), the Lucido in a 22 m one
  * below Monzone, the Rosaro in a 10-28 m one (median 13-15 m, its water 2-8 m) from Fivizzano to
- * Soliera. The Lucido's Vinca branch and the Caldanella (from Equi) are the main streams on the
- * valley floor (5-16 m of open marble gravel below 400 m). The Aulella's gorge above the Tassonaro's
- * mouth, the Rosaro above Fivizzano and the Mommio are torrents of 9-49 km² in closed woods, whose
- * canopy gaps show 3-10 m of bed over a LiDAR floor of 7-7.5 m (`wooded`, issue #17). Above Vinca
- * the Lucido runs in a beech-wood gully with only 3-6 m of bed showing, like the other named
- * streams (4 m); unnamed ones are 2 m. The depths are the classes' own, as no photo shows them.
+ * Soliera. The Bardine runs in an 18-47 m one (median 27 m, its water 4-18 m, median 10) from
+ * Bardine to the map's edge, as wide as the Aulella; above, from the Bardinello's mouth, and the
+ * Bardinello below the Pesciola's, in a 6-32 m one (median 15 m, its water 2.5-12 m, upper quartile
+ * 7), as the Rosaro (issue #18). The Lucido's Vinca branch and the Caldanella (from Equi) are the
+ * main streams on the valley floor (5-16 m of open marble gravel below 400 m). The Aulella's gorge
+ * above the Tassonaro's mouth, the Rosaro above Fivizzano, the Mommio and the Bardinello above the
+ * Pesciola's mouth are torrents of 9-49 km² in closed woods, whose canopy gaps show 3-10 m of bed
+ * over a LiDAR floor of 7-7.5 m (`wooded`, issue #17). Above Vinca the Lucido runs in a beech-wood
+ * gully with only 3-6 m of bed showing, like the other named streams (4 m), the Torrente Pesciola
+ * among them, unmeasured though its lower course drains 9-18 km²; unnamed ones are 2 m. The depths
+ * are the classes' own, as no photo shows them.
  */
 const waterSize = (
   name: string | undefined,
   kind: "river" | "stream",
   z: number,
 ): { readonly w: number; readonly bed: number; readonly depth: number } => {
-  if (name === "Torrente Aulella" && z < AULELLA_VALLEY_BELOW) return { w: 12, bed: 13, depth: 2.5 }
+  if (
+    (name === "Torrente Aulella" && z < AULELLA_VALLEY_BELOW) ||
+    (name === "Torrente Bardine" && z < BARDINE_VALLEY_BELOW)
+  )
+    return { w: 12, bed: 13, depth: 2.5 }
   if (name === "Torrente Lucido" && kind === "river") return { w: 14, bed: 11, depth: 2.5 }
-  if (name === "Torrente Rosaro" && kind === "river") return { w: 7, bed: 7, depth: 2.5 }
+  if (
+    (name === "Torrente Rosaro" && kind === "river") ||
+    (name === "Torrente Bardine" && z < BARDINE_BED_BELOW) ||
+    (name === "Torrente Bardinello" && z < BARDINELLO_BED_BELOW)
+  )
+    return { w: 7, bed: 7, depth: 2.5 }
   const main = (name === "Torrente Lucido" || name === "Torrente Caldanella") && z < MAIN_BELOW
   const wooded =
     (name === "Torrente Aulella" && z < AULELLA_GORGE_BELOW) ||
     name === "Torrente Rosaro" ||
-    (name === "Torrente Mommio" && z < MOMMIO_GORGE_BELOW)
+    (name === "Torrente Mommio" && z < MOMMIO_GORGE_BELOW) ||
+    (name === "Torrente Bardinello" && z < BARDINELLO_GORGE_BELOW)
   const w = main ? 8 : wooded ? 6 : name === undefined ? 2 : 4
   return {
     w,
@@ -379,66 +421,6 @@ export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
       })),
     )
 
-/**
- * Historic stone cores (x, y, r), traced on the 2010 orthophoto (dense irregular blocks around the
- * church or castle); newer houses along the main roads are plaster.
- */
-export const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
-  [-20, -300, 170], // Monzone Alto
-  [720, 170, 220], // Aiola, with its eastern houses
-  [420, -260, 120], // Castellaccio
-  [-1730, 3350, 95], // Gragnola, the borgo by the Lucido
-  [-1309, 3278, 40], // Castello dell'Aquila, Gragnola (one OSM footprint, centred on its vertex mean)
-  [1797, 665, 80], // Equi Terme, the old village under the church
-  [-2300, 55, 80], // Viano
-  [-2025, 855, 50], // Pieve di Viano
-  [-2205, 1540, 70], // Campiglione
-  [-2540, 1370, 90], // Vezzanello
-  [-1725, 1135, 60], // Colognola
-  [-1550, 645, 80], // Terma
-  [-1030, 490, 70], // Isolano
-  [-1050, 1135, 40], // La Rocca di Monzone
-  [65, 1140, 75], // Monte dei Bianchi
-  [705, 1215, 65], // Mezzana
-  [415, 2025, 60], // Fazzano
-  [-245, 2035, 70], // La Giunca-Mozzano
-  [-790, 2355, 85], // Folegnano
-  [-1462, 1955, 50], // the borgo west of Pian del Molino
-  [-1860, 2540, 65], // Cortila
-  [-2270, 2790, 50], // La Traggiara
-  [1605, 3195, 100], // Codiponte, the borgo south of the Aulella
-  [1735, 3180, 55], // Codiponte, the eastern houses
-  [2050, 2300, 120], // Casciana
-  [2275, -2630, 115], // Vinca, the borgo around Sant'Andrea
-  [2165, -2565, 48], // Vinca, the old houses along the upper street west of the core
-  [-2212, -865, 65], // Tenerano, the ring borgo
-  [4130, 1445, 55], // Ugliancaldo, the castle ring
-  [4205, 1405, 60], // Ugliancaldo, the borgo along the ridge
-  [4270, 1320, 65], // Ugliancaldo, the borgo down to Sant'Andrea
-  [4805, 3225, 65], // Argigliano, the borgo below Santa Maria
-  // Fivizzano's part (#17): each core traced as an outline on rt_ofc.2k10 crops (checked on
-  // rt_ofc.5k23.32bit, CC BY 4.0) with the built buildings over them, each disc the smallest, to
-  // 5 m, holding the outline's buildings, but where a comment says it was grown so the borgo
-  // carries its hamlet's one style (HAMLET). OSM maps no city walls: Fivizzano's are traced.
-  [-630, 8340, 95], // Fivizzano, the walls' south-west round Piazza Garibaldi
-  [-565, 8450, 105], // Fivizzano, the walled centre round Piazza Medicea
-  [-520, 8575, 60], // Fivizzano, the walls' north, Via Pognana up to the gate
-  [-450, 8505, 60], // Fivizzano, the walls' east, the Via Roma row
-  [485, 8990, 45], // Verrucola, the fortress and the church below it
-  [565, 8995, 50], // Verrucola, the borgo east to the road's bend
-  [3610, 4200, 50], // Casola, the borgo round Santa Felicita
-  [3670, 4200, 35], // Casola, the borgo's eastern houses
-  [-5025, 4830, 70], // Soliera, the castle borgo on Via Soleria di Castello
-  [-4905, 5060, 75], // Soliera, the borgo along Via del Convento
-  [-3055, 4700, 85], // Gassano, the borgo round its church
-  [-3305, 6600, 95], // Moncigoli, the borgo round its church
-  [5055, 9840, 40], // Mommio, the borgo at the village node
-  [5015, 9965, 40], // Mommio, the houses round the church
-  [5095, 9910, 40], // Mommio, the eastern lane's row: untraced, so the borgo carries its 104 (63 stone)
-  [5285, 4970, 95], // Pugliano, the borgo round its two churches
-  [5330, 3585, 70], // Pieve San Lorenzo by the station: its outline's 55 m grown to carry the hamlet
-  [5405, 3425, 75], // Pieve San Lorenzo round the pieve: its outline's 65 m grown to carry the hamlet
-]
 /** Generic buildings closer than this (m) form a hamlet: up to HAMLET of them take one facade style. */
 const HAMLET_LINK = 25
 const HAMLET = 200

@@ -34,18 +34,24 @@ test("gridTiles gives each tile its 501 × 501 nodes cut to the grid, neighbours
 })
 
 test("cellTile names the tile whose window holds all four nodes of the cell read at a point", () => {
-  // Every tile of the box has a window, listed or not: on an L, a point in the notch is read in a
-  // tile off the list (Lunigiana's south-west corner is one).
+  // Every tile of the box has a window, listed or not: a point in a notch is read in a tile off the
+  // list (a corner of Lunigiana's box is one, found from the list: its north-west and south-east today).
   const { i0, i1, j0, j1 } = tileRange(BOUNDS),
     box: Array<{ i: number; j: number }> = []
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) box.push({ i, j })
   const spans = new Map(gridTiles(lattice, box).map((t) => [t.key, t.span]))
   const tileOf = cellTile(lattice)
   const listed = new Set(REGION.tiles.map(({ i, j }) => `${i}_${j}`))
-  assert.ok(!listed.has(tileOf(lattice.x0, lattice.y0)) && listed.has(tileOf(0, 0)))
   const { x0, y0, cell, cols, rows } = lattice
-  const xs = [x0 - 50, x0, x0 + 0.5, 0, -0.01, 2000, 1999.99, 2003.9, x0 + (cols - 1) * cell, 1e5],
-    ys = [y0 - 50, y0, -2000, -2000.01, 0, 1996, 1999.9, y0 + (rows - 1) * cell, 1e5]
+  const x1 = x0 + (cols - 1) * cell,
+    y1 = y0 + (rows - 1) * cell
+  assert.ok(listed.has(tileOf(0, 0)))
+  assert.ok(
+    [x0, x1].some((x) => [y0, y1].some((y) => !listed.has(tileOf(x, y)))),
+    "a corner of the box in a notch",
+  )
+  const xs = [x0 - 50, x0, x0 + 0.5, 0, -0.01, 2000, 1999.99, 2003.9, x1, 1e5],
+    ys = [y0 - 50, y0, -2000, -2000.01, 0, 1996, 1999.9, y1, 1e5]
   for (const x of xs)
     for (const y of ys) {
       const span = spans.get(tileOf(x, y))!
