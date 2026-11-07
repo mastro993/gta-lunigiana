@@ -93,7 +93,7 @@ and 6.6–11.5 ms for lucido alone (`lunigiana-lucido`; five fresh processes eac
 a load average of 5–6). With Fosdinovo's part (#18) too it takes 23.1–25.4 ms and the farm list
 alone 8.2–8.9 ms, against 21.4–24.8 and 7.2–10.6 ms on the map before it, run in turn (five fresh
 processes each on 2026-11-07, under a load average of 3–4): the map holds 4.3 times lucido's farms
-(10,548 against 2,436). A Node test reads each tile from disk the first time a lookup needs it: the
+(10,539 against 2,434). A Node test reads each tile from disk the first time a lookup needs it: the
 start's four take about 32 ms, read, gunzipped and decoded (about 22 ms before their vectors were in
 them). The people and animals' fill draws from the world's `Rng`, `FillTrains` from `RailRng`, and
 the parked cars come from `Parking.seed`, so the fill replays with the seed.
@@ -301,17 +301,25 @@ a snapshot between steps loses none and a restored save plays on alike.
 Static data is module content, not state. `MAP` (`src/sim/map/global.ts`, which
 `src/sim/map/index.ts` re-exports with `graph`) is the map's global file, decoded once at load: the
 roads' attributes, the rail, the graph, the railway, the tile list, the coarse grid and the tables
-baked from the tiles' layers ([map.md](map.md#map-files)), and no vector geometry. The dense layers
+baked from the tiles' layers ([map.md](map.md#map-files)), and no vector geometry. Its JSON line
+holds all but the bulk arrays, which follow it as packed sections of whole numbers: the coarse
+grid's heights and cover, the graph's coordinates (in decimetres), edges and traffic and walk
+sets, the lanes (indices into the line's table of their distinct values) and the walk edges'
+residents (their float32 bits). `decodeMap` (`src/sim/map/packed.ts`) hands them back as plain
+arrays, every value the double `JSON.parse` gave when they were on the line (up to format version
+5), so the line the game parses at load stays within the 8 MB issue #5 set: as text they were 5.66
+MB of Lunigiana's 8,319,700 B line ([map.md](map.md#the-global-file)). The dense layers
 (terrain, walls, trees, land cover) and the vectors (the roads' lines, the buildings, the water, the
 areas and the barriers) live in 2 km tiles, and only the tiles round the player are in memory
 (`src/sim/map/tiles.ts`, the vectors' lookups in `src/sim/map/vectors.ts`): the host hands them over
 and lets them go ([Tile streaming](#tile-streaming)); in Node a lookup reads a missing tile from
 disk, and in the browser it throws "map tile i_j not loaded". Which tiles are in memory is never
 observable: every lookup gives the same answer, in the same order, whichever tiles are there and in
-whatever order they came (`tiles.test.ts`, `vectors.test.ts`, `ground.test.ts`, `tiles.map-test.ts`,
-`vectors.map-test.ts`, `seams.long-test.ts`), so a save holds nothing of them and the tiles in memory are
-shared by every runtime. The edge lookups, the per-model lane tables in `src/sim/route.ts` (read
-from the baked `MAP.lanes`) and the per-model rigs in `src/sim/chassis.ts` (`RIGS`: static wheel
+whatever order they came (`tiles.test.ts`, `tiles.long-test.ts`, `vectors.test.ts`,
+`ground.test.ts`, `tiles.map-test.ts`, `vectors.map-test.ts`, `seams.long-test.ts`), so a save
+holds nothing of them and the tiles in memory are shared by every runtime. The edge lookups, the
+per-model lane tables in `src/sim/route.ts` (read from the baked `MAP.lanes`) and the per-model
+rigs in `src/sim/chassis.ts` (`RIGS`: static wheel
 loads, springs, inertias, steering lock, tipping threshold) are built once at load, and what a
 lookup builds from a tile (its walls', trees' and buildings' broad phases, its road and river
 buckets) the first time a query reaches it, dropped with the tile; none of it changes, so it is safe
@@ -322,8 +330,9 @@ for each of the four models), so it is safe to share too. Its key, the knobs in 
 kept per handling value read (a `WeakMap`): every car reads the one `Handling` each step, and
 building the key for each was 5 % of a 3-minute joyride's CPU.
 The railway's tables are too, built at load from `MAP.railway`: `LINES` (`src/sim/rail/lines.ts`:
-each line as one polyline in arc length, extended straight past both terminals by its run-outs,
-its speed limits, stations, tunnels and the track it runs on piece by piece, with a 32 m
+each line as one polyline in arc length, run on past both terminals by its run-outs along the
+map's track beyond them (`runOuts`, `src/sim/rail/run-on.ts`), straight past where that ends, its
+speed limits, stations, tunnels and the track it runs on piece by piece, with a 32 m
 `staticGrid` of its segments behind `linesNear`), `SHARED` (the same file: where each line runs on
 another's pieces or run-out, mapping one line's s onto the other's, one stretch for as many pieces
 in a row as they share), and `CROSSINGS`, `CROSSINGS_ON` and `APPROACHES`
@@ -457,7 +466,7 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
 The population's tables are static data too, pure functions of the map shared by every runtime: the
 residents within 60 m of each walk edge, baked (`MAP.derived.residents`, since they read buildings
 all over the map), and the walk edges people live along (`residentsAlong`, `peopledIndex` in
-`src/sim/population/density.ts`), built at load from them; the 10,548 farms in a 64 m grid (2,436
+`src/sim/population/density.ts`), built at load from them; the 10,539 farms in a 64 m grid (2,434
 on lucido alone; `farmsNear` in `src/sim/population/farms.ts`), indexed on first use from the farms
 and their centres the map file holds (`MAP.farms`, `MAP.derived.farms`), which `setup` makes
 (8.2–8.9 ms in Node, five fresh processes; [Schedules and system
@@ -514,27 +523,28 @@ once the first frame is drawn.
    module), keeping simulation setup out of the entry module.
 2. `boot.ts` validates `?map=` and fetches the selected global file, a hashed asset: `monzone.bin`
    by default, or `cesena.bin` for `?map=cesena` ("Downloading map"). It counts the bytes against
-   `Content-Length` (the bar's first 26%, with "x / y MB"), gunzips with `DecompressionStream`
+   `Content-Length` (the bar's first 22%, with "x / y MB"), gunzips with `DecompressionStream`
    while the file arrives, then hands the bytes to `provideMap`. The files are named `.bin`, not
    `.gz`: Vite's server would label a `.gz` as `Content-Encoding: gzip`, and the browser would then
    gunzip it first.
 3. It imports the game in parts, with a paint between them, because each import evaluates only the
    modules the earlier ones left. "Decoding map" imports `src/sim/map/index.ts` (the global file
-   decoded) and `src/sim/map/tiles.ts`. "Downloading terrain" fetches the start tiles: every listed
+   decoded: its JSON line parsed, then its packed sections, [Where state lives](#where-state-lives))
+   and `src/sim/map/tiles.ts`. "Downloading terrain" fetches the start tiles: every listed
    tile over [`MAP.spawns.player` ± 1000 m]² (`tilesOver`, `NEAR`), on Lunigiana -1_-1, 0_-1, -1_0
-   and 0_0, 2,105,470 B gzipped: with the global file's 2,213,197 B, 4.32 MB before the first frame
-   (2,075,680 and 1,539,775 B, 3.62 MB, before Fosdinovo's part; on lucido alone,
-   `lunigiana-lucido`, 1,997,908 and 554,010 B, 2.55 MB; 3.10 MB while the global file held the
-   vectors). They come in parallel, all their headers first, so the bar (26% to 60%, `GLOBAL` and
-   `DOWNLOAD` in `boot.ts`) counts the bytes against their summed `Content-Length` and never runs
-   backwards. Its shares were set by the bytes before Fosdinovo's part, the global file 1.54 MB
-   against its start tiles' 2.08 MB; it is now 2.21 MB against 2.11 MB, which would set `GLOBAL` at
-   31%, so the bar moves more slowly through the global file (11.8% a MB) than through the tiles
-   (16.1%). "Decoding terrain" hands each to `provideTile` (in Node, decoding a tile takes 4.3–4.6
-   ms at the median over Lunigiana's 102 and 5.5–5.9 ms for the largest, 2_1, in ten fresh processes
-   on 2026-11-07 under a load average of 4–5, against 4.2–4.4 and 5.7–7.2 ms over the 79 before
-   Fosdinovo's part in six more, run in turn; over lucido's 30, its largest 0_0, 3.1–3.2 and 4.1–4.9
-   ms in three on 2026-11-04). Then come `src/sim/route.ts` ("Planning traffic": each vehicle
+   and 0_0, 2,104,382 B gzipped: with the global file's 1,247,151 B, 3.35 MB before the first frame
+   (4.32 MB while the global file's line held the graph, the lanes and the residents, before
+   format version 6; 3.62 MB before Fosdinovo's part; on lucido alone, `lunigiana-lucido`,
+   1,996,776 and 311,589 B, 2.31 MB; 3.10 MB while the global file held the vectors). They come in
+   parallel, all their headers first, so the bar (22% to 60%, `GLOBAL` and `DOWNLOAD` in
+   `boot.ts`, shares set by the bytes: the global file 1.25 MB against its start tiles' 2.10 MB)
+   counts the bytes against their summed `Content-Length` and never runs backwards, at 17.6% a MB
+   through the global file and 18.1% through the tiles. "Decoding terrain" hands each to
+   `provideTile` (in Node, decoding a tile takes 4.3–4.6 ms at the median over Lunigiana's 102 and
+   5.5–5.9 ms for the largest, 2_1, in ten fresh processes on 2026-11-07 under a load average of
+   4–5, against 4.2–4.4 and 5.7–7.2 ms over the 79 before Fosdinovo's part in six more, run in
+   turn; over lucido's 30, its largest 0_0, 3.1–3.2 and 4.1–4.9 ms in three on 2026-11-04). Then
+   come `src/sim/route.ts` ("Planning traffic": each vehicle
    model's lanes, from the baked tables) and `main.ts` ("Loading the game").
 4. `main.ts` first makes the sky host, every light and weather mesh in it, so they exist before
    any shader compiles. It then builds the rest in steps with top-level `await`, each named on the
@@ -573,16 +583,18 @@ cycle (its dev-server numbers are under [Measured](#measured)):
 
 With the map in tiles (production build served by `vite preview`, headless Chrome on an M-series
 Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the first row on 2026-11-07 with
-Fosdinovo's part, against 130–131 MB on the build before in turn; the second on 2026-11-07 with the
-olive groves, against 0.39–0.40 s and 130–132 MB on the build before in turn (0.41 s and 130–131
-MB on 2026-11-04 with Fivizzano's part, against 0.33–0.36 s and 89–90 MB for lucido alone); the
-lucido rows with the vectors in the tiles and in the global file measured in turn on 2026-10-31, the
-first of them again on 2026-11-03 with the UCS's woods and the trees' species, against 0.34–0.38 s
-and 89 MB on the build before):
+Fosdinovo's part and the global file in format version 6 (an earlier build of it, its line still
+holding the graph, the lanes and the residents, measured 0.41–0.47 s and 161 MB, against 130–131
+MB on the build before it in turn); the second on 2026-11-07 with the olive groves, against
+0.39–0.40 s and 130–132 MB on the build before in turn (0.41 s and 130–131 MB on 2026-11-04 with
+Fivizzano's part, against 0.33–0.36 s and 89–90 MB for lucido alone); the lucido rows with the
+vectors in the tiles and in the global file measured in turn on 2026-10-31, the first of them again
+on 2026-11-03 with the UCS's woods and the trees' species, against 0.34–0.38 s and 89 MB on the
+build before):
 
 | Map | First frame | Slowest frame, p99 | JS heap after GC |
 |---|---|---|---|
-| Lunigiana, lucido and the parts of Fivizzano and Fosdinovo, 102 tiles | 0.41–0.47 s | 16.8 ms | 161 MB |
+| Lunigiana, lucido and the parts of Fivizzano and Fosdinovo, 102 tiles | 0.40–0.41 s | 16.8 ms | 164 MB |
 | Lunigiana, lucido and Fivizzano's part, 79 tiles | 0.39–0.41 s | 16.8 ms, 16.8 ms | 132–133 MB |
 | Lunigiana, lucido alone, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 90 MB |
 | Lunigiana, lucido alone, the vectors in the global file | 0.41–0.44 s | 16.8 ms, 16.8 ms | 123–124 MB |
@@ -591,17 +603,21 @@ and 89 MB on the build before):
 | Cesena, the vectors in the global file | 0.36–0.37 s | 16.8 ms, 16.8 ms | 94–95 MB |
 
 Lunigiana holds 4 of its 102 tiles at the start, so the vectors of the other 98 stay on the server,
-and the start's four hardly change as parts join (2.08 MB before Fosdinovo's part, 2.11 MB with it).
+and the start's four hardly change as parts join (2.08 MB before Fosdinovo's part, 2.10 MB with it).
 What grows with the map at the start is what the game holds whole: the global file, which gunzips
-to 8,633,042 B, its JSON line 8,319,700 B (5,765,402 and 5,539,651 B before Fosdinovo's part; the
-graph 3.49 MB of it, the lanes 1.52 MB, the spawns 1.13 MB and `MAP.derived` 0.97 MB), and the
-chunk plan, 26,928 chunks (19,584 before; [Rendering](#rendering)). That JSON is past the 8 MB that
-issue #5 set for the map's JSON at #18, while the limits it set on the game hold: the first frame
-within 0.9 s and the heap at the start within 245 MB (the table's first row), and every tile at most
-0.7 MB gzipped (the largest, 2_1, 632,239 B). Cesena's 4 tiles are the whole map, all in memory at
+to 6,214,128 B, its JSON line 2,639,642 B (the spawns 1.12 MB of it, the farms 0.46 MB,
+`MAP.derived` 0.31 MB, the roads' attributes 0.29 MB and the lamps 0.28 MB), and the chunk plan,
+26,928 chunks (19,584 before; [Rendering](#rendering)). Fosdinovo's part took the file to
+8,633,042 B gunzipped and its line to 8,319,700 B (from 5,765,402 and 5,539,651 B; the graph 3.49
+MB of the line, the lanes 1.52 MB), past the 8 MB issue #5 set for the map's JSON, which the game
+parses at load, so the graph, the lanes and the residents moved into packed sections after the line
+(format version 6, [Where state lives](#where-state-lives)), and `src/__tests__/maps.map-test.ts`
+fails a line past 8,000,000 B. The limits issue #5 set on the game hold too: the first frame within
+0.9 s and the heap at the start within 245 MB (the table's first row), and every tile at most 0.7
+MB gzipped (the largest, 2_1, 632,249 B). Cesena's 4 tiles are the whole map, all in memory at
 once, so moving the vectors into them saves nothing and copies every feature into each tile it comes
 within 32 m of (a large area into all four): its download grows from 2.10 MB to 2.28 MB, and its
-heap by 5 MB. The production JS is 1,253,353 B (`dist/assets/*.js` on 2026-11-07; 1,237,029 B on
+heap by 5 MB. The production JS is 1,255,961 B (`dist/assets/*.js` on 2026-11-07; 1,237,029 B on
 2026-11-04 with Fivizzano's part, 1,226,792 B before it, 1,224,715 B before the trees' species,
 1,212,397 B with the vectors in the global file, about 1.19 MB before the tiles).
 
@@ -726,14 +742,15 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   frame's render and audio read the events of steps run round where the last update found the
   player), so walking back and forth over a seam never fetches a tile twice. The world hears of each
   change: `tileProvided` after `provideTile`, `tileDropped` before `dropTile`
-  ([Rendering](#rendering)). A tile in memory is its decoded arrays, 0.80–4.15 MB on Lunigiana (303
+  ([Rendering](#rendering)). A tile in memory is its decoded arrays, 0.80–4.14 MB on Lunigiana (303
   MB for all 102; walls and trees decode to 8-byte numbers), and its vectors, 0.04–1.24 MB of JS
   heap (64.4 MB for all 102), plus what lookups build from it once they reach it and the world's
   pieces and tree buckets; its gunzipped file is 0.87–2.80 MB (Node, 2026-11-07; lucido's 30 on
   2026-11-04 0.79–3.70 MB of arrays, 69.4 MB in all, and 0.13–1.09 MB of vectors, 13.4 MB). After a
   teleport to (1998, 2017) the tiles in memory settled at 4 (0_0, 1_0, 0_1, 1_1); along the SP59 to
   Vinca at 40 m/s at most 6 were in memory at once, and 4 at Vinca (0_-2, 1_-2, 0_-1, 1_-1); on a
-  19.8 km drive at 40 m/s through Fivizzano's part, 13 seams, at most 10 ([Rendering](#rendering)).
+  19.8 km drive at 40 m/s through Fivizzano's part, 13 seams, at most 10, and on a 23.8 km one
+  through Fosdinovo's, 15 seams, at most 8 ([Rendering](#rendering)).
 - **Unlisted tiles**: the listed tiles need not fill the box round them (a region of parts in an L
   leaves its notch unlisted, [map.md](map.md#map-files)). A terrain or land-cover lookup in an
   unlisted tile reads the nearest node or cell of the listed tiles round it, and a wall, tree or
@@ -1022,8 +1039,10 @@ its dead leaves, as the season the game starts in says, `crownsOn` in `src/rende
 water, glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
 the terrain, lines and trees beyond the map bounds, the built terrain's box; inside it, past an
 inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground and cover the
-nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a line
-ending on the bounds runs on across the apron). Terrain cells take their colours from the land
+nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a road
+or a river ending on the bounds runs on across the apron, `throughApron`; the track runs on past
+each line's terminals over its drawn run, wherever the terminal lies: [Track and
+stations](#track-and-stations)). Terrain cells take their colours from the land
 cover, read from the tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts`, painted by
 `COVER_LOOK` in `src/render/terrain.ts` in patches and stripes counted from the region's anchor, so
 a part that grows the box repaints none of the ground built before it, `terrain.test.ts`, and an
@@ -1178,6 +1197,11 @@ build reads is in memory.
   over 30 ms; at most 10 tiles were in memory at once, and the heap after GC at the end was 187 MB.
   Standing in Fivizzano (`--at -321,8511`, two runs) the first frame came at 0.45–0.54 s and the
   heap was 160 MB.
+- Measured with Fosdinovo's part (dev build, `?seed=7`, 2026-11-07): `pnpm playtest drive` at 40
+  m/s over 23,797 m from Monzone station across the x = −2900 seam to Marciaso, Fosdinovo, Tendola,
+  Bardine and Ceserano, and back across the y = 3900 seam by Gragnola, crossed 15 tile seams with
+  its slowest frame at 16.8 ms everywhere and none over 30 ms; at most 8 tiles were in memory at
+  once, and the heap after GC at the end was 210 MB, under issue #5's 245 MB.
 
 The pixel pipeline (`src/render/pipeline.ts`):
 
@@ -1328,9 +1352,13 @@ only its road, under its house.
   it inside the hill, the far wall whole and the near one a stub above the feet, as a building's
   walls ([See-through cut](#see-through-cut)). A building passage (`passage`, OSM's
   `tunnel=building_passage`: 30 on Lunigiana, 22 on Cesena) has no bore: its house hides its road,
-  and the cut shows it. Lunigiana's 29 bores are 3,459 triangles in 25 chunks (the chunks their
-  triangles are drawn into; 14 bores, 3,166 triangles in 21 chunks before Fosdinovo's part),
-  Cesena's 42 are 18,120 in 45.
+  and the cut shows it. Lunigiana's 29 bores are 3,574 triangles in 26 chunks (the chunks their
+  triangles are drawn into; 14 bores, 3,166 triangles in 21 chunks before Fosdinovo's part, and
+  3,249 in 22 built without it today), Cesena's 42 are 18,120 in 45. The walls follow the ground
+  over a bore's sides, so a change to the terrain by its mouths changes them: cored at the width of
+  its chain's widest piece, a road's approach cut the ground there lower, and Lunigiana's bores were
+  3,459 triangles in 25 chunks (13 of its 59 roads in tunnels change: 1503940160 from 4 to 32,
+  696205205 from 15 to 7).
 - **Portals**: at each road tunnel mouth (`MAP.derived.mouths`, which the build bakes:
   [map.md](map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts))
   with a portal, the railway's shape round the bore
@@ -1392,7 +1420,7 @@ only its road, under its house.
   at its level, the ground under its lowest corner (`z0`) less than the bore's clear height over the
   road (a covered way, which the house hides as it hides a building passage: Cesena's arcades and
   covered ways, and Via Gioco di Sopra's west mouth, where a garage stands over the tunnel 1.5 m in;
-  the lowest house over each of today's 62 such ways stands 6.6 m under to level with its road,
+  the lowest house over each of today's 62 such ways stands 6.5 m under to level with its road,
   while a house on the hill over a bore keeps its mouth's portal); the ground over that end never
   rises to `leastWall` (a road under a rail bridge, whose deck stands over the lowered ground, or
   under a cover the map's ground does not hold: Via S. Nicola's 19 m in Gragnola, and Pieve San
@@ -1404,8 +1432,9 @@ only its road, under its house.
   (47, 13, 2); the L's 12: 3, 0, 9 (1, 8, 0). Fosdinovo's part brought 24 tunnels, all its villages'
   covered passages and footways (in Giucano, Pulica, Fosdinovo, Bardine, Castelpoggio, Caniparola,
   Ponzanello, Canova and Ceserano): 9 building passages and 28 open mouths, 13 under a house and 15
-  under too low a bank, as the ground the map holds stands at most 1.95 m over any of their floors
-  (every 0.5 m along them), short of an untagged head wall's 5.05 m (`leastWall`). Before the head
+  under too low a bank, as the ground the map holds stands at most 2.21 m over any of their floors
+  (every 0.5 m along them, in Fosdinovo's 1503940160; 1.95 m while each road was cored at its
+  chain's widest piece), short of an untagged head wall's 5.05 m (`leastWall`). Before the head
   walls Lunigiana had 16 open of its 28 mouths then, Cesena 68, the L 9.
 - **Why baked**: a mouth is an end no other road in a tunnel goes on from, and the road that would
   can lie in a tile that does not hold the mouth's own piece (the far end of a 196 m tunnel), so a
@@ -1469,6 +1498,18 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   90 % of the line at grade, because the sim's ground has no track: someone walking over it keeps
   their feet in sight. On a bridge the deck stays, the ballast a flat strip on it. Every `MAP.rail`
   piece is drawn this way, loops and sidings included; tunnels are not.
+- **Past the terminals** (`src/render/drawn-runs.ts`): the track runs on over each line's drawn run
+  (`DRAWN_RUN`, 192 m), drawn from `LINES` as its trains ride it (the map's track on beyond the
+  terminal, straight on past where that ends, [The service](gameplay.md#the-service)), in stretches
+  of one level at the bed under the rail head. The first stretch, on its terminal piece's level,
+  carries that piece's own polyline on, so their strips meet mitred; a bridge or a bore on beyond
+  is a piece of its own, and a terminal two lines share is drawn once. Before, only a terminal on
+  the map's bounds had track past it, run straight across the apron as a road is
+  (`throughApron`), so none was drawn past Rometta's, on Fivizzano's west edge since Fosdinovo's
+  part grew the box, where the trains ran on straight and level, 16.75 m under the hill 192 m past
+  it. `checkDrawnRuns` (`rail-checks.ts`) finds both rails drawn every metre of every drawn run out
+  of a tunnel, at the rail head within the bounds: 384 points on Lunigiana (its east drawn run lies
+  in the Galleria del Lupacino), 1,536 on Cesena and 768 on the L.
 - **Level crossings** (`MAP.railway.crossings`): nothing 3D stands in a box, its road's
   carriageway (the bed stops a metre short of it), since the road ribbon floats 0.06–0.16 m over
   its profile and hides decal rails. Over the road, the box's piece lays a 2.6 m concrete panel
@@ -1849,15 +1890,16 @@ first frame.
   (`glowMaterial`, reading `uLamps`, `uAmbient` and `uExposure`), casting no shadow. By day the
   panes are not drawn at all (under `uLamps` 0.02), so the windows keep their settled daytime look;
   lit, their colour is divided by the exposure, so a window shines as bright at dusk as at
-  midnight. The whole map holds 95,488 lit panes and 12,912 lantern-glass quads, 6 to each of its
-  2,152 lamps (2026-11-07; 21,132 and 3,096 on lucido alone).
+  midnight. The whole map holds 95,015 lit panes and 12,882 lantern-glass quads, 6 to each of its
+  2,147 lamps (2026-11-07; 21,051 and 3,102 on lucido alone).
 - **Street lamps** (`lamps.ts`): OSM has no lamp data (two `street_lamp` nodes in the raw OSM), so
   wall lanterns are placed from the map's roads and buildings: along primary, secondary, tertiary,
   unclassified, residential
   and service roads (`LIT`; no motorway or trunk road runs between houses),
   about every 28 m, on a house wall that fronts the road within 6 m, with at least four buildings
-  within 40 m, the bracket 4.5 m up between two windows: 492 lamps. After them come the platforms'
-  24 pole lamps (`platformLamps` in `src/render/stations.ts`,
+  within 40 m, the bracket 4.5 m up between two windows: 2,107 lamps on the map (493 on lucido
+  alone). After them come the platforms' 40 pole lamps (24 on lucido alone; `platformLamps` in
+  `src/render/stations.ts`,
   [Track and stations](#track-and-stations)), each `StreetLamp` saying which (`kind`: `wall` or
   `pole`). Placing them reads the terrain and the buildings by every house that fronts a lit road,
   all over the map, so the build places them (`bakeLamps(roads)`, handed the whole map's roads
@@ -2430,9 +2472,14 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     running or dwelling, both stopping; a stolen train left removed once out of view and its line's
     next train due; a knockdown scored; a save taken while driving playing on alike; and a
     `Determinism.check` over 30 s of the theft and the drive). `src/sim/rail/__tests__/*.test.ts`:
-    the lines (their s, run-outs from the end speeds, points, speed limits, `linesNear`, stops,
-    shared track over three synthetic lines, one stretch over their joints; the map's within 4 km of
-    Monzone station, `lines.test.ts`), the cars on their pivots, the
+    the lines (their s, run-outs from the end speeds, a stored run-out run out to the run-out's
+    length and straight on along its heading at its last height past it, points, speed limits,
+    `linesNear`, stops, shared track over three synthetic lines, one stretch over their joints; the
+    map's within 4 km of Monzone station, `lines.test.ts`, each run-out on the stored track vertex
+    by vertex and straight and level past its end, and over the drawn run, within the bounds, off
+    bridges and out of tunnels, the terrain at most 0.05 m over its bed and 0.5 m under it, the
+    rail bed's `BED` and `BANK`: `checkTerminals` in `railway-checks.ts`, which the map before the
+    run-outs failed, 16.75 m over the bed 192 m past Rometta), the cars on their pivots, the
     crossings' cycle, demand and
     strike-in (`barriers.test.ts`), the boxes within 4 km of Monzone station (all five today), their
     lines at grade and their approaches with a second box on one road (`crossings.test.ts`), the
@@ -2485,13 +2532,17 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the x = 0 and y = 0 seams on Via Borgo Monzone by the station, every frame's world and the final
     save the same with the tiles read in lazily and dropped every 20 steps as with the nine tiles
     round (0, 0) in memory.
-  - `src/sim/map/__tests__/tiles.test.ts`: `wallsNear` the same whatever is in memory and in
-    whichever order it came (three boxes by Monzone station and a fourth on a bounds wall reaching
-    into the next tile, where the play area's outline crosses a tile seam nearest the tile corner
-    (0, 0), found by geometry: today (4900, −2000); the tiles they read and their neighbours in,
-    both ways round; each box holding a wall of every kind itself, not merely in the 16 m cells
+  - `src/sim/map/__tests__/tiles.test.ts` (0.39–0.40 s) and `tiles.long-test.ts`, both reading
+    their fixtures from `tile-kit.ts`: in the long file, `wallsNear` the same whatever is in memory
+    and in whichever order it came (three boxes by Monzone station and a fourth on a bounds wall
+    reaching into the next tile, where the play area's outline crosses a tile seam nearest the tile
+    corner (0, 0), found by geometry: today (4900, −2000); the tiles they read and their neighbours
+    in, both ways round; each box holding a wall of every kind itself, not merely in the 16 m cells
     round it that its broad phase reads, whose corner, the kind's lowest wall, moves as a part grows
-    the box), every wall whose box overlaps a query found among the walls of the tiles within
+    the box), 0.48 s alone: with Fosdinovo's part the tiles round the box on the outline's seam no
+    longer overlap those round (0, 0), and a pass reads 19–20 tiles, 45–47 MB gunzipped, against
+    14–17 and 32–38 MB on main; in the
+    quick one, every wall whose box overlaps a query found among the walls of the tiles within
     `walls.reach` of it, and a lookup in a tile not in memory throwing with its name, and
     `cellCorners` reading a cell's nodes as four `nodeAt` calls do round Monzone
     station's seams; `vectors.test.ts`: `buildingsIn` the same buildings in the same order, each once,
@@ -2618,6 +2669,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     and rails at reading widths; the bed's top within 0.15 m of the terrain on 90 % of the line at
     grade; a portal at every tunnel mouth, facing out of the hill; each arm hinged on its housing
     and the road light's plate behind its lens, all clear of the trains.
+    `src/render/__tests__/drawn-runs.test.ts`: `drawnRun`, the track past a terminal as its trains
+    ride it over the drawn run, walked away from the terminal in stretches of one level, at the bed
+    under the rail head (the walk on along OSM's track that stores it is the build's,
+    `src/tools/__tests__/rail-runouts.test.ts`, [map.md](map.md#checks-and-tools)).
     `src/render/__tests__/portals.test.ts`: Lunigiana with its outline's east side moved onto its
     easternmost tunnel mouth (`editMap`), as a region whose outline cuts a tunnel gives: no portal
     there, one at each of the other seven mouths, and a road tunnel ending on that edge baked a
@@ -2710,6 +2765,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   railway's `Determinism.check`s and saves, its own stream, the whole line on dry and wet rail, the
   drive to the next station, the creeping shoves, the queues at Via Riolo and the world with a train
   far off; `src/sim/rail/__tests__/service.long-test.ts` the two lines' first 15 minutes;
+  `src/sim/map/__tests__/tiles.long-test.ts` the walls' order whatever tiles are in memory;
   `src/sim/sky/__tests__/calibration.long-test.ts` (whole) and `plan.long-test.ts` the 30- and
   300-year statistics; `src/render/__tests__/world.long-test.ts` and `chunk-tiles.long-test.ts` the
   streaming and partial-tile builds, `shadow-box.long-test.ts` the shadow box through whole turns,
@@ -2726,7 +2782,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   `farms.ts`, `spots.ts`, `parking.ts`, `crossing-traffic.ts`, `killings.ts`, `lucido.ts`, `flows.ts`,
   `viaduct.ts`,
   `battisti-lane.ts`, `two-lines.ts`, `plans.ts`, `cases.ts`, `thunders.ts`, `speakers.ts`,
-  `pin-fakes.ts`, `wall-segments.ts`, `shadow-turns.ts`). `two-lines.ts` stages its map as it
+  `pin-fakes.ts`, `wall-segments.ts`, `shadow-turns.ts`, `tile-kit.ts`). `two-lines.ts` stages its
+  map as it
   loads, so it is imported first and its files
   run in a process of their own, as every test file does.
 
@@ -2794,7 +2851,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `src/sim/sky/__tests__/place.map-test.ts`: the place fitted again over every node of the
     listed tiles;
     `src/sim/rail/__tests__/lines.map-test.ts` and `crossings.map-test.ts`: `lines.test.ts`'s and
-    `crossings.test.ts`'s checks over every line, station and level crossing; `roads.map-test.ts`:
+    `crossings.test.ts`'s checks over every line, its run-outs included, station and level
+    crossing; `roads.map-test.ts`:
     the middle of every traffic step into a box inside its clearance, or the step long.
   - `src/render/__tests__/chunk-tiles.map-test.ts`: a chunk's base holding its terrain's tiles and
     one tile planning each chunk with its box round the chunk's, every chunk's build reading its
@@ -2807,7 +2865,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     10 points of the forest inventory's, [map.md](map.md#known-data-limitations)),
     `rail.map-test.ts`'s every one of the 26,928 chunks built from the pieces of all 102 tiles,
     handed in reverse key order, against its cut of the whole build of every tile's vectors joined
-    (`chunk-cut.ts`), and `rail.test.ts`'s checks over every crossing and tunnel mouth;
+    (`chunk-cut.ts`), `rail.test.ts`'s checks over every crossing and tunnel mouth, and both rails
+    drawn every metre of every drawn run out of a tunnel, where the trains ride (`checkDrawnRuns`
+    in `rail-checks.ts`, 384 points: it failed on all three maps before the run-outs);
+    `rail-cesena.map-test.ts` and `rail-l.map-test.ts`, each in a process of its own: on Cesena and
+    the L, `checkTerminals` (`lines.test.ts`'s run-out checks) and `checkDrawnRuns` (1,536 and 768
+    points);
     `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;
     `tunnels.map-test.ts`, `tunnels-cesena.map-test.ts` and `tunnels-l.map-test.ts`, each in a
     process of its own (`tunnel-checks.ts`): over every road in a tunnel of Lunigiana, Cesena and
@@ -2823,9 +2886,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     its box would take, else it fails), and the chunks within 60 m of every road in a tunnel built
     from the tiles' pieces as a whole-map build cuts them; each pins its counts (roads in tunnels,
     passages, metres, wall triangles, mouths, portals, head walls and the open mouths under a house,
-    under too low a bank and with no room: Lunigiana 59, 30, 1,186 m, 3,459, 56, 12, 2, 14, 28, 0;
-    Cesena 64, 22, 5,264 m, 18,120, 77, 9, 6, 47, 13, 2; the L 7, 1, 194 m, 633, 12, 3, 0, 1, 8, 0),
-    so a new part's tunnels show;
+    under too low a bank and with no room: Lunigiana 59, 30, 1,186 m, 3,574, 56, 12, 2, 14, 28, 0;
+    Cesena 64, 22, 5,264 m, 18,120, 77, 9, 6, 47, 13, 2; the L 7, 1, 194 m, 650, 12, 3, 0, 1, 8, 0),
+    so a new part's tunnels show, and so does a change to the ground by their mouths (the wall
+    triangles were 3,459 and 633 while each road was cored at its chain's widest piece);
     `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
     `shadow-box-cesena.map-test.ts`: the shadow box through whole turns at the map's steepest fall,
     deepest gully and flattest ground, found over its whole coarse lattice (Lunigiana's and
@@ -2857,7 +2921,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     after a change to the look, the palette or the vectors, wants `pnpm maps`);
     `playtest-drive.map-test.ts`: the playtest bot's default drive, the SP59 from Monzone to Vinca
     across the x = 0, y = 0, y = −2000 and x = 2000 seams, chained from the whole map's road lines;
-    `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB;
+    `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB, and each
+    map's global JSON line at most 8,000,000 B (Lunigiana's was 8,319,700 B before format version 6
+    moved the graph, the lanes and the residents off it);
     `src/tools/__tests__/seams.map-test.ts`: on both maps, one height for every node two tiles
     share, and every wall stored once, those across a seam carrying on and found from either side
     within `walls.reach`.
@@ -2900,9 +2966,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   grows with the map in `pnpm test` is setup, not checks: every process that loads the sim decodes
   the whole global file, though it now holds no vector geometry (Lunigiana's decoded in 9.2–9.5 ms
   in Node on lucido alone, the first in a fresh process, against 30.1–30.4 ms while it held the
-  vectors, three runs each; with Fosdinovo's part it decodes in 19.2–21.3 ms, after 12.7–13.4 ms
-  of gunzip, against 13.7–14.7 and 9.3–10.2 ms before it, three runs each in turn on 2026-11-07),
-  and each `World` plans every chunk ([Rendering](#rendering)).
+  vectors, three runs each; with Fosdinovo's part and the graph, the lanes and the residents in
+  packed sections after its line, format version 6, it decodes in 24.8–25.2 ms after 7.7–11.2 ms
+  of reading and gunzip, five runs on 2026-11-07 under a load average of 3–4; measured in turn
+  against the build before, three fresh processes each, the sections took the first decode from
+  21.2–21.6 to 23.1–23.5 ms and its gunzip from 12.4–12.8 to 6.5–6.6 ms, and a warm decode from
+  17.2–18.3 to 12.7–13.1 ms at the median of 25), and each `World` plans every chunk
+  ([Rendering](#rendering)).
 
   On 2026-11-01 (#70) the long checks left `pnpm test` for `pnpm test:long`, the chats' watch
   stopped once every talker had left (seeds 12 and 20, which start four chats, two running their

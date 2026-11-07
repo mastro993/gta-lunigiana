@@ -909,9 +909,9 @@ sim functions; how the sky host, the materials and the post pass fit in the fram
   about 57 mm/h at 16:9 and 38 at 21:9, snow to about 54 and 33.
 - **Night lights.** The lamps come on as the light falls from 0.125 to 0.08 of the settled noon's,
   about ten minutes after sunset, and in storms and thick fog. A home's windows are half lit, by a
-  hash per window (95,488 panes over the map, 2026-11-07; 21,132 on lucido alone); sheds, garages
+  hash per window (95,015 panes over the map, 2026-11-07; 21,051 on lucido alone); sheds, garages
   and barns keep their shutters closed, and the panes are not drawn by day, so the daytime look is
-  unchanged. 2,112 street lamps (492 on lucido alone) hang as lanterns on house walls, as in the
+  unchanged. 2,107 street lamps (493 on lucido alone) hang as lanterns on house walls, as in the
   villages here, where no lamp data exists: along primary, secondary, tertiary, unclassified,
   residential and service roads among at least 4 buildings within 40 m, every 28 m or more and at
   least 18 m apart, 4.5 m up (lower under low eaves, never under 3 m), between two windows. 40 more

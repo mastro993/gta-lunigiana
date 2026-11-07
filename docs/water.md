@@ -169,9 +169,10 @@ follow from the discharge per km², q.
 | Torrente Aulella at Gragnola, above the Lucido's mouth (59.6 km², 12 m, 1.1 %) | 0.10 m, 0.23 m/s | 0.35 m, 0.62 m/s | 0.55 m, 0.91 m/s | 1.46 m, 2.04 m/s |
 | Torrente Caldanella at Equi (10.9 km², 8 m, 2.3 %) | 0.05 m, 0.14 m/s | 0.16 m, 0.35 m/s | 0.26 m, 0.53 m/s | 0.69 m, 1.19 m/s |
 
-At the mean flow 95 % of the 2 m streams' 464 km and 99 % of the 4 m streams' 425 km carry water
-(a catchment over 0 km², 2026-11-07; 95 % of 320 km and 99 % of 297 km before Fosdinovo's part,
-93 % and 98 % on lucido alone); the rest are headwater gullies, dry as real ones are.
+At the mean flow 95 % of the 2 m streams' 464 km and 99 % of the 4 m streams' 420 km carry water
+(a catchment over 0 km², 2026-11-07; 425 km until the Torrente Pesciola's 5.3 km became a 6 m
+wooded torrent; 95 % of 320 km and 99 % of 297 km before Fosdinovo's part, 93 % and 98 % on
+lucido alone); the rest are headwater gullies, dry as real ones are.
 
 ## People and animals in the water
 
@@ -349,7 +350,7 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/render/__tests__/water.test.ts`, `water-cesena.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes; on Cesena, the Savio's polygon carried on over the apron north of the map (Lunigiana's only lake or river polygon at its bounds, a river's north of Fosdinovo's part, meets them in the north-west notch, x −11500 at y 4192–4222, where no tile is listed); `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon |
 | `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores, the dry ones, a river polygon's surface falling through it and its outer edge left, no tree, parked car or spawn in the water |
 | `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
-| `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 1,142,308 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered |
+| `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 1,142,302 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered |
 | `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 ± 2 km², the Rosaro's 14.7 ± 0.5 at its entry, the Aulella's 199 ± 3 leaving the play area and the Bardine's 59 ± 2; none of the outline's cuts draining a river down a side stream (the stream by Soliera, way 140780331, under 1 km², Il Canalaccio under 6, the Canale del Torchio under 2); no walk or drive wall in a wide river, shore walls by it |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
 
@@ -388,5 +389,5 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
   than about 2.4 m is out of his reach, and drifts through him and any other swimmer there, people
   and animals, as through someone on another level
   ([gameplay.md](gameplay.md#knockdowns-deaths-and-score)): 0.41 ha of Lunigiana's water at the
-  mean flow, 1.55 ha in a spate (on a 4 m lattice, 2026-11-07; 0.39 and 1.51 before Fosdinovo's
+  mean flow, 1.54 ha in a spate (on a 4 m lattice, 2026-11-07; 0.39 and 1.51 before Fosdinovo's
   part).

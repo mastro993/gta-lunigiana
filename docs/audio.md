@@ -272,8 +272,9 @@ Input (horn) ──────────────────────�
   the map held 711 owls and 618 dogs: 2.3–2.8 ms and 9.0–10.4 ms, each the first call in a fresh
   process with every tile in memory (no director; 20 processes on 2026-11-04 under a load average
   of 5–7); since #15's olive groves and vineyards, a dog's yard too, it held 710 owls and 625 dogs
-  (not timed again), and since #18's Fosdinovo it holds 932 owls and 954 dogs: 2.4–2.6 ms and
-  11.6–13.0 ms, timed the same way (20 processes on 2026-11-07 under a load average of 4–7).
+  (not timed again), and since #18's Fosdinovo it holds 932 owls and 953 dogs: 2.4–2.8 ms and
+  11.5–13.0 ms, timed the same way (20 processes on 2026-11-07 under a load average of 3–4, but
+  for 4 of the owls' calls at 7.1–7.4 ms and one of the dogs' at 18.7 ms).
 - **Randomness** in the director (birds, owls, farm dogs, animal calls, what people say) and the
   synths (variants, jitter, a fire's crackle, a texture's segments, a backfire) is `Math.random`:
   `?seed=N` replays the world, not the birds. The owls draw after the farm dogs and only at night,
@@ -469,6 +470,18 @@ inside added nothing while one was in the open, and a train wholly inside carrie
 from one portal: its wheels jumped 2.9 dB as its last car went into the 271 m tunnel and fell up to
 15.9 dB as its cab car came out of the 67 m one. The player's own train is heard from its cab
 ([Inside a vehicle](#inside-a-vehicle)), in a tunnel too.
+
+A bore that a line's run-out carries on past its terminal ([The
+service](gameplay.md#the-service)) pairs its mouth in play with the run-out's far end, where the
+track trains ride stops inside the hill: the Galleria del Lupacino runs 1,324.6 m from its west
+mouth at (5392, 3627) to Pieve San Lorenzo's terminal at (6700, 3423), then 2,298.6 m on in the
+bore along the run-out trains enter by, to (8970, 3058), 842 m south of the play area's nearest
+edge (y 3900). A train within 400 m of that far end is heard from it, though not at that edge, by
+day or on a still night, at full power (the director's rig); in the bore in play it is heard from
+the west mouth alone, within 400 m of it, so it is silent over the 924.6 m next to the terminal.
+While the run-out ran straight on at grade from the terminal, the line's tunnel ended there, and a
+train within 400 m of the terminal was heard from it, inside the hill at the play area's edge, as
+from a mouth (`portalsOf`, 2026-11-07).
 
 ### Doppler
 
@@ -819,7 +832,7 @@ One-shots:
 | `yell` | the same line, yelled: higher, brighter, its vowels longer | a person's `Cry` that is not a scream, a gatherer's call, a robbed driver ([Conversations and cries](#conversations-and-cries)) | 89 (1 m) for a man, 82 for a woman or a child (Pearsons et al. 1977: shouted) |
 | `bell` | `synth/nature.ts`: a bell's inharmonic partials (hum, prime, tierce, quint, nominal...), each split to beat; four primes rendered, any pitch resampled from the nearest | the game clock, in Rome time: the hours only (1–12 strokes, 2.5 s apart) from 07:00 to 21:00, from the 4 loudest towers in earshot, each starting up to 6 s late by a seed hashed from its building's id (`Bell.seed`), which no part that reorders the map's towers moves ([Day, night and weather](#day-night-and-weather)) | 118 (5 m) |
 | `bird` | `synth/nature.ts`: autumn calls of the robin, great tit, blackbird ("chink" or "seee") and chaffinch ("pink"), 35/30/20/15 %; the tawny owl (`owl`): the male's hoot sequence, about 6 s, or in 30 % of calls the female's "kewick" (0.46 s) | songbirds from a tree 15–70 m away: 0.3 calls a second in full forest, plus 0.05 near houses, by the sun and the rain (`birdActivity`); owls at night from their woods ([Day, night and weather](#day-night-and-weather)) | songbirds 85 (1 m); the owl 90 (1 m, `OWL`, estimated) |
-| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 954 farm dogs (about one in eight barns, sheds, houses and farm buildings with open ground, a vineyard or an olive grove and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
+| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 953 farm dogs (about one in eight barns, sheds, houses and farm buildings with open ground, a vineyard or an olive grove and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
 | `moo` | `synth/animals.ts` ([Animal calls](#animal-calls)) | a cow on its own (every 40 s on average), its `Cry`, its pain after a hit | 92 (1 m), an estimate between a man's shout and a bark |
 | `grunt` | `synth/animals.ts` | a pig on its own (every 6 s on average), a `Cry` that is not a fright | 70 (1 m), an estimate within pigs' 60–90 dB |
 | `squeal` | `synth/animals.ts` | a pig's fright `Cry`, its pain after a hit | 105 (1 m): piglets peaked at 101.9 dB (Engenharia Agrícola 2018), a grown pig's squeal is commonly put at 110–115 |
