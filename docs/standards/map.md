@@ -123,18 +123,23 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   The reading follows the map's surfaces, so a failure on a new part is the data's or the profiles'
   (a joint whose two profiles meet a step apart, a deck whose start stands off its approach): fix
   that for every joint alike, never by listing a new part's joint.
-- Every road tunnel is drawn at its floor under the hill: `src/render/__tests__/tunnels.map-test.ts`
-  and its Cesena and L twins check every road in a tunnel drawn at its floor along its whole line,
-  its bore's dark walls under the hill along both its sides (none in a building passage), its
-  mouths baked as `mouthsOf` finds them, each portal facing out of the hill clear of every other
-  road and the track and an open mouth with none, and the chunks round it as a whole-map build cuts
-  them, and pin each region's counts (roads in tunnels, passages, metres, wall triangles, mouths,
-  portals and mouths open for want of room) ([Road and rail
+- Every road tunnel is drawn at its floor under the hill, and no road runs into a bank:
+  `src/render/__tests__/tunnels.map-test.ts` and its Cesena and L twins check every road in a
+  tunnel drawn at its floor along its whole line, its bore's dark walls under the hill along both
+  its sides (none in a building passage), its mouths baked as `mouthsOf` finds them, each portal
+  facing out of the hill and each underpass's head wall facing out of its bank at the bore's width
+  and clear height with its top under that bank, either clear of every other road and the track,
+  an open mouth with none and a reason for it found again by geometry (`whyOpen`: a house over the
+  way by the mouth, the ground over it lower than a head wall, or another road or the track in the
+  wall's room; any other open mouth fails), and the chunks round it as a whole-map build cuts them,
+  and pin each region's counts (roads in tunnels, passages, metres, wall triangles, mouths,
+  portals, head walls and open mouths by reason) ([Road and rail
   profiles](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
-  A new part changes the counts: look at its tunnels drawn, then pin the new counts. A failure of
-  the checks themselves is the data's (a tunnel's profile over the hill, a mouth's road) or the
-  build's (the mouths' bake, `portals.ts`, `bores.ts`): fix that for every tunnel alike, never with
-  an exception for one tunnel or one part.
+  A new part changes the counts: look at its tunnels drawn (its new head walls and open mouths
+  in the browser too), then pin the new counts. A failure of the checks themselves is the data's (a
+  tunnel's profile over the hill, a mouth's road, a ramp the ground does not hold) or the build's
+  (the mouths' bake, `portals.ts`, `tunnel-lines.ts`, `bores.ts`): fix that for every tunnel
+  alike, never with an exception for one tunnel or one part.
 - The shadow box holds its size through a turn over the region's ground:
   `src/render/__tests__/shadow-box.map-test.ts` and `shadow-box-cesena.map-test.ts` turn the view
   a whole turn each way at 8 and 6 texels a metre at Lunigiana's and Cesena's steepest fall,
@@ -198,8 +203,9 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   `cesena-bake.map-test.ts` (`pnpm test:map`) fail until each is baked again, and `bake.test.ts`
   and `cesena-bake.test.ts` (`pnpm test`) already for the parked spots, water beds and farms within
   1 km of Monzone station and of Cesena's start. Some of that code is render code: the mouths'
-  portals take their shape and room from `src/render/portals.ts`, `src/render/portal-clear.ts` and
-  the bore's size in `src/render/bores.ts` (`tunnels.test.ts` bakes three tunnels' mouths again in
-  `pnpm test`). A change to the full map's look (`src/render/map-style.ts`, the palette,
-  `src/tools/overview.ts`) likewise needs the maps built again: `overview.map-test.ts` fails on a
-  stale overview.
+  portals and head walls take their shape and room from `src/render/portals.ts`,
+  `src/render/portal-clear.ts`, the tunnels' lines and the houses over them from
+  `src/render/tunnel-lines.ts` and the bore's size from `src/render/bores.ts` (`tunnels.test.ts`
+  bakes four tunnels' mouths again in `pnpm test`). A change to the full map's look
+  (`src/render/map-style.ts`, the palette, `src/tools/overview.ts`) likewise needs the maps built
+  again: `overview.map-test.ts` fails on a stale overview.
