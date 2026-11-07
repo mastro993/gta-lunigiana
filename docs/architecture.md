@@ -1225,7 +1225,9 @@ The pixel pipeline (`src/render/pipeline.ts`):
   the follow spring's half turn 0–6 times, never in a row. In the browser (2026-11-06, 08:00 on 4
   November, Cortila) one E changed it 3 times (70.9, 200.6 and 300 m, the first two on consecutive
   frames), where it changed 18 times before, and a whole turn at a degree a frame 9 times on foot
-  and 9 in a car, never on consecutive frames, at 60 fps with no frame over 16.8 ms.
+  and 9 in a car, never on consecutive frames, at 60 fps with no frame over 16.8 ms. The user chose
+  this (2026-11-07) over sizing the box for where a Q or E will end, which would change it once a
+  turn but leave it up to four steps coarser than the fit for about a third of a second.
 
   Two things make the box change on consecutive frames. The fit itself can leap steps between two
   frames, as a ray finds or loses a cliff's foot or passes a ridge's crest. And the drop lands on
@@ -1242,7 +1244,8 @@ The pixel pipeline (`src/render/pipeline.ts`):
   largest fit of the last 0.25 s removed every strobe there (9, 10 and 9 changes on foot, none in a
   row) but held the box more than a step above the fit's own step, up to five, for 66–82 frames of
   each turn (20–28 at Cortila and Monzone), and is not built: the issue asks for a box never more
-  than a step above the fit.
+  than a step above the fit, and the user kept that rule and accepted the strobe at such points
+  (2026-11-07).
 - The far plane is 3 km from the camera (2.5 km past the focus): from the Apuan summits the
   deepest ground in view is ≈ 2.45 km from the camera, past the 1 km the plane used to stop at.
 
