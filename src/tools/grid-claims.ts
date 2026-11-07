@@ -16,12 +16,13 @@ export const coreHalf = (w: number, cell: number): number => Math.max(w / 2 + 0.
 const MOUTH = GRID_CELL * Math.SQRT2
 
 /**
- * A profile to write into the grid (`flatten`): its core half-width, rank, and the samples whose
- * segment writes nothing (bridges, tunnels).
+ * A profile to write into the grid (`flatten`): its core half-width by segment, rank, and the
+ * samples whose segment writes nothing (bridges, tunnels).
  */
 export interface Claim {
   readonly p: Profile
-  readonly core: number
+  /** The core's half-width (`coreHalf`) of the segment from each sample, m: its own piece's. */
+  readonly core: Float64Array
   /** Metres its writes reach past its core, blending back to the terrain. */
   readonly blend: number
   /** A point and a direction (x, y, dx, dy): it writes only the nodes abeam or ahead of the point (a mouth's claim, out of its tunnel). */
@@ -72,26 +73,33 @@ export const replayClaims = (
       )
 }
 
-/** A claim along profile `p` of a line `w` m wide at `rank`, blending `blend` m, but for segments from samples where `skip`, on the nodes where `writes` holds (all with none). */
+/**
+ * A claim along profile `p`, the segment from sample k `w(k)` m wide (its own piece's width), at
+ * `rank`, blending `blend` m, but for segments from samples where `skip`, on the nodes where
+ * `writes` holds (all with none).
+ */
 export const claimOf = (
   p: Profile,
-  w: number,
+  w: (segment: number) => number,
   rank: number,
   blend: number,
   skip: (k: number) => boolean,
   writes?: (x: number, y: number) => boolean,
 ): Claim => {
-  const core = coreHalf(w, GRID_CELL),
-    reach = core + blend
+  const n = Math.max(0, p.z.length - 1),
+    core = Float64Array.from({ length: n }, (_, k) => coreHalf(w(k), GRID_CELL))
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
     maxY = -Infinity
-  for (let k = 0; k < p.x.length; k++) {
-    minX = Math.min(minX, p.x[k]! - reach)
-    minY = Math.min(minY, p.y[k]! - reach)
-    maxX = Math.max(maxX, p.x[k]! + reach)
-    maxY = Math.max(maxY, p.y[k]! + reach)
+  for (let k = 0; k < n; k++) {
+    const reach = core[k]! + blend
+    for (const e of [k, k + 1]) {
+      minX = Math.min(minX, p.x[e]! - reach)
+      minY = Math.min(minY, p.y[e]! - reach)
+      maxX = Math.max(maxX, p.x[e]! + reach)
+      maxY = Math.max(maxY, p.y[e]! + reach)
+    }
   }
   return {
     p,
@@ -99,7 +107,7 @@ export const claimOf = (
     blend,
     ...(writes === undefined ? {} : { writes }),
     rank,
-    skip: Uint8Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) => (skip(k) ? 1 : 0)),
+    skip: Uint8Array.from({ length: n }, (_, k) => (skip(k) ? 1 : 0)),
     box: [minX, minY, maxX, maxY],
   }
 }
@@ -147,7 +155,13 @@ export const mouthClaim = (
   const out = approach(p, k, step, atGrade)
   if (out === undefined) return undefined
   return {
-    ...claimOf(out, w, MOUTH_RANK, 0, () => false),
+    ...claimOf(
+      out,
+      () => w,
+      MOUTH_RANK,
+      0,
+      () => false,
+    ),
     ahead: [out.x[0]!, out.y[0]!, out.x[1]! - out.x[0]!, out.y[1]! - out.y[0]!],
   }
 }

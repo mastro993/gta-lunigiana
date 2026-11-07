@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
-import { replayClaims } from "../grid-claims.ts"
+import { coreHalf, replayClaims } from "../grid-claims.ts"
 import { makeProfiler, type Linear } from "../profiles.ts"
 import { roadLevels } from "../road-levels.ts"
 import type { Grid } from "../terrain.ts"
@@ -287,4 +287,56 @@ test("profile holds each bound on its own piece where a chain crosses itself: a 
     [l0, l1] = zOf.get(loop)!
   const gap = w! + ((e! - w!) * 14) / 80 - (l0! + ((l1! - l0!) * 20) / 50)
   assert.ok(gap >= 5.5 - 1e-6, `the bridge ${gap.toFixed(2)} m over the loop`)
+})
+
+// Regression: build-terrain cored each road chain at its widest piece's width, so Fosdinovo's 8.4 m
+// tertiary 519669896 at (−4469, −4510), joined onto the Strada comunale per Campo Cecina's chain,
+// widened that chain's core from 5.55 to 6.5 m either side as far east as x −592 and moved 4,878 of
+// lucido's nodes 4–16 m off the road, though the road's line and z were unchanged.
+test("profile cores each piece at its own width: a wider piece joined on along its chain leaves the grid beside it as it was", () => {
+  // A cross slope, so a core's edge shows in the grid; the road runs level along y 0.
+  const ground = (_x: number, y: number) => 100 + 0.5 * y
+  const base = grid()
+  base.z.forEach((_, n) => (base.z[n] = ground(0, -20 + 4 * Math.floor(n / 161))))
+  const narrow = { w: 4, pts: [v(0, 0), v(300, 0, "j")] },
+    wide = { w: 10, pts: [v(300, 0, "j"), v(600, 0)] }
+  const written = (pieces: ReadonlyArray<typeof narrow>) => {
+    const { profile, claims } = makeProfiler(ground)
+    profile(
+      pieces.map((item) => ({ item, rev: false })),
+      { ...SPEC, w: (piece) => piece.w },
+    )
+    const g = { ...base, z: Float64Array.from(base.z) }
+    replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+    return g.z
+  }
+  const alone = written([narrow]),
+    joined = written([narrow, wide])
+  assert.notDeepEqual(alone, base.z, "the narrow piece wrote the grid")
+  // x 0…260, beyond the wide piece's reach (its core and blend, 15.3 m past the joint)
+  for (let j = 0; j < 11; j++)
+    for (let i = 5; i <= 70; i++)
+      assert.equal(joined[j * 161 + i], alone[j * 161 + i], `node (${-20 + 4 * i}, ${-20 + 4 * j})`)
+})
+
+test("profile holds a tunnel's mouths at their approach's width, not the bore's", () => {
+  // A 10 m bore from x 100 to 200 between a 4 m approach from the west and a 5 m one to the east.
+  const chain = [
+    { w: 4, pts: [v(0, 0), v(100, 0, "m0")] },
+    { w: 10, tunnel: true as const, pts: [v(100, 0, "m0"), v(200, 0, "m1")] },
+    { w: 5, pts: [v(200, 0, "m1"), v(400, 0)] },
+  ]
+  const { profile, claims } = makeProfiler(() => 100)
+  profile(
+    chain.map((item) => ({ item, rev: false })),
+    { ...SPEC, w: (piece) => piece.w, mouths: true },
+  )
+  // Each mouth's claim (at the mouth's x) and the core half-widths its segments hold.
+  const mouths = claims.flatMap((c) =>
+    c.ahead === undefined ? [] : [[c.ahead[0], new Set(c.core)]],
+  )
+  assert.deepEqual(mouths, [
+    [100, new Set([coreHalf(4, 4)])],
+    [200, new Set([coreHalf(5, 4)])],
+  ])
 })

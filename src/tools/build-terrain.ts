@@ -9,7 +9,6 @@ import type { Sources } from "./build-sources.ts"
 import { catchments, type Inflow } from "./catchment.ts"
 import { railSlab, roadSlab } from "./deck-ground.ts"
 import type { Dem } from "./dtm.ts"
-import type { RoadF } from "./features.ts"
 import {
   BOUNDS,
   along,
@@ -124,8 +123,6 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     ground,
     zAt,
   })
-  const widest = (chain: ReadonlyArray<{ readonly item: RoadF }>) =>
-    Math.max(...chain.map((m) => m.item.w))
   const ofClass = (cls: ReadonlyArray<string>) => roads.filter((r) => cls.includes(r.cls))
   // The rail goes first (its grade limit is the strictest; roads dip under it and meet it at level
   // crossings), then roads by class (ROAD_PASSES). Ranks decide grid cells: the main roads beat
@@ -177,7 +174,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
   for (const { classes, rank, grade, half } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
-      profile(ch, { w: widest(ch), rank, grade, half, decks: true, mouths: true, reach: true }, [
+      profile(ch, { w: (r) => r.w, rank, grade, half, decks: true, mouths: true, reach: true }, [
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])
