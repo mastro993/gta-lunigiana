@@ -10,6 +10,7 @@ import {
   checkBed,
   checkCarriageways,
   checkDashes,
+  checkDrawnRuns,
   checkPanelsOverRoads,
   checkPortals,
   checkReadingWidths,
@@ -55,6 +56,11 @@ test("rail: the bed's top stands 0.15 m or less over the terrain on 90 % of the 
 
 test("rail: a portal at every tunnel mouth inside the map, its dark mouth facing out of the hill", () => {
   checkPortals(ALL, 2)
+})
+
+test("rail: past every terminal of the map's lines two rails drawn where its trains ride, over the drawn run", () => {
+  // Both rails every metre past Rometta's terminal; past Pieve San Lorenzo's the drawn run lies in the Galleria del Lupacino.
+  assert.equal(checkDrawnRuns(), 2 * 192)
 })
 
 test("crossings: at every crossing each arm hinged on its housing's face and the road light's plate behind its lens, all clear of the trains", () => {

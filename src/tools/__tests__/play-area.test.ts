@@ -27,9 +27,10 @@ const part = (rects: ReadonlyArray<Rect>, mask?: ReadonlyArray<number>): Part =>
 const L = [part([[0, 0, 200, 100]]), part([[0, 100, 100, 300]])]
 const L_RING = [0, 0, 200, 0, 200, 100, 100, 100, 100, 300, 0, 300]
 
-/** Lucido's rectangle, the region's first part, and Fivizzano's mask, the part beside it. */
+/** Lucido's rectangle, the region's first part, and Fivizzano's and Fosdinovo's masks, the parts beside it. */
 const LUCIDO = partOf("lucido"),
-  FIVIZZANO = partOf("fivizzano")
+  FIVIZZANO = partOf("fivizzano"),
+  FOSDINOVO = partOf("fosdinovo")
 const [LX0, LY0, LX1, LY1] = LUCIDO.rects[0]!
 
 /** A flat ring's area, positive counter-clockwise. */
@@ -44,14 +45,20 @@ test("one rectangle's outline runs S, E, N, W from its south-west corner: lucido
   assert.deepEqual(outlineOf([LUCIDO]), [[LX0, LY0, LX1, LY0, LX1, LY1, LX0, LY1]])
 })
 
-test("the region's outline is one ring round lucido's rectangle and Fivizzano's mask, from lucido's south-west corner", () => {
+test("the region's outline is one ring round lucido's rectangle and Fivizzano's and Fosdinovo's masks, from Fosdinovo's south-west corner", () => {
   assert.deepEqual(OUTLINE, outlineOf(PARTS))
   assert.equal(OUTLINE.length, 1)
   const ring = OUTLINE[0]!
-  assert.deepEqual(ring.slice(0, 4), [LX0, LY0, LX1, LY0])
+  const [fx0, fy0] = FOSDINOVO.rects[0]!
+  assert.deepEqual(ring.slice(0, 4), [fx0, fy0, FOSDINOVO.mask![2], fy0])
   // The parts meet along their seams alone, so the union's area is theirs summed.
   assert.ok(
-    Math.abs(areaOf(ring) - areaOf(rectRing(LUCIDO.rects[0]!)) - areaOf(FIVIZZANO.mask!)) < 1,
+    Math.abs(
+      areaOf(ring) -
+        areaOf(rectRing(LUCIDO.rects[0]!)) -
+        areaOf(FIVIZZANO.mask!) -
+        areaOf(FOSDINOVO.mask!),
+    ) < 1,
   )
 })
 
@@ -161,24 +168,37 @@ test("a hole touching the outer ring, or another hole, at a corner is a ring of 
 })
 
 test("inPlay, onOutline and outlineEdgeAt answer for the play area: lucido's outer sides on the outline, its seams inside", () => {
-  // Lucido's east side is the outline from its south-east corner up to where Fivizzano's leg starts.
-  const ring = OUTLINE[0]!,
-    leg = ring[5]!,
-    y = (LY0 + leg) / 2
-  assert.deepEqual(ring.slice(2, 6), [LX1, LY0, LX1, leg])
-  assert.ok(leg < LY1)
-  assert.ok(inPlay(0, 0) && inPlay(LX1, y) && inPlay(LX0, 0) && inPlay(0, LY0))
-  assert.ok(!inPlay(LX1 + 0.01, y) && !inPlay(0, LY0 - 0.01) && !inPlay(LX0 - 0.01, 0))
-  assert.ok(inPlay(LX1 - 5, y, 5) && !inPlay(LX1 - 4.99, y, 5) && !inPlay(LX0 + 1.2, 0, 1.3))
-  assert.ok(onOutline(LX1, y) && onOutline(0, LY0) && !onOutline(LX1 - 0.1, y))
+  // Lucido's east side is the outline from its south-east corner up to where Fivizzano's leg
+  // starts, and its west side from where Fosdinovo's mask leaves it, past Carrara's cut, down to
+  // its south-west corner.
+  const ring = OUTLINE[0]!
+  const vertex = (x: number, y: number) => {
+    for (let k = 0; k < ring.length; k += 2) if (ring[k] === x && ring[k + 1] === y) return k
+    throw new Error(`no outline vertex at ${x}, ${y}`)
+  }
+  const se = vertex(LX1, LY0),
+    sw = vertex(LX0, LY0),
+    leg = ring[se + 3]!,
+    cut = ring[sw - 1]!,
+    y = (LY0 + leg) / 2,
+    wy = (LY0 + cut) / 2
+  assert.deepEqual([ring[se + 2], ring[sw - 2]], [LX1, LX0])
+  assert.ok(leg < LY1 && cut > LY0 && cut < 0)
+  assert.ok(inPlay(0, 0) && inPlay(LX1, y) && inPlay(LX0, wy) && inPlay(0, LY0))
+  assert.ok(!inPlay(LX1 + 0.01, y) && !inPlay(0, LY0 - 0.01) && !inPlay(LX0 - 0.01, wy))
+  assert.ok(inPlay(LX1 - 5, y, 5) && !inPlay(LX1 - 4.99, y, 5) && !inPlay(LX0 + 1.2, wy, 1.3))
+  assert.ok(onOutline(LX1, y) && onOutline(0, LY0) && onOutline(LX0, wy))
+  assert.ok(!onOutline(LX1 - 0.1, y))
   assert.deepEqual(outlineEdgeAt(LX1, y, 1e-6), [LX1, LY0, LX1, leg])
   assert.deepEqual(outlineEdgeAt(10, LY0, 1e-6), [LX0, LY0, LX1, LY0])
+  assert.deepEqual(outlineEdgeAt(LX0, wy, 1e-6), [LX0, cut, LX0, LY0])
   assert.equal(outlineEdgeAt(LX1 - 1, y, 1e-6), undefined)
-  // Its seams with Fivizzano lie inside, off the outline: its north side, and its east side north
-  // of the leg's start.
+  // Its seams lie inside, off the outline: with Fivizzano its north side and its east side north
+  // of the leg's start, with Fosdinovo its west side north of Carrara's cut.
   for (const [x, sy] of [
     [0, LY1],
     [LX1, (leg + LY1) / 2],
+    [LX0, 0],
   ] as const) {
     assert.ok(inPlay(x, sy, 50) && !onOutline(x, sy), `${x}, ${sy}`)
     assert.equal(outlineEdgeAt(x, sy, 1e-6), undefined)
@@ -271,12 +291,13 @@ test("outside, clipPieces keeps what the area leaves out, and clipBeyond what of
   assert.ok(Math.abs(notch!.from - Math.hypot(50, 50)) < 1e-9, `${notch!.from}`)
   // along the outline is in, so not out
   assert.deepEqual(clipPieces(rings, [v(100, 150, "a"), v(100, 250, "b")], true), [])
-  // From past the box's west side across its notch west of lucido into lucido: the notch's stretch,
-  // from the box's side to lucido's, 100 m along the line
-  const { minX } = regionFromArgs([]).bounds
-  assert.ok(minX < LX0 && !inPlay((minX + LX0) / 2, 0))
-  assert.deepEqual(clipBeyond([v(minX - 100, 0, "a"), v(0, 0, "b"), v(LX1 - 100, LY0, "c")]), [
-    { pts: [v(minX, 0), v(LX0, 0)], from: 100 },
+  // From past the box's west side across its notch north-west of Fosdinovo into Fivizzano: the
+  // notch's stretch, from the box's side to Fivizzano's, 100 m along the line
+  const { minX } = regionFromArgs([]).bounds,
+    [fx0] = FIVIZZANO.rects[0]!
+  assert.ok(minX < fx0 && !inPlay((minX + fx0) / 2, 8000))
+  assert.deepEqual(clipBeyond([v(minX - 100, 8000, "a"), v(0, 8000, "b"), v(0, 0, "c")]), [
+    { pts: [v(minX, 8000), v(fx0, 8000)], from: 100 },
   ])
   // wholly in the play area, nothing
   assert.deepEqual(clipBeyond([v(0, 0, "a"), v(LX1, LY1, "b")]), [])
@@ -298,6 +319,59 @@ test("a line past a reflex corner within a micrometre stays whole: both its side
     const pts = [v(ax, ay, "a"), v(bx, by, "b")]
     assert.deepEqual(clipLineTo(mask, pts), [pts])
   }
+})
+
+// Regression: Fosdinovo's driveway 1550647991 left the play area 5 cm past its node 14103781003, 4.6
+// cm in from the west edge x −11500, and the L's way 1002673816 entered across its notch's side 3
+// cm before a node: written to 0.1 m, each repeated a point, a segment of no length (an edge of
+// none in the road graph).
+test("a cut point on the 0.1 m point of the vertex beside it replaces that vertex: no piece ships a segment of no length", () => {
+  const rings = [L_RING]
+  // Out of the leg across its east side x 100, from a vertex 3 cm inside it: the cut ends the piece
+  // in its place.
+  const [out] = clipLineTo(rings, [v(50, 250, "a"), v(99.97, 250.01, "b"), v(150, 260, "c")])
+  assert.deepEqual(
+    out!.map((p) => p.id),
+    ["a", undefined],
+  )
+  assert.equal(out![1]!.x, 100)
+  // Into the leg, to a vertex 3 cm inside it: the cut starts the piece in its place.
+  const [into] = clipPieces(rings, [v(150, 260, "a"), v(99.97, 250.01, "b"), v(50, 250, "c")])
+  assert.deepEqual(
+    into!.pts.map((p) => p.id),
+    [undefined, "c"],
+  )
+  assert.equal(into!.pts[0]!.x, 100)
+  assert.ok(Math.abs(into!.from - Math.hypot(50, 9.984)) < 0.01, `${into!.from}`)
+  // A dip 2 cm into the leg and out again lies on one 0.1 m point: nothing of it is kept.
+  assert.deepEqual(
+    clipLineTo(rings, [v(150, 150, "a"), v(99.98, 150, "b"), v(150, 150.04, "c")]),
+    [],
+  )
+  // Beyond the area too: out of the foot's north side y 100 to a vertex 4 cm into the notch.
+  const [beyond] = clipPieces(
+    rings,
+    [v(150, 50, "a"), v(150.01, 100.04, "b"), v(160, 150, "c")],
+    true,
+  )
+  assert.deepEqual(
+    beyond!.pts.map((p) => p.id),
+    [undefined, "c"],
+  )
+  // Every piece of every such line, rounded as the map ships it, has no two vertices in a row on one point.
+  for (const pts of [
+    [v(50, 250, "a"), v(99.97, 250.01, "b"), v(150, 260, "c")],
+    [v(150, 260, "a"), v(99.97, 250.01, "b"), v(50, 250, "c")],
+    [v(150, 150, "a"), v(99.98, 150, "b"), v(150, 150.04, "c")],
+    [v(150, 50, "a"), v(150.01, 100.04, "b"), v(160, 150, "c")],
+  ])
+    for (const outside of [false, true])
+      for (const { pts: p } of clipPieces(rings, pts, outside))
+        for (let i = 1; i < p.length; i++)
+          assert.ok(
+            r1(p[i]!.x) !== r1(p[i - 1]!.x) || r1(p[i]!.y) !== r1(p[i - 1]!.y),
+            JSON.stringify(p),
+          )
 })
 
 /** Liang–Barsky to a box per segment, consecutive inside parts merged: the clipping before the play area's outline. */

@@ -370,8 +370,9 @@ export const carve = (
 }
 
 /**
- * Writes a road profile into the grid: nodes within `core` take the road elevation, the next
- * `blend` m fade back to the terrain. `owner` holds the rank of the road that wrote each core
+ * Writes a road profile into the grid: nodes within the core of their nearest segment (`core[k]`
+ * for the segment from sample k, its own piece's) take the road elevation, the next `blend` m fade
+ * back to the terrain. `owner` holds the rank of the road that wrote each core
  * node (255 = none): ranks <= `rank` win, so earlier (higher) classes keep junctions.
  * `protect` marks river nodes no road may touch; segments from sample k with `skip(k)` (bridges, tunnels) write nothing,
  * and nodes where `at` is false neither.
@@ -379,7 +380,7 @@ export const carve = (
 export const flatten = (
   g: Grid,
   p: Profile,
-  core: number,
+  core: ArrayLike<number>,
   blend: number,
   rank: number,
   owner: Uint8Array,
@@ -387,19 +388,28 @@ export const flatten = (
   skip: (k: number) => boolean,
   at: (x: number, y: number) => boolean = () => true,
 ): void => {
-  const best = new Map<number, { d: number; z: number }>()
+  const best = new Map<number, { d: number; z: number; c: number }>()
   for (let k = 0; k + 1 < p.z.length; k++)
     if (!skip(k))
-      forNodesNear(g, p.x[k]!, p.y[k]!, p.x[k + 1]!, p.y[k + 1]!, core + blend, (n, d, t, x, y) => {
-        if (!at(x, y)) return
-        const cur = best.get(n)
-        if (cur === undefined || d < cur.d) best.set(n, { d, z: lerp(p.z[k]!, p.z[k + 1]!, t) })
-      })
-  for (const [n, { d, z }] of [...best].sort((a, b) => a[0] - b[0])) {
+      forNodesNear(
+        g,
+        p.x[k]!,
+        p.y[k]!,
+        p.x[k + 1]!,
+        p.y[k + 1]!,
+        core[k]! + blend,
+        (n, d, t, x, y) => {
+          if (!at(x, y)) return
+          const cur = best.get(n)
+          if (cur === undefined || d < cur.d)
+            best.set(n, { d, z: lerp(p.z[k]!, p.z[k + 1]!, t), c: core[k]! })
+        },
+      )
+  for (const [n, { d, z, c }] of [...best].sort((a, b) => a[0] - b[0])) {
     if (protect[n] === 1 || owner[n]! <= rank) continue
-    if (d <= core) {
+    if (d <= c) {
       g.z[n] = z
       owner[n] = rank
-    } else if (owner[n] === 255) g.z[n] = lerp(z, g.z[n]!, (d - core) / blend)
+    } else if (owner[n] === 255) g.z[n] = lerp(z, g.z[n]!, (d - c) / blend)
   }
 }

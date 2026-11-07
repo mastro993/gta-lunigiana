@@ -6,12 +6,15 @@ import assert from "node:assert/strict"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../../collide.ts"
+import { terrainZ } from "../../map/ground.ts"
 import { graph, type LevelCrossing, MAP, outlineDistance, RAIL_LIFT } from "../../map/index.ts"
 import { endNode, laneOf, lanePoint } from "../../route.ts"
 import { strikeIn } from "../barriers.ts"
 import { approachesOf, APPROACHES, CROSSINGS, linesAtGrade } from "../crossings.ts"
 import {
+  CHORD,
   DRAWN_RUN,
+  type Line,
   LINES,
   linesNear,
   nextStop,
@@ -60,7 +63,37 @@ export const railwayAround = (
 /** Whether (x, y) lies on the play area's outline, where the build cuts a line (its bounds are the box round it). */
 const onEdge = (x: number, y: number) => outlineDistance(x, y) < 0.5
 
-/** Each of `lines` runs its pieces terminal to terminal from s 0, then its run-out straight on past each, level. */
+/**
+ * How far the terrain may stand over a run-out's bed over the drawn run, and lie under it, m: as at grade in play, where the
+ * rail bed keeps the grid within 0.05 m over the bed (its 0.1 m rounding) and 0.5 m under it (src/tools/rail-bed.ts).
+ */
+const ON_GROUND = { over: 0.05, under: 0.5 } as const
+
+/** Whether (x, y) lies on the map's own ground, within its bounds: past them the apron is their edge drawn on outward. */
+const inBounds = (x: number, y: number) => {
+  const { minX, minY, maxX, maxY } = MAP.bounds
+  return x >= minX && x <= maxX && y >= minY && y <= maxY
+}
+
+/** The terrain's greatest rise over the bed of `line` from s `s` on `way` over the drawn run, and its greatest fall under it, each with how far on, m: at grade on the map's ground. */
+const groundPast = (line: Line, s: number, way: 1 | -1) => {
+  let over = { by: -Number.MAX_VALUE, at: 0 },
+    under = { by: -Number.MAX_VALUE, at: 0 }
+  for (let d = 0; d <= DRAWN_RUN; d++) {
+    const p = pointAt(line, s + way * d)
+    if (p.bridge || p.tunnel || !inBounds(p.x, p.y)) continue
+    const up = terrainZ(p.x, p.y) - (p.z - RAIL_LIFT)
+    if (up > over.by) over = { by: up, at: d }
+    if (-up > under.by) under = { by: -up, at: d }
+  }
+  return { over, under }
+}
+
+/**
+ * Each of `lines` runs its pieces terminal to terminal from s 0, and past each terminal its run-out: over the drawn run, out
+ * of a tunnel, off a bridge and on the map's ground, its bed on the terrain (`ON_GROUND`); along the map's stored track on
+ * past the terminal (`runOuts`) vertex by vertex out to the run-out's length, then straight on and level past where it ends.
+ */
 export const checkTerminals = (lines: ReadonlyArray<number>): void => {
   for (const line of lines.map((l) => LINES[l]!)) {
     const pieces = MAP.railway.lines[line.index]!.pieces
@@ -75,18 +108,53 @@ export const checkTerminals = (lines: ReadonlyArray<number>): void => {
       [line.start, line.end],
       [-runOut(speedAt(line, 0)), line.length + runOut(speedAt(line, line.length))],
     )
-    for (const s of [0, line.length]) {
+    const ends = [
+      [0, -1, 0],
+      [line.length, 1, 1],
+    ] as const
+    const ground = ends.map(([s, way]) => {
       const end = pointAt(line, s)
       assert.ok(onEdge(end.x, end.y), `terminal at (${end.x}, ${end.y}) on the play area's outline`)
-      // Straight on and level past it, over the drawn run to the run-out's end.
-      const way = s === 0 ? -1 : 1
-      for (const out of [DRAWN_RUN, s === 0 ? -line.start : line.end - line.length]) {
-        const far = pointAt(line, s + way * out)
-        assert.ok(Math.abs(Ops.hypot(far.x - end.x, far.y - end.y) - out) < 1e-6)
-        assert.ok(Math.abs(far.angle - pointAt(line, s + (way * out) / 2).angle) < 1e-9)
-        assert.equal(far.z, end.z)
-        assert.ok(!far.bridge && !far.tunnel)
+      return { end, ...groundPast(line, s, way) }
+    })
+    assert.ok(
+      ground.every(({ over, under }) => over.by <= ON_GROUND.over && under.by <= ON_GROUND.under),
+      ground
+        .map(
+          ({ end, over, under }) =>
+            `past (${end.x}, ${end.y}) the terrain ${over.by.toFixed(2)} m over the bed at ${over.at} m on, ${under.by.toFixed(2)} m under it at ${under.at} m`,
+        )
+        .join("; "),
+    )
+    for (const [s, way, which] of ends) {
+      const need = way < 0 ? -line.start : line.end - line.length
+      let { x, y, z } = pointAt(line, s),
+        d = 0
+      for (const piece of MAP.railway.lines[line.index]!.runOuts[which]) {
+        assert.deepEqual([piece.pts[0], piece.pts[1]], [x, y], "each stretch on from the last")
+        for (let k = 1; k < piece.z.length && d < need; k++) {
+          const px = piece.pts[2 * k]!,
+            py = piece.pts[2 * k + 1]!,
+            step = Ops.hypot(px - x, py - y)
+          const mid = pointAt(line, s + way * Math.min(need, d + step / 2))
+          assert.deepEqual([mid.bridge, mid.tunnel], [piece.bridge === true, piece.tunnel === true])
+          ;[x, y, z, d] = [px, py, piece.z[k]! + RAIL_LIFT, d + step]
+          if (d > need) break
+          const at = pointAt(line, s + way * d)
+          assert.ok(
+            Ops.hypot(at.x - x, at.y - y) < 1e-6 && Math.abs(at.z - z) < 1e-6,
+            `the run-out ${d.toFixed(1)} m past the terminal at (${x}, ${y}, ${z})`,
+          )
+        }
       }
+      if (d >= need) continue
+      // Straight on and level past where it ends, to the run-out's end.
+      const far = pointAt(line, s + way * need),
+        half = pointAt(line, s + (way * (need + d)) / 2)
+      assert.ok(Math.abs(Ops.hypot(far.x - x, far.y - y) - (need - d)) < 1e-6)
+      if (need - d > 2 * CHORD) assert.ok(Math.abs(far.angle - half.angle) < 1e-9)
+      assert.equal(far.z, z)
+      assert.ok(!far.bridge && !far.tunnel && !half.bridge && !half.tunnel)
     }
   }
 }

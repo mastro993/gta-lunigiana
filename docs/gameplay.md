@@ -619,9 +619,10 @@ the lane helpers in `src/sim/route.ts`.
   passes under the player or a passer-by on the deck; before, each stopped 4.8–5.1 m short of the
   player. Backing up on the deck, a car backs over the player on the road under it as over nobody,
   and stops short of them standing behind it on the deck. Read under the car's own middle, the
-  level would lose the car ahead on a hill: along Lunigiana's traffic lanes, sampled every 2 m, a
-  car standing 15 m ahead along them (no junction between) stands 2 m or more off that ground at
-  6.6% of 301,202 places, one 20 m ahead at 14.1% of 285,796. In the SR445's dip 500 m east of the
+  level would lose the car ahead on a hill: along Lunigiana's traffic lanes, sampled every 2 m on
+  2026-11-06 (before Fosdinovo's part, as the joints below), a car standing 15 m ahead along them
+  (no junction between) stands 2 m or more off that ground at 6.6% of 301,202 places, one 20 m
+  ahead at 14.1% of 285,796. In the SR445's dip 500 m east of the
   viaduct, 15% down into it and 15% up out of it, a car at 16 m/s then ran into a Panda standing 40
   m up the climb from the dip's foot (at 0.8 m/s), or, with that ground carried along its pitch,
   into one 15 m past the foot from 25 m down the descent (at 5.7 m/s); rolled there, it stops 6.7 m
@@ -630,9 +631,11 @@ the lane helpers in `src/sim/route.ts`.
   down 15% onto the SR445's viaduct from the east, a car ran into a Panda standing 12 m onto the
   deck at 3.7–9.5 m/s, and coming down 8% onto the primary road's bridge OSM way 237828927, into
   one 6.5 m onto its deck at 11.7 m/s; rolled there, it stops 6.1–6.4 m short. With a lane's slope
-  for the pitch, that reading loses such a car at 30 of Lunigiana's 463 joints between a road and a
-  bridge or a tunnel, 7 of Cesena's 105 and 8 of the L's 63; rolled, at none but a mouth of Pieve
-  San Lorenzo's underpass ([map.md](map.md#known-data-limitations)). Rolled to the obstacle's
+  for the pitch, that reading lost such a car at 30 of Lunigiana's 463 joints between a road and a
+  bridge or a tunnel, 7 of Cesena's 105 and 8 of the L's 63 before #18 (541 and 67 joints now,
+  2026-11-07); rolled, at none but a mouth of Pieve
+  San Lorenzo's underpass ([map.md](map.md#known-data-limitations)), with Fosdinovo's joints too
+  (`joints.map-test.ts`). Rolled to the obstacle's
   middle, a train's car passing under a road bridge may lie off the deck: a car on the SR445's deck
   over the railway, 340 m east of the dip, then changed its way for a train passing under it at 16
   of 26 timings (from 60 m before the deck to 60 m past it every 10 m, both ways), and now goes on
@@ -713,8 +716,8 @@ happens around them. `Perceive` (`systems/perceive.ts`, with the vehicle checks 
   only at dead ends. The ways are weighed by where they lead, not by the edge itself, because
   residents are counted within 60 m of each edge, so all the edges at one junction count about the
   same houses. With the floor, a lane into the fields draws about 1 walker in 32 against a typical
-  village street (15.6 residents, the median of the peopled walk edges; 17 on lucido alone, 1 in
-  35). Of 200 walkers set off for
+  village street (15.4 residents, the median of the peopled walk edges; 15.6 before Fosdinovo's
+  part; 17 on lucido alone, 1 in 35). Of 200 walkers set off for
   1.5 km from each centre, the share of the distance walked on peopled streets:
 
   | Centre | This choice | The edge's own residents | Random |
@@ -960,22 +963,28 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   random stream seeded by a hash of the spot's place (its x and y in whole decimetres, as the build
   rounds them) and the game's seed (`Parking`, saved), so within one game a street looks the same
   each time the player comes back, and `?seed=N` parks another set. A spot where a Panda would
-  tilt more than 15° stays empty (in Lunigiana, 178 of the 2,501: the 4 m terrain puts some verges
-  on a bank), and so do the Carabinieri's two.
+  tilt more than 15° stays empty (in Lunigiana, 286 of the 3,500: the 4 m terrain puts some verges
+  on a bank, and more since each road piece is cored at its own width, which leaves the bank
+  beside a narrower piece of a chain standing: 229 before), and so do the Carabinieri's two.
 - **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
   over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had
-  then (2,321 since Fivizzano's part), about 27%, and 198 of Cesena's 1,223, about 16%. Within
-  300 m of each village (seed 1): Monzone (Stazione) 9, Monzone Alto 6, Equi Terme 4, Gragnola 9,
-  Colognola 3, Campiglione 7, Viano 10, Vinca 10, Ugliancaldo 1, Tenerano 0; in Fivizzano's part
-  Fivizzano 20, Casola in Lunigiana 12, Soliera 11, Gassano 8. A spot's dice follow its place, not
-  its index, so a build that adds or drops other spots leaves its car as it was (the 3x test region,
-  which drops 9 buildings across lucido's edge, keeps lucido alone's 807 spots and parks the same
-  cars round Monzone: [map.md](map.md#test-regions)); a spot the build moves rolls anew.
+  then (3,212 since Fosdinovo's part), about 27%, and 198 of Cesena's 1,223, about 16%. Within
+  300 m of each village (seed 1): Monzone (Stazione) 9, Monzone Alto 5, Equi Terme 4, Gragnola 9,
+  Colognola 3, Campiglione 9, Viano 10, Vinca 9, Ugliancaldo 1, Tenerano 0; in Fivizzano's part
+  Fivizzano 20, Casola in Lunigiana 12, Soliera 11, Gassano 8; in Fosdinovo's part Fosdinovo 6,
+  Caniparola 11, Tendola 2, Ponzanello 0, Ceserano 6, San Terenzo Monti 6, Bardine di San
+  Terenzo 5, Marciaso 3, Pulica 2, Gignago 2, Colla 5, Castelpoggio 6. A spot's dice follow its
+  place, not its index, so a build that adds or drops other spots leaves its car as it was (the 3x
+  test region, which drops 9 buildings across lucido's edge, keeps lucido alone's 805 spots and
+  parks the same cars round Monzone: [map.md](map.md#test-regions)); a spot the build moves rolls
+  anew: Campiglione's held 7 cars before Fosdinovo's part, when its Via Provinciale (way
+  175092604) began at lucido's west edge, x −2900; it now begins by Colla, at (−4985, 2559), and
+  the build lays a road's kerbside candidates every 3 m from its start, so its spots moved.
 - **The models**: about 80% Pandas and 20% Apes, the Ape only where it stands level. On a
   primary, secondary or tertiary road's spot where a truck fits, a roll under 10% makes a marble
-  truck instead: 23 of the 588 cars Lunigiana's spots hold for seed 1 (11–23 of 588–643 over
-  seeds 1, 2, 3, 7 and 11; 2–7 of 167–202 on lucido alone), where the game that parked over the
-  whole map held at most two.
+  truck instead: 28 of the 824 cars Lunigiana's spots hold for seed 1 (14–28 of 824–890 over
+  seeds 1, 2, 3, 7 and 11; 11–23 of 588–643 before Fosdinovo's part, 2–7 of 162–196 on lucido
+  alone), where the game that parked over the whole map held at most two.
 - **Coming**: a spot 90–300 m from the player (`PARKING.fill`, out of view) that should hold a car
   and has none gets it, unless a vehicle's body, or a person or an animal within 1 m (`ROOM`), is in
   the way: it is tried again every 0.5 s.
@@ -1008,7 +1017,8 @@ in the Apuan valleys are holiday homes or empty) / 56 m² (`GROSS_PER_RESIDENT`:
 average occupied dwelling is 101 m² for 2.25 people, 45 m² each, and walls and stairs take about a
 fifth of the gross). Homes are the surveys' houses and the OSM homes (`house`, `residential`, `yes`,
 `apartments`, `detached`, `semidetached_house`, `terrace`, `farm`, `bungalow`), ruins left out. The
-map's 9,763 homes hold 10,347 residents (lucido's alone 3,244).
+map's 14,732 homes hold 15,323 residents (9,763 and 10,347 before Fosdinovo's part; lucido's alone
+3,234).
 
 `peopleOut` is 0.09 (`OUT_SHARE`, an estimate of the share of residents out on the street by day) ×
 the residents within 140 m of the player, rounded, at most 22. Only the living count. The sum
@@ -1018,31 +1028,33 @@ same whichever tiles are in memory.
 
 | Spot | Residents within 140 m | People out |
 |---|---|---|
-| Fivizzano's walled centre (−526, 8474) | 409 | 22 (37 without the cap) |
+| Fivizzano's walled centre (−526, 8474) | 406 | 22 (37 without the cap) |
 | Gragnola's centre (−1751, 3360) | 195 | 18 |
 | Vinca (2273, −2620) | 167 | 15 |
 | Monzone Alto (−34, −300) | 115 | 10 |
 | Monzone, the player's start (−412, 438) | 97 | 9 |
 | Equi Terme (1804, 721) | 97 | 9 |
 | Casola in Lunigiana (3636, 4246) | 162 | 15 |
+| Fosdinovo's centre (−8890, −3090) | 190 | 17 |
 | The SR445 out in the country (−279, 3736) | 0 | 0 |
 
 The cap of 22 is the first prototype's ceiling (`PEDESTRIANS.max` in `src/sim/systems/populate.ts`).
 It binds only in Fivizzano's walled centre, the most anywhere on the map at (−526, 8474): on a 10 m
-grid over the map, the 529 points where 0.09 × the residents rounds past 22 all lie within 235 m of
+grid over the map, the 524 points where 0.09 × the residents rounds past 22 all lie within 235 m of
 it. There the target is the cap, and a party's followers and neighbour count against it too
 (`placeParties`), so a party whose leader is the 21st or 22nd out leaves home the followers or
 neighbour that do not fit. Everywhere else the most is 19, on 8 points of the grid in Gragnola's
-centre round (−1700, 3380), which leaves room for them.
+centre round (−1700, 3380), which leaves room for them; Fosdinovo's part reaches 17 at most, on 19
+points of its centre round (−8910, −3090) (2026-11-07).
 
 ### Where they come out
 
 - A party comes out on a walk edge drawn by the residents within 60 m of its midpoint
   (`residentsAlong`), so the village centres fill first. An edge with fewer than 6 (`PEOPLED`, within
   `EDGE_REACH` = 60 m) never gets one: a lone house or two, the woods and the fields stay empty.
-  7,877 of the map's 61,091 walk edges are peopled. Those sums read buildings all over the map, so
-  the build works them out (`bakeResidents`) and the map keeps one per walk edge
-  (`MAP.derived.residents`).
+  11,337 of the map's 87,868 walk edges are peopled (7,877 of 61,091 before Fosdinovo's part).
+  Those sums read buildings all over the map, so the build works them out (`bakeResidents`) and
+  the map keeps one per walk edge (`MAP.derived.residents`).
 - The leader stands on a verge at a random point along the edge, never inside a building (where a
   verge runs into houses that crowd the road) and clear of walk walls and the water's edge; 4
   spots are tried a party.
@@ -1204,8 +1216,9 @@ A farm (`src/sim/population/farms.ts`) is a house, barn, shed, `farm_auxiliary` 
 whose centre lies on meadow, grassland, farmland, farmyard, vineyard or olive grove cover (a house in
 its olive grove is a farm, as it was when the grove was meadow). It is rural when fewer than 60
 residents live within 140 m (`RURAL`, TUNED), and a pen (pigs live there) when it is a barn, shed or
-`farm_auxiliary`, or stands on a farmyard. The map has 6,604 farms, 5,479 of them rural, 2,256 pens
-and 2,006 rural pens (2,436, 1,739, 806 and 657 on lucido alone). Finding them reads the land cover
+`farm_auxiliary`, or stands on a farmyard. The map has 10,539 farms, 8,005 of them rural, 3,524
+pens and 3,028 rural pens (6,604, 5,479, 2,256 and 2,006 before Fosdinovo's part; 2,434, 1,747,
+804 and 659 on lucido alone). Finding them reads the land cover
 under every building, so the build does it (`bakeFarms`) and the global file keeps the list
 (`MAP.farms`, each with its building's index in the whole map's buildings) and each farm's centre
 (`MAP.derived.farms`); a farm's own building is read from the tile at its centre (`farmBuilding`). A
@@ -1254,16 +1267,20 @@ The same on every line, from `MAP.railway` alone (`rail/service.ts` drives the t
 code:
 
 - **A line** (`LINES`, `rail/lines.ts`) is the map's running track from one terminal to the other
-  ([map.md](map.md)), joined into one polyline in arc length s (0 at its first terminal) and
-  extended straight and level past both terminals: over the drawn apron (`DRAWN_RUN`, 192 m, the
-  render's) to the end of the run-out, where trains enter out of view. Each run-out is sized from
+  ([map.md](map.md)), joined into one polyline in arc length s (0 at its first terminal) and run
+  on past both terminals along the map's track beyond them (`runOuts` in `MAP.railway`,
+  [map.md](map.md)), straight and level past where that ends (and from a terminal with none): over
+  the drawn run (`DRAWN_RUN`, 192 m, which the render draws, as far as its apron reaches) to the
+  end of the run-out, where trains enter out of view. Each run-out is sized from
   the line speed at its end (`runOut`): the strike-in of a box at the map's edge
   ([Level crossings](#level-crossings)) plus the longest train's length, and never less than the
   drawn run, so a train entering at that speed is beyond view and finds even that box down before
   it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. Today's one line, Lucca–Aulla from
   the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del Lupacino, which OSM tags
-  140 km/h: its run-out is 2298.6 m) to its west edge by Rometta, is 16,854.7 m, with
-  Minucciano-Pieve-Casola at s 1558.6–1668.6, Equi Terme at 5921.4–6057.0, Monzone at
+  140 km/h: its run-out is 2298.6 m, all in the bore, which runs on level to the box's edge at
+  x 10600) to Fivizzano's west edge by Rometta (x −5300, whose run-out follows OSM's line 1128.6 m
+  on south-west down the Aulella's valley at grade), is 16,854.7 m, with
+  Minucciano-Pieve-Casola at s 1558.6–1667.1, Equi Terme at 5921.4–6057.0, Monzone at
   8493.3–8597.1, Gragnola at 11911.6–12057.7 and the Fivizzano-Gassano halt at 14454.2–14550.8.
 - **Shared track.** Lines that run on the same pieces of `MAP.rail`, or past the same terminal,
   share that track (`SHARED`): one line's s there maps onto the other's, either way round, one
@@ -1325,10 +1342,11 @@ draws; the leading end's time from one terminal to the other):
 | east to west, dry | 1187.3 s | 202.7 s | 130.0 / 85.0 / 80.0 / 85.0 km/h under 140 / 85 / 80 / 85 (130 is the ATR 220's top speed) |
 | east to west, wet / under snow | 1188.5 s / 1195.9 s | 202.7 s | the same |
 | west to east, dry | 1289.0 s | 223.3 s | 85.0 / 80.0 / 77.6 / 98.2 km/h under 85 / 80 / 85 / 140 (77.6 on the climb from Equi Terme through the Ugliancaldo tunnel, 21.7 ‰; 98.2 at the terminal, 1.6 km out of Minucciano-Pieve-Casola) |
-| west to east, wet / under snow | 1290.4 s / 1299.6 s | 223.3 s | the same, but 98.0 km/h at the terminal under snow |
+| west to east, wet / under snow | 1290.3 s / 1299.7 s | 223.3 s | the same, but 98.0 km/h at the terminal under snow |
 
 Every stop of those runs landed 0.22 m short of its stop point, and the hardest braking was 0.615
-m/s².
+m/s². Coming back, the train enters on Rometta's run-out at 85 km/h and climbs 8.2 m along it to
+the terminal, which it passes at 84.2 km/h (2026-11-07, with the run-outs on the real track).
 
 ### The AI driver
 
@@ -1366,8 +1384,8 @@ m/s².
   1.5 s, for the audio to play): the Ugliancaldo tunnel (3194.6 m), and those of 271.1 and 225.0 m;
   the 169.3 and 66.8 m ones get none. A tunnel's end at a terminal is where the map cuts it, no
   mouth: a train coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's bore
-  already (1324.6 m of it in the map), and whistles only running into it from Pieve, 30 m before
-  its portal.
+  already (1324.6 m of it in the map, and all of the 2298.6 m run-out past the terminal), and
+  whistles only running into it from Pieve, 30 m before its portal.
 - **The look-out** (`rail/lookout.ts`; RFI's signal rules art. 5(e): people on or next to the track
   call for the whistle; the Italian investigation report on the Caluso crossing crash of 2018, of a
   driver at Bojano: the urgent brake and the horn together). A person, an animal or a vehicle on the
@@ -1487,19 +1505,20 @@ The player steals and drives a train as a car, with the same keys (`EnterExit`, 
   goes through the train to the far cab, which becomes the active one, so a train stopped on a
   viaduct or in a tunnel can be driven back the way it came, and the action key there again gets
   out at that cab where it can. The train is left on its emergency brake.
-- **SCMT and the buffer stops.** The player's train runs no farther than the end of the drawn track,
-  192 m past each terminal (`DRAWN_RUN`, the render's apron): a buffer stop there. Its SCMT
-  (`supervise`; on overspeed SCMT warns, cuts the traction and brakes, then applies the emergency
-  brake, Lupi's railway course, University of Pisa 2022–23) watches its speed against the braking
-  curve to the buffer ahead, the
-  AI driver's plan (0.6 m/s², or what the rail's adhesion allows, begun 1.5 s early), and, backing
-  up, against 30 km/h: over it, it cuts the power and applies the full service brake; 5 km/h over
-  (`OVER`, the tolerance of SCMT's continuous supervision), the emergency brake. A train that still
-  reaches the buffer stops dead against it, and faster than 0.5 m/s that is a `wall` `Impact` with
-  the train as its `car`. Measured with the up key held from 1500 m short: from 20, 30 and 36 m/s
-  the train tops out at 98.8, 117.0 and 130.5 km/h, begins braking 663, 923 and 1135 m short, at the
-  service brake (never the emergency), and stops touching the buffer, under 0.5 m/s; one 60 m short
-  at 25 m/s pulls the emergency brake and strikes it at 22.8 m/s.
+- **SCMT and the buffer stops.** The player's train runs no farther than the end of the drawn
+  track, 192 m past each terminal along its run-out (`DRAWN_RUN`, the drawn run): a buffer stop
+  there. Its SCMT (`supervise`; on overspeed SCMT warns, cuts the traction and brakes, then applies
+  the emergency brake, Lupi's railway course, University of Pisa 2022–23) watches its speed against
+  the braking curve to the buffer ahead, the AI driver's plan (0.6 m/s², or what the rail's adhesion
+  allows, begun 1.5 s early), and, backing up, against 30 km/h: over it, it cuts the power and
+  applies the full service brake; 5 km/h over (`OVER`, the tolerance of SCMT's continuous
+  supervision), the emergency brake. A train that still reaches the buffer stops dead against it,
+  and faster than 0.5 m/s that is a `wall` `Impact` with the train as its `car`. Measured toward
+  the buffer past Rometta's terminal, on its run-out, with the up key held from 1500 m short
+  (2026-11-07): from 20, 30 and 36 m/s the train tops out at 99.1, 115.9 and 130.0 km/h, begins
+  braking 671, 911 and 1140 m short, at the service brake (never the emergency), and stops touching
+  the buffer, under 0.5 m/s; one 60 m short at 25 m/s pulls the emergency brake and strikes it at
+  22.7 m/s.
 - **What it meets**: other trains ([Train physics](#train-physics)), and vehicles, people and
   animals as any train ([What a train strikes](#what-a-train-strikes)): someone it knocks down
   scores a hit, as the car's do.
@@ -1830,16 +1849,28 @@ speed along the contact.
   enters toward it may come onto the shared track and meet it head-on. Then both stop 30 m apart
   and wait for each other for good: the hook is a block table both `TrainAI` and `Dispatch` would
   consult.
-- **Terminals are open ends** at the map's edge: the build makes no other kind, and
+- **Terminals are open ends** on the play area's outline: the build makes no other kind, and
   `lines.map-test.ts` fails on a terminal off the edge (`lines.test.ts` on one of a line by Monzone
   station). A buffer stop inside the map would need the AI train to dwell and turn back there
   instead of a run-out; the player's train already turns back by its far cab.
-- **Run-outs assume open land past the edge**: the drawn run and the run-out go straight and level
-  past a terminal, over the terrain the apron extends. On a map of parts in an L (issue #7) a
-  terminal on an inner edge of the play area would send them across the notch, over ground that
-  only extends the edge's (no tile is listed there, [map.md](map.md#map-files)), and a long run-out
-  could come back over the other arm. Lunigiana's and Cesena's terminals lie on the bounds; a
-  region with such a terminal needs a run-out that bends or stops short.
+- **A run-out with no track past it goes straight on**: past a terminal the run-out follows OSM's
+  track beyond the play area as far as it runs in the built terrain's box, profiled from the
+  terminal's level as the rail in play is, then straight and level along its heading. A terminal
+  on the box's own edge (Cesena's four, the L's two) has none: its run-out crosses the apron (the
+  edge's heights drawn on outward, which only a track square to the edge would lie on) straight on
+  at its level, and the render draws it where the trains ride: Cesena's at most 0.7 m over that
+  ground, the L's 8.1 m under it 180 m past Equi Terme's end of the foot (10.3° off square, along
+  its hillside) and 8.8 m over it past the leg's north end. A run-out is profiled on its own, so
+  the line in play keeps its profile: by Rometta the grade turns from −6.1 ‰ to −24.8 ‰ at the
+  terminal (the ground beyond falls 2.4 m in its first 100 m), and OSM's line beyond meets the
+  CTR's 0.7 m off, a 4.1° turn there. Nothing lowers the ground under a run-out's bridge or draws a
+  portal at a run-out's bore within the drawn run: no map has one today.
+- **A run-out over a notch rides no ground of the game's**: Rometta's leaves Fivizzano's tiles at
+  x −6000, and its last 335 m, from 794 m past the terminal out to (−6334, 4251), lie over the
+  north-west notch, where no tile is listed ([map.md](map.md#map-files)): the build profiles it on
+  the edge's heights drawn on and writes no ground there, while the game's ground there is the
+  nearest listed node's, up to 13.7 m under the bed (0.22 m over it at most, every 2 m). It is out
+  of view, 602 m past the drawn run.
 - **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
   over the line speed, through a box whose arms are not down and onto another train. The lever
   forward rings the bell at once, but driven off Monzone at full power the train's nose reaches
@@ -1890,8 +1921,12 @@ speed along the contact.
   it; neither is built.
 - **No derailment**: a train keeps to its line at any speed and whatever it strikes, though by a
   rule like OpenRails' (unbalanced lateral acceleration over 2.5 m/s² for a second or two derails,
-  over 3.5 m/s² tips) one would leave a 300 m curve at 116–125 km/h, and the map's sharpest curve
-  is 193 m (over 20 m chords).
+  over 3.5 m/s² tips) one would leave a 300 m curve at 116–125 km/h. The line's sharpest curve in
+  play is 193 m (over 20 m chords, at (−1253, 2271)), but Rometta's run-out follows OSM's polyline
+  as drawn, which turns 15° at one vertex 471 m past the terminal: a curve of about 76 m over the
+  same chords, which a train coming in from the run-out's end at 85 km/h runs at about 7.4 m/s²
+  unbalanced, out of view (a train leaving is removed 248 m past the terminal, its body past the
+  drawn run).
 
 ## Tuning
 

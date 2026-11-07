@@ -13,7 +13,7 @@ import {
 // checks those by Monzone station.
 const ALL = railwayAround()
 
-test("lines: every line runs its pieces terminal to terminal from s 0, then its run-out straight on past each, level", () => {
+test("lines: every line runs its pieces terminal to terminal from s 0, then past each its run-out on the map's track beyond it, its bed on the ground over the drawn run, and straight on past its end", () => {
   checkTerminals(ALL.lines)
 })
 

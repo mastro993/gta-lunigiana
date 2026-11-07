@@ -63,7 +63,15 @@ export {
   vergeOf,
 } from "./kinds.ts"
 export type { BellEntry, MouthEntry } from "./derived.ts"
-export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
+export type {
+  LevelCrossing,
+  LinePiece,
+  Platform,
+  RailLine,
+  Railway,
+  RunOutPiece,
+  Station,
+} from "./railway.ts"
 export { type Segment, treesIn, type Wall, type WallKind, wallsNear } from "./walls.ts"
 
 /** The built terrain's box, metres: the box round the map's parts, which the play area (`outline`) lies in. */
@@ -282,7 +290,7 @@ export interface Lamp {
   readonly kind: "wall" | "pole"
 }
 
-/** The global map as the game reads it: the global file with its coarse grid decoded. */
+/** The global map as the game reads it: the global file with its sections decoded (the coarse grid, the graph, the lanes, the residents: `./packed.ts`). */
 export interface MonzoneMap {
   /** `MAP_VERSION` (`./packed.ts`): the decoders throw on any other. */
   readonly version: number
@@ -366,11 +374,6 @@ export interface MonzoneMap {
   readonly farms: ReadonlyArray<FarmEntry>
   readonly lamps: ReadonlyArray<Lamp>
   readonly derived: Derived
-}
-
-/** Shape of the JSON line that opens the global file: the coarse grid's heights and cover travel as packed sections after it (see `./packed.ts`). */
-export interface MonzoneMapJson extends Omit<MonzoneMap, "coarse"> {
-  readonly coarse: Omit<Coarse, "heights" | "cover">
 }
 
 /** The road's class; the build only emits `ROAD_CLASSES` (checked by map.map-test.ts), anything else reads as "path". */

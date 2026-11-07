@@ -63,6 +63,30 @@ test("bySourcePriority keeps a later source's building or road surface only wher
   assert.deepEqual(bySourcePriority([]), { buildings: [], roadAreas: [], mapped: [] })
 })
 
+// Regression: at the Liguria border two 2019 CTR houses outside their sheets' AZR stood twice, with
+// the NC5's copies inside its own area (-283940288538918 and -1475896793484707 at (-8851, -4763),
+// overlap 1.00; -283940288438611 and -1475669160234022, 0.97), each at its own height.
+test("bySourcePriority drops a later source's building sharing half the smaller one's area with an earlier source's, wherever the earlier maps the ground", () => {
+  const first = survey({
+    buildings: [building(-1, 500, 500), building(-2, 600, 500, 4), building(-3, 700, 500)],
+    mapped: [rect(0, 0, 100)], // none of them in it
+  })
+  const second = survey({
+    buildings: [
+      building(-11, 502, 500), // 80 of its 100 m² on -1
+      building(-12, 598, 498, 8), // larger, all of -2 under it
+      building(-13, 706, 500), // 40% on -3: a building of its own
+      building(-14, 800, 500), // on none
+      building(-15, 801, 501), // on -14, of its own source: the 2019 CTR's units stand on others
+    ],
+    mapped: [rect(450, 450, 400)],
+  })
+  assert.deepEqual(
+    bySourcePriority([first, second]).buildings.map((b) => b.id),
+    [-1, -2, -3, -13, -14, -15],
+  )
+})
+
 test("readSurveys merges the sources in the order 2019 CTR, DBT 1:2000, CTR 2009, NC5, CTR 10k", (t) => {
   const fixture = (name: string) => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url))
   // data/raw/rt's layout: the 2019 CTR in ctr, the others under their source's name.

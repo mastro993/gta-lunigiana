@@ -26,7 +26,7 @@ test(
       tunnels: 7,
       passages: 1,
       metres: 194,
-      walls: 633,
+      walls: 650,
       mouths: 12,
       portals: 3,
       heads: 0,

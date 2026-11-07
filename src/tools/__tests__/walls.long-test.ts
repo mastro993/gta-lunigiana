@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Area } from "../../sim/map/index.ts"
+import type { BuildingF, RoadF } from "../features.ts"
 import { ringBox, segDist2 } from "../geometry.ts"
 import { gridLattice } from "../terrain.ts"
 import { buildWalls } from "../walls.ts"
@@ -162,4 +163,83 @@ test("buildWalls appends 50,000 parapets and as many walls under the decks, each
   assert.deepEqual(walls.levels.walk.slice(-many.levels.length), many.levels)
   assert.equal(walls.levels.drive.length * 4, walls.drive.length)
   assert.equal(walls.levels.drive.filter((l) => !Number.isNaN(l)).length, 2 * many.levels.length)
+})
+
+// Regressions, each a survey house by an OSM footway (w 1.5, corridor 0.75 m). Giucano's
+// (1326730180) cuts four 0.2 m cells into the house, and the trace, simplified by 0.15 m, took the
+// notch back: its wall stood 0.54 m from the footway's centreline. Fivizzano's (1065669242) passes
+// 0.56 m from the house's corner, and no cell centre falls inside the corridor, so the house was
+// not carved at all and its corner stayed inside the footway.
+const FOOTWAYS = [
+  {
+    pts: [
+      [-10483.21, -1974.99],
+      [-10487.15, -1971.73],
+      [-10490.15, -1976.35],
+      [-10494.86, -1973.73],
+    ],
+    outer: [
+      -10493, -1972.6, -10491.1, -1973.7, -10490.6, -1974.1, -10487.1, -1971, -10483.2, -1967.5,
+      -10490.7, -1963.5,
+    ],
+  },
+  {
+    pts: [
+      [1334.13, 6831.05],
+      [1337.98, 6853.54],
+    ],
+    outer: [
+      1336.7, 6837.1, 1338.7, 6835.9, 1339.5, 6835.4, 1341.3, 6833.9, 1341, 6834.8, 1339.7, 6838.2,
+      1335.8, 6837.5,
+    ],
+  },
+] as const
+
+test("buildWalls keeps a house's walls out of the middle w/2 of a path that reaches into it", () => {
+  const footways = FOOTWAYS.map(({ pts }, k): RoadF => ({
+    id: k + 1,
+    cls: "path",
+    w: 1.5,
+    surface: "unpaved",
+    private: false,
+    pts: pts.map(([x, y]) => ({ x, y })),
+  }))
+  const houses = FOOTWAYS.map(({ outer }, k): BuildingF => ({
+    id: 100 + k,
+    kind: "house",
+    h: 10,
+    style: "plaster",
+    tint: 0,
+    outer: [...outer],
+  }))
+  const g = gridLattice()
+  const { walk, drive } = buildWalls(
+    { ...g, z: new Float64Array(g.cols * g.rows) },
+    footways,
+    [],
+    houses,
+    [],
+    [],
+    NO_PARAPETS,
+    NOTHING_UNDER,
+  )
+  FOOTWAYS.forEach(({ pts }, f) => {
+    // The house's walls: nothing else stands within 30 m on the flat grid, far from the outline.
+    const [cx, cy] = pts[1]
+    const near = (flat: ReadonlyArray<number>) =>
+      segments(flat).filter(([ax, ay]) => Math.hypot(ax! - cx, ay! - cy) < 30)
+    assert.ok(near(walk).length > 0, `house ${f} is walled`)
+    assert.deepEqual(near(drive), near(walk))
+    for (const [ax, ay, bx, by] of near(walk)) {
+      const n = Math.max(1, Math.ceil(Math.hypot(bx! - ax!, by! - ay!) / 0.05))
+      for (let k = 0; k <= n; k++) {
+        const x = ax! + ((bx! - ax!) * k) / n,
+          y = ay! + ((by! - ay!) * k) / n
+        const d = Math.min(
+          ...pts.slice(1).map(([qx, qy], q) => segDist2(x, y, pts[q]![0], pts[q]![1], qx, qy).d2),
+        )
+        assert.ok(d >= 0.75 ** 2, `a wall at (${x.toFixed(2)}, ${y.toFixed(2)}) in footway ${f}`)
+      }
+    }
+  })
 })

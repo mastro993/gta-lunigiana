@@ -295,6 +295,22 @@ export const PARTS: ReadonlyArray<Part> = [
       3900,
     ],
   },
+  {
+    key: "fosdinovo",
+    title: "Fosdinovo, the Bardine valley and the Apuan foothills",
+    rects: [[-11500, -6100, -2900, 3900]],
+    // The rectangle less Carrara's corner (issue #18): south of the line 1 km beyond the extent's
+    // comuni (OSM's admin_level 8 relations, fetched 2026-11-07 from the OSM API, buffered 1 km and
+    // simplified to 2 m) and east of x −4000, where the runbook's critic (issue #3, step 1) bent it
+    // out so that Castelpoggio, 1.3 km into Carrara, plays whole and the SP73 through it leaves the
+    // play area once, toward Gragnana. Castelnuovo Magra, Sarzana and Luni play (#12 has landed).
+    mask: [
+      -11500, -6100, -4000, -6100, -4000, -5025.3, -3930.1, -5065.9, -3817.1, -5114.9, -3734.8,
+      -5140.8, -3650.5, -5159.4, -3517.6, -5174.5, -3368.6, -5196.5, -3293.7, -5202.3, -3213.7,
+      -5203.1, -3140.3, -5200.3, -3070, -5192.8, -2988.6, -5263.4, -2900, -5324.9, -2900, 3900,
+      -11500, 3900,
+    ],
+  },
 ]
 
 const LUNIGIANA_ORIGIN = { lat: 44.16175, lon: 10.13 }

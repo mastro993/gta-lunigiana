@@ -271,8 +271,10 @@ Input (horn) ──────────────────────�
   sheets, and 216 owls and 226 dogs since #14's woods) 3.6–3.7 ms (1.9–2.2). Since #17's Fivizzano
   the map held 711 owls and 618 dogs: 2.3–2.8 ms and 9.0–10.4 ms, each the first call in a fresh
   process with every tile in memory (no director; 20 processes on 2026-11-04 under a load average
-  of 5–7); since #15's olive groves and vineyards, a dog's yard too, it holds 710 owls and 625 dogs
-  (not timed again).
+  of 5–7); since #15's olive groves and vineyards, a dog's yard too, it held 710 owls and 625 dogs
+  (not timed again), and since #18's Fosdinovo it holds 932 owls and 953 dogs: 2.4–2.8 ms and
+  11.5–13.0 ms, timed the same way (20 processes on 2026-11-07 under a load average of 3–4, but
+  for 4 of the owls' calls at 7.1–7.4 ms and one of the dogs' at 18.7 ms).
 - **Randomness** in the director (birds, owls, farm dogs, animal calls, what people say) and the
   synths (variants, jitter, a fire's crackle, a texture's segments, a backfire) is `Math.random`:
   `?seed=N` replays the world, not the birds. The owls draw after the farm dogs and only at night,
@@ -469,6 +471,18 @@ from one portal: its wheels jumped 2.9 dB as its last car went into the 271 m tu
 15.9 dB as its cab car came out of the 67 m one. The player's own train is heard from its cab
 ([Inside a vehicle](#inside-a-vehicle)), in a tunnel too.
 
+A bore that a line's run-out carries on past its terminal ([The
+service](gameplay.md#the-service)) pairs its mouth in play with the run-out's far end, where the
+track trains ride stops inside the hill: the Galleria del Lupacino runs 1,324.6 m from its west
+mouth at (5392, 3627) to Pieve San Lorenzo's terminal at (6700, 3423), then 2,298.6 m on in the
+bore along the run-out trains enter by, to (8970, 3058), 842 m south of the play area's nearest
+edge (y 3900). A train within 400 m of that far end is heard from it, though not at that edge, by
+day or on a still night, at full power (the director's rig); in the bore in play it is heard from
+the west mouth alone, within 400 m of it, so it is silent over the 924.6 m next to the terminal.
+While the run-out ran straight on at grade from the terminal, the line's tunnel ended there, and a
+train within 400 m of the terminal was heard from it, inside the hill at the play area's edge, as
+from a mouth (`portalsOf`, 2026-11-07).
+
 ### Doppler
 
 Vehicle voices shift with the motion of both ends: f′/f = (c − v_L·u)/(c − v_S·u), u the unit
@@ -543,13 +557,19 @@ lowest ground of 147 m made that the 150–1,000 m it was tuned on, within 0.3 m
 open ground, and 0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s
 (`windFactor`). Counting from the floor, a flat coastal map hears its floor as the shipped map's
 valley does, and an Alpine map its own floor as calm rather than a gale everywhere. A part moves
-the floor: with Fivizzano's lower valleys (down to 105 m) it is 213.6 m, so the law spans 134–984 m
-and lucido blows as 16.7 m higher did, up to 0.02 stronger: the meadow on Monte dei Bianchi (316 m)
-0.355 → 0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 → 0.277 (1.0 dB), the ridge above
-Aiola (899 m) 0.926 → 0.934, Monzone's streets at the stillest as before; a car at full load across
-that meadow is heard all the way to 284 m rather than 288. It is never under the floor's stillest,
-0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds themselves: leaves and the far
-valley, heard even in a sheltered street), and at most 1.33, a gale's bed at `GALE_DB`
+the floor: with Fivizzano's lower valleys (down to 105 m) it was 213.6 m, so the law spanned
+134–984 m and lucido blew as 16.7 m higher did, up to 0.02 stronger: the meadow on Monte dei
+Bianchi (316 m) 0.355 → 0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 → 0.277 (1.0 dB),
+the ridge above Aiola (899 m) 0.926 → 0.934, Monzone's streets at the stillest as before; a car
+at full load across that meadow was heard all the way to 284 m rather than 288. With Fosdinovo's
+Magra plain (down to 18.1 m) it is 162.3 m, so the law spans 82–932 m and lucido blows as 68.0 m
+higher did, up to 0.05 stronger than with Fivizzano: the meadow 0.369 → 0.415 (2.1 dB), the woods
+above Isolano 0.277 → 0.330 (3.1 dB), the ridge above Aiola 0.934 → 0.951, the spawn's street at
+the stillest as before, though the lane at Pian del Molino (−917, 1707) now blows at 0.267 over
+the stillest 0.237; the car across the meadow is heard all the way to 265 m rather than the 285 of
+the map before it (2026-11-07, the director's rig in its calm). It is never under the floor's
+stillest, 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds themselves: leaves and
+the far valley, heard even in a sheltered street), and at most 1.33, a gale's bed at `GALE_DB`
 (65 dB(A)). Its level is 60 + 40·log10(strength) dB(A): in the usual wind 35 in Monzone's streets,
 about 40–43 on open ground on the valley floor, 57–60 on the ridges. The voice plays at most its
 full strength 1, and past it the bed's gain carries the gale, so the usual wind keeps the voice it
@@ -699,13 +719,18 @@ weather.
   et al. 2002); a last round at dusk, 1.3 times, all roosting under −6°; none at night; heavy rain
   silences them (0.5–8 mm/h).
 - **Owls**: the tawny owl calls once the sun is 2–6° under (10–20 minutes after sunset) until as
-  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 710 territories,
+  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 932 territories,
   one in 70 % of the map's 500 m squares with woods, each 8 m up a tree in a wood (any of `WOODS`:
   broadleaf, conifer or mixed); those within
   600 m call, each resting 30 s after a call, then calling about once in 20 s. The squares count
   from the region's anchor (`anchorOf`), as the trees' lattice does, never from the box's corner,
-  so a part that grows the box moves no owl of the parts before it: Fivizzano moved 4 of lucido's
-  216, those lucido's east edge had held at x 4900, 3 of them now 54–104 m past it and one gone.
+  so a part that grows the box moves no owl of the parts before it but those an edge it opens had
+  held: Fivizzano moved 4 of lucido's 216, those lucido's east edge had held at x 4900, 3 of them
+  now 54–104 m past it and one gone; Fosdinovo moved 12 of the 710, the 4 Fivizzano's west edge
+  had held at x −5300 (now 59–433 m past it) and the 8 by the edge at x −4000 of the notch its
+  part fills, whose tries in it were skipped (now 163–446 m into it), and one west of lucido's
+  edge, at (−3624,
+  −3484), sits 0.12 m lower.
 - **Crickets** sing where open ground outweighs buildings, in air of 10 °C or more at the ears
   (chirping faster as it warms) and dry. They follow the temperature and the rain, not the hour,
   so an October evening's cooling slows them and its night silences them.
@@ -807,7 +832,7 @@ One-shots:
 | `yell` | the same line, yelled: higher, brighter, its vowels longer | a person's `Cry` that is not a scream, a gatherer's call, a robbed driver ([Conversations and cries](#conversations-and-cries)) | 89 (1 m) for a man, 82 for a woman or a child (Pearsons et al. 1977: shouted) |
 | `bell` | `synth/nature.ts`: a bell's inharmonic partials (hum, prime, tierce, quint, nominal...), each split to beat; four primes rendered, any pitch resampled from the nearest | the game clock, in Rome time: the hours only (1–12 strokes, 2.5 s apart) from 07:00 to 21:00, from the 4 loudest towers in earshot, each starting up to 6 s late by a seed hashed from its building's id (`Bell.seed`), which no part that reorders the map's towers moves ([Day, night and weather](#day-night-and-weather)) | 118 (5 m) |
 | `bird` | `synth/nature.ts`: autumn calls of the robin, great tit, blackbird ("chink" or "seee") and chaffinch ("pink"), 35/30/20/15 %; the tawny owl (`owl`): the male's hoot sequence, about 6 s, or in 30 % of calls the female's "kewick" (0.46 s) | songbirds from a tree 15–70 m away: 0.3 calls a second in full forest, plus 0.05 near houses, by the sun and the rain (`birdActivity`); owls at night from their woods ([Day, night and weather](#day-night-and-weather)) | songbirds 85 (1 m); the owl 90 (1 m, `OWL`, estimated) |
-| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 625 farm dogs (about one in eight barns, sheds, houses and farm buildings with open ground, a vineyard or an olive grove and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
+| `bark` | `synth/nature.ts`: two to five barks of a big or a small dog through a formant tract | 953 farm dogs (about one in eight barns, sheds, houses and farm buildings with open ground, a vineyard or an olive grove and no paving 5 m out): those within 200 m bark every 45 s on average, four times as often while the player runs or drives within 30 m; and a free dog's anger `Cry` in the sim, a big dog's bark from 0.95 of the usual size (`BIG_DOG`), a small dog's under it | 96 (1 m) |
 | `moo` | `synth/animals.ts` ([Animal calls](#animal-calls)) | a cow on its own (every 40 s on average), its `Cry`, its pain after a hit | 92 (1 m), an estimate between a man's shout and a bark |
 | `grunt` | `synth/animals.ts` | a pig on its own (every 6 s on average), a `Cry` that is not a fright | 70 (1 m), an estimate within pigs' 60–90 dB |
 | `squeal` | `synth/animals.ts` | a pig's fright `Cry`, its pain after a hit | 105 (1 m): piglets peaked at 101.9 dB (Engenharia Agrícola 2018), a grown pig's squeal is commonly put at 110–115 |
@@ -1097,15 +1122,16 @@ within a second of one. ponytail: the render runs on the main thread; move it to
 browser shows long tasks.
 
 The bells are the tallest church or tower of each district (the district its box's centre lies
-in; the first of the tallest), 84 in all (27 on lucido alone), found by the build over the whole
-map's buildings (`bellsOf` in `src/tools/bells.ts`) and kept in the map (`MAP.derived.bells`). A
-tower of 10 m or less rings an 800 Hz prime; taller towers ring lower, down to 400 Hz at 30 m. Each
-starts the hour up to 6 s late (`TOWER_LAG` in `src/audio/director/world.ts`) by a seed hashed from
-its building's id (`Bell.seed` in `src/audio/places.ts`), not from its place in the list. The
-build lists the towers in the whole map's building order, so a part reorders them: Fivizzano's 57
-moved each of lucido's 27 to another place, and a lag keyed on the place would have changed all
-27, by up to 4.9 s. Keyed on the building, they changed once against main, by 0.04–4.69 s, and no
-later part moves them.
+in; the first of the tallest), 109 in all (27 on lucido alone, 84 before Fosdinovo's part), found
+by the build over the whole map's buildings (`bellsOf` in `src/tools/bells.ts`) and kept in the map
+(`MAP.derived.bells`). A tower of 10 m or less rings an 800 Hz prime; taller towers ring lower, down
+to 400 Hz at 30 m. Each starts the hour up to 6 s late (`TOWER_LAG` in
+`src/audio/director/world.ts`) by a seed hashed from its building's id (`Bell.seed` in
+`src/audio/places.ts`), not from its place in the list. The build lists the towers in the whole
+map's building order, so a part reorders them: Fivizzano's 57 moved each of lucido's 27 to another
+place, and a lag keyed on the place would have changed all 27, by up to 4.9 s. Keyed on the
+building, they changed once against main, by 0.04–4.69 s, and no later part moves them:
+Fosdinovo's 25 moved 83 of the 84 to another place in the list, and each kept its seed.
 
 ### Explosions
 
@@ -1652,7 +1678,7 @@ it. They never hold the whole map: `places.map-test.ts` and `places/__tests__/wa
 | `src/render/__tests__/index.test.ts` | every system of the render and audio schedules declares no writes |
 | `src/audio/__tests__/acoustics.test.ts` | the laws: the line source against the exact table, the air cutoffs, Doppler, the pan, diffraction, ground, foliage, masking, the mix calibration |
 | `src/audio/__tests__/occlusion.test.ts` | path differences on real map spots: a flat meadow, Monzone Alto's 30 m tower, a bell over its own walls, Monte San Giorgio between its flanks |
-| `src/audio/__tests__/ground.test.ts` | with only the 4 tiles within 1.2 km of the spawn in memory and no tile source: reading a far tower's tile directly throws; `terrainAt`, `groundAt` and `landAt` there equal the coarse grid's; the paths and forest to the 72 towers on dropped tiles are finite; a far ambience block is one kind or none; a strike 4.8 km off thunders and a crossing 2.7 km off rings without reading a missing tile; the street, the echoes, a 300 m path's δ and forest and the ground at the listener equal the values with the tiles round it in; a way across a far tower on a dropped tile, 40 m each side of its bell and 3 m under its top, over coarse ground below it, has δ = 0 (its walls are not read), and once the tile is back its walls give δ over 0.2 m (2·√(40² + 3²) − 80 ≈ 0.22 m); the dogs within 200 m and the owls within 600 m are the near ones of a search twice as wide, in its order, with the tiles 2.4 km round the listener back in memory; a woods'-edge block's forest share (the blocks counted from the region's anchor) is its cells' count; the nearest tower's 09:00 strokes are unchanged; with the tiles back, the far block is its own cells' value (the coarse stand-in was not kept) |
+| `src/audio/__tests__/ground.test.ts` | with only the 4 tiles within 1.2 km of the spawn in memory and no tile source: reading a far tower's tile directly throws; `terrainAt`, `groundAt` and `landAt` there equal the coarse grid's; the paths and forest to the 97 towers on dropped tiles are finite; a far ambience block is one kind or none; a strike 4.8 km off thunders and a crossing 2.7 km off rings without reading a missing tile; the street, the echoes, a 300 m path's δ and forest and the ground at the listener equal the values with the tiles round it in; a way across a far tower on a dropped tile, 40 m each side of its bell and 3 m under its top, over coarse ground below it, has δ = 0 (its walls are not read), and once the tile is back its walls give δ over 0.2 m (2·√(40² + 3²) − 80 ≈ 0.22 m); the dogs within 200 m and the owls within 600 m are the near ones of a search twice as wide, in its order, with the tiles 2.4 km round the listener back in memory; a woods'-edge block's forest share (the blocks counted from the region's anchor) is its cells' count; the nearest tower's 09:00 strokes are unchanged; with the tiles back, the far block is its own cells' value (the coarse stand-in was not kept) |
 | `src/sim/map/__tests__/surface.test.ts` | the surfaces the tyres and the sounds share: carriageways by their OSM surface, the forest floor, a meadow; by level, the hillside over a tunnel and the deck only on the deck |
 | `src/audio/__tests__/places.test.ts` | wall materials (a trunk, the first building of each kind and style and the first barrier of each kind round the held spots: the guard rail, the stone wall, a cliff; bare ground, a quarry's bank; the nearer of a trunk and a house wall 1.2–2.5 m apart wins; a bank with trees 1.5–3 m off it and no barrier of its tile within 20 m is earth), ambience shares round Monzone, streets, echoes off the rock at Equi Terme, none on an open meadow nor at any Monzone street with no slope as steep as bare rock (50°) in sight, bells, each tower's seed (its hour-strike lag) the same with the towers listed in another order, dogs and owls stable and the near ones those of a wider search in its order, birds (none at the point nearest an olive grove 2 km west of Monzone, on a 10 m grid, with no tree within 72 m, found by geometry) |
 | `src/audio/places/__tests__/water.test.ts` (the tiles round Monzone station, the Fontana di Aiola and the Lucido at the x = 0 seam, (16, 343)) | the Torrente Lucido from Monzone station, the Fontana di Aiola; the reaches in 5 boxes across the x = 0 and y = 0 seams in the whole map's order, each once; at the seam spot the same water heard whichever of its 4 tiles are in memory and in whichever order they came, and with one of them dropped and no tile source none read (`reachesIn` false) and only the fountains heard |
@@ -1671,7 +1697,7 @@ it. They never hold the whole map: `places.map-test.ts` and `places/__tests__/wa
 | `src/audio/synth/__tests__/explosion.test.ts` (deterministic per seed) and `explosion.long-test.ts` (the twenty seeds) | the blast renderer over twenty seeds (the bounds checked on seeds 1–80, twenty at a time): finite (from an 8 kHz device rate too), peaking at the nominal 0.5, at most 4 s, faded; deterministic per seed; against the reference crash at the same peak, 4 dB and more louder over its first 300 ms (median 7.1), a crest of at most 9 dB (6.6), at least 0.1 more of its energy under 200 Hz (0.54 against 0.35), its centroid over 30–600 ms at least 500 Hz lower (1.5 against 2.4 kHz); its loudest 50 ms starting within 0.2 s, 0.3–1 s within 10 dB of the first 0.15 s and 1.2–1.6 s 11 dB and more under it; over 2 kHz its debris 10 dB and more over the roar's tail on asphalt (17.4) and 6 dB and more louder than on grass (18.4) |
 | `src/audio/synth/crash/__tests__/crash.test.ts` and `crash.long-test.ts` (every check over the matrix; the cases in `cases.ts`) | the crash renderer over the design's matrix, each at the sim's mass (a Panda into a house at 2, 5, 12, 14 and 20 m/s, Panda–Panda 10, Panda–truck 12, an Ape into stone 8, the Giulia into the guard rail 12, a sheet wall 12, a tree 10, earth 8, a side hit 12, a 40 m/s wreck, the laden truck into a house at 2 and 12, a hard landing on the road at 6 and a roll onto it at 8, against a house wall at 6 and 10 and a side into it at 8), twenty seeds each (the bounds checked on seeds 1–80, twenty at a time), measured by `testing.ts` (the research's analysis tools, ported): finite, ≤ 1, ≤ 4 s, faded, finite from an 8 kHz device rate; noise that never repeats inside a render; deterministic per seed; the level law, its cap and the peaks following it within 2 dB (a bump, the rail, a sheet wall, Panda–Panda, the truck's nudge); the laden truck 7 dB over a Panda, its nudge like a Panda's 4 m/s bump, capped by 14 m/s, the barrier speeds of a Panda against it and of it; a landing breaking nothing; growth past the cap (tail, block, at most 3 sub-hits, 42 m/s against 60 audibly different); the critique's targets on the exterior crashes (medians: −10 dB at 150–450 ms, rise 8–25 ms, crest 9–15 dB, band flatness 0.35–0.6, 1–8 kHz kurtosis 2.8–4.5, 8 kHz −12…−25 dB, 16 kHz −22…−36, centroid 1.5–3.5 kHz through 600 ms; 97 % of renders with 63 Hz ≤ −5 dB and the loudest octave in 125 Hz–2 kHz); the tail's −20 dB at 0.25–2.5 s, later the harder the hit; a flat median spectrum (the truck within 8 dB); the long partials layer (each model's count at 0.6–4.3 kHz, η 0.001–0.01) and 1–3 of them clear in the render; the bump's 40–100 ms; the rail's tonal ring; the sheet wall's ring against masonry; the truck's bumper clang; the tree's faint rustle past 2 s and its tail under 3.5 kHz; earth the slowest, dullest; a car–car hit's clank against a house wall's dead mass; the road's thump on a landing and slap on a roll; sub-hits 13 dB and more under the hit; a greenhouse nudge's dull crack; a worn side breaking nothing again; the glass shower's 6–10 kHz centroid and grass swallowing it |
 | `src/audio/__tests__/rail.test.ts` | the railway as `Hear` projects it: a train's power packs idling with the power off and at their rated revs at full power, either way; its cars from the active cab back, each on the track with its s and whether it is in a tunnel; a road crossing ringing in the warning and while its arms come down, not open, closed or rising, and a foot crossing never; a car meeting a train as its own hit on a steel wall, the train its `other`, two trains crashing both as steel bodies, a buffer stop by the train's front, a person struck with no vehicle body, a vanished car's hit dropped; on a real runtime, a staged ATR 220 car by car as `carsOf` places it, Via Riolo ringing once its cycle is set to the warning, a whistle at its cab car's rail head, a train–train hit as steel, and the player aboard as the listener in the cab |
-| `src/audio/director/__tests__/rail.test.ts` (trains from `train` and `beside` in `director/testing.ts`) | the train part on the director's rig: two power packs heard from the end cars, the near one louder; the wheels a line source (abreast the rear car as loud as the middle, under a rail bridge 22 m up as far off as its height) given every axle and the joints; the brakes squealing to a stand, not at speed; in the cab the ears over the rails on a rail bridge, its own engines from under the end cars through the cab's 1.2 kHz, the cab idling within 3 dB of a car's seat and over the wind, louder under power, H holding its horn there (none on foot); an AI whistle 20 m away at its 2 dB cap, echoing; a crossing's bell while it rings, one per box, two at most, at the box's centre no louder than at its posts; riding through the long tunnel no wind, rain, roof or crickets and the own wheels as loud as in the open; the wheels' summed level stepping under 1 dB a frame as a train passes each portal of the short tunnels, 20–60 m off; a train deep in the long tunnel silent under 440 m of hill, one wholly in a short tunnel heard from its portals, its power pack quieter than through the rock; a crash into a train's steel, a car the player's own train strikes crashing open at the cap and grinding along it open, a person struck by one thudding and groaning |
+| `src/audio/director/__tests__/rail.test.ts` (trains from `train` and `beside` in `director/testing.ts`) | the train part on the director's rig: two power packs heard from the end cars, the near one louder; the wheels a line source (abreast the rear car as loud as the middle, under a rail bridge 22 m up as far off as its height) given every axle and the joints; the brakes squealing to a stand, not at speed; in the cab the ears over the rails on a rail bridge, its own engines from under the end cars through the cab's 1.2 kHz, the cab idling within 3 dB of a car's seat and over the wind, louder under power, H holding its horn there (none on foot); an AI whistle 20 m away at its 2 dB cap, echoing; a crossing's bell while it rings, one per box, two at most, at the box's centre no louder than at its posts; riding through the long tunnel no wind, rain, roof or crickets and the own wheels as loud as in the open; the wheels' summed level stepping under 1 dB a frame as a train passes each portal of the short tunnels, 20–60 m off; a train deep in the long tunnel silent under 440 m of hill, one wholly in a short tunnel heard from its portals, its power pack quieter than through the rock (heard at night in still air, under the stillest 28 dB(A), so the masking floor is the same on any map: through its portal 137 m off the train reaches the ears at 20.1 dB, which by day on the map before Fosdinovo's part stood 0.12 dB over the cull, and Fosdinovo's lower floor raised the hill's usual wind, which grows from the map's floor, 0.9 dB over the stillest and culled it; at night it is held 7 dB over the cull, its power pack too); a crash into a train's steel, a car the player's own train strikes crashing open at the cap and grinding along it open, a person struck by one thudding and groaning |
 | `src/audio/synth/__tests__/rail.test.ts`, `crossing.test.ts` | the wheels' law (30 dB per decade, the band at v / 2.5 cm), each axle clacking once over each joint at the time it gets there at any frame length, backing up and after a stall; the brakes squealing on every stop below 6 m/s, braking harder than a tenth of the emergency rate (the AI stops at about half of it), not coasting; the horn's tones within EN 15153-2's bands, a long blast 1–2 s, the alarm's more than three short ones in turn and over within 2 s; the bell's period 1.287 s with its stroke at the start, −20 dB a second on, and its loop sample for sample the steady ring of 40 strokes, wrapping with no seam |
 | `src/audio/places/__tests__/notch.test.ts` (Lunigiana with its north-east tiles unlisted, `notchMap` in `src/sim/map/__tests__/edit-map.ts`) | no owl perched on an unlisted tile, none in the woods the notch borrows from the listed tiles round it |
 | `src/audio/places/__tests__/animals.test.ts` (the tiles within 1.5 km of Monzone station) | each owl within 1 km of the station in its 500 m square counted from the region's anchor, not the box's corner |

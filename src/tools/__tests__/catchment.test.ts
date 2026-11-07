@@ -167,6 +167,92 @@ test("catchments: an unlisted tile's nodes are outlets, as the box's edge is: th
   )
 })
 
+// Regression: the Aulella, cut at fivizzano's west edge 700 m short of the grid's (issue #18), lay
+// level for 10 km in the fill, and D8 ran its 108 km² down a 2 m side stream beside it.
+test("catchments: a river cut short of the grid's edge drains on down the water beyond the cut, not down a stream beside it", () => {
+  // The river (50 km² coming in at its head) meanders between `a` and `b`, which a straight side
+  // stream shares, its water 1 m over the river's; the play area cuts the river at x 300, 100 m short
+  // of the grid's east edge, and the river runs on beyond it to the edge.
+  const river = profile([
+    [8, 80],
+    [60, 80],
+    [100, 140],
+    [140, 20],
+    [180, 140],
+    [220, 20],
+    [260, 80],
+    [300, 80],
+  ])
+  const side = profile(
+    [
+      [60, 80],
+      [260, 80],
+    ],
+    (x) => 100.5 - 0.02 * x,
+  )
+  const ids = [
+    ["head", "a", "n1", "s1", "n2", "s2", "b", undefined],
+    ["a", "b"],
+  ]
+  const run = (beyond: ReadonlyArray<Profile>) =>
+    catchments(
+      { ...grid, z: Float64Array.from(grid.z) },
+      [river, side],
+      ids,
+      undefined,
+      [{ x: 12, y: 80, km2: 50 }],
+      beyond,
+    )
+  const [r, s] = run([
+    profile([
+      [300, 80],
+      [400, 80],
+    ]),
+  ])
+  assert.ok(Math.max(...s!) < 1, `the side stream gathers ${Math.max(...s!)} km²`)
+  assert.ok(r!.at(-1)! > 50, `the river leaves with ${r!.at(-1)} km²`)
+  // (With no water beyond the cut, the fill made the trenches a lake level with the ground past it,
+  // and D8 took the shortest way across it: the side stream gathered 50 km².)
+})
+
+// Regression: the Canale del Torchio, coming in at the box's west edge, was an outlet 100 m under
+// the ground there for the Torrente Bardine, which fosdinovo's edge cut 100 m short of the notch
+// (issue #18): the Bardine's 58 km² drained out up the Torchio's trench, and the Bardine below their
+// confluence counted them twice.
+test("catchments: water coming in at the grid's edge is no outlet for the water it joins", () => {
+  // A river (50 km² coming in at its head) joined at `c` by a tributary that comes in at the grid's
+  // west edge, its water then ending 100 m short of the east edge with none mapped past it (a
+  // culvert OSM leaves out, a cut with no water beyond).
+  const above = profile([
+      [8, 80],
+      [100, 80],
+    ]),
+    tributary = profile([
+      [0, 40],
+      [100, 80],
+    ]),
+    below = profile([
+      [100, 80],
+      [300, 80],
+    ])
+  const [a, t, b] = catchments(
+    { ...grid, z: Float64Array.from(grid.z) },
+    [above, tributary, below],
+    [
+      ["head", "c"],
+      [undefined, "c"],
+      ["c", undefined],
+    ],
+    undefined,
+    [{ x: 12, y: 80, km2: 50 }],
+  )
+  assert.ok(Math.max(...t!) < 1, `the tributary gathers ${Math.max(...t!)} km²`)
+  assert.ok(
+    Math.abs(b![0]! - (a!.at(-1)! + t!.at(-1)!)) < 1e-9 && b![0]! < 51,
+    `${b![0]} km² below the confluence`,
+  )
+})
+
 test("catchments: an inflow from beyond the grid is carried down its stream from its node, and only there", () => {
   const wp = [
     profile([

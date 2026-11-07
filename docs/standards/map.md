@@ -16,7 +16,11 @@ never compares a change's map with the map before it, so these runs are yours.
   walls or the trees counts as a difference: the physics resolves contacts in wall order).
   Buildings that differ only in their id print as one `ids:` line under buildings, and a farm on
   one is no difference: a survey's ids encode its source and section (`survey-ids.ts`), so a change
-  to that encoding shows as that line alone, which `--except buildings` accepts.
+  to that encoding shows as that line alone, which `--except buildings` accepts. A change to the
+  file format (`MAP_VERSION` in `src/sim/map/packed.ts`) keeps `readWholeMap` (`map-file.ts`)
+  reading the version before, so `pnpm map-diff` still compares the build before with the new one:
+  today it reads versions 3 to 5 as one of 6, and version 6's move of the graph, the lanes and the
+  residents into sections diffed as no difference on Lunigiana, Cesena and the L.
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
   of the map live there, not in `pnpm test`, and so do the L test region's (`pnpm maps` builds it
   into `test-maps/`; without it they are skipped, but fail in CI, which builds it).
@@ -25,7 +29,11 @@ never compares a change's map with the map before it, so these runs are yours.
 - A rebuilt map shifts pinned positions: test coordinates, bot waypoints and screenshot spots.
   Find them again by geometry.
 - Place hand-made tables (`STONE_CORES`, `LANDMARKS`, stream widths, district discs) on
-  orthophotos and OSM nodes, with a comment saying how.
+  orthophotos and OSM nodes, with a comment saying how. A width by reach, a threshold on a way's
+  mean ground (the Bardine's and the Bardinello's in `features.ts`), takes the ways either side of
+  its threshold into the widths test of `map.map-test.ts`: nothing else shows a typo in it, or a
+  rebuild that moves a way's mean ground across it (the Bardinello's gorge pair sits 1.3 and 1.7 m
+  from its 267 m).
 - `data/raw` is pinned by `data/raw.lock.json`; `pnpm fetch-raw` restores it. Fetch again
   (`pnpm fetch-osm <part>`, `pnpm fetch-rt <part>`, `pnpm fetch-lig <part>`) only to change the
   inputs on purpose: OSM returns current edits, so the map moves. Then run `pnpm pin-raw` and
@@ -56,8 +64,10 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   `coverage`, `ortho`, `playtest.ts` and `map-diff`. `region.ts` holds the regions (Lunigiana,
   Cesena), their parts' rectangles and masks (`checkMask` throws on a bad one), and `play-area.ts`
   the outline of their union, which the map is clipped to and walled along (issue #7). A part's
-  mask comes with the part's own issue (#17 on); a part in Liguria runs `fetch-lig` (#12) before
-  `fetch-rt`. When one is missing, name the issue that adds it and ask the user before building it.
+  mask comes with the part's own issue (#17 on); a part with ground in Liguria (Fosdinovo's, in
+  Castelnuovo Magra, Sarzana and Luni) runs `fetch-lig` (#12) before `fetch-rt`, whose fallback
+  chain reads Liguria's DTM crops where no LiDAR flew. When one is missing, name the issue that adds
+  it and ask the user before building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt <part>`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw`
   then pins the part's new inputs. A part's older surveys (`ctr2009`, `ctr10k`, `dbt2k`) go into
@@ -125,21 +135,23 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   that for every joint alike, never by listing a new part's joint.
 - Every road tunnel is drawn at its floor under the hill, and no road runs into a bank:
   `src/render/__tests__/tunnels.map-test.ts` and its Cesena and L twins check every road in a
-  tunnel drawn at its floor along its whole line, its bore's dark walls under the hill along both
-  its sides (none in a building passage), its mouths baked as `mouthsOf` finds them, each portal
-  facing out of the hill and each underpass's head wall facing out of its bank at the bore's width
-  and clear height with its top under that bank, either clear of every other road and the track,
-  an open mouth with none and a reason for it found again by geometry (`whyOpen`: a house at the
-  way's level over it by the mouth, the ground over it lower than a head wall, or another road or
-  the track in the wall's room; any other open mouth fails), and the chunks round it as a whole-map
-  build cuts them, and pin each region's counts (roads in tunnels, passages, metres, wall triangles,
-  mouths, portals, head walls and open mouths by reason) ([Road and rail
+  tunnel drawn at its floor along its whole line (every 0.5 m, 2 cm or less off it: a sharp bend's
+  mitre tilted a covered alley of Fosdinovo's 10.3 cm off its floor between 2 m samples), its
+  bore's dark walls under the hill along both its sides (none in a building passage), its mouths
+  baked as `mouthsOf` finds them, each portal facing out of the hill and each underpass's head wall
+  facing out of its bank at the bore's width and clear height with its top under that bank, either
+  clear of every other road and the track, an open mouth with none and a reason for it found again
+  by geometry (`whyOpen`: a house at the way's level over it by the mouth, the ground over it lower
+  than a head wall, or another road or the track in the wall's room; any other open mouth fails),
+  and the chunks round it as a whole-map build cuts them, and pin each region's counts (roads in
+  tunnels, passages, metres, wall triangles, mouths, portals, head walls and open mouths by reason)
+  ([Road and rail
   profiles](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
   A new part changes the counts: look at its tunnels drawn (its new head walls and open mouths
   in the browser too), then pin the new counts. A failure of the checks themselves is the data's (a
   tunnel's profile over the hill, a mouth's road, a ramp the ground does not hold) or the build's
-  (the mouths' bake, `portals.ts`, `tunnel-lines.ts`, `bores.ts`): fix that for every tunnel
-  alike, never with an exception for one tunnel or one part.
+  (the mouths' bake, `portals.ts`, `tunnel-lines.ts`, `bores.ts`, the ribbons' `ribbons.ts`): fix
+  that for every tunnel alike, never with an exception for one tunnel or one part.
 - The shadow box holds its size through a turn over the region's ground:
   `src/render/__tests__/shadow-box.map-test.ts` and `shadow-box-cesena.map-test.ts` turn the view
   a whole turn each way at 8 and 6 texels a metre at Lunigiana's and Cesena's steepest fall,
@@ -186,17 +198,60 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   54.5 m in, 7 of them crossing `PEOPLED`) is in [What growing a region
   changes](../map.md#what-growing-a-region-changes).
 - A part's own data moves more, near it, since roads, rail and rivers are carved and fitted whole:
-  the place and the catchments; terrain nodes within a few hundred metres of the seams and along
-  the lines the seams no longer cut; land-cover cells, parked spots, their flags and the lanes by
-  the seams; walls and buildings along the old edge; the tiles' `zmin` and `zmax`; the railway; and
-  trees in the strip along the old box edges. [What growing a region
-  changes](../map.md#what-growing-a-region-changes) counts each for each part (Fivizzano moved
-  9,422 of lucido's 4,879,451 terrain nodes, up to 12.3 m, all north of y 0). Keep that list true
-  when a part shows more, and treat a move far from every seam and from every line the part makes
-  whole as a bug.
-- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.62 MB, Lunigiana's
-  2_1 by Pieve San Lorenzo with the vectors round it, 624,987 B, the build prints it, and
-  `src/__tests__/maps.map-test.ts` fails past it).
+  the place and the catchments; terrain nodes within a few hundred metres of the seams, and along
+  a line the seams no longer cut only where its refitted z moves (the line made whole is profiled
+  again, and the ground its core holds follows its new z), with the lamps and parked spots' rests
+  there; land-cover cells, parked spots, their flags and the lanes by the seams; the district discs
+  of the villages by the seams, as each building goes to the nearest place node in play within
+  600 m (`REACH` in `districts.ts`); walls and buildings along the old edge; the tiles' `zmin` and
+  `zmax`; the railway, and the ground beyond the play area under a terminal's run-out where the
+  grown box gives it real ground (`rail-runouts.ts`, which writes no node in play: Fosdinovo's box
+  gave Rometta's terminal, on Fivizzano's west edge, ground past it, and its run-out moved 1,055
+  nodes there, up to 8.5 m); and trees in the strip along the old box edges. [What growing a
+  region changes](../map.md#what-growing-a-region-changes) counts each for each part (Fivizzano
+  moved 9,422 of lucido's 4,879,451 terrain nodes, up to 12.3 m, all north of y 0, on #17's build,
+  which cored each road chain at its widest piece; Fosdinovo 869 of them, up to 13.3 m, all in
+  x −2900…−2368: 471 within 300 m of its west edge and 398, up to 2.5 m, along Via San Rocco and
+  via Botteghino by Viano, whose junctions refit with the roads it makes whole (Via San Rocco's
+  498.1 → 500.4 m); and 67 of Fivizzano's, all within 32 m of its south edge). Keep that list true
+  when a part shows more, and treat any other move as a bug, since a part's data reaches the
+  earlier parts only across the seams and through the z of the lines it makes whole. A line's core
+  width never moves the ground: each piece is cored at its own width (`Spec.w` in `profiles.ts`),
+  not its chain's widest, so a part that joins a wider piece onto a chain leaves the ground along
+  the rest of it as it was. Cored at the widest, Fosdinovo's 8.4 m 519669896 widened the Strada
+  comunale per Campo Cecina's core from 5.55 to 6.5 m a side as far east as x −592, and moved
+  4,878 of lucido's nodes 4–16 m off a road whose line and z held.
+- Every river leaves the play area down its own course, wherever the outline cuts it: the
+  catchments (`catchment.ts`) burn the water beyond the play area too, owning no node, and keep
+  the water that comes in from beyond the grid at its ground, so that an entry is no outlet for
+  the water it joins ([section
+  6](../map.md#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)). An edge with
+  ground past it, short of the box's edge or a notch, is no outlet: with the play area's water
+  alone burned, the fill made a lake of a river cut there, and D8 drained it out along another
+  water's trench. Fosdinovo's north edge cut the Bardine, whose basin drained out up the Canale del
+  Torchio to the box's west edge, so that the Bardine read 117.3 km², twice its 58.1; Fivizzano's
+  west edge cut the Aulella, and a 2 m side stream by Soliera read 108.5. A new part's edges cut
+  new rivers: read the area each one leaves with against its basin, and the most any unnamed
+  stream reads (11.33 km² today). `map.map-test.ts` checks the Aulella's 199 and the Bardine's
+  59 km² and the streams by them, and `catchment.test.ts` both rules; a failure is the catchments'
+  code, so fix it for every river alike, never with an exception for one river or one part.
+- No building stands twice: `src/tools/__tests__/overlap.map-test.ts` reads every building of
+  Lunigiana and fails where two of different sources (by the id's slot, `survey-ids.ts`), or an
+  old-schema ruin ring and an `AE_a` unit of its own sheet, share half the smaller one's area or
+  more (331 such pairs stand side by side today). The build drops a later source's copy by that
+  share (`apartFrom` in `overlap.ts`): a centroid test had kept the later copy of any building
+  lying outside its own source's mapped area, and 70 pairs failed before it, among them two 2019
+  CTR houses at the Liguria border with the NC5's copies. A failure on a new part or source is the
+  merge's: fix it for every source alike, never by dropping one building by hand.
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.63 MB, Lunigiana's
+  2_1 by Pieve San Lorenzo with the vectors round it, 632,249 B, and Fosdinovo's largest −4_1
+  627,856 B; the build prints it, and `src/__tests__/maps.map-test.ts` fails past it).
+- The global file's JSON line is at most 8 MB, 8,000,000 B (issue #5's map.json scale check, which
+  #18 asks; `src/__tests__/maps.map-test.ts` fails past it on either map): the game parses the
+  line with `JSON.parse` at load, its slowest step, so a bulk array goes in a packed section after
+  it (`packTables` in `src/tools/pack.ts`), never on the line. Lunigiana's line is 2,639,642 B and
+  Cesena's 959,338 B; with Fosdinovo's part and the graph, the lanes and the residents still on it
+  (format version 5) Lunigiana's was 8,319,700 B.
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road
   tunnels' mouths) needs both `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and

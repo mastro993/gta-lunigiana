@@ -17,10 +17,11 @@ for (const { rail } of main.pieces) {
   for (let k = 2; k < pts.length; k += 2)
     total += Math.sqrt((pts[k]! - pts[k - 2]!) ** 2 + (pts[k + 1]! - pts[k - 1]!) ** 2)
 }
-/** The second line: the first's pieces the other way round. */
+/** The second line: the first's pieces the other way round, and its run-outs. */
 const back: RailLine = {
   pieces: [...main.pieces].reverse().map(({ rail, rev }) => ({ rail, rev: !rev })),
   maxspeed: [],
+  runOuts: [main.runOuts[1], main.runOuts[0]],
 }
 ;(MAP.railway.lines as Array<RailLine>).push(back)
 ;(MAP.railway.stations as Array<Station>).push(

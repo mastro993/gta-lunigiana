@@ -39,7 +39,7 @@ const named = (width: number, height: number, here: string) =>
 
 const majors = PLACES.filter((p) => p.major).map((p) => p.name)
 
-test("the full map names every town and village at 1920 × 1080 and 1280 × 720, and all but four on a phone, Monzone and Gragnola among them", () => {
+test("the full map names every town and village at 1920 × 1080 and 1280 × 720, and all but five on a phone, Monzone and Gragnola among them", () => {
   // The player at the start, in a district (Monzone's station) that names no place, so no name
   // goes first.
   const start = districtAt(MAP.spawns.player.x, MAP.spawns.player.y).name
@@ -54,7 +54,7 @@ test("the full map names every town and village at 1920 × 1080 and 1280 × 720,
       844,
       390,
       ["Monzone", "Equi Terme", "Gragnola", "Vinca", "Monte Sagro"],
-      ["Casola in Lunigiana", "Casciana", "Pieve San Lorenzo", "Alebbio"],
+      ["Casola in Lunigiana", "Casciana", "Pieve San Lorenzo", "Alebbio", "Caniparola"],
     ],
   ] as const) {
     const drawn = named(width, height, start)

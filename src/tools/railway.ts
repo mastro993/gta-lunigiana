@@ -1,7 +1,7 @@
 // `MAP.railway`: the lines found over the running-track graph, their speed limits, the stations
 // where they call and the level-crossing boxes. Everything is read off the shipped (rounded) rail,
 // so the sim finds the same arc lengths from `MAP.rail`.
-import type { LevelCrossing, RailLine, Station } from "../sim/map/index.ts"
+import type { LevelCrossing, RailLine, RunOutPiece, Station } from "../sim/map/index.ts"
 import type { RailF } from "./features.ts"
 import { r1 } from "./geometry.ts"
 import { buildPlatforms, footOnLine, type PlatformInput, type PlatformOut } from "./platforms.ts"
@@ -43,11 +43,20 @@ export const maxspeedOf = (
   return spans.map(([a, b, v]) => [r1(a), r1(b), v] as const)
 }
 
-/** The lines as `MAP.railway.lines`. */
+/** The lines as `MAP.railway.lines`, each with the run-outs `runOuts` holds by its terminals' points (`x,y` as shipped). */
 export const toRailLines = (
   lines: ReadonlyArray<LineOut>,
   rail: ReadonlyArray<Piece>,
-): Array<RailLine> => lines.map((l) => ({ pieces: l.pieces, maxspeed: maxspeedOf(l, rail) }))
+  runOuts: ReadonlyMap<string, ReadonlyArray<RunOutPiece>>,
+): Array<RailLine> =>
+  lines.map((l) => ({
+    pieces: l.pieces,
+    maxspeed: maxspeedOf(l, rail),
+    runOuts: [
+      runOuts.get(`${l.pts[0]},${l.pts[1]}`) ?? [],
+      runOuts.get(`${l.pts.at(-2)},${l.pts.at(-1)}`) ?? [],
+    ],
+  }))
 
 /** Where line l's vertex `vertex` of rail piece `piece` lies along it, or undefined off it. */
 const lineS = (

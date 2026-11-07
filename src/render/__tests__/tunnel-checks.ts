@@ -84,16 +84,17 @@ const bucketed = (tris: ReadonlyArray<Tri>): ((x: number, y: number) => Readonly
 
 /**
  * Road `road` in a tunnel has its ribbon along its whole line at its floor, as the sim stands
- * wheels and feet on it (its profile and `ROAD_LIFT`, never the hill over it): every 2 m along it,
- * a triangle of its surface's colour covers the centreline, 2 cm or less off that height. Returns
- * how many points it checked.
+ * wheels and feet on it (its profile and `ROAD_LIFT`, never the hill over it): every 0.5 m along
+ * it (a bend's mitre skews the ribbon within about a metre of the vertex, between 2 m samples), a
+ * triangle of its surface's colour covers the centreline, 2 cm or less off that height. Returns how
+ * many points it checked.
  */
 export const checkRibbon = (road: Road): number => {
   const pieces = roadPieces(road)
   assert.ok(pieces.length > 0, `road ${road.id} in a tunnel: no piece drawn`)
   const near = bucketed(trianglesOf(drawn(pieces[0]!).decal, roadHex(road))),
     lift = ROAD_LIFT[roadClassOf(road)]
-  const points = along(road, 2)
+  const points = along(road, 0.5)
   for (const { x, y, z } of points) {
     const floor = yOf(z + lift),
       heights = near(x, y).flatMap((tri) => heightIn(tri, x, y) ?? [])

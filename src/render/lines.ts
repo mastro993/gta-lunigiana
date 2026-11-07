@@ -137,6 +137,7 @@ export const roadPieces = (road: Road): Array<Piece> => {
       width: road.w,
       hex: roadHex(road),
       y: (x, y, z) => surfaceY(z, x, y, lift, lifted),
+      profile: lifted,
     },
   ]
   for (const { right, dashed } of roadLines(road))
@@ -147,6 +148,7 @@ export const roadPieces = (road: Road): Array<Piece> => {
       offset: -right,
       ...(dashed ? { dash: 3 } : {}),
       y: (x, y, z) => surfaceY(z, x, y, lift + 0.02, lifted),
+      profile: lifted,
       // Not under a level crossing's panels, which lie as high over the road (render/rail).
       skip: underPanel,
     })

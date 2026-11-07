@@ -118,7 +118,7 @@ export const beatsRail = (cls: string): boolean =>
   )
 
 /**
- * Road core half-width written into the grid, rank (lower wins at junctions), grade limit,
+ * The carriageway width each piece is cored at, rank (lower wins at junctions), grade limit,
  * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output,
  * whether consecutive bridge (or tunnel) pieces make one deck, straight from end to end, and whether
  * each junction the fit sets keeps within reach of the junctions already set that a road not yet
@@ -130,10 +130,21 @@ export const beatsRail = (cls: string): boolean =>
  * before anything else is written. A road over the tunnel or beside the mouth took that cell at its
  * own level otherwise: Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m
  * from its south mouth, buried that mouth 5.8 m. The rail's portals open in their hills, and its
- * bridges over an underpass's mouth (`underpasses` in rail-spans.ts) write nothing there.
+ * bridges over an underpass's mouth (`underpasses` in rail-spans.ts) write nothing there. With
+ * `start`, the chain runs on from a level already set at its first vertex, which has no id: a line's
+ * terminal, its run-out walking on beyond the play area (rail-runouts.ts). Its first sample takes
+ * that level, pinned, and its first vertex is no cut, so a bore or a deck from there keeps the level
+ * to where the box cuts it. With `writes`, its claims write only the nodes where it holds (a
+ * run-out's: those beyond the play area, which keeps what its own lines wrote).
  */
-interface Spec {
-  readonly w: number
+interface Spec<T extends Linear> {
+  /**
+   * The carriageway's width, m: one for every piece (the rail's 4 m), or each piece's own (a road's
+   * `w`). A piece is cored at its own, never a wider piece's elsewhere on the chain: cored at its
+   * chain's widest, Fosdinovo's 8.4 m tertiary joined onto the Strada comunale per Campo Cecina's
+   * chain widened its core as far as x −592, 3.9 km east of the joint.
+   */
+  readonly w: number | ((piece: T) => number)
   readonly rank: number
   readonly grade: number
   readonly half: number
@@ -141,6 +152,8 @@ interface Spec {
   readonly decks?: true
   readonly mouths?: true
   readonly reach?: true
+  readonly start?: number
+  readonly writes?: (x: number, y: number) => boolean
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -212,18 +225,21 @@ export const makeProfiler = (
   let mouthClaims = 0
   /** Claims the grid along profile `p` of a line `w` m wide at `rank`, but for segments from samples where `skip`. */
   const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) => {
-    claims.push(claimOf(p, w, rank, BLEND, skip))
+    claims.push(claimOf(p, () => w, rank, BLEND, skip))
   }
   const profile = <T extends Linear>(
     chain: ReadonlyArray<Link<T>>,
-    spec: Spec,
+    spec: Spec<T>,
     bounds: ReadonlyArray<Bound> = [],
   ): void => {
+    /** Piece i's carriageway width (`Spec.w`). */
+    const widthOf = (i: number) => (typeof spec.w === "number" ? spec.w : spec.w(chain[i]!.item))
     const runs = chain.map(({ item, rev }) => (rev ? [...item.pts].reverse() : [...item.pts]))
     const pts = runs.flatMap((r, i) => (i === 0 ? r : r.slice(1)))
     const first: Array<number> = []
     for (let i = 0, v = 0; i < runs.length; v += runs[i]!.length - 1, i++) first.push(v)
     const p = resample(pts, 4, ground)
+    if (spec.start !== undefined) p.z[0] = spec.start
     const pieceOfSample = (k: number) => {
       let i = runs.length - 1
       while (i > 0 && p.vertexSample[first[i]!]! > k) i--
@@ -273,7 +289,7 @@ export const makeProfiler = (
       // cut point none) is no portal or abutment: the ground there is the hill over the tunnel or
       // the valley under the bridge, so it takes its other end's level. The Galleria del Lupacino,
       // cut 1325 m in at x 6700, fell 3.7% from the hill's 528 m there to its portal at 357 m.
-      const cut0 = i0 === 0 && runs[i0]![0]!.id === undefined,
+      const cut0 = i0 === 0 && runs[i0]![0]!.id === undefined && spec.start === undefined,
         cut1 = i1 === runs.length - 1 && runs[i1]!.at(-1)!.id === undefined
       if (cut0 && !cut1) p.z[k0] = p.z[k1]!
       if (cut1 && !cut0) p.z[k1] = p.z[k0]!
@@ -281,7 +297,7 @@ export const makeProfiler = (
         p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
     }
     smooth(p, spec.half)
-    const pins: Array<Pin> = []
+    const pins: Array<Pin> = spec.start === undefined ? [] : [{ k: 0, z: spec.start }]
     pts.forEach((v, i) => {
       const z = v.id === undefined ? undefined : nodeZ.get(v.id)
       if (z !== undefined) pins.push({ k: p.vertexSample[i]!, z })
@@ -337,10 +353,23 @@ export const makeProfiler = (
     pins.push(...strictest.values())
     fitProfile(p, spec.grade, pins)
     // A sample's segment belongs to the piece whose first vertex precedes it; the last sample closes the last piece.
-    // The core reaches half a cell past the carriageway's edge, so the terrain under the carriageway is (nearly) level across it.
-    claim(p, spec.w, spec.rank, (k) => isLifted(pieceOfSample(k)))
-    // A tunnel's mouths, with `mouths`, written first (`mouthClaim`). An end the outline cut is no
-    // mouth.
+    // Its core reaches half a cell past its own piece's carriageway edge, so the terrain under the
+    // carriageway is (nearly) level across it.
+    const pieceOf = Int32Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) =>
+      pieceOfSample(k),
+    )
+    claims.push(
+      claimOf(
+        p,
+        (k) => widthOf(pieceOf[k]!),
+        spec.rank,
+        BLEND,
+        (k) => isLifted(pieceOf[k]!),
+        spec.writes,
+      ),
+    )
+    // A tunnel's mouths, with `mouths`, written first (`mouthClaim`), each at its approach's width:
+    // the piece out of it, none past the chain's ends. An end the outline cut is no mouth.
     if (spec.mouths === true)
       for (let i = 0; i < runs.length; i++) {
         if (!isTunnel(i)) continue
@@ -351,13 +380,14 @@ export const makeProfiler = (
           [v0, -1],
           [v1, 1],
         ] as const) {
-          if (pts[v]!.id === undefined) continue
+          const out = step === 1 ? i1 + 1 : i0 - 1
+          if (pts[v]!.id === undefined || out < 0 || out >= runs.length) continue
           const mouth = mouthClaim(
             p,
             p.vertexSample[v]!,
             step,
-            spec.w,
-            (k) => !isLifted(pieceOfSample(k)),
+            widthOf(out),
+            (k) => !isLifted(pieceOf[k]!),
           )
           if (mouth !== undefined) claims.splice(mouthClaims++, 0, mouth)
         }

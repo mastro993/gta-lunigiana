@@ -20,7 +20,7 @@ import {
   type TileVectors,
   type VectorLayer,
 } from "../sim/map/packed.ts"
-import { packLevels, relined } from "./pack.ts"
+import { packLevels, packTables, relined } from "./pack.ts"
 import { mapDir, type Region } from "./region.ts"
 import { mergeTrees } from "./trees.ts"
 
@@ -154,27 +154,54 @@ const joinVectors = (
   }
 }
 
+/**
+ * A global file of a version before 6, which held the graph, the lanes and the residents on its
+ * JSON line and gave its lines no run-outs, as one of today's: the tables move into sections after
+ * its own, and each line runs on with none.
+ */
+const sectioned = (file: Uint8Array, line: OldLine): Buffer => {
+  const { graph, lanes, derived, railway } = line
+  // version 3 had no `derived`, so no residents
+  const tables = packTables(graph, lanes, derived?.residents ?? [])
+  return Buffer.concat([
+    relined(file, {
+      version: MAP_VERSION,
+      graph: tables.line.graph,
+      lanes: tables.line.lanes,
+      derived: { ...derived, residents: tables.line.residents },
+      railway: { ...railway, lines: railway.lines.map((l) => ({ runOuts: [[], []], ...l })) },
+    }),
+    ...Object.values(tables.parts),
+  ])
+}
+
+/** The JSON line of a global file of version 3 to 5: what reading it as today's needs. */
+type OldLine = { readonly version?: unknown } & Pick<JoinedMap, VectorLayer | "graph" | "lanes"> & {
+    readonly derived?: MonzoneMap["derived"]
+    readonly railway: { readonly lines: ReadonlyArray<object> }
+  }
+
 /** The map whose global file is at `url` (its tiles in the directory named after it beside it), whole. */
 export const readWholeMap = (url: URL): JoinedMap => {
   const file = readMapFile(url)
   // A build before the vectors' cut (version 3, issue #63) holds them all in its global file and
-  // none in its tiles, and one before the walls' levels (versions 3 and 4, issue #91) has no levels
-  // in its tiles, the last sections: read as one whose every wall stands at every level, so
-  // map-diff compares them with today's.
-  const line = JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as {
-    readonly version?: unknown
-  } & Pick<JoinedMap, VectorLayer>
+  // none in its tiles, one before the walls' levels (versions 3 and 4, issue #91) has no levels in
+  // its tiles, the last sections, and so reads as one whose every wall stands at every level, and
+  // one before version 6 holds the graph, the lanes and the residents on its global file's line and
+  // its lines have no run-outs: each reads as today's, so map-diff compares them with today's.
+  const line = JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as OldLine
   const v3 = line.version === 3,
-    old = v3 || line.version === 4
-  const read = (f: Uint8Array) => (old ? relined(f, { version: MAP_VERSION }) : f)
+    unlevelled = v3 || line.version === 4,
+    old = unlevelled || line.version === 5
   const readTile = (f: Uint8Array) => {
     if (!old) return f
-    const tile = relined(f, { version: MAP_VERSION }),
-      { walls } = decodeTileVectors(tile),
+    const tile = relined(f, { version: MAP_VERSION })
+    if (!unlevelled) return tile
+    const { walls } = decodeTileVectors(tile),
       none = (n: number) => packLevels(new Float64Array(n).fill(NaN), "no levels")
     return Buffer.concat([tile, none(walls.walk), none(walls.drive)])
   }
-  const global = decodeMap(read(file))
+  const global = decodeMap(old ? sectioned(file, line) : file)
   const { roads, buildings, water, areas, barriers } = line
   return joinTiles(
     global,

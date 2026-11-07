@@ -149,7 +149,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
       ...(carabinieri === undefined ? {} : { police: { x: carabinieri.x, y: carabinieri.y } }),
     },
     railway: {
-      lines: toRailLines(lines, shipped),
+      lines: toRailLines(lines, shipped, terrain.runOuts),
       stations,
       crossings: levelCrossings,
       platforms: platforms.map((p, i) => ({

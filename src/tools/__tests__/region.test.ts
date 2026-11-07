@@ -51,28 +51,37 @@ test("a region's bounds, its built terrain, are the box round its parts' rectang
   }
   const lunigiana = regionFromArgs([])
   assert.equal(lunigiana.parts, PARTS)
-  // Fivizzano's L to the west and north, lucido's rectangle to the south, Magliano's to the east
-  assert.deepEqual(lunigiana.bounds, { minX: -5300, minY: -6100, maxX: 10600, maxY: 13000 })
-  // An L: ground in the box no part's rectangle holds, west of lucido and east of it
+  // Fosdinovo's rectangle to the west, Fivizzano's L to the north, lucido's rectangle and
+  // Fosdinovo's to the south, Magliano's to the east
+  assert.deepEqual(lunigiana.bounds, { minX: -11500, minY: -6100, maxX: 10600, maxY: 13000 })
+  // Two notches: ground in the box no part's rectangle holds, north-west of Fosdinovo and east of
+  // lucido
   const rects = PARTS.flatMap((p) => p.rects)
-  assert.ok(!inRects(rects, -4000, 0) && !inRects(rects, 8000, 0) && inRects(rects, 0, 0))
+  assert.ok(!inRects(rects, -8000, 8000) && !inRects(rects, 8000, 0))
+  assert.ok(inRects(rects, 0, 0) && inRects(rects, -4000, 0))
 })
 
 test("a region's tiles are those its parts' rectangles meet, and its tree anchor is its first part's south-west corner", () => {
   const keys = (id: string) => regionFromArgs(["--region", id]).tiles.map(({ i, j }) => `${i}_${j}`)
-  // Lunigiana's 79 of the box's 99 (i −3…5, j −4…6), south to north, then west to east: lucido's
-  // i −2…2 alone up to j 0, then Fivizzano's i −3…5. Its notch, the 20 tiles no rectangle meets:
-  // i −3 and i 3…5, j −4…0.
+  // Lunigiana's 102 of the box's 132 (i −6…5, j −4…6), south to north, then west to east:
+  // Fosdinovo's i −6…−3 and lucido's i −2…2 up to j 0, the whole row j 1, where Fosdinovo's
+  // rectangle, lucido's and Fivizzano's meet, then Fivizzano's i −3…5. Its notches, the 30 tiles no
+  // rectangle meets: i −6…−4 for j 2…6, and i 3…5 for j −4…0.
   const lunigiana = keys("lunigiana")
   const { i0, i1, j0, j1 } = tileRange(regionFromArgs([]).bounds)
-  assert.deepEqual([i0, i1, j0, j1], [-3, 5, -4, 6])
-  assert.equal(lunigiana.length, 79)
-  assert.deepEqual(lunigiana.slice(0, 6), ["-2_-4", "-1_-4", "0_-4", "1_-4", "2_-4", "-2_-3"])
-  assert.deepEqual(lunigiana.slice(20, 27), ["-2_0", "-1_0", "0_0", "1_0", "2_0", "-3_1", "-2_1"])
+  assert.deepEqual([i0, i1, j0, j1], [-6, 5, -4, 6])
+  assert.equal(lunigiana.length, 102)
+  assert.deepEqual(lunigiana.slice(0, 6), ["-6_-4", "-5_-4", "-4_-4", "-3_-4", "-2_-4", "-1_-4"])
+  assert.deepEqual(lunigiana.slice(43, 48), ["1_0", "2_0", "-6_1", "-5_1", "-4_1"])
+  assert.deepEqual(lunigiana.slice(56, 59), ["5_1", "-3_2", "-2_2"])
   assert.equal(lunigiana.at(-1), "5_6")
   for (let j = j0; j <= j1; j++)
     for (let i = i0; i <= i1; i++)
-      assert.equal(lunigiana.includes(`${i}_${j}`), j > 0 || (i >= -2 && i <= 2), `${i}_${j}`)
+      assert.equal(
+        lunigiana.includes(`${i}_${j}`),
+        j === 1 || (j < 1 ? i <= 2 : i >= -3),
+        `${i}_${j}`,
+      )
   assert.deepEqual(keys("cesena"), ["-1_-1", "0_-1", "-1_0", "0_0"])
   assert.deepEqual(regionFromArgs([]).anchor, { x: -2900, y: -6100 })
   assert.deepEqual(regionFromArgs(["--region", "cesena"]).anchor, { x: -2000, y: -2000 })
@@ -209,7 +218,11 @@ test("dtmDir is a region's own folder when it has terrain of its own, else Lunig
 test("osmFile is a part's OSM extract under data/raw/osm, and osmFiles every extract a region's build merges, in build order", () => {
   assert.equal(osmFile(partOf("lucido")), "data/raw/osm/lucido.osm.gz")
   const lunigiana = PARTS.map((p) => `data/raw/osm/${p.key}.osm.gz`)
-  assert.deepEqual(lunigiana, ["data/raw/osm/lucido.osm.gz", "data/raw/osm/fivizzano.osm.gz"])
+  assert.deepEqual(lunigiana, [
+    "data/raw/osm/lucido.osm.gz",
+    "data/raw/osm/fivizzano.osm.gz",
+    "data/raw/osm/fosdinovo.osm.gz",
+  ])
   // A test region is built from Lunigiana's inputs, its OSM included, but for its own buildings.
   for (const key of ["lunigiana", "lunigiana-l", "lunigiana-3x", "bagnone-ridge", "sarzana-town"])
     assert.deepEqual(osmFiles(regionFromArgs(["--region", key])), lunigiana, key)

@@ -17,7 +17,7 @@ import { segIndex, type V } from "./geometry.ts"
 import { type Claim, replayClaims } from "./grid-claims.ts"
 import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
 import { ROAD_RANKS } from "./profiles.ts"
-import { bedLimits, bedReport, railBed } from "./rail-bed.ts"
+import { type BedLine, bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { gridLattice, sampleGrid, slotOf, type Grid, type Profile } from "./terrain.ts"
 import { carveAreas, waterNodes, type CarvedArea } from "./water-areas.ts"
 import { carveAll } from "./water.ts"
@@ -38,11 +38,8 @@ interface GridInput {
   readonly decks: ReadonlyArray<{ readonly pts: ReadonlyArray<V>; readonly half: number }>
   /** The road and rail bridges' slabs as shipped, which the ground is lowered under. */
   readonly slabs: ReadonlyArray<Slab>
-  /** The at-grade rail as shipped, and the level crossings' nodes. */
-  readonly rail: ReadonlyArray<{
-    readonly pts: ReadonlyArray<number>
-    readonly z: ReadonlyArray<number>
-  }>
+  /** The at-grade rail as shipped (the run-outs' beyond the play area alone), and the level crossings' nodes. */
+  readonly rail: ReadonlyArray<BedLine>
   readonly levels: ReadonlyArray<readonly [number, number]>
 }
 

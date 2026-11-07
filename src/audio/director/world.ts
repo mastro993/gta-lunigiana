@@ -67,7 +67,7 @@ const STREET_TAU = 0.5
  * Wind strength from the ears' height over the map's floor (`place().floor`, its 5th-percentile height): a smoothstep over `ALTITUDE`
  * m from it, `CALM`…`GALE`, up to `OPEN` more in the open, `STREETS` less in streets, in the usual wind. Tuned by ear on lucido alone
  * over the 150–1000 m a.s.l. it spanned there: from 80 m under its 230 m floor, about its lowest ground (147 m), to 770 m over it. It
- * counts from the floor so that any map's low ground is calm; with Fivizzano the floor is 213.6 m, so lucido blows as at 17 m higher.
+ * counts from the floor so that any map's low ground is calm; with Fivizzano and Fosdinovo the floor is 162.3 m, so lucido blows as at 68 m higher.
  */
 const ALTITUDE = [-80, 770] as const,
   CALM = 0.15,

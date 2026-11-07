@@ -38,7 +38,7 @@ const STATION = { x: -493.8, y: 436.9 }
  */
 const HERE = railwayAround(STATION, 4000)
 
-test("lines, by Monzone station: each line runs its pieces terminal to terminal from s 0, then its run-out straight on past each, level", () => {
+test("lines, by Monzone station: each line runs its pieces terminal to terminal from s 0, then past each its run-out on the map's track beyond it, its bed on the ground over the drawn run, and straight on past its end", () => {
   assert.equal(LINES.length, MAP.railway.lines.length)
   assert.ok(HERE.lines.length > 0, "the Lucca–Aulla line")
   checkTerminals(HERE.lines)
@@ -56,6 +56,56 @@ test("lines: a run-out lets a train entering at line speed run its strike-in bef
   const line = makeLine(0, [{ pts: [0, 0, 1000, 0], z: [0, 0] }], [[0, 1000, 130]])
   assert.deepEqual([line.start, line.end], [-runOut(130 / 3.6), 1000 + runOut(130 / 3.6)])
   assert.ok(runOut(130 / 3.6) > runOut(85 / 3.6) + 900)
+})
+
+test("lines: past a terminal a line runs its stored run-out out to the run-out's length, then straight on along its heading at its last height", () => {
+  // East along y 0 at 85 km/h. Past x 1000 its run-out runs on 100 m, bridges 141.4 m north-east and runs 300 m north,
+  // 541.4 m in all, short of the 1128.6 m it needs; past x 0 none is stored.
+  const need = runOut(85 / 3.6),
+    stored = 400 + 100 * Math.SQRT2
+  const line = makeLine(
+    0,
+    [{ pts: [0, 0, 1000, 0], z: [10, 10] }],
+    [[0, 1000, 85]],
+    [],
+    [
+      [],
+      [
+        { pts: [1000, 0, 1100, 0], z: [10, 11] },
+        { pts: [1100, 0, 1200, 100], z: [11, 12], bridge: true },
+        { pts: [1200, 100, 1200, 400], z: [12, 12] },
+      ],
+    ],
+  )
+  assert.deepEqual([line.start, line.end], [-need, 1000 + need])
+  const at = (s: number) => {
+    const p = pointAt(line, s)
+    return [p.x, p.y, p.z, p.bridge, p.tunnel].map((n) =>
+      typeof n === "number" ? +n.toFixed(6) : n,
+    )
+  }
+  assert.deepEqual(at(1050), [1050, 0, 10.5, false, false])
+  assert.deepEqual(at(1100 + 50 * Math.SQRT2), [1150, 50, 11.5, true, false])
+  assert.deepEqual(at(1000 + stored - 100), [1200, 300, 12, false, false])
+  // Straight on north past its end, level, to the run-out's end; west straight on from the terminal, level.
+  assert.deepEqual(at(1000 + stored + 100), [1200, 500, 12, false, false])
+  assert.deepEqual(at(line.end), [1200, +(400 + need - stored).toFixed(6), 12, false, false])
+  assert.ok(Math.abs(pointAt(line, line.end).angle - Math.PI / 2) < 1e-9)
+  assert.deepEqual(at(-100), [-100, 0, 10, false, false])
+  // One longer than it needs runs to the run-out's length only: a bore 5 km long, cut at its 1128.6 m.
+  const bore = makeLine(
+    0,
+    [{ pts: [0, 0, 1000, 0], z: [10, 10], tunnel: true }],
+    [],
+    [],
+    [[{ pts: [0, 0, -5000, 0], z: [10, 10], tunnel: true }], []],
+  )
+  assert.equal(bore.start, -runOut(DEFAULT_SPEED))
+  assert.deepEqual(
+    [pointAt(bore, bore.start).x, pointAt(bore, bore.start + 1).tunnel],
+    [bore.start, true],
+  )
+  assert.deepEqual(bore.tunnels, [{ from: bore.start, to: 1000 }])
 })
 
 test("lines, by Monzone station: the crossings and stations lie at their s, the rail head RAIL_LIFT over the bed, and a box's road meets the rail at its level", () => {

@@ -24,13 +24,13 @@ export interface LineOut {
 }
 
 /** Beyond this turn (degrees) at a junction no way runs on: the walk ends there. */
-const MAX_TURN = 60
+export const MAX_TURN = 60
 /**
  * A piece's heading at a junction is taken this far (m) into it: on the 0.1 m grid a single short
  * end segment (0.3 m at the shortest) turns up to 12°, more than a turnout diverges (4.5–7.3° at
  * Gragnola).
  */
-const HEADING_SPAN = 5
+export const HEADING_SPAN = 5
 
 /** Arc length of a flat polyline, m. */
 export const lengthOf = (pts: ReadonlyArray<number>): number => {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { RailF } from "../features.ts"
-import { bedLimits, bedReport, extraLevels, railBed } from "../rail-bed.ts"
+import { type BedLine, bedLimits, bedReport, extraLevels, railBed } from "../rail-bed.ts"
 import type { Grid } from "../terrain.ts"
 
 /** A 4 m grid of 21 × 11 nodes from (0, 0), all at 10 m. */
@@ -20,7 +20,7 @@ const node = (g: Grid, i: number, j: number) => j * g.cols + i
 /** The rail bed of `lines` laid into `g`, what it moved summed up. */
 const lay = (
   g: Grid,
-  lines: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly z: ReadonlyArray<number> }>,
+  lines: ReadonlyArray<BedLine>,
   crossings: ReadonlyArray<readonly [number, number]>,
   keep?: (k: number) => boolean,
 ) => bedReport(railBed(g, bedLimits(g, lines, crossings), keep))
@@ -75,6 +75,17 @@ test("railBed raises the corners under the rail to 0.5 m below it, but not a roa
   )
   assert.equal(result.raised, 2)
   assert.ok(Math.abs(result.fill - 6.5) < 1e-9)
+})
+
+test("railBed moves only the nodes a line's bed may write: a run-out's, beyond the play area", () => {
+  const g = flat()
+  g.z.fill(11)
+  // The line west of x 40 is in play and laid already; its run-out on east of it writes only past x 40.
+  lay(g, [{ pts: [40, 21, 80, 21], z: [10, 10], writes: (x) => x > 40 }], [])
+  assert.deepEqual(
+    [node(g, 10, 5), node(g, 11, 5), node(g, 20, 6)].map((n) => g.z[n]),
+    [11, 10, 10],
+  )
 })
 
 test("railBed moves a window's nodes as it moves the whole grid's", () => {

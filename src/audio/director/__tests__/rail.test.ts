@@ -9,13 +9,26 @@ import { TRAINS } from "../../../sim/rail/models.ts"
 import { railBridge, RIOLO } from "../../../sim/rail/testing.ts"
 import { axesAt, followYaw } from "../../../sim/view.ts"
 import { dbToGain, gainToDb, panOf, spreading } from "../../acoustics.ts"
+import { skyAt } from "../../index.ts"
 import { heardCrossings, trainRevs } from "../../rail.ts"
 import { engineQuiet } from "../../synth/engine.ts"
 import { axleOffsets } from "../../synth/rail.ts"
 import { seatOf } from "../index.ts"
 import { CAPS, echoes, MOST_DB } from "../levels.ts"
 import { rollingOf } from "../rail.ts"
-import { away, beside, car, HOUSE_WALL, MEADOW, person, rig, train, world } from "../testing.ts"
+import {
+  at,
+  away,
+  beside,
+  CALM,
+  car,
+  HOUSE_WALL,
+  MEADOW,
+  person,
+  rig,
+  train,
+  world,
+} from "../testing.ts"
 
 const LINE = LINES[0]!
 /** The line's longest tunnel, from Equi Terme toward Pieve San Lorenzo. */
@@ -266,8 +279,11 @@ test("a train deep in the long tunnel is not heard through 440 m of hill; one in
   const yaw = followYaw(top.angle + Math.PI / 2),
     right = axesAt(yaw).right
   assert.ok(right.x * Math.cos(top.angle) + right.y * Math.sin(top.angle) > 0.99)
+  // At night in still air the background is the stillest, 28 dB, whatever the map's floor (from which the hill's usual wind
+  // grows): the train, 20.1 dB at the ears through its portal 137 m off, is held 7 dB over the masking cull, and so is its
+  // cab's power pack through the portal.
   const short = rig(),
-    heard = world(top, { trains: [t] })
+    heard = world(top, { trains: [t], sky: skyAt(at(23)), weather: { ...CALM, wind: 0 } })
   short.hear({ ...heard, listener: { ...heard.listener, yaw } })
   const rails = short.held().get("rails:1")
   assert.ok(rails !== undefined, "heard")
@@ -284,7 +300,7 @@ test("a train deep in the long tunnel is not heard through 440 m of hill; one in
     listener: { ...heard.listener, yaw },
   })
   const through = gainToDb(open.held().get("engine:1:0")!.at.gain),
-    portal = gainToDb(short.held().get("engine:1:0")?.at.gain ?? 0)
+    portal = gainToDb(short.held().get("engine:1:0")!.at.gain)
   assert.ok(portal < through - 3, `${portal} ${through}`)
 })
 

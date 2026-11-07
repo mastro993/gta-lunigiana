@@ -227,3 +227,21 @@ test("the SR445's, the track's, the path's and Pieve San Lorenzo's underpass's m
   )
   assert.deepEqual(saved(fresh), saved(MAP.derived.mouths.filter((mouth) => roads.has(mouth.road))))
 })
+
+// Regression: Giucano's path under its houses (OSM 1326730181), 12% down through an 85° turn, drew
+// its ribbon 3 cm under its profile past the bend: a mitred section holds one height across a line
+// that slopes along it, and a whole quad's two triangles there tilt off the profile.
+const turning = (flag: "tunnel" | "bridge"): Road => ({
+  id: 1,
+  cls: "path",
+  w: 1.5,
+  surface: "unpaved",
+  [flag]: true,
+  pts: [0, 0, -2.1, 0.9, -2.9, -0.6],
+  z: [309.1, 308.9, 308.7],
+})
+
+test("a ribbon on its profile (a tunnel's, a deck's) holds it along its line through a sharp bend on a slope", () => {
+  assert.equal(checkRibbon(turning("tunnel")), 7)
+  assert.equal(checkRibbon(turning("bridge")), 7)
+})

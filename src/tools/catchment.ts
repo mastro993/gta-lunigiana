@@ -88,6 +88,11 @@ export interface Inflow {
  * from their nodes like their own. A node `listed` leaves out (0:
  * one no listed tile holds, in an L's notch) is beyond the grid too, and never read: an outlet below
  * any ground, so the listed nodes beside it are an edge, as the grid's outermost are.
+ * `beyond` is the water the play area's outline cut off, on the grid's ground (each 2 m sample at
+ * its ground less depth/2): burned as the play area's is, owning no node and never read, so a river
+ * the outline cuts short of the grid's edge or a notch drains on down its own water, to its outlet
+ * or back into the play area, rather than filling its trench, 100 m under the ground past the cut,
+ * to its lowest way out (docs/map.md, section 6).
  */
 export const catchments = (
   g: Grid,
@@ -95,6 +100,7 @@ export const catchments = (
   ids: ReadonlyArray<ReadonlyArray<string | undefined>>,
   listed?: Uint8Array,
   inflows: ReadonlyArray<Inflow> = [],
+  beyond: ReadonlyArray<Profile> = [],
 ): Array<Float64Array> => {
   const { cols, rows, cell } = g,
     [oi, oj] = anchorNode(g)
@@ -108,16 +114,43 @@ export const catchments = (
   const nodeOf = (x: number, y: number) =>
     Math.min(rows - 1, Math.max(0, Math.round((y - g.ay) / cell) + oj)) * cols +
     Math.min(cols - 1, Math.max(0, Math.round((x - g.ax) / cell) + oi))
-  // Which water burned each node (-1 none, -2 more than one: where waters meet).
-  const owner = new Int32Array(cols * rows).fill(-1)
-  wp.forEach((p, w) => {
+  /** Whether water leaves the grid at listed node `n`: on its edge, or beside a node beyond it. */
+  const atOutlet = (n: number): boolean => {
+    const i = n % cols,
+      j = (n - i) / cols
+    if (i === 0 || j === 0 || i === cols - 1 || j === rows - 1) return true
+    for (let dj = -1; dj <= 1; dj++)
+      for (let di = -1; di <= 1; di++) if (outside(n + dj * cols + di)) return true
+    return false
+  }
+  /**
+   * Burns profile `p` BURN m under its surface, made monotone downstream along each stretch of it on
+   * listed nodes (the play area's water is already, so it burns as it always did; the water beyond
+   * it is not, as its stretch in a notch reads only the edge drawn on), and gives `own` each node
+   * burned. Where it comes in from beyond the grid, its first nodes keep their ground: on the edge or
+   * beside a notch, a trench BURN m under it is an outlet for all the water it joins. Water going out
+   * there burns its last ones.
+   */
+  const burn = (p: Profile, own?: (n: number) => void) => {
+    let low = Infinity,
+      entering = true
     for (let k = 0; k < p.z.length; k++) {
       const n = nodeOf(p.x[k]!, p.y[k]!)
-      if (outside(n)) continue
-      z[n] = Math.min(z[n]!, p.z[k]! - BURN)
-      owner[n] = owner[n] === -1 || owner[n] === w ? w : -2
+      if (outside(n)) {
+        low = Infinity
+        continue
+      }
+      if (entering && atOutlet(n)) continue
+      entering = false
+      low = Math.min(low, p.z[k]!)
+      z[n] = Math.min(z[n]!, low - BURN)
+      own?.(n)
     }
-  })
+  }
+  // Which water burned each node (-1 none, -2 more than one: where waters meet).
+  const owner = new Int32Array(cols * rows).fill(-1)
+  wp.forEach((p, w) => burn(p, (n) => (owner[n] = owner[n] === -1 || owner[n] === w ? w : -2)))
+  for (const p of beyond) burn(p)
   // Priority-flood from the edge and the nodes beyond the grid: a node first reached from a lower
   // one is raised just above it.
   const seen = new Uint8Array(cols * rows)

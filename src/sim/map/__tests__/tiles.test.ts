@@ -4,63 +4,20 @@ import { test } from "node:test"
 import { coverAt } from "../cover.ts"
 import { terrainZ } from "../ground.ts"
 import { heightAt, MAP, wallsNear } from "../index.ts"
-import { TILE, tileKey } from "../kinds.ts"
-import { decodeTile, readMapFile, tileUrl } from "../packed.ts"
+import { decodeTile } from "../packed.ts"
 import {
   cellCorners,
   dropTile,
   isResident,
   nodeAt,
   provideTile,
-  residentTiles,
   setTileSource,
   tilesOver,
 } from "../tiles.ts"
+import { emptied, fromDisk, outlineOnSeam, wallsAt } from "./tile-kit.ts"
 
-// The checks over every tile and the whole map joined live in tiles.map-test.ts (pnpm test:map);
-// these read only the tiles round a few spots.
-const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
-const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
-
-/** Every tile out of memory, then the source back. */
-const emptied = () => {
-  for (const key of KEYS) dropTile(key)
-  setTileSource(fromDisk)
-}
-
-/** Walls near (x, y) as text, in answer order. */
-const wallsAt = (kind: "walk" | "land" | "drive" | "traffic", x: number, y: number, r: number) =>
-  wallsNear(kind, x - r, y - r, x + r, y + r).map((s) => `${s.ax},${s.ay},${s.bx},${s.by}`)
-
-test("wallsNear gives the same answer, in the same order, whatever is in memory and in whichever order it came", () => {
-  // Boxes across the x = 0 and y = 0 seams near Monzone station, at the tile corner (0, 0), and on a bounds wall
-  // reaching into the next tile.
-  const boxes = [
-    [0, 30, 12],
-    [-25, 0, 12],
-    [0, 0, 40],
-    [-2900, -4000, 40],
-  ] as const
-  const answer = () =>
-    boxes.flatMap(([x, y, r]) =>
-      (["walk", "land", "drive", "traffic"] as const).map((kind) => wallsAt(kind, x, y, r)),
-    )
-  emptied()
-  const lazy = answer()
-  const touched = residentTiles()
-  // The tiles the answers read, and every tile beside them: more than they need, in two orders.
-  const around = [
-    ...new Set(boxes.flatMap(([x, y]) => tilesOver(x - TILE, y - TILE, x + TILE, y + TILE))),
-  ]
-  for (const order of [around, [...around].reverse()]) {
-    emptied()
-    for (const key of order) provideTile(fromDisk(key))
-    assert.deepEqual(answer(), lazy)
-  }
-  assert.ok(touched.length >= 5, touched.join(" "))
-  assert.ok(around.length > touched.length, around.join(" "))
-  assert.ok(lazy.every((walls) => walls.length > 0))
-})
+// The checks over every tile and the whole map joined live in tiles.map-test.ts (pnpm test:map), and
+// the order check in tiles.long-test.ts (pnpm test:long); these read only the tiles round a few spots.
 
 test("wallsNear finds every wall whose box overlaps the query, from whichever tile it lives in", () => {
   const { reach } = MAP.walls,
@@ -70,13 +27,7 @@ test("wallsNear finds every wall whose box overlaps the query, from whichever ti
     if (data === undefined) decoded.set(key, (data = decodeTile(fromDisk(key))))
     return data
   }
-  for (const [x, y] of [
-    [0, 30],
-    [-25, 0],
-    [2000, 1500],
-    [-2900, -4000],
-    [4900, 2000],
-  ] as const)
+  for (const [x, y] of [[0, 30], [-25, 0], [2000, 1500], outlineOnSeam(), [4900, 2000]] as const)
     for (const kind of ["walk", "drive"] as const) {
       const r = 6
       const found = new Set(wallsAt(kind, x, y, r))

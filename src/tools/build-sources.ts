@@ -6,6 +6,7 @@ import { join } from "node:path"
 
 import type { Area, Barrier, District } from "../sim/map/index.ts"
 import { isWaterArea } from "../sim/map/kinds.ts"
+import { nameFromAddresses } from "./addresses.ts"
 import { conflateRail } from "./conflate.ts"
 import { readCtrRail, splitIn } from "./ctr-rail.ts"
 import { fitRoads } from "./ctr.ts"
@@ -19,7 +20,6 @@ import {
   extractRail,
   extractRoads,
   extractWater,
-  nameFromAddresses,
 } from "./features.ts"
 import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
@@ -115,7 +115,8 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   ])
   const districts: Array<District> = fitDistricts(osm, buildings)
   // What the map leaves out beyond the play area, in the built terrain's box: the trees keep off its
-  // roads (as wide as the surveys map them), water, rail and buildings there as they do in play.
+  // roads (as wide as the surveys map them), water, rail and buildings there as they do in play, and
+  // the catchments burn its water, so a river the outline cuts drains on down it (catchment.ts).
   const beyond = {
     roads: extractRoads(osm, clipBeyond),
     water: extractWater(osm, dem.at, clipBeyond, openCulvert),
@@ -140,7 +141,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     platforms,
     railCrossings: crossings.map((c) => c.rings),
     districts,
-    /** The roads, water, rail and buildings beyond the play area, for the trees alone. */
+    /** The roads, water, rail and buildings beyond the play area, for the trees, and its water for the catchments. */
     beyond,
   }
 }
