@@ -39,6 +39,13 @@ export interface RibbonSpec {
   readonly skip?: (x: number, y: number) => boolean
   /** Leaves out the quads all four of whose corners (map x, y) it holds: a river's ribbon where a lake or river polygon draws the water. */
   readonly cover?: (x: number, y: number) => boolean
+  /**
+   * The strip holds its profile along its line (a road on a deck or in a tunnel, where the sim
+   * stands wheels and feet on the profile): each quad is drawn as two halves meeting on the line,
+   * since a section a bend's mitre skews holds one height across a line that slopes along it, and a
+   * whole quad's two triangles there tilt off the profile (10.3 cm on a 48% path turning 60°).
+   */
+  readonly profile?: boolean
 }
 
 const { minX, minY, maxX, maxY } = MAP.bounds
@@ -150,7 +157,9 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
   }
   const half = spec.width / 2,
     offset = spec.offset ?? 0
-  const edges: Array<readonly [number, number, number, number, number, number]> = []
+  const edges: Array<readonly [number, number, number, number, number, number]> = [],
+    // Each section's point on the strip's own line (`offset` off the polyline), for `profile`.
+    on: Array<readonly [number, number, number]> = []
   for (let i = 0; i < count; i++) {
     const a = left(Math.max(0, i - 1)),
       b = left(Math.min(count - 2, i))
@@ -165,6 +174,11 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
     const rx = xs[i]! + mx * (offset - half) * k,
       ry = ys[i]! + my * (offset - half) * k
     edges.push([lx, ly, spec.y(lx, ly, zs[i]!), rx, ry, spec.y(rx, ry, zs[i]!)])
+    if (spec.profile === true) {
+      const cx = xs[i]! + mx * offset * k,
+        cy = ys[i]! + my * offset * k
+      on.push([cx, spec.y(cx, cy, zs[i]!), -cy])
+    }
   }
   for (let i = 0; i + 1 < count; i++) {
     if (spec.dash !== undefined && Math.floor((ss[i]! + ss[i + 1]!) / 2 / spec.dash) % 2 === 1)
@@ -184,7 +198,10 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
       continue
     // Right edge forward, then left edge back: counter-clockwise seen from above.
     const sink = at(mx, my)
-    if (flowing === undefined)
+    if (flowing === undefined && spec.profile === true) {
+      sink.decal.quad([rx0, rh0, -ry0], [rx1, rh1, -ry1], on[i + 1]!, on[i]!, spec.hex)
+      sink.decal.quad(on[i]!, on[i + 1]!, [lx1, lh1, -ly1], [lx0, lh0, -ly0], spec.hex)
+    } else if (flowing === undefined)
       sink.decal.quad(
         [rx0, rh0, -ry0],
         [rx1, rh1, -ry1],
