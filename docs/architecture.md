@@ -1365,7 +1365,11 @@ only its road, under its house.
   drive through it (`pnpm playtest drive --route=-2185,4334,…,-2453,4487`, 309 m along the SR445)
   had no frame over 16.8 ms, at most 4 tiles in memory and 157 MB at its end. By Pieve San
   Lorenzo's head wall (`--at=5039,3598`, 2026-11-07, two runs) the first frame came at 0.43–0.45 s,
-  the slowest frame was 16.8 ms and the heap after GC 156 MB.
+  the slowest frame was 16.8 ms and the heap after GC 156 MB; the 15 chunks whose square comes
+  within 200 m of it build in 1.00–1.04 ms each in Node (the World's own build, the median of five
+  builds of them all, two runs), 0.99–1.02 ms with the head wall left out, against 1.04–1.06 ms for
+  the 14 so near Monzone station and 0.58–0.59 ms for the 22 so near the SR445's tunnel, counted
+  the same way that day.
 - **Limits**: inside a throat the car is hidden behind its lining, as a train is, since the cut
   opens only where the terrain, a building or a tree hides the player. Through the cut the bore's
   road lies in the sun as the road outside, the hill and its walls casting no shadow on it (before
