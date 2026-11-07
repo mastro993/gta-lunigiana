@@ -87,6 +87,8 @@ const boundary = (
 const ARCH = 1.2
 /** Raster cell for footprints cut by such a corridor, m. */
 const FOOTPRINT_RES = 0.2
+/** How far a traced footprint's outline may stray from its raster, m (`simplifyLoop`'s tolerance). */
+const TRACE_TOL = 0.15
 /** Smallest piece of a clipped footprint kept, m². */
 const MIN_PIECE = 4
 
@@ -143,11 +145,52 @@ const corridors = (roads: ReadonlyArray<RoadF>) => {
 }
 type Corridors = ReturnType<typeof corridors>
 
+/** Squared distance between segments a-b and c-d, 0 where they cross. */
+const segSegDist2 = (
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
+) => {
+  const side = (px: number, py: number, qx: number, qy: number, rx: number, ry: number) =>
+    (qx - px) * (ry - py) - (qy - py) * (rx - px)
+  if (
+    side(ax, ay, bx, by, cx, cy) * side(ax, ay, bx, by, dx, dy) < 0 &&
+    side(cx, cy, dx, dy, ax, ay) * side(cx, cy, dx, dy, bx, by) < 0
+  )
+    return 0
+  return Math.min(
+    segDist2(ax, ay, cx, cy, dx, dy).d2,
+    segDist2(bx, by, cx, cy, dx, dy).d2,
+    segDist2(cx, cy, ax, ay, bx, by).d2,
+    segDist2(dx, dy, ax, ay, bx, by).d2,
+  )
+}
+
+/** Whether a corridor's centreline comes within its half-width of footprint `b`'s outline. */
+const reaches = (b: BuildingF, cuts: ReadonlyArray<Cut>) =>
+  cuts.some(([ax, ay, bx, by, h]) =>
+    [b.outer, ...(b.holes ?? [])].some((ring) => {
+      for (let i = 0, n = ring.length / 2; i < n; i++) {
+        const j = (i + 1) % n
+        const [px, py, qx, qy] = [ring[2 * i]!, ring[2 * i + 1]!, ring[2 * j]!, ring[2 * j + 1]!]
+        if (segSegDist2(ax, ay, bx, by, px, py, qx, qy) < h * h) return true
+      }
+      return false
+    }),
+  )
+
 /**
- * Footprint `b` rasterised at FOOTPRINT_RES m minus the `roads` corridors that reach inside it, or
- * undefined when none does.
+ * Footprint `b` rasterised at FOOTPRINT_RES m minus the `roads` corridors that reach inside it, each
+ * grown by `pad` m, or undefined when none reaches inside it ungrown. With a pad, a corridor that
+ * reaches the outline by less than a cell (no cell centre inside it: a corner poking in) carves it
+ * too, so its walls are traced clear of the corridor rather than left on the outline inside it.
  */
-const carved = (b: BuildingF, roads: Corridors) => {
+const carved = (b: BuildingF, roads: Corridors, pad = 0) => {
   const [x0, y0, x1, y1] = ringBox(b.outer)
   const cuts = roads(x0, y0, x1, y1)
   if (cuts.length === 0) return
@@ -163,9 +206,17 @@ const carved = (b: BuildingF, roads: Corridors) => {
       const x = gx + (i + 0.5) * res,
         y = gy + (j + 0.5) * res
       if (!pointInRing(x, y, b.outer) || (b.holes ?? []).some((h) => pointInRing(x, y, h))) continue
-      if (cuts.some(([ax, ay, bx, by, h]) => segDist2(x, y, ax, ay, bx, by).d2 < h * h)) cut = true
-      else blocked[j * cw + i] = 1
+      let inside = false,
+        clear = true
+      for (const [ax, ay, bx, by, h] of cuts) {
+        const { d2 } = segDist2(x, y, ax, ay, bx, by)
+        if (d2 < h * h) inside = true
+        if (d2 < (h + pad) * (h + pad)) clear = false
+      }
+      if (inside) cut = true
+      if (clear) blocked[j * cw + i] = 1
     }
+  if (!cut && pad > 0) cut = reaches(b, cuts)
   return cut
     ? { grid: { cell: res, cols: cw + 1, rows: ch + 1, x0: gx, y0: gy }, blocked }
     : undefined
@@ -185,7 +236,7 @@ export const clipBuildings = (
     const c = carved(b, clipping)
     if (c === undefined) return [b]
     const rings = Array.from(traceLoops(c.grid, c.blocked), (loop) =>
-      simplifyLoop(loop, 0.15).slice(0, -1),
+      simplifyLoop(loop, TRACE_TOL).slice(0, -1),
     )
     const holes = rings
       .filter((r) => signedArea(r) < 0)
@@ -208,16 +259,26 @@ const OPEN_STEP = 0.25
  * Cliffs and walls with an opening wherever a road (not a tunnel) comes within w/2 of them. OSM
  * draws cliffs across the paths that climb through them and garden walls up to the road's
  * centreline; the way itself is open (a gap, a gate, steps cut in the rock). Original vertices are
- * kept; each opening ends at the last free sample. Guard rails run along their road and stay whole.
- * Tunnels open nothing (a bridge's parapets do open where the road runs on into one: parapets.ts).
+ * kept; each opening ends at the last free sample. A guard rail runs along its road, often inside
+ * its w/2 as OSM draws it, so it opens only where a drivable road's middle min(w/2, ARCH) reaches
+ * it: a track OSM draws leaving its road past the rail's end, which stops 0.7 m short of the
+ * track's centreline. Tunnels open nothing (a bridge's parapets do open where the road runs on
+ * into one: parapets.ts).
  */
 export const openBarriers = (
   barriers: ReadonlyArray<Barrier>,
   roads: ReadonlyArray<RoadF>,
 ): Array<Barrier> => {
-  const ways = segIndex<null>()
-  for (const r of roads) if (r.tunnel !== true) ways.addLine(r.pts, r.w / 2, null)
-  return opened(barriers, (x, y) => ways.covers(x, y))
+  const ways = segIndex<null>(),
+    lanes = segIndex<null>()
+  for (const r of roads)
+    if (r.tunnel !== true) {
+      ways.addLine(r.pts, r.w / 2, null)
+      if (isDrivable(r.cls)) lanes.addLine(r.pts, Math.min(r.w / 2, ARCH), null)
+    }
+  const way = (x: number, y: number) => ways.covers(x, y),
+    lane = (x: number, y: number) => lanes.covers(x, y)
+  return barriers.flatMap((b) => opened([b], b.kind === "guard_rail" ? lane : way))
 }
 
 /** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` says. */
@@ -226,7 +287,6 @@ export const opened = (
   open: (x: number, y: number) => boolean,
 ): Array<Barrier> =>
   barriers.flatMap((b) => {
-    if (b.kind === "guard_rail") return [b]
     const out: Array<Barrier> = []
     let cur: Array<number> = [],
       last: readonly [number, number] | undefined
@@ -260,11 +320,14 @@ export const opened = (
 /**
  * Building edges into every list in `outs`. Where a tunnel, path or steps centreline comes within
  * min(w/2, ARCH) of the footprint, the walls are instead the outline of the footprint minus those
- * corridors: passages and steps under arches stay open, the interior stays closed.
+ * corridors: passages and steps under arches stay open, the interior stays closed. The corridors
+ * are grown by half a raster cell and the trace's tolerance, as the slope walls' road buffers are,
+ * so no traced wall comes back inside one: ungrown, a footway in Giucano cut one cell into a house,
+ * and the trace left its wall 0.54 m from the footway's centreline, inside its 0.75 m.
  */
 const pushBuilding = (outs: ReadonlyArray<Array<number>>, b: BuildingF, arches: Corridors) => {
-  const c = carved(b, arches)
-  if (c !== undefined) return boundary(c.grid, c.blocked, outs, 0.15)
+  const c = carved(b, arches, FOOTPRINT_RES / 2 + TRACE_TOL)
+  if (c !== undefined) return boundary(c.grid, c.blocked, outs, TRACE_TOL)
   for (const ring of [b.outer, ...(b.holes ?? [])])
     for (const out of outs) pushPolyline(out, ring, true)
 }
