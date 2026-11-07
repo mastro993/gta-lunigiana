@@ -1,9 +1,10 @@
 /**
- * Whether a road tunnel's portal stands clear of the roads and the track round its mouth: no
- * carriageway (no track's bed) reaches under its face wall, its cornice or its throat between their
- * foot and their top, but that of a road carrying on out of the mouth, which may fill the arch. The
- * build stands the road portals by it (`bakeMouths` in render/portals), so none stands on a road at
- * a junction, nor its throat across a road or the track over a shallow tunnel.
+ * Whether a road tunnel's portal or underpass head wall stands clear of the roads and the track
+ * round its mouth: no carriageway (no track's bed) reaches under its face wall, its cornice or its
+ * throat (a head wall's box) between their foot and their top, but that of a road carrying on out
+ * of the mouth, which may fill the arch. The build stands the road portals and head walls by it
+ * (`bakeMouths` in render/portals), so none stands on a road at a junction, nor its throat across a
+ * road or the track over a shallow tunnel.
  *
  * @module render/portal-clear
  */
@@ -75,8 +76,8 @@ export const nearMouth = (
 }
 
 /**
- * A portal's footprint in its mouth's frame, m: into the hill from the mouth and either side of its
- * axis, its tops over the road's surface, and the half width of its arch.
+ * A portal's or head wall's footprint in its mouth's frame, m: into the hill from the mouth and
+ * either side of its axis, its tops over the road's surface, and the half width of its arch.
  */
 export interface Footprint {
   /** The face wall under its cornice: from `from` to `to` m in, `half` m either side, up to `top`. */

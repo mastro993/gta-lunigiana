@@ -21,26 +21,28 @@ const KERB = 1
 const CLEARANCE = 4
 /** Headroom between the clear height and where the mouth's arch springs, m. */
 const HEADROOM = 0.5
-/** The walls reach this far under the road's surface, m, and stop this far under the terrain over them. */
+/** The walls reach this far under the road's surface, m. */
 const FOOT = 0.3
-const UNDER = 0.25
+/** The walls stop this far under the terrain over them, m, as an underpass's head wall does (render/portals). */
+export const UNDER = 0.25
 /** The walls are cut into stretches of at most this length, m. */
 const STEP = 2
 
-/** A road tunnel's cross-section, m: half its width from the centreline, and the height over the road its arch springs at. */
+/** A road tunnel's cross-section, m: half its width from the centreline, its clear height over the road, and the height its arch springs at. */
 export interface Bore {
   readonly half: number
+  readonly clear: number
   readonly spring: number
 }
 
 /** Whether road `road` has a bore: in a tunnel, and not a building passage. */
 export const isBored = (road: RoadInfo): boolean => road.tunnel === true && road.passage !== true
 
-/** Road `road`'s tunnel cross-section: its carriageway and a KERB each side, its clear height (OSM's `maxheight`, else CLEARANCE) and HEADROOM. */
-export const boreOf = (road: RoadInfo): Bore => ({
-  half: road.w / 2 + KERB,
-  spring: (road.maxheight ?? CLEARANCE) + HEADROOM,
-})
+/** Road `road`'s tunnel cross-section: its carriageway and a KERB each side, its clear height (OSM's `maxheight`, else CLEARANCE) and HEADROOM over it. */
+export const boreOf = (road: RoadInfo): Bore => {
+  const clear = road.maxheight ?? CLEARANCE
+  return { half: road.w / 2 + KERB, clear, spring: clear + HEADROOM }
+}
 
 /** A three-space point. */
 type Point3 = readonly [number, number, number]

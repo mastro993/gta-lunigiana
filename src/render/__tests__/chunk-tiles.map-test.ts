@@ -49,7 +49,7 @@ const SPOTS: ReadonlyArray<readonly [number, number]> = [
   [0, MAP.bounds.maxY],
 ]
 
-test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those and builds as with every tile in, at every crossing, platform, tunnel mouth, road tunnel portal and corner", () => {
+test("chunk tiles: with only some of the tiles in, every chunk that builds reads only those and builds as with every tile in, at every crossing, platform, tunnel mouth, road tunnel portal and head wall, and corner", () => {
   const built = buildsWithSomeTiles(SPOTS)
   assert.ok(built > 100, `${built} chunks built with some tiles out`)
 })

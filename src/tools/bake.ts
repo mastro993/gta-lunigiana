@@ -37,6 +37,6 @@ export const bake = (whole: WholeVectors): Bakes => {
       const { x, y } = buildingCentre(whole.buildings[f.building]!)
       return [x, y]
     }),
-    mouths: bakeMouths({ ids: [...whole.roads.keys()], items: whole.roads }),
+    mouths: bakeMouths({ ids: [...whole.roads.keys()], items: whole.roads }, whole.buildings),
   }
 }

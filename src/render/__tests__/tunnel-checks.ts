@@ -1,11 +1,12 @@
 // The checks tunnels.test.ts (the SR445's tunnel by Groppoli, the 196 m track east of Equi Terme,
-// the 87 m path under the line at Equi Terme and Via Casola's building passage) and the tunnels map
-// tests (every road tunnel of Lunigiana, Cesena and the L) share: a road in a tunnel drawn at its
-// floor, its bore's dark walls under the hill along both its sides, a portal clear of every other
-// road at every mouth the hill stands over (mouth-checks.ts), a passage's road on under its house.
+// the 87 m path under the line at Equi Terme, Pieve San Lorenzo's underpass and Via Casola's
+// building passage) and the tunnels map tests (every road tunnel of Lunigiana, Cesena and the L)
+// share: a road in a tunnel drawn at its floor, its bore's dark walls under the hill along both its
+// sides, a portal or a head wall clear of every other road at every mouth the hill stands over, or
+// a reason for none (mouth-checks.ts), a passage's road on under its house.
 import assert from "node:assert/strict"
 
-import { ROAD_LIFT, terrainZ } from "../../sim/map/ground.ts"
+import { ROAD_LIFT } from "../../sim/map/ground.ts"
 import { MAP, type Road, roadClassOf } from "../../sim/map/index.ts"
 import { tileVectors } from "../../sim/map/tiles.ts"
 import { boreOf, isBored } from "../bores.ts"
@@ -15,16 +16,18 @@ import { terrainY, yOf } from "../ground.ts"
 import { bridgeHex, roadHex, roadPieces } from "../lines.ts"
 import { PALETTE } from "../palette.ts"
 import { Pieces } from "../pieces.ts"
-import { leastCover } from "../portals.ts"
 import type { Vectors } from "../testing.ts"
 import { assertChunkCut, wholeBuild } from "./chunk-cut.ts"
 import {
   checkClear,
+  checkHeadWall,
   checkNoPortal,
   checkPortal,
   checkStoodBack,
   drawn,
   mouthsOf,
+  type Open,
+  whyOpen,
 } from "./mouth-checks.ts"
 import { heightIn, type Tri, trianglesOf } from "./rail-checks.ts"
 
@@ -193,10 +196,13 @@ interface TunnelCounts {
   readonly metres: number
   /** The triangles of their bores' walls. */
   readonly walls: number
-  /** The tunnels' mouths, and the portals at those the hill stands over (the rest are open). */
+  /** The tunnels' mouths, the portals at those the hill stands over and the head walls at those under a lower bank. */
   readonly mouths: number
   readonly portals: number
-  /** The open mouths the hill does stand over, with no spot clear of the roads round them for a portal. */
+  readonly heads: number
+  /** The open mouths (`whyOpen`): under a house, under ground lower than a head wall, with no room for either. */
+  readonly housed: number
+  readonly low: number
   readonly crowded: number
 }
 
@@ -214,12 +220,13 @@ const chunksOver = (minX: number, minY: number, maxX: number, maxY: number): Arr
  * Checks every road tunnel of the map the sim has loaded (`whole`: all its vectors): each road in a
  * tunnel draws its ribbon at its floor and its bore's walls under the hill, along both its sides
  * (none through a building passage); the build baked its mouths (`MAP.derived.mouths`) as `mouthsOf`
- * finds them, every one and no other, each portal at its road's end or stood back along its line;
- * at each with a portal the portal faces out of the hill in the road bridges' colour and stands on
- * no other road nor the track (`checkClear`), and at each open one no portal stands (where the
- * ground over its road rises high enough for one, `leastCover`, it is crowded); and the chunks
- * over each road in a tunnel, 60 m round, built from the pieces of the map's tiles, keep exactly
- * their cut of a whole-map build. Returns the counts.
+ * finds them, every one and no other, each portal at its road's end or stood back along its line,
+ * each head wall at its end; at each with a portal the portal faces out of the hill in the road
+ * bridges' colour, at each with a head wall the head wall's opening faces out of its bank at the
+ * bore's width and clear height, in that colour, its top under the bank, and either stands on no
+ * other road nor the track (`checkClear`); at each open one no portal stands, for a reason
+ * `whyOpen` finds by geometry; and the chunks over each road in a tunnel, 60 m round, built from
+ * the pieces of the map's tiles, keep exactly their cut of a whole-map build. Returns the counts.
  */
 export const checkTunnels = (whole: Vectors): TunnelCounts => {
   const { roads } = whole,
@@ -245,12 +252,13 @@ export const checkTunnels = (whole: Vectors): TunnelCounts => {
     "the baked mouths are the tunnels' mouths",
   )
   let portals = 0,
-    crowded = 0
+    heads = 0
+  const open: Record<Open, number> = { housed: 0, low: 0, crowded: 0 }
   for (const [n, mouth] of baked.entries()) {
     const end = found[n]!,
       road = MAP.roads[mouth.road]!,
       line = roads.items[roads.ids.indexOf(mouth.road)]!,
-      back = "open" in mouth ? 0 : mouth.back
+      back = "back" in mouth ? mouth.back : 0
     if (back === 0) {
       assert.deepEqual([mouth.x, mouth.y], [end.x, end.y], `road ${road.id}'s mouth`)
       assert.ok(
@@ -258,14 +266,18 @@ export const checkTunnels = (whole: Vectors): TunnelCounts => {
         `the mouth at ${mouth.x}, ${mouth.y} heads out of the hill`,
       )
     } else checkStoodBack(line, end, mouth, back)
-    if ("open" in mouth) {
-      checkNoPortal(mouth.x, mouth.y)
-      const least = leastCover(road)
-      if (along(line, 2).some(({ x, y, z }) => terrainZ(x, y) - z >= least)) crowded++
-    } else {
+    if ("crown" in mouth) {
       checkPortal(line, mouth, bridgeHex(road))
       checkClear(roads, end, mouth)
       portals++
+    } else if ("head" in mouth) {
+      assert.equal(back, 0, `the head wall at road ${road.id}'s mouth stands at its end`)
+      checkHeadWall(line, mouth, bridgeHex(road), mouth.throat)
+      checkClear(roads, end, mouth)
+      heads++
+    } else {
+      checkNoPortal(mouth.x, mouth.y)
+      open[whyOpen(whole, end)]++
     }
   }
   // The chunks over every road in a tunnel, as a whole-map build cuts them.
@@ -294,6 +306,7 @@ export const checkTunnels = (whole: Vectors): TunnelCounts => {
     walls,
     mouths: baked.length,
     portals,
-    crowded,
+    heads,
+    ...open,
   }
 }
