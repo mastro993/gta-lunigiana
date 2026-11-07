@@ -445,8 +445,10 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
     )
   )
     return "housed"
+  // Over the road's surface, as the bake asks and the box measures.
   const least = leastWall(road),
-    highest = Math.max(...probes.map(({ x, y, z }) => terrainZ(x, y) - z))
+    highest =
+      Math.max(...probes.map(({ x, y, z }) => terrainZ(x, y) - z)) - ROAD_LIFT[roadClassOf(road)]
   if (highest < least) return "low"
   const floor = yOf(road.z[first ? 0 : road.z.length - 1]! + ROAD_LIFT[roadClassOf(road)]),
     ux = Math.cos(end.angle),

@@ -1317,8 +1317,8 @@ only its road, under its house.
   coping (the portals' cornice, 0.3 m), and the box behind it lined round the opening as a portal's
   throat (0.8 m past its sides, 0.4 m over it), coloured as the portals (`bridgeHex`). One stands
   where the ground over its end of the tunnel (its road's line, run on along the roads of its tunnel
-  that go on from it, 40 m in, short of the middle) rises as high over the road as its coping and
-  the 0.25 m the bore's walls keep under the terrain (`leastWall`: 5.05 m untagged): an opening of
+  that go on from it, 40 m in, short of the middle) rises as high over the road's surface as its
+  coping and the 0.25 m the bore's walls keep under the terrain (`leastWall`: 5.05 m untagged): an opening of
   the clear height, the lintel and coping over it, never standing out of its bank. It stands clear
   of the other roads and the track as a portal does (`clearance`, above), and its box runs in from
   3 m, a metre at a time, until the hill stands that high over the road, and must get there short of

@@ -448,9 +448,10 @@ export const bakeMouths = (
         if (placed !== undefined) return placed
       }
       // A head wall's box runs in until the hill stands `leastWall` over the floor, and must get
-      // there; it stands at the mouth or not at all.
+      // there; it stands at the mouth or not at all. The bank is asked over the road's surface (its
+      // profile and lift), the floor the box measures from.
       const least = leastWall(road)
-      if (groundOver(lines, span) >= least) {
+      if (groundOver(lines, span) - lift >= least) {
         const placed = stand(
           headWall(bore),
           { head: true as const },

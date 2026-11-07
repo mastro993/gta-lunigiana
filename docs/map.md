@@ -1714,7 +1714,8 @@ from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
   high over the road as a portal's springing and face wall (`leastCover`: 6.2 m where the way has no
   `maxheight`) and a spot within 40 m of the end, short of the tunnel's middle, leaves it clear of
   the other roads and the track; else a head wall stands at the end where the ground over its end of
-  the tunnel rises as high as its coping and 0.25 m (`leastWall`: 5.05 m untagged) and its box,
+  the tunnel rises as high over the road's surface as its coping and 0.25 m (`leastWall`: 5.05 m
+  untagged) and its box,
   clear of them, reaches that bank; else the mouth is open. On Lunigiana 28 mouths, 12 with a
   portal: both of the SR445's 172 m tunnel by Groppoli, of the 196 m track south-east of Equi Terme
   (OSM 214324514), of the 147 m quarry track (424169576), of the 87 m path under the line at Equi
