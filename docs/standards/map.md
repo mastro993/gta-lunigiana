@@ -129,11 +129,11 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   its sides (none in a building passage), its mouths baked as `mouthsOf` finds them, each portal
   facing out of the hill and each underpass's head wall facing out of its bank at the bore's width
   and clear height with its top under that bank, either clear of every other road and the track,
-  an open mouth with none and a reason for it found again by geometry (`whyOpen`: a house over the
-  way by the mouth, the ground over it lower than a head wall, or another road or the track in the
-  wall's room; any other open mouth fails), and the chunks round it as a whole-map build cuts them,
-  and pin each region's counts (roads in tunnels, passages, metres, wall triangles, mouths,
-  portals, head walls and open mouths by reason) ([Road and rail
+  an open mouth with none and a reason for it found again by geometry (`whyOpen`: a house at the
+  way's level over it by the mouth, the ground over it lower than a head wall, or another road or
+  the track in the wall's room; any other open mouth fails), and the chunks round it as a whole-map
+  build cuts them, and pin each region's counts (roads in tunnels, passages, metres, wall triangles,
+  mouths, portals, head walls and open mouths by reason) ([Road and rail
   profiles](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
   A new part changes the counts: look at its tunnels drawn (its new head walls and open mouths
   in the browser too), then pin the new counts. A failure of the checks themselves is the data's (a

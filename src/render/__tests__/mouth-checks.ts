@@ -369,11 +369,12 @@ export type Open = "housed" | "low" | "crowded"
 /**
  * Why the mouth `end` (of the whole map's roads and buildings, or those round it, `vectors`) is
  * open, from what stands round it. Its end of the tunnel is its road's line from the mouth 40 m in,
- * short of the tunnel's middle, probed every 0.25 m: a house stands over the way there ("housed": a
- * covered way, which the house hides); else the ground over it never rises as high over the road as
- * a head wall's top and its margin (`leastWall`: "low"); else another road or the track runs
- * through the room a head wall and its box would take, beside the bore's axis and between the road
- * and that height ("crowded"), or it fails.
+ * short of the tunnel's middle, probed every 0.25 m: a house stands over the way there at its level,
+ * the ground under its lowest corner less than the clear height over the road ("housed": a covered
+ * way, which the house hides); else the ground over it never rises as high over the road as a head
+ * wall's top and its margin (`leastWall`: "low"); else another road or the track runs through the
+ * room a head wall and its box would take, beside the bore's axis and between the road and that
+ * height ("crowded"), or it fails.
  */
 export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   const own = tunnelOf(roads, end.road),
@@ -413,11 +414,16 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
       minX <= end.x + span && maxX >= end.x - span && minY <= end.y + span && maxY >= end.y - span
     )
   })
+  // A house at the way's level (its lowest corner's ground under the clear height over the road),
+  // not one on the hill over a bore.
+  const { clear } = boreOf(road)
   if (
-    probes.some(({ x, y }) =>
+    probes.some(({ x, y, z }) =>
       houses.some(
-        ({ outer, holes }) =>
-          pointInRing(x, y, outer) && !(holes ?? []).some((hole) => pointInRing(x, y, hole)),
+        ({ outer, holes, z0 }) =>
+          z0 - z < clear &&
+          pointInRing(x, y, outer) &&
+          !(holes ?? []).some((hole) => pointInRing(x, y, hole)),
       ),
     )
   )

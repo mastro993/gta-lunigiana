@@ -334,8 +334,9 @@ const SETBACK = 40
  * Every road tunnel's mouth of `roads` (the whole map's, `ids` their indices) under `buildings`
  * (the whole map's): an end of a road in a tunnel, not a building passage, that no other road in a
  * tunnel goes on from, inside the play area. Its end of the tunnel is its road's line from there
- * THROAT.longest m in, short of the tunnel's middle; where a house stands over the way there (a
- * covered way, which the house hides as it hides a building passage) the mouth is open.
+ * THROAT.longest m in, short of the tunnel's middle; where a house stands over the way there at its
+ * level, the ground under its lowest corner less than the bore's clear height over the road (a
+ * covered way, which the house hides as it hides a building passage), the mouth is open.
  * - A portal stands there where the ground over its tunnel (the roads in a tunnel joined end to end
  *   with it) rises somewhere along it to `leastCover` over the road: its arch rises as the
  *   railway's, or as far under that ground as its face wall leaves room for. Its throat runs in
@@ -367,7 +368,7 @@ export const bakeMouths = (
       const tunnel = tunnels.get(line)!,
         { length, cover } = measure(items, tunnel),
         span = Math.min(THROAT.longest, length / 2)
-      if (housed(road, end, span, houses(x, y, span))) return open
+      if (housed(road, end, span, bore.clear, houses(x, y, span))) return open
       // The first spot, from the road's end up to `setback` m in, where `shape` stands clear of the
       // roads round it and its throat runs `box` m in (at (x, y) heading out (ux, uy) on the floor
       // `floor`, render y, at most `most` m; undefined where it cannot stand there): the entry,

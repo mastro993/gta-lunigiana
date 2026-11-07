@@ -2,10 +2,11 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { segDist2 } from "../../sim/collide.ts"
-import { MAP, type Road } from "../../sim/map/index.ts"
+import { terrainZ } from "../../sim/map/ground.ts"
+import { type Building, MAP, type Road } from "../../sim/map/index.ts"
 import { PALETTE } from "../palette.ts"
 import { bakeMouths } from "../portals.ts"
-import { vectorsAround } from "../testing.ts"
+import { type Vectors, vectorsAround } from "../testing.ts"
 import {
   checkClear,
   checkHeadWall,
@@ -115,6 +116,50 @@ test("Pieve San Lorenzo's underpass under the station: an old stone head wall at
   checkClear(ROADS, south, south)
   checkNoPortal(north.x, north.y)
   assert.equal(whyOpen(AROUND, north), "low")
+})
+
+/** A house 7 m high on a 10 m square round map point (x, y), its lowest corner's ground `z0` m a.s.l. */
+const houseAt = (x: number, y: number, z0: number): Building => ({
+  id: 0,
+  kind: "house",
+  h: 7,
+  z0,
+  style: "house",
+  tint: 0,
+  outer: [x - 5, y - 5, x + 5, y - 5, x + 5, y + 5, x - 5, y + 5],
+})
+
+/** The roads and buildings round the tunnels, and `house` too. */
+const withHouse = (house: Building): Vectors => ({
+  ...AROUND,
+  buildings: { ids: [...HOUSES.ids, Number.MAX_SAFE_INTEGER], items: [...HOUSES.items, house] },
+})
+
+test("a house over the SR445's tunnel by its east mouth opens it only standing at the road's level, a covered way: on the hill over the bore, its portal stays", () => {
+  const [road, id] = tunnelAt(SR445),
+    east = endsOf(road, id).reduce((a, b) => (b.x > a.x ? b : a)),
+    ux = Math.cos(east.angle),
+    uy = Math.sin(east.angle),
+    floor = road.pts[0] === east.x && road.pts[1] === east.y ? road.z[0]! : road.z.at(-1)!
+  const bakedWith = (houses: ReadonlyArray<Building>) =>
+    bakeMouths(ROADS, houses).find(
+      (mouth) => mouth.road === id && mouth.x === east.x && mouth.y === east.y,
+    )
+  const portal = bakedWith(HOUSES.items)
+  assert.ok(portal !== undefined && "crown" in portal, "a portal at the SR445's east mouth")
+  // On the ground 20 m into the hill, some 16 m over the road.
+  const [hx, hy] = [east.x - ux * 20, east.y - uy * 20],
+    hill = houseAt(hx, hy, terrainZ(hx, hy))
+  assert.ok(
+    hill.z0 - floor > 10,
+    `the house on the hill ${(hill.z0 - floor).toFixed(1)} m over the road`,
+  )
+  assert.deepEqual(bakedWith([...HOUSES.items, hill]), portal)
+  assert.throws(() => whyOpen(withHouse(hill), east), /is open, though/)
+  // At the road's level over its first metres.
+  const level = houseAt(east.x - ux * 3, east.y - uy * 3, floor)
+  assert.ok("open" in bakedWith([...HOUSES.items, level])!, "a covered way's mouth open")
+  assert.equal(whyOpen(withHouse(level), east), "housed")
 })
 
 test("Via Casola's building passage: its road drawn on under the house at its floor, with no walls and no portal", () => {

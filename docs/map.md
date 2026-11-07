@@ -1704,37 +1704,38 @@ from 147 m (the Aulella below Gragnola) to 1799 m (the north-west ridge of Monte
   surface there (the profile and `ROAD_LIFT`) and the heading out of the hill over 5 m, and either a
   portal (its arch's crown and how far its throat runs in:
   [architecture.md](architecture.md#road-tunnels)), an underpass's head wall (`head`, how far its
-  box runs in, `back` 0) or `open`. Its end of the tunnel is its road's line from the mouth 40 m
-  in, short of the tunnel's middle (`src/render/tunnel-lines.ts`, every 0.5 m). The mouth is open
-  where a building stands over the way there (a covered way, which its house hides); else a portal
-  stands where the ground over the tunnel (the roads in a tunnel joined end to end with it, every
-  2 m) rises as high over the road as a portal's springing and face wall (`leastCover`: 6.2 m where
-  the way has no `maxheight`) and a spot within 40 m of the end, short of the tunnel's middle,
-  leaves it clear of the other roads and the track; else a head wall stands at the end where the
-  ground over its end of the tunnel rises as high as its coping and 0.25 m (`leastWall`: 5.05 m
-  untagged) and its box, clear of them, reaches that bank; else the mouth is open. On Lunigiana 28
-  mouths, 12 with a portal: both of the SR445's 172 m tunnel by Groppoli, of the 196 m track
-  south-east of Equi Terme (OSM 214324514), of the 147 m quarry track (424169576), of the 87 m path
-  under the line at Equi Terme (1133296350, stood back 7 and 1 m) and of the 33 m track
-  (1181149122), and the east mouths of Via Gioco di Sopra's 52 m under Via Nuova and the line in
-  Gragnola and of a 16 m unclassified road under the SS63 (145347886); 2 with a head wall: the
-  south mouth of Pieve San Lorenzo's 29 m underpass under the station (756577583), under Via della
-  Stazione, and the west mouth of the 16 m road under the SS63, where the SS63 passes over lower
-  than a portal's top; 14 open: four roads under rail bridges (the SR445's 7.7 m by Gassano among
-  them), Pieve San Lorenzo's north mouth (the ground over its end 4.83 m at most), Via S. Nicola's
-  19 m in Gragnola and an 11 m path (757045013), whose cover the map's ground does not hold, and
-  Via Gioco di Sopra's west mouth, a garage standing over the tunnel 1.5 m in. Cesena has 77 mouths,
-  9 with a portal (the Secante's four, Via del Tunnel's two, the Sottopasso Cervese's two and the
-  Sottopasso del Mare's one, stood back 2 m, its other end on the outline), 6 with a head wall (Via
-  Spadolini's two, beside its cycle path's own tunnel, and both of the Sottopasso Ravennate and of
-  the path 43076054 under the station, whose ramps the map's ground does not hold), 62 open: 47
-  under houses (the centre's arcades and covered ways), 13 under too low a bank and the cycle
-  path's 2, for want of room. The L has 12, 3 with a portal, 9 open (1 under a house). A part's road
-  tunnels need nothing more: the build finds and bakes their mouths in any region, and
-  `src/render/__tests__/tunnels.map-test.ts` (with its Cesena and L twins) checks every one drawn,
-  finds again by geometry why each open one is open, and pins each region's counts of roads in
-  tunnels, passages, metres, wall triangles, mouths, portals, head walls and open mouths by reason,
-  so it fails until a new part's are looked at and pinned.
+  box runs in, `back` 0) or `open`. Its end of the tunnel is its road's line from the mouth 40 m in,
+  short of the tunnel's middle (`src/render/tunnel-lines.ts`, every 0.5 m). The mouth is open where
+  a building stands over the way there at its level, the ground under its lowest corner (`z0`) less
+  than the bore's clear height over the road (a covered way, which its house hides; a house on the
+  hill over a bore hides nothing); else a portal stands where the ground over the tunnel (the roads
+  in a tunnel joined end to end with it, every 2 m) rises as high over the road as a portal's
+  springing and face wall (`leastCover`: 6.2 m where the way has no `maxheight`) and a spot within
+  40 m of the end, short of the tunnel's middle, leaves it clear of the other roads and the track;
+  else a head wall stands at the end where the ground over its end of the tunnel rises as high as
+  its coping and 0.25 m (`leastWall`: 5.05 m untagged) and its box, clear of them, reaches that
+  bank; else the mouth is open. On Lunigiana 28 mouths, 12 with a portal: both of the SR445's 172 m
+  tunnel by Groppoli, of the 196 m track south-east of Equi Terme (OSM 214324514), of the 147 m
+  quarry track (424169576), of the 87 m path under the line at Equi Terme (1133296350, stood back 7
+  and 1 m) and of the 33 m track (1181149122), and the east mouths of Via Gioco di Sopra's 52 m
+  under Via Nuova and the line in Gragnola and of a 16 m unclassified road under the SS63
+  (145347886); 2 with a head wall: the south mouth of Pieve San Lorenzo's 29 m underpass under the
+  station (756577583), under Via della Stazione, and the west mouth of the 16 m road under the SS63,
+  where the SS63 passes over lower than a portal's top; 14 open: four roads under rail bridges (the
+  SR445's 7.7 m by Gassano among them), Pieve San Lorenzo's north mouth (the ground over its end
+  4.83 m at most), Via S. Nicola's 19 m in Gragnola and an 11 m path (757045013), whose cover the
+  map's ground does not hold, and Via Gioco di Sopra's west mouth, a garage standing over the tunnel
+  1.5 m in. Cesena has 77 mouths, 9 with a portal (the Secante's four, Via del Tunnel's two, the
+  Sottopasso Cervese's two and the Sottopasso del Mare's one, stood back 2 m, its other end on the
+  outline), 6 with a head wall (Via Spadolini's two, beside its cycle path's own tunnel, and both of
+  the Sottopasso Ravennate and of the path 43076054 under the station, whose ramps the map's ground
+  does not hold), 62 open: 47 under houses (the centre's arcades and covered ways), 13 under too low
+  a bank and the cycle path's 2, for want of room. The L has 12, 3 with a portal, 9 open (1 under a
+  house). A part's road tunnels need nothing more: the build finds and bakes their mouths in any
+  region, and `src/render/__tests__/tunnels.map-test.ts` (with its Cesena and L twins) checks every
+  one drawn, finds again by geometry why each open one is open, and pins each region's counts of
+  roads in tunnels, passages, metres, wall triangles, mouths, portals, head walls and open mouths by
+  reason, so it fails until a new part's are looked at and pinned.
 - Rail (`rail-levels.ts`): at a level crossing the rail keeps its own grade and the road meets it
   (the road's profile, after the rail's, is pinned to it at the shared node): a rail pinned to the
   road's natural level made a V of 3.8–5.1% in its grade within ±5 m (an 82 m vertical curve at

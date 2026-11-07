@@ -2,7 +2,7 @@
  * The road tunnels' lines, as the bake of their mouths reads them (`bakeMouths` in render/portals):
  * the roads in a tunnel joined end to end, how long they are and how high the ground stands over
  * them, a point along one, and, over a tunnel's end by its mouth, how high the ground stands and
- * whether a house stands over the way (a covered way, which the house hides).
+ * whether a house stands over the way at its level (a covered way, which the house hides).
  *
  * @module render/tunnel-lines
  */
@@ -112,17 +112,25 @@ const probes = (road: Line, end: number, from: number, to: number) => {
 export const groundOver = (road: Line, end: number, from: number, to: number): number =>
   Math.max(...probes(road, end, from, to).map(({ x, y, z }) => terrainZ(x, y) - z))
 
-/** Whether a building of `houses` stands over `road`'s line within `to` m in from its end `end` (probed every PROBE m): a covered way, which the house hides. */
+/**
+ * Whether a building of `houses` stands over `road`'s line at the way's level within `to` m in from
+ * its end `end` (probed every PROBE m), the ground under its lowest corner (`z0`) less than `clear`
+ * m over the road there: a covered way, which the house hides. A house on the hill over a bore
+ * hides nothing.
+ */
 export const housed = (
   road: Line,
   end: number,
   to: number,
+  clear: number,
   houses: ReadonlyArray<Building>,
 ): boolean =>
-  probes(road, end, 0, to).some(({ x, y }) =>
+  probes(road, end, 0, to).some(({ x, y, z }) =>
     houses.some(
-      ({ outer, holes }) =>
-        pointInRing(x, y, outer) && !(holes ?? []).some((hole) => pointInRing(x, y, hole)),
+      ({ outer, holes, z0 }) =>
+        z0 - z < clear &&
+        pointInRing(x, y, outer) &&
+        !(holes ?? []).some((hole) => pointInRing(x, y, hole)),
     ),
   )
 
