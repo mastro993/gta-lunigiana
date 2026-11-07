@@ -6,8 +6,21 @@
  * split into byte planes: the low byte of every value, then the next byte of every value. Neighbours
  * differ little and like bytes sit together, which is what gzip compresses best.
  *
- * The global file's line is `MonzoneMapJson` (everything sparse: the roads' attributes, the graph,
- * the railway, the tile list, the baked tables); its sections are the coarse grid's heights and cover.
+ * The global file's line is `MonzoneMapJson` (everything sparse: the roads' attributes, the railway,
+ * the tile list, the baked tables); its sections hold the coarse grid and the line's bulk arrays,
+ * whose counts the line holds in their place, so the line that `JSON.parse` reads at load stays
+ * short (issue #5's 8 MB):
+ *
+ * | Section | Integers | Bytes | Stride |
+ * |---|---|---|---|
+ * | coarse heights | the coarse grid's nodes, decimetres, each row delta-coded from its first node | 2 | its columns (the node to the south) |
+ * | coarse cover | the land cover of the 4 m cell north-east of each node | 1 | its columns |
+ * | graph xy | the graph's node coordinates, decimetres (the build rounds the map to 0.1 m) | 4 | 2 (the previous x or y) |
+ * | graph edges | (a, b, road) per edge | 4 | 3 (the previous edge's) |
+ * | graph traffic, walk | edge indices, ascending | 4 | 1 |
+ * | lanes | each model's lanes, model by model in the line's order: each lane's index in the line's table of their values | 2 | none |
+ * | residents | per walk edge, its float32's bit pattern (`derived.residents`) | 4 | none |
+ *
  * A tile's line is `TileJson`, which holds the vectors round its square (`TileVectors`, as JSON:
  * their doubles come back exact); its sections hold the dense layers of its square:
  *
@@ -21,23 +34,18 @@
  * | cover | 500 × 500 cells, the land-cover index (`./cover.ts`) | 1 | 500 (the cell to the south) |
  * | walk, drive wall levels | each wall's level (a bridge's parapet's: its deck's top), decimetres a.s.l., `NO_LEVEL` for a wall that stands at every level | 4 | 1 |
  *
- * Decoding is exact: every coordinate is an integer number of decimetres divided by 10, the same
- * double JSON would give for a one-decimal number. The sim never fetches: the browser host downloads
- * and gunzips the global file and hands it to `provideMap` before anything imports `./index.ts`, then
- * hands each tile to `provideTile` (`./tiles.ts`); under Node (tests, tools, the Ritmo lint) `mapFile`
- * and the tile store read them from disk.
+ * A section with no stride holds each value itself, zigzag-coded. Decoding is exact: every
+ * coordinate is an integer number of decimetres divided by 10, the same double JSON would give for a
+ * one-decimal number, a lane is its table's double and a resident its float32. The sim never
+ * fetches: the browser host downloads and gunzips the global file and hands it to `provideMap`
+ * before anything imports `./index.ts`, then hands each tile to `provideTile` (`./tiles.ts`); under
+ * Node (tests, tools, the Ritmo lint) `mapFile` and the tile store read them from disk.
  *
  * @module map/packed
  */
-import type {
-  Area,
-  Barrier,
-  Building,
-  MonzoneMap,
-  MonzoneMapJson,
-  RoadLine,
-  Water,
-} from "./index.ts"
+import type { VehicleModel } from "../vehicles.ts"
+import type { Derived } from "./derived.ts"
+import type { Area, Barrier, Building, Coarse, MonzoneMap, RoadLine, Water } from "./index.ts"
 import { TILE } from "./kinds.ts"
 
 interface Corner {
@@ -45,8 +53,26 @@ interface Corner {
   readonly minY: number
 }
 
-/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors, 5 gave the walls their levels. */
-export const MAP_VERSION = 5
+/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the global file's line. */
+export const MAP_VERSION = 6
+
+/**
+ * The JSON line that opens the global file: `MonzoneMap` with its bulk arrays left to the sections
+ * after it (the coarse grid's heights and cover, the graph, the lanes and the residents), and how
+ * many values each of those sections holds in their place.
+ */
+export interface MonzoneMapJson extends Omit<MonzoneMap, "coarse" | "graph" | "lanes" | "derived"> {
+  readonly coarse: Omit<Coarse, "heights" | "cover">
+  /** How many values each of the graph's arrays holds. */
+  readonly graph: Readonly<Record<keyof MonzoneMap["graph"], number>>
+  /** Every distinct lane offset, ascending (a lane is its index here), and how many lanes each model has, in the decoded map's order of the models. */
+  readonly lanes: {
+    readonly table: ReadonlyArray<number>
+    readonly counts: Readonly<Record<VehicleModel, number>>
+  }
+  /** `derived` with the residents' count in their place. */
+  readonly derived: Omit<Derived, "residents"> & { readonly residents: number }
+}
 
 /** A wall's level in a tile file where it has none, and stands at every level: below any ground (int16's least, decimetres). */
 export const NO_LEVEL = -32768
@@ -114,7 +140,7 @@ export const mapFile = (): Uint8Array => {
   return readMapFile(MAP_URL)
 }
 
-/** The `n` integers of the section at byte `at`: `size` byte planes of zigzag deltas from the value `stride` back. */
+/** The `n` integers of the section at byte `at`: `size` byte planes of zigzag deltas from the value `stride` back (`Infinity`: each value itself). */
 const unpack = (
   file: Uint8Array,
   at: number,
@@ -189,15 +215,67 @@ const sectionsOf = (file: Uint8Array, what: string) => {
   }
 }
 
-/** The global map from its gunzipped file: the JSON line, then the coarse grid's heights and cover. */
+// The graph's, the lanes' and the residents' sections as the plain arrays the JSON line gave before
+// them, so the game reads the same arrays; a loop each, which takes a third of `Array.from`'s time.
+
+/** A section's integers as a plain array. */
+const listOf = (values: Int32Array): Array<number> => {
+  const out: Array<number> = []
+  for (let k = 0; k < values.length; k++) out.push(values[k]!)
+  return out
+}
+
+/** Decimetres as metres, a plain array. */
+const metresOf = (dm: Int32Array): Array<number> => {
+  const out: Array<number> = []
+  for (let k = 0; k < dm.length; k++) out.push(dm[k]! / 10)
+  return out
+}
+
+/** Float32 bit patterns as their values, a plain array. */
+const float32sOf = (bits: Int32Array): Array<number> => {
+  const f32 = new Float32Array(bits.buffer, bits.byteOffset, bits.length),
+    out: Array<number> = []
+  for (let k = 0; k < f32.length; k++) out.push(f32[k]!)
+  return out
+}
+
+/** The global map from its gunzipped file: the JSON line, then the coarse grid, the graph, the lanes and the residents. */
 export const decodeMap = (file: Uint8Array): MonzoneMap => {
   const { json: line, section, end } = sectionsOf(file, "the global map file")
   const json = line as MonzoneMapJson
   const { cols, rows } = json.coarse
   const heights = unpackRows(section(cols * rows, 2, cols), cols)
   const cover = Uint8Array.from(section(cols * rows, 1, cols))
+  const counts = json.graph
+  const graph = {
+    xy: metresOf(section(counts.xy, 4, 2)),
+    edges: listOf(section(counts.edges, 4, 3)),
+    traffic: listOf(section(counts.traffic, 4, 1)),
+    walk: listOf(section(counts.walk, 4, 1)),
+  }
+  const { table, counts: sides } = json.lanes
+  const indices = section(
+    Object.values(sides).reduce((sum, n) => sum + n, 0),
+    2,
+    Infinity,
+  )
+  const lanes: Partial<Record<VehicleModel, ReadonlyArray<number>>> = {}
+  let at = 0
+  for (const [model, n] of Object.entries(sides) as Array<[VehicleModel, number]>) {
+    const of: Array<number> = []
+    for (const stop = at + n; at < stop; at++) of.push(table[indices[at]!]!)
+    lanes[model] = of
+  }
+  const residents = float32sOf(section(json.derived.residents, 4, Infinity))
   end()
-  return { ...json, coarse: { ...json.coarse, heights, cover } }
+  return {
+    ...json,
+    coarse: { ...json.coarse, heights, cover },
+    graph,
+    lanes: lanes as MonzoneMap["lanes"],
+    derived: { ...json.derived, residents },
+  }
 }
 
 /** Nodes along a tile's side (its border nodes are its neighbours' too). */

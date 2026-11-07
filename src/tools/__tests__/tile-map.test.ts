@@ -1,9 +1,14 @@
 import assert from "node:assert/strict"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { test } from "node:test"
+import { pathToFileURL } from "node:url"
+import { gzipSync } from "node:zlib"
 
 import { decodeMap, decodeTile, MAP_VERSION } from "../../sim/map/packed.ts"
-import { joinTiles } from "../map-file.ts"
-import { packTile } from "../pack.ts"
+import { joinTiles, readWholeMap } from "../map-file.ts"
+import { packTile, relined } from "../pack.ts"
 import { type BuiltMap, cutMap, NO_BAKES, stampMap } from "../tile-map.ts"
 
 /** The 6 × 6 cells' land cover. */
@@ -157,6 +162,54 @@ test("an unlisted tile's coarse nodes and cells read the nearest listed node and
     cell(2, 5),
     cell(5, 2),
   ])
+})
+
+test("readWholeMap reads a build of version 5, whose global file's line holds the graph, the lanes and the residents, as the same build of today's", () => {
+  const map = {
+    ...built(data),
+    graph: { xy: [0, 0, 10.5, -3.2], edges: [0, 1, 0], traffic: [0], walk: [0] },
+  }
+  const bakes = {
+    ...NO_BAKES,
+    lanes: {
+      panda: [2.0500000000000003, -1],
+      ape: [-1, -1],
+      truck: [-1, -1],
+      carabinieri: [1.8, 0],
+    },
+    residents: [Math.fround(1.3)],
+  }
+  const cut = cutMap(map, "test"),
+    tiles = cut.tiles(bakes).files,
+    { global, file, tile } = stampMap(cut.global(bakes), tiles.values())
+  // version 5's file: its line with the arrays, then the coarse grid's two sections alone
+  const { cols, rows } = global.coarse,
+    { graph, lanes, derived } = global
+  const v5 = relined(file.subarray(0, file.indexOf(10) + 1 + 3 * cols * rows), {
+    version: 5,
+    graph,
+    lanes,
+    derived,
+  })
+  const dir = mkdtempSync(join(tmpdir(), "read-whole-map-"))
+  try {
+    const write = (name: string, globalFile: Uint8Array, version: number) => {
+      mkdirSync(join(dir, name, "test"), { recursive: true })
+      writeFileSync(join(dir, name, "test.bin"), gzipSync(globalFile))
+      for (const [key, f] of tiles)
+        writeFileSync(
+          join(dir, name, "test", `${key}.bin`),
+          gzipSync(relined(tile(f), { version })),
+        )
+      return pathToFileURL(join(dir, name, "test.bin"))
+    }
+    const old = readWholeMap(write("v5", v5, 5)),
+      today = readWholeMap(write("v6", file, MAP_VERSION))
+    assert.deepEqual(old, today)
+    assert.deepEqual([old.graph, old.lanes], [map.graph, bakes.lanes])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test("joinTiles refuses a tile from another build", () => {

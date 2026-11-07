@@ -170,10 +170,10 @@ console.log({
   parked: map.spawns.parked.length,
   player: map.spawns.player,
   grades,
-  // the files' parts before gzip (the global JSON line and coarse grid, the tiles' sections and vectors summed), and the JSON line's biggest fields
+  // the files' parts before gzip (the global JSON line and its sections, the tiles' sections and vectors summed), and two of the JSON line's biggest fields
   sizes: {
     ...Object.fromEntries(Object.entries(written.sizes).map(([part, n]) => [part, kb(n)])),
-    graph: jsonKb(map.graph),
+    spawns: jsonKb(map.spawns),
     roads: jsonKb(map.roads),
   },
 })

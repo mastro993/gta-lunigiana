@@ -8,6 +8,7 @@ import {
   decodeTile,
   decodeTileVectors,
   MAP_VERSION,
+  type MonzoneMapJson,
   TILE_CELLS,
   TILE_NODES,
 } from "../packed.ts"
@@ -91,7 +92,62 @@ test("packMap and decodeMap round-trip the global file (a newline inside a name,
   const old = Buffer.from(`${JSON.stringify({ version: 2 })}\n`)
   assert.throws(
     () => decodeMap(old),
-    /the global map file is version 2, this decoder reads 5; run pnpm map/,
+    /the global map file is version 2, this decoder reads 6; run pnpm map/,
+  )
+})
+
+/** `map`'s graph, lanes and residents as the build bakes them: coordinates on decimetres, lanes with the fit's float noise, residents float32. */
+const tables = {
+  graph: {
+    // negative, one decimal, jumps across Lunigiana's box (deltas past 2 bytes)
+    xy: [-11500, 13000.3, 0.1, -0.5, -11499.9, -6100],
+    edges: [0, 1, 0, 1, 2, 3, 0, 2, 3],
+    traffic: [1, 2],
+    walk: [0, 1, 2],
+  },
+  // models out of their usual order, which the decoded record keeps; a model with no lanes yet
+  lanes: {
+    ape: [2.0500000000000003, 2.05, -1, 0.1 + 0.2],
+    panda: [],
+    truck: [-1, -1, -1, -1],
+    carabinieri: [0, 1.8, 1.8, 0],
+  },
+  residents: [0, Math.fround(1.3), Math.fround(1e-7)],
+}
+
+test("the graph, the lanes and the residents travel as sections after the JSON line, which holds their counts, and come back to the bit", () => {
+  const { graph, lanes, residents } = tables
+  const file = packMap({ ...map, graph, lanes, derived: { ...map.derived, residents } }).file
+  const decoded = decodeMap(file)
+  assert.deepEqual(decoded.graph, graph)
+  assert.deepEqual(Object.entries(decoded.lanes), Object.entries(lanes))
+  assert.deepEqual(decoded.derived.residents, residents)
+  const line = JSON.parse(
+    Buffer.from(file.subarray(0, file.indexOf(10))).toString(),
+  ) as MonzoneMapJson
+  assert.deepEqual(line.graph, { xy: 6, edges: 9, traffic: 2, walk: 3 })
+  // each lane is its value's index in the table on the line, its distinct values ascending
+  assert.deepEqual(line.lanes, {
+    table: [-1, 0, 0.30000000000000004, 1.8, 2.05, 2.0500000000000003],
+    counts: { ape: 4, panda: 0, truck: 4, carabinieri: 4 },
+  })
+  assert.equal(line.derived.residents, 3)
+})
+
+test("packMap throws on a graph coordinate off the decimetre, a resident that is no float32 and lanes of more values than their indices hold", () => {
+  assert.throws(
+    () => packMap({ ...map, graph: { ...map.graph, xy: [0, 0.15] } }),
+    /graph xy: 0.15 at 1 is not a whole number of decimetres/,
+  )
+  assert.throws(
+    () => packMap({ ...map, derived: { ...map.derived, residents: [0, 1.3] } }),
+    /residents: 1.3 at 1 is not a float32/,
+  )
+  // with the other models' -1, 0, 1.5 and 1.6, one past what the indices hold
+  const many = Array.from({ length: 32_765 }, (_, k) => k + 0.25)
+  assert.throws(
+    () => packMap({ ...map, lanes: { ...map.lanes, panda: many } }),
+    /lanes: 32769 distinct values, past the 32768 their 2-byte indices hold/,
   )
 })
 

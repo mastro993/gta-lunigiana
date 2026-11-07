@@ -1,7 +1,8 @@
 // Encoders of the map files (before gzip); the format and the decoders (`decodeMap`, `decodeTile`)
 // are in src/sim/map/packed.ts. Every value must fit its section, or the build throws.
-import type { MonzoneMap, MonzoneMapJson } from "../sim/map/index.ts"
+import type { MonzoneMap } from "../sim/map/index.ts"
 import {
+  type MonzoneMapJson,
   NO_LEVEL,
   packOrigin,
   TILE_CELLS,
@@ -21,7 +22,7 @@ interface Corner {
 /** One past the largest zigzag delta that fits in 1, 2 or 4 bytes. */
 const BYTES_LIMIT = { 1: 0x100, 2: 0x1_0000, 4: 0x1_0000_0000 } as const
 
-/** `values` as `size` byte planes of zigzag deltas from the value `stride` back, each an int32 whose delta fits. */
+/** `values` as `size` byte planes of zigzag deltas from the value `stride` back (`Infinity`: each value itself), each an int32 whose delta fits. */
 const pack = (values: ArrayLike<number>, size: 1 | 2 | 4, stride: number, what: string): Buffer => {
   const n = values.length,
     out = Buffer.alloc(n * size)
@@ -90,6 +91,74 @@ const packTrees = (flat: ArrayLike<number>, corner: Corner): Buffer => {
   )
 }
 
+/** Graph coordinates (m) as integer decimetres: each must be a whole number of them, as the build rounds the map to 0.1 m. */
+const toDecimetres = (values: ArrayLike<number>, what: string): Array<number> =>
+  Array.from(values, (v, k) => {
+    const dm = Math.round(v * 10)
+    if (dm / 10 !== v) throw new Error(`${what}: ${v} at ${k} is not a whole number of decimetres`)
+    return dm
+  })
+
+/** How many distinct lane offsets the table holds at most: an index fits 2 bytes zigzag-coded. */
+const LANE_TABLE = 0x8000
+
+/** Every distinct lane offset ascending, and each model's lanes as indices into it, model by model. */
+const laneIndices = (lanes: MonzoneMap["lanes"]) => {
+  const all = Object.values(lanes).flat(),
+    table = [...new Set(all)].sort((a, b) => a - b)
+  if (table.length > LANE_TABLE)
+    throw new Error(
+      `lanes: ${table.length} distinct values, past the ${LANE_TABLE} their 2-byte indices hold`,
+    )
+  const index = new Map(table.map((v, k) => [v, k]))
+  return { table, indices: all.map((v) => index.get(v)!) }
+}
+
+/** Float32 values as their bit patterns (int32), so each comes back to the bit; each must be a float32. */
+const float32Bits = (values: ArrayLike<number>, what: string): Int32Array => {
+  const f32 = Float32Array.from(values)
+  f32.forEach((v, k) => {
+    if (v !== values[k]) throw new Error(`${what}: ${values[k]} at ${k} is not a float32`)
+  })
+  return new Int32Array(f32.buffer)
+}
+
+/**
+ * The global file's sections after the coarse grid's, in file order (the graph, the lanes, the
+ * residents), and what its JSON line holds in their place (`MonzoneMapJson`): their counts and the
+ * lanes' table.
+ */
+export const packTables = (
+  graph: MonzoneMap["graph"],
+  lanes: MonzoneMap["lanes"],
+  residents: ArrayLike<number>,
+) => {
+  const { table, indices } = laneIndices(lanes)
+  const counts = Object.fromEntries(
+    Object.entries(lanes).map(([model, sides]) => [model, sides.length]),
+  ) as MonzoneMapJson["lanes"]["counts"]
+  return {
+    line: {
+      graph: {
+        xy: graph.xy.length,
+        edges: graph.edges.length,
+        traffic: graph.traffic.length,
+        walk: graph.walk.length,
+      },
+      lanes: { table, counts },
+      residents: residents.length,
+    },
+    parts: {
+      xy: pack(toDecimetres(graph.xy, "graph xy"), 4, 2, "graph xy"),
+      edges: pack(graph.edges, 4, 3, "graph edges"),
+      traffic: pack(graph.traffic, 4, 1, "graph traffic"),
+      walk: pack(graph.walk, 4, 1, "graph walk"),
+      lanes: pack(indices, 2, Infinity, "lanes"),
+      residents: pack(float32Bits(residents, "residents"), 4, Infinity, "residents"),
+    },
+  }
+}
+
 /** The gunzipped global file `decodeMap` reads back into `map`, and the bytes of each of its parts. */
 export const packMap = (
   map: MonzoneMap,
@@ -97,12 +166,21 @@ export const packMap = (
   const {
     coarse: { heights, cover, ...coarse },
   } = map
-  const json: MonzoneMapJson = { ...map, version: MAP_VERSION, coarse }
+  const tables = packTables(map.graph, map.lanes, map.derived.residents)
+  const json: MonzoneMapJson = {
+    ...map,
+    version: MAP_VERSION,
+    coarse,
+    graph: tables.line.graph,
+    lanes: tables.line.lanes,
+    derived: { ...map.derived, residents: tables.line.residents },
+  }
   const parts = {
     // file order
     json: Buffer.from(`${JSON.stringify(json)}\n`),
     heights: packRows(heights, coarse.cols, "coarse heights"),
     cover: pack(cover, 1, coarse.cols, "coarse cover"),
+    ...tables.parts,
   }
   return {
     file: Buffer.concat(Object.values(parts)),

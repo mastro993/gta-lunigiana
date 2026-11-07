@@ -15,9 +15,9 @@ import { fetchFile, gunzipped, NEAR } from "./stream.ts"
 
 /**
  * Shares of the bar the global file's download and the start tiles' fill (by their bytes on
- * Lunigiana: the global file 1.54 MB, its 4 start tiles 2.03 MB); the build steps share the rest.
+ * Lunigiana: the global file 1.25 MB, its 4 start tiles 2.11 MB); the build steps share the rest.
  */
-const GLOBAL = 0.26
+const GLOBAL = 0.22
 const DOWNLOAD = 0.6
 const mb = (bytes: number) => (bytes / 1e6).toFixed(1)
 

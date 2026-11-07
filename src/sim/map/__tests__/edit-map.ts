@@ -5,9 +5,8 @@
  */
 
 import { partOf } from "../../../tools/region.ts"
-import type { MonzoneMapJson } from "../index.ts"
 import { tileRange } from "../kinds.ts"
-import { MAP_URL, provideMap, readMapFile } from "../packed.ts"
+import { MAP_URL, type MonzoneMapJson, provideMap, readMapFile } from "../packed.ts"
 
 /** Hands over Lunigiana's global file with its JSON line made `edit` of it, before any module decodes the map. */
 export const editMap = (edit: (json: MonzoneMapJson) => MonzoneMapJson): void => {

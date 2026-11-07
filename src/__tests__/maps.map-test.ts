@@ -24,3 +24,13 @@ test("every tile each map's global file lists has a file at its tile URL, in the
     }
   }
 })
+
+test("each map's global file opens with a JSON line of at most 8 MB", () => {
+  for (const search of ["?map=lunigiana", "?map=cesena"]) {
+    const map = mapForSearch(search)
+    const line = readMapFile(map.url).indexOf(10)
+    // Issue #5's scale check (map.json ≤ 8 MB, #18): the game reads the line with JSON.parse at
+    // load, its slowest step, so the bulk arrays travel as sections after it (packed.ts).
+    assert.ok(line <= 8_000_000, `${map.id}: the global file's JSON line is ${line} B`)
+  }
+})
