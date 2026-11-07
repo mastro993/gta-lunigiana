@@ -45,18 +45,27 @@ const COVERS = [
   "lake",
   "conifer",
   "mixed",
+  "olive",
 ] as const satisfies ReadonlyArray<Cover>
 
 const coverIndex = new Map<string, number>(COVERS.map((c, i) => [c, i]))
 /**
  * The covers in fill order, later kinds drawing over earlier ones: the woods first, broadleaf then
  * the UCS's conifer and mixed woods over it (they refine OSM's), then every other cover, so a wood
- * holds only ground no other area claims; the water, and a river's gravel bars over it, last.
+ * holds only ground no other area claims; the vineyards and the olive groves after the open covers,
+ * the fields and the residential land (the land cover's olive groves and vineyards are on the 2023
+ * orthophoto where OSM draws its woods, grassland, fields or houses over them), and a farmyard over
+ * them (a farm's yard, smaller than the land cover's half hectare), then the parks, squares and the
+ * like; the water, and a river's gravel bars over it, last.
  */
 const FILL: ReadonlyArray<Cover> = [
   "meadow",
   ...WOODS,
-  ...COVERS.filter((c) => c !== "meadow" && !isWood(c) && !isWaterArea(c) && c !== "pebble"),
+  ...COVERS.filter(
+    (c) => c !== "meadow" && c !== "olive" && !isWood(c) && !isWaterArea(c) && c !== "pebble",
+  ).flatMap((c) =>
+    c === "farmyard" ? [] : c === "vineyard" ? [c, "olive" as const, "farmyard" as const] : [c],
+  ),
   "river",
   "lake",
   "pebble",

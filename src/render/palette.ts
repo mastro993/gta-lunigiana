@@ -33,6 +33,10 @@ export const PALETTE = {
   // pine woods on the Massa hills (the coast's stone pines read 4–7 times apart on the two flights).
   beech: 0x404f22,
   pine: 0x36442b,
+  // The olive's grey-green crown (render/trees), and an olive grove on the HUD's maps: forest scaled in linear light by the
+  // sunlit olive crowns' medians over the woods beside them, (1.90, 1.44, 1.81), on rt_ofc.5k23 over three groves round
+  // Gragnola (250–460 m; the woods there low mixed broadleaf, not the chestnut woods beech and pine were scaled from).
+  olive: 0x616a40,
   // Out of leaf (render/leaves): the grey-brown twigs of a bare chestnut or beech crown, the dull tan of the dead leaves a downy
   // oak holds through the winter, and the leaf litter on a broadleaf wood's floor. Design values, not measured.
   bareCrown: 0x7a6a5f,

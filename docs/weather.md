@@ -942,7 +942,7 @@ keeps them; `pnpm playtest shots --date` starts the game on another day
   (`oakDead`) and the rest go bare; a broadleaf wood's floor shows its leaf litter (`litter`), a
   mixed wood's half of it. Snow clings to every crown's sides at half the share it settles on flat
   ground (`CANOPY_SNOW`), so a snowy wood is flecked white, conifers included. Conifers and pines
-  keep their needles.
+  keep their needles, and olives their leaves.
 - **The fit.** The constants rest on MeteoSwiss's phenology network, 1991–2020 (CC BY 4.0), each
   number checked again from its station files: 138 stations' beech leaf-out (101.8 days + 2.22 a 100
   m), the chestnut 6 days behind it (the median of 1,081 station-years, 1991–2025), the daily-mean

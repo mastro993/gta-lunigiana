@@ -4,10 +4,11 @@ import { test } from "node:test"
 import { type InstancedMesh, MeshBasicMaterial } from "three"
 
 import { type Cover, coverAt } from "../../sim/map/cover.ts"
-import { isWood, MAP, TILE } from "../../sim/map/index.ts"
+import { isWood, MAP, OLIVE_TREES, TILE } from "../../sim/map/index.ts"
 import { tilesOver, tileTrees } from "../../sim/map/tiles.ts"
 import { hash01 } from "../../tools/geometry.ts"
-import { bucketTileTrees, kindAt, speciesAt, treeMeshes, type TreeKind } from "../trees.ts"
+import { terrainY } from "../ground.ts"
+import { bucketTileTrees, inCrown, kindAt, speciesAt, treeMeshes, type TreeKind } from "../trees.ts"
 import { assertChunkTrees } from "./chunk-trees.ts"
 
 /**
@@ -70,7 +71,7 @@ test("speciesAt: a conifer wood is conifers, pines below 600 m; a mixed wood 45%
   assert.equal(shareOf("pine", "conifer", 300, 0), 1)
   assert.ok(Math.abs(shareOf("conifer", "mixed", 700, 0) - 0.45) < 0.02)
   assert.ok(Math.abs(shareOf("pine", "mixed", 300, 0) - 0.45) < 0.02)
-  for (const cover of ["meadow", "pebble", "grassland"] as const)
+  for (const cover of ["meadow", "pebble", "grassland", "olive"] as const)
     for (const z of [100, 900, 1500]) assert.equal(shareOf("broadleaf", cover, z, -1), 1)
 })
 
@@ -199,4 +200,27 @@ test("treeMeshes: out of leaf a broadleaf or a beech is drawn bare and half the 
     seasonal.reduce((n, m) => n + m.count, 0),
     trees.length / 4,
   )
+})
+
+test("kindAt: a tree of the olive groves' lattice is an olive wherever it stands, 3.5 m tall, its crown 3.6 m across, drawn with a crown of its own", () => {
+  // The first tree of the tile north-east of (0, 0), by Monzone: a wood's or a bank's.
+  const [key] = tilesOver(1, 1, 1, 1)
+  const { trees, ids } = tileTrees(key!)
+  const x = trees[0]!,
+    y = trees[1]!
+  assert.ok(ids[0]! < OLIVE_TREES)
+  assert.notEqual(kindAt(x, y, 3 * ids[0]!), "olive")
+  for (const id of [OLIVE_TREES, OLIVE_TREES + 2 ** 28 - 1])
+    assert.equal(kindAt(x, y, 3 * id), "olive")
+  // An olive drawn at unit size: its seed's size draw 1 to 0.3% (0.85 + 0.3 × 0.5).
+  let id = OLIVE_TREES
+  while (Math.abs(hash01(3 * id, 9) - 0.5) > 0.01) id++
+  const base = terrainY(x, y) - 0.2
+  assert.ok(inCrown(x, y, 1, id, x, y, base + 3.47) && !inCrown(x, y, 1, id, x, y, base + 3.53))
+  assert.ok(inCrown(x, y, 1, id, x + 1.77, y, base + 2.1))
+  assert.ok(!inCrown(x, y, 1, id, x + 1.83, y, base + 2.1))
+  const material = new MeshBasicMaterial()
+  const [olive] = treeMeshes(Float64Array.of(x, y, 1, 3 * id), material),
+    drawn = treeMeshes(Float64Array.of(x, y, 1, 3 * ids[0]!), material)
+  assert.ok(drawn.every((m) => m.geometry !== olive!.geometry))
 })

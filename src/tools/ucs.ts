@@ -3,12 +3,15 @@
 // EPSG:3003) and Regione Liguria's 1:10 000, ed. 2025 ("Uso del Suolo", data/raw/lig/<part>/
 // uds.json.gz, written by fetch-lig.ts, EPSG:25832), both in Corine's classes, Liguria's to the
 // fourth level, read by the third (the code's first three digits: its 3111 holm oak and maquis and
-// 3115 chestnut are broadleaf woods, 311). Kept: the open covers OSM mostly lacks above the woods
-// (in the new mountain area it tags about a fifth of the bare rock and half the pastures), the
-// rivers' gravel beds, the water bodies, and the woods by type. The woods fill first and every
-// other area over them (`FILL` in sim/map/raster.ts), so inside OSM's woods the conifer and mixed
-// ones refine its forest, and elsewhere a land-cover wood holds only ground no OSM area claims.
-// Fields and towns stay OSM's.
+// 3115 chestnut are broadleaf woods, 311) but where the fourth names another kind (`FOURTH`). Kept:
+// the open covers OSM mostly lacks above the woods (in the new mountain area it tags about a fifth
+// of the bare rock and half the pastures), the rivers' gravel beds, the water bodies, the woods by
+// type, and the olive groves and vineyards OSM mostly lacks on the hills. The woods fill first and
+// every other area over them (`FILL` in sim/map/raster.ts), so inside OSM's woods the conifer and
+// mixed ones refine its forest, and elsewhere a land-cover wood holds only ground no OSM area
+// claims; the olive groves and vineyards draw over OSM's woods, open covers, grassland, fields and
+// residential land (the 2023 orthophoto shows them where OSM draws its woods, grassland or fields),
+// and under its farmyards, parks, squares and the like.
 import { readFileSync } from "node:fs"
 import { gunzipSync } from "node:zlib"
 
@@ -29,6 +32,8 @@ import type { Rect } from "./region.ts"
 /** UCS 2019 classes kept, and the area kind each becomes. */
 export const UCS_CODES = {
   "131": "quarry", // aree estrattive
+  "221": "vineyard", // vigneti
+  "223": "olive", // oliveti
   "311": "forest", // boschi di latifoglie
   "312": "conifer", // boschi di conifere
   "313": "mixed", // boschi misti di conifere e latifoglie
@@ -39,6 +44,22 @@ export const UCS_CODES = {
   "331": "pebble", // spiagge, dune e sabbie: inland, the rivers' gravel bars
   "512": "lake", // corpi d'acqua
 } as const satisfies Record<string, AreaKind>
+
+/**
+ * Liguria's fourth-level codes whose kind is not their third level's: vines mixed with olives are
+ * an olive grove, abandoned vines or other permanent crops no kept class. Its abandoned olive groves
+ * (2231, "oliveti abbandonati") stay olive groves, as their third level says.
+ */
+const FOURTH = {
+  "2211": "olive", // vigneti misti ad oliveti
+  "2212": undefined, // vigneti e/o altri tipi di colture permanenti abbandonate
+} as const satisfies Record<string, AreaKind | undefined>
+
+/** The kind a land cover code becomes (`FOURTH`'s, else its third level's in `UCS_CODES`), or undefined for a class not kept. */
+export const kindOfCode = (code: string): AreaKind | undefined =>
+  Object.hasOwn(FOURTH, code)
+    ? FOURTH[code as keyof typeof FOURTH]
+    : UCS_CODES[code.slice(0, 3) as keyof typeof UCS_CODES]
 
 /** A land cover file: its CRS and its polygons, each an id, a class code and its rings (outer first, flat). */
 interface UcsFile {
@@ -141,7 +162,7 @@ const readOne = (
   const twice = new Set<string>()
   return file.polygons.flatMap(({ id, code, rings }) => {
     const key = `${id} ${rings[0]!.join(",")}`,
-      kind = UCS_CODES[code.slice(0, 3) as keyof typeof UCS_CODES]
+      kind = kindOfCode(code)
     if (seen.has(`${file.crs} ${id}`) || twice.has(key) || kind === undefined) return []
     twice.add(key)
     const [outer, ...holes] = rings.map((r) => {

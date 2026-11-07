@@ -21,9 +21,16 @@ import { buildingCentre, residentsNear } from "./density.ts"
 const FARM_KINDS: ReadonlySet<string> = new Set(["house", "barn", "shed", "farm_auxiliary", "silo"])
 /** The farm buildings pigs are kept by: a barn, a shed, a farm building (or any farm building on a farmyard). */
 const PEN_KINDS: ReadonlySet<string> = new Set(["barn", "shed", "farm_auxiliary"])
-/** Open, unpaved land: a farm stands on it, free dogs and pigs are put on it. Paved and residential cover are the villages. */
-const OPEN: ReadonlySet<Cover> = new Set(["meadow", "grassland", "farmland", "farmyard"])
-/** Where cows graze: open land but the farmyard. */
+/** Open, unpaved land, its fields and groves: a farm stands on it, free dogs and pigs are put on it. Paved and residential cover are the villages. */
+const OPEN: ReadonlySet<Cover> = new Set([
+  "meadow",
+  "grassland",
+  "farmland",
+  "farmyard",
+  "vineyard",
+  "olive",
+])
+/** Where cows graze: open land but the farmyard, the vineyards and the olive groves. */
 const PASTURE: ReadonlySet<Cover> = new Set(["meadow", "grassland", "farmland"])
 /** A place with fewer residents than this within `RURAL_REACH` m is rural: cows and pigs are kept only there (TUNED). */
 export const RURAL = 60
@@ -86,7 +93,7 @@ const build = () => {
   return { list, grid, roads }
 }
 /**
- * Built on first use from the baked farms: 6,559 on the current map, 5,439 of them rural. The first fill
+ * Built on first use from the baked farms: 6,604 on the current map, 5,479 of them rural. The first fill
  * (`FillAnimals`, in `setup`) asks for farms, so the build happens behind the title card, not in play.
  */
 let built: ReturnType<typeof build> | undefined

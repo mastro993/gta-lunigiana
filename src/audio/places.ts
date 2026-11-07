@@ -147,6 +147,7 @@ const AMBIENCE = {
   lake: "none",
   conifer: "forest",
   mixed: "forest",
+  olive: "open",
 } as const satisfies Record<Cover, keyof Ambience | "none">
 
 /** Where each share of `Ambience` is kept in a block. */

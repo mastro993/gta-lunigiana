@@ -47,6 +47,7 @@ const COVER_SURFACE = {
   lake: "dirt", // a lake's silt
   conifer: "leaves", // needle litter
   mixed: "leaves",
+  olive: "grass", // the grass between the trees
 } as const satisfies Record<Cover, Surface>
 
 /** The roads' OSM `surface` values; anything else is asphalt. */

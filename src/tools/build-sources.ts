@@ -86,12 +86,14 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
       const to = p.kind.startsWith("area:") ? undefined : moves.get(String(p.id))
       return to === undefined ? p : { ...p, x: r1(to.x), y: r1(to.y) }
     })
-  const osmAreas = extractAreas(osm)
+  // Lunigiana's orchards with no trees tag are olive groves low down (`extractAreas`).
+  const osmAreas = extractAreas(osm, lunigiana ? dem.at : undefined)
   const areas: Array<Area> = [
     ...osmAreas.filter((a) => a.kind !== "platform"),
     // Rock, pastures and quarries OSM lacks above the woods, the rivers' gravel, the woods by type
     // (they refine OSM's, and fill only ground no OSM area claims: `FILL` in sim/map/raster.ts),
-    // and the water bodies OSM lacks (OSM's own draws the same water finer, with its level).
+    // the olive groves and vineyards OSM lacks on the hills, and the water bodies OSM lacks (OSM's
+    // own draws the same water finer, with its level).
     ...(lunigiana
       ? readUcs([
           ...inputParts(REGION).map((part) => join(root, ucsFile(part))),

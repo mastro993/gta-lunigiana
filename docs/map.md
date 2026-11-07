@@ -3,8 +3,8 @@
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map of its two parts, lucido and fivizzano ([section
 2](#2-projection-and-play-area-geometryts-play-areats)): the global file `src/sim/map/monzone.bin`
-(1.54 MB), 79 tiles of 2 km in `src/sim/map/monzone/` (30.5 MB in all, the largest 0.61 MB; see [Map
-files](#map-files)) and, beside the tiles, the full map's picture `overview.png` (4.52 MB; [The
+(1.54 MB), 79 tiles of 2 km in `src/sim/map/monzone/` (30.9 MB in all, the largest 0.62 MB; see [Map
+files](#map-files)) and, beside the tiles, the full map's picture `overview.png` (4.65 MB; [The
 overview](#the-overview)). The build is deterministic (gunzipped, its files are the same bytes on
 every machine, arm64 and x64 alike, and it prints the same build hash; gzipped, they are
 byte-identical with the same Node build, while another zlib or OS writes other compressed bytes; the
@@ -874,19 +874,36 @@ regions](#test-regions)).
   shows the woods round the sound tests' meadow on Monte dei Bianchi, (−329, 1078), where OSM maps
   none), its 0.45 km² of
   conifer woods (all at 800–1400 m, the plantations) and 0.74 km² of mixed ones (600–1200 m) 82% and
-  94% in OSM's forest. OSM's own `leaf_type` tags one wood in the box, so it is not read. Fields and
-  towns stay OSM's. Past Tuscany's border, Regione Liguria's land use 1:10 000, ed. 2025 (Uso
+  94% in OSM's forest. OSM's own `leaf_type` tags one wood in the box, so it is not read. And it
+  adds the olive groves (oliveti, 223) as `olive` and the vineyards (vigneti, 221) as `vineyard`,
+  which OSM maps little on the hills: in Lunigiana's box the UCS draws 452 olive groves, 719 ha at
+  143–693 m (half below 376 m), and 393 vineyards, 155 ha, where the OSM extracts hold 9 orchards,
+  none tagged with its trees, and 6 vineyards (2026-11-07). They draw over OSM's woods, its open
+  covers, grassland, farmland and residential land, and under its farmyards, parks, squares and the
+  like ([section 3](#3-features-featurests)), as the 2023 orthophoto bears out where they overlap
+  the woods, grassland and fields (2026-11-07, 22 olive and 23 vineyard patches checked by eye, the
+  overlaps counted in patches of 0.1 ha or more): under OSM's farmland (11 ha) the olive groves are
+  kept rows, under its grassland (10 ha) two thirds olives, and under its forest (115 ha) 28% kept
+  olives, 26% olives the woods are taking back and 44% closed wood; the vineyards under its forest
+  (9 ha) 44% vines and 33% wood, under its farmland (20 ha) 57% vines, and of 7 UCS vineyards no
+  OSM area overlaps, about half the area is still worked, the rest gone back to grass, scrub or
+  young wood since 2019. Past Tuscany's border, Regione Liguria's land use 1:10 000, ed. 2025 (Uso
   del Suolo, Geoportale id 2660, CC BY 4.0; its woods surveyed again to 2024, the rest of La
   Spezia's province of 2019) takes the same place: Corine's classes, to the fourth level (5121
   natural basins, 2211 vineyards mixed with olives, 3111 holm oak and maquis), in EPSG:25832, read
   by their first three digits through the same `UCS_CODES`, so its broadleaf woods (3111–3115) are
-  `forest`. `fetch-lig` writes the polygons of the kept classes to
+  `forest` and its abandoned olive groves (2231) `olive`, but where the fourth names another kind
+  (`kindOfCode`): its vines mixed with olives (2211) are olive groves, and its vines and other
+  permanent crops left untended (2212) no kept class. `fetch-lig` writes the polygons of the kept
+  classes (the query asks by the third digit, and `kindOfCode` drops a 2212) to
   `data/raw/lig/<part>/uds.json.gz` as `ucs.json.gz` holds Tuscany's (each polygon's `ID_RLIG`, its
   whole code, its rings on the decimetre), and `readUcs` reads each file by its `crs`, a polygon two
-  parts' files hold once. On the Sarzana test region, fetched before the woods were kept, it holds
-  8 natural basins (5121) and 2 of the Magra plain's quarries (131); `pnpm fetch-lig sarzana-town`
-  brings its woods. In the lower Val di Magra its sand (331) is the coast's beaches, and the Magra's
-  bed is a river bed (5111, with its channel), which no kept class takes.
+  parts' files hold once. On the Sarzana test region, fetched before the woods, the olive groves and
+  the vineyards were kept, it holds 8 natural basins (5121) and 2 of the Magra plain's quarries
+  (131); `pnpm fetch-lig sarzana-town` brings the rest (a 2.6 km² box of the town held 4 olive
+  groves, 2 vineyards and 2 vines mixed with olives on 2026-11-03). In the lower Val di Magra its
+  sand (331) is the coast's beaches, and the Magra's bed is a river bed (5111, with its channel),
+  which no kept class takes.
 - **Forest inventory, for constants only**: Regione Toscana's Inventario Forestale (IFT, WFS
   `ms:rt_ucs.idift.rt.all` on `map=wmsucs`, 400 m cells with each sample point's species
   `SPECFOR_1`, `QUOTA` and `ESPOSIZ`) has no licence record (its capabilities say only
@@ -975,8 +992,8 @@ own (`fetch-rt.test.ts`). From the archive cache lucido took 22.7 s and peaked a
 1.77 GB and added 5,683,663 cells to 15 of lucido's 30 files (15,675 in −1_1 to 574,694 in −2_1),
 and Fivizzano's first fetch, with its downloads, 232 s and 3.51 GB, again from the cache 85 s. It
 writes the kept land-cover polygons, in EPSG:3003 to the decimetre, to
-`data/raw/rt/ucs/<part>.json.gz` (`crs.ts` has the inverse transform; lucido's 1,048 polygons,
-Fivizzano's 2,478), over the part's terrain, keeping by id the polygons the file already holds, so a
+`data/raw/rt/ucs/<part>.json.gz` (`crs.ts` has the inverse transform; lucido's 1,671 polygons,
+Fivizzano's 3,409), over the part's terrain, keeping by id the polygons the file already holds, so a
 later fetch only adds; the WFS box is padded by 500 m, because the server's box filter sometimes
 drops features near its edge. `pnpm fetch-rt ctr` fetches the surveys alone (the 2019 sheets took 28
 s with their downloads; 2.23 s and 128 MB from the cache with the 2009 sheets and their ruins,
@@ -984,12 +1001,15 @@ s with their downloads; 2.23 s and 128 MB from the cache with the 2009 sheets an
 the map, as they are; `pnpm fetch-rt ucs` fetches the land cover alone (on 2026-10-31 the service
 gave the 425 pinned polygons of the five open covers back byte for byte, and 83 of codes 331 and 512
 besides; on 2026-11-03 the 508 pinned then, and 540 woods besides: 478 broadleaf, 24 conifer and 38
-mixed, which took the file from 208 KB to 649 KB). A file whose unpacked bytes equal the new ones is
-not rewritten, so another zlib never churns a pinned file, and a cached `.zip`'s folder that lacks
-a file the archive lists is extracted again, the archive downloaded again if it went too
-(`fetchZip` in `rt-cache.ts`): macOS purges the temporary directory's files one by one and keeps
-its folders, and a 10 m DTM's folder kept its licence and lost its grid, which `fetch-rt` then did
-not find. Requests name only the project in their `User-Agent`.
+mixed, which took the file from 208 KB to 649 KB; on 2026-11-07, with the olive groves and vineyards
+kept, `pnpm fetch-rt lucido ucs` added lucido's 192 olive groves and 183 vineyards in 4.3 s, taking
+its file from 773 KB to 840 KB, and `pnpm fetch-rt fivizzano ucs` Fivizzano's 490 and 441 in 8.0 s,
+1.74 MB to 1.90 MB, every polygon of the other classes as pinned). A file whose unpacked bytes equal
+the new ones is not rewritten, so another zlib never churns a pinned file, and a cached `.zip`'s
+folder that lacks a file the archive lists is extracted again, the archive downloaded again if it
+went too (`fetchZip` in `rt-cache.ts`): macOS purges the temporary directory's files one by one and
+keeps its folders, and a 10 m DTM's folder kept its licence and lost its grid, which `fetch-rt` then
+did not find. Requests name only the project in their `User-Agent`.
 
 `pnpm fetch-lig <part>` (`src/tools/fetch-lig.ts`, the services in `liguria.ts`) downloads Regione
 Liguria's sources over a part's rectangles from the Geoportale's GeoServer into
@@ -1306,6 +1326,12 @@ for `fetch-rt` and the part tools: [Adding a part](#adding-a-part)), 223.8 km²:
   polygons, mapped to `AREA_KINDS`, plus pedestrian squares as `paved`. OSM's platforms only stand
   where the 2019 CTR's sheets map no ground; elsewhere the CTR's replace them
   ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)): all three of OSM's here.
+  An orchard of olive trees (`landuse=orchard` with `trees=olive_trees`) is an `olive` grove, and
+  on Lunigiana one with no `trees` tag too, where its outer ring's mean ground lies below 600 m
+  (`UNTYPED_OLIVES_BELOW`; higher up a chestnut grove is likelier): its 9 such orchards lie at
+  225–546 m, and on the 2023 orthophoto 6 are olive groves, 2 olives with vines and 1 a young fruit
+  or nut orchard (2026-11-07). Cesena's 62 untyped orchards are Romagna's fruit, so its build passes
+  no ground and they stay no area; an orchard of other trees is no area either.
   Mountain covers: `landuse=quarry` is `quarry`, `natural=bare_rock`/`rock` is `rock`,
   `natural=scree` is `scree` (mostly ravaneti, the quarries' marble waste), `natural=scrub`/`heath`
   is `scrub`, and `natural=fell`, `landuse=meadow`/`grass` are `grassland`. Water: `natural=water`
@@ -1321,13 +1347,25 @@ for `fetch-rt` and the part tools: [Adding a part](#adding-a-part)), 223.8 km²:
   Tassonaro's and its tributaries' (the Aulella runs 122 m west of it), and the Rosaro's at
   Fivizzano (17,702 m²); Cesena's, 12 river polygons along the Savio, a basin and a reservoir. The
   UCS land cover adds its quarries, rock (`rock`), sparse vegetation (`sparse`), pastures
-  (`grassland`), heath (`scrub`), the rivers' gravel (`pebble`), its water bodies (`lake`) and its
-  woods (`forest`, `conifer`, `mixed`: `WOODS` in `kinds.ts`). The land cover's raster fills the
-  woods first, broadleaf then conifer and mixed over it, and every other area over them by kind
-  (`FILL` in `src/sim/map/raster.ts`; the minimap, the full map and `preview-map` paint in that
-  order too, `fillRank`, grassland and residential land in the play area's grass, so a park over
-  residential land shows as on the ground), so a UCS conifer wood inside OSM's forest makes it
-  conifer, and a UCS wood holds only ground no OSM area claims. The woods come cut on a 500 m grid
+  (`grassland`), heath (`scrub`), the rivers' gravel (`pebble`), its water bodies (`lake`), its
+  woods (`forest`, `conifer`, `mixed`: `WOODS` in `kinds.ts`), its olive groves (`olive`) and its
+  vineyards (`vineyard`). The land cover's raster fills the woods first, broadleaf then conifer
+  and mixed over it, and every other area over them by kind (`FILL` in `src/sim/map/raster.ts`;
+  the minimap, the full map and `preview-map` paint in that order too, `fillRank`, grassland and
+  residential land in the play area's grass, so a park over residential land shows as on the
+  ground), so a UCS conifer wood inside OSM's forest makes it conifer, and a UCS wood holds only
+  ground no OSM area claims. The vineyards and the olive groves come after the open covers (scrub,
+  sparse ground, scree, rock, quarries), grassland, farmland and residential land, and a farmyard
+  after them (a farm's yard, smaller than the land cover's half hectare), so both draw over the
+  woods and those and under a farmyard, a park, a school, a cemetery, a pitch, a car park,
+  industrial land, a square, a platform or a ruin ([section
+  1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts) has what the orthophoto shows
+  where they overlap). They turn 5.58 km² of meadow, 1.27 km² of forest, 0.11 km² of farmland and
+  0.10 km² of grassland into olive groves (7.09 km² in all, 0.005 km² of OSM's scrub among it), and
+  1.12 km² of meadow, 0.20 km² of farmland and 0.13 km² of forest into vineyards (1.50 km², 0.012
+  km² before), on Lunigiana. The
+  paving between a house and a road keeps to meadow and residential grass, as on the fields: 0.003
+  km² of it is olive grove now. The woods come cut on a 500 m grid
   on the local origin, each piece 4 m past its square so the maps paint no seam (`piecesOf` in
   `ucs.ts`): an area lies whole in every tile its outer ring's box comes within the halo of, and one
   wood across the valley, 10,254 vertices, lay in 19; whole, they took the tiles' areas from 0.69 to
@@ -2147,29 +2185,42 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   rivers' gravel are areas too, so neither lattice nor bank trees stand in them: 1,725 fewer on
   lucido, 1,655 of them in the UCS gravel, mostly by the Aulella, 31 in the lakes and the river
   polygon and 39 at their edges, where the 2 m masks reach past the outlines. The UCS's woods add
-  43,294 lattice trees, and 256 bank trees standing in them give way: 43,038 more in all. No cap:
-  3 689 140 trees on Lunigiana (2 586 on the banks; lucido's 1 053 289 and 948) and 5 521 on Cesena
-  (171), positions rounded to 1 m (at most one tree per spot) and a scale of 0.8–1.3. Placement uses
-  a fixed hash, not a random generator.
+  43,294 lattice trees, and 256 bank trees standing in them give way: 43,038 more in all. The olive
+  groves grow olives on a lattice of their own, a tree every 7 m (204 a hectare: the groves round
+  Gragnola hold 150–280 on the 2023 orthophoto, the tended ones about 6 m apart, the old ones 7–8
+  m), each 2, 3 or 4 m into its cell (a quarter, a half and a quarter of them: up to 1 m off the
+  whole metre by its middle), so the rows read as a grove's and not as a grid, and only where the
+  land cover draws the grove (no area over it in `FILL`), after the woods' and the banks' trees,
+  which keep out of the groves as out of every other area. They add 139,583 olives, and the groves
+  and vineyards over OSM's forest take 27,248 of its trees and 104 bank trees. No cap: 3 801 371
+  trees on Lunigiana (139 583 olives and 2 482 on the banks; lucido's 1 079 138, 35 733 and 930)
+  and 5 521 on Cesena (171 on the banks, no olive), positions rounded to 1 m (at most one tree per
+  spot) and a scale of 0.8–1.3. Placement uses a fixed hash, not a random generator.
 - **A fixed lattice**: it starts at the region's anchor (`anchor` in `region.ts`: Lunigiana's
   (−2900, −6100), the corner of its first part, lucido; Cesena's (−2000, −2000)), set once and never
   taken from the bounds, and its cells run on past it either way, so adding a part moves no lattice
   tree. A tree's id is its cell's number, (gj + 8192) × 16384 + (gi + 8192) for the cell gi east
   and gj north of the anchor (below 2²⁸), and a bank tree's is its 4 m cell's number past them,
-  2²⁸ + (cj + 16384) × 32768 + (ci + 16384) (at most 2²⁸ + 2³⁰ − 1). The cells run 57.9 km (lattice)
-  and 65.5 km (banks) from the anchor either way, and the scatter throws past them. The ids order
-  the whole map's trees (south to north, west to east, then the banks), seed each tree's look
-  (3 × id, a mirror's one more: `src/render/trees.ts`), and never change as parts are added. A bank
-  tree's seeds pass int32 (Lunigiana's largest is 2 839 759 284) and `hash01` wraps them (ToInt32),
-  but the ids keep every seed below 2³² (at most 4 026 531 838), so no two trees share one.
+  2²⁸ + (cj + 16384) × 32768 + (ci + 16384) (at most 2²⁸ + 2³⁰ − 1), and an olive's is its 7 m
+  cell's number past those, `OLIVE_TREES` (2²⁸ + 2³⁰) + (gj + 8192) × 16384 + (gi + 8192) (below
+  2³¹: the tiles keep ids as int32), so a tree is an olive by its id alone (`kindAt`). The cells run
+  57.9 km (lattice), 65.5 km (banks) and 57.3 km (olives) from the anchor either way, and the
+  scatter throws past them. The ids order the whole map's trees (south to north, west to east, then
+  the banks, then the olives), seed each tree's look (3 × id, a mirror's one more:
+  `src/render/trees.ts`), and never change as parts are added. A bank tree's seeds pass int32
+  (Lunigiana's largest is 2 839 759 284), most olives' 2³² (Lunigiana's largest is 4 562 508 999),
+  and `hash01` wraps them (ToInt32): no two seeds below 2³² meet, an olive's past it wraps onto one
+  2 more than a multiple of 3, which no other tree's is, and only an olive's mirror's past it wraps
+  onto a wood's tree's, one 1 431 655 765 ids lower, over 38 km away.
 - **A tile at a time**: the scatter (`trees.ts`) works each of the region's tiles alone,
-  rasterising its 2 m masks (forest, the other areas, the buildings) over the tile and a metre round
+  rasterising its 2 m masks (the woods, the other areas, the buildings, the olive groves and the
+  areas drawn over them) over the tile and a metre round
   it on the anchor's pixels, the pixels one raster of the whole map has there. A tree belongs to the
   tile of its rounded point, so two lattice points that round onto one spot, even from either side
-  of a seam, meet in one tile, where a bit a metre keeps the first (the lattice's before the bank
-  trees). The tiles' trees are merged by id (`mergeTrees` in `trees.ts`). The scatter took 0.7 s for
-  lucido's 30 tiles (the trees stage takes 2.8 s for Lunigiana's 79) and holds one tile's masks, 3
-  MB, at a time.
+  of a seam, meet in one tile, where a bit a metre keeps the first (the lattice's, then the bank
+  trees', then the olives'). The tiles' trees are merged by id (`mergeTrees` in `trees.ts`). The
+  scatter took 0.7 s for lucido's 30 tiles (the trees stage takes 3.0 s for Lunigiana's 79, 2.7 s
+  before the olives) and holds one tile's five masks, 5 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
   clear of walk and drive walls. Cesena, and a test region without the Carabinieri, use a central
   street in its connected traffic network (the traffic node nearest the origin, `startNear`). The
@@ -2236,14 +2287,15 @@ change an input.
   tool wrote, so `pin-raw` uploads those bytes and no others. `readLock` (Valibot) rejects any other
   shape, a path with a part that starts with a dot (`..`, `.DS_Store`) and an asset outside a `raw-`
   release. `writeLock` writes the fields in that
-  order, one per line, so a re-pin's diff shows only the files that changed. Today: 844 files,
-  71.8 MB: 238 in `raw-20261030`, 8.94 MB; #11's 95 in `raw-20261103`, 1.16 MB (the 2009 sheets' 82
+  order, one per line, so a re-pin's diff shows only the files that changed. Today: 844 files, 72.0
+  MB: 238 in `raw-20261030`, 8.94 MB; #11's 95 in `raw-20261103`, 1.16 MB (the 2009 sheets' 82
   files, Pontremoli's 12 DBT files and its OSM extract); #12's 16 in `raw-20261103-2`, 1.22 MB (the
-  Sarzana test region's 13 Liguria files and its terrain's 3); and #17's 495 in `raw-20261104`,
-  60.46 MB (386 CTR files, the 79 terrain tiles' 48.92 MB, 24 DBT files, the Bagnone ridge's 3, the
-  2 parts' land cover and `osm/fivizzano.osm.gz`, 3.34 MB). No entry names `raw-20261031` (#73's
-  land cover), `raw-20261101` (#10's two terrains, lucido's one mosaic among them) or
-  `raw-20261103-3` (#14's land cover with its woods) any more: only an older lock fetches them.
+  Sarzana test region's 13 Liguria files and its terrain's 3); #17's 493 in `raw-20261104`, 57.95 MB
+  (386 CTR files, the 79 terrain tiles' 48.92 MB, 24 DBT files, the Bagnone ridge's 3 and
+  `osm/fivizzano.osm.gz`); and #15's 2 in `raw-20261107`, 2.74 MB (the 2 parts' land cover with its
+  olive groves and vineyards). No entry names `raw-20261031` (#73's land cover), `raw-20261101`
+  (#10's two terrains, lucido's one mosaic among them) or `raw-20261103-3` (#14's land cover with
+  its woods) any more, nor `raw-20261104`'s land cover: only an older lock fetches them.
   From an empty `data/raw`, `pnpm fetch-raw` downloaded the 356 files of 29.3 MB the lock held on
   2026-11-03 in 41.8 s.
 - **Sources**: each fetch tool calls `recordSource` for every file it writes (`fetch-rt` also for
@@ -2332,10 +2384,11 @@ dense layers and the vectors, and what the vectors give readers far from the pla
 The tiles hold the dense layers (terrain, walls, trees and land cover) and the vectors round them:
 every road line, river, barrier, building and area, each whole in every tile it comes near. So the
 game downloads and decodes the vectors only near the player, as it does the dense layers: on
-Lunigiana the global file and the 4 tiles within 1 km of the start are 3.57 MB to download (2.50 MB
-on lucido alone, whose global file is 0.55 MB; 2.40 MB before the UCS's woods), where on lucido they
-were 3.10 MB with the vectors in the global file, and a production build's JS heap after a forced GC
-is 130–131 MB (2026-11-04, three runs; 89–90 MB on lucido alone, 88–89 MB before the woods) where
+Lunigiana the global file and the 4 tiles within 1 km of the start are 3.62 MB to download (2.55 MB
+on lucido alone, whose global file is 0.55 MB; 2.40 MB before the UCS's woods, 2.50 MB before its
+olive groves), where on lucido they were 3.10 MB with the vectors in the global file, and a
+production build's JS heap after a forced GC is 132–133 MB (2026-11-07, three runs, with the olive
+groves; 130–132 MB before them; 89–90 MB on lucido alone, 88–89 MB before the woods) where
 lucido's was 123–124 MB with the vectors in the global file (`pnpm playtest heap`, three runs each,
 2026-10-31, before and after main's water areas, #73; 2026-11-03 with the woods).
 
@@ -2383,11 +2436,11 @@ and #23 join at y 13000. Lucido's south edge, which Fivizzano's part leaves as i
 | File | Lunigiana | Cesena |
 |---|---|---|
 | `src/sim/map/<name>.bin` (global) | 1.54 MB, 5.76 MB gunzipped | 0.62 MB, 2.4 MB gunzipped |
-| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 79, 30.5 MB in all, 0.05 (5_6) to 0.61 MB (2_1) each | 4, 1.7 MB in all, 0.37 to 0.45 MB each |
-| `src/sim/map/<name>/overview.png` | 4.52 MB, 3410 × 4096 px | 4.76 MB, 4000 × 4000 px |
+| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 79, 30.9 MB in all, 0.05 (5_6) to 0.62 MB (2_1) each | 4, 1.7 MB in all, 0.37 to 0.45 MB each |
+| `src/sim/map/<name>/overview.png` | 4.65 MB, 3410 × 4096 px | 4.76 MB, 4000 × 4000 px |
 
-On lucido alone they are 0.55 MB (1.9 MB gunzipped), 30 tiles of 9.4 MB in all (the largest 0.56 MB)
-and 3.06 MB (3195 × 4096 px). With the vectors in the global file, before #63, lucido's was 1.89 MB
+On lucido alone they are 0.55 MB (1.9 MB gunzipped), 30 tiles of 9.5 MB in all (the largest 0.59 MB)
+and 3.25 MB (3195 × 4096 px). With the vectors in the global file, before #63, lucido's was 1.89 MB
 (6.26 MB gunzipped) and its tiles 5.70 MB, the largest 0.31 MB. Each `.bin` file is gzip (level 9)
 of one JSON line, a newline, then packed sections. The game never fetches: the browser host
 downloads the global file, gunzips it and hands the bytes to `provideMap` (`src/sim/map/packed.ts`)
@@ -2914,10 +2967,12 @@ the LiDAR reads no hollow under; a river polygon's built surface falling downstr
 its outer edge left over its river's bed (to the 0.1 m both are read in); and no tree, parked car or
 player spawn in the water. `spawns.test.ts` keeps a parked car's box and the player's spawn out of a
 lake, `walls.long-test.ts` (`pnpm test:long`) rings a lake with shore walls and leaves a river
-polygon's carved banks open, `cover.test.ts` pins the cover bytes (the conifer and mixed woods
-last), draws the woods first, the UCS's conifer and mixed over a forest and every other area over
-each wood, and draws the bars over the river and the line's bed only outside the water, and
-`features.test.ts` maps the water tags, `ele` and the POIs.
+polygon's carved banks open, `cover.test.ts` pins the cover bytes (the olive groves last), draws
+the woods first, the UCS's conifer and mixed over a forest and every other area over each wood, an
+olive grove over a wood, grassland, farmland and residential land and a farmyard, a park and a
+square over it, and draws the bars over the river and the line's bed only outside the water, and
+`features.test.ts` maps the water tags, `ele`, the POIs and the orchards (an olive orchard a
+grove, an untyped one below 600 m of the ground given, none without it).
 
 The survey adapters are checked on fixtures of a few records cut from real sheets
 (`src/tools/__tests__/fixtures/`, 36,163 B in all: cut by record with `subsetShp`, in file order,
@@ -3162,10 +3217,11 @@ refused), `staleCrops` (a `.DS_Store` left alone, proven red), `beyondCoverage` 
 empty-subset 404), the crops of `dtmTiles` covering
 `fetch-rt`'s crop of a tile-aligned part 6 km tall, of an L with its notch and of the Sarzana test
 region (proven red with the tiles of the rectangles alone), and the DTM's crop on the lattice's
-edges, each edge 3 m inside its line, refused past 512 cells; `ucs.test.ts` the
-land cover in EPSG:3003 and 25832 by each file's `crs`, the classes by three digits (5121 a lake,
-5111 left out), a polygon two files hold read once, a multipolygon's every polygon, a file in
-another CRS refused, a wood cut on the 500 m squares, each piece 4 m past its square, filling the
+edges, each edge 3 m inside its line, refused past 512 cells; `ucs.test.ts` the land cover in
+EPSG:3003 and 25832 by each file's `crs`, the classes by three digits (5121 a lake, 5111 left out)
+but Liguria's fourth-level overrides (`kindOfCode`: 2211 an olive grove, 2212 left out, 2231 an
+olive grove by its 223), a polygon two files hold read once, a multipolygon's every polygon, a file
+in another CRS refused, a wood cut on the 500 m squares, each piece 4 m past its square, filling the
 whole wood's pixels but within 6 cm of its edges, an open cover kept whole, and a clearing wider
 than a piece kept clear whichever vertex its ring starts at; `fetch-lig.test.ts` the tool's refusals of two parts and an unknown one
 before any request; `crs.test.ts` inverts `utm32ToLatLon` within 1 mm, on Liguria's side too; `footprint.test.ts` the
@@ -3210,8 +3266,11 @@ scatter of their whole box (with two lattice points rounding onto one spot from 
 seam, and a stream beside another whose bank trees fall in its 4 m cells), a tile's trees and ids
 when the region's box grows, a stream's piece the outline cut keeping the whole stream's bank trees,
 a stream's banks in every listed tile and none in one left out, the last bank cell's tree
-getting the largest id (its look's seeds below 2³², a cell further throwing), and the conifer and
-mixed woods growing a forest's trees, an open area over one keeping them out; `region.test.ts` the
+getting the largest id (its look's seeds below 2³², a cell further throwing), the conifer and
+mixed woods growing a forest's trees, an open area over one keeping them out, and the olive
+groves' own 7 m lattice (ids from `OLIVE_TREES`, each olive 2, 3 or 4 m into its cell, olives over
+a wood or a field and none under a park, the same olives as the box grows and across the tiles,
+the last olive cell's id an int32 and a cell further throwing); `region.test.ts` the
 regions' parts, bounds, tiles and tree anchors, `pontremoli-town` the one region with buildings of
 its own and `surveyDir`, `sarzana-town`'s 6 tiles, its terrain of its own and `ligDir`, the OSM
 extracts each region's build merges (`osmFile`, `osmFiles`: a test region Lunigiana's parts', but
@@ -3540,9 +3599,9 @@ issue #17's part, on 2026-11-04 (arm64, Node 24.14.1).
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
   Lunigiana's largest, 2_1 (x 4000…6000 by y 2000…4000: Argigliano, Pieve San Lorenzo and its
-  station), is 0.61 MB (608,135 B; its JSON line 0.88 MB before gzip); `lucido`'s alone, 0_0, is
-  0.56 MB with its vectors (its JSON line 0.77 MB), where −1_−1's 0.31 MB was the largest without
-  them; Cesena's largest is 0.45 MB and the L's 0.53 MB.
+  station), is 0.62 MB (624,987 B; its JSON line 0.90 MB before gzip); `lucido`'s alone, 0_0, is
+  0.59 MB with its vectors (its JSON line 0.79 MB), where −1_−1's 0.31 MB was the largest without
+  them; Cesena's largest is 0.45 MB and the L's 0.55 MB.
 
 Each part's inputs are its own files since #17 (Fivizzano, the first part after lucido), so a part
 adds files and cells and moves none (`--region cesena` builds the separate Cesena map instead, and
@@ -3776,6 +3835,16 @@ longer lucido:
   and climbs with the terrain to 352.6 m 2 m on. A driver in the underpass reads a car standing just
   past that mouth off its level and does not brake for it (`joints.map-test.ts` lists the joint by
   its two ways' OSM ids).
+- **The olive groves and vineyards are the land cover's of 2019, abandoned ones included.** On the
+  2023 orthophoto (2026-11-07) many of the UCS's olive groves round Gragnola are groves going back
+  to wood or to oak-dotted pasture, and of 115 ha it draws under OSM's forest 44% is closed wood:
+  the map grows olives there all the same, in rows, never a grove half taken by the wood. Of its
+  vineyards checked, about half the area is still worked; the rest is grass, scrub or young wood,
+  and where vines and olives share a polygon (0.6 ha of olives in a vineyard at (299, 7058)) one
+  kind takes it all. One of OSM's orchards with no `trees` tag, 699008679 at (−1009, 7805), is a
+  young fruit or nut orchard, which the height rule makes an olive grove. The olives stand on one
+  7 m lattice, where the tended groves stand about 6 m apart and the old ones 7–8, and their rows
+  follow no terrace (the ground's bare strips do).
 - **The terrain is 4 m.** The LiDAR resolves 1 m (stored at 2 m), but the game grid averages it over
   4 m cells: terrace walls, steps and narrow road benches are smoothed into slopes. Slopes come from
   a 12 m baseline. The LiDAR is from 2010 (2012 on the Carrara side), so earthworks since then are

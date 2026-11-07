@@ -216,6 +216,36 @@ test("extractAreas: a river's banks are a river, still water a lake, other water
   assert.ok(areas.every((a) => a.level === undefined))
 })
 
+test("extractAreas: an orchard of olive trees is an olive grove, and one with no trees tag too below 600 m of the ground given (Lunigiana's), none without it", () => {
+  const { osm, square } = areaOsm()
+  square(0, 0, 20, { landuse: "orchard", trees: "olive_trees" })
+  square(40, 0, 20, { landuse: "orchard" })
+  square(80, 0, 20, { landuse: "orchard", trees: "apple_trees" })
+  square(1000, 0, 20, { landuse: "orchard" }) // up the hill
+  square(1000, 40, 20, { landuse: "orchard", trees: "olive_trees" })
+  // An orchard across the 600 m line: its outer ring's mean ground decides.
+  square(470, 80, 60, { landuse: "orchard" })
+  // The ground climbs to 700 m at x = 500: the orchard at x 470–530 means 600 m, not below it.
+  const ground = (x: number) => (x < 500 ? 500 : 700)
+  const kinds = (areas: ReturnType<typeof extractAreas>) =>
+    areas.map((a) => [Math.round(Math.min(...a.rings[0]!.filter((_, i) => i % 2 === 0))), a.kind])
+  assert.deepEqual(kinds(extractAreas(osm, ground)), [
+    [0, "olive"],
+    [40, "olive"],
+    // 80: an apple orchard, no area
+    // 1000: an orchard with no trees tag 700 m up, likelier chestnuts: no area
+    [1000, "olive"],
+  ])
+  // Cesena's orchards with no trees tag are Romagna's fruit: no ground, no olive grove.
+  assert.deepEqual(kinds(extractAreas(osm)), [
+    [0, "olive"],
+    [1000, "olive"],
+  ])
+  square(470, 200, 60, { landuse: "orchard" })
+  const lower = (x: number) => (x < 500 ? 500 : 699)
+  assert.deepEqual(kinds(extractAreas(osm, lower)).at(-1), [470, "olive"])
+})
+
 test("extractAreas: a lake's ele is its level to the decimetre, a river's ele none", () => {
   const { osm, square } = areaOsm()
   square(0, 0, 20, { natural: "water", water: "lake", ele: "1150" })

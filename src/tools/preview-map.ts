@@ -106,6 +106,7 @@ const AREA = {
   pebble: [225, 220, 205],
   river: [60, 120, 220],
   lake: [60, 120, 220],
+  olive: [97, 106, 64],
 } as const satisfies Record<AreaKind, RGB>
 // Each pixel takes the last area to fill it in the land cover's order (`fillRank`), blended
 // once: a wood's pieces overlap 4 m past their squares, and two blends would draw their seams.
