@@ -83,18 +83,26 @@ export const extraLevels = (
   return out
 }
 
+/** An at-grade rail centreline as shipped, flat x, y and z per vertex; with `writes`, the nodes its bed may move. */
+export interface BedLine {
+  readonly pts: ReadonlyArray<number>
+  readonly z: ReadonlyArray<number>
+  readonly writes?: (x: number, y: number) => boolean
+}
+
 /**
  * The limits the rail bed puts on grid nodes, so the terrain stays within BED over and BANK under
  * every at-grade rail centreline more than BED_CLEAR m from a level crossing: each stretch of
  * centreline inside a cell caps that cell's four corners at the lower rail elevation of its two ends
  * plus BED, floored to the grid's 0.1 m, so any interpolation of the cell (bilinear, or the drawn
  * mesh's triangles) stays under the rail, and floors them at the higher one less BANK. `lines` are
- * the shipped (rounded) polylines and elevations. Returns [node, cap, floor] by whole-grid node
- * index, ascending; it reads only the grid's lattice, so it holds for any window of it.
+ * the shipped (rounded) polylines and elevations; a line with `writes` limits only the nodes where it
+ * holds (a run-out's, beyond the play area). Returns [node, cap, floor] by whole-grid node index,
+ * ascending; it reads only the grid's lattice, so it holds for any window of it.
  */
 export const bedLimits = (
   g: Omit<Grid, "z" | "span">,
-  lines: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly z: ReadonlyArray<number> }>,
+  lines: ReadonlyArray<BedLine>,
   levelCrossings: ReadonlyArray<readonly [number, number]>,
 ): Array<readonly [number, number, number]> => {
   const [oi, oj] = anchorNode(g)
@@ -102,7 +110,7 @@ export const bedLimits = (
     floor = new Map<number, number>()
   const clear = (x: number, y: number) =>
     levelCrossings.every(([cx, cy]) => Math.hypot(x - cx, y - cy) > BED_CLEAR)
-  for (const { pts, z } of lines)
+  for (const { pts, z, writes } of lines)
     for (let k = 0; k + 1 < z.length; k++) {
       const ax = pts[2 * k]!,
         ay = pts[2 * k + 1]!,
@@ -142,6 +150,7 @@ export const bedLimits = (
         ] as const) {
           const ii = Math.min(g.cols - 1, Math.max(0, i + di)),
             jj = Math.min(g.rows - 1, Math.max(0, j + dj))
+          if (writes !== undefined && !writes(g.x0 + ii * g.cell, g.y0 + jj * g.cell)) continue
           const n = jj * g.cols + ii
           cap.set(n, Math.min(cap.get(n) ?? Number.MAX_VALUE, top))
           floor.set(n, Math.max(floor.get(n) ?? -Number.MAX_VALUE, bottom))

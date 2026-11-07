@@ -60,7 +60,7 @@ const MAP: MonzoneMap = {
   ],
   rail: [{ id: 9, pts: [-40, 0, 40, 0], z: [100, 100] }],
   railway: {
-    lines: [{ pieces: [{ rail: 0, rev: false }], maxspeed: [[0, 80, 60]] }],
+    lines: [{ pieces: [{ rail: 0, rev: false }], maxspeed: [[0, 80, 60]], runOuts: [[], []] }],
     stations: [{ name: "Monzone", line: 0, s0: 10, s1: 30, side: 1 }],
     crossings: [{ road: 2, nodes: [0], x: 0, y: 0, line: 0, s: 40 }],
     platforms: [{ area: 1, axis: [-30, 0, -20, 0], top: [100.4, 100.4] }],

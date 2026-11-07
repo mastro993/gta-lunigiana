@@ -12,6 +12,14 @@ export interface LinePiece {
   readonly rev: boolean
 }
 
+/** A stretch of a line's run-out, walked away from its terminal: flat x, y and the bed's z per vertex (the first the terminal's, or the last of the stretch before), on a bridge or in a tunnel. */
+export interface RunOutPiece {
+  readonly pts: ReadonlyArray<number>
+  readonly z: ReadonlyArray<number>
+  readonly bridge?: true
+  readonly tunnel?: true
+}
+
 /**
  * A line: running track from one terminal (a dead end on the play area's outline, where the track
  * runs on beyond it) to another, on the straightest way through junctions. Consecutive pieces
@@ -22,6 +30,12 @@ export interface RailLine {
   readonly pieces: ReadonlyArray<LinePiece>
   /** OSM's speed limits, `[from s, to s, km/h]` in s order; a stretch with no tag has none. */
   readonly maxspeed: ReadonlyArray<readonly [number, number, number]>
+  /**
+   * Its track on beyond the play area past its first terminal and past its last (src/tools/rail-runouts.ts): OSM's line on
+   * from where the outline cuts it, profiled over the ground as the rail in play is, as far as OSM's track beyond the play
+   * area runs in the built terrain's box; none where no track runs on in the box (a terminal on its edge).
+   */
+  readonly runOuts: readonly [ReadonlyArray<RunOutPiece>, ReadonlyArray<RunOutPiece>]
 }
 
 /** Where a line calls at a station: the extent along it of the station's platforms beside it, and their side. */

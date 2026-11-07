@@ -52,8 +52,9 @@ test("a train's power packs idle with the power off and run to their rated revs 
 })
 
 test("a train is heard car by car from its active cab back, each car's middle on the track with its s and whether it is in a tunnel", () => {
-  const tunnel = LINES[0]!.tunnels[0]!,
-    // Nose 15 m into the first tunnel, toward +s: the cab car's middle in it, the rest out.
+  // The first tunnel with a mouth toward -s inside the map (the Galleria del Lupacino runs on past the terminal).
+  const tunnel = LINES[0]!.tunnels.find((t) => t.from > 0)!,
+    // Nose 15 m into it, toward +s: the cab car's middle in it, the rest out.
     t = heardTrain(1, "atr220", motion(tunnel.from + 15, { power: 0.5, v: 5 }), false)!
   assert.deepEqual(
     t.cars.map((car) => car.tunnel),

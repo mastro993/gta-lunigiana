@@ -92,7 +92,7 @@ test("packMap and decodeMap round-trip the global file (a newline inside a name,
   const old = Buffer.from(`${JSON.stringify({ version: 2 })}\n`)
   assert.throws(
     () => decodeMap(old),
-    /the global map file is version 2, this decoder reads 6; run pnpm map/,
+    new RegExp(`the global map file is version 2, this decoder reads ${MAP_VERSION}; run pnpm map`),
   )
 })
 

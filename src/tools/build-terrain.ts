@@ -21,6 +21,7 @@ import {
   r1,
   type V,
 } from "./geometry.ts"
+import { inPlay, onOutline } from "./play-area.ts"
 import {
   chainsOf,
   EXTRA_RANK,
@@ -32,6 +33,7 @@ import {
 } from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
+import { continuations } from "./rail-runouts.ts"
 import { roadLevels } from "./road-levels.ts"
 import { type Profile, RELAX, resample, sampleGrid } from "./terrain.ts"
 import { stillLevel, waterAreas } from "./water-areas.ts"
@@ -88,6 +90,9 @@ const INSET = 12
 /** The finished terrain and what is read from it. */
 export type Terrain = ReturnType<typeof buildTerrain>
 
+/** Whether a node lies beyond the play area, off its outline: where a run-out may write the grid. */
+const beyond = (x: number, y: number) => !inPlay(x, y)
+
 /** Builds the terrain of `src` on `dem` (the uncarved DTM); `lap` marks the end of each stage. */
 export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => void) => {
   const { rail, extra, allRail, roads, water } = src
@@ -137,6 +142,37 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     zOf.set(piece, z)
     denseOf.set(piece, dense)
   }
+  // Each terminal's track on beyond the play area (rail-runouts.ts), profiled as the rail is from
+  // the terminal's level as shipped; it writes the grid beyond the play area alone, which keeps what
+  // its own lines wrote.
+  const runOuts = continuations(allRail, src.beyond.rail, (x, y) => onOutline(x, y)).map(
+    ({ piece, end, chain }) => {
+      const z = zOf.get(allRail[piece]!)!
+      profile(
+        chain.map((item) => ({ item, rev: false })),
+        {
+          w: 4,
+          ...RAIL_PASS,
+          tol: RAIL_TOL,
+          start: r1(end === 0 ? z[0]! : z.at(-1)!),
+          writes: beyond,
+        },
+      )
+      const at = chain[0]!.pts[0]!
+      return {
+        at: `${r1(at.x)},${r1(at.y)}`,
+        pieces: chain.map((item) => {
+          const d = denseOf.get(item)!
+          return {
+            pts: flatLine(d.pts),
+            z: d.z.map(r1),
+            ...(item.bridge ? { bridge: true as const } : {}),
+            ...(item.tunnel ? { tunnel: true as const } : {}),
+          }
+        }),
+      }
+    },
+  )
   // A road crossing another on two levels keeps the clearance under it (road-levels.ts).
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
   for (const { classes, rank, grade, half } of ROAD_PASSES)
@@ -222,8 +258,16 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
         .map((r) => roadSlab(r, lineOut(r, unread(`bridge ${r.id}`)))),
       ...railLines.filter(({ r }) => r.bridge === true).map(railSlab),
     ],
-    // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings.
-    rail: railLines.filter(({ r }) => !lifted(r)),
+    // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings; a
+    // run-out's beyond the play area.
+    rail: [
+      ...railLines.filter(({ r }) => !lifted(r)),
+      ...runOuts.flatMap((o) =>
+        o.pieces.flatMap((p) =>
+          p.bridge || p.tunnel ? [] : [{ pts: p.pts, z: p.z, writes: beyond }],
+        ),
+      ),
+    ],
     levels: levels.map(({ v }) => [v.x, v.y] as const),
   })
   lap("grid")
@@ -246,6 +290,8 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   return {
     grid: grid.grid,
     railLines,
+    /** Each terminal's run-out by its point (`x,y` as shipped), walked away from it. */
+    runOuts: new Map(runOuts.map((o) => [o.at, o.pieces])),
     roadLines: roads.map((r) => lineOut(r, at)),
     bed: grid.bed,
     decks: grid.decks,

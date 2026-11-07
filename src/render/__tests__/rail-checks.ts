@@ -5,6 +5,7 @@ import assert from "node:assert/strict"
 import { segDist2 } from "../../sim/collide.ts"
 import { inPlay, MAP, outlineDistance } from "../../sim/map/index.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
+import { DRAWN_RUN, LINES, pointAt } from "../../sim/rail/lines.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
 import { chunkOf } from "../chunks.ts"
 import { BARRIER, ROAD_LIGHT } from "../crossings.ts"
@@ -272,13 +273,61 @@ export const checkBed = ({ all }: Railway, least: number): void => {
   for (const tri of trianglesOf(all.solid, PALETTE.ballast)) {
     const level = tri.every(([, y]) => Math.abs(y - tri[0][1]) < 0.1)
     if (!level) continue
-    // In the play area: past its outline the drawn run lies on the apron, or in the hill the map cuts a tunnel's bore off.
+    // In the play area: past its outline lies the drawn run (checkDrawnRuns), or the hill the map cuts a tunnel's bore off.
     for (const [x, y, z] of tri) if (inPlay(x, -z)) over.push(y - terrainY(x, -z))
   }
   over.sort((a, b) => a - b)
   assert.ok(over.length > least, `${over.length} corners of the bed's top`)
   const p90 = over[Math.floor(over.length * 0.9)]!
   assert.ok(p90 <= 0.15, `90 % of the top within ${p90.toFixed(3)} m over the terrain`)
+}
+
+/** Rail centres apart, m (the render's gauge). */
+const GAUGE = 1.435
+
+/**
+ * Past each terminal of each of the map's lines, over the drawn run out of a tunnel, two rails drawn where its trains ride
+ * (`LINES`), every metre: within the map's bounds at the rail head's height, past them (where the apron is the edge drawn on,
+ * and the drawn rails lie on it) anywhere over it. Returns the points checked.
+ */
+export const checkDrawnRuns = (): number => {
+  const pieces = railPieces(() => [])
+  let checked = 0
+  for (const line of LINES)
+    for (const [s0, way] of [
+      [0, -1],
+      [line.length, 1],
+    ] as const) {
+      const end = pointAt(line, s0)
+      const near = pieces.filter((piece) => {
+        const [minX, minY, maxX, maxY] = boxOver(piece.pts)
+        const reach = DRAWN_RUN + 10
+        return (
+          minX <= end.x + reach &&
+          maxX >= end.x - reach &&
+          minY <= end.y + reach &&
+          maxY >= end.y - reach
+        )
+      })
+      const rails = trianglesOf(whole(near).decal, PALETTE.railSteel)
+      const { minX, minY, maxX, maxY } = MAP.bounds
+      for (let d = 0.5; d < DRAWN_RUN; d++) {
+        const p = pointAt(line, s0 + way * d)
+        if (p.tunnel) continue
+        const inside = p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY
+        for (const side of [-1, 1]) {
+          const x = p.x - (side * GAUGE * Math.sin(p.angle)) / 2,
+            y = p.y + (side * GAUGE * Math.cos(p.angle)) / 2
+          const drawn = rails.flatMap((tri) => heightIn(tri, x, y) ?? [])
+          assert.ok(
+            drawn.some((h) => !inside || Math.abs(h - yOf(p.z)) < 0.1),
+            `line ${line.index}, ${d} m past (${end.x}, ${end.y}): rails at ${drawn.map((h) => (h - yOf(p.z)).toFixed(2)).join(" ")} m off its rail head`,
+          )
+          checked++
+        }
+      }
+    }
+  return checked
 }
 
 /** A portal at each of its tunnel mouths inside the map (at least `least`), its dark mouth facing out of the hill. */

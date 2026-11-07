@@ -1,7 +1,8 @@
 /**
  * The railway's static parts, drawn chunk by chunk like the roads: every `MAP.rail` piece (the
- * lines' running track, loops and sidings), the fixed parts of each level crossing, and the tunnel
- * portals (render/portals). Drawn widths are reading widths, not real ones: at 5 texels/m, the zoom a
+ * lines' running track, loops and sidings) and the lines' run-outs over the drawn run past their
+ * terminals (render/drawn-runs), the fixed parts of each level crossing, and the tunnel portals
+ * (render/portals). Drawn widths are reading widths, not real ones: at 5 texels/m, the zoom a
  * driven train lives at, a real sleeper every 0.6 m is 1.5 texels a period on the screen's vertical
  * and breaks into a crawling moiré, and a real 0.07 m rail head flickers (at 0.18 m, 0.9 texel,
  * the rails still broke into dashes that crawled from frame to frame), so sleepers are 0.6 m every
@@ -16,12 +17,13 @@
 import { DECK_BALLAST, MAP, RAIL_LIFT } from "../sim/map/index.ts"
 import { CROSSINGS } from "../sim/rail/crossings.ts"
 import { BARRIER, ROAD_LIGHT } from "./crossings.ts"
+import { drawnTrack } from "./drawn-runs.ts"
 import { type Box, emptySink, type Piece, type Sink, type Triangles } from "./geometry.ts"
 import { atGradeY, surfaceY, terrainY, yOf } from "./ground.ts"
 import { deck } from "./lines.ts"
 import { PALETTE } from "./palette.ts"
 import { portalPieces } from "./portals.ts"
-import { append, block, strips, surfaceNear, surfaceReads, throughApron } from "./ribbons.ts"
+import { append, block, strips, surfaceNear, surfaceReads } from "./ribbons.ts"
 import { BOX_REACH, BOXES, boxAt, PANEL, trackNear } from "./track-index.ts"
 
 /** Rail centres apart, m (the 1.435 m gauge). */
@@ -135,12 +137,15 @@ const bed = (line: {
   },
 })
 
-/** Every rail piece's track: the bed at grade (a deck on a bridge), sleepers (wooden on a siding) and rails; tunnels are dark. */
+/**
+ * Every rail piece's track and the lines' drawn runs past their terminals (`drawnTrack`): the bed at grade (a deck on a
+ * bridge), sleepers (wooden on a siding) and rails; tunnels are dark.
+ */
 const track = (): Array<Piece> =>
-  MAP.rail.flatMap((rail) => {
+  drawnTrack().flatMap((rail) => {
     if (rail.tunnel === true) return []
     const lifted = rail.bridge === true,
-      line = throughApron(rail.pts, rail.z)
+      line = { pts: rail.pts, z: rail.z }
     const y = (lift: number) => (x: number, y: number, z: number) => surfaceY(z, x, y, lift, lifted)
     const inBox = (x: number, y: number) => boxAt(x, y, 0) >= 0
     const sleepers = rail.kind === "siding" ? PALETTE.woodBrown : PALETTE.sleeperConcrete

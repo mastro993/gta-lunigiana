@@ -69,6 +69,34 @@ test("profile runs a tunnel the outline cuts, in two pieces, level from its one 
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
 })
 
+test("profile runs a chain on from a start's level: the first vertex at it, a bore from it level to where the box cuts it, and its claims only where they may write", () => {
+  // Flat ground at 100 m; a run-out from a terminal at x 0 (no id) whose line stands at 97 m, at grade to x 300.
+  const ground = () => 100
+  const atGrade = { pts: [v(0, 0), v(150, 0, "n"), v(300, 0)] }
+  const { profile, zOf, claims } = makeProfiler(ground)
+  const writes = (x: number) => x > 40
+  profile([{ item: atGrade, rev: false }], { ...SPEC, start: 97, writes })
+  const [z0, z1, z2] = zOf.get(atGrade)!
+  assert.equal(z0, 97)
+  // It climbs to the ground at the grade limit and stays on it.
+  assert.ok(z1! > 99.5 && Math.abs(z2! - 100) < 1e-6, `${z1} then ${z2}`)
+  const g = grid()
+  replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+  const at = (x: number) => g.z[(20 / 4) * 161 + (x + 20) / 4]!
+  assert.equal(at(0), 100, "a node where it may not write")
+  assert.ok(at(44) < 100, `a node where it may: ${at(44)}`)
+  // A bore from the terminal under a hill 30 m high, cut by the box at x 500: level at the line's level, never the hill's.
+  const hill = () => 130
+  const bore = { tunnel: true as const, pts: [v(0, 0), v(500, 0)] }
+  const bored = (start?: number) => {
+    const p = makeProfiler(hill)
+    p.profile([{ item: bore, rev: false }], start === undefined ? SPEC : { ...SPEC, start })
+    return p.zOf.get(bore)!
+  }
+  assert.deepEqual(bored(97), [97, 97])
+  assert.deepEqual(bored(), [130, 130], "with no start, both ends cut: the hill's")
+})
+
 test("replayClaims writes a window's nodes, its seam with the next included, as it writes the whole grid's", () => {
   // Two crossing roads over a sloping grid: the rank-0 road keeps the junction, the other blends.
   const ground = (x: number, y: number) => 100 + 0.05 * x + 0.1 * y

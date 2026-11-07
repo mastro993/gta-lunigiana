@@ -26,6 +26,8 @@ export interface Claim {
   readonly blend: number
   /** A point and a direction (x, y, dx, dy): it writes only the nodes abeam or ahead of the point (a mouth's claim, out of its tunnel). */
   readonly ahead?: readonly [number, number, number, number]
+  /** It writes only the nodes where this holds (a run-out's claim, beyond the play area). */
+  readonly writes?: (x: number, y: number) => boolean
   readonly rank: number
   readonly skip: Uint8Array
   /** The box its writes reach: [minX, minY, maxX, maxY]. */
@@ -53,7 +55,7 @@ export const replayClaims = (
     minY = g.y0 + j0 * g.cell,
     maxX = g.x0 + (i0 + cols - 1) * g.cell,
     maxY = g.y0 + (j0 + rows - 1) * g.cell
-  for (const { p, core, blend, ahead, rank, skip, box } of claims)
+  for (const { p, core, blend, ahead, writes, rank, skip, box } of claims)
     if (box[0] <= maxX && box[2] >= minX && box[1] <= maxY && box[3] >= minY)
       flatten(
         g,
@@ -65,18 +67,19 @@ export const replayClaims = (
         protect,
         (k) => skip[k] === 1,
         ahead === undefined
-          ? undefined
+          ? writes
           : (x, y) => (x - ahead[0]) * ahead[2] + (y - ahead[1]) * ahead[3] >= 0,
       )
 }
 
-/** A claim along profile `p` of a line `w` m wide at `rank`, blending `blend` m, but for segments from samples where `skip`. */
+/** A claim along profile `p` of a line `w` m wide at `rank`, blending `blend` m, but for segments from samples where `skip`, on the nodes where `writes` holds (all with none). */
 export const claimOf = (
   p: Profile,
   w: number,
   rank: number,
   blend: number,
   skip: (k: number) => boolean,
+  writes?: (x: number, y: number) => boolean,
 ): Claim => {
   const core = coreHalf(w, GRID_CELL),
     reach = core + blend
@@ -94,6 +97,7 @@ export const claimOf = (
     p,
     core,
     blend,
+    ...(writes === undefined ? {} : { writes }),
     rank,
     skip: Uint8Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) => (skip(k) ? 1 : 0)),
     box: [minX, minY, maxX, maxY],

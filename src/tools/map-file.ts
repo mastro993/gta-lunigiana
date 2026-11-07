@@ -154,9 +154,13 @@ const joinVectors = (
   }
 }
 
-/** A global file of a version before 6, which held the graph, the lanes and the residents on its JSON line, as one of today's: they move into sections after its own. */
+/**
+ * A global file of a version before 6, which held the graph, the lanes and the residents on its
+ * JSON line and gave its lines no run-outs, as one of today's: the tables move into sections after
+ * its own, and each line runs on with none.
+ */
 const sectioned = (file: Uint8Array, line: OldLine): Buffer => {
-  const { graph, lanes, derived } = line
+  const { graph, lanes, derived, railway } = line
   // version 3 had no `derived`, so no residents
   const tables = packTables(graph, lanes, derived?.residents ?? [])
   return Buffer.concat([
@@ -165,6 +169,7 @@ const sectioned = (file: Uint8Array, line: OldLine): Buffer => {
       graph: tables.line.graph,
       lanes: tables.line.lanes,
       derived: { ...derived, residents: tables.line.residents },
+      railway: { ...railway, lines: railway.lines.map((l) => ({ runOuts: [[], []], ...l })) },
     }),
     ...Object.values(tables.parts),
   ])
@@ -173,6 +178,7 @@ const sectioned = (file: Uint8Array, line: OldLine): Buffer => {
 /** The JSON line of a global file of version 3 to 5: what reading it as today's needs. */
 type OldLine = { readonly version?: unknown } & Pick<JoinedMap, VectorLayer | "graph" | "lanes"> & {
     readonly derived?: MonzoneMap["derived"]
+    readonly railway: { readonly lines: ReadonlyArray<object> }
   }
 
 /** The map whose global file is at `url` (its tiles in the directory named after it beside it), whole. */
@@ -181,8 +187,8 @@ export const readWholeMap = (url: URL): JoinedMap => {
   // A build before the vectors' cut (version 3, issue #63) holds them all in its global file and
   // none in its tiles, one before the walls' levels (versions 3 and 4, issue #91) has no levels in
   // its tiles, the last sections, and so reads as one whose every wall stands at every level, and
-  // one before version 6 holds the graph, the lanes and the residents on its global file's line:
-  // each reads as today's, so map-diff compares them with today's.
+  // one before version 6 holds the graph, the lanes and the residents on its global file's line and
+  // its lines have no run-outs: each reads as today's, so map-diff compares them with today's.
   const line = JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as OldLine
   const v3 = line.version === 3,
     unlevelled = v3 || line.version === 4,

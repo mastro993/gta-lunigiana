@@ -1,8 +1,8 @@
 /**
  * The geometry the static pieces share (roads and water in lines.ts, the railway in rail.ts,
  * portals.ts and stations.ts): strips along a map polyline, densified so they follow the terrain
- * facets and cut into the chunks quad by quad, the straight run of a line on across the apron past
- * the map's edge, boxes, copying triangles, and the road surface as the ribbons draw it.
+ * facets and cut into the chunks quad by quad, the straight run of a road or a river on across the
+ * apron past the map's edge, boxes, copying triangles, and the road surface as the ribbons draw it.
  *
  * @module render/ribbons
  */
@@ -64,7 +64,8 @@ const outward = (x: number, y: number): readonly [number, number] | undefined =>
 
 /**
  * A line that leaves the map continues straight across the apron at its edge elevation, like the
- * apron terrain (edge heights extruded outwards), so roads, rivers and the track do not stop at the bounds.
+ * apron terrain (edge heights extruded outwards), so roads and rivers do not stop at the bounds (the
+ * track runs on as its trains do: render/drawn-runs).
  */
 export const throughApron = <T = never>(
   pts: ReadonlyArray<number>,

@@ -63,7 +63,15 @@ export {
   vergeOf,
 } from "./kinds.ts"
 export type { BellEntry, MouthEntry } from "./derived.ts"
-export type { LevelCrossing, LinePiece, Platform, RailLine, Railway, Station } from "./railway.ts"
+export type {
+  LevelCrossing,
+  LinePiece,
+  Platform,
+  RailLine,
+  Railway,
+  RunOutPiece,
+  Station,
+} from "./railway.ts"
 export { type Segment, treesIn, type Wall, type WallKind, wallsNear } from "./walls.ts"
 
 /** The built terrain's box, metres: the box round the map's parts, which the play area (`outline`) lies in. */

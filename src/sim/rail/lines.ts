@@ -1,23 +1,24 @@
 /**
  * The lines as trains run them: each of `MAP.railway.lines` as one polyline in arc length `s`, its
- * pieces of `MAP.rail` joined end to end and extended straight past both terminals: over the drawn
- * apron (`DRAWN_RUN`), past which AI trains are removed, to the end of the run-out, where they enter
- * out of view (`runOut`). A line's s counts from its first terminal (0) to its last (`length`), as the
- * map's stations, crossings and speed limits do; the run-outs are s < 0 and s > length. Lines that
- * run on the same pieces (or past the same terminal) share that track: `SHARED` maps one line's s
- * onto another's there. Static module content, built once at load; `makeLine` builds one from any
- * track, for tests.
+ * pieces of `MAP.rail` joined end to end and run on past both terminals along the map's track beyond
+ * them (`runOuts`), straight on past where that ends: over the drawn run (`DRAWN_RUN`), past which
+ * AI trains are removed, to the end of the run-out, where they enter out of view (`runOut`). A
+ * line's s counts from its first terminal (0) to its last (`length`), as the map's stations,
+ * crossings and speed limits do; the run-outs are s < 0 and s > length. Lines that run on the same
+ * pieces (or past the same terminal) share that track: `SHARED` maps one line's s onto another's
+ * there. Static module content, built once at load; `makeLine` builds one from any track, for tests.
  *
  * @module rail/lines
  */
 import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2, staticGrid } from "../collide.ts"
-import { MAP, RAIL_LIFT, type RailLine, type Station } from "../map/index.ts"
+import { MAP, RAIL_LIFT, type RailLine, type RunOutPiece, type Station } from "../map/index.ts"
 import { strikeIn } from "./barriers.ts"
 import { TRAIN_MODELS, trainLength } from "./models.ts"
+import { levelOf, runOn } from "./run-on.ts"
 
-/** How far past a terminal the track is drawn, m: the render's apron beyond the map's bounds (`APRON` × the heightmap's cell, src/render/chunks.ts, whose test holds them equal; a driven train's buffer stop). */
+/** How far past a terminal the track is drawn, m: as far as the render's apron reaches beyond the map's bounds (`APRON` × the heightmap's cell, src/render/chunks.ts, whose test holds them equal; a driven train's buffer stop). */
 export const DRAWN_RUN = 192
 /** Line speed on a stretch OSM gives no limit, m/s: 80 km/h, rank B on a secondary line such as Lucca–Aulla. */
 export const DEFAULT_SPEED = 80 / 3.6
@@ -44,7 +45,7 @@ export interface SpeedSpan {
 
 /**
  * A stretch of a line on one piece of track, from s to s: `key` names the track (a `MAP.rail` index, or
- * −1 − (2·rail + end) for the run-out straight on past vertex `end` (0 its first, 1 its last) of
+ * −1 − (2·rail + end) for the run-out on past vertex `end` (0 its first, 1 its last) of
  * terminal piece `rail`), which the line walks from its own start toward its end when `forward`.
  */
 export interface TrackRun {
@@ -125,15 +126,18 @@ const speedSpans = (
 }
 
 /**
- * A line from its pieces in running order (consecutive pieces share their end vertex), extended
- * straight past both ends at the end's height, along the heading over the last `CHORD` m, by the
- * `runOut` at the line speed there.
+ * A line from its pieces in running order (consecutive pieces share their end vertex), run on past
+ * both ends by the `runOut` at the line speed there: along its stored run-out `outs` past each (the
+ * map's track beyond its first terminal and beyond its last, walked away from each), straight on past
+ * where that ends short (or from the terminal, with none) at its last height, along the heading over
+ * its last `CHORD` m.
  */
 export const makeLine = (
   index: number,
   pieces: ReadonlyArray<TrackPiece>,
   maxspeed: RailLine["maxspeed"] = [],
   stations: ReadonlyArray<number> = [],
+  outs: readonly [ReadonlyArray<TrackPiece>, ReadonlyArray<TrackPiece>] = [[], []],
 ): Line => {
   const xs: Array<number> = [],
     ys: Array<number> = [],
@@ -141,7 +145,7 @@ export const makeLine = (
     levels: Array<number> = [],
     spansOf: Array<readonly [first: number, last: number]> = []
   for (const piece of pieces) {
-    const level = piece.tunnel === true ? 2 : piece.bridge === true ? 1 : 0
+    const level = levelOf(piece)
     let first = xs.length
     for (let k = 0; k < piece.z.length; k++) {
       const x = piece.pts[2 * k]!,
@@ -157,9 +161,9 @@ export const makeLine = (
     }
     spansOf.push([first, xs.length - 1])
   }
-  const apart = (i: number, j: number) => Math.sqrt((xs[i]! - xs[j]!) ** 2 + (ys[i]! - ys[j]!) ** 2)
   const inner = [0]
-  for (let k = 1; k < xs.length; k++) inner.push(inner[k - 1]! + apart(k - 1, k))
+  for (let k = 1; k < xs.length; k++)
+    inner.push(inner[k - 1]! + Math.sqrt((xs[k]! - xs[k - 1]!) ** 2 + (ys[k]! - ys[k - 1]!) ** 2))
   const length = inner.at(-1)!
   const speeds = speedSpans(maxspeed, 0, length)
   const before = runOut(speeds[0]!.v),
@@ -168,36 +172,39 @@ export const makeLine = (
     end = length + after
   speeds[0] = { ...speeds[0]!, from: start }
   speeds[speeds.length - 1] = { ...speeds.at(-1)!, to: end }
-  // Past each end, straight on along the heading over its last CHORD m, at the end's height.
-  const away = (from: number, step: number) => {
-    let k = from + step
-    while (k > 0 && k < xs.length - 1 && apart(k, from) < CHORD) k += step
-    const d = apart(from, k)
-    return { dx: (xs[from]! - xs[k]!) / d, dy: (ys[from]! - ys[k]!) / d }
-  }
-  const head = away(0, 1),
-    tail = away(xs.length - 1, -1)
-  const n = xs.length + 2
+  const head = runOn(xs, ys, zs[0]!, outs[0], before, CHORD),
+    tail = runOn(xs.toReversed(), ys.toReversed(), zs.at(-1)!, outs[1], after, CHORD)
+  const m = head.x.length,
+    n = m + xs.length + tail.x.length
   const s = new Float64Array(n),
     x = new Float64Array(n),
     y = new Float64Array(n),
     z = new Float64Array(n),
     level = new Uint8Array(n - 1)
-  x[0] = xs[0]! + head.dx * before
-  y[0] = ys[0]! + head.dy * before
-  z[0] = zs[0]!
-  s[0] = start
-  for (let k = 0; k < xs.length; k++) {
-    x[k + 1] = xs[k]!
-    y[k + 1] = ys[k]!
-    z[k + 1] = zs[k]!
-    s[k + 1] = inner[k]!
-    if (k > 0) level[k] = levels[k - 1]!
+  // The run-out before the first terminal, farthest first; each segment toward the terminal runs on what its far vertex's does.
+  for (let j = 0; j < m; j++) {
+    const k = m - 1 - j
+    x[k] = head.x[j]!
+    y[k] = head.y[j]!
+    z[k] = head.z[j]!
+    s[k] = -head.d[j]!
+    level[k] = head.level[j]!
   }
-  x[n - 1] = xs.at(-1)! + tail.dx * after
-  y[n - 1] = ys.at(-1)! + tail.dy * after
-  z[n - 1] = zs.at(-1)!
-  s[n - 1] = end
+  for (let k = 0; k < xs.length; k++) {
+    x[m + k] = xs[k]!
+    y[m + k] = ys[k]!
+    z[m + k] = zs[k]!
+    s[m + k] = inner[k]!
+    if (k > 0) level[m + k - 1] = levels[k - 1]!
+  }
+  for (let j = 0; j < tail.x.length; j++) {
+    const k = m + xs.length + j
+    x[k] = tail.x[j]!
+    y[k] = tail.y[j]!
+    z[k] = tail.z[j]!
+    s[k] = length + tail.d[j]!
+    level[k - 1] = tail.level[j]!
+  }
   const tunnels: Array<{ from: number; to: number }> = []
   for (let k = 0; k < n - 1; k++) {
     if (level[k] !== 2) continue
@@ -240,6 +247,12 @@ export const makeLine = (
   return { index, length, start, end, s, x, y, z, level, speeds, stations, tunnels, runs }
 }
 
+/** A stretch of a line's run-out as trains ride it: the rail head `RAIL_LIFT` over its bed. */
+const onRail = (piece: RunOutPiece): TrackPiece => ({
+  ...piece,
+  z: piece.z.map((z) => z + RAIL_LIFT),
+})
+
 /** Every line of the map, indexed like `MAP.railway.lines`. */
 export const LINES: ReadonlyArray<Line> = MAP.railway.lines.map((line, index) =>
   makeLine(
@@ -259,6 +272,7 @@ export const LINES: ReadonlyArray<Line> = MAP.railway.lines.map((line, index) =>
     }),
     line.maxspeed,
     MAP.railway.stations.flatMap((station, i) => (station.line === index ? [i] : [])),
+    [line.runOuts[0].map(onRail), line.runOuts[1].map(onRail)],
   ),
 )
 

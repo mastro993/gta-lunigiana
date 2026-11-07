@@ -53,7 +53,7 @@ interface Corner {
   readonly minY: number
 }
 
-/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the global file's line. */
+/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the global file's line and gave the lines their run-outs. */
 export const MAP_VERSION = 6
 
 /**
