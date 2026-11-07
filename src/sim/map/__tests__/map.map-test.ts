@@ -852,9 +852,10 @@ test("water: the Lucido is 8 m on the valley floor and 4 m above Vinca", () => {
 // Rosaro above Fivizzano and the Mommio below 775 m are wooded torrents; the Rosaro's river part has
 // its own bed; their heads are named streams. Issue #18: below the Lombardello's mouth the Bardine
 // runs in its valley bed; from the Bardinello's mouth, and the Bardinello below the Pesciola's, they
-// run in the Rosaro's bed; up to the Caldia's mouth the Bardinello is a wooded torrent. Each pair
-// is the two ways either side of a threshold of features.ts, with its mean ground.
-test("water: the Aulella, Rosaro, Mommio, Bardine and Bardinello take their measured widths by reach", () => {
+// run in the Rosaro's bed; up to the Caldia's mouth the Bardinello is a wooded torrent, and so is the
+// Pesciola, all its course. Each pair is the two ways either side of a threshold of features.ts,
+// with its mean ground.
+test("water: the Aulella, Rosaro, Mommio, Bardine, Bardinello and Pesciola take their measured widths by reach", () => {
   const w = (id: number) => WHOLE.water.find((o) => o.id === id)?.w
   // Aulella: lucido's 788520105 (205 m), the gorge's 788514364 (294 m), the head's 788514391 (363 m).
   assert.deepEqual([w(788520105), w(788514364), w(788514391)], [12, 6, 4])
@@ -870,6 +871,9 @@ test("water: the Aulella, Rosaro, Mommio, Bardine and Bardinello take their meas
   assert.deepEqual([w(797861257), w(797861254)], [7, 6])
   // Bardinello: 797860930 (266 m) below the Caldia's mouth, 797860907 (269 m) above it.
   assert.deepEqual([w(797860930), w(797860907)], [6, 4])
+  // Regression: the Pesciola, the larger branch where it joins the Bardinello (18 km² to its 15),
+  // was a named stream's 4 m: its head 797860953 (234 m, 8.9 km²) and its last way 797861233 (158 m).
+  assert.deepEqual([w(797860953), w(797861233)], [6, 6])
 })
 
 test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, the Aulella leaves the play area with 199 and the Bardine with 59", () => {

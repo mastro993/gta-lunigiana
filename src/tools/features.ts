@@ -263,12 +263,15 @@ const BARDINELLO_GORGE_BELOW = 267
  * Bardinello below the Pesciola's, in a 6-32 m one (median 15 m, its water 2.5-12 m, upper quartile
  * 7), as the Rosaro (issue #18). The Lucido's Vinca branch and the Caldanella (from Equi) are the
  * main streams on the valley floor (5-16 m of open marble gravel below 400 m). The Aulella's gorge
- * above the Tassonaro's mouth, the Rosaro above Fivizzano, the Mommio and the Bardinello above the
- * Pesciola's mouth are torrents of 9-49 km² in closed woods, whose canopy gaps show 3-10 m of bed
- * over a LiDAR floor of 7-7.5 m (`wooded`, issue #17). Above Vinca the Lucido runs in a beech-wood
- * gully with only 3-6 m of bed showing, like the other named streams (4 m), the Torrente Pesciola
- * among them, unmeasured though its lower course drains 9-18 km²; unnamed ones are 2 m. The depths
- * are the classes' own, as no photo shows them.
+ * above the Tassonaro's mouth, the Rosaro above Fivizzano, the Mommio, the Bardinello above the
+ * Pesciola's mouth and the Torrente Pesciola, all its drawn course (8.9-18 km²), are torrents of
+ * 9-49 km² in closed woods, whose canopy gaps show 3-10 m of bed over a LiDAR floor of 7-7.5 m
+ * (`wooded`, issue #17). The Pesciola's gaps on the 2010 orthophoto show 7 m of bed at 797860993
+ * (-6064, -1211), 8 m at 797861030 (-6281, -698) and 797861109 (-6485, -9), 10 m at 797861231
+ * (-5916, 1052) and 7 m at 797861233 (-5550, 1172), over a LiDAR floor of a median 8-9 m: at its
+ * mouth it drains 18 km² to the Bardinello's 15 (issue #18). Above Vinca the Lucido runs in a
+ * beech-wood gully with only 3-6 m of bed showing, like the other named streams (4 m); unnamed ones
+ * are 2 m. The depths are the classes' own, as no photo shows them.
  */
 const waterSize = (
   name: string | undefined,
@@ -292,7 +295,8 @@ const waterSize = (
     (name === "Torrente Aulella" && z < AULELLA_GORGE_BELOW) ||
     name === "Torrente Rosaro" ||
     (name === "Torrente Mommio" && z < MOMMIO_GORGE_BELOW) ||
-    (name === "Torrente Bardinello" && z < BARDINELLO_GORGE_BELOW)
+    (name === "Torrente Bardinello" && z < BARDINELLO_GORGE_BELOW) ||
+    name === "Torrente Pesciola"
   const w = main ? 8 : wooded ? 6 : name === undefined ? 2 : 4
   return {
     w,
