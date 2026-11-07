@@ -88,7 +88,7 @@ const bakedAt = (end: { readonly x: number; readonly y: number }, id: number) =>
   )
   assert.ok(
     baked !== undefined && !("open" in baked),
-    `a portal at road ${id}'s mouth (${end.x}, ${end.y})`,
+    `a portal or head wall at road ${id}'s mouth (${end.x}, ${end.y})`,
   )
   return baked
 }

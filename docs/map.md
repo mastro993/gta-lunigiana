@@ -2469,7 +2469,7 @@ does the same for Cesena in a process of its own (a process loads one map), so a
 parked spots, water beds and farms within 1 km of Monzone station and of Cesena's start, so
 `pnpm test` already fails on most such changes (the lanes, the lamps, the bells, the residents and
 the mouths are worked out map-wide, and only the map checks catch them; `tunnels.test.ts` bakes
-the SR445's, the 196 m track's and the 87 m path's mouths again).
+the SR445's, the 196 m track's, the 87 m path's and Pieve San Lorenzo's underpass's mouths again).
 
 Gzipped on their own, the global JSON line's biggest fields on Lunigiana are the graph 0.80 MB, the
 spawns 0.30 MB (the parked rests, most of it), `derived` 161 KB (the residents 98 KB, the farms'

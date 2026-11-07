@@ -445,8 +445,9 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
     )
   )
     return "housed"
-  const least = leastWall(road)
-  if (Math.max(...probes.map(({ x, y, z }) => terrainZ(x, y) - z)) < least) return "low"
+  const least = leastWall(road),
+    highest = Math.max(...probes.map(({ x, y, z }) => terrainZ(x, y) - z))
+  if (highest < least) return "low"
   const floor = yOf(road.z[first ? 0 : road.z.length - 1]! + ROAD_LIFT[roadClassOf(road)]),
     ux = Math.cos(end.angle),
     uy = Math.sin(end.angle),
@@ -473,7 +474,7 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   })
   assert.ok(
     crowding !== undefined,
-    `the mouth at (${end.x.toFixed(1)}, ${end.y.toFixed(1)}) is open, though the ground over it rises to ${least.toFixed(2)} m and nothing stands in the way of a head wall`,
+    `the mouth at (${end.x.toFixed(1)}, ${end.y.toFixed(1)}) is open, though the ground over it rises to ${highest.toFixed(2)} m (a head wall needs ${least.toFixed(2)} m) and nothing stands in the way of one`,
   )
   return "crowded"
 }
