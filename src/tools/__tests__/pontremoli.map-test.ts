@@ -13,6 +13,7 @@ import { staticGrid } from "../../sim/collide.ts"
 import { DBT_RESIDUAL, gaussBoagaToLatLon } from "../crs.ts"
 import { ctrRecords, polygonsOf, specOf } from "../ctr.ts"
 import { readDbt } from "../dbt.ts"
+import { isBuilding } from "../features.ts"
 import { centroid, type P, pointInRing, ringBox, toLocal } from "../geometry.ts"
 import { assembleRings, readOsms } from "../osm.ts"
 import { inRects, osmFiles, type Rect, rectsBox, regionFromArgs, surveyDir } from "../region.ts"
@@ -46,17 +47,14 @@ const osmOutlines = (): Array<Array<number>> => {
       return toLocal(node.lat, node.lon)
     })
   const rels = [...osm.relations.values()].filter(
-    (r) => r.tags.type === "multipolygon" && r.tags.building !== undefined,
+    (r) => r.tags.type === "multipolygon" && isBuilding(r.tags),
   )
   const inRel = new Set(rels.flatMap((r) => r.members.map((m) => m.ref)))
   return [
     ...[...osm.ways.values()]
       .filter(
         (w) =>
-          w.tags.building !== undefined &&
-          !inRel.has(w.id) &&
-          w.nds.length > 3 &&
-          w.nds[0] === w.nds.at(-1),
+          isBuilding(w.tags) && !inRel.has(w.id) && w.nds.length > 3 && w.nds[0] === w.nds.at(-1),
       )
       .map((w) => ring(w.nds)),
     ...rels.flatMap((r) => assembleRings(osm, r, "outer").map(ring)),

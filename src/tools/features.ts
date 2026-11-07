@@ -134,6 +134,12 @@ const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
 const ringOf = (osm: Osm, nds: ReadonlyArray<string>): Array<P> =>
   vertices(osm, nds.slice(0, -1)).map((v) => [v.x, v.y])
 const closed = (w: OsmWay) => w.nds.length > 3 && w.nds[0] === w.nds.at(-1)
+/**
+ * Whether tags `t` make a building: a `building` tag, but `no` (none, as `bridge=no` is no bridge)
+ * and `roof` (a canopy, open at ground level, which the surveys leave out: ctr.ts).
+ */
+export const isBuilding = (t: Tags): boolean =>
+  t.building !== undefined && t.building !== "no" && t.building !== "roof"
 
 /**
  * OSM highway values folded into a road class: each link into the class below (a slip road is
@@ -485,7 +491,7 @@ export const extractBuildings = (
 
 const osmBuildings = (osm: Osm): Array<BuildingF> => {
   const rels = [...osm.relations.values()].filter(
-    (r) => r.tags.type === "multipolygon" && r.tags.building !== undefined,
+    (r) => r.tags.type === "multipolygon" && isBuilding(r.tags),
   )
   const inRel = new Set(rels.flatMap((r) => r.members.map((m) => m.ref)))
   const make = (
@@ -517,7 +523,7 @@ const osmBuildings = (osm: Osm): Array<BuildingF> => {
   }
   return [
     ...[...osm.ways.values()]
-      .filter((w) => w.tags.building !== undefined && !inRel.has(w.id) && closed(w))
+      .filter((w) => isBuilding(w.tags) && !inRel.has(w.id) && closed(w))
       .map((w) => make(w.id, w.tags, ringOf(osm, w.nds), [])),
     ...rels.flatMap((r) => {
       const inner = assembleRings(osm, r, "inner").map((ring) => ringOf(osm, ring))
@@ -659,7 +665,7 @@ export const extractAreas = (osm: Osm, ground?: (x: number, y: number) => number
   }
   for (const w of osm.ways.values()) {
     const tagged = areaKind(w.tags)
-    if (tagged === undefined || w.tags.building !== undefined || !closed(w)) continue
+    if (tagged === undefined || isBuilding(w.tags) || !closed(w)) continue
     const ring = flatRing(clipRing(ringOf(osm, w.nds), TERRAIN_BOX), true)
     const kind = ring === undefined ? undefined : kindOf(tagged, ring)
     if (ring !== undefined && kind !== undefined)
@@ -672,8 +678,7 @@ export const extractAreas = (osm: Osm, ground?: (x: number, y: number) => number
   }
   for (const rel of osm.relations.values()) {
     const tagged = areaKind(rel.tags)
-    if (rel.tags.type !== "multipolygon" || tagged === undefined || rel.tags.building !== undefined)
-      continue
+    if (rel.tags.type !== "multipolygon" || tagged === undefined || isBuilding(rel.tags)) continue
     const inners = assembleRings(osm, rel, "inner").map((r) => ringOf(osm, r))
     for (const outer of assembleRings(osm, rel, "outer").map((r) => ringOf(osm, r))) {
       const flat = outer.flatMap(([x, y]) => [x, y])
