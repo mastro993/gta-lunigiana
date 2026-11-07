@@ -272,7 +272,7 @@ export const BUILDING_STYLES = [
 ] as const
 export type BuildingStyle = (typeof BUILDING_STYLES)[number]
 
-/** Land-use kinds the build emits: land covers (the woods among them, `WOODS`), a river's gravel (`pebble`) and its water (`river`, `lake`). */
+/** Land-use kinds the build emits: land covers (the woods among them, `WOODS`, and the olive groves, `olive`), a river's gravel (`pebble`) and its water (`river`, `lake`). */
 export const AREA_KINDS = [
   "forest",
   "cemetery",
@@ -299,6 +299,7 @@ export const AREA_KINDS = [
   "lake",
   "conifer",
   "mixed",
+  "olive",
 ] as const
 export type AreaKind = (typeof AREA_KINDS)[number]
 
@@ -337,6 +338,13 @@ export const RAIL_LIFT = 0.12
  * people wait on but a walkway (`src/tools/platforms.ts`): a train's step reaches no further.
  */
 export const PLATFORM_EDGE = 2.2
+
+/**
+ * The first olive tree's id: the olive groves' trees stand on a lattice of their own
+ * (src/tools/trees.ts), numbered past every wood's and bank's tree (2^28 + 2^30), so a tree is an
+ * olive by its id alone (`kindAt` in src/render/trees.ts).
+ */
+export const OLIVE_TREES = 1_342_177_280
 
 /** Side of the square wall around every tree trunk, m. */
 export const TRUNK = 0.5

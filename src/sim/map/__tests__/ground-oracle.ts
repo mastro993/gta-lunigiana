@@ -55,6 +55,7 @@ const COVER_SURFACE: Record<string, Surface> = {
   lake: "dirt",
   conifer: "leaves",
   mixed: "leaves",
+  olive: "grass",
 }
 
 /** The roads' OSM `surface` values (surface.ts's table). */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { TILE } from "../../sim/map/kinds.ts"
+import { OLIVE_TREES, TILE } from "../../sim/map/kinds.ts"
 import type { BuildingF, RoadF, WaterF } from "../features.ts"
 import { hash01 } from "../geometry.ts"
 import type { Rect } from "../region.ts"
@@ -298,4 +298,107 @@ test("the conifer and mixed woods grow the trees a forest there grows, and an op
   const field = grown("conifer", [{ kind: "farmland", rings: [ring([250, 100, 400, 300])] }])
   assert.ok(field.ids.length > 0 && field.ids.length < forest.ids.length)
   for (let k = 0; k < field.ids.length; k++) assert.ok(field.trees[3 * k]! < 251, `tree ${k}`)
+})
+
+/** The trees `treeScatter` grows on lucido's anchor in [0, 500)² over an olive grove on `box` and the areas `over`. */
+const grove = (
+  box: Rect,
+  over: ReadonlyArray<{ kind: string; rings: Array<Array<number>> }> = [],
+  ground: Pick<Parameters<typeof treeScatter>[1], "anchor" | "bounds"> = LUCIDO,
+) =>
+  treeScatter(
+    {
+      areas: [{ kind: "olive", rings: [ring(box)] }, ...over],
+      roads: [],
+      buildings: [],
+      water: [],
+      rail: [],
+    },
+    ground,
+  )([0, 0, 500, 500])
+
+test("an olive grove grows olives on a 7 m lattice of their own, numbered from OLIVE_TREES, each 2, 3 or 4 m into its cell", () => {
+  const box: Rect = [100, 100, 380, 310]
+  const { trees, ids } = grove(box)
+  // 280 × 210 m at a tree a 7 m cell: 40 × 30, give or take a row at the edges.
+  assert.ok(ids.length >= 39 * 29 && ids.length <= 41 * 31, `${ids.length} olives`)
+  assert.ok(ids.every((id, k) => id >= OLIVE_TREES && (k === 0 || id > ids[k - 1]!)))
+  // How far into its cell from the anchor each olive stands, east and north, and how many of each.
+  const into = new Map<string, number>()
+  for (let k = 0; k < ids.length; k++) {
+    const x = trees[3 * k]!,
+      y = trees[3 * k + 1]!
+    assert.ok(x >= 100 && x <= 380 && y >= 100 && y <= 310, `${x}, ${y} in the grove`)
+    for (const [axis, d] of [
+      ["x", (x - LUCIDO.anchor.x) % 7],
+      ["y", (y - LUCIDO.anchor.y) % 7],
+    ] as const)
+      into.set(`${axis}${d}`, (into.get(`${axis}${d}`) ?? 0) + 1)
+  }
+  assert.deepEqual([...into.keys()].sort(), ["x2", "x3", "x4", "y2", "y3", "y4"])
+  for (const axis of ["x", "y"])
+    assert.ok(into.get(`${axis}3`)! > into.get(`${axis}2`)! + into.get(`${axis}4`)! - 100)
+})
+
+test("an olive grove over a wood or a field grows olives and the wood's trees none, and an area drawn over a grove keeps the olives out", () => {
+  const box: Rect = [100, 100, 400, 300]
+  const all = grove(box)
+  // OSM's forest under the grove's west third and a field under its middle, as the grove draws
+  // over them; a park over its east third.
+  const over = grove(box, [
+    { kind: "forest", rings: [ring([100, 100, 200, 300])] },
+    { kind: "farmland", rings: [ring([200, 100, 300, 300])] },
+    { kind: "park", rings: [ring([300, 100, 400, 300])] },
+  ])
+  assert.ok(
+    over.ids.every((id) => id >= OLIVE_TREES),
+    "olives alone",
+  )
+  const xs = Array.from({ length: over.ids.length }, (_, k) => over.trees[3 * k]!)
+  assert.ok(xs.every((x) => x <= 301))
+  assert.ok(xs.length > 0.63 * all.ids.length && xs.length < 0.7 * all.ids.length)
+  assert.ok(xs.filter((x) => x < 200).length > 0.3 * all.ids.length, "in the wood's third")
+})
+
+test("an olive keeps its place and id as the region's box grows, and the scatters of the tiles are the whole box's", () => {
+  const box: Rect = [1900, 1900, 2100, 2100]
+  const grown = {
+    anchor: LUCIDO.anchor,
+    bounds: { minX: -8900, minY: -10100, maxX: 8900, maxY: 7900 },
+  }
+  const features: TreeFeatures = {
+    areas: [{ kind: "olive", rings: [ring(box)] }],
+    roads: [],
+    buildings: [],
+    water: [],
+    rail: [],
+  }
+  const whole = treeScatter(features, LUCIDO)([1000, 1000, 3000, 3000])
+  assert.ok(whole.ids.length > 700, `${whole.ids.length} olives`)
+  assert.deepEqual(treeScatter(features, grown)([1000, 1000, 3000, 3000]), whole)
+  const scatter = treeScatter(features, LUCIDO)
+  const merged = mergeTrees([0, 1].flatMap((j) => [0, 1].map((i) => scatter(tileBox(i, j)))))
+  assert.deepEqual(Array.from(merged.ids), Array.from(whole.ids))
+  assert.deepEqual(Array.from(merged.trees), Array.from(whole.trees))
+})
+
+test("the last olive cell's id stays an int32, and a cell further throws", () => {
+  // Olive cells number 8192 each way from the anchor: (8191, 8191) is the last, 57,337–57,344 m
+  // north-east of it.
+  const far = { anchor: { x: 0, y: 0 }, bounds: { minX: 0, minY: 0, maxX: 57400, maxY: 57400 } }
+  const box: Rect = [57300, 57300, 57344, 57344]
+  const features: TreeFeatures = {
+    areas: [{ kind: "olive", rings: [ring(box)] }],
+    roads: [],
+    buildings: [],
+    water: [],
+    rail: [],
+  }
+  const { ids } = treeScatter(features, far)([56000, 56000, 58000, 58000])
+  assert.equal(ids.at(-1), OLIVE_TREES + 2 ** 28 - 1)
+  assert.ok(ids.at(-1)! < 2 ** 31)
+  assert.throws(
+    () => treeScatter(features, { ...far, anchor: { x: -8, y: -8 } })([56000, 56000, 58000, 58000]),
+    /past the 8192 cells the ids number/,
+  )
 })

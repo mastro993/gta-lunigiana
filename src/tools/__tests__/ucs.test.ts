@@ -8,7 +8,7 @@ import { gzipSync } from "node:zlib"
 import { fillPolygon, segDist2 } from "../../sim/collide.ts"
 import { gaussBoagaToLatLon, latLonToGaussBoaga, latLonToUtm32, utm32ToLatLon } from "../crs.ts"
 import { centroid, fromLocal, type P, toLocal } from "../geometry.ts"
-import { readUcs, ucsAreas } from "../ucs.ts"
+import { kindOfCode, readUcs, ucsAreas } from "../ucs.ts"
 
 /** A closed square ring [e, n, …] of side `s` from (e, n). */
 const square = (e: number, n: number, s: number) => [e, n, e + s, n, e + s, n + s, e, n + s, e, n]
@@ -49,6 +49,30 @@ test("readUcs reads Tuscany's EPSG:3003 and Liguria's EPSG:25832 by each file's 
   assert.ok(near(areas[1]!.rings[0]!, toLocal(...utm32ToLatLon(ue + 50, un + 50))))
   const elsewhere = file(t, "EPSG:4326", [])
   assert.throws(() => readUcs([elsewhere]), /land cover in EPSG:4326/)
+})
+
+test("kindOfCode: olive groves (223) and vineyards (221); Liguria's vines mixed with olives and abandoned olive groves are olive groves, its abandoned vines no kept class", () => {
+  assert.equal(kindOfCode("223"), "olive")
+  assert.equal(kindOfCode("221"), "vineyard")
+  assert.equal(kindOfCode("2211"), "olive") // vigneti misti ad oliveti
+  assert.equal(kindOfCode("2231"), "olive") // oliveti abbandonati
+  assert.equal(kindOfCode("2212"), undefined) // vigneti e/o altre colture permanenti abbandonate
+  assert.equal(kindOfCode("3115"), "forest") // castagno: a broadleaf wood, by its third level
+  assert.equal(kindOfCode("222"), undefined) // frutteti
+})
+
+test("readUcs reads Liguria's fourth-level codes as kindOfCode does", (t) => {
+  const [e, n] = latLonToUtm32(...fromLocal(0, 0))
+  const liguria = file(t, "EPSG:25832", [
+    { id: 1, code: "2211", rings: [square(e, n, 100)] },
+    { id: 2, code: "2212", rings: [square(e + 200, n, 100)] },
+    { id: 3, code: "2231", rings: [square(e + 400, n, 100)] },
+    { id: 4, code: "221", rings: [square(e + 600, n, 100)] },
+  ])
+  assert.deepEqual(
+    readUcs([liguria]).map((a) => a.kind),
+    ["olive", "olive", "vineyard"],
+  )
 })
 
 test("readUcs reads a polygon two parts' files hold once, and every polygon of a multipolygon", (t) => {

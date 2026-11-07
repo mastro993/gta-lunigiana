@@ -1,14 +1,16 @@
-// The deterministic tree scatter: a jittered lattice inside the woods, plus sparse trees on the banks
-// of the wider streams. The lattice and its 2 m masks (woods, other areas, buildings) start at the
-// region's anchor, fixed for good, and a tree's id is its lattice cell's number (a bank tree's, its
-// 4 m cell's, past every lattice cell's), so no lattice tree moves, and no tree changes its id or
-// its look, as parts are added (a bank tree keeps its step along its way, but stands off its
-// piece's bed, which may change where the outline cuts the way). The scatter works a window at a
-// time (in the build, each of the region's 2 km tiles), rasterising the masks over the window
-// alone; a tree belongs to the window holding its rounded point, so two lattice points that round
-// onto one spot meet in one window, which keeps the first.
+// The deterministic tree scatter: a jittered lattice inside the woods, sparse trees on the banks of
+// the wider streams, and the olive groves' trees on a 7 m lattice of their own. The lattices and
+// their 2 m masks (woods, olive groves, other areas, buildings) start at the region's anchor, fixed
+// for good, and a tree's id is its lattice cell's number (a bank tree's, its 4 m cell's, past every
+// lattice cell's; an olive's, its cell's past every bank cell's, from OLIVE_TREES), so no lattice
+// tree moves, and no tree changes its id or its look, as parts are added (a bank tree keeps its step
+// along its way, but stands off its piece's bed, which may change where the outline cuts the way).
+// The scatter works a window at a time (in the build, each of the region's 2 km tiles), rasterising
+// the masks over the window alone; a tree belongs to the window holding its rounded point, so two
+// lattice points that round onto one spot meet in one window, which keeps the first.
 import type { Area } from "../sim/map/index.ts"
-import { isWood, TILE } from "../sim/map/kinds.ts"
+import { isWood, OLIVE_TREES, TILE } from "../sim/map/kinds.ts"
+import { fillRank } from "../sim/map/raster.ts"
 import type { BuildingF, RailF, RoadF, WaterF } from "./features.ts"
 import { arcLengths, fillPolygon, hash01, pointAt, r1, ringBox, segIndex } from "./geometry.ts"
 import type { Rect, Region } from "./region.ts"
@@ -25,6 +27,14 @@ const BANK_CELL = 4
 const SPAN = 8192
 /** Bank cells numbered each way from the anchor: 16384, 65.5 km. */
 const BANK_SPAN = 16384
+/** The olive groves' lattice step, m: a tree a cell, as the Lunigiana's groves are planted. */
+const OLIVE_STEP = 7
+/**
+ * How far an olive stands off the whole metre by its cell's middle at most, m, either way: a
+ * grove's rows, not a grid. Rounded to the metre, it stands 2, 3 or 4 m into its cell (a quarter,
+ * a half and a quarter of them), 5–9 m from the next in its row.
+ */
+const OLIVE_JITTER = 1
 /**
  * The first bank tree's id, past every lattice cell's number (2^28; the last is 2^28 + 2^30 - 1). A
  * look's seeds, 3 * id and one more for a mirror (render/trees.ts), pass int32 for bank trees and
@@ -40,7 +50,7 @@ interface KeptOff {
   readonly rail: ReadonlyArray<RailF>
 }
 
-/** What the trees grow in (the woods, `WOODS`) and keep out of (the other areas, and every feature). */
+/** What the trees grow in (the woods, `WOODS`, and the olive groves) and keep out of (the other areas, and every feature). */
 export interface TreeFeatures extends KeptOff {
   readonly areas: ReadonlyArray<Area>
   /**
@@ -55,6 +65,19 @@ const latticeId = (gi: number, gj: number): number => {
   if (gi < -SPAN || gi >= SPAN || gj < -SPAN || gj >= SPAN)
     throw new Error(`tree lattice cell (${gi}, ${gj}) is past the ${SPAN} cells the ids number`)
   return (gj + SPAN) * 2 * SPAN + gi + SPAN
+}
+
+/**
+ * The id of olive cell (gi, gj) from the anchor: OLIVE_TREES plus its number, SPAN cells (57.3 km)
+ * each way, the last below 2^31 (OLIVE_TREES + 2^28 - 1). Most olives' look's seeds (3 × id, a
+ * mirror's one more: render/trees.ts) pass 2^32, and `hash01` wraps them (ToInt32): an olive's
+ * onto a seed no other tree has (2 more than a multiple of 3), but a mirror's onto a wood's tree's
+ * id × 3, a tree over 38 km away (its id 1,431,655,765 lower).
+ */
+const oliveId = (gi: number, gj: number): number => {
+  if (gi < -SPAN || gi >= SPAN || gj < -SPAN || gj >= SPAN)
+    throw new Error(`olive cell (${gi}, ${gj}) is past the ${SPAN} cells the ids number`)
+  return OLIVE_TREES + (gj + SPAN) * 2 * SPAN + gi + SPAN
 }
 
 /** The id of bank cell (ci, cj) from the anchor: its number, past every lattice cell's. */
@@ -91,11 +114,12 @@ const bankCandidates = (water: ReadonlyArray<WaterF>) => {
 }
 
 /**
- * The scatter of `features` on `ground`'s lattice. `(window)` gives the trees whose rounded point
+ * The scatter of `features` on `ground`'s lattices. `(window)` gives the trees whose rounded point
  * lies in the window [x0, y0, x1, y1) (whole metres) in id order, flat (x, y, scale) triples on
- * whole metres: in the woods, clear of the other areas, buildings (2 m), roads (w/2 + 2 m), stream
- * beds and the rail (6 m), 1 m inside the built terrain. Any cut of the ground into windows gives
- * the same trees with the same ids.
+ * whole metres: in the woods, then on the banks, each clear of the other areas, then in the olive
+ * groves, clear of the areas drawn over them; all clear of the buildings (2 m), roads (w/2 + 2 m),
+ * stream beds and the rail (6 m), 1 m inside the built terrain. Any cut of the ground into windows
+ * gives the same trees with the same ids.
  */
 export const treeScatter = (
   features: TreeFeatures,
@@ -116,12 +140,19 @@ export const treeScatter = (
   }
   const WOOD = 0,
     OPEN = 1,
-    BUILT = 2
-  // Each mask's polygons, with their boxes.
+    BUILT = 2,
+    GROVE = 3,
+    OVER = 4
+  // Each mask's polygons, with their boxes: the woods, every other area (the groves among them), the
+  // buildings, the olive groves, and the areas the land cover draws over a grove (`FILL` in
+  // sim/map/raster.ts), so the olives grow where it draws one.
+  const over = fillRank("olive")
   const kinds = [
     areas.filter((a) => isWood(a.kind)).map((a) => a.rings),
     areas.filter((a) => !isWood(a.kind)).map((a) => a.rings),
     keptOff.flatMap(({ buildings }) => buildings.map((b) => [b.outer, ...(b.holes ?? [])])),
+    areas.filter((a) => a.kind === "olive").map((a) => a.rings),
+    areas.filter((a) => fillRank(a.kind) > over).map((a) => a.rings),
   ].map((polys) =>
     polys.map((rings) => {
       const box = [Infinity, Infinity, -Infinity, -Infinity]
@@ -171,14 +202,15 @@ export const treeScatter = (
         masks[kind]![r * block.cols + c] === 1
       )
     }
-    const free = (x: number, y: number) =>
+    /** Clear of the buildings and every feature, 1 m inside the built terrain. */
+    const clear = (x: number, y: number) =>
       x >= minX + 1 &&
       x <= maxX - 1 &&
       y >= minY + 1 &&
       y <= maxY - 1 &&
-      !at(OPEN, x, y) &&
       !at(BUILT, x, y) &&
       !keepOut.covers(x, y)
+    const free = (x: number, y: number) => clear(x, y) && !at(OPEN, x, y)
     const mine = (tx: number, ty: number) => tx >= x0 && tx < x1 && ty >= y0 && ty < y1
     // Rounded to the metre, two jittered points can land on one spot: keep the first (a bit per
     // metre of the window).
@@ -220,6 +252,21 @@ export const treeScatter = (
       trees.push(tx, ty, scale)
       ids.push(id)
     }
+    // Then the olives, in id order, each in a grove no other area draws over, where no tree stands.
+    // The anchor is on whole metres and the step odd: jittered round its middle's half metre, an
+    // olive would round to one of two spots.
+    const half = Math.floor(OLIVE_STEP / 2)
+    for (let gj = Math.floor((y0 - 1 - ay) / OLIVE_STEP) - 1; ay + gj * OLIVE_STEP < y1; gj++)
+      for (let gi = Math.floor((x0 - 1 - ax) / OLIVE_STEP) - 1; ax + gi * OLIVE_STEP < x1; gi++) {
+        const x = ax + gi * OLIVE_STEP + half + OLIVE_JITTER * (2 * hash01(gi, gj, 21) - 1),
+          y = ay + gj * OLIVE_STEP + half + OLIVE_JITTER * (2 * hash01(gi, gj, 22) - 1)
+        const tx = Math.round(x),
+          ty = Math.round(y)
+        if (mine(tx, ty) && at(GROVE, x, y) && !at(OVER, x, y) && clear(x, y) && take(tx, ty)) {
+          trees.push(tx, ty, r1(0.8 + 0.5 * hash01(gi, gj, 23)))
+          ids.push(oliveId(gi, gj))
+        }
+      }
     return { trees: Float64Array.from(trees), ids: Int32Array.from(ids) }
   }
 }

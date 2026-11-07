@@ -48,6 +48,7 @@ const AREA_HEX = {
   pebble: PALETTE.limestone,
   river: PALETTE.waterShallow,
   lake: PALETTE.waterShallow,
+  olive: PALETTE.olive,
 } as const satisfies Record<AreaKind, number>
 
 /** The full map's least road width by class, px (the rest: 1.5), so the main roads stand out at a few pixels per hundred metres. */

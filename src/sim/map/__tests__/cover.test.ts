@@ -234,9 +234,9 @@ test("the cover is the same on two heightmaps round one anchor where an edge gra
   assert.deepEqual(cells(-10700), cells(-2900))
 })
 
-test("a cover keeps its byte: the old covers in their order, then river and lake, then the conifer and mixed woods", () => {
+test("a cover keeps its byte: the old covers in their order, then river and lake, then the conifer and mixed woods, then the olive groves", () => {
   assert.deepEqual(
-    Array.from({ length: 27 }, (_, v) => coverName(v)),
+    Array.from({ length: 28 }, (_, v) => coverName(v)),
     [
       "meadow",
       "forest",
@@ -264,6 +264,7 @@ test("a cover keeps its byte: the old covers in their order, then river and lake
       "lake",
       "conifer",
       "mixed",
+      "olive",
       "meadow", // past the list
     ],
   )
@@ -341,4 +342,34 @@ test("the UCS's conifer and mixed woods refine a forest under them, and every ot
   assert.equal(at(raster, 2, 34), "farmland") // over the conifer wood
   assert.equal(at(raster, 34, 6), "grassland") // over the mixed wood
   assert.equal(at(raster, 30, 20), "meadow")
+})
+
+test("an olive grove draws over a wood, grassland, farmland and residential land, as a vineyard does, and a farmyard, a park or a square over it, whichever comes first in the map", () => {
+  // OSM's areas listed before the UCS's olive grove, which spans every cell.
+  const raster = coverBlocks({
+    ...bare,
+    heightmap,
+    water: [],
+    areas: [
+      { kind: "forest", rings: [[0, 0, 12, 0, 12, 40, 0, 40]] },
+      { kind: "farmland", rings: [[12, 32, 40, 32, 40, 40, 12, 40]] },
+      { kind: "residential", rings: [[32, 0, 40, 0, 40, 32, 32, 32]] },
+      { kind: "grassland", rings: [[12, 0, 32, 0, 32, 8, 12, 8]] },
+      { kind: "park", rings: [[12, 12, 20, 12, 20, 28, 12, 28]] },
+      { kind: "paved", rings: [[24, 12, 32, 12, 32, 20, 24, 20]] },
+      { kind: "farmyard", rings: [[24, 24, 28, 24, 28, 28, 24, 28]] },
+      { kind: "olive", rings: [[0, 0, 40, 0, 40, 40, 0, 40]] },
+    ],
+  })(WHOLE)
+  for (const [x, y] of [
+    [6, 20], // over the forest
+    [20, 36], // over the farmland
+    [36, 20], // over the residential land
+    [20, 4], // over the grassland
+    [30, 30], // where nothing else is
+  ])
+    assert.equal(at(raster, x!, y!), "olive", `${x}, ${y}`)
+  assert.equal(at(raster, 16, 20), "park")
+  assert.equal(at(raster, 28, 16), "paved")
+  assert.equal(at(raster, 26, 26), "farmyard")
 })

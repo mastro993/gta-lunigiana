@@ -51,6 +51,7 @@ export {
   isWood,
   LANE,
   laneOffset,
+  OLIVE_TREES,
   RAIL_KINDS,
   RAIL_LIFT,
   type RailKind,
