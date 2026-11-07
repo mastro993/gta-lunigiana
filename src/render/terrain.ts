@@ -101,7 +101,7 @@ const patchNoise = (i: number, j: number): number => {
  * Picks the base or variant colour of a look for cell (i, j), counted from the region's anchor,
  * whose middle stands `z` m a.s.l. on a slope of `slope` (rise over run).
  */
-export const shade = (look: CoverLook, i: number, j: number, z = 0, slope = 0): number => {
+export const shade = (look: CoverLook, i: number, j: number, z: number, slope: number): number => {
   const { terraces } = look
   const half = terraces === undefined ? 0 : (slope * terraces.strip) / 2
   return (
