@@ -33,7 +33,7 @@ import {
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { roadLevels } from "./road-levels.ts"
-import { type Profile, RELAX, sampleGrid } from "./terrain.ts"
+import { type Profile, RELAX, resample, sampleGrid } from "./terrain.ts"
 import { stillLevel, waterAreas } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
@@ -233,6 +233,9 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     water.map((w) => w.pts.map((v) => v.id)),
     grid.listed,
     inflowsOf(water, wp0, BOUNDS),
+    // The water beyond the play area runs on from where its outline cuts the play area's: burned,
+    // never read. Unsettled: the running minimum would carry a notch's drawn-on edge downstream.
+    src.beyond.water.map((w) => resample(w.pts, 2, (x, y) => ground(x, y) - w.depth / 2)),
   )
   dropPerched(water, wp, crossed, grid.perched, stillLevel(wet.carved))
   lap("water")

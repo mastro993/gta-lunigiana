@@ -862,7 +862,7 @@ test("water: the Aulella, Rosaro and Mommio take their measured widths by reach"
   assert.deepEqual([w(788514606), w(788514696), w(788514702)], [6, 6, 4])
 })
 
-test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, and the Aulella leaves the map with 199", () => {
+test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, the Aulella leaves the play area with 199 and the Bardine with 59", () => {
   for (const w of WHOLE.water)
     w.area.forEach((a, k) =>
       assert.ok(k === 0 || a >= w.area[k - 1]!, `water ${w.id} shrinks at ${k}`),
@@ -893,6 +893,22 @@ test("water: catchments grow downstream; the Lucido drains 47 km² where it meet
     ...WHOLE.water.filter((w) => w.name === "Torrente Aulella").map((w) => w.area.at(-1)!),
   )
   assert.ok(Math.abs(aulella - 199) < 3, `the Aulella leaves with ${aulella} km²`)
+  // Regression: fosdinovo's north edge cut the Bardine 100 m short of the notch, and its basin
+  // drained out up the Canale del Torchio to the box's west edge: the Bardine left with 117.3 km²,
+  // its own 58.1 twice and the Torchio's 0.8 (issue #18).
+  const bardine = Math.max(
+    ...WHOLE.water.filter((w) => w.name === "Torrente Bardine").map((w) => w.area.at(-1)!),
+  )
+  assert.ok(Math.abs(bardine - 59) < 2, `the Bardine leaves with ${bardine} km²`)
+  // Regression: fivizzano's west edge cut the Aulella 700 m short of the notch, the fill made its
+  // trench a lake for 10 km, and D8 ran the river across it down a 2 m side stream by Soliera (way
+  // 140780331, 108.5 km²) and, by Gragnola, Il Canalaccio (55.4); the Torchio drained the Bardine's
+  // 59.2 out to the box's west edge.
+  const most = (keep: (w: (typeof WHOLE.water)[number]) => boolean) =>
+    Math.max(...WHOLE.water.filter(keep).flatMap((w) => w.area))
+  assert.ok(most((w) => w.id === 140780331) < 1, "the side stream by Soliera")
+  assert.ok(most((w) => w.name === "Il Canalaccio") < 6, "Il Canalaccio")
+  assert.ok(most((w) => w.name === "Canale del Torchio") < 2, "the Canale del Torchio")
 })
 
 test("walls: water stops neither feet nor wheels; the shore walls ring it, and people and animals keep to them", () => {
