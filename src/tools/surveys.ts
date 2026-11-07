@@ -1,5 +1,6 @@
 // The surveys of the ground merged into one (`Survey`, ctr.ts) by priority: each source's buildings
-// and road surfaces stand where no source before it maps the ground. The build reads them here.
+// and road surfaces stand where no source before it maps the ground, and its buildings off those an
+// earlier source keeps (overlap.ts). The build reads them here.
 import { join } from "node:path"
 
 import { staticGrid } from "../sim/collide.ts"
@@ -7,6 +8,7 @@ import { type RoadArea, type Survey, type SurveyBuilding, readCtr, readOldCtr } 
 import { readDbt } from "./dbt.ts"
 import { centroid, pointInRing, ringBox, TERRAIN_BOX } from "./geometry.ts"
 import { readNc5 } from "./nc5.ts"
+import { apartFrom } from "./overlap.ts"
 
 /** A region with no survey: Cesena. */
 export const NO_SURVEY: Survey = { buildings: [], roadAreas: [], mapped: [] }
@@ -14,7 +16,9 @@ export const NO_SURVEY: Survey = { buildings: [], roadAreas: [], mapped: [] }
 /**
  * The surveys in priority order, merged: each source's buildings and road surfaces are kept where
  * no source before it maps the ground (by the centroid of the building's outline or the surface's
- * outer ring), and every source's mapped area is kept.
+ * outer ring), a building only where it shares less than half the smaller one's area with every
+ * building a source before it keeps (`apartFrom`: one outside its own mapped area, as at the 2019
+ * CTR's edge or the Tuscany-Liguria border), and every source's mapped area is kept.
  */
 export const bySourcePriority = (surveys: ReadonlyArray<Survey>): Survey => {
   const buildings: Array<SurveyBuilding> = [],
@@ -29,7 +33,11 @@ export const bySourcePriority = (surveys: ReadonlyArray<Survey>): Survey => {
       grid(x, y, x, y, (k) => (hit ||= pointInRing(x, y, before[k]!)))
       return !hit
     }
-    buildings.push(...survey.buildings.filter((b) => free(b.outer)))
+    const kept = apartFrom(
+      buildings,
+      survey.buildings.filter((b) => free(b.outer)),
+    )
+    buildings.push(...kept)
     roadAreas.push(...survey.roadAreas.filter((a) => free(a.rings[0]!)))
     mapped.push(...survey.mapped)
   }

@@ -16,12 +16,17 @@
 //   0203#39; AV_a 0140#26, 0114#4, 0101#20, 0101#21 (inside 23D11's AZR), 0102#93; ML_l 0205#18 (a
 //   closed ring); AC_a, whole.
 import assert from "node:assert/strict"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
+import { gzipSync } from "node:zlib"
 
 import { readCtr, readOldCtr, streetName, type Survey } from "../ctr.ts"
 import { centroid, pointInRing, signedArea, type P } from "../geometry.ts"
 import { partOf, type Rect } from "../region.ts"
+import { shapefile } from "./shapefile.ts"
 
 const fixture = (name: string) => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url))
 /** A box round every fixture record, so none is clipped away. */
@@ -130,6 +135,53 @@ test("readOldCtr reads the CTR 2009: building codes kept and dropped, Quota_gr t
     [...ctr.buildings.slice(0, 4), ctr.buildings[5]!].map((b) => b.id),
   )
   assert.equal(lucido.roadAreas.length, 3)
+})
+
+// Regression: Castelpoggio's 2009 sheet draws four houses twice, as an AE_a unit and as a closed
+// ML_l ruin ring round it (house -846894537227872, 54 m², and ruin -846894537277170, 58 m²,
+// overlap 0.93), each standing at its own height; ruin -846894537277171, wrapped round a house's
+// corner with no ground in common, its vertex mean inside the house, is a ruin of its own.
+test("readOldCtr drops a ruin ring sharing half the smaller one's area with a unit of its sheet, and keeps one beside a unit", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "ctr2009-"))
+  t.after(() => rmSync(dir, { recursive: true }))
+  const [e, n] = [578000, 4884000]
+  const ring = (pts: ReadonlyArray<readonly [number, number]>, z = 0) =>
+    [...pts, pts[0]!].map(([x, y]): readonly [number, number, number] => [e + x, n + y, z])
+  const write = (layer: string, type: 13 | 15, records: Parameters<typeof shapefile>[1]) => {
+    const { shp, dbf } = shapefile(type, records)
+    writeFileSync(join(dir, `22D04_${layer}.shp.gz`), gzipSync(shp))
+    writeFileSync(join(dir, `22D04_${layer}.dbf.gz`), gzipSync(dbf))
+  }
+  const square = (x: number, y: number, s: number) =>
+    [
+      [x, y],
+      [x + s, y],
+      [x + s, y + s],
+      [x, y + s],
+    ] as const
+  write("AE_a", 15, [
+    { parts: [ring(square(0, 0, 10), 250)], attrs: { Codice: "0201", Quota_gr: "256.5" } },
+  ])
+  write("ML_l", 13, [
+    { parts: [ring(square(1, 1, 10))], attrs: { Codice: "0205" } }, // over the house: 81 of its 100 m²
+    {
+      parts: [
+        ring([
+          [10, 0],
+          [12, 0],
+          [12, 12],
+          [5, 12],
+          [5, 10],
+          [10, 10],
+        ]),
+      ], // round its corner
+      attrs: { Codice: "0205" },
+    },
+  ])
+  assert.deepEqual(brief(readOldCtr(dir, "ctr2009", ANYWHERE)), [
+    [-400000, "house", undefined, 256.5, 6, 0],
+    [-450001, "ruins", "ruin", undefined, 2.5, 0],
+  ])
 })
 
 test("readOldCtr reads the CTR 10k: no eave without a Quota_gr, the ML_l ruins, only 0101 and 0102 surfaces, ids by section", () => {

@@ -24,6 +24,7 @@ import {
   type P,
   type V,
 } from "./geometry.ts"
+import { apartFrom } from "./overlap.ts"
 import { type DbfEncoding, readShp, type ShpRecord } from "./shp.ts"
 import { localOf, section10k, sheet2k, type SurveySource, surveyId } from "./survey-ids.ts"
 
@@ -284,8 +285,10 @@ const closed = (line: ReadonlyArray<readonly [number, number]>): boolean =>
  * `22D04_AE_a`) and the CTR 1:10 000 of 2010 (`ctr10k`, files by section, `249020_AE_a`) share it:
  * buildings (`AE_a`, `Codice` through `BUILDING_CODES`, `Quota_gr` the eave), ruins (the closed
  * `ML_l` lines of code 0205, through `BUILDING_CODES` with no eave: an open wall stub makes no
- * footprint), road surfaces (`AV_a`, 0101 asphalt and 0102 dirt, `Toponimo`, none in a tunnel) and
- * the mapped area (`AC_a`), clipped to `box`. The schema has no garage code (0244).
+ * footprint; but a ring sharing half the smaller one's area with a unit of its sheet, which then
+ * draws one building twice: `apartFrom`), road surfaces (`AV_a`, 0101 asphalt and 0102 dirt,
+ * `Toponimo`, none in a tunnel) and the mapped area (`AC_a`), clipped to `box`. The schema has no
+ * garage code (0244).
  */
 export const readOldCtr = (
   dir: string,
@@ -302,23 +305,43 @@ export const readOldCtr = (
     const { section, sheet } = sheet2k(key)
     return { section, unit: sheetUnit(sheet, layer * LAYER, index) }
   }
+  /** The buildings `make` reads from layer `layer`'s records (AE_a 0, ML_l 1), by sheet or section, in file order. */
+  const bySheet = (
+    layer: 0 | 1,
+    make: (rec: ShpRecord, id: (k: number) => number) => Array<SurveyBuilding>,
+  ) => {
+    const of = new Map<string, Array<SurveyBuilding>>()
+    for (const { sheet, index, rec } of ctrRecords(dir, layer === 0 ? "AE_a" : "ML_l")) {
+      const made = make(rec, (k) => {
+        const { section, unit } = unitOf(sheet, layer, index)
+        return surveyId(source, section, localOf(unit, k))
+      })
+      if (made.length === 0) continue
+      const kept = of.get(sheet)
+      if (kept === undefined) of.set(sheet, made)
+      else kept.push(...made)
+    }
+    return of
+  }
+  const units = bySheet(0, (rec, id) => {
+    const spec = specOf(rec.attrs.Codice!)
+    return spec === undefined
+      ? []
+      : buildingsOf(polygonsOf(rec, local, box), spec, Number(rec.attrs.Quota_gr), id)
+  })
+  const ruins = bySheet(1, (rec, id) =>
+    rec.attrs.Codice === RUIN
+      ? buildingsOf(
+          polygonsOf({ ...rec, parts: rec.parts.filter(closed) }, local, box),
+          specOf(RUIN)!,
+          0,
+          id,
+        )
+      : [],
+  )
   const buildings = [
-    ...ctrRecords(dir, "AE_a").flatMap(({ sheet, index, rec }) => {
-      const spec = specOf(rec.attrs.Codice!)
-      if (spec === undefined) return []
-      const { section, unit } = unitOf(sheet, 0, index)
-      return buildingsOf(polygonsOf(rec, local, box), spec, Number(rec.attrs.Quota_gr), (k) =>
-        surveyId(source, section, localOf(unit, k)),
-      )
-    }),
-    ...ctrRecords(dir, "ML_l").flatMap(({ sheet, index, rec }) => {
-      if (rec.attrs.Codice !== RUIN) return []
-      const { section, unit } = unitOf(sheet, 1, index)
-      const rings = { ...rec, parts: rec.parts.filter(closed) }
-      return buildingsOf(polygonsOf(rings, local, box), specOf(RUIN)!, 0, (k) =>
-        surveyId(source, section, localOf(unit, k)),
-      )
-    }),
+    ...[...units.values()].flat(),
+    ...[...ruins].flatMap(([sheet, rings]) => apartFrom(units.get(sheet) ?? [], rings)),
   ]
   const roadAreas = ctrRecords(dir, "AV_a").flatMap(({ rec }) => {
     if (!OLD_ROAD_CODES.has(rec.attrs.Codice!) || rec.attrs.Sede === IN_TUNNEL) return []

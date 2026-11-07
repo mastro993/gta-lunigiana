@@ -29,6 +29,7 @@ import {
   type V,
 } from "./geometry.ts"
 import { assembleRings, type Osm, type OsmWay, type Tags } from "./osm.ts"
+import { apartFrom } from "./overlap.ts"
 import { clipPieces, inPlay, OUTLINE, type Piece } from "./play-area.ts"
 import { REGION } from "./region.ts"
 import { STONE_CORES } from "./stone-cores.ts"
@@ -421,10 +422,11 @@ const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {
 }
 
 /**
- * Buildings: the surveys' where they map the ground (`readSurveys`), OSM's elsewhere, each clipped to the built
- * terrain's box and kept (`held`) where the centre of its clipped outline is in the play area (an
- * outline edge inside the box may cut through a house, which then stands whole or not at all; one
- * across the box's edge stands clipped), the others `beyond` it, for the trees to keep off. A CTR
+ * Buildings: the surveys' where they map the ground (`readSurveys`), OSM's elsewhere but where one
+ * shares half the smaller one's area with a surveyed building (`apartFrom`), each clipped to the
+ * built terrain's box and kept (`held`) where the centre of its clipped outline is in the play area
+ * (an outline edge inside the box may cut through a house, which then stands whole or not at all;
+ * one across the box's edge stands clipped), the others `beyond` it, for the trees to keep off. A CTR
  * building inside an OSM footprint takes that building's name, and its style when the CTR only says
  * "building" and surveyed no fixed-style unit (the church itself) inside that footprint: then the
  * other units are the houses around it.
@@ -471,8 +473,9 @@ export const extractBuildings = (
       ...(c.holes === undefined ? {} : { holes: c.holes }),
     }
   })
-  const unmapped = fromOsm.filter(
-    (b) => !survey.mapped.some((ring) => pointInRing(...centroid(b.outer), ring)),
+  const unmapped = apartFrom(
+    survey.buildings,
+    fromOsm.filter((b) => !survey.mapped.some((ring) => pointInRing(...centroid(b.outer), ring))),
   )
   const all = [...unmapped, ...fromCtr],
     held = all.map((b) => inPlay(...centroid(b.outer)))

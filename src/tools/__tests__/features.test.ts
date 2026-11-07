@@ -333,6 +333,32 @@ test("extractBuildings, extractAreas: an outline tagged building=no or building=
   )
 })
 
+// Regression: 22 OSM buildings of Fosdinovo's part stood over a 2019 CTR unit outside the CTR's
+// mapped area (OSM 599910941 over -284056254555558 at (-5305, 1394), overlap 1.00), and main's map
+// held 42 such pairs: an OSM building was dropped only where its centroid lay in a mapped area.
+test("extractBuildings: an OSM building sharing half the smaller one's area with a surveyed one is dropped, wherever the survey maps the ground", () => {
+  const { osm, square } = areaOsm()
+  square(0, 0, 10, { building: "house" }) // 80% on the first survey unit
+  square(96, -4, 18, { building: "yes" }) // larger, all of the second under it
+  square(206, 0, 10, { building: "shed" }) // 40% on the third: a building of its own
+  square(300, 0, 10, { building: "house" }) // on none
+  const unit = (id: number, x: number, w = 10): SurveyBuilding => ({
+    id,
+    kind: "house",
+    h: 6,
+    outer: [x, 0, x + w, 0, x + w, w, x, w],
+  })
+  const { held, beyond } = extractBuildings(osm, {
+    buildings: [unit(-1, 2), unit(-2, 100, 8), unit(-3, 200)],
+    roadAreas: [],
+    mapped: [], // the survey maps none of this ground
+  })
+  assert.deepEqual(
+    [...held, ...beyond].map((b) => b.id).sort((a, b) => a - b),
+    [-3, -2, -1, 3, 4],
+  )
+})
+
 test("extractBuildings: a surveyed building's tint is the one its 2019 CTR id always gave, in any section", () => {
   // The 2019 ids were -(sheet · 1e5 + layer base (AED 0, AGE 5e4) + index) - polygon · 1e7, and the
   // tint hashed -id % 1e9: each record below, in three sections, a 10 m square round Monzone.
