@@ -6,6 +6,7 @@ import { join } from "node:path"
 
 import type { Area, Barrier, District } from "../sim/map/index.ts"
 import { isWaterArea } from "../sim/map/kinds.ts"
+import { nameFromAddresses } from "./addresses.ts"
 import { conflateRail } from "./conflate.ts"
 import { readCtrRail, splitIn } from "./ctr-rail.ts"
 import { fitRoads } from "./ctr.ts"
@@ -19,7 +20,6 @@ import {
   extractRail,
   extractRoads,
   extractWater,
-  nameFromAddresses,
 } from "./features.ts"
 import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"

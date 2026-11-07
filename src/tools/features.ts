@@ -207,35 +207,6 @@ export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
     }))
   })
 
-/**
- * Names a street only has on addresses (addr:street of POIs): each goes to the unnamed road whose
- * vertices are nearest to most of its addresses.
- */
-export const nameFromAddresses = (osm: Osm, roads: ReadonlyArray<RoadF>): void => {
-  const votes = new Map<string, Map<number, number>>()
-  for (const n of osm.nodes.values()) {
-    const street = n.tags["addr:street"]
-    if (street === undefined) continue
-    const [x, y] = toLocal(n.lat, n.lon)
-    let best: RoadF | undefined,
-      bestD = Number.MAX_VALUE
-    for (const r of roads)
-      for (const p of r.pts) {
-        const d = Math.hypot(p.x - x, p.y - y)
-        if (d < bestD) [best, bestD] = [r, d]
-      }
-    if (best === undefined || best.name !== undefined) continue
-    const v = votes.get(street) ?? new Map<number, number>()
-    v.set(best.id, (v.get(best.id) ?? 0) + 1)
-    votes.set(street, v)
-  }
-  for (const [street, v] of votes) {
-    const [id] = [...v].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]!
-    const name = street.startsWith("Via") ? street : `Via ${street}`
-    for (const r of roads) if (r.id === id && r.name === undefined) r.name = name
-  }
-}
-
 /** Mean ground (m) below which a Lucido or Caldanella way runs on the valley floor; above it, the stream is a wooded mountain gully. */
 const MAIN_BELOW = 500
 /**
