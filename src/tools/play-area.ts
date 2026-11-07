@@ -4,9 +4,10 @@
 // walled along, and what the global file carries as `outline`. The built terrain is the box round
 // every part's rectangles (`BOUNDS`), which may hold land outside the play area. Only + − × ÷ and
 // sqrt, so every architecture builds the same outline; on vertical and horizontal edges the
-// clipping is Liang–Barsky's to the bit.
+// clipping cuts where Liang–Barsky's does, to the bit (a vertex on one 0.1 m point with the cut
+// beside it gives way to the cut).
 import { edgeDistance, insideRings, ringsDistance, type Rings } from "../sim/map/outline.ts"
-import { centroid, pointInRing, segDist2, TERRAIN_BOX, type V } from "./geometry.ts"
+import { centroid, pointInRing, r1, segDist2, TERRAIN_BOX, type V } from "./geometry.ts"
 import { type Part, rectRing, REGION } from "./region.ts"
 
 /** Within this distance (m) a point lies on a piece's edge, or a crossing on an outline edge. */
@@ -355,15 +356,29 @@ export interface Piece {
  * joined into pieces, each with the arc length along `pts` where it starts; with `outside`, the
  * stretches outside it instead (its edges left out). Original vertices keep their ids; the points
  * where a piece is cut have none, which is how later stages know a line leaves the play area there.
+ * A cut on the same 0.1 m point (the lattice `flatLine` writes to) as the vertex beside it takes
+ * that vertex's place, its id with it, as `lineVertices` keeps one of two nodes on one point: the
+ * line would otherwise ship a segment of no length there. A piece left on one point is dropped.
  */
 export const clipPieces = (rings: Rings, pts: ReadonlyArray<V>, outside = false): Array<Piece> => {
   const out: Array<Piece> = []
   let cur: Array<V> = [],
     from = 0,
-    walked = 0
+    walked = 0,
+    // Whether the piece in `cur` starts at a cut, not at a vertex of `pts`.
+    cutFirst = false
   const end = () => {
     if (cur.length > 1) out.push({ pts: cur, from })
     cur = []
+  }
+  /** `p` onto the piece, `cut` when the outline cuts the line there. */
+  const add = (p: V, cut: boolean) => {
+    const last = cur.at(-1)!
+    if (r1(last.x) !== r1(p.x) || r1(last.y) !== r1(p.y)) cur.push(p)
+    else if (cut) cur[cur.length - 1] = p
+    // Two vertices of `pts` on one point are `lineVertices`' to merge; a vertex gives way to a cut
+    // the piece starts at.
+    else if (cur.length > 1 || !cutFirst) cur.push(p)
   }
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1]!,
@@ -401,8 +416,9 @@ export const clipPieces = (rings: Rings, pts: ReadonlyArray<V>, outside = false)
       if (cur.length === 0) {
         cur.push(at(s))
         from = walked + s * len
+        cutFirst = s > 0
       }
-      cur.push(at(t))
+      add(at(t), t < 1)
       if (t < 1) end()
     }
     walked += len

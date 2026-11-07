@@ -300,6 +300,59 @@ test("a line past a reflex corner within a micrometre stays whole: both its side
   }
 })
 
+// Regression: Fosdinovo's driveway 1550647991 left the play area 5 cm past its node 14103781003, 4.6
+// cm in from the west edge x −11500, and the L's way 1002673816 entered across its notch's side 3
+// cm before a node: written to 0.1 m, each repeated a point, a segment of no length (an edge of
+// none in the road graph).
+test("a cut point on the 0.1 m point of the vertex beside it replaces that vertex: no piece ships a segment of no length", () => {
+  const rings = [L_RING]
+  // Out of the leg across its east side x 100, from a vertex 3 cm inside it: the cut ends the piece
+  // in its place.
+  const [out] = clipLineTo(rings, [v(50, 250, "a"), v(99.97, 250.01, "b"), v(150, 260, "c")])
+  assert.deepEqual(
+    out!.map((p) => p.id),
+    ["a", undefined],
+  )
+  assert.equal(out![1]!.x, 100)
+  // Into the leg, to a vertex 3 cm inside it: the cut starts the piece in its place.
+  const [into] = clipPieces(rings, [v(150, 260, "a"), v(99.97, 250.01, "b"), v(50, 250, "c")])
+  assert.deepEqual(
+    into!.pts.map((p) => p.id),
+    [undefined, "c"],
+  )
+  assert.equal(into!.pts[0]!.x, 100)
+  assert.ok(Math.abs(into!.from - Math.hypot(50, 9.984)) < 0.01, `${into!.from}`)
+  // A dip 2 cm into the leg and out again lies on one 0.1 m point: nothing of it is kept.
+  assert.deepEqual(
+    clipLineTo(rings, [v(150, 150, "a"), v(99.98, 150, "b"), v(150, 150.04, "c")]),
+    [],
+  )
+  // Beyond the area too: out of the foot's north side y 100 to a vertex 4 cm into the notch.
+  const [beyond] = clipPieces(
+    rings,
+    [v(150, 50, "a"), v(150.01, 100.04, "b"), v(160, 150, "c")],
+    true,
+  )
+  assert.deepEqual(
+    beyond!.pts.map((p) => p.id),
+    [undefined, "c"],
+  )
+  // Every piece of every such line, rounded as the map ships it, has no two vertices in a row on one point.
+  for (const pts of [
+    [v(50, 250, "a"), v(99.97, 250.01, "b"), v(150, 260, "c")],
+    [v(150, 260, "a"), v(99.97, 250.01, "b"), v(50, 250, "c")],
+    [v(150, 150, "a"), v(99.98, 150, "b"), v(150, 150.04, "c")],
+    [v(150, 50, "a"), v(150.01, 100.04, "b"), v(160, 150, "c")],
+  ])
+    for (const outside of [false, true])
+      for (const { pts: p } of clipPieces(rings, pts, outside))
+        for (let i = 1; i < p.length; i++)
+          assert.ok(
+            r1(p[i]!.x) !== r1(p[i - 1]!.x) || r1(p[i]!.y) !== r1(p[i - 1]!.y),
+            JSON.stringify(p),
+          )
+})
+
 /** Liang–Barsky to a box per segment, consecutive inside parts merged: the clipping before the play area's outline. */
 const liangBarsky = (
   [X0, Y0, X1, Y1]: readonly [number, number, number, number],

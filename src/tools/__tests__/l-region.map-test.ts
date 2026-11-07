@@ -402,3 +402,21 @@ test("no wall of the L lies wholly more than 5 m outside its play area", { skip 
     }
   }
 })
+
+// The notch's sides cut the L's lines as the outline cuts the shipped map's (`clipPieces`): before
+// a cut gave way to a vertex on its 0.1 m point, road 1002673816 repeated (0, 1912.5).
+test("no line of the L repeats a vertex in a row where the outline cuts it", { skip }, () => {
+  for (const [what, lines] of [
+    ["road", WHOLE!.roads],
+    ["water", WHOLE!.water],
+    ["rail", WHOLE!.rail],
+    ["barrier", WHOLE!.barriers],
+  ] as const)
+    lines.forEach((l, n) => {
+      for (let i = 2; i < l.pts.length; i += 2)
+        assert.ok(
+          l.pts[i] !== l.pts[i - 2] || l.pts[i + 1] !== l.pts[i - 1],
+          `${what} ${"id" in l ? l.id : n} repeats (${l.pts[i]}, ${l.pts[i + 1]})`,
+        )
+    })
+})
