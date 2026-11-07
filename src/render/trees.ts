@@ -1,11 +1,13 @@
 /**
  * Trees: the species of the Lunigiana's woods by their land cover, height and aspect (`speciesAt`),
- * one InstancedMesh per kind per chunk, built when the chunk streams in. Trees near the map edge are
+ * and the olive groves' olives by their ids (`kindAt`), one InstancedMesh per kind per chunk, built
+ * when the chunk streams in. Trees near the map edge are
  * mirrored into the apron so the forest does not stop at the bounds. Each tree's look is drawn from
  * its seed, three times its id (a mirror's one more; the id is its lattice cell's number, fixed as
  * parts are added: src/tools/trees.ts), so a tree looks the same whichever tile brought it. A bank
- * tree's seeds pass int32: `hash01` wraps them (ToInt32), and the ids keep every seed below 2^32,
- * so no two trees share one. A `canopy` vertex attribute (1 on the crown, 0 on the trunk) tells the
+ * tree's seeds pass int32 and an olive's mostly 2^32: `hash01` wraps them (ToInt32), and the ids
+ * keep any two trees' apart but an olive's mirror's, which may meet a wood's tree's 38 km away
+ * (`oliveId` in src/tools/trees.ts). A `canopy` vertex attribute (1 on the crown, 0 on the trunk) tells the
  * tree material what sways in the wind.
  *
  * @module render/trees
@@ -25,7 +27,7 @@ import {
 } from "three"
 
 import { type Cover, coverAt } from "../sim/map/cover.ts"
-import { heightAt, isWood, MAP, TILE } from "../sim/map/index.ts"
+import { heightAt, isWood, MAP, OLIVE_TREES, TILE } from "../sim/map/index.ts"
 import { tileTrees } from "../sim/map/tiles.ts"
 import { hash01 } from "../tools/geometry.ts"
 import { APRON, chunkOf } from "./chunks.ts"
@@ -37,9 +39,9 @@ import { PALETTE } from "./palette.ts"
 /**
  * The tree kinds: broadleaf (chestnut, hop-hornbeam and the riparian trees), oak (the broadleaf's
  * crown, darker in red and green: `OAK`), beech, conifer (the black pine, fir and spruce of the
- * plantations, a cone) and pine (maritime and stone pine).
+ * plantations, a cone), pine (maritime and stone pine) and olive (the groves', evergreen).
  */
-const KINDS = ["broadleaf", "oak", "beech", "conifer", "pine"] as const
+const KINDS = ["broadleaf", "oak", "beech", "conifer", "pine", "olive"] as const
 /** A tree kind (`KINDS`). */
 export type TreeKind = (typeof KINDS)[number]
 /**
@@ -51,6 +53,7 @@ const SHAPES = [
   "beech",
   "conifer",
   "pine",
+  "olive",
   "bareBroadleaf",
   "bareBeech",
   "deadOak",
@@ -91,7 +94,7 @@ const crown = (piece: BufferGeometry, sways: 0 | 1): BufferGeometry =>
 /**
  * Each kind's crown at unit scale, m: its radius, its height and its centre's height over the
  * trunk's base. The beech's is a taller ovoid than the chestnut's, the pine's an umbrella on a
- * tall bare trunk.
+ * tall bare trunk, the olive's a low, wide one on a short trunk, 3.5 m tall in all.
  */
 const CROWN = {
   broadleaf: { radius: 3, height: 5, at: 4.2 },
@@ -99,6 +102,7 @@ const CROWN = {
   beech: { radius: 2.4, height: 7.2, at: 5.8 },
   conifer: { radius: 2, height: 6.5, at: 4.2 },
   pine: { radius: 2.6, height: 2.2, at: 5.8 },
+  olive: { radius: 1.8, height: 2.8, at: 2.1 },
 } as const satisfies Record<TreeKind, { radius: number; height: number; at: number }>
 /** The widest crown's radius at unit scale, m. */
 const WIDEST = Math.max(...KINDS.map((kind) => CROWN[kind].radius))
@@ -124,7 +128,7 @@ const roundTree = (kind: Exclude<TreeKind, "conifer">, hex: number, trunk: numbe
     ),
   ])
 
-/** Unit-scale tree shapes (≈ 7 m tall, the beech ≈ 9 m), trunk base at the origin; shared by every chunk. */
+/** Unit-scale tree shapes (≈ 7 m tall, the beech ≈ 9 m, the olive 3.5 m), trunk base at the origin; shared by every chunk. */
 const shapes = {
   broadleaf: roundTree("broadleaf", PALETTE.forest, 2),
   beech: roundTree("beech", PALETTE.beech, 2.5),
@@ -146,6 +150,7 @@ const shapes = {
     ),
   ]),
   pine: roundTree("pine", PALETTE.pine, 5),
+  olive: roundTree("olive", PALETTE.olive, 1.2),
   bareBroadleaf: roundTree("broadleaf", PALETTE.bareCrown, 2),
   bareBeech: roundTree("beech", PALETTE.bareCrown, 2.5),
   deadOak: roundTree("oak", PALETTE.oakDead, 2),
@@ -242,10 +247,11 @@ const cornerHeight = (i: number, j: number, a: number, b: number): number =>
   heightAt(along(a, TILE * i), along(b, TILE * j))
 
 /**
- * The kind of the tree at (x, y), whole metres, drawn from `seed` (its own: 3 × its id): its species
- * (`speciesAt`) on the land cover under it, at its height and aspect on its tile's `SLOPE` m
- * square, whose corners' heights `height` gives as `cornerHeight` does (the tree's tile must be in
- * memory). The northness is the share of the square's slope that falls to the north (`FLAT`).
+ * The kind of the tree at (x, y), whole metres, drawn from `seed` (its own: 3 × its id): an olive
+ * for an olive grove's (its id from OLIVE_TREES), else its species (`speciesAt`) on the land cover
+ * under it, at its height and aspect on its tile's `SLOPE` m square, whose corners' heights
+ * `height` gives as `cornerHeight` does (the tree's tile must be in memory). The northness is the
+ * share of the square's slope that falls to the north (`FLAT`).
  */
 export const kindAt = (
   x: number,
@@ -253,6 +259,7 @@ export const kindAt = (
   seed: number,
   height: (i: number, j: number, a: number, b: number) => number = cornerHeight,
 ): TreeKind => {
+  if (seed >= 3 * OLIVE_TREES) return "olive"
   const i = Math.floor(x / TILE),
     j = Math.floor(y / TILE),
     fx = (x - TILE * i) / SLOPE,

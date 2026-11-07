@@ -194,8 +194,8 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   9,422 of lucido's 4,879,451 terrain nodes, up to 12.3 m, all north of y 0). Keep that list true
   when a part shows more, and treat a move far from every seam and from every line the part makes
   whole as a bug.
-- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.61 MB, Lunigiana's
-  2_1 by Pieve San Lorenzo with the vectors round it, 608,135 B, the build prints it, and
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.62 MB, Lunigiana's
+  2_1 by Pieve San Lorenzo with the vectors round it, 624,987 B, the build prints it, and
   `src/__tests__/maps.map-test.ts` fails past it).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road

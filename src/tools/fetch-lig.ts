@@ -42,7 +42,7 @@ import { getText, request } from "./net.ts"
 import { dropRaw, fetchedToday, writeRaw } from "./raw-lock.ts"
 import { ligDir, partOf, type Rect } from "./region.ts"
 import { geoTiffRaster } from "./terrain-sources.ts"
-import { UCS_CODES } from "./ucs.ts"
+import { kindOfCode, UCS_CODES } from "./ucs.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
 const { positionals } = parseArgs({ allowPositionals: true, strict: true })
@@ -94,7 +94,10 @@ for (const name of staleCrops(
 console.log({ dtm: crops.size })
 
 const uq = udsQuery(box, Object.keys(UCS_CODES))
-const uds = udsPolygons(await fetchWfs(uq, getText), Object.keys(UCS_CODES))
+// The query asks by the third level; a fourth-level class not kept (`kindOfCode`) is left out.
+const uds = udsPolygons(await fetchWfs(uq, getText), Object.keys(UCS_CODES)).filter(
+  ({ code }) => kindOfCode(code) !== undefined,
+)
 writeJson(
   "uds.json.gz",
   { crs: "EPSG:25832", year: 2025, polygons: uds },

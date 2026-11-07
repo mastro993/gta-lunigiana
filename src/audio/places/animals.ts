@@ -27,7 +27,14 @@ export interface Dog {
 const KENNELS: ReadonlySet<string> = new Set(["barn", "shed", "house", "farm_auxiliary"])
 const DOG_SHARE = 8,
   YARD = 5
-const YARD_COVERS: ReadonlySet<Cover> = new Set(["meadow", "grassland", "farmland", "farmyard"])
+const YARD_COVERS: ReadonlySet<Cover> = new Set([
+  "meadow",
+  "grassland",
+  "farmland",
+  "farmyard",
+  "vineyard",
+  "olive",
+])
 
 /** Each kennel building's dog (null: none), by its index in the whole map's buildings, once worked out. */
 const dogs = new Map<number, Dog | null>()

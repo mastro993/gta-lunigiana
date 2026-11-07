@@ -47,8 +47,11 @@ export const MEADOW = { x: -329, y: 1078 }
  * 213.6 m, which puts the meadow's usual wind 0.6 dB over lucido's floor of 230.3 m (all the way to 288 m, then to 322 m with gaps).
  */
 export const ACROSS_MEADOW = 250
-/** A meadow 2 km west of Monzone with no tree within 99 m nor building within 158 m. */
-export const TREELESS = { x: -2290, y: 990 }
+/**
+ * An olive grove 2 km west of Monzone, open ground to the sound (`AMBIENCE` in src/audio/places.ts), with no wood within 103 m
+ * nor building within 160 m (a meadow with no tree within 99 m before the groves).
+ */
+export const GROVE = { x: -2290, y: 990 }
 /** A lane at Pian del Molino with a 10.7 m building 30 m east (`BEHIND`) and open ground 30 m north-west (`OPEN`). */
 export const STREET = { x: -916.6, y: 1706.8 }
 /** Behind the 10.7 m building east of `STREET`. */
@@ -83,7 +86,7 @@ export const UNDER_BRIDGE = { x: -1190.3, y: 1273.1 }
 residentAround(
   [
     MEADOW,
-    TREELESS,
+    GROVE,
     STREET,
     BEHIND,
     OPEN,

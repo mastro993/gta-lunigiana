@@ -25,12 +25,18 @@ import type { TreeKind } from "./trees.ts"
 const hm = MAP.heightmap,
   { i: AI, j: AJ } = anchorOf(hm)
 
-/** Base colour, variant colour and the noise level under which a cell takes the variant (`stripes`: alternate columns). */
+/** Base colour, variant colour and the noise level under which a cell takes the variant (`stripes`: alternate columns; `terraces`: a terrace's bare strip). */
 export interface CoverLook {
   readonly base: number
   readonly alt: number
   readonly share: number
   readonly stripes?: boolean
+  /**
+   * Terraces: their `rise`, m, and the bare `strip` along each edge, m across: a cell whose middle
+   * lies within half a strip of a terrace's edge (a multiple of `rise` a.s.l.) takes the variant,
+   * so the strips follow the contours, closer as the slope steepens, and flat ground shows none.
+   */
+  readonly terraces?: { readonly rise: number; readonly strip: number }
 }
 
 /** How each cover is painted. */
@@ -61,6 +67,14 @@ export const COVER_LOOK = {
   lake: { base: PALETTE.dirtTrack, alt: PALETTE.stoneMid, share: 0.4 },
   conifer: { base: PALETTE.forestDark, alt: PALETTE.conifer, share: 0.35 },
   mixed: { base: PALETTE.forestDark, alt: PALETTE.forest, share: 0.35 },
+  // Terraces rise 2.3–3.3 m round Gragnola (their spacing on rt_ofc.5k23 over the map's slope); a
+  // strip of 2.5 m bares a quarter of a grove on a 30% slope, its treads 10 m deep.
+  olive: {
+    base: PALETTE.grassDry,
+    alt: PALETTE.dirtTrack,
+    share: 0,
+    terraces: { rise: 3, strip: 2.5 },
+  },
 } as const satisfies Record<Cover, CoverLook>
 
 /** A broadleaf wood's floor out of leaf (`crownsOn`): its leaf litter, the evergreen undergrowth showing through; a mixed wood's half its conifers' shade. */
@@ -83,9 +97,38 @@ const patchNoise = (i: number, j: number): number => {
   return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v
 }
 
-/** Picks the base or variant colour of a look for cell (i, j), counted from the region's anchor. */
-export const shade = (look: CoverLook, i: number, j: number): number =>
-  (look.stripes === true ? (i & 1) === 1 : patchNoise(i, j) < look.share) ? look.alt : look.base
+/**
+ * Picks the base or variant colour of a look for cell (i, j), counted from the region's anchor,
+ * whose middle stands `z` m a.s.l. on a slope of `slope` (rise over run).
+ */
+export const shade = (look: CoverLook, i: number, j: number, z: number, slope: number): number => {
+  const { terraces } = look
+  const half = terraces === undefined ? 0 : (slope * terraces.strip) / 2
+  return (
+    look.stripes === true
+      ? (i & 1) === 1
+      : terraces === undefined
+        ? patchNoise(i, j) < look.share
+        : Math.floor((z - half) / terraces.rise) !== Math.floor((z + half) / terraces.rise)
+  )
+    ? look.alt
+    : look.base
+}
+
+/**
+ * A cell's middle height (m a.s.l.) and its slope (rise over run) from its corners' render heights
+ * (south-west, south-east, north-west, north-east).
+ */
+export const cellSlope = (
+  sw: number,
+  se: number,
+  nw: number,
+  ne: number,
+): { readonly z: number; readonly slope: number } => {
+  const east = (se + ne - sw - nw) / (2 * hm.cell),
+    north = (nw + ne - sw - se) / (2 * hm.cell)
+  return { z: zOf((sw + se + nw + ne) / 4), slope: Math.hypot(east, north) }
+}
 
 /**
  * Builds the terrain chunk `key` (see `chunkOf`) coloured by the land cover, a broadleaf wood's floor as its broadleaf wears
@@ -135,6 +178,8 @@ export const terrainChunk = (
     look: CoverLook,
     i: number,
     j: number,
+    z: number,
+    slope: number,
   ) => {
     const ux = bx - ax,
       uy = bh - ah,
@@ -149,7 +194,7 @@ export const terrainChunk = (
     nx /= l
     ny /= l
     nz /= l
-    const rgb = linear(shade(ny < ROCK_NORMAL_Y ? COVER_LOOK.rock : look, i - AI, j - AJ))
+    const rgb = linear(shade(ny < ROCK_NORMAL_Y ? COVER_LOOK.rock : look, i - AI, j - AJ, z, slope))
     put(ax, ah, -ay, nx, ny, nz, rgb)
     put(bx, bh, -by, nx, ny, nz, rgb)
     put(cx, ch, -cy, nx, ny, nz, rgb)
@@ -172,9 +217,10 @@ export const terrainChunk = (
         crowns("broadleaf", zOf((sw + se + nw + ne) / 4)) !== "leafy"
           ? OUT_OF_LEAF[cover]
           : COVER_LOOK[cover]
+      const { z, slope } = cellSlope(sw, se, nw, ne)
       // Split along the south-west → north-east diagonal, as `terrainY` assumes.
-      tri(x, y, sw, x1, y, se, x1, y1, ne, look, i, j)
-      tri(x, y, sw, x1, y1, ne, x, y1, nw, look, i, j)
+      tri(x, y, sw, x1, y, se, x1, y1, ne, look, i, j, z, slope)
+      tri(x, y, sw, x1, y1, ne, x, y1, nw, look, i, j, z, slope)
     }
   const g = new BufferGeometry()
   g.setAttribute("position", new Float32BufferAttribute(position, 3))

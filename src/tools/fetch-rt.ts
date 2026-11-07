@@ -48,9 +48,9 @@
 //   dtm.json + dtm.bin + dtm-src.bin (`writeMosaic`).
 // - ucs/<part>.json.gz: land cover 1:10 000, 2019 ("Uso e copertura del suolo", CC BY 4.0),
 //   EPSG:3003: the open covers OSM mostly lacks in the mountains (quarries, bare rock, sparse
-//   vegetation, pastures, heath), the rivers' gravel, the water bodies and the broadleaf, conifer
-//   and mixed woods, from the WFS over the part's terrain; the polygons the file already holds stay
-//   as they are (by id), so a later fetch only adds.
+//   vegetation, pastures, heath), the rivers' gravel, the water bodies, the broadleaf, conifer
+//   and mixed woods, and the olive groves and vineyards, from the WFS over the part's terrain;
+//   the polygons the file already holds stay as they are (by id), so a later fetch only adds.
 import { existsSync, readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 import { parseArgs } from "node:util"

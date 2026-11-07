@@ -5052,15 +5052,15 @@
     "source": "the lidar archives of data/parts/sarzana-town.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the Liguria DTM ed. 2023's crops -7_-2.tif, -7_-3.tif, -7_-4.tif, -8_-2.tif, -8_-3.tif, -8_-4.tif in data/raw/lig/sarzana-town/dtm (pnpm fetch-lig sarzana-town)"
   },
   "rt/ucs/fivizzano.json.gz": {
-    "sha256": "3d425712aaa06eba7e16e8b05e3f6607876768ace8b3faf0077e0677cdcf2b17",
-    "bytes": 1739790,
-    "asset": "raw-20261104/rt.ucs.fivizzano.json.gz",
-    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1584380.5,4888001.5,1601476.5,4904157.5, fetched 2026-11-04"
+    "sha256": "7a9549a312da4d216fcc03b35da5c1cfaa93db61f7146478dd64b044cab7dd81",
+    "bytes": 1899680,
+    "asset": "raw-20261107/rt.ucs.fivizzano.json.gz",
+    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1584380.5,4888001.5,1601476.5,4904157.5, fetched 2026-11-07"
   },
   "rt/ucs/lucido.json.gz": {
-    "sha256": "32cfa6cf7c6f397951127f36cdc0f8c1cc7c104b4dd745b7911fbe3a96372a11",
-    "bytes": 772915,
-    "asset": "raw-20261104/rt.ucs.lucido.json.gz",
-    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1585796.5,4883793.5,1596998.5,4895093.5, fetched 2026-11-04"
+    "sha256": "7dbe5fa9ebaa0d3a3eeef7af189ea228f974b1aee96ceb326820d982ddb5f5ee",
+    "bytes": 839680,
+    "asset": "raw-20261107/rt.ucs.lucido.json.gz",
+    "source": "https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1585796.5,4883793.5,1596998.5,4895093.5, fetched 2026-11-07"
   }
 }

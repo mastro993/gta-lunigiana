@@ -453,7 +453,7 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
 The population's tables are static data too, pure functions of the map shared by every runtime: the
 residents within 60 m of each walk edge, baked (`MAP.derived.residents`, since they read buildings
 all over the map), and the walk edges people live along (`residentsAlong`, `peopledIndex` in
-`src/sim/population/density.ts`), built at load from them; the 6,559 farms in a 64 m grid (2,411
+`src/sim/population/density.ts`), built at load from them; the 6,604 farms in a 64 m grid (2,436
 on lucido alone; `farmsNear` in `src/sim/population/farms.ts`), indexed on first use from the farms
 and their centres the map file holds (`MAP.farms`, `MAP.derived.farms`), which `setup` makes
 (11.9–14.9 ms in Node, five fresh processes; [Schedules and system
@@ -518,11 +518,11 @@ once the first frame is drawn.
    modules the earlier ones left. "Decoding map" imports `src/sim/map/index.ts` (the global file
    decoded) and `src/sim/map/tiles.ts`. "Downloading terrain" fetches the start tiles: every listed
    tile over [`MAP.spawns.player` ± 1000 m]² (`tilesOver`, `NEAR`), on Lunigiana -1_-1, 0_-1, -1_0
-   and 0_0, 2,031,285 B gzipped: with the global file's 1,536,577 B, 3.57 MB before the first frame
-   (on lucido alone, `lunigiana-lucido`, 1,952,471 and 552,445 B, 2.50 MB; 3.10 MB while the global
+   and 0_0, 2,075,680 B gzipped: with the global file's 1,539,775 B, 3.62 MB before the first frame
+   (on lucido alone, `lunigiana-lucido`, 1,998,005 and 553,883 B, 2.55 MB; 3.10 MB while the global
    file held the vectors). They come in parallel, all their headers first, so the bar (26% to 60%,
    `GLOBAL` and `DOWNLOAD` in `boot.ts`, shares set by the bytes: the global file 1.54 MB against
-   its start tiles' 2.03 MB) counts the bytes against their summed `Content-Length` and never runs
+   its start tiles' 2.08 MB) counts the bytes against their summed `Content-Length` and never runs
    backwards. "Decoding terrain" hands each to `provideTile` (in Node, decoding a tile takes
    3.6–3.7 ms at the median over Lunigiana's 79 and 4.6–7.7 ms for the largest, 2_1, in eight fresh
    processes on 2026-11-04 under a load average of 4–5; over lucido's 30, its largest 0_0, 3.1–3.2
@@ -564,15 +564,16 @@ cycle (its dev-server numbers are under [Measured](#measured)):
 | 4× CPU, 1.5 MB/s | the 15 MB script in at 9.8 s (a dead "Press any key" until then), one 3.5 s task, first frame at 13.5 s | map in at 4.6 s, ready at 7.1 s, longest task 0.64 s |
 
 With the map in tiles (production build served by `vite preview`, headless Chrome on an M-series
-Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the first row on 2026-11-04 with
-Fivizzano's part, against 0.33–0.36 s and 89–90 MB for lucido alone in turn; the lucido rows with
-the vectors in the tiles and in the global file measured in turn on 2026-10-31, the first of them
-again on 2026-11-03 with the UCS's woods and the trees' species, against 0.34–0.38 s and 89 MB on
-the build before):
+Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the first row on 2026-11-07 with
+the olive groves, against 0.39–0.40 s and 130–132 MB on the build before in turn (0.41 s and 130–131
+MB on 2026-11-04 with Fivizzano's part, against 0.33–0.36 s and 89–90 MB for lucido alone); the
+lucido rows with the vectors in the tiles and in the global file measured in turn on 2026-10-31, the
+first of them again on 2026-11-03 with the UCS's woods and the trees' species, against 0.34–0.38 s
+and 89 MB on the build before):
 
 | Map | First frame | Slowest frame, p99 | JS heap after GC |
 |---|---|---|---|
-| Lunigiana, lucido and Fivizzano's part, 79 tiles | 0.41 s | 16.8 ms | 130–131 MB |
+| Lunigiana, lucido and Fivizzano's part, 79 tiles | 0.39–0.41 s | 16.8 ms, 16.8 ms | 132–133 MB |
 | Lunigiana, lucido alone, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 90 MB |
 | Lunigiana, lucido alone, the vectors in the global file | 0.41–0.44 s | 16.8 ms, 16.8 ms | 123–124 MB |
 | Lunigiana, lucido alone, the whole 6.7 MB map before the tiles | 0.92–0.98 s | 16.8 ms | 250 MB |
@@ -987,8 +988,9 @@ rails, crossing panels and stop lines, the platforms' yellow lines), a water mes
 streams, laid on their beds: the shader lifts them to the level the rivers run at,
 [water.md](water.md#how-it-looks); and a quad over each cell of the lakes
 and river polygons, `src/render/water.ts`, from the chunk's own cells), a glow mesh (lit window
-panes and lantern glass) and one `InstancedMesh` per tree crown (broadleaf, beech, conifer, pine;
-an oak is a broadleaf in its own tint: `speciesAt` in `src/render/trees.ts`,
+panes and lantern glass) and one `InstancedMesh` per tree crown (broadleaf, beech, conifer, pine,
+olive; an oak is a broadleaf in its own tint: `speciesAt` in `src/render/trees.ts`, and an olive an
+olive grove's tree by its id, `kindAt`,
 [map.md](map.md#known-data-limitations); out of leaf a bare broadleaf or beech and an oak holding
 its dead leaves, as the season the game starts in says, `crownsOn` in `src/render/leaves.ts`,
 [weather.md](weather.md#the-woods-leaves)); the buried,
@@ -999,13 +1001,17 @@ nearest listed tiles extend into it, with no trees, and the lines stop at the ou
 ending on the bounds runs on across the apron). Terrain cells take their colours from the land
 cover, read from the tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts`, painted by
 `COVER_LOOK` in `src/render/terrain.ts` in patches and stripes counted from the region's anchor, so
-a part that grows the box repaints none of the ground built before it, `terrain.test.ts`; a
-broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where none covers a
-cell, paving where open ground lies within 3 m of both a wall and a road's edge (house fronts,
-sidewalks, alleys), and pebble beds along the wide streams outside the lakes and river polygons. A
+a part that grows the box repaints none of the ground built before it, `terrain.test.ts`, and an
+olive grove's dry grass bare in a 2.5 m strip along each terrace's edge, every 3 m of rise (a cell
+whose middle lies within half a strip of one, by its height and slope), so the strips follow the
+contours; a broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where
+none covers a cell, paving where open ground lies within 3 m of both a wall and a road's edge (house
+fronts, sidewalks, alleys), and pebble beds along the wide streams outside the lakes and river
+polygons. A
 cover's byte in the tiles is its place in `COVERS` (`src/sim/map/raster.ts`; new kinds go at the
 end), and the order the areas are filled in is its own (`FILL`: a river's gravel bars over its
-water).
+water, a wood under every other area, an olive grove over a wood, grassland, farmland and
+residential land).
 
 Streaming has two levels: the tiles in memory are planned first, then the chunks of the tiles in
 reach, so a frame's cost does not grow with the map, and a chunk builds only once every tile its
@@ -1056,23 +1062,24 @@ build reads is in memory.
   and tree instances included, the chunk a world with every tile in builds, and a read of a tile
   not handed over throws "map tile … not loaded".
 - **Trees per tile**: `tileProvided(key)` also buckets that tile's trees per chunk, the apron's
-  mirrors included (`bucketTileTrees` in `src/render/trees.ts`): 1.50–1.63 ms at the median,
-  2.5–3.3 ms at p90 and 5.3–6.0 ms at worst over Lunigiana's 79 tiles, each just decoded (Node, five
-  fresh processes on 2026-11-04 under a load average of 5; on lucido's 30 on 2026-11-03 1.74–1.94,
-  3.3–3.5 and 4.5–4.9 ms, and the build before, which bucketed by kind with a hash, took 2.0–2.2 ms
-  at the median the same way); 1.70 MB of buckets a tile at the median and 2.46 MB at most (tile
-  -2_-2, 76,719 trees), 121.9 MB for all 79 (lucido's 30: 1.26 MB, 2.45 MB in 1_1 and 36.3 MB;
-  `Float64Array` quadruples of x, y, scale and seed). A chunk's build works out each tree's kind
-  (`kindAt`: its land cover, and its height and aspect on its tile's 20 m squares, each square's
-  corners read once a build; a mirror is its tree's kind), 0.14 ms a chunk at the median and 0.18
-  ms at p90 over the 1,172 chunks of six tiles round Monzone, against 0.04 and 0.07 ms when a hash
-  picked the kind; bucketing by kind at the tile took `tileProvided` to 6.7–7.0 ms at the median and
-  12.4–13.6 ms at worst, so the kinds wait for the chunk's build, which the stream budgets (4 ms a
-  frame). With the tile's pieces, `tileProvided` takes 3.5–3.7 ms at the median, 8.7–12.9 ms at p90
-  and 17.6–23.5 ms at worst over Lunigiana's 79 tiles handed in key order, each just decoded (Node,
-  five fresh processes on 2026-11-04 under a load average of 5–5.5; lucido's 30 in turn 4.0–4.1,
-  6.7–7.1 and 8.5–8.6 ms; on 2026-11-03 3.2–3.6, 5.0–6.9 and 8.5–15.7 ms, the build before
-  3.7–3.9, 6.0–7.9 and 7.4–9.6 ms). A chunk merges its tiles' buckets in seed order, so its
+  mirrors included (`bucketTileTrees` in `src/render/trees.ts`): 1.50–1.63 ms at the median, 2.5–3.3
+  ms at p90 and 5.3–6.0 ms at worst over Lunigiana's 79 tiles, each just decoded (Node, five fresh
+  processes on 2026-11-04 under a load average of 5; on lucido's 30 on 2026-11-03 1.74–1.94, 3.3–3.5
+  and 4.5–4.9 ms, and the build before, which bucketed by kind with a hash, took 2.0–2.2 ms at the
+  median the same way); 1.78 MB of buckets a tile at the median and 2.46 MB at most (tile -2_-2,
+  76,719 trees), 125.6 MB for all 79 with the olives (lucido's 30: 1.23 MB, 2.46 MB in 1_1 and 37.3
+  MB; before the olives 1.70 MB, 121.9 MB, and lucido's 1.26 MB, 2.45 MB and 36.3 MB; `Float64Array`
+  quadruples of x, y, scale and seed). A chunk's build works out each tree's kind (`kindAt`: an
+  olive by its id, else its land cover, and its height and aspect on its tile's 20 m squares, each
+  square's corners read once a build; a mirror is its tree's kind), 0.14 ms a chunk at the median
+  and 0.18 ms at p90 over the 1,172 chunks of six tiles round Monzone, against 0.04 and 0.07 ms when
+  a hash picked the kind; bucketing by kind at the tile took `tileProvided` to 6.7–7.0 ms at the
+  median and 12.4–13.6 ms at worst, so the kinds wait for the chunk's build, which the stream
+  budgets (4 ms a frame). With the tile's pieces, `tileProvided` takes 3.5–3.7 ms at the median,
+  8.7–12.9 ms at p90 and 17.6–23.5 ms at worst over Lunigiana's 79 tiles handed in key order, each
+  just decoded (Node, five fresh processes on 2026-11-04 under a load average of 5–5.5; lucido's 30
+  in turn 4.0–4.1, 6.7–7.1 and 8.5–8.6 ms; on 2026-11-03 3.2–3.6, 5.0–6.9 and 8.5–15.7 ms, the build
+  before 3.7–3.9, 6.0–7.9 and 7.4–9.6 ms). A chunk merges its tiles' buckets in seed order, so its
   instances come in the whole-map buckets' order, and every tree keeps its look (seed 3 × its id, a
   mirror's one more; the id is its lattice cell's number, which no added part changes:
   [map.md](map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)).
@@ -2067,7 +2074,7 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   reads; both paint the roads narrowest class first, so the main roads lie on top at junctions and
   overpasses. Its look is that of a map about 820 CSS px on its long side, painted at 5 overview
   pixels a CSS pixel (`OVERVIEW_RATIO` 5 in `src/tools/overview.ts`; 3410 × 4096 px for Lunigiana,
-  4.52 MB, and 4000 × 4000 px for Cesena, 4.76 MB), and it is drawn scaled to the fit and smoothed
+  4.65 MB, and 4000 × 4000 px for Cesena, 4.76 MB), and it is drawn scaled to the fit and smoothed
   (`imageSmoothingQuality` "high"). So its lines are as wide as the live paint drew them before the
   overview on a map that long, and scale with the map elsewhere: 0.73 times as wide in a 1280 × 720
   window (the map 600 px tall), 1.17 times in a 1920 × 1080 one (960 px) and 0.33 times on an
@@ -2607,9 +2614,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     in, round (0, 0), the x = 0 seam east of Monzone station and its level crossing and platforms;
     `trees.test.ts`: each chunk's trees from its tiles the whole map's bucket for it, the apron's
     mirrors and order included, over the six tiles by Monzone and on the west edge, each drawn as
-    its kind and a mirror as its tree, and the species by cover, height and aspect (`speciesAt`: the
+    its kind and a mirror as its tree, the species by cover, height and aspect (`speciesAt`: the
     beech's share rising with the height, under 5% below 700 m and over 85% above 1250 m; conifer
-    and mixed woods, oaks, pines); `chunks.test.ts`: the box from the tiles' lowest and highest
+    and mixed woods, oaks, pines), and an olive grove's tree an olive by its id, 3.5 m tall and its
+    crown 3.6 m across; `chunks.test.ts`: the box from the tiles' lowest and highest
     nodes holding the exact one, for every chunk of the four tiles by Monzone; `ground.test.ts`:
     `farTerrainY` the terrain where it is in memory and the coarse grid's height where not, and a
     car and a walker on the deck of every drivable bridge within 2 km of Monzone (the walker kept to
@@ -2697,7 +2705,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     cover give them (in the notch the nearest listed node and cell), and `wallsNear` and `treesIn`
     answering exactly as one broad phase over the whole map (the same items in the same order, over
     1,500 boxes 1–60 m across, half of them within 40 m of a seam; the trees' on the region's fixed
-    corner, which need not be their lowest).
+    corner, which need not be their lowest); `olives.map-test.ts`: Lunigiana's olive groves growing
+    olives, and every olive of Lunigiana, Cesena and the L within 2.1 m of an olive grove (the
+    scatter's 2 m mask pixel and the metre's rounding).
   - `src/sim/__tests__/route.map-test.ts`: every dead end flagged one way, every lane AI traffic
     may drive clear of the walls, and `edgeIndex.nearest` the nearest edge by brute force over the
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square

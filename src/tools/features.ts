@@ -653,7 +653,16 @@ const eleOf = (kind: AreaKind, t: Tags): { readonly level?: number } => {
   return kind === "lake" && Number.isFinite(ele) ? { level: r1(ele) } : {}
 }
 
-const areaKind = (t: Tags): AreaKind | undefined => {
+/**
+ * An orchard with no `trees` tag is an olive grove below this, m a.s.l. (its outer ring's mean
+ * ground): on the Lunigiana's hills an orchard is most likely olives, higher up a chestnut grove.
+ */
+const UNTYPED_OLIVES_BELOW = 600
+
+/** The kind of an area tagged `t`; `"orchard"` for an orchard with no `trees` tag, which its height decides (`extractAreas`). */
+const areaKind = (t: Tags): AreaKind | "orchard" | undefined => {
+  if (t.landuse === "orchard")
+    return t.trees === "olive_trees" ? "olive" : t.trees === undefined ? "orchard" : undefined
   if (t.landuse !== undefined && isLanduse(t.landuse)) return t.landuse
   if (t.highway === "pedestrian" && t.area === "yes") return "paved"
   if (t.leisure === "pitch" || t.leisure === "park") return t.leisure
@@ -680,15 +689,27 @@ const areaKind = (t: Tags): AreaKind | undefined => {
 /**
  * Closed-way areas plus multipolygon relations with an area kind. The OSM file holds every such
  * relation whole (fetch-osm.ts), so its rings assemble even where most members lie outside the
- * play area. Each inner ring goes to the outer ring that contains it.
+ * play area. Each inner ring goes to the outer ring that contains it. An orchard with no `trees`
+ * tag is an olive grove where its outer ring's mean `ground` lies below UNTYPED_OLIVES_BELOW, and
+ * no area without `ground`: Lunigiana's build passes its terrain, Cesena's none (Romagna's orchards
+ * are its fruit).
  */
-export const extractAreas = (osm: Osm): Array<Area> => {
+export const extractAreas = (osm: Osm, ground?: (x: number, y: number) => number): Array<Area> => {
   const areas: Array<Area> = []
+  /** The kind of an area tagged `tagged` with outer ring `ring` (flat). */
+  const kindOf = (tagged: AreaKind | "orchard", ring: ReadonlyArray<number>) => {
+    if (tagged !== "orchard") return tagged
+    if (ground === undefined) return undefined
+    let sum = 0
+    for (let k = 0; k < ring.length; k += 2) sum += ground(ring[k]!, ring[k + 1]!)
+    return sum / (ring.length / 2) < UNTYPED_OLIVES_BELOW ? "olive" : undefined
+  }
   for (const w of osm.ways.values()) {
-    const kind = areaKind(w.tags)
-    if (kind === undefined || w.tags.building !== undefined || !closed(w)) continue
+    const tagged = areaKind(w.tags)
+    if (tagged === undefined || w.tags.building !== undefined || !closed(w)) continue
     const ring = flatRing(clipRing(ringOf(osm, w.nds), TERRAIN_BOX), true)
-    if (ring !== undefined)
+    const kind = ring === undefined ? undefined : kindOf(tagged, ring)
+    if (ring !== undefined && kind !== undefined)
       areas.push({
         kind,
         ...(w.tags.name ? { name: w.tags.name } : {}),
@@ -697,14 +718,15 @@ export const extractAreas = (osm: Osm): Array<Area> => {
       })
   }
   for (const rel of osm.relations.values()) {
-    const kind = areaKind(rel.tags)
-    if (rel.tags.type !== "multipolygon" || kind === undefined || rel.tags.building !== undefined)
+    const tagged = areaKind(rel.tags)
+    if (rel.tags.type !== "multipolygon" || tagged === undefined || rel.tags.building !== undefined)
       continue
     const inners = assembleRings(osm, rel, "inner").map((r) => ringOf(osm, r))
     for (const outer of assembleRings(osm, rel, "outer").map((r) => ringOf(osm, r))) {
       const flat = outer.flatMap(([x, y]) => [x, y])
       const ring = flatRing(clipRing(outer, TERRAIN_BOX), true)
-      if (ring === undefined) continue
+      const kind = ring === undefined ? undefined : kindOf(tagged, ring)
+      if (ring === undefined || kind === undefined) continue
       const holes = inners
         .filter((h) => pointInRing(h[0]![0], h[0]![1], flat))
         .map((h) => flatRing(clipRing(h, TERRAIN_BOX), false))

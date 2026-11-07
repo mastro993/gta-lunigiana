@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { pointInRing } from "../../sim/collide.ts"
+import { coverAt } from "../../sim/map/cover.ts"
 import { type Barrier, type Building, heightAt, MAP, treesIn } from "../../sim/map/index.ts"
 import { decodeTile } from "../../sim/map/packed.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
@@ -26,7 +27,8 @@ import { fromDisk, HELD, residentAround } from "../testing.ts"
 const seeded = (seed: number) => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32
 const FOREST = { x: 500, y: -400 },
   MEADOW = { x: -329, y: 1078 },
-  TREELESS = { x: -2290, y: 990 },
+  /** An olive grove 2 km west of Monzone: where the search for `TREELESS` starts. */
+  OPEN_GROUND = { x: -2290, y: 990 },
   GRAGNOLA = { x: -1751.2, y: 3360.4 },
   EQUI = { x: 1804.9, y: 721 }
 /** 0.15 m off a drive wall in a quarry, with no trunk or building within 3 m and no barrier within 20 m: a cut face. */
@@ -34,8 +36,32 @@ const QUARRY_FACE = { x: -2480, y: -5923.85 }
 
 // The tiles round the spots in memory, as around the player in the game: every place is worked out from the exact map
 // there (places.map-test.ts checks the places all over the map).
-const SPOTS = [FOREST, MEADOW, TREELESS, GRAGNOLA, EQUI]
+const SPOTS = [FOREST, MEADOW, OPEN_GROUND, GRAGNOLA, EQUI]
 residentAround(SPOTS, HELD)
+
+/**
+ * A meadow with no tree within 72 m (a bird's farthest perch, 70 m, and a metre's rounding): the
+ * point on a 10 m grid nearest `OPEN_GROUND` with none, found by geometry, as the groves round it
+ * grow trees.
+ */
+const TREELESS = (() => {
+  const bare = (x: number, y: number) => {
+    let near = false
+    treesIn(x - 72, y - 72, x + 72, y + 72, (px, py) => {
+      near ||= Math.hypot(px - x, py - y) <= 72
+    })
+    return !near
+  }
+  for (let r = 0; r <= 300; r += 10)
+    for (let dx = -r; dx <= r; dx += 10)
+      for (let dy = -r; dy <= r; dy += 10) {
+        const x = OPEN_GROUND.x + dx,
+          y = OPEN_GROUND.y + dy
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === r && coverAt(x, y) === "meadow" && bare(x, y))
+          return { x, y }
+      }
+  throw new Error(`no treeless spot within 300 m of ${OPEN_GROUND.x}, ${OPEN_GROUND.y}`)
+})()
 
 /** The buildings within `HELD` of the spots, each once, in the broad phase's order round each spot in turn. */
 const BUILDINGS: ReadonlyArray<Building> = (() => {
