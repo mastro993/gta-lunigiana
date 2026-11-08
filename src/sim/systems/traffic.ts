@@ -2,7 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { forwardSpeed, wrapAngle } from "../body.ts"
-import { GRAVITY, rigFor, RIGS } from "../chassis.ts"
+import { GRAVITY, rigFor, RIGS, wheelsAt } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { type HandlingValue, REAL_HANDLING } from "../handling.ts"
 import { rolledTo } from "../map/ground.ts"
@@ -443,7 +443,7 @@ export const TrafficAI = Game.System(
       const speed = forwardSpeed(data.motion.get(), pose.angle)
       // Its wheels' ground under its middle.
       const chassis = data.chassis.get(),
-        ground = chassis.z - spec.cg
+        ground = wheelsAt(spec, chassis)
       let route = data.route.get()
       let pilot = data.pilot.get()
       if (distanceToEdge(route.edge, pose.x, pose.y) > LOST) {

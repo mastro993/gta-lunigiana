@@ -1,7 +1,7 @@
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import { forwardSpeed, moveCar, wallsAlong } from "../body.ts"
-import { overturned, type Rig, rigFor, RIGS } from "../chassis.ts"
+import { overturned, type Rig, rigFor, RIGS, wheelsAt } from "../chassis.ts"
 import { destroyed, NEW_ENGINE, type Wear } from "../damage.ts"
 import { BRAKING, driveForce, shiftGear } from "../drivetrain.ts"
 import { type BodyState, type Controls, type Ground, integrate } from "../dynamics.ts"
@@ -245,7 +245,7 @@ export const advance = (
     (input.throttle === 0 && Math.abs(speed) < BRAKING)
   const c = Ops.cos(pose.angle),
     s = Ops.sin(pose.angle)
-  const level = chassis.z - spec.cg
+  const level = wheelsAt(spec, chassis)
   const contacts = rig.wheels.map((w) => ({
     x: pose.x + w.at.f * c - w.at.l * s,
     y: pose.y + w.at.f * s + w.at.l * c,
@@ -290,7 +290,7 @@ export const stalled = (
   spec: VehicleSpec,
   chassis: Pick<ChassisValue, "z">,
   water: Controls["water"],
-): boolean => water !== undefined && water.level > chassis.z - spec.cg + spec.intake
+): boolean => water !== undefined && water.level > wheelsAt(spec, chassis) + spec.intake
 
 /** The river a vehicle of `spec` at (x, y) riding at `chassis` stands in at `q` m³/s per km², if any: its level and current. */
 const waterAround = (
@@ -300,7 +300,7 @@ const waterAround = (
   chassis: Pick<ChassisValue, "z">,
   q: number,
 ): Controls["water"] => {
-  const here = waterAt(x, y, chassis.z - spec.cg, q)
+  const here = waterAt(x, y, wheelsAt(spec, chassis), q)
   return here === undefined ? undefined : { level: here.level, vx: here.vx, vy: here.vy }
 }
 
@@ -404,7 +404,7 @@ export const VehiclePhysics = Game.System(
         delta.x,
         delta.y,
         spec.length / 2 + 0.5,
-        chassis.z - spec.cg,
+        wheelsAt(spec, chassis),
       )
       const turned = moveCar(model, pose, body.angle, delta, walls)
       const moved = turned ?? moveCar(model, pose, pose.angle, delta, walls)

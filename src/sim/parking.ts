@@ -9,7 +9,7 @@
 import { Ops } from "@typeonce/ritmo-math"
 
 import { carClear } from "./body.ts"
-import { settle, uprightness } from "./chassis.ts"
+import { settle, uprightness, wheelsAt } from "./chassis.ts"
 import { MAP, type ParkedSpot, type Rest, type Spawn } from "./map/index.ts"
 import { VEHICLE_MODELS, VEHICLES } from "./vehicles.ts"
 
@@ -33,7 +33,8 @@ export const bakeParked = (spots: ReadonlyArray<Spawn> = MAP.spawns.parked): Arr
       ...spot,
       rest,
       // On the level its wheels stand at there.
-      ...(rest.truck !== undefined && carClear("truck", spot, rest.truck[0] - VEHICLES.truck.cg)
+      ...(rest.truck !== undefined &&
+      carClear("truck", spot, wheelsAt(VEHICLES.truck, { z: rest.truck[0] }))
         ? { truck: true as const }
         : {}),
     }

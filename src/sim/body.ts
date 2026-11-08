@@ -7,7 +7,7 @@
  */
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
-import { overturned } from "./chassis.ts"
+import { overturned, wheelsAt } from "./chassis.ts"
 import { moveCircles, segmentDistance } from "./collide.ts"
 import { destroyed } from "./damage.ts"
 import { atGrade } from "./map/ground.ts"
@@ -158,7 +158,7 @@ export const vehicleInReach = <T>(
     const gap = Math.sqrt(dx * dx + dy * dy) - width / 2
     // Its wheels' ground under that point of its axis: along its pitch from under its middle, so a long body on a steep lane is
     // judged where the person stands by it.
-    const wheels = chassis.z - VEHICLES[model].cg + along * Ops.tan(chassis.pitch)
+    const wheels = wheelsAt(VEHICLES[model], chassis) + along * Ops.tan(chassis.pitch)
     if (gap > best || !onLevel(ground, wheels)) continue
     if (crossesAny(wallsAlong("walk", at.x, at.y, -dx, -dy, 0.5, ground), at, axis)) continue
     best = gap
