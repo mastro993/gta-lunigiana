@@ -359,15 +359,15 @@ export const TrafficAI = Game.System(
     const occupants: ReadonlyArray<Occupant & { readonly z: number }> = queries.vehicles
       .each()
       .map(({ entity, data }) => {
-        const { length, width, cg } = VEHICLES[data.vehicle.get().model],
+        const spec = VEHICLES[data.vehicle.get().model],
           { vx, vy } = data.motion.get()
         return {
           id: entity.id,
           ...data.pose.get(),
-          long: length / 2,
-          wide: width / 2,
+          long: spec.length / 2,
+          wide: spec.width / 2,
           speed: Math.sqrt(vx * vx + vy * vy),
-          z: data.chassis.get().z - cg,
+          z: wheelsAt(spec, data.chassis.get()),
         }
       })
     // Each obstacle's footprint, half its length and half its width (a person or an animal a circle), whether it moves on (the
