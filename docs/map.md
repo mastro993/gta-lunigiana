@@ -3617,7 +3617,8 @@ vehicle reaches into a driver's path, where the driver reads its level (the truc
 3.99 m), and how far apart two bodies touching are read, each on its own axis where they touch (two
 trucks' half-widths, 2.45 m); a vehicle a person or an animal may run from is read on its axis
 abeam them, and past its bumpers on its axis's line too; a train's car is read at the rail head under
-its middle, which the line's 2.83% at most keeps within 0.28 m of the rail head where it reaches the path. Paths over paths count since
+its middle, which the line's 2.83% at most keeps within 0.28 m of the rail head where it reaches
+the path. Paths over paths count since
 people step apart only on one level. The 0.5 m over `ONE_LEVEL` covers the surfaces' lifts over
 their
 profiles (0.06–0.24 m), the 0.1 m rounding and a truck's wheels rolled 25° (0.16 m). It visits 50
