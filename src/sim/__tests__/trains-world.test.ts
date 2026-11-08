@@ -7,8 +7,9 @@ import { FAUNA, randomAnimal } from "../fauna.ts"
 import { Game, Roam, Whistle } from "../index.ts"
 import { atGrade, footZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
+import { ONE_LEVEL } from "../map/kinds.ts"
+import { onOneLevel } from "../one-level.ts"
 import { grazing } from "../population/farms.ts"
-import { LEVEL, onLevel } from "../rail/bodies.ts"
 import { linesNear, pointAt, speedAt } from "../rail/lines.ts"
 import { isHeld } from "../rail/models.ts"
 import { trainDraft } from "../rail/service.ts"
@@ -160,7 +161,7 @@ const OVER_RIVER = (() => {
 
 test("trains: a swimmer swept under a rail bridge over the river in a spate is not on the track: a train crossing over leaves them as with no train", () => {
   const at = pointAt(line, OVER_RIVER.s)
-  assert.ok(at.z - atGrade(at.x, at.y) > LEVEL, "the deck stands over the river's bed")
+  assert.ok(at.z - atGrade(at.x, at.y) > ONE_LEVEL, "the deck stands over the river's bed")
   const swimmer = pedestrian(
     LOOK,
     { x: OVER_RIVER.x, y: OVER_RIVER.y, angle: 0 },
@@ -244,7 +245,7 @@ test("trains: walking into a road underpass along the road, someone stays on its
     for (const p of walk.slice(1)) z = footZ(p.x, p.y, z)
     const end = walk.at(-1)!
     assert.ok(
-      Math.abs(z - roadLevel(index, end.x, end.y)!) < 0.5 && !onLevel(z, pointAt(line, s).z),
+      Math.abs(z - roadLevel(index, end.x, end.y)!) < 0.5 && !onOneLevel(z, pointAt(line, s).z),
       `${road.id} from ${walk[0]!.x.toFixed(0)}, ${walk[0]!.y.toFixed(0)}: ${z.toFixed(2)} under the track`,
     )
   }
@@ -277,7 +278,7 @@ test("trains: walking into a road underpass along the road, someone stays on its
 test("trains: walking down a road onto a level crossing, someone comes onto the rail's level, and a train passing over strikes them", () => {
   const { way, s } = downToBox(),
     fall = footingAt(undefined, way[0]!.x, way[0]!.y) - pointAt(line, s).z
-  assert.ok(fall > 2 * LEVEL, `the road ${fall.toFixed(1)} m over the rail 50 m out`)
+  assert.ok(fall > 2 * ONE_LEVEL, `the road ${fall.toFixed(1)} m over the rail 50 m out`)
   const game = start([], [{ ...way[0]!, angle: 0 }, {}], { trains: true, alone: true })
   for (const p of way) {
     assert.ok(game.runtime.tick(Game.Schedule(teleport({ ...p, angle: 0 }))).ok)
@@ -308,7 +309,7 @@ test("trains: a cow over the tunnel does not hear a train go by beneath it; one 
   const tunnel = line.tunnels.reduce((a, b) => (b.to - b.from > a.to - a.from ? b : a)),
     mid = (tunnel.from + tunnel.to) / 2,
     above = beside(mid, 0)
-  assert.ok(footZ(above.x, above.y) - pointAt(line, mid).z > LEVEL, "fields far over the rail")
+  assert.ok(footZ(above.x, above.y) - pointAt(line, mid).z > ONE_LEVEL, "fields far over the rail")
   // Beside the track at grade on pasture both sides, 6 m off the centreline: its body passes 4.6 m away.
   // (Away from the tunnels' mouths, where the train whistles.)
   const portals = line.tunnels.flatMap((t) => [t.from, t.to])

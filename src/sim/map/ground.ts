@@ -259,8 +259,8 @@ const STRIDE = 1
  * The ground a wheel standing on ground at `z` (m a.s.l.) at (x0, y0) comes to rolling straight to (x1, y1), m a.s.l.: read every
  * STRIDE along the way, each the level nearest the last (`surface`, by default `groundZ` with the decks and tunnels out to their
  * walkers' verges), as a wheel finds its ground, so it keeps to the deck or the road it rolls on through a sag onto a deck or over
- * a crest into a tunnel, and drops off a deck's side. Where a vehicle's way comes to someone or something, it is on their level
- * when this stands within `LEVEL` of theirs.
+ * a crest into a tunnel, and drops off a deck's side. Past a vehicle's bumper, its level is this along its heading (`onOneLevel`
+ * in src/sim/one-level.ts).
  */
 export const rolledTo = (
   x0: number,

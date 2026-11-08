@@ -141,7 +141,7 @@ export interface Segment {
 
 /**
  * A wall edge in metres, and its level (m a.s.l.) when it has one: a bridge's parapet stands at its
- * deck's top, and stops only a body whose ground stands within `LEVEL` of it (`meets` in
+ * deck's top, and stops only a body whose ground stands within `ONE_LEVEL` of it (`meets` in
  * src/sim/body.ts); a wall with none stops anyone.
  */
 export interface Wall extends Segment {

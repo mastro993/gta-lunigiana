@@ -6,7 +6,7 @@ import { Ops } from "@typeonce/ritmo-math"
 import { GRAVITY, rigFor, RIGS } from "../chassis.ts"
 import { REAL_HANDLING } from "../handling.ts"
 import { graph } from "../map/index.ts"
-import { LEVEL } from "../rail/bodies.ts"
+import { ONE_LEVEL } from "../map/kinds.ts"
 import { roadOf } from "../route.ts"
 import { steerLimit } from "../systems/physics.ts"
 import {
@@ -163,14 +163,14 @@ test("AI level: through a dip a driver holds for a car standing on the far side,
   const dip = (x: number) => 100 + 0.15 * Math.abs(x)
   const surface = (x: number) => dip(x)
   // At the foot, a car 40 m up the climb: 6 m over the ground under the driver's middle.
-  assert.ok(dip(40) - dip(0) > LEVEL)
+  assert.ok(dip(40) - dip(0) > ONE_LEVEL)
   assert.equal(
     onPathLevel(east(0, dip(0)), ahead(40, 0.83), dip(40), surface),
     true,
     "from the foot",
   )
   // 25 m down the descent, one 15 m past the foot: 4.5 m off that ground carried along the driver's pitch.
-  assert.ok(Math.abs(dip(-25) - 0.15 * 40 - dip(15)) > LEVEL)
+  assert.ok(Math.abs(dip(-25) - 0.15 * 40 - dip(15)) > ONE_LEVEL)
   assert.equal(
     onPathLevel(east(-25, dip(-25)), ahead(40, 0.83), dip(15), surface),
     true,

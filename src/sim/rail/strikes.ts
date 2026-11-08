@@ -18,6 +18,7 @@ import { carCircles, carRadius, moveCar, walkBy, wallsAlong } from "../body.ts"
 import { wheelsAt } from "../chassis.ts"
 import { destroyed } from "../damage.ts"
 import { FAUNA } from "../fauna.ts"
+import { onOneLevel, pitched } from "../one-level.ts"
 import {
   Animal,
   Chassis,
@@ -46,7 +47,7 @@ import { footingAt } from "../systems/footing.ts"
 import { inReach, playerPose } from "../systems/reach.ts"
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
-import { axisNear, nearCar, onLevel, type TrainCar, trainCars } from "./bodies.ts"
+import { axisNear, nearCar, type TrainCar, trainCars } from "./bodies.ts"
 import { MOVING, TRAINS } from "./models.ts"
 
 /** A train striking a vehicle faster than this (its speed into it, m/s: 50 km/h) wrecks it, whatever the vehicle (estimate: a train's broadside crushes a car that a wall at that speed would only dent). */
@@ -189,15 +190,16 @@ export const TrainContacts = Game.System(
       if (!inReach(pose, player)) continue
       const { model } = data.vehicle.get(),
         spec = VEHICLES[model],
-        ground = wheelsAt(spec, data.chassis.get())
+        chassis = data.chassis.get(),
+        ground = wheelsAt(spec, chassis)
       let { vx, vy } = data.motion.get(),
         moved = false
       const prev = data.prev.get()
       for (const [k, car] of cars.entries()) {
-        if (!nearCar(car, pose.x, pose.y, spec.length / 2 + car.r) || !onLevel(ground, car.z))
-          continue
+        if (!nearCar(car, pose.x, pose.y, spec.length / 2 + car.r)) continue
         const { depth, nx, ny, px, py } = overlap(model, pose.x, pose.y, pose.angle, car)
-        if (depth <= 0) continue
+        if (depth <= 0 || !onOneLevel(pitched(model, pose, chassis), car.z, { x: px, y: py }))
+          continue
         const into = car.vx * nx + car.vy * ny,
           closing = into - (vx * nx + vy * ny)
         // The whole separation, walls permitting; a wall holding it, a moving train drags it along with it.
@@ -290,7 +292,7 @@ export const TrainContacts = Game.System(
           depth = car.r + r - near.d
         if (depth <= 0) continue
         ground ??= footingAt(footing, at.x, at.y)
-        if (!onLevel(ground, car.z)) continue
+        if (!onOneLevel(ground, car.z)) continue
         const n = normalFrom(car, at.x, at.y, near.x, near.y, near.d)
         // The train's own speed into the body decides, as a car's does: running into a standing train must not floor the runner.
         const into = car.vx * n.x + car.vy * n.y,

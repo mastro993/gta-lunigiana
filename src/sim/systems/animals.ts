@@ -2,9 +2,9 @@ import { Clock } from "@typeonce/ritmo"
 import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { walkBy } from "../body.ts"
-import { wheelsAt } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { inPlay } from "../map/index.ts"
+import { pitched } from "../one-level.ts"
 import { grazing, indoors, openGround } from "../population/farms.ts"
 import { ownSide, trainCars } from "../rail/bodies.ts"
 import {
@@ -40,7 +40,6 @@ import {
   Vehicle,
   Whistle,
 } from "../schema.ts"
-import { VEHICLES } from "../vehicles.ts"
 import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterUnder, walkDry } from "../water/rivers.ts"
 import { outOfDepth, waterVelocity } from "../water/swim.ts"
@@ -176,18 +175,15 @@ export const Animals = Game.System(
       q = specificDischarge(resources.rivers.get(), FLOW)
     // Vehicles are where last step's physics left them; parked ones scare nobody.
     const cars: ReadonlyArray<Car> = queries.vehicles.each().flatMap(({ data }) => {
-      const { x, y } = data.pose.get(),
-        { vx, vy } = data.motion.get(),
+      const { vx, vy } = data.motion.get(),
         speed = Math.sqrt(vx * vx + vy * vy)
       return speed > 1
         ? [
             {
-              x,
-              y,
+              ...pitched(data.vehicle.get().model, data.pose.get(), data.chassis.get()),
               vx,
               vy,
               speed,
-              ground: wheelsAt(VEHICLES[data.vehicle.get().model], data.chassis.get()),
             },
           ]
         : []
