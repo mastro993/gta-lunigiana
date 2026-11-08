@@ -12,7 +12,16 @@
 import { Ops } from "@typeonce/ritmo-math"
 
 import { righting, steadying } from "./assists.ts"
-import { fitPlane, GRAVITY, type Offset, type Rig, tiltOf, turn, WHEELS_DOWN } from "./chassis.ts"
+import {
+  fitPlane,
+  GRAVITY,
+  type Offset,
+  type Rig,
+  tiltOf,
+  turn,
+  WHEELS_DOWN,
+  wheelsAt,
+} from "./chassis.ts"
 import { groundZ } from "./map/ground.ts"
 import type { Surface } from "./map/surface.ts"
 import { DRY, type GroundWeather } from "./sky/local.ts"
@@ -286,7 +295,7 @@ export const integrate = (
     // The body's corners, once it is down on its belly, side or roof: pushed out along the ground's normal, sliding in its plane. Each looks
     // its ground up at the level the car stands on, so a tunnel's floor or a deck under the car wins over the hillside or deck above it.
     let resting = false
-    const level = body.z - spec.cg
+    const level = wheelsAt(spec, body)
     rig.corners.forEach((corner, index) => {
       const o = turn(corner, tilt),
         at = toWorld(o),

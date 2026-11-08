@@ -9,6 +9,7 @@
 import { Clock } from "@typeonce/ritmo"
 import { Random } from "@typeonce/ritmo-math"
 
+import { wheelsAt } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { MAP } from "../map/index.ts"
 import {
@@ -174,7 +175,7 @@ export const TrainAI = Game.System(
     const vehicles = (): ReadonlyArray<Sighted> =>
       (cars ??= queries.vehicles.each().map(({ data }) => {
         const spec = VEHICLES[data.vehicle.get().model],
-          z = data.chassis.get().z - spec.cg
+          z = wheelsAt(spec, data.chassis.get())
         return { ...data.pose.get(), long: spec.length / 2, wide: spec.width / 2, ground: () => z }
       }))
     const sight = (): ReadonlyArray<Sighted> =>
