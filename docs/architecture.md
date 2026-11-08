@@ -2018,7 +2018,7 @@ The audio schedule (`src/audio/index.ts`) is host code beside render. Its one sy
 `Lunigiana/Hear`, reads the player, the vehicles that run, move or burn (with the revs and load the
 sim's drivetrain gives for their `Chassis`, speed, pedal and `Damage` at the `Time` step, and
 whether their wheels are down), the people on foot (who they are, their mood, who they walk with
-and the level of their `Footing`, the player's the ears' on foot), the animals (on theirs too),
+and their `Footing`, the player's the ears' on foot), the animals (on theirs too),
 every train car by car (its power packs' revs and load from `trainRevs`, its brakes, its cab and
 which cars stand in a tunnel), the `LevelCrossings` (whose bells ring, by
 `crossingAt`), the `Impact`, `Skid`, `Honk`, `Cry`, `Lightning`, `Explosion` and `Whistle` events (a

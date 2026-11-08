@@ -1,10 +1,10 @@
 /**
  * The audio schedule: once per animation frame it projects what can be heard into plain `Heard`
- * data (the player's ears, on foot on the level of their `Footing`; vehicles someone drives, that
+ * data (the player's ears, on foot over their `Footing`; vehicles someone drives, that
  * move or that burn, on the tiles in memory (farther ones stand frozen, out of earshot), with the
  * drivetrain's revs and load from their worn engines, their damage, whether they burn, whether
  * their wheels or their body are down and how their tyres skid; people on foot, with who they are,
- * what they are doing, who they walk with and the level of their `Footing` (under a bridge, the
+ * what they are doing, who they walk with and their `Footing` (under a bridge, the
  * road, not the deck; `footingAt`, as render stands them); the animals, on theirs too; every
  * train, car by car, and the level crossings' bells (./rail.ts); the Impact, Honk, Cry, Explosion,
  * Lightning and Whistle events since the last frame, each impact with the bodies it struck, those

@@ -98,7 +98,7 @@ Input (horn) ──────────────────────�
 2. **The audio schedule** (`src/audio/index.ts`): one system, `Lunigiana/Hear`, ticked once per
    animation frame. It reads the world and builds one `Heard` (`src/audio/types.ts`, its trains
    and crossings in `src/audio/rail-types.ts`):
-   - `listener`: the player's pose and velocity, the ground they stand on (`z`, m a.s.l.: their
+   - `listener`: the player's pose and velocity, their footing (`z`, m a.s.l.: their
      `Footing` through `footingAt`, so under a bridge the road, not the deck), the vehicle they sit
      in, and the view's yaw, which the stereo image turns with: the `View` resource's quarter turns
      on foot, the yaw that puts the car's heading up the screen (`followYaw`) driving;
@@ -121,13 +121,13 @@ Input (horn) ──────────────────────�
      `Skid` events since the last frame, the most any wheel went past its grip, the fastest any
      slid, and the surface under the one furthest past;
    - `people`: everyone on foot (pedestrians, and the player when not driving), living or dead:
-     the ground they stand on (`z`: their `Footing`, or the first footing `FindFooting` will give
+     their footing (`z`: their `Footing`, or the first footing `FindFooting` will give
      one that appeared this step, on its `Route`'s level: `footingAt`, as the render stands them),
      age group and sex (the voice), the mood and the point (fx, fy) it is about (the player walks,
      about their own position), knocked down, dead, and `with`, the person they walk with: a
      follower's leader, and for a leader its first follower who is a person (a dog on a lead is no
      partner);
-   - `animals`: every animal: species, position, the ground it stands on (`z`, its `Footing` as
+   - `animals`: every animal: species, position, its footing (`z`, its `Footing` as
      for people), velocity, size, its `Roam` mood, knocked down, dead;
    - `trains` (`src/audio/rail.ts`): every train, running or standing (its engines idle): its line,
      its active cab's nose `s`, its speed toward +s and the way that cab faces, its cars from that
@@ -172,9 +172,9 @@ Input (horn) ──────────────────────�
    events are not lost.
 3. **The director** (`src/audio/director`) is the `Audio` service: plain TypeScript, tested in
    Node. Each frame (`index.ts`) it:
-   - places the ears on foot 1.6 m above the ground the sim has the player on (`listener.z`: a
-     bridge deck, not the river under it; under the deck, the road), in a car 1.6 m above the
-     level it stands on (`Chassis.z` − `cg`, so they fly with it), or in a train's cab 1.6 m above
+   - places the ears on foot 1.6 m above the player's footing (`listener.z`: a
+     bridge deck, not the river under it; under the deck, the road), in a car 1.6 m above its
+     wheels' ground (`wheelsAt`, so they fly with it), or in a train's cab 1.6 m above
      its floor, 1.2 m over the rail head at the driver's place (on a rail deck 20 m over a valley
      too, `seatOf`), and notes the cabin around them;
    - works out the weather at the ears with the sim's own `conditionsAt` (at the ground under
