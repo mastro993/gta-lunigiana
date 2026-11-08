@@ -315,7 +315,6 @@ test("a car on its roof slides down a slope steeper than its sliding friction (0
   assert.ok(onRoof(0.3) > -0.5, `30%: ${onRoof(0.3)} m`)
 })
 
-// Regression: hullDown counted a corner within 5 cm of the ground as down, so the Giulia's bump stops (5 cm under its clearance) ground.
 test("wheelsAt: every model settled on level ground at 100 m has its wheels' ground there", () => {
   for (const model of VEHICLE_MODELS)
     assert.equal(
@@ -327,6 +326,7 @@ test("wheelsAt: every model settled on level ground at 100 m has its wheels' gro
     )
 })
 
+// Regression: hullDown counted a corner within 5 cm of the ground as down, so the Giulia's bump stops (5 cm under its clearance) ground.
 test("hullDown: a Giulia on its bump stops over a hump or landing from 0.4 m keeps its body off the ground; one on its roof has it down", () => {
   const ground: Ground = (x) => (x > 12 && x < 13 ? 100.12 : 100)
   // Its corners come within 2.6 cm of the ground from 0.4 m; from 0.6 m they touch, and the belly grinds.

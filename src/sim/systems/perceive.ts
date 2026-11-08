@@ -318,7 +318,7 @@ export const Perceive = Game.System(
     for (const w of walkers)
       if (w.leader !== undefined && (w.down || w.dead))
         fallen.set(w.leader, [...(fallen.get(w.leader) ?? []), w])
-    // The moving vehicles, and by id each one's wheels' ground under its middle (m a.s.l., `chassis.z − cg`).
+    // The moving vehicles, and by id each one's wheels' ground under its middle (m a.s.l., `wheelsAt`).
     const wheels = new Map<number, number>()
     const cars: ReadonlyArray<Car> = queries.vehicles.each().flatMap(({ entity, data }) => {
       const pose = data.pose.get(),

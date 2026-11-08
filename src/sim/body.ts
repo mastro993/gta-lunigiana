@@ -61,7 +61,7 @@ const onItsLevel: Readonly<Record<WallKind, Array<Wall>>> = {
 
 /**
  * Wall segments that may touch a body of half-extent `pad` moving from (x, y) by (dx, dy): those it
- * meets (`meets`) when its ground stands at `z` (m a.s.l.: a car's wheels, `chassis.z − cg`), every
+ * meets (`meets`) when its ground stands at `z` (m a.s.l.: a car's wheels, `wheelsAt`), every
  * one when `z` is left out. Reused by the next call of the same kind.
  */
 export const wallsAlong = (

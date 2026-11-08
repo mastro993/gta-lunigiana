@@ -115,7 +115,7 @@ interface Car extends Mover {
   readonly reach: number
   readonly angle: number
   /**
-   * Its wheels' level, m a.s.l. (`chassis.z − cg`): the ground under its middle, which the drive walls it meets and what it
+   * Its wheels' level, m a.s.l. (`wheelsAt`): the ground under its middle, which the drive walls it meets and what it
    * touches (`wheelsNear`) are read from.
    */
   readonly ground: number
