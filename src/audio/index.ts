@@ -19,7 +19,7 @@
 import { Descriptor } from "@typeonce/ritmo"
 
 import { forwardSpeed } from "../sim/body.ts"
-import { hullDown, overturned } from "../sim/chassis.ts"
+import { hullDown, overturned, wheelsAt } from "../sim/chassis.ts"
 import { burning, destroyed } from "../sim/damage.ts"
 import { engineRevs } from "../sim/drivetrain.ts"
 import {
@@ -259,7 +259,8 @@ const Hear = Game.System(
           step,
           { damage, seed: entity.id },
         )
-      const lift = chassis.z - groundZ(at.x, at.y, chassis.z - spec.cg) - spec.cg,
+      const wheels = wheelsAt(spec, chassis),
+        lift = wheels - groundZ(at.x, at.y, wheels),
         skid = skids.get(entity.id)
       return [
         {

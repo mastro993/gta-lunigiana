@@ -1,3 +1,4 @@
+import { wheelsAt } from "../../sim/chassis.ts"
 /**
  * The director: the brain of proximity and physical behaviour between the `Heard` frames of the
  * audio schedule and a `Speaker`. Each frame it finds the listener's ears (and the cabin around
@@ -53,7 +54,7 @@ export const seatOf = (
   const { listener } = heard
   const seat = heard.vehicles.find((v) => v.id === listener.car)
   if (seat !== undefined)
-    return { ground: seat.z - VEHICLES[seat.model].cg, inside: seat.model, underground: false }
+    return { ground: wheelsAt(VEHICLES[seat.model], seat), inside: seat.model, underground: false }
   const cab = heard.trains.find((t) => t.id === listener.car)
   if (cab !== undefined)
     return {

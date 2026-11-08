@@ -2,7 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { forwardSpeed, wrapAngle } from "../body.ts"
-import { GRAVITY, rigFor, RIGS } from "../chassis.ts"
+import { GRAVITY, rigFor, RIGS, wheelsAt } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { type HandlingValue, REAL_HANDLING } from "../handling.ts"
 import { rolledTo } from "../map/ground.ts"
@@ -359,15 +359,15 @@ export const TrafficAI = Game.System(
     const occupants: ReadonlyArray<Occupant & { readonly z: number }> = queries.vehicles
       .each()
       .map(({ entity, data }) => {
-        const { length, width, cg } = VEHICLES[data.vehicle.get().model],
+        const spec = VEHICLES[data.vehicle.get().model],
           { vx, vy } = data.motion.get()
         return {
           id: entity.id,
           ...data.pose.get(),
-          long: length / 2,
-          wide: width / 2,
+          long: spec.length / 2,
+          wide: spec.width / 2,
           speed: Math.sqrt(vx * vx + vy * vy),
-          z: data.chassis.get().z - cg,
+          z: wheelsAt(spec, data.chassis.get()),
         }
       })
     // Each obstacle's footprint, half its length and half its width (a person or an animal a circle), whether it moves on (the
@@ -443,7 +443,7 @@ export const TrafficAI = Game.System(
       const speed = forwardSpeed(data.motion.get(), pose.angle)
       // Its wheels' ground under its middle.
       const chassis = data.chassis.get(),
-        ground = chassis.z - spec.cg
+        ground = wheelsAt(spec, chassis)
       let route = data.route.get()
       let pilot = data.pilot.get()
       if (distanceToEdge(route.edge, pose.x, pose.y) > LOST) {

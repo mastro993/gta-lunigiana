@@ -2,6 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carRadius, moveCar, walkBy, wallsAlong } from "../body.ts"
+import { wheelsAt } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { onLevel } from "../rail/bodies.ts"
 import {
@@ -114,8 +115,8 @@ interface Car extends Mover {
   readonly reach: number
   readonly angle: number
   /**
-   * Its wheels' level, m a.s.l. (`chassis.z − cg`): the ground under its middle, which the drive walls it meets and what it
-   * touches (`wheelsAt`) are read from.
+   * Its wheels' level, m a.s.l. (`wheelsAt`): the ground under its middle, which the drive walls it meets and what it
+   * touches (`wheelsNear`) are read from.
    */
   readonly ground: number
   /** How far its wheels' ground rises a metre ahead: its pitch's tangent. */
@@ -159,7 +160,7 @@ const shove = (
  * vehicles touching end to end on a steep lane meet on one level: bumper to bumper on a 30% lane, the ground under two trucks'
  * middles stands 2.5 m apart.
  */
-const wheelsAt = (car: Car, x: number, y: number): number => {
+const wheelsNear = (car: Car, x: number, y: number): number => {
   const k = car.reach - car.r
   const along = Math.max(
     -k,
@@ -273,7 +274,7 @@ export const Contacts = Game.System(
         vx: motion.vx,
         vy: motion.vy,
         moved: false,
-        ground: match.data.chassis.get().z - VEHICLES[model].cg,
+        ground: wheelsAt(VEHICLES[model], match.data.chassis.get()),
         rise: Ops.tan(match.data.chassis.get().pitch),
       }
       return [{ match, car }]
@@ -287,7 +288,7 @@ export const Contacts = Game.System(
           b = cars[j]!.car
         if (Vec2.distanceSquared(a, b) > (a.reach + b.reach) ** 2) continue
         const { depth, nx, ny, px, py } = deepest(circlesOf(a), a.r, circlesOf(b), b.r)
-        if (depth <= 0 || !onLevel(wheelsAt(a, px, py), wheelsAt(b, px, py))) continue
+        if (depth <= 0 || !onLevel(wheelsNear(a, px, py), wheelsNear(b, px, py))) continue
         // a takes its mass share of the separation; b the rest, including what a's walls refused.
         const share = depth * (b.mass / (a.mass + b.mass))
         const rest = depth - shoveCar(a, nx, ny, share)
@@ -379,7 +380,7 @@ export const Contacts = Game.System(
       for (const { match: owner, car } of cars) {
         if (Vec2.distanceSquared(body, car) > (car.reach + body.r) ** 2) continue
         const { depth, nx, ny } = deepest([body], body.r, circlesOf(car), car.r)
-        if (depth <= 0 || !onLevel(body.ground, wheelsAt(car, body.x, body.y))) continue
+        if (depth <= 0 || !onLevel(body.ground, wheelsNear(car, body.x, body.y))) continue
         if (body.heavy) {
           // Like two vehicles: the cow takes its mass share of the separation (walls permitting), the car the rest, and an impulse.
           const rest = depth - shoveBody(body, nx, ny, depth * (car.mass / (body.mass + car.mass)))

@@ -2,6 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import { Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { offBody } from "../body.ts"
+import { wheelsAt } from "../chassis.ts"
 import { afterHit, destroyed } from "../damage.ts"
 import { atGrade, footZ } from "../map/ground.ts"
 import { MAP } from "../map/index.ts"
@@ -203,7 +204,7 @@ export const Explode = Game.System(
           pose = car.data.pose.get(),
           model = car.data.vehicle.get().model
         // On the ground beside the wreck, on the level its wheels stood on.
-        const wheels = car.data.chassis.get().z - VEHICLES[model].cg
+        const wheels = wheelsAt(VEHICLES[model], car.data.chassis.get())
         const out = freeDoor(pose, model, wheels) ?? pose,
           away = Vec2.normalizeOr(Vec2.subtract(out, pose), { x: 1, y: 0 })
         data.pose.set({ x: out.x, y: out.y, angle: pose.angle })

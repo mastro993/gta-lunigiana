@@ -2,6 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import type { Vec2 } from "@typeonce/ritmo-math"
 
 import { forwardSpeed } from "./body.ts"
+import { wheelsAt } from "./chassis.ts"
 import { footZ, groundZ } from "./map/ground.ts"
 import { boardingAt, cabOf } from "./rail/boarding.ts"
 import { LINES } from "./rail/lines.ts"
@@ -156,7 +157,7 @@ export const PlayerView = Game.Inspector(
           ? groundZ(
               pose.x,
               pose.y,
-              car.value.data.chassis.get().z - VEHICLES[car.value.data.vehicle.get().model].cg,
+              wheelsAt(VEHICLES[car.value.data.vehicle.get().model], car.value.data.chassis.get()),
             )
           : footZ(pose.x, pose.y, footing)
     const near =

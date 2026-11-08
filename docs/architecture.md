@@ -402,7 +402,7 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   level: `wallsAlong` (`src/sim/body.ts`) keeps the walls a body meets standing at the level it is
   given (`meets`: a wall with no level, or one within `LEVEL`, 2 m, of it), every wall when it is
   given none. The physics, the contacts and the trains' strikes give a car's wheels
-  (`chassis.z − cg`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
+  (`wheelsAt`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
   spot's settled wheels, a teleport's ground), and the baked lanes their road's surface where the
   edge passes nearest a parapet. Everyone on foot gives their `Footing` (`footingAt` before
   `FindFooting` has given one): the player's step (`PlayerFoot`), the pedestrians' and the animals'
@@ -642,7 +642,9 @@ animation frame it:
 3. ticks the `render` and `audio` schedules (`runtime.tick(render, audio)`); the render's `DrawSky`
    hands the sky host the clock, the weather, the steps' lightning and the cars and trains with
    lamps on, and its `FollowPlayer` hands the see-through cut the player as drawn;
-4. moves and turns the camera from the `PlayerView` it read;
+4. moves and turns the camera from the `PlayerView` it read (this and step 1's tile wait and
+   teleport stay in `main.ts`, not in modules of their own:
+   [ADR 0001](adr/0001-camera-and-teleport-stay-in-main.md));
 5. draws the sky for the moved camera (`skyHost.draw`: light, shadows, fog, rain, bolts, night
    lights; see [The sky](#the-sky));
 6. streams the static world around the camera focus ([Rendering](#rendering));
