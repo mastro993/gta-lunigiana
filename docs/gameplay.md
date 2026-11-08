@@ -93,13 +93,14 @@ train is boarded at its cab doors ([Driving a train](#driving-a-train)); the res
   lies on its side or roof or is destroyed ([Damage](#damage)), or a train's door nearer still. The
   HUD prompt uses the same test (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it
   shows exactly what the key would do: `steal`, `enter` or `carjack`.
-- **On his level**: the ground under the vehicle's wheels (`wheelsAt`) stands within 2 m of
-  his `Footing` ([Footing](#footing)), the rule a train's door keeps (`LEVEL`), so under the SR445's
-  viaduct west of Gragnola, 6.07 m under its deck, he cannot take a car on the deck over him, nor
-  from the deck one on the road under it. The wheels' ground is taken under the point of the
-  vehicle's axis nearest him, along its pitch, as a door is where it stands: 1.8 m off the front
-  bumper of the marble truck on a 40% lane (the lane down from Posara climbs 42.6%), the ground
-  under its middle lies 2.36 m under his, under the end of its axis 1.33 m. In a river he gets into
+- **On his level**: the vehicle's level stands within 2 m of his `Footing` ([Footing](#footing)),
+  the rule a train's door keeps (`onOneLevel`, [On one level](#knockdowns-deaths-and-score)), so
+  under the SR445's viaduct west of Gragnola, 6.07 m under its deck, he cannot take a car on the
+  deck over him, nor from the deck one on the road under it. Its level is read toward him: along its
+  pitch from the ground under its middle (`wheelsAt`) out to its bumper, past it rolled on
+  along its heading: 1.8 m off the front bumper of the marble truck on a 40% lane (the lane down
+  from Posara climbs 42.6%), the ground under its middle lies 2.36 m under his; read so, it is his.
+  In a river he gets into
   a car from the water beside it, or from a bank within 2 m of its wheels
   ([water.md](water.md#vehicles-in-the-water)).
 - **Steal**: the first entry of any vehicle or train scores one theft and tags it `Stolen`.
@@ -197,7 +198,7 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
   can still get out.
 - **Walls**: the body is a row of circles of radius width/2 along its length. Its planar move sweeps
   against the drive walls on its level: a bridge's parapets stand at the deck's top and stop a car
-  whose wheels stand within 2 m of it (`LEVEL`), on the deck, and not one on a road under it (issue
+  whose wheels stand within 2 m of it (`meets`), on the deck, and not one on a road under it (issue
   #91; [map.md](map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)); under a deck, walls on
   the ground's level stop a car where the deck's underside stands lower over the ground than the
   tallest vehicle, the truck's 2.65 m (issue #87). A hit keeps the sliding part of the motion,
@@ -606,9 +607,10 @@ the lane helpers in `src/sim/route.ts`.
   animal a circle), so a car standing across the road holds it back as well as one ahead. For a
   Panda following a Panda in line that is 1.8 m to either side of its axis. Each car of a train is
   such an obstacle too, one that moves on. Standing still, it holds the handbrake.
-- **On its level.** Only an obstacle on the car's level holds it back (`onLevel`, within 2 m,
-  `LEVEL`): a vehicle by its wheels' ground (`wheelsAt`), a person or an animal by its
-  `Footing` ([Footing](#footing)), a train's car by its rail head. The car reads its own level where
+- **On its level.** Only an obstacle on the car's level holds it back (`onOneLevel`, within 2 m,
+  [On one level](#knockdowns-deaths-and-score)): a vehicle by its level read there, a person or an
+  animal by its `Footing` ([Footing](#footing)), a train's car by its rail head.
+  The car reads its own level where
   the obstacle reaches into its path (the obstacle's middle moved toward the cone's axis by as far
   as it reaches across): the ground its wheels come to rolling there from under its middle along the
   cone's axis, read every metre, each the surface nearest the last (`rolledTo` in `map/ground.ts`,
@@ -799,11 +801,15 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
   without a flight or a glare. Only people on its level sense it: under a rail bridge, over a
   tunnel or on a road bridge over the line it passes them by
   ([Around the trains](#around-the-trains)).
-- **On their level.** A vehicle counts to the Danger and Speeding stimuli only on their level: the
-  ground its wheels come to rolling straight from under its middle (`wheelsAt`) to where they
-  stand, read every metre, each the surface nearest the last (`rolledTo`: the deck it drives, or the
-  road under it, as a driver reads its way), stands within 2 m of their `Footing` (`LEVEL`,
-  [Footing](#footing)). Under the SR445's viaduct west of Gragnola a passer-by stands as a Panda
+- **On their level.** A vehicle counts to the Danger and Speeding stimuli only on their level: its
+  level read toward where they stand (`onOneLevel`, [On one level](#knockdowns-deaths-and-score):
+  past its bumper rolled on along its heading, read every metre, each the surface nearest the last,
+  `rolledTo`: the deck it drives, or the road under it, as a driver reads its way) stands within 2 m
+  of their `Footing` ([Footing](#footing)). Someone abeam its body is read on its own level, since
+  only who it could hit fears it: a car on a deck does not scare someone on the ground beside the
+  deck, nor one on a road someone on a bank more than 2 m over or under it (a walker 8 m off on a 30%
+  side slope stands 2.4 m over the road).
+  Under the SR445's viaduct west of Gragnola a passer-by stands as a Panda
   rolls over them on its deck; before, they ran 10.5 m from it, crying out in fright. Nor do they
   look at one speeding over them there at 22 m/s, as they do standing beside its lane on the deck.
   Read under the car's middle, the level would lose a car coming down a hill at them: at the foot of
@@ -881,9 +887,12 @@ through a wall.
   (2 × `KNOCK_SPEED`) does she fall, or die. A Panda nudging a cow at walking pace shoves her.
 - **People and animals** step apart, each moving by the other's share of the mass (a person 70 kg,
   an animal its species' mass × its size³). The members of a party do not.
-- **On one level**: only bodies on one level touch (`onLevel`, within 2 m, `LEVEL`): a vehicle by
-  the ground under its wheels where its axis passes nearest the contact, along its pitch from under
-  its middle (`wheelsAt`), a person or an animal by its `Footing` ([Footing](#footing)). So a
+- **On one level**: only bodies on one level touch, their levels within 2 m (`onOneLevel` in
+  `src/sim/one-level.ts`, `ONE_LEVEL`, the rule between any two bodies, and a body and a wall): a
+  person or an animal by its `Footing` ([Footing](#footing)), a train's car by its rail head, a
+  vehicle by its level read toward the contact: the ground under its middle (`wheelsAt`)
+  carried along its pitch out to its bumpers, past them rolled on along its heading, never sideways
+  (the ground beside it, as under one thrown off an embankment, is not what it stands on). So a
   Panda rolling at 11 m/s along the SR445's viaduct west of Gragnola passes over the player, a
   passer-by, a parked Panda and a dead dog on the road 6.07 m under its deck as over nobody, and the
   player standing under the deck and a passer-by over him on it do not step apart; before, it
@@ -1180,10 +1189,11 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   | pig | faster than 5 m/s within 8 m | within 3 m | | within 30 m | within 20 m | fright, 80 % |
 
   A train's car counts as a vehicle by the distance to its body (a car's middle can be 10 m from
-  an animal beside its end), and only on the animal's level. So does a vehicle: the ground its
-  wheels come to rolling straight from under its middle (`wheelsAt`) to the animal
-  (`rolledTo`, as people read it) stands within 2 m of its `Footing` (`LEVEL`). Under the SR445's viaduct west of Gragnola a cat, a dog, a
-  cow and a pig stay as a Panda rolls over them on its deck, where before they ran 15.2, 13.9, 7.8
+  an animal beside its end), and only on the animal's level. So does a vehicle: its level read
+  toward the animal (`onOneLevel`, as people read it) stands within 2 m of its `Footing`: a cow
+  grazing 8 m off a road on a 30% side slope, 2.4 m over it, stays as a car speeds by. Under the
+  SR445's viaduct west of Gragnola a cat, a dog, a cow and a pig stay as a Panda rolls over them on its
+  deck, where before they ran 15.2, 13.9, 7.8
   and 9.7 m, the cat, the cow and the pig crying out; at the foot of a 30% lane a cat runs from a
   Panda coming down at it 7.8 m off, its wheels 2.3 m over it (6.2 m off, read under its middle).
   A train's horn sounds 120–125 dB(A)
@@ -1391,7 +1401,8 @@ the terminal, which it passes at 84.2 km/h (2026-11-07, with the run-outs on the
   driver at Bojano: the urgent brake and the horn together). A person, an animal or a vehicle on the
   track ahead holds the train (`TrainRun.state` `braking`, `horn`, then `creep`): their body within
   the train's half-width and 0.3 m of the centreline (`CLEARANCE`), on its level (their ground
-  within 2 m of the rail head, `LEVEL`), on a platform only reaching into the train's body itself
+  within 2 m of the rail head, `onOneLevel`), on a platform only reaching into the train's body
+  itself
   (at its very edge, 1.7 m off the centreline), ahead of the nose within its emergency stop and 20 m
   more (`lookoutReach`: v²/(2 × 1 m/s²), the emergency brake under snow, plus 1.5 s of brake ease:
   334 m from 85 km/h, 20 m standing), and short of its next stop by no more than 5 m. Held, the
@@ -1471,7 +1482,8 @@ The player steals and drives a train as a car, with the same keys (`EnterExit`, 
 
 - **Boarding.** A train has a crew door each side 2.5 m behind each nose. Within 2 m of one
   (`ENTER_GAP`), the player's `Footing` on the rail's level there (within 2 m of the rail head,
-  `LEVEL`: not from a road bridge's deck over it, nor from the road tunnel under it), with no walk
+  `onOneLevel`: not from a road bridge's deck over it, nor from the road tunnel under it), with no
+  walk
   wall between, and the train moving
   slower than 1.5 m/s (`BOARD_SPEED`, a walk), the action key gets in: the nearest door, unless a
   vehicle's body is nearer still. The HUD prompt offers the same (`ATR 220 Swing`, `carjack` while
@@ -1611,7 +1623,7 @@ What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/s
 `rail/bodies.ts`), the same on every line, from the map's lines and boxes alone:
 
 - **On its level only.** Every rule between a train and a body applies only where the body's
-  ground stands within 2 m of the rail head there (`LEVEL`): a vehicle's from its chassis, a
+  level stands within 2 m of the rail head there (`onOneLevel`): a vehicle's read toward it, a
   person's or an animal's on foot from its `Footing` ([Footing](#footing)). So a train on the rail
   bridge over Via delle Cave by Monzone, over the underpass east of the station (a road in a tunnel
   5.5 m under the track, which crosses it on a 20.7 m bridge), in the Ugliancaldo tunnel under the
@@ -1969,14 +1981,14 @@ speed along the contact.
 | `src/sim/rail/dynamics.ts` | `POWER_EASE`, `BRAKE_EASE`, `HOLD_SPEED`, `REVERSE_MAX`, the brakes' share of the adhesion |
 | `src/sim/rail/barriers.ts` | `WARNING`, `LOWERING`, `RAISING`, `RELEASE`, `MARGIN`, `CROSSING_HOLD`, `DEPARTURE`, `SPARE` (in `strikeIn`) |
 | `src/sim/rail/crossings.ts` | the stop line's clearance, the arms, how near a line passes a box's node (`NODE_REACH`), how far back the approaches go |
-| `src/sim/rail/bodies.ts` | `LEVEL` (the level every train rule, getting into a vehicle, what traffic brakes for, what bodies touch and what people and animals run from keep to), `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
+| `src/sim/rail/bodies.ts` | `CLEARANCE` (the envelope past a train's body), how far a picked place keeps off the track (`KEEP_OFF`) |
 | `src/sim/rail/lookout.ts` | the look-out's planned brake and margin (`lookoutReach`), `HELD_SIGHT`, `HORN`, `CREEP`, how often the alarm sounds, `SCRAPE` (a vehicle touching a train's side) |
 | `src/sim/rail/roads.ts` | `STOP_DECEL`, `HARD_DECEL`, `LINE_SLACK`, `ENVELOPE_SLACK` (how far outside the trains' envelope a car holds), the room past a box (`ROOM`, `KEEP_REACH`, `SLOW`, `LANE_CLEAR`, `PATH_SLACK`), `JUNCTION_CLEAR`, `PATIENT_FOR` (drivers' and walkers'), the queue's reach and heading, `SPAWN_CLEAR`, `TURN_SWEEP` (no turning round nearer a line's track) |
 | `src/sim/rail/senses.ts` | `WHISTLE_RANGE`, the alarm's path (`PATH_WIDE`, `PATH_REACH`), the hold at a crossing (`HOLD_LOOK`, `HOLD_CLEAR`, `HOLD_NEAR`, `HOLD_SPAN`) |
 | `src/sim/rail/strikes.ts` | `WRECK_SPEED`, the train's death curve (`TRAIN_HALF`, `TRAIN_SPREAD`), the throw (`CARRY`, `THROW`), the train hit's and a crushing drag's least speed (`IMPACT_SPEED`) |
 | `src/sim/systems/*.ts` | each system's own constants at the top of its file (physics: steering rates and the speed-sensitive lock; traffic: comfort, leaning, turning room, the cone's `CONE_CLEARANCE`, backing's `BACK_GAP` and `ALONGSIDE`; foot, enter/exit) |
 | `src/sim/sky/` | the clock, the map's place, the climate, the odds, the day plan, the regimes and the ground's weather (see [weather.md](weather.md#tuning)) |
-| `src/sim/map/kinds.ts` | road widths and which classes carry traffic, the player's car, or only people |
+| `src/sim/map/kinds.ts` | road widths and which classes carry traffic, the player's car, or only people; `ONE_LEVEL` (the level every rule between two bodies keeps to: getting in, what traffic brakes for, what touches, what people and animals run from, the trains' rules, the walls a body meets; baked into the parapets and the walls under the decks, so run `pnpm maps` after a change) |
 | `src/render/pipeline.ts` | `zoomFor` zoom levels |
 | `src/render/shadow-box.ts` | the shadow box's steps (`STEP`), the least last step below its widest size (`LEAST`), its spare when it grows (`SPARE`), how long it waits to shrink (`HOLD`) and its widest size (`SHADOW_CAP`) |
 | `src/render/swing.ts` | `turnToward` view turn speed; the follow spring's `FOLLOW`, `HOLD`, `SETTLE` and `LAND` |

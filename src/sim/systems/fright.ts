@@ -7,8 +7,8 @@
  */
 import { Random, Vec2 } from "@typeonce/ritmo-math"
 
-import { rolledTo } from "../map/ground.ts"
-import { nearCar, offCar, onLevel, type TrainCar } from "../rail/bodies.ts"
+import { onOneLevel, type Pitched } from "../one-level.ts"
+import { nearCar, offCar, type TrainCar } from "../rail/bodies.ts"
 import {
   Animal,
   Cry,
@@ -64,14 +64,11 @@ const CRIES = {
 export const MOVING = 0.3
 /** A vehicle hitting a wall, a car or the ground at this closing speed or more is a crash, m/s (TUNED). */
 const CRASH_SPEED = 4
-/** A moving vehicle: where it is, its velocity, and its wheels' ground under its middle (m a.s.l., `wheelsAt`). */
-export interface Car {
-  readonly x: number
-  readonly y: number
+/** A moving vehicle on its pitched level: its velocity and speed. */
+export interface Car extends Pitched {
   readonly vx: number
   readonly vy: number
   readonly speed: number
-  readonly ground: number
 }
 /** A person on their feet: where they are, where they were at the start of the step, and their speed. */
 export interface Folk {
@@ -107,9 +104,8 @@ const near = (p: Vec2.Vec2, at: Vec2.Vec2, r: number) =>
 
 /**
  * What `species` at `at`, standing on `ground` (m a.s.l., its Footing's level), runs from this step, if anything: the point to run
- * away from. A vehicle or a train's car scares it only on its level: a vehicle where the ground its wheels come to rolling straight
- * from under its middle to `at` (`rolledTo`: the deck it drives, or the road under it) stands within LEVEL of `ground`, a train's
- * car by its rail head.
+ * away from. A vehicle or a train's car scares it only on its level (`onOneLevel`): a vehicle's read toward `at` (the deck it
+ * drives, or the road under it), a train's car's by its rail head.
  */
 export const scare = (
   species: Species,
@@ -124,10 +120,7 @@ export const scare = (
 ): Vec2.Vec2 | undefined => {
   const fear = FEARS[species]
   const car = cars.find(
-    (c) =>
-      c.speed > fear.speed &&
-      near(c, at, fear.car) &&
-      onLevel(ground, rolledTo(c.x, c.y, c.ground, at.x, at.y)),
+    (c) => c.speed > fear.speed && near(c, at, fear.car) && onOneLevel(ground, c, at),
   )
   if (car !== undefined) return pathPoint(car, at, random)
   const train = trains.find(
@@ -135,7 +128,7 @@ export const scare = (
       c.speed > fear.speed &&
       nearCar(c, at.x, at.y, fear.car + c.r) &&
       offCar(c, at.x, at.y) <= fear.car &&
-      onLevel(ground, c.z),
+      onOneLevel(ground, c.z),
   )
   if (train !== undefined) return pathPoint(train, at, random)
   return (

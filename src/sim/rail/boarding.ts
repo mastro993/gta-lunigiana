@@ -15,10 +15,10 @@ import { Ops, type Vec2 } from "@typeonce/ritmo-math"
 import { crossesAny, standClear, vehicleInReach, walkBy, wallsAlong, wrapAngle } from "../body.ts"
 import { footZ } from "../map/ground.ts"
 import { MAP } from "../map/index.ts"
+import { onOneLevel } from "../one-level.ts"
 import type { ChassisValue, PoseValue, TrainMotionValue } from "../schema.ts"
 import { DOOR_GAP, ENTER_GAP, PERSON_RADIUS } from "../tuning.ts"
 import type { VehicleModel } from "../vehicles.ts"
-import { onLevel } from "./bodies.ts"
 import { type Line, LINES, pointAt } from "./lines.ts"
 import { spanOf, TRAINS, trainLength, type TrainModel } from "./models.ts"
 
@@ -98,7 +98,7 @@ export const trainInReach = <T>(
     if (line === undefined || !boardable(motion.v)) continue
     for (const door of doorsOf(line, motion, model)) {
       const gap = Ops.hypot(door.x - at.x, door.y - at.y)
-      if (gap > (found?.gap ?? ENTER_GAP) || !onLevel(ground, door.z)) continue
+      if (gap > (found?.gap ?? ENTER_GAP) || !onOneLevel(ground, door.z)) continue
       const walls = wallsAlong("walk", at.x, at.y, door.x - at.x, door.y - at.y, 0.5, ground)
       if (crossesAny(walls, at, door)) continue
       found = { train, door, gap }
@@ -114,7 +114,7 @@ export type Boarding<V, T> =
 
 /**
  * What a person at `at` standing on `ground` (m a.s.l.) gets into with the action key: the vehicle in reach (`vehicleInReach`)
- * nearer than any train's door in reach (`trainInReach`), else that train, each only on their level (`onLevel`). The action
+ * nearer than any train's door in reach (`trainInReach`), else that train, each only on their level (`onOneLevel`). The action
  * (EnterExit) and the HUD's prompt (PlayerView) both ask this.
  */
 export const boardingAt = <V, T>(
@@ -182,7 +182,7 @@ export const exitSpot = (
       y: door.y - Ops.cos(at.angle) * side * DOOR_GAP,
     }
     const ground = footZ(spot.x, spot.y, at.z)
-    if (!onLevel(ground, at.z) || !standClear(spot, ground)) return []
+    if (!onOneLevel(ground, at.z) || !standClear(spot, ground)) return []
     if (walkBy(at, { x: spot.x - at.x, y: spot.y - at.y }, PERSON_RADIUS, ground).blocked) return []
     // Facing the way the train's end faces: the active cab's way, the far cab's the other.
     return [{ side, pose: { ...spot, angle: end === 0 ? angle : wrapAngle(angle + Math.PI) } }]
