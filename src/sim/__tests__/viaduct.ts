@@ -28,8 +28,8 @@ import {
 } from "../index.ts"
 import { atGrade, groundZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
+import { ONE_LEVEL } from "../map/kinds.ts"
 import { roadLineAt } from "../map/vectors.ts"
-import { LEVEL } from "../rail/bodies.ts"
 import { alongLane, edgeIndex, laneOf, lanePoint, laneSide, type Step } from "../route.ts"
 import { rollingChassis, trafficCar } from "../spawning.ts"
 import { press, rolling, type stage, start, type Timeline } from "../testing.ts"
@@ -73,7 +73,10 @@ assert.ok(road !== undefined, "the road under the deck passes under OVER")
 export const DECK_Z = roadLevel(VIADUCT, OVER.x, OVER.y)!
 /** The road's surface under it, m a.s.l. (142.41). */
 export const ROAD_Z = groundZ(OVER.x, OVER.y, road)
-assert.ok(DECK_Z - ROAD_Z > 3 * LEVEL, `the deck ${(DECK_Z - ROAD_Z).toFixed(2)} m over the road`)
+assert.ok(
+  DECK_Z - ROAD_Z > 3 * ONE_LEVEL,
+  `the deck ${(DECK_Z - ROAD_Z).toFixed(2)} m over the road`,
+)
 
 /** The road below's traffic edge nearest OVER, travelled a -> b (northward): it runs under the deck there. */
 export const BELOW = edgeIndex(

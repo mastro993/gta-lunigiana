@@ -2,9 +2,8 @@ import { Clock } from "@typeonce/ritmo"
 import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carRadius, moveCar, walkBy, wallsAlong } from "../body.ts"
-import { wheelsAt } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
-import { onLevel } from "../rail/bodies.ts"
+import { onOneLevel, type Pitched, pitched } from "../one-level.ts"
 import {
   type Age,
   Animal,
@@ -107,20 +106,12 @@ interface Mover {
   vy: number
   moved: boolean
 }
-interface Car extends Mover {
+/** A vehicle: its circles' radius, on its pitched level (the ground under its middle the drive walls it meets are read from). */
+interface Car extends Mover, Omit<Pitched, "x" | "y"> {
   readonly model: VehicleModel
   /** Tonnes, as Impact carries it. */
   readonly mass: number
   readonly r: number
-  readonly reach: number
-  readonly angle: number
-  /**
-   * Its wheels' level, m a.s.l. (`wheelsAt`): the ground under its middle, which the drive walls it meets and what it
-   * touches (`wheelsNear`) are read from.
-   */
-  readonly ground: number
-  /** How far its wheels' ground rises a metre ahead: its pitch's tangent. */
-  readonly rise: number
 }
 /** A person or an animal: one circle. */
 interface Body extends Mover {
@@ -155,19 +146,6 @@ const shove = (
   body.moved = true
   return got
 }
-/**
- * The ground under `car`'s wheels where its axis passes nearest (x, y), m a.s.l.: along its pitch from under its middle, so two
- * vehicles touching end to end on a steep lane meet on one level: bumper to bumper on a 30% lane, the ground under two trucks'
- * middles stands 2.5 m apart.
- */
-const wheelsNear = (car: Car, x: number, y: number): number => {
-  const k = car.reach - car.r
-  const along = Math.max(
-    -k,
-    Math.min(k, (x - car.x) * Ops.cos(car.angle) + (y - car.y) * Ops.sin(car.angle)),
-  )
-  return car.ground + along * car.rise
-}
 
 /** Shoves a car without passing through (or deeper into) the drive walls on its level. */
 const shoveCar = (car: Car, nx: number, ny: number, by: number): number =>
@@ -201,9 +179,9 @@ const stopInto = (body: Body, nx: number, ny: number) => {
  * separation and an impulse); a vehicle hitting a standing person or a light animal faster than KNOCK_SPEED knocks them down and
  * throws them, and may kill them (`deathChance`: a point for the player when it was their car and a person), slower it pushes
  * them aside, and one pinned against a wall stops the vehicle instead; a cow meets a vehicle like another vehicle, falling only
- * to a hit twice KNOCK_SPEED; people and animals step apart. Only bodies on one level touch (`onLevel`, within 2 m): a vehicle's
- * from the ground under its wheels where they touch, a person's or an animal's from its `Footing`, so a car on a bridge passes
- * over what stands or drives under its deck. Vehicles closing on each other, hits on people and animals, and a vehicle stopped
+ * to a hit twice KNOCK_SPEED; people and animals step apart. Only bodies on one level touch (`onOneLevel`, within 2 m): a
+ * vehicle's read toward where they touch, a person's or an animal's its `Footing`, so a car on a bridge passes over what stands
+ * or drives under its deck. Vehicles closing on each other, hits on people and animals, and a vehicle stopped
  * against a wall through one pinned (faster than KNOCK_SPEED) are Impact events. A vehicle beyond the player's reach (`inReach`)
  * touches nothing, frozen.
  */
@@ -264,18 +242,13 @@ export const Contacts = Game.System(
       if (!inReach(pose, player)) return []
       const { model } = match.data.vehicle.get()
       const car: Car = {
+        ...pitched(model, pose, match.data.chassis.get()),
         model,
         mass: VEHICLES[model].mass / 1000,
         r: carRadius(model),
-        reach: VEHICLES[model].length / 2,
-        x: pose.x,
-        y: pose.y,
-        angle: pose.angle,
         vx: motion.vx,
         vy: motion.vy,
         moved: false,
-        ground: wheelsAt(VEHICLES[model], match.data.chassis.get()),
-        rise: Ops.tan(match.data.chassis.get().pitch),
       }
       return [{ match, car }]
     })
@@ -288,7 +261,7 @@ export const Contacts = Game.System(
           b = cars[j]!.car
         if (Vec2.distanceSquared(a, b) > (a.reach + b.reach) ** 2) continue
         const { depth, nx, ny, px, py } = deepest(circlesOf(a), a.r, circlesOf(b), b.r)
-        if (depth <= 0 || !onLevel(wheelsNear(a, px, py), wheelsNear(b, px, py))) continue
+        if (depth <= 0 || !onOneLevel(a, b, { x: px, y: py })) continue
         // a takes its mass share of the separation; b the rest, including what a's walls refused.
         const share = depth * (b.mass / (a.mass + b.mass))
         const rest = depth - shoveCar(a, nx, ny, share)
@@ -380,7 +353,7 @@ export const Contacts = Game.System(
       for (const { match: owner, car } of cars) {
         if (Vec2.distanceSquared(body, car) > (car.reach + body.r) ** 2) continue
         const { depth, nx, ny } = deepest([body], body.r, circlesOf(car), car.r)
-        if (depth <= 0 || !onLevel(body.ground, wheelsNear(car, body.x, body.y))) continue
+        if (depth <= 0 || !onOneLevel(body.ground, car, body)) continue
         if (body.heavy) {
           // Like two vehicles: the cow takes its mass share of the separation (walls permitting), the car the rest, and an impulse.
           const rest = depth - shoveBody(body, nx, ny, depth * (car.mass / (body.mass + car.mass)))
@@ -458,7 +431,7 @@ export const Contacts = Game.System(
       for (let j = i + 1; j < bodies.length; j++) {
         const a = bodies[i]!.body,
           b = bodies[j]!.body
-        if (a.party === b.party || !onLevel(a.ground, b.ground)) continue
+        if (a.party === b.party || !onOneLevel(a.ground, b.ground)) continue
         const dx = a.x - b.x,
           dy = a.y - b.y
         const d2 = dx * dx + dy * dy,
