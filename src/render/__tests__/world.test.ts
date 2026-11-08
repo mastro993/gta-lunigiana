@@ -27,13 +27,13 @@ import {
   waterMaterial,
 } from "../geometry.ts"
 import { terrainY } from "../ground.ts"
+import { SR445 } from "../mouths/__tests__/tunnels.ts"
 import { PALETTE } from "../palette.ts"
 import { viewAxes } from "../pipeline.ts"
 import { glowMaterial } from "../sky/glow.ts"
 import { lampsIn } from "../sky/lamps.ts"
 import { streamAround } from "../testing.ts"
 import { World } from "../world.ts"
-import { SR445 } from "./tunnel-checks.ts"
 
 const count = CHUNKS.x * CHUNKS.y
 /** Every chunk's box from its tiles' lowest and highest nodes (no tile read): it holds the exact one. */

@@ -1,5 +1,5 @@
 /**
- * A road tunnel's bore: the cross-section its portals are sized to (render/portals), and its dark
+ * A road tunnel's bore: the cross-section its portals are sized to (render/mouths), and its dark
  * walls along the whole tunnel, either side of the road (whose ribbon render/lines draws at the
  * tunnel's floor). The walls stand under the hill, never out of it: the terrain hides them, they cast
  * no shadow (the chunk's `buried` layer), as the hill over them casts none, and the see-through cut, which opens while the hill hides the player, shows the road between them, the
@@ -23,7 +23,7 @@ const CLEARANCE = 4
 const HEADROOM = 0.5
 /** The walls reach this far under the road's surface, m. */
 const FOOT = 0.3
-/** The walls stop this far under the terrain over them, m, as an underpass's head wall does (render/portals). */
+/** The walls stop this far under the terrain over them, m, as an underpass's head wall does (render/mouths). */
 export const UNDER = 0.25
 /** The walls are cut into stretches of at most this length, m. */
 const STEP = 2

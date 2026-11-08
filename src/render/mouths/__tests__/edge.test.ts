@@ -4,8 +4,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { editMap } from "../../sim/map/__tests__/edit-map.ts"
-import type { Road } from "../../sim/map/index.ts"
+import { editMap } from "../../../sim/map/__tests__/edit-map.ts"
+import type { Road } from "../../../sim/map/index.ts"
 
 /** Each tunnel mouth in the global file's railway: an end of a tunnel piece no other tunnel piece goes on from. */
 let mouths: Array<readonly [number, number]> = []
@@ -22,21 +22,21 @@ editMap((json) => {
   cut = mouths.reduce((east, m) => (m[0] > east[0] ? m : east))
   const { minX, minY, maxY } = json.bounds
   maxX = json.bounds.maxX
-  // The road tunnels' portals left out: the railway's alone are drawn.
+  // The road tunnels' portals left out: the railway's alone stand.
   return {
     ...json,
     outline: [[minX, minY, cut[0], minY, cut[0], maxY, minX, maxY]],
     derived: { ...json.derived, mouths: [] },
   }
 })
-const { bakeMouths, portalPieces } = await import("../portals.ts")
+const { bakeMouths, standing } = await import("../index.ts")
 
 test("a tunnel ending on the play area's edge has no portal there, every other mouth has one", () => {
   assert.ok(cut[0] < maxX - 100, `the cut at ${cut[0]}, 100 m or more inside the bounds' edge`)
-  const drawn = portalPieces().map(({ pts }) => [pts[0]!, pts[1]!] as const)
-  assert.ok(drawn.length >= 4, `${drawn.length} portals`)
+  const stand = standing().map(({ x, y }) => [x, y] as const)
+  assert.ok(stand.length >= 4, `${stand.length} portals`)
   assert.deepEqual(
-    drawn,
+    stand,
     mouths.filter((m) => m !== cut),
   )
 })

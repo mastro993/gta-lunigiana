@@ -140,6 +140,22 @@
       }
     },
     {
+      "files": ["src/render/mouths/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["three", "three/**", "**/geometry.ts", "**/portals.ts"],
+                "message": "src/render/mouths decides where portals stand and runs in the map build: no three.js and no drawing, which belongs in src/render/portals.ts"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["src/audio/**"],
       "rules": {
         "no-restricted-imports": [

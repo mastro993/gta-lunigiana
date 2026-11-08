@@ -16,7 +16,7 @@ export interface BellEntry {
 }
 
 /**
- * A road tunnel's mouth the build found (`bakeMouths` in src/render/portals.ts): an end of a road in
+ * A road tunnel's mouth the build found (`bakeMouths` in src/render/mouths): an end of a road in
  * a tunnel (not a building passage) that no other road in a tunnel goes on from, inside the play
  * area. A portal stands there, its arch's crown `crown` m over the road, or under a lower hill an
  * underpass's head wall (`head`), its lined throat `throat` m into the hill, `back` m into the

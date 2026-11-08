@@ -1,27 +1,24 @@
-// The checks of road tunnels' mouths, portals and head walls that tunnels.test.ts and the tunnels
-// map tests share (through tunnel-checks.ts): where the mouths are, a portal or an underpass's head
-// wall facing out of the hill in the road bridges' colour, standing clear of every other road and
-// the track, or none, and why none, by geometry.
+// The checks of where road tunnels' mouths are and what stands at them, by geometry and with no
+// drawing, that mouths.test.ts and the tunnels map tests share (through
+// src/render/__tests__/tunnel-checks.ts): each mouth, a portal crowned over the road's clear height
+// or an underpass's head wall under its bank, standing clear of every other road and the track, or
+// none, and why none.
 import assert from "node:assert/strict"
 
-import { pointInRing, segDist2 } from "../../sim/collide.ts"
-import { ROAD_LIFT, roadZ, terrainZ } from "../../sim/map/ground.ts"
-import { MAP, outlineDistance, type Road, roadClassOf } from "../../sim/map/index.ts"
-import type { Layer } from "../../sim/map/packed.ts"
-import { boreOf, UNDER } from "../bores.ts"
-import { boxOver, emptySink, type Piece, type Sink } from "../geometry.ts"
-import { terrainY, yOf } from "../ground.ts"
-import { PALETTE } from "../palette.ts"
-import { leastWall, portalPieces } from "../portals.ts"
-import type { Vectors } from "../testing.ts"
-import { type Tri, trianglesOf } from "./rail-checks.ts"
-
-/** `piece` drawn whole into one sink. */
-export const drawn = (piece: Piece): Sink => {
-  const all = emptySink()
-  piece.draw(() => all, 0, Math.max(0, piece.pts.length / 2 - 2))
-  return all
-}
+import { pointInRing, segDist2 } from "../../../sim/collide.ts"
+import { ROAD_LIFT, roadZ, terrainZ } from "../../../sim/map/ground.ts"
+import {
+  MAP,
+  type MouthEntry,
+  outlineDistance,
+  type Road,
+  roadClassOf,
+} from "../../../sim/map/index.ts"
+import type { Layer } from "../../../sim/map/packed.ts"
+import { buildingBox } from "../../../sim/map/vectors.ts"
+import { boreOf, UNDER } from "../../bores.ts"
+import type { Vectors } from "../../testing.ts"
+import { leastWall, measured, type Standing, standing } from "../index.ts"
 
 /** A road tunnel's mouth: its road (index in the whole map's roads), its end and the heading out of the hill (rad). */
 export interface Mouth {
@@ -74,110 +71,43 @@ export const mouthsOf = ({ ids, items }: Layer<Road>): Array<Mouth> => {
   )
 }
 
-/** Road `road`'s profile (m a.s.l.) where its line passes nearest map point (x, y). */
-const profileAt = (road: Road, x: number, y: number): number => {
-  let best = Number.POSITIVE_INFINITY,
-    z = road.z[0]!
-  for (let k = 0; k + 1 < road.z.length; k++) {
-    const { d2, t } = segDist2(
-      x,
-      y,
-      road.pts[2 * k]!,
-      road.pts[2 * k + 1]!,
-      road.pts[2 * k + 2]!,
-      road.pts[2 * k + 3]!,
-    )
-    if (d2 < best) [best, z] = [d2, road.z[k]! + (road.z[k + 1]! - road.z[k]!) * t]
-  }
-  return z
+/** What stands, as the game draws it (`standing`), at map point (x, y): a portal or a head wall the build baked there. */
+export const standingAt = (x: number, y: number): Standing => {
+  const at = standing().find((s) => s.road !== undefined && s.x === x && s.y === y)
+  assert.ok(at !== undefined, `no portal or head wall at (${x}, ${y})`)
+  return at
 }
 
-/** The portal or head wall standing at map point (x, y). */
-const portalAt = (x: number, y: number): Piece => {
-  const piece = portalPieces().find(({ pts }) => pts[0] === x && pts[1] === y)
-  assert.ok(piece !== undefined, `no portal at (${x}, ${y})`)
-  return piece
-}
-
-/** The dark triangles of `solid` within reach of road `road`'s carriageway at `mouth`, each facing out of the hill (its normal across within 37° of the heading out). */
-const darkMouth = (solid: Sink["solid"], road: Road, mouth: Mouth): Array<Tri> => {
-  const reach = road.w / 2 + 2,
-    dark = trianglesOf(solid, PALETTE.tunnelDark).filter((tri) =>
-      tri.every(([px, , pz]) => Math.hypot(px - mouth.x, -pz - mouth.y) < reach),
-    )
-  const ox = Math.cos(mouth.angle),
-    oy = Math.sin(mouth.angle)
-  for (const [a, b, c] of dark) {
-    // The triangle's normal across (x, z of three space) against the way out (map ox, oy is three ox, −oy).
-    const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]),
-      nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-    assert.ok((nx * ox - nz * oy) / Math.hypot(nx, nz) > 0.8, "facing out of the hill")
-  }
-  return dark
-}
-
-/**
- * The portal at `mouth` of road `road` (where it stands: the road's end, or stood back into the
- * tunnel): a dark mouth of 6 triangles or more facing out of the hill, its crown over the road's
- * clearance (OSM's `maxheight`, 4 m untagged), and a face in `face`'s colour (concrete on the main,
- * provincial and unclassified roads, old stone on the rest).
- */
-export const checkPortal = (road: Road, mouth: Mouth, face: number): void => {
-  const { solid } = drawn(portalAt(mouth.x, mouth.y)),
-    dark = darkMouth(solid, road, mouth)
-  assert.ok(dark.length >= 6, `the mouth at ${mouth.x}, ${mouth.y}: ${dark.length} dark triangles`)
-  const floor = yOf(profileAt(road, mouth.x, mouth.y))
+/** The portal baked at road `road`'s mouth `mouth` (where it stands: the road's end, or stood back into the tunnel): its arch crowned over the road's clear height (OSM's `maxheight`, 4 m untagged). */
+export const checkPortalStands = (road: Road, mouth: MouthEntry): void => {
+  assert.ok("crown" in mouth, `a portal at (${mouth.x}, ${mouth.y})`)
+  const { clear } = boreOf(road)
   assert.ok(
-    dark.some((tri) => tri.some(([, h]) => h > floor + (road.maxheight ?? 4))),
-    "a crown over the road's clearance",
+    mouth.crown > clear,
+    `the portal at (${mouth.x}, ${mouth.y}): its crown ${mouth.crown.toFixed(2)} m, under the road's clear height ${clear} m`,
   )
-  assert.ok(trianglesOf(solid, face).length >= 6, "its face in the road bridges' colour")
 }
 
 /**
- * The head wall at `mouth`, the end of road `road`: a dark opening facing out of the hill, as wide
- * as the bore and flat at its clear height (OSM's `maxheight`, 4 m untagged) over the road's
- * surface; a face in `face`'s colour (concrete on the main, provincial and unclassified roads, old
- * stone on the rest); and its top UNDER or more under the bank its box meets, the highest ground
- * over the box's axis (its face wall's metre and `throat` m behind it), so it never stands out of
- * its bank.
+ * The head wall baked at road `road`'s mouth `mouth`: at its end, its top (its coping's) UNDER or
+ * more under the bank its box meets, the highest ground over the box's axis (its face wall's metre
+ * and its throat behind it), so it never stands out of its bank.
  */
-export const checkHeadWall = (road: Road, mouth: Mouth, face: number, throat: number): void => {
-  const { solid } = drawn(portalAt(mouth.x, mouth.y)),
-    dark = darkMouth(solid, road, mouth),
-    { half, clear } = boreOf(road),
-    floor = yOf(profileAt(road, mouth.x, mouth.y) + ROAD_LIFT[roadClassOf(road)]),
-    where = `the head wall at (${mouth.x.toFixed(1)}, ${mouth.y.toFixed(1)})`
-  assert.ok(dark.length >= 2, `${where}: ${dark.length} dark triangles`)
-  const ux = Math.cos(mouth.angle),
+export const checkHeadWallStands = (road: Road, mouth: MouthEntry): void => {
+  assert.ok("head" in mouth, `a head wall at (${mouth.x}, ${mouth.y})`)
+  assert.equal(mouth.back, 0, `the head wall at road ${road.id}'s mouth stands at its end`)
+  const { portal } = standingAt(mouth.x, mouth.y),
+    top = mouth.z + portal.high + portal.cornice.high,
+    ux = Math.cos(mouth.angle),
     uy = Math.sin(mouth.angle),
-    corners = dark.flat(),
-    tops = corners.map(([, h]) => h - floor),
-    across = corners.map(([px, , pz]) => Math.abs((-pz - mouth.y) * ux - (px - mouth.x) * uy))
-  assert.ok(
-    Math.abs(Math.max(...tops) - clear) < 1e-6,
-    `${where}: its opening ${Math.max(...tops).toFixed(2)} m high, not ${clear} m`,
-  )
-  assert.ok(
-    Math.abs(Math.max(...across) - half) < 1e-6,
-    `${where}: its opening ${Math.max(...across).toFixed(2)} m either side, not the bore's ${half} m`,
-  )
-  assert.ok(trianglesOf(solid, face).length >= 6, `${where}: its face in the road bridges' colour`)
-  let top = Number.NEGATIVE_INFINITY
-  for (let t = 1; t < solid.position.length; t += 3) top = Math.max(top, solid.position[t]!)
+    where = `the head wall at (${mouth.x.toFixed(1)}, ${mouth.y.toFixed(1)})`
   let bank = Number.NEGATIVE_INFINITY
-  for (let a = 0; a <= 1 + throat; a += 0.25)
-    bank = Math.max(bank, terrainY(mouth.x - ux * a, mouth.y - uy * a))
+  for (let a = 0; a <= portal.thick + mouth.throat; a += 0.25)
+    bank = Math.max(bank, terrainZ(mouth.x - ux * a, mouth.y - uy * a))
   assert.ok(
     top <= bank - UNDER + 1e-6,
-    `${where}: its top ${(top - floor).toFixed(2)} m over the road, the bank its box meets ${(bank - floor).toFixed(2)} m`,
+    `${where}: its top ${(top - mouth.z).toFixed(2)} m over the road, the bank its box meets ${(bank - mouth.z).toFixed(2)} m`,
   )
-}
-
-/** No portal stands within 5 m of map point (x, y). */
-export const checkNoPortal = (x: number, y: number): void => {
-  const near = portalPieces().filter(({ pts }) => Math.hypot(pts[0]! - x, pts[1]! - y) < 5)
-  assert.equal(near.length, 0, `a portal by (${x}, ${y})`)
 }
 
 /**
@@ -216,7 +146,7 @@ export const checkStoodBack = (road: Road, end: Mouth, at: Mouth, back: number):
 
 /** A track's bed, m either side of its centreline: its shoulders' foot (`BED` in render/rail). */
 const BED = 2.1
-/** A segment a portal must keep off: its ends, its surface's height (render y) at a point `t` of the way along it, its half width, whether it carries on out of the mouth. */
+/** A segment a portal must keep off: its ends, its surface's height (m a.s.l.) at a point `t` of the way along it, its half width, whether it carries on out of the mouth. */
 interface Way {
   readonly a: readonly [number, number]
   readonly b: readonly [number, number]
@@ -276,12 +206,10 @@ const waysNear = ({ ids, items }: Layer<Road>, end: Mouth, x: number, y: number)
         a,
         b,
         at: (t) =>
-          yOf(
-            surface(
-              z[k]! + (z[k + 1]! - z[k]!) * t,
-              a[0] + (b[0] - a[0]) * t,
-              a[1] + (b[1] - a[1]) * t,
-            ),
+          surface(
+            z[k]! + (z[k + 1]! - z[k]!) * t,
+            a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
           ),
         half,
         out,
@@ -300,6 +228,26 @@ const waysNear = ({ ids, items }: Layer<Road>, end: Mouth, x: number, y: number)
   for (const rail of MAP.rail)
     if (rail.tunnel !== true) add(rail.pts, rail.z, BED, `the track ${rail.id}`, (z) => z)
   return ways
+}
+
+/**
+ * The tops of what stands at `at`, as boxes in its mouth's frame: `from` to `to` m out of the hill
+ * along its axis (negative into it), `half` m either side, at `h` m a.s.l.: the cornice over the
+ * face wall, the face wall under it, and the throat behind.
+ */
+const topsOf = (at: Standing, throat: number) => {
+  const { portal, z } = at,
+    { thick, cornice } = portal
+  return [
+    {
+      from: -thick - cornice.proud,
+      to: cornice.proud,
+      half: portal.half + cornice.proud,
+      h: z + portal.high + cornice.high,
+    },
+    { from: -thick, to: 0, half: portal.half, h: z + portal.high },
+    { from: -thick - throat, to: -thick, half: portal.throat.half, h: z + portal.throat.high },
+  ]
 }
 
 /**
@@ -326,33 +274,24 @@ export const checkClear = (roads: Layer<Road>, end: Mouth, at: Mouth): void => {
         j++
       )
         cells.set(`${i},${j}`, [...(cells.get(`${i},${j}`) ?? []), way])
-  const solid = drawn(portalAt(at.x, at.y)).solid,
-    tris: Array<Tri> = []
-  for (let t = 0; t < solid.position.length; t += 9)
-    tris.push(
-      [0, 1, 2].map((i) => solid.position.slice(t + 3 * i, t + 3 * i + 3)) as unknown as Tri,
-    )
-  const foot = Math.min(...tris.flatMap((tri) => tri.map(([, h]) => h))),
+  const stands = standingAt(at.x, at.y),
+    { low, throat } = measured(stands),
+    foot = Math.min(low, stands.z) - 0.5,
     arch = boreOf(MAP.roads[end.road]!).half,
     ux = Math.cos(at.angle),
     uy = Math.sin(at.angle)
-  for (const [a, b, c] of tris) {
-    // A top: its normal up.
-    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
-      v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]],
-      ny = u[2]! * v[0]! - u[0]! * v[2]!,
-      nl = Math.hypot(u[1]! * v[2]! - u[2]! * v[1]!, ny, u[0]! * v[1]! - u[1]! * v[0]!)
-    if (nl < 1e-9 || ny < 0.9 * nl) continue
-    const m = Math.ceil(Math.max(Math.hypot(u[0]!, u[2]!), Math.hypot(v[0]!, v[2]!)) / 0.25)
-    for (let i = 0; i <= m; i++)
-      for (let j = 0; i + j <= m; j++) {
-        const x = a[0] + (u[0]! * i + v[0]! * j) / m,
-          h = a[1] + (u[1]! * i + v[1]! * j) / m,
-          y = -(a[2] + (u[2]! * i + v[2]! * j) / m),
-          across = Math.abs((y - at.y) * ux - (x - at.x) * uy)
+  for (const { from, to, half, h } of topsOf(stands, throat)) {
+    const along = Math.ceil((to - from) / 0.25),
+      across = Math.ceil((2 * half) / 0.25)
+    for (let i = 0; i <= along; i++)
+      for (let j = 0; j <= across; j++) {
+        const a = from + ((to - from) * i) / along,
+          b = -half + (2 * half * j) / across,
+          x = at.x + ux * a - uy * b,
+          y = at.y + uy * a + ux * b
         for (const way of cells.get(cell(x, y)) ?? []) {
           const { d2, t } = segDist2(x, y, way.a[0], way.a[1], way.b[0], way.b[1])
-          if (d2 >= (way.half - 0.05) ** 2 || (way.out && across <= arch)) continue
+          if (d2 >= (way.half - 0.05) ** 2 || (way.out && Math.abs(b) <= arch)) continue
           const surface = way.at(t)
           assert.ok(
             surface <= foot + 0.05 || surface >= h - 0.05,
@@ -426,7 +365,7 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   walk(road, first, 0, new Set([road]))
   // The houses whose box comes within `span` of the mouth.
   const houses = buildings.items.filter(({ outer }) => {
-    const [minX, minY, maxX, maxY] = boxOver(outer)
+    const [minX, minY, maxX, maxY] = buildingBox(outer)
     return (
       minX <= end.x + span && maxX >= end.x - span && minY <= end.y + span && maxY >= end.y - span
     )
@@ -450,7 +389,7 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
     highest =
       Math.max(...probes.map(({ x, y, z }) => terrainZ(x, y) - z)) - ROAD_LIFT[roadClassOf(road)]
   if (highest < least) return "low"
-  const floor = yOf(road.z[first ? 0 : road.z.length - 1]! + ROAD_LIFT[roadClassOf(road)]),
+  const floor = road.z[first ? 0 : road.z.length - 1]! + ROAD_LIFT[roadClassOf(road)],
     ux = Math.cos(end.angle),
     uy = Math.sin(end.angle),
     room = boreOf(road).half + 2

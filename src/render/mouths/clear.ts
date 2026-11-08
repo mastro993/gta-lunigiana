@@ -3,14 +3,14 @@
  * round its mouth: no carriageway (no track's bed) reaches under its face wall, its cornice or its
  * throat (a head wall's box) between their foot and their top, but that of a road carrying on out
  * of the mouth, which may fill the arch. The build stands the road portals and head walls by it
- * (`bakeMouths` in render/portals), so none stands on a road at a junction, nor its throat across a
+ * (`bakeMouths` in render/mouths), so none stands on a road at a junction, nor its throat across a
  * road or the track over a shallow tunnel.
  *
- * @module render/portal-clear
+ * @module render/mouths/clear
  */
-import { segDist2 } from "../sim/collide.ts"
-import { ROAD_LIFT, roadZ } from "../sim/map/ground.ts"
-import { MAP, type Road, roadClassOf } from "../sim/map/index.ts"
+import { segDist2 } from "../../sim/collide.ts"
+import { ROAD_LIFT, roadZ } from "../../sim/map/ground.ts"
+import { MAP, type Road, roadClassOf } from "../../sim/map/index.ts"
 
 /** A track's bed, m either side of its centreline: its shoulders' foot (`BED` in render/rail). */
 const BED_HALF = 2.1

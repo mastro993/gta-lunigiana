@@ -1318,7 +1318,8 @@ The pixel pipeline (`src/render/pipeline.ts`):
 Every road in a tunnel is drawn as the sim drives it, at its tunnel's floor, with dark walls through
 the hill and a portal at each mouth the hill stands over, or an underpass's head wall where the bank
 is too low for a portal (`src/render/bores.ts`, `src/render/portals.ts`); a building passage gets
-only its road, under its house.
+only its road, under its house. Where each mouth is and what stands there is decided by
+`src/render/mouths/`, which the map build runs and render draws from, with no drawing of its own.
 
 - **The road**: `roadPieces` draws a road in a tunnel's ribbons and painted lines as a deck's, on
   its profile and `ROAD_LIFT` (`surfaceY` with `lifted`), where `groundZ` stands wheels and feet,
@@ -1378,7 +1379,7 @@ only its road, under its house.
   the track at most, so its throat stands out of the slope as a lined gallery.
 - **Clear of the roads round it**: no part of a portal stands on another road. The build tests its
   footprint (the face wall under its cornice, which stands 0.2 m proud of it all round, and the
-  throat; `clearance` in `src/render/portal-clear.ts`) against every road's carriageway but those of
+  throat; `clearance` in `src/render/mouths/clear.ts`) against every road's carriageway but those of
   its own tunnel, and the track's bed (2.1 m either side), at points every 0.25 m along them, from
   the portal's foot to its top, but where a road carrying on out of the mouth fills the arch (the
   bore's width). A throat stops short of a road over it; a portal whose face wall would stand on one
@@ -1416,8 +1417,9 @@ only its road, under its house.
   ground already stands 5.3–6.1 m over their floors at their mouths and the walls stand under it.
   The L has none.
 - **Open mouths**: at the rest, for one reason the tunnels map tests find again by geometry
-  (`whyOpen` in `mouth-checks.ts`): a house stands over the way within the mouth's end of the tunnel
-  at its level, the ground under its lowest corner (`z0`) less than the bore's clear height over the
+  (`whyOpen` in `src/render/mouths/__tests__/mouth-checks.ts`): a house stands over the way within
+  the mouth's end of the tunnel at its level, the ground under its lowest corner (`z0`) less than
+  the bore's clear height over the
   road (a covered way, which the house hides as it hides a building passage: Cesena's arcades and
   covered ways, and Via Gioco di Sopra's west mouth, where a garage stands over the tunnel 1.5 m in;
   the lowest house over each of today's 62 such ways stands 6.5 m under to level with its road,
@@ -2673,32 +2675,39 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     ride it over the drawn run, walked away from the terminal in stretches of one level, at the bed
     under the rail head (the walk on along OSM's track that stores it is the build's,
     `src/tools/__tests__/rail-runouts.test.ts`, [map.md](map.md#checks-and-tools)).
-    `src/render/__tests__/portals.test.ts`: Lunigiana with its outline's east side moved onto its
-    easternmost tunnel mouth (`editMap`), as a region whose outline cuts a tunnel gives: no portal
-    there, one at each of the other seven mouths, and a road tunnel ending on that edge baked a
-    mouth at its other end alone. `src/render/__tests__/tunnels.test.ts`, found by geometry (the
-    tiles round them read): the SR445's tunnel by Groppoli drawn at its floor every 0.5 m, its
-    bore's dark walls in the chunk's buried layer, nothing of it in the solid one, on both sides
-    every 2 m where the hill stands 0.5 m over the floor and every edge of them, every 0.1 m, 0.2 m
-    or more under the terrain; a concrete portal at both its mouths and an
-    old stone one at both of the 196 m track's, each dark mouth facing out of the hill with its
-    crown over the clearance and standing on no other road nor the track (`checkClear` in
-    `mouth-checks.ts`: its tops every 0.25 m against their carriageways); the 87 m path under the
-    line at Equi Terme, its south portal stood back 5 m or more from the tertiary road it opens onto
-    and on its line, both clear; Pieve San Lorenzo's underpass under the station, an old stone head
-    wall at its south mouth (`checkHeadWall`: its opening facing out, as wide as the bore and flat
-    at its clear height, its top 0.25 m or more under the bank its box meets) clear of Via della
-    Stazione over it, and its north mouth open, the ground over its end too low (`whyOpen`); a house
-    standing at the road's level over the first metres of the SR445's east mouth opening it, a
-    covered way (`whyOpen`: "housed"), and one on the hill 20 m in, some 16 m over the road, keeping
-    its portal, which `whyOpen` finds no reason to leave open; Pieve San Lorenzo's underpass split
-    into two ways 2 m from its south mouth, on the same line, keeping its head wall and its box, the
-    ground over its end read on along the second way, by the bake and by `whyOpen` alike; Via
-    Casola's building passage drawn at its floor with no wall and no portal; those eight mouths
-    baked as `bakeMouths` makes them now (six portals, a head wall and an open mouth); and a ribbon
-    on its profile, a tunnel's and a deck's, holding it along its line through a sharp bend on a
-    slope (Giucano's path 1326730181 as a line of its own, 12% down through an 85° turn, 3 cm under
-    its profile past the bend when its quads were drawn whole).
+    `src/render/mouths/__tests__/edge.test.ts`: Lunigiana with its outline's east side moved onto
+    its easternmost tunnel mouth (`editMap`), as a region whose outline cuts a tunnel gives: no
+    portal there, one at each of the other seven mouths, and a road tunnel ending on that edge
+    baked a mouth at its other end alone. `src/render/mouths/__tests__/mouths.test.ts`, where the
+    mouths' portals and head walls stand, with no drawing, found by geometry (the tiles round them
+    read; the tunnels in `src/render/mouths/__tests__/tunnels.ts`): a portal at the end of both the
+    SR445's mouths and both of the 196 m track's, crowned over the road's clear height and standing
+    on no other road nor the track (`checkClear` in `src/render/mouths/__tests__/mouth-checks.ts`:
+    the tops of its face wall, cornice and throat every 0.25 m against their carriageways); the 87 m
+    path under the line at Equi Terme, its south portal stood back 5 m or more from the tertiary
+    road it opens onto and on its line, both clear; Pieve San Lorenzo's underpass under the
+    station, a head wall at its south mouth (`checkHeadWallStands`: at its end, its top 0.25 m or
+    more under the bank its box meets) clear of Via della Stazione over it, and its north mouth
+    open, the ground over its end too low (`whyOpen`); a house standing at the road's level over
+    the first metres of the SR445's east mouth opening it, a covered way (`whyOpen`: "housed"), and
+    one on the hill 20 m in, some 16 m over the road, keeping its portal, which `whyOpen` finds no
+    reason to leave open; Pieve San Lorenzo's underpass split into two ways 2 m from its south
+    mouth, on the same line, keeping its head wall and its box, the ground over its end read on
+    along the second way, by the bake and by `whyOpen` alike; and those eight mouths baked as
+    `bakeMouths` makes them now (six portals, a head wall and an open mouth).
+    `src/render/__tests__/tunnels.test.ts`, the same tunnels as drawn: the SR445's drawn at its
+    floor every 0.5 m, its bore's dark walls in the chunk's buried layer, nothing of it in the solid
+    one, on both sides every 2 m where the hill stands 0.5 m over the floor and every edge of them,
+    every 0.1 m, 0.2 m or more under the terrain; a concrete portal at both its mouths, an old stone
+    one at both of the 196 m track's and where each of the path's stands, each dark mouth facing
+    out of the hill with its crown over the clearance (`checkPortal` in
+    `src/render/__tests__/portal-checks.ts`, its top where its shape puts it); Pieve San Lorenzo's
+    old stone head wall (`checkHeadWall`: its opening facing out, as wide as the bore and flat at
+    its clear height) and no portal at its north mouth; Via Casola's building passage drawn at its
+    floor with no wall and no portal; and a ribbon on its profile, a tunnel's and a deck's, holding
+    it along its line through a sharp bend on a slope (Giucano's path 1326730181 as a line of its
+    own, 12% down through an 85° turn, 3 cm under its profile past the bend when its quads were
+    drawn whole).
   - `src/render/__tests__/stations.test.ts`, over the stations within 4 km of Monzone station
     (Monzone's, Gragnola's and Equi Terme's): the platforms' tops following the rail profile, their
     yellow lines, nothing standing in a train's way, one name board per platform people wait on,
@@ -2879,7 +2888,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     SR445's (none through a building passage), the baked mouths exactly the tunnels' mouths found
     again from the roads, a stood-back portal on its road's line facing out along it, a portal
     facing out of the hill in its road bridges' colour, or a head wall at its road's end as
-    `tunnels.test.ts` checks Pieve San Lorenzo's, either clear of every other road and the track,
+    `mouths.test.ts` checks Pieve San Lorenzo's, either clear of every other road and the track,
     at each with one, none at an open one and a reason for it from a closed set, by geometry
     (`whyOpen`: a house over the way at its level within the mouth's end of the tunnel, the ground
     over that end lower than `leastWall`, or another road or the track in the room a head wall and

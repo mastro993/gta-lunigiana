@@ -3,7 +3,8 @@
 // building passage) and the tunnels map tests (every road tunnel of Lunigiana, Cesena and the L)
 // share: a road in a tunnel drawn at its floor, its bore's dark walls under the hill along both its
 // sides, a portal or a head wall clear of every other road at every mouth the hill stands over, or
-// a reason for none (mouth-checks.ts), a passage's road on under its house.
+// a reason for none (where they stand: src/render/mouths/__tests__/mouth-checks.ts; as drawn:
+// portal-checks.ts), a passage's road on under its house.
 import assert from "node:assert/strict"
 
 import { ROAD_LIFT } from "../../sim/map/ground.ts"
@@ -14,25 +15,21 @@ import { chunkTiles } from "../chunk-tiles.ts"
 import { CHUNKS, chunkOf } from "../chunks.ts"
 import { terrainY, yOf } from "../ground.ts"
 import { bridgeHex, roadHex, roadPieces } from "../lines.ts"
+import {
+  checkClear,
+  checkHeadWallStands,
+  checkPortalStands,
+  checkStoodBack,
+  mouthsOf,
+  type Open,
+  whyOpen,
+} from "../mouths/__tests__/mouth-checks.ts"
 import { PALETTE } from "../palette.ts"
 import { Pieces } from "../pieces.ts"
 import type { Vectors } from "../testing.ts"
 import { assertChunkCut, wholeBuild } from "./chunk-cut.ts"
-import {
-  checkClear,
-  checkHeadWall,
-  checkNoPortal,
-  checkPortal,
-  checkStoodBack,
-  drawn,
-  mouthsOf,
-  type Open,
-  whyOpen,
-} from "./mouth-checks.ts"
+import { checkHeadWall, checkNoPortal, checkPortal, drawn } from "./portal-checks.ts"
 import { heightIn, type Tri, trianglesOf } from "./rail-checks.ts"
-
-/** A point inside the SR445's tunnel by Groppoli, Lunigiana (tunnels.test.ts, world.test.ts). */
-export const SR445 = { x: -2330, y: 4420 }
 
 /** Points every `step` m along `road`'s line (its ends left out), each with the road's profile there, m a.s.l. */
 const along = (
@@ -268,12 +265,13 @@ export const checkTunnels = (whole: Vectors): TunnelCounts => {
       )
     } else checkStoodBack(line, end, mouth, back)
     if ("crown" in mouth) {
+      checkPortalStands(line, mouth)
       checkPortal(line, mouth, bridgeHex(road))
       checkClear(roads, end, mouth)
       portals++
     } else if ("head" in mouth) {
-      assert.equal(back, 0, `the head wall at road ${road.id}'s mouth stands at its end`)
-      checkHeadWall(line, mouth, bridgeHex(road), mouth.throat)
+      checkHeadWallStands(line, mouth)
+      checkHeadWall(line, mouth, bridgeHex(road))
       checkClear(roads, end, mouth)
       heads++
     } else {
