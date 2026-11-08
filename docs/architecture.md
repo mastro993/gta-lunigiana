@@ -195,7 +195,7 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `Witness` | pedestrians | tag: saw a person killed or came on a body; its shock ends in the choice to gather or run |
 | `Down` | knocked-down and dead people and animals | step at which they get up; for the `Dead`, the step they died, and `Recover` never lifts them |
 | `Dead` | the killed: pedestrians and animals a vehicle struck, people and animals on foot a train struck, people on foot by a blast, the player in a wreck that blew up | step they died (`since`); always with `Down` |
-| `Footing` | the player, pedestrians and animals, once `FindFooting` has seen them | the ground it stands on, m a.s.l., kept on the level it was on: the railway's rules read it (`footingAt`, which takes `firstFooting` for one with none yet, on its `Route`'s level when given one), the render stands each figure on its level, and `PlayerView.z` gives the player's to the camera |
+| `Footing` | the player, pedestrians and animals, once `FindFooting` has seen them | the ground it stands on, m a.s.l., kept on the level it was on: the railway's rules read it (`footingAt`, which takes `firstFooting` for one with none yet, on its `Route`'s level when given one), the render stands each figure on its level, the audio voices each on it (the player's ears too), and `PlayerView.z` gives the player's to the camera |
 | `Animal` | animals | species (`dog`, `cat`, `cow`, `pig`), coat and patch colours, size × the species' usual (immutable) |
 | `InWater` | the player on foot, pedestrians, animals in a river, a stream or a lake | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
 | `Roam` | animals | mood (`idle`, `walk`, `flee`), the step it ends, home (hx, hy), and the point (tx, ty) it walks to or runs from |
@@ -1407,20 +1407,20 @@ only its road, under its house.
   its own (`headWall`), a plain face wall 1 m past the bore's sides over a flat-lintelled opening as
   wide as the bore and as high as its clear height (OSM's `maxheight`, 4 m untagged), a 0.5 m
   lintel over it (the bore's headroom, so it reaches where a portal's arch would spring) under a
-  coping (the portals' cornice, 0.3 m), and the box behind it lined round the opening as a portal's
-  throat (0.8 m past its sides, 0.4 m over it), coloured as the portals (`bridgeHex`). One stands
+  coping (the portals' cornice, 0.3 m), and its throat behind it, lined round the opening as a
+  portal's (0.8 m past its sides, 0.4 m over it), coloured as the portals (`bridgeHex`). One stands
   where the ground over its end of the tunnel (its road's line, run on along the roads of its tunnel
   that go on from it, 40 m in, short of the middle) rises as high over the road's surface as its
   coping and the 0.25 m the bore's walls keep under the terrain (`leastWall`: 5.05 m untagged): an opening of
   the clear height, the lintel and coping over it, never standing out of its bank. It stands clear
-  of the other roads and the track as a portal does (`clearance`, above), and its box runs in from
+  of the other roads and the track as a portal does (`clearance`, above), and its throat runs in from
   3 m, a metre at a time, until the hill stands that high over the road, and must get there short of
   any road in its way and of the tunnel's middle, so its top always stands under the bank it meets;
   it never stands back (in a bank lower than a portal's, its road would run under the ground in
   front of it). Lunigiana has 2: Pieve San Lorenzo's 29 m underpass under the station, at its south
   mouth, in old stone under Via della Stazione (its coping 1 m under that road's surface, the bank
-  its box meets 5.67 m over the road), and the SS63's 16 m underpass at its west mouth, in concrete
-  (the bank 6.67 m). Cesena has 6: Via Spadolini's two (concrete, their boxes 10 and 11 m, the bank
+  its throat meets 5.67 m over the road), and the SS63's 16 m underpass at its west mouth, in concrete
+  (the bank 6.67 m). Cesena has 6: Via Spadolini's two (concrete, their throats 10 and 11 m, the bank
   5.10 and 5.13 m), and both mouths of the Sottopasso Ravennate and of the path under the station by
   Piazza Giorgio Sanguinetti (OSM 43076054), whose ramps the map's ground does not hold, so the
   ground already stands 5.3–6.1 m over their floors at their mouths and the walls stand under it.
@@ -1435,9 +1435,9 @@ only its road, under its house.
   rises to `leastWall` (a road under a rail bridge, whose deck stands over the lowered ground, or
   under a cover the map's ground does not hold: Via S. Nicola's 19 m in Gragnola, and Pieve San
   Lorenzo's north mouth, which runs under the rail decks, the ground over its end 4.83 m at most);
-  or no room for either (another road or the track in the way of the wall or its box: Cesena's cycle
+  or no room for either (another road or the track in the way of the wall or its throat: Cesena's cycle
   path beside Via Spadolini, where a service road on its bank, 3.2–3.4 m over its floor about 7 m
-  in, stops each box at 4 m, short of the bank). Lunigiana's 56 mouths: 12 portals, 2 head walls, 42
+  in, stops each throat at 4 m, short of the bank). Lunigiana's 56 mouths: 12 portals, 2 head walls, 42
   open (14 under a house, 28 under too low a bank, none for want of room); Cesena's 77: 9, 6, 62
   (47, 13, 2); the L's 12: 3, 0, 9 (1, 8, 0). Fosdinovo's part brought 24 tunnels, all its villages'
   covered passages and footways (in Giucano, Pulica, Fosdinovo, Bardine, Castelpoggio, Caniparola,
@@ -1477,9 +1477,9 @@ only its road, under its house.
   a mouth and a portal stood back from it the road runs on as the map's ground lets it, so where
   the hill already stands over the floor there it is hidden (the 87 m path's north mouth lies
   1.6 m under the terrain). A mouth open for want of room shows its road running into the bank
-  (Cesena's cycle path beside Via Spadolini, 2 mouths). A head wall's box runs in until the bank
+  (Cesena's cycle path beside Via Spadolini, 2 mouths). A head wall's throat runs in until the bank
   stands over the wall, so where the bank rises some metres in, its roof shows above the ground
-  in between (Via Spadolini's south box, 10 m, over the cutting it starts in), as a portal's throat
+  in between (Via Spadolini's south throat, 10 m, over the cutting it starts in), as a portal's throat
   does on a low slope. A head wall under ground the map holds at the mouth (Cesena's two path
   underpasses, whose ramps it does not hold) shows only through the cut.
 
@@ -2025,9 +2025,10 @@ with no frame over 16.8 ms, 19 programs and 72 draw calls (headless Chrome, seed
 The audio schedule (`src/audio/index.ts`) is host code beside render. Its one system,
 `Lunigiana/Hear`, reads the player, the vehicles that run, move or burn (with the revs and load the
 sim's drivetrain gives for their `Chassis`, speed, pedal and `Damage` at the `Time` step, and
-whether their wheels are down), the people on foot (who they are, their mood and who they walk
-with), the animals, every train car by car (its power packs' revs and load from `trainRevs`, its
-brakes, its cab and which cars stand in a tunnel), the `LevelCrossings` (whose bells ring, by
+whether their wheels are down), the people on foot (who they are, their mood, who they walk with
+and their `Footing`, the player's the ears' on foot), the animals (on theirs too),
+every train car by car (its power packs' revs and load from `trainRevs`, its brakes, its cab and
+which cars stand in a tunnel), the `LevelCrossings` (whose bells ring, by
 `crossingAt`), the `Impact`, `Skid`, `Honk`, `Cry`, `Lightning`, `Explosion` and `Whistle` events (a
 hit with a train in it rewritten as bodies the director knows, `railImpact`), the horn key, the
 view's turns (the stereo image turns with the screen), the game clock (the Rome day, the time of day
@@ -2703,12 +2704,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     line at Equi Terme, its south portal stood back 5 m or more from the tertiary road it opens onto
     and on its line, both clear; Pieve San Lorenzo's underpass under the station, an old stone head
     wall at its south mouth (`checkHeadWall`: its opening facing out, as wide as the bore and flat
-    at its clear height, its top 0.25 m or more under the bank its box meets) clear of Via della
+    at its clear height, its top 0.25 m or more under the bank its throat meets) clear of Via della
     Stazione over it, and its north mouth open, the ground over its end too low (`whyOpen`); a house
     standing at the road's level over the first metres of the SR445's east mouth opening it, a
     covered way (`whyOpen`: "housed"), and one on the hill 20 m in, some 16 m over the road, keeping
     its portal, which `whyOpen` finds no reason to leave open; Pieve San Lorenzo's underpass split
-    into two ways 2 m from its south mouth, on the same line, keeping its head wall and its box, the
+    into two ways 2 m from its south mouth, on the same line, keeping its head wall and its throat, the
     ground over its end read on along the second way, by the bake and by `whyOpen` alike; Via
     Casola's building passage drawn at its floor with no wall and no portal; those eight mouths
     baked as `bakeMouths` makes them now (six portals, a head wall and an open mouth); and a ribbon

@@ -11,7 +11,7 @@
 import type { Feeling } from "../../sim/schema.ts"
 import { animalQuiet, type AnimalCall } from "../synth/animals.ts"
 import type { HeardAnimal, OneShot } from "../types.ts"
-import { type Frame, groundAt } from "./frame.ts"
+import type { Frame } from "./frame.ts"
 import { LEVELS, MOUTH } from "./levels.ts"
 
 /** One call per animal at most this often, s: a Cry right after a call (or a hit's pain) does not stack another. */
@@ -150,7 +150,7 @@ export const makeAnimals = () => {
           sound,
           frame.path(
             `animal:${a.id}`,
-            { x: a.x, y: a.y, z: groundAt(a.x, a.y) + MOUTH[a.species] },
+            { x: a.x, y: a.y, z: a.z + MOUTH[a.species] },
             LEVELS[sound.kind],
             { quiet },
           ),
