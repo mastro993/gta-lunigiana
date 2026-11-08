@@ -47,7 +47,7 @@ import {
   tunnelsOf,
 } from "./tunnel-lines.ts"
 
-export { leastWall, type Portal } from "./shapes.ts"
+export { leastWall } from "./shapes.ts"
 
 /** A tunnel's mouth faces along its line over this chord, m. */
 const CHORD = 5
