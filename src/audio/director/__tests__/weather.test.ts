@@ -236,12 +236,9 @@ test("thunder is placed when it arrives: get into the Panda meanwhile and it com
     const director = rig()
     director.hear(world(MEADOW, { happenings: [flash(strike)] }))
     for (let i = 1; i <= 8 * 60 && director.plays.length === 0; i++) {
-      const moved = away(MEADOW, speed * i * FRAME, SOUTH)
-      director.hear(
-        world(moved, {
-          listener: { x: moved.x, y: moved.y, vx: 0, vy: -speed, car: undefined, yaw: 0 },
-        }),
-      )
+      const moved = away(MEADOW, speed * i * FRAME, SOUTH),
+        heard = world(moved)
+      director.hear({ ...heard, listener: { ...heard.listener, vy: -speed } })
     }
     const [played] = director.take("thunder")
     return played!.t + played!.delay

@@ -21,12 +21,11 @@ import { facingAt } from "../../sim/map/ground.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
 import { snowCoverAt } from "../../sim/sky/local.ts"
 import { hash01 } from "../../tools/geometry.ts"
-import { EAR_HEIGHT } from "../acoustics.ts"
 import { lineFor } from "../speech/index.ts"
 import type { Line, Situation, Speaker } from "../speech/types.ts"
 import { stepRate, WALK_DB } from "../synth/steps.ts"
 import type { HeardAnimal, HeardPerson } from "../types.ts"
-import { type Frame, groundAt } from "./frame.ts"
+import type { Frame } from "./frame.ts"
 import { HEIGHT, LEVELS, speechLevel } from "./levels.ts"
 
 /** A frame's move longer than this (m) is a jump, not walking. */
@@ -91,7 +90,7 @@ export const cueVoice = (p: HeardPerson): number => {
 }
 
 /** Where `p`'s voice and steps come from. */
-const mouthOf = (p: HeardPerson) => ({ x: p.x, y: p.y, z: groundAt(p.x, p.y) + HEIGHT.person })
+const mouthOf = (p: HeardPerson) => ({ x: p.x, y: p.y, z: p.z + HEIGHT.person })
 
 /** A line called out to others (yelled), not said to someone near. */
 const calledOut = (line: Line): boolean => line.tune === "call" || line.tune === "exclaim"
@@ -213,11 +212,11 @@ export const makePeople = () => {
         if (walker.phase < 1) continue
         walker.phase %= 1
         const run = speed > RUN,
-          z = p.player ? ears.z - EAR_HEIGHT : groundAt(p.x, p.y)
+          z = p.z
         const at = p.player ? { x: ears.x, y: ears.y, z } : { x: p.x, y: p.y, z: z + HEIGHT.person }
         const sound = {
           kind: "step",
-          surface: surfaceAt(p.x, p.y),
+          surface: surfaceAt(p.x, p.y, z),
           run,
           snow: snowCoverAt(heard.weather.snowLine, p.x, p.y, z, facingAt) >= SNOWY,
         } as const
