@@ -206,7 +206,7 @@ export const car = (
 })
 /** A Panda revving at the redline under full load. */
 export const FULL = { rpm: VEHICLES.panda.engine.redline, load: 1 } as const
-/** Person `id` standing at `at`: a man, walking. */
+/** Person `id` standing at `at` on the highest ground there: a man, walking. */
 export const person = (
   id: number,
   at: { readonly x: number; readonly y: number },
@@ -215,6 +215,7 @@ export const person = (
   id,
   x: at.x,
   y: at.y,
+  z: groundZ(at.x, at.y),
   vx: 0,
   vy: 0,
   player: false,
@@ -227,7 +228,7 @@ export const person = (
   dead: false,
   ...more,
 })
-/** Animal `id` of `species`, idle at `at`, of its species' usual size. */
+/** Animal `id` of `species`, idle at `at` on the highest ground there, of its species' usual size. */
 export const animal = (
   id: number,
   species: HeardAnimal["species"],
@@ -238,6 +239,7 @@ export const animal = (
   species,
   x: at.x,
   y: at.y,
+  z: groundZ(at.x, at.y),
   vx: 0,
   vy: 0,
   size: 1,
@@ -265,13 +267,13 @@ export const beside = (s: number, metres: number) => {
   return { x: at.x + Math.sin(at.angle) * metres, y: at.y - Math.cos(at.angle) * metres }
 }
 
-/** The listener at `at` (in `car` when given), with `more` of the world, at the tests' sky and weather unless it sets them. */
+/** The listener at `at` (in `car` when given, else on the highest ground there), with `more` of the world, at the tests' sky and weather unless it sets them. */
 export const world = (
   at: { readonly x: number; readonly y: number },
   more: Partial<Heard> = {},
   car?: number,
 ): Heard => ({
-  listener: { x: at.x, y: at.y, vx: 0, vy: 0, car, yaw: 0 },
+  listener: { x: at.x, y: at.y, z: groundZ(at.x, at.y), vx: 0, vy: 0, car, yaw: 0 },
   vehicles: [],
   people: [],
   animals: [],

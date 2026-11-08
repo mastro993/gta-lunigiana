@@ -14,6 +14,7 @@
  * @module audio/director/vehicles
  */
 import { forwardSpeed } from "../../sim/body.ts"
+import { wheelsAt } from "../../sim/chassis.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
 import { VEHICLES, type VehicleModel } from "../../sim/vehicles.ts"
 import { hash01 } from "../../tools/geometry.ts"
@@ -76,7 +77,7 @@ const sourceOf = (v: HeardVehicle): Source => ({ x: v.x, y: v.y, z: v.z, vx: v.v
 
 /** The level a vehicle stands on, for the ground and the surface under it: a deck's, a tunnel's or the riverbed's under a bridge. */
 const levelOf = (v: HeardVehicle | undefined): number | undefined =>
-  v === undefined ? undefined : v.z - VEHICLES[v.model].cg
+  v === undefined ? undefined : wheelsAt(VEHICLES[v.model], v)
 
 /** The ground struck, by how it sounds: the road and paving as `road` (rigid, coarse grit), loose ground like an earth bank. */
 const GROUND = {
@@ -190,8 +191,8 @@ export const makeVehicles = () => {
         model !== undefined &&
         !heard.happenings.some((h) => h.kind === "explosion" && h.car === car)
       ) {
-        const { x, y } = heard.listener,
-          door = frame.path(undefined, { x, y, z: groundAt(x, y) + HEIGHT.person }, LEVELS.door)
+        const { x, y, z } = heard.listener,
+          door = frame.path(undefined, { x, y, z: z + HEIGHT.person }, LEVELS.door)
         frame.play({ kind: "door", model, open: true }, door)
         frame.play({ kind: "door", model, open: false }, door, DOOR_CLOSES)
       }
@@ -285,10 +286,15 @@ export const makeVehicles = () => {
             frame.path(`car:${h.car}`, h, LEVELS.explosion),
           )
         } else if (h.kind === "impact" && (h.hit === "person" || h.hit === "animal")) {
-          // The body hit: a thud from the car, and a person who lives groans (an animal's pain is its own cry, in animals.ts).
+          // The body hit, on its own level (under a bridge, the road): a thud from the car, and a person who lives groans (an
+          // animal's pain is its own cry, in animals.ts).
           const who = h.other ?? h.car,
             key = `${h.hit}:${who}`,
-            at = { x: h.x, y: h.y, z: groundAt(h.x, h.y) + HEIGHT.person }
+            struck =
+              h.hit === "person"
+                ? heard.people.find((p) => p.id === who)
+                : heard.animals.find((a) => a.id === who),
+            at = { x: h.x, y: h.y, z: (struck?.z ?? groundAt(h.x, h.y)) + HEIGHT.person }
           frame.play(
             { kind: "thud", speed: h.speed },
             frame.path(key, at, LEVELS.thud, { cabin: h.car !== mine }),
