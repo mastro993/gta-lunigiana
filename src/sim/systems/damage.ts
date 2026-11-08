@@ -1,6 +1,7 @@
 import { Clock } from "@typeonce/ritmo"
 import { Random } from "@typeonce/ritmo-math"
 
+import { wheelsAt } from "../chassis.ts"
 import { afterHit, barrierSpeeds, destroyed, DURABILITY, groundHit } from "../damage.ts"
 import { FAUNA } from "../fauna.ts"
 import {
@@ -161,7 +162,7 @@ export const CrashDamage = Game.System(
       const driver = fleeingDriver(
         data.pose.get(),
         model,
-        data.chassis.get().z - VEHICLES[model].cg,
+        wheelsAt(VEHICLES[model], data.chassis.get()),
         Random.draw(resources.rng),
         step + Clock.steps(FLEE_TIME),
       )
