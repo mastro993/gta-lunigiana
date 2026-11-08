@@ -1052,7 +1052,7 @@ node --test src/sim/sky/__tests__/*.long-test.ts src/sim/__tests__/sky.long-test
   with a forced storm),
   the render's `src/render/sky/__tests__/*.test.ts` (the sun and moon over the loaded map's place,
   the shader's snow against `groundAt` on faces of every slope and aspect, the melt band's line
-  against `celsiusAt`, the buffers at 30 mm/h), `src/sim/map/__tests__/ground.test.ts` and
+  against `celsiusAt`, the buffers at 30 mm/h), `src/sim/map/__tests__/ground-model.test.ts` and
   `src/render/__tests__/terrain.test.ts` (`facingAt` the terrain mesh's own faces, level on roads;
   the litter out of leaf), `leaves.test.ts` and `trees.test.ts` (the woods' leaves), the audio's
   `director/__tests__/weather.test.ts` (the wind's height law from the map's floor, the usual wind

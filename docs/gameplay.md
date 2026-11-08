@@ -1653,7 +1653,7 @@ what people and animals run from ([Reactions](#reactions), [Animals](#animals)) 
   walker kept to its footing strayed 0.5 m or more from the deck (`ground.map-test.ts` in
   `src/render`).
 - **Onto a deck at the verge (a limit).** A body comes onto a deck only where its footing at the
-  deck's end stands within 0.5 m of it (`ON_DECK` in `src/sim/map/ground.ts`). Where a road comes
+  deck's end stands within 0.5 m of it (`ON_DECK`, `src/sim/map/ground-model.ts`). Where a road comes
   onto its bridge on an embankment, the walkers' verge beside it lies on the terrain, lower, so a
   pedestrian there walks on under the deck, and the render draws them there. Walking every
   drivable bridge at the walkers' verge (`walkSide`), both sides, both ways, from 12 m before it
