@@ -4,9 +4,19 @@ import { test } from "node:test"
 import { Keyboard } from "@typeonce/ritmo-browser"
 import { Vec2 } from "@typeonce/ritmo-math"
 
+import {
+  BELOW,
+  BENEATH,
+  DECK_LANE,
+  DECK_Z,
+  footing,
+  OVER,
+  ROAD_Z,
+} from "../../sim/__tests__/viaduct.ts"
 import { misfires, NEW_ENGINE, UNDAMAGED } from "../../sim/damage.ts"
 import { engineRevs } from "../../sim/drivetrain.ts"
 import {
+  Animal,
   bindings,
   CarInput,
   Chassis,
@@ -609,4 +619,36 @@ test("hear: the game clock's day, time and sun, a copy of the weather, and each 
     frames.slice(1).map((f) => f.happenings.filter((h) => h.kind === "lightning")),
     [[{ kind: "lightning", x: 100, y: 200, bolt: true, power: 0.8, seed: 42 }], []],
   )
+})
+
+// Regression: the Heard frame carried no level for anyone on foot, so the director stood each of them, and the listener, on the
+// highest ground there: under a bridge, on its deck.
+test("hear: on foot under the SR445's viaduct, the player, a passer-by and a cat are on the road, on their first footing and then on their Footing; a passer-by on the deck is on it", () => {
+  const ped = (at: PoseValue, route: Parameters<typeof pedestrian>[2]) =>
+    pedestrian(LOOK, at, route, { mood: "look", until: 1e6, fx: at.x, fy: at.y })
+  const cat = animal({ species: "cat", coat: 0x222222, patch: 0xffffff, size: 1 }, BENEATH)
+  const { runtime, hear, frames } = listen([], BENEATH, {
+    peds: [ped(BENEATH, { edge: BELOW, forward: true, side: 0 }), ped(OVER, DECK_LANE)],
+    animals: [cat],
+  })
+  /** Each level heard, as the deck's or the road's under it (m a.s.l. otherwise): the listener's, the player's, the passers-by under and over the deck, and the cat's. */
+  const levels = (heard: Heard) => {
+    const level = (z: number) =>
+      Math.abs(z - DECK_Z) < 0.5 ? "deck" : Math.abs(z - ROAD_Z) < 0.5 ? "road" : z.toFixed(2)
+    const by = (at: PoseValue) =>
+      heard.people.find((p) => !p.player && Vec2.distance(p, at) < 0.1)!.z
+    return [
+      heard.listener.z,
+      heard.people.find((p) => p.player)!.z,
+      by(BENEATH),
+      by(OVER),
+      heard.animals[0]!.z,
+    ].map(level)
+  }
+  hear()
+  assert.deepEqual(levels(frames[0]!), ["road", "road", "road", "deck", "road"], "first footings")
+  assert.ok(runtime.tick(footing(DECK_Z)).ok)
+  assert.ok(runtime.tick(footing(DECK_Z, Animal)).ok)
+  hear()
+  assert.deepEqual(levels(frames[1]!), ["deck", "deck", "road", "deck", "deck"], "on the deck")
 })
