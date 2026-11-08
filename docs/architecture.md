@@ -441,10 +441,12 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
 - `groundZ` (`src/sim/map/ground.ts`) is where every wheel, foot, sound source and drawn actor
   stands, in m a.s.l. Its rules are the ground model's (`src/sim/map/ground-model.ts`), which reads
   no map: `ground.ts` binds it once at load to the game's ground data (a cell's nodes in whole
-  decimetres, the road buckets holding a point, a road's line near it, the platforms), and the map
-  build and the tests bind it to whole data (`wholeGround`), so every caller reads one set of rules
-  and the same data gives the same answer to the bit
-  ([ADR 0003](adr/0003-ground-model.md)). The ground is the terrain as its mesh is drawn (each 4 m cell split along its SW–NE
+  decimetres, the road buckets holding a point, a road's line near it, the platforms), and the
+  tests bind it to whole data (`wholeGround`), so the game and the tests read one set of rules and
+  the same data gives the same answer to the bit ([ADR 0003](adr/0003-ground-model.md)). The map
+  build still keeps its own copies (`meshZ` in `src/tools/deck-ground.ts`, `groundOf` in
+  `deck-space.ts`, `surfaceAt` in `parapets.ts`) until it moves onto the model (issue #113), so a
+  change to a rule reaches the baked deck walls and parapets only through those. The ground is the terrain as its mesh is drawn (each 4 m cell split along its SW–NE
   diagonal), or a station platform's top where that is higher (`platformTop`, from
   `MAP.railway.platforms` and the rings `MAP.derived.platforms` keeps, so it reads no tile),
   at-grade roads `ROAD_LIFT` above their profile (blended where several overlap, so a junction's

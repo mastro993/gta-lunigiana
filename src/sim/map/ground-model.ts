@@ -3,9 +3,10 @@
  * draws it (each 4 m cell split along its south-west to north-east diagonal), station platforms at
  * their tops, at-grade roads floating `ROAD_LIFT` above their profile, and bridge decks and tunnels.
  * It reads no map: an adapter hands it the terrain's nodes, the road buckets holding a point and a
- * road's line near it (`GroundData`), so the game (`./ground.ts`, from the tiles), the map build and
- * the tests (`wholeGround`, from whole data) read the same rules, and answer to the bit alike for the
- * same data (docs/adr/0003-ground-model.md).
+ * road's line near it (`GroundData`), so the game (`./ground.ts`, from the tiles) and the tests
+ * (`wholeGround`, from whole data) read the same rules, and answer to the bit alike for the same data
+ * (docs/adr/0003-ground-model.md). The map build still keeps its own copies (`meshZ`, `groundOf`,
+ * `surfaceAt` in src/tools) until it moves onto the model (issue #113).
  *
  * @module map/ground-model
  */
@@ -443,7 +444,7 @@ export interface WholeGround {
   readonly platforms: ReadonlyArray<GroundPlatform>
 }
 
-/** The ground over whole data, every road in one set of buckets: the map build's, the whole-map check's and the tests' scenes. */
+/** The ground over whole data, every road in one set of buckets: the whole-map check's and the tests' scenes. */
 export const wholeGround = ({ anchor, cell, corners, roads, platforms }: WholeGround): Ground => {
   const all = roads.map((road, index): GroundRoad => ({ ...road, index }))
   const buckets = groundBuckets(all)

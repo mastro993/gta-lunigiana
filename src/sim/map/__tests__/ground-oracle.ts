@@ -97,7 +97,7 @@ export const oracle = (map: JoinedMap) => {
       top,
     })),
   })
-  /** Every 16 m bucket some road reaches into, by key (`./buckets.ts`). */
+  /** Every 16 m bucket some road reaches into, by key (`../buckets.ts`). */
   const buckets = groundBuckets(roads.map((r, index) => ({ ...r, index }))).lists
 
   // surface.ts
