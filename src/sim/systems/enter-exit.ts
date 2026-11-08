@@ -2,6 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { standClear, walkBy } from "../body.ts"
+import { wheelsAt } from "../chassis.ts"
 import { footZ } from "../map/ground.ts"
 import { boardable, boarded, boardingAt, cabOf, cabSides, exitSpot } from "../rail/boarding.ts"
 import { LINES } from "../rail/lines.ts"
@@ -179,7 +180,7 @@ export const EnterExit = Game.System(
           const pose = car.value.data.pose.get(),
             { model } = car.value.data.vehicle.get()
           // On the ground beside it, on the level its wheels stand on.
-          const wheels = car.value.data.chassis.get().z - VEHICLES[model].cg
+          const wheels = wheelsAt(VEHICLES[model], car.value.data.chassis.get())
           const door = freeDoor(pose, model, wheels)
           if (door === undefined) continue
           data.pose.set({ x: door.x, y: door.y, angle: pose.angle })
@@ -240,7 +241,7 @@ export const EnterExit = Game.System(
         const driver = fleeingDriver(
           car.pose.get(),
           model,
-          car.chassis.get().z - VEHICLES[model].cg,
+          wheelsAt(VEHICLES[model], car.chassis.get()),
           Random.draw(resources.rng),
           until(),
         )

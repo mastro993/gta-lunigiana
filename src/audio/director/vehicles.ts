@@ -14,6 +14,7 @@
  * @module audio/director/vehicles
  */
 import { forwardSpeed } from "../../sim/body.ts"
+import { wheelsAt } from "../../sim/chassis.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
 import { VEHICLES, type VehicleModel } from "../../sim/vehicles.ts"
 import { hash01 } from "../../tools/geometry.ts"
@@ -76,7 +77,7 @@ const sourceOf = (v: HeardVehicle): Source => ({ x: v.x, y: v.y, z: v.z, vx: v.v
 
 /** The level a vehicle stands on, for the ground and the surface under it: a deck's, a tunnel's or the riverbed's under a bridge. */
 const levelOf = (v: HeardVehicle | undefined): number | undefined =>
-  v === undefined ? undefined : v.z - VEHICLES[v.model].cg
+  v === undefined ? undefined : wheelsAt(VEHICLES[v.model], v)
 
 /** The ground struck, by how it sounds: the road and paving as `road` (rigid, coarse grit), loose ground like an earth bank. */
 const GROUND = {
