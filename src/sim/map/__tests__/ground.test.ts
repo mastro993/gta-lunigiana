@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { LEVEL } from "../../sky/local.ts"
 import { waterAt, waterUnder } from "../../water/rivers.ts"
 import {
   atGrade,
@@ -11,7 +10,6 @@ import {
   footZ,
   groundZ,
   roadLevel,
-  rolledTo,
   terrainZ,
 } from "../ground.ts"
 import { MAP } from "../index.ts"
@@ -20,8 +18,9 @@ import { readMapFile, tileUrl } from "../packed.ts"
 import { surfaceAt } from "../surface.ts"
 import { dropTile, placeAt, provideTile, residentTiles, setTileSource } from "../tiles.ts"
 
-// ground.map-test.ts checks these lookups against the whole map's broad phases over every tile;
-// this reads only the tiles round Monzone station, whose corner (0, 0) lies 650 m east of it.
+// ground.map-test.ts checks these lookups against the whole map's over every tile, and
+// ground-model.test.ts their rules on hand-made scenes; this reads only the tiles round Monzone
+// station, whose corner (0, 0) lies 650 m east of it.
 const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
 const STATION = { x: -493.8, y: 436.9 }
@@ -111,70 +110,4 @@ test("a road's level is its surface's within the halo of it, and none farther of
   assert.ok(Number.isFinite(roadLevel(road, x! + HALO - 0.1, y!)))
   assert.equal(roadLevel(road, -1990, 1990), undefined, "2 km off in its own tile")
   assert.equal(roadLevel(road, 4000, -5000), undefined, "in a tile far from it")
-})
-
-test("facingAt: the terrain triangle's unit normal where the ground is the terrain, level on a road, a deck or in a tunnel", () => {
-  let terrain = 0,
-    roads = 0
-  for (const [x, y, road] of POINTS) {
-    const ground = groundZ(x, y),
-      face = facingAt(x, y, ground)
-    if (road !== undefined && ground > terrainZ(x, y)) {
-      assert.deepEqual(face, LEVEL, `on road ${road} at (${x}, ${y})`)
-      roads++
-      continue
-    }
-    if (face === LEVEL) continue
-    // The slope across a millimetre round the point, away from its triangle's edges (a cell's sides and its south-west to
-    // north-east diagonal), against the normal's north and up parts.
-    const frac = (v: number) => (((v - Math.floor(v)) % 1) + 1) % 1,
-      fx = frac((x - MAP.heightmap.x0) / MAP.heightmap.cell),
-      fy = frac((y - MAP.heightmap.y0) / MAP.heightmap.cell)
-    if (Math.min(fx, fy, 1 - fx, 1 - fy, Math.abs(fx - fy)) < 0.01) continue
-    const gx = (terrainZ(x + 0.001, y) - terrainZ(x - 0.001, y)) / 0.002,
-      gy = (terrainZ(x, y + 0.001) - terrainZ(x, y - 0.001)) / 0.002,
-      length = Math.sqrt(1 + gx * gx + gy * gy)
-    assert.ok(
-      Math.abs(face.north + gy / length) < 1e-6 && Math.abs(face.up - 1 / length) < 1e-6,
-      `(${x}, ${y}): ${JSON.stringify(face)} against the slope ${gx}, ${gy}`,
-    )
-    terrain++
-  }
-  // Tunnel floors under the hillside, found by geometry in the tiles round the station: level, never the slope over them.
-  let tunnels = 0
-  const { ids, items } = placeAt(1, 1).vectors.roads
-  items.forEach(({ pts }, n) => {
-    const id = ids[n]!
-    if (MAP.roads[id]!.tunnel !== true) return
-    for (let k = 0; k + 3 < pts.length; k += 2) {
-      const x = (pts[k]! + pts[k + 2]!) / 2,
-        y = (pts[k + 1]! + pts[k + 3]!) / 2,
-        floor = roadLevel(id, x, y)
-      if (floor === undefined || floor > terrainZ(x, y) - 0.5) continue
-      assert.deepEqual(facingAt(x, y, floor), LEVEL, `in tunnel ${id} at (${x}, ${y})`)
-      tunnels++
-    }
-  })
-  assert.ok(
-    terrain > 2000 && roads > 50 && tunnels > 0,
-    `${terrain} points on the terrain, ${roads} on roads, ${tunnels} in tunnels`,
-  )
-})
-
-test("rolledTo: a wheel keeps to the deck it rolls onto through a sag, where the surface nearest its ground reads the ground under the deck, and drops off the deck's side", () => {
-  // An approach falling 9% east to a deck starting at x = 0 at 100 m and rising 7% from there, 8 m wide, over ground 2.6 m under it.
-  const deck = (x: number) => 100 + 0.07 * x,
-    sag = (x: number, y: number, near: number) =>
-      x < 0
-        ? 100 - 0.09 * x
-        : Math.abs(y) <= 4 && Math.abs(near - deck(x)) <= Math.abs(near - deck(x) + 2.6)
-          ? deck(x)
-          : deck(x) - 2.6
-  // From 5 m up the approach to 30 m along the deck: there the ground (99.5 m) lies nearer its start (100.45) than the deck (102.1).
-  assert.equal(sag(30, 0, 100.45), deck(30) - 2.6)
-  assert.equal(rolledTo(-5, 0, 100.45, 30, 0, sag), deck(30))
-  // Off the deck's side the ground; back under the deck, it stays on the ground.
-  assert.equal(rolledTo(10, 0, deck(10), 10, 8, sag), deck(10) - 2.6)
-  assert.equal(rolledTo(10, 0, deck(10), 30, 8, sag), deck(30) - 2.6)
-  assert.equal(rolledTo(10, 8, deck(10) - 2.6, 10, 0, sag), deck(10) - 2.6)
 })
