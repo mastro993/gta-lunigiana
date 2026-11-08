@@ -7,9 +7,10 @@
  * @module map/global
  */
 import { providePlace } from "../sky/place.ts"
+import { decodeMap } from "./format/global-file.ts"
 import type { MonzoneMap } from "./index.ts"
 import { HALO } from "./kinds.ts"
-import { decodeMap, mapFile } from "./packed.ts"
+import { mapFile } from "./packed.ts"
 
 /** The global map, as generated (`pnpm map`). */
 export const MAP: MonzoneMap = decodeMap(mapFile())

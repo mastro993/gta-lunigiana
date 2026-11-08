@@ -9,6 +9,7 @@ Grand Theft Auto: Lunigiana is a Ritmo ECS simulation (`src/sim`), the browser h
 - **Evaluating** a data source: apply the licence rules in [docs/standards/map.md](docs/standards/map.md#data-sources-and-requests) before recommending it.
 - **Sending** anything off this machine (request headers, issue and PR text, screenshots): it carries no local paths, personal names or e-mail addresses, and a request names only the project in its `User-Agent`, as `src/tools/net.ts` does for every downloader (its `request`, `getText`, `getBytes` and `overpass`). A subagent once sent the user's e-mail to Overpass.
 - **Long runs** (map builds, playtests, background agents): post a one-line status every few minutes.
+- **Naming** things in code, docs or issues: use the terms in [GLOSSARY.md](GLOSSARY.md), and add a term there when a new concept gets a name.
 
 `docs/` is the source of truth for how each part behaves. Read the section before you change or explain it:
 

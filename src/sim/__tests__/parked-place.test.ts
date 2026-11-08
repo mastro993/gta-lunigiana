@@ -13,7 +13,6 @@ editMap((json) => {
   const spots = json.spawns.parked
   own = spots.length
   return {
-    ...json,
     spawns: { ...json.spawns, parked: [...spots.slice(1), ...spots], police: undefined },
   }
 })

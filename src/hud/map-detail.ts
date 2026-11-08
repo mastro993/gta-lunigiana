@@ -10,9 +10,9 @@
  * @module hud/map-detail
  */
 import { overviewRoad } from "../render/map-style.ts"
+import { decodeTileVectors, type TileVectors } from "../sim/map/format/tile-file.ts"
 import { MAP, TILE } from "../sim/map/index.ts"
 import { tileKey } from "../sim/map/kinds.ts"
-import { decodeTileVectors, type TileVectors } from "../sim/map/packed.ts"
 import { isListed, residentTile, TILE_RANGE } from "../sim/map/tiles.ts"
 import { fetchFile, gunzipped } from "../stream.ts"
 import type { Box, Fit } from "./map-view.ts"

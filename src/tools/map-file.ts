@@ -3,23 +3,17 @@
 // (`joinTiles`, the cut of tile-map.ts undone). The tools that draw or compare a whole map and the
 // map tests read it this way. A region's map as built, a test region's too, is handed to the sim
 // with `loadBuiltMap`.
-import type { Area, Barrier, Building, MonzoneMap, Road, Water } from "../sim/map/index.ts"
-import { TILE, tileKey } from "../sim/map/kinds.ts"
+
 import {
-  decodeMap,
-  decodeTile,
-  MAP_URL,
-  MAP_VERSION,
-  provideMap,
-  readMapFile,
-  TILE_CELLS,
-  TILE_NODES,
   type Layer,
   type TileData,
   type TileVectors,
   type VectorLayer,
-} from "../sim/map/packed.ts"
-import { packTables, relined } from "./pack.ts"
+} from "../sim/map/format/tile-file.ts"
+import type { Area, Barrier, Building, MonzoneMap, Road, Water } from "../sim/map/index.ts"
+import { TILE, tileKey } from "../sim/map/kinds.ts"
+import { MAP_URL, provideMap, readMapFile, TILE_CELLS, TILE_NODES } from "../sim/map/packed.ts"
+import { decodeUpgraded } from "./map-upgrade.ts"
 import { mapDir, type Region } from "./region.ts"
 import { mergeTrees } from "./trees.ts"
 
@@ -146,45 +140,17 @@ const joinVectors = (
 }
 
 /**
- * A global file of version 5, which held the graph, the lanes and the residents on its JSON line and
- * gave its lines no run-outs, as one of today's: the tables move into sections after its own, and
- * each line runs on with none.
+ * The map whose global file is at `url` (its tiles in the directory named after it beside it), whole:
+ * a build of the format version before reads as one of today's (`decodeUpgraded`), so map-diff
+ * compares the build before a format change with one after it.
  */
-const sectioned = (file: Uint8Array, line: OldLine): Buffer => {
-  const { graph, lanes, derived, railway } = line
-  const tables = packTables(graph, lanes, derived.residents)
-  return Buffer.concat([
-    relined(file, {
-      version: MAP_VERSION,
-      graph: tables.line.graph,
-      lanes: tables.line.lanes,
-      derived: { ...derived, residents: tables.line.residents },
-      railway: { ...railway, lines: railway.lines.map((l) => ({ runOuts: [[], []], ...l })) },
-    }),
-    ...Object.values(tables.parts),
-  ])
-}
-
-/** The JSON line of a global file of version 5: what reading it as today's needs. */
-type OldLine = { readonly version?: unknown } & Pick<MonzoneMap, "graph" | "lanes" | "derived"> & {
-    readonly railway: { readonly lines: ReadonlyArray<object> }
-  }
-
-/** The map whose global file is at `url` (its tiles in the directory named after it beside it), whole. */
 export const readWholeMap = (url: URL): JoinedMap => {
-  const file = readMapFile(url)
-  // A build of the format version before (5) holds the graph, the lanes and the residents on its
-  // global file's line and its lines have no run-outs: it reads as today's, so map-diff compares a
-  // build from before the format change with one of today (docs/standards/map.md).
-  const line = JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as OldLine
-  const old = line.version === 5
-  const global = decodeMap(old ? sectioned(file, line) : file)
+  const { global, decodeTile } = decodeUpgraded(readMapFile(url))
   return joinTiles(
     global,
-    global.tiles.map(({ i, j }) => {
-      const tile = readMapFile(new URL(`${global.name}/${tileKey(i, j)}.bin`, url))
-      return decodeTile(old ? relined(tile, { version: MAP_VERSION }) : tile)
-    }),
+    global.tiles.map(({ i, j }) =>
+      decodeTile(readMapFile(new URL(`${global.name}/${tileKey(i, j)}.bin`, url))),
+    ),
   )
 }
 

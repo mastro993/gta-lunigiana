@@ -2,10 +2,15 @@
 // building and area (every listed tile it comes within HALO of, whole, with its index in the whole
 // map's list), what each tile's vectors are, and the global facts about them (the counts, the
 // broad phases' lattice corners).
+
+import {
+  relineTile,
+  type TileVectors,
+  VECTOR_LAYERS,
+  type VectorLayer,
+} from "../sim/map/format/tile-file.ts"
 import type { MonzoneMap, Road } from "../sim/map/index.ts"
 import { HALO, vergeOf, WATER_VERTICES } from "../sim/map/kinds.ts"
-import { type TileVectors, VECTOR_LAYERS, type VectorLayer } from "../sim/map/packed.ts"
-import { relined } from "./pack.ts"
 import type { Bakes, BuiltMap, MapCut } from "./tile-map.ts"
 
 /** No vectors: a tile's before the cut adds them. */
@@ -178,19 +183,19 @@ export const vectorFacts = (map: Vectors): MonzoneMap["vectors"] => {
  * read.
  */
 export const tilesOf = (
-  files: ReadonlyMap<string, Buffer>,
+  files: ReadonlyMap<string, Uint8Array>,
   slots: ReadonlyMap<string, number>,
   whole: Pick<BuiltMap, VectorLayer>,
   members: Readonly<Record<VectorLayer, ReadonlyArray<ReadonlyArray<number>>>>,
 ): Pick<MapCut, "tile" | "tiles"> => {
-  const tile = (key: string, bakes: Bakes): Buffer =>
-    relined(files.get(key)!, {
+  const tile = (key: string, bakes: Bakes): Uint8Array =>
+    relineTile(files.get(key)!, {
       vectors: tileVectors(whole, members, slots.get(key)!, bakes.floors),
     })
   return {
     tile,
     tiles: (bakes) => {
-      const out = new Map<string, Buffer>(),
+      const out = new Map<string, Uint8Array>(),
         sizes: Record<VectorLayer, number> = {
           roads: 0,
           buildings: 0,
@@ -201,7 +206,7 @@ export const tilesOf = (
       for (const key of files.keys()) {
         const vectors = tileVectors(whole, members, slots.get(key)!, bakes.floors)
         for (const name of VECTOR_LAYERS) sizes[name] += JSON.stringify(vectors[name]).length
-        out.set(key, relined(files.get(key)!, { vectors }))
+        out.set(key, relineTile(files.get(key)!, { vectors }))
       }
       return { files: out, sizes }
     },

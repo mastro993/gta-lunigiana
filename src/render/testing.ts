@@ -5,8 +5,9 @@
  */
 import { Mesh, type Object3D, type Vector3 } from "three"
 
+import { type Layer } from "../sim/map/format/tile-file.ts"
 import { type Area, type Building, MAP, type Road, type Water } from "../sim/map/index.ts"
-import { type Layer, readMapFile, tileUrl } from "../sim/map/packed.ts"
+import { readMapFile, tileUrl } from "../sim/map/packed.ts"
 import { isResident, provideTile, tilesOver, tileVectors } from "../sim/map/tiles.ts"
 import { DRAW_ORDER } from "./order.ts"
 import type { World } from "./world.ts"

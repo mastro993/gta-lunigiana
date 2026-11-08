@@ -2829,7 +2829,7 @@ CI](#pinned-inputs-and-ci)).
 
 ### The global file
 
-`MonzoneMapJson` in `src/sim/map/packed.ts` is the schema of the JSON line: `MonzoneMap`
+`MonzoneMapJson` in `src/sim/map/format/global-file.ts` is the schema of the JSON line: `MonzoneMap`
 (`src/sim/map/index.ts`, the decoded map the game reads; the railway's types, `Railway` and its
 parts, in `src/sim/map/railway.ts`) with its bulk arrays (the coarse grid's heights and cover, the
 graph, the lanes and the residents) left to the packed sections after the line, which holds how
@@ -2839,7 +2839,7 @@ counter-clockwise, holes clockwise.
 
 | Field | Contents |
 |---|---|
-| `version` | `6` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the line into sections and gave the lines their run-outs). `readWholeMap` in `src/tools/map-file.ts` also reads the version before, and no older one (a format change writes the reader of the version it replaces and drops the one before it, [Map standards](standards/map.md)): a version-5 build's graph, lanes and residents from its line, packed into today's sections (`packTables` in `src/tools/pack.ts`), its lines with no run-outs, so `pnpm map-diff` compares a build from before version 6 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
+| `version` | `6` (`MAP_VERSION` in `src/sim/map/format/sections.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the line into sections and gave the lines their run-outs). `readWholeMap` in `src/tools/map-file.ts` also reads the version before, and no older one (a format change writes the reader of the version it replaces and drops the one before it, [Map standards](standards/map.md)): a version-5 build's graph, lanes and residents from its line, decoded as a file whose sections hold none and given those of its line (`decodeUpgraded` in `src/tools/map-upgrade.ts`), its lines with no run-outs, so `pnpm map-diff` compares a build from before version 6 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
 | `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
@@ -2934,10 +2934,10 @@ with it).
 
 ### A tile
 
-A tile's JSON line (`TileJson` in `packed.ts`) is `{ version, hash, i, j, walls, trees, vectors }`:
-the counts of its walk, shore and drive walls and of its trees, and the vectors round it
-(`TileVectors`, below). Each layer of the vectors is `{ ids, items }`: each feature's index in the
-whole map's list, ascending, and the feature, whole:
+A tile's JSON line (`TileJson` in `src/sim/map/format/tile-file.ts`) is `{ version, hash, i, j,
+walls, trees, vectors }`: the counts of its walk, shore and drive walls and of its trees, and the
+vectors round it (`TileVectors`, below). Each layer of the vectors is `{ ids, items }`: each
+feature's index in the whole map's list, ascending, and the feature, whole:
 
 | Layer | Each feature |
 |---|---|
@@ -2959,18 +2959,22 @@ Its sections follow the newline in file order:
 | cover | 500 × 500 cells, the land-cover index | 1 | 500: the cell to the south |
 | walk, drive wall levels | each wall's level (a bridge's parapet's, its deck's top; a wall under a deck's, the ground's there: [section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)), decimetres a.s.l., or −32768 (`NO_LEVEL`) for a wall that stands at every level | 4 | 1 |
 
-The levels come last, so a build from before them reads as one whose every wall stands at every
-level (`readWholeMap`). With the parapets' levels alone they added 15 KB to Lunigiana's tiles
-gzipped (30.47 to 30.48 MB) and 2.5 KB to Cesena's: most walls have none, so each tile's level
-sections are runs of one value (the walls under the decks, levels and all, add 44.4 and 13.1 KB:
-[section 10](#walls-under-the-decks)).
+The levels come last (format version 5 added them). With the parapets' levels alone they added 15 KB
+to Lunigiana's tiles gzipped (30.47 to 30.48 MB) and 2.5 KB to Cesena's: most walls have none, so
+each tile's level sections are runs of one value (the walls under the decks, levels and all, add
+44.4 and 13.1 KB: [section 10](#walls-under-the-decks)).
 
 Each section holds n integers as the zigzag-coded difference (0, −1, 1, −2... stored as 0, 1, 2,
 3...) from the value `stride` places back, split into byte planes: the low byte of every value, then
 the next byte of every value. Neighbours differ little and like bytes sit together, which is what
-gzip compresses best. `packMap` and `packTile` in `src/tools/pack.ts` encode (the build throws if a
-value does not fit), `decodeMap` and `decodeTile` in `src/sim/map/packed.ts` decode. Decoding is
-exact: the same numbers a one-decimal JSON array would give.
+gzip compresses best. One layout per kind of file lists its sections in file order, each with its
+width, stride, count (read from the line) and transform both ways, and both directions walk it
+(`src/sim/map/format/`: `sections.ts`, `global-file.ts`, `tile-file.ts`), so the encoder and the
+decoder cannot disagree on where a section lies. `encodeMap` and `encodeTile` encode (the build
+throws if a value does not fit, or if two sections that share a count, a wall's segment and its id,
+disagree on it), `decodeMap` and `decodeTile` decode. The tables here and the layouts are the two
+places a section's facts are written: a change to one is a change to the other. Decoding is exact:
+the same numbers a one-decimal JSON array would give.
 
 What goes in which tile:
 
@@ -2990,16 +2994,17 @@ What goes in which tile:
 - **Vectors**: every road's line, river, barrier, building and area with a segment's box (a
   building's or an area's outer ring's box) within `HALO` (32 m, `src/sim/map/kinds.ts`) of the
   tile's square, whole, with its index in the whole map's list, in that order (`TileVectors` in
-  `packed.ts`, cut by `tile-vectors.ts`). The tile indices are clamped to the box of the listed
-  tiles, so an edge tile holds what lies past the bounds by it too, and a feature near an unlisted
-  tile goes to all the listed tiles round it (`tilesRound`). A feature thus lies in every tile it
-  comes near: on Lunigiana 3,104 of the 3,969 roads and 22,344 of the 24,331 buildings lie in one
-  tile, a road in up to 5, a water piece in up to 6, the 30 buildings by a tile corner in 4, and the
-  forest area 879 in 56 (on lucido alone 821 of 1,039 roads and 5,870 of 6,388 buildings in one, and
-  a forest whose box spans the bounds in all 30). The halo is more than any carriageway, walkers'
-  verge or river bed reaches off its line (13 m, the Aulella's bed; the build throws past it), so a
-  lookup at a point reads the point's tile alone (`placeAt` in `src/sim/map/tiles.ts`), and more
-  than the minimap's margin round a tile (23.3 m), so a tile's canvas paints from that tile alone.
+  `src/sim/map/format/tile-file.ts`, cut by `tile-vectors.ts`). The tile indices are clamped to the
+  box of the listed tiles, so an edge tile holds what lies past the bounds by it too, and a feature
+  near an unlisted tile goes to all the listed tiles round it (`tilesRound`). A feature thus lies in
+  every tile it comes near: on Lunigiana 3,104 of the 3,969 roads and 22,344 of the 24,331 buildings
+  lie in one tile, a road in up to 5, a water piece in up to 6, the 30 buildings by a tile corner in
+  4, and the forest area 879 in 56 (on lucido alone 821 of 1,039 roads and 5,870 of 6,388 buildings
+  in one, and a forest whose box spans the bounds in all 30). The halo is more than any carriageway,
+  walkers' verge or river bed reaches off its line (13 m, the Aulella's bed; the build throws past
+  it), so a lookup at a point reads the point's tile alone (`placeAt` in `src/sim/map/tiles.ts`),
+  and more than the minimap's margin round a tile (23.3 m), so a tile's canvas paints from that tile
+  alone.
 
 `wallsNear` and `treesIn` answer exactly as the one broad phase over the whole map did, the same
 items in the same order: each kind keeps its 16 m lattice (`walls.lattice`: the lowest corner of any
@@ -3186,14 +3191,15 @@ fails on both counts. And that Fivizzano's walled centre is stone: every buildin
 5 m and more inside one of its four cores (`STONE_CORES`, traced on the walls' outline to 5 m) is
 stone, but its churches (#17's acceptance).
 
-`src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
-`decodeMap` (a newline inside a name, the coarse grid, and the graph, the lanes, their float noise
-and their models' order kept and a model with no lanes, and the residents, to the bit, the line
-holding their counts and the lanes' table) and a tile through `packTile` and `decodeTile` (negative
-values, the widest deltas, an empty section, walls with and without a level), and checks that a
-file of another version, a value too far for its section, a level for every wall but one, a graph
-coordinate off the decimetre, a resident that is not a float32 or more than 32,768 lane values
-throws; `stale-map.test.ts` that the game refuses a global file without the
+`global-file.test.ts` in `src/sim/map/format/__tests__/` round-trips a small global file through
+`encodeMap` and `decodeMap` (a newline inside a name, the coarse grid, and the graph, the lanes,
+their float noise and their models' order kept and a model with no lanes, and the residents, to the
+bit, the line holding their counts and the lanes' table), and `tile-file.test.ts` a tile through
+`encodeTile` and `decodeTile` (negative values, the widest deltas, an empty section, walls with and
+without a level); they check that a file of another version, a value too far for its section, a
+level for every wall but one, a wall or tree id short of its count, a tile whose sections do not
+end with the file, a graph coordinate off the decimetre, a resident that is not a float32 or more
+than 32,768 lane values throws; `stale-map.test.ts` that the game refuses a global file without the
 play area's outline. `anchor.test.ts` rewrites Lunigiana's
 global file to start its heightmap a tile east and north of its anchor, which the file then names,
 and checks that `heightAt`, `terrainZ` and `coverAt` answer to the bit as on Lunigiana itself (read
@@ -3377,9 +3383,9 @@ order, which is not their tiles' order) and the walls' levels, with the region's
 puts each vector whole, with its index and the water's baked floor, in every tile it comes within
 the halo of, joins them back and writes the vectors' counts and lattice corners; gives a vector by
 an unlisted tile to the listed tiles round it; refuses a road whose verge reaches past the halo and
-a tile from another build; stamps each tile as `packTile` packs it with the build hash; and reads
-a version-5 build written to a temporary folder, its graph, lanes and residents on its line and its
-lines with no run-outs, as the same build of today's (`readWholeMap`).
+a tile from another build; and stamps each tile as `encodeTile` packs it with the build hash.
+`map-upgrade.test.ts` reads a version-5 build, its graph, lanes and residents on its line and its
+lines with no run-outs, as the same build of today's (`decodeUpgraded`).
 `build-output.test.ts` checks that `decimetres`, which rounds the grid into the
 `Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
 −4000 m, 3276.75 m, NaN, infinity) instead of wrapping it. `src/__tests__/maps.map-test.ts` checks
