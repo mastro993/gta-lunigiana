@@ -22,7 +22,7 @@ import { EAR_HEIGHT } from "../acoustics.ts"
 import { echoesAt, type Echo } from "../places.ts"
 import type { CabinModel, Heard, Speaker } from "../types.ts"
 import { makeAnimals } from "./animals.ts"
-import { commit, groundAt, makeFrame, type Offer } from "./frame.ts"
+import { commit, makeFrame, type Offer } from "./frame.ts"
 import { makeOccluder } from "./occluder.ts"
 import { makePeople } from "./people.ts"
 import { makeRail } from "./rail.ts"
@@ -41,12 +41,11 @@ const ECHOES_EVERY = 1,
 
 /**
  * Where the listener sits: the level the ears ride over, the cabin around them and whether it stands in a tunnel. In a car the
- * ears ride with it, in the air too, and in a train's cab over its rails (a rail deck, a tunnel); on foot the ground under the
- * listener stays on the level it was on, `near` (the last frame's): a bridge deck, not the river under it.
+ * ears ride with it, in the air too, and in a train's cab over its rails (a rail deck, a tunnel); on foot over the ground the
+ * sim has the player on (`listener.z`, their `Footing`): a bridge deck, not the river under it.
  */
 export const seatOf = (
   heard: Heard,
-  near?: number,
 ): {
   readonly ground: number
   readonly inside: CabinModel | undefined
@@ -63,7 +62,7 @@ export const seatOf = (
       inside: cab.model,
       underground: cab.cars[0]?.tunnel === true,
     }
-  return { ground: groundAt(listener.x, listener.y, near), inside: undefined, underground: false }
+  return { ground: listener.z, inside: undefined, underground: false }
 }
 
 /** The director playing through `speaker`; `random` drives birds, owls, dogs, animal calls and what people say. */
@@ -80,7 +79,7 @@ export const makeDirector = (
     animals = makeAnimals(),
     world = makeWorld(),
     thunder = makeThunder()
-  let last: number | undefined, ground: number | undefined
+  let last: number | undefined
   let held: ReadonlySet<string> = new Set()
   let faces:
     | {
@@ -98,8 +97,7 @@ export const makeDirector = (
       const dt = last === undefined ? 0 : Math.min(MAX_DT, Math.max(0, now - last))
       last = now
       const { listener } = heard
-      const seat = seatOf(heard, ground)
-      ground = seat.ground
+      const { ground, inside, underground } = seatOf(heard)
       const ears = {
         x: listener.x,
         y: listener.y,
@@ -108,7 +106,6 @@ export const makeDirector = (
         vy: listener.vy,
         right: axesAt(listener.yaw).right,
       }
-      const { inside, underground } = seat
       const air = conditionsAt(heard.sky.seconds, heard.weather, ears.x, ears.y, ground)
       const { ambient, street } = world.listen(ears, now, dt, {
         sky: heard.sky,
