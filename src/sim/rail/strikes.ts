@@ -15,6 +15,7 @@ import { Clock } from "@typeonce/ritmo"
 import { Ops, Random, type Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carRadius, moveCar, walkBy, wallsAlong } from "../body.ts"
+import { wheelsAt } from "../chassis.ts"
 import { destroyed } from "../damage.ts"
 import { FAUNA } from "../fauna.ts"
 import {
@@ -188,7 +189,7 @@ export const TrainContacts = Game.System(
       if (!inReach(pose, player)) continue
       const { model } = data.vehicle.get(),
         spec = VEHICLES[model],
-        ground = data.chassis.get().z - spec.cg
+        ground = wheelsAt(spec, data.chassis.get())
       let { vx, vy } = data.motion.get(),
         moved = false
       const prev = data.prev.get()

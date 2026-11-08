@@ -1,6 +1,7 @@
 import { Clock } from "@typeonce/ritmo"
 import { Random, Vec2 } from "@typeonce/ritmo-math"
 
+import { wheelsAt } from "../chassis.ts"
 import { rolledTo } from "../map/ground.ts"
 import { onLevel } from "../rail/bodies.ts"
 import { railSense } from "../rail/senses.ts"
@@ -317,7 +318,7 @@ export const Perceive = Game.System(
     for (const w of walkers)
       if (w.leader !== undefined && (w.down || w.dead))
         fallen.set(w.leader, [...(fallen.get(w.leader) ?? []), w])
-    // The moving vehicles, and by id each one's wheels' ground under its middle (m a.s.l., `chassis.z − cg`).
+    // The moving vehicles, and by id each one's wheels' ground under its middle (m a.s.l., `wheelsAt`).
     const wheels = new Map<number, number>()
     const cars: ReadonlyArray<Car> = queries.vehicles.each().flatMap(({ entity, data }) => {
       const pose = data.pose.get(),
@@ -326,7 +327,7 @@ export const Perceive = Game.System(
       const usual = cruiseSpeed(roadOf(trafficIndex.nearest(pose.x, pose.y))),
         { model } = data.vehicle.get(),
         chassis = data.chassis.get()
-      wheels.set(entity.id, chassis.z - VEHICLES[model].cg)
+      wheels.set(entity.id, wheelsAt(VEHICLES[model], chassis))
       return [carOf(entity.id, model, pose, vx, vy, usual)]
     })
     const positions = new Map(

@@ -217,6 +217,10 @@ export const WHEELS_DOWN = 0.5
 export const overturned = (chassis: Pick<ChassisValue, "pitch" | "roll">): boolean =>
   uprightness(chassis) < WHEELS_DOWN
 
+/** The wheels' ground of a vehicle of `spec` riding at `chassis`, m a.s.l.: the level its wheels stand on at rest, its centre of mass's `cg` under it. */
+export const wheelsAt = (spec: Pick<VehicleSpec, "cg">, chassis: Pick<ChassisValue, "z">): number =>
+  chassis.z - spec.cg
+
 /**
  * Whether the body's box touches the ground (`ground` at the level the vehicle stands on): a corner at or under it, as the physics's
  * hull contacts take it, down on its belly, side or roof. The suspension at its bump stops keeps the underbody off the ground.
@@ -230,7 +234,7 @@ export const hullDown = (
   const tilt = tiltOf(chassis.pitch, chassis.roll),
     c = Ops.cos(pose.angle),
     s = Ops.sin(pose.angle),
-    level = chassis.z - VEHICLES[model].cg
+    level = wheelsAt(VEHICLES[model], chassis)
   return RIGS[model].corners.some((corner) => {
     const o = turn(corner, tilt)
     return chassis.z + o.u <= ground(pose.x + o.f * c - o.l * s, pose.y + o.f * s + o.l * c, level)

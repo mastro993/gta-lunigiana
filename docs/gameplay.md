@@ -93,7 +93,7 @@ train is boarded at its cab doors ([Driving a train](#driving-a-train)); the res
   lies on its side or roof or is destroyed ([Damage](#damage)), or a train's door nearer still. The
   HUD prompt uses the same test (`boardingAt`, `rail/boarding.ts`, over `vehicleInReach`), so it
   shows exactly what the key would do: `steal`, `enter` or `carjack`.
-- **On his level**: the ground under the vehicle's wheels (`chassis.z − cg`) stands within 2 m of
+- **On his level**: the ground under the vehicle's wheels (`wheelsAt`) stands within 2 m of
   his `Footing` ([Footing](#footing)), the rule a train's door keeps (`LEVEL`), so under the SR445's
   viaduct west of Gragnola, 6.07 m under its deck, he cannot take a car on the deck over him, nor
   from the deck one on the road under it. The wheels' ground is taken under the point of the
@@ -607,7 +607,7 @@ the lane helpers in `src/sim/route.ts`.
   Panda following a Panda in line that is 1.8 m to either side of its axis. Each car of a train is
   such an obstacle too, one that moves on. Standing still, it holds the handbrake.
 - **On its level.** Only an obstacle on the car's level holds it back (`onLevel`, within 2 m,
-  `LEVEL`): a vehicle by its wheels' ground (`chassis.z − cg`), a person or an animal by its
+  `LEVEL`): a vehicle by its wheels' ground (`wheelsAt`), a person or an animal by its
   `Footing` ([Footing](#footing)), a train's car by its rail head. The car reads its own level where
   the obstacle reaches into its path (the obstacle's middle moved toward the cone's axis by as far
   as it reaches across): the ground its wheels come to rolling there from under its middle along the
@@ -800,7 +800,7 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
   tunnel or on a road bridge over the line it passes them by
   ([Around the trains](#around-the-trains)).
 - **On their level.** A vehicle counts to the Danger and Speeding stimuli only on their level: the
-  ground its wheels come to rolling straight from under its middle (`chassis.z − cg`) to where they
+  ground its wheels come to rolling straight from under its middle (`wheelsAt`) to where they
   stand, read every metre, each the surface nearest the last (`rolledTo`: the deck it drives, or the
   road under it, as a driver reads its way), stands within 2 m of their `Footing` (`LEVEL`,
   [Footing](#footing)). Under the SR445's viaduct west of Gragnola a passer-by stands as a Panda
@@ -883,7 +883,7 @@ through a wall.
   an animal its species' mass × its size³). The members of a party do not.
 - **On one level**: only bodies on one level touch (`onLevel`, within 2 m, `LEVEL`): a vehicle by
   the ground under its wheels where its axis passes nearest the contact, along its pitch from under
-  its middle (`chassis.z − cg`), a person or an animal by its `Footing` ([Footing](#footing)). So a
+  its middle (`wheelsAt`), a person or an animal by its `Footing` ([Footing](#footing)). So a
   Panda rolling at 11 m/s along the SR445's viaduct west of Gragnola passes over the player, a
   passer-by, a parked Panda and a dead dog on the road 6.07 m under its deck as over nobody, and the
   player standing under the deck and a passer-by over him on it do not step apart; before, it
@@ -1181,7 +1181,7 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
 
   A train's car counts as a vehicle by the distance to its body (a car's middle can be 10 m from
   an animal beside its end), and only on the animal's level. So does a vehicle: the ground its
-  wheels come to rolling straight from under its middle (`chassis.z − cg`) to the animal
+  wheels come to rolling straight from under its middle (`wheelsAt`) to the animal
   (`rolledTo`, as people read it) stands within 2 m of its `Footing` (`LEVEL`). Under the SR445's viaduct west of Gragnola a cat, a dog, a
   cow and a pig stay as a Panda rolls over them on its deck, where before they ran 15.2, 13.9, 7.8
   and 9.7 m, the cat, the cow and the pig crying out; at the foot of a 30% lane a cat runs from a
