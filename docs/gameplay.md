@@ -805,8 +805,10 @@ where a grown-up would in anger). All values are TUNED unless a source is given.
   level read toward where they stand (`onOneLevel`, [On one level](#knockdowns-deaths-and-score):
   past its bumper rolled on along its heading, read every metre, each the surface nearest the last,
   `rolledTo`: the deck it drives, or the road under it, as a driver reads its way) stands within 2 m
-  of their `Footing` ([Footing](#footing)). Someone abeam its body is read on its own level: a car on
-  a deck does not scare someone on the ground beside the deck.
+  of their `Footing` ([Footing](#footing)). Someone abeam its body is read on its own level, since
+  only who it could hit fears it: a car on a deck does not scare someone on the ground beside the
+  deck, nor one on a road someone on a bank more than 2 m over or under it (a walker 8 m off on a 30%
+  side slope stands 2.4 m over the road).
   Under the SR445's viaduct west of Gragnola a passer-by stands as a Panda
   rolls over them on its deck; before, they ran 10.5 m from it, crying out in fright. Nor do they
   look at one speeding over them there at 22 m/s, as they do standing beside its lane on the deck.
@@ -1188,7 +1190,8 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
 
   A train's car counts as a vehicle by the distance to its body (a car's middle can be 10 m from
   an animal beside its end), and only on the animal's level. So does a vehicle: its level read
-  toward the animal (`onOneLevel`, as people read it) stands within 2 m of its `Footing`. Under the
+  toward the animal (`onOneLevel`, as people read it) stands within 2 m of its `Footing`: a cow
+  grazing 8 m off a road on a 30% side slope, 2.4 m over it, stays as a car speeds by. Under the
   SR445's viaduct west of Gragnola a cat, a dog, a cow and a pig stay as a Panda rolls over them on its
   deck, where before they ran 15.2, 13.9, 7.8
   and 9.7 m, the cat, the cow and the pig crying out; at the foot of a 30% lane a cat runs from a
