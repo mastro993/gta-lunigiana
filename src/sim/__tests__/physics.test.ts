@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { hullDown, overturned, RIGS, settle, uprightness } from "../chassis.ts"
+import { hullDown, overturned, RIGS, settle, uprightness, wheelsAt } from "../chassis.ts"
 import { gearFor } from "../drivetrain.ts"
 import type { Ground } from "../dynamics.ts"
 import type { Surface } from "../map/surface.ts"
@@ -313,6 +313,17 @@ test("a car on its roof slides down a slope steeper than its sliding friction (0
   }
   assert.ok(onRoof(0.7) < -5, `70%: ${onRoof(0.7)} m`)
   assert.ok(onRoof(0.3) > -0.5, `30%: ${onRoof(0.3)} m`)
+})
+
+test("wheelsAt: every model settled on level ground at 100 m has its wheels' ground there", () => {
+  for (const model of VEHICLE_MODELS)
+    assert.equal(
+      wheelsAt(
+        VEHICLES[model],
+        settle(model, { x: 0, y: 0, angle: 0 }, () => 100),
+      ),
+      100,
+    )
 })
 
 // Regression: hullDown counted a corner within 5 cm of the ground as down, so the Giulia's bump stops (5 cm under its clearance) ground.
