@@ -2,6 +2,7 @@ import { Clock } from "@typeonce/ritmo"
 import { Ops, Random, Vec2 } from "@typeonce/ritmo-math"
 
 import { walkBy } from "../body.ts"
+import { wheelsAt } from "../chassis.ts"
 import { FAUNA } from "../fauna.ts"
 import { inPlay } from "../map/index.ts"
 import { grazing, indoors, openGround } from "../population/farms.ts"
@@ -186,7 +187,7 @@ export const Animals = Game.System(
               vx,
               vy,
               speed,
-              ground: data.chassis.get().z - VEHICLES[data.vehicle.get().model].cg,
+              ground: wheelsAt(VEHICLES[data.vehicle.get().model], data.chassis.get()),
             },
           ]
         : []

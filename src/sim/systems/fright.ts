@@ -64,7 +64,7 @@ const CRIES = {
 export const MOVING = 0.3
 /** A vehicle hitting a wall, a car or the ground at this closing speed or more is a crash, m/s (TUNED). */
 const CRASH_SPEED = 4
-/** A moving vehicle: where it is, its velocity, and its wheels' ground under its middle (m a.s.l., `chassis.z − cg`). */
+/** A moving vehicle: where it is, its velocity, and its wheels' ground under its middle (m a.s.l., `wheelsAt`). */
 export interface Car {
   readonly x: number
   readonly y: number

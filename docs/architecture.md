@@ -402,7 +402,7 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   level: `wallsAlong` (`src/sim/body.ts`) keeps the walls a body meets standing at the level it is
   given (`meets`: a wall with no level, or one within `LEVEL`, 2 m, of it), every wall when it is
   given none. The physics, the contacts and the trains' strikes give a car's wheels
-  (`chassis.z − cg`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
+  (`wheelsAt`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
   spot's settled wheels, a teleport's ground), and the baked lanes their road's surface where the
   edge passes nearest a parapet. Everyone on foot gives their `Footing` (`footingAt` before
   `FindFooting` has given one): the player's step (`PlayerFoot`), the pedestrians' and the animals'
