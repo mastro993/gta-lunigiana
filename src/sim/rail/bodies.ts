@@ -1,11 +1,11 @@
 /**
  * Trains as the world meets them: each car a capsule along its axis (the body `carsOf` places, round at
  * the train's two noses and square at the joints, where the next car goes on), moving with the train at
- * its line's pace; and the level every rule between a train and a body on the ground keeps to: they meet
- * only where the body's ground stands within `LEVEL` m of the rail head, so a train on a bridge over a
- * road, under a road bridge or in a tunnel under fields meets nothing there. Also where a body fouls a
- * line's track (the AI driver's look-out), which side of a line a point lies on (the animals keep to
- * theirs) and where off the track an animal may be brought out. Pure functions of the trains and the map.
+ * its line's pace, each on its level, the rail head under its middle (`onOneLevel`), so a train on a
+ * bridge over a road, under a road bridge or in a tunnel under fields meets nothing there. Also where
+ * a body fouls a line's track (the AI driver's look-out), which side of a line a point lies on (the
+ * animals keep to theirs) and where off the track an animal may be brought out. Pure functions of the
+ * trains and the map.
  *
  * @module rail/bodies
  */
@@ -13,21 +13,16 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../collide.ts"
 import { platformTop } from "../map/ground.ts"
-import { ONE_LEVEL } from "../map/kinds.ts"
+import { onOneLevel } from "../one-level.ts"
 import type { TrainMotionValue } from "../schema.ts"
 import { carsOf } from "./consist.ts"
 import { LINES, linesNear, pointAt, SHARED, sharedPart, speedAt } from "./lines.ts"
 import { spanOf, TRAIN_MODELS, TRAINS, trainLength, type TrainModel } from "./models.ts"
 
-/** A body meets a train only when its ground stands this near the rail head there, m: a bridge, an underpass or a tunnel's roof keeps them apart. */
-export const LEVEL = ONE_LEVEL
 /** The envelope a train sweeps reaches this far past its body either side, m: what its driver sees on the track. */
 export const CLEARANCE = 0.3
 /** The widest train's half-width, m: on a platform, only what reaches in that far stands in a train's way. */
 const BODY = Math.max(...TRAIN_MODELS.map((model) => TRAINS[model].width)) / 2
-
-/** Whether ground at `z` (m a.s.l.) is on the level of a rail head at `rail`. */
-export const onLevel = (z: number, rail: number): boolean => Math.abs(z - rail) < LEVEL
 
 /** A train as the world sees it: its entity id, line and motion, and model. */
 export interface SeenTrain {
@@ -164,7 +159,7 @@ export const foulsAt = (
     clear = near.distance - across
   if (clear >= half + reach || (clear >= BODY && platformTop(body.x, body.y) !== undefined))
     return undefined
-  return onLevel(body.ground(), at.z) ? near.s : undefined
+  return onOneLevel(body.ground(), at.z) ? near.s : undefined
 }
 
 /** How far a body keeps off a line's centreline when it picks a place to go, m: outside a train's envelope and a little more. */

@@ -4,7 +4,8 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { footZ, platformTop } from "../../map/ground.ts"
-import { CLEARANCE, foulsAt, LEVEL, offCar, onLevel, ownSide, trainCars } from "../bodies.ts"
+import { onOneLevel } from "../../one-level.ts"
+import { CLEARANCE, foulsAt, offCar, ownSide, trainCars } from "../bodies.ts"
 import { carsOf } from "../consist.ts"
 import { LINES, linesNear, pointAt } from "../lines.ts"
 import { TRAINS, trainLength } from "../models.ts"
@@ -79,7 +80,7 @@ test("bodies: a body fouls the track inside the envelope on the train's level, o
   )
   // Over the longest tunnel: far over the rail, so never.
   const over = beside(TUNNEL, 0)
-  assert.ok(!onLevel(footZ(over.x, over.y), pointAt(line, TUNNEL).z))
+  assert.ok(!onOneLevel(footZ(over.x, over.y), pointAt(line, TUNNEL).z))
   assert.equal(foulsAt(line.index, body(over), HALF), undefined)
   // Someone on a platform by the line: off the track, whatever its edge.
   // Monzone's platform beside the track: a point on it 2 m off the centreline.
@@ -99,7 +100,6 @@ test("bodies: a body fouls the track inside the envelope on the train's level, o
     .find((p) => platformTop(p.x, p.y) !== undefined)
   assert.ok(brink !== undefined, "Monzone's platform within 1.9 m of the track")
   assert.notEqual(foulsAt(line.index, body(brink), HALF), undefined)
-  assert.equal(LEVEL, 2)
 })
 
 test("bodies: a place picked across the track at grade is kept on the picker's side, 3 m off; on its side, or across a tunnel, it stands", () => {

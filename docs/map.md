@@ -2396,7 +2396,7 @@ walls held them before, and stores neither of those.
 - Tree trunks are not stored as walls. `wallsNear` indexes the trees as points and adds a 0.5 m
   square (`pushTrunk`, `TRUNK` in `kinds.ts`) around each tree a query reaches.
 - **Walls with a level** (issue #91): a wall may carry a level, m a.s.l., and then stops only a body
-  whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, the game's `LEVEL`): a car whose
+  whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, `onOneLevel`): a car whose
   wheels, or a person whose footing, stand there. Every other wall stands at every level. The
   bridges' parapets and the walls under their decks ([below](#walls-under-the-decks)) are the walls
   with a level. A parapet (`parapets.ts`) needs one: walls are flat lines, so a parapet
@@ -3606,8 +3606,8 @@ over 20 m, and under 2% through a level crossing (the map before the fixes chang
 6269); through its tunnels each stretch of 100 m or more (the whole of a shorter tunnel) climbs or
 falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17); and it runs on over lucido's
 seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
-`src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onLevel`, 2 m, in
-`src/sim/rail/bodies.ts`) rests on, on Lunigiana, Cesena and, when built, the L (in CI always):
+`src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onOneLevel`, 2 m, in
+`src/sim/one-level.ts`) rests on, on Lunigiana, Cesena and, when built, the L (in CI always):
 wherever two ways cross on two levels with no node in common (a road, path or rail bridge over a
 road, a path, steps or the rail, or a road, a path or the rail over a tunnel: `passesOver` in
 `road-levels.ts`), unless both are the rail, the way above stands more than 2.5 m over the one below
@@ -3615,11 +3615,13 @@ between any two of their points within 3.99 m of each other and of the crossing,
 toward its end counts too. That reach is the farthest of how far from a car's axis the person who
 gets into it stands (`ENTER_GAP` and the truck's half-width, 3.225 m), how far from its middle a
 vehicle reaches into a driver's path, where the driver reads its level (the truck's half-diagonal,
-3.99 m), and how far apart two bodies touching are read, each under its own axis or middle where
-they touch (two trucks' half-widths, 2.45 m); a vehicle a person or an animal may run from is read
-where they stand; a train's car is read at the rail head under its middle, which the line's 2.83% at
-most keeps within 0.28 m of the rail head where it reaches the path. Paths over paths count since
-people step apart only on one level. The 0.5 m over `LEVEL` covers the surfaces' lifts over their
+3.99 m), and how far apart two bodies touching are read, each on its own axis where they touch (two
+trucks' half-widths, 2.45 m); a vehicle a person or an animal may run from is read on its axis
+abeam them, and past its bumpers on its axis's line too; a train's car is read at the rail head under
+its middle, which the line's 2.83% at most keeps within 0.28 m of the rail head where it reaches
+the path. Paths over paths count since
+people step apart only on one level. The 0.5 m over `ONE_LEVEL` covers the surfaces' lifts over
+their
 profiles (0.06–0.24 m), the 0.1 m rounding and a truck's wheels rolled 25° (0.16 m). It visits 50
 crossings on Lunigiana (49 before Fosdinovo's part; the least 4.24 m, a path over the rail's tunnel
 at (2544, 1057)), 161 on Cesena (2.63 m, a path bridge over a path at (−1044, −1321)) and 18 on

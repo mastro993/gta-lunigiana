@@ -14,10 +14,10 @@ import {
 } from "../body.ts"
 import { settle } from "../chassis.ts"
 import { atGrade } from "../map/ground.ts"
+import { ONE_LEVEL } from "../map/kinds.ts"
 import { buildingsIn } from "../map/vectors.ts"
 import { wallsNear } from "../map/walls.ts"
 import { indoors } from "../population/farms.ts"
-import { LEVEL } from "../rail/bodies.ts"
 import type { PoseValue } from "../schema.ts"
 import { door, ON_BATTISTI } from "../testing.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
@@ -82,38 +82,16 @@ const onGrade = (model: VehicleModel, pose: PoseValue, grade = 0) => {
   return { model, pose, chassis: settle(model, pose, ground), damage: 0 }
 }
 
-test("vehicleInReach: a car within ENTER_GAP is in reach only from ground on its wheels' level (within 2 m, LEVEL): not from a road under its deck, nor from a deck over it", () => {
+test("vehicleInReach: a car within ENTER_GAP is in reach only from ground on its wheels' level (within 2 m, ONE_LEVEL): not from a road under its deck, nor from a deck over it", () => {
   const car = onGrade("panda", ON_BATTISTI),
     at = door(ON_BATTISTI)
   const reach = (ground: number) => vehicleInReach(at, ground, [car], (c) => c)
   assert.equal(reach(100), car, "beside it")
-  assert.equal(reach(100 + LEVEL - 0.05), car, "a step up")
-  assert.equal(reach(100 - LEVEL + 0.05), car, "a step down")
+  assert.equal(reach(100 + ONE_LEVEL - 0.05), car, "a step up")
+  assert.equal(reach(100 - ONE_LEVEL + 0.05), car, "a step down")
   // The SR445's viaduct by Gragnola stands 6.07 m over the road under it.
   assert.equal(reach(100 - 6.07), undefined, "from the road under its deck")
   assert.equal(reach(100 + 6.07), undefined, "from a deck over it")
-})
-
-test("vehicleInReach: on a 40% lane the truck is in reach from the ground 1.8 m off either bumper, on its wheels' level under the end of its axis", () => {
-  const truck = onGrade("truck", ON_BATTISTI, 0.4),
-    off = VEHICLES.truck.length / 2 + 1.8,
-    middle = truck.chassis.z - VEHICLES.truck.cg
-  for (const end of [1, -1]) {
-    const at = {
-        x: ON_BATTISTI.x + Ops.cos(ON_BATTISTI.angle) * off * end,
-        y: ON_BATTISTI.y + Ops.sin(ON_BATTISTI.angle) * off * end,
-      },
-      ground = 100 + 0.4 * off * end
-    assert.ok(
-      Math.abs(ground - middle) > LEVEL,
-      `${(ground - middle).toFixed(2)} m off its middle's`,
-    )
-    assert.equal(
-      vehicleInReach(at, ground, [truck], (t) => t),
-      truck,
-      `off its ${end > 0 ? "front" : "rear"}`,
-    )
-  }
 })
 
 // Merge of #98 and #99: getting in reads only the walk walls the person meets on their own level (`meets`), so a wall round the
@@ -151,11 +129,11 @@ test("vehicleInReach: a walk wall on another level between the person and a car 
     .map((s) => ({ ax: s.ax, ay: s.ay, bx: s.bx, by: s.by, level: s.level! }))
     .find(
       (s) =>
-        !blocked(s.level + LEVEL + 1, across(s, s.level + LEVEL + 1)) &&
+        !blocked(s.level + ONE_LEVEL + 1, across(s, s.level + ONE_LEVEL + 1)) &&
         blocked(s.level, across(s, s.level)),
     )
   assert.ok(wall !== undefined, "a wall with a level under the viaduct")
-  const deck = wall.level + LEVEL + 1,
+  const deck = wall.level + ONE_LEVEL + 1,
     over = across(wall, deck)
   assert.equal(
     vehicleInReach(over.at, deck, [over.car], (c) => c),

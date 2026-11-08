@@ -123,13 +123,13 @@ the parked cars come from `Parking.seed`, so the fill replays with the seed.
 | 19 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
 | 20 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
 | 21 | `Crossings` | `rail/systems.ts` | each level crossing moves on through its cycle (`LevelCrossings`: open, warning, lowering, closed, raising) from whether a train demands it now: moving at it, standing ready (an AI train about to go, the player's with its lever forward) or on it |
-| 22 | `TrafficAI` | `systems/traffic.ts` | AI drivers write their `CarInput`, braking for vehicles, people, animals and the cars of trains on their level (`onPathLevel`: their wheels', `Footing` or rail head within 2 m, `LEVEL`, of the ground the driver's wheels come to rolling along its path to where each reaches into it, `rolledTo` in `map/ground.ts`), slower and keeping further back where the road is wet or snowy; at a level crossing (`rail/roads.ts`, reading `LevelCrossings` this step) they stop for a box not open (from the lowering on always, and short of the trains' envelope) and keep it and the junction before it clear, patient while it is closed for a train; a driver held up honks (`Honk`), and backs up rather than turn round beside a line's track; a car beyond the player's reach (`inReach`) is skipped, its route and controls kept |
+| 22 | `TrafficAI` | `systems/traffic.ts` | AI drivers write their `CarInput`, braking for vehicles, people, animals and the cars of trains on their level (`onPathLevel`: the ground the driver's wheels come to rolling along its path to where each reaches into it, `rolledTo` in `map/ground.ts`, on one level with the other's there, `onOneLevel`), slower and keeping further back where the road is wet or snowy; at a level crossing (`rail/roads.ts`, reading `LevelCrossings` this step) they stop for a box not open (from the lowering on always, and short of the trains' envelope) and keep it and the junction before it clear, patient while it is closed for a train; a driver held up honks (`Honk`), and backs up rather than turn round beside a line's track; a car beyond the player's reach (`inReach`) is skipped, its route and controls kept |
 | 23 | `TrainAI` | `rail/service.ts` | AI train drivers write their lever (`CarInput`): line speed, braking curves to the next station's stop point, behind a train ahead on their track (any line's, on shared track; short of where one coming at them will stand) and short of a crossing whose arms are not down, standing where they are while one within their braking distance comes down; they dwell at stations while the game clock runs (`TrainRun`), drawing from `RailRng`, and whistle entering long tunnels (`Whistle`); a person, an animal or a vehicle on the track ahead on their level, a vehicle touching their body alongside, or another train against either end, holds them (`rail/lookout.ts`): the emergency brake and the urgent whistle, the horn, then a creep on; shoved while dwelling, they pull the emergency brake |
 | 24 | `Pedestrians` | `systems/pedestrians.ts` | people move as their mood says: walk their routes, keep by their leader, stop, gather, run; the down and the dead slide; out of their depth in the water they make for the bank, and the current takes the down and the dead |
 | 25 | `Animals` | `systems/animals.ts` | animals rest, wander (in the play area, never onto the track), keep by their walker and run from what scares them, a vehicle or a train only on their level, and this step's whistles too; free dogs bark; the down and the dead slide; out of their depth in the water they paddle for the bank; cries are `Cry` events |
 | 26 | `VehiclePhysics` | `systems/physics.ts` | every vehicle moves on its springs and tyres from its `CarInput` under the `Handling`, each tyre's grip lowered by the wet and the snow under it, buoyed and dragged by a river and its engine stalled under one; wall and ground hits are `Impact` events, sliding tyres `Skid` events; a vehicle beyond the player's reach (`inReach`) is skipped, before its sleep and its water are looked at |
 | 27 | `TrainPhysics` | `rail/systems.ts` | every train moves along its line from its lever: traction, brakes, running resistance, grade and curves, on rail the weather leaves wet or under snow (`TrainMotion`); the player's under SCMT to its buffer stops at the drawn run (`rail/collisions.ts`), any other to its run-outs' ends; trains on one track that meet go on at their common speed; a buffer struck is a `wall` `Impact`, a train struck a `train` one |
-| 28 | `Contacts` | `systems/contacts.ts` | car–car, car–person, car–animal, person and animal contacts on one level (`onLevel`: a vehicle's wheels' ground where they touch, a body's `Footing`), knockdowns and deaths (`Down`, `Dead`); car–car hits, knockdowns, kills, a cow struck and a car stopped against a wall by a pinned person or animal (faster than `KNOCK_SPEED`) are `Impact` events; a vehicle beyond the player's reach (`inReach`) touches nothing |
+| 28 | `Contacts` | `systems/contacts.ts` | car–car, car–person, car–animal, person and animal contacts on one level (`onOneLevel`: a vehicle's level read where they touch, a body's `Footing`), knockdowns and deaths (`Down`, `Dead`); car–car hits, knockdowns, kills, a cow struck and a car stopped against a wall by a pinned person or animal (faster than `KNOCK_SPEED`) are `Impact` events; a vehicle beyond the player's reach (`inReach`) touches nothing |
 | 29 | `TrainContacts` | `rail/strikes.ts` | trains strike what touches their cars on their level, shoved by nothing: vehicles shoved clear or dragged along their wall, wrecked faster than 14 m/s or dragged against a wall faster than 3 m/s (a `train` `Impact` as a contact begins, against `PrevPose` and `TrainMotion.prev`, and the wrecking blow); people and animals on their `Footing` pushed aside, or knocked down by the train's own speed into them and maybe killed by the train's death curve, the player too (`Impact` with the train as its `car`); a vehicle beyond the player's reach (`inReach`) is passed through |
 | 30 | `CrashDamage` | `systems/damage.ts` | this step's `Impact` events wear the vehicles they struck (`Damage`), a train's as a wall's; a traffic car destroyed is abandoned, its driver fleeing |
 | 31 | `RideAlong` | `systems/drive.ts` | the driving player takes the car's pose and motion, or the pose of a train's active cab and the train's motion |
@@ -223,10 +223,15 @@ motion; a `Train` has a
 `Motion`: a 55 m articulated body along a line is no point body, so no system that moves, touches
 or hears point bodies takes them in. The systems that meet trains (`TrafficAI`, `TrainAI`'s
 look-out, `Pedestrians` through `Perceive`, `Animals`, `TrainContacts`) take each car as a capsule
-moving with its train (`trainCars`, `rail/bodies.ts`), and only where the other body's ground
-stands within 2 m of the rail head (`LEVEL`); getting into a vehicle (`vehicleInReach`), what
-`TrafficAI` brakes for, what `Contacts` lets touch and the vehicles `Perceive` and `Animals` take
-in keep to that level too. Spawns put a vehicle on its springs at rest on the
+moving with its train (`trainCars`, `rail/bodies.ts`), and only on one level with the rail head.
+One rule says what is on one level (`onOneLevel`, `src/sim/one-level.ts`): two levels within 2 m
+(`ONE_LEVEL` in `map/kinds.ts`). A person's or an animal's level is its `Footing`, a train car's
+its rail head, a wall's its own; a road vehicle's is pitched (`pitched`: the ground under its
+middle, `wheelsAt`, and its pitch), read toward where it meets the other: along its pitch
+out to its bumpers, and past a bumper rolled on along its heading (`rolledTo`), never sideways.
+Getting into a vehicle (`vehicleInReach`), what `TrafficAI` brakes for, what `Contacts` and
+`TrainContacts` let touch, the walls a body meets (`meets`) and the vehicles `Perceive` and
+`Animals` take in all ask it. Spawns put a vehicle on its springs at rest on the
 ground (`settle` in `src/sim/chassis.ts`), in the gear for its speed, undamaged. No save is ever
 persisted, so the new and reshaped state (`Chassis`, `Damage`, `Dead`, the wider `Person` and
 `Pedestrian`, `Handling` with its `weatherGrip` knob, `GameClock`, `WeatherRng`, `Weather`,
@@ -400,8 +405,8 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   parapet stands at its deck's top, a wall under a deck at the ground's level there,
   [map.md](map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)), and the query answers every
   level: `wallsAlong` (`src/sim/body.ts`) keeps the walls a body meets standing at the level it is
-  given (`meets`: a wall with no level, or one within `LEVEL`, 2 m, of it), every wall when it is
-  given none. The physics, the contacts and the trains' strikes give a car's wheels
+  given (`meets`: a wall with no level, or one on one level with it, `onOneLevel`), every wall when
+  it is given none. The physics, the contacts and the trains' strikes give a car's wheels
   (`wheelsAt`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
   spot's settled wheels, a teleport's ground), and the baked lanes their road's surface where the
   edge passes nearest a parapet. Everyone on foot gives their `Footing` (`footingAt` before
@@ -2089,7 +2094,7 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   the prompt; the frame is not drawn meanwhile, so the HUD keeps its last text.
 - `boardingAt` (`src/sim/rail/boarding.ts`: the vehicle in reach by `vehicleInReach` in
   `src/sim/body.ts`, else the nearest train door in reach, each only on the level of the player's
-  `Footing`, within 2 m, `LEVEL`) answers both the HUD prompt and the `EnterExit` action, so the
+  `Footing`, `onOneLevel`) answers both the HUD prompt and the `EnterExit` action, so the
   prompt never offers something the key will not do; so does `boardable` for getting out of a
   train, which only slower than 1.5 m/s lets the player out. The touch controls' action button
   shows the prompt's verb (`actionFor` in `src/hud/hud.ts`).

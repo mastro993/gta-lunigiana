@@ -1,7 +1,7 @@
 // Every crossing of two ways on two levels on every built region (Lunigiana, Cesena and the L): a
 // road, path or rail bridge over a road, a path, steps or the rail, and a road, a path or the rail
 // over a tunnel. Within reach of the crossing the two stand more than the level rule's 2 m apart
-// (`onLevel`, src/sim/rail/bodies.ts), with a margin, so the rule tells what is on the deck from
+// (`onOneLevel`, src/sim/one-level.ts), with a margin, so the rule tells what is on the deck from
 // what runs under it: which car a person gets into (`vehicleInReach`), what a driver brakes for
 // (`TrafficAI`), what a vehicle hits and who steps apart from whom (`Contacts`), what people and
 // animals run from (`Perceive`, `Animals`), and what a train meets. The rule is code, so a new map
@@ -17,9 +17,9 @@ import { Ops } from "@typeonce/ritmo-math"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { regionFromArgs } from "../../../tools/region.ts"
 import { passesOver } from "../../../tools/road-levels.ts"
-import { LEVEL } from "../../rail/bodies.ts"
 import { ENTER_GAP } from "../../tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../../vehicles.ts"
+import { ONE_LEVEL } from "../kinds.ts"
 import { boxOf, crossings } from "./overpass-checks.ts"
 
 /**
@@ -37,7 +37,7 @@ const REACH = Math.max(
   ...VEHICLE_MODELS.map((m) => Ops.hypot(VEHICLES[m].length, VEHICLES[m].width) / 2),
 )
 /**
- * Past LEVEL, m: the spread of the surfaces over their profiles (a path's 0.06 m to a motorway's
+ * Past ONE_LEVEL, m: the spread of the surfaces over their profiles (a path's 0.06 m to a motorway's
  * 0.24, `ROAD_LIFT`), the profiles' 0.1 m rounding, and a wheel's ground under a truck rolled 25°
  * (its 1.7 m centre of mass × (1 − cos 25°), 0.16 m), 0.44 m in all.
  */
@@ -94,14 +94,14 @@ const gapsOver = (up: Way, down: Way) => {
   return out
 }
 
-/** A crossing whose ways stand LEVEL + MARGIN apart or less within REACH of it: the OSM ids of the way above and below, where, and the gap. */
+/** A crossing whose ways stand ONE_LEVEL + MARGIN apart or less within REACH of it: the OSM ids of the way above and below, where, and the gap. */
 interface Shortfall {
   readonly up: number
   readonly down: number
   readonly line: string
 }
 
-/** Every crossing on two levels in `map` whose ways stand LEVEL + MARGIN apart or less within REACH of it. */
+/** Every crossing on two levels in `map` whose ways stand ONE_LEVEL + MARGIN apart or less within REACH of it. */
 const shortfalls = (map: JoinedMap): Array<Shortfall> => {
   const ways: Array<Way> = [...map.roads, ...map.rail.map((r) => ({ ...r, cls: "rail" }))]
   const boxes = ways.map((w) => boxOf(w.pts))
@@ -113,7 +113,7 @@ const shortfalls = (map: JoinedMap): Array<Shortfall> => {
       const [bx0, by0, bx1, by1] = boxes[j]!
       if (ax0 > bx1 || bx0 > ax1 || ay0 > by1 || by0 > ay1) return
       for (const { x, y, gap } of gapsOver(up, down))
-        if (gap <= LEVEL + MARGIN)
+        if (gap <= ONE_LEVEL + MARGIN)
           out.push({
             up: up.id,
             down: down.id,
@@ -167,7 +167,7 @@ const REGIONS: ReadonlyArray<readonly [string, () => JoinedMap, string | false]>
 
 for (const [region, read, skip] of REGIONS)
   test(
-    `levels: on ${region}, every way over another stands more than ${LEVEL + MARGIN} m over it within ${REACH.toFixed(2)} m of where they cross`,
+    `levels: on ${region}, every way over another stands more than ${ONE_LEVEL + MARGIN} m over it within ${REACH.toFixed(2)} m of where they cross`,
     {
       skip,
     },

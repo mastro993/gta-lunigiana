@@ -116,10 +116,11 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   `src/sim/map/__tests__/levels.map-test.ts` reads every crossing of two ways on two levels with no
   node in common on Lunigiana, Cesena and the L (a road, path or rail bridge over a road, a path,
   steps or the rail; a road, a path or the rail over a tunnel; rail over rail left out), and fails
-  where the way above stands 2.5 m or less (the level rule's 2 m, `LEVEL`, and a 0.5 m margin) over
+  where the way above stands 2.5 m or less (the level rule's 2 m, `ONE_LEVEL`, and a 0.5 m margin)
+  over
   the one below between points of the two within 3.99 m of each other and of the crossing, but at
   the Cesena crossings it lists by OSM id, each of which must still fall short ([Checks and
-  tools](../map.md#checks-and-tools)). The level rule (`onLevel`) is code, so a failure on a new
+  tools](../map.md#checks-and-tools)). The level rule (`onOneLevel`) is code, so a failure on a new
   part is the data's (a deck too low over what it crosses, a footbridge or an underpass between its
   ends at the terrain's level) or the profiles' pass's: fix that for every crossing alike, never by
   listing a new part's crossing.
