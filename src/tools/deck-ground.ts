@@ -143,7 +143,7 @@ export const clearRun = (
   ]
 }
 
-/** The terrain at (x, y) as the game draws it: each 4 m cell of `g` (the whole grid) split along its south-west to north-east diagonal (`terrainZ` in src/sim/map/ground.ts). */
+/** The terrain at (x, y) as the game draws it: each 4 m cell of `g` (the whole grid) split along its south-west to north-east diagonal (`terrainZ` in src/sim/map/ground-model.ts). */
 export const meshZ = (g: Grid, x: number, y: number): number => {
   const [oi, oj] = anchorNode(g)
   const fx = (x - g.ax) / g.cell,

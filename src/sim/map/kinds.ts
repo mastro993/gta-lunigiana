@@ -115,12 +115,16 @@ const roadClasses: ReadonlySet<string> = new Set(ROAD_CLASSES)
 /** Whether `cls` is one of ROAD_CLASSES. */
 export const isRoadClass = (cls: string): cls is RoadClass => roadClasses.has(cls)
 
+/** The road's class; the build only emits `ROAD_CLASSES` (checked by map.map-test.ts), anything else reads as "path". */
+export const roadClassOf = (road: { readonly cls: string }): RoadClass =>
+  isRoadClass(road.cls) ? road.cls : "path"
+
 /**
  * How far each road class's surface floats above its profile (m); wider classes on top, so junctions
  * never z-fight. Primary, secondary and tertiary roads share one: they are the same asphalt. A step
  * of 0.04 m keeps a class's painted lines (0.02 m over it) under the next class's asphalt where a
- * slip road meets a trunk road or a motorway. Here, not in `./ground.ts`, so the map build reads it
- * without a map loaded (a bridge's deck tops it: `DECK_SLAB`).
+ * slip road meets a trunk road or a motorway. The ground model's (`./ground-model.ts`), read by the
+ * game and the map build alike (a bridge's deck tops it: `DECK_SLAB`).
  */
 export const ROAD_LIFT = {
   motorway: 0.24,
@@ -149,8 +153,8 @@ export const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
 
 /**
  * A bridge deck or tunnel within this height (m) of where an actor was is the one it is on
- * (`groundZ` in `./ground.ts`). Here so the map build reads it without a map loaded: the walls under
- * the decks stand farther than ONE_LEVEL and this under a deck's top (src/tools/deck-walls.ts).
+ * (`groundZ` in `./ground-model.ts`). The map build reads it too: the walls under the decks stand
+ * farther than ONE_LEVEL and this under a deck's top (src/tools/deck-walls.ts).
  */
 export const ON_DECK = 0.5
 
@@ -158,8 +162,7 @@ export const ON_DECK = 0.5
  * Two grounds this near in height (m) are one level. A body meets a train only where its ground
  * stands this near the rail head, and a wall with a level (a bridge's parapet) only where its ground
  * stands this near the wall's (`LEVEL` and `onLevel` in src/sim/rail/bodies.ts); a parapet opens
- * only where a road this near its deck reaches it (src/tools/parapets.ts). Here so the map build
- * reads it without a map loaded.
+ * only where a road this near its deck reaches it (src/tools/parapets.ts).
  */
 export const ONE_LEVEL = 2
 
@@ -209,13 +212,13 @@ export const isMotorRoad = (road: { readonly cls: string; readonly ramp?: boolea
 export const vergeOf = (cls: string, w: number): number =>
   cls === "path" || cls === "steps" || cls === "track" ? 0.3 : w / 2 + 0.8
 
-/** How far past its carriageway a road's surface reaches, m: where a wheel stands on it (`groundZ` in `./ground.ts`). */
+/** How far past its carriageway a road's surface reaches, m: where a wheel stands on it (`groundZ` in `./ground-model.ts`). */
 export const ROAD_PAD = 0.3
 
 /**
  * How far either side of a bridge's or tunnel's centreline someone on foot is on it, m: half a metre
  * past its walkers' verge (`vergeOf`, or the road's own `verge`), and at least ROAD_PAD past its
- * carriageway (`groundZ` in `./ground.ts`; the walls under the decks stand there, src/tools/deck-walls.ts).
+ * carriageway (`groundZ` in `./ground-model.ts`; the walls under the decks stand there, src/tools/deck-walls.ts).
  */
 export const footReach = (cls: string, w: number, verge?: number): number =>
   Math.max(w / 2 + ROAD_PAD, (verge ?? vergeOf(cls, w)) + 0.5)

@@ -1,7 +1,7 @@
 // The walls round the low space under the road bridges' decks (issue #87): where a deck's
 // underside, DECK_SLAB.depth under its top, stands lower over the ground than a person
 // (PERSON_HEIGHT: walk walls) or the tallest vehicle (drive walls), as an abutment would. A deck
-// within ON_DECK of a body's level takes its footing (`groundZ` in src/sim/map/ground.ts), so the
+// within ON_DECK of a body's level takes its footing (`groundZ` in src/sim/map/ground-model.ts), so the
 // ground rising toward a deck's underside led onto its top. Now someone under a bridge goes only
 // where there is headroom, and onto its deck only from its level: along the road at its ends.
 //
@@ -184,7 +184,7 @@ const wallsOf = (
     }
   })
   // A road's surface at (x, y) on it, its profile `z` there: ROAD_LIFT over the profile, and over
-  // the terrain where that stands higher on a road at grade (`roadZ` in src/sim/map/ground.ts).
+  // the terrain where that stands higher on a road at grade (`roadZ` in src/sim/map/ground-model.ts).
   const surfaceOn = (road: number, z: number, x: number, y: number) =>
     (isLifted(roads[road]!) ? z : Math.max(z, terrain(x, y))) + liftOf(roads[road]!)
   // Per deck, the roads passing under it (their surface, at each point of their line within its
