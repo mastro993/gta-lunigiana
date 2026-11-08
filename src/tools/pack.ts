@@ -64,7 +64,7 @@ const packWalls = (flat: ArrayLike<number>, corner: Corner, what: string): Buffe
 }
 
 /** Walls' levels (m a.s.l., NaN for none) as decimetres, `NO_LEVEL` for none: each must fit int16 above it, as the terrain does. */
-export const packLevels = (levels: ArrayLike<number>, what: string): Buffer =>
+const packLevels = (levels: ArrayLike<number>, what: string): Buffer =>
   pack(
     Array.from(levels, (v, k) => {
       if (Number.isNaN(v)) return NO_LEVEL

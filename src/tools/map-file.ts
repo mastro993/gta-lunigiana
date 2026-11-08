@@ -8,7 +8,6 @@ import { TILE, tileKey } from "../sim/map/kinds.ts"
 import {
   decodeMap,
   decodeTile,
-  decodeTileVectors,
   MAP_URL,
   MAP_VERSION,
   provideMap,
@@ -20,7 +19,7 @@ import {
   type TileVectors,
   type VectorLayer,
 } from "../sim/map/packed.ts"
-import { packLevels, packTables, relined } from "./pack.ts"
+import { packTables, relined } from "./pack.ts"
 import { mapDir, type Region } from "./region.ts"
 import { mergeTrees } from "./trees.ts"
 
@@ -53,16 +52,8 @@ export interface JoinedMap extends Omit<
   readonly cover: ArrayLike<number>
 }
 
-/**
- * The whole map back from the global map and its decoded tiles: what the tools and the map tests
- * read. `vectors` are the layers of a build before the vectors' cut, which its global file held
- * (`readWholeMap`); else they are joined from the tiles.
- */
-export const joinTiles = (
-  global: MonzoneMap,
-  tiles: ReadonlyArray<TileData>,
-  vectors?: Pick<JoinedMap, VectorLayer>,
-): JoinedMap => {
+/** The whole map back from the global map and its decoded tiles: what the tools and the map tests read. */
+export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): JoinedMap => {
   const { cell, cols, rows, x0, y0 } = global.heightmap
   const n = TILE / cell,
     cx = Math.round(x0 / cell),
@@ -111,7 +102,7 @@ export const joinTiles = (
   const { heightmap, vectors: _, derived: __, ...rest } = global
   return {
     ...rest,
-    ...(vectors ?? joinVectors(global, listed)),
+    ...joinVectors(global, listed),
     heightmap: { ...heightmap, data },
     walls: {
       ...global.walls,
@@ -155,14 +146,13 @@ const joinVectors = (
 }
 
 /**
- * A global file of a version before 6, which held the graph, the lanes and the residents on its
- * JSON line and gave its lines no run-outs, as one of today's: the tables move into sections after
- * its own, and each line runs on with none.
+ * A global file of version 5, which held the graph, the lanes and the residents on its JSON line and
+ * gave its lines no run-outs, as one of today's: the tables move into sections after its own, and
+ * each line runs on with none.
  */
 const sectioned = (file: Uint8Array, line: OldLine): Buffer => {
   const { graph, lanes, derived, railway } = line
-  // version 3 had no `derived`, so no residents
-  const tables = packTables(graph, lanes, derived?.residents ?? [])
+  const tables = packTables(graph, lanes, derived.residents)
   return Buffer.concat([
     relined(file, {
       version: MAP_VERSION,
@@ -175,40 +165,26 @@ const sectioned = (file: Uint8Array, line: OldLine): Buffer => {
   ])
 }
 
-/** The JSON line of a global file of version 3 to 5: what reading it as today's needs. */
-type OldLine = { readonly version?: unknown } & Pick<JoinedMap, VectorLayer | "graph" | "lanes"> & {
-    readonly derived?: MonzoneMap["derived"]
+/** The JSON line of a global file of version 5: what reading it as today's needs. */
+type OldLine = { readonly version?: unknown } & Pick<MonzoneMap, "graph" | "lanes" | "derived"> & {
     readonly railway: { readonly lines: ReadonlyArray<object> }
   }
 
 /** The map whose global file is at `url` (its tiles in the directory named after it beside it), whole. */
 export const readWholeMap = (url: URL): JoinedMap => {
   const file = readMapFile(url)
-  // A build before the vectors' cut (version 3, issue #63) holds them all in its global file and
-  // none in its tiles, one before the walls' levels (versions 3 and 4, issue #91) has no levels in
-  // its tiles, the last sections, and so reads as one whose every wall stands at every level, and
-  // one before version 6 holds the graph, the lanes and the residents on its global file's line and
-  // its lines have no run-outs: each reads as today's, so map-diff compares them with today's.
+  // A build of the format version before (5) holds the graph, the lanes and the residents on its
+  // global file's line and its lines have no run-outs: it reads as today's, so map-diff compares a
+  // build from before the format change with one of today (docs/standards/map.md).
   const line = JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as OldLine
-  const v3 = line.version === 3,
-    unlevelled = v3 || line.version === 4,
-    old = unlevelled || line.version === 5
-  const readTile = (f: Uint8Array) => {
-    if (!old) return f
-    const tile = relined(f, { version: MAP_VERSION })
-    if (!unlevelled) return tile
-    const { walls } = decodeTileVectors(tile),
-      none = (n: number) => packLevels(new Float64Array(n).fill(NaN), "no levels")
-    return Buffer.concat([tile, none(walls.walk), none(walls.drive)])
-  }
+  const old = line.version === 5
   const global = decodeMap(old ? sectioned(file, line) : file)
-  const { roads, buildings, water, areas, barriers } = line
   return joinTiles(
     global,
-    global.tiles.map(({ i, j }) =>
-      decodeTile(readTile(readMapFile(new URL(`${global.name}/${tileKey(i, j)}.bin`, url)))),
-    ),
-    v3 ? { roads, buildings, water, areas, barriers } : undefined,
+    global.tiles.map(({ i, j }) => {
+      const tile = readMapFile(new URL(`${global.name}/${tileKey(i, j)}.bin`, url))
+      return decodeTile(old ? relined(tile, { version: MAP_VERSION }) : tile)
+    }),
   )
 }
 

@@ -2839,7 +2839,7 @@ counter-clockwise, holes clockwise.
 
 | Field | Contents |
 |---|---|
-| `version` | `6` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the line into sections and gave the lines their run-outs). `readWholeMap` in `src/tools/map-file.ts` still reads a version-3 build, its vectors from its global file, a version-3 or 4 build's walls each at every level, and a version-3 to 5 build's graph, lanes and residents from its line, packed into today's sections (`packTables` in `src/tools/pack.ts`), its lines with no run-outs, so `pnpm map-diff` compares a build from before #63, #91 or version 6 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
+| `version` | `6` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the line into sections and gave the lines their run-outs). `readWholeMap` in `src/tools/map-file.ts` also reads the version before, and no older one (a format change writes the reader of the version it replaces and drops the one before it, [Map standards](standards/map.md)): a version-5 build's graph, lanes and residents from its line, packed into today's sections (`packTables` in `src/tools/pack.ts`), its lines with no run-outs, so `pnpm map-diff` compares a build from before version 6 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
 | `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
@@ -4151,9 +4151,8 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   (Lunigiana's walk and drive walls each hold 4 segments twice, 8 while the buildings two sources
   both map stood twice and 4 before Fosdinovo's part, and Cesena's 28 segments 2 to 4 times, 51
   extra copies; 2026-11-07). It compares two builds of the format version the decoders read, or a
-  build of version 3, 4 or 5 with one of today (3 from before #63, its vectors in its global file;
-  3 and 4 from before #91, their walls at every level; up to 5 the graph, the lanes and the
-  residents on the global file's line and the lines with no run-outs): the version-5 builds of
+  build of the version before (5: the graph, the lanes and the residents on the global file's line
+  and the lines with no run-outs) with one of today: the version-5 builds of
   Lunigiana, Cesena, the L, lucido alone and the 3x against the same code's version 6 gave no
   differences (2026-11-07), and it exits 0 for "no
   differences", 1 when they differ and 2 on bad arguments, an unknown category among them, or a file

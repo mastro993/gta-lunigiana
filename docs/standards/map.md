@@ -18,9 +18,10 @@ never compares a change's map with the map before it, so these runs are yours.
   one is no difference: a survey's ids encode its source and section (`survey-ids.ts`), so a change
   to that encoding shows as that line alone, which `--except buildings` accepts. A change to the
   file format (`MAP_VERSION` in `src/sim/map/packed.ts`) keeps `readWholeMap` (`map-file.ts`)
-  reading the version before, so `pnpm map-diff` still compares the build before with the new one:
-  today it reads versions 3 to 5 as one of 6, and version 6's move of the graph, the lanes and the
-  residents into sections diffed as no difference on Lunigiana, Cesena and the L.
+  reading the version before, so `pnpm map-diff` still compares the build before with the new one,
+  and drops the reader of the version before that: no build of it is left to compare. Today it
+  reads version 5 as one of 6, and version 6's move of the graph, the lanes and the residents into
+  sections diffed as no difference on Lunigiana, Cesena and the L.
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
   of the map live there, not in `pnpm test`, and so do the L test region's (`pnpm maps` builds it
   into `test-maps/`; without it they are skipped, but fail in CI, which builds it).
