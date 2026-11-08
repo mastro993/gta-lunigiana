@@ -1,13 +1,15 @@
 /**
  * The audio schedule: once per animation frame it projects what can be heard into plain `Heard`
- * data (the player's ears; vehicles someone drives, that move or that burn, on the tiles in memory
- * (farther ones stand frozen, out of earshot), with the drivetrain's revs and load from their worn
- * engines, their damage, whether they burn, whether their wheels or their body are down and how
- * their tyres skid; people on foot, with who they are, what they are
- * doing and who they walk with; the animals; every train, car by car, and the level crossings'
- * bells (./rail.ts); the Impact, Honk, Cry, Explosion, Lightning and Whistle events since the last
- * frame, each impact with the bodies it struck, those with trains rewritten as steel; the horn key;
- * the game clock's day, time and sun, and a copy of the weather) and hands it to the `Audio` service.
+ * data (the player's ears, on foot on the level of their `Footing`; vehicles someone drives, that
+ * move or that burn, on the tiles in memory (farther ones stand frozen, out of earshot), with the
+ * drivetrain's revs and load from their worn engines, their damage, whether they burn, whether
+ * their wheels or their body are down and how their tyres skid; people on foot, with who they are,
+ * what they are doing, who they walk with and the level of their `Footing` (under a bridge, the
+ * road, not the deck; `footingAt`, as render stands them); the animals, on theirs too; every
+ * train, car by car, and the level crossings' bells (./rail.ts); the Impact, Honk, Cry, Explosion,
+ * Lightning and Whistle events since the last frame, each impact with the bodies it struck, those
+ * with trains rewritten as steel; the horn key; the game clock's day, time and sun, and a copy of
+ * the weather) and hands it to the `Audio` service.
  * No acoustics here: the director behind the service decides what is loud enough and where it sits,
  * and works out the weather at the ears.
  * Read-only towards the world, like render (render/__tests__/index.test.ts checks every described schedule).
@@ -31,6 +33,7 @@ import {
   Driving,
   Explosion,
   Follows,
+  Footing,
   Game,
   GameClock,
   Honk,
@@ -44,6 +47,7 @@ import {
   Player,
   Pose,
   Roam,
+  Route,
   Skid,
   Time,
   Traffic,
@@ -57,6 +61,7 @@ import {
 import { groundZ } from "../sim/map/ground.ts"
 import { daysFromCivil, romeTime } from "../sim/sky/calendar.ts"
 import { sunOver } from "../sim/sky/day.ts"
+import { footingAt } from "../sim/systems/footing.ts"
 import { VEHICLES, type VehicleModel } from "../sim/vehicles.ts"
 import { followYaw, QUARTER } from "../sim/view.ts"
 import { exactAt, groundAt } from "./ground.ts"
@@ -133,6 +138,7 @@ const Hear = Game.System(
           pose: Game.Query.read(Pose),
           motion: Game.Query.read(Motion),
           driving: Game.Query.optional(Driving),
+          footing: Game.Query.optional(Footing),
         },
         with: [Player],
       }),
@@ -157,6 +163,8 @@ const Hear = Game.System(
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
           player: Game.Query.optional(Player),
+          footing: Game.Query.optional(Footing),
+          route: Game.Query.optional(Route),
         },
         without: [Driving],
       }),
@@ -168,6 +176,7 @@ const Hear = Game.System(
           roam: Game.Query.read(Roam),
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
+          footing: Game.Query.optional(Footing),
         },
       }),
       trains: Game.Query({
@@ -304,6 +313,7 @@ const Hear = Game.System(
         id: entity.id,
         x: at.x,
         y: at.y,
+        z: footingAt(data.footing.value(), at.x, at.y, data.route.value()),
         vx: v.vx,
         vy: v.vy,
         player: data.player.present,
@@ -326,6 +336,7 @@ const Hear = Game.System(
         species,
         x: at.x,
         y: at.y,
+        z: footingAt(data.footing.value(), at.x, at.y),
         vx: v.vx,
         vy: v.vy,
         size,
@@ -396,6 +407,7 @@ const Hear = Game.System(
       listener: {
         x: pose.x,
         y: pose.y,
+        z: footingAt(me.footing.value(), pose.x, pose.y),
         vx: motion.vx,
         vy: motion.vy,
         car,

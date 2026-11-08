@@ -12,7 +12,7 @@
 import { lineFor, lineSeconds } from "../speech/index.ts"
 import type { Situation } from "../speech/types.ts"
 import type { HeardPerson } from "../types.ts"
-import { type Frame, groundAt } from "./frame.ts"
+import type { Frame } from "./frame.ts"
 import { HEIGHT, speechLevel } from "./levels.ts"
 import { speakerOf } from "./people.ts"
 
@@ -146,7 +146,7 @@ export const makeTalk = () => {
         const speaker = speakerOf(p),
           line = lineFor(situation, random)
         if (voiced.has(c)) {
-          const at = { x: p.x, y: p.y, z: groundAt(p.x, p.y) + HEIGHT.person }
+          const at = { x: p.x, y: p.y, z: p.z + HEIGHT.person }
           frame.play(
             { kind: "talk", speaker, line },
             frame.path(`person:${p.id}`, at, speechLevel("talk", speaker)),

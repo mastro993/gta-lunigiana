@@ -98,6 +98,8 @@ export interface HeardPerson {
   readonly id: number
   readonly x: number
   readonly y: number
+  /** The ground they stand on, m a.s.l.: their sim `Footing` (under a bridge, the road, not the deck). */
+  readonly z: number
   readonly vx: number
   readonly vy: number
   readonly player: boolean
@@ -122,6 +124,8 @@ export interface HeardAnimal {
   readonly species: Species
   readonly x: number
   readonly y: number
+  /** The ground it stands on, m a.s.l.: its sim `Footing`. */
+  readonly z: number
   readonly vx: number
   readonly vy: number
   readonly size: number
@@ -217,6 +221,8 @@ export type Happening =
 interface HeardListener {
   readonly x: number
   readonly y: number
+  /** On foot, the ground the player stands on, m a.s.l.: their sim `Footing` (a bridge's deck, not the river under it). */
+  readonly z: number
   readonly vx: number
   readonly vy: number
   /** The vehicle or train the player sits in. */

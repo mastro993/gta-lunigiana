@@ -195,7 +195,7 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `Witness` | pedestrians | tag: saw a person killed or came on a body; its shock ends in the choice to gather or run |
 | `Down` | knocked-down and dead people and animals | step at which they get up; for the `Dead`, the step they died, and `Recover` never lifts them |
 | `Dead` | the killed: pedestrians and animals a vehicle struck, people and animals on foot a train struck, people on foot by a blast, the player in a wreck that blew up | step they died (`since`); always with `Down` |
-| `Footing` | the player, pedestrians and animals, once `FindFooting` has seen them | the ground it stands on, m a.s.l., kept on the level it was on: the railway's rules read it (`footingAt`, which takes `firstFooting` for one with none yet, on its `Route`'s level when given one), the render stands each figure on its level, and `PlayerView.z` gives the player's to the camera |
+| `Footing` | the player, pedestrians and animals, once `FindFooting` has seen them | the ground it stands on, m a.s.l., kept on the level it was on: the railway's rules read it (`footingAt`, which takes `firstFooting` for one with none yet, on its `Route`'s level when given one), the render stands each figure on its level, the audio voices each on it (the player's ears too), and `PlayerView.z` gives the player's to the camera |
 | `Animal` | animals | species (`dog`, `cat`, `cow`, `pig`), coat and patch colours, size × the species' usual (immutable) |
 | `InWater` | the player on foot, pedestrians, animals in a river, a stream or a lake | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
 | `Roam` | animals | mood (`idle`, `walk`, `flee`), the step it ends, home (hx, hy), and the point (tx, ty) it walks to or runs from |
@@ -2015,9 +2015,10 @@ with no frame over 16.8 ms, 19 programs and 72 draw calls (headless Chrome, seed
 The audio schedule (`src/audio/index.ts`) is host code beside render. Its one system,
 `Lunigiana/Hear`, reads the player, the vehicles that run, move or burn (with the revs and load the
 sim's drivetrain gives for their `Chassis`, speed, pedal and `Damage` at the `Time` step, and
-whether their wheels are down), the people on foot (who they are, their mood and who they walk
-with), the animals, every train car by car (its power packs' revs and load from `trainRevs`, its
-brakes, its cab and which cars stand in a tunnel), the `LevelCrossings` (whose bells ring, by
+whether their wheels are down), the people on foot (who they are, their mood, who they walk with
+and the level of their `Footing`, the player's the ears' on foot), the animals (on theirs too),
+every train car by car (its power packs' revs and load from `trainRevs`, its brakes, its cab and
+which cars stand in a tunnel), the `LevelCrossings` (whose bells ring, by
 `crossingAt`), the `Impact`, `Skid`, `Honk`, `Cry`, `Lightning`, `Explosion` and `Whistle` events (a
 hit with a train in it rewritten as bodies the director knows, `railImpact`), the horn key, the
 view's turns (the stereo image turns with the screen), the game clock (the Rome day, the time of day

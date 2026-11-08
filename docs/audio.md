@@ -98,9 +98,10 @@ Input (horn) ──────────────────────�
 2. **The audio schedule** (`src/audio/index.ts`): one system, `Lunigiana/Hear`, ticked once per
    animation frame. It reads the world and builds one `Heard` (`src/audio/types.ts`, its trains
    and crossings in `src/audio/rail-types.ts`):
-   - `listener`: the player's pose and velocity, the vehicle they sit in, and the view's yaw, which
-     the stereo image turns with: the `View` resource's quarter turns on foot, the yaw that puts the
-     car's heading up the screen (`followYaw`) driving;
+   - `listener`: the player's pose and velocity, the ground they stand on (`z`, m a.s.l.: their
+     `Footing` through `footingAt`, so under a bridge the road, not the deck), the vehicle they sit
+     in, and the view's yaw, which the stereo image turns with: the `View` resource's quarter turns
+     on foot, the yaw that puts the car's heading up the screen (`followYaw`) driving;
    - `vehicles`: every vehicle that runs (AI traffic, or the player's car, unless destroyed), moves
      (faster than 0.01 m/s, spinning, or its body rising, falling, pitching or rolling faster than
      0.01 m/s or rad/s, so a car rolling over on the spot is heard) or burns (destroyed, its
@@ -120,12 +121,14 @@ Input (horn) ──────────────────────�
      `Skid` events since the last frame, the most any wheel went past its grip, the fastest any
      slid, and the surface under the one furthest past;
    - `people`: everyone on foot (pedestrians, and the player when not driving), living or dead:
+     the ground they stand on (`z`: their `Footing`, or the first footing `FindFooting` will give
+     one that appeared this step, on its `Route`'s level: `footingAt`, as the render stands them),
      age group and sex (the voice), the mood and the point (fx, fy) it is about (the player walks,
      about their own position), knocked down, dead, and `with`, the person they walk with: a
      follower's leader, and for a leader its first follower who is a person (a dog on a lead is no
      partner);
-   - `animals`: every animal: species, position, velocity, size, its `Roam` mood, knocked down,
-     dead;
+   - `animals`: every animal: species, position, the ground it stands on (`z`, its `Footing` as
+     for people), velocity, size, its `Roam` mood, knocked down, dead;
    - `trains` (`src/audio/rail.ts`): every train, running or standing (its engines idle): its line,
      its active cab's nose `s`, its speed toward +s and the way that cab faces, its cars from that
      cab back (`carsOf` at its `s`: each car's middle on the track with the rail head's z, its
@@ -169,10 +172,11 @@ Input (horn) ──────────────────────�
    events are not lost.
 3. **The director** (`src/audio/director`) is the `Audio` service: plain TypeScript, tested in
    Node. Each frame (`index.ts`) it:
-   - places the ears 1.6 m above the ground under the listener (a bridge deck, not the river under
-     it), in a car 1.6 m above the level it stands on (`Chassis.z` − `cg`, so they fly with it),
-     or in a train's cab 1.6 m above its floor, 1.2 m over the rail head at the driver's place (on
-     a rail deck 20 m over a valley too, `seatOf`), and notes the cabin around them;
+   - places the ears on foot 1.6 m above the ground the sim has the player on (`listener.z`: a
+     bridge deck, not the river under it; under the deck, the road), in a car 1.6 m above the
+     level it stands on (`Chassis.z` − `cg`, so they fly with it), or in a train's cab 1.6 m above
+     its floor, 1.2 m over the rail head at the driver's place (on a rail deck 20 m over a valley
+     too, `seatOf`), and notes the cabin around them;
    - works out the weather at the ears with the sim's own `conditionsAt` (at the ground under
      them): the air's temperature, the rain and snow falling (mm/h), the ground's wetness and snow
      cover, the fog ([Day, night and weather](#day-night-and-weather));
@@ -301,8 +305,10 @@ summed and converted once:
 Distances are three-dimensional. The ears are 1.6 m above the ground; sources stand at their own
 height above theirs: a vehicle's voices at its centre of mass (`Chassis.z`: at rest the Panda's
 0.56 m up, the truck's 1.7 m, and in the air wherever it flies), a vehicle's one-shots 0.8 m over
-the contact point (a blast at the wreck's centre of mass), a person 1 m (the thud of anyone hit,
-an animal too), an animal's mouth (`MOUTH`: a dog 0.5 m, a cat 0.25, a cow 1.3, a pig 0.5), water
+the contact point (a blast at the wreck's centre of mass), a person 1 m over their `Footing` (the
+thud of anyone hit over the body's, an animal too), an animal's mouth over its `Footing` (`MOUTH`:
+a dog 0.5 m, a cat 0.25, a cow 1.3, a pig 0.5), so under a bridge they are heard on the road and on
+it on the deck, water
 2 m (lifted out of its carved bed), a bell at its tower's top, a bird 6–12 m up a tree, an owl 8 m,
 a farm dog 0.5 m, a thunder where its render starts over the ground under the flash (an in-cloud
 flash's channel about 4 km up, `IN_CLOUD`). A train's sources stand over its rail head, on a rail
@@ -427,8 +433,8 @@ only the tiles hold (buildings, rivers), and never reads a tile that is not in m
 - **What goes through it**: occlusion's terrain samples every 7 m, the mean path height at both ends
   (ISO 9613-2), `forestAlong`'s 8 m samples, the director's `groundAt` (re-exported by
   `director/frame.ts`: the ground under a lightning strike, under a ringing level crossing's bell and
-  under every part's sources), a whistle's height off every line (`src/audio/index.ts`) and a
-  fountain's (`waterNear`).
+  under the vehicles' sounds; people and animals stand on their `Footing`), a whistle's height off
+  every line (`src/audio/index.ts`) and a fountain's (`waterNear`).
 - **What only the tiles in memory give**: occlusion's buildings (`buildingsInMemory`: past the
   tiles in memory a path meets only the coarse terrain), the buildings `dogsNear` finds its dogs at
   (the same reader, sorted by index into the whole map's order) and the rivers and streams
@@ -1674,7 +1680,7 @@ it. They never hold the whole map: `places.map-test.ts` and `places/__tests__/wa
 | File | Checks |
 |---|---|
 | `src/sim/__tests__/index.test.ts`, `src/sim/__tests__/walls.test.ts`, `src/sim/__tests__/sky.test.ts`, `src/sim/__tests__/people.test.ts`, `src/sim/__tests__/reactions.test.ts` and `reactions.long-test.ts` (the quiet Gragnola), `src/sim/__tests__/animals.test.ts` | the events: a car driven into a building is a `wall` Impact as fast as the car was, where its nose meets the wall; rolled into it 45° and 60° off square, on the wall itself (within 5 cm) at its front end; a car rolling into a parked one a `car` Impact at the closing speed, the reduced mass and where the bumpers meet; a knockdown or a killing one `person` Impact faster than `KNOCK_SPEED`, `fatal` when it killed; a car pinning the player a `person` Impact as fast as the car was; a car blocked by a parked one honks once per stuck episode, `HONK_STEPS` before each time it backs up; the cries: a car speeding past walkers draws angry ones from about half of them, a car aimed fast at a walker a fright, a death 12–25 m away a shock from each witness, a quiet Gragnola under 1 fright and 2 anger a minute; a free dog barks at the player at most every few seconds, and a cat by a dog a car strikes is scared in that step; a forced thunderstorm throws `Lightning`, its bolts on the map, even with the clock stopped, the same in the same game |
-| `src/audio/__tests__/index.test.ts` | `Hear`: the listener on foot and at the wheel with the horn held, AI traffic running while standing, an untouched car heard only while it moves, rolls, pitches or bounces, a destroyed car dead (not running, no revs) with the player at its wheel and burning, heard however still it lies, a wreck burning until it blows up and its `Explosion` passed on once (its wreck, at its centre of mass), the charred shell heard only while it leaps and a still one not at all, a worn engine's misfires in the sim's windows for its seed with its load still the pedal's, impacts (with the struck vehicle's model and zone, the mass in tonnes as the sim gave it; none for a vehicle gone since) then honks each heard once, who each person is and what they do (age, sex, mood and its point, down, dead), who walks with whom (`with` both ways for a mother and child, not the dog on a lead), the animals, and the cries since the last frame, each heard once, a ground hit's zone from its face, the revs and load `engineRevs` gives for the vehicle's chassis, speed and pedal, each vehicle's skids since the last frame (the most past grip, the fastest, the surface of the wheel furthest past), wheels down on the springs and not in the air, on a side or on the roof, the body down on the ground sliding on its roof or side and not on its wheels or in the air, an Ape rolling into a parked Panda front on rear, an Ape T-boning a parked Panda's front door on its side, a Panda rolling 50° off square into a house wall on its front; the game clock's day, time and sun, a copy of the weather, and each `Lightning` since the last frame, once |
+| `src/audio/__tests__/index.test.ts` | `Hear`: the listener on foot and at the wheel with the horn held, AI traffic running while standing, an untouched car heard only while it moves, rolls, pitches or bounces, a destroyed car dead (not running, no revs) with the player at its wheel and burning, heard however still it lies, a wreck burning until it blows up and its `Explosion` passed on once (its wreck, at its centre of mass), the charred shell heard only while it leaps and a still one not at all, a worn engine's misfires in the sim's windows for its seed with its load still the pedal's, impacts (with the struck vehicle's model and zone, the mass in tonnes as the sim gave it; none for a vehicle gone since) then honks each heard once, who each person is and what they do (age, sex, mood and its point, down, dead), who walks with whom (`with` both ways for a mother and child, not the dog on a lead), the animals, and the cries since the last frame, each heard once, under the SR445's viaduct west of Gragnola the listener, the player, a passer-by and a cat on the road on their first footing and then on the deck on a `Footing` set there, a passer-by on the deck on it, a ground hit's zone from its face, the revs and load `engineRevs` gives for the vehicle's chassis, speed and pedal, each vehicle's skids since the last frame (the most past grip, the fastest, the surface of the wheel furthest past), wheels down on the springs and not in the air, on a side or on the roof, the body down on the ground sliding on its roof or side and not on its wheels or in the air, an Ape rolling into a parked Panda front on rear, an Ape T-boning a parked Panda's front door on its side, a Panda rolling 50° off square into a house wall on its front; the game clock's day, time and sun, a copy of the weather, and each `Lightning` since the last frame, once |
 | `src/render/__tests__/index.test.ts` | every system of the render and audio schedules declares no writes |
 | `src/audio/__tests__/acoustics.test.ts` | the laws: the line source against the exact table, the air cutoffs, Doppler, the pan, diffraction, ground, foliage, masking, the mix calibration |
 | `src/audio/__tests__/occlusion.test.ts` | path differences on real map spots: a flat meadow, Monzone Alto's 30 m tower, a bell over its own walls, Monte San Giorgio between its flanks |
@@ -1685,6 +1691,7 @@ it. They never hold the whole map: `places.map-test.ts` and `places/__tests__/wa
 | `src/audio/__tests__/places.map-test.ts` (`pnpm test:map`, every tile in memory) | ambience shares within 1 all over the map; the whole map's dogs and owls stable, the near ones those of the whole map in its order |
 | `src/audio/places/__tests__/water.map-test.ts` (`pnpm test:map`, every tile in memory) | the reaches over 1,500 boxes up to 800 m across, half of them within 80 m of a seam, are those one 32 m grid over every reach of the whole map's water gives: the same, in the same order, each once, with their geometry; the rivers' lattice corner is that grid's origin |
 | `src/audio/director/__tests__/index.test.ts` (its kit, the map spots, `rig` and `world`, in `director/testing.ts`) | the director on a recording speaker at real map spots: proximity (in the open and behind a ridge), a building's muffling, Doppler, step cadence, travel delay, crash merging and scrapes, a house wall's material and cobbles in the crash and scrape params, a car crash's bodies the same from either car, a zone's wear carried to the next crash, a wall crash's debris surface read under the car, a scrape's material held through a brief other contact, a wall crash on foot muffled by the house in the way, a bump culled nearer than a crash, the engine's revs, load, variant, damage and misfires passed on, engines ranked by their load, the tyres on the sim's skids (a standing burnout, the skid held over a frame with no step, silent in the air), a vehicle heard where its body is, a hard landing against the ground's material and not the nearest wall's and a body down on it grinding it (no hit needed), under a bridge the tyres and a landing on the riverbed's own surface and not the deck's, the own siren as loud in the air as on the ground (the ears ride in the car), cresting a hump as one clunk and a hard landing as a crash, echoes off a rock face and hidden in a street, the reverb dry in the open and wet in a walled street, nothing before the context, the cabin (the own crash open and at its cap, its tail and echoes through it, against a like crash outside: the same wall and ground), getting in and out, horn and siren, the bells on the game clock's hours (once a game day, not on the half hour, nor 22:00–06:00), water and its masking, the valley's never-silent bed and the river 15 m away against behind the houses, voice caps and their hysteresis |
+| `src/audio/director/__tests__/bridges.test.ts` (the SR445's viaduct west of Gragnola, `src/sim/__tests__/viaduct.ts`) | on foot on the road under the deck, a kid's steps, scream and thud and a dog's bark from the road 3.5–2.1 m off heard 7.7–14.1 dB louder than the same from the deck 6.1 m over it: the listener and the voices on their own level, not the deck's |
 | `src/audio/director/__tests__/wrecks.test.ts` | fires and blasts on the director's rig (`director/testing.ts`): a burning car's fire held with its engine, horn and siren dead (an intact one never burning, the own one through its cabin), at most two fires, the nearest; a wreck's blast played once at once from its centre of mass, 5.4 dB over a crash from the same point, its debris on the ground under it, and its fire out; the listener thrown out by their own car's blast hearing it and no door; a blast 300 m away after its travel time, one under a rock face echoing later and fainter, one 5 m away at its cap |
 | `src/audio/director/__tests__/voices.test.ts` (on the shared rig of `director/testing.ts`) | conversations: a greeting each, alternating lines 0.2–0.9 s apart and a goodbye each as the pair walks on; a chat under way before the sound starts opening with both greetings once it does; none when something breaks it off; couples in a lull taking no voice from a chat nearby, and talking now and then as they walk; cries: a child screams in fright, a grown-up screams or yells, in their own voice, one cue every few seconds; shock, anger and surprise yell a line, the dead are silent; the thief line within 15 m, not at 40; gatherers' lines, fitting a man, a woman or a child, and grief, "Mamma!" or "Nonna!" by one of their own, nothing by an empty spot; pity, not an ambulance, for an animal; a crowd's cries a few a frame, the nearest first, every one said; a fatal hit with no groan; animals calling on their own (none while fleeing), each species' cry, at most two calls a frame, a struck animal's pain and a killed one's silence |
 | `src/audio/synth/__tests__/animals.test.ts` | every call at its nominal 0.5 (a plain meow `MEOW_QUIET` under its yowl), finite, starting and ending silent; a moo 1–2 s at 100–160 Hz and lower for a bigger cow; a meow at 500–800 Hz, a grunt low and short, a squeal high and long; a hiss between 2 and 8 kHz, a dog's two to four high yelps; each call the same per seed, and an echo replaying its render |
