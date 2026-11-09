@@ -2,8 +2,9 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { builtMapUrl, loadBuiltMap, readWholeMap } from "../../tools/map-file.ts"
+import { builtMapUrl, readWholeMap } from "../../tools/map-file.ts"
 import { regionFromArgs } from "../../tools/region.ts"
+import { useDiskMap } from "../map/source.ts"
 
 // Map check (pnpm test:map) on every road bridge of the L test region (issue #87), which `pnpm maps` builds into test-maps/:
 // this process loads it before anything decodes the map. Without the build it is skipped, but in CI, which builds it, a
@@ -15,7 +16,7 @@ const skip = existsSync(URL_L)
   : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
 // GitHub Actions sets CI=true.
 if (skip !== false && process.env.CI === "true") throw new Error(skip)
-if (skip === false) await loadBuiltMap(REGION)
+if (skip === false) useDiskMap(builtMapUrl(REGION))
 const checks = skip === false ? await import("./under-decks.ts") : undefined
 
 test(

@@ -7,17 +7,15 @@
  */
 import { MAP, wallsNear } from "../index.ts"
 import { TILE, tileKey } from "../kinds.ts"
-import { readMapFile, tileUrl } from "../packed.ts"
-import { dropTile, setTileSource } from "../tiles.ts"
+import { setTileSource, tileFromDisk } from "../source.ts"
+import { dropTile } from "../tiles.ts"
 
-/** Tile `key` of the built map, read from disk. */
-export const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
 
 /** Every tile out of memory, then the source back. */
 export const emptied = () => {
   for (const key of KEYS) dropTile(key)
-  setTileSource(fromDisk)
+  setTileSource(tileFromDisk)
 }
 
 /** Walls near (x, y) as text, in answer order. */

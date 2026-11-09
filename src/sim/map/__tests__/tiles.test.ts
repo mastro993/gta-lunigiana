@@ -5,16 +5,9 @@ import { coverAt } from "../cover.ts"
 import { decodeTile } from "../format/tile-file.ts"
 import { terrainZ } from "../ground.ts"
 import { heightAt, MAP, wallsNear } from "../index.ts"
-import {
-  cellCorners,
-  dropTile,
-  isResident,
-  nodeAt,
-  provideTile,
-  setTileSource,
-  tilesOver,
-} from "../tiles.ts"
-import { emptied, fromDisk, outlineOnSeam, wallsAt } from "./tile-kit.ts"
+import { setTileSource, tileFromDisk } from "../source.ts"
+import { cellCorners, dropTile, isResident, nodeAt, provideTile, tilesOver } from "../tiles.ts"
+import { emptied, outlineOnSeam, wallsAt } from "./tile-kit.ts"
 
 // The checks over every tile and the whole map joined live in tiles.map-test.ts (pnpm test:map), and
 // the order check in tiles.long-test.ts (pnpm test:long); these read only the tiles round a few spots.
@@ -24,7 +17,7 @@ test("wallsNear finds every wall whose box overlaps the query, from whichever ti
     decoded = new Map<string, ReturnType<typeof decodeTile>>()
   const tile = (key: string) => {
     let data = decoded.get(key)
-    if (data === undefined) decoded.set(key, (data = decodeTile(fromDisk(key))))
+    if (data === undefined) decoded.set(key, (data = decodeTile(tileFromDisk(key))))
     return data
   }
   for (const [x, y] of [[0, 30], [-25, 0], [2000, 1500], outlineOnSeam(), [4900, 2000]] as const)
@@ -71,14 +64,14 @@ test("a lookup in a tile that is not in memory throws, naming it; with the tile 
       "0_0",
     ])
     assert.throws(() => wallsNear("walk", 5, 100, 10, 110), /map tile -1_0 not loaded/)
-    provideTile(fromDisk("-1_0"))
+    provideTile(tileFromDisk("-1_0"))
     assert.equal(heightAt(-412, 438), station)
     assert.throws(
       () => provideTile(Buffer.from(`${JSON.stringify({ version: 2 })}\n`)),
       /version 2/,
     )
   } finally {
-    setTileSource(fromDisk)
+    setTileSource(tileFromDisk)
   }
 })
 

@@ -107,8 +107,8 @@ overview, gitignored; the game never loads them and nothing ships them. Each rea
 inputs on its origin and tree anchor (a tree stands where it does on the shipped map, with the same
 id), its OSM every Lunigiana part's extract (`osmFiles`), and `fetch-osm` refuses its part
 (`partToFetch`: no build would read the file) but one with buildings of its own, whose own part's
-extract (`osmFile`) is what it reads. `loadBuiltMap` in `src/tools/map-file.ts` hands one to the sim
-in a process of its own;
+extract (`osmFile`) is what it reads. `useDiskMap(builtMapUrl(region))` (`src/sim/map/source.ts`,
+`src/tools/map-file.ts`) hands one to the sim in a process of its own;
 `preview-map.ts` draws one with `--region <key>`.
 
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
@@ -2825,13 +2825,18 @@ On lucido alone they are 0.31 MB (1.50 MB gunzipped; 0.55 MB and 1.9 MB before f
 30 tiles of 9.5 MB in all (the largest 0.59 MB) and 3.25 MB (3195 × 4096 px). With the vectors in
 the global file, before #63, lucido's was 1.89 MB (6.26 MB gunzipped) and its tiles 5.70 MB, the
 largest 0.31 MB. Each `.bin` file is gzip (level 9)
-of one JSON line, a newline, then packed sections. The game never fetches: the browser host
-downloads the global file, gunzips it and hands the bytes to `provideMap` (`src/sim/map/packed.ts`)
-before anything imports the map module, then hands each tile to `provideTile`
-(`src/sim/map/tiles.ts`) as the player moves ([architecture.md](architecture.md), "Tile streaming");
-the full map downloads the overview itself the first time it opens. Node (the tests, the tools,
-`ritmo-devtools lint`) reads the global file from disk, and a lookup in a tile not in memory reads
-that tile from disk. The single 6.7 MB `monzone.bin` the tiles replaced held every layer at once
+of one JSON line, a newline, then packed sections. A run gets its map files from the map source
+(`src/sim/map/source.ts`), which decodes nothing: the global file once, before the map is decoded
+(handing one over after that throws: one map per process, [ADR
+0002](adr/0002-one-map-per-process.md)), and any listed tile a lookup needs that is not in memory
+(`setTileSource`). The game never fetches: the browser host downloads the global file, gunzips it
+and hands the bytes to `provideMap` before anything imports the map module, then hands each tile to
+`provideTile` (`src/sim/map/tiles.ts`) as the player moves ([architecture.md](architecture.md),
+"Tile streaming"); the full map downloads the overview itself the first time it opens. Node (the
+tests, the tools, `ritmo-devtools lint`) reads Lunigiana's global file from disk, or another built
+map's (`useDiskMap`; a test picks Cesena by importing `src/sim/map/__tests__/use-cesena.ts` on its
+first line), and a lookup in a tile not in memory reads that tile from disk beside it
+(`tileFromDisk`). The single 6.7 MB `monzone.bin` the tiles replaced held every layer at once
 (28.4 MB gunzipped).
 
 The build hash (`hash`, 16 hex digits of SHA-256 over every `.bin` file unstamped) is in the

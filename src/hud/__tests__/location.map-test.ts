@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { MAP, TILE } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
+import { tileFromDisk } from "../../sim/map/source.ts"
 import { isResident, provideTile } from "../../sim/map/tiles.ts"
 import { wholeMap } from "../../tools/map-file.ts"
 import { locationAt } from "../location.ts"
@@ -14,7 +14,7 @@ test("the road named is the old answer over the whole map's roads: by every road
   const whole = wholeMap()
   const old = roadOracle(whole.roads)
   for (const { i, j } of MAP.tiles)
-    if (!isResident(`${i}_${j}`)) provideTile(readMapFile(tileUrl(MAP.name, `${i}_${j}`)))
+    if (!isResident(`${i}_${j}`)) provideTile(tileFromDisk(`${i}_${j}`))
   const { minX, minY, maxX, maxY } = MAP.bounds
   const points: Array<readonly [number, number]> = []
   // by every fourth vertex of every road, on it and a few metres off it

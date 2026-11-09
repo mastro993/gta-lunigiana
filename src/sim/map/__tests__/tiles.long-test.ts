@@ -3,8 +3,9 @@ import { test } from "node:test"
 
 import { wallsNear } from "../index.ts"
 import { TILE } from "../kinds.ts"
+import { tileFromDisk } from "../source.ts"
 import { provideTile, residentTiles, tilesOver } from "../tiles.ts"
-import { emptied, fromDisk, outlineOnSeam, wallsAt } from "./tile-kit.ts"
+import { emptied, outlineOnSeam, wallsAt } from "./tile-kit.ts"
 
 // Reads the tiles round four spots twice over, in two orders: about 0.5 s alone, past pnpm test's
 // 0.4 s line, and more as the parts round the outline's box grow.
@@ -31,7 +32,7 @@ test("wallsNear gives the same answer, in the same order, whatever is in memory 
   ]
   for (const order of [around, [...around].reverse()]) {
     emptied()
-    for (const key of order) provideTile(fromDisk(key))
+    for (const key of order) provideTile(tileFromDisk(key))
     assert.deepEqual(answer(), lazy)
   }
   assert.ok(touched.length >= 5, touched.join(" "))

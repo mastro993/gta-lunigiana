@@ -4,8 +4,8 @@ import { test } from "node:test"
 import { Group, InstancedMesh, Vector3, type Mesh } from "three"
 
 import { MAP } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
-import { dropTile, provideTile, setTileSource } from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, provideTile } from "../../sim/map/tiles.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { QUARTER } from "../../sim/view.ts"
 import { chunkTiles } from "../chunk-tiles.ts"
@@ -85,7 +85,7 @@ test("world streaming: making the world and the crossings' nodes reads no map ti
     )
     assert.ok(crossings.boxes.every((box) => box === undefined || !box.placed))
   } finally {
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    setTileSource(tileFromDisk)
   }
 })
 
@@ -333,8 +333,8 @@ test("world streaming: a chunk builds only once every tile its build reads is in
     assert.ok(partial.length > 0, "the chunks that read only the tiles in build")
     assert.ok(partial.length < every.length, "the ones that read the tile out do not")
     // In again: the rest build, and the world is the one a host with every tile in streams.
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
-    provideTile(readMapFile(tileUrl(MAP.name, out)))
+    setTileSource(tileFromDisk)
+    provideTile(tileFromDisk(out))
     world.tileProvided(out)
     world.update(focus, 0, REACH, Infinity)
     assert.deepEqual(
@@ -349,7 +349,7 @@ test("world streaming: a chunk builds only once every tile its build reads is in
       partial.toSorted((a, b) => a - b),
     )
   } finally {
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    setTileSource(tileFromDisk)
   }
 })
 

@@ -3,7 +3,7 @@
 // (`wholeMap` in src/tools/map-file.ts).
 
 import type { Layer, TileVectors } from "../format/tile-file.ts"
-import { MAP, type Road, type Water } from "../index.ts"
+import { type Road, wholeRoad, type Water } from "../index.ts"
 import { tilesOver, tileVectors } from "../tiles.ts"
 
 /** Layer `of` of the tiles over the box [x ± r, y ± r]: each feature once, with its index, by index. */
@@ -27,7 +27,7 @@ export const roadsNear = (
   y: number,
   r: number,
 ): Array<Road & { readonly index: number }> =>
-  near(x, y, r, (v) => v.roads).map(([index, line]) => ({ ...MAP.roads[index]!, ...line, index }))
+  near(x, y, r, (v) => v.roads).map(([index, line]) => ({ ...wholeRoad(index, line), index }))
 
 /** Every river and stream of the tiles over the box [x ± r, y ± r], in the whole map's order. */
 export const waterNear = (x: number, y: number, r: number): Array<Water> =>

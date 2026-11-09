@@ -541,15 +541,17 @@ the map's global file and the tiles round the start, builds in named steps, and 
 once the first frame is drawn.
 
 1. `index.html` is static, so the card shows before any script runs. Its entry, `src/boot.ts`,
-   imports the card (`src/hud/title.ts`), map selection (`src/maps.ts`), the map file's handover
-   (`src/sim/map/packed.ts`) and the download helpers (`src/stream.ts`, which imports no sim
-   module), keeping simulation setup out of the entry module.
+   imports the card (`src/hud/title.ts`), map selection (`src/maps.ts`), the map source
+   (`src/sim/map/source.ts`, where a run gets its map files, which decodes nothing) and the
+   download helpers (`src/stream.ts`, which imports no sim module), keeping simulation setup out of
+   the entry module.
 2. `boot.ts` validates `?map=` and fetches the selected global file, a hashed asset: `monzone.bin`
    by default, or `cesena.bin` for `?map=cesena` ("Downloading map"). It counts the bytes against
    `Content-Length` (the bar's first 22%, with "x / y MB"), gunzips with `DecompressionStream`
-   while the file arrives, then hands the bytes to `provideMap`. The files are named `.bin`, not
-   `.gz`: Vite's server would label a `.gz` as `Content-Encoding: gzip`, and the browser would then
-   gunzip it first.
+   while the file arrives, then hands the bytes to `provideMap`, which throws once the map is
+   decoded (one map per process, [ADR 0002](adr/0002-one-map-per-process.md)). The files are
+   named `.bin`, not `.gz`: Vite's server would label a `.gz` as `Content-Encoding: gzip`, and the
+   browser would then gunzip it first.
 3. It imports the game in parts, with a paint between them, because each import evaluates only the
    modules the earlier ones left. "Decoding map" imports `src/sim/map/index.ts` (the global file
    decoded: its JSON line parsed, then its packed sections, [Where state lives](#where-state-lives))
@@ -2178,7 +2180,8 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   whichever is wider), each clipped to its own square on whole device pixels so no seam shows the
   overview through. A tile in memory lends its vectors (`residentTile`); any other is downloaded
   (`tileUrl`, the stream's own files, which the browser caches) and only its JSON line read
-  (`decodeTileVectors`), the vectors kept while the map is open (past 16, `KEPT`, those off the
+  (`tileFileVectors` in `src/sim/map/tiles.ts`, which refuses a tile from another build as
+  `provideTile` does), the vectors kept while the map is open (past 16, `KEPT`, those off the
   frame go first) and let go when it closes. The detail is painted once for the frame as it stands
   and again 120 ms (`SETTLE`) after the map last moved or a tile came; in between, it is drawn
   moved and scaled with the gesture over the overview. Zoomed onto Fivizzano at 1280 × 720 in

@@ -4,14 +4,9 @@ import { test } from "node:test"
 import { MAP, type Water } from "../../../sim/map/index.ts"
 import { tileKey, WATER_VERTICES } from "../../../sim/map/kinds.ts"
 import { cellBox } from "../../../sim/map/lattice.ts"
-import {
-  dropTile,
-  provideTile,
-  setTileSource,
-  tilesOver,
-  tileVectors,
-} from "../../../sim/map/tiles.ts"
-import { fromDisk, HELD, residentAround } from "../../testing.ts"
+import { setTileSource, tileFromDisk } from "../../../sim/map/source.ts"
+import { dropTile, provideTile, tilesOver, tileVectors } from "../../../sim/map/tiles.ts"
+import { HELD, residentAround } from "../../testing.ts"
 import { reachesIn, waterNear } from "../water.ts"
 
 // The checks over the whole map live in water.map-test.ts (pnpm test:map); these hold the tiles round Monzone station,
@@ -107,7 +102,7 @@ test("the water heard across a seam is the same whichever tiles are in memory an
   try {
     for (const order of [under, [...under].reverse()]) {
       for (const key of keys) dropTile(key)
-      for (const key of order) provideTile(fromDisk(key))
+      for (const key of order) provideTile(tileFromDisk(key))
       assert.deepEqual(waterNear(x, y, 400), want)
     }
     // With no tile source, reading a missing tile would throw "map tile i_j not loaded".
@@ -118,7 +113,7 @@ test("the water heard across a seam is the same whichever tiles are in memory an
       want.filter((w) => w.body === "fountain").map((w) => w.key),
     )
   } finally {
-    setTileSource(fromDisk)
+    setTileSource(tileFromDisk)
     residentAround([STATION, AIOLA, SEAM], HELD)
   }
 })

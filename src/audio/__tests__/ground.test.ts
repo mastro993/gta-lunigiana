@@ -6,7 +6,8 @@ import { coverAt } from "../../sim/map/cover.ts"
 import { groundZ } from "../../sim/map/ground.ts"
 import { heightAt, MAP } from "../../sim/map/index.ts"
 import { anchorOf, tileKey } from "../../sim/map/kinds.ts"
-import { dropTile, setTileSource, tilesOver } from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, tilesOver } from "../../sim/map/tiles.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { EAR_HEIGHT } from "../acoustics.ts"
 import { at as clock, rig, SPAWN, world } from "../director/testing.ts"
@@ -23,7 +24,7 @@ import {
   owlsNear,
   streetAt,
 } from "../places.ts"
-import { fromDisk, HELD as REACH, residentAround } from "../testing.ts"
+import { HELD as REACH, residentAround } from "../testing.ts"
 
 /** What the game holds around the listener at `SPAWN`: the tiles within 1.2 km (past every owl square in earshot); the rest are let go. */
 const HELD = new Set(tilesOver(SPAWN.x - REACH, SPAWN.y - REACH, SPAWN.x + REACH, SPAWN.y + REACH))
@@ -150,7 +151,7 @@ test("far sources (bells km off, a crossing, a strike) read no tile out of memor
       ring: ring(),
     }
   } finally {
-    setTileSource(fromDisk)
+    setTileSource(tileFromDisk)
   }
   // Back in memory: the tiles twice as far round the listener, the far block's and the tower's.
   residentAround([SPAWN], 2 * REACH)

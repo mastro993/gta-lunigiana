@@ -5,14 +5,13 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { graph, MAP } from "../map/index.ts"
 import { tileKey } from "../map/kinds.ts"
-import { readMapFile, tileUrl } from "../map/packed.ts"
-import { dropTile, provideTile, residentTiles, setTileSource, tilesOver } from "../map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../map/source.ts"
+import { dropTile, provideTile, residentTiles, tilesOver } from "../map/tiles.ts"
 import { jsonSave, rolling, start } from "../testing.ts"
 
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
 /** The tiles within 2 km of Monzone station's (0, 0) corner, more than the cars and the player there ever read. */
 const AROUND = tilesOver(-2000, -2000, 2000, 2000)
-const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 
 /** The traffic edge of Via Borgo Monzone whose chord crosses the seam `axis` = 0 nearest Monzone station, found by geometry. */
 const across = (axis: "x" | "y") => {
@@ -47,10 +46,10 @@ const across = (axis: "x" | "y") => {
  */
 const drive = (lazy: boolean) => {
   for (const key of KEYS) dropTile(key)
-  setTileSource(fromDisk)
+  setTileSource(tileFromDisk)
   // All loaded: every tile round them in memory before the first step, in reverse key order; lazy: each read in when a
   // lookup first needs it, and every tile let go again every 20 steps.
-  if (!lazy) for (const key of [...AROUND].reverse()) provideTile(fromDisk(key))
+  if (!lazy) for (const key of [...AROUND].reverse()) provideTile(tileFromDisk(key))
   const east = across("x"),
     south = across("y")
   const s = start(

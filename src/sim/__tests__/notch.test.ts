@@ -1,17 +1,15 @@
 // The sim on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`): teleports,
 // herds and pigs keep to the play area, the L.
+import "../map/__tests__/use-notch.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { notchMap } from "../map/__tests__/edit-map.ts"
-
-notchMap()
-const { inPlay } = await import("../map/index.ts")
-const { SetPlayer } = await import("../index.ts")
-const { door, ON_BATTISTI, start } = await import("../testing.ts")
-const { farmsNear, pasture, RURAL, RURAL_REACH } = await import("../population/farms.ts")
-const { residentsNear } = await import("../population/density.ts")
-const { ANIMALS } = await import("../systems/populate-animals.ts")
+import { SetPlayer } from "../index.ts"
+import { inPlay } from "../map/index.ts"
+import { residentsNear } from "../population/density.ts"
+import { farmsNear, pasture, RURAL, RURAL_REACH } from "../population/farms.ts"
+import { ANIMALS } from "../systems/populate-animals.ts"
+import { door, ON_BATTISTI, start } from "../testing.ts"
 
 test("an L: a teleport into the notch is dropped, one just inside its corner is not", () => {
   const game = start([], [door(ON_BATTISTI)])

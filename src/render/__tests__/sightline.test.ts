@@ -6,8 +6,8 @@ import { Vector3 } from "three"
 import { pointInRing } from "../../sim/collide.ts"
 import { coarseHeightAt } from "../../sim/map/coarse.ts"
 import { MAP, treesIn } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
-import { dropTile, isResidentAt, setTileSource } from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, isResidentAt } from "../../sim/map/tiles.ts"
 import { buildingsIn } from "../../sim/map/vectors.ts"
 import { topOf } from "../buildings.ts"
 import { terrainResident, terrainY, yOf } from "../ground.ts"
@@ -213,7 +213,7 @@ test("past the tiles in memory a sight line reads the coarse grid's terrain, and
     }
     assert.equal(sight(from, HOME).ground, ground)
   } finally {
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    setTileSource(tileFromDisk)
     residentAround([spawn], HOLD)
   }
 })

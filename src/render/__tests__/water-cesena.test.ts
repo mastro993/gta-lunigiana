@@ -1,18 +1,15 @@
+import "../../sim/map/__tests__/use-cesena.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP_URL, provideMap, readMapFile } from "../../sim/map/packed.ts"
+import { MAP, TILE } from "../../sim/map/index.ts"
+import { chunkCells, chunkOf, chunkRect } from "../chunks.ts"
+import { vectorsAround } from "../testing.ts"
+import { inPool } from "../water.ts"
+import { boxOf, cellsOf, centreOf, chunksOf, drawn, LAST, poolAreas, wetCells } from "./pools.ts"
 
 // This process loads Cesena, whose Savio's river polygon reaches its map's north edge (Lunigiana's
-// lakes and river polygons all stand inside its bounds): the global file goes in before anything
-// decodes the map.
-provideMap(readMapFile(new URL("cesena.bin", MAP_URL)))
-const { MAP, TILE } = await import("../../sim/map/index.ts")
-const { chunkCells, chunkOf, chunkRect } = await import("../chunks.ts")
-const { vectorsAround } = await import("../testing.ts")
-const { inPool } = await import("../water.ts")
-const { boxOf, cellsOf, centreOf, chunksOf, drawn, LAST, poolAreas, wetCells } =
-  await import("./pools.ts")
+// lakes and river polygons all stand inside its bounds), picked on its first line.
 
 const hm = MAP.heightmap
 /** The tiles along the north edge, and their lakes and river polygons: never the whole map's. */

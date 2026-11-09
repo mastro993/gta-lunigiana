@@ -6,17 +6,14 @@ import { staticGrid } from "../../collide.ts"
 import { decodeTile, VECTOR_LAYERS } from "../format/tile-file.ts"
 import { MAP } from "../index.ts"
 import { HALO, TILE, tileKey, tileRange, tilesRound } from "../kinds.ts"
-import { readMapFile, tileUrl } from "../packed.ts"
+import { tileFromDisk } from "../source.ts"
 import { buildingsIn } from "../vectors.ts"
 
 // Map checks (pnpm test:map): every tile's vectors against the whole map joined from them.
 const WHOLE = wholeMap()
 const RANGE = tileRange(MAP.bounds)
 const tiles = new Map(
-  MAP.tiles.map(({ i, j }) => [
-    tileKey(i, j),
-    decodeTile(readMapFile(tileUrl(MAP.name, tileKey(i, j)))),
-  ]),
+  MAP.tiles.map(({ i, j }) => [tileKey(i, j), decodeTile(tileFromDisk(tileKey(i, j)))]),
 )
 
 /** The box of a flat ring or polyline. */

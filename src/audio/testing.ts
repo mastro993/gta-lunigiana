@@ -6,12 +6,8 @@
  *
  * @module audio/testing
  */
-import { MAP } from "../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../sim/map/packed.ts"
+import { tileFromDisk } from "../sim/map/source.ts"
 import { isResident, provideTile, tilesOver } from "../sim/map/tiles.ts"
-
-/** Tile `key`'s file read from disk, as Node's tile source reads it. */
-export const fromDisk = (key: string): Uint8Array => readMapFile(tileUrl(MAP.name, key))
 
 /** How far round a listener a test holds the tiles, m: past every owl square in earshot. */
 export const HELD = 1200
@@ -23,5 +19,5 @@ export const residentAround = (
 ): void => {
   for (const { x, y } of spots)
     for (const key of tilesOver(x - reach, y - reach, x + reach, y + reach))
-      if (!isResident(key)) provideTile(fromDisk(key))
+      if (!isResident(key)) provideTile(tileFromDisk(key))
 }

@@ -169,7 +169,7 @@ test("the ground model reads no map: nothing it imports, but for types, decodes 
   for (const reads of [
     "global.ts",
     "index.ts",
-    "packed.ts",
+    "source.ts",
     "tiles.ts",
     "vectors.ts",
     "format/global-file.ts",

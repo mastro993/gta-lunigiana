@@ -2,12 +2,12 @@
  * The tiles in memory: the dense layers (terrain nodes, walls, trees, land cover) of the 2 km
  * squares the host has handed over (`provideTile`) and the vectors round them, and the terrain and
  * cover lookups that read them (the walls' and trees' broad phases are `./walls.ts`, the vectors'
- * `./vectors.ts`). A lookup in a listed tile that is not here asks the tile source (Node: the tile
- * file on disk); with none, it throws "map tile i_j not loaded". Every answer is a pure function of
- * the map, never of which tiles are here or in which order they came: what a lookup builds from a
- * tile (a broad phase, a bucket of road segments) it builds from that tile alone, on first use
- * (`derived`), and a query answers in the whole map's order whichever tiles hold its items
- * (`./lattice.ts`).
+ * `./vectors.ts`). A lookup in a listed tile that is not here asks the tile source (`./source.ts`;
+ * Node: the tile file on disk); with none, it throws "map tile i_j not loaded". Every answer is a
+ * pure function of the map, never of which tiles are here or in which order they came: what a
+ * lookup builds from a tile (a broad phase, a bucket of road segments) it builds from that tile
+ * alone, on first use (`derived`), and a query answers in the whole map's order whichever tiles
+ * hold its items (`./lattice.ts`).
  * The listed tiles (`MAP.tiles`) need not fill the box of tiles round them: an L-shaped map leaves
  * its notch unlisted, with no file. A terrain or land-cover lookup there reads the nearest node or
  * cell of the listed tiles round it (`nearest`); a wall or tree whose midpoint falls there (an
@@ -24,10 +24,18 @@
  * @module map/tiles
  */
 
-import { decodeTile, type Layer, type TileData, type TileVectors } from "./format/tile-file.ts"
+import {
+  decodeTile,
+  decodeTileVectors,
+  type Layer,
+  TILE_CELLS,
+  TILE_NODES,
+  type TileData,
+  type TileVectors,
+} from "./format/tile-file.ts"
 import { MAP } from "./global.ts"
 import { TILE, tileKey, tilesRound } from "./kinds.ts"
-import { onDisk, readMapFile, TILE_CELLS, TILE_NODES, tileUrl } from "./packed.ts"
+import { tileFile } from "./source.ts"
 
 /** Vehicles farther than this from the player along either axis (m) stand frozen: the sim reads no tile for them. */
 export const FROZEN_BEYOND = 500
@@ -88,14 +96,12 @@ export interface Tile {
 }
 const tiles: Array<Tile | undefined> = Array.from({ length: slots })
 
-/** Where a listed tile comes from when a lookup finds it missing: Node reads the file beside the global one; a browser has none. */
-let source: ((key: string) => Uint8Array) | undefined = onDisk()
-  ? (key) => readMapFile(tileUrl(MAP.name, key))
-  : undefined
-
-/** Sets (or, with undefined, removes) where a missing tile comes from; tests remove it to see a missing tile throw. */
-export const setTileSource = (next: ((key: string) => Uint8Array) | undefined): void => {
-  source = next
+/** Throws for tile `key` stamped with build hash `hash` when that is not the map's. */
+const ofThisBuild = (key: string, hash: string): void => {
+  if (hash !== MAP.hash)
+    throw new Error(
+      `map tile ${key} is from another build (${hash}, not ${MAP.hash}); run pnpm map`,
+    )
 }
 
 /** Takes a gunzipped tile file into memory (the host, once it has downloaded it); a tile already here stays as it is. */
@@ -103,12 +109,20 @@ export const provideTile = (file: Uint8Array): void => {
   const data = decodeTile(file),
     key = tileKey(data.i, data.j),
     s = slotOf(data.i, data.j)
-  if (data.hash !== MAP.hash)
-    throw new Error(
-      `map tile ${key} is from another build (${data.hash}, not ${MAP.hash}); run pnpm map`,
-    )
+  ofThisBuild(key, data.hash)
   if (s < 0 || listed[s] !== 1) throw new Error(`map tile ${key} is not on this map`)
   tiles[s] ??= { data, vectors: data.vectors }
+}
+
+/**
+ * Host only: the vectors of a gunzipped tile file, its line alone read, for a host that keeps them
+ * apart from the tiles in memory (the full map's detail); one from another build throws, as
+ * `provideTile` does.
+ */
+export const tileFileVectors = (file: Uint8Array): TileVectors => {
+  const { hash, i, j, vectors } = decodeTileVectors(file)
+  ofThisBuild(tileKey(i, j), hash)
+  return vectors
 }
 
 /** Lets a tile go (the host, once nothing near the player or in view needs it). */
@@ -163,14 +177,14 @@ export const residentTile = (key: string): Tile | undefined => {
 export const residentTiles = (): Array<string> =>
   MAP.tiles.flatMap(({ i, j }) => (tiles[slotOf(i, j)] === undefined ? [] : [tileKey(i, j)]))
 
-/** Listed tile (i, j), fetched from the source when missing; throws when there is none. */
+/** Listed tile (i, j), read from the tile source (`./source.ts`) when missing; throws when there is none. */
 const tileAt = (i: number, j: number): Tile => {
   const s = slotOf(i, j)
   const here = tiles[s]
   if (here !== undefined) return here
-  if (source === undefined || listed[s] !== 1)
-    throw new Error(`map tile ${tileKey(i, j)} not loaded`)
-  provideTile(source(tileKey(i, j)))
+  const file = listed[s] === 1 ? tileFile(tileKey(i, j)) : undefined
+  if (file === undefined) throw new Error(`map tile ${tileKey(i, j)} not loaded`)
+  provideTile(file)
   return tiles[s]!
 }
 

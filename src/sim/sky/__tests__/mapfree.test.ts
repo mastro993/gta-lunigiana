@@ -38,7 +38,7 @@ test("map-free: the schema, the train models and the sky's calendar, astronomy, 
     loaded.filter(
       (url) =>
         url.endsWith("/map/index.ts") ||
-        url.endsWith("/map/packed.ts") ||
+        url.endsWith("/map/source.ts") ||
         url.includes("/map/format/"),
     ),
     [],

@@ -7,10 +7,15 @@ import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
 import { encodeMap } from "../sim/map/format/global-file.ts"
-import { encodeTile, relineTile, type VectorLayer } from "../sim/map/format/tile-file.ts"
+import {
+  encodeTile,
+  relineTile,
+  TILE_CELLS,
+  TILE_NODES,
+  type VectorLayer,
+} from "../sim/map/format/tile-file.ts"
 import type { Area, Barrier, Building, MonzoneMap, Road, Spawn, Water } from "../sim/map/index.ts"
 import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
-import { TILE_CELLS, TILE_NODES } from "../sim/map/packed.ts"
 import { placeFrom } from "../sim/sky/place.ts"
 import { type Bakes, landBakes } from "./bake-landings.ts"
 import { listedNodes } from "./grid-tiles.ts"

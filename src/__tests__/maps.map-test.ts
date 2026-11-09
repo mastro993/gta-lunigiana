@@ -5,7 +5,7 @@ import { test } from "node:test"
 import { mapForSearch } from "../maps.ts"
 import { decodeMap } from "../sim/map/format/global-file.ts"
 import { tileKey } from "../sim/map/kinds.ts"
-import { readMapFile } from "../sim/map/packed.ts"
+import { readMapFile } from "../sim/map/source.ts"
 
 // Map check (pnpm test:map): every tile of both maps; maps.test.ts checks one of each.
 test("every tile each map's global file lists has a file at its tile URL, in the map's own directory, of at most 0.7 MB", () => {

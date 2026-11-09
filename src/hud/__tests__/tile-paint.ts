@@ -5,7 +5,7 @@ import assert from "node:assert/strict"
 
 import type { MapLayers } from "../../render/map-style.ts"
 import type { Layer } from "../../sim/map/format/tile-file.ts"
-import { MAP, type Road, TILE } from "../../sim/map/index.ts"
+import { MAP, type Road, wholeRoad, TILE } from "../../sim/map/index.ts"
 import { tileKey } from "../../sim/map/kinds.ts"
 import { isListed, tileVectors } from "../../sim/map/tiles.ts"
 import { paintMap, tileLayers } from "../minimap.ts"
@@ -129,7 +129,7 @@ export const layersAround = (i: number, j: number): MapLayers<Road> => {
     areas: merged(tiles.map((t) => t.areas)).items,
     water: merged(tiles.map((t) => t.water)).items,
     rail: MAP.rail,
-    roads: roads.ids.map((id, k) => ({ ...MAP.roads[id]!, ...roads.items[k]! })),
+    roads: roads.ids.map((id, k) => wholeRoad(id, roads.items[k]!)),
     buildings: merged(tiles.map((t) => t.buildings)).items,
   }
 }

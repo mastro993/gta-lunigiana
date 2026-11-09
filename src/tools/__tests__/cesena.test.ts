@@ -1,20 +1,19 @@
+import "../../sim/map/__tests__/use-cesena.ts"
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
 import { test } from "node:test"
-import { gunzipSync } from "node:zlib"
 
 import { decodeMap } from "../../sim/map/format/global-file.ts"
 import { decodeTile, type Layer, type TileVectors } from "../../sim/map/format/tile-file.ts"
 import { isMotorRoad, isTraffic, TILE, tileKey } from "../../sim/map/kinds.ts"
-import { MAP_URL, provideMap, readMapFile, tileUrl } from "../../sim/map/packed.ts"
+import { MAP_URL, readMapFile } from "../../sim/map/source.ts"
 import { pointInRing, segDist2 } from "../geometry.ts"
 import { clearance } from "../spawns.ts"
 
 // Cesena's global file, and the tiles round its start: every wall within 50 m of it lives in one of
 // them (a wall lives in the tile of its midpoint and reaches at most `walls.reach` from it), and
 // every road and building within `vectors.halo` of their squares lies whole in them (on Cesena,
-// whose start is by the corner its four tiles share, they are all four). Decoded here: the sim's
-// tiles would decode Monzone's global file, which the boot test below must not find loaded.
+// whose start is by the corner its four tiles share, they are all four). Decoded here, apart from
+// the sim, which only the boot test below loads (on Cesena, picked on the first line).
 const map = decodeMap(readMapFile(new URL("cesena.bin", MAP_URL)))
 const start = (() => {
   const { x, y } = map.spawns.player,
@@ -27,7 +26,9 @@ const start = (() => {
         j >= Math.floor((y - r) / TILE) &&
         j <= Math.floor((y + r) / TILE),
     )
-    .map(({ i, j }) => decodeTile(readMapFile(tileUrl(map.name, tileKey(i, j)))))
+    .map(({ i, j }) =>
+      decodeTile(readMapFile(new URL(`${map.name}/${tileKey(i, j)}.bin`, MAP_URL))),
+    )
   /** A layer of the tiles' vectors, each feature once (every tile near it holds it), in the whole map's order, by its index. */
   const merged = <T>(of: (v: TileVectors) => Layer<T>): Array<readonly [number, T]> => {
     const byId = new Map<number, T>()
@@ -105,7 +106,6 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
 })
 
 test("Cesena boots the existing simulation, populates it and replays walking deterministically", async () => {
-  provideMap(gunzipSync(readFileSync(new URL("../../sim/map/cesena.bin", import.meta.url))))
   const { Keyboard } = await import("@typeonce/ritmo-browser")
   const { bindings, Game, KeyboardInput, makeRuntime, PlayerView, setup, update, Vehicle } =
     await import("../../sim/index.ts")

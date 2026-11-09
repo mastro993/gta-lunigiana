@@ -5,12 +5,13 @@ import { dirname, join } from "node:path"
 
 import type { AreaKind, BuildingStyle, RoadClass } from "../sim/map/index.ts"
 import { fillRank } from "../sim/map/raster.ts"
+import { useDiskMap } from "../sim/map/source.ts"
 import { fillPolygon, segDist2 } from "./geometry.ts"
-import { builtMapUrl, loadBuiltMap, readWholeMap } from "./map-file.ts"
+import { builtMapUrl, readWholeMap } from "./map-file.ts"
 import { encodePngRgb } from "./png.ts"
 import { REGION } from "./region.ts"
 
-await loadBuiltMap(REGION)
+useDiskMap(builtMapUrl(REGION))
 const { buildingStyleOf, graph, heightAt, isAreaKind, isWaterArea, isWood, MAP, ROAD_CLASSES } =
   await import("../sim/map/index.ts")
 // The trees, walls and vectors live in the tiles: read them all, joined in the whole map's order,

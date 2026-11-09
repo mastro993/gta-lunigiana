@@ -9,7 +9,6 @@
  */
 import type { Area, Barrier, Building, RoadLine, Water } from "../index.ts"
 import { TILE } from "../kinds.ts"
-import { TILE_CELLS, TILE_NODES } from "../packed.ts"
 import {
   decodeFile,
   encodeFile,
@@ -21,6 +20,11 @@ import {
   rowDeltas,
   type Section,
 } from "./sections.ts"
+
+/** Nodes along a tile's side (its border nodes are its neighbours' too). */
+export const TILE_NODES = 501
+/** Land-cover cells along a tile's side. */
+export const TILE_CELLS = 500
 
 /** The layers of vectors the tiles hold (`TileVectors`). */
 export const VECTOR_LAYERS = ["roads", "buildings", "water", "areas", "barriers"] as const
