@@ -11,6 +11,7 @@ import type { bakeParked } from "../../sim/parking.ts"
 import type { bakeFarms } from "../../sim/population/farms.ts"
 import { placeFrom } from "../../sim/sky/place.ts"
 import type { bedOf } from "../../sim/water/channel.ts"
+import { BAKES, type Bakes, landings } from "../bake-landings.ts"
 import type { bake } from "../bake.ts"
 import { listedNodes } from "../grid-tiles.ts"
 import { wholeMap } from "../map-file.ts"
@@ -22,47 +23,27 @@ const saved = (value: unknown): unknown => JSON.parse(JSON.stringify(value))
 const hintFor = (map: MonzoneMap) =>
   `run pnpm map${map.name === "monzone" ? "" : " --region cesena"}`
 
-/** Asserts `map`'s baked tables equal a fresh `run()` of the bake and its place a fresh fit over its listed tiles' nodes. */
+/**
+ * Asserts `map`'s baked tables equal a fresh `run()` of the bake, each read at its landing in the
+ * registry (bake-landings.ts), and its place a fresh fit over its listed tiles' nodes.
+ */
 export const assertBakesCurrent = (map: MonzoneMap, run: typeof bake): void => {
   const whole = wholeMap(map.name)
-  const fresh = saved(run(whole)) as ReturnType<typeof bake>
+  const fresh = saved(run(whole)) as Bakes
   const hint = hintFor(map)
-  assert.deepEqual(fresh.lanes, saved(map.lanes), `MAP.lanes (src/sim/lanes.ts): ${hint}`)
-  assert.deepEqual(
-    fresh.parked,
-    saved(map.spawns.parked),
-    `MAP.spawns.parked (src/sim/parking.ts): ${hint}`,
-  )
+  for (const { name, path, value } of landings((name) => fresh[name])) {
+    let held: unknown = map
+    for (const key of path) held = (held as Readonly<Record<string, unknown>>)[key]
+    assert.deepEqual(
+      value,
+      saved(held),
+      `MAP.${path.join(".")} (bake "${name}", src/tools/bake.ts): ${hint}`,
+    )
+  }
   assert.deepEqual(
     fresh.floors,
     saved(whole.water.map((w) => w.floor)),
-    `Water.floor (src/sim/water/channel.ts): ${hint}`,
-  )
-  assert.deepEqual(
-    fresh.farms,
-    saved(map.farms),
-    `MAP.farms (src/sim/population/farms.ts): ${hint}`,
-  )
-  assert.deepEqual(fresh.lamps, saved(map.lamps), `MAP.lamps (src/render/sky/lamps.ts): ${hint}`)
-  assert.deepEqual(
-    fresh.bells,
-    saved(map.derived.bells),
-    `MAP.derived.bells (src/tools/bells.ts): ${hint}`,
-  )
-  assert.deepEqual(
-    fresh.residents,
-    saved(map.derived.residents),
-    `MAP.derived.residents (src/sim/population/density.ts): ${hint}`,
-  )
-  assert.deepEqual(
-    fresh.farmCentres,
-    saved(map.derived.farms),
-    `MAP.derived.farms (src/sim/population/density.ts): ${hint}`,
-  )
-  assert.deepEqual(
-    fresh.mouths,
-    saved(map.derived.mouths),
-    `MAP.derived.mouths (src/render/mouths/index.ts): ${hint}`,
+    `${BAKES.floors.tiles} (bake "floors", src/tools/bake.ts): ${hint}`,
   )
   const { floor, downslope } = placeFrom(
     map.origin,

@@ -383,6 +383,9 @@ place. So are what readers far from the player need of the vectors (`MAP.derived
 crossing's road line, each platform's rings and each station's building, which the railway and the
 trains' look-out read anywhere; the bells the audio hears all over the map (`bellsOf` in
 `src/tools/bells.ts`); the residents within 60 m of each walk edge; and each farm's centre.
+Each bake is one entry of a registry: its landing in the map and its empty value in `BAKES`
+(`src/tools/bake-landings.ts`), its run under the same name in `bake.ts`
+([map.md](map.md#pipeline)).
 `src/tools/__tests__/bake.map-test.ts` (and `cesena-bake.map-test.ts` for Cesena, in a process of
 its own) runs every bake and the place fit again, checks the railway's copies against the whole
 map's vectors, and fails while one is stale; `bake.test.ts` and `cesena-bake.test.ts` do the parked
