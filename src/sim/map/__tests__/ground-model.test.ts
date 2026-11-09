@@ -166,6 +166,15 @@ test("the ground model reads no map: nothing it imports, but for types, decodes 
   }
   visit(fileURLToPath(new URL("../ground-model.ts", import.meta.url)))
   const map = resolve(fileURLToPath(new URL("..", import.meta.url)))
-  for (const reads of ["global.ts", "index.ts", "packed.ts", "tiles.ts", "vectors.ts"])
+  for (const reads of [
+    "global.ts",
+    "index.ts",
+    "packed.ts",
+    "tiles.ts",
+    "vectors.ts",
+    "format/global-file.ts",
+    "format/sections.ts",
+    "format/tile-file.ts",
+  ])
     assert.ok(!seen.has(resolve(map, reads)), `the model imports ${reads}`)
 })
