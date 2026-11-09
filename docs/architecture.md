@@ -458,9 +458,10 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   decimetres, the road buckets holding a point, a road's line near it, the platforms), and the
   tests bind it to whole data (`wholeGround`), so the game and the tests read one set of rules and
   the same data gives the same answer to the bit ([ADR 0003](adr/0003-ground-model.md)). The map
-  build still keeps its own copies (`meshZ` in `src/tools/deck-ground.ts`, `groundOf` in
-  `deck-space.ts`, `surfaceAt` in `parapets.ts`) until it moves onto the model (issue #113), so a
-  change to a rule reaches the baked deck walls and parapets only through those. The ground is the terrain as its mesh is drawn (each 4 m cell split along its SW–NE
+  build binds it too (`src/tools/build-ground.ts`: the grid's nodes rounded to the decimetre the
+  file ships, the shipped road lines, the laid platforms), for the ground under the decks, the walls
+  there and the parapets, so a change to a rule reaches them at the next rebake. The ground is the
+  terrain as its mesh is drawn (each 4 m cell split along its SW–NE
   diagonal), or a station platform's top where that is higher (`platformTop`, from
   `MAP.railway.platforms` and the rings `MAP.derived.platforms` keeps, so it reads no tile),
   at-grade roads `ROAD_LIFT` above their profile (blended where several overlap, so a junction's

@@ -6,6 +6,7 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
+import { latticeGround, levelOn } from "../build-ground.ts"
 import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../map-file.ts"
 import { regionFromArgs } from "../region.ts"
 import { parapetFaults } from "./parapets.ts"
@@ -24,7 +25,11 @@ test("parapets: a car on a deck meets its parapet wherever no road on the deck's
     ...(existsSync(L_URL) ? [["the L", readWholeMap(L_URL)] as const] : []),
   ]
   const faults = maps.flatMap(([name, map]) =>
-    parapetFaults(map.roads, map.walls).map((f) => `${name}: ${f}`),
+    parapetFaults(
+      map.roads,
+      map.walls,
+      levelOn(latticeGround(map.heightmap, (n) => map.heightmap.data[n]!, map.roads)),
+    ).map((f) => `${name}: ${f}`),
   )
   assert.deepEqual(faults, [], `${faults.length} bridges' parapets fail:\n${faults.join("\n")}`)
 })

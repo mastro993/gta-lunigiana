@@ -1,13 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { gridGround } from "../build-ground.ts"
 import {
   clearRun,
   deckGround,
   deckReport,
   END_RUN,
   jointsOf,
-  meshZ,
   railSlab,
   roadSlab,
   sections,
@@ -43,25 +43,13 @@ const short = (g: Grid, ...slabs: ReadonlyArray<Slab>) =>
   )
 /** The stretch between `slab`'s end runs on `g`'s mesh, both its ends outer ones. */
 const runOf = (g: Grid, slab: Slab) =>
-  clearRun(
-    sections(slab, (x, y) => meshZ(g, x, y)),
-    [true, true],
-  )
+  clearRun(sections(slab, gridGround(g).terrainZ), [true, true])
 /** A tertiary road's deck 6.5 m wide along y 40 from x 22 to x 138 (mid-cell, clear of the nodes), its profile `za` to `zb`. */
 const tertiary = (za: number, zb: number) =>
   roadSlab(
     { cls: "tertiary", w: 6.5 },
     { pts: [22, 40, 80, 40, 138, 40], z: [za, (za + zb) / 2, zb] },
   )
-
-test("meshZ reads a cell as the game draws it: two triangles split along its south-west to north-east diagonal", () => {
-  const g = grid(() => 0)
-  // Cell (1, 1): its south-west node 0, south-east 1, north-west 2, north-east 4.
-  ;[g.z[node(g, 2, 1)], g.z[node(g, 1, 2)], g.z[node(g, 2, 2)]] = [1, 2, 4]
-  assert.equal(meshZ(g, 7, 5), 1.5, "south-east of the diagonal: 0.75 of the way east, 0.25 north")
-  assert.equal(meshZ(g, 5, 7), 2, "north-west of it")
-  assert.equal(meshZ(g, 8, 8), 4)
-})
 
 test("deckGround lowers a hump between a deck's end runs to the slab's underside, and no other node", () => {
   // A valley 10 m under a level deck, its approaches at the deck's level behind its ends (x 20 and
@@ -117,8 +105,10 @@ test("deckGround keeps a deck's end runs, where it meets the ground, under the r
   const deck = tertiary(12, 6)
   assert.deepEqual(runOf(g, deck), [END_RUN, 116])
   assert.equal(short(g, deck).length, 1)
-  deckGround(g, [deck], () => false)
+  const moved = deckGround(g, [deck], () => false)
   assert.deepEqual(short(g, deck), [])
+  // Each node it lowers lands on a whole decimetre, as the file ships it and the game reads it.
+  for (const [n] of moved) assert.equal(g.z[n], Math.round(g.z[n]! * 10) / 10, `node ${n}`)
   // The hillside comes down along the end run, under the road: at x 24 the profile is 11.90 m.
   assert.ok(g.z[node(g, 6, 10)]! <= 11.9, `${g.z[node(g, 6, 10)]}`)
   // Past it, out of the slab: at x 32 (10 m along) the top is 11.64 m, its underside 10.74 m.

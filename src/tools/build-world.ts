@@ -3,12 +3,13 @@
 // The clearance indexes the spawns and the graph's dead ends are checked against go out of scope
 // here.
 import { isDrivable } from "../sim/map/kinds.ts"
+import { gridGround, levelOn } from "./build-ground.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import { deckWalls } from "./deck-walls.ts"
 import { flatLine, r1 } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
-import { parapets, surfaceAt } from "./parapets.ts"
+import { parapets } from "./parapets.ts"
 import { onOutline } from "./play-area.ts"
 import { lifted } from "./profiles.ts"
 import { clearVerges } from "./rail-clear.ts"
@@ -50,8 +51,11 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   lap("railway")
 
   // ---- collision, graph, trees, spawns ----
-  const decks = parapets(roads, roadLines),
-    under = deckWalls(grid, roads, roadLines)
+  // The game's ground over the finished terrain, the shipped roads and the platforms just laid.
+  const ground = gridGround(grid, roads, roadLines, platforms),
+    level = levelOn(ground)
+  const decks = parapets(roads, level),
+    under = deckWalls(ground, roads, roadLines)
   const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks, under)
   lap("walls")
   const trees = scatterTrees(
@@ -72,9 +76,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
       trees.trees,
       levelled(walls.levels.drive),
     )
-  const graph = buildGraph(roads, (x, y, road) =>
-    driveClear.circle(x, y, TURN, surfaceAt(roadLines[road]!, roads[road]!.cls, x, y)),
-  )
+  const graph = buildGraph(roads, (x, y, road) => driveClear.circle(x, y, TURN, level(road, x, y)))
   // Level crossings: boxes of crossing nodes on one road; then no verge or lane beside the running track.
   const crossingNodes = levels.map(({ road, piece, v, vertex }) => ({
     road,

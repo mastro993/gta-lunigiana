@@ -101,7 +101,7 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   off by a parapet's wrong level), or where a wall with no level stands on the parapet over a road
   under or over the deck ([Collision
   walls](../map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)). The build (`parapets.ts`)
-  opens and levels every parapet from the shipped roads alone, so a failure on a new part is the
+  opens and levels every parapet from the shipped roads and the terrain alone (`roadLevel`), so a failure on a new part is the
   data's (a bridge's or a road's profile, a junction's roads at odds by 2 m or more, a barrier drawn
   along a deck's edge) or the build's: fix that for every bridge alike, never with an exception for
   one bridge or one part.
@@ -113,7 +113,8 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   fail where the walker or the car comes up onto the deck or where a wall with a level shuts an end
   that led onto it ([Walls under the
   decks](../map.md#walls-under-the-decks)). The build (`deck-walls.ts`) walls every road deck from
-  the shipped roads and the ground as lowered under the decks alone, so a failure on a new part is
+  the shipped roads, the platforms and the ground as lowered under the decks alone, read through the
+  game's ground model (`build-ground.ts`), so a failure on a new part is
   the data's (a road at grade meeting a deck's level with no junction between them, a deck's or an
   approach's profile at odds with the ground at its end, ground left near a deck's top) or the
   pass's: fix that for every deck alike, never with an exception for one bridge or one part.
