@@ -81,7 +81,7 @@ export const landings = (values: (name: keyof Bakes) => unknown) =>
  * parked spots as built), the railway's copies in `derived` (`copies`) and `bakes`, each missing
  * one's empty value in its place. Written in the global file's key order: the facts, the one-level
  * landings in registry order, then `derived`, the copies first and then its landings (a value
- * written over an existing key keeps its place).
+ * written over an existing key keeps its place). `facts` and `copies` are left as they are.
  */
 export const landBakes = (
   facts: Omit<Global, Extract<Landed, readonly [unknown]>[0] | "derived" | "spawns"> & {
@@ -91,10 +91,11 @@ export const landBakes = (
   bakes: Partial<Bakes> = {},
 ): Global => {
   const all = landings((name) => bakes[name] ?? BAKES[name].empty(facts.spawns.parked))
-  const out: Record<string, unknown> = { ...facts, spawns: { ...facts.spawns } }
+  const out: Record<string, unknown> = { ...facts }
   for (const { path, value } of all) if (path.length === 1) out[path[0]] = value
-  out.derived = { ...copies }
+  out.derived = copies
+  // a fresh record on each write, so no landing writes into `facts` or `copies`
   for (const { path, value } of all)
-    if (path.length === 2) (out[path[0]] as Record<string, unknown>)[path[1]] = value
+    if (path.length === 2) out[path[0]] = { ...(out[path[0]] as object), [path[1]]: value }
   return out as Global
 }

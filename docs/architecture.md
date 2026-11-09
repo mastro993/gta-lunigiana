@@ -379,12 +379,13 @@ the player, are baked into the map files by the game's own code at build time
 (`MAP.spawns.parked`), the water's beds (`Water.floor`, in the tiles with their water), the farms
 (`MAP.farms`) and the street lamps (`MAP.lamps`), each by its owner module's code
 (`src/tools/bake.ts` calls it, handing over the whole map's vectors joined from the tiles), and the
-place. Each bake is one entry of a registry: its landing in the map and its empty value in
-`BAKES` (`src/tools/bake-landings.ts`), its run under the same name in `bake.ts`
-([map.md](map.md#pipeline)). So are what readers far from the player need of the vectors (`MAP.derived`): each level
+place. So are what readers far from the player need of the vectors (`MAP.derived`): each level
 crossing's road line, each platform's rings and each station's building, which the railway and the
 trains' look-out read anywhere; the bells the audio hears all over the map (`bellsOf` in
 `src/tools/bells.ts`); the residents within 60 m of each walk edge; and each farm's centre.
+Each bake is one entry of a registry: its landing in the map and its empty value in `BAKES`
+(`src/tools/bake-landings.ts`), its run under the same name in `bake.ts`
+([map.md](map.md#pipeline)).
 `src/tools/__tests__/bake.map-test.ts` (and `cesena-bake.map-test.ts` for Cesena, in a process of
 its own) runs every bake and the place fit again, checks the railway's copies against the whole
 map's vectors, and fails while one is stale; `bake.test.ts` and `cesena-bake.test.ts` do the parked
