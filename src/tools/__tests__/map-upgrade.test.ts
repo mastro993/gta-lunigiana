@@ -6,7 +6,7 @@ import { relined } from "../../sim/map/format/sections.ts"
 import { decodeTile } from "../../sim/map/format/tile-file.ts"
 import { joinTiles } from "../map-file.ts"
 import { decodeUpgraded } from "../map-upgrade.ts"
-import { cutMap, NO_BAKES, stampMap } from "../tile-map.ts"
+import { cutMap, stampMap } from "../tile-map.ts"
 import { built, data } from "./built-map.ts"
 
 test("decodeUpgraded reads a build of version 5, whose global file's line holds the graph, the lanes and the residents, as the same build of today's", () => {
@@ -15,14 +15,15 @@ test("decodeUpgraded reads a build of version 5, whose global file's line holds 
     graph: { xy: [0, 0, 10.5, -3.2], edges: [0, 1, 0], traffic: [0], walk: [0] },
   }
   const bakes = {
-    ...NO_BAKES,
     lanes: {
-      panda: [2.0500000000000003, -1],
-      ape: [-1, -1],
-      truck: [-1, -1],
-      carabinieri: [1.8, 0],
+      lanes: {
+        panda: [2.0500000000000003, -1],
+        ape: [-1, -1],
+        truck: [-1, -1],
+        carabinieri: [1.8, 0],
+      },
     },
-    residents: [Math.fround(1.3)],
+    residents: { residents: [Math.fround(1.3)] },
   }
   const cut = cutMap(map, "test"),
     tiles = [...cut.tiles(bakes).files.values()],
@@ -49,7 +50,7 @@ test("decodeUpgraded reads a build of version 5, whose global file's line holds 
   assert.deepEqual(oldMap, todayMap)
   assert.deepEqual(today.global, decodeMap(file))
   assert.deepEqual(today.decodeTile(tile(tiles[0]!)), decodeTile(tile(tiles[0]!)))
-  assert.deepEqual([oldMap.graph, oldMap.lanes], [map.graph, bakes.lanes])
+  assert.deepEqual([oldMap.graph, oldMap.lanes], [map.graph, bakes.lanes.lanes])
   // a version-5 line has no run-outs: each line runs on with none
   const withLine = relined(v5, { railway: { ...global.railway, lines: [{ id: 3 }] } })
   assert.deepEqual(decodeUpgraded(withLine).global.railway.lines, [{ runOuts: [[], []], id: 3 }])
