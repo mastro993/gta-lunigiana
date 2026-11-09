@@ -11,7 +11,8 @@ import {
 } from "../sim/map/format/tile-file.ts"
 import type { MonzoneMap, Road } from "../sim/map/index.ts"
 import { HALO, vergeOf, WATER_VERTICES } from "../sim/map/kinds.ts"
-import type { Bakes, BuiltMap, MapCut } from "./tile-map.ts"
+import type { Bakes } from "./bake-landings.ts"
+import type { BuiltMap, MapCut } from "./tile-map.ts"
 
 /** No vectors: a tile's before the cut adds them. */
 export const NO_VECTORS: TileVectors = {
@@ -188,13 +189,13 @@ export const tilesOf = (
   whole: Pick<BuiltMap, VectorLayer>,
   members: Readonly<Record<VectorLayer, ReadonlyArray<ReadonlyArray<number>>>>,
 ): Pick<MapCut, "tile" | "tiles"> => {
-  const tile = (key: string, bakes: Bakes): Uint8Array =>
+  const tile = (key: string, { floors = [] }: Partial<Bakes> = {}): Uint8Array =>
     relineTile(files.get(key)!, {
-      vectors: tileVectors(whole, members, slots.get(key)!, bakes.floors),
+      vectors: tileVectors(whole, members, slots.get(key)!, floors),
     })
   return {
     tile,
-    tiles: (bakes) => {
+    tiles: ({ floors = [] } = {}) => {
       const out = new Map<string, Uint8Array>(),
         sizes: Record<VectorLayer, number> = {
           roads: 0,
@@ -204,7 +205,7 @@ export const tilesOf = (
           barriers: 0,
         }
       for (const key of files.keys()) {
-        const vectors = tileVectors(whole, members, slots.get(key)!, bakes.floors)
+        const vectors = tileVectors(whole, members, slots.get(key)!, floors)
         for (const name of VECTOR_LAYERS) sizes[name] += JSON.stringify(vectors[name]).length
         out.set(key, relineTile(files.get(key)!, { vectors }))
       }

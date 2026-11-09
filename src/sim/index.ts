@@ -198,8 +198,6 @@ export const update = Game.Schedule(
   AdvanceRivers,
   EnterExit,
   Game.Schedule.applyDeferred(),
-  // Where each body on foot stands, before anything moves: the railway's rules read it.
-  FindFooting,
   Explode,
   Wade,
   Game.Schedule.applyDeferred(),
@@ -218,6 +216,8 @@ export const update = Game.Schedule(
   TrainContacts,
   CrashDamage,
   RideAlong,
+  // After the last move: each footing is where its body is when the hosts read it, and at most a step old for the contacts.
+  FindFooting,
   Recover,
   // After the contacts: this step's hits and crashes are events, which a save drops, so they are taken in the step they happen.
   Perceive,

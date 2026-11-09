@@ -26,6 +26,7 @@ import {
   type DamageValue,
   DEFAULT_START,
   Follows,
+  Footing,
   Game,
   Honk,
   Impact,
@@ -174,7 +175,7 @@ test("hear: who each person is and what they do, who walks with whom, the animal
       "Test/Party",
       {
         commands: Game.System.commands(
-          Game.System.spawns(Pedestrian, Person, Pose, PrevPose, Motion, Route, Follows),
+          Game.System.spawns(Pedestrian, Person, Pose, PrevPose, Motion, Route, Footing, Follows),
         ),
       },
       ({ commands }) => {

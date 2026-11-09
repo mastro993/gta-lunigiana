@@ -20,7 +20,7 @@ import { BOUNDS, M_PER_DEG, ORIGIN, r1 } from "./geometry.ts"
 import { OUTLINE } from "./play-area.ts"
 import { REGION } from "./region.ts"
 import { sampleGrid, type Grid } from "./terrain.ts"
-import { type BuiltMap, type MapCut, NO_BAKES, stampMap } from "./tile-map.ts"
+import { type BuiltMap, type MapCut, stampMap } from "./tile-map.ts"
 import { treeCorner } from "./trees.ts"
 
 /** Surveyed eave over a building's lowest ground, m, outside which the eave is a survey slip and the default height stands. */
@@ -177,14 +177,14 @@ export const writeMap = async (
   dir: string,
   lap: (label: string) => void,
 ) => {
-  provideMap(encodeMap({ ...cut.global(NO_BAKES), hash: "" }).file)
+  provideMap(encodeMap({ ...cut.global(), hash: "" }).file)
   const { dropTile } = await import("../sim/map/tiles.ts")
   const resident: Array<string> = []
   // Each tile made as the bake asks for it, with no floors yet (the bake makes them)
   setTileSource((key) => {
     resident.push(key)
     if (resident.length > RESIDENT) dropTile(resident.shift()!)
-    return cut.tile(key, NO_BAKES)
+    return cut.tile(key)
   })
   const { bake } = await import("./bake.ts")
   const bakes = bake(cut.whole)

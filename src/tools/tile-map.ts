@@ -17,6 +17,7 @@ import {
 import type { Area, Barrier, Building, MonzoneMap, Road, Spawn, Water } from "../sim/map/index.ts"
 import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
 import { placeFrom } from "../sim/sky/place.ts"
+import { type Bakes, landBakes } from "./bake-landings.ts"
 import { listedNodes } from "./grid-tiles.ts"
 import { NO_VECTORS, tilesOf, vectorFacts, vectorMembers } from "./tile-vectors.ts"
 
@@ -70,28 +71,6 @@ export interface BuiltMap extends Omit<
   readonly spawns: Omit<MonzoneMap["spawns"], "parked"> & { readonly parked: ReadonlyArray<Spawn> }
 }
 
-/** The tables the build bakes from the dense layers and the vectors (src/tools/bake.ts): what `cutMap` leaves empty. */
-export type Bakes = Pick<MonzoneMap, "lanes" | "farms" | "lamps"> &
-  Pick<MonzoneMap["derived"], "bells" | "residents" | "mouths"> & {
-    readonly floors: ReadonlyArray<ReadonlyArray<number>>
-    readonly parked: MonzoneMap["spawns"]["parked"]
-    /** Each farm's building centre, flat x, y (`derived.farms`). */
-    readonly farmCentres: ReadonlyArray<number>
-  }
-
-/** No baked tables yet: what the bake itself runs on. */
-export const NO_BAKES: Bakes = {
-  lanes: { panda: [], ape: [], truck: [], carabinieri: [] },
-  farms: [],
-  lamps: [],
-  floors: [],
-  parked: [],
-  bells: [],
-  residents: [],
-  farmCentres: [],
-  mouths: [],
-}
-
 /** Lattice step of the coarse grid (`MonzoneMap.coarse`), m. */
 const COARSE = 64
 
@@ -111,20 +90,20 @@ const bySlot = (count: number, slots: number, slotOf: (item: number) => number) 
   return (s: number) => items.subarray(starts[s], starts[s + 1])
 }
 
-/** A map cut into its tiles, and the global map: both completed by the bakes. */
+/** A map cut into its tiles, and the global map: both completed by the bakes, each missing one empty (the provisional map). */
 export interface MapCut {
   /** Tile `key`'s gunzipped file with `bakes`, as `tiles` makes it: one at a time, for the bake to read. */
-  readonly tile: (key: string, bakes: Bakes) => Uint8Array
+  readonly tile: (key: string, bakes?: Partial<Bakes>) => Uint8Array
   /**
    * Each tile's gunzipped file with `bakes` (the water's floors) and an empty hash, by key, south to
    * north then west to east, and the bytes of each layer of vectors in them, summed.
    */
-  readonly tiles: (bakes: Bakes) => {
+  readonly tiles: (bakes?: Partial<Bakes>) => {
     readonly files: ReadonlyMap<string, Uint8Array>
     readonly sizes: Readonly<Record<VectorLayer, number>>
   }
   /** The global map with `bakes`, before its hash. */
-  readonly global: (bakes: Bakes) => Omit<MonzoneMap, "hash">
+  readonly global: (bakes?: Partial<Bakes>) => Omit<MonzoneMap, "hash">
   /** The whole map's vectors, for the bakes that read them all (the water before its floors). */
   readonly whole: Pick<BuiltMap, "roads" | "buildings" | "water">
   /** The bytes of each part of the tiles' dense layers, summed (`json` with the hash and the vectors still empty). */
@@ -442,8 +421,9 @@ type Header = Pick<
 >
 
 /**
- * The global map with the bakes, from its parts (in the file's key order): made apart from
- * `cutMap`, so the closure holds these alone and not the dense layers the cut read.
+ * The global map with the bakes, from its parts (in the file's key order) and the landings
+ * (`landBakes`): made apart from `cutMap`, so the closure holds these alone and not the dense
+ * layers the cut read.
  */
 const globalOf =
   (
@@ -455,32 +435,23 @@ const globalOf =
     copies: Pick<MonzoneMap["derived"], "crossings" | "platforms" | "stations">,
     { player, parked, police }: BuiltMap["spawns"],
   ) =>
-  (bakes: Bakes): Omit<MonzoneMap, "hash"> => ({
-    ...header,
-    roads: v.roads,
-    rail: v.rail,
-    railway: v.railway,
-    pois: v.pois,
-    districts: v.districts,
-    graph: v.graph,
-    walls: v.walls,
-    vectors: v.vectors,
-    spawns: {
-      player,
-      parked: parked.map((s, i) => bakes.parked[i] ?? { ...s, rest: {} }),
-      ...(police === undefined ? {} : { police }),
-    },
-    lanes: bakes.lanes,
-    farms: bakes.farms,
-    lamps: bakes.lamps,
-    derived: {
-      ...copies,
-      bells: bakes.bells,
-      residents: bakes.residents,
-      farms: bakes.farmCentres,
-      mouths: bakes.mouths,
-    },
-  })
+  (bakes?: Partial<Bakes>): Omit<MonzoneMap, "hash"> =>
+    landBakes(
+      {
+        ...header,
+        roads: v.roads,
+        rail: v.rail,
+        railway: v.railway,
+        pois: v.pois,
+        districts: v.districts,
+        graph: v.graph,
+        walls: v.walls,
+        vectors: v.vectors,
+        spawns: { player, parked, ...(police === undefined ? {} : { police }) },
+      },
+      copies,
+      bakes,
+    )
 
 /**
  * The build hash of `global` and its unstamped `tiles` (16 hex digits of SHA-256 over the global

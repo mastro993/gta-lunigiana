@@ -12,6 +12,7 @@
 import type { Vec2 } from "@typeonce/ritmo-math"
 
 import { settle } from "../chassis.ts"
+import { carFooting } from "../footing.ts"
 import { atGrade } from "../map/ground.ts"
 import { inPlay } from "../map/index.ts"
 import { FROZEN_BEYOND } from "../map/tiles.ts"
@@ -76,7 +77,7 @@ const STILL = { vx: 0, vy: 0, spin: 0 }
 
 /**
  * Each `SetPlayer` request puts the player at its pose, standing still: on foot on the ground there at the terrain's level
- * (`Footing`), or in the vehicle they drive, settled on its springs there (`settle`); in a train, which keeps to its line, or
+ * (`Footing`), or in the vehicle they drive, settled on its springs there (`settle`), their footing under it; in a train, which keeps to its line, or
  * outside the play area (`inPlay`), it is dropped. The pose and the previous pose both jump, so nothing is drawn sliding from the old place.
  */
 export const ApplyPlayer = Game.System(
@@ -89,6 +90,7 @@ export const ApplyPlayer = Game.System(
           prev: Game.Query.write(PrevPose),
           motion: Game.Query.write(Motion),
           driving: Game.Query.optional(Driving),
+          footing: Game.Query.write(Footing),
         },
         with: [Player],
       }),
@@ -104,23 +106,24 @@ export const ApplyPlayer = Game.System(
       }),
     },
     events: { requests: Game.System.readEvent(SetPlayer) },
-    commands: Game.System.commands(Game.System.inserts(Footing)),
   },
-  ({ queries, events, commands }) => {
+  ({ queries, events }) => {
     for (const request of events.requests.all()) {
       const at = target(request)
       if (at === undefined) continue
-      for (const { entity, data } of queries.player.each()) {
+      for (const { data } of queries.player.each()) {
         const driving = data.driving.value()
-        if (driving === undefined) commands.insert(entity, [Footing, { z: atGrade(at.x, at.y) }])
+        if (driving === undefined) data.footing.set({ z: atGrade(at.x, at.y) })
         else {
           const car = queries.vehicles.getHandle(driving.vehicle)
           if (!car.ok) continue
-          const { model } = car.value.data.vehicle.get()
+          const { model } = car.value.data.vehicle.get(),
+            chassis = settle(model, at)
           car.value.data.pose.set(at)
           car.value.data.prev.set(at)
           car.value.data.motion.set(STILL)
-          car.value.data.chassis.set(settle(model, at))
+          car.value.data.chassis.set(chassis)
+          data.footing.set({ z: carFooting(at, model, chassis) })
         }
         data.pose.set(at)
         data.prev.set(at)

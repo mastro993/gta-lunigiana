@@ -17,16 +17,16 @@ import { VEHICLE_MODELS, VEHICLES } from "./vehicles.ts"
  * A vehicle that would stand tilted more than this (rad, 15°) on a spot is not parked there: the 4 m terrain puts some verges on a
  * bank. A spot too steep for a Panda is skipped; one too steep for the Ape or the truck the dice gave it gets a Panda instead.
  */
-const LEVEL = 0.26
+const TILT_LIMIT = 0.26
 
-/** The parked spots (the map's every one unless given) with each model's rest where it stands level, and whether a truck fits (clear of the walls, and level). */
+/** The parked spots (the map's every one unless given) with each model's rest where it stands upright enough, and whether a truck fits (clear of the walls, and upright enough). */
 export const bakeParked = (spots: ReadonlyArray<Spawn> = MAP.spawns.parked): Array<ParkedSpot> =>
   spots.map(({ x, y, angle }) => {
     const spot: Spawn = { x, y, angle }
     const rest: Partial<Record<(typeof VEHICLE_MODELS)[number], Rest>> = {}
     for (const model of VEHICLE_MODELS) {
       const chassis = settle(model, spot)
-      if (uprightness(chassis) > Ops.cos(LEVEL))
+      if (uprightness(chassis) > Ops.cos(TILT_LIMIT))
         rest[model] = [chassis.z, chassis.pitch, chassis.roll]
     }
     return {

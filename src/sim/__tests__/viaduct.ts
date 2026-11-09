@@ -3,8 +3,8 @@
  * residential road under it (OSM way 140780578), both found by their OSM ids and the deck's lane by
  * geometry, so the fixtures survive a map rebuild; traffic coming along a run of lanes with no
  * junction; a road coming down through a sag onto a bridge (the SR445 onto the viaduct from the
- * east); a setter for the player's or the animals' `Footing` (`stage` and `teleport` keep the
- * player's from where they were, and an animal's first is at the terrain's level); the player staged
+ * east); a setter for the player's or the animals' `Footing` (`stage` gives the player their first
+ * there, `teleport` keeps theirs from where they were, and an animal's first is at the terrain's level); the player staged
  * there with their `Footing` set on a level; a spot out of everyone's way; an unmanned Panda
  * rolling along the deck over the road below; and the deck's centreline where the road below
  * crosses it, which the parapet tests (issue #91) drive across and under. Also a steep lane, where
@@ -17,15 +17,7 @@ import assert from "node:assert/strict"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../collide.ts"
-import {
-  type Animal,
-  Footing,
-  Game,
-  Player,
-  Pose,
-  type PoseValue,
-  type RouteValue,
-} from "../index.ts"
+import { type Animal, Footing, Game, Player, type PoseValue, type RouteValue } from "../index.ts"
 import { atGrade, groundZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
 import { ONE_LEVEL } from "../map/kinds.ts"
@@ -236,15 +228,13 @@ export const footing = (z: number, of: typeof Player | typeof Animal = Player) =
       "Test/Footing",
       {
         queries: {
-          player: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [of] }),
+          bodies: Game.Query({ selection: { footing: Game.Query.write(Footing) }, with: [of] }),
         },
-        commands: Game.System.commands(Game.System.inserts(Footing)),
       },
-      ({ queries, commands }) => {
-        for (const { entity } of queries.player.each()) commands.insert(entity, [Footing, { z }])
+      ({ queries }) => {
+        for (const { data } of queries.bodies.each()) data.footing.set({ z })
       },
     ),
-    Game.Schedule.applyDeferred(),
   )
 
 /** The player at `at` with their `Footing` on `z`, the `keys` played, and `cast` round them; nobody else comes. */
@@ -310,13 +300,13 @@ export const STEEP = (() => {
   }
 })()
 
-/** The player's `Footing`, m a.s.l. (undefined with none yet). */
+/** The player's `Footing`, m a.s.l. */
 export const PlayerFooting = Game.Inspector(
   "Test/PlayerFooting",
   {
     queries: {
-      player: Game.Query({ selection: { footing: Game.Query.optional(Footing) }, with: [Player] }),
+      player: Game.Query({ selection: { footing: Game.Query.read(Footing) }, with: [Player] }),
     },
   },
-  ({ queries }) => queries.player.each()[0]?.data.footing.value()?.z,
+  ({ queries }) => queries.player.each()[0]?.data.footing.get().z,
 )

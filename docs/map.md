@@ -396,7 +396,7 @@ so its peak is one phase's working set plus what that phase hands on:
 | sources | `build-sources.ts` | 1–4, and the districts (12) | the OSM, the surveys |
 | terrain | `build-terrain.ts`, `build-grid.ts` | 5–8, the rail bed and the ground under the decks | the DTM, the profiles, the catchments' grid |
 | world | `build-world.ts` | 9–12 | the clearance indexes the spawns and the graph's dead ends are checked against |
-| output | `build-output.ts`, `tile-map.ts`, `tile-vectors.ts`, `bake.ts` | the map put together, its land cover, the cut, the bake, the files | |
+| output | `build-output.ts`, `tile-map.ts`, `tile-vectors.ts`, `bake-landings.ts`, `bake.ts` | the map put together, its land cover, the cut, the bake, the files | |
 | overview | `overview.ts`, `paint-raster.ts`, `png.ts` | the full map's picture, from the built map's vectors ([The overview](#the-overview)) | its pixels |
 
 The DTM is the one input two phases read (the sources take the water's widths from it), so
@@ -425,6 +425,19 @@ piece of more than `WATER_VERTICES` (65,536) vertices, since the rivers' sound k
 piece and vertex. The global file keeps the roads' attributes and, for readers far from the
 player, copies of what the railway points at: each level crossing's road line, each platform's
 rings and each station's building (`derived`).
+
+The bakes are one registry, one entry per bake (`lanes`, `parked`, `floors`, `bells`, `residents`,
+`farms`, `lamps`, `mouths`). `BAKES` in `src/tools/bake-landings.ts` names where each lands, a path
+into the global map (`["derived", "mouths"]`; the farms bake lands both `farms` and its buildings'
+centres, `derived.farms`) or, for the water's floors alone, the water pieces in the tiles, and what
+the provisional map holds there: an empty table, and the parked spots as built with no rests.
+`bake.ts` holds each one's run under the same name, and the types fail a bake that lands or runs
+without the other. The landings live apart from the runs because the runs load their owners, which
+decode `MAP`, and the cut must make the provisional map before anything decodes it.
+`cut.global(bakes?)` writes the cut's own parts, then each landing in registry order, its baked
+value or, missing, its empty one: first the top-level ones (`lanes`, `farms`, `lamps`), then
+`derived`, the railway's copies first and then its landings (`bells`, `residents`, `farms`,
+`mouths`), which is the global file's key order; a value written over a key keeps its place.
 
 The bake (`bake` in `src/tools/bake.ts`) runs the game's own code on the map cut so far, which it
 reads through a store that keeps 16 tiles decoded and drops the first one read past that, as a host
@@ -2899,7 +2912,8 @@ them on the line (three processes each, 2026-11-07).
 
 The baked tables are what the game would otherwise work out at load from the dense layers and the
 vectors, which it now holds only near the player. Each is computed by the game's own code at build
-time (`src/tools/bake.ts`, [Pipeline](#pipeline)): the lanes by `bakeLanes` (`src/sim/lanes.ts`),
+time (one entry each in the registry of `src/tools/bake-landings.ts` and `src/tools/bake.ts`,
+[Pipeline](#pipeline)): the lanes by `bakeLanes` (`src/sim/lanes.ts`),
 the parked rests by `bakeParked` (`src/sim/parking.ts`), the water's floor by `bedOf`
 (`src/sim/water/channel.ts`; it is kept on each water piece in the tiles), the farms by `bakeFarms`
 (`src/sim/population/farms.ts`) and their buildings' centres by `buildingCentre`, the walkers'
@@ -3375,15 +3389,18 @@ that a clip lets paint through by its coverage.
 map's vectors joined from its tiles, and compares them, and the place refitted over the nodes of
 the joined heightmap its listed tiles hold and `derived`'s copies of the railway's roads, platforms
 and stations, with what it holds (the check is `assertBakesCurrent` in
-`src/tools/__tests__/bakes.ts`), so code that changes a baked table fails `pnpm test:map` until
+`src/tools/__tests__/bakes.ts`, one loop over the registry's landings reading each bake's value at
+its path, and its message names both: `MAP.derived.mouths (bake "mouths", src/tools/bake.ts): run
+pnpm map`), so code that changes a baked table fails `pnpm test:map` until
 `pnpm map` runs; `cesena-bake.map-test.ts` checks Cesena's (`pnpm map --region cesena`).
 `bake.test.ts` and `cesena-bake.test.ts` bake again the parked spots, water beds and farms within
 1 km of Monzone station and of Cesena's start (`assertBakesCurrentNear`, through `bakeParked`,
 `bedOf` and `bakeFarms` given just those: the water pieces and buildings of the tiles over the box
 round the spot with a vertex, a building's first, within 1 km, 22 and 970 by the station, 2 and
-3,777 at Cesena's start), so `pnpm test` fails too: proven red by changing the parked cars' `LEVEL`
-(0.26 to 0.2) and the farms' `RURAL` (60 to 50, again with #63). The lanes, the lamps, the bells and
-the residents are worked out map-wide, so only the map check catches a change to them.
+3,777 at Cesena's start), so `pnpm test` fails too: proven red by changing the parked
+cars' `TILT_LIMIT` (0.26 to 0.2) and the farms' `RURAL` (60 to 50, again with #63). The lanes, the
+lamps, the bells and the residents are worked out map-wide, so only the map check catches a change
+to them.
 `src/tools/__tests__/tile-map.test.ts` cuts a 24 m map into its four
 tiles and joins them back as they were (walls in order, trees with sparse ids merged back in id
 order, which is not their tiles' order) and the walls' levels, with the region's tree corner;

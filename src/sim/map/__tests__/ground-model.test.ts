@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { LEVEL } from "../../sky/local.ts"
+import { FLAT_GROUND } from "../../sky/local.ts"
 import { groundBuckets } from "../ground-model.ts"
 import { ON_DECK } from "../kinds.ts"
 import { LIFT, road, scene } from "./ground-scenes.ts"
@@ -57,7 +57,7 @@ test("a tunnel's floor is where people walk through it, never a deck, and the te
   assert.equal(footZ(0, 0), floor)
   assert.equal(groundZ(0, 0), 100)
   assert.equal(groundZ(0, 0, 90.2), floor)
-  assert.deepEqual(facingAt(0, 0, floor), LEVEL)
+  assert.deepEqual(facingAt(0, 0, floor), FLAT_GROUND)
   assert.equal(deckNear(0, 0, 1), undefined, "a tunnel's floor under the hill is no deck")
   assert.equal(scene({ roads: [deckAt(104)] }).deckNear(0, 4, 1), 104 - LIFT + LIFT)
 })
@@ -117,11 +117,11 @@ test("facingAt: the terrain triangle's unit normal where the ground is the terra
   const face = facingAt(2, 1, terrainZ(2, 1)),
     length = Math.sqrt(1.01)
   assert.ok(
-    face !== LEVEL &&
+    face !== FLAT_GROUND &&
       Math.abs(face.north - 0.1 / length) < 1e-12 &&
       Math.abs(face.up - 1 / length) < 1e-12,
   )
-  assert.deepEqual(facingAt(40, 0, 110 + LIFT), LEVEL)
+  assert.deepEqual(facingAt(40, 0, 110 + LIFT), FLAT_GROUND)
 })
 
 test("rolledTo: a wheel keeps to the deck it rolls onto through a sag, where the surface nearest its ground reads the ground under the deck, and drops off the deck's side", () => {
