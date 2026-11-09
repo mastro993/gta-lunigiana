@@ -60,6 +60,48 @@ _Avoid_: map version, schema version
 What reads a map file one format version back as one of today's, so two builds either side of a format change can be compared.
 _Avoid_: migration, converter
 
+## Ground
+
+**Ground**:
+Where things stand at a point on one of its levels, in metres above sea level: the terrain, a road, a deck, a tunnel floor or a platform. A person's or an animal's is its footing, a vehicle's its wheels' ground.
+_Avoid_: Surface (that is the material underfoot), floor, height
+
+**Terrain**:
+The land as its mesh is drawn, each 4 m cell split along its south-west to north-east diagonal.
+_Avoid_: DEM, heightmap (those are its sources), ground
+
+**At grade**:
+On the level of the terrain: a road that is neither a bridge nor a tunnel, or the ground with no deck or tunnel taken into account.
+_Avoid_: Ground level, flat
+
+**Deck**:
+The level a bridge carries, its road's or its track's top.
+_Avoid_: Bridge (the whole structure), span
+
+**Tunnel floor**:
+The level a tunnel carries, under the terrain.
+
+**Platform**:
+A station platform or rail-level walkway whose top is ground.
+
+**Profile**:
+A road's or a track's elevation along its line, one value per vertex.
+_Avoid_: Z, elevation line
+
+**Lift**:
+How far a road's surface stands over its profile, by road class.
+
+**Walkers' verge**:
+How far either side of a deck or a tunnel's line someone on foot is still on its level.
+_Avoid_: Sidewalk, kerb
+
+**Ground model**:
+The one set of rules that turns ground data into the ground at a point, for the game, the map build and the tests alike.
+
+**Ground data**:
+What the ground model reads: the terrain's nodes, the roads' segments with their profile, lift and walkers' verge, and the platforms.
+_Avoid_: Surface source
+
 ## Standing and rolling
 
 **Footing**:

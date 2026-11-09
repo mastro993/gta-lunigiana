@@ -11,7 +11,15 @@
 import { MAP } from "./global.ts"
 import type { Building, RoadLine } from "./index.ts"
 import { cellBox, type CellGrid, cellGrid, queryCells, visited } from "./lattice.ts"
-import { derived, eachTile, placeAt, residentTile, type Tile, tilesOver } from "./tiles.ts"
+import {
+  derived,
+  eachTile,
+  type Place,
+  placeAt,
+  residentTile,
+  type Tile,
+  tilesOver,
+} from "./tiles.ts"
 
 /** The index of `id` in the ascending `ids`, or −1. */
 const indexIn = (ids: ReadonlyArray<number>, id: number): number => {
@@ -27,15 +35,19 @@ const indexIn = (ids: ReadonlyArray<number>, id: number): number => {
   return -1
 }
 
+/** Where road `road` (index into `MAP.roads`) lies in `place`'s roads, or −1 when it lies farther than `HALO` from it. */
+export const roadIndexAt = (place: Place, road: number): number =>
+  indexIn(place.vectors.roads.ids, road)
+
 /**
  * Road `road`'s line (index into `MAP.roads`), read where a lookup at (x, y) reads, or undefined
  * when the road lies farther than `HALO` from that point's tile (a vehicle on it, someone on its
  * verge always find it).
  */
 export const roadLineAt = (road: number, x: number, y: number): RoadLine | undefined => {
-  const { ids, items } = placeAt(x, y).vectors.roads,
-    k = indexIn(ids, road)
-  return k < 0 ? undefined : items[k]
+  const place = placeAt(x, y),
+    k = roadIndexAt(place, road)
+  return k < 0 ? undefined : place.vectors.roads.items[k]
 }
 
 /** A box [minX, minY, maxX, maxY], m. */

@@ -75,7 +75,7 @@ export const liftOf = (road: RoadF): number => ROAD_LIFT[isRoadClass(road.cls) ?
 export const isLifted = (road: RoadF): boolean => road.bridge === true || road.tunnel === true
 
 /**
- * The ground at the terrain's level on the whole grid `g` (`atGrade` in src/sim/map/ground.ts): the
+ * The ground at the terrain's level on the whole grid `g` (`atGrade` in src/sim/map/ground-model.ts): the
  * terrain as drawn, or where the carriageways of `roads` at grade (their shipped `lines`) reach,
  * ROAD_PAD past their edge, their surfaces over it, each weighed by the square of how deep inside
  * it the point is, where that stands higher. A road's surface floats ROAD_LIFT over its profile,

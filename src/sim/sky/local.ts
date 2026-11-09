@@ -100,7 +100,7 @@ export interface Facing {
 }
 /** Level ground: what a road, a bridge deck, a platform or a tunnel's floor counts as. */
 export const LEVEL: Facing = { north: 0, up: 1 }
-/** Which way the ground at a point faces (`facingAt` in src/sim/map/ground.ts gives the map's; it reads the tiles there). */
+/** Which way the ground at a point faces (`facingAt` in src/sim/map/ground-model.ts gives the map's; it reads the tiles there). */
 export type FacingAt = (x: number, y: number, near: number) => Facing
 /** Level ground everywhere: for points off the map's tiles in memory, or where the slope does not matter. */
 const levelGround: FacingAt = () => LEVEL

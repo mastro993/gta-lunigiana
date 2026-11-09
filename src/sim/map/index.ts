@@ -23,14 +23,7 @@ import type { VehicleModel } from "../vehicles.ts"
 import type { Derived } from "./derived.ts"
 import type { VectorLayer } from "./format/tile-file.ts"
 import { MAP } from "./global.ts"
-import {
-  anchorOf,
-  BUILDING_STYLES,
-  type BuildingStyle,
-  isRoadClass,
-  type RailKind,
-  type RoadClass,
-} from "./kinds.ts"
+import { anchorOf, BUILDING_STYLES, type BuildingStyle, type RailKind } from "./kinds.ts"
 import { insideRings, ringsDistance } from "./outline.ts"
 import type { Railway } from "./railway.ts"
 import { cellNodes } from "./tiles.ts"
@@ -57,6 +50,7 @@ export {
   type RailKind,
   ROAD_CLASSES,
   type RoadClass,
+  roadClassOf,
   shoulderOf,
   TILE,
   TRUNK,
@@ -375,10 +369,6 @@ export interface MonzoneMap {
   readonly lamps: ReadonlyArray<Lamp>
   readonly derived: Derived
 }
-
-/** The road's class; the build only emits `ROAD_CLASSES` (checked by map.map-test.ts), anything else reads as "path". */
-export const roadClassOf = (road: Pick<RoadInfo, "cls">): RoadClass =>
-  isRoadClass(road.cls) ? road.cls : "path"
 
 const buildingStyles: ReadonlySet<string> = new Set(BUILDING_STYLES)
 const isBuildingStyle = (style: string): style is BuildingStyle => buildingStyles.has(style)
