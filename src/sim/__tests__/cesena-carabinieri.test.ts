@@ -1,14 +1,13 @@
+import "../map/__tests__/use-cesena.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { Vec2 } from "@typeonce/ritmo-math"
 
-import { MAP_URL, provideMap, readMapFile } from "../map/packed.ts"
+import { MAP } from "../map/index.ts"
+import { CARABINIERI } from "../population/parked.ts"
 
-// This process loads Cesena: the global file goes in before anything decodes the map.
-provideMap(readMapFile(new URL("cesena.bin", MAP_URL)))
-const { MAP } = await import("../map/index.ts")
-const { CARABINIERI } = await import("../population/parked.ts")
+// This process loads Cesena, picked on its first line.
 
 // Regression: the game parked them by the first police POI, the Commissariato di Cesena (539513054), 1.9 km from the
 // Compagnia whose two kerb spots the build had kept for them.

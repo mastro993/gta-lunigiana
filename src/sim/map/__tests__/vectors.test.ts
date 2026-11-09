@@ -3,26 +3,18 @@ import { test } from "node:test"
 
 import { MAP } from "../index.ts"
 import { TILE, tileKey } from "../kinds.ts"
-import { readMapFile, tileUrl } from "../packed.ts"
-import {
-  dropTile,
-  placeAt,
-  provideTile,
-  residentTiles,
-  setTileSource,
-  tilesOver,
-} from "../tiles.ts"
+import { setTileSource, tileFromDisk } from "../source.ts"
+import { dropTile, placeAt, provideTile, residentTiles, tilesOver } from "../tiles.ts"
 import { buildingAt, buildingsIn, buildingsInMemory, roadLineAt } from "../vectors.ts"
 
 // The checks over every tile's vectors live in vectors.map-test.ts (pnpm test:map); these read only
 // the tiles round Monzone station.
-const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
 
 /** Every tile out of memory, then the source back. */
 const emptied = () => {
   for (const key of KEYS) dropTile(key)
-  setTileSource(fromDisk)
+  setTileSource(tileFromDisk)
 }
 
 test("buildingsIn gives the same buildings, in the same order, whatever is in memory and in whichever order it came", () => {
@@ -47,7 +39,7 @@ test("buildingsIn gives the same buildings, in the same order, whatever is in me
   ]
   for (const order of [around, [...around].reverse()]) {
     emptied()
-    for (const key of order) provideTile(fromDisk(key))
+    for (const key of order) provideTile(tileFromDisk(key))
     assert.deepEqual(answer(), lazy)
   }
   assert.ok(touched.length >= 4, touched.join(" "))
@@ -67,7 +59,7 @@ test("a lookup at a point reads the vectors of the point's tile: a road's line t
   setTileSource(undefined)
   dropTile("1_-3")
   assert.throws(() => placeAt(3000, -5000), /map tile 1_-3 not loaded/)
-  setTileSource(fromDisk)
+  setTileSource(tileFromDisk)
 })
 
 test("a building by its index near it, and a host's read of the buildings in memory, which never reads another tile", () => {
@@ -89,5 +81,5 @@ test("a building by its index near it, and a host's read of the buildings in mem
   })
   assert.deepEqual(residentTiles(), resident)
   for (const i of found) assert.ok(near.has(i), `${i}`)
-  setTileSource(fromDisk)
+  setTileSource(tileFromDisk)
 })

@@ -2,17 +2,19 @@
 // into one heightmap, wall list, tree list, land-cover raster and list of each layer of vectors
 // (`joinTiles`, the cut of tile-map.ts undone). The tools that draw or compare a whole map and the
 // map tests read it this way. A region's map as built, a test region's too, is handed to the sim
-// with `loadBuiltMap`.
+// with `useDiskMap(builtMapUrl(region))` (src/sim/map/source.ts).
 
 import {
   type Layer,
+  TILE_CELLS,
+  TILE_NODES,
   type TileData,
   type TileVectors,
   type VectorLayer,
 } from "../sim/map/format/tile-file.ts"
 import type { Area, Barrier, Building, MonzoneMap, Road, Water } from "../sim/map/index.ts"
 import { TILE, tileKey } from "../sim/map/kinds.ts"
-import { MAP_URL, provideMap, readMapFile, TILE_CELLS, TILE_NODES } from "../sim/map/packed.ts"
+import { MAP_URL, readMapFile } from "../sim/map/source.ts"
 import { decodeUpgraded } from "./map-upgrade.ts"
 import { mapDir, type Region } from "./region.ts"
 import { mergeTrees } from "./trees.ts"
@@ -168,14 +170,3 @@ export const wholeMap = (name = "monzone"): JoinedMap => {
 /** Where `region`'s global file is built: in src/sim/map, or a test region's in test-maps (its tiles in the directory named after it beside it). */
 export const builtMapUrl = (region: Region): URL =>
   new URL(`../../${mapDir(region)}/${region.file}.bin`, import.meta.url)
-
-/**
- * Hands the sim `region`'s map as built: its global file, and its tiles as a lookup finds them
- * missing. Call it before anything imports src/sim/map/index.ts.
- */
-export const loadBuiltMap = async (region: Region): Promise<void> => {
-  const url = builtMapUrl(region)
-  provideMap(readMapFile(url))
-  const { setTileSource } = await import("../sim/map/tiles.ts")
-  setTileSource((key) => readMapFile(new URL(`${region.file}/${key}.bin`, url)))
-}

@@ -14,21 +14,20 @@ import {
 } from "../ground.ts"
 import { MAP } from "../index.ts"
 import { HALO, tileKey } from "../kinds.ts"
-import { readMapFile, tileUrl } from "../packed.ts"
+import { setTileSource, tileFromDisk } from "../source.ts"
 import { surfaceAt } from "../surface.ts"
-import { dropTile, placeAt, provideTile, residentTiles, setTileSource } from "../tiles.ts"
+import { dropTile, placeAt, provideTile, residentTiles } from "../tiles.ts"
 
 // ground.map-test.ts checks these lookups against the whole map's over every tile, and
 // ground-model.test.ts their rules on hand-made scenes; this reads only the tiles round Monzone
 // station, whose corner (0, 0) lies 650 m east of it.
-const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
 const STATION = { x: -493.8, y: 436.9 }
 
 /** Every tile out of memory, then the source back. */
 const emptied = () => {
   for (const key of KEYS) dropTile(key)
-  setTileSource(fromDisk)
+  setTileSource(tileFromDisk)
 }
 
 /** Points every 3.7 m over the station and out across the x = 0 and y = 0 seams, and on every road and river vertex of the tiles there. */
@@ -85,13 +84,13 @@ test("the ground, the surface and the water give the same answers whatever tiles
   assert.deepEqual(touched, ["-1_-1", "0_-1", "-1_0", "0_0"])
   for (const order of [touched, [...touched].reverse()]) {
     emptied()
-    for (const key of order) provideTile(fromDisk(key))
+    for (const key of order) provideTile(tileFromDisk(key))
     // nothing else may be read: a lookup reading another tile throws
     setTileSource(undefined)
     try {
       assert.deepStrictEqual(answer(), lazy)
     } finally {
-      setTileSource(fromDisk)
+      setTileSource(tileFromDisk)
     }
   }
   // the points cover roads, a deck, rivers and land

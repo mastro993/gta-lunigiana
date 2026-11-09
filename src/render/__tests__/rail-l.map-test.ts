@@ -2,7 +2,8 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { builtMapUrl, loadBuiltMap } from "../../tools/map-file.ts"
+import { useDiskMap } from "../../sim/map/source.ts"
+import { builtMapUrl } from "../../tools/map-file.ts"
 import { regionFromArgs } from "../../tools/region.ts"
 
 // Map check (pnpm test:map), on the L test region (`lunigiana-l`). This process loads the L from
@@ -15,7 +16,7 @@ const skip = existsSync(builtMapUrl(REGION))
   : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
 // GitHub Actions sets CI=true.
 if (skip !== false && process.env.CI === "true") throw new Error(skip)
-if (skip === false) await loadBuiltMap(REGION)
+if (skip === false) useDiskMap(builtMapUrl(REGION))
 const lines =
   skip === false ? await import("../../sim/rail/__tests__/railway-checks.ts") : undefined
 const rail = skip === false ? await import("./rail-checks.ts") : undefined

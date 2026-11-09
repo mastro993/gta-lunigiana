@@ -4,7 +4,8 @@
 // spot), traffic, the rest (the Carabinieri's), the parked cars' spots, each parked car by where its
 // spot stands, its model and paint, and the spots the game's dice park a car on within
 // `PARKING.fill[1]` of the start (`carOn`), with where each stands.
-import { loadBuiltMap } from "../map-file.ts"
+import { useDiskMap } from "../../sim/map/source.ts"
+import { builtMapUrl } from "../map-file.ts"
 import { regionFromArgs } from "../region.ts"
 
 /** How long the player stands, frames: 60 s, past the time traffic and the parked cars take to come round them. */
@@ -14,7 +15,7 @@ const key = process.argv[2]
 if (key === undefined)
   throw new Error("usage: node src/tools/__tests__/stand.ts <region key> [seed]")
 const seed = Number(process.argv[3] ?? 1)
-await loadBuiltMap(regionFromArgs(["--region", key]))
+useDiskMap(builtMapUrl(regionFromArgs(["--region", key])))
 const { start } = await import("../../sim/testing.ts")
 const { MAP } = await import("../../sim/map/index.ts")
 const { carOn, PARKING, spotsWithin } = await import("../../sim/population/parked.ts")

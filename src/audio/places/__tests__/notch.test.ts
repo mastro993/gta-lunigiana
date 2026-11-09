@@ -1,20 +1,16 @@
 // The owls on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`): none
 // perches on an unlisted tile.
+import "../../../sim/map/__tests__/use-notch.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { AROUND, notchMap } from "../../../sim/map/__tests__/edit-map.ts"
-import { MAP_URL, readMapFile } from "../../../sim/map/packed.ts"
-
-notchMap()
-const { MAP } = await import("../../../sim/map/index.ts")
-const tiles = await import("../../../sim/map/tiles.ts")
-const { owlsNear } = await import("../animals.ts")
+import { AROUND } from "../../../sim/map/__tests__/edit-map.ts"
+import { tileFromDisk } from "../../../sim/map/source.ts"
+import * as tiles from "../../../sim/map/tiles.ts"
+import { owlsNear } from "../animals.ts"
 
 test("an L: owls perch only on listed tiles, none in the notch's borrowed woods", () => {
-  for (const key of AROUND)
-    if (!tiles.isResident(key))
-      tiles.provideTile(readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL)))
+  for (const key of AROUND) if (!tiles.isResident(key)) tiles.provideTile(tileFromDisk(key))
   const owls = owlsNear(3400, 1950, 2500)
   assert.ok(owls.length > 10, `${owls.length} owls`)
   for (const owl of owls)

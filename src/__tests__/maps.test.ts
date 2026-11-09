@@ -5,7 +5,7 @@ import { test } from "node:test"
 import { mapForSearch } from "../maps.ts"
 import { decodeMap } from "../sim/map/format/global-file.ts"
 import { tileKey } from "../sim/map/kinds.ts"
-import { readMapFile } from "../sim/map/packed.ts"
+import { readMapFile } from "../sim/map/source.ts"
 
 test("Lunigiana remains the default map", () => {
   assert.equal(mapForSearch("?seed=42").id, "lunigiana")

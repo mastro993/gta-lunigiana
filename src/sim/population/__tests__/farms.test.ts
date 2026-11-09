@@ -5,8 +5,8 @@ import { Random } from "@typeonce/ritmo-math"
 
 import { MAP } from "../../map/index.ts"
 import { tileKey } from "../../map/kinds.ts"
-import { readMapFile, tileUrl } from "../../map/packed.ts"
-import { dropTile, provideTile, residentTiles, setTileSource } from "../../map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../map/source.ts"
+import { dropTile, provideTile, residentTiles } from "../../map/tiles.ts"
 import {
   buildingsNear,
   farmBuilding,
@@ -20,12 +20,11 @@ import {
 
 // The checks against one broad phase over the whole map are in farms.map-test.ts (pnpm test:map);
 // these read only the tiles round Monzone station.
-const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 
 /** Every tile out of memory, then the source back. */
 const emptied = () => {
   for (const { i, j } of MAP.tiles) dropTile(tileKey(i, j))
-  setTileSource(fromDisk)
+  setTileSource(tileFromDisk)
 }
 
 /** Round Monzone station every 25 m, out to 600 m: over the x = 0 and y = 0 seams east and south of it. */
@@ -54,11 +53,11 @@ test("the ground checks, the buildings near a point, the farms' buildings and th
   // Just the tiles the answers read, handed over in key order and the other way round, with no source to read more.
   for (const order of [touched, [...touched].reverse()]) {
     emptied()
-    for (const key of order) provideTile(fromDisk(key))
+    for (const key of order) provideTile(tileFromDisk(key))
     setTileSource(undefined)
     assert.deepEqual(answers(), lazy)
   }
-  setTileSource(fromDisk)
+  setTileSource(tileFromDisk)
   assert.ok(touched.length >= 4, touched.join(" "))
   const some = (pick: (a: (typeof lazy)[number]) => boolean) => lazy.filter(pick).length
   assert.ok(some((a) => a.ground[0]!) > 10, "indoors")

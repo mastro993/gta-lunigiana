@@ -6,8 +6,8 @@
 import { Mesh, type Object3D, type Vector3 } from "three"
 
 import { type Layer } from "../sim/map/format/tile-file.ts"
-import { type Area, type Building, MAP, type Road, type Water } from "../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../sim/map/packed.ts"
+import { type Area, type Building, type Road, wholeRoad, type Water } from "../sim/map/index.ts"
+import { tileFromDisk } from "../sim/map/source.ts"
 import { isResident, provideTile, tilesOver, tileVectors } from "../sim/map/tiles.ts"
 import { DRAW_ORDER } from "./order.ts"
 import type { World } from "./world.ts"
@@ -50,7 +50,7 @@ export const residentAround = (
 ): void => {
   for (const { x, y } of spots)
     for (const key of tilesOver(x - reach, y - reach, x + reach, y + reach))
-      if (!isResident(key)) provideTile(readMapFile(tileUrl(MAP.name, key)))
+      if (!isResident(key)) provideTile(tileFromDisk(key))
 }
 
 /** Some of the whole map's roads (their attributes and lines), buildings and rivers: each by its index in the whole map's list, ascending. */
@@ -85,10 +85,7 @@ export const vectorsAround = (
   const tiles = [...keys].map(tileVectors),
     roads = merged(tiles.map((v) => v.roads))
   return {
-    roads: {
-      ids: roads.ids,
-      items: roads.items.map((line, k) => ({ ...MAP.roads[roads.ids[k]!]!, ...line })),
-    },
+    roads: { ids: roads.ids, items: roads.ids.map((id, k) => wholeRoad(id, roads.items[k]!)) },
     buildings: merged(tiles.map((v) => v.buildings)),
     water: merged(tiles.map((v) => v.water)),
     areas: merged(tiles.map((v) => v.areas)),

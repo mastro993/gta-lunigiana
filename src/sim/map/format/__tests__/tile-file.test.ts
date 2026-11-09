@@ -1,8 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { TILE_CELLS, TILE_NODES } from "../../packed.ts"
-import { decodeTile, decodeTileVectors, encodeTile } from "../tile-file.ts"
+import { decodeTile, decodeTileVectors, encodeTile, TILE_CELLS, TILE_NODES } from "../tile-file.ts"
 import { plain } from "./plain.ts"
 
 /** A tile of tile (−1, 0): its corner is (−2000, 0) m, so walls count from (−21000, −1000) dm and trees from (−2100, −100) m. */

@@ -7,8 +7,8 @@ import assert from "node:assert/strict"
 import { Group, InstancedMesh, type Mesh, Vector3 } from "three"
 
 import { MAP } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
-import { dropTile, isResident, provideTile, setTileSource } from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, isResident, provideTile } from "../../sim/map/tiles.ts"
 import type { chunkTiles } from "../chunk-tiles.ts"
 import { terrainY } from "../ground.ts"
 import { streamAround } from "../testing.ts"
@@ -60,7 +60,6 @@ const shapeOf = (meshes: ReadonlyArray<Mesh> | undefined) =>
  * built.
  */
 export const buildsWithSomeTiles = (spots: ReadonlyArray<readonly [number, number]>): number => {
-  const disk = (key: string) => readMapFile(tileUrl(MAP.name, key))
   let built = 0
   try {
     for (const [x, y] of spots) {
@@ -77,7 +76,7 @@ export const buildsWithSomeTiles = (spots: ReadonlyArray<readonly [number, numbe
       ]) {
         setTileSource(undefined)
         for (const { i, j } of MAP.tiles) dropTile(`${i}_${j}`)
-        for (const key of some) provideTile(disk(key))
+        for (const key of some) provideTile(tileFromDisk(key))
         const world = new World(new Group())
         for (const key of some) world.tileProvided(key)
         world.update(focus, 0, 60, Infinity)
@@ -85,11 +84,11 @@ export const buildsWithSomeTiles = (spots: ReadonlyArray<readonly [number, numbe
         for (const [key, meshes] of world.loaded)
           assert.deepEqual(shapeOf(meshes), shapeOf(probe.loaded.get(key)), `chunk ${key}`)
         assert.ok(wanted.every((key) => some.includes(key) === isResident(key)))
-        setTileSource(disk)
+        setTileSource(tileFromDisk)
       }
     }
   } finally {
-    setTileSource(disk)
+    setTileSource(tileFromDisk)
   }
   return built
 }

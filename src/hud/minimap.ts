@@ -13,7 +13,7 @@ import { roadHex } from "../render/lines.ts"
 import { faded, type MapLayers, paintLayers, type RoadLook } from "../render/map-style.ts"
 import { css, PALETTE } from "../render/palette.ts"
 import type { TileVectors } from "../sim/map/format/tile-file.ts"
-import { MAP, type Road, TILE } from "../sim/map/index.ts"
+import { MAP, type Road, wholeRoad, TILE } from "../sim/map/index.ts"
 import { tileKey } from "../sim/map/kinds.ts"
 import { isListed, residentTile, TILE_RANGE } from "../sim/map/tiles.ts"
 import { screenAxes } from "../sim/view.ts"
@@ -192,7 +192,7 @@ export const tileLayers = (vectors: TileVectors, i: number, j: number): MapLayer
       const b = rail[k]!
       return b[0] <= x1 && b[2] >= x0 && b[1] <= y1 && b[3] >= y0
     }),
-    roads: roads.ids.map((id, k) => ({ ...MAP.roads[id]!, ...roads.items[k]! })),
+    roads: roads.ids.map((id, k) => wholeRoad(id, roads.items[k]!)),
     buildings: buildings.items,
   }
 }

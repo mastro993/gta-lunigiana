@@ -5,6 +5,7 @@ import { pointInRing } from "../../sim/collide.ts"
 import { coverAt } from "../../sim/map/cover.ts"
 import { decodeTile } from "../../sim/map/format/tile-file.ts"
 import { type Barrier, type Building, heightAt, MAP, treesIn } from "../../sim/map/index.ts"
+import { tileFromDisk } from "../../sim/map/source.ts"
 import { surfaceAt } from "../../sim/map/surface.ts"
 import { placeAt, tilesOver, tileVectors } from "../../sim/map/tiles.ts"
 import { buildingsIn } from "../../sim/map/vectors.ts"
@@ -21,7 +22,7 @@ import {
   owlsNear,
   wallAt,
 } from "../places.ts"
-import { fromDisk, HELD, residentAround } from "../testing.ts"
+import { HELD, residentAround } from "../testing.ts"
 
 /** A small deterministic random source, so the checks never flake. */
 const seeded = (seed: number) => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32
@@ -188,7 +189,7 @@ test("walls: the nearest source wins, a trunk by a house wall is the trunk; a ba
   let bank: { readonly x: number; readonly y: number } | undefined
   // In the four tiles by Monzone, meeting at (0, 0).
   for (const key of tilesOver(-1, -1, 1, 1))
-    bank ??= wildBank(decodeTile(fromDisk(key)).walls.drive)
+    bank ??= wildBank(decodeTile(tileFromDisk(key)).walls.drive)
   assert.ok(bank !== undefined, "a wooded bank")
   assert.equal(wallAt(bank.x, bank.y), "earth")
 })

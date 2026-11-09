@@ -10,8 +10,8 @@ import { gzip } from "node:zlib"
 
 import { encodeMap } from "../sim/map/format/global-file.ts"
 import { MAP_VERSION } from "../sim/map/format/sections.ts"
-import { provideMap } from "../sim/map/packed.ts"
 import { coverBlocks } from "../sim/map/raster.ts"
+import { provideMap, setTileSource } from "../sim/map/source.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import type { buildWorld } from "./build-world.ts"
@@ -178,7 +178,7 @@ export const writeMap = async (
   lap: (label: string) => void,
 ) => {
   provideMap(encodeMap({ ...cut.global(NO_BAKES), hash: "" }).file)
-  const { dropTile, setTileSource } = await import("../sim/map/tiles.ts")
+  const { dropTile } = await import("../sim/map/tiles.ts")
   const resident: Array<string> = []
   // Each tile made as the bake asks for it, with no floors yet (the bake makes them)
   setTileSource((key) => {

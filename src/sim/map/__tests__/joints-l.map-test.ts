@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { builtMapUrl, loadBuiltMap } from "../../../tools/map-file.ts"
+import { builtMapUrl } from "../../../tools/map-file.ts"
 import { regionFromArgs } from "../../../tools/region.ts"
+import { useDiskMap } from "../source.ts"
 
 // Map check (pnpm test:map), on the L test region (`lunigiana-l`). This process loads the L from
 // test-maps/ (`pnpm maps` builds it); without the build the check is skipped, but in CI, which
@@ -13,7 +14,7 @@ const skip = existsSync(builtMapUrl(REGION))
   : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
 // GitHub Actions sets CI=true.
 if (skip !== false && process.env.CI === "true") throw new Error(skip)
-if (skip === false) await loadBuiltMap(REGION)
+if (skip === false) useDiskMap(builtMapUrl(REGION))
 const checks = skip === false ? await import("./joint-checks.ts") : undefined
 
 test(

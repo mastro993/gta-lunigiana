@@ -1,16 +1,14 @@
 // Lightning on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`): bolts
 // strike only the play area, the L.
+import "../../map/__tests__/use-notch.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { Random } from "@typeonce/ritmo-math"
 
-import { notchMap } from "../../map/__tests__/edit-map.ts"
-
-notchMap()
-const { inPlay } = await import("../../map/index.ts")
-const { initialWeather, setWeather, stormStep } = await import("../weather.ts")
-const { screenAxes } = await import("../../view.ts")
+import { inPlay } from "../../map/index.ts"
+import { screenAxes } from "../../view.ts"
+import { initialWeather, setWeather, stormStep } from "../weather.ts"
 
 test("an L: by the notch, bolts strike only the play area", () => {
   const t = 1792648800 // 2026-10-22, 10:00 in Rome

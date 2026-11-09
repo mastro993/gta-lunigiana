@@ -1,14 +1,15 @@
 /**
  * Lunigiana's global file edited before anything decodes it: maps the build does not make from
  * Lunigiana's parts, such as lucido alone cut into an L (`notchMap`, issue #7). A test calls one of
- * these first and imports every map module after it (`await import`).
+ * these first and imports every map module after it (`await import`), or picks the L by importing
+ * `./use-notch.ts` on its first line.
  */
 
 import { partOf } from "../../../tools/region.ts"
 import type { MonzoneMapJson } from "../format/global-file.ts"
 import { lineOf, relined } from "../format/sections.ts"
 import { tileRange } from "../kinds.ts"
-import { MAP_URL, provideMap, readMapFile } from "../packed.ts"
+import { MAP_URL, provideMap, readMapFile } from "../source.ts"
 
 /**
  * What on the line says how many values the sections hold, which an edit must leave as it is: the
@@ -20,7 +21,8 @@ const counts = (line: MonzoneMapJson): string =>
 
 /**
  * Hands over Lunigiana's global file with its JSON line's keys set to what `edit` makes of the line
- * (in place, so the key order stays), its sections unchanged, before any module decodes the map.
+ * (in place, so the key order stays), its sections unchanged, before any module decodes the map;
+ * its tiles are read from disk as Lunigiana's.
  * An edit that changes the counts the line holds throws.
  */
 export const editMap = (edit: (line: MonzoneMapJson) => Partial<MonzoneMapJson>): void => {
@@ -29,7 +31,7 @@ export const editMap = (edit: (line: MonzoneMapJson) => Partial<MonzoneMapJson>)
     patch = edit(line)
   if (counts({ ...line, ...patch }) !== counts(line))
     throw new Error("editMap: an edit changed the counts of the global file's sections")
-  provideMap(relined(file, patch))
+  provideMap(relined(file, patch), MAP_URL)
 }
 
 /** Lucido's rectangle, the region's first part: the box `notchMap` cuts the map to. */

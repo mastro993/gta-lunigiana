@@ -32,6 +32,8 @@
     "import/no-duplicates": "error",
     "import/no-cycle": "error",
     "import/no-self-import": "error",
+    // A test picks its map with a side-effect import on its first line (docs/adr/0002-one-map-per-process.md).
+    "import/no-unassigned-import": ["error", { "allow": ["**/__tests__/use-*.ts", "./use-*.ts"] }],
     "typescript/consistent-type-imports": ["error", { "fixStyle": "inline-type-imports" }],
     "typescript/consistent-type-definitions": "error",
     "typescript/no-explicit-any": "error",

@@ -14,7 +14,7 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 import { crossesAny, wallsAlong } from "../body.ts"
 import { segDist2 } from "../collide.ts"
 import { footZ, groundZ, platformTop, roadLevel } from "../map/ground.ts"
-import { graph, MAP, type Road, type RoadLine } from "../map/index.ts"
+import { graph, MAP, type Road, type RoadLine, wholeRoad } from "../map/index.ts"
 import { eachTile, placeAt, type Tile } from "../map/tiles.ts"
 import { laneOf, type Step } from "../route.ts"
 import {
@@ -499,7 +499,7 @@ const roadsAlong = (
     vectors.roads.ids.forEach((id, k) => lines.set(id, vectors.roads.items[k]!))
   return [...lines.keys()]
     .sort((a, b) => a - b)
-    .map((index) => ({ index, road: { ...MAP.roads[index]!, ...lines.get(index)! } }))
+    .map((index) => ({ index, road: wholeRoad(index, lines.get(index)!) }))
 }
 
 /**

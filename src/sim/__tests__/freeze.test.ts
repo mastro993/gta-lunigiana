@@ -7,20 +7,12 @@ import { settle } from "../chassis.ts"
 import { SetPlayer } from "../index.ts"
 import { MAP } from "../map/index.ts"
 import { tileKey } from "../map/kinds.ts"
-import { readMapFile, tileUrl } from "../map/packed.ts"
-import {
-  dropTile,
-  FROZEN_BEYOND,
-  provideTile,
-  setTileSource,
-  STEP_REACH,
-  tilesOver,
-} from "../map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../map/source.ts"
+import { dropTile, FROZEN_BEYOND, provideTile, STEP_REACH, tilesOver } from "../map/tiles.ts"
 import { parkedCar } from "../spawning.ts"
 import { inReach } from "../systems/reach.ts"
 import { battistiTraffic, door, ON_BATTISTI, press, rolling, start, wear } from "../testing.ts"
 
-const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 const START = MAP.spawns.player
 /** How far `p` is from the start along its farther axis, m. */
 const off = (p: { readonly x: number; readonly y: number }) =>
@@ -68,13 +60,13 @@ test("freeze: cars past FROZEN_BEYOND keep their state bit for bit and read no t
   )
   assert.ok(gone.includes(tilesOver(AWAY.x, AWAY.y, AWAY.x, AWAY.y)[0]!), `${gone} hold the cars`)
   try {
-    for (const key of near) provideTile(fromDisk(key))
+    for (const key of near) provideTile(tileFromDisk(key))
     setTileSource(undefined)
     for (const key of gone) dropTile(key)
     game.run(120)
     assert.deepEqual(cars(), before)
   } finally {
-    setTileSource(fromDisk)
+    setTileSource(tileFromDisk)
   }
   // The player comes within reach: they roll on and the parked car is shoved.
   game.runtime.send(SetPlayer, { ...ahead(AWAY, -(FROZEN_BEYOND - 50)), angle: 0 })
@@ -103,14 +95,14 @@ test("a traffic wreck beyond reach is abandoned only once the player comes withi
     START.y + STEP_REACH,
   )
   try {
-    for (const key of near) provideTile(fromDisk(key))
+    for (const key of near) provideTile(tileFromDisk(key))
     setTileSource(undefined)
     for (const { i, j } of MAP.tiles) if (!near.includes(tileKey(i, j))) dropTile(tileKey(i, j))
     assert.ok(game.runtime.tick(wear(1)).ok)
     game.run(10)
     assert.equal(wreck()?.traffic, true, "frozen, still traffic")
   } finally {
-    setTileSource(fromDisk)
+    setTileSource(tileFromDisk)
   }
   game.runtime.send(SetPlayer, { ...ahead(AWAY, -(FROZEN_BEYOND - 50)), angle: 0 })
   game.run(2)
@@ -141,12 +133,12 @@ test("a jump: the people and animals left beyond reach go at once, and nothing r
     AWAY.y + STEP_REACH,
   )
   try {
-    for (const key of there) provideTile(fromDisk(key))
+    for (const key of there) provideTile(tileFromDisk(key))
     setTileSource(undefined)
     for (const { i, j } of MAP.tiles) if (!there.includes(tileKey(i, j))) dropTile(tileKey(i, j))
     game.run(60)
   } finally {
-    setTileSource(fromDisk)
+    setTileSource(tileFromDisk)
   }
 })
 
