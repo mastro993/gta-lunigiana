@@ -1,16 +1,16 @@
 /**
- * The road tunnels' lines, as the bake of their mouths reads them (`bakeMouths` in render/portals):
+ * The road tunnels' lines, as the bake of their mouths reads them (`bakeMouths` in render/mouths):
  * the roads in a tunnel joined end to end, how long they are and how high the ground stands over
  * them, a point along one, a tunnel's end by its mouth (its lines from the mouth in, on along those
  * roads), and over that end how high the ground stands and whether a house stands over the way at
  * its level (a covered way, which the house hides).
  *
- * @module render/tunnel-lines
+ * @module render/mouths/tunnel-lines
  */
-import { pointInRing } from "../sim/collide.ts"
-import { terrainZ } from "../sim/map/ground.ts"
-import type { Building, Road } from "../sim/map/index.ts"
-import { boxOver } from "./geometry.ts"
+import { pointInRing } from "../../sim/collide.ts"
+import { terrainZ } from "../../sim/map/ground.ts"
+import type { Building, Road } from "../../sim/map/index.ts"
+import { buildingBox } from "../../sim/map/vectors.ts"
 
 /** The ground over a road tunnel is sampled every this many metres along it. */
 const SAMPLE = 2
@@ -197,7 +197,7 @@ export const housed = (
 export const housesNear = (
   buildings: ReadonlyArray<Building>,
 ): ((x: number, y: number, reach: number) => Array<Building>) => {
-  const boxes = buildings.map(({ outer }) => boxOver(outer))
+  const boxes = buildings.map(({ outer }) => buildingBox(outer))
   return (x, y, reach) =>
     buildings.filter((_, i) => {
       const [minX, minY, maxX, maxY] = boxes[i]!

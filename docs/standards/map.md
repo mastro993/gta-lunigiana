@@ -153,7 +153,7 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   A new part changes the counts: look at its tunnels drawn (its new head walls and open mouths
   in the browser too), then pin the new counts. A failure of the checks themselves is the data's (a
   tunnel's profile over the hill, a mouth's road, a ramp the ground does not hold) or the build's
-  (the mouths' bake, `portals.ts`, `tunnel-lines.ts`, `bores.ts`, the ribbons' `ribbons.ts`): fix
+  (the mouths' bake, `src/render/mouths/`, `bores.ts`, the ribbons' `ribbons.ts`): fix
   that for every tunnel alike, never with an exception for one tunnel or one part.
 - The shadow box holds its size through a turn over the region's ground:
   `src/render/__tests__/shadow-box.map-test.ts` and `shadow-box-cesena.map-test.ts` turn the view
@@ -261,9 +261,10 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   `cesena-bake.map-test.ts` (`pnpm test:map`) fail until each is baked again, and `bake.test.ts`
   and `cesena-bake.test.ts` (`pnpm test`) already for the parked spots, water beds and farms within
   1 km of Monzone station and of Cesena's start. Some of that code is render code: the mouths'
-  portals and head walls take their shape and room from `src/render/portals.ts`,
-  `src/render/portal-clear.ts`, the tunnels' lines and the houses over them from
-  `src/render/tunnel-lines.ts` and the bore's size from `src/render/bores.ts` (`tunnels.test.ts`
-  bakes four tunnels' mouths again in `pnpm test`). A change to the full map's look
+  portals and head walls take their shape from `src/render/mouths/shapes.ts`, their room from
+  `src/render/mouths/clear.ts`, the tunnels' lines and the houses over them from
+  `src/render/mouths/tunnel-lines.ts` and the bore's size from `src/render/bores.ts`
+  (`src/render/mouths/__tests__/mouths.test.ts` bakes four tunnels' mouths again in
+  `pnpm test`). A change to the full map's look
   (`src/render/map-style.ts`, the palette, `src/tools/overview.ts`) likewise needs the maps built
   again: `overview.map-test.ts` fails on a stale overview.

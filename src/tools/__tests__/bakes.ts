@@ -62,7 +62,7 @@ export const assertBakesCurrent = (map: MonzoneMap, run: typeof bake): void => {
   assert.deepEqual(
     fresh.mouths,
     saved(map.derived.mouths),
-    `MAP.derived.mouths (src/render/portals.ts): ${hint}`,
+    `MAP.derived.mouths (src/render/mouths/index.ts): ${hint}`,
   )
   const { floor, downslope } = placeFrom(
     map.origin,

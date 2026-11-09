@@ -4,7 +4,7 @@
 // (build-output.ts) imports this module after handing the provisional map to the sim (`provideMap`,
 // `setTileSource`), and src/tools/__tests__/bake.map-test.ts runs it on the shipped map to check the
 // baked tables are current.
-import { bakeMouths } from "../render/portals.ts"
+import { bakeMouths } from "../render/mouths/index.ts"
 import { bakeLamps } from "../render/sky/lamps.ts"
 import { bakeLanes } from "../sim/lanes.ts"
 import type { Building, Road, Water } from "../sim/map/index.ts"

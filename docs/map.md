@@ -2000,7 +2000,7 @@ north-west ridge of Monte Grondilice).
   158.3 m, the LiDAR 159.1–160.8 m), and the other road tunnels' approaches own their cells,
   0.1–0.6 m from what a road beside them wrote.
 - What a road tunnel's mouth holds for the game is baked (`bakeMouths` in
-  `src/render/portals.ts`, the global file's `derived.mouths`), since its tunnel, and the roads
+  `src/render/mouths/index.ts`, the global file's `derived.mouths`), since its tunnel, and the roads
   and the houses round it, reach past the tiles round it: a mouth is an end of a road in a tunnel,
   not a building passage, that no other road in a tunnel goes on from, more than 0.5 m inside the
   play area. It holds its road, where its portal or head wall stands (the road's end, or `back` m
@@ -2010,8 +2010,9 @@ north-west ridge of Monte Grondilice).
   [architecture.md](architecture.md#road-tunnels)), an underpass's head wall (`head`, how far its
   box runs in, `back` 0) or `open`. Its end of the tunnel is its road's line from the mouth, run on
   along the roads of its tunnel that go on from it (each way a fork takes, so a way split inside a
-  tunnel reads as one), 40 m in, short of the tunnel's middle (`src/render/tunnel-lines.ts`, every
-  0.5 m). The mouth is open where a building stands over the way there at its level, the ground
+  tunnel reads as one), 40 m in, short of the tunnel's middle
+  (`src/render/mouths/tunnel-lines.ts`, every 0.5 m). The mouth is open where a building stands over
+  the way there at its level, the ground
   under its lowest corner (`z0`) less than the bore's clear height over the road (a covered way,
   which its house hides; a house on the hill over a bore hides nothing); else a portal stands where
   the ground over the tunnel (the roads in a tunnel joined end to end with it, every 2 m) rises as
@@ -2773,7 +2774,7 @@ edge, as the apron does past the bounds (`src/sim/map/tiles.ts`; `notchMap` in
 `src/sim/map/__tests__/edit-map.ts` cuts Lunigiana to lucido's rectangle, anchor kept, and drops its
 four tiles north-east of (2000, 0), a notch that stays put however the region grows, and the
 `notch.test.ts` beside each runtime reader of the tiles and the play area checks it there; the
-tunnel portals' `portals.test.ts` moves the outline onto a tunnel mouth instead, where neither the
+tunnel mouths' `edge.test.ts` moves the outline onto a tunnel mouth instead, where neither the
 railway's nor a road's tunnel has a mouth). The build works the terrain of the listed tiles alone,
 reading none in the notch ([Pipeline](#pipeline)), writes the listed tiles alone and keeps a wall or
 tree whose midpoint falls in the notch (an outline wall on its side, a house wall over it) in the
@@ -2898,7 +2899,7 @@ the parked rests by `bakeParked` (`src/sim/parking.ts`), the water's floor by `b
 (`src/sim/water/channel.ts`; it is kept on each water piece in the tiles), the farms by `bakeFarms`
 (`src/sim/population/farms.ts`) and their buildings' centres by `buildingCentre`, the walkers'
 residents by `bakeResidents` (both `src/sim/population/density.ts`), the lamps by `bakeLamps`
-(`src/render/sky/lamps.ts`), the road tunnels' mouths by `bakeMouths` (`src/render/portals.ts`)
+(`src/render/sky/lamps.ts`), the road tunnels' mouths by `bakeMouths` (`src/render/mouths/index.ts`)
 and the bells by `bellsOf` (`src/tools/bells.ts`).
 `src/tools/__tests__/bake.map-test.ts` runs them again on the shipped map, refits the place over
 the joined heightmap's listed nodes and checks `derived`'s copies against the whole map's vectors,
