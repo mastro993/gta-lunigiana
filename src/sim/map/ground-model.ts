@@ -11,7 +11,7 @@
  * @module map/ground-model
  */
 import { pointInRing, segDist2 } from "../collide.ts"
-import { type FacingAt, LEVEL } from "../sky/local.ts"
+import { type FacingAt, FLAT_GROUND } from "../sky/local.ts"
 import { addToBuckets, bucketItems, type Buckets, emptyBuckets } from "./buckets.ts"
 import { footReach, HALO, ON_DECK, ROAD_LIFT, ROAD_PAD, roadClassOf } from "./kinds.ts"
 
@@ -308,10 +308,10 @@ export const groundModel = (data: GroundData) => {
   /**
    * Which way the ground at (x, y) on the level nearest `near` (m a.s.l., as `groundZ`) faces: where that ground is the terrain, its
    * triangle's (split as `terrainZ` splits the cell, the faces the renderer draws); on a road, a deck, a platform or in a tunnel,
-   * `LEVEL`. The snow reads it (`groundAt`, src/sim/sky/local.ts): north faces hold it lower, steep ones none.
+   * `FLAT_GROUND`. The snow reads it (`groundAt`, src/sim/sky/local.ts): north faces hold it lower, steep ones none.
    */
   const facingAt: FacingAt = (x, y, near) => {
-    if (Math.abs(groundZ(x, y, near) - terrainZ(x, y)) > ON_TERRAIN) return LEVEL
+    if (Math.abs(groundZ(x, y, near) - terrainZ(x, y)) > ON_TERRAIN) return FLAT_GROUND
     const fx = (x - AX) / CELL,
       fy = (y - AY) / CELL
     const fi = Math.floor(fx),

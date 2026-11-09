@@ -98,12 +98,12 @@ export interface Facing {
   readonly north: number
   readonly up: number
 }
-/** Level ground: what a road, a bridge deck, a platform or a tunnel's floor counts as. */
-export const LEVEL: Facing = { north: 0, up: 1 }
+/** Flat ground: what a road, a bridge deck, a platform or a tunnel's floor counts as. */
+export const FLAT_GROUND: Facing = { north: 0, up: 1 }
 /** Which way the ground at a point faces (`facingAt` in src/sim/map/ground-model.ts gives the map's; it reads the tiles there). */
 export type FacingAt = (x: number, y: number, near: number) => Facing
-/** Level ground everywhere: for points off the map's tiles in memory, or where the slope does not matter. */
-const levelGround: FacingAt = () => LEVEL
+/** Flat ground everywhere: for points off the map's tiles in memory, or where the slope does not matter. */
+const flatGround: FacingAt = () => FLAT_GROUND
 
 /** How many metres ground at (x, y, z) facing `face` stands over the snow line's edge under a snow line at `snowLine` m a.s.l. */
 const overEdge = (snowLine: number, x: number, y: number, z: number, face: Facing): number =>
@@ -113,7 +113,7 @@ const overEdge = (snowLine: number, x: number, y: number, z: number, face: Facin
 const settles = (face: Facing): number => smooth(ROCK_NORMAL_Y, SNOW_SETTLES, face.up)
 
 /**
- * How much snow covers ground at (x, y, z) under a snow line at `snowLine` m a.s.l., the ground facing as `facing` says (level by
+ * How much snow covers ground at (x, y, z) under a snow line at `snowLine` m a.s.l., the ground facing as `facing` says (flat by
  * default): 0 below its ragged edge, which stands lower on north faces, 1 above it, thinning out on faces steep toward bare rock.
  */
 export const snowCoverAt = (
@@ -121,7 +121,7 @@ export const snowCoverAt = (
   x: number,
   y: number,
   z: number,
-  facing: FacingAt = levelGround,
+  facing: FacingAt = flatGround,
 ): number => {
   if (snowLine >= NO_SNOW || z < snowLine - HIGHEST_SNOW) return 0
   const face = facing(x, y, z)
@@ -129,7 +129,7 @@ export const snowCoverAt = (
 }
 
 /**
- * The ground at (x, y, z) under `weather`, the air `air` (`airAt`), facing as `facing` says (level by default): snow above the snow
+ * The ground at (x, y, z) under `weather`, the air `air` (`airAt`), facing as `facing` says (flat by default): snow above the snow
  * line's ragged edge, which stands `SNOW_ASPECT` lower on north faces and thins out on faces steep toward bare rock (what the renderer
  * draws, src/render/sky/surface.ts); where none lies, the weather's wetness, and, where the air at z is above freezing, wetter toward
  * the edge from `MELT_BAND` m below it, where meltwater runs (only there: the snowmelt wets no other ground). In a frost the ground
@@ -141,7 +141,7 @@ export const groundAt = (
   y: number,
   z: number,
   air: Air,
-  facing: FacingAt = levelGround,
+  facing: FacingAt = flatGround,
 ): GroundWeather => {
   const { snowLine, wet } = weather
   if (snowLine >= NO_SNOW || z < snowLine - HIGHEST_SNOW - MELT_BAND)
