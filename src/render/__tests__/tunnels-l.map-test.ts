@@ -31,6 +31,7 @@ test(
       mouths: 12,
       portals: 3,
       heads: 0,
+      buried: 0,
       housed: 1,
       low: 8,
       crowded: 0,

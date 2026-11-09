@@ -169,6 +169,10 @@ _Avoid_: Tube, tunnel walls
 A portal set into its tunnel along the line, away from its mouth, to keep clear of the roads round it.
 _Avoid_: recess
 
+**Buried mouth**:
+A mouth where the map's ground already stands the bore's clear height over the road, its ramp not in the ground, which leaves that mouth open.
+_Avoid_: Sunken mouth, underground portal
+
 **Covered way**:
 A stretch of a tunnel by its mouth under a house standing at the road's level, which leaves that mouth open.
 _Avoid_: Arcade, building passage (that is a tunnel through a house)

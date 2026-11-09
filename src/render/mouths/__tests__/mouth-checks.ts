@@ -302,15 +302,17 @@ export const checkClear = (roads: Layer<Road>, end: Mouth, at: Mouth): void => {
   }
 }
 
-/** Why a road tunnel's mouth has neither a portal nor a head wall: a house over its end of the tunnel, the ground over that end lower than a head wall, or no room for either. */
-export type Open = "housed" | "low" | "crowded"
+/** Why a road tunnel's mouth has neither a portal nor a head wall: the ground at the mouth over the clear height (its ramp not in the map's ground), a house over its end of the tunnel, the ground over that end lower than a head wall, or no room for either. */
+export type Open = "buried" | "housed" | "low" | "crowded"
 
 /**
  * Why the mouth `end` (of the whole map's roads and buildings, or those round it, `vectors`) is
- * open, from what stands round it. Its end of the tunnel is its road's line from the mouth 40 m in,
- * run on along the roads of its tunnel that go on from it, short of the tunnel's middle, probed
- * every 0.25 m: a house stands over the way there at its level, the ground under its lowest corner
- * less than the clear height over the road ("housed": a covered way, which the house hides); else
+ * open, from what stands round it: the ground at the mouth stands the bore's clear height or more
+ * over the road's surface ("buried": its ramp is not in the map's ground, so a face there would
+ * stand inside it); else, its end of the tunnel its road's line from the mouth 40 m in, run on
+ * along the roads of its tunnel that go on from it, short of the tunnel's middle, probed every
+ * 0.25 m, a house stands over the way there at its level, the ground under its lowest corner less
+ * than the clear height over the road ("housed": a covered way, which the house hides); else
  * the ground over it never rises as high over the road as a head wall's top and its margin
  * (`leastWall`: "low"); else another road or the track runs through the room a head wall and its
  * box would take, beside the bore's axis and between the road and that height ("crowded"), or it
@@ -318,7 +320,10 @@ export type Open = "housed" | "low" | "crowded"
  */
 export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   const own = tunnelOf(roads, end.road),
-    road = roads.items[roads.ids.indexOf(end.road)]!
+    road = roads.items[roads.ids.indexOf(end.road)]!,
+    first = road.pts[0] === end.x && road.pts[1] === end.y,
+    floor = road.z[first ? 0 : road.z.length - 1]! + ROAD_LIFT[roadClassOf(road)]
+  if (terrainZ(end.x, end.y) - floor >= boreOf(road).clear) return "buried"
   let length = 0
   roads.items.forEach(({ pts }, i) => {
     if (own.has(roads.ids[i]!))
@@ -361,7 +366,6 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
           walk(next, k === 0, s, new Set([...used, next]))
     })
   }
-  const first = road.pts[0] === end.x && road.pts[1] === end.y
   walk(road, first, 0, new Set([road]))
   // The houses whose box comes within `span` of the mouth.
   const houses = buildings.items.filter(({ outer }) => {
@@ -389,8 +393,7 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
     highest =
       Math.max(...probes.map(({ x, y, z }) => terrainZ(x, y) - z)) - ROAD_LIFT[roadClassOf(road)]
   if (highest < least) return "low"
-  const floor = road.z[first ? 0 : road.z.length - 1]! + ROAD_LIFT[roadClassOf(road)],
-    ux = Math.cos(end.angle),
+  const ux = Math.cos(end.angle),
     uy = Math.sin(end.angle),
     room = boreOf(road).half + 2
   const crowding = waysNear(roads, end, end.x, end.y).find((way) => {

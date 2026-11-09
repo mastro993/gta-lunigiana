@@ -154,6 +154,25 @@ test("a house over the SR445's tunnel by its east mouth opens it only standing a
   assert.equal(whyOpen(withHouse(level), east), "housed")
 })
 
+test("the SR445's tunnel by Groppoli sunk 5 m, the ground at its mouths over the bore's clear height (its ramps not in the map's ground): both mouths open, buried, though the hill over them stands high enough for a portal", () => {
+  const { roads, buildings } = aroundTunnels(),
+    [road, id] = tunnelAt(SR445),
+    k = roads.ids.indexOf(id),
+    sunk: Road = { ...road, z: road.z.map((z) => z - 5) },
+    deep = { ids: roads.ids, items: roads.items.map((other, j) => (j === k ? sunk : other)) }
+  const baked = bakeMouths(deep, buildings.items).filter((mouth) => mouth.road === id)
+  assert.equal(baked.length, 2)
+  for (const mouth of baked) {
+    assert.ok("open" in mouth, `the mouth at (${mouth.x}, ${mouth.y}) open`)
+    assert.ok(
+      terrainZ(mouth.x, mouth.y) - mouth.z >= 4,
+      `the ground at (${mouth.x}, ${mouth.y}) ${(terrainZ(mouth.x, mouth.y) - mouth.z).toFixed(2)} m over the road`,
+    )
+  }
+  for (const end of endsOf(sunk, id))
+    assert.equal(whyOpen({ ...aroundTunnels(), roads: deep }, end), "buried")
+})
+
 /** As the map file holds it: JSON keeps no −0 and no undefined. */
 const saved = (value: unknown): unknown => JSON.parse(JSON.stringify(value))
 

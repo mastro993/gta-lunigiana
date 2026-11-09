@@ -22,7 +22,10 @@ never compares a change's map with the map before it, so these runs are yours.
   `pnpm map-diff` still compares the build before with the new one, and drops the reader of the
   version before that: no build of it is left to compare. Today it reads version 5 as one of 6, and
   version 6's move of the graph, the lanes and the residents into sections diffed as no difference
-  on Lunigiana, Cesena and the L.
+  on Lunigiana, Cesena and the L. A change to the shape of a baked table's entry (a mouth's new kind,
+  or a field added, renamed or removed) is such a change, since a build before it would be read
+  wrong; a change to which entries the bake gives, in the same shape, is a rebuild (`pnpm maps`)
+  alone (the user's answer to issue #111's seventh question).
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
   of the map live there, not in `pnpm test`, and so do the L test region's (`pnpm maps` builds it
   into `test-maps/`; without it they are skipped, but fail in CI, which builds it).
@@ -144,7 +147,8 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   baked as `mouthsOf` finds them, each portal facing out of the hill and each underpass's head wall
   facing out of its bank at the bore's width and clear height with its top under that bank, either
   clear of every other road and the track, an open mouth with none and a reason for it found again
-  by geometry (`whyOpen`: a house at the way's level over it by the mouth, the ground over it lower
+  by geometry (`whyOpen`: the ground at the mouth the clear height over the road, buried; a house at
+  the way's level over it by the mouth, the ground over it lower
   than a head wall, or another road or the track in the wall's room; any other open mouth fails),
   and the chunks round it as a whole-map build cuts them, and pin each region's counts (roads in
   tunnels, passages, metres, wall triangles, mouths, portals, head walls and open mouths by reason)

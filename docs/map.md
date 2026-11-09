@@ -2024,7 +2024,9 @@ north-west ridge of Monte Grondilice).
   box runs in, `back` 0) or `open`. Its end of the tunnel is its road's line from the mouth, run on
   along the roads of its tunnel that go on from it (each way a fork takes, so a way split inside a
   tunnel reads as one), 40 m in, short of the tunnel's middle
-  (`src/render/mouths/tunnel-lines.ts`, every 0.5 m). The mouth is open where a building stands over
+  (`src/render/mouths/tunnel-lines.ts`, every 0.5 m). The mouth is open, buried, where the ground at
+  the mouth already stands the bore's clear height over the road's surface (its ramp not in the
+  map's ground, so a face would stand inside it); else where a building stands over
   the way there at its level, the ground
   under its lowest corner (`z0`) less than the bore's clear height over the road (a covered way,
   which its house hides; a house on the hill over a bore hides nothing); else a portal stands where
@@ -2048,13 +2050,14 @@ north-west ridge of Monte Grondilice).
   garage standing over the tunnel 1.5 m in, and Fosdinovo's 28, the mouths of its 24 roads in
   tunnels, all covered alleys and lanes in its villages (Giucano, Pulica, Fosdinovo, Bardine,
   Castelpoggio, Caniparola, Ponzanello, Canova and Ceserano): 13 under houses and 15 under too low a
-  bank, so it adds no portal or head wall. Cesena has 77 mouths, 9 with a portal (the Secante's
-  four, Via del Tunnel's two, the Sottopasso Cervese's two and the Sottopasso del Mare's one, stood
-  back 2 m, its other end on the outline), 6 with a head wall (Via Spadolini's two, beside its cycle
-  path's own tunnel, and both of the Sottopasso Ravennate and of the path 43076054 under the
-  station, whose ramps the map's ground does not hold), 62 open: 47 under houses (the centre's
-  arcades and covered ways), 13 under too low a bank and the cycle path's 2, for want of room. The L
-  has 12, 3 with a portal, 9 open (1 under a house). A part's road tunnels need nothing more: the
+  bank, so it adds no portal or head wall. Cesena has 77 mouths, 6 with a portal (the Secante's
+  four and Via del Tunnel's two), 2 with a head wall (Via Spadolini's two, beside its cycle path's own
+  tunnel), 69 open: 7 buried (both of the Sottopasso Ravennate, of the path 43076054 under the
+  station and of the Sottopasso Cervese, and the Sottopasso del Mare's one, its other end on the
+  outline: the map's ground holds none of their ramps, standing 5.1–6.2 m over their floors at their
+  mouths; issue #127), 47 under houses (the centre's arcades and covered ways), 13 under too low a
+  bank and the cycle path's 2, for want of room. The L has 12, 3 with a portal, 9 open (1 under a
+  house). A part's road tunnels need nothing more: the
   build finds and bakes their mouths in any region, and `src/render/__tests__/tunnels.map-test.ts`
   (with its Cesena and L twins) checks every one drawn, finds again by geometry why each open one is
   open, and pins each region's counts of roads in tunnels, passages, metres, wall triangles, mouths,
