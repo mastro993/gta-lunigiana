@@ -5,19 +5,31 @@
  */
 
 import { partOf } from "../../../tools/region.ts"
+import type { MonzoneMapJson } from "../format/global-file.ts"
+import { lineOf, relined } from "../format/sections.ts"
 import { tileRange } from "../kinds.ts"
-import { MAP_URL, type MonzoneMapJson, provideMap, readMapFile } from "../packed.ts"
+import { MAP_URL, provideMap, readMapFile } from "../packed.ts"
 
-/** Hands over Lunigiana's global file with its JSON line made `edit` of it, before any module decodes the map. */
-export const editMap = (edit: (json: MonzoneMapJson) => MonzoneMapJson): void => {
+/**
+ * What on the line says how many values the sections hold, which an edit must leave as it is: the
+ * sections stay unchanged (a type cannot say so: a callback's returned object is not checked for
+ * keys it should not have).
+ */
+const counts = (line: MonzoneMapJson): string =>
+  JSON.stringify([line.version, line.coarse, line.graph, line.lanes, line.derived.residents])
+
+/**
+ * Hands over Lunigiana's global file with its JSON line's keys set to what `edit` makes of the line
+ * (in place, so the key order stays), its sections unchanged, before any module decodes the map.
+ * An edit that changes the counts the line holds throws.
+ */
+export const editMap = (edit: (line: MonzoneMapJson) => Partial<MonzoneMapJson>): void => {
   const file = readMapFile(MAP_URL),
-    end = file.indexOf(10)
-  const json = JSON.parse(new TextDecoder().decode(file.subarray(0, end))) as MonzoneMapJson
-  const line = new TextEncoder().encode(JSON.stringify(edit(json)))
-  const edited = new Uint8Array(line.length + file.length - end)
-  edited.set(line)
-  edited.set(file.subarray(end), line.length)
-  provideMap(edited)
+    line = lineOf(file, "the global map file") as MonzoneMapJson,
+    patch = edit(line)
+  if (counts({ ...line, ...patch }) !== counts(line))
+    throw new Error("editMap: an edit changed the counts of the global file's sections")
+  provideMap(relined(file, patch))
 }
 
 /** Lucido's rectangle, the region's first part: the box `notchMap` cuts the map to. */
@@ -56,7 +68,6 @@ export const notchMap = (): void =>
       anchor = { ax: ax ?? hm.x0, ay: ay ?? hm.y0 },
       { i0, i1, j0, j1 } = tileRange({ minX: MIN_X, minY: MIN_Y, maxX: MAX_X, maxY: MAX_Y })
     return {
-      ...json,
       bounds: { minX: MIN_X, minY: MIN_Y, maxX: MAX_X, maxY: MAX_Y },
       heightmap: {
         ...hm,

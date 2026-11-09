@@ -10,7 +10,7 @@ editMap((json) => {
   const spots = json.spawns.parked
   own = spots.length
   const far = (dx: number) => spots.map((s) => ({ ...s, x: s.x + dx }))
-  return { ...json, spawns: { ...json.spawns, parked: [...spots, ...far(30_000), ...far(60_000)] } }
+  return { spawns: { ...json.spawns, parked: [...spots, ...far(30_000), ...far(60_000)] } }
 })
 const { MAP } = await import("../map/index.ts")
 const { carOn, PARKED, PARKING, spotsWithin } = await import("../population/parked.ts")

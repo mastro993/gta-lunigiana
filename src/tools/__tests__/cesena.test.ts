@@ -3,17 +3,10 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { gunzipSync } from "node:zlib"
 
+import { decodeMap } from "../../sim/map/format/global-file.ts"
+import { decodeTile, type Layer, type TileVectors } from "../../sim/map/format/tile-file.ts"
 import { isMotorRoad, isTraffic, TILE, tileKey } from "../../sim/map/kinds.ts"
-import {
-  decodeMap,
-  decodeTile,
-  type Layer,
-  MAP_URL,
-  provideMap,
-  readMapFile,
-  type TileVectors,
-  tileUrl,
-} from "../../sim/map/packed.ts"
+import { MAP_URL, provideMap, readMapFile, tileUrl } from "../../sim/map/packed.ts"
 import { pointInRing, segDist2 } from "../geometry.ts"
 import { clearance } from "../spawns.ts"
 

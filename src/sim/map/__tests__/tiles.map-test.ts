@@ -6,10 +6,11 @@ import { wholeMap } from "../../../tools/map-file.ts"
 import { regionFromArgs } from "../../../tools/region.ts"
 import { staticGrid } from "../../collide.ts"
 import { coverAt, coverName } from "../cover.ts"
+import { decodeTile } from "../format/tile-file.ts"
 import { terrainZ } from "../ground.ts"
 import { heightAt, MAP, treesIn, wallsNear } from "../index.ts"
 import { anchorOf, pushTrunk, TILE, tileKey, tileRange, tilesRound, TRUNK } from "../kinds.ts"
-import { decodeTile, readMapFile, TILE_CELLS, tileUrl } from "../packed.ts"
+import { readMapFile, TILE_CELLS, tileUrl } from "../packed.ts"
 
 // Map checks (pnpm test:map): every tile of the shipped map, and the whole map joined from them
 // (src/tools/__tests__/seams.map-test.ts checks the nodes two tiles share, on both maps).

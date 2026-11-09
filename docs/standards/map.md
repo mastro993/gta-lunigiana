@@ -17,10 +17,12 @@ never compares a change's map with the map before it, so these runs are yours.
   Buildings that differ only in their id print as one `ids:` line under buildings, and a farm on
   one is no difference: a survey's ids encode its source and section (`survey-ids.ts`), so a change
   to that encoding shows as that line alone, which `--except buildings` accepts. A change to the
-  file format (`MAP_VERSION` in `src/sim/map/packed.ts`) keeps `readWholeMap` (`map-file.ts`)
-  reading the version before, so `pnpm map-diff` still compares the build before with the new one:
-  today it reads versions 3 to 5 as one of 6, and version 6's move of the graph, the lanes and the
-  residents into sections diffed as no difference on Lunigiana, Cesena and the L.
+  file format (`MAP_VERSION` in `src/sim/map/format/sections.ts`) rewrites the reader of the version
+  before (`src/tools/map-upgrade.ts`, which `readWholeMap` calls) for the version it replaces, so
+  `pnpm map-diff` still compares the build before with the new one, and drops the reader of the
+  version before that: no build of it is left to compare. Today it reads version 5 as one of 6, and
+  version 6's move of the graph, the lanes and the residents into sections diffed as no difference
+  on Lunigiana, Cesena and the L.
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
   of the map live there, not in `pnpm test`, and so do the L test region's (`pnpm maps` builds it
   into `test-maps/`; without it they are skipped, but fail in CI, which builds it).
@@ -250,9 +252,9 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
 - The global file's JSON line is at most 8 MB, 8,000,000 B (issue #5's map.json scale check, which
   #18 asks; `src/__tests__/maps.map-test.ts` fails past it on either map): the game parses the
   line with `JSON.parse` at load, its slowest step, so a bulk array goes in a packed section after
-  it (`packTables` in `src/tools/pack.ts`), never on the line. Lunigiana's line is 2,639,642 B and
-  Cesena's 959,338 B; with Fosdinovo's part and the graph, the lanes and the residents still on it
-  (format version 5) Lunigiana's was 8,319,700 B.
+  it (`GLOBAL_LAYOUT` in `src/sim/map/format/global-file.ts`), never on the line. Lunigiana's line
+  is 2,639,642 B and Cesena's 959,338 B; with Fosdinovo's part and the graph, the lanes and the
+  residents still on it (format version 5) Lunigiana's was 8,319,700 B.
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road
   tunnels' mouths) needs both `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and

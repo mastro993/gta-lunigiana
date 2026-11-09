@@ -4,8 +4,8 @@
 // its tuning and the shipped maps are stale until `pnpm map` and `pnpm map --region cesena` bake them again.
 import assert from "node:assert/strict"
 
+import type { Layer, TileVectors } from "../../sim/map/format/tile-file.ts"
 import type { MonzoneMap } from "../../sim/map/index.ts"
-import type { Layer, TileVectors } from "../../sim/map/packed.ts"
 import type { eachTile } from "../../sim/map/tiles.ts"
 import type { bakeParked } from "../../sim/parking.ts"
 import type { bakeFarms } from "../../sim/population/farms.ts"

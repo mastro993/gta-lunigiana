@@ -12,9 +12,9 @@
 import { roadHex } from "../render/lines.ts"
 import { faded, type MapLayers, paintLayers, type RoadLook } from "../render/map-style.ts"
 import { css, PALETTE } from "../render/palette.ts"
+import type { TileVectors } from "../sim/map/format/tile-file.ts"
 import { MAP, type Road, TILE } from "../sim/map/index.ts"
 import { tileKey } from "../sim/map/kinds.ts"
-import type { TileVectors } from "../sim/map/packed.ts"
 import { isListed, residentTile, TILE_RANGE } from "../sim/map/tiles.ts"
 import { screenAxes } from "../sim/view.ts"
 

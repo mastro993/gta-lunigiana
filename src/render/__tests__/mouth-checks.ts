@@ -5,9 +5,9 @@
 import assert from "node:assert/strict"
 
 import { pointInRing, segDist2 } from "../../sim/collide.ts"
+import type { Layer } from "../../sim/map/format/tile-file.ts"
 import { ROAD_LIFT, roadZ, terrainZ } from "../../sim/map/ground.ts"
 import { MAP, outlineDistance, type Road, roadClassOf } from "../../sim/map/index.ts"
-import type { Layer } from "../../sim/map/packed.ts"
 import { boreOf, UNDER } from "../bores.ts"
 import { boxOver, emptySink, type Piece, type Sink } from "../geometry.ts"
 import { terrainY, yOf } from "../ground.ts"

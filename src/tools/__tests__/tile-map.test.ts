@@ -1,65 +1,11 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
 import { test } from "node:test"
-import { pathToFileURL } from "node:url"
-import { gzipSync } from "node:zlib"
 
-import { decodeMap, decodeTile, MAP_VERSION } from "../../sim/map/packed.ts"
-import { joinTiles, readWholeMap } from "../map-file.ts"
-import { packTile, relined } from "../pack.ts"
+import { decodeMap } from "../../sim/map/format/global-file.ts"
+import { decodeTile, encodeTile } from "../../sim/map/format/tile-file.ts"
+import { joinTiles } from "../map-file.ts"
 import { type BuiltMap, cutMap, NO_BAKES, stampMap } from "../tile-map.ts"
-
-/** The 6 × 6 cells' land cover. */
-const cover = Array.from({ length: 36 }, (_, k) => k % 22)
-
-/** A 24 m map on the origin: its four tiles meet at (0, 0). */
-const built = (data: ReadonlyArray<number>): BuiltMap => ({
-  version: MAP_VERSION,
-  origin: { lat: 44.2, lon: 10.1 },
-  mPerDeg: { lat: 111_000, lon: 80_000 },
-  bounds: { minX: -12, minY: -12, maxX: 12, maxY: 12 },
-  outline: [[-12, -12, 12, -12, 12, 12, -12, 12]],
-  tiles: [
-    { i: -1, j: -1 },
-    { i: 0, j: -1 },
-    { i: -1, j: 0 },
-    { i: 0, j: 0 },
-  ],
-  heightmap: { cell: 4, cols: 7, rows: 7, x0: -12, y0: -12, data: Int16Array.from(data) },
-  roads: [],
-  buildings: [],
-  water: [],
-  rail: [],
-  railway: { lines: [], stations: [], crossings: [], platforms: [] },
-  areas: [],
-  barriers: [],
-  pois: [],
-  districts: [],
-  graph: { xy: [], edges: [], traffic: [], walk: [] },
-  // A wall across the x = 0 seam (its midpoint east of it), one in the south-west tile, a shore wall
-  // on the edge; the drive wall at a level (a parapet's).
-  walls: {
-    walk: [-3, 5, 1, 5, -10, -10, -8, -9],
-    shore: [12, -12, 12, 12],
-    drive: [-3, 5, 1, 5],
-    levels: { walk: [NaN, NaN], drive: [148.5] },
-  },
-  // Sparse ids, as the scatter numbers trees (lattice cells, bank trees past 2^28): in id order the
-  // trees are not in their tiles' order (0_0's comes before 0_-1's).
-  trees: [-5, -5, 1.2, 0, 0, 0.9, 7, -3, 1],
-  treeIds: [12, 40_000, 2 ** 28 + 5],
-  treeCorner: [-11, -11],
-  cover: (b) =>
-    Array.from({ length: b.cols * b.rows }, (_, k) => {
-      const c = b.c0 + (k % b.cols),
-        r = b.r0 + Math.floor(k / b.cols)
-      return cover[r * 6 + c]!
-    }),
-  spawns: { player: { x: 1, y: 2, angle: 0 }, parked: [] },
-})
-const data = Array.from({ length: 49 }, (_, k) => 2000 + 13 * k)
+import { built, cover, data } from "./built-map.ts"
 
 /** The stamped global map and the files of `map` cut as the build cuts it: the global file under "", each tile under its key. */
 const filesOf = (map: BuiltMap) => {
@@ -164,54 +110,6 @@ test("an unlisted tile's coarse nodes and cells read the nearest listed node and
   ])
 })
 
-test("readWholeMap reads a build of version 5, whose global file's line holds the graph, the lanes and the residents, as the same build of today's", () => {
-  const map = {
-    ...built(data),
-    graph: { xy: [0, 0, 10.5, -3.2], edges: [0, 1, 0], traffic: [0], walk: [0] },
-  }
-  const bakes = {
-    ...NO_BAKES,
-    lanes: {
-      panda: [2.0500000000000003, -1],
-      ape: [-1, -1],
-      truck: [-1, -1],
-      carabinieri: [1.8, 0],
-    },
-    residents: [Math.fround(1.3)],
-  }
-  const cut = cutMap(map, "test"),
-    tiles = cut.tiles(bakes).files,
-    { global, file, tile } = stampMap(cut.global(bakes), tiles.values())
-  // version 5's file: its line with the arrays, then the coarse grid's two sections alone
-  const { cols, rows } = global.coarse,
-    { graph, lanes, derived } = global
-  const v5 = relined(file.subarray(0, file.indexOf(10) + 1 + 3 * cols * rows), {
-    version: 5,
-    graph,
-    lanes,
-    derived,
-  })
-  const dir = mkdtempSync(join(tmpdir(), "read-whole-map-"))
-  try {
-    const write = (name: string, globalFile: Uint8Array, version: number) => {
-      mkdirSync(join(dir, name, "test"), { recursive: true })
-      writeFileSync(join(dir, name, "test.bin"), gzipSync(globalFile))
-      for (const [key, f] of tiles)
-        writeFileSync(
-          join(dir, name, "test", `${key}.bin`),
-          gzipSync(relined(tile(f), { version })),
-        )
-      return pathToFileURL(join(dir, name, "test.bin"))
-    }
-    const old = readWholeMap(write("v5", v5, 5)),
-      today = readWholeMap(write("v6", file, MAP_VERSION))
-    assert.deepEqual(old, today)
-    assert.deepEqual([old.graph, old.lanes], [map.graph, bakes.lanes])
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
 test("joinTiles refuses a tile from another build", () => {
   const a = filesOf(built(data)),
     b = filesOf(built(data.map((z) => z + 1)))
@@ -224,12 +122,12 @@ test("joinTiles refuses a tile from another build", () => {
   )
 })
 
-test("stamping a tile gives the file packTile packs with the build hash", () => {
+test("stamping a tile gives the file encodeTile packs with the build hash", () => {
   const { global, files, unstamped } = filesOf(built(data))
   for (const [key, file] of unstamped) {
     const tile = decodeTile(file)
     assert.equal(tile.hash, "")
-    assert.deepEqual(files.get(key), packTile({ ...tile, hash: global.hash }).file)
+    assert.deepEqual(files.get(key), encodeTile({ ...tile, hash: global.hash }).file)
   }
 })
 

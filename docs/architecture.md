@@ -310,10 +310,10 @@ baked from the tiles' layers ([map.md](map.md#map-files)), and no vector geometr
 holds all but the bulk arrays, which follow it as packed sections of whole numbers: the coarse
 grid's heights and cover, the graph's coordinates (in decimetres), edges and traffic and walk
 sets, the lanes (indices into the line's table of their distinct values) and the walk edges'
-residents (their float32 bits). `decodeMap` (`src/sim/map/packed.ts`) hands them back as plain
-arrays, every value the double `JSON.parse` gave when they were on the line (up to format version
-5), so the line the game parses at load stays within the 8 MB issue #5 set: as text they were 5.66
-MB of Lunigiana's 8,319,700 B line ([map.md](map.md#the-global-file)). The dense layers
+residents (their float32 bits). `decodeMap` (`src/sim/map/format/global-file.ts`) hands them
+back as plain arrays, every value the double `JSON.parse` gave when they were on the line (up to
+format version 5), so the line the game parses at load stays within the 8 MB issue #5 set: as text
+they were 5.66 MB of Lunigiana's 8,319,700 B line ([map.md](map.md#the-global-file)). The dense layers
 (terrain, walls, trees, land cover) and the vectors (the roads' lines, the buildings, the water, the
 areas and the barriers) live in 2 km tiles, and only the tiles round the player are in memory
 (`src/sim/map/tiles.ts`, the vectors' lookups in `src/sim/map/vectors.ts`): the host hands them over
