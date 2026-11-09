@@ -7,16 +7,9 @@
  *
  * @module render/ground
  */
+import { settleFooting } from "../sim/footing.ts"
 import { coarseHeightAt } from "../sim/map/coarse.ts"
-import {
-  atGrade,
-  drawnZ,
-  footZ,
-  groundZ,
-  roadZ,
-  terrainNodeZ,
-  terrainZ,
-} from "../sim/map/ground.ts"
+import { atGrade, drawnZ, groundZ, roadZ, terrainNodeZ, terrainZ } from "../sim/map/ground.ts"
 import { MAP } from "../sim/map/index.ts"
 import { isResidentAt } from "../sim/map/tiles.ts"
 
@@ -60,9 +53,10 @@ export const groundY = (x: number, y: number, near?: number): number =>
 
 /**
  * Where a person or animal at (x, y) whose footing is `footing` (m a.s.l., the sim's `Footing`) stands, in render y: the ground
- * on the level nearest it, the decks and tunnels out to their walkers' verges, as the sim's `footZ` finds it each step.
+ * on the level nearest it, the decks and tunnels out to their walkers' verges, as the sim settles it each step (`settleFooting`).
  */
-export const footY = (x: number, y: number, footing: number): number => yOf(footZ(x, y, footing))
+export const footY = (x: number, y: number, footing: number): number =>
+  yOf(settleFooting(x, y, footing))
 
 /** The ground at (x, y) on the terrain's level, in render y: a road at grade, never a deck above or a tunnel below (`atGrade`). */
 export const atGradeY = (x: number, y: number): number => yOf(atGrade(x, y))

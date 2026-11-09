@@ -30,7 +30,6 @@ import {
 } from "../schema.ts"
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
-import { footingAt } from "./footing.ts"
 import { FLEE_TIME, runFrom } from "./pedestrians.ts"
 import { inReach, playerPose } from "./reach.ts"
 
@@ -127,7 +126,7 @@ interface Body extends Mover {
   readonly heavy: boolean
   /** Its party (the leader's entity id, or its own): a parent and child, or a dog on its lead, walk touching. */
   readonly party: number
-  /** The ground it stands on, m a.s.l.: its `Footing` (`footingAt`), which the walk walls it meets and what it touches read. */
+  /** The ground it stands on, m a.s.l.: its `Footing`, which the walk walls it meets and what it touches read. */
   readonly ground: number
 }
 
@@ -205,7 +204,7 @@ export const Contacts = Game.System(
           down: Game.Query.optional(Down),
           player: Game.Query.optional(Player),
           follows: Game.Query.optional(Follows),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
         without: [Driving],
       }),
@@ -216,7 +215,7 @@ export const Contacts = Game.System(
           animal: Game.Query.read(Animal),
           down: Game.Query.optional(Down),
           follows: Game.Query.optional(Follows),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
       }),
       driver: Game.Query({ selection: { driving: Game.Query.read(Driving) }, with: [Player] }),
@@ -306,7 +305,7 @@ export const Contacts = Game.System(
         half,
         heavy: false,
         party: follows === undefined ? match.entity.id : Game.Entity.id(follows.leader),
-        ground: footingAt(data.footing.value(), pose.x, pose.y),
+        ground: data.footing.get().z,
       }
       return { match, body }
     })
@@ -330,7 +329,7 @@ export const Contacts = Game.System(
         half: fauna.lethal,
         heavy: fauna.mass >= HEAVY,
         party: follows === undefined ? match.entity.id : Game.Entity.id(follows.leader),
-        ground: footingAt(data.footing.value(), pose.x, pose.y),
+        ground: data.footing.get().z,
       }
       return { match, body }
     })

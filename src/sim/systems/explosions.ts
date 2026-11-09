@@ -105,6 +105,7 @@ export const Explode = Game.System(
           pose: Game.Query.write(Pose),
           motion: Game.Query.write(Motion),
           driving: Game.Query.read(Driving),
+          footing: Game.Query.write(Footing),
         },
         with: [Player],
       }),
@@ -115,10 +116,7 @@ export const Explode = Game.System(
       time: Game.System.thisTick(Game.System.readResource(Time)),
     },
     events: { explosion: Game.System.writeEvent(Explosion) },
-    commands: Game.System.commands(
-      Game.System.inserts(Down, Dead, Footing),
-      Game.System.removes(Driving),
-    ),
+    commands: Game.System.commands(Game.System.inserts(Down, Dead), Game.System.removes(Driving)),
   },
   ({ queries, resources, events, commands }) => {
     const { step } = resources.time.get(),
@@ -211,13 +209,9 @@ export const Explode = Game.System(
         data.motion.set({ vx: away.x * BLAST.throw, vy: away.y * BLAST.throw, spin: 0 })
         // Nobody's foot on the pedals any more: the shell is left on its handbrake, as when the player gets out.
         car.data.input.set({ throttle: 0, steer: 0, handbrake: true })
+        data.footing.set({ z: footZ(out.x, out.y, wheels) })
         commands.remove(entity, Driving)
-        commands.insert(
-          entity,
-          [Down, { until: step }],
-          [Dead, { since: step }],
-          [Footing, { z: footZ(out.x, out.y, wheels) }],
-        )
+        commands.insert(entity, [Down, { until: step }], [Dead, { since: step }])
       }
       // Walkers who heard it run.
       for (const { entity, data } of queries.walkers.each()) {
@@ -247,12 +241,13 @@ export const Respawn = Game.System(
           pose: Game.Query.write(Pose),
           prev: Game.Query.write(PrevPose),
           motion: Game.Query.write(Motion),
+          footing: Game.Query.write(Footing),
         },
         with: [Player],
       }),
     },
     resources: { time: Game.System.thisTick(Game.System.readResource(Time)) },
-    commands: Game.System.commands(Game.System.removes(Dead, Down), Game.System.inserts(Footing)),
+    commands: Game.System.commands(Game.System.removes(Dead, Down)),
   },
   ({ queries, resources, commands }) => {
     const { step } = resources.time.get()
@@ -263,8 +258,8 @@ export const Respawn = Game.System(
       data.pose.set(start)
       data.prev.set(start)
       data.motion.set({ vx: 0, vy: 0, spin: 0 })
+      data.footing.set({ z: atGrade(start.x, start.y) })
       commands.remove(entity, Dead, Down)
-      commands.insert(entity, [Footing, { z: atGrade(start.x, start.y) }])
     }
   },
 )

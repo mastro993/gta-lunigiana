@@ -34,6 +34,7 @@ import {
   Dead,
   Driving,
   Follows,
+  Footing,
   Game,
   type Look,
   Motion,
@@ -460,7 +461,18 @@ export const FillPeople = Game.System(
     queries: { player: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [Player] }) },
     resources: { rng: Game.System.writeResource(Rng), time: Game.System.readResource(Time) },
     commands: Game.System.commands(
-      Game.System.spawns(Pedestrian, Person, Pose, PrevPose, Motion, Route, Follows, Animal, Roam),
+      Game.System.spawns(
+        Pedestrian,
+        Person,
+        Pose,
+        PrevPose,
+        Motion,
+        Route,
+        Footing,
+        Follows,
+        Animal,
+        Roam,
+      ),
     ),
   },
   ({ queries, resources, commands }) => {

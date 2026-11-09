@@ -23,6 +23,7 @@ import {
   Animal,
   Dead,
   Follows,
+  Footing,
   Game,
   Motion,
   Player,
@@ -281,7 +282,7 @@ export const PopulateAnimals = Game.System(
       time: Game.System.thisTick(Game.System.readResource(Time)),
     },
     commands: Game.System.commands(
-      Game.System.spawns(Animal, Roam, Pose, PrevPose, Motion),
+      Game.System.spawns(Animal, Roam, Pose, PrevPose, Motion, Footing),
       Game.System.despawns(Animal),
     ),
   },
@@ -335,7 +336,9 @@ export const FillAnimals = Game.System(
   {
     queries: { player: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [Player] }) },
     resources: { rng: Game.System.writeResource(Rng), time: Game.System.readResource(Time) },
-    commands: Game.System.commands(Game.System.spawns(Animal, Roam, Pose, PrevPose, Motion)),
+    commands: Game.System.commands(
+      Game.System.spawns(Animal, Roam, Pose, PrevPose, Motion, Footing),
+    ),
   },
   ({ queries, resources, commands }) => {
     const found = queries.player.singleOptional()

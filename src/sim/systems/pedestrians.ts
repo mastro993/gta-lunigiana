@@ -39,7 +39,6 @@ import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterUnder, walkDry } from "../water/rivers.ts"
 import { outOfDepth, STROKE, waterVelocity } from "../water/swim.ts"
 import { slide } from "./foot.ts"
-import { footingAt } from "./footing.ts"
 import { personBuild } from "./water.ts"
 
 /**
@@ -231,7 +230,7 @@ export const Pedestrians = Game.System(
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
           wet: Game.Query.optional(InWater),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
       }),
       leaders: Game.Query({
@@ -272,7 +271,7 @@ export const Pedestrians = Game.System(
         water = wet === undefined ? undefined : waterUnder(pose.x, pose.y, true, q)
       const lying = data.down.present || data.dead.present,
         build = personBuild(data.look.get().height),
-        ground = footingAt(data.footing.value(), pose.x, pose.y)
+        ground = data.footing.get().z
       if (
         wet !== undefined &&
         water !== undefined &&

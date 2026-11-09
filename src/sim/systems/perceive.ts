@@ -36,7 +36,6 @@ import {
   Whistle,
   Witness,
 } from "../schema.ts"
-import { footingAt } from "./footing.ts"
 import { FLEE_TIME, runFrom, sameRoute } from "./pedestrians.ts"
 import {
   alarm,
@@ -242,7 +241,7 @@ export const Perceive = Game.System(
           witness: Game.Query.optional(Witness),
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
           wet: Game.Query.optional(InWater),
         },
       }),
@@ -299,7 +298,7 @@ export const Perceive = Game.System(
         witness: data.witness.present,
         mood: data.ped.get(),
         route: data.route.get(),
-        footing: data.footing.value(),
+        footing: data.footing.get().z,
         wet: data.wet.present,
       }
     })
@@ -439,7 +438,7 @@ export const Perceive = Game.System(
           grown &&
           !w.wet &&
           crowd < GATHER_MOST &&
-          inSight(w.at, victim, footingAt(w.footing, w.at.x, w.at.y)) &&
+          inSight(w.at, victim, w.footing) &&
           random.next() < GATHER_SHARE
         )
           gather(w, victim, stepsOf(random.range(...GATHER_DEATH)))
@@ -487,13 +486,11 @@ export const Perceive = Game.System(
      */
     const stimuli = (w: Walker): Array<Reaction> => {
       const found: Array<Reaction> = []
-      let ground: number | undefined
-      const groundOf = () => (ground ??= footingAt(w.footing, w.at.x, w.at.y))
       // A vehicle on its level (`onOneLevel`): its level read toward where it stands (the deck the vehicle drives, or the road under
       // it) with its footing. A train's car in `moving` is on it. Asked only of what would move it.
       const sensed = (car: Car) => {
         const level = levels.get(car.id)
-        return level === undefined || onOneLevel(groundOf(), level, w.at)
+        return level === undefined || onOneLevel(w.footing, level, w.at)
       }
       // A train's cars within reach of its senses, on its level.
       const moving =
@@ -502,7 +499,7 @@ export const Perceive = Game.System(
           : [
               ...cars,
               ...rail.cars.filter(
-                (car) => near(w.at, car, TRAIN_SENSED) && onOneLevel(groundOf(), car.z),
+                (car) => near(w.at, car, TRAIN_SENSED) && onOneLevel(w.footing, car.z),
               ),
             ]
       for (const car of moving) {
@@ -523,7 +520,7 @@ export const Perceive = Game.System(
           !near(w.at, hit, STRUCK.sight)
         )
           continue
-        if (!near(w.at, hit, STRUCK.hear) && !inSight(w.at, hit, groundOf())) continue
+        if (!near(w.at, hit, STRUCK.hear) && !inSight(w.at, hit, w.footing)) continue
         const car = positions.get(hit.car) ?? hit,
           killed = hit.hit === "person" && hit.fatal === true
         // Jumping back from the car, a witness of a killing keeps the victim in mind (its point) to take in once clear.
@@ -549,7 +546,7 @@ export const Perceive = Game.System(
           )
       }
       if (w.mood.mood === "walk" && w.mood.until <= step) {
-        const body = bodies.find((b) => near(w.at, b, BODY_RANGE) && inSight(w.at, b, groundOf()))
+        const body = bodies.find((b) => near(w.at, b, BODY_RANGE) && inSight(w.at, b, w.footing))
         if (body !== undefined)
           found.push(
             reaction("shock", Clock.steps(BODY_SHOCK), body, { feeling: "shock", witness: true }),
@@ -603,7 +600,7 @@ export const Perceive = Game.System(
           ),
         )
       }
-      for (const heard of rail.whistled(w.at, groundOf))
+      for (const heard of rail.whistled(w.at, () => w.footing))
         found.push(
           heard.mood === "flee"
             ? reaction("flee", Clock.steps(FLEE_TIME), heard, {

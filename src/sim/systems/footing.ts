@@ -1,46 +1,26 @@
 /**
- * Where bodies on foot stand (`Footing`): each step, before anything moves, every one keeps to the level it was on, the ground
- * where it is nearest its last footing (`footZ`, the decks and tunnels out to their verges), so it walks onto a bridge's deck or
- * into a tunnel along the road, and stays on the track over a road tunnel or under a road bridge. One with none yet (just
- * brought out, or a save from before) takes its way's road where that is a bridge's deck or a tunnel's floor, else the ground at
- * the terrain's level. Getting out of a vehicle, thrown from a wreck and coming back at the start, the player is set on the
- * ground there. The railway's rules read it to tell whether a body is on a train's level.
+ * Settles each body's footing once a step, after the last move (`RideAlong`), so the hosts always read it where the body is: every
+ * body on foot keeps to the level it was on (`settleFooting`), and the player driving stands on the ground under the car on its
+ * wheels' ground, or on the rail head under the train's active cab (`carFooting`, `trainFooting`). See ../footing.ts.
  *
  * @module systems/footing
  */
-import { atGrade, footZ, roadLevel } from "../map/ground.ts"
-import { graph, MAP } from "../map/index.ts"
+import { carFooting, settleFooting, trainFooting } from "../footing.ts"
+import { LINES } from "../rail/lines.ts"
 import {
-  Animal,
+  CarInput,
+  Chassis,
   Driving,
   Footing,
-  type FootingValue,
   Game,
-  Person,
+  Player,
   Pose,
-  Route,
-  type RouteValue,
+  Train,
+  TrainMotion,
+  Vehicle,
 } from "../schema.ts"
 
-/** Where a body on foot at (x, y) with no footing stands, m a.s.l.: on `route`'s road when that is lifted (a deck, a tunnel's floor), else at the terrain's level. */
-const firstFooting = (x: number, y: number, route?: RouteValue): number => {
-  if (route === undefined) return atGrade(x, y)
-  const road = graph.edges[route.edge]!.road,
-    { bridge, tunnel } = MAP.roads[road]!
-  return bridge === true || tunnel === true
-    ? (roadLevel(road, x, y) ?? atGrade(x, y))
-    : atGrade(x, y)
-}
-
-/** The ground a body on foot at (x, y) stands on, m a.s.l.: its `footing`, or, with none yet, `firstFooting` (on its `route`'s level, given one). */
-export const footingAt = (
-  footing: FootingValue | undefined,
-  x: number,
-  y: number,
-  route?: RouteValue,
-): number => footing?.z ?? firstFooting(x, y, route)
-
-/** Each step, once getting in and out is applied: every body on foot finds its footing on the level it was on; one with none takes its first. */
+/** Each step, once everything has moved: every footing settled where its body now is (see the module). */
 export const FindFooting = Game.System(
   "Lunigiana/FindFooting",
   {
@@ -49,33 +29,46 @@ export const FindFooting = Game.System(
         selection: { pose: Game.Query.read(Pose), footing: Game.Query.write(Footing) },
         without: [Driving],
       }),
-      people: Game.Query({
-        selection: { pose: Game.Query.read(Pose), route: Game.Query.optional(Route) },
-        with: [Person],
-        without: [Footing, Driving],
+      driving: Game.Query({
+        selection: { driving: Game.Query.read(Driving), footing: Game.Query.write(Footing) },
+        with: [Player],
       }),
-      animals: Game.Query({
-        selection: { pose: Game.Query.read(Pose) },
-        with: [Animal],
-        without: [Footing],
+      vehicles: Game.Query({
+        selection: {
+          pose: Game.Query.read(Pose),
+          vehicle: Game.Query.read(Vehicle),
+          chassis: Game.Query.read(Chassis),
+        },
+        with: [CarInput],
+      }),
+      trains: Game.Query({
+        selection: { motion: Game.Query.read(TrainMotion), train: Game.Query.read(Train) },
+        with: [CarInput],
       }),
     },
-    commands: Game.System.commands(Game.System.inserts(Footing)),
   },
-  ({ queries, commands }) => {
+  ({ queries }) => {
     for (const { data } of queries.standing.each()) {
       const { x, y } = data.pose.get(),
         was = data.footing.get().z,
-        z = footZ(x, y, was)
+        z = settleFooting(x, y, was)
       if (z !== was) data.footing.set({ z })
     }
-    for (const { entity, data } of queries.people.each()) {
-      const { x, y } = data.pose.get()
-      commands.insert(entity, [Footing, { z: firstFooting(x, y, data.route.value()) }])
-    }
-    for (const { entity, data } of queries.animals.each()) {
-      const { x, y } = data.pose.get()
-      commands.insert(entity, [Footing, { z: firstFooting(x, y) }])
+    for (const { data } of queries.driving.each()) {
+      const { vehicle } = data.driving.get(),
+        car = queries.vehicles.getHandle(vehicle),
+        train = car.ok ? undefined : queries.trains.getHandle(vehicle)
+      const line = train?.ok === true ? LINES[train.value.data.motion.get().line] : undefined
+      const z = car.ok
+        ? carFooting(
+            car.value.data.pose.get(),
+            car.value.data.vehicle.get().model,
+            car.value.data.chassis.get(),
+          )
+        : train?.ok === true && line !== undefined
+          ? trainFooting(line, train.value.data.motion.get(), train.value.data.train.get().model)
+          : undefined
+      if (z !== undefined && z !== data.footing.get().z) data.footing.set({ z })
     }
   },
 )

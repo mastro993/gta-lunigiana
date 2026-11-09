@@ -59,7 +59,6 @@ import { underfoot } from "../sky/underfoot.ts"
 import { PERSON_RADIUS } from "../tuning.ts"
 import { weatherFactor } from "../tyres.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
-import { footingAt } from "./footing.ts"
 import { steerLimit } from "./physics.ts"
 import { inReach, playerPose } from "./reach.ts"
 
@@ -318,7 +317,7 @@ export const TrafficAI = Game.System(
       people: Game.Query({
         selection: {
           pose: Game.Query.read(Pose),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
           dead: Game.Query.optional(Dead),
         },
         with: [Person],
@@ -328,7 +327,7 @@ export const TrafficAI = Game.System(
         selection: {
           pose: Game.Query.read(Pose),
           animal: Game.Query.read(Animal),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
           dead: Game.Query.optional(Dead),
         },
       }),
@@ -409,7 +408,7 @@ export const TrafficAI = Game.System(
           long: PERSON_RADIUS,
           wide: PERSON_RADIUS,
           movesOn: !data.dead.present,
-          level: footingAt(data.footing.value(), pose.x, pose.y),
+          level: data.footing.get().z,
           train: false,
         }
       }),
@@ -424,7 +423,7 @@ export const TrafficAI = Game.System(
           long: r,
           wide: r,
           movesOn: !data.dead.present,
-          level: footingAt(data.footing.value(), pose.x, pose.y),
+          level: data.footing.get().z,
           train: false,
         }
       }),

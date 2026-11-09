@@ -1647,16 +1647,19 @@ What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/s
 
 #### Footing
 
-Where each body on foot stands (`Footing`, `systems/footing.ts`), so the railway's rules, getting
+Where each body on foot stands (`Footing`, `footing.ts`), so the railway's rules, getting
 into a vehicle ([Entering](#entering-stealing-carjacking-exiting)), what traffic brakes for
 ([Traffic AI](#traffic-ai)), what bodies touch ([Knockdowns](#knockdowns-deaths-and-score)) and
 what people and animals run from ([Reactions](#reactions), [Animals](#animals)) can tell its level:
 
-- **Kept from step to step.** Each step, before anything moves (`FindFooting`), every body on foot
-  (the player out of a vehicle, each pedestrian and each animal) keeps to the level it was on: the
-  ground where it is now nearest its last footing, a road bridge's deck or a road tunnel's floor
-  reaching out to its walkers' verges alongside it, and past its ends no farther along it than a
-  wheel's reach (`footZ` with that height; the render draws each figure there). So it walks onto a
+- **Kept from step to step.** Each step, once everything has moved (`FindFooting`, after
+  `RideAlong`), every body on foot (the player out of a vehicle, each pedestrian and each animal)
+  keeps to the level it was on: the ground where it is now nearest its last footing, a road
+  bridge's deck or a road tunnel's floor reaching out to its walkers' verges alongside it, and past
+  its ends no farther along it than a wheel's reach (`settleFooting`, `footZ` with that height; the
+  render draws each figure there at its drawn place the same way). What moves, touches and takes in
+  the world in a step reads the footing its body ended the step before on, at most a step's travel
+  (9 cm at the player's sprint) behind, far inside the 2 m of one level. So it walks onto a
   deck along its carriageway (at the verge, see the limit below) or into a tunnel along the road,
   and stays on the track over a road tunnel or under a road bridge. The verges once reached as far
   past a span's end as beside it, which held a walker on the level of a span's end over the next
@@ -1696,13 +1699,18 @@ what people and animals run from ([Reactions](#reactions), [Animals](#animals)) 
   ways), the footing under the track is the floor, 5.5–9.7 m under the rail; the player standing
   there, a train passes over at 25 m/s and they are not struck. Equi Terme's underpass from the
   north, its path joined 1.7 m over its floor, is a map limit ([Train limits](#train-limits)).
-- **The first.** One with none yet (just brought out, or from a save made before footings) takes
-  its way's road where that is a deck or a tunnel's floor, else the ground at the terrain's level
-  (`firstFooting`). The road's level is read only within 32 m of the road (`roadLevel`, as a
-  spawned car's), which a body on its way always is; farther off it takes the terrain's level.
-- **Set down.** Getting out of a vehicle, the player stands on the ground beside it on the level
-  its wheels stand on, out of a train on the rail's; thrown from a wreck, the same; coming back at
-  the start, on the ground there. A driver who gets out and runs starts on the same level.
+- **The first.** Every person and animal is brought out with one: its way's road where that is a
+  deck or a tunnel's floor, else the ground at the terrain's level (`firstFooting`). The road's
+  level is read only within 32 m of the road (`roadLevel`, as a spawned car's), which a body on its
+  way always is; farther off it takes the terrain's level.
+- **Driving.** While the player drives, their footing is the ground under the car on its wheels'
+  ground, or the rail head under the train's active cab (on a rail bridge too): the camera stands on
+  it (`PlayerView.z`), and getting out starts from it.
+- **Set down.** Getting out of a vehicle, the player stands on the ground beside it on the level of
+  their footing in it (the ground under the car on its wheels' ground, out of a train the rail
+  head); thrown from a wreck, on the level its wheels stood on; coming back at the start, or put
+  somewhere by `SetPlayer`, on the ground there. A driver who gets out and runs starts on the same
+  level.
 - Measured on the track over Equi Terme's pedestrian underpass (s 4080, the tunnel's floor 6 m
   under the rail): the player there is struck by a train at 30 m/s, and a man standing there holds
   an AI train 300 m off, which sounds the alarm. Taken from the place alone, they were in the tunnel

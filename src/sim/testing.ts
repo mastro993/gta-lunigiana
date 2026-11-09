@@ -16,6 +16,7 @@ import { settle } from "./chassis.ts"
 import { UNDAMAGED, type Wear } from "./damage.ts"
 import { gearFor } from "./drivetrain.ts"
 import type { Ground, StepResult } from "./dynamics.ts"
+import { firstFooting } from "./footing.ts"
 import type { HandlingValue } from "./handling.ts"
 import {
   Animal,
@@ -30,6 +31,7 @@ import {
   Down,
   Explosion,
   Follows,
+  Footing,
   Game,
   GameClock,
   Handling,
@@ -277,14 +279,21 @@ interface Cast {
   }>
 }
 
-/** Moves the player (on foot) to `at`. */
-export const teleport = (at: PoseValue) =>
+/**
+ * Moves the player (on foot) to `at`: on `footing` (m a.s.l.) when given, else keeping to their footing's level, as walking there
+ * would (the step's `FindFooting` settles it).
+ */
+export const teleport = (at: PoseValue, footing?: number) =>
   Game.System(
     "Test/Teleport",
     {
       queries: {
         player: Game.Query({
-          selection: { pose: Game.Query.write(Pose), prev: Game.Query.write(PrevPose) },
+          selection: {
+            pose: Game.Query.write(Pose),
+            prev: Game.Query.write(PrevPose),
+            footing: Game.Query.write(Footing),
+          },
           with: [Player],
         }),
       },
@@ -293,6 +302,7 @@ export const teleport = (at: PoseValue) =>
       for (const { data } of queries.player.each()) {
         data.pose.set(at)
         data.prev.set(at)
+        if (footing !== undefined) data.footing.set({ z: footing })
       }
     },
   )
@@ -330,7 +340,7 @@ export const wear = (amount: number) =>
     ),
   )
 
-/** Test setup: no other vehicles, trains or pedestrians, the player at `at`, plus the `cast`; from the next half second `PopulateParked` parks cars 90–300 m round the player, as `Populate` brings traffic and people, unless `start` runs `alone`. The railway's service is left as setup made it: with `start`'s `trains`, setup's first trains are gone and no line has another due, so only the cast's trains run until a `SetTrains`. */
+/** Test setup: no other vehicles, trains or pedestrians, the player at `at` on their first footing there, plus the `cast`; from the next half second `PopulateParked` parks cars 90–300 m round the player, as `Populate` brings traffic and people, unless `start` runs `alone`. The railway's service is left as setup made it: with `start`'s `trains`, setup's first trains are gone and no line has another due, so only the cast's trains run until a `SetTrains`. */
 export const stage = (at: PoseValue, cast: Cast = {}) =>
   Game.Schedule(
     Game.System(
@@ -351,7 +361,7 @@ export const stage = (at: PoseValue, cast: Cast = {}) =>
         for (const { entity } of queries.animals.each()) commands.despawn(entity)
       },
     ),
-    teleport(at),
+    teleport(at, firstFooting(at.x, at.y)),
     Game.Schedule.applyDeferred(),
     Game.System(
       "Test/Spawn",
@@ -369,6 +379,7 @@ export const stage = (at: PoseValue, cast: Cast = {}) =>
             Autopilot,
             Pedestrian,
             Person,
+            Footing,
             Animal,
             Roam,
             Follows,

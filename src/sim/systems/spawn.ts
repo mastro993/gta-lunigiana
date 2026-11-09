@@ -1,3 +1,4 @@
+import { firstFooting } from "../footing.ts"
 import { MAP } from "../map/index.ts"
 import {
   CARABINIERI,
@@ -9,6 +10,7 @@ import {
 } from "../population/parked.ts"
 import {
   CarInput,
+  Footing,
   Game,
   Motion,
   Parked,
@@ -21,7 +23,7 @@ import {
 } from "../schema.ts"
 
 /**
- * Setup: the player at the map spawn, the Carabinieri at their station, and the cars the spots' hash parks within
+ * Setup: the player at the map spawn on their first footing, the Carabinieri at their station, and the cars the spots' hash parks within
  * `PARKING.fill[1]` m of the start (`PopulateParked` keeps them round the player from then on); the title card hides them coming.
  */
 export const SpawnWorld = Game.System(
@@ -29,7 +31,17 @@ export const SpawnWorld = Game.System(
   {
     resources: { parking: Game.System.readResource(Parking) },
     commands: Game.System.commands(
-      Game.System.spawns(Player, Person, Pose, PrevPose, Motion, Vehicle, CarInput, Parked),
+      Game.System.spawns(
+        Player,
+        Person,
+        Pose,
+        PrevPose,
+        Motion,
+        Footing,
+        Vehicle,
+        CarInput,
+        Parked,
+      ),
     ),
   },
   ({ resources, commands }) => {
@@ -40,6 +52,7 @@ export const SpawnWorld = Game.System(
         [Pose, start],
         [PrevPose, start],
         [Motion, { vx: 0, vy: 0, spin: 0 }],
+        [Footing, { z: firstFooting(start.x, start.y) }],
         [
           Person,
           {

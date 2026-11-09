@@ -35,7 +35,6 @@ import {
   Weather,
   Whistle,
 } from "../schema.ts"
-import { footingAt } from "../systems/footing.ts"
 import { PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES } from "../vehicles.ts"
 import { beyond, CROSSING_HOLD, MARGIN } from "./barriers.ts"
@@ -131,7 +130,7 @@ export const TrainAI = Game.System(
         selection: { motion: Game.Query.read(TrainMotion), train: Game.Query.read(Train) },
       }),
       people: Game.Query({
-        selection: { pose: Game.Query.read(Pose), footing: Game.Query.optional(Footing) },
+        selection: { pose: Game.Query.read(Pose), footing: Game.Query.read(Footing) },
         with: [Person],
         without: [Driving],
       }),
@@ -139,7 +138,7 @@ export const TrainAI = Game.System(
         selection: {
           pose: Game.Query.read(Pose),
           animal: Game.Query.read(Animal),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
       }),
       vehicles: Game.Query({
@@ -182,22 +181,22 @@ export const TrainAI = Game.System(
       (sighted ??= [
         ...queries.people.each().map(({ data }) => {
           const { x, y, angle } = data.pose.get(),
-            footing = data.footing.value()
+            ground = data.footing.get().z
           return {
             x,
             y,
             angle,
             long: PERSON_RADIUS,
             wide: PERSON_RADIUS,
-            ground: () => footingAt(footing, x, y),
+            ground: () => ground,
           }
         }),
         ...queries.animals.each().map(({ data }) => {
           const { x, y, angle } = data.pose.get(),
             { species, size } = data.animal.get(),
             r = FAUNA[species].radius * size,
-            footing = data.footing.value()
-          return { x, y, angle, long: r, wide: r, ground: () => footingAt(footing, x, y) }
+            ground = data.footing.get().z
+          return { x, y, angle, long: r, wide: r, ground: () => ground }
         }),
         ...vehicles(),
       ])
