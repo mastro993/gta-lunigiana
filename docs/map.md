@@ -3376,9 +3376,10 @@ and stations, with what it holds (the check is `assertBakesCurrent` in
 1 km of Monzone station and of Cesena's start (`assertBakesCurrentNear`, through `bakeParked`,
 `bedOf` and `bakeFarms` given just those: the water pieces and buildings of the tiles over the box
 round the spot with a vertex, a building's first, within 1 km, 22 and 970 by the station, 2 and
-3,777 at Cesena's start), so `pnpm test` fails too: proven red by changing the parked cars' `LEVEL`
-(0.26 to 0.2) and the farms' `RURAL` (60 to 50, again with #63). The lanes, the lamps, the bells and
-the residents are worked out map-wide, so only the map check catches a change to them.
+3,777 at Cesena's start), so `pnpm test` fails too: proven red by changing the parked
+cars' `TILT_LIMIT` (0.26 to 0.2) and the farms' `RURAL` (60 to 50, again with #63). The lanes, the
+lamps, the bells and the residents are worked out map-wide, so only the map check catches a change
+to them.
 `src/tools/__tests__/tile-map.test.ts` cuts a 24 m map into its four
 tiles and joins them back as they were (walls in order, trees with sparse ids merged back in id
 order, which is not their tiles' order) and the walls' levels, with the region's tree corner;
