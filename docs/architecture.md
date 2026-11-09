@@ -444,7 +444,14 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   `initialRivers` keeps the rivers it has worked out for a start and seed (a pure function of
   them), and `petAt` the evapotranspiration's heat index per latitude.
 - `groundZ` (`src/sim/map/ground.ts`) is where every wheel, foot, sound source and drawn actor
-  stands, in m a.s.l.: the terrain as its mesh is drawn (each 4 m cell split along its SW–NE
+  stands, in m a.s.l. Its rules are the ground model's (`src/sim/map/ground-model.ts`), which reads
+  no map: `ground.ts` binds it once at load to the game's ground data (a cell's nodes in whole
+  decimetres, the road buckets holding a point, a road's line near it, the platforms), and the
+  tests bind it to whole data (`wholeGround`), so the game and the tests read one set of rules and
+  the same data gives the same answer to the bit ([ADR 0003](adr/0003-ground-model.md)). The map
+  build still keeps its own copies (`meshZ` in `src/tools/deck-ground.ts`, `groundOf` in
+  `deck-space.ts`, `surfaceAt` in `parapets.ts`) until it moves onto the model (issue #113), so a
+  change to a rule reaches the baked deck walls and parapets only through those. The ground is the terrain as its mesh is drawn (each 4 m cell split along its SW–NE
   diagonal), or a station platform's top where that is higher (`platformTop`, from
   `MAP.railway.platforms` and the rings `MAP.derived.platforms` keeps, so it reads no tile),
   at-grade roads `ROAD_LIFT` above their profile (blended where several overlap, so a junction's
@@ -460,10 +467,11 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   segments go into 16 m buckets on the origin's lattice, built from a tile's roads the first time a
   query reaches it and dropped with it, and each bucket is read from the tile holding its middle, so
   a pad across a seam reads each bucket from its own tile and the answers are the whole map's to the
-  bit, junction blends included (`ground.map-test.ts`). `groundZ`, `footZ`, `drawnZ`, `atGrade`,
+  bit, junction blends included (`ground.map-test.ts`); the model builds the buckets, by road then
+  vertex, the order the blend sums in. `groundZ`, `footZ`, `drawnZ`, `atGrade`,
   `deckNear` and `surfaceAt` read the tile under the point (a box, each bucket's), which the host
   keeps in memory round the player. `roadLevel(road, x, y)`, a road's level where a vehicle or
-  walker on it stands, reads the road's line from the tile under the point (`roadLineAt`), so it
+  walker on it stands, reads the road's line from the tile under the point, so it
   answers within `HALO` (32 m) of the road and is undefined farther off, where nothing stands on it:
   a spawn or a first footing there settles at grade. The renderer converts it to render y
   (`src/render/ground.ts`).
@@ -2555,7 +2563,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     quick one, every wall whose box overlaps a query found among the walls of the tiles within
     `walls.reach` of it, and a lookup in a tile not in memory throwing with its name, and
     `cellCorners` reading a cell's nodes as four `nodeAt` calls do round Monzone
-    station's seams; `vectors.test.ts`: `buildingsIn` the same buildings in the same order, each once,
+    station's seams; `ground-model.test.ts`: the ground model's rules on hand-made scenes
+    (`ground-scenes.ts`, no map loaded): the terrain split along its cells' diagonal, a deck within
+    `ON_DECK` of the last level holding an actor and a deck's end at grade, the walkers' verges and
+    their end cap, a tunnel's floor, a junction's blend (continuous, the higher ribbon drawn over it),
+    a platform's top, a road's level within the halo, `facingAt`, `rolledTo`, the buckets refusing
+    roads out of index order, and the model's imports reaching no module that decodes the map;
+    `vectors.test.ts`: `buildingsIn` the same buildings in the same order, each once,
     whatever is in memory and in whichever order it came (boxes across the x = 0 and y = 0 seams by
     Monzone station and round the tile corner (0, 0)), a lookup at a point reading its tile alone
     (a road's line there, none far from it), a building by its index near it, and
@@ -2817,7 +2831,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   `trunk-corners.ts`, `verges.ts`, `chunk-tile-checks.ts`, `chunk-trees.ts`, `chunk-cut.ts`,
   `rail-checks.ts`, `station-checks.ts`, `railway-checks.ts`, `rail-bed.ts`, `bridges.ts`,
   `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `decks.ts`, `parapets.ts`,
-  `under-decks.ts`, `overpass-checks.ts`, `ground-checks.ts`, `ground-oracle.ts`, `vectors-near.ts`,
+  `under-decks.ts`, `overpass-checks.ts`, `ground-checks.ts`, `ground-oracle.ts`, `ground-scenes.ts`,
+  `vectors-near.ts`,
   `road-oracle.ts`, `shadow-turns.ts`, `joint-checks.ts`):
   - `src/sim/map/__tests__/map.map-test.ts`, `rail.map-test.ts`, `railway.map-test.ts`,
     `clearance.map-test.ts` and `levels.map-test.ts`: the generated map's invariants, read whole,
@@ -2834,7 +2849,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     [map.md](map.md#checks-and-tools)); `ground.map-test.ts`,
     `ground-cesena.map-test.ts` and `ground-l.map-test.ts` (the L test region, skipped without its
     build): the ground, the surface and the water read from the tiles answering to the bit as the
-    whole map's broad phases did (`ground-oracle.ts`), at 6,000 seeded points (half of them within
+    whole map's do (`ground-oracle.ts`: the ground model over the whole map's roads and platforms,
+    `wholeGround`, and the old broad phases of the surface and the water), so the tiling stays
+    unobservable, at 6,000 seeded points (half of them within
     40 m of a seam), every road and river vertex and every 16 m bucket of road;
     `src/sim/population/__tests__/density.map-test.ts` and `farms.map-test.ts`: the residents round
     6,000 points at four reaches, and the farms' ground checks and buildings near 20,000 points and

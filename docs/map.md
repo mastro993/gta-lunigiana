@@ -3253,7 +3253,8 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   alone (`placeAt`, `roadLineAt`, none for a road 6.6 km off, a throw for a tile not in memory); and
   that `buildingAt` finds a building by its index near it while `buildingsInMemory` reads no tile.
 - `src/sim/map/__tests__/ground.map-test.ts`: the ground, surface and water lookups read from the
-  tiles answer to the bit as the whole map's old ones (`ground-oracle.ts`), at 1,142,302 points on
+  tiles answer to the bit as the whole map's (`ground-oracle.ts`: the ground model over the whole
+  map's data, `wholeGround`, and the old surface and water broad phases), at 1,142,302 points on
   Lunigiana (seeded ones, half by the seams, every road and river vertex and every 16 m bucket of
   road; 13.8 s on 2026-11-07 at the 1,142,308 of #18's build before its review, against 658,633
   points and 8.2 s on the map before Fosdinovo's part, one run each); `ground-cesena.map-test.ts` does the same on Cesena and `ground-l.map-test.ts` on

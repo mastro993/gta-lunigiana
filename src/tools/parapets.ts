@@ -20,7 +20,7 @@ interface Line {
 
 /**
  * The surface of a road of `cls` along `line` at the point of it nearest (x, y), m a.s.l.: its
- * profile there plus its class's `ROAD_LIFT`, as `roadLevel` in src/sim/map/ground.ts reads it.
+ * profile there plus its class's `ROAD_LIFT`, as `roadLevel` in src/sim/map/ground-model.ts reads it.
  */
 export const surfaceAt = (line: Line, cls: RoadF["cls"], x: number, y: number): number => {
   const { pts, z } = line
