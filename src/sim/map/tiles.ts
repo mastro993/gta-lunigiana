@@ -23,19 +23,11 @@
  *
  * @module map/tiles
  */
+
+import { decodeTile, type Layer, type TileData, type TileVectors } from "./format/tile-file.ts"
 import { MAP } from "./global.ts"
 import { TILE, tileKey, tilesRound } from "./kinds.ts"
-import {
-  decodeTile,
-  type Layer,
-  onDisk,
-  readMapFile,
-  TILE_CELLS,
-  TILE_NODES,
-  type TileData,
-  type TileVectors,
-  tileUrl,
-} from "./packed.ts"
+import { onDisk, readMapFile, TILE_CELLS, TILE_NODES, tileUrl } from "./packed.ts"
 
 /** Vehicles farther than this from the player along either axis (m) stand frozen: the sim reads no tile for them. */
 export const FROZEN_BEYOND = 500

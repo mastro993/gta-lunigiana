@@ -39,7 +39,6 @@ editMap((json) => {
     minY = ay + TILE,
     range = tileRange({ minX, minY, maxX, maxY })
   return {
-    ...json,
     bounds: { minX, minY, maxX, maxY },
     outline: [[minX, minY, maxX, minY, maxX, maxY, minX, maxY]],
     heightmap: {

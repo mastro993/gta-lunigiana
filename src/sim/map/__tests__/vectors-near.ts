@@ -1,8 +1,9 @@
 // The roads and rivers of the tiles round a spot, whole and in the whole map's order: what a test
 // (`pnpm test`) reads where it once read the whole map's lists, which the map checks read instead
 // (`wholeMap` in src/tools/map-file.ts).
+
+import type { Layer, TileVectors } from "../format/tile-file.ts"
 import { MAP, type Road, type Water } from "../index.ts"
-import type { Layer, TileVectors } from "../packed.ts"
 import { tilesOver, tileVectors } from "../tiles.ts"
 
 /** Layer `of` of the tiles over the box [x ± r, y ± r]: each feature once, with its index, by index. */

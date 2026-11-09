@@ -24,7 +24,6 @@ editMap((json) => {
   maxX = json.bounds.maxX
   // The road tunnels' portals left out: the railway's alone are drawn.
   return {
-    ...json,
     outline: [[minX, minY, cut[0], minY, cut[0], maxY, minX, maxY]],
     derived: { ...json.derived, mouths: [] },
   }

@@ -4,9 +4,9 @@
 import assert from "node:assert/strict"
 
 import type { MapLayers } from "../../render/map-style.ts"
+import type { Layer } from "../../sim/map/format/tile-file.ts"
 import { MAP, type Road, TILE } from "../../sim/map/index.ts"
 import { tileKey } from "../../sim/map/kinds.ts"
-import type { Layer } from "../../sim/map/packed.ts"
 import { isListed, tileVectors } from "../../sim/map/tiles.ts"
 import { paintMap, tileLayers } from "../minimap.ts"
 

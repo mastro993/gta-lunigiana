@@ -1,17 +1,18 @@
 // Cuts the map the build makes (one heightmap, every wall and tree, the land cover rasterised tile
-// by tile, every vector) into the global map and its 2 km tiles (src/sim/map/packed.ts), one tile at
+// by tile, every vector) into the global map and its 2 km tiles (src/sim/map/format/), one tile at
 // a time, and stamps them with the build hash. The cut is exact: joining the tiles back (`joinTiles`
 // in map-file.ts, for the tools that read a whole map) gives back every node, wall, tree, cover cell
 // and vector, in order (the trees in id order: merged by id, `mergeTrees` in trees.ts).
 import { createHash } from "node:crypto"
 
 import type { PixelBlock } from "../sim/collide.ts"
+import { encodeMap } from "../sim/map/format/global-file.ts"
+import { encodeTile, relineTile, type VectorLayer } from "../sim/map/format/tile-file.ts"
 import type { Area, Barrier, Building, MonzoneMap, Road, Spawn, Water } from "../sim/map/index.ts"
 import { TILE, tileKey, tileRange, tilesRound } from "../sim/map/kinds.ts"
-import { TILE_CELLS, TILE_NODES, type VectorLayer } from "../sim/map/packed.ts"
+import { TILE_CELLS, TILE_NODES } from "../sim/map/packed.ts"
 import { placeFrom } from "../sim/sky/place.ts"
 import { listedNodes } from "./grid-tiles.ts"
-import { packMap, packTile, relined } from "./pack.ts"
 import { NO_VECTORS, tilesOf, vectorFacts, vectorMembers } from "./tile-vectors.ts"
 
 /** The map as the build makes it: the global map's sparse parts with the dense layers whole, before the tables baked from them. */
@@ -108,13 +109,13 @@ const bySlot = (count: number, slots: number, slotOf: (item: number) => number) 
 /** A map cut into its tiles, and the global map: both completed by the bakes. */
 export interface MapCut {
   /** Tile `key`'s gunzipped file with `bakes`, as `tiles` makes it: one at a time, for the bake to read. */
-  readonly tile: (key: string, bakes: Bakes) => Buffer
+  readonly tile: (key: string, bakes: Bakes) => Uint8Array
   /**
    * Each tile's gunzipped file with `bakes` (the water's floors) and an empty hash, by key, south to
    * north then west to east, and the bytes of each layer of vectors in them, summed.
    */
   readonly tiles: (bakes: Bakes) => {
-    readonly files: ReadonlyMap<string, Buffer>
+    readonly files: ReadonlyMap<string, Uint8Array>
     readonly sizes: Readonly<Record<VectorLayer, number>>
   }
   /** The global map with `bakes`, before its hash. */
@@ -264,7 +265,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
   }
   const coarseCells = Array.from({ length: gcols * grows }, (_, k) => coarsePoint(k, 1))
   const coarseOf = bySlot(gcols * grows, slots, (k) => coarseCells[k]![0])
-  const files = new Map<string, Buffer>(),
+  const files = new Map<string, Uint8Array>(),
     sizes: Record<string, number> = {},
     list: Array<MonzoneMap["tiles"][number]> = []
   for (let j = range.j0; j <= range.j1; j++)
@@ -310,7 +311,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
         shore = wallsOf.shore(s),
         drive = wallsOf.drive(s),
         trees = treesOf(s)
-      const tile = packTile({
+      const tile = encodeTile({
         hash: "",
         i,
         j,
@@ -486,15 +487,15 @@ export const stampMap = (
   tiles: Iterable<Uint8Array>,
 ): {
   readonly global: MonzoneMap
-  readonly file: Buffer
+  readonly file: Uint8Array
   readonly sizes: Readonly<Record<string, number>>
-  readonly tile: (file: Uint8Array) => Buffer
+  readonly tile: (file: Uint8Array) => Uint8Array
 } => {
   const sha = createHash("sha256")
-  sha.update(packMap({ ...global, hash: "" }).file)
+  sha.update(encodeMap({ ...global, hash: "" }).file)
   for (const file of tiles) sha.update(file)
   const hash = sha.digest("hex").slice(0, 16)
   const stamped: MonzoneMap = { ...global, hash }
-  const { file, sizes } = packMap(stamped)
-  return { global: stamped, file, sizes, tile: (tile) => relined(tile, { hash }) }
+  const { file, sizes } = encodeMap(stamped)
+  return { global: stamped, file, sizes, tile: (tile) => relineTile(tile, { hash }) }
 }

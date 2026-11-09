@@ -21,10 +21,10 @@
  */
 import type { VehicleModel } from "../vehicles.ts"
 import type { Derived } from "./derived.ts"
+import type { VectorLayer } from "./format/tile-file.ts"
 import { MAP } from "./global.ts"
 import { anchorOf, BUILDING_STYLES, type BuildingStyle, type RailKind } from "./kinds.ts"
 import { insideRings, ringsDistance } from "./outline.ts"
-import type { VectorLayer } from "./packed.ts"
 import type { Railway } from "./railway.ts"
 import { cellNodes } from "./tiles.ts"
 import type { WallKind } from "./walls.ts"
@@ -284,9 +284,9 @@ export interface Lamp {
   readonly kind: "wall" | "pole"
 }
 
-/** The global map as the game reads it: the global file with its sections decoded (the coarse grid, the graph, the lanes, the residents: `./packed.ts`). */
+/** The global map as the game reads it: the global file with its sections decoded (the coarse grid, the graph, the lanes, the residents: `./format/global-file.ts`). */
 export interface MonzoneMap {
-  /** `MAP_VERSION` (`./packed.ts`): the decoders throw on any other. */
+  /** `MAP_VERSION` (`./format/sections.ts`): the decoders throw on any other. */
   readonly version: number
   /** The map's file name (`monzone`, `cesena`): its tiles are in the directory of that name beside it. */
   readonly name: string

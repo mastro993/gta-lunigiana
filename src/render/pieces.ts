@@ -11,8 +11,9 @@
  *
  * @module render/pieces
  */
+
+import type { TileVectors } from "../sim/map/format/tile-file.ts"
 import { MAP } from "../sim/map/index.ts"
-import type { TileVectors } from "../sim/map/packed.ts"
 import { tilesOver } from "../sim/map/tiles.ts"
 import { buildingPiece } from "./buildings.ts"
 import { CHUNKS, chunkOf } from "./chunks.ts"

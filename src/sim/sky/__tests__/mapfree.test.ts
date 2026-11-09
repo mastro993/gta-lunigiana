@@ -35,7 +35,12 @@ test("map-free: the schema, the train models and the sky's calendar, astronomy, 
     "the hook saw the imports",
   )
   assert.deepEqual(
-    loaded.filter((url) => url.endsWith("/map/index.ts") || url.endsWith("/map/packed.ts")),
+    loaded.filter(
+      (url) =>
+        url.endsWith("/map/index.ts") ||
+        url.endsWith("/map/packed.ts") ||
+        url.includes("/map/format/"),
+    ),
     [],
   )
   const { place, REFERENCE_PLACE } = await import("../place.ts")
