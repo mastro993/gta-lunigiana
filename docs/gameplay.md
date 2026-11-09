@@ -1657,9 +1657,10 @@ what people and animals run from ([Reactions](#reactions), [Animals](#animals)) 
   keeps to the level it was on: the ground where it is now nearest its last footing, a road
   bridge's deck or a road tunnel's floor reaching out to its walkers' verges alongside it, and past
   its ends no farther along it than a wheel's reach (`settleFooting`, `footZ` with that height; the
-  render draws each figure there at its drawn place the same way). What moves, touches and takes in
-  the world in a step reads the footing its body ended the step before on, at most a step's travel
-  (9 cm at the player's sprint) behind, far inside the 2 m of one level. So it walks onto a
+  render draws each figure there at its drawn place the same way). What moves and touches in a step
+  reads the footing its body ended the step before on, at most a step's travel (9 cm at the
+  player's sprint) behind, far inside the 2 m of one level; what people take in (`Perceive`) reads
+  the footing settled that step. So it walks onto a
   deck along its carriageway (at the verge, see the limit below) or into a tunnel along the road,
   and stays on the track over a road tunnel or under a road bridge. The verges once reached as far
   past a span's end as beside it, which held a walker on the level of a span's end over the next

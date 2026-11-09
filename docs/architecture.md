@@ -151,9 +151,10 @@ before anything moves (the movement systems read `InWater` and the water under t
 all movement happens before contacts, crash damage is counted after both, from the same step's
 hits, and contacts happen before the player's pose follows the car. Each footing is settled once
 the player's pose has followed the car (`FindFooting`), the last move of the step, so the hosts
-read every footing where its body is; the movers, the contacts and `Perceive` read it where the body
-stood at the end of the step before, one step's travel off (9 cm at the player's sprint, 5.5 m/s),
-far inside the 2 m their level rules allow (`ONE_LEVEL`). The crossings move on
+read every footing where its body is, and so does `Perceive` after it; the movers and the contacts
+read it where the body stood at the end of the step before, one step's travel off (9 cm at the
+player's sprint, 5.5 m/s), far inside the 2 m their level rules allow (`ONE_LEVEL`). The crossings
+move on
 before traffic and the AI train drivers, which read them that step (`thisTick`), as `Perceive` does;
 the drivers write their levers and sound their whistles before `Pedestrians` and `Animals`, which
 hear them in the step they sound, as `Perceive` does, and `TrainPhysics` moves the trains after the
