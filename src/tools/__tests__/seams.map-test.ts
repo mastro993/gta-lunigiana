@@ -7,16 +7,10 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { decodeMap } from "../../sim/map/format/global-file.ts"
+import { decodeTile, type TileData } from "../../sim/map/format/tile-file.ts"
 import { TILE, tileKey } from "../../sim/map/kinds.ts"
-import {
-  decodeMap,
-  decodeTile,
-  MAP_URL,
-  readMapFile,
-  TILE_NODES,
-  type TileData,
-  tileUrl,
-} from "../../sim/map/packed.ts"
+import { MAP_URL, readMapFile, TILE_NODES, tileUrl } from "../../sim/map/packed.ts"
 
 const KINDS = ["walk", "shore", "drive"] as const
 

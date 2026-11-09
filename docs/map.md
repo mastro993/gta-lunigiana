@@ -2397,7 +2397,7 @@ walls held them before, and stores neither of those.
 - Tree trunks are not stored as walls. `wallsNear` indexes the trees as points and adds a 0.5 m
   square (`pushTrunk`, `TRUNK` in `kinds.ts`) around each tree a query reaches.
 - **Walls with a level** (issue #91): a wall may carry a level, m a.s.l., and then stops only a body
-  whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, the game's `LEVEL`): a car whose
+  whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, `onOneLevel`): a car whose
   wheels, or a person whose footing, stand there. Every other wall stands at every level. The
   bridges' parapets and the walls under their decks ([below](#walls-under-the-decks)) are the walls
   with a level. A parapet (`parapets.ts`) needs one: walls are flat lines, so a parapet
@@ -2830,7 +2830,7 @@ CI](#pinned-inputs-and-ci)).
 
 ### The global file
 
-`MonzoneMapJson` in `src/sim/map/packed.ts` is the schema of the JSON line: `MonzoneMap`
+`MonzoneMapJson` in `src/sim/map/format/global-file.ts` is the schema of the JSON line: `MonzoneMap`
 (`src/sim/map/index.ts`, the decoded map the game reads; the railway's types, `Railway` and its
 parts, in `src/sim/map/railway.ts`) with its bulk arrays (the coarse grid's heights and cover, the
 graph, the lanes and the residents) left to the packed sections after the line, which holds how
@@ -2840,7 +2840,7 @@ counter-clockwise, holes clockwise.
 
 | Field | Contents |
 |---|---|
-| `version` | `6` (`MAP_VERSION` in `packed.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the line into sections and gave the lines their run-outs). `readWholeMap` in `src/tools/map-file.ts` still reads a version-3 build, its vectors from its global file, a version-3 or 4 build's walls each at every level, and a version-3 to 5 build's graph, lanes and residents from its line, packed into today's sections (`packTables` in `src/tools/pack.ts`), its lines with no run-outs, so `pnpm map-diff` compares a build from before #63, #91 or version 6 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
+| `version` | `6` (`MAP_VERSION` in `src/sim/map/format/sections.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the line into sections and gave the lines their run-outs). `readWholeMap` in `src/tools/map-file.ts` also reads the version before, and no older one (a format change writes the reader of the version it replaces and drops the one before it, [Map standards](standards/map.md)): a version-5 build's graph, lanes and residents from its line, decoded as a file whose sections hold none and given those of its line (`decodeUpgraded` in `src/tools/map-upgrade.ts`), its lines with no run-outs, so `pnpm map-diff` compares a build from before version 6 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
 | `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
@@ -2935,10 +2935,10 @@ with it).
 
 ### A tile
 
-A tile's JSON line (`TileJson` in `packed.ts`) is `{ version, hash, i, j, walls, trees, vectors }`:
-the counts of its walk, shore and drive walls and of its trees, and the vectors round it
-(`TileVectors`, below). Each layer of the vectors is `{ ids, items }`: each feature's index in the
-whole map's list, ascending, and the feature, whole:
+A tile's JSON line (`TileJson` in `src/sim/map/format/tile-file.ts`) is `{ version, hash, i, j,
+walls, trees, vectors }`: the counts of its walk, shore and drive walls and of its trees, and the
+vectors round it (`TileVectors`, below). Each layer of the vectors is `{ ids, items }`: each
+feature's index in the whole map's list, ascending, and the feature, whole:
 
 | Layer | Each feature |
 |---|---|
@@ -2960,18 +2960,22 @@ Its sections follow the newline in file order:
 | cover | 500 × 500 cells, the land-cover index | 1 | 500: the cell to the south |
 | walk, drive wall levels | each wall's level (a bridge's parapet's, its deck's top; a wall under a deck's, the ground's there: [section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)), decimetres a.s.l., or −32768 (`NO_LEVEL`) for a wall that stands at every level | 4 | 1 |
 
-The levels come last, so a build from before them reads as one whose every wall stands at every
-level (`readWholeMap`). With the parapets' levels alone they added 15 KB to Lunigiana's tiles
-gzipped (30.47 to 30.48 MB) and 2.5 KB to Cesena's: most walls have none, so each tile's level
-sections are runs of one value (the walls under the decks, levels and all, add 44.4 and 13.1 KB:
-[section 10](#walls-under-the-decks)).
+The levels come last (format version 5 added them). With the parapets' levels alone they added 15 KB
+to Lunigiana's tiles gzipped (30.47 to 30.48 MB) and 2.5 KB to Cesena's: most walls have none, so
+each tile's level sections are runs of one value (the walls under the decks, levels and all, add
+44.4 and 13.1 KB: [section 10](#walls-under-the-decks)).
 
 Each section holds n integers as the zigzag-coded difference (0, −1, 1, −2... stored as 0, 1, 2,
 3...) from the value `stride` places back, split into byte planes: the low byte of every value, then
 the next byte of every value. Neighbours differ little and like bytes sit together, which is what
-gzip compresses best. `packMap` and `packTile` in `src/tools/pack.ts` encode (the build throws if a
-value does not fit), `decodeMap` and `decodeTile` in `src/sim/map/packed.ts` decode. Decoding is
-exact: the same numbers a one-decimal JSON array would give.
+gzip compresses best. One layout per kind of file lists its sections in file order, each with its
+width, stride, count (read from the line) and transform both ways, and both directions walk it
+(`src/sim/map/format/`: `sections.ts`, `global-file.ts`, `tile-file.ts`), so the encoder and the
+decoder cannot disagree on where a section lies. `encodeMap` and `encodeTile` encode (the build
+throws if a value does not fit, or if two sections that share a count, a wall's segment and its id,
+disagree on it), `decodeMap` and `decodeTile` decode. The tables here and the layouts are the two
+places a section's facts are written: a change to one is a change to the other. Decoding is exact:
+the same numbers a one-decimal JSON array would give.
 
 What goes in which tile:
 
@@ -2991,16 +2995,17 @@ What goes in which tile:
 - **Vectors**: every road's line, river, barrier, building and area with a segment's box (a
   building's or an area's outer ring's box) within `HALO` (32 m, `src/sim/map/kinds.ts`) of the
   tile's square, whole, with its index in the whole map's list, in that order (`TileVectors` in
-  `packed.ts`, cut by `tile-vectors.ts`). The tile indices are clamped to the box of the listed
-  tiles, so an edge tile holds what lies past the bounds by it too, and a feature near an unlisted
-  tile goes to all the listed tiles round it (`tilesRound`). A feature thus lies in every tile it
-  comes near: on Lunigiana 3,104 of the 3,969 roads and 22,344 of the 24,331 buildings lie in one
-  tile, a road in up to 5, a water piece in up to 6, the 30 buildings by a tile corner in 4, and the
-  forest area 879 in 56 (on lucido alone 821 of 1,039 roads and 5,870 of 6,388 buildings in one, and
-  a forest whose box spans the bounds in all 30). The halo is more than any carriageway, walkers'
-  verge or river bed reaches off its line (13 m, the Aulella's bed; the build throws past it), so a
-  lookup at a point reads the point's tile alone (`placeAt` in `src/sim/map/tiles.ts`), and more
-  than the minimap's margin round a tile (23.3 m), so a tile's canvas paints from that tile alone.
+  `src/sim/map/format/tile-file.ts`, cut by `tile-vectors.ts`). The tile indices are clamped to the
+  box of the listed tiles, so an edge tile holds what lies past the bounds by it too, and a feature
+  near an unlisted tile goes to all the listed tiles round it (`tilesRound`). A feature thus lies in
+  every tile it comes near: on Lunigiana 3,104 of the 3,969 roads and 22,344 of the 24,331 buildings
+  lie in one tile, a road in up to 5, a water piece in up to 6, the 30 buildings by a tile corner in
+  4, and the forest area 879 in 56 (on lucido alone 821 of 1,039 roads and 5,870 of 6,388 buildings
+  in one, and a forest whose box spans the bounds in all 30). The halo is more than any carriageway,
+  walkers' verge or river bed reaches off its line (13 m, the Aulella's bed; the build throws past
+  it), so a lookup at a point reads the point's tile alone (`placeAt` in `src/sim/map/tiles.ts`),
+  and more than the minimap's margin round a tile (23.3 m), so a tile's canvas paints from that tile
+  alone.
 
 `wallsNear` and `treesIn` answer exactly as the one broad phase over the whole map did, the same
 items in the same order: each kind keeps its 16 m lattice (`walls.lattice`: the lowest corner of any
@@ -3187,14 +3192,15 @@ fails on both counts. And that Fivizzano's walled centre is stone: every buildin
 5 m and more inside one of its four cores (`STONE_CORES`, traced on the walls' outline to 5 m) is
 stone, but its churches (#17's acceptance).
 
-`src/sim/map/__tests__/packed.test.ts` round-trips a small global file through `packMap` and
-`decodeMap` (a newline inside a name, the coarse grid, and the graph, the lanes, their float noise
-and their models' order kept and a model with no lanes, and the residents, to the bit, the line
-holding their counts and the lanes' table) and a tile through `packTile` and `decodeTile` (negative
-values, the widest deltas, an empty section, walls with and without a level), and checks that a
-file of another version, a value too far for its section, a level for every wall but one, a graph
-coordinate off the decimetre, a resident that is not a float32 or more than 32,768 lane values
-throws; `stale-map.test.ts` that the game refuses a global file without the
+`global-file.test.ts` in `src/sim/map/format/__tests__/` round-trips a small global file through
+`encodeMap` and `decodeMap` (a newline inside a name, the coarse grid, and the graph, the lanes,
+their float noise and their models' order kept and a model with no lanes, and the residents, to the
+bit, the line holding their counts and the lanes' table), and `tile-file.test.ts` a tile through
+`encodeTile` and `decodeTile` (negative values, the widest deltas, an empty section, walls with and
+without a level); they check that a file of another version, a value too far for its section, a
+level for every wall but one, a wall or tree id short of its count, a tile whose sections do not
+end with the file, a graph coordinate off the decimetre, a resident that is not a float32 or more
+than 32,768 lane values throws; `stale-map.test.ts` that the game refuses a global file without the
 play area's outline. `anchor.test.ts` rewrites Lunigiana's
 global file to start its heightmap a tile east and north of its anchor, which the file then names,
 and checks that `heightAt`, `terrainZ` and `coverAt` answer to the bit as on Lunigiana itself (read
@@ -3378,9 +3384,9 @@ order, which is not their tiles' order) and the walls' levels, with the region's
 puts each vector whole, with its index and the water's baked floor, in every tile it comes within
 the halo of, joins them back and writes the vectors' counts and lattice corners; gives a vector by
 an unlisted tile to the listed tiles round it; refuses a road whose verge reaches past the halo and
-a tile from another build; stamps each tile as `packTile` packs it with the build hash; and reads
-a version-5 build written to a temporary folder, its graph, lanes and residents on its line and its
-lines with no run-outs, as the same build of today's (`readWholeMap`).
+a tile from another build; and stamps each tile as `encodeTile` packs it with the build hash.
+`map-upgrade.test.ts` reads a version-5 build, its graph, lanes and residents on its line and its
+lines with no run-outs, as the same build of today's (`decodeUpgraded`).
 `build-output.test.ts` checks that `decimetres`, which rounds the grid into the
 `Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
 −4000 m, 3276.75 m, NaN, infinity) instead of wrapping it. `src/__tests__/maps.map-test.ts` checks
@@ -3606,8 +3612,8 @@ over 20 m, and under 2% through a level crossing (the map before the fixes chang
 6269); through its tunnels each stretch of 100 m or more (the whole of a shorter tunnel) climbs or
 falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17); and it runs on over lucido's
 seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
-`src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onLevel`, 2 m, in
-`src/sim/rail/bodies.ts`) rests on, on Lunigiana, Cesena and, when built, the L (in CI always):
+`src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onOneLevel`, 2 m, in
+`src/sim/one-level.ts`) rests on, on Lunigiana, Cesena and, when built, the L (in CI always):
 wherever two ways cross on two levels with no node in common (a road, path or rail bridge over a
 road, a path, steps or the rail, or a road, a path or the rail over a tunnel: `passesOver` in
 `road-levels.ts`), unless both are the rail, the way above stands more than 2.5 m over the one below
@@ -3615,11 +3621,13 @@ between any two of their points within 3.99 m of each other and of the crossing,
 toward its end counts too. That reach is the farthest of how far from a car's axis the person who
 gets into it stands (`ENTER_GAP` and the truck's half-width, 3.225 m), how far from its middle a
 vehicle reaches into a driver's path, where the driver reads its level (the truck's half-diagonal,
-3.99 m), and how far apart two bodies touching are read, each under its own axis or middle where
-they touch (two trucks' half-widths, 2.45 m); a vehicle a person or an animal may run from is read
-where they stand; a train's car is read at the rail head under its middle, which the line's 2.83% at
-most keeps within 0.28 m of the rail head where it reaches the path. Paths over paths count since
-people step apart only on one level. The 0.5 m over `LEVEL` covers the surfaces' lifts over their
+3.99 m), and how far apart two bodies touching are read, each on its own axis where they touch (two
+trucks' half-widths, 2.45 m); a vehicle a person or an animal may run from is read on its axis
+abeam them, and past its bumpers on its axis's line too; a train's car is read at the rail head under
+its middle, which the line's 2.83% at most keeps within 0.28 m of the rail head where it reaches
+the path. Paths over paths count since
+people step apart only on one level. The 0.5 m over `ONE_LEVEL` covers the surfaces' lifts over
+their
 profiles (0.06–0.24 m), the 0.1 m rounding and a truck's wheels rolled 25° (0.16 m). It visits 50
 crossings on Lunigiana (49 before Fosdinovo's part; the least 4.24 m, a path over the rail's tunnel
 at (2544, 1057)), 161 on Cesena (2.63 m, a path bridge over a path at (−1044, −1321)) and 18 on
@@ -4152,9 +4160,8 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   (Lunigiana's walk and drive walls each hold 4 segments twice, 8 while the buildings two sources
   both map stood twice and 4 before Fosdinovo's part, and Cesena's 28 segments 2 to 4 times, 51
   extra copies; 2026-11-07). It compares two builds of the format version the decoders read, or a
-  build of version 3, 4 or 5 with one of today (3 from before #63, its vectors in its global file;
-  3 and 4 from before #91, their walls at every level; up to 5 the graph, the lanes and the
-  residents on the global file's line and the lines with no run-outs): the version-5 builds of
+  build of the version before (5: the graph, the lanes and the residents on the global file's line
+  and the lines with no run-outs) with one of today: the version-5 builds of
   Lunigiana, Cesena, the L, lucido alone and the 3x against the same code's version 6 gave no
   differences (2026-11-07), and it exits 0 for "no
   differences", 1 when they differ and 2 on bad arguments, an unknown category among them, or a file

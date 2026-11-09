@@ -6,10 +6,9 @@ import { Ops, Vec2 } from "@typeonce/ritmo-math"
 import type { PoseValue } from "../index.ts"
 import { footZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
-import { tileKey } from "../map/kinds.ts"
+import { tileKey, ONE_LEVEL } from "../map/kinds.ts"
 import { readMapFile, tileUrl } from "../map/packed.ts"
 import { dropTile, provideTile, setTileSource, STEP_REACH, tilesOver } from "../map/tiles.ts"
-import { LEVEL } from "../rail/bodies.ts"
 import { linesNear, pointAt, speedAt } from "../rail/lines.ts"
 import { aiTrain } from "../rail/testing.ts"
 import { alongLane, edgeIndex, laneOf, lanePoint, laneSide } from "../route.ts"
@@ -352,7 +351,7 @@ test("traffic: through the SR445's dip a car at 16 m/s stops for a Panda standin
       its = standingOn("panda", b, level(b))
     const ahead = (b.x - a.x) * Ops.cos(a.angle) + (b.y - a.y) * Ops.sin(a.angle),
       gap = off(mine.z, ahead * Ops.tan(mine.pitch), its.z)
-    assert.ok(Math.abs(gap) > LEVEL, `${label}: the Panda ahead ${gap.toFixed(2)} m off`)
+    assert.ok(Math.abs(gap) > ONE_LEVEL, `${label}: the Panda ahead ${gap.toFixed(2)} m off`)
     const game = start(
       [],
       [
@@ -442,7 +441,10 @@ test("traffic: a car on the SR445's deck over the railway goes on as if no train
   const under = pointAt(line, OVERPASS.s),
     deck = roadLevel(graph.edges[OVERPASS.edge]!.road, under.x, under.y)!,
     player = { x: under.x + 40, y: under.y + 40, angle: 0 }
-  assert.ok(deck - under.z > 2 * LEVEL, `the deck ${(deck - under.z).toFixed(2)} m over the rail`)
+  assert.ok(
+    deck - under.z > 2 * ONE_LEVEL,
+    `the deck ${(deck - under.z).toFixed(2)} m over the rail`,
+  )
   /** The car's place and speed step by step over 6 s, coming at 16 m/s from two edges back, with `trains` round it. */
   const drive = (trains: ReadonlyArray<ReturnType<typeof aiTrain>>) => {
     const game = start([], [player, { traffic: [comingTo(OVERPASS.edge, 16)], trains }], {

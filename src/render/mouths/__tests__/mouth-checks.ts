@@ -6,6 +6,7 @@
 import assert from "node:assert/strict"
 
 import { pointInRing, segDist2 } from "../../../sim/collide.ts"
+import type { Layer } from "../../../sim/map/format/tile-file.ts"
 import { ROAD_LIFT, roadZ, terrainZ } from "../../../sim/map/ground.ts"
 import {
   MAP,
@@ -14,7 +15,6 @@ import {
   type Road,
   roadClassOf,
 } from "../../../sim/map/index.ts"
-import type { Layer } from "../../../sim/map/packed.ts"
 import { buildingBox } from "../../../sim/map/vectors.ts"
 import { boreOf, UNDER } from "../../bores.ts"
 import type { Vectors } from "../../testing.ts"

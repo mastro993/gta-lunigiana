@@ -3,9 +3,10 @@ import { test } from "node:test"
 
 import { wholeMap } from "../../../tools/map-file.ts"
 import { staticGrid } from "../../collide.ts"
+import { decodeTile, VECTOR_LAYERS } from "../format/tile-file.ts"
 import { MAP } from "../index.ts"
 import { HALO, TILE, tileKey, tileRange, tilesRound } from "../kinds.ts"
-import { decodeTile, readMapFile, tileUrl, VECTOR_LAYERS } from "../packed.ts"
+import { readMapFile, tileUrl } from "../packed.ts"
 import { buildingsIn } from "../vectors.ts"
 
 // Map checks (pnpm test:map): every tile's vectors against the whole map joined from them.

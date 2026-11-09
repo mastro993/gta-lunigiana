@@ -6,7 +6,7 @@ import { test } from "node:test"
 
 import { editMap } from "./edit-map.ts"
 
-editMap((json) => ({ ...json, vectors: { ...json.vectors, halo: 16 } }))
+editMap((json) => ({ vectors: { ...json.vectors, halo: 16 } }))
 
 test("the game refuses a map cut with another halo, saying to build the maps again", async () => {
   await assert.rejects(

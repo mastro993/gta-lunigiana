@@ -26,6 +26,40 @@ _Avoid_: loader, provider, store, map backend
 A listed tile that the host has handed over and not yet let go. Which tiles are resident is the host's business alone: no answer the game gives depends on it.
 _Avoid_: loaded tile, cached tile, streamed tile
 
+## Map files
+
+**Map file**:
+One of the files a built map ships as: the global file or a tile file.
+_Avoid_: bin, map blob
+
+**Global file**:
+The map file holding everything sparse and topological (roads' attributes, the graph, the railway, the tile list, the baked tables) and the coarse grid, read once at load.
+_Avoid_: main file, index file
+
+**Tile file**:
+The map file of one tile: its square's dense layers and the vectors round it, read as the player nears it.
+_Avoid_: tile (alone, when the file and not the square is meant), chunk
+
+**Line**:
+The JSON line that opens a map file: what is sparse in it, and how many values each of its sections holds.
+_Avoid_: header, JSON header
+
+**Section**:
+One packed run of integers after a map file's line, holding one array of the map. A layer may span several sections (a tile's walls: their coordinates, ids and levels).
+_Avoid_: part (a part is a piece of a region), chunk, layer, block
+
+**Layout**:
+The ordered list of sections one kind of map file holds after its line, each with how many bytes a value takes.
+_Avoid_: schema, file order, spec
+
+**Format version**:
+The number a map file carries saying how its line and sections are laid out; the game refuses a file of any other.
+_Avoid_: map version, schema version
+
+**Upgrader**:
+What reads a map file one format version back as one of today's, so two builds either side of a format change can be compared.
+_Avoid_: migration, converter
+
 ## Standing and rolling
 
 **Footing**:
@@ -35,6 +69,29 @@ _Avoid_: level (reserved for whether two things meet), standing height, ground (
 **Wheels' ground**:
 The ground a vehicle's wheels stand on, on the level it rolls on; the vehicle's counterpart of a footing.
 _Avoid_: vehicle level, chassis height
+
+## Meeting
+
+**Level**:
+The height a body or a wall is judged at when it meets another, m a.s.l.: a person's or an animal's footing, a vehicle's wheels' ground (pitched), a train car's rail head, a wall's own. Bridges, underpasses and tunnels put several levels over one point of the map.
+_Avoid_: height, z, elevation, floor
+
+**On one level**:
+Two levels standing within 2 m of each other. Bodies meet, and a wall stops a body, only on one level.
+_Avoid_: same height, same floor, level with
+
+**Meet**:
+What two bodies on one level can do at a point: touch, see or scare each other, get in. Bodies not on one level pass as if the other were not there.
+_Avoid_: collide (only one kind of meeting), interact
+
+**Point level**:
+A level taken as one height over the whole body: a person's, an animal's, a train car's, a wall's.
+
+**Pitched level**:
+A road vehicle's level: its wheels' ground under its middle, rising or falling along its axis with its pitch, so its two ends can stand metres apart on a steep lane.
+
+**Level toward a point**:
+A road vehicle's level as read toward a point: along its pitch out to its bumpers, and past a bumper rolled on over the ground along its heading, as its wheels would find their way onto a deck or into a tunnel. Never read sideways: the ground beside a vehicle is not what it stands on.
 
 ## Tunnels
 

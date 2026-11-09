@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { Animal, type PoseValue } from "../index.ts"
-import { LEVEL } from "../rail/bodies.ts"
+import { ONE_LEVEL } from "../map/kinds.ts"
 import { cruiseSpeed, roadOf } from "../route.ts"
 import { pedestrian } from "../spawning.ts"
 import { USUAL } from "../systems/senses.ts"
@@ -148,7 +148,7 @@ test("perceive and animals: at the foot of a 30% lane a passer-by and a cat run 
         over = car.chassis.z - VEHICLES.panda.cg - STEEP.z(them)
     })
     assert.ok(
-      over !== undefined && over > LEVEL,
+      over !== undefined && over > ONE_LEVEL,
       `${who} ran with the car's wheels ${over?.toFixed(2)} m over them`,
     )
     assert.deepEqual(

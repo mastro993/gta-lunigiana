@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
 import type { PoseValue } from "../index.ts"
-import { LEVEL } from "../rail/bodies.ts"
+import { ONE_LEVEL } from "../map/kinds.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { LOOK, rolling, type stage, start } from "../testing.ts"
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
@@ -119,7 +119,7 @@ test("contacts: on a 30% lane a truck rolling down into a truck standing below i
     lower = STEEP.at(STEEP.lane.length - 0.5 - length / 2, "truck"),
     upper = STEEP.at(STEEP.lane.length - 0.5 - length / 2 - length - 0.5, "truck")
   assert.ok(
-    STEEP.z(upper) - STEEP.z(lower) > LEVEL,
+    STEEP.z(upper) - STEEP.z(lower) > ONE_LEVEL,
     `${(STEEP.z(upper) - STEEP.z(lower)).toFixed(2)} m between their middles' ground`,
   )
   const game = start(

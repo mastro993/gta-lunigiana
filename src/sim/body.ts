@@ -7,13 +7,13 @@
  */
 import { Ops, Vec2 } from "@typeonce/ritmo-math"
 
-import { overturned, wheelsAt } from "./chassis.ts"
+import { overturned } from "./chassis.ts"
 import { moveCircles, segmentDistance } from "./collide.ts"
 import { destroyed } from "./damage.ts"
 import { atGrade } from "./map/ground.ts"
 import { inPlay, type Segment, type Wall, type WallKind, wallsNear } from "./map/index.ts"
+import { onOneLevel, pitched } from "./one-level.ts"
 import { indoors } from "./population/farms.ts"
-import { onLevel } from "./rail/bodies.ts"
 import type { ChassisValue, PoseValue } from "./schema.ts"
 import { ENTER_GAP, PERSON_RADIUS } from "./tuning.ts"
 import { VEHICLES, type VehicleModel } from "./vehicles.ts"
@@ -47,9 +47,9 @@ export const offBody = (model: VehicleModel, pose: PoseValue, x: number, y: numb
   return Math.max(0, segmentDistance(axis, x, y) - r)
 }
 
-/** Whether a body whose ground stands at `z` (m a.s.l.) meets `wall`: any wall without a level, one with a level within `LEVEL` of it. */
+/** Whether a body whose ground stands at `z` (m a.s.l.) meets `wall`: any wall without a level, one with a level on one level with it (`onOneLevel`). */
 export const meets = (wall: Wall, z: number): boolean =>
-  wall.level === undefined || onLevel(z, wall.level)
+  wall.level === undefined || onOneLevel(z, wall.level)
 
 /** Scratch for `wallsAlong`'s answer on a body's level, one per kind (reused by the next call of the same kind, as `wallsNear`'s). */
 const onItsLevel: Readonly<Record<WallKind, Array<Wall>>> = {
@@ -124,11 +124,10 @@ export const crossesAny = (segs: ReadonlyArray<Segment>, p: Vec2.Vec2, q: Vec2.V
 /**
  * Of `vehicles`, the one a person at `at` standing on `ground` (m a.s.l.) gets into with the action
  * key: the nearest body (the capsule around its circles) within `reach` m (ENTER_GAP), the later one
- * on a tie, on their level (`onLevel`, as a train's door: its wheels' ground under the point of its
- * axis nearest them, so a deck over them or a road under them is not), with no walk wall between the
- * person and its axis that they meet on `ground` (`meets`); never one lying on its side or roof, nor
- * a destroyed one. The action (EnterExit) and the HUD prompt (PlayerView) both ask this, through
- * `boardingAt` (rail/boarding.ts).
+ * on a tie, on their level (`onOneLevel`, its level read toward them, so a deck over them or a road
+ * under them is not), with no walk wall between the person and its axis that they meet on `ground`
+ * (`meets`); never one lying on its side or roof, nor a destroyed one. The action (EnterExit) and the
+ * HUD prompt (PlayerView) both ask this, through `boardingAt` (rail/boarding.ts).
  */
 export const vehicleInReach = <T>(
   at: Vec2.Vec2,
@@ -156,10 +155,7 @@ export const vehicleInReach = <T>(
     const dx = at.x - axis.x,
       dy = at.y - axis.y
     const gap = Math.sqrt(dx * dx + dy * dy) - width / 2
-    // Its wheels' ground under that point of its axis: along its pitch from under its middle, so a long body on a steep lane is
-    // judged where the person stands by it.
-    const wheels = wheelsAt(VEHICLES[model], chassis) + along * Ops.tan(chassis.pitch)
-    if (gap > best || !onLevel(ground, wheels)) continue
+    if (gap > best || !onOneLevel(ground, pitched(model, pose, chassis), at)) continue
     if (crossesAny(wallsAlong("walk", at.x, at.y, -dx, -dy, 0.5, ground), at, axis)) continue
     best = gap
     found = vehicle

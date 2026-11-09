@@ -11,6 +11,7 @@
  */
 import { Ops } from "@typeonce/ritmo-math"
 
+import type { Layer } from "../../sim/map/format/tile-file.ts"
 import { ROAD_LIFT, terrainZ } from "../../sim/map/ground.ts"
 import {
   type Building,
@@ -21,7 +22,6 @@ import {
   type Road,
   roadClassOf,
 } from "../../sim/map/index.ts"
-import type { Layer } from "../../sim/map/packed.ts"
 import { boreOf, isBored } from "../bores.ts"
 import { clearance, type Footprint, nearMouth } from "./clear.ts"
 import {

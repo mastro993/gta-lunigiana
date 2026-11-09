@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { coverAt } from "../cover.ts"
+import { decodeTile } from "../format/tile-file.ts"
 import { terrainZ } from "../ground.ts"
 import { heightAt, MAP, wallsNear } from "../index.ts"
-import { decodeTile } from "../packed.ts"
 import {
   cellCorners,
   dropTile,
