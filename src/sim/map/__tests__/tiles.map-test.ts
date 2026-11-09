@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
+import { latticeGround } from "../../../tools/build-ground.ts"
 import { wholeMap } from "../../../tools/map-file.ts"
 import { regionFromArgs } from "../../../tools/region.ts"
 import { staticGrid } from "../../collide.ts"
@@ -115,11 +116,9 @@ test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole hei
     return at
   }
   const data = (k: number) => WHOLE.heightmap.data[readAt(k % cols, Math.floor(k / cols), 0)]!
-  const node = (i: number, j: number) =>
-    data(Math.min(rows - 1, Math.max(0, j)) * cols + Math.min(cols - 1, Math.max(0, i))) / 10
   const { minX, minY, maxX, maxY } = MAP.bounds
-  // Today's formulas over the whole grid (src/sim/map/index.ts and ground.ts before the tiles), a
-  // point's cell counted from the anchor.
+  // Today's bilinear formula over the whole grid (src/sim/map/index.ts before the tiles), a point's
+  // cell counted from the anchor.
   const bilinear = (x: number, y: number) => {
     const fx = (Math.min(maxX, Math.max(minX, x)) - ax) / cell,
       fy = (Math.min(maxY, Math.max(minY, y)) - ay) / cell
@@ -132,21 +131,8 @@ test("heightAt, terrainZ and coverAt read the tiles bit for bit as the whole hei
     const north = data(k + cols) + (data(k + cols + 1) - data(k + cols)) * tx
     return (south + (north - south) * ty) / 10
   }
-  const drawn = (x: number, y: number) => {
-    const fx = (x - ax) / cell,
-      fy = (y - ay) / cell,
-      fi = Math.floor(fx),
-      fj = Math.floor(fy),
-      u = fx - fi,
-      v = fy - fj,
-      i = fi + ai,
-      j = fj + aj
-    const sw = node(i, j),
-      se = node(i + 1, j),
-      nw = node(i, j + 1),
-      ne = node(i + 1, j + 1)
-    return u >= v ? sw + (se - sw) * u + (ne - se) * v : sw + (ne - nw) * u + (nw - sw) * v
-  }
+  // The ground model's terrain over the whole grid, as read here.
+  const { terrainZ: drawn } = latticeGround(WHOLE.heightmap, data)
   // Points on and beside every seam, inside every tile, and far outside the bounds past each corner.
   const points: Array<readonly [number, number]> = [
     [-1e6, -1e6],

@@ -4,34 +4,13 @@
 // splits bridges), a road or tunnel carrying on from it, the inside of the deck's own bends. A road
 // passing under the deck, or over it, leaves it closed: before, any road's carriageway opened it, and
 // a car on the SR445's viaduct west of Gragnola drove off it over the road under it.
-import { isDrivable, ONE_LEVEL, ROAD_LIFT } from "../sim/map/kinds.ts"
+import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
-import { r1, segDist2, segIndex } from "./geometry.ts"
+import { r1, segIndex } from "./geometry.ts"
 import { opened, pushPolyline } from "./walls.ts"
 
 /** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */
 export const PARAPET = 0.25
-
-/** A road's line as shipped: its flat polyline and its profile per vertex. */
-interface Line {
-  readonly pts: ReadonlyArray<number>
-  readonly z: ReadonlyArray<number>
-}
-
-/**
- * The surface of a road of `cls` along `line` at the point of it nearest (x, y), m a.s.l.: its
- * profile there plus its class's `ROAD_LIFT`, as `roadLevel` in src/sim/map/ground-model.ts reads it.
- */
-export const surfaceAt = (line: Line, cls: RoadF["cls"], x: number, y: number): number => {
-  const { pts, z } = line
-  let best = Infinity,
-    level = z[0]!
-  for (let k = 0; k + 1 < z.length; k++) {
-    const { d2, t } = segDist2(x, y, pts[2 * k]!, pts[2 * k + 1]!, pts[2 * k + 2]!, pts[2 * k + 3]!)
-    if (d2 < best) [best, level] = [d2, z[k]! + (z[k + 1]! - z[k]!) * t]
-  }
-  return level + ROAD_LIFT[cls]
-}
 
 /**
  * The parapets' walls, flat (ax, ay, bx, by) pieces of at most 16 m, and each one's level: its deck's
@@ -45,18 +24,20 @@ interface Parapets {
 }
 
 /**
- * The parapets of every drivable bridge of `roads` (whose shipped lines are `lines`, one per road):
- * one piece per deck segment and side, w/2 + PARAPET off its centreline, opened wherever a road's
+ * The parapets of every drivable bridge of `roads`, `level` (`roadLevel` in
+ * src/sim/map/ground-model.ts, on their shipped lines) a road's surface by its index: one piece per
+ * deck segment and side, w/2 + PARAPET off its centreline, opened wherever a road's
  * carriageway reaches it with its surface there within ONE_LEVEL of the deck's top, the deck itself
  * included (the inside of its bends, where the piece along one segment runs on across the next one's
  * carriageway: a 2.4 m segment off a junction on the SR445's bridge by Montefiore put it 3.6 m from
  * the centreline, inside the 7.6 m deck). Each wall takes its deck's top at its middle, to 0.1 m.
  */
-export const parapets = (roads: ReadonlyArray<RoadF>, lines: ReadonlyArray<Line>): Parapets => {
+export const parapets = (
+  roads: ReadonlyArray<RoadF>,
+  level: (road: number, x: number, y: number) => number,
+): Parapets => {
   const ways = segIndex<number>()
   roads.forEach((r, i) => ways.addLine(r.pts, r.w / 2, i))
-  const level = (road: number, x: number, y: number) =>
-    surfaceAt(lines[road]!, roads[road]!.cls, x, y)
   const walls: Array<number> = [],
     levels: Array<number> = []
   let over = 0

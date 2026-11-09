@@ -5,8 +5,8 @@
  * It reads no map: an adapter hands it the terrain's nodes, the road buckets holding a point and a
  * road's line near it (`GroundData`), so the game (`./ground.ts`, from the tiles) and the tests
  * (`wholeGround`, from whole data) read the same rules, and answer to the bit alike for the same data
- * (docs/adr/0003-ground-model.md). The map build still keeps its own copies (`meshZ`, `groundOf`,
- * `surfaceAt` in src/tools) until it moves onto the model (issue #113).
+ * (docs/adr/0003-ground-model.md). The map build reads it too, over its own data
+ * (src/tools/build-ground.ts).
  *
  * @module map/ground-model
  */

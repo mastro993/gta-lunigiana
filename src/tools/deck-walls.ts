@@ -18,10 +18,10 @@
 // across its carriageway where its surface is on their level, so no wall stands on a road. A road
 // meeting a deck's end opens the walk walls round it along its verges too, where pedestrians walk
 // onto the deck, up to ONTO past the end where the ground stands within ONE_LEVEL of its top.
+import type { Ground } from "../sim/map/ground-model.ts"
 import { DECK_SLAB, footReach, isDrivable, ON_DECK, ONE_LEVEL } from "../sim/map/kinds.ts"
 import { PERSON_HEIGHT, PERSON_RADIUS } from "../sim/tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../sim/vehicles.ts"
-import { meshZ } from "./deck-ground.ts"
 import {
   along,
   clustersOf,
@@ -29,7 +29,6 @@ import {
   decksOf,
   fieldAt,
   fieldsOf,
-  groundOf,
   isLifted,
   key,
   type Line,
@@ -44,7 +43,6 @@ import type { RoadF } from "./features.ts"
 import { r1, segIndex } from "./geometry.ts"
 import { simplifyLoop, traceContours } from "./loops.ts"
 import { PARAPET } from "./parapets.ts"
-import type { Grid } from "./terrain.ts"
 import { type Levelled, opened, pushPolyline } from "./walls.ts"
 
 /** How far an outline may stray from its simplified wall, m. */
@@ -113,13 +111,12 @@ const DRIVE: Kind = {
 type Piece = readonly [number, number, number, number, number]
 
 /**
- * One kind's walls under `decks` (of `roads`, whose shipped lines are `lines`) over `ground` (at the
- * terrain's level, `groundOf`) and `terrain` (as drawn), and how many decks they wall.
+ * One kind's walls under `decks` (of `roads`, whose shipped lines are `lines`) over `model`, the
+ * game's ground, and how many decks they wall.
  */
 const wallsOf = (
   kind: Kind,
-  ground: (x: number, y: number) => number,
-  terrain: (x: number, y: number) => number,
+  model: Ground,
   roads: ReadonlyArray<RoadF>,
   lines: ReadonlyArray<Line>,
   decks: ReadonlyArray<Deck>,
@@ -183,10 +180,13 @@ const wallsOf = (
       }
     }
   })
-  // A road's surface at (x, y) on it, its profile `z` there: ROAD_LIFT over the profile, and over
-  // the terrain where that stands higher on a road at grade (`roadZ` in src/sim/map/ground-model.ts).
+  // The ground at the terrain's level (the terrain, a platform's top, a road at grade, a deck's end
+  // within ON_DECK of the terrain; never a deck above it), and a road's surface at (x, y) on it, its
+  // profile `z` there: ROAD_LIFT over the profile, and over the terrain where that stands higher on a
+  // road at grade.
+  const ground = model.atGrade
   const surfaceOn = (road: number, z: number, x: number, y: number) =>
-    (isLifted(roads[road]!) ? z : Math.max(z, terrain(x, y))) + liftOf(roads[road]!)
+    model.roadZ(z, x, y, liftOf(roads[road]!), isLifted(roads[road]!))
   // Per deck, the roads passing under it (their surface, at each point of their line within its
   // walls' reach of their corridor, ONE_LEVEL or more under its top), and their corridors.
   const passing = decks.map(() => new Set<number>())
@@ -360,13 +360,13 @@ const wallsOf = (
 }
 
 /**
- * The walls under the road bridges' decks of `roads` (their shipped `lines`) on the whole grid `g`,
- * as lowered under the decks (deck-ground.ts): the walk and the drive walls, as the module's header
- * says; and for the build's report, how many walls of each kind there are and how many decks they
- * wall.
+ * The walls under the road bridges' decks of `roads` (their shipped `lines`) on `ground`, the game's
+ * over the grid as lowered under the decks (deck-ground.ts), these roads and the platforms: the walk
+ * and the drive walls, as the module's header says; and for the build's report, how many walls of
+ * each kind there are and how many decks they wall.
  */
 export const deckWalls = (
-  g: Grid,
+  ground: Ground,
   roads: ReadonlyArray<RoadF>,
   lines: ReadonlyArray<Line>,
 ): {
@@ -374,11 +374,9 @@ export const deckWalls = (
   readonly drive: Levelled
   readonly report: { readonly walk: number; readonly drive: number; readonly decks: number }
 } => {
-  const decks = decksOf(roads, lines),
-    ground = groundOf(g, roads, lines),
-    terrain = (x: number, y: number) => meshZ(g, x, y)
-  const walk = wallsOf(WALK, ground, terrain, roads, lines, decks),
-    drive = wallsOf(DRIVE, ground, terrain, roads, lines, decks)
+  const decks = decksOf(roads, lines)
+  const walk = wallsOf(WALK, ground, roads, lines, decks),
+    drive = wallsOf(DRIVE, ground, roads, lines, decks)
   return {
     walk,
     drive,
