@@ -3,7 +3,7 @@
  * ground under a deck, where there is room to stand, and a car, where there is room for the tallest vehicle, never come up onto it,
  * heading toward the ground under it that reaches near its top (`deckClimbs`); and along each road meeting each of its ends, a
  * walker and a car meet no wall with a level on their way onto it (`deckEndsShut`). They read the decks' lines from the map joined
- * back from its tiles and walk the game's own lookups: `footZ` as `FindFooting` steps a body and `groundZ` as the physics sets a
+ * back from its tiles and walk the game's own lookups: `settleFooting` as `FindFooting` settles a body and `groundZ` as the physics sets a
  * car's wheels, `walkBy` and `moveCar` with the walls the body meets on its level.
  *
  * @module sim/__tests__/under-decks
@@ -14,6 +14,7 @@ import { segIndex } from "../../tools/geometry.ts"
 import type { JoinedMap } from "../../tools/map-file.ts"
 import { carClear, moveCar, standClear, walkBy, wallsAlong } from "../body.ts"
 import { moveCircles, segDist2 } from "../collide.ts"
+import { settleFooting } from "../footing.ts"
 import { atGrade, footZ, groundZ } from "../map/ground.ts"
 import {
   DECK_SLAB,
@@ -161,7 +162,7 @@ interface Body {
     angle: number,
     delta: Vec2.Vec2,
   ) => { readonly position: Vec2.Vec2; readonly blocked: boolean }
-  /** Its ground at (x, y), nearest `near`: `footZ` on foot, `groundZ` under a car's wheels. */
+  /** Its ground at (x, y), nearest `near`: its footing settled there on foot (`settleFooting`), `groundZ` under a car's wheels. */
   readonly ground: (x: number, y: number, near: number) => number
 }
 
@@ -173,7 +174,7 @@ const WALKER: Body = {
   reach: (deck) => deck.reach,
   clear: (at, z) => standClear(at, z),
   move: (at, z, _, delta) => walkBy(at, delta, PERSON_RADIUS, z),
-  ground: footZ,
+  ground: settleFooting,
 }
 
 /** A Panda, under room for the tallest vehicle (`moveCar` with the drive walls met on its wheels' level). */
@@ -339,7 +340,7 @@ const sideOf = (road: { readonly cls: string; readonly w: number; readonly verge
  * Where the road at an end of a road deck of `map` (the map loaded) no longer leads onto it: along each road meeting the end (one
  * with a vertex there), from RUN_UP m back along it to RUN_UP m onto the deck, a walker (`walkBy`) on its centreline and on either
  * verge (where the pedestrians walk, `walkSide`: the road's, then the deck's) and, along a drivable road onto a drivable deck, a
- * Panda (`moveCar`) on its centreline, that keep to their level (`footZ`, `groundZ`), and that with nothing to stop them are on the
+ * Panda (`moveCar`) on its centreline, that keep to their level (`settleFooting`, `groundZ`), and that with nothing to stop them are on the
  * deck as they cross its end and still at the last, meet a wall with a level on their way: before the walls under the decks only
  * the parapets had one, and they line the deck. A road meeting the deck's end off its level (a profile at odds with the deck's)
  * leads onto it with no wall either, and is left out.
@@ -389,7 +390,7 @@ export const deckEndsShut = (map: JoinedMap): Array<string> => {
               lowest = free,
               beside = -Infinity
             steps.forEach((p, q) => {
-              free = footZ(p.x, p.y, free)
+              free = settleFooting(p.x, p.y, free)
               if (q === across) onto0 = onDeck(p, free)
               if (q >= across) return
               lowest = Math.min(lowest, free)
@@ -425,7 +426,7 @@ export const deckEndsShut = (map: JoinedMap): Array<string> => {
                   `${where} a walker along ${meeting.cls} ${meeting.id}, on ${on}, meets a wall at (${p.x.toFixed(1)}, ${p.y.toFixed(1)}), ${footing.toFixed(2)} m`,
                 ]
               p = moved.position
-              footing = footZ(p.x, p.y, footing)
+              footing = settleFooting(p.x, p.y, footing)
             }
           }
           if (!isDrivable(deck.cls) || !isDrivable(cls)) continue

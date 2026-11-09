@@ -39,7 +39,6 @@ import {
 import { pedestrian, randomLook } from "../spawning.ts"
 import { DOOR_GAP, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
-import { footingAt } from "./footing.ts"
 import { FLEE_TIME } from "./pedestrians.ts"
 
 /** Where a person stands to get out of a vehicle: left door (the driver's, in Italy), right door, front, back. */
@@ -84,14 +83,12 @@ const fleeingFrom = (
   const forward = facesForward(edge, pose.angle)
   const lane = laneOf(edge, forward)
   const right = (door.x - pose.x) * lane.rx + (door.y - pose.y) * lane.ry > 0
-  return Game.Command.extend(
-    pedestrian(
-      randomLook(random),
-      { x: door.x, y: door.y, angle: Ops.atan2(door.y - pose.y, door.x - pose.x) },
-      { edge, forward, side: (right ? 1 : -1) * walkSide(roadOf(edge)) },
-      { mood: "flee", until, fx: pose.x, fy: pose.y },
-    ),
-    [Footing, { z: footZ(door.x, door.y, level) }],
+  return pedestrian(
+    randomLook(random),
+    { x: door.x, y: door.y, angle: Ops.atan2(door.y - pose.y, door.x - pose.x) },
+    { edge, forward, side: (right ? 1 : -1) * walkSide(roadOf(edge)) },
+    { mood: "flee", until, fx: pose.x, fy: pose.y },
+    footZ(door.x, door.y, level),
   )
 }
 
@@ -129,7 +126,7 @@ export const EnterExit = Game.System(
           motion: Game.Query.write(Motion),
           driving: Game.Query.optional(Driving),
           down: Game.Query.optional(Down),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.write(Footing),
         },
         with: [Player],
       }),
@@ -163,7 +160,7 @@ export const EnterExit = Game.System(
       time: Game.System.thisTick(Game.System.readResource(Time)),
     },
     commands: Game.System.commands(
-      Game.System.inserts(Driving, Stolen, Footing),
+      Game.System.inserts(Driving, Stolen),
       Game.System.removes(Driving, Traffic, Route, Autopilot, TrainRun, Parked),
       Game.System.spawns(Pedestrian, Person, Pose, PrevPose, Motion, Route, Footing),
     ),
@@ -179,12 +176,12 @@ export const EnterExit = Game.System(
         if (car.ok) {
           const pose = car.value.data.pose.get(),
             { model } = car.value.data.vehicle.get()
-          // On the ground beside it, on the level its wheels stand on.
-          const wheels = wheelsAt(VEHICLES[model], car.value.data.chassis.get())
-          const door = freeDoor(pose, model, wheels)
+          // On the ground beside it, on their footing's level: the ground under it on its wheels' ground.
+          const level = data.footing.get().z
+          const door = freeDoor(pose, model, level)
           if (door === undefined) continue
           data.pose.set({ x: door.x, y: door.y, angle: pose.angle })
-          commands.insert(entity, [Footing, { z: footZ(door.x, door.y, wheels) }])
+          data.footing.set({ z: footZ(door.x, door.y, level) })
           car.value.data.input.set({ throttle: 0, steer: 0, handbrake: true })
         } else {
           const train = queries.trains.getHandle(driving.vehicle)
@@ -200,9 +197,8 @@ export const EnterExit = Game.System(
             continue
           }
           data.pose.set(spot)
-          // On the ground beside the cab, on the rail's level.
-          const { z } = cabOf(line, motion, model)
-          commands.insert(entity, [Footing, { z: footZ(spot.x, spot.y, z) }])
+          // On the ground beside the cab, on their footing's level: the rail head under it.
+          data.footing.set({ z: footZ(spot.x, spot.y, data.footing.get().z) })
           train.value.data.input.set({ throttle: 0, steer: 0, handbrake: true })
         }
         data.motion.set({ vx: 0, vy: 0, spin: 0 })
@@ -212,7 +208,7 @@ export const EnterExit = Game.System(
       const pose = data.pose.get()
       const near = boardingAt(
         pose,
-        footingAt(data.footing.value(), pose.x, pose.y),
+        data.footing.get().z,
         queries.vehicles.each(),
         ({ data: v }) => ({
           model: v.vehicle.get().model,

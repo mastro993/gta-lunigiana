@@ -133,9 +133,11 @@ export const InWater = Descriptor.ConstructedComponent(v.object({ swimming: v.bo
 )
 
 /**
- * The ground a body on foot stands on, m a.s.l. (the player, a pedestrian or an animal): kept from step to step on the level it
- * was on (`groundZ` nearest the last), so someone on the track over a road tunnel or under a road bridge is on the track, and
- * someone in the tunnel or on the bridge is not. A body without one yet takes the ground its way or the place is on (`FindFooting`).
+ * The ground a person or an animal stands on, m a.s.l. (GLOSSARY.md), where its pose is once the step's moves are done: kept from
+ * step to step on the level it was on (`settleFooting`), so someone on the track over a road tunnel or under a road bridge is on the
+ * track, and someone in the tunnel or on the bridge is not. For the player driving, the ground under the vehicle on its wheels'
+ * ground, or the rail head under the train's active cab. Every person and animal has one from its spawn (`firstFooting`); see
+ * ./footing.ts.
  */
 export const Footing = Descriptor.ConstructedComponent(v.object({ z: finite }))("Lunigiana/Footing")
 /** A Footing value. */
@@ -689,9 +691,9 @@ export const Game = Schema.bind(
       SetPlayer,
     },
     requires: [
-      Schema.requires(Player, Pose, PrevPose, Motion, Person),
-      Schema.requires(Pedestrian, Pose, PrevPose, Motion, Person, Route),
-      Schema.requires(Animal, Pose, PrevPose, Motion, Roam),
+      Schema.requires(Player, Pose, PrevPose, Motion, Person, Footing),
+      Schema.requires(Pedestrian, Pose, PrevPose, Motion, Person, Route, Footing),
+      Schema.requires(Animal, Pose, PrevPose, Motion, Roam, Footing),
       Schema.requires(Follows, Pose, PrevPose, Motion),
       Schema.requires(Witness, Pedestrian),
       Schema.requires(Vehicle, Pose, PrevPose, Motion, CarInput, Chassis, Damage),

@@ -13,6 +13,7 @@ import {
   Dead,
   Down,
   Follows,
+  Footing,
   Game,
   Honk,
   KeyboardInput,
@@ -101,7 +102,7 @@ test("a dog on a lead keeps by its walker; when the walker is killed it lets go 
           peds: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [Pedestrian] }),
         },
         commands: Game.System.commands(
-          Game.System.spawns(Animal, Roam, Pose, PrevPose, Motion, Follows),
+          Game.System.spawns(Animal, Roam, Pose, PrevPose, Motion, Footing, Follows),
         ),
       },
       ({ queries, commands }) => {

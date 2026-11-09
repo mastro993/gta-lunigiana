@@ -4,6 +4,7 @@ import { test } from "node:test"
 import { Ops, Random } from "@typeonce/ritmo-math"
 
 import { FAUNA, randomAnimal } from "../fauna.ts"
+import { firstFooting, settleFooting } from "../footing.ts"
 import { Game, Roam, Whistle } from "../index.ts"
 import { atGrade, footZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
@@ -33,7 +34,6 @@ import {
   walkSide,
 } from "../route.ts"
 import { animal, pedestrian, trafficCar } from "../spawning.ts"
-import { footingAt } from "../systems/footing.ts"
 import { flood, LOOK, start, teleport } from "../testing.ts"
 import { waterUnder } from "../water/rivers.ts"
 import { SPATE } from "./flows.ts"
@@ -241,8 +241,8 @@ test("trains: someone on the track over a road tunnel is on the train's level: t
 test("trains: walking into a road underpass along the road, someone stays on its floor under the track, the bank the terrain smears over its mouths no matter: the player there is not struck by a train passing over", () => {
   assert.ok(underpassWays().length >= 4, `${underpassWays().length} ways in`)
   for (const { road, index, walk, s } of underpassWays()) {
-    let z = footingAt(undefined, walk[0]!.x, walk[0]!.y)
-    for (const p of walk.slice(1)) z = footZ(p.x, p.y, z)
+    let z = firstFooting(walk[0]!.x, walk[0]!.y)
+    for (const p of walk.slice(1)) z = settleFooting(p.x, p.y, z)
     const end = walk.at(-1)!
     assert.ok(
       Math.abs(z - roadLevel(index, end.x, end.y)!) < 0.5 && !onOneLevel(z, pointAt(line, s).z),
@@ -277,7 +277,7 @@ test("trains: walking into a road underpass along the road, someone stays on its
 // who walked down a road onto a crossing kept the level they came from: a train passed through them.
 test("trains: walking down a road onto a level crossing, someone comes onto the rail's level, and a train passing over strikes them", () => {
   const { way, s } = downToBox(),
-    fall = footingAt(undefined, way[0]!.x, way[0]!.y) - pointAt(line, s).z
+    fall = firstFooting(way[0]!.x, way[0]!.y) - pointAt(line, s).z
   assert.ok(fall > 2 * ONE_LEVEL, `the road ${fall.toFixed(1)} m over the rail 50 m out`)
   const game = start([], [{ ...way[0]!, angle: 0 }, {}], { trains: true, alone: true })
   for (const p of way) {

@@ -5,7 +5,7 @@
  * drivetrain's revs and load from their worn engines, their damage, whether they burn, whether
  * their wheels or their body are down and how their tyres skid; people on foot, with who they are,
  * what they are doing, who they walk with and their `Footing` (under a bridge, the
- * road, not the deck; `footingAt`, as render stands them); the animals, on theirs too; every
+ * road, not the deck); the animals, on theirs too; every
  * train, car by car, and the level crossings' bells (./rail.ts); the Impact, Honk, Cry, Explosion,
  * Lightning and Whistle events since the last frame, each impact with the bodies it struck, those
  * with trains rewritten as steel; the horn key; the game clock's day, time and sun, and a copy of
@@ -47,7 +47,6 @@ import {
   Player,
   Pose,
   Roam,
-  Route,
   Skid,
   Time,
   Traffic,
@@ -61,7 +60,6 @@ import {
 import { groundZ } from "../sim/map/ground.ts"
 import { daysFromCivil, romeTime } from "../sim/sky/calendar.ts"
 import { sunOver } from "../sim/sky/day.ts"
-import { footingAt } from "../sim/systems/footing.ts"
 import { VEHICLES, type VehicleModel } from "../sim/vehicles.ts"
 import { followYaw, QUARTER } from "../sim/view.ts"
 import { exactAt, groundAt } from "./ground.ts"
@@ -138,7 +136,7 @@ const Hear = Game.System(
           pose: Game.Query.read(Pose),
           motion: Game.Query.read(Motion),
           driving: Game.Query.optional(Driving),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
         with: [Player],
       }),
@@ -163,8 +161,7 @@ const Hear = Game.System(
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
           player: Game.Query.optional(Player),
-          footing: Game.Query.optional(Footing),
-          route: Game.Query.optional(Route),
+          footing: Game.Query.read(Footing),
         },
         without: [Driving],
       }),
@@ -176,7 +173,7 @@ const Hear = Game.System(
           roam: Game.Query.read(Roam),
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
       }),
       trains: Game.Query({
@@ -314,7 +311,7 @@ const Hear = Game.System(
         id: entity.id,
         x: at.x,
         y: at.y,
-        z: footingAt(data.footing.value(), at.x, at.y, data.route.value()),
+        z: data.footing.get().z,
         vx: v.vx,
         vy: v.vy,
         player: data.player.present,
@@ -337,7 +334,7 @@ const Hear = Game.System(
         species,
         x: at.x,
         y: at.y,
-        z: footingAt(data.footing.value(), at.x, at.y),
+        z: data.footing.get().z,
         vx: v.vx,
         vy: v.vy,
         size,
@@ -408,7 +405,7 @@ const Hear = Game.System(
       listener: {
         x: pose.x,
         y: pose.y,
-        z: footingAt(me.footing.value(), pose.x, pose.y),
+        z: me.footing.get().z,
         vx: motion.vx,
         vy: motion.vy,
         car,
