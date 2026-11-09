@@ -2050,8 +2050,8 @@ north-west ridge of Monte Grondilice).
   garage standing over the tunnel 1.5 m in, and Fosdinovo's 28, the mouths of its 24 roads in
   tunnels, all covered alleys and lanes in its villages (Giucano, Pulica, Fosdinovo, Bardine,
   Castelpoggio, Caniparola, Ponzanello, Canova and Ceserano): 13 under houses and 15 under too low a
-  bank, so it adds no portal or head wall. Cesena has 77 mouths, 6 with a portal (the Secante's
-  four and Via del Tunnel's two), 2 with a head wall (Via Spadolini's two, beside its cycle path's own
+  bank, so it adds no portal or head wall. Cesena has 77 mouths, 6 with a portal (the Secante's four
+  and Via del Tunnel's two), 2 with a head wall (Via Spadolini's two, beside its cycle path's own
   tunnel), 69 open: 7 buried (both of the Sottopasso Ravennate, of the path 43076054 under the
   station and of the Sottopasso Cervese, and the Sottopasso del Mare's one, its other end on the
   outline: the map's ground holds none of their ramps, standing 5.1–6.2 m over their floors at their

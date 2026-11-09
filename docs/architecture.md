@@ -1454,29 +1454,29 @@ only its road, under its house. Where each mouth is and what stands there is dec
   alike: Cesena's Sottopasso Ravennate, 5.84 and 5.41 m, and the path under the station by Piazza
   Giorgio Sanguinetti, OSM 43076054, 6.03 and 5.64 m, lost their head walls, the Sottopasso Cervese,
   6.20 and 5.10 m, and the Sottopasso del Mare, 5.14 m, their portals; the next highest ground at a
-  mouth is 2.21 m, at a covered stair in Fosdinovo; issue #127 is to cut their ramps); a house stands over the way within
-  the mouth's end of the tunnel at its level, the ground under its lowest corner (`z0`) less than
-  the bore's clear height over the
-  road (a covered way, which the house hides as it hides a building passage: Cesena's arcades and
-  covered ways, and Via Gioco di Sopra's west mouth, where a garage stands over the tunnel 1.5 m in,
-  which issue #128 is to check against the orthophotos; every house that opens a mouth today stands
-  within 5 m of it, so a window of 5 m would open the same mouths;
-  the lowest house over each of today's 62 such ways stands 6.5 m under to level with its road,
-  while a house on the hill over a bore keeps its mouth's portal); the ground over that end never
-  rises to `leastWall` (a road under a rail bridge, whose deck stands over the lowered ground, or
-  under a cover the map's ground does not hold: Via S. Nicola's 19 m in Gragnola, and Pieve San
-  Lorenzo's north mouth, which runs under the rail decks, the ground over its end 4.83 m at most);
-  or no room for either (another road or the track in the way of the wall or its throat: Cesena's cycle
-  path beside Via Spadolini, where a service road on its bank, 3.2–3.4 m over its floor about 7 m
-  in, stops each throat at 4 m, short of the bank). Lunigiana's 56 mouths: 12 portals, 2 head walls, 42
-  open (none buried, 14 under a house, 28 under too low a bank, none for want of room); Cesena's 77:
-  6, 2, 69 (7, 47, 13, 2); the L's 12: 3, 0, 9 (0, 1, 8, 0). Fosdinovo's part brought 24 tunnels, all its villages'
-  covered passages and footways (in Giucano, Pulica, Fosdinovo, Bardine, Castelpoggio, Caniparola,
-  Ponzanello, Canova and Ceserano): 9 building passages and 28 open mouths, 13 under a house and 15
-  under too low a bank, as the ground the map holds stands at most 2.21 m over any of their floors
-  (every 0.5 m along them, in Fosdinovo's 1503940160; 1.95 m while each road was cored at its
-  chain's widest piece), short of an untagged head wall's 5.05 m (`leastWall`). Before the head
-  walls Lunigiana had 16 open of its 28 mouths then, Cesena 68, the L 9.
+  mouth is 2.21 m, at a covered stair in Fosdinovo; issue #127 is to cut their ramps); a house
+  stands over the way within the mouth's end of the tunnel at its level, the ground under its lowest
+  corner (`z0`) less than the bore's clear height over the road (a covered way, which the house
+  hides as it hides a building passage: Cesena's arcades and covered ways, and Via Gioco di Sopra's
+  west mouth, where a garage stands over the tunnel 1.5 m in, which issue #128 is to check against
+  the orthophotos; every house that opens a mouth today stands within 5 m of it, so a window of 5 m
+  would open the same mouths; the lowest house over each of today's 62 such ways stands 6.5 m under
+  to level with its road, while a house on the hill over a bore keeps its mouth's portal); the
+  ground over that end never rises to `leastWall` (a road under a rail bridge, whose deck stands
+  over the lowered ground, or under a cover the map's ground does not hold: Via S. Nicola's 19 m in
+  Gragnola, and Pieve San Lorenzo's north mouth, which runs under the rail decks, the ground over
+  its end 4.83 m at most); or no room for either (another road or the track in the way of the wall
+  or its throat: Cesena's cycle path beside Via Spadolini, where a service road on its bank, 3.2–3.4
+  m over its floor about 7 m in, stops each throat at 4 m, short of the bank). Lunigiana's 56
+  mouths: 12 portals, 2 head walls, 42 open (none buried, 14 under a house, 28 under too low a bank,
+  none for want of room); Cesena's 77: 6, 2, 69 (7, 47, 13, 2); the L's 12: 3, 0, 9 (0, 1, 8, 0).
+  Fosdinovo's part brought 24 tunnels, all its villages' covered passages and footways (in Giucano,
+  Pulica, Fosdinovo, Bardine, Castelpoggio, Caniparola, Ponzanello, Canova and Ceserano): 9 building
+  passages and 28 open mouths, 13 under a house and 15 under too low a bank, as the ground the map
+  holds stands at most 2.21 m over any of their floors (every 0.5 m along them, in Fosdinovo's
+  1503940160; 1.95 m while each road was cored at its chain's widest piece), short of an untagged
+  head wall's 5.05 m (`leastWall`). Before the head walls Lunigiana had 16 open of its 28 mouths
+  then, Cesena 68, the L 9.
 - **Why baked**: a mouth is an end no other road in a tunnel goes on from, and the road that would
   can lie in a tile that does not hold the mouth's own piece (the far end of a 196 m tunnel), so a
   mouth found tile by tile would depend on which tile came in first, and a chunk build would stop
@@ -2738,10 +2738,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the first metres of the SR445's east mouth opening it, a covered way (`whyOpen`: "housed"), and
     one on the hill 20 m in, some 16 m over the road, keeping its portal, which `whyOpen` finds no
     reason to leave open; the SR445's tunnel sunk 5 m, the ground at both its mouths over its clear
-    height, both open (`whyOpen`: "buried"); Pieve San Lorenzo's underpass split into two ways 2 m from its south
-    mouth, on the same line, keeping its head wall and its throat, the ground over its end read on
-    along the second way, by the bake and by `whyOpen` alike; and those eight mouths baked as
-    `bakeMouths` makes them now (six portals, a head wall and an open mouth).
+    height, both open (`whyOpen`: "buried"); Pieve San Lorenzo's underpass split into two ways 2 m
+    from its south mouth, on the same line, keeping its head wall and its throat, the ground over
+    its end read on along the second way, by the bake and by `whyOpen` alike; and those eight mouths
+    baked as `bakeMouths` makes them now (six portals, a head wall and an open mouth).
     `src/render/__tests__/tunnels.test.ts`, the same tunnels as drawn: the SR445's drawn at its
     floor every 0.5 m, its bore's dark walls in the chunk's buried layer, nothing of it in the solid
     one, on both sides every 2 m where the hill stands 0.5 m over the floor and every edge of them,

@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { terrainZ } from "../../../sim/map/ground.ts"
 import { type Building, MAP, type Road } from "../../../sim/map/index.ts"
+import { boreOf } from "../../bores.ts"
 import type { Vectors } from "../../testing.ts"
 import { bakeMouths } from "../index.ts"
 import {
@@ -160,12 +161,13 @@ test("the SR445's tunnel by Groppoli sunk 5 m, the ground at its mouths over the
     k = roads.ids.indexOf(id),
     sunk: Road = { ...road, z: road.z.map((z) => z - 5) },
     deep = { ids: roads.ids, items: roads.items.map((other, j) => (j === k ? sunk : other)) }
-  const baked = bakeMouths(deep, buildings.items).filter((mouth) => mouth.road === id)
+  const baked = bakeMouths(deep, buildings.items).filter((mouth) => mouth.road === id),
+    { clear } = boreOf(sunk)
   assert.equal(baked.length, 2)
   for (const mouth of baked) {
     assert.ok("open" in mouth, `the mouth at (${mouth.x}, ${mouth.y}) open`)
     assert.ok(
-      terrainZ(mouth.x, mouth.y) - mouth.z >= 4,
+      terrainZ(mouth.x, mouth.y) - mouth.z >= clear,
       `the ground at (${mouth.x}, ${mouth.y}) ${(terrainZ(mouth.x, mouth.y) - mouth.z).toFixed(2)} m over the road`,
     )
   }
