@@ -198,11 +198,13 @@ export const measured = (at: Standing): { readonly low: number; readonly throat:
 /**
  * Every road tunnel's mouth of `roads` (the whole map's, `ids` their indices) under `buildings`
  * (the whole map's): an end of a road in a tunnel, not a building passage, that no other road in a
- * tunnel goes on from, inside the play area. Its end of the tunnel is its road's line from there,
- * run on along the roads of its tunnel that go on from it (`linesIn`), THROAT.longest m in, short
- * of the tunnel's middle; where a house stands over the way there at its level, the ground under
- * its lowest corner less than the bore's clear height over the road (a covered way, which the house
- * hides as it hides a building passage), the mouth is open.
+ * tunnel goes on from, inside the play area. Where the ground at the mouth already stands the
+ * bore's clear height over the road's surface, the mouth is open, buried: its ramp is not in the
+ * map's ground, so a face there would stand inside the ground. Its end of the tunnel is its road's
+ * line from there, run on along the roads of its tunnel that go on from it (`linesIn`),
+ * THROAT.longest m in, short of the tunnel's middle; where a house stands over the way there at its
+ * level, the ground under its lowest corner less than the bore's clear height over the road (a
+ * covered way, which the house hides as it hides a building passage), the mouth is open.
  * - A portal stands there where the ground over its tunnel (the roads in a tunnel joined end to end
  *   with it) rises somewhere along it to `leastCover` over the road: its arch rises as the
  *   railway's, or as far under that ground as its face wall leaves room for. Its throat runs in
@@ -231,6 +233,7 @@ export const bakeMouths = (
         bore = boreOf(road),
         lift = ROAD_LIFT[roadClassOf(road)],
         open = { road: ids[line]!, x, y, z: road.z[end]! + lift, angle, open: true as const }
+      if (terrainZ(x, y) - open.z >= bore.clear) return open
       const tunnel = tunnels.get(line)!,
         { length, cover } = measure(items, tunnel),
         span = Math.min(THROAT.longest, length / 2),

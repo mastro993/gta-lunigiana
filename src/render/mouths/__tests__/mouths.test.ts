@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { terrainZ } from "../../../sim/map/ground.ts"
 import { type Building, MAP, type Road } from "../../../sim/map/index.ts"
+import { boreOf } from "../../bores.ts"
 import type { Vectors } from "../../testing.ts"
 import { bakeMouths } from "../index.ts"
 import {
@@ -152,6 +153,26 @@ test("a house over the SR445's tunnel by its east mouth opens it only standing a
   const level = houseAt(east.x - ux * 3, east.y - uy * 3, floor)
   assert.ok("open" in bakedWith([...buildings.items, level])!, "a covered way's mouth open")
   assert.equal(whyOpen(withHouse(level), east), "housed")
+})
+
+test("the SR445's tunnel by Groppoli sunk 5 m, the ground at its mouths over the bore's clear height (its ramps not in the map's ground): both mouths open, buried, though the hill over them stands high enough for a portal", () => {
+  const { roads, buildings } = aroundTunnels(),
+    [road, id] = tunnelAt(SR445),
+    k = roads.ids.indexOf(id),
+    sunk: Road = { ...road, z: road.z.map((z) => z - 5) },
+    deep = { ids: roads.ids, items: roads.items.map((other, j) => (j === k ? sunk : other)) }
+  const baked = bakeMouths(deep, buildings.items).filter((mouth) => mouth.road === id),
+    { clear } = boreOf(sunk)
+  assert.equal(baked.length, 2)
+  for (const mouth of baked) {
+    assert.ok("open" in mouth, `the mouth at (${mouth.x}, ${mouth.y}) open`)
+    assert.ok(
+      terrainZ(mouth.x, mouth.y) - mouth.z >= clear,
+      `the ground at (${mouth.x}, ${mouth.y}) ${(terrainZ(mouth.x, mouth.y) - mouth.z).toFixed(2)} m over the road`,
+    )
+  }
+  for (const end of endsOf(sunk, id))
+    assert.equal(whyOpen({ ...aroundTunnels(), roads: deep }, end), "buried")
 })
 
 /** As the map file holds it: JSON keeps no −0 and no undefined. */

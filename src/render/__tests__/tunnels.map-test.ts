@@ -15,6 +15,7 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
     mouths: 56,
     portals: 12,
     heads: 2,
+    buried: 0,
     housed: 14,
     low: 28,
     crowded: 0,

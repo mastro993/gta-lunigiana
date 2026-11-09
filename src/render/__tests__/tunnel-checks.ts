@@ -198,7 +198,8 @@ interface TunnelCounts {
   readonly mouths: number
   readonly portals: number
   readonly heads: number
-  /** The open mouths (`whyOpen`): under a house, under ground lower than a head wall, with no room for either. */
+  /** The open mouths (`whyOpen`): buried, under a house, under ground lower than a head wall, with no room for either. */
+  readonly buried: number
   readonly housed: number
   readonly low: number
   readonly crowded: number
@@ -251,7 +252,7 @@ export const checkTunnels = (whole: Vectors): TunnelCounts => {
   )
   let portals = 0,
     heads = 0
-  const open: Record<Open, number> = { housed: 0, low: 0, crowded: 0 }
+  const open: Record<Open, number> = { buried: 0, housed: 0, low: 0, crowded: 0 }
   for (const [n, mouth] of baked.entries()) {
     const end = found[n]!,
       road = MAP.roads[mouth.road]!,
