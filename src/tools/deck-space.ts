@@ -1,13 +1,10 @@
 // The space round the road bridges' decks that the walls under them (deck-walls.ts) are traced
-// from: the decks' and roads' lines as shipped, the ground at the terrain's level as the game reads
-// it, the decks whose walls would touch, and, on a lattice RES m apart, the fields under 0 where
-// the ground stands within a headroom of a deck's top (the low space) or within ON_DECK of it (on
-// its level).
-import { isRoadClass, ON_DECK, ONE_LEVEL, ROAD_LIFT, ROAD_PAD } from "../sim/map/kinds.ts"
-import { meshZ } from "./deck-ground.ts"
+// from: the decks' and roads' lines as shipped, the decks whose walls would touch, and, on a
+// lattice RES m apart, the fields under 0 where the ground at the terrain's level (`atGrade`)
+// stands within a headroom of a deck's top (the low space) or within ON_DECK of it (on its level).
+import { isRoadClass, ON_DECK, ONE_LEVEL, ROAD_LIFT } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { segIndex } from "./geometry.ts"
-import type { Grid } from "./terrain.ts"
 
 /** The lattice the low space is read on, m. */
 export const RES = 0.25
@@ -73,42 +70,6 @@ export const liftOf = (road: RoadF): number => ROAD_LIFT[isRoadClass(road.cls) ?
 
 /** Whether a road is lifted off the ground: a bridge's deck or a tunnel's floor. */
 export const isLifted = (road: RoadF): boolean => road.bridge === true || road.tunnel === true
-
-/**
- * The ground at the terrain's level on the whole grid `g` (`atGrade` in src/sim/map/ground-model.ts): the
- * terrain as drawn, or where the carriageways of `roads` at grade (their shipped `lines`) reach,
- * ROAD_PAD past their edge, their surfaces over it, each weighed by the square of how deep inside
- * it the point is, where that stands higher. A road's surface floats ROAD_LIFT over its profile,
- * and over the terrain where that stands higher: an approach's carriageway reaching under a deck's
- * end stands at the deck's level however low the terrain under it is.
- */
-export const groundOf = (g: Grid, roads: ReadonlyArray<RoadF>, lines: ReadonlyArray<Line>) => {
-  const at = segIndex<{ readonly za: number; readonly zb: number; readonly lift: number }>()
-  roads.forEach((r, i) => {
-    if (isLifted(r)) return
-    for (const seg of segmentsOf(lines[i]!, 0))
-      at.add(
-        seg.ax,
-        seg.ay,
-        seg.ax + seg.ux * seg.len,
-        seg.ay + seg.uy * seg.len,
-        r.w / 2 + ROAD_PAD,
-        { za: seg.za, zb: seg.zb, lift: liftOf(r) },
-      )
-  })
-  return (x: number, y: number): number => {
-    const terrain = meshZ(g, x, y)
-    let sum = 0,
-      weights = 0
-    at.within(x, y, ({ r, data: { za, zb, lift } }, d2, t) => {
-      const depth = r - Math.sqrt(d2),
-        weight = depth * depth + 1e-9
-      sum += weight * (Math.max(za + (zb - za) * t, terrain) + lift)
-      weights += weight
-    })
-    return weights > 0 ? Math.max(terrain, sum / weights) : terrain
-  }
-}
 
 /** A road bridge: its road, and its segments, each end's level the deck's top. */
 export interface Deck {

@@ -8,6 +8,7 @@
 // one level: a joint is mid-bridge, with no end run. The bare-earth model has no decks, so it rose
 // into them (issue #92).
 import { DECK_BALLAST, DECK_SLAB, isRoadClass, ON_DECK, ROAD_LIFT } from "../sim/map/kinds.ts"
+import { gridGround } from "./build-ground.ts"
 import { BED } from "./rail-bed.ts"
 import { anchorNode, type Grid } from "./terrain.ts"
 
@@ -143,26 +144,6 @@ export const clearRun = (
   ]
 }
 
-/** The terrain at (x, y) as the game draws it: each 4 m cell of `g` (the whole grid) split along its south-west to north-east diagonal (`terrainZ` in src/sim/map/ground-model.ts). */
-export const meshZ = (g: Grid, x: number, y: number): number => {
-  const [oi, oj] = anchorNode(g)
-  const fx = (x - g.ax) / g.cell,
-    fy = (y - g.ay) / g.cell
-  const fi = Math.floor(fx),
-    fj = Math.floor(fy)
-  const u = fx - fi,
-    v = fy - fj
-  const node = (i: number, j: number) =>
-    g.z[Math.min(g.rows - 1, Math.max(0, j)) * g.cols + Math.min(g.cols - 1, Math.max(0, i))]!
-  const i = fi + oi,
-    j = fj + oj
-  const sw = node(i, j),
-    se = node(i + 1, j),
-    nw = node(i, j + 1),
-    ne = node(i + 1, j + 1)
-  return u >= v ? sw + (se - sw) * u + (ne - se) * v : sw + (ne - nw) * u + (nw - sw) * v
-}
-
 /** One segment of a deck: its first vertex, its unit direction and length, its top at either end, its slab's half width. */
 interface Segment {
   readonly ax: number
@@ -277,10 +258,11 @@ const clip = (
  * stands over the plane `depth` m under the deck's top (exact: the mesh and the plane are linear on
  * each triangle, so the corners of the slab's part of it bound it). Where a corner of that part
  * stands over the plane, the triangle's corners that may move are lowered, the one that weighs most
- * there first, each just enough and at most DECK_SLAB.depth under the plane, floored to the grid's
- * 0.1 m: the ground under the slab goes before a bank its edge grazes (lowering each corner of the
- * cells it reached over to the plane cut a hillside 11.2 m, 7.3 m off a track bridge), and no deep
- * pit is dug to make up for one.
+ * there first, each just enough and at most DECK_SLAB.depth under the plane, floored to a whole
+ * decimetre (a node on one stays: within 1e-7 m under one, as k / 10 times 10 can read, is on it),
+ * as the file ships the nodes and the ground model reads them: the ground under the slab goes before a bank its edge grazes (lowering
+ * each corner of the cells it reached over to the plane cut a hillside 11.2 m, 7.3 m off a track
+ * bridge), and no deep pit is dug to make up for one.
  */
 const lay = (
   g: Grid,
@@ -392,7 +374,8 @@ export const deckGround = (
     if (!was.has(n)) was.set(n, g.z[n]!)
     g.z[n] = z
   }
-  const terrain = (x: number, y: number) => meshZ(g, x, y)
+  // The terrain as the game draws it, read live as the nodes are lowered.
+  const { terrainZ: terrain } = gridGround(g)
   const outer = jointsOf(slabs).map(
     ([first, last]) => [first.length === 0, last.length === 0] as const,
   )

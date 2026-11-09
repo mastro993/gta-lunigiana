@@ -2157,7 +2157,8 @@ north-west ridge of Monte Grondilice).
   delle Cave's (140780480, at (−368, 391)) 0.21 m over it. Once every tile is written, each road and
   rail deck's slab as drawn (`DECK_SLAB` in `kinds.ts`: 0.9 m deep under the deck's top, 0.4 m past
   the carriageway or the rail deck's 3.2 m of ballast either side, `src/render/lines.ts`) is read
-  every 0.5 m along it, each cross-section across the slab every 0.5 m on the mesh the game draws.
+  every 0.5 m along it, each cross-section across the slab every 0.5 m on the mesh the game draws
+  (the ground model's `terrainZ` over the grid as it is lowered, `src/tools/build-ground.ts`).
   Walking in from each outer end, the deck's end run lasts until its slab first stands clear of the
   ground all across, and `END_RUN` (4 m, the issue's "more than a few metres") at most: there it
   meets the ground, which only stays at most 0.05 m (the rail bed's `BED`) over its profile, under
@@ -2171,7 +2172,8 @@ north-west ridge of Monte Grondilice).
   pass now lowers the ground under all of them. The pass is exact: the mesh and the deck's planes
   are linear on each triangle, so on each one the slab reaches over it holds the corners of the
   slab's part of the triangle under the plane, lowering the triangle's corner that weighs most there
-  first, just enough and at most 0.9 m under the plane, floored to 0.1 m. A deck with a
+  first, just enough and at most 0.9 m under the plane, floored to a whole decimetre, as the file
+  ships the nodes, so the walls and parapets are traced on the shipped terrain. A deck with a
   cross-section between its end runs left in its slab (the lowered ground cleared some in an end
   run) is laid again over the new stretch, until it lies still. A road's or the rail's core holds
   its nodes only behind a deck's ends (its approach): abeam of a deck, between the lines across its
@@ -2418,8 +2420,9 @@ walls held them before, and stores neither of those.
   road's carriageway reached it, the road under the deck included, and a car on the SR445's viaduct
   west of Gragnola (552592654, at (−2674, 4584)) drove off it there and dropped from 148.5 m onto
   the residential road 140780578 under it. Each parapet wall takes its deck's top at its middle (its
-  profile plus `ROAD_LIFT`, to 0.1 m), and a parapet opens only where a road's surface, where its
-  carriageway reaches the parapet, stands within 2 m of the deck's top there: a road carrying on
+  profile plus `ROAD_LIFT`, to 0.1 m), and a parapet opens only where a road's surface as the game
+  reads it (`roadLevel` in `ground-model.ts`: at grade, over the terrain where that stands higher),
+  where its carriageway reaches the parapet, stands within 2 m of the deck's top there: a road carrying on
   from the deck, at any angle, opens it however the two are tagged, and one passing under it does
   not, even the SR445 itself, which runs on from its bridge 552592647 west of Gragnola and turns
   back under it 5.8 m lower. Lunigiana has 766 parapet walls, and the parapets of 5 bridges close
@@ -2427,7 +2430,12 @@ walls held them before, and stores neither of those.
   a track 15.8 m under it; the Ponte di Codiponte, 328463361, over a residential road 5.5 m under
   it; and since Fosdinovo's part Via Giuseppe Verdi's at Bardine di San Terenzo, 599910879, over
   the track 599910873), Cesena 602 walls and 17 bridges, the L 79 walls and none (the build prints
-  them as `parapets`; 2026-11-07, Lunigiana's 667 and 4 before Fosdinovo's part). The build's
+  them as `parapets`; 2026-11-07, Lunigiana's 667 and 4 before Fosdinovo's part). Read on the
+  profile alone (before issue #113), the parapet of Cesena's trunk bridge 24557433 (Via Ugo La
+  Malfa) stood 4.7 m farther along the primary road 23136540 at its start, whose carriageway rises
+  with the terrain there 2.25 m over its profile, and stopped a car on it 1.1 m under its level;
+  it now ends where that road leaves the deck's level, and Via Umberto Saba's 23775227 by it ends
+  0.4 m sooner. Lunigiana's and the L's parapets did not move. The build's
   clearance meets a wall with a level as the game does, at the query's level: the ground at a spawn
   or a parked spot, a road's surface at a traffic dead end. So the service road 1501392819, which
   ends 2.2 m off 552592647's north parapet and 6 m under it, at (−3267, 4478), keeps its last 6 m
@@ -2454,9 +2462,12 @@ deck only from its level, along the road at its ends.
   past where its walkers go (`footReach`, w/2 + 1.3 m on a road, and the slab's 0.4 m past the
   carriageway at least) for the walk walls, half a metre past its parapets for the drive walls; and
   round its ends too, the top there the end's. There the ground at the terrain's level, as the game
-  reads it (`atGrade`: the terrain, or a road at grade over it, an approach's carriageway floating
-  at the deck's level over far lower ground included), stands within that headroom of the deck's
-  top. Decks whose walls would touch are one space.
+  reads it (`atGrade`: the terrain, a station platform's top, or a road at grade over it, an
+  approach's carriageway floating at the deck's level over far lower ground included, or a deck
+  within `ON_DECK` of the terrain, at its ends), stands within that headroom of the deck's top. The
+  build reads it through the game's ground model (`src/tools/build-ground.ts`, issue #113): its own
+  copy before left the platforms and the decks out and summed the junction blend in another order.
+  Decks whose walls would touch are one space.
 - **The walls** trace its outline on a lattice 0.25 m apart (marching squares with the crossings
   between the nodes, `traceContours` in `loops.ts`; simplified within 0.1 m, in pieces of at most
   4 m), and, inside it, the outline of the ground on the deck's level (within `ON_DECK` of its top)
@@ -2489,11 +2500,19 @@ deck only from its level, along the road at its ends.
   along it, as 145347889 by 1362959048), still meets the walls, as anyone under or beside a deck
   does: 5 of Lunigiana's deck ends and 1 of Cesena's.
 
-Lunigiana has 5,983 walk walls and 10,215 drive walls under its 199 road decks (5,120 and 8,580
-under 167 before Fosdinovo's part), Cesena 2,054 and 3,130 under its 50, the L 740 and 1,218 under
-its 23 (the build prints them as `underDecks`; 2026-11-07; 6,032 and 10,166, 2,044 and 3,109, 758
-and 1,219 while each road chain was cored at its widest piece's width, which moved the ground by
-the decks' ends).
+Lunigiana has 6,122 walk walls and 10,346 drive walls under its 199 road decks, Cesena 2,079 and
+3,166 under its 50, the L 766 and 1,234 under its 23 (the build prints them as `underDecks`;
+2026-11-09). On the build's own ground copy they were 5,983 and 10,215 (5,120 and 8,580 under 167
+before Fosdinovo's part), 2,054 and 3,130, and 740 and 1,218 (6,032 and 10,166, 2,044 and 3,109,
+758 and 1,219 while each road chain was cored at its widest piece's width, which moved the ground
+by the decks' ends). Moving onto the game's ground changed 774 of Lunigiana's walk walls for 635 and
+1,023 drive walls for 892, round 131 and 150 of its decks, Cesena's 139 for 114 and 217 for 181,
+the L's 100 for 74 and 126 for 110, and no other part of the maps (`pnpm map-diff`): most of them by
+a few centimetres (half by 0.05 m or less, nine in ten by 0.16 m or less: the contour's crossings,
+from the junction blend summed in the game's order), the most 2.41 m, at the north end of
+140780504 by Equi Terme, where its deck within `ON_DECK` of the terrain is now the ground at grade
+(0.5 m over it). Of the walls left in place 3 of Lunigiana's walk walls and one of Cesena's took
+another level, by up to 0.4 m.
 When they came in (2026-11-06, before Fosdinovo's part) they added 44.4 KB to Lunigiana's files
 gzipped (32.02 to 32.06 MB), 13.1 KB to Cesena's and 6.0 KB to the L's, and against the same build
 without them `pnpm map-diff` moved the walls alone (on Cesena their extent moves the walk walls'
@@ -3292,10 +3311,13 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
 - `src/tools/__tests__/parapets.map-test.ts`: on Lunigiana, Cesena and the L, every drivable
   bridge's parapets read every 0.25 m along both sides of each deck segment (`parapetFaults` in
   `parapets.ts` beside it): a car on the deck meets a wall wherever no road on the deck's level (its
-  surface within 2 m of the deck's top, 0.15 m to spare) reaches the parapet (its carriageway, 0.5
-  m to spare: the build reads it every 0.25 m, on 0.1 m); a car on a road well inside its
-  carriageway there meets no parapet, which a junction on the deck closed or a parapet with the
-  wrong level would; and no wall with no level stands there over a road passing under or over the
+  surface as the game reads it, `roadLevel`, within 2 m of the deck's top, 0.15 m to spare) reaches
+  the parapet (its carriageway, 0.5 m to spare: the build reads it every 0.25 m, on 0.1 m); a car on
+  a road well inside its carriageway there meets no parapet, its surface read where the parapet
+  stands, which a junction on the deck closed or a parapet with the wrong level would (read on the
+  profile alone, it missed the 4.7 m Cesena's trunk bridge 24557433 closed over the primary road
+  23136540, and read beside the parapet's end it failed the parapet that now ends there, where that
+  road's surface climbs 0.4 m a metre with the terrain); and no wall with no level stands there over a road passing under or over the
   deck. A car keeps to the drivable roads: a levelled wall across a footpath (the walls under a deck
   across the path off the end of 140780504) stops none. It fails on 4 of Lunigiana's bridges and
   16 of Cesena's built before the walls had levels (none of the L's), and on 4 and 14 with the
@@ -3594,8 +3616,8 @@ it, a bore from it level to where the box cuts it, its claims only where `writes
 of the junctions they lead to; `rail-bed.test.ts` lowers a grid under a line, raises the corners
 far under it but a kept one, moves a window's nodes as it moves the whole grid's, levels a siding
 on the line beside it, and moves a run-out's nodes beyond the play area alone (`writes`);
-`deck-ground.test.ts` reads a cell as the game draws it, lowers a hump under a deck's slab and no
-node off it, leaves a bank the slab's edge grazes (the ground under
+`deck-ground.test.ts` lowers a hump under a deck's slab and no node off it, each node it lowers
+onto a whole decimetre, leaves a bank the slab's edge grazes (the ground under
 the slab goes instead), brings a hillside down under the road along a deck's end run (the SP59's
 by Vinca) and clears the slab past `END_RUN` (4 m) though it first stands clear 19 m in, lowers the
 ground under a deck lying on it all along past its end runs, keeps a rail deck's ground off its
@@ -3829,13 +3851,17 @@ its road inside its w/2 but opened where a drivable road's middle 1.2 m reaches 
 0.25 m sample, as OSM's by Tendola needs, while a wall drawn the same, standing in the road, goes;
 `parapets.test.ts` a deck's parapets closed over a road 7 m under it at the deck's top, 150.2 m, and
 open where a road on its level joins it from one side alone, on 0.1 m and in pieces of 16 m at most,
-and `parapetFaults` finding the opening the old rule left over the road under it, a parapet across
-the joining road and the parapets with no level over the road under it; `deck-walls.test.ts`
+closed by that road where it runs at grade over a bank 3 m and more over the deck's level, and
+`parapetFaults` finding the opening the old rule left over the road under it, a parapet across
+the joining road and the parapets with no level over the road under it, and passing a parapet that
+ends where a road at grade climbing with the terrain leaves the deck's level while failing one
+closed along all of it; `deck-walls.test.ts`
 `traceContours` ringing a disc anticlockwise on its circle, and over a valley under a deck the walk
 walls crossing its line where the ground stands 2.7 and 0.5 m under its top and running along it at
 its walkers' reach, every wall 2.5 m or more under its top and within 2 m of the ground under it,
 none on the road carrying on from its ends, a footpath 2.5 m under it keeping a walled corridor and
-one 1.2 m under it opening the walls across it.
+one 1.2 m under it opening the walls across it, and the walk walls ringing a platform under the deck
+1.16 m under its top.
 
 `node src/tools/preview-map.ts [pxPerM=1] [minX,minY,maxX,maxY] [out.png]` draws a top-down PNG of
 the built map, its trees, walls, roads, buildings, water, areas and barriers read whole from the

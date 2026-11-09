@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { segmentDistance } from "../../sim/collide.ts"
 import { footReach, ON_DECK, ONE_LEVEL, ROAD_LIFT } from "../../sim/map/kinds.ts"
+import { gridGround } from "../build-ground.ts"
 import { deckWalls } from "../deck-walls.ts"
 import type { RoadF } from "../features.ts"
 import { traceContours } from "../loops.ts"
@@ -51,12 +52,15 @@ const road = (
 const VALLEY = (x: number) => 10 - 8 * Math.max(0, 1 - Math.abs(x) / 25)
 /** The deck's top, m. */
 const TOP = 10 + ROAD_LIFT.tertiary
+/** A platform under the deck from x 0 to x 10, 12 m deep across it, its top 9 m a.s.l. */
+const PLATFORM = { rings: [[0, -6, 10, -6, 10, 6, 0, 6]], axis: [0, 0, 10, 0], top: [9, 9] }
+
 /**
  * A tertiary road's deck 6.5 m wide along y 0 from x −30 to x 30, its top at TOP, over the VALLEY,
  * its road carrying on at grade both ways; with `paths`, a footpath across under it at x 17.5,
- * 2.5 m under its top, and another at x 21.5, 1.2 m under it.
+ * 2.5 m under its top, and another at x 21.5, 1.2 m under it; with `platform`, the PLATFORM.
  */
-const scene = (paths = false) => {
+const scene = (paths = false, platform = false) => {
   const g = grid((x) => VALLEY(x))
   const ways = [
     road(1, "tertiary", 6.5, [-30, 0, 0, 0, 30, 0], [10, 10, 10], true),
@@ -69,13 +73,11 @@ const scene = (paths = false) => {
         ]
       : []),
   ]
+  const roads = ways.map(([r]) => r),
+    lines = ways.map(([, l]) => l)
   return {
     ways,
-    walls: deckWalls(
-      g,
-      ways.map(([r]) => r),
-      ways.map(([, l]) => l),
-    ),
+    walls: deckWalls(gridGround(g, roads, lines, platform ? [PLATFORM] : []), roads, lines),
   }
 }
 
@@ -146,6 +148,16 @@ test("deckWalls: the walk walls cross a deck's line where the ground stands PERS
       `walls beside the deck at x ${x}: ${sides.join(", ")}`,
     )
   }
+})
+
+test("deckWalls: the walk walls ring a platform under a deck within a person's height of its underside, as the game stands people on it", () => {
+  // The platform's top 1.16 m under the deck's: the walls cross the deck's line at its two ends too.
+  const lines = across(each(scene(false, true).walls.walk), 0, -30, 30)
+  assert.equal(lines.length, 6, `the walls cross the deck's line at ${lines.join(", ")}`)
+  for (const [x, want] of lines.map(
+    (x, k) => [x, [-23.94, -17.06, 0, 10, 17.06, 23.94][k]!] as const,
+  ))
+    assert.ok(Math.abs(x - want) < 0.3, `a wall across the deck at x ${x}, not ${want}`)
 })
 
 test("deckWalls: no wall stops anyone on the deck or on its road at grade, and every one stops the ground under the deck by it", () => {

@@ -1,7 +1,7 @@
 // The check parapets.test.ts runs on made-up roads and parapets.map-test.ts on every built map:
 // along every drivable bridge's parapets, a car on the deck meets a wall wherever no road on the
 // deck's level reaches the parapet, and a car on any road meets no parapet in its carriageway.
-import { isDrivable, isRoadClass, ONE_LEVEL, ROAD_LIFT } from "../../sim/map/kinds.ts"
+import { isDrivable, ONE_LEVEL } from "../../sim/map/kinds.ts"
 import { segIndex } from "../geometry.ts"
 
 /** A road as shipped: its class, width, whether it is a bridge, and its line. */
@@ -33,12 +33,14 @@ const LEVEL_MARGIN = 0.15
 
 /**
  * Where a parapet of `roads`' drivable bridges fails, read every STEP m along each deck segment's two
- * parapet lines (w/2 + PARAPET off its centreline):
+ * parapet lines (w/2 + PARAPET off its centreline), `level` a road's surface by its index (the ground
+ * model's `roadLevel`):
  * - an opening, where a car on the deck meets no wall (none, or only one with a level ONE_LEVEL or
  *   more off the deck's top), that no road on the deck's own level reaches (issue #91);
  * - a parapet (a wall with a level) that a car on a drivable road well inside it there meets, its
- *   level within ONE_LEVEL of that road's surface: a junction on the deck closed, or a road under it
- *   walled off (a path is for people on foot, whom no drive wall stops);
+ *   level within ONE_LEVEL of that road's surface where the wall stands (its point nearest): a
+ *   junction on the deck closed, or a road under it walled off (a path is for people on foot, whom
+ *   no drive wall stops);
  * - a wall with no level, which stops any car, over a drivable road passing under or over the deck.
  * One line per bridge, at its first failure; empty when every parapet holds where it should and only
  * there.
@@ -46,11 +48,14 @@ const LEVEL_MARGIN = 0.15
 export const parapetFaults = (
   roads: ReadonlyArray<ShippedRoad>,
   walls: DriveWalls,
+  level: (road: number, x: number, y: number) => number,
 ): Array<string> => {
-  const surface = (r: ShippedRoad, k: number, t: number) =>
-    r.z[k]! + (r.z[k + 1]! - r.z[k]!) * t + ROAD_LIFT[isRoadClass(r.cls) ? r.cls : "path"]
-  const ways = segIndex<{ readonly road: ShippedRoad; readonly k: number }>()
-  for (const road of roads)
+  const ways = segIndex<{
+    readonly road: ShippedRoad
+    readonly index: number
+    readonly k: number
+  }>()
+  for (const [index, road] of roads.entries())
     for (let k = 0; k + 1 < road.z.length; k++)
       ways.add(
         road.pts[2 * k]!,
@@ -58,7 +63,7 @@ export const parapetFaults = (
         road.pts[2 * k + 2]!,
         road.pts[2 * k + 3]!,
         road.w / 2 + MARGIN,
-        { road, k },
+        { road, index, k },
       )
   const near = segIndex<number>()
   const { drive, levels } = walls
@@ -71,7 +76,7 @@ export const parapetFaults = (
       ON,
       levels.drive[w]!,
     )
-  return roads.flatMap((r) => {
+  return roads.flatMap((r, i) => {
     if (r.bridge !== true || !isDrivable(r.cls)) return []
     for (let k = 0; k + 1 < r.z.length; k++) {
       const ax = r.pts[2 * k]!,
@@ -86,30 +91,35 @@ export const parapetFaults = (
           const o = side * (r.w / 2 + PARAPET),
             x = ax + ((bx - ax) * s) / n - ((by - ay) / len) * o,
             y = ay + ((by - ay) * s) / n + ((bx - ax) / len) * o,
-            top = surface(r, k, s / n)
+            top = level(i, x, y)
           // The roads whose carriageway reaches the point (but the segment it stands by): whether one
           // is on the deck's level, and those that reach well inside it, with their surface there.
           let reached = false
-          const inside: Array<{ readonly id: number; readonly z: number }> = []
-          ways.within(x, y, ({ data: { road, k: j } }, d2, t) => {
+          const inside: Array<{ readonly id: number; readonly index: number }> = []
+          ways.within(x, y, ({ data: { road, index, k: j } }, d2) => {
             if (road === r && j === k) return
-            const z = surface(road, j, t)
+            const z = level(index, x, y)
             if (Math.abs(z - top) < ONE_LEVEL + LEVEL_MARGIN) reached = true
             if (Math.sqrt(d2) < road.w / 2 - MARGIN && isDrivable(road.cls))
-              inside.push({ id: road.id, z })
+              inside.push({ id: road.id, index })
           })
           let closed = false,
             stops: string | undefined
-          near.within(x, y, ({ data: wall }) => {
+          near.within(x, y, ({ data: wall, ax, ay, bx, by }, _, t) => {
             const none = Number.isNaN(wall)
             if (none || Math.abs(wall - top) < ONE_LEVEL) closed = true
-            for (const { id, z } of inside)
+            // Where the wall stands: the build ends a parapet at the first of its 0.25 m samples off
+            // a road's level, and a surface climbing with the terrain across a carriageway (0.4 m a
+            // metre by Cesena's trunk bridge 24557433) is on it ON m nearer the opening.
+            for (const { id, index } of inside) {
+              const z = level(index, ax + (bx - ax) * t, ay + (by - ay) * t)
               if (
                 none
                   ? Math.abs(z - top) >= ONE_LEVEL + LEVEL_MARGIN
                   : Math.abs(wall - z) < ONE_LEVEL - LEVEL_MARGIN
               )
                 stops ??= `${none ? "a wall with no level" : `its parapet at ${wall.toFixed(1)} m`} stops a car on road ${id} at ${z.toFixed(2)} m`
+            }
           })
           const at = `at (${x.toFixed(1)}, ${y.toFixed(1)}), its deck's top ${top.toFixed(2)} m`
           if (stops !== undefined) return [`${r.cls} bridge ${r.id}: ${stops}, ${at}`]

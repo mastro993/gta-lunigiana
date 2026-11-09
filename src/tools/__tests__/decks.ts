@@ -1,6 +1,7 @@
 // The check deck-ground.test.ts runs on made-up grids and deck-ground.map-test.ts on every built
 // map: where the ground reaches into a bridge's deck, read on the mesh the game draws.
-import { DECK_SLAB } from "../../sim/map/kinds.ts"
+import { anchorOf, DECK_SLAB } from "../../sim/map/kinds.ts"
+import { latticeGround } from "../build-ground.ts"
 import { abeamOf, jointsOf, railSlab, roadSlab, type Slab } from "../deck-ground.ts"
 import type { JoinedMap } from "../map-file.ts"
 import { BED } from "../rail-bed.ts"
@@ -17,8 +18,8 @@ export const mapDecks = (map: JoinedMap): Array<readonly [string, Slab]> => [
 
 /**
  * `map`'s drawn mesh: the terrain at (x, y), each 4 m cell split along its south-west to north-east
- * diagonal as `terrainZ` (src/sim/map/ground.ts) reads the map the game loaded, and the nodes of the
- * triangle drawn there (x, y).
+ * diagonal (`terrainZ`, the ground model's over the map's nodes), and the nodes of the triangle drawn
+ * there (x, y).
  */
 export interface Mesh {
   readonly at: (x: number, y: number) => number
@@ -28,35 +29,17 @@ export interface Mesh {
 /** `map`'s drawn mesh (`Mesh`). */
 export const meshOf = (map: Pick<JoinedMap, "heightmap">): Mesh => {
   const hm = map.heightmap,
-    ax = hm.ax ?? hm.x0,
-    ay = hm.ay ?? hm.y0,
-    ai = (ax - hm.x0) / hm.cell,
-    aj = (ay - hm.y0) / hm.cell
-  const node = (i: number, j: number) =>
-    hm.data[
-      Math.min(hm.rows - 1, Math.max(0, j)) * hm.cols + Math.min(hm.cols - 1, Math.max(0, i))
-    ]! / 10
-  const cell = (x: number, y: number) => {
-    const fx = (x - ax) / hm.cell,
-      fy = (y - ay) / hm.cell
-    const fi = Math.floor(fx),
-      fj = Math.floor(fy)
-    return { fi, fj, u: fx - fi, v: fy - fj }
-  }
+    { x: ax, y: ay } = anchorOf(hm)
   return {
-    at: (x, y) => {
-      const { fi, fj, u, v } = cell(x, y)
-      const sw = node(fi + ai, fj + aj),
-        se = node(fi + ai + 1, fj + aj),
-        nw = node(fi + ai, fj + aj + 1),
-        ne = node(fi + ai + 1, fj + aj + 1)
-      return u >= v ? sw + (se - sw) * u + (ne - se) * v : sw + (ne - nw) * u + (nw - sw) * v
-    },
+    at: latticeGround(hm, (n) => hm.data[n]!).terrainZ,
     corners: (x, y) => {
-      const { fi, fj, u, v } = cell(x, y)
+      const fx = (x - ax) / hm.cell,
+        fy = (y - ay) / hm.cell
+      const fi = Math.floor(fx),
+        fj = Math.floor(fy)
       const at = (di: number, dj: number) =>
         [ax + (fi + di) * hm.cell, ay + (fj + dj) * hm.cell] as const
-      return [at(0, 0), u >= v ? at(1, 0) : at(0, 1), at(1, 1)]
+      return [at(0, 0), fx - fi >= fy - fj ? at(1, 0) : at(0, 1), at(1, 1)]
     },
   }
 }

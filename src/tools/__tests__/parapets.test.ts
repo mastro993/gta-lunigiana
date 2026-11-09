@@ -2,9 +2,11 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { RoadClass } from "../../sim/map/kinds.ts"
+import { gridGround, levelOn } from "../build-ground.ts"
 import type { RoadF } from "../features.ts"
 import { segDist2 } from "../geometry.ts"
 import { parapets } from "../parapets.ts"
+import type { Grid } from "../terrain.ts"
 import { parapetFaults, type ShippedRoad } from "./parapets.ts"
 
 /** A road as the build carries it (`f`) and as the map ships it, its profile `z` per vertex. */
@@ -65,11 +67,40 @@ const JOIN = road(
   [150, 151],
 )
 const ROADS = [DECK, UNDER, JOIN]
-/** The parapets of `roads`. */
-const build = (roads: ReadonlyArray<ReturnType<typeof road>>) =>
+/** A 4 m grid of 31 × 21 nodes from (−30, −40), its node at (x, y) at `z(x, y)`, to the decimetre. */
+const grid = (z: (x: number, y: number) => number): Grid => {
+  const cols = 31,
+    rows = 21
+  return {
+    cell: 4,
+    cols,
+    rows,
+    x0: -30,
+    y0: -40,
+    ax: -30,
+    ay: -40,
+    z: Float64Array.from(
+      { length: cols * rows },
+      (_, n) => Math.round(z(-30 + (n % cols) * 4, -40 + Math.floor(n / cols) * 4) * 10) / 10,
+    ),
+  }
+}
+/** The valley under the deck: the terrain 130 m a.s.l., under every road. */
+const VALLEY = grid(() => 130)
+/** Each of `roads`' surface by its index, over the terrain of `g` (`roadLevel`). */
+const levelOf = (roads: ReadonlyArray<ReturnType<typeof road>>, g = VALLEY) =>
+  levelOn(
+    gridGround(
+      g,
+      roads.map((r) => r.f),
+      roads.map((r) => r.shipped),
+    ),
+  )
+/** The parapets of `roads` over the terrain of `g`. */
+const build = (roads: ReadonlyArray<ReturnType<typeof road>>, g = VALLEY) =>
   parapets(
     roads.map((r) => r.f),
-    roads.map((r) => r.shipped),
+    levelOf(roads, g),
   )
 const built = build(ROADS)
 
@@ -114,13 +145,25 @@ test("parapets close a deck's sides over a road passing under it, at the deck's 
   )
 })
 
+test("parapets stay closed by a road at grade whose surface the terrain lifts off the deck's level, as the game stands a car on it", () => {
+  // The joining road's profile is on the deck's level, but it runs at grade over a bank 156 m high
+  // north-east of the deck: its surface floats over the terrain there (`roadZ`), past ONE_LEVEL over
+  // the deck's top where it meets the parapet.
+  const bank = build(
+    ROADS,
+    grid((x, y) => (x >= 42 && y >= 4 ? 156 : 130)),
+  )
+  assert.deepEqual(levelsAt(bank.walls, bank.levels, 46, 3.75), [150.2])
+})
+
 test("parapetFaults: none where the parapets hold; an opening over the road under the deck, a parapet across a road on its level, a wall with no level over the road under it, each one", () => {
-  const shipped = ROADS.map((r) => r.shipped)
+  const shipped = ROADS.map((r) => r.shipped),
+    level = levelOf(ROADS)
   const walls = (drive: ReadonlyArray<number>, levels: ReadonlyArray<number>) => ({
     drive,
     levels: { drive: levels },
   })
-  assert.deepEqual(parapetFaults(shipped, walls(built.walls, built.levels)), [])
+  assert.deepEqual(parapetFaults(shipped, walls(built.walls, built.levels), level), [])
   // The parapets as they were, open over every road's carriageway: as if the road under the deck ran on its level.
   const before = build([
     DECK,
@@ -136,7 +179,7 @@ test("parapetFaults: none where the parapets hold; an opening over the road unde
     ),
     JOIN,
   ])
-  const faults = parapetFaults(shipped, walls(before.walls, before.levels))
+  const faults = parapetFaults(shipped, walls(before.walls, before.levels), level)
   assert.equal(faults.length, 1)
   assert.match(
     faults[0]!,
@@ -144,7 +187,11 @@ test("parapetFaults: none where the parapets hold; an opening over the road unde
   )
   // A parapet closed across the road joining the deck.
   assert.match(
-    parapetFaults(shipped, walls([...built.walls, 43, 3.8, 47, 3.8], [...built.levels, 150.2]))[0]!,
+    parapetFaults(
+      shipped,
+      walls([...built.walls, 43, 3.8, 47, 3.8], [...built.levels, 150.2]),
+      level,
+    )[0]!,
     /^primary bridge 1: its parapet at 150\.2 m stops a car on road 3 at 150\.\d+ m/,
   )
   // The parapets with no level stop the road under the deck.
@@ -155,7 +202,45 @@ test("parapetFaults: none where the parapets hold; an opening over the road unde
         built.walls,
         built.levels.map(() => NaN),
       ),
+      level,
     )[0]!,
     /^primary bridge 1: a wall with no level stops a car on road 2 at 143\.12 m/,
+  )
+})
+
+test("parapetFaults reads a road at grade where the parapet stands: one ending where a road climbing with the terrain leaves the deck's level holds, one closed along all of it fails", () => {
+  // A primary road at grade beside the deck, its carriageway reaching 2.5 m past the parapet, its
+  // profile 140 m, over terrain climbing 1.5 m a metre east of x 10 to 158 m: its surface crosses
+  // the deck's level, 150.16 m, along the parapet.
+  const SIDE = road(
+    4,
+    "primary",
+    7,
+    [
+      [0, 6],
+      [60, 6],
+    ],
+    [140, 140],
+  )
+  const roads = [DECK, SIDE],
+    climb = grid((x) => Math.min(158, Math.max(140, 140 + 1.5 * (x - 10)))),
+    level = levelOf(roads, climb)
+  const walls = (p: ReturnType<typeof build>) => ({ drive: p.walls, levels: { drive: p.levels } })
+  assert.deepEqual(
+    parapetFaults(
+      roads.map((r) => r.shipped),
+      walls(build(roads, climb)),
+      level,
+    ),
+    [],
+  )
+  // The parapets built as if the road kept to its profile: closed along it, where it is on the deck's level.
+  assert.match(
+    parapetFaults(
+      roads.map((r) => r.shipped),
+      walls(build(roads)),
+      level,
+    )[0]!,
+    /^primary bridge 1: its parapet at 150\.2 m stops a car on road 4 at 1(4[89]|5[01])\.\d+ m/,
   )
 })
