@@ -5,7 +5,7 @@ import { coverAt } from "../../sim/map/cover.ts"
 import { facingAt, terrainZ } from "../../sim/map/ground.ts"
 import { MAP } from "../../sim/map/index.ts"
 import { anchorOf } from "../../sim/map/kinds.ts"
-import { LEVEL, ROCK_NORMAL_Y } from "../../sim/sky/local.ts"
+import { FLAT_GROUND, ROCK_NORMAL_Y } from "../../sim/sky/local.ts"
 import { chunkOf, chunkRect } from "../chunks.ts"
 import { linear } from "../geometry.ts"
 import { terrainNodeY } from "../ground.ts"
@@ -117,7 +117,7 @@ test("each face of the terrain mesh faces as the sim's facingAt says over it, so
     const x = (position.getX(v) + position.getX(v + 1) + position.getX(v + 2)) / 3,
       y = -(position.getZ(v) + position.getZ(v + 1) + position.getZ(v + 2)) / 3
     const face = facingAt(x, y, terrainZ(x, y))
-    if (face === LEVEL) continue // a road or a platform covers it there
+    if (face === FLAT_GROUND) continue // a road or a platform covers it there
     worst = Math.max(
       worst,
       Math.abs(face.north + normal.getZ(v)),

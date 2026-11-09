@@ -1969,7 +1969,7 @@ speed along the contact.
 | `src/sim/systems/populate-animals.ts` | `ANIMALS` (each kind's share, reach, cap and despawn), the spawn bands and spots |
 | `src/sim/population/parked.ts` | the most vehicles that are not traffic (`PARKED`), the parked cars' bands (`PARKING`: fill 90–300 m, gone beyond 400 m), each map's share of spots with a car (`SHARE`), the truck and Ape rolls (`TRUCK`, `APE`), how far a car may stand off its spot and still be as parked (`ON_SPOT`) |
 | `src/sim/systems/populate-parked.ts` | `ROOM`, how near a person or an animal a car is not brought out |
-| `src/sim/parking.ts` | `LEVEL`, the steepest tilt a parked car stands at; baked into the map, so run `pnpm map` after a change |
+| `src/sim/parking.ts` | `TILT_LIMIT`, the steepest tilt a parked car stands at; baked into the map, so run `pnpm map` after a change |
 | `src/sim/map/tiles.ts` | `FROZEN_BEYOND` (how far from the player a vehicle still steps), `STEP_REACH` (the square of tiles the host keeps for a step) |
 | `src/sim/rail/models.ts` | `TRAINS`: the ATR 220's cars, bogies, mass, power, resistance, brakes and engines; `MOVING`, the speed over which a train counts as moving |
 | `src/sim/rail/lines.ts` | `DRAWN_RUN`, `runOut`, `DEFAULT_SPEED`, `CHORD`, `STOP_REACH` |
