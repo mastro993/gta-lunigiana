@@ -159,25 +159,27 @@ const walk = (
   let footing = level,
     at: Vec2.Vec2 = from
   const player = Game.Query({
-    selection: { pose: Game.Query.read(Pose), footing: Game.Query.optional(Footing) },
+    selection: { pose: Game.Query.read(Pose), footing: Game.Query.read(Footing) },
     with: [Player],
   })
   const set = Game.Schedule(
     Game.System(
       "Test/Footing",
-      { queries: { player }, commands: Game.System.commands(Game.System.inserts(Footing)) },
-      ({ queries, commands }) => {
-        for (const { entity } of queries.player.each())
-          commands.insert(entity, [Footing, { z: level }])
+      {
+        queries: {
+          player: Game.Query({ selection: { footing: Game.Query.write(Footing) }, with: [Player] }),
+        },
+      },
+      ({ queries }) => {
+        for (const { data } of queries.player.each()) data.footing.set({ z: level })
       },
     ),
-    Game.Schedule.applyDeferred(),
   )
   const read = Game.Schedule(
     Game.System("Test/ReadFooting", { queries: { player } }, ({ queries }) => {
       for (const { data } of queries.player.each()) {
         at = data.pose.get()
-        footing = data.footing.value()?.z ?? footing
+        footing = data.footing.get().z
       }
     }),
   )

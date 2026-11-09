@@ -44,7 +44,6 @@ import { FLOW, specificDischarge } from "../water/flow.ts"
 import { waterUnder, walkDry } from "../water/rivers.ts"
 import { outOfDepth, waterVelocity } from "../water/swim.ts"
 import { slide } from "./foot.ts"
-import { footingAt } from "./footing.ts"
 import { type Car, type Folk, fright, MOVING, scare } from "./fright.ts"
 import { followVelocity, placeBeside } from "./pedestrians.ts"
 import { animalBuild } from "./water.ts"
@@ -119,7 +118,7 @@ export const Animals = Game.System(
           down: Game.Query.optional(Down),
           dead: Game.Query.optional(Dead),
           wet: Game.Query.optional(InWater),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
       }),
       leaders: Game.Query({
@@ -226,7 +225,7 @@ export const Animals = Game.System(
       const wet = data.wet.value(),
         water = wet === undefined ? undefined : waterUnder(pose.x, pose.y, true, q),
         build = animalBuild(data.animal.get()),
-        ground = footingAt(data.footing.value(), pose.x, pose.y)
+        ground = data.footing.get().z
       const place = (wanted: Vec2.Vec2, facing?: Vec2.Vec2) => {
         // Wading, it keeps to what it was doing, slower and pushed by the current.
         const velocity =

@@ -110,29 +110,29 @@ the parked cars come from `Parking.seed`, so the fill replays with the seed.
 | 6 | `ApplyClock` | `index.ts` | each `SetClock` request sets the game time and/or its rate in `GameClock`, kept in range (2000-01-01 to 2100-01-01, rate a whole 0–3600) |
 | 7 | `ApplyWeather` | `index.ts` | each `SetWeather` request forces a regime or hands the weather back to the day's plan, settled at once when asked, under the plan of the day the clock is on |
 | 8 | `ApplyTrains` | `rail/dispatch.ts` | each `SetTrains` request makes a train due now on every line no AI train runs on (`Railway`) |
-| 9 | `ApplyPlayer` | `systems/reach.ts` | each `SetPlayer` request puts the player at its pose, standing still (`Pose` and `PrevPose`, no `Motion`): on foot on the ground there at the terrain's level (`Footing`, as `Respawn` does), driving a vehicle with it, settled on its springs (`settle`); dropped when a number in it is not finite, it lies outside the play area (`inPlay`: inside `MAP.outline`, its edge included) or the player drives a train |
+| 9 | `ApplyPlayer` | `systems/reach.ts` | each `SetPlayer` request puts the player at its pose, standing still (`Pose` and `PrevPose`, no `Motion`): on foot on the ground there at the terrain's level (`Footing`, as `Respawn` does), driving a vehicle with it, settled on its springs (`settle`), their footing under it; dropped when a number in it is not finite, it lies outside the play area (`inPlay`: inside `MAP.outline`, its edge included) or the player drives a train |
 | 10 | `AdvanceClock` | `systems/sky.ts` | moves `GameClock` on by its rate (a game second a step at rate 1); at rate 0 it stands still, unwritten |
 | 11 | `AdvanceWeather` | `systems/sky.ts` | over the step's game seconds, draws the day's plan from the weather seed when a new Rome day begins (at rate 0 only that), moves toward the regime it sets for the hour and eases `Weather` toward it, wetting, drying, snowing and thawing the ground; over its real time, drifts a thunderstorm's cell and emits `Lightning`, drawing from `WeatherRng` |
 | 12 | `AdvanceRivers` | `systems/sky.ts` | over the step's game seconds, the weather's precipitation fills the catchments' snow, soil and stores and they drain into the rivers (`Rivers`, [water.md](water.md)) |
-| 13 | `EnterExit` | `systems/enter-exit.ts` | action key: enter, steal, carjack, get out; a train at its cab doors (`rail/boarding.ts`): its AI driver flees (out of the far cab where the active one has no door at grade), the far cab becomes the active one; getting out needs a stand at grade, the platforms' side first, and with none the player goes through to the far cab; out, the player stands on the ground on the vehicle's level (`Footing`) |
+| 13 | `EnterExit` | `systems/enter-exit.ts` | action key: enter, steal, carjack, get out; a train at its cab doors (`rail/boarding.ts`): its AI driver flees (out of the far cab where the active one has no door at grade), the far cab becomes the active one; getting out needs a stand at grade, the platforms' side first, and with none the player goes through to the far cab; out, the player stands on the ground beside it on their footing's level (`Footing`) |
 | 14 | `applyDeferred` | | applies the enter/exit commands, so the blast knows who sits in which vehicle |
-| 15 | `FindFooting` | `systems/footing.ts` | every body on foot keeps to the level it was on (`Footing`: the ground nearest its last, decks and tunnels out to their verges); one with none takes its way's road or the terrain's level |
-| 16 | `Explode` | `systems/explosions.ts` | lights a burning wreck's fuse; a wreck whose fuse has burnt down blows up (`Explosion`): hits and shoves the vehicles near it, kills, knocks down and scares the people; a vehicle beyond the player's reach (`inReach`) is left as it is: its fuse waits and no blast reaches it |
-| 17 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river, a stream or a lake gets `InWater`, swimming once off its feet, and loses it on dry ground |
-| 18 | `applyDeferred` | | applies the blast's deaths and knockdowns, the first footings and who is in the water, before anything moves |
-| 19 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
-| 20 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
-| 21 | `Crossings` | `rail/systems.ts` | each level crossing moves on through its cycle (`LevelCrossings`: open, warning, lowering, closed, raising) from whether a train demands it now: moving at it, standing ready (an AI train about to go, the player's with its lever forward) or on it |
-| 22 | `TrafficAI` | `systems/traffic.ts` | AI drivers write their `CarInput`, braking for vehicles, people, animals and the cars of trains on their level (`onPathLevel`: the ground the driver's wheels come to rolling along its path to where each reaches into it, `rolledTo` in `map/ground.ts`, on one level with the other's there, `onOneLevel`), slower and keeping further back where the road is wet or snowy; at a level crossing (`rail/roads.ts`, reading `LevelCrossings` this step) they stop for a box not open (from the lowering on always, and short of the trains' envelope) and keep it and the junction before it clear, patient while it is closed for a train; a driver held up honks (`Honk`), and backs up rather than turn round beside a line's track; a car beyond the player's reach (`inReach`) is skipped, its route and controls kept |
-| 23 | `TrainAI` | `rail/service.ts` | AI train drivers write their lever (`CarInput`): line speed, braking curves to the next station's stop point, behind a train ahead on their track (any line's, on shared track; short of where one coming at them will stand) and short of a crossing whose arms are not down, standing where they are while one within their braking distance comes down; they dwell at stations while the game clock runs (`TrainRun`), drawing from `RailRng`, and whistle entering long tunnels (`Whistle`); a person, an animal or a vehicle on the track ahead on their level, a vehicle touching their body alongside, or another train against either end, holds them (`rail/lookout.ts`): the emergency brake and the urgent whistle, the horn, then a creep on; shoved while dwelling, they pull the emergency brake |
-| 24 | `Pedestrians` | `systems/pedestrians.ts` | people move as their mood says: walk their routes, keep by their leader, stop, gather, run; the down and the dead slide; out of their depth in the water they make for the bank, and the current takes the down and the dead |
-| 25 | `Animals` | `systems/animals.ts` | animals rest, wander (in the play area, never onto the track), keep by their walker and run from what scares them, a vehicle or a train only on their level, and this step's whistles too; free dogs bark; the down and the dead slide; out of their depth in the water they paddle for the bank; cries are `Cry` events |
-| 26 | `VehiclePhysics` | `systems/physics.ts` | every vehicle moves on its springs and tyres from its `CarInput` under the `Handling`, each tyre's grip lowered by the wet and the snow under it, buoyed and dragged by a river and its engine stalled under one; wall and ground hits are `Impact` events, sliding tyres `Skid` events; a vehicle beyond the player's reach (`inReach`) is skipped, before its sleep and its water are looked at |
-| 27 | `TrainPhysics` | `rail/systems.ts` | every train moves along its line from its lever: traction, brakes, running resistance, grade and curves, on rail the weather leaves wet or under snow (`TrainMotion`); the player's under SCMT to its buffer stops at the drawn run (`rail/collisions.ts`), any other to its run-outs' ends; trains on one track that meet go on at their common speed; a buffer struck is a `wall` `Impact`, a train struck a `train` one |
-| 28 | `Contacts` | `systems/contacts.ts` | car–car, car–person, car–animal, person and animal contacts on one level (`onOneLevel`: a vehicle's level read where they touch, a body's `Footing`), knockdowns and deaths (`Down`, `Dead`); car–car hits, knockdowns, kills, a cow struck and a car stopped against a wall by a pinned person or animal (faster than `KNOCK_SPEED`) are `Impact` events; a vehicle beyond the player's reach (`inReach`) touches nothing |
-| 29 | `TrainContacts` | `rail/strikes.ts` | trains strike what touches their cars on their level, shoved by nothing: vehicles shoved clear or dragged along their wall, wrecked faster than 14 m/s or dragged against a wall faster than 3 m/s (a `train` `Impact` as a contact begins, against `PrevPose` and `TrainMotion.prev`, and the wrecking blow); people and animals on their `Footing` pushed aside, or knocked down by the train's own speed into them and maybe killed by the train's death curve, the player too (`Impact` with the train as its `car`); a vehicle beyond the player's reach (`inReach`) is passed through |
-| 30 | `CrashDamage` | `systems/damage.ts` | this step's `Impact` events wear the vehicles they struck (`Damage`), a train's as a wall's; a traffic car destroyed is abandoned, its driver fleeing |
-| 31 | `RideAlong` | `systems/drive.ts` | the driving player takes the car's pose and motion, or the pose of a train's active cab and the train's motion |
+| 15 | `Explode` | `systems/explosions.ts` | lights a burning wreck's fuse; a wreck whose fuse has burnt down blows up (`Explosion`): hits and shoves the vehicles near it, kills, knocks down and scares the people; a vehicle beyond the player's reach (`inReach`) is left as it is: its fuse waits and no blast reaches it |
+| 16 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river, a stream or a lake gets `InWater`, swimming once off its feet, and loses it on dry ground |
+| 17 | `applyDeferred` | | applies the blast's deaths and knockdowns and who is in the water, before anything moves |
+| 18 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
+| 19 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
+| 20 | `Crossings` | `rail/systems.ts` | each level crossing moves on through its cycle (`LevelCrossings`: open, warning, lowering, closed, raising) from whether a train demands it now: moving at it, standing ready (an AI train about to go, the player's with its lever forward) or on it |
+| 21 | `TrafficAI` | `systems/traffic.ts` | AI drivers write their `CarInput`, braking for vehicles, people, animals and the cars of trains on their level (`onPathLevel`: the ground the driver's wheels come to rolling along its path to where each reaches into it, `rolledTo` in `map/ground.ts`, on one level with the other's there, `onOneLevel`), slower and keeping further back where the road is wet or snowy; at a level crossing (`rail/roads.ts`, reading `LevelCrossings` this step) they stop for a box not open (from the lowering on always, and short of the trains' envelope) and keep it and the junction before it clear, patient while it is closed for a train; a driver held up honks (`Honk`), and backs up rather than turn round beside a line's track; a car beyond the player's reach (`inReach`) is skipped, its route and controls kept |
+| 22 | `TrainAI` | `rail/service.ts` | AI train drivers write their lever (`CarInput`): line speed, braking curves to the next station's stop point, behind a train ahead on their track (any line's, on shared track; short of where one coming at them will stand) and short of a crossing whose arms are not down, standing where they are while one within their braking distance comes down; they dwell at stations while the game clock runs (`TrainRun`), drawing from `RailRng`, and whistle entering long tunnels (`Whistle`); a person, an animal or a vehicle on the track ahead on their level, a vehicle touching their body alongside, or another train against either end, holds them (`rail/lookout.ts`): the emergency brake and the urgent whistle, the horn, then a creep on; shoved while dwelling, they pull the emergency brake |
+| 23 | `Pedestrians` | `systems/pedestrians.ts` | people move as their mood says: walk their routes, keep by their leader, stop, gather, run; the down and the dead slide; out of their depth in the water they make for the bank, and the current takes the down and the dead |
+| 24 | `Animals` | `systems/animals.ts` | animals rest, wander (in the play area, never onto the track), keep by their walker and run from what scares them, a vehicle or a train only on their level, and this step's whistles too; free dogs bark; the down and the dead slide; out of their depth in the water they paddle for the bank; cries are `Cry` events |
+| 25 | `VehiclePhysics` | `systems/physics.ts` | every vehicle moves on its springs and tyres from its `CarInput` under the `Handling`, each tyre's grip lowered by the wet and the snow under it, buoyed and dragged by a river and its engine stalled under one; wall and ground hits are `Impact` events, sliding tyres `Skid` events; a vehicle beyond the player's reach (`inReach`) is skipped, before its sleep and its water are looked at |
+| 26 | `TrainPhysics` | `rail/systems.ts` | every train moves along its line from its lever: traction, brakes, running resistance, grade and curves, on rail the weather leaves wet or under snow (`TrainMotion`); the player's under SCMT to its buffer stops at the drawn run (`rail/collisions.ts`), any other to its run-outs' ends; trains on one track that meet go on at their common speed; a buffer struck is a `wall` `Impact`, a train struck a `train` one |
+| 27 | `Contacts` | `systems/contacts.ts` | car–car, car–person, car–animal, person and animal contacts on one level (`onOneLevel`: a vehicle's level read where they touch, a body's `Footing`), knockdowns and deaths (`Down`, `Dead`); car–car hits, knockdowns, kills, a cow struck and a car stopped against a wall by a pinned person or animal (faster than `KNOCK_SPEED`) are `Impact` events; a vehicle beyond the player's reach (`inReach`) touches nothing |
+| 28 | `TrainContacts` | `rail/strikes.ts` | trains strike what touches their cars on their level, shoved by nothing: vehicles shoved clear or dragged along their wall, wrecked faster than 14 m/s or dragged against a wall faster than 3 m/s (a `train` `Impact` as a contact begins, against `PrevPose` and `TrainMotion.prev`, and the wrecking blow); people and animals on their `Footing` pushed aside, or knocked down by the train's own speed into them and maybe killed by the train's death curve, the player too (`Impact` with the train as its `car`); a vehicle beyond the player's reach (`inReach`) is passed through |
+| 29 | `CrashDamage` | `systems/damage.ts` | this step's `Impact` events wear the vehicles they struck (`Damage`), a train's as a wall's; a traffic car destroyed is abandoned, its driver fleeing |
+| 30 | `RideAlong` | `systems/drive.ts` | the driving player takes the car's pose and motion, or the pose of a train's active cab and the train's motion |
+| 31 | `FindFooting` | `systems/footing.ts` | after the last move, settles every `Footing` where its body now is (`footing.ts`): a body on foot keeps to the level it was on (the ground nearest its last, decks and tunnels out to their verges), the player driving stands on the ground under the car on its wheels' ground, or on the rail head under the train's active cab |
 | 32 | `Recover` | `systems/contacts.ts` | knocked-down people and animals get up, never the dead; pedestrians then flee, animals bolt |
 | 33 | `Perceive` | `systems/perceive.ts` | pedestrians take in this step's hits, crashes, horns and whistles, the vehicles on their level (the cars of trains among them), bodies and people around them and the level crossings closing (`rail/senses.ts`; held there as patiently as a driver), and set their moods; cries are `Cry` events; marks `Witness`es, lets go of a leader gone or dead |
 | 34 | `Startle` | `systems/fright.ts` | cats and pigs run from this step's crashes and struck bodies (`Cry`) |
@@ -146,11 +146,15 @@ the parked cars come from `Parking.seed`, so the fill replays with the seed.
 | 42 | `applyDeferred` | | applies spawns, despawns, inserts and removals |
 
 Controls, the handling, the clock, the weather, the rivers and a call for trains are settled before
-movement, where each body on foot stands (`FindFooting`), a blast and who is in the water are
-settled once getting in and out are applied and before anything moves (the movement systems read
-`InWater` and the water under them this step; what moves this step keeps to its footing from the
-next), all movement happens before contacts, crash damage is counted after both, from the same
-step's hits, and contacts happen before the player's pose follows the car. The crossings move on
+movement, a blast and who is in the water are settled once getting in and out are applied and
+before anything moves (the movement systems read `InWater` and the water under them this step),
+all movement happens before contacts, crash damage is counted after both, from the same step's
+hits, and contacts happen before the player's pose follows the car. Each footing is settled once
+the player's pose has followed the car (`FindFooting`), the last move of the step, so the hosts
+read every footing where its body is, and so does `Perceive` after it; the movers and the contacts
+read it where the body stood at the end of the step before, one step's travel off (9 cm at the
+player's sprint, 5.5 m/s), far inside the 2 m their level rules allow (`ONE_LEVEL`). The crossings
+move on
 before traffic and the AI train drivers, which read them that step (`thisTick`), as `Perceive` does;
 the drivers write their levers and sound their whistles before `Pedestrians` and `Animals`, which
 hear them in the step they sound, as `Perceive` does, and `TrainPhysics` moves the trains after the
@@ -195,7 +199,7 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `Witness` | pedestrians | tag: saw a person killed or came on a body; its shock ends in the choice to gather or run |
 | `Down` | knocked-down and dead people and animals | step at which they get up; for the `Dead`, the step they died, and `Recover` never lifts them |
 | `Dead` | the killed: pedestrians and animals a vehicle struck, people and animals on foot a train struck, people on foot by a blast, the player in a wreck that blew up | step they died (`since`); always with `Down` |
-| `Footing` | the player, pedestrians and animals, once `FindFooting` has seen them | the ground it stands on, m a.s.l., kept on the level it was on: the railway's rules read it (`footingAt`, which takes `firstFooting` for one with none yet, on its `Route`'s level when given one), the render stands each figure on its level, the audio voices each on it (the player's ears too), and `PlayerView.z` gives the player's to the camera |
+| `Footing` | the player, pedestrians and animals, from their spawn | the ground it stands on, m a.s.l., where its pose is at the end of the step (`FindFooting`), kept on the level it was on; for the player driving, the ground under the car on its wheels' ground or the rail head under the train's cab. Spawned on its first footing (`firstFooting` in `footing.ts`: its `Route`'s road where that is a deck or a tunnel's floor, else at the terrain's level). The movers, the contacts, the railway's rules and `Perceive` read it, getting out stands the player beside the vehicle on its level, the render stands each figure on its level at its drawn place (`footY`, through `settleFooting`), the audio voices each on it (the player's ears too), and `PlayerView.z` is the player's, for the camera |
 | `Animal` | animals | species (`dog`, `cat`, `cow`, `pig`), coat and patch colours, size × the species' usual (immutable) |
 | `InWater` | the player on foot, pedestrians, animals in a river, a stream or a lake | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
 | `Roam` | animals | mood (`idle`, `walk`, `flee`), the step it ends, home (hx, hy), and the point (tx, ty) it walks to or runs from |
@@ -213,8 +217,9 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `TrainMotion` | trains | its line (an index into `LINES`), the arc length `s` of its active cab's nose and `prev`, its s at the step's start (every writer that moves it at once sets both), speed `v` toward +s (m/s), which way the active cab faces (`facing`, ±1: the body runs back from s to s − facing × its length), its eased `power` (−1…1, + toward the facing) and `brake` (0…1 of the emergency rate) |
 | `TrainRun` | AI trains | the way it runs along its line (`dir`, ±1), the station it calls at next (`stop`, an index into `MAP.railway.stations`, −1 past its last), and its `state` and `until` which step: `run`, `dwell` there until it leaves, or held by something on the track ahead: `braking` to a stand, `horn` until it creeps on, then `creep`; running, braking and creeping, `until` is the step its next alarm is due from |
 
-`Schema.requires` enforces the bundles: a `Player` has a pose, previous pose, motion and look; a
-`Pedestrian` the same and a `Route`; an `Animal` a pose, previous pose, motion and `Roam`; a
+`Schema.requires` enforces the bundles: a `Player` has a pose, previous pose, motion, look and
+`Footing`; a `Pedestrian` the same and a `Route`; an `Animal` a pose, previous pose, motion, `Roam`
+and `Footing`; a
 follower a pose, previous pose and motion; a `Witness` is a `Pedestrian`; a `Vehicle` has a pose,
 previous pose, motion, `CarInput`, `Chassis` and `Damage`; `Traffic` also needs `Route` and
 `Autopilot`; `Parked` is on a `Vehicle`; the `Dead` are always `Down`; `InWater` needs a pose and
@@ -236,7 +241,7 @@ ground (`settle` in `src/sim/chassis.ts`), in the gear for its speed, undamaged.
 persisted, so the new and reshaped state (`Chassis`, `Damage`, `Dead`, the wider `Person` and
 `Pedestrian`, `Handling` with its `weatherGrip` knob, `GameClock`, `WeatherRng`, `Weather`,
 `Rivers` and `InWater`, the trains, `RailRng`, `Railway`, `LevelCrossings`, `Footing`, `Parked`
-and `Parking`) needs no snapshot migration; a body restored without a `Footing` takes its first.
+and `Parking`) needs no snapshot migration, and every person and animal of a save has a `Footing`.
 
 Saved resources:
 
@@ -383,6 +388,9 @@ place. So are what readers far from the player need of the vectors (`MAP.derived
 crossing's road line, each platform's rings and each station's building, which the railway and the
 trains' look-out read anywhere; the bells the audio hears all over the map (`bellsOf` in
 `src/tools/bells.ts`); the residents within 60 m of each walk edge; and each farm's centre.
+Each bake is one entry of a registry: its landing in the map and its empty value in `BAKES`
+(`src/tools/bake-landings.ts`), its run under the same name in `bake.ts`
+([map.md](map.md#pipeline)).
 `src/tools/__tests__/bake.map-test.ts` (and `cesena-bake.map-test.ts` for Cesena, in a process of
 its own) runs every bake and the place fit again, checks the railway's copies against the whole
 map's vectors, and fails while one is stale; `bake.test.ts` and `cesena-bake.test.ts` do the parked
@@ -407,14 +415,15 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   level: `wallsAlong` (`src/sim/body.ts`) keeps the walls a body meets standing at the level it is
   given (`meets`: a wall with no level, or one on one level with it, `onOneLevel`), every wall when
   it is given none. The physics, the contacts and the trains' strikes give a car's wheels
-  (`wheelsAt`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked
-  spot's settled wheels, a teleport's ground), and the baked lanes their road's surface where the
-  edge passes nearest a parapet. Everyone on foot gives their `Footing` (`footingAt` before
-  `FindFooting` has given one): the player's step (`PlayerFoot`), the pedestrians' and the animals'
-  (`walkBy`, `walkDry`, a follower's way round a wall), the contacts' shoves, the trains' strikes, a
-  witness's line of sight (`inSight`) and the vehicle in reach (`vehicleInReach`); the doors give
-  the vehicle's wheels (`freeDoor`) and a train's exit the ground beside its cab. Only the people's
-  and animals' spawn checks still meet every wall, which only keeps them a little further off one.
+  (`wheelsAt`), `carClear` the level it is asked at (a traffic spawn's road surface, a parked spot's
+  settled wheels, a teleport's ground), and the baked lanes their road's surface where the edge
+  passes nearest a parapet. Everyone on foot gives their `Footing`: the player's step
+  (`PlayerFoot`), the pedestrians' and the animals' (`walkBy`, `walkDry`, a follower's way round a
+  wall), the contacts' shoves, the trains' strikes, a witness's line of sight (`inSight`) and the
+  vehicle in reach (`vehicleInReach`); the doors give the player's footing in the vehicle
+  (`freeDoor`), a fleeing driver's and a wreck's the vehicle's wheels, and a train's exit the ground
+  beside its cab. Only the people's and animals' spawn checks still meet every wall, which only
+  keeps them a little further off one.
 - `buildingsIn` (`src/sim/map/vectors.ts`: each tile's buildings in 64 m cells on the buildings'
   lattice, `MAP.vectors.lattice.buildings`, handing each building's index in the whole map's list,
   the building and its box) and `treesIn` (the trees as points, `src/sim/map/walls.ts`, handing each
@@ -462,9 +471,10 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   than a wheel's reach, so the verges at a span's end hold no walker on its level over the next
   span rising from there). `footZ` is where someone on
   foot stands: given their previous height, the ground nearest it with the decks out to their verges
-  (what `FindFooting` keeps in `Footing`, and where getting out of a train steps down, nearest the
-  rail head); with none to go by, on a road bridge's deck or in a road tunnel within its reach to
-  its verges, else the highest ground. The platforms are bucketed in 16 m cells at load; the road
+  (what `FindFooting` keeps in `Footing`, through `settleFooting`, and where getting out of a train
+  steps down, nearest the rail head); with none to go by, on a road bridge's deck or in a road
+  tunnel within its reach to its verges, else the highest ground. The platforms are bucketed in 16 m
+  cells at load; the road
   segments go into 16 m buckets on the origin's lattice, built from a tile's roads the first time a
   query reaches it and dropped with it, and each bucket is read from the tile holding its middle, so
   a pad across a seam reads each bucket from its own tile and the answers are the whole map's to the
@@ -532,15 +542,17 @@ the map's global file and the tiles round the start, builds in named steps, and 
 once the first frame is drawn.
 
 1. `index.html` is static, so the card shows before any script runs. Its entry, `src/boot.ts`,
-   imports the card (`src/hud/title.ts`), map selection (`src/maps.ts`), the map file's handover
-   (`src/sim/map/packed.ts`) and the download helpers (`src/stream.ts`, which imports no sim
-   module), keeping simulation setup out of the entry module.
+   imports the card (`src/hud/title.ts`), map selection (`src/maps.ts`), the map source
+   (`src/sim/map/source.ts`, where a run gets its map files, which decodes nothing) and the
+   download helpers (`src/stream.ts`, which imports no sim module), keeping simulation setup out of
+   the entry module.
 2. `boot.ts` validates `?map=` and fetches the selected global file, a hashed asset: `monzone.bin`
    by default, or `cesena.bin` for `?map=cesena` ("Downloading map"). It counts the bytes against
    `Content-Length` (the bar's first 22%, with "x / y MB"), gunzips with `DecompressionStream`
-   while the file arrives, then hands the bytes to `provideMap`. The files are named `.bin`, not
-   `.gz`: Vite's server would label a `.gz` as `Content-Encoding: gzip`, and the browser would then
-   gunzip it first.
+   while the file arrives, then hands the bytes to `provideMap`, which throws once the map is
+   decoded (one map per process, [ADR 0002](adr/0002-one-map-per-process.md)). The files are
+   named `.bin`, not `.gz`: Vite's server would label a `.gz` as `Content-Encoding: gzip`, and the
+   browser would then gunzip it first.
 3. It imports the game in parts, with a paint between them, because each import evaluates only the
    modules the earlier ones left. "Decoding map" imports `src/sim/map/index.ts` (the global file
    decoded: its JSON line parsed, then its packed sections, [Where state lives](#where-state-lives))
@@ -830,15 +842,14 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
   since `Driving` holds a `CarInput` handle for both). `SyncPeople` shows it on the player's
   figure. Its yellow is divided by the post pass's exposure, as the lamps are, so it stays the same
   yellow at night as at noon (at a night's exposure of 4 it would clip to lemon).
-- `PlacePeople` and `PlaceAnimals` blend `PrevPose` → `Pose` at the render alpha, stand each
-  figure on the ground under it on the level of its sim `Footing` (`footY` in
-  `src/render/ground.ts`: the sim's `footZ` there, decks and tunnels out to their walkers' verges),
-  or, while it has none yet (it appeared this step), its first footing as `FindFooting` will give
-  it, on its `Route`'s level (`footingAt`), add the metres it covered, and show the frame for what
-  it does (below). The renderer keeps no height of its own: once it stood each figure on the level
-  nearest the height it last drew it at, or the highest level where it had none, so after a jump
-  to the road under the SR445 viaduct west of Gragnola the player was drawn on the deck at
-  148.49 m while the sim stood them on the road at 142.41 m, where they are drawn now, and so was
+- `PlacePeople` and `PlaceAnimals` blend `PrevPose` → `Pose` at the render alpha, stand each figure
+  on the ground under its drawn place on the level of its sim `Footing` (`footY` in
+  `src/render/ground.ts`: the sim's `settleFooting` there, decks and tunnels out to their walkers'
+  verges), which every person and animal has from its spawn, add the metres it covered, and show the
+  frame for what it does (below). The renderer keeps no height of its own: once it stood each figure
+  on the level nearest the height it last drew it at, or the highest level where it had none, so
+  after a jump to the road under the SR445 viaduct west of Gragnola the player was drawn on the deck
+  at 148.49 m while the sim stood them on the road at 142.41 m, where they are drawn now, and so was
   anyone appearing under a deck.
 - `PlaceVehicles` puts each vehicle's node at its centre of mass from the sim, with no ground
   lookup of its own: x and y blended `PrevPose` → `Pose`, and the `Chassis` height, pitch and
@@ -1245,13 +1256,13 @@ The pixel pipeline (`src/render/pipeline.ts`):
 - The camera snaps to the texel grid and the remainder becomes a sub-texel scroll offset. The
   static world never shimmers, but the view still scrolls smoothly.
 - Zoom (`zoomFor`): 8 texels/m on foot, 6 in a car, 5 above 16 m/s (back to 6 below 13 m/s).
-- The camera leads the player by 0.6 s of velocity, at most 14 m (`LOOK_AHEAD`), and eases
-  toward its target, at the height of the ground under the player on the level the sim has them on
-  (`PlayerView.z`): on foot where their `Footing` stands them, driving a car the ground on its
-  wheels' level, driving a train the cab's rail head, which a rail bridge has and the map's ground
-  has not. It never takes the highest level there, as it once did after a jump: under the SR445
-  viaduct west of Gragnola it stood on the deck at 148.49 m, over the player on the road at
-  142.41 m. It trails the player by about 26 m at most, so when they are more than 200 m off
+- The camera leads the player by 0.6 s of velocity, at most 14 m (`LOOK_AHEAD`), and eases toward
+  its target, at the height of the ground under the player on the level the sim has them on
+  (`PlayerView.z`, their `Footing`): on foot the ground they stand on, driving a car the ground
+  under it on its wheels' ground, driving a train the cab's rail head, which a rail bridge has and
+  the map's ground has not. It never takes the highest level there, as it once did after a jump:
+  under the SR445 viaduct west of Gragnola it stood on the deck at 148.49 m, over the player on the
+  road at 142.41 m. It trails the player by about 26 m at most, so when they are more than 200 m off
   (`CUT_BEYOND` in `main.ts`: the respawn, a teleport) it cuts to them instead of gliding over tiles
   no longer in memory.
 - The key light (the sun, or the moon at night) stands on its real arc for the game time over the
@@ -2060,11 +2071,10 @@ sky store `SkyView`, and the dev trains store `TrainView`:
 - `PlayerView` returns a `PlayerViewModel`: previous and current pose, velocity, mode (`foot`,
   `driving`, `down`, `dead`), the driven vehicle's label and speed (a car's `model`, for the dev
   teleport's `clearSpot`; `kind: "train"` for a train, its speed toward the active cab's way), the
-  ground under the player on their sim level (`z`, m a.s.l.: on foot `footZ` from their `Footing`,
-  their first while they have none; driving a car the ground on its wheels' level, `Chassis.z`
-  less its `cg`; driving a train the rail head under the active cab), the vehicle or train in
-  reach (label, occupied by a driver, stolen), and the view's quarter turns. The `Score` is not in
-  it: the HUD shows no score until its design is settled.
+  player's `Footing` (`z`, m a.s.l.: on foot the ground they stand on; driving a car the ground
+  under it on its wheels' ground, `wheelsAt`; driving a train the rail head under the active cab),
+  the vehicle or train in reach (label, occupied by a driver, stolen), and the view's quarter
+  turns. The `Score` is not in it: the HUD shows no score until its design is settled.
 - `TrainView` (`src/sim/rail/view.ts`) returns a `TrainViewModel` for the dev trains store, which
   the debug menu's Trains area and `gta.trains()` read: per line the seconds until its next train
   may enter (null when none is due) and the end it enters from; per train its id, label, line, s,
@@ -2171,7 +2181,8 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   whichever is wider), each clipped to its own square on whole device pixels so no seam shows the
   overview through. A tile in memory lends its vectors (`residentTile`); any other is downloaded
   (`tileUrl`, the stream's own files, which the browser caches) and only its JSON line read
-  (`decodeTileVectors`), the vectors kept while the map is open (past 16, `KEPT`, those off the
+  (`tileFileVectors` in `src/sim/map/tiles.ts`, which refuses a tile from another build as
+  `provideTile` does), the vectors kept while the map is open (past 16, `KEPT`, those off the
   frame go first) and let go when it closes. The detail is painted once for the frame as it stands
   and again 120 ms (`SETTLE`) after the map last moved or a tile came; in between, it is drawn
   moved and scaled with the gesture over the overview. Zoomed onto Fivizzano at 1280 × 720 in
@@ -2668,7 +2679,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     under the decks over roads within 1.5 km of the SR445 viaduct west of Gragnola (found by
     geometry in the tiles, `underpasses.ts`: three today, the issue's own among them), the player
     after a jump, the camera's ground (`PlayerView.z`) and the cut on the road, a passer-by and a
-    cat appearing there on it too, before and after their first footing, and one walking the bridge
+    cat appearing there on it too, and one walking the bridge
     on its deck at its verge; driving, the camera and the cut on the road with the car after a jump
     under each.
   - `src/render/__tests__/train.test.ts`: every car on the rail head under its pivots at grade, on
@@ -2775,7 +2786,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     nodes holding the exact one, for every chunk of the four tiles by Monzone; `ground.test.ts`:
     `farTerrainY` the terrain where it is in memory and the coarse grid's height where not, and a
     car and a walker on the deck of every drivable bridge within 2 km of Monzone (the walker kept to
-    its footing as `FindFooting` keeps it, drawn by `footY` on that); `index.test.ts`:
+    its footing as `FindFooting` settles it, drawn by `footY` on that); `index.test.ts`:
     no x-ray in the water, a swimmer floating at its shoulders; `sightline.test.ts`: a person behind
     a house near the spawn, under a chestnut's crown or under the ground is hidden, the player at the
     spawn is not, a hill hiding a road within 1.5 km of the spawn says where it meets the line, and

@@ -7,17 +7,17 @@ import { wholeMap } from "../../../tools/map-file.ts"
 import { regionFromArgs } from "../../../tools/region.ts"
 import { staticGrid } from "../../collide.ts"
 import { coverAt, coverName } from "../cover.ts"
-import { decodeTile } from "../format/tile-file.ts"
+import { decodeTile, TILE_CELLS } from "../format/tile-file.ts"
 import { terrainZ } from "../ground.ts"
 import { heightAt, MAP, treesIn, wallsNear } from "../index.ts"
 import { anchorOf, pushTrunk, TILE, tileKey, tileRange, tilesRound, TRUNK } from "../kinds.ts"
-import { readMapFile, TILE_CELLS, tileUrl } from "../packed.ts"
+import { MAP_URL, tileFromDisk } from "../source.ts"
 
 // Map checks (pnpm test:map): every tile of the shipped map, and the whole map joined from them
 // (src/tools/__tests__/seams.map-test.ts checks the nodes two tiles share, on both maps).
 const WHOLE = wholeMap()
 const KEYS = MAP.tiles.map(({ i, j }) => tileKey(i, j))
-const tiles = new Map(KEYS.map((key) => [key, decodeTile(readMapFile(tileUrl(MAP.name, key)))]))
+const tiles = new Map(KEYS.map((key) => [key, decodeTile(tileFromDisk(key))]))
 
 /** The bounds' tile range (`tileRange`): the listed tiles and the notch's of an L. */
 const RANGE = tileRange(MAP.bounds)
@@ -35,7 +35,11 @@ test("the tiles are the region's, those its parts' rectangles meet, listed south
   assert.deepEqual([KEYS.length, box.length], [102, 132], "today's Lunigiana")
   // the notches' tiles have no file
   for (const key of box)
-    assert.equal(existsSync(tileUrl(MAP.name, key)), KEYS.includes(key), `${key}'s file`)
+    assert.equal(
+      existsSync(new URL(`${MAP.name}/${key}.bin`, MAP_URL)),
+      KEYS.includes(key),
+      `${key}'s file`,
+    )
   for (const t of MAP.tiles) {
     const heights = tiles.get(tileKey(t.i, t.j))!.heights
     assert.equal(

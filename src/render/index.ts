@@ -42,8 +42,6 @@ import {
   PrevPose,
   Rivers,
   type RiversValue,
-  Route,
-  type RouteValue,
   STEP,
   Time,
   Traffic,
@@ -53,7 +51,6 @@ import {
   Weather,
 } from "../sim/index.ts"
 import { TRAINS } from "../sim/rail/models.ts"
-import { footingAt } from "../sim/systems/footing.ts"
 import { VEHICLES } from "../sim/vehicles.ts"
 import { FLOW, specificDischarge } from "../sim/water/flow.ts"
 import { waterUnder } from "../sim/water/rivers.ts"
@@ -195,19 +192,17 @@ export const blend = (from: PoseValue, to: PoseValue, alpha: number): PoseValue 
 
 /**
  * Puts a person's or an animal's node `alpha` of the way through the last step, the pose blended PrevPose → Pose, standing on
- * the level of its sim `Footing`, or, while it has none yet (it appeared this step), its first footing on its `route`'s level as
- * `FindFooting` will give it (`footingAt`), and shows the frame for what it does.
+ * the ground there on the level of its sim `Footing`, and shows the frame for what it does.
  */
 const placeFigure = (
   node: PersonNode | AnimalNode,
   prev: PoseValue,
   pose: PoseValue,
-  footing: FootingValue | undefined,
-  route: RouteValue | undefined,
+  footing: FootingValue,
   alpha: number,
 ): void => {
   const { x, y, angle } = blend(prev, pose, alpha)
-  node.place(x, y, angle, footingAt(footing, x, y, route))
+  node.place(x, y, angle, footing.z)
   node.pose()
 }
 
@@ -219,8 +214,7 @@ const PlacePeople = Game.System(
         selection: {
           prev: Game.Query.read(PrevPose),
           pose: Game.Query.read(Pose),
-          footing: Game.Query.optional(Footing),
-          route: Game.Query.optional(Route),
+          footing: Game.Query.read(Footing),
         },
         with: [Person],
       }),
@@ -235,8 +229,7 @@ const PlacePeople = Game.System(
           node,
           data.prev.get(),
           data.pose.get(),
-          data.footing.value(),
-          data.route.value(),
+          data.footing.get(),
           services.clock.alpha,
         )
     }
@@ -251,7 +244,7 @@ const PlaceAnimals = Game.System(
         selection: {
           prev: Game.Query.read(PrevPose),
           pose: Game.Query.read(Pose),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
         with: [Animal],
       }),
@@ -266,8 +259,7 @@ const PlaceAnimals = Game.System(
           node,
           data.prev.get(),
           data.pose.get(),
-          data.footing.value(),
-          undefined,
+          data.footing.get(),
           services.clock.alpha,
         )
     }

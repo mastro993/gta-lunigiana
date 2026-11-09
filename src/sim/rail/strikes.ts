@@ -27,7 +27,6 @@ import {
   Down,
   Driving,
   Footing,
-  type FootingValue,
   Game,
   Impact,
   Motion,
@@ -43,7 +42,6 @@ import {
   Vehicle,
 } from "../schema.ts"
 import { deathChance, DOWN_TIME, halfOf } from "../systems/contacts.ts"
-import { footingAt } from "../systems/footing.ts"
 import { inReach, playerPose } from "../systems/reach.ts"
 import { KNOCK_SPEED, PERSON_RADIUS } from "../tuning.ts"
 import { VEHICLES, type VehicleModel } from "../vehicles.ts"
@@ -141,7 +139,7 @@ export const TrainContacts = Game.System(
           motion: Game.Query.write(Motion),
           look: Game.Query.read(Person),
           down: Game.Query.optional(Down),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
         without: [Driving],
       }),
@@ -151,7 +149,7 @@ export const TrainContacts = Game.System(
           motion: Game.Query.write(Motion),
           animal: Game.Query.read(Animal),
           down: Game.Query.optional(Down),
-          footing: Game.Query.optional(Footing),
+          footing: Game.Query.read(Footing),
         },
       }),
       driver: Game.Query({ selection: { driving: Game.Query.read(Driving) }, with: [Player] }),
@@ -272,7 +270,7 @@ export const TrainContacts = Game.System(
         [Dead, { since: step }],
       ] as const
     type Struck = "person" | "animal"
-    /** One person or animal standing on `footing` against every car: shoved clear, or knocked down and thrown, maybe killed. */
+    /** One person or animal standing on `ground` (its footing, m a.s.l.) against every car: shoved clear, or knocked down and thrown, maybe killed. */
     const strike = (
       id: number,
       fall: (killed: boolean) => void,
@@ -282,16 +280,14 @@ export const TrainContacts = Game.System(
       r: number,
       down: boolean,
       half: number,
-      footing: FootingValue | undefined,
+      ground: number,
     ) => {
-      let ground: number | undefined,
-        moved = false
+      let moved = false
       for (const car of cars) {
         if (!nearCar(car, at.x, at.y, r + car.r)) continue
         const near = axisNear(car, at.x, at.y),
           depth = car.r + r - near.d
         if (depth <= 0) continue
-        ground ??= footingAt(footing, at.x, at.y)
         if (!onOneLevel(ground, car.z)) continue
         const n = normalFrom(car, at.x, at.y, near.x, near.y, near.d)
         // The train's own speed into the body decides, as a car's does: running into a standing train must not floor the runner.
@@ -351,7 +347,7 @@ export const TrainContacts = Game.System(
           PERSON_RADIUS,
           data.down.present,
           halfOf(data.look.get().age),
-          data.footing.value(),
+          data.footing.get().z,
         )
       )
         continue
@@ -376,7 +372,7 @@ export const TrainContacts = Game.System(
           fauna.radius * size,
           data.down.present,
           fauna.lethal,
-          data.footing.value(),
+          data.footing.get().z,
         )
       )
         continue

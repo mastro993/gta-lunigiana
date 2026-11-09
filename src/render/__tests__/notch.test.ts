@@ -1,15 +1,14 @@
 // The render's chunk plan on Lunigiana with its north-east tiles unlisted and an L outline
 // (`notchMap`): every chunk planned once, the notch's on the listed tiles round it.
+import "../../sim/map/__tests__/use-notch.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { AROUND, notchMap } from "../../sim/map/__tests__/edit-map.ts"
-
-notchMap()
-const { MAP } = await import("../../sim/map/index.ts")
-const { chunkTiles } = await import("../chunk-tiles.ts")
-const { CHUNKS, chunkRect, exactBox } = await import("../chunks.ts")
-const { bucketTileTrees } = await import("../trees.ts")
+import { AROUND } from "../../sim/map/__tests__/edit-map.ts"
+import { MAP } from "../../sim/map/index.ts"
+import { chunkTiles } from "../chunk-tiles.ts"
+import { CHUNKS, chunkRect, exactBox } from "../chunks.ts"
+import { bucketTileTrees } from "../trees.ts"
 
 test("an L: the render plans every chunk once, the notch's on the listed tiles round it, its box round the exact one", () => {
   const { maxX, maxY } = MAP.bounds

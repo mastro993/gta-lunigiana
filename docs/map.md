@@ -107,8 +107,8 @@ overview, gitignored; the game never loads them and nothing ships them. Each rea
 inputs on its origin and tree anchor (a tree stands where it does on the shipped map, with the same
 id), its OSM every Lunigiana part's extract (`osmFiles`), and `fetch-osm` refuses its part
 (`partToFetch`: no build would read the file) but one with buildings of its own, whose own part's
-extract (`osmFile`) is what it reads. `loadBuiltMap` in `src/tools/map-file.ts` hands one to the sim
-in a process of its own;
+extract (`osmFile`) is what it reads. `useDiskMap(builtMapUrl(region))` (`src/sim/map/source.ts`,
+`src/tools/map-file.ts`) hands one to the sim in a process of its own;
 `preview-map.ts` draws one with `--region <key>`.
 
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
@@ -396,7 +396,7 @@ so its peak is one phase's working set plus what that phase hands on:
 | sources | `build-sources.ts` | 1–4, and the districts (12) | the OSM, the surveys |
 | terrain | `build-terrain.ts`, `build-grid.ts` | 5–8, the rail bed and the ground under the decks | the DTM, the profiles, the catchments' grid |
 | world | `build-world.ts` | 9–12 | the clearance indexes the spawns and the graph's dead ends are checked against |
-| output | `build-output.ts`, `tile-map.ts`, `tile-vectors.ts`, `bake.ts` | the map put together, its land cover, the cut, the bake, the files | |
+| output | `build-output.ts`, `tile-map.ts`, `tile-vectors.ts`, `bake-landings.ts`, `bake.ts` | the map put together, its land cover, the cut, the bake, the files | |
 | overview | `overview.ts`, `paint-raster.ts`, `png.ts` | the full map's picture, from the built map's vectors ([The overview](#the-overview)) | its pixels |
 
 The DTM is the one input two phases read (the sources take the water's widths from it), so
@@ -425,6 +425,19 @@ piece of more than `WATER_VERTICES` (65,536) vertices, since the rivers' sound k
 piece and vertex. The global file keeps the roads' attributes and, for readers far from the
 player, copies of what the railway points at: each level crossing's road line, each platform's
 rings and each station's building (`derived`).
+
+The bakes are one registry, one entry per bake (`lanes`, `parked`, `floors`, `bells`, `residents`,
+`farms`, `lamps`, `mouths`). `BAKES` in `src/tools/bake-landings.ts` names where each lands, a path
+into the global map (`["derived", "mouths"]`; the farms bake lands both `farms` and its buildings'
+centres, `derived.farms`) or, for the water's floors alone, the water pieces in the tiles, and what
+the provisional map holds there: an empty table, and the parked spots as built with no rests.
+`bake.ts` holds each one's run under the same name, and the types fail a bake that lands or runs
+without the other. The landings live apart from the runs because the runs load their owners, which
+decode `MAP`, and the cut must make the provisional map before anything decodes it.
+`cut.global(bakes?)` writes the cut's own parts, then each landing in registry order, its baked
+value or, missing, its empty one: first the top-level ones (`lanes`, `farms`, `lamps`), then
+`derived`, the railway's copies first and then its landings (`bells`, `residents`, `farms`,
+`mouths`), which is the global file's key order; a value written over a key keeps its place.
 
 The bake (`bake` in `src/tools/bake.ts`) runs the game's own code on the map cut so far, which it
 reads through a store that keeps 16 tiles decoded and drops the first one read past that, as a host
@@ -2831,13 +2844,18 @@ On lucido alone they are 0.31 MB (1.50 MB gunzipped; 0.55 MB and 1.9 MB before f
 30 tiles of 9.5 MB in all (the largest 0.59 MB) and 3.25 MB (3195 × 4096 px). With the vectors in
 the global file, before #63, lucido's was 1.89 MB (6.26 MB gunzipped) and its tiles 5.70 MB, the
 largest 0.31 MB. Each `.bin` file is gzip (level 9)
-of one JSON line, a newline, then packed sections. The game never fetches: the browser host
-downloads the global file, gunzips it and hands the bytes to `provideMap` (`src/sim/map/packed.ts`)
-before anything imports the map module, then hands each tile to `provideTile`
-(`src/sim/map/tiles.ts`) as the player moves ([architecture.md](architecture.md), "Tile streaming");
-the full map downloads the overview itself the first time it opens. Node (the tests, the tools,
-`ritmo-devtools lint`) reads the global file from disk, and a lookup in a tile not in memory reads
-that tile from disk. The single 6.7 MB `monzone.bin` the tiles replaced held every layer at once
+of one JSON line, a newline, then packed sections. A run gets its map files from the map source
+(`src/sim/map/source.ts`), which decodes nothing: the global file once, before the map is decoded
+(handing one over after that throws: one map per process, [ADR
+0002](adr/0002-one-map-per-process.md)), and any listed tile a lookup needs that is not in memory
+(`setTileSource`). The game never fetches: the browser host downloads the global file, gunzips it
+and hands the bytes to `provideMap` before anything imports the map module, then hands each tile to
+`provideTile` (`src/sim/map/tiles.ts`) as the player moves ([architecture.md](architecture.md),
+"Tile streaming"); the full map downloads the overview itself the first time it opens. Node (the
+tests, the tools, `ritmo-devtools lint`) reads Lunigiana's global file from disk, or another built
+map's (`useDiskMap`; a test picks Cesena by importing `src/sim/map/__tests__/use-cesena.ts` on its
+first line), and a lookup in a tile not in memory reads that tile from disk beside it
+(`tileFromDisk`). The single 6.7 MB `monzone.bin` the tiles replaced held every layer at once
 (28.4 MB gunzipped).
 
 The build hash (`hash`, 16 hex digits of SHA-256 over every `.bin` file unstamped) is in the
@@ -2913,7 +2931,8 @@ them on the line (three processes each, 2026-11-07).
 
 The baked tables are what the game would otherwise work out at load from the dense layers and the
 vectors, which it now holds only near the player. Each is computed by the game's own code at build
-time (`src/tools/bake.ts`, [Pipeline](#pipeline)): the lanes by `bakeLanes` (`src/sim/lanes.ts`),
+time (one entry each in the registry of `src/tools/bake-landings.ts` and `src/tools/bake.ts`,
+[Pipeline](#pipeline)): the lanes by `bakeLanes` (`src/sim/lanes.ts`),
 the parked rests by `bakeParked` (`src/sim/parking.ts`), the water's floor by `bedOf`
 (`src/sim/water/channel.ts`; it is kept on each water piece in the tiles), the farms by `bakeFarms`
 (`src/sim/population/farms.ts`) and their buildings' centres by `buildingCentre`, the walkers'
@@ -3392,7 +3411,9 @@ that a clip lets paint through by its coverage.
 map's vectors joined from its tiles, and compares them, and the place refitted over the nodes of
 the joined heightmap its listed tiles hold and `derived`'s copies of the railway's roads, platforms
 and stations, with what it holds (the check is `assertBakesCurrent` in
-`src/tools/__tests__/bakes.ts`), so code that changes a baked table fails `pnpm test:map` until
+`src/tools/__tests__/bakes.ts`, one loop over the registry's landings reading each bake's value at
+its path, and its message names both: `MAP.derived.mouths (bake "mouths", src/tools/bake.ts): run
+pnpm map`), so code that changes a baked table fails `pnpm test:map` until
 `pnpm map` runs; `cesena-bake.map-test.ts` checks Cesena's (`pnpm map --region cesena`).
 `bake.test.ts` and `cesena-bake.test.ts` bake again the parked spots, water beds and farms within
 1 km of Monzone station and of Cesena's start (`assertBakesCurrentNear`, through `bakeParked`,

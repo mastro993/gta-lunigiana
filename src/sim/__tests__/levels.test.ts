@@ -7,8 +7,8 @@ import type { PoseValue } from "../index.ts"
 import { footZ, roadLevel } from "../map/ground.ts"
 import { graph, MAP } from "../map/index.ts"
 import { tileKey, ONE_LEVEL } from "../map/kinds.ts"
-import { readMapFile, tileUrl } from "../map/packed.ts"
-import { dropTile, provideTile, setTileSource, STEP_REACH, tilesOver } from "../map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../map/source.ts"
+import { dropTile, provideTile, STEP_REACH, tilesOver } from "../map/tiles.ts"
 import { linesNear, pointAt, speedAt } from "../rail/lines.ts"
 import { aiTrain } from "../rail/testing.ts"
 import { alongLane, edgeIndex, laneOf, lanePoint, laneSide } from "../route.ts"
@@ -36,8 +36,6 @@ import {
   standingOn,
   trafficPanda,
 } from "./viaduct.ts"
-
-const fromDisk = (key: string) => readMapFile(tileUrl(MAP.name, key))
 
 // Regression (#84): standing under a bridge, the player stole a traffic car on the deck right over them.
 test("enter: under the SR445's viaduct the player cannot take a car on the deck over them, and the HUD offers none", () => {
@@ -264,7 +262,7 @@ test("traffic: a car backing up on the SR445's viaduct reads no ground past the 
   const id = game.world().vehicles.find((v) => v.traffic)!.id
   let least = Infinity
   try {
-    for (const key of near) provideTile(fromDisk(key))
+    for (const key of near) provideTile(tileFromDisk(key))
     setTileSource(undefined)
     for (const { i, j } of MAP.tiles) if (!near.includes(tileKey(i, j))) dropTile(tileKey(i, j))
     game.run(330, () => {
@@ -277,7 +275,7 @@ test("traffic: a car backing up on the SR445's viaduct reads no ground past the 
       )
     })
   } finally {
-    setTileSource(fromDisk)
+    setTileSource(tileFromDisk)
   }
   assert.ok(least < 1.5, `backed to ${least.toFixed(2)} m from OVER`)
 })

@@ -4,14 +4,14 @@ import { test } from "node:test"
 import { decodeMap } from "../../sim/map/format/global-file.ts"
 import { decodeTile, encodeTile } from "../../sim/map/format/tile-file.ts"
 import { joinTiles } from "../map-file.ts"
-import { type BuiltMap, cutMap, NO_BAKES, stampMap } from "../tile-map.ts"
+import { type BuiltMap, cutMap, stampMap } from "../tile-map.ts"
 import { built, cover, data } from "./built-map.ts"
 
 /** The stamped global map and the files of `map` cut as the build cuts it: the global file under "", each tile under its key. */
 const filesOf = (map: BuiltMap) => {
   const cut = cutMap(map, "test"),
-    tiles = cut.tiles(NO_BAKES).files
-  const stamped = stampMap(cut.global(NO_BAKES), tiles.values())
+    tiles = cut.tiles().files
+  const stamped = stampMap(cut.global(), tiles.values())
   const files = new Map<string, Uint8Array>([["", stamped.file]])
   for (const [key, file] of tiles) files.set(key, stamped.tile(file))
   return { global: stamped.global, files, unstamped: tiles }
@@ -189,7 +189,7 @@ const withVectors = (map: BuiltMap): BuiltMap => ({
 test("cutMap puts each vector whole in every tile it comes within the halo of, with its index, and joinTiles puts them back", () => {
   const map = withVectors(built(data))
   const cut = cutMap(map, "test")
-  const bakes = { ...NO_BAKES, floors: [[279.31, 278.123456789]] }
+  const bakes = { floors: [[279.31, 278.123456789]] }
   const { files } = cut.tiles(bakes)
   const tiles = new Map([...files].map(([key, file]) => [key, decodeTile(file)]))
   const ids = (layer: "roads" | "buildings" | "water" | "areas" | "barriers") =>
@@ -222,7 +222,7 @@ test("cutMap puts each vector whole in every tile it comes within the halo of, w
 
 test("a vector by an unlisted tile goes to the listed tiles round it, which a lookup there reads", () => {
   const map = withVectors(built(data))
-  const { files } = cutMap({ ...map, tiles: map.tiles.slice(0, 3) }, "test").tiles(NO_BAKES)
+  const { files } = cutMap({ ...map, tiles: map.tiles.slice(0, 3) }, "test").tiles()
   const of = (key: string) => decodeTile(files.get(key)!).vectors
   // the north-east building and barrier, in the notch, are in all three tiles round it
   for (const key of ["-1_-1", "0_-1", "-1_0"]) {

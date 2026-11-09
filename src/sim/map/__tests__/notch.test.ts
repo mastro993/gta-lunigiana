@@ -1,16 +1,15 @@
 // The map's lookups on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`):
 // they read only listed tiles, and the play area is the L.
+import "./use-notch.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP_URL, readMapFile } from "../packed.ts"
-import { AROUND, notchMap } from "./edit-map.ts"
-
-notchMap()
-const { heightAt, inPlay, MAP, outlineDistance, treesIn, wallsNear } = await import("../index.ts")
-const { coverAt } = await import("../cover.ts")
-const { terrainZ } = await import("../ground.ts")
-const tiles = await import("../tiles.ts")
+import { coverAt } from "../cover.ts"
+import { terrainZ } from "../ground.ts"
+import { heightAt, inPlay, MAP, outlineDistance, treesIn, wallsNear } from "../index.ts"
+import { setTileSource, tileFromDisk } from "../source.ts"
+import * as tiles from "../tiles.ts"
+import { AROUND } from "./edit-map.ts"
 
 const { maxX, maxY } = MAP.bounds
 /** Calls `visit` on points `step` m apart over the notch, its listed neighbours' near halves and 300 m past the bounds. */
@@ -54,15 +53,15 @@ test("an L: a lookup in the notch is resident once the listed tiles round it are
   assert.ok(!tiles.isResidentAt(3000, 1000))
   for (const key of AROUND) {
     assert.ok(!tiles.isResidentAt(3000, 1000))
-    tiles.provideTile(readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL)))
+    tiles.provideTile(tileFromDisk(key))
   }
   assert.ok(tiles.isResidentAt(3000, 1000) && tiles.isResidentAt(1999, 1000))
-  tiles.setTileSource(undefined)
+  setTileSource(undefined)
   try {
     assert.ok(Number.isFinite(heightAt(3000, 1000)))
     assert.equal(typeof coverAt(4800, 3800), "string")
   } finally {
-    tiles.setTileSource((key) => readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL)))
+    setTileSource(tileFromDisk)
   }
 })
 
@@ -71,9 +70,9 @@ test("an L: a lookup in the notch is resident once the listed tiles round it are
 test("an L: a wall or tree lookup over the notch reads the listed tiles round it, as the host keeps them", () => {
   const read: Array<string> = []
   for (const { i, j } of MAP.tiles) tiles.dropTile(`${i}_${j}`)
-  tiles.setTileSource((key) => {
+  setTileSource((key) => {
     read.push(key)
-    return readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL))
+    return tileFromDisk(key)
   })
   wallsNear("walk", 2500, 500, 2510, 510)
   assert.deepEqual(read, AROUND)
@@ -87,9 +86,9 @@ test("an L: a wall or tree lookup over the notch reads the listed tiles round it
 test("an L: a vector lookup in the notch reads the vectors of the listed tiles round it, merged", () => {
   const read: Array<string> = []
   for (const { i, j } of MAP.tiles) tiles.dropTile(`${i}_${j}`)
-  tiles.setTileSource((key) => {
+  setTileSource((key) => {
     read.push(key)
-    return readMapFile(new URL(`${MAP.name}/${key}.bin`, MAP_URL))
+    return tileFromDisk(key)
   })
   const { roads, buildings } = tiles.placeAt(2500, 500).vectors
   assert.deepEqual(read, AROUND)

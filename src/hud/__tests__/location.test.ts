@@ -1,16 +1,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
-import {
-  dropTile,
-  isResident,
-  provideTile,
-  residentTiles,
-  setTileSource,
-  tilesOver,
-} from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, isResident, provideTile, residentTiles, tilesOver } from "../../sim/map/tiles.ts"
 import { locationAt } from "../location.ts"
 import { roadOracle } from "./road-oracle.ts"
 import { layersAround } from "./tile-paint.ts"
@@ -18,8 +10,7 @@ import { layersAround } from "./tile-paint.ts"
 /** Takes into memory, from disk, the tiles a lookup at each point reads: the host keeps those round the player. */
 const residentAt = (...points: ReadonlyArray<readonly [number, number]>) => {
   for (const [x, y] of points)
-    for (const key of tilesOver(x, y, x, y))
-      if (!isResident(key)) provideTile(readMapFile(tileUrl(MAP.name, key)))
+    for (const key of tilesOver(x, y, x, y)) if (!isResident(key)) provideTile(tileFromDisk(key))
 }
 
 test("the Carabinieri station is on Via Cesare Battisti, by the station", () => {
@@ -75,7 +66,7 @@ test("round Monzone the road named is the old answer over every road near it, wh
   try {
     for (const order of [keys, [...keys].reverse()]) {
       for (const key of residentTiles()) dropTile(key)
-      for (const key of order) provideTile(readMapFile(tileUrl(MAP.name, key)))
+      for (const key of order) provideTile(tileFromDisk(key))
       assert.deepEqual(
         points.map(([x, y]) => locationAt(x, y).road),
         want,
@@ -88,6 +79,6 @@ test("round Monzone the road named is the old answer over every road near it, wh
       "its tile not in memory: no name, no read",
     )
   } finally {
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    setTileSource(tileFromDisk)
   }
 })

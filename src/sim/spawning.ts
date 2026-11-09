@@ -2,7 +2,8 @@
  * Entity drafts shared by the systems that spawn: parked and traffic
  * vehicles, pedestrians and animals, and random looks for the people and
  * paint for the cars. Every draft sets PrevPose = Pose so the first
- * rendered frame does not smear.
+ * rendered frame does not smear, and every person and animal comes with
+ * its footing.
  *
  * @module spawning
  */
@@ -11,6 +12,7 @@ import { Ops, type Random } from "@typeonce/ritmo-math"
 import { settle } from "./chassis.ts"
 import { UNDAMAGED } from "./damage.ts"
 import { gearFor } from "./drivetrain.ts"
+import { firstFooting } from "./footing.ts"
 import { groundZ, roadLevel } from "./map/ground.ts"
 import { graph } from "./map/index.ts"
 import { ELDERS, lookOf } from "./population/looks.ts"
@@ -23,6 +25,7 @@ import {
   Chassis,
   type ChassisValue,
   Damage,
+  Footing,
   Game,
   type Look,
   type Mood,
@@ -107,7 +110,7 @@ export const trafficCar = (
     ],
   )
 
-/** An animal of `species` standing at `pose`, at home there. */
+/** An animal of `species` standing at `pose`, at home there, on its first footing. */
 export const animal = (look: AnimalValue, pose: PoseValue) =>
   Game.Command.spawn(
     [Animal, look],
@@ -115,14 +118,19 @@ export const animal = (look: AnimalValue, pose: PoseValue) =>
     [Pose, pose],
     [PrevPose, pose],
     [Motion, { vx: 0, vy: 0, spin: 0 }],
+    [Footing, { z: firstFooting(pose.x, pose.y) }],
   )
 
-/** A pedestrian on `route` in `mood` until step `until`, about the point (fx, fy) (see `Pedestrian`). */
+/**
+ * A pedestrian on `route` in `mood` until step `until`, about the point (fx, fy) (see `Pedestrian`), standing on `footing` (m
+ * a.s.l.; their first footing on `route`'s level when omitted).
+ */
 export const pedestrian = (
   look: Look,
   pose: PoseValue,
   route: RouteValue,
   mood: { readonly mood: Mood; readonly until: number; readonly fx: number; readonly fy: number },
+  footing = firstFooting(pose.x, pose.y, route),
 ) =>
   Game.Command.spawn(
     [Pedestrian, { ...mood, blocked: 0 }],
@@ -131,4 +139,5 @@ export const pedestrian = (
     [PrevPose, pose],
     [Motion, { vx: 0, vy: 0, spin: 0 }],
     [Route, route],
+    [Footing, { z: footing }],
   )

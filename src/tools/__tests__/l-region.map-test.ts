@@ -1,17 +1,18 @@
 // The L test region (`lunigiana-l`, region.ts) as built: its outline walls close its play area,
 // nothing on foot gets out of it, everything the map places lies in it, and its place reads no
 // ground of its notch. This process loads
-// the L (`loadBuiltMap`), from test-maps/, which `node src/tools/build-map.ts --region lunigiana-l`
+// the L (`useDiskMap`), from test-maps/, which `node src/tools/build-map.ts --region lunigiana-l`
 // writes. Without that build every check here is skipped, but in CI, which builds it with the maps
 // (`pnpm maps`), a missing build fails: a skip there would pass with nothing checked.
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
+import { useDiskMap } from "../../sim/map/source.ts"
 import { placeFrom } from "../../sim/sky/place.ts"
 import { centroid, pointInRing, ringBox, segDist2 } from "../geometry.ts"
 import { listedNodes } from "../grid-tiles.ts"
-import { builtMapUrl, loadBuiltMap, readWholeMap, wholeMap } from "../map-file.ts"
+import { builtMapUrl, readWholeMap, wholeMap } from "../map-file.ts"
 import { regionFromArgs } from "../region.ts"
 
 const REGION = regionFromArgs(["--region", "lunigiana-l"])
@@ -21,7 +22,7 @@ const skip = existsSync(URL_L)
   : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
 // GitHub Actions sets CI=true.
 if (skip !== false && process.env.CI === "true") throw new Error(skip)
-if (skip === false) await loadBuiltMap(REGION)
+if (skip === false) useDiskMap(URL_L)
 const sim = skip === false ? await import("../../sim/map/index.ts") : undefined
 const coarse = skip === false ? await import("../../sim/map/coarse.ts") : undefined
 const cover = skip === false ? await import("../../sim/map/cover.ts") : undefined

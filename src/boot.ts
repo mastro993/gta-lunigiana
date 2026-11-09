@@ -10,7 +10,7 @@
  */
 import { loadFailed, loading, step } from "./hud/title.ts"
 import { mapForSearch } from "./maps.ts"
-import { provideMap } from "./sim/map/packed.ts"
+import { provideMap } from "./sim/map/source.ts"
 import { fetchFile, gunzipped, NEAR } from "./stream.ts"
 
 /**

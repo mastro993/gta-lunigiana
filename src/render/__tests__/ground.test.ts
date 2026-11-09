@@ -4,8 +4,8 @@ import { test } from "node:test"
 import { coarseHeightAt } from "../../sim/map/coarse.ts"
 import { ROAD_LIFT } from "../../sim/map/ground.ts"
 import { MAP } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
-import { dropTile, nodeAt, setTileSource } from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, nodeAt } from "../../sim/map/tiles.ts"
 import { farTerrainY, groundY, terrainResident, terrainY, yOf } from "../ground.ts"
 import { residentAround, vectorsAround } from "../testing.ts"
 import { assertBridgesCarry } from "./bridges.ts"
@@ -53,7 +53,7 @@ test("farTerrainY is terrainY where the terrain is in memory and the coarse grid
     assert.equal(farTerrainY(x, y), yOf(coarseHeightAt(x, y)))
     assert.equal(farTerrainY(100, y), yOf(coarseHeightAt(100, y)))
   } finally {
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    setTileSource(tileFromDisk)
   }
 })
 

@@ -2,8 +2,9 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { builtMapUrl, loadBuiltMap, readWholeMap } from "../../../tools/map-file.ts"
+import { builtMapUrl, readWholeMap } from "../../../tools/map-file.ts"
 import { regionFromArgs } from "../../../tools/region.ts"
+import { useDiskMap } from "../source.ts"
 
 // Map check (pnpm test:map), on the L test region (`lunigiana-l`), whose notch's two tiles are
 // unlisted: a lookup there reads the vectors of the listed tiles round it, merged. This process
@@ -16,7 +17,7 @@ const skip = existsSync(URL_L)
   : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
 // GitHub Actions sets CI=true.
 if (skip !== false && process.env.CI === "true") throw new Error(skip)
-if (skip === false) await loadBuiltMap(REGION)
+if (skip === false) useDiskMap(builtMapUrl(REGION))
 const checks = skip === false ? await import("./ground-checks.ts") : undefined
 
 test(

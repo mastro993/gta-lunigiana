@@ -2,8 +2,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { MAP } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
-import { dropTile, setTileSource, tileVectors } from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, tileVectors } from "../../sim/map/tiles.ts"
 import { chunkTiles } from "../chunk-tiles.ts"
 import { CHUNKS, chunkRect } from "../chunks.ts"
 import { Pieces } from "../pieces.ts"
@@ -43,7 +43,7 @@ test("buildings, roads and rivers, rail, stations and lamps: a chunk by Monzone 
   // Each time from no tile in memory: a lookup reads what it needs from disk.
   for (const order of [tiles, tiles.toReversed()]) {
     for (const { i, j } of MAP.tiles) dropTile(`${i}_${j}`)
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    setTileSource(tileFromDisk)
     const pieces = new Pieces(plan)
     for (const t of order) pieces.provide(t, tileVectors(plan.keys[t]!))
     const drawn = assertChunkCut(whole, pieces, chunks)

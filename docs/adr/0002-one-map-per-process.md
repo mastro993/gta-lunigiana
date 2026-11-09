@@ -20,6 +20,7 @@ a process of its own, and `map-diff` decodes the two builds' files without provi
 
 ## Consequences
 
-- A test picks its map with a side-effect import on its first line, or, when the map may not be
-  built, by providing it before a dynamic import of the map modules. The browser host provides the
+- A test picks its map with a side-effect import on its first line (`use-cesena.ts`,
+  `use-notch.ts` in `src/sim/map/__tests__/`), or, when the map may not be built or the test edits
+  it (`editMap`), by providing it before a dynamic import of the map modules. The browser host provides the
   downloaded global file before its own dynamic imports.

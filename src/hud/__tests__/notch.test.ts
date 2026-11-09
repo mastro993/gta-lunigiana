@@ -1,14 +1,13 @@
 // The minimap on Lunigiana with its north-east tiles unlisted and an L outline (`notchMap`): it
 // paints only listed tiles, and lays its grass on the L and clips to it (the full map's overview
 // does too: src/tools/__tests__/overview.test.ts).
+import "../../sim/map/__tests__/use-notch.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { L, notchMap } from "../../sim/map/__tests__/edit-map.ts"
-
-notchMap()
-const { paintMap, tileLayers, tilesNear } = await import("../minimap.ts")
-const { tileVectors } = await import("../../sim/map/tiles.ts")
+import { L } from "../../sim/map/__tests__/edit-map.ts"
+import { tileVectors } from "../../sim/map/tiles.ts"
+import { paintMap, tileLayers, tilesNear } from "../minimap.ts"
 
 test("an L: the minimap paints only listed tiles, and lays its grass on the L and clips to it", () => {
   // 500 m off the notch's south and west sides: the notch's own two tiles in reach are left out

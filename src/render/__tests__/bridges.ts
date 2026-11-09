@@ -2,7 +2,8 @@
 // wheels and a walker crossing a drivable bridge stay on its deck.
 import assert from "node:assert/strict"
 
-import { footZ, groundZ, ROAD_LIFT } from "../../sim/map/ground.ts"
+import { settleFooting } from "../../sim/footing.ts"
+import { groundZ, ROAD_LIFT } from "../../sim/map/ground.ts"
 import { isDrivable, outlineDistance, type Road, roadClassOf } from "../../sim/map/index.ts"
 import { VEHICLES } from "../../sim/vehicles.ts"
 import { footY, yOf } from "../ground.ts"
@@ -11,7 +12,7 @@ import { footY, yOf } from "../ground.ts"
  * Asserts that a car's wheels and a walker crossing each drivable bridge of `roads`, both ways, from 12 m before it,
  * stay on the deck, but from the mouth of a tunnel of `around` (the roads round them) or the play area's edge; returns
  * how many crossings it made. The car's wheels are the sim's: each keeps to the level of its previous contact, as the drive physics does;
- * the walker keeps to its footing as `FindFooting` does and stands where the renderer draws it on that.
+ * the walker's footing is settled as `FindFooting` settles it (`settleFooting`) and it stands where the renderer draws it on that.
  */
 export const assertBridgesCarry = (
   roads: ReadonlyArray<Road>,
@@ -54,7 +55,7 @@ export const assertBridgesCarry = (
         // the highest ground: the road leading onto the bridge, a viaduct's previous span's deck where the road is one.
         footing ??= groundZ(x, y)
         feet = footY(x, y, footing)
-        footing = footZ(x, y, footing)
+        footing = settleFooting(x, y, footing)
       }
       for (let s = -12; s < 0; s += 0.4) place(x0 + ux * s, y0 + uy * s, Math.atan2(uy, ux))
       for (let i = 0; i + 1 < pts.length; i++) {

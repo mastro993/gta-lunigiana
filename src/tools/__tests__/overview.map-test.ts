@@ -6,7 +6,7 @@ import assert from "node:assert/strict"
 import { existsSync, readFileSync } from "node:fs"
 import { test } from "node:test"
 
-import { MAP_URL } from "../../sim/map/packed.ts"
+import { MAP_URL } from "../../sim/map/source.ts"
 import { builtMapUrl, readWholeMap } from "../map-file.ts"
 import { OVERVIEW_SIDE, paintOverview } from "../overview.ts"
 import { filteredRgba, pngData } from "../png.ts"

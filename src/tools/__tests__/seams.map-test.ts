@@ -8,9 +8,9 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { decodeMap } from "../../sim/map/format/global-file.ts"
-import { decodeTile, type TileData } from "../../sim/map/format/tile-file.ts"
+import { decodeTile, type TileData, TILE_NODES } from "../../sim/map/format/tile-file.ts"
 import { TILE, tileKey } from "../../sim/map/kinds.ts"
-import { MAP_URL, readMapFile, TILE_NODES, tileUrl } from "../../sim/map/packed.ts"
+import { MAP_URL, readMapFile } from "../../sim/map/source.ts"
 
 const KINDS = ["walk", "shore", "drive"] as const
 
@@ -19,7 +19,10 @@ const load = (name: string) => {
   const global = decodeMap(readMapFile(new URL(`${name}.bin`, MAP_URL)))
   const tiles = new Map<string, TileData>()
   for (const { i, j } of global.tiles)
-    tiles.set(tileKey(i, j), decodeTile(readMapFile(tileUrl(name, tileKey(i, j)))))
+    tiles.set(
+      tileKey(i, j),
+      decodeTile(readMapFile(new URL(`${name}/${tileKey(i, j)}.bin`, MAP_URL))),
+    )
   return { global, tiles }
 }
 

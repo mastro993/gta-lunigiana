@@ -1,12 +1,11 @@
+import "../map/__tests__/use-cesena.ts"
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MAP_URL, provideMap, readMapFile } from "../map/packed.ts"
+import { wholeMap } from "../../tools/map-file.ts"
+import { deckClimbs, deckEndsShut } from "./under-decks.ts"
 
-// Map check (pnpm test:map) on every road bridge of Cesena (issue #87): this process loads it before anything decodes the map.
-provideMap(readMapFile(new URL("cesena.bin", MAP_URL)))
-const { wholeMap } = await import("../../tools/map-file.ts")
-const { deckClimbs, deckEndsShut } = await import("./under-decks.ts")
+// Map check (pnpm test:map) on every road bridge of Cesena (issue #87): this process picks it on its first line.
 
 test("under decks: on Cesena a walker or a car with room under a road deck never comes up onto it, and its ends still lead onto it on foot, verges included, and by car", () => {
   const map = wholeMap("cesena")

@@ -2,8 +2,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { MAP } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
-import { dropTile, provideTile, residentTiles, setTileSource } from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, provideTile, residentTiles } from "../../sim/map/tiles.ts"
 import { QUARTER, screenAxes } from "../../sim/view.ts"
 import { makeMinimap, minimapRotation, tilesNear } from "../minimap.ts"
 import { checkTilePaint, layersAround } from "./tile-paint.ts"
@@ -87,8 +87,8 @@ test("the minimap paints a tile once it is in memory, nearest first, and never a
     const { x, y } = STATION
     minimap.draw(x, y, 0, 0)
     assert.deepEqual([canvases, blits], [1, 0], "no tile in memory: only the minimap's own canvas")
-    provideTile(readMapFile(tileUrl(MAP.name, "0_0")))
-    provideTile(readMapFile(tileUrl(MAP.name, "-1_0")))
+    provideTile(tileFromDisk("0_0"))
+    provideTile(tileFromDisk("-1_0"))
     minimap.draw(x, y, 0, 0)
     assert.deepEqual([canvases, blits], [2, 1], "the station's tile first, the one in view")
     minimap.draw(x, y, 0, 0)
@@ -96,6 +96,6 @@ test("the minimap paints a tile once it is in memory, nearest first, and never a
     minimap.draw(x, y, 0, 0)
     assert.equal(canvases, 3, "the tiles round them are not in memory")
   } finally {
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    setTileSource(tileFromDisk)
   }
 })

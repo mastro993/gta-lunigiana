@@ -3,9 +3,8 @@ import { test } from "node:test"
 
 import { Group, type Mesh, Vector3 } from "three"
 
-import { MAP } from "../../sim/map/index.ts"
-import { readMapFile, tileUrl } from "../../sim/map/packed.ts"
-import { dropTile, setTileSource, tilesOver } from "../../sim/map/tiles.ts"
+import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
+import { dropTile, tilesOver } from "../../sim/map/tiles.ts"
 import { type CrossingState, LOWERING, RAISING } from "../../sim/rail/barriers.ts"
 import { CROSSINGS } from "../../sim/rail/crossings.ts"
 import { STEP } from "../../sim/schema.ts"
@@ -190,7 +189,7 @@ test("a box stays hidden until the ground under its ways in is in memory, then s
     nodes.draw(open, 0)
     assert.ok(!shown.placed && !shown.lenses.visible, `hidden while tile ${out} is out`)
   } finally {
-    setTileSource((key) => readMapFile(tileUrl(MAP.name, key)))
+    setTileSource(tileFromDisk)
     residentAround([{ x, y }], 0)
   }
   nodes.draw(open, 0)
