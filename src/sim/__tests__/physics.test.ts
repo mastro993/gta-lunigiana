@@ -170,7 +170,7 @@ test("slopes: the handbrake, or the driver's foot on the brake with no pedal, ho
   assert.ok(forward(ape) < -0.3, `rolls back at ${forward(ape)} m/s`)
 })
 
-test("surfaces: full throttle from rest spins a Panda's front wheels on gravel, not on asphalt; it climbs 15% on asphalt and barely creeps up it on grass", () => {
+test("surfaces: full throttle from rest spins a Panda's front wheels on gravel, not on asphalt; it climbs 15% on asphalt, and on grass its wheels spin where it stands", () => {
   const spinning = (surface: Surface) => {
     let frames = 0
     drive("panda", 120, full, {

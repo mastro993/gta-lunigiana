@@ -35,6 +35,7 @@ const SURFACES = Object.keys({
   dirt: 0,
   grass: 0,
   leaves: 0,
+  sand: 0,
 } satisfies Record<Surface, 0>)
 /** Every zone of a body. */
 const ZONES = Object.keys({ front: 0, side: 0, rear: 0, under: 0 } satisfies Record<Zone, 0>)

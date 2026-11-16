@@ -1,9 +1,9 @@
 /**
  * Footsteps (Farnell, Designing Sound ch. 26): each step is a heel strike then the ball of the
  * foot, every strike a low thump, a band-passed noise burst coloured by the surface, and its
- * grains: gravel crunch, leaf crackle, the stone "tock" of a lastricato, the soft crunch of snow
- * lying on any of them. Four variants per surface (and snow) and gait are baked once per context and
- * played with ±8 % rate and ±2 dB, so no two steps match.
+ * grains: gravel crunch, leaf crackle, the stone "tock" of a lastricato, the low hiss of beach sand,
+ * the soft crunch of snow lying on any of them. Four variants per surface (and snow) and gait are
+ * baked once per context and played with ±8 % rate and ±2 dB, so no two steps match.
  *
  * @module audio/synth/steps
  */
@@ -108,6 +108,20 @@ const TREADS = {
     grit: 0.35,
     tocks: 0,
   },
+  // Dry beach sand gives under the foot: the heel lands soft, with no knock, the burst is slow and muffled low down, and the
+  // grains shifting under the sole are fine and faint, a low hiss rather than gravel's crunch. TUNED by rendering, no
+  // recording measured.
+  sand: {
+    thump: 0.2,
+    hz: 400,
+    q: 2,
+    attack: 0.02,
+    decay: 0.05,
+    grains: 30,
+    grainHz: 900,
+    grit: 0.12,
+    tocks: 0,
+  },
 } as const satisfies Record<Surface, Tread>
 /**
  * Fresh snow over whatever lies under it: a soft, slow crunch, the thump muffled, the burst low, its grains many and dense over half
@@ -184,7 +198,7 @@ const keyOf = (ground: Ground, run: boolean): string => `${ground} ${run ? "run"
 
 const baked = perContext(async (ctx, kit) => {
   const sets = GROUNDS.flatMap((ground) => [false, true].map((run) => ({ ground, run })))
-  // One bake at a time: a bake builds its whole graph before its first await, so starting all 56
+  // One bake at a time: a bake builds its whole graph before its first await, so starting all 64
   // at once built every graph (some 1,600 bursts) in one long task, a stall on the first key press.
   const sounds: Array<Array<Float32Array<ArrayBuffer>>> = []
   for (const { ground, run } of sets) {

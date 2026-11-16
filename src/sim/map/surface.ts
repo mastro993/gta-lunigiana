@@ -11,8 +11,8 @@ import { type Cover, coverAt } from "./cover.ts"
 import { MAP, type RoadInfo } from "./index.ts"
 import { derived, type Place, placeAt } from "./tiles.ts"
 
-/** Every surface, as a closed set: road surfaces, stone paving, and the land cover off the road. */
-const SURFACES = ["asphalt", "stone", "gravel", "dirt", "grass", "leaves"] as const
+/** Every surface, as a closed set: road surfaces, stone paving, and the land cover off the road (a beach's sand too). */
+const SURFACES = ["asphalt", "stone", "gravel", "dirt", "grass", "leaves", "sand"] as const
 /** What a foot or a tyre is on. */
 export type Surface = (typeof SURFACES)[number]
 
@@ -71,6 +71,7 @@ const ROAD_SURFACE: Partial<Record<string, Surface>> = {
   unpaved: "dirt",
   mud: "dirt",
   grass: "dirt",
+  sand: "sand", // the paths across a beach
 }
 
 /** A foot or a wheel this far past a carriageway's edge is still on the road, m. */

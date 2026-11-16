@@ -164,7 +164,9 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
 - **Tyres** (`src/sim/tyres.ts`): sideways force rises with the slip angle to a peak (0.12–0.15
   rad) and falls toward sliding friction past it; along the tyre the drive, the brakes and the
   rolling resistance share one friction ellipse. A tyre asked for more than its grip spins (drive)
-  or locks (brakes without ABS, the handbrake) and slides. ABS holds a braked tyre at 85% of its
+  or locks (brakes without ABS, the handbrake) and slides; a spinning tyre pushes with its sliding
+  friction less the rolling resistance of the ground it rolls over as the car moves, so a wheel
+  spinning in sand digs in. ABS holds a braked tyre at 85% of its
   grip, leaving some to steer with; traction control holds a driven one under what cornering
   leaves. A loaded tyre grips less per newton (12% less at twice its static load). Nearly
   standing, a tyre holds like static friction, so the brakes and the handbrake hold a car on a
@@ -180,7 +182,17 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
   | dirt | 0.6 / 0.39 (×0.65: mud) | 0.85 / 0.85 | 0.045 / 0.06 |
   | grass | 0.45 / 0.32 (×0.7) | 0.8 / 0.75 | 0.07 / 0.075 |
   | leaves (forest floor) | 0.5 / 0.33 (×0.65) | 0.8 / 0.75 | 0.06 / 0.065 |
+  | sand (a beach's) | 0.55 / 0.55 (×1: rain firms it) | 0.95 / 0.95 | 0.3 / 0.15 |
   | packed snow (`SNOW`, over any surface) | 0.3 | 0.85 | 0.03 |
+
+  A tyre in dry sand grips by shearing it, so its peak is the sand's own friction, tan φ for the
+  28–30° of the Land Locomotion Laboratory's dry sand (Wong, *Theory of Ground Vehicles*); loose
+  sand's shear stress climbs to that and holds it as the slip grows (the Janosi–Hanamoto curve),
+  with no peak to fall from, so a sliding tyre keeps 0.95 of it. The tyre sinks and ploughs: 0.30
+  for car tyres in sand against 0.015 on concrete and 0.08 on medium-hard soil (Wong, 2nd ed.
+  1993, p. 17). Wet sands carry vehicles better than dry ones, beach or desert alike (WES
+  Technical Memorandum 3-240, 15th supplement, 1959), so rain keeps sand's peak and halves its
+  rolling resistance (estimated, no tyre measured).
 
 - **Weather** (`weathered` in `tyres.ts`): each wheel asks the weather how wet and how
   snow-covered the ground is at its contact (`groundAt`,
@@ -226,9 +238,9 @@ Events: a wall or ground hit is an `Impact` (a ground hit names the face that st
 when the suspension bottoms out on landing, `roof`, `side`, `front`, `rear`), and each step a
 tyre slides past its grip it is a `Skid` (sliding speed, how far past its grip: 0.25 for ABS at
 the limit, 1 sliding, spinning or locked; the surface, and how snow-covered the ground is there).
-The renderer lays tyre marks and smoke from `Skid`, dark slush ruts and white spray on snow; the
-audio plays both ([audio.md](audio.md)), and every crash `Impact` harder than a scuff wears the
-vehicles it struck ([Damage](#damage)).
+The renderer lays tyre marks and smoke from `Skid`, a pale spray and damp ruts in sand, dark slush
+ruts and white spray on snow; the audio plays both ([audio.md](audio.md)), and every crash
+`Impact` harder than a scuff wears the vehicles it struck ([Damage](#damage)).
 
 ### Vehicles
 
@@ -257,9 +269,14 @@ What follows from them, measured on flat ground with `advance` (the physics test
 
 On gravel a Panda stops from 100 km/h in 68.4 m and on grass in 84.9 m; full throttle from rest
 spins its front wheels on gravel but not on asphalt, and after 10 s up a 15% grade it does 16 m/s
-on asphalt and 1.5 m/s on grass. On a new game's Balanced handling it stops in 47.0 m on gravel
-and does 14.9 m/s up the 15% grass ([Presets](#presets)). On a fully wet road it stops from
-100 km/h in 56.1 m and on packed snow in 128 m. The Ape climbs 15% at 2.6 m/s. Adding a model to
+on asphalt, while on grass its front wheels spin where it stands (0.01 m/s). On a new game's
+Balanced handling it stops in 47.0 m on gravel and does 14.9 m/s up the 15% grass
+([Presets](#presets)). Coasting from 50 km/h onto dry sand it stops in 31.2 m (on dirt it rolls
+159 m); floored from rest on flat sand it digs in, its front wheels spinning every step for 10 s
+and the car at 0.01 m/s, where on Balanced (traction control, half the loss) it does 18.2 m/s; it
+stops from 100 km/h on sand in 70.2 m, 43.4 m on Balanced (`tyres.test.ts`). On a fully wet road
+it stops from 100 km/h in 56.1 m and on packed snow in 128 m. The Ape climbs 15% at 2.6 m/s.
+Adding a model to
 `VEHICLE_MODELS` fails to compile until it has data here, a durability ([Damage](#damage)), a mesh
 and an engine for its smoke and fire in `src/render/actors.ts`, and a trim in the audio.
 
@@ -356,7 +373,7 @@ than it can drive):
 | | stop from 100 km/h, asphalt | 42.4 m | 38.0 m | 20.9 m |
 | | stop from 100 km/h, gravel | 68.4 m | 47.0 m | 20.9 m |
 | | stop from 50 km/h, asphalt: dry / fully wet / packed snow | 10.8 / 14.2 / 33.2 m | 9.6 / 11.3 / 16.0 m | 5.4 / 5.8 / 6.7 m |
-| | after 10 s floored up a 15% grass bank | 1.5 m/s | 14.9 m/s | 31.6 m/s |
+| | after 10 s floored up a 15% grass bank | 0.0 m/s | 14.9 m/s | 31.6 m/s |
 | | lateral g | 1.01 | 1.06 | 2.08 |
 | `carabinieri` | 0–100 km/h | 6.5 s | 5.8 s | 3.1 s |
 | | top speed | 243 km/h | 260 km/h | 357 km/h |
@@ -386,7 +403,7 @@ Body and suspension), with each preset's value. Multipliers and shares move in s
 | Knob | Key | Range | Simulation (real) | Balanced (new game) | Arcade | Changing it |
 |---|---|---|---|---|---|---|
 | Tyre grip | `grip` | 0.5–2.5 × | 1 | 1.1 | 2 | every tyre's grip on every surface: higher corners faster, stops shorter and slides less, but lets a tall vehicle corner hard enough to roll over (a Panda held at full lock tips from 36 km/h at ×1.1 once held for 30 s, 41 km/h within 5 s, and from 24 km/h at ×1.5), so lower the weight transfer with it (at 0.5 none of the four tips at full lock at ×1.5); lower slides and spins sooner |
-| Off-road grip loss | `looseGround` | 0–1 | 1 | 0.5 | 0 | how far every surface but asphalt (stone, gravel, dirt, grass, leaves) differs from it in grip, sliding friction and rolling resistance; at 0 every surface drives like asphalt |
+| Off-road grip loss | `looseGround` | 0–1 | 1 | 0.5 | 0 | how far every surface but asphalt (stone, gravel, dirt, grass, leaves, sand) differs from it in grip, sliding friction and rolling resistance; at 0 every surface drives like asphalt |
 | Weather grip loss | `weatherGrip` | 0–1 | 1 | 0.6 | 0.3 | how much wet ground and snow cover take from every tyre's grip ([Surfaces](#the-body)): at 1 a wet road keeps 0.72 of its dry grip and packed snow 0.27, so stops are longer, corners slower and the lock at speed smaller; at 0 every vehicle drives as on a dry day whatever the weather. The traffic AI drives as carefully as the grip it leaves |
 | Engine power | `power` | 0.5–4 × | 1 | 1.15 | 2.5 | every engine's torque and power: harder acceleration where the tyres can take it (else the driven wheels spin), steeper climbs and a higher top speed; the truck's limiter still holds it to 90 km/h |
 | Brake power | `brakes` | 0.5–4 × | 1 | 1.15 | 2.5 | the brakes' force: higher stops shorter until the tyres' grip runs out, lower stops longer |
@@ -408,7 +425,7 @@ ground and asphalt unless named, no walls), the scenarios of `src/sim/__tests__/
 | Knob | Case | Real | Changed |
 |---|---|---|---|
 | Tyre grip 1.5 | a Panda's stop from 100 km/h on gravel | 68.4 m | 47.7 m |
-| Off-road grip loss 0 | a Panda floored for 10 s up a 15% grass bank | 1.5 m/s | 16.2 m/s |
+| Off-road grip loss 0 | a Panda floored for 10 s up a 15% grass bank | 0.0 m/s | 16.2 m/s |
 | Weather grip loss 0 | a Panda's stop from 50 km/h on packed snow (on a fully wet road) | 33.2 m (14.2 m) | 10.8 m, as dry (10.8 m) |
 | Weather grip loss 0 | a Panda's road-wheel angle after 0.5 s of full left at 15 m/s on packed snow | 5.9° (0.66 of dry) | 8.9°, as dry |
 | Engine power 2 | a Panda floored from 20 m/s, 5 s on | 25.4 m/s | 32.1 m/s |
@@ -2034,7 +2051,8 @@ and kept to their side, the draws), `trains-driving.test.ts` the player's train 
 `liveKeys`, keys a test plays as it goes), and `src/sim/rail/__tests__/` checks the lines, the cars,
 the crossings, the dynamics, the AI driver, the bodies, the look-out, the crossing rules for
 traffic, the senses, boarding and the collisions; `src/sim/__tests__/physics.test.ts` drives each
-model on flat, sloping and ramped test ground with `advance` (no walls), and
+model on flat, sloping and ramped test ground with `advance` (no walls), `tyres.test.ts` checks the
+tyre's force and sand's grip and a Panda coasting into it and digging in, and
 `src/sim/__tests__/handling.test.ts` proves each handling knob's effect the same way, the weather
 grip loss's on wet and snowy ground included. Fixtures find map features by geometry, never by index
 (`BATTISTI` is the Via Cesare Battisti traffic edge nearest (-412, 438), eastbound), so they survive

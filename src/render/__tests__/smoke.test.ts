@@ -49,6 +49,10 @@ test("puffs come in proportion to how hard the tyre slides, and grass hardly smo
   assert.ok(Math.abs(count("asphalt", 5, 1) - full / 2) <= 1, "half the slip, half the puffs")
   assert.ok(count("grass", 10, 1) < full / 4, "grass: little or none")
   assert.ok(count("dirt", 10, 1) >= full, "dirt: as much dust as asphalt smoke, or more")
+  assert.ok(
+    count("sand", 10, 1) > count("dirt", 10, 1),
+    "sand: a spray of it, more than dirt's dust",
+  )
 })
 
 test("a puff grows, rises and shrinks away within two seconds of sim time", () => {
@@ -80,8 +84,9 @@ test("the puff count is bounded", () => {
   assert.equal(smoke.mesh.count, 16, "75 puffs a second for 1.5 s each: the cap holds")
 })
 
-test("smoke is burnt-rubber grey on asphalt, dust is tan on dirt", () => {
-  for (const surface of ["asphalt", "dirt"] as const) {
+test("smoke is burnt-rubber grey on asphalt, dust is tan on dirt and pale on sand", () => {
+  const lightness: Partial<Record<Surface, number>> = {}
+  for (const surface of ["asphalt", "dirt", "sand"] as const) {
     const smoke = new Smoke(steady)
     smoke.add(skid(1, surface, 60, 1))
     smoke.update(STEP.dt)
@@ -90,6 +95,7 @@ test("smoke is burnt-rubber grey on asphalt, dust is tan on dirt", () => {
     smoke.mesh.getColorAt(0, color)
     assert.equal(color.getHex(), PUFF[surface].hex, surface)
     color.getHSL(hsl)
+    lightness[surface] = hsl.l
     if (surface === "asphalt")
       assert.ok(
         hsl.s < 0.15 && hsl.l > 0.4,
@@ -98,9 +104,13 @@ test("smoke is burnt-rubber grey on asphalt, dust is tan on dirt", () => {
     else
       assert.ok(
         hsl.s > 0.3 && hsl.h > 20 / 360 && hsl.h < 50 / 360,
-        `dirt dust: hue ${hsl.h * 360}°, saturation ${hsl.s}`,
+        `${surface} dust: hue ${hsl.h * 360}°, saturation ${hsl.s}`,
       )
   }
+  assert.ok(
+    lightness.sand! > lightness.dirt! + 0.15,
+    `sand ${lightness.sand}, dirt ${lightness.dirt}`,
+  )
 })
 
 test("on snow a sliding tyre throws up white spray; the smoke draws after the marks", () => {

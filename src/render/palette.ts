@@ -43,6 +43,10 @@ export const PALETTE = {
   oakDead: 0x8c6a48,
   litter: 0x6e5b44,
   dirtTrack: 0x8f7a58,
+  // A beach's dry sand and the damp sand under it (the dust a sliding tyre throws up, the rut it leaves). Design values, not
+  // measured: the orthophoto medians of the Magra's beaches (issue #13) replace them under these names.
+  sand: 0xd6c39b,
+  sandWet: 0x9e8a66,
   waterShallow: 0x8db4b0,
   waterDeep: 0x3f6d63,
   asphalt: 0x4b4d50,

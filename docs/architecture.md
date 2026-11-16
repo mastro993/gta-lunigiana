@@ -881,8 +881,9 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
     quads, the oldest overwritten first. Each (car, wheel) draws a strip joining its consecutive
     steps; a step without a skid breaks it. Width by model's tread (Panda 0.18 m, Ape 0.1 m,
     Giulia 0.22 m, the truck's twin tyres 0.35 m), rubber on asphalt and stone, an earth rut on the
-    rest, turning to a dark slush rut with the snow under the wheel (`Skid.snow`), opacity by
-    `amount`, fading out over 60 s. A quad lies 4 cm over the ground the event
+    rest, the damp sand under a beach's (`sandWet`, a design colour until measured), turning to a
+    dark slush rut with the snow under the wheel (`Skid.snow`), opacity by `amount`, fading out
+    over 60 s. A quad lies 4 cm over the ground the event
     names or the highest road ribbon drawn within 3 m over it (`drawnZ`; on a hairpin or at a
     junction the wheels' blended ground can sit under it, while a tunnel's hill stands higher),
     which clears the centre dash (2 cm over its road), and the material is pulled towards the
@@ -893,7 +894,8 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
   - Smoke and dust (`src/render/smoke.ts`): one `InstancedMesh` of up to 256 low-poly puffs
     (an icosahedron tinted per puff, 60 % opaque), spawned at `rate` × `amount` × `slip` puffs a
     second: white-grey burnt rubber on asphalt and stone, tan dust on gravel and dirt, dark brown
-    on leaves, hardly any on grass, turning to white spray with the snow (`Skid.snow`). A puff
+    on leaves, a pale spray on sand (`sand`, the thickest: 3 puffs a second per m/s of slip, dirt
+    2.5), hardly any on grass, turning to white spray with the snow (`Skid.snow`). A puff
     swells, rises, drifts and thins away over 1–2 s; when all 256 are in the air, the puffs owed
     meanwhile are dropped. Being transparent it draws after every opaque mesh, the x-ray
     silhouettes included, and after the marks (render order 1), and it writes no depth.
