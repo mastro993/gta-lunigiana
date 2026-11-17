@@ -71,7 +71,11 @@ test("catchments: a river's arms share its area at a fork and add up to it again
     ["fork", "south", "rejoin"],
     ["rejoin", "mouth"],
   ]
-  const [above, north, south, below] = catchments(grid, wp, ids)
+  const [above, north, south, below] = catchments(
+    { ...grid, z: Float64Array.from(grid.z) },
+    wp,
+    ids,
+  )
   const into = above!.at(-1)!,
     out = below![0]!
   assert.ok(into > 0, "the river above drains its hillside")
@@ -84,7 +88,7 @@ test("catchments: a river's arms share its area at a fork and add up to it again
   )
 })
 
-test("catchments fills and routes a grid of flats and pits to the same heights and areas as before", () => {
+test("catchments fills and routes a grid of flats and pits to the same areas as before", () => {
   // Heights on a few whole metres, so most neighbours tie, and two streams across them.
   const cols = 61,
     rows = 47
@@ -113,10 +117,13 @@ test("catchments fills and routes a grid of flats and pits to the same heights a
     ["a", "b", "c"],
     ["d", "b"],
   ])
+  // The grid ends as each node's upstream area, which the fill decides through the routing: the
+  // same areas as the grid of their own the build allocated before (1f425d940e4a6bd8 pinned the
+  // fill and the samples' areas then).
   const digest = createHash("sha256")
   digest.update(new Uint8Array(g.z.buffer))
   for (const a of areas) digest.update(new Uint8Array(a.buffer))
-  assert.equal(digest.digest("hex").slice(0, 16), "1f425d940e4a6bd8")
+  assert.equal(digest.digest("hex").slice(0, 16), "6acef5cc9476d3b5")
 })
 
 test("catchments: an unlisted tile's nodes are outlets, as the box's edge is: they are never read, ground beside them drains out and they bring no area", () => {
@@ -151,13 +158,13 @@ test("catchments: an unlisted tile's nodes are outlets, as the box's edge is: th
       ),
     ]
     const [area] = catchments(g, wp, [["source", "mouth"]], mask)
-    return { area: area!, z: g.z.filter((_, n) => listed[n] === 1) }
+    return { area: area!, nodes: g.z.filter((_, n) => listed[n] === 1) }
   }
   const masked = run(undefined, listed)
   // Peaks in the notch change nothing: its ground is never read.
   assert.deepEqual(run(1e4, listed), masked)
   // Its nodes are outlets below every node of ground, the listed nodes beside them an edge: the same
-  // fill and areas as a pit there that the box's edge drains.
+  // areas, at every listed node and sample, as a pit there that the box's edge drains.
   assert.deepEqual(run(-1e6), masked)
   // Read whole, the corner's ground drains into the stream.
   const whole = run(undefined)
