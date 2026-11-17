@@ -183,7 +183,7 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
   | dirt | 0.6 / 0.39 (×0.65: mud) | 0.85 / 0.85 | 0.045 / 0.06 |
   | grass | 0.45 / 0.32 (×0.7) | 0.8 / 0.75 | 0.07 / 0.075 |
   | leaves (forest floor) | 0.5 / 0.33 (×0.65) | 0.8 / 0.75 | 0.06 / 0.065 |
-  | sand (a beach's) | 0.55 / 0.55 (×1: rain firms it) | 0.95 / 0.95 | 0.3 / 0.15 |
+  | sand (a beach's and the sea's floor, `COVER_SURFACE`; a road tagged `surface=sand`) | 0.55 / 0.55 (×1: rain firms it) | 0.95 / 0.95 | 0.3 / 0.15 |
   | packed snow (`SNOW`, over any surface) | 0.3 | 0.85 | 0.03 |
 
   A tyre in dry sand grips by shearing it, so its peak is the sand's own friction, tan φ for the

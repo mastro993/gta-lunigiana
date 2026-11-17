@@ -179,13 +179,53 @@ _Avoid_: Arcade, building passage (that is a tunnel through a house)
 
 ## Water
 
+**Sea**:
+The still water at 0 m seaward of the coastline, an area kind of its own (`sea`): a water, as a lake is, cut into sea pieces, with no tide, waves or current.
+_Avoid_: Ocean, sea area (that is one of its pieces)
+
 **Sea piece**:
-The sea within one tile's square cut to the map's bounds, a water area at 0 m: the sea is its pieces, one water, so a swimmer in one heads for the coast in any of them.
+A connected piece of the sea within one tile's square cut to the map's bounds (a tile may hold more than one), a water area at 0 m: the sea is its pieces, one water, so a swimmer in one heads for the coast in any of them.
 _Avoid_: Sea tile, sea polygon
+
+**Coastline**:
+OpenStreetMap's `natural=coastline` ways chained into lines, the land on their left: what the build closes the sea pieces from and the terrain's sea step fills from.
+_Avoid_: Coast (a sea piece's shore edges), shoreline
 
 **Coast**:
 A sea piece's edges that are its shore, an islet's included: every edge but the cuts along a tile's side or the map's bounds, where the sea goes on.
 _Avoid_: Coastline (that is OSM's line the build closes the pieces from), shore edge
+
+**Shore line**:
+The coastline less each segment that closes a river or a lake across its mouth (`shoreLines`): what the sea floor rises to, so a river's mouth holds no sill.
+_Avoid_: Shore (the water's edge walls), coast
+
+**Sea step**:
+The terrain chain's step that fills, at 0 m, the cells seaward of a part's coastline and the empty shore within 150 m of them, after Liguria's DTM and before Emilia-Romagna's (`sea-fill.ts`).
+_Avoid_: Sea fill, sea mask
+
+**Sea floor**:
+The ground under the sea, which the map build carves every sea node down to (`seaFloor`), from the isobaths and the shoreface profile.
+_Avoid_: Seabed, bed (a river's), bathymetry (the survey it is read from)
+
+**Isobath**:
+A survey's contour line of the sea floor at one depth: Regione Liguria's are a metre of depth apart.
+_Avoid_: Depth line, contour
+
+**Shoreface profile**:
+The sea floor's depth by the distance from the shore line, read where no isobath is near (`PROFILE` in `sea-floor.ts`), and as the shore line's own depth.
+_Avoid_: Shelf (the issue's EMODnet constants, the profile's far end), beach profile
+
+**Beach material**:
+What a beach is drawn and driven as: `sand`, `pebble` or `rock`, by Liguria's Spiagge where it covers half the beach, else by OSM's `surface`, else sand (`beachKind`).
+_Avoid_: Beach type, surface (that is OSM's tag, or what a foot or a tyre is on)
+
+**Pier deck**:
+A pier's stretch over the water: a path on a deck 1 m over the water's level, its ends on dry ground at the ground there (`pierDeck`). Its stretch on dry ground is a path at grade.
+_Avoid_: Jetty, boardwalk
+
+**Breakwater barrier**:
+A breakwater's or a groyne's outline (`breakwater`): a wall that stops vehicles alone, as a guard rail does, round rock raised 1.5 m over the sea.
+_Avoid_: Mole, groyne wall
 
 **Held by the sea**:
 A river whose bed lies under the sea's level standing at it (0 m) rather than at its bed plus its flow's depth, as at its mouth at low flow.

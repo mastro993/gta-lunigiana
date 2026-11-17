@@ -1069,7 +1069,7 @@ its dead leaves, as the season the game starts in says, `crownsOn` in `src/rende
 water, glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
 the terrain, lines, trees and water areas beyond the map bounds, the built terrain's box (its edge
 nodes' heights, the sea floor's below 0 m too, so the sea runs on over the apron at the edge's
-depth: 9.5 m at x −9071 on the coast test region's south edge; past the apron the clear colour,
+depth: 10.0 m at x −9072 on the coast test region's south edge; past the apron the clear colour,
 dark forest green, shows where the sea would go on); inside it, past an
 inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground and cover the
 nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a road
@@ -1081,16 +1081,19 @@ cover, read from the tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts
 a part that grows the box repaints none of the ground built before it, `terrain.test.ts`, and an
 olive grove's dry grass bare in a 2.5 m strip along each terrace's edge, every 3 m of rise (a cell
 whose middle lies within half a strip of one, by its height and slope), so the strips follow the
-contours; a beach's sand wet (`sandWet`) where a cell's middle lies under 0.8 m a.s.l., 56 % of
-the coast test region's sand cells, its 0.8 m contour a median 40 m in from the coastline; a
+contours; a beach's sand wet (`sandWet`) where a cell's middle lies under 0.8 m a.s.l., 9,556 of
+the coast test region's 16,581 sand cells (57.6 %), those along the 0.8 m contour a median 30 m
+from the coastline, where the 2023 orthophoto shows the sand wet about 6 m in (0.2 m would put the
+contour 2.7 m from it, 0.4 m 2.8 m and 0.6 m 21 m); a
 broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where
 none covers a cell, paving where open ground lies within 3 m of both a wall and a road's edge (house
-fronts, sidewalks, alleys), and pebble beds along the wide streams outside the lakes and river
-polygons. A
+fronts, sidewalks, alleys), and pebble beds along the wide streams outside the lakes, the river
+polygons and the sea. A
 cover's byte in the tiles is its place in `COVERS` (`src/sim/map/raster.ts`; new kinds go at the
 end), and the order the areas are filled in is its own (`FILL`: a river's gravel bars over its
 water, a wood under every other area, an olive grove over a wood, grassland, farmland and
-residential land).
+residential land, a beach's sand over the open ground and under rock and every cover after it,
+and the sea last, so the shore drawn is OSM's coastline: [map.md](map.md#3-features-featurests)).
 
 Streaming has two levels: the tiles in memory are planned first, then the chunks of the tiles in
 reach, so a frame's cost does not grow with the map, and a chunk builds only once every tile its
@@ -2154,7 +2157,8 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   blit instead of leaving a seam (0.36 MP, 1.45 MB). One canvas of the whole region would pass
   Safari's 16.7 MP limit as the map grows (Lunigiana's was already 2340 × 3000 px, 7 MP). A tile
   is painted from that tile's own vectors (`tileLayers`: its areas (the lakes and river polygons
-  over the land and the gravel bars over those), water, roads and buildings, every
+  over the land, the gravel bars over those and the sea, in `seaDeep`, last; a beach in `sand`),
+  water, roads and buildings, every
   one within the tiles' 32 m halo of its square, in the whole map's order, the roads' attributes
   from `MAP.roads`) and the global rail whose boxes reach it (± 1 px and 20 m, the widest stroke's
   half, inside the halo, so the tile holds every feature its canvas can show), in the minimap's

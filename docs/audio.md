@@ -786,7 +786,7 @@ Continuous voices (held every frame they play):
 | `brakes` | `synth/rail.ts`: white noise in three bands of Q 50 at 2.85, 4.1 and 5.6 kHz (disc brakes squealing), juddering with the gust signal ×40 | a train braking harder than a tenth of its emergency rate, opening up from 6 m/s to a stand (`brakesTargets`), from its wheels' place | 95 (3 m), TUNED: no recording measured |
 | `plBell` | `synth/crossing.ts`: an Italian crossing's bell, measured: one stroke every 1.287 s of twelve partials (1.2–10.3 kHz, two beating doublets), a loop of its steady ring ([Trains and level crossings](#trains-and-level-crossings)) | a road's level crossing from its warning until its arms are down (`crossingAt`), one voice per box at its centre | 92 (0.3 m, raised to the box's posts' distance): at least 90 dB at 1 m (the Wegh eLCSP's data sheet), heard from at least 100 m by law |
 | `trainHorn` | `synth/horns.ts`: EN 15153-2's high tone, 660 Hz, a sawtooth climbing out of a 5 % droop over a 0.12 s attack, voiced at 1.2 kHz | the player holds H in a train's cab | 130 (2 m): TSI's 115–123 dB 5 m ahead, its lower end at 1 m; through the cab 97.6 dB(A) at the ears |
-| `crickets` | `synth/nature.ts`: six Italian tree crickets (*Oecanthus pellucens*) on a 2.6 kHz carrier, chirping at the rate Dolbear's law gives for `celsius`, the air at the ears (once a second at 22 °C; `chirpRate` never slower than the 10 °C rate, so a voice held in the cold still chirps) | open ground outweighs buildings around the ears (`open − built` > 0), in air of 10 °C or more (`echemeRate` > 0) and dry (under 0.1 mm/h) | 42 at the ears at density 1 |
+| `crickets` | `synth/nature.ts`: six Italian tree crickets (*Oecanthus pellucens*) on a 2.6 kHz carrier, chirping at the rate Dolbear's law gives for `celsius`, the air at the ears (once a second at 22 °C; `chirpRate` never slower than the 10 °C rate, so a voice held in the cold still chirps) | open ground outweighs buildings around the ears (`open − built` > 0; a beach's sand and the sea count as no open ground, as a river's gravel and a lake do: `none` in `AMBIENCE`, `places.ts`), in air of 10 °C or more (`echemeRate` > 0) and dry (under 0.1 mm/h) | 42 at the ears at density 1 |
 
 The scrape is built from what the wall is made of. Each material has a surface: 32 m of wall
 ridden at 10 m/s (3.2 s), rendered in plain TypeScript the first time that material is scraped
@@ -864,7 +864,8 @@ drive wall (`wallAt` in `places.ts`) is that of the nearest wall source within 3
 point, if it is the wall the car met (within 0.6 m of the nearest drive wall of any kind): a tree
 trunk (`tree`); a building's walls by kind and style (a greenhouse `glass`, the industrial style,
 which takes in substations and silos, `sheet`, the stone, church, tower and ruin styles `stone`,
-the rest `masonry`); a barrier (a guard rail `rail`, a wall `stone`, a cliff `rock`); else the
+the rest `masonry`); a barrier (a guard rail `rail`, a wall `stone`, a cliff and a breakwater's or
+a groyne's outline `rock`); else the
 bank itself: `rock` in the bare-stone covers (a quarry's cut face, a crag, scree), and anything
 else, a steep bank or the end of the map, is `earth`, though trees stand a metre
 or two off it (35 % of the probes 0.15 m off the map's banks read `tree` before that rule, 3.6 %

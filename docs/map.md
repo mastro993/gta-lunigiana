@@ -106,9 +106,11 @@ map cannot: `region.ts` defines them beside the regions, and `node src/tools/bui
 overview, gitignored; the game never loads them and nothing ships them. Each reads Lunigiana's
 inputs on its origin and tree anchor (a tree stands where it does on the shipped map, with the same
 id), its OSM every Lunigiana part's extract (`osmFiles`), and `fetch-osm` refuses its part
-(`partToFetch`: no build would read the file) but one with buildings of its own, whose own part's
-extract (`osmFile`) is what it reads. `useDiskMap(builtMapUrl(region))` (`src/sim/map/source.ts`,
-`src/tools/map-file.ts`) hands one to the sim in a process of its own;
+(`partToFetch`: no build would read the file) but one with buildings or OSM of its own
+(`ownBuildings`, `ownOsm`), whose own part's extract (`osmFile`) is what it reads; one with OSM and
+terrain of its own reads its own inputs alone (`inputParts`, and no Regione Toscana land cover,
+`ucsParts`), so it builds where no Lunigiana part reaches yet. `useDiskMap(builtMapUrl(region))`
+(`src/sim/map/source.ts`, `src/tools/map-file.ts`) hands one to the sim in a process of its own;
 `preview-map.ts` draws one with `--region <key>`.
 
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
@@ -305,6 +307,43 @@ extract (`osmFile`) is what it reads. `useDiskMap(builtMapUrl(region))` (`src/si
 
   `terrain-seams.map-test.ts` checks its seam: the LiDAR's 0.34 km² meet Liguria's DTM at 298
   nodes, and no step there passes the terrain's own steps round it (the worst is 0.06 m under them).
+- **`magra-coast`**: 6 × 4 km of the coast, x −14000…−8000 by y −15000…−11000 (part
+  `magra-coast`, 9 tiles, the 3 northern ones all land), from Punta Bianca and the cliffs under
+  Montemarcello past the Magra's mouth between Bocca di Magra and Fiumaretta to the sand of
+  Marinella di Sarzana and Luni Mare, with the sea 0.7–2.2 km out from the coastline to its south
+  edge. Its terrain, its OSM and Regione Liguria's sources are its own (`ownTerrain`, `ownOsm`), so
+  it builds a map of its own, the one region with sea: it checks issue #13's sea, beaches, piers
+  and the Magra's mouth before part 5 (#21) exists, and `pnpm maps` builds it after the L, so CI
+  builds, caches and hashes it with the others ([Pinned inputs and CI](#pinned-inputs-and-ci)).
+  Its inputs come in three runs, in this order, as each reads the one before
+  ([Adding a part](#adding-a-part)): `pnpm fetch-lig magra-coast` writes the NC5 (2,061
+  buildings, 816 minor buildings, 578 carriageways, 1 mapped area), 10 DTM crops, the land use's
+  66 polygons, Spiagge's 39 beaches and the sea floor's 2,004 isobaths into
+  `data/raw/lig/magra-coast/` ([section
+  1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts));
+  `pnpm fetch-osm magra-coast` OSM's whole extract over its rectangle plus 100 m into
+  `data/raw/osm/magra-coast.osm.gz` (46,393 nodes, 5,659 ways and 99 relations, 1,065,445 B,
+  2026-11-16), the coastline among them; and `pnpm fetch-rt --region magra-coast` its terrain from
+  `data/parts/magra-coast.json` into `data/raw/rt/magra-coast/`, with no LiDAR or CTR: the 10 m
+  DTM, Liguria's DTM, then the sea step, which reads the coastline in the part's extract. Its
+  south-east corner, east of the Parmignola (x ≳ −8870 at the shore), is Tuscany's, in Carrara,
+  where Liguria's DTM stops at the regional border, so the manifest lists Massa-Carrara's 10 m DTM:
+  without it Emilia-Romagna's DTM 5x5 filled those cells with junk ([section
+  1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). Its mosaic, 3,061 × 2,068
+  cells of 2 m over the rectangle plus 32 m, holds Liguria's DTM on 11.993 km², the sea on 11.675
+  and the 10 m DTM on 1.652 (`dtm.bin` 702,434 B, `dtm-src.bin` 13,186 B, `dtm.json` 402 B; 7.3 s
+  and 782 MB, 2026-11-16), and the play area, as the build prints it, Liguria's DTM on 11.46 km²,
+  the sea on 11.08 and the 10 m DTM on 1.46. Its ground runs from the sea floor's −16.0 m at its
+  south-west corner to 359.5 m on the hills north-west of Montemarcello (−13856, −11864). Its
+  build (map 4c1568c7a21b5b71, 2026-11-17) takes 8.88 s and peaks at 741 MB resident
+  (`/usr/bin/time -l`; the end of its overview at 8.0–8.6 s, 740 MB then, the build's own print)
+  and writes 9 tiles of 1,356,435 B, the largest 364,664 B, and an overview of 2,013 KB: 973
+  roads (21 of them piers), 3,589 buildings, 37 waters, 1,169 areas (7 sea, 72 sand, 51 rock, 6
+  pebble), 56 barriers (20 breakwaters), 91,376 trees and 538 parked spots. Its map tests (`pnpm
+  test:map`; without the build each is skipped, but in CI, which builds it, it fails instead, as
+  the L's do) check: [placeholder: the magra-coast map tests and what each checks, from the tests
+  track]. `terrain-seams.map-test.ts` checks its seams, the 10 m DTM's with Liguria's DTM and the
+  sea, and Liguria's DTM's with the sea, as it checks the others'.
 
 Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
 three runs each, a load average of 5–6 from other work), before and after the build's per-tile
@@ -465,9 +504,11 @@ The terrain phase works out the vectors first: the water's surfaces, the road an
 whose writes into the grid are recorded in order as claims, and the water capped under the decks.
 Then `build-grid.ts` builds the grid one listed 2 km tile at a time (`gridTiles` in `grid-tiles.ts`,
 the region's tiles, south to north then west to east): on the window of the tile's 501 × 501 nodes,
-cut to the grid, it averages the LiDAR, carves the lakes and river polygons and the beds under the
-water as first settled, writes the claims in their order (never on the water), carves the river
-polygons and the beds again under the capped water outside the road cores, reads the terrain under
+cut to the grid, it averages the LiDAR, carves the lakes, the river polygons and the sea, raises
+the piers' areas and the breakwaters over them (`firstCarving`), carves the beds under the water as
+first settled (none through what it raised), writes the claims in their order (never on the
+water), carves the river polygons and the beds again under the capped water outside the road cores
+and the raised nodes, reads the terrain under
 the water samples whose cells are the tile's own (for the perched check, section 8), rounds to
 0.1 m and lays the rail bed. A window keeps the whole grid's lattice (`Grid.span` in `terrain.ts`):
 positions, index ranges and clamps are worked out as on the whole grid, so its nodes are the same
@@ -599,9 +640,19 @@ regions](#test-regions)).
   nodes, ways and relations, and assembles multipolygon rings from member ways (unclosed chains are
   dropped). It copies each tag's value out of the XML text: a match is a slice of the text, and one
   kept name held it all (lucido's 37 MB, Cesena's 60 MB) until the map was written. OSM gives the
-  road network and its names, water, rail, land use, barriers, POIs and place names. `pnpm fetch-osm
-  pontremoli-town` writes OSM's buildings alone over that test region's part ([Test
-  regions](#test-regions)).
+  road network and its names, water, rail, land use, barriers, POIs and place names, and on the
+  coast the coastline, the beaches, the piers and the breakwaters ([section
+  3](#3-features-featurests)). `pnpm fetch-osm pontremoli-town` writes OSM's buildings alone over
+  that test region's part, and `pnpm fetch-osm magra-coast` the coast test region's whole extract
+  over its rectangle plus 100 m, one `/map` box ([Test regions](#test-regions)). Its coastline
+  (`natural=coastline`, the land on each way's left, OSM's rule) is one chain of 9 ways, 1,240
+  points from west of Punta Bianca past the Magra's mouth, which it closes across between the
+  jetties' heads (ways 1379669802 and 1379669801), to the Tuscan beach past the region's east
+  edge, and 2 islets, Scoglio Muginara (441983432) and Scoglio Corvaccino (441984060). Regione
+  Liguria's own lines of the coast, both CC BY 4.0, are not used: its Linea di costa (Geoportale id
+  1904, `M1904:L6248`) and the P.T.A.M.C.'s line of the shore (below, `L7173`) stop at its sea
+  border by the Parmignola, while OSM's runs on along the Tuscan beach, and the P.T.A.M.C.'s leaves
+  out the harbour works (its metadata).
 - **The surveys of the ground**: Regione Toscana's large-scale surveys, and Regione Liguria's NC5
   past Tuscany's border, give the buildings with their surveyed eave elevations, the road surfaces
   (Tuscany's with their street names), and the area each survey maps. Each source has an adapter
@@ -901,12 +952,31 @@ regions](#test-regions)).
      the median 1–2 km from the LiDAR and 0.00 m past 2 km, 0.87–0.94 m within 250 m of it ([Test
      regions](#test-regions)). On Lunigiana it fills 2.38 km² of Fosdinovo's tiles' cells in
      Castelnuovo Magra and Luni, past the LiDAR and the 10 m DTM, 2.23 km² of them in play.
-  4. Past Tuscany, Regione Emilia-Romagna's DTM 5x5 (CC BY 4.0), its WCS's native 5 m grid in
+  4. The sea (issue #13, `sea-fill.ts`), on a part whose own OSM extract holds a coastline, so no
+     cell of Lunigiana or Cesena: 0 m on the 1 m cells seaward of OSM's coastline (the build's
+     `seaAreas` over the crop's local box, [section 3](#3-features-featurests)), and on the cells
+     still empty that it reaches from there through empty cells (8-connected steps) within
+     `SEA_REACH`, 150 m. Liguria's DTM has no data over the sea, and on the magra-coast test region
+     it stops short of OSM's coastline by up to 60 m on the beaches and leaves the Magra's last
+     138 m between its jetties, which the coastline closes at their heads, empty as sea: the reach
+     takes the widest of those. An empty pocket inland the sea does not reach stays empty and
+     falls through to the next step (`sea-fill.test.ts`). Its bend fades over `SEA_FADE`, 50 m,
+     one step of the bend's lattice, so the land's height at the shore falls to the sea's 0 within
+     about that rather than lifting the sea round a cliff far out. It is the terrain's source code
+     5 (`SOURCES` in `terrain-sources.ts`): appended, though it fills before Emilia-Romagna's DTM,
+     so the codes 0–4 in the files written before keep their meaning. The build carves the sea's
+     nodes again, to the sea floor ([section
+     6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)).
+  5. Past Tuscany, Regione Emilia-Romagna's DTM 5x5 (CC BY 4.0), its WCS's native 5 m grid in
      EPSG:7791 over the box round the cells left. Issue #10 named TINITALY 1.1 (INGV, 10 m, CC BY
      4.0) here; Emilia-Romagna's survey is finer, under the same licence and already fetched for
      Cesena, and PR #2 had found TINITALY's valley floors 16–37 m off, so TINITALY is not used. On
      Lunigiana it fills only the cells of Fivizzano's tiles past the regional border by Cima
-     Belfiore (754,707 m²), which the part's mask leaves out of play.
+     Belfiore (754,707 m²), which the part's mask leaves out of play. Its WCS answers outside
+     Emilia-Romagna too, with no no-data: 0 m over the sea, and over Liguria and Tuscany a smooth
+     surface of its own, so a cell the sources before leave empty anywhere takes it, and the
+     chain's error for a cell no source covers never fires there ([Known data
+     limitations](#known-data-limitations)).
 
   The bend: the residual (better − filler) on the better cells within 2 m of what the filler
   filled is fitted by a membrane on a 50 m lattice (least squares on its bilinear, harmonic where no
@@ -953,6 +1023,17 @@ regions](#test-regions)).
   (`pnpm coverage fosdinovo`). Each of the 70,855,349 cells the tile files held before keeps its
   height to the bit, and where Fosdinovo's cells meet them the terrain steps only as the
   ground does (the most, 1.97 m at (−4040, 1552), is a bank).
+
+  On the magra-coast test region's mosaic (`fetch-rt --region magra-coast`, 2026-11-16; [Test
+  regions](#test-regions)) Massa-Carrara's 10 m DTM fills 1,653,175 m², Carrara's wedge east of
+  the Parmignola; Liguria's DTM 11,988,641 m², its whole metres smoothed in 146 sweeps, bent onto
+  the 10 m DTM at a rim of 2,856 cells, its residual from −3.9 to +2.3 m; the sea 11,682,912 m²,
+  bent onto both at a rim of 13,413 cells, its residual from 0.0 to 12.2 m (the cliffs under
+  Montemarcello and Punta Bianca), the bend's lattice within 7.4 m after 40 iterations; and
+  Emilia-Romagna's DTM none. On its first run, with no 10 m DTM in the manifest and the sea's
+  reach 10 m, Emilia-Romagna's DTM filled 1,374,110 m²: 0 m over the sea, and over the shore
+  Liguria's DTM leaves empty and Carrara's wedge a smooth surface down to −71.8 m, which left a pit
+  38 m deep.
 - **Land cover**: Regione Toscana's "Uso e copertura del suolo" 1:10 000, 2019 (UCS, CC BY 4.0,
   0.5 ha minimum unit), from its WFS. OSM maps the woods and the quarries well but only about a
   fifth of the Apuans' bare rock and half their pastures, so `ucs.ts` adds the open covers: quarries
@@ -1000,8 +1081,34 @@ regions](#test-regions)).
   the vineyards were kept, it holds 8 natural basins (5121) and 2 of the Magra plain's quarries
   (131); `pnpm fetch-lig sarzana-town` brings the rest (a 2.6 km² box of the town held 4 olive
   groves, 2 vineyards and 2 vines mixed with olives on 2026-11-03). In the lower Val di Magra its
-  sand (331) is the coast's beaches, and the Magra's bed is a river bed (5111, with its channel),
-  which no kept class takes.
+  sand (331) is the coast's beaches, whose material Spiagge gives (below): a Liguria 331 polygon
+  that shares ground with a Spiagge polygon is dropped (`offBeaches` in `shore.ts`; the magra-coast
+  test region's 3, by Fiumaretta and Marinella), and one on no beach stays a river's gravel. The
+  Magra's bed is a river bed (5111, with its channel), which no kept class takes.
+- **Liguria's beaches**: Regione Liguria's Spiagge (Geoportale id 1219, 2022, CC BY 4.0 in its ISO
+  metadata; its coast information system's, drawn with the Università di Genova's Dip.Ter.Is.),
+  photo-interpreted on AGEA's 2022 orthophoto, on WFS `M1219`, layer `L3118`, in EPSG:25832: each
+  polygon's physical character (`cod_caratt_fis`), 102 sand (spiaggia sabbiosa), 103 pebbles
+  (spiaggia ciottolosa), 104 rocky shore (battigia rocciosa), 106 fill (terrapieno: promenades,
+  boatyards), 301 and 302 a river's course. Of the 75 `natural=beach` in the magra-coast test
+  region's extract OSM tags 25 with a `surface` (22 sand), and it maps a beach on few of the coves
+  and none of the rocky shore under Montemarcello and Punta Bianca, so Spiagge gives the beaches'
+  material and the shore OSM leaves out ([section 3](#3-features-featurests)).
+  There it holds 39 polygons: 26 rocky shore, 4 pebbles, 3 sand, 3 fill and 3 river courses.
+- **The sea floor**: Regione Liguria's P.T.A.M.C. - C01 Batimetrie (the Piano di Tutela
+  dell'Ambiente Marino e Costiero's, Geoportale id 2112, 2023, CC BY 4.0 in its ISO metadata), its
+  isobaths ("Isobatimetriche di dettaglio", WFS `M2112`, layer `L7174`, EPSG:25832): a line every
+  metre of depth, each its `VALUE` (m, negative under the sea) and a unique `ID1`, from the
+  multibeam surveys of 2010–2019 (a 1 m model of the floor from 1.5 to 30 m deep; its ambiti
+  16–18 approved by D.C.R. n. 2 of 21/02/2023). It stops at Liguria's sea
+  border by the Parmignola, so the Tuscan sea past it takes the shoreface profile ([section
+  6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)). On the magra-coast test
+  region it holds 2,004 lines (1,636 open, 368 rings), 28,658 points, 2–25 m deep; the build reads
+  the 192 of 50 m or more, 2–16 m deep.
+- **EMODnet, for constants only**: issue #13's reading of EMODnet's depth samples off Marinella, 13
+  m at 2.2 km and 17 m at 7.8 km from the shore line, ends the shoreface profile past the survey's
+  deepest lines; no EMODnet data is fetched or shipped, so it is not credited. Its nearer samples
+  are not used: 1 m at 450 m and 8 m at 1.1 km, where the survey reads 6.4 and 9.7 m.
 - **Forest inventory, for constants only**: Regione Toscana's Inventario Forestale (IFT, WFS
   `ms:rt_ucs.idift.rt.all` on `map=wmsucs`, 400 m cells with each sample point's species
   `SPECFOR_1`, `QUOTA` and `ESPOSIZ`) has no licence record (its capabilities say only
@@ -1024,7 +1131,11 @@ regions](#test-regions)).
   AGEA, licenza d'uso concessa a Regione Toscana"; Regione Liguria's copy, Geoportale id 2555, WMS
   `M2555` layer `L10401`, 0.20 m, names AGEA its owner and no licence, only "Nessuna condizione
   applicabile", so it is looked at, never traced), read by eye to settle Gragnola's track layout
-  ([section 4](#4-the-rail-on-the-ctr)); RFI's station pages (rfi.it/it/stazioni: Gragnola,
+  ([section 4](#4-the-rail-on-the-ctr)); Regione Liguria's 2019 one (id 2248) names no licence
+  either, and the coast's colours come from neither: the sand's, the sea's and the foam's are
+  measured on Regione Toscana's own 2023 and 2024/25 flights (`rt_ofc.5k23`, `rt_ofc.5k24`, CC BY
+  4.0), which reach 300 m into Liguria at Marinella, as the woods' are on the 2023 one (`PALETTE`
+  in `src/render/palette.ts`); RFI's station pages (rfi.it/it/stazioni: Gragnola,
   Monzone-Monte dei Bianchi-Isolano, Equi Terme), read for the tracks in use and that no platform
   on the line is raised to 55 cm (the platforms' height,
   [section 9](#9-the-railway-railwayts-platformsts-rail-clearts)).
@@ -1117,13 +1228,21 @@ project in their `User-Agent`.
 
 `pnpm fetch-lig <part>` (`src/tools/fetch-lig.ts`, the services in `liguria.ts`) downloads Regione
 Liguria's sources over a part's rectangles from the Geoportale's GeoServer into
-`data/raw/lig/<part>/` (`ligDir` in `region.ts`): the NC5's four layers, the DTM's crops and the land
-use, above. Its conversions are `liguria.ts`'s (`nc5File`, `clippedRings`, `udsPolygons`), and its
+`data/raw/lig/<part>/` (`ligDir` in `region.ts`): the NC5's four layers, the DTM's crops, the land
+use, the beaches (`spiagge.json.gz`: the polygons whose bounding boxes meet the part's box, in the
+land use's shape, each its `ogr_fid`, its physical character's code and its rings on decimetres,
+no other attribute, as the build reads none) and the sea floor's isobaths (`isobaths.json.gz`:
+the lines whose bounding boxes meet the part's box grown by 1,500 m, `REACH` in `sea-floor.ts`,
+so a node by the part's edge reads the contours round it as a bigger region's would, each its
+`ID1`, its depth in metres under the sea and its points on decimetres; empty inland, as every
+part's fetch writes one), above. Its conversions are `liguria.ts`'s (`nc5File`, `clippedRings`,
+`udsPolygons`, `spiaggePolygons`, `isobathLines`), and its
 files go through `writeRaw` in `raw-lock.ts`, as `fetch-rt`'s do. The WFS's box filter matches a feature's bounding box (a superset of the features that
 meet the box), a page holds at most 5,000 features whatever count is asked, and a page asked without
 a `startIndex` comes back unsorted, in an order that changes from call to call: so `fetchWfs` asks
 the count first (`resultType=hits`), then each page from its `startIndex`, sorted by a unique field
-(`ogr_fid`, or the land use's `ID_RLIG`), and refuses unless the pages hold that many features, each
+(`ogr_fid`, the land use's `ID_RLIG` or the isobaths' `ID1`), and refuses unless the pages hold
+that many features, each
 once, in order. The issue's pages repeating without `sortBy` did not reproduce: round Sarzana on
 2026-11-03, 25,513 buildings came back 25,513 unique either way while every page named its
 `startIndex`. The box is the part's EPSG:25832 box, on whole metres outward; the land use's is a CQL
@@ -1148,7 +1267,10 @@ them, wrote the same 13 files in 3.5 s (890,274 B: the NC5's four 539,768 B, the
 348,116 B, the land use 2,390 B). For `fosdinovo` on 2026-11-07 it wrote 15 files in 18.5 s
 (553,704 B): the NC5's four (109,225 B), 10 DTM crops (406,823 B: the tiles i −6…−3 of j −4 and −3,
 and −6_−2 and −6_−1; the other tiles round its crop lie past the coverage or hold no data) and the
-land use's 61 polygons (37,656 B).
+land use's 61 polygons (37,656 B). For `magra-coast` (2026-11-16, the isobaths 2026-11-17, every
+other file byte-identical on the second run) it wrote 17 files, 889,920 B: the NC5's four
+(381,807 B), 10 DTM crops (285,357 B), the land use's 66 polygons (53,885 B), Spiagge's 39
+(10,771 B) and 2,004 isobaths (158,100 B, asked over E 574983…584042, N 4873787…4880859).
 
 ### 2. Projection and play area (`geometry.ts`, `play-area.ts`)
 
@@ -1538,7 +1660,8 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
     (buildings within 6 m) takes its own majority style. `tint` 0–3 comes from a hash of the id: of
     a survey's, its low 32 bits (above); of an OSM id, its last 9 digits.
 - **Areas**: landuse, leisure, amenity, railway platform, historic ruins, grassland and wood
-  polygons, mapped to `AREA_KINDS`, plus pedestrian squares as `paved`. OSM's platforms only stand
+  polygons, mapped to `AREA_KINDS`, plus pedestrian squares as `paved`; the sea, the beaches, the
+  piers' and the breakwaters' come from the shore's own rules (below). OSM's platforms only stand
   where the 2019 CTR's sheets map no ground; elsewhere the CTR's replace them
   ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)): all three of OSM's here.
   An orchard of olive trees (`landuse=orchard` with `trees=olive_trees`) is an `olive` grove, and
@@ -1593,7 +1716,82 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
   and 44 of them, 30 sheds and 14 houses, are no longer farms. The surveys' asphalt road surfaces
   are added as `paved` areas: squares, lay-bys and station forecourts (578 of lucido's 581 `paved`
   areas, 30 of them the 2009 sheets').
-- **Barriers**: `barrier=wall`, `barrier=guard_rail` and `natural=cliff` lines. Walls and cliffs
+- **The sea and the shore** (issue #13; `coast.ts`, `shore.ts`): the sea from OSM's coastline, the
+  beaches by their material, the piers and the breakwaters. No extract of Lunigiana or Cesena holds
+  a coastline or a beach way (Fosdinovo's one `natural=beach` is a node), so their maps are as
+  before to the byte; the magra-coast test region holds them all ([Test regions](#test-regions)).
+  - **The sea** (`sea`, cover byte 27, a water area at level 0: `isWaterArea`): OSM's
+    `natural=coastline` ways chained by their shared end nodes into lines (`coastLines`, which
+    throws where the coastline branches or a node is missing), clipped to each listed tile's square
+    cut to the region's bounds and closed along the box's edge clockwise, the sea on the right of
+    OSM's direction, into an area per connected piece of sea in a box (`seaAreas`): its outer ring
+    counter-clockwise, an islet a clockwise hole. A box no line crosses is all sea, but for its
+    islets, when its corner lies on the sea's side of the nearest coastline segment, and land
+    otherwise: the corner, not the centre, as the box's edge lies all on one side while an islet
+    may cover its centre. It is cut by tile as the woods are on their grid, since an area lies
+    whole in every tile its box comes within the halo of, and the sim joins the pieces into one
+    sea ([water.md](water.md#depth-and-current)). On magra-coast 7 sea areas, 1,146
+    vertices, cover 11.1165 km² of its 9 tiles (the 3 northern ones all land), closed in 9.2 ms;
+    tile −7_−7 holds 2, the corner east of Punta Bianca's tip (0.015 km²) one of them. A raised
+    area wholly in the sea (a breakwater off the beach, which the coastline leaves out) is cut out
+    of it as a hole (`holedSea`), dry rock with no sea painted, carved, drawn or swum over it: the
+    reef at (−10106, −12503), 1,050 m². A water body of the land cover that overlaps the sea is
+    dropped, as one OSM draws is (none on magra-coast).
+  - **The beaches**: OSM's `natural=beach`, `sand` and `dune` closed ways and multipolygons (no
+    building, no `area=no`) are `sand` (cover byte 28, and the surface `sand`:
+    [gameplay.md](gameplay.md#the-body)), `pebble` or `rock` (`beachKind`): Spiagge's material where
+    its polygons of one material hold half the beach's points or more on a 2 m lattice (its centre
+    where none falls in it; [section
+    1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)),
+    else OSM's `surface` (`gravel`, `fine_gravel`, `pebblestone`, `pebbles` and `shingle` pebble,
+    `rock` and `rocky` rock), else sand: OSM's `surface` tags few beaches. Read at its centre alone,
+    OSM's untagged cove under Montemarcello (way 68823662, 3,431 m², 79 % of it Spiagge's
+    pebbles), its centre outside the cove, came out sand up a 3–5 m slope. Spiagge's own sand (102),
+    pebble (103) and rocky shore (104) polygons are areas too, an OSM beach over one or not: the
+    rocky shore and the coves under Montemarcello and Punta Bianca, most of which OSM maps no beach
+    on; its fill (106) and river courses (301, 302) are none. On
+    magra-coast OSM's 72 beaches are 69 sand, 2 pebble and 1 rock, Spiagge adds 33 of its 39
+    polygons (26 rocky shore, 16,076 m²; 4 pebble, 7,030 m²; 3 sand, 201,389 m²), and the map
+    holds 72 sand, 6 pebble and 51 rock areas (20 of them the breakwaters).
+  - **The piers**: a `man_made=pier` open way with no `highway` tag (with one it is that road) is a
+    `path` on a deck (a bridge), as wide as its `width` tag says or a path, so the deck drawing and
+    the walk graph come free; one with no `surface` tag is `wood`, which grips as asphalt does and
+    draws in the dirt track's colour. It is cut where it crosses a water area's edge
+    (`splitPiers`): over the water a deck, its z (`pierDeck`) `PIER_DECK`, 1 m, over the water's
+    level under it (the sea's 0 m, a lake's level, a river polygon's surface), whatever the DTM
+    reads there (Liguria's reads the Magra's estuary 1.4–1.8 m up, as high as its quays), or the
+    ground where that stands higher, and an end on dry ground (none of the water 0.5 m on past it,
+    `PAST_END`) at that ground, so a walker steps on from the beach or the quay (`ON_DECK`); on dry
+    ground a path at grade. Kept whole, the lowering of the ground under the decks dug 388 nodes up
+    to 2.1 m deep under three piers OSM draws over dry ground (the 347 m boardwalk 1382979300, and
+    1382979301 and 1382979302 round a basin the map holds no water in) and sank a building's base
+    to −0.3 m. A closed pier (`area=yes`) is a `paved` area raised to 1 m. On magra-coast 16 open
+    piers, 17 pieces where the region's edge cuts them, make 21 roads, 14 decks and 7 paths at
+    grade: the estuary marinas' decks stand 1.0–1.3 m over water at 0–0.3 m, the sea marina's at
+    1.0 m, and the 4 jetties off the beach at Bocca di Magra rise from their beach end to 1 m; the
+    closed one is 685310267 by Punta Bianca, 96 m².
+  - **The breakwaters**: `man_made=breakwater` and `groyne` closed ways and multipolygons as OSM
+    draws them, and an open way as a ring 3.5 m wide along it (mitred at its bends, at most 2 half
+    widths out), are `rock` areas raised to `BREAKWATER_TOP`, 1.5 m a.s.l., once the sea is carved
+    under them ([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)),
+    walkable but walled for vehicles along each ring (a `breakwater` barrier, [section
+    10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)): rocks too steep to drive up. On
+    magra-coast 10 closed breakwaters, 1 multipolygon and 9 groynes (the Molo di Fiumaretta,
+    681229214, among them) make 20 rock areas of 15,556 m², 19 on the land side of OSM's
+    coastline, which runs round them, and the reef a hole in the sea.
+  - **The fill** (`FILL`): `sand` comes after the open ground (grassland, scrub, sparse ground,
+    scree) but before `rock` and every cover after it, so a beach's outline drawn over a groyne, a
+    breakwater, a rocky shore, a promenade or a car park leaves them theirs: drawn over them, OSM's
+    and Spiagge's beaches took 125 of magra-coast's groyne and breakwater cells, and 277 paved, 145
+    car park and 65 residential ones. The rivers, the lakes and a river's gravel bars come after
+    it, and the sea last, over every beach that reaches into it, so the shore drawn is OSM's
+    coastline; a river line's gravel bank paints over no water area, the sea's included. On
+    magra-coast 694,775 cells are sea and 16,581 sand, 25 of them under 0 m at their centre, by
+    0.10 m at most (23 by the waterline, a sea node under 0 m among their four, and 2 in a
+    stream's bed), and none over 3 m.
+- **Barriers**: `barrier=wall`, `barrier=guard_rail` and `natural=cliff` lines, and the
+  breakwaters' and groynes' outlines (`breakwater`, above), which open as a guard rail does.
+  Walls and cliffs
   are opened wherever a road (not a tunnel) comes within w/2 of them (`openBarriers` in
   `walls.ts`): OSM draws cliffs across the paths that climb through them and garden walls up to
   the centreline. A guard rail runs along its road, often inside its w/2 as OSM draws it (1,679 of
@@ -1776,14 +1974,27 @@ Cesena's is its box's corner, so neither map moved when the anchor came in. This
 flattened by the next steps; profiles and water sample the untouched terrain (the "ground").
 Elevations run from 18.1 m (the Magra plain by Sarzana at (−11500, −5920), tile −6_−3) to 1856.4 m
 (by Cima Belfiore, tile 4_6); lucido's from 147 m (the Aulella below Gragnola) to 1799 m (the
-north-west ridge of Monte Grondilice).
+north-west ridge of Monte Grondilice). On the magra-coast test region the grid reads the sea
+step's 0 m over the sea ([section
+1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)),
+which the carving takes down to the sea floor ([section
+6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)): its finished nodes run
+from −16.0 m, the floor at its south-west corner, to 359.5 m.
 
 ### 6. River carving and catchments (`water.ts`, `water-areas.ts`, `catchment.ts`)
 
 - The water surface is sampled every 2 m at ground − depth/2. It is made monotone downstream and
   continuous at confluences: a tributary's tail is lowered (by at most 0.25 extra slope) or ponded
   up to the level of the water it joins. The Lucido meets the Aulella below Gragnola, the Rosaro at
-  Soliera.
+  Soliera. No surface stands under the sea's 0 m (raised to it, and again after the decks' cap and
+  the perched check), and a piece that reaches the sea (the point 1 m on past its last vertex
+  lies in it) meets it at 0 m as a tributary meets the water it joins, its tail lowered with the
+  same fade (`waterProfiles` in `water.ts`): a river stands at the sea's level where it meets it,
+  not under it. On the magra-coast test region six pieces end in the sea: the Magra, the
+  Parmignola, the Fossa Maestra (674036058), the stream 311359630 across the beach at (−10100,
+  −12370) and two streams down Montemarcello's cliffs, from 122.9 and 74.7 m to 0. The Magra reads
+  0.3 m at its north end and 0 m from its third vertex to the mouth, where it read −0.75 to
+  −1.15 m before; every surface under 0 m stands at 0, the coastal plain's canals too.
 - Before the carving, the catchment upstream of every water sample is measured (`catchment.ts`):
   the samples are burned 100 m under their own surface into a copy of the grid, which is filled so
   every node drains (priority-flood with an epsilon, Barnes et al. 2014; the grid's edge is the
@@ -1792,7 +2003,12 @@ north-west ridge of Monte Grondilice).
   an outlet too, below any ground and never read: the flood starts from it, so the listed nodes
   beside it are an edge, D8 drains them out of the grid into it, and it brings no area of its own,
   as no ground beyond the edge does (`catchment.test.ts` checks that a notch's ground, however high,
-  changes nothing, and that it gives the fill and areas of a pit there the box's edge drains). Each
+  changes nothing, and that it gives the fill and areas of a pit there the box's edge drains). So
+  is every node of the sea, carved to its floor (`sea` of the tile pass, issue #13), so the rivers
+  and the canals that reach the sea drain into it: on the magra-coast test region the Magra reads
+  6.06 km² at its mouth, the region's own ground alone (its basin of about 1,700 km² comes in only
+  with an `OFF_MAP` entry, [Known data limitations](#known-data-limitations)), and the Parmignola
+  1.0 km². Each
   piece starts with what the pieces ending where it begins bring (shared among the arms of a
   fork), and a sample
   keeps the most its own burned nodes gather within a node of it (D8 cuts a bend's corner past a
@@ -1903,6 +2119,62 @@ north-west ridge of Monte Grondilice).
   through a lake's edge and a river's bars, both before the claims, which may not write on them but
   for a river polygon's outer edge, and the river polygons again after them, under the water kept
   below the decks.
+- **The sea floor** (`sea-floor.ts`, issue #13): the tile pass's first carving sets every node
+  inside a sea area (filled from the anchor, so a node comes out the same in every window that holds
+  it) to the floor at its point (`seaFloor`), node by node with no halo, before the lines, whose
+  channels then cut through it; the shore's nodes are left as the terrain has them. A point reads
+  two kinds of contour. One is the shore line: OSM's coastline, islets included, less each segment
+  whose land side (0.5 m off its middle) lies in a river or a lake, at the shoreface profile's depth
+  for the point's own distance from it (`shoreLines` in `coast.ts`). That drops the closure across
+  the Magra's mouth (way 1379669802, in the estuary's relation 21151807), which as shore line left a
+  0 m sill, and foam, across the mouth; and taken at 0 m rather than the profile's depth, the shore
+  line held the floor off the Tuscan beach at 0.00 m from 29 to 273 m out. The others are each
+  depth's nearest isobath within `REACH`, 1,500 m, of the lines 50 m long or more (`SHORT`): the
+  1,497 shorter open lines and 315 rings of magra-coast's file are the survey's broken bits, every
+  line of 17–25 m among them, stacked a metre of depth apart within a few metres where its rasters
+  meet or end (82 line ends along N 4877234.7, and at Liguria's sea border by the Parmignola, E
+  581513.3: a wall of water no sea floor holds, so the "10–21 m scour hole" by the Parmignola's
+  jetties is the survey's), and rings under 16 m across, which the 4 m grid draws as a node's spike.
+  The two nearest contours, at d1 and d2, weigh 1/d − 1/d3 each, d3 the third's distance (or
+  `REACH`): the two-contour rule (a·d2 + b·d1)/(d1 + d2), which steps where a third contour comes
+  nearer than the second, made continuous, as the third takes the second's place at no weight. In
+  92,900 random runs of four points the plain rule stepped 76 times (by up to 0.33 m, 37 of them in
+  water under 6 m deep), an angle-weighted one 227 times (up to 2.66 m), and this one never. Within
+  `TRUST`, 1 km, of an isobath the floor is the survey's, from `REACH` on the profile's, and between
+  them the one fades into the other: a short band raised the floor where the survey's deep edge
+  stops, from 15 to 6.5 m south of Punta Bianca and from 13 to 8.1 m south of the mouth, while
+  within 1 km lies all of magra-coast's sea but the Tuscan sea's far corner, up to 1.6 km from the
+  survey. The shoreface profile (`PROFILE`) is the issue's beach face, 8 % down to 0.6 m; then the
+  median distance from the shore line of the survey's lines off Marinella (x −9700…−8800, the beach
+  the Tuscan sea continues): 2 m at 81 m, 3 at 113, 4 at 169, 5 at 255, 6 at 393, 7 at 540, 8 at 692
+  and 9 at 881, and 10 m at 1,212 m off Fiumaretta, where Marinella's survey stops short of that
+  line; then the issue's shelf, 13 m at 2.2 km and 17 m at 7.8 km, level past it. The shelf alone
+  gave 0.54 m at 243 m off Marinella, where the survey reads 5 m, and 1 and 8 m at 450 m and 1.1 km,
+  where it reads 6.4 and 9.7. The floor is a function of the point alone, in + − × ÷ and sqrt
+  (`sea-floor.test.ts` checks it against a read of every segment, which found an off-by-one in the
+  bucket search, and that two tiles read the same bits at their seam). Built (2026-11-17), at the
+  10,642 isobath vertices in magra-coast's sea away from the river lines and the raised rock it
+  reads its line's depth to 0.00 m at the median, 96.7 % within 0.25 m (p1 −0.38, p99 +0.30 m), and
+  every line a transect crosses to 0.1 m:
+
+  | Transect | Depth by distance from the first sea point |
+  |---|---|
+  | Fiumaretta, x −10600, south | 4 m at 346 m, 5 at 622, 6 at 962, 8 at 1,207, 10 at 1,536, 11 at 1,788 |
+  | the Magra's mouth, south from (−11300, −12775) | 3.5 m at the mouth, 6 at 480 m, 10 at 937, 13 at 1,621 |
+  | Punta Bianca, x −12160, south | 10.9 m at 50 m, 14.0 at 300 m, then 14.9 to the region's edge |
+  | Montemarcello, south-west | 8 m at 48 m, 15 at 343 m, 16 from 730 m |
+  | the Tuscan sea, x −8300, south | 2.0 m at 100 m, 5.0 at 350, 7.0 at 700, 9.0 at 1,500 |
+  | the islet at (−11810, −13624) | 0.4 m 2 m south of it, 5.3 m 20 m south |
+
+  Off Marinella, x −9072, the floor lies 1.5 m deep 49 m from the coastline, 4.4 m at 215 m, 6.8 m
+  at 470 m, 8.7 m at 900 m and 10.0 m at the region's south edge, 1,550 m out; magra-coast's sea
+  cells are 9.60 m deep at the median and 16.0 m at most. The floor costs the tile pass 1.06 s
+  over magra-coast's 695,649 sea nodes, 132 candidate segments a node on average (the build 8.88 s
+  against about 7.7 s on the shelf before). Once the sea is carved, the ground under the piers'
+  areas and the breakwaters is raised to max(z, their top) at every node a cell of theirs touches
+  (`raiseAreas`, `firstCarving` in `build-grid.ts`), and no river line carves a raised node after:
+  the Parmignola's line cut a jetty at its mouth 1.8 m, to −0.3 m at (−8767, −13111). All 1,502
+  of magra-coast's raised nodes stand at their top.
 
 ### 7. Road and rail profiles (`profiles.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`)
 
@@ -2203,7 +2475,10 @@ north-west ridge of Monte Grondilice).
   tools](#checks-and-tools)).
 - A bridge or tunnel no profiled chain covers (paths, steps) is a straight line between its ends.
   Under the rail both ends keep the road clearance, as in a profiled tunnel (the pedestrian
-  underpass at Equi Terme station).
+  underpass at Equi Terme station). A pier's deck is set vertex by vertex instead, at its water's
+  level and 1 m (`pierDeck`, [section 3](#3-features-featurests)); the ground under it is lowered
+  as under any deck (on magra-coast, under its piers and bridges together, 361 nodes, 3 m at
+  most).
 
 ### 8. Water under decks (`water.ts`)
 
@@ -2369,11 +2644,11 @@ majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 
 | Wall source | `walk` | `shore` | `drive` |
 |---|---|---|---|
-| Water cells (within max(w/2, 2) m of the centreline, and the cells of the lakes and river polygons) | no | yes, except on any road or a steep cell | no |
+| Water cells (within max(w/2, 2) m of the centreline, and the cells of the lakes, the river polygons and the sea, but a sea cell whose ground at its centre stands over 0 m) | no | yes, except on any road or a steep cell | no |
 | Slope | > 35°, except on any road | no | > 25°, except within w/2 + 1.5 m of a drivable road |
 | Building outlines | yes | no | yes |
 | `wall`, `cliff` barriers | yes | no | yes |
-| `guard_rail` barriers | no | no | yes |
+| `guard_rail` barriers, and `breakwater` ones (a breakwater's or a groyne's outline) | no | no | yes |
 | The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
 | Road-exit caps (4 m inside, where drivable roads leave the area) | no | no | yes |
 | Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them, each at its deck's level; open where a road on the deck's own level reaches them: a junction on the deck, the next piece of the same bridge, a road or tunnel carrying on from it, and the inside of the deck's own bends, where one segment's piece runs on across the next one's carriageway) | no | no | yes, on the deck's level |
@@ -2393,6 +2668,17 @@ walls held them before, and stores neither of those.
   carved to its river's floor: they are the way out of the water. A lake's bed only shelves, and so
   does a river polygon's whose river the map does not hold, so their banks are walled as steep as
   they are.
+- **The sea's cells** (issue #13) are the shore's as a lake's are, but where the ground at a cell's
+  centre (on the SW–NE diagonal the terrain splits it along) stands over the sea's 0 m: a
+  breakwater or a pier's area raised in the sea, or a shore cell's dry half, is dry land, so a
+  breakwater the coastline runs across holds no shore wall on its rock. On magra-coast 1,283 of the
+  694,775 sea cells are dry so, and the shore's blocked cells go from 41,019 without the sea to
+  733,868; it holds 6,137 shore walls, 32,214 walk and 37,773 drive walls (6,114, 32,096 and 37,498
+  on the shelf floor before the survey's). A breakwater's or a groyne's outline (`breakwater`,
+  [section 3](#3-features-featurests)) stops vehicles alone, as a guard rail does: its rocks are
+  too steep to drive up and walkable. It opens only where a drivable road's middle reaches it, as
+  a guard rail does, so a path onto it leaves it walled for vehicles; a crash into it sounds like
+  rock ([audio.md](audio.md)). Magra-coast's 20 make 20 of its 56 barriers.
 - Where a drivable road (not a tunnel) runs through or along a footprint, the house gives way:
   OSM centrelines and the surveys' footprints disagree by a metre or two, and none of these roads is
   tagged as a passage. `clipBuildings` cuts a corridor of min(w/2, 1.2) m half-width out of the
@@ -2562,7 +2848,9 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   could switch its water between 8 and 4 m wide and move its bank trees 2 m. The water areas and the
   rivers' gravel are areas too, so neither lattice nor bank trees stand in them: 1,725 fewer on
   lucido, 1,655 of them in the UCS gravel, mostly by the Aulella, 31 in the lakes and the river
-  polygon and 39 at their edges, where the 2 m masks reach past the outlines. The UCS's woods add
+  polygon and 39 at their edges, where the 2 m masks reach past the outlines; and so are the sea
+  and the beaches, so no tree stands on the sand or in the sea (`trees.test.ts`; on the
+  magra-coast test region 91,376 trees, 56 fewer than with neither). The UCS's woods add
   43,294 lattice trees, and 256 bank trees standing in them give way: 43,038 more in all. The olive
   groves grow olives on a lattice of their own, a tree every 7 m (204 a hectare: the groves round
   Gragnola hold 150–280 on the 2023 orthophoto, the tended ones about 6 m apart, the old ones 7–8
@@ -2611,7 +2899,8 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   roads (not bridges or tunnels; never by a motor road, where art. 176, comma 5 bans stopping on the
   carriageways and ramps), at least 12 m from junctions and 9 m from each other, with two or more
   buildings within 40 m, off every carriageway (tunnels included), clear of walls, its box's centre
-  and corners out of the lakes and river polygons (whose shore walls open on the roads beside them),
+  and corners out of the lakes, the river polygons and the sea (whose shore walls open on the roads
+  beside them) and off a beach's sand (on magra-coast 538 spots, the beaches taking 8),
   with the car's box at least 2.8 m from at-grade running track (the clearance rule) and 1.94 m from
   a loop or siding (a train's half-width, 1.44 m, plus 0.5 m: a spot by OSM's Gragnola loop stood
   1.4 m from it; measured from the car's centre, the rule kept a spot at (−1645.2, 3301.1) whose
@@ -2643,7 +2932,19 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   last two parts' radii fitted on the 2023 orthophoto with the built terrain's contours over it):
   peaks, saddles and huts on their OSM nodes (Monte Chiaro on its castle's, on the hilltop, 72 m
   west of OSM's peak), quarries on their pits, localities and ridges centred by hand on the slope
-  they name; 203 discs in all. None overlaps a village disc but Passo dei Carpinelli's, 70 m,
+  they name; 203 discs in all. The coast's two landmarks (issue #13) are Foce del Magra, at
+  (−11297.7, −12785.1) with 160 m, the middle of the coastline's 322 m closure across the mouth
+  (ways 1379669802 and 1379669801) between the jetties' heads, Bocca di Magra's node 321 m west,
+  and Punta Bianca, on its locality node 3200895827 at (−12162.7, −13987.1) with 150 m, the
+  headland's tip, the sea 35 m east and south of it and its rocky beach (way 176721000) out to
+  134 m west; Bocca di Magra, Fiumaretta, Marinella di Sarzana, Montemarcello and Luni Mare are
+  OSM villages. Monzone's discs and the landmarks are kept only where the region's inputs reach,
+  in the box round its input parts' rectangles, so Lunigiana holds none of the coast's and the
+  magra-coast test region none of the mountains' (or Monzone's): its 10 discs are its 8 OSM places,
+  each at the 400 m cap, and the coast's two. Foce del Magra's overlaps Bocca di Magra's and names
+  the mouth all the same, as `districtAt` picks the disc a point is relatively closest to (below).
+  On Lunigiana none
+  overlaps a village disc but Passo dei Carpinelli's, 70 m,
   inside Casone Carpinelli's and small enough to take none of its buildings or spots, so the pass
   names its own district (issue #17); Foce del Cucco's 200 m, which holds the SP72's and the SP9's
   junction on the pass and its 17 houses, stops 47 m short of Monte Carboli's (issue #18). The
@@ -2688,7 +2989,10 @@ change an input.
   `raw-20261107-2`, 25.01 MB (the 31 sheets' 248 CTR files, 38
   files of the 2009 sheets, 29 terrain tiles of 17.48 MB, Fosdinovo's 23 and the 6 of Fivizzano's
   its box grew, the two parts' land cover, 2.98 MB, Liguria's 15 files and `osm/fosdinovo.osm.gz`,
-  2.03 MB). No entry names `raw-20261031` (#73's land cover), `raw-20261101` (#10's two terrains,
+  2.03 MB). Beside them #13's 21 files of the coast test region, 2.67 MB (its OSM extract,
+  Liguria's 17 and its terrain's 3), are fetched and wait for `pnpm pin-raw`: 1,191 entries,
+  95.0 MB, on 2026-11-17. No entry names `raw-20261031` (#73's land cover), `raw-20261101` (#10's
+  two terrains,
   lucido's one mosaic among them) or `raw-20261103-3` (#14's land cover with its woods) any more,
   nor `raw-20261104`'s land cover and those 6 tiles, nor `raw-20261107`'s Fivizzano land cover:
   only an older lock fetches them.
@@ -2699,8 +3003,9 @@ change an input.
   came from, and of a DBT layer's comune with the EPSG:3003 box its records were cut to
   (`…/DBT2K_045014_PONTREMOLI_…7z, the records whose box meets EPSG:3003 1568924,…`), the terrain's
   sources (each `dtm/<i>_<j>.bin`, or a test region's `dtm.bin`, `dtm.json` and `dtm-src.bin`: the
-  manifests' archives, the land-cover request with the date when the surface model fills, and
-  Emilia-Romagna's WCS when it does), and the WFS request with the date for the land cover.
+  manifests' archives, the land-cover request with the date when the surface model fills, the
+  part's OSM extract when the sea fills, and Emilia-Romagna's WCS when it does), and the WFS
+  request with the date for the land cover.
   `fetch-osm` gives every `/map` box, one a rectangle of its ground, and the date (and, for a test
   region's buildings, "buildings only"), `fetch-rer` the WCS request and the metadata URL, and
   `fetch-lig` each layer's first page and each crop's request, each with the date; `fetch-rt` names
@@ -2735,8 +3040,9 @@ change an input.
   checked again. Every job reads the version from `.node-version`: the runner images update their
   Node 24 on their own schedules, and the x64 jobs must look up the key the arm64 job saved. On a
   miss it restores `data/raw` from the cache under the lock's hash, runs `pnpm fetch-raw` (saving
-  `data/raw` once it checks) and `pnpm maps`, which builds the L test region too (`test-maps/`,
-  cached and hashed with the maps: [Test regions](#test-regions)). The cache's paths are the
+  `data/raw` once it checks) and `pnpm maps`, which builds the L and the coast test regions too
+  (`test-maps/`, cached and hashed with the maps: [Test regions](#test-regions)). The cache's
+  paths are the
   global files, the tiles and the overviews (`src/sim/map/*/overview.png`,
   `test-maps/*/overview.png`), the same in the restore and the reproducible job's save, so a hit
   brings back every file `vite build` and the map tests read but the raw inputs: the check job
@@ -2865,8 +3171,8 @@ The build hash (`hash`, 16 hex digits of SHA-256 over every `.bin` file unstampe
 global file and in every tile: `provideTile` refuses a tile from another build ("map tile i_j is
 from another build"). The overview carries no hash: `overview.map-test.ts` checks it is the
 picture its map paints ([Checks and tools](#checks-and-tools)). The files are not in git:
-`pnpm maps` builds both maps from the pinned inputs, and CI caches them ([Pinned inputs and
-CI](#pinned-inputs-and-ci)).
+`pnpm maps` builds both maps and the L and coast test regions from the pinned inputs, and CI
+caches them ([Pinned inputs and CI](#pinned-inputs-and-ci)).
 
 ### The global file
 
@@ -3121,8 +3427,9 @@ rail, the roads by class, narrowest first and at least `OVERVIEW_MIN` px wide, a
   Safari's 16.7 MP canvas limit; whole pixels across and down, so the bounds span it exactly.
   Lunigiana's is 4096 × 3540 px at 0.19 px/m (3410 × 4096 px before Fosdinovo's part;
   lucido's alone 3195 × 4096 px at 0.41 px/m), Cesena's
-  4000 × 4000 px at 1 px/m, the L test region's 4096 × 3328 px at 0.85 px/m and the 3x's 4096 × 1750
-  px at 0.18 px/m.
+  4000 × 4000 px at 1 px/m, the L test region's 4096 × 3328 px at 0.85 px/m, the coast test
+  region's 4096 × 2731 px at 0.68 px/m (2,061,141 B, the sea in `seaDeep` and the beaches in
+  `sand`, `AREA_HEX`) and the 3x's 4096 × 1750 px at 0.18 px/m.
 - **Look**: `OVERVIEW_RATIO` is 5, so its lines are as wide as on a map 4096 / 5 ≈ 820 px on its
   long side, between a 1280 × 720 window's map (694 px on its long side, east to west since
   Fosdinovo's part) and a 1920 × 1080 window's (1,111 px). Shown on those, they come out 0.85 and
@@ -3500,11 +3807,47 @@ lake, `walls.long-test.ts` (`pnpm test:long`) rings a lake with shore walls, lea
 polygon's carved banks open and keeps a house's walls out of the middle w/2 of a path that reaches
 into it (Giucano's footway four cells into a house, and Fivizzano's 0.56 m from a house's corner,
 which no cell centre's carve reached: each red before its fix), `cover.test.ts` pins the cover bytes
-(the olive groves last), draws the woods first, the UCS's conifer and mixed over a forest and every
-other area over each wood, an olive grove over a wood, grassland, farmland and residential land and
-a farmyard, a park and a square over it, and draws the bars over the river and the line's bed only
-outside the water, and `features.test.ts` maps the water tags, `ele`, the POIs and the orchards (an
-olive orchard a grove, an untyped one below 600 m of the ground given, none without it).
+(the sea's 27 and the sand's 28 last), draws the woods first, the UCS's conifer and mixed over a
+forest and every other area over each wood, an olive grove over a wood, grassland, farmland and
+residential land and a farmyard, a park and a square over it, draws the bars over the river and
+the line's bed only outside the water, and a beach's sand over the open land, the rock and the
+built covers over the sand and the sea over them all, and `features.test.ts` maps the water tags,
+`ele`, the POIs and the orchards (an olive orchard a grove, an untyped one below 600 m of the
+ground given, none without it).
+
+The sea and the shore (issue #13) are checked on synthetic inputs in `pnpm test`. `coast.test.ts`
+chains the coastline's ways in OSM's direction and throws where they branch or a node is missing,
+closes a coastline across a box into one counter-clockwise sea ring on its right, walks the box's
+corners on the sea's side alone, makes an islet a clockwise hole though it covers the box's
+centre, a box no line crosses sea or land whole by the nearest segment's side, two seas apart in
+one box two areas, leaves no spike where the coastline runs along the box's edge, throws on lines
+that disagree on the sea's side or end in the box, measures the distance from the coastline
+exactly against every segment, and drops from the shore line the segments that close a water
+across its mouth. `sea-fill.test.ts` fills the sea's cells and the empty shore it reaches, never
+a pocket inland, bends it onto the land, and gives a crop wholly on the land's side no sea step.
+`sea-floor.test.ts` reads a line's depth on it and two lines' between them by distance, the
+shoreface profile by the shore where no line lies across, the fade into the profile from 1 to
+1.5 km with no step, an islet's shore as shore, no line under 50 m, the same bits whichever read
+of the same inputs asks in whatever order, and each depth's nearest isobath exactly.
+`shore.test.ts` gives a beach Spiagge's material where it holds half the beach, else OSM's
+`surface`, else sand, a multipolygon beach its holes, Spiagge's own sand, pebbles and rocky shore
+as areas and no fill or river course, drops the land cover's gravel on a Spiagge polygon alone,
+makes an open pier a path on a bridge and a closed one a paved area raised to the deck, a
+breakwater or a groyne rock at 1.5 m (3.5 m wide along a line) with a drive wall round it, a
+pier's deck 1 m over the water whatever the DTM reads and its dry ends at the ground, cuts a pier
+at the water's edge, and cuts a breakwater wholly in the sea out of it. `water-areas.test.ts`
+carves the sea node by node to its floor in the pass before the claims and leaves it in the pass
+after them, the same in windows meeting through it as on the whole grid, raises a breakwater over
+it, keeps the sea's level and refuses a sea with no floor, reads the water's level for the piers,
+and marks the sea's nodes, no lake's, for the catchments; `build-grid.test.ts` carves no river
+line through a raised breakwater; `water.test.ts` keeps every water surface at the sea's level or
+over it, through the decks' cap and the perched check too, a river reaching the sea meeting it at
+0 m; `catchment.test.ts` drains the plain and a river into the sea's nodes, its ground never read;
+`walls.test.ts` opens a breakwater's outline only where a drivable road crosses it, and
+`walls.long-test.ts` rings the sea with shore walls but none on a raised breakwater, walled for
+vehicles alone; `spawns.test.ts` parks no car on sand or in the sea; `trees.test.ts` keeps the
+trees off the sand and the sea; and `districts.test.ts` gives Lunigiana the mountains' landmarks and
+none of the coast's.
 
 The survey adapters are checked on fixtures of a few records cut from real sheets
 (`src/tools/__tests__/fixtures/`, 36,163 B in all: cut by record with `subsetShp`, in file order,
@@ -3899,7 +4242,15 @@ code alone, and `readManifest` refuses two of one comune. A part in Liguria's co
 CTR or land cover of Regione Toscana's, runs `pnpm fetch-lig <part>` before `pnpm fetch-rt`: the
 build reads each of a region's parts' NC5 and land use from `data/raw/lig/<part>/`, and `fetch-rt`'s
 chain fills the cells its LiDAR leaves from the part's DTM crops there ([section
-1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). The tools below scope a part
+1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). A part on the coast (#21)
+runs `pnpm fetch-osm <part>` before `fetch-rt` too, so the order is `fetch-lig`, `fetch-osm`,
+`fetch-rt`: the chain's sea step reads the coastline in the part's own extract, and without it
+the sea's cells and the shore Liguria's DTM leaves empty fall through to Emilia-Romagna's DTM,
+which fills them with junk rather than failing ([Known data
+limitations](#known-data-limitations)). Its sea floor comes from the isobaths `fetch-lig` writes
+(every Liguria part's fetch writes the file, empty inland), its beaches' material from Spiagge,
+and a coastal corner past Liguria's border (the magra-coast test region's Carrara wedge) needs
+its province's 10 m DTM in the manifest. The tools below scope a part
 and check it. `rt-index`, `coverage` and `footprint-check` write their scratch in
 `.research/<part>/` (gitignored), `ortho` in `.research/ortho/` unless given a file, `playtest` in
 the folder it is given; every request names only the project in its `User-Agent` (`net.ts`), and the
@@ -4981,5 +5332,33 @@ longer lucido:
   1.0–1.1 m from 28 of Lunigiana's drivable roads and 14 of Cesena's. Padding it as the arch
   corridors are would reshape the houses drawn ([section
   10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)).
+- **Emilia-Romagna's DTM answers outside Emilia-Romagna.** Its WCS gives 0 m over the sea and a
+  smooth surface of its own over Liguria and Tuscany, not no-data, so the terrain chain's last
+  step fills any cell a part's sources leave empty, anywhere, and its error for a cell no source
+  covers never fires there: on the magra-coast test region's first fetch it filled 1,374,110 m²,
+  down to −71.8 m, a pit 38 m deep ([section
+  1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). A part's manifest must list
+  its province's 10 m DTM where Liguria's stops, and a coastal part fetch its OSM extract before
+  its terrain; only a look at the mosaic (`pnpm coverage`, `preview-map`) catches one that does
+  not.
+- **The sea floor is a survey of 2010–2019, read between its lines.** The P.T.A.M.C.'s isobaths
+  stop at Liguria's sea border by the Parmignola, so the Tuscan sea past it is the shoreface
+  profile, the medians of Marinella's lines and the issue's two EMODnet constants, not a survey;
+  its model of the floor starts 1.5 m deep and its shallowest lines are 2 m, so within about 80 m
+  of the shore the floor is the profile's (the issue's 8 % beach face to 0.6 m, then Marinella's
+  medians), not a survey. Between the lines the rule leaves small artefacts: past the deepest line
+  the floor eases back toward the line before it, by 0.1 m off Punta Bianca; just short of a line
+  whose next line lies nearer than the shore line it dips up to 0.11 m (a synthetic case); and faint
+  creases show in the south-east at 9–13 m deep. The sea stands still at 0 m, with no tide or
+  waves ([water.md](water.md#known-limits)).
+- **The Magra drains only the map's own ground.** On the magra-coast test region it reads 6.06 km²
+  at its mouth, its basin of about 1,700 km² lying almost all beyond the map, so its flow there is
+  a stream's ([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)); its
+  part (#21) brings the rest in with an `OFF_MAP` entry, as the Rosaro's heads come in.
+- **No licensed photo shows most of the coast.** Regione Liguria's AGEA orthophotos name no
+  licence and Regione Toscana's flights reach only 300 m into Liguria at Marinella, so the sand's,
+  the sea's and the foam's colours are measured at Marinella's east end and the Tuscan beach beside
+  it, and the beaches of Fiumaretta, Bocca di Magra and the coves under Montemarcello are drawn
+  from Spiagge's and OSM's outlines alone, unchecked by eye.
 - **Re-downloading changes the map.** `pnpm fetch-osm <part>` pulls current OSM edits;
   `data/raw.lock.json` pins the inputs the map is built from.

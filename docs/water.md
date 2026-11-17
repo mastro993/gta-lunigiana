@@ -164,7 +164,10 @@ follow from the discharge per km², q.
   Its bed shelves 0.1 m a metre from the shore, 3 m deep at most: the lake by the Solco di Equi is
   1.5 m deep in its middle, the Bozzetti pond 0.5 m, Lago Fario 2.98 m.
 - **In the sea** (`Area.level` 0, `SEA_LEVEL` in `channel.ts`): still water at 0 m, as a lake is,
-  over the sea floor the map build carves ([map.md](map.md)). The build cuts it into a piece per
+  over the sea floor the map build carves from Regione Liguria's survey of it, 9.60 m deep at the
+  median of the coast test region's sea cells and 16.0 m at most
+  ([map.md](map.md#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)), its edge
+  OSM's coastline ([map.md](map.md#3-features-featurests)). The build cuts it into a piece per
   tile, each the tile's square cut to the map's bounds, so a piece's ring runs along tile lines and
   bounds where the sea goes on: those edges are cuts, not shore (an edge along x or y = k × 2000 m,
   or along the bounds; `isCut` in `rivers.ts`, for any still water: the L test region's bounds cut
@@ -183,7 +186,8 @@ follow from the discharge per km², q.
   Lunigiana's water and at points up to 6.1 m either side of it, and on a 2 m lattice over its lakes
   and river polygons, at five flows (0 to 3.3 m³/s per km²) and both floors, 36,998,350 of them,
   answer to the bit as before, as do Cesena's 1,743,660 (2026-11-17). On the coast test region the
-  Magra's bed lies 2.40 m under the sea's level at its mouth.
+  Magra's bed lies 3.2 m under the sea's level at its mouth (its last vertex's baked bed, the sea
+  floor there, −3.225 m), and the canals of the coastal plain, beds under 0 m too, stand at 0 m.
 
 | Where | at 1 m³/s (Soliera) | 9 m³/s, the mean | 21 m³/s | 125 m³/s, a spate |
 |---|---|---|---|---|
@@ -238,9 +242,10 @@ feet, and takes it away on dry ground.
   species' speed (a dog 0.9, a cat 0.4, a cow 0.6, a pig 0.5 m/s, estimates). The down and the
   dead float where the current takes them.
 - **Never drowning.** Swept far, the player swims out wherever he heads; there is no breath or
-  stamina. Put 1.4 km off Marinella's beach on the coast test region, over 8.1 m of sea, a walker
-  swims and wades the 1,144 m to the coast in 34 game minutes and walks out, a dog its 1,142 m in
-  24 (the sea floor there stands 0.6 m deep for its last 300 m).
+  stamina. Put in the sea south of Marinella's beach on the coast test region, at (−9072, −14600),
+  1,349 m from the coastline over 9.4 m of water, and heading north, the player swims 1,626 m in
+  1,807 s (0.9 m/s), finds his feet 1.06 m deep, wades the last 39 m in 99 s and walks out at
+  1,906 s, 32 minutes of play (2026-11-17, the map 4c1568c7a21b5b71).
 - **Keeping out by choice** (`walkDry`). People and animals keep to the walk walls they meet on
   their footing's level like the player, but one still dry takes no step into the water unless it
   flees: it stops at the water's edge where the level stands now, so a rising river pushes it back
@@ -302,20 +307,21 @@ AI drivers keep to their lanes; a car shoved into a river is carried off like an
 ## Walls
 
 Water stops neither feet nor wheels. The map build traces the water's cells (within max(w/2, 2) m
-of a centreline, and the lakes', river polygons' and the sea's cells, not on a road) as their own
-walls, the shore, and `wallsNear` answers four kinds:
+of a centreline, and the lakes', river polygons' and the sea's cells, not on a road, but a sea
+cell whose ground at its centre stands over 0 m: a breakwater's rock raised in it, a shore cell's
+dry half) as their own walls, the shore, and `wallsNear` answers four kinds:
 
 | Kind | Walls | Who keeps to them |
 |---|---|---|
 | `walk` | buildings, slopes over 35°, cliffs, walls, the play area's outline, trunks, the low space under a road deck (on the ground's level, under 1.8 m of headroom) | everyone on foot and every animal |
 | `land` | `walk` and the shore | where people and animals spawn; a follower's way to its leader |
-| `drive` | `walk`'s but those under the decks, slopes over 25° off the roads, guard rails, parapets (on their deck's level), the low space under a road deck (on the ground's level, under 2.65 m of headroom), road-exit caps | every vehicle's physics |
+| `drive` | `walk`'s but those under the decks, slopes over 25° off the roads, guard rails, the breakwaters' and groynes' outlines, parapets (on their deck's level), the low space under a road deck (on the ground's level, under 2.65 m of headroom), road-exit caps | every vehicle's physics |
 | `traffic` | `drive` and the shore | AI drivers' lanes (`lanesFor`), where vehicles spawn |
 
 Traffic's dead ends and the spawns are worked out against the water's edge, as before, so the road
 graph, the parked spots and the player's spawn are the same; a parked car's box and the player's
-spawn also keep out of the lakes and river polygons, whose shore opens where a road runs beside
-them.
+spawn also keep out of the lakes, the river polygons and the sea, whose shore opens where a road
+runs beside them, and a parked car off a beach's sand.
 
 ## How it looks
 
@@ -336,8 +342,8 @@ them.
   over its node (`still`), which lifts nothing, the sea's flagged (`sea`). A river's ribbon leaves
   out each quad their water covers whole. The terrain above the level hides the water, so the shore
   is where they meet. Past the map's edge the edge cells' water goes on over the apron at their
-  nodes' depth, so the sea runs on 192 m beyond the play area over the edge's sea floor (9.5 m deep
-  at x −9071 on the coast test region's south edge); past the apron the screen shows the clear
+  nodes' depth, so the sea runs on 192 m beyond the play area over the edge's sea floor (10.0 m
+  deep at x −9072 on the coast test region's south edge); past the apron the screen shows the clear
   colour, dark forest green, and the minimap its background, the same green.
 - **The colour**: the water's own colour (and the darker channel's) shows from 0.05 m of mean depth
   and fully from 0.7 m; shallower, it is the limestone pebbles seen through it, tinted 0.6 of the

@@ -71,8 +71,10 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   the outline of their union, which the map is clipped to and walled along (issue #7). A part's
   mask comes with the part's own issue (#17 on); a part with ground in Liguria (Fosdinovo's, in
   Castelnuovo Magra, Sarzana and Luni) runs `fetch-lig` (#12) before `fetch-rt`, whose fallback
-  chain reads Liguria's DTM crops where no LiDAR flew. When one is missing, name the issue that adds
-  it and ask the user before building it.
+  chain reads Liguria's DTM crops where no LiDAR flew, and a part on the coast (#21) `fetch-osm`
+  between them, as the chain's sea step reads the coastline in the part's own extract (#13: without
+  it Emilia-Romagna's DTM fills the sea with junk and nothing fails). When one is missing, name the
+  issue that adds it and ask the user before building it.
 - The pick tools only print by default: run `--write` to change a manifest on purpose, then
   `pnpm fetch-rt <part>`, `pnpm map`, and `pnpm map-diff` against the map before; `pnpm pin-raw`
   then pins the part's new inputs. A part's older surveys (`ctr2009`, `ctr10k`, `dbt2k`) go into
