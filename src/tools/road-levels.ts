@@ -22,7 +22,7 @@ export const UNDERPASS = 4
  * or steps with no `maxheight` tag, m: a pedestrian underpass's least headroom, over a person's
  * 1.8 m (`PERSON_HEIGHT`).
  */
-export const PERSON = 2.5
+const PERSON = 2.5
 /** A bridge's structure above the clear height under it, m. */
 export const DECK = 1.5
 /** Half the spacing of the profile samples, m (`resample` in profiles.ts: at most 4 m apart). */
@@ -277,5 +277,5 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
     })
     return level
   }
-  return { over, twins, bounds, deckUnder }
+  return { over, bounds, deckUnder }
 }
