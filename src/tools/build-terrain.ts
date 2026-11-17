@@ -112,7 +112,17 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
       .filter((r) => (classes as ReadonlyArray<string>).includes(r.cls))
       .map((piece) => ({ piece, grade: RELAX * grade })),
   )
-  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(ground, links)
+  // Where each road and rail bridge's deck ends: a line meeting it there runs on under it.
+  const bridgeEnds = new Set(
+    [...roads, ...allRail].flatMap((l) =>
+      l.bridge === true ? [l.pts[0]!.id, l.pts.at(-1)!.id].filter((id) => id !== undefined) : [],
+    ),
+  )
+  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(
+    ground,
+    links,
+    bridgeEnds,
+  )
   const zAt = (l: Linear, s: number) => along(arcLengths(l.pts), zOf.get(l)!, s)
 
   const { railRoad, levels, roadBounds, railBounds } = railLevels({

@@ -340,3 +340,46 @@ test("profile holds a tunnel's mouths at their approach's width, not the bore's"
     [200, new Set([coreHalf(5, 4)])],
   ])
 })
+
+// Regression: the A15's approaches at Aulla (rank 0, cores 7.3–9.05 m) held their round ends past
+// their decks' ends at the decks' level over the tracks and the SP20 passing under the first spans:
+// track 137475085 under 491154909 lay at 78.8 m on a ground of 84.7, and the walkers on it came up
+// onto the deck; the SP20 under 85957119 rose 5.5 m within 6 m of it.
+test("an approach's core past its bridge's end yields to any other core: a road passing under the deck's first metres keeps its level", () => {
+  // A valley 10 m deep over x 201.5–400; a motorway at grade at 100 m onto a bridge over it from
+  // x 201.5 to 400, its approach and deck one chain or two (a junction at the deck's end).
+  const ground = (x: number) => (x > 201.5 && x < 400 ? 90 : 100)
+  const approach = { pts: [v(0, 0), v(201.5, 0, "a")] },
+    deck = { bridge: true as const, pts: [v(201.5, 0, "a"), v(400, 0, "b")] }
+  const built = (chains: ReadonlyArray<ReadonlyArray<Linear>>, track: boolean) => {
+    const { profile, claims } = makeProfiler((x) => ground(x), [], new Set(["a", "b"]))
+    for (const chain of chains)
+      profile(
+        chain.map((item) => ({ item, rev: false })),
+        { w: 10, rank: 0, grade: 0.06, half: 100, decks: true },
+      )
+    // A track across the valley floor 1.5 m past the deck's start, written after the motorway.
+    if (track)
+      profile([{ item: { pts: [v(203, -20), v(203, 20)] }, rev: false }], {
+        ...SPEC,
+        w: 3,
+        rank: 4,
+      })
+    const g = grid()
+    g.z.forEach((_, n) => (g.z[n] = ground(-20 + 4 * (n % 161))))
+    replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+    return (x: number) => g.z[(20 / 4) * 161 + (x + 20) / 4]!
+  }
+  for (const chains of [[[approach, deck]], [[approach], [deck]]]) {
+    const under = built(chains, true)
+    assert.equal(under(204), 90, "the track's core 2.5 m past the deck's start, in the approach's")
+    // 1.5 m behind the end, in the track's core: the approach's carriageway, whose surface would
+    // float over the track's level there.
+    assert.equal(under(200), 100, "the approach's own core behind the deck's end")
+    assert.equal(
+      built(chains, false)(204),
+      100,
+      "with nothing under it, the core reaches on as before",
+    )
+  }
+})

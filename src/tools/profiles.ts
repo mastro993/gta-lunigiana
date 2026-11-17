@@ -210,11 +210,13 @@ const minHeap = () => {
  * Profiles chains against `ground` (the uncarved terrain) and records the claims they make on the
  * grid, in order (`replayClaims` writes them). Elevations set at shared nodes (`nodeZ`) pin every
  * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline. `links` are
- * the roads a chain's junctions keep within reach of (`Spec.reach`).
+ * the roads a chain's junctions keep within reach of (`Spec.reach`); `bridgeEnds` the node ids where a
+ * bridge's deck ends, past which a chain ending there runs on under it (`deckEnd` in `flatten`).
  */
 export const makeProfiler = (
   ground: (x: number, y: number) => number,
   links: ReadonlyArray<Graded> = [],
+  bridgeEnds: ReadonlySet<string> = new Set(),
 ) => {
   const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
@@ -358,6 +360,19 @@ export const makeProfiler = (
     const pieceOf = Int32Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) =>
       pieceOfSample(k),
     )
+    const last = p.z.length - 1
+    // Where the line at grade meets a bridge's deck: between a segment at grade and one on the deck,
+    // or at the chain's end where a deck of another chain ends (a junction at its end, a road of
+    // another pass carrying on over it).
+    const deckEnd = (k: number) => {
+      const before = k > 0 ? pieceOf[k - 1] : undefined,
+        after = k < last ? pieceOf[k] : undefined
+      if (before !== undefined && after !== undefined)
+        return isLifted(before) !== isLifted(after) && !isTunnel(isLifted(before) ? before : after)
+      const piece = before ?? after,
+        id = (k === 0 ? pts[0] : pts.at(-1))!.id
+      return piece !== undefined && !isLifted(piece) && id !== undefined && bridgeEnds.has(id)
+    }
     claims.push(
       claimOf(
         p,
@@ -366,6 +381,7 @@ export const makeProfiler = (
         BLEND,
         (k) => isLifted(pieceOf[k]!),
         spec.writes,
+        deckEnd,
       ),
     )
     // A tunnel's mouths, with `mouths`, written first (`mouthClaim`), each at its approach's width:
