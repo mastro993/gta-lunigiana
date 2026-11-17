@@ -19,7 +19,9 @@ const kit =
         ...(await import("../chunks.ts")),
         ...(await import("../geometry.ts")),
         ...(await import("../ground.ts")),
+        ...(await import("../lines.ts")),
         ...(await import("../palette.ts")),
+        ...(await import("../testing.ts")),
         ...(await import("../water.ts")),
         ...(await import("../sky/water-shader.ts")),
         ...(await import("../../sim/map/index.ts")),
@@ -171,6 +173,46 @@ test(
     assert.ok(pairs > 50_000, `${pairs} pairs of neighbouring nodes`)
     assert.ok(least > 0.75, `the sea's share ${least.toFixed(3)} at least`)
     assert.ok(worst < 0.2, `a step of ${worst.toFixed(3)} in the sea's share between two nodes`)
+  },
+)
+
+test(
+  "rivers' ribbons, magra-coast: every river drawn as a line whose bed dips under the sea's level stands at it at least, at the mean flow and in a spate, in the sea's look as far as the sea holds it up",
+  { skip },
+  () => {
+    const k = kit!
+    const { minX, minY, maxX, maxY } = k.MAP.bounds
+    const near = k.vectorsAround(
+      [{ x: (minX + maxX) / 2, y: (minY + maxY) / 2 }],
+      Math.max(maxX - minX, maxY - minY) / 2,
+    )
+    let pieces = 0,
+      vertices = 0,
+      held = 0
+    for (const w of near.water.items) {
+      if (!k.channelOf(w).bed.some((bed) => bed < k.SEA_LEVEL)) continue
+      pieces++
+      const piece = k.waterPiece(w),
+        into = k.emptySink()
+      piece.draw(() => into, 0, piece.pts.length / 2 - 2)
+      const { position, stage, held: hold, sea } = into.water
+      for (let v = 0; v < hold.length; v++) {
+        vertices++
+        if (hold[v]! > 0) held++
+        const at = `${w.name ?? "water"} ${w.id}, vertex ${v}`
+        assert.equal(sea[v], k.seaShare(hold[v]!), `${at}: the sea's share`)
+        // Drawn over its bed (`waterPiece`) and lifted by the shader as far as the flow or the sea holds it.
+        for (const q of [k.MEAN, k.SPATE]) {
+          const level =
+            k.zOf(position[3 * v + 1]!) + Math.max(stage[v]! * Ops.pow(q, k.STAGE), hold[v]!)
+          assert.ok(level >= k.SEA_LEVEL, `${at} at ${q}: drawn at ${level} m`)
+        }
+      }
+    }
+    assert.ok(
+      pieces > 20 && held > 20_000,
+      `${held} of ${vertices} vertices of ${pieces} pieces held up by the sea`,
+    )
   },
 )
 

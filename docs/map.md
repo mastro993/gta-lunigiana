@@ -405,10 +405,12 @@ terrain of its own reads its own inputs alone (`inputParts`, and no Regione Tosc
   over 0 m, as deep as it stands over each node; the sea carried on over the apron south of the
   map; the Magra's polygon drawn where `waterAt` has its level at the mean flow and in a spate,
   meeting the sea flush at the 98 nodes they share and wholly in the sea's look there, its share
-  of that look at least 0.75 and never stepping 0.2 between neighbouring nodes
-  ([water.md](water.md#how-it-looks)); and `terrain-coast.map-test.ts` the faces round Marinella's
-  beach in their cells' look, its sand wet only under 0.2 m, and the coast's beaches wet under a
-  tenth of their cells, the band's inner edge a median two cells or less from the sea: 546 of
+  of that look at least 0.75 and never stepping 0.2 between neighbouring nodes, and the ribbons of
+  the 27 rivers whose bed dips under 0 m never drawn under it, at the mean flow or in a spate
+  ([water.md](water.md#how-it-looks)); `effects-coast.map-test.ts` a tyre spinning on the sand
+  under the sea off Marinella throwing up no dust; and `terrain-coast.map-test.ts` the faces round
+  Marinella's beach in their cells' look, its sand wet only under 0.2 m, and the coast's beaches wet
+  under a tenth of their cells, the band's inner edge a median two cells or less from the sea: 546 of
   16,581 cells, 4 m ([architecture.md](architecture.md#rendering)). Its twins of the checks the
   maps and the L have are listed in [Checks and tools](#checks-and-tools): the ground, surface and
   water lookups, the walls under the decks, the joints, the tunnels, the levels, the decks'
