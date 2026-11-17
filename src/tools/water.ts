@@ -139,12 +139,20 @@ export const capUnderDecks = (
  * approaches); then water left perched over a road cut (culverted streams end at the road) drops
  * to the terrain, except inside a wider channel it flows into or a lake's water, whose carved beds
  * lie under it, as long as it still runs downhill there (a stream dropped into a river's carved bed
- * never steps back up). A lake's water stands within PERCH of its level (`still` gives the level of
- * the lake at a point); higher, a surface inside its outline is the stream's on the bank, and drops
- * no lower than the level, where it meets the lake's: the Canale della Fola runs into a pond 570 m
- * from Arlia at its ground, 1.7 m over the level the pond's outlet caps it at, and its last sample
- * there, over the outlet's cascade carved 4 m under it, stood 3.4 m over the ground. `terrain[i][k]`
- * is the carved grid, before its rounding, under sample k of water i.
+ * never steps back up). Nor does a sample after a dropped one, though within PERCH of its own ground,
+ * stand over it while that ground lies under it, but in a lake's water: it drops to the dropped
+ * surface. A stream falling into the Magra's gravel at Aulla (way 1430400928) kept a sample 0.1 m
+ * over the one before it, dropped to its ground, as the river polygon's carve deepened the bed under
+ * it, and the Torrente Arcinasso 1.0 m at (−8592, 4954). Where the ground rises past the dropped
+ * surface the stream is out of the hole it dropped into (a culvert's dip under a road at grade) and
+ * keeps its own: pinned to its ground there, a stream onto the Magra's gravel at (−13976, 9447) (way
+ * 791364133, past a path at grade) rippled 0.3 m up and down. A lake's water stands within PERCH of its
+ * level (`still` gives the level of the lake at a point); higher, a surface inside its outline is
+ * the stream's on the bank, and drops no lower than the level, where it meets the lake's: the Canale
+ * della Fola runs into a pond 570 m from Arlia at its ground, 1.7 m over the level the pond's outlet
+ * caps it at, and its last sample there, over the outlet's cascade carved 4 m under it, stood 3.4 m
+ * over the ground. `terrain[i][k]` is the carved grid, before its rounding, under sample k of water
+ * i.
  */
 export const dropPerched = (
   water: ReadonlyArray<WaterF>,
@@ -158,16 +166,30 @@ export const dropPerched = (
   water.forEach((w, i) => channels.addLine(w.pts, w.w / 2 + 1, i))
   water.forEach((w, i) => {
     const p = wp[i]!
+    // The surface the last sample dropped to, while the samples after it would stand over it.
+    let dropped = Number.POSITIVE_INFINITY
     for (let k = 0; k < p.z.length; k++) {
-      const top = terrain[i]![k]! + w.depth / 2
-      if (p.z[k]! <= top + PERCH) continue
+      const x = p.x[k]!,
+        y = p.y[k]!,
+        ground = terrain[i]![k]!,
+        top = ground + w.depth / 2
+      if (p.z[k]! <= top + PERCH) {
+        if (p.z[k]! <= dropped || ground >= dropped) dropped = Number.POSITIVE_INFINITY
+        else {
+          const lake = still(x, y)
+          if (lake !== undefined && p.z[k]! <= lake + PERCH) dropped = Number.POSITIVE_INFINITY
+          else p.z[k] = dropped
+        }
+        continue
+      }
       const downhill = k === 0 || p.z[k]! <= p.z[k - 1]!,
-        lake = still(p.x[k]!, p.y[k]!)
+        lake = still(x, y)
       const joins =
         downhill &&
         ((lake !== undefined && p.z[k]! <= lake + PERCH) ||
-          channels.covers(p.x[k]!, p.y[k]!, (j) => j !== i && water[j]!.w > w.w))
-      if (!joins) p.z[k] = Math.min(p.z[k]!, Math.max(top, lake ?? top))
+          channels.covers(x, y, (j) => j !== i && water[j]!.w > w.w))
+      if (joins) dropped = Number.POSITIVE_INFINITY
+      else dropped = p.z[k] = Math.min(p.z[k]!, Math.max(top, lake ?? top))
     }
   })
 }
