@@ -178,7 +178,9 @@ const roadOrder = (roads: ReadonlyArray<{ readonly cls: string }>): Array<number
 /**
  * Paints `map` at `scale` px/m with `pen`: grass over the play area, clipped to it, then the areas
  * (even-odd, in the order the land cover's raster fills them, `fillRank`: the woods first, the
- * rest of the land by kind, the lakes and river polygons over it, a river's gravel bars over them), the water (opaque, at least 1 px wide), the rail out of tunnels (`faded`), the roads,
+ * rest of the land by kind, a beach's sand over the open ground but under the rock and all after
+ * it, the lakes and river polygons over the land, a river's gravel bars over them, and the sea
+ * last, its pieces as one fill), the water (opaque, at least 1 px wide), the rail out of tunnels (`faded`), the roads,
  * paths left out (`roadOrder`, each as `road` says, a road in a tunnel dashed in its own look: `dashesOf`), and the buildings' outer rings (non-zero).
  */
 export const paintLayers = <R extends PaintRoad>(
@@ -190,7 +192,22 @@ export const paintLayers = <R extends PaintRoad>(
   pen.clip(map.outline)
   pen.fill(map.outline, PALETTE.grass, "evenodd")
   // each pass in the layer's order (a stable sort)
-  for (const area of [...map.areas].sort((a, b) => fillRank(a.kind) - fillRank(b.kind))) {
+  const areas = [...map.areas].sort((a, b) => fillRank(a.kind) - fillRank(b.kind))
+  let sea = false
+  for (const area of areas) {
+    // The sea comes cut along the tiles' sides, its pieces abutting exactly (src/tools/coast.ts; the
+    // sim finds its cuts there): filled one by one, each piece's antialiased edge on a tile line let
+    // the grass through, a seam across the sea. Its pieces never overlap, so they fill as one.
+    if (area.kind === "sea") {
+      if (!sea)
+        pen.fill(
+          areas.flatMap((a) => (a.kind === "sea" ? a.rings : [])),
+          AREA_HEX.sea,
+          "evenodd",
+        )
+      sea = true
+      continue
+    }
     const hex = isAreaKind(area.kind) ? AREA_HEX[area.kind] : undefined
     if (hex !== undefined) pen.fill(area.rings, hex, "evenodd")
   }

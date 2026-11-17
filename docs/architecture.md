@@ -2163,7 +2163,8 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   blit instead of leaving a seam (0.36 MP, 1.45 MB). One canvas of the whole region would pass
   Safari's 16.7 MP limit as the map grows (Lunigiana's was already 2340 × 3000 px, 7 MP). A tile
   is painted from that tile's own vectors (`tileLayers`: its areas (the lakes and river polygons
-  over the land, the gravel bars over those and the sea, in `seaDeep`, last; a beach in `sand`),
+  over the land, the gravel bars over those and the sea, in `seaDeep`, last, its pieces as one
+  fill, as they meet edge to edge on the tile lines; a beach in `sand`),
   water, roads and buildings, every
   one within the tiles' 32 m halo of its square, in the whole map's order, the roads' attributes
   from `MAP.roads`) and the global rail whose boxes reach it (± 1 px and 20 m, the widest stroke's
@@ -2689,7 +2690,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     opening) and release (at each closing, a late one included);
     `src/tools/__tests__/overview.test.ts` and `paint-raster.test.ts`: the overview's size under
     Safari's 16.7 MP, the full map's look in it (grass on the play area only, roads by class
-    narrowest first, a tunnel dashed, buildings on top), the same bytes every run, and the raster
+    narrowest first, a tunnel dashed, buildings on top, the sea's pieces with no seam on the tile
+    lines between them), the same bytes every run, and the raster
     painter's fills, strokes and clips; `src/render/__tests__/map-style.test.ts`: the areas in the
     land cover's order, the water opaque, and a road in a tunnel dashed in its own look from its
     start, half its line drawn, a path in a tunnel left out;

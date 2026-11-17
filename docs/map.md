@@ -1801,7 +1801,12 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
     otherwise: the corner, not the centre, as the box's edge lies all on one side while an islet
     may cover its centre. It is cut by tile as the woods are on their grid, since an area lies
     whole in every tile its box comes within the halo of, and the sim joins the pieces into one
-    sea ([water.md](water.md#depth-and-current)). On magra-coast 7 sea areas, 1,146
+    sea ([water.md](water.md#depth-and-current)). Unlike the woods' pieces, which reach 4 m past
+    their squares, they meet edge to edge on the tile lines, where the sim finds its cuts
+    (`isCut`) and the render fills each piece's cells (`poolWater`), so the maps fill the sea's
+    pieces as one path (`paintLayers`): filled one by one, each piece's antialiased edge let the
+    grass through on a tile line inside a pixel, a seam across the sea (6,573 px of the coast's
+    overview, along its row 2048 and columns 1365 and 2730). On magra-coast 7 sea areas, 1,146
     vertices, cover 11.1165 km² of its 9 tiles (the 3 northern ones all land), closed in 9.2 ms;
     tile −7_−7 holds 2, the corner east of Punta Bianca's tip (0.015 km²) one of them. A raised
     area wholly in the sea (a breakwater off the beach, which the coastline leaves out) is cut out
@@ -3513,7 +3518,7 @@ rail, the roads by class, narrowest first and at least `OVERVIEW_MIN` px wide, a
   Lunigiana's is 4096 × 3540 px at 0.19 px/m (3410 × 4096 px before Fosdinovo's part;
   lucido's alone 3195 × 4096 px at 0.41 px/m), Cesena's
   4000 × 4000 px at 1 px/m, the L test region's 4096 × 3328 px at 0.85 px/m, the coast test
-  region's 4096 × 2731 px at 0.68 px/m (2,061,141 B, the sea in `seaDeep` and the beaches in
+  region's 4096 × 2731 px at 0.68 px/m (2,059,293 B, the sea in `seaDeep` and the beaches in
   `sand`, `AREA_HEX`) and the 3x's 4096 × 1750 px at 0.18 px/m.
 - **Look**: `OVERVIEW_RATIO` is 5, so its lines are as wide as on a map 4096 / 5 ≈ 820 px on its
   long side, between a 1280 × 720 window's map (694 px on its long side, east to west since
@@ -3802,8 +3807,10 @@ maps' and, built or in CI, the L's and the coast's) is not the image its whole m
 so a change to the look, the palette or the vectors needs `pnpm maps` again, as a stale bake does;
 `overview.test.ts` checks its size (3195 × 4096 px for lucido's bounds, 4000 × 4000 for Cesena's),
 the look on an L-shaped map (grass on the play area alone, the areas, the water, the roads by class
-narrowest first, a tunnel dashed, no paths, the buildings on top, transparent in the notch) and that
-two paints give the same bytes, which `pngData` gives back as the pixels; `paint-raster.test.ts`
+narrowest first, a tunnel dashed, no paths, the buildings on top, transparent in the notch), that
+three sea pieces meeting on tile lines inside a pixel, at the coast's 0.68 px/m, paint the sea's
+colour along them with no seam, and that two paints give the same bytes, which `pngData` gives back
+as the pixels; `paint-raster.test.ts`
 checks that a fill covers the pixels inside and a pixel half inside by half by either rule, that a
 stroke covers its width with round ends, each pixel once however many segments reach it, and that a
 clip lets paint through by its coverage.

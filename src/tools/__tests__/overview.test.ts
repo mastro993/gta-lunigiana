@@ -95,3 +95,39 @@ test("the overview is the same bytes every time, and its PNG holds exactly its p
   }
   assert.ok(Buffer.from(out).equals(Buffer.from(pixels)))
 })
+
+// Regression: the sea comes cut along the tiles' sides, its pieces abutting exactly (coast.ts), and
+// each was filled on its own, so on a tile line between two pixels each piece's antialiased edge let
+// the grass under them through: a seam across the sea at every tile line.
+test("the sea's pieces paint as one sea: no seam on the tile lines between them, inside a pixel or not", () => {
+  // The coast test region's box and scale (0.68 px/m): the tile lines x 2000 and y 2000 fall inside a pixel.
+  const sea = (x0: number, y0: number, x1: number, y1: number) => ({
+    kind: "sea",
+    rings: [[x0, y0, x1, y0, x1, y1, x0, y1]],
+  })
+  const {
+    width,
+    height,
+    rgba: pixels,
+  } = paintOverview(
+    {
+      outline: [[0, 0, 6000, 0, 6000, 4000, 0, 4000]],
+      areas: [sea(0, 0, 2000, 4000), sea(2000, 0, 6000, 2000), sea(2000, 2000, 6000, 4000)],
+      water: [],
+      rail: [],
+      roads: [],
+      buildings: [],
+    },
+    { minX: 0, minY: 0, maxX: 6000, maxY: 4000 },
+  )
+  const u = (2000 * width) / 6000,
+    v = (2000 * height) / 4000
+  assert.ok(u % 1 > 0.2 && u % 1 < 0.8 && v % 1 > 0.2 && v % 1 < 0.8, `the lines at ${u}, ${v} px`)
+  const want = rgba(PALETTE.seaDeep).join(),
+    at = (i: number, j: number) =>
+      [...pixels.subarray(4 * (j * width + i), 4 * (j * width + i) + 4)].join()
+  let seam = 0
+  for (let j = 0; j < height; j++) if (at(Math.floor(u), j) !== want) seam++
+  for (let i = Math.ceil(u); i < width; i++) if (at(i, Math.floor(v)) !== want) seam++
+  assert.equal(seam, 0, `${seam} pixels on the tile lines not the sea's`)
+})
