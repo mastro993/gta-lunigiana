@@ -49,23 +49,26 @@ export const endsOf = (road: Road, id: number): Array<Mouth> =>
 /**
  * The mouths of the road tunnels of `roads` (the whole map's, or every road within reach of the
  * tunnels it is asked about): each end of a road in a tunnel, not a building passage, that no other
- * road in a tunnel ends at, inside the play area (farther than 0.5 m from its outline, where a road
- * runs on past it).
+ * road in a tunnel ends at or runs through (a ramp off an underpass branches inside the bore),
+ * inside the play area (farther than 0.5 m from its outline, where a road runs on past it).
  */
 export const mouthsOf = ({ ids, items }: Layer<Road>): Array<Mouth> => {
-  const ends = new Map<string, number>()
+  const ends = new Map<string, number>(),
+    through = new Set<string>()
   for (const road of items)
     if (road.tunnel === true)
-      for (const k of [0, road.z.length - 1]) {
+      for (let k = 0; k < road.z.length; k++) {
         const key = `${road.pts[2 * k]},${road.pts[2 * k + 1]}`
-        ends.set(key, (ends.get(key) ?? 0) + 1)
+        if (k === 0 || k === road.z.length - 1) ends.set(key, (ends.get(key) ?? 0) + 1)
+        else through.add(key)
       }
   return items.flatMap((road, n) =>
     road.tunnel !== true || road.passage === true
       ? []
       : ([0, 1] as const).flatMap((end) => {
-          const { x, y, angle } = endOf(road, end)
-          return ends.get(`${x},${y}`) === 1 && outlineDistance(x, y) > 0.5
+          const { x, y, angle } = endOf(road, end),
+            key = `${x},${y}`
+          return ends.get(key) === 1 && !through.has(key) && outlineDistance(x, y) > 0.5
             ? [{ road: ids[n]!, x, y, angle }]
             : []
         }),
