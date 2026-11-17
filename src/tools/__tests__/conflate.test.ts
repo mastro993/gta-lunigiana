@@ -5,6 +5,7 @@ import { conflateRail, type Layout } from "../conflate.ts"
 import type { CtrRail, CtrTrack } from "../ctr-rail.ts"
 import type { RailF, RoadF, WaterF } from "../features.ts"
 import type { P, V } from "../geometry.ts"
+import { surveyId } from "../survey-ids.ts"
 
 const NONE: Layout = { drop: new Set(), reserved: new Set(), swap: new Map() }
 const track = (src: string, ...pts: ReadonlyArray<P>): CtrTrack => ({ src: [src], pts })
@@ -100,8 +101,9 @@ test("conflateRail puts OSM's line on the CTR, its crossing nodes on the road wh
   assert.ok(c.report.residual[2] < 1e-9)
   // The loop's ends are switch vertices of the line; the siding's are free.
   const [loop, siding] = c.extra
-  assert.equal(loop!.id, -190020)
-  assert.equal(siding!.id, -190030)
+  // Numbered by sheet 23D01's section, record and part (`surveyId`, as the CTR's buildings).
+  assert.equal(loop!.id, surveyId("ctr2019", 601, 190020))
+  assert.equal(siding!.id, surveyId("ctr2019", 601, 190030))
   for (const end of [loop!.pts[0]!, loop!.pts.at(-1)!])
     assert.ok(
       east.pts.some((p) => p.id === end.id && p.x === end.x && p.y === end.y),
