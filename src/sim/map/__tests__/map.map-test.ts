@@ -390,6 +390,20 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
   }
 })
 
+/**
+ * Road `i`'s surface (`roadLevel`) where wall `s` stands nearest (x, y), else at (x, y): a car
+ * touching the wall stands within half its width of it, while the sample is up to w/2 off it, and a
+ * road climbing beside a deck or off its end stands there up to w/2 times its grade off its level at
+ * the sample (the A15's 85958274 by the walls under its bridge 85958239's north end at (−14766,
+ * 9460): 91.60 m at the sample, 91.83 m at the wall, which stands at 89.6 m).
+ */
+const levelAt = (i: number, s: Segment, x: number, y: number) => {
+  const ex = s.bx - s.ax,
+    ey = s.by - s.ay,
+    t = Math.max(0, Math.min(1, ((x - s.ax) * ex + (y - s.ay) * ey) / (ex * ex + ey * ey || 1)))
+  return roadLevel(i, s.ax + ex * t, s.ay + ey * t) ?? roadLevel(i, x, y)
+}
+
 test("walls: none on a road; only buildings and barriers come inside w/2", () => {
   assert.ok(WHOLE.walls.walk.length > 0 && WHOLE.walls.drive.length > 0)
   const near = (x: number, y: number, ring: ReadonlyArray<number>, d: number) =>
@@ -416,7 +430,7 @@ test("walls: none on a road; only buildings and barriers come inside w/2", () =>
       for (const kind of isDrivable(r.cls) ? (["walk", "drive"] as const) : (["walk"] as const))
         for (const s of wallsNear(kind, x - h, y - h, x + h, y + h)) {
           if (segmentDistance(s, x, y) >= h) continue
-          const on = s.level === undefined ? undefined : z()
+          const on = s.level === undefined ? undefined : levelAt(i, s, x, y)
           if (on === undefined || meets(s, on))
             assert.ok(fixed(s), `terrain/trunk ${kind} wall inside w/2 of ${where}`)
         }
