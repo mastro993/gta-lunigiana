@@ -258,9 +258,16 @@ export const checkCanopies = ({ all, stations }: Stations): void => {
       return false
     })
   })
-  // Gragnola's, and since the map took in Fivizzano's part Pieve San Lorenzo's and Gassano's, whose platforms run along their
-  // buildings too (the CTR's at Pieve wraps the building's track side); Equi Terme's and Monzone's have grass or a forecourt.
-  const canopied = new Set(["Minucciano-Pieve-Casola", "Gragnola", "Fivizzano-Gassano"]),
+  // Gragnola's, and since the map took in Fivizzano's part Pieve San Lorenzo's and Gassano's, and Aulla's Rometta's, whose
+  // platforms run along their buildings too (the CTR's at Pieve wraps the building's track side); Equi Terme's and Monzone's
+  // have grass or a forecourt, and Aulla Lunigiana's platforms on the map stop north of its building, where 24C60's survey
+  // ends.
+  const canopied = new Set([
+      "Minucciano-Pieve-Casola",
+      "Gragnola",
+      "Fivizzano-Gassano",
+      "Fivizzano-Rometta-Soliera",
+    ]),
     name = (s: number) => MAP.railway.stations[s]!.name
   assert.deepEqual(
     along.map(name),
