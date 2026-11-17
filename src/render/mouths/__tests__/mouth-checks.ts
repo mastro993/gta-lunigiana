@@ -18,7 +18,8 @@ import {
 import { buildingBox } from "../../../sim/map/vectors.ts"
 import { boreOf, UNDER } from "../../bores.ts"
 import type { Vectors } from "../../testing.ts"
-import { leastWall, measured, type Standing, standing } from "../index.ts"
+import { leastWall, measured, type Standing, standing, wallFoot } from "../index.ts"
+import { headWall } from "../shapes.ts"
 
 /** A road tunnel's mouth: its road (index in the whole map's roads), its end and the heading out of the hill (rad). */
 export interface Mouth {
@@ -315,8 +316,9 @@ export type Open = "buried" | "housed" | "low" | "crowded"
  * than the clear height over the road ("housed": a covered way, which the house hides); else
  * the ground over it never rises as high over the road as a head wall's top and its margin
  * (`leastWall`: "low"); else another road or the track runs through the room a head wall and its
- * box would take, beside the bore's axis and between the road and that height ("crowded"), or it
- * fails.
+ * box would take, beside the bore's axis and between the wall's foot (`wallFoot`, as the bake
+ * stands it: under the road, or under the ground at its face's ends where that is lower) and that
+ * height ("crowded"), or it fails.
  */
 export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   const own = tunnelOf(roads, end.road),
@@ -395,7 +397,8 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   if (highest < least) return "low"
   const ux = Math.cos(end.angle),
     uy = Math.sin(end.angle),
-    room = boreOf(road).half + 2
+    room = boreOf(road).half + 2,
+    foot = wallFoot(end.x, end.y, ux, uy, headWall(boreOf(road)).half, floor)
   const crowding = waysNear(roads, end, end.x, end.y).find((way) => {
     if (way.out) return false
     const m = Math.max(1, Math.ceil(Math.hypot(way.b[0] - way.a[0], way.b[1] - way.a[1]) / 0.25))
@@ -409,7 +412,7 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
         deep >= -2 - way.half &&
         deep <= span + 1 + way.half &&
         across <= room + way.half &&
-        over >= 0 &&
+        over > foot - floor &&
         over <= least
       )
         return true

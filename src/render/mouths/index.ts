@@ -116,6 +116,19 @@ const mouthsOf = <L extends Line>(
 const sidesLow = (x: number, y: number, ux: number, uy: number, half: number): number =>
   Math.min(terrainZ(x - uy * half, y + ux * half), terrainZ(x + uy * half, y - ux * half))
 
+/** How far a portal's or head wall's foot stands under the road's surface, or under the ground at its face's ends where that is lower, m. */
+const FOOT = 0.5
+
+/** The foot (m a.s.l.) of a face wall `half` m either side of (x, y) across the heading (ux, uy), on a road whose surface stands at `z`: what stands over it is in the wall's room (`clearance`). */
+export const wallFoot = (
+  x: number,
+  y: number,
+  ux: number,
+  uy: number,
+  half: number,
+  z: number,
+): number => Math.min(sidesLow(x, y, ux, uy, half), z) - FOOT
+
 /**
  * How far (m) the throat of a portal at (x, y), heading out (ux, uy), runs into the hill: from
  * THROAT.shortest on, a metre at a time, until the hill over its centreline stands at `top` (m
@@ -290,7 +303,7 @@ export const bakeMouths = (
             uy = Ops.sin(heading),
             z = at.z + lift,
             most = Math.max(1, Math.min(THROAT.longest, Math.floor(length / 2 - THICK - back))),
-            foot = Math.min(sidesLow(at.x, at.y, ux, uy, shape.half), z) - 0.5,
+            foot = wallFoot(at.x, at.y, ux, uy, shape.half, z),
             clear = clearance(near, at.x, at.y, z, ux, uy, foot, print)
           if (clear === undefined || clear < Math.min(THROAT.shortest, most)) continue
           const throat = box(at.x, at.y, ux, uy, z, Math.min(most, Math.floor(clear)))
