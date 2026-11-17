@@ -75,9 +75,9 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
   )
   assert.equal(containing, undefined, `Player starts inside building ${containing?.id}`)
   const trunks = trunkIndex(trees)
-  const walk = clearance(start.walk, trunks)
+  const walk = clearance([start.walk], trunks)
   assert.ok(walk.circle(x, y, 1.2))
-  assert.ok(clearance(start.drive, trunks).circle(x, y, 1.2))
+  assert.ok(clearance([start.drive], trunks).circle(x, y, 1.2))
   const reachesStreet = start.roads.some((road) => {
     if (!isTraffic(road.cls) || isMotorRoad(road)) return false
     for (let index = 0; index + 3 < road.pts.length; index += 2) {

@@ -58,7 +58,8 @@ test("gaussBoagaBox is the EPSG:3003 box round the corners, widened by pad on ev
 
 test("staticSegs visits the segments segIndex visits, in the same order, at the same distances", () => {
   // 400 segments up to 30 m long over a 200 m square on both sides of the origin, short and
-  // degenerate ones among them, asked at 2000 points over it and past its edges.
+  // degenerate ones among them, in three parts (one empty), asked at 2000 points over it and past
+  // its edges.
   const xy: Array<number> = []
   for (let k = 0; k < 400; k++) {
     const ax = 200 * hash01(k, 1) - 100,
@@ -70,20 +71,20 @@ test("staticSegs visits the segments segIndex visits, in the same order, at the 
   const index = segIndex<number>()
   for (let k = 0; k < 400; k++)
     index.add(xy[4 * k]!, xy[4 * k + 1]!, xy[4 * k + 2]!, xy[4 * k + 3]!, 3, k)
-  const packed = staticSegs(xy, 3)
+  const packed = staticSegs([xy.slice(0, 4 * 150), [], xy.slice(4 * 150)], 3)
   let hits = 0
   for (let n = 0; n < 2000; n++) {
     const x = 240 * hash01(n, 5) - 120,
       y = 240 * hash01(n, 6) - 120
-    const want: Array<readonly [number, number]> = [],
-      got: Array<readonly [number, number]> = []
-    index.within(x, y, (s, d2) => want.push([s.data, d2]))
-    packed(x, y, (k, d2) => got.push([k, d2]))
+    const want: Array<ReadonlyArray<number>> = [],
+      got: Array<ReadonlyArray<number>> = []
+    index.within(x, y, (s, d2) => want.push([s.data, d2, s.ax, s.ay, s.bx, s.by]))
+    packed(x, y, (...seen) => got.push(seen))
     assert.deepEqual(got, want)
     hits += got.length
   }
   assert.ok(hits > 500, `the points meet segments (${hits})`)
-  staticSegs([], 3)(0, 0, () => assert.fail("no segments, no visit"))
+  staticSegs([[]], 3)(0, 0, () => assert.fail("no segments, no visit"))
 })
 
 test("staticPoints visits the points staticGrid visits as boxes, in the same order", () => {

@@ -311,20 +311,36 @@ export const segIndex = <T>(bucket = 16) => {
 }
 
 /**
- * `segIndex` over a fixed set of flat (ax, ay, bx, by) segments `xy`, all with buffer radius `r`:
- * the same buckets, each one's segment indices packed into one Int32Array in the order added (an
- * object a segment and an array a bucket took about 500 MB at Lunigiana's 1.7 million walls). The
- * query calls `visit` with the index of each segment whose buffer contains (x, y), in index order,
- * and the squared distance.
+ * `segIndex` over a fixed set of flat (ax, ay, bx, by) segments, all with buffer radius `r`, the
+ * segments of `parts` one after another (the clearance's walls and their shore's, with no copy of
+ * both): the same buckets, each one's segment indices packed into one Int32Array in the order added
+ * (an object a segment and an array a bucket took about 500 MB at Lunigiana's 1.7 million walls).
+ * The query calls `visit` with the index of each segment whose buffer contains (x, y), in index
+ * order, the squared distance and the segment.
  */
-export const staticSegs = (xy: ArrayLike<number>, r: number, bucket = 16) => {
-  const count = Math.floor(xy.length / 4)
+export const staticSegs = (parts: ReadonlyArray<ArrayLike<number>>, r: number, bucket = 16) => {
+  // The segments each part ends at, counted from the first part's first.
+  const ends: Array<number> = []
+  let count = 0
+  for (const xy of parts) ends.push((count += Math.floor(xy.length / 4)))
+  let ax = 0,
+    ay = 0,
+    bx = 0,
+    by = 0
+  /** Segment k into (ax, ay, bx, by). */
+  const load = (k: number) => {
+    let p = 0
+    while (k >= ends[p]!) p++
+    const xy = parts[p]!,
+      o = 4 * (k - (p === 0 ? 0 : ends[p - 1]!))
+    ax = xy[o]!
+    ay = xy[o + 1]!
+    bx = xy[o + 2]!
+    by = xy[o + 3]!
+  }
   // Each segment's buckets, as segIndex's `add` takes them.
   const span = (k: number) => {
-    const ax = xy[4 * k]!,
-      ay = xy[4 * k + 1]!,
-      bx = xy[4 * k + 2]!,
-      by = xy[4 * k + 3]!
+    load(k)
     return [
       Math.floor((Math.min(ax, bx) - r) / bucket),
       Math.floor((Math.max(ax, bx) + r) / bucket),
@@ -356,15 +372,20 @@ export const staticSegs = (xy: ArrayLike<number>, r: number, bucket = 16) => {
   const items = new Int32Array(starts[cols * rows]!)
   const next = starts.slice(0, -1)
   for (let k = 0; k < count; k++) each(k, (q) => (items[next[q]!++] = k))
-  return (x: number, y: number, visit: (k: number, d2: number) => void) => {
+  return (
+    x: number,
+    y: number,
+    visit: (k: number, d2: number, ax: number, ay: number, bx: number, by: number) => void,
+  ) => {
     const i = Math.floor(x / bucket) - i0,
       j = Math.floor(y / bucket) - j0
     if (!(i >= 0 && j >= 0 && i < cols && j < rows)) return
     const q = j * cols + i
     for (let m = starts[q]!; m < starts[q + 1]!; m++) {
       const k = items[m]!
-      const { d2 } = segDist2(x, y, xy[4 * k]!, xy[4 * k + 1]!, xy[4 * k + 2]!, xy[4 * k + 3]!)
-      if (d2 < r * r) visit(k, d2)
+      load(k)
+      const { d2 } = segDist2(x, y, ax, ay, bx, by)
+      if (d2 < r * r) visit(k, d2, ax, ay, bx, by)
     }
   }
 }

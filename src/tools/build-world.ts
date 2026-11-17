@@ -75,12 +75,8 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   // end on its road's surface (a deck's, where its parapets stand).
   const levelled = (levels: ReadonlyArray<number>) => ({ levels, ground: at })
   const trunks = trunkIndex(trees.trees)
-  const walkClear = clearance([...walls.walk, ...walls.shore], trunks, levelled(walls.levels.walk)),
-    driveClear = clearance(
-      [...walls.drive, ...walls.driveShore],
-      trunks,
-      levelled(walls.levels.drive),
-    )
+  const walkClear = clearance([walls.walk, walls.shore], trunks, levelled(walls.levels.walk)),
+    driveClear = clearance([walls.drive, walls.driveShore], trunks, levelled(walls.levels.drive))
   // At-grade running track: no dead end of the graph on it, nor a lane or verge beside it.
   const track = railLines.flatMap(({ r, pts, z }, i) =>
     kinds[i] === undefined && !lifted(r) ? [{ pts, z }] : [],

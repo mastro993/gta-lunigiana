@@ -38,13 +38,13 @@ export const trunkIndex = (trees: ArrayLike<number>) => ({
 })
 
 /**
- * Clearance checks against flat (ax, ay, bx, by) `walls` plus the TRUNK square of every tree of
- * `trunks` (`trunkIndex`). With `levelled`, a wall with a level (NaN for none: a bridge's parapet,
+ * Clearance checks against the flat (ax, ay, bx, by) walls of `walls`' arrays, one after another,
+ * plus the TRUNK square of every tree of `trunks` (`trunkIndex`). With `levelled`, a wall with a level (NaN for none: a bridge's parapet,
  * parapets.ts) counts only for a query within ONE_LEVEL of it, a query standing at its own level or
  * on `ground` at its point, as a body meets it in the game; without, every wall counts.
  */
 export const clearance = (
-  walls: ReadonlyArray<number>,
+  walls: ReadonlyArray<ReadonlyArray<number>>,
   { trees, near: treesIn }: ReturnType<typeof trunkIndex>,
   levelled?: {
     readonly levels: ArrayLike<number>
@@ -65,15 +65,10 @@ export const clearance = (
       d2: number,
     ) => void,
   ) => {
-    wallsAt(x, y, (k, d2) => {
+    wallsAt(x, y, (k, d2, ax, ay, bx, by) => {
       const level = levelled?.levels[k] ?? NaN
       if (Number.isNaN(level) || z === undefined || Math.abs(level - z) < ONE_LEVEL) {
-        ;[wall.ax, wall.ay, wall.bx, wall.by] = [
-          walls[4 * k]!,
-          walls[4 * k + 1]!,
-          walls[4 * k + 2]!,
-          walls[4 * k + 3]!,
-        ]
+        ;[wall.ax, wall.ay, wall.bx, wall.by] = [ax, ay, bx, by]
         visit(wall, d2)
       }
     })
