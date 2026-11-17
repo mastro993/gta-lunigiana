@@ -27,10 +27,11 @@ const part = (rects: ReadonlyArray<Rect>, mask?: ReadonlyArray<number>): Part =>
 const L = [part([[0, 0, 200, 100]]), part([[0, 100, 100, 300]])]
 const L_RING = [0, 0, 200, 0, 200, 100, 100, 100, 100, 300, 0, 300]
 
-/** Lucido's rectangle, the region's first part, and Fivizzano's and Fosdinovo's masks, the parts beside it. */
+/** Lucido's rectangle, the region's first part, and Fivizzano's, Fosdinovo's and Aulla's masks, the parts round it. */
 const LUCIDO = partOf("lucido"),
   FIVIZZANO = partOf("fivizzano"),
-  FOSDINOVO = partOf("fosdinovo")
+  FOSDINOVO = partOf("fosdinovo"),
+  AULLA = partOf("aulla")
 const [LX0, LY0, LX1, LY1] = LUCIDO.rects[0]!
 
 /** A flat ring's area, positive counter-clockwise. */
@@ -45,7 +46,7 @@ test("one rectangle's outline runs S, E, N, W from its south-west corner: lucido
   assert.deepEqual(outlineOf([LUCIDO]), [[LX0, LY0, LX1, LY0, LX1, LY1, LX0, LY1]])
 })
 
-test("the region's outline is one ring round lucido's rectangle and Fivizzano's and Fosdinovo's masks, from Fosdinovo's south-west corner", () => {
+test("the region's outline is one ring round lucido's rectangle and Fivizzano's, Fosdinovo's and Aulla's masks, from Fosdinovo's south-west corner", () => {
   assert.deepEqual(OUTLINE, outlineOf(PARTS))
   assert.equal(OUTLINE.length, 1)
   const ring = OUTLINE[0]!
@@ -57,7 +58,8 @@ test("the region's outline is one ring round lucido's rectangle and Fivizzano's 
       areaOf(ring) -
         areaOf(rectRing(LUCIDO.rects[0]!)) -
         areaOf(FIVIZZANO.mask!) -
-        areaOf(FOSDINOVO.mask!),
+        areaOf(FOSDINOVO.mask!) -
+        areaOf(AULLA.mask!),
     ) < 1,
   )
 })
@@ -291,14 +293,15 @@ test("outside, clipPieces keeps what the area leaves out, and clipBeyond what of
   assert.ok(Math.abs(notch!.from - Math.hypot(50, 50)) < 1e-9, `${notch!.from}`)
   // along the outline is in, so not out
   assert.deepEqual(clipPieces(rings, [v(100, 150, "a"), v(100, 250, "b")], true), [])
-  // From past the box's west side across its notch north-west of Fosdinovo into Fivizzano: the
-  // notch's stretch, from the box's side to Fivizzano's, 100 m along the line
+  // From past the box's west side across its notch west of Fosdinovo into Fosdinovo: the notch's
+  // stretch, from the box's side to Fosdinovo's, 100 m along the line
   const { minX } = regionFromArgs([]).bounds,
-    [fx0] = FIVIZZANO.rects[0]!
-  assert.ok(minX < fx0 && !inPlay((minX + fx0) / 2, 8000))
-  assert.deepEqual(clipBeyond([v(minX - 100, 8000, "a"), v(0, 8000, "b"), v(0, 0, "c")]), [
-    { pts: [v(minX, 8000), v(fx0, 8000)], from: 100 },
-  ])
+    [fx0] = FOSDINOVO.rects[0]!
+  assert.ok(minX < fx0 && !inPlay((minX + fx0) / 2, 0))
+  const [beyond, ...more] = clipBeyond([v(minX - 100, 0, "a"), v(0, 0, "b"), v(0, 1000, "c")])
+  assert.deepEqual(more, [])
+  assert.deepEqual(beyond!.pts, [v(minX, 0), v(fx0, 0)])
+  assert.ok(Math.abs(beyond!.from - 100) < 1e-9, `${beyond!.from}`)
   // wholly in the play area, nothing
   assert.deepEqual(clipBeyond([v(0, 0, "a"), v(LX1, LY1, "b")]), [])
 })

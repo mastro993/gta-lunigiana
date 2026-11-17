@@ -287,9 +287,9 @@ test("bounds and heightmap cover the play area", () => {
   assert.equal(data.length, hm.cols * hm.rows)
   assert.ok(hm.x0 <= MAP.bounds.minX && hm.x0 + (hm.cols - 1) * hm.cell >= MAP.bounds.maxX)
   assert.ok(hm.y0 <= MAP.bounds.minY && hm.y0 + (hm.rows - 1) * hm.cell >= MAP.bounds.maxY)
-  // The listed tiles' nodes, from the Magra plain by Sarzana at the map's south-west corner (18.1 m)
-  // to the Emilian ridge by Cima Belfiore (1856 m); the notches', which no tile holds, are 0 in the
-  // joined map.
+  // The listed tiles' nodes, from the Magra plain by Sarzana, west of Fosdinovo's edge (12.9 m at
+  // (−11968, −6040)), to the Emilian ridge by Cima Belfiore (1856 m); the notches', which no tile
+  // holds, are 0 in the joined map.
   const listed = listedNodes(hm, MAP.tiles)
   for (let k = 0; k < data.length; k++) {
     const v = data[k]!
@@ -331,9 +331,17 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
   const parkedIn = new Set(MAP.spawns.parked.map((s) => districtAt(s.x, s.y)))
   for (const [name, p] of Object.entries(VILLAGES))
     assert.ok(parkedIn.has(districtAt(p.x, p.y)), `no parking in ${name}`)
+  // A spot stands on the ground: a deck's parapets over it count only within ONE_LEVEL of it, as the
+  // build's clearance (spawns.ts) and the game's bodies meet them. Aulla's spot by Via Chiosi
+  // (−13593.1, 4595.9) lies under the A15's twin viaducts 136414829 and 311245878, between their
+  // parapets at 98.2 and 99.6 m, over its ground at 86.8 m.
   for (const s of spots) {
+    const ground = () => heightAt(s.x, s.y)
     assert.ok(inPlay(s.x, s.y), JSON.stringify(s))
-    assert.ok(clear("walk", s.x, s.y, 1.2) && clear("drive", s.x, s.y, 1.2), JSON.stringify(s))
+    assert.ok(
+      clear("walk", s.x, s.y, 1.2, ground) && clear("drive", s.x, s.y, 1.2, ground),
+      JSON.stringify(s),
+    )
   }
   const police = MAP.spawns.police!
   assert.ok(
@@ -356,6 +364,10 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
     }
   })
   const lanesNear = bucketed(lanes, (l) => [l.ax, l.ay, l.bx, l.by], 10)
+  // The build keeps a car's corners off every road's carriageway on its unrounded geometry; the
+  // spot (x and y to 0.1 m, its angle to 0.001) and the graph's nodes are each written rounded,
+  // which moves a corner toward a road by up to 2 · 0.0707 + 0.001 m, so it may read up to 0.15 m
+  // in. Aulla's part first showed it: two of its spots read 0.06 m in.
   for (const p of MAP.spawns.parked) {
     const c = Ops.cos(p.angle),
       s = Ops.sin(p.angle)
@@ -370,7 +382,7 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
         y = p.y + s * u + c * v
       for (const l of lanesNear(x, y))
         assert.ok(
-          segmentDistance(l, x, y) >= l.half - 0.05,
+          segmentDistance(l, x, y) >= l.half - 0.15,
           `parked ${JSON.stringify(p)} on a lane`,
         )
     }
@@ -860,10 +872,37 @@ test("road names, classes, styles, area kinds and districts", () => {
     "Cima Belfiore",
     "Monte Tondo",
     "La Pizza",
+    "Monte Borra Grande",
   ]) {
     const peak = MAP.pois.find((p) => p.kind === "natural=peak" && p.name === name)!
     assert.equal(districtAt(peak.x, peak.y).name, name)
   }
+  // Issue #19: the castles name their own districts, found by their OSM elements' names, and
+  // Passo Alpicella, past the play area in Liguria, the play area's edge east of its col.
+  for (const name of ["Castello di Giovagallo", "Castello di Bigliolo"])
+    for (const p of MAP.pois.filter((q) => q.name === name))
+      assert.equal(districtAt(p.x, p.y).name, name, `${p.kind} ${name}`)
+  const alpicella = MAP.districts.find((d) => d.name === "Passo Alpicella")!
+  let edge = alpicella.x
+  while (!inPlay(edge, alpicella.y)) edge += 1
+  assert.ok(edge - alpicella.x > alpicella.r, "the col's disc lies past the play area")
+  assert.equal(districtAt(edge, alpicella.y).name, "Passo Alpicella")
+  // Regression (issue #19): Aulla's disc, capped at 400 m round its node, left most of the town to
+  // the nearest rim, so the Fortezza della Brunella's named 498 buildings past its own disc, out to
+  // 1.9 km from Aulla's node. A town's disc reaches as far as its buildings: the fortress names its
+  // hill alone, its own walls among it, and every building it names stands in its disc.
+  const brunella = MAP.districts.find((d) => d.name === "Fortezza della Brunella")!
+  const walls = centres.filter((_, k) => WHOLE.buildings[k]!.name === "Fortezza della Brunella")
+  assert.ok(walls.length > 0)
+  for (const c of walls)
+    assert.equal(districtAt(c.x, c.y), brunella, `the fortress at (${c.x}, ${c.y})`)
+  const fortressNames = centres.filter((c) => districtAt(c.x, c.y) === brunella)
+  assert.ok(fortressNames.length > 0)
+  for (const c of fortressNames)
+    assert.ok(
+      hypot(c.x - brunella.x, c.y - brunella.y) <= brunella.r,
+      `(${c.x}, ${c.y}) named the fortress by its rim`,
+    )
   // Issues #17 and #18: the passes name their own districts, Carpinelli's inside Casone Carpinelli's
   // disc.
   for (const name of [

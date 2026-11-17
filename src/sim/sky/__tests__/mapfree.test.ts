@@ -2,6 +2,9 @@ import assert from "node:assert/strict"
 import { registerHooks } from "node:module"
 import { test } from "node:test"
 
+/** A whole turn, rad. */
+const TAU = 2 * Math.PI
+
 // What the schema and the sky's pure modules load, recorded before anything imports them: none may decode the map, so a page
 // that never loads monzone.bin (the audio lab) and the HUD's tests can use them.
 const loaded = new Array<string>()
@@ -58,9 +61,11 @@ test("map-free: once the map is decoded the sky's place is the map's: its origin
     { lat: where.lat, lon: where.lon },
     { lat: REFERENCE_PLACE.lat, lon: REFERENCE_PLACE.lon },
   )
+  // The slope's direction compared round the circle: Aulla's part turned it to −3.130 rad, 0.011
+  // rad short of ±π, where a later part may tip its sign while hardly turning it.
+  const turn = ((((where.downslope - REFERENCE_PLACE.downslope) % TAU) + TAU * 1.5) % TAU) - TAU / 2
   assert.ok(
-    Math.abs(where.floor - REFERENCE_PLACE.floor) < 0.5 &&
-      Math.abs(where.downslope - REFERENCE_PLACE.downslope) < 0.005,
+    Math.abs(where.floor - REFERENCE_PLACE.floor) < 0.5 && Math.abs(turn) < 0.005,
     JSON.stringify(where),
   )
 })
