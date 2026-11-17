@@ -128,8 +128,8 @@ test("assembleTiles joins tiles on the lattice, a cell two hold kept once, and r
   ])
   assert.deepEqual([dtm.e0, dtm.n0, dtm.cols, dtm.rows], [LATTICE.e, LATTICE.n, 5, 2])
   assert.deepEqual([...held], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
-  assert.equal(dtm.z[2], Math.fround(10.2))
-  assert.equal(dtm.z[4], Math.fround(20.2))
+  assert.equal(dtm.dm[2], 102)
+  assert.equal(dtm.dm[4], 202)
   const clash = block(LATTICE.e + 2 * CELL, LATTICE.n, 1, 1, () => 999)
   assert.throws(
     () =>
@@ -148,7 +148,7 @@ test("drawEdgesOn holds each edge's height past the cells held, as a sampler pas
   )
   const { dtm, held } = assembleTiles([{ key: "t", tile: t }])
   drawEdgesOn(dtm, held)
-  const z = (c: number, r: number) => Math.round(dtm.z[r * 4 + c]! * 10)
+  const z = (c: number, r: number) => dtm.dm[r * 4 + c]!
   assert.deepEqual(
     [0, 1, 2, 3].map((r) => [0, 1, 2, 3].map((c) => z(c, r))),
     [

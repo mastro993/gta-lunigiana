@@ -18,9 +18,7 @@ import { assembleMap, writeMap } from "./build-output.ts"
 import { readSources } from "./build-sources.ts"
 import { finishTerrain, profileTerrain } from "./build-terrain.ts"
 import { buildWorld } from "./build-world.ts"
-import { sourceAreas } from "./dtm.ts"
 import { writeOverview } from "./overview.ts"
-import { inPlay } from "./play-area.ts"
 import { printRail, railSummary } from "./rail-report.ts"
 import { mapDir, REGION } from "./region.ts"
 import { cutMap } from "./tile-map.ts"
@@ -47,9 +45,7 @@ const lap = (label: string) =>
  * when this returns, before the tile pass and the catchments.
  */
 const sourcesAndProfiles = async () => {
-  const { dem, ...src } = await readSources(ROOT, lap)
-  const sources =
-    dem.source === undefined ? undefined : sourceAreas(dem.source, REGION.bounds, inPlay)
+  const { dem, terrainSources: sources, ...src } = await readSources(ROOT, lap)
   return { src, profiled: profileTerrain(src, dem, lap), sources }
 }
 

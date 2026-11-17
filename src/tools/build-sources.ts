@@ -11,7 +11,7 @@ import { conflateRail } from "./conflate.ts"
 import { readCtrRail, splitIn } from "./ctr-rail.ts"
 import { fitRoads } from "./ctr.ts"
 import { fitDistricts } from "./districts.ts"
-import { loadDtm, loadGeoDtm } from "./dtm.ts"
+import { type Dem, loadDtm, loadGeoDtm, sourceAreas } from "./dtm.ts"
 import {
   extractAreas,
   extractBarriers,
@@ -24,7 +24,7 @@ import {
 import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
-import { clipBeyond, heldInPlay } from "./play-area.ts"
+import { clipBeyond, heldInPlay, inPlay } from "./play-area.ts"
 import { REGION, dtmDir, inputParts, osmFiles, ucsFile } from "./region.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readUcs } from "./ucs.ts"
@@ -38,8 +38,8 @@ const overlap = (a: Area, b: Area): boolean => {
   return pointInRing(ax, ay, b.rings[0]!) || pointInRing(bx, by, a.rings[0]!)
 }
 
-/** The features every later phase reads (the DTM apart: only the terrain reads it). */
-export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem">
+/** The features every later phase reads (the DTM apart: only the terrain reads it; and the report's terrain sources). */
+export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem" | "terrainSources">
 
 /** Reads the region's inputs under `root` into features; `lap` marks the end of each stage. */
 export const readSources = async (root: string, lap: (label: string) => void) => {
@@ -126,8 +126,15 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   fitRoads(beyond.roads, survey.roadAreas, survey.mapped)
   lap("features")
   return {
-    /** The uncarved terrain (the LiDAR DTM, or Cesena's GeoTIFF). */
-    dem,
+    /**
+     * The uncarved terrain (the LiDAR DTM, or Cesena's GeoTIFF), without the source of its cells,
+     * which only `terrainSources` reads: they go when this returns, before the terrain (202 MB of
+     * Lunigiana's).
+     */
+    dem: { at: dem.at, grid: dem.grid } satisfies Dem,
+    /** Each terrain source's share of the play area, km² (`sourceAreas`), where the DTM says. */
+    terrainSources:
+      dem.source === undefined ? undefined : sourceAreas(dem.source, REGION.bounds, inPlay),
     rail,
     extra,
     allRail: [...rail, ...extra],

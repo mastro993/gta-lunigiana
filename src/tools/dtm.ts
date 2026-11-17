@@ -86,8 +86,10 @@ export const loadGeoDtm = async (file: string): Promise<Dem> => {
 }
 
 /**
- * The LiDAR DTM as `fetch-rt.ts` writes it: heights, m, on `cols` × `rows` cells of `cell` m in
- * EPSG:3003 (Gauss-Boaga west), row-major from the cell centred on (`e0`, `n0`).
+ * The LiDAR DTM as `fetch-rt.ts` writes it: heights, dm, on `cols` × `rows` cells of `cell` m in
+ * EPSG:3003 (Gauss-Boaga west), row-major from the cell centred on (`e0`, `n0`). Kept in decimetres,
+ * as the files hold them: half the memory of metres in a Float32Array (405 MB of Lunigiana's 810),
+ * and `METRES` gives each one's height as that Float32Array held it.
  */
 export interface DtmData {
   readonly e0: number
@@ -95,7 +97,7 @@ export interface DtmData {
   readonly cols: number
   readonly rows: number
   readonly cell: number
-  readonly z: Float32Array
+  readonly dm: Int16Array
   /** Each cell's source, an index into `names` (`terrain-sources.ts`). */
   readonly sources: { readonly names: ReadonlyArray<string>; readonly codes: Uint8Array }
 }
@@ -123,20 +125,27 @@ const bilinear = (
 }
 
 /**
- * Bilinear height at fractional cell (fx, fy) of the DTM's `cols` × `rows` heights `z`, clamped to
- * its edge: `bilinear`'s sum from the raster's first node. Kept apart from `bilinear` so V8 inlines
- * it into the grid's 25 samples a node (through `bilinear`'s offsets it did not, and the grid
- * stage took 2.0 s of lucido's build rather than 0.85 s).
+ * A height in decimetres (an Int16 + 32768) in metres, rounded to a float32: what a cell of the
+ * DTM was when it was held in metres. Read from a table: within 5% of a Float32Array of metres on
+ * the grid's samples (a division a read took a third longer).
  */
-const dtmHeight = (z: Float32Array, cols: number, rows: number, fx: number, fy: number) => {
+const METRES = Float32Array.from({ length: 65536 }, (_, i) => (i - 32768) / 10)
+
+/**
+ * Bilinear height, m, at fractional cell (fx, fy) of the DTM's `cols` × `rows` heights `dm`,
+ * clamped to its edge: `bilinear`'s sum from the raster's first node. Kept apart from `bilinear` so
+ * V8 inlines it into the grid's 25 samples a node (through `bilinear`'s offsets it did not, and the
+ * grid stage took 2.0 s of lucido's build rather than 0.85 s).
+ */
+const dtmHeight = (dm: Int16Array, cols: number, rows: number, fx: number, fy: number) => {
   const i = Math.min(cols - 2, Math.max(0, Math.floor(fx))),
     j = Math.min(rows - 2, Math.max(0, Math.floor(fy)))
   const tx = Math.min(1, Math.max(0, fx - i)),
     ty = Math.min(1, Math.max(0, fy - j))
   const k = j * cols + i
   return (
-    (z[k]! * (1 - tx) + z[k + 1]! * tx) * (1 - ty) +
-    (z[k + cols]! * (1 - tx) + z[k + cols + 1]! * tx) * ty
+    (METRES[dm[k]! + 32768]! * (1 - tx) + METRES[dm[k + 1]! + 32768]! * tx) * (1 - ty) +
+    (METRES[dm[k + cols]! + 32768]! * (1 - tx) + METRES[dm[k + cols + 1]! + 32768]! * tx) * ty
   )
 }
 
@@ -144,18 +153,19 @@ const dtmHeight = (z: Float32Array, cols: number, rows: number, fx: number, fy: 
 export const readDtm = (dir: string): DtmData => {
   const meta = JSON.parse(readFileSync(join(dir, "dtm.json"), "utf8")) as Omit<
     DtmData,
-    "z" | "sources"
+    "dm" | "sources"
   > & { readonly sources: ReadonlyArray<string> }
   const raw = inflateSync(readFileSync(join(dir, "dtm.bin")))
-  const z = new Float32Array(meta.cols * meta.rows)
-  for (let k = 0, acc = 0; k < z.length; k++) {
+  const dm = new Int16Array(meta.cols * meta.rows)
+  for (let k = 0, acc = 0; k < dm.length; k++) {
     acc = (k % meta.cols === 0 ? 0 : acc) + raw.readInt16LE(2 * k)
-    z[k] = acc / 10
+    if (acc < -32768 || acc > 32767) throw new Error(`${dir}/dtm.bin: cell ${k} is ${acc} dm`)
+    dm[k] = acc
   }
   const codes = new Uint8Array(inflateSync(readFileSync(join(dir, "dtm-src.bin"))))
-  if (codes.length !== z.length)
-    throw new Error(`${dir}/dtm-src.bin: ${codes.length} cells, not ${z.length}`)
-  return { ...meta, z, sources: { names: meta.sources, codes } }
+  if (codes.length !== dm.length)
+    throw new Error(`${dir}/dtm-src.bin: ${codes.length} cells, not ${dm.length}`)
+  return { ...meta, dm, sources: { names: meta.sources, codes } }
 }
 
 /** What of a region its terrain's files depend on: whether it has its own mosaic, its tiles, its box and anchor, and whether the game ships it. */
@@ -230,22 +240,22 @@ export const dtmDem = (dtm: DtmData, ground: Ground = REGION): Dem => {
         latLonToGaussBoaga(...fromLocal(lx0 + i * PROJ_STEP, ly0 + j * PROJ_STEP)),
         2 * (j * lcols + i),
       )
-  const { e0, n0, cell: dc, cols: dcols, rows: drows, z, sources } = dtm
+  const { e0, n0, cell: dc, cols: dcols, rows: drows, dm, sources } = dtm
   const at = (x: number, y: number) => {
     const fx = (x - rx) / PROJ_STEP,
       fy = (y - ry) / PROJ_STEP
     const e = bilinear(lattice, lcols, lrows, fx, fy, 0, ri, rj),
       n = bilinear(lattice, lcols, lrows, fx, fy, 1, ri, rj)
-    return dtmHeight(z, dcols, drows, (e - e0) / dc, (n - n0) / dc)
+    return dtmHeight(dm, dcols, drows, (e - e0) / dc, (n - n0) / dc)
   }
-  const source = (x: number, y: number) => {
+  const nearest = (x: number, y: number) => {
     const fx = (x - rx) / PROJ_STEP,
       fy = (y - ry) / PROJ_STEP
     const e = bilinear(lattice, lcols, lrows, fx, fy, 0, ri, rj),
       n = bilinear(lattice, lcols, lrows, fx, fy, 1, ri, rj)
     const c = Math.min(dcols - 1, Math.max(0, Math.round((e - e0) / dc))),
       r = Math.min(drows - 1, Math.max(0, Math.round((n - n0) / dc)))
-    return sources.names[sources.codes[r * dcols + c]!]!
+    return r * dcols + c
   }
   const grid = (span: Span): Grid => {
     const g = gridLattice(ground),
@@ -299,7 +309,7 @@ export const dtmDem = (dtm: DtmData, ground: Ground = REGION): Dem => {
           for (let k = 0; k < side; k++, q++) {
             const e = ea[q]! * uy + eb[q]! * ty,
               n = na[q]! * uy + nb[q]! * ty
-            sum += dtmHeight(z, dcols, drows, (e - e0) / dc, (n - n0) / dc)
+            sum += dtmHeight(dm, dcols, drows, (e - e0) / dc, (n - n0) / dc)
           }
           sums[c] = sum
         }
@@ -308,8 +318,17 @@ export const dtmDem = (dtm: DtmData, ground: Ground = REGION): Dem => {
     }
     return { ...g, z: out, span }
   }
-  return { at, grid, source }
+  return { at, grid, source: sourceOf(sources, nearest) }
 }
+
+/**
+ * The source of the cell `nearest` gives at a point, in a closure of its own: built beside `at`,
+ * it shared its scope, and the codes (202 MB of Lunigiana's) stayed as long as the heights.
+ */
+const sourceOf =
+  ({ names, codes }: DtmData["sources"], nearest: (x: number, y: number) => number) =>
+  (x: number, y: number) =>
+    names[codes[nearest(x, y)]!]!
 
 /** The step, m, at which `sourceAreas` samples the play area: a 0.01 ha cell keeps a part under a million samples. */
 const AREA_STEP = 10
