@@ -11,11 +11,18 @@ import { opened, pushPolyline } from "./walls.ts"
 
 /** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */
 export const PARAPET = 0.25
+/**
+ * The most a parapet piece's deck top rises or falls along it, m: with its level the top at its
+ * middle to 0.1 m, a piece stands within LEVEL_STEP of the top all along it. Pieces of 16 m stood up
+ * to 1.21 m off the decks they sloped with, and 0.51 m on the A15's 6% bridge 136455102 at Aulla,
+ * where a car on its twin 491154922 beside it, 2.25 m over the top, met it.
+ */
+const LEVEL_STEP = 0.1
 
 /**
- * The parapets' walls, flat (ax, ay, bx, by) pieces of at most 16 m, and each one's level: its deck's
- * top at its middle, m a.s.l.; and how many bridges' parapets close over a road on another level (the
- * build's report).
+ * The parapets' walls, flat (ax, ay, bx, by) pieces of at most 16 m along which the deck's top rises
+ * LEVEL_STEP at most, and each one's level: its deck's top at its middle, m a.s.l.; and how many
+ * bridges' parapets close over a road on another level (the build's report).
  */
 interface Parapets {
   readonly walls: Array<number>
@@ -27,10 +34,12 @@ interface Parapets {
  * The parapets of every drivable bridge of `roads`, `level` (`roadLevel` in
  * src/sim/map/ground-model.ts, on their shipped lines) a road's surface by its index: one piece per
  * deck segment and side, w/2 + PARAPET off its centreline, opened wherever a road's
- * carriageway reaches it with its surface there within ONE_LEVEL of the deck's top, the deck itself
+ * carriageway reaches it with its surface there within ONE_LEVEL + LEVEL_STEP of the deck's top (a
+ * closed piece, its level up to LEVEL_STEP off that top, stays ONE_LEVEL off it), the deck itself
  * included (the inside of its bends, where the piece along one segment runs on across the next one's
  * carriageway: a 2.4 m segment off a junction on the SR445's bridge by Montefiore put it 3.6 m from
- * the centreline, inside the 7.6 m deck). Each wall takes its deck's top at its middle, to 0.1 m.
+ * the centreline, inside the 7.6 m deck). Each wall takes its deck's top at its middle, to 0.1 m, in
+ * pieces along which that top rises or falls LEVEL_STEP at most.
  */
 export const parapets = (
   roads: ReadonlyArray<RoadF>,
@@ -64,7 +73,7 @@ export const parapets = (
           open = false
         ways.within(x, y, (s) => {
           reached = true
-          open ||= Math.abs(level(s.data, x, y) - level(i, x, y)) < ONE_LEVEL
+          open ||= Math.abs(level(s.data, x, y) - level(i, x, y)) < ONE_LEVEL + LEVEL_STEP
         })
         closesOver ||= reached && !open
         return open
@@ -73,7 +82,19 @@ export const parapets = (
     if (closesOver) over++
     for (const p of pieces) {
       const from = walls.length
-      pushPolyline(walls, p.pts, false)
+      for (let k = 0; k + 3 < p.pts.length; k += 2) {
+        const ax = p.pts[k]!,
+          ay = p.pts[k + 1]!,
+          bx = p.pts[k + 2]!,
+          by = p.pts[k + 3]!,
+          cuts = Math.max(1, Math.ceil(Math.abs(level(i, bx, by) - level(i, ax, ay)) / LEVEL_STEP))
+        pushPolyline(
+          walls,
+          [ax, ay, bx, by],
+          false,
+          Math.min(16, Math.hypot(bx - ax, by - ay) / cuts),
+        )
+      }
       for (let w = from; w < walls.length; w += 4)
         levels.push(
           r1(level(i, (walls[w]! + walls[w + 2]!) / 2, (walls[w + 1]! + walls[w + 3]!) / 2)),

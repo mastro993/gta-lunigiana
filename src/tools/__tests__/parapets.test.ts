@@ -244,3 +244,58 @@ test("parapetFaults reads a road at grade where the parapet stands: one ending w
     /^primary bridge 1: its parapet at 150\.2 m stops a car on road 4 at 1(4[89]|5[01])\.\d+ m/,
   )
 })
+
+// Regression: the A15's carriageways at Aulla, the 13.5 m 491154922 and the 10 m 136455102, climb
+// side by side 1.1–2.7 m apart, their decks overlapping in plan: a parapet piece of 16 m on the 6%
+// deck stood 0.51 m off its deck's top, at 76.8 m over 76.29, and a car at 78.54 m on the other
+// deck, 2.25 m over the top, met it.
+test("parapets: each piece within 0.1 m of its deck's top all along it, and a deck beside another a little over ONE_LEVEL off its level stops no car on it", () => {
+  // Two 10 m decks along x 0–100, 9 m apart, climbing 6% from 130 and 132.15 m: each one's inner
+  // parapet stands on the other's carriageway.
+  const lower = road(
+      1,
+      "motorway",
+      10,
+      [
+        [0, 0],
+        [100, 0],
+      ],
+      [130, 136],
+      true,
+    ),
+    upper = road(
+      2,
+      "motorway",
+      10,
+      [
+        [0, 9],
+        [100, 9],
+      ],
+      [132.15, 138.15],
+      true,
+    ),
+    roads = [lower, upper],
+    level = levelOf(roads),
+    { walls, levels } = build(roads)
+  for (let w = 0; w < levels.length; w++) {
+    const [ax, ay, bx, by] = walls.slice(4 * w, 4 * w + 4) as [number, number, number, number]
+    // The lower deck's parapets stand at y ±5.25, the upper's at 3.75 and 14.25.
+    const deck = Math.abs(Math.abs(ay) - 5.25) < 0.1 ? 0 : 1
+    for (const [x, y] of [
+      [ax, ay],
+      [bx, by],
+    ] as const)
+      assert.ok(
+        Math.abs(levels[w]! - level(deck, x, y)) <= 0.1 + 1e-9,
+        `a piece at ${levels[w]} m by the deck's top ${level(deck, x, y)} m`,
+      )
+  }
+  assert.deepEqual(
+    parapetFaults(
+      roads.map((r) => r.shipped),
+      { drive: walls, levels: { drive: levels } },
+      level,
+    ),
+    [],
+  )
+})
