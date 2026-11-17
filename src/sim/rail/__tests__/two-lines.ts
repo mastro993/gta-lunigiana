@@ -10,7 +10,18 @@ import assert from "node:assert/strict"
 
 import { MAP, type RailLine, type Station } from "../../map/index.ts"
 
-const main = MAP.railway.lines[0]!
+// The map's own lines but the first are left out (the Pontremolese's two share track with each other), and the first runs on
+// past its terminus at Aulla as past a terminal on the edge, straight on: the second line here shares the first's whole track
+// and no other, run-outs and all.
+assert.ok(
+  MAP.railway.crossings.every((c) => c.line <= 0),
+  "every box on the first line or none",
+)
+const { pieces, maxspeed, runOuts } = MAP.railway.lines[0]!,
+  main: RailLine = { pieces, maxspeed, runOuts }
+const own = MAP.railway.stations.filter((station) => station.line === 0)
+;(MAP.railway.lines as Array<RailLine>).splice(0, MAP.railway.lines.length, main)
+;(MAP.railway.stations as Array<Station>).splice(0, MAP.railway.stations.length, ...own)
 let total = 0
 for (const { rail } of main.pieces) {
   const { pts } = MAP.rail[rail]!

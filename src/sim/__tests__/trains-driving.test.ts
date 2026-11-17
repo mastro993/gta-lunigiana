@@ -7,7 +7,7 @@ import { Game, TrainView } from "../index.ts"
 import { groundZ } from "../map/ground.ts"
 import { MAP } from "../map/index.ts"
 import { BOARD_SPEED, cabOf } from "../rail/boarding.ts"
-import { TOUCH_SPEED } from "../rail/collisions.ts"
+import { buffersOf, TOUCH_SPEED } from "../rail/collisions.ts"
 import { CROSSINGS } from "../rail/crossings.ts"
 import { LAYOVER } from "../rail/dispatch.ts"
 import { DRAWN_RUN, pointAt } from "../rail/lines.ts"
@@ -196,8 +196,8 @@ test("driving trains: on a rail bridge the view's ground is the cab's rail head,
   assert.ok(view.z - groundZ(view.pose.x, view.pose.y) > 3, "high over the map's ground")
 })
 
-test("driving trains: SCMT brakes a driven train to a stop at the buffer stop at the drawn run past the line's end, at full power; one too fast to stop pulls the emergency brake and strikes it, an Impact", () => {
-  const buffer = line.length + DRAWN_RUN,
+test("driving trains: SCMT brakes a driven train to a stop at the buffer stop at the line's far end (its terminus, or the drawn run past a terminal), at full power; one too fast to stop pulls the emergency brake and strikes it, an Impact", () => {
+  const buffer = buffersOf(line).hi,
     service = TRAINS.atr220.service / TRAINS.atr220.emergency
   // 400 m short at 20 m/s, the up key held throughout: the service brake on its curve, never the emergency brake.
   const game = seated(buffer - 400, 1, 20)
