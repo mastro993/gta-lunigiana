@@ -7,6 +7,7 @@ import { type Cover, coverAt } from "../../sim/map/cover.ts"
 import { isWood, MAP, OLIVE_TREES, TILE } from "../../sim/map/index.ts"
 import { tilesOver, tileTrees } from "../../sim/map/tiles.ts"
 import { hash01 } from "../../tools/geometry.ts"
+import { APRON } from "../chunks.ts"
 import { terrainY } from "../ground.ts"
 import { bucketTileTrees, inCrown, kindAt, speciesAt, treeMeshes, type TreeKind } from "../trees.ts"
 import { assertChunkTrees } from "./chunk-trees.ts"
@@ -32,11 +33,18 @@ test("trees: each chunk's from the tiles it reads are the whole map's bucket for
     ...new Set([
       // The four tiles meeting at (0, 0), by Monzone.
       ...tilesOver(-1, -1, 1, 1),
-      // The two meeting at the west edge's seam, whose apron chunks hold the trees mirrored across it.
-      ...tilesOver(WEST_SEAM.x, WEST_SEAM.y - 1, WEST_SEAM.x, WEST_SEAM.y + 1),
+      // Those meeting at the west edge's seam, whose apron chunks hold the trees mirrored across
+      // it, out to the apron's reach in from the edge: x −22100 lies 100 m into its tile, so the
+      // chunks it mirrors trees into read the next column's two tiles too.
+      ...tilesOver(
+        WEST_SEAM.x,
+        WEST_SEAM.y - 1,
+        WEST_SEAM.x + APRON * MAP.heightmap.cell,
+        WEST_SEAM.y + 1,
+      ),
     ]),
   ]
-  assert.equal(keys.length, 6, keys.join(" "))
+  assert.equal(keys.length, 8, keys.join(" "))
   const { checked, mirrored } = assertChunkTrees(keys)
   assert.ok(checked > 500, `${checked} chunks hold trees`)
   assert.ok(mirrored > 30, `${mirrored} apron chunks hold mirrored trees`)

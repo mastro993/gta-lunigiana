@@ -94,7 +94,7 @@ test("fetchSplit stops splitting at a box too small to hold 50 000 nodes", async
 })
 
 test("fetch-osm fetches the Lunigiana part its argument names, or another map's one part", () => {
-  for (const key of ["lucido", "fivizzano"]) {
+  for (const key of ["lucido", "fivizzano", "aulla"]) {
     const { part, region } = partToFetch([key])
     assert.equal(part, partOf(key))
     assert.equal(region.key, "lunigiana")
@@ -103,7 +103,10 @@ test("fetch-osm fetches the Lunigiana part its argument names, or another map's 
   assert.deepEqual(partToFetch([], cesena), { part: cesena.parts[0], region: cesena })
   assert.throws(() => partToFetch([]), /usage: fetch-osm <part>/)
   assert.throws(() => partToFetch(["lucido", "lucido-l"]), /usage: fetch-osm <part>/)
-  assert.throws(() => partToFetch(["aulla"]), /unknown part aulla: use one of lucido, fivizzano, /)
+  assert.throws(
+    () => partToFetch(["nowhere"]),
+    /unknown part nowhere: use one of lucido, fivizzano, /,
+  )
   assert.throws(() => partToFetch(["lucido"], cesena), /usage: fetch-osm --region cesena/)
 })
 
