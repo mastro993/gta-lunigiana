@@ -8,6 +8,7 @@ import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
 import { fillPolygon, pointInRing, r1, ringBox, segDist2 } from "./geometry.ts"
 import { anchorNode, gridLattice, type Grid, type Profile } from "./terrain.ts"
+import { carveAll } from "./water.ts"
 
 /** A lake's bed deepens by this much a metre from its shore (m/m) … */
 const SHELF = 0.1
@@ -149,8 +150,18 @@ const median = (values: Array<number>) => {
  * over a lake's surface, and reads it flat), or of the DTM at its vertices when no node falls inside,
  * but no higher than the lowest node of its edge, where it would spill: an outline the 4 m grid reads
  * up a slope, a cascade or a quarry face would otherwise hold its water over the ground beside it.
+ * A lake no node of whose cells lies inside its edge holds no water of its own, and the streams
+ * through it carry theirs: its spill is read on the ground as their channels (`water`, on the
+ * profiles `wp`) cut it, so it never stands over them. Two pools on the Torrente Arcinasso by the
+ * Fosso di Paretola's mouth (OSM 1473224065 and 1473224067) kept the LiDAR's 258.0 and 265.2 m once
+ * Aulla's part carved the stream through them, over every node of theirs.
  */
-const levelOf = (rings: ReadonlyArray<ReadonlyArray<number>>, dem: Dem) => {
+const levelOf = (
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+  dem: Dem,
+  water: ReadonlyArray<WaterF>,
+  wp: ReadonlyArray<Profile>,
+) => {
   const lattice = gridLattice(),
     [x0, y0, x1, y1] = ringBox(rings[0]!)
   // The nodes round the rings' box, and a node more: every node a cell of the rings touches.
@@ -159,14 +170,18 @@ const levelOf = (rings: ReadonlyArray<ReadonlyArray<number>>, dem: Dem) => {
     j0 = Math.max(0, Math.floor((y0 - lattice.y0) / lattice.cell) - 1),
     j1 = Math.min(lattice.rows - 1, Math.ceil((y1 - lattice.y0) / lattice.cell) + 1)
   const win = dem.grid({ i0, j0, cols: i1 - i0 + 1, rows: j1 - j0 + 1 })
-  const inside: Array<number> = []
-  let spill = Number.MAX_VALUE
+  const inside: Array<number> = [],
+    edges: Array<number> = []
+  let held = false
   nodesOf(win, rings, (k, edge) => {
     const x = lattice.x0 + (i0 + (k % (i1 - i0 + 1))) * lattice.cell,
       y = lattice.y0 + (j0 + Math.floor(k / (i1 - i0 + 1))) * lattice.cell
     if (inRings(rings, x, y)) inside.push(win.z[k]!)
-    if (edge) spill = Math.min(spill, win.z[k]!)
+    if (edge) edges.push(k)
+    else held = true
   })
+  if (!held) carveAll(win, water, wp)
+  const spill = Math.min(...edges.map((k) => win.z[k]!))
   if (inside.length === 0) {
     const outer = rings[0]!
     for (let k = 0; k < outer.length; k += 2) inside.push(dem.at(outer[k]!, outer[k + 1]!))
@@ -205,7 +220,7 @@ export const waterAreas = (
       carved.push({ rings: a.rings, box, waters, bars })
       return { ...a, waters }
     }
-    const level = a.level ?? levelOf(a.rings, dem)
+    const level = a.level ?? levelOf(a.rings, dem, water, wp)
     carved.push({ rings: a.rings, box, level, bars: [] })
     return { ...a, level }
   })
