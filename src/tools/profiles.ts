@@ -145,12 +145,10 @@ export const beatsRail = (cls: string): boolean =>
 /**
  * The carriageway width each piece is cored at, rank (lower wins at junctions), grade limit,
  * smoothing half-window (m), the elevation tolerance (m) of the bend samples kept in the output,
- * whether consecutive bridge (or tunnel) pieces make one deck, straight from end to end, and whether
- * each junction the fit sets keeps within reach of the junctions already set that a road not yet
- * fitted leads it to (`junctionReach`): the roads'. The rail keeps a deck a piece: its 2.5 % grade
- * and 100 m smoothing hold a joint to the line between its deck's ends, and its platforms and
- * crossings are fitted on that profile. It keeps its own grade at a level crossing too: the road
- * meets it there. With `mouths` (the roads'), a tunnel's approaches hold the grid round each of its
+ * and whether each junction the fit sets keeps within reach of the junctions already set that a
+ * road not yet fitted leads it to (`junctionReach`): the roads'. Consecutive bridge (or tunnel)
+ * pieces make one deck, straight from end to end, the rail's as the roads'. The rail keeps its own
+ * grade at a level crossing: the road meets it there. With `mouths` (the roads'), a tunnel's approaches hold the grid round each of its
  * mouths at their level against every other claim: the first MOUTH m out of it, in their core,
  * before anything else is written. A road over the tunnel or beside the mouth took that cell at its
  * own level otherwise: Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m
@@ -179,7 +177,6 @@ interface Spec<T extends Linear> {
   readonly grade: number
   readonly half: number
   readonly tol?: number
-  readonly decks?: true
   readonly mouths?: true
   readonly reach?: true
   readonly start?: number
@@ -287,13 +284,13 @@ export const makeProfiler = (
     // end to end. OSM splits a bridge or a bore where its tags change: taken piece by piece, the
     // joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m
     // under it (4.9 m), and the joint inside the Galleria del Lupacino, at its speed limit, took the
-    // hill's surface over it. A tunnel's pieces always join; a bridge's only on a profile whose spec
-    // asks for it (`decks`, the roads': the rail keeps a deck a piece, as the CTR draws its spans).
+    // hill's surface over it. So did the rail's, its smoothing held only short spans: the joint of
+    // the Pontremolese's second track over the Magra north of Aulla, between pieces of 175 and 391 m,
+    // stood 5.6 m under the line between the deck's ends, the grade changing 4.5% over 20 m there.
     const deckOf = (i: number): readonly [number, number] => {
       let a = i,
         b = i
-      const joins = (k: number) =>
-        isLifted(k) && isTunnel(k) === isTunnel(i) && (isTunnel(i) || spec.decks === true)
+      const joins = (k: number) => isLifted(k) && isTunnel(k) === isTunnel(i)
       while (a > 0 && joins(a - 1)) a--
       while (b + 1 < runs.length && joins(b + 1)) b++
       return [a, b]

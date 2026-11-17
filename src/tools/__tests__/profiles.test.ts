@@ -4,7 +4,14 @@ import { test } from "node:test"
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import { coreHalf, replayClaims } from "../grid-claims.ts"
-import { chainsOf, insideNodes, makeProfiler, PATH_PASS, type Linear } from "../profiles.ts"
+import {
+  chainsOf,
+  insideNodes,
+  makeProfiler,
+  PATH_PASS,
+  RAIL_PASS,
+  type Linear,
+} from "../profiles.ts"
 import { roadLevels } from "../road-levels.ts"
 import type { Grid } from "../terrain.ts"
 
@@ -204,25 +211,34 @@ test("profile carries a tilted bound inside a tunnel to its portals along the tu
 
 // Regression: the SS63's bridge over the Rosaro at Soliera is two OSM ways; taken piece by piece,
 // their joint fell toward the ground 12 m under it, and the deck sagged 4.9 m there (12 % and 6 %).
-test("profile lays a road's bridge of two pieces as one deck, straight from end to end; the rail keeps a deck a piece", () => {
-  // Flat ground at 100 m, a gorge 10 m deep over x 300–400 under the bridge, its joint at x 330.
-  const ground = (x: number) => (x > 300 && x < 400 ? 90 : 100)
-  const halves = [
-    { id: 4, bridge: true as const, pts: [v(300, 0, "b0"), v(330, 0, "j")] },
-    { id: 5, bridge: true as const, pts: [v(330, 0, "j"), v(400, 0, "b1")] },
-  ]
-  const chain = [
-    { id: 3, pts: [v(0, 0), v(300, 0, "b0")] },
-    ...halves,
-    { id: 6, pts: [v(400, 0, "b1"), v(700, 0)] },
-  ].map((item) => ({ item, rev: false }))
-  const joint = (decks: boolean) => {
+// So did the rail's, past the reach of its smoothing: the Pontremolese's second track crosses the
+// Magra north of Aulla on two pieces of 175 and 391 m (1045531416, 92904328), and their joint stood
+// 5.6 m under the line between the deck's ends, its grade changing 4.5% over 20 m there.
+test("profile lays a bridge of two pieces as one deck, straight from end to end, a road's and the rail's", () => {
+  /** The joint's z on flat ground at 100 m, a valley 20 m deep under the bridge from x 300 to x 300 + a + b. */
+  const joint = (
+    a: number,
+    b: number,
+    spec: Parameters<ReturnType<typeof makeProfiler>["profile"]>[1],
+  ) => {
+    const ground = (x: number) => (x > 300 && x < 300 + a + b ? 80 : 100)
+    const halves = [
+      { id: 4, bridge: true as const, pts: [v(300, 0, "b0"), v(300 + a, 0, "j")] },
+      { id: 5, bridge: true as const, pts: [v(300 + a, 0, "j"), v(300 + a + b, 0, "b1")] },
+    ]
+    const chain = [
+      { id: 3, pts: [v(0, 0), v(300, 0, "b0")] },
+      ...halves,
+      { id: 6, pts: [v(300 + a + b, 0, "b1"), v(600 + a + b, 0)] },
+    ].map((item) => ({ item, rev: false }))
     const { profile, zOf } = makeProfiler((x) => ground(x))
-    profile(chain, { w: 9, rank: 1, grade: 0.1, half: 20, ...(decks ? { decks: true } : {}) })
+    profile(chain, spec)
     return zOf.get(halves[0]!)!.at(-1)!
   }
-  assert.ok(Math.abs(joint(true) - 100) < 1e-6, `the joint at ${joint(true)}`)
-  assert.ok(joint(false) < 99, `a deck a piece sags at its joint: ${joint(false)}`)
+  const road = joint(30, 70, { w: 9, rank: 1, grade: 0.1, half: 20 }),
+    rail = joint(175, 391, { w: 4, ...RAIL_PASS })
+  assert.ok(Math.abs(road - 100) < 1e-6, `the road's joint at ${road}`)
+  assert.ok(Math.abs(rail - 100) < 1e-6, `the rail's joint at ${rail}`)
 })
 
 // Regression: Pieve San Lorenzo's underpass (road 756577583) under the station's tracks opened under
@@ -244,11 +260,9 @@ test("profile: a road tunnel's approaches hold the grid round its mouths at thei
     const { profile, claims, zOf } = makeProfiler(ground)
     profile([{ item: { pts: [v(196, -20), v(196, 20)] }, rev: false }], { ...SPEC, rank: 1 })
     profile([{ item: { pts: [v(95.8, -20), v(95.8, 20)] }, rev: false }], { ...SPEC, rank: 3 })
-    profile(
-      chain,
-      { w: 4.5, rank: 3, grade: 0.15, half: 20, decks: true, ...(on ? { mouths: true } : {}) },
-      [{ x: 150, y: 0, z: 94, kind: "max", tilt: true }],
-    )
+    profile(chain, { w: 4.5, rank: 3, grade: 0.15, half: 20, ...(on ? { mouths: true } : {}) }, [
+      { x: 150, y: 0, z: 94, kind: "max", tilt: true },
+    ])
     const g = grid()
     replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
     const at = (x: number, y: number) => g.z[((y + 20) / 4) * 161 + (x + 20) / 4]!
@@ -276,7 +290,7 @@ test("profile keeps a junction it sets within reach of the short link to a junct
   const top = { pts: [v(0, 212, "C"), v(100, 212)] }
   const hill = { pts: [v(0, 12, "B"), v(0, 62), v(0, 112), v(0, 162), v(0, 212, "C")] }
   const link = { pts: [v(0, 0, "A"), v(0, 12, "B")] }
-  const spec = { w: 5, rank: 3, grade: 0.15, half: 20, decks: true as const }
+  const spec = { w: 5, rank: 3, grade: 0.15, half: 20 }
   const climb = (reach: boolean) => {
     const graded = [west, top, hill, link].map((piece) => ({ piece, grade: 1.5 * spec.grade }))
     const { profile, zOf } = makeProfiler(ground, graded)
@@ -315,7 +329,7 @@ test("profile holds each bound on its own piece where a chain crosses itself: a 
     zAt: () => 0,
   })
   const { profile, zOf } = makeProfiler(() => 100)
-  profile(chain, { w: 7, rank: 1, grade: 0.1, half: 20, decks: true }, bounds(chain))
+  profile(chain, { w: 7, rank: 1, grade: 0.1, half: 20 }, bounds(chain))
   const [w, e] = zOf.get(bridge)!,
     [l0, l1] = zOf.get(loop)!
   const gap = w! + ((e! - w!) * 14) / 80 - (l0! + ((l1! - l0!) * 20) / 50)
@@ -389,7 +403,7 @@ test("an approach's core past its bridge's end yields to any other core: a road 
     for (const chain of chains)
       profile(
         chain.map((item) => ({ item, rev: false })),
-        { w: 10, rank: 0, grade: 0.06, half: 100, decks: true },
+        { w: 10, rank: 0, grade: 0.06, half: 100 },
       )
     // A track across the valley floor 1.5 m past the deck's start, written after the motorway.
     if (track)
@@ -431,7 +445,7 @@ test("profile with ramps fits a path's deck between its ends' levels over or und
     const { profile, denseOf } = makeProfiler(() => 100)
     profile(
       [{ item: piece, rev: false }],
-      { w: 1.5, ...PATH_PASS, decks: true, ...(ramps ? { ramps: true } : {}), ends: () => 100 },
+      { w: 1.5, ...PATH_PASS, ...(ramps ? { ramps: true } : {}), ends: () => 100 },
       [28, 30, 32].map((x) => ({
         x,
         y: 0,

@@ -237,7 +237,9 @@ test("trains: the player stepping half a pace on and off the track's edge in fro
 })
 
 test("trains: someone too near to stop for is struck; the player on foot is killed and comes back at the start", () => {
-  // A walker on the track 40 m ahead of a train at 80 km/h: struck, the train its `car`.
+  // A walker on the track 20 m ahead of a train at 80 km/h, 0.9 s off: struck, the train its `car`. From 40 m (1.8 s) the
+  // alarm sent it running along the track, and struck, while the line by Via Riolo sagged up to 0.7 m under the LiDAR's
+  // ground; on the line at that ground (the rail's bridges of two pieces one deck each) it steps off sideways in time.
   const walker = pedestrian(
     LOOK,
     { x: ON_TRACK.x, y: ON_TRACK.y, angle: ROAD },
@@ -246,7 +248,7 @@ test("trains: someone too near to stop for is struck; the player on foot is kill
   )
   const near = start(
     [],
-    [NEARBY, { peds: [walker], trains: [aiTrain(riolo.s - 40, 1, speedAt(line, riolo.s - 40))] }],
+    [NEARBY, { peds: [walker], trains: [aiTrain(riolo.s - 20, 1, speedAt(line, riolo.s - 20))] }],
     { trains: true, alone: true },
   )
   const [train] = near.world().trains

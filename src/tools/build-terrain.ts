@@ -213,7 +213,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
   for (const { classes, rank, grade, half } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
-      profile(ch, { w: (r) => r.w, rank, grade, half, decks: true, mouths: true, reach: true }, [
+      profile(ch, { w: (r) => r.w, rank, grade, half, mouths: true, reach: true }, [
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])
@@ -236,7 +236,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     (r) => lifted(r) && (PATH_PASS.classes as ReadonlyArray<string>).includes(r.cls),
   )
   for (const ch of grown(chainsOf(pathDecks)))
-    profile(ch, { w: (r) => r.w, ...PATH_PASS, decks: true, ramps: true, ends: endLevel }, [
+    profile(ch, { w: (r) => r.w, ...PATH_PASS, ramps: true, ends: endLevel }, [
       ...roadBounds(ch),
       ...overpasses.bounds(ch),
     ])
