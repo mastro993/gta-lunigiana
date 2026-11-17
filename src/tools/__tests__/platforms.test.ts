@@ -118,3 +118,16 @@ test("buildPlatforms leaves out ground more than 1 m under the platform's top, a
   assert.ok(Math.max(...ring.filter((_, k) => k % 2 === 1)) <= 6.1)
   assert.ok(pointInRing(20, 4, ring) && !pointInRing(20, 7, ring))
 })
+
+// Regression: OSM's platforms at Aulla Lunigiana run 330 m south of CTR sheet 24C60's edge, where no 2019 sheet maps the
+// ground; the build left out every OSM platform whose first vertex lay in a mapped sheet, and kept one starting outside whole,
+// over the CTR's own platforms.
+test("buildPlatforms leaves a platform's cells in the areas it leaves to another source, and keeps the rest", () => {
+  const [p, ...rest] = buildPlatforms({
+    ...base,
+    polygons: [{ src: "OSM", rings: [box(0, 2, 40, 9)], leftTo: [box(20, -50, 100, 50)] }],
+  })
+  assert.equal(rest.length, 0)
+  const xs = p!.rings[0]!.filter((_, k) => k % 2 === 0)
+  assert.ok(Math.min(...xs) < 0.2 && Math.max(...xs) <= 20, `${Math.min(...xs)}–${Math.max(...xs)}`)
+})

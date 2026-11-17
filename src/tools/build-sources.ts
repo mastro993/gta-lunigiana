@@ -102,16 +102,15 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
       : []),
     ...survey.roadAreas.filter((a) => a.paved).map((a) => ({ kind: "paved", rings: a.rings })), // squares, lay-bys
   ]
-  const inCtr = (ring: ReadonlyArray<number>) =>
-    ctr2019.mapped.some((m) => pointInRing(ring[0]!, ring[1]!, m))
   // The platforms: the 2019 CTR's where its sheets map the ground (the only survey whose rail is
-  // read), OSM's elsewhere; those the play area holds, as one beyond it would stand by the stub of
-  // rail its outline leaves.
+  // read), OSM's elsewhere, cut cell by cell at the sheets' edges (Aulla Lunigiana's run 330 m on
+  // south of 24C60's, where no 2019 sheet maps the ground); those the play area holds, as one
+  // beyond it would stand by the stub of rail its outline leaves.
   const platforms = heldInPlay([
     ...ctrRail.platforms,
     ...osmAreas
-      .filter((a) => a.kind === "platform" && !inCtr(a.rings[0]!))
-      .map((a, i) => ({ src: `OSM platform ${i}`, rings: a.rings })),
+      .filter((a) => a.kind === "platform")
+      .map((a, i) => ({ src: `OSM platform ${i}`, rings: a.rings, leftTo: ctr2019.mapped })),
   ])
   const districts: Array<District> = fitDistricts(osm, buildings)
   // What the map leaves out beyond the play area, in the built terrain's box: the trees keep off its
