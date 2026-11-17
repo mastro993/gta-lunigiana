@@ -163,8 +163,8 @@ const entry = (line: Line, from: 0 | 1, length: number) => {
  * The dispatcher: an AI train whose whole body has run past its line's drawn run is removed, and that line's next train is due
  * after a layover (drawn from `RailRng`) from that end; one dwelling at its line's terminus with no call left ahead is turned
  * round as its dwell starts (its driver changes ends: `boarded` at its far cab), to run back once it ends; a line's due train
- * enters at the run-out's end at line speed, beyond view, once no AI train runs on its line, no train is on its run-out or
- * within `entryClear` ahead of its nose, and no AI train of another line, entering this step or running, would run track the
+ * enters at the run-out's end at line speed, beyond view, once no AI train runs on its line, no train (another line's entering
+ * this step included) is on its run-out or within `entryClear` ahead of its nose, and no AI train of another line, entering this step or running, would run track the
  * two share (`SHARED`) the other way from it, on it or still ahead (`headOn`): they could meet head-on. A stolen train the
  * player is not in is removed once all of it is out of view (`VIEW_REACH` m from them); its line, with no AI train on it and
  * none due, has its next due after a layover, from the end nearer where it stood (its first, on a line to a terminus).
@@ -249,10 +249,11 @@ export const Dispatch = Game.System(
         from: line.terminus || middle < line.length / 2 ? 0 : 1,
       }
     }
-    // What each AI train will still run, and each entering this step.
+    // What each AI train will still run, and each entering this step; and every train's body, with theirs.
     const ahead = trains.flatMap((train) =>
-      train.run === undefined ? [] : [passesOf(train.motion, train.model)],
-    )
+        train.run === undefined ? [] : [passesOf(train.motion, train.model)],
+      ),
+      seen: Array<SeenTrain> = [...trains]
     for (const [i, line] of LINES.entries()) {
       const due = service[i]?.due ?? null
       if (due === null || due > step || running.has(i)) continue
@@ -263,18 +264,22 @@ export const Dispatch = Game.System(
         clear = entryClear(v)
       const lo = dir > 0 ? line.start : s - clear,
         hi = dir > 0 ? s + clear : line.end
-      if (bodiesOn(trains, i).some((body) => body.hi >= lo && body.lo <= hi)) continue
+      if (bodiesOn(seen, i).some((body) => body.hi >= lo && body.lo <= hi)) continue
       // Nor any AI train of a line sharing its track that would run it the other way, on it or still ahead (a train still on
       // its own track runs onto the shared one later): they could meet head-on and stand face to face for good.
       const passes = passesOf({ line: i, s, facing: dir }, MODEL)
       if (ahead.some((other) => headOn(passes, other))) continue
       ahead.push(passes)
+      // Another line's entry this step sees its body on the track they share.
+      const motion = { line: i, s, facing: dir, v: dir * v }
+      seen.push({ id: -1 - i, motion: { ...motion, prev: s, power: 0, brake: 0 }, model: MODEL })
       commands.spawn(
-        trainDraft(
-          MODEL,
-          { line: i, s, facing: dir, v: dir * v },
-          { dir, stop: nextStop(line, s, dir, length), state: "run", until: 0 },
-        ),
+        trainDraft(MODEL, motion, {
+          dir,
+          stop: nextStop(line, s, dir, length),
+          state: "run",
+          until: 0,
+        }),
       )
       service[i] = { ...service[i]!, due: null }
     }

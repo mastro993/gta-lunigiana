@@ -28,6 +28,7 @@ import {
   type PoseValue,
   RailRng,
   Railway,
+  type RailwayValue,
   Stolen,
   Train,
   Time,
@@ -82,16 +83,22 @@ export const TrainWorld = Game.Inspector(
   }),
 )
 
+/** Sets each line's service (`Railway`) to what `next` makes of it (`runtime.tick` it). */
+export const setService = (
+  next: (entry: RailwayValue[number], line: number) => RailwayValue[number],
+) =>
+  Game.Schedule(
+    Game.System(
+      "Test/SetService",
+      { resources: { railway: Game.System.writeResource(Railway) } },
+      ({ resources }) => {
+        resources.railway.update((service) => service.map(next))
+      },
+    ),
+  )
+
 /** No train service: every line's next train never due, so setup stands none. `start` ticks it before setup unless a test asks for trains. */
-export const noTrains = Game.Schedule(
-  Game.System(
-    "Test/NoTrains",
-    { resources: { railway: Game.System.writeResource(Railway) } },
-    ({ resources }) => {
-      resources.railway.update((service) => service.map((line) => ({ ...line, due: null })))
-    },
-  ),
-)
+export const noTrains = setService((line) => ({ ...line, due: null }))
 
 /** Replaces every train with `trains` (`runtime.tick` it). */
 export const placeTrains = (trains: ReadonlyArray<ReturnType<typeof trainDraft>>) =>

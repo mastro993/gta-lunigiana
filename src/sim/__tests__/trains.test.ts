@@ -16,6 +16,7 @@ import {
 } from "../index.ts"
 import { MAP } from "../map/index.ts"
 import { CROSSING_HOLD, LOWERING, MARGIN, RAISING, RELEASE, WARNING } from "../rail/barriers.ts"
+import { bodiesOn } from "../rail/bodies.ts"
 import { CROSSINGS } from "../rail/crossings.ts"
 import { entryClear, FillTrains } from "../rail/dispatch.ts"
 import { LINES, linesNear, nextStop, SHARED, speedAt } from "../rail/lines.ts"
@@ -27,10 +28,11 @@ import {
   placeTrains,
   railStep,
   RIOLO,
+  setService,
   stopOf,
   TrainWorld,
 } from "../rail/testing.ts"
-import { Railway } from "../schema.ts"
+import type { TrainMotionValue } from "../schema.ts"
 import { jsonSave, start } from "../testing.ts"
 import { atMonzone, LENGTH, line, railway, riolo, S, toRiolo } from "./railway.ts"
 
@@ -216,17 +218,7 @@ test("trains: the dispatcher lets no train in toward another line's AI train tha
     { dir: 1, stop: -1, state: "run", until: 0 },
   )
   assert.ok(game.runtime.tick(placeTrains([ours])).ok)
-  const due = Game.Schedule(
-    Game.System(
-      "Test/DueNow",
-      { resources: { railway: Game.System.writeResource(Railway) } },
-      ({ resources }) => {
-        resources.railway.update((service) =>
-          service.map((entry, k) => (k === b.index ? { due: 0, from: dir > 0 ? 0 : 1 } : entry)),
-        )
-      },
-    ),
-  )
+  const due = setService((entry, k) => (k === b.index ? { due: 0, from: dir > 0 ? 0 : 1 } : entry))
   assert.ok(game.runtime.tick(due).ok)
   game.step(10 * S)
   assert.deepEqual(
@@ -235,6 +227,71 @@ test("trains: the dispatcher lets no train in toward another line's AI train tha
     "it waits",
   )
   assert.notEqual(game.inspect().railway[b.index]!.due, null)
+})
+
+test("trains: of two lines due on one step at a run-out they share, one train enters and the other line's waits until it is clear", () => {
+  // Two lines' entries whose bodies stand on one stretch of track (the Pontremolese's two, at the north edge).
+  const entries = LINES.flatMap((line) =>
+    ([0, 1] as const).map((from) => {
+      const dir = from === 0 ? 1 : -1,
+        s = from === 0 ? line.start + LENGTH : line.end - LENGTH
+      return {
+        line,
+        from,
+        motion: { line: line.index, s, facing: dir, v: 0, prev: s, power: 0, brake: 0 },
+      } as const
+    }),
+  )
+  const seen = (motion: TrainMotionValue, id = 0) => ({ id, motion, model: "atr220" as const })
+  const pair = entries.flatMap((a) =>
+    entries
+      .filter((b) => b.line.index > a.line.index)
+      .filter((b) => {
+        const { lo, hi } = bodiesOn([seen(a.motion)], a.line.index)[0]!
+        return bodiesOn([seen(b.motion)], a.line.index).some(
+          (body) => body.hi >= lo && body.lo <= hi,
+        )
+      })
+      .map((b) => [a, b] as const),
+  )[0]
+  assert.ok(
+    pair !== undefined,
+    "two lines enter on one run-out (the Pontremolese's two, at the north edge)",
+  )
+  const [a, b] = pair
+  const game = railway()
+  assert.ok(game.runtime.tick(placeTrains([])).ok)
+  const due = setService((entry, k) =>
+    k === a.line.index || k === b.line.index
+      ? { due: 0, from: k === a.line.index ? a.from : b.from }
+      : { ...entry, due: null },
+  )
+  assert.ok(game.runtime.tick(due).ok)
+  game.step(1)
+  const first = game.inspect()
+  assert.deepEqual(
+    first.trains.map((t) => t.line),
+    [a.line.index],
+    "one train enters",
+  )
+  assert.notEqual(first.railway[b.line.index]!.due, null, "the other line's stays due")
+  // The other enters once the first is entryClear past its nose.
+  let entered: (typeof first.trains)[number] | undefined
+  const frame = game.step(180 * S, (world) => {
+    entered = world.trains.find((t) => t.line === b.line.index)
+    if (entered === undefined) return false
+    const other = world.trains.find((t) => t.line === a.line.index)!
+    const nose = entered.s,
+      ahead = bodiesOn([seen(other, other.id)], b.line.index).map((body) =>
+        entered!.facing > 0 ? body.lo - nose : nose - body.hi,
+      )
+    assert.ok(
+      ahead.every((d) => d >= entryClear(Math.abs(entered!.v)) - 1),
+      `${ahead.map((d) => d.toFixed(1))} m ahead of it`,
+    )
+    return true
+  })
+  assert.ok(frame < 180 * S, "the other line's train enters")
 })
 
 test("trains: at its terminus a train dwells as its driver changes ends, then runs back, calling at the station it came by, never past the terminus", () => {
