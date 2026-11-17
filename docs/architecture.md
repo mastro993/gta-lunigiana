@@ -3024,9 +3024,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     after a change to the look, the palette or the vectors, wants `pnpm maps`);
     `playtest-drive.map-test.ts`: the playtest bot's default drive, the SP59 from Monzone to Vinca
     across the x = 0, y = 0, y = −2000 and x = 2000 seams, chained from the whole map's road lines;
-    `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB, and each
-    map's global JSON line at most 8,000,000 B (Lunigiana's was 8,319,700 B before format version 6
-    moved the graph, the lanes and the residents off it);
+    `src/__tests__/maps.map-test.ts`: every tile of both maps and, built or in CI, of both test
+    regions (the L and the coast) at its URL, at most 0.7 MB, and each map's global JSON line at
+    most 8,000,000 B (Lunigiana's was 8,319,700 B before format version 6 moved the graph, the lanes
+    and the residents off it);
     `src/tools/__tests__/seams.map-test.ts`: on both maps, one height for every node two tiles
     share, and every wall stored once, those across a seam carrying on and found from either side
     within `walls.reach`.

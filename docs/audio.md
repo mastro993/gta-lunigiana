@@ -1746,9 +1746,9 @@ speech and the animal calls 102 in 3.9 s, none flagged (the speech rows peak at 
 0.126). With sand's three rows, 144 rows in 7.6–7.9 s over four runs, none flagged: in sand a full
 slide at the Giulia's top speed peaks at 0.18–0.22 (−26.2 to −26.4 dBFS RMS) with its centroid at
 940–970 Hz, where the same slide squeals on asphalt at 2.35–2.38 kHz and the truck half sliding on
-gravel at 15 m/s crunches at 5.0–5.1 kHz, a standing spin at 0.08–0.14 (−38.0 to −39.1) and 1.54–1.56 kHz, and a
-running step at 0.10–0.15 (−34.3 to −37.7) and 2.5–2.9 kHz, under gravel's 4.0–5.0 kHz and
-0.14–0.26. At `?seed=7`, standing at the spawn
+gravel at 15 m/s crunches at 5.0–5.1 kHz, a standing spin at 0.08–0.14 (−38.0 to −39.1) and
+1.54–1.56 kHz, and a running step at 0.10–0.15 (−34.3 to −37.7) and 2.5–2.9 kHz, under gravel's
+4.0–5.0 kHz and 0.14–0.26. At `?seed=7`, standing at the spawn
 reads a median of −38.0 dBFS (−38.8 with crash damage in the game, nothing damaged yet); with
 the nearer Carabinieri Giulia burning about 6 m away, −29.7, its crackle peaking at −18.6. With
 that Giulia spawned burning in a playtest copy and blowing up at step 300 (5 s in; the meter at a

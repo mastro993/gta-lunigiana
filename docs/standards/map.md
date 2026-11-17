@@ -27,8 +27,9 @@ never compares a change's map with the map before it, so these runs are yours.
   wrong; a change to which entries the bake gives, in the same shape, is a rebuild (`pnpm maps`)
   alone (the user's answer to issue #111's seventh question).
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
-  of the map live there, not in `pnpm test`, and so do the L test region's (`pnpm maps` builds it
-  into `test-maps/`; without it they are skipped, but fail in CI, which builds it).
+  of the map live there, not in `pnpm test`, and so do the test regions' (the L and the coast:
+  `pnpm maps` builds them into `test-maps/`; without one its checks are skipped, but fail in CI,
+  which builds them).
 - Draw the changed area with `node src/tools/preview-map.ts` (a top-down PNG in `.research/`) and
   look at it.
 - A rebuilt map shifts pinned positions: test coordinates, bot waypoints and screenshot spots.
@@ -89,31 +90,32 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   lock's extracts hold every listed tile's ground in the box.
 - A failed scale check (tile size, build memory, first frame, heap) is engine work first.
 - Every bridge's deck keeps the ground out of it: `deck-ground.map-test.ts` reads every road and
-  rail deck of Lunigiana, Cesena and the L, and fails where the terrain stands within the 0.9 m slab
-  under a deck's top more than 4 m in from its outer ends (a joint with the next piece of the bridge
-  is none), or more than 0.05 m over its profile nearer them, but at its abutments ([Ground under the
+  rail deck of Lunigiana, Cesena, the L and the coast, and fails where the terrain stands within the
+  0.9 m slab under a deck's top more than 4 m in from its outer ends (a joint with the next piece of
+  the bridge is none), or more than 0.05 m over its profile nearer them, but at its abutments
+  ([Ground under the
   decks](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
   The build lowers the ground (`deck-ground.ts`) for every deck from the shipped lines alone, so a
   failure on a new part is the data's (a bridge's ends or profile, two decks at odds) or the pass's:
   fix that for every deck alike, never with an exception for one bridge or one part.
 - Every bridge's parapets hold on its deck's level and only there: `parapets.map-test.ts` reads
-  every drivable bridge of Lunigiana, Cesena and the L, and fails where a car on the deck meets no
-  wall and no road on the deck's level (within 2 m of its top) reaches the parapet, where a car on a
-  drivable road reaching it meets a parapet (a junction on the deck closed, a road under it walled
-  off by a parapet's wrong level), or where a wall with no level stands on the parapet over a road
-  under or over the deck ([Collision
+  every drivable bridge of Lunigiana, Cesena, the L and the coast, and fails where a car on the deck
+  meets no wall and no road on the deck's level (within 2 m of its top) reaches the parapet, where a
+  car on a drivable road reaching it meets a parapet (a junction on the deck closed, a road under it
+  walled off by a parapet's wrong level), or where a wall with no level stands on the parapet over a
+  road under or over the deck ([Collision
   walls](../map.md#10-collision-walls-wallsts-parapetsts-deck-wallsts)). The build (`parapets.ts`)
   opens and levels every parapet from the shipped roads and the terrain alone (`roadLevel`), so a failure on a new part is the
   data's (a bridge's or a road's profile, a junction's roads at odds by 2 m or more, a barrier drawn
   along a deck's edge) or the build's: fix that for every bridge alike, never with an exception for
   one bridge or one part.
-- Nobody comes up onto a bridge's deck from under it: `under-decks.map-test.ts` and its Cesena and L
-  twins walk the game's own walker (`footZ`, `walkBy`) under every road deck, from where there is
-  room to stand (2.7 m under its top) toward the ground near its top, drive a Panda (`groundZ`,
-  `moveCar`) the same way under every drivable one, from where there is room for the tallest vehicle,
-  and walk every road meeting its ends onto it, on its centreline and its verges, and drive it, and
-  fail where the walker or the car comes up onto the deck or where a wall with a level shuts an end
-  that led onto it ([Walls under the
+- Nobody comes up onto a bridge's deck from under it: `under-decks.map-test.ts` and its Cesena, L
+  and coast twins walk the game's own walker (`footZ`, `walkBy`) under every road deck, from where
+  there is room to stand (2.7 m under its top) toward the ground near its top, drive a Panda
+  (`groundZ`, `moveCar`) the same way under every drivable one, from where there is room for the
+  tallest vehicle, and walk every road meeting its ends onto it, on its centreline and its verges,
+  and drive it, and fail where the walker or the car comes up onto the deck or where a wall with a
+  level shuts an end that led onto it ([Walls under the
   decks](../map.md#walls-under-the-decks)). The build (`deck-walls.ts`) walls every road deck from
   the shipped roads, the platforms and the ground as lowered under the decks alone, read through the
   game's ground model (`build-ground.ts`), so a failure on a new part is
@@ -122,28 +124,30 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   pass's: fix that for every deck alike, never with an exception for one bridge or one part.
 - What stands on a bridge stays apart from what runs under it:
   `src/sim/map/__tests__/levels.map-test.ts` reads every crossing of two ways on two levels with no
-  node in common on Lunigiana, Cesena and the L (a road, path or rail bridge over a road, a path,
-  steps or the rail; a road, a path or the rail over a tunnel; rail over rail left out), and fails
-  where the way above stands 2.5 m or less (the level rule's 2 m, `ONE_LEVEL`, and a 0.5 m margin)
-  over
-  the one below between points of the two within 3.99 m of each other and of the crossing, but at
-  the Cesena crossings it lists by OSM id, each of which must still fall short ([Checks and
-  tools](../map.md#checks-and-tools)). The level rule (`onOneLevel`) is code, so a failure on a new
-  part is the data's (a deck too low over what it crosses, a footbridge or an underpass between its
-  ends at the terrain's level) or the profiles' pass's: fix that for every crossing alike, never by
-  listing a new part's crossing.
+  node in common on Lunigiana, Cesena, the L and the coast (a road, path or rail bridge over a road,
+  a path, steps or the rail; a road, a path or the rail over a tunnel; rail over rail left out), and
+  fails where the way above stands 2.5 m or less (the level rule's 2 m, `ONE_LEVEL`, and a 0.5 m
+  margin) over the one below between points of the two within 3.99 m of each other and of the
+  crossing, but at the crossings it lists by OSM id on Cesena and on the coast test region, each of
+  which must still fall short ([Checks and tools](../map.md#checks-and-tools)). The level rule
+  (`onOneLevel`) is code, so a failure on a new part is the data's (a deck too low over what it
+  crosses, a footbridge or an underpass between its ends at the terrain's level) or the profiles'
+  pass's: fix that for every crossing alike, never by listing a new part's crossing (the coast is a
+  test region, not a shipped part: part 5, #21, which brings it into the shipped map, must fix its
+  8, as [docs/map.md](../map.md#checks-and-tools) says).
 - A driver reads its way on its level onto and off every bridge and tunnel:
-  `src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts`
-  stand a driver on its lane up to 40 m before every joint where a Panda drives from a road onto or
-  off a bridge or a tunnel, or from one bridge way onto the next, with no junction and no turn of
-  30° or more, and fail where it reads a Panda standing in its lane past the joint off its level
-  (`onPathLevel`, `joint-checks.ts`), but at the mouth of Pieve San Lorenzo's underpass the
-  Lunigiana test lists, which must still fail ([Checks and tools](../map.md#checks-and-tools)).
+  `src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts`, `joints-l.map-test.ts`
+  and `joints-coast.map-test.ts` stand a driver on its lane up to 40 m before every joint where a
+  Panda drives from a road onto or off a bridge or a tunnel, or from one bridge way onto the next,
+  with no junction and no turn of 30° or more, and fail where it reads a Panda standing in its lane
+  past the joint off its level (`onPathLevel`, `joint-checks.ts`), but at the mouth of Pieve San
+  Lorenzo's underpass the Lunigiana test lists, which must still fail ([Checks and
+  tools](../map.md#checks-and-tools)).
   The reading follows the map's surfaces, so a failure on a new part is the data's or the profiles'
   (a joint whose two profiles meet a step apart, a deck whose start stands off its approach): fix
   that for every joint alike, never by listing a new part's joint.
 - Every road tunnel is drawn at its floor under the hill, and no road runs into a bank:
-  `src/render/__tests__/tunnels.map-test.ts` and its Cesena and L twins check every road in a
+  `src/render/__tests__/tunnels.map-test.ts` and its Cesena, L and coast twins check every road in a
   tunnel drawn at its floor along its whole line (every 0.5 m, 2 cm or less off it: a sharp bend's
   mitre tilted a covered alley of Fosdinovo's 10.3 cm off its floor between 2 m samples), its
   bore's dark walls under the hill along both its sides (none in a building passage), its mouths

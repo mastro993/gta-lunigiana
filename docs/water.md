@@ -256,7 +256,9 @@ feet, and takes it away on dry ground.
   stamina. Put in the sea south of Marinella's beach on the coast test region, at (−9072, −14600),
   1,349 m from the coastline over 9.4 m of water, and heading north, the player swims 1,626 m in
   1,807 s (0.9 m/s), finds his feet 1.06 m deep, wades the last 39 m in 99 s and walks out at
-  1,906 s, 32 minutes of play (2026-11-17, the map 4c1568c7a21b5b71).
+  1,906 s, 32 minutes of play (2026-11-17, the map 4c1568c7a21b5b71; the build since,
+  2a653db1f28d317e, moved only the walk graph by the Magra's mouth, which the player's swim does
+  not read).
 - **Keeping out by choice** (`walkDry`). People and animals keep to the walk walls they meet on
   their footing's level like the player, but one still dry takes no step into the water unless it
   flees: it stops at the water's edge where the level stands now, so a rising river pushes it back

@@ -2581,8 +2581,8 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   first cut, capping every corner of each cell the slab reaches over as the rail bed does, lowered
   1,204 nodes and cut a hillside 11.2 m at (2944, −88), 7.3 m off a track bridge whose slab only
   grazed that cell; digging as deep as it took made a 6.1 m pit in a stream's bed by an abutment.
-  `deck-ground.map-test.ts` checks every deck of Lunigiana, Cesena and the L ([Checks and
-  tools](#checks-and-tools)).
+  `deck-ground.map-test.ts` checks every deck of Lunigiana, Cesena, the L and the coast ([Checks
+  and tools](#checks-and-tools)).
 - A bridge or tunnel no profiled chain covers (paths, steps) is a straight line between its ends.
   Under the rail both ends keep the road clearance, as in a profiled tunnel (the pedestrian
   underpass at Equi Terme station). A pier's deck is set vertex by vertex instead, at its water's
@@ -3640,7 +3640,7 @@ another piece of its id (`clipBuildings` cuts a road's corridor through a footpr
 relations 1083815 and 2026837). Lunigiana holds 37 such ids, 36 a survey's road clips of 2 pieces
 and OSM's building 700764113 in 2 (19 before Fosdinovo's part; lucido alone 5, all a survey's),
 Cesena 6 of OSM and the L 1; a far house given another's id, in a scratch copy, failed it 7,471 m
-off. On the same three maps it checks that no two buildings share one outline (two comuni's DBT
+off. On the same four maps it checks that no two buildings share one outline (two comuni's DBT
 archives of one survey hold the same units, and the map drew 528 of them twice, under each comune's
 ids, which the id check could not see) and that no OSM building's centre stands in a DBT unit (red
 on the build that kept a zone's cut copy: 7 by the Carpinelli road, 849867953 among them; [section
@@ -4126,9 +4126,9 @@ over 20 m, and under 2% through a level crossing (the map before the fixes chang
 falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17); and it runs on over lucido's
 seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
 `src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onOneLevel`, 2 m, in
-`src/sim/one-level.ts`) rests on, on Lunigiana, Cesena and, when built, the L and the coast (in
-CI always): wherever two ways cross on two levels with no node in common (a road, path or rail bridge over a
-road, a path, steps or the rail, or a road, a path or the rail over a tunnel: `passesOver` in
+`src/sim/one-level.ts`) rests on, on Lunigiana, Cesena and, when built, the L and the coast (in CI
+always): wherever two ways cross on two levels with no node in common (a road, path or rail bridge
+over a road, a path, steps or the rail, or a road, a path or the rail over a tunnel: `passesOver` in
 `road-levels.ts`), unless both are the rail, the way above stands more than 2.5 m over the one below
 between any two of their points within 3.99 m of each other and of the crossing, so a deck's slope
 toward its end counts too. That reach is the farthest of how far from a car's axis the person who
