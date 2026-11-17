@@ -28,7 +28,7 @@ import {
   type Line,
   type Sample,
 } from "./rail-match.ts"
-import { smoothGap } from "./rail-smooth.ts"
+import { roundCorners, smoothGap } from "./rail-smooth.ts"
 import {
   cutAtBridges,
   keepSpans,
@@ -332,6 +332,8 @@ export const conflateRail = (
       })
     }
     const isCrossing = (id: string | undefined) => id !== undefined && roadsAt.has(id)
+    // OSM's own vertices, where no CTR track guides them.
+    const free = new Set<V>()
     pts.forEach((v, j) => {
       if (isCrossing(v.id)) return // placed on the rail where it crosses the road, below
       const run = runAt(s[j]!)
@@ -349,13 +351,14 @@ export const conflateRail = (
       }
       const out = v.id === undefined ? at : { ...at, id: v.id }
       if (v.id !== undefined) moves.set(v.id, out)
+      if (run === undefined) free.add(out)
       items.push({ key, v: out })
     })
     items.sort((a, b) => a.key - b.key)
     // Where no CTR track guides it between two matched samples (a tunnel, a gap in the sheets),
     // OSM's few vertices are smoothed, holding the CTR's heading at both ends. Towards a chain end
     // OSM's line keeps its shape, moved as its last matched sample (smoothed, with no CTR at all a
-    // 20° kink came back 6 m off OSM).
+    // 20° kink came back 6 m off OSM), but for its corners (`roundCorners`, below).
     for (let k = 0; k < samples.length; k++) {
       if (match[k]!.track >= 0) continue
       let b = k
@@ -374,6 +377,9 @@ export const conflateRail = (
         Math.hypot(v.x - line[i - 1]!.x, v.y - line[i - 1]!.y) > 0.01 ||
         v.id !== undefined,
     )
+    // OSM's corners no survey guides are rounded through its vertices, which stay: no track turns at a point.
+    const sharp = line
+    line = roundCorners(sharp, (i) => free.has(sharp[i]!), KEEP)
     // Ends on the play area's outline stay on it.
     for (const end of [0, 1] as const) {
       const e = edgeOf(end === 0 ? pts[0]! : pts.at(-1)!)

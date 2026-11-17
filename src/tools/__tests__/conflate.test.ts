@@ -196,6 +196,35 @@ test("conflateRail keeps OSM's line where no CTR track maps it", () => {
   assert.deepEqual(c.rail[0]!.pts, open.pts)
 })
 
+// Regression: Aulla's tunnel 140772193, which no survey maps, kept OSM's 11.4° corner between 41 and 52 m segments, a bend of
+// 100.9 m over 20 m chords, where an ATR 220's cars no longer met at their joints.
+test("conflateRail rounds a corner of OSM's line no survey guides along a curve through its vertices, which stay", () => {
+  const a = (11.4 * Math.PI) / 180
+  const open: RailF = {
+    id: 1,
+    pts: [v(-41, 0, "a"), v(0, 0, "k"), v(52 * Math.cos(a), 52 * Math.sin(a), "b")],
+  }
+  const [rounded] = conflateRail([open], [], [], ctr([]), NONE).rail
+  const pts = rounded!.pts
+  assert.deepEqual(
+    pts.filter((p) => p.id !== undefined),
+    open.pts,
+    "OSM's vertices, ids and all, where they were",
+  )
+  assert.ok(pts.length >= 8, `${pts.length} points`)
+  // No corner: the line turns 3° at most at any of its points (OSM's 11.4° at one), and bows no more than 1.5 m off OSM's segments.
+  for (let k = 1; k + 1 < pts.length; k++) {
+    const [p, q, r] = [pts[k - 1]!, pts[k]!, pts[k + 1]!]
+    const turn = Math.atan2(r.y - q.y, r.x - q.x) - Math.atan2(q.y - p.y, q.x - p.x)
+    assert.ok(
+      Math.abs(turn) < (3 * Math.PI) / 180,
+      `${((turn * 180) / Math.PI).toFixed(1)}° at ${k}`,
+    )
+    const along = q.x <= 0 ? Math.abs(q.y) : Math.abs(q.y * Math.cos(a) - q.x * Math.sin(a))
+    assert.ok(along <= 1.5, `${along.toFixed(2)} m off OSM's line`)
+  }
+})
+
 // Regression: no 2019 sheet maps Aulla Lunigiana's track 5, which matched the CTR's yard track 419182734 beside it (OSM's own
 // 0.3 m off it) for 58 m, up to 5.9 m away, and the whole track moved 5.9 m east, 8 m off its island platform.
 test("conflateRail matches a CTR track only to the OSM track nearest it: a track the CTR leaves out beside one it maps keeps OSM's line", () => {

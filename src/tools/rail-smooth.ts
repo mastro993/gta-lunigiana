@@ -1,7 +1,10 @@
 // Smoothing of the rail where no CTR track guides it between two stretches it does (tunnels):
 // OSM draws those curves with few vertices (a 16° bend at the Terma tunnel's north portal), so the
 // displaced OSM line is replaced by a smoothing spline that keeps its ends and, through two anchor
-// points beyond each end, the CTR track's heading there.
+// points beyond each end, the CTR track's heading there. Elsewhere OSM's own corners are rounded
+// along a curve through its vertices, which stay (`roundCorners`).
+import { Ops } from "@typeonce/ritmo-math"
+
 import type { P, V } from "./geometry.ts"
 import { footOn, lineOf, pointOn, simplifyLine } from "./rail-match.ts"
 
@@ -152,4 +155,93 @@ export const smoothGap = (
   }
   inner.sort((a, b) => a.key - b.key)
   items.splice(i0 + 1, i1 - i0 - 1, ...inner)
+}
+
+/**
+ * A vertex of OSM's line where no survey guides it turning more than this is a corner to round, degrees: over the CTR's own
+ * vertices' 2–5.5° (a 7° kink at the Via Castel dell'Aquila crossing apart, on a surveyed run), under OSM's coarse corners
+ * (11.4° in the Lucca–Aulla line's tunnel 140772193, 8–10.2° on the Pontremolese's 842172341).
+ */
+const ROUND_TURN = 6
+/**
+ * How far a rounded segment may bow off OSM's, m: within OSM's own accuracy (it lies 0.68 m from the CTR at the median, 3.11 m
+ * at p90). Farther, OSM's vertices lie too far apart to say where the track bends, and its line keeps its shape.
+ */
+const ROUND_OFF = 1.5
+/** The spline is sampled every this many m or less before it is simplified. */
+const ROUND_SAMPLE = 1
+
+/** The point at t of the centripetal Catmull–Rom spline through p0…p3 at knots t0…t3 (Barry and Goldman's pyramid). */
+const catmullRom = (
+  p: readonly [V, V, V, V],
+  [t0, t1, t2, t3]: readonly [number, number, number, number],
+  t: number,
+) => {
+  const mix = (
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+    ta: number,
+    tb: number,
+  ) => ({
+    x: ((tb - t) * a.x + (t - ta) * b.x) / (tb - ta),
+    y: ((tb - t) * a.y + (t - ta) * b.y) / (tb - ta),
+  })
+  const a1 = mix(p[0], p[1], t0, t1),
+    a2 = mix(p[1], p[2], t1, t2),
+    a3 = mix(p[2], p[3], t2, t3)
+  return mix(mix(a1, a2, t0, t2), mix(a2, a3, t1, t3), t1, t2)
+}
+
+/**
+ * `pts` with each segment one of whose ends `rounds` allows (OSM's own vertices no survey guides) and turns more than
+ * ROUND_TURN followed along the centripetal Catmull–Rom spline through its vertices, simplified to `keep` m like the CTR's
+ * vertices, where it bows no more than ROUND_OFF m off it: every vertex stays where it is, ids and all, and the track keeps no
+ * corner. OSM draws curves no survey maps with few vertices: Aulla's tunnel 140772193 turned 11.4° between 41 and 52 m
+ * segments, a bend of 100.9 m over 20 m chords.
+ */
+export const roundCorners = (
+  pts: ReadonlyArray<V>,
+  rounds: (i: number) => boolean,
+  keep: number,
+): Array<V> => {
+  const n = pts.length
+  const turnAt = (i: number) => {
+    if (i <= 0 || i >= n - 1) return 0
+    const a = pts[i - 1]!,
+      v = pts[i]!,
+      b = pts[i + 1]!
+    const h0 = Ops.atan2(v.y - a.y, v.x - a.x),
+      h1 = Ops.atan2(b.y - v.y, b.x - v.x)
+    return Math.abs(Ops.atan2(Ops.sin(h1 - h0), Ops.cos(h1 - h0))) * (180 / Math.PI)
+  }
+  const corner = (i: number) => rounds(i) && turnAt(i) > ROUND_TURN
+  const out: Array<V> = [pts[0]!]
+  for (let i = 0; i + 1 < n; i++) {
+    const p1 = pts[i]!,
+      p2 = pts[i + 1]!,
+      len = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+    const steps = Math.ceil(len / ROUND_SAMPLE)
+    if (rounds(i) && rounds(i + 1) && (corner(i) || corner(i + 1)) && steps > 1) {
+      // Past either end of the line its control point mirrors the next vertex, the spline leaving straight.
+      const p0 = pts[i - 1] ?? { x: 2 * p1.x - p2.x, y: 2 * p1.y - p2.y },
+        p3 = pts[i + 2] ?? { x: 2 * p2.x - p1.x, y: 2 * p2.y - p1.y }
+      const knot = (a: V, b: V) => Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)) || 1e-9
+      const t1 = knot(p0, p1),
+        t2 = t1 + knot(p1, p2),
+        t3 = t2 + knot(p2, p3)
+      const curve = Array.from({ length: steps - 1 }, (_, k) =>
+        catmullRom([p0, p1, p2, p3], [0, t1, t2, t3], t1 + ((t2 - t1) * (k + 1)) / steps),
+      )
+      const off = (q: { x: number; y: number }) =>
+        Math.abs((p2.x - p1.x) * (q.y - p1.y) - (p2.y - p1.y) * (q.x - p1.x)) / len
+      if (curve.every((q) => off(q) <= ROUND_OFF))
+        out.push(
+          ...simplifyLine([[p1.x, p1.y], ...curve.map((q): P => [q.x, q.y]), [p2.x, p2.y]], keep)
+            .slice(1, -1)
+            .map(([x, y]) => ({ x, y })),
+        )
+    }
+    out.push(p2)
+  }
+  return out
 }
