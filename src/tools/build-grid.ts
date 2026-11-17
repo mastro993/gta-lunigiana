@@ -1,15 +1,16 @@
-// The terrain grid, built one listed 2 km tile at a time: on each tile's window of nodes the LiDAR
-// is averaged, the lakes and river polygons carved (water-areas.ts) and the beds under the water as
-// first settled, the road and rail claims written in the build's order (never on the water), the
-// river polygons (their gravel bars raised now) and the beds (outside the road cores) carved again
-// under the water kept below the decks, the terrain under each water sample read for the perched
-// check, the grid rounded to
-// 0.1 m and the rail bed levelled. Each of those writes a node from that node alone (its own value,
-// position, owner and the vectors), so a window needs no halo, and a node two tiles share comes out
-// the same in both: the pass checks it. A tile of the bounds' box the region leaves off its list (an
-// L's notch) is never worked: no terrain is read there. Once every tile is written, the ground under
-// the decks is lowered on the whole grid (deck-ground.ts): where a deck stands clear of the ground
-// reads the ground along it, across the tiles.
+// The terrain grid, built one listed 2 km tile at a time: each tile's window of nodes starts from
+// the uncarved grid (`uncarvedGrid`, the LiDAR averaged round each node, sampled whole first so the
+// DTM can go before this pass), the lakes and river polygons are carved (water-areas.ts) and the
+// beds under the water as first settled, the road and rail claims written in the build's order
+// (never on the water), the river polygons (their gravel bars raised now) and the beds (outside the
+// road cores) carved again under the water kept below the decks, the terrain under each water sample
+// read for the perched check, the grid rounded to 0.1 m and the rail bed levelled. Each of those
+// writes a node from that node alone (its own value, position, owner and the vectors), so a window
+// needs no halo, and a node two tiles share comes out the same in both: the pass checks it. A tile
+// of the bounds' box the region leaves off its list (an L's notch) is never worked: no terrain is
+// read there. Once every tile is written, the ground under the decks is lowered on the whole grid
+// (deck-ground.ts): where a deck stands clear of the ground reads the ground along it, across the
+// tiles.
 import { deckGround, deckReport, type Slab, slabNodes } from "./deck-ground.ts"
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
@@ -22,10 +23,8 @@ import { gridLattice, sampleGrid, slotOf, type Grid, type Profile } from "./terr
 import { carveAreas, waterNodes, type CarvedArea } from "./water-areas.ts"
 import { carveAll } from "./water.ts"
 
-/** What the tile pass reads. */
+/** What the tile pass reads besides the uncarved grid. */
 interface GridInput {
-  /** The uncarved terrain, whose grid windows the tiles start from. */
-  readonly dem: Dem
   readonly water: ReadonlyArray<WaterF>
   /** The water's surfaces as first settled, and as kept under the decks (`capUnderDecks`). */
   readonly wp0: ReadonlyArray<Profile>
@@ -44,30 +43,37 @@ interface GridInput {
 }
 
 /**
- * The finished grid, the uncarved one (the catchments read it), the nodes the listed tiles hold
- * (`listed`, 1, as `listedNodes` in grid-tiles.ts), the carved grid before its rounding under every
- * water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed and the ground under the
- * decks moved. A node no listed tile holds (an L's notch) is 0 in the uncarved grid, which the
- * catchments leave out, and in the finished grid the listed node the game reads there
- * (`extendEdges`), so the walls' slopes, the buildings' floors and the water on the play area's
- * inner edge read the edge extended, not a cliff down to 0 m.
+ * The uncarved grid: each listed tile's window of nodes from `dem`, each node the mean of the LiDAR
+ * round it (`Dem.grid`), a node two tiles share written alike by both; a node no listed tile holds
+ * (an L's notch) is 0, which the catchments leave out.
  */
-export const tileByTile = ({
-  dem,
-  water,
-  wp0,
-  wp,
-  areas,
-  claims,
-  decks,
-  slabs,
-  rail,
-  levels,
-}: GridInput) => {
+export const uncarvedGrid = (dem: Dem): Grid => {
+  const lattice = gridLattice()
+  const uncarved: Grid = { ...lattice, z: new Float64Array(lattice.cols * lattice.rows) }
+  for (const { span } of gridTiles(lattice)) {
+    const { i0, j0, cols, rows } = span
+    const win = dem.grid(span)
+    for (let r = 0; r < rows; r++)
+      uncarved.z.set(win.z.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
+  }
+  return uncarved
+}
+
+/**
+ * The finished grid on `uncarved` (`uncarvedGrid`, which it leaves as it is), the nodes the listed
+ * tiles hold (`listed`, 1, as `listedNodes` in grid-tiles.ts), the carved grid before its rounding
+ * under every water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed and the ground
+ * under the decks moved. A node no listed tile holds (an L's notch) is, in the finished grid, the
+ * listed node the game reads there (`extendEdges`), so the walls' slopes, the buildings' floors and
+ * the water on the play area's inner edge read the edge extended, not a cliff down to 0 m.
+ */
+export const tileByTile = (
+  uncarved: Grid,
+  { water, wp0, wp, areas, claims, decks, slabs, rail, levels }: GridInput,
+) => {
   const lattice = gridLattice()
   const size = lattice.cols * lattice.rows
-  const uncarved: Grid = { ...lattice, z: new Float64Array(size) },
-    grid: Grid = { ...lattice, z: new Float64Array(size) }
+  const grid: Grid = { ...lattice, z: new Float64Array(size) }
   const written = new Uint8Array(size)
   // Roads may claim river banks but never the water itself: a wide stream's anywhere, and a narrow
   // one's under a road bridge's deck, between its ends, where no road stands on the ground (at grade
@@ -116,9 +122,11 @@ export const tileByTile = ({
   const perched = wp.map((p) => new Float64Array(p.x.length))
   for (const tile of gridTiles(lattice)) {
     const { i0, j0, cols, rows } = tile.span
-    const win = dem.grid(tile.span)
-    for (let r = 0; r < rows; r++)
-      uncarved.z.set(win.z.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
+    const win: Grid = { ...lattice, z: new Float64Array(cols * rows), span: tile.span }
+    for (let r = 0; r < rows; r++) {
+      const n = (j0 + r) * lattice.cols + i0
+      win.z.set(uncarved.z.subarray(n, n + cols), r * cols)
+    }
     carveAreas(win, areas, water, wp0, false)
     carveAll(win, water, wp0)
     const protect = waterNodes(win, areas),
@@ -186,7 +194,6 @@ export const tileByTile = ({
     }
   return {
     grid,
-    uncarved,
     listed: written,
     perched,
     bed: bedReport(moved),

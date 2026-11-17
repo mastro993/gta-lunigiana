@@ -1,10 +1,11 @@
-// The map build's terrain phase: the water's surfaces, the road and rail profiles (their claims on
-// the grid recorded), the water kept under the decks, then the grid built tile by tile
-// (build-grid.ts), the catchments on it and the perched water dropped. It returns the finished grid
-// and the lines read from it, so the profiles go out of scope here, and the DTM when the function
-// in build-map.ts that holds it returns.
+// The map build's terrain phase, in two steps. `profileTerrain`, the one that reads the DTM: the
+// water's surfaces, the road and rail profiles (their claims on the grid recorded), the water kept
+// under the decks, the lines on them and the uncarved grid; the profiles go out of scope when it
+// returns, and the DTM when the function in build-map.ts that holds it returns. `finishTerrain`: the
+// grid built tile by tile (build-grid.ts), the paths on it, the catchments on the uncarved grid and
+// the perched water dropped.
 import type { Water } from "../sim/map/index.ts"
-import { tileByTile } from "./build-grid.ts"
+import { tileByTile, uncarvedGrid } from "./build-grid.ts"
 import type { Sources } from "./build-sources.ts"
 import { catchments, type Inflow } from "./catchment.ts"
 import { railSlab, roadSlab } from "./deck-ground.ts"
@@ -87,13 +88,20 @@ const inflowsOf = (
 const INSET = 12
 
 /** The finished terrain and what is read from it. */
-export type Terrain = ReturnType<typeof buildTerrain>
+export type Terrain = ReturnType<typeof finishTerrain>
+
+/** Everything of the terrain that reads the DTM: the profiles, the lines on them and the uncarved grid. */
+export type Profiled = ReturnType<typeof profileTerrain>
 
 /** Whether a node lies beyond the play area, off its outline: where a run-out may write the grid. */
 const beyond = (x: number, y: number) => !inPlay(x, y)
 
-/** Builds the terrain of `src` on `dem` (the uncarved DTM); `lap` marks the end of each stage. */
-export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => void) => {
+/**
+ * Profiles the lines of `src` on `dem` (the uncarved DTM) and samples the uncarved grid from it;
+ * `lap` marks the end of each stage. What it returns holds no reference to `dem`, so the DTM can go
+ * before the tile pass.
+ */
+export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => void) => {
   const { rail, extra, allRail, roads, water } = src
   const ground = dem.at
   // ---- the vectors: water surfaces, road and rail profiles (their claims on the grid recorded),
@@ -239,59 +247,52 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     throw new Error(`${what} has no profile`)
   }
   const railLines = allRail.map((r) => ({ r, ...lineOut(r, unread(`rail ${r.id}`)) }))
-  const grid = tileByTile({
-    dem,
-    water,
-    wp0,
-    wp,
-    areas: wet.carved,
-    claims,
-    // Under a deck: its carriageway and a metre either side.
-    decks: roads.filter((r) => r.bridge === true).map((r) => ({ pts: r.pts, half: r.w / 2 + 1 })),
-    // The ground under every deck's slab, as shipped.
-    slabs: [
-      ...roads
-        .filter((r) => r.bridge === true)
-        .map((r) => roadSlab(r, lineOut(r, unread(`bridge ${r.id}`)))),
-      ...railLines.filter(({ r }) => r.bridge === true).map(railSlab),
-    ],
-    // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings; a
-    // run-out's beyond the play area.
-    rail: [
-      ...railLines.filter(({ r }) => !lifted(r)),
-      ...runOuts.flatMap((o) =>
-        o.pieces.flatMap((p) =>
-          p.bridge || p.tunnel ? [] : [{ pts: p.pts, z: p.z, writes: beyond }],
-        ),
-      ),
-    ],
-    levels: levels.map(({ v }) => [v.x, v.y] as const),
-  })
-  lap("grid")
-  const drained = catchments(
-    grid.uncarved,
-    wp0,
-    water.map((w) => w.pts.map((v) => v.id)),
-    grid.listed,
-    inflowsOf(water, wp0, BOUNDS),
-    // The water beyond the play area runs on from where its outline cuts the play area's: burned,
-    // never read. Unsettled: the running minimum would carry a notch's drawn-on edge downstream.
-    src.beyond.water.map((w) => resample(w.pts, 2, (x, y) => ground(x, y) - w.depth / 2)),
-  )
-  dropPerched(water, wp, crossed, grid.perched, stillLevel(wet.carved))
-  lap("water")
-  // Everything below reads the finished grid.
-  const at = (x: number, y: number) => sampleGrid(grid.grid, x, y)
   const pieceOf = new Map(allRail.map((r, i) => [r, i])),
     roadOf = new Map(roads.map((r, i) => [r, i]))
+  const uncarved = uncarvedGrid(dem)
   return {
-    grid: grid.grid,
+    uncarved,
+    /** What the tile pass reads besides the uncarved grid (build-grid.ts). */
+    input: {
+      water,
+      wp0,
+      wp,
+      areas: wet.carved,
+      claims,
+      // Under a deck: its carriageway and a metre either side.
+      decks: roads.filter((r) => r.bridge === true).map((r) => ({ pts: r.pts, half: r.w / 2 + 1 })),
+      // The ground under every deck's slab, as shipped.
+      slabs: [
+        ...roads
+          .filter((r) => r.bridge === true)
+          .map((r) => roadSlab(r, lineOut(r, unread(`bridge ${r.id}`)))),
+        ...railLines.filter(({ r }) => r.bridge === true).map(railSlab),
+      ],
+      // The rail bed: no terrain over an at-grade rail centreline, except at the level crossings; a
+      // run-out's beyond the play area.
+      rail: [
+        ...railLines.filter(({ r }) => !lifted(r)),
+        ...runOuts.flatMap((o) =>
+          o.pieces.flatMap((p) =>
+            p.bridge || p.tunnel ? [] : [{ pts: p.pts, z: p.z, writes: beyond }],
+          ),
+        ),
+      ],
+      levels: levels.map(({ v }) => [v.x, v.y] as const),
+    },
+    crossed,
+    still: stillLevel(wet.carved),
+    inflows: inflowsOf(water, wp0, BOUNDS),
+    // The water beyond the play area runs on from where its outline cuts the play area's: burned,
+    // never read. Unsettled: the running minimum would carry a notch's drawn-on edge downstream.
+    beyond: src.beyond.water.map((w) => resample(w.pts, 2, (x, y) => ground(x, y) - w.depth / 2)),
     railLines,
     /** Each terminal's run-out by its point (`x,y` as shipped), walked away from it. */
     runOuts: new Map(runOuts.map((o) => [o.at, o.pieces])),
-    roadLines: roads.map((r) => lineOut(r, at)),
-    bed: grid.bed,
-    decks: grid.decks,
+    /** Each road's line, but a path's on the ground (no profile, not lifted), which the finished grid gives. */
+    roadLines: roads.map((r) =>
+      denseOf.has(r) || zOf.has(r) || lifted(r) ? lineOut(r, unread(`road ${r.id}`)) : undefined,
+    ),
     /** The level crossings: the road and rail piece sharing a vertex (with its index in the piece's output polyline). */
     levels: levels.map(({ rl, rd, v }) => ({
       road: roadOf.get(rd)!,
@@ -299,8 +300,45 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
       v,
       vertex: (denseOf.get(rl)?.pts ?? rl.pts).findIndex((u) => u.id === v.id),
     })),
+  }
+}
+
+/**
+ * The terrain of `src` finished on `profiled` (`profileTerrain`): the grid built tile by tile, the
+ * paths on it, the catchments on the uncarved grid (which they overwrite) and the perched water
+ * dropped; `lap` marks the end of each stage.
+ */
+export const finishTerrain = (src: Sources, profiled: Profiled, lap: (label: string) => void) => {
+  const { water, roads } = src
+  const { uncarved, input, crossed } = profiled
+  const grid = tileByTile(uncarved, input)
+  lap("grid")
+  const drained = catchments(
+    uncarved,
+    input.wp0,
+    water.map((w) => w.pts.map((v) => v.id)),
+    grid.listed,
+    profiled.inflows,
+    profiled.beyond,
+  )
+  dropPerched(water, input.wp, crossed, grid.perched, profiled.still)
+  lap("water")
+  return {
+    grid: grid.grid,
+    railLines: profiled.railLines,
+    runOuts: profiled.runOuts,
+    roadLines: profiled.roadLines.map(
+      (line, i) =>
+        line ?? {
+          pts: flatLine(roads[i]!.pts),
+          z: roads[i]!.pts.map((v) => r1(sampleGrid(grid.grid, v.x, v.y))),
+        },
+    ),
+    bed: grid.bed,
+    decks: grid.decks,
+    levels: profiled.levels,
     water: water.map((w, i): Omit<Water, "floor"> => {
-      const line = waterLine(w.pts, wp[i]!)
+      const line = waterLine(w.pts, input.wp[i]!)
       return {
         id: w.id,
         kind: w.kind,
