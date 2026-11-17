@@ -13,7 +13,7 @@ export const coreHalf = (w: number, cell: number): number => Math.max(w / 2 + 0.
  * How far (m) along its approach a road tunnel's mouth holds the grid (`mouths` in profiles.ts's `Spec`): a cell's
  * diagonal, the farthest a corner of the cell holding the mouth lies from it.
  */
-const MOUTH = GRID_CELL * Math.SQRT2
+export const MOUTH = GRID_CELL * Math.SQRT2
 
 /**
  * A profile to write into the grid (`flatten`): its core half-width by segment, rank, and the

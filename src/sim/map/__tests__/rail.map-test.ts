@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { MOUTH } from "../../../tools/grid-claims.ts"
 import { wholeMap } from "../../../tools/map-file.ts"
 import { segDist2 } from "../../collide.ts"
 import { terrainZ } from "../ground.ts"
@@ -247,11 +248,31 @@ test("rail: no terrain stands over at-grade track more than 6 m from a level cro
 // track over the carved cells. A lower road running along the line keeps its cells, its core
 // (w/2 + 2.3 m) reaching a corner of a cell the line runs through (up to 5.7 m off it): the 4 m
 // grid holds one level (by the Aiola tunnel's west portal the tertiary 542115787 runs 5.4 m beside
-// the line, 6 m below; south of Gragnola the Via Provinciale 9.6 m off, 6.7 m below).
+// the line, 6 m below; south of Gragnola the Via Provinciale 9.6 m off, 6.7 m below). So does a
+// road tunnel's mouth, the grid round it held at its approach's level (`mouthClaim`): its bore's
+// last MOUTH m runs along the line as a lower road would. By Aulla station the Lucca–Aulla line runs
+// 5.8 m past the north mouth of Via Roberto Accorsi's underpass (92904277), whose bore runs at 24°
+// to it and whose approach turns off at 30.5°: the mouth's cells hold 70.9–71.5 m, the line 77.9 m.
 test("rail: at-grade track stands on the ground, but beside a lower road running along it", () => {
-  const roads = WHOLE.roads.filter((r) => r.bridge !== true && r.tunnel !== true)
+  const roads = WHOLE.roads.filter((r) => r.bridge !== true)
+  // A tunnel's mouths: its pieces' ends no other tunnel piece shares.
+  const tunnelEnds = new Map<string, number>()
+  for (const r of roads)
+    if (r.tunnel === true)
+      for (const key of new Set([keyAt(r.pts, 0), keyAt(r.pts, r.pts.length / 2 - 1)]))
+        tunnelEnds.set(key, (tunnelEnds.get(key) ?? 0) + 1)
+  const mouthsOf = (road: Road) =>
+    road.tunnel === true
+      ? [0, road.pts.length / 2 - 1].flatMap((i) =>
+          tunnelEnds.get(keyAt(road.pts, i)) === 1
+            ? [{ x: road.pts[2 * i]!, y: road.pts[2 * i + 1]! }]
+            : [],
+        )
+      : []
   const alongside = (x: number, y: number, z: number, dx: number, dy: number) =>
     roads.some((road) => {
+      const mouths = mouthsOf(road)
+      if (road.tunnel === true && mouths.length === 0) return false
       for (let k = 0; k + 1 < road.z.length; k++) {
         const ax = road.pts[2 * k]!,
           ay = road.pts[2 * k + 1]!,
@@ -263,9 +284,12 @@ test("rail: at-grade track stands on the ground, but beside a lower road running
         const l = hypot(bx - ax, by - ay) || 1,
           cos = Math.abs(((bx - ax) * dx + (by - ay) * dy) / l)
         const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (l * l)))
-        const d = hypot(x - ax - (bx - ax) * t, y - ay - (by - ay) * t)
+        const px = ax + (bx - ax) * t,
+          py = ay + (by - ay) * t,
+          d = hypot(x - px, y - py)
         const rz = road.z[k]! + (road.z[k + 1]! - road.z[k]!) * t
-        if (d <= reach && cos >= Ops.cos(Math.PI / 6) && rz < z - 1) return true
+        const open = road.tunnel !== true || mouths.some((m) => hypot(px - m.x, py - m.y) <= MOUTH)
+        if (open && d <= reach && cos >= Ops.cos(Math.PI / 6) && rz < z - 1) return true
       }
       return false
     })
