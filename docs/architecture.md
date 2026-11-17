@@ -896,8 +896,11 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
     (an icosahedron tinted per puff, 60 % opaque), spawned at `rate` × `amount` × `slip` puffs a
     second: white-grey burnt rubber on asphalt and stone, tan dust on gravel and dirt, dark brown
     on leaves, a pale spray on sand (`sand`, the thickest: 3 puffs a second per m/s of slip, dirt
-    2.5), hardly any on grass, turning to white spray with the snow (`Skid.snow`). A puff
-    swells, rises, drifts and thins away over 1–2 s; when all 256 are in the air, the puffs owed
+    2.5), hardly any on grass, turning to white spray with the snow (`Skid.snow`), and none from
+    a wheel under water (a river's, a lake's or the sea's: `waterAt` at its contact point, in
+    `DrawEffects`), which still leaves its mark, since a Panda bogged in the surf off Marinella,
+    spinning its wheels on the sand under the sea, threw up a dry sand plume out of the water. A
+    puff swells, rises, drifts and thins away over 1–2 s; when all 256 are in the air, the puffs owed
     meanwhile are dropped. Being transparent it draws after every opaque mesh, the x-ray
     silhouettes included, and after the marks (render order 1), and it writes no depth.
   - Marks and smoke are lit like the people and cars (the `actor` weather variant: cloud shadows,
@@ -2723,6 +2726,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     cat appearing there on it too, and one walking the bridge
     on its deck at its verge; driving, the camera and the cut on the road with the car after a jump
     under each.
+  - `src/render/__tests__/effects.test.ts` and, on the coast test region, `effects-coast.map-test.ts`
+    (`pnpm test:map`; both through `skidding.ts`): `DrawEffects` lays a tyre sliding on gravel
+    under the Lucido's mean flow, and on the sand under the sea off Marinella, as a mark with no
+    dust, and on the dry gravel of the Lucido's bank and Marinella's dry beach as a mark and dust
+    (10 and 15 puffs in half a second at 10 m/s).
   - `src/render/__tests__/train.test.ts`: every car on the rail head under its pivots at grade, on
     the highest deck and round the sharpest curve, both ways; the train's s blended, never the
     cars' poses; the same cars with the cab facing either way; the head lamps at the leading nose

@@ -240,7 +240,8 @@ when the suspension bottoms out on landing, `roof`, `side`, `front`, `rear`), an
 tyre slides past its grip it is a `Skid` (sliding speed, how far past its grip: 0.25 for ABS at
 the limit, 1 sliding, spinning or locked; the surface, and how snow-covered the ground is there).
 The renderer lays tyre marks and smoke from `Skid`, a pale spray and damp ruts in sand, dark slush
-ruts and white spray on snow; the audio plays both ([audio.md](audio.md)), and every crash
+ruts and white spray on snow, and from a wheel under water (a river's, a lake's or the sea's) the
+mark alone; the audio plays both ([audio.md](audio.md)), and every crash
 `Impact` harder than a scuff wears the vehicles it struck ([Damage](#damage)).
 
 ### Vehicles
