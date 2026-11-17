@@ -152,8 +152,8 @@ interface Start {
 
 /**
  * Where the player's spawn is sought: by `police` (Lunigiana's Carabinieri) when given, else by the
- * traffic node nearest the origin, on its road (Cesena, and a test region that leaves the
- * Carabinieri out); undefined when the graph has no traffic edge.
+ * traffic node nearest `target` (the origin by default), on its road (Cesena, and a test region
+ * that leaves the Carabinieri out); undefined when the graph has no traffic edge.
  */
 export const startNear = (
   graph: {
@@ -163,15 +163,17 @@ export const startNear = (
   },
   roads: ReadonlyArray<RoadF>,
   police: Start["at"] | undefined,
+  target?: Start["at"],
 ): Start | undefined => {
   if (police !== undefined) return { at: police }
+  const near = target ?? { x: 0, y: 0 }
   let start: Start | undefined,
     least = Infinity
   for (const edge of graph.traffic) {
     const node = graph.edges[3 * edge]!,
       x = graph.xy[2 * node]!,
       y = graph.xy[2 * node + 1]!,
-      d = Math.hypot(x, y)
+      d = Math.hypot(x - near.x, y - near.y)
     if (d < least) [start, least] = [{ at: { x, y }, road: roads[graph.edges[3 * edge + 2]!]! }, d]
   }
   return start

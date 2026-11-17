@@ -7,7 +7,7 @@ import { gridGround, levelOn } from "./build-ground.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import { deckWalls } from "./deck-walls.ts"
-import { flatLine, r1 } from "./geometry.ts"
+import { flatLine, r1, toLocal } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
 import { parapets } from "./parapets.ts"
 import { onOutline } from "./play-area.ts"
@@ -107,7 +107,14 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   const lunigiana = REGION.id === "lunigiana"
   const station = regionPoi(pois, lunigiana ? 1813987803 : 827592490, REGION),
     carabinieri = regionPoi(pois, lunigiana ? 14183344901 : 806564311, REGION)
-  const start = startNear(graph, roads, lunigiana ? carabinieri : undefined)
+  // Ponte Vecchio's published point: choose the nearest connected street, then its clear sidewalk.
+  const bridge = lunigiana ? undefined : toLocal(44.13394, 12.23394)
+  const start = startNear(
+    graph,
+    roads,
+    lunigiana ? carabinieri : undefined,
+    bridge === undefined ? undefined : { x: bridge[0], y: bridge[1] },
+  )
   if (start === undefined) throw new Error(`--region ${REGION.key} has no connected traffic roads`)
   const player = playerSpawn(
     roads,

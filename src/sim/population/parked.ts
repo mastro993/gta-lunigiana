@@ -67,6 +67,19 @@ export const CARABINIERI: ReadonlyArray<number> =
         )
         .slice(0, 2)
 
+const START_CAR_REACH = 150
+const START_CAR =
+  MAP.name === "Cesena"
+    ? SPOTS.flatMap((spot, index) => {
+        const distance = Vec2.distanceSquared(spot, MAP.spawns.player)
+        return distance <= START_CAR_REACH ** 2 &&
+          level("panda", spot) &&
+          !CARABINIERI.includes(index)
+          ? [{ index, distance }]
+          : []
+      }).sort((a, b) => a.distance - b.distance || a.index - b.index)[0]?.index
+    : undefined
+
 /** A car to park: its model and paint. */
 interface ParkedLook {
   readonly model: VehicleModel
@@ -80,13 +93,13 @@ const placeOf = (spot: ParkedSpot): number =>
 /**
  * The car the game of `seed` parks on spot `index`, or undefined when the spot stays empty (or is the Carabinieri's, or too steep
  * for a Panda): a random stream seeded by the hash of the seed and the spot's place decides whether it holds one, then the model,
- * then the paint.
+ * then the paint. Cesena's nearest level spot within 150 m of the start always holds one.
  */
 export const carOn = (seed: number, index: number): ParkedLook | undefined => {
   const spot = SPOTS[index]
   if (spot === undefined || !level("panda", spot) || CARABINIERI.includes(index)) return undefined
   const random = Random.make(mix(seed ^ placeOf(spot)))
-  if (random.next() >= share) return undefined
+  if (random.next() >= share && index !== START_CAR) return undefined
   const roll = random.next()
   const model =
     roll < TRUCK && spot.truck === true && onMainRoad(spot)
