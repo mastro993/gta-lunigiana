@@ -221,15 +221,23 @@ test("railway: each level-crossing box holds the vertices its road shares with t
       `${road.name}: the line at s ${c.s} is on a node`,
     )
   }
-  // OSM's six road crossings (Via Castel dell'Aquila over both Gragnola tracks, one box; an unnamed road by Gassano) and two
-  // foot crossings, Equi Terme's and Pieve San Lorenzo's.
+  // OSM's twelve road crossings (Via Castel dell'Aquila over both Gragnola tracks, one box; an unnamed road by Gassano; from
+  // Rometta to Aulla the SS63's, unnamed way 172808470, with full barriers, Via Filippo Turati, Via Guido Rossa, the SP57 and
+  // an unnamed tertiary road with half barriers, and a track with none) and two foot crossings, Equi Terme's and Pieve San
+  // Lorenzo's.
   assert.deepEqual(roadNames.sort(), [
+    "Strada Provinciale 57 Ponzanello",
     "Via Castel dell'Aquila",
+    "Via Filippo Turati",
+    "Via Guido Rossa",
     "Via Nuova",
     "Via Riolo",
     "Viale 20 Settembre",
     "path",
     "path",
+    "primary",
+    "tertiary",
+    "track",
     "unclassified",
   ])
   assert.equal(
@@ -335,20 +343,28 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
         }
         probes++
         assert.ok(top !== undefined, `(${x}, ${y}) on ${p.name}`)
-        // Or a footway OSM draws along it, as at Fivizzano-Gassano: a path follows the terrain, 0.06 m over it, so it lies
-        // up to 0.09 m over the top there.
+        // Or a footway OSM draws on it, as at Fivizzano-Gassano and Fivizzano-Rometta-Soliera: a path stands 0.06 m over the
+        // terrain at its centreline and level across it, so where the terrain falls across it, its edge 0.75 m off lies
+        // higher over the top: 0.12 m where it falls 8% (0.09 m at Gassano; 0.106 m, 6.1%, by footway 1352994572 at
+        // Rometta's (−5638, 4445)).
         const ground = groundZ(x, y),
           top0 = Math.max(top, terrainZ(x, y))
-        assert.ok(ground >= top0 && ground - top0 < 0.1, `(${x}, ${y}) on ${p.name}: ${ground}`)
+        assert.ok(
+          ground >= top0 && ground - top0 < 0.06 + 0.75 * 0.08,
+          `(${x}, ${y}) on ${p.name}: ${ground}`,
+        )
       }
     assert.ok(probes > 100, `${p.name}: ${probes} probes`)
   }
   // Gragnola's strip between its two tracks is a walkway at the rails' level, and so is the strip the
   // CTR maps north of Pieve San Lorenzo's line, 2.45 m off it (bare ground in 2010, the line's
-  // equipment in 2023: no train's step reaches it); the other seven are platforms.
+  // equipment in 2023: no train's step reaches it); the other twelve are platforms, the CTR's at Serricciolo (23C07 AGE#98)
+  // with no station or stop node within 300 m.
   assert.deepEqual(
     railway.platforms.map((p) => [p.name, p.walkway === true]),
     [
+      [undefined, false],
+      ["Fivizzano-Rometta-Soliera", false],
       ["Fivizzano-Gassano", false],
       ["Gragnola", true],
       ["Gragnola", false],
@@ -358,6 +374,9 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
       ["Equi Terme", false],
       ["Monzone-Monte dei Bianchi-Isolano", false],
       ["Monzone-Monte dei Bianchi-Isolano", false],
+      ["Aulla Lunigiana", false],
+      ["Aulla Lunigiana", false],
+      ["Aulla Lunigiana", false],
     ],
   )
 })

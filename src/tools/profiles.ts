@@ -58,6 +58,21 @@ export const chainsOf = <T extends Linear>(items: ReadonlyArray<T>): Array<Array
     .map(([c]) => c)
 }
 
+/**
+ * The nodes inside a bore or on a deck: a piece's end that only lifted pieces pass through (a switch
+ * in a tunnel, a crossover's on a bridge, a dead end in a tunnel). `Spec.inside` reads them.
+ */
+export const insideNodes = (items: ReadonlyArray<Linear>): ReadonlySet<string> => {
+  const all = new Map<string, boolean>(),
+    ends = new Set<string>()
+  for (const t of items) {
+    for (const v of t.pts)
+      if (v.id !== undefined) all.set(v.id, (all.get(v.id) ?? true) && lifted(t))
+    for (const v of [t.pts[0]!, t.pts.at(-1)!]) if (v.id !== undefined) ends.add(v.id)
+  }
+  return new Set([...ends].filter((id) => all.get(id) === true))
+}
+
 /** A bridge's or tunnel's end may take the elevation of the ground this far (m) out of it along the chain. */
 const PORTAL = 4
 
@@ -149,7 +164,8 @@ export const beatsRail = (cls: string): boolean =>
  * paths' and steps' decks), its bridges and tunnels are fitted sample by sample, as a road at grade
  * is, from their ends' levels (`ends`, pinned at the chain's ends that have an id), rather than
  * straight from end to end: a footbridge rises over what it crosses and an underpass dips under it
- * between their ends, and a bound in either holds at its own sample.
+ * between their ends, and a bound in either holds at its own sample. With `inside` (the rail's), a
+ * chain's end inside a bore or on a deck runs its deck level from the chains before it.
  */
 interface Spec<T extends Linear> {
   /**
@@ -170,6 +186,8 @@ interface Spec<T extends Linear> {
   readonly writes?: (x: number, y: number) => boolean
   readonly ramps?: true
   readonly ends?: (v: V, piece: T) => number
+  /** Whether node `id` lies inside a bore or on a deck (`insideNodes`): a chain's end there is no portal or abutment. */
+  readonly inside?: (id: string) => boolean
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -324,6 +342,25 @@ export const makeProfiler = (
         cut1 = i1 === runs.length - 1 && runs[i1]!.at(-1)!.id === undefined
       if (cut0 && !cut1) p.z[k0] = p.z[k1]!
       if (cut1 && !cut0) p.z[k1] = p.z[k0]!
+      // Nor is a chain's end at a node inside a bore or on a deck (`Spec.inside`): its deck takes
+      // the level an earlier chain set at either end, else its other end's. North of Aulla a switch
+      // of the Pontremolese's in a tunnel took the hill's 114.9 m over the bore and humped the line,
+      // 99 m there, 5.5 m; a crossover's switch on its second track's deck over the SS665 took the
+      // valley's 71.8 m and sagged that track 4.4 m under the line beside it.
+      const v0 = runs[i0]![0]!,
+        v1 = runs[i1]!.at(-1)!
+      const within = (v: V) => v.id !== undefined && spec.inside?.(v.id) === true
+      const in0 = i0 === 0 && within(v0),
+        in1 = i1 === runs.length - 1 && within(v1)
+      if (in0 || in1) {
+        const set = (v: V) => (v.id === undefined ? undefined : nodeZ.get(v.id))
+        const z0 = set(v0) ?? (in0 || cut0 ? undefined : p.z[k0]),
+          z1 = set(v1) ?? (in1 || cut1 ? undefined : p.z[k1])
+        if (z0 !== undefined || z1 !== undefined) {
+          p.z[k0] = z0 ?? z1!
+          p.z[k1] = z1 ?? z0!
+        }
+      }
       for (let k = k0 + 1; k < k1; k++)
         p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
     }

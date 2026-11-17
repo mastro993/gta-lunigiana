@@ -15,7 +15,7 @@ import { coreHalf } from "./grid-claims.ts"
 import { outlineEdgeAt } from "./play-area.ts"
 import { beatsRail, chainsOf } from "./profiles.ts"
 import { checkCrossings, slideCrossing, type Slid } from "./rail-crossings.ts"
-import { buildExtras, type Report as ExtraReport } from "./rail-extra.ts"
+import { alongGone, buildExtras, type Report as ExtraReport } from "./rail-extra.ts"
 import { splitAtJunctions } from "./rail-graph.ts"
 import {
   footOn,
@@ -30,6 +30,7 @@ import {
 } from "./rail-match.ts"
 import { smoothGap } from "./rail-smooth.ts"
 import {
+  clearOfTrack,
   cutAtBridges,
   keepSpans,
   onBridge,
@@ -112,6 +113,8 @@ export interface Report {
   /** Level-crossing nodes moved along their road onto the CTR track, m. */
   readonly crossings: ReadonlyArray<Slid>
   readonly extras: ExtraReport
+  /** The CTR-only tracks left out, by their CTR lines: OSM maps their rails gone (`alongGone`). */
+  readonly gone: ReadonlyArray<string>
   readonly spans: SpanReport
 }
 
@@ -175,7 +178,8 @@ const moved = <T extends V>(pts: ReadonlyArray<T>, moves: ReadonlyMap<string, V>
   })
 
 /**
- * Moves OSM's running rail onto the CTR tracks and adds the tracks only the CTR has. `roads` are
+ * Moves OSM's running rail onto the CTR tracks and adds the tracks only the CTR has, but those
+ * along a way of `gone` (OSM's railways whose rails are gone: `extractGoneRail`). `roads` are
  * returned with their level-crossing nodes moved; throws when a crossing node would leave the
  * half of its road segment or the CTR's crossing polygon, an id is lost or the residuals break
  * the limits.
@@ -186,6 +190,7 @@ export const conflateRail = (
   osmWater: ReadonlyArray<WaterF>,
   ctr: CtrRail,
   layout: Layout = LAYOUT,
+  gone: ReadonlyArray<ReadonlyArray<V>> = [],
 ): Conflated => {
   const lines: Array<Line> = ctr.tracks.map((t) => lineOf(simplifyLine(t.pts, KEEP)))
   const surveyed = ctr.tracks.map((t) => lineOf(t.pts))
@@ -392,7 +397,7 @@ export const conflateRail = (
   const waterIds = new Set(
     osmWater.flatMap((w) => w.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
   )
-  const spanReport: SpanReport = { slid: [], culverts: [], cut: [] }
+  const spanReport: SpanReport = { slid: [], culverts: [], cut: [], ends: [] }
   // The CTR's bridges, out past what they span by its margin (`spanned`), and the track over a drivable road's tunnel by its
   // mouth (the road's profile cuts the mouth then, a path keeps the terrain's), out past the road's core cells and a cell's
   // diagonal.
@@ -437,10 +442,14 @@ export const conflateRail = (
   // A bridge end slid along the track, and the culverts, are where the lines now have them.
   for (const { line } of chains) for (const v of line) if (v.id !== undefined) moves.set(v.id, v)
 
+  // A CTR-only track along a way OSM maps with its rails gone is drawn no more: its rails were
+  // taken up after the 2019 survey (Rometta's stub by the SS63's level crossing).
+  const isGone = alongGone(gone)
+  const left = ctr.tracks.flatMap((t, k) => (!used[k] && isGone(t.pts) ? [k] : []))
   const extra = buildExtras({
     tracks: ctr.tracks,
     lines,
-    extra: ctr.tracks.flatMap((_, k) => (used[k] ? [] : [k])),
+    extra: ctr.tracks.flatMap((_, k) => (used[k] || left.includes(k) ? [] : [k])),
     hosts: chains.map((c) => c.line),
     bridges: ctr.bridges.map((b) => b.rings),
     // A swapped node the play area leaves out (a test region without Gragnola) has nothing to re-home.
@@ -523,6 +532,12 @@ export const conflateRail = (
     )
   // Tracks meet only at piece ends: the running track is cut at its switches.
   const tracks = [...out, ...extra.pieces]
+  // A stream OSM ends at at-grade track, where its culvert under it begins, stops clear of it.
+  clearOfTrack(
+    crossed.filter((f) => f.water),
+    tracks.filter((t) => t.bridge !== true && t.tunnel !== true).map((t) => t.pts),
+    spanReport,
+  )
   const roads = osmRoads.map((r, k) => ({
     ...r,
     pts: roadPts[k]!.map((v) => (v.id === undefined ? v : (moves.get(v.id) ?? v))),
@@ -540,6 +555,7 @@ export const conflateRail = (
       offset: spread(all.offset),
       crossings,
       extras: extra.report,
+      gone: left.map((k) => ctr.tracks[k]!.src.join("+")),
       spans: spanReport,
     },
   }

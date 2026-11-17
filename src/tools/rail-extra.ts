@@ -2,12 +2,13 @@
 // loop and stub, Monzone's old yard siding, Equi Terme's disused second track and yard sidings. A
 // track whose end lies on another track is joined to it by a switch vertex both share; bridges come
 // from the CTR's ballast-on-bridge polygons; where a track crosses a road at grade, the two share a
-// vertex, as OSM's level crossings do.
+// vertex, as OSM's level crossings do. A track along a way OSM maps with its rails gone is left out
+// (`alongGone`).
 import { Ops } from "@typeonce/ritmo-math"
 
 import { splitIn, type CtrTrack, type Polygon } from "./ctr-rail.ts"
 import type { RailF, RoadF } from "./features.ts"
-import { arcLengths, segDist2, type V } from "./geometry.ts"
+import { arcLengths, pointAt, segDist2, segIndex, type P, type V } from "./geometry.ts"
 import { hitsOn, insertOn, MIN_SEG, pruneShort, type Line } from "./rail-match.ts"
 import { sheet2k, surveyId } from "./survey-ids.ts"
 
@@ -25,6 +26,37 @@ const REHOME = 8
  * crossing nodes move up to 2.9 m); farther, the road gets a new vertex there.
  */
 const REUSE = 3
+
+/**
+ * A CTR track this share of whose length lies within `d` m of a way whose rails OSM maps gone lies
+ * along it: Rometta's 23D01 VLI#0.0, a 70 m stub ending 6.5 m from the SS63's level crossing, lies
+ * 90% within 2 m of way 1252090894 (`railway=abandoned`), and no other CTR-only track along any.
+ */
+const GONE = { d: 2, share: 0.8 }
+/** Samples along a track for `alongGone`, m apart. */
+const GONE_STEP = 1
+
+/**
+ * Whether a CTR track lies along one of the `gone` ways (GONE): the rails the 2019 survey mapped
+ * were taken up since, as OSM's newer survey has it, so the track is not drawn.
+ */
+export const alongGone = (
+  gone: ReadonlyArray<ReadonlyArray<V>>,
+): ((pts: ReadonlyArray<P>) => boolean) => {
+  const near = segIndex<null>()
+  for (const g of gone) near.addLine(g, GONE.d, null)
+  return (pts) => {
+    const line = pts.map(([x, y]): V => ({ x, y })),
+      s = arcLengths(line),
+      n = Math.max(1, Math.ceil(s.at(-1)! / GONE_STEP))
+    let within = 0
+    for (let k = 0; k <= n; k++) {
+      const p = pointAt(line, s, (s.at(-1)! * k) / n)
+      if (near.covers(p.x, p.y)) within++
+    }
+    return within >= GONE.share * (n + 1)
+  }
+}
 
 /** What `buildExtras` did to each track, for the build's summary. */
 export type Report = ReadonlyArray<{

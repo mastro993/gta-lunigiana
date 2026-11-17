@@ -9,7 +9,7 @@ import type { LineOut } from "./rail-graph.ts"
 
 const spreadOf = (v: ReadonlyArray<number>) => v.map((d) => d.toFixed(2)).join("/")
 
-/** One line per running piece (length, metres matched to the CTR, OSM's offset and the shipped residual, median / p90 / max), per CTR-only track and per platform. */
+/** One line per running piece (length, metres matched to the CTR, OSM's offset and the shipped residual, median / p90 / max), per CTR-only track (drawn or left out) and per platform. */
 export const printRail = (report: Report, platforms: ReadonlyArray<PlatformOut>): void => {
   for (const p of report.pieces)
     console.log(
@@ -19,6 +19,7 @@ export const printRail = (report: Report, platforms: ReadonlyArray<PlatformOut>)
     console.log(
       `ctr ${e.id} ${e.m.toFixed(1)} m (${e.bridge.toFixed(1)} on bridges), ends ${e.ends.join("/")}: ${e.src}${e.crossings.length > 0 ? `, crosses ${e.crossings.join(", ")}` : ""}`,
     )
+  for (const src of report.gone) console.log(`ctr ${src} left out: OSM maps its rails gone`)
   for (const p of platforms)
     console.log(
       `${p.walkway ? "walkway" : "platform"} ${p.src} ${p.name ?? "-"}: ${p.area.toFixed(0)} m², ${p.width.toFixed(2)} m wide, ${(100 * p.between).toFixed(0)}% between tracks, ${p.clear.toFixed(2)} m from a track`,
@@ -49,7 +50,8 @@ interface RailSummary {
  * The summary's rail parts: on the CTR (running pieces and CTR-only tracks, OSM's offset from the CTR
  * and the shipped residual, median / p90 / max m, the level crossings' slide along their roads, the
  * bridge ends slid to keep what they span, the culverts, the at-grade track cut into the CTR's
- * bridges and the rail bed's lowered and raised terrain), and the
+ * bridges, the streams' dead ends cut back off at-grade track and the rail bed's lowered and
+ * raised terrain), and the
  * railway (lines: pieces and length; stations: s0–s1 along the line and side; level-crossing boxes:
  * road, nodes and s; roads whose verge was pulled in off the running track: nearest sample before).
  */
@@ -64,6 +66,7 @@ export const railSummary = (r: RailSummary) => ({
     slid: r.report.spans.slid.map((x) => `${x.bridge} ${x.end} ${x.by.toFixed(2)} m`),
     culverts: r.report.spans.culverts.length,
     cut: r.report.spans.cut.map((x) => `${x.piece} ${x.m.toFixed(1)} m`),
+    streamEnds: r.report.spans.ends.map((x) => `${x.water} ${x.m.toFixed(1)} m`),
     bed: {
       nodes: r.bed.nodes,
       deepest: +r.bed.deepest.toFixed(2),
