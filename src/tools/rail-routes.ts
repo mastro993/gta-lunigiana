@@ -1,8 +1,10 @@
 // Where trains end inside the map, from OSM's train routes: a route=train relation lists its stop
 // positions in running order and the ways it runs; its first and last stops are where its trains
 // start and end. A stop where some route ends and none stops on its way is a terminus: the line
-// reaching it there turns its trains round (rail-graph.ts). Aulla Lunigiana's track 5 is one: the
-// Pisa => Aulla Lunigiana route (21785495) ends there, come in on way 1571417857.
+// reaching it there turns its trains round, where it sits at a piece end (`terminiOf` in
+// railway.ts). Aulla Lunigiana's track 4 is the one the Lucca–Aulla line ends at: the Aulla => Pisa
+// route (21785496) starts at its stop 13949044083 and leaves along way 1571417875. The Pisa =>
+// Aulla Lunigiana route (21785495) ends at track 5's stop, which sits at no piece end.
 import type { Osm } from "./osm.ts"
 
 /** A stop where OSM's train routes end: the stop position's node and the way their trains reach it along, OSM ids. */

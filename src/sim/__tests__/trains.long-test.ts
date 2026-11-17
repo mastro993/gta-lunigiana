@@ -98,7 +98,8 @@ test("trains: determinism: a train leaving Monzone over Via Riolo, one arriving 
 })
 
 test("trains: a train runs its line in to its terminus and back, calling at every station each way for 30–60 s within 3 m of its stop (at the terminus once, turned round there), never on an open box, lays over 60–180 s, and is removed past the drawn run where it came in", () => {
-  // Monzone's line, the Lucca–Aulla line, ends at Aulla Lunigiana's track 5, where OSM's train routes end.
+  // Monzone's line, the Lucca–Aulla line, ends at Aulla Lunigiana's track 4 (stop 13949044083), where the Aulla => Pisa
+  // route (21785496) starts.
   assert.ok(line.terminus)
   const game = railway()
   assert.ok(game.runtime.tick(placeTrains([entering()])).ok)

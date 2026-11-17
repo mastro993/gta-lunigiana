@@ -147,8 +147,9 @@ export const trackUnder = (
 /**
  * Every train moves along its line from its lever (`CarInput`): the power and the brakes ease toward it, and the traction, the
  * brakes, the running resistance, the grade and the curves move it (rail/dynamics.ts), on rail the weather leaves wet or under
- * snow. The player's train is watched toward the buffer stop at the drawn run past each terminal and stops dead against it
- * (rail/collisions.ts); any other runs on to the end of its line's run-out, no farther. Trains on one track that meet stop each
+ * snow. The player's train is watched toward the buffer stops `buffersOf` puts at the drawn run past each terminal, or at the
+ * terminus itself where its line ends inside the map (rail/collisions.ts), and stops dead against them; any other runs on to
+ * its line's `start`/`end`, the end of its run-out, which at a terminus is the terminus, no farther. Trains on one track that meet stop each
  * other, both going on at their common speed (`meet`). A buffer or a train struck faster than `TOUCH_SPEED` is an `Impact`: a
  * `wall` hit with the train as its `car`, or a `train` hit with the striking train as `car` and the struck one as `other`.
  */
@@ -193,7 +194,7 @@ export const TrainPhysics = Game.System(
         ? supervise(line, motion, length, data.input.get(), track.grip)
         : data.input.get()
       const next = stepTrain(spec, motion, lever, track, dt)
-      // The player's train between the buffer stops, any other between its run-outs' ends.
+      // The player's train between the buffer stops, any other between its track's ends.
       const ends = mine ? buffersOf(line) : { lo: line.start, hi: line.end },
         stop = endStop(next, length, ends.lo, ends.hi)
       if (stop.hit > TOUCH_SPEED) {

@@ -89,7 +89,7 @@ test("rail: the running track runs unbroken from the play area's edge to its edg
   // The build cuts the track at the play area's outline (to 0.1 m): every end of the running track no other running piece
   // shares is a terminal there (out of the strip's east edge at Pieve San Lorenzo, in the Lupacino tunnel; the Pontremolese's
   // two tracks south of Aulla and its one north of P.P. Chiesaccia) or a line's terminus (the Lucca–Aulla line's on Aulla
-  // Lunigiana's track 5, which runs on as a loop), and every running piece is on a line.
+  // Lunigiana's track 4, which runs on as a loop), and every running piece is on a line.
   const all = chains()
   const termini = new Set(
     MAP.railway.lines.flatMap((l, i) =>
@@ -334,9 +334,12 @@ test("rail: at-grade track stands on the ground, but beside a lower road running
 // The CTR draws curves with a vertex every 12–21 m turning 2–5.5°, so chords shorter than 40 m see
 // its own drawing (191 m at 20 m chords). The bound was 250 m, from RFI's 300 m for the Lucca–Aulla
 // line ("nei tratti più difficili") and 252 m at the least between Pieve San Lorenzo and Rometta;
-// loosened to 200 m since the map took in Aulla's part: the CTR surveys 214 m on the line's
-// approach to Aulla (way 183923138, 562 m of it on the CTR, at (−11635, 4332)), and the tunnel
-// 221235472 west of it, smoothed onto the CTR's headings at both its portals, curves at 227 m.
+// loosened to 200 m, one bound for every line, since the map took in Aulla's part: the CTR surveys
+// 212.2 m on the line's approach to Aulla (way 183923138, 562 m of it on the CTR, at (−11631,
+// 4330)), the tunnel 221235472 west of it, smoothed onto the CTR's headings at both its portals,
+// curves at 225.0 m (−11788, 4454), and the tunnel 140772193, whose OSM corner `roundCorners`
+// rounds, at 216.8 m (−11769, 5200). The Lucca–Aulla line east of x −5300 stays at 253.5 m or
+// more, the Pontremolese at 275.1 m or more (measured on the built map, 2026-11-17).
 test("rail: every line curves no tighter than 200 m over 40 m chords", () => {
   for (const pts of chains()) {
     const s = [0]
