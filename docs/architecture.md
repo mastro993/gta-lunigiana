@@ -3039,11 +3039,12 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     1002673816 repeated (0, 1912.5) at its notch's side until a cut on a vertex's 0.1 m point took
     its place; [map.md](map.md#test-regions));
     `coast-sea.map-test.ts` and `coast-shore.map-test.ts`: the coast test region `magra-coast` as
-    built in `test-maps/` (skipped and failed as the L's): the sea's nodes under 0 m, its floor
-    on the survey's isobaths, the beaches at 0–3 m, the Magra and every piece ending in the sea at
-    0 m, the catchments' outlets, no walk wall on the sand from a slope or the sea, every pier
-    walked from its landward end, the breakwaters walled for vehicles and crossed on foot, no parked
-    car or tree on the sand or in the sea, the coast's districts, its outline walls and flood
+    built in `test-maps/` (skipped and failed as the L's): the sea's nodes under 0 m but at the
+    coastline, its floor on the survey's isobaths, the sand beaches at 0–3 m, the pebble beaches at
+    0–3 m by the sea and to their recorded limit further in, the Magra and every piece ending in
+    the sea at 0 m, the catchments' outlets, no walk wall on the sand from a slope or the sea, every
+    pier walked from its landward end, the breakwaters walled for vehicles and crossed on foot, no
+    parked car or tree on the sand or in the sea, the coast's districts, its outline walls and flood
     ([map.md](map.md#test-regions));
     `x3-region.map-test.ts`: on the 3x test region against lucido alone (`lunigiana-lucido`, as
     the shipped map is no longer lucido), every terrain node in lucido's rectangle is lucido's, its

@@ -10,6 +10,7 @@ import { join, relative } from "node:path"
 import { test } from "node:test"
 
 import { MEAN, SPATE } from "../../sim/__tests__/flows.ts"
+import { TILE } from "../../sim/map/kinds.ts"
 import { useDiskMap } from "../../sim/map/source.ts"
 import { fillPolygon, segDist2 } from "../geometry.ts"
 import { readWholeMap } from "../map-file.ts"
@@ -37,22 +38,58 @@ const ISOBATHS = join(
   "isobaths.json.gz",
 )
 
-/** The distance (m) from (x, y) to the nearest edge of `areas`' rings. */
-const edgeDistance = (
+/** The edges of `areas`' rings, flat (ax, ay, bx, by) each. */
+const edgesOf = (
   areas: ReadonlyArray<{ readonly rings: ReadonlyArray<ReadonlyArray<number>> }>,
-  x: number,
-  y: number,
-) => {
-  let d2 = Infinity
+): Array<number> => {
+  const out: Array<number> = []
   for (const { rings } of areas)
     for (const r of rings)
       for (let i = 0, j = r.length / 2 - 1; 2 * i < r.length; j = i++)
-        d2 = Math.min(d2, segDist2(x, y, r[2 * j]!, r[2 * j + 1]!, r[2 * i]!, r[2 * i + 1]!).d2)
+        out.push(r[2 * j]!, r[2 * j + 1]!, r[2 * i]!, r[2 * i + 1]!)
+  return out
+}
+
+/** The distance (m) from (x, y) to the nearest of `edges` (flat, as `edgesOf` gives them). */
+const distanceTo = (edges: ReadonlyArray<number>, x: number, y: number) => {
+  let d2 = Infinity
+  for (let s = 0; s < edges.length; s += 4)
+    d2 = Math.min(d2, segDist2(x, y, edges[s]!, edges[s + 1]!, edges[s + 2]!, edges[s + 3]!).d2)
   return Math.sqrt(d2)
 }
 
 /** The coast's sea areas: OSM's coastline closed into a piece per tile (coast.ts). */
 const seaAreas = () => WHOLE!.areas.filter((a) => a.kind === "sea")
+
+/** A ring's ends within this of a line lie on it, m: half the rings' 0.1 m rounding. */
+const ON_LINE = 0.05
+
+/** Whether `v` (m, along x or y) lies on a tile's side, a multiple of TILE, or on bound `low` or `high`. */
+const onCut = (v: number, low: number, high: number) =>
+  Math.abs(v - Math.round(v / TILE) * TILE) < ON_LINE ||
+  Math.abs(v - low) < ON_LINE ||
+  Math.abs(v - high) < ON_LINE
+
+/**
+ * The coastline's edges (flat, as `edgesOf` gives them): the sea areas' edges less the cuts along a
+ * tile's side or the map's bounds, where the sea goes on (`isCut` in rivers.ts).
+ */
+const coastline = (): Array<number> => {
+  const { minX, minY, maxX, maxY } = WHOLE!.bounds,
+    edges = edgesOf(seaAreas()),
+    out: Array<number> = []
+  for (let s = 0; s < edges.length; s += 4) {
+    const ax = edges[s]!,
+      ay = edges[s + 1]!,
+      bx = edges[s + 2]!,
+      by = edges[s + 3]!
+    const cut =
+      (Math.abs(bx - ax) < ON_LINE && onCut(ax, minX, maxX)) ||
+      (Math.abs(by - ay) < ON_LINE && onCut(ay, minY, maxY))
+    if (!cut) out.push(ax, ay, bx, by)
+  }
+  return out
+}
 
 /** Whether each node of the heightmap (row-major from its south-west node) lies in the sea: the nodes the build carves to its floor. */
 const seaNodes = (): Uint8Array => {
@@ -74,15 +111,15 @@ const seaNodes = (): Uint8Array => {
 const AT_COAST = 0.05 / (0.6 / 7.5) + 0.1
 
 test(
-  "the sea: every node of its areas stands under 0 m, but at the coastline, where the beach face rounds to 0 m, and where a breakwater, a groyne or a pier's area raises it to its top (the islets are holes in it)",
+  "the sea: every node of its areas stands under 0 m, but at the coastline (no cut along a tile's side or the map's bounds), where the beach face rounds to 0 m, and where a breakwater, a groyne or a pier's area raises it to its top (the islets are holes in it)",
   { skip },
   () => {
     const { cell, cols, data, x0, y0 } = WHOLE!.heightmap
     const sea = seaNodes(),
-      areas = seaAreas()
+      coast = coastline()
     // The areas the shore raises over the sea: the breakwaters and groynes, and a pier's.
     const isRaised = (kind: string) => kind === "rock" || kind === "paved",
-      raised = WHOLE!.areas.filter((a) => isRaised(a.kind)),
+      raised = edgesOf(WHOLE!.areas.filter((a) => isRaised(a.kind))),
       inRaised = inAreas(WHOLE!.areas, isRaised)
     let nodes = 0,
       atCoast = 0,
@@ -94,7 +131,7 @@ test(
       if (z < 0) continue
       const x = x0 + (k % cols) * cell,
         y = y0 + Math.floor(k / cols) * cell
-      if (z === 0 && edgeDistance(areas, x, y) < AT_COAST) {
+      if (z === 0 && distanceTo(coast, x, y) < AT_COAST) {
         atCoast++
         continue
       }
@@ -102,14 +139,14 @@ test(
       // diagonal of it.
       assert.ok(
         (z === BREAKWATER_TOP || z === PIER_DECK) &&
-          (inRaised(x, y) || edgeDistance(raised, x, y) <= cell * Math.SQRT2),
+          (inRaised(x, y) || distanceTo(raised, x, y) <= cell * Math.SQRT2),
         `the sea's node at ${x}, ${y} stands at ${z} m`,
       )
       tops++
     }
     // 695,905 sea nodes, 281 at the coastline, 333 raised (measured 2026-11-17)
     assert.ok(nodes > 600_000, `${nodes} sea nodes`)
-    assert.ok(tops > 300 && atCoast < 1000, `${tops} raised, ${atCoast} at the coastline`)
+    assert.ok(tops > 300 && atCoast <= 300, `${tops} raised, ${atCoast} at the coastline`)
   },
 )
 
@@ -145,14 +182,24 @@ test(
   },
 )
 
+/**
+ * Why the beach cell (i, j), its centre (x, y) at z m on the drawn mesh, may stand outside 0–3 m:
+ * "shore" where the beach face dips into the sea (a sea node of `sea` among its corners), "bed"
+ * where a stream's bed crosses it (the game finds the stream's water there), else undefined.
+ */
+const excuse = (sea: Uint8Array, i: number, j: number, x: number, y: number, z: number) => {
+  const { cols } = WHOLE!.heightmap
+  if ([0, 1, cols, cols + 1].some((d) => sea[j * cols + i + d] === 1)) return "shore"
+  return rivers!.waterAt(x, y, z, MEAN) === undefined ? undefined : "bed"
+}
+
 test(
-  "beaches: every sand cell stands 0–3 m over the sea at its centre, but where the beach face dips into the sea (a sea node among its corners) or a stream's bed crosses it (the game finds the stream's water there)",
+  "sand beaches: every sand cell stands 0–3 m over the sea at its centre, but where the beach face dips into the sea (a sea node among its corners) or a stream's bed crosses it (the game finds the stream's water there)",
   { skip },
   () => {
     const { cell, cols, rows, x0, y0 } = WHOLE!.heightmap
     const { terrainZ } = ground!,
-      { coverName } = cover!,
-      { waterAt } = rivers!
+      { coverName } = cover!
     const sea = seaNodes(),
       // The sand's cover byte.
       value = Array.from({ length: 256 }, (_, v) => v).find((v) => coverName(v) === "sand")
@@ -167,14 +214,73 @@ test(
           y = y0 + (j + 0.5) * cell,
           z = terrainZ(x, y)
         if (z >= 0 && z <= 3) continue
-        if ([0, 1, cols, cols + 1].some((d) => sea[j * cols + i + d] === 1)) shore++
-        else if (waterAt(x, y, z, MEAN) === undefined)
+        const why = excuse(sea, i, j, x, y, z)
+        if (why === undefined)
           assert.fail(`the sand cell at ${x}, ${y} stands at ${z.toFixed(2)} m`)
+        if (why === "shore") shore++
         else beds++
       }
     // 16,581 sand cells, 23 dipping into the sea and 2 in stream 311359630's bed (measured 2026-11-17)
     assert.ok(cells > 15_000, `${cells} sand cells`)
     assert.ok(shore + beds < cells / 100, `${shore} cells at the sea and ${beds} in a bed`)
+  },
+)
+
+/**
+ * Within this of the coastline, m, a pebble beach's cells stand 0–3 m as sand's do: the cells at
+ * the waterline. Further in they stand on Liguria's DTM, which ramps from the coastline's 0 m up to
+ * the cliffs' contours (docs/map.md's Known data limitations).
+ */
+const PEBBLE_FACE = 2
+
+test(
+  "pebble beaches (the pebble areas meeting the sea): every cell stands 0 m or more over the sea at its centre and, within 2 m of the coastline, 3 m or less, with sand's exceptions; further in, where Liguria's DTM ramps up to the cliffs, at most 47 % of them stand over 3 m and none over 9 m",
+  { skip },
+  () => {
+    const { cell, cols, rows, x0, y0 } = WHOLE!.heightmap
+    const { terrainZ } = ground!
+    const sea = seaNodes(),
+      coast = coastline()
+    // A pebble area meets the sea where a vertex of its rings lies within two cells of the coastline:
+    // the coves under Montemarcello and Punta Bianca and Bocca di Magra's beach.
+    const meets = (r: ReadonlyArray<number>) =>
+        r.some((_, k) => k % 2 === 0 && distanceTo(coast, r[k]!, r[k + 1]!) <= 2 * cell),
+      beaches = WHOLE!.areas.filter((a) => a.kind === "pebble" && a.rings.some(meets)),
+      inBeach = inAreas(beaches, () => true)
+    let cells = 0,
+      shore = 0,
+      beds = 0,
+      inland = 0,
+      high = 0,
+      top = 0
+    for (let j = 0; j + 1 < rows; j++)
+      for (let i = 0; i + 1 < cols; i++) {
+        const x = x0 + (i + 0.5) * cell,
+          y = y0 + (j + 0.5) * cell
+        if (!inBeach(x, y)) continue
+        cells++
+        const z = terrainZ(x, y),
+          face = distanceTo(coast, x, y) < PEBBLE_FACE
+        if (!face) inland++
+        if (!face && z > 3) {
+          high++
+          top = Math.max(top, z)
+          continue
+        }
+        if (z >= 0 && z <= 3) continue
+        const why = excuse(sea, i, j, x, y, z)
+        if (why === undefined)
+          assert.fail(`the pebble beach's cell at ${x}, ${y} stands at ${z.toFixed(2)} m`)
+        if (why === "shore") shore++
+        else beds++
+      }
+    // 6 areas, 670 cells (one where two overlap), 55 within 2 m of the coastline; of the 615 further
+    // in 283 stand over 3 m (46.0 %), the highest 8.70 m 35–40 m from the sea under Montemarcello; 44
+    // dip into the sea and none lies in a bed (measured 2026-11-17)
+    assert.ok(beaches.length >= 6 && cells > 600, `${beaches.length} areas, ${cells} cells`)
+    assert.ok(high <= 0.47 * inland, `${high} of ${inland} cells over 3 m`)
+    assert.ok(top <= 9, `a pebble beach's cell at ${top.toFixed(2)} m`)
+    assert.ok(shore + beds < cells / 10, `${shore} cells at the sea and ${beds} in a bed`)
   },
 )
 

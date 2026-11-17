@@ -335,21 +335,25 @@ terrain of its own reads its own inputs alone (`inputParts`, and no Regione Tosc
   and 782 MB, 2026-11-16), and the play area, as the build prints it, Liguria's DTM on 11.46 km²,
   the sea on 11.08 and the 10 m DTM on 1.46. Its ground runs from the sea floor's −16.0 m at its
   south-west corner to 359.5 m on the hills north-west of Montemarcello (−13856, −11864). Its
-  build (map 4c1568c7a21b5b71, 2026-11-17) takes 8.88 s and peaks at 741 MB resident
-  (`/usr/bin/time -l`; the end of its overview at 8.0–8.6 s, 740 MB then, the build's own print)
-  and writes 9 tiles of 1,356,435 B, the largest 364,664 B, and an overview of 2,013 KB: 973
-  roads (21 of them piers), 3,589 buildings, 37 waters, 1,169 areas (7 sea, 72 sand, 51 rock, 6
-  pebble), 56 barriers (20 breakwaters), 91,376 trees and 538 parked spots. Its map tests (`pnpm
-  test:map`; without the build each is skipped, but in CI, which builds it, it fails instead, as
-  the L's do: `skipUnbuilt` and `builtTestMaps` in `src/tools/__tests__/test-maps.ts`, which the
-  L's checks share) check issue #13's acceptance through the game's own lookups, measured on its
-  build `4c1568c7a21b5b71` (2026-11-17). `src/tools/__tests__/coast-sea.map-test.ts` (5 tests,
-  0.38 s; it reads `data/raw/lig/magra-coast/isobaths.json.gz`, which CI's raw input supplies):
+  build (map 2a653db1f28d317e, 2026-11-17) takes 8.5–9.4 s and peaks at 729–733 MB resident
+  (`/usr/bin/time -l`, two runs; the end of its overview at 8.4–9.1 s, 729–732 MB then, the
+  build's own print) and writes 9 tiles of 1,356,427 B, the largest 364,664 B, and an overview of
+  2,011 KB: 973 roads (21 of them piers), 3,589 buildings, 37 waters, 1,169 areas (7 sea, 72 sand,
+  51 rock, 6 pebble), 56 barriers (20 breakwaters), 91,376 trees and 538 parked spots. Its map
+  tests (`pnpm test:map`; without the build each is skipped, but in CI, which builds it, it fails
+  instead, as the L's do: `skipUnbuilt` and `builtTestMaps` in `src/tools/__tests__/test-maps.ts`,
+  which the L's checks share) check issue #13's acceptance through the game's own lookups,
+  measured on its build `2a653db1f28d317e` (2026-11-17).
+  `src/tools/__tests__/coast-sea.map-test.ts` (6 tests, 0.17–0.19 s; it reads
+  `data/raw/lig/magra-coast/isobaths.json.gz`, which CI's raw input supplies):
   - every node of the sea's areas stands under 0 m, but at the coastline and on the raised tops: of
-    its 695,905 nodes 281 stand at 0.0 m, all within 0.624 m of the sea's edge, where the beach
-    face's 8 % gives 0.05 m at 0.625 m and the rings' rounding 0.1 m more (0 m is allowed within
-    0.725 m), and 333 are raised, 332 to 1.5 m and 1 to 1.0 m, allowed within a cell's diagonal of a
-    rock or paved area (the islets are holes in it);
+    its 695,905 nodes 281 stand at 0.0 m, all within 0.624 m of the coastline (the sea's edges but
+    the cuts along a tile's side or the map's bounds, where the sea goes on: a tile line's nodes
+    left at 0 m by a carving that skipped them would lie on a cut, and the check measured to every
+    edge passed 300 of them on x −12000), where the beach face's 8 % gives 0.05 m at 0.625 m and
+    the rings' rounding 0.1 m more (0 m is allowed within 0.725 m, on 300 nodes at most), and 333
+    are raised, 332 to 1.5 m and 1 to 1.0 m, allowed within a cell's diagonal of a rock or paved
+    area (the islets are holes in it);
   - the floor against the survey: at the 10,642 vertices of the kept isobaths (lines 50 m long or
     more) inside the sea, the ground stands at their depth within 0.000 m at the median, 96.67 %
     within 0.25 m and 99.14 % within 0.5 m (p1 −0.378 m, p99 +0.303 m, the extremes −1.45 and
@@ -359,6 +363,15 @@ terrain of its own reads its own inputs alone (`inputParts`, and no Regione Tosc
     sea, a sea node among its corners (23 cells), or a stream's bed crosses it and the game finds
     its water there (2, in stream 311359630's): a structural rule rather than a flat −0.1 m
     tolerance;
+  - the pebble beaches, the 6 pebble areas meeting the sea (a vertex within two cells of the
+    coastline: the coves under Montemarcello and Punta Bianca and Bocca di Magra's beach), hold
+    670 cells, counted once where two overlap; every one stands 0 m or more over the sea at its
+    centre, and the 55 within 2 m of the coastline 3 m or less, with sand's exceptions (44 cells
+    dip into the sea, none lies in a bed); further in the ground is Liguria's DTM, ramping up to
+    the cliffs ([Known data limitations](#known-data-limitations)), so the check pins its share
+    over 3 m, 283 of the 615 cells (46.0 %), at 47 % at most, and its highest, 8.70 m, at 9 m.
+    With a 1 m terrace laid over them in memory the check fails at a cell at 3.40 m by Bocca di
+    Magra, where the sand check alone passed;
   - the Magra's line ends at 0 m at its mouth, where `waterAt` holds its water at 0 m at q 0, 0.005,
     0.041 (the mean), 0.6 (a spate) and 2, and the sea 20–100 m past it stands at 0 m; no water
     vertex of the coast, nor `waterAt`'s level at q 0, the mean or a spate, lies under 0 m, and each
@@ -393,8 +406,8 @@ terrain of its own reads its own inputs alone (`inputParts`, and no Regione Tosc
     area and reaches every edge and 23.0 km² of the 24, in 0.6–1.2 s (the L's outline checks and
     flood, moved into `outline-checks.ts`, which both share).
 
-  On the build before the isobaths, 5 of the two files' 11 tests failed: a sea node at 0.1 m, the
-  floor 6.40 m off the survey at the median, a sand cell at 3.20 m, the Magra's last vertex at
+  On the build before the isobaths, 5 of the two files' 11 tests then failed: a sea node at 0.1 m,
+  the floor 6.40 m off the survey at the median, a sand cell at 3.20 m, the Magra's last vertex at
   −1.1 m and the Magra's mouth in no district of its own. Two pier ends lie at the coastline itself,
   which no walker steps onto from the shore beside them, as the walls under their decks stop it
   there: 1382979298's south end, 0.5 m inside the sea and 1 m from the coast, its deck 1.06 m over
@@ -5186,6 +5199,16 @@ longer lucido:
   with no carriageway has no surface (its road areas, `L6861`, are not read, where the DBT's fill
   in); its bell towers may be coded churches (Sarzana's cathedral's is). The land use keeps the open
   classes alone, and the Magra's gravel, inside its river bed (5111), is not drawn as pebble.
+  The coast test region's pebble beaches stand on that DTM (the region has no LiDAR), which,
+  interpolated from the NC5's contours, ramps from the shore up to the cliffs behind them: of
+  their 670 cells 283 stand over 3 m, every one on a cell of Liguria's DTM rather than the sea
+  step's, the median rising from 0.95 m within 5 m of the sea to 1.55 m at 5–10 m, 3.10 m at
+  15–20 m, 4.35 m at 25–30 m and 6.85 m at 35–40 m. The coves under Montemarcello and Punta Bianca
+  hold 221 of their 424 cells over 3 m, the highest 8.70 m at (−13514, −13526), 39 m from the sea,
+  and Bocca di Magra's beach 62 of its 246, up to 5.25 m (the 2a653db1f28d317e build,
+  2026-11-17). Reshaping them by hand would be no survey's ground, so `coast-sea.map-test.ts`
+  holds the 55 cells within 2 m of the coastline at 0–3 m, as the sand, and pins the rest: at
+  most 47 % of them over 3 m (46.0 % today) and none over 9 m.
 - **The rail is the CTR's where the CTR maps it, and OSM disagrees at Gragnola.** OSM draws
   Gragnola's loop on the east track, its "main" way crossing over to the west track inside the
   station and a south switch at (−1674.0, 3189.9); the map follows the CTR, the orthophoto and
