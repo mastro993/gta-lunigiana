@@ -75,7 +75,7 @@ const kindsOf = (areas: ReadonlyArray<Area>) =>
 const shoreOf = (osm: Osm, beaches: ReadonlyArray<Beach> = []): Shore =>
   extractShore(osm, beaches, whole)
 
-test("a beach's material is its Spiagge polygon's (the one its centre lies in: 102 sand, 103 pebbles, 104 rocky shore), else OSM's surface, else sand", () => {
+test("a beach's material is Spiagge's where its polygons of one material (102 sand, 103 pebbles, 104 rocky shore) hold half the beach or more, else OSM's surface, else sand", () => {
   const { osm, way } = shoreOsm()
   way(square(0, 0, 20), { natural: "beach" })
   way(square(40, 0, 20), { natural: "beach", surface: "gravel" })
@@ -87,15 +87,62 @@ test("a beach's material is its Spiagge polygon's (the one its centre lies in: 1
   way(square(80, 100, 20), { natural: "beach", surface: "pebbles" }) // in a 102: sand
   way(square(120, 100, 20), { natural: "beach", surface: "rock" }) // in a 106, a fill: OSM's surface
   way(square(200, 0, 20), { natural: "wetland" }) // not a beach
+  // A cove bent round a headland (an L), its centre (213.6, 113.6) on the headland, all of it in a 103.
+  const cove: Array<P> = [
+    [200, 100],
+    [240, 100],
+    [240, 110],
+    [210, 110],
+    [210, 140],
+    [200, 140],
+  ]
+  way([...cove, cove[0]!], { natural: "beach" })
+  // 30 % of it in a 104 and 40 % in a 102: neither holds half, so OSM's surface.
+  way(square(300, 100, 20), { natural: "beach", surface: "gravel" })
+  /** A Spiagge polygon of `code` over the box from (x0, y0) to (x1, y1). */
+  const box = (
+    id: number,
+    code: string,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+  ): Beach => ({
+    id,
+    code,
+    rings: [
+      [
+        [x0, y0],
+        [x1, y0],
+        [x1, y1],
+        [x0, y1],
+      ],
+    ],
+  })
   const shore = shoreOf(osm, [
     beach(1, "103", -5, 95, 30),
     beach(2, "104", 35, 95, 30),
     beach(3, "102", 75, 95, 30),
     beach(4, "106", 115, 95, 30),
+    { id: 5, code: "103", rings: [cove] },
+    box(6, "104", 295, 95, 307, 125),
+    box(7, "102", 313, 95, 325, 125),
   ])
   assert.deepEqual(
-    kindsOf(shore.areas.slice(0, 9)).map(([kind]) => kind),
-    ["sand", "pebble", "rock", "sand", "pebble", "pebble", "rock", "sand", "rock"],
+    kindsOf(shore.areas.slice(0, 11)).map(([kind]) => kind),
+    [
+      "sand",
+      "pebble",
+      "rock",
+      "sand",
+      "pebble",
+      "pebble",
+      "rock",
+      "sand",
+      "rock",
+      "pebble",
+      "pebble",
+    ],
   )
 })
 
@@ -245,25 +292,26 @@ test("a breakwater or a groyne is rock raised to 1.5 m, as drawn or, mapped as a
   )
 })
 
-test("a pier's deck stands 1 m over the water and over lower ground, on higher ground at its height, and an end on dry ground at that ground, so a walker steps onto it from the beach", () => {
+test("a pier's deck stands 1 m over the water's level whatever the DTM reads there, over dry ground at 1 m or on higher ground at its height, and an end on dry ground at that ground, so a walker steps onto it from the beach", () => {
   const pts: ReadonlyArray<V> = [
     { x: 0, y: 0 }, // on the beach, dry, 0.4 m
-    { x: 0, y: -10 }, // over the shallows, 0.1 m under water
+    { x: 0, y: -10 }, // over the shallows, the DTM 0.1 m under the sea's level
     { x: 0, y: -20 }, // over the DTM's edge: no ground
-    { x: 0, y: -30 }, // on a rock, 2.2 m
+    { x: 0, y: -30 }, // over the water, the DTM 2.2 m up (as Liguria's reads an estuary's)
     { x: 0, y: -40 }, // its end in the sea, -0.5 m
   ]
   const ground = (v: V) => [0.4, -0.1, Number.NaN, 2.2, -0.5][-v.y / 10]!
-  const wet = (_x: number, y: number) => y < -5
-  assert.deepEqual(pierDeck(pts, ground, wet), [0.4, PIER_DECK, PIER_DECK, 2.2, PIER_DECK])
-  // Both ends in the water: the deck at 1 m all along; an end on dry ground with none, at 1 m.
+  const sea = (_x: number, y: number) => (y < -5 ? 0 : undefined)
+  assert.deepEqual(pierDeck(pts, ground, sea), [0.4, PIER_DECK, PIER_DECK, PIER_DECK, PIER_DECK])
+  // Over a river at 0.3 m, 1.3 m.
   assert.deepEqual(
-    pierDeck(pts.slice(1, 3), ground, () => true),
-    [PIER_DECK, PIER_DECK],
+    pierDeck(pts.slice(1, 3), ground, () => 0.3),
+    [0.3 + PIER_DECK, 0.3 + PIER_DECK],
   )
+  // On dry ground all along: at 1 m over lower ground, on higher ground at its height; an end at its ground.
   assert.deepEqual(
-    pierDeck(pts.slice(2), ground, () => false),
-    [PIER_DECK, 2.2, -0.5],
+    pierDeck(pts.slice(1), ground, () => undefined),
+    [-0.1, PIER_DECK, 2.2, -0.5],
   )
   // An end the water's edge cuts (at y -5) is the shore's: dry past it, at its ground.
   assert.deepEqual(
@@ -273,7 +321,7 @@ test("a pier's deck stands 1 m over the water and over lower ground, on higher g
         { x: 0, y: -10 },
       ],
       (v) => (v.y === -5 ? 0.2 : -0.1),
-      wet,
+      sea,
     ),
     [0.2, PIER_DECK],
   )

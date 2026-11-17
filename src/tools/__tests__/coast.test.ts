@@ -1,12 +1,13 @@
 // The sea closed from synthetic coastlines (coast.ts) over a 100 m box: the sea on the right of a
 // line crossing it, a corner walked on the sea's side, an islet's hole, boxes wholly sea or land, a
 // line along the box's edge, two seas apart, lines disagreeing on the sea's side; the chaining of
-// OSM's ways; and the index's distances against every segment measured.
+// OSM's ways; the index's distances against every segment measured; and the shore, the lines less
+// the mouths they close.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Area } from "../../sim/map/index.ts"
-import { type CoastLine, coastIndex, coastLines, seaAreas } from "../coast.ts"
+import { type CoastLine, coastIndex, coastLines, seaAreas, shoreLines } from "../coast.ts"
 import { hash01, type P, pointInRing, segDist2, signedArea } from "../geometry.ts"
 import type { Osm } from "../osm.ts"
 import type { Rect } from "../region.ts"
@@ -232,4 +233,28 @@ test("coastLines throws where the coastline branches or a node is missing", () =
     /branches/,
   )
   assert.throws(() => coastLines(extract(nodes, { 1: ["1", "4"] }), identity), /node 4 missing/)
+})
+
+test("shoreLines drops the segments that close a water across its mouth, by the water on their land side, and keeps the rest", () => {
+  // A beach east along y = 0 (its land north), closing an estuary at x 40…60 across its mouth (two
+  // segments, the river's polygon north of them up to y 50), and an islet ring out at sea.
+  const estuary = (x: number, y: number) => x > 40 && x < 60 && y > 0 && y < 50
+  const beach = chain([0, 0], [40, 0], [50, 0], [60, 0], [100, 0])
+  const islet = ring([20, -20], [30, -20], [30, -10], [20, -10])
+  assert.deepEqual(shoreLines([beach, islet], estuary), [
+    chain([0, 0], [40, 0]),
+    chain([60, 0], [100, 0]),
+    islet,
+  ])
+  // Water on the sea's side (a river's polygon reaching out over the beach) is no mouth.
+  assert.deepEqual(
+    shoreLines([beach], (x, y) => estuary(x, -y)),
+    [beach],
+  )
+  // A ring closing a lagoon across its mouth opens there, walked on from the mouth.
+  const lagoon = ring([0, 0], [10, 0], [10, 10], [0, 10])
+  assert.deepEqual(
+    shoreLines([lagoon], (x, y) => x > 0 && x < 10 && y > 0 && y < 1),
+    [chain([10, 0], [10, 10], [0, 10], [0, 0])],
+  )
 })

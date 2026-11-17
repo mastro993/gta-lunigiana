@@ -13,7 +13,8 @@
 // residential land (the 2023 orthophoto shows them where OSM draws its woods, grassland or fields),
 // and under its farmyards, parks, squares and the like. Liguria's beaches (Spiagge,
 // data/raw/lig/<part>/spiagge.json.gz, fetch-lig.ts, in the same shape) are read here too, in local
-// metres with their physical character's code (`readSpiagge`).
+// metres with their physical character's code (`readSpiagge`), and the isobaths of its sea floor
+// (data/raw/lig/<part>/isobaths.json.gz, fetch-lig.ts) with their depth (`readIsobaths`).
 import { readFileSync } from "node:fs"
 import { gunzipSync } from "node:zlib"
 
@@ -30,6 +31,7 @@ import {
   type P,
 } from "./geometry.ts"
 import type { Rect } from "./region.ts"
+import type { Isobath } from "./sea-floor.ts"
 
 /** UCS 2019 classes kept, and the area kind each becomes. */
 export const UCS_CODES = {
@@ -171,8 +173,8 @@ const readOne = (
   })
 }
 
-/** The projection to lat/lon of a land cover file's CRS; throws for a CRS it has none of. */
-const projectionOf = (path: string, file: UcsFile) => {
+/** The projection to lat/lon of a land cover or contour file's CRS; throws for a CRS it has none of. */
+const projectionOf = (path: string, file: { readonly crs: string }) => {
   const project = PROJECTIONS[file.crs]
   if (project === undefined) throw new Error(`${path}: land cover in ${file.crs}`)
   return project
@@ -212,5 +214,37 @@ export const readSpiagge = (paths: ReadonlyArray<string>): Array<Beach> => {
     )
     for (const { id } of file.polygons) seen.add(id)
     return beaches
+  })
+}
+
+/** A contour file as `fetch-lig` writes it (isobaths.json.gz): its CRS and its lines, each an id, a depth (m) and its points flat. */
+interface ContourFile {
+  readonly crs: string
+  readonly lines: ReadonlyArray<{
+    readonly id: number
+    readonly depth: number
+    readonly line: ReadonlyArray<number>
+  }>
+}
+
+/**
+ * The isobaths of the contour files at `paths` (`fetch-lig`'s isobaths.json.gz) in local metres,
+ * in the files' order: a line two parts' files hold is read from the first, while the pieces of one
+ * multi-line share its id.
+ */
+export const readIsobaths = (paths: ReadonlyArray<string>): Array<Isobath> => {
+  const seen = new Set<number>()
+  return paths.flatMap((path) => {
+    const file = JSON.parse(gunzipSync(readFileSync(path)).toString()) as ContourFile,
+      project = projectionOf(path, file)
+    const lines = file.lines.flatMap(({ id, depth, line }) => {
+      if (seen.has(id)) return []
+      const pts: Array<P> = []
+      for (let i = 0; i + 1 < line.length; i += 2)
+        pts.push(toLocal(...project(line[i]!, line[i + 1]!)))
+      return [{ id, depth, pts }]
+    })
+    for (const { id } of file.lines) seen.add(id)
+    return lines
   })
 }

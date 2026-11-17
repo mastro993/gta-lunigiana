@@ -8,7 +8,7 @@ import { gzipSync } from "node:zlib"
 import { fillPolygon, segDist2 } from "../../sim/collide.ts"
 import { gaussBoagaToLatLon, latLonToGaussBoaga, latLonToUtm32, utm32ToLatLon } from "../crs.ts"
 import { centroid, fromLocal, type P, toLocal } from "../geometry.ts"
-import { kindOfCode, readSpiagge, readUcs, ucsAreas } from "../ucs.ts"
+import { kindOfCode, readIsobaths, readSpiagge, readUcs, ucsAreas } from "../ucs.ts"
 
 /** A closed square ring [e, n, …] of side `s` from (e, n). */
 const square = (e: number, n: number, s: number) => [e, n, e + s, n, e + s, n + s, e, n + s, e, n]
@@ -238,4 +238,43 @@ test("readSpiagge reads the beaches in local metres with their code, each id fro
   assert.ok(Math.hypot(sand[0]![0] - x, sand[0]![1] - y) < 1e-6)
   assert.ok(Math.hypot(x + 9000, y + 12700) < 1e-3)
   assert.throws(() => readSpiagge([file(t, "EPSG:4326", [])]), /land cover in EPSG:4326/)
+})
+
+test("readIsobaths reads the survey's lines in local metres with their depth, each id from the first file that holds it", (t) => {
+  const [e, n] = latLonToUtm32(...fromLocal(-9000, -13000))
+  /** Writes a contour file as fetch-lig does; its path. */
+  const contours = (
+    crs: string,
+    lines: ReadonlyArray<{ id: number; depth: number; line: Array<number> }>,
+  ) => {
+    const dir = mkdtempSync(join(tmpdir(), "iso-"))
+    t.after(() => rmSync(dir, { recursive: true }))
+    const path = join(dir, "isobaths.json.gz")
+    writeFileSync(path, gzipSync(JSON.stringify({ crs, lines })))
+    return path
+  }
+  const one = contours("EPSG:25832", [
+    { id: 3, depth: 2, line: [e, n, e + 100, n] },
+    { id: 7, depth: 5, line: [e, n - 200, e + 50, n - 210] },
+    { id: 7, depth: 5, line: [e + 60, n - 210, e + 90, n - 220] }, // a multi-line's second piece
+  ])
+  const two = contours("EPSG:25832", [
+    { id: 7, depth: 6, line: [e, n - 300, e + 10, n - 300] }, // the first file's copy wins
+    { id: 9, depth: 9, line: [e, n - 900, e + 100, n - 900, e + 200, n - 910] },
+  ])
+  const lines = readIsobaths([one, two])
+  assert.deepEqual(
+    lines.map((l) => [l.id, l.depth, l.pts.length]),
+    [
+      [3, 2, 2],
+      [7, 5, 2],
+      [7, 5, 2],
+      [9, 9, 3],
+    ],
+  )
+  // Every point in local metres, the line's first where the file put it.
+  const [x, y] = toLocal(...utm32ToLatLon(e, n))
+  assert.ok(Math.hypot(lines[0]!.pts[0]![0] - x, lines[0]!.pts[0]![1] - y) < 1e-6)
+  assert.ok(Math.hypot(x + 9000, y + 13000) < 1e-3)
+  assert.throws(() => readIsobaths([contours("EPSG:4326", [])]), /land cover in EPSG:4326/)
 })

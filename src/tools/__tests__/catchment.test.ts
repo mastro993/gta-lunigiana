@@ -273,3 +273,52 @@ test("catchments: an inflow from beyond the grid is carried down its stream from
       `sample ${k}: ${fed![k]} - ${plain![k]}`,
     )
 })
+
+// The sea (issue #13): Liguria's DTM reads its water up to 2.7 m over the marinas, over the shore of
+// the plain beside it, which drained nowhere but up out of its lowest corner.
+test("catchments: the sea's nodes left out are outlets: its ground is never read, and the plain and a river burned to its shore drain into it", () => {
+  // A plain over 400 × 160 m falling 1 % south to its shore at y 40 and 5 % either side down to a
+  // river along x 200, which runs into the sea (y < 40) there; the sea's ground stands 2 m over the
+  // shore, as the DTM reads the water, left out of the listed nodes as the build leaves it.
+  const cols = 101,
+    rows = 41
+  const plain = (x: number, y: number) => 0.5 + 0.01 * (y - 40) + 0.05 * Math.abs(x - 200)
+  const atSea = (n: number) => Math.floor(n / cols) < 10
+  const run = (sea: number, mask?: Uint8Array) => {
+    const g: Grid = {
+      cell: 4,
+      cols,
+      rows,
+      x0: 0,
+      y0: 0,
+      ax: 0,
+      ay: 0,
+      z: Float64Array.from({ length: cols * rows }, (_, n) =>
+        atSea(n) ? sea : plain(4 * (n % cols), 4 * Math.floor(n / cols)),
+      ),
+    }
+    const river = profile(
+      [
+        [200, 156],
+        [200, 40],
+      ],
+      (x, y) => plain(x, y) - 0.5,
+    )
+    const [area] = catchments(g, [river], [["source", "mouth"]], mask)
+    return { area: area!, z: g.z.filter((_, n) => !atSea(n)) }
+  }
+  const outlets = Uint8Array.from({ length: cols * rows }, (_, n) => (atSea(n) ? 0 : 1))
+  const sea = run(2.5, outlets)
+  // Its ground counts for nothing.
+  assert.deepEqual(run(1e4, outlets), sea)
+  // The plain's ground is never filled: every node drains as it lies.
+  const burned = run(-1e6).z
+  sea.z.forEach((z, k) => assert.ok(z === burned[k], `node ${k}: ${z}, ${burned[k]}`))
+  // Its water reaches the river and goes out with it: at its mouth the river drains the plain
+  // between the grid's west and east edges, 400 × 120 m, but the edges' own nodes.
+  assert.ok(Math.abs(sea.area.at(-1)! - 0.046) < 0.001, `${sea.area.at(-1)} km² at the mouth`)
+  // Read with the sea's ground in, the plain fills to its lowest way out, 1.7 m at the river's head
+  // on the grid's north edge: its trench by the shore, burned 100 m deep, a lake that drains up it.
+  const lake = run(2.5).z
+  assert.ok(lake[50]! > 1.7, `${lake[50]} m at the river's mouth`)
+})

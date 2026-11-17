@@ -24,6 +24,11 @@
 //   id (`ogr_fid`), the code the polygon's physical character (`cod_caratt_fis`: sand, pebbles,
 //   rocky shore, fill or a river's course), the rings flat [e, n, …] on decimetres, no other
 //   attribute; empty where no beach lies.
+// - isobaths.json.gz: the sea floor's isobaths whose bounding boxes meet the part's EPSG:25832 box
+//   grown by the floor's reach (`REACH` in sea-floor.ts, so a node by the part's edge reads the
+//   contours round it), {crs, lines: [{id, depth, line}]}, sorted by id (`ID1`), the depth in
+//   metres under the sea (`VALUE` less its sign), the line flat [e, n, …] on decimetres, no other
+//   attribute; empty where no sea lies.
 import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
@@ -35,6 +40,8 @@ import {
   dtmCropUrl,
   dtmTiles,
   fetchWfs,
+  isobathLines,
+  isobathsQuery,
   NC5_LAYERS,
   nc5File,
   nc5Query,
@@ -48,6 +55,7 @@ import {
 import { getText, request } from "./net.ts"
 import { dropRaw, fetchedToday, writeRaw } from "./raw-lock.ts"
 import { ligDir, partOf, type Rect } from "./region.ts"
+import { REACH } from "./sea-floor.ts"
 import { geoTiffRaster } from "./terrain-sources.ts"
 import { kindOfCode, UCS_CODES } from "./ucs.ts"
 
@@ -121,3 +129,9 @@ writeJson(
   fetchedToday(wfsUrl(sq, 0)),
 )
 console.log({ spiagge: spiagge.length })
+
+const [e0, n0, e1, n1] = box
+const iq = isobathsQuery([e0 - REACH, n0 - REACH, e1 + REACH, n1 + REACH])
+const isobaths = isobathLines(await fetchWfs(iq, getText))
+writeJson("isobaths.json.gz", { crs: "EPSG:25832", lines: isobaths }, fetchedToday(wfsUrl(iq, 0)))
+console.log({ isobaths: isobaths.length })

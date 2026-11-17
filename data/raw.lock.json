@@ -151,6 +151,11 @@
     "bytes": 23122,
     "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1574509.19189,1576559.19189)&subset=Y(4876269.40548,4878314.40548), fetched 2026-11-16"
   },
+  "lig/magra-coast/isobaths.json.gz": {
+    "sha256": "fe458d29b5d0446d6d63007811aaa5de781ba214fca8cf3df534149abea5ee84",
+    "bytes": 158100,
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2112/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2112%3AL7174&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ID1&bbox=574983%2C4873787%2C584042%2C4880859%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-17"
+  },
   "lig/magra-coast/nc5/L6858.json.gz": {
     "sha256": "20d90bfac38b8a6df6f5a5779bed5e1d67c628e878cacc20d9d7b75f38d722d8",
     "bytes": 171869,

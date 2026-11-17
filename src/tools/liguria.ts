@@ -8,6 +8,9 @@
 //   L3118, in EPSG:25832: each polygon's physical character (`cod_caratt_fis`: 102 sand, 103
 //   pebbles, 104 rocky shore, 106 fill such as promenades and boatyards, 301 and 302 river
 //   courses);
+// - the sea floor's isobaths (P.T.A.M.C. C01 "Isobatimetriche di dettaglio", id 2112, from the
+//   multibeam surveys of 2010–2019) on WFS M2112, layer L7174, in EPSG:25832: lines every metre of
+//   depth, each its `VALUE` (m, negative under the sea) and a unique integer `ID1`;
 // - the DTM ed. 2023 (id 2056) on WCS M2056, coverage M2056__L6952: EPSG:3003, 5 m cells of whole
 //   metres (Int16, −32767 where none), clipped at the regional border; in La Spezia's province it is
 //   interpolated from the NC5's own heights.
@@ -69,6 +72,14 @@ export const spiaggeQuery = (box: Rect): WfsQuery => ({
   filter: bboxFilter(box),
 })
 
+/** The sea floor's isobaths whose bounding box meets the EPSG:25832 `box`, by `ID1`. */
+export const isobathsQuery = (box: Rect): WfsQuery => ({
+  map: "M2112",
+  layer: "L7174",
+  sortBy: "ID1",
+  filter: bboxFilter(box),
+})
+
 /**
  * The land use's polygons whose bounding box meets the EPSG:25832 `box` and whose code starts with
  * one of `classes` (Corine's third level, `COD_USO` being the third or the fourth): a CQL filter, as
@@ -105,7 +116,7 @@ export const wfsUrl = (q: WfsQuery, startIndex?: number): string => {
   return `${GEOSERVER}/${q.map}/wfs?${params}`
 }
 
-/** A GeoJSON feature as the WFS gives it: its attributes and its (multi)polygon, E, N, Z. */
+/** A GeoJSON feature as the WFS gives it: its attributes and its (multi)polygon or (multi)line, E, N, Z. */
 export interface WfsFeature {
   readonly properties: Readonly<Record<string, string | number | null>>
   readonly geometry: {
@@ -217,6 +228,42 @@ export const spiaggePolygons = (features: ReadonlyArray<WfsFeature>): Array<Code
   features.flatMap((f) =>
     codedPolygons(f, Number(f.properties.ogr_fid), String(f.properties.cod_caratt_fis)),
   )
+
+/** A line of `isobaths.json.gz`: its id, its depth (m under the sea, positive) and its points flat [e, n, …]. */
+export interface DepthLine {
+  readonly id: number
+  readonly depth: number
+  readonly line: Array<number>
+}
+
+/**
+ * The isobaths' features as `isobaths.json.gz` holds them, one entry a line: its `ID1`, its depth
+ * (`VALUE`, negative under the sea, as metres under it) and its points flat [e, n, …] on decimetres,
+ * Z dropped (the layer's is 0); no other attribute, as the build reads none. Throws on a depth not
+ * under the sea.
+ */
+export const isobathLines = (features: ReadonlyArray<WfsFeature>): Array<DepthLine> =>
+  features.flatMap((f) => {
+    const id = Number(f.properties.ID1),
+      depth = -Number(f.properties.VALUE)
+    if (!(depth > 0))
+      throw new Error(`isobath ${id}: depth ${f.properties.VALUE} not under the sea`)
+    return linesOfFeature(f).map((line) => ({
+      id,
+      depth,
+      line: line.flatMap(([e, n]) => [Math.round(e! * 10) / 10, Math.round(n! * 10) / 10]),
+    }))
+  })
+
+/** A feature's lines: each its points [e, n, z?]. */
+const linesOfFeature = (f: WfsFeature): Array<ReadonlyArray<ReadonlyArray<number>>> => {
+  const g = f.geometry
+  if (g === null) return []
+  if (g.type === "LineString") return [g.coordinates as ReadonlyArray<ReadonlyArray<number>>]
+  if (g.type === "MultiLineString")
+    return [...(g.coordinates as ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>)]
+  throw new Error(`not a line: ${g.type}`)
+}
 
 /** A polygon of a land cover file (`ucs.json.gz`, `uds.json.gz`, `spiagge.json.gz`): its id, its class code and its rings flat [e, n, …], outer first. */
 export interface CodedPolygon {

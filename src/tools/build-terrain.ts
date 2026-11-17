@@ -37,7 +37,7 @@ import { continuations } from "./rail-runouts.ts"
 import { roadLevels } from "./road-levels.ts"
 import { pierDeck } from "./shore.ts"
 import { type Profile, RELAX, resample, sampleGrid } from "./terrain.ts"
-import { inWater, stillLevel, waterAreas } from "./water-areas.ts"
+import { inAreas, stillLevel, waterAreas, waterLevel } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**
@@ -100,7 +100,12 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   const ground = dem.at
   // ---- the vectors: water surfaces, road and rail profiles (their claims on the grid recorded),
   // the water kept under the decks; then the grid, one tile at a time ----
-  const wp = waterProfiles(water, ground)
+  // No water stands under the sea, and the rivers reaching it meet it at its level.
+  const wp = waterProfiles(
+    water,
+    ground,
+    inAreas(src.areas, (k) => k === "sea"),
+  )
   // The water as first settled: the beds are carved under it and the catchments read along it.
   const wp0 = wp.map((p) => ({ ...p, z: Float64Array.from(p.z) }))
   // The lakes' levels and the river polygons' waterways, into the areas in their places (a
@@ -186,7 +191,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   lap("roads")
 
   const piers: ReadonlySet<Linear> = new Set(roads.filter((r) => r.pier === true)),
-    inWet = inWater(src.areas)
+    levelAt = waterLevel(wet.carved, water, wp0)
   /**
    * A bridge or tunnel no profiled chain covers (paths, steps): the line between its ends, from the
    * uncarved ground, or a pier's deck over the water vertex by vertex (`pierDeck`). Under the rail
@@ -198,7 +203,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     )
     const end = (v: V) =>
       Math.min(cap, (v.id === undefined ? undefined : nodeZ.get(v.id)) ?? ground(v.x, v.y))
-    if (piers.has(l)) return pierDeck(l.pts, end, inWet)
+    if (piers.has(l)) return pierDeck(l.pts, end, levelAt)
     const za = end(l.pts[0]!),
       zb = end(l.pts.at(-1)!),
       s = arcLengths(l.pts)
@@ -279,7 +284,8 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     grid.uncarved,
     wp0,
     water.map((w) => w.pts.map((v) => v.id)),
-    grid.listed,
+    // The sea's nodes are outlets, as a notch's are: the rivers and the canals drain into it.
+    Uint8Array.from(grid.listed, (on, n) => (grid.sea[n] === 1 ? 0 : on)),
     inflowsOf(water, wp0, BOUNDS),
     // The water beyond the play area runs on from where its outline cuts the play area's: burned,
     // never read. Unsettled: the running minimum would carry a notch's drawn-on edge downstream.

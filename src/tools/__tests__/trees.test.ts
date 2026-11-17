@@ -300,11 +300,11 @@ test("the conifer and mixed woods grow the trees a forest there grows, and an op
   for (let k = 0; k < field.ids.length; k++) assert.ok(field.trees[3 * k]! < 251, `tree ${k}`)
 })
 
-test("a beach's sand, the sea and a river's gravel over a wood or an olive grove keep its trees out, and bare rock a wood's (a grove draws over rock)", () => {
+test("a beach's sand, the sea and a river's gravel over a wood, and the sea and the gravel over an olive grove, keep its trees out, and bare rock a wood's (a grove draws over rock and sand)", () => {
   const box: Rect = [100, 100, 400, 300]
   for (const [under, kinds] of [
     ["forest", ["sand", "sea", "pebble", "rock"]],
-    ["olive", ["sand", "sea", "pebble"]],
+    ["olive", ["sea", "pebble"]],
   ] as const)
     for (const kind of kinds) {
       const over = treeScatter(
@@ -369,6 +369,8 @@ test("an olive grove grows olives on a 7 m lattice of their own, numbered from O
 test("an olive grove over a wood or a field grows olives and the wood's trees none, and an area drawn over a grove keeps the olives out", () => {
   const box: Rect = [100, 100, 400, 300]
   const all = grove(box)
+  // A beach's sand under the whole grove changes nothing: the grove draws over it.
+  assert.deepEqual(grove(box, [{ kind: "sand", rings: [ring(box)] }]), all)
   // OSM's forest under the grove's west third and a field under its middle, as the grove draws
   // over them; a park over its east third.
   const over = grove(box, [

@@ -13,7 +13,15 @@ import type { WaterF } from "../features.ts"
 import { pointInRing, ringBox, segDist2 } from "../geometry.ts"
 import { seaFloor } from "../sea-floor.ts"
 import { gridLattice, makeGrid, type Grid, type Span } from "../terrain.ts"
-import { carveAreas, raiseAreas, waterAreas, waterNodes, type CarvedArea } from "../water-areas.ts"
+import {
+  carveAreas,
+  raiseAreas,
+  seaNodes,
+  waterAreas,
+  waterLevel,
+  waterNodes,
+  type CarvedArea,
+} from "../water-areas.ts"
 import { waterProfiles } from "../water.ts"
 
 /** The scene: the lattice's 101 × 51 nodes (4 m apart) from its node at x = 0, y = 0. */
@@ -356,6 +364,17 @@ test("water areas: windows meeting at a column through the lake and its outlet, 
       }
 })
 
+test("water areas: the water's level is a still water's, a river polygon's waterways' surface at the nearest point, and none on dry ground", () => {
+  const level = waterLevel(carved, WATER, wp)
+  assert.equal(level(300, 120), areas[3]!.level, "in the lake")
+  assert.equal(level(375, 170), areas[4]!.level, "in the pool no river reaches")
+  // In the west river polygon 20 m off the river, its surface at x 60.
+  const river = wp[0]!
+  const at = river.x.findIndex((x) => x >= 60)
+  assert.ok(Math.abs(level(60, 77)! - river.z[at]!) < 0.05, `${level(60, 77)} by the river at x 60`)
+  assert.equal(level(240, 20), undefined, "on dry ground")
+})
+
 test("water areas: the water keeps from the roads a lake's nodes to its edge and a river polygon's but its outer edge", () => {
   const wet = waterNodes(dem.grid(WHOLE), carved)
   NODES.forEach(([x, y], k) => {
@@ -375,9 +394,9 @@ test("water areas: the water keeps from the roads a lake's nodes to its edge and
 })
 
 // The sea: a coastline running east along y = 31, the land north of it (OSM's rule), the sea south
-// of it to past the scene's edges, and a breakwater out in it, on a beach rising 5 % north from
-// 0.2 m under the sea's level at the shore (a hollow behind it), over the sea's flat 0 m (the
-// terrain chain's sea step).
+// of it to past the scene's edges, its survey's 2 m line along y = 12, and a breakwater out in it,
+// on a beach rising 5 % north from 0.2 m under the sea's level at the shore (a hollow behind it),
+// over the sea's flat 0 m (the terrain chain's sea step).
 const SEA = [-8, -8, 408, -8, 408, 31, -8, 31]
 const BREAKWATER = [151, 7, 169, 7, 169, 13, 151, 13]
 const FLOOR = seaFloor(
@@ -390,6 +409,16 @@ const FLOOR = seaFloor(
       closed: false,
     },
   ]),
+  [
+    {
+      id: 1,
+      depth: 2,
+      pts: [
+        [-100, 12],
+        [500, 12],
+      ],
+    },
+  ],
 )
 const beach = demOf((_x, y) => (y < 31 ? 0 : -0.2 + 0.05 * (y - 31)))
 const sea = waterAreas([{ kind: "sea", level: 0, rings: [SEA] }], [], [], beach, FLOOR)
@@ -423,10 +452,15 @@ test("water areas: the sea is carved node by node to its floor in the pass befor
     } else assert.equal(z, at(beachBare, x, y), `(${x}, ${y}) on the beach`)
   }
   assert.equal(wet, 8 * COLS)
-  assert.equal(at(seaFirst, 100, 28), -0.24, "3 m out, the beach's face")
-  assert.equal(at(seaFirst, 100, 0), -0.6, "31 m out, its foot")
+  assert.equal(at(seaFirst, 100, 12), -2, "on the survey's 2 m line")
+  assert.ok(at(seaFirst, 100, 28) > at(seaFirst, 100, 20), "the floor falls from the shore")
   assert.ok(at(seaFirst, 100, 32) < 0, "the shore's first node, under the level, not raised to it")
   assert.deepEqual(seaGrid(true).z, beachBare.z, "the pass after the claims leaves the sea")
+})
+
+test("water areas: the sea's nodes, the catchments' outlets, are those carved to its floor, and no lake's", () => {
+  const nodes = seaNodes(beach.grid(WHOLE), [...sea.carved, ...carved])
+  NODES.forEach(([x, y], k) => assert.equal(nodes[k], y < 31 ? 1 : 0, `(${x}, ${y})`))
 })
 
 test("water areas: windows meeting at a column or a row through the sea carve every node as the whole grid does", () => {

@@ -376,10 +376,11 @@ test("an olive grove draws over a wood, grassland, farmland and residential land
   assert.equal(at(raster, 26, 26), "farmyard")
 })
 
-test("a beach's sand draws over the land, a river, a lake and their gravel over the sand, the sea over them all, and a river line's pebble bed never over the sea, whichever comes first in the map", () => {
+test("a beach's sand draws over the open land, the rock and the built covers over the sand, a river, a lake and their gravel over it, the sea over them all, and a river line's pebble bed never over the sea, whichever comes first in the map", () => {
   // The sea (y 0…16) under a beach (y 8…32) it reaches into, a lake and a river polygon on the
-  // beach, a gravel bar in the river, the beach over farmland, and an 8 m river line along x = 38
-  // running out into the sea, its bed 7 m either side.
+  // beach, a gravel bar in the river, the beach over grassland, a groyne's rock (x 28…32) and a
+  // promenade (y 28…32) on it, and an 8 m river line along x = 38 running out into the sea, its
+  // bed 7 m either side.
   const raster = coverBlocks({
     ...bare,
     heightmap,
@@ -389,7 +390,9 @@ test("a beach's sand draws over the land, a river, a lake and their gravel over 
       { kind: "lake", rings: [[0, 24, 8, 24, 8, 32, 0, 32]] },
       { kind: "river", rings: [[8, 24, 24, 24, 24, 32, 8, 32]] },
       { kind: "sand", rings: [[0, 8, 40, 8, 40, 32, 0, 32]] },
-      { kind: "farmland", rings: [[0, 24, 40, 24, 40, 40, 0, 40]] },
+      { kind: "grassland", rings: [[0, 24, 40, 24, 40, 40, 0, 40]] },
+      { kind: "rock", rings: [[28, 0, 32, 0, 32, 24, 28, 24]] },
+      { kind: "paved", rings: [[24, 28, 40, 28, 40, 32, 24, 32]] },
     ],
     water: [
       {
@@ -410,8 +413,11 @@ test("a beach's sand draws over the land, a river, a lake and their gravel over 
   assert.equal(at(raster, 2, 26), "lake")
   assert.equal(at(raster, 10, 26), "river")
   assert.equal(at(raster, 18, 26), "pebble") // the bar over the river
-  assert.equal(at(raster, 26, 26), "sand") // over the farmland
-  assert.equal(at(raster, 2, 36), "farmland")
+  assert.equal(at(raster, 26, 26), "sand") // over the grassland
+  assert.equal(at(raster, 2, 36), "grassland")
+  assert.equal(at(raster, 30, 18), "rock") // the groyne on the beach
+  assert.equal(at(raster, 30, 10), "sea") // and out in the sea
+  assert.equal(at(raster, 26, 30), "paved") // the promenade
   assert.equal(at(raster, 34, 2), "sea") // the river line's bed stops at the sea
   assert.equal(at(raster, 34, 18), "pebble") // and lies on the beach
 })

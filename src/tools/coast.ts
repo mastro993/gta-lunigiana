@@ -1,8 +1,9 @@
 // The sea (issue #13) from OpenStreetMap's coastline, its `natural=coastline` ways, whose land lies
 // on their left and the sea on their right (OSM's rule): the ways chained into lines in local metres
 // (`coastLines`), the lines closed over each box the caller names into the sea's areas at 0 m
-// (`seaAreas`), and a bucketed index of their segments for the distance from the coastline and the
-// side of it a point lies on (`coastIndex`). It takes its boxes and its projection as arguments, so
+// (`seaAreas`), a bucketed index of their segments for the distance from the coastline and the
+// side of it a point lies on (`coastIndex`), and the shore the sea floor rises to, the lines less
+// the mouths they close across a river (`shoreLines`). It takes its boxes and its projection as arguments, so
 // `fetch-rt`'s terrain chain (`sea-fill.ts`) and the build share it. Only + − × ÷ and sqrt, so every
 // architecture builds the same sea (`map-key.test.ts`).
 import type { Area } from "../sim/map/index.ts"
@@ -75,6 +76,51 @@ export const coastLines = (
   return [...chains, ...rings]
 }
 
+/** How far off a segment's middle, on its land side, the water across a mouth is looked for, m. */
+const ACROSS = 0.5
+
+/**
+ * The shore of `lines`: each line less its segments that close a water across its mouth, those
+ * whose land side (their left, ACROSS m off their middle) lies in water (`wet`: a river's or a lake's
+ * area, as OSM draws the Magra's estuary up to the coastline's closure across Bocca di Magra), split
+ * there into open lines; a ring with none stays whole. The sea floor rises to the shore, not to the
+ * mouth, where the river's bed meets it.
+ */
+export const shoreLines = (
+  lines: ReadonlyArray<CoastLine>,
+  wet: (x: number, y: number) => boolean,
+): Array<CoastLine> =>
+  lines.flatMap(({ pts, closed }) => {
+    const n = pts.length - 1
+    const mouth = (k: number) => {
+      const [ax, ay] = pts[k]!,
+        [bx, by] = pts[k + 1]!,
+        len = Math.sqrt((bx - ax) ** 2 + (by - ay) ** 2)
+      return wet(
+        (ax + bx) / 2 - ((by - ay) / len) * ACROSS,
+        (ay + by) / 2 + ((bx - ax) / len) * ACROSS,
+      )
+    }
+    const across = Array.from({ length: n }, (_, k) => mouth(k))
+    const first = across.indexOf(true)
+    if (first < 0) return [{ pts, closed }]
+    // A ring is walked from the segment after a mouth, so no piece runs on round its first point.
+    const order = Array.from({ length: n }, (_, k) => (closed ? (first + 1 + k) % n : k))
+    const out: Array<CoastLine> = []
+    let run: Array<P> = []
+    for (const k of order) {
+      if (across[k]) {
+        if (run.length > 1) out.push({ pts: run, closed: false })
+        run = []
+        continue
+      }
+      if (run.length === 0) run.push(pts[k]!)
+      run.push(pts[k + 1]!)
+    }
+    if (run.length > 1) out.push({ pts: run, closed: false })
+    return out
+  })
+
 /** Within this distance (m) of a box's edge a piece's end lies on it: the clip cuts on the edge to within rounding. */
 const ON_EDGE = 1e-6
 
@@ -92,10 +138,10 @@ const ON_EDGE = 1e-6
 export const seaAreas = (
   lines: ReadonlyArray<CoastLine>,
   boxes: ReadonlyArray<Rect>,
-  index: CoastIndex = coastIndex(lines),
 ): Array<Area> => {
   if (lines.length === 0) return []
-  const lineBoxes = lines.map(({ pts }) => boxOf(pts))
+  const index = coastIndex(lines),
+    lineBoxes = lines.map(({ pts }) => boxOf(pts))
   return boxes.flatMap((box) =>
     seaIn(
       lines.filter((_, k) => meets(lineBoxes[k]!, box)),

@@ -394,16 +394,30 @@ export const carveAreas = (
   }
 }
 
+/** Whether each node of the window `g` (by its index in `g.z`) is the sea's: one `carveAreas` carves to its floor. */
+export const seaNodes = (g: Grid, areas: ReadonlyArray<CarvedArea>): Uint8Array => {
+  const out = new Uint8Array(g.z.length)
+  for (const { rings, floor } of inWindow(g, areas))
+    if (floor !== undefined) nodesIn(g, rings, (k) => (out[k] = 1))
+  return out
+}
+
 /**
  * Raises each node of the window `g` a cell of an area of `raised` touches to at least its `top`,
- * m a.s.l. (a pier's area, a breakwater: shore.ts), after the sea is carved under it.
+ * m a.s.l. (a pier's area, a breakwater: shore.ts), after the sea is carved under it; the nodes it
+ * raised, by their index in `g.z` (1), which no river line carves after (`carveAll`'s `keep`).
  */
 export const raiseAreas = (
   g: Grid,
   raised: ReadonlyArray<Ringed & { readonly top: number }>,
-): void => {
+): Uint8Array => {
+  const out = new Uint8Array(g.z.length)
   for (const { rings, top } of inWindow(g, raised))
-    nodesOf(g, rings, (k) => (g.z[k] = Math.max(g.z[k]!, top)))
+    nodesOf(g, rings, (k) => {
+      g.z[k] = Math.max(g.z[k]!, top)
+      out[k] = 1
+    })
+  return out
 }
 
 /** An area's rings and the box of its outer one. */
@@ -433,6 +447,26 @@ export const stillLevel = (areas: ReadonlyArray<CarvedArea>) => {
     for (const a of still)
       if (holds(a, x, y) && (level === undefined || a.level! > level)) level = a.level
     return level
+  }
+}
+
+/**
+ * The water's level at a point of the carved `areas` (`waterAreas`): a still water's (`stillLevel`:
+ * a lake's, the sea's 0 m), else a river polygon's waterways' surface at the nearest point (on `wp`);
+ * undefined on dry ground.
+ */
+export const waterLevel = (
+  areas: ReadonlyArray<CarvedArea>,
+  water: ReadonlyArray<WaterF>,
+  wp: ReadonlyArray<Profile>,
+) => {
+  const still = stillLevel(areas),
+    near = nearestOn(areas, water, wp)
+  return (x: number, y: number): number | undefined => {
+    const level = still(x, y)
+    if (level !== undefined) return level
+    for (const [area, nearest] of near) if (holds(area, x, y)) return nearest(x, y).surface
+    return undefined
   }
 }
 

@@ -1,8 +1,9 @@
 // The terrain grid, built one listed 2 km tile at a time: on each tile's window of nodes the LiDAR
 // is averaged, the lakes, river polygons and the sea carved (water-areas.ts), the piers' decks and
-// the breakwaters raised over them (shore.ts) and the beds under the water as first settled, the
-// road and rail claims written in the build's order (never on the water), the river polygons
-// (their gravel bars raised now) and the beds (outside the road cores) carved again under the water
+// the breakwaters raised over them (shore.ts) and the beds under the water as first settled (none
+// through a breakwater), the road and rail claims written in the build's order (never on the
+// water), the river polygons (their gravel bars raised now) and the beds (outside the road cores
+// and the breakwaters) carved again under the water
 // kept below the decks, the terrain under each water sample read for the perched check, the grid
 // rounded to 0.1 m and the rail bed levelled. Each of those writes a node from that node alone (its own value,
 // position, owner and the vectors), so a window needs no halo, and a node two tiles share comes out
@@ -19,8 +20,27 @@ import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
 import { ROAD_RANKS } from "./profiles.ts"
 import { type BedLine, bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { gridLattice, sampleGrid, slotOf, type Grid, type Profile } from "./terrain.ts"
-import { carveAreas, raiseAreas, waterNodes, type CarvedArea } from "./water-areas.ts"
+import { carveAreas, raiseAreas, seaNodes, waterNodes, type CarvedArea } from "./water-areas.ts"
 import { carveAll } from "./water.ts"
+
+/**
+ * A tile window's first carving: the water areas (the sea to its floor: `carveAreas`), the piers'
+ * decks and the breakwaters raised over them, then the beds under the water as first settled, none
+ * through what was raised (the Parmignola's line cut a jetty at its mouth 1.8 m, to −0.3 m); the
+ * nodes raised, by their index in `win.z`.
+ */
+export const firstCarving = (
+  win: Grid,
+  areas: ReadonlyArray<CarvedArea>,
+  raised: Parameters<typeof raiseAreas>[1],
+  water: ReadonlyArray<WaterF>,
+  wp0: ReadonlyArray<Profile>,
+): Uint8Array => {
+  carveAreas(win, areas, water, wp0, false)
+  const rock = raiseAreas(win, raised)
+  carveAll(win, water, wp0, (k) => rock[k] === 1)
+  return rock
+}
 
 /** What the tile pass reads. */
 interface GridInput {
@@ -47,7 +67,8 @@ interface GridInput {
 
 /**
  * The finished grid, the uncarved one (the catchments read it), the nodes the listed tiles hold
- * (`listed`, 1, as `listedNodes` in grid-tiles.ts), the carved grid before its rounding under every
+ * (`listed`, 1, as `listedNodes` in grid-tiles.ts) and those of them the sea's (`sea`, 1, carved to
+ * its floor: the catchments' outlets), the carved grid before its rounding under every
  * water sample (`perched[i][k]`, for `dropPerched`), and what the rail bed and the ground under the
  * decks moved. A node no listed tile holds (an L's notch) is 0 in the uncarved grid, which the
  * catchments leave out, and in the finished grid the listed node the game reads there
@@ -71,7 +92,8 @@ export const tileByTile = ({
   const size = lattice.cols * lattice.rows
   const uncarved: Grid = { ...lattice, z: new Float64Array(size) },
     grid: Grid = { ...lattice, z: new Float64Array(size) }
-  const written = new Uint8Array(size)
+  const written = new Uint8Array(size),
+    sea = new Uint8Array(size)
   // Roads may claim river banks but never the water itself: a wide stream's anywhere, and a narrow
   // one's under a road bridge's deck, between its ends, where no road stands on the ground (at grade
   // it runs in the road's culvert; under the rail the channel dips under the bed, channel.ts). An
@@ -122,9 +144,10 @@ export const tileByTile = ({
     const win = dem.grid(tile.span)
     for (let r = 0; r < rows; r++)
       uncarved.z.set(win.z.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
-    carveAreas(win, areas, water, wp0, false)
-    raiseAreas(win, raised)
-    carveAll(win, water, wp0)
+    const rock = firstCarving(win, areas, raised, water, wp0),
+      wet = seaNodes(win, areas)
+    for (let r = 0; r < rows; r++)
+      sea.set(wet.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
     const protect = waterNodes(win, areas),
       owner = new Uint8Array(cols * rows).fill(255)
     for (let k = 0; k < protect.length; k++)
@@ -137,7 +160,7 @@ export const tileByTile = ({
           : 0
     replayClaims(win, claims, owner, protect)
     carveAreas(win, areas, water, wp, true)
-    carveAll(win, water, wp, (k) => owner[k] !== 255)
+    carveAll(win, water, wp, (k) => owner[k] !== 255 || rock[k] === 1)
     const own = samples.get(tile.key) ?? []
     for (let m = 0; m < own.length; m += 2) {
       const p = wp[own[m]!]!,
@@ -192,6 +215,7 @@ export const tileByTile = ({
     grid,
     uncarved,
     listed: written,
+    sea,
     perched,
     bed: bedReport(moved),
     decks: deckReport(lowered),

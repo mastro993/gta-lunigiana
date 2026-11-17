@@ -62,8 +62,11 @@ const WATER_COVERS: ReadonlySet<number> = new Set(
  * the fields and the residential land (the land cover's olive groves and vineyards are on the 2023
  * orthophoto where OSM draws its woods, grassland, fields or houses over them), and a farmyard over
  * them (a farm's yard, smaller than the land cover's half hectare), then the parks, squares and the
- * like; a beach's sand, then the rivers and lakes and a river's gravel bars over them, and the sea
- * last, over every beach that reaches into it, so the shore drawn is OSM's coastline.
+ * like; a beach's sand over the open ground but under the rock and all after it (a beach's outline
+ * drawn over a groyne, a breakwater, a rocky shore, a promenade or a car park leaves them theirs:
+ * OSM's and Spiagge's beaches held 125 cells of magra-coast's groynes and breakwaters), then the
+ * rivers and lakes and a river's gravel bars over them, and the sea last, over every beach that
+ * reaches into it, so the shore drawn is OSM's coastline.
  */
 const FILL: ReadonlyArray<Cover> = [
   "meadow",
@@ -77,9 +80,14 @@ const FILL: ReadonlyArray<Cover> = [
       c !== "pebble" &&
       c !== "sand",
   ).flatMap((c) =>
-    c === "farmyard" ? [] : c === "vineyard" ? [c, "olive" as const, "farmyard" as const] : [c],
+    c === "farmyard"
+      ? []
+      : c === "vineyard"
+        ? [c, "olive" as const, "farmyard" as const]
+        : c === "rock"
+          ? ["sand" as const, c]
+          : [c],
   ),
-  "sand",
   "river",
   "lake",
   "pebble",
