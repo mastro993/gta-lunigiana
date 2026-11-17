@@ -4,7 +4,7 @@ import { test } from "node:test"
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import { coreHalf, replayClaims } from "../grid-claims.ts"
-import { makeProfiler, type Linear } from "../profiles.ts"
+import { chainsOf, insideNodes, makeProfiler, type Linear } from "../profiles.ts"
 import { roadLevels } from "../road-levels.ts"
 import type { Grid } from "../terrain.ts"
 
@@ -65,6 +65,39 @@ test("profile runs a tunnel the outline cuts, in two pieces, level from its one 
     pieces.map((item) => ({ item, rev: false })),
     SPEC,
   )
+  for (const p of pieces)
+    for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
+})
+
+// Regression: north of Aulla a switch of the Pontremolese's inside a tunnel took the hill's 114.9 m over the bore and humped
+// the line, 99 m there, 5.5 m (its grade changed 4.9% over 20 m); a crossover's switch on the second track's deck over the
+// SS665 took the valley's 71.8 m and sagged that track 4.4 m under the line beside it.
+test("profile takes no hill's or valley's ground at a junction inside a bore or on a deck: its chains run on at their level", () => {
+  // Flat ground at 100 m, a hill 30 m high over x 100–300 within 20 m of y 0 and a valley 8 m deep over x 400–500.
+  const ground = (x: number, y: number) =>
+    x > 100 && x < 300 && Math.abs(y) < 20 ? 130 : x > 400 && x < 500 ? 92 : 100
+  const pieces: Array<Linear & { readonly id: number }> = [
+    // The line: into the bore at x 100, a switch "s" in it at x 200, out at x 300; over a deck with a switch "d" at x 450.
+    { id: 1, pts: [v(0, 0), v(100, 0, "p0")] },
+    { id: 2, tunnel: true, pts: [v(100, 0, "p0"), v(200, 0, "s")] },
+    { id: 3, tunnel: true, pts: [v(200, 0, "s"), v(300, 0, "p1")] },
+    { id: 4, pts: [v(300, 0, "p1"), v(400, 0, "b0")] },
+    { id: 5, bridge: true, pts: [v(400, 0, "b0"), v(450, 0, "d")] },
+    { id: 6, bridge: true, pts: [v(450, 0, "d"), v(500, 0, "b1")] },
+    { id: 7, pts: [v(500, 0, "b1"), v(700, 0)] },
+    // A branch from the bore's switch out of the hill at y 30; a crossover from the deck's switch to a second track's deck.
+    { id: 8, tunnel: true, pts: [v(200, 0, "s"), v(260, 30, "q")] },
+    { id: 9, pts: [v(260, 30, "q"), v(400, 60)] },
+    { id: 10, bridge: true, pts: [v(450, 0, "d"), v(480, 4, "e")] },
+    { id: 11, bridge: true, pts: [v(400, 4, "c0"), v(480, 4, "e")] },
+    { id: 12, bridge: true, pts: [v(480, 4, "e"), v(500, 4, "c1")] },
+    { id: 13, pts: [v(500, 4, "c1"), v(700, 4)] },
+    { id: 14, pts: [v(300, 4), v(400, 4, "c0")] },
+  ]
+  const inside = insideNodes(pieces)
+  assert.deepEqual([...inside].sort(), ["d", "e", "s"])
+  const { profile, grown, zOf } = makeProfiler(ground)
+  for (const ch of grown(chainsOf(pieces))) profile(ch, { ...SPEC, inside: (id) => inside.has(id) })
   for (const p of pieces)
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
 })

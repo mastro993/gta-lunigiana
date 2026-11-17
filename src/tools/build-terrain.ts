@@ -24,6 +24,7 @@ import { inPlay, onOutline } from "./play-area.ts"
 import {
   chainsOf,
   EXTRA_RANK,
+  insideNodes,
   lifted,
   makeProfiler,
   RAIL_PASS,
@@ -127,8 +128,14 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   // The rail goes first (its grade limit is the strictest; roads dip under it and meet it at level
   // crossings), then roads by class (ROAD_PASSES). Ranks decide grid cells: the main roads beat
   // the rail, and the rail beats the rest.
+  // A switch in a tunnel or on a bridge is no portal or abutment: its chains run on at their level.
+  const inside = insideNodes(rail)
   for (const ch of grown(chainsOf(rail)))
-    profile(ch, { w: 4, ...RAIL_PASS, tol: RAIL_TOL }, railBounds(ch))
+    profile(
+      ch,
+      { w: 4, ...RAIL_PASS, tol: RAIL_TOL, inside: (id) => inside.has(id) },
+      railBounds(ch),
+    )
   // The tracks only the CTR has lie level with the line; a road crossing one is pinned to it there.
   const extraZ = extraLevels(
     extra,
