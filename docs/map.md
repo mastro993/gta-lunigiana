@@ -80,15 +80,16 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
   cross-sections through its OSM bank polygons (each piece the play area's outline keeps of a way on
   its own: way 1029104404's two are 13.8 and 14 m), not the mountain-stream fallback. Neighbourhood
   labels come from OSM place nodes, without Monzone's hand-placed districts or stone cores.
-- **Start**: the player starts beside a central street in the connected traffic network, outside
-  buildings with an open walk-clear route to the street. Police and station parking use Cesena's
-  mapped Carabinieri headquarters (the Compagnia, POI 806564311, which the map names as
-  `spawns.police`: the game parked them by the first police POI, the Commissariato 1.9 km away,
-  until the build named it) and railway station.
+- **Start**: the build chooses the connected traffic node nearest Ponte Vecchio's mapped point
+  (44.13394, 12.23394), then puts the player on a clear sidewalk beside that street, with a walking
+  route to it. Its nearest level parked spot within 150 m always has a civilian car, whatever the
+  seed. Police and station parking use Cesena's mapped Carabinieri headquarters (the Compagnia, POI
+  806564311, which the map names as `spawns.police`: the game parked them by the first police POI,
+  the Commissariato 1.9 km away, until the build named it) and railway station.
 - **Checks**: `src/tools/__tests__/cesena.test.ts` checks landmarks, connected networks, the outdoor
-  spawn, nearby cars and deterministic simulation startup. It reads its buildings and road lines
-  from the tiles round the start, all four (the start, (17.3, −41.5), is by the corner they share),
-  and fails when it reads none, so its checks cannot pass on nothing. `cesena.map-test.ts`
+  spawn, the guaranteed nearby car and deterministic simulation startup. It reads its buildings and
+  road lines from the tile round the start, near Ponte Vecchio, and fails when it reads none, so its
+  checks cannot pass on nothing. `cesena.map-test.ts`
   (`pnpm test:map`) reads Cesena whole (`wholeMap("cesena")`, the vectors joined from the tiles) and
   checks that every road has its line (2 vertices or more, a z per vertex), that every piece of the
   Savio is over 8 m and at most 120 m wide (its two are 13.8 and 14 m), the clearance under every
@@ -2602,11 +2603,12 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   for its 79 before Fosdinovo's part and 2.7 s before the olives) and holds one tile's five masks,
   5 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
-  clear of walk and drive walls. Cesena, and a test region without the Carabinieri, use a central
-  street in its connected traffic network (the traffic node nearest the origin, `startNear`). The
-  final rounded position must lie outside every building footprint and the water areas, and have a
-  walk-clear route to its street centreline, sampled at intervals no greater than 0.5 m. Wall
-  distance alone can accept a point deep inside a building, leaving the player trapped.
+  clear of walk and drive walls. Cesena uses the connected traffic node nearest Ponte Vecchio's
+  mapped point (44.13394, 12.23394); a test region without the Carabinieri uses the node nearest the
+  origin (`startNear`). The final rounded position must lie outside every building footprint and
+  the water areas, and have a walk-clear route to its street centreline, sampled at intervals no
+  greater than 0.5 m. Wall distance alone can accept a point deep inside a building, leaving the
+  player trapped.
 - **Parked spots**: on the right kerb of primary, secondary, tertiary, unclassified and residential
   roads (not bridges or tunnels; never by a motor road, where art. 176, comma 5 bans stopping on the
   carriageways and ramps), at least 12 m from junctions and 9 m from each other, with two or more
