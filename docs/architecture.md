@@ -1070,30 +1070,31 @@ water, glow and tree meshes exist only where the chunk has some. A 192 m apron o
 the terrain, lines, trees and water areas beyond the map bounds, the built terrain's box (its edge
 nodes' heights, the sea floor's below 0 m too, so the sea runs on over the apron at the edge's
 depth: 10.0 m at x −9072 on the coast test region's south edge; past the apron the clear colour,
-dark forest green, shows where the sea would go on); inside it, past an
-inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground and cover the
-nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a road
-or a river ending on the bounds runs on across the apron, `throughApron`; the track runs on past
-each line's terminals over its drawn run, wherever the terminal lies: [Track and
-stations](#track-and-stations)). Terrain cells take their colours from the land
-cover, read from the tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts`, painted by
-`COVER_LOOK` in `src/render/terrain.ts` in patches and stripes counted from the region's anchor, so
-a part that grows the box repaints none of the ground built before it, `terrain.test.ts`, and an
-olive grove's dry grass bare in a 2.5 m strip along each terrace's edge, every 3 m of rise (a cell
-whose middle lies within half a strip of one, by its height and slope), so the strips follow the
-contours; a beach's sand wet (`sandWet`) where a cell's middle lies under 0.8 m a.s.l., 9,556 of
-the coast test region's 16,581 sand cells (57.6 %), those along the 0.8 m contour a median 30 m
-from the coastline, where the 2023 orthophoto shows the sand wet about 6 m in (0.2 m would put the
-contour 2.7 m from it, 0.4 m 2.8 m and 0.6 m 21 m); a
-broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where
-none covers a cell, paving where open ground lies within 3 m of both a wall and a road's edge (house
-fronts, sidewalks, alleys), and pebble beds along the wide streams outside the lakes, the river
-polygons and the sea. A
-cover's byte in the tiles is its place in `COVERS` (`src/sim/map/raster.ts`; new kinds go at the
-end), and the order the areas are filled in is its own (`FILL`: a river's gravel bars over its
-water, a wood under every other area, an olive grove over a wood, grassland, farmland and
-residential land, a beach's sand over the open ground and under rock and every cover after it,
-and the sea last, so the shore drawn is OSM's coastline: [map.md](map.md#3-features-featurests)).
+dark forest green, shows where the sea would go on, as the user chose on 2026-11-17); inside
+it, past an inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground
+and cover the nearest listed tiles extend into it, with no trees, and the lines stop at the outline
+(only a road or a river ending on the bounds runs on across the apron, `throughApron`; the track
+runs on past each line's terminals over its drawn run, wherever the terminal lies: [Track and
+stations](#track-and-stations)). Terrain cells take their colours from the land cover, read from the
+tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts`, painted by `COVER_LOOK` in
+`src/render/terrain.ts` in patches and stripes counted from the region's anchor, so a part that
+grows the box repaints none of the ground built before it, `terrain.test.ts`, and an olive grove's
+dry grass bare in a 2.5 m strip along each terrace's edge, every 3 m of rise (a cell whose middle
+lies within half a strip of one, by its height and slope), so the strips follow the contours; a
+beach's sand wet (`sandWet`) where a cell's middle lies under 0.2 m a.s.l., the user's choice
+(2026-11-17), as the 2023 orthophoto shows the sand wet only in a band about 6 m wide along the
+water: 546 of the coast test region's 16,581 sand cells (3.3 %), the band's inner edge a median 2.4
+m from the coastline (one cell, 4 m, from the nearest sea cell's centre;
+`terrain-coast.map-test.ts`), where issue #13's 0.8 m wet 9,556 (57.6 %) and put it 30 m in (0.4 m
+7.6 % and 2.9 m, 0.6 m 43.5 % and 24 m, measured on the cells' middles as the terrain shades them);
+a broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where none covers
+a cell, paving where open ground lies within 3 m of both a wall and a road's edge (house fronts,
+sidewalks, alleys), and pebble beds along the wide streams outside the lakes, the river polygons and
+the sea. A cover's byte in the tiles is its place in `COVERS` (`src/sim/map/raster.ts`; new kinds go
+at the end), and the order the areas are filled in is its own (`FILL`: a river's gravel bars over
+its water, a wood under every other area, an olive grove over a wood, grassland, farmland and
+residential land, a beach's sand over the open ground and under rock and every cover after it, and
+the sea last, so the shore drawn is OSM's coastline: [map.md](map.md#3-features-featurests)).
 
 Streaming has two levels: the tiles in memory are planned first, then the chunks of the tiles in
 reach, so a frame's cost does not grow with the map, and a chunk builds only once every tile its
@@ -1889,7 +1890,7 @@ never recompiles a shader.
 | `solidMaterial` | `solid` | buildings, bridges, the ballast bed, platforms, canopies, name boards, crossing housings, tunnel portals, the road tunnels' walls, the lamps' iron and poles | snow, wet darkening, cloud shadows |
 | `terrainMaterial` | `terrain` | the terrain | snow (lower on north faces), wet darkening, cloud shadows |
 | `decalMaterial` | `road` | roads, sleepers and rails, crossing panels and stop lines, platform lines | snow (0.6 of it), wet darkening, puddles, cloud shadows |
-| `waterMaterial` | `water` | rivers, streams, lakes, the sea | the level and the current's streaks the rivers run at, the sea's colour by its depth and its foam, rain rings, cloud shadows; no snow, no darkening |
+| `waterMaterial` | `water` | rivers, streams, lakes, the sea | the level and the current's streaks the rivers run at, the sea's colour by its depth (river water the sea holds up's too) and its foam, rain rings, cloud shadows; no snow, no darkening |
 | `treeMaterial` | `tree` | the instanced trees | snow on the canopy tops and half of it on their sides, wet darkening, cloud shadows, sway |
 | `actorMaterial` | `actor` | people, animals, vehicles, tyre marks, smoke | cloud shadows only |
 | `bloodMaterial` | `actor` | blood pools, pulled toward the camera like the decals | cloud shadows only |
@@ -1920,16 +1921,21 @@ never recompiles a shader.
   `geometry.ts`); `uRiverStage` (q^0.547) lifts them to the rivers' level, at least `held` (how far
   the bed lies under the sea's level), and `uRiverSpeed` (q^0.453) carries the streaks, slower by
   the same share where the sea holds the water up, both written by `applyWater`
-  (`render/sky/water-shader.ts`, the water variant's GLSL) from `SkyViewModel.flow`. A lake's and
-  the sea's vertices lie at their level with `stage` 0 and carry their `still` depth, which shades
-  them and lifts nothing; the sea's carry `sea` 1 too, which takes its colour from its shallows'
-  (the vertex colour, `PALETTE.seaShallow`) to the deep sea's over 0–6 m and its foam under 0.3 m,
-  instead of a lake's and a river's shallows and depth. The two attributes cost nothing measurable:
-  on Lunigiana at the start (seed 7, dev server) the JS heap after GC is 191 MB with them and
-  without, the chunks within 640 m of Monzone station build in 174 ms (177 without, Node, the third
-  pass); on the coast test region 110 m off Marinella's beach, where the chunks within 640 m hold 802,944
-  water vertices, 78–79 MB (77 without) and 212 ms (202), and both hold 60 fps with no frame over
-  16.8 ms (2026-11-17).
+  (`render/sky/water-shader.ts`, the water variant's GLSL) from `SkyViewModel.flow`. A lake's
+  vertices lie at its level and the sea's 0.05 m over it (`OVER_BED`, as a river polygon's over its
+  bed, so the two meet flush at a mouth), with `stage` 0, and carry their `still` depth, which
+  shades them and lifts nothing. Each vertex carries its share of the sea's look (`sea`): the sea's
+  1, river water the sea holds up by how far it holds it (`seaShare`: none to 0.5 m, whole from
+  1.2 m; a river polygon's by its own waterway's bed, the piece of its reaches whose bed lies
+  deepest), the rest 0. The shader draws a lake's and a river's shallows and depth under it and
+  over them the sea's colour, from its shallows' (`PALETTE.seaShallow`) to the deep sea's over
+  0–6 m, and on the sea's own water, which no river lifts, its foam wherever it is under 0.3 m
+  deep, a crisp edge ([water.md](water.md#how-it-looks)). The two attributes cost nothing
+  measurable: on Lunigiana at the start (seed 7, dev server) the JS heap after GC is 191 MB with
+  them and without, the chunks within 640 m of Monzone station build in 174 ms (177 without, Node,
+  the third pass); on the coast test region 110 m off Marinella's beach, where the chunks within 640
+  m hold 802,944 water vertices, 78–79 MB (77 without) and 212 ms (202), and both hold 60 fps with
+  no frame over 16.8 ms (2026-11-17).
 - Cost: +0.015 ms a render at Monzone with snow, wet, clouds and wind on (0.25–0.27 ms against
   0.24–0.26 ms unpatched, 640 × 317 target, about 92 draw calls).
 
@@ -2889,12 +2895,14 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     polygon it holds, and `buildingsIn` answering as one 64 m broad phase over the whole map's
     buildings (the same buildings, in the same order, over 1,500 boxes 1–600 m across, half of them
     within 80 m of a seam, the rest within 300 m of a building) with its lattice on their lowest
-    corner; `joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts` (the L
-    skipped without its build): a driver coming onto or off a bridge or a tunnel reads a car standing
+    corner; `joints.map-test.ts`, `joints-cesena.map-test.ts`, `joints-l.map-test.ts` and
+    `joints-coast.map-test.ts` (the test regions skipped without their builds): a driver coming onto
+    or off a bridge or a tunnel reads a car standing
     in its lane past the joint on its level (`joint-checks.ts`, see
     [map.md](map.md#checks-and-tools)); `ground.map-test.ts`,
-    `ground-cesena.map-test.ts` and `ground-l.map-test.ts` (the L test region, skipped without its
-    build): the ground, the surface and the water read from the tiles answering to the bit as the
+    `ground-cesena.map-test.ts`, `ground-l.map-test.ts` and `ground-coast.map-test.ts` (the test
+    regions, skipped without their builds): the ground, the surface and the water read from the
+    tiles answering to the bit as the
     whole map's do (`ground-oracle.ts`: the ground model over the whole map's roads and platforms,
     `wholeGround`, and the old broad phases of the surface and the water), so the tiling stays
     unobservable, at 6,000 seeded points (half of them within
@@ -2913,14 +2921,15 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     answering exactly as one broad phase over the whole map (the same items in the same order, over
     1,500 boxes 1–60 m across, half of them within 40 m of a seam; the trees' on the region's fixed
     corner, which need not be their lowest); `olives.map-test.ts`: Lunigiana's olive groves growing
-    olives, and every olive of Lunigiana, Cesena and the L within 2.1 m of an olive grove (the
-    scatter's 2 m mask pixel and the metre's rounding).
+    olives, and every olive of Lunigiana, Cesena, the L and the coast (12,572 there) within 2.1 m
+    of an olive grove (the scatter's 2 m mask pixel and the metre's rounding).
   - `src/sim/__tests__/route.map-test.ts`: every dead end flagged one way, every lane AI traffic
     may drive clear of the walls, and `edgeIndex.nearest` the nearest edge by brute force over the
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square
     returning its four edges, for every tenth tree and every one within a metre of a seam;
-    `under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and `under-decks-l.map-test.ts`
-    (the L's skipped without its build): on every road bridge of the three, a walker from where there
+    `under-decks.map-test.ts`, `under-decks-cesena.map-test.ts`, `under-decks-l.map-test.ts` and
+    `under-decks-coast.map-test.ts` (the test regions' skipped without their builds): on every road
+    bridge of each, a walker from where there
     is room to stand under the deck, and a Panda from where there is room for the tallest vehicle,
     never come up onto it, and the roads meeting its ends still lead onto it on foot, on their
     centreline and their verges, and by car ([map.md](map.md#checks-and-tools));
@@ -2952,10 +2961,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the L, `checkTerminals` (`lines.test.ts`'s run-out checks) and `checkDrawnRuns` (1,536 and 768
     points);
     `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;
-    `tunnels.map-test.ts`, `tunnels-cesena.map-test.ts` and `tunnels-l.map-test.ts`, each in a
-    process of its own (`tunnel-checks.ts`): over every road in a tunnel of Lunigiana, Cesena and
-    the L, its ribbon at its floor every 0.5 m (a bend's mitre skews a ribbon within about a metre
-    of its vertex, which 2 m samples passed over), its bore's walls as `tunnels.test.ts` checks the
+    `tunnels.map-test.ts`, `tunnels-cesena.map-test.ts`, `tunnels-l.map-test.ts` and
+    `tunnels-coast.map-test.ts`, each in a process of its own (`tunnel-checks.ts`): over every road
+    in a tunnel of Lunigiana, Cesena, the L and the coast, its ribbon at its floor every 0.5 m (a
+    bend's mitre skews a ribbon within about a metre of its vertex, which 2 m samples passed
+    over), its bore's walls as `tunnels.test.ts` checks the
     SR445's (none through a building passage), the baked mouths exactly the tunnels' mouths found
     again from the roads, a stood-back portal on its road's line facing out along it, a portal
     facing out of the hill in its road bridges' colour, or a head wall at its road's end as
@@ -2964,12 +2974,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     (`whyOpen`: the ground at the mouth the clear height over the road, buried; a house over the way
     at its level within the mouth's end of the tunnel, the ground
     over that end lower than `leastWall`, or another road or the track in the room a head wall and
-    its box would take, else it fails), and the chunks within 60 m of every road in a tunnel built
+    its box would take, a road leading out of the mouth among them where its carriageway reaches
+    past the arch's side, else it fails), and the chunks within 60 m of every road in a tunnel built
     from the tiles' pieces as a whole-map build cuts them; each pins its counts (roads in tunnels,
     passages, metres, wall triangles, mouths, portals, head walls and the open mouths buried, under a
     house, under too low a bank and with no room: Lunigiana 59, 30, 1,186 m, 3,574, 56, 12, 2, 0, 14,
     28, 0; Cesena 64, 22, 5,264 m, 18,120, 77, 6, 2, 7, 47, 13, 2; the L 7, 1, 194 m, 650, 12, 3, 0,
-    0, 1, 8, 0),
+    0, 1, 8, 0; the coast 6, 4, 83 m, 225, 4, 0, 1, 0, 0, 2, 1),
     so a new part's tunnels show, and so does a change to the ground by their mouths (the wall
     triangles were 3,459 and 633 while each road was cored at its chain's widest piece);
     `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
@@ -3017,6 +3028,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     road, river, rail or barrier of it repeats a vertex in a row where the outline cuts it (road
     1002673816 repeated (0, 1912.5) at its notch's side until a cut on a vertex's 0.1 m point took
     its place; [map.md](map.md#test-regions));
+    `coast-sea.map-test.ts` and `coast-shore.map-test.ts`: the coast test region `magra-coast` as
+    built in `test-maps/` (skipped and failed as the L's): the sea's nodes under 0 m, its floor
+    on the survey's isobaths, the beaches at 0–3 m, the Magra and every piece ending in the sea at
+    0 m, the catchments' outlets, no walk wall on the sand from a slope or the sea, every pier
+    walked from its landward end, the breakwaters walled for vehicles and crossed on foot, no parked
+    car or tree on the sand or in the sea, the coast's districts, its outline walls and flood
+    ([map.md](map.md#test-regions));
     `x3-region.map-test.ts`: on the 3x test region against lucido alone (`lunigiana-lucido`, as
     the shipped map is no longer lucido), every terrain node in lucido's rectangle is lucido's, its
     land cover more than 50 m inside lucido's edge, and the lamps, water beds and parked spots'

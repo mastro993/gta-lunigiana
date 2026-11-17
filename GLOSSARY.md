@@ -230,3 +230,7 @@ _Avoid_: Mole, groyne wall
 **Held by the sea**:
 A river whose bed lies under the sea's level standing at it (0 m) rather than at its bed plus its flow's depth, as at its mouth at low flow.
 _Avoid_: Backwater, tide
+
+**Sea share**:
+How much of the sea's look a water vertex takes (`sea`, `seaShare`): the sea's whole; a river held by the sea by how far the sea holds its own waterway's bed, none to 0.5 m and whole from 1.2 m; a lake or an inland river none.
+_Avoid_: Salinity, estuary blend, sea flag

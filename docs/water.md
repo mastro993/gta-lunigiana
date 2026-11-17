@@ -338,21 +338,42 @@ runs beside them, and a parked car off a beach's sand.
   lie on the bed of its nearest waterway with that reach's `stage`, `flow` and `held`, so the shader
   lifts them as it lifts the ribbon, to where `waterAt` has the level (0.05 m over the bed, over the
   ribbon and a wide river's deep channel, so where the area's water half covers a quad of them it
-  stays under); a lake's and the sea's lie at their level, each carrying how deep the water stands
-  over its node (`still`), which lifts nothing, the sea's flagged (`sea`). A river's ribbon leaves
-  out each quad their water covers whole. The terrain above the level hides the water, so the shore
-  is where they meet. Past the map's edge the edge cells' water goes on over the apron at their
-  nodes' depth, so the sea runs on 192 m beyond the play area over the edge's sea floor (10.0 m
-  deep at x −9072 on the coast test region's south edge); past the apron the screen shows the clear
-  colour, dark forest green, and the minimap its background, the same green.
+  stays under); a lake's lie at its level and the sea's 0.05 m over it, as a river polygon's lies
+  over its bed, each carrying how deep the water stands over its node (`still`), which lifts
+  nothing. So the Magra's polygon, held up to the sea at its mouth, meets the sea flush at the 98
+  nodes they share: drawn at 0 m, the sea stood 0.05 m under it, and from the sea's side the view
+  saw the floor through the step, a line of light and dark dashes along the mouth. A river's
+  ribbon leaves out each quad their water covers whole, and one reaching the sea runs on under its
+  edge. The terrain above the level hides the water, so the shore is where they meet. Past the
+  map's edge the edge cells' water goes on over the apron at their nodes' depth, so the sea runs on
+  192 m beyond the play area over the edge's sea floor (10.0 m deep at x −9072 on the coast test
+  region's south edge); past the apron the screen shows the clear colour, dark forest green, and
+  the minimap and the full map their background, the same green, where the sea would go on (the
+  user's choice, 2026-11-17).
 - **The colour**: the water's own colour (and the darker channel's) shows from 0.05 m of mean depth
   and fully from 0.7 m; shallower, it is the limestone pebbles seen through it, tinted 0.6 of the
   way to the water's green (TUNED by eye), so an ankle-deep torrent reads as wet gravel with the
   current on it and a spate as a river. A lake darkens to the deep water's colour from 0.7 m deep
-  to 2.5 m (TUNED by eye). The sea, drawn in its shallows' colour (`PALETTE.seaShallow`, measured
-  a few metres out), darkens to the deep sea's (`seaDeep`, measured 7–8 m deep) from 0 to 6 m deep,
-  and foams (`foam`) where it is under 0.3 m deep, wholly under 0.15 m (TUNED by eye): a pale band
-  along the waterline, within the cells it crosses.
+  to 2.5 m (TUNED by eye). The sea, in its shallows' colour (`PALETTE.seaShallow`, measured a few
+  metres out), darkens to the deep sea's (`seaDeep`, measured 7–8 m deep) from 0 to 6 m deep, and
+  foams (`foam`) wherever it is under 0.3 m deep and nowhere deeper: a crisp band along the
+  waterline, stair-stepped as the game's pixels are, within the cells it crosses (the user's
+  choice, 2026-11-17, over a soft edge fading from 0.15 m).
+- **The estuary**: river water the sea holds up takes the sea's colours by its depth, as far as the
+  sea holds it (each vertex's `sea`, the sea's own 1: `seaShare` in `render/sky/water-shader.ts`),
+  so the Magra's mouth reads as one water with the sea (the user's choice, 2026-11-17). The share
+  grows smoothly with how far the bed lies under the sea, none to 0.5 m and whole from 1.2 m (TUNED
+  by eye and to the coast test region's beds): it follows the bed down a reach, so no seam crosses
+  the river where its bed sinks under the sea, and the plain's ditches, their beds 0.07–0.50 m under
+  the sea for kilometres inland (the Fossa Maestra, the Fosso Acque Medie and the Fosso della Casina
+  among them), keep the river's look whole down to the sea; the Parmignola, its bed 0.2–1.2 m under
+  the sea for its last 1.4 km, takes up to 0.98 of it, 0.93 at its mouth. A river polygon takes it
+  as its own waterway does there (the reach of its piece whose bed lies deepest, the one that runs
+  on to the sea), not by the nearest reach as its level does: a stream joining it would split its
+  water where its reach comes nearest, as the Fosso Acque Medie's did the Magra's by Fiumaretta, a
+  straight edge across the estuary. The Magra's polygon takes the whole of it but within 128 m of
+  the coast test region's north edge, where its bed rises to 1.0 m under the sea (0.80 there). Held
+  river water never foams: the foam is the surf on the sea's own shore.
 - **The current**: streaks 1.6 m long and 0.3 m wide carried downstream at the water's speed
   (`uRiverSpeed` = q^0.453), two phases 2 s apart dissolving into each other cell by cell; 2 % of
   them show on still water, up to 30 % at 3 m/s and over (TUNED by eye).
@@ -398,8 +419,8 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/sim/water/__tests__/rivers.test.ts` | over a synthetic river polygon with an island and a lake a stream runs through (`waterIndex`): the river's level and current across the polygon, the island dry, the river's own bed beyond it; the bank square to the reach either side of the seam between two polygons of one river; the lake still at its level, its bank the nearest shore, winning over the stream; a water area's surface as the render draws it; over a sea cut into pieces along a tile line and the map's bound, the bank toward the coast across the cuts, from a piece with no coast of its own too, an islet's shore a shore, and the nearest edge from a piece alone; a stream with its bed under the sea's level standing at 0 m, slower by the depth the sea holds it at, and running as any river once a spate lifts it over |
 | `src/sim/__tests__/water.test.ts` (the lakes) | the player swimming in the lake by the Solco di Equi and out; a Panda afloat there, drifting under 1 m with no current; in Lago Fario's 2.94 m, the swimming player's feet 0.7 of his height under the surface and his getting into a Panda afloat beside him, its wheels' ground more than 2 m over the bed |
 | `src/render/__tests__/water.test.ts`, `water-cesena.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes; on Cesena, the Savio's polygon carried on over the apron north of the map (Lunigiana's only lake or river polygon at its bounds, a river's north of Fosdinovo's part, meets them in the north-west notch, x −11500 at y 4192–4222, where no tile is listed); `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon |
-| `src/render/__tests__/water-coast.map-test.ts` (`pnpm test:map`, on the coast test region) | off Marinella, the sea one quad a cell at 0 m in its shallows' colour, flagged, as deep as it stands over each node; the sea carried on over the apron south of the map at the edge nodes' depth; the Magra's polygon at its mouth drawn where `waterAt` has its level at the mean flow and in a spate, the sea holding it up |
-| `src/render/sky/__tests__/water-shader.test.ts` | the water variant's lift (the flow's, at least the sea's hold, the streaks slower in the held water) and the sea's colour ramp and foam, the lakes' as before |
+| `src/render/__tests__/water-coast.map-test.ts` (`pnpm test:map`, on the coast test region) | off Marinella, the sea one quad a cell 0.05 m over 0 m in its shallows' colour, the sea's whole, as deep as it stands over each node; the sea carried on over the apron south of the map at the edge nodes' depth; the Magra's polygon at its mouth drawn where `waterAt` has its level at the mean flow and in a spate, the sea holding it up; the polygon meeting the sea flush at every node they share, wholly the sea's look there (red on the sea drawn at 0 m); the polygon's share of the sea's look at least 0.75, never stepping 0.2 between two neighbouring nodes (red with the share taken from the nearest reach: 0 where the Fosso Acque Medie's comes nearest) |
+| `src/render/sky/__tests__/water-shader.test.ts` | the water variant's lift (the flow's, at least the sea's hold, the streaks slower in the held water); the sea's colour ramp and its crisp foam under 0.3 m, on the sea's own water alone; the river's and the lake's look under each vertex's share of the sea's, the lakes' as before; `seaShare` none to 0.5 m, whole from 1.2 m, growing with no step between |
 | `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores, the dry ones, a river polygon's surface falling through it and its outer edge left, no tree, parked car or spawn in the water |
 | `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
 | `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 1,142,302 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered (`water-oracle.ts`, with the sea's rules: still water's cuts no shore, the sea pieces' coast shared, no river under the sea) |
@@ -439,6 +460,11 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 - **Engines.** An engine that stalled in the water runs again once out of it: nothing hydrolocks.
 - **A still sea.** The sea stands at 0 m: no tides, waves or currents, and a river stands no lower
   than it wherever its bed lies under 0 m, up a canal too, not only at its mouth.
+- **The estuary's depth.** A river polygon held up by the sea is coloured by its waterway's depth
+  over its bed, the sea by its own over the ground, so where they meet the colour steps a little:
+  along the Magra's mouth the polygon reads 2.56–3.23 m deep, the sea 1.3–3.5 m (its nodes on the
+  closure stand on the polygon's ground, 1.3 m under the sea), a few lighter triangles along the
+  closure. The full map and the minimap draw the estuary in the rivers' colour still.
 - **Far out to sea.** A swimmer heads for the nearest coast of the sea pieces its tile holds
   (those within 32 m of it); more than a tile's width out, where none of them has any coast, it
   heads for the nearest edge of its own piece, a cut, and finds the coast from the next tile. The

@@ -341,8 +341,79 @@ terrain of its own reads its own inputs alone (`inputParts`, and no Regione Tosc
   roads (21 of them piers), 3,589 buildings, 37 waters, 1,169 areas (7 sea, 72 sand, 51 rock, 6
   pebble), 56 barriers (20 breakwaters), 91,376 trees and 538 parked spots. Its map tests (`pnpm
   test:map`; without the build each is skipped, but in CI, which builds it, it fails instead, as
-  the L's do) check: [placeholder: the magra-coast map tests and what each checks, from the tests
-  track]. `terrain-seams.map-test.ts` checks its seams, the 10 m DTM's with Liguria's DTM and the
+  the L's do: `skipUnbuilt` and `builtTestMaps` in `src/tools/__tests__/test-maps.ts`, which the
+  L's checks share) check issue #13's acceptance through the game's own lookups, measured on its
+  build `4c1568c7a21b5b71` (2026-11-17). `src/tools/__tests__/coast-sea.map-test.ts` (5 tests,
+  0.38 s; it reads `data/raw/lig/magra-coast/isobaths.json.gz`, which CI's raw input supplies):
+  - every node of the sea's areas stands under 0 m, but at the coastline and on the raised tops: of
+    its 695,905 nodes 281 stand at 0.0 m, all within 0.624 m of the sea's edge, where the beach
+    face's 8 % gives 0.05 m at 0.625 m and the rings' rounding 0.1 m more (0 m is allowed within
+    0.725 m), and 333 are raised, 332 to 1.5 m and 1 to 1.0 m, allowed within a cell's diagonal of a
+    rock or paved area (the islets are holes in it);
+  - the floor against the survey: at the 10,642 vertices of the kept isobaths (lines 50 m long or
+    more) inside the sea, the ground stands at their depth within 0.000 m at the median, 96.67 %
+    within 0.25 m and 99.14 % within 0.5 m (p1 −0.378 m, p99 +0.303 m, the extremes −1.45 and
+    +1.18 m); the test asks a median within 0.02 m and 95 % within 0.25 m;
+  - every sand cell stands 0–3 m over the sea at its centre on the drawn mesh (`terrainZ`; its
+    16,581 cells at 0.70 m at the median, −0.10 to 2.45 m), but where the beach face dips into the
+    sea, a sea node among its corners (23 cells), or a stream's bed crosses it and the game finds
+    its water there (2, in stream 311359630's): a structural rule rather than a flat −0.1 m
+    tolerance;
+  - the Magra's line ends at 0 m at its mouth, where `waterAt` holds its water at 0 m at q 0, 0.005,
+    0.041 (the mean), 0.6 (a spate) and 2, and the sea 20–100 m past it stands at 0 m; no water
+    vertex of the coast, nor `waterAt`'s level at q 0, the mean or a spate, lies under 0 m, and each
+    of the 6 pieces ending in the sea (found as 1 m past their last vertex lying in it, `intoSea` in
+    `coast-map.ts`) ends at 0 m;
+  - the catchments: the sea's nodes drain the land, the Magra reaching it with the 6.06 km² of its
+    basin the map holds (± 0.2) and the Parmignola with 1.0 (± 0.05), every water's area growing
+    downstream with no jump at its mouth (it guards against large errors: the build before the
+    sea's nodes were outlets read 6.14 km² and passes too).
+
+  `coast-shore.map-test.ts` (6 tests, 1.05 s):
+  - no walk wall stands on the sand but a house's or a wall's: 921 walls touch sand cells, 915 of
+    them beach houses' and 6 a garden wall's (`barrier=wall`), none from a slope or the sea's edge;
+  - every pier, found by geometry (a path on a bridge with a segment's middle in a water area), is
+    walked from the dry ground at its landward end, the point 2 m past it (an end counts as
+    landward when both the point 0.5 m past it, the build's `PAST_END`, and 2 m past it lie outside
+    every water area; an end the outline cuts is started 1 m in, on the deck), onto its deck and to
+    its far end with no wall between, and on along every pier that meets it: 14 decks, 10 landward
+    ends and 2 the outline cuts, about 900 m in all, three pontoons reached through the pier they
+    share a vertex with;
+  - a drive wall runs all along every breakwater's and groyne's outline, and a walker crosses it
+    but where a tree or a house stands on it: 20 outlines checked at 846 places, crossed at all but
+    2, where a trunk and a house stop the walker;
+  - no parked spot stands on the sand or in the water (538 spots), and no tree lies farther inside
+    a sand or sea area than 2.12 m, its mask's 2 m pixel and the metre's rounding, as the olives'
+    check allows (91,376 trees);
+  - the coast's places name their own districts: its five villages (found by their POIs' kind) and
+    Punta Bianca (its locality POI), and the Magra's mouth, found as the end of the Magra's piece in
+    the sea, is the Foce del Magra;
+  - the outline's walls, walk and drive, run end to end along every edge, the sea's too, and a
+    walker's flood from the start, over 4 m cells (2 m would take about 5 s), never leaves the play
+    area and reaches every edge and 23.0 km² of the 24, in 0.6–1.2 s (the L's outline checks and
+    flood, moved into `outline-checks.ts`, which both share).
+
+  On the build before the isobaths, 5 of the two files' 11 tests failed: a sea node at 0.1 m, the
+  floor 6.40 m off the survey at the median, a sand cell at 3.20 m, the Magra's last vertex at
+  −1.1 m and the Magra's mouth in no district of its own. Two pier ends lie at the coastline itself,
+  which no walker steps onto from the shore beside them, as the walls under their decks stop it
+  there: 1382979298's south end, 0.5 m inside the sea and 1 m from the coast, its deck 1.06 m over
+  the 0.44 m shore 2 m past it, and 1382979299, which runs along the coastline 0.2 m out to sea, its
+  north end 1.06 m over a 0.3 m bank; both are walked from their other end.
+
+  In `src/render/__tests__`, `water-coast.map-test.ts` checks the sea's quads off Marinella, 0.05 m
+  over 0 m, as deep as it stands over each node; the sea carried on over the apron south of the
+  map; the Magra's polygon drawn where `waterAt` has its level at the mean flow and in a spate,
+  meeting the sea flush at the 98 nodes they share and wholly in the sea's look there, its share
+  of that look at least 0.75 and never stepping 0.2 between neighbouring nodes
+  ([water.md](water.md#how-it-looks)); and `terrain-coast.map-test.ts` the faces round Marinella's
+  beach in their cells' look, its sand wet only under 0.2 m, and the coast's beaches wet under a
+  tenth of their cells, the band's inner edge a median two cells or less from the sea: 546 of
+  16,581 cells, 4 m ([architecture.md](architecture.md#rendering)). Its twins of the checks the
+  maps and the L have are listed in [Checks and tools](#checks-and-tools): the ground, surface and
+  water lookups, the walls under the decks, the joints, the tunnels, the levels, the decks'
+  ground, the parapets, the buildings' ids, the olives, the overview and the files' sizes.
+  `terrain-seams.map-test.ts` checks its seams, the 10 m DTM's with Liguria's DTM and the
   sea, and Liguria's DTM's with the sea, as it checks the others'.
 
 Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
@@ -2331,12 +2402,20 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   bank and the cycle path's 2, for want of room. The L has 12, 3 with a portal, 9 open (1 under a
   house). A part's road tunnels need nothing more: the
   build finds and bakes their mouths in any region, and `src/render/__tests__/tunnels.map-test.ts`
-  (with its Cesena and L twins) checks every one drawn, finds again by geometry why each open one is
-  open, and pins each region's counts of roads in tunnels, passages, metres, wall triangles, mouths,
-  portals, head walls and open mouths by reason, so it fails until a new part's are looked at and
-  pinned. A bore's wall triangles are cut where the ground over its sides crosses its springing or
-  foot, so they follow the ground beside its mouths: with each approach cored at its own width, 13
-  of Lunigiana's 59 tunnels changed theirs, 3,459 → 3,574 in all, and the L's 633 → 650.
+  (with its Cesena, L and coast twins) checks every one drawn, finds again by geometry why each
+  open one is open, and pins each region's counts of roads in tunnels, passages, metres, wall
+  triangles, mouths, portals, head walls and open mouths by reason, so it fails until a new part's
+  are looked at and pinned. A bore's wall triangles are cut where the ground over its sides crosses
+  its springing or foot, so they follow the ground beside its mouths: with each approach cored at
+  its own width, 13 of Lunigiana's 59 tunnels changed theirs, 3,459 → 3,574 in all, and the L's 633
+  → 650. The coast's are pinned at 6 roads in tunnels, 4 passages, 83 m, 225 wall triangles, 4
+  mouths, no portal, 1 head wall, 2 open under too low a bank and 1 with no room. That last one is
+  underpass 205932312's south mouth, under the A12 by the coast's east edge, which the bake leaves
+  open because the road out of it turns 43° and climbs across where the head wall's side would
+  stand: `whyOpen` (`mouth-checks.ts`) counts a road leading out of a mouth as crowding its head
+  wall where the road's carriageway reaches past the arch's side, where it skipped every road
+  leading out before and failed the mouth (a unit test in `mouths.test.ts`); Lunigiana, Cesena and
+  the L give the same counts as before.
 - Rail (`rail-levels.ts`): at a level crossing the rail keeps its own grade and the road meets it
   (the road's profile, after the rail's, is pinned to it at the shared node): a rail pinned to the
   road's natural level made a V of 3.8–5.1% in its grade within ±5 m (an 82 m vertical curve at
@@ -3469,7 +3548,8 @@ buildings' ids and the 2009 sheets' buildings below, Pontremoli's town in [Test
 regions](#test-regions)), it held 142 tests in 43 files, all passing with the 3x built, in 10.5 s.
 On 2026-11-07, with Fosdinovo's part, it held 176 tests in 61 files, 171 passing and the 3x's 5
 skipped, in 38.7 s within `pnpm check`, and with the review's fixes 181 in 64 files, all passing
-with the 3x built, in 40.3 s.
+with the 3x built, in 40.3 s. On 2026-11-17, with the coast test region's checks (issue #13), it
+held 206 tests in 72 files, 201 passing and the 3x's 5 skipped.
 
 `src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.4 s alone, read whole (`wholeMap`
 in `src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list, land cover
@@ -3519,17 +3599,17 @@ buildings in a settlement, those with 10 or more others within 150 m, stand in a
 86.9% today ([section 12](#12-trees-spawns-districts-treests-spawnsts-districtsts)), where the share
 of every building fell to 79.5% with Fosdinovo's farmhouses and huts; CTR street names cased like
 "Via XX Settembre" and "Via Castel dell'Aquila"). It also checks, on Lunigiana, Cesena and, when
-built, the L (in CI always), that no two buildings share an id but the pieces of one footprint:
-pieces alike in kind, name, style, ruins and tint, and a survey's each within 6 m of another piece
-of its id (`clipBuildings` cuts a road's corridor through a footprint: its pieces lie 4.11 m apart
-at most on Lunigiana), an OSM multipolygon's outer rings any distance apart (Cesena's relations
-1083815 and 2026837). Lunigiana holds 37 such ids, 36 a survey's road clips of 2 pieces and OSM's
-building 700764113 in 2 (19 before Fosdinovo's part; lucido alone 5, all a survey's), Cesena 6 of
-OSM and the L 1; a far house given another's id, in a scratch copy, failed it 7,471 m off. On the
-same three maps it checks that no two buildings share one outline (two comuni's DBT archives of one
-survey hold the same units, and the map drew 528 of them twice, under each comune's ids, which the
-id check could not see) and that no OSM building's centre stands in a DBT unit (red on the build
-that kept a zone's cut copy: 7 by the Carpinelli road, 849867953 among them; [section
+built, the L and the coast (in CI always), that no two buildings share an id but the pieces of
+one footprint: pieces alike in kind, name, style, ruins and tint, and a survey's each within 6 m of
+another piece of its id (`clipBuildings` cuts a road's corridor through a footprint: its pieces lie
+4.11 m apart at most on Lunigiana), an OSM multipolygon's outer rings any distance apart (Cesena's
+relations 1083815 and 2026837). Lunigiana holds 37 such ids, 36 a survey's road clips of 2 pieces
+and OSM's building 700764113 in 2 (19 before Fosdinovo's part; lucido alone 5, all a survey's),
+Cesena 6 of OSM and the L 1; a far house given another's id, in a scratch copy, failed it 7,471 m
+off. On the same three maps it checks that no two buildings share one outline (two comuni's DBT
+archives of one survey hold the same units, and the map drew 528 of them twice, under each comune's
+ids, which the id check could not see) and that no OSM building's centre stands in a DBT unit (red
+on the build that kept a zone's cut copy: 7 by the Carpinelli road, 849867953 among them; [section
 1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). And it checks that the Carrara
 side's buildings come from the CTR 1:2000 of 2009: some building carries the 2009 sheets' id slot
 (`SOURCES.ctr2009` × 2¹⁶ + section 22D, 197,183), and so does the church whose outline holds (−441,
@@ -3605,54 +3685,59 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   map's data, `wholeGround`, and the old surface and water broad phases), at 1,142,302 points on
   Lunigiana (seeded ones, half by the seams, every road and river vertex and every 16 m bucket of
   road; 13.8 s on 2026-11-07 at the 1,142,308 of #18's build before its review, against 658,633
-  points and 8.2 s on the map before Fosdinovo's part, one run each); `ground-cesena.map-test.ts` does the same on Cesena and `ground-l.map-test.ts` on
-  the L ([Test regions](#test-regions)). `ground.test.ts` checks round Monzone station's tile corner
-  (0, 0) that they answer the same whatever tiles are in memory and in whichever order they came,
-  and that a road's level is its surface's within the halo and none farther off.
-- `src/tools/__tests__/deck-ground.map-test.ts`: on Lunigiana, Cesena and the L, the ground
-  keeps out of every road and rail deck's slab (its 0.9 m under the deck's top) more than 4 m in
-  from its outer ends (the issue's measure, its own constant, not the pass's end runs; a joint with
-  the next piece of the bridge is no end, `jointsOf`), and nearer them stays at most 0.05 m over its
-  profile, read every 0.5 m along and across the slab on the drawn mesh; where a node behind the
-  ends of the deck and of the pieces joined to it is a corner of the triangle drawn there (its
-  abutment) the approach's ground decides (section 7). It fails on 125 of Lunigiana's 219 decks, 49
-  of Cesena's 56 and 32 of the L's 57 built on `main`, without the pass, and on 115, 45 and 30 with
-  the pass's first end runs, as long as the slab took to stand clear; it takes 1.1 s.
-- `src/tools/__tests__/parapets.map-test.ts`: on Lunigiana, Cesena and the L, every drivable
-  bridge's parapets read every 0.25 m along both sides of each deck segment (`parapetFaults` in
-  `parapets.ts` beside it): a car on the deck meets a wall wherever no road on the deck's level (its
-  surface as the game reads it, `roadLevel`, within 2 m of the deck's top, 0.15 m to spare) reaches
-  the parapet (its carriageway, 0.5 m to spare: the build reads it every 0.25 m, on 0.1 m); a car on
-  a road well inside its carriageway there meets no parapet, its surface read where the parapet
-  stands, which a junction on the deck closed or a parapet with the wrong level would (read on the
-  profile alone, it missed the 4.7 m Cesena's trunk bridge 24557433 closed over the primary road
-  23136540, and read beside the parapet's end it failed the parapet that now ends there, where that
-  road's surface climbs 0.4 m a metre with the terrain); and no wall with no level stands there over a road passing under or over the
-  deck. A car keeps to the drivable roads: a levelled wall across a footpath (the walls under a deck
-  across the path off the end of 140780504) stops none. It fails on 4 of Lunigiana's bridges and
-  16 of Cesena's built before the walls had levels (none of the L's), and on 4 and 14 with the
-  levels dropped from today's build; 1.3 s alone, most of it reading the three maps.
+  points and 8.2 s on the map before Fosdinovo's part, one run each); `ground-cesena.map-test.ts`
+  does the same on Cesena, `ground-l.map-test.ts` on the L and `ground-coast.map-test.ts` on the
+  coast, over its sea too (2.0 s; [Test regions](#test-regions)). `ground.test.ts` checks round
+  Monzone station's tile corner (0, 0) that they answer the same whatever tiles are in memory and in
+  whichever order they came, and that a road's level is its surface's within the halo and none
+  farther off.
+- `src/tools/__tests__/deck-ground.map-test.ts`: on Lunigiana, Cesena, the L and the coast (its 48
+  decks), the ground keeps out of every road and rail deck's slab (its 0.9 m under the deck's top)
+  more than 4 m in from its outer ends (the issue's measure, its own constant, not the pass's end
+  runs; a joint with the next piece of the bridge is no end, `jointsOf`), and nearer them stays at
+  most 0.05 m over its profile, read every 0.5 m along and across the slab on the drawn mesh; where
+  a node behind the ends of the deck and of the pieces joined to it is a corner of the triangle
+  drawn there (its abutment) the approach's ground decides (section 7). It fails on 125 of
+  Lunigiana's 219 decks, 49 of Cesena's 56 and 32 of the L's 57 built on `main`, without the pass,
+  and on 115, 45 and 30 with the pass's first end runs, as long as the slab took to stand clear; it
+  takes 1.1 s.
+- `src/tools/__tests__/parapets.map-test.ts`: on Lunigiana, Cesena, the L and the coast, every
+  drivable bridge's parapets read every 0.25 m along both sides of each deck segment
+  (`parapetFaults` in `parapets.ts` beside it): a car on the deck meets a wall wherever no road on
+  the deck's level (its surface as the game reads it, `roadLevel`, within 2 m of the deck's top,
+  0.15 m to spare) reaches the parapet (its carriageway, 0.5 m to spare: the build reads it every
+  0.25 m, on 0.1 m); a car on a road well inside its carriageway there meets no parapet, its surface
+  read where the parapet stands, which a junction on the deck closed or a parapet with the wrong
+  level would (read on the profile alone, it missed the 4.7 m Cesena's trunk bridge 24557433 closed
+  over the primary road 23136540, and read beside the parapet's end it failed the parapet that now
+  ends there, where that road's surface climbs 0.4 m a metre with the terrain); and no wall with no
+  level stands there over a road passing under or over the deck. A car keeps to the drivable roads:
+  a levelled wall across a footpath (the walls under a deck across the path off the end of
+  140780504) stops none. It fails on 4 of Lunigiana's bridges and 16 of Cesena's built before the
+  walls had levels (none of the L's), and on 4 and 14 with the levels dropped from today's build;
+  1.3 s alone before the coast, most of it reading the three maps.
 - `src/sim/__tests__/under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and
-  `under-decks-l.map-test.ts` (the L's skipped without its build, failing in CI): on every road
-  bridge, the game's own walking and driving (`under-decks.ts`). From every point under its slab,
-  every metre along and across it, where someone stands clear on the ground (not on another deck)
-  with room to stand (2.7 m under the deck's top) next to one with less, a walker heads straight for
-  the nearest ground under the slab within 0.45 m of the top and 4 m or more from its ends (the
-  issue's measure), 5 cm a step, keeping to its level (`footZ`) and stopped by the first walk wall
-  it meets (`walkBy`), or by stepping onto another deck: it never comes up onto the deck at a point
-  abeam of it. Under a drivable deck a Panda does the same from where there is room for the tallest
-  vehicle (3.55 m under the top), 0.1 m a step, its wheels on `groundZ` and stopped by the drive
-  walls on their level (`moveCar`). And along each road meeting each end, from 6 m back along it to
-  6 m onto the deck, a walker on its centreline and on either verge (`walkSide`, the road's then the
-  deck's) and a Panda on its centreline that with nothing in their way are on the deck as they cross
-  its end meet no wall with a level. A verge dipping 2 m (`ONE_LEVEL`) under the deck's end on its
-  way, or running beside the deck more than 2 m past its end, is left out: 14 of Lunigiana's verge
-  walks, 16 of Cesena's and 2 of the L's, the walls stopping 5 Lunigiana deck ends' and 1 Cesena
-  one's ([Walls under the decks](#walls-under-the-decks)). Built without the walls under the decks it
-  fails on 7 of Lunigiana's 167 road decks on foot and 7 by car, 1 of Cesena's 50 on foot and 2 and 2
-  of the L's 23 (the ground the pass lowers keeps most decks out of reach), and on the build before
-  the verges' openings round the ends (and the ground past 4 m) on 18 Lunigiana deck ends, 7 Cesena
-  and 2 on the L. It takes 2.3, 0.3 and 0.3 s.
+  `under-decks-l.map-test.ts` and `under-decks-coast.map-test.ts` (the test regions' skipped
+  without their builds, failing in CI): on every road bridge, the game's own walking and driving
+  (`under-decks.ts`). From every point under its slab, every metre along and across it, where
+  someone stands clear on the ground (not on another deck) with room to stand (2.7 m under the
+  deck's top) next to one with less, a walker heads straight for the nearest ground under the slab
+  within 0.45 m of the top and 4 m or more from its ends (the issue's measure), 5 cm a step, keeping
+  to its level (`footZ`) and stopped by the first walk wall it meets (`walkBy`), or by stepping onto
+  another deck: it never comes up onto the deck at a point abeam of it. Under a drivable deck a
+  Panda does the same from where there is room for the tallest vehicle (3.55 m under the top), 0.1 m
+  a step, its wheels on `groundZ` and stopped by the drive walls on their level (`moveCar`). And
+  along each road meeting each end, from 6 m back along it to 6 m onto the deck, a walker on its
+  centreline and on either verge (`walkSide`, the road's then the deck's) and a Panda on its
+  centreline that with nothing in their way are on the deck as they cross its end meet no wall with
+  a level. A verge dipping 2 m (`ONE_LEVEL`) under the deck's end on its way, or running beside the
+  deck more than 2 m past its end, is left out: 14 of Lunigiana's verge walks, 16 of Cesena's and 2
+  of the L's, the walls stopping 5 Lunigiana deck ends' and 1 Cesena one's ([Walls under the
+  decks](#walls-under-the-decks)). Built without the walls under the decks it fails on 7 of
+  Lunigiana's 167 road decks on foot and 7 by car, 1 of Cesena's 50 on foot and 2 and 2 of the L's
+  23 (the ground the pass lowers keeps most decks out of reach), and on the build before the verges'
+  openings round the ends (and the ground past 4 m) on 18 Lunigiana deck ends, 7 Cesena and 2 on the
+  L. It takes 2.3, 0.3 and 0.3 s, and 0.33 s on the coast.
 - `src/sim/population/__tests__/density.map-test.ts` sums the residents at 6,000 points, half of
   them within 40 m of a seam, by 4 reaches (45, 60, 140 and 250 m), and `farms.map-test.ts` reads
   the buildings near 20,000 points and every farm by 3 reaches (10, 25 and 40 m), whether each
@@ -3707,15 +3792,15 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   fails when no seam is left there to excuse.
 
 The overview's checks: `src/tools/__tests__/overview.map-test.ts` fails when a built overview (both
-maps' and, built or in CI, the L's) is not the image its whole map paints now, so a change to the
-look, the palette or the vectors needs `pnpm maps` again, as a stale bake does; `overview.test.ts`
-checks its size (3195 × 4096 px for lucido's bounds, 4000 × 4000 for Cesena's), the look on an
-L-shaped map (grass on the play area alone, the areas, the water, the roads by class narrowest
-first, a tunnel dashed, no paths, the buildings on top, transparent in the notch) and that two
-paints give the same bytes, which `pngData` gives back as the pixels; `paint-raster.test.ts`
-checks that a fill covers the pixels inside and a pixel half inside by half by either rule, that
-a stroke covers its width with round ends, each pixel once however many segments reach it, and
-that a clip lets paint through by its coverage.
+maps' and, built or in CI, the L's and the coast's) is not the image its whole map paints now,
+so a change to the look, the palette or the vectors needs `pnpm maps` again, as a stale bake does;
+`overview.test.ts` checks its size (3195 × 4096 px for lucido's bounds, 4000 × 4000 for Cesena's),
+the look on an L-shaped map (grass on the play area alone, the areas, the water, the roads by class
+narrowest first, a tunnel dashed, no paths, the buildings on top, transparent in the notch) and that
+two paints give the same bytes, which `pngData` gives back as the pixels; `paint-raster.test.ts`
+checks that a fill covers the pixels inside and a pixel half inside by half by either rule, that a
+stroke covers its width with round ends, each pixel once however many segments reach it, and that a
+clip lets paint through by its coverage.
 
 `src/tools/__tests__/bake.map-test.ts` runs the bakes again on the shipped map, given the whole
 map's vectors joined from its tiles, and compares them, and the place refitted over the nodes of
@@ -3745,9 +3830,10 @@ lines with no run-outs, as the same build of today's (`decodeUpgraded`).
 `build-output.test.ts` checks that `decimetres`, which rounds the grid into the
 `Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
 −4000 m, 3276.75 m, NaN, infinity) instead of wrapping it. `src/__tests__/maps.map-test.ts` checks
-that every listed tile of both maps has its file, of at most 0.7 MB, and that each map's global
-JSON line is at most 8,000,000 B (it failed on the build before version 6: "lunigiana: the global
-file's JSON line is 8319700 B"), and `maps.test.ts` one tile of each.
+that every listed tile of both maps and, built or in CI, both test regions has its file, of at
+most 0.7 MB, and that each map's global JSON line is at most 8,000,000 B (it failed on the build
+before version 6: "lunigiana: the global file's JSON line is 8319700 B"), and `maps.test.ts` one
+tile of each.
 
 `src/tools/__tests__/overlap.map-test.ts` reads every building of the shipped map: no two of
 different sources (OSM's and each survey's, by the id's slot) share half the smaller one's area,
@@ -4004,8 +4090,8 @@ over 20 m, and under 2% through a level crossing (the map before the fixes chang
 falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17); and it runs on over lucido's
 seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
 `src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onOneLevel`, 2 m, in
-`src/sim/one-level.ts`) rests on, on Lunigiana, Cesena and, when built, the L (in CI always):
-wherever two ways cross on two levels with no node in common (a road, path or rail bridge over a
+`src/sim/one-level.ts`) rests on, on Lunigiana, Cesena and, when built, the L and the coast (in
+CI always): wherever two ways cross on two levels with no node in common (a road, path or rail bridge over a
 road, a path, steps or the rail, or a road, a path or the rail over a tunnel: `passesOver` in
 `road-levels.ts`), unless both are the rail, the way above stands more than 2.5 m over the one below
 between any two of their points within 3.99 m of each other and of the crossing, so a deck's slope
@@ -4027,15 +4113,24 @@ Lunigiana and the L have no path over a path. Out to 12 m of a crossing, where t
 touch across an oblique one, no road over a road or a path, or path over a road, comes nearer than
 4.95 m on Lunigiana, 3.06 m on Cesena and 5.02 m on the L outside the listed ones. Cesena's
 crossings that keep less are listed by OSM id ([Known data limitations](#known-data-limitations)),
-and each must still fall short, so a fix drops it from the list. With the SR445's viaduct west of
+and each must still fall short, so a fix drops it from the list. So are the coast's 8 (`KNOWN["the
+coast"]`), the same limits of the build as Cesena's: the A12's foot and cycle bridge at Luni (ways
+522153379, 522153380 and 522153381), straight between its ends at the terrain's level as every
+path's bridge, 0.00–0.77 m over the motorway, a service road, a track and a driveway under it; the
+footway tunnel 757275375, 2.19 m under Via Palmiro Togliatti (381510717); and Via Bassagrande's
+bridge (463589363), 1.93 m over the path along the Fossa Maestra's bank (326011444). The coast is
+a test region, not a part, so they are listed as Cesena's are; part 5 (#21), which brings the
+coast into the shipped map, must fix them, as a part's crossings are never listed
+([standards/map.md](standards/map.md)). With the SR445's viaduct west of
 Gragnola lowered 4 m in memory, it falls short at 1.94 m over the residential road under it. Only
 crossings are visited: where a deck lifted 2.5 m or more over the terrain overlaps another way's
 carriageway in plan without crossing it and the two stand 2.5 m apart or less, that way meets the
 deck there, within 25 m of a node they share, or else joins its approach within three joints and
 comes within 4.8 m of its end (10 ways on Lunigiana, 3 of them on the L, none on Cesena): on its
 level there.
-`src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts`
-(each region in its own process, the L skipped without its build but required in CI) check what a
+`src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts`, `joints-l.map-test.ts` and
+`joints-coast.map-test.ts` (each region in its own process, the test regions skipped without their
+builds but required in CI; the coast's 6,721 places at 58 joints, its floor 5,000) check what a
 driver's level rests on where its way meets a bridge's deck or a tunnel's floor: at every joint
 where a Panda may drive from a road onto or off a bridge or a tunnel, or from one bridge way onto
 the next, with no junction and no turn of 30° or more, a driver standing on its lane up to 40 m

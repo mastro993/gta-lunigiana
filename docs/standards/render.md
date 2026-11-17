@@ -16,7 +16,9 @@ Checks for a change in `src/render`, the camera, the view or the keys, on top of
   keyboard does) and
   the game landscape only, turned a quarter when the phone is held upright; while the world hides
   the player, a see-through circle opens round them with a crisp outlined edge (no dither), and
-  shuts once they are in sight again.
+  shuts once they are in sight again; on the coast (2026-11-17), sand wet only under 0.2 m, the
+  sea's foam a crisp band where it is under 0.3 m deep, river water the sea holds up in the sea's
+  colours, and the clear colour and the maps' background past the play area left forest green.
 - **Axes**: Three.js world axes are (east, up, −north), so the map point (x, y) at height h is
   (x, h, −y).
 - **Streaming**: a chunk build keeps giving the same result as cutting the same area from a
