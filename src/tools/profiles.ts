@@ -87,8 +87,8 @@ export interface Bound {
  * grid cell where two cores meet), grade limit and smoothing half-window (m). Motorways and trunk
  * roads come first and keep their cells against every road and the rail (rank 0), with a gentle
  * grade and the rail's long smoothing; primary and secondary share tertiary's pass and rank, so the
- * SR445 keeps the profile it had as a tertiary road. Paths and steps are not profiled: they follow
- * the terrain.
+ * SR445 keeps the profile it had as a tertiary road. Paths and steps at grade are not profiled: they
+ * follow the terrain (their bridges and tunnels are, after every road: PATH_PASS).
  */
 export const ROAD_PASSES = [
   { classes: ["motorway", "trunk"], rank: 0, grade: 0.06, half: 100 },
@@ -101,6 +101,16 @@ export const ROAD_PASSES = [
   readonly grade: number
   readonly half: number
 }>
+
+/**
+ * The paths' and steps' pass, after every road's: their bridges and tunnels alone, each chain of them
+ * from the levels its ends meet (`ends` in build-terrain.ts) over or under the ways it crosses
+ * (road-levels.ts), fitted sample by sample (`ramps`) at the steepest road's grade limit (service
+ * and track's), raised as theirs where the fit strays from the ground, and straight between two pins
+ * it cannot meet within it (a stair). Unsmoothed: before the fit a deck is the line between its ends.
+ * They write no cell, so their rank is none of the grid's.
+ */
+export const PATH_PASS = { classes: ["path", "steps"], rank: 6, grade: 0.2, half: 0 } as const
 
 /** The rail's pass, before every road's: its rank (it keeps its cells against all but the main roads), grade limit and smoothing half-window (m). */
 export const RAIL_PASS = { rank: 2, grade: 0.025, half: 100 } as const
@@ -135,7 +145,11 @@ export const beatsRail = (cls: string): boolean =>
  * terminal, its run-out walking on beyond the play area (rail-runouts.ts). Its first sample takes
  * that level, pinned, and its first vertex is no cut, so a bore or a deck from there keeps the level
  * to where the box cuts it. With `writes`, its claims write only the nodes where it holds (a
- * run-out's: those beyond the play area, which keeps what its own lines wrote).
+ * run-out's: those beyond the play area, which keeps what its own lines wrote). With `ramps` (the
+ * paths' and steps' decks), its bridges and tunnels are fitted sample by sample, as a road at grade
+ * is, from their ends' levels (`ends`, pinned at the chain's ends that have an id), rather than
+ * straight from end to end: a footbridge rises over what it crosses and an underpass dips under it
+ * between their ends, and a bound in either holds at its own sample.
  */
 interface Spec<T extends Linear> {
   /**
@@ -154,6 +168,8 @@ interface Spec<T extends Linear> {
   readonly reach?: true
   readonly start?: number
   readonly writes?: (x: number, y: number) => boolean
+  readonly ramps?: true
+  readonly ends?: (v: V, piece: T) => number
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -210,11 +226,13 @@ const minHeap = () => {
  * Profiles chains against `ground` (the uncarved terrain) and records the claims they make on the
  * grid, in order (`replayClaims` writes them). Elevations set at shared nodes (`nodeZ`) pin every
  * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline. `links` are
- * the roads a chain's junctions keep within reach of (`Spec.reach`).
+ * the roads a chain's junctions keep within reach of (`Spec.reach`); `bridgeEnds` the node ids where a
+ * bridge's deck ends, past which a chain ending there runs on under it (`deckEnd` in `flatten`).
  */
 export const makeProfiler = (
   ground: (x: number, y: number) => number,
   links: ReadonlyArray<Graded> = [],
+  bridgeEnds: ReadonlySet<string> = new Set(),
 ) => {
   const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
@@ -265,6 +283,19 @@ export const makeProfiler = (
     /** The first and last vertex of deck `[a, b]`, as indices into `pts`. */
     const deckEnds = ([a, b]: readonly [number, number]) =>
       [first[a]!, first[b]! + runs[b]!.length - 1] as const
+    // With `ends`, the chain's ends that have an id take their levels, pinned, before its decks are
+    // drawn between them.
+    const endPins: Array<Pin> = []
+    if (spec.ends !== undefined)
+      for (const [v, k, i] of [
+        [pts[0]!, 0, 0],
+        [pts.at(-1)!, p.z.length - 1, runs.length - 1],
+      ] as const)
+        if (v.id !== undefined) {
+          const z = spec.ends(v, chain[i]!.item)
+          p.z[k] = z
+          endPins.push({ k, z })
+        }
     for (let i = 0; i < runs.length; i++) {
       if (!isLifted(i)) continue
       const [i0, i1] = deckOf(i)
@@ -297,7 +328,10 @@ export const makeProfiler = (
         p.z[k] = p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
     }
     smooth(p, spec.half)
-    const pins: Array<Pin> = spec.start === undefined ? [] : [{ k: 0, z: spec.start }]
+    const pins: Array<Pin> = [
+      ...endPins,
+      ...(spec.start === undefined ? [] : [{ k: 0, z: spec.start }]),
+    ]
     pts.forEach((v, i) => {
       const z = v.id === undefined ? undefined : nodeZ.get(v.id)
       if (z !== undefined) pins.push({ k: p.vertexSample[i]!, z })
@@ -327,7 +361,7 @@ export const makeProfiler = (
       })
     }
     // A bound inside a bridge or tunnel holds at both ends of its deck, straight between them (a
-    // `tilt` bound, shifted along the deck's slope).
+    // `tilt` bound, shifted along the deck's slope); with `ramps`, at its own sample.
     for (const b of bounds) {
       // The samples it may take: its own piece's, from its first vertex to its last.
       const on = b.on === undefined ? -1 : chain.findIndex((m) => m.item === b.on)
@@ -340,7 +374,10 @@ export const makeProfiler = (
         if (e < d2) [best, d2] = [k, e]
       }
       const i = pieceOfSample(Math.min(best, p.z.length - 2))
-      const at = isLifted(i) ? deckEnds(deckOf(i)).map((v) => p.vertexSample[v]!) : [best]
+      const at =
+        isLifted(i) && spec.ramps !== true
+          ? deckEnds(deckOf(i)).map((v) => p.vertexSample[v]!)
+          : [best]
       const [k0, k1] = [at[0]!, at.at(-1)!],
         t = k1 === k0 ? 0 : (p.s[best]! - p.s[k0]!) / (p.s[k1]! - p.s[k0]!),
         deck = p.z[k0]! + (p.z[k1]! - p.z[k0]!) * t
@@ -358,16 +395,32 @@ export const makeProfiler = (
     const pieceOf = Int32Array.from({ length: Math.max(0, p.z.length - 1) }, (_, k) =>
       pieceOfSample(k),
     )
-    claims.push(
-      claimOf(
-        p,
-        (k) => widthOf(pieceOf[k]!),
-        spec.rank,
-        BLEND,
-        (k) => isLifted(pieceOf[k]!),
-        spec.writes,
-      ),
-    )
+    const last = p.z.length - 1
+    // Where the line at grade meets a bridge's deck: between a segment at grade and one on the deck,
+    // or at the chain's end where a deck of another chain ends (a junction at its end, a road of
+    // another pass carrying on over it).
+    const deckEnd = (k: number) => {
+      const before = k > 0 ? pieceOf[k - 1] : undefined,
+        after = k < last ? pieceOf[k] : undefined
+      if (before !== undefined && after !== undefined)
+        return isLifted(before) !== isLifted(after) && !isTunnel(isLifted(before) ? before : after)
+      const piece = before ?? after,
+        id = (k === 0 ? pts[0] : pts.at(-1))!.id
+      return piece !== undefined && !isLifted(piece) && id !== undefined && bridgeEnds.has(id)
+    }
+    // A chain all on decks and in bores writes no cell, and makes no claim.
+    if (pieceOf.some((i) => !isLifted(i)))
+      claims.push(
+        claimOf(
+          p,
+          (k) => widthOf(pieceOf[k]!),
+          spec.rank,
+          BLEND,
+          (k) => isLifted(pieceOf[k]!),
+          spec.writes,
+          deckEnd,
+        ),
+      )
     // A tunnel's mouths, with `mouths`, written first (`mouthClaim`), each at its approach's width:
     // the piece out of it, none past the chain's ends. An end the outline cut is no mouth.
     if (spec.mouths === true)
@@ -393,8 +446,9 @@ export const makeProfiler = (
         }
       }
     runs.forEach((r, i) => {
-      const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!)
-      if (isLifted(i)) {
+      const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!),
+        straight = isLifted(i) && spec.ramps !== true
+      if (straight) {
         const [v0, v1] = deckEnds(deckOf(i)),
           s = arcLengths(pts.slice(v0, v1 + 1)),
           z0 = p.z[p.vertexSample[v0]!]!,
@@ -408,7 +462,7 @@ export const makeProfiler = (
         if (v.id !== undefined && !nodeZ.has(v.id)) nodeZ.set(v.id, z[j]!)
       })
       const vks = r.map((_, j) => p.vertexSample[first[i]! + j]!)
-      const ks = isLifted(i) ? vks : keepSamples(p, vks, spec.tol)
+      const ks = straight ? vks : keepSamples(p, vks, spec.tol)
       const vertexAt = new Map(vks.map((k, j) => [k, j]))
       const dense = ks.map((k) =>
         vertexAt.has(k)

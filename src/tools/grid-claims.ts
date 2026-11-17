@@ -31,6 +31,8 @@ export interface Claim {
   readonly writes?: (x: number, y: number) => boolean
   readonly rank: number
   readonly skip: Uint8Array
+  /** The samples where its written line meets a bridge's deck (1), past which its core is under the deck (`flatten`); none with none. */
+  readonly deckEnds?: Uint8Array
   /** The box its writes reach: [minX, minY, maxX, maxY]. */
   readonly box: readonly [number, number, number, number]
 }
@@ -56,7 +58,9 @@ export const replayClaims = (
     minY = g.y0 + j0 * g.cell,
     maxX = g.x0 + (i0 + cols - 1) * g.cell,
     maxY = g.y0 + (j0 + rows - 1) * g.cell
-  for (const { p, core, blend, ahead, writes, rank, skip, box } of claims)
+  // The nodes a core holds past a deck's end, under the deck: any other core takes them (`flatten`).
+  const capped = new Uint8Array(owner.length)
+  for (const { p, core, blend, ahead, writes, rank, skip, deckEnds, box } of claims)
     if (box[0] <= maxX && box[2] >= minX && box[1] <= maxY && box[3] >= minY)
       flatten(
         g,
@@ -70,13 +74,16 @@ export const replayClaims = (
         ahead === undefined
           ? writes
           : (x, y) => (x - ahead[0]) * ahead[2] + (y - ahead[1]) * ahead[3] >= 0,
+        deckEnds === undefined ? undefined : (k) => deckEnds[k] === 1,
+        capped,
       )
 }
 
 /**
  * A claim along profile `p`, the segment from sample k `w(k)` m wide (its own piece's width), at
  * `rank`, blending `blend` m, but for segments from samples where `skip`, on the nodes where
- * `writes` holds (all with none).
+ * `writes` holds (all with none), its line meeting a bridge's deck at the samples where `deckEnd`
+ * holds.
  */
 export const claimOf = (
   p: Profile,
@@ -85,6 +92,7 @@ export const claimOf = (
   blend: number,
   skip: (k: number) => boolean,
   writes?: (x: number, y: number) => boolean,
+  deckEnd?: (k: number) => boolean,
 ): Claim => {
   const n = Math.max(0, p.z.length - 1),
     core = Float64Array.from({ length: n }, (_, k) => coreHalf(w(k), GRID_CELL))
@@ -101,6 +109,10 @@ export const claimOf = (
       maxY = Math.max(maxY, p.y[e]! + reach)
     }
   }
+  const ends =
+    deckEnd === undefined
+      ? undefined
+      : Uint8Array.from({ length: p.z.length }, (_, k) => (deckEnd(k) ? 1 : 0))
   return {
     p,
     core,
@@ -108,6 +120,7 @@ export const claimOf = (
     ...(writes === undefined ? {} : { writes }),
     rank,
     skip: Uint8Array.from({ length: n }, (_, k) => (skip(k) ? 1 : 0)),
+    ...(ends === undefined || !ends.includes(1) ? {} : { deckEnds: ends }),
     box: [minX, minY, maxX, maxY],
   }
 }

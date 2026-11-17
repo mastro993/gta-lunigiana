@@ -126,27 +126,15 @@ const shortfalls = (map: JoinedMap): Array<Shortfall> => {
 
 /**
  * Crossings a region's build keeps too low, by the OSM ids of the way above and the one below
- * (docs/map.md, "Known data limitations"): Cesena's footbridges over Viale Europa, Via Riccione,
- * the paths beside them and the Ippodromo's, and the path bridge over the Sottopasso Cervese, each
- * straight between its ends at the terrain's level as every path's bridge, its pedestrian underpass
- * under Via Giuseppe Di Vittorio, and the car park ramp its square's pass leaves at the square's
- * level. Each must still fall short, so a fix drops it from here.
+ * (docs/map.md, "Known data limitations"): Cesena's path bridge over the Sottopasso Cervese, and
+ * the car park ramp its square's pass leaves at the square's level. Each must still fall short, so a
+ * fix drops it from here. Its footbridges over Viale Europa, Via Riccione, the paths beside them and
+ * the Ippodromo's, and its pedestrian underpass under Via Giuseppe Di Vittorio, ran straight between
+ * their ends at the terrain's level until the paths' and steps' decks were fitted (PATH_PASS).
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [
-    [57046028, 23775230],
-    [57046028, 23775264],
-    [57046028, 24064921],
-    [57046028, 1504871870],
-    [137735218, 23918932],
-    [137735218, 24920865],
-    [137735218, 136347032],
-    [137735231, 23918932],
-    [137735231, 136347032],
-    [23775268, 807711296],
     [683510421, 22776463],
-    [1148557052, 69488617],
-    [1148557053, 69488617],
     [55016697, 68296970],
   ],
 }
