@@ -972,6 +972,66 @@ test("water: the Aulella, Rosaro, Mommio, Bardine, Bardinello and Pesciola take 
   assert.deepEqual([w(797860953), w(797861233)], [6, 6])
 })
 
+// Issue #19: the Taverone runs in the Rosaro's bed all its course on the map; the Osca and the
+// Penolo are named streams down to a tributary's mouth, wooded torrents down to their gravel fans,
+// and fans to the Magra; the Aulella keeps its valley bed down to Aulla; the Magra's line takes its
+// water's width. Each pair is the two ways either side of a threshold of features.ts, with its mean
+// ground; a fan is told from a named stream by its bed.
+test("water: the Taverone, the Osca, the Penolo, the lower Aulella and the Magra take their measured widths by reach", () => {
+  const size = (id: number) => {
+    const o = WHOLE.water.find((v) => v.id === id)
+    return [o?.w, o?.bed]
+  }
+  // Taverone: 700556145 (141 m) from the map's north edge, 1161664524 (65 m) to the Magra.
+  assert.deepEqual(
+    [size(700556145), size(1161664524)],
+    [
+      [7, 7],
+      [7, 7],
+    ],
+  )
+  // Osca: 789355154 (269.3 m) above the Canale di Borra Grande's mouth, 789355149 (253.5 m) below.
+  assert.deepEqual(
+    [size(789355154), size(789355149)],
+    [
+      [4, 3],
+      [6, 4],
+    ],
+  )
+  // Osca: 789355086 (110.9 m) its last in the woods, 789355090 (109.0 m) its first on the fan.
+  assert.deepEqual(
+    [size(789355086), size(789355090)],
+    [
+      [6, 4],
+      [4, 13],
+    ],
+  )
+  // Penolo: 789354800 (204.3 m) above an unnamed stream's mouth, 789354799 (199.3 m) below it.
+  assert.deepEqual(
+    [size(789354800), size(789354799)],
+    [
+      [4, 3],
+      [6, 4],
+    ],
+  )
+  // Penolo: 789355011 (95.8 m) its last rocky way, 789354987 (89.6 m) its first on the fan.
+  assert.deepEqual(
+    [size(789355011), size(789354987)],
+    [
+      [6, 4],
+      [4, 13],
+    ],
+  )
+  // The Aulella's last way 172808472 (79.7 m) and the Magra's 86161807.
+  assert.deepEqual(
+    [size(172808472), size(86161807)],
+    [
+      [12, 13],
+      [25, 13.5],
+    ],
+  )
+})
+
 test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, the Aulella drains 199 at Fivizzano's west edge and 313 at its mouth, the Bardine 63 at its", () => {
   for (const w of WHOLE.water)
     w.area.forEach((a, k) =>
@@ -1084,6 +1144,7 @@ test("walls: water stops neither feet nor wheels; the shore walls ring it, and p
         y = w.pts[2 * k + 1]!
       if (
         Math.min(x - minX, maxX - x, y - minY, maxY - y) < 30 ||
+        outlineDistance(x, y) < 30 ||
         WHOLE.roads.some((r) =>
           r.pts.some((v, i) => i % 2 === 0 && Ops.hypot(v - x, r.pts[i + 1]! - y) < 30),
         )

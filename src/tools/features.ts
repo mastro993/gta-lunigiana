@@ -252,6 +252,31 @@ const BARDINELLO_BED_BELOW = 154
  * (268.9 m, 7.0 km²).
  */
 const BARDINELLO_GORGE_BELOW = 267
+/**
+ * Mean ground (m) below which a Torrente Osca way runs on its open gravel fan: halfway between
+ * aulla's 789355086 (110.9 m), its last in closed woods, and 789355090 (109.0 m), its first below
+ * an unnamed stream's mouth (OSM node 7380642386), where its bed opens.
+ */
+const OSCA_FAN_BELOW = 110
+/**
+ * Mean ground (m) below which the Torrente Osca is a wooded torrent: halfway between 789355149
+ * (253.5 m), its first below the Canale di Borra Grande's mouth (node 7380643617), which takes it
+ * from 4.9 to 7.4 km² and widens its LiDAR floor from a headwater's 6.5 m to 16-17 m, and 789355154
+ * (269.3 m).
+ */
+const OSCA_GORGE_BELOW = 261
+/**
+ * Mean ground (m) below which a Torrente Penolo way runs on its open gravel fan: halfway between
+ * 789354987 (89.6 m), its first below the Canale della Zoppa's mouth (node 7380640243, 12.9 km²),
+ * where its gravel opens, and 789355011 (95.8 m), its last in a 5-9 m rocky bed.
+ */
+const PENOLO_FAN_BELOW = 93
+/**
+ * Mean ground (m) below which the Torrente Penolo is a wooded torrent: halfway between 789354799
+ * (199.3 m), its first below an unnamed stream's mouth (node 7380637631, 8.3 km²), where its LiDAR
+ * floor widens from a headwater's 4-6 m to 7-10 m, and 789354800 (204.3 m, 7.7 km²).
+ */
+const PENOLO_GORGE_BELOW = 202
 
 /**
  * Water width, gravel-bed half-width and depth, m, from the way's name, kind and mean ground `z`
@@ -261,7 +286,18 @@ const BARDINELLO_GORGE_BELOW = 267
  * Soliera. The Bardine runs in an 18-47 m one (median 27 m, its water 4-18 m, median 10) from
  * Bardine to the map's edge, as wide as the Aulella; above, from the Bardinello's mouth, and the
  * Bardinello below the Pesciola's, in a 6-32 m one (median 15 m, its water 2.5-12 m, upper quartile
- * 7), as the Rosaro (issue #18). The Lucido's Vinca branch and the Caldanella (from Equi) are the
+ * 7), as the Rosaro (issue #18). The Taverone runs in a 6-55 m one (median 17 m, its water 4-10 m,
+ * median 5) from the map's north edge to the Magra, as the Rosaro: its top 1.5 km, a wooded 6-11 m
+ * rocky bed, is of its one way 700556145 above (-12205, 7165) and takes its class (issue #19). The
+ * Aulella keeps its valley bed down to Aulla: 8-21 m of water (median 11) in a 15-45 m bed (median
+ * 30) from Fivizzano's west edge to x -8164, where the OSM river polygon draws its bed. The Osca and
+ * the Penolo below their woods spread 8-47 m of gravel (median 28-32) round little water: the Osca's
+ * 2.5-4.5 m, the Penolo's dry on both flights but at the head of its fan, where the 2010 one shows a
+ * 12 m pool and a 7-14 m channel at (-15329, 8657) and (-15226, 8552). Their water is a named
+ * stream's, their gravel the valley bed's (`fan`). The Fiume Magra's water is 18-37 m wide (median
+ * 25) on both flights from Barbarasco to below the Aulella's mouth, in a gravel bed of 29-282 m that
+ * the OSM river polygon draws and carves over its whole course on the map: its line takes the water
+ * alone, as Cesena's rivers do between their banks. The Lucido's Vinca branch and the Caldanella (from Equi) are the
  * main streams on the valley floor (5-16 m of open marble gravel below 400 m). The Aulella's gorge
  * above the Tassonaro's mouth, the Rosaro above Fivizzano, the Mommio, the Bardinello above the
  * Pesciola's mouth and the Torrente Pesciola, all its drawn course (8.9-18 km²), are torrents of
@@ -283,20 +319,28 @@ const waterSize = (
     (name === "Torrente Bardine" && z < BARDINE_VALLEY_BELOW)
   )
     return { w: 12, bed: 13, depth: 2.5 }
+  if (name === "Fiume Magra") return { w: 25, bed: 13.5, depth: 2.5 }
   if (name === "Torrente Lucido" && kind === "river") return { w: 14, bed: 11, depth: 2.5 }
   if (
     (name === "Torrente Rosaro" && kind === "river") ||
+    name === "Torrente Taverone" ||
     (name === "Torrente Bardine" && z < BARDINE_BED_BELOW) ||
     (name === "Torrente Bardinello" && z < BARDINELLO_BED_BELOW)
   )
     return { w: 7, bed: 7, depth: 2.5 }
+  const fan =
+    (name === "Torrente Osca" && z < OSCA_FAN_BELOW) ||
+    (name === "Torrente Penolo" && z < PENOLO_FAN_BELOW)
+  if (fan) return { w: 4, bed: 13, depth: 1.5 }
   const main = (name === "Torrente Lucido" || name === "Torrente Caldanella") && z < MAIN_BELOW
   const wooded =
     (name === "Torrente Aulella" && z < AULELLA_GORGE_BELOW) ||
     name === "Torrente Rosaro" ||
     (name === "Torrente Mommio" && z < MOMMIO_GORGE_BELOW) ||
     (name === "Torrente Bardinello" && z < BARDINELLO_GORGE_BELOW) ||
-    name === "Torrente Pesciola"
+    name === "Torrente Pesciola" ||
+    (name === "Torrente Osca" && z < OSCA_GORGE_BELOW) ||
+    (name === "Torrente Penolo" && z < PENOLO_GORGE_BELOW)
   const w = main ? 8 : wooded ? 6 : name === undefined ? 2 : 4
   return {
     w,
