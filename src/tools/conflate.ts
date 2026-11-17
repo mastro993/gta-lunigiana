@@ -382,9 +382,12 @@ export const conflateRail = (
         Math.hypot(v.x - line[i - 1]!.x, v.y - line[i - 1]!.y) > 0.01 ||
         v.id !== undefined,
     )
-    // OSM's corners no survey guides are rounded through its vertices, which stay: no track turns at a point.
+    // OSM's corners no survey guides are rounded through its vertices, which stay but a corner between long straights and a
+    // vertex beside a sharper corner, which slide onto the curve (the roads, water and stops sharing one go with it): no
+    // track turns at a point.
     const sharp = line
     line = roundCorners(sharp, (i) => free.has(sharp[i]!), KEEP)
+    for (const v of line) if (v.id !== undefined) moves.set(v.id, v)
     // Ends on the play area's outline stay on it.
     for (const end of [0, 1] as const) {
       const e = edgeOf(end === 0 ? pts[0]! : pts.at(-1)!)

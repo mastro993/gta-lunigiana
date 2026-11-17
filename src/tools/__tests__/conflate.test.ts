@@ -26,6 +26,22 @@ const ctr = (tracks: ReadonlyArray<CtrTrack>): CtrRail => ({
   crossings: [],
 })
 
+/** The tightest bend along a line, m: 20 m over the heading's turn across 20 m of it, sampled each metre. */
+const tightest = (line: ReadonlyArray<V>) => {
+  const heads: Array<number> = []
+  for (let k = 1; k < line.length; k++) {
+    const [p, q] = [line[k - 1]!, line[k]!]
+    const len = Math.hypot(q.x - p.x, q.y - p.y)
+    for (let j = 0; j < Math.round(len); j++) heads.push(Math.atan2(q.y - p.y, q.x - p.x))
+  }
+  let least = Infinity
+  for (let k = 0; k + 20 < heads.length; k++) {
+    const turn = heads[k + 20]! - heads[k]!
+    least = Math.min(least, 20 / Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))))
+  }
+  return least
+}
+
 // The CTR's line at y 0, unmapped for 100 m around a tunnel (x 200–300); a loop north of it that
 // leaves and rejoins the line, and a siding to the south with both ends free.
 const TRACKS = [
@@ -179,9 +195,11 @@ test("conflateRail re-homes OSM's ids by the layout: dropped ways, reserved CTR 
   )
 })
 
-// Regression: every unmatched run was smoothed, so with no CTR at all a 20°
-// kink in 1 km of open track came back 6 m off OSM, its node with it.
-test("conflateRail keeps OSM's line where no CTR track maps it", () => {
+// Regression: every unmatched run was smoothed, so with no CTR at all a 20° kink in 1 km of open track came back 6 m off OSM,
+// its node with it. The kink itself turned the track at a point: no curve through the far vertices rounds it within 1.5 m (the
+// Pontremolese's tunnels north of Aulla turn 9° between straights of 143–257 m, a bend of 127.6 m over 20 m chords), so the
+// track takes an arc inside it, the corner's node 1.5 m in, onto it.
+test("conflateRail keeps OSM's line where no CTR track maps it, but for an arc inside a corner between long straights", () => {
   const a = (20 * Math.PI) / 180
   const open: RailF = {
     id: 1,
@@ -192,8 +210,18 @@ test("conflateRail keeps OSM's line where no CTR track maps it", () => {
       v(500 + 500 * Math.cos(a), 500 * Math.sin(a), "d"),
     ],
   }
-  const c = conflateRail([open], [], [], ctr([]), NONE)
-  assert.deepEqual(c.rail[0]!.pts, open.pts)
+  const pts = conflateRail([open], [], [], ctr([]), NONE).rail[0]!.pts
+  assert.deepEqual(
+    pts.filter((p) => p.id !== undefined && p.id !== "c"),
+    open.pts.filter((p) => p.id !== "c"),
+    "the straights' own vertices where they were",
+  )
+  const c = pts.find((p) => p.id === "c")!
+  assert.ok(
+    Math.hypot(c.x - 500, c.y) <= 1.5 + 1e-9,
+    `the corner ${Math.hypot(c.x - 500, c.y)} m in`,
+  )
+  assert.ok(tightest(pts) > 90, `a bend of ${tightest(pts).toFixed(1)} m over 20 m`)
 })
 
 // Regression: Aulla's tunnel 140772193, which no survey maps, kept OSM's 11.4° corner between 41 and 52 m segments, a bend of
@@ -223,6 +251,27 @@ test("conflateRail rounds a corner of OSM's line no survey guides along a curve 
     const along = q.x <= 0 ? Math.abs(q.y) : Math.abs(q.y * Math.cos(a) - q.x * Math.sin(a))
     assert.ok(along <= 1.5, `${along.toFixed(2)} m off OSM's line`)
   }
+})
+
+// Regression: north of Aulla the Pontremolese's 4.3 m bridge 842172344 runs on from OSM's 11.4° corner at its first node, in
+// line with the 176 m segment after it; the curve, held through its far node on that straight, turned in those 4.3 m, a bend of
+// 107.4 m over 20 m chords, where an ATR 220's cars no longer met at their joints. OSM's nodes there, from the corner.
+test("conflateRail rounds a corner past a short piece beside it: the piece's far node slides onto the curve, which bends no tighter than 200 m", () => {
+  const ways: ReadonlyArray<RailF> = [
+    { id: 1, pts: [v(27.8, 117.4, "q"), v(18.7, 59.1, "p"), v(0, 0, "a")] },
+    { id: 2, bridge: true, pts: [v(0, 0, "a"), v(-2.1, -3.8, "b")] },
+    { id: 3, pts: [v(-2.1, -3.8, "b"), v(-85.5, -154.4, "n"), v(-110.4, -204.7, "m")] },
+  ]
+  const c = conflateRail(ways, [], [], ctr([]), NONE)
+  const line = [1, 2, 3].flatMap((id, k) =>
+    c.rail.find((r) => r.id === id)!.pts.slice(k === 0 ? 0 : 1),
+  )
+  // Each node within OSM's accuracy of where OSM has it: the bridge's far one slides, the corners take arcs inside them.
+  for (const p of ways.flatMap((w) => w.pts)) {
+    const at = line.find((q) => q.id === p.id)!
+    assert.ok(Math.hypot(at.x - p.x, at.y - p.y) <= 1.5 + 1e-9, `${p.id} by where OSM has it`)
+  }
+  assert.ok(tightest(line) >= 200, `a bend of ${tightest(line).toFixed(1)} m over 20 m`)
 })
 
 // Regression: no 2019 sheet maps Aulla Lunigiana's track 5, which matched the CTR's yard track 419182734 beside it (OSM's own
