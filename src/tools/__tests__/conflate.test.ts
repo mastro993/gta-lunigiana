@@ -196,6 +196,26 @@ test("conflateRail keeps OSM's line where no CTR track maps it", () => {
   assert.deepEqual(c.rail[0]!.pts, open.pts)
 })
 
+// Regression: no 2019 sheet maps Aulla Lunigiana's track 5, which matched the CTR's yard track 419182734 beside it (OSM's own
+// 0.3 m off it) for 58 m, up to 5.9 m away, and the whole track moved 5.9 m east, 8 m off its island platform.
+test("conflateRail matches a CTR track only to the OSM track nearest it: a track the CTR leaves out beside one it maps keeps OSM's line", () => {
+  // OSM's two tracks 4 m apart; the CTR maps only the south one, 0.3 m off OSM's.
+  const south: RailF = { id: 1, pts: [v(0, 0, "a"), v(200, 0, "b")] },
+    north: RailF = { id: 2, pts: [v(0, 4, "c"), v(100, 4), v(200, 4, "d")] }
+  const c = conflateRail(
+    [south, north],
+    [],
+    [],
+    ctr([track("23D01 VLI#0.0", [-10, 0.3], [210, 0.3])]),
+    NONE,
+  )
+  assert.ok(
+    c.rail[0]!.pts.every((p) => Math.abs(p.y - 0.3) < 1e-9),
+    "the south track on the CTR",
+  )
+  assert.deepEqual(c.rail[1]!.pts, north.pts, "the north one where OSM draws it")
+})
+
 // Regression: a test region without Gragnola (issue #7) threw reading the missing node's id.
 test("conflateRail passes over a swapped node the play area leaves out", () => {
   const away: Layout = { ...NONE, swap: new Map([["gone", "lc"]]) }

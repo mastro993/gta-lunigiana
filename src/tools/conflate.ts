@@ -10,7 +10,7 @@
 import { isDrivable } from "../sim/map/kinds.ts"
 import { inPolygon, type CtrRail } from "./ctr-rail.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
-import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
+import { arcLengths, pointAt, r1, segIndex, type V } from "./geometry.ts"
 import { coreHalf } from "./grid-claims.ts"
 import { outlineEdgeAt } from "./play-area.ts"
 import { beatsRail, chainsOf } from "./profiles.ts"
@@ -86,6 +86,15 @@ const KEEP = 0.05
 const NEAR_ID = 0.15
 /** Residual limits on matched at-grade and bridge samples, m: the CTR's 1:2000 survey is good to a few decimetres. */
 const RESIDUAL = { median: 0.2, p90: 0.5, max: 1 }
+/**
+ * A CTR track is the OSM track's nearest it: a sample may match it only where no other chain's track lies more than this
+ * nearer the foot, m (at a switch the two meet, so both match there). Aulla's track 5, which no 2019 sheet maps, matched the
+ * CTR's yard track 419182734 beside it, OSM's own 0.3 m off it, for 58 m up to 5.9 m away, and that dragged the whole track
+ * 5.9 m east, 8 m off its island platform.
+ */
+const OWN = 1
+/** How far from a CTR track another chain's track is looked for, m: the matcher's reach. */
+const OWN_REACH = 8
 
 /** Median, 90th percentile and maximum, m. */
 type Spread = readonly [number, number, number]
@@ -212,7 +221,21 @@ export const conflateRail = (
   const moves = new Map<string, V>()
   const crossings: Array<Slid> = []
   const used = ctr.tracks.map(() => false)
-  const chains = chainsOf(rail).map((chain) => {
+  const chained = chainsOf(rail)
+  // Each chain's OSM track, to tell whose a CTR track is (`OWN`).
+  const tracksOf = segIndex<number>()
+  chained.forEach((chain, c) => {
+    for (const { item } of chain) tracksOf.addLine(item.pts, OWN_REACH, c)
+  })
+  /** Whether chain c's sample may take the CTR track at `foot`: no other chain's track lies `OWN` m nearer it. */
+  const owns = (c: number, foot: Foot) => {
+    let other = Infinity
+    tracksOf.within(foot.x, foot.y, (seg, d2) => {
+      if (seg.data !== c) other = Math.min(other, Math.sqrt(d2))
+    })
+    return other >= foot.d - OWN
+  }
+  const chains = chained.map((chain, c) => {
     const runs = chain.map(({ item, rev }) => (rev ? [...item.pts].reverse() : [...item.pts]))
     const pts = runs.flatMap((r, i) => (i === 0 ? r : r.slice(1)))
     const s = arcLengths(pts)
@@ -227,7 +250,7 @@ export const conflateRail = (
       const i = pieceAt(at)
       return chain[i]!.item.tunnel === true && at > starts[i]! + 1e-6 && at < starts[i + 1]! - 1e-6
     })
-    const match = matchSamples(samples, lines, (k) => !reserved[k])
+    const match = matchSamples(samples, lines, (k, _, foot) => !reserved[k] && owns(c, foot))
     for (const m of match) if (m.track >= 0) used[m.track] = true
     // Each sample's displacement: to its foot where matched; between matched ends linear in s, held towards a chain end.
     const disp = samples.map((p, k) => {
