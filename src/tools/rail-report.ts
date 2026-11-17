@@ -49,7 +49,8 @@ interface RailSummary {
  * The summary's rail parts: on the CTR (running pieces and CTR-only tracks, OSM's offset from the CTR
  * and the shipped residual, median / p90 / max m, the level crossings' slide along their roads, the
  * bridge ends slid to keep what they span, the culverts, the at-grade track cut into the CTR's
- * bridges and the rail bed's lowered and raised terrain), and the
+ * bridges, the streams' dead ends cut back off at-grade track and the rail bed's lowered and
+ * raised terrain), and the
  * railway (lines: pieces and length; stations: s0–s1 along the line and side; level-crossing boxes:
  * road, nodes and s; roads whose verge was pulled in off the running track: nearest sample before).
  */
@@ -64,6 +65,7 @@ export const railSummary = (r: RailSummary) => ({
     slid: r.report.spans.slid.map((x) => `${x.bridge} ${x.end} ${x.by.toFixed(2)} m`),
     culverts: r.report.spans.culverts.length,
     cut: r.report.spans.cut.map((x) => `${x.piece} ${x.m.toFixed(1)} m`),
+    streamEnds: r.report.spans.ends.map((x) => `${x.water} ${x.m.toFixed(1)} m`),
     bed: {
       nodes: r.bed.nodes,
       deepest: +r.bed.deepest.toFixed(2),

@@ -30,6 +30,7 @@ import {
 } from "./rail-match.ts"
 import { smoothGap } from "./rail-smooth.ts"
 import {
+  clearOfTrack,
   cutAtBridges,
   keepSpans,
   onBridge,
@@ -392,7 +393,7 @@ export const conflateRail = (
   const waterIds = new Set(
     osmWater.flatMap((w) => w.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
   )
-  const spanReport: SpanReport = { slid: [], culverts: [], cut: [] }
+  const spanReport: SpanReport = { slid: [], culverts: [], cut: [], ends: [] }
   // The CTR's bridges, out past what they span by its margin (`spanned`), and the track over a drivable road's tunnel by its
   // mouth (the road's profile cuts the mouth then, a path keeps the terrain's), out past the road's core cells and a cell's
   // diagonal.
@@ -523,6 +524,12 @@ export const conflateRail = (
     )
   // Tracks meet only at piece ends: the running track is cut at its switches.
   const tracks = [...out, ...extra.pieces]
+  // A stream OSM ends at at-grade track, where its culvert under it begins, stops clear of it.
+  clearOfTrack(
+    crossed.filter((f) => f.water),
+    tracks.filter((t) => t.bridge !== true && t.tunnel !== true).map((t) => t.pts),
+    spanReport,
+  )
   const roads = osmRoads.map((r, k) => ({
     ...r,
     pts: roadPts[k]!.map((v) => (v.id === undefined ? v : (moves.get(v.id) ?? v))),
