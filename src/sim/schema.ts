@@ -45,11 +45,11 @@ export const AGES = ["kid", "adult", "elder"] as const
 /** An age group. */
 export type Age = (typeof AGES)[number]
 /** What a person wears below the shirt: trousers, shorts (bare shins), a skirt, or a dress (the skirt in the shirt's colour). */
-export const OUTFITS = ["trousers", "shorts", "skirt", "dress"] as const
+const OUTFITS = ["trousers", "shorts", "skirt", "dress"] as const
 /** An outfit. */
 export type Outfit = (typeof OUTFITS)[number]
 /** A person's hair: short, long (to the shoulders), a bun, bald (skin on top) or under a flat cap. */
-export const HAIRDOS = ["short", "long", "bun", "bald", "cap"] as const
+const HAIRDOS = ["short", "long", "bun", "bald", "cap"] as const
 /** A hairdo. */
 export type Hairdo = (typeof HAIRDOS)[number]
 /**
@@ -72,7 +72,7 @@ export const Person = Descriptor.ConstructedComponent(
 /** A Person value. */
 export type Look = Descriptor.Descriptor.Value<typeof Person>
 /** What a pedestrian is doing; see `Pedestrian`. */
-export const MOODS = ["walk", "chat", "look", "shock", "gather", "flee"] as const
+const MOODS = ["walk", "chat", "look", "shock", "gather", "flee"] as const
 /** A pedestrian's mood. */
 export type Mood = (typeof MOODS)[number]
 /**
@@ -567,7 +567,7 @@ export const Honk = Descriptor.Event<{
   readonly y: number
 }>()("Lunigiana/Honk")
 /** How someone who cries out feels; see `Cry`. */
-export const FEELINGS = ["fright", "shock", "anger", "surprise"] as const
+const FEELINGS = ["fright", "shock", "anger", "surprise"] as const
 /** A feeling. */
 export type Feeling = (typeof FEELINGS)[number]
 /**

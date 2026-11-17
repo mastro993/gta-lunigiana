@@ -24,7 +24,7 @@ export const SEA_REACH = 150
  * one step of its lattice, so the land's height at the shore falls to the sea's 0 within about it
  * rather than lifting the sea round a cliff far out.
  */
-export const SEA_FADE = 50
+const SEA_FADE = 50
 
 /**
  * The sea's filler over `crop`, its heights `dm` (NaN where no source has given one yet), or
