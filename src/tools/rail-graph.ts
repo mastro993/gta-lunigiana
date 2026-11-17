@@ -1,7 +1,8 @@
 // The rail as a graph: tracks meet only at piece ends (switches and crossings of two tracks cut the
-// pieces there), a line is the straightest way from one terminal to another, and the track no line
-// takes is a loop (it rejoins other track at both ends) or a siding (it ends in the open). Nothing
-// here knows this map: more railways need no code.
+// pieces there), a line is the straightest way from a terminal on the map's edge to another or to a
+// terminus inside the map, never entering a stub (track leading only to dead ends in the map), and
+// the track no line takes is a loop (it rejoins other track at both ends) or a siding (it ends in the
+// open). Nothing here knows this map: more railways need no code.
 import { Ops } from "@typeonce/ritmo-math"
 
 import type { LinePiece } from "../sim/map/index.ts"
@@ -21,6 +22,8 @@ export interface LineOut {
   readonly z: ReadonlyArray<number>
   readonly starts: ReadonlyArray<number>
   readonly length: number
+  /** Whether its last terminal is a terminus inside the map, where its trains turn round; its first is on the edge. */
+  readonly terminus: boolean
 }
 
 /** Beyond this turn (degrees) at a junction no way runs on: the walk ends there. */
@@ -86,15 +89,52 @@ const nodesOf = (rail: ReadonlyArray<Piece>) => {
 }
 
 /**
+ * The pieces leading only to dead ends: those with an end no other track shares, but where `held`
+ * holds, taken away until none is left. Pieces `skip` holds are left out, counted at no end.
+ */
+const deadEnds = (
+  rail: ReadonlyArray<Piece>,
+  held: (k: string) => boolean,
+  skip: (i: number) => boolean = () => false,
+): Set<number> => {
+  const degree = new Map<string, number>()
+  rail.forEach((r, i) => {
+    if (skip(i)) return
+    for (const end of [0, 1] as const) {
+      const k = endKey(r.pts, end)
+      degree.set(k, (degree.get(k) ?? 0) + 1)
+    }
+  })
+  const out = new Set<number>()
+  for (let changed = true; changed;) {
+    changed = false
+    rail.forEach((r, i) => {
+      if (skip(i) || out.has(i)) return
+      const ends = [endKey(r.pts, 0), endKey(r.pts, 1)]
+      if (!ends.some((k) => degree.get(k) === 1 && !held(k))) return
+      out.add(i)
+      for (const k of ends) degree.set(k, degree.get(k)! - 1)
+      changed = true
+    })
+  }
+  return out
+}
+
+/**
  * The lines: from each terminal (a dead end where `terminal` holds: the map's edge, where the
  * track runs on beyond it), the walk that at every junction takes the way turning least (under
- * MAX_TURN, headings over HEADING_SPAN m), kept when it ends at another terminal; of two walks
- * between one pair of terminals, the one turning less in all. A walk never takes a piece twice, so
- * a ring gives no line. Each line runs the way most of its length was drawn, longest line first.
+ * MAX_TURN, headings over HEADING_SPAN m) but into a stub (`deadEnds`: the safety stub straight on
+ * past a switch where a double track joins a single one), kept when it ends at another terminal or
+ * reaches a terminus along one of its pieces (`termini`: by node, "x,y" as shipped, the pieces
+ * trains reach it along, where they turn round inside the map), where it ends; of two walks between
+ * one pair of terminals, the one turning less in all. A walk never takes a piece twice, so a ring
+ * gives no line. Each line runs the way most of its length was drawn, but toward its terminus,
+ * longest line first.
  */
 export const findLines = (
   rail: ReadonlyArray<Piece>,
   terminal: (x: number, y: number) => boolean,
+  termini: ReadonlyMap<string, ReadonlySet<number>> = new Map(),
 ): Array<LineOut> => {
   const at = nodesOf(rail)
   /** Unit direction leaving piece i at `end`, into the piece, over HEADING_SPAN m. */
@@ -115,7 +155,8 @@ export const findLines = (
     const [x, y] = k.split(",").map(Number)
     return terminal(x!, y!)
   }
-  /** The pieces from piece i entered at `end`, with the turns taken, until no way runs on. */
+  const stubs = deadEnds(rail, (k) => isTerminal(k) || termini.has(k))
+  /** The pieces from piece i entered at `end`, with the turns taken, until no way runs on or it reaches a terminus. */
   const walk = (i: number, end: 0 | 1) => {
     const out: Array<LinePiece> = []
     const seen = new Set<number>()
@@ -123,38 +164,41 @@ export const findLines = (
     for (let piece = i, from: 0 | 1 = end; ;) {
       out.push({ rail: piece, rev: from === 1 })
       seen.add(piece)
-      const exit = from === 0 ? 1 : 0
+      const exit = from === 0 ? 1 : 0,
+        node = endKey(rail[piece]!.pts, exit)
+      if (termini.get(node)?.has(piece) === true)
+        return { pieces: out, end: node, turned, terminus: true }
       const [ox, oy] = leaving(piece, exit)
       let next: { piece: number; end: 0 | 1 } | undefined,
         turn = MAX_TURN
-      for (const o of at.get(endKey(rail[piece]!.pts, exit))!) {
-        if (seen.has(o.piece)) continue
+      for (const o of at.get(node)!) {
+        if (seen.has(o.piece) || stubs.has(o.piece)) continue
         const [lx, ly] = leaving(o.piece, o.end)
         // Going on means leaving into the next piece opposite to how this one leaves the node backwards.
         const a = (Ops.acos(Math.max(-1, Math.min(1, -(ox * lx + oy * ly)))) * 180) / Math.PI
         if (a < turn) [next, turn] = [o, a]
       }
-      if (next === undefined) return { pieces: out, end: endKey(rail[piece]!.pts, exit), turned }
+      if (next === undefined) return { pieces: out, end: node, turned, terminus: false }
       turned += turn
       ;[piece, from] = [next.piece, next.end]
     }
   }
-  const best = new Map<string, { pieces: Array<LinePiece>; turned: number }>()
+  const best = new Map<string, ReturnType<typeof walk>>()
   rail.forEach((r, i) => {
     for (const end of [0, 1] as const) {
       const k = endKey(r.pts, end)
       if (!isTerminal(k)) continue
       const w = walk(i, end)
-      if (w.end === k || !isTerminal(w.end)) continue
+      if (w.end === k || !(w.terminus || isTerminal(w.end))) continue
       const pair = [k, w.end].sort().join(" ")
       const was = best.get(pair)
       if (was === undefined || w.turned < was.turned - 1e-9) best.set(pair, w)
     }
   })
   return [...best.values()]
-    .map(({ pieces: path }) => {
+    .map(({ pieces: path, terminus }) => {
       const len = (p: LinePiece) => lengthOf(rail[p.rail]!.pts)
-      const reversed = path.reduce((s, p) => s + (p.rev ? len(p) : -len(p)), 0) > 0
+      const reversed = !terminus && path.reduce((s, p) => s + (p.rev ? len(p) : -len(p)), 0) > 0
       const pieces = reversed ? [...path].reverse().map((p) => ({ ...p, rev: !p.rev })) : path
       const pts: Array<number> = [],
         z: Array<number> = [],
@@ -173,15 +217,15 @@ export const findLines = (
         }
         s += lengthOf(p)
       }
-      return { pieces, pts, z, starts, length: s }
+      return { pieces, pts, z, starts, length: s, terminus }
     })
     .sort((a, b) => b.length - a.length || a.pieces[0]!.rail - b.pieces[0]!.rail)
 }
 
 /**
  * Each piece's kind: none on a line; off the lines, a `siding` when it leads only to dead ends
- * (pieces with an end no other track shares, other than on a line, are taken away until none is
- * left), else a `loop` (it rejoins other track at both ends: Gragnola's track 1, or a ring).
+ * (`deadEnds` over the pieces off the lines, a line's piece ends holding), else a `loop` (it
+ * rejoins other track at both ends: Gragnola's track 1, or a ring).
  */
 export const kindsOf = (
   rail: ReadonlyArray<Piece>,
@@ -191,23 +235,10 @@ export const kindsOf = (
   const anchored = new Set(
     [...onLine].flatMap((i) => [endKey(rail[i]!.pts, 0), endKey(rail[i]!.pts, 1)]),
   )
-  const degree = new Map<string, number>()
-  for (const r of rail)
-    for (const end of [0, 1] as const) {
-      const k = endKey(r.pts, end)
-      degree.set(k, (degree.get(k) ?? 0) + 1)
-    }
-  const kind: Array<RailKind | undefined> = rail.map((_, i) => (onLine.has(i) ? undefined : "loop"))
-  for (let changed = true; changed;) {
-    changed = false
-    rail.forEach((r, i) => {
-      if (kind[i] !== "loop") return
-      const ends = [endKey(r.pts, 0), endKey(r.pts, 1)]
-      if (!ends.some((k) => degree.get(k) === 1 && !anchored.has(k))) return
-      kind[i] = "siding"
-      for (const k of ends) degree.set(k, degree.get(k)! - 1)
-      changed = true
-    })
-  }
-  return kind
+  const sidings = deadEnds(
+    rail,
+    (k) => anchored.has(k),
+    (i) => onLine.has(i),
+  )
+  return rail.map((_, i) => (onLine.has(i) ? undefined : sidings.has(i) ? "siding" : "loop"))
 }

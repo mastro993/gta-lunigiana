@@ -12,6 +12,7 @@ import {
   type LineOut,
   type Piece as GraphPiece,
 } from "./rail-graph.ts"
+import type { RouteEnd } from "./rail-routes.ts"
 
 /** A rail piece as shipped, with its OSM speed limit. */
 interface Piece extends GraphPiece {
@@ -43,7 +44,7 @@ export const maxspeedOf = (
   return spans.map(([a, b, v]) => [r1(a), r1(b), v] as const)
 }
 
-/** The lines as `MAP.railway.lines`, each with the run-outs `runOuts` holds by its terminals' points (`x,y` as shipped). */
+/** The lines as `MAP.railway.lines`, each with the run-outs `runOuts` holds by its terminals' points (`x,y` as shipped), none past a terminus. */
 export const toRailLines = (
   lines: ReadonlyArray<LineOut>,
   rail: ReadonlyArray<Piece>,
@@ -54,9 +55,30 @@ export const toRailLines = (
     maxspeed: maxspeedOf(l, rail),
     runOuts: [
       runOuts.get(`${l.pts[0]},${l.pts[1]}`) ?? [],
-      runOuts.get(`${l.pts.at(-2)},${l.pts.at(-1)}`) ?? [],
+      l.terminus ? [] : (runOuts.get(`${l.pts.at(-2)},${l.pts.at(-1)}`) ?? []),
     ],
+    ...(l.terminus ? { terminus: true } : {}),
   }))
+
+/**
+ * The termini on the shipped rail (`findLines`): by node ("x,y" as shipped), the pieces whose end lies at a route's end
+ * (`routeEnds`) on the way its trains reach that stop along, OSM ids. A route end inside a piece makes none.
+ */
+export const terminiOf = (
+  rail: ReadonlyArray<{ readonly r: RailF; readonly pts: ReadonlyArray<number> }>,
+  ends: ReadonlyArray<RouteEnd>,
+): Map<string, Set<number>> => {
+  const out = new Map<string, Set<number>>()
+  rail.forEach(({ r, pts }, i) => {
+    for (const last of [false, true]) {
+      const { id } = last ? r.pts.at(-1)! : r.pts[0]!
+      if (!ends.some((end) => end.node === id && end.way === r.id)) continue
+      const k = last ? `${pts.at(-2)},${pts.at(-1)}` : `${pts[0]},${pts[1]}`
+      out.set(k, (out.get(k) ?? new Set()).add(i))
+    }
+  })
+  return out
+}
 
 /** Where line l's vertex `vertex` of rail piece `piece` lies along it, or undefined off it. */
 const lineS = (
@@ -170,8 +192,9 @@ const STOPS = new Set(["railway=station", "railway=halt", "railway=stop"])
 
 /**
  * The lines over the shipped rail (each piece in `MAP.rail` order with its rounded polyline and
- * profile) between the dead ends where `terminal` holds, each piece's kind, the platforms cut
- * beside them and the stations where they call. `pois` give the station names.
+ * profile) from the dead ends where `terminal` holds to another or to where OSM's train routes end
+ * (`ends`, `terminiOf`), each piece's kind, the platforms cut beside them and the stations where
+ * they call. `pois` give the station names.
  */
 export const layRailway = (
   rail: ReadonlyArray<{
@@ -180,6 +203,7 @@ export const layRailway = (
     readonly z: ReadonlyArray<number>
   }>,
   terminal: (x: number, y: number) => boolean,
+  ends: ReadonlyArray<RouteEnd>,
   input: Omit<PlatformInput, "tracks" | "lines" | "stops">,
   pois: ReadonlyArray<{
     readonly kind: string
@@ -193,7 +217,7 @@ export const layRailway = (
     pts,
     z,
   }))
-  const lines = findLines(shipped, terminal)
+  const lines = findLines(shipped, terminal, terminiOf(rail, ends))
   const kinds = kindsOf(shipped, lines)
   const lineOf = new Map(lines.flatMap((l, li) => l.pieces.map((p) => [p.rail, li] as const)))
   const stops = pois.flatMap((p) =>

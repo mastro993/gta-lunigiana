@@ -88,3 +88,61 @@ test("findLines finds no line on a ring with no way off the map, and kindsOf mak
   assert.deepEqual(lines, [])
   assert.deepEqual(kindsOf(rail, lines), ["loop", "loop", "loop", "loop"])
 })
+
+// Regression: where Aulla's double track joins the single track north of it (P.P. Chiesaccia), the
+// second track runs straight on past its switch into a safety stub; the walk took the stub, ended in
+// it and left that track no line, though it runs on to the map's edge across the switch.
+test("findLines turns off a stub that leads only to dead ends in the map, onto the track leading on", () => {
+  // Two tracks 4 m apart from the west edge; the north one's switch at x 560 turns 5.7° onto the
+  // south one at x 600, its stub running straight on to a buffer at x 650; one track on to the east edge.
+  const rail = [
+    piece([0, 0, 600, 0]),
+    piece([600, 0, 1000, 0]),
+    piece([0, 4, 560, 4]),
+    piece([560, 4, 650, 4]),
+    piece([560, 4, 600, 0]),
+  ]
+  const lines = findLines(rail, edge)
+  assert.deepEqual(railsOf(lines), [
+    [2, 4, 1],
+    [0, 1],
+  ])
+  assert.deepEqual(kindsOf(rail, lines), [undefined, undefined, undefined, "siding", undefined])
+})
+
+test("findLines ends a walk at a terminus reached along the piece its trains come in on, running the line toward it; from the other side the walk goes through", () => {
+  // A through track with a terminus at x 400, which trains reach from the west (piece 0, drawn east to west); a passing loop
+  // beside it from x 700.
+  const rail = [
+    piece([400, 0, 0, 0]),
+    piece([400, 0, 700, 0]),
+    piece([700, 0, 1000, 0]),
+    piece([400, 0, 500, 5, 600, 5, 700, 0]),
+  ]
+  const termini = new Map([["400,0", new Set([0])]])
+  const lines = findLines(rail, edge, termini)
+  assert.deepEqual(
+    lines.map((l) => [l.pieces, l.terminus]),
+    [
+      [
+        [
+          { rail: 0, rev: true },
+          { rail: 1, rev: false },
+          { rail: 2, rev: false },
+        ],
+        false,
+      ],
+      [[{ rail: 0, rev: true }], true],
+    ],
+  )
+  assert.deepEqual(kindsOf(rail, lines), [undefined, undefined, undefined, "loop"])
+  // Reached from the east only, the terminus ends no walk from the west.
+  const east = findLines(rail, edge, new Map([["400,0", new Set([1])]]))
+  assert.deepEqual(
+    east.map((l) => [railsOf([l])[0], l.terminus]),
+    [
+      [[0, 1, 2], false],
+      [[2, 1], true],
+    ],
+  )
+})

@@ -25,6 +25,7 @@ import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
+import { routeEnds } from "./rail-routes.ts"
 import { REGION, dtmDir, inputParts, osmFiles, ucsFile } from "./region.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readUcs } from "./ucs.ts"
@@ -139,6 +140,8 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     areas,
     platforms,
     railCrossings: crossings.map((c) => c.rings),
+    /** Where OSM's train routes end, and the ways they reach those stops along (`routeEnds`): the lines' termini in play. */
+    routeEnds: routeEnds(osm),
     districts,
     /** The roads, water, rail and buildings beyond the play area, for the trees, and its water for the catchments. */
     beyond,
