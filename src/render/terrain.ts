@@ -37,6 +37,8 @@ export interface CoverLook {
    * so the strips follow the contours, closer as the slope steepens, and flat ground shows none.
    */
   readonly terraces?: { readonly rise: number; readonly strip: number }
+  /** A beach's wet sand: a cell whose middle lies under `below` m a.s.l. takes `hex`, whatever its patch. */
+  readonly wet?: { readonly below: number; readonly hex: number }
 }
 
 /** How each cover is painted. */
@@ -77,7 +79,15 @@ export const COVER_LOOK = {
   },
   // The sea's cells are drawn under its water; a shore cell's part above the waterline is wet sand.
   sea: { base: PALETTE.sandWet, alt: PALETTE.sandWet, share: 0 },
-  sand: { base: PALETTE.sand, alt: PALETTE.sand, share: 0 },
+  // Wet under 0.8 m a.s.l. (issue #13's design height): on magra-coast that is 56 % of the beaches'
+  // cells, the 0.8 m contour a median 40 m in from the coastline, where the 2023 orthophoto shows
+  // the sand wet 6 m in (0.2 m would put the contour there).
+  sand: {
+    base: PALETTE.sand,
+    alt: PALETTE.sand,
+    share: 0,
+    wet: { below: 0.8, hex: PALETTE.sandWet },
+  },
 } as const satisfies Record<Cover, CoverLook>
 
 /** A broadleaf wood's floor out of leaf (`crownsOn`): its leaf litter, the evergreen undergrowth showing through; a mixed wood's half its conifers' shade. */
@@ -102,10 +112,12 @@ const patchNoise = (i: number, j: number): number => {
 
 /**
  * Picks the base or variant colour of a look for cell (i, j), counted from the region's anchor,
- * whose middle stands `z` m a.s.l. on a slope of `slope` (rise over run).
+ * whose middle stands `z` m a.s.l. on a slope of `slope` (rise over run): a beach's wet sand under
+ * its `wet` height.
  */
 export const shade = (look: CoverLook, i: number, j: number, z: number, slope: number): number => {
-  const { terraces } = look
+  const { terraces, wet } = look
+  if (wet !== undefined && z < wet.below) return wet.hex
   const half = terraces === undefined ? 0 : (slope * terraces.strip) / 2
   return (
     look.stripes === true

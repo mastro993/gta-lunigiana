@@ -882,7 +882,7 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
     quads, the oldest overwritten first. Each (car, wheel) draws a strip joining its consecutive
     steps; a step without a skid breaks it. Width by model's tread (Panda 0.18 m, Ape 0.1 m,
     Giulia 0.22 m, the truck's twin tyres 0.35 m), rubber on asphalt and stone, an earth rut on the
-    rest, the damp sand under a beach's (`sandWet`, a design colour until measured), turning to a
+    rest, the damp sand under a beach's (`sandWet`, the beaches' measured wet sand), turning to a
     dark slush rut with the snow under the wheel (`Skid.snow`), opacity by `amount`, fading out
     over 60 s. A quad lies 4 cm over the ground the event
     names or the highest road ribbon drawn within 3 m over it (`drawnZ`; on a hairpin or at a
@@ -1057,9 +1057,9 @@ level crossings' housings and cabinets, tunnel portals, the lamps' iron, poles a
 a buried mesh (the road tunnels' walls: the solid's material, casting no shadow, as the terrain over
 them casts none), a decal mesh (roads, in their tunnels too, the track's sleepers and
 rails, crossing panels and stop lines, the platforms' yellow lines), a water mesh (rivers and
-streams, laid on their beds: the shader lifts them to the level the rivers run at,
-[water.md](water.md#how-it-looks); and a quad over each cell of the lakes
-and river polygons, `src/render/water.ts`, from the chunk's own cells), a glow mesh (lit window
+streams, laid on their beds: the shader lifts them to the level the rivers run at, never under the
+sea's, [water.md](water.md#how-it-looks); and a quad over each cell of the lakes, the sea and the
+river polygons, `src/render/water.ts`, from the chunk's own cells), a glow mesh (lit window
 panes and lantern glass) and one `InstancedMesh` per tree crown (broadleaf, beech, conifer, pine,
 olive; an oak is a broadleaf in its own tint: `speciesAt` in `src/render/trees.ts`, and an olive an
 olive grove's tree by its id, `kindAt`,
@@ -1067,7 +1067,10 @@ olive grove's tree by its id, `kindAt`,
 its dead leaves, as the season the game starts in says, `crownsOn` in `src/render/leaves.ts`,
 [weather.md](weather.md#the-woods-leaves)); the buried,
 water, glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
-the terrain, lines and trees beyond the map bounds, the built terrain's box; inside it, past an
+the terrain, lines, trees and water areas beyond the map bounds, the built terrain's box (its edge
+nodes' heights, the sea floor's below 0 m too, so the sea runs on over the apron at the edge's
+depth: 9.5 m at x −9071 on the coast test region's south edge; past the apron the clear colour,
+dark forest green, shows where the sea would go on); inside it, past an
 inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground and cover the
 nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a road
 or a river ending on the bounds runs on across the apron, `throughApron`; the track runs on past
@@ -1078,7 +1081,9 @@ cover, read from the tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts
 a part that grows the box repaints none of the ground built before it, `terrain.test.ts`, and an
 olive grove's dry grass bare in a 2.5 m strip along each terrace's edge, every 3 m of rise (a cell
 whose middle lies within half a strip of one, by its height and slope), so the strips follow the
-contours; a broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where
+contours; a beach's sand wet (`sandWet`) where a cell's middle lies under 0.8 m a.s.l., 56 % of
+the coast test region's sand cells, its 0.8 m contour a median 40 m in from the coastline; a
+broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where
 none covers a cell, paving where open ground lies within 3 m of both a wall and a road's edge (house
 fronts, sidewalks, alleys), and pebble beds along the wide streams outside the lakes and river
 polygons. A
@@ -1881,7 +1886,7 @@ never recompiles a shader.
 | `solidMaterial` | `solid` | buildings, bridges, the ballast bed, platforms, canopies, name boards, crossing housings, tunnel portals, the road tunnels' walls, the lamps' iron and poles | snow, wet darkening, cloud shadows |
 | `terrainMaterial` | `terrain` | the terrain | snow (lower on north faces), wet darkening, cloud shadows |
 | `decalMaterial` | `road` | roads, sleepers and rails, crossing panels and stop lines, platform lines | snow (0.6 of it), wet darkening, puddles, cloud shadows |
-| `waterMaterial` | `water` | rivers, streams | the level and the current's streaks the rivers run at, rain rings, cloud shadows; no snow, no darkening |
+| `waterMaterial` | `water` | rivers, streams, lakes, the sea | the level and the current's streaks the rivers run at, the sea's colour by its depth and its foam, rain rings, cloud shadows; no snow, no darkening |
 | `treeMaterial` | `tree` | the instanced trees | snow on the canopy tops and half of it on their sides, wet darkening, cloud shadows, sway |
 | `actorMaterial` | `actor` | people, animals, vehicles, tyre marks, smoke | cloud shadows only |
 | `bloodMaterial` | `actor` | blood pools, pulled toward the camera like the decals | cloud shadows only |
@@ -1908,11 +1913,20 @@ never recompiles a shader.
   is flecked white.
 - Rivers and streams left the decal mesh for their own layer (`RibbonSpec.flowing` in `ribbons.ts`),
   cut by the same chunk rule, so a chunk still equals a cut: water takes no snow and no wet
-  darkening. Its vertices lie on the bed and carry `stage` and `flow` (`WaterTriangles` in
-  `geometry.ts`); `uRiverStage` (q^0.547) lifts them to the rivers' level and `uRiverSpeed`
-  (q^0.453) carries the streaks, both written by `applySurface` from `SkyViewModel.flow`. A lake's
-  vertices lie at its level with `stage` 0 and carry their `still` depth, which darkens it and lifts
-  nothing.
+  darkening. Its vertices lie on the bed and carry `stage`, `flow` and `held` (`WaterTriangles` in
+  `geometry.ts`); `uRiverStage` (q^0.547) lifts them to the rivers' level, at least `held` (how far
+  the bed lies under the sea's level), and `uRiverSpeed` (q^0.453) carries the streaks, slower by
+  the same share where the sea holds the water up, both written by `applyWater`
+  (`render/sky/water-shader.ts`, the water variant's GLSL) from `SkyViewModel.flow`. A lake's and
+  the sea's vertices lie at their level with `stage` 0 and carry their `still` depth, which shades
+  them and lifts nothing; the sea's carry `sea` 1 too, which takes its colour from its shallows'
+  (the vertex colour, `PALETTE.seaShallow`) to the deep sea's over 0–6 m and its foam under 0.3 m,
+  instead of a lake's and a river's shallows and depth. The two attributes cost nothing measurable:
+  on Lunigiana at the start (seed 7, dev server) the JS heap after GC is 191 MB with them and
+  without, the chunks within 640 m of Monzone station build in 174 ms (177 without, Node, the third
+  pass); on the coast test region 110 m off Marinella's beach, where the chunks within 640 m hold 802,944
+  water vertices, 78–79 MB (77 without) and 212 ms (202), and both hold 60 fps with no frame over
+  16.8 ms (2026-11-17).
 - Cost: +0.015 ms a render at Monzone with snow, wet, clouds and wind on (0.25–0.27 ms against
   0.24–0.26 ms unpatched, 640 × 317 target, about 92 draw calls).
 

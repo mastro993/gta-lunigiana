@@ -190,3 +190,21 @@ test("an olive grove's ground is dry grass, bare in a 2.5 m strip along a terrac
     if (shade(olive, k, 0, 300 + (3 * k) / 1000, 0.3) === PALETTE.dirtTrack) bare++
   assert.ok(Math.abs(bare - 250) <= 2, `${bare} bare cells of 1000`)
 })
+
+test("a beach is dry sand, and wet under 0.8 m a.s.l.; the sea's floor shows wet sand where a shore cell stands dry", () => {
+  const { sand, sea } = COVER_LOOK
+  for (const [z, hex] of [
+    [2.1, PALETTE.sand],
+    [0.81, PALETTE.sand],
+    [0.79, PALETTE.sandWet],
+    [0.2, PALETTE.sandWet],
+    [-0.4, PALETTE.sandWet],
+  ] as const)
+    for (const [i, j] of [
+      [0, 0],
+      [7, 3],
+      [40, 91],
+    ] as const)
+      assert.equal(shade(sand, i, j, z, 0.02), hex, `sand at ${z} m, cell ${i},${j}`)
+  assert.equal(shade(sea, 3, 5, 0.4, 0), PALETTE.sandWet)
+})

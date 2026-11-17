@@ -3,14 +3,15 @@
 The rivers and streams carry what the weather's rain leaves them: they rise in a storm and fall back
 over the following days, and their depth and current follow from each reach's catchment, width and
 grade. Where OSM draws a river's water as a polygon, the river spreads over it; the lakes and ponds
-stand still at their level. The player wades through them and swims once they lift him off his feet
-or the current takes them from under him; people, animals and vehicles meet the same water. Nobody
-drowns.
+stand still at their level, and the sea at 0 m, which holds a river up where it meets it. The
+player wades through them and swims once they lift him off his feet or the current takes them from
+under him; people, animals and vehicles meet the same water. Nobody drowns.
 
 The code is in `src/sim/water/` (`flow.ts`, `channel.ts`, `rivers.ts`, `swim.ts`), the `Wade`
-system in `src/sim/systems/water.ts`, the catchment areas and the lakes' levels in the map build
+system in `src/sim/systems/water.ts`, a swimmer's footing in `FindFooting`
+(`src/sim/systems/footing.ts`), the catchment areas and the lakes' levels in the map build
 (`src/tools/catchment.ts`, `src/tools/water-areas.ts`) and the drawn water in
-`src/render/lines.ts`, `src/render/water.ts` and `src/render/sky/surface.ts`.
+`src/render/lines.ts`, `src/render/water.ts` and `src/render/sky/water-shader.ts`.
 
 ## The rivers' flow
 
@@ -323,20 +324,29 @@ them.
   wider, laid on its bed. Each vertex carries its `stage` and its `flow` (the way down and the mean
   speed per unit); the water shader lifts it by `stage` × q^0.547, the uniform `uRiverStage`, so the
   surface stands where the sim's is, and the terrain above it hides it: in a spate the water spreads
-  over the gravel.
-- **Lakes and river polygons** (`render/water.ts`): a quad over each cell of the area (its centre
-  inside, as the land cover paints it), its corners on the cell's nodes. A river polygon's lie on
-  the bed of its nearest waterway with that reach's `stage` and `flow`, so the shader lifts them as
-  it lifts the ribbon, to where `waterAt` has the level (0.05 m over the bed, over the ribbon and a
-  wide river's deep channel, so where the area's water half covers a quad of them it stays under); a
-  lake's lie at its level, each carrying how deep the water stands over its node (`still`), which
-  lifts nothing. A river's ribbon leaves out each quad their water covers whole. The terrain above
-  the level hides the water, so the shore is where they meet.
+  over the gravel. Each vertex also carries how far its bed lies under the sea's level (`held`,
+  `heldBySea`), and it rises at least that far, so a river meets the sea at 0 m as the sim has it,
+  its streaks slower by the same share.
+- **Lakes, the sea and river polygons** (`render/water.ts`): a quad over each cell of the area (its
+  centre inside, as the land cover paints it), its corners on the cell's nodes. A river polygon's
+  lie on the bed of its nearest waterway with that reach's `stage`, `flow` and `held`, so the shader
+  lifts them as it lifts the ribbon, to where `waterAt` has the level (0.05 m over the bed, over the
+  ribbon and a wide river's deep channel, so where the area's water half covers a quad of them it
+  stays under); a lake's and the sea's lie at their level, each carrying how deep the water stands
+  over its node (`still`), which lifts nothing, the sea's flagged (`sea`). A river's ribbon leaves
+  out each quad their water covers whole. The terrain above the level hides the water, so the shore
+  is where they meet. Past the map's edge the edge cells' water goes on over the apron at their
+  nodes' depth, so the sea runs on 192 m beyond the play area over the edge's sea floor (9.5 m deep
+  at x −9071 on the coast test region's south edge); past the apron the screen shows the clear
+  colour, dark forest green, and the minimap its background, the same green.
 - **The colour**: the water's own colour (and the darker channel's) shows from 0.05 m of mean depth
   and fully from 0.7 m; shallower, it is the limestone pebbles seen through it, tinted 0.6 of the
   way to the water's green (TUNED by eye), so an ankle-deep torrent reads as wet gravel with the
   current on it and a spate as a river. A lake darkens to the deep water's colour from 0.7 m deep
-  to 2.5 m (TUNED by eye).
+  to 2.5 m (TUNED by eye). The sea, drawn in its shallows' colour (`PALETTE.seaShallow`, measured
+  a few metres out), darkens to the deep sea's (`seaDeep`, measured 7–8 m deep) from 0 to 6 m deep,
+  and foams (`foam`) where it is under 0.3 m deep, wholly under 0.15 m (TUNED by eye): a pale band
+  along the waterline, within the cells it crosses.
 - **The current**: streaks 1.6 m long and 0.3 m wide carried downstream at the water's speed
   (`uRiverSpeed` = q^0.453), two phases 2 s apart dissolving into each other cell by cell; 2 % of
   them show on still water, up to 30 % at 3 m/s and over (TUNED by eye).
@@ -376,15 +386,17 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/sim/water/__tests__/flow.test.ts` | the calibration against Soliera (mean, months, seasons, duration curve), Thornthwaite's 685 mm, a new game's rivers alike for a start and seed and spread across seeds |
 | `src/sim/water/__tests__/channel.test.ts` | the rail bed within 4 km of Monzone station dry where a stream crosses it, at the mean, in a spate and in the 30 years' highest flood |
 | `src/sim/water/__tests__/channel.map-test.ts` (`pnpm test:map`) | the whole rail bed of the map dry where a stream crosses it, at the same three flows |
-| `src/sim/water/__tests__/swim.test.ts` | the hold (an adult's 1.2 m²/s, a child's 0.4), off the feet and back on, wading's slowing, a sprint slowed to a wade by knee depth |
+| `src/sim/water/__tests__/swim.test.ts` | the hold (an adult's 1.2 m²/s, a child's 0.4), off the feet and back on, a swimmer's feet 0.7 of its height under the surface and never under the bed, wading's slowing, a sprint slowed to a wade by knee depth |
 | `src/sim/__tests__/water.test.ts` | the Lucido's depth and current at the mean and in a spate; the player wading across, swept, swimming and out, and dry once he gets into a car in the water; people and animals swimming out and the dead drifting; a calm dog stopping at a spate's edge; a Panda holding in the Lucido and floating off in a spate; buoyancy at 0.3 and 0.7 m; a Panda ploughing to a third slower in a second of ankle-deep water, the truck hardly; stalling; a bridge keeping a walker dry, on its centreline and on every verge over the water of the bridges within 2 km of Monzone; the rivers rising under rain and falling back; determinism and a save mid-swim (determinism in `water.long-test.ts`) |
 | `src/tools/__tests__/catchment.test.ts` | a braid's arms sharing the river's area at the fork and adding back to it at the rejoin; an unlisted tile's nodes (an L's notch) never read, outlets as the grid's edge is, so the ground beside them drains out and they bring no area; a river cut short of the grid's edge draining on down the water beyond the cut, not down a stream beside it; water coming in at the grid's edge no outlet for the water it joins; an inflow from beyond the grid carried down its stream from its node, and only there |
-| `src/sim/water/__tests__/rivers.test.ts` | over a synthetic river polygon with an island and a lake a stream runs through (`waterIndex`): the river's level and current across the polygon, the island dry, the river's own bed beyond it; the bank square to the reach either side of the seam between two polygons of one river; the lake still at its level, its bank the nearest shore, winning over the stream; a water area's surface as the render draws it |
-| `src/sim/__tests__/water.test.ts` (the lake) | the player swimming in the lake by the Solco di Equi and out; a Panda afloat there, drifting under 1 m with no current |
+| `src/sim/water/__tests__/rivers.test.ts` | over a synthetic river polygon with an island and a lake a stream runs through (`waterIndex`): the river's level and current across the polygon, the island dry, the river's own bed beyond it; the bank square to the reach either side of the seam between two polygons of one river; the lake still at its level, its bank the nearest shore, winning over the stream; a water area's surface as the render draws it; over a sea cut into pieces along a tile line and the map's bound, the bank toward the coast across the cuts, from a piece with no coast of its own too, an islet's shore a shore, and the nearest edge from a piece alone; a stream with its bed under the sea's level standing at 0 m, slower by the depth the sea holds it at, and running as any river once a spate lifts it over |
+| `src/sim/__tests__/water.test.ts` (the lakes) | the player swimming in the lake by the Solco di Equi and out; a Panda afloat there, drifting under 1 m with no current; in Lago Fario's 2.94 m, the swimming player's feet 0.7 of his height under the surface and his getting into a Panda afloat beside him, its wheels' ground more than 2 m over the bed |
 | `src/render/__tests__/water.test.ts`, `water-cesena.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes; on Cesena, the Savio's polygon carried on over the apron north of the map (Lunigiana's only lake or river polygon at its bounds, a river's north of Fosdinovo's part, meets them in the north-west notch, x −11500 at y 4192–4222, where no tile is listed); `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon |
+| `src/render/__tests__/water-coast.map-test.ts` (`pnpm test:map`, on the coast test region) | off Marinella, the sea one quad a cell at 0 m in its shallows' colour, flagged, as deep as it stands over each node; the sea carried on over the apron south of the map at the edge nodes' depth; the Magra's polygon at its mouth drawn where `waterAt` has its level at the mean flow and in a spate, the sea holding it up |
+| `src/render/sky/__tests__/water-shader.test.ts` | the water variant's lift (the flow's, at least the sea's hold, the streaks slower in the held water) and the sea's colour ramp and foam, the lakes' as before |
 | `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores, the dry ones, a river polygon's surface falling through it and its outer edge left, no tree, parked car or spawn in the water |
 | `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
-| `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 1,142,302 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered |
+| `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 1,142,302 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered (`water-oracle.ts`, with the sea's rules: still water's cuts no shore, the sea pieces' coast shared, no river under the sea) |
 | `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 ± 2 km², the Rosaro's 14.7 ± 0.5 at its entry, the Aulella's 199 ± 3 leaving the play area and the Bardine's 59 ± 2; none of the outline's cuts draining a river down a side stream (the stream by Soliera, way 140780331, under 1 km², Il Canalaccio under 6, the Canale del Torchio under 2); no walk or drive wall in a wide river, shore walls by it |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
 

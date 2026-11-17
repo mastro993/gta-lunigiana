@@ -9,6 +9,7 @@
 import { segDist2 } from "../sim/collide.ts"
 import { drawnZ, groundZ } from "../sim/map/ground.ts"
 import { MAP } from "../sim/map/index.ts"
+import { heldBySea } from "../sim/water/channel.ts"
 import { APRON } from "./chunks.ts"
 import {
   type Box,
@@ -210,7 +211,10 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
         [lx0, lh0, -ly0],
         spec.hex,
       )
-    else
+    else {
+      // Water lies on its bed, `zs`: the sea holds it up where that is under its level.
+      const h0 = heldBySea(zs[i]!),
+        h1 = heldBySea(zs[i + 1]!)
       sink.water.waterQuad(
         [rx0, rh0, -ry0],
         [rx1, rh1, -ry1],
@@ -218,7 +222,9 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
         [lx0, lh0, -ly0],
         spec.hex,
         [fs[i]!, fs[i + 1]!, fs[i + 1]!, fs[i]!],
+        { held: [h0, h1, h1, h0] },
       )
+    }
   }
 }
 

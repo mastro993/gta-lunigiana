@@ -3,6 +3,7 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
+import { PALETTE } from "../render/palette.ts"
 import type { AreaKind, BuildingStyle, RoadClass } from "../sim/map/index.ts"
 import { fillRank } from "../sim/map/raster.ts"
 import { useDiskMap } from "../sim/map/source.ts"
@@ -19,6 +20,8 @@ const { buildingStyleOf, graph, heightAt, isAreaKind, isWaterArea, isWood, MAP, 
 const { trees, walls, roads, buildings, water, areas, barriers } = readWholeMap(builtMapUrl(REGION))
 
 type RGB = readonly [number, number, number]
+/** An sRGB hex colour's channels. */
+const rgbOf = (hex: number): RGB => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255]
 const scale = Number(process.argv[2] ?? 1)
 const [minX, minY, maxX, maxY] =
   (process.argv[3] ?? "").split(",").length === 4
@@ -108,9 +111,17 @@ const AREA = {
   river: [60, 120, 220],
   lake: [60, 120, 220],
   olive: [97, 106, 64],
-  sea: [40, 90, 170],
-  sand: [235, 220, 170],
+  sea: rgbOf(PALETTE.seaShallow), // shaded by its depth below (`seaAt`)
+  sand: rgbOf(PALETTE.sand),
 } as const satisfies Record<AreaKind, RGB>
+/** The sea's colour over ground `z` m a.s.l., as the game's water shader has it: its shallows to the deep sea's over 0–6 m of depth. */
+const seaAt = (z: number): RGB => {
+  const t = Math.min(1, Math.max(0, -z / 6)),
+    s = t * t * (3 - 2 * t),
+    deep = rgbOf(PALETTE.seaDeep)
+  const mix = (ch: 0 | 1 | 2) => Math.round(AREA.sea[ch] + (deep[ch] - AREA.sea[ch]) * s)
+  return [mix(0), mix(1), mix(2)]
+}
 // Each pixel takes the last area to fill it in the land cover's order (`fillRank`), blended
 // once: a wood's pieces overlap 4 m past their squares, and two blends would draw their seams.
 const top = new Int32Array(W * H).fill(-1)
@@ -126,7 +137,11 @@ for (let p = 0; p < top.length; p++) {
   if (kind !== undefined)
     blend(
       p,
-      isAreaKind(kind) ? AREA[kind] : [255, 0, 255],
+      kind === "sea"
+        ? seaAt(heightAt(minX + ((p % W) + 0.5) / scale, minY + (Math.floor(p / W) + 0.5) / scale))
+        : isAreaKind(kind)
+          ? AREA[kind]
+          : [255, 0, 255],
       isWood(kind) ? 0.25 : isWaterArea(kind) ? 0.8 : 0.45,
     )
 }

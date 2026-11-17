@@ -1,11 +1,13 @@
 /**
- * The lakes and river polygons, drawn chunk by chunk into the water mesh: a quad over each of their
- * cells (a cell whose centre the polygon holds, as the land cover paints it), its corners on the
- * cell's nodes. A lake's lie at its level, each with how deep the water stands over its node
- * (`still`), which the water shader darkens it by; a river polygon's lie on the bed of its
- * nearest waterway with that reach's stage and flow, which the water shader lifts to the level the
- * river runs at, as it lifts the river's ribbon (`render/lines`), so the water drawn stands where
- * `waterAt` has it. The terrain above the level hides the water: the shore is where they meet.
+ * The lakes, the sea and the river polygons, drawn chunk by chunk into the water mesh: a quad over
+ * each of their cells (a cell whose centre the polygon holds, as the land cover paints it), its
+ * corners on the cell's nodes. A lake's and the sea's lie at their level, each with how deep the
+ * water stands over its node (`still`), which the water shader shades it by, the sea's flagged
+ * (`sea`) and coloured as the sea; a river polygon's lie on the bed of its nearest waterway with
+ * that reach's stage and flow and how far the sea holds it up there (`heldBySea`), which the water
+ * shader lifts to the level the river runs at, as it lifts the river's ribbon (`render/lines`), so
+ * the water drawn stands where `waterAt` has it. The terrain above the level hides the water: the
+ * shore is where they meet.
  *
  * @module render/water
  */
@@ -13,6 +15,7 @@ import { fillPolygon, pointInRing } from "../sim/collide.ts"
 import { terrainNodeZ } from "../sim/map/ground.ts"
 import { MAP } from "../sim/map/index.ts"
 import { anchorOf } from "../sim/map/kinds.ts"
+import { heldBySea } from "../sim/water/channel.ts"
 import { poolsAt, poolsIn } from "../sim/water/rivers.ts"
 import { chunkCells } from "./chunks.ts"
 import type { Flowing, WaterTriangles } from "./geometry.ts"
@@ -34,9 +37,9 @@ const LAST = { i: hm.cols - 2, j: hm.rows - 2 } as const
 const clampCell = (c: number, last: number) => Math.min(last, Math.max(0, c))
 
 /**
- * Whether the cell holding (x, y), or in the apron the edge cell it continues, is a cell of a lake or
- * a river polygon (its centre inside, even-odd over the rings): a river's ribbon stops where the
- * area's water is drawn instead.
+ * Whether the cell holding (x, y), or in the apron the edge cell it continues, is a cell of a lake,
+ * the sea or a river polygon (its centre inside, even-odd over the rings): a river's ribbon stops
+ * where the area's water is drawn instead.
  */
 export const inPool = (x: number, y: number): boolean => {
   const ci = clampCell(Math.floor((x - anchor.x) / hm.cell) + anchor.i, LAST.i),
@@ -52,9 +55,10 @@ export const inPool = (x: number, y: number): boolean => {
 }
 
 /**
- * Draws the lakes' and river polygons' cells of chunk `key` into `into`; in the apron, the edge cells'
- * water carried on as the terrain carries their nodes. Reads the terrain and the water areas of the
- * tiles under the chunk's own cells.
+ * Draws the lakes', the sea's and the river polygons' cells of chunk `key` into `into`; in the apron,
+ * the edge cells' water carried on as the terrain carries their nodes, so the sea runs on past the
+ * map's edge over the edge's sea floor. Reads the terrain and the water areas of the tiles under the
+ * chunk's own cells.
  */
 export const poolWater = (key: number, into: WaterTriangles): void => {
   const { i0, j0, i1, j1 } = chunkCells(key)
@@ -83,7 +87,10 @@ export const poolWater = (key: number, into: WaterTriangles): void => {
     )
     // Each node's values once, read at the grid node it stands for (the apron's, the edge's), so the
     // cells round it share its corner exactly.
-    const nodes = new Map<number, { readonly y: number; readonly f: Flowing; readonly s: number }>()
+    const nodes = new Map<
+      number,
+      { readonly y: number; readonly f: Flowing; readonly s: number; readonly h: number }
+    >()
     const node = (i: number, j: number) => {
       const ni = Math.min(hm.cols - 1, Math.max(0, i)),
         nj = Math.min(hm.rows - 1, Math.max(0, j)),
@@ -96,12 +103,19 @@ export const poolWater = (key: number, into: WaterTriangles): void => {
         )
         v =
           pool.level === undefined
-            ? { y: yOf(bed) + OVER_BED, f: [stage, ux, uy, speed], s: 0 }
-            : { y: yOf(bed), f: [0, ux, uy, 0], s: Math.max(0, bed - terrainNodeZ(ni, nj)) }
+            ? { y: yOf(bed) + OVER_BED, f: [stage, ux, uy, speed], s: 0, h: heldBySea(bed) }
+            : {
+                y: yOf(bed),
+                f: [0, ux, uy, 0],
+                s: Math.max(0, bed - terrainNodeZ(ni, nj)),
+                h: 0,
+              }
         nodes.set(key, v)
       }
       return v
     }
+    const sea = pool.kind === "sea",
+      hex = sea ? PALETTE.seaShallow : PALETTE.waterShallow
     for (let j = j0; j < j1; j++)
       for (let i = i0; i < i1; i++) {
         if (wet[(clampCell(j, LAST.j) - r0) * cols + clampCell(i, LAST.i) - c0] === 0) continue
@@ -118,9 +132,9 @@ export const poolWater = (key: number, into: WaterTriangles): void => {
           [x1, se.y, -y],
           [x1, ne.y, -y1],
           [x, nw.y, -y1],
-          PALETTE.waterShallow,
+          hex,
           [sw.f, se.f, ne.f, nw.f],
-          [sw.s, se.s, ne.s, nw.s],
+          { still: [sw.s, se.s, ne.s, nw.s], held: [sw.h, se.h, ne.h, nw.h], sea },
         )
       }
   }
