@@ -217,3 +217,32 @@ test("deckWalls: a footpath passing a level under a deck keeps a corridor throug
     `no wall along the path's corridor at x ${edge}`,
   )
 })
+
+test("deckWalls: a road passing under a deck keeps its carriageway whatever the ground beside it climbs to, a bank in it walled past it", () => {
+  // A track 3 m wide across under the deck at x 12, 4.3 m under its top, and a road at grade along
+  // x 16.5, 0.8 m under it, whose carriageway reaches 0.55 m into the track's: the ground there
+  // climbs to that road's level, within ONE_LEVEL of the deck's top (the A15's approaches beside the
+  // tracks under its decks' ends at Aulla).
+  const g = grid((x) => VALLEY(x))
+  const ways = [
+    road(1, "tertiary", 6.5, [-30, 0, 0, 0, 30, 0], [10, 10, 10], true),
+    road(2, "tertiary", 6.5, [-60, 0, -30, 0], [10, 10]),
+    road(3, "tertiary", 6.5, [30, 0, 60, 0], [10, 10]),
+    road(4, "track", 3, [12, -20, 12, 20], [VALLEY(12), VALLEY(12)]),
+    road(5, "unclassified", 6.5, [16.5, -20, 16.5, 20], [9.3, 9.3]),
+  ]
+  const roads = ways.map(([r]) => r),
+    lines = ways.map(([, l]) => l)
+  const walls = deckWalls(gridGround(g, roads, lines), roads, lines)
+  const surface = VALLEY(12) + ROAD_LIFT.track
+  for (const kind of ["walk", "drive"] as const) {
+    const list = each(walls[kind])
+    assert.ok(list.length > 0, `${kind} walls`)
+    for (let y = -6; y <= 6; y += 0.25)
+      for (const wall of list)
+        assert.ok(
+          segmentDistance(wall, 12, y) >= 1.5 - 0.05 || Math.abs(wall.level - surface) >= ONE_LEVEL,
+          `a ${kind} wall at ${wall.level} m on the track at (12, ${y}), its surface ${surface.toFixed(2)} m`,
+        )
+  }
+})
