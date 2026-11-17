@@ -48,6 +48,11 @@ interface RoadSegment {
   readonly lifted: boolean
   /** A bridge's or a tunnel's reach either side of its centreline to its walkers' verge (m): within it, someone on foot is on the deck or in the tunnel; 0 for a road at grade. */
   readonly foot: number
+  /**
+   * Which ends of a road at grade's last segments stop square, where its line carries on as a
+   * bridge's deck (`a` 1, `b` 2, both 3; else 0): past one its surface reaches no farther along.
+   */
+  readonly cut: number
 }
 
 /** Road segments in the ground model's buckets, made by `groundBuckets` only. */
@@ -63,6 +68,11 @@ const BUCKET = 16
  */
 export const groundBuckets = (roads: ReadonlyArray<GroundRoad>): RoadBuckets => {
   const out = emptyBuckets<RoadSegment>(BUCKET)
+  // Where each bridge's deck ends: a road at grade ending there stops square (`cut`).
+  const deckEnds = new Set<string>()
+  for (const { bridge, pts, z } of roads)
+    if (bridge === true)
+      for (const k of [0, z.length - 1]) deckEnds.add(`${pts[2 * k]},${pts[2 * k + 1]}`)
   let last = -1
   for (const road of roads) {
     if (road.index <= last) throw new Error(`ground: road ${road.index} after ${last}`)
@@ -71,7 +81,9 @@ export const groundBuckets = (roads: ReadonlyArray<GroundRoad>): RoadBuckets => 
     const lifted = road.bridge === true || road.tunnel === true
     const lift = ROAD_LIFT[roadClassOf(road)],
       verge = footReach(roadClassOf(road), road.w, road.verge)
-    for (let k = 0; k + 1 < z.length; k++) {
+    const stops = (k: number) => !lifted && deckEnds.has(`${pts[2 * k]},${pts[2 * k + 1]}`)
+    const n = z.length - 1
+    for (let k = 0; k < n; k++) {
       const s: RoadSegment = {
         ax: pts[2 * k]!,
         ay: pts[2 * k + 1]!,
@@ -83,6 +95,7 @@ export const groundBuckets = (roads: ReadonlyArray<GroundRoad>): RoadBuckets => 
         lift,
         lifted,
         foot: lifted ? verge : 0,
+        cut: (k === 0 && stops(0) ? 1 : 0) | (k + 1 === n && stops(n) ? 2 : 0),
       }
       const reach = Math.max(s.half, s.foot)
       addToBuckets(
@@ -220,6 +233,20 @@ export const groundModel = (data: GroundData) => {
   const roadZ = (z: number, x: number, y: number, lift: number, lifted: boolean): number =>
     (lifted ? z : Math.max(z, terrainZ(x, y))) + lift
 
+  /**
+   * Whether (x, y) lies past an end of road at grade `s` where its line carries on as a bridge's
+   * deck (`cut`): its surface stops square there, under the deck. Its round end reached half its
+   * width under the deck, and lifted the ground at the terrain's level there to the deck's: the
+   * A15's at Aulla up to 8 m over the tracks passing under its decks' ends, which ran into it.
+   */
+  const pastCut = (s: RoadSegment, x: number, y: number): boolean => {
+    if (s.cut === 0) return false
+    const ex = s.bx - s.ax,
+      ey = s.by - s.ay,
+      u = (x - s.ax) * ex + (y - s.ay) * ey
+    return ((s.cut & 1) !== 0 && u < 0) || ((s.cut & 2) !== 0 && u > ex * ex + ey * ey)
+  }
+
   /** Surface elevation of segment `s` at (x, y), or undefined when (x, y) lies farther than `reach` m off it. */
   const onSegment = (s: RoadSegment, x: number, y: number, reach = s.half): number | undefined => {
     const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
@@ -243,7 +270,8 @@ export const groundModel = (data: GroundData) => {
   /**
    * Where an actor at (x, y) stands, m a.s.l. On a platform the ground is its top (`platformTop`), or
    * the terrain where that stands higher (the back of Monzone's north platform rises to the street);
-   * elsewhere the terrain. At-grade roads are part of the ground: where several overlap (a junction),
+   * elsewhere the terrain. At-grade roads are part of the ground (one ending where its line carries
+   * on as a bridge's deck stops square there, `pastCut`): where several overlap (a junction),
    * their surfaces blend, each weighted by the square of how deep inside its carriageway the point is,
    * so the ground stays continuous where their profiles disagree (by up to a few metres); then the
    * higher of that and the platform or terrain. Bridge decks and tunnels compete with that
@@ -259,7 +287,7 @@ export const groundModel = (data: GroundData) => {
       sum = 0,
       weights = 0
     for (const s of segments) {
-      if (s.lifted) continue
+      if (s.lifted || pastCut(s, x, y)) continue
       const { d2, t } = segDist2(x, y, s.ax, s.ay, s.bx, s.by)
       if (d2 > s.half * s.half) continue
       const depth = s.half - Math.sqrt(d2),
@@ -411,7 +439,7 @@ export const groundModel = (data: GroundData) => {
     const over = (h: number) => h > top && h <= near + DRAWN_REACH
     if (over(terrainZ(x, y))) top = terrainZ(x, y)
     for (const s of segmentsIn(Math.floor(x / BUCKET), Math.floor(y / BUCKET))) {
-      const h = s.lifted ? undefined : onSegment(s, x, y)
+      const h = s.lifted || pastCut(s, x, y) ? undefined : onSegment(s, x, y)
       if (h !== undefined && over(h)) top = h
     }
     return top
