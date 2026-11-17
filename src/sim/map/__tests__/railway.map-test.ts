@@ -411,8 +411,10 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
   }
   // Gragnola's strip between its two tracks is a walkway at the rails' level, and so is the strip the
   // CTR maps north of Pieve San Lorenzo's line, 2.45 m off it (bare ground in 2010, the line's
-  // equipment in 2023: no train's step reaches it); the other twelve are platforms, the CTR's at Serricciolo (23C07 AGE#98)
-  // with no station or stop node within 300 m.
+  // equipment in 2023: no train's step reaches it); the other fifteen are platforms, the CTR's at Serricciolo (23C07 AGE#98)
+  // with no station or stop node within 300 m. Aulla Lunigiana's six are the CTR's three on 24C60's sheet (AGE#173–175),
+  // then OSM's three (public_transport=platform areas) on south of that sheet, where no 2019 sheet maps the ground: 1,865,
+  // 2,062 and 2,505 m², each with an edge 1.63–1.69 m off its track, as a train's step reaches.
   assert.deepEqual(
     railway.platforms.map((p) => [p.name, p.walkway === true]),
     [
@@ -427,6 +429,9 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
       ["Equi Terme", false],
       ["Monzone-Monte dei Bianchi-Isolano", false],
       ["Monzone-Monte dei Bianchi-Isolano", false],
+      ["Aulla Lunigiana", false],
+      ["Aulla Lunigiana", false],
+      ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
