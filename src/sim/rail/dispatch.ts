@@ -1,14 +1,14 @@
 /**
  * The dispatcher, the same on every line: it brings each line's trains in, turns them round at a
- * terminus and takes them off. A new
- * game stands each line's first train at its station nearest the player's start (`FillTrains`); an AI
- * train whose body has run past the drawn run is removed, beyond view, and after a layover of `LAYOVER`
- * s (drawn from `RailRng`) the next enters at the end of the run-out there, the other way (`Dispatch`);
- * one dwelling at its line's terminus with no call left ahead has its driver change ends, to run back;
- * a stolen train the player has left goes once all of it is out of view (`VIEW_REACH` m from them, as
- * people and cars quietly go), so the line clears and its next train is due after a layover; a `SetTrains` call makes one due at once
- * (`ApplyTrains`). No train enters or is placed where it could meet another line's head-on on track the
- * two share (`headOn`). The trains themselves are drafted in ./service.ts, which drives them.
+ * terminus and takes them off. A new game stands each line's first train at its station nearest the
+ * player's start (`FillTrains`); an AI train whose body has run past the drawn run is removed, beyond
+ * view, and after a layover of `LAYOVER` s (drawn from `RailRng`) the next enters at the end of the
+ * run-out there, the other way (`Dispatch`); one dwelling at its line's terminus with no call left
+ * ahead has its driver change ends, to run back; a stolen train the player has left goes once all of
+ * it is out of view (`VIEW_REACH` m from them, as people and cars quietly go), so the line clears and
+ * its next train is due after a layover; a `SetTrains` call makes one due at once (`ApplyTrains`). No
+ * train enters or is placed where it could meet another line's head-on on track the two share
+ * (`headOn`). The trains themselves are drafted in ./service.ts, which drives them.
  *
  * @module rail/dispatch
  */
@@ -163,12 +163,11 @@ const entry = (line: Line, from: 0 | 1, length: number) => {
  * The dispatcher: an AI train whose whole body has run past its line's drawn run is removed, and that line's next train is due
  * after a layover (drawn from `RailRng`) from that end; one dwelling at its line's terminus with no call left ahead is turned
  * round as its dwell starts (its driver changes ends: `boarded` at its far cab), to run back once it ends; a line's due train
- * enters at the run-out's end at line speed, beyond
- * view, once no AI train runs on its line, no train is on its run-out or within `entryClear` ahead of its nose, and no AI train
- * of another line, entering this step or running, would run track the two share (`SHARED`) the other way from it, on it or
- * still ahead (`headOn`): they could meet head-on. A stolen
- * train the player is not in is removed once all of it is out of view (`VIEW_REACH` m from them); its line, with no AI train on
- * it and none due, has its next due after a layover, from the end nearer where it stood (its first, on a line to a terminus).
+ * enters at the run-out's end at line speed, beyond view, once no AI train runs on its line, no train is on its run-out or
+ * within `entryClear` ahead of its nose, and no AI train of another line, entering this step or running, would run track the
+ * two share (`SHARED`) the other way from it, on it or still ahead (`headOn`): they could meet head-on. A stolen train the
+ * player is not in is removed once all of it is out of view (`VIEW_REACH` m from them); its line, with no AI train on it and
+ * none due, has its next due after a layover, from the end nearer where it stood (its first, on a line to a terminus).
  */
 export const Dispatch = Game.System(
   "Lunigiana/Dispatch",
