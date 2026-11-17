@@ -1833,14 +1833,17 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
     reads there (Liguria's reads the Magra's estuary 1.4–1.8 m up, as high as its quays), or the
     ground where that stands higher, and an end on dry ground (none of the water 0.5 m on past it,
     `PAST_END`) at that ground, so a walker steps on from the beach or the quay (`ON_DECK`); on dry
-    ground a path at grade. Kept whole, the lowering of the ground under the decks dug 388 nodes up
-    to 2.1 m deep under three piers OSM draws over dry ground (the 347 m boardwalk 1382979300, and
-    1382979301 and 1382979302 round a basin the map holds no water in) and sank a building's base
-    to −0.3 m. A closed pier (`area=yes`) is a `paved` area raised to 1 m. On magra-coast 16 open
-    piers, 17 pieces where the region's edge cuts them, make 21 roads, 14 decks and 7 paths at
-    grade: the estuary marinas' decks stand 1.0–1.3 m over water at 0–0.3 m, the sea marina's at
-    1.0 m, and the 4 jetties off the beach at Bocca di Magra rise from their beach end to 1 m; the
-    closed one is 685310267 by Punta Bianca, 96 m².
+    ground a path at grade. The two pieces share the cut, a vertex `pier:<way>:<x>,<y>`, so the road
+    graph joins them there and keeps the deck's end where it is ([section
+    11](#11-road-graph-graphts)): left with no id, the cut read as one of the outline's, and the
+    deck's end came off the path it leaves, 8 m back. Kept whole, the lowering of the ground under
+    the decks dug 388 nodes up to 2.1 m deep under three piers OSM draws over dry ground (the 347 m
+    boardwalk 1382979300, and 1382979301 and 1382979302 round a basin the map holds no water in) and
+    sank a building's base to −0.3 m. A closed pier (`area=yes`) is a `paved` area raised to 1 m. On
+    magra-coast 16 open piers, 17 pieces where the region's edge cuts them, make 21 roads, 14 decks
+    and 7 paths at grade: the estuary marinas' decks stand 1.0–1.3 m over water at 0–0.3 m, the sea
+    marina's at 1.0 m, and the 4 jetties off the beach at Bocca di Magra rise from their beach end
+    to 1 m; the closed one is 685310267 by Punta Bianca, 96 m².
   - **The breakwaters**: `man_made=breakwater` and `groyne` closed ways and multipolygons as OSM
     draws them, and an open way as a ring 3.5 m wide along it (mitred at its bends, at most 2 half
     widths out), are `rock` areas raised to `BREAKWATER_TOP`, 1.5 m a.s.l., once the sea is carved
@@ -2561,17 +2564,19 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
 
 ### 8. Water under decks (`water.ts`)
 
-Bridges keep 2.5 m of clearance over the water: the surface is capped there, settled again
-downstream, and re-carved outside road cores. At-grade road crossings imply a culvert, where the
-water dips 0.3 m below the road (the two fords over the Aulella, at and below Codiponte, are such
-crossings). Water left perched more than 1 m above the terrain (streams that end at a road cut)
-drops to the terrain, except inside a wider channel it flows into or in a lake's water, whose
-carved beds lie under it, and there only while it still runs downhill (a stream dropped into a
-river's carved bed never steps back up): the Canale Doglio through the 18 m² lake at (2934, −2611).
-A lake's water stands within 1 m of its level; higher, a surface inside its outline is the stream's
-on the bank, and drops no lower than the level, where it meets the lake's. The Canale della Fola
-runs into a pond 570 m from Arlia at its ground, 1.7 m over the level the pond's outlet caps it at
-(its lowest edge node, down the outlet's cascade), and its last sample there, over the cascade
+Bridges keep 2.5 m of clearance over the water (`BRIDGE_CLEAR`) and piers 1 m (`PIER_DECK`), as a
+pier's deck stands that high over the water's level (`pierDeck`; capped 2.5 m under it, a river
+under a pontoon fell 1.5 m under its own level there and on downstream): the surface is capped
+there, settled again downstream, and re-carved outside road cores. At-grade road crossings imply a
+culvert, where the water dips 0.3 m below the road (the two fords over the Aulella, at and below
+Codiponte, are such crossings). Water left perched more than 1 m above the terrain (streams that end
+at a road cut) drops to the terrain, except inside a wider channel it flows into or in a lake's
+water, whose carved beds lie under it, and there only while it still runs downhill (a stream dropped
+into a river's carved bed never steps back up): the Canale Doglio through the 18 m² lake at (2934,
+−2611). A lake's water stands within 1 m of its level; higher, a surface inside its outline is the
+stream's on the bank, and drops no lower than the level, where it meets the lake's. The Canale della
+Fola runs into a pond 570 m from Arlia at its ground, 1.7 m over the level the pond's outlet caps it
+at (its lowest edge node, down the outlet's cascade), and its last sample there, over the cascade
 carved 4 m under it, stood 3.4 m over the ground; it now meets the pond at its level. Two streams
 into ponds by Agnolo drop to their levels: 791367422 up to 1.4 m on the bank its pond's outline
 reaches up, and the Rio di Antigo to a level 0.4 m under its own surface leaving the pond, where it
@@ -2889,14 +2894,15 @@ over two builds, from 7.65 s without them).
 
 ### 11. Road graph (`graph.ts`)
 
-Nodes come from shared OSM node ids (clip points get their own), and edges are split to at most
-25 m. Where a road leaves the play area, its end is pulled back 8 m, past the exit cap. `traffic` is
-the largest connected component of the `motorway` to `service` edges (`isTraffic`: living streets
-and links included), minus private roads, dead-end tunnel spurs, and dead-end tips with no room for
-a car to turn (a 2.3 m circle clear of trunks and of the drive walls on the road's level, at its
-surface there: lanes that end between houses); tracks are drivable by the player but get no AI
-traffic. `walk` is the largest connected component of every edge except tunnels and motor roads
-(`isMotorRoad`: motorways, trunk roads and their slip roads, where the Codice della Strada,
+Nodes come from shared vertex ids (OSM's nodes, the conflation's `ctr:` and `culvert:` ones, and a
+pier's cuts at the water's edge, `pier:`); points the outline cuts get their own, and edges are
+split to at most 25 m. Where a road leaves the play area, its end is pulled back 8 m, past the exit
+cap. `traffic` is the largest connected component of the `motorway` to `service` edges (`isTraffic`:
+living streets and links included), minus private roads, dead-end tunnel spurs, and dead-end tips
+with no room for a car to turn (a 2.3 m circle clear of trunks and of the drive walls on the road's
+level, at its surface there: lanes that end between houses); tracks are drivable by the player but
+get no AI traffic. `walk` is the largest connected component of every edge except tunnels and motor
+roads (`isMotorRoad`: motorways, trunk roads and their slip roads, where the Codice della Strada,
 art. 175, bans people on foot), so nobody walks the Secante. The build keeps each vertex id's node
 (`ids`), so the level-crossing boxes name their nodes without matching coordinates.
 

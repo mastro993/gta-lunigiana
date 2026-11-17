@@ -18,6 +18,7 @@ import {
   flatRing,
   type P,
   pointInRing,
+  r1,
   ringBox,
   TERRAIN_BOX,
   type V,
@@ -357,7 +358,9 @@ export const pierDeck = (
  * `piers` cut at the edges of the `water` areas: a stretch over the water stays a pier's deck, a
  * stretch on dry ground (a boardwalk on the bank, a quay round a basin the map holds no water in) is
  * a path at grade, which the ground under a deck would otherwise be dug from (`deck-ground.ts`). In
- * order along each pier; the cuts carry no id.
+ * order along each pier; each cut at the water's edge is a vertex the pieces either side share,
+ * `pier:<way>:<x>,<y>`, so the road graph joins them there, where an id-less end is one the play
+ * area's outline cut (`trimExits` in graph.ts).
  */
 export const splitPiers = (
   piers: ReadonlyArray<RoadF>,
@@ -388,12 +391,23 @@ export const splitPiers = (
             ],
       )
     })
-    return runs
-      .sort((a, b) => a.from - b.from)
-      .map(({ pts, wet }): RoadF => {
-        if (wet) return { ...pier, pts }
-        const { bridge: _bridge, pier: _pier, ...path } = pier
-        return { ...path, pts }
-      })
+    runs.sort((a, b) => a.from - b.from)
+    // A cut at the water's edge ends one run and starts the next on one point: both take one id.
+    for (let k = 0; k + 1 < runs.length; k++) {
+      const before = runs[k]!.pts,
+        after = runs[k + 1]!.pts
+      const last = before.at(-1)!,
+        first = after[0]!
+      if (last.id !== undefined || first.id !== undefined) continue
+      if (r1(last.x) !== r1(first.x) || r1(last.y) !== r1(first.y)) continue
+      const id = `pier:${pier.id}:${r1(last.x)},${r1(last.y)}`
+      before[before.length - 1] = { ...last, id }
+      after[0] = { ...first, id }
+    }
+    return runs.map(({ pts, wet }): RoadF => {
+      if (wet) return { ...pier, pts }
+      const { bridge: _bridge, pier: _pier, ...path } = pier
+      return { ...path, pts }
+    })
   })
 }

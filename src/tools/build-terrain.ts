@@ -35,10 +35,17 @@ import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { continuations } from "./rail-runouts.ts"
 import { roadLevels } from "./road-levels.ts"
-import { pierDeck } from "./shore.ts"
+import { PIER_DECK, pierDeck } from "./shore.ts"
 import { type Profile, RELAX, resample, sampleGrid } from "./terrain.ts"
 import { inAreas, stillLevel, waterAreas, waterLevel } from "./water-areas.ts"
-import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
+import {
+  BRIDGE_CLEAR,
+  capUnderDecks,
+  dropPerched,
+  waterLine,
+  waterProfiles,
+  type Crossed,
+} from "./water.ts"
 
 /**
  * Catchments beyond the map's box that drain into it, km², each at the point on the box's edge
@@ -228,7 +235,9 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
           at: c.sa,
           half: lw / 2 + (l.bridge === true ? 2 : 1),
           deck: along(s, z, c.sb),
-          bridge: l.bridge === true,
+          // A pier's deck stands PIER_DECK over its water's level (`pierDeck`): capped a bridge's
+          // BRIDGE_CLEAR under it, the water would fall 1.5 m under that level, and on downstream.
+          ...(l.bridge === true ? { clear: piers.has(l) ? PIER_DECK : BRIDGE_CLEAR } : {}),
         })
     })
   }

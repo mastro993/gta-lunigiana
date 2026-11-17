@@ -4,6 +4,7 @@ import { test } from "node:test"
 import type { Area } from "../../sim/map/index.ts"
 import type { RoadF } from "../features.ts"
 import { fromLocal, type P, signedArea, type V } from "../geometry.ts"
+import { buildGraph } from "../graph.ts"
 import type { Osm, Tags } from "../osm.ts"
 import {
   BREAKWATER_TOP,
@@ -327,7 +328,7 @@ test("a pier's deck stands 1 m over the water's level whatever the DTM reads the
   )
 })
 
-test("a pier is cut at the water's edge: its stretch over the water a deck, on dry ground a path at grade, in order along it; a pier on dry ground all along a path", () => {
+test("a pier is cut at the water's edge: its stretch over the water a deck, on dry ground a path at grade, in order along it, the two sharing the cut's vertex; a pier on dry ground all along a path", () => {
   const sea: Area = { kind: "sea", level: 0, rings: [[-100, -100, 100, -100, 100, 0, -100, 0]] }
   const pier: RoadF = {
     id: 7,
@@ -354,7 +355,7 @@ test("a pier is cut at the water's edge: its stretch over the water a deck, on d
         [
           [0, 20, "a"],
           [0, 5, "b"],
-          [0, 0, undefined],
+          [0, 0, "pier:7:0,0"],
         ],
       ],
       [
@@ -362,7 +363,7 @@ test("a pier is cut at the water's edge: its stretch over the water a deck, on d
         true,
         true,
         [
-          [0, 0, undefined],
+          [0, 0, "pier:7:0,0"],
           [0, -30, "c"],
         ],
       ],
@@ -377,6 +378,51 @@ test("a pier is cut at the water's edge: its stretch over the water a deck, on d
       ],
     ],
   )
+})
+
+// Regression: the cut at the water's edge had no id, so the road graph keyed the two pieces' ends
+// apart, as where the outline cuts a line, and pulled the deck's end 8 m back: a pier leaving a
+// promenade lost its deck from the walk graph.
+test("a pier's pieces either side of the water's edge share a node there: the walk graph joins its deck to the footway it leaves, the deck whole to the cut", () => {
+  const sea: Area = { kind: "sea", level: 0, rings: [[-100, -100, 100, -100, 100, -10, -100, -10]] }
+  const n1 = { x: 0, y: 0, id: "n1" }
+  const footway: RoadF = {
+    id: 1,
+    cls: "path",
+    w: 2,
+    surface: "paved",
+    private: false,
+    pts: [{ x: -20, y: 0, id: "a" }, n1, { x: 20, y: 0, id: "b" }],
+  }
+  const pier: RoadF = {
+    id: 2,
+    cls: "path",
+    w: 2,
+    surface: "wood",
+    bridge: true,
+    pier: true,
+    private: false,
+    pts: [n1, { x: 0, y: -60, id: "h" }],
+  }
+  const roads = [footway, ...splitPiers([pier], [sea])]
+  assert.deepEqual(
+    roads.map((r) => [r.id, r.pier]),
+    [
+      [1, undefined],
+      [2, undefined],
+      [2, true],
+    ],
+  )
+  const { xy, edges, walk } = buildGraph(roads, () => true)
+  /** The places of the walk graph's nodes on road `road`'s edges. */
+  const walked = (road: number) =>
+    walk
+      .flatMap((e) => (edges[3 * e + 2] === road ? [edges[3 * e]!, edges[3 * e + 1]!] : []))
+      .map((n) => `${xy[2 * n]},${xy[2 * n + 1]}`)
+  for (const road of [0, 1, 2])
+    assert.ok(walked(road).length > 0, `road ${road} off the walk graph`)
+  assert.ok(walked(1).includes("0,-10"), "the path at grade reaches the cut")
+  assert.ok(walked(2).includes("0,-10"), "the deck starts at the cut")
 })
 
 test("a breakwater wholly in the sea is cut out of it, dry land; one the coastline runs across, or one on land, is not", () => {

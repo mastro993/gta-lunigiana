@@ -6,7 +6,8 @@ import { segIndex, type V } from "./geometry.ts"
 import { carve, keepSamples, resample, type Grid, type Profile } from "./terrain.ts"
 
 const TAIL = 0.25 // extra slope a tributary tail gets when lowered to meet the water it joins
-const BRIDGE_CLEAR = 2.5 // m between a bridge deck and the water under it
+/** A bridge's deck stands at least this high over the water under it, m. */
+export const BRIDGE_CLEAR = 2.5
 const CULVERT = 0.3 // m an at-grade road sits above the stream it crosses (implied culvert)
 /**
  * A surface may stand this far (m) above depth/2 over the final terrain before it is dropped (a
@@ -143,17 +144,20 @@ const cap = (p: Profile, at: number, half: number, z: number, both = false) => {
   if (both) fade(last, 1)
 }
 
+/** A road or the rail over water `water`, `at` m along it, `half` m either side, its deck or road at `deck` m. */
 export interface Crossed {
   readonly water: number
   readonly at: number
   readonly half: number
   readonly deck: number
-  readonly bridge: boolean
+  /** How far under a deck the water keeps, m (a bridge's BRIDGE_CLEAR, a pier's PIER_DECK); none at grade, over a culvert. */
+  readonly clear?: number
 }
 
 /**
- * After the roads, before the beds are carved again: bridges keep BRIDGE_CLEAR over the water,
- * settled again downstream, but none under the sea's level. Reads no terrain.
+ * After the roads, before the beds are carved again: the water keeps each deck's clearance under
+ * it (BRIDGE_CLEAR under a bridge's; a pier's deck stands on the water's own level), settled again
+ * downstream, but none under the sea's level. Reads no terrain.
  */
 export const capUnderDecks = (
   water: ReadonlyArray<WaterF>,
@@ -161,7 +165,8 @@ export const capUnderDecks = (
   crossed: ReadonlyArray<Crossed>,
 ): void => {
   const decks = () => {
-    for (const c of crossed) if (c.bridge) cap(wp[c.water]!, c.at, c.half, c.deck - BRIDGE_CLEAR)
+    for (const c of crossed)
+      if (c.clear !== undefined) cap(wp[c.water]!, c.at, c.half, c.deck - c.clear)
   }
   decks()
   settle(water, wp)
@@ -190,7 +195,8 @@ export const dropPerched = (
   terrain: ReadonlyArray<ArrayLike<number>>,
   still: (x: number, y: number) => number | undefined = () => undefined,
 ): void => {
-  for (const c of crossed) if (!c.bridge) cap(wp[c.water]!, c.at, c.half, c.deck - CULVERT, true)
+  for (const c of crossed)
+    if (c.clear === undefined) cap(wp[c.water]!, c.at, c.half, c.deck - CULVERT, true)
   const channels = segIndex<number>()
   water.forEach((w, i) => channels.addLine(w.pts, w.w / 2 + 1, i))
   water.forEach((w, i) => {
