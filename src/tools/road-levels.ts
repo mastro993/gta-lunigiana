@@ -2,14 +2,15 @@
 // bridge or tunnel): the way below keeps the rail bridge's clearance under the one above, its
 // `maxheight` (UNDERPASS when untagged, PERSON under a path or steps) plus a DECK. The profiles fit
 // the two one after the other, and the one fitted second takes the bound: it dips under the way
-// above it, or, a bridge, rises over the way below. A bridge or a tunnel in an earlier pass than the
-// other road (ROAD_PASSES) takes it too, from that road's natural level, as the rail does over a
-// tagged underpass: a junction pinned under a slip road's bridge held a Cesena service road 1.6 m
-// under it, and the Secante's tunnels ran 2.8 m under Cesena's streets; so does a road's tunnel
-// under a path or steps at grade, which no pass fits. A road at grade never rises over a tunnel, and
-// no road takes a bound from a path's or steps' bridge or tunnel: their pass (PATH_PASS) comes after
-// every road's, and they take it. One chain crossing itself takes both bounds from one natural
-// level. And two carriageways of one road that overlap in plan keep on one level there (`TWINS`).
+// above it, or, a bridge or a tunnel, rises over the way below. A bridge or a tunnel in an earlier
+// pass than the other road (ROAD_PASSES) takes it too, from that road's natural level, as the rail
+// does over a tagged underpass: a junction pinned under a slip road's bridge held a Cesena service
+// road 1.6 m under it, and the Secante's tunnels ran 2.8 m under Cesena's streets; so does a road's
+// tunnel under a path or steps at grade, which no pass fits. A road at grade never rises over a
+// tunnel, and no road takes a bound from a path's or steps' bridge or tunnel: their pass
+// (PATH_PASS) comes after every road's, and they take it. One chain crossing itself takes both
+// bounds from one natural level. And two carriageways of one road that overlap in plan keep on one
+// level there (`TWINS`).
 import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt, type V } from "./geometry.ts"
@@ -160,9 +161,10 @@ interface LevelsInput {
  * is left out, as no pass fits it and the bridge keeps its approaches' level), and the bounds they
  * put on a chain's profile: a way below a fitted one, or a tunnel below a later pass's road or a
  * path at grade (at its natural level), its clearance under it (`max`); a bridge, its clearance over
- * the way below, fitted or, in a later pass or at grade, at its natural level (`min`); and a
- * carriageway, within TWINS of its twin's fitted level where they overlap (`twinsOf`, both). And
- * the level of the road deck a path's or steps' bridge ends on (`deckUnder`).
+ * the way below, fitted or, in a later pass or at grade, at its natural level, and a tunnel over a
+ * fitted way below it (`min`); and a carriageway, within TWINS of its twin's fitted level where they
+ * overlap (`twinsOf`, both). And the level of the road deck a path's or steps' bridge ends on
+ * (`deckUnder`).
  */
 export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
   const box = roads.map((r) => lineBox(r.pts))
@@ -246,9 +248,10 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
             : undefined
         return above === undefined ? [] : around(down, c.sb, above - clear, "max")
       }
-      // Only a bridge rises: a road at grade over a tunnel keeps its level (a car park's ramp under
-      // a square in Cesena lifted the square 5.6 m).
-      if (up.bridge !== true) return []
+      // Only a bridge rises, or a tunnel over a fitted way under it (a path's underpass over a
+      // road's, or two bores of one pass, the lower fitted first): a road at grade over a tunnel
+      // keeps its level (a car park's ramp under a square in Cesena lifted the square 5.6 m).
+      if (up.bridge !== true && !(up.tunnel === true && fitted(down))) return []
       const below = fitted(down)
         ? zAt(down, c.sb)
         : later(down, up) && !pathDeck(down)

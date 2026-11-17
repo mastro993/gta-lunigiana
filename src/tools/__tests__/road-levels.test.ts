@@ -204,3 +204,25 @@ test("roadLevels: two oneway carriageways of one road overlapping in plan keep w
   assert.deepEqual(levels([a, b, c], [b]).bounds([{ item: c }]), [], "another road's")
   assert.deepEqual(levels([a, joined], [a]).bounds([{ item: joined }]), [], "a node shared")
 })
+
+// Regression (review of #19): a path's tunnel over a road's took no clearance from it, nor one bore
+// over another of its own pass fitted before it: only a bridge rose over a fitted way below.
+test("roadLevels: a tunnel over a fitted way's tunnel rises its clearance over it", () => {
+  // Ground flat at 100 m: a bore along y 0 at layer −2, fitted at 90 m, crossed at x 50 by one at
+  // layer −1.
+  const bores = (upper: RoadF["cls"], lower: RoadF["cls"]) => {
+    const low = road(40, lower, [v(0, 0), v(100, 0)], { tunnel: true, layer: -2 })
+    const high = road(41, upper, [v(50, -50), v(50, 50)], { tunnel: true, layer: -1 })
+    const levels = roadLevels({
+      roads: [low, high],
+      ground: () => 100,
+      fitted: (l: Linear) => l === low,
+      zAt: () => 90,
+    })
+    return zs(levels.bounds([{ item: high }]))
+  }
+  // A road's bore under it keeps a vehicle's 4 m, a path's a person's 2.5 m, and the deck.
+  assert.deepEqual(bores("path", "residential"), ["min 95.5"])
+  assert.deepEqual(bores("path", "path"), ["min 94.0"])
+  assert.deepEqual(bores("residential", "residential"), ["min 95.5"])
+})
