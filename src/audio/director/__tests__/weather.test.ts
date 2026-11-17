@@ -89,7 +89,7 @@ test("rain plays a bed at the ears while it falls, at the rate falling there; dr
   assert.equal(rain({ ...raining(20), anomaly: -15 }), undefined)
 })
 
-test("heavy rain raises the masking floor: a car at full load 250 m across the meadow, heard in the dry, is lost in a downpour", () => {
+test("heavy rain raises the masking floor: a car at full load 230 m across the meadow, heard in the dry, is lost in a downpour", () => {
   const engine = (weather: WeatherValue) => {
     const director = rig()
     director.hear(
@@ -432,7 +432,9 @@ test("the usual wind the law was tuned for is a cloudy day's, a little over the 
 // regime's 8 m/s a car 20 m off was culled, though on foot it was heard 12 dB under its full gain.
 test("in a car the wind masks as it plays there, through the cabin: a car across the meadow is heard as on foot less the cabin's loss, in any wind", () => {
   for (const wind of [USUAL_WIND, 6, 8]) {
-    for (const metres of [10, 20, 40]) {
+    // Within 30 m: on the map's floor of 98.4 m the meadow blows hard enough at 8 m/s that this car is culled from 35 m on
+    // foot as in the car (40 m was heard on Fosdinovo's floor of 162.3 m), and two culled gains, 0/0, compare as NaN.
+    for (const metres of [10, 20, 30]) {
       const engine = (inside: boolean) => {
         const director = rig(),
           other = car(2, "panda", away(MEADOW, metres, SOUTH), { rpm: 3000, load: 0.5 }),
@@ -447,7 +449,9 @@ test("in a car the wind masks as it plays there, through the cabin: a car across
         )
         return director.held().get("engine:2")?.at.gain ?? 0
       }
-      const lost = gainToDb(engine(false) / engine(true))
+      const outside = engine(false)
+      assert.ok(outside > 0, `${wind} m/s, ${metres} m: culled on foot`)
+      const lost = gainToDb(outside / engine(true))
       assert.ok(Math.abs(lost - CABIN.panda.loss) < 0.1, `${wind} m/s, ${metres} m: ${lost} dB`)
     }
   }

@@ -70,7 +70,7 @@ test("the stereo image turns with the view: a car ahead of the home seat's scree
   assert.ok(Math.abs(centred) < 1e-9, `${centred}`)
 })
 
-test("a car at full load 250 m across the open meadow is heard; 400 m away behind Monte San Giorgio it is not", () => {
+test("a car at full load 230 m across the open meadow is heard; 400 m away behind Monte San Giorgio it is not", () => {
   const open = rig()
   open.hear(
     world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, ACROSS_MEADOW, SOUTH), FULL)] }),
