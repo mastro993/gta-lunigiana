@@ -275,7 +275,11 @@ export const BUILDING_STYLES = [
 ] as const
 export type BuildingStyle = (typeof BUILDING_STYLES)[number]
 
-/** Land-use kinds the build emits: land covers (the woods among them, `WOODS`, and the olive groves, `olive`), a river's gravel (`pebble`) and its water (`river`, `lake`). */
+/**
+ * Land-use kinds the build emits: land covers (the woods among them, `WOODS`, and the olive groves,
+ * `olive`), a river's gravel (`pebble`) and its water (`river`, `lake`), the sea (`sea`, at 0 m) and a
+ * beach's sand (`sand`).
+ */
 export const AREA_KINDS = [
   "forest",
   "cemetery",
@@ -303,6 +307,8 @@ export const AREA_KINDS = [
   "conifer",
   "mixed",
   "olive",
+  "sea",
+  "sand",
 ] as const
 export type AreaKind = (typeof AREA_KINDS)[number]
 
@@ -319,9 +325,9 @@ const woods: ReadonlySet<string> = new Set(WOODS)
 /** Whether an area or a cover of `kind` is a wood (`WOODS`). */
 export const isWood = (kind: string): kind is Wood => woods.has(kind)
 
-/** Whether an area of `kind` holds water: a river's polygon (its bed, as wide as it spreads) or a lake; a river's gravel (`pebble`) does not. */
-export const isWaterArea = (kind: string): kind is "river" | "lake" =>
-  kind === "river" || kind === "lake"
+/** Whether an area of `kind` holds water: a river's polygon (its bed, as wide as it spreads), a lake or the sea; a river's gravel (`pebble`) and a beach's sand do not. */
+export const isWaterArea = (kind: string): kind is "river" | "lake" | "sea" =>
+  kind === "river" || kind === "lake" || kind === "sea"
 
 /**
  * Track on no line, drawn and driven by no train: a loop rejoins other track at both ends

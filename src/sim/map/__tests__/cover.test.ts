@@ -234,9 +234,9 @@ test("the cover is the same on two heightmaps round one anchor where an edge gra
   assert.deepEqual(cells(-10700), cells(-2900))
 })
 
-test("a cover keeps its byte: the old covers in their order, then river and lake, then the conifer and mixed woods, then the olive groves", () => {
+test("a cover keeps its byte: the old covers in their order, then river and lake, then the conifer and mixed woods, then the olive groves, then the sea and the sand", () => {
   assert.deepEqual(
-    Array.from({ length: 28 }, (_, v) => coverName(v)),
+    Array.from({ length: 30 }, (_, v) => coverName(v)),
     [
       "meadow",
       "forest",
@@ -265,6 +265,8 @@ test("a cover keeps its byte: the old covers in their order, then river and lake
       "conifer",
       "mixed",
       "olive",
+      "sea",
+      "sand",
       "meadow", // past the list
     ],
   )
@@ -372,4 +374,44 @@ test("an olive grove draws over a wood, grassland, farmland and residential land
   assert.equal(at(raster, 16, 20), "park")
   assert.equal(at(raster, 28, 16), "paved")
   assert.equal(at(raster, 26, 26), "farmyard")
+})
+
+test("a beach's sand draws over the land, a river, a lake and their gravel over the sand, the sea over them all, and a river line's pebble bed never over the sea, whichever comes first in the map", () => {
+  // The sea (y 0…16) under a beach (y 8…32) it reaches into, a lake and a river polygon on the
+  // beach, a gravel bar in the river, the beach over farmland, and an 8 m river line along x = 38
+  // running out into the sea, its bed 7 m either side.
+  const raster = coverBlocks({
+    ...bare,
+    heightmap,
+    areas: [
+      { kind: "sea", rings: [[0, 0, 40, 0, 40, 16, 0, 16]] },
+      { kind: "pebble", rings: [[16, 24, 24, 24, 24, 32, 16, 32]] },
+      { kind: "lake", rings: [[0, 24, 8, 24, 8, 32, 0, 32]] },
+      { kind: "river", rings: [[8, 24, 24, 24, 24, 32, 8, 32]] },
+      { kind: "sand", rings: [[0, 8, 40, 8, 40, 32, 0, 32]] },
+      { kind: "farmland", rings: [[0, 24, 40, 24, 40, 40, 0, 40]] },
+    ],
+    water: [
+      {
+        id: 1,
+        kind: "river",
+        w: 8,
+        bed: 7,
+        depth: 1.5,
+        pts: [38, 40, 38, 0],
+        z: [0, 0],
+        area: [40, 40],
+      },
+    ],
+  })(WHOLE)
+  assert.equal(at(raster, 2, 2), "sea")
+  assert.equal(at(raster, 2, 14), "sea") // over the beach reaching into it
+  assert.equal(at(raster, 2, 18), "sand")
+  assert.equal(at(raster, 2, 26), "lake")
+  assert.equal(at(raster, 10, 26), "river")
+  assert.equal(at(raster, 18, 26), "pebble") // the bar over the river
+  assert.equal(at(raster, 26, 26), "sand") // over the farmland
+  assert.equal(at(raster, 2, 36), "farmland")
+  assert.equal(at(raster, 34, 2), "sea") // the river line's bed stops at the sea
+  assert.equal(at(raster, 34, 18), "pebble") // and lies on the beach
 })

@@ -1,10 +1,10 @@
 // The terrain grid, built one listed 2 km tile at a time: on each tile's window of nodes the LiDAR
-// is averaged, the lakes and river polygons carved (water-areas.ts) and the beds under the water as
-// first settled, the road and rail claims written in the build's order (never on the water), the
-// river polygons (their gravel bars raised now) and the beds (outside the road cores) carved again
-// under the water kept below the decks, the terrain under each water sample read for the perched
-// check, the grid rounded to
-// 0.1 m and the rail bed levelled. Each of those writes a node from that node alone (its own value,
+// is averaged, the lakes, river polygons and the sea carved (water-areas.ts), the piers' decks and
+// the breakwaters raised over them (shore.ts) and the beds under the water as first settled, the
+// road and rail claims written in the build's order (never on the water), the river polygons
+// (their gravel bars raised now) and the beds (outside the road cores) carved again under the water
+// kept below the decks, the terrain under each water sample read for the perched check, the grid
+// rounded to 0.1 m and the rail bed levelled. Each of those writes a node from that node alone (its own value,
 // position, owner and the vectors), so a window needs no halo, and a node two tiles share comes out
 // the same in both: the pass checks it. A tile of the bounds' box the region leaves off its list (an
 // L's notch) is never worked: no terrain is read there. Once every tile is written, the ground under
@@ -19,7 +19,7 @@ import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
 import { ROAD_RANKS } from "./profiles.ts"
 import { type BedLine, bedLimits, bedReport, railBed } from "./rail-bed.ts"
 import { gridLattice, sampleGrid, slotOf, type Grid, type Profile } from "./terrain.ts"
-import { carveAreas, waterNodes, type CarvedArea } from "./water-areas.ts"
+import { carveAreas, raiseAreas, waterNodes, type CarvedArea } from "./water-areas.ts"
 import { carveAll } from "./water.ts"
 
 /** What the tile pass reads. */
@@ -30,8 +30,10 @@ interface GridInput {
   /** The water's surfaces as first settled, and as kept under the decks (`capUnderDecks`). */
   readonly wp0: ReadonlyArray<Profile>
   readonly wp: ReadonlyArray<Profile>
-  /** The lakes and river polygons. */
+  /** The lakes and river polygons, and the sea. */
   readonly areas: ReadonlyArray<CarvedArea>
+  /** The ground raised under the piers' decks and the breakwaters (shore.ts), each with its box. */
+  readonly raised: Parameters<typeof raiseAreas>[1]
   /** The road and rail profiles' claims, in the order they were made. */
   readonly claims: ReadonlyArray<Claim>
   /** The road bridges: each centreline, and how far either side of it its deck reaches, m. */
@@ -58,6 +60,7 @@ export const tileByTile = ({
   wp0,
   wp,
   areas,
+  raised,
   claims,
   decks,
   slabs,
@@ -120,6 +123,7 @@ export const tileByTile = ({
     for (let r = 0; r < rows; r++)
       uncarved.z.set(win.z.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
     carveAreas(win, areas, water, wp0, false)
+    raiseAreas(win, raised)
     carveAll(win, water, wp0)
     const protect = waterNodes(win, areas),
       owner = new Uint8Array(cols * rows).fill(255)

@@ -52,6 +52,8 @@ export interface RoadF {
   /** OSM maxheight (m) of an underpass. */
   readonly maxheight?: number
   readonly private: boolean
+  /** A pier (OSM `man_made=pier` mapped as a line, shore.ts): a path on a deck over the water, its ends' z by `pierDeck`. */
+  readonly pier?: true
   readonly pts: ReadonlyArray<V>
 }
 export interface WaterF {
@@ -122,7 +124,7 @@ const sharedNodes = (() => {
  * keeps the id the road graph, the catchments and the culverts join by. An edit glued four
  * streams' junctions 0.008–0.073 m from their next node (the Torrente Mommio's twice).
  */
-const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
+export const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
   const shared = sharedNodes(osm),
     out: Array<V> = []
   for (const v of vertices(osm, nds)) {
@@ -132,9 +134,11 @@ const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
   }
   return out
 }
-const ringOf = (osm: Osm, nds: ReadonlyArray<string>): Array<P> =>
+/** A closed way's or an assembled ring's nodes (the first repeated last) as an open ring in local metres. */
+export const ringOf = (osm: Osm, nds: ReadonlyArray<string>): Array<P> =>
   vertices(osm, nds.slice(0, -1)).map((v) => [v.x, v.y])
-const closed = (w: OsmWay) => w.nds.length > 3 && w.nds[0] === w.nds.at(-1)
+/** Whether a way is closed: more than three nodes, its last its first. */
+export const closed = (w: OsmWay) => w.nds.length > 3 && w.nds[0] === w.nds.at(-1)
 /**
  * Whether tags `t` make a building: a `building` tag, but `no` (none, as `bridge=no` is no bridge)
  * and `roof` (a canopy, open at ground level, which the surveys leave out: ctr.ts).

@@ -230,7 +230,7 @@ export interface Area {
   readonly waters?: ReadonlyArray<number>
 }
 
-/** "wall" | "guard_rail" | "cliff" polyline. */
+/** "wall" | "guard_rail" | "cliff" | "breakwater" (a breakwater's or a groyne's outline) polyline. */
 export interface Barrier {
   readonly kind: string
   readonly pts: ReadonlyArray<number>

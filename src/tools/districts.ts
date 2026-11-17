@@ -1,12 +1,13 @@
 // HUD district discs (`districtAt` in src/sim/map/index.ts): Monzone's named clusters, placed by
 // hand, every OSM town, village and hamlet elsewhere, centred on its place node with a radius fitted to
-// the buildings nearest it, and the mountains' landmarks, placed by hand.
+// the buildings nearest it, and the mountains' and the coast's landmarks, placed by hand; those two
+// lists where the region's inputs reach.
 import type { District } from "../sim/map/index.ts"
 import type { BuildingF } from "./features.ts"
 import { centroid, r1, toLocal } from "./geometry.ts"
 import type { Osm } from "./osm.ts"
 import { inPlay } from "./play-area.ts"
-import { REGION } from "./region.ts"
+import { REGION, inputParts, rectsBox } from "./region.ts"
 
 /** Monzone's station, streets and hill clusters: OSM names only Monzone (Alto) and Aiola there. */
 const MONZONE: ReadonlyArray<District> = [
@@ -32,7 +33,8 @@ const MONZONE: ReadonlyArray<District> = [
  * ridges centred by hand on the slope they name. None overlaps a village disc but Passo dei
  * Carpinelli, inside Casone Carpinelli's, kept small enough to take none of its buildings: the pass
  * names its own district (issue #17). The Carrara and Massa sides of the ridge are in the
- * rectangle too.
+ * rectangle too. And the coast's: the Magra's mouth and the headland of Punta Bianca, which no
+ * village names.
  */
 const LANDMARKS: ReadonlyArray<District> = [
   { name: "Torre di Monzone", x: 300, y: -2560, r: 380 },
@@ -86,6 +88,10 @@ const LANDMARKS: ReadonlyArray<District> = [
   { name: "La Pizza", x: -3774, y: -4254, r: 300 }, // peak 4884214211: the wooded cone down to about its 800 m contour, and the Campo Cecina road's bends under its faces
   { name: "Monte La Pianaccia", x: -4815, y: -4449, r: 300 }, // peak 4878663147: the wooded dome, the Campo Cecina road across its south flank and its picnic site; past 300 m east the saddle holds Maestà's houses
   { name: "Monte Grugola", x: -7395, y: -3672, r: 250 }, // peak 4885328769: the wooded top and the SP73 under its west flank; past 250 m the ridge climbs to Monte Primicerri
+  // The coast (#13): on OSM's coastline and its place nodes. Bocca di Magra, Fiumaretta, Marinella
+  // di Sarzana, Montemarcello and Luni Mare are OSM villages, with discs of their own.
+  { name: "Foce del Magra", x: -11297.7, y: -12785.1, r: 160 }, // the middle of the coastline's 322 m closure across the mouth (ways 1379669802 and 1379669801), between the jetties' heads: the mouth and its last reach; Bocca di Magra's node 321 m west
+  { name: "Punta Bianca", x: -12162.7, y: -13987.1, r: 150 }, // locality 3200895827: the headland's tip, the sea 35 m east and south of it, its rocky beach (way 176721000) out to 134 m west
 ]
 
 /**
@@ -100,7 +106,9 @@ const FIT = 0.9
 const RADIUS = { min: 80, max: 400 } // m
 
 /**
- * MONZONE, then a disc per OSM place outside it, in node id order, then LANDMARKS. Each building outside MONZONE
+ * MONZONE, then a disc per OSM place outside it, in node id order, then LANDMARKS, those two lists
+ * where the region's inputs reach (the box round its input parts: a test region of the coast holds
+ * none of the mountains', Lunigiana none of the coast's). Each building outside MONZONE
  * goes to the nearest place node within REACH; the disc covers FIT of them (plus 10 m), clamped
  * to RADIUS and rounded to 10 m.
  */
@@ -115,8 +123,12 @@ export const fitDistricts = (osm: Osm, buildings: ReadonlyArray<BuildingF>): Arr
         ? [{ name, x: r1(x), y: r1(y), r: node.tags.place === "city" ? 1000 : 500 }]
         : []
     })
+  const [x0, y0, x1, y1] = rectsBox(inputParts(REGION).flatMap((p) => p.rects))
+  const reached = (ds: ReadonlyArray<District>) =>
+    ds.filter(({ x, y }) => x >= x0 && x <= x1 && y >= y0 && y <= y1)
+  const monzone = reached(MONZONE)
   const inMonzone = (x: number, y: number) =>
-    MONZONE.some((d) => Math.hypot(x - d.x, y - d.y) <= d.r)
+    monzone.some((d) => Math.hypot(x - d.x, y - d.y) <= d.r)
   const places = [...osm.nodes.values()].flatMap((n) => {
     const [x, y] = toLocal(n.lat, n.lon)
     const name = n.tags.name
@@ -136,7 +148,7 @@ export const fitDistricts = (osm: Osm, buildings: ReadonlyArray<BuildingF>): Arr
     best?.near.push(bestD)
   }
   return [
-    ...MONZONE,
+    ...monzone,
     ...places.map(({ name, x, y, near }) => {
       near.sort((a, b) => a - b)
       const fit = (near[Math.floor(FIT * (near.length - 1))] ?? 0) + 10
@@ -147,6 +159,6 @@ export const fitDistricts = (osm: Osm, buildings: ReadonlyArray<BuildingF>): Arr
         r: Math.round(Math.min(RADIUS.max, Math.max(RADIUS.min, fit)) / 10) * 10,
       }
     }),
-    ...LANDMARKS,
+    ...reached(LANDMARKS),
   ]
 }

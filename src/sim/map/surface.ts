@@ -18,7 +18,7 @@ export type Surface = (typeof SURFACES)[number]
 
 /**
  * Off the road, by land cover, as the terrain is painted: green covers are grass (scrub's brush is leaves), grey ones hard
- * (loose stones are gravel; bare rock, quarry floors and village paving are stone).
+ * (loose stones are gravel; bare rock, quarry floors and village paving are stone), a beach and the sea's floor sand.
  */
 const COVER_SURFACE = {
   meadow: "grass",
@@ -48,6 +48,8 @@ const COVER_SURFACE = {
   conifer: "leaves", // needle litter
   mixed: "leaves",
   olive: "grass", // the grass between the trees
+  sea: "sand", // the sea's floor, and the wet sand of a shore cell above the waterline
+  sand: "sand",
 } as const satisfies Record<Cover, Surface>
 
 /** The roads' OSM `surface` values; anything else is asphalt. */

@@ -1,16 +1,19 @@
 // The water areas carved into a synthetic valley on the grid's lattice (water-areas.ts): a lake's
 // level (its median, its spill, OSM's ele) and the shelf under it, two river polygons sharing a seam
 // across a river and its tributary with a gravel bar, a river polygon with no river, the nodes the
-// water keeps from the roads, and windows that carve every node as the whole grid does.
+// water keeps from the roads, and windows that carve every node as the whole grid does; and on a
+// beach of its own, the sea carved to its floor and a breakwater raised over it.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Area } from "../../sim/map/index.ts"
+import { coastIndex } from "../coast.ts"
 import type { Dem } from "../dtm.ts"
 import type { WaterF } from "../features.ts"
-import { pointInRing, segDist2 } from "../geometry.ts"
+import { pointInRing, ringBox, segDist2 } from "../geometry.ts"
+import { seaFloor } from "../sea-floor.ts"
 import { gridLattice, makeGrid, type Grid, type Span } from "../terrain.ts"
-import { carveAreas, waterAreas, waterNodes, type CarvedArea } from "../water-areas.ts"
+import { carveAreas, raiseAreas, waterAreas, waterNodes, type CarvedArea } from "../water-areas.ts"
 import { waterProfiles } from "../water.ts"
 
 /** The scene: the lattice's 101 × 51 nodes (4 m apart) from its node at x = 0, y = 0. */
@@ -369,4 +372,97 @@ test("water areas: the water keeps from the roads a lake's nodes to its edge and
     [8, 100, 0],
   ] as const)
     assert.equal(wet[(y / 4) * COLS + x / 4], want, `(${x}, ${y})`)
+})
+
+// The sea: a coastline running east along y = 31, the land north of it (OSM's rule), the sea south
+// of it to past the scene's edges, and a breakwater out in it, on a beach rising 5 % north from
+// 0.2 m under the sea's level at the shore (a hollow behind it), over the sea's flat 0 m (the
+// terrain chain's sea step).
+const SEA = [-8, -8, 408, -8, 408, 31, -8, 31]
+const BREAKWATER = [151, 7, 169, 7, 169, 13, 151, 13]
+const FLOOR = seaFloor(
+  coastIndex([
+    {
+      pts: [
+        [-100, 31],
+        [500, 31],
+      ],
+      closed: false,
+    },
+  ]),
+)
+const beach = demOf((_x, y) => (y < 31 ? 0 : -0.2 + 0.05 * (y - 31)))
+const sea = waterAreas([{ kind: "sea", level: 0, rings: [SEA] }], [], [], beach, FLOOR)
+const seaGrid = (raiseBars: boolean, span = WHOLE): Grid => {
+  const g = beach.grid(span)
+  carveAreas(g, sea.carved, [], [], raiseBars)
+  return g
+}
+const seaFirst = seaGrid(false),
+  beachBare = beach.grid(WHOLE)
+
+test("water areas: the sea keeps its level and takes its floor, and a sea with no floor given is refused", () => {
+  assert.deepEqual(
+    sea.areas.map((a) => [a.kind, a.level]),
+    [["sea", 0]],
+  )
+  assert.equal(sea.carved[0]!.floor, FLOOR)
+  assert.throws(
+    () => waterAreas([{ kind: "sea", level: 0, rings: [SEA] }], [], [], beach),
+    /no floor/,
+  )
+})
+
+test("water areas: the sea is carved node by node to its floor in the pass before the claims, the shore's nodes left at the beach's height, and left by the pass after them", () => {
+  let wet = 0
+  for (const [x, y] of NODES) {
+    const z = at(seaFirst, x, y)
+    if (y < 31) {
+      assert.equal(z, FLOOR(x, y), `(${x}, ${y}) at the floor`)
+      wet++
+    } else assert.equal(z, at(beachBare, x, y), `(${x}, ${y}) on the beach`)
+  }
+  assert.equal(wet, 8 * COLS)
+  assert.equal(at(seaFirst, 100, 28), -0.24, "3 m out, the beach's face")
+  assert.equal(at(seaFirst, 100, 0), -0.6, "31 m out, its foot")
+  assert.ok(at(seaFirst, 100, 32) < 0, "the shore's first node, under the level, not raised to it")
+  assert.deepEqual(seaGrid(true).z, beachBare.z, "the pass after the claims leaves the sea")
+})
+
+test("water areas: windows meeting at a column or a row through the sea carve every node as the whole grid does", () => {
+  for (const [axis, n] of [
+    ["column", 40],
+    ["row", 4],
+  ] as const)
+    for (const [from, size] of [
+      [0, n + 1],
+      [n, (axis === "column" ? COLS : ROWS) - n],
+    ] as const) {
+      const span: Span =
+        axis === "column"
+          ? { ...WHOLE, i0: WHOLE.i0 + from, cols: size }
+          : { ...WHOLE, j0: WHOLE.j0 + from, rows: size }
+      seaGrid(false, span).z.forEach((z, k) => {
+        const i = (axis === "column" ? from : 0) + (k % span.cols),
+          j = (axis === "row" ? from : 0) + Math.floor(k / span.cols)
+        assert.ok(
+          Object.is(z, seaFirst.z[j * COLS + i]),
+          `node (${4 * i}, ${4 * j}) from ${axis} ${from}`,
+        )
+      })
+    }
+})
+
+test("water areas: a breakwater raised in the sea stands at its top over the floor on every node its cells touch, and the sea round it is left", () => {
+  const g = seaGrid(false)
+  raiseAreas(g, [{ rings: [BREAKWATER], box: ringBox(BREAKWATER), top: 1.5 }])
+  let raised = 0
+  for (const [x, y] of NODES) {
+    if (touches(BREAKWATER, x, y)) {
+      assert.equal(at(g, x, y), 1.5, `(${x}, ${y}) on the breakwater`)
+      raised++
+    } else assert.equal(at(g, x, y), at(seaFirst, x, y), `(${x}, ${y}) in the sea`)
+  }
+  // Its cells, centred at x 154…166 and y 10, touch 5 × 2 nodes.
+  assert.equal(raised, 5 * 2)
 })

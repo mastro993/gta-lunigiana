@@ -84,8 +84,9 @@ test("the puff count is bounded", () => {
   assert.equal(smoke.mesh.count, 16, "75 puffs a second for 1.5 s each: the cap holds")
 })
 
-test("smoke is burnt-rubber grey on asphalt, dust is tan on dirt and pale on sand", () => {
-  const lightness: Partial<Record<Surface, number>> = {}
+test("smoke is burnt-rubber grey on asphalt, dust is tan on dirt and the beach's pale warm grey on sand", () => {
+  const lightness: Partial<Record<Surface, number>> = {},
+    saturation: Partial<Record<Surface, number>> = {}
   for (const surface of ["asphalt", "dirt", "sand"] as const) {
     const smoke = new Smoke(steady)
     smoke.add(skid(1, surface, 60, 1))
@@ -96,6 +97,7 @@ test("smoke is burnt-rubber grey on asphalt, dust is tan on dirt and pale on san
     assert.equal(color.getHex(), PUFF[surface].hex, surface)
     color.getHSL(hsl)
     lightness[surface] = hsl.l
+    saturation[surface] = hsl.s
     if (surface === "asphalt")
       assert.ok(
         hsl.s < 0.15 && hsl.l > 0.4,
@@ -103,10 +105,15 @@ test("smoke is burnt-rubber grey on asphalt, dust is tan on dirt and pale on san
       )
     else
       assert.ok(
-        hsl.s > 0.3 && hsl.h > 20 / 360 && hsl.h < 50 / 360,
+        hsl.s > 0.1 && hsl.h > 20 / 360 && hsl.h < 50 / 360,
         `${surface} dust: hue ${hsl.h * 360}°, saturation ${hsl.s}`,
       )
   }
+  // The Magra's beaches' measured sand is a pale grey-beige: greyer than a track's tan, and lighter.
+  assert.ok(
+    saturation.dirt! > 0.3 && saturation.sand! < saturation.dirt!,
+    `sand ${saturation.sand}, dirt ${saturation.dirt}`,
+  )
   assert.ok(
     lightness.sand! > lightness.dirt! + 0.15,
     `sand ${lightness.sand}, dirt ${lightness.dirt}`,

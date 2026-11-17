@@ -18,6 +18,7 @@ import {
   flatLine,
   lineBox,
   r1,
+  ringBox,
   type V,
 } from "./geometry.ts"
 import { inPlay, onOutline } from "./play-area.ts"
@@ -34,8 +35,9 @@ import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { continuations } from "./rail-runouts.ts"
 import { roadLevels } from "./road-levels.ts"
+import { pierDeck } from "./shore.ts"
 import { type Profile, RELAX, resample, sampleGrid } from "./terrain.ts"
-import { stillLevel, waterAreas } from "./water-areas.ts"
+import { inWater, stillLevel, waterAreas } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**
@@ -102,8 +104,8 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   // The water as first settled: the beds are carved under it and the catchments read along it.
   const wp0 = wp.map((p) => ({ ...p, z: Float64Array.from(p.z) }))
   // The lakes' levels and the river polygons' waterways, into the areas in their places (a
-  // platform's area is its index there).
-  const wet = waterAreas(src.areas, water, wp0, dem)
+  // platform's area is its index there), and the sea on its floor.
+  const wet = waterAreas(src.areas, water, wp0, dem, src.seaFloor)
   wet.areas.forEach((a, i) => (src.areas[i] = a))
   // Every road a pass profiles, at the steepest grade its fit draws: a junction keeps within reach
   // of the junctions set before along the roads not yet fitted (junction-reach.ts).
@@ -183,9 +185,12 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     if (piece.bridge !== true) claim(p, 4, EXTRA_RANK, () => false)
   lap("roads")
 
+  const piers: ReadonlySet<Linear> = new Set(roads.filter((r) => r.pier === true)),
+    inWet = inWater(src.areas)
   /**
    * A bridge or tunnel no profiled chain covers (paths, steps): the line between its ends, from the
-   * uncarved ground. Under the rail both ends keep the road's clearance, as in a profiled tunnel.
+   * uncarved ground, or a pier's deck over the water vertex by vertex (`pierDeck`). Under the rail
+   * both ends keep the road's clearance, as in a profiled tunnel.
    */
   const lone = (l: Linear): Array<number> => {
     const cap = Math.min(
@@ -193,6 +198,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     )
     const end = (v: V) =>
       Math.min(cap, (v.id === undefined ? undefined : nodeZ.get(v.id)) ?? ground(v.x, v.y))
+    if (piers.has(l)) return pierDeck(l.pts, end, inWet)
     const za = end(l.pts[0]!),
       zb = end(l.pts.at(-1)!),
       s = arcLengths(l.pts)
@@ -245,6 +251,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     wp0,
     wp,
     areas: wet.carved,
+    raised: src.raised.map((r) => ({ ...r, box: ringBox(r.rings[0]!) })),
     claims,
     // Under a deck: its carriageway and a metre either side.
     decks: roads.filter((r) => r.bridge === true).map((r) => ({ pts: r.pts, half: r.w / 2 + 1 })),

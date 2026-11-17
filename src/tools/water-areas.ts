@@ -40,6 +40,8 @@ export interface CarvedArea {
   readonly waters?: ReadonlyArray<number>
   /** The gravel bars inside a river polygon: the `pebble` areas whose box meets its own. */
   readonly bars: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>
+  /** The sea's floor at a node, m a.s.l. (`seaFloor`): the sea is carved to it node by node. */
+  readonly floor?: (x: number, y: number) => number
 }
 
 /** Whether (x, y) is inside `rings`, even-odd over them all (a hole's inside is outside). */
@@ -127,6 +129,28 @@ const eachNode = (
     }
 }
 
+/**
+ * Calls `set` with the index in `g.z` of each node of `g`'s window inside `rings` (even-odd), filled
+ * from the anchor as the cells are, on a lattice of cells centred on the nodes: a node comes out the
+ * same in every window that holds it.
+ */
+const nodesIn = (
+  g: Grid,
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+  set: (k: number) => void,
+): void => {
+  const span = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
+  const [ai, aj] = anchorNode(g)
+  fillPolygon(
+    rings,
+    g.ax - g.cell / 2,
+    g.ay - g.cell / 2,
+    g.cell,
+    { c0: span.i0 - ai, r0: span.j0 - aj, cols: span.cols, rows: span.rows },
+    set,
+  )
+}
+
 /** Calls `set` with each node of `g` a cell of `rings` touches, and whether it is on their edge (`eachNode`). */
 const nodesOf = (
   g: Grid,
@@ -177,13 +201,15 @@ const levelOf = (rings: ReadonlyArray<ReadonlyArray<number>>, dem: Dem) => {
 /**
  * The water areas of `areas` with what the game reads of them (a lake's `level`, a river
  * polygon's `waters`: the pieces of `water` with a sample of `wp` inside it, or its `level` when it
- * has none, the map having cut its river away), in their order, and each as the tile pass carves it.
+ * has none, the map having cut its river away), in their order, and each as the tile pass carves it,
+ * the sea on `seaFloor` (throws on a sea with none).
  */
 export const waterAreas = (
   areas: ReadonlyArray<Area>,
   water: ReadonlyArray<WaterF>,
   wp: ReadonlyArray<Profile>,
   dem: Dem,
+  seaFloor?: (x: number, y: number) => number,
 ): { readonly areas: Array<Area>; readonly carved: Array<CarvedArea> } => {
   const pebbles = areas
     .filter((a) => a.kind === "pebble")
@@ -206,7 +232,14 @@ export const waterAreas = (
       return { ...a, waters }
     }
     const level = a.level ?? levelOf(a.rings, dem)
-    carved.push({ rings: a.rings, box, level, bars: [] })
+    if (a.kind === "sea" && seaFloor === undefined) throw new Error("a sea area with no floor")
+    carved.push({
+      rings: a.rings,
+      box,
+      level,
+      bars: [],
+      ...(a.kind === "sea" ? { floor: seaFloor } : {}),
+    })
     return { ...a, level }
   })
   return { areas: out, carved }
@@ -283,16 +316,18 @@ const nearestOn = (
 }
 
 /**
- * Carves the water areas into the window `g`: a lake's nodes to its level less SHELF a metre from
- * its shore (DEEPEST at most), and its edge raised to the level (by a rounding at most: the level is
- * no higher than its spill), so the shore holds the water drawn over its cells; a river polygon's
- * inner nodes to its waterways' floor at the nearest point (depth/2 under their surface, where the
- * river line itself is carved, and HALF_STEP more), its edge left, so its bank starts on its
- * outline, but raised to that floor (and HALF_STEP over it) where it lies lower in the pass without
- * `raiseBars`, and with `raiseBars` its bars raised to BAR over that surface (the pass under the
- * water kept below the decks: a bar never stands over a capped surface). Ground BANK over the
- * water's top is left. Run this before the lines are carved, which then cut their channels through
- * a lake's edge and a river's bars.
+ * Carves the water areas into the window `g`: the sea's nodes (those inside it) to its floor in the
+ * pass without `raiseBars`, node by node, its shore left as the terrain has it; a lake's nodes to
+ * its level less SHELF a metre from its shore (DEEPEST at most), and its edge raised to the level
+ * (by a rounding at most: the level is no higher than its spill), so the shore holds the water
+ * drawn over its cells; a river polygon's inner nodes to its waterways' floor at the nearest point
+ * (depth/2 under their surface, where the river line itself is carved, and HALF_STEP more), its
+ * edge left, so its bank starts on its outline, but raised to that floor (and HALF_STEP over it)
+ * where it lies lower in the pass without `raiseBars`, and with `raiseBars` its bars raised to BAR
+ * over that surface (the pass under the water kept below the decks: a bar never stands over a
+ * capped surface). Ground BANK over a lake's or a river's top is left. Run this before the lines
+ * are carved, which then cut their channels through the sea's floor, a lake's edge and a river's
+ * bars.
  */
 export const carveAreas = (
   g: Grid,
@@ -312,6 +347,15 @@ export const carveAreas = (
   ]
   for (const area of here) fillCells(g, area.rings, whole)
   for (const area of here) {
+    const { floor } = area
+    if (floor !== undefined) {
+      if (!raiseBars)
+        nodesIn(g, area.rings, (k) => {
+          const [x, y] = node(k)
+          g.z[k] = floor(x, y)
+        })
+      continue
+    }
     const nearest = near.get(area)
     const bar = new Uint8Array(nearest === undefined ? 0 : g.z.length)
     if (nearest !== undefined) for (const rings of area.bars) nodesOf(g, rings, (k) => (bar[k] = 1))
@@ -350,6 +394,18 @@ export const carveAreas = (
   }
 }
 
+/**
+ * Raises each node of the window `g` a cell of an area of `raised` touches to at least its `top`,
+ * m a.s.l. (a pier's area, a breakwater: shore.ts), after the sea is carved under it.
+ */
+export const raiseAreas = (
+  g: Grid,
+  raised: ReadonlyArray<Ringed & { readonly top: number }>,
+): void => {
+  for (const { rings, top } of inWindow(g, raised))
+    nodesOf(g, rings, (k) => (g.z[k] = Math.max(g.z[k]!, top)))
+}
+
 /** An area's rings and the box of its outer one. */
 interface Ringed {
   readonly rings: CarvedArea["rings"]
@@ -380,13 +436,14 @@ export const stillLevel = (areas: ReadonlyArray<CarvedArea>) => {
   }
 }
 
-/** Whether (x, y) lies in a water area (`isWaterArea`) of `areas`. */
-export const inWater = (areas: ReadonlyArray<Area>) =>
+/** Whether (x, y) lies in an area of `areas` whose kind `keep` takes. */
+export const inAreas = (areas: ReadonlyArray<Area>, keep: (kind: string) => boolean) =>
   inAny(
-    areas
-      .filter((a) => isWaterArea(a.kind))
-      .map((a) => ({ rings: a.rings, box: ringBox(a.rings[0]!) })),
+    areas.filter((a) => keep(a.kind)).map((a) => ({ rings: a.rings, box: ringBox(a.rings[0]!) })),
   )
+
+/** Whether (x, y) lies in a water area (`isWaterArea`) of `areas`. */
+export const inWater = (areas: ReadonlyArray<Area>) => inAreas(areas, isWaterArea)
 
 /**
  * Whether each node of the window `g` (by its index in `g.z`) is the water's, which roads may not

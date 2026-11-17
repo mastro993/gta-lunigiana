@@ -300,6 +300,32 @@ test("the conifer and mixed woods grow the trees a forest there grows, and an op
   for (let k = 0; k < field.ids.length; k++) assert.ok(field.trees[3 * k]! < 251, `tree ${k}`)
 })
 
+test("a beach's sand, the sea and a river's gravel over a wood or an olive grove keep its trees out, and bare rock a wood's (a grove draws over rock)", () => {
+  const box: Rect = [100, 100, 400, 300]
+  for (const [under, kinds] of [
+    ["forest", ["sand", "sea", "pebble", "rock"]],
+    ["olive", ["sand", "sea", "pebble"]],
+  ] as const)
+    for (const kind of kinds) {
+      const over = treeScatter(
+        {
+          areas: [
+            { kind: under, rings: [ring(box)] },
+            { kind, rings: [ring([250, 100, 400, 300])] },
+          ],
+          roads: [],
+          buildings: [],
+          water: [],
+          rail: [],
+        },
+        LUCIDO,
+      )([0, 0, 500, 500])
+      assert.ok(over.ids.length > 0, `${kind} over ${under}`)
+      for (let k = 0; k < over.ids.length; k++)
+        assert.ok(over.trees[3 * k]! < 251, `${kind} over ${under}: tree ${k} on it`)
+    }
+})
+
 /** The trees `treeScatter` grows on lucido's anchor in [0, 500)² over an olive grove on `box` and the areas `over`. */
 const grove = (
   box: Rect,

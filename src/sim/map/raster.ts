@@ -12,7 +12,7 @@ import { fillPolygon, type PixelBlock, segDist2 } from "../collide.ts"
 import type { Area, AreaKind, Building, MonzoneMap, Road, Water } from "./index.ts"
 import { anchorOf, isWaterArea, isWood, WOODS } from "./kinds.ts"
 
-/** Cover kinds: meadow by default and the map's area kinds (a river's gravel bed is `pebble`). */
+/** Cover kinds: meadow by default and the map's area kinds (a river's gravel bed is `pebble`, a beach `sand`). */
 export type Cover = "meadow" | AreaKind
 /**
  * Every cover, by the value stored in the tiles: new kinds go at the end, so a cover keeps its byte
@@ -46,9 +46,15 @@ const COVERS = [
   "conifer",
   "mixed",
   "olive",
+  "sea",
+  "sand",
 ] as const satisfies ReadonlyArray<Cover>
 
 const coverIndex = new Map<string, number>(COVERS.map((c, i) => [c, i]))
+/** The water areas' covers, by value: a river line's pebble bed paints over none of them. */
+const WATER_COVERS: ReadonlySet<number> = new Set(
+  COVERS.flatMap((c, v) => (isWaterArea(c) ? [v] : [])),
+)
 /**
  * The covers in fill order, later kinds drawing over earlier ones: the woods first, broadleaf then
  * the UCS's conifer and mixed woods over it (they refine OSM's), then every other cover, so a wood
@@ -56,19 +62,28 @@ const coverIndex = new Map<string, number>(COVERS.map((c, i) => [c, i]))
  * the fields and the residential land (the land cover's olive groves and vineyards are on the 2023
  * orthophoto where OSM draws its woods, grassland, fields or houses over them), and a farmyard over
  * them (a farm's yard, smaller than the land cover's half hectare), then the parks, squares and the
- * like; the water, and a river's gravel bars over it, last.
+ * like; a beach's sand, then the rivers and lakes and a river's gravel bars over them, and the sea
+ * last, over every beach that reaches into it, so the shore drawn is OSM's coastline.
  */
 const FILL: ReadonlyArray<Cover> = [
   "meadow",
   ...WOODS,
   ...COVERS.filter(
-    (c) => c !== "meadow" && c !== "olive" && !isWood(c) && !isWaterArea(c) && c !== "pebble",
+    (c) =>
+      c !== "meadow" &&
+      c !== "olive" &&
+      !isWood(c) &&
+      !isWaterArea(c) &&
+      c !== "pebble" &&
+      c !== "sand",
   ).flatMap((c) =>
     c === "farmyard" ? [] : c === "vineyard" ? [c, "olive" as const, "farmyard" as const] : [c],
   ),
+  "sand",
   "river",
   "lake",
   "pebble",
+  "sea",
 ]
 const ranks = new Map<string, number>(FILL.map((c, i) => [c, i]))
 /** Where an area of `kind` comes in `FILL`, the order areas are filled in (0 for a kind no cover has); the HUD's maps paint in it too (src/render/map-style.ts). */
@@ -213,9 +228,7 @@ const paint = (
     }
   }
   // The beds along the water lines, but not over a water area, whose own polygon is its bed.
-  const pebble = coverIndex.get("pebble")!,
-    river = coverIndex.get("river")!,
-    lake = coverIndex.get("lake")!
+  const pebble = coverIndex.get("pebble")!
   for (const w of map.water) {
     const reach = w.w / 2 + bankOf(w.w)
     if (reach <= w.w / 2) continue
@@ -229,7 +242,7 @@ const paint = (
         w.pts[k + 3]!,
         reach,
         (c) => {
-          if (out[c] !== river && out[c] !== lake) out[c] = pebble
+          if (!WATER_COVERS.has(out[c]!)) out[c] = pebble
         },
       )
   }

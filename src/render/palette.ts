@@ -43,10 +43,20 @@ export const PALETTE = {
   oakDead: 0x8c6a48,
   litter: 0x6e5b44,
   dirtTrack: 0x8f7a58,
-  // A beach's dry sand and the damp sand under it (the dust a sliding tyre throws up, the rut it leaves). Design values, not
-  // measured: the orthophoto medians of the Magra's beaches (issue #13) replace them under these names.
-  sand: 0xd6c39b,
-  sandWet: 0x9e8a66,
+  // The beach and the sea (render/terrain, the water shader): limestone scaled in linear light by orthophoto medians over the
+  // sunlit faces of the Parmignola jetties' Apuan limestone blocks beside the patches (the brighter half of 12 crest boxes), on
+  // Regione Toscana's 2023 summer flight (rt_ofc.5k23, CC BY 4.0), which reaches only 300 m into Liguria at Marinella (no
+  // licensed photo covers Fiumaretta or Bocca di Magra): dry sand (0.75, 0.71, 0.68) over 9 patches; wet sand (0.41, 0.39,
+  // 0.42) within 6 m of the waterline and the sea 3–12 m out (0.15, 0.24, 0.30) on 30 transects; the deep sea (0.004, 0.10,
+  // 0.22) 480–700 m off the beach by Carrara's port, 7–8 m deep on Regione Liguria's survey; foam (1.46, 1.51, 1.61) over the
+  // same jetties on the 2024/25 flight's storm surf (rt_ofc.5k24). The woods' ratio the trees use turns these yellow and green:
+  // it maps the jetties' limestone to 0xffffa5. The dust a sliding tyre throws up on sand and the rut it leaves take sand and
+  // sandWet too.
+  sand: 0xb6afa1,
+  sandWet: 0x8b8682,
+  seaShallow: 0x57696e,
+  seaDeep: 0x094560,
+  foam: 0xf5f5ed,
   waterShallow: 0x8db4b0,
   waterDeep: 0x3f6d63,
   asphalt: 0x4b4d50,

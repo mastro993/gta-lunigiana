@@ -75,6 +75,9 @@ export const COVER_LOOK = {
     share: 0,
     terraces: { rise: 3, strip: 2.5 },
   },
+  // The sea's cells are drawn under its water; a shore cell's part above the waterline is wet sand.
+  sea: { base: PALETTE.sandWet, alt: PALETTE.sandWet, share: 0 },
+  sand: { base: PALETTE.sand, alt: PALETTE.sand, share: 0 },
 } as const satisfies Record<Cover, CoverLook>
 
 /** A broadleaf wood's floor out of leaf (`crownsOn`): its leaf litter, the evergreen undergrowth showing through; a mixed wood's half its conifers' shade. */
