@@ -277,36 +277,48 @@ export interface TreeList {
   readonly ids: Int32Array
 }
 
-/** The trees of `parts` (each in ascending id order, no id in two) merged in id order. */
+/**
+ * The trees of `parts` (each in ascending id order, no id in two) merged in id order: each next
+ * tree the least of the parts' next, from a heap of the parts by their next id (a sort of every
+ * tree's id, part and place took 118 MB at Lunigiana's 7.4 million).
+ */
 export const mergeTrees = (
   parts: ReadonlyArray<{ readonly trees: ArrayLike<number>; readonly ids: ArrayLike<number> }>,
 ): TreeList => {
   const n = parts.reduce((sum, p) => sum + p.ids.length, 0)
-  // Every tree's id, part and place in it, then the trees sorted by id.
-  const all = new Int32Array(n),
-    part = new Int32Array(n),
-    index = new Int32Array(n)
-  let k = 0
-  parts.forEach((p, q) => {
-    for (let m = 0; m < p.ids.length; m++, k++) {
-      all[k] = p.ids[m]!
-      part[k] = q
-      index[k] = m
+  // Each part's next tree, and the parts with trees left, a binary min-heap by their next id.
+  const next = new Int32Array(parts.length)
+  const heap = parts.flatMap((p, q) => (p.ids.length > 0 ? [q] : []))
+  const idOf = (q: number) => parts[q]!.ids[next[q]!]!
+  const sift = (k: number) => {
+    for (;;) {
+      const l = 2 * k + 1,
+        r = l + 1
+      let m = k
+      if (l < heap.length && idOf(heap[l]!) < idOf(heap[m]!)) m = l
+      if (r < heap.length && idOf(heap[r]!) < idOf(heap[m]!)) m = r
+      if (m === k) return
+      ;[heap[k], heap[m]] = [heap[m]!, heap[k]!]
+      k = m
     }
-  })
-  const order = new Uint32Array(n)
-  for (let m = 0; m < n; m++) order[m] = m
-  order.sort((a, b) => all[a]! - all[b]!)
+  }
+  for (let k = (heap.length >> 1) - 1; k >= 0; k--) sift(k)
   const trees = new Float64Array(3 * n),
     ids = new Int32Array(n)
   for (let o = 0; o < n; o++) {
-    const m = order[o]!,
-      from = parts[part[m]!]!.trees,
-      i = 3 * index[m]!
-    trees[3 * o] = from[i]!
-    trees[3 * o + 1] = from[i + 1]!
-    trees[3 * o + 2] = from[i + 2]!
-    ids[o] = all[m]!
+    const q = heap[0]!,
+      from = parts[q]!,
+      m = next[q]!
+    trees[3 * o] = from.trees[3 * m]!
+    trees[3 * o + 1] = from.trees[3 * m + 1]!
+    trees[3 * o + 2] = from.trees[3 * m + 2]!
+    ids[o] = from.ids[m]!
+    next[q]!++
+    if (next[q] === from.ids.length) {
+      const last = heap.pop()!
+      if (heap.length > 0) heap[0] = last
+    }
+    sift(0)
   }
   return { trees, ids }
 }
