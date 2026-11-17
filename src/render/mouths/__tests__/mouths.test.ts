@@ -13,6 +13,7 @@ import {
   checkStoodBack,
   endsOf,
   type Mouth,
+  mouthsOf,
   whyOpen,
 } from "./mouth-checks.ts"
 import { aroundTunnels, bakedAt, PATH, PIEVE, SR445, TRACK, tunnelAt } from "./tunnels.ts"
@@ -102,6 +103,39 @@ test("Pieve San Lorenzo's underpass split into two ways 2 m from its south mouth
   assert.equal(wall.throat, bakedAt(south, id).throat)
   // Nor does `whyOpen` find the ground over its end too low to leave it open.
   assert.throws(() => whyOpen({ ...aroundTunnels(), roads: split }, south), /is open, though/)
+})
+
+test("a way in a tunnel branching off the 87 m path's at a vertex inside its bore (Aulla station's ramps off its underpass): no mouth at the branch, the path's mouths as baked, the branch's only at its other end", () => {
+  const { roads, buildings } = aroundTunnels(),
+    [road, id] = tunnelAt(PATH),
+    k = Math.floor(road.z.length / 2),
+    [x, y, z] = [road.pts[2 * k]!, road.pts[2 * k + 1]!, road.z[k]!]
+  // 30 m east from the vertex, level, in a tunnel of its own.
+  const branch: Road = { ...road, pts: [x, y, x + 30, y], z: [z, z] },
+    joined = {
+      ids: [...roads.ids, Number.MAX_SAFE_INTEGER],
+      items: [...roads.items, branch],
+    }
+  assert.ok(
+    k > 0 && k < road.z.length - 1,
+    `the vertex (${x}, ${y}) inside the path's line, not at its ends`,
+  )
+  const baked = bakeMouths(joined, buildings.items),
+    found = mouthsOf(joined)
+  for (const ends of [baked, found])
+    assert.deepEqual(
+      ends.flatMap((end) => (end.road === Number.MAX_SAFE_INTEGER ? [[end.x, end.y]] : [])),
+      [[x + 30, y]],
+      "the branch's mouth only at its far end",
+    )
+  assert.deepEqual(
+    found.filter((end) => end.road === id),
+    endsOf(road, id),
+  )
+  assert.deepEqual(
+    saved(baked.filter((mouth) => mouth.road === id)),
+    saved(MAP.derived.mouths.filter((mouth) => mouth.road === id)),
+  )
 })
 
 /** A house 7 m high on a 10 m square round map point (x, y), its lowest corner's ground `z0` m a.s.l. */

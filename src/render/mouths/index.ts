@@ -62,8 +62,9 @@ interface Line {
 
 /**
  * The mouths of `lines` that `mouthy` keeps: each end that no other line in a tunnel (`tunnel`)
- * ends at, off the play area's edge (farther than 0.5 m from its outline, where a line runs on past
- * it), with its vertex and the heading out along the line over CHORD m.
+ * ends at or runs through (a branch off a bore inside it, such as a ramp off an underpass), off the
+ * play area's edge (farther than 0.5 m from its outline, where a line runs on past it), with its
+ * vertex and the heading out along the line over CHORD m.
  */
 const mouthsOf = <L extends Line>(
   lines: ReadonlyArray<L>,
@@ -76,12 +77,13 @@ const mouthsOf = <L extends Line>(
   readonly y: number
   readonly angle: number
 }> => {
+  // The lines in a tunnel at each vertex: one at each of its ends, two where it runs through.
   const ends = new Map<string, number>()
   for (const line of lines)
     if (tunnel(line))
-      for (const k of [0, line.z.length - 1]) {
+      for (let k = 0; k < line.z.length; k++) {
         const key = `${line.pts[2 * k]},${line.pts[2 * k + 1]}`
-        ends.set(key, (ends.get(key) ?? 0) + 1)
+        ends.set(key, (ends.get(key) ?? 0) + (k === 0 || k === line.z.length - 1 ? 1 : 2))
       }
   return lines.flatMap((line, i) => {
     if (!mouthy(line)) return []
