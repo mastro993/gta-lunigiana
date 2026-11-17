@@ -84,7 +84,7 @@ test("where two roads at grade cross at different profiles the ground blends the
   assert.ok(step < 0.02, `steps of ${step} m a centimetre across the junction`)
 })
 
-test("a road at grade stops square where its line carries on as a deck: under the deck past its end the ground is the terrain, and a road passing under it its own", () => {
+test("a road at grade meeting a deck's end reaches no farther under the deck: past its end the ground there is the terrain, and a road passing under it its own; beside the deck it keeps its round end", () => {
   // An approach 6 m over the terrain along y = 0 to x = 0, a deck on from there, and a road at
   // grade 2 m wide under the deck along x = 3: both within the approach's half-width of its end.
   const approach = road({ from: [-50, 0], to: [0, 0], z: [106, 106] }),
@@ -98,6 +98,12 @@ test("a road at grade stops square where its line carries on as a deck: under th
   assert.equal(drawnZ(1, 2, 100), 100, "no ribbon of the approach drawn past the end")
   // A road at grade ending where no deck does keeps its round end.
   assert.equal(scene({ roads: [approach] }).atGrade(1, 2), 106 + LIFT)
+  // One turning 90° onto the deck at its end: past its end, under the deck the terrain, beside it
+  // its round end, the outside of the bend.
+  const side = road({ from: [0, -30], to: [0, 0], z: [106, 106] }),
+    turn = scene({ roads: [side, deck] })
+  assert.equal(turn.atGrade(2, 1), 100, "under the deck")
+  assert.equal(turn.atGrade(-2, 1), 106 + LIFT, "beside the deck's end")
 })
 
 test("a platform's top along its axis is the ground on it, unless the terrain stands higher", () => {
