@@ -14,7 +14,9 @@
 // ground just outside it meets, and stands more than ONE_LEVEL + ON_DECK under every deck over it:
 // a body a deck holds, on it or on the road at its ends, never meets one. A road passing under a
 // deck, its surface ONE_LEVEL or more under the deck's top wherever it comes within the walls,
-// keeps a corridor through the low space, walled along its sides; any other road opens the walls
+// keeps a corridor through the low space, walled along its sides, its carriageway whatever the
+// ground beside it climbs to (the 4 m grid draws an abutment's or an embankment's face across a
+// cell, and a road at grade overlapping it climbs into it); any other road opens the walls
 // across its carriageway where its surface is on their level, so no wall stands on a road. A road
 // meeting a deck's end opens the walk walls round it along its verges too, where pedestrians walk
 // onto the deck, up to ONTO past the end where the ground stands within ONE_LEVEL of its top.
@@ -25,6 +27,7 @@ import { VEHICLE_MODELS, VEHICLES } from "../sim/vehicles.ts"
 import {
   along,
   clustersOf,
+  type Corridor,
   type Deck,
   decksOf,
   fieldAt,
@@ -197,10 +200,11 @@ const wallsOf = (
         wide.within(x, y, ({ data, r }, d2) => {
           if (Math.sqrt(d2) <= r - widest + sides[i]!) near.add(data)
         })
-    const under = segIndex<number>()
+    const under = segIndex<Corridor>()
     for (const j of [...near].sort((a, b) => a - b)) {
       if (j === deck.road) continue
-      const corridor = kind.reach(roads[j]!) + CORRIDOR
+      const corridor = kind.reach(roads[j]!) + CORRIDOR,
+        hold = roads[j]!.w / 2 + CORRIDOR
       const below = segmentsOf(lines[j]!, 0).every((seg) =>
         along(seg).every(([x, y]) => {
           const z = surfaceOn(j, offSegment(seg, x, y).z, x, y)
@@ -211,7 +215,7 @@ const wallsOf = (
         }),
       )
       if (!below) continue
-      under.addLine(lines[j]!.pts, corridor, j)
+      under.addLine(lines[j]!.pts, Math.max(corridor, hold), { reach: corridor, hold })
       passing[i]!.add(j)
     }
     return under
