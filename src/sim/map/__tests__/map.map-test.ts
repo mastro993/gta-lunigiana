@@ -180,6 +180,101 @@ const VILLAGES = {
   Vallecchia: { x: -7893.4, y: -5782.9 }, // 1411140583, Castelnuovo Magra (SP)
   Vercalda: { x: -9593.6, y: -3728.2 }, // 1411140955
   "Villaggio Bertani": { x: -10530.7, y: -5256.7 }, // 1411140648
+  // Aulla's part (#19), each toLocal of its OSM place node to 0.1 m: the issue's eleven, then
+  // every other village and hamlet in its play area that the traffic graph reaches.
+  Aulla: { x: -12975.1, y: 5866.7 }, // 61753613, place=town
+  Podenzana: { x: -15038.9, y: 4944.4 }, // 61753583
+  Terrarossa: { x: -13547.9, y: 7790.8 }, // 1445480229
+  Barbarasco: { x: -14643.6, y: 8930.7 }, // 997723706
+  Tresana: { x: -17366.6, y: 10277.9 }, // 61753580
+  Lusuolo: { x: -14596.8, y: 11523 }, // 1003622010, Mulazzo
+  "Licciana Nardi": { x: -7345.1, y: 11457.9 }, // 61753612
+  Monti: { x: -10064.8, y: 9511.3 }, // 1003630416; the issue's (-10065, 9905), 393.7 m north, is its castle
+  Pontebosio: { x: -8633, y: 9794.5 }, // 1003630492, 56.8 m from the issue's (-8605, 9844)
+  Bastia: { x: -6524, y: 11411.3 }, // 1003630470, 21.7 m from the issue's (-6523, 11433)
+  Serricciolo: { x: -7985.2, y: 4661.6 }, // 1267020533
+  Amola: { x: -10679.7, y: 10645.5 }, // 996977166
+  Bagni: { x: -13440.6, y: 4846 }, // 1267021666
+  "Baltrina II": { x: -15398.6, y: 8489.9 }, // 1445480415
+  Barisello: { x: -8753, y: 5327.6 }, // 1267019770
+  Bigliolo: { x: -6391, y: 7871.3 }, // 1467639422
+  Bocceda: { x: -18515.1, y: 6362.2 }, // 1445480930
+  Bola: { x: -18690.7, y: 8182.9 }, // 1445480034
+  Bondola: { x: -7300.9, y: 8973.3 }, // 1467639423
+  Bottria: { x: -16633.3, y: 9386.7 }, // 1003630397
+  Cadodolo: { x: -6323.5, y: 7393.3 }, // 1467639424
+  Calcinara: { x: -13478.4, y: 5282.5 }, // 1267019804
+  "Campo di Sopra": { x: -16866.4, y: 6646.7 }, // 1445480862
+  Campogrande: { x: -6156.6, y: 12649 }, // 10710037009
+  Campoli: { x: -15748.9, y: 12578 }, // 1003621998, Mulazzo
+  Camporella: { x: -20035.5, y: 9943.1 }, // 1497141699
+  Canala: { x: -15250.4, y: 7513.5 }, // 1445480319
+  Careggia: { x: -17527.1, y: 9586.7 }, // 1003630444
+  "Castello di Villa": { x: -18576.1, y: 10091.4 }, // 1497141703
+  Catizzola: { x: -15401.1, y: 11480.5 }, // 1003621970
+  Cercò: { x: -16159.9, y: 7013.9 }, // 1445480306
+  Ceresedo: { x: -15071.8, y: 5197.1 }, // 1267020301
+  Cerghiraro: { x: -16014.9, y: 5400.2 }, // 1267021028
+  Collecchia: { x: -6713.8, y: 5414.5 }, // 1267020120, Fivizzano's; Monzone's hand-placed Collecchia (districts.ts) shares the name
+  Corneda: { x: -16012.6, y: 9414.2 }, // 1003630367, Tresana's; Villafranca's Corneda (7856861160) shares the name
+  Cortenovo: { x: -11314.8, y: 11312.6 }, // 1003630399, Villafranca in Lunigiana
+  "Croce-Pianello": { x: -20230.1, y: 5361 }, // 1445480660
+  "Cuccarello I": { x: -6879.2, y: 10120.9 }, // 1003630377
+  "Cuccarello II": { x: -6376.9, y: 10000.4 }, // 1003630393
+  Fertigliana: { x: -5831.7, y: 9382.7 }, // 1005310962
+  Fogana: { x: -20507.9, y: 4976.3 }, // 1445480780
+  Fornoli: { x: -12918.9, y: 10330.5 }, // 1003630409, Villafranca in Lunigiana
+  Gabanasco: { x: -8245.3, y: 10256.4 }, // 10650288272
+  Genicciola: { x: -20298.4, y: 6248.7 }, // 1445480894
+  Giovagallo: { x: -19670.5, y: 8177 }, // 1445480407
+  Groppo: { x: -17877.9, y: 8550.2 }, // 1445480636
+  "I Saldi": { x: -10932.4, y: 11089.9 }, // 1003630487, Villafranca in Lunigiana
+  "La Costa": { x: -15809.1, y: 4775.1 }, // 1267020282
+  "La Piastra": { x: -13541.4, y: 9334.3 }, // 1003630381, Villafranca in Lunigiana
+  Loppiedo: { x: -16519.1, y: 5069.1 }, // 1267019445
+  Lorenzana: { x: -16606.9, y: 11537.2 }, // 1003622009
+  Magliola: { x: -8013.6, y: 10607.7 }, // 10650288210
+  Malacosta: { x: -10594.7, y: 6943.3 }, // 1467639436
+  Masero: { x: -12849.9, y: 7225.1 }, // 1445480925
+  Meredo: { x: -17578, y: 6181 }, // 1445480921
+  Merizzo: { x: -11130.6, y: 12407.8 }, // 996611375, Villafranca in Lunigiana
+  Metti: { x: -16099.2, y: 5084 }, // 1267019905
+  Montale: { x: -14870.1, y: 4944 }, // 1267019719
+  "Montedivalli-Chiesa": { x: -20713.4, y: 4477.3 }, // 1445480844
+  Montevalese: { x: -7454.8, y: 4680.6 }, // 1267021125, Fivizzano
+  "Monti di Licciana": { x: -9326.9, y: 9896.1 }, // 996979783
+  Nave: { x: -14458, y: 7930.4 }, // 1445480288
+  Novegigola: { x: -18185.7, y: 6736.9 }, // 1445480512
+  Olivola: { x: -7977.6, y: 7185.8 }, // 1467639438
+  Ortigaro: { x: -20402.1, y: 9665.4 }, // 1497141706
+  Pallerone: { x: -10149.7, y: 4806.2 }, // 1267019546
+  Panicale: { x: -8078.8, y: 11782.5 }, // 996972383
+  Paretola: { x: -5415.4, y: 11109 }, // 1005310963
+  Pera: { x: -20340.9, y: 10081.9 }, // 1497141707
+  Piano: { x: -7495, y: 11201.9 }, // 10661199892
+  "Piano di Collecchia": { x: -7116.3, y: 5876.3 }, // 1267020199, Fivizzano
+  Pietrasalta: { x: -19941.9, y: 8154 }, // 1445479942
+  Ponte: { x: -14260.7, y: 8222.2 }, // 1445480161
+  Popetto: { x: -17518.4, y: 11930.5 }, // 1003621982
+  Prato: { x: -19819.8, y: 4976.4 }, // 1445480903
+  Quercia: { x: -9861.3, y: 7765 }, // 1467639443
+  "Rometta Apuana": { x: -6515.2, y: 4323.2 }, // 5018892695, Fivizzano
+  Saldina: { x: -7432.2, y: 6487.5 }, // 1267020726
+  Saletto: { x: -13767.6, y: 5130.8 }, // 1267021574
+  Sanacco: { x: -10190.6, y: 7500.6 }, // 1467639444
+  Serrapiana: { x: -18137.5, y: 9481.4 }, // 1003630392
+  "Stazione di Rometta": { x: -5625.7, y: 4476.1 }, // 1267020838, Fivizzano
+  Tassonarla: { x: -15318.1, y: 8034.7 }, // 1445480687
+  Tavella: { x: -19574.1, y: 7594.3 }, // 1445480795
+  Trinala: { x: -8294.4, y: 10597.4 }, // 1003630407
+  Vaccareccia: { x: -8973.7, y: 8609.6 }, // 1467639448
+  Vaggi: { x: -20724.4, y: 5012.6 }, // 1445480749
+  Valenza: { x: -8947.2, y: 7046.6 }, // 1467639449
+  Valle: { x: -19629.2, y: 10897.6 }, // 10289140813
+  Verpiana: { x: -8450.3, y: 5432.9 }, // 1267019981
+  "Villa Rosticciola": { x: -19020.1, y: 10396.8 }, // 10289122205
+  Villanova: { x: -6569.4, y: 6722.5 }, // 1467639452
+  Villecchia: { x: -19817.1, y: 11258.3 }, // 1003621973
 }
 
 test("bounds and heightmap cover the play area", () => {

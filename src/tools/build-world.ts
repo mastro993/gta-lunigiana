@@ -12,7 +12,7 @@ import { buildGraph } from "./graph.ts"
 import { parapets } from "./parapets.ts"
 import { onOutline } from "./play-area.ts"
 import { lifted } from "./profiles.ts"
-import { clearVerges } from "./rail-clear.ts"
+import { clearVerges, onTrack } from "./rail-clear.ts"
 import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
 import { REGION } from "./region.ts"
 import { clearance, KERB_SHARE, parkedSpots, playerSpawn, regionPoi, startNear } from "./spawns.ts"
@@ -76,7 +76,16 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
       trees.trees,
       levelled(walls.levels.drive),
     )
-  const graph = buildGraph(roads, (x, y, road) => driveClear.circle(x, y, TURN, level(road, x, y)))
+  // At-grade running track: no dead end of the graph on it, nor a lane or verge beside it.
+  const track = railLines.flatMap(({ r, pts, z }, i) =>
+    kinds[i] === undefined && !lifted(r) ? [{ pts, z }] : [],
+  )
+  const standsOnTrack = onTrack(track)
+  const graph = buildGraph(
+    roads,
+    (x, y, road) => driveClear.circle(x, y, TURN, level(road, x, y)),
+    (x, y, road) => standsOnTrack(x, y, level(road, x, y)),
+  )
   // Level crossings: boxes of crossing nodes on one road; then no verge or lane beside the running track.
   const crossingNodes = levels.map(({ road, piece, v, vertex }) => ({
     road,
@@ -95,9 +104,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
       ...(r.oneway ? { oneway: true } : {}),
       ...roadLines[i]!,
     })),
-    track: railLines.flatMap(({ r, pts, z }, i) =>
-      kinds[i] === undefined && !lifted(r) ? [{ pts, z }] : [],
-    ),
+    track,
     boxes: levelCrossings.map((c) => ({
       road: c.road,
       at: c.nodes.map((n) => [graph.xy[2 * n]!, graph.xy[2 * n + 1]!] as const),

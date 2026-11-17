@@ -414,6 +414,14 @@ export const conflateRail = (
     ),
   ]
   const bridged = (x: number, y: number) => bridges.some((poly) => inPolygon(x, y, poly))
+  // How many rail bridges hold each node: a bridge's end that another bridge holds too (a
+  // crossover's switch on a main track's deck) lies on that deck.
+  const decks = new Map<string, number>()
+  for (const r of rail)
+    if (r.bridge === true)
+      for (const id of new Set(r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))))
+        decks.set(id, (decks.get(id) ?? 0) + 1)
+  const carried = (id: string) => (decks.get(id) ?? 0) >= 2
   for (const { chain, pts, line } of chains) {
     const spans = chain.map(({ item, rev }, i) => ({
       id: item.id,
@@ -423,7 +431,7 @@ export const conflateRail = (
       ...(i + 1 === chain.length ? {} : { to: (rev ? item.pts[0]! : item.pts.at(-1)!).id! }),
     }))
     const shared = (id: string) => roadsAt.has(id) || waterIds.has(id)
-    keepSpans(pts, line, spans, crossed, shared, bridged, spanReport)
+    keepSpans(pts, line, spans, crossed, shared, carried, bridged, spanReport)
     cutAtBridges(line, spans, bridges, (id) => roadsAt.has(id), spanReport)
   }
   // A bridge end slid along the track, and the culverts, are where the lines now have them.

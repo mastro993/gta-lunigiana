@@ -70,7 +70,9 @@ const indices = (pts: ReadonlyArray<V>, span: Span): [number, number] => [
  * that falls short slides along the track (OSM ended the Aulella bridge 3.1 m inside the river). Water that the at-grade track crosses gets
  * a shared vertex, unless it runs under a CTR bridge (`bridged`), which `cutAtBridges` makes one.
  * Throws when the conflated at-grade track crosses water OSM's did not, or when a bridge end to
- * slide is shared with another line (`shared`).
+ * slide is shared with another line (`shared`) or ends its chain. An end on another track's bridge
+ * (`carried`: a crossover's switch on the Pontremolese's two decks over the Aulella's bank road
+ * north of Aulla) stays: that deck spans what lies past it.
  */
 export const keepSpans = (
   osm: ReadonlyArray<V>,
@@ -78,6 +80,7 @@ export const keepSpans = (
   spans: ReadonlyArray<Span>,
   crossed: ReadonlyArray<Crossed>,
   shared: (id: string) => boolean,
+  carried: (id: string) => boolean,
   bridged: (x: number, y: number) => boolean,
   report: SpanReport,
 ): void => {
@@ -109,11 +112,12 @@ export const keepSpans = (
         need0 = Math.min(need0, now.sa - e2 - m2)
         need1 = Math.max(need1, now.sa + e2 + m2)
       }
-    for (const [end, id, need, at] of [
-      ["from", span.from, need0, b0],
-      ["to", span.to, need1, b1],
+    for (const [end, id, need, at, vertex] of [
+      ["from", span.from, need0, b0, bridge[0]!],
+      ["to", span.to, need1, b1, bridge.at(-1)!],
     ] as const) {
       if (Math.abs(need - at) < 1e-6) continue
+      if (vertex.id !== undefined && carried(vertex.id)) continue
       if (id === undefined || shared(id))
         throw new Error(
           `bridge ${span.id}: its ${end} end must slide but is ${id ?? "a chain end"}`,

@@ -9,6 +9,7 @@ import { splitIn, type CtrTrack, type Polygon } from "./ctr-rail.ts"
 import type { RailF, RoadF } from "./features.ts"
 import { arcLengths, segDist2, type V } from "./geometry.ts"
 import { hitsOn, insertOn, MIN_SEG, pruneShort, type Line } from "./rail-match.ts"
+import { sheet2k, surveyId } from "./survey-ids.ts"
 
 /** An end this close (m) to another track, heading along it within SWITCH.angle degrees, is a switch onto it. */
 const SWITCH = { gap: 1, angle: 20 }
@@ -89,13 +90,15 @@ const outward = (pts: ReadonlyArray<V>, end: 0 | 1) => {
 }
 
 /**
- * "23D11 VLI#2.0" → −1190020: negative like the CTR buildings' ids (ctr.ts), from the sheet,
- * record and part of the track's first line, so no two tracks share one; the pieces a track is cut
- * into (at bridges and switches) share it.
+ * "23D11 VLI#2.0" → the id `surveyId` gives the CTR's record 2, part 0 of sheet 23D11, its local
+ * number 1190020 from the sheet, record and part of the track's first line: negative and unique
+ * across sections like the CTR buildings' ids (ctr.ts), so 24C11's tracks by Aulla never share
+ * 23D11's. The pieces a track is cut into (at bridges and switches) share it.
  */
 const idOf = (src: string): number => {
-  const [, sheet, record, part] = /^\d\dD(\d+) VLI#(\d+)\.(\d+)$/.exec(src)!
-  return -(Number(sheet) * 1e5 + 9e4 + Number(record) * 10 + Number(part))
+  const [, name, record, part] = /^(\d\d[A-Z]\d\d) VLI#(\d+)\.(\d+)$/.exec(src)!
+  const { section, sheet } = sheet2k(name!)
+  return surveyId("ctr2019", section, sheet * 1e5 + 9e4 + Number(record) * 10 + Number(part))
 }
 
 /** The extra tracks as rail pieces, joined, bridged and crossed as the module header says. */

@@ -33,7 +33,7 @@ test("keepSpans slides a bridge end out until the river it spans is under it aga
   // Moved 3 m north, the line meets the river at x 114: its edge would stand 1.8 m past the deck.
   const line = chain(4),
     report = empty()
-  keepSpans(chain(1), line, SPANS, [river()], none, none, report)
+  keepSpans(chain(1), line, SPANS, [river()], none, none, none, report)
   const end = line.find((p) => p.id === "b1")!
   assert.ok(
     Math.abs(end.x - (114 + 2 * Math.SQRT2)) < 1e-6 && end.y === 4,
@@ -44,23 +44,48 @@ test("keepSpans slides a bridge end out until the river it spans is under it aga
   // A river sloping the other way slips off the bridge's start when the line moves 7 m north.
   const back: Crossed = { ...river(), osm: [v(130, -20), v(90, 20)], pts: [v(130, -20), v(90, 20)] }
   const north = chain(8)
-  keepSpans(chain(1), north, SPANS, [back], none, none, report)
+  keepSpans(chain(1), north, SPANS, [back], none, none, none, report)
   const start = north.find((p) => p.id === "b0")!
   assert.ok(Math.abs(start.x - (102 - 2 * Math.SQRT2)) < 1e-6, `bridge start at ${start.x}`)
   // Moved south instead, the river stays well inside: nothing slides.
   const south = chain(-2)
-  keepSpans(chain(1), south, SPANS, [river()], none, none, report)
+  keepSpans(chain(1), south, SPANS, [river()], none, none, none, report)
   assert.deepEqual(south, chain(-2))
   // Regression: a bridge reaches `margin` past what it spans (a river's protected
   // bed, a tertiary road's core), so no at-grade track beyond it hangs over the carved cells.
   const wide = chain(1)
-  keepSpans(chain(1), wide, SPANS, [river(5)], none, none, report)
+  keepSpans(chain(1), wide, SPANS, [river(5)], none, none, none, report)
   const far = wide.find((p) => p.id === "b1")!
   assert.ok(Math.abs(far.x - (111 + 7 * Math.SQRT2)) < 1e-6, `bridge end at ${far.x}`)
   // A bridge end another line shares (a road's node) cannot slide.
   assert.throws(
-    () => keepSpans(chain(1), chain(4), SPANS, [river()], (id) => id === "b1", none, report),
+    () => keepSpans(chain(1), chain(4), SPANS, [river()], (id) => id === "b1", none, none, report),
     /bridge 2: its to end must slide but is b1/,
+  )
+})
+
+// Regression: the Pontremolese's crossover north of Aulla is a bridge of its own between two
+// switches on the main tracks' decks, and a road passes under its first metres: the chain's end
+// cannot slide, and need not, as the main track's deck spans the road past it.
+test("keepSpans leaves a bridge's end on another track's deck, and refuses one in the open", () => {
+  const crossover = [v(100, 0, "s0"), v(160, 20, "s1")]
+  const spans: ReadonlyArray<Span> = [{ id: 9, bridge: true, tunnel: false }]
+  const road: Crossed = {
+    what: "road 5",
+    w: 5,
+    margin: 0,
+    osm: [v(102, -10), v(102, 10)],
+    pts: [v(102, -10), v(102, 10)],
+    water: false,
+  }
+  const line = [...crossover],
+    report = empty()
+  keepSpans(crossover, line, spans, [road], none, (id) => id === "s0", none, report)
+  assert.deepEqual(line, crossover)
+  assert.deepEqual(report.slid, [])
+  assert.throws(
+    () => keepSpans(crossover, [...crossover], spans, [road], none, none, none, report),
+    /bridge 9: its from end must slide but is a chain end/,
   )
 })
 
@@ -75,7 +100,7 @@ test("keepSpans gives a stream at grade a culvert vertex both lines share, and r
   }
   const line = chain(0),
     report = empty()
-  keepSpans(chain(1), line, SPANS, [stream], none, none, report)
+  keepSpans(chain(1), line, SPANS, [stream], none, none, none, report)
   assert.deepEqual(report.culverts, ["culvert:water8:0"])
   assert.deepEqual(line[1], { x: 50, y: 0, id: "culvert:water8:0" })
   assert.deepEqual(stream.pts[1], { x: 50, y: 0, id: "culvert:water8:0" })
@@ -89,7 +114,7 @@ test("keepSpans gives a stream at grade a culvert vertex both lines share, and r
     water: true,
   }
   assert.throws(
-    () => keepSpans(chain(1), chain(4), SPANS, [short], none, none, report),
+    () => keepSpans(chain(1), chain(4), SPANS, [short], none, none, none, report),
     /rail 1 now crosses water 9 at grade/,
   )
   // Under a CTR bridge the stream gets no culvert: cutAtBridges makes the track a bridge there.
@@ -100,6 +125,7 @@ test("keepSpans gives a stream at grade a culvert vertex both lines share, and r
     under,
     SPANS,
     [{ ...stream, pts: [v(50, -10), v(50, 10)] }],
+    none,
     none,
     (x) => x > 45 && x < 55,
     bridged,
