@@ -8,12 +8,12 @@ keys ([architecture.md](architecture.md#input)).
 ## Start
 
 `SpawnWorld` puts the player on the Via Cesare Battisti sidewalk in front of the Carabinieri station
-in Lunigiana. In Cesena it starts on the clear sidewalk nearest a connected street by Ponte Vecchio.
+in Lunigiana. In Cesena it puts the player on the Via Roversano sidewalk near Ponte Vecchio.
 The map build rejects positions inside buildings and requires an open walking route to the street,
 so the player can leave the starting spot. The two parked spots nearest the station (the one the
 build chose, `MAP.spawns.police`: in Cesena the Compagnia Carabinieri, not the Commissariato) get
 Carabinieri cars. The spots within 300 m of the start get the cars the spots' hash gives them
-([Parked cars](#parked-cars)), with Cesena's nearest level spot within 150 m guaranteed occupied:
+([Parked cars](#parked-cars)), with a Panda reserved within 25 m of the Cesena start:
 9 cars for seed 1 in Lunigiana, in view as well as out of it, which the title card hides coming.
 Each car stands settled on its springs with the ground's slope. Settling reads the terrain at the
 spot, and a truck's clearance the walls, so the build works both out for every model on every spot
@@ -975,7 +975,7 @@ The parked cars stand round the player, on the map's parked spots: `PopulatePark
   tilt more than 15° stays empty (in Lunigiana, 286 of the 3,500: the 4 m terrain puts some verges
   on a bank, and more since each road piece is cored at its own width, which leaves the bank
   beside a narrower piece of a chain standing: 229 before), and so do the Carabinieri's two.
-  Cesena's nearest level spot within 150 m of the start always holds a civilian car, whatever the
+  Cesena's nearest level civilian spot within 25 m of the start always gets a Panda, whatever the
   seed.
 - **How many**: the share of the other spots that holds a car is what the 200 cars a game parked
   over the whole map at setup made of them, kept as the maps grow: 198 of the 733 Lunigiana had

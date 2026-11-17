@@ -107,20 +107,16 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   const lunigiana = REGION.id === "lunigiana"
   const station = regionPoi(pois, lunigiana ? 1813987803 : 827592490, REGION),
     carabinieri = regionPoi(pois, lunigiana ? 14183344901 : 806564311, REGION)
-  // Ponte Vecchio's published point: choose the nearest connected street, then its clear sidewalk.
-  const bridge = lunigiana ? undefined : toLocal(44.13394, 12.23394)
-  const start = startNear(
-    graph,
-    roads,
-    lunigiana ? carabinieri : undefined,
-    bridge === undefined ? undefined : { x: bridge[0], y: bridge[1] },
-  )
+  // Via Roversano on the east approach of Ponte Vecchio, where there's a usable kerb.
+  const [x, y] = toLocal(44.1332, 12.23478)
+  const approach = lunigiana ? undefined : { x, y }
+  const start = startNear(graph, roads, lunigiana ? carabinieri : undefined, approach)
   if (start === undefined) throw new Error(`--region ${REGION.key} has no connected traffic roads`)
   const player = playerSpawn(
     roads,
     walkClear,
     driveClear,
-    start.at,
+    approach ?? start.at,
     buildings,
     inWater(areas),
     start.road,

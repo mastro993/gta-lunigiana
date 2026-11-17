@@ -80,10 +80,9 @@ The pipeline below describes Lunigiana unless a Cesena difference is noted here.
   cross-sections through its OSM bank polygons (each piece the play area's outline keeps of a way on
   its own: way 1029104404's two are 13.8 and 14 m), not the mountain-stream fallback. Neighbourhood
   labels come from OSM place nodes, without Monzone's hand-placed districts or stone cores.
-- **Start**: the build chooses the connected traffic node nearest Ponte Vecchio's mapped point
-  (44.13394, 12.23394), then puts the player on a clear sidewalk beside that street, with a walking
-  route to it. Its nearest level parked spot within 150 m always has a civilian car, whatever the
-  seed. Police and station parking use Cesena's mapped Carabinieri headquarters (the Compagnia, POI
+- **Start**: the build puts the player on a clear sidewalk along Via Roversano, on the east
+  approach to Ponte Vecchio. The nearest level civilian spot within 25 m always gets a Panda,
+  whatever the seed. Police and station parking use Cesena's mapped Carabinieri headquarters (the Compagnia, POI
   806564311, which the map names as `spawns.police`: the game parked them by the first police POI,
   the Commissariato 1.9 km away, until the build named it) and railway station.
 - **Checks**: `src/tools/__tests__/cesena.test.ts` checks landmarks, connected networks, the outdoor
@@ -2603,9 +2602,9 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   for its 79 before Fosdinovo's part and 2.7 s before the olives) and holds one tile's five masks,
   5 MB, at a time.
 - **Player spawn**: the Via Cesare Battisti sidewalk nearest the Carabinieri station, with 1.3 m
-  clear of walk and drive walls. Cesena uses the connected traffic node nearest Ponte Vecchio's
-  mapped point (44.13394, 12.23394); a test region without the Carabinieri uses the node nearest the
-  origin (`startNear`). The final rounded position must lie outside every building footprint and
+  clear of walk and drive walls. Cesena uses the connected road nearest its Via Roversano target
+  on the east approach to Ponte Vecchio; a test region without the Carabinieri uses the node nearest
+  the origin (`startNear`). The final rounded position must lie outside every building footprint and
   the water areas, and have a walk-clear route to its street centreline, sampled at intervals no
   greater than 0.5 m. Wall distance alone can accept a point deep inside a building, leaving the
   player trapped.

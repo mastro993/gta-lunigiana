@@ -12,9 +12,7 @@ import { clearance } from "../spawns.ts"
 
 // Cesena's global file, and the tiles round its start: every wall within 50 m of it lives in one of
 // them (a wall lives in the tile of its midpoint and reaches at most `walls.reach` from it), and
-// every road and building within `vectors.halo` of their squares lies whole in them (on Cesena,
-// whose start is by the corner its four tiles share, they are all four). Decoded here, apart from
-// the sim, which only the boot test below loads (on Cesena, picked on the first line).
+// every road and building within `vectors.halo` of their squares lies whole in them.
 const map = decodeMap(readMapFile(new URL("cesena.bin", MAP_URL)))
 const start = (() => {
   const { x, y } = map.spawns.player,
@@ -105,18 +103,17 @@ test("Cesena starts on clear ground near Ponte Vecchio with cars to steal", () =
     return false
   })
   assert.ok(reachesStreet, "Player must have an unobstructed walking route to the street")
-  assert.ok(map.spawns.parked.some((car) => Math.hypot(car.x - x, car.y - y) < 150))
 })
 
-test("Cesena keeps a parked car within 150 m of the start for every seed", () => {
+test("Cesena keeps a parked car within 25 m of the start across seeds", () => {
   const { x, y } = map.spawns.player,
     nearby = map.spawns.parked.flatMap((spot, index) =>
-      Math.hypot(spot.x - x, spot.y - y) < 150 ? [index] : [],
+      Math.hypot(spot.x - x, spot.y - y) <= 25 ? [index] : [],
     )
-  assert.ok(nearby.length > 0, "no parked spot within 150 m of the start")
+  assert.ok(nearby.length > 0, "no parked spot within 25 m of the start")
   for (const seed of [0, 1, 7, 42, 0xffffffff])
     assert.ok(
-      nearby.some((index) => carOn(seed, index) !== undefined),
+      nearby.some((index) => carOn(seed, index)?.model === "panda"),
       `seed ${seed}`,
     )
 })
@@ -181,7 +178,7 @@ test("Cesena boots the existing simulation, populates it and replays walking det
   }
   const first = run()
   const hasNearbyCar = (cars: ReadonlyArray<{ readonly x: number; readonly y: number }>) =>
-    cars.some((car) => Math.hypot(car.x - map.spawns.player.x, car.y - map.spawns.player.y) < 150)
+    cars.some((car) => Math.hypot(car.x - map.spawns.player.x, car.y - map.spawns.player.y) <= 25)
   assert.ok(first.player !== undefined)
   assert.ok(
     Math.hypot(
