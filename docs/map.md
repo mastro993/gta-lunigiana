@@ -3102,9 +3102,9 @@ change an input.
   `raw-20261107-2`, 25.01 MB (the 31 sheets' 248 CTR files, 38
   files of the 2009 sheets, 29 terrain tiles of 17.48 MB, Fosdinovo's 23 and the 6 of Fivizzano's
   its box grew, the two parts' land cover, 2.98 MB, Liguria's 15 files and `osm/fosdinovo.osm.gz`,
-  2.03 MB). Beside them #13's 21 files of the coast test region, 2.67 MB (its OSM extract,
-  Liguria's 17 and its terrain's 3), are fetched and wait for `pnpm pin-raw`: 1,191 entries,
-  95.0 MB, on 2026-11-17. No entry names `raw-20261031` (#73's land cover), `raw-20261101` (#10's
+  2.03 MB); and #13's 21 in `raw-20261117`, 2.67 MB (the coast test region's OSM extract,
+  Liguria's 17 files and its terrain's 3): 1,191 entries, 95.0 MB, on 2026-11-17, which
+  `pnpm fetch-raw` downloaded whole into an empty `data/raw`, byte for byte. No entry names `raw-20261031` (#73's land cover), `raw-20261101` (#10's
   two terrains,
   lucido's one mosaic among them) or `raw-20261103-3` (#14's land cover with its woods) any more,
   nor `raw-20261104`'s land cover and those 6 tiles, nor `raw-20261107`'s Fivizzano land cover:
