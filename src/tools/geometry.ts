@@ -310,6 +310,113 @@ export const segIndex = <T>(bucket = 16) => {
   return { add, addLine, within, covers }
 }
 
+/**
+ * `segIndex` over a fixed set of flat (ax, ay, bx, by) segments `xy`, all with buffer radius `r`:
+ * the same buckets, each one's segment indices packed into one Int32Array in the order added (an
+ * object a segment and an array a bucket took about 500 MB at Lunigiana's 1.7 million walls). The
+ * query calls `visit` with the index of each segment whose buffer contains (x, y), in index order,
+ * and the squared distance.
+ */
+export const staticSegs = (xy: ArrayLike<number>, r: number, bucket = 16) => {
+  const count = Math.floor(xy.length / 4)
+  // Each segment's buckets, as segIndex's `add` takes them.
+  const span = (k: number) => {
+    const ax = xy[4 * k]!,
+      ay = xy[4 * k + 1]!,
+      bx = xy[4 * k + 2]!,
+      by = xy[4 * k + 3]!
+    return [
+      Math.floor((Math.min(ax, bx) - r) / bucket),
+      Math.floor((Math.max(ax, bx) + r) / bucket),
+      Math.floor((Math.min(ay, by) - r) / bucket),
+      Math.floor((Math.max(ay, by) + r) / bucket),
+    ] as const
+  }
+  let i0 = Infinity,
+    i1 = -Infinity,
+    j0 = Infinity,
+    j1 = -Infinity
+  for (let k = 0; k < count; k++) {
+    const [a, b, c, d] = span(k)
+    i0 = Math.min(i0, a)
+    i1 = Math.max(i1, b)
+    j0 = Math.min(j0, c)
+    j1 = Math.max(j1, d)
+  }
+  const cols = count === 0 ? 0 : i1 - i0 + 1,
+    rows = count === 0 ? 0 : j1 - j0 + 1
+  // Bucket q's segments are items[starts[q] .. starts[q + 1]): count them, sum, then fill.
+  const starts = new Int32Array(cols * rows + 1)
+  const each = (k: number, f: (q: number) => void) => {
+    const [a, b, c, d] = span(k)
+    for (let i = a; i <= b; i++) for (let j = c; j <= d; j++) f((j - j0) * cols + i - i0)
+  }
+  for (let k = 0; k < count; k++) each(k, (q) => starts[q + 1]!++)
+  for (let q = 0; q < cols * rows; q++) starts[q + 1]! += starts[q]!
+  const items = new Int32Array(starts[cols * rows]!)
+  const next = starts.slice(0, -1)
+  for (let k = 0; k < count; k++) each(k, (q) => (items[next[q]!++] = k))
+  return (x: number, y: number, visit: (k: number, d2: number) => void) => {
+    const i = Math.floor(x / bucket) - i0,
+      j = Math.floor(y / bucket) - j0
+    if (!(i >= 0 && j >= 0 && i < cols && j < rows)) return
+    const q = j * cols + i
+    for (let m = starts[q]!; m < starts[q + 1]!; m++) {
+      const k = items[m]!
+      const { d2 } = segDist2(x, y, xy[4 * k]!, xy[4 * k + 1]!, xy[4 * k + 2]!, xy[4 * k + 3]!)
+      if (d2 < r * r) visit(k, d2)
+    }
+  }
+}
+
+/**
+ * `staticGrid` (sim/collide.ts) over points, the i-th at (xy[stride·i], xy[stride·i + 1]): the same
+ * cells and the same query, its visits in the same order, without the box `staticGrid` keeps a
+ * point while it builds or the mark it keeps an item for those that span cells (both 270 MB at
+ * Lunigiana's 7.4 million trees).
+ */
+export const staticPoints = (xy: ArrayLike<number>, stride: number, cellSize: number) => {
+  const count = Math.floor(xy.length / stride)
+  let x0 = 0,
+    y0 = 0,
+    x1 = 0,
+    y1 = 0
+  for (let i = 0; i < count; i++) {
+    const x = xy[stride * i]!,
+      y = xy[stride * i + 1]!
+    x0 = i === 0 ? x : Math.min(x0, x)
+    y0 = i === 0 ? y : Math.min(y0, y)
+    x1 = i === 0 ? x : Math.max(x1, x)
+    y1 = i === 0 ? y : Math.max(y1, y)
+  }
+  const cols = Math.floor((x1 - x0) / cellSize) + 1,
+    rows = Math.floor((y1 - y0) / cellSize) + 1
+  const col = (x: number) => Math.floor((x - x0) / cellSize),
+    row = (y: number) => Math.floor((y - y0) / cellSize)
+  const cellOf = (i: number) => row(xy[stride * i + 1]!) * cols + col(xy[stride * i]!)
+  // Cell k's points are items[starts[k] .. starts[k + 1]): count them, sum, then fill.
+  const starts = new Int32Array(cols * rows + 1)
+  for (let i = 0; i < count; i++) starts[cellOf(i) + 1]!++
+  for (let k = 0; k < cols * rows; k++) starts[k + 1]! += starts[k]!
+  const items = new Int32Array(count)
+  const next = starts.slice(0, -1)
+  for (let i = 0; i < count; i++) items[next[cellOf(i)]!++] = i
+  return (
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+    visit: (item: number) => void,
+  ): void => {
+    const c0 = Math.max(0, col(minX)),
+      c1 = Math.min(cols - 1, col(maxX))
+    for (let r = Math.max(0, row(minY)), r1 = Math.min(rows - 1, row(maxY)); r <= r1; r++)
+      for (let c = c0; c <= c1; c++)
+        for (let j = starts[r * cols + c]!, end = starts[r * cols + c + 1]!; j < end; j++)
+          visit(items[j]!)
+  }
+}
+
 /** Deterministic hash of integers to [0, 1). */
 export const hash01 = (...ns: ReadonlyArray<number>): number => {
   let h = 0x9e3779b9

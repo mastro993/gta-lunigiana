@@ -15,7 +15,15 @@ import { lifted } from "./profiles.ts"
 import { clearVerges, onTrack } from "./rail-clear.ts"
 import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
 import { REGION } from "./region.ts"
-import { clearance, KERB_SHARE, parkedSpots, playerSpawn, regionPoi, startNear } from "./spawns.ts"
+import {
+  clearance,
+  KERB_SHARE,
+  parkedSpots,
+  playerSpawn,
+  regionPoi,
+  startNear,
+  trunkIndex,
+} from "./spawns.ts"
 import { sampleGrid } from "./terrain.ts"
 import { scatterTrees } from "./trees.ts"
 import { buildWalls } from "./walls.ts"
@@ -66,14 +74,11 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   // Spawns and traffic's dead ends keep off the water as well. They stand on the ground, but a dead
   // end on its road's surface (a deck's, where its parapets stand).
   const levelled = (levels: ReadonlyArray<number>) => ({ levels, ground: at })
-  const walkClear = clearance(
-      [...walls.walk, ...walls.shore],
-      trees.trees,
-      levelled(walls.levels.walk),
-    ),
+  const trunks = trunkIndex(trees.trees)
+  const walkClear = clearance([...walls.walk, ...walls.shore], trunks, levelled(walls.levels.walk)),
     driveClear = clearance(
       [...walls.drive, ...walls.driveShore],
-      trees.trees,
+      trunks,
       levelled(walls.levels.drive),
     )
   // At-grade running track: no dead end of the graph on it, nor a lane or verge beside it.

@@ -7,7 +7,7 @@ import { decodeTile, type Layer, type TileVectors } from "../../sim/map/format/t
 import { isMotorRoad, isTraffic, TILE, tileKey } from "../../sim/map/kinds.ts"
 import { MAP_URL, readMapFile } from "../../sim/map/source.ts"
 import { pointInRing, segDist2 } from "../geometry.ts"
-import { clearance } from "../spawns.ts"
+import { clearance, trunkIndex } from "../spawns.ts"
 
 // Cesena's global file, and the tiles round its start: every wall within 50 m of it lives in one of
 // them (a wall lives in the tile of its midpoint and reaches at most `walls.reach` from it), and
@@ -74,9 +74,10 @@ test("Cesena starts on clear ground in the centre with cars to steal", () => {
       !(building.holes ?? []).some((hole) => pointInRing(x, y, hole)),
   )
   assert.equal(containing, undefined, `Player starts inside building ${containing?.id}`)
-  const walk = clearance(start.walk, trees)
+  const trunks = trunkIndex(trees)
+  const walk = clearance(start.walk, trunks)
   assert.ok(walk.circle(x, y, 1.2))
-  assert.ok(clearance(start.drive, trees).circle(x, y, 1.2))
+  assert.ok(clearance(start.drive, trunks).circle(x, y, 1.2))
   const reachesStreet = start.roads.some((road) => {
     if (!isTraffic(road.cls) || isMotorRoad(road)) return false
     for (let index = 0; index + 3 < road.pts.length; index += 2) {

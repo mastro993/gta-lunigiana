@@ -17,6 +17,8 @@ import {
   ringBox,
   segDist2,
   segIndex,
+  staticPoints,
+  staticSegs,
 } from "./geometry.ts"
 import { inPlay } from "./play-area.ts"
 import type { Region } from "./region.ts"
@@ -26,37 +28,32 @@ import { inWater } from "./water-areas.ts"
 const REACH = 3
 
 /**
- * Clearance checks against flat (ax, ay, bx, by) `walls` plus the TRUNK square of every tree in
- * flat (x, y, scale) `trees`. Trees are indexed as points and their squares made on query, as
- * `wallsNear` does in the game: a segment per trunk edge would take gigabytes at a million trees.
- * With `levelled`, a wall with a level (NaN for none: a bridge's parapet, parapets.ts) counts only
- * for a query within ONE_LEVEL of it, a query standing at its own level or on `ground` at its point,
- * as a body meets it in the game; without, every wall counts.
+ * The trees of flat (x, y, scale) `trees` indexed as points, which the clearance checks make their
+ * TRUNK squares round on query, as `wallsNear` does in the game: a segment per trunk edge would take
+ * gigabytes at a million trees. One index serves every clearance (its query is never nested).
+ */
+export const trunkIndex = (trees: ArrayLike<number>) => ({
+  trees,
+  near: staticPoints(trees, 3, 16),
+})
+
+/**
+ * Clearance checks against flat (ax, ay, bx, by) `walls` plus the TRUNK square of every tree of
+ * `trunks` (`trunkIndex`). With `levelled`, a wall with a level (NaN for none: a bridge's parapet,
+ * parapets.ts) counts only for a query within ONE_LEVEL of it, a query standing at its own level or
+ * on `ground` at its point, as a body meets it in the game; without, every wall counts.
  */
 export const clearance = (
   walls: ReadonlyArray<number>,
-  trees: ArrayLike<number>,
+  { trees, near: treesIn }: ReturnType<typeof trunkIndex>,
   levelled?: {
     readonly levels: ArrayLike<number>
     readonly ground: (x: number, y: number) => number
   },
 ) => {
-  const idx = segIndex<number>()
-  for (let i = 0; i + 3 < walls.length; i += 4)
-    idx.add(
-      walls[i]!,
-      walls[i + 1]!,
-      walls[i + 2]!,
-      walls[i + 3]!,
-      REACH,
-      levelled?.levels[i / 4] ?? NaN,
-    )
-  const treesIn = staticGrid(
-    trees.length / 3,
-    (i) => [trees[3 * i]!, trees[3 * i + 1]!, trees[3 * i]!, trees[3 * i + 1]!],
-    16,
-  )
+  const wallsAt = staticSegs(walls, REACH)
   const trunk: Array<number> = [],
+    wall = { ax: 0, ay: 0, bx: 0, by: 0 },
     edge = { ax: 0, ay: 0, bx: 0, by: 0 }
   /** Calls `visit` for every wall a body at level `z` meets and every trunk edge within REACH of (x, y), with its squared distance. */
   const near = (
@@ -68,9 +65,17 @@ export const clearance = (
       d2: number,
     ) => void,
   ) => {
-    idx.within(x, y, (seg, d2) => {
-      if (Number.isNaN(seg.data) || z === undefined || Math.abs(seg.data - z) < ONE_LEVEL)
-        visit(seg, d2)
+    wallsAt(x, y, (k, d2) => {
+      const level = levelled?.levels[k] ?? NaN
+      if (Number.isNaN(level) || z === undefined || Math.abs(level - z) < ONE_LEVEL) {
+        ;[wall.ax, wall.ay, wall.bx, wall.by] = [
+          walls[4 * k]!,
+          walls[4 * k + 1]!,
+          walls[4 * k + 2]!,
+          walls[4 * k + 3]!,
+        ]
+        visit(wall, d2)
+      }
     })
     const r = REACH + TRUNK
     treesIn(x - r, y - r, x + r, y + r, (i) => {
