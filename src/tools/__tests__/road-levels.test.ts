@@ -32,7 +32,34 @@ const trunk = road(5, "trunk", [v(0, 50), v(200, 50)], { tunnel: true })
 const street = road(6, "residential", [v(100, 20), v(100, 80)])
 const square = road(7, "service", [v(300, -30), v(300, 30)])
 const ramp = road(8, "service", [v(270, 0), v(330, 0)], { tunnel: true })
-const roads = [motorway, under, tagged, path, trunk, street, square, ramp]
+// A footway at grade over a car park's aisle (2.1 m clear) at x 400; a footbridge over a residential
+// street at x 500; a path at grade over a path's underpass at x 600; a footbridge over a path at x 700.
+const footway = road(9, "path", [v(400, -30), v(400, 30)])
+const aisle = road(10, "service", [v(370, 0), v(430, 0)], { tunnel: true, maxheight: 2.1 })
+const footbridge = road(11, "path", [v(470, 0), v(530, 0)], { bridge: true })
+const lane = road(12, "residential", [v(500, -30), v(500, 30)])
+const over = road(13, "path", [v(600, -30), v(600, 30)])
+const underpass = road(14, "path", [v(570, 0), v(630, 0)], { tunnel: true })
+const steps = road(15, "steps", [v(670, 0), v(730, 0)], { bridge: true })
+const below = road(16, "path", [v(700, -30), v(700, 30)])
+const roads = [
+  motorway,
+  under,
+  tagged,
+  path,
+  trunk,
+  street,
+  square,
+  ramp,
+  footway,
+  aisle,
+  footbridge,
+  lane,
+  over,
+  underpass,
+  steps,
+  below,
+]
 const make = (fitted: ReadonlyArray<RoadF>) =>
   roadLevels({
     roads,
@@ -54,7 +81,8 @@ test("passesOver: a bridge or a road over a tunnel, on a higher OSM level", () =
 // Regression: Cesena's roads crossed under its bridges with 1.25 m to spare, and a service road ran 1.6 m under a slip road
 // whose bridge the junction under it held down.
 test("roadLevels: a road under a bridge keeps maxheight (4 m untagged) plus a 1.5 m deck; a bridge or tunnel in an earlier pass keeps it from the other's natural level", () => {
-  // Paths follow the terrain: no overpass over one.
+  // A path at grade follows the terrain: no road's bridge over one is bound. A path's bridge or
+  // tunnel keeps a person's clearance (2.5 m) from a path, a vehicle's from a road.
   assert.deepEqual(
     make([]).over.map((o) => [o.up.id, o.down.id, o.clear]),
     [
@@ -62,6 +90,10 @@ test("roadLevels: a road under a bridge keeps maxheight (4 m untagged) plus a 1.
       [1, 3, 4.7],
       [6, 5, 5.5],
       [7, 8, 5.5],
+      [9, 10, 3.6],
+      [11, 12, 5.5],
+      [13, 14, 4],
+      [15, 16, 4],
     ],
   )
   // The motorway, fitted first, rises 5.5 m (4.7 m over the tagged road) and 0.3 m of slack over the
@@ -79,6 +111,36 @@ test("roadLevels: a road under a bridge keeps maxheight (4 m untagged) plus a 1.
   assert.deepEqual(make([ramp]).bounds([{ item: square }]), [])
   assert.deepEqual(make([]).bounds([{ item: ramp }]), [])
   assert.deepEqual(zs(make([square]).bounds([{ item: ramp }])), ["max 104.5"])
+})
+
+// Regression: the aisles of Aulla's covered car park (1452661267, 1452913566, 1452913567: maxheight
+// 2.1) ran 0.4–2.1 m under the footways over them, and its paths' bridges and underpasses ran
+// straight between their ends at the terrain's level, 0.6 m under to 0.4 m over what they cross.
+test("roadLevels: a road's tunnel dips under a path at grade over it; a path's bridge or tunnel, fitted after every road, keeps its clearance from the way it crosses and binds no road", () => {
+  // The aisle 2.1 m plus the deck under the footway's natural level, less the slack.
+  assert.deepEqual(zs(make([]).bounds([{ item: aisle }])), ["max 96.1"])
+  // A footbridge 5.5 m over the fitted street; the street takes nothing from it.
+  assert.deepEqual(zs(make([lane]).bounds([{ item: footbridge }])), ["min 115.5"])
+  assert.deepEqual(make([]).bounds([{ item: lane }]), [])
+  // A path's underpass and bridge keep a person's 2.5 m and the deck from a path at grade's natural level.
+  assert.deepEqual(zs(make([]).bounds([{ item: underpass }])), ["max 95.7"])
+  assert.deepEqual(zs(make([]).bounds([{ item: steps }])), ["min 104.3"])
+})
+
+test("roadLevels: a path's bridge ending on a road's deck of its OSM level takes the deck's level there", () => {
+  // A primary road's 10 m bridge along y 0 over x 0–100; a sidewalk drawn as its own 1.5 m bridge
+  // 5.5 m beside it (their carriageways overlap by 0.25 m), from x 50 to 150, past the road's end.
+  const deck = road(30, "primary", [v(0, 0), v(100, 0)], { bridge: true, w: 10 })
+  const sidewalk = road(31, "path", [v(50, 5.5), v(150, 5.5)], { bridge: true, w: 1.5 })
+  const { deckUnder } = roadLevels({
+    roads: [deck, sidewalk],
+    ground: () => 100,
+    fitted: (l: Linear) => l === deck,
+    zAt: () => 110,
+  })
+  assert.equal(deckUnder(sidewalk.pts[0]!, sidewalk), 110)
+  assert.equal(deckUnder(sidewalk.pts[1]!, sidewalk), undefined, "past the deck's end")
+  assert.equal(deckUnder(sidewalk.pts[0]!, { ...sidewalk, layer: 2 }), undefined, "over it")
 })
 
 // Regression: the SR445's loop at Gassano runs under its own bridge 13.6 m from where it leaves it;

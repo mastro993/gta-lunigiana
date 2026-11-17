@@ -4,7 +4,7 @@ import { test } from "node:test"
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import { coreHalf, replayClaims } from "../grid-claims.ts"
-import { makeProfiler, type Linear } from "../profiles.ts"
+import { makeProfiler, PATH_PASS, type Linear } from "../profiles.ts"
 import { roadLevels } from "../road-levels.ts"
 import type { Grid } from "../terrain.ts"
 
@@ -381,5 +381,45 @@ test("an approach's core past its bridge's end yields to any other core: a road 
       100,
       "with nothing under it, the core reaches on as before",
     )
+  }
+})
+
+// Regression: a path's or steps' bridge or tunnel ran straight between its ends at the terrain's
+// level, whatever it crossed: the sidewalk bridge 1414943238 at Aulla 0.4 m over the track under it,
+// the footway's underpass 1311862950 0.5 m over the footway over it.
+test("profile with ramps fits a path's deck between its ends' levels over or under what it crosses, at its grade", () => {
+  // Flat ground at 100 m; a 60 m footbridge (or underpass) from x 0 to 60, its ends at the ground's
+  // level, crossing a way at x 30 that asks it 105.5 m at least (or 96 m at most) within 2 m of it.
+  const fit = (tunnel: boolean, ramps: boolean) => {
+    const piece = {
+      ...(tunnel ? { tunnel: true as const } : { bridge: true as const }),
+      pts: [v(0, 0, "a"), v(30, 0), v(60, 0, "b")],
+    }
+    const { profile, denseOf } = makeProfiler(() => 100)
+    profile(
+      [{ item: piece, rev: false }],
+      { w: 1.5, ...PATH_PASS, decks: true, ...(ramps ? { ramps: true } : {}), ends: () => 100 },
+      [28, 30, 32].map((x) => ({
+        x,
+        y: 0,
+        z: tunnel ? 96 : 105.5,
+        kind: tunnel ? ("max" as const) : ("min" as const),
+        tilt: true as const,
+        on: piece,
+      })),
+    )
+    const { pts, z } = denseOf.get(piece)!
+    return { ends: [z[0]!, z.at(-1)!], mid: z[pts.findIndex((p) => p.x === 30)]!, z, pts }
+  }
+  for (const tunnel of [false, true]) {
+    const { ends, mid, z, pts } = fit(tunnel, true)
+    assert.deepEqual(ends, [100, 100], "its ends at their levels")
+    assert.ok(tunnel ? mid <= 96 + 1e-6 : mid >= 105.5 - 1e-6, `${mid} where it crosses`)
+    for (let k = 1; k < z.length; k++)
+      assert.ok(
+        Math.abs(z[k]! - z[k - 1]!) <= 1.5 * PATH_PASS.grade * (pts[k]!.x - pts[k - 1]!.x) + 1e-6,
+      )
+    // Straight from end to end between its pinned ends, it stays at their level where it crosses.
+    assert.equal(fit(tunnel, false).mid, 100)
   }
 })

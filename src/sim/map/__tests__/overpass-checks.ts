@@ -51,8 +51,9 @@ export function* crossings(up: ReadonlyArray<number>, down: ReadonlyArray<number
 }
 
 /**
- * Where a profiled road's bridge (paths and steps follow the terrain) passes over a drivable road
- * with less than that road's `maxheight` (UNDERPASS when untagged) plus a DECK between their
+ * Where a road's bridge (not a path's or steps': fitted between its ends' levels, it keeps the
+ * clearance only where they leave it the room, which levels.map-test checks) passes over a drivable
+ * road with less than that road's `maxheight` (UNDERPASS when untagged) plus a DECK between their
  * surfaces: one line per crossing, empty when every one keeps it.
  */
 export const overpassShortfalls = (roads: ReadonlyArray<Road>): Array<string> => {

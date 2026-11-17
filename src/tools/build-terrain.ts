@@ -9,6 +9,7 @@ import type { Sources } from "./build-sources.ts"
 import { catchments, type Inflow } from "./catchment.ts"
 import { railSlab, roadSlab } from "./deck-ground.ts"
 import type { Dem } from "./dtm.ts"
+import type { RoadF } from "./features.ts"
 import {
   BOUNDS,
   along,
@@ -26,6 +27,7 @@ import {
   EXTRA_RANK,
   lifted,
   makeProfiler,
+  PATH_PASS,
   RAIL_PASS,
   ROAD_PASSES,
   type Linear,
@@ -188,27 +190,34 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])
+  /**
+   * The level a path's or steps' bridge or tunnel ends at, `v` an end of `piece`: that of a way
+   * fitted before it there, else of the road deck of its OSM level it stands on (`deckUnder`: the
+   * sidewalk 1414943238, drawn as its own bridge along the SS62's 92904169 at Aulla, ends on that
+   * deck 11 m short of its end, over a track 8 m under it), else the ground's; under the rail, no
+   * higher than the road's clearance under it, as in a profiled tunnel (the pedestrian underpass at
+   * Equi Terme station).
+   */
+  const endLevel = (v: V, piece: RoadF) =>
+    Math.min(
+      ...railRoad.filter((x) => x.rd === piece).map((x) => zAt(x.rl, x.c.sa) - x.clear),
+      nodeZ.get(v.id!) ?? overpasses.deckUnder(v, piece) ?? ground(v.x, v.y),
+    )
+  // The paths' and steps' bridges and tunnels, after every road (PATH_PASS): each from its ends'
+  // levels over or under the ways it crosses.
+  const pathDecks = roads.filter(
+    (r) => lifted(r) && (PATH_PASS.classes as ReadonlyArray<string>).includes(r.cls),
+  )
+  for (const ch of grown(chainsOf(pathDecks)))
+    profile(ch, { w: (r) => r.w, ...PATH_PASS, decks: true, ramps: true, ends: endLevel }, [
+      ...roadBounds(ch),
+      ...overpasses.bounds(ch),
+    ])
   // The extra tracks take only the cells no road took.
   for (const [piece, { profile: p }] of extraZ)
     if (piece.bridge !== true) claim(p, 4, EXTRA_RANK, () => false)
   lap("roads")
 
-  /**
-   * A bridge or tunnel no profiled chain covers (paths, steps): the line between its ends, from the
-   * uncarved ground. Under the rail both ends keep the road's clearance, as in a profiled tunnel.
-   */
-  const lone = (l: Linear): Array<number> => {
-    const cap = Math.min(
-      ...railRoad.filter((x) => x.rd === l).map((x) => zAt(x.rl, x.c.sa) - x.clear),
-    )
-    const end = (v: V) =>
-      Math.min(cap, (v.id === undefined ? undefined : nodeZ.get(v.id)) ?? ground(v.x, v.y))
-    const za = end(l.pts[0]!),
-      zb = end(l.pts.at(-1)!),
-      s = arcLengths(l.pts)
-    return s.map((d) => za + ((zb - za) * d) / (s.at(-1)! || 1))
-  }
-  const deckZ = (l: Linear) => zOf.get(l) ?? lone(l)
   const crossed: Array<Crossed> = []
   const waterBox = water.map((w) => lineBox(w.pts))
   for (const [l, lw] of [
@@ -216,7 +225,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
     ...allRail.map((r) => [r, 4] as const),
   ]) {
     if (l.tunnel === true || (!lifted(l) && !zOf.has(l))) continue // tunnels pass under; paths follow the terrain
-    const z = deckZ(l),
+    const z = zOf.get(l)!,
       s = arcLengths(l.pts),
       box = lineBox(l.pts)
     water.forEach((w, wi) => {
@@ -234,9 +243,9 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
   capUnderDecks(water, wp, crossed)
   lap("decks")
 
-  /** Per-vertex elevation: the profile, a lone bridge's line between its ends, or `terrain` (paths). */
+  /** Per-vertex elevation: the profile, or `terrain` (paths and steps at grade). */
   const zLine = (l: Linear, terrain: (x: number, y: number) => number): Array<number> =>
-    (zOf.get(l) ?? (lifted(l) ? lone(l) : l.pts.map((v) => terrain(v.x, v.y)))).map(r1)
+    (zOf.get(l) ?? l.pts.map((v) => terrain(v.x, v.y))).map(r1)
   /** Output polyline and z: profiled pieces carry their extra bend samples. */
   const lineOut = (l: Linear, terrain: (x: number, y: number) => number) => {
     const d = denseOf.get(l)
@@ -244,7 +253,7 @@ export const buildTerrain = (src: Sources, dem: Dem, lap: (label: string) => voi
       ? { pts: flatLine(l.pts), z: zLine(l, terrain) }
       : { pts: flatLine(d.pts), z: d.z.map(r1) }
   }
-  // Every rail piece is profiled, so its line reads no terrain; nor does a bridge, profiled or lone.
+  // Every rail piece is profiled, so its line reads no terrain; nor does any bridge.
   const unread = (what: string) => () => {
     throw new Error(`${what} has no profile`)
   }
