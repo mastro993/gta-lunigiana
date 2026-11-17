@@ -341,6 +341,15 @@ const mappedRiverWidth = (
 }
 
 /**
+ * The `waterway` values that are watercourses. A weir's or a dam's way is the structure's crest
+ * across the river, which no water runs along: carved as a 2 m stream, it cut a channel along the
+ * crest and burned it into the catchments. The weir 1161664525 across the Taverone stepped 0.3 m
+ * back up at its middle, and Fivizzano's dam 172651758 ran 24 m along its crest 6.2 m down into the
+ * gorge and 1.8 m back up.
+ */
+const WATERCOURSES: ReadonlySet<string> = new Set(["river", "stream", "canal", "ditch", "drain"])
+
+/**
  * The waterways, cut by `clip`, sized by `ground` under each piece. A culvert is dropped, as a stream
  * crossing a road at grade dips under it (water.ts), but where `open` says it runs in the open: under
  * a bridge the surveys map (`openCulvert` in build-sources.ts).
@@ -365,7 +374,7 @@ export const extractWater = (
         ]
       : []
   return [...osm.ways.values()]
-    .filter((w) => w.tags.waterway !== undefined && w.tags.waterway !== "riverbank")
+    .filter((w) => WATERCOURSES.has(w.tags.waterway ?? ""))
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"

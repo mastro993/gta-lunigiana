@@ -176,6 +176,17 @@ test("extractWater: a culvert is dropped but where `open` says it runs in the op
   )
 })
 
+// Regression: the crest lines of a weir across the Taverone (way 1161664525) and of Fivizzano's dam
+// (172651758) were carved as 2 m streams along the crest, and burned into the catchments.
+test("extractWater: a watercourse is water, a weir's or a dam's crest across it and a riverbank's outline are not", () => {
+  const values = ["river", "stream", "canal", "ditch", "drain", "weir", "dam", "riverbank"]
+  const water = extractWater(osmOf(values.map((waterway) => ({ waterway }))), () => 0, whole)
+  assert.deepEqual(
+    water.map((w) => values[w.id - 1]),
+    ["river", "stream", "canal", "ditch", "drain"],
+  )
+})
+
 test("extractAreas: a river's banks are a river, still water a lake, other water nothing; ruins win over water, shingle is a river's pebble", () => {
   const { osm, square } = areaOsm()
   const tagged: ReadonlyArray<Tags> = [
