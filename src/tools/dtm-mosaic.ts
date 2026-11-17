@@ -2,7 +2,8 @@
 // `pick-lidar` (which replays it to see which tiles write a cell). A cell keeps the first value a
 // tile gives it, so the tiles' order decides the mosaic.
 
-import { gaussBoagaBox } from "./geometry.ts"
+import { gaussBoagaToLatLon } from "./crs.ts"
+import { gaussBoagaBox, toLocal } from "./geometry.ts"
 import type { Rect } from "./region.ts"
 
 /** A 1 m grid in EPSG:3003: cell (col, row) is centred on (e0 + col, n0 + row), row 0 south. */
@@ -22,6 +23,19 @@ export const cropOf = (rects: ReadonlyArray<Rect>): Crop => {
   const ce = Math.floor(e0) + 0.5,
     cn = Math.floor(n0) + 0.5
   return { e0: ce, n0: cn, cols: Math.ceil(e1 - ce) + 1, rows: Math.ceil(n1 - cn) + 1 }
+}
+
+/** The local box [x0, y0, x1, y1] round a crop's corner cells: the local frame turns against EPSG:3003's grid, so it holds more than the crop. */
+export const localBoxOf = ({ e0, n0, cols, rows }: Crop): Rect => {
+  const corners = [
+    [e0, n0],
+    [e0 + cols - 1, n0],
+    [e0, n0 + rows - 1],
+    [e0 + cols - 1, n0 + rows - 1],
+  ].map(([e, n]) => toLocal(...gaussBoagaToLatLon(e!, n!)))
+  const xs = corners.map((c) => c[0]),
+    ys = corners.map((c) => c[1])
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
 }
 
 /** The 6-line header of an ESRI ASCII grid, keys lower-cased. */

@@ -25,7 +25,7 @@ import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
 import { clipBeyond, heldInPlay } from "./play-area.ts"
-import { REGION, dtmDir, inputParts, osmFiles, ucsFile } from "./region.ts"
+import { REGION, dtmDir, osmFiles, ucsFile, ucsParts } from "./region.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
@@ -96,7 +96,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     // own draws the same water finer, with its level).
     ...(lunigiana
       ? readUcs([
-          ...inputParts(REGION).map((part) => join(root, ucsFile(part))),
+          ...ucsParts(REGION).map((part) => join(root, ucsFile(part))),
           ...lig.map((dir) => join(dir, "uds.json.gz")),
         ]).filter((a) => !isWaterArea(a.kind) || !osmAreas.some((o) => overlap(a, o)))
       : []),

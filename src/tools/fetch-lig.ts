@@ -19,6 +19,11 @@
 //   holds the Tuscan land cover: {crs, year, polygons: [{id, code, rings}]}, sorted by id (`ID_RLIG`),
 //   the code the whole of `COD_USO` (3 or 4 digits), the rings flat [e, n, …] on decimetres; empty
 //   where no kept class lies.
+// - spiagge.json.gz: the beaches' polygons (Spiagge) whose bounding boxes meet the part's
+//   EPSG:25832 box, in the land use's shape: {crs, year, polygons: [{id, code, rings}]}, sorted by
+//   id (`ogr_fid`), the code the polygon's physical character (`cod_caratt_fis`: sand, pebbles,
+//   rocky shore, fill or a river's course), the rings flat [e, n, …] on decimetres, no other
+//   attribute; empty where no beach lies.
 import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
@@ -33,6 +38,8 @@ import {
   NC5_LAYERS,
   nc5File,
   nc5Query,
+  spiaggePolygons,
+  spiaggeQuery,
   staleCrops,
   udsPolygons,
   udsQuery,
@@ -104,3 +111,13 @@ writeJson(
   fetchedToday(wfsUrl(uq, 0)),
 )
 console.log({ uds: uds.length })
+
+const sq = spiaggeQuery(box)
+const spiagge = spiaggePolygons(await fetchWfs(sq, getText))
+// The year of the orthophoto the beaches were drawn on (AGEA 2022), as the layer's metadata gives it.
+writeJson(
+  "spiagge.json.gz",
+  { crs: "EPSG:25832", year: 2022, polygons: spiagge },
+  fetchedToday(wfsUrl(sq, 0)),
+)
+console.log({ spiagge: spiagge.length })

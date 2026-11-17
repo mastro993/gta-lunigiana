@@ -4,7 +4,7 @@
 // `--region cesena` for Cesena's one part. A test region's part is refused, as the region is built
 // from Lunigiana's parts' extracts, but for one with buildings of its own (`ownBuildings`,
 // `pontremoli-town`), which gets OSM's buildings alone, for its map test to check the surveys
-// against.
+// against, and one with OSM of its own (`ownOsm`, `magra-coast`), which gets its whole extract.
 // The extract covers the ground of the region's listed tiles in its box that the parts before it
 // leave to it (`partGround`): the trees cover that ground, beyond the play area too, and keep off
 // OSM's roads, buildings, water and rail there. The OSM API 0.6 `/map` call answers HTTP 400 for a
@@ -136,9 +136,9 @@ export const osmXml = (elements: Elements): string => {
 /**
  * What `fetch-osm` fetches for its arguments `positionals` with `region` (`--region`): the Lunigiana
  * part they name (`partOf`), or another map's one part, with the region it belongs to. Throws,
- * before any request, for a test region's part, unless that region has buildings of its own: the
- * others are built from Lunigiana's parts' extracts (`osmFiles`), so one of their own would go
- * unread.
+ * before any request, for a test region's part, unless that region has buildings or OSM of its
+ * own: the others are built from Lunigiana's parts' extracts (`osmFiles`), so one of their own would
+ * go unread.
  */
 export const partToFetch = (
   positionals: ReadonlyArray<string>,
@@ -153,7 +153,7 @@ export const partToFetch = (
     throw new Error("usage: fetch-osm <part> (a Lunigiana part), or fetch-osm --region cesena")
   const part = partOf(positionals[0]),
     of = regionOfPart(part)
-  if (of.test && !of.ownBuildings)
+  if (of.test && !of.ownBuildings && !of.ownOsm)
     throw new Error(
       `part ${part.key} is test region ${of.key}'s, built from Lunigiana's parts' OSM: fetch those`,
     )

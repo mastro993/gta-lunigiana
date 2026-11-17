@@ -4,6 +4,10 @@
 //   buildings (L6871), minor buildings (L6870), carriageways (L6858) and the mapped area (L6945);
 // - the land use 1:10 000, ed. 2025 (Uso del Suolo, id 2660) on WFS M2660, layer L10449, in
 //   EPSG:25832 (its Z is 0);
+// - the beaches (Spiagge, id 1219, photo-interpreted on AGEA's 2022 orthophoto) on WFS M1219, layer
+//   L3118, in EPSG:25832: each polygon's physical character (`cod_caratt_fis`: 102 sand, 103
+//   pebbles, 104 rocky shore, 106 fill such as promenades and boatyards, 301 and 302 river
+//   courses);
 // - the DTM ed. 2023 (id 2056) on WCS M2056, coverage M2056__L6952: EPSG:3003, 5 m cells of whole
 //   metres (Int16, −32767 where none), clipped at the regional border; in La Spezia's province it is
 //   interpolated from the NC5's own heights.
@@ -17,9 +21,8 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import { TILE } from "../sim/map/kinds.ts"
-import { gaussBoagaToLatLon } from "./crs.ts"
-import { cropOf } from "./dtm-mosaic.ts"
-import { clipRing, gaussBoagaBox, toLocal } from "./geometry.ts"
+import { cropOf, localBoxOf } from "./dtm-mosaic.ts"
+import { clipRing, gaussBoagaBox } from "./geometry.ts"
 import { ligDir, type Part, type Rect, tilesOf } from "./region.ts"
 
 /** The folders under `root` that `fetch-lig` wrote for any of `parts` (`ligDir`), in the parts' order: what the build reads of Liguria. */
@@ -47,12 +50,23 @@ export const NC5_LAYERS = {
   mapped: "L6945",
 } as const
 
+/** The filter of the features whose bounding box meets the EPSG:25832 `box`. */
+const bboxFilter = (box: Rect) => ({ bbox: `${box.join(",")},urn:ogc:def:crs:EPSG::25832` })
+
 /** NC5 layer `layer`'s features whose bounding box meets the EPSG:25832 `box`. */
 export const nc5Query = (layer: string, box: Rect): WfsQuery => ({
   map: "M2052",
   layer,
   sortBy: "ogr_fid",
-  filter: { bbox: `${box.join(",")},urn:ogc:def:crs:EPSG::25832` },
+  filter: bboxFilter(box),
+})
+
+/** The beaches' polygons (Spiagge) whose bounding box meets the EPSG:25832 `box`, by `ogr_fid`. */
+export const spiaggeQuery = (box: Rect): WfsQuery => ({
+  map: "M1219",
+  layer: "L3118",
+  sortBy: "ogr_fid",
+  filter: bboxFilter(box),
 })
 
 /**
@@ -187,18 +201,39 @@ export const clippedRings = (
 export const udsPolygons = (
   features: ReadonlyArray<WfsFeature>,
   classes: ReadonlyArray<string>,
-): Array<{ id: number; code: string; rings: Array<Array<number>> }> =>
+): Array<CodedPolygon> =>
   features.flatMap((f) => {
     const code = String(f.properties.COD_USO)
     if (!classes.includes(code.slice(0, 3))) throw new Error(`land use code ${code} not kept`)
-    return polygonsOfFeature(f).map((rings) => ({
-      id: Number(f.properties.ID_RLIG),
-      code,
-      rings: rings.map((ring) =>
-        ring.flatMap((v, k) => (k % 3 === 2 ? [] : [Math.round(v * 10) / 10])),
-      ),
-    }))
+    return codedPolygons(f, Number(f.properties.ID_RLIG), code)
   })
+
+/**
+ * The beaches' features as `spiagge.json.gz` holds polygons, the land use's shape (`udsPolygons`),
+ * one entry a polygon: its `ogr_fid`, its physical character's code (`cod_caratt_fis`) and its rings
+ * flat [e, n, …] on decimetres; no other attribute, as the build reads none.
+ */
+export const spiaggePolygons = (features: ReadonlyArray<WfsFeature>): Array<CodedPolygon> =>
+  features.flatMap((f) =>
+    codedPolygons(f, Number(f.properties.ogr_fid), String(f.properties.cod_caratt_fis)),
+  )
+
+/** A polygon of a land cover file (`ucs.json.gz`, `uds.json.gz`, `spiagge.json.gz`): its id, its class code and its rings flat [e, n, …], outer first. */
+export interface CodedPolygon {
+  readonly id: number
+  readonly code: string
+  readonly rings: Array<Array<number>>
+}
+
+/** Feature `f`'s polygons under `id` and `code`, their rings flat [e, n, …] on decimetres, Z dropped. */
+const codedPolygons = (f: WfsFeature, id: number, code: string): Array<CodedPolygon> =>
+  polygonsOfFeature(f).map((rings) => ({
+    id,
+    code,
+    rings: rings.map((ring) =>
+      ring.flatMap((v, k) => (k % 3 === 2 ? [] : [Math.round(v * 10) / 10])),
+    ),
+  }))
 
 /** A feature's polygons: each its rings, each ring flat [e0, n0, z0, e1, …] on whole centimetres. */
 export const polygonsOfFeature = (f: WfsFeature): Array<Array<Array<number>>> => {
@@ -233,18 +268,8 @@ const DTM_PAD = 10
  * rectangles included, as the chain fills the whole crop. Each crop is its tile's EPSG:3003 box
  * plus DTM_PAD (`dtmCropBox`), so together they cover the crop.
  */
-export const dtmTiles = (rects: ReadonlyArray<Rect>): ReturnType<typeof tilesOf> => {
-  const { e0, n0, cols, rows } = cropOf(rects)
-  const corners = [
-    [e0, n0],
-    [e0 + cols - 1, n0],
-    [e0, n0 + rows - 1],
-    [e0 + cols - 1, n0 + rows - 1],
-  ].map(([e, n]) => toLocal(...gaussBoagaToLatLon(e!, n!)))
-  const xs = corners.map((c) => c[0]),
-    ys = corners.map((c) => c[1])
-  return tilesOf([[Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]])
-}
+export const dtmTiles = (rects: ReadonlyArray<Rect>): ReturnType<typeof tilesOf> =>
+  tilesOf([localBoxOf(cropOf(rects))])
 
 /** The EPSG:3003 box of tile (i, j)'s DTM crop: the tile's own box plus DTM_PAD. */
 export const dtmCropBox = (i: number, j: number): Rect =>

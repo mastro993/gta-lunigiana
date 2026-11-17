@@ -58,6 +58,12 @@ export interface Region {
    * no map is built for it.
    */
   readonly ownBuildings: boolean
+  /**
+   * A test region with OpenStreetMap of its own (issue #13): `fetch-osm <part>` writes OSM's whole
+   * extract over its part into data/raw/osm/<part>.osm.gz (`osmFile`), which the build reads instead
+   * of Lunigiana's parts'; with terrain of its own too, the build makes its map from its own inputs.
+   */
+  readonly ownOsm: boolean
   readonly origin: { readonly lat: number; readonly lon: number }
   /** Its parts: the play area is the union of their masks, or their rectangles where they have none. */
   readonly parts: ReadonlyArray<Part>
@@ -233,9 +239,11 @@ const regionOf = (
     test,
     ownTerrain = false,
     ownBuildings = false,
+    ownOsm = false,
   }: Pick<Region, "key" | "id" | "file" | "test"> & {
     readonly ownTerrain?: boolean
     readonly ownBuildings?: boolean
+    readonly ownOsm?: boolean
   },
   origin: Region["origin"],
   parts: ReadonlyArray<Part>,
@@ -251,6 +259,7 @@ const regionOf = (
     test,
     ownTerrain,
     ownBuildings,
+    ownOsm,
     origin,
     parts,
     bounds: { minX, minY, maxX, maxY },
@@ -350,6 +359,12 @@ const lucido = PARTS[0]!.rects[0]!
  *   plain's quarries through the old town to the hills below Sarzanello, with terrain of its own
  *   (one LiDAR tile on those hills, then Liguria's DTM) and Regione Liguria's sources (`fetch-lig`):
  *   it checks them (issue #12) before part 4 (#20) exists.
+ * - `magra-coast`: 6 × 4 km of the coast, x −14000…−8000 by y −15000…−11000, all Liguria: Punta
+ *   Bianca and the cliffs under Montemarcello, the Magra's mouth between Bocca di Magra and
+ *   Fiumaretta, and the sand of Marinella and Luni Mare, with 2 km of sea off it. Its terrain
+ *   (Liguria's DTM, the sea filled in), its OSM and Regione Liguria's sources are its own, so it
+ *   builds a map of its own, which CI builds: it checks the sea, the beaches, the piers and the
+ *   Magra's mouth (issue #13) before part 5 (#21) exists.
  */
 const TEST_REGIONS: ReadonlyArray<Region> = [
   regionOf(
@@ -428,6 +443,25 @@ const TEST_REGIONS: ReadonlyArray<Region> = [
     ],
     LUNIGIANA_ANCHOR,
   ),
+  regionOf(
+    {
+      key: "magra-coast",
+      id: "lunigiana",
+      file: "magra-coast",
+      test: true,
+      ownTerrain: true,
+      ownOsm: true,
+    },
+    LUNIGIANA_ORIGIN,
+    [
+      {
+        key: "magra-coast",
+        title: "The coast from Punta Bianca to Luni Mare",
+        rects: [[-14000, -15000, -8000, -11000]],
+      },
+    ],
+    LUNIGIANA_ANCHOR,
+  ),
 ]
 
 const regions: ReadonlyArray<Region> = [
@@ -484,13 +518,20 @@ export const osmFile = (part: Pick<Part, "key">): string => `data/raw/osm/${part
  * test region's built from Lunigiana's inputs, Lunigiana's.
  */
 export const inputParts = (region: Region): ReadonlyArray<Part> =>
-  region.test && !region.ownBuildings ? PARTS : region.parts
+  region.test && !region.ownBuildings && !region.ownOsm ? PARTS : region.parts
+
+/**
+ * The parts whose Regione Toscana land cover (`ucsFile`) the build of `region` reads: its input
+ * parts, but none for a region with terrain of its own, which `fetch-rt` writes none for.
+ */
+export const ucsParts = (region: Region): ReadonlyArray<Part> =>
+  region.ownTerrain ? [] : inputParts(region)
 
 /**
  * The OSM extracts the build of `region` merges, in this order (`readOsms`), from the repository
  * root: its parts'. A test region, built from Lunigiana's inputs, reads Lunigiana's parts' (`PARTS`)
- * instead, but for one with buildings of its own: its own part's extract is what its map test
- * checks the surveys against.
+ * instead, but for one with buildings of its own (its own part's extract is what its map test
+ * checks the surveys against) or OSM of its own.
  */
 export const osmFiles = (region: Region): Array<string> =>
   inputParts(region).map((part) => osmFile(part))

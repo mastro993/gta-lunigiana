@@ -5,7 +5,9 @@
 // Fivizzano's past its own, Liguria's DTM ed. 2023 Castelnuovo Magra's and Luni's past both (issue
 // #18), and Emilia-Romagna's DTM 5x5 its strip along the Emilian border; the Bagnone ridge test region's, where the LiDAR stops 1–2 km below
 // the crest and the 2021 surface model, the 10 m DTM and Emilia-Romagna's DTM 5x5 fill the rest;
-// and the Sarzana test region's, where Liguria's DTM ed. 2023 meets a corner of LiDAR (issue #12).
+// the Sarzana test region's, where Liguria's DTM ed. 2023 meets a corner of LiDAR (issue #12); and
+// the Magra coast test region's, where the sea at 0 m meets Liguria's DTM and, past the Tuscan
+// border, Massa-Carrara's 10 m DTM, which meets Liguria's along it (issue #13).
 // A map test: it walks every node of each.
 import assert from "node:assert/strict"
 import { join } from "node:path"
@@ -73,6 +75,7 @@ for (const [key, pairs] of [
   ],
   ["bagnone-ridge", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar", "dtm10-rer"]],
   ["sarzana-town", ["lidar-lig"]],
+  ["magra-coast", ["dtm10-lig", "dtm10-sea", "lig-sea"]],
 ] as const)
   test(`${key}: no seam between terrain sources steps over 1 m more than the terrain round it`, () => {
     const { g, z, src } = terrainOf(key)

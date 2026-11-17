@@ -20,6 +20,8 @@ import {
   nc5Query,
   PAGE,
   polygonsOfFeature,
+  spiaggePolygons,
+  spiaggeQuery,
   staleCrops,
   udsPolygons,
   udsQuery,
@@ -227,6 +229,38 @@ test("udsPolygons: one entry a polygon, the whole code, Z dropped, decimetres; a
     },
   ])
   assert.throws(() => udsPolygons([f("5111")], ["131", "512"]), /land use code 5111 not kept/)
+})
+
+test("the beaches (Spiagge) are asked by box and sorted by ogr_fid; each polygon keeps its id, its physical character's code and its rings on decimetres alone", () => {
+  const q = new URL(wfsUrl(spiaggeQuery(BOX), 0)).searchParams
+  assert.equal(q.get("typeNames"), "M1219:L3118")
+  assert.equal(q.get("bbox"), `${BOX.join(",")},urn:ogc:def:crs:EPSG::25832`)
+  assert.equal(q.get("sortBy"), "ogr_fid")
+  assert.equal(q.get("srsName"), "EPSG:25832")
+  const ring = [
+    [578385.621312, 4876297.271763],
+    [578384.832293, 4876294.818972],
+    [578387.364985, 4876292.142429],
+    [578385.621312, 4876297.271763],
+  ]
+  // As served (Ameglia's rocky shore, ogr_fid 412), every attribute but these dropped.
+  const rocky: WfsFeature = {
+    properties: {
+      ogr_fid: 412,
+      id: 265340,
+      comune: "AMEGLIA",
+      cod_caratt_fis: "104",
+      caratt_fis: "BATTIGIA ROCCIOSA",
+    },
+    geometry: { type: "MultiPolygon", coordinates: [[ring], [ring]] },
+  }
+  const rings = [
+    [578385.6, 4876297.3, 578384.8, 4876294.8, 578387.4, 4876292.1, 578385.6, 4876297.3],
+  ]
+  assert.deepEqual(spiaggePolygons([rocky]), [
+    { id: 412, code: "104", rings },
+    { id: 412, code: "104", rings },
+  ])
 })
 
 test("staleCrops: the crops this run did not write, never a dotfile", () => {

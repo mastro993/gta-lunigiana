@@ -8,7 +8,7 @@ import { gzipSync } from "node:zlib"
 import { fillPolygon, segDist2 } from "../../sim/collide.ts"
 import { gaussBoagaToLatLon, latLonToGaussBoaga, latLonToUtm32, utm32ToLatLon } from "../crs.ts"
 import { centroid, fromLocal, type P, toLocal } from "../geometry.ts"
-import { kindOfCode, readUcs, ucsAreas } from "../ucs.ts"
+import { kindOfCode, readSpiagge, readUcs, ucsAreas } from "../ucs.ts"
 
 /** A closed square ring [e, n, …] of side `s` from (e, n). */
 const square = (e: number, n: number, s: number) => [e, n, e + s, n, e + s, n + s, e, n + s, e, n]
@@ -208,4 +208,34 @@ test("ucsAreas: a clearing wider than a piece stays clear in every piece, whiche
         `the ring from ${hole[0]!.join(", ")}, ${way === ring ? "clockwise" : "anticlockwise"}`,
       )
     }
+})
+
+test("readSpiagge reads the beaches in local metres with their code, each id from the first file that holds it", (t) => {
+  const [e, n] = latLonToUtm32(...fromLocal(-9000, -12700))
+  const one = file(t, "EPSG:25832", [
+    { id: 5, code: "102", rings: [square(e, n, 50), square(e + 10, n + 10, 5)] },
+    { id: 9, code: "104", rings: [square(e + 100, n, 20)] },
+    { id: 9, code: "104", rings: [square(e + 200, n, 20)] }, // a multipolygon's second piece
+  ])
+  const two = file(t, "EPSG:25832", [
+    { id: 9, code: "103", rings: [square(e + 100, n, 20)] }, // the first file's copy wins
+    { id: 11, code: "106", rings: [square(e + 300, n, 20)] },
+  ])
+  const beaches = readSpiagge([one, two])
+  assert.deepEqual(
+    beaches.map((b) => [b.id, b.code, b.rings.length]),
+    [
+      [5, "102", 2],
+      [9, "104", 1],
+      [9, "104", 1],
+      [11, "106", 1],
+    ],
+  )
+  // Open rings in local metres: the square's corners, the first not repeated.
+  const sand = beaches[0]!.rings[0]!
+  assert.equal(sand.length, 4)
+  const [x, y] = toLocal(...utm32ToLatLon(e, n))
+  assert.ok(Math.hypot(sand[0]![0] - x, sand[0]![1] - y) < 1e-6)
+  assert.ok(Math.hypot(x + 9000, y + 12700) < 1e-3)
+  assert.throws(() => readSpiagge([file(t, "EPSG:4326", [])]), /land cover in EPSG:4326/)
 })
