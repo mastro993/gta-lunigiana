@@ -156,7 +156,12 @@ const platformFaces = (
           [ox, 0, -oy],
           PALETTE.kerb,
         )
-        if (p.walkway === true || !byTrack((q0[0] + q1[0]) / 2, (q0[1] + q1[1]) / 2, PLATFORM_EDGE))
+        // Along the track: both its ends by it, not an end edge turning away (Aulla's AGE#173, 2.98 m off track 1 at its corner).
+        if (
+          p.walkway === true ||
+          !byTrack(q0[0], q0[1], PLATFORM_EDGE) ||
+          !byTrack(q1[0], q1[1], PLATFORM_EDGE)
+        )
           continue
         const band = (q: P2, d: number) => {
           const at: P2 = [q[0] - ox * d, q[1] - oy * d]

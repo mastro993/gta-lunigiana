@@ -1,6 +1,7 @@
 /**
  * What a train runs into along its track, besides what stands on it (./strikes.ts): the buffer stops
- * that end a driven train's track at the drawn run past each terminal, and other trains. The player's
+ * that end a driven train's track at the drawn run past each terminal and at a terminus, and other
+ * trains. The player's
  * train is watched as SCMT watches a train toward a red signal (Lupi's railway course, University of
  * Pisa 2022–23: on overspeed a warning, the traction cut and braking, then the emergency brake): over
  * its braking curve to the buffer, or backing up faster than `REVERSE_MAX`, the traction is cut and
@@ -22,8 +23,11 @@ export const OVER = 5 / 3.6
 /** Slower than this, m/s, a train meeting another or a buffer stop only touches it, as when trains couple at a walk: no Impact. */
 export const TOUCH_SPEED = 0.5
 
-/** Where a driven train's track ends on `line`: the buffer stops at the drawn run's end past each terminal, s. */
-export const buffersOf = (line: Line) => ({ lo: -DRAWN_RUN, hi: line.length + DRAWN_RUN })
+/** Where a driven train's track ends on `line`: the buffer stops at the drawn run's end past each terminal, and at a terminus, s. */
+export const buffersOf = (line: Line) => ({
+  lo: -DRAWN_RUN,
+  hi: line.terminus ? line.length : line.length + DRAWN_RUN,
+})
 
 /** The end of a train of `length` m with its active cab's nose at s that leads its motion `moving` (±1). */
 const leadingEnd = (motion: Longitudinal, length: number, moving: 1 | -1): number => {

@@ -406,3 +406,23 @@ test("extractBuildings: a surveyed building's tint is the one its 2019 CTR id al
     old,
   )
 })
+
+// Regression: OSM tags Aulla Lunigiana's platform areas `public_transport=platform` alone (ways 1388757325, 1388757326 and
+// 1388757328), and the map had none of them.
+test("extractAreas: a public-transport platform is a platform, but a bus stop's", () => {
+  const { osm, square } = areaOsm()
+  square(0, 0, 20, { public_transport: "platform", area: "yes" })
+  square(40, 0, 20, { public_transport: "platform", bus: "yes" })
+  square(80, 0, 20, { public_transport: "platform", highway: "platform" })
+  square(120, 0, 20, { railway: "platform" })
+  assert.deepEqual(
+    extractAreas(osm).map((a) => [
+      Math.round(Math.min(...a.rings[0]!.filter((_, i) => i % 2 === 0)) / 40),
+      a.kind,
+    ]),
+    [
+      [0, "platform"],
+      [3, "platform"],
+    ],
+  )
+})

@@ -100,35 +100,72 @@ test("railway: each line runs terminal to terminal, its pieces sharing their end
     for (let k = 0; k + 1 < line.pieces.length; k++)
       assert.equal(tip(k, true), tip(k + 1, false), `pieces ${k} and ${k + 1} meet`)
     assert.equal(degree.get(tip(0, false)), 1, "the first piece starts at a terminal")
-    assert.equal(degree.get(tip(line.pieces.length - 1, true)), 1, "the last ends at one")
+    // A terminus lies on through track that runs on as a loop (Aulla Lunigiana's track 5).
+    if (line.terminus !== true)
+      assert.equal(degree.get(tip(line.pieces.length - 1, true)), 1, "the last ends at one")
     for (const { rail } of line.pieces) covered.set(rail, (covered.get(rail) ?? 0) + 1)
   }
+  // A piece two lines run is track they share: the Pontremolese's single track north of P.P. Chiesaccia, which the lines of
+  // both its tracks run on to the north edge.
   assert.deepEqual(
-    running.filter((i) => covered.get(i) !== 1),
+    running.filter((i) => covered.get(i) === undefined),
     [],
-    "every running piece is on one line",
+    "every running piece is on a line",
   )
-  // Today one line: the Lucca–Aulla line from the play area's outline at Pieve San Lorenzo (in the Galleria del Lupacino,
-  // towards Piazza al Serchio) to its outline by Rometta (towards Aulla), where the build cuts it (to 0.1 m).
-  assert.equal(railway.lines.length, 1)
-  const { pts } = lines[0]!
-  assert.ok(outlineDistance(pts[0]!, pts[1]!) < 0.08, "it starts on the outline")
-  assert.ok(outlineDistance(pts.at(-2)!, pts.at(-1)!) < 0.08, "and ends on it")
+  // Each from the play area's outline, where the build cuts it (to 0.1 m), to its outline or to a terminus where OSM's train
+  // routes end, a stop position: the Lucca–Aulla line from Pieve San Lorenzo (in the Galleria del Lupacino, towards Piazza al
+  // Serchio) to Aulla Lunigiana's track 5, where the Pisa => Aulla Lunigiana route ends; the Pontremolese's two tracks between
+  // the south edge (towards La Spezia) and the north edge (towards Pontremoli).
+  assert.deepEqual(
+    railway.lines.map((l) => l.terminus === true),
+    [true, false, false],
+  )
+  for (const [l, { pts }] of lines.entries()) {
+    const [x, y] = [pts.at(-2)!, pts.at(-1)!]
+    assert.ok(outlineDistance(pts[0]!, pts[1]!) < 0.08, `line ${l} starts on the outline`)
+    if (railway.lines[l]!.terminus === true)
+      assert.ok(
+        MAP.pois.some((p) => p.kind === "railway=stop" && hypot(p.x - x, p.y - y) < 0.1),
+        `line ${l} ends at a stop position`,
+      )
+    else assert.ok(outlineDistance(x, y) < 0.08, `line ${l} ends on the outline`)
+  }
 })
 
-test("railway: OSM's speed limits run along the line, 80 km/h from Equi Terme's stop to Gragnola's", () => {
+test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's stop to Gragnola's", () => {
+  // Each line's from its start, in order, each on from the last but over track OSM tags no limit on (the game reads it at its
+  // lower neighbour's), which lies only in a station: Aulla Lunigiana's tracks, which the Lucca–Aulla line runs in on.
+  const inStation = (x: number, y: number) =>
+    MAP.pois.some((p) => p.kind === "railway=station" && hypot(p.x - x, p.y - y) < 500)
+  for (const [l, { maxspeed }] of railway.lines.entries()) {
+    const chain = lines[l]!,
+      gaps: Array<readonly [number, number]> = []
+    let at = 0
+    for (const [from, to, kmh] of maxspeed) {
+      assert.ok(from > at - 0.11 && to > from && kmh > 0, `line ${l}: ${kmh} km/h at ${from}–${to}`)
+      if (from > at + 0.11) gaps.push([at, from])
+      at = to
+    }
+    if (at < chain.s.at(-1)! - 0.11) gaps.push([at, chain.s.at(-1)!])
+    for (const [a, b] of gaps)
+      for (const t of [a, (a + b) / 2, b]) {
+        const p = pointAt(chain, t)
+        assert.ok(inStation(p.x, p.y), `line ${l}: no limit at ${a}–${b}, by no station`)
+      }
+  }
+  // Monzone's line from Pieve San Lorenzo to Gassano's halt: 80 or 85 km/h, unbroken; OSM tags the Galleria del Lupacino, in
+  // from the line's start, 140.
   const line = railway.lines[0]!,
-    { s } = lines[0]!
+    gassano = railway.stations.find((st) => st.line === 0 && st.name === "Fivizzano-Gassano")!
   const tunnels = tunnelsOf(line)
   let at = 0
-  for (const [from, to, kmh] of line.maxspeed) {
+  for (const [from, to, kmh] of line.maxspeed.filter(([from]) => from < gassano.s1)) {
     assert.ok(Math.abs(from - at) < 0.11 && to > from, `span ${from}–${to} follows on from ${at}`)
-    // 80 or 85 km/h; OSM tags the Galleria del Lupacino, in from the line's start, 140.
     const bored = tunnels.some(([a, b]) => from > a - 0.11 && to < b + 0.11)
     assert.ok(kmh === 80 || kmh === 85 || (kmh === 140 && bored), `${kmh} km/h at ${from}–${to}`)
     at = to
   }
-  assert.ok(Math.abs(at - s.at(-1)!) < 0.11, "the spans cover the line")
+  assert.ok(at > gassano.s1, "the spans run past Gassano's halt")
   // OSM tags the line 85 up to Equi Terme's stop, 80 to Gragnola's track-2 stop, 85 beyond.
   const stopS = (name: string) =>
     MAP.pois
@@ -147,8 +184,9 @@ test("railway: OSM's speed limits run along the line, 80 km/h from Equi Terme's 
   )
 })
 
-test("railway: the line calls at each station along its platforms, on their side", () => {
-  // OSM's five from Pieve San Lorenzo to Gassano: Fivizzano-Gassano a halt.
+test("railway: each line calls at each station along its platforms, on their side", () => {
+  // OSM's seven from Pieve San Lorenzo to Aulla on the Lucca–Aulla line (Fivizzano-Gassano a halt), the last its terminus; the
+  // Pontremolese's two tracks call at Aulla Lunigiana too.
   assert.deepEqual(
     railway.stations.map((st) => [st.name, st.line]),
     [
@@ -157,19 +195,34 @@ test("railway: the line calls at each station along its platforms, on their side
       ["Monzone-Monte dei Bianchi-Isolano", 0],
       ["Gragnola", 0],
       ["Fivizzano-Gassano", 0],
+      ["Fivizzano-Rometta-Soliera", 0],
+      ["Aulla Lunigiana", 0],
+      ["Aulla Lunigiana", 1],
+      ["Aulla Lunigiana", 2],
     ],
   )
+  const ringNear = (ring: ReadonlyArray<number>, x: number, y: number) => {
+    let d2 = Number.MAX_VALUE
+    for (let k = 0; k < ring.length; k += 2) {
+      const j = (k + 2) % ring.length
+      d2 = Math.min(d2, segDist2(x, y, ring[k]!, ring[k + 1]!, ring[j]!, ring[j + 1]!).d2)
+    }
+    return Math.sqrt(d2)
+  }
   for (const st of railway.stations) {
     const line = lines[st.line]!
-    assert.ok(st.s1 - st.s0 > 60 && st.s1 - st.s0 < 200, `${st.name}: ${st.s0}–${st.s1}`)
-    // The station or halt node (on the building) lies beside the extent.
+    // Aulla Lunigiana's platforms run 410 m along the Pontremolese's tracks, the others' 60–200 m.
+    assert.ok(st.s1 - st.s0 > 60 && st.s1 - st.s0 < 450, `${st.name}: ${st.s0}–${st.s1}`)
+    const own = railway.platforms.filter((p) => p.name === st.name)
+    // The station or halt node (on the building) lies beside the extent, by the line or by one of its platforms: Aulla
+    // Lunigiana's building stands by its track 1, which no line runs.
     const node = MAP.pois.find(
       (p) => (p.kind === "railway=station" || p.kind === "railway=halt") && p.name === st.name,
     )!
-    const f = sOf(line, node.x, node.y)
-    assert.ok(f.s > st.s0 - 20 && f.s < st.s1 + 20 && f.d < 20, `${st.name}'s station node`)
+    const f = sOf(line, node.x, node.y),
+      by = own.some((p) => ringNear(WHOLE.areas[p.area]!.rings[0]!, node.x, node.y) < 20)
+    assert.ok(f.s > st.s0 - 20 && f.s < st.s1 + 20 && (f.d < 20 || by), `${st.name}'s station node`)
     // Its platforms beside the line project inside the extent, and the side 2.1 m off its middle is on one.
-    const own = railway.platforms.filter((p) => p.name === st.name)
     for (const p of own) {
       const ring = WHOLE.areas[p.area]!.rings[0]!
       const fs = Array.from({ length: ring.length / 2 }, (_, k) =>

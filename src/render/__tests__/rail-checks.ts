@@ -286,18 +286,15 @@ export const checkBed = ({ all }: Railway, least: number): void => {
 const GAUGE = 1.435
 
 /**
- * Past each terminal of each of the map's lines, over the drawn run out of a tunnel, two rails drawn where its trains ride
- * (`LINES`), every metre: within the map's bounds at the rail head's height, past them (where the apron is the edge drawn on,
- * and the drawn rails lie on it) anywhere over it. Returns the points checked.
+ * Past each terminal of each of the map's lines on the map's edge (a terminus inside it has no run-out), over the drawn run out
+ * of a tunnel, two rails drawn where its trains ride (`LINES`), every metre: within the map's bounds at the rail head's height,
+ * past them (where the apron is the edge drawn on, and the drawn rails lie on it) anywhere over it. Returns the points checked.
  */
 export const checkDrawnRuns = (): number => {
   const pieces = railPieces(() => [])
   let checked = 0
   for (const line of LINES)
-    for (const [s0, way] of [
-      [0, -1],
-      [line.length, 1],
-    ] as const) {
+    for (const [s0, way] of [[0, -1], ...(line.terminus ? [] : [[line.length, 1]])] as const) {
       const end = pointAt(line, s0)
       const near = pieces.filter((piece) => {
         const [minX, minY, maxX, maxY] = boxOver(piece.pts)

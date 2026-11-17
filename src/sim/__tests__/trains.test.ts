@@ -18,7 +18,7 @@ import { MAP } from "../map/index.ts"
 import { CROSSING_HOLD, LOWERING, MARGIN, RAISING, RELEASE, WARNING } from "../rail/barriers.ts"
 import { CROSSINGS } from "../rail/crossings.ts"
 import { entryClear, FillTrains } from "../rail/dispatch.ts"
-import { LINES, linesNear, nextStop, speedAt } from "../rail/lines.ts"
+import { LINES, linesNear, nextStop, SHARED, speedAt } from "../rail/lines.ts"
 import { DWELL, KEEP_BEHIND, trainDraft } from "../rail/service.ts"
 import { trackUnder } from "../rail/systems.ts"
 import {
@@ -30,6 +30,7 @@ import {
   stopOf,
   TrainWorld,
 } from "../rail/testing.ts"
+import { Railway } from "../schema.ts"
 import { jsonSave, start } from "../testing.ts"
 import { atMonzone, LENGTH, line, railway, riolo, S, toRiolo } from "./railway.ts"
 
@@ -139,7 +140,10 @@ test("trains: the dispatcher sends a train only once its braking distance ahead 
     assert.ok(game.runtime.tick(placeTrains([blocking])).ok)
     game.runtime.send(SetTrains, { call: true })
     game.step(10 * S)
-    const ai = game.inspect().trains.filter((t) => t.run !== undefined)
+    // SetTrains calls every line's train: Monzone's line's alone enters past the standing one.
+    const mine = (t: { readonly run?: unknown; readonly line: number }) =>
+      t.run !== undefined && t.line === line.index
+    const ai = game.inspect().trains.filter(mine)
     assert.equal(ai.length, enters ? 1 : 0, `${off} m out`)
     assert.equal(game.inspect().railway[line.index]!.due === null, enters)
     if (!enters) continue
@@ -147,11 +151,11 @@ test("trains: the dispatcher sends a train only once its braking distance ahead 
     let last = ai[0]!.v,
       hardest = 0
     game.step(80 * S, (world) => {
-      const train = world.trains.find((t) => t.run !== undefined)!
+      const train = world.trains.find(mine)!
       hardest = Math.max(hardest, (last - train.v) * S)
       last = train.v
     })
-    const stopped = game.inspect().trains.find((t) => t.run !== undefined)!
+    const stopped = game.inspect().trains.find(mine)!
     assert.equal(stopped.v, 0)
     assert.ok(Math.abs(nose + clear + off - stopped.s - KEEP_BEHIND) < 1, `${stopped.s}`)
     assert.ok(hardest < 0.62, `braking at ${hardest.toFixed(3)} m/s²`)
@@ -160,7 +164,7 @@ test("trains: the dispatcher sends a train only once its braking distance ahead 
   assert.ok(game.runtime.tick(placeTrains([])).ok)
   game.runtime.send(SetTrains, { call: true })
   game.step(1)
-  const [train] = game.inspect().trains
+  const train = game.inspect().trains.find((t) => t.line === line.index)
   assert.ok(train?.run !== undefined, "in at once on a clear line")
   assert.deepEqual(
     [train.s, train.facing, train.run.state, train.run.stop],
@@ -177,8 +181,99 @@ test("SetTrains: a request sent before the first update still applies after anot
   assert.ok(runtime.tick(Game.Schedule(Game.System("Test/Draw", {}, () => {}))).ok)
   run(1)
   const world = runtime.inspect(TrainWorld)
-  assert.equal(world.trains.filter((t) => t.run !== undefined).length, LINES.length)
-  assert.ok(world.railway.every((entry) => entry.due === null))
+  // The call made every line's train due now: each enters but one that could meet another line's head-on on the track they
+  // share (the Pontremolese's two, entering from either end of their single track), which stays due until that one runs off.
+  const running = new Set(world.trains.filter((t) => t.run !== undefined).map((t) => t.line))
+  assert.ok(running.has(line.index), "Monzone's line's in")
+  for (const [i, entry] of world.railway.entries())
+    assert.ok(running.has(i) !== (entry.due !== null), `line ${i}: in, or due`)
+})
+
+// Regression: a line's train entered while another line's AI train, still on its own track, ran toward the track they share
+// the other way; they met there head-on and both stood face to face for good (Aulla's Lucca–Aulla line, before its terminus,
+// and the Pontremolese's north of its junction: in 2 h from a new game, seeds 1, 2 and 4, for over an hour).
+test("trains: the dispatcher lets no train in toward another line's AI train that has their shared track still ahead", () => {
+  // A line `a` with a stretch it shares with line `b` at least 3 km on from its start.
+  const found = LINES.flatMap((a) =>
+    LINES.flatMap((b) =>
+      (SHARED[b.index]![a.index] ?? [])
+        .filter((run) => run.from - 3000 > 0)
+        .map((run) => ({ a, b, run })),
+    ),
+  )[0]
+  assert.ok(
+    found !== undefined,
+    "two lines share track (the Pontremolese's two, north of P.P. Chiesaccia)",
+  )
+  const { a, b, run } = found
+  // a's train runs +s 3 km short of it; b's would enter running at it there.
+  const s = run.from - 3000,
+    dir = -run.sign as 1 | -1
+  const game = railway()
+  const ours = trainDraft(
+    "atr220",
+    { line: a.index, s, facing: 1, v: speedAt(a, s) },
+    { dir: 1, stop: -1, state: "run", until: 0 },
+  )
+  assert.ok(game.runtime.tick(placeTrains([ours])).ok)
+  const due = Game.Schedule(
+    Game.System(
+      "Test/DueNow",
+      { resources: { railway: Game.System.writeResource(Railway) } },
+      ({ resources }) => {
+        resources.railway.update((service) =>
+          service.map((entry, k) => (k === b.index ? { due: 0, from: dir > 0 ? 0 : 1 } : entry)),
+        )
+      },
+    ),
+  )
+  assert.ok(game.runtime.tick(due).ok)
+  game.step(10 * S)
+  assert.deepEqual(
+    game.inspect().trains.filter((t) => t.line === b.index),
+    [],
+    "it waits",
+  )
+  assert.notEqual(game.inspect().railway[b.index]!.due, null)
+})
+
+test("trains: at its terminus a train dwells as its driver changes ends, then runs back, calling at the station it came by, never past the terminus", () => {
+  const terminus = LINES.find((l) => l.terminus)
+  assert.ok(
+    terminus !== undefined,
+    "a line to a terminus (the Lucca–Aulla line, at Aulla Lunigiana)",
+  )
+  const [before, last] = terminus.stations.slice(-2) as [number, number]
+  // Its train runs in toward the terminus's station at line speed, 600 m short of its stop.
+  const s = stopOf(last, 1) - 600
+  const game = railway()
+  const train = trainDraft(
+    "atr220",
+    { line: terminus.index, s, facing: 1, v: speedAt(terminus, s) },
+    { dir: 1, stop: last, state: "run", until: 0 },
+  )
+  assert.ok(game.runtime.tick(placeTrains([train])).ok)
+  let farthest = s
+  const dwelt = game.step(180 * S, (world) => {
+    const [t] = world.trains
+    farthest = Math.max(farthest, t!.s)
+    return t!.run?.state === "dwell"
+  })
+  assert.ok(dwelt < 180 * S, "it called")
+  // Turned round as the dwell starts: its nose at the far end, facing back, its driver's run back the other way.
+  const [at] = game.inspect().trains
+  assert.deepEqual([at!.facing, at!.run!.dir], [-1, -1])
+  assert.ok(Math.abs(at!.v) < 0.01, "standing")
+  assert.ok(Math.abs(at!.s + LENGTH - stopOf(last, 1)) < 3, `nose at ${at!.s}`)
+  assert.equal(game.inspect().railway[terminus.index]!.due, null, "not taken off")
+  // The dwell over, it runs back to the station before.
+  game.step(DWELL[1] * S + 30 * S, (world) => {
+    farthest = Math.max(farthest, world.trains[0]!.s + LENGTH)
+  })
+  const [back] = game.inspect().trains
+  assert.deepEqual([back!.run!.state, back!.run!.dir, back!.run!.stop], ["run", -1, before])
+  assert.ok(back!.v < 0, "on its way")
+  assert.ok(farthest <= terminus.length + 1e-9, `never past the terminus (${farthest})`)
 })
 
 test("trains: Via Riolo closes for a train leaving Monzone toward it 20 s before it goes, and opens 2 s after it has cleared, 12 s on", () => {

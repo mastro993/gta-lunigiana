@@ -1,7 +1,8 @@
 /**
  * The AI drivers, the same on every line with no timetable: one AI train runs each line end to end,
  * calls at every station (a dwell of `DWELL` s, drawn from `RailRng`, never `Rng`) and runs off at the
- * far end; trains of lines that share track keep clear of each other there (`SHARED`). `TrainAI` drives
+ * far end, or turns round at a terminus and runs back; trains of lines that share track keep clear of
+ * each other there (`SHARED`). `TrainAI` drives
  * each AI train; ./dispatch.ts brings them in and takes them off, and `trainDraft` drafts any train.
  *
  * @module rail/service
@@ -105,7 +106,8 @@ export const trainDraft = (
 
 /**
  * Every AI train's driver: at a station it dwells (while the game clock runs: behind the title card the day stands still, and
- * so does the dwell), then runs on to the next or off the line; running, it works its lever to the line speed and the braking
+ * so does the dwell), then runs on to the next or off the line (at a terminus, ./dispatch.ts has turned it round as its dwell
+ * began, and it runs back); running, it works its lever to the line speed and the braking
  * curves to its next stop, to KEEP_BEHIND m short of a train ahead on its track (of where one coming at it will stand) and to
  * CROSSING_HOLD m short of a level crossing whose arms are not down (rail/driver.ts), and whistles entering a long tunnel. Past
  * that hold point, or standing within its braking distance from the line speed there, it stays where it is until the arms are

@@ -66,8 +66,16 @@ interface Track {
 
 /** What the platforms are cut from and stand by. */
 export interface PlatformInput {
-  /** Platform polygons, each `src` named for the report. */
-  readonly polygons: ReadonlyArray<{ readonly src: string; readonly rings: Polygon }>
+  /**
+   * Platform polygons, each `src` named for the report, and the rings whose ground it leaves to
+   * another source (`leftTo`: an OSM platform where a 2019 CTR sheet maps the ground, which has its
+   * own platforms there).
+   */
+  readonly polygons: ReadonlyArray<{
+    readonly src: string
+    readonly rings: Polygon
+    readonly leftTo?: ReadonlyArray<ReadonlyArray<number>>
+  }>
   /** Every drawn track out of the tunnels, flat x, y; `group` tells tracks apart (a line's pieces share one). */
   readonly tracks: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly group: number }>
   /** The running lines, chained, with the bed `z` per vertex. */
@@ -227,7 +235,10 @@ const piecesOfMask = (kept: Uint8Array, cw: number, ch: number): Array<Array<num
 }
 
 /** The pieces of one polygon left once clipped, each traced, sorted and given its top. */
-const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<PlatformOut> => {
+const piecesOf = (
+  { src, rings, leftTo = [] }: PlatformInput["polygons"][number],
+  input: PlatformInput,
+): Array<PlatformOut> => {
   const outer = rings[0]!
   let x0 = Infinity,
     y0 = Infinity,
@@ -262,7 +273,13 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
       ? [{ rings, box: [cx0, cy0, cx1, cy1] as const }]
       : []
   })
-  const inCrossing = (x: number, y: number) =>
+  const others = leftTo.filter((ring) => {
+    const [ax0, ay0, ax1, ay1] = ringBox(ring)
+    return ax0 <= x1 && ax1 >= x0 && ay0 <= y1 && ay1 >= y0
+  })
+  // A cell another source maps, or in a level crossing, is no platform.
+  const leftOut = (x: number, y: number) =>
+    others.some((ring) => pointInRing(x, y, ring)) ||
     crossings.some(
       ({ rings: [r, ...holes], box: [cx0, cy0, cx1, cy1] }) =>
         x >= cx0 &&
@@ -301,7 +318,7 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
   /** Whether (x, y) keeps every clearance. */
   const clear = (x: number, y: number) =>
     obstacles.every(([ax, ay, bx, by, c]) => segDist2(x, y, ax, ay, bx, by).d2 >= c * c) &&
-    !inCrossing(x, y)
+    !leftOut(x, y)
   // Each obstacle blocks the cells within its clearance plus MARGIN; the polygon keeps the rest.
   const blocked = new Uint8Array(cw * ch)
   for (const [ax, ay, bx, by, c] of obstacles) {
@@ -319,7 +336,7 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
   fillPolygon(rings, gx, gy, RES, { c0: 0, r0: 0, cols: cw, rows: ch }, (k) => {
     const x = gx + ((k % cw) + 0.5) * RES,
       y = gy + (Math.floor(k / cw) + 0.5) * RES
-    if (blocked[k] === 1 || inCrossing(x, y)) return
+    if (blocked[k] === 1 || leftOut(x, y)) return
     if (input.terrain(x, y) < bedAt(x, y) + RAIL_LIFT + PLATFORM_RISE - PLATFORM_DROP) return
     kept[k] = 1
   })
@@ -433,5 +450,5 @@ const piecesOf = (src: string, rings: Polygon, input: PlatformInput): Array<Plat
 export const buildPlatforms = (input: PlatformInput): Array<PlatformOut> => {
   if (input.polygons.length > 0 && input.lines.length === 0)
     throw new Error("platforms: no running line to stand beside")
-  return input.polygons.flatMap(({ src, rings }) => piecesOf(src, rings, input))
+  return input.polygons.flatMap((polygon) => piecesOf(polygon, input))
 }

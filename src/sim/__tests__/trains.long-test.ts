@@ -97,15 +97,24 @@ test("trains: determinism: a train leaving Monzone over Via Riolo, one arriving 
   assert.equal(game.whistles.length, 1)
 })
 
-test("trains: a train runs the whole line both ways, calling at every station for 30–60 s within 3 m of its stop, never on an open box, lays over 60–180 s, and is removed past the drawn run", () => {
+test("trains: a train runs its line in to its terminus and back, calling at every station each way for 30–60 s within 3 m of its stop (at the terminus once, turned round there), never on an open box, lays over 60–180 s, and is removed past the drawn run where it came in", () => {
+  // Monzone's line, the Lucca–Aulla line, ends at Aulla Lunigiana's track 5, where OSM's train routes end.
+  assert.ok(line.terminus)
   const game = railway()
   assert.ok(game.runtime.tick(placeTrains([entering()])).ok)
   // Two trips and their layovers, then the third train in.
   const { calls, removed, entered, onOpenBox } = service(game, 2 * (TRIP + LAYOVER[1]) * S, 2)
-  const stations = line.stations
+  const stations = line.stations,
+    there = stations.slice(0, -1)
+  // At the terminus its driver changes ends as the dwell starts: the call is seen running back.
+  const trip = [
+    ...there.map((s) => [s, 1]),
+    [stations.at(-1)!, -1],
+    ...[...there].reverse().map((s) => [s, -1]),
+  ]
   assert.deepEqual(
     calls.map((c) => [c.station, c.dir]),
-    [...stations.map((s) => [s, 1]), ...[...stations].reverse().map((s) => [s, -1])],
+    [...trip, ...trip],
   )
   for (const call of calls) {
     assert.ok(
@@ -118,12 +127,12 @@ test("trains: a train runs the whole line both ways, calling at every station fo
     )
   }
   assert.deepEqual(onOpenBox, [], "the arms down whenever it reaches a road box")
-  // Removed once its whole body is past the drawn run, out of view, not before; the next one due after the layover, from that
-  // end, entering at the run-out's end at line speed.
+  // Removed once its whole body is past the drawn run at the start, out of view, not before; the next one due after the layover,
+  // from that end, entering at the run-out's end at line speed.
   assert.ok(removed.length >= 2 && entered.length >= 3)
   for (const [i, gone] of removed.entries()) {
     // Its tail the step before it went: within that step's run short of the drawn run's end.
-    const short = gone.from === 1 ? line.length + DRAWN_RUN - gone.tail : gone.tail + DRAWN_RUN
+    const short = gone.tail + DRAWN_RUN
     assert.ok(
       short >= 0 && short < Math.abs(gone.v) / S,
       `removed ${short} m short of the drawn run's end`,
@@ -133,24 +142,24 @@ test("trains: a train runs the whole line both ways, calling at every station fo
       layover >= LAYOVER[0] * S - 1 && layover <= LAYOVER[1] * S,
       `layover ${layover / S} s`,
     )
-    assert.equal(gone.from, i % 2 === 0 ? 1 : 0)
+    assert.equal(gone.from, 0)
     const next = entered[i + 1]!
     assert.ok(next.step >= gone.due - 1 && next.step <= gone.due + 1, "in as soon as due")
-    assert.equal(next.dir, gone.from === 1 ? -1 : 1)
-    assert.equal(next.s, gone.from === 1 ? line.end - LENGTH : line.start + LENGTH)
+    assert.deepEqual([next.dir, next.s], [1, line.start + LENGTH])
     assert.equal(Math.abs(next.v), speedAt(line, next.s))
   }
   // A moderately long whistle entering each tunnel of 200 m or more, WHISTLE_LEAD m before its mouth, each way; none where the
   // map cuts a tunnel at a terminal (the Galleria del Lupacino at s 0), a train coming in there in the bore already.
   const long = line.tunnels.filter((t) => t.to - t.from >= LONG_TUNNEL)
   assert.ok(long.length > 0)
-  const portals = [
+  const round = [
     ...long.filter((t) => t.from > 0).map((t) => t.from - WHISTLE_LEAD),
     ...[...long]
       .reverse()
       .filter((t) => t.to < line.length)
       .map((t) => t.to + WHISTLE_LEAD),
   ]
+  const portals = [...round, ...round]
   assert.equal(game.whistles.length, portals.length)
   for (const [i, whistle] of game.whistles.entries()) {
     const at = pointAt(line, portals[i]!)
@@ -163,9 +172,9 @@ test("trains: on wet rail and under snow a train still stops within 3 m at every
   for (const ground of [{ wet: 1 }, { snow: true }]) {
     const game = railway()
     assert.ok(game.runtime.tick(groundTo(ground), placeTrains([entering()])).ok)
-    // One trip: until the next train comes in.
+    // One trip, in to the terminus and back: until the next train comes in.
     const { calls, onOpenBox } = service(game, (TRIP + LAYOVER[1]) * S, 1)
-    assert.equal(calls.length, line.stations.length)
+    assert.equal(calls.length, 2 * line.stations.length - 1)
     for (const call of calls)
       assert.ok(Math.abs(call.off) < 3, `${JSON.stringify(ground)}: ${call.off} m off`)
     assert.deepEqual(onOpenBox, [])

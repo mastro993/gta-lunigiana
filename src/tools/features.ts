@@ -695,7 +695,13 @@ const areaKind = (t: Tags): AreaKind | "orchard" | undefined => {
   if (t.highway === "pedestrian" && t.area === "yes") return "paved"
   if (t.leisure === "pitch" || t.leisure === "park") return t.leisure
   if (t.amenity === "parking" || t.amenity === "school") return t.amenity
-  if (t.railway === "platform") return "platform"
+  // A station's platform; OSM tags Aulla Lunigiana's `public_transport=platform` alone, and a bus
+  // stop's carries `bus` or `highway` too.
+  if (
+    t.railway === "platform" ||
+    (t.public_transport === "platform" && t.bus === undefined && t.highway === undefined)
+  )
+    return "platform"
   if (t.historic === "ruins" || t.historic === "archaeological_site") return "ruins"
   if (
     t.natural === "grassland" ||

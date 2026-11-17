@@ -75,7 +75,10 @@ export const railSummary = (r: RailSummary) => ({
     },
   },
   railway: {
-    lines: r.lines.map((l) => `${l.pieces.length} pieces, ${l.length.toFixed(1)} m`),
+    lines: r.lines.map(
+      (l) =>
+        `${l.pieces.length} pieces, ${l.length.toFixed(1)} m${l.terminus ? " to a terminus" : ""}`,
+    ),
     stations: r.stations.map((st) => `${st.name} ${st.s0}–${st.s1} side ${st.side}`),
     crossings: r.crossings.map((c) => `${r.roadName(c.road)} ×${c.nodes.length} s ${c.s}`),
     verges: r.verges.verges.map(

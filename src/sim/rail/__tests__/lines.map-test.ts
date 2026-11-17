@@ -3,7 +3,7 @@ import { test } from "node:test"
 import {
   checkAtTheirS,
   checkLinesNear,
-  checkNoSharedTrack,
+  checkSharedTrack,
   checkStops,
   checkTerminals,
   railwayAround,
@@ -29,6 +29,6 @@ test("lines: on every line a train stops centred on the platforms and calls next
   checkStops(ALL.lines)
 })
 
-test("lines: no two of the map's lines share track today", () => {
-  checkNoSharedTrack(ALL.lines)
+test("lines: two of the map's lines share track exactly where they run the same pieces or past the same terminal, at the same points", () => {
+  checkSharedTrack(ALL.lines)
 })
