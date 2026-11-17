@@ -109,7 +109,7 @@ _Avoid_: Surface source
 ## Standing and rolling
 
 **Footing**:
-The ground under a person or an animal, on the level it is on: a bridge's deck, a tunnel's floor, a platform or the ground at grade. On foot it is what they stand on; for the player driving, the ground under the vehicle or train they drive. Every person and animal always has one.
+The ground under a person or an animal, on the level it is on: a bridge's deck, a tunnel's floor, a platform or the ground at grade. On foot it is what they stand on; swimming, where its feet hang in the water, 0.7 of its height under the surface and never under the bed; for the player driving, the ground under the vehicle or train they drive. Every person and animal always has one.
 _Avoid_: level (reserved for whether two things meet), standing height, ground (for a body on foot)
 
 **Wheels' ground**:
@@ -176,3 +176,17 @@ _Avoid_: Sunken mouth, underground portal
 **Covered way**:
 A stretch of a tunnel by its mouth under a house standing at the road's level, which leaves that mouth open.
 _Avoid_: Arcade, building passage (that is a tunnel through a house)
+
+## Water
+
+**Sea piece**:
+The sea within one tile's square cut to the map's bounds, a water area at 0 m: the sea is its pieces, one water, so a swimmer in one heads for the coast in any of them.
+_Avoid_: Sea tile, sea polygon
+
+**Coast**:
+A sea piece's edges that are its shore, an islet's included: every edge but the cuts along a tile's side or the map's bounds, where the sea goes on.
+_Avoid_: Coastline (that is OSM's line the build closes the pieces from), shore edge
+
+**Held by the sea**:
+A river whose bed lies under the sea's level standing at it (0 m) rather than at its bed plus its flow's depth, as at its mouth at low flow.
+_Avoid_: Backwater, tide

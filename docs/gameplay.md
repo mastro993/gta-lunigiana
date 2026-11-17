@@ -76,12 +76,13 @@ back once it rests on a seat.
   the deck, so nobody on the deck or on the road onto it meets them
   ([map.md](map.md#walls-under-the-decks)).
 - Knocked down, the player cannot steer and slides to a stop (10 m/s²).
-- **In a river, a stream or a lake** the player wades, slower the deeper it is (a sprint most of
-  all) and pushed by the current, until the water reaches his chest or the current takes his feet
-  (an adult's 1.2 m²/s of depth × speed); then he swims with the current at 0.9 m/s of his own
-  (sprinting, a hard crawl at 1.4 m/s), and swims out wherever he heads. He never drowns. Knocked
-  down in the water, the current takes him. The rivers' depth and current follow the rain; a lake
-  stands still at its level ([water.md](water.md)).
+- **In a river, a stream, a lake or the sea** the player wades, slower the deeper it is (a sprint
+  most of all) and pushed by the current, until the water reaches his chest or the current takes
+  his feet (an adult's 1.2 m²/s of depth × speed); then he swims with the current at 0.9 m/s of his
+  own (sprinting, a hard crawl at 1.4 m/s), his feet hanging 0.7 of his height under the surface,
+  his level, and swims out wherever he heads. He never drowns. Knocked down in the water, the
+  current takes him. The rivers' depth and current follow the rain; a lake stands still at its
+  level, the sea at 0 m ([water.md](water.md)).
 
 ## Entering, stealing, carjacking, exiting
 
@@ -1652,8 +1653,8 @@ What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/s
   whistled at, as anywhere at grade; walking the track onto the bridge over the underpass, they step
   down under its deck ([Train limits](#train-limits)).
 - **Under the rail bridges, in the water.** No deck of a rail bridge is ground anyone stands on, so
-  whoever is at one is under it, wading or swimming on the river's bed (someone walking the track
-  onto a bridge steps off its end, [Train limits](#train-limits)): a swimmer swept under the
+  whoever is at one is under it, wading on the river's bed or swimming in it (someone walking the
+  track onto a bridge steps off its end, [Train limits](#train-limits)): a swimmer swept under the
   Aulella's bridge at Gragnola in a spate (its deck 9 m over the bed) is passed over exactly as with
   no train. The three streams that cross the track run through its culverts or under its deck
   ([water.md](water.md#depth-and-current)), so its whole rail bed stays dry there at every flow up

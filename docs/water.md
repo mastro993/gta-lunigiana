@@ -161,7 +161,28 @@ follow from the discharge per km², q.
 - **In a lake** (`Area.level`): still water at its level, whatever the rivers carry, with no
   current; the way to the bank is toward its nearest shore. A lake wins over a stream through it.
   Its bed shelves 0.1 m a metre from the shore, 3 m deep at most: the lake by the Solco di Equi is
-  1.5 m deep in its middle, the Bozzetti pond 0.5 m.
+  1.5 m deep in its middle, the Bozzetti pond 0.5 m, Lago Fario 2.98 m.
+- **In the sea** (`Area.level` 0, `SEA_LEVEL` in `channel.ts`): still water at 0 m, as a lake is,
+  over the sea floor the map build carves ([map.md](map.md)). The build cuts it into a piece per
+  tile, each the tile's square cut to the map's bounds, so a piece's ring runs along tile lines and
+  bounds where the sea goes on: those edges are cuts, not shore (an edge along x or y = k × 2000 m,
+  or along the bounds; `isCut` in `rivers.ts`, for any still water: the L test region's bounds cut
+  the lake by the Solco di Equi at x 2400, and a swimmer there heads for its shore, not the cut).
+  The way to the bank is toward the nearest coast of any sea piece the point's tile holds
+  (every piece within 32 m of the tile, whole), islets included; where none holds any coast, the
+  nearest edge of the point's own piece. On the coast test region, of the 17,749 points of a 25 m
+  lattice over its sea, every one heads for the whole map's nearest coast (within 0.5°), the 193
+  more than 2 km out too; with every edge a shore, as before, 3,823 of them did (21.5 %), and some
+  swam straight away from it, for a cut 12.5 m off (2026-11-17).
+- **Where a river meets the sea** no river stands under the sea's level: its level is the larger of
+  its bed plus its depth (stage × q^0.353) and 0 m, so at its mouth the sea holds it up at 0 m at
+  low flow and a spate lifts it over. Where the sea holds it up the same flow runs through the
+  deeper water slower, at the mean speed × (its depth at that flow / the water's depth over the
+  bed). Inland every bed lies above 18 m and nothing changes: the lookups at every vertex of
+  Lunigiana's water and at points up to 6.1 m either side of it, and on a 2 m lattice over its lakes
+  and river polygons, at five flows (0 to 3.3 m³/s per km²) and both floors, 36,998,350 of them,
+  answer to the bit as before, as do Cesena's 1,743,660 (2026-11-17). On the coast test region the
+  Magra's bed lies 2.40 m under the sea's level at its mouth.
 
 | Where | at 1 m³/s (Soliera) | 9 m³/s, the mean | 21 m³/s | 125 m³/s, a spate |
 |---|---|---|---|---|
@@ -177,8 +198,8 @@ lucido alone); the rest are headwater gullies, dry as real ones are.
 ## People and animals in the water
 
 `Wade` (before the movement systems) gives every person on foot and every animal standing in a
-river, a stream or a lake the saved `InWater` component, `swimming` once it is off its feet, and
-takes it away on dry ground.
+river, a stream, a lake or the sea the saved `InWater` component, `swimming` once it is off its
+feet, and takes it away on dry ground.
 
 - **On a bridge or under it.** A body not yet in the water stands on the highest ground at its
   point, a bridge's deck when it is within 1 m of the deck's edge (a walker keeps to the verge, half
@@ -192,6 +213,15 @@ takes it away on dry ground.
   0.4 for children. An animal's height is its shoulder's (`FAUNA`: a dog 0.55 m, a cat 0.25, a cow
   1.4, a pig 0.7) and its mass its species' × size³; none stands more than an adult. Back on its
   feet only under 0.85 of either.
+- **Afloat** (`feetAfloat`, `swim.ts`): a swimmer's footing, the level it meets cars and others at
+  and the camera stands at, is where its feet hang, 0.7 of its height under the surface (the depth
+  that lifts it off them), never under the bed; wading, it is the bed (`FindFooting`). So in deep
+  water it meets a car afloat beside it: in Lago Fario's 2.94 m the player's feet hang 1.25 m under
+  the surface, 1.69 m over the bed, and a Panda afloat beside him, its wheels' ground 2.38 m over
+  the bed, is 0.69 m from them. While a swimmer's level was the bed, a car afloat in water deeper
+  than about 2.4 m stood more than 2 m over it, out of reach, and drifted through every swimmer
+  there, and the camera, which stands at the player's footing, looked at the bed under him: 2 km
+  off Marinella's beach, 9.9 m under the surface, with the swimmer 215 px up the 720 px screen.
 - **Wading** (`waterVelocity`): toward where it wants to go at its walking speed × (1 − 1.15 ×
   depth × 1.75 / height), at least a quarter (knee-deep water, 0.35 m, slows an adult by about
   two fifths: trials of 188 people in "Impacts of water depth on pedestrian speed, gait, and
@@ -207,7 +237,9 @@ takes it away on dry ground.
   species' speed (a dog 0.9, a cat 0.4, a cow 0.6, a pig 0.5 m/s, estimates). The down and the
   dead float where the current takes them.
 - **Never drowning.** Swept far, the player swims out wherever he heads; there is no breath or
-  stamina.
+  stamina. Put 1.4 km off Marinella's beach on the coast test region, over 8.1 m of sea, a walker
+  swims and wades the 1,144 m to the coast in 34 game minutes and walks out, a dog its 1,142 m in
+  24 (the sea floor there stands 0.6 m deep for its last 300 m).
 - **Keeping out by choice** (`walkDry`). People and animals keep to the walk walls they meet on
   their footing's level like the player, but one still dry takes no step into the water unless it
   flees: it stops at the water's edge where the level stands now, so a rising river pushes it back
@@ -249,7 +281,8 @@ quarter of its underbody by the water over that quarter:
   ([gameplay.md](gameplay.md#vehicles-far-from-the-player)).
 
 - **Getting in** keeps to the player's level ([gameplay.md](gameplay.md#entering-stealing-carjacking-exiting)):
-  the ground under the car's wheels within 2 m of his `Footing`, which in the water is the bed. A
+  the ground under the car's wheels within 2 m of his `Footing`, which wading is the bed and
+  swimming where his feet hang (0.7 of his height under the surface). A
   car standing on the bed is in reach from the water beside it, and from the bank where that stands
   within 2 m of the bed under it: 0.6 m off the side of a Panda at the water's edge, every 4 m along
   both banks of Lunigiana's water where no walk wall lies between, at 98.8% of 32,186 places by the
@@ -257,18 +290,19 @@ quarter of its underbody by the water over that quarter:
   2026-11-06, before Fosdinovo's part). From a
   steeper bank the player wades down to it. Afloat, its wheels' ground rises with the water, 1.98 m
   over the bed for a Panda in 2.5 m of still water and 2.11 m for an Ape (the truck stays down in
-  3.5 m), so a swimmer gets into a car afloat in water up to about 2.4 m deep.
+  3.5 m), so a swimmer gets into a car afloat in water of any depth, a car on the bed only while
+  his feet hang within 2 m of its wheels' ground.
 - **Touching** keeps to the same level ([gameplay.md](gameplay.md#knockdowns-deaths-and-score)): a
-  car afloat strikes or shoves a wader or a swimmer only where its wheels' ground stands within 2 m
-  of the bed under them, in water up to about 2.4 m deep.
+  car afloat strikes or shoves a wader or a swimmer where its wheels' ground stands within 2 m of
+  their footing, in water of any depth.
 
 AI drivers keep to their lanes; a car shoved into a river is carried off like any other.
 
 ## Walls
 
 Water stops neither feet nor wheels. The map build traces the water's cells (within max(w/2, 2) m
-of a centreline, and the lakes' and river polygons' cells, not on a road) as their own walls, the
-shore, and `wallsNear` answers four kinds:
+of a centreline, and the lakes', river polygons' and the sea's cells, not on a road) as their own
+walls, the shore, and `wallsNear` answers four kinds:
 
 | Kind | Walls | Who keeps to them |
 |---|---|---|
@@ -385,9 +419,9 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 - **Under a bridge.** A body that walks under a bridge on the bank (not yet in the water) is taken
   to be on its deck there.
 - **Engines.** An engine that stalled in the water runs again once out of it: nothing hydrolocks.
-- **Afloat in deep water.** A swimmer's level is the bed under him, so a car afloat in water deeper
-  than about 2.4 m is out of his reach, and drifts through him and any other swimmer there, people
-  and animals, as through someone on another level
-  ([gameplay.md](gameplay.md#knockdowns-deaths-and-score)): 0.41 ha of Lunigiana's water at the
-  mean flow, 1.54 ha in a spate (on a 4 m lattice, 2026-11-07; 0.39 and 1.51 before Fosdinovo's
-  part).
+- **A still sea.** The sea stands at 0 m: no tides, waves or currents, and a river stands no lower
+  than it wherever its bed lies under 0 m, up a canal too, not only at its mouth.
+- **Far out to sea.** A swimmer heads for the nearest coast of the sea pieces its tile holds
+  (those within 32 m of it); more than a tile's width out, where none of them has any coast, it
+  heads for the nearest edge of its own piece, a cut, and finds the coast from the next tile. The
+  coast test region has no such water.

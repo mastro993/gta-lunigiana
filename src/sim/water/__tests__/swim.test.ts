@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { personBuild } from "../../systems/water.ts"
-import { holdOf, personMass, swept, wadeShare, wadingSpeed } from "../swim.ts"
+import { feetAfloat, holdOf, personMass, swept, wadeShare, wadingSpeed } from "../swim.ts"
 
 const still = (depth: number, speed = 0) => ({
   depth,
@@ -27,6 +27,14 @@ test("swept: off its feet at its chest or past its hold, back on them a little u
   assert.ok(swept(still(0.5, 2.6), adult, false), "1.3 m²/s takes its feet")
   assert.ok(swept(still(1.15), adult, true), "swimming, it stands again only lower down")
   assert.ok(!swept(still(1), adult, true))
+})
+
+test("afloat: a swimmer's feet hang at the depth that lifts it off them, 0.7 of its height under the surface, never under the bed", () => {
+  // A surface at 0 m over a bed 8 m down, and over one 1 m down.
+  const sea = { depth: 8, level: 0, vx: 0, vy: 0, bankX: 0, bankY: 1 }
+  assert.ok(Math.abs(feetAfloat(sea, 1.75) + 1.225) < 1e-9, "an adult's 1.225 m under it")
+  assert.ok(Math.abs(feetAfloat(sea, 1.2) + 0.84) < 1e-9, "a child's 0.84 m")
+  assert.equal(feetAfloat({ ...sea, depth: 1 }, 1.75), -1, "on the bed in water under its chest")
 })
 
 test("wading: walking pace falls by about two fifths in knee-deep water (0.35 m), more for a child", () => {

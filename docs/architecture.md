@@ -117,7 +117,7 @@ the parked cars come from `Parking.seed`, so the fill replays with the seed.
 | 13 | `EnterExit` | `systems/enter-exit.ts` | action key: enter, steal, carjack, get out; a train at its cab doors (`rail/boarding.ts`): its AI driver flees (out of the far cab where the active one has no door at grade), the far cab becomes the active one; getting out needs a stand at grade, the platforms' side first, and with none the player goes through to the far cab; out, the player stands on the ground beside it on their footing's level (`Footing`) |
 | 14 | `applyDeferred` | | applies the enter/exit commands, so the blast knows who sits in which vehicle |
 | 15 | `Explode` | `systems/explosions.ts` | lights a burning wreck's fuse; a wreck whose fuse has burnt down blows up (`Explosion`): hits and shoves the vehicles near it, kills, knocks down and scares the people; a vehicle beyond the player's reach (`inReach`) is left as it is: its fuse waits and no blast reaches it |
-| 16 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river, a stream or a lake gets `InWater`, swimming once off its feet, and loses it on dry ground |
+| 16 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river, a stream, a lake or the sea gets `InWater`, swimming once off its feet, and loses it on dry ground |
 | 17 | `applyDeferred` | | applies the blast's deaths and knockdowns and who is in the water, before anything moves |
 | 18 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
 | 19 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
@@ -132,7 +132,7 @@ the parked cars come from `Parking.seed`, so the fill replays with the seed.
 | 28 | `TrainContacts` | `rail/strikes.ts` | trains strike what touches their cars on their level, shoved by nothing: vehicles shoved clear or dragged along their wall, wrecked faster than 14 m/s or dragged against a wall faster than 3 m/s (a `train` `Impact` as a contact begins, against `PrevPose` and `TrainMotion.prev`, and the wrecking blow); people and animals on their `Footing` pushed aside, or knocked down by the train's own speed into them and maybe killed by the train's death curve, the player too (`Impact` with the train as its `car`); a vehicle beyond the player's reach (`inReach`) is passed through |
 | 29 | `CrashDamage` | `systems/damage.ts` | this step's `Impact` events wear the vehicles they struck (`Damage`), a train's as a wall's; a traffic car destroyed is abandoned, its driver fleeing |
 | 30 | `RideAlong` | `systems/drive.ts` | the driving player takes the car's pose and motion, or the pose of a train's active cab and the train's motion |
-| 31 | `FindFooting` | `systems/footing.ts` | after the last move, settles every `Footing` where its body now is (`footing.ts`): a body on foot keeps to the level it was on (the ground nearest its last, decks and tunnels out to their verges), the player driving stands on the ground under the car on its wheels' ground, or on the rail head under the train's active cab |
+| 31 | `FindFooting` | `systems/footing.ts` | after the last move, settles every `Footing` where its body now is (`footing.ts`): a body on foot keeps to the level it was on (the ground nearest its last, decks and tunnels out to their verges), one swimming hangs its feet 0.7 of its height under the surface (`feetAfloat` in `water/swim.ts`), the player driving stands on the ground under the car on its wheels' ground, or on the rail head under the train's active cab |
 | 32 | `Recover` | `systems/contacts.ts` | knocked-down people and animals get up, never the dead; pedestrians then flee, animals bolt |
 | 33 | `Perceive` | `systems/perceive.ts` | pedestrians take in this step's hits, crashes, horns and whistles, the vehicles on their level (the cars of trains among them), bodies and people around them and the level crossings closing (`rail/senses.ts`; held there as patiently as a driver), and set their moods; cries are `Cry` events; marks `Witness`es, lets go of a leader gone or dead |
 | 34 | `Startle` | `systems/fright.ts` | cats and pigs run from this step's crashes and struck bodies (`Cry`) |
@@ -199,9 +199,9 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `Witness` | pedestrians | tag: saw a person killed or came on a body; its shock ends in the choice to gather or run |
 | `Down` | knocked-down and dead people and animals | step at which they get up; for the `Dead`, the step they died, and `Recover` never lifts them |
 | `Dead` | the killed: pedestrians and animals a vehicle struck, people and animals on foot a train struck, people on foot by a blast, the player in a wreck that blew up | step they died (`since`); always with `Down` |
-| `Footing` | the player, pedestrians and animals, from their spawn | the ground it stands on, m a.s.l., where its pose is at the end of the step (`FindFooting`), kept on the level it was on; for the player driving, the ground under the car on its wheels' ground or the rail head under the train's cab. Spawned on its first footing (`firstFooting` in `footing.ts`: its `Route`'s road where that is a deck or a tunnel's floor, else at the terrain's level). The movers, the contacts, the railway's rules and `Perceive` read it, getting out stands the player beside the vehicle on its level, the render stands each figure on its level at its drawn place (`footY`, through `settleFooting`), the audio voices each on it (the player's ears too), and `PlayerView.z` is the player's, for the camera |
+| `Footing` | the player, pedestrians and animals, from their spawn | the ground it stands on, m a.s.l., where its pose is at the end of the step (`FindFooting`), kept on the level it was on; swimming, where its feet hang in the water (0.7 of its height under the surface, never under the bed); for the player driving, the ground under the car on its wheels' ground or the rail head under the train's cab. Spawned on its first footing (`firstFooting` in `footing.ts`: its `Route`'s road where that is a deck or a tunnel's floor, else at the terrain's level). The movers, the contacts, the railway's rules and `Perceive` read it, getting out stands the player beside the vehicle on its level, the render stands each figure on its level at its drawn place (`footY`, through `settleFooting`), the audio voices each on it (the player's ears too), and `PlayerView.z` is the player's, for the camera |
 | `Animal` | animals | species (`dog`, `cat`, `cow`, `pig`), coat and patch colours, size × the species' usual (immutable) |
-| `InWater` | the player on foot, pedestrians, animals in a river, a stream or a lake | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
+| `InWater` | the player on foot, pedestrians, animals in a river, a stream, a lake or the sea | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
 | `Roam` | animals | mood (`idle`, `walk`, `flee`), the step it ends, home (hx, hy), and the point (tx, ty) it walks to or runs from |
 | `Vehicle` | vehicles | model and paint colour (immutable) |
 | `CarInput` | vehicles, trains | throttle, steer, handbrake for this step; a train's lever is the throttle (along its motion power, against it the brake, from rest backwards) and its handbrake the emergency brake |
@@ -441,10 +441,11 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
 - `edgeIndex` (`src/sim/edges.ts`, re-exported by `src/sim/route.ts`), with its instances
   `trafficIndex` and `walkIndex` (`src/sim/route.ts`) and `peopledIndex`, answers nearest-edge and
   spawn-band lookups without scanning the whole graph.
-- `waterAt` (`src/sim/water/rivers.ts`) finds the lake or river polygon a point lies in (lakes
-  first), else the nearest reach of a river or stream within its bed in 32 m buckets, all from the
-  tile holding the point (`placeAt`), each reach with its two vertices' bed, depth and speed per unit
-  discharge (`channelOf` in `src/sim/water/channel.ts`, from each water's baked bed, `Water.floor`),
+- `waterAt` (`src/sim/water/rivers.ts`) finds the lake, sea piece or river polygon a point lies in
+  (still water first), else the nearest reach of a river or stream within its bed in 32 m buckets,
+  all from the tile holding the point (`placeAt`), each reach with its two vertices' bed, depth and
+  speed per unit discharge (`channelOf` in `src/sim/water/channel.ts`, from each water's baked bed,
+  `Water.floor`),
   built from the whole pieces and areas the tile holds the first time a query reaches it; in a river
   polygon, the nearest reach of its own waterways (the cut puts them in every tile the polygon lies
   in). Of equally near reaches it keeps the first in (water piece, vertex) order, as one grid over

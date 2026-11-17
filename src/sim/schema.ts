@@ -135,7 +135,8 @@ export const InWater = Descriptor.ConstructedComponent(v.object({ swimming: v.bo
 /**
  * The ground a person or an animal stands on, m a.s.l. (GLOSSARY.md), where its pose is once the step's moves are done: kept from
  * step to step on the level it was on (`settleFooting`), so someone on the track over a road tunnel or under a road bridge is on the
- * track, and someone in the tunnel or on the bridge is not. For the player driving, the ground under the vehicle on its wheels'
+ * track, and someone in the tunnel or on the bridge is not; swimming, where its feet hang in the water (`feetAfloat`). For the
+ * player driving, the ground under the vehicle on its wheels'
  * ground, or the rail head under the train's active cab. Every person and animal has one from its spawn (`firstFooting`); see
  * ./footing.ts.
  */

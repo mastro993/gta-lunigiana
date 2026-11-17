@@ -79,6 +79,15 @@ export const reachOf = (water: Pick<Water, "bed" | "w">): number => Math.max(wat
 export const STAGE = 1 / (1 + DEPTH),
   SPEED = 1 - STAGE
 
+/**
+ * The sea's level, m a.s.l.: its still water's (`Area.level` 0), and the least a river stands at
+ * where its bed lies under it, as the sea holds it up at its mouth.
+ */
+export const SEA_LEVEL = 0
+
+/** How far a river over a bed at `bed` m a.s.l. stands over it at least, m: up to the sea's level where the bed lies under it (`SEA_LEVEL`), else 0. */
+export const heldBySea = (bed: number): number => Math.max(0, SEA_LEVEL - bed)
+
 /** One water piece as a channel, per vertex. */
 export interface Channel {
   /** The surface's fall over ±GRADE_WINDOW m, as a share (0.01 = 1 %). */

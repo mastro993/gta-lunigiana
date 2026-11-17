@@ -3,8 +3,8 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import type { Area, Water } from "../../map/index.ts"
-import { STAGE } from "../channel.ts"
+import { type Area, MAP, TILE, type Water } from "../../map/index.ts"
+import { channelOf, SPEED, STAGE } from "../channel.ts"
 import { waterIndex } from "../rivers.ts"
 
 /** A water piece along `pts` (flat), its surface `z`, floor `floor` and catchment `area` per vertex. */
@@ -100,4 +100,70 @@ test("rivers: a water area's surface whatever the flow, as the render draws it",
   assert.ok(s.stage > 0 && s.speed > 0 && s.ux === 1)
   const level = index.at(140, 130, 96, Q)!.level
   assert.ok(Math.abs(level - (s.bed + s.stage * Ops.pow(Q, STAGE))) < 1e-9, "the level it rises to")
+})
+
+// The sea as the map build cuts it: a piece per tile, each a tile's square cut to the map's bounds.
+// Here a coast runs east along y = COAST across two tiles (x 0 … 4000), the sea south of it down to
+// Lunigiana's south bound (y −6100), which the tile line y = −6000 crosses: pieces A and C over the
+// tiles x 0 … 2000 and 2000 … 4000 north of y −6000, B a strip of the tile south of it, all sea,
+// cut to the bound. A has an islet, a hole in it. Every edge but the coast's and the islet's is a cut.
+const COAST = -4400
+const SOUTH = MAP.bounds.minY
+const ISLET = [990, -5790, 1010, -5790, 1010, -5810, 990, -5810]
+const sea = (rings: ReadonlyArray<ReadonlyArray<number>>): Area => ({
+  kind: "sea",
+  level: 0,
+  rings,
+})
+const SEA_A = sea([[0, -3 * TILE, TILE, -3 * TILE, TILE, COAST, 0, COAST], ISLET])
+const SEA_B = sea([[0, SOUTH, TILE, SOUTH, TILE, -3 * TILE, 0, -3 * TILE]])
+const SEA_C = sea([[TILE, -3 * TILE, 2 * TILE, -3 * TILE, 2 * TILE, COAST, TILE, COAST]])
+
+test("rivers: the sea's way to the bank is toward its coast, never toward where the build cut it at a tile's side or the map's bounds", () => {
+  assert.ok(SOUTH > -3 * TILE - TILE && SOUTH % TILE !== 0, "a bound off the tile lines")
+  const index = waterIndex([], [SEA_A, SEA_B, SEA_C])
+  for (const [x, y, bankX, bankY, why] of [
+    [TILE - 5, -5000, 0, 1, "5 m from the tile line x 2000, 600 m from the coast"],
+    [TILE + 5, -5000, 0, 1, "across the tile line, in the next tile's piece"],
+    [1000, SOUTH + 5, 0, 1, "5 m from the bound, in a piece with no coast of its own"],
+    [970, -5800, 1, 0, "beside the islet: its shore is a shore"],
+  ] as const) {
+    const here = index.at(x, y, -8, Q)
+    assert.ok(here?.level === 0, `the sea at (${x}, ${y}), at 0 m`)
+    assert.deepEqual([here.vx, here.vy], [0, 0], "still")
+    assertBank(here, bankX, bankY, `at (${x}, ${y}), ${why}`)
+  }
+  // With no coast in any piece the lookup holds, the way to the bank is toward the nearest edge, cut or not.
+  const alone = waterIndex([], [SEA_B]).at(1000, SOUTH + 5, -8, Q)!
+  assertBank(alone, 0, -1, "a piece alone, all cuts: its nearest edge")
+})
+
+test("rivers: no river stands under the sea: where its bed lies below 0 m it stands at the sea's level, the same flow running slower through the deeper water, and a spate lifts it over", () => {
+  // A stream into the sea, its bed 1.5 m under sea level and falling.
+  const MOUTH = piece(3, [2000, -4000, 2000, -4300], [0.3, 0], [-1.5, -2])
+  const index = waterIndex([MOUTH], [])
+  const ch = channelOf(MOUTH),
+    [x, y] = [2000, -4150]
+  const bed = (ch.bed[0]! + ch.bed[1]!) / 2,
+    stage = (ch.stage[0]! + ch.stage[1]!) / 2,
+    speed = (ch.speed[0]! + ch.speed[1]!) / 2
+  const low = 0.01,
+    mean = stage * Ops.pow(low, STAGE)
+  assert.ok(bed + mean < 0, `the stream alone would stand at ${(bed + mean).toFixed(2)} m`)
+  const held = index.at(x, y, bed, low)!
+  assert.equal(held.level, 0, "at the sea's level")
+  assert.ok(Math.abs(held.depth + bed) < 1e-9, `${held.depth.toFixed(2)} m over its bed`)
+  const v = Ops.hypot(held.vx, held.vy),
+    free = speed * Ops.pow(low, SPEED)
+  assert.ok(
+    Math.abs(v - (free * mean) / -bed) < 1e-9,
+    `${v.toFixed(3)} m/s, ${free.toFixed(3)} free`,
+  )
+  assert.equal(index.at(x, y, 0.1, low), undefined, "dry over the sea's level")
+  // A spate that lifts it over the sea's level runs as any river does.
+  let spate = 1
+  while (bed + stage * Ops.pow(spate, STAGE) <= 0.2) spate *= 2
+  const over = index.at(x, y, bed, spate)!
+  assert.ok(Math.abs(over.level - (bed + stage * Ops.pow(spate, STAGE))) < 1e-9, "over the sea")
+  assert.ok(Math.abs(Ops.hypot(over.vx, over.vy) - speed * Ops.pow(spate, SPEED)) < 1e-9)
 })
