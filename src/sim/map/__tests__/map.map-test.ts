@@ -33,6 +33,7 @@ import {
   type Segment,
   wallsNear,
 } from "../index.ts"
+import { isWaterArea } from "../kinds.ts"
 import { overpassShortfalls } from "./overpass-checks.ts"
 
 const { hypot } = Ops
@@ -1010,7 +1011,67 @@ test("water: the Aulella, Rosaro, Mommio, Bardine, Bardinello and Pesciola take 
   assert.deepEqual([w(797860953), w(797861233)], [6, 6])
 })
 
-test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, the Aulella leaves the play area with 199 and the Bardine with 59", () => {
+// Issue #19: the Taverone runs in the Rosaro's bed all its course on the map; the Osca and the
+// Penolo are named streams down to a tributary's mouth, wooded torrents down to their gravel fans,
+// and fans to the Magra; the Aulella keeps its valley bed down to Aulla; the Magra's line takes its
+// water's width. Each pair is the two ways either side of a threshold of features.ts, with its mean
+// ground; a fan is told from a named stream by its bed.
+test("water: the Taverone, the Osca, the Penolo, the lower Aulella and the Magra take their measured widths by reach", () => {
+  const size = (id: number) => {
+    const o = WHOLE.water.find((v) => v.id === id)
+    return [o?.w, o?.bed]
+  }
+  // Taverone: 700556145 (141 m) from the map's north edge, 1161664524 (65 m) to the Magra.
+  assert.deepEqual(
+    [size(700556145), size(1161664524)],
+    [
+      [7, 7],
+      [7, 7],
+    ],
+  )
+  // Osca: 789355154 (269.3 m) above the Canale di Borra Grande's mouth, 789355149 (253.5 m) below.
+  assert.deepEqual(
+    [size(789355154), size(789355149)],
+    [
+      [4, 3],
+      [6, 4],
+    ],
+  )
+  // Osca: 789355086 (110.9 m) its last in the woods, 789355090 (109.0 m) its first on the fan.
+  assert.deepEqual(
+    [size(789355086), size(789355090)],
+    [
+      [6, 4],
+      [4, 13],
+    ],
+  )
+  // Penolo: 789354800 (204.3 m) above an unnamed stream's mouth, 789354799 (199.3 m) below it.
+  assert.deepEqual(
+    [size(789354800), size(789354799)],
+    [
+      [4, 3],
+      [6, 4],
+    ],
+  )
+  // Penolo: 789355011 (95.8 m) its last rocky way, 789354987 (89.6 m) its first on the fan.
+  assert.deepEqual(
+    [size(789355011), size(789354987)],
+    [
+      [6, 4],
+      [4, 13],
+    ],
+  )
+  // The Aulella's last way 172808472 (79.7 m) and the Magra's 86161807.
+  assert.deepEqual(
+    [size(172808472), size(86161807)],
+    [
+      [12, 13],
+      [25, 13.5],
+    ],
+  )
+})
+
+test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, the Aulella drains 199 at Fivizzano's west edge and 313 at its mouth, the Bardine 63 at its", () => {
   for (const w of WHOLE.water)
     w.area.forEach((a, k) =>
       assert.ok(k === 0 || a >= w.area[k - 1]!, `water ${w.id} shrinks at ${k}`),
@@ -1036,18 +1097,29 @@ test("water: catchments grow downstream; the Lucido drains 47 km² where it meet
   )
   assert.ok(Math.abs(head - 14.7) < 0.5, `the Rosaro brings ${head} km² in`)
   // ARPAL gives the gauge 208 km²; the DTMs' own basins are smaller (the MS 10 m DTM's 200.7 at
-  // Soliera), and the map's ground and the Rosaro's heads give 196.8 there.
-  const aulella = Math.max(
-    ...WHOLE.water.filter((w) => w.name === "Torrente Aulella").map((w) => w.area.at(-1)!),
+  // Soliera), and the map's ground and the Rosaro's heads give 196.8 there, and 199 where it crosses
+  // Fivizzano's west edge, by which it left the play area before Aulla's part (issue #19).
+  const aulella = WHOLE.water.filter((w) => w.name === "Torrente Aulella")
+  const seam = PARTS.find((p) => p.key === "fivizzano")!.rects[0]![0]
+  const crossing = Math.max(
+    ...aulella.flatMap((w) =>
+      w.area.filter((_, k) => k > 0 && w.pts[2 * k - 2]! >= seam && w.pts[2 * k]! < seam),
+    ),
   )
-  assert.ok(Math.abs(aulella - 199) < 3, `the Aulella leaves with ${aulella} km²`)
+  assert.ok(Math.abs(crossing - 199) < 3, `the Aulella crosses x ${seam} with ${crossing} km²`)
+  // A D8 on the MS 10 m DTM gives it 319.3 km² 100 m above its mouth in the Magra at Aulla.
+  const atMagra = Math.max(...aulella.map((w) => w.area.at(-1)!))
+  assert.ok(Math.abs(atMagra - 313) < 3, `the Aulella meets the Magra with ${atMagra} km²`)
   // Regression: fosdinovo's north edge cut the Bardine 100 m short of the notch, and its basin
   // drained out up the Canale del Torchio to the box's west edge: the Bardine left with 117.3 km²,
-  // its own 58.1 twice and the Torchio's 0.8 (issue #18).
+  // its own 58.1 twice and the Torchio's 0.8 (issue #18). It left with 59.0; whole to its mouth in
+  // the Aulella (Aulla's part, issue #19), it gains its last 0.4 km of valley and the heads of the
+  // Canale del Torchio, the Fosso Acqua Chiara and the Fosso di Faeta west of x −11500, which the
+  // grown box holds.
   const bardine = Math.max(
     ...WHOLE.water.filter((w) => w.name === "Torrente Bardine").map((w) => w.area.at(-1)!),
   )
-  assert.ok(Math.abs(bardine - 59) < 2, `the Bardine leaves with ${bardine} km²`)
+  assert.ok(Math.abs(bardine - 63) < 2, `the Bardine meets the Aulella with ${bardine} km²`)
   // Regression: fivizzano's west edge cut the Aulella 700 m short of the notch, the fill made its
   // trench a lake for 10 km, and D8 ran the river across it down a 2 m side stream by Soliera (way
   // 140780331, 108.5 km²) and, by Gragnola, Il Canalaccio (55.4); the Torchio drained the Bardine's
@@ -1056,13 +1128,54 @@ test("water: catchments grow downstream; the Lucido drains 47 km² where it meet
     Math.max(...WHOLE.water.filter(keep).flatMap((w) => w.area))
   assert.ok(most((w) => w.id === 140780331) < 1, "the side stream by Soliera")
   assert.ok(most((w) => w.name === "Il Canalaccio") < 6, "Il Canalaccio")
-  assert.ok(most((w) => w.name === "Canale del Torchio") < 2, "the Canale del Torchio")
+  // Loosened from 2: the Torchio's head and the Fosso Acqua Chiara's west of x −11500, 1.6 km² the
+  // grown box brought in with Aulla's part, take it from 0.82 to 2.45, still far from the Bardine's.
+  assert.ok(most((w) => w.name === "Canale del Torchio") < 3, "the Canale del Torchio")
+})
+
+// Regression: the Magra and the Taverone came in over the box's north edge with nothing, so the
+// Magra left the play area with 412.6 km² and the Taverone met it with 33.9 (issue #19).
+test("water: the Magra and the Taverone bring their heads beyond y 13000; the Taverone drains 82 km² 1.3 km above its mouth, the Magra 915 where it leaves the play area", () => {
+  const named = (name: string) => WHOLE.water.filter((w) => w.name === name)
+  /** The piece of `name` that comes in over the box's north edge. */
+  const entering = (name: string) => named(name).find((w) => w.pts[1] === MAP.bounds.maxY)!
+  /** What `w` reads at its first vertex 12 m inside the edge, where the build adds its heads (D8 drains no edge node). */
+  const brings = (w: (typeof WHOLE.water)[number]) =>
+    w.area[w.area.findIndex((_, k) => w.pts[2 * k + 1]! < MAP.bounds.maxY - 12)]!
+  // A D8 on the MS 10 m DTM over the ground north of the edge (build-terrain.ts's OFF_MAP).
+  const magra = brings(entering("Fiume Magra")),
+    taverone = entering("Torrente Taverone")
+  assert.ok(Math.abs(magra - 420.9) < 0.5, `the Magra brings ${magra} km²`)
+  assert.ok(Math.abs(brings(taverone) - 69.1) < 0.5, `the Taverone brings ${brings(taverone)}`)
+  // The 10 m DTM's D8 gives 86.7 km² where its way from the edge ends: the map's 4 m grid drains
+  // 3.4 km² of the land by its entry out across the box's edge, which on the DTM comes back in with it.
+  assert.ok(
+    Math.abs(taverone.area.at(-1)! - 82.5) < 3,
+    `the Taverone drains ${taverone.area.at(-1)} km² 1.3 km above its mouth`,
+  )
+  // The 10 m DTM's D8 gives 930.5 km² there (the gauge at Calamazza, a little downstream, 932 by
+  // sources not checked): the map leaves out 4.9 km² of rivulets beyond the edge and loses the 6.8
+  // that leave the box and come back, as by the Taverone's entry.
+  const out = Math.max(...named("Fiume Magra").flatMap((w) => w.area))
+  assert.ok(Math.abs(out - 915) < 5, `the Magra leaves the play area with ${out} km²`)
 })
 
 test("walls: water stops neither feet nor wheels; the shore walls ring it, and people and animals keep to them", () => {
   // The middle of every wide river's reach away from the roads and the map's edge: no walk or drive wall within 2 m, a shore wall
-  // within its bed.
+  // within its bed, or within 5 m past the nearest ground in no lake or river polygon, whose edge
+  // the shore walls ring (the Aulella runs 17–51 m from its polygon's outline from x −8390 to its
+  // mouth in the Magra).
   const { minX, minY, maxX, maxY } = MAP.bounds
+  const areas = WHOLE.areas.filter((a) => isWaterArea(a.kind))
+  const wet = (x: number, y: number) =>
+    areas.some((a) => a.rings.filter((r) => inRing(x, y, r)).length % 2 === 1)
+  /** How far the nearest ground in no water area lies from (x, y), to the metre, 64 ways round; Infinity past 400 m. */
+  const dry = (x: number, y: number) => {
+    for (let r = 0; r <= 400; r++)
+      for (let t = 0; t < 64; t++)
+        if (!wet(x + r * Ops.cos((t * Math.PI) / 32), y + r * Ops.sin((t * Math.PI) / 32))) return r
+    return Number.POSITIVE_INFINITY
+  }
   let checked = 0
   for (const w of WHOLE.water.filter((o) => o.w >= 12))
     for (let k = 0; k < w.pts.length / 2; k += 5) {
@@ -1070,6 +1183,7 @@ test("walls: water stops neither feet nor wheels; the shore walls ring it, and p
         y = w.pts[2 * k + 1]!
       if (
         Math.min(x - minX, maxX - x, y - minY, maxY - y) < 30 ||
+        outlineDistance(x, y) < 30 ||
         WHOLE.roads.some((r) =>
           r.pts.some((v, i) => i % 2 === 0 && Ops.hypot(v - x, r.pts[i + 1]! - y) < 30),
         )
@@ -1079,7 +1193,10 @@ test("walls: water stops neither feet nor wheels; the shore walls ring it, and p
       const near = (kind: "walk" | "land" | "drive", r: number) =>
         wallsNear(kind, x - r, y - r, x + r, y + r).some((s) => segmentDistance(s, x, y) < r)
       assert.ok(!near("walk", 2) && !near("drive", 2), `a wall in the water at ${x}, ${y}`)
-      assert.ok(near("land", w.bed + 5), `no shore wall by the water at ${x}, ${y}`)
+      assert.ok(
+        near("land", w.bed + 5) || near("land", dry(x, y) + 5),
+        `no shore wall by the water at ${x}, ${y}`,
+      )
     }
   assert.ok(checked > 20, `${checked} river points checked`)
 })

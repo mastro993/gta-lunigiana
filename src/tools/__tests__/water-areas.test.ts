@@ -1,7 +1,8 @@
 // The water areas carved into a synthetic valley on the grid's lattice (water-areas.ts): a lake's
-// level (its median, its spill, OSM's ele) and the shelf under it, two river polygons sharing a seam
-// across a river and its tributary with a gravel bar, a river polygon with no river, the nodes the
-// water keeps from the roads, and windows that carve every node as the whole grid does.
+// level (its median, its spill, OSM's ele, a pool's spill as a stream carves it) and the shelf
+// under it, two river polygons sharing a seam across a river and its tributary with a gravel bar, a
+// river polygon with no river, the nodes the water keeps from the roads, and windows that carve
+// every node as the whole grid does.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
@@ -369,4 +370,30 @@ test("water areas: the water keeps from the roads a lake's nodes to its edge and
     [8, 100, 0],
   ] as const)
     assert.equal(wet[(y / 4) * COLS + x / 4], want, `(${x}, ${y})`)
+})
+
+// Regression: two pools on the Torrente Arcinasso by the Fosso di Paretola's mouth (OSM 1473224065
+// and 1473224067), every node of theirs on their edge, kept the LiDAR's 258.0 and 265.2 m when
+// Aulla's part carved the stream through them: their water stood over every node of theirs.
+test("water areas: a lake no node of whose cells lies inside its edge stands at its spill as the streams through it carve it", () => {
+  const flat = demOf(() => 100)
+  // One cell, round (398, 98): its four nodes all on its edge, 2 m off the brook's centreline.
+  const pond: Area = { kind: "lake", rings: [[397, 97, 399, 97, 399, 99, 397, 99]] }
+  const brook: WaterF = {
+    id: 3,
+    kind: "stream",
+    w: 4,
+    bed: 3,
+    depth: 1,
+    pts: [
+      { x: 380, y: 98 },
+      { x: 420, y: 98 },
+    ],
+    from: 0,
+  }
+  const level = (water: ReadonlyArray<WaterF>) =>
+    waterAreas([pond], water, waterProfiles(water, flat.at), flat).areas[0]!.level
+  // The brook's surface 99.5 m, its floor 99.0 m out to w/2, where the cell's nodes lie.
+  assert.equal(level([brook]), 99)
+  assert.equal(level([]), 100, "no stream through it: the LiDAR's ground")
 })
