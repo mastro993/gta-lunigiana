@@ -192,7 +192,7 @@ OpenStreetMap's `natural=coastline` ways chained into lines, the land on their l
 _Avoid_: Coast (a sea piece's shore edges), shoreline
 
 **Coast**:
-A sea piece's edges that are its shore, an islet's included: every edge but the cuts along a tile's side or the map's bounds, where the sea goes on.
+A sea piece's edges that are its shore, an islet's included: every edge but the cuts along a tile's side or the map's bounds, where the sea goes on, and the closures across a river's or a lake's mouth, where the water goes on into the river (`coastOf`).
 _Avoid_: Coastline (that is OSM's line the build closes the pieces from), shore edge
 
 **Shore line**:

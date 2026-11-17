@@ -138,6 +138,34 @@ test("rivers: the sea's way to the bank is toward its coast, never toward where 
   assertBank(alone, 0, -1, "a piece alone, all cuts: its nearest edge")
 })
 
+// Regression: the coastline's segments closing the Magra across its mouth were the sea's coast, so
+// a swimmer off the mouth headed across them into the river, where its bank sent it back out to
+// sea, and it slid along the mouth between the two instead of swimming for the beach.
+test("rivers: a sea piece's edge closing a river across its mouth is no coast: a swimmer off the mouth heads for the beach beside it", () => {
+  // SEA_C's coast with a river's mouth 100 m wide in it, the river polygon over the mouth sharing
+  // the closure, its waterway running down into the sea.
+  const mouth = sea([
+    [TILE, -3 * TILE, 2 * TILE, -3 * TILE, 2 * TILE, COAST, 3050, COAST, 2950, COAST, TILE, COAST],
+  ])
+  const river: Area = {
+    kind: "river",
+    rings: [[2950, COAST, 3050, COAST, 3050, COAST + 300, 2950, COAST + 300]],
+    waters: [0],
+  }
+  const index = waterIndex(
+    [piece(4, [3000, COAST + 300, 3000, COAST], [1, 0.2], [0, -0.5])],
+    [mouth, river],
+  )
+  for (const [x, y, bankX, bankY, why] of [
+    [3010, COAST - 20, 2 / Math.sqrt(5), 1 / Math.sqrt(5), "off the mouth: the beach's corner"],
+    [2500, COAST - 20, 0, 1, "off the beach: the beach"],
+  ] as const) {
+    const here = index.at(x, y, -8, Q)
+    assert.ok(here?.level === 0, `the sea at (${x}, ${y})`)
+    assertBank(here, bankX, bankY, `at (${x}, ${y}), ${why}`)
+  }
+})
+
 test("rivers: no river stands under the sea: where its bed lies below 0 m it stands at the sea's level, the same flow running slower through the deeper water, and a spate lifts it over", () => {
   // A stream into the sea, its bed 1.5 m under sea level and falling.
   const MOUTH = piece(3, [2000, -4000, 2000, -4300], [0.3, 0], [-1.5, -2])

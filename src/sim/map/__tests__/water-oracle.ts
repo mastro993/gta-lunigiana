@@ -1,7 +1,8 @@
 // The water lookups as main had them before the vectors left the global file (issue #63), lakes
 // and river polygons included (#73): one broad phase over the whole map's rivers and water areas,
 // verbatim but for the sea's rules since (#13: still water's cuts are no shore, the sea's pieces
-// share their coast, every piece's here, and no river stands under the sea), which
+// share their coast, every piece's here, less its closures across a river's or a lake's mouth,
+// and no river stands under the sea), which
 // ground.map-test.ts holds the tiled `waterAt` and `waterUnder` to, to the bit, over the map joined
 // back from its tiles (`wholeMap`).
 import { Ops } from "@typeonce/ritmo-math"
@@ -162,9 +163,25 @@ export const mainWater = (water: ReadonlyArray<Water>, areas: ReadonlyArray<Area
     32,
   )
   // The lakes first: where a stream runs through one, the water is the lake's.
-  const coast = areas.flatMap((a) =>
-    a.kind === "sea" && a.level !== undefined ? edgesOf(a.rings).shore : [],
-  )
+  const inland = areas.filter((a) => a.kind === "river" || a.kind === "lake")
+  // A sea edge with a river or a lake half a metre off its middle on its land side (its right)
+  // closes that water across its mouth: no coast.
+  const closes = (ax: number, ay: number, ex: number, ey: number) => {
+    const length = Math.sqrt(ex * ex + ey * ey),
+      x = ax + ex / 2 + (ey / length) * 0.5,
+      y = ay + ey / 2 - (ex / length) * 0.5
+    return inland.some((a) => inRings(a.rings, x, y))
+  }
+  const coast = areas.flatMap((a) => {
+    if (a.kind !== "sea" || a.level === undefined) return []
+    const { shore } = edgesOf(a.rings),
+      out: Array<number> = []
+    for (let k = 0; k < shore.length; k += 4) {
+      const edge = shore.slice(k, k + 4) as [number, number, number, number]
+      if (!closes(...edge)) out.push(...edge)
+    }
+    return out
+  })
   const pools: ReadonlyArray<Pool> = areas
     .filter((a) => isWaterArea(a.kind) && (a.level !== undefined || a.waters !== undefined))
     .map((a): Pool => {

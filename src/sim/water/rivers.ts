@@ -191,17 +191,46 @@ const edgesOf = (rings: ReadonlyArray<ReadonlyArray<number>>) => {
   return { all, shore }
 }
 
+/** How far off a sea edge's middle, on its land side, a river or a lake across a mouth is looked for, m: as the map build's `shoreLines`. */
+const ACROSS = 0.5
+
+/**
+ * The shore edges of the sea `shore` (flat, ax, ay, ex, ey each), less those that close a river or
+ * a lake of `a` across its mouth: their land side (their right, the sea keeping to their left)
+ * lies in its area ACROSS m off their middle, as OSM's coastline closes the Magra across Bocca di
+ * Magra. That is open water going on into the river, no coast to swim for.
+ */
+const coastOf = (shore: ReadonlyArray<number>, a: Layer<Area>): Array<number> => {
+  const inland = a.items.filter((area) => area.kind === "river" || area.kind === "lake")
+  const out: Array<number> = []
+  for (let k = 0; k < shore.length; k += 4) {
+    const ax = shore[k]!,
+      ay = shore[k + 1]!,
+      ex = shore[k + 2]!,
+      ey = shore[k + 3]!,
+      length = Math.sqrt(ex * ex + ey * ey)
+    const x = ax + ex / 2 + (ey / length) * ACROSS,
+      y = ay + ey / 2 - (ex / length) * ACROSS
+    if (!inland.some((area) => inRings(area.rings, x, y))) out.push(ax, ay, ex, ey)
+  }
+  return out
+}
+
 /**
  * The lakes, the sea pieces and the river polygons of `a`, still water first, each kind by index,
  * with their waterways' reaches among `reaches`. Still water heads for the nearest of its banks: a
  * lake's shore, and the coast of every sea piece `a` holds, as the pieces are one water cut along
- * the tiles' sides; where it has none, the nearest of its own edges.
+ * the tiles' sides (`coastOf`: no closure across a river's or a lake's mouth); where it has none,
+ * the nearest of its own edges.
  */
 const poolsOf = (a: Layer<Area>, reaches: ReadonlyArray<Reach>): Array<Pool> => {
   const edges = a.items.map((area) =>
     isWaterArea(area.kind) && area.level !== undefined ? edgesOf(area.rings) : undefined,
   )
-  const coast = a.items.flatMap((area, k) => (area.kind === "sea" ? (edges[k]?.shore ?? []) : []))
+  const coast = coastOf(
+    a.items.flatMap((area, k) => (area.kind === "sea" ? (edges[k]?.shore ?? []) : [])),
+    a,
+  )
   return a.items
     .flatMap((area, k): Array<Pool> => {
       const { kind } = area
