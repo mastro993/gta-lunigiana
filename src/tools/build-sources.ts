@@ -16,6 +16,7 @@ import {
   extractAreas,
   extractBarriers,
   extractBuildings,
+  extractGoneRail,
   extractPois,
   extractRail,
   extractRoads,
@@ -65,15 +66,16 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   // its channel open under it on the 2010 and 2023 orthophotos.
   const bridges = ctrRail.bridges.map((b) => b.rings)
   const openCulvert = (pts: ReadonlyArray<V>) => splitIn(pts, bridges).some((run) => run.inside)
-  // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has; level-crossing nodes
-  // slide along their roads with it, and what its bridges span stays under them (water widths
-  // depend on the way's mean ground, so the terrain is loaded first).
+  // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has but where OSM maps
+  // the rails gone; level-crossing nodes slide along their roads with it, and what its bridges span
+  // stays under them (water widths depend on the way's mean ground, so the terrain is loaded first).
   const { rail, extra, roads, water, moves, report } = conflateRail(
     extractRail(osm),
     extractRoads(osm),
     extractWater(osm, dem.at, undefined, openCulvert),
     { ...ctrRail, crossings },
     lunigiana ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
+    extractGoneRail(osm),
   )
   lap("rail")
   fitRoads(roads, survey.roadAreas, survey.mapped)

@@ -243,3 +243,21 @@ test("conflateRail starts a way that leaves another at a switch at the switch, w
     "the switch on the line",
   )
 })
+
+// Regression: the CTR's 70 m stub 23D01 VLI#0.0 at Rometta, which OSM maps as an abandoned railway
+// (way 1252090894), was drawn as a siding 6.5 m from the SS63's level crossing: its box's stop line
+// stood 2 m from the stub's end, and the crossing's barrier and lights 0.8–1.1 m from its track.
+test("conflateRail leaves out a CTR-only track lying along a railway OSM maps with its rails gone, and only that", () => {
+  // The siding at y −5 (x 450–650) with an abandoned way 0.5 m off it over 90% of its length; the loop
+  // with one along a fifth of it.
+  const gone = [
+    [v(470, -5.5), v(660, -5.5)],
+    [v(460, 4.5), v(500, 4.5)],
+  ]
+  const c = conflateRail(RAIL, [], [], ctr(TRACKS), NONE, gone)
+  assert.deepEqual(c.report.gone, ["23D01 VLI#3.0"])
+  assert.deepEqual(
+    c.report.extras.map((e) => e.src),
+    ["23D01 VLI#2.0"],
+  )
+})

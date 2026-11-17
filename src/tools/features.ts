@@ -403,6 +403,15 @@ export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
       })),
     )
 
+/**
+ * The ways OSM maps where a railway's rails are gone (`railway=abandoned` or `razed`), whole: the
+ * CTR's track along one is drawn no more (`alongGone` in rail-extra.ts).
+ */
+export const extractGoneRail = (osm: Osm): Array<Array<V>> =>
+  [...osm.ways.values()]
+    .filter((w) => w.tags.railway === "abandoned" || w.tags.railway === "razed")
+    .map((w) => lineVertices(osm, w.nds))
+
 /** Generic buildings closer than this (m) form a hamlet: up to HAMLET of them take one facade style. */
 const HAMLET_LINK = 25
 const HAMLET = 200

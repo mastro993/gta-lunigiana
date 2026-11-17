@@ -9,7 +9,7 @@ import type { LineOut } from "./rail-graph.ts"
 
 const spreadOf = (v: ReadonlyArray<number>) => v.map((d) => d.toFixed(2)).join("/")
 
-/** One line per running piece (length, metres matched to the CTR, OSM's offset and the shipped residual, median / p90 / max), per CTR-only track and per platform. */
+/** One line per running piece (length, metres matched to the CTR, OSM's offset and the shipped residual, median / p90 / max), per CTR-only track (drawn or left out) and per platform. */
 export const printRail = (report: Report, platforms: ReadonlyArray<PlatformOut>): void => {
   for (const p of report.pieces)
     console.log(
@@ -19,6 +19,7 @@ export const printRail = (report: Report, platforms: ReadonlyArray<PlatformOut>)
     console.log(
       `ctr ${e.id} ${e.m.toFixed(1)} m (${e.bridge.toFixed(1)} on bridges), ends ${e.ends.join("/")}: ${e.src}${e.crossings.length > 0 ? `, crosses ${e.crossings.join(", ")}` : ""}`,
     )
+  for (const src of report.gone) console.log(`ctr ${src} left out: OSM maps its rails gone`)
   for (const p of platforms)
     console.log(
       `${p.walkway ? "walkway" : "platform"} ${p.src} ${p.name ?? "-"}: ${p.area.toFixed(0)} m², ${p.width.toFixed(2)} m wide, ${(100 * p.between).toFixed(0)}% between tracks, ${p.clear.toFixed(2)} m from a track`,
