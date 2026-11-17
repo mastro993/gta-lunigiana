@@ -134,14 +134,14 @@ export type Flowing = readonly [stage: number, x: number, y: number, speed: numb
 type Corners = readonly [number, number, number, number]
 const NONE: Corners = [0, 0, 0, 0]
 
-/** What a quad of water carries besides its corners' `Flowing`: still water's depth and the sea's hold at each corner, and whether it is the sea's. */
+/** What a quad of water carries besides its corners' `Flowing`: still water's depth, the sea's hold and the share of the sea's look at each corner. */
 export interface WaterCorners {
   /** How deep still water stands over each corner's node, m (`still`). */
   readonly still?: Corners
   /** How far the sea holds a river up over each corner's bed at least, m (`heldBySea`; `held`). */
   readonly held?: Corners
-  /** The sea's water (`sea`), which the shader colours by its depth and foams at the shore. */
-  readonly sea?: boolean
+  /** The share of the sea's look at each corner (`sea`): 1 for the sea's water, which the shader colours by its depth and foams at the shore, a river's the sea holds up by `seaShare`, else 0. */
+  readonly sea?: Corners
 }
 
 /**
@@ -149,7 +149,8 @@ export interface WaterCorners {
  * (`stage`), at least up to the sea's level (`held`), and the way and speed it flows (`flow`),
  * which the water shader turns into the level and current the rivers run at
  * (`render/sky/water-shader`); a lake's or the sea's lies on its still surface and carries how deep
- * the water stands there (`still`), which shades it, the sea's flagged (`sea`).
+ * the water stands there (`still`), which shades it. Each carries its share of the sea's look
+ * (`sea`): the sea's whole, a river's the sea holds up by how far it holds it.
  */
 export class WaterTriangles extends Triangles {
   readonly stage: Array<number> = []
@@ -169,15 +170,14 @@ export class WaterTriangles extends Triangles {
     corners: WaterCorners = {},
   ): void {
     this.quad(a, b, c, d, hex)
-    const { still = NONE, held = NONE } = corners,
-      sea = corners.sea === true ? 1 : 0
+    const { still = NONE, held = NONE, sea = NONE } = corners
     for (const k of [0, 1, 2, 0, 2, 3] as const) {
       const [stage, x, y, speed] = flowing[k]
       this.stage.push(stage)
       this.flow.push(x, y, speed)
       this.still.push(still[k])
       this.held.push(held[k])
-      this.sea.push(sea)
+      this.sea.push(sea[k])
     }
   }
 

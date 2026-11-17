@@ -4,67 +4,17 @@ import { test } from "node:test"
 import { coverAt } from "../../sim/map/cover.ts"
 import { facingAt, terrainZ } from "../../sim/map/ground.ts"
 import { MAP } from "../../sim/map/index.ts"
-import { anchorOf } from "../../sim/map/kinds.ts"
-import { FLAT_GROUND, ROCK_NORMAL_Y } from "../../sim/sky/local.ts"
+import { FLAT_GROUND } from "../../sim/sky/local.ts"
 import { chunkOf, chunkRect } from "../chunks.ts"
 import { linear } from "../geometry.ts"
-import { terrainNodeY } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
-import { cellSlope, COVER_LOOK, type CoverLook, shade, terrainChunk } from "../terrain.ts"
+import { COVER_LOOK, shade, terrainChunk } from "../terrain.ts"
 import { residentAround } from "../testing.ts"
+import { faceColours } from "./face-colours.ts"
 
 /** Monzone station, and Gragnola's square. */
 const STATION = { x: -493.8, y: 436.9 },
   GRAGNOLA = { x: -1751.2, y: 3360.4 }
-
-/**
- * Every face of the chunks `keys` against its cell's look from the anchor (`shade` at its middle's
- * height and slope): the faces in all, those in their look's variant patches, those striped, those
- * of an olive grove and those of them bare, and those in another colour.
- */
-const faceColours = (keys: Iterable<number>) => {
-  const { cell, x0, y0 } = MAP.heightmap,
-    { x: ax, y: ay } = anchorOf(MAP.heightmap)
-  let faces = 0,
-    patched = 0,
-    striped = 0,
-    grove = 0,
-    bare = 0,
-    wrong = 0
-  for (const key of keys) {
-    const g = terrainChunk(key),
-      position = g.getAttribute("position"),
-      normal = g.getAttribute("normal"),
-      color = g.getAttribute("color")
-    for (let v = 0; v < position.count; v += 3) {
-      // The triangle's centroid, in map (x east, y north), its cell counted from the anchor, and
-      // its cell's middle height and slope, for a terraced look.
-      const x = (position.getX(v) + position.getX(v + 1) + position.getX(v + 2)) / 3,
-        y = -(position.getZ(v) + position.getZ(v + 1) + position.getZ(v + 2)) / 3
-      const ci = Math.floor((x - x0) / cell),
-        cj = Math.floor((y - y0) / cell)
-      const { z, slope } = cellSlope(
-        terrainNodeY(ci, cj),
-        terrainNodeY(ci + 1, cj),
-        terrainNodeY(ci, cj + 1),
-        terrainNodeY(ci + 1, cj + 1),
-      )
-      const look: CoverLook =
-          normal.getY(v) < ROCK_NORMAL_Y ? COVER_LOOK.rock : COVER_LOOK[coverAt(x, y)],
-        hex = shade(look, Math.floor((x - ax) / cell), Math.floor((y - ay) / cell), z, slope)
-      const want = linear(hex).map(Math.fround).join(),
-        got = [color.getX(v), color.getY(v), color.getZ(v)].join()
-      faces++
-      if (look.stripes === true) striped++
-      else if (look === COVER_LOOK.olive) {
-        grove++
-        if (hex === look.alt) bare++
-      } else if (hex === look.alt && look.alt !== look.base) patched++
-      if (got !== want) wrong++
-    }
-  }
-  return { faces, patched, striped, grove, bare, wrong }
-}
 
 // Regression: the patches counted from the box's south-west corner, so when Fivizzano grew it 2400 m west (600 cells) a third
 // of the ground round Monzone station took the other colour of its cover.
@@ -191,13 +141,14 @@ test("an olive grove's ground is dry grass, bare in a 2.5 m strip along a terrac
   assert.ok(Math.abs(bare - 250) <= 2, `${bare} bare cells of 1000`)
 })
 
-test("a beach is dry sand, and wet under 0.8 m a.s.l.; the sea's floor shows wet sand where a shore cell stands dry", () => {
+test("a beach is dry sand, and wet under 0.2 m a.s.l. (the user's choice); the sea's floor shows wet sand where a shore cell stands dry", () => {
   const { sand, sea } = COVER_LOOK
   for (const [z, hex] of [
     [2.1, PALETTE.sand],
-    [0.81, PALETTE.sand],
-    [0.79, PALETTE.sandWet],
-    [0.2, PALETTE.sandWet],
+    [0.79, PALETTE.sand],
+    [0.21, PALETTE.sand],
+    [0.19, PALETTE.sandWet],
+    [0, PALETTE.sandWet],
     [-0.4, PALETTE.sandWet],
   ] as const)
     for (const [i, j] of [

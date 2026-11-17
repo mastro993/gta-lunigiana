@@ -79,14 +79,15 @@ export const COVER_LOOK = {
   },
   // The sea's cells are drawn under its water; a shore cell's part above the waterline is wet sand.
   sea: { base: PALETTE.sandWet, alt: PALETTE.sandWet, share: 0 },
-  // Wet under 0.8 m a.s.l. (issue #13's design height): on magra-coast that is 56 % of the beaches'
-  // cells, the 0.8 m contour a median 40 m in from the coastline, where the 2023 orthophoto shows
-  // the sand wet 6 m in (0.2 m would put the contour there).
+  // Wet under 0.2 m a.s.l., the user's choice (2026-11-17), as the 2023 orthophoto shows the sand
+  // wet only in a band about 6 m wide along the water: on magra-coast 3.3 % of the beaches' cells,
+  // the 0.2 m contour a median 2.4 m from the coastline, where issue #13's 0.8 m wet 57.6 % of
+  // them and put it 30 m in.
   sand: {
     base: PALETTE.sand,
     alt: PALETTE.sand,
     share: 0,
-    wet: { below: 0.8, hex: PALETTE.sandWet },
+    wet: { below: 0.2, hex: PALETTE.sandWet },
   },
 } as const satisfies Record<Cover, CoverLook>
 

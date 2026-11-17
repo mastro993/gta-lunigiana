@@ -21,6 +21,7 @@ import {
   type Triangles,
 } from "./geometry.ts"
 import { yOf } from "./ground.ts"
+import { seaShare } from "./sky/water-shader.ts"
 
 /** A strip along a polyline. `y` gives the render height of an edge point from the centreline elevation there. */
 export interface RibbonSpec {
@@ -212,9 +213,12 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
         spec.hex,
       )
     else {
-      // Water lies on its bed, `zs`: the sea holds it up where that is under its level.
+      // Water lies on its bed, `zs`: the sea holds it up where that is under its level, and it takes
+      // the sea's look as far as the sea holds it.
       const h0 = heldBySea(zs[i]!),
-        h1 = heldBySea(zs[i + 1]!)
+        h1 = heldBySea(zs[i + 1]!),
+        s0 = seaShare(h0),
+        s1 = seaShare(h1)
       sink.water.waterQuad(
         [rx0, rh0, -ry0],
         [rx1, rh1, -ry1],
@@ -222,7 +226,7 @@ const ribbon = (at: SinkAt, spec: RibbonSpec, k0: number, k1: number): void => {
         [lx0, lh0, -ly0],
         spec.hex,
         [fs[i]!, fs[i + 1]!, fs[i + 1]!, fs[i]!],
-        { held: [h0, h1, h1, h0] },
+        { held: [h0, h1, h1, h0], sea: [s0, s1, s1, s0] },
       )
     }
   }

@@ -1,9 +1,10 @@
 /**
  * The water variant's part of the surface weather (`render/sky/surface`, `WEATHER_WATER`): the
  * rivers lifted to the level they run at, never under the sea's; the colour of shallow running
- * water, of a lake by its depth and of the sea by its depth with foam at its shore; the current's
- * streaks; and rain rings. Its attributes are `WaterTriangles`' (`render/geometry`), its uniforms
- * the shared `SKY_UNIFORMS` cells, written once a frame by `applyWater`.
+ * water, of a lake by its depth and of the sea by its depth with foam at its shore, which river
+ * water the sea holds up takes by its share of it (`sea`); the current's streaks; and rain rings.
+ * Its attributes are `WaterTriangles`' (`render/geometry`), its uniforms the shared `SKY_UNIFORMS`
+ * cells, written once a frame by `applyWater`.
  *
  * @module render/sky/water-shader
  */
@@ -35,14 +36,29 @@ const SHALLOWS = {
 /** Still water darkens toward the deep water's colour from `from` m deep to `to` (TUNED by eye: a lake's middle, 3 m at most, reads deep). */
 const STILL_DEEP = { colour: new Color(PALETTE.waterDeep), from: 0.7, to: 2.5 } as const
 /**
- * The sea: its shallows' colour (`PALETTE.seaShallow`, the vertex colour; measured a few metres out, under half a metre of
- * water) darkens to the deep sea's (`seaDeep`, measured 7–8 m deep) over `deep` m of depth, and it foams where it breaks on the
- * shore, under `foam` m (fully under `surf`, TUNED by eye), where the waves' foam lies on the measured flight.
+ * The sea's look: its shallows' colour (`PALETTE.seaShallow`, measured a few metres out, under half a metre of water)
+ * darkening to the deep sea's (`seaDeep`, measured 7–8 m deep) over `deep` m of depth, and foam (`foam`) where it breaks on
+ * the shore, wholly under `foam.below` m and none over it: a crisp edge, stair-stepped as the game's pixels are (the user's
+ * choice, 2026-11-17, over a soft one fading from 0.15 m). River water the sea holds up takes the colours by how far the
+ * sea holds it (`seaShare`), but not the foam, the surf on the sea's own shore. None to `hold.from` m, so the plain's
+ * ditches, their beds 0.07–0.50 m under the sea for kilometres inland, keep the river's look whole; whole from `hold.to`
+ * m, so the Magra, its bed 1.0–1.3 m under the sea along the coast test region's 2.3 km of it and 3.2 m at its mouth,
+ * reads as one water with the sea (TUNED by eye and to the coast test region's beds, 2026-11-17).
  */
 const SEA = {
   deep: { colour: new Color(PALETTE.seaDeep), from: 0, to: 6 },
-  foam: { colour: new Color(PALETTE.foam), surf: 0.15, foam: 0.3 },
+  foam: { colour: new Color(PALETTE.foam), below: 0.3 },
+  hold: { from: 0.5, to: 1.2 },
 } as const
+/**
+ * The share (0–1) of the sea's look river water takes where the sea holds it `hold` m deep (`heldBySea`), growing smoothly
+ * from `SEA.hold.from` to `SEA.hold.to` so no seam crosses a reach where its bed sinks under the sea (the vertices' `sea`).
+ */
+export const seaShare = (hold: number): number => {
+  const t = Math.min(1, Math.max(0, (hold - SEA.hold.from) / (SEA.hold.to - SEA.hold.from)))
+  return t * t * (3 - 2 * t)
+}
+const SEA_SHALLOW = new Color(PALETTE.seaShallow)
 
 /** A colour as a GLSL vec3 of its linear channels. */
 const vec3 = (c: Color): string => `vec3(${glslFloat(c.r)}, ${glslFloat(c.g)}, ${glslFloat(c.b)})`
@@ -59,6 +75,7 @@ varying vec3 vRiverFlow;
 varying float vRiverDepth;
 varying float vStill;
 varying float vSea;
+varying float vLift;
 `
 
 /**
@@ -70,6 +87,7 @@ varying float vSea;
 export const WATER_VERTEX = /* glsl */ `
   float riverFlowing = stage * uRiverStage;
   vRiverDepth = max(riverFlowing, held);
+  vLift = vRiverDepth;
   transformed.y += vRiverDepth;
   vRiverFlow = vec3(flow.xy, held > riverFlowing ? flow.z * riverFlowing / held : flow.z);
   vRiverDepth += still;
@@ -83,6 +101,7 @@ varying vec3 vRiverFlow;
 varying float vRiverDepth;
 varying float vStill;
 varying float vSea;
+varying float vLift;
 uniform float uRiverSpeed;
 `
 
@@ -91,15 +110,19 @@ uniform float uRiverSpeed;
  * depth, the current's streaks and rain rings.
  */
 export const WATER_FRAGMENT = /* glsl */ `
-if (vSea > 0.5) {
-  // The sea: its shallows darkening to the deep sea, foam where it breaks on the shore.
-  diffuseColor.rgb = mix(diffuseColor.rgb, ${vec3(SEA.deep.colour)}, smoothstep(${glslFloat(SEA.deep.from)}, ${glslFloat(SEA.deep.to)}, vStill));
-  diffuseColor.rgb = mix(${vec3(SEA.foam.colour)}, diffuseColor.rgb, smoothstep(${glslFloat(SEA.foam.surf)}, ${glslFloat(SEA.foam.foam)}, vStill));
-} else {
+// The river's and the lake's look, as much as the sea's share of it (vSea) leaves.
+if (vSea < 1.0) {
   // Shallow water shows the pebbles through it; the water's own colour, and the dark channel's, only where it is deep.
   diffuseColor.rgb = mix(${vec3(SHALLOWS.colour)}, diffuseColor.rgb, smoothstep(${glslFloat(SHALLOWS.clear)}, ${glslFloat(SHALLOWS.full)}, vRiverDepth));
   // A lake darkens with its depth.
   diffuseColor.rgb = mix(diffuseColor.rgb, ${vec3(STILL_DEEP.colour)}, smoothstep(${glslFloat(STILL_DEEP.from)}, ${glslFloat(STILL_DEEP.to)}, vStill));
+}
+// The sea's, by its depth (the sea's over its floor, a held river's over its bed): its shallows darkening to the deep sea,
+// and foam where it breaks on the shore, on the sea's own water alone (no river lifts it).
+if (vSea > 0.0) {
+  vec3 sea = mix(${vec3(SEA_SHALLOW)}, ${vec3(SEA.deep.colour)}, smoothstep(${glslFloat(SEA.deep.from)}, ${glslFloat(SEA.deep.to)}, vRiverDepth));
+  if (vLift <= 0.0) sea = mix(${vec3(SEA.foam.colour)}, sea, step(${glslFloat(SEA.foam.below)}, vRiverDepth));
+  diffuseColor.rgb = mix(diffuseColor.rgb, sea, vSea);
 }
 {
   // The current: streaks carried downstream at the water's mean speed there, two phases crossfaded.
