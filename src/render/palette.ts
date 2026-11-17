@@ -48,10 +48,10 @@ export const PALETTE = {
   // Regione Toscana's 2023 summer flight (rt_ofc.5k23, CC BY 4.0), which reaches only 300 m into Liguria at Marinella (no
   // licensed photo covers Fiumaretta or Bocca di Magra): dry sand (0.75, 0.71, 0.68) over 9 patches; wet sand (0.41, 0.39,
   // 0.42) within 6 m of the waterline and the sea 3–12 m out (0.15, 0.24, 0.30) on 30 transects; the deep sea (0.004, 0.10,
-  // 0.22) 480–700 m off the beach by Carrara's port, 7–8 m deep on Regione Liguria's survey; foam (1.46, 1.51, 1.61) over the
-  // same jetties on the 2024/25 flight's storm surf (rt_ofc.5k24). The woods' ratio the trees use turns these yellow and green:
-  // it maps the jetties' limestone to 0xffffa5. The dust a sliding tyre throws up on sand and the rut it leaves take sand and
-  // sandWet too.
+  // 0.22) 480–700 m off the beach by Carrara's port, about 7–8 m deep by the profile of Regione Liguria's survey off Marinella
+  // (the survey stops at the Parmignola, short of the patches); foam (1.46, 1.51, 1.61) over the same jetties on the 2024/25
+  // flight's storm surf (rt_ofc.5k24). The woods' ratio the trees use turns these yellow and green: it maps the jetties'
+  // limestone to 0xffffa5. The dust a sliding tyre throws up on sand and the rut it leaves take sand and sandWet too.
   sand: 0xb6afa1,
   sandWet: 0x8b8682,
   seaShallow: 0x57696e,

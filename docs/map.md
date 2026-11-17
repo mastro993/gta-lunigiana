@@ -1169,17 +1169,22 @@ regions](#test-regions)).
   groves, 2 vineyards and 2 vines mixed with olives on 2026-11-03). In the lower Val di Magra its
   sand (331) is the coast's beaches, whose material Spiagge gives (below): a Liguria 331 polygon
   that shares ground with a Spiagge polygon is dropped (`offBeaches` in `shore.ts`; the magra-coast
-  test region's 3, by Fiumaretta and Marinella), and one on no beach stays a river's gravel. The
-  Magra's bed is a river bed (5111, with its channel), which no kept class takes.
+  test region's 3: the beach strip from Fiumaretta to Marinella, 31907, 0.17 km² on Spiagge's
+  sand; Bocca di Magra's beach on the Magra's west bank, 31904, on Spiagge's pebbles and fill; and
+  a cove under Montemarcello by Punta Corvo, 22828, on Spiagge's pebbles), and one on no beach
+  stays a river's gravel. The Magra's bed is a river bed (5111, with its channel), which no kept
+  class takes.
 - **Liguria's beaches**: Regione Liguria's Spiagge (Geoportale id 1219, 2022, CC BY 4.0 in its ISO
   metadata; its coast information system's, drawn with the Università di Genova's Dip.Ter.Is.),
   photo-interpreted on AGEA's 2022 orthophoto, on WFS `M1219`, layer `L3118`, in EPSG:25832: each
   polygon's physical character (`cod_caratt_fis`), 102 sand (spiaggia sabbiosa), 103 pebbles
   (spiaggia ciottolosa), 104 rocky shore (battigia rocciosa), 106 fill (terrapieno: promenades,
   boatyards), 301 and 302 a river's course. Of the 75 `natural=beach` in the magra-coast test
-  region's extract OSM tags 25 with a `surface` (22 sand), and it maps a beach on few of the coves
-  and none of the rocky shore under Montemarcello and Punta Bianca, so Spiagge gives the beaches'
-  material and the shore OSM leaves out ([section 3](#3-features-featurests)).
+  region's extract (72 polygons: 70 closed ways and 2 multipolygons; 3 more are nodes) OSM tags 25
+  with a `surface` (23 sand, 1 rocky, 1 unpaved), and it maps a beach on few of the coves and, of
+  the rocky shore under Montemarcello and Punta Bianca, only a 2,000 m² piece by Punta Bianca's tip
+  (way 176721000), so Spiagge gives the beaches' material and the shore OSM leaves out ([section
+  3](#3-features-featurests)).
   There it holds 39 polygons: 26 rocky shore, 4 pebbles, 3 sand, 3 fill and 3 river courses.
 - **The sea floor**: Regione Liguria's P.T.A.M.C. - C01 Batimetrie (the Piano di Tutela
   dell'Ambiente Marino e Costiero's, Geoportale id 2112, 2023, CC BY 4.0 in its ISO metadata), its
@@ -2237,8 +2242,11 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   `TRUST`, 1 km, of an isobath the floor is the survey's, from `REACH` on the profile's, and between
   them the one fades into the other: a short band raised the floor where the survey's deep edge
   stops, from 15 to 6.5 m south of Punta Bianca and from 13 to 8.1 m south of the mouth, while
-  within 1 km lies all of magra-coast's sea but the Tuscan sea's far corner, up to 1.6 km from the
-  survey. The shoreface profile (`PROFILE`) is the issue's beach face, 8 % down to 0.6 m; then the
+  within 1 km lies all of magra-coast's sea but its south-east: the Tuscan sea south of y −13700, up
+  to 1.76 km from the survey at the region's south-east corner, and a strip of Liguria's along the
+  region's south edge south of Marinella (x −9800…−9050, y −15000…−14850), up to 1.17 km, where the
+  floor starts fading to the profile (on a 50 m lattice of the built sea, to the 192 kept lines).
+  The shoreface profile (`PROFILE`) is the issue's beach face, 8 % down to 0.6 m; then the
   median distance from the shore line of the survey's lines off Marinella (x −9700…−8800, the beach
   the Tuscan sea continues): 2 m at 81 m, 3 at 113, 4 at 169, 5 at 255, 6 at 393, 7 at 540, 8 at 692
   and 9 at 881, and 10 m at 1,212 m off Fiumaretta, where Marinella's survey stops short of that
