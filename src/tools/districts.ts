@@ -28,11 +28,11 @@ const MONZONE: ReadonlyArray<District> = [
 
 /**
  * The unpopulated mountains, so the HUD never names the nearest village on Monte Sagro or Cima
- * Belfiore: peaks, saddles and huts on their OSM nodes, quarries on their pits, localities and
- * ridges centred by hand on the slope they name. None overlaps a village disc but Passo dei
- * Carpinelli, inside Casone Carpinelli's, kept small enough to take none of its buildings: the pass
- * names its own district (issue #17). The Carrara and Massa sides of the ridge are in the
- * rectangle too.
+ * Belfiore: peaks, saddles, huts and castles on their OSM elements, quarries on their pits,
+ * localities and ridges centred by hand on the slope they name. None overlaps a village disc but
+ * Passo dei Carpinelli, inside Casone Carpinelli's, kept small enough to take none of its
+ * buildings: the pass names its own district (issue #17); and the Fortezza della Brunella, inside
+ * Aulla's town disc (issue #19). The Carrara and Massa sides of the ridge are in the rectangle too.
  */
 const LANDMARKS: ReadonlyArray<District> = [
   { name: "Torre di Monzone", x: 300, y: -2560, r: 380 },
@@ -86,23 +86,42 @@ const LANDMARKS: ReadonlyArray<District> = [
   { name: "La Pizza", x: -3774, y: -4254, r: 300 }, // peak 4884214211: the wooded cone down to about its 800 m contour, and the Campo Cecina road's bends under its faces
   { name: "Monte La Pianaccia", x: -4815, y: -4449, r: 300 }, // peak 4878663147: the wooded dome, the Campo Cecina road across its south flank and its picnic site; past 300 m east the saddle holds Maestà's houses
   { name: "Monte Grugola", x: -7395, y: -3672, r: 250 }, // peak 4885328769: the wooded top and the SP73 under its west flank; past 250 m the ridge climbs to Monte Primicerri
+  // Aulla's part (#19): on their OSM elements, radii fitted on rt_ofc.5k23.32bit with the built
+  // terrain's contours over it. The Fortezza della Brunella stands inside Aulla's town disc and
+  // names its hill alone, the town round it keeping Aulla's name. The Pieve di Santa Maria di
+  // Venelia stands 194 m inside Monti di Licciana's disc, among its houses, so it is left to the
+  // village. Passo Alpicella lies 365 m past the play area, in Liguria, where the RT photo has all
+  // but stopped: its disc is fitted on the contours alone, and names the play area's Tuscan flank
+  // below it by the nearest rim.
+  { name: "Fortezza della Brunella", x: -12550, y: 5236, r: 150 }, // relation 9701877's outer way 698125674, its box's centre: the fortress and its wooded hill to the foot, under 70 m at 126–164 m west to south
+  { name: "Castello di Giovagallo", x: -19888, y: 7334, r: 120 }, // ruin 700011600: the castle's wooded knob; past 106–118 m south and south-west the ridge climbs over its 462 m
+  { name: "Castello di Bigliolo", x: -6329, y: 9169, r: 130 }, // castle 6703673726: the ruin's spur, under 200 m at 70–116 m south-west to south; north and east the ridge climbs to Fertigliana, whose disc is 11 m off
+  { name: "Passo Alpicella", x: -21897, y: 8680, r: 150 }, // saddle 577382401, out of play in Liguria: the col; Monte Alpicella's slope passes 730 m at 92–106 m south and south-west, the flanks drop under 680 m at 58–90 m east and north-west
+  { name: "Monte Borra Grande", x: -21833, y: 11192, r: 200 }, // peak 2539782572: the wooded dome to about its 900 m contour (109–267 m out, inside 200 m on 10 of 15 rays) and the forest track round its flanks; its Liguria side out of play
 ]
 
 /**
  * Populated places only: a `locality` (a named hillside, a field) would claim the village's
- * buildings around it. Fivizzano, OSM's one town in Lunigiana's play area, is one.
+ * buildings around it. Fivizzano and Aulla, OSM's towns in Lunigiana's play area, are two.
  */
 const PLACES: ReadonlySet<string> = new Set(["town", "village", "hamlet"])
-/** A building farther than this (m) from every place node is a farmhouse, no village's. */
+/** A building farther than this (m) from every village and hamlet node is no village's. */
 const REACH = 600
+/**
+ * A town's reach (m): its streets run on past a village's, Aulla's 1.5 km up the Aulella from its
+ * node. At 1000 m its disc (840 m) left 203 of the town's buildings to the Fortezza della
+ * Brunella's by the nearest rim; at 1200 m (1030 m) the fortress names its hill's 21 alone.
+ */
+const TOWN_REACH = 1200
 /** Share of a place's buildings its disc covers; the rest are outliers. */
 const FIT = 0.9
-const RADIUS = { min: 80, max: 400 } // m
+/** A disc's radius (m); a town's reaches past `max`, as far as its buildings (issue #19). */
+const RADIUS = { min: 80, max: 400 }
 
 /**
  * MONZONE, then a disc per OSM place outside it, in node id order, then LANDMARKS. Each building outside MONZONE
- * goes to the nearest place node within REACH; the disc covers FIT of them (plus 10 m), clamped
- * to RADIUS and rounded to 10 m.
+ * goes to the nearest place node within its reach (REACH, a town's TOWN_REACH); the disc covers FIT of them (plus
+ * 10 m), clamped to RADIUS (a town's to its minimum alone) and rounded to 10 m.
  */
 export const fitDistricts = (osm: Osm, buildings: ReadonlyArray<BuildingF>): Array<District> => {
   if (REGION.id === "cesena")
@@ -121,30 +140,30 @@ export const fitDistricts = (osm: Osm, buildings: ReadonlyArray<BuildingF>): Arr
     const [x, y] = toLocal(n.lat, n.lon)
     const name = n.tags.name
     return PLACES.has(n.tags.place ?? "") && name !== undefined && inPlay(x, y) && !inMonzone(x, y)
-      ? [{ name, x, y, near: [] as Array<number> }]
+      ? [{ name, x, y, town: n.tags.place === "town", near: [] as Array<number> }]
       : []
   })
   for (const b of buildings) {
     const [cx, cy] = centroid(b.outer)
     if (inMonzone(cx, cy)) continue
     let best: (typeof places)[number] | undefined,
-      bestD = REACH
+      bestD = Infinity
     for (const p of places) {
       const d = Math.hypot(p.x - cx, p.y - cy)
-      if (d < bestD) [best, bestD] = [p, d]
+      if (d < bestD && d < (p.town ? TOWN_REACH : REACH)) [best, bestD] = [p, d]
     }
     best?.near.push(bestD)
   }
   return [
     ...MONZONE,
-    ...places.map(({ name, x, y, near }) => {
+    ...places.map(({ name, x, y, town, near }) => {
       near.sort((a, b) => a - b)
-      const fit = (near[Math.floor(FIT * (near.length - 1))] ?? 0) + 10
+      const fit = Math.max(RADIUS.min, (near[Math.floor(FIT * (near.length - 1))] ?? 0) + 10)
       return {
         name,
         x: r1(x),
         y: r1(y),
-        r: Math.round(Math.min(RADIUS.max, Math.max(RADIUS.min, fit)) / 10) * 10,
+        r: Math.round((town ? fit : Math.min(RADIUS.max, fit)) / 10) * 10,
       }
     }),
     ...LANDMARKS,

@@ -872,10 +872,37 @@ test("road names, classes, styles, area kinds and districts", () => {
     "Cima Belfiore",
     "Monte Tondo",
     "La Pizza",
+    "Monte Borra Grande",
   ]) {
     const peak = MAP.pois.find((p) => p.kind === "natural=peak" && p.name === name)!
     assert.equal(districtAt(peak.x, peak.y).name, name)
   }
+  // Issue #19: the castles name their own districts, found by their OSM elements' names, and
+  // Passo Alpicella, past the play area in Liguria, the play area's edge east of its col.
+  for (const name of ["Castello di Giovagallo", "Castello di Bigliolo"])
+    for (const p of MAP.pois.filter((q) => q.name === name))
+      assert.equal(districtAt(p.x, p.y).name, name, `${p.kind} ${name}`)
+  const alpicella = MAP.districts.find((d) => d.name === "Passo Alpicella")!
+  let edge = alpicella.x
+  while (!inPlay(edge, alpicella.y)) edge += 1
+  assert.ok(edge - alpicella.x > alpicella.r, "the col's disc lies past the play area")
+  assert.equal(districtAt(edge, alpicella.y).name, "Passo Alpicella")
+  // Regression (issue #19): Aulla's disc, capped at 400 m round its node, left most of the town to
+  // the nearest rim, so the Fortezza della Brunella's named 498 buildings past its own disc, out to
+  // 1.9 km from Aulla's node. A town's disc reaches as far as its buildings: the fortress names its
+  // hill alone, its own walls among it, and every building it names stands in its disc.
+  const brunella = MAP.districts.find((d) => d.name === "Fortezza della Brunella")!
+  const walls = centres.filter((_, k) => WHOLE.buildings[k]!.name === "Fortezza della Brunella")
+  assert.ok(walls.length > 0)
+  for (const c of walls)
+    assert.equal(districtAt(c.x, c.y), brunella, `the fortress at (${c.x}, ${c.y})`)
+  const fortressNames = centres.filter((c) => districtAt(c.x, c.y) === brunella)
+  assert.ok(fortressNames.length > 0)
+  for (const c of fortressNames)
+    assert.ok(
+      hypot(c.x - brunella.x, c.y - brunella.y) <= brunella.r,
+      `(${c.x}, ${c.y}) named the fortress by its rim`,
+    )
   // Issues #17 and #18: the passes name their own districts, Carpinelli's inside Casone Carpinelli's
   // disc.
   for (const name of [
