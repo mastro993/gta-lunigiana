@@ -39,19 +39,31 @@ import { stillLevel, waterAreas } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
 /**
- * Catchments beyond the map's box that drain into it, km², each at the point on the box's edge
- * where its stream comes in. The box holds the Torrente Aulella's basin down to the Soliera gauge,
- * 4 km below Gragnola and below the Torrente Rosaro's mouth, but the heads of the streams that come
- * down from north of y 13000 under the Cerreto pass: 14.7 km², by a D8 on the MS 10 m DTM, all of
- * which reach the Rosaro above Fivizzano, 13.1 of them down the Rosaro's own head and 1.6 down
- * rivulets west of it, so the Rosaro brings them all. The Bardine and the land south-west of the
- * box join the Aulella below the gauge.
+ * Catchments beyond the map's box that drain into it, km², each at the point on the box's north
+ * edge (y 13000) where its stream comes in: the ground north of the edge whose flow crosses it there,
+ * by a D8 on the MS 10 m DTM. Of the 522.0 km² that come in, the Torrente Aulella's heads under the
+ * Cerreto pass are 14.7, all of which reach the Torrente Rosaro above Fivizzano, 13.1 down the
+ * Rosaro's own head and 1.6 down rivulets west of it, so the Rosaro brings them all. The Fiume Magra
+ * brings 420.9 of its upper valley and the Torrente Taverone 69.1, each at its own crossing, 15 and
+ * 8 m from OSM's; the Torrente Civiglia and the Canale Torchio di Bacco and the Canale della Ghiaia,
+ * which join it, 4.5, 3.8 and 3.0; the Canale Cravareccia, which joins the Taverone 113 m down its
+ * line, 1.1. The other 4.9 km² come down rivulets under 1 km² each (the Fosso della Predella's 0.7
+ * the most) and are left out. The 10 m DTM's D8 gives the Magra 930.5 km² where it leaves the play
+ * area at y 3900.
  */
 const OFF_MAP: ReadonlyArray<{
   readonly name: string
   readonly at: readonly [number, number]
   readonly km2: number
-}> = [{ name: "Torrente Rosaro", at: [3528, 13000], km2: 14.7 }]
+}> = [
+  { name: "Torrente Rosaro", at: [3528, 13000], km2: 14.7 },
+  { name: "Fiume Magra", at: [-14312, 13000], km2: 420.9 },
+  { name: "Torrente Taverone", at: [-5548, 13000], km2: 69.1 },
+  { name: "Torrente Civiglia", at: [-9205, 13000], km2: 4.5 },
+  { name: "Canale Torchio di Bacco", at: [-10417, 13000], km2: 3.8 },
+  { name: "Canale della Ghiaia", at: [-11105, 13000], km2: 3.0 },
+  { name: "Canale Cravareccia", at: [-5874, 13000], km2: 1.1 },
+]
 
 /**
  * Where each OFF_MAP stream's area comes in: the sample of its water nearest its point, at least

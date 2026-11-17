@@ -1034,6 +1034,33 @@ test("water: catchments grow downstream; the Lucido drains 47 km² where it meet
   assert.ok(most((w) => w.name === "Canale del Torchio") < 3, "the Canale del Torchio")
 })
 
+// Regression: the Magra and the Taverone came in over the box's north edge with nothing, so the
+// Magra left the play area with 412.6 km² and the Taverone met it with 33.9 (issue #19).
+test("water: the Magra and the Taverone bring their heads beyond y 13000; the Taverone drains 82 km² 1.3 km above its mouth, the Magra 915 where it leaves the play area", () => {
+  const named = (name: string) => WHOLE.water.filter((w) => w.name === name)
+  /** The piece of `name` that comes in over the box's north edge. */
+  const entering = (name: string) => named(name).find((w) => w.pts[1] === MAP.bounds.maxY)!
+  /** What `w` reads at its first vertex 12 m inside the edge, where the build adds its heads (D8 drains no edge node). */
+  const brings = (w: (typeof WHOLE.water)[number]) =>
+    w.area[w.area.findIndex((_, k) => w.pts[2 * k + 1]! < MAP.bounds.maxY - 12)]!
+  // A D8 on the MS 10 m DTM over the ground north of the edge (build-terrain.ts's OFF_MAP).
+  const magra = brings(entering("Fiume Magra")),
+    taverone = entering("Torrente Taverone")
+  assert.ok(Math.abs(magra - 420.9) < 0.5, `the Magra brings ${magra} km²`)
+  assert.ok(Math.abs(brings(taverone) - 69.1) < 0.5, `the Taverone brings ${brings(taverone)}`)
+  // The 10 m DTM's D8 gives 86.7 km² where its way from the edge ends: the map's 4 m grid drains
+  // 3.4 km² of the land by its entry out across the box's edge, which on the DTM comes back in with it.
+  assert.ok(
+    Math.abs(taverone.area.at(-1)! - 82.5) < 3,
+    `the Taverone drains ${taverone.area.at(-1)} km² 1.3 km above its mouth`,
+  )
+  // The 10 m DTM's D8 gives 930.5 km² there (the gauge at Calamazza, a little downstream, 932 by
+  // sources not checked): the map leaves out 4.9 km² of rivulets beyond the edge and loses the 6.8
+  // that leave the box and come back, as by the Taverone's entry.
+  const out = Math.max(...named("Fiume Magra").flatMap((w) => w.area))
+  assert.ok(Math.abs(out - 915) < 5, `the Magra leaves the play area with ${out} km²`)
+})
+
 test("walls: water stops neither feet nor wheels; the shore walls ring it, and people and animals keep to them", () => {
   // The middle of every wide river's reach away from the roads and the map's edge: no walk or drive wall within 2 m, a shore wall
   // within its bed, or within 5 m past the nearest ground in no lake or river polygon, whose edge
