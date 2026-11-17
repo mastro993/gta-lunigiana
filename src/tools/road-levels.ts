@@ -6,10 +6,11 @@
 // level, as the rail does over a tagged underpass: a junction pinned under a slip road's bridge held
 // a Cesena service road 1.6 m under it, and the Secante's tunnels ran 2.8 m under Cesena's streets.
 // A road at grade never rises over a tunnel. One chain crossing itself takes both bounds from one
-// natural level.
-import { isDrivable } from "../sim/map/kinds.ts"
+// natural level. And two carriageways of one road that overlap in plan keep on one level there
+// (`TWINS`).
+import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
-import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt } from "./geometry.ts"
+import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt, type V } from "./geometry.ts"
 import { type Bound, type Linear, ROAD_PASSES } from "./profiles.ts"
 
 /** Clear height of an underpass whose way has no `maxheight` tag, m. */
@@ -24,6 +25,13 @@ const SPREAD = 2
  * a Cesena slip road's bridge, which then kept 5.32 m).
  */
 const SLACK = 0.3
+/**
+ * How far apart in level two carriageways of one road keep where they overlap in plan, m: on one
+ * level by the level rule (ONE_LEVEL), with the levels check's 0.5 m to spare for the profiles'
+ * 0.1 m rounding and a rolled truck's wheels. Fitted each alone, the A15's carriageways north of the
+ * Aulla junction overlap by up to 2.8 m while their decks stood 1.2–2.7 m apart.
+ */
+export const TWINS = ONE_LEVEL - 0.5
 
 /** Mean of `ground` along `l` within 35 m (arc length) of `s`: a line's natural level before it is profiled. */
 export const naturalAt = (
@@ -62,6 +70,65 @@ export const passesOver = (
   b: { readonly bridge?: boolean; readonly tunnel?: boolean; readonly layer?: number },
 ): boolean => (a.bridge === true || b.tunnel === true) && levelOf(a) > levelOf(b)
 
+/** The point of polyline `pts` (arc lengths `arc`) nearest (x, y): its distance and arc length. */
+const nearest = (
+  pts: ReadonlyArray<V>,
+  arc: ReadonlyArray<number>,
+  x: number,
+  y: number,
+): { readonly d: number; readonly s: number } => {
+  let d = Infinity,
+    s = 0
+  for (let k = 0; k + 1 < pts.length; k++) {
+    const a = pts[k]!,
+      ex = pts[k + 1]!.x - a.x,
+      ey = pts[k + 1]!.y - a.y,
+      l2 = ex * ex + ey * ey,
+      t = l2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * ex + (y - a.y) * ey) / l2)) : 0,
+      e = Math.hypot(a.x + ex * t - x, a.y + ey * t - y)
+    if (e < d) [d, s] = [e, arc[k]! + (arc[k + 1]! - arc[k]!) * t]
+  }
+  return { d, s }
+}
+
+/**
+ * Where two oneway carriageways of one road (one `ref`, a pass's) overlap in plan, sharing no node
+ * and neither over the other: the points of each, SPREAD m apart along it, its carriageway's edge
+ * past the other's, each with the arc length of the other's nearest point (`at`). Two streets of a
+ * town stacked on two levels share no `ref`.
+ */
+const twinsOf = (roads: ReadonlyArray<RoadF>) => {
+  const out: Array<{
+    readonly on: RoadF
+    readonly other: RoadF
+    readonly x: number
+    readonly y: number
+    readonly at: number
+  }> = []
+  const byRef = new Map<string, Array<RoadF>>()
+  for (const r of roads)
+    if (r.oneway === true && r.ref !== undefined && passOf(r.cls) >= 0)
+      byRef.set(r.ref, [...(byRef.get(r.ref) ?? []), r])
+  for (const list of byRef.values())
+    for (const a of list)
+      for (const b of list) {
+        const reach = (a.w + b.w) / 2,
+          [ax0, ay0, ax1, ay1] = lineBox(a.pts),
+          [bx0, by0, bx1, by1] = lineBox(b.pts)
+        if (a === b || ax0 > bx1 + reach || bx0 > ax1 + reach || ay0 > by1 + reach) continue
+        if (by0 > ay1 + reach || passesOver(a, b) || passesOver(b, a)) continue
+        if (a.pts.some((v) => v.id !== undefined && b.pts.some((u) => u.id === v.id))) continue
+        const arcA = arcLengths(a.pts),
+          arcB = arcLengths(b.pts)
+        for (let s = 0; s <= arcA.at(-1)!; s += SPREAD) {
+          const { x, y } = pointAt(a.pts, arcA, s),
+            o = nearest(b.pts, arcB, x, y)
+          if (o.d < reach) out.push({ on: a, other: b, x, y, at: o.s })
+        }
+      }
+  return out
+}
+
 /** What the bounds are read from: the roads, the uncarved ground, whether a road's profile is already fitted, and a fitted road's z at arc length s. */
 interface LevelsInput {
   readonly roads: ReadonlyArray<RoadF>
@@ -74,7 +141,8 @@ interface LevelsInput {
  * The road-over-road crossings (a profiled road over a drivable one; paths and steps follow the
  * terrain) and the bounds they put on a chain's profile: a road below a fitted one, or a tunnel below
  * a later pass's road (at its natural level), its clearance under it (`max`); a bridge, its
- * clearance over the road below, fitted or, in a later pass, at its natural level (`min`).
+ * clearance over the road below, fitted or, in a later pass, at its natural level (`min`); and a
+ * carriageway, within TWINS of its twin's fitted level where they overlap (`twinsOf`, both).
  */
 export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
   const profiled = (r: RoadF) => r.cls !== "path" && r.cls !== "steps"
@@ -111,10 +179,21 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
   }
   /** Whether `a`'s pass comes after `b`'s (ROAD_PASSES): `a` is fitted after `b` for sure. */
   const later = (a: RoadF, b: RoadF) => passOf(a.cls) > passOf(b.cls)
-  /** The bounds on `chain` from the crossings it has a road of. */
+  const twins = twinsOf(roads)
+  /** The bounds on `chain` from the crossings it has a road of, and from its carriageways' twins. */
   const bounds = (chain: ReadonlyArray<{ readonly item: Linear }>): Array<Bound> => {
     const has = (l: Linear) => chain.some((m) => m.item === l)
-    return over.flatMap(({ up, down, c, clear }): Array<Bound> => {
+    // Where a carriageway overlaps its twin, fitted before it: on its level, inside a deck along the
+    // deck's slope.
+    const level = twins.flatMap(({ on, other, x, y, at }): Array<Bound> => {
+      if (!has(on) || has(other) || !fitted(other)) return []
+      const z = zAt(other, at)
+      return [
+        { x, y, z: z - TWINS, kind: "min", tilt: true, on },
+        { x, y, z: z + TWINS, kind: "max", tilt: true, on },
+      ]
+    })
+    const crossed = over.flatMap(({ up, down, c, clear }): Array<Bound> => {
       if (has(up) && has(down)) {
         // A chain over itself (the SR445's loop at Gassano runs under its own bridge, 13.6 m from
         // where it leaves it): one fit sets both, so both are bound from one natural level, the
@@ -147,6 +226,7 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
           : undefined
       return below === undefined ? [] : around(up, c.sa, below + clear, "min")
     })
+    return [...crossed, ...level]
   }
-  return { over, bounds }
+  return { over, twins, bounds }
 }

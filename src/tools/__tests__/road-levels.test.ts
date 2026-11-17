@@ -4,7 +4,7 @@ import { test } from "node:test"
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import type { Linear } from "../profiles.ts"
-import { passesOver, roadLevels } from "../road-levels.ts"
+import { passesOver, roadLevels, TWINS } from "../road-levels.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
 const road = (
@@ -109,4 +109,36 @@ test("roadLevels: a chain over itself is bound from one natural level, the bridg
   // ...or, over its own tunnel, the road at grade keeps 0.3 m under its natural level at least,
   // the tunnel 5.5 m under that.
   assert.deepEqual(loop(false), ["max 94.2", "min 99.7"])
+})
+
+// Regression: the A15's two carriageways north of the Aulla junction (136455102, 491154922), each
+// fitted alone, overlap in plan by up to 2.8 m with their decks 1.2–2.7 m apart, and each one's
+// parapet stopped the cars on the other.
+test("roadLevels: two oneway carriageways of one road overlapping in plan keep within TWINS of each other there, the one fitted second bound", () => {
+  // Two 10 m motorway carriageways of the A15 9 m apart (their carriageways overlap by 1 m), and
+  // one of the A12 another 9 m on; and the A15's second carriageway once more, sharing a node.
+  const a = road(20, "motorway", [v(0, 0, "a0"), v(200, 0)], { oneway: true, ref: "A15", w: 10 })
+  const b = road(21, "motorway", [v(0, 9), v(200, 9)], { oneway: true, ref: "A15", w: 10 })
+  const c = road(22, "motorway", [v(0, 18), v(200, 18)], { oneway: true, ref: "A12", w: 10 })
+  const joined = road(23, "motorway", [v(0, 0, "a0"), v(0, 9), v(200, 9)], {
+    oneway: true,
+    ref: "A15",
+    w: 10,
+  })
+  const levels = (all: ReadonlyArray<RoadF>, fitted: ReadonlyArray<RoadF>) =>
+    roadLevels({
+      roads: all,
+      ground: () => 100,
+      fitted: (l: Linear) => fitted.includes(l as RoadF),
+      zAt: () => 110,
+    })
+  const bound = levels([a, b, c], [a]).bounds([{ item: b }])
+  assert.deepEqual(zs(bound), [
+    `min ${(110 - TWINS).toFixed(1)}`,
+    `max ${(110 + TWINS).toFixed(1)}`,
+  ])
+  assert.equal(bound.length, 2 * 101, "both bounds every 2 m along the 200 m it overlaps")
+  assert.deepEqual(levels([a, b, c], []).bounds([{ item: b }]), [], "the first not fitted yet")
+  assert.deepEqual(levels([a, b, c], [b]).bounds([{ item: c }]), [], "another road's")
+  assert.deepEqual(levels([a, joined], [a]).bounds([{ item: joined }]), [], "a node shared")
 })
