@@ -1,12 +1,12 @@
-# Puts the built maps and their overviews in src/sim/map, and the L test region pnpm test:map checks
-# in test-maps, for the steps after it: from the cache when their inputs are unchanged, else built
-# from the raw inputs data/raw.lock.json pins, which come through a cache of their own. With `raw`
-# set, it puts the raw inputs in data/raw on a cache hit too, for the checks that read them
-# (terrain-seams.map-test.ts the terrains fetch-rt wrote, pontremoli.map-test.ts the DBT and OSM
-# extract, sarzana.map-test.ts Liguria's sources fetch-lig wrote). The L is
-# built from the same inputs and code (pnpm maps), so it shares the maps' key and is cached with
-# them: a hit needs no raw inputs. It never saves the maps: ci.yml's reproducible job does, once a
-# second build matches.
+# Puts the built maps and their overviews in src/sim/map, and the test regions pnpm test:map checks
+# (the L, the coast) in test-maps, for the steps after it: from the cache when their inputs are
+# unchanged, else built from the raw inputs data/raw.lock.json pins, which come through a cache of
+# their own. With `raw` set, it puts the raw inputs in data/raw on a cache hit too, for the checks
+# that read them (terrain-seams.map-test.ts the terrains fetch-rt wrote, pontremoli.map-test.ts the
+# DBT and OSM extract, sarzana.map-test.ts Liguria's sources fetch-lig wrote, coast-sea.map-test.ts
+# the coast's isobaths). The test regions are built from the same inputs and code (pnpm maps), so
+# they share the maps' key and are cached with them: a hit needs no raw inputs. It never saves the
+# maps: ci.yml's reproducible job does, once a second build matches.
 # Runs after Node, pnpm and the dependencies are installed (ci.yml, pages.yml).
 name: Maps
 description: Restore the built maps from the cache, or fetch the pinned raw inputs and build them

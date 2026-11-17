@@ -6,16 +6,16 @@
 // (`TrafficAI`), what a vehicle hits and who steps apart from whom (`Contacts`), what people and
 // animals run from (`Perceive`, `Animals`), and what a train meets. The rule is code, so a new map
 // can break it only through its data: a deck too low over what it crosses. Where both are the rail,
-// nothing meets across them and they are left out. The L's build lives in test-maps/ (`pnpm maps`):
-// without it its check is skipped, but in CI, which builds it, a missing build fails.
+// nothing meets across them and they are left out. The test regions' builds (the L, the coast) live
+// in test-maps/ (`pnpm maps`): without one its check is skipped, but in CI, which builds them, a
+// missing build fails.
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
 import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
-import { regionFromArgs } from "../../../tools/region.ts"
+import { skipUnbuilt, TEST_MAPS } from "../../../tools/__tests__/test-maps.ts"
+import { type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { passesOver } from "../../../tools/road-levels.ts"
 import { ENTER_GAP } from "../../tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../../vehicles.ts"
@@ -130,7 +130,10 @@ const shortfalls = (map: JoinedMap): Array<Shortfall> => {
  * the paths beside them and the Ippodromo's, and the path bridge over the Sottopasso Cervese, each
  * straight between its ends at the terrain's level as every path's bridge, its pedestrian underpass
  * under Via Giuseppe Di Vittorio, and the car park ramp its square's pass leaves at the square's
- * level. Each must still fall short, so a fix drops it from here.
+ * level; the coast test region's foot and cycle bridge over the A12 at Luni (its three ways), as
+ * straight at the terrain's level, its footway under Via Palmiro Togliatti, and Via Bassagrande's
+ * bridge over the Fossa Maestra, 1.93 m over the path along its bank. Each must still fall short,
+ * so a fix drops it from here.
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [
@@ -149,20 +152,24 @@ const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> 
     [1148557053, 69488617],
     [55016697, 68296970],
   ],
+  "the coast": [
+    [522153379, 205903779],
+    [522153379, 277681681],
+    [522153380, 757275374],
+    [522153380, 1379028354],
+    [522153381, 316441559],
+    [522153381, 757266514],
+    [381510717, 757275375],
+    [463589363, 326011444],
+  ],
 }
-
-const L = regionFromArgs(["--region", "lunigiana-l"])
-const URL_L = builtMapUrl(L)
-const noL = existsSync(URL_L)
-  ? false
-  : `no ${L.key} build in test-maps: run node src/tools/build-map.ts --region ${L.key}`
-// GitHub Actions sets CI=true.
-if (noL !== false && process.env.CI === "true") throw new Error(noL)
 
 const REGIONS: ReadonlyArray<readonly [string, () => JoinedMap, string | false]> = [
   ["lunigiana", () => wholeMap(), false],
   ["cesena", () => wholeMap("cesena"), false],
-  ["lunigiana-l", () => readWholeMap(URL_L), noL],
+  ...TEST_MAPS.map(
+    ([name, url]) => [name, () => readWholeMap(url), skipUnbuilt(name, url)] as const,
+  ),
 ]
 
 for (const [region, read, skip] of REGIONS)

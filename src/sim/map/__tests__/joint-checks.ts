@@ -1,4 +1,4 @@
-// The joint check joints.map-test.ts, joints-cesena.map-test.ts and joints-l.map-test.ts share, on
+// The joint check joints.map-test.ts and its Cesena, L and coast twins share, on
 // the map their process loaded: where a road comes onto or off a bridge or into or out of a tunnel,
 // or one bridge way meets the next, a driver coming along judges a car standing in its lane past the
 // joint by the ground its wheels come to rolling there (`onPathLevel`, src/sim/systems/traffic.ts):
