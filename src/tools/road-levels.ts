@@ -28,6 +28,8 @@ const PERSON = 2.5
 export const DECK = 1.5
 /** Half the spacing of the profile samples, m (`resample` in profiles.ts: at most 4 m apart). */
 const SPREAD = 2
+/** The step a way is walked by to find how far it runs under or over another's carriageway, m. */
+const STEP = 0.5
 /**
  * How far past the clearance a bound from the other road's natural level reaches, m (TUNED): a
  * junction pinned under a bridge can hold the road below over its natural level (by 0.18 m under
@@ -197,16 +199,42 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
       .map((c) => ({ up, down, c, clear }))
   })
   /**
-   * `z` bounding `l` at arc length `s` and SPREAD m either side of it: a bound holds at the profile
-   * sample nearest its point, and the samples (at most 4 m apart) nearest these bracket `s`, so the
-   * profile between them keeps the bound where the roads cross too.
+   * Bounds on `l` where it crosses `other` at arc length `s`: every SPREAD m along it from `s` as far
+   * as it runs under or over `other`'s carriageway (within `other.w` / 2 of its centreline), and
+   * SPREAD m past that on either side, each `level` of the arc length of `other`'s point nearest it.
+   * A bound holds at the profile sample nearest its point, and the samples (at most 4 m apart)
+   * nearest the outermost bracket that stretch, so the profile between them keeps the bound across
+   * the carriageway too: bound where the centrelines cross alone, a track under the A15's bridge
+   * 136455101 kept 5.5 m there and 5.23 m under the deck's edge, 5 m along it.
    */
-  const around = (l: Linear, s: number, z: number, kind: "min" | "max"): Array<Bound> => {
-    const arc = arcLengths(l.pts)
-    return [s - SPREAD, s, s + SPREAD].map((at) => {
-      const { x, y } = pointAt(l.pts, arc, Math.min(arc.at(-1)!, Math.max(0, at)))
-      return { x, y, z, kind, tilt: true, on: l }
-    })
+  const across = (
+    l: Linear,
+    s: number,
+    other: RoadF,
+    level: (at: number) => number,
+    kind: "min" | "max",
+  ): Array<Bound> => {
+    const arc = arcLengths(l.pts),
+      arcOther = arcLengths(other.pts),
+      end = arc.at(-1)!
+    const at = (d: number) => pointAt(l.pts, arc, Math.min(end, Math.max(0, d)))
+    const abeam = (d: number) => {
+      const { x, y } = at(d)
+      return nearest(other.pts, arcOther, x, y)
+    }
+    /** How many SPREAD steps from `s` toward `dir` reach past the carriageway, and one more. */
+    const steps = (dir: 1 | -1) => {
+      let a = 0
+      while (s + dir * a >= 0 && s + dir * a <= end && abeam(s + dir * a).d <= other.w / 2)
+        a += STEP
+      return Math.ceil(a / SPREAD) + 1
+    }
+    const out: Array<Bound> = []
+    for (let k = -steps(-1); k <= steps(1); k++) {
+      const { x, y } = at(s + k * SPREAD)
+      out.push({ x, y, z: level(abeam(s + k * SPREAD).s), kind, tilt: true, on: l })
+    }
+    return out
   }
   /** Whether `a` is fitted after `b` for sure: in a later pass, or never (a path or steps at grade). */
   const later = (a: RoadF, b: RoadF) => passOf(a) > passOf(b)
@@ -234,30 +262,29 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
           up.bridge === true
             ? naturalAt(ground, down, c.sb) + SLACK
             : naturalAt(ground, up, c.sa) - SLACK - clear
-        return [...around(down, c.sb, below, "max"), ...around(up, c.sa, below + clear, "min")]
+        return [
+          ...across(down, c.sb, up, () => below, "max"),
+          ...across(up, c.sa, down, () => below + clear, "min"),
+        ]
       }
       if (!has(up) && !has(down)) return []
       if (has(down)) {
         // Any way dips under a fitted one above it; a tunnel also under the natural level of a later
         // pass's road or of a path at grade (a bridge in a later pass rises over the way instead):
         // the aisles of Aulla's covered car park (maxheight 2.1 m) ran 0.4–2.1 m under its footways.
-        const above = fitted(up)
-          ? zAt(up, c.sa)
-          : down.tunnel === true && later(up, down) && !pathDeck(up)
-            ? naturalAt(ground, up, c.sa) - SLACK
-            : undefined
-        return above === undefined ? [] : around(down, c.sb, above - clear, "max")
+        if (fitted(up)) return across(down, c.sb, up, (at) => zAt(up, at) - clear, "max")
+        if (down.tunnel !== true || !later(up, down) || pathDeck(up)) return []
+        const above = naturalAt(ground, up, c.sa) - SLACK
+        return across(down, c.sb, up, () => above - clear, "max")
       }
       // Only a bridge rises, or a tunnel over a fitted way under it (a path's underpass over a
       // road's, or two bores of one pass, the lower fitted first): a road at grade over a tunnel
       // keeps its level (a car park's ramp under a square in Cesena lifted the square 5.6 m).
       if (up.bridge !== true && !(up.tunnel === true && fitted(down))) return []
-      const below = fitted(down)
-        ? zAt(down, c.sb)
-        : later(down, up) && !pathDeck(down)
-          ? naturalAt(ground, down, c.sb) + SLACK
-          : undefined
-      return below === undefined ? [] : around(up, c.sa, below + clear, "min")
+      if (fitted(down)) return across(up, c.sa, down, (at) => zAt(down, at) + clear, "min")
+      if (!later(down, up) || pathDeck(down)) return []
+      const below = naturalAt(ground, down, c.sb) + SLACK
+      return across(up, c.sa, down, () => below + clear, "min")
     })
     return [...crossed, ...level]
   }
