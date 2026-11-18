@@ -110,7 +110,7 @@ test("fetch-osm fetches the Lunigiana part its argument names, or another map's 
   assert.throws(() => partToFetch(["lucido"], cesena), /usage: fetch-osm --region cesena/)
 })
 
-test("fetch-osm refuses a test region's part, built from Lunigiana's parts' OSM, but one with buildings of its own", () => {
+test("fetch-osm refuses a test region's part, built from Lunigiana's parts' OSM, but one with buildings or OSM of its own", () => {
   for (const [key, region] of [
     ["lucido-l", "lunigiana-l"],
     ["lucido-3x", "lunigiana-3x"],
@@ -124,6 +124,10 @@ test("fetch-osm refuses a test region's part, built from Lunigiana's parts' OSM,
   const town = partToFetch(["pontremoli-town"])
   assert.equal(town.region.key, "pontremoli-town")
   assert.ok(town.region.ownBuildings)
+  // Its whole extract: what the build of a region with OSM of its own reads.
+  const coast = partToFetch(["magra-coast"])
+  assert.equal(coast.region.key, "magra-coast")
+  assert.ok(coast.region.ownOsm && !coast.region.ownBuildings)
 })
 
 test("fetch-osm asks for each rectangle of a part's tiles cut to its box plus 100 m, never an L's notch", () => {

@@ -39,3 +39,14 @@ test("a village's disc covers 90% of its buildings within 600 m, clamped to 400 
   // The town all ten within 1200 m, but not the one at 1300 m: 90% of them is its ninth, at 900 m.
   assert.equal(disc("town").r, 910)
 })
+
+test("a region's district discs hold the landmarks its inputs reach: Lunigiana's the mountains', none of the coast's", () => {
+  const names = new Set(
+    fitDistricts({ nodes: new Map(), ways: new Map(), relations: new Map() }, []).map(
+      (d) => d.name,
+    ),
+  )
+  for (const name of ["Monzone Alto", "Monte Sagro", "Cima Belfiore", "Monte Grugola"])
+    assert.ok(names.has(name), name)
+  for (const name of ["Foce del Magra", "Punta Bianca"]) assert.ok(!names.has(name), name)
+})

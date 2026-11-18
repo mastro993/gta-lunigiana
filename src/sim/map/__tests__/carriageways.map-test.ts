@@ -1,4 +1,4 @@
-// Every motorway carriageway of every built region (Lunigiana, Cesena and the L) keeps the motorway
+// Every motorway carriageway of every built region (Lunigiana, Cesena and the test regions) keeps the motorway
 // pass's grade limit over any stretch as long as the pass's smoothing half-window: the fit may
 // relax the limit (RELAX) over a short stretch where the ground leaves it no other way, never over
 // a motorway's length. The A15's Parma carriageway at Calcinara, its bridge's ends bound to its

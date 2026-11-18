@@ -134,3 +134,26 @@ test("a deck's carriageway clips a footprint under it or beside it its whole w/2
   assert.ok(Math.abs(nearest(deck) - 5.8) < 0.2, `under the deck: ${nearest(deck)} m`)
   assert.ok(Math.abs(nearest(grade) - 1.2) < 0.2, `at grade: ${nearest(grade)} m`)
 })
+
+test("a breakwater's outline opens only where a drivable road's middle crosses it, as a guard rail does: a path onto it leaves it whole", () => {
+  const road = (cls: RoadF["cls"], w: number, x: number): RoadF => ({
+    id: 1,
+    cls,
+    w,
+    surface: "asphalt",
+    private: false,
+    pts: [
+      { x, y: -20 },
+      { x, y: 20 },
+    ],
+  })
+  // Its south edge, from x 0 to 40 along y = 0, crossed by a footpath at x 10 and a service road
+  // at x 30.
+  const [south, ...rest] = openBarriers(
+    [{ kind: "breakwater", pts: [0, 0, 40, 0] }],
+    [road("path", 1.5, 10), road("service", 4, 30)],
+  )
+  assert.equal(rest.length, 1)
+  assert.deepEqual([south!.pts[0], south!.pts.at(-2)! < 30 - 1.2], [0, true])
+  assert.deepEqual([rest[0]!.pts[0]! > 30 + 1.2 - 0.25, rest[0]!.pts.at(-2)], [true, 40])
+})

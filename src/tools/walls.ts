@@ -1,7 +1,7 @@
 // Collision walls: outlines of the blocked 4 m cells in the play area (steep ground, and apart the
-// water's edge: the lines' beds and the lakes' and river polygons' cells; marching squares,
-// simplified, <= 16 m pieces) plus building edges, barriers, the play area's outline and road-exit
-// caps. Flat (ax, ay, bx, by) arrays.
+// water's edge: the lines' beds and the lakes', river polygons' and the sea's cells; marching
+// squares, simplified, <= 16 m pieces) plus building edges, barriers, the play area's outline and
+// road-exit caps. Flat (ax, ay, bx, by) arrays.
 import { fillPolygon, staticGrid } from "../sim/collide.ts"
 import type { Area, Barrier } from "../sim/map/index.ts"
 import { isDrivable, isMotorRoad, isWaterArea } from "../sim/map/kinds.ts"
@@ -261,14 +261,21 @@ export const clipBuildings = (
 const OPEN_STEP = 0.25
 
 /**
+ * The barriers that stop vehicles alone: a guard rail, which a walker steps over, and a breakwater's
+ * or a groyne's outline (shore.ts), its rocks too steep to drive up and walkable.
+ */
+const DRIVE_ONLY: ReadonlySet<string> = new Set(["guard_rail", "breakwater"])
+
+/**
  * Cliffs and walls with an opening wherever a road (not a tunnel) comes within w/2 of them. OSM
  * draws cliffs across the paths that climb through them and garden walls up to the road's
  * centreline; the way itself is open (a gap, a gate, steps cut in the rock). Original vertices are
  * kept; each opening ends at the last free sample. A guard rail runs along its road, often inside
  * its w/2 as OSM draws it, so it opens only where a drivable road's middle min(w/2, ARCH) reaches
  * it: a track OSM draws leaving its road past the rail's end, which stops 0.7 m short of the
- * track's centreline. Tunnels open nothing (a bridge's parapets do open where the road runs on
- * into one: parapets.ts).
+ * track's centreline; so does a breakwater's outline, which a path onto it leaves walled for
+ * vehicles. Tunnels open nothing (a bridge's parapets do open where the road runs on into one:
+ * parapets.ts).
  */
 export const openBarriers = (
   barriers: ReadonlyArray<Barrier>,
@@ -283,7 +290,7 @@ export const openBarriers = (
     }
   const way = (x: number, y: number) => ways.covers(x, y),
     lane = (x: number, y: number) => lanes.covers(x, y)
-  return barriers.flatMap((b) => opened([b], b.kind === "guard_rail" ? lane : way))
+  return barriers.flatMap((b) => opened([b], DRIVE_ONLY.has(b.kind) ? lane : way))
 }
 
 /** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` says. */
@@ -340,9 +347,9 @@ const pushBuilding = (outs: ReadonlyArray<Array<number>>, b: BuildingF, arches: 
 interface Walls {
   /** What stops anyone on foot: buildings, steep ground, barriers, the play area's outline. */
   readonly walk: Array<number>
-  /** The water's edge (the lines' beds, the lakes and river polygons), which people and animals keep to by choice (none where a road crosses). */
+  /** The water's edge (the lines' beds, the lakes, river polygons and the sea), which people and animals keep to by choice (none where a road crosses). */
   readonly shore: Array<number>
-  /** What stops a vehicle: `walk`'s plus slopes over 25°, guard rails, parapets and road-exit caps; water is no wall. */
+  /** What stops a vehicle: `walk`'s plus slopes over 25°, guard rails, breakwaters, parapets and road-exit caps; water is no wall. */
   readonly drive: Array<number>
   /** The water's edge for `drive` (open where a drivable road crosses): kept clear by traffic's dead ends and the spawns, never stored. */
   readonly driveShore: Array<number>
@@ -378,10 +385,15 @@ export const buildWalls = (
   under: { readonly walk: Levelled; readonly drive: Levelled },
 ): Walls => {
   // The lakes' and river polygons' cells are water too: those whose centre each fills, as the
-  // land cover paints them.
+  // land cover paints them; and the sea's, but where the ground at a cell's centre stands over its
+  // level: a breakwater or a pier's deck raised in it (shore.ts) is dry land.
   const pools = areas
     .filter((a) => isWaterArea(a.kind))
-    .map((a) => ({ rings: a.rings, box: ringBox(a.rings[0]!) }))
+    .map((a) => ({
+      rings: a.rings,
+      box: ringBox(a.rings[0]!),
+      dryOver: a.kind === "sea" ? a.level : undefined,
+    }))
   const [ai, aj] = anchorNode(g)
   const wet = segIndex<null>(),
     banks = segIndex<null>()
@@ -431,7 +443,13 @@ export const buildWalls = (
           raw[(j - rj0) * rw + i - ri0] = (slope > WALK_SLOPE ? 1 : 0) | 2
       }
     const inArea = new Uint8Array((ci1 - ci0) * (cj1 - cj0))
-    for (const { rings, box } of pools)
+    /** The ground at the centre of the block's cell k, m: on the diagonal the terrain splits it along. */
+    const centreZ = (k: number) => {
+      const i = ci0 + (k % (ci1 - ci0)),
+        j = cj0 + Math.floor(k / (ci1 - ci0))
+      return (g.z[j * g.cols + i]! + g.z[(j + 1) * g.cols + i + 1]!) / 2
+    }
+    for (const { rings, box, dryOver } of pools)
       if (
         box[2] >= g.x0 + ci0 * g.cell &&
         box[0] <= g.x0 + ci1 * g.cell &&
@@ -444,7 +462,9 @@ export const buildWalls = (
           g.ay,
           g.cell,
           { c0: ci0 - ai, r0: cj0 - aj, cols: ci1 - ci0, rows: cj1 - cj0 },
-          (k) => (inArea[k] = 1),
+          (k) => {
+            if (dryOver === undefined || centreZ(k) <= dryOver) inArea[k] = 1
+          },
         )
     for (let j = cj0; j < cj1; j++)
       for (let i = ci0; i < ci1; i++) {
@@ -499,7 +519,7 @@ export const buildWalls = (
   const arches = corridors(roads.filter((r) => !clips(r)))
   for (const b of buildings) pushBuilding([walk, drive], b, arches)
   for (const b of barriers) {
-    if (b.kind !== "guard_rail") pushPolyline(walk, b.pts, false)
+    if (!DRIVE_ONLY.has(b.kind)) pushPolyline(walk, b.pts, false)
     pushPolyline(drive, b.pts, false)
   }
   const first = drive.length / 4

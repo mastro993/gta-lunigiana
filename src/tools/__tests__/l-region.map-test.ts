@@ -1,27 +1,21 @@
 // The L test region (`lunigiana-l`, region.ts) as built: its outline walls close its play area,
 // nothing on foot gets out of it, everything the map places lies in it, and its place reads no
-// ground of its notch. This process loads
-// the L (`useDiskMap`), from test-maps/, which `node src/tools/build-map.ts --region lunigiana-l`
-// writes. Without that build every check here is skipped, but in CI, which builds it with the maps
+// ground of its notch. This process loads the L (`useDiskMap`), from test-maps/, which
+// `node src/tools/build-map.ts --region lunigiana-l` writes. Without that build every check here is skipped, but in CI, which builds it with the maps
 // (`pnpm maps`), a missing build fails: a skip there would pass with nothing checked.
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
 import { test } from "node:test"
 
 import { useDiskMap } from "../../sim/map/source.ts"
 import { placeFrom } from "../../sim/sky/place.ts"
 import { centroid, pointInRing, ringBox, segDist2 } from "../geometry.ts"
 import { listedNodes } from "../grid-tiles.ts"
-import { builtMapUrl, readWholeMap, wholeMap } from "../map-file.ts"
-import { regionFromArgs } from "../region.ts"
+import { readWholeMap, wholeMap } from "../map-file.ts"
+import { along, assertOutlineWalls, crosses, edgesOf, walkFlood } from "./outline-checks.ts"
+import { skipUnbuilt, TEST_MAPS } from "./test-maps.ts"
 
-const REGION = regionFromArgs(["--region", "lunigiana-l"])
-const URL_L = builtMapUrl(REGION)
-const skip = existsSync(URL_L)
-  ? false
-  : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
-// GitHub Actions sets CI=true.
-if (skip !== false && process.env.CI === "true") throw new Error(skip)
+const [NAME, URL_L] = TEST_MAPS.find(([name]) => name === "the L")!
+const skip = skipUnbuilt(NAME, URL_L)
 if (skip === false) useDiskMap(URL_L)
 const sim = skip === false ? await import("../../sim/map/index.ts") : undefined
 const coarse = skip === false ? await import("../../sim/map/coarse.ts") : undefined
@@ -33,23 +27,8 @@ const WHOLE = skip === false ? readWholeMap(URL_L) : undefined
 const RING = [-2400, 0, 2400, 0, 2400, 1400, 0, 1400, 0, 3900, -2400, 3900]
 /** The notch's two sides, as edges of `RING`: x = 0 from y 1400 to 3900, y = 1400 from x 0 to 2400. */
 const NOTCH = [2, 3]
-/** A point lies on an edge within this (m): the L's edges are whole metres, and walls round to 0.1 m. */
-const ON = 1e-6
-
-/** Edge k of `RING`: from vertex k to the next. */
-const edge = (k: number) => {
-  const n = RING.length / 2,
-    m = (k + 1) % n
-  return { ax: RING[2 * k]!, ay: RING[2 * k + 1]!, bx: RING[2 * m]!, by: RING[2 * m + 1]! }
-}
-const EDGES = Array.from({ length: RING.length / 2 }, (_, k) => edge(k))
-/** Where along axis-aligned edge `e` (0 at a, its length at b) point (x, y) lies, or undefined off its line. */
-const along = (e: ReturnType<typeof edge>, x: number, y: number): number | undefined => {
-  if (e.ax === e.bx)
-    return Math.abs(x - e.ax) <= ON ? (y - e.ay) * Math.sign(e.by - e.ay) : undefined
-  return Math.abs(y - e.ay) <= ON ? (x - e.ax) * Math.sign(e.bx - e.ax) : undefined
-}
-const lengthOf = (e: ReturnType<typeof edge>) => Math.abs(e.bx - e.ax) + Math.abs(e.by - e.ay)
+/** `RING`'s edges, vertex k to the next. */
+const EDGES = edgesOf(RING)
 
 test(
   "the L: its play area two rectangles of lucido, 6 tiles listed and its notch's 2 not",
@@ -77,48 +56,7 @@ test(
   "outline walls, walk and drive, run end to end along every edge of the L, and the game finds them there",
   { skip },
   () => {
-    const { wallsNear } = sim!
-    for (const kind of ["walk", "drive"] as const) {
-      const flat = WHOLE!.walls[kind]
-      EDGES.forEach((e, k) => {
-        // the stretches of the edge its walls cover, merged
-        const spans: Array<[number, number]> = []
-        for (let w = 0; w < flat.length; w += 4) {
-          const s = along(e, flat[w]!, flat[w + 1]!),
-            t = along(e, flat[w + 2]!, flat[w + 3]!)
-          // on the edge, not on its line past an end
-          if (
-            s !== undefined &&
-            t !== undefined &&
-            Math.max(s, t) > 0 &&
-            Math.min(s, t) < lengthOf(e)
-          )
-            spans.push([Math.min(s, t), Math.max(s, t)])
-        }
-        spans.sort((a, b) => a[0] - b[0])
-        let reach = 0
-        for (const [s, t] of spans) {
-          assert.ok(s <= reach + ON, `${kind} edge ${k}: a gap from ${reach} to ${s} m`)
-          reach = Math.max(reach, t)
-        }
-        assert.ok(reach >= lengthOf(e) - ON, `${kind} edge ${k}: walls stop at ${reach} m`)
-        // every 4 m along it, a lookup there answers a wall on it
-        for (let d = 2; d < lengthOf(e); d += 4) {
-          const x = e.ax + Math.sign(e.bx - e.ax) * d,
-            y = e.ay + Math.sign(e.by - e.ay) * d
-          assert.ok(
-            wallsNear(kind, x - 0.5, y - 0.5, x + 0.5, y + 0.5).some((w) => {
-              const s = along(e, w.ax, w.ay),
-                t = along(e, w.bx, w.by)
-              return (
-                s !== undefined && t !== undefined && Math.min(s, t) <= d && d <= Math.max(s, t)
-              )
-            }),
-            `${kind} edge ${k}: no wall found at ${x}, ${y}`,
-          )
-        }
-      })
-    }
+    assertOutlineWalls(WHOLE!.walls, EDGES, sim!.wallsNear)
   },
 )
 
@@ -171,118 +109,30 @@ test(
   },
 )
 
-/** Whether segments a–b and c–d cross or touch. */
-const crosses = (
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  cx: number,
-  cy: number,
-  dx: number,
-  dy: number,
-): boolean => {
-  const side = (px: number, py: number, qx: number, qy: number, rx: number, ry: number) =>
-    Math.sign((qx - px) * (ry - py) - (qy - py) * (rx - px))
-  const d1 = side(cx, cy, dx, dy, ax, ay),
-    d2 = side(cx, cy, dx, dy, bx, by),
-    d3 = side(ax, ay, bx, by, cx, cy),
-    d4 = side(ax, ay, bx, by, dx, dy)
-  return d1 * d2 <= 0 && d3 * d4 <= 0 && !(d1 === 0 && d2 === 0)
-}
-
 /** Flood cell side, m: fine enough for the gaps between houses, and every outline edge between two cells' centres. */
 const STEP = 2
-/** How far past the bounds the flood may go, m: a leak through the outline would reach it. */
-const BEYOND = 40
-/** Side of the cells whose walls are looked up once, m. */
-const BLOCK = 16
 
 test(
   "on foot from the start, a flood stopped by the walk walls never leaves the L, and reaches every one of its edges",
   { skip },
   () => {
     const { MAP, inPlay, wallsNear } = sim!
-    const { minX, minY, maxX, maxY } = MAP.bounds
-    const x0 = minX - BEYOND,
-      y0 = minY - BEYOND,
-      cols = (maxX - minX + 2 * BEYOND) / STEP,
-      rows = (maxY - minY + 2 * BEYOND) / STEP
-    const per = BLOCK / STEP,
-      bcols = Math.ceil(cols / per)
-    /** Each block's walk walls (and trunks), flat, looked up once. */
-    const blocks = new Map<number, Float64Array>()
-    const wallsOf = (b: number): Float64Array => {
-      let flat = blocks.get(b)
-      if (flat === undefined) {
-        const bx = x0 + (b % bcols) * BLOCK,
-          by = y0 + Math.floor(b / bcols) * BLOCK
-        const found = wallsNear("walk", bx, by, bx + BLOCK, by + BLOCK)
-        flat = new Float64Array(found.length * 4)
-        found.forEach((w, k) => flat!.set([w.ax, w.ay, w.bx, w.by], 4 * k))
-        blocks.set(b, flat)
-      }
-      return flat
-    }
-    const blockOf = (c: number, r: number) => Math.floor(r / per) * bcols + Math.floor(c / per)
-    const centre = (c: number) => x0 + (c + 0.5) * STEP
-    const middle = (r: number) => y0 + (r + 0.5) * STEP
-    const open = (c: number, r: number, d: number, e: number) => {
-      const ax = centre(c),
-        ay = middle(r),
-        bx = centre(d),
-        by = middle(e)
-      for (const b of new Set([blockOf(c, r), blockOf(d, e)])) {
-        const w = wallsOf(b)
-        for (let k = 0; k < w.length; k += 4)
-          if (crosses(w[k]!, w[k + 1]!, w[k + 2]!, w[k + 3]!, ax, ay, bx, by)) return false
-      }
-      return true
-    }
-    const seen = new Uint8Array(cols * rows)
-    const { x, y } = MAP.spawns.player
-    const start = Math.floor((y - y0) / STEP) * cols + Math.floor((x - x0) / STEP)
-    const stack = [start]
-    seen[start] = 1
-    let reached = 0
-    const near = new Set<number>()
-    while (stack.length > 0) {
-      const k = stack.pop()!,
-        c = k % cols,
-        r = Math.floor(k / cols)
-      reached++
-      const cx = centre(c),
-        cy = middle(r)
-      assert.ok(inPlay(cx, cy), `the flood got out at ${cx}, ${cy}`)
-      EDGES.forEach((e, k) => {
-        if (edgeNear(e, cx, cy)) near.add(k)
-      })
-      for (const [d, e] of [
-        [c + 1, r],
-        [c - 1, r],
-        [c, r + 1],
-        [c, r - 1],
-      ] as const) {
-        if (d < 0 || e < 0 || d >= cols || e >= rows || seen[e * cols + d] === 1) continue
-        if (!open(c, r, d, e)) continue
-        seen[e * cols + d] = 1
-        stack.push(e * cols + d)
-      }
-    }
+    const { reached, near } = walkFlood({
+      bounds: MAP.bounds,
+      start: MAP.spawns.player,
+      edges: EDGES,
+      wallsNear,
+      inPlay,
+      step: STEP,
+    })
     // the L's area is 12.72 km²: the flood covers most of it, 10.2 (the rest is cliffs, houses and banks)
     assert.ok(reached * STEP * STEP > 9e6, `${reached} cells reached`)
     assert.deepEqual(
-      [...near].sort((a, b) => a - b),
+      near,
       EDGES.map((_, k) => k),
     )
   },
 )
-
-/** Whether (x, y) lies within `STEP` m of axis-aligned edge `e`, beside it. */
-const edgeNear = (e: ReturnType<typeof edge>, x: number, y: number) =>
-  e.ax === e.bx
-    ? Math.abs(x - e.ax) < STEP && y >= Math.min(e.ay, e.by) && y <= Math.max(e.ay, e.by)
-    : Math.abs(y - e.ay) < STEP && x >= Math.min(e.ax, e.bx) && x <= Math.max(e.ax, e.bx)
 
 test(
   "every graph node, spawn, POI, building and platform of the L lies in its play area",

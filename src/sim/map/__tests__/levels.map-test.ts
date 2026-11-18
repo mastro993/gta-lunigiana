@@ -1,13 +1,14 @@
-// Every crossing of two ways on two levels on every built region (Lunigiana, Cesena and the L): a
-// road, path or rail bridge over a road, a path, steps or the rail, and a road, a path or the rail
-// over a tunnel. Within reach of the crossing the two stand more than the level rule's 2 m apart
-// (`onOneLevel`, src/sim/one-level.ts), with a margin, so the rule tells what is on the deck from
-// what runs under it: which car a person gets into (`vehicleInReach`), what a driver brakes for
+// Every crossing of two ways on two levels on every built region (Lunigiana, Cesena and the test
+// regions): a road, path or rail bridge over a road, a path, steps or the rail, and a road, a path or
+// the rail over a tunnel. Within reach of the crossing the two stand more than the level rule's 2 m
+// apart (`onOneLevel`, src/sim/one-level.ts), with a margin, so the rule tells what is on the deck
+// from what runs under it: which car a person gets into (`vehicleInReach`), what a driver brakes for
 // (`TrafficAI`), what a vehicle hits and who steps apart from whom (`Contacts`), what people and
 // animals run from (`Perceive`, `Animals`), and what a train meets. The rule is code, so a new map
 // can break it only through its data: a deck too low over what it crosses. Where both are the rail,
-// nothing meets across them and they are left out. The L's build lives in test-maps/ (`pnpm maps`):
-// without it its check is skipped, but in CI, which builds it, a missing build fails.
+// nothing meets across them and they are left out. The test regions' builds (the L, the coast) live
+// in test-maps/ (`pnpm maps`): without one its check is skipped, but in CI, which builds them, a
+// missing build fails.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
@@ -212,15 +213,27 @@ const shortfalls = (
 /**
  * Crossings a region's build keeps too low, by the OSM ids of the way above and the one below
  * (docs/map.md, "Known data limitations"): Cesena's car park ramp its square's pass leaves at the
- * square's level. Each must still fall short, so a fix drops it from here. Its footbridges over
- * Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its pedestrian
- * underpass under Via Giuseppe Di Vittorio, ran straight between their ends at the terrain's level
- * until the paths' and steps' decks were fitted (PATH_PASS); its 5.5 m path bridge 683510421 over
- * the path down into the Sottopasso Cervese, crossing it 3.3 and 2.2 m from its two ends at grade,
- * no fit can clear (`fitReach`).
+ * square's level; the coast test region's foot and cycle bridge over the A12 at Luni (its three
+ * ways), its footway under Via Palmiro Togliatti, and Via Bassagrande's bridge over the Fossa
+ * Maestra, 1.93 m over the path along its bank. Each must still fall short, so a fix drops it from
+ * here. Cesena's footbridges over Viale Europa, Via Riccione, the paths beside them and the
+ * Ippodromo's, and its pedestrian underpass under Via Giuseppe Di Vittorio, ran straight between
+ * their ends at the terrain's level until the paths' and steps' decks were fitted (PATH_PASS); its
+ * 5.5 m path bridge 683510421 over the path down into the Sottopasso Cervese, crossing it 3.3 and
+ * 2.2 m from its two ends at grade, no fit can clear (`fitReach`).
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [[55016697, 68296970]],
+  "the coast": [
+    [522153379, 205903779],
+    [522153379, 277681681],
+    [522153380, 757275374],
+    [522153380, 1379028354],
+    [522153381, 316441559],
+    [522153381, 757266514],
+    [381510717, 757275375],
+    [463589363, 326011444],
+  ],
 }
 
 for (const [region, read, skip] of REGIONS)

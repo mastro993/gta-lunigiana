@@ -20,6 +20,7 @@ import {
   flatLine,
   lineBox,
   r1,
+  ringBox,
   type V,
 } from "./geometry.ts"
 import { inPlay, onOutline } from "./play-area.ts"
@@ -39,9 +40,17 @@ import { railLevels } from "./rail-levels.ts"
 import { continuations } from "./rail-runouts.ts"
 import { railTwins, twinBounds } from "./rail-twins.ts"
 import { roadLevels } from "./road-levels.ts"
+import { PIER_DECK, pierDeck } from "./shore.ts"
 import { type Profile, resample, sampleGrid } from "./terrain.ts"
-import { stillLevel, waterAreas } from "./water-areas.ts"
-import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
+import { inAreas, stillLevel, waterAreas, waterLevel } from "./water-areas.ts"
+import {
+  BRIDGE_CLEAR,
+  capUnderDecks,
+  dropPerched,
+  waterLine,
+  waterProfiles,
+  type Crossed,
+} from "./water.ts"
 
 /**
  * Catchments beyond the map's box that drain into it, km², each at the point on the box's north
@@ -124,12 +133,17 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   const ground = dem.at
   // ---- the vectors: water surfaces, road and rail profiles (their claims on the grid recorded),
   // the water kept under the decks; then the grid, one tile at a time ----
-  const wp = waterProfiles(water, ground)
+  // No water stands under the sea, and the rivers reaching it meet it at its level.
+  const wp = waterProfiles(
+    water,
+    ground,
+    inAreas(src.areas, (k) => k === "sea"),
+  )
   // The water as first settled: the beds are carved under it and the catchments read along it.
   const wp0 = wp.map((p) => ({ ...p, z: Float64Array.from(p.z) }))
   // The lakes' levels and the river polygons' waterways, into the areas in their places (a
-  // platform's area is its index there).
-  const wet = waterAreas(src.areas, water, wp0, dem)
+  // platform's area is its index there), and the sea on its floor.
+  const wet = waterAreas(src.areas, water, wp0, dem, src.seaFloor)
   wet.areas.forEach((a, i) => (src.areas[i] = a))
   // Every road a pass profiles, at the steepest grade its fit draws: a junction keeps within reach
   // of the junctions set before along the roads not yet fitted (junction-reach.ts).
@@ -237,7 +251,8 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   // The paths' and steps' bridges and tunnels, after every road (PATH_PASS): each from its ends'
   // levels over or under the ways it crosses.
   const pathDecks = roads.filter(
-    (r) => lifted(r) && (PATH_PASS.classes as ReadonlyArray<string>).includes(r.cls),
+    (r) =>
+      lifted(r) && r.pier !== true && (PATH_PASS.classes as ReadonlyArray<string>).includes(r.cls),
   )
   for (const ch of grown(chainsOf(pathDecks)))
     profile(ch, { w: (r) => r.w, ...PATH_PASS, ramps: true, ends: endLevel }, [
@@ -249,6 +264,23 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     if (piece.bridge !== true) claim(p, 4, EXTRA_RANK, () => false)
   lap("roads")
 
+  // A pier's deck stands over its water vertex by vertex (`pierDeck`), never fitted: the path pass
+  // would lay it straight from its ends' levels.
+  const levelAt = waterLevel(wet.carved, water, wp0)
+  const pierZ = new Map(
+    roads
+      .filter((r) => r.pier === true)
+      .map((r) => [
+        r as Linear,
+        pierDeck(
+          r.pts,
+          (v) => (v.id === undefined ? undefined : nodeZ.get(v.id)) ?? ground(v.x, v.y),
+          levelAt,
+        ),
+      ]),
+  )
+  /** A deck's z at its vertices or dense samples: its profile, or a pier's. */
+  const deckZ = (l: Linear) => zOf.get(l) ?? pierZ.get(l)!
   const crossed: Array<Crossed> = []
   const waterBox = water.map((w) => lineBox(w.pts))
   for (const [l, lw] of [
@@ -256,7 +288,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     ...allRail.map((r) => [r, 4] as const),
   ]) {
     if (l.tunnel === true || (!lifted(l) && !zOf.has(l))) continue // tunnels pass under; paths follow the terrain
-    const z = zOf.get(l)!,
+    const z = deckZ(l),
       s = arcLengths(l.pts),
       box = lineBox(l.pts)
     water.forEach((w, wi) => {
@@ -267,16 +299,18 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
           at: c.sa,
           half: lw / 2 + (l.bridge === true ? 2 : 1),
           deck: along(s, z, c.sb),
-          bridge: l.bridge === true,
+          // A pier's deck stands PIER_DECK over its water's level (`pierDeck`): capped a bridge's
+          // BRIDGE_CLEAR under it, the water would fall 1.5 m under that level, and on downstream.
+          ...(l.bridge === true ? { clear: pierZ.has(l) ? PIER_DECK : BRIDGE_CLEAR } : {}),
         })
     })
   }
   capUnderDecks(water, wp, crossed)
   lap("decks")
 
-  /** Per-vertex elevation: the profile, or `terrain` (paths and steps at grade). */
+  /** Per-vertex elevation: the profile, a pier's deck, or `terrain` (paths and steps at grade). */
   const zLine = (l: Linear, terrain: (x: number, y: number) => number): Array<number> =>
-    (zOf.get(l) ?? l.pts.map((v) => terrain(v.x, v.y))).map(r1)
+    (zOf.get(l) ?? pierZ.get(l) ?? l.pts.map((v) => terrain(v.x, v.y))).map(r1)
   /** Output polyline and z: profiled pieces carry their extra bend samples. */
   const lineOut = (l: Linear, terrain: (x: number, y: number) => number) => {
     const d = denseOf.get(l)
@@ -300,6 +334,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       wp0,
       wp,
       areas: wet.carved,
+      raised: src.raised.map((r) => ({ ...r, box: ringBox(r.rings[0]!) })),
       claims,
       // Under a deck: its carriageway and a metre either side.
       decks: roads.filter((r) => r.bridge === true).map((r) => ({ pts: r.pts, half: r.w / 2 + 1 })),
@@ -359,7 +394,8 @@ export const finishTerrain = (src: Sources, profiled: Profiled, lap: (label: str
     uncarved,
     input.wp0,
     water.map((w) => w.pts.map((v) => v.id)),
-    grid.listed,
+    // The sea's nodes are outlets, as a notch's are: the rivers and the canals drain into it.
+    Uint8Array.from(grid.listed, (on, n) => (grid.sea[n] === 1 ? 0 : on)),
     profiled.inflows,
     profiled.beyond,
   )

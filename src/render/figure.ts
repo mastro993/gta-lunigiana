@@ -187,11 +187,16 @@ export class FigureNode<Frame extends string> extends ActorNode {
 
   /**
    * Stands the node on the ground under map point (x, y) on the level of `footing` (m a.s.l., the sim's `Footing`: `footY`), or
-   * floats it `sink` under the water's surface (never under the bed), facing `angle`, and adds the metres covered to `walked`.
+   * floats it `sink` under the water's surface, never under the bed the water lies on (`atGradeY`, as `waterUnder` finds it for a
+   * body in the water: a swimmer's footing hangs in the water, and where it is deep a deck over it is nearer that than the bed),
+   * facing `angle`, and adds the metres covered to `walked`.
    */
   place(x: number, y: number, angle: number, footing: number): void {
-    const h = footY(x, y, footing)
-    this.position.set(x, this.afloat === undefined ? h : Math.max(h, this.afloat - this.sink), -y)
+    const h =
+      this.afloat === undefined
+        ? footY(x, y, footing)
+        : Math.max(atGradeY(x, y), this.afloat - this.sink)
+    this.position.set(x, h, -y)
     this.rotation.y = angle
     if (this.last !== undefined) this.walked += Math.hypot(x - this.last.x, y - this.last.y)
     this.last = { x, y }

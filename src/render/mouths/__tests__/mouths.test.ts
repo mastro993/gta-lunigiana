@@ -138,6 +138,28 @@ test("a way in a tunnel branching off the 87 m path's at a vertex inside its bor
   )
 })
 
+test("Pieve San Lorenzo's underpass with a road out of its south mouth turning 45° across where its head wall's side would stand: open, the road out crowding it", () => {
+  const { roads, buildings } = aroundTunnels(),
+    [road, id] = tunnelAt(PIEVE),
+    [south] = endsOf(road, id).sort((a, b) => a.y - b.y) as [Mouth, Mouth],
+    floor = road.pts[0] === south.x && road.pts[1] === south.y ? road.z[0]! : road.z.at(-1)!,
+    turn = south.angle + Math.PI / 4
+  // As wide as the underpass's road, 10 m on at its level: the coast's underpass under the A12 has
+  // one turning 43° at its south mouth.
+  const { tunnel: _tunnel, ...way } = road,
+    out: Road = {
+      ...way,
+      pts: [south.x, south.y, south.x + 10 * Math.cos(turn), south.y + 10 * Math.sin(turn)],
+      z: [floor, floor],
+    },
+    turned = { ids: [...roads.ids, Number.MAX_SAFE_INTEGER], items: [...roads.items, out] }
+  const baked = bakeMouths(turned, buildings.items).find(
+    (mouth) => mouth.road === id && mouth.x === south.x && mouth.y === south.y,
+  )
+  assert.ok(baked !== undefined && "open" in baked, "the south mouth open")
+  assert.equal(whyOpen({ ...aroundTunnels(), roads: turned }, south), "crowded")
+})
+
 /** A house 7 m high on a 10 m square round map point (x, y), its lowest corner's ground `z0` m a.s.l. */
 const houseAt = (x: number, y: number, z0: number): Building => ({
   id: 0,

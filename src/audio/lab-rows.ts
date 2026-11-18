@@ -168,6 +168,9 @@ const VOICE_RENDERS = {
     { kind: "tyres", speed: 20, skid: 0.6, slip: 6, surface: "asphalt", heavy: false },
     { kind: "tyres", speed: 10, skid: 0, slip: 0, surface: "stone", heavy: false },
     { kind: "tyres", speed: 15, skid: 0.5, slip: 3, surface: "gravel", heavy: true },
+    // Sand's hiss: a full slide at the Giulia's top speed (its loudest), and a car spinning its wheels where it stands.
+    { kind: "tyres", speed: 40, skid: 1, slip: 12, surface: "sand", heavy: false },
+    { kind: "tyres", speed: 0, skid: 1, slip: 8, surface: "sand", heavy: false },
     // A standing burnout, a locked wheel, ABS braking at the limit.
     { kind: "tyres", speed: 0, skid: 1, slip: 8, surface: "asphalt", heavy: false },
     { kind: "tyres", speed: 15, skid: 1, slip: 15, surface: "asphalt", heavy: false },
@@ -286,6 +289,7 @@ const SHOT_RENDERS = {
       ["stone", true, false],
       ["asphalt", false, false],
       ["gravel", true, false],
+      ["sand", true, false],
       ["grass", false, false],
       ["grass", false, true],
     ] as const

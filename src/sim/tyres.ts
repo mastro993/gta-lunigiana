@@ -23,9 +23,9 @@ export interface Grip {
 
 /**
  * Per surface, for a car tyre (the model's `tyres.grip` scales it): dry asphalt (peak about 1.1,
- * a locked wheel 0.7–0.9 of it), stone setts and paving, loose gravel, dirt tracks, grass and the
- * forest floor. Loose ground slides almost as well as it grips (a flat peak); rolling resistance
- * from 0.013 on asphalt to 0.07 in a field.
+ * a locked wheel 0.7–0.9 of it), stone setts and paving, loose gravel, dirt tracks, grass, the
+ * forest floor and a beach's dry sand. Loose ground slides almost as well as it grips (a flat peak);
+ * rolling resistance from 0.013 on asphalt to 0.07 in a field and 0.3 in sand.
  */
 const GRIP = {
   asphalt: { mu: 1.1, slide: 0.7, roll: 0.013 },
@@ -34,12 +34,19 @@ const GRIP = {
   dirt: { mu: 0.6, slide: 0.85, roll: 0.045 },
   grass: { mu: 0.45, slide: 0.8, roll: 0.07 },
   leaves: { mu: 0.5, slide: 0.8, roll: 0.06 },
+  // A tyre in dry sand grips by shearing it: its peak is the sand's own friction, tan φ with φ 28–30° for
+  // the Land Locomotion Laboratory's dry sand (Wong, Theory of Ground Vehicles; c ≈ 1 kPa adds nothing at a
+  // tyre's 200 kPa). Loose sand's shear stress climbs to that and holds it as the slip grows (the
+  // Janosi–Hanamoto curve, in Wong), with no peak to fall from, so a sliding tyre keeps 0.95 of it. The
+  // tyre sinks and ploughs: 0.30 for car tyres in sand against 0.015 on concrete (Wong, 2nd ed. 1993, p. 17).
+  sand: { mu: 0.55, slide: 0.95, roll: 0.3 },
 } as const satisfies Record<Surface, Grip>
 
 /**
  * Per surface, wet: asphalt keeps about 0.72 of its dry peak (a wet road's 0.7–0.8 against about 1.1
  * dry) and a locked wheel slides on less of it; wet setts and paving keep 0.65, gravel 0.9 (it drains),
- * a dirt track turned to mud 0.65, wet grass 0.7 and wet leaves 0.65, rolling a little harder.
+ * a dirt track turned to mud 0.65, wet grass 0.7 and wet leaves 0.65, rolling a little harder. Sand
+ * alone firms up: the water binds its grains, so the tyre sinks less and rolls easier.
  */
 const WET = {
   asphalt: { mu: GRIP.asphalt.mu * 0.72, slide: 0.65, roll: 0.015 },
@@ -48,6 +55,10 @@ const WET = {
   dirt: { mu: GRIP.dirt.mu * 0.65, slide: 0.85, roll: 0.06 },
   grass: { mu: GRIP.grass.mu * 0.7, slide: 0.75, roll: 0.075 },
   leaves: { mu: GRIP.leaves.mu * 0.65, slide: 0.75, roll: 0.065 },
+  // Wet sands carry vehicles better than dry-to-moist ones, beach or desert alike (WES Technical Memorandum
+  // 3-240, 15th supplement, 1959): the same peak (it drains, nothing greases it) and half the rolling
+  // resistance, between dry sand's 0.30 and medium-hard soil's 0.08 (Wong, p. 17). Estimated: no tyre measured.
+  sand: { mu: GRIP.sand.mu, slide: 0.95, roll: 0.15 },
 } as const satisfies Record<Surface, Grip>
 
 /** Packed snow over any surface: a peak of about 0.3, sliding almost as well, rolling through it harder. */
@@ -79,6 +90,7 @@ export const gripsFor = (loose: number): Readonly<Record<Surface, SurfaceGrip>> 
     dirt: blend("dirt"),
     grass: blend("grass"),
     leaves: blend("leaves"),
+    sand: blend("sand"),
   }
 }
 
@@ -191,7 +203,11 @@ const slipping = (t: TyreIn): TyreOut => {
   }
 }
 
-/** Wheelspin: the drive asks more than the grip, and the patch slips along the tyre at about the excess. */
+/**
+ * Wheelspin: the drive asks more than the grip, and the patch slips along the tyre at about the excess. It pushes with sliding
+ * friction, less the rolling resistance of the ground it rolls over as the car moves: a wheel spinning in sand still sinks and
+ * ploughs, so it digs in.
+ */
 const spinning = (t: TyreIn, speed: number): TyreOut => {
   const max = t.mu * t.load,
     sliding = max * t.slide
@@ -203,7 +219,7 @@ const spinning = (t: TyreIn, speed: number): TyreOut => {
         SPIN_SIDE *
         lateralCurve(Ops.atan2(Math.abs(t.vy), Math.max(Math.abs(t.vx), CRAWL)) / t.peak, t.slide)
   return {
-    fx: Math.sign(t.drive) * sliding,
+    fx: clampTo(Math.sign(t.drive) * sliding - Math.sign(t.vx) * t.roll * t.load, max),
     fy: side,
     amount: 1,
     slip: Math.min(15, 2 + 8 * (Math.abs(t.drive) / max - 1)),

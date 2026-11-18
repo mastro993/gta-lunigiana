@@ -25,7 +25,7 @@ import { placeAt } from "../map/tiles.ts"
 import { walkIndex } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { stalled } from "../systems/physics.ts"
-import { flood, jsonSave, LOOK, press, start, type Timeline } from "../testing.ts"
+import { door, flood, jsonSave, LOOK, press, start, type Timeline } from "../testing.ts"
 import { WALK_SPEED } from "../tuning.ts"
 import { VEHICLES } from "../vehicles.ts"
 import { waterUnder } from "../water/rivers.ts"
@@ -240,6 +240,56 @@ test("a lake: the player swims in the middle of the one by the Solco di Equi and
     lift = panda.chassis.z - VEHICLES.panda.cg - (EQUI_LAKE.level - EQUI_LAKE.depth)
   assert.ok(lift > 0.1, `afloat, ${lift.toFixed(2)} m off the lake's bed`)
   assert.ok(Vec2.distance(panda, middle) < 1, `${Vec2.distance(panda, middle).toFixed(2)} m adrift`)
+})
+
+/** Lago Fario, found by geometry: the lake holding (-4295, 5046), and its deepest point on a 2 m lattice over 60 m round that. */
+const FARIO = (() => {
+  const lake = placeAt(-4295, 5046).vectors.areas.items.find(
+    (a) =>
+      a.kind === "lake" &&
+      a.rings.reduce((inside, r) => inside !== pointInRing(-4295, 5046, r), false),
+  )
+  assert.ok(lake?.level !== undefined, "Lago Fario")
+  let deepest = { x: 0, y: 0, depth: 0 }
+  for (let x = -4325; x <= -4265; x += 2)
+    for (let y = 5016; y <= 5076; y += 2) {
+      const depth = waterUnder(x, y, true, MEAN)?.depth ?? 0
+      if (depth > deepest.depth) deepest = { x, y, depth }
+    }
+  return { ...deepest, level: lake.level }
+})()
+
+// Regression: a swimmer's level was the bed, so a car afloat in water deeper than about 2.4 m stood more than 2 m over it, out of
+// his reach, and drifted through him; in the sea, 2 to 13 m deep off the beaches, that was nearly everywhere.
+test("deep water: a swimmer's feet hang 0.7 of his height under the surface, so in Lago Fario's 3 m he gets into a Panda afloat beside him", () => {
+  const middle = { x: FARIO.x, y: FARIO.y, angle: 0 }
+  assert.ok(FARIO.depth > 2.8, `${FARIO.depth.toFixed(2)} m deep`)
+  const game = start(
+    press(240, "action"),
+    [door(middle), { cars: [parkedCar("panda", 0x8b8170, middle)] }],
+    {
+      alone: true,
+    },
+  )
+  assert.ok(game.runtime.tick(flood(MEAN)).ok)
+  game.run(200)
+  assert.equal(game.world().water, "swimming")
+  const view = game.view()!,
+    bed = FARIO.level - waterUnder(view.pose.x, view.pose.y, true, MEAN)!.depth,
+    under = FARIO.level - view.z
+  // 0.7 of a man's 1.7–1.9 m.
+  assert.ok(
+    under > 1.19 && under < 1.33,
+    `his feet ${under.toFixed(3)} m under the surface, ${(view.z - bed).toFixed(2)} m over the bed`,
+  )
+  const panda = game.world().vehicles[0]!,
+    wheels = panda.chassis.z - VEHICLES.panda.cg
+  assert.ok(
+    wheels - bed > 2,
+    `the Panda afloat, its wheels' ground ${(wheels - bed).toFixed(2)} m over the bed`,
+  )
+  game.run(60)
+  assert.equal(game.view()!.mode, "driving", "in the Panda")
 })
 
 test("buoyancy: a Panda in still water keeps its wheels down at 0.3 m and floats at 0.7 m, as a 1 t Yaris did at 0.6 m", () => {

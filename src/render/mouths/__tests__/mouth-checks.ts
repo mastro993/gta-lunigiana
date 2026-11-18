@@ -321,7 +321,8 @@ export type Open = "buried" | "housed" | "low" | "crowded"
  * (`leastWall`: "low"); else another road or the track runs through the room a head wall and its
  * box would take, beside the bore's axis and between the wall's foot (`wallFoot`, as the bake
  * stands it: under the road, or under the ground at its face's ends where that is lower) and that
- * height ("crowded"), or it fails.
+ * height, or a road carrying on out of the mouth reaches past the arch's side there ("crowded"), or
+ * it fails.
  */
 export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   const own = tunnelOf(roads, end.road),
@@ -400,10 +401,10 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   if (highest < least) return "low"
   const ux = Math.cos(end.angle),
     uy = Math.sin(end.angle),
-    room = boreOf(road).half + 2,
+    arch = boreOf(road).half,
+    room = arch + 2,
     foot = wallFoot(end.x, end.y, ux, uy, headWall(boreOf(road)).half, floor)
   const crowding = waysNear(roads, end, end.x, end.y).find((way) => {
-    if (way.out) return false
     const m = Math.max(1, Math.ceil(Math.hypot(way.b[0] - way.a[0], way.b[1] - way.a[1]) / 0.25))
     for (let j = 0; j <= m; j++) {
       const x = way.a[0] + ((way.b[0] - way.a[0]) * j) / m,
@@ -412,6 +413,9 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
         across = Math.abs((y - end.y) * ux - (x - end.x) * uy),
         over = way.at(j / m) - floor
       if (
+        // A road carrying on out of the mouth may fill the arch (`clearance`): it stands in the way
+        // only where its carriageway reaches past the arch's side, as one turning at the mouth does.
+        (!way.out || across + way.half > arch) &&
         deep >= -2 - way.half &&
         deep <= span + 1 + way.half &&
         across <= room + way.half &&

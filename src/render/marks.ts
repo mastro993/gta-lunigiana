@@ -2,7 +2,7 @@
  * Tyre marks: one dynamic mesh for the whole map, a ring buffer of quads laid from the sim's Skid
  * events. Each wheel of each car draws a strip that joins its consecutive steps; a step without a
  * skid breaks it. The colour follows the surface (rubber on asphalt and stone, an earth rut on the
- * rest; a dark slush rut where snow lies), the opacity how far past its grip the tyre slid, and a mark
+ * rest, the damp sand a rut turns up on a beach; a dark slush rut where snow lies), the opacity how far past its grip the tyre slid, and a mark
  * fades to nothing over `FADE` seconds of sim time. When the buffer is full, the oldest quad is
  * overwritten. The first transparent effect drawn (`DRAW_ORDER`: then smoke, fire, bolts, rain and snow).
  *
@@ -47,6 +47,8 @@ const MARK = {
   dirt: { hex: PALETTE.woodBrown, alpha: 0.75 },
   grass: { hex: PALETTE.woodBrown, alpha: 0.55 },
   leaves: { hex: PALETTE.woodBrown, alpha: 0.5 },
+  // A rut in dry sand turns up the damper, darker sand under it; its loose sides slump back, so it shows less than dirt's.
+  sand: { hex: PALETTE.sandWet, alpha: 0.6 },
 } as const satisfies Record<Surface, { readonly hex: number; readonly alpha: number }>
 /** What a sliding tyre leaves in snow (Skid.snow 1): a dark rut of slush, plainer on the white. */
 const RUT = { hex: PALETTE.snowRut, alpha: 0.9 } as const

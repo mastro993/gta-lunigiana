@@ -4,7 +4,7 @@ import { test } from "node:test"
 import type { Area, Poi, Spawn } from "../../sim/map/index.ts"
 import type { BuildingF, RoadF } from "../features.ts"
 import { clearance, parkedSpots, playerSpawn, regionPoi, startNear, trunkIndex } from "../spawns.ts"
-import { inWater } from "../water-areas.ts"
+import { inAreas, inWater } from "../water-areas.ts"
 
 // A street along y 0 (5 m wide, so the right kerb's spots stand at y −3.5) with 80 houses north of
 // it, and a track along y = `track` south of it.
@@ -148,6 +148,21 @@ test("parkedSpots parks no car with its box's centre or a corner of its grown bo
       grownBox(p).every(([x, y]) => !wet(x, y)),
       `the car at (${p.x}, ${p.y}) stands in the lake`,
     )
+})
+
+test("parkedSpots parks no car on a beach's sand nor in the sea, as none in a lake: neither its box's centre nor a corner of its grown box", () => {
+  for (const kind of ["sand", "sea"] as const) {
+    const shore: Area = { ...KERB_LAKE, kind }
+    const on = inAreas([{ ...shore, kind: "lake" }], () => true)
+    const kept = parkedSpots({ ...STREET, areas: [shore] })
+    assert.ok(kept.length > 0, `the kerb's share beyond the ${kind}`)
+    for (const p of kept)
+      assert.ok(
+        grownBox(p).every(([x, y]) => !on(x, y)),
+        `the car at (${p.x}, ${p.y}) stands on the ${kind}`,
+      )
+    assert.ok(kept.length < spots([]).length, `the ${kind} takes spots`)
+  }
 })
 
 // A 100 m street along y 0 (5 m wide, so its sidewalk spots stand at y ±3.5), the player sought

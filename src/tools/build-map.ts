@@ -24,7 +24,7 @@ import { mapDir, REGION } from "./region.ts"
 import { cutMap } from "./tile-map.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
-if (REGION.ownTerrain)
+if (REGION.ownTerrain && !REGION.ownOsm)
   throw new Error(
     `--region ${REGION.key} has terrain of its own and no OSM, and builds no map: its map tests read its inputs (terrain-seams.map-test.ts, and sarzana.map-test.ts Liguria's)`,
   )

@@ -5,7 +5,7 @@ import { Ops } from "@typeonce/ritmo-math"
 import type { MapId } from "../maps.ts"
 import { staticGrid } from "../sim/collide.ts"
 import type { Area, Poi, Spawn } from "../sim/map/index.ts"
-import { isMotorRoad, ONE_LEVEL, pushTrunk, TRUNK } from "../sim/map/kinds.ts"
+import { isMotorRoad, isWaterArea, ONE_LEVEL, pushTrunk, TRUNK } from "../sim/map/kinds.ts"
 import type { BuildingF, RoadF } from "./features.ts"
 import {
   arcLengths,
@@ -22,7 +22,7 @@ import {
 } from "./geometry.ts"
 import { inPlay } from "./play-area.ts"
 import type { Region } from "./region.ts"
-import { inWater } from "./water-areas.ts"
+import { inAreas } from "./water-areas.ts"
 
 /** Segments farther than this from a clearance query are ignored, m (every caller asks less). */
 const REACH = 3
@@ -380,7 +380,8 @@ export const parkedSpots = ({
       ].map(([u, v]) => [x + c * u! - s * v!, y + s * u! + c * v!] as const),
     ]
   }
-  const wet = inWater(areas)
+  // No car parks in the water nor on a beach's sand.
+  const off = inAreas(areas, (kind) => isWaterArea(kind) || kind === "sand")
   const fits = (x: number, y: number, angle: number) =>
     inPlay(x, y, 5) &&
     walk.circle(x, y, SPAWN_R) &&
@@ -388,7 +389,7 @@ export const parkedSpots = ({
     drive.box(x, y, angle, CAR_HL + CAR_GAP, CAR_HW + CAR_GAP) &&
     offTrack(x, y, angle) &&
     !insideBuilding(x, y) &&
-    box(x, y, angle, CAR_GAP).every(([px, py]) => !wet(px, py)) &&
+    box(x, y, angle, CAR_GAP).every(([px, py]) => !off(px, py)) &&
     Math.hypot(x - avoid.x, y - avoid.y) > 6
   const candidates: Array<Spawn & { readonly order: number }> = []
   roads.forEach((r) => {

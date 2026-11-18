@@ -57,6 +57,7 @@ const BARRIER_MATERIAL: Partial<Record<string, Material>> = {
   guard_rail: "rail",
   wall: "stone",
   cliff: "rock",
+  breakwater: "rock",
 }
 
 /** The distance from (x, y) to the polyline `pts`, m; `closed` adds the edge back to its start (a ring). */
@@ -148,6 +149,8 @@ const AMBIENCE = {
   conifer: "forest",
   mixed: "forest",
   olive: "open",
+  sea: "none", // as a lake: no crickets, nor the open ground's wind
+  sand: "none", // as a river's gravel: no grass for the crickets
 } as const satisfies Record<Cover, keyof Ambience | "none">
 
 /** Where each share of `Ambience` is kept in a block. */

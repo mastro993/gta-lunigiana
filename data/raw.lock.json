@@ -211,6 +211,108 @@
     "asset": "raw-20261107-2/lig.fosdinovo.uds.json.gz",
     "source": "https://geoservizi.regione.liguria.it/geoserver/M2660/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2660%3AL10449&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ID_RLIG&cql_filter=BBOX%28GEOMETRY%2C578808%2C4884213%2C587533%2C4894319%29+AND+%28COD_USO+LIKE+%27131%25%27+OR+COD_USO+LIKE+%27221%25%27+OR+COD_USO+LIKE+%27223%25%27+OR+COD_USO+LIKE+%27311%25%27+OR+COD_USO+LIKE+%27312%25%27+OR+COD_USO+LIKE+%27313%25%27+OR+COD_USO+LIKE+%27321%25%27+OR+COD_USO+LIKE+%27322%25%27+OR+COD_USO+LIKE+%27331%25%27+OR+COD_USO+LIKE+%27332%25%27+OR+COD_USO+LIKE+%27333%25%27+OR+COD_USO+LIKE+%27512%25%27%29, fetched 2026-11-07"
   },
+  "lig/magra-coast/dtm/-4_-6.tif": {
+    "sha256": "5f6b8f465c9614c9ca31a409acb6df5aa5fd8e7b600d4516f58afe8d229c27cd",
+    "bytes": 6565,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-4_-6.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1582494.19189,1584549.19189)&subset=Y(4878364.40548,4880414.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-5_-6.tif": {
+    "sha256": "af64a4bb45f2d7b8b4ff685be8c521e18efd4dd08d3794b0adf16716a90e7437",
+    "bytes": 12035,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-5_-6.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1580494.19189,1582544.19189)&subset=Y(4878339.40548,4880389.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-5_-7.tif": {
+    "sha256": "b3ae18d5e5a35bcccf3c36d447c7746280fbd009a4d2806be2bb36c7abb0b045",
+    "bytes": 4749,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-5_-7.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1580514.19189,1582569.19189)&subset=Y(4876339.40548,4878389.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-6_-6.tif": {
+    "sha256": "e01102991d3b6e76c05e3309430eaf49dddb14949e6d4049a28e460fbe4fb7b2",
+    "bytes": 11345,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-6_-6.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1578489.19189,1580539.19189)&subset=Y(4878314.40548,4880364.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-6_-7.tif": {
+    "sha256": "2602756c2b7b260f3490e879a10487d8ba7650ca81dc22ee42bf939da51af35c",
+    "bytes": 15205,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-6_-7.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1578514.19189,1580564.19189)&subset=Y(4876314.40548,4878364.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-7_-6.tif": {
+    "sha256": "22a8e6380b3a5ac639a6b2fd5896b70684f246a7064eafabc140e76149e6a764",
+    "bytes": 53079,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-7_-6.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1576489.19189,1578539.19189)&subset=Y(4878289.40548,4880339.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-7_-7.tif": {
+    "sha256": "34b5d6b564ef5111c5ec87d2947b90113d8c33cfa3ee5be8d9fb70dd3fb9b2d4",
+    "bytes": 74662,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-7_-7.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1576509.19189,1578564.19189)&subset=Y(4876294.40548,4878339.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-7_-8.tif": {
+    "sha256": "6a5c2af85b7fb21b19d2aea69c03d7c388758847931360a2bde9d732b4bd172d",
+    "bytes": 2521,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-7_-8.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1576534.19189,1578584.19189)&subset=Y(4874294.40548,4876339.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-8_-6.tif": {
+    "sha256": "e46f6b7a3a93c95ef1de9e730dd3916edd22f0b93afaf3a3c6e7cb39f41db92c",
+    "bytes": 82074,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-8_-6.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1574484.19189,1576534.19189)&subset=Y(4878269.40548,4880314.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/dtm/-8_-7.tif": {
+    "sha256": "baf5dcf53e8c55ab2acd366da7a253fe0f7a41ff0899d69b147dbea844616220",
+    "bytes": 23122,
+    "asset": "raw-20261117/lig.magra-coast.dtm.-8_-7.tif",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2056/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=M2056__L6952&format=image%2Ftiff&geotiff%3Acompression=DEFLATE&geotiff%3Atiling=true&geotiff%3Atilewidth=512&geotiff%3Atileheight=512&subset=X(1574509.19189,1576559.19189)&subset=Y(4876269.40548,4878314.40548), fetched 2026-11-16"
+  },
+  "lig/magra-coast/isobaths.json.gz": {
+    "sha256": "fe458d29b5d0446d6d63007811aaa5de781ba214fca8cf3df534149abea5ee84",
+    "bytes": 158100,
+    "asset": "raw-20261117/lig.magra-coast.isobaths.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2112/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2112%3AL7174&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ID1&bbox=574983%2C4873787%2C584042%2C4880859%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-17"
+  },
+  "lig/magra-coast/nc5/L6858.json.gz": {
+    "sha256": "20d90bfac38b8a6df6f5a5779bed5e1d67c628e878cacc20d9d7b75f38d722d8",
+    "bytes": 171869,
+    "asset": "raw-20261117/lig.magra-coast.nc5.L6858.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2052/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2052%3AL6858&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=576483%2C4875287%2C582542%2C4879359%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-16"
+  },
+  "lig/magra-coast/nc5/L6870.json.gz": {
+    "sha256": "8a17f94b38a856fdece08d3f2add47ca10dee0637160ce8472f55ff5a8959042",
+    "bytes": 48539,
+    "asset": "raw-20261117/lig.magra-coast.nc5.L6870.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2052/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2052%3AL6870&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=576483%2C4875287%2C582542%2C4879359%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-16"
+  },
+  "lig/magra-coast/nc5/L6871.json.gz": {
+    "sha256": "76df977e8742c7f376e9499ed8c519f5ac0c8aa455b6323a3dcdba7bb9ef7f72",
+    "bytes": 146991,
+    "asset": "raw-20261117/lig.magra-coast.nc5.L6871.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2052/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2052%3AL6871&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=576483%2C4875287%2C582542%2C4879359%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-16"
+  },
+  "lig/magra-coast/nc5/L6945.json.gz": {
+    "sha256": "22f51e4f47ef402059d510f6c11e20894cef10f1bef76c4e50bffdbff7b8b099",
+    "bytes": 14408,
+    "asset": "raw-20261117/lig.magra-coast.nc5.L6945.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2052/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2052%3AL6945&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=576483%2C4875287%2C582542%2C4879359%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-16"
+  },
+  "lig/magra-coast/spiagge.json.gz": {
+    "sha256": "078096a1bff54f87aabaa94802e3fb70cfc3716b9fe8cf953ee5d9c3b32e6737",
+    "bytes": 10771,
+    "asset": "raw-20261117/lig.magra-coast.spiagge.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M1219/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M1219%3AL3118&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ogr_fid&bbox=576483%2C4875287%2C582542%2C4879359%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A25832, fetched 2026-11-16"
+  },
+  "lig/magra-coast/uds.json.gz": {
+    "sha256": "548629ba5c70abaf76e5aba4192be62e83e0450a4cb76b48d478f6363f38fe5b",
+    "bytes": 53885,
+    "asset": "raw-20261117/lig.magra-coast.uds.json.gz",
+    "source": "https://geoservizi.regione.liguria.it/geoserver/M2660/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=M2660%3AL10449&outputFormat=application%2Fjson&srsName=EPSG%3A25832&count=5000&startIndex=0&sortBy=ID_RLIG&cql_filter=BBOX%28GEOMETRY%2C576483%2C4875287%2C582542%2C4879359%29+AND+%28COD_USO+LIKE+%27131%25%27+OR+COD_USO+LIKE+%27221%25%27+OR+COD_USO+LIKE+%27223%25%27+OR+COD_USO+LIKE+%27311%25%27+OR+COD_USO+LIKE+%27312%25%27+OR+COD_USO+LIKE+%27313%25%27+OR+COD_USO+LIKE+%27321%25%27+OR+COD_USO+LIKE+%27322%25%27+OR+COD_USO+LIKE+%27331%25%27+OR+COD_USO+LIKE+%27332%25%27+OR+COD_USO+LIKE+%27333%25%27+OR+COD_USO+LIKE+%27512%25%27%29, fetched 2026-11-16"
+  },
   "lig/sarzana-town/dtm/-7_-2.tif": {
     "sha256": "f803627a1e80aa38ff663797401e1dea9af7c9589dbe7f11a415035113ce4afc",
     "bytes": 75187,
@@ -317,6 +419,12 @@
     "bytes": 1502516,
     "asset": "raw-20261030/lunigiana.osm.gz",
     "source": "https://api.openstreetmap.org/api/0.6/map?bbox=10.092494,44.105952,10.192509,44.197749 and each area multipolygon's /relation/<id>/full, in git since 2026-10-20 (66ae295)"
+  },
+  "osm/magra-coast.osm.gz": {
+    "sha256": "fde31dcbc9e4fc0e3b147a999c263a4828b6bfd1148798de456860e46bc7b0a4",
+    "bytes": 1065445,
+    "asset": "raw-20261117/osm.magra-coast.osm.gz",
+    "source": "https://api.openstreetmap.org/api/0.6/map?bbox=9.953723,44.025855,10.031235,44.063654 and each area multipolygon's /relation/<id>/full, fetched 2026-11-16"
   },
   "osm/pontremoli-town.osm.gz": {
     "sha256": "5feea676962bde1c9490d9e727fe036d51476841637611b1408ad603bfbddf25",
@@ -10124,6 +10232,24 @@
     "bytes": 66020,
     "asset": "raw-20261104/rt.dtm.5_6.bin",
     "source": "the lidar archives of data/parts/lucido.json, data/parts/fivizzano.json (https://www502.regione.toscana.it/geoscopio/download/altimetria/lidar/dtm/<lidar>.zip); then the 2021 surface model's elements 249062, 249063, 249064, 234123, 234124, 234164 (https://www502.regione.toscana.it/geoscopio/download/altimetria/DSM_autocorrelazione_2021/DSM_<element>.zip) on the open ground of https://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsucs&service=WFS&version=1.0.0&request=GetFeature&typeName=ms:rt_ucs.iducs.10k.2019.rt.full&BBOX=1584380.5,4888001.5,1601476.5,4904157.5, fetched 2026-11-04, less its canopy (its height over the 10 m DTMs); then https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; then https://servizigis.regione.emilia-romagna.it/wcs/dtm5x5?service=WCS&version=1.0.0&request=GetCoverage&coverage=DTM5X5_RDN32_RMD&crs=EPSG:7791&response_crs=EPSG:7791&bbox=600000,4902525,600805,4903650&width=161&height=225&format=GeoTIFF, fetched 2026-11-04"
+  },
+  "rt/magra-coast/dtm-src.bin": {
+    "sha256": "298964280af6652e13a7c58af2dff0d4ed957e46cf2790898554954248333146",
+    "bytes": 13186,
+    "asset": "raw-20261117/rt.magra-coast.dtm-src.bin",
+    "source": "https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; then the Liguria DTM ed. 2023's crops data/raw/lig/magra-coast/dtm/-7_-8.tif, data/raw/lig/magra-coast/dtm/-8_-7.tif, data/raw/lig/magra-coast/dtm/-7_-7.tif, data/raw/lig/magra-coast/dtm/-6_-7.tif, data/raw/lig/magra-coast/dtm/-5_-7.tif, data/raw/lig/magra-coast/dtm/-8_-6.tif, data/raw/lig/magra-coast/dtm/-7_-6.tif, data/raw/lig/magra-coast/dtm/-6_-6.tif, data/raw/lig/magra-coast/dtm/-5_-6.tif, data/raw/lig/magra-coast/dtm/-4_-6.tif (pnpm fetch-lig <part>); then the sea at 0 m, seaward of OpenStreetMap's coastline in data/raw/osm/magra-coast.osm.gz (pnpm fetch-osm <part>)"
+  },
+  "rt/magra-coast/dtm.bin": {
+    "sha256": "25862539a8013b57de8af8bc3da082ba9e5825d04d9abdf6bf9619b988dfd7a1",
+    "bytes": 702434,
+    "asset": "raw-20261117/rt.magra-coast.dtm.bin",
+    "source": "https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; then the Liguria DTM ed. 2023's crops data/raw/lig/magra-coast/dtm/-7_-8.tif, data/raw/lig/magra-coast/dtm/-8_-7.tif, data/raw/lig/magra-coast/dtm/-7_-7.tif, data/raw/lig/magra-coast/dtm/-6_-7.tif, data/raw/lig/magra-coast/dtm/-5_-7.tif, data/raw/lig/magra-coast/dtm/-8_-6.tif, data/raw/lig/magra-coast/dtm/-7_-6.tif, data/raw/lig/magra-coast/dtm/-6_-6.tif, data/raw/lig/magra-coast/dtm/-5_-6.tif, data/raw/lig/magra-coast/dtm/-4_-6.tif (pnpm fetch-lig <part>); then the sea at 0 m, seaward of OpenStreetMap's coastline in data/raw/osm/magra-coast.osm.gz (pnpm fetch-osm <part>)"
+  },
+  "rt/magra-coast/dtm.json": {
+    "sha256": "eb24844cf421b4aa84d8cc12728e8be1ef8c3be81af62dc9469cb86629d90449",
+    "bytes": 402,
+    "asset": "raw-20261117/rt.magra-coast.dtm.json",
+    "source": "https://www502.regione.toscana.it/geoscopio/download/altimetria/da_ctr10k/gb/dtm10x10/MS_dtm10x10_epsg3003_md5_f691fc7fe3e6cdcb89d6dd82f65bb408.zip; then the Liguria DTM ed. 2023's crops data/raw/lig/magra-coast/dtm/-7_-8.tif, data/raw/lig/magra-coast/dtm/-8_-7.tif, data/raw/lig/magra-coast/dtm/-7_-7.tif, data/raw/lig/magra-coast/dtm/-6_-7.tif, data/raw/lig/magra-coast/dtm/-5_-7.tif, data/raw/lig/magra-coast/dtm/-8_-6.tif, data/raw/lig/magra-coast/dtm/-7_-6.tif, data/raw/lig/magra-coast/dtm/-6_-6.tif, data/raw/lig/magra-coast/dtm/-5_-6.tif, data/raw/lig/magra-coast/dtm/-4_-6.tif (pnpm fetch-lig <part>); then the sea at 0 m, seaward of OpenStreetMap's coastline in data/raw/osm/magra-coast.osm.gz (pnpm fetch-osm <part>)"
   },
   "rt/pontremoli-town/dbt2k/045014_ac_vei.dbf.gz": {
     "sha256": "4b319e7b888d3d620fc39a11e6a451837b9543707aa15b54a53e3e1a9fbdb4c4",

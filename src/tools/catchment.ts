@@ -120,8 +120,9 @@ export interface Inflow {
  * the outlet), each node routed to its steepest lower neighbour (D8) and the 4 m cells accumulated
  * downstream. Area flowing in from beyond the grid counts only as `inflows` give it, carried down
  * from their nodes like their own. A node `listed` leaves out (0:
- * one no listed tile holds, in an L's notch) is beyond the grid too, and never read: an outlet below
- * any ground, so the listed nodes beside it are an edge, as the grid's outermost are.
+ * one no listed tile holds, in an L's notch, or the sea's) is beyond the grid too, and never read: an
+ * outlet below any ground, so the listed nodes beside it are an edge, as the grid's outermost are,
+ * and the rivers reaching the sea drain into it.
  * `beyond` is the water the play area's outline cut off, on the grid's ground (each 2 m sample at
  * its ground less depth/2): burned as the play area's is, owning no node and never read, so a river
  * the outline cuts short of the grid's edge or a notch drains on down its own water, to its outlet
