@@ -8,10 +8,11 @@
 // under each water sample read for the perched check, the grid rounded to 0.1 m and the rail bed
 // levelled. Each of those writes a node from that node alone (its own value, position, owner and
 // the vectors), so a window needs no halo, and a node two tiles share comes out the same in both:
-// the pass checks it. A tile of the bounds' box the region leaves off its list (an L's notch) is
-// never worked: no terrain is read there. Once every tile is written, the ground under the decks is
-// lowered on the whole grid (deck-ground.ts): where a deck stands clear of the ground reads the
-// ground along it, across the tiles.
+// the pass checks it. The nodes the paths' approaches' claims reach are worked again without those
+// claims, for the buildings' floors (`floors`). A tile of the bounds' box the region leaves off its
+// list (an L's notch) is never worked: no terrain is read there. Once every tile is written, the
+// ground under the decks is lowered on the whole grid (deck-ground.ts): where a deck stands clear of
+// the ground reads the ground along it, across the tiles.
 import { deckGround, deckReport, type Slab, slabNodes } from "./deck-ground.ts"
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
@@ -20,7 +21,7 @@ import { type Claim, replayClaims } from "./grid-claims.ts"
 import { cellTile, extendEdges, gridTiles } from "./grid-tiles.ts"
 import { ROAD_RANKS } from "./profiles.ts"
 import { type BedLine, bedLimits, bedReport, railBed } from "./rail-bed.ts"
-import { gridLattice, sampleGrid, slotOf, type Grid, type Profile } from "./terrain.ts"
+import { gridLattice, sampleGrid, slotOf, type Grid, type Profile, type Span } from "./terrain.ts"
 import { carveAreas, raiseAreas, seaNodes, waterNodes, type CarvedArea } from "./water-areas.ts"
 import { carveAll } from "./water.ts"
 
@@ -55,6 +56,8 @@ interface GridInput {
   readonly raised: Parameters<typeof raiseAreas>[1]
   /** The road and rail profiles' claims, in the order they were made. */
   readonly claims: ReadonlyArray<Claim>
+  /** Those of them the paths' approaches made (path-approaches.ts), which the buildings' floors never read. */
+  readonly approaches: ReadonlySet<Claim>
   /** The road bridges: each centreline, and how far either side of it its deck reaches, m. */
   readonly decks: ReadonlyArray<{ readonly pts: ReadonlyArray<V>; readonly half: number }>
   /** The road and rail bridges' slabs as shipped, which the ground is lowered under. */
@@ -92,7 +95,7 @@ export const uncarvedGrid = (dem: Dem): Grid => {
  */
 export const tileByTile = (
   uncarved: Grid,
-  { water, wp0, wp, areas, raised, claims, decks, slabs, rail, levels }: GridInput,
+  { water, wp0, wp, areas, raised, claims, approaches, decks, slabs, rail, levels }: GridInput,
 ) => {
   const lattice = gridLattice()
   const size = lattice.cols * lattice.rows
@@ -144,17 +147,19 @@ export const tileByTile = (
     }
   })
   const perched = wp.map((p) => new Float64Array(p.x.length))
-  for (const tile of gridTiles(lattice)) {
-    const { i0, j0, cols, rows } = tile.span
-    const win: Grid = { ...lattice, z: new Float64Array(cols * rows), span: tile.span }
+  /**
+   * The window `span` of the grid carved and `written` claimed: the water areas, what is raised and
+   * the beds first (`firstCarving`), the claims (never on the water), then the water areas and the
+   * beds again under the water kept below the decks.
+   */
+  const carved = (span: Span, written: ReadonlyArray<Claim>) => {
+    const { i0, j0, cols, rows } = span
+    const win: Grid = { ...lattice, z: new Float64Array(cols * rows), span }
     for (let r = 0; r < rows; r++) {
       const n = (j0 + r) * lattice.cols + i0
       win.z.set(uncarved.z.subarray(n, n + cols), r * cols)
     }
-    const rock = firstCarving(win, areas, raised, water, wp0),
-      wet = seaNodes(win, areas)
-    for (let r = 0; r < rows; r++)
-      sea.set(wet.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
+    const rock = firstCarving(win, areas, raised, water, wp0)
     const protect = waterNodes(win, areas),
       owner = new Uint8Array(cols * rows).fill(255)
     for (let k = 0; k < protect.length; k++)
@@ -165,20 +170,53 @@ export const tileByTile = (
         )
           ? 1
           : 0
-    replayClaims(win, claims, owner, protect)
+    replayClaims(win, written, owner, protect)
     carveAreas(win, areas, water, wp, true)
     carveAll(win, water, wp, (k) => owner[k] !== 255 || rock[k] === 1)
+    return { win, owner, protect }
+  }
+  /** `win` rounded to 0.1 m and its rail bed levelled: what the bed moved, by node. */
+  const finished = (win: Grid, owner: Uint8Array, protect: Uint8Array) => {
+    for (let k = 0; k < win.z.length; k++) win.z[k] = Math.round(win.z[k]! * 10) / 10
+    // A road's core (ROAD_RANKS) and a wide stream's bed keep their level; the rail's and the extra
+    // tracks' cells and open ground may be raised.
+    const keep = (k: number) => protect[k] === 1 || ROAD_RANKS.has(owner[k]!)
+    return railBed(win, limits, keep)
+  }
+  // The nodes the approaches' claims reach, carved again without them: the buildings' floors read
+  // the ground there as it stood before them (`floors`).
+  const others = claims.filter((c) => !approaches.has(c)),
+    boxes = [...approaches].map((c) => c.box)
+  const floors = new Map<number, number>()
+  for (const tile of gridTiles(lattice)) {
+    const { i0, j0, cols, rows } = tile.span
+    const { win, owner, protect } = carved(tile.span, claims),
+      wet = seaNodes(win, areas)
+    for (let r = 0; r < rows; r++)
+      sea.set(wet.subarray(r * cols, (r + 1) * cols), (j0 + r) * lattice.cols + i0)
     const own = samples.get(tile.key) ?? []
     for (let m = 0; m < own.length; m += 2) {
       const p = wp[own[m]!]!,
         k = own[m + 1]!
       perched[own[m]!]![k] = sampleGrid(win, p.x[k]!, p.y[k]!)
     }
-    for (let k = 0; k < win.z.length; k++) win.z[k] = Math.round(win.z[k]! * 10) / 10
-    // A road's core (ROAD_RANKS) and a wide stream's bed keep their level; the rail's and the extra
-    // tracks' cells and open ground may be raised.
-    const keep = (k: number) => protect[k] === 1 || ROAD_RANKS.has(owner[k]!)
-    for (const [n, dz] of railBed(win, limits, keep)) moved.set(n, dz)
+    for (const [n, dz] of finished(win, owner, protect)) moved.set(n, dz)
+    // The nodes of the tile each approach's claim reaches, as they stand without them.
+    for (const [x0, y0, x1, y1] of boxes) {
+      const ia = Math.max(i0, Math.ceil((x0 - lattice.x0) / lattice.cell)),
+        ja = Math.max(j0, Math.ceil((y0 - lattice.y0) / lattice.cell)),
+        ib = Math.min(i0 + cols - 1, Math.floor((x1 - lattice.x0) / lattice.cell)),
+        jb = Math.min(j0 + rows - 1, Math.floor((y1 - lattice.y0) / lattice.cell))
+      if (ia > ib || ja > jb) continue
+      const span = { i0: ia, j0: ja, cols: ib - ia + 1, rows: jb - ja + 1 },
+        without = carved(span, others)
+      finished(without.win, without.owner, without.protect)
+      for (let j = ja; j <= jb; j++)
+        for (let i = ia; i <= ib; i++) {
+          const z = without.win.z[(j - ja) * span.cols + i - ia]!
+          if (!Object.is(z, win.z[(j - j0) * cols + i - i0])) floors.set(j * lattice.cols + i, z)
+        }
+    }
     for (const [n, abeam] of round) {
       const i = n % lattice.cols,
         j = (n - i) / lattice.cols
@@ -220,6 +258,8 @@ export const tileByTile = (
     }
   return {
     grid,
+    /** The nodes the approaches' claims moved, by index, at their level without them: what the buildings' floors read there. */
+    floors,
     listed: written,
     sea,
     perched,

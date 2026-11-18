@@ -406,6 +406,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       areas: wet.carved,
       raised: src.raised.map((r) => ({ ...r, box: ringBox(r.rings[0]!) })),
       claims,
+      approaches: new Set([...approaches.claims, ...approaches.mouths]),
       // Under a deck: its carriageway and a metre either side.
       decks: roads.filter((r) => r.bridge === true).map((r) => ({ pts: r.pts, half: r.w / 2 + 1 })),
       // The ground under every deck's slab, as shipped.
@@ -475,6 +476,7 @@ export const finishTerrain = (src: Sources, profiled: Profiled, lap: (label: str
   lap("water")
   return {
     grid: grid.grid,
+    floors: grid.floors,
     railLines: profiled.railLines,
     runOuts: profiled.runOuts,
     roadLines: profiled.roadLines.map((line, i) => {
