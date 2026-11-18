@@ -289,6 +289,12 @@ export const deckClimbs = (map: JoinedMap): Array<string> => {
   )
 }
 
+/** Whether `meeting`, a way at grade, is the approach of `deck`, a path's or steps' bridge: a path or steps itself. */
+const approach = (deck: Deck, meeting: { readonly cls: string; readonly tunnel?: boolean }) =>
+  (deck.cls === "path" || deck.cls === "steps") &&
+  (meeting.cls === "path" || meeting.cls === "steps") &&
+  meeting.tunnel !== true
+
 /** How far along a road meeting a deck's end the walk and the drive onto it start, and how far onto the deck they run, m. */
 const RUN_UP = 6
 /** How far past a deck's end, along it, a verge walk onto it may run beside it, m: the build opens the walk walls round the end so far (`ONTO` in src/tools/deck-walls.ts). */
@@ -350,7 +356,10 @@ const sideOf = (road: { readonly cls: string; readonly w: number; readonly verge
  * (`settleFooting`, `groundZ`), and that with nothing to stop them are on the
  * deck as they cross its end and still at the last, meet a wall with a level on their way: before the walls under the decks only
  * the parapets had one, and they line the deck. A road meeting the deck's end off its level (a profile at odds with the deck's)
- * leads onto it with no wall either, and is left out.
+ * leads onto it with no wall either, and is left out, but a path or steps at grade meeting a path's or steps' deck: it is that
+ * deck's approach (src/tools/path-approaches.ts), and its walker on its centreline gets onto the deck. Before the approaches, the
+ * sidewalk 1409723237 and the footway 1339933984 at Aulla met their bridges' ends 7.7 and 9.9 m under them, and their walkers
+ * walked on under the decks.
  * One line per deck end.
  */
 export const deckEndsShut = (map: JoinedMap): Array<string> => {
@@ -397,16 +406,30 @@ export const deckEndsShut = (map: JoinedMap): Array<string> => {
               across = stepsAlong(path.slice(0, back.length)).length
             let free = footZ(from.x, from.y, start),
               onto0 = false,
+              off0 = 0,
               lowest = free,
               beside = -Infinity
             steps.forEach((p, q) => {
               free = settleFooting(p.x, p.y, free)
-              if (q === across) onto0 = onDeck(p, free)
+              if (q === across) {
+                onto0 = onDeck(p, free)
+                off0 = Math.abs(surfaceOf(deck, p.x, p.y).level - free)
+              }
               if (q >= across) return
               lowest = Math.min(lowest, free)
               beside = Math.max(beside, Vec2.dot(Vec2.subtract(p, onto[0]!), inward))
             })
-            if (!onto0 || !onDeck(steps.at(-1)!, free)) continue
+            const last = steps.at(-1)!
+            if (!onto0 || !onDeck(last, free)) {
+              // An approach's walker stands on the deck's level as it crosses its end and at the last
+              // (a road's deck beside a sidewalk's bridge may hold it, a few centimetres higher).
+              const offLast = Math.abs(surfaceOf(deck, last.x, last.y).level - free)
+              if (verge === 0 && approach(deck, meeting) && Math.max(off0, offLast) >= ONE_LEVEL)
+                return [
+                  `${where} a walker along ${meeting.cls} ${meeting.id}, its approach, never gets onto it: ${free.toFixed(2)} m at its last`,
+                ]
+              continue
+            }
             // A verge dipping ONE_LEVEL under the deck's end on its way (a ditch), or running beside the deck more than BESIDE m
             // past its end (a road turning back along it), is no way onto it at its end: the walls under the deck meet its walkers
             // as they meet anyone under or beside the deck.
