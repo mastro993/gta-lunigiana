@@ -22,6 +22,7 @@ import {
   r1,
   type V,
 } from "./geometry.ts"
+import { pathApproaches, pathsAtGrade } from "./path-approaches.ts"
 import { inPlay, onOutline } from "./play-area.ts"
 import {
   chainsOf,
@@ -141,7 +142,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       l.bridge === true ? [l.pts[0]!.id, l.pts.at(-1)!.id].filter((id) => id !== undefined) : [],
     ),
   )
-  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(
+  const { profile, claim, mouth, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(
     ground,
     links,
     bridgeEnds,
@@ -217,21 +218,35 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])
+  // The paths and steps at grade, by the nodes they pass through: a deck's end they lead on from is
+  // its approaches' to fit.
+  const leads = pathsAtGrade(roads)
   /**
    * The level a path's or steps' bridge or tunnel ends at, `v` an end of `piece`: that of a way
    * fitted before it there, else of the road deck of its OSM level it stands on (`deckUnder`: the
    * sidewalk 1414943238, drawn as its own bridge along the SS62's 92904169 at Aulla, ends on that
-   * deck 11 m short of its end, over a track 8 m under it), else the ground's; under the rail, no
+   * deck 11 m short of its end, over a track 8 m under it); else, where a path or steps at grade
+   * leads on from it, none: the fit sets it and its approach climbs or dips from there to the ground
+   * (pinned at the ground's level, the ramp 1408285960 out of Aulla Lunigiana station's underpass
+   * climbed 6.3 m in its 18.4 m, 34%, past its grade limit); else the ground's. Under the rail, no
    * higher than the road's clearance under it, as in a profiled tunnel (the pedestrian underpass at
    * Equi Terme station).
    */
-  const endLevel = (v: V, piece: RoadF) =>
-    Math.min(
-      ...railRoad.filter((x) => x.rd === piece).map((x) => zAt(x.rl, x.c.sa) - x.clear),
-      nodeZ.get(v.id!) ?? overpasses.deckUnder(v, piece) ?? ground(v.x, v.y),
-    )
+  const endLevel = (v: V, piece: RoadF) => {
+    const at =
+      nodeZ.get(v.id!) ??
+      overpasses.deckUnder(v, piece) ??
+      (leads.has(v.id!) ? undefined : ground(v.x, v.y))
+    return at === undefined
+      ? undefined
+      : Math.min(
+          ...railRoad.filter((x) => x.rd === piece).map((x) => zAt(x.rl, x.c.sa) - x.clear),
+          at,
+        )
+  }
   // The paths' and steps' bridges and tunnels, after every road (PATH_PASS): each from its ends'
-  // levels over or under the ways it crosses.
+  // levels over or under the ways it crosses; then the paths and steps at grade that lead from their
+  // nodes, from those levels to the ground.
   const pathDecks = roads.filter(
     (r) => lifted(r) && (PATH_PASS.classes as ReadonlyArray<string>).includes(r.cls),
   )
@@ -240,6 +255,31 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       ...roadBounds(ch),
       ...overpasses.bounds(ch),
     ])
+  // A bore's mouth: the end of a path's or steps' tunnel that no other way in a tunnel passes.
+  const bores = new Map<string, number>()
+  for (const r of roads)
+    if (r.tunnel === true)
+      for (const v of r.pts) if (v.id !== undefined) bores.set(v.id, (bores.get(v.id) ?? 0) + 1)
+  const mouths = new Set(
+    pathDecks.flatMap((r) =>
+      r.tunnel === true
+        ? [r.pts[0]!.id, r.pts.at(-1)!.id].filter((id) => id !== undefined && bores.get(id) === 1)
+        : [],
+    ),
+  )
+  const approaches = pathApproaches(
+    leads,
+    [
+      ...new Set(
+        pathDecks.flatMap((r) => r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
+      ),
+    ],
+    nodeZ,
+    (id) => mouths.has(id),
+    ground,
+  )
+  claims.push(...approaches.claims)
+  for (const m of approaches.mouths) mouth(m)
   // The extra tracks take only the cells no road took.
   for (const [piece, { profile: p }] of extraZ)
     if (piece.bridge !== true) claim(p, 4, EXTRA_RANK, () => false)
@@ -327,10 +367,18 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     railLines,
     /** Each terminal's run-out by its point (`x,y` as shipped), walked away from it. */
     runOuts: new Map(runOuts.map((o) => [o.at, o.pieces])),
-    /** Each road's line, but a path's on the ground (no profile, not lifted), which the finished grid gives. */
-    roadLines: roads.map((r) =>
-      denseOf.has(r) || zOf.has(r) || lifted(r) ? lineOut(r, unread(`road ${r.id}`)) : undefined,
-    ),
+    /**
+     * Each road's line, its z undefined where the finished grid gives it: a path's on the ground (no
+     * profile, not lifted), and an approach's past where it meets the ground.
+     */
+    roadLines: roads.map((r): { pts: Array<number>; z: Array<number | undefined> } | undefined => {
+      const a = approaches.lines.get(r)
+      if (a !== undefined)
+        return { pts: flatLine(a.pts), z: a.z.map((z) => (z === undefined ? undefined : r1(z))) }
+      return denseOf.has(r) || zOf.has(r) || lifted(r)
+        ? lineOut(r, unread(`road ${r.id}`))
+        : undefined
+    }),
     /** The level crossings: the road and rail piece sharing a vertex (with its index in the piece's output polyline). */
     levels: levels.map(({ rl, rd, v }) => ({
       road: roadOf.get(rd)!,
@@ -365,13 +413,15 @@ export const finishTerrain = (src: Sources, profiled: Profiled, lap: (label: str
     grid: grid.grid,
     railLines: profiled.railLines,
     runOuts: profiled.runOuts,
-    roadLines: profiled.roadLines.map(
-      (line, i) =>
-        line ?? {
-          pts: flatLine(roads[i]!.pts),
-          z: roads[i]!.pts.map((v) => r1(sampleGrid(grid.grid, v.x, v.y))),
-        },
-    ),
+    roadLines: profiled.roadLines.map((line, i) => {
+      const pts = line?.pts ?? flatLine(roads[i]!.pts)
+      return {
+        pts,
+        z: pts
+          .filter((_, k) => k % 2 === 0)
+          .map((x, k) => line?.z[k] ?? r1(sampleGrid(grid.grid, x, pts[2 * k + 1]!))),
+      }
+    }),
     bed: grid.bed,
     decks: grid.decks,
     levels: profiled.levels,

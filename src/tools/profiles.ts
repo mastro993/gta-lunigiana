@@ -123,7 +123,8 @@ export const ROAD_PASSES = [
  * (road-levels.ts), fitted sample by sample (`ramps`) at the steepest road's grade limit (service
  * and track's), raised as theirs where the fit strays from the ground, and straight between two pins
  * it cannot meet within it (a stair). Unsmoothed: before the fit a deck is the line between its ends.
- * They write no cell, so their rank is none of the grid's.
+ * Their decks write no cell; the paths and steps at grade leading from them (path-approaches.ts)
+ * write theirs at its rank, under every other claim.
  */
 export const PATH_PASS = { classes: ["path", "steps"], rank: 6, grade: 0.2, half: 0 } as const
 
@@ -160,7 +161,7 @@ export const beatsRail = (cls: string): boolean =>
  * to where the box cuts it. With `writes`, its claims write only the nodes where it holds (a
  * run-out's: those beyond the play area, which keeps what its own lines wrote). With `ramps` (the
  * paths' and steps' decks), its bridges and tunnels are fitted sample by sample, as a road at grade
- * is, from their ends' levels (`ends`, pinned at the chain's ends that have an id), rather than
+ * is, from their ends' levels (`ends`, pinned at the chain's ends that have an id and a level), rather than
  * straight from end to end: a footbridge rises over what it crosses and an underpass dips under it
  * between their ends, and a bound in either holds at its own sample. With `inside` (the rail's), a
  * chain's end inside a bore or on a deck runs its deck level from the chains before it.
@@ -182,7 +183,8 @@ interface Spec<T extends Linear> {
   readonly start?: number
   readonly writes?: (x: number, y: number) => boolean
   readonly ramps?: true
-  readonly ends?: (v: V, piece: T) => number
+  /** The level a chain's end `v` (of `piece`) is pinned at; undefined leaves it to the fit. */
+  readonly ends?: (v: V, piece: T) => number | undefined
   /** Whether node `id` lies inside a bore or on a deck (`insideNodes`): a chain's end there is no portal or abutment. */
   readonly inside?: (id: string) => boolean
 }
@@ -260,6 +262,10 @@ export const makeProfiler = (
   const claim = (p: Profile, w: number, rank: number, skip: (k: number) => boolean) => {
     claims.push(claimOf(p, () => w, rank, BLEND, skip))
   }
+  /** Records a tunnel mouth's claim (`mouthClaim`): after the mouths before it, ahead of every other claim. */
+  const mouth = (c: Claim) => {
+    claims.splice(mouthClaims++, 0, c)
+  }
   const profile = <T extends Linear>(
     chain: ReadonlyArray<Link<T>>,
     spec: Spec<T>,
@@ -298,19 +304,19 @@ export const makeProfiler = (
     /** The first and last vertex of deck `[a, b]`, as indices into `pts`. */
     const deckEnds = ([a, b]: readonly [number, number]) =>
       [first[a]!, first[b]! + runs[b]!.length - 1] as const
-    // With `ends`, the chain's ends that have an id take their levels, pinned, before its decks are
-    // drawn between them.
+    // With `ends`, the chain's ends that have an id and a level there take it, pinned, before its
+    // decks are drawn between them.
     const endPins: Array<Pin> = []
     if (spec.ends !== undefined)
       for (const [v, k, i] of [
         [pts[0]!, 0, 0],
         [pts.at(-1)!, p.z.length - 1, runs.length - 1],
-      ] as const)
-        if (v.id !== undefined) {
-          const z = spec.ends(v, chain[i]!.item)
-          p.z[k] = z
-          endPins.push({ k, z })
-        }
+      ] as const) {
+        const z = v.id === undefined ? undefined : spec.ends(v, chain[i]!.item)
+        if (z === undefined) continue
+        p.z[k] = z
+        endPins.push({ k, z })
+      }
     for (let i = 0; i < runs.length; i++) {
       if (!isLifted(i)) continue
       const [i0, i1] = deckOf(i)
@@ -469,14 +475,14 @@ export const makeProfiler = (
         ] as const) {
           const out = step === 1 ? i1 + 1 : i0 - 1
           if (pts[v]!.id === undefined || out < 0 || out >= runs.length) continue
-          const mouth = mouthClaim(
+          const m = mouthClaim(
             p,
             p.vertexSample[v]!,
             step,
             widthOf(out),
             (k) => !isLifted(pieceOf[k]!),
           )
-          if (mouth !== undefined) claims.splice(mouthClaims++, 0, mouth)
+          if (m !== undefined) mouth(m)
         }
       }
     runs.forEach((r, i) => {
@@ -551,5 +557,5 @@ export const makeProfiler = (
       yield chains[next]!
     }
   }
-  return { profile, claim, claims, grown, nodeZ, zOf, denseOf }
+  return { profile, claim, mouth, claims, grown, nodeZ, zOf, denseOf }
 }
