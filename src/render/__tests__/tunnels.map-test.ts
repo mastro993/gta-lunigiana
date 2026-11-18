@@ -23,7 +23,10 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
     // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts),
     // and the motorways' grade fitted unrelaxed (ROAD_PASSES), moved the bores' bend samples:
     // +10 wall triangles.
-    walls: 8315,
+    // The paths at grade out of the paths' tunnels, their approaches (path-approaches.ts), meet them
+    // at their level and cut the ground round their mouths, and their ends rise to them: Aulla
+    // station's ramps' mouths 1.5-2.7 m lower, Equi Terme's underpass's 1.3 m higher, 8305 -> 8283.
+    walls: 8283,
     mouths: 123,
     portals: 24,
     heads: 3,

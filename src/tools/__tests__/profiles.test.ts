@@ -516,3 +516,30 @@ test("profile with ramps fits a path's deck between its ends' levels over or und
     assert.equal(fit(tunnel, false).mid, 100)
   }
 })
+
+// Regression: a path's deck end where a path at grade leads on was pinned at the ground's level, so
+// the wheelchair ramp 1408285960 out of Aulla Lunigiana station's underpass, 18.4 m long, climbed
+// the 6.3 m from the underpass's level to the ground at 34%, past the pass's grade limit.
+test("profile with ramps leaves a deck's end with no level to the fit, within its grade", () => {
+  // Flat ground at 79 m; a ramp 18.4 m long out of an underpass at 72.9 m.
+  const ramp = { tunnel: true as const, pts: [v(0, 0, "u"), v(18.4, 0, "t")] }
+  const fit = (top: number | undefined) => {
+    const { profile, denseOf } = makeProfiler(() => 79)
+    profile([{ item: ramp, rev: false }], {
+      w: 1.5,
+      ...PATH_PASS,
+      ramps: true,
+      ends: (p) => (p.id === "u" ? 72.9 : top),
+    })
+    return denseOf.get(ramp)!
+  }
+  const { pts, z } = fit(undefined)
+  assert.equal(z[0], 72.9)
+  for (let k = 1; k < z.length; k++)
+    assert.ok(
+      Math.abs(z[k]! - z[k - 1]!) <= 1.5 * PATH_PASS.grade * (pts[k]!.x - pts[k - 1]!.x) + 1e-6,
+      `${z[k - 1]} to ${z[k]}`,
+    )
+  // Pinned at the ground's level, it is the straight line up to it, over its grade.
+  assert.equal(fit(79).z.at(-1), 79)
+})
