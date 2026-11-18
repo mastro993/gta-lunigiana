@@ -13,9 +13,10 @@
 // level abeam. And two carriageways of one road that overlap in plan keep on one level there
 // (`TWINS`), a deck or a bore of one at both its ends.
 import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
+import { type Linear, lifted } from "./chains.ts"
 import type { RoadF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt, type V } from "./geometry.ts"
-import { type Bound, type Linear, lifted, ROAD_PASSES } from "./profiles.ts"
+import { type Bound, ROAD_PASSES } from "./profiles.ts"
 
 /** Clear height of an underpass whose way has no `maxheight` tag, m. */
 export const UNDERPASS = 4

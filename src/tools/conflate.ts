@@ -8,12 +8,13 @@
 // or a road tunnel's mouth lies under it (rail-spans.ts); the tracks only the CTR has are added
 // (rail-extra.ts); last, pieces are cut where tracks meet (rail-graph.ts).
 import { isDrivable } from "../sim/map/kinds.ts"
+import { chainsOf } from "./chains.ts"
 import { inPolygon, type CtrRail } from "./ctr-rail.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
 import { arcLengths, pointAt, r1, segIndex, type V } from "./geometry.ts"
 import { coreHalf } from "./grid-claims.ts"
 import { outlineEdgeAt } from "./play-area.ts"
-import { beatsRail, chainsOf } from "./profiles.ts"
+import { beatsRail } from "./profiles.ts"
 import { checkCrossings, slideCrossing, type Slid } from "./rail-crossings.ts"
 import { alongGone, buildExtras, type Report as ExtraReport } from "./rail-extra.ts"
 import { splitAtJunctions } from "./rail-graph.ts"

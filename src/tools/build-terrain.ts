@@ -8,9 +8,9 @@ import type { Water } from "../sim/map/index.ts"
 import { tileByTile, uncarvedGrid } from "./build-grid.ts"
 import type { Sources } from "./build-sources.ts"
 import { catchments, type Inflow } from "./catchment.ts"
+import { chainsOf, insideNodes, lifted, type Linear } from "./chains.ts"
 import { railSlab, roadSlab } from "./deck-ground.ts"
 import type { Dem } from "./dtm.ts"
-import type { RoadF } from "./features.ts"
 import {
   BOUNDS,
   along,
@@ -23,26 +23,15 @@ import {
   ringBox,
   type V,
 } from "./geometry.ts"
-import { pathApproaches, pathsAtGrade } from "./path-approaches.ts"
+import { pathPass } from "./path-pass.ts"
 import { inPlay, onOutline } from "./play-area.ts"
-import {
-  chainsOf,
-  EXTRA_RANK,
-  insideNodes,
-  lifted,
-  makeProfiler,
-  PATH_PASS,
-  RAIL_PASS,
-  ROAD_PASSES,
-  type Bound,
-  type Linear,
-} from "./profiles.ts"
+import { EXTRA_RANK, makeProfiler, RAIL_PASS, ROAD_PASSES } from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { continuations } from "./rail-runouts.ts"
 import { railTwins, twinBounds } from "./rail-twins.ts"
 import { roadLevels } from "./road-levels.ts"
-import { PIER_DECK, pierDeck } from "./shore.ts"
+import { PIER_DECK } from "./shore.ts"
 import { type Profile, resample, sampleGrid } from "./terrain.ts"
 import { inAreas, stillLevel, waterAreas, waterLevel } from "./water-areas.ts"
 import {
@@ -165,11 +154,8 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       l.bridge === true ? [l.pts[0]!.id, l.pts.at(-1)!.id].filter((id) => id !== undefined) : [],
     ),
   )
-  const { profile, claim, mouth, claims, grown, nodeZ, zOf, denseOf } = makeProfiler(
-    ground,
-    links,
-    bridgeEnds,
-  )
+  const profiler = makeProfiler(ground, links, bridgeEnds)
+  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = profiler
   const zAt = (l: Linear, s: number) => along(arcLengths(l.pts), zOf.get(l)!, s)
 
   const { railRoad, levels, roadBounds, railBounds } = railLevels({
@@ -242,108 +228,18 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])
-  // The paths and steps at grade, by the nodes they pass through: a deck's end they lead on from is
-  // its approaches' to fit.
-  const leads = pathsAtGrade(roads)
-  /**
-   * The level a path's or steps' bridge or tunnel ends at, `v` an end of `piece`: that of a way
-   * fitted before it there, else of the road deck of its OSM level it stands on (`deckUnder`: the
-   * sidewalk 1414943238, drawn as its own bridge along the SS62's 92904169 at Aulla, ends on that
-   * deck 11 m short of its end, over a track 8 m under it); else, where a path or steps at grade
-   * leads on from it, none: the fit sets it and its approach climbs or dips from there to the ground
-   * (pinned at the ground's level, the ramp 1408285960 out of Aulla Lunigiana station's underpass
-   * climbed 6.3 m in its 18.4 m, 34%, past its grade limit); else the uncarved ground's. Under the rail, no
-   * higher than the road's clearance under it, as in a profiled tunnel (the pedestrian underpass at
-   * Equi Terme station).
-   */
-  const endLevel = (v: V, piece: RoadF) => {
-    const at =
-      nodeZ.get(v.id!) ??
-      overpasses.deckUnder(v, piece) ??
-      (leads.has(v.id!) ? undefined : ground(v.x, v.y))
-    return at === undefined
-      ? undefined
-      : Math.min(
-          ...railRoad.filter((x) => x.rd === piece).map((x) => zAt(x.rl, x.c.sa) - x.clear),
-          at,
-        )
-  }
-  // The paths' and steps' bridges and tunnels, after every road (PATH_PASS): each from its ends'
-  // levels over or under the ways it crosses; then the paths and steps at grade that lead from their
-  // nodes, from those levels to the ground.
-  const pathDecks = roads.filter(
-    (r) =>
-      lifted(r) && r.pier !== true && (PATH_PASS.classes as ReadonlyArray<string>).includes(r.cls),
-  )
-  for (const ch of grown(chainsOf(pathDecks)))
-    profile(ch, { w: (r) => r.w, ...PATH_PASS, ramps: true, ends: endLevel }, [
-      ...roadBounds(ch),
-      ...overpasses.bounds(ch),
-    ])
-  // A bore's mouth: the end of a path's or steps' tunnel that no other way in a tunnel passes.
-  const bores = new Map<string, number>()
-  for (const r of roads)
-    if (r.tunnel === true)
-      for (const v of r.pts) if (v.id !== undefined) bores.set(v.id, (bores.get(v.id) ?? 0) + 1)
-  const mouths = new Set(
-    pathDecks.flatMap((r) =>
-      r.tunnel === true
-        ? [r.pts[0]!.id, r.pts.at(-1)!.id].filter((id) => id !== undefined && bores.get(id) === 1)
-        : [],
-    ),
-  )
-  // A pier's deck stands over its water vertex by vertex (`pierDeck`), never fitted: the path pass
-  // would lay it straight from its ends' levels. Where a path at grade leads on from its end (the
-  // pier's own way cut at the water's edge, `splitPiers`), that end's level is its approach's to
-  // meet, as a deck's: the piece on dry ground took the finished grid, 0.2–0.4 m under the deck's end
-  // at the coast's piers 1382979298, 1382979299 and 1382979302.
-  const levelAt = waterLevel(wet.carved, water, wp0)
-  const pierZ = new Map(
-    roads
-      .filter((r) => r.pier === true)
-      .map((r) => [
-        r as Linear,
-        pierDeck(
-          r.pts,
-          (v) => (v.id === undefined ? undefined : nodeZ.get(v.id)) ?? ground(v.x, v.y),
-          levelAt,
-        ),
-      ]),
-  )
-  const pierEnds: Array<string> = []
-  for (const [l, z] of pierZ)
-    for (const k of [0, l.pts.length - 1]) {
-      const id = l.pts[k]!.id
-      if (id === undefined || !leads.has(id) || nodeZ.has(id)) continue
-      nodeZ.set(id, z[k]!)
-      pierEnds.push(id)
-    }
-  const approaches = pathApproaches(
-    leads,
-    [
-      ...new Set(
-        pathDecks.flatMap((r) => r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
-      ),
-      ...pierEnds,
-    ],
-    nodeZ,
-    // Over a fitted tunnel or under a fitted bridge, the clearance between them (road-levels.ts).
-    (piece) =>
-      overpasses.over.flatMap(({ up, down, c, clear }): Array<Bound> =>
-        up === piece && down.tunnel === true && zOf.has(down)
-          ? [{ x: c.x, y: c.y, z: zAt(down, c.sb) + clear, kind: "min" }]
-          : down === piece && up.bridge === true && zOf.has(up)
-            ? [{ x: c.x, y: c.y, z: zAt(up, c.sa) - clear, kind: "max" }]
-            : [],
-      ),
-    {
-      ground,
-      mouthAt: (id) => mouths.has(id),
-      deckEndAt: (id) => bridgeEnds.has(id),
-    },
-  )
-  claims.push(...approaches.claims)
-  for (const m of approaches.mouths) mouth(m)
+  // The paths' and steps' bridges and tunnels and the piers, after every road, and the paths and
+  // steps at grade leading from them (path-pass.ts).
+  const { pierZ, approaches } = pathPass({
+    roads,
+    ground,
+    bridgeEnds,
+    profiler,
+    zAt,
+    rail: { railRoad, roadBounds },
+    overpasses,
+    levelAt: waterLevel(wet.carved, water, wp0),
+  })
   // The extra tracks take only the cells no road took.
   for (const [piece, { profile: p }] of extraZ)
     if (piece.bridge !== true) claim(p, 4, EXTRA_RANK, () => false)

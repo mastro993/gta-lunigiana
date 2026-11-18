@@ -1,10 +1,10 @@
+import type { Linear } from "./chains.ts"
 // Where a junction may stand when a chain's fit sets it, so that the roads linking it to junctions
 // already set keep their grade. A link fitted after both its ends were set is the straight line
 // between them, however steep: the road fitted round a hill east of Collegnago left its junction
 // 3.3 m over the ground, and the 12 m unclassified link from there to the junction an earlier fit
 // set climbed 53% where the ground between them climbs 18%.
 import { arcLengths } from "./geometry.ts"
-import type { Linear } from "./profiles.ts"
 
 /** A road piece the profiles fit, and the steepest grade its fit draws: its pass's `relax` times its class's limit. */
 export interface Graded {

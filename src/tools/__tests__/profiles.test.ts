@@ -1,18 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { chainsOf, insideNodes, type Linear } from "../chains.ts"
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import { coreHalf, replayClaims } from "../grid-claims.ts"
-import {
-  chainsOf,
-  insideNodes,
-  makeProfiler,
-  PATH_PASS,
-  RAIL_PASS,
-  ROAD_PASSES,
-  type Linear,
-} from "../profiles.ts"
+import { makeProfiler, PATH_PASS, RAIL_PASS, ROAD_PASSES } from "../profiles.ts"
 import { roadLevels } from "../road-levels.ts"
 import type { Grid } from "../terrain.ts"
 

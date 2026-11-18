@@ -1,9 +1,10 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { chainsOf } from "../chains.ts"
 import type { RailF } from "../features.ts"
 import type { V } from "../geometry.ts"
-import { chainsOf, makeProfiler, RAIL_PASS } from "../profiles.ts"
+import { makeProfiler, RAIL_PASS } from "../profiles.ts"
 import { RAIL_TOL } from "../rail-bed.ts"
 import { railTwins, REACH, SIDE, TWIN, twinBounds, twinSlack } from "../rail-twins.ts"
 

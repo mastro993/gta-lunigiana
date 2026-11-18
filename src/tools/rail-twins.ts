@@ -15,7 +15,7 @@ export const SIDE = 6
 /** How far (m) a track keeps to its twin's level while they run side by side. */
 export const TWIN = 0.1
 /** Past SIDE, the far track may stand this much higher or lower (m) per metre farther apart: a 2:3 bank between their formations. */
-export const PART = 2 / 3
+const PART = 2 / 3
 /** Tracks farther apart than this (m) bind each other no more. */
 export const REACH = 12
 /** The points of a track its twin binds lie this far (m) apart along it. */

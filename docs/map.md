@@ -2469,9 +2469,9 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   the Parmignola's line cut a jetty at its mouth 1.8 m, to −0.3 m at (−8767, −13111). All 1,502
   of magra-coast's raised nodes stand at their top.
 
-### 7. Road and rail profiles (`profiles.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`)
+### 7. Road and rail profiles (`profiles.ts`, `chains.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`, `path-pass.ts`)
 
-- Pieces are chained through nodes where exactly two ends meet. Each chain is resampled every 4 m
+- Pieces are chained through nodes where exactly two ends meet (`chainsOf` in `chains.ts`). Each chain is resampled every 4 m
   from the ground and smoothed with a moving average. Bridges and tunnels are straight between their
   ends, and each end takes the ground 4 m out of it when that is nearer the line's level (a tunnel's
   the lower, a bridge's the higher): at the Ugliancaldo tunnel's west portal the terrain model
@@ -2587,7 +2587,7 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   the ground under the decks is lowered once the grid is built (below).
 - **Paths and steps** at grade follow the terrain, but where they lead onto a path's or steps'
   bridge or into its tunnel (issue #19). Their bridges and tunnels are profiled last (`PATH_PASS`
-  in `profiles.ts`), each chain from the levels set at its ends: the way it meets at grade (a
+  in `profiles.ts`, run by `path-pass.ts`), each chain from the levels set at its ends: the way it meets at grade (a
   fitted road's level), the deck of its OSM `layer` it joins, else the ground; under the rail at
   most the clearance below it. Each is fitted sample by sample (`ramps`), as a road at grade is,
   at the service and track roads' 20% (30% where the fit strays from the ground), over or under

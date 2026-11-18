@@ -9,10 +9,11 @@
 // steps at Aulla Lunigiana stood 5.8 m over the underpass they lead into (1387000572).
 import { Ops } from "@typeonce/ritmo-math"
 
+import { lifted } from "./chains.ts"
 import type { RoadF } from "./features.ts"
 import type { V } from "./geometry.ts"
 import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
-import { type Bound, lifted, PATH_PASS } from "./profiles.ts"
+import { type Bound, PATH_PASS } from "./profiles.ts"
 import { keepSamples, RELAX, resample } from "./terrain.ts"
 import { WALK_SLOPE } from "./walls.ts"
 

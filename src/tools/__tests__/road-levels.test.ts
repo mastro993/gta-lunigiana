@@ -1,9 +1,10 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import type { Linear } from "../chains.ts"
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
-import type { Bound, Linear } from "../profiles.ts"
+import type { Bound } from "../profiles.ts"
 import { passesOver, roadLevels, TWINS } from "../road-levels.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
