@@ -1,6 +1,6 @@
 /**
  * The buffer stop at each terminus inside the map, where a line's track ends and its trains turn round (Aulla Lunigiana's
- * track 4, the Lucca–Aulla line's): a steel beam across the track on two posts, at the height of a train's buffers, and a
+ * track 4, the Lucca–Aulla line's): a beam of rail steel across the track on two posts, at the height of a train's buffers, and a
  * red board over it facing the train coming in, the stop signal a terminus track ends at. The sim's driven train stops
  * dead there (`buffersOf` in sim/rail/collisions.ts): its head at the line's end, against the beam's face. A chunk piece,
  * drawn with the track; it reads no ground, standing on the line's own profile.
@@ -48,7 +48,7 @@ export const bufferStops = (): Array<BufferStop> =>
     return { x, y, z, ux: Math.cos(angle), uy: Math.sin(angle) }
   })
 
-/** A buffer stop's piece: the beam and its posts in steel grey, the red board over it facing the train coming in. */
+/** A buffer stop's piece: the beam and its posts of old rail, the red board over it facing the train coming in. */
 const bufferPiece = ({ x, y, z, ux, uy }: BufferStop): Piece => {
   const B = BUFFER,
     // The beam's and the board's centre, half the beam's thickness past its face.
@@ -70,7 +70,7 @@ const bufferPiece = ({ x, y, z, ux, uy }: BufferStop): Piece => {
         B.thick / 2,
         B.tall / 2,
         B.half,
-        PALETTE.signalPole,
+        PALETTE.railSteel,
       )
       for (const s of [-1, 1]) {
         const px = cx - uy * B.posts * s,
@@ -86,7 +86,7 @@ const bufferPiece = ({ x, y, z, ux, uy }: BufferStop): Piece => {
           B.post,
           (top - bed) / 2,
           B.post,
-          PALETTE.signalPole,
+          PALETTE.railSteel,
         )
       }
       const board = head + B.beam + B.tall / 2 + B.side
