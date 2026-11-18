@@ -95,6 +95,12 @@ export interface Bound {
    * a road over a 3% motorway tunnel 50 m from its low portal sank the high one 10.5 m underground).
    */
   readonly tilt?: true
+  /**
+   * Inside a bridge or tunnel, hold at its own sample, as `Spec.ramps` holds every bound: a bound
+   * read off another straight deck all along this one (a twin track's, `rail-twins.ts`) holds its
+   * ends and its line between them alike.
+   */
+  readonly here?: true
 }
 
 /**
@@ -395,7 +401,7 @@ export const makeProfiler = (
       })
     }
     // A bound inside a bridge or tunnel holds at both ends of its deck, straight between them (a
-    // `tilt` bound, shifted along the deck's slope); with `ramps`, at its own sample.
+    // `tilt` bound, shifted along the deck's slope); with `ramps`, or a `here` bound, at its own sample.
     for (const b of bounds) {
       // The samples it may take: its own piece's, from its first vertex to its last.
       const on = b.on === undefined ? -1 : chain.findIndex((m) => m.item === b.on)
@@ -409,7 +415,7 @@ export const makeProfiler = (
       }
       const i = pieceOfSample(Math.min(best, p.z.length - 2))
       const at =
-        isLifted(i) && spec.ramps !== true
+        isLifted(i) && spec.ramps !== true && b.here !== true
           ? deckEnds(deckOf(i)).map((v) => p.vertexSample[v]!)
           : [best]
       const [k0, k1] = [at[0]!, at.at(-1)!],

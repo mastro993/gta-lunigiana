@@ -368,6 +368,64 @@ test("rail: every line curves no tighter than 200 m over 40 m chords", () => {
   }
 })
 
+// Regression: the Pontremolese's two tracks north of Aulla, 3.9–5.6 m apart, were profiled one at a
+// time, and stood 1.5 m apart in level at its twin tunnels' south portals and 2.8 m at their north
+// ones, on the viaduct over the Magra between them (rail-twins.ts).
+test("rail: two tracks side by side within 6 m stand within 0.3 m of each other in level", () => {
+  // Of one kind (both on a bridge, both in a tunnel, both at grade) and within 15° of parallel: a
+  // track crossing another, or one on a bridge over one at grade, is none.
+  const kind = (r: Rail) => (r.bridge === true ? 1 : r.tunnel === true ? 2 : 0)
+  /** The point of r nearest (x, y): its distance, its level and its segment's unit heading. */
+  const nearest = (r: Rail, x: number, y: number) => {
+    let out = { d: Number.MAX_VALUE, z: 0, hx: 1, hy: 0 }
+    for (let k = 0; k + 3 < r.pts.length; k += 2) {
+      const ex = r.pts[k + 2]! - r.pts[k]!,
+        ey = r.pts[k + 3]! - r.pts[k + 1]!,
+        l2 = ex * ex + ey * ey,
+        t =
+          l2 > 0
+            ? Math.max(0, Math.min(1, ((x - r.pts[k]!) * ex + (y - r.pts[k + 1]!) * ey) / l2))
+            : 0,
+        d = hypot(r.pts[k]! + ex * t - x, r.pts[k + 1]! + ey * t - y)
+      if (d < out.d)
+        out = {
+          d,
+          z: r.z[k / 2]! + (r.z[k / 2 + 1]! - r.z[k / 2]!) * t,
+          hx: ex / (Math.sqrt(l2) || 1),
+          hy: ey / (Math.sqrt(l2) || 1),
+        }
+    }
+    return out
+  }
+  const bad: Array<string> = []
+  const boxes = MAP.rail.map((r) => box(r.pts))
+  MAP.rail.forEach((a, i) =>
+    MAP.rail.forEach((b, j) => {
+      const [ax0, ay0, ax1, ay1] = boxes[i]!,
+        [bx0, by0, bx1, by1] = boxes[j]!
+      if (j <= i || kind(a) !== kind(b)) return
+      if (ax0 > bx1 + 6 || bx0 > ax1 + 6 || ay0 > by1 + 6 || by0 > ay1 + 6) return
+      let worst = { gap: 0.3, x: 0, y: 0 }
+      for (let k = 0; k + 3 < a.pts.length; k += 2) {
+        const n = Math.ceil(hypot(a.pts[k + 2]! - a.pts[k]!, a.pts[k + 3]! - a.pts[k + 1]!) / 2)
+        for (let m = 0; m <= n; m++) {
+          const x = a.pts[k]! + ((a.pts[k + 2]! - a.pts[k]!) * m) / n,
+            y = a.pts[k + 1]! + ((a.pts[k + 3]! - a.pts[k + 1]!) * m) / n,
+            own = nearest(a, x, y),
+            o = nearest(b, x, y)
+          if (o.d > 6 || Math.abs(own.hx * o.hx + own.hy * o.hy) < Ops.cos(Math.PI / 12)) continue
+          if (Math.abs(own.z - o.z) > worst.gap) worst = { gap: Math.abs(own.z - o.z), x, y }
+        }
+      }
+      if (worst.gap > 0.3)
+        bad.push(
+          `${a.id} and ${b.id} ${worst.gap.toFixed(2)} m apart at (${worst.x.toFixed(0)}, ${worst.y.toFixed(0)})`,
+        )
+    }),
+  )
+  assert.deepEqual(bad, [])
+})
+
 // Regression: parked spot 408 stood 2.2 m from OSM's Gragnola loop, its car in a train's way; on
 // the CTR's tracks its box stood 2.02 m from the through track.
 test("rail: a parked car's box keeps 2.8 m from at-grade running track, 1.94 m from a siding", () => {

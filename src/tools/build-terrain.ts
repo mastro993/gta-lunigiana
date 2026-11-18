@@ -37,6 +37,7 @@ import {
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
 import { railLevels } from "./rail-levels.ts"
 import { continuations } from "./rail-runouts.ts"
+import { railTwins, twinBounds } from "./rail-twins.ts"
 import { roadLevels } from "./road-levels.ts"
 import { type Profile, RELAX, resample, sampleGrid } from "./terrain.ts"
 import { stillLevel, waterAreas } from "./water-areas.ts"
@@ -161,13 +162,14 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   // crossings), then roads by class (ROAD_PASSES). Ranks decide grid cells: the main roads beat
   // the rail, and the rail beats the rest.
   // A switch in a tunnel or on a bridge is no portal or abutment: its chains run on at their level.
-  const inside = insideNodes(rail)
+  // A track beside one fitted before it keeps to its level (rail-twins.ts).
+  const inside = insideNodes(rail),
+    twins = railTwins(rail)
   for (const ch of grown(chainsOf(rail)))
-    profile(
-      ch,
-      { w: 4, ...RAIL_PASS, tol: RAIL_TOL, inside: (id) => inside.has(id) },
-      railBounds(ch),
-    )
+    profile(ch, { w: 4, ...RAIL_PASS, tol: RAIL_TOL, inside: (id) => inside.has(id) }, [
+      ...railBounds(ch),
+      ...twinBounds(twins, ch, (l) => denseOf.get(l)),
+    ])
   // The tracks only the CTR has lie level with the line; a road crossing one is pinned to it there.
   const extraZ = extraLevels(
     extra,
