@@ -7,6 +7,8 @@
 // profiles' shared nodes are, so the paths at grade on from it are approaches in turn. Fitted at the
 // terrain's level, the station's steps at Aulla Lunigiana stood 5.8 m over the underpass they lead
 // into (1387000572).
+import { Ops } from "@typeonce/ritmo-math"
+
 import type { RoadF } from "./features.ts"
 import type { V } from "./geometry.ts"
 import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
@@ -27,7 +29,7 @@ const MET = 0.05
  */
 export const APPROACH_GRADE = {
   path: RELAX * PATH_PASS.grade,
-  steps: Math.tan((WALK_SLOPE * Math.PI) / 180),
+  steps: Ops.tan((WALK_SLOPE * Math.PI) / 180),
 } as const
 
 /** An approach's line: its OSM vertices and the samples where its level bends, and z, undefined where it lies on the terrain (the finished grid's). */
