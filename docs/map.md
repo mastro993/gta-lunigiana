@@ -420,7 +420,8 @@ terrain of its own reads its own inputs alone (`inputParts`, and no Regione Tosc
   meeting the sea flush at the 98 nodes they share and wholly in the sea's look there, its share
   of that look at least 0.75 and never stepping 0.2 between neighbouring nodes, and the ribbons of
   the 27 rivers whose bed dips under 0 m never drawn under it, at the mean flow or in a spate
-  ([water.md](water.md#how-it-looks)); `effects-coast.map-test.ts` a tyre spinning on the sand
+  ([water.md](water.md#how-it-looks)), and a cat swimming under the pier off Bocca di Magra
+  drawn in the water, not on the deck over it; `effects-coast.map-test.ts` a tyre spinning on the sand
   under the sea off Marinella throwing up no dust; and `terrain-coast.map-test.ts` the faces round
   Marinella's beach in their cells' look, its sand wet only under 0.2 m, and the coast's beaches wet
   under a tenth of their cells, the band's inner edge a median two cells or less from the sea: 546 of

@@ -16,6 +16,7 @@ const kit =
   skip === false
     ? {
         ...(await import("./pools.ts")),
+        ...(await import("../animals.ts")),
         ...(await import("../chunks.ts")),
         ...(await import("../geometry.ts")),
         ...(await import("../ground.ts")),
@@ -28,6 +29,8 @@ const kit =
         ...(await import("../../sim/map/ground.ts")),
         ...(await import("../../sim/water/channel.ts")),
         ...(await import("../../sim/water/rivers.ts")),
+        ...(await import("../../sim/water/swim.ts")),
+        ...(await import("../../sim/systems/water.ts")),
         ...(await import("../../sim/__tests__/flows.ts")),
       }
     : undefined
@@ -235,3 +238,35 @@ const magraNodes = (k: NonNullable<typeof kit>) => {
     }
   return { sea, river }
 }
+
+/** On the deck of the pier off Bocca di Magra (OSM way 68822617), over the deepest water under any pier's deck: 1.66 m at the mean flow. */
+const ON_PIER = { x: -11515.07, y: -12856.72 }
+
+// Regression: a swimmer's footing hangs in the water (`feetAfloat`), and the node floated over the
+// ground `footY` settles on that footing's level, which under a deck over deep enough water is the
+// deck's: a cat swimming under the pier off Bocca di Magra was drawn standing on its deck.
+test(
+  "FigureNode.place, magra-coast: a cat swimming under the pier off Bocca di Magra floats in the water under its deck, not on it",
+  { skip },
+  () => {
+    const k = kit!
+    const { x, y } = ON_PIER
+    const water = k.waterUnder(x, y, true, k.MEAN)
+    assert.ok(water !== undefined, "water under the pier")
+    const cat = { species: "cat", coat: 0x8a857c, patch: 0x4e4a45, size: 1 } as const
+    const footing = k.feetAfloat(water, k.animalBuild(cat).height),
+      settled = k.zOf(k.footY(x, y, footing))
+    assert.ok(
+      settled > water.level,
+      `the level nearest the cat's footing ${footing.toFixed(2)} m is the deck's, ${settled.toFixed(2)} m`,
+    )
+    const node = new k.AnimalNode(cat, k.solidMaterial)
+    node.floating(true, k.yOf(water.level), true)
+    node.place(x, y, 0, footing)
+    const z = k.zOf(node.position.y)
+    assert.ok(
+      z > water.level - water.depth && z < water.level,
+      `floating at ${z.toFixed(2)} m, between the bed ${(water.level - water.depth).toFixed(2)} m and the surface ${water.level} m`,
+    )
+  },
+)
