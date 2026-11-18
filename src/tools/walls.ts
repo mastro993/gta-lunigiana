@@ -14,8 +14,9 @@ import { inPlay, OUTLINE } from "./play-area.ts"
 import { anchorNode, cellSlope, type Grid } from "./terrain.ts"
 
 const RUN = 16 // max wall segment length, m
-const WALK_SLOPE = 35,
-  DRIVE_SLOPE = 25
+/** The steepest ground (°) a walker climbs off a road: a steeper cell is a `walk` wall. */
+export const WALK_SLOPE = 35
+const DRIVE_SLOPE = 25
 /** Wall simplification tolerance, m; road buffers below are widened by it so walls never reach w/2. */
 const SLACK = 1.5
 
