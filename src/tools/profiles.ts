@@ -119,7 +119,8 @@ export const ROAD_PASSES = [
 
 /**
  * The paths' and steps' pass, after every road's: their bridges and tunnels alone, each chain of them
- * from the levels its ends meet (`ends` in build-terrain.ts) over or under the ways it crosses
+ * from the levels set at its ends (`ends` in build-terrain.ts: none where a path or steps at grade
+ * leads on, its approach, which then meets it) over or under the ways it crosses
  * (road-levels.ts), fitted sample by sample (`ramps`) at the steepest road's grade limit (service
  * and track's), raised as theirs where the fit strays from the ground, and straight between two pins
  * it cannot meet within it (a stair). Unsmoothed: before the fit a deck is the line between its ends.

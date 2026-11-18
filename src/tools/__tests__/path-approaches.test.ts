@@ -179,3 +179,26 @@ test("pathApproaches holds the cell where a path at grade meets a deck at the de
   }
   assert.equal(g.z[at(-8)], 97, "the hold reaches no way back under the deck")
 })
+
+// Regression: an approach whose offset alone closed over terrain rising back from a dip under the
+// deck's end overshot the deck: the sidewalk 1409723237 rose to 66.7 m on its way down to the
+// footbridge 1414943238's end at 63.1 m on the SS62's deck.
+test("pathApproaches never climbs past the deck's level over terrain rising back from under its end", () => {
+  // The ground 8 m under the deck's end in its first 3 m, then 2 m under it.
+  const dip = (x: number) => (x < 3 ? 55 : 61)
+  const bridge = { ...way(1, "path", [v(-10, 0, "w"), v(0, 0, "u")]), bridge: true as const },
+    path = way(2, "path", [v(0, 0, "u"), v(5, 0), v(10, 0), v(30, 0, "t")])
+  const { lines } = pathApproaches(
+    pathsAtGrade([bridge, path]),
+    ["u"],
+    new Map([["u", 63.1]]),
+    none,
+    dip,
+  )
+  const line = lines.get(path)!
+  line.pts.forEach((p, k) => {
+    const z = line.z[k] ?? dip(p.x)
+    assert.ok(z <= 63.1 + 1e-9, `${z} at ${p.x}`)
+    assert.ok(z >= dip(p.x) - 1e-9, `${z} under the ground at ${p.x}`)
+  })
+})

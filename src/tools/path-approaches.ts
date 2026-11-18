@@ -60,23 +60,24 @@ interface Fit {
 }
 
 /**
- * `piece` fitted from the levels set at its vertices (`nodeZ`), each as its offset from the terrain
- * (`ground`) there: from each that `leads` (one the path pass or an approach set), the samples
- * walking either way until that offset closes at its grade, or the next level set, are its stretch
- * off the ground, where the offset is the least the offsets either side allow closing at its grade
- * (straight between two it cannot meet within it, a stair). Closing on the terrain rather than on a
- * level, a way up a slope steeper than its grade still meets it as soon as on the flat: a level
- * climbing at the grade from a footbridge's end 0.6 m under a 47% slope cut 2.4 m into it for 40 m
- * (1121797190 by 93744740). A level a road set (a junction) bounds the stretch but leads none: a
- * path at grade keeps the terrain beside a road's cut or bank. Its line takes the level of each
- * vertex it leads from, so it meets the deck there, and the stretch's; its claim writes the stretch
- * into the grid. Its first MOUTH m out of each level it leads from hold the grid at their level
- * (`mouthClaim`), so the nodes of the cell it meets the deck in stand at the deck's end: a stream's
- * bank carve dropped the ground 2.5–3.6 m under the ends of footbridges by Equi Terme and Aulla
- * (1125144076, 1062093193, 1308837496, 809448798, 1289055889, 719447156, 1109549328), which took
- * the uncarved ground's level. Out of a bore's mouth (`mouthAt`) those hold it ahead of every other
- * claim, as a road's do: a road over the bore took those cells at its own level otherwise. None
- * where it leads from no level.
+ * `piece` fitted from the levels set at its vertices (`nodeZ`): from each that `leads` (one the path
+ * pass or an approach set), the samples walking either way until its offset from the terrain
+ * (`ground`) closes at its grade, or the next level set, are its stretch off the ground. There it
+ * keeps within its grade of the levels either side (straight between two it cannot meet within it,
+ * a stair), nearest the terrain, and within the offset each of them closes to by then. The level
+ * alone climbing at the grade from a footbridge's end 0.6 m under a 47% slope never caught the slope
+ * and cut 2.4 m into it for 40 m (1121797190 by 93744740); the offset alone, closing over terrain
+ * that rose back from a dip under a deck's end, lifted the sidewalk 1409723237 3.6 m over the
+ * footbridge 1414943238 it leads onto. A level a road set (a junction) bounds the stretch but leads
+ * none: a path at grade keeps the terrain beside a road's cut or bank. Its line takes the level of
+ * each vertex it leads from, so it meets the deck there, and the stretch's; its claim writes the
+ * stretch into the grid. Its first MOUTH m out of each level it leads from hold the grid at their
+ * level (`mouthClaim`), so the nodes of the cell it meets the deck in stand at the deck's end: a
+ * stream's bank carve dropped the ground 2.5–3.6 m under the ends of footbridges by Equi Terme and
+ * Aulla (1125144076, 1062093193, 1308837496, 809448798, 1289055889, 719447156, 1109549328), which
+ * took the uncarved ground's level. Out of a bore's mouth (`mouthAt`) those hold it ahead of every
+ * other claim, as a road's do: a road over the bore took those cells at its own level otherwise.
+ * None where it leads from no level.
  */
 const fitApproach = (
   piece: RoadF & { readonly cls: "path" | "steps" },
@@ -88,14 +89,14 @@ const fitApproach = (
   const p = resample(piece.pts, 4, ground),
     n = p.z.length,
     grade = APPROACH_GRADE[piece.cls]
-  /** Each level set on it, as its offset from the terrain, by sample. */
-  const pins = new Map<number, number>(),
+  /** Each level set on it by sample, and its offset from the terrain there. */
+  const pins = new Map<number, { readonly z: number; readonly off: number }>(),
     starts: Array<number> = []
   piece.pts.forEach((v, i) => {
     const z = v.id === undefined ? undefined : nodeZ.get(v.id),
       k = p.vertexSample[i]!
     if (z === undefined) return
-    pins.set(k, z - p.z[k]!)
+    pins.set(k, { z, off: z - p.z[k]! })
     if (leads(v.id!)) starts.push(k)
   })
   if (starts.length === 0) return undefined
@@ -104,30 +105,38 @@ const fitApproach = (
     for (const step of [-1, 1])
       for (let k = at; k >= 0 && k < n; k += step) {
         if (k !== at && pins.has(k)) break
-        if (Math.abs(pins.get(at)!) <= grade * Math.abs(p.s[k]! - p.s[at]!) + MET) break
+        if (Math.abs(pins.get(at)!.off) <= grade * Math.abs(p.s[k]! - p.s[at]!) + MET) break
         off[k] = 1
       }
   const sorted = [...pins].sort((a, b) => a[0] - b[0])
   for (let k = 0, i = -1; k < n; k++) {
     while (i + 1 < sorted.length && sorted[i + 1]![0] <= k) i++
     if (off[k] === 0) continue
-    const a = sorted[i],
-      b = sorted[i + 1]
+    const [ka, a] = sorted[i] ?? [],
+      [kb, b] = sorted[i + 1] ?? [],
+      da = ka === undefined ? Infinity : p.s[k]! - p.s[ka]!,
+      db = kb === undefined ? Infinity : p.s[kb]! - p.s[k]!,
+      terrain = p.z[k]!
     const up = Math.min(
-        a === undefined ? Infinity : a[1] + grade * (p.s[k]! - p.s[a[0]]!),
-        b === undefined ? Infinity : b[1] + grade * (p.s[b[0]]! - p.s[k]!),
+        a === undefined ? Infinity : a.z + grade * da,
+        b === undefined ? Infinity : b.z + grade * db,
       ),
       down = Math.max(
-        a === undefined ? -Infinity : a[1] - grade * (p.s[k]! - p.s[a[0]]!),
-        b === undefined ? -Infinity : b[1] - grade * (p.s[b[0]]! - p.s[k]!),
+        a === undefined ? -Infinity : a.z - grade * da,
+        b === undefined ? -Infinity : b.z - grade * db,
       )
-    p.z[k] =
-      p.z[k]! +
-      (down <= up + 1e-9
-        ? Math.min(up, Math.max(down, 0))
-        : a![1] + ((b![1] - a![1]) * (p.s[k]! - p.s[a![0]]!)) / (p.s[b![0]]! - p.s[a![0]]!))
+    const level =
+      down <= up + 1e-9
+        ? Math.min(up, Math.max(down, terrain))
+        : a!.z + ((b!.z - a!.z) * da) / (da + db)
+    const close = Math.max(
+      0,
+      a === undefined ? 0 : Math.abs(a.off) - grade * da,
+      b === undefined ? 0 : Math.abs(b.off) - grade * db,
+    )
+    p.z[k] = terrain + Math.min(close, Math.max(-close, level - terrain))
   }
-  for (const k of starts) if (off[k] === 0) p.z[k] = p.z[k]! + pins.get(k)!
+  for (const k of starts) if (off[k] === 0) p.z[k] = pins.get(k)!.z
   // Its first MOUTH m out of each level it leads from hold the grid there, out of a bore's mouth
   // ahead of every other claim.
   const mouths: Array<Claim> = [],

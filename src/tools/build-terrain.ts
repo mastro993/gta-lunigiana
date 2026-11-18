@@ -228,7 +228,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
    * deck 11 m short of its end, over a track 8 m under it); else, where a path or steps at grade
    * leads on from it, none: the fit sets it and its approach climbs or dips from there to the ground
    * (pinned at the ground's level, the ramp 1408285960 out of Aulla Lunigiana station's underpass
-   * climbed 6.3 m in its 18.4 m, 34%, past its grade limit); else the ground's. Under the rail, no
+   * climbed 6.3 m in its 18.4 m, 34%, past its grade limit); else the uncarved ground's. Under the rail, no
    * higher than the road's clearance under it, as in a profiled tunnel (the pedestrian underpass at
    * Equi Terme station).
    */
