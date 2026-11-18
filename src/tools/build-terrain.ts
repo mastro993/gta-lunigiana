@@ -85,7 +85,9 @@ const OFF_MAP: ReadonlyArray<{
 
 /**
  * Where each OFF_MAP stream's area comes in: the sample of its water nearest its point, at least
- * INSET m inside the box (D8 drains no edge node), none where the map holds no such water.
+ * INSET m inside the box (D8 drains no edge node), none where the map holds no such water or the
+ * point is not on the box's edge (another region's box: the coast's holds the Magra's mouth, which
+ * took the 420.9 km² of its upper valley at its first sample past the coast box's north edge).
  */
 const inflowsOf = (
   water: ReadonlyArray<{ readonly name?: string }>,
@@ -98,6 +100,9 @@ const inflowsOf = (
   },
 ): Array<Inflow> =>
   OFF_MAP.flatMap(({ name, at: [ax, ay], km2 }) => {
+    const inside = ax >= box.minX && ax <= box.maxX && ay >= box.minY && ay <= box.maxY
+    if (!inside || Math.min(ax - box.minX, box.maxX - ax, ay - box.minY, box.maxY - ay) > 0)
+      return []
     let best: Inflow | undefined,
       least = Infinity
     water.forEach((w, i) => {
