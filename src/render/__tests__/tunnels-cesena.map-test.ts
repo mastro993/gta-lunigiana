@@ -14,7 +14,10 @@ test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill
     tunnels: 64,
     passages: 22,
     metres: 5264,
-    walls: 18267,
+    // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts),
+    // and the motorways' grade fitted unrelaxed (ROAD_PASSES), moved the bores' bend samples:
+    // +8 wall triangles.
+    walls: 18275,
     // 70184534's end where 70184520 runs on through the bore is a junction, no mouth.
     mouths: 76,
     portals: 6,

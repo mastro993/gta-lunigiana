@@ -27,7 +27,10 @@ test(
       tunnels: 7,
       passages: 1,
       metres: 194,
-      walls: 650,
+      // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts),
+      // and the motorways' grade fitted unrelaxed (ROAD_PASSES), moved the bores' bend samples:
+      // +1 wall triangle.
+      walls: 651,
       mouths: 12,
       portals: 3,
       heads: 0,
