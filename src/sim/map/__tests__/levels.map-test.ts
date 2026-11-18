@@ -138,9 +138,9 @@ const fitBounds = (w: Way, s: number, z: number, atGrade: (x: number, y: number)
  * `up` and the lowest `down` the fit reaches there. A path's or steps' bridge or tunnel micro-mapped
  * too short from its end at grade to reach the clearance at the path pass's grade limit falls short
  * whatever the pass does, and the check leaves it out (Lunigiana's 1.4 m footway tunnel under a
- * footway, its steps and footbridge over a 3 m building passage 1 m from their ends, its footway
- * tunnels 2.5 and 5.5 m from their ends under footways down a 4 m slope); every crossing a fit could
- * clear it still fails.
+ * footway 0.55 m from its end at grade, its steps and footbridge over a 3.1 m building passage 0.9
+ * and 0.7 m from its ends, its footway tunnels under footways down a 4 m slope 2.1 and 5.5 m from
+ * their ends at grade); every crossing a fit could clear it still fails.
  */
 const fitReach = (
   up: Way,
@@ -216,8 +216,8 @@ const shortfalls = (
  * Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its pedestrian
  * underpass under Via Giuseppe Di Vittorio, ran straight between their ends at the terrain's level
  * until the paths' and steps' decks were fitted (PATH_PASS); its 5.5 m path bridge 683510421 over
- * the path down into the Sottopasso Cervese, 2.7 m from either end at grade, no fit can clear
- * (`fitReach`).
+ * the path down into the Sottopasso Cervese, crossing it 3.3 and 2.2 m from its two ends at grade,
+ * no fit can clear (`fitReach`).
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [[55016697, 68296970]],

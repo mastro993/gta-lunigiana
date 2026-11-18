@@ -50,11 +50,13 @@ import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } fr
  * Cerreto pass are 14.7, all of which reach the Torrente Rosaro above Fivizzano, 13.1 down the
  * Rosaro's own head and 1.6 down rivulets west of it, so the Rosaro brings them all. The Fiume Magra
  * brings 420.9 of its upper valley and the Torrente Taverone 69.1, each at its own crossing, 15 and
- * 8 m from OSM's; the Torrente Civiglia and the Canale Torchio di Bacco and the Canale della Ghiaia,
- * which join it, 4.5, 3.8 and 3.0; the Canale Cravareccia, which joins the Taverone 113 m down its
- * line, 1.1. The other 4.9 km² come down rivulets under 1 km² each (the Fosso della Predella's 0.7
- * the most) and are left out. The 10 m DTM's D8 gives the Magra 930.5 km² where it leaves the play
- * area at y 3900.
+ * 8 m from OSM's; the Torrente Civiglia, which joins the Taverone 84 m above its mouth, 4.5, and the
+ * Canale Torchio di Bacco and the Canale della Ghiaia, which join the Civiglia, 3.8 and 3.0. Each
+ * crosses the edge 3.7 to 5.6 km west of the Taverone, and D8 sends each node across it at one point
+ * alone, so none of the three is in the Taverone's 69.1. The Canale Cravareccia, which joins the
+ * Taverone 113 m down its line, brings 1.1. The other 4.9 km² come down rivulets under 1 km² each
+ * (the Fosso della Predella's 0.7 the most) and are left out. The 10 m DTM's D8 gives the Magra 930.5
+ * km² where it leaves the play area at y 3900.
  */
 const OFF_MAP: ReadonlyArray<{
   readonly name: string
