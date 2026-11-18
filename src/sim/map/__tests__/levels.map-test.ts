@@ -140,9 +140,9 @@ const fitBounds = (w: Way, s: number, z: number, pinned: (x: number, y: number) 
  * pinned end (two points the check pairs: a sample lies within STEP of the second), of the highest
  * `up` and the lowest `down` the fit reaches there. A path's or steps' bridge or tunnel micro-mapped
  * too short from a pinned end to reach the clearance at the path pass's grade limit falls short
- * whatever the pass does, and the check leaves it out (Lunigiana's 1.4 m footway tunnel under a
- * footway, 0.7 m from its dead end, and its footway tunnel 1311862950 under the footway 1311831120);
- * every crossing a fit could clear it still fails.
+ * whatever the pass does, and the check leaves it out (Lunigiana's 1.4 m footway tunnel 717088463
+ * under the footway 717088457, 0.7 m from its dead end); every crossing a fit could clear it still
+ * fails.
  */
 const fitReach = (
   up: Way,
@@ -223,19 +223,16 @@ const shortfalls = (
  * footbridges over Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its
  * pedestrian underpass under Via Giuseppe Di Vittorio, and the coast's foot and cycle bridge over
  * the A12 at Luni and its footway under Via Palmiro Togliatti, ran straight between their ends at
- * the terrain's level until the paths' and steps' decks were fitted (PATH_PASS). Three
- * are micro-mapped knots of approaches (path-approaches.ts) no fit of theirs clears: Cesena's 5.5 m
- * path bridge 683510421 is fitted over the natural level of the path 22776463 under it, which, the
- * approach out of the Sottopasso Cervese's mouth 3 m away, then climbs 5.6 m over the Secante's bore
- * beside it; on Lunigiana the footways 1311831119 and 1311831120 cross the footway tunnels
+ * the terrain's level until the paths' and steps' decks were fitted (PATH_PASS); Cesena's 5.5 m
+ * path bridge 683510421 now stands 4.5 m over the path 22776463 under it, which ran 3.5 m under it
+ * on the ground its ramps' claims held at the deck's level until the approach's crossing shipped its
+ * fitted level (path-approaches.ts). Two are micro-mapped knots of approaches no fit of theirs
+ * clears: on Lunigiana the footways 1311831119 and 1311831120 cross the footway tunnels
  * 1311831121 and 1311862950 0.7 and 1.5 m from the nodes where they lead from the bores' ends at
  * their level.
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
-  cesena: [
-    [55016697, 68296970],
-    [683510421, 22776463],
-  ],
+  cesena: [[55016697, 68296970]],
   lunigiana: [
     [1311831119, 1311831121],
     [1311831120, 1311862950],

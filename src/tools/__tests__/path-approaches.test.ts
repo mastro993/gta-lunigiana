@@ -19,8 +19,6 @@ const way = (id: number, cls: RoadF["cls"], pts: ReadonlyArray<V>, tunnel = fals
 })
 /** Flat ground at 100 m. */
 const flat = () => 100
-/** No bore opens anywhere. */
-const none = () => false
 /** No way crosses over or under it. */
 const open = () => []
 
@@ -35,14 +33,9 @@ test("pathApproaches climbs a path or steps at grade from the level its deck set
       ["w", 94.2],
       ["u", 94.2],
     ])
-    const { lines } = pathApproaches(
-      pathsAtGrade([bore, stair]),
-      ["w", "u"],
-      nodeZ,
-      none,
-      open,
-      flat,
-    )
+    const { lines } = pathApproaches(pathsAtGrade([bore, stair]), ["w", "u"], nodeZ, open, {
+      ground: flat,
+    })
     const line = lines.get(stair)!
     assert.equal(line.z[0], 94.2, "it meets the bore at its level")
     assert.equal(line.z.at(-1), undefined, "its top keeps the terrain")
@@ -76,9 +69,8 @@ test("pathApproaches carries a level it cannot bring to the ground within a way 
     pathsAtGrade([bore, first, next]),
     ["w", "u"],
     nodeZ,
-    none,
     open,
-    flat,
+    { ground: flat },
   )
   const high = 94 + 10 * APPROACH_GRADE.path
   assert.ok(Math.abs(nodeZ.get("m")! - high) < 1e-9, `${nodeZ.get("m")} at the joint`)
@@ -117,9 +109,8 @@ test("pathApproaches leaves a path at grade whose levels are the ground's or a r
     pathsAtGrade([bore, lane]),
     ["w", "u"],
     nodeZ,
-    (id) => id === "u",
     open,
-    flat,
+    { ground: flat, mouthAt: (id) => id === "u" },
   )
   assert.deepEqual(lines.get(lane)!.z, [100, undefined], "the bore's level where it meets it")
   assert.equal(claims.length, 0, "no stretch off the ground")
@@ -140,9 +131,8 @@ test("pathApproaches meets a slope steeper than its grade as soon as the flat", 
     pathsAtGrade([{ ...bridge, bridge: true }, path]),
     ["u"],
     new Map([["u", 99.4]]),
-    none,
     open,
-    slope,
+    { ground: slope },
   )
   const line = lines.get(path)!
   assert.equal(line.z[0], 99.4)
@@ -166,9 +156,8 @@ test("pathApproaches holds the cell where a path at grade meets a deck at the de
       ["w", 100],
       ["u", 100],
     ]),
-    none,
     open,
-    flat,
+    { ground: flat },
   )
   assert.equal(mouths.length, 0, "a deck's end is no bore's mouth")
   // The bank carved 3 m under the deck's end: the cell the path meets it in keeps its level.
@@ -205,9 +194,8 @@ test("pathApproaches never climbs past the deck's level over terrain rising back
     pathsAtGrade([bridge, path]),
     ["u"],
     new Map([["u", 63.1]]),
-    none,
     open,
-    dip,
+    { ground: dip },
   )
   const line = lines.get(path)!
   line.pts.forEach((p, k) => {
@@ -228,9 +216,8 @@ test("pathApproaches keeps the clearance over a tunnel it crosses", () => {
     pathsAtGrade([bore, lane]),
     ["u"],
     new Map([["u", 94]]),
-    none,
     () => [{ x: 8, y: 0, z: 98, kind: "min" as const }],
-    flat,
+    { ground: flat },
   )
   const line = lines.get(lane)!
   const at = (x: number) => {
@@ -243,4 +230,83 @@ test("pathApproaches keeps the clearance over a tunnel it crosses", () => {
   }
   assert.equal(line.z[0], 94)
   assert.ok(at(8) >= 98 - 1e-9, `${at(8)} over the tunnel`)
+})
+
+// Regression: a path fitted before a later approach set the level of a vertex it shares kept the
+// ground there: Aulla's path 717897182 stood 1.3 m over the steps 717897183 where they meet, and
+// Fosdinovo's 1326730177 0.9 m over 1335936638.
+test("pathApproaches fits a path again when a later approach sets the level of a vertex it shares", () => {
+  // A footbridge's end 0.5 m over flat ground leads onto the lane, fitted first, which meets the
+  // ground before its far end; a bore 8 m under the ground leads onto the ramp, which reaches that
+  // end 2 m under the ground.
+  const deck = { ...way(1, "path", [v(-10, 0, "w"), v(0, 0, "b")]), bridge: true as const },
+    bore = way(2, "path", [v(10, -30, "s"), v(10, -20, "t")], true),
+    lane = way(3, "path", [v(0, 0, "b"), v(10, 0, "c")]),
+    ramp = way(4, "path", [v(10, -20, "t"), v(10, 0, "c")])
+  const nodeZ = new Map([
+    ["w", 100.5],
+    ["b", 100.5],
+    ["s", 92],
+    ["t", 92],
+  ])
+  const { lines } = pathApproaches(
+    pathsAtGrade([deck, bore, lane, ramp]),
+    ["w", "b", "s", "t"],
+    nodeZ,
+    open,
+    { ground: flat },
+  )
+  const at = (piece: RoadF) => {
+    const line = lines.get(piece)!
+    return line.z[line.pts.findIndex((p) => p.id === "c")]
+  }
+  assert.ok(nodeZ.get("c")! < 99, `${nodeZ.get("c")} where the ramp reaches the lane`)
+  assert.equal(at(lane), nodeZ.get("c"), "the lane meets the ramp at its level")
+  assert.equal(at(ramp), nodeZ.get("c"))
+})
+
+// Regression: an approach's sample under a bridge shipped the finished grid, which the claims of the
+// bridge's own ramps raised: Cesena's path 22776463 ran 3.5 m under the footbridge 683510421, its
+// clearance 4 m, where the fit kept it 4.5 m under it on the ground.
+test("pathApproaches ships its fitted level where it crosses under a bridge, and writes it there", () => {
+  const bridge = { ...way(1, "path", [v(-10, 0, "w"), v(0, 0, "u")]), bridge: true as const },
+    lane = way(2, "path", [v(0, 0, "u"), v(40, 0, "t")])
+  const { lines, claims } = pathApproaches(
+    pathsAtGrade([bridge, lane]),
+    ["u"],
+    new Map([["u", 100]]),
+    () => [{ x: 20, y: 0, z: 104, kind: "max" as const }],
+    { ground: flat },
+  )
+  const line = lines.get(lane)!
+  assert.equal(line.z[line.pts.findIndex((p) => p.x === 20)], 100, "its level under the deck")
+  const cols = 21,
+    g: Grid = {
+      cell: 4,
+      cols,
+      rows: 11,
+      x0: -20,
+      y0: -20,
+      ax: -20,
+      ay: -20,
+      z: new Float64Array(cols * 11).fill(103),
+    }
+  replayClaims(g, claims, new Uint8Array(cols * 11).fill(255), new Uint8Array(cols * 11))
+  assert.equal(g.z[5 * cols + (20 + 20) / 4], 100, "the grid under the deck at its level")
+})
+
+// Regression: an approach's core round a footbridge's end held the ground under the deck at the
+// deck's level, over the path passing under it 2.2 m on: the ramps 683510420 and 517564087 of
+// Cesena's footbridge 683510421 lifted the path 22776463 to 37.6 m beside it, 3.9 m over the ground.
+test("pathApproaches yields the ground under a bridge's deck past its end to any other claim", () => {
+  const bridge = { ...way(1, "path", [v(-10, 0, "w"), v(0, 0, "u")]), bridge: true as const },
+    ramp = way(2, "path", [v(0, 0, "u"), v(40, 0, "t")])
+  const { claims } = pathApproaches(
+    pathsAtGrade([bridge, ramp]),
+    ["u"],
+    new Map([["u", 103]]),
+    open,
+    { ground: flat, deckEndAt: (id) => id === "u" },
+  )
+  assert.equal(claims[0]!.deckEnds?.[0], 1, "its core past the deck's end is under the deck")
 })

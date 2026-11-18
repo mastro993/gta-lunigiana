@@ -292,35 +292,11 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
         : [],
     ),
   )
-  const approaches = pathApproaches(
-    leads,
-    [
-      ...new Set(
-        pathDecks.flatMap((r) => r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
-      ),
-    ],
-    nodeZ,
-    (id) => mouths.has(id),
-    // Over a fitted tunnel or under a fitted bridge, the clearance between them (road-levels.ts).
-    (piece) =>
-      overpasses.over.flatMap(({ up, down, c, clear }): Array<Bound> =>
-        up === piece && down.tunnel === true && zOf.has(down)
-          ? [{ x: c.x, y: c.y, z: zAt(down, c.sb) + clear, kind: "min" }]
-          : down === piece && up.bridge === true && zOf.has(up)
-            ? [{ x: c.x, y: c.y, z: zAt(up, c.sa) - clear, kind: "max" }]
-            : [],
-      ),
-    ground,
-  )
-  claims.push(...approaches.claims)
-  for (const m of approaches.mouths) mouth(m)
-  // The extra tracks take only the cells no road took.
-  for (const [piece, { profile: p }] of extraZ)
-    if (piece.bridge !== true) claim(p, 4, EXTRA_RANK, () => false)
-  lap("roads")
-
   // A pier's deck stands over its water vertex by vertex (`pierDeck`), never fitted: the path pass
-  // would lay it straight from its ends' levels.
+  // would lay it straight from its ends' levels. Where a path at grade leads on from its end (the
+  // pier's own way cut at the water's edge, `splitPiers`), that end's level is its approach's to
+  // meet, as a deck's: the piece on dry ground took the finished grid, 0.2–0.4 m under the deck's end
+  // at the coast's piers 1382979298, 1382979299 and 1382979302.
   const levelAt = waterLevel(wet.carved, water, wp0)
   const pierZ = new Map(
     roads
@@ -334,6 +310,45 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
         ),
       ]),
   )
+  const pierEnds: Array<string> = []
+  for (const [l, z] of pierZ)
+    for (const k of [0, l.pts.length - 1]) {
+      const id = l.pts[k]!.id
+      if (id === undefined || !leads.has(id) || nodeZ.has(id)) continue
+      nodeZ.set(id, z[k]!)
+      pierEnds.push(id)
+    }
+  const approaches = pathApproaches(
+    leads,
+    [
+      ...new Set(
+        pathDecks.flatMap((r) => r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
+      ),
+      ...pierEnds,
+    ],
+    nodeZ,
+    // Over a fitted tunnel or under a fitted bridge, the clearance between them (road-levels.ts).
+    (piece) =>
+      overpasses.over.flatMap(({ up, down, c, clear }): Array<Bound> =>
+        up === piece && down.tunnel === true && zOf.has(down)
+          ? [{ x: c.x, y: c.y, z: zAt(down, c.sb) + clear, kind: "min" }]
+          : down === piece && up.bridge === true && zOf.has(up)
+            ? [{ x: c.x, y: c.y, z: zAt(up, c.sa) - clear, kind: "max" }]
+            : [],
+      ),
+    {
+      ground,
+      mouthAt: (id) => mouths.has(id),
+      deckEndAt: (id) => bridgeEnds.has(id),
+    },
+  )
+  claims.push(...approaches.claims)
+  for (const m of approaches.mouths) mouth(m)
+  // The extra tracks take only the cells no road took.
+  for (const [piece, { profile: p }] of extraZ)
+    if (piece.bridge !== true) claim(p, 4, EXTRA_RANK, () => false)
+  lap("roads")
+
   /** A deck's z at its vertices or dense samples: its profile, or a pier's. */
   const deckZ = (l: Linear) => zOf.get(l) ?? pierZ.get(l)!
   const crossed: Array<Crossed> = []
