@@ -137,7 +137,7 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   level rule (`onOneLevel`) is code, so a failure on a new part is the data's (a deck too low over
   what it crosses, a crossing a fit could clear) or the profiles' pass's: fix that for every
   crossing alike, never by listing a new part's crossing (the coast is a test region, not a shipped
-  part: part 5, #21, which brings it into the shipped map, must fix its 8, as
+  part: part 5, #21, which brings it into the shipped map, must fix its 1, as
   [docs/map.md](../map.md#checks-and-tools) says).
 - A motorway keeps its grade, and its carriageways and tracks their twins' level:
   `src/sim/map/__tests__/carriageways.map-test.ts` joins every motorway's pieces into carriageways

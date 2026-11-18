@@ -1919,10 +1919,11 @@ speed along the contact.
   it or still ahead ([The service](#the-service)), so two AI trains no longer come to stand face to
   face for good; no block table is kept.
 - **A terminus is a piece end where OSM's routes end**: the build makes a line end inside the map
-  only there (`lines.map-test.ts` fails on any other end off the edge), and draws its buffer stop on
-  the line's end, so a terminus on through track (Aulla's track 4 runs on north as the Lucca branch,
-  a loop no train drives) holds an invisible buffer past the drawn one, and a route ending mid-piece
-  (the Pisa => Aulla Lunigiana route at track 5's stop) gives no terminus.
+  only there (`lines.map-test.ts` fails on any other end off the edge), and its buffer stop, drawn
+  and in the sim (`buffersOf`), stands at the line's end, the only one there: on through track
+  (Aulla's track 4 runs on north as the Lucca branch, a loop no train drives) the map's track is
+  drawn on past the beam. A route ending mid-piece (the Pisa => Aulla Lunigiana route at track 5's
+  stop) gives no terminus.
 - **A run-out with no track past it goes straight on**: past a terminal the run-out follows OSM's
   track beyond the play area as far as it runs in the built terrain's box, profiled from the
   terminal's level as the rail in play is, then straight and level along its heading. A terminal

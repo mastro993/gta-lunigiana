@@ -1991,7 +1991,9 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is four parts (`PA
     reads there (Liguria's reads the Magra's estuary 1.4–1.8 m up, as high as its quays), or the
     ground where that stands higher, and an end on dry ground (none of the water 0.5 m on past it,
     `PAST_END`) at that ground, so a walker steps on from the beach or the quay (`ON_DECK`); on dry
-    ground a path at grade. The two pieces share the cut, a vertex `pier:<way>:<x>,<y>`, so the road
+    ground a path at grade, the deck's approach (`path-approaches.ts`), which meets its end at its
+    level (it took the finished grid, 0.2–0.4 m under it, at 1382979298, 1382979299 and
+    1382979302). The two pieces share the cut, a vertex `pier:<way>:<x>,<y>`, so the road
     graph joins them there and keeps the deck's end where it is ([section
     11](#11-road-graph-graphts)): left with no id, the cut read as one of the outline's, and the
     deck's end came off the path it leaves, 8 m back. Kept whole, the lowering of the ground under
@@ -2592,6 +2594,10 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   the ways it crosses (`road-levels.ts`: `maxheight`, else 2.5 m for a way only people use and
   4 m for one vehicles do, plus the 1.5 m deck), and straight between two pins it cannot meet
   within that grade (a stair). Unsmoothed, a deck is the line between its ends before the fit.
+  A bridge's deck then spans between its humps, each sample raised to the lower of the highest
+  before it and the highest after it (a bore keeps its dip, and so does a deck held under a way over
+  it): fitted sample by sample, the coast's 153 m cycle footbridge 522153380 fell from 7.7 m over a
+  driveway to 1.8 m and climbed back to 6.1 m over a footway, at 25–30%.
   Their decks write no cell, and no road takes a bound from a path's deck. A deck's end where a
   path or steps at grade leads on is left to the fit (`endLevel` undefined, `Spec.ends`), and that
   path is its approach (`path-approaches.ts`): it meets the deck there at its level and closes its
@@ -2600,17 +2606,28 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   treads, where a path's 30% would stretch the station's 19.6 m steps at Aulla to the ground only at
   their top), straight between pins it cannot both meet; that stretch is written into the grid at
   the pass's rank, under every other claim, and the vertices it lifts pass the approach on to the
-  paths at grade beyond them. A road's level bounds an approach but never starts one: approaches
-  are seeded from path decks alone. A dead end of a path deck takes the uncarved ground. The first
+  paths at grade beyond them; a path fitted before one of its vertices was lifted is fitted again
+  from it (fitted once, Aulla's path 717897182 stood 1.3 m over the steps 717897183 where they meet,
+  and Fosdinovo's 1326730177 0.9 m over 1335936638). A road's level bounds an approach but never
+  starts one: approaches are seeded from path decks alone, and from a pier deck's end where its way
+  runs on at grade. A dead end of a path deck takes the uncarved ground. The first
   `MOUTH` m (5.66) out of each joint keep the grid at the joint's level, and at a bore's mouth the
   hold is written ahead of every claim (the profiler's `mouth()` hook): the stream banks carved
   under the footbridges' ends had sunk them 2.5–3.6 m. Crossing over a fitted tunnel or under a
   fitted bridge, an approach is held at the breaking point and fitted again for its clearance
-  (Cesena's 22776463 over the Sottopasso Cervese's bore). Fitted at the terrain's level, the
-  station's steps at Aulla Lunigiana (1388757323, 1388757324, 1388757327) stood 5.8, 5.4 and 4.1 m
-  over the underpass they lead into (1387000572), and now meet it, at 69–73%; the ramp 1408285960
-  went from 34% to 20%, a joint of Fosdinovo's path 1409723237 from a 7.7 m step to none, and
-  1339933984's step to none. Joints more than 0.5 m off their deck went from 68 of Lunigiana's
+  (Cesena's 22776463 over the Sottopasso Cervese's bore), and the sample where it crosses ships the
+  fit's level and is written into the grid; past a footbridge's end, under its deck, an approach's
+  core yields to any other (`deckEnd` in `flatten`), as a road's does: the ramps' cores of Cesena's
+  footbridge 683510421 held the ground under it at the deck's level, and the path 22776463 passing
+  under it ran 3.5 m under its deck (4.5 m now). A building's floor (`z0`) reads the ground as it
+  stood before the approaches' claims (`floors` of `tileByTile`, `floorsOf` in `build-output.ts`), so
+  the stairs to an underpass go down under it: on the grid they carved, Cesena's station (185180766)
+  sank 4.8 m into its plaza, 1.0 m of its 6 m showing, and 68910735 and 1270896860 by it 2.9 and
+  4.2 m, the footways to the underpass 43076054 running on its wall. Fitted at the terrain's
+  level, the station's steps at Aulla Lunigiana (1388757323, 1388757324, 1388757327) stood 5.8,
+  5.4 and 4.1 m over the underpass they lead into (1387000572), and now meet it, at 69–73%; the
+  ramp 1408285960 went from 34% to 20%, a joint of Fosdinovo's path 1409723237 from a 7.7 m step
+  to none, and 1339933984's step to none. Joints more than 0.5 m off their deck went from 68 of Lunigiana's
   189 to 0, from 17 of Cesena's 110 to 1 and from 4 of the L's 7 to 0. Lunigiana's other
   examples: the SS62 sidewalk bridge 1414943238 rose from 55.2 to 63.1 m, the old railway's
   footbridge joint 1339933985/1393381543 from 52.5 to 63.0 m, and the joint by Equi
@@ -3765,7 +3782,7 @@ feature's index in the whole map's list, ascending, and the feature, whole:
 | Layer | Each feature |
 |---|---|
 | `roads` | the road's line (`RoadLine`): `pts` and `z` (surface elevation per vertex); its attributes are `MAP.roads[id]` |
-| `buildings` | `id` (OSM id, or negative for a survey's: `survey-ids.ts`, [section 3](#3-features-featurests)), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint), `style`, `ruins?`, `tint`, `outer`, `holes?` |
+| `buildings` | `id` (OSM id, or negative for a survey's: `survey-ids.ts`, [section 3](#3-features-featurests)), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint: the grid at its rings' vertices, as it stood before the paths' approaches, [section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)), `style`, `ruins?`, `tint`, `outer`, `holes?` |
 | `water` | `id`, `kind` (`river` or `stream`), `name?`, `w` (the water's width), `bed` (the gravel bed's half-width), `depth` (the bed is carved `depth`/2 under `z`), `pts`, `z` (the built water surface per vertex), `area` (the catchment upstream of each vertex, km²), `floor` (baked: the bed under the centreline per vertex, m a.s.l.) |
 | `areas` | `kind` (one of `AREA_KINDS`), `name?`, `rings` (outer first, then holes), a water area's still `level?` (m) or its river's `waters?` (indices into the whole map's water; [section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)), whose pieces lie in every tile the area does; the platforms (`platform`) and walkways (`paved`) are the whole map's last |
 | `barriers` | `kind` (`wall`, `guard_rail`, `cliff`), `pts` |
@@ -4032,14 +4049,24 @@ drive wall in a wide river and shore walls by it, read by the outline of the lak
 the river runs in, points within 30 m of the play area's outline left out.
 `src/sim/map/__tests__/carriageways.map-test.ts` joins every motorway's pieces end to start into
 carriageways, on Lunigiana, Cesena and each built test region (`regions.ts` beside it, which the
-water and levels checks read too), and checks that each climbs or falls at most the motorway
+levels and approaches checks read too), and checks that each climbs or falls at most the motorway
 pass's 6% over any 100 m, plus the 0.1 m rounding (issue #19's acceptance): before the motorway
 pass stopped relaxing its grade the A15's Parma carriageway at Calcinara sagged 8.1 m under its
 twin and climbed 6.7% over 100 m out of the sag; today its steepest is 5.89%.
-`src/sim/map/__tests__/approaches.map-test.ts` checks, on Lunigiana, Cesena and the L, that every
-joint of a path or steps at grade with a path's or steps' bridge or tunnel ships both ways at one
-level, within half the 0.1 m rounding (Cesena's Sottopasso del Mare known, by OSM id; a known
-joint that meets its deck fails until it is dropped): fitted at the terrain's level, Aulla
+`src/sim/map/__tests__/approaches.map-test.ts` checks, on Lunigiana, Cesena and each built test
+region (`regions.ts`), that every joint of a path or steps at grade with a path's or steps' bridge
+or tunnel (189 on Lunigiana, 110 on Cesena, 7 on the L, 28 on the coast), and with another path or
+steps at grade (1,452, 911, 22 and 278), ships both ways at one level, within half the 0.1 m
+rounding (Cesena's Sottopasso del Mare known, by OSM id; a known joint that meets its deck fails
+until it is dropped): a path fitted once, before a later approach lifted a vertex it shares, stood
+1.3 and 0.9 m off the steps and the path it meets at Aulla and Fosdinovo, and the coast's piers'
+dry pieces 0.2–0.4 m under their decks' ends. It also checks that a building an approach (or the
+way on from it) runs on, its far corners (15 m beyond those ways) on flat ground, stands no more
+than 1.5 m under them, where a gentle slope keeps Cesena's apartments 153198967 1.0 m under its far
+corners: on the grid the approaches carved, Cesena's station (185180766) stood 4.8 m under them.
+And it checks that no path's or steps' bridge dips more than 1 m between two higher points of it
+(35 on Lunigiana, 19 on Cesena, 2 on the L, 24 on the coast): the coast's cycle footbridge 522153380
+sagged 4.3 m. Fitted at the terrain's level, Aulla
 Lunigiana station's steps stood 4.1–5.8 m over its underpass at their joints, the sidewalk and the
 footway off two footbridges stood on the SS62's deck 7.7 and 9.9 m under them, and paths off
 footbridges over streams 2.5–3.6 m under them, in the bank's carve; `deckEndsShut` in the deck
@@ -4550,22 +4577,24 @@ bumpers on its axis's line too; a train's car is read at the rail head under its
 line's 2.83% at most keeps within 0.28 m of the rail head where it reaches the path. Paths over
 paths count since people step apart only on one level. The 0.5 m over `ONE_LEVEL` covers the
 surfaces' lifts over their profiles (0.06–0.24 m), the 0.1 m rounding and a truck's wheels rolled
-25° (0.16 m). It visits 50 crossings on Lunigiana (49 before Fosdinovo's part; the least 4.24 m, a
-path over the rail's tunnel at (2544, 1057)), 161 on Cesena (2.63 m, a path bridge over a path at
-(−1044, −1321)) and 18 on the L (5.39 m), in 1.9 s; Lunigiana and the L have no path over a path.
-Out to 12 m of a crossing, where two bodies may still touch across an oblique one, no road over a
-road or a path, or path over a road, comes nearer than 4.95 m on Lunigiana, 3.06 m on Cesena and
-5.02 m on the L outside the listed ones. Cesena's crossings that keep less are listed by OSM id
-([Known data limitations](#known-data-limitations)), and each must still fall short, so a fix drops
-it from the list. So are the coast's 8 (`KNOWN["the coast"]`), the same limits of the build as
-Cesena's: the A12's foot and cycle bridge at Luni (ways 522153379, 522153380 and 522153381),
-straight between its ends at the terrain's level as every path's bridge, 0.00–0.77 m over the
-motorway, a service road, a track and a driveway under it; the footway tunnel 757275375, 2.19 m
-under Via Palmiro Togliatti (381510717); and Via Bassagrande's bridge (463589363), 1.93 m over the
-path along the Fossa Maestra's bank (326011444). The coast is a test region, not a part, so they are
-listed as Cesena's are; part 5 (#21), which brings the coast into the shipped map, must fix them, as
-a part's crossings are never listed ([standards/map.md](standards/map.md)). With the SR445's viaduct
-west of Gragnola lowered 4 m in memory, it falls short at 1.94 m over the residential road under it.
+25° (0.16 m). It visits 163 crossings on Lunigiana (5 of them a path or steps over a path or
+steps, the micro-mapped knots by Aulla), 161 on Cesena, 18 on the L and 18 on the coast, in 5.9 s;
+outside the crossings it lists or leaves out the least is 2.79 m on Lunigiana (the track 140773011
+over the rail at (−11811, 5263)), 2.97 m on Cesena (the path 22776463 over the Secante at (760,
+626)), 4.52 m on the L (the rail over the path 1133296350) and 3.45 m on the coast (Via Palmiro
+Togliatti over the footway tunnel 757275375); of a road over a road or a path, or a path over a
+road, the least is 3.38 m on Lunigiana (the path 1452661254 over the service road 1452661267),
+2.97 m on Cesena, 5.49 m on the L and 3.45 m on the coast. Cesena's crossings that keep less are
+listed by OSM id ([Known data limitations](#known-data-limitations)), and each must still fall
+short, so a fix drops it from the list. So is the coast's one (`KNOWN["the coast"]`), the same
+limit of the build as Cesena's: Via Bassagrande's bridge (463589363), 1.93 m over the path along
+the Fossa Maestra's bank (326011444). The A12's foot and cycle bridge at Luni (ways 522153379,
+522153380 and 522153381) and the footway tunnel 757275375 under Via Palmiro Togliatti (381510717),
+straight between their ends at the terrain's level until the path pass fitted them, now clear what
+they cross. The coast is a test region, not a part, so its crossing is listed as Cesena's are;
+part 5 (#21), which brings the coast into the shipped map, must fix it, as a part's crossings are
+never listed ([standards/map.md](standards/map.md)). With the SR445's viaduct west of Gragnola
+lowered 4 m in memory, it falls short at 1.94 m over the residential road under it.
 Only crossings are visited: where a deck lifted 2.5 m or more over the terrain overlaps another
 way's carriageway in plan without crossing it and the two stand 2.5 m apart or less, that way meets
 the deck there, within 25 m of a node they share, or else joins its approach within three joints and
@@ -5510,8 +5539,8 @@ build before it (`pnpm map-diff`, 2026-11-07):
 
 Aulla's code and presence moved the earlier parts' map by these. `pnpm map-diff` compared main's
 builds (at 4803788, the coast's #130 merged in) with #19's final ones (2026-11-18): Lunigiana
-a070f6e1eeb1cf08 → bea5822826374211, Cesena 7949b292ff6b50a6 → 4678d64e2b57a134, the L
-14225b3536fb61db → ee2178e7a47ddfa5 and the coast 2a653db1f28d317e → febe2b302013d8d2. Unlike
+a070f6e1eeb1cf08 → 2553b5eb503319bd, Cesena 7949b292ff6b50a6 → 1fae65b26617c8f7, the L
+14225b3536fb61db → 3603bf102f978740 and the coast 2a653db1f28d317e → 0411548a5564f136. Unlike
 #17's and #18's, the pair was not split into a build of the code alone and one of the part's
 presence: the code alone shows on Cesena, the L and the coast, which the part does not reach, and
 each fix was measured against the build before it as it came (sections 3–12 give their figures).
@@ -5522,16 +5551,16 @@ tiles west of Fosdinovo's and south of Aulla's, joins the 15 east of lucido.
 
 The code alone (Cesena, the L and the coast):
 
-- **Cesena**: 3,479 of 1,002,001 heightmap nodes move, up to 5.5 m and 0.774 m RMS over them (the
+- **Cesena**: 3,497 of 1,002,001 heightmap nodes move, up to 5.5 m and 0.765 m RMS over them (the
   paths' decks and their approaches, the bounds across a carriageway and at a deck's ends, the
-  twin rule beside the station), with 6 land-cover cells; 697 walk and 1,987 drive walls come and
-  1,010 and 1,825 go; 167 roads, 16 buildings, a water piece and 20 rail pieces change; a platform
+  twin rule beside the station), with 6 land-cover cells; 681 walk and 1,979 drive walls come and
+  1,008 and 1,823 go; 167 roads, 8 buildings, a water piece and 20 rail pieces change; a platform
   and its 33 lamps move; 2 parked spots move, a traffic edge goes and the lanes follow.
-- **The L**: 2,956 of 1,172,176 nodes, up to 9.2 m and 0.531 m RMS; 22 roads, 31 buildings and 86
+- **The L**: 2,956 of 1,172,176 nodes, up to 9.2 m and 0.531 m RMS; 22 roads, 28 buildings and 86
   water pieces change, 37 rail pieces change and 10 are cut anew (the rail's bridges of two pieces
   as one deck and its corners rounded); 2 platforms, 9 parked spots and 12 lamps move; and Aulla's 5
   landmark discs are listed, as the landmarks are not cut to the play area.
-- **The coast**: 2,071 of 1,502,501 nodes, up to 5.6 m and 1.406 m RMS; 31 roads, 2 buildings and
+- **The coast**: 2,074 of 1,502,501 nodes, up to 5.8 m and 1.406 m RMS; 34 roads, 2 buildings and
   6 water pieces change, and the walls with them.
 
 On Lunigiana, code and presence together:
@@ -5565,7 +5594,7 @@ On Lunigiana, code and presence together:
   (172808472's 30 vertices to 372); the Rosaro's, the Aulella's and the Bardine's catchments grow
   with the box ([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)).
 - **Roads and buildings across the old edges**: 204 roads change, those the old edges cut running
-  on whole (the SS63 23487818 from 7 vertices to 12) and others' z where the ground moved, and 247
+  on whole (the SS63 23487818 from 7 vertices to 12) and others' z where the ground moved, and 132
   buildings change their floor or height; 10 go. A drivable deck clips 11 footprints over its whole
   width ([section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)), and the parapets,
   cut to their decks' rise, go from 766 walls to 5,402, most of them on Aulla's decks.
@@ -5678,14 +5707,16 @@ longer lucido:
   under or over them, and a car on the road brakes for someone on the footbridge over it or in the
   underpass under it, can hit them, and they run from it; on the footbridges and the paths under
   them people step apart as if they met (`levels.map-test.ts` lists each crossing by its two ways'
-  OSM ids). The path pass now fits them over and under what they cross; `levels.map-test.ts` leaves
-  out a crossing on a path's or steps' bridge or tunnel that no fit of the pass could clear: from
-  each of its ends that meets a way at grade, at 30% (`RELAX` × `PATH_PASS.grade`), measured from
-  the crossing and from 3.49 m (`REACH` − `STEP`) back toward that end. Those are micro-mapped
-  crossings too short from their ends: Cesena's 683510421 over the Sottopasso Cervese (22776463),
-  which lay 0.72 m under it, and Lunigiana's 5 (717088457/717088463, 717897184 and 717897185 over
-  717897178, 1311831119/1311831121 and 1311831120/1311862950). Cesena's car park ramp
-  55016697/68296970 is the one crossing left known.
+  OSM ids). The path pass now fits them over and under what they cross, and Cesena's 683510421
+  stands 4.5 m over the Sottopasso Cervese (22776463), which lay 0.72 m under it;
+  `levels.map-test.ts` leaves out a crossing on a path's or steps' bridge or tunnel that no fit of
+  the pass could clear: from each of its ends that meets a way at grade, at 30% (`RELAX` ×
+  `PATH_PASS.grade`), measured from the crossing and from 3.49 m (`REACH` − `STEP`) back toward
+  that end. Only Lunigiana's 717088457/717088463, a 1.4 m footway tunnel 0.7 m from its dead end, is
+  left out so; the steps 717897184 and 717897185 clear the path 717897178 by 4.0 and 3.9 m.
+  `KNOWN` lists Cesena's car park ramp 55016697/68296970, Lunigiana's micro-mapped knots
+  1311831119/1311831121 (0.40 m) and 1311831120/1311862950 (0.30 m), whose approaches lead from the
+  bores' ends 0.7 and 1.5 m away, and the coast's 463589363/326011444.
 - **Pieve San Lorenzo's underpass meets the road out of one mouth a step over its floor.** The
   underpass under the station (756577583) lies level at 350.6 m to its mouth at (5040, 3634), where
   the road out of it, 1191727402, starts 0.9 m higher, as that mouth opens
@@ -6069,9 +6100,9 @@ longer lucido:
   its part (#21) brings the rest in with an `OFF_MAP` entry, as Aulla's part brings in its heads.
 - **Micro-mapped knots break the level rule.** Where OSM maps a path's bridge or tunnel too short to
   clear what it crosses from its ends at grade, the two ways stay within 2 m (`levels.map-test.ts`'s
-  `KNOWN`): Cesena's [683510421, 22776463] and Lunigiana's [1311831119, 1311831121] and
-  [1311831120, 1311862950]; and the steps' bridge 717897184/1065384887 at (−16438, 5072) is
-  `deckEndsShut`'s known one ([Checks and tools](#checks-and-tools)).
+  `KNOWN`): Lunigiana's [1311831119, 1311831121] and [1311831120, 1311862950]; and the steps'
+  bridge 717897184/1065384887 at (−16438, 5072) is `deckEndsShut`'s known one ([Checks and
+  tools](#checks-and-tools)).
 - **No licensed photo shows most of the coast.** Regione Liguria's AGEA orthophotos name no
   licence and Regione Toscana's flights reach only 300 m into Liguria at Marinella, so the sand's,
   the sea's and the foam's colours are measured at Marinella's east end and the Tuscan beach beside
