@@ -5,13 +5,15 @@
  * who drives it, its AI driver's state, the station it calls at next, and whether it is stolen) and
  * each level crossing (its phase, its arms, its road light and its bell), refreshed each frame while
  * the menu is open and never announced (no live region). Lines and their ends are named by their
- * stations and crossings by their roads, so any railway the map holds reads the same way.
+ * first and last stations, or by the compass points their ends lie toward where those are one
+ * (the Pontremolese's two, calling at Aulla Lunigiana alone), and crossings by their roads, so any
+ * railway the map holds reads the same way.
  *
  * @module hud/debug-trains
  */
 import type { TrainRunValue, TrainViewModel } from "../sim/index.ts"
 import { MAP } from "../sim/map/index.ts"
-import { LINES } from "../sim/rail/lines.ts"
+import { type Line, LINES, pointAt } from "../sim/rail/lines.ts"
 import type { Area, Make } from "./debug.ts"
 import { kmh } from "./hud.ts"
 import { set } from "./title.ts"
@@ -20,21 +22,52 @@ import type { TrainStore } from "./trains.ts"
 type TrainShown = TrainViewModel["trains"][number]
 type CrossingShown = TrainViewModel["crossings"][number]
 
-/** The names of line `line`'s stations, in the order it calls at them going up its s. */
-const stationsOf = (line: number): ReadonlyArray<string> =>
-  (LINES[line]?.stations ?? []).map((station) => MAP.railway.stations[station]?.name ?? "")
+/** The names of `line`'s stations, in the order it calls at them going up its s. */
+const stationsOf = (line: Line): ReadonlyArray<string> =>
+  line.stations.map((station) => MAP.railway.stations[station]?.name ?? "")
 
-/** Line `line` named by its first and last stations: "Equi Terme – Gragnola", one name with one station, "" with none. */
-export const lineName = (line: number): string => {
-  const names = stationsOf(line)
-  return names.length < 2 ? (names[0] ?? "") : `${names[0]} – ${names.at(-1)}`
+/** The compass point nearest the way (dx, dy) points, +y north. */
+const compass = (dx: number, dy: number) =>
+  Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "east" : "west") : dy > 0 ? "north" : "south"
+
+const OPPOSITE = { north: "south", south: "north", east: "west", west: "east" } as const
+
+/**
+ * The names of `line`'s start and end, and whether they are its stations: its first and last, where they differ ("Equi Terme",
+ * "Gragnola"); else the compass points each end lies toward from the other ("north", "south"), which always differ.
+ */
+export const endsOf = (
+  line: Line,
+): { readonly ends: readonly [string, string]; readonly stations: boolean } => {
+  const names = stationsOf(line),
+    first = names[0],
+    last = names.at(-1)
+  if (first !== undefined && last !== undefined && first !== last)
+    return { ends: [first, last], stations: true }
+  const a = pointAt(line, 0),
+    b = pointAt(line, line.length),
+    toward = compass(b.x - a.x, b.y - a.y)
+  return { ends: [OPPOSITE[toward], toward], stations: false }
 }
 
-/** An end of line `line` (0 its start, 1 its end) named by the station nearest it: "the Gragnola end", or "its start" with no station. */
+/**
+ * Line `line` named by its ends (`endsOf`): "Equi Terme – Gragnola", or, named by compass points, its one station before them,
+ * "Aulla Lunigiana, north – south"; "" for a line the map does not hold.
+ */
+export const lineName = (line: number): string => {
+  const shown = LINES[line]
+  if (shown === undefined) return ""
+  const { ends, stations } = endsOf(shown),
+    [only] = stationsOf(shown)
+  const run = `${ends[0]} – ${ends[1]}`
+  return stations || only === undefined ? run : `${only}, ${run}`
+}
+
+/** An end of line `line` (0 its start, 1 its end) named as `endsOf` names it: "the Gragnola end", "the north end"; "its start" for a line the map does not hold. */
 export const endName = (line: number, end: 0 | 1): string => {
-  const names = stationsOf(line),
-    name = end === 0 ? names[0] : names.at(-1)
-  return name === undefined ? (end === 0 ? "its start" : "its end") : `the ${name} end`
+  const shown = LINES[line]
+  if (shown === undefined) return end === 0 ? "its start" : "its end"
+  return `the ${endsOf(shown).ends[end]} end`
 }
 
 /** A wait of `seconds` real seconds, rounded up: "45 s", "2 min 5 s", "3 min". */

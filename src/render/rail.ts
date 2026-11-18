@@ -16,6 +16,7 @@
  */
 import { DECK_BALLAST, MAP, RAIL_LIFT } from "../sim/map/index.ts"
 import { CROSSINGS } from "../sim/rail/crossings.ts"
+import { bufferPieces } from "./buffers.ts"
 import { BARRIER, ROAD_LIGHT } from "./crossings.ts"
 import { drawnTrack } from "./drawn-runs.ts"
 import { type Box, emptySink, type Piece, type Sink, type Triangles } from "./geometry.ts"
@@ -400,10 +401,11 @@ const crossings = (roads: RoadsNear): Array<Piece> =>
 
 /**
  * Every static railway piece of the map: the track, the crossings' fixed parts (laid over the road ribbons `roads` gives
- * round each) and the tunnel portals. Making them reads no map tile.
+ * round each), the tunnel portals and the buffer stops at the termini (render/buffers). Making them reads no map tile.
  */
 export const railPieces = (roads: RoadsNear): Array<Piece> => [
   ...track(),
   ...crossings(roads),
   ...portalPieces(),
+  ...bufferPieces(),
 ]

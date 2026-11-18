@@ -95,4 +95,48 @@ export const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
   [-4475, -5620, 55], // Castelpoggio, the borgo's west terraces above Via Trento
   [-4410, -5615, 55], // Castelpoggio, the borgo round Piazza Santa Maria
   [-4350, -5670, 40], // Castelpoggio, the spur's tip round the church
+  // Aulla's part (#19), traced as Fivizzano's: an outline on rt_ofc.2k10 crops (checked on
+  // rt_ofc.5k23.32bit, CC BY 4.0) with the built buildings over them, each disc the smallest, to
+  // 5 m, holding the outline's buildings. Aulla's regular radial blocks between Via Don Minzoni and
+  // Via Pisacane, the courtyard school by San Caprasio and the buildings that replaced older ones by
+  // 2023 (on Via Nazionale at Piazza della Repubblica) are plaster. San Caprasio is a church
+  // already. Its two houses on Via Mastro Andrea share a 6 m terrace block with the school and four
+  // more buildings, which outvote them, so no disc goes there.
+  [-12810, 5155, 40], // Aulla, the borgo inside Via Nazionale's bend, either side of Via Nicolò Riccardi
+  [-12875, 5165, 35], // Aulla, the blocks on Via Apua between Piazza Mazzini and Via Venti Settembre
+  [-12870, 5050, 25], // Aulla, the houses on Via del Fiore and Via Pisacane above the Aulella
+  [-14125, 5055, 20], // Podenzana, the Castello Malaspina at the end of via Castello di Podenzana
+  [-14085, 5050, 25], // Podenzana, the houses at the castle's gate
+  [-14990, 5105, 35], // Podenzana, the old hamlet on Via del Gaggio
+  [-14965, 5065, 25], // Podenzana, the Via del Gaggio hamlet's houses below the road
+  [-17175, 10370, 30], // Tresana, the Castello Malaspina's ruins and the houses at their foot
+  [-17135, 10310, 30], // Tresana, the borgo down the spur round its church
+  [-18615, 10160, 20], // Villa di Tresana, the Castello di Villa
+  [-18590, 10105, 40], // Villa di Tresana, the borgo round its church
+  [-18555, 10065, 15], // Villa di Tresana, the borgo's south-east houses above the road's bend
+  [-14585, 11570, 25], // Lusuolo, the castle at the street's north end
+  [-14605, 11500, 25], // Lusuolo, the borgo's north end round the church
+  [-14620, 11455, 30], // Lusuolo, the borgo along Via Lusuolo
+  [-14635, 11410, 25], // Lusuolo, the borgo's south end over the Canale di Favalecchio
+  [-13305, 7605, 25], // Terrarossa, San Giovanni Battista and the row west of it
+  [-13255, 7605, 30], // Terrarossa, the blocks north of Via Nazionale east of the church
+  [-13290, 7570, 20], // Terrarossa, the terrace south of Via Nazionale, west half
+  [-13240, 7570, 20], // Terrarossa, the terrace south of Via Nazionale, east half
+  [-13170, 7570, 25], // Terrarossa, the Castello Malaspina east of the SS62
+  [-13185, 7615, 35], // Terrarossa, the borgo north of the castle on the SS62's east side
+  [-13130, 7610, 25], // Terrarossa, the borgo's eastern houses
+  [-7420, 11445, 35], // Licciana Nardi, the borgo's west end above Piazza Anacarsi Nardi
+  [-7370, 11455, 35], // Licciana Nardi, the borgo along Via Montebello
+  [-7320, 11470, 30], // Licciana Nardi, the borgo's east blocks below the castle
+  [-7300, 11505, 20], // Licciana Nardi, the Castello Malaspina
+  [-7280, 11465, 25], // Licciana Nardi, the borgo round San Giacomo's dome
+  [-7385, 11410, 25], // Licciana Nardi, the borgo's south terraces
+  [-7340, 11495, 20], // Licciana Nardi, the houses on the walls along the Strada Statale Massese
+  [-10070, 9910, 25], // Monti, the Castello Malaspina and its round towers
+  [-10105, 9885, 20], // Monti, the borgo below the castle's gate
+  [-10120, 9855, 25], // Monti, the borgo down Via Ca' Mornello
+  [-10150, 9840, 15], // Monti, the borgo's lower end by the Oratorio di San Rocco
+  [-6585, 11430, 40], // Bastia, the borgo west of the castle
+  [-6530, 11410, 35], // Bastia, the castle and the borgo south of it
+  [-6490, 11425, 10], // Bastia, the houses east of the castle
 ]

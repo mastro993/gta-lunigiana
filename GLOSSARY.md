@@ -99,6 +99,18 @@ How far a road's surface stands over its profile, by road class.
 How far either side of a deck or a tunnel's line someone on foot is still on its level.
 _Avoid_: Sidewalk, kerb
 
+**Approach**:
+The way at grade that leads onto a deck or into a tunnel and meets it at its level: a road's, and since issue #19 a path's or steps', which closes its offset from the terrain at its class's grade from the deck's level until it meets the ground.
+_Avoid_: Ramp (a motorway or trunk link), access, lead-in
+
+**Twin carriageways**:
+Two carriageways of one road, each its own oneway way, that overlap in plan: they keep within 1.5 m of each other's level where they overlap (`TWINS`).
+_Avoid_: Dual road, double road, parallel roads
+
+**Twin track**:
+A track running beside another of its kind (both on bridges, both in tunnels or both at grade) within 6 m and 15° of parallel: the one fitted later keeps to the other's level.
+_Avoid_: Double track, parallel line
+
 **Ground model**:
 The one set of rules that turns ground data into the ground at a point, for the game, the map build and the tests alike.
 
@@ -142,7 +154,7 @@ A road vehicle's level as read toward a point: along its pitch out to its bumper
 ## Tunnels
 
 **Mouth**:
-An end of a tunnel's line that no other line in a tunnel goes on from: where a road or the railway enters the hill.
+An end of a tunnel's line that no other line in a tunnel goes on from or runs through: where a road or the railway enters the hill.
 _Avoid_: Portal (that is what stands there), entrance, tunnel end
 
 **Portal**:
@@ -234,3 +246,17 @@ _Avoid_: Backwater, tide
 **Sea share**:
 How much of the sea's look a water vertex takes (`sea`, `seaShare`): the sea's whole; a river held by the sea by how far the sea holds its own waterway's bed, none to 0.5 m and whole from 1.2 m; a lake or an inland river none.
 _Avoid_: Salinity, estuary blend, sea flag
+
+## Railway
+
+**Terminal**:
+An end of a railway line (`LINES`) on the play area's outline, where the track runs on beyond it: trains enter and leave the map there, along its run-out.
+_Avoid_: Terminus (a terminal inside the map), end station
+
+**Terminus**:
+An end of a railway line inside the map, at a stop where OSM's train routes start or end and none stops on its way: the line's trains dwell there and turn round, their driver changing ends.
+_Avoid_: Terminal (on the outline), dead end, head station
+
+**Buffer stop**:
+The beam and red board across the track at a terminus, where a driven train stops dead; the drawn run's end past a terminal holds an unseen one.
+_Avoid_: Bumper, end block

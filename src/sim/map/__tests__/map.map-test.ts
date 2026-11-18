@@ -180,6 +180,101 @@ const VILLAGES = {
   Vallecchia: { x: -7893.4, y: -5782.9 }, // 1411140583, Castelnuovo Magra (SP)
   Vercalda: { x: -9593.6, y: -3728.2 }, // 1411140955
   "Villaggio Bertani": { x: -10530.7, y: -5256.7 }, // 1411140648
+  // Aulla's part (#19), each toLocal of its OSM place node to 0.1 m: the issue's eleven, then
+  // every other village and hamlet in its play area that the traffic graph reaches.
+  Aulla: { x: -12975.1, y: 5866.7 }, // 61753613, place=town
+  Podenzana: { x: -15038.9, y: 4944.4 }, // 61753583
+  Terrarossa: { x: -13547.9, y: 7790.8 }, // 1445480229
+  Barbarasco: { x: -14643.6, y: 8930.7 }, // 997723706
+  Tresana: { x: -17366.6, y: 10277.9 }, // 61753580
+  Lusuolo: { x: -14596.8, y: 11523 }, // 1003622010, Mulazzo
+  "Licciana Nardi": { x: -7345.1, y: 11457.9 }, // 61753612
+  Monti: { x: -10064.8, y: 9511.3 }, // 1003630416; the issue's (-10065, 9905), 393.7 m north, is its castle
+  Pontebosio: { x: -8633, y: 9794.5 }, // 1003630492, 56.8 m from the issue's (-8605, 9844)
+  Bastia: { x: -6524, y: 11411.3 }, // 1003630470, 21.7 m from the issue's (-6523, 11433)
+  Serricciolo: { x: -7985.2, y: 4661.6 }, // 1267020533
+  Amola: { x: -10679.7, y: 10645.5 }, // 996977166
+  Bagni: { x: -13440.6, y: 4846 }, // 1267021666
+  "Baltrina II": { x: -15398.6, y: 8489.9 }, // 1445480415
+  Barisello: { x: -8753, y: 5327.6 }, // 1267019770
+  Bigliolo: { x: -6391, y: 7871.3 }, // 1467639422
+  Bocceda: { x: -18515.1, y: 6362.2 }, // 1445480930
+  Bola: { x: -18690.7, y: 8182.9 }, // 1445480034
+  Bondola: { x: -7300.9, y: 8973.3 }, // 1467639423
+  Bottria: { x: -16633.3, y: 9386.7 }, // 1003630397
+  Cadodolo: { x: -6323.5, y: 7393.3 }, // 1467639424
+  Calcinara: { x: -13478.4, y: 5282.5 }, // 1267019804
+  "Campo di Sopra": { x: -16866.4, y: 6646.7 }, // 1445480862
+  Campogrande: { x: -6156.6, y: 12649 }, // 10710037009
+  Campoli: { x: -15748.9, y: 12578 }, // 1003621998, Mulazzo
+  Camporella: { x: -20035.5, y: 9943.1 }, // 1497141699
+  Canala: { x: -15250.4, y: 7513.5 }, // 1445480319
+  Careggia: { x: -17527.1, y: 9586.7 }, // 1003630444
+  "Castello di Villa": { x: -18576.1, y: 10091.4 }, // 1497141703
+  Catizzola: { x: -15401.1, y: 11480.5 }, // 1003621970
+  Cercò: { x: -16159.9, y: 7013.9 }, // 1445480306
+  Ceresedo: { x: -15071.8, y: 5197.1 }, // 1267020301
+  Cerghiraro: { x: -16014.9, y: 5400.2 }, // 1267021028
+  Collecchia: { x: -6713.8, y: 5414.5 }, // 1267020120, Fivizzano's; Monzone's hand-placed Collecchia (districts.ts) shares the name
+  Corneda: { x: -16012.6, y: 9414.2 }, // 1003630367, Tresana's; Villafranca's Corneda (7856861160) shares the name
+  Cortenovo: { x: -11314.8, y: 11312.6 }, // 1003630399, Villafranca in Lunigiana
+  "Croce-Pianello": { x: -20230.1, y: 5361 }, // 1445480660
+  "Cuccarello I": { x: -6879.2, y: 10120.9 }, // 1003630377
+  "Cuccarello II": { x: -6376.9, y: 10000.4 }, // 1003630393
+  Fertigliana: { x: -5831.7, y: 9382.7 }, // 1005310962
+  Fogana: { x: -20507.9, y: 4976.3 }, // 1445480780
+  Fornoli: { x: -12918.9, y: 10330.5 }, // 1003630409, Villafranca in Lunigiana
+  Gabanasco: { x: -8245.3, y: 10256.4 }, // 10650288272
+  Genicciola: { x: -20298.4, y: 6248.7 }, // 1445480894
+  Giovagallo: { x: -19670.5, y: 8177 }, // 1445480407
+  Groppo: { x: -17877.9, y: 8550.2 }, // 1445480636
+  "I Saldi": { x: -10932.4, y: 11089.9 }, // 1003630487, Villafranca in Lunigiana
+  "La Costa": { x: -15809.1, y: 4775.1 }, // 1267020282
+  "La Piastra": { x: -13541.4, y: 9334.3 }, // 1003630381, Villafranca in Lunigiana
+  Loppiedo: { x: -16519.1, y: 5069.1 }, // 1267019445
+  Lorenzana: { x: -16606.9, y: 11537.2 }, // 1003622009
+  Magliola: { x: -8013.6, y: 10607.7 }, // 10650288210
+  Malacosta: { x: -10594.7, y: 6943.3 }, // 1467639436
+  Masero: { x: -12849.9, y: 7225.1 }, // 1445480925
+  Meredo: { x: -17578, y: 6181 }, // 1445480921
+  Merizzo: { x: -11130.6, y: 12407.8 }, // 996611375, Villafranca in Lunigiana
+  Metti: { x: -16099.2, y: 5084 }, // 1267019905
+  Montale: { x: -14870.1, y: 4944 }, // 1267019719
+  "Montedivalli-Chiesa": { x: -20713.4, y: 4477.3 }, // 1445480844
+  Montevalese: { x: -7454.8, y: 4680.6 }, // 1267021125, Fivizzano
+  "Monti di Licciana": { x: -9326.9, y: 9896.1 }, // 996979783
+  Nave: { x: -14458, y: 7930.4 }, // 1445480288
+  Novegigola: { x: -18185.7, y: 6736.9 }, // 1445480512
+  Olivola: { x: -7977.6, y: 7185.8 }, // 1467639438
+  Ortigaro: { x: -20402.1, y: 9665.4 }, // 1497141706
+  Pallerone: { x: -10149.7, y: 4806.2 }, // 1267019546
+  Panicale: { x: -8078.8, y: 11782.5 }, // 996972383
+  Paretola: { x: -5415.4, y: 11109 }, // 1005310963
+  Pera: { x: -20340.9, y: 10081.9 }, // 1497141707
+  Piano: { x: -7495, y: 11201.9 }, // 10661199892
+  "Piano di Collecchia": { x: -7116.3, y: 5876.3 }, // 1267020199, Fivizzano
+  Pietrasalta: { x: -19941.9, y: 8154 }, // 1445479942
+  Ponte: { x: -14260.7, y: 8222.2 }, // 1445480161
+  Popetto: { x: -17518.4, y: 11930.5 }, // 1003621982
+  Prato: { x: -19819.8, y: 4976.4 }, // 1445480903
+  Quercia: { x: -9861.3, y: 7765 }, // 1467639443
+  "Rometta Apuana": { x: -6515.2, y: 4323.2 }, // 5018892695, Fivizzano
+  Saldina: { x: -7432.2, y: 6487.5 }, // 1267020726
+  Saletto: { x: -13767.6, y: 5130.8 }, // 1267021574
+  Sanacco: { x: -10190.6, y: 7500.6 }, // 1467639444
+  Serrapiana: { x: -18137.5, y: 9481.4 }, // 1003630392
+  "Stazione di Rometta": { x: -5625.7, y: 4476.1 }, // 1267020838, Fivizzano
+  Tassonarla: { x: -15318.1, y: 8034.7 }, // 1445480687
+  Tavella: { x: -19574.1, y: 7594.3 }, // 1445480795
+  Trinala: { x: -8294.4, y: 10597.4 }, // 1003630407
+  Vaccareccia: { x: -8973.7, y: 8609.6 }, // 1467639448
+  Vaggi: { x: -20724.4, y: 5012.6 }, // 1445480749
+  Valenza: { x: -8947.2, y: 7046.6 }, // 1467639449
+  Valle: { x: -19629.2, y: 10897.6 }, // 10289140813
+  Verpiana: { x: -8450.3, y: 5432.9 }, // 1267019981
+  "Villa Rosticciola": { x: -19020.1, y: 10396.8 }, // 10289122205
+  Villanova: { x: -6569.4, y: 6722.5 }, // 1467639452
+  Villecchia: { x: -19817.1, y: 11258.3 }, // 1003621973
 }
 
 test("bounds and heightmap cover the play area", () => {
@@ -192,9 +287,9 @@ test("bounds and heightmap cover the play area", () => {
   assert.equal(data.length, hm.cols * hm.rows)
   assert.ok(hm.x0 <= MAP.bounds.minX && hm.x0 + (hm.cols - 1) * hm.cell >= MAP.bounds.maxX)
   assert.ok(hm.y0 <= MAP.bounds.minY && hm.y0 + (hm.rows - 1) * hm.cell >= MAP.bounds.maxY)
-  // The listed tiles' nodes, from the Magra plain by Sarzana at the map's south-west corner (18.1 m)
-  // to the Emilian ridge by Cima Belfiore (1856 m); the notches', which no tile holds, are 0 in the
-  // joined map.
+  // The listed tiles' nodes, from the Magra plain by Sarzana, west of Fosdinovo's edge (12.9 m at
+  // (−11968, −6040)), to the Emilian ridge by Cima Belfiore (1856 m); the notches', which no tile
+  // holds, are 0 in the joined map.
   const listed = listedNodes(hm, MAP.tiles)
   for (let k = 0; k < data.length; k++) {
     const v = data[k]!
@@ -236,9 +331,17 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
   const parkedIn = new Set(MAP.spawns.parked.map((s) => districtAt(s.x, s.y)))
   for (const [name, p] of Object.entries(VILLAGES))
     assert.ok(parkedIn.has(districtAt(p.x, p.y)), `no parking in ${name}`)
+  // A spot stands on the ground: a deck's parapets over it count only within ONE_LEVEL of it, as the
+  // build's clearance (spawns.ts) and the game's bodies meet them. Aulla's spot by Via Chiosi
+  // (−13593.1, 4595.9) lies under the A15's twin viaducts 136414829 and 311245878, between their
+  // parapets at 98.2 and 99.6 m, over its ground at 86.8 m.
   for (const s of spots) {
+    const ground = () => heightAt(s.x, s.y)
     assert.ok(inPlay(s.x, s.y), JSON.stringify(s))
-    assert.ok(clear("walk", s.x, s.y, 1.2) && clear("drive", s.x, s.y, 1.2), JSON.stringify(s))
+    assert.ok(
+      clear("walk", s.x, s.y, 1.2, ground) && clear("drive", s.x, s.y, 1.2, ground),
+      JSON.stringify(s),
+    )
   }
   const police = MAP.spawns.police!
   assert.ok(
@@ -261,6 +364,10 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
     }
   })
   const lanesNear = bucketed(lanes, (l) => [l.ax, l.ay, l.bx, l.by], 10)
+  // The build keeps a car's corners off every road's carriageway on its unrounded geometry; the
+  // spot (x and y to 0.1 m, its angle to 0.001) and the graph's nodes are each written rounded,
+  // which moves a corner toward a road by up to 2 · 0.0707 + 0.001 m, so it may read up to 0.15 m
+  // in. Aulla's part first showed it: two of its spots read 0.06 m in.
   for (const p of MAP.spawns.parked) {
     const c = Ops.cos(p.angle),
       s = Ops.sin(p.angle)
@@ -275,12 +382,26 @@ test("player spawn and parked cars are inside the play area, clear of walls and 
         y = p.y + s * u + c * v
       for (const l of lanesNear(x, y))
         assert.ok(
-          segmentDistance(l, x, y) >= l.half - 0.05,
+          segmentDistance(l, x, y) >= l.half - 0.15,
           `parked ${JSON.stringify(p)} on a lane`,
         )
     }
   }
 })
+
+/**
+ * Road `i`'s surface (`roadLevel`) where wall `s` stands nearest (x, y), else at (x, y): a car
+ * touching the wall stands within half its width of it, while the sample is up to w/2 off it, and a
+ * road climbing beside a deck or off its end stands there up to w/2 times its grade off its level at
+ * the sample (the A15's 85958274 by the walls under its bridge 85958239's north end at (−14766,
+ * 9460): 91.60 m at the sample, 91.83 m at the wall, which stands at 89.6 m).
+ */
+const levelAt = (i: number, s: Segment, x: number, y: number) => {
+  const ex = s.bx - s.ax,
+    ey = s.by - s.ay,
+    t = Math.max(0, Math.min(1, ((x - s.ax) * ex + (y - s.ay) * ey) / (ex * ex + ey * ey || 1)))
+  return roadLevel(i, s.ax + ex * t, s.ay + ey * t) ?? roadLevel(i, x, y)
+}
 
 test("walls: none on a road; only buildings and barriers come inside w/2", () => {
   assert.ok(WHOLE.walls.walk.length > 0 && WHOLE.walls.drive.length > 0)
@@ -308,7 +429,7 @@ test("walls: none on a road; only buildings and barriers come inside w/2", () =>
       for (const kind of isDrivable(r.cls) ? (["walk", "drive"] as const) : (["walk"] as const))
         for (const s of wallsNear(kind, x - h, y - h, x + h, y + h)) {
           if (segmentDistance(s, x, y) >= h) continue
-          const on = s.level === undefined ? undefined : z()
+          const on = s.level === undefined ? undefined : levelAt(i, s, x, y)
           if (on === undefined || meets(s, on))
             assert.ok(fixed(s), `terrain/trunk ${kind} wall inside w/2 of ${where}`)
         }
@@ -760,10 +881,37 @@ test("road names, classes, styles, area kinds and districts", () => {
     "Cima Belfiore",
     "Monte Tondo",
     "La Pizza",
+    "Monte Borra Grande",
   ]) {
     const peak = MAP.pois.find((p) => p.kind === "natural=peak" && p.name === name)!
     assert.equal(districtAt(peak.x, peak.y).name, name)
   }
+  // Issue #19: the castles name their own districts, found by their OSM elements' names, and
+  // Passo Alpicella, past the play area in Liguria, the play area's edge east of its col.
+  for (const name of ["Castello di Giovagallo", "Castello di Bigliolo"])
+    for (const p of MAP.pois.filter((q) => q.name === name))
+      assert.equal(districtAt(p.x, p.y).name, name, `${p.kind} ${name}`)
+  const alpicella = MAP.districts.find((d) => d.name === "Passo Alpicella")!
+  let edge = alpicella.x
+  while (!inPlay(edge, alpicella.y)) edge += 1
+  assert.ok(edge - alpicella.x > alpicella.r, "the col's disc lies past the play area")
+  assert.equal(districtAt(edge, alpicella.y).name, "Passo Alpicella")
+  // Regression (issue #19): Aulla's disc, capped at 400 m round its node, left most of the town to
+  // the nearest rim, so the Fortezza della Brunella's named 498 buildings past its own disc, out to
+  // 1.9 km from Aulla's node. A town's disc reaches as far as its buildings: the fortress names its
+  // hill alone, its own walls among it, and every building it names stands in its disc.
+  const brunella = MAP.districts.find((d) => d.name === "Fortezza della Brunella")!
+  const walls = centres.filter((_, k) => WHOLE.buildings[k]!.name === "Fortezza della Brunella")
+  assert.ok(walls.length > 0)
+  for (const c of walls)
+    assert.equal(districtAt(c.x, c.y), brunella, `the fortress at (${c.x}, ${c.y})`)
+  const fortressNames = centres.filter((c) => districtAt(c.x, c.y) === brunella)
+  assert.ok(fortressNames.length > 0)
+  for (const c of fortressNames)
+    assert.ok(
+      hypot(c.x - brunella.x, c.y - brunella.y) <= brunella.r,
+      `(${c.x}, ${c.y}) named the fortress by its rim`,
+    )
   // Issues #17 and #18: the passes name their own districts, Carpinelli's inside Casone Carpinelli's
   // disc.
   for (const name of [
@@ -836,113 +984,6 @@ test("Fivizzano's walled centre is stone: every building in its cores but the ch
     assert.equal(b.style, b.kind === "church" ? "church" : "stone", `${b.kind} ${b.id}`)
   }
   assert.ok(inside > 150, `${inside} buildings in Fivizzano's cores`)
-})
-
-test("water: the Lucido is 8 m on the valley floor and 4 m above Vinca", () => {
-  const w = (id: number) => WHOLE.water.find((o) => o.id === id)?.w
-  assert.deepEqual([w(254825035), w(140780317), w(696231807), w(687230881)], [8, 4, 8, 14])
-})
-
-// Issue #17: the Aulella's valley row keeps lucido's ways; its gorge above the Tassonaro's mouth, the
-// Rosaro above Fivizzano and the Mommio below 775 m are wooded torrents; the Rosaro's river part has
-// its own bed; their heads are named streams. Issue #18: below the Lombardello's mouth the Bardine
-// runs in its valley bed; from the Bardinello's mouth, and the Bardinello below the Pesciola's, they
-// run in the Rosaro's bed; up to the Caldia's mouth the Bardinello is a wooded torrent, and so is the
-// Pesciola, all its course. Each pair is the two ways either side of a threshold of features.ts,
-// with its mean ground.
-test("water: the Aulella, Rosaro, Mommio, Bardine, Bardinello and Pesciola take their measured widths by reach", () => {
-  const w = (id: number) => WHOLE.water.find((o) => o.id === id)?.w
-  // Aulella: lucido's 788520105 (205 m), the gorge's 788514364 (294 m), the head's 788514391 (363 m).
-  assert.deepEqual([w(788520105), w(788514364), w(788514391)], [12, 6, 4])
-  // Rosaro: its river part 687230888, a stream above Fivizzano 790403608.
-  assert.deepEqual([w(687230888), w(790403608)], [7, 6])
-  // Mommio: 788514606 (303 m) and 788514696 (766 m) wooded, 788514702 (782 m) a named stream.
-  assert.deepEqual([w(788514606), w(788514696), w(788514702)], [6, 6, 4])
-  // Bardine: 790365291 (88 m) above the Lombardello's mouth, 790365292 (82 m) below it.
-  assert.deepEqual([w(790365291), w(790365292)], [7, 12])
-  // Bardine: 797861302 (141 m) below the Bardinello's mouth, its head 797861301 (150 m).
-  assert.deepEqual([w(797861302), w(797861301)], [7, 4])
-  // Bardinello: 797861257 (150 m) below the Pesciola's mouth, 797861254 (157 m) above it.
-  assert.deepEqual([w(797861257), w(797861254)], [7, 6])
-  // Bardinello: 797860930 (266 m) below the Caldia's mouth, 797860907 (269 m) above it.
-  assert.deepEqual([w(797860930), w(797860907)], [6, 4])
-  // Regression: the Pesciola, the larger branch where it joins the Bardinello (18 km² to its 15),
-  // was a named stream's 4 m: its head 797860953 (234 m, 8.9 km²) and its last way 797861233 (158 m).
-  assert.deepEqual([w(797860953), w(797861233)], [6, 6])
-})
-
-test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, the Aulella leaves the play area with 199 and the Bardine with 59", () => {
-  for (const w of WHOLE.water)
-    w.area.forEach((a, k) =>
-      assert.ok(k === 0 || a >= w.area[k - 1]!, `water ${w.id} shrinks at ${k}`),
-    )
-  // Regression: a tributary's mouth read the receiving river's node, so a trickle's last vertex took the river's 45 km².
-  for (const w of WHOLE.water) {
-    const [before, mouth] = w.area.slice(-2)
-    if (before !== undefined)
-      assert.ok(
-        mouth! <= 1.5 * before + 1,
-        `water ${w.id}: ${before} km² jumps to ${mouth} at its mouth`,
-      )
-  }
-  const lucido = WHOLE.water.filter((w) => w.name === "Torrente Lucido" && w.kind === "river")
-  const mouth = Math.max(...lucido.map((w) => w.area.at(-1)!))
-  assert.ok(Math.abs(mouth - 47) < 2, `the Lucido drains ${mouth} km²`)
-  // Regression: the Rosaro's heads beyond y 13000 were sized as the Soliera gauge's 208 km² less
-  // what the map's D8 gathers, 26.2 km², near twice the 14.7 a D8 on the MS 10 m DTM gives them.
-  const head = Math.max(
-    ...WHOLE.water
-      .filter((w) => w.name === "Torrente Rosaro")
-      .flatMap((w) => w.area.filter((_, k) => w.pts[2 * k + 1]! > 12900)),
-  )
-  assert.ok(Math.abs(head - 14.7) < 0.5, `the Rosaro brings ${head} km² in`)
-  // ARPAL gives the gauge 208 km²; the DTMs' own basins are smaller (the MS 10 m DTM's 200.7 at
-  // Soliera), and the map's ground and the Rosaro's heads give 196.8 there.
-  const aulella = Math.max(
-    ...WHOLE.water.filter((w) => w.name === "Torrente Aulella").map((w) => w.area.at(-1)!),
-  )
-  assert.ok(Math.abs(aulella - 199) < 3, `the Aulella leaves with ${aulella} km²`)
-  // Regression: fosdinovo's north edge cut the Bardine 100 m short of the notch, and its basin
-  // drained out up the Canale del Torchio to the box's west edge: the Bardine left with 117.3 km²,
-  // its own 58.1 twice and the Torchio's 0.8 (issue #18).
-  const bardine = Math.max(
-    ...WHOLE.water.filter((w) => w.name === "Torrente Bardine").map((w) => w.area.at(-1)!),
-  )
-  assert.ok(Math.abs(bardine - 59) < 2, `the Bardine leaves with ${bardine} km²`)
-  // Regression: fivizzano's west edge cut the Aulella 700 m short of the notch, the fill made its
-  // trench a lake for 10 km, and D8 ran the river across it down a 2 m side stream by Soliera (way
-  // 140780331, 108.5 km²) and, by Gragnola, Il Canalaccio (55.4); the Torchio drained the Bardine's
-  // 59.2 out to the box's west edge.
-  const most = (keep: (w: (typeof WHOLE.water)[number]) => boolean) =>
-    Math.max(...WHOLE.water.filter(keep).flatMap((w) => w.area))
-  assert.ok(most((w) => w.id === 140780331) < 1, "the side stream by Soliera")
-  assert.ok(most((w) => w.name === "Il Canalaccio") < 6, "Il Canalaccio")
-  assert.ok(most((w) => w.name === "Canale del Torchio") < 2, "the Canale del Torchio")
-})
-
-test("walls: water stops neither feet nor wheels; the shore walls ring it, and people and animals keep to them", () => {
-  // The middle of every wide river's reach away from the roads and the map's edge: no walk or drive wall within 2 m, a shore wall
-  // within its bed.
-  const { minX, minY, maxX, maxY } = MAP.bounds
-  let checked = 0
-  for (const w of WHOLE.water.filter((o) => o.w >= 12))
-    for (let k = 0; k < w.pts.length / 2; k += 5) {
-      const x = w.pts[2 * k]!,
-        y = w.pts[2 * k + 1]!
-      if (
-        Math.min(x - minX, maxX - x, y - minY, maxY - y) < 30 ||
-        WHOLE.roads.some((r) =>
-          r.pts.some((v, i) => i % 2 === 0 && Ops.hypot(v - x, r.pts[i + 1]! - y) < 30),
-        )
-      )
-        continue
-      checked++
-      const near = (kind: "walk" | "land" | "drive", r: number) =>
-        wallsNear(kind, x - r, y - r, x + r, y + r).some((s) => segmentDistance(s, x, y) < r)
-      assert.ok(!near("walk", 2) && !near("drive", 2), `a wall in the water at ${x}, ${y}`)
-      assert.ok(near("land", w.bed + 5), `no shore wall by the water at ${x}, ${y}`)
-    }
-  assert.ok(checked > 20, `${checked} river points checked`)
 })
 
 // Regression: OSM centrelines ran up to 3.5 m inside CTR houses; the walls opened a corridor the house drawn did not show.

@@ -206,8 +206,8 @@ interface Match {
 }
 
 /**
- * The cheapest sequence of matches for `samples` over `tracks` (Viterbi), with `allowed(track)`
- * saying which tracks may match at all. The state is the track matched, or no match plus the
+ * The cheapest sequence of matches for `samples` over `tracks` (Viterbi), with `allowed(track,
+ * sample, foot)` saying which tracks may match at all, or at that sample. The state is the track matched, or no match plus the
  * last track matched before it, so a gap does not dodge the change cost. Ties go to the lower
  * track index (the tracks come in sheet, record and part order) and to staying on a track. Only
  * reachable states are kept and only tracks whose box is within reach are measured, so the cost
@@ -216,7 +216,7 @@ interface Match {
 export const matchSamples = (
   samples: ReadonlyArray<Sample>,
   tracks: ReadonlyArray<Line>,
-  allowed: (track: number) => boolean = () => true,
+  allowed: (track: number, sample: Sample, foot: Foot) => boolean = () => true,
   rules = MATCH,
 ): Array<Match> => {
   const n = tracks.length,
@@ -239,12 +239,13 @@ export const matchSamples = (
     if (p.free) return out
     tracks.forEach((line, k) => {
       const [x0, y0, x1, y1] = boxes[k]!
-      if (!allowed(k) || p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1) return
+      if (p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1) return
       const f = footOn(line, p.x, p.y)
       if (
         f.d <= rules.reach &&
         f.over <= rules.past &&
-        Math.abs(f.tx * p.tx + f.ty * p.ty) >= cosMax
+        Math.abs(f.tx * p.tx + f.ty * p.ty) >= cosMax &&
+        allowed(k, p, f)
       )
         out.set(k, f)
     })

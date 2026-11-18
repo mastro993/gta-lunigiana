@@ -254,7 +254,7 @@ export interface Pin {
 
 const FADE = 30 // m over which a pin pulls the profile before the grade fit
 const CAP = 4 // m a fitted profile may stray from the smoothed ground before its grade limit is relaxed there
-/** Largest factor on a grade limit (tertiary 15%, rail 3.75%). */
+/** Largest factor a fit raises a grade limit by, unless its pass sets its own (tertiary 15%, rail 3.75%). */
 export const RELAX = 1.5
 const RELAX_REACH = 60 // m around a stray sample whose segments get relaxed
 
@@ -307,9 +307,14 @@ const fitOnce = (
 /**
  * Grade-limited fit of the (smoothed) profile through `pins`. Violated bounds become pins and the
  * fit is redone; where it strays more than CAP m from the smoothed ground, the grade limit of the
- * surrounding RELAX_REACH m is raised step by step, up to RELAX times `grade`.
+ * surrounding RELAX_REACH m is raised step by step, up to `relax` times `grade`.
  */
-export const fitProfile = (p: Profile, grade: number, pins: ReadonlyArray<Pin>): void => {
+export const fitProfile = (
+  p: Profile,
+  grade: number,
+  pins: ReadonlyArray<Pin>,
+  relax = RELAX,
+): void => {
   const natural = Float64Array.from(p.z),
     n = p.z.length
   const g = new Float64Array(Math.max(0, n - 1)).fill(grade)
@@ -333,8 +338,8 @@ export const fitProfile = (p: Profile, grade: number, pins: ReadonlyArray<Pin>):
     for (let k = 0; k < n; k++) {
       if (Math.abs(p.z[k]! - natural[k]!) <= CAP) continue
       for (let j = 0; j + 1 < n; j++)
-        if (Math.abs(p.s[j]! - p.s[k]!) <= RELAX_REACH && g[j]! < grade * RELAX)
-          [g[j], relaxed] = [Math.min(grade * RELAX, g[j]! * 1.1), true]
+        if (Math.abs(p.s[j]! - p.s[k]!) <= RELAX_REACH && g[j]! < grade * relax)
+          [g[j], relaxed] = [Math.min(grade * relax, g[j]! * 1.1), true]
     }
     if (broken.length === 0 && !relaxed) return
   }
@@ -375,7 +380,13 @@ export const carve = (
  * back to the terrain. `owner` holds the rank of the road that wrote each core
  * node (255 = none): ranks <= `rank` win, so earlier (higher) classes keep junctions.
  * `protect` marks river nodes no road may touch; segments from sample k with `skip(k)` (bridges, tunnels) write nothing,
- * and nodes where `at` is false neither.
+ * and nodes where `at` is false neither. A node whose nearest point lies past a sample where
+ * `deckEnd` holds (its core's round end reaching on under the bridge's deck) is under the deck, no
+ * approach's: the core takes it only where no other core holds it (or only another such end, at a
+ * lower rank), and any other core takes it back, whatever their ranks; `capped` marks those nodes.
+ * Behind the deck's end the approach keeps its core: its surface, floating over lower ground, would
+ * lift a walker there onto the deck. At its rank the A15's approach (0, its core 7.3 m) held the
+ * ground under its deck's first span at Aulla 5–7 m over the tracks and the SP20 passing there.
  */
 export const flatten = (
   g: Grid,
@@ -387,8 +398,10 @@ export const flatten = (
   protect: Uint8Array,
   skip: (k: number) => boolean,
   at: (x: number, y: number) => boolean = () => true,
+  deckEnd: (k: number) => boolean = () => false,
+  capped: Uint8Array = new Uint8Array(owner.length),
 ): void => {
-  const best = new Map<number, { d: number; z: number; c: number }>()
+  const best = new Map<number, { d: number; z: number; c: number; past: boolean }>()
   for (let k = 0; k + 1 < p.z.length; k++)
     if (!skip(k))
       forNodesNear(
@@ -402,14 +415,24 @@ export const flatten = (
           if (!at(x, y)) return
           const cur = best.get(n)
           if (cur === undefined || d < cur.d)
-            best.set(n, { d, z: lerp(p.z[k]!, p.z[k + 1]!, t), c: core[k]! })
+            best.set(n, {
+              d,
+              z: lerp(p.z[k]!, p.z[k + 1]!, t),
+              c: core[k]!,
+              past: (t === 1 && deckEnd(k + 1)) || (t === 0 && deckEnd(k)),
+            })
         },
       )
-  for (const [n, { d, z, c }] of [...best].sort((a, b) => a[0] - b[0])) {
-    if (protect[n] === 1 || owner[n]! <= rank) continue
+  for (const [n, { d, z, c, past }] of [...best].sort((a, b) => a[0] - b[0])) {
+    if (protect[n] === 1) continue
     if (d <= c) {
+      const takes = past
+        ? owner[n] === 255 || (capped[n] === 1 && owner[n]! > rank)
+        : owner[n]! > rank || capped[n] === 1
+      if (!takes) continue
       g.z[n] = z
       owner[n] = rank
+      capped[n] = past ? 1 : 0
     } else if (owner[n] === 255) g.z[n] = lerp(z, g.z[n]!, (d - c) / blend)
   }
 }

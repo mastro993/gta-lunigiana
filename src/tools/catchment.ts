@@ -71,6 +71,39 @@ const heap = (z: Float64Array) => {
   }
 }
 
+/**
+ * Priority-flood of `z` (`cols` × `rows`, in place) from its edge and the nodes `outside` the grid:
+ * a node first reached from a lower one is raised just above it. Its own function, so the flood's
+ * heap and marks go before the routing allocates.
+ */
+const flood = (z: Float64Array, cols: number, rows: number, outside: (n: number) => boolean) => {
+  const seen = new Uint8Array(cols * rows)
+  const open = heap(z)
+  for (let n = 0; n < cols * rows; n++) {
+    const i = n % cols,
+      j = (n - i) / cols
+    if (i > 0 && j > 0 && i < cols - 1 && j < rows - 1 && !outside(n)) continue
+    seen[n] = 1
+    open.push(n)
+  }
+  while (open.size > 0) {
+    const n = open.pop(),
+      i = n % cols,
+      j = (n - i) / cols
+    for (let dj = -1; dj <= 1; dj++)
+      for (let di = -1; di <= 1; di++) {
+        const a = i + di,
+          b = j + dj
+        if (a < 0 || b < 0 || a >= cols || b >= rows) continue
+        const m = b * cols + a
+        if (seen[m] === 1) continue
+        seen[m] = 1
+        if (z[m]! <= z[n]!) z[m] = z[n]! + EPSILON
+        open.push(m)
+      }
+  }
+}
+
 /** Area flowing in from beyond the grid, km², added at the node nearest (x, y): a stream's first sample inside it. */
 export interface Inflow {
   readonly x: number
@@ -80,7 +113,8 @@ export interface Inflow {
 
 /**
  * Upstream area (km²) at every sample of each profile in `wp`, from grid `g` before carving, whose
- * nodes it overwrites (the water burned in, the pits filled); `ids`
+ * nodes it takes for its own (the water burned in, the pits filled, then each node's upstream area,
+ * km²); `ids`
  * holds each profile's OSM vertex ids, where pieces meet. The
  * water is burned in BURN m under its own profile, the grid filled so every node drains (its edge
  * the outlet), each node routed to its steepest lower neighbour (D8) and the 4 m cells accumulated
@@ -105,7 +139,7 @@ export const catchments = (
 ): Array<Float64Array> => {
   const { cols, rows, cell } = g,
     [oi, oj] = anchorNode(g)
-  const z = g.z // burned and filled in place: the grid is the build's uncarved copy
+  const z = g.z // burned, filled and accumulated in place: the grid is the build's uncarved copy
   const outside = (n: number) => listed?.[n] === 0
   // An outlet below every listed node: the flood raises none beside it, D8 drains each of those out
   // of the grid into it, and it routes nothing on, so a listed node beside it gathers what an edge
@@ -149,36 +183,12 @@ export const catchments = (
     }
   }
   // Which water burned each node (-1 none, -2 more than one: where waters meet).
-  const owner = new Int32Array(cols * rows).fill(-1)
+  // Two bytes a node, 78 MB less than four on Lunigiana's grid: its 4,988 waters' indices fit.
+  if (wp.length > 0x7fff) throw new Error(`${wp.length} waters: their indices overflow an Int16`)
+  const owner = new Int16Array(cols * rows).fill(-1)
   wp.forEach((p, w) => burn(p, (n) => (owner[n] = owner[n] === -1 || owner[n] === w ? w : -2)))
   for (const p of beyond) burn(p)
-  // Priority-flood from the edge and the nodes beyond the grid: a node first reached from a lower
-  // one is raised just above it.
-  const seen = new Uint8Array(cols * rows)
-  const open = heap(z)
-  for (let n = 0; n < cols * rows; n++) {
-    const i = n % cols,
-      j = (n - i) / cols
-    if (i > 0 && j > 0 && i < cols - 1 && j < rows - 1 && !outside(n)) continue
-    seen[n] = 1
-    open.push(n)
-  }
-  while (open.size > 0) {
-    const n = open.pop(),
-      i = n % cols,
-      j = (n - i) / cols
-    for (let dj = -1; dj <= 1; dj++)
-      for (let di = -1; di <= 1; di++) {
-        const a = i + di,
-          b = j + dj
-        if (a < 0 || b < 0 || a >= cols || b >= rows) continue
-        const m = b * cols + a
-        if (seen[m] === 1) continue
-        seen[m] = 1
-        if (z[m]! <= z[n]!) z[m] = z[n]! + EPSILON
-        open.push(m)
-      }
-  }
+  flood(z, cols, rows, outside)
   // D8: each inner node drains to its steepest lower neighbour (`to`: its direction, the index of
   // (di, dj) in the 3 × 3 block, row by row; −1 for none); edge nodes and those beyond the grid
   // leave it.
@@ -206,7 +216,9 @@ export const catchments = (
   // then on down its path while every node above the next is counted (marked DONE, so it is not
   // taken for a ridge again). A stack of the ridges gave the same order, and the same sums.
   const DONE = 255
-  const area = new Float64Array(cols * rows).fill((cell * cell) / 1e6)
+  // The routing read the last of the ground: each node's area takes its place (the 312 MB of
+  // Lunigiana's 39 million nodes a grid of their own took).
+  const area = z.fill((cell * cell) / 1e6)
   for (const { x, y, km2 } of inflows) area[nodeOf(x, y)]! += km2
   for (let top = area.length - 1; top >= 0; top--) {
     if (inflow[top] !== 0) continue

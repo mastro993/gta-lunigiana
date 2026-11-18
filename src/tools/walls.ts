@@ -14,8 +14,9 @@ import { inPlay, OUTLINE } from "./play-area.ts"
 import { anchorNode, cellSlope, type Grid } from "./terrain.ts"
 
 const RUN = 16 // max wall segment length, m
-const WALK_SLOPE = 35,
-  DRIVE_SLOPE = 25
+/** The steepest ground (°) a walker climbs off a road: a steeper cell is a `walk` wall. */
+export const WALK_SLOPE = 35
+const DRIVE_SLOPE = 25
 /** Wall simplification tolerance, m; road buffers below are widened by it so walls never reach w/2. */
 const SLACK = 1.5
 
@@ -102,7 +103,12 @@ const clips = (r: RoadF) => isDrivable(r.cls) && r.tunnel !== true
 /** A centreline segment (ax, ay, bx, by) and its corridor half-width. */
 type Cut = readonly [number, number, number, number, number]
 
-/** The corridor of every centreline segment of `roads`, min(w/2, ARCH) m half-width (a motor road's whole w/2: no arch spans a motorway's or trunk road's tunnel), indexed by its box. */
+/**
+ * The corridor of every centreline segment of `roads`, min(w/2, ARCH) m half-width, indexed by its
+ * box: a motor road's whole w/2, as no arch spans a motorway's or trunk road's tunnel, and a deck's
+ * that clips (`clips`), as no house stands on a bridge: a footprint reaching into its carriageway
+ * stands under it or beside it, and gives way as at grade.
+ */
 const corridors = (roads: ReadonlyArray<RoadF>) => {
   const cuts: Array<Cut> = []
   for (const r of roads)
@@ -112,7 +118,7 @@ const corridors = (roads: ReadonlyArray<RoadF>) => {
         r.pts[i]!.y,
         r.pts[i + 1]!.x,
         r.pts[i + 1]!.y,
-        isMotorRoad(r) ? r.w / 2 : Math.min(r.w / 2, ARCH),
+        isMotorRoad(r) || (r.bridge === true && clips(r)) ? r.w / 2 : Math.min(r.w / 2, ARCH),
       ])
   const index = staticGrid(
     cuts.length,

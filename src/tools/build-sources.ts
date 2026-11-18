@@ -15,11 +15,12 @@ import { conflateRail } from "./conflate.ts"
 import { readCtrRail, splitIn } from "./ctr-rail.ts"
 import { fitRoads } from "./ctr.ts"
 import { fitDistricts } from "./districts.ts"
-import { loadDtm, loadGeoDtm } from "./dtm.ts"
+import { type Dem, loadDtm, loadGeoDtm, sourceAreas } from "./dtm.ts"
 import {
   extractAreas,
   extractBarriers,
   extractBuildings,
+  extractGoneRail,
   extractPois,
   extractRail,
   extractRoads,
@@ -28,7 +29,8 @@ import {
 import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
-import { clipBeyond, heldInPlay } from "./play-area.ts"
+import { clipBeyond, heldInPlay, inPlay } from "./play-area.ts"
+import { routeEnds } from "./rail-routes.ts"
 import { REGION, dtmDir, osmFiles, type Rect, ucsFile, ucsParts } from "./region.ts"
 import { seaFloor } from "./sea-floor.ts"
 import { extractShore, holedSea, offBeaches, splitPiers } from "./shore.ts"
@@ -55,8 +57,8 @@ const tileBoxes = (): Array<Rect> => {
   ])
 }
 
-/** The features every later phase reads (the DTM apart: only the terrain reads it). */
-export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem">
+/** The features every later phase reads (the DTM apart: only the terrain reads it; and the report's terrain sources). */
+export type Sources = Omit<Awaited<ReturnType<typeof readSources>>, "dem" | "terrainSources">
 
 /** Reads the region's inputs under `root` into features; `lap` marks the end of each stage. */
 export const readSources = async (root: string, lap: (label: string) => void) => {
@@ -91,15 +93,16 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   // its channel open under it on the 2010 and 2023 orthophotos.
   const bridges = ctrRail.bridges.map((b) => b.rings)
   const openCulvert = (pts: ReadonlyArray<V>) => splitIn(pts, bridges).some((run) => run.inside)
-  // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has; level-crossing nodes
-  // slide along their roads with it, and what its bridges span stays under them (water widths
-  // depend on the way's mean ground, so the terrain is loaded first).
+  // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has but where OSM maps
+  // the rails gone; level-crossing nodes slide along their roads with it, and what its bridges span
+  // stays under them (water widths depend on the way's mean ground, so the terrain is loaded first).
   const { rail, extra, roads, water, moves, report } = conflateRail(
     extractRail(osm),
     extractRoads(osm),
     extractWater(osm, dem.at, undefined, openCulvert),
     { ...ctrRail, crossings },
     lunigiana ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
+    extractGoneRail(osm),
   )
   lap("rail")
   fitRoads(roads, survey.roadAreas, survey.mapped)
@@ -149,16 +152,15 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
       const to = p.kind.startsWith("area:") ? undefined : moves.get(String(p.id))
       return to === undefined ? p : { ...p, x: r1(to.x), y: r1(to.y) }
     })
-  const inCtr = (ring: ReadonlyArray<number>) =>
-    ctr2019.mapped.some((m) => pointInRing(ring[0]!, ring[1]!, m))
   // The platforms: the 2019 CTR's where its sheets map the ground (the only survey whose rail is
-  // read), OSM's elsewhere; those the play area holds, as one beyond it would stand by the stub of
-  // rail its outline leaves.
+  // read), OSM's elsewhere, cut cell by cell at the sheets' edges (Aulla Lunigiana's run 330 m on
+  // south of 24C60's, where no 2019 sheet maps the ground); those the play area holds, as one
+  // beyond it would stand by the stub of rail its outline leaves.
   const platforms = heldInPlay([
     ...ctrRail.platforms,
     ...osmAreas
-      .filter((a) => a.kind === "platform" && !inCtr(a.rings[0]!))
-      .map((a, i) => ({ src: `OSM platform ${i}`, rings: a.rings })),
+      .filter((a) => a.kind === "platform")
+      .map((a, i) => ({ src: `OSM platform ${i}`, rings: a.rings, leftTo: ctr2019.mapped })),
   ])
   const districts: Array<District> = fitDistricts(osm, buildings)
   // What the map leaves out beyond the play area, in the built terrain's box: the trees keep off its
@@ -173,8 +175,15 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   fitRoads(beyond.roads, survey.roadAreas, survey.mapped)
   lap("features")
   return {
-    /** The uncarved terrain (the LiDAR DTM, or Cesena's GeoTIFF). */
-    dem,
+    /**
+     * The uncarved terrain (the LiDAR DTM, or Cesena's GeoTIFF), without the source of its cells,
+     * which only `terrainSources` reads: they go when this returns, before the terrain (202 MB of
+     * Lunigiana's).
+     */
+    dem: { at: dem.at, grid: dem.grid } satisfies Dem,
+    /** Each terrain source's share of the play area, km² (`sourceAreas`), where the DTM says. */
+    terrainSources:
+      dem.source === undefined ? undefined : sourceAreas(dem.source, REGION.bounds, inPlay),
     rail,
     extra,
     allRail: [...rail, ...extra],
@@ -187,6 +196,8 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     areas,
     platforms,
     railCrossings: crossings.map((c) => c.rings),
+    /** Where OSM's train routes end, and the ways they reach those stops along (`routeEnds`): the lines' termini in play. */
+    routeEnds: routeEnds(osm),
     districts,
     /** The ground raised under the piers' decks and the breakwaters (shore.ts). */
     raised: shore.raised,

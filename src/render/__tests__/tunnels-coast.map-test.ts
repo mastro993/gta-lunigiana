@@ -24,7 +24,9 @@ test(
       tunnels: 6,
       passages: 4,
       metres: 83,
-      walls: 225,
+      // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts)
+      // and the paths' approaches (path-approaches.ts) moved a bore's bend sample: 225 -> 226.
+      walls: 226,
       mouths: 4,
       portals: 0,
       heads: 1,

@@ -22,9 +22,9 @@ export interface RunOutPiece {
 
 /**
  * A line: running track from one terminal (a dead end on the play area's outline, where the track
- * runs on beyond it) to another, on the straightest way through junctions. Consecutive pieces
- * share their end vertex bit-identically; its arc length s counts metres from the first piece's
- * start.
+ * runs on beyond it) to another, or to a terminus inside the map, on the straightest way through
+ * junctions. Consecutive pieces share their end vertex bit-identically; its arc length s counts
+ * metres from the first piece's start.
  */
 export interface RailLine {
   readonly pieces: ReadonlyArray<LinePiece>
@@ -33,9 +33,11 @@ export interface RailLine {
   /**
    * Its track on beyond the play area past its first terminal and past its last (src/tools/rail-runouts.ts): OSM's line on
    * from where the outline cuts it, profiled over the ground as the rail in play is, as far as OSM's track beyond the play
-   * area runs in the built terrain's box; none where no track runs on in the box (a terminal on its edge).
+   * area runs in the built terrain's box; none where no track runs on in the box (a terminal on its edge), nor past a terminus.
    */
   readonly runOuts: readonly [ReadonlyArray<RunOutPiece>, ReadonlyArray<RunOutPiece>]
+  /** Its last terminal is a terminus inside the map, where OSM's train routes running it end: its trains turn round there. */
+  readonly terminus?: true
 }
 
 /** Where a line calls at a station: the extent along it of the station's platforms beside it, and their side. */

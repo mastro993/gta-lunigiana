@@ -176,6 +176,17 @@ test("extractWater: a culvert is dropped but where `open` says it runs in the op
   )
 })
 
+// Regression: the crest lines of a weir across the Taverone (way 1161664525) and of Fivizzano's dam
+// (172651758) were carved as 2 m streams along the crest, and burned into the catchments.
+test("extractWater: a watercourse is water, a weir's or a dam's crest across it and a riverbank's outline are not", () => {
+  const values = ["river", "stream", "canal", "ditch", "drain", "weir", "dam", "riverbank"]
+  const water = extractWater(osmOf(values.map((waterway) => ({ waterway }))), () => 0, whole)
+  assert.deepEqual(
+    water.map((w) => values[w.id - 1]),
+    ["river", "stream", "canal", "ditch", "drain"],
+  )
+})
+
 test("extractAreas: a river's banks are a river, still water a lake, other water nothing; ruins win over water, shingle is a river's pebble", () => {
   const { osm, square } = areaOsm()
   const tagged: ReadonlyArray<Tags> = [
@@ -393,5 +404,25 @@ test("extractBuildings: a surveyed building's tint is the one its 2019 CTR id al
   assert.deepEqual(
     buildings.map((b) => tints.get(b.id)),
     old,
+  )
+})
+
+// Regression: OSM tags Aulla Lunigiana's platform areas `public_transport=platform` alone (ways 1388757325, 1388757326 and
+// 1388757328), and the map had none of them.
+test("extractAreas: a public-transport platform is a platform, but a bus stop's", () => {
+  const { osm, square } = areaOsm()
+  square(0, 0, 20, { public_transport: "platform", area: "yes" })
+  square(40, 0, 20, { public_transport: "platform", bus: "yes" })
+  square(80, 0, 20, { public_transport: "platform", highway: "platform" })
+  square(120, 0, 20, { railway: "platform" })
+  assert.deepEqual(
+    extractAreas(osm).map((a) => [
+      Math.round(Math.min(...a.rings[0]!.filter((_, i) => i % 2 === 0)) / 40),
+      a.kind,
+    ]),
+    [
+      [0, "platform"],
+      [3, "platform"],
+    ],
   )
 })

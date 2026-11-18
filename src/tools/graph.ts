@@ -70,11 +70,14 @@ const pruneSpurs = (
 
 /**
  * The road graph. Traffic drops tunnel spurs and dead-end tips where `roomy(x, y, road)` is false
- * (no room for a car to stop and turn on road `road`, its index: lanes that end between houses).
+ * (no room for a car to stop and turn on road `road`, its index: lanes that end between houses);
+ * traffic and walkers both drop dead-end tips where `onRail(x, y, road)` is true (on the running
+ * track: a driveway OSM ends 2.39 m from the Lucca–Aulla line by Aulla station).
  */
 export const buildGraph = (
   roads: ReadonlyArray<RoadF>,
   roomy: (x: number, y: number, road: number) => boolean,
+  onRail: (x: number, y: number, road: number) => boolean = () => false,
 ): GraphOut => {
   const ids = new Map<string, number>()
   const xy: Array<number> = [],
@@ -117,19 +120,27 @@ export const buildGraph = (
     all = Array.from({ length: edges.length / 3 }, (_, e) => e)
   const road = (e: number) => roads[edges[3 * e + 2]!]!
   const drivable = all.filter((e) => isTraffic(road(e).cls) && !road(e).private)
+  const railed = (e: number, n: number) => onRail(xy[2 * n]!, xy[2 * n + 1]!, edges[3 * e + 2]!)
   const traffic = largest(
     nodes,
     edges,
     pruneSpurs(
       edges,
       drivable,
-      (e, n) => road(e).tunnel === true || !roomy(xy[2 * n]!, xy[2 * n + 1]!, edges[3 * e + 2]!),
+      (e, n) =>
+        road(e).tunnel === true ||
+        !roomy(xy[2 * n]!, xy[2 * n + 1]!, edges[3 * e + 2]!) ||
+        railed(e, n),
     ),
   )
   const walk = largest(
     nodes,
     edges,
-    all.filter((e) => road(e).tunnel !== true && !isMotorRoad(road(e))),
+    pruneSpurs(
+      edges,
+      all.filter((e) => road(e).tunnel !== true && !isMotorRoad(road(e))),
+      railed,
+    ),
   )
   const degree = Array.from({ length: nodes }, () => 0)
   for (const e of all) {

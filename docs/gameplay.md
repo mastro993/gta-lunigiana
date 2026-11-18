@@ -578,8 +578,11 @@ the lane helpers in `src/sim/route.ts`.
   it. The offset shrinks in 0.25 m steps where houses crowd the road, until the body clears the
   walls. Each model has its own lane table, worked out at build time (`bakeLanes` in
   `src/sim/lanes.ts`) and kept in the map file (`MAP.lanes`), since fitting it reads every drive
-  wall along every traffic edge, a bridge's parapet only where the edge passes it on the deck's
-  level (its road's surface, where the edge passes nearest the wall, within 2 m of the wall's). Read
+  wall along every traffic edge: at each sample of the lane, the walls a body standing there meets,
+  at its road's level there (`roadLevel`, else the ground at grade) as `carClear` reads them, its
+  hull (the capsule its circles sweep along its axis) clearing them by its radius (since issue #19;
+  before, a bridge's parapet counted only where the edge passed nearest it, on the road's surface
+  there within 2 m of the wall's). Read
   at the road's point nearest the parapet's middle instead, Cesena's primary road 23635384, which
   passes 5.7 m under a bridge and climbs beside it, stood 1.5 m under one of its parapets there: its
   lane under the bridge shut one way, and the truck's loop with it. A model only uses edges where it
@@ -1295,22 +1298,36 @@ The same on every line, from `MAP.railway` alone (`rail/service.ts` drives the t
 `rail/dispatch.ts` brings them in and takes them off), so a map with more railways needs no new
 code:
 
-- **A line** (`LINES`, `rail/lines.ts`) is the map's running track from one terminal to the other
-  ([map.md](map.md)), joined into one polyline in arc length s (0 at its first terminal) and run
-  on past both terminals along the map's track beyond them (`runOuts` in `MAP.railway`,
+- **A line** (`LINES`, `rail/lines.ts`) is the map's running track from one terminal to the other,
+  or to a terminus inside the map, where OSM's train routes end
+  ([map.md](map.md#9-the-railway-railwayts-platformsts-rail-clearts)), joined into one polyline in
+  arc length s (0 at its first terminal) and run on past its terminals along the map's track beyond
+  them (`runOuts` in `MAP.railway`,
   [map.md](map.md)), straight and level past where that ends (and from a terminal with none): over
   the drawn run (`DRAWN_RUN`, 192 m, which the render draws, as far as its apron reaches) to the
   end of the run-out, where trains enter out of view. Each run-out is sized from
   the line speed at its end (`runOut`): the strike-in of a box at the map's edge
   ([Level crossings](#level-crossings)) plus the longest train's length, and never less than the
   drawn run, so a train entering at that speed is beyond view and finds even that box down before
-  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. Today's one line, Lucca–Aulla from
-  the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del Lupacino, which OSM tags
-  140 km/h: its run-out is 2298.6 m, all in the bore, which runs on level to the box's edge at
-  x 10600) to Fivizzano's west edge by Rometta (x −5300, whose run-out follows OSM's line 1128.6 m
-  on south-west down the Aulella's valley at grade), is 16,854.7 m, with
-  Minucciano-Pieve-Casola at s 1558.6–1667.1, Equi Terme at 5921.4–6057.0, Monzone at
-  8493.3–8597.1, Gragnola at 11911.6–12057.7 and the Fivizzano-Gassano halt at 14454.2–14550.8.
+  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. A terminus has no run-out. Today's
+  three lines (issue #19):
+  - **Lucca–Aulla**, from the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del
+    Lupacino, which OSM tags 140 km/h: its run-out is 2298.6 m, all in the bore, which runs on level
+    to the box's edge at x 10600) to its terminus at Aulla Lunigiana's track 4, 25,880.1 m, with
+    Minucciano-Pieve-Casola at s 1558.6–1667.1, Equi Terme at 5921.4–6057.0, Monzone at
+    8493.3–8597.0, Gragnola at 11911.6–12057.8, the Fivizzano-Gassano halt at 14454.2–14550.9,
+    Fivizzano-Rometta-Soliera at 17205.9–17295.4 and Aulla Lunigiana at 25659.4–25880.1 (16,854.7 m
+    to Fivizzano's west edge by Rometta before Aulla's part);
+  - **the Pontremolese's two tracks**, each from edge to edge through Aulla Lunigiana (9,715.8 and
+    9,715.4 m, the station at s 6915.4–7325.2 and 2390.7–2799.7), sharing the single track north of
+    P.P. Chiesaccia and its run-out north of the play area; past their south ends their run-outs
+    follow OSM's line 3,394 m on, and past their north ends, on the box's edge, they run straight
+    on, 1,409.1 m.
+- **At a terminus** the train dwells as at any station, its driver changing ends as the dwell starts
+  (`Dispatch` turns it round: its motion faces the other way and it is boarded at its far cab), and
+  then runs back down the line, calling at every station again. It never leaves by the terminus:
+  past its last station it runs on out of the line's open end and is removed beyond view, and the
+  line's next train enters from that end, after a layover.
 - **Shared track.** Lines that run on the same pieces of `MAP.rail`, or past the same terminal,
   share that track (`SHARED`): one line's s there maps onto the other's, either way round, one
   stretch for as many pieces in a row as they share (`sharedTrack` joins them, so two trains
@@ -1343,28 +1360,38 @@ code:
   train runs on its line, no train is on its run-out and none lies within its braking distance
   ahead of its nose, short of `KEEP_BEHIND` (`entryClear`: the driver's plan, 0.6 m/s² begun 1.5 s
   early, plus 30 m; 530 m from 85 km/h), and no AI train of another line runs the other way on
-  track the two share, anywhere on it: it would meet that one head-on, so it waits until that one
-  has run off. Entering 1 m outside that clearance of a train standing on
+  track the two share, on it or still ahead of it (a train still on its own track runs onto the
+  shared one later, and a terminus line's train runs its whole line back): it would meet that one
+  head-on, so it waits until that one has run off. Trains entering the same step count, so one
+  train comes in where two lines' entries share a run-out. Measured on the real map, 2 h of game
+  time from a new game, `railStep` alone, seeds 1–6: 27–29 trains (3 Lucca–Aulla and 12–13 on each
+  Pontremolese line), 2 turned round at the terminus, no train struck, and no train standing outside
+  a dwell for more than 3 s. Entering 1 m outside that clearance of a train standing on
   the line, it stops 30.2 m behind it, braking at 0.609 m/s² at most.
 - **A new game** starts with each line's train already dwelling at the station nearest the player's
   start whose platforms no train placed already stands on, with 30 m to spare (lines sharing track
   take the next nearest; a line with every one taken gets its first train from a run-out), its dwell
   drawn from `RailRng` (`FillTrains`). It faces the way that takes it past the line's point nearest
   the start, so it passes the player (drawn from `RailRng` where either way does), unless a train
-  placed already ahead that way on track the lines share faces it: then the other way, and, facing
-  one either way, the next station. The player starts 36.8 m from the line at Monzone, 81 m from Via
+  placed already ahead that way on track the lines share faces it, or would meet it there head-on
+  (a terminus line's train on its way back too): then the other way, and, facing one either way, the
+  next station. The player starts 36.8 m from the line at Monzone, 81 m from Via
   Riolo's crossing: the train leaves Monzone toward Equi Terme and passes the line's point nearest
   the start 44–68 s after play starts in seeds 1–16 (behind the title card the day, and the dwell,
   stand still), unseen at 1280×720 ([The first train passes out of view](#train-limits)).
-- **`SetTrains`** makes a train due now on every line no AI train runs on (`ApplyTrains`): the
+- **`SetTrains`** makes a train due now on every line no AI train runs on (`ApplyTrains`), and a
+  line whose train could meet another line's head-on stays due until it can enter: the
   tests send it, and so do the dev debug menu's "Call trains now" (P, Trains) and
   `gta.trains.call()`. Measured at seed 1 with the player's stolen train standing at Monzone: the
   call made the line's train due, and it entered at once from the end past Equi Terme, in the
   Galleria del Lupacino by Pieve San Lorenzo, at its line speed of 140 km/h.
 
-Measured over a round trip from the east end, a train entering at Pieve San Lorenzo's terminal and
-coming back from Rometta's (`railStep` alone; dry rail unless named; the dwells are those seed 1
-draws; the leading end's time from one terminal to the other):
+Measured over a round trip from the east end before Aulla's part (2026-11-07), on the 16,854.7 m
+line from Pieve San Lorenzo's terminal to Rometta's, a train entering at Pieve San Lorenzo and
+coming back from Rometta (`railStep` alone; dry rail unless named; the dwells are those seed 1
+draws; the leading end's time from one terminal to the other); the in-and-back trip to Aulla's
+terminus, 25.9 km each way, has not been timed so, and `trains.long-test.ts` bounds it at 4,942 s
+(`TRIP`):
 
 | Run | Terminal to terminal | Of it dwelling | Top speed under each limit, in running order |
 |---|---|---|---|
@@ -1536,20 +1563,22 @@ The player steals and drives a train as a car, with the same keys (`EnterExit`, 
   goes through the train to the far cab, which becomes the active one, so a train stopped on a
   viaduct or in a tunnel can be driven back the way it came, and the action key there again gets
   out at that cab where it can. The train is left on its emergency brake.
-- **SCMT and the buffer stops.** The player's train runs no farther than the end of the drawn
-  track, 192 m past each terminal along its run-out (`DRAWN_RUN`, the drawn run): a buffer stop
-  there. Its SCMT (`supervise`; on overspeed SCMT warns, cuts the traction and brakes, then applies
-  the emergency brake, Lupi's railway course, University of Pisa 2022–23) watches its speed against
-  the braking curve to the buffer ahead, the AI driver's plan (0.6 m/s², or what the rail's adhesion
-  allows, begun 1.5 s early), and, backing up, against 30 km/h: over it, it cuts the power and
-  applies the full service brake; 5 km/h over (`OVER`, the tolerance of SCMT's continuous
+- **SCMT and the buffer stops.** The player's train runs no farther than the end of the drawn track,
+  192 m past each terminal along its run-out (`DRAWN_RUN`, the drawn run): a buffer stop there; and
+  at a terminus the line's end itself, where the render draws a buffer stop of rail steel with a red
+  board facing the train coming in (`buffersOf`, `src/render/buffers.ts`), its head against the
+  beam's face. Its SCMT (`supervise`; on overspeed SCMT warns, cuts the traction and brakes, then
+  applies the emergency brake, Lupi's railway course, University of Pisa 2022–23) watches its speed
+  against the braking curve to the buffer ahead, the AI driver's plan (0.6 m/s², or what the rail's
+  adhesion allows, begun 1.5 s early), and, backing up, against 30 km/h: over it, it cuts the power
+  and applies the full service brake; 5 km/h over (`OVER`, the tolerance of SCMT's continuous
   supervision), the emergency brake. A train that still reaches the buffer stops dead against it,
-  and faster than 0.5 m/s that is a `wall` `Impact` with the train as its `car`. Measured toward
-  the buffer past Rometta's terminal, on its run-out, with the up key held from 1500 m short
-  (2026-11-07): from 20, 30 and 36 m/s the train tops out at 99.1, 115.9 and 130.0 km/h, begins
-  braking 671, 911 and 1140 m short, at the service brake (never the emergency), and stops touching
-  the buffer, under 0.5 m/s; one 60 m short at 25 m/s pulls the emergency brake and strikes it at
-  22.7 m/s.
+  and faster than 0.5 m/s that is a `wall` `Impact` with the train as its `car`. Measured toward the
+  buffer past Rometta's terminal, on its run-out, before Aulla's part, with the up key held from
+  1500 m short (2026-11-07): from 20, 30 and 36 m/s the train tops out at 99.1, 115.9 and 130.0
+  km/h, begins braking 671, 911 and 1140 m short, at the service brake (never the emergency), and
+  stops touching the buffer, under 0.5 m/s; one 60 m short at 25 m/s pulls the emergency brake and
+  strikes it at 22.7 m/s.
 - **What it meets**: other trains ([Train physics](#train-physics)), and vehicles, people and
   animals as any train ([What a train strikes](#what-a-train-strikes)): someone it knocks down
   scores a hit, as the car's do.
@@ -1686,7 +1715,8 @@ what people and animals run from ([Reactions](#reactions), [Animals](#animals)) 
   span rising from there: 0.54 m under its deck between OSM ways 689547598 and 1312766682, the one
   joint of the 297 crossings of every drivable bridge, both ways, from 12 m before it, where a
   walker kept to its footing strayed 0.5 m or more from the deck (`ground.map-test.ts` in
-  `src/render`).
+  `src/render`, which since issue #19 sets out along the road leading onto the bridge, no turn of
+  30° or more, straight on where none leads on in line, on that road's level).
 - **Onto a deck at the verge (a limit).** A body comes onto a deck only where its footing at the
   deck's end stands within 0.5 m of it (`ON_DECK`, `src/sim/map/ground-model.ts`). Where a road comes
   onto its bridge on an embankment, the walkers' verge beside it lies on the terrain, lower, so a
@@ -1884,15 +1914,16 @@ speed along the contact.
 ### Train limits
 
 - **One train per line, no track reserved.** On single track there is no opposing train to protect
-  against. Lines that share track (a future map) run it the same way, but a train enters seeing
-  only the trains on its own track: a branch's train still on its own track when the main line's
-  enters toward it may come onto the shared track and meet it head-on. Then both stop 30 m apart
-  and wait for each other for good: the hook is a block table both `TrainAI` and `Dispatch` would
-  consult.
-- **Terminals are open ends** on the play area's outline: the build makes no other kind, and
-  `lines.map-test.ts` fails on a terminal off the edge (`lines.test.ts` on one of a line by Monzone
-  station). A buffer stop inside the map would need the AI train to dwell and turn back there
-  instead of a run-out; the player's train already turns back by its far cab.
+  against. Lines that share track run it the same way, and since issue #19 no train enters or is
+  placed where it would meet another line's AI train on track they share the other way, whether on
+  it or still ahead ([The service](#the-service)), so two AI trains no longer come to stand face to
+  face for good; no block table is kept.
+- **A terminus is a piece end where OSM's routes end**: the build makes a line end inside the map
+  only there (`lines.map-test.ts` fails on any other end off the edge), and its buffer stop, drawn
+  and in the sim (`buffersOf`), stands at the line's end, the only one there: on through track
+  (Aulla's track 4 runs on north as the Lucca branch, a loop no train drives) the map's track is
+  drawn on past the beam. A route ending mid-piece (the Pisa => Aulla Lunigiana route at track 5's
+  stop) gives no terminus.
 - **A run-out with no track past it goes straight on**: past a terminal the run-out follows OSM's
   track beyond the play area as far as it runs in the built terrain's box, profiled from the
   terminal's level as the rail in play is, then straight and level along its heading. A terminal
@@ -1901,16 +1932,14 @@ speed along the contact.
   at its level, and the render draws it where the trains ride: Cesena's at most 0.7 m over that
   ground, the L's 8.1 m under it 180 m past Equi Terme's end of the foot (10.3° off square, along
   its hillside) and 8.8 m over it past the leg's north end. A run-out is profiled on its own, so
-  the line in play keeps its profile: by Rometta the grade turns from −6.1 ‰ to −24.8 ‰ at the
-  terminal (the ground beyond falls 2.4 m in its first 100 m), and OSM's line beyond meets the
-  CTR's 0.7 m off, a 4.1° turn there. Nothing lowers the ground under a run-out's bridge or draws a
-  portal at a run-out's bore within the drawn run: no map has one today.
-- **A run-out over a notch rides no ground of the game's**: Rometta's leaves Fivizzano's tiles at
-  x −6000, and its last 335 m, from 794 m past the terminal out to (−6334, 4251), lie over the
-  north-west notch, where no tile is listed ([map.md](map.md#map-files)): the build profiles it on
-  the edge's heights drawn on and writes no ground there, while the game's ground there is the
-  nearest listed node's, up to 13.7 m under the bed (0.22 m over it at most, every 2 m). It is out
-  of view, 602 m past the drawn run.
+  the line in play keeps its profile (by Rometta, before Aulla's part carried the line on in play,
+  the grade turned from −6.1 ‰ to −24.8 ‰ at the terminal). Nothing lowers the ground under a
+  run-out's bridge or draws a portal at a run-out's bore within the drawn run: no map has one today.
+- **A run-out over a notch rides no ground of the game's**: the Pontremolese's south run-outs run
+  through the notch west of Fosdinovo's part, where no tile is listed ([map.md](map.md#map-files)):
+  the build profiles them on the edge's heights drawn on and writes no ground there, while the
+  game's ground there is the nearest listed node's (Rometta's run-out did the same over the
+  north-west notch before Aulla's part, up to 13.7 m over that ground, out of view).
 - **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
   over the line speed, through a box whose arms are not down and onto another train. The lever
   forward rings the bell at once, but driven off Monzone at full power the train's nose reaches
@@ -1946,10 +1975,6 @@ speed along the contact.
   window (480 × 300 or 480 × 270 texels) catches it in that corner for 6.0–6.4 s, under the HUD's
   score. Showing it from the start would take a start nearer the line or a wider view there.
 - **No platform passengers**: nobody waits on the platforms or boards.
-- **A footpath tunnel's data.** The path into Equi Terme's pedestrian underpass from the north (way
-  1306844336) meets it 1.7 m over its floor (264.6 against 262.9 m), so someone walking in that way
-  stays on the bank over it, on the track's level: the map build cuts no path's mouth (paths keep
-  the terrain's level).
 - **Nobody on a rail deck.** The track over a rail bridge is no ground to stand on, so someone
   walking along it onto a bridge steps off the end onto the ground under it: over the underpasses
   at s 6324.6 and s 4777.6, walking the track, the footing falls 5.5 and 5.8 m into the road's cut
@@ -1961,12 +1986,10 @@ speed along the contact.
   it; neither is built.
 - **No derailment**: a train keeps to its line at any speed and whatever it strikes, though by a
   rule like OpenRails' (unbalanced lateral acceleration over 2.5 m/s² for a second or two derails,
-  over 3.5 m/s² tips) one would leave a 300 m curve at 116–125 km/h. The line's sharpest curve in
-  play is 193 m (over 20 m chords, at (−1253, 2271)), but Rometta's run-out follows OSM's polyline
-  as drawn, which turns 15° at one vertex 471 m past the terminal: a curve of about 76 m over the
-  same chords, which a train coming in from the run-out's end at 85 km/h runs at about 7.4 m/s²
-  unbalanced, out of view (a train leaving is removed 248 m past the terminal, its body past the
-  drawn run).
+  over 3.5 m/s² tips) one would leave a 300 m curve at 116–125 km/h. The lines in play curve no
+  tighter than 200 m over 40 m chords (the CTR's own drawing reads 191 m over 20 m), but a run-out
+  follows OSM's polyline as drawn: Rometta's turned 15° at one vertex 471 m past the terminal, a
+  curve of about 76 m over 20 m chords, before Aulla's part took it into play.
 
 ## Tuning
 

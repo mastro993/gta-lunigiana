@@ -236,10 +236,10 @@ export const emptyTile = (i: number, j: number, names: ReadonlyArray<string>): D
 }
 
 /**
- * The tiles' cells as one DTM over the box round them (`DtmData`, heights in metres) and which of
- * its cells some tile holds (`held`): two tiles holding one cell hold the same height and source (a
- * fetch keeps what is held), else it throws. Sources are named in the order first met. A cell no
- * tile holds is NaN.
+ * The tiles' cells as one DTM over the box round them (`DtmData`, heights in decimetres) and which
+ * of its cells some tile holds (`held`): two tiles holding one cell hold the same height and source
+ * (a fetch keeps what is held), else it throws. Sources are named in the order first met. A cell no
+ * tile holds is 0 until `drawEdgesOn` draws the edge on over it.
  */
 export const assembleTiles = (
   tiles: ReadonlyArray<{ readonly key: string; readonly tile: DtmTile }>,
@@ -249,7 +249,7 @@ export const assembleTiles = (
     n0 = Math.min(...tiles.map((t) => t.tile.n0))
   const cols = (Math.max(...tiles.map((t) => t.tile.e0 + CELL * t.tile.cols)) - e0) / CELL,
     rows = (Math.max(...tiles.map((t) => t.tile.n0 + CELL * t.tile.rows)) - n0) / CELL
-  const z = new Float32Array(cols * rows).fill(Number.NaN),
+  const dm = new Int16Array(cols * rows),
     codes = new Uint8Array(cols * rows).fill(NONE),
     held = new Uint8Array(cols * rows),
     names: Array<string> = []
@@ -265,19 +265,19 @@ export const assembleTiles = (
         const k = r * tile.cols + c
         if (tile.codes[k] === NONE) continue
         const q = (dr + r) * cols + dc + c,
-          h = Math.fround(tile.dm[k]! / 10),
+          h = tile.dm[k]!,
           s = code[tile.codes[k]!]!
-        if (held[q] === 1 && (z[q] !== h || codes[q] !== s))
+        if (held[q] === 1 && (dm[q] !== h || codes[q] !== s))
           throw new Error(
-            `tile ${key} holds ${h.toFixed(1)} m (${names[s]}) at EPSG:3003 ${e0 + CELL * (dc + c)}, ${n0 + CELL * (dr + r)}, where another holds ${z[q]!.toFixed(1)} m (${names[codes[q]!]})`,
+            `tile ${key} holds ${(h / 10).toFixed(1)} m (${names[s]}) at EPSG:3003 ${e0 + CELL * (dc + c)}, ${n0 + CELL * (dr + r)}, where another holds ${(dm[q]! / 10).toFixed(1)} m (${names[codes[q]!]})`,
           )
-        z[q] = h
+        dm[q] = h
         codes[q] = s
         held[q] = 1
       }
   }
   return {
-    dtm: { e0, n0, cols, rows, cell: CELL, z, sources: { names, codes } },
+    dtm: { e0, n0, cols, rows, cell: CELL, dm, sources: { names, codes } },
     held,
   }
 }
@@ -289,7 +289,7 @@ export const assembleTiles = (
  * else above), column by column. Their source stays NONE.
  */
 export const drawEdgesOn = (dtm: DtmData, held: Uint8Array): void => {
-  const { cols, rows, z } = dtm
+  const { cols, rows, dm } = dtm
   const filled = new Uint8Array(rows)
   for (let r = 0; r < rows; r++) {
     const o = r * cols
@@ -301,8 +301,8 @@ export const drawEdgesOn = (dtm: DtmData, held: Uint8Array): void => {
       }
     if (first < 0) continue
     filled[r] = 1
-    for (let c = 0; c < first; c++) z[o + c] = z[o + first]!
-    for (let c = first + 1; c < cols; c++) if (held[o + c] === 0) z[o + c] = z[o + c - 1]!
+    for (let c = 0; c < first; c++) dm[o + c] = dm[o + first]!
+    for (let c = first + 1; c < cols; c++) if (held[o + c] === 0) dm[o + c] = dm[o + c - 1]!
   }
   for (let r = 0; r < rows; r++) {
     if (filled[r] === 1) continue
@@ -311,6 +311,6 @@ export const drawEdgesOn = (dtm: DtmData, held: Uint8Array): void => {
       if (r - d >= 0 && filled[r - d] === 1) from = r - d
       else if (r + d < rows && filled[r + d] === 1) from = r + d
     if (from < 0) throw new Error("no terrain tile holds a height")
-    z.copyWithin(r * cols, from * cols, (from + 1) * cols)
+    dm.copyWithin(r * cols, from * cols, (from + 1) * cols)
   }
 }

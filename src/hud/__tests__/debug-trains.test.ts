@@ -3,13 +3,14 @@ import { test } from "node:test"
 
 import type { TrainViewModel } from "../../sim/index.ts"
 import { MAP } from "../../sim/map/index.ts"
-import { LINES } from "../../sim/rail/lines.ts"
+import { LINES, makeLine } from "../../sim/rail/lines.ts"
 import { TRAINS } from "../../sim/rail/models.ts"
 import {
   crossingName,
   crossingText,
   dueText,
   endName,
+  endsOf,
   lineName,
   trainText,
   waitText,
@@ -23,17 +24,11 @@ const stations = (line: number) =>
   LINES[line]!.stations.map((station) => MAP.railway.stations[station]!.name)
 
 test("each line is named by its first and last stations, and its ends by the station nearest each", () => {
-  assert.ok(
-    LINES.some((line) => stations(line.index).length > 1),
-    "a line on the map calls at two stations or more",
-  )
-  for (const line of LINES) {
+  const named = LINES.filter((line) => new Set(stations(line.index)).size > 1)
+  assert.ok(named.length > 0, "a line on the map calls at two stations or more")
+  for (const line of named) {
     const names = stations(line.index)
-    if (names.length === 0) continue
-    assert.equal(
-      lineName(line.index),
-      names.length === 1 ? names[0] : `${names[0]} – ${names.at(-1)}`,
-    )
+    assert.equal(lineName(line.index), `${names[0]} – ${names.at(-1)}`)
     assert.equal(endName(line.index, 0), `the ${names[0]} end`)
     assert.equal(endName(line.index, 1), `the ${names.at(-1)} end`)
   }
@@ -42,6 +37,17 @@ test("each line is named by its first and last stations, and its ends by the sta
     [lineName(LINES.length), endName(LINES.length, 0), endName(LINES.length, 1)],
     ["", "its start", "its end"],
   )
+})
+
+test("every line's two ends read apart; a line calling at one station, or none, names them by the compass points they lie toward", () => {
+  for (const line of LINES)
+    assert.notEqual(endName(line.index, 0), endName(line.index, 1), `line ${line.index}`)
+  // A line running 1 km south and a little west, calling at one station (the map's first).
+  const south = makeLine(0, [{ pts: [0, 0, -200, -1000], z: [0, 0] }], [], [0])
+  assert.deepEqual(endsOf(south), { ends: ["north", "south"], stations: false })
+  // One running east, calling at none.
+  const east = makeLine(0, [{ pts: [0, 0, 1000, 300], z: [0, 0] }])
+  assert.deepEqual(endsOf(east).ends, ["west", "east"])
 })
 
 test("a wait reads in whole seconds rounded up, and minutes from one", () => {

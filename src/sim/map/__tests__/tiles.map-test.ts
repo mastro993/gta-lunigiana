@@ -22,7 +22,7 @@ const tiles = new Map(KEYS.map((key) => [key, decodeTile(tileFromDisk(key))]))
 /** The bounds' tile range (`tileRange`): the listed tiles and the notch's of an L. */
 const RANGE = tileRange(MAP.bounds)
 
-test("the tiles are the region's, those its parts' rectangles meet, listed south to north, then west to east, each with a file (Lunigiana's 102 of the bounds' 132: two notches)", () => {
+test("the tiles are the region's, those its parts' rectangles meet, listed south to north, then west to east, each with a file (Lunigiana's 153 of the bounds' 198: two notches)", () => {
   const box: Array<string> = []
   for (let j = RANGE.j0; j <= RANGE.j1; j++)
     for (let i = RANGE.i0; i <= RANGE.i1; i++) box.push(tileKey(i, j))
@@ -32,7 +32,7 @@ test("the tiles are the region's, those its parts' rectangles meet, listed south
     KEYS,
     box.filter((key) => KEYS.includes(key)),
   )
-  assert.deepEqual([KEYS.length, box.length], [102, 132], "today's Lunigiana")
+  assert.deepEqual([KEYS.length, box.length], [153, 198], "today's Lunigiana")
   // the notches' tiles have no file
   for (const key of box)
     assert.equal(

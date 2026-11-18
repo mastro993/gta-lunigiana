@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import type { Area, Poi, Spawn } from "../../sim/map/index.ts"
 import type { BuildingF, RoadF } from "../features.ts"
-import { clearance, parkedSpots, playerSpawn, regionPoi, startNear } from "../spawns.ts"
+import { clearance, parkedSpots, playerSpawn, regionPoi, startNear, trunkIndex } from "../spawns.ts"
 import { inAreas, inWater } from "../water-areas.ts"
 
 // A street along y 0 (5 m wide, so the right kerb's spots stand at y −3.5) with 80 houses north of
@@ -31,7 +31,7 @@ const houses: Array<BuildingF> = Array.from({ length: 80 }, (_, i) => {
     outer: [x, y, x + 4, y, x + 4, y + 4, x, y + 4],
   }
 })
-const open = clearance([], [])
+const open = clearance([], trunkIndex([]))
 /** The street's input to `parkedSpots`: no rail, the station far off, the Carabinieri at its middle, a quarter of its kerb's candidates kept. */
 const STREET = {
   roads: [street],

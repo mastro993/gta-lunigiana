@@ -15,7 +15,7 @@ import type { JoinedMap } from "../../tools/map-file.ts"
 import { carClear, moveCar, standClear, walkBy, wallsAlong } from "../body.ts"
 import { moveCircles, segDist2 } from "../collide.ts"
 import { settleFooting } from "../footing.ts"
-import { atGrade, footZ, groundZ } from "../map/ground.ts"
+import { atGrade, footZ, groundZ, roadLevel } from "../map/ground.ts"
 import {
   DECK_SLAB,
   footReach,
@@ -289,10 +289,22 @@ export const deckClimbs = (map: JoinedMap): Array<string> => {
   )
 }
 
+/** Whether `meeting`, a way at grade, is the approach of `deck`, a path's or steps' bridge: a path or steps itself. */
+const approach = (deck: Deck, meeting: { readonly cls: string; readonly tunnel?: boolean }) =>
+  (deck.cls === "path" || deck.cls === "steps") &&
+  (meeting.cls === "path" || meeting.cls === "steps") &&
+  meeting.tunnel !== true
+
 /** How far along a road meeting a deck's end the walk and the drive onto it start, and how far onto the deck they run, m. */
 const RUN_UP = 6
 /** How far past a deck's end, along it, a verge walk onto it may run beside it, m: the build opens the walk walls round the end so far (`ONTO` in src/tools/deck-walls.ts). */
 const BESIDE = 2
+/**
+ * A road turning onto a deck's end more than this (the cosine of 30°) is no drive onto it along the line: a Panda driven along it
+ * turns in place at the end and swings its nose over the deck's parapet, where a driver steers round the corner (joints.map-test.ts
+ * leaves such joints out alike). Track bridge 697036175 at Aulla turns 78° off its residential road.
+ */
+const TURN = Ops.cos(Math.PI / 6)
 
 /** The points of the flat line `pts` from its vertex `k` on, `toward` +1 or −1, as far as `most` m along it. */
 const alongFrom = (
@@ -339,11 +351,15 @@ const sideOf = (road: { readonly cls: string; readonly w: number; readonly verge
 /**
  * Where the road at an end of a road deck of `map` (the map loaded) no longer leads onto it: along each road meeting the end (one
  * with a vertex there), from RUN_UP m back along it to RUN_UP m onto the deck, a walker (`walkBy`) on its centreline and on either
- * verge (where the pedestrians walk, `walkSide`: the road's, then the deck's) and, along a drivable road onto a drivable deck, a
- * Panda (`moveCar`) on its centreline, that keep to their level (`settleFooting`, `groundZ`), and that with nothing to stop them are on the
+ * verge (where the pedestrians walk, `walkSide`: the road's, then the deck's) and, along a drivable road onto a drivable deck that
+ * turns less than TURN onto it, a Panda (`moveCar`) on its centreline, that set out on the road's level and keep to their level
+ * (`settleFooting`, `groundZ`), and that with nothing to stop them are on the
  * deck as they cross its end and still at the last, meet a wall with a level on their way: before the walls under the decks only
  * the parapets had one, and they line the deck. A road meeting the deck's end off its level (a profile at odds with the deck's)
- * leads onto it with no wall either, and is left out.
+ * leads onto it with no wall either, and is left out, but a path or steps at grade meeting a path's or steps' deck: it is that
+ * deck's approach (src/tools/path-approaches.ts), and its walker on its centreline gets onto the deck. Before the approaches, the
+ * sidewalk 1409723237 and the footway 1339933984 at Aulla met their bridges' ends 7.7 and 9.9 m under them, and their walkers
+ * walked on under the decks.
  * One line per deck end.
  */
 export const deckEndsShut = (map: JoinedMap): Array<string> => {
@@ -371,7 +387,10 @@ export const deckEndsShut = (map: JoinedMap): Array<string> => {
         for (const toward of [1, -1] as const) {
           if (2 * (k + toward) < 0 || 2 * (k + toward) >= pts.length) continue
           const back = alongFrom(pts, k, toward, RUN_UP).reverse(),
-            centre = [...back, ...onto.slice(1)]
+            centre = [...back, ...onto.slice(1)],
+            // The walk and the drive set out on the road's own level, not the highest there: the SP20 (172810305) runs onto
+            // its bridge 310074429 from under the A15's deck, whose parapet the drive met, set out on the deck.
+            start = roadLevel(road, back[0]!.x, back[0]!.y)
           // On foot, on the centreline and either verge, where nothing stops the walker on its way and it is on the deck at its end.
           for (const [verge, on] of [
             [0, "its centreline"],
@@ -385,24 +404,38 @@ export const deckEndsShut = (map: JoinedMap): Array<string> => {
               from = path[0]!,
               // The step that crosses onto the deck's end.
               across = stepsAlong(path.slice(0, back.length)).length
-            let free = footZ(from.x, from.y),
+            let free = footZ(from.x, from.y, start),
               onto0 = false,
+              off0 = 0,
               lowest = free,
               beside = -Infinity
             steps.forEach((p, q) => {
               free = settleFooting(p.x, p.y, free)
-              if (q === across) onto0 = onDeck(p, free)
+              if (q === across) {
+                onto0 = onDeck(p, free)
+                off0 = Math.abs(surfaceOf(deck, p.x, p.y).level - free)
+              }
               if (q >= across) return
               lowest = Math.min(lowest, free)
               beside = Math.max(beside, Vec2.dot(Vec2.subtract(p, onto[0]!), inward))
             })
-            if (!onto0 || !onDeck(steps.at(-1)!, free)) continue
+            const last = steps.at(-1)!
+            if (!onto0 || !onDeck(last, free)) {
+              // An approach's walker stands on the deck's level as it crosses its end and at the last
+              // (a road's deck beside a sidewalk's bridge may hold it, a few centimetres higher).
+              const offLast = Math.abs(surfaceOf(deck, last.x, last.y).level - free)
+              if (verge === 0 && approach(deck, meeting) && Math.max(off0, offLast) >= ONE_LEVEL)
+                return [
+                  `${where} a walker along ${meeting.cls} ${meeting.id}, its approach, never gets onto it: ${free.toFixed(2)} m at its last`,
+                ]
+              continue
+            }
             // A verge dipping ONE_LEVEL under the deck's end on its way (a ditch), or running beside the deck more than BESIDE m
             // past its end (a road turning back along it), is no way onto it at its end: the walls under the deck meet its walkers
             // as they meet anyone under or beside the deck.
             if (verge !== 0 && (top - lowest >= ONE_LEVEL || beside > BESIDE)) continue
             let p: Vec2.Vec2 = from,
-              footing = footZ(from.x, from.y)
+              footing = footZ(from.x, from.y, start)
             for (const q of steps) {
               const step = Vec2.subtract(q, p)
               const walls = wallsAlong(
@@ -430,11 +463,14 @@ export const deckEndsShut = (map: JoinedMap): Array<string> => {
             }
           }
           if (!isDrivable(deck.cls) || !isDrivable(cls)) continue
+          const last = back.at(-1)!,
+            heading = Vec2.normalizeOr(Vec2.subtract(last, back.at(-2) ?? last), Vec2.zero)
+          if (Vec2.dot(heading, inward) < TURN) continue
           // By car, on the centreline, likewise.
           const steps = stepsAlong(centre),
             from = centre[0]!,
             across = stepsAlong(back).length
-          let wheelsFree = groundZ(from.x, from.y),
+          let wheelsFree = groundZ(from.x, from.y, start),
             wheelsOnto = false
           steps.forEach((p, q) => {
             wheelsFree = groundZ(p.x, p.y, wheelsFree)
@@ -442,7 +478,7 @@ export const deckEndsShut = (map: JoinedMap): Array<string> => {
           })
           if (!wheelsOnto || !onDeck(steps.at(-1)!, wheelsFree)) continue
           let pose = { ...from, angle: 0 },
-            wheels = groundZ(from.x, from.y)
+            wheels = groundZ(from.x, from.y, start)
           for (const q of steps) {
             const step = Vec2.subtract(q, pose),
               angle = Ops.atan2(step.y, step.x)

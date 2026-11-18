@@ -5,6 +5,7 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { MAP } from "../../map/index.ts"
 import { strikeIn } from "../barriers.ts"
+import { buffersOf } from "../collisions.ts"
 import {
   curvatureAt,
   DEFAULT_SPEED,
@@ -24,7 +25,7 @@ import { MONZONE } from "../testing.ts"
 import {
   checkAtTheirS,
   checkLinesNear,
-  checkNoSharedTrack,
+  checkSharedTrack,
   checkStops,
   checkTerminals,
   railwayAround,
@@ -226,6 +227,26 @@ test("lines: lines on the same pieces share that track, either way round, and th
   assert.deepEqual(onto(1, 0, -300, -200), [[-300, -200, 1]])
   assert.deepEqual(onto(2, 0, -300, -200), [[c.length + 200, c.length + 300, -1]])
   assert.deepEqual(onto(0, 0, 0, 10), [], "none with itself")
-  // The map's lines by Monzone station share no track today.
-  checkNoSharedTrack(HERE.lines)
+  // The map's lines by Monzone station share track where they run the same pieces, and only there.
+  checkSharedTrack(HERE.lines)
+})
+
+test("lines: a line to a terminus runs on past its first terminal only: its track, its speed and a driven train's buffer end there, and it shares no run-out past it", () => {
+  const piece: TrackPiece = { pts: [0, 0, 100, 0, 400, 0], z: [0, 0, 0], rail: 10 }
+  const t = makeLine(0, [piece], [[0, 400, 80]], [], [[], []], true),
+    through = makeLine(1, [piece], [[0, 400, 80]])
+  assert.deepEqual([t.terminus, t.start, t.end], [true, -runOut(80 / 3.6), t.length])
+  assert.deepEqual(t.speeds, [{ from: t.start, to: t.length, v: 80 / 3.6 }])
+  assert.equal(pointAt(t, t.length + 50).x, 400, "nothing past it")
+  assert.deepEqual(buffersOf(t), { lo: -DRAWN_RUN, hi: 400 })
+  assert.deepEqual(buffersOf(through), { lo: -DRAWN_RUN, hi: 400 + DRAWN_RUN })
+  assert.deepEqual(
+    t.runs.map((r) => r.key),
+    [-21, 10],
+  )
+  // A line on to the edge over the same piece shares it and the run-out before it with the terminus's line, none past it.
+  assert.deepEqual(
+    sharedTrack([t, through])[1]![0]!.map((r) => [r.from, r.to, r.sign]),
+    [[t.start, 400, 1]],
+  )
 })

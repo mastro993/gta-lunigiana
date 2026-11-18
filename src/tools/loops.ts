@@ -9,7 +9,9 @@ import type { Grid } from "./terrain.ts"
  * crossing points midway between blocked and free centres, blocked side on the left. At saddles
  * the diagonal blocked corners join, so one-cell diagonal strips (streams) stay one loop. Yields
  * loops of [x, y] in metres (first point repeated last), each from its lowest crossing id, one at a
- * time so only the loop at hand is held.
+ * time so only the loop at hand is held: each crossing's next is worked out from the one square it
+ * leaves the blocked cells through, and a bit a crossing marks those walked (a map of every
+ * crossing's next took about a gigabyte on Lunigiana's 39 million cells).
  */
 export function* traceLoops(
   g: Pick<Grid, "cell" | "cols" | "rows" | "x0" | "y0">,
@@ -31,30 +33,55 @@ export function* traceLoops(
       ? [g.x0 + (i + 1) * c, g.y0 + (j + 0.5) * c]
       : [g.x0 + (i + 0.5) * c, g.y0 + (j + 1) * c]
   }
-  const next = new Map<number, number>()
-  for (let j = -1; j < ch; j++)
-    for (let i = -1; i < cw; i++) {
-      // Square corners counter-clockwise: SW, SE, NE, NW; edge k runs corner k -> k+1.
-      const v = [b(i, j), b(i + 1, j), b(i + 1, j + 1), b(i, j + 1)]
-      if (v[0] === v[1] && v[1] === v[2] && v[2] === v[3]) continue
-      const edge = [hId(i, j), vId(i + 1, j), hId(i, j + 1), vId(i, j)]
-      for (let k = 0; k < 4; k++) {
-        if (!(v[k] === 1 && v[(k + 1) % 4] === 0)) continue // leaves the blocked region along edge k
-        let e = (k + 1) % 4
-        while (!(v[e] === 0 && v[(e + 1) % 4] === 1)) e = (e + 1) % 4 // next entering edge counter-clockwise
-        next.set(edge[k]!, edge[e]!)
-      }
+  // Square (i, j)'s corners counter-clockwise: SW, SE, NE, NW (`v`); edge k runs corner k -> k+1.
+  const v = [0, 0, 0, 0]
+  const corners = (i: number, j: number) => {
+    v[0] = b(i, j)
+    v[1] = b(i + 1, j)
+    v[2] = b(i + 1, j + 1)
+    v[3] = b(i, j + 1)
+  }
+  const edgeOf = (i: number, j: number, k: number) =>
+    k === 0 ? hId(i, j) : k === 1 ? vId(i + 1, j) : k === 2 ? hId(i, j + 1) : vId(i, j)
+  /** Square (i, j)'s next entering edge counter-clockwise after edge `k`, which leaves the blocked cells. */
+  const entering = (i: number, j: number, k: number) => {
+    corners(i, j)
+    let e = (k + 1) % 4
+    while (!(v[e] === 0 && v[(e + 1) % 4] === 1)) e = (e + 1) % 4
+    return edgeOf(i, j, e)
+  }
+  // The square crossing `id` leaves the blocked cells through, as [i, j, k], or undefined: an h
+  // crossing is edge 0 of the square above it or edge 2 of the one below, a v crossing edge 1 of the
+  // square left of it or edge 3 of the one right.
+  const leaving = (id: number): readonly [number, number, number] | undefined => {
+    const cell = Math.floor(id / 2),
+      i = (cell % (cw + 2)) - 1,
+      j = Math.floor(cell / (cw + 2)) - 1
+    if (id % 2 === 0) {
+      const a = b(i, j),
+        d = b(i + 1, j)
+      return a === d ? undefined : a === 1 ? [i, j, 0] : [i, j - 1, 2]
     }
-  for (const start of [...next.keys()].sort((a, d) => a - d)) {
-    if (!next.has(start)) continue
+    const a = b(i, j),
+      d = b(i, j + 1)
+    return a === d ? undefined : a === 1 ? [i - 1, j, 1] : [i, j, 3]
+  }
+  const walked = new Uint32Array(Math.ceil((hId(cw, ch) + 2) / 32))
+  for (let start = 0; start < hId(cw, ch) + 2; start++) {
+    if ((walked[start >>> 5]! & (1 << (start & 31))) !== 0) continue
+    const out = leaving(start)
+    if (out === undefined) continue
     const loop = [xy(start)]
-    let cur = start
-    do {
-      const to = next.get(cur)!
-      next.delete(cur)
+    let cur = start,
+      at = out
+    for (;;) {
+      walked[cur >>> 5]! |= 1 << (cur & 31)
+      const to = entering(...at)
       loop.push(xy(to))
+      if (to === start) break
       cur = to
-    } while (cur !== start)
+      at = leaving(cur)!
+    }
     yield loop
   }
 }
