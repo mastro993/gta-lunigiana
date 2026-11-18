@@ -9,8 +9,9 @@
 // tunnel under a path or steps at grade, which no pass fits. A road at grade never rises over a
 // tunnel, and no road takes a bound from a path's or steps' bridge or tunnel: their pass
 // (PATH_PASS) comes after every road's, and they take it. One chain crossing itself takes both
-// bounds from one natural level. And two carriageways of one road that overlap in plan keep on one
-// level there (`TWINS`).
+// bounds from one natural level. Each bound holds across the other way's carriageway, from its
+// level abeam. And two carriageways of one road that overlap in plan keep on one level there
+// (`TWINS`), a deck or a bore of one at both its ends.
 import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt, type V } from "./geometry.ts"
@@ -111,6 +112,36 @@ const nearest = (
   return { d, s }
 }
 
+/** A chain, its members in order. */
+type Chain = ReadonlyArray<{ readonly item: Linear }>
+
+/**
+ * The deck or bore of `chain` round member `i`, first and last: the consecutive bridge (or tunnel)
+ * members round it, which a fit lays straight from end to end (`deckOf` in profiles.ts).
+ */
+const deckOf = (chain: Chain, i: number): readonly [number, number] => {
+  const tunnel = chain[i]!.item.tunnel === true
+  const joins = (k: number) => lifted(chain[k]!.item) && (chain[k]!.item.tunnel === true) === tunnel
+  let a = i,
+    b = i
+  while (a > 0 && joins(a - 1)) a--
+  while (b + 1 < chain.length && joins(b + 1)) b++
+  return [a, b]
+}
+
+/** The ends of deck [a, b] of `chain`, each with its member: its first and last members' ends no other member of it shares. */
+const deckEnds = (chain: Chain, a: number, b: number): Array<readonly [V, Linear]> => {
+  const meets = (v: V, l: Linear) =>
+    [l.pts[0]!, l.pts.at(-1)!].some((u) => u.x === v.x && u.y === v.y)
+  const ends = (k: number, next: number) => {
+    const l = chain[k]!.item
+    return [l.pts[0]!, l.pts.at(-1)!]
+      .filter((v) => a === b || !meets(v, chain[next]!.item))
+      .map((v) => [v, l] as const)
+  }
+  return a === b ? ends(a, a) : [...ends(a, a + 1), ...ends(b, b - 1)]
+}
+
 /**
  * Where two oneway carriageways of one road (one `ref`, a pass's) overlap in plan, sharing no node
  * and neither over the other: the points of each, SPREAD m apart along it, its carriageway's edge
@@ -164,9 +195,10 @@ interface LevelsInput {
  * put on a chain's profile: a way below a fitted one, or a tunnel below a later pass's road or a
  * path at grade (at its natural level), its clearance under it (`max`); a bridge, its clearance over
  * the way below, fitted or, in a later pass or at grade, at its natural level, and a tunnel over a
- * fitted way below it (`min`); and a carriageway, within TWINS of its twin's fitted level where they
- * overlap (`twinsOf`, both). And the level of the road deck a path's or steps' bridge ends on
- * (`deckUnder`).
+ * fitted way below it (`min`), each across the other's carriageway (`across`); and a carriageway,
+ * within TWINS of its twin's fitted level where they overlap at grade, and at both ends of a deck
+ * or a bore of it that overlaps (`twinsOf`, both). And the level of the road deck a path's or
+ * steps' bridge ends on (`deckUnder`).
  */
 export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
   const box = roads.map((r) => lineBox(r.pts))
@@ -240,18 +272,43 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
   const later = (a: RoadF, b: RoadF) => passOf(a) > passOf(b)
   const twins = twinsOf(roads)
   /** The bounds on `chain` from the crossings it has a road of, and from its carriageways' twins. */
-  const bounds = (chain: ReadonlyArray<{ readonly item: Linear }>): Array<Bound> => {
+  const bounds = (chain: Chain): Array<Bound> => {
     const has = (l: Linear) => chain.some((m) => m.item === l)
-    // Where a carriageway overlaps its twin, fitted before it: on its level, inside a deck along the
-    // deck's slope.
-    const level = twins.flatMap(({ on, other, x, y, at }): Array<Bound> => {
-      if (!has(on) || has(other) || !fitted(other)) return []
-      const z = zAt(other, at)
-      return [
-        { x, y, z: z - TWINS, kind: "min", tilt: true, on },
-        { x, y, z: z + TWINS, kind: "max", tilt: true, on },
-      ]
-    })
+    const within = (x: number, y: number, z: number, on: Linear): Array<Bound> => [
+      { x, y, z: z - TWINS, kind: "min", on },
+      { x, y, z: z + TWINS, kind: "max", on },
+    ]
+    // Where a carriageway at grade overlaps its twin, fitted before it: on its level. A deck or a
+    // bore overlapping it anywhere is one straight piece, its ends each on the level of the twin's
+    // pieces it overlaps abeam of that end: bound where they overlap and carried to its ends along
+    // its slope before the fit, the A15's Parma carriageway's bridge at Calcinara (136414830),
+    // overlapping its twin's midway alone, stood 5.1 m under it at its south end, its approach
+    // sagging 8.1 m under the twin's and climbing 6.7% on.
+    const level: Array<Bound> = []
+    const decks = new Map<number, readonly [number, Set<RoadF>]>()
+    for (const { on, other, x, y, at } of twins) {
+      if (!has(on) || has(other) || !fitted(other)) continue
+      if (!lifted(on)) {
+        level.push(...within(x, y, zAt(other, at), on))
+        continue
+      }
+      const [a, b] = deckOf(
+        chain,
+        chain.findIndex((m) => m.item === on),
+      )
+      const [, partners] = decks.get(a) ?? decks.set(a, [b, new Set()]).get(a)!
+      partners.add(other)
+    }
+    for (const [a, [b, partners]] of decks)
+      for (const [v, on] of deckEnds(chain, a, b)) {
+        let least = Infinity,
+          z = 0
+        for (const other of partners) {
+          const o = nearest(other.pts, arcLengths(other.pts), v.x, v.y)
+          if (o.d < least) [least, z] = [o.d, zAt(other, o.s)]
+        }
+        level.push(...within(v.x, v.y, z, on))
+      }
     const crossed = over.flatMap(({ up, down, c, clear }): Array<Bound> => {
       if (has(up) && has(down)) {
         // A chain over itself (the SR445's loop at Gassano runs under its own bridge, 13.6 m from

@@ -10,6 +10,7 @@ import {
   makeProfiler,
   PATH_PASS,
   RAIL_PASS,
+  ROAD_PASSES,
   type Linear,
 } from "../profiles.ts"
 import { roadLevels } from "../road-levels.ts"
@@ -207,6 +208,51 @@ test("profile carries a tilted bound inside a tunnel to its portals along the tu
   assert.ok(Math.abs(high! - 230) < 0.5, `high portal at ${high}`)
   // Pinned flat, the high portal sank more than 10 m.
   assert.ok(portals(false)[1]! < 220)
+})
+
+// Regression (review of #19): the A15's Parma carriageway's deck at Calcinara (136414830) kept its
+// twin's level only through bounds carried to its ends along its slope before the fit, and sagged
+// 7 m beside it; a bound at a deck's end itself was carried to its other end the same way.
+test("profile holds a bound at a deck's end there alone: the straight deck keeps it, and its other end its own level", () => {
+  // Ground climbing 2% east; a bridge from x 300 to 400 (106 to 108 m), a bound of 107 m at least
+  // at its west end.
+  const ground = (x: number) => 100 + 0.02 * x
+  const deck = { id: 2, bridge: true as const, pts: [v(300, 0, "b0"), v(400, 0, "b1")] }
+  const chain = [
+    { id: 1, pts: [v(0, 0), v(300, 0, "b0")] },
+    deck,
+    { id: 3, pts: [v(400, 0, "b1"), v(700, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const { profile, zOf } = makeProfiler(ground)
+  profile(chain, { w: 10, rank: 0, grade: 0.06, half: 100 }, [
+    { x: 300, y: 0, z: 107, kind: "min", tilt: true, on: deck },
+  ])
+  const [west, east] = zOf.get(deck)!
+  assert.ok(west! >= 107 - 1e-6, `west end at ${west}`)
+  assert.ok(Math.abs(east! - 108) < 0.05, `east end at ${east}, not lifted with it`)
+})
+
+// Regression (review of #19): the A15's Parma carriageway at Calcinara runs at grade over a dip the
+// survey reads 13 m under its twin beside it; its fit, relaxed to stay within 4 m of the ground,
+// sagged 6-8 m into it and climbed up to 6.8% over 100 m out of it, past the motorway's 6%.
+test("profile keeps a motorway within its grade limit over a dip, where a local road's fit relaxes it", () => {
+  // Level ground at 100 m but a dip 40 m deep over x 300–360, the road at grade over it.
+  const ground = (x: number) => (x > 300 && x < 360 ? 60 : 100)
+  const steepest = (classes: string) => {
+    const pass = ROAD_PASSES.find((p) => (p.classes as ReadonlyArray<string>).includes(classes))!
+    const line = { pts: [v(0, 0), v(700, 0)] }
+    const { profile, denseOf } = makeProfiler((x) => ground(x))
+    profile([{ item: line, rev: false }], { w: 10, ...pass })
+    const { pts, z } = denseOf.get(line)!
+    let g = 0
+    for (let k = 1; k < z.length; k++)
+      g = Math.max(g, Math.abs(z[k]! - z[k - 1]!) / (pts[k]!.x - pts[k - 1]!.x))
+    return g
+  }
+  const motorway = steepest("motorway"),
+    tertiary = steepest("tertiary")
+  assert.ok(motorway <= 0.06 + 1e-9, `the motorway at ${(motorway * 100).toFixed(2)}%`)
+  assert.ok(tertiary > 0.1 + 1e-3, `the tertiary road at ${(tertiary * 100).toFixed(2)}%`)
 })
 
 // Regression: the SS63's bridge over the Rosaro at Soliera is two OSM ways; taken piece by piece,

@@ -205,6 +205,34 @@ test("roadLevels: two oneway carriageways of one road overlapping in plan keep w
   assert.deepEqual(levels([a, joined], [a]).bounds([{ item: joined }]), [], "a node shared")
 })
 
+// Regression (review of #19): the A15's Parma carriageway's bridge at Calcinara (136414830) overlaps
+// its twin's (31135803) midway alone; its ends, bound through it along its slope before the fit,
+// stood 5.1 m under its twin's and 5.4 m over it, and its approach sagged 8.1 m under it.
+test("roadLevels: a carriageway's deck or bore overlapping its twin anywhere keeps its ends within TWINS of the twin's level abeam of them", () => {
+  // A 10 m carriageway's bridge along y 0, fitted climbing 5% east; its twin's, of two pieces, from
+  // (50, 12) to (150, 12) by (100, 9), overlapping it only round x 100.
+  const shared = { oneway: true, ref: "A15", w: 10, bridge: true } as const
+  const a = road(60, "motorway", [v(0, 0), v(200, 0)], shared)
+  const b0 = road(61, "motorway", [v(50, 12, "b0"), v(100, 9, "j")], shared)
+  const b1 = road(62, "motorway", [v(100, 9, "j"), v(150, 12, "b1")], shared)
+  const bounds = roadLevels({
+    roads: [a, b0, b1],
+    ground: () => 100,
+    fitted: (l: Linear) => l === a,
+    zAt: (_, s) => 100 + 0.05 * s,
+  }).bounds([{ item: b0 }, { item: b1 }])
+  // Its ends alone, each within TWINS of the twin's level abeam of it (102.5 and 107.5 m).
+  assert.deepEqual(
+    bounds.map((b) => [b.x, b.y, b.kind, b.z.toFixed(2), b.on]),
+    [
+      [50, 12, "min", (102.5 - TWINS).toFixed(2), b0],
+      [50, 12, "max", (102.5 + TWINS).toFixed(2), b0],
+      [150, 12, "min", (107.5 - TWINS).toFixed(2), b1],
+      [150, 12, "max", (107.5 + TWINS).toFixed(2), b1],
+    ],
+  )
+})
+
 // Regression (review of #19): the A15's bridge 136455101 kept 5.5 m over the track 491154920 under
 // it at the crossing of their centrelines alone, and 5.23 m 5 m from it, under the deck's edge.
 test("roadLevels: a way crossing another on two levels keeps the clearance across the other's carriageway, from its level there", () => {
