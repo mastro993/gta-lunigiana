@@ -53,6 +53,15 @@ export interface Build {
   readonly hold: number
 }
 
+/**
+ * Where a swimmer of `height` m in `water` has its feet, m a.s.l.: as deep as the water that lifts
+ * it off them (AFLOAT of its height) under the surface, never under the floor it would stand on.
+ * This is its footing, the level it meets cars and others at, so in deep water it meets a car
+ * afloat beside it, not the bed far under it.
+ */
+export const feetAfloat = (water: WaterHere, height: number): number =>
+  water.level - Math.min(water.depth, AFLOAT * height)
+
 /** Whether a body of `build` in `water` is off its feet, given whether it was a step ago. */
 export const swept = (water: WaterHere, build: Build, was: boolean): boolean => {
   const share = was ? REGAIN : 1,

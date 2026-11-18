@@ -57,7 +57,8 @@ export interface PlayerViewModel {
       }
     | undefined
   /**
-   * The player's `Footing`, m a.s.l., where the camera stands: on foot (down or dead too) the ground they stand on, driving a car
+   * The player's `Footing`, m a.s.l., where the camera stands: on foot (down or dead too) the ground they stand on, swimming
+   * where their feet hang in the water, driving a car
    * the ground under it on its wheels' ground, driving a train the rail head under its active cab (on a rail bridge too, which
    * the map's ground has not). Never the highest level there: after a jump under a bridge, the road, not the deck.
    */

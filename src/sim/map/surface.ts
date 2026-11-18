@@ -11,14 +11,14 @@ import { type Cover, coverAt } from "./cover.ts"
 import { MAP, type RoadInfo } from "./index.ts"
 import { derived, type Place, placeAt } from "./tiles.ts"
 
-/** Every surface, as a closed set: road surfaces, stone paving, and the land cover off the road. */
-const SURFACES = ["asphalt", "stone", "gravel", "dirt", "grass", "leaves"] as const
+/** Every surface, as a closed set: road surfaces, stone paving, and the land cover off the road (a beach's sand too). */
+const SURFACES = ["asphalt", "stone", "gravel", "dirt", "grass", "leaves", "sand"] as const
 /** What a foot or a tyre is on. */
 export type Surface = (typeof SURFACES)[number]
 
 /**
  * Off the road, by land cover, as the terrain is painted: green covers are grass (scrub's brush is leaves), grey ones hard
- * (loose stones are gravel; bare rock, quarry floors and village paving are stone).
+ * (loose stones are gravel; bare rock, quarry floors and village paving are stone), a beach and the sea's floor sand.
  */
 const COVER_SURFACE = {
   meadow: "grass",
@@ -48,6 +48,8 @@ const COVER_SURFACE = {
   conifer: "leaves", // needle litter
   mixed: "leaves",
   olive: "grass", // the grass between the trees
+  sea: "sand", // the sea's floor, and the wet sand of a shore cell above the waterline
+  sand: "sand",
 } as const satisfies Record<Cover, Surface>
 
 /** The roads' OSM `surface` values; anything else is asphalt. */
@@ -71,6 +73,7 @@ const ROAD_SURFACE: Partial<Record<string, Surface>> = {
   unpaved: "dirt",
   mud: "dirt",
   grass: "dirt",
+  sand: "sand", // the paths across a beach
 }
 
 /** A foot or a wheel this far past a carriageway's edge is still on the road, m. */

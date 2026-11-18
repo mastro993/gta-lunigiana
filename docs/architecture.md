@@ -117,7 +117,7 @@ the parked cars come from `Parking.seed`, so the fill replays with the seed.
 | 13 | `EnterExit` | `systems/enter-exit.ts` | action key: enter, steal, carjack, get out; a train at its cab doors (`rail/boarding.ts`): its AI driver flees (out of the far cab where the active one has no door at grade), the far cab becomes the active one; getting out needs a stand at grade, the platforms' side first, and with none the player goes through to the far cab; out, the player stands on the ground beside it on their footing's level (`Footing`) |
 | 14 | `applyDeferred` | | applies the enter/exit commands, so the blast knows who sits in which vehicle |
 | 15 | `Explode` | `systems/explosions.ts` | lights a burning wreck's fuse; a wreck whose fuse has burnt down blows up (`Explosion`): hits and shoves the vehicles near it, kills, knocks down and scares the people; a vehicle beyond the player's reach (`inReach`) is left as it is: its fuse waits and no blast reaches it |
-| 16 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river, a stream or a lake gets `InWater`, swimming once off its feet, and loses it on dry ground |
+| 16 | `Wade` | `systems/water.ts` | who is in the water: every person on foot and every animal in a river, a stream, a lake or the sea gets `InWater`, swimming once off its feet, and loses it on dry ground |
 | 17 | `applyDeferred` | | applies the blast's deaths and knockdowns and who is in the water, before anything moves |
 | 18 | `PlayerFoot` | `systems/foot.ts` | player walking, sprinting, sliding when down; in the water wading or swimming with the current |
 | 19 | `PlayerDrive` | `systems/drive.ts` | player keys into the driven car's or train's `CarInput` |
@@ -132,7 +132,7 @@ the parked cars come from `Parking.seed`, so the fill replays with the seed.
 | 28 | `TrainContacts` | `rail/strikes.ts` | trains strike what touches their cars on their level, shoved by nothing: vehicles shoved clear or dragged along their wall, wrecked faster than 14 m/s or dragged against a wall faster than 3 m/s (a `train` `Impact` as a contact begins, against `PrevPose` and `TrainMotion.prev`, and the wrecking blow); people and animals on their `Footing` pushed aside, or knocked down by the train's own speed into them and maybe killed by the train's death curve, the player too (`Impact` with the train as its `car`); a vehicle beyond the player's reach (`inReach`) is passed through |
 | 29 | `CrashDamage` | `systems/damage.ts` | this step's `Impact` events wear the vehicles they struck (`Damage`), a train's as a wall's; a traffic car destroyed is abandoned, its driver fleeing |
 | 30 | `RideAlong` | `systems/drive.ts` | the driving player takes the car's pose and motion, or the pose of a train's active cab and the train's motion |
-| 31 | `FindFooting` | `systems/footing.ts` | after the last move, settles every `Footing` where its body now is (`footing.ts`): a body on foot keeps to the level it was on (the ground nearest its last, decks and tunnels out to their verges), the player driving stands on the ground under the car on its wheels' ground, or on the rail head under the train's active cab |
+| 31 | `FindFooting` | `systems/footing.ts` | after the last move, settles every `Footing` where its body now is (`footing.ts`): a body on foot keeps to the level it was on (the ground nearest its last, decks and tunnels out to their verges), one swimming hangs its feet 0.7 of its height under the surface (`feetAfloat` in `water/swim.ts`), the player driving stands on the ground under the car on its wheels' ground, or on the rail head under the train's active cab |
 | 32 | `Recover` | `systems/contacts.ts` | knocked-down people and animals get up, never the dead; pedestrians then flee, animals bolt |
 | 33 | `Perceive` | `systems/perceive.ts` | pedestrians take in this step's hits, crashes, horns and whistles, the vehicles on their level (the cars of trains among them), bodies and people around them and the level crossings closing (`rail/senses.ts`; held there as patiently as a driver), and set their moods; cries are `Cry` events; marks `Witness`es, lets go of a leader gone or dead |
 | 34 | `Startle` | `systems/fright.ts` | cats and pigs run from this step's crashes and struck bodies (`Cry`) |
@@ -199,9 +199,9 @@ Saved world state (in snapshots), declared in `src/sim/schema.ts`:
 | `Witness` | pedestrians | tag: saw a person killed or came on a body; its shock ends in the choice to gather or run |
 | `Down` | knocked-down and dead people and animals | step at which they get up; for the `Dead`, the step they died, and `Recover` never lifts them |
 | `Dead` | the killed: pedestrians and animals a vehicle struck, people and animals on foot a train struck, people on foot by a blast, the player in a wreck that blew up | step they died (`since`); always with `Down` |
-| `Footing` | the player, pedestrians and animals, from their spawn | the ground it stands on, m a.s.l., where its pose is at the end of the step (`FindFooting`), kept on the level it was on; for the player driving, the ground under the car on its wheels' ground or the rail head under the train's cab. Spawned on its first footing (`firstFooting` in `footing.ts`: its `Route`'s road where that is a deck or a tunnel's floor, else at the terrain's level). The movers, the contacts, the railway's rules and `Perceive` read it, getting out stands the player beside the vehicle on its level, the render stands each figure on its level at its drawn place (`footY`, through `settleFooting`), the audio voices each on it (the player's ears too), and `PlayerView.z` is the player's, for the camera |
+| `Footing` | the player, pedestrians and animals, from their spawn | the ground it stands on, m a.s.l., where its pose is at the end of the step (`FindFooting`), kept on the level it was on; swimming, where its feet hang in the water (0.7 of its height under the surface, never under the bed); for the player driving, the ground under the car on its wheels' ground or the rail head under the train's cab. Spawned on its first footing (`firstFooting` in `footing.ts`: its `Route`'s road where that is a deck or a tunnel's floor, else at the terrain's level). The movers, the contacts, the railway's rules and `Perceive` read it, getting out stands the player beside the vehicle on its level, the render stands each figure on its level at its drawn place (`footY`, through `settleFooting`), the audio voices each on it (the player's ears too), and `PlayerView.z` is the player's, for the camera |
 | `Animal` | animals | species (`dog`, `cat`, `cow`, `pig`), coat and patch colours, size × the species' usual (immutable) |
-| `InWater` | the player on foot, pedestrians, animals in a river, a stream or a lake | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
+| `InWater` | the player on foot, pedestrians, animals in a river, a stream, a lake or the sea | `swimming`: off its feet; while it has it, it is in the water under a bridge, not on its deck |
 | `Roam` | animals | mood (`idle`, `walk`, `flee`), the step it ends, home (hx, hy), and the point (tx, ty) it walks to or runs from |
 | `Vehicle` | vehicles | model and paint colour (immutable) |
 | `CarInput` | vehicles, trains | throttle, steer, handbrake for this step; a train's lever is the throttle (along its motion power, against it the brake, from rest backwards) and its handbrake the emergency brake |
@@ -441,10 +441,11 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
 - `edgeIndex` (`src/sim/edges.ts`, re-exported by `src/sim/route.ts`), with its instances
   `trafficIndex` and `walkIndex` (`src/sim/route.ts`) and `peopledIndex`, answers nearest-edge and
   spawn-band lookups without scanning the whole graph.
-- `waterAt` (`src/sim/water/rivers.ts`) finds the lake or river polygon a point lies in (lakes
-  first), else the nearest reach of a river or stream within its bed in 32 m buckets, all from the
-  tile holding the point (`placeAt`), each reach with its two vertices' bed, depth and speed per unit
-  discharge (`channelOf` in `src/sim/water/channel.ts`, from each water's baked bed, `Water.floor`),
+- `waterAt` (`src/sim/water/rivers.ts`) finds the lake, sea piece or river polygon a point lies in
+  (still water first), else the nearest reach of a river or stream within its bed in 32 m buckets,
+  all from the tile holding the point (`placeAt`), each reach with its two vertices' bed, depth and
+  speed per unit discharge (`channelOf` in `src/sim/water/channel.ts`, from each water's baked bed,
+  `Water.floor`),
   built from the whole pieces and areas the tile holds the first time a query reaches it; in a river
   polygon, the nearest reach of its own waterways (the cut puts them in every tile the polygon lies
   in). Of equally near reaches it keeps the first in (water piece, vertex) order, as one grid over
@@ -881,8 +882,9 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
     quads, the oldest overwritten first. Each (car, wheel) draws a strip joining its consecutive
     steps; a step without a skid breaks it. Width by model's tread (Panda 0.18 m, Ape 0.1 m,
     Giulia 0.22 m, the truck's twin tyres 0.35 m), rubber on asphalt and stone, an earth rut on the
-    rest, turning to a dark slush rut with the snow under the wheel (`Skid.snow`), opacity by
-    `amount`, fading out over 60 s. A quad lies 4 cm over the ground the event
+    rest, the damp sand under a beach's (`sandWet`, the beaches' measured wet sand), turning to a
+    dark slush rut with the snow under the wheel (`Skid.snow`), opacity by `amount`, fading out
+    over 60 s. A quad lies 4 cm over the ground the event
     names or the highest road ribbon drawn within 3 m over it (`drawnZ`; on a hairpin or at a
     junction the wheels' blended ground can sit under it, while a tunnel's hill stands higher),
     which clears the centre dash (2 cm over its road), and the material is pulled towards the
@@ -893,8 +895,12 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
   - Smoke and dust (`src/render/smoke.ts`): one `InstancedMesh` of up to 256 low-poly puffs
     (an icosahedron tinted per puff, 60 % opaque), spawned at `rate` × `amount` × `slip` puffs a
     second: white-grey burnt rubber on asphalt and stone, tan dust on gravel and dirt, dark brown
-    on leaves, hardly any on grass, turning to white spray with the snow (`Skid.snow`). A puff
-    swells, rises, drifts and thins away over 1–2 s; when all 256 are in the air, the puffs owed
+    on leaves, a pale spray on sand (`sand`, the thickest: 3 puffs a second per m/s of slip, dirt
+    2.5), hardly any on grass, turning to white spray with the snow (`Skid.snow`), and none from
+    a wheel under water (a river's, a lake's or the sea's: `waterAt` at its contact point, in
+    `DrawEffects`), which still leaves its mark, since a Panda bogged in the surf off Marinella,
+    spinning its wheels on the sand under the sea, threw up a dry sand plume out of the water. A
+    puff swells, rises, drifts and thins away over 1–2 s; when all 256 are in the air, the puffs owed
     meanwhile are dropped. Being transparent it draws after every opaque mesh, the x-ray
     silhouettes included, and after the marks (render order 1), and it writes no depth.
   - Marks and smoke are lit like the people and cars (the `actor` weather variant: cloud shadows,
@@ -1054,9 +1060,9 @@ level crossings' housings and cabinets, tunnel portals, the lamps' iron, poles a
 a buried mesh (the road tunnels' walls: the solid's material, casting no shadow, as the terrain over
 them casts none), a decal mesh (roads, in their tunnels too, the track's sleepers and
 rails, crossing panels and stop lines, the platforms' yellow lines), a water mesh (rivers and
-streams, laid on their beds: the shader lifts them to the level the rivers run at,
-[water.md](water.md#how-it-looks); and a quad over each cell of the lakes
-and river polygons, `src/render/water.ts`, from the chunk's own cells), a glow mesh (lit window
+streams, laid on their beds: the shader lifts them to the level the rivers run at, never under the
+sea's, [water.md](water.md#how-it-looks); and a quad over each cell of the lakes, the sea and the
+river polygons, `src/render/water.ts`, from the chunk's own cells), a glow mesh (lit window
 panes and lantern glass) and one `InstancedMesh` per tree crown (broadleaf, beech, conifer, pine,
 olive; an oak is a broadleaf in its own tint: `speciesAt` in `src/render/trees.ts`, and an olive an
 olive grove's tree by its id, `kindAt`,
@@ -1064,25 +1070,34 @@ olive grove's tree by its id, `kindAt`,
 its dead leaves, as the season the game starts in says, `crownsOn` in `src/render/leaves.ts`,
 [weather.md](weather.md#the-woods-leaves)); the buried,
 water, glow and tree meshes exist only where the chunk has some. A 192 m apron of extra chunks continues
-the terrain, lines and trees beyond the map bounds, the built terrain's box; inside it, past an
-inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground and cover the
-nearest listed tiles extend into it, with no trees, and the lines stop at the outline (only a road
-or a river ending on the bounds runs on across the apron, `throughApron`; the track runs on past
-each line's terminals over its drawn run, wherever the terminal lies: [Track and
-stations](#track-and-stations)). Terrain cells take their colours from the land
-cover, read from the tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts`, painted by
-`COVER_LOOK` in `src/render/terrain.ts` in patches and stripes counted from the region's anchor, so
-a part that grows the box repaints none of the ground built before it, `terrain.test.ts`, and an
-olive grove's dry grass bare in a 2.5 m strip along each terrace's edge, every 3 m of rise (a cell
-whose middle lies within half a strip of one, by its height and slope), so the strips follow the
-contours; a broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where
-none covers a cell, paving where open ground lies within 3 m of both a wall and a road's edge (house
-fronts, sidewalks, alleys), and pebble beds along the wide streams outside the lakes and river
-polygons. A
-cover's byte in the tiles is its place in `COVERS` (`src/sim/map/raster.ts`; new kinds go at the
-end), and the order the areas are filled in is its own (`FILL`: a river's gravel bars over its
-water, a wood under every other area, an olive grove over a wood, grassland, farmland and
-residential land).
+the terrain, lines, trees and water areas beyond the map bounds, the built terrain's box (its edge
+nodes' heights, the sea floor's below 0 m too, so the sea runs on over the apron at the edge's
+depth: 10.0 m at x −9072 on the coast test region's south edge; past the apron the clear colour,
+dark forest green, shows where the sea would go on, as the user chose on 2026-11-17); inside
+it, past an inner edge of a play area of parts in an L, the notch's unlisted tiles draw the ground
+and cover the nearest listed tiles extend into it, with no trees, and the lines stop at the outline
+(only a road or a river ending on the bounds runs on across the apron, `throughApron`; the track
+runs on past each line's terminals over its drawn run, wherever the terminal lies: [Track and
+stations](#track-and-stations)). Terrain cells take their colours from the land cover, read from the
+tiles cell by cell (`coverIndexAt` in `src/sim/map/cover.ts`, painted by `COVER_LOOK` in
+`src/render/terrain.ts` in patches and stripes counted from the region's anchor, so a part that
+grows the box repaints none of the ground built before it, `terrain.test.ts`, and an olive grove's
+dry grass bare in a 2.5 m strip along each terrace's edge, every 3 m of rise (a cell whose middle
+lies within half a strip of one, by its height and slope), so the strips follow the contours; a
+beach's sand wet (`sandWet`) where a cell's middle lies under 0.2 m a.s.l., the user's choice
+(2026-11-17), as the 2023 orthophoto shows the sand wet only in a band about 6 m wide along the
+water: 546 of the coast test region's 16,581 sand cells (3.3 %), the band's inner edge a median 2.4
+m from the coastline (one cell, 4 m, from the nearest sea cell's centre;
+`terrain-coast.map-test.ts`), where issue #13's 0.8 m wet 9,556 (57.6 %) and put it 30 m in (0.4 m
+7.6 % and 2.9 m, 0.6 m 43.5 % and 24 m, measured on the cells' middles as the terrain shades them);
+a broadleaf wood's floor in its leaf litter out of leaf): the map's areas, meadow where none covers
+a cell, paving where open ground lies within 3 m of both a wall and a road's edge (house fronts,
+sidewalks, alleys), and pebble beds along the wide streams outside the lakes, the river polygons and
+the sea. A cover's byte in the tiles is its place in `COVERS` (`src/sim/map/raster.ts`; new kinds go
+at the end), and the order the areas are filled in is its own (`FILL`: a river's gravel bars over
+its water, a wood under every other area, an olive grove over a wood, grassland, farmland and
+residential land, a beach's sand over the open ground and under rock and every cover after it, and
+the sea last, so the shore drawn is OSM's coastline: [map.md](map.md#3-features-featurests)).
 
 Streaming has two levels: the tiles in memory are planned first, then the chunks of the tiles in
 reach, so a frame's cost does not grow with the map, and a chunk builds only once every tile its
@@ -1878,7 +1893,7 @@ never recompiles a shader.
 | `solidMaterial` | `solid` | buildings, bridges, the ballast bed, platforms, canopies, name boards, crossing housings, tunnel portals, the road tunnels' walls, the lamps' iron and poles | snow, wet darkening, cloud shadows |
 | `terrainMaterial` | `terrain` | the terrain | snow (lower on north faces), wet darkening, cloud shadows |
 | `decalMaterial` | `road` | roads, sleepers and rails, crossing panels and stop lines, platform lines | snow (0.6 of it), wet darkening, puddles, cloud shadows |
-| `waterMaterial` | `water` | rivers, streams | the level and the current's streaks the rivers run at, rain rings, cloud shadows; no snow, no darkening |
+| `waterMaterial` | `water` | rivers, streams, lakes, the sea | the level and the current's streaks the rivers run at, the sea's colour by its depth (river water the sea holds up's too) and its foam, rain rings, cloud shadows; no snow, no darkening |
 | `treeMaterial` | `tree` | the instanced trees | snow on the canopy tops and half of it on their sides, wet darkening, cloud shadows, sway |
 | `actorMaterial` | `actor` | people, animals, vehicles, tyre marks, smoke | cloud shadows only |
 | `bloodMaterial` | `actor` | blood pools, pulled toward the camera like the decals | cloud shadows only |
@@ -1905,11 +1920,25 @@ never recompiles a shader.
   is flecked white.
 - Rivers and streams left the decal mesh for their own layer (`RibbonSpec.flowing` in `ribbons.ts`),
   cut by the same chunk rule, so a chunk still equals a cut: water takes no snow and no wet
-  darkening. Its vertices lie on the bed and carry `stage` and `flow` (`WaterTriangles` in
-  `geometry.ts`); `uRiverStage` (q^0.547) lifts them to the rivers' level and `uRiverSpeed`
-  (q^0.453) carries the streaks, both written by `applySurface` from `SkyViewModel.flow`. A lake's
-  vertices lie at its level with `stage` 0 and carry their `still` depth, which darkens it and lifts
-  nothing.
+  darkening. Its vertices lie on the bed and carry `stage`, `flow` and `held` (`WaterTriangles` in
+  `geometry.ts`); `uRiverStage` (q^0.547) lifts them to the rivers' level, at least `held` (how far
+  the bed lies under the sea's level), and `uRiverSpeed` (q^0.453) carries the streaks, slower by
+  the same share where the sea holds the water up, both written by `applyWater`
+  (`render/sky/water-shader.ts`, the water variant's GLSL) from `SkyViewModel.flow`. A lake's
+  vertices lie at its level and the sea's 0.05 m over it (`OVER_BED`, as a river polygon's over its
+  bed, so the two meet flush at a mouth), with `stage` 0, and carry their `still` depth, which
+  shades them and lifts nothing. Each vertex carries its share of the sea's look (`sea`): the sea's
+  1, river water the sea holds up by how far it holds it (`seaShare`: none to 0.5 m, whole from
+  1.2 m; a river polygon's by its own waterway's bed, the piece of its reaches whose bed lies
+  deepest), the rest 0. The shader draws a lake's and a river's shallows and depth under it and
+  over them the sea's colour, from its shallows' (`PALETTE.seaShallow`) to the deep sea's over
+  0–6 m, and on the sea's own water, which no river lifts, its foam wherever it is under 0.3 m
+  deep, a crisp edge ([water.md](water.md#how-it-looks)). The two attributes cost nothing
+  measurable: on Lunigiana at the start (seed 7, dev server) the JS heap after GC is 191 MB with
+  them and without, the chunks within 640 m of Monzone station build in 174 ms (177 without, Node,
+  the third pass); on the coast test region 110 m off Marinella's beach, where the chunks within 640
+  m hold 802,944 water vertices, 78–79 MB (77 without) and 212 ms (202), and both hold 60 fps with
+  no frame over 16.8 ms (2026-11-17).
 - Cost: +0.015 ms a render at Monzone with snow, wet, clouds and wind on (0.25–0.27 ms against
   0.24–0.26 ms unpatched, 640 × 317 target, about 92 draw calls).
 
@@ -2137,7 +2166,9 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   blit instead of leaving a seam (0.36 MP, 1.45 MB). One canvas of the whole region would pass
   Safari's 16.7 MP limit as the map grows (Lunigiana's was already 2340 × 3000 px, 7 MP). A tile
   is painted from that tile's own vectors (`tileLayers`: its areas (the lakes and river polygons
-  over the land and the gravel bars over those), water, roads and buildings, every
+  over the land, the gravel bars over those and the sea, in `seaDeep`, last, its pieces as one
+  fill, as they meet edge to edge on the tile lines; a beach in `sand`),
+  water, roads and buildings, every
   one within the tiles' 32 m halo of its square, in the whole map's order, the roads' attributes
   from `MAP.roads`) and the global rail whose boxes reach it (± 1 px and 20 m, the widest stroke's
   half, inside the halo, so the tile holds every feature its canvas can show), in the minimap's
@@ -2662,7 +2693,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     opening) and release (at each closing, a late one included);
     `src/tools/__tests__/overview.test.ts` and `paint-raster.test.ts`: the overview's size under
     Safari's 16.7 MP, the full map's look in it (grass on the play area only, roads by class
-    narrowest first, a tunnel dashed, buildings on top), the same bytes every run, and the raster
+    narrowest first, a tunnel dashed, buildings on top, the sea's pieces with no seam on the tile
+    lines between them), the same bytes every run, and the raster
     painter's fills, strokes and clips; `src/render/__tests__/map-style.test.ts`: the areas in the
     land cover's order, the water opaque, and a road in a tunnel dashed in its own look from its
     start, half its line drawn, a path in a tunnel left out;
@@ -2694,6 +2726,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     cat appearing there on it too, and one walking the bridge
     on its deck at its verge; driving, the camera and the cut on the road with the car after a jump
     under each.
+  - `src/render/__tests__/effects.test.ts` and, on the coast test region, `effects-coast.map-test.ts`
+    (`pnpm test:map`; both through `skidding.ts`): `DrawEffects` lays a tyre sliding on gravel
+    under the Lucido's mean flow, and on the sand under the sea off Marinella, as a mark with no
+    dust, and on the dry gravel of the Lucido's bank and Marinella's dry beach as a mark and dust
+    (10 and 15 puffs in half a second at 10 m/s).
   - `src/render/__tests__/train.test.ts`: every car on the rail head under its pivots at grade, on
     the highest deck and round the sharpest curve, both ways; the train's s blended, never the
     cars' poses; the same cars with the cab facing either way; the head lamps at the leading nose
@@ -2868,12 +2905,14 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     polygon it holds, and `buildingsIn` answering as one 64 m broad phase over the whole map's
     buildings (the same buildings, in the same order, over 1,500 boxes 1–600 m across, half of them
     within 80 m of a seam, the rest within 300 m of a building) with its lattice on their lowest
-    corner; `joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts` (the L
-    skipped without its build): a driver coming onto or off a bridge or a tunnel reads a car standing
+    corner; `joints.map-test.ts`, `joints-cesena.map-test.ts`, `joints-l.map-test.ts` and
+    `joints-coast.map-test.ts` (the test regions skipped without their builds): a driver coming onto
+    or off a bridge or a tunnel reads a car standing
     in its lane past the joint on its level (`joint-checks.ts`, see
     [map.md](map.md#checks-and-tools)); `ground.map-test.ts`,
-    `ground-cesena.map-test.ts` and `ground-l.map-test.ts` (the L test region, skipped without its
-    build): the ground, the surface and the water read from the tiles answering to the bit as the
+    `ground-cesena.map-test.ts`, `ground-l.map-test.ts` and `ground-coast.map-test.ts` (the test
+    regions, skipped without their builds): the ground, the surface and the water read from the
+    tiles answering to the bit as the
     whole map's do (`ground-oracle.ts`: the ground model over the whole map's roads and platforms,
     `wholeGround`, and the old broad phases of the surface and the water), so the tiling stays
     unobservable, at 6,000 seeded points (half of them within
@@ -2892,14 +2931,15 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     answering exactly as one broad phase over the whole map (the same items in the same order, over
     1,500 boxes 1–60 m across, half of them within 40 m of a seam; the trees' on the region's fixed
     corner, which need not be their lowest); `olives.map-test.ts`: Lunigiana's olive groves growing
-    olives, and every olive of Lunigiana, Cesena and the L within 2.1 m of an olive grove (the
-    scatter's 2 m mask pixel and the metre's rounding).
+    olives, and every olive of Lunigiana, Cesena, the L and the coast (12,572 there) within 2.1 m
+    of an olive grove (the scatter's 2 m mask pixel and the metre's rounding).
   - `src/sim/__tests__/route.map-test.ts`: every dead end flagged one way, every lane AI traffic
     may drive clear of the walls, and `edgeIndex.nearest` the nearest edge by brute force over the
     map and 300 m outside it; `walls.map-test.ts`: a box touching only a corner of a trunk's square
     returning its four edges, for every tenth tree and every one within a metre of a seam;
-    `under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and `under-decks-l.map-test.ts`
-    (the L's skipped without its build): on every road bridge of the three, a walker from where there
+    `under-decks.map-test.ts`, `under-decks-cesena.map-test.ts`, `under-decks-l.map-test.ts` and
+    `under-decks-coast.map-test.ts` (the test regions' skipped without their builds): on every road
+    bridge of each, a walker from where there
     is room to stand under the deck, and a Panda from where there is room for the tallest vehicle,
     never come up onto it, and the roads meeting its ends still lead onto it on foot, on their
     centreline and their verges, and by car ([map.md](map.md#checks-and-tools));
@@ -2931,10 +2971,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the L, `checkTerminals` (`lines.test.ts`'s run-out checks) and `checkDrawnRuns` (1,536 and 768
     points);
     `stations.map-test.ts`: `stations.test.ts`'s over every platform and station;
-    `tunnels.map-test.ts`, `tunnels-cesena.map-test.ts` and `tunnels-l.map-test.ts`, each in a
-    process of its own (`tunnel-checks.ts`): over every road in a tunnel of Lunigiana, Cesena and
-    the L, its ribbon at its floor every 0.5 m (a bend's mitre skews a ribbon within about a metre
-    of its vertex, which 2 m samples passed over), its bore's walls as `tunnels.test.ts` checks the
+    `tunnels.map-test.ts`, `tunnels-cesena.map-test.ts`, `tunnels-l.map-test.ts` and
+    `tunnels-coast.map-test.ts`, each in a process of its own (`tunnel-checks.ts`): over every road
+    in a tunnel of Lunigiana, Cesena, the L and the coast, its ribbon at its floor every 0.5 m (a
+    bend's mitre skews a ribbon within about a metre of its vertex, which 2 m samples passed
+    over), its bore's walls as `tunnels.test.ts` checks the
     SR445's (none through a building passage), the baked mouths exactly the tunnels' mouths found
     again from the roads, a stood-back portal on its road's line facing out along it, a portal
     facing out of the hill in its road bridges' colour, or a head wall at its road's end as
@@ -2943,12 +2984,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     (`whyOpen`: the ground at the mouth the clear height over the road, buried; a house over the way
     at its level within the mouth's end of the tunnel, the ground
     over that end lower than `leastWall`, or another road or the track in the room a head wall and
-    its box would take, else it fails), and the chunks within 60 m of every road in a tunnel built
+    its box would take, a road leading out of the mouth among them where its carriageway reaches
+    past the arch's side, else it fails), and the chunks within 60 m of every road in a tunnel built
     from the tiles' pieces as a whole-map build cuts them; each pins its counts (roads in tunnels,
     passages, metres, wall triangles, mouths, portals, head walls and the open mouths buried, under a
     house, under too low a bank and with no room: Lunigiana 59, 30, 1,186 m, 3,574, 56, 12, 2, 0, 14,
     28, 0; Cesena 64, 22, 5,264 m, 18,120, 77, 6, 2, 7, 47, 13, 2; the L 7, 1, 194 m, 650, 12, 3, 0,
-    0, 1, 8, 0),
+    0, 1, 8, 0; the coast 6, 4, 83 m, 225, 4, 0, 1, 0, 0, 2, 1),
     so a new part's tunnels show, and so does a change to the ground by their mouths (the wall
     triangles were 3,459 and 633 while each road was cored at its chain's widest piece);
     `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
@@ -2982,9 +3024,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     after a change to the look, the palette or the vectors, wants `pnpm maps`);
     `playtest-drive.map-test.ts`: the playtest bot's default drive, the SP59 from Monzone to Vinca
     across the x = 0, y = 0, y = −2000 and x = 2000 seams, chained from the whole map's road lines;
-    `src/__tests__/maps.map-test.ts`: every tile of both maps at its URL, at most 0.7 MB, and each
-    map's global JSON line at most 8,000,000 B (Lunigiana's was 8,319,700 B before format version 6
-    moved the graph, the lanes and the residents off it);
+    `src/__tests__/maps.map-test.ts`: every tile of both maps and, built or in CI, of both test
+    regions (the L and the coast) at its URL, at most 0.7 MB, and each map's global JSON line at
+    most 8,000,000 B (Lunigiana's was 8,319,700 B before format version 6 moved the graph, the lanes
+    and the residents off it);
     `src/tools/__tests__/seams.map-test.ts`: on both maps, one height for every node two tiles
     share, and every wall stored once, those across a seam carrying on and found from either side
     within `walls.reach`.
@@ -2996,6 +3039,14 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     road, river, rail or barrier of it repeats a vertex in a row where the outline cuts it (road
     1002673816 repeated (0, 1912.5) at its notch's side until a cut on a vertex's 0.1 m point took
     its place; [map.md](map.md#test-regions));
+    `coast-sea.map-test.ts` and `coast-shore.map-test.ts`: the coast test region `magra-coast` as
+    built in `test-maps/` (skipped and failed as the L's): the sea's nodes under 0 m but at the
+    coastline, its floor on the survey's isobaths, the sand beaches at 0–3 m, the pebble beaches at
+    0–3 m by the sea and to their recorded limit further in, the Magra and every piece ending in
+    the sea at 0 m, the catchments' outlets, no walk wall on the sand from a slope or the sea, every
+    pier walked from its landward end, the breakwaters walled for vehicles and crossed on foot, no
+    parked car or tree on the sand or in the sea, the coast's districts, its outline walls and flood
+    ([map.md](map.md#test-regions));
     `x3-region.map-test.ts`: on the 3x test region against lucido alone (`lunigiana-lucido`, as
     the shipped map is no longer lucido), every terrain node in lucido's rectangle is lucido's, its
     land cover more than 50 m inside lucido's edge, and the lamps, water beds and parked spots'

@@ -164,10 +164,10 @@ test("checkPicks throws for a part without a manifest (read as empty) or with no
 })
 
 test("fillLayer codes each play-area cell by its fill source, 0 on the LiDAR, and throws on a source it has no column for", () => {
-  const grid = gridOver([[0, 0, 50, 10]], 10),
-    all = new Uint16Array([1, 1, 1, 1, 1])
-  const sides = ["lidar", "dsm2021", "dtm10", "lig", "rer"]
-  assert.deepEqual([...fillLayer(grid, all, (x) => sides[Math.floor(x / 10)])!], [0, 1, 2, 3, 4])
+  const grid = gridOver([[0, 0, 60, 10]], 10),
+    all = new Uint16Array([1, 1, 1, 1, 1, 1])
+  const sides = ["lidar", "dsm2021", "dtm10", "lig", "rer", "sea"]
+  assert.deepEqual([...fillLayer(grid, all, (x) => sides[Math.floor(x / 10)])!], [0, 1, 2, 3, 4, 5])
   // A source the chain gains must get a column, not count as LiDAR.
   assert.throws(
     () => fillLayer(grid, all, () => "tinitaly"),

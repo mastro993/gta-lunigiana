@@ -15,11 +15,15 @@ import {
   dtmCropUrl,
   dtmTiles,
   fetchWfs,
+  isobathLines,
+  isobathsQuery,
   ligFolders,
   nc5File,
   nc5Query,
   PAGE,
   polygonsOfFeature,
+  spiaggePolygons,
+  spiaggeQuery,
   staleCrops,
   udsPolygons,
   udsQuery,
@@ -227,6 +231,94 @@ test("udsPolygons: one entry a polygon, the whole code, Z dropped, decimetres; a
     },
   ])
   assert.throws(() => udsPolygons([f("5111")], ["131", "512"]), /land use code 5111 not kept/)
+})
+
+test("the beaches (Spiagge) are asked by box and sorted by ogr_fid; each polygon keeps its id, its physical character's code and its rings on decimetres alone", () => {
+  const q = new URL(wfsUrl(spiaggeQuery(BOX), 0)).searchParams
+  assert.equal(q.get("typeNames"), "M1219:L3118")
+  assert.equal(q.get("bbox"), `${BOX.join(",")},urn:ogc:def:crs:EPSG::25832`)
+  assert.equal(q.get("sortBy"), "ogr_fid")
+  assert.equal(q.get("srsName"), "EPSG:25832")
+  const ring = [
+    [578385.621312, 4876297.271763],
+    [578384.832293, 4876294.818972],
+    [578387.364985, 4876292.142429],
+    [578385.621312, 4876297.271763],
+  ]
+  // As served (Ameglia's rocky shore, ogr_fid 412), every attribute but these dropped.
+  const rocky: WfsFeature = {
+    properties: {
+      ogr_fid: 412,
+      id: 265340,
+      comune: "AMEGLIA",
+      cod_caratt_fis: "104",
+      caratt_fis: "BATTIGIA ROCCIOSA",
+    },
+    geometry: { type: "MultiPolygon", coordinates: [[ring], [ring]] },
+  }
+  const rings = [
+    [578385.6, 4876297.3, 578384.8, 4876294.8, 578387.4, 4876292.1, 578385.6, 4876297.3],
+  ]
+  assert.deepEqual(spiaggePolygons([rocky]), [
+    { id: 412, code: "104", rings },
+    { id: 412, code: "104", rings },
+  ])
+})
+
+test("the isobaths are asked by box and sorted by ID1; each line keeps its id, its depth under the sea and its points on decimetres alone", () => {
+  const q = new URL(wfsUrl(isobathsQuery(BOX), 0)).searchParams
+  assert.equal(q.get("typeNames"), "M2112:L7174")
+  assert.equal(q.get("bbox"), `${BOX.join(",")},urn:ogc:def:crs:EPSG::25832`)
+  assert.equal(q.get("sortBy"), "ID1")
+  assert.equal(q.get("srsName"), "EPSG:25832")
+  // As served (off Punta Bianca, ID1 12159), every attribute but these dropped.
+  const iso: WfsFeature = {
+    properties: {
+      ID_ISO_DET: "PTAMC16-17-18_82699",
+      VALUE: -15,
+      FASE_ITER: "approvazione",
+      DATA_ITER: "D.C.R. n.2 del 21/02/2023",
+      DATA_DIGIT: 20191024,
+      AMBITO: "16-17-18",
+      ID1: 12159,
+    },
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [571593.085241, 4877559.452308, 0],
+        [571597.08457, 4877558.452596, 0],
+      ],
+    },
+  }
+  const pieces: WfsFeature = {
+    properties: { VALUE: -2.5, ID1: 12160 },
+    geometry: {
+      type: "MultiLineString",
+      coordinates: [
+        [
+          [1, 2],
+          [3, 4],
+        ],
+        [
+          [5, 6],
+          [7, 8],
+        ],
+      ],
+    },
+  }
+  assert.deepEqual(isobathLines([iso, pieces]), [
+    { id: 12159, depth: 15, line: [571593.1, 4877559.5, 571597.1, 4877558.5] },
+    { id: 12160, depth: 2.5, line: [1, 2, 3, 4] },
+    { id: 12160, depth: 2.5, line: [5, 6, 7, 8] },
+  ])
+  assert.throws(
+    () => isobathLines([{ ...iso, properties: { ...iso.properties, VALUE: 0 } }]),
+    /isobath 12159: depth 0 not under the sea/,
+  )
+  assert.throws(
+    () => isobathLines([{ ...iso, geometry: { type: "Polygon", coordinates: [] } }]),
+    /not a line: Polygon/,
+  )
 })
 
 test("staleCrops: the crops this run did not write, never a dotfile", () => {

@@ -11,6 +11,7 @@ import { join, relative, sep } from "node:path"
 import { deflateSync, inflateSync } from "node:zlib"
 
 import { dsm2021Url, dtm10Url, lidarUrl } from "./cartoteca.ts"
+import type { CoastLine } from "./coast.ts"
 import { type Crop, ascHeader, eachCell } from "./dtm-mosaic.ts"
 import {
   CELL,
@@ -30,6 +31,7 @@ import { type Filler, type Mosaic, NONE, OUT, fillStep } from "./fill-chain.ts"
 import { getBytes } from "./net.ts"
 import { RAW_DIR, readLock, writeRaw } from "./raw-lock.ts"
 import { fetchZip, mustFind } from "./rt-cache.ts"
+import { seaFiller } from "./sea-fill.ts"
 import {
   LIG_FADE,
   MAX_SWEEPS,
@@ -65,6 +67,8 @@ interface ChainInputs {
   readonly dtm10: ReadonlyArray<string>
   /** Liguria's DTM crops (`fetch-lig`) and how the source names them; none outside Liguria. */
   readonly lig: { readonly files: ReadonlyArray<string>; readonly from: string } | undefined
+  /** OSM's coastline over the part (`coastLines`) and how the source names it; none where its extract holds none. */
+  readonly sea: { readonly lines: ReadonlyArray<CoastLine>; readonly from: string } | undefined
   /** The UCS's polygons over the crop, whose open ground the surface model may fill, and their source. */
   readonly features: ReadonlyArray<UcsFeature>
   readonly ucsFrom: string
@@ -88,8 +92,9 @@ const meetsCrop = (text: string, crop: Crop): boolean => {
  * Fills `m`'s NaN cells, those of the crop it must fill: first the LiDAR tiles in order, each cell
  * the first value written, then the chain for the cells no tile has: the 2021 surface model on the
  * open ground (less its canopy, against the 10 m DTMs), the province 10 m DTMs, Liguria's DTM ed.
- * 2023, Emilia-Romagna's DTM 5x5 beyond Tuscany, each bent onto the cells before it (`fillStep`).
- * Throws when a cell is still empty. Returns the sources it took, in order, for the files' source.
+ * 2023, the sea at 0 m seaward of OSM's coastline and on the shore it leaves empty (`seaFiller`),
+ * Emilia-Romagna's DTM 5x5 beyond Tuscany, each bent onto the cells before it (`fillStep`). Throws
+ * when a cell is still empty. Returns the sources it took, in order, for the files' source.
  */
 export const fillCrop = async (
   crop: Crop,
@@ -150,69 +155,83 @@ export const fillCrop = async (
     }
     return rasterFiller("dtm10", crop, rasters)
   }
-  const { lig } = inputs
-  /** The chain after the LiDAR, each step loaded once cells are still empty, with where it comes from. */
-  const steps: Array<(box: Box) => Promise<{ readonly filler: Filler; readonly source: string }>> =
-    [
-      ...(inputs.dsm2021.length === 0
-        ? []
-        : [
-            async (box: Box) => {
-              if (inputs.dtm10.length === 0)
-                throw new Error("the surface model needs a 10 m DTM to tell canopy from ground")
-              const open = openGround(inputs.features, crop),
-                window = utmAround(box, 2)
-              const rasters = []
-              for (const element of inputs.dsm2021) {
-                const file = mustFind(await fetchZip(dsm2021Url(element)), "*.asc")
-                const raster = ascWindow(readFileSync(file), window, element)
-                if (raster !== undefined) rasters.push(raster)
-              }
-              const dsm = rasterFiller("dsm2021", crop, rasters, utm)
-              const bare = () =>
-                open.reduce((n, o, k) => n + Number(o === 1 && Number.isNaN(dm[k]!)), 0)
-              const before = bare()
-              clearCanopy(open, dsm, await dtm10(inputs.dtm10, box), crop, box)
-              console.log(
-                `dsm2021: ${before} m² of open ground without LiDAR, ${before - bare()} m² of it canopy, pits or scraps`,
-              )
-              return {
-                filler: { ...dsm, where: (k: number) => open[k] === 1 },
-                source: `the 2021 surface model's elements ${inputs.dsm2021.join(", ")} (${dsm2021Url("<element>")}) on the open ground of ${inputs.ucsFrom}, less its canopy (its height over the 10 m DTMs)`,
-              }
-            },
-          ]),
-      ...inputs.dtm10.map((name) => async (box: Box) => ({
-        filler: await dtm10([name], box),
-        source: dtm10Url(name),
-      })),
-      ...(lig === undefined || lig.files.length === 0
-        ? []
-        : [
-            async () => {
-              const { raster, sweeps } = (await ligRaster(lig.files.map((f) => readFileSync(f))))!
-              console.log(
-                `lig: its whole metres smoothed in ${sweeps} sweeps${sweeps === MAX_SWEEPS ? ", the most unround makes: not settled" : ""}`,
-              )
-              return {
-                filler: { ...rasterFiller("lig", crop, [raster]), fade: LIG_FADE },
-                source: lig.from,
-              }
-            },
-          ]),
-      async (box: Box) => {
-        const url = rerUrl(utmAround(box, 10))
-        return {
-          filler: rasterFiller("rer", crop, [await geoTiffRaster(await getBytes(url))], utm),
-          source: `${url}, fetched ${new Date().toISOString().slice(0, 10)}`,
-        }
-      },
-    ]
-  const used = [`the lidar archives of ${inputs.lidarFrom} (${lidarUrl("<lidar>")})`]
+  const { lig, sea } = inputs
+  /** The chain after the LiDAR, each step loaded once cells are still empty, with where it comes from; undefined when it has no cell to fill. */
+  const steps: Array<
+    (box: Box) => Promise<{ readonly filler: Filler; readonly source: string } | undefined>
+  > = [
+    ...(inputs.dsm2021.length === 0
+      ? []
+      : [
+          async (box: Box) => {
+            if (inputs.dtm10.length === 0)
+              throw new Error("the surface model needs a 10 m DTM to tell canopy from ground")
+            const open = openGround(inputs.features, crop),
+              window = utmAround(box, 2)
+            const rasters = []
+            for (const element of inputs.dsm2021) {
+              const file = mustFind(await fetchZip(dsm2021Url(element)), "*.asc")
+              const raster = ascWindow(readFileSync(file), window, element)
+              if (raster !== undefined) rasters.push(raster)
+            }
+            const dsm = rasterFiller("dsm2021", crop, rasters, utm)
+            const bare = () =>
+              open.reduce((n, o, k) => n + Number(o === 1 && Number.isNaN(dm[k]!)), 0)
+            const before = bare()
+            clearCanopy(open, dsm, await dtm10(inputs.dtm10, box), crop, box)
+            console.log(
+              `dsm2021: ${before} m² of open ground without LiDAR, ${before - bare()} m² of it canopy, pits or scraps`,
+            )
+            return {
+              filler: { ...dsm, where: (k: number) => open[k] === 1 },
+              source: `the 2021 surface model's elements ${inputs.dsm2021.join(", ")} (${dsm2021Url("<element>")}) on the open ground of ${inputs.ucsFrom}, less its canopy (its height over the 10 m DTMs)`,
+            }
+          },
+        ]),
+    ...inputs.dtm10.map((name) => async (box: Box) => ({
+      filler: await dtm10([name], box),
+      source: dtm10Url(name),
+    })),
+    ...(lig === undefined || lig.files.length === 0
+      ? []
+      : [
+          async () => {
+            const { raster, sweeps } = (await ligRaster(lig.files.map((f) => readFileSync(f))))!
+            console.log(
+              `lig: its whole metres smoothed in ${sweeps} sweeps${sweeps === MAX_SWEEPS ? ", the most unround makes: not settled" : ""}`,
+            )
+            return {
+              filler: { ...rasterFiller("lig", crop, [raster]), fade: LIG_FADE },
+              source: lig.from,
+            }
+          },
+        ]),
+    ...(sea === undefined
+      ? []
+      : [
+          () => {
+            const filler = seaFiller(sea.lines, crop, dm)
+            return Promise.resolve(filler === undefined ? undefined : { filler, source: sea.from })
+          },
+        ]),
+    async (box: Box) => {
+      const url = rerUrl(utmAround(box, 10))
+      return {
+        filler: rasterFiller("rer", crop, [await geoTiffRaster(await getBytes(url))], utm),
+        source: `${url}, fetched ${new Date().toISOString().slice(0, 10)}`,
+      }
+    },
+  ]
+  const used =
+    inputs.lidar.length === 0
+      ? []
+      : [`the lidar archives of ${inputs.lidarFrom} (${lidarUrl("<lidar>")})`]
   for (const step of steps) {
     const box = emptyBox()
     if (box === undefined) break
-    const { filler, source } = await step(box)
+    const loaded = await step(box)
+    if (loaded === undefined) continue
+    const { filler, source } = loaded
     const r = fillStep(m, filler)
     if (r.cells === 0) continue
     used.push(source)

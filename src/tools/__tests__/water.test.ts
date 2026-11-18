@@ -1,12 +1,14 @@
 // Water left perched over the carved ground (water.ts's `dropPerched`): it drops to the ground, but in
-// a lake's water, whose carved bed lies under it.
+// a lake's water, whose carved bed lies under it; and the sea's level, which no water stands under
+// and a river reaching the sea meets.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { WaterF } from "../features.ts"
 import { ringBox } from "../geometry.ts"
+import { PIER_DECK, pierDeck } from "../shore.ts"
 import { type CarvedArea, stillLevel } from "../water-areas.ts"
-import { dropPerched, waterProfiles } from "../water.ts"
+import { BRIDGE_CLEAR, capUnderDecks, dropPerched, waterProfiles } from "../water.ts"
 
 /** A stream east along y = 0 for 100 m, its surface 99.75 m over ground carved down to 90 m. */
 const STREAM: WaterF = {
@@ -57,4 +59,88 @@ test("dropPerched: a surface more than PERCH over a lake's level is not the lake
   p.x.forEach((x, k) =>
     assert.equal(p.z[k], x > 21 && x < 59 ? 97.5 : CARVED + STREAM.depth / 2, `x = ${x}`),
   )
+})
+
+/** A river south along x = 0 from y 0 to y −200, the sea south of y −190 (its mouth 10 m in it). */
+const RIVER: WaterF = {
+  id: 2,
+  kind: "river",
+  w: 4,
+  bed: 3,
+  depth: 2.5,
+  pts: [
+    { x: 0, y: 0 },
+    { x: 0, y: -100 },
+    { x: 0, y: -200 },
+  ],
+  from: 0,
+}
+const SEA = (_x: number, y: number) => y < -190
+
+test("waterProfiles: no surface stands under the sea's level, and a river reaching the sea meets it at 0 m, its tail lowered to it", () => {
+  // The plain falls from 3 m to 1 m a.s.l. at the mouth: the surface (ground − 1.25 m) from 1.75 m
+  // to under the sea.
+  const ground = (_x: number, y: number) => 3 + y / 100
+  const [p] = waterProfiles([RIVER], ground, SEA)
+  p!.z.forEach((z, k) => assert.ok(z >= 0, `sample ${k}: ${z}`))
+  assert.equal(p!.z.at(-1), 0)
+  assert.equal(p!.z[0], 1.75, "upstream as the ground has it")
+  // Over the sea's level at its mouth (a stream off a cliff): the tail lowered over the last 20 m,
+  // as a tributary's to the water it joins, and left above.
+  const [cliff] = waterProfiles([RIVER], () => 6.25, SEA)
+  assert.equal(cliff!.z.at(-1), 0)
+  cliff!.z.forEach((z, k) => {
+    const left = cliff!.s.at(-1)! - cliff!.s[k]!
+    assert.ok(
+      Math.abs(z - (left >= 20 ? 5 : (5 * left) / 20)) < 1e-9,
+      `${left} m short of the mouth: ${z}`,
+    )
+  })
+  // Ending short of the sea, the same river keeps its last surface: only the sea's level holds it.
+  const [inland] = waterProfiles(
+    [RIVER],
+    () => 6.25,
+    (_x, y) => y < -210,
+  )
+  assert.equal(inland!.z.at(-1), 5)
+  const [low] = waterProfiles([RIVER], ground, (_x, y) => y < -210)
+  assert.equal(low!.z.at(-1), 0, "under the sea's level, raised to it")
+})
+
+test("capUnderDecks and dropPerched keep the water at the sea's level or over it", () => {
+  const [p] = waterProfiles([RIVER], () => 1.25, SEA)
+  // A footbridge 1 m over the sea's level at y −150: the water capped 2.5 m under its deck stays at 0.
+  capUnderDecks([RIVER], [p!], [{ water: 0, at: 150, half: 2, deck: 1, clear: BRIDGE_CLEAR }])
+  p!.z.forEach((z, k) => assert.ok(z >= 0, `capped sample ${k}: ${z}`))
+  // The sea floor 3 m under the level beneath the mouth: perched water drops no lower than it.
+  dropPerched([RIVER], [p!], [], [new Float64Array(p!.x.length).fill(-3)])
+  p!.z.forEach((z, k) => assert.equal(z, 0, `dropped sample ${k}`))
+})
+
+// Regression: a pier's crossing was capped as a bridge's, BRIDGE_CLEAR under its deck, which
+// `pierDeck` sets PIER_DECK over the water: the river fell 1.5 m under its own level there and on
+// downstream.
+test("capUnderDecks: a pier's deck keeps the water under it at the level the deck stands on; a bridge's as high keeps it BRIDGE_CLEAR under, on downstream", () => {
+  // The plain flat at 102 m: the river's surface 100.75 m all along, a pier across it at y −100.
+  const ground = () => 102
+  const [level] = waterProfiles([RIVER], ground)
+  const [deck] = pierDeck(
+    [
+      { x: -10, y: -100 },
+      { x: 10, y: -100 },
+    ],
+    () => 102,
+    () => 100.75,
+  )
+  assert.equal(deck, 100.75 + PIER_DECK)
+  const capped = (clear: number) => {
+    const [p] = waterProfiles([RIVER], ground)
+    capUnderDecks([RIVER], [p!], [{ water: 0, at: 100, half: 3, deck, clear }])
+    return p!
+  }
+  assert.deepEqual(capped(PIER_DECK).z, level!.z, "under a pier")
+  const bridge = capped(BRIDGE_CLEAR)
+  bridge.s.forEach((s, k) => {
+    if (s >= 97) assert.equal(bridge.z[k], 99.25, `under a bridge and ${s} m down the river`)
+  })
 })

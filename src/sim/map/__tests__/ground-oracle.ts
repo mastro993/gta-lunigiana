@@ -43,6 +43,8 @@ const COVER_SURFACE: Record<string, Surface> = {
   conifer: "leaves",
   mixed: "leaves",
   olive: "grass",
+  sea: "sand",
+  sand: "sand",
 }
 
 /** The roads' OSM `surface` values (surface.ts's table). */
@@ -66,6 +68,7 @@ const ROAD_SURFACE: Partial<Record<string, Surface>> = {
   unpaved: "dirt",
   mud: "dirt",
   grass: "dirt",
+  sand: "sand",
 }
 
 /** The old lookups over `map` whole: the ground model over the whole map's roads and platforms (`wholeGround`), the surface and the water as they were. */

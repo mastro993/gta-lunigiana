@@ -1,9 +1,8 @@
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
-import { regionFromArgs } from "../../../tools/region.ts"
+import { builtTestMaps } from "../../../tools/__tests__/test-maps.ts"
+import { type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { pointInRing, segDist2, staticGrid } from "../../collide.ts"
 import { OLIVE_TREES } from "../index.ts"
 
@@ -57,17 +56,12 @@ const astray = (map: JoinedMap): { readonly olives: number; readonly astray: Arr
   return { olives, astray: out }
 }
 
-test("olive groves: Lunigiana's grow olives, and every olive of Lunigiana, Cesena and the L stands in one", (t) => {
-  // The L is built into test-maps/ by `pnpm maps`; CI, which sets CI=true, always builds it.
-  const lUrl = builtMapUrl(regionFromArgs(["--region", "lunigiana-l"]))
-  if (!existsSync(lUrl)) {
-    assert.notEqual(process.env.CI, "true", "no lunigiana-l build in test-maps")
-    t.diagnostic("no lunigiana-l build in test-maps: the L is not checked")
-  }
+test("olive groves: Lunigiana's grow olives, and every olive of Lunigiana, Cesena, the L and the coast stands in one", (t) => {
+  // The test regions are built into test-maps/ by `pnpm maps`; CI, which sets CI=true, always builds them.
   const maps: ReadonlyArray<readonly [string, JoinedMap]> = [
     ["Lunigiana", wholeMap()],
     ["Cesena", wholeMap("cesena")],
-    ...(existsSync(lUrl) ? [["the L", readWholeMap(lUrl)] as const] : []),
+    ...builtTestMaps(t).map(([name, url]) => [name, readWholeMap(url)] as const),
   ]
   for (const [name, map] of maps) {
     const { olives, astray: off } = astray(map)

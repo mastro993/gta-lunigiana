@@ -1,10 +1,10 @@
 // The checks tunnels.test.ts (the SR445's tunnel by Groppoli, the 196 m track east of Equi Terme,
 // the 87 m path under the line at Equi Terme, Pieve San Lorenzo's underpass and Via Casola's
-// building passage) and the tunnels map tests (every road tunnel of Lunigiana, Cesena and the L)
-// share: a road in a tunnel drawn at its floor, its bore's dark walls under the hill along both its
-// sides, a portal or a head wall clear of every other road at every mouth the hill stands over, or
-// a reason for none (where they stand: src/render/mouths/__tests__/mouth-checks.ts; as drawn:
-// portal-checks.ts), a passage's road on under its house.
+// building passage) and the tunnels map tests (every road tunnel of Lunigiana, Cesena, the L and
+// the coast) share: a road in a tunnel drawn at its floor, its bore's dark walls under the hill
+// along both its sides, a portal or a head wall clear of every other road at every mouth the hill
+// stands over, or a reason for none (where they stand: src/render/mouths/__tests__/mouth-checks.ts;
+// as drawn: portal-checks.ts), a passage's road on under its house.
 import assert from "node:assert/strict"
 
 import { ROAD_LIFT } from "../../sim/map/ground.ts"

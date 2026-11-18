@@ -1,4 +1,4 @@
-// The joint check joints.map-test.ts, joints-cesena.map-test.ts and joints-l.map-test.ts share, on
+// The joint check joints.map-test.ts and its Cesena, L and coast twins share, on
 // the map their process loaded: where a road comes onto or off a bridge or into or out of a tunnel,
 // or one bridge way meets the next, a driver coming along judges a car standing in its lane past the
 // joint by the ground its wheels come to rolling there (`onPathLevel`, src/sim/systems/traffic.ts):
@@ -100,7 +100,7 @@ const onCarriageway = (
 }
 
 /** A joint where a driver reads a car past it off its level: the OSM ids of the road before it and the one past it, and a line saying where. */
-export interface Misread {
+interface Misread {
   readonly from: number
   readonly onto: number
   readonly line: string
@@ -110,7 +110,7 @@ export interface Misread {
  * The joints of the map this process loaded and the driver's and car's places checked there (`pairs`), and every joint where a
  * driver reads a Panda standing in its lane past it off its level (one per joint, the first place found).
  */
-export const jointMisreads = () => {
+const jointMisreads = () => {
   const out: Array<Misread> = []
   let joints = 0,
     pairs = 0

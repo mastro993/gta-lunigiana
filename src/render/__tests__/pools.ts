@@ -77,7 +77,7 @@ export const chunksOf = (cells: ReadonlyArray<{ readonly i: number; readonly j: 
   ),
 ]
 
-/** A drawn water vertex: its node (i, j: the grid index of its map point, unclamped), render height and attributes. */
+/** A drawn water vertex: its node (i, j: the grid index of its map point, unclamped), render height, attributes and colour (linear). */
 export interface Corner {
   readonly i: number
   readonly j: number
@@ -85,6 +85,9 @@ export interface Corner {
   readonly stage: number
   readonly flow: ReadonlyArray<number>
   readonly still: number
+  readonly held: number
+  readonly sea: number
+  readonly color: ReadonlyArray<number>
 }
 
 /** A quad of water over cell (i, j): its corners south-west, south-east, north-east, north-west. */
@@ -103,6 +106,9 @@ const quadsOf = (w: WaterTriangles): Array<Quad> => {
     stage: w.stage[v]!,
     flow: w.flow.slice(3 * v, 3 * v + 3),
     still: w.still[v]!,
+    held: w.held[v]!,
+    sea: w.sea[v]!,
+    color: w.color.slice(3 * v, 3 * v + 3),
   })
   const corner = ({ x, y, ...rest }: ReturnType<typeof vertex>): Corner => ({
     i: (x - hm.x0) / hm.cell,

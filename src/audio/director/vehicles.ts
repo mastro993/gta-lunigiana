@@ -87,6 +87,7 @@ const GROUND = {
   dirt: "earth",
   grass: "earth",
   leaves: "earth",
+  sand: "earth",
 } as const satisfies Record<Surface, Material>
 
 /** A vehicle's hit on a wall, another vehicle or the ground. */

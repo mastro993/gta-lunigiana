@@ -10,8 +10,10 @@ import { Descriptor } from "@typeonce/ritmo"
 import type { Object3D } from "three"
 
 import { stageOf } from "../sim/damage.ts"
-import { Damage, Explosion, Game, Player, Pose, Skid, STEP, Time } from "../sim/index.ts"
+import { Damage, Explosion, Game, Player, Pose, Rivers, Skid, STEP, Time } from "../sim/index.ts"
 import { VIEW_REACH } from "../sim/view.ts"
+import { FLOW, specificDischarge } from "../sim/water/flow.ts"
+import { waterAt } from "../sim/water/rivers.ts"
 import { Blasts } from "./blasts.ts"
 import { RenderClock } from "./clock.ts"
 import { makeCrossings } from "./crossings.ts"
@@ -57,11 +59,11 @@ const PRIORITY = { destroyed: 0, severe: 1, medium: 1, burnt: 2 } as const satis
 >
 
 /**
- * Lays the steps' Skid events as tyre marks and smoke, sets off a blast for each Explosion near the
- * player at the drawn moment, gives off the smoke and fire of the damaged engines near the player
- * since the last frame, the burning ones first (by their stage of damage, or the thin smoke of a
- * shell that blew up, from their nodes as placed this frame), then moves them all to the drawn
- * moment's sim time.
+ * Lays the steps' Skid events as tyre marks and smoke (no smoke from a wheel under water), sets off
+ * a blast for each Explosion near the player at the drawn moment, gives off the smoke and fire of
+ * the damaged engines near the player since the last frame, the burning ones first (by their stage
+ * of damage, or the thin smoke of a shell that blew up, from their nodes as placed this frame),
+ * then moves them all to the drawn moment's sim time.
  */
 export const DrawEffects = Game.System(
   "Lunigiana/DrawEffects",
@@ -70,7 +72,10 @@ export const DrawEffects = Game.System(
       player: Game.Query({ selection: { pose: Game.Query.read(Pose) }, with: [Player] }),
       vehicles: Game.Query({ selection: { damage: Game.Query.read(Damage) } }),
     },
-    resources: { time: Game.System.readResource(Time) },
+    resources: {
+      time: Game.System.readResource(Time),
+      rivers: Game.System.readResource(Rivers),
+    },
     events: { skids: Game.System.readEvent(Skid), explosions: Game.System.readEvent(Explosion) },
     services: {
       effects: Game.System.service(Effects),
@@ -80,12 +85,15 @@ export const DrawEffects = Game.System(
   },
   ({ queries, resources, events, services }) => {
     const { marks, smoke, wrecks, blasts } = services.effects
+    const q = specificDischarge(resources.rivers.get(), FLOW)
     for (const skid of events.skids.all()) {
       // A vehicle despawned since leaves no more marks.
       const node = services.nodes.get(skid.car)
       if (node === undefined) continue
       marks.add(skid, TREAD[node.model])
-      smoke.add(skid)
+      // A wheel under water (a river's, a lake's, the sea's) throws up no dust or smoke: the water
+      // holds its ground down, where a car bogged in the surf sent dry sand up out of the sea.
+      if (waterAt(skid.x, skid.y, skid.z, q) === undefined) smoke.add(skid)
     }
     const now = (resources.time.get().step + services.clock.alpha) * STEP.dt,
       dt = wrecks.frame(now)

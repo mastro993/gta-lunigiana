@@ -1,22 +1,16 @@
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { builtMapUrl, readWholeMap } from "../../tools/map-file.ts"
-import { regionFromArgs } from "../../tools/region.ts"
+import { skipUnbuilt, TEST_MAPS } from "../../tools/__tests__/test-maps.ts"
+import { readWholeMap } from "../../tools/map-file.ts"
 import { useDiskMap } from "../map/source.ts"
 
 // Map check (pnpm test:map) on every road bridge of the L test region (issue #87), which `pnpm maps` builds into test-maps/:
 // this process loads it before anything decodes the map. Without the build it is skipped, but in CI, which builds it, a
 // missing build fails.
-const REGION = regionFromArgs(["--region", "lunigiana-l"])
-const URL_L = builtMapUrl(REGION)
-const skip = existsSync(URL_L)
-  ? false
-  : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
-// GitHub Actions sets CI=true.
-if (skip !== false && process.env.CI === "true") throw new Error(skip)
-if (skip === false) useDiskMap(builtMapUrl(REGION))
+const [NAME, URL_L] = TEST_MAPS.find(([name]) => name === "the L")!
+const skip = skipUnbuilt(NAME, URL_L)
+if (skip === false) useDiskMap(URL_L)
 const checks = skip === false ? await import("./under-decks.ts") : undefined
 
 test(

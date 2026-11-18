@@ -1,23 +1,17 @@
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { builtMapUrl, readWholeMap } from "../../../tools/map-file.ts"
-import { regionFromArgs } from "../../../tools/region.ts"
+import { skipUnbuilt, TEST_MAPS } from "../../../tools/__tests__/test-maps.ts"
+import { readWholeMap } from "../../../tools/map-file.ts"
 import { useDiskMap } from "../source.ts"
 
 // Map check (pnpm test:map), on the L test region (`lunigiana-l`), whose notch's two tiles are
 // unlisted: a lookup there reads the vectors of the listed tiles round it, merged. This process
 // loads the L from test-maps/ (`pnpm maps` builds it); without the build the check is skipped,
 // but in CI, which builds it, a missing build fails.
-const REGION = regionFromArgs(["--region", "lunigiana-l"])
-const URL_L = builtMapUrl(REGION)
-const skip = existsSync(URL_L)
-  ? false
-  : `no ${REGION.key} build in test-maps: run node src/tools/build-map.ts --region ${REGION.key}`
-// GitHub Actions sets CI=true.
-if (skip !== false && process.env.CI === "true") throw new Error(skip)
-if (skip === false) useDiskMap(builtMapUrl(REGION))
+const [NAME, URL_L] = TEST_MAPS.find(([name]) => name === "the L")!
+const skip = skipUnbuilt(NAME, URL_L)
+if (skip === false) useDiskMap(URL_L)
 const checks = skip === false ? await import("./ground-checks.ts") : undefined
 
 test(

@@ -3,7 +3,9 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { lateralCurve, loaded, type TyreIn, tyreForce } from "../tyres.ts"
+import { DEFAULT_HANDLING, type HandlingValue } from "../handling.ts"
+import { drive, forward } from "../testing.ts"
+import { gripsFor, lateralCurve, loaded, type TyreIn, tyreForce } from "../tyres.ts"
 
 const tyre = (over: Partial<TyreIn>): TyreIn => ({
   load: 3000,
@@ -48,7 +50,15 @@ test("along the tyre: drive inside the grip uses up the ellipse; too much spins 
   )
   const spin = tyreForce(tyre({ drive: 4000 }))
   assert.equal(spin.amount, 1)
-  assert.ok(Math.abs(spin.fx - 3000 * 0.75) < 1e-9, "a spinning tyre pushes with sliding friction")
+  assert.ok(
+    Math.abs(spin.fx - (3000 * 0.75 - 0.013 * 3000)) < 1e-9,
+    "a spinning tyre pushes with sliding friction, less the rolling resistance of the ground it rolls over",
+  )
+  assert.equal(
+    tyreForce(tyre({ vx: 0, drive: 4000 })).fx,
+    3000 * 0.75,
+    "standing, it rolls over nothing",
+  )
   const held = tyreForce(tyre({ drive: 4000, traction: true }))
   assert.ok(held.amount === 0 && held.fx < 3000, "traction control keeps it gripping")
 })
@@ -82,4 +92,42 @@ test("a loaded tyre's friction coefficient falls and an unloaded one's rises, wi
   assert.equal(loaded(1, 3000, 3000), 1)
   assert.ok(loaded(1, 6000, 3000) < 0.9 && loaded(1, 1500, 3000) > 1)
   assert.equal(loaded(1, 100000, 3000), 0.6)
+})
+
+test("sand: a tyre grips it less than a dirt track, keeps nearly all of that sliding, rolls through it far harder, and rain firms it", () => {
+  const { sand, dirt } = gripsFor(1)
+  assert.ok(sand.dry.mu < dirt.dry.mu, `peak ${sand.dry.mu} against dirt's ${dirt.dry.mu}`)
+  assert.ok(sand.dry.slide > dirt.dry.slide, "loose sand has no peak to fall from")
+  assert.ok(sand.dry.roll > 5 * dirt.dry.roll, `rolling ${sand.dry.roll} against ${dirt.dry.roll}`)
+  assert.ok(sand.wet.mu >= sand.dry.mu && sand.wet.roll < sand.dry.roll, "wet sand is firmer")
+})
+
+test("sand: a Panda coasting onto it from 50 km/h stops within a few lengths where on dirt it rolls on; floored from rest it digs in, unless the handling halves the loss", () => {
+  const coasted = (surface: "sand" | "dirt") =>
+    drive("panda", 600, () => ({ throttle: 0, steer: 0, handbrake: false }), {
+      speed: 13.9,
+      surface,
+    })
+  const sand = coasted("sand"),
+    dirt = coasted("dirt")
+  assert.ok(sand.pose.x < 40 && forward(sand) < 0.05, `sand: ${sand.pose.x} m`)
+  assert.ok(
+    dirt.pose.x > 3 * sand.pose.x && forward(dirt) > 3,
+    `dirt: ${dirt.pose.x} m, still at ${forward(dirt)} m/s`,
+  )
+  const floored = (handling?: HandlingValue) => {
+    let spinning = 0
+    const end = drive("panda", 600, () => ({ throttle: 1, steer: 0, handbrake: false }), {
+      surface: "sand",
+      handling,
+      each: (_, __, r) => {
+        if (r.skids.some((skid) => skid.amount > 0.5)) spinning++
+      },
+    })
+    return { speed: forward(end), spinning }
+  }
+  const real = floored()
+  assert.ok(real.speed < 1 && real.spinning > 300, `real: ${JSON.stringify(real)}`)
+  const balanced = floored(DEFAULT_HANDLING)
+  assert.ok(balanced.speed > 10, `balanced: ${JSON.stringify(balanced)}`)
 })

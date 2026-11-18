@@ -19,10 +19,23 @@ test("rolling noise rises 30 dB per decade of speed and stops at a standstill", 
 test("a skid squeals on hard ground and sprays gravel on loose ground", () => {
   for (const surface of ["asphalt", "stone"] as const)
     assert.ok(tyre(15, 0.8, 6, surface).squeal > tyre(15, 0, 0, surface).squeal, surface)
-  for (const surface of ["gravel", "dirt", "grass", "leaves"] as const) {
+  for (const surface of ["gravel", "dirt", "grass", "leaves", "sand"] as const) {
     assert.equal(tyre(15, 0.8, 6, surface).squeal, 0, surface)
     assert.ok(tyre(15, 0.8, 6, surface).crunch > tyre(15, 0, 0, surface).crunch, surface)
   }
+})
+
+test("sand hisses low and soft: a quieter, darker roll than a dirt track's, and its spray a denser, lower stream than gravel's crunch", () => {
+  const sand = tyre(15, 0.8, 6, "sand"),
+    dirt = tyre(15, 0.8, 6, "dirt"),
+    gravel = tyre(15, 0.8, 6, "gravel")
+  assert.ok(sand.roll < dirt.roll && sand.rollHz < dirt.rollHz, "muffled rolling")
+  assert.ok(
+    sand.grainHz < gravel.grainHz / 1.5 && sand.grainTop < gravel.grainTop,
+    `spray at ${sand.grainHz} Hz, cut over ${sand.grainTop} Hz`,
+  )
+  assert.ok(sand.grains > 1.5 * gravel.grains, "grains so dense they fuse into a hiss")
+  assert.equal(dirt.grainHz, gravel.grainHz, "the other loose grounds keep gravel's crunch")
 })
 
 // Regression: the squeal came from sideways speed over ground speed, faded in from 8 km/h, so wheelspin and lock-ups were silent.

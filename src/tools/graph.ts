@@ -1,4 +1,4 @@
-// Road graph from shared OSM node ids (clip points get their own nodes), edges densified to <= 25 m.
+// Road graph from shared vertex ids (clip points get their own nodes), edges densified to <= 25 m.
 import { isMotorRoad, isTraffic } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
@@ -7,7 +7,7 @@ const MAX_EDGE = 25
 /** Dead ends on the play area's outline stop this far (m) back along the road: past the road-exit caps (4 m in) with room for a car's nose. */
 const EXIT = 8
 
-/** The polyline with each end on the outline (a clip point: no OSM id) pulled EXIT m back along it. */
+/** The polyline with each end on the outline (a clip point: no id) pulled EXIT m back along it. */
 const trimExits = (pts: ReadonlyArray<V>): ReadonlyArray<V> => {
   const head = (q: ReadonlyArray<V>): Array<V> => {
     const s = arcLengths(q)
@@ -27,7 +27,7 @@ interface GraphOut {
   readonly walk: Array<number>
   /** Node degree over all edges. */
   readonly degree: Array<number>
-  /** The node of each vertex id (OSM's, or the conflation's `ctr:` and `culvert:` ones); clip and split points are keyed `clip:`/`mid:`. */
+  /** The node of each vertex id (OSM's, the conflation's `ctr:` and `culvert:` ones, or a pier's `pier:` cut at the water's edge); clip and split points are keyed `clip:`/`mid:`. */
   readonly ids: ReadonlyMap<string, number>
 }
 

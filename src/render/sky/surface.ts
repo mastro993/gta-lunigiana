@@ -1,6 +1,6 @@
 /**
- * Surface weather on the lit world: snow, wet ground, puddles, the rivers' level and current
- * and rain rings on them, cloud shadows and wind-swayed trees, patched into the flat Lambert materials with `onBeforeCompile`.
+ * Surface weather on the lit world: snow, wet ground, puddles, the water's level, colour and current
+ * and rain rings on it (`render/sky/water-shader`), cloud shadows and wind-swayed trees, patched into the flat Lambert materials with `onBeforeCompile`.
  * One program per variant (`VARIANTS`, each with its own `customProgramCacheKey`), every effect
  * driven by the shared `SKY_UNIFORMS` cells, never by a `#define` flipped at run time, so the
  * weather never recompiles a shader. Everything is in world space (no seam at a chunk's edge, no
@@ -10,7 +10,6 @@
  *
  * @module render/sky/surface
  */
-import { Ops } from "@typeonce/ritmo-math"
 import {
   Color,
   type Material,
@@ -30,11 +29,17 @@ import {
   SNOW_ASPECT,
   SNOW_SETTLES,
 } from "../../sim/sky/local.ts"
-import { SPEED, STAGE } from "../../sim/water/channel.ts"
 import { yOf } from "../ground.ts"
 import { PALETTE } from "../palette.ts"
 import { CUT_GLSL, CUT_UNIFORMS } from "../see-through.ts"
-import { phaseLocked, SKY_UNIFORMS } from "./uniforms.ts"
+import { glslFloat as num, phaseLocked, SKY_UNIFORMS } from "./uniforms.ts"
+import {
+  applyWater,
+  WATER_FRAGMENT,
+  WATER_FRAGMENT_PARS,
+  WATER_VERTEX,
+  WATER_VERTEX_PARS,
+} from "./water-shader.ts"
 
 /** The surface-weather variants: buildings, terrain, road decals, instanced trees, rivers, and the things that move (people, vehicles, tyre marks, smoke). */
 export const VARIANTS = ["solid", "terrain", "road", "tree", "water", "actor"] as const
@@ -96,30 +101,6 @@ const LEAN = 0.5
 /** The canopies' gust, rad/s: two sines locked to whole turns in TIME_WRAP. */
 const GUSTS = [phaseLocked(1.7), phaseLocked(3.1)] as const
 
-/** Rain rings on the water: the share of 0.2 m cells that ring each 1/8 s at `at` mm/h, growing as rate^`power`, capped at `most`. */
-const RIPPLES = { share: 0.02, at: 3, power: 0.6, most: 0.06 } as const
-/**
- * The current's streaks: `length` × `width` m cells carried downstream at the water's speed, two phases `period` s apart
- * dissolving into each other so none stretches; a share of them shows, from `calm` on still water to `most` at `fast` m/s and over (TUNED by eye: slack water
- * is all but clear, a spate's rapids white with them).
- */
-const STREAKS = { length: 1.6, width: 0.3, period: 2, calm: 0.02, most: 0.3, fast: 3 } as const
-/**
- * Clear water over the river's pebbles: the limestone bed seen through it, tinted with the water's green. The water's own
- * colour shows from `clear` m of mean depth and fully from `full` (TUNED by eye: an ankle-deep torrent reads as wet gravel, a
- * spate as a river).
- */
-const SHALLOWS = {
-  colour: new Color(PALETTE.limestone).lerp(new Color(PALETTE.waterShallow), 0.6),
-  clear: 0.05,
-  full: 0.7,
-} as const
-/** Still water darkens toward the deep water's colour from `from` m deep to `to` (TUNED by eye: a lake's middle, 3 m at most, reads deep). */
-const STILL_DEEP = { colour: new Color(PALETTE.waterDeep), from: 0.7, to: 2.5 } as const
-
-/** A number as a GLSL float literal. */
-const num = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n))
-
 /** GLSL both stages share: the sim's lattice hash and value noise, the snow edge, the cloud field. */
 const HELPERS = /* glsl */ `
 varying vec3 vWeatherWorld;
@@ -163,13 +144,7 @@ float weatherClouds(vec2 p) {
 
 const VERTEX_PARS = /* glsl */ `
 #ifdef WEATHER_WATER
-attribute float stage;
-attribute vec3 flow;
-attribute float still;
-uniform float uRiverStage;
-varying vec3 vRiverFlow;
-varying float vRiverDepth;
-varying float vStill;
+${WATER_VERTEX_PARS}
 #endif
 #ifdef WEATHER_TREE
 attribute float canopy;
@@ -183,20 +158,15 @@ uniform vec3 uSwayAxis;
 `
 
 /**
- * After `begin_vertex`: a river's surface lifted off its bed to the depth the rivers run at (its
- * vertex's `stage` × q^STAGE, as `waterAt` has it; a lake's `still` depth shades it but lifts
- * nothing), the rest pose (what the snow and the clouds are locked to), then the tree's
+ * After `begin_vertex`: a river's surface lifted to the level the rivers run at (`WATER_VERTEX`),
+ * the rest pose (what the snow and the clouds are locked to), then the tree's
  * sway. A canopy moves rigidly by whole texels along the camera's right (a sprite's wobble: the
  * static world never shimmers), converted back into the unit shape's frame (Rᵀ·w / s); the trunk
  * stays. The shadow pass draws the rest pose.
  */
 const VERTEX_SWAY = /* glsl */ `
 #ifdef WEATHER_WATER
-  vRiverDepth = stage * uRiverStage;
-  transformed.y += vRiverDepth;
-  vRiverDepth += still;
-  vStill = still;
-  vRiverFlow = flow;
+${WATER_VERTEX}
 #endif
 vec3 weatherRest = transformed;
 #ifdef WEATHER_TREE
@@ -239,10 +209,7 @@ uniform float uRipples;
 varying float vCanopy;
 #endif
 #ifdef WEATHER_WATER
-varying vec3 vRiverFlow;
-varying float vRiverDepth;
-varying float vStill;
-uniform float uRiverSpeed;
+${WATER_FRAGMENT_PARS}
 #endif
 #define WEATHER_FEATHER ${num(FEATHER)}
 #define WEATHER_MELT ${num(MELT_BAND)}
@@ -302,36 +269,7 @@ vec2 weatherMap = vec2(vWeatherWorld.x, -vWeatherWorld.z);
 }
 #endif
 #ifdef WEATHER_WATER
-{
-  // Shallow water shows the pebbles through it; the water's own colour, and the dark channel's, only where it is deep.
-  diffuseColor.rgb = mix(vec3(${num(SHALLOWS.colour.r)}, ${num(SHALLOWS.colour.g)}, ${num(SHALLOWS.colour.b)}), diffuseColor.rgb, smoothstep(${num(SHALLOWS.clear)}, ${num(SHALLOWS.full)}, vRiverDepth));
-  // A lake darkens with its depth.
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${num(STILL_DEEP.colour.r)}, ${num(STILL_DEEP.colour.g)}, ${num(STILL_DEEP.colour.b)}), smoothstep(${num(STILL_DEEP.from)}, ${num(STILL_DEEP.to)}, vStill));
-}
-{
-  // The current: streaks carried downstream at the water's mean speed there, two phases crossfaded.
-  vec2 down = normalize(vRiverFlow.xy + vec2(1e-6, 0.0));
-  vec2 across = vec2(-down.y, down.x);
-  float speed = vRiverFlow.z * uRiverSpeed;
-  float share = mix(${num(STREAKS.calm)}, ${num(STREAKS.most)}, clamp(speed / ${num(STREAKS.fast)}, 0.0, 1.0));
-  float streak = 0.0;
-  for (int i = 0; i < 2; i++) {
-    float phase = fract(uTime / ${num(STREAKS.period)} + 0.5 * float(i));
-    vec2 q = weatherMap - down * (speed * ${num(STREAKS.period)} * phase);
-    vec2 c = floor(vec2(dot(q, down) / ${num(STREAKS.length)}, dot(q, across) / ${num(STREAKS.width)}));
-    float on = float(0.5 + 0.5 * weatherLattice(c + vec2(4001.0 * float(i), 3001.0)) > 1.0 - share);
-    // Each streak shows for its own share of its phase's life, so the two phases dissolve into each other cell by cell.
-    float life = 0.5 + 0.5 * weatherLattice(c + vec2(17.0, 4001.0 * float(i)));
-    streak = max(streak, on * float(life < 1.0 - abs(2.0 * phase - 1.0)));
-  }
-  totalEmissiveRadiance += uSkyColour * (0.5 * streak);
-}
-{
-  vec2 cell = floor(weatherMap * 5.0);
-  float tick = floor(WEATHER_TICKS * uTime + WEATHER_TICKS * (0.5 + 0.5 * weatherLattice(cell)));
-  float ring = float(0.5 + 0.5 * weatherLattice(cell + vec2(7.0, 13.0) * tick) < uRipples);
-  totalEmissiveRadiance += uSkyColour * (0.6 * ring);
-}
+${WATER_FRAGMENT}
 #endif
 float weatherSun = 1.0 - uCloudShade * smoothstep(uCloudCut - WEATHER_CLOUD_SOFT, uCloudCut + WEATHER_CLOUD_SOFT, weatherClouds(weatherMap - uCloudOffset));
 `
@@ -471,14 +409,7 @@ export const applySurface = (s: Surface): void => {
   u.uCloudShade.value = cloudShade(cover)
   u.uCloudOffset.value.set(s.cloudOffset.x, s.cloudOffset.y)
   u.uSkyColour.value.copy(s.skyColour)
-  // `Ops.pow`, not `**`: the map build imports this module, and its imports keep to the maths that
-  // rounds the same on arm64 and x64 (map-key.test.ts).
-  u.uRipples.value =
-    s.rain > 0
-      ? Math.min(RIPPLES.most, RIPPLES.share * Ops.pow(s.rain / RIPPLES.at, RIPPLES.power))
-      : 0
-  u.uRiverStage.value = s.flow > 0 ? Ops.pow(s.flow, STAGE) : 0
-  u.uRiverSpeed.value = s.flow > 0 ? Ops.pow(s.flow, SPEED) : 0
+  applyWater(s.rain, s.flow)
   const speed = Math.hypot(s.wind.x, s.wind.y)
   u.uSway.value = Math.min(SWAY.most, SWAY.perMs * Math.max(0, speed - SWAY.from))
   // The wind's share along the camera's right: three x is east, three z is south.

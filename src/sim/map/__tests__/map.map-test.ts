@@ -1,14 +1,14 @@
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { builtTestMaps } from "../../../tools/__tests__/test-maps.ts"
 import { type Dem, loadDtm } from "../../../tools/dtm.ts"
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
 import { listedNodes } from "../../../tools/grid-tiles.ts"
-import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
+import { type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { ROAD_PASSES } from "../../../tools/profiles.ts"
 import { dtmDir, inRects, PARTS, regionFromArgs } from "../../../tools/region.ts"
 import { STONE_CORES } from "../../../tools/stone-cores.ts"
@@ -407,17 +407,12 @@ const ringGap = (a: ReadonlyArray<number>, b: ReadonlyArray<number>) => {
 /** Road clip pieces of one surveyed footprint lie at most this far apart, m (`clipBuildings` cuts a road's corridor through it: 4.11 m at most on Lunigiana). */
 const PIECE_GAP = 6
 
-test("buildings: no two share an id unless they are pieces of one footprint, nor an outline, and none of OSM stands on a DBT unit, on Lunigiana, Cesena and the L", (t) => {
-  // The L is built into test-maps/ by `pnpm maps`; CI, which sets CI=true, always builds it.
-  const lUrl = builtMapUrl(regionFromArgs(["--region", "lunigiana-l"]))
-  if (!existsSync(lUrl)) {
-    assert.notEqual(process.env.CI, "true", "no lunigiana-l build in test-maps")
-    t.diagnostic("no lunigiana-l build in test-maps: the L is not checked")
-  }
+test("buildings: no two share an id unless they are pieces of one footprint, nor an outline, and none of OSM stands on a DBT unit, on Lunigiana, Cesena, the L and the coast", (t) => {
+  // The test regions are built into test-maps/ by `pnpm maps`; CI, which sets CI=true, always builds them.
   const maps: ReadonlyArray<readonly [string, JoinedMap]> = [
     ["Lunigiana", WHOLE],
     ["Cesena", wholeMap("cesena")],
-    ...(existsSync(lUrl) ? [["the L", readWholeMap(lUrl)] as const] : []),
+    ...builtTestMaps(t).map(([name, url]) => [name, readWholeMap(url)] as const),
   ]
   for (const [name, { buildings }] of maps) {
     const byId = Map.groupBy(buildings, (b) => b.id)

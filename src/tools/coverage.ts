@@ -61,6 +61,7 @@ const FILLS = {
   dtm10: "10 m DTM",
   lig: "DTM Liguria",
   rer: "DTM 5x5",
+  sea: "Sea",
 } as const satisfies Record<Exclude<Source, "lidar">, string>
 const FILL_SOURCES: ReadonlyArray<string> = Object.keys(FILLS)
 /** UCS 2019 classes that are woods: broadleaf, conifer and mixed woods, and woodland in regrowth. */

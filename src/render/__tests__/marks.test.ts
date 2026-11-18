@@ -114,6 +114,24 @@ test("ruts on dirt are earth, marks on asphalt are rubber", () => {
   )
 })
 
+test("ruts in sand are its damp, darker under-layer: earthy, paler than a dirt rut, less opaque than rubber", () => {
+  const marks = new Marks()
+  for (const [wheel, surface] of [
+    [0, "sand"],
+    [1, "dirt"],
+    [2, "asphalt"],
+  ] as const)
+    for (const step of [1, 2]) marks.add({ ...skid(step, wheel), surface }, 0.2)
+  const c = marks.mesh.geometry.getAttribute("color").array
+  const [sand, dirt, rubber] = [0, 1, 2].map((q) => ({
+    rgb: [c[q * 16]!, c[q * 16 + 1]!, c[q * 16 + 2]!],
+    alpha: c[q * 16 + 3]!,
+  }))
+  assert.ok(sand!.rgb[0]! > sand!.rgb[2]!, `earthy: ${sand!.rgb}`)
+  assert.ok(Math.max(...sand!.rgb) > 2 * Math.max(...dirt!.rgb), `paler than dirt: ${sand!.rgb}`)
+  assert.ok(sand!.alpha < rubber!.alpha, "a sand rut is fainter than rubber on asphalt")
+})
+
 // Regression: a skid in a tunnel drew its mark on the hillside over it, 5.4 m up.
 test("a skid in the tunnel near Monzone lies on its floor, not on the hill above", () => {
   const marks = new Marks()

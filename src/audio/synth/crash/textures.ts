@@ -18,6 +18,8 @@ const GROUNDS = {
   dirt: { gain: 0.3, tint: [0, 0, 0, 0, -1, -2, -4, -7, -10, -14], bounce: 0 },
   grass: { gain: 0.15, tint: [0, 0, 0, 0, -1, -3, -6, -9, -12, -16], bounce: 0 },
   leaves: { gain: 0.22, tint: [0, 0, 0, 0, 0, -1, -3, -5, -8, -12], bounce: 0 },
+  // Dry sand takes a piece in like grass, its loose grains damping the click and the ring: the softest landing of all.
+  sand: { gain: 0.15, tint: [0, 0, 0, -1, -2, -4, -7, -10, -13, -17], bounce: 0 },
 } as const satisfies Record<
   Surface,
   { readonly gain: number; readonly tint: Spectrum; readonly bounce: number }
