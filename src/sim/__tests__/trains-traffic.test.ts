@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { Ops, type Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carRadius } from "../body.ts"
-import { graph, MAP } from "../map/index.ts"
+import { graph } from "../map/index.ts"
 import { OPEN } from "../rail/barriers.ts"
 import { APPROACHES, CROSSINGS } from "../rail/crossings.ts"
 import { linesNear } from "../rail/lines.ts"
@@ -131,12 +131,10 @@ test("trains: an open crossing is kept clear: a car does not drive onto Via Riol
 
 test("trains: an open crossing is kept clear of a car standing in the middle of the road past it, as the braking cone sees it: a car at cruise never stands on the track", () => {
   // The road box whose lanes lie widest apart, where a car could pass one standing on the road's axis but for a hand's breadth:
-  // of the boxes within 4 km of the start that traffic drives through (a track's, as the Lucca–Aulla line's 140771695 by
-  // Aulla, has arms but no traffic lane into it).
-  const { player } = MAP.spawns
+  // of the boxes traffic drives through (a track's, as the Lucca–Aulla line's 140771695 by Aulla, has arms but no traffic
+  // lane into it).
   const driven = (i: number) =>
-    [...APPROACHES.values()].some((a) => a.box === i && a.approach === 0) &&
-    Ops.hypot(MAP.railway.crossings[i]!.x - player.x, MAP.railway.crossings[i]!.y - player.y) < 4000
+    [...APPROACHES.values()].some((a) => a.box === i && a.approach === 0)
   const wide = CROSSINGS.flatMap((b, i) => (b.walk || !driven(i) ? [] : [i])).reduce((a, b) =>
     laneSide(wayInto(b, 0).step, "panda") > laneSide(wayInto(a, 0).step, "panda") ? b : a,
   )
