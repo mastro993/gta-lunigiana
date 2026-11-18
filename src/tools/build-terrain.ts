@@ -367,18 +367,12 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     railLines,
     /** Each terminal's run-out by its point (`x,y` as shipped), walked away from it. */
     runOuts: new Map(runOuts.map((o) => [o.at, o.pieces])),
-    /**
-     * Each road's line, its z undefined where the finished grid gives it: a path's on the ground (no
-     * profile, not lifted), and an approach's past where it meets the ground.
-     */
-    roadLines: roads.map((r): { pts: Array<number>; z: Array<number | undefined> } | undefined => {
-      const a = approaches.lines.get(r)
-      if (a !== undefined)
-        return { pts: flatLine(a.pts), z: a.z.map((z) => (z === undefined ? undefined : r1(z))) }
-      return denseOf.has(r) || zOf.has(r) || lifted(r)
-        ? lineOut(r, unread(`road ${r.id}`))
-        : undefined
-    }),
+    /** Each road's line, but a path's on the ground (no profile, not lifted), which the finished grid gives. */
+    roadLines: roads.map((r) =>
+      denseOf.has(r) || zOf.has(r) || lifted(r) ? lineOut(r, unread(`road ${r.id}`)) : undefined,
+    ),
+    /** The approaches' lines by road (path-approaches.ts), their z undefined where the finished grid gives it. */
+    approaches: approaches.lines,
     /** The level crossings: the road and rail piece sharing a vertex (with its index in the piece's output polyline). */
     levels: levels.map(({ rl, rd, v }) => ({
       road: roadOf.get(rd)!,
@@ -414,13 +408,11 @@ export const finishTerrain = (src: Sources, profiled: Profiled, lap: (label: str
     railLines: profiled.railLines,
     runOuts: profiled.runOuts,
     roadLines: profiled.roadLines.map((line, i) => {
-      const pts = line?.pts ?? flatLine(roads[i]!.pts)
-      return {
-        pts,
-        z: pts
-          .filter((_, k) => k % 2 === 0)
-          .map((x, k) => line?.z[k] ?? r1(sampleGrid(grid.grid, x, pts[2 * k + 1]!))),
-      }
+      const onGrid = (v: V) => r1(sampleGrid(grid.grid, v.x, v.y))
+      const a = profiled.approaches.get(roads[i]!)
+      if (a !== undefined)
+        return { pts: flatLine(a.pts), z: a.pts.map((v, k) => r1(a.z[k] ?? onGrid(v))) }
+      return line ?? { pts: flatLine(roads[i]!.pts), z: roads[i]!.pts.map(onGrid) }
     }),
     bed: grid.bed,
     decks: grid.decks,
