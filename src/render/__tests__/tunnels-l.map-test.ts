@@ -27,7 +27,9 @@ test(
       tunnels: 7,
       passages: 1,
       metres: 194,
-      walls: 650,
+      // Equi Terme's footway underpass 1133296350 now rises to its approach 1306844336 at 264.2 m (it
+      // ended 1.7 m under it, at 262.9): 650 -> 654 wall triangles.
+      walls: 654,
       mouths: 12,
       portals: 3,
       heads: 0,

@@ -218,7 +218,7 @@ test("pathApproaches never climbs past the deck's level over terrain rising back
 })
 
 // Regression: an approach crossing over a tunnel sank onto it: Cesena's path 22776463, leading
-// out of the Sottopasso Ravennate, 2.45 m over the Secante's bore, and Lunigiana's 1311831119 0.4 m
+// out of the Sottopasso Cervese, 2.45 m over the Secante's bore, and Lunigiana's 1311831119 0.4 m
 // over the footway tunnel 1311831121 it leads out of.
 test("pathApproaches keeps the clearance over a tunnel it crosses", () => {
   // Out of a bore 6 m under flat ground, over a tunnel 8 m on whose top it must clear at 98 m.

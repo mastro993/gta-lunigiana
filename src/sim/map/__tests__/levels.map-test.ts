@@ -225,7 +225,7 @@ const shortfalls = (
  * until the paths' and steps' decks were fitted (PATH_PASS). Three are micro-mapped knots of
  * approaches (path-approaches.ts) no fit of theirs clears: Cesena's 5.5 m path bridge 683510421 is
  * fitted over the natural level of the path 22776463 under it, which, the approach out of the
- * Sottopasso Ravennate's mouth 3 m away, then climbs 5.6 m over the Secante's bore beside it; on
+ * Sottopasso Cervese's mouth 3 m away, then climbs 5.6 m over the Secante's bore beside it; on
  * Lunigiana the footways 1311831119 and 1311831120 cross the footway tunnels 1311831121 and
  * 1311862950 0.7 and 1.5 m from the nodes where they lead from the bores' ends at their level.
  */
