@@ -21,6 +21,8 @@ const way = (id: number, cls: RoadF["cls"], pts: ReadonlyArray<V>, tunnel = fals
 const flat = () => 100
 /** No bore opens anywhere. */
 const none = () => false
+/** No way crosses over or under it. */
+const open = () => []
 
 // Regression: the paths and steps at grade kept the terrain's level where they lead into a path's
 // tunnel: the station's 19.6 m steps at Aulla Lunigiana (1388757323) stood 5.8 m over the underpass
@@ -33,7 +35,14 @@ test("pathApproaches climbs a path or steps at grade from the level its deck set
       ["w", 94.2],
       ["u", 94.2],
     ])
-    const { lines } = pathApproaches(pathsAtGrade([bore, stair]), ["w", "u"], nodeZ, none, flat)
+    const { lines } = pathApproaches(
+      pathsAtGrade([bore, stair]),
+      ["w", "u"],
+      nodeZ,
+      none,
+      open,
+      flat,
+    )
     const line = lines.get(stair)!
     assert.equal(line.z[0], 94.2, "it meets the bore at its level")
     assert.equal(line.z.at(-1), undefined, "its top keeps the terrain")
@@ -68,6 +77,7 @@ test("pathApproaches carries a level it cannot bring to the ground within a way 
     ["w", "u"],
     nodeZ,
     none,
+    open,
     flat,
   )
   const high = 94 + 10 * APPROACH_GRADE.path
@@ -108,6 +118,7 @@ test("pathApproaches leaves a path at grade whose levels are the ground's or a r
     ["w", "u"],
     nodeZ,
     (id) => id === "u",
+    open,
     flat,
   )
   assert.deepEqual(lines.get(lane)!.z, [100, undefined], "the bore's level where it meets it")
@@ -130,6 +141,7 @@ test("pathApproaches meets a slope steeper than its grade as soon as the flat", 
     ["u"],
     new Map([["u", 99.4]]),
     none,
+    open,
     slope,
   )
   const line = lines.get(path)!
@@ -155,6 +167,7 @@ test("pathApproaches holds the cell where a path at grade meets a deck at the de
       ["u", 100],
     ]),
     none,
+    open,
     flat,
   )
   assert.equal(mouths.length, 0, "a deck's end is no bore's mouth")
@@ -193,6 +206,7 @@ test("pathApproaches never climbs past the deck's level over terrain rising back
     ["u"],
     new Map([["u", 63.1]]),
     none,
+    open,
     dip,
   )
   const line = lines.get(path)!
@@ -201,4 +215,32 @@ test("pathApproaches never climbs past the deck's level over terrain rising back
     assert.ok(z <= 63.1 + 1e-9, `${z} at ${p.x}`)
     assert.ok(z >= dip(p.x) - 1e-9, `${z} under the ground at ${p.x}`)
   })
+})
+
+// Regression: an approach crossing over a tunnel sank onto it: Cesena's path 22776463, leading
+// out of the Sottopasso Ravennate, 2.45 m over the Secante's bore, and Lunigiana's 1311831119 0.4 m
+// over the footway tunnel 1311831121 it leads out of.
+test("pathApproaches keeps the clearance over a tunnel it crosses", () => {
+  // Out of a bore 6 m under flat ground, over a tunnel 8 m on whose top it must clear at 98 m.
+  const bore = way(1, "path", [v(-10, 0, "w"), v(0, 0, "u")], true),
+    lane = way(2, "path", [v(0, 0, "u"), v(40, 0, "t")])
+  const { lines } = pathApproaches(
+    pathsAtGrade([bore, lane]),
+    ["u"],
+    new Map([["u", 94]]),
+    none,
+    () => [{ x: 8, y: 0, z: 98, kind: "min" as const }],
+    flat,
+  )
+  const line = lines.get(lane)!
+  const at = (x: number) => {
+    const k = line.pts.findIndex((p) => p.x >= x)
+    const a = line.pts[k - 1]!,
+      b = line.pts[k]!,
+      za = line.z[k - 1] ?? 100,
+      zb = line.z[k] ?? 100
+    return za + ((zb - za) * (x - a.x)) / (b.x - a.x)
+  }
+  assert.equal(line.z[0], 94)
+  assert.ok(at(8) >= 98 - 1e-9, `${at(8)} over the tunnel`)
 })

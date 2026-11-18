@@ -33,6 +33,7 @@ import {
   PATH_PASS,
   RAIL_PASS,
   ROAD_PASSES,
+  type Bound,
   type Linear,
 } from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
@@ -276,6 +277,15 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     ],
     nodeZ,
     (id) => mouths.has(id),
+    // Over a fitted tunnel or under a fitted bridge, the clearance between them (road-levels.ts).
+    (piece) =>
+      overpasses.over.flatMap(({ up, down, c, clear }): Array<Bound> =>
+        up === piece && down.tunnel === true && zOf.has(down)
+          ? [{ x: c.x, y: c.y, z: zAt(down, c.sb) + clear, kind: "min" }]
+          : down === piece && up.bridge === true && zOf.has(up)
+            ? [{ x: c.x, y: c.y, z: zAt(up, c.sa) - clear, kind: "max" }]
+            : [],
+      ),
     ground,
   )
   claims.push(...approaches.claims)

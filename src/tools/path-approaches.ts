@@ -10,7 +10,7 @@
 import type { RoadF } from "./features.ts"
 import type { V } from "./geometry.ts"
 import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
-import { lifted, PATH_PASS } from "./profiles.ts"
+import { type Bound, lifted, PATH_PASS } from "./profiles.ts"
 import { keepSamples, RELAX, resample } from "./terrain.ts"
 import { WALK_SLOPE } from "./walls.ts"
 
@@ -77,13 +77,18 @@ interface Fit {
  * Aulla (1125144076, 1062093193, 1308837496, 809448798, 1289055889, 719447156, 1109549328), which
  * took the uncarved ground's level. Out of a bore's mouth (`mouthAt`) those hold it ahead of every
  * other claim, as a road's do: a road over the bore took those cells at its own level otherwise.
- * None where it leads from no level.
+ * Where it crosses over a tunnel or under a bridge, its stretch keeps the clearance (`clears`, each
+ * a `min` or `max` level at a point of it), closing on it at its grade: an approach crossing back
+ * over the bore it leads out of, or over a road's tunnel bound under its natural level, sank onto it
+ * (Cesena's 22776463 2.45 m over the Secante, Lunigiana's 1311831119 0.4 m over 1311831121). None
+ * where it leads from no level.
  */
 const fitApproach = (
   piece: RoadF & { readonly cls: "path" | "steps" },
   nodeZ: ReadonlyMap<string, number>,
   leads: (id: string) => boolean,
   mouthAt: (id: string) => boolean,
+  clears: ReadonlyArray<Bound>,
   ground: (x: number, y: number) => number,
 ): Fit | undefined => {
   const p = resample(piece.pts, 4, ground),
@@ -100,43 +105,70 @@ const fitApproach = (
     if (leads(v.id!)) starts.push(k)
   })
   if (starts.length === 0) return undefined
-  const off = new Uint8Array(n)
-  for (const at of starts)
-    for (const step of [-1, 1])
-      for (let k = at; k >= 0 && k < n; k += step) {
-        if (k !== at && pins.has(k)) break
-        if (Math.abs(pins.get(at)!.off) <= grade * Math.abs(p.s[k]! - p.s[at]!) + MET) break
-        off[k] = 1
-      }
-  const sorted = [...pins].sort((a, b) => a[0] - b[0])
-  for (let k = 0, i = -1; k < n; k++) {
-    while (i + 1 < sorted.length && sorted[i + 1]![0] <= k) i++
-    if (off[k] === 0) continue
-    const [ka, a] = sorted[i] ?? [],
-      [kb, b] = sorted[i + 1] ?? [],
-      da = ka === undefined ? Infinity : p.s[k]! - p.s[ka]!,
-      db = kb === undefined ? Infinity : p.s[kb]! - p.s[k]!,
-      terrain = p.z[k]!
-    const up = Math.min(
-        a === undefined ? Infinity : a.z + grade * da,
-        b === undefined ? Infinity : b.z + grade * db,
-      ),
-      down = Math.max(
-        a === undefined ? -Infinity : a.z - grade * da,
-        b === undefined ? -Infinity : b.z - grade * db,
+  const terrain = Float64Array.from(p.z),
+    off = new Uint8Array(n)
+  /** Fits the stretches off the ground from `pins` into `off` and `p.z`. */
+  const fit = () => {
+    off.fill(0)
+    p.z.set(terrain)
+    for (const at of starts)
+      for (const step of [-1, 1])
+        for (let k = at; k >= 0 && k < n; k += step) {
+          if (k !== at && pins.has(k)) break
+          if (Math.abs(pins.get(at)!.off) <= grade * Math.abs(p.s[k]! - p.s[at]!) + MET) break
+          off[k] = 1
+        }
+    const sorted = [...pins].sort((a, b) => a[0] - b[0])
+    for (let k = 0, i = -1; k < n; k++) {
+      while (i + 1 < sorted.length && sorted[i + 1]![0] <= k) i++
+      if (off[k] === 0) continue
+      const [ka, a] = sorted[i] ?? [],
+        [kb, b] = sorted[i + 1] ?? [],
+        da = ka === undefined ? Infinity : p.s[k]! - p.s[ka]!,
+        db = kb === undefined ? Infinity : p.s[kb]! - p.s[k]!
+      const up = Math.min(
+          a === undefined ? Infinity : a.z + grade * da,
+          b === undefined ? Infinity : b.z + grade * db,
+        ),
+        down = Math.max(
+          a === undefined ? -Infinity : a.z - grade * da,
+          b === undefined ? -Infinity : b.z - grade * db,
+        )
+      const level =
+        down <= up + 1e-9
+          ? Math.min(up, Math.max(down, terrain[k]!))
+          : a!.z + ((b!.z - a!.z) * da) / (da + db)
+      const close = Math.max(
+        0,
+        a === undefined ? 0 : Math.abs(a.off) - grade * da,
+        b === undefined ? 0 : Math.abs(b.off) - grade * db,
       )
-    const level =
-      down <= up + 1e-9
-        ? Math.min(up, Math.max(down, terrain))
-        : a!.z + ((b!.z - a!.z) * da) / (da + db)
-    const close = Math.max(
-      0,
-      a === undefined ? 0 : Math.abs(a.off) - grade * da,
-      b === undefined ? 0 : Math.abs(b.off) - grade * db,
-    )
-    p.z[k] = terrain + Math.min(close, Math.max(-close, level - terrain))
+      p.z[k] = terrain[k]! + Math.min(close, Math.max(-close, level - terrain[k]!))
+    }
+    for (const k of starts) if (off[k] === 0) p.z[k] = pins.get(k)!.z
   }
-  for (const k of starts) if (off[k] === 0) p.z[k] = pins.get(k)!.z
+  fit()
+  // A clearance the fit breaks holds at its sample (the nearest its point) as a level set there, and
+  // the stretches are fitted again.
+  const at = clears.map((b) => {
+    let best = 0
+    for (let k = 1; k < n; k++)
+      if (
+        (p.x[k]! - b.x) ** 2 + (p.y[k]! - b.y) ** 2 <
+        (p.x[best]! - b.x) ** 2 + (p.y[best]! - b.y) ** 2
+      )
+        best = k
+    return best
+  })
+  for (let round = 0; round < clears.length; round++) {
+    const broken = clears.findIndex(
+      (b, j) => !pins.has(at[j]!) && (b.kind === "min" ? p.z[at[j]!]! < b.z : p.z[at[j]!]! > b.z),
+    )
+    if (broken < 0) break
+    pins.set(at[broken]!, { z: clears[broken]!.z, off: clears[broken]!.z - terrain[at[broken]!]! })
+    starts.push(at[broken]!)
+    fit()
+  }
   // Its first MOUTH m out of each level it leads from hold the grid there, out of a bore's mouth
   // ahead of every other claim.
   const mouths: Array<Claim> = [],
@@ -183,7 +215,7 @@ const fitApproach = (
 /**
  * The approaches leading from the nodes `seeds` (those of the paths' and steps' decks) along the paths
  * and steps at grade through them (`through`, `pathsAtGrade`), each fitted from the levels set on it
- * (`fitApproach`; `mouthAt` the nodes where a bore opens), the levels of their stretches off the
+ * (`fitApproach`; `mouthAt` the nodes where a bore opens, `clearOf` the clearances each keeps), the levels of their stretches off the
  * ground set in `nodeZ` and spread on from there: their lines, their claims on the grid and their
  * mouths' claims, in order.
  */
@@ -192,6 +224,7 @@ export const pathApproaches = (
   seeds: ReadonlyArray<string>,
   nodeZ: Map<string, number>,
   mouthAt: (id: string) => boolean,
+  clearOf: (piece: RoadF) => ReadonlyArray<Bound>,
   ground: (x: number, y: number) => number,
 ): {
   readonly lines: ReadonlyMap<RoadF, ApproachLine>
@@ -211,6 +244,7 @@ export const pathApproaches = (
         nodeZ,
         (id) => led.has(id),
         mouthAt,
+        clearOf(piece),
         ground,
       )
       if (fit === undefined) continue
