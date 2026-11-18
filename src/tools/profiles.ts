@@ -454,6 +454,26 @@ export const makeProfiler = (
     }
     pins.push(...strictest.values())
     fitProfile(p, spec.grade, pins, spec.relax)
+    // With `ramps`, a bridge's deck spans between its humps: each sample of it as high as the lower
+    // of the highest before it and the highest after it on the deck, a fill that keeps the fit's
+    // grades, so a footbridge over two ways bridges between them rather than dipping to the ground.
+    // Fitted sample by sample, the coast's 153 m cycle footbridge 522153380 fell from 7.7 m over a
+    // driveway to 1.8 m and climbed back to 6.1 m over a footway, at 25–30%. A bore dips under what
+    // it passes, and a deck held under a way over it (a `max` bound inside it) keeps its dip there.
+    if (spec.ramps === true)
+      for (let i = 0; i < runs.length; i++) {
+        if (!isLifted(i)) continue
+        const [i0, i1] = deckOf(i)
+        i = i1
+        const [k0, k1] = deckEnds([i0, i1]).map((v) => p.vertexSample[v]!) as [number, number]
+        if (isTunnel(i0) || pins.some((q) => q.kind === "max" && q.k > k0 && q.k < k1)) continue
+        const after = Float64Array.from({ length: k1 - k0 + 1 }, (_, o) => p.z[k0 + o]!)
+        for (let o = after.length - 2; o >= 0; o--) after[o] = Math.max(after[o]!, after[o + 1]!)
+        for (let k = k0 + 1, before = p.z[k0]!; k < k1; k++) {
+          before = Math.max(before, p.z[k]!)
+          p.z[k] = Math.max(p.z[k]!, Math.min(before, after[k - k0]!))
+        }
+      }
     // A sample's segment belongs to the piece whose first vertex precedes it; the last sample closes the last piece.
     // Its core reaches half a cell past its own piece's carriageway edge, so the terrain under the
     // carriageway is (nearly) level across it.

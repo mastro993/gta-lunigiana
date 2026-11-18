@@ -543,3 +543,37 @@ test("profile with ramps leaves a deck's end with no level to the fit, within it
   // Pinned at the ground's level, it is the straight line up to it, over its grade.
   assert.equal(fit(79).z.at(-1), 79)
 })
+
+// Regression: a path's bridge over two ways fitted sample by sample dipped to the ground between
+// them: the coast's 153 m cycle footbridge 522153380 fell from 7.7 m over a driveway to 1.8 m and
+// climbed back to 6.1 m over a footway, at 25–30%.
+test("profile with ramps spans a bridge's deck between the humps over the ways it crosses; a bore still dips", () => {
+  // Flat ground at 100 m; a 120 m footbridge (or underpass) from x 0 to 120, its ends at the
+  // ground's level, over ways at x 20 and x 100 that ask it 105.5 m at least (or 94 m at most).
+  const fit = (tunnel: boolean) => {
+    const piece = {
+      ...(tunnel ? { tunnel: true as const } : { bridge: true as const }),
+      pts: [v(0, 0, "a"), v(20, 0), v(60, 0), v(100, 0), v(120, 0, "b")],
+    }
+    const { profile, denseOf } = makeProfiler(() => 100)
+    profile(
+      [{ item: piece, rev: false }],
+      { w: 1.5, ...PATH_PASS, ramps: true, ends: () => 100 },
+      [20, 100].map((x) => ({
+        x,
+        y: 0,
+        z: tunnel ? 94 : 105.5,
+        kind: tunnel ? ("max" as const) : ("min" as const),
+        tilt: true as const,
+        on: piece,
+      })),
+    )
+    const { pts, z } = denseOf.get(piece)!
+    return (x: number) => z[pts.findIndex((p) => p.x === x)]!
+  }
+  const deck = fit(false)
+  assert.ok(deck(60) >= 105.5 - 1e-6, `${deck(60)} between the ways it crosses`)
+  assert.deepEqual([deck(0), deck(120)], [100, 100], "its ends at their levels")
+  const bore = fit(true)
+  assert.ok(bore(60) > 94 + 1, `${bore(60)}: the bore rises back between them`)
+})
