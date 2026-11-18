@@ -18,7 +18,7 @@ const maps = {
     id: "lunigiana",
     name: "Lunigiana",
     subtitle:
-      "Fivizzano · Fosdinovo · Casola · Monzone · Equi Terme — Valle del Lucido, alta Aulella e Bardine (MS, LU, SP)",
+      "Aulla · Fivizzano · Fosdinovo · Casola · Monzone · Equi Terme — Magra, Aulella, Valle del Lucido e Bardine (MS, LU, SP)",
     url: new URL("./sim/map/monzone.bin", import.meta.url),
     tileUrl: (key) => new URL(`./sim/map/monzone/${key}.bin`, import.meta.url),
     overview: new URL("./sim/map/monzone/overview.png", import.meta.url),

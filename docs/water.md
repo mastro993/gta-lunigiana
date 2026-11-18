@@ -80,41 +80,58 @@ the debug menu moves the rivers on from where they are.
 Every vertex of a river or stream knows the catchment upstream of it, so its depth and current
 follow from the discharge per km², q.
 
-- **Catchments** (`src/tools/catchment.ts`): the map build burns the water's profiles 100 m into
-  the 4 m terrain grid, fills it (priority-flood with an epsilon, Barnes et al. 2014), routes each
-  node to its steepest lower neighbour (D8) and accumulates the 4 m cells downstream. Each piece
-  starts with what the pieces ending where it begins bring (a confluence adds them up, a fork
-  shares them among its arms, so a braid's rejoin adds back to the whole), and each
-  vertex keeps the most its own burned nodes gather within a node of it, never less than upstream
-  (`Water.area`, km²). Nodes within two of another water's are left out, and a piece's last vertex
-  keeps what came down to it: D8 may route the water it joins through a tail running beside it.
-  The grid's edge is the outlet, and so is every node no listed map tile holds (an L-shaped
-  region's notch, which the build reads no terrain in: [map.md](map.md#pipeline)), so no ground
-  beyond either counts. The water past the play area's outline but inside the box is burned too,
-  owning no node, so a river the outline cuts short of the box's edge or a notch drains on down its
-  own water. Before, its trench ended 100 m under the ground past the cut, the fill made it a lake
-  as high as its lowest way out, and D8 crossed the lake down a side stream: Fosdinovo's north edge
-  cuts the Torrente Bardine 100 m short of the notch, and its 58.1 km² drained out up the Canale
-  del Torchio to the box's west edge. Water coming in from beyond the grid keeps its ground at its
-  first nodes, so it is no outlet for the water it joins
-  ([map.md](map.md#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)). The
-  Torrente Lucido drains 46.4 km² where it meets the Aulella at Gragnola; the Aulella brings
-  59.6 km² there, all of them on the map, and drains 106 below the mouth.
-  The bounds hold the whole basin above the Soliera gauge but the heads of the streams that come
-  down from north of y 13000 under the Cerreto pass: 14.7 km², by a D8 on Massa-Carrara's 10 m DTM,
-  all of which reach the Torrente Rosaro above Fivizzano, 13.1 of them down its own head and 1.6
-  down rivulets west of it. The Rosaro brings them all in at its entry node, 12 m inside the edge
-  (`OFF_MAP` in `src/tools/build-terrain.ts`), so it reaches the Aulella at Soliera with 81.6 km²,
-  the Aulella reads 196.5 just below its mouth (181.8 of the map's own ground and the 14.7), 196.8
-  by the gauge, and leaves the play area with 199.4 at Fivizzano's west edge (x −5300; 199.0 while
-  that was the box's edge, before the 0.4 km² of the Canale di Moncigoli's head west of it came
-  into the box). ARPAL gives the gauge 208 km², more than the DTMs' basins there (the 10 m DTM's is
-  200.7 km², 186.1 of them inside the box, where the map's 4 m D8 gathers 181.8), so the flows per
-  km² come from the gauge's 208 and the map's Aulella at Soliera carries 196.8/208 of the gauge's
-  flow. The Torrente Bardinello rises in lucido's part and crosses Fosdinovo's to meet the Torrente
-  Bardine by Bardine di San Terenzo with 33.7 km²; the Bardine leaves Fosdinovo's north edge at
-  (−10572, 3900) with 59.03 (59.04 by a D8 on the ground alone) and joins the Aulella below the
-  gauge, in the north-west notch, so neither changes the gauge's flow.
+- **Catchments** (`src/tools/catchment.ts`): the map build burns the water's profiles 100 m into the
+  4 m terrain grid, fills it (priority-flood with an epsilon, Barnes et al. 2014), routes each node
+  to its steepest lower neighbour (D8) and accumulates the 4 m cells downstream. Each piece starts
+  with what the pieces ending where it begins bring (a confluence adds them up, a fork shares them
+  among its arms, so a braid's rejoin adds back to the whole), and each vertex keeps the most its
+  own burned nodes gather within a node of it, never less than upstream (`Water.area`, km²). Nodes
+  within two of another water's are left out, and a piece's last vertex keeps what came down to it:
+  D8 may route the water it joins through a tail running beside it. The grid's edge is the outlet,
+  and so is every node no listed map tile holds (an L-shaped region's notch, which the build reads
+  no terrain in: [map.md](map.md#pipeline)), so no ground beyond either counts. The water past the
+  play area's outline but inside the box is burned too, owning no node, so a river the outline cuts
+  short of the box's edge or a notch drains on down its own water. Before, its trench ended 100 m
+  under the ground past the cut, the fill made it a lake as high as its lowest way out, and D8
+  crossed the lake down a side stream: Fosdinovo's north edge cut the Torrente Bardine 100 m short
+  of the notch, before Aulla's part made it a seam, and its 58.1 km² drained out up the Canale del
+  Torchio to the box's west edge. Water coming in from beyond the grid keeps its ground at its first
+  nodes, so it is no outlet for the water it joins
+  ([map.md](map.md#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)). The Torrente
+  Lucido drains 46.4 km² where it meets the Aulella at Gragnola; the Aulella brings 59.6 km² there,
+  all of them on the map, and drains 106 below the mouth. The bounds hold the whole basin above the
+  Soliera gauge but the heads of the streams that come down from north of y 13000 under the Cerreto
+  pass: 14.7 km², by a D8 on Massa-Carrara's 10 m DTM, all of which reach the Torrente Rosaro above
+  Fivizzano, 13.1 of them down its own head and 1.6 down rivulets west of it. The Rosaro brings them
+  all in at its entry node, 12 m inside the edge (`OFF_MAP` in `src/tools/build-terrain.ts`), so it
+  reaches the Aulella at Soliera with 81.6 km², the Aulella reads 196.5 just below its mouth (181.8
+  of the map's own ground and the 14.7), 196.8 by the gauge, crosses Fivizzano's west edge (x −5300)
+  with 199.4 (199.0 while that was the box's edge, before the 0.4 km² of the Canale di Moncigoli's
+  head west of it came into the box) and meets the Magra at Aulla with 313.1. A D8 on the 10 m DTM
+  gives it 319.3 km² 100 m above its mouth and 200.7 at Soliera: the map reads 1.9% under it at both
+  (313.1 and 196.8), so the gap is the 4 m grid's divides, not a part of the basin left out. ARPAL
+  gives the gauge 208 km², more than the DTMs' basins there (the 10 m DTM's is 200.7 km², 186.1 of
+  them inside the box, where the map's 4 m D8 gathers 181.8), so the flows per km² come from the
+  gauge's 208 and the map's Aulella at Soliera carries 196.8/208 of the gauge's flow. The Torrente
+  Bardinello rises in lucido's part and crosses Fosdinovo's to meet the Torrente Bardine by Bardine
+  di San Terenzo with 33.7 km²; the Bardine crosses Fosdinovo's north edge at (−10572, 3900) with
+  59.03 (59.04 by a D8 on the ground alone) and joins the Aulella with 63.00, below the gauge, so
+  neither changes the gauge's flow.
+- **The Magra's and the Taverone's heads** (issue #19) come in as the Rosaro's do: of the 522.0 km²
+  north of y 13000 that drain into the box, by a D8 on the 10 m DTM, the Fiume Magra brings 420.9 of
+  its upper valley and the Torrente Taverone 69.1, each at its own crossing of the north edge; the
+  Torrente Civiglia 4.5, the Canale Torchio di Bacco and the Canale della Ghiaia, which join the
+  Civiglia, 3.8 and 3.0, and the Canale Cravareccia 1.1; the rivulets' 4.9 km² are left out
+  (`OFF_MAP`). The Magra leaves the play area at y 3900 with 915.0 km² (the 10 m DTM's D8 930.5;
+  412.55 while the heads came in with nothing), the Taverone meets it with 115.4 (82.49 at the end
+  of its way 700556145, 1.3 km above its mouth, where the 10 m DTM reads 86.7; 33.9 while the heads
+  came in with nothing) and the Civiglia, which joins the Taverone 84 m above its mouth, with 32.15
+  (20.85 before its heads came in). The map's 4 m D8 drains 6.8 km² of land by the north edge out
+  across it, land which on the 10 m DTM comes back in with the rivers (3.4 km² by the Taverone, 1.5
+  by the Magra, 1.35 by the Rosaro): the Taverone's 3.4 is what separates its 82.5 from the DTM's
+  86.7. Their flows per km² are the Aulella's at Soliera: the Magra has no gauge the calibration
+  reads, and the gauge at Calamazza is quoted at 932 km², not verified
+  ([map.md](map.md#known-data-limitations)).
 - **The channel** (`channelOf`, `channel.ts`): as wide as the water (`Water.w`), its bed the terrain
   drawn under the centreline (except under an at-grade road, where it stays `depth`/2 under the
   culvert's dip, so the road stays dry until a flood overtops it; and near the track, on the ground
@@ -139,7 +156,8 @@ follow from the discharge per km², q.
   runs down the reach at the mean speed × (depth / mean depth)^0.83 (Manning's speed with depth,
   at most 1.5 times the mean depth's), so it slows to nothing at the water's edge.
 - **From the point's tile** (`placeAt` in `src/sim/map/tiles.ts`): every river and stream lies
-  whole in each tile it comes within 32 m of (`HALO`; the widest bed's half-width is 13 m), so the
+  whole in each tile it comes within 32 m of (`HALO`; the widest bed's half-width is the Magra's
+  13.5 m), so the
   tile under a point holds every reach whose bed reaches it, every lake and river polygon over it,
   and each such polygon's waterways (the cut puts them in every tile the polygon lies in). A tile's reaches go into 32 m buckets
   on its first use, each built from the whole piece the tile holds (`channelOf` over the whole
@@ -440,7 +458,7 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores, the dry ones, a river polygon's surface falling through it and its outer edge left, no tree, parked car or spawn in the water |
 | `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
 | `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 1,142,302 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered (`water-oracle.ts`, with the sea's rules: still water's cuts no shore, the sea pieces' coast shared, its closures across a river's or a lake's mouth no coast, no river under the sea) |
-| `src/sim/map/__tests__/map.map-test.ts` (`pnpm test:map`) | catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 ± 2 km², the Rosaro's 14.7 ± 0.5 at its entry, the Aulella's 199 ± 3 leaving the play area and the Bardine's 59 ± 2; none of the outline's cuts draining a river down a side stream (the stream by Soliera, way 140780331, under 1 km², Il Canalaccio under 6, the Canale del Torchio under 2); no walk or drive wall in a wide river, shore walls by it |
+| `src/sim/map/__tests__/water.map-test.ts` (`pnpm test:map`) | the rivers' widths by reach (the Lucido's, the Aulella's, the Rosaro's, the Mommio's, the Bardine's, the Bardinello's, the Pesciola's, the Taverone's, the Osca's, the Penolo's and the Magra's, from `water-sizes.ts`); catchments growing downstream with no jump at a tributary's mouth, the Lucido's 47 ± 2 km², the Rosaro's 14.7 ± 0.5 at its entry, the Aulella's 199 ± 3 at x −5300 and 313 ± 3 at its mouth, the Bardine's 63 ± 2; the Magra's and the Taverone's heads (420.9 and 69.1 ± 0.5), the Taverone's 82 km² 1.3 km above its mouth and the Magra's 915 leaving; none of the outline's cuts draining a river down a side stream (the stream by Soliera, way 140780331, under 1 km², Il Canalaccio under 6, the Canale del Torchio under 3); no walk or drive wall in a wide river, shore walls by it, read by the outline of the lake or river polygon it runs in, points within 30 m of the play area's outline left out |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
 
 ## Known limits

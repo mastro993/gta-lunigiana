@@ -278,7 +278,8 @@ Input (horn) ──────────────────────�
   of 5–7); since #15's olive groves and vineyards, a dog's yard too, it held 710 owls and 625 dogs
   (not timed again), and since #18's Fosdinovo it holds 932 owls and 953 dogs: 2.4–2.8 ms and
   11.5–13.0 ms, timed the same way (20 processes on 2026-11-07 under a load average of 3–4, but
-  for 4 of the owls' calls at 7.1–7.4 ms and one of the dogs' at 18.7 ms).
+  for 4 of the owls' calls at 7.1–7.4 ms and one of the dogs' at 18.7 ms); since #19's Aulla it
+  holds 1,399 owls and 1,494 dogs (not timed again).
 - **Randomness** in the director (birds, owls, farm dogs, animal calls, what people say) and the
   synths (variants, jitter, a fire's crackle, a texture's segments, a backfire) is `Math.random`:
   `?seed=N` replays the world, not the birds. The owls draw after the farm dogs and only at night,
@@ -549,37 +550,42 @@ roof's drumming). The wind bed is never stiller than the rural background: 35 dB
 (`AMBIENT_DB`), falling to 28 at night (`NIGHT_DB`) as the sun sinks from 0° to 10° under the
 horizon (`floorDb` in `director/sky.ts`). What masks is what plays: the background is the wind bed,
 not a silent number, so from a closed car in a calm street the floor is 20 dB(A), and a downpour
-drowns a car at full load 250 m across a meadow that the dry day lets through. A sound at most 5 dB
+drowns a car at full load 230 m across a meadow that the dry day lets through. A sound at most 5 dB
 under the floor plays at full gain. Below that it fades linearly in dB, and 15 dB under the floor it
 is culled: a one-shot is dropped, a voice is no longer held and fades out. The margin is there
 because a narrow-band sound stays detectable 5–10 dB under a broadband dB(A) floor.
 
 The wind's strength comes from the place and the weather. In the usual wind (3 m/s at 10 m on the
 map's low ground, `USUAL_WIND`: a cloudy day's, a little over the weather's own mean, 2.5 m/s in
-October and 2.3–2.7 by month over 30 simulated years) it rises with the ears' height over the
-map's floor (`place().floor`, its 5th-percentile height), from 0.15 at 80 m under the floor to
-0.85 at 770 m over it (a smoothstep: tuned by ear on lucido alone, whose floor of 230.3 m over its
-lowest ground of 147 m made that the 150–1,000 m it was tuned on, within 0.3 m), up to 0.15 more on
-open ground, and 0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s
-(`windFactor`). Counting from the floor, a flat coastal map hears its floor as the shipped map's
-valley does, and an Alpine map its own floor as calm rather than a gale everywhere. A part moves
-the floor: with Fivizzano's lower valleys (down to 105 m) it was 213.6 m, so the law spanned
-134–984 m and lucido blew as 16.7 m higher did, up to 0.02 stronger: the meadow on Monte dei
-Bianchi (316 m) 0.355 → 0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 → 0.277 (1.0 dB),
-the ridge above Aiola (899 m) 0.926 → 0.934, Monzone's streets at the stillest as before; a car
-at full load across that meadow was heard all the way to 284 m rather than 288. With Fosdinovo's
-Magra plain (down to 18.1 m) it is 162.3 m, so the law spans 82–932 m and lucido blows as 68.0 m
-higher did, up to 0.05 stronger than with Fivizzano: the meadow 0.369 → 0.415 (2.1 dB), the woods
-above Isolano 0.277 → 0.330 (3.1 dB), the ridge above Aiola 0.934 → 0.951, the spawn's street at
-the stillest as before, though the lane at Pian del Molino (−917, 1707) now blows at 0.267 over
-the stillest 0.237; the car across the meadow is heard all the way to 265 m rather than the 285 of
-the map before it (2026-11-07, the director's rig in its calm). It is never under the floor's
-stillest, 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds themselves: leaves and
-the far valley, heard even in a sheltered street), and at most 1.33, a gale's bed at `GALE_DB`
-(65 dB(A)). Its level is 60 + 40·log10(strength) dB(A): in the usual wind 35 in Monzone's streets,
-about 40–43 on open ground on the valley floor, 57–60 on the ridges. The voice plays at most its
-full strength 1, and past it the bed's gain carries the gale, so the usual wind keeps the voice it
-was tuned with.
+October and 2.3–2.7 by month over 30 simulated years) it rises with the ears' height over the map's
+floor (`place().floor`, its 5th-percentile height), from 0.15 at 80 m under the floor to 0.85 at 770
+m over it (a smoothstep: tuned by ear on lucido alone, whose floor of 230.3 m over its lowest ground
+of 147 m made that the 150–1,000 m it was tuned on, within 0.3 m), up to 0.15 more on open ground,
+and 0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s (`windFactor`).
+Counting from the floor, a flat coastal map hears its floor as the shipped map's valley does, and an
+Alpine map its own floor as calm rather than a gale everywhere. A part moves the floor: with
+Fivizzano's lower valleys (down to 105 m) it was 213.6 m, so the law spanned 134–984 m and lucido
+blew as 16.7 m higher did, up to 0.02 stronger: the meadow on Monte dei Bianchi (316 m) 0.355 →
+0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 → 0.277 (1.0 dB), the ridge above Aiola (899
+m) 0.926 → 0.934, Monzone's streets at the stillest as before; a car at full load across that meadow
+was heard all the way to 284 m rather than 288. With Fosdinovo's Magra plain (down to 18.1 m) it is
+162.3 m, so the law spans 82–932 m and lucido blows as 68.0 m higher did, up to 0.05 stronger than
+with Fivizzano: the meadow 0.369 → 0.415 (2.1 dB), the woods above Isolano 0.277 → 0.330 (3.1 dB),
+the ridge above Aiola 0.934 → 0.951, the spawn's street at the stillest as before, though the lane
+at Pian del Molino (−917, 1707) now blows at 0.267 over the stillest 0.237; the car across the
+meadow is heard all the way to 265 m rather than the 285 of the map before it (2026-11-07, the
+director's rig in its calm). With Aulla's Magra and lower Aulella valleys, which hold two thirds of
+the nodes now under it, it is 98.4 m, so the law spans 18–868 m and lucido blows as 131.9 m higher
+did: the meadow 0.415 → 0.483 (2.6 dB, 5.4 dB over the tuning on lucido's own floor), the woods
+above Isolano 0.330 → 0.403, the ridge above Aiola 0.951 → 0.954, the lane at Pian del Molino 0.267
+→ 0.322; the car across the meadow is heard all the way to 240 m rather than 265, and at 8 m/s the
+meadow's wind culls a car across it from 35 m off, on foot as in a car (2026-11-17). It is never
+under the floor's stillest, 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds
+themselves: leaves and the far valley, heard even in a sheltered street), and at most 1.33, a gale's
+bed at `GALE_DB` (65 dB(A)). Its level is 60 + 40·log10(strength) dB(A): in the usual wind 35 in
+Monzone's streets, about 40–43 on open ground on the valley floor, 57–60 on the ridges. The voice
+plays at most its full strength 1, and past it the bed's gain carries the gale, so the usual wind
+keeps the voice it was tuned with.
 
 Over flat, open ground with nothing in the way, at the day's 35 dB(A) floor (at night's 28 every
 radius is about 2.2 times longer: 7 dB more of spreading):
@@ -725,18 +731,16 @@ weather.
   et al. 2002); a last round at dusk, 1.3 times, all roosting under −6°; none at night; heavy rain
   silences them (0.5–8 mm/h).
 - **Owls**: the tawny owl calls once the sun is 2–6° under (10–20 minutes after sunset) until as
-  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 932 territories,
-  one in 70 % of the map's 500 m squares with woods, each 8 m up a tree in a wood (any of `WOODS`:
-  broadleaf, conifer or mixed); those within
-  600 m call, each resting 30 s after a call, then calling about once in 20 s. The squares count
-  from the region's anchor (`anchorOf`), as the trees' lattice does, never from the box's corner,
-  so a part that grows the box moves no owl of the parts before it but those an edge it opens had
-  held: Fivizzano moved 4 of lucido's 216, those lucido's east edge had held at x 4900, 3 of them
-  now 54–104 m past it and one gone; Fosdinovo moved 12 of the 710, the 4 Fivizzano's west edge
-  had held at x −5300 (now 59–433 m past it) and the 8 by the edge at x −4000 of the notch its
-  part fills, whose tries in it were skipped (now 163–446 m into it), and one west of lucido's
-  edge, at (−3624,
-  −3484), sits 0.12 m lower.
+  long before sunrise (`owlActivity`), and rain silences it (0.5–4 mm/h). There are 1,399
+  territories, one in 70 % of the map's 500 m squares with woods, each 8 m up a tree in a wood (any
+  of `WOODS`: broadleaf, conifer or mixed); those within 600 m call, each resting 30 s after a call,
+  then calling about once in 20 s. The squares count from the region's anchor (`anchorOf`), as the
+  trees' lattice does, never from the box's corner, so a part that grows the box moves no owl of the
+  parts before it but those an edge it opens had held: Fivizzano moved 4 of lucido's 216, those
+  lucido's east edge had held at x 4900, 3 of them now 54–104 m past it and one gone; Fosdinovo
+  moved 12 of the 710, the 4 Fivizzano's west edge had held at x −5300 (now 59–433 m past it) and
+  the 8 by the edge at x −4000 of the notch its part fills, whose tries in it were skipped (now
+  163–446 m into it), and one west of lucido's edge, at (−3624, −3484), sits 0.12 m lower.
 - **Crickets** sing where open ground outweighs buildings, in air of 10 °C or more at the ears
   (chirping faster as it warms) and dry. They follow the temperature and the rain, not the hour,
   so an October evening's cooling slows them and its night silences them.
@@ -1130,17 +1134,17 @@ crash plays) a play took 2 ms (median; 4.6 for nine in ten, 8.8 at most) and no 
 within a second of one. ponytail: the render runs on the main thread; move it to a Worker if the
 browser shows long tasks.
 
-The bells are the tallest church or tower of each district (the district its box's centre lies
-in; the first of the tallest), 109 in all (27 on lucido alone, 84 before Fosdinovo's part), found
-by the build over the whole map's buildings (`bellsOf` in `src/tools/bells.ts`) and kept in the map
-(`MAP.derived.bells`). A tower of 10 m or less rings an 800 Hz prime; taller towers ring lower, down
-to 400 Hz at 30 m. Each starts the hour up to 6 s late (`TOWER_LAG` in
+The bells are the tallest church or tower of each district (the district its box's centre lies in;
+the first of the tallest), 162 in all (27 on lucido alone, 84 before Fosdinovo's part, 109 before
+Aulla's), found by the build over the whole map's buildings (`bellsOf` in `src/tools/bells.ts`) and
+kept in the map (`MAP.derived.bells`). A tower of 10 m or less rings an 800 Hz prime; taller towers
+ring lower, down to 400 Hz at 30 m. Each starts the hour up to 6 s late (`TOWER_LAG` in
 `src/audio/director/world.ts`) by a seed hashed from its building's id (`Bell.seed` in
 `src/audio/places.ts`), not from its place in the list. The build lists the towers in the whole
 map's building order, so a part reorders them: Fivizzano's 57 moved each of lucido's 27 to another
 place, and a lag keyed on the place would have changed all 27, by up to 4.9 s. Keyed on the
-building, they changed once against main, by 0.04–4.69 s, and no later part moves them:
-Fosdinovo's 25 moved 83 of the 84 to another place in the list, and each kept its seed.
+building, they changed once against main, by 0.04–4.69 s, and no later part moves them: Fosdinovo's
+25 moved 83 of the 84 to another place in the list, and each kept its seed.
 
 ### Explosions
 
