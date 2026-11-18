@@ -218,12 +218,12 @@ const shortfalls = (
 /**
  * Crossings a region's build keeps too low, by the OSM ids of the way above and the one below
  * (docs/map.md, "Known data limitations"): Cesena's car park ramp its square's pass leaves at the
- * square's level; the coast test region's foot and cycle bridge over the A12 at Luni (its three
- * ways), its footway under Via Palmiro Togliatti, and Via Bassagrande's bridge over the Fossa
- * Maestra, 1.93 m over the path along its bank. Each must still fall short, so a fix drops it from
- * here. Cesena's footbridges over Viale Europa, Via Riccione, the paths beside them and the
- * Ippodromo's, and its pedestrian underpass under Via Giuseppe Di Vittorio, ran straight between
- * their ends at the terrain's level until the paths' and steps' decks were fitted (PATH_PASS). Three
+ * square's level; the coast test region's Via Bassagrande's bridge over the Fossa Maestra, 1.93 m
+ * over the path along its bank. Each must still fall short, so a fix drops it from here. Cesena's
+ * footbridges over Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its
+ * pedestrian underpass under Via Giuseppe Di Vittorio, and the coast's foot and cycle bridge over
+ * the A12 at Luni and its footway under Via Palmiro Togliatti, ran straight between their ends at
+ * the terrain's level until the paths' and steps' decks were fitted (PATH_PASS). Three
  * are micro-mapped knots of approaches (path-approaches.ts) no fit of theirs clears: Cesena's 5.5 m
  * path bridge 683510421 is fitted over the natural level of the path 22776463 under it, which, the
  * approach out of the Sottopasso Cervese's mouth 3 m away, then climbs 5.6 m over the Secante's bore
@@ -240,16 +240,7 @@ const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> 
     [1311831119, 1311831121],
     [1311831120, 1311862950],
   ],
-  "the coast": [
-    [522153379, 205903779],
-    [522153379, 277681681],
-    [522153380, 757275374],
-    [522153380, 1379028354],
-    [522153381, 316441559],
-    [522153381, 757266514],
-    [381510717, 757275375],
-    [463589363, 326011444],
-  ],
+  "the coast": [[463589363, 326011444]],
 }
 
 for (const [region, read, skip] of REGIONS)
