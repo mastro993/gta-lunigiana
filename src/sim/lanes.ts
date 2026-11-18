@@ -257,9 +257,11 @@ const lanesFor = (model: VehicleModel): Float64Array => {
     for (const forward of [false, true]) {
       const lane = laneOf(edge, forward)
       // The body's hull (the capsule its circles sweep along its axis, `offBody`) at least r from
-      // every wall it meets, at each sample: the hulls of two samples cover every pose between them,
-      // LANE_SAMPLE m apart at most, under every model's axis (the Ape's 1.5 m), so `carClear`'s
-      // circles clear the walls all along the lane, not only at its samples.
+      // every wall a body meets at that sample's level: in plan, the hulls of consecutive samples,
+      // LANE_SAMPLE m apart at most, cover every pose between the first and the last sample (the
+      // middle 80%) under every model's axis (the Ape's 1.5 m), so `carClear`'s circles clear those
+      // walls between the samples too, not only at them. Each sample reads its own level, so a wall
+      // met only at a level between two samples, or in an edge's end tenths, goes unchecked.
       const fx = lane.dx * (length / 2 - r),
         fy = lane.dy * (length / 2 - r)
       const fits = (side: number) => {
