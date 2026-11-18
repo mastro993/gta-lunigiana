@@ -39,7 +39,7 @@ import { railLevels } from "./rail-levels.ts"
 import { continuations } from "./rail-runouts.ts"
 import { railTwins, twinBounds } from "./rail-twins.ts"
 import { roadLevels } from "./road-levels.ts"
-import { type Profile, RELAX, resample, sampleGrid } from "./terrain.ts"
+import { type Profile, resample, sampleGrid } from "./terrain.ts"
 import { stillLevel, waterAreas } from "./water-areas.ts"
 import { capUnderDecks, dropPerched, waterLine, waterProfiles, type Crossed } from "./water.ts"
 
@@ -131,10 +131,10 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   wet.areas.forEach((a, i) => (src.areas[i] = a))
   // Every road a pass profiles, at the steepest grade its fit draws: a junction keeps within reach
   // of the junctions set before along the roads not yet fitted (junction-reach.ts).
-  const links = ROAD_PASSES.flatMap(({ classes, grade }) =>
+  const links = ROAD_PASSES.flatMap(({ classes, grade, relax }) =>
     roads
       .filter((r) => (classes as ReadonlyArray<string>).includes(r.cls))
-      .map((piece) => ({ piece, grade: RELAX * grade })),
+      .map((piece) => ({ piece, grade: relax * grade })),
   )
   // Where each road and rail bridge's deck ends: a line meeting it there runs on under it.
   const bridgeEnds = new Set(
@@ -213,9 +213,9 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   )
   // A road crossing another on two levels keeps the clearance under it (road-levels.ts).
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
-  for (const { classes, rank, grade, half } of ROAD_PASSES)
+  for (const { classes, rank, grade, half, relax } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
-      profile(ch, { w: (r) => r.w, rank, grade, half, mouths: true, reach: true }, [
+      profile(ch, { w: (r) => r.w, rank, grade, half, relax, mouths: true, reach: true }, [
         ...roadBounds(ch),
         ...overpasses.bounds(ch),
       ])

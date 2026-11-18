@@ -9,20 +9,18 @@
 // nothing meets across them and they are left out. The L's build lives in test-maps/ (`pnpm maps`):
 // without it its check is skipped, but in CI, which builds it, a missing build fails.
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
 import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../../../tools/map-file.ts"
 import { PATH_PASS } from "../../../tools/profiles.ts"
-import { regionFromArgs } from "../../../tools/region.ts"
 import { passesOver } from "../../../tools/road-levels.ts"
 import { RELAX } from "../../../tools/terrain.ts"
 import { ENTER_GAP } from "../../tuning.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../../vehicles.ts"
 import { ONE_LEVEL } from "../kinds.ts"
 import { boxOf, crossings } from "./overpass-checks.ts"
+import { REGIONS } from "./regions.ts"
 
 /**
  * How far from a crossing (m, in plan) two things on its two ways can meet: a person within
@@ -224,20 +222,6 @@ const shortfalls = (
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [[55016697, 68296970]],
 }
-
-const L = regionFromArgs(["--region", "lunigiana-l"])
-const URL_L = builtMapUrl(L)
-const noL = existsSync(URL_L)
-  ? false
-  : `no ${L.key} build in test-maps: run node src/tools/build-map.ts --region ${L.key}`
-// GitHub Actions sets CI=true.
-if (noL !== false && process.env.CI === "true") throw new Error(noL)
-
-const REGIONS: ReadonlyArray<readonly [string, () => JoinedMap, string | false]> = [
-  ["lunigiana", () => wholeMap(), false],
-  ["cesena", () => wholeMap("cesena"), false],
-  ["lunigiana-l", () => readWholeMap(URL_L), noL],
-]
 
 for (const [region, read, skip] of REGIONS)
   test(

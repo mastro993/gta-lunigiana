@@ -6,7 +6,7 @@
 import { arcLengths } from "./geometry.ts"
 import type { Linear } from "./profiles.ts"
 
-/** A road piece the profiles fit, and the steepest grade its fit draws: RELAX times its class's limit. */
+/** A road piece the profiles fit, and the steepest grade its fit draws: its pass's `relax` times its class's limit. */
 export interface Graded {
   readonly piece: Linear
   readonly grade: number

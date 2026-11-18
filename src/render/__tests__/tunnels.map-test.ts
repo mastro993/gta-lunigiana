@@ -20,7 +20,10 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
     tunnels: 139,
     passages: 67,
     metres: 2875,
-    walls: 8305,
+    // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts),
+    // and the motorways' grade fitted unrelaxed (ROAD_PASSES), moved the bores' bend samples:
+    // +10 wall triangles.
+    walls: 8315,
     mouths: 123,
     portals: 24,
     heads: 3,

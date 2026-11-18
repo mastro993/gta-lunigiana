@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
-import type { Linear } from "../profiles.ts"
+import type { Bound, Linear } from "../profiles.ts"
 import { passesOver, roadLevels, TWINS } from "../road-levels.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
@@ -97,10 +97,10 @@ test("roadLevels: a road under a bridge keeps maxheight (4 m untagged) plus a 1.
     ],
   )
   // The motorway, fitted first, rises 5.5 m (4.7 m over the tagged road) and 0.3 m of slack over the
-  // local roads' natural level, at the crossing and 2 m either side; its own tunnel dips as far under
-  // the street's.
+  // local roads' natural level, every 2 m across their 6 m carriageways and 2 m past them (7
+  // samples a crossing, 6 m either side); its own tunnel dips as far under the street's.
   assert.deepEqual(zs(make([]).bounds([{ item: motorway }])), ["min 105.8", "min 105.0"])
-  assert.equal(make([]).bounds([{ item: motorway }]).length, 6)
+  assert.equal(make([]).bounds([{ item: motorway }]).length, 2 * 7)
   assert.deepEqual(zs(make([]).bounds([{ item: trunk }])), ["max 94.2"])
   // A local road fitted after it dips under the fitted deck, and the street under the trunk's...
   assert.deepEqual(zs(make([motorway]).bounds([{ item: under }])), ["max 104.5"])
@@ -163,7 +163,7 @@ test("roadLevels: a chain over itself is bound from one natural level, the bridg
       zAt: () => 110,
     })
     const bounds = levels.bounds([{ item: over }, { item: under }])
-    assert.equal(bounds.length, 6, "the crossing and 2 m either side, on each road")
+    assert.equal(bounds.length, 2 * 7, "across the other's carriageway, on each road")
     return zs(bounds)
   }
   // The road below stays at most 0.3 m over its natural level, and the bridge 5.5 m over that...
@@ -203,4 +203,93 @@ test("roadLevels: two oneway carriageways of one road overlapping in plan keep w
   assert.deepEqual(levels([a, b, c], []).bounds([{ item: b }]), [], "the first not fitted yet")
   assert.deepEqual(levels([a, b, c], [b]).bounds([{ item: c }]), [], "another road's")
   assert.deepEqual(levels([a, joined], [a]).bounds([{ item: joined }]), [], "a node shared")
+})
+
+// Regression (review of #19): the A15's Parma carriageway's bridge at Calcinara (136414830) overlaps
+// its twin's (31135803) midway alone; its ends, bound through it along its slope before the fit,
+// stood 5.1 m under its twin's and 5.4 m over it, and its approach sagged 8.1 m under it.
+test("roadLevels: a carriageway's deck or bore overlapping its twin anywhere keeps its ends within TWINS of the twin's level abeam of them", () => {
+  // A 10 m carriageway's bridge along y 0, fitted climbing 5% east; its twin's, of two pieces, from
+  // (50, 12) to (150, 12) by (100, 9), overlapping it only round x 100.
+  const shared = { oneway: true, ref: "A15", w: 10, bridge: true } as const
+  const a = road(60, "motorway", [v(0, 0), v(200, 0)], shared)
+  const b0 = road(61, "motorway", [v(50, 12, "b0"), v(100, 9, "j")], shared)
+  const b1 = road(62, "motorway", [v(100, 9, "j"), v(150, 12, "b1")], shared)
+  const bounds = roadLevels({
+    roads: [a, b0, b1],
+    ground: () => 100,
+    fitted: (l: Linear) => l === a,
+    zAt: (_, s) => 100 + 0.05 * s,
+  }).bounds([{ item: b0 }, { item: b1 }])
+  // Its ends alone, each within TWINS of the twin's level abeam of it (102.5 and 107.5 m).
+  assert.deepEqual(
+    bounds.map((b) => [b.x, b.y, b.kind, b.z.toFixed(2), b.on]),
+    [
+      [50, 12, "min", (102.5 - TWINS).toFixed(2), b0],
+      [50, 12, "max", (102.5 + TWINS).toFixed(2), b0],
+      [150, 12, "min", (107.5 - TWINS).toFixed(2), b1],
+      [150, 12, "max", (107.5 + TWINS).toFixed(2), b1],
+    ],
+  )
+})
+
+// Regression (review of #19): the A15's bridge 136455101 kept 5.5 m over the track 491154920 under
+// it at the crossing of their centrelines alone, and 5.23 m 5 m from it, under the deck's edge.
+test("roadLevels: a way crossing another on two levels keeps the clearance across the other's carriageway, from its level there", () => {
+  // Ground flat at 100 m. A 12 m motorway along y 0, fitted climbing 5% east, crossed at x 100 by
+  // a residential road at 45°: the motorway a bridge over the road, or the road a bridge over it.
+  const lane = (bridge: boolean) =>
+    road(52, "residential", [v(70, -30), v(130, 30)], bridge ? { bridge: true } : {})
+  const bounds = (deck: boolean) => {
+    const motorway = road(
+        50,
+        "motorway",
+        [v(0, 0), v(200, 0)],
+        deck ? { bridge: true, w: 12 } : { w: 12 },
+      ),
+      other = lane(!deck)
+    return roadLevels({
+      roads: [motorway, other],
+      ground: () => 100,
+      fitted: (l: Linear) => l === motorway,
+      zAt: (_, s) => 100 + 0.05 * s,
+    }).bounds([{ item: other }])
+  }
+  // Wherever the road runs under or over the motorway's carriageway (6 m either side of its
+  // centreline, 8.5 m along the road at 45°) and SPREAD (2 m) past that, it keeps 5.5 m from the
+  // motorway's level abeam of it: under its deck, or over it on its own.
+  const reach = (b: ReadonlyArray<Bound>) => Math.max(...b.map((p) => Math.hypot(p.x - 100, p.y)))
+  for (const [deck, kind, clear] of [
+    [true, "max", -5.5],
+    [false, "min", 5.5],
+  ] as const) {
+    const b = bounds(deck)
+    assert.ok(reach(b) >= 6 * Math.SQRT2 + 2, `reaches ${reach(b).toFixed(1)} m`)
+    for (const p of b) {
+      assert.equal(p.kind, kind)
+      assert.ok(Math.abs(p.z - (100 + 0.05 * p.x + clear)) < 1e-9, `${p.z} at ${p.x}`)
+    }
+  }
+})
+
+// Regression (review of #19): a path's tunnel over a road's took no clearance from it, nor one bore
+// over another of its own pass fitted before it: only a bridge rose over a fitted way below.
+test("roadLevels: a tunnel over a fitted way's tunnel rises its clearance over it", () => {
+  // Ground flat at 100 m: a bore along y 0 at layer −2, fitted at 90 m, crossed at x 50 by one at
+  // layer −1.
+  const bores = (upper: RoadF["cls"], lower: RoadF["cls"]) => {
+    const low = road(40, lower, [v(0, 0), v(100, 0)], { tunnel: true, layer: -2 })
+    const high = road(41, upper, [v(50, -50), v(50, 50)], { tunnel: true, layer: -1 })
+    const levels = roadLevels({
+      roads: [low, high],
+      ground: () => 100,
+      fitted: (l: Linear) => l === low,
+      zAt: () => 90,
+    })
+    return zs(levels.bounds([{ item: high }]))
+  }
+  // A road's bore under it keeps a vehicle's 4 m, a path's a person's 2.5 m, and the deck.
+  assert.deepEqual(bores("path", "residential"), ["min 95.5"])
+  assert.deepEqual(bores("path", "path"), ["min 94.0"])
+  assert.deepEqual(bores("residential", "residential"), ["min 95.5"])
 })

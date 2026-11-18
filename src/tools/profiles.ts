@@ -5,7 +5,15 @@ import type { RoadClass } from "../sim/map/kinds.ts"
 import { arcLengths, type V } from "./geometry.ts"
 import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
 import { type Graded, junctionReach } from "./junction-reach.ts"
-import { fitProfile, keepSamples, resample, smooth, type Pin, type Profile } from "./terrain.ts"
+import {
+  fitProfile,
+  keepSamples,
+  RELAX,
+  resample,
+  smooth,
+  type Pin,
+  type Profile,
+} from "./terrain.ts"
 
 export interface Linear {
   readonly pts: ReadonlyArray<V>
@@ -105,22 +113,26 @@ export interface Bound {
 
 /**
  * The road passes after the rail's, in order: the classes each profiles, their rank (lower keeps a
- * grid cell where two cores meet), grade limit and smoothing half-window (m). Motorways and trunk
- * roads come first and keep their cells against every road and the rail (rank 0), with a gentle
- * grade and the rail's long smoothing; primary and secondary share tertiary's pass and rank, so the
+ * grid cell where two cores meet), grade limit, smoothing half-window (m), and how far its fit may
+ * raise its grade limit to stay near the ground (`relax`). Motorways and trunk roads come first and
+ * keep their cells against every road and the rail (rank 0), with a gentle grade and the rail's
+ * long smoothing, and never steeper, as on an embankment: the A15's Parma carriageway at Calcinara,
+ * at grade over a dip the survey reads 13 m under its twin 12 m beside it, relaxed to 8.5% over 8
+ * m and 6.7% over 100 m into it and out. Primary and secondary share tertiary's pass and rank, so the
  * SR445 keeps the profile it had as a tertiary road. Paths and steps at grade are not profiled: they
  * follow the terrain (their bridges and tunnels are, after every road: PATH_PASS).
  */
 export const ROAD_PASSES = [
-  { classes: ["motorway", "trunk"], rank: 0, grade: 0.06, half: 100 },
-  { classes: ["primary", "secondary", "tertiary"], rank: 1, grade: 0.1, half: 20 },
-  { classes: ["unclassified", "residential"], rank: 3, grade: 0.15, half: 20 },
-  { classes: ["service", "track"], rank: 4, grade: 0.2, half: 20 },
+  { classes: ["motorway", "trunk"], rank: 0, grade: 0.06, half: 100, relax: 1 },
+  { classes: ["primary", "secondary", "tertiary"], rank: 1, grade: 0.1, half: 20, relax: RELAX },
+  { classes: ["unclassified", "residential"], rank: 3, grade: 0.15, half: 20, relax: RELAX },
+  { classes: ["service", "track"], rank: 4, grade: 0.2, half: 20, relax: RELAX },
 ] as const satisfies ReadonlyArray<{
   readonly classes: ReadonlyArray<Exclude<RoadClass, "path" | "steps">>
   readonly rank: number
   readonly grade: number
   readonly half: number
+  readonly relax: number
 }>
 
 /**
@@ -182,6 +194,8 @@ interface Spec<T extends Linear> {
   readonly rank: number
   readonly grade: number
   readonly half: number
+  /** How far the fit may raise `grade` to stay near the ground (`fitProfile`): RELAX when unset. */
+  readonly relax?: number
   readonly tol?: number
   readonly mouths?: true
   readonly reach?: true
@@ -402,6 +416,9 @@ export const makeProfiler = (
     }
     // A bound inside a bridge or tunnel holds at both ends of its deck, straight between them (a
     // `tilt` bound, shifted along the deck's slope); with `ramps`, or a `here` bound, at its own sample.
+    // A bound at a deck's end holds there alone: the straight deck keeps it, and carried to the other
+    // end along the slope before the fit it held that end too (the A15's road-levels twin bounds at a
+    // deck's ends, each from its twin's level there, would have bound each end twice).
     for (const b of bounds) {
       // The samples it may take: its own piece's, from its first vertex to its last.
       const on = b.on === undefined ? -1 : chain.findIndex((m) => m.item === b.on)
@@ -414,10 +431,11 @@ export const makeProfiler = (
         if (e < d2) [best, d2] = [k, e]
       }
       const i = pieceOfSample(Math.min(best, p.z.length - 2))
-      const at =
+      const ends =
         isLifted(i) && spec.ramps !== true && b.here !== true
           ? deckEnds(deckOf(i)).map((v) => p.vertexSample[v]!)
           : [best]
+      const at = ends.includes(best) ? [best] : ends
       const [k0, k1] = [at[0]!, at.at(-1)!],
         t = k1 === k0 ? 0 : (p.s[best]! - p.s[k0]!) / (p.s[k1]! - p.s[k0]!),
         deck = p.z[k0]! + (p.z[k1]! - p.z[k0]!) * t
@@ -428,7 +446,7 @@ export const makeProfiler = (
       }
     }
     pins.push(...strictest.values())
-    fitProfile(p, spec.grade, pins)
+    fitProfile(p, spec.grade, pins, spec.relax)
     // A sample's segment belongs to the piece whose first vertex precedes it; the last sample closes the last piece.
     // Its core reaches half a cell past its own piece's carriageway edge, so the terrain under the
     // carriageway is (nearly) level across it.

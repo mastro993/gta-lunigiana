@@ -254,7 +254,7 @@ export interface Pin {
 
 const FADE = 30 // m over which a pin pulls the profile before the grade fit
 const CAP = 4 // m a fitted profile may stray from the smoothed ground before its grade limit is relaxed there
-/** Largest factor on a grade limit (tertiary 15%, rail 3.75%). */
+/** Largest factor a fit raises a grade limit by, unless its pass sets its own (tertiary 15%, rail 3.75%). */
 export const RELAX = 1.5
 const RELAX_REACH = 60 // m around a stray sample whose segments get relaxed
 
@@ -307,9 +307,14 @@ const fitOnce = (
 /**
  * Grade-limited fit of the (smoothed) profile through `pins`. Violated bounds become pins and the
  * fit is redone; where it strays more than CAP m from the smoothed ground, the grade limit of the
- * surrounding RELAX_REACH m is raised step by step, up to RELAX times `grade`.
+ * surrounding RELAX_REACH m is raised step by step, up to `relax` times `grade`.
  */
-export const fitProfile = (p: Profile, grade: number, pins: ReadonlyArray<Pin>): void => {
+export const fitProfile = (
+  p: Profile,
+  grade: number,
+  pins: ReadonlyArray<Pin>,
+  relax = RELAX,
+): void => {
   const natural = Float64Array.from(p.z),
     n = p.z.length
   const g = new Float64Array(Math.max(0, n - 1)).fill(grade)
@@ -333,8 +338,8 @@ export const fitProfile = (p: Profile, grade: number, pins: ReadonlyArray<Pin>):
     for (let k = 0; k < n; k++) {
       if (Math.abs(p.z[k]! - natural[k]!) <= CAP) continue
       for (let j = 0; j + 1 < n; j++)
-        if (Math.abs(p.s[j]! - p.s[k]!) <= RELAX_REACH && g[j]! < grade * RELAX)
-          [g[j], relaxed] = [Math.min(grade * RELAX, g[j]! * 1.1), true]
+        if (Math.abs(p.s[j]! - p.s[k]!) <= RELAX_REACH && g[j]! < grade * relax)
+          [g[j], relaxed] = [Math.min(grade * relax, g[j]! * 1.1), true]
     }
     if (broken.length === 0 && !relaxed) return
   }

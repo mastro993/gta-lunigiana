@@ -2,14 +2,16 @@
 // bridge or tunnel): the way below keeps the rail bridge's clearance under the one above, its
 // `maxheight` (UNDERPASS when untagged, PERSON under a path or steps) plus a DECK. The profiles fit
 // the two one after the other, and the one fitted second takes the bound: it dips under the way
-// above it, or, a bridge, rises over the way below. A bridge or a tunnel in an earlier pass than the
-// other road (ROAD_PASSES) takes it too, from that road's natural level, as the rail does over a
-// tagged underpass: a junction pinned under a slip road's bridge held a Cesena service road 1.6 m
-// under it, and the Secante's tunnels ran 2.8 m under Cesena's streets; so does a road's tunnel
-// under a path or steps at grade, which no pass fits. A road at grade never rises over a tunnel, and
-// no road takes a bound from a path's or steps' bridge or tunnel: their pass (PATH_PASS) comes after
-// every road's, and they take it. One chain crossing itself takes both bounds from one natural
-// level. And two carriageways of one road that overlap in plan keep on one level there (`TWINS`).
+// above it, or, a bridge or a tunnel, rises over the way below. A bridge or a tunnel in an earlier
+// pass than the other road (ROAD_PASSES) takes it too, from that road's natural level, as the rail
+// does over a tagged underpass: a junction pinned under a slip road's bridge held a Cesena service
+// road 1.6 m under it, and the Secante's tunnels ran 2.8 m under Cesena's streets; so does a road's
+// tunnel under a path or steps at grade, which no pass fits. A road at grade never rises over a
+// tunnel, and no road takes a bound from a path's or steps' bridge or tunnel: their pass
+// (PATH_PASS) comes after every road's, and they take it. One chain crossing itself takes both
+// bounds from one natural level. Each bound holds across the other way's carriageway, from its
+// level abeam. And two carriageways of one road that overlap in plan keep on one level there
+// (`TWINS`), a deck or a bore of one at both its ends.
 import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt, type V } from "./geometry.ts"
@@ -22,11 +24,13 @@ export const UNDERPASS = 4
  * or steps with no `maxheight` tag, m: a pedestrian underpass's least headroom, over a person's
  * 1.8 m (`PERSON_HEIGHT`).
  */
-export const PERSON = 2.5
+const PERSON = 2.5
 /** A bridge's structure above the clear height under it, m. */
 export const DECK = 1.5
 /** Half the spacing of the profile samples, m (`resample` in profiles.ts: at most 4 m apart). */
 const SPREAD = 2
+/** The step a way is walked by to find how far it runs under or over another's carriageway, m. */
+const STEP = 0.5
 /**
  * How far past the clearance a bound from the other road's natural level reaches, m (TUNED): a
  * junction pinned under a bridge can hold the road below over its natural level (by 0.18 m under
@@ -108,6 +112,36 @@ const nearest = (
   return { d, s }
 }
 
+/** A chain, its members in order. */
+type Chain = ReadonlyArray<{ readonly item: Linear }>
+
+/**
+ * The deck or bore of `chain` round member `i`, first and last: the consecutive bridge (or tunnel)
+ * members round it, which a fit lays straight from end to end (`deckOf` in profiles.ts).
+ */
+const deckOf = (chain: Chain, i: number): readonly [number, number] => {
+  const tunnel = chain[i]!.item.tunnel === true
+  const joins = (k: number) => lifted(chain[k]!.item) && (chain[k]!.item.tunnel === true) === tunnel
+  let a = i,
+    b = i
+  while (a > 0 && joins(a - 1)) a--
+  while (b + 1 < chain.length && joins(b + 1)) b++
+  return [a, b]
+}
+
+/** The ends of deck [a, b] of `chain`, each with its member: its first and last members' ends no other member of it shares. */
+const deckEnds = (chain: Chain, a: number, b: number): Array<readonly [V, Linear]> => {
+  const meets = (v: V, l: Linear) =>
+    [l.pts[0]!, l.pts.at(-1)!].some((u) => u.x === v.x && u.y === v.y)
+  const ends = (k: number, next: number) => {
+    const l = chain[k]!.item
+    return [l.pts[0]!, l.pts.at(-1)!]
+      .filter((v) => a === b || !meets(v, chain[next]!.item))
+      .map((v) => [v, l] as const)
+  }
+  return a === b ? ends(a, a) : [...ends(a, a + 1), ...ends(b, b - 1)]
+}
+
 /**
  * Where two oneway carriageways of one road (one `ref`, a pass's) overlap in plan, sharing no node
  * and neither over the other: the points of each, SPREAD m apart along it, its carriageway's edge
@@ -160,9 +194,11 @@ interface LevelsInput {
  * is left out, as no pass fits it and the bridge keeps its approaches' level), and the bounds they
  * put on a chain's profile: a way below a fitted one, or a tunnel below a later pass's road or a
  * path at grade (at its natural level), its clearance under it (`max`); a bridge, its clearance over
- * the way below, fitted or, in a later pass or at grade, at its natural level (`min`); and a
- * carriageway, within TWINS of its twin's fitted level where they overlap (`twinsOf`, both). And
- * the level of the road deck a path's or steps' bridge ends on (`deckUnder`).
+ * the way below, fitted or, in a later pass or at grade, at its natural level, and a tunnel over a
+ * fitted way below it (`min`), each across the other's carriageway (`across`); and a carriageway,
+ * within TWINS of its twin's fitted level where they overlap at grade, and at both ends of a deck
+ * or a bore of it that overlaps (`twinsOf`, both). And the level of the road deck a path's or
+ * steps' bridge ends on (`deckUnder`).
  */
 export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
   const box = roads.map((r) => lineBox(r.pts))
@@ -195,33 +231,84 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
       .map((c) => ({ up, down, c, clear }))
   })
   /**
-   * `z` bounding `l` at arc length `s` and SPREAD m either side of it: a bound holds at the profile
-   * sample nearest its point, and the samples (at most 4 m apart) nearest these bracket `s`, so the
-   * profile between them keeps the bound where the roads cross too.
+   * Bounds on `l` where it crosses `other` at arc length `s`: every SPREAD m along it from `s` as far
+   * as it runs under or over `other`'s carriageway (within `other.w` / 2 of its centreline), and
+   * SPREAD m past that on either side, each `level` of the arc length of `other`'s point nearest it.
+   * A bound holds at the profile sample nearest its point, and the samples (at most 4 m apart)
+   * nearest the outermost bracket that stretch, so the profile between them keeps the bound across
+   * the carriageway too: bound where the centrelines cross alone, a track under the A15's bridge
+   * 136455101 kept 5.5 m there and 5.23 m under the deck's edge, 5 m along it.
    */
-  const around = (l: Linear, s: number, z: number, kind: "min" | "max"): Array<Bound> => {
-    const arc = arcLengths(l.pts)
-    return [s - SPREAD, s, s + SPREAD].map((at) => {
-      const { x, y } = pointAt(l.pts, arc, Math.min(arc.at(-1)!, Math.max(0, at)))
-      return { x, y, z, kind, tilt: true, on: l }
-    })
+  const across = (
+    l: Linear,
+    s: number,
+    other: RoadF,
+    level: (at: number) => number,
+    kind: "min" | "max",
+  ): Array<Bound> => {
+    const arc = arcLengths(l.pts),
+      arcOther = arcLengths(other.pts),
+      end = arc.at(-1)!
+    const at = (d: number) => pointAt(l.pts, arc, Math.min(end, Math.max(0, d)))
+    const abeam = (d: number) => {
+      const { x, y } = at(d)
+      return nearest(other.pts, arcOther, x, y)
+    }
+    /** How many SPREAD steps from `s` toward `dir` reach past the carriageway, and one more. */
+    const steps = (dir: 1 | -1) => {
+      let a = 0
+      while (s + dir * a >= 0 && s + dir * a <= end && abeam(s + dir * a).d <= other.w / 2)
+        a += STEP
+      return Math.ceil(a / SPREAD) + 1
+    }
+    const out: Array<Bound> = []
+    for (let k = -steps(-1); k <= steps(1); k++) {
+      const { x, y } = at(s + k * SPREAD)
+      out.push({ x, y, z: level(abeam(s + k * SPREAD).s), kind, tilt: true, on: l })
+    }
+    return out
   }
   /** Whether `a` is fitted after `b` for sure: in a later pass, or never (a path or steps at grade). */
   const later = (a: RoadF, b: RoadF) => passOf(a) > passOf(b)
   const twins = twinsOf(roads)
   /** The bounds on `chain` from the crossings it has a road of, and from its carriageways' twins. */
-  const bounds = (chain: ReadonlyArray<{ readonly item: Linear }>): Array<Bound> => {
+  const bounds = (chain: Chain): Array<Bound> => {
     const has = (l: Linear) => chain.some((m) => m.item === l)
-    // Where a carriageway overlaps its twin, fitted before it: on its level, inside a deck along the
-    // deck's slope.
-    const level = twins.flatMap(({ on, other, x, y, at }): Array<Bound> => {
-      if (!has(on) || has(other) || !fitted(other)) return []
-      const z = zAt(other, at)
-      return [
-        { x, y, z: z - TWINS, kind: "min", tilt: true, on },
-        { x, y, z: z + TWINS, kind: "max", tilt: true, on },
-      ]
-    })
+    const within = (x: number, y: number, z: number, on: Linear): Array<Bound> => [
+      { x, y, z: z - TWINS, kind: "min", on },
+      { x, y, z: z + TWINS, kind: "max", on },
+    ]
+    // Where a carriageway at grade overlaps its twin, fitted before it: on its level. A deck or a
+    // bore overlapping it anywhere is one straight piece, its ends each on the level of the twin's
+    // pieces it overlaps abeam of that end: bound where they overlap and carried to its ends along
+    // its slope before the fit, the A15's Parma carriageway's bridge at Calcinara (136414830),
+    // overlapping its twin's midway alone, stood 5.1 m under it at its south end, its approach
+    // sagging 8.1 m under the twin's and climbing 6.7% on.
+    const level: Array<Bound> = []
+    const decks = new Map<number, readonly [number, Set<RoadF>]>()
+    for (const { on, other, x, y, at } of twins) {
+      if (!has(on) || has(other) || !fitted(other)) continue
+      if (!lifted(on)) {
+        level.push(...within(x, y, zAt(other, at), on))
+        continue
+      }
+      const [a, b] = deckOf(
+        chain,
+        chain.findIndex((m) => m.item === on),
+      )
+      const [, partners] = decks.get(a) ?? decks.set(a, [b, new Set()]).get(a)!
+      partners.add(other)
+    }
+    for (const [a, [b, partners]] of decks)
+      for (const [v, on] of deckEnds(chain, a, b)) {
+        let least = Infinity,
+          z = 0
+        for (const other of partners) {
+          const o = nearest(other.pts, arcLengths(other.pts), v.x, v.y)
+          if (o.d < least) [least, z] = [o.d, zAt(other, o.s)]
+        }
+        level.push(...within(v.x, v.y, z, on))
+      }
     const crossed = over.flatMap(({ up, down, c, clear }): Array<Bound> => {
       if (has(up) && has(down)) {
         // A chain over itself (the SR445's loop at Gassano runs under its own bridge, 13.6 m from
@@ -232,29 +319,29 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
           up.bridge === true
             ? naturalAt(ground, down, c.sb) + SLACK
             : naturalAt(ground, up, c.sa) - SLACK - clear
-        return [...around(down, c.sb, below, "max"), ...around(up, c.sa, below + clear, "min")]
+        return [
+          ...across(down, c.sb, up, () => below, "max"),
+          ...across(up, c.sa, down, () => below + clear, "min"),
+        ]
       }
       if (!has(up) && !has(down)) return []
       if (has(down)) {
         // Any way dips under a fitted one above it; a tunnel also under the natural level of a later
         // pass's road or of a path at grade (a bridge in a later pass rises over the way instead):
         // the aisles of Aulla's covered car park (maxheight 2.1 m) ran 0.4–2.1 m under its footways.
-        const above = fitted(up)
-          ? zAt(up, c.sa)
-          : down.tunnel === true && later(up, down) && !pathDeck(up)
-            ? naturalAt(ground, up, c.sa) - SLACK
-            : undefined
-        return above === undefined ? [] : around(down, c.sb, above - clear, "max")
+        if (fitted(up)) return across(down, c.sb, up, (at) => zAt(up, at) - clear, "max")
+        if (down.tunnel !== true || !later(up, down) || pathDeck(up)) return []
+        const above = naturalAt(ground, up, c.sa) - SLACK
+        return across(down, c.sb, up, () => above - clear, "max")
       }
-      // Only a bridge rises: a road at grade over a tunnel keeps its level (a car park's ramp under
-      // a square in Cesena lifted the square 5.6 m).
-      if (up.bridge !== true) return []
-      const below = fitted(down)
-        ? zAt(down, c.sb)
-        : later(down, up) && !pathDeck(down)
-          ? naturalAt(ground, down, c.sb) + SLACK
-          : undefined
-      return below === undefined ? [] : around(up, c.sa, below + clear, "min")
+      // Only a bridge rises, or a tunnel over a fitted way under it (a path's underpass over a
+      // road's, or two bores of one pass, the lower fitted first): a road at grade over a tunnel
+      // keeps its level (a car park's ramp under a square in Cesena lifted the square 5.6 m).
+      if (up.bridge !== true && !(up.tunnel === true && fitted(down))) return []
+      if (fitted(down)) return across(up, c.sa, down, (at) => zAt(down, at) + clear, "min")
+      if (!later(down, up) || pathDeck(down)) return []
+      const below = naturalAt(ground, down, c.sb) + SLACK
+      return across(up, c.sa, down, () => below + clear, "min")
     })
     return [...crossed, ...level]
   }
@@ -277,5 +364,5 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
     })
     return level
   }
-  return { over, twins, bounds, deckUnder }
+  return { over, bounds, deckUnder }
 }
