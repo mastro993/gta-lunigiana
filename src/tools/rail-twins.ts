@@ -4,6 +4,8 @@
 // level at the portals of their twin tunnels and on the viaduct between them. A track fitted after
 // its twin keeps to the twin's level where they run side by side, and parts from it no faster than
 // an embankment's slope where they part.
+import { Ops } from "@typeonce/ritmo-math"
+
 import type { RailF } from "./features.ts"
 import { arcLengths, boxesMeet, lineBox, pointAt, type V } from "./geometry.ts"
 import type { Bound } from "./profiles.ts"
@@ -19,7 +21,7 @@ export const REACH = 12
 /** The points of a track its twin binds lie this far (m) apart along it. */
 const SPREAD = 2
 /** Two tracks run side by side only where their headings differ by less than this (15°): a crossing is none. */
-const PARALLEL = Math.cos(Math.PI / 12)
+const PARALLEL = Ops.cos(Math.PI / 12)
 
 /** The point of `pts` nearest (x, y): its distance, its interpolation t on segment k and the segment's unit heading. */
 const nearestOn = (pts: ReadonlyArray<V>, x: number, y: number) => {
