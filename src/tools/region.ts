@@ -6,9 +6,9 @@
 //   a lattice from a corner fixed for good (`anchor`, trees.ts).
 // - Test regions (issue #7): other shapes and sizes built from Lunigiana's inputs, in its frame and
 //   on its anchor, into `test-maps/` (gitignored), to check the build; the game never loads them.
-//   Two far from lucido have terrain of their own (`ownTerrain`, issues #10 and #12), one buildings
-//   of its own (`ownBuildings`, issue #11); a part's Regione Liguria sources are its own anyway
-//   (`ligDir`, issue #12).
+//   Three far from lucido have terrain of their own (`ownTerrain`, issues #10, #12 and #13), one
+//   buildings of its own (`ownBuildings`, issue #11) and one OSM of its own (`ownOsm`, issue #13);
+//   a part's Regione Liguria sources are its own anyway (`ligDir`, issue #12).
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
 //   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
@@ -58,6 +58,12 @@ export interface Region {
    * no map is built for it.
    */
   readonly ownBuildings: boolean
+  /**
+   * A test region with OpenStreetMap of its own (issue #13): `fetch-osm <part>` writes OSM's whole
+   * extract over its part into data/raw/osm/<part>.osm.gz (`osmFile`), which the build reads instead
+   * of Lunigiana's parts'; with terrain of its own too, the build makes its map from its own inputs.
+   */
+  readonly ownOsm: boolean
   readonly origin: { readonly lat: number; readonly lon: number }
   /** Its parts: the play area is the union of their masks, or their rectangles where they have none. */
   readonly parts: ReadonlyArray<Part>
@@ -233,9 +239,11 @@ const regionOf = (
     test,
     ownTerrain = false,
     ownBuildings = false,
+    ownOsm = false,
   }: Pick<Region, "key" | "id" | "file" | "test"> & {
     readonly ownTerrain?: boolean
     readonly ownBuildings?: boolean
+    readonly ownOsm?: boolean
   },
   origin: Region["origin"],
   parts: ReadonlyArray<Part>,
@@ -251,6 +259,7 @@ const regionOf = (
     test,
     ownTerrain,
     ownBuildings,
+    ownOsm,
     origin,
     parts,
     bounds: { minX, minY, maxX, maxY },
@@ -311,6 +320,53 @@ export const PARTS: ReadonlyArray<Part> = [
       -11500, 3900,
     ],
   },
+  {
+    key: "aulla",
+    title: "Aulla and the Magra–Aulella–Taverone confluence",
+    rects: [[-22100, 3900, -5300, 13000]],
+    // The rectangle less Liguria's 9.08 km² of Bolano, Calice al Cornoviglio and a sliver of Follo
+    // in its west corner (issue #19): Regione Toscana's border as those comuni's OSM admin_level 8
+    // relations (42917, 42939, 42908, fetched 2026-11-16 from the OSM API) draw it, simplified to
+    // 5 m. It plays the 143.80 km² of the eight Lunigiana comuni the rectangle holds.
+    mask: [
+      -5300, 3900, -5300, 13000, -22100, 13000, -22100, 11926.4, -22055, 11905.7, -22066.8, 11851.6,
+      -22025.1, 11782, -22021, 11327.1, -21923.8, 11223.1, -21926, 10833.3, -21919.5, 10790.5,
+      -21622.8, 10293.2, -21432.8, 9897, -21543.5, 9698.2, -21621.3, 9617.7, -21638.1, 9492.3,
+      -21602.5, 9348.5, -21582.3, 9179.8, -21525.4, 9013.9, -21504.2, 8907.9, -21518.9, 8745,
+      -21574.5, 8363.5, -21681, 8336.5, -21868.6, 8224.6, -21904.5, 8150.5, -21887, 8145.2,
+      -21804.4, 8032.7, -21741.5, 7976.1, -21652.4, 7914.6, -21622.6, 7830.7, -21537.2, 7723.9,
+      -21434.5, 7665.5, -21362.4, 7612.2, -21329.8, 7543.7, -21252.7, 7426.5, -21149.1, 7438.4,
+      -21107.5, 7435.7, -21015.1, 7405, -20881.6, 7322, -20725.5, 7159, -20616.5, 7126, -20580.1,
+      7105.7, -20582, 6920.2, -20599.6, 6746.8, -20627.1, 6634.8, -20647.8, 6476.8, -20636.5,
+      6408.6, -20676.6, 6369.4, -20705.1, 6323.7, -20784.7, 6264.9, -20834.2, 5998.3, -20860.2,
+      5946.8, -20861.1, 5840.4, -20891.6, 5732, -20885.4, 5691.6, -20858.9, 5647.2, -20924.8,
+      5594.5, -20982.3, 5506.9, -21045.9, 5468.5, -21052.5, 5452.7, -21026.1, 5396, -21029.4,
+      5371.9, -21132.9, 5279.1, -21147.7, 5210.1, -21141.3, 5086.4, -21148.7, 5039.3, -21155.5,
+      5017.3, -21203.6, 4948, -21217.6, 4901, -21182.9, 4858.5, -21172.4, 4833.8, -21178.8, 4786.6,
+      -21199.3, 4732.7, -21202.8, 4685.7, -21214.6, 4661.2, -21250.1, 4631.6, -21268.5, 4576.2,
+      -21318.8, 4549.7, -21346.7, 4463.6, -21385.6, 4416.8, -21403.1, 4366.4, -21452.8, 4296.8,
+      -21463.5, 4238.1, -21456.8, 4160.9, -21545.7, 4023.4, -21550.8, 3950.3, -21568.6, 3900,
+      -20310.5, 3900, -20224.6, 3996.9, -20153.3, 4115.3, -20112, 4136.3, -20074.9, 4187.9,
+      -19964.7, 4308.5, -19853.9, 4340.2, -19768.3, 4407.6, -19687.7, 4504.5, -19578.3, 4561.2,
+      -19514.2, 4582.5, -19450.9, 4644.9, -19378.6, 4756.2, -19359.9, 4772.7, -19272.9, 4823.3,
+      -19158.6, 4863.1, -18964.5, 4894.8, -18983.4, 4930.3, -18980.7, 4979.1, -19062.9, 5042.4,
+      -19080, 5088.8, -19126.6, 5169.7, -19144.2, 5230.4, -19118.5, 5240.4, -19066.7, 5239.4,
+      -19002, 5249.9, -18925.4, 5236.8, -18814.7, 5261, -18672.3, 5331.4, -18609.2, 5385.8,
+      -18548.4, 5407.3, -18399.6, 5378.9, -18273.1, 5372.2, -18132, 5380.8, -17670.7, 5367.4,
+      -17666.2, 5359.7, -17708.1, 5330.7, -17704.3, 5286.7, -17723.7, 5248.2, -17727.1, 5222.5,
+      -17710.4, 5190.8, -17643.7, 5133.6, -17612.6, 5066.6, -17612.6, 4960.5, -17587.8, 4867.4,
+      -17585.6, 4830.3, -17594.3, 4748.6, -17616, 4686.8, -17615.3, 4663.5, -17485.3, 4475.6,
+      -17433.9, 4427.1, -17395.4, 4403.4, -17358.1, 4343.5, -17307.7, 4316.7, -17270.8, 4226.1,
+      -17192.2, 4173.4, -17143.8, 4162.3, -17000, 4192.3, -16966.9, 4188.8, -16936, 4219.5,
+      -16887.1, 4212.7, -16778.2, 4248, -16735.6, 4234.2, -16699.4, 4235.3, -16662.3, 4211.1,
+      -16603.4, 4243.9, -16523.9, 4195.1, -16486.2, 4221.8, -16440.6, 4223.1, -16397.8, 4186,
+      -16363.6, 4172.8, -16334.6, 4176.1, -16306.1, 4205.3, -16288.3, 4209.6, -16135.9, 4134,
+      -16113.2, 4088.7, -16082.1, 4062.6, -16016.5, 4052.3, -15980.2, 4033.1, -15967.6, 3963.1,
+      -15952.3, 3935.5, -15920.5, 3934, -15898.7, 3951.1, -15869.4, 3959.1, -15827.4, 3958.9,
+      -15811.8, 3948.5, -15808, 3926.4, -15799.9, 3920, -15734.9, 3917.2, -15724.4, 3911.7,
+      -15723.6, 3900,
+    ],
+  },
 ]
 
 const LUNIGIANA_ORIGIN = { lat: 44.16175, lon: 10.13 }
@@ -350,6 +406,13 @@ const lucido = PARTS[0]!.rects[0]!
  *   plain's quarries through the old town to the hills below Sarzanello, with terrain of its own
  *   (one LiDAR tile on those hills, then Liguria's DTM) and Regione Liguria's sources (`fetch-lig`):
  *   it checks them (issue #12) before part 4 (#20) exists.
+ * - `magra-coast`: 6 × 4 km of the coast, x −14000…−8000 by y −15000…−11000, Liguria's but for
+ *   Carrara's wedge east of the Parmignola: Punta Bianca and the cliffs under Montemarcello, the
+ *   Magra's mouth between Bocca di Magra and Fiumaretta, and the sand of Marinella and Luni Mare,
+ *   with the sea 0.7–2.2 km out to its south edge. Its terrain (Liguria's DTM, Massa-Carrara's
+ *   10 m DTM in that wedge, the sea filled in), its OSM and Regione Liguria's sources are its own,
+ *   so it builds a map of its own, which CI builds: it checks the sea, the beaches, the piers and
+ *   the Magra's mouth (issue #13) before part 5 (#21) exists.
  */
 const TEST_REGIONS: ReadonlyArray<Region> = [
   regionOf(
@@ -428,6 +491,25 @@ const TEST_REGIONS: ReadonlyArray<Region> = [
     ],
     LUNIGIANA_ANCHOR,
   ),
+  regionOf(
+    {
+      key: "magra-coast",
+      id: "lunigiana",
+      file: "magra-coast",
+      test: true,
+      ownTerrain: true,
+      ownOsm: true,
+    },
+    LUNIGIANA_ORIGIN,
+    [
+      {
+        key: "magra-coast",
+        title: "The coast from Punta Bianca to Luni Mare",
+        rects: [[-14000, -15000, -8000, -11000]],
+      },
+    ],
+    LUNIGIANA_ANCHOR,
+  ),
 ]
 
 const regions: ReadonlyArray<Region> = [
@@ -484,13 +566,20 @@ export const osmFile = (part: Pick<Part, "key">): string => `data/raw/osm/${part
  * test region's built from Lunigiana's inputs, Lunigiana's.
  */
 export const inputParts = (region: Region): ReadonlyArray<Part> =>
-  region.test && !region.ownBuildings ? PARTS : region.parts
+  region.test && !region.ownBuildings && !region.ownOsm ? PARTS : region.parts
+
+/**
+ * The parts whose Regione Toscana land cover (`ucsFile`) the build of `region` reads: its input
+ * parts, but none for a region with terrain of its own, which `fetch-rt` writes none for.
+ */
+export const ucsParts = (region: Region): ReadonlyArray<Part> =>
+  region.ownTerrain ? [] : inputParts(region)
 
 /**
  * The OSM extracts the build of `region` merges, in this order (`readOsms`), from the repository
  * root: its parts'. A test region, built from Lunigiana's inputs, reads Lunigiana's parts' (`PARTS`)
- * instead, but for one with buildings of its own: its own part's extract is what its map test
- * checks the surveys against.
+ * instead, but for one with buildings of its own (its own part's extract is what its map test
+ * checks the surveys against) or OSM of its own.
  */
 export const osmFiles = (region: Region): Array<string> =>
   inputParts(region).map((part) => osmFile(part))

@@ -98,11 +98,14 @@ export const AT_CAB = atDoor(AT_MONZONE, WAY, 0, MONZONE.side)
 export const JOYRIDE: Timeline = [...press(1, "action"), { frame: 10, press: ["up"] }]
 
 /**
- * The most a train takes to run the line end to end, s: its whole track, run-outs included, at 60 km/h on average (its line
- * speed is 80–140), and each call's longest dwell with a minute to brake and start again. 1817 s on today's 16.9 km line.
+ * The most a train takes to run one trip, s: in at one end of the line and off at the other, or in to its terminus and back off
+ * where it came in; its whole track, run-outs included, at 60 km/h on average (its line speed is 80–140), and each call's
+ * longest dwell with a minute to brake and start again (at the terminus one call, where it turns round). 4942 s on today's
+ * 25.9 km line to Aulla Lunigiana.
  */
 export const TRIP = Math.ceil(
-  (line.end - line.start) / (60 / 3.6) + line.stations.length * (DWELL[1] + 60),
+  ((line.terminus ? 2 : 1) * (line.end - line.start)) / (60 / 3.6) +
+    (line.terminus ? 2 * line.stations.length - 1 : line.stations.length) * (DWELL[1] + 60),
 )
 
 /** The point `off` m to the left (+) of the line's centreline at s. */

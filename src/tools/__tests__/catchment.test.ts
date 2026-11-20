@@ -71,7 +71,11 @@ test("catchments: a river's arms share its area at a fork and add up to it again
     ["fork", "south", "rejoin"],
     ["rejoin", "mouth"],
   ]
-  const [above, north, south, below] = catchments(grid, wp, ids)
+  const [above, north, south, below] = catchments(
+    { ...grid, z: Float64Array.from(grid.z) },
+    wp,
+    ids,
+  )
   const into = above!.at(-1)!,
     out = below![0]!
   assert.ok(into > 0, "the river above drains its hillside")
@@ -84,7 +88,7 @@ test("catchments: a river's arms share its area at a fork and add up to it again
   )
 })
 
-test("catchments fills and routes a grid of flats and pits to the same heights and areas as before", () => {
+test("catchments fills and routes a grid of flats and pits to the same areas as before", () => {
   // Heights on a few whole metres, so most neighbours tie, and two streams across them.
   const cols = 61,
     rows = 47
@@ -113,10 +117,13 @@ test("catchments fills and routes a grid of flats and pits to the same heights a
     ["a", "b", "c"],
     ["d", "b"],
   ])
+  // The grid ends as each node's upstream area, which the fill decides through the routing: the
+  // same areas as the grid of their own the build allocated before (1f425d940e4a6bd8 pinned the
+  // fill and the samples' areas then).
   const digest = createHash("sha256")
   digest.update(new Uint8Array(g.z.buffer))
   for (const a of areas) digest.update(new Uint8Array(a.buffer))
-  assert.equal(digest.digest("hex").slice(0, 16), "1f425d940e4a6bd8")
+  assert.equal(digest.digest("hex").slice(0, 16), "6acef5cc9476d3b5")
 })
 
 test("catchments: an unlisted tile's nodes are outlets, as the box's edge is: they are never read, ground beside them drains out and they bring no area", () => {
@@ -151,13 +158,13 @@ test("catchments: an unlisted tile's nodes are outlets, as the box's edge is: th
       ),
     ]
     const [area] = catchments(g, wp, [["source", "mouth"]], mask)
-    return { area: area!, z: g.z.filter((_, n) => listed[n] === 1) }
+    return { area: area!, nodes: g.z.filter((_, n) => listed[n] === 1) }
   }
   const masked = run(undefined, listed)
   // Peaks in the notch change nothing: its ground is never read.
   assert.deepEqual(run(1e4, listed), masked)
   // Its nodes are outlets below every node of ground, the listed nodes beside them an edge: the same
-  // fill and areas as a pit there that the box's edge drains.
+  // areas, at every listed node and sample, as a pit there that the box's edge drains.
   assert.deepEqual(run(-1e6), masked)
   // Read whole, the corner's ground drains into the stream.
   const whole = run(undefined)
@@ -272,4 +279,52 @@ test("catchments: an inflow from beyond the grid is carried down its stream from
       Math.abs(fed![k]! - plain![k]! - 12.5) < 1e-9,
       `sample ${k}: ${fed![k]} - ${plain![k]}`,
     )
+})
+
+// The sea (issue #13): Liguria's DTM reads its water up to 2.7 m over the marinas, over the shore of
+// the plain beside it, which drained nowhere but up out of its lowest corner.
+test("catchments: the sea's nodes left out are outlets: its ground is never read, and the plain and a river burned to its shore drain into it", () => {
+  // A plain over 400 × 160 m falling 1 % south to its shore at y 40 and 5 % either side down to a
+  // river along x 200, which runs into the sea (y < 40) there; the sea's ground stands 2 m over the
+  // shore, as the DTM reads the water, left out of the listed nodes as the build leaves it.
+  const cols = 101,
+    rows = 41
+  const plain = (x: number, y: number) => 0.5 + 0.01 * (y - 40) + 0.05 * Math.abs(x - 200)
+  const atSea = (n: number) => Math.floor(n / cols) < 10
+  const run = (sea: number, mask?: Uint8Array) => {
+    const g: Grid = {
+      cell: 4,
+      cols,
+      rows,
+      x0: 0,
+      y0: 0,
+      ax: 0,
+      ay: 0,
+      z: Float64Array.from({ length: cols * rows }, (_, n) =>
+        atSea(n) ? sea : plain(4 * (n % cols), 4 * Math.floor(n / cols)),
+      ),
+    }
+    const river = profile(
+      [
+        [200, 156],
+        [200, 40],
+      ],
+      (x, y) => plain(x, y) - 0.5,
+    )
+    return catchments(g, [river], [["source", "mouth"]], mask)[0]!
+  }
+  const outlets = Uint8Array.from({ length: cols * rows }, (_, n) => (atSea(n) ? 0 : 1))
+  const sea = run(2.5, outlets)
+  // Its ground counts for nothing: the plain drains into it as into a sea burned under everything.
+  assert.deepEqual(run(1e4, outlets), sea)
+  assert.deepEqual(run(-1e6), sea)
+  // Its water reaches the river and goes out with it: at its mouth the river drains the plain
+  // between the grid's west and east edges, 400 × 120 m, but the edges' own nodes; at its head on
+  // the grid's north edge, next to nothing.
+  assert.ok(Math.abs(sea.at(-1)! - 0.046) < 0.001, `${sea.at(-1)} km² at the mouth`)
+  assert.ok(sea[0]! < 0.01, `${sea[0]} km² at the head`)
+  // Read with the sea's ground in, the plain fills to its lowest way out, 1.7 m at the river's head:
+  // its trench by the shore, burned 100 m deep, a lake that drains up it, the whole plain out there.
+  const lake = run(2.5)
+  assert.ok(lake[0]! > 0.046, `${lake[0]} km² at the head`)
 })

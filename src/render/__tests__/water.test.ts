@@ -1,12 +1,18 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { Ops } from "@typeonce/ritmo-math"
+
+import { MEAN } from "../../sim/__tests__/flows.ts"
 import { terrainNodeZ } from "../../sim/map/ground.ts"
 import { MAP } from "../../sim/map/index.ts"
-import { emptySink, type Triangles } from "../geometry.ts"
-import { yOf } from "../ground.ts"
+import { heldBySea, SEA_LEVEL, STAGE } from "../../sim/water/channel.ts"
+import { emptySink, type Flowing, type Triangles } from "../geometry.ts"
+import { yOf, zOf } from "../ground.ts"
 import { waterPiece } from "../lines.ts"
+import { PALETTE } from "../palette.ts"
 import { strips } from "../ribbons.ts"
+import { seaShare } from "../sky/water-shader.ts"
 import { residentAround, vectorsAround } from "../testing.ts"
 import { inPool } from "../water.ts"
 import { boxOf, cellsOf, centreOf, chunksOf, drawn, holds, poolAreas, wetCells } from "./pools.ts"
@@ -243,4 +249,28 @@ test("rivers' ribbons: the Aulella's stop where its river polygon draws the wate
   }
   assert.ok(over > 0, "the ribbons reach into the polygon's cells")
   assert.ok(past > 0, "and run on beyond them")
+})
+
+test("rivers' ribbons: each vertex carries how far the sea holds the river up over its bed and its share of the sea's look, so the river never stands under the sea", () => {
+  // A river's strip 40 m long, 0.02 m over its bed as a river's ribbon lies (`waterPiece`), the
+  // bed falling from 0.5 m over the sea's level to 1.5 m under it.
+  const flowing: Flowing = [1, 1, 0, 0.5],
+    spec = { pts: [0, 0, 40, 0], z: [0.5, -1.5], flowing: [flowing, flowing] }
+  const into = emptySink()
+  strips(spec, [
+    { ...spec, width: 4, hex: PALETTE.waterShallow, y: (_x, _y, z) => yOf(z) + 0.02 },
+  ]).draw(() => into, 0, 0)
+  const { position, stage, held, sea } = into.water,
+    rise = Ops.pow(MEAN, STAGE)
+  assert.ok(held.length > 40, `${held.length} vertices`)
+  for (let v = 0; v < held.length; v++) {
+    const bed = zOf(position[3 * v + 1]!) - 0.02,
+      at = `vertex ${v} over a bed at ${bed.toFixed(3)} m`
+    assert.ok(Math.abs(held[v]! - heldBySea(bed)) < 1e-9, `${at}: held ${held[v]}`)
+    assert.equal(sea[v], seaShare(held[v]!), `${at}: the sea's share`)
+    const level = bed + Math.max(stage[v]! * rise, held[v]!)
+    assert.ok(level >= SEA_LEVEL - 1e-9, `${at}: drawn at ${level} m at the mean flow`)
+  }
+  assert.ok(held.some((h) => h === 0) && held.some((h) => h > 1.2), "free, and held deep")
+  assert.ok(sea.some((s) => s > 0 && s < 1) && sea.includes(1), "the sea's look, partly and whole")
 })

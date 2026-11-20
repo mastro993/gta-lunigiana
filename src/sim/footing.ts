@@ -4,7 +4,8 @@
  * a bridge's deck or a tunnel's floor, else the ground at the terrain's level. Each step, once everything has moved, it is settled
  * again where the body now is (`settleFooting`), keeping to the level it was on (`footZ`, the decks and tunnels out to their
  * verges), so it walks onto a bridge's deck or into a tunnel along the road, and stays on the track over a road tunnel or under a
- * road bridge. The render stands a figure on the ground at its drawn place through `settleFooting` too.
+ * road bridge; one swimming hangs its feet in the water instead (`feetAfloat`, which `FindFooting` asks for). The render stands a
+ * figure on the ground at its drawn place through `settleFooting` too.
  *
  * @module footing
  */

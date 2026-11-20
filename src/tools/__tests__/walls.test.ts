@@ -1,9 +1,10 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import type { RoadF } from "../features.ts"
+import type { BuildingF, RoadF } from "../features.ts"
+import { segDist2 } from "../geometry.ts"
 import { outlineOf } from "../play-area.ts"
-import { openBarriers, pushOutline } from "../walls.ts"
+import { clipBuildings, openBarriers, pushOutline } from "../walls.ts"
 import { segments } from "./wall-segments.ts"
 
 // walls.long-test.ts builds the walls round a staged lake and river polygon (about a second).
@@ -91,4 +92,68 @@ test("a guard rail stays whole along its road, inside its w/2, and opens where a
   // It ends at the last free 0.25 m sample: 1.2 m from the track's centreline, or a sample more.
   const gap = 50 - rail!.pts.at(-2)!
   assert.ok(gap >= 1.2 && gap < 1.2 + 0.25, `the rail ends ${gap} m from the track`)
+})
+
+// Regression: a substation the CTR maps under the SR445's bridge west of Gragnola (552592647, at
+// (−3256, 4472)) reached 1.1 m from the deck's centreline: the 1.2 m corridor left its walls, which
+// stand at every level, on the deck, too narrow for a truck, and that cut the truck's network in two
+// there; once Aulla's part made the north piece the larger, Monzone had no truck.
+test("a deck's carriageway clips a footprint under it or beside it its whole w/2 out; a road at grade only its middle 1.2 m", () => {
+  const road = (bridge: boolean): RoadF => ({
+    id: 1,
+    cls: "primary",
+    w: 11.6,
+    surface: "asphalt",
+    private: false,
+    ...(bridge ? { bridge: true as const } : {}),
+    pts: [
+      { x: 0, y: 0 },
+      { x: 40, y: 0 },
+    ],
+  })
+  // 10 × 6 m, from 1.1 to 7.1 m right of the centreline.
+  const cabin: BuildingF = {
+    id: -1,
+    kind: "substation",
+    h: 2.9,
+    style: "industrial",
+    tint: 1,
+    outer: [15, -1.1, 25, -1.1, 25, -7.1, 15, -7.1],
+  }
+  const nearest = (bs: ReadonlyArray<BuildingF>) =>
+    Math.min(
+      ...bs.flatMap((b) =>
+        Array.from({ length: b.outer.length / 2 }, (_, k) =>
+          Math.sqrt(segDist2(b.outer[2 * k]!, b.outer[2 * k + 1]!, 0, 0, 40, 0).d2),
+        ),
+      ),
+    )
+  const deck = clipBuildings([cabin], [road(true)]),
+    grade = clipBuildings([cabin], [road(false)])
+  assert.equal(deck.length, 1)
+  assert.ok(Math.abs(nearest(deck) - 5.8) < 0.2, `under the deck: ${nearest(deck)} m`)
+  assert.ok(Math.abs(nearest(grade) - 1.2) < 0.2, `at grade: ${nearest(grade)} m`)
+})
+
+test("a breakwater's outline opens only where a drivable road's middle crosses it, as a guard rail does: a path onto it leaves it whole", () => {
+  const road = (cls: RoadF["cls"], w: number, x: number): RoadF => ({
+    id: 1,
+    cls,
+    w,
+    surface: "asphalt",
+    private: false,
+    pts: [
+      { x, y: -20 },
+      { x, y: 20 },
+    ],
+  })
+  // Its south edge, from x 0 to 40 along y = 0, crossed by a footpath at x 10 and a service road
+  // at x 30.
+  const [south, ...rest] = openBarriers(
+    [{ kind: "breakwater", pts: [0, 0, 40, 0] }],
+    [road("path", 1.5, 10), road("service", 4, 30)],
+  )
+  assert.equal(rest.length, 1)
+  assert.deepEqual([south!.pts[0], south!.pts.at(-2)! < 30 - 1.2], [0, true])
+  assert.deepEqual([rest[0]!.pts[0]! > 30 + 1.2 - 0.25, rest[0]!.pts.at(-2)], [true, 40])
 })

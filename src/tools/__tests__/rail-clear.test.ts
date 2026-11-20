@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { clearVerges, type ClearInput } from "../rail-clear.ts"
+import { clearVerges, onTrack, type ClearInput } from "../rail-clear.ts"
 
 /** A straight running track along y = 0, its bed at 100 m. */
 const track = [{ pts: [-100, 0, 100, 0], z: [100, 100] }]
@@ -77,4 +77,13 @@ test("clearVerges leaves a road at another level, in a crossing box or on a plat
       }),
     /traffic lane of edge 0 at .* is 2\.17 m from the running track/,
   )
+})
+
+// Regression: a driveway OSM ends 2.39 m from the Lucca–Aulla line by Aulla station put a traffic
+// lane on the track, and the build threw. A dead end there is no room for a car, so traffic drops it.
+test("onTrack finds a point within the clearance of at-grade track at its level only", () => {
+  const standsOn = onTrack([{ pts: [0, 0, 100, 0], z: [50, 52] }])
+  assert.equal(standsOn(50, 2.39, 51), true)
+  assert.equal(standsOn(50, 2.9, 51), false) // past the ATR 220's half, a person and a metre
+  assert.equal(standsOn(50, 2.39, 54), false) // a road over the track, a level up
 })

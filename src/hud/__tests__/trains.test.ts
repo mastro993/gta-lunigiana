@@ -102,6 +102,7 @@ test("over a real game, a call reads before the step as the game holds it after:
   assert.equal(shown.lines[line.index]!.due, 0)
   assert.equal(read().lines[line.index]!.due, null, "the game has not taken it yet")
   assert.ok(game.runtime.tick(railStep).ok)
-  assert.deepEqual(read().lines, shown.lines)
+  // The call makes every line's train due; another line's, with nothing in its way, enters at once.
+  assert.deepEqual(read().lines[line.index], shown.lines[line.index])
   assert.deepEqual(store.now(), read())
 })

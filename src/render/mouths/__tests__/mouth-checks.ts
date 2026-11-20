@@ -18,7 +18,8 @@ import {
 import { buildingBox } from "../../../sim/map/vectors.ts"
 import { boreOf, UNDER } from "../../bores.ts"
 import type { Vectors } from "../../testing.ts"
-import { leastWall, measured, type Standing, standing } from "../index.ts"
+import { leastWall, measured, type Standing, standing, wallFoot } from "../index.ts"
+import { headWall } from "../shapes.ts"
 
 /** A road tunnel's mouth: its road (index in the whole map's roads), its end and the heading out of the hill (rad). */
 export interface Mouth {
@@ -48,23 +49,26 @@ export const endsOf = (road: Road, id: number): Array<Mouth> =>
 /**
  * The mouths of the road tunnels of `roads` (the whole map's, or every road within reach of the
  * tunnels it is asked about): each end of a road in a tunnel, not a building passage, that no other
- * road in a tunnel ends at, inside the play area (farther than 0.5 m from its outline, where a road
- * runs on past it).
+ * road in a tunnel ends at or runs through (a ramp off an underpass branches inside the bore),
+ * inside the play area (farther than 0.5 m from its outline, where a road runs on past it).
  */
 export const mouthsOf = ({ ids, items }: Layer<Road>): Array<Mouth> => {
-  const ends = new Map<string, number>()
+  const ends = new Map<string, number>(),
+    through = new Set<string>()
   for (const road of items)
     if (road.tunnel === true)
-      for (const k of [0, road.z.length - 1]) {
+      for (let k = 0; k < road.z.length; k++) {
         const key = `${road.pts[2 * k]},${road.pts[2 * k + 1]}`
-        ends.set(key, (ends.get(key) ?? 0) + 1)
+        if (k === 0 || k === road.z.length - 1) ends.set(key, (ends.get(key) ?? 0) + 1)
+        else through.add(key)
       }
   return items.flatMap((road, n) =>
     road.tunnel !== true || road.passage === true
       ? []
       : ([0, 1] as const).flatMap((end) => {
-          const { x, y, angle } = endOf(road, end)
-          return ends.get(`${x},${y}`) === 1 && outlineDistance(x, y) > 0.5
+          const { x, y, angle } = endOf(road, end),
+            key = `${x},${y}`
+          return ends.get(key) === 1 && !through.has(key) && outlineDistance(x, y) > 0.5
             ? [{ road: ids[n]!, x, y, angle }]
             : []
         }),
@@ -315,8 +319,10 @@ export type Open = "buried" | "housed" | "low" | "crowded"
  * than the clear height over the road ("housed": a covered way, which the house hides); else
  * the ground over it never rises as high over the road as a head wall's top and its margin
  * (`leastWall`: "low"); else another road or the track runs through the room a head wall and its
- * box would take, beside the bore's axis and between the road and that height ("crowded"), or it
- * fails.
+ * box would take, beside the bore's axis and between the wall's foot (`wallFoot`, as the bake
+ * stands it: under the road, or under the ground at its face's ends where that is lower) and that
+ * height, or a road carrying on out of the mouth reaches past the arch's side there ("crowded"), or
+ * it fails.
  */
 export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   const own = tunnelOf(roads, end.road),
@@ -395,9 +401,10 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
   if (highest < least) return "low"
   const ux = Math.cos(end.angle),
     uy = Math.sin(end.angle),
-    room = boreOf(road).half + 2
+    arch = boreOf(road).half,
+    room = arch + 2,
+    foot = wallFoot(end.x, end.y, ux, uy, headWall(boreOf(road)).half, floor)
   const crowding = waysNear(roads, end, end.x, end.y).find((way) => {
-    if (way.out) return false
     const m = Math.max(1, Math.ceil(Math.hypot(way.b[0] - way.a[0], way.b[1] - way.a[1]) / 0.25))
     for (let j = 0; j <= m; j++) {
       const x = way.a[0] + ((way.b[0] - way.a[0]) * j) / m,
@@ -406,10 +413,13 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
         across = Math.abs((y - end.y) * ux - (x - end.x) * uy),
         over = way.at(j / m) - floor
       if (
+        // A road carrying on out of the mouth may fill the arch (`clearance`): it stands in the way
+        // only where its carriageway reaches past the arch's side, as one turning at the mouth does.
+        (!way.out || across + way.half > arch) &&
         deep >= -2 - way.half &&
         deep <= span + 1 + way.half &&
         across <= room + way.half &&
-        over >= 0 &&
+        over > foot - floor &&
         over <= least
       )
         return true

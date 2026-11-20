@@ -1,35 +1,35 @@
 # The map
 
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
-Lunigiana map of its three parts, lucido, fivizzano and fosdinovo ([section
+Lunigiana map of its four parts, lucido, fivizzano, fosdinovo and aulla ([section
 2](#2-projection-and-play-area-geometryts-play-areats)): the global file `src/sim/map/monzone.bin`
-(1.25 MB), 102 tiles of 2 km in `src/sim/map/monzone/` (42.4 MB in all, the largest 0.63 MB; see
-[Map files](#map-files)) and, beside the tiles, the full map's picture `overview.png` (5.56 MB; [The
+(2.13 MB), 153 tiles of 2 km in `src/sim/map/monzone/` (63.6 MB in all, the largest 0.65 MB; see
+[Map files](#map-files)) and, beside the tiles, the full map's picture `overview.png` (5.18 MB; [The
 overview](#the-overview)). The build is deterministic (gunzipped, its files are the same bytes on
 every machine, arm64 and x64 alike, and it prints the same build hash; gzipped, they are
 byte-identical with the same Node build, while another zlib or OS writes other compressed bytes; the
 overview's pixels are the same everywhere, its compressed bytes likewise with the same zlib), takes
-about 125 s and peaks at 2.68 GB resident ([Pipeline](#pipeline)). V8's `Math.sin`, `cos`, `tan`,
-their inverses, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `atanh`, `exp`, `expm1`, `log`, `log1p`,
-`log10` and `**` (but squaring) return other last bits on arm64 than on x64 (Node 24.14.1, 200,000
-arguments each; `sqrt`, `hypot`, `cbrt`, `log2` and `x ** 2` agree), and before #68 the two builds
-of Lunigiana differed by one parked car's spot at (−1306, 2480). So the build calls Ritmo's `Ops`
-(`@typeonce/ritmo-math`, a port of fdlibm built from `+ − × ÷` and `Math.sqrt`, which every CPU
-rounds the same) for those, as the sim does, and keeps V8's `Math.hypot`, which V8 computes from the
-same operations (`Ops.hypot` would move 38 % of its results by a last bit). `map-key.test.ts` fails
-on a `Math` call or `**` of that list in any file the build imports. It prints the end of each stage
-(seconds from the start and the process's resident memory then), the rail's fit to the CTR per piece
-([section 4](#4-the-rail-on-the-ctr)), each platform ([section
-9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the tile
-count, the bytes written and the largest tile, the overview's size, the play area's terrain by
-source (`terrain`: Lunigiana's 303.22 km² of LiDAR, 0.25 of surface model, 3.09 of 10 m DTM and
-2.23 of Liguria's DTM, `sourceAreas` on 10 m cells; lucido's alone 77.35, 0.02 and 0.63, and no
-Liguria), counts, the rail on the CTR
-(OSM's offset from it, the shipped residual, the level crossings' slides, the bridge ends slid, the
-culverts, the at-grade track cut into the CTR's bridges and the rail bed), the railway (its lines,
-stations, level-crossing boxes and the verges pulled in off the track), the steepest grade per road
-class, and the size of each part of the files before gzip (each layer of the tiles' vectors summed
-over the tiles). Inputs and attribution are in the [README](../README.md).
+about 325 s and peaks at 2.59 GB resident ([Pipeline](#pipeline); 125 s and 2.68 GB before Aulla's
+part). V8's `Math.sin`, `cos`, `tan`, their inverses, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`,
+`atanh`, `exp`, `expm1`, `log`, `log1p`, `log10` and `**` (but squaring) return other last bits on
+arm64 than on x64 (Node 24.14.1, 200,000 arguments each; `sqrt`, `hypot`, `cbrt`, `log2` and `x **
+2` agree), and before #68 the two builds of Lunigiana differed by one parked car's spot at (−1306,
+2480). So the build calls Ritmo's `Ops` (`@typeonce/ritmo-math`, a port of fdlibm built from `+ − ×
+÷` and `Math.sqrt`, which every CPU rounds the same) for those, as the sim does, and keeps V8's
+`Math.hypot`, which V8 computes from the same operations (`Ops.hypot` would move 38 % of its results
+by a last bit). `map-key.test.ts` fails on a `Math` call or `**` of that list in any file the build
+imports. It prints the end of each stage (seconds from the start and the process's resident memory
+then), the rail's fit to the CTR per piece ([section 4](#4-the-rail-on-the-ctr)), each platform
+([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)), and a summary: the build hash, the
+tile count, the bytes written and the largest tile, the overview's size, the play area's terrain by
+source (`terrain`: Lunigiana's 447.02 km² of LiDAR, 0.25 of surface model, 3.09 of 10 m DTM and 2.23
+of Liguria's DTM, Aulla's part all LiDAR, `sourceAreas` on 10 m cells; lucido's alone 77.35, 0.02
+and 0.63, and no Liguria), counts, the rail on the CTR (OSM's offset from it, the shipped residual,
+the level crossings' slides, the bridge ends slid, the culverts, the at-grade track cut into the
+CTR's bridges and the rail bed), the railway (its lines, stations, level-crossing boxes and the
+verges pulled in off the track), the steepest grade per road class, and the size of each part of the
+files before gzip (each layer of the tiles' vectors summed over the tiles). Inputs and attribution
+are in the [README](../README.md).
 
 `src/sim/map/kinds.ts` holds the vocabulary that the build and the game share: road classes and
 their default widths, where people walk and cars drive across them (`vergeOf`, `laneOffset`), how
@@ -106,9 +106,11 @@ map cannot: `region.ts` defines them beside the regions, and `node src/tools/bui
 overview, gitignored; the game never loads them and nothing ships them. Each reads Lunigiana's
 inputs on its origin and tree anchor (a tree stands where it does on the shipped map, with the same
 id), its OSM every Lunigiana part's extract (`osmFiles`), and `fetch-osm` refuses its part
-(`partToFetch`: no build would read the file) but one with buildings of its own, whose own part's
-extract (`osmFile`) is what it reads. `useDiskMap(builtMapUrl(region))` (`src/sim/map/source.ts`,
-`src/tools/map-file.ts`) hands one to the sim in a process of its own;
+(`partToFetch`: no build would read the file) but one with buildings or OSM of its own
+(`ownBuildings`, `ownOsm`), whose own part's extract (`osmFile`) is what it reads; one with OSM and
+terrain of its own reads its own inputs alone (`inputParts`, and no Regione Toscana land cover,
+`ucsParts`), so it builds where no Lunigiana part reaches yet. `useDiskMap(builtMapUrl(region))`
+(`src/sim/map/source.ts`, `src/tools/map-file.ts`) hands one to the sim in a process of its own;
 `preview-map.ts` draws one with `--region <key>`.
 
 - **`lunigiana-l`**: two rectangles of lucido in an L, x −2400…0 by y 0…3900 (Monzone, its station,
@@ -305,6 +307,130 @@ extract (`osmFile`) is what it reads. `useDiskMap(builtMapUrl(region))` (`src/si
 
   `terrain-seams.map-test.ts` checks its seam: the LiDAR's 0.34 km² meet Liguria's DTM at 298
   nodes, and no step there passes the terrain's own steps round it (the worst is 0.06 m under them).
+- **`magra-coast`**: 6 × 4 km of the coast, x −14000…−8000 by y −15000…−11000 (part
+  `magra-coast`, 9 tiles, the 3 northern ones all land), from Punta Bianca and the cliffs under
+  Montemarcello past the Magra's mouth between Bocca di Magra and Fiumaretta to the sand of
+  Marinella di Sarzana and Luni Mare, with the sea 0.7–2.2 km out from the coastline to its south
+  edge. Its terrain, its OSM and Regione Liguria's sources are its own (`ownTerrain`, `ownOsm`), so
+  it builds a map of its own, the one region with sea: it checks issue #13's sea, beaches, piers
+  and the Magra's mouth before part 5 (#21) exists, and `pnpm maps` builds it after the L, so CI
+  builds, caches and hashes it with the others ([Pinned inputs and CI](#pinned-inputs-and-ci)).
+  Its inputs come in three runs, in this order, as each reads the one before
+  ([Adding a part](#adding-a-part)): `pnpm fetch-lig magra-coast` writes the NC5 (2,061
+  buildings, 816 minor buildings, 578 carriageways, 1 mapped area), 10 DTM crops, the land use's
+  66 polygons, Spiagge's 39 beaches and the sea floor's 2,004 isobaths into
+  `data/raw/lig/magra-coast/` ([section
+  1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts));
+  `pnpm fetch-osm magra-coast` OSM's whole extract over its rectangle plus 100 m into
+  `data/raw/osm/magra-coast.osm.gz` (46,393 nodes, 5,659 ways and 99 relations, 1,065,445 B,
+  2026-11-16), the coastline among them; and `pnpm fetch-rt --region magra-coast` its terrain from
+  `data/parts/magra-coast.json` into `data/raw/rt/magra-coast/`, with no LiDAR or CTR: the 10 m
+  DTM, Liguria's DTM, then the sea step, which reads the coastline in the part's extract. Its
+  south-east corner, east of the Parmignola (x ≳ −8870 at the shore), is Tuscany's, in Carrara,
+  where Liguria's DTM stops at the regional border, so the manifest lists Massa-Carrara's 10 m DTM:
+  without it Emilia-Romagna's DTM 5x5 filled those cells with junk ([section
+  1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). Its mosaic, 3,061 × 2,068
+  cells of 2 m over the rectangle plus 32 m, holds Liguria's DTM on 11.993 km², the sea on 11.675
+  and the 10 m DTM on 1.652 (`dtm.bin` 702,434 B, `dtm-src.bin` 13,186 B, `dtm.json` 402 B; 7.3 s
+  and 782 MB, 2026-11-16), and the play area, as the build prints it, Liguria's DTM on 11.46 km²,
+  the sea on 11.08 and the 10 m DTM on 1.46. Its ground runs from the sea floor's −16.0 m at its
+  south-west corner to 359.5 m on the hills north-west of Montemarcello (−13856, −11864). Its
+  build (map 2a653db1f28d317e, 2026-11-17) takes 8.5–9.4 s and peaks at 729–733 MB resident
+  (`/usr/bin/time -l`, two runs; the end of its overview at 8.4–9.1 s, 729–732 MB then, the
+  build's own print) and writes 9 tiles of 1,356,427 B, the largest 364,664 B, and an overview of
+  2,011 KB: 973 roads (21 of them piers), 3,589 buildings, 37 waters, 1,169 areas (7 sea, 72 sand,
+  51 rock, 6 pebble), 56 barriers (20 breakwaters), 91,376 trees and 538 parked spots. Its map
+  tests (`pnpm test:map`; without the build each is skipped, but in CI, which builds it, it fails
+  instead, as the L's do: `skipUnbuilt` and `builtTestMaps` in `src/tools/__tests__/test-maps.ts`,
+  which the L's checks share) check issue #13's acceptance through the game's own lookups,
+  measured on its build `2a653db1f28d317e` (2026-11-17).
+  `src/tools/__tests__/coast-sea.map-test.ts` (6 tests, 0.17–0.19 s; it reads
+  `data/raw/lig/magra-coast/isobaths.json.gz`, which CI's raw input supplies):
+  - every node of the sea's areas stands under 0 m, but at the coastline and on the raised tops: of
+    its 695,905 nodes 281 stand at 0.0 m, all within 0.624 m of the coastline (the sea's edges but
+    the cuts along a tile's side or the map's bounds, where the sea goes on: a tile line's nodes
+    left at 0 m by a carving that skipped them would lie on a cut, and the check measured to every
+    edge passed 300 of them on x −12000), where the beach face's 8 % gives 0.05 m at 0.625 m and
+    the rings' rounding 0.1 m more (0 m is allowed within 0.725 m, on 300 nodes at most), and 333
+    are raised, 332 to 1.5 m and 1 to 1.0 m, allowed within a cell's diagonal of a rock or paved
+    area (the islets are holes in it);
+  - the floor against the survey: at the 10,642 vertices of the kept isobaths (lines 50 m long or
+    more) inside the sea, the ground stands at their depth within 0.000 m at the median, 96.67 %
+    within 0.25 m and 99.14 % within 0.5 m (p1 −0.378 m, p99 +0.303 m, the extremes −1.45 and
+    +1.18 m); the test asks a median within 0.02 m and 95 % within 0.25 m;
+  - every sand cell stands 0–3 m over the sea at its centre on the drawn mesh (`terrainZ`; its
+    16,581 cells at 0.70 m at the median, −0.10 to 2.45 m), but where the beach face dips into the
+    sea, a sea node among its corners (23 cells), or a stream's bed crosses it and the game finds
+    its water there (2, in stream 311359630's): a structural rule rather than a flat −0.1 m
+    tolerance;
+  - the pebble beaches, the 6 pebble areas meeting the sea (a vertex within two cells of the
+    coastline: the coves under Montemarcello and Punta Bianca and Bocca di Magra's beach), hold
+    670 cells, counted once where two overlap; every one stands 0 m or more over the sea at its
+    centre, and the 55 within 2 m of the coastline 3 m or less, with sand's exceptions (44 cells
+    dip into the sea, none lies in a bed); further in the ground is Liguria's DTM, ramping up to
+    the cliffs ([Known data limitations](#known-data-limitations)), so the check pins its share
+    over 3 m, 283 of the 615 cells (46.0 %), at 47 % at most, and its highest, 8.70 m, at 9 m.
+    With a 1 m terrace laid over them in memory the check fails at a cell at 3.40 m by Bocca di
+    Magra, where the sand check alone passed;
+  - the Magra's line ends at 0 m at its mouth, where `waterAt` holds its water at 0 m at q 0, 0.005,
+    0.041 (the mean), 0.6 (a spate) and 2, and the sea 20–100 m past it stands at 0 m; no water
+    vertex of the coast, nor `waterAt`'s level at q 0, the mean or a spate, lies under 0 m, and each
+    of the 6 pieces ending in the sea (found as 1 m past their last vertex lying in it, `intoSea` in
+    `coast-map.ts`) ends at 0 m;
+  - the catchments: the sea's nodes drain the land, the Magra reaching it with the 6.06 km² of its
+    basin the map holds (± 0.2) and the Parmignola with 1.0 (± 0.05), every water's area growing
+    downstream with no jump at its mouth (it guards against large errors: the build before the
+    sea's nodes were outlets read 6.14 km² and passes too).
+
+  `coast-shore.map-test.ts` (6 tests, 1.05 s):
+  - no walk wall stands on the sand but a house's or a wall's: 921 walls touch sand cells, 915 of
+    them beach houses' and 6 a garden wall's (`barrier=wall`), none from a slope or the sea's edge;
+  - every pier, found by geometry (a path on a bridge with a segment's middle in a water area), is
+    walked from the dry ground at its landward end, the point 2 m past it (an end counts as
+    landward when both the point 0.5 m past it, the build's `PAST_END`, and 2 m past it lie outside
+    every water area; an end the outline cuts is started 1 m in, on the deck), onto its deck and to
+    its far end with no wall between, and on along every pier that meets it: 14 decks, 10 landward
+    ends and 2 the outline cuts, about 900 m in all, three pontoons reached through the pier they
+    share a vertex with;
+  - a drive wall runs all along every breakwater's and groyne's outline, and a walker crosses it
+    but where a tree or a house stands on it: 20 outlines checked at 846 places, crossed at all but
+    2, where a trunk and a house stop the walker;
+  - no parked spot stands on the sand or in the water (538 spots), and no tree lies farther inside
+    a sand or sea area than 2.12 m, its mask's 2 m pixel and the metre's rounding, as the olives'
+    check allows (91,376 trees);
+  - the coast's places name their own districts: its five villages (found by their POIs' kind) and
+    Punta Bianca (its locality POI), and the Magra's mouth, found as the end of the Magra's piece in
+    the sea, is the Foce del Magra;
+  - the outline's walls, walk and drive, run end to end along every edge, the sea's too, and a
+    walker's flood from the start, over 4 m cells (2 m would take about 5 s), never leaves the play
+    area and reaches every edge and 23.0 km² of the 24, in 0.6–1.2 s (the L's outline checks and
+    flood, moved into `outline-checks.ts`, which both share).
+
+  On the build before the isobaths, 5 of the two files' 11 tests then failed: a sea node at 0.1 m,
+  the floor 6.40 m off the survey at the median, a sand cell at 3.20 m, the Magra's last vertex at
+  −1.1 m and the Magra's mouth in no district of its own. Two pier ends lie at the coastline itself,
+  which no walker steps onto from the shore beside them, as the walls under their decks stop it
+  there: 1382979298's south end, 0.5 m inside the sea and 1 m from the coast, its deck 1.06 m over
+  the 0.44 m shore 2 m past it, and 1382979299, which runs along the coastline 0.2 m out to sea, its
+  north end 1.06 m over a 0.3 m bank; both are walked from their other end.
+
+  In `src/render/__tests__`, `water-coast.map-test.ts` checks the sea's quads off Marinella, 0.05 m
+  over 0 m, as deep as it stands over each node; the sea carried on over the apron south of the
+  map; the Magra's polygon drawn where `waterAt` has its level at the mean flow and in a spate,
+  meeting the sea flush at the 98 nodes they share and wholly in the sea's look there, its share
+  of that look at least 0.75 and never stepping 0.2 between neighbouring nodes, and the ribbons of
+  the 27 rivers whose bed dips under 0 m never drawn under it, at the mean flow or in a spate
+  ([water.md](water.md#how-it-looks)), and a cat swimming under the pier off Bocca di Magra
+  drawn in the water, not on the deck over it; `effects-coast.map-test.ts` a tyre spinning on the sand
+  under the sea off Marinella throwing up no dust; and `terrain-coast.map-test.ts` the faces round
+  Marinella's beach in their cells' look, its sand wet only under 0.2 m, and the coast's beaches wet
+  under a tenth of their cells, the band's inner edge a median two cells or less from the sea: 546 of
+  16,581 cells, 4 m ([architecture.md](architecture.md#rendering)). Its twins of the checks the
+  maps and the L have are listed in [Checks and tools](#checks-and-tools): the ground, surface and
+  water lookups, the walls under the decks, the joints, the tunnels, the levels, the decks'
+  ground, the parapets, the buildings' ids, the olives, the overview and the files' sizes.
+  `terrain-seams.map-test.ts` checks its seams, the 10 m DTM's with Liguria's DTM and the
+  sea, and Liguria's DTM's with the sea, as it checks the others'.
 
 Issue #3's scale checks on the 3x, measured on 2026-10-31 (arm64, Node 24.14.1, `/usr/bin/time -l`,
 three runs each, a load average of 5–6 from other work), before and after the build's per-tile
@@ -400,10 +526,20 @@ so its peak is one phase's working set plus what that phase hands on:
 | overview | `overview.ts`, `paint-raster.ts`, `png.ts` | the full map's picture, from the built map's vectors ([The overview](#the-overview)) | its pixels |
 
 The DTM is the one input two phases read (the sources take the water's widths from it), so
-`build-map.ts` hands it from one to the other in a function of its own that returns with the grid:
-a value a running function holds is never collected, and held in the build's own function it
-stayed through the world phase and the cut (lucido alone, after the terrain phase and two full
-collections: 121 MB of array buffers, 39 MB, the grid alone, once it goes).
+`build-map.ts` hands it from one to the other in a function of its own (`sourcesAndProfiles`) that
+returns with the terrain's profiles: a value a running function holds is never collected, and held
+in the build's own function it stayed through the world phase and the cut (lucido alone, after the
+terrain phase and two full collections: 121 MB of array buffers, 39 MB, the grid alone, once it
+goes). Since issue #19 the terrain phase has two steps: `profileTerrain` does everything that reads
+the DTM (the profiles, the lines, the water beyond the play area and the whole uncarved grid,
+sampled by `uncarvedGrid`), so the DTM goes before the tile pass and the catchments; then
+`finishTerrain` does the tile pass from the uncarved grid, the paths' heights on the finished
+grid, the catchments and the perched drop, in a function of its own too (`sourcesAndTerrain`),
+which holds the profiles and the uncarved grid through the catchments alone. `readSources` works
+out the report's terrain-source areas itself and hands on the heights alone, so the sources' codes
+(a byte a cell, 202 MB on Lunigiana) go when it returns; and the DTM holds its heights in
+decimetres in an `Int16Array` (405 MB for Lunigiana's 202,380,633 cells), read as
+`fround(dm / 10)`, bit for bit the metres it held as a `Float32Array` before.
 
 The output cuts the map into its tiles once ([Map files](#map-files)), one at a time, each packed
 with an empty hash as soon as it is cut: its nodes from the grid (whole decimetres, an `Int16Array`),
@@ -465,9 +601,11 @@ The terrain phase works out the vectors first: the water's surfaces, the road an
 whose writes into the grid are recorded in order as claims, and the water capped under the decks.
 Then `build-grid.ts` builds the grid one listed 2 km tile at a time (`gridTiles` in `grid-tiles.ts`,
 the region's tiles, south to north then west to east): on the window of the tile's 501 × 501 nodes,
-cut to the grid, it averages the LiDAR, carves the lakes and river polygons and the beds under the
-water as first settled, writes the claims in their order (never on the water), carves the river
-polygons and the beds again under the capped water outside the road cores, reads the terrain under
+cut to the grid, it averages the LiDAR, carves the lakes, the river polygons and the sea, raises
+the piers' areas and the breakwaters over them (`firstCarving`), carves the beds under the water as
+first settled (none through what it raised), writes the claims in their order (never on the
+water), carves the river polygons and the beds again under the capped water outside the road cores
+and the raised nodes, reads the terrain under
 the water samples whose cells are the tile's own (for the perched check, section 8), rounds to
 0.1 m and lays the rail bed. A window keeps the whole grid's lattice (`Grid.span` in `terrain.ts`):
 positions, index ranges and clamps are worked out as on the whole grid, so its nodes are the same
@@ -475,15 +613,17 @@ doubles. Each of those stages writes a node from that node alone (its own value,
 and the vectors), so a window needs no halo. The perched check reads the 4 nodes of one cell, all in
 the tile that owns the cell, and the walls' slope test, which reads 3 nodes around a cell, reads the
 grid the tiles put together. A node two tiles share is worked out in both, and the pass fails the
-build if the two differ. The catchments then run on the uncarved grid the tiles put together. Once
+build if the two differ. Each tile's window is copied from the uncarved grid `uncarvedGrid`
+sampled before the pass, rather than averaged from the LiDAR during it, and the catchments then run
+on that grid, accumulating their areas in its buffer. Once
 every tile is written, the ground under the decks is lowered on the whole grid (`deck-ground.ts`,
 [section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)):
 where a deck stands clear of the ground is read along it, across the tiles' seams, so it is no
 window's work. It takes about 30 ms on Lunigiana's 219 decks and Cesena's 56 (2026-11-06).
 
 A tile of the box the region's parts leave out (an L's notch, [Map files](#map-files)) is never
-worked, so the build reads no terrain there and needs none there (Lunigiana's box holds 30 such
-tiles, in the two notches #17's and #18's parts leave: [section
+worked, so the build reads no terrain there and needs none there (Lunigiana's box holds 45 such
+tiles, in the two notches its parts leave, west of Fosdinovo's and east of lucido's: [section
 2](#2-projection-and-play-area-geometryts-play-areats)). A node only such tiles hold stays 0 in the
 uncarved grid, as `joinTiles` leaves it in a map read whole, and the catchments take it for an
 outlet (section 6); the place is fitted without it ([The global file](#the-global-file)). In the
@@ -551,6 +691,26 @@ sections) leave that much as it was: on #18's final code `pnpm map` alone reache
 overview at 124.8 s, the grid stage's end at 2,176 MB, the water stage's at 2,689 MB, and the bake
 took 75.7 s (the build's own prints, 2026-11-07).
 
+With Aulla, 153 tiles over a box of 198, the build reached the end of its overview at 324.9 s and
+peaked at 2,587 MB resident at the end of the cut (2026-11-18, `pnpm maps` on the final code, the
+build's own prints). Its stages ended at (s from the start, and the resident MB the build prints
+then):
+
+| | rail | features | roads | decks | grid | water | railway | walls | trees | spawns | map | cut | bake | write | overview |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| s | 8.13 | 19.23 | 31.28 | 31.79 | 63.12 | 75.75 | 81.03 | 115.89 | 122.99 | 124.91 | 125.06 | 132.54 | 316.26 | 320.91 | 324.86 |
+| MB | 1,710 | 1,978 | 1,571 | 1,566 | 2,260 | 2,673 | 1,880 | 2,311 | 2,530 | 2,564 | 2,504 | 2,587 | 1,668 | 1,968 | 1,936 |
+
+The bake takes 183.7 s of it (its store still keeps 16 tiles decoded). Before the memory work
+above, on Aulla's first build (c4a5aa9), the build peaked at 3.29–3.74 GB resident (3.50 GB of
+peak memory footprint) at the end of the water stage and the spawns; across runs of the final code
+it peaked at 2.56–2.86 GB resident (2.24–2.63 GB of footprint) in 299–346 s on this machine. On
+macOS with 32 GB of RAM or more, libmalloc's large-allocation cache keeps about the last 64 freed
+blocks of about 1 MB or more resident, so a stage's resident memory at its end, and the peak, move
+about ±0.3 GB from run to run with the GC's timing; `MallocLargeCache=0` shows the live peak
+(2.31 GB at the spawns, before the last two memory changes), and the peak memory footprint is
+steadier than the resident set.
+
 On lucido alone, resident memory climbs most in the spawns, by 108 MB (the clearance indexes of
 every wall and trunk), in the bake, by 188 MB (the game decoding the global file and the tiles it
 reads, while the build still holds the cut tiles without their vectors, 38.5 MB unstamped, the files
@@ -558,17 +718,20 @@ the bake reads, 46.5 MB with their vectors, and the whole map's vectors), and in
 108 MB (its pixels, 3195 × 4096 × 4 bytes, 52 MB a copy, painted, made straight and filtered for the
 PNG); it peaks in the overview. The grid stays whole (8 bytes a node, 39 MB there) for the walls'
 slope test, the railway's platforms, the paths' and buildings' heights and the cut, and so do the
-catchments (15 bytes a node of arrays the size of the grid, 73 MB there, beside the uncarved grid
-they fill, for a moment), the walls' bit sets (1 byte a cell each) and their trace, which are the
-parts that still grow with the area: 9 MB a tile on the 3x test region ([Test
-regions](#test-regions)).
+catchments (5 bytes a node beside the uncarved grid they fill: the owner, an `Int16`, the flood's
+marks, the D8 direction and the inflow count, a byte each, and the flood's heap; 15 bytes before
+issue #19), the walls' bit sets (1 byte a cell each) and their trace (a bit a crossing, not a map
+of every crossing), which are the parts that still grow with the area: 9 MB a tile on the 3x test
+region ([Test regions](#test-regions)). The spawns' clearance indexes are packed `Int32` buckets
+(`staticSegs`) and one trunk point index the walk and drive checks share (`staticPoints`), with no
+copy of the walls.
 
 ### 1. Sources (`osm.ts`, `ctr.ts`, `dbt.ts`, `nc5.ts`, `ctr-rail.ts`, `shp.ts`, `ucs.ts`, `crs.ts`)
 
 - **OSM**: one extract a part, `data/raw/osm/<part>.osm.gz` (`osmFile`; Lunigiana's `lucido.osm.gz`,
-  `fivizzano.osm.gz` and `fosdinovo.osm.gz`, and Cesena's `cesena.osm.gz`), written by `pnpm
-  fetch-osm <part>` (`--region cesena` for Cesena's one part; `src/tools/fetch-osm.ts`). It covers
-  the ground of the region's listed tiles in its box that the parts before it leave to it
+  `fivizzano.osm.gz`, `fosdinovo.osm.gz` and `aulla.osm.gz`, and Cesena's `cesena.osm.gz`), written
+  by `pnpm fetch-osm <part>` (`--region cesena` for Cesena's one part; `src/tools/fetch-osm.ts`). It
+  covers the ground of the region's listed tiles in its box that the parts before it leave to it
   (`partGround`): its own tiles, those no earlier part's are, cut to the box round it and the
   earlier parts, and the ground that box adds to the earlier parts' tiles, as rectangles of whole
   tiles (`tileRects`: a row's run of tiles, joined with the same columns' runs in the rows after
@@ -583,25 +746,37 @@ regions](#test-regions)).
   lucido's tiles, x −4000…−2900 and 4900…6000 by y −6100…4000 and x −2900…4900 by y 3900…4000; and
   Fosdinovo's is 3, 79.45 km²: its own tiles cut to the box (x −11500…−4000 by y −6100…2000 and x
   −11500…−6000 by y 2000…4000, as tile −3_1 is Fivizzano's) and the strip its box adds to
-  Fivizzano's tiles, x −6000…−5300 by y 2000…13000. Each rectangle plus 100 m is asked for in turn,
-  not the box round them (an L's notch would come too), whole and split in four wherever the `/map`
-  call answers HTTP 400 (over 50 000 nodes in a box), each quarter in turn, then every multipolygon
-  relation with a land-use, natural, building, leisure or amenity tag fetched whole
-  (`/relation/<id>/full`), because most of a forest's member ways lie outside the play area.
-  Elements are merged by id and written sorted: nodes, ways, then relations, each by numeric id. The
-  build reads every part's extract of its region (`osmFiles`, in `PARTS` order) and merges them by
-  id the same way (`readOsms`, `mergeOsm`): the earlier part's element wins where two hold one
-  (neighbouring parts overlap by the margin at least, and one fetched on another day may differ),
-  and each kind is ordered by numeric id, so the merge is what one fetch over every part would have
-  written, and a region of one part reads exactly as its file does (the maps built from the moved
-  `osm/lucido.osm.gz` and `osm/cesena.osm.gz` gunzip to the same bytes as from the single files
-  before, and `pnpm map-diff` finds no differences, 2026-11-04). A regex reader parses the XML into
-  nodes, ways and relations, and assembles multipolygon rings from member ways (unclosed chains are
-  dropped). It copies each tag's value out of the XML text: a match is a slice of the text, and one
-  kept name held it all (lucido's 37 MB, Cesena's 60 MB) until the map was written. OSM gives the
-  road network and its names, water, rail, land use, barriers, POIs and place names. `pnpm fetch-osm
-  pontremoli-town` writes OSM's buildings alone over that test region's part ([Test
-  regions](#test-regions)).
+  Fivizzano's tiles, x −6000…−5300 by y 2000…13000; and Aulla's is 4, 170.15 km²: its own tiles cut
+  to the box (x −22100…−12000 by y 2000…4000 and x −22100…−6000 by y 4000…13000, as column i −3 is
+  Fivizzano's) and the strip its box adds to Fosdinovo's tiles, x −12000…−11500 by y −6100…2000 and
+  2000…4000. Each rectangle plus 100 m is asked for in turn, not the box round them (an L's notch
+  would come too), whole and split in four wherever the `/map` call answers HTTP 400 (over 50 000
+  nodes in a box), each quarter in turn, then every multipolygon relation with a land-use, natural,
+  building, leisure or amenity tag fetched whole (`/relation/<id>/full`), because most of a forest's
+  member ways lie outside the play area. Elements are merged by id and written sorted: nodes, ways,
+  then relations, each by numeric id. The build reads every part's extract of its region
+  (`osmFiles`, in `PARTS` order) and merges them by id the same way (`readOsms`, `mergeOsm`): the
+  earlier part's element wins where two hold one (neighbouring parts overlap by the margin at least,
+  and one fetched on another day may differ), and each kind is ordered by numeric id, so the merge
+  is what one fetch over every part would have written, and a region of one part reads exactly as
+  its file does (the maps built from the moved `osm/lucido.osm.gz` and `osm/cesena.osm.gz` gunzip to
+  the same bytes as from the single files before, and `pnpm map-diff` finds no differences,
+  2026-11-04). A regex reader parses the XML into nodes, ways and relations, and assembles
+  multipolygon rings from member ways (unclosed chains are dropped). It copies each tag's value out
+  of the XML text: a match is a slice of the text, and one kept name held it all (lucido's 37 MB,
+  Cesena's 60 MB) until the map was written. OSM gives the road network and its names, water, rail,
+  land use, barriers, POIs and place names, and on the coast the coastline, the beaches, the piers
+  and the breakwaters ([section 3](#3-features-featurests)). `pnpm fetch-osm pontremoli-town` writes
+  OSM's buildings alone over that test region's part, and `pnpm fetch-osm magra-coast` the coast
+  test region's whole extract over its rectangle plus 100 m, one `/map` box ([Test
+  regions](#test-regions)). Its coastline (`natural=coastline`, the land on each way's left, OSM's
+  rule) is one chain of 9 ways, 1,240 points from west of Punta Bianca past the Magra's mouth, which
+  it closes across between the jetties' heads (ways 1379669802 and 1379669801), to the Tuscan beach
+  past the region's east edge, and 2 islets, Scoglio Muginara (441983432) and Scoglio Corvaccino
+  (441984060). Regione Liguria's own lines of the coast, both CC BY 4.0, are not used: its Linea di
+  costa (Geoportale id 1904, `M1904:L6248`) and the P.T.A.M.C.'s line of the shore (below, `L7173`)
+  stop at its sea border by the Parmignola, while OSM's runs on along the Tuscan beach, and the
+  P.T.A.M.C.'s leaves out the harbour works (its metadata).
 - **The surveys of the ground**: Regione Toscana's large-scale surveys, and Regione Liguria's NC5
   past Tuscany's border, give the buildings with their surveyed eave elevations, the road surfaces
   (Tuscany's with their street names), and the area each survey maps. Each source has an adapter
@@ -619,14 +794,21 @@ regions](#test-regions)).
     23D11–15 are the same files, read once), and Fosdinovo's 31 in `data/parts/fosdinovo.json`
     (22C05–07, 22C13, 22C14, 23C13, 23C15, 23C16, 23C22, 23C23, 23C31, 23C32, 23C37–40, 23C45,
     23C53–56, 23C61–63, 23D17, 23D18, 23D25, 23D33, 23D41, 23D42 and 23D49, the issue's candidates,
-    every one with mapped area in play; 23D18 is lucido's too). `crs.ts` converts their EPSG:6707
+    every one with mapped area in play; 23D18 is lucido's too), and Aulla's 75 in
+    `data/parts/aulla.json` (23B07, 23B08, 23B15, 23C01–08, 23C11–16, 23D01, 24B14, 24B31, 24B32,
+    24B39, 24B40, 24B47, 24B48, 24B55, 24B56, 24B63, 24B64, 24C15, 24C17, 24C19, 24C21–29, 24C31–34,
+    24C36–48, 24C50–58, 24C60–64, 24D25, 24D33 and 24D57: of the issue's 78 candidates, 24D09, 24D41
+    and 24D49 map no ground in its play area; 23C13, 23C15 and 23C16 are Fosdinovo's too, and 23D01,
+    24D25, 24D33 and 24D57 Fivizzano's). `crs.ts` converts their EPSG:6707
     (RDN2008 / UTM 32N) coordinates. Its layers: `AED` (the volumetric units, `Qt_grmax` the highest
     eave), `AGE` (garages and ruins, beside the rail's areas), `AVI` (road surfaces, 0101 asphalt
     and 0102 dirt, named by `Toponimo`) and `AZR` (the area each sheet maps). The 2019 sheets map
     the villages and the settled valley floors (Vinca, Tenerano, Ugliancaldo and the Solco quarries
     included): 11.1% of lucido's play area, 11.3% of Fivizzano's (16.42 of its 145.82 km², none of
-    Sillano Giuncugnano's) and 8.4% of Fosdinovo's (7.10 of its 84.98 km²: 11.2% of the comune of
-    Fosdinovo's, where the issue counted 14%, and none of Carrara's or Luni's); the mountains
+    Sillano Giuncugnano's), 8.4% of Fosdinovo's (7.10 of its 84.98 km²: 11.2% of the comune of
+    Fosdinovo's, where the issue counted 14%, and none of Carrara's or Luni's) and 21.9% of Aulla's
+    (31.53 of its 143.79 km²: 29.0% of the comune of Aulla's share of it, 36.3% of Licciana Nardi's
+    and 16.7% of Tresana's, where the issue counted 22% of Aulla and 38% of Tresana); the mountains
     between them are unmapped. A sheet with no garages or road
     surfaces has no `AGE` or `AVI` layer, and one that maps no building has no `AED`: 24E41, whose
     mapped area is a 0.16 km² square of Fivizzano's mountains (x 7751…8158, y 8612…9018), where the
@@ -826,8 +1008,16 @@ regions](#test-regions)).
   part, then 19 more (17 of 2010, then 2 of 2012) for the cells of its tiles past its rectangle,
   which the box Fivizzano grew holds: 85 in all. Fivizzano's lists 102 of 2010 (the last 11 for the
   strip x −6000…−5300 that Fosdinovo's box adds to its tiles), as lots 003 (2011), 005 and 010
-  (2006) give none of its cells first, and Fosdinovo's 32 of 2010, as lots 003 and 005 give none of
-  its cells first either (lucido's 2012 tiles already hold 1.77 km² of Carrara in its play area).
+  (2006) give none of its cells first, and Fosdinovo's 39 of 2010 (the last 7 for the strip
+  x −12000…−11500 that Aulla's box adds to its tiles), as lots 003 and 005 give none of its cells
+  first either (lucido's 2012 tiles already hold 1.77 km² of Carrara in its play area). Aulla's 145
+  list the flood's flight first (issue #19: the flood of 25 October 2011 moved the Magra's and the
+  Aulella's beds): 51 of lot 003 (2011, "CGR - AULLA (ALLUVIONE)", flown on 28 October 2011), then
+  9 of lot 014 (2012, "TEGLIA, OSCA, MANGIOLA") and 85 of lot 004 (2010), the order `pick-lidar
+  aulla --lots 003,014,004` kept them in; all three are Regione Toscana's, CC BY 4.0. Of the play
+  area lot 004 maps 58.3%, lot 003 37.9% and lot 014 3.8%, the earlier parts' tiles of 2010
+  counting first where they overlap (`pnpm coverage aulla`), and no cell of it is left without
+  LiDAR.
   `crs.ts` converts with the EPSG:1660 datum shift
   plus a residual of (−0.4, +0.5) m, fitted by matching the 2010 surface model to the 2019 CTR
   building outlines. The MATTM 2008 flight (lot 006) adds nothing here and is CC BY-SA, so it is not
@@ -900,13 +1090,36 @@ regions](#test-regions)).
      them 1.5–45 m tall, against 97.1% faded). Faded, the terrain is Liguria's DTM within 0.04 m at
      the median 1–2 km from the LiDAR and 0.00 m past 2 km, 0.87–0.94 m within 250 m of it ([Test
      regions](#test-regions)). On Lunigiana it fills 2.38 km² of Fosdinovo's tiles' cells in
-     Castelnuovo Magra and Luni, past the LiDAR and the 10 m DTM, 2.23 km² of them in play.
-  4. Past Tuscany, Regione Emilia-Romagna's DTM 5x5 (CC BY 4.0), its WCS's native 5 m grid in
+     Castelnuovo Magra and Luni, past the LiDAR and the 10 m DTM, 2.23 km² of them in play, and
+     1.51 km² of Aulla's in Liguria past its mask, none of them in play.
+  4. The sea (issue #13, `sea-fill.ts`), on a part whose own OSM extract holds a coastline, so no
+     cell of Lunigiana or Cesena: 0 m on the 1 m cells seaward of OSM's coastline (the build's
+     `seaAreas` over the crop's local box, [section 3](#3-features-featurests)), and on the cells
+     still empty that it reaches from there through empty cells (8-connected steps) within
+     `SEA_REACH`, 150 m. Liguria's DTM has no data over the sea, and on the magra-coast test region
+     it stops short of OSM's coastline by up to 60 m on the beaches and leaves the Magra's last
+     138 m between its jetties, which the coastline closes at their heads, empty as sea: the reach
+     takes the widest of those. An empty pocket inland the sea does not reach stays empty and
+     falls through to the next step (`sea-fill.test.ts`). Its bend fades over `SEA_FADE`, 50 m,
+     one step of the bend's lattice, so the land's height at the shore falls to the sea's 0 within
+     about that rather than lifting the sea round a cliff far out. It is the terrain's source code
+     5 (`SOURCES` in `terrain-sources.ts`): appended, though it fills before Emilia-Romagna's DTM,
+     so the codes 0–4 in the files written before keep their meaning. The build carves the sea's
+     nodes again, to the sea floor ([section
+     6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)).
+  5. Past Tuscany, Regione Emilia-Romagna's DTM 5x5 (CC BY 4.0), its WCS's native 5 m grid in
      EPSG:7791 over the box round the cells left. Issue #10 named TINITALY 1.1 (INGV, 10 m, CC BY
      4.0) here; Emilia-Romagna's survey is finer, under the same licence and already fetched for
      Cesena, and PR #2 had found TINITALY's valley floors 16–37 m off, so TINITALY is not used. On
      Lunigiana it fills only the cells of Fivizzano's tiles past the regional border by Cima
-     Belfiore (754,707 m²), which the part's mask leaves out of play.
+     Belfiore (754,707 m²), which the part's mask leaves out of play, and the slivers by the
+     Ligurian border that Liguria's DTM and Massa-Carrara's 10 m DTM both leave, out of play too:
+     10,126 m² of Aulla's tiles' cells, and 348 m² at (−12053, −3987), in the strip Aulla's box adds
+     to Fosdinovo's tiles. Its WCS answers outside
+     Emilia-Romagna too, with no no-data: 0 m over the sea, and over Liguria and Tuscany a smooth
+     surface of its own, so a cell the sources before leave empty anywhere takes it, and the
+     chain's error for a cell no source covers never fires there ([Known data
+     limitations](#known-data-limitations)).
 
   The bend: the residual (better − filler) on the better cells within 2 m of what the filler
   filled is fitted by a membrane on a 50 m lattice (least squares on its bilinear, harmonic where no
@@ -953,6 +1166,29 @@ regions](#test-regions)).
   (`pnpm coverage fosdinovo`). Each of the 70,855,349 cells the tile files held before keeps its
   height to the bit, and where Fosdinovo's cells meet them the terrain steps only as the
   ground does (the most, 1.97 m at (−4040, 1552), is a bank).
+
+  On Aulla's tiles' cells (`fetch-rt aulla`, 2026-11-16) the LiDAR leaves two holes, 1.52 km² in
+  all, the larger 1.41 km² centred at (−21845, 5799), 608 × 2,360 m: the two sheet frames of its
+  Ligurian west corner no flight covers, past its mask, where Massa-Carrara's 10 m DTM stops at the
+  border too. The surface model fills none of them (its elements 233153, 233154 and 248034 hold no
+  open ground there), Liguria's DTM 1,511,788 m², its whole metres smoothed in 95 sweeps, its
+  residual on the rim from −8.6 to +12.8 m and the bend's lattice within 9.6 m, and Emilia-Romagna's
+  DTM the 10,126 m² of slivers left, its residual from −1.4 to +14.1 m and the lattice within 1.8 m.
+  The play area is flown whole (`pnpm coverage aulla`). The strip x −12000…−11500 its box adds to
+  Fosdinovo's tiles (column i −6) takes the 7 lot-004 tiles Fosdinovo's manifest gained, but for a
+  348 m² hole under the surface model's element 248081 (added to the manifest), which
+  Emilia-Romagna's DTM fills, its residual from −3.0 to +0.6 m.
+
+  On the magra-coast test region's mosaic (`fetch-rt --region magra-coast`, 2026-11-16; [Test
+  regions](#test-regions)) Massa-Carrara's 10 m DTM fills 1,653,175 m², Carrara's wedge east of
+  the Parmignola; Liguria's DTM 11,988,641 m², its whole metres smoothed in 146 sweeps, bent onto
+  the 10 m DTM at a rim of 2,856 cells, its residual from −3.9 to +2.3 m; the sea 11,682,912 m²,
+  bent onto both at a rim of 13,413 cells, its residual from 0.0 to 12.2 m (the cliffs under
+  Montemarcello and Punta Bianca), the bend's lattice within 7.4 m after 40 iterations; and
+  Emilia-Romagna's DTM none. On its first run, with no 10 m DTM in the manifest and the sea's
+  reach 10 m, Emilia-Romagna's DTM filled 1,374,110 m²: 0 m over the sea, and over the shore
+  Liguria's DTM leaves empty and Carrara's wedge a smooth surface down to −71.8 m, which left a pit
+  38 m deep.
 - **Land cover**: Regione Toscana's "Uso e copertura del suolo" 1:10 000, 2019 (UCS, CC BY 4.0,
   0.5 ha minimum unit), from its WFS. OSM maps the woods and the quarries well but only about a
   fifth of the Apuans' bare rock and half their pastures, so `ucs.ts` adds the open covers: quarries
@@ -1000,8 +1236,39 @@ regions](#test-regions)).
   the vineyards were kept, it holds 8 natural basins (5121) and 2 of the Magra plain's quarries
   (131); `pnpm fetch-lig sarzana-town` brings the rest (a 2.6 km² box of the town held 4 olive
   groves, 2 vineyards and 2 vines mixed with olives on 2026-11-03). In the lower Val di Magra its
-  sand (331) is the coast's beaches, and the Magra's bed is a river bed (5111, with its channel),
-  which no kept class takes.
+  sand (331) is the coast's beaches, whose material Spiagge gives (below): a Liguria 331 polygon
+  that shares ground with a Spiagge polygon is dropped (`offBeaches` in `shore.ts`; the magra-coast
+  test region's 3: the beach strip from Fiumaretta to Marinella, 31907, 0.17 km² on Spiagge's
+  sand; Bocca di Magra's beach on the Magra's west bank, 31904, on Spiagge's pebbles and fill; and
+  a cove under Montemarcello by Punta Corvo, 22828, on Spiagge's pebbles), and one on no beach
+  stays a river's gravel. The Magra's bed is a river bed (5111, with its channel), which no kept
+  class takes.
+- **Liguria's beaches**: Regione Liguria's Spiagge (Geoportale id 1219, 2022, CC BY 4.0 in its ISO
+  metadata; its coast information system's, drawn with the Università di Genova's Dip.Ter.Is.),
+  photo-interpreted on AGEA's 2022 orthophoto, on WFS `M1219`, layer `L3118`, in EPSG:25832: each
+  polygon's physical character (`cod_caratt_fis`), 102 sand (spiaggia sabbiosa), 103 pebbles
+  (spiaggia ciottolosa), 104 rocky shore (battigia rocciosa), 106 fill (terrapieno: promenades,
+  boatyards), 301 and 302 a river's course. Of the 75 `natural=beach` in the magra-coast test
+  region's extract (72 polygons: 70 closed ways and 2 multipolygons; 3 more are nodes) OSM tags 25
+  with a `surface` (23 sand, 1 rocky, 1 unpaved), and it maps a beach on few of the coves and, of
+  the rocky shore under Montemarcello and Punta Bianca, only a 2,000 m² piece by Punta Bianca's tip
+  (way 176721000), so Spiagge gives the beaches' material and the shore OSM leaves out ([section
+  3](#3-features-featurests)).
+  There it holds 39 polygons: 26 rocky shore, 4 pebbles, 3 sand, 3 fill and 3 river courses.
+- **The sea floor**: Regione Liguria's P.T.A.M.C. - C01 Batimetrie (the Piano di Tutela
+  dell'Ambiente Marino e Costiero's, Geoportale id 2112, 2023, CC BY 4.0 in its ISO metadata), its
+  isobaths ("Isobatimetriche di dettaglio", WFS `M2112`, layer `L7174`, EPSG:25832): a line every
+  metre of depth, each its `VALUE` (m, negative under the sea) and a unique `ID1`, from the
+  multibeam surveys of 2010–2019 (a 1 m model of the floor from 1.5 to 30 m deep; its ambiti
+  16–18 approved by D.C.R. n. 2 of 21/02/2023). It stops at Liguria's sea
+  border by the Parmignola, so the Tuscan sea past it takes the shoreface profile ([section
+  6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)). On the magra-coast test
+  region it holds 2,004 lines (1,636 open, 368 rings), 28,658 points, 2–25 m deep; the build reads
+  the 192 of 50 m or more, 2–16 m deep.
+- **EMODnet, for constants only**: issue #13's reading of EMODnet's depth samples off Marinella, 13
+  m at 2.2 km and 17 m at 7.8 km from the shore line, ends the shoreface profile past the survey's
+  deepest lines; no EMODnet data is fetched or shipped, so it is not credited. Its nearer samples
+  are not used: 1 m at 450 m and 8 m at 1.1 km, where the survey reads 6.4 and 9.7 m.
 - **Forest inventory, for constants only**: Regione Toscana's Inventario Forestale (IFT, WFS
   `ms:rt_ucs.idift.rt.all` on `map=wmsucs`, 400 m cells with each sample point's species
   `SPECFOR_1`, `QUOTA` and `ESPOSIZ`) has no licence record (its capabilities say only
@@ -1024,7 +1291,11 @@ regions](#test-regions)).
   AGEA, licenza d'uso concessa a Regione Toscana"; Regione Liguria's copy, Geoportale id 2555, WMS
   `M2555` layer `L10401`, 0.20 m, names AGEA its owner and no licence, only "Nessuna condizione
   applicabile", so it is looked at, never traced), read by eye to settle Gragnola's track layout
-  ([section 4](#4-the-rail-on-the-ctr)); RFI's station pages (rfi.it/it/stazioni: Gragnola,
+  ([section 4](#4-the-rail-on-the-ctr)); Regione Liguria's 2019 one (id 2248) names no licence
+  either, and the coast's colours come from neither: the sand's, the sea's and the foam's are
+  measured on Regione Toscana's own 2023 and 2024/25 flights (`rt_ofc.5k23`, `rt_ofc.5k24`, CC BY
+  4.0), which reach 300 m into Liguria at Marinella, as the woods' are on the 2023 one (`PALETTE`
+  in `src/render/palette.ts`); RFI's station pages (rfi.it/it/stazioni: Gragnola,
   Monzone-Monte dei Bianchi-Isolano, Equi Terme), read for the tracks in use and that no platform
   on the line is raised to 55 cm (the platforms' height,
   [section 9](#9-the-railway-railwayts-platformsts-rail-clearts)).
@@ -1074,13 +1345,13 @@ build reads the region's listed tiles' files (`loadDtm`), and throws, naming the
 missing or leaves a cell empty that the region's box needs: a part grew the box, and the fetch of
 the part that tile belongs to has not run since. A test region builds on the files there are
 instead, a cell none holds drawn on from the edge (`drawEdgesOn`; `dtm.test.ts` checks both).
-Lunigiana's 102 files hold 63.6 MB (2026-11-07; its 79 held 48.9 MB before Fosdinovo's part). It
-holds the mosaic in 1 m cells of float decimetres, so a LiDAR cell keeps its whole decimetre and a
-2 m mean of four LiDAR cells is what it was before the chain. A test region with terrain of its own
-writes one mosaic over its rectangles plus 32 m instead: `dtm.bin` (the heights, int16 decimetres,
-each row delta-coded, deflated), `dtm-src.bin` (each cell's source, deflated) and `dtm.json` (the
-cells and the sources' names). With `--region bagnone-ridge` it writes that test region's terrain
-alone ([Test regions](#test-regions)) from `data/parts/sillara.json` into
+Lunigiana's 153 files hold 93.7 MB (2026-11-18; its 102 held 63.6 MB before Aulla's part, its 79
+48.9 MB before Fosdinovo's). It holds the mosaic in 1 m cells of float decimetres, so a LiDAR cell
+keeps its whole decimetre and a 2 m mean of four LiDAR cells is what it was before the chain. A test
+region with terrain of its own writes one mosaic over its rectangles plus 32 m instead: `dtm.bin`
+(the heights, int16 decimetres, each row delta-coded, deflated), `dtm-src.bin` (each cell's source,
+deflated) and `dtm.json` (the cells and the sources' names). With `--region bagnone-ridge` it writes
+that test region's terrain alone ([Test regions](#test-regions)) from `data/parts/sillara.json` into
 `data/raw/rt/bagnone-ridge/`, and with `--region pontremoli-town` that test region's surveys alone,
 from its manifest into `data/raw/rt/pontremoli-town/` (`surveyDir` in `region.ts`), then stops with
 no terrain or land cover; it refuses a test region with nothing of its own and a stage for one with
@@ -1091,39 +1362,51 @@ something of its own (`fetch-rt.test.ts`). From the archive cache lucido took 22
 and Fivizzano's first fetch, with its downloads, 232 s and 3.51 GB, again from the cache 85 s. On
 2026-11-07, with their downloads, Fivizzano's again, for the strip x −6000…−5300 that Fosdinovo's
 box adds to its tiles i −3, took 235 s and 2.38 GB and added 2,035,920 cells to those 6 files
-(192,953 in −3_6 to 369,220 in −3_2 and −3_4), and Fosdinovo's first 115 s and 2.02 GB, writing
-its 23 tiles' files (71,253 cells in −6_−4 to 1,093,070 in −3_−3; −3_1 is Fivizzano's, already
-whole). It writes the kept land-cover polygons, in EPSG:3003 to the decimetre, to
-`data/raw/rt/ucs/<part>.json.gz` (`crs.ts` has the inverse transform; lucido's 1,671 polygons,
-Fivizzano's 3,709, Fosdinovo's 2,381), over the part's terrain, keeping by id the polygons the file
-already holds, so a later fetch only adds; the WFS box is padded by 500 m, because the server's box
-filter sometimes drops features near its edge. `pnpm fetch-rt ctr` fetches the surveys alone (the
-2019 sheets took 28 s with their downloads; 2.23 s and 128 MB from the cache with the 2009 sheets
-and their ruins, 2026-11-03), leaving the LiDAR and the land cover, which comes from a live service
-and would move the map, as they are; `pnpm fetch-rt ucs` fetches the land cover alone (on 2026-10-31
-the service gave the 425 pinned polygons of the five open covers back byte for byte, and 83 of codes
-331 and 512 besides; on 2026-11-03 the 508 pinned then, and 540 woods besides: 478 broadleaf, 24
-conifer and 38 mixed, which took the file from 208 KB to 649 KB; on 2026-11-07, with the olive
-groves and vineyards kept, `pnpm fetch-rt lucido ucs` added lucido's 192 olive groves and 183
-vineyards in 4.3 s, taking its file from 773 KB to 840 KB, and `pnpm fetch-rt fivizzano ucs`
-Fivizzano's 490 and 441 in 8.0 s, 1.74 MB to 1.90 MB, every polygon of the other classes as pinned;
-and Fivizzano's fetch for Fosdinovo's grown box added 300 polygons, all of them in the strip, taking
-its file to 2.04 MB). A file whose unpacked bytes equal the new ones is not rewritten, so another
-zlib never churns a pinned file, and a cached `.zip`'s folder that lacks a file the archive lists is
-extracted again, the archive downloaded again if it went too (`fetchZip` in `rt-cache.ts`): macOS
-purges the temporary directory's files one by one and keeps its folders, and a 10 m DTM's folder
-kept its licence and lost its grid, which `fetch-rt` then did not find. Requests name only the
-project in their `User-Agent`.
+(192,953 in −3_6 to 369,220 in −3_2 and −3_4), and Fosdinovo's first 115 s and 2.02 GB, writing its
+23 tiles' files (71,253 cells in −6_−4 to 1,093,070 in −3_−3; −3_1 is Fivizzano's, already whole).
+On 2026-11-16 Fosdinovo's again, for the strip x −12000…−11500 that Aulla's box adds to its tiles i
+−6, added 1,343,641 cells to those 6 files (25,943 in −6_−4 to 264,426 in −6_−3) in 6 min 35 s with
+its downloads, and Aulla's first wrote its 51 tiles' files (46,371 cells in −12_6 to 1,089,936 in
+−4_2) and added nothing to Fivizzano's column i −3, in 1 min 45 s. It writes the kept land-cover
+polygons, in EPSG:3003 to the decimetre, to `data/raw/rt/ucs/<part>.json.gz` (`crs.ts` has the
+inverse transform; lucido's 1,671 polygons, Fivizzano's 3,709, Fosdinovo's 2,411 (2,381 before its
+fetch for Aulla's grown box added 30, in the strip) and Aulla's 4,912), over the part's terrain,
+keeping by id the polygons the file already holds, so a later fetch only adds; the WFS box is padded
+by 500 m, because the server's box filter sometimes drops features near its edge. `pnpm fetch-rt
+ctr` fetches the surveys alone (the 2019 sheets took 28 s with their downloads; 2.23 s and 128 MB
+from the cache with the 2009 sheets and their ruins, 2026-11-03), leaving the LiDAR and the land
+cover, which comes from a live service and would move the map, as they are; `pnpm fetch-rt ucs`
+fetches the land cover alone (on 2026-10-31 the service gave the 425 pinned polygons of the five
+open covers back byte for byte, and 83 of codes 331 and 512 besides; on 2026-11-03 the 508 pinned
+then, and 540 woods besides: 478 broadleaf, 24 conifer and 38 mixed, which took the file from 208 KB
+to 649 KB; on 2026-11-07, with the olive groves and vineyards kept, `pnpm fetch-rt lucido ucs` added
+lucido's 192 olive groves and 183 vineyards in 4.3 s, taking its file from 773 KB to 840 KB, and
+`pnpm fetch-rt fivizzano ucs` Fivizzano's 490 and 441 in 8.0 s, 1.74 MB to 1.90 MB, every polygon of
+the other classes as pinned; and Fivizzano's fetch for Fosdinovo's grown box added 300 polygons, all
+of them in the strip, taking its file to 2.04 MB). A file whose unpacked bytes equal the new ones is
+not rewritten, so another zlib never churns a pinned file, and a cached `.zip`'s folder that lacks a
+file the archive lists is extracted again, the archive downloaded again if it went too (`fetchZip`
+in `rt-cache.ts`): macOS purges the temporary directory's files one by one and keeps its folders,
+and a 10 m DTM's folder kept its licence and lost its grid, which `fetch-rt` then did not find.
+Requests name only the project in their `User-Agent`.
 
 `pnpm fetch-lig <part>` (`src/tools/fetch-lig.ts`, the services in `liguria.ts`) downloads Regione
 Liguria's sources over a part's rectangles from the Geoportale's GeoServer into
-`data/raw/lig/<part>/` (`ligDir` in `region.ts`): the NC5's four layers, the DTM's crops and the land
-use, above. Its conversions are `liguria.ts`'s (`nc5File`, `clippedRings`, `udsPolygons`), and its
+`data/raw/lig/<part>/` (`ligDir` in `region.ts`): the NC5's four layers, the DTM's crops, the land
+use, the beaches (`spiagge.json.gz`: the polygons whose bounding boxes meet the part's box, in the
+land use's shape, each its `ogr_fid`, its physical character's code and its rings on decimetres,
+no other attribute, as the build reads none) and the sea floor's isobaths (`isobaths.json.gz`:
+the lines whose bounding boxes meet the part's box grown by 1,500 m, `REACH` in `sea-floor.ts`,
+so a node by the part's edge reads the contours round it as a bigger region's would, each its
+`ID1`, its depth in metres under the sea and its points on decimetres; empty inland, as every
+part's fetch writes one), above. Its conversions are `liguria.ts`'s (`nc5File`, `clippedRings`,
+`udsPolygons`, `spiaggePolygons`, `isobathLines`), and its
 files go through `writeRaw` in `raw-lock.ts`, as `fetch-rt`'s do. The WFS's box filter matches a feature's bounding box (a superset of the features that
 meet the box), a page holds at most 5,000 features whatever count is asked, and a page asked without
 a `startIndex` comes back unsorted, in an order that changes from call to call: so `fetchWfs` asks
 the count first (`resultType=hits`), then each page from its `startIndex`, sorted by a unique field
-(`ogr_fid`, or the land use's `ID_RLIG`), and refuses unless the pages hold that many features, each
+(`ogr_fid`, the land use's `ID_RLIG` or the isobaths' `ID1`), and refuses unless the pages hold
+that many features, each
 once, in order. The issue's pages repeating without `sortBy` did not reproduce: round Sarzana on
 2026-11-03, 25,513 buildings came back 25,513 unique either way while every page named its
 `startIndex`. The box is the part's EPSG:25832 box, on whole metres outward; the land use's is a CQL
@@ -1148,7 +1431,14 @@ them, wrote the same 13 files in 3.5 s (890,274 B: the NC5's four 539,768 B, the
 348,116 B, the land use 2,390 B). For `fosdinovo` on 2026-11-07 it wrote 15 files in 18.5 s
 (553,704 B): the NC5's four (109,225 B), 10 DTM crops (406,823 B: the tiles i −6…−3 of j −4 and −3,
 and −6_−2 and −6_−1; the other tiles round its crop lie past the coverage or hold no data) and the
-land use's 61 polygons (37,656 B).
+land use's 61 polygons (37,656 B). For `aulla` on 2026-11-16, for its Ligurian west corner past
+its mask, it wrote 22 files (1,252,290 B): the NC5's four (160,861 B), 17 DTM crops (1,017,759 B:
+the tiles −12_1…−8_1, −12_2…−8_2, −12_3…−11_3, −12_4…−11_4, −12_5…−11_5 and −12_6) and the land
+use's 81 polygons (73,670 B); that run came before the coast's isobaths (#13), so its folder holds
+no `isobaths.json.gz`. For `magra-coast` (2026-11-16, the isobaths 2026-11-17, every
+other file byte-identical on the second run) it wrote 17 files, 889,920 B: the NC5's four
+(381,807 B), 10 DTM crops (285,357 B), the land use's 66 polygons (53,885 B), Spiagge's 39
+(10,771 B) and 2,004 isobaths (158,100 B, asked over E 574983…584042, N 4873787…4880859).
 
 ### 2. Projection and play area (`geometry.ts`, `play-area.ts`)
 
@@ -1158,8 +1448,8 @@ union of the region's parts, or to the built terrain, the box round them.
 Equirectangular around `ORIGIN` (lat 44.16175, lon 10.13; defined in `src/sim/map/kinds.ts` and
 written into the map file as `MAP.origin`, which the sky reads through `place()`), with
 `M_PER_DEG` = 111115.37 m per degree of latitude and 79987.94 m per degree of longitude. x = east,
-y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`PARTS` in
-`region.ts`, for `fetch-rt` and the part tools: [Adding a part](#adding-a-part)), 308.8 km²:
+y = north, in metres, rounded to 0.1 m. Lunigiana's play area is four parts (`PARTS` in
+`region.ts`, for `fetch-rt` and the part tools: [Adding a part](#adding-a-part)), 452.6 km²:
 
 - **`lucido`**, the rectangle x −2900…4900 m, y −6100…3900 m (7.8 × 10 km; lat 44.1069–44.1968, lon
   10.0937–10.1913): the whole catchment of the Lucido, ridge to ridge, from its mouth in the Aulella
@@ -1206,29 +1496,49 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
   landed (the user's choice). Of its 84.98 km² Fosdinovo holds 44.68, Fivizzano 20.02, Aulla 8.84,
   Carrara 6.31, Castelnuovo Magra 3.48, Sarzana 1.00 and Luni 0.65; the rectangle holds 86.0, and
   the issue's mask would have played 83.98.
+- **`aulla`** ("Aulla and the Magra–Aulella–Taverone confluence", issue #19), west of Fivizzano's
+  part and north of Fosdinovo's, 143.80 km² (lat 44.1968–44.2787, lon 9.8537–10.0637): the
+  rectangle x −22100…−5300, y 3900…13000 (16.8 × 9.1 km, 152.88 km²: Aulla, rebuilt after the
+  flood of 25 October 2011, under the Fortezza della Brunella, where the Aulella and the Taverone
+  meet the Magra, and Aulla Lunigiana station, where the Lucca–Aulla line ends and the Pontremolese
+  passes; west of the Magra Podenzana, Terrarossa, Barbarasco, Tresana, Villa, Giovagallo and
+  Lusuolo; on the Licciana side Licciana Nardi, Monti, Pontebosio, Bastia and Bigliolo; down the
+  Aulella Serricciolo and Olivola; the A15 della Cisa's two carriageways over the Magra's viaducts
+  and through the Calcinara and Barbarasco tunnels, the SS62, the SS63 and the SS665; and on the
+  Ligurian border Passo Alpicella and Monte Borra Grande) less Liguria's 9.08 km² in its west
+  corner. Its mask, a ring of 178 vertices on 0.1 m, is the rectangle less Bolano, Calice al
+  Cornoviglio and a sliver of Follo: Regione Toscana's border as those comuni's OSM boundaries draw
+  it (`admin_level` 8 relations Bolano 42917, Calice al Cornoviglio 42939 and Follo 42908, fetched
+  from the OSM API on 2026-11-16), simplified to 5 m; #20 brings the Liguria data. Of its
+  143.80 km² Tresana holds 44.04, Aulla 31.37, Licciana Nardi 25.62, Podenzana 15.61, Villafranca
+  in Lunigiana 12.00, Fivizzano 6.72, Mulazzo 5.75 and Bagnone 2.69 (`pnpm coverage aulla`, on
+  10 m cells).
 
 - **The play area** is the union of the region's parts, each its mask or else its rectangles.
-  `play-area.ts` works out its outline (`OUTLINE`, written into the global file as `outline`):
-  every piece edge is cut where another piece's edge crosses or ends on it, a cut piece is outline
-  where the union holds the point just left of its middle and not the point just right, and the
-  pieces, rounded to 0.1 m, chain into rings (outer counter-clockwise, holes clockwise, collinear
-  runs merged, each from its lowest (y, x) vertex). A chain turns as far left as it can, so no ring
+  `play-area.ts` works out its outline (`OUTLINE`, written into the global file as `outline`): every
+  piece edge is cut where another piece's edge crosses or ends on it, a cut piece is outline where
+  the union holds the point just left of its middle and not the point just right, and the pieces,
+  rounded to 0.1 m, chain into rings (outer counter-clockwise, holes clockwise, collinear runs
+  merged, each from its lowest (y, x) vertex). A chain turns as far left as it can, so no ring
   crosses itself, and is cut at every vertex it passes twice, so two outer rings touching at a
   corner, or a hole touching the outer ring or another hole, stay separate rings. Lunigiana's
-  outline is one ring of 59 vertices from Fosdinovo's south-west corner (−11500, −6100), its seams
-  inside it: lucido's with Fivizzano (y 3900 for x −2900…4900, x 4900 for y −900…3900) and with
-  Fosdinovo (x −2900 for y −5324.9…3900), and Fosdinovo's with Fivizzano (y 3900 for x
-  −5300…−2900); south of y −5324.9 lucido's west side is outline, along Carrara's cut. Cesena's is
-  its square, south, east, north, west. Only + − × ÷ and square roots go into it, so every
+  outline is one ring of 233 vertices (59 before Aulla's part) from Fosdinovo's south-west corner
+  (−11500, −6100), its seams inside it: lucido's with Fivizzano (y 3900 for x −2900…4900, x 4900 for
+  y −900…3900) and with Fosdinovo (x −2900 for y −5324.9…3900), Fosdinovo's with Fivizzano (y 3900
+  for x −5300…−2900) and with Aulla (y 3900 for x −11500…−5300), and Aulla's with Fivizzano (x −5300
+  for y 3900…13000); south of y −5324.9 lucido's west side is outline, along Carrara's cut. Cesena's
+  is its square, south, east, north, west. Only + − × ÷ and square roots go into it, so every
   architecture builds the same.
 - **The built terrain** is the box round every part's rectangles, `BOUNDS` (`REGION.bounds`,
   written as `bounds`): the heightmap's extent. On Cesena it is the play area; on Lunigiana it is x
-  −11500…10600 by y −6100…13000 (22.1 × 19.1 km, 132 tiles), and the play area leaves out the land
-  north-west of Fosdinovo's part (x −11500…−5300 north of y 3900), the land east of lucido south of
-  y 3900 (but Fivizzano's leg and its rectangle by Pieve San Lorenzo), Carrara's corner south of
-  Fosdinovo's mask, the strips past x 10100 (but Magliano's rectangle) and Emilia's corner; 30 of
-  the tiles hold none of it and are unlisted, in two notches: i −6…−4 for j 2…6, and i 3…5 for
-  j −4…0 ([Map files](#map-files)).
+  −22100…10600 by y −6100…13000 (32.7 × 19.1 km, 198 tiles), and the play area leaves out the land
+  west of Fosdinovo's part (x −22100…−11500 south of y 3900), Liguria's corner west of Aulla's mask,
+  the land east of lucido south of y 3900 (but Fivizzano's leg and its rectangle by Pieve San
+  Lorenzo), Carrara's corner south of Fosdinovo's mask, the strips past x 10100 (but Magliano's
+  rectangle) and Emilia's corner; 45 of the tiles hold none of it and are unlisted, in two
+  notches: i −12…−7 for j −4…0, and i 3…5 for j −4…0 ([Map files](#map-files)). Before Aulla's
+  part it was x −11500…10600 (132 tiles, 30 unlisted), and its north-west notch, x −11500…−5300
+  north of y 3900, is Aulla's now.
 - **Lines** (roads, water, rail, barriers and the CTR's tracks) are clipped to the play area
   (`clipToPlay`): each segment is cut where it crosses the outline and each stretch kept by its
   middle. Original vertices keep their OSM ids and cut points have none, which is how the
@@ -1282,8 +1592,14 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
   secondary SP52 di Magliano and SP67. Fosdinovo adds the SP72 from Caniparola up through Fosdinovo
   and over Foce del Cucco toward Aulla (`primary`, 43 pieces, 17.7 km), the SP73 from Fosdinovo
   down to Castelpoggio and out toward Gragnana (14 `primary` pieces, then 7 `secondary`), the SP57
-  by Ponzanello (14, `secondary`) and the SP9 west from Foce del Cucco (11, `secondary`):
-  Lunigiana holds 193 primary and 55 secondary pieces. A
+  by Ponzanello (14, `secondary`) and the SP9 west from Foce del Cucco (11, `secondary`). Aulla adds
+  the first motorway, the A15 della Cisa, two oneway carriageways down the Magra (`motorway`, 64
+  pieces and 21.0 km in all, 28 of the pieces bridges and 4 tunnels, the Galleria Calcinara's and
+  the Galleria Barbarasco's twin bores) with the Aulla junction's ramps, the SS62 della Cisa up the
+  Magra through Aulla, Terrarossa and Barbarasco (59 pieces), the SS 665 Massese up the Taverone
+  through Licciana Nardi (51) and the SS63 on from Soliera to Aulla (137 pieces in all):
+  Lunigiana holds 64 motorway, 401 primary and 86 secondary pieces (193 primary and 55 secondary
+  before Aulla's part). A
   highway way tagged `area=yes` is a square, not a road (a pedestrian square becomes a `paved`
   area). A highway way tagged `railway=platform` is a platform OSM drew as a line (Pieve San
   Lorenzo's two footways along its edge, ways 1442184593 and 1442184594), not a path beside the
@@ -1340,30 +1656,39 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
     4 of Via Emilia Levante's addresses past the east edge, and its 22950290 to Viale Guglielmo
     Marconi's 25, not Via Galileo Galilei's 4. Addresses name 24 ways on Lunigiana (26 before the
     rule) and 244 on Cesena (248).
-- **Water**: every `waterway` except culverts (a stream crossing a road at grade dips under it,
+- **Water**: every watercourse (`waterway` river, stream, canal, ditch or drain: `WATERCOURSES`)
+  except culverts (a stream crossing a road at grade dips under it,
   [section 8](#8-water-under-decks-waterts)), but for a culvert under a CTR rail bridge (`AFE`
   `Sede` 063), which runs in the open under its span (`openCulvert` in `build-sources.ts`): OSM
   maps the Canale di Campiglia's pass under the line by Gassano as a culvert (way 865496237), under
   the CTR's 6.7 m bridge, its channel open under the span on the 2010 and 2023 orthophotos; dropped,
   its two ends dug the bank beside the bridge and left 1.0 m of track over the ground. Two more stay
   on lucido: the Canale della Selva's under the 22 m bridge south of Gragnola and a stream's under
-  the 114 m bridge by Equi Terme. Each water way has a water width, a gravel-bed half-width and a
-  depth, measured on the 2010 orthophoto:
+  the 114 m bridge by Equi Terme. A weir's or a dam's way is its crest across the river, which no
+  water runs along, so it is left out (since issue #19): carved as a 2 m stream it cut a channel
+  along the crest and burned it into the catchments, the weir 1161664525 across the Taverone
+  stepping 0.3 m back up at its middle and Fivizzano's dam 172651758 running 24 m along its crest
+  6.2 m down into the gorge and 1.8 m back up; leaving them and 1109597178 out raises 496 nodes, by
+  up to 6.4 m, in x −12240…60, and the headrace 1109597179 now starts at its own ground, not 6.4 m
+  under it. Each water way has a water width, a gravel-bed half-width and a depth, measured on the
+  2010 orthophoto (`waterSize` in `water-sizes.ts`, which holds the thresholds below):
 
   | Water | Width | Bed half-width | Depth |
   |---|---|---|---|
-  | Torrente Aulella, ways averaging under 288 m of ground (`AULELLA_VALLEY_BELOW`), from the west edge at Soliera up to Casola (x −5300…3402): a 25–35 m gravel bed at Gragnola, a wooded 10 m channel at Codiponte; Torrente Bardine, ways averaging under 85 m (`BARDINE_VALLEY_BELOW`), from the Fosso del Lombardello's mouth by Bardine to Fosdinovo's north edge (x −9482…−10572): an 18–47 m gravel bed, median 27 m, its water 4–18 m, median 10 | 12 m | 13 m | 2.5 m |
+  | Torrente Aulella, ways averaging under 288 m of ground (`AULELLA_VALLEY_BELOW`), from its mouth in the Magra at Aulla up to Casola (x −13221…3402): a 25–35 m gravel bed at Gragnola, a wooded 10 m channel at Codiponte, and from Fivizzano's west edge to x −8164, where the OSM river polygon draws its bed, 8–21 m of water (median 11) in a 15–45 m bed (median 30); Torrente Bardine, ways averaging under 85 m (`BARDINE_VALLEY_BELOW`), from the Fosso del Lombardello's mouth by Bardine to Fosdinovo's north edge (x −9482…−10572): an 18–47 m gravel bed, median 27 m, its water 4–18 m, median 10 | 12 m | 13 m | 2.5 m |
+  | Fiume Magra, its whole course on the map (issue #19): 18–37 m of water (median 25) on both flights from Barbarasco to below the Aulella's mouth, in a gravel bed of 29–282 m that the OSM river polygon draws and carves, so its line takes the water alone | 25 m | 13.5 m | 2.5 m |
   | Torrente Lucido, river part (Monzone to Gragnola) | 14 m | 11 m | 2.5 m |
-  | Torrente Rosaro, river part (Fivizzano to its mouth in the Aulella at Soliera): a 10–28 m gravel bed, median 13–15 m, its water 2–8 m; Torrente Bardine from the Bardinello's mouth to the Lombardello's (ways averaging 85–145 m, `BARDINE_BED_BELOW`, x −5366…−9482) and Torrente Bardinello below the Pesciola's mouth (under 154 m, `BARDINELLO_BED_BELOW`): a 6–32 m gravel bed, median 15 m, its water 2.5–12 m, median 5, upper quartile 7 | 7 m | 7 m | 2.5 m |
+  | Torrente Rosaro, river part (Fivizzano to its mouth in the Aulella at Soliera): a 10–28 m gravel bed, median 13–15 m, its water 2–8 m; Torrente Bardine from the Bardinello's mouth to the Lombardello's (ways averaging 85–145 m, `BARDINE_BED_BELOW`, x −5366…−9482) and Torrente Bardinello below the Pesciola's mouth (under 154 m, `BARDINELLO_BED_BELOW`): a 6–32 m gravel bed, median 15 m, its water 2.5–12 m, median 5, upper quartile 7; Torrente Taverone, from the map's north edge to the Magra (issue #19): a 6–55 m gravel bed, median 17 m, its water 4–10 m, median 5; its top 1.5 km, a wooded 6–11 m rocky bed above (−12205, 7165), is of its one way 700556145 and takes its class | 7 m | 7 m | 2.5 m |
+  | Torrente Osca below 110 m (`OSCA_FAN_BELOW`) and Torrente Penolo below 93 m (`PENOLO_FAN_BELOW`), on their open fans to the Magra (issue #19): 8–47 m of gravel (median 28–32) round little water, the Osca's 2.5–4.5 m, the Penolo's dry on both flights but at the head of its fan, where the 2010 one shows a 12 m pool and a 7–14 m channel at (−15329, 8657) and (−15226, 8552): a named stream's water in the valley bed's gravel (`fan`) | 4 m | 13 m | 1.5 m |
   | Torrente Lucido (Vinca branch) and Torrente Caldanella (from Equi), ways averaging under 500 m of ground | 8 m | 5 m | 1.5 m |
-  | the wooded torrents of 9–49 km²: the Aulella's gorge above the Tassonaro's mouth (ways averaging 288–350 m, `AULELLA_GORGE_BELOW`, x 3402…4099), the Rosaro's streams above Fivizzano, the Torrente Mommio below 775 m (`MOMMIO_GORGE_BELOW`, from the Rosaro to x 6786), the Torrente Bardinello from the Canale Caldia's mouth to the Pesciola's (154–267 m, `BARDINELLO_GORGE_BELOW`, x −3655…−5402) and the Torrente Pesciola for its whole course (its 21 ways, 797860953 down to 797861233 at the Bardinello's mouth, x −6598…−5402, draining 8.9–18.0 km²) | 6 m | 4 m | 1.5 m |
-  | other named streams, the Lucido above Vinca, the Aulella and the Mommio above their gorges, the Bardine above the Bardinello's mouth and the Bardinello above the Canale Caldia's | 4 m | 3 m | 1 m |
+  | the wooded torrents of 9–49 km²: the Aulella's gorge above the Tassonaro's mouth (ways averaging 288–350 m, `AULELLA_GORGE_BELOW`, x 3402…4099), the Rosaro's streams above Fivizzano, the Torrente Mommio below 775 m (`MOMMIO_GORGE_BELOW`, from the Rosaro to x 6786), the Torrente Bardinello from the Canale Caldia's mouth to the Pesciola's (154–267 m, `BARDINELLO_GORGE_BELOW`, x −3655…−5402) and the Torrente Pesciola for its whole course (its 21 ways, 797860953 down to 797861233 at the Bardinello's mouth, x −6598…−5402, draining 8.9–18.0 km²); the Torrente Osca from its fan up to 261 m (`OSCA_GORGE_BELOW`), below the Canale di Borra Grande's mouth, and the Torrente Penolo up to 202 m (`PENOLO_GORGE_BELOW`), where its LiDAR floor narrows to a headwater's | 6 m | 4 m | 1.5 m |
+  | other named streams, the Lucido above Vinca, the Aulella and the Mommio above their gorges, the Bardine above the Bardinello's mouth, the Bardinello above the Canale Caldia's, and the Osca and the Penolo above their woods | 4 m | 3 m | 1 m |
   | unnamed streams | 2 m | 3 m | 1 m |
 
   A way's class comes from its mean LiDAR ground over its vertices (over each piece's, where the
-  play area's outline cuts it: of the ways sized by their ground, only the Aulella's last,
-  172808472, which leaves the play area at Fivizzano's west edge, and the Bardine's, 790365369,
-  which leaves it at Fosdinovo's north edge, both in the 12 m class either way), so water is
+  play area's outline cuts it: before Aulla's part, of the ways sized by their ground, only the
+  Aulella's 172808472, cut at Fivizzano's west edge, and the Bardine's 790365369, cut at
+  Fosdinovo's north edge, both in the 12 m class either way; both edges are seams now), so water is
   extracted once the terrain is loaded. The Vinca branch shows 6–11 m of open marble gravel below
   250 m and 4–6 m up to 400 m; from 500 m its bed is under closed canopy. Its way from the source
   under the Garnerone down to Vinca (mean 826 m) is a beech-wood gully with 3–6 m windows of bed,
@@ -1392,8 +1717,20 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
   797860907 (268.9 m, 7.0 km²). On the 2010 flight the Bardinello's wooded reach is under closed
   canopy at 9 of 14 sections, its gaps showing 3–9 m of bed over a LiDAR floor of 7 m. The 2023
   orthophoto shows the Bardine narrower than the 2010 one, its bars grown over: 6–10 m of water in
-  a 6–25 m bed below Bardine, 3–8 m in a 5–12 m one above. Other rivers would be 2.5 m deep with
-  the stream widths.
+  a 6–25 m bed below Bardine, 3–8 m in a 5–12 m one above. The Osca's and the Penolo's classes part
+  at their tributaries' mouths too (issue #19): the Osca's 110 m between 789355086 (110.9 m), its
+  last in closed woods, and 789355090 (109.0 m), its first below an unnamed stream's mouth (node
+  7380642386), where its bed opens; its 261 m between 789355149 (253.5 m), its first below the
+  Canale di Borra Grande's mouth (node 7380643617), which takes it from 4.9 to 7.4 km² and widens
+  its LiDAR floor from a headwater's 6.5 m to 16–17 m, and 789355154 (269.3 m); the Penolo's 93 m
+  between 789354987 (89.6 m), its first below the Canale della Zoppa's mouth (node 7380640243,
+  12.9 km²), where its gravel opens, and 789355011 (95.8 m), its last in a 5–9 m rocky bed; its
+  202 m between 789354799 (199.3 m), its first below an unnamed stream's mouth (node 7380637631,
+  8.3 km²), where its LiDAR floor widens from a headwater's 4–6 m to 7–10 m, and 789354800 (204.3
+  m, 7.7 km²). The lower Aulella keeps the valley class down to Aulla. The widths moved 42,306 of
+  Lunigiana's terrain nodes lower (RMS 2.0 m, at most 26.3 m at a cliff on the Taverone), took 1,185
+  trees off the banks and changed 2,599 land-cover cells, 4 path vertices (2.2–5.1 m lower) and 5
+  buildings' bases (0.1–1.5 m lower). Other rivers would be 2.5 m deep with the stream widths.
 - **Rail**: `railway=rail` (the Lucca–Aulla line), with bridges and tunnels, moved onto the
   CTR's tracks next ([section 4](#4-the-rail-on-the-ctr)).
 - **A line's vertices** (roads, water, rail, barriers; `lineVertices`): of two nodes in a row that
@@ -1529,7 +1866,16 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
     its node (its outline's 45 m grown to 65 m to carry the hamlet, 11 newer houses along the road
     with it), Bardine di San Terenzo's borgo on both sides of Via Verdi, San Terenzo Monti's in
     four, Ceserano's in five (the western borgo round San Bartolommeo, the old houses above the road
-    and the eastern borgo's three), Gignago's along Via Gignago and Castelpoggio's in three. The
+    and the eastern borgo's three), Gignago's along Via Gignago and Castelpoggio's in three.
+    Aulla's 37, traced as Fivizzano's (on the 2010 flight's crops, checked on 2023's): Aulla's borgo
+    inside Via Nazionale's bend, the blocks on Via Apua and the houses above the Aulella in three
+    (the regular radial blocks of the rebuilt town between Via Don Minzoni and Via Pisacane, the
+    courtyard school by San Caprasio and the buildings that replaced older ones by 2023 are
+    plaster, and two houses on Via Mastro Andrea, in a terrace block the school's plaster outvotes,
+    get no disc), Podenzana's castle, the houses at its gate and its old hamlet in four, Tresana's
+    castle ruins and borgo in two, Villa di Tresana's castle and borgo in three, Lusuolo's castle
+    and borgo in four, Terrarossa's church, blocks and castle in seven, Licciana Nardi's borgo and
+    castle in seven, Monti's castle and borgo in four and Bastia's castle and borgo in three. The
     newer houses along the main roads (Molina di Equi, Pian del Molino, the SR445 in Gragnola) are
     plaster.
   - Plaster and stone buildings within 25 m of each other form a hamlet; a hamlet of up to 200
@@ -1538,7 +1884,8 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
     (buildings within 6 m) takes its own majority style. `tint` 0–3 comes from a hash of the id: of
     a survey's, its low 32 bits (above); of an OSM id, its last 9 digits.
 - **Areas**: landuse, leisure, amenity, railway platform, historic ruins, grassland and wood
-  polygons, mapped to `AREA_KINDS`, plus pedestrian squares as `paved`. OSM's platforms only stand
+  polygons, mapped to `AREA_KINDS`, plus pedestrian squares as `paved`; the sea, the beaches, the
+  piers' and the breakwaters' come from the shore's own rules (below). OSM's platforms only stand
   where the 2019 CTR's sheets map no ground; elsewhere the CTR's replace them
   ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)): all three of OSM's here.
   An orchard of olive trees (`landuse=orchard` with `trees=olive_trees`) is an `olive` grove, and
@@ -1593,7 +1940,92 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is three parts (`P
   and 44 of them, 30 sheds and 14 houses, are no longer farms. The surveys' asphalt road surfaces
   are added as `paved` areas: squares, lay-bys and station forecourts (578 of lucido's 581 `paved`
   areas, 30 of them the 2009 sheets').
-- **Barriers**: `barrier=wall`, `barrier=guard_rail` and `natural=cliff` lines. Walls and cliffs
+- **The sea and the shore** (issue #13; `coast.ts`, `shore.ts`): the sea from OSM's coastline, the
+  beaches by their material, the piers and the breakwaters. No extract of Lunigiana or Cesena holds
+  a coastline or a beach way (Fosdinovo's one `natural=beach` is a node), so their maps are as
+  before to the byte; the magra-coast test region holds them all ([Test regions](#test-regions)).
+  - **The sea** (`sea`, cover byte 27, a water area at level 0: `isWaterArea`): OSM's
+    `natural=coastline` ways chained by their shared end nodes into lines (`coastLines`, which
+    throws where the coastline branches or a node is missing), clipped to each listed tile's square
+    cut to the region's bounds and closed along the box's edge clockwise, the sea on the right of
+    OSM's direction, into an area per connected piece of sea in a box (`seaAreas`): its outer ring
+    counter-clockwise, an islet a clockwise hole. A box no line crosses is all sea, but for its
+    islets, when its corner lies on the sea's side of the nearest coastline segment, and land
+    otherwise: the corner, not the centre, as the box's edge lies all on one side while an islet
+    may cover its centre. It is cut by tile as the woods are on their grid, since an area lies
+    whole in every tile its box comes within the halo of, and the sim joins the pieces into one
+    sea ([water.md](water.md#depth-and-current)). Unlike the woods' pieces, which reach 4 m past
+    their squares, they meet edge to edge on the tile lines, where the sim finds its cuts
+    (`isCut`) and the render fills each piece's cells (`poolWater`), so the maps fill the sea's
+    pieces as one path (`paintLayers`): filled one by one, each piece's antialiased edge let the
+    grass through on a tile line inside a pixel, a seam across the sea (6,573 px of the coast's
+    overview, along its row 2048 and columns 1365 and 2730). On magra-coast 7 sea areas, 1,146
+    vertices, cover 11.1165 km² of its 9 tiles (the 3 northern ones all land), closed in 9.2 ms;
+    tile −7_−7 holds 2, the corner east of Punta Bianca's tip (0.015 km²) one of them. A raised
+    area wholly in the sea (a breakwater off the beach, which the coastline leaves out) is cut out
+    of it as a hole (`holedSea`), dry rock with no sea painted, carved, drawn or swum over it: the
+    reef at (−10106, −12503), 1,050 m². A water body of the land cover that overlaps the sea is
+    dropped, as one OSM draws is (none on magra-coast).
+  - **The beaches**: OSM's `natural=beach`, `sand` and `dune` closed ways and multipolygons (no
+    building, no `area=no`) are `sand` (cover byte 28, and the surface `sand`:
+    [gameplay.md](gameplay.md#the-body)), `pebble` or `rock` (`beachKind`): Spiagge's material where
+    its polygons of one material hold half the beach's points or more on a 2 m lattice (its centre
+    where none falls in it; [section
+    1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)),
+    else OSM's `surface` (`gravel`, `fine_gravel`, `pebblestone`, `pebbles` and `shingle` pebble,
+    `rock` and `rocky` rock), else sand: OSM's `surface` tags few beaches. Read at its centre alone,
+    OSM's untagged cove under Montemarcello (way 68823662, 3,431 m², 79 % of it Spiagge's
+    pebbles), its centre outside the cove, came out sand up a 3–5 m slope. Spiagge's own sand (102),
+    pebble (103) and rocky shore (104) polygons are areas too, an OSM beach over one or not: the
+    rocky shore and the coves under Montemarcello and Punta Bianca, most of which OSM maps no beach
+    on; its fill (106) and river courses (301, 302) are none. On
+    magra-coast OSM's 72 beaches are 69 sand, 2 pebble and 1 rock, Spiagge adds 33 of its 39
+    polygons (26 rocky shore, 16,076 m²; 4 pebble, 7,030 m²; 3 sand, 201,389 m²), and the map
+    holds 72 sand, 6 pebble and 51 rock areas (20 of them the breakwaters).
+  - **The piers**: a `man_made=pier` open way with no `highway` tag (with one it is that road) is a
+    `path` on a deck (a bridge), as wide as its `width` tag says or a path, so the deck drawing and
+    the walk graph come free; one with no `surface` tag is `wood`, which grips as asphalt does and
+    draws in the dirt track's colour. It is cut where it crosses a water area's edge
+    (`splitPiers`): over the water a deck, its z (`pierDeck`) `PIER_DECK`, 1 m, over the water's
+    level under it (the sea's 0 m, a lake's level, a river polygon's surface), whatever the DTM
+    reads there (Liguria's reads the Magra's estuary 1.4–1.8 m up, as high as its quays), or the
+    ground where that stands higher, and an end on dry ground (none of the water 0.5 m on past it,
+    `PAST_END`) at that ground, so a walker steps on from the beach or the quay (`ON_DECK`); on dry
+    ground a path at grade, the deck's approach (`path-approaches.ts`), which meets its end at its
+    level (it took the finished grid, 0.2–0.4 m under it, at 1382979298, 1382979299 and
+    1382979302). The two pieces share the cut, a vertex `pier:<way>:<x>,<y>`, so the road
+    graph joins them there and keeps the deck's end where it is ([section
+    11](#11-road-graph-graphts)): left with no id, the cut read as one of the outline's, and the
+    deck's end came off the path it leaves, 8 m back. Kept whole, the lowering of the ground under
+    the decks dug 388 nodes up to 2.1 m deep under three piers OSM draws over dry ground (the 347 m
+    boardwalk 1382979300, and 1382979301 and 1382979302 round a basin the map holds no water in) and
+    sank a building's base to −0.3 m. A closed pier (`area=yes`) is a `paved` area raised to 1 m. On
+    magra-coast 16 open piers, 17 pieces where the region's edge cuts them, make 21 roads, 14 decks
+    and 7 paths at grade: the estuary marinas' decks stand 1.0–1.3 m over water at 0–0.3 m, the sea
+    marina's at 1.0 m, and the 4 jetties off the beach at Bocca di Magra rise from their beach end
+    to 1 m; the closed one is 685310267 by Punta Bianca, 96 m².
+  - **The breakwaters**: `man_made=breakwater` and `groyne` closed ways and multipolygons as OSM
+    draws them, and an open way as a ring 3.5 m wide along it (mitred at its bends, at most 2 half
+    widths out), are `rock` areas raised to `BREAKWATER_TOP`, 1.5 m a.s.l., once the sea is carved
+    under them ([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)),
+    walkable but walled for vehicles along each ring (a `breakwater` barrier, [section
+    10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)): rocks too steep to drive up. On
+    magra-coast 10 closed breakwaters, 1 multipolygon and 9 groynes (the Molo di Fiumaretta,
+    681229214, among them) make 20 rock areas of 15,556 m², 19 on the land side of OSM's
+    coastline, which runs round them, and the reef a hole in the sea.
+  - **The fill** (`FILL`): `sand` comes after the open ground (grassland, scrub, sparse ground,
+    scree) but before `rock` and every cover after it, so a beach's outline drawn over a groyne, a
+    breakwater, a rocky shore, a promenade or a car park leaves them theirs: drawn over them, OSM's
+    and Spiagge's beaches took 125 of magra-coast's groyne and breakwater cells, and 277 paved, 145
+    car park and 65 residential ones. The rivers, the lakes and a river's gravel bars come after
+    it, and the sea last, over every beach that reaches into it, so the shore drawn is OSM's
+    coastline; a river line's gravel bank paints over no water area, the sea's included. On
+    magra-coast 694,775 cells are sea and 16,581 sand, 25 of them under 0 m at their centre, by
+    0.10 m at most (23 by the waterline, a sea node under 0 m among their four, and 2 in a
+    stream's bed), and none over 3 m.
+- **Barriers**: `barrier=wall`, `barrier=guard_rail` and `natural=cliff` lines, and the
+  breakwaters' and groynes' outlines (`breakwater`, above), which open as a guard rail does.
+  Walls and cliffs
   are opened wherever a road (not a tunnel) comes within w/2 of them (`openBarriers` in
   `walls.ts`): OSM draws cliffs across the paths that climb through them and garden walls up to
   the centreline. A guard rail runs along its road, often inside its w/2 as OSM draws it (1,679 of
@@ -1629,7 +2061,13 @@ the pieces where tracks meet (`rail-graph.ts`).
   Viterbi pass picks the cheapest sequence: a match costs its distance, a sample with no match 6,
   a change of CTR track 30 (across a gap too), ties going to the earlier track in sheet, record
   and part order. OSM lies 0.68 m from the CTR at the median, 3.11 m at p90 and 5.27 m at most (way
-  140780332, between Monzone and the Terma tunnel).
+  140780332, between Monzone and the Terma tunnel). A CTR track belongs to the OSM track nearest
+  it (`OWN` in `conflate.ts`): a sample may match it only where no other chain's track lies more
+  than 1 m nearer its foot (at a switch the two meet, so both match there). Aulla's track 5, which
+  no 2019 sheet maps, matched the CTR's yard track 419182734 beside it, OSM's own 0.3 m off it, for
+  58 m up to 5.9 m away, which dragged the whole track 5.9 m east, 8 m off its island platform; it
+  now matches 12 m, its offset 1.08 m at most, and at Pieve San Lorenzo 849844680 matches 40 m of
+  its 42 and 621942962 356 m of its 367 (42 and 360 before).
 - **Matched runs** take the CTR's own vertices, simplified to 0.05 m. Every OSM vertex with an id
   gets one position, which the roads, the water and the stops sharing that id take too: its foot
   on the CTR track, or for a level-crossing node the point where the rail crosses its road,
@@ -1645,6 +2083,12 @@ the pieces where tracks meet (`rail-graph.ts`).
   | Equi Terme's foot crossing (10566120588) | 0.45 m |
   | the old SS445 by Gassano (2670631443, road 689527853) | 2.45 m |
   | Pieve San Lorenzo's foot crossing, on the loop (13233189406) | 0.47 m |
+  | the SP72 by Rometta (1836598934, road 172808470) | 0.12 m |
+  | the SP18 (771831887, road 43978589) | 3.03 m |
+  | Via Filippo Turati, the SS63 into Aulla (975222706) | 1.08 m |
+  | Via Guido Rossa (1541494560) | 0.69 m |
+  | the SP57 Ponzanello (1541494530) | 0.03 m |
+  | the track 140771695 (6558728973) | 1.10 m |
 
 - **Unmatched runs** between two matched ones (five of the six tunnels, the 190 m north of the Terma
   tunnel the CTR leaves out, the 912 m from where the sheets stop north of Gragnola, at y 3727, to
@@ -1663,7 +2107,22 @@ the pieces where tracks meet (`rail-graph.ts`).
   from its west portal by Pieve San Lorenzo to the outline at x 6700, inside the bore) no survey
   says where the track bends, so OSM's line keeps its shape, moved as its last matched sample
   (1.6–1.7 m), its end on the outline: a spline there bent a 20° kink 6 m off OSM in a test with no
-  CTR at all.
+  CTR at all. But a corner of it that turns more than 6° (`ROUND_TURN` in `rail-smooth.ts`: over the
+  CTR's own vertices' 2–5.5°, under OSM's coarse corners, 11.4° in the Lucca–Aulla line's tunnel
+  140772193 and 8–10.2° on the Pontremolese's 842172341) is rounded through OSM's vertices where
+  the curve bows at most 1.5 m (`ROUND_OFF`, within OSM's own accuracy) off its segments
+  (`roundCorners`). A free vertex within 10 m (`ROUND_NEAR`) of a sharper corner beside it sets no
+  heading: it slides onto the curve through the others, by at most 1.5 m, and its roads, water and
+  stops follow it (the Pontremolese's bridge 842172344, 4.3 m on from an 11.4° corner at 687047721,
+  took the whole turn in its 4.3 m, a bend of 107.4/108.1 m over 20 m). Where the curve through a
+  corner's neighbours would bow more than 1.5 m off a segment, the corner takes an arc inside it
+  instead, the widest whose middle passes the corner within 1.5 m and that uses at most half of
+  either straight, and the corner node slides onto it (`roundThrough`): the twin tunnels north of
+  Aulla turned 9° at 946219202 and 3810624666 between straights of 143–257 m, bends of 127.6 and
+  128.9 m over 20 m left at a point, and the lines' sharpest 20 m bends there are now 204.0 m (line
+  1) and 199.8 m (line 2). The rounding moved 6 rail pieces (140772193, 377677769, 62120871 and
+  842172341/43/44), no node by more than 1.57 m; plain OSM vertices on an arc may then fall to the
+  short-segment pruning below, as they carried only the drawing.
 - **Bridges keep what they span** (`rail-spans.ts`): moving a bridge sideways by d slides each
   crossing along it by d·cot θ. A river or road that was under a bridge stays under it, and the
   bridge reaches past it as far as the cells the at-grade track beyond cannot take: a wide stream's
@@ -1722,16 +2181,25 @@ the pieces where tracks meet (`rail-graph.ts`).
   2 m of the crossing node), and on Pieve's loop 0.27 m. It throws over 0.2, 0.5 and 1 m. It prints
   both figures per piece. It also checks the CTR's level-crossing polygons (`AGE` `0122`): each
   holds a crossing node, and no node within 10 m of one lies outside it (the six road nodes lie
-  1.4–3.0 m inside). The running line is 16 854.7 m long.
+  1.4–3.0 m inside). The three lines run 25,880.1, 9,715.8 and 9,715.4 m ([section
+  9](#9-the-railway-railwayts-platformsts-rail-clearts)).
 - **The tracks only the CTR has** are drawn and driven by no train: an end within 1 m of another
   track, heading along it within 20°, joins it at a switch vertex both share (`ctr:<line>:<end>`;
   where the track already has a vertex there, that one: Gragnola's stub ends on one of the loop's
   own, and a second vertex beside it drew the loop at double width). Bridges come from the `AFE`
   bridge polygons (`Sede` 063); the tunnel polygons already cut the CTR's lines. A road a track
   crosses at grade shares a vertex with it: the road's own (not its end, on no other rail) within
-  3 m, as Gragnola's track-1 node 0.44 m off, or a new one. Their ids are negative, from the sheet,
-  record and part of their first line (−(sheet × 10⁵ + 9 × 10⁴ + 10 × record + part)). Which are
-  loops and which sidings follows from the topology
+  3 m, as Gragnola's track-1 node 0.44 m off, or a new one. Their ids are the surveys' (`surveyId`
+  in `survey-ids.ts`, negative and unique across the sheets' sections, as the CTR buildings' are),
+  of the local number sheet × 10⁵ + 9 × 10⁴ + 10 × record + part of their first line: numbered
+  from the sheet alone, as before Aulla's part, 24C11's tracks by Aulla would share 23D11's. A
+  track lying along a way OSM maps with its rails gone (`railway=abandoned` or `razed`) is left out:
+  80% or more of its length within 2 m of one (`GONE`, `alongGone` in `rail-extra.ts`, the ways
+  from `extractGoneRail`), as OSM's newer survey says the rails were taken up after the 2019 CTR.
+  Rometta's 23D01 VLI#0.0, a 70 m stub ending 6.5 m from the SP72's level crossing, lies 90% within
+  2 m of way 1252090894, the only CTR-only track along such a way in every extract; the build log
+  prints `ctr 23D01 VLI#0.0 left out: OSM maps its rails gone`. Which are loops and which sidings
+  follows from the topology
   ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)):
 
   | Track | Kind | Length | From the CTR |
@@ -1743,13 +2211,15 @@ the pieces where tracks meet (`rail-graph.ts`).
   | Equi Terme, the second track east of the walkway | siding | 162.6 m | 23D29 VLI#2 |
   | Equi Terme, the yard sidings, one joined to the other | siding | 173.7 m, 124.5 m | 23D29 VLI#0, #1 |
   | Pieve San Lorenzo, the yard's southernmost track, both ends free | siding | 93.8 m | 23D15 VLI#6 |
+  | a stub on Rometta's sheet, both ends free | siding | 14.6 m | 23C08 VLI#0 |
 
 - **Tracks meet only at piece ends** (`splitAtJunctions` in `rail-graph.ts`):
   last, every piece is cut at each inner vertex another track shares by id (a switch, two tracks
   crossing), keeping its way's id, so `Rail.id` is not unique. The running track, already cut at the
   CTR's bridges and over the underpasses, is cut at the switches of Gragnola's and Pieve San
-  Lorenzo's loops into the line's 102 pieces; the loops hold 15 and the sidings 19, Gragnola's loop
-  cut in two at the stub's switch.
+  Lorenzo's loops, and at Aulla's switches, into 209 running pieces; the loops hold 34 and the
+  sidings 28 (before Aulla's part the line's 102 pieces, 15 and 19), Gragnola's loop cut in two at
+  the stub's switch.
 
 ### 5. Heightmap (`dtm.ts`, `terrain.ts`)
 
@@ -1776,14 +2246,27 @@ Cesena's is its box's corner, so neither map moved when the anchor came in. This
 flattened by the next steps; profiles and water sample the untouched terrain (the "ground").
 Elevations run from 18.1 m (the Magra plain by Sarzana at (−11500, −5920), tile −6_−3) to 1856.4 m
 (by Cima Belfiore, tile 4_6); lucido's from 147 m (the Aulella below Gragnola) to 1799 m (the
-north-west ridge of Monte Grondilice).
+north-west ridge of Monte Grondilice). On the magra-coast test region the grid reads the sea
+step's 0 m over the sea ([section
+1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)),
+which the carving takes down to the sea floor ([section
+6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)): its finished nodes run
+from −16.0 m, the floor at its south-west corner, to 359.5 m.
 
 ### 6. River carving and catchments (`water.ts`, `water-areas.ts`, `catchment.ts`)
 
 - The water surface is sampled every 2 m at ground − depth/2. It is made monotone downstream and
   continuous at confluences: a tributary's tail is lowered (by at most 0.25 extra slope) or ponded
   up to the level of the water it joins. The Lucido meets the Aulella below Gragnola, the Rosaro at
-  Soliera.
+  Soliera. No surface stands under the sea's 0 m (raised to it, and again after the decks' cap and
+  the perched check), and a piece that reaches the sea (the point 1 m on past its last vertex
+  lies in it) meets it at 0 m as a tributary meets the water it joins, its tail lowered with the
+  same fade (`waterProfiles` in `water.ts`): a river stands at the sea's level where it meets it,
+  not under it. On the magra-coast test region six pieces end in the sea: the Magra, the
+  Parmignola, the Fossa Maestra (674036058), the stream 311359630 across the beach at (−10100,
+  −12370) and two streams down Montemarcello's cliffs, from 122.9 and 74.7 m to 0. The Magra reads
+  0.3 m at its north end and 0 m from its third vertex to the mouth, where it read −0.75 to
+  −1.15 m before; every surface under 0 m stands at 0, the coastal plain's canals too.
 - Before the carving, the catchment upstream of every water sample is measured (`catchment.ts`):
   the samples are burned 100 m under their own surface into a copy of the grid, which is filled so
   every node drains (priority-flood with an epsilon, Barnes et al. 2014; the grid's edge is the
@@ -1792,7 +2275,12 @@ north-west ridge of Monte Grondilice).
   an outlet too, below any ground and never read: the flood starts from it, so the listed nodes
   beside it are an edge, D8 drains them out of the grid into it, and it brings no area of its own,
   as no ground beyond the edge does (`catchment.test.ts` checks that a notch's ground, however high,
-  changes nothing, and that it gives the fill and areas of a pit there the box's edge drains). Each
+  changes nothing, and that it gives the fill and areas of a pit there the box's edge drains). So
+  is every node of the sea, carved to its floor (`sea` of the tile pass, issue #13), so the rivers
+  and the canals that reach the sea drain into it: on the magra-coast test region the Magra reads
+  6.06 km² at its mouth, the region's own ground alone (its basin of about 1,700 km² comes in only
+  with an `OFF_MAP` entry, [Known data limitations](#known-data-limitations)), and the Parmignola
+  1.0 km². Each
   piece starts with what the pieces ending where it begins bring (shared among the arms of a
   fork), and a sample
   keeps the most its own burned nodes gather within a node of it (D8 cuts a bend's corner past a
@@ -1811,16 +2299,31 @@ north-west ridge of Monte Grondilice).
   delineation is larger than the DTMs' (the 10 m DTM's D8 gives 200.73 km² there, 3.5% under it),
   and the flows per km² still come from the gauge's flows over its 208 ([water.md](water.md)).
   Taken as the gauge's 208 less the map's 181.8, the heads were 26.2 km², near twice their ground,
-  and the Rosaro reached its mouth with 93.1. The Aulella leaves the play area at Fivizzano's west
-  edge (x −5300) with 199.4: it was 199.0 while that was the box's edge, and the Canale di
-  Moncigoli's 0.4 km² of head west of it now lie in the box. The Bardine leaves Fosdinovo's north
-  edge with 59.0 km² (its own 58.1 and the Canale del Torchio's 0.8) and joins the Aulella below the
-  gauge, in the north-west notch. From Codiponte down to the Lucido's mouth below Gragnola the
-  Aulella drains 41–60 km², and 106 below the mouth.
-  It takes about 0.8 s on lucido alone: the flood's heap keeps each open node's height beside it in
-  typed arrays, the D8 stores a direction (1 byte) and an inflow count (1 byte) a node, and the
-  accumulation walks down from each node with nothing above it, last first, with no stack (the order
-  a stack of them gave, so the same sums).
+  and the Rosaro reached its mouth with 93.1. The Aulella crosses Fivizzano's west edge (x −5300)
+  with 199.42 (199.0 while that was the box's edge, before the Canale di Moncigoli's 0.4 km² of head
+  west of it lay in the box) and meets the Magra at Aulla with 313.11; the Bardine joins it with
+  63.00 at its mouth (59.0 where it crossed Fosdinovo's north edge, before Aulla's part). From
+  Codiponte down to the Lucido's mouth below Gragnola the Aulella drains 41–60 km², and 106 below
+  the mouth.
+- **The Magra's and the Taverone's heads** (issue #19) come in over the north edge as the Rosaro's
+  do (`OFF_MAP`): of the 522.0 km² that come in north of y 13000 by a D8 on the 10 m DTM, the Magra
+  brings 420.9 of its upper valley and the Taverone 69.1, each at its own crossing, 15 and 8 m from
+  OSM's; the Torrente Civiglia 4.5 and the Canale Torchio di Bacco and the Canale della Ghiaia,
+  which join the Civiglia, 3.8 and 3.0 (each crosses the edge 3.7–5.6 km west of the Taverone, and
+  D8 sends each node across it at one point alone, so none is in the Taverone's 69.1); the Canale
+  Cravareccia, which joins the Taverone 113 m down its line, 1.1; and the Rosaro's 14.7 (above). The
+  other 4.9 km² come down rivulets under 1 km² each (the Fosso della Predella's 0.7 the most) and
+  are left out. On the map the Magra carries 420.9 km² from its entry and leaves at y 3900 with
+  915.0 (the 10 m DTM's D8 gives 930.5 there; 412.55 while the heads came in with nothing, when the
+  Taverone met it with 33.9), the Taverone 82.49 at the end of 700556145, 1.3 km above its mouth,
+  and 115.4 at its mouth, the Civiglia joining it 84 m above its mouth with 32.15 km² (20.85 before
+  its heads came in; the Canale Torchio di Bacco, 4.71, and the Canale della Ghiaia, 4.04, join the
+  Civiglia, not the Taverone), and the Cravareccia 1.10. The largest unnamed stream stays
+  788514626's 11.33 km², and the Lucido reads 46.41 at its mouth, as before ([Known data
+  limitations](#known-data-limitations)). It takes about 0.8 s on lucido alone: the flood's heap
+  keeps each open node's height beside it in typed arrays, the D8 stores a direction (1 byte) and an
+  inflow count (1 byte) a node, and the accumulation walks down from each node with nothing above
+  it, last first, with no stack (the order a stack of them gave, so the same sums).
 - **The water beyond the play area** (issue #18), in the box (`beyond` in `build-sources.ts`, which
   the trees keep off too), is burned with the play area's, owning no node and never read: each 2 m
   sample at its ground less depth/2, the lowest so far along each stretch on listed nodes. It is not
@@ -1836,11 +2339,12 @@ north-west ridge of Monte Grondilice).
   trench short of one, it ended 100 m under the ground past the cut, and the fill made it a lake as
   high as its lowest way out. In 2 m samples, 67.4 km of the play area's water lay in such lakes
   behind outline cuts, and 0.75 km does with the water beyond:
-  - Fosdinovo's north edge cuts the Torrente Bardine at (−10572, 3900), 100 m short of the notch.
-    Its 58.1 km² drained out up the Canale del Torchio and the Fosso Acqua Chiara, whose trenches
+  - Fosdinovo's north edge cut the Torrente Bardine at (−10572, 3900), 100 m short of the notch
+    (before Aulla's part; both cuts below are seams now, and the rivers run on in play). Its 58.1
+    km² drained out up the Canale del Torchio and the Fosso Acqua Chiara, whose trenches
     came in at the box's west edge at about 21 m, against the 69 m of ground past the cut: the
     Torchio read 59.2 km² and the Bardine below its mouth 117.3, its basin twice.
-  - Fivizzano's west edge cuts the Aulella at x −5300, 700 m short of the notch. Its lake stood at
+  - Fivizzano's west edge cut the Aulella at x −5300, 700 m short of the notch. Its lake stood at
     107.8 m for 10 km, up the Lucido's and the Rosaro's tails, and D8 crossed it by the shortest
     trench: a 2 m side stream by Soliera (way 140780331) read 108.5 km² and, by Gragnola, the
     unnamed tail 797871813 and Il Canalaccio below it 50.4 and 55.4; they read 0.18, 0.01 and 5.06.
@@ -1863,25 +2367,27 @@ north-west ridge of Monte Grondilice).
   it (the LiDAR flies over a lake and reads its surface flat; the vertices' DTM when no node falls
   inside), but no higher than its spill, the lowest uncarved node of its edge, in whole decimetres.
   On the bare median the 4 m grid read an edge node up to 3.1 m under the level, where an outline
-  runs up a slope or a cascade, and the water drew over the ground beside it. Capped, the lake by the
-  Solco di Equi stands at 272.0 m (median 272.2) and Bozzetti at 261.5 m (262.0). A lake holds no
-  water at all where the LiDAR reads no hollow under it: lucido's intermittent pond at Prati di
+  runs up a slope or a cascade, and the water drew over the ground beside it. Capped, the lake by
+  the Solco di Equi stands at 272.0 m (median 272.2) and Bozzetti at 261.5 m (262.0). A lake holds
+  no water at all where the LiDAR reads no hollow under it: lucido's intermittent pond at Prati di
   Campocecina, on a 24 % slope; Fivizzano's Arlia power station forebay, 300 m along a hillside,
-  whose outline's foot reaches 3–5 m under the basin, and a 24 × 29 m pond on a slope 320 m past
-  the play area's east edge (x 10420…10444, y 8145…8174), its foot 1.6 m under it. Nor does one
-  every node of whose cells is its edge (no node all four of whose cells are water), since the carve
+  whose outline's foot reaches 3–5 m under the basin, and a 24 × 29 m pond on a slope 320 m past the
+  play area's east edge (x 10420…10444, y 8145…8174), its foot 1.6 m under it. Nor does one every
+  node of whose cells is its edge (no node all four of whose cells are water), since the carve
   lowers only the nodes inside a lake's edge, and its level is its spill: lucido's 18 m² pool on the
   Canale Doglio's cascade, whose water is the stream's (1 cell); a 7 × 9 m pond 200 m east of Pieve
   San Lorenzo's rectangle (x 6898…6905, y 3593…3602, 2 cells); and two pools on the Torrente
-  Arcinasso in Fivizzano's strip beyond the play area's west edge, which Fosdinovo's box builds: OSM
+  Arcinasso, in Aulla's part since issue #19 (in Fivizzano's strip beyond the play area before): OSM
   ways 1473224065 (17.5 m², 1 cell), where the Fosso di Paretola joins it, and 1473224067 (28.7 m²,
-  3 cells), 52 m upstream. A river polygon follows its waterways: every water piece with a 2 m
-  sample inside it, a tributary running in too (by the Tassonaro's mouth, cut at lucido's north
-  edge, the Tassonaro's two pieces and the Fosso di Tufo, which joins it; whole on Lunigiana, the
-  Tassonaro's four, the Fosso di Tufo, the Canale della Trosella and two unnamed streams; at
-  Fivizzano the Rosaro and the Fosso del Tufo; the Savio's in Cesena), which the game's water takes
-  its level and current from ([water.md](water.md#depth-and-current)). The map file keeps a lake's
-  `level` and a river polygon's `waters`.
+  3 cells), 52 m upstream. Such a pool's spill is read on the ground as the lines through it carve
+  it: the two Arcinasso pools' levels went from 258.0 to 256.9 m and from 265.2 to 264.5 m, the
+  Doglio's pool and Pieve's pond keeping theirs. A river polygon follows its waterways: every water
+  piece with a 2 m sample inside it, a tributary running in too (by the Tassonaro's mouth, cut at
+  lucido's north edge, the Tassonaro's two pieces and the Fosso di Tufo, which joins it; whole on
+  Lunigiana, the Tassonaro's four, the Fosso di Tufo, the Canale della Trosella and two unnamed
+  streams; at Fivizzano the Rosaro and the Fosso del Tufo; the Savio's in Cesena), which the game's
+  water takes its level and current from ([water.md](water.md#depth-and-current)). The map file
+  keeps a lake's `level` and a river polygon's `waters`.
 - They are carved node by node, each node from its own position and the vectors alone, so a tile's
   window needs no halo. A node is the area's when one of its four cells is (the cell's centre inside,
   filled from the anchor as the land cover is), and on the water's edge when one of its cells is in
@@ -1903,27 +2409,96 @@ north-west ridge of Monte Grondilice).
   through a lake's edge and a river's bars, both before the claims, which may not write on them but
   for a river polygon's outer edge, and the river polygons again after them, under the water kept
   below the decks.
+- **The sea floor** (`sea-floor.ts`, issue #13): the tile pass's first carving sets every node
+  inside a sea area (filled from the anchor, so a node comes out the same in every window that holds
+  it) to the floor at its point (`seaFloor`), node by node with no halo, before the lines, whose
+  channels then cut through it; the shore's nodes are left as the terrain has them. A point reads
+  two kinds of contour. One is the shore line: OSM's coastline, islets included, less each segment
+  whose land side (0.5 m off its middle) lies in a river or a lake, at the shoreface profile's depth
+  for the point's own distance from it (`shoreLines` in `coast.ts`). That drops the closure across
+  the Magra's mouth (way 1379669802, in the estuary's relation 21151807), which as shore line left a
+  0 m sill, and foam, across the mouth; and taken at 0 m rather than the profile's depth, the shore
+  line held the floor off the Tuscan beach at 0.00 m from 29 to 273 m out. The others are each
+  depth's nearest isobath within `REACH`, 1,500 m, of the lines 50 m long or more (`SHORT`): the
+  1,497 shorter open lines and 315 rings of magra-coast's file are the survey's broken bits, every
+  line of 17–25 m among them, stacked a metre of depth apart within a few metres where its rasters
+  meet or end (82 line ends along N 4877234.7, and at Liguria's sea border by the Parmignola, E
+  581513.3: a wall of water no sea floor holds, so the "10–21 m scour hole" by the Parmignola's
+  jetties is the survey's), and rings under 16 m across, which the 4 m grid draws as a node's spike.
+  The two nearest contours, at d1 and d2, weigh 1/d − 1/d3 each, d3 the third's distance (or
+  `REACH`): the two-contour rule (a·d2 + b·d1)/(d1 + d2), which steps where a third contour comes
+  nearer than the second, made continuous, as the third takes the second's place at no weight. In
+  92,900 random runs of four points the plain rule stepped 76 times (by up to 0.33 m, 37 of them in
+  water under 6 m deep), an angle-weighted one 227 times (up to 2.66 m), and this one never. Within
+  `TRUST`, 1 km, of an isobath the floor is the survey's, from `REACH` on the profile's, and between
+  them the one fades into the other: a short band raised the floor where the survey's deep edge
+  stops, from 15 to 6.5 m south of Punta Bianca and from 13 to 8.1 m south of the mouth, while
+  within 1 km lies all of magra-coast's sea but its south-east: the Tuscan sea south of y −13700, up
+  to 1.76 km from the survey at the region's south-east corner, and a strip of Liguria's along the
+  region's south edge south of Marinella (x −9800…−9050, y −15000…−14850), up to 1.17 km, where the
+  floor starts fading to the profile (on a 50 m lattice of the built sea, to the 192 kept lines).
+  The shoreface profile (`PROFILE`) is the issue's beach face, 8 % down to 0.6 m; then the
+  median distance from the shore line of the survey's lines off Marinella (x −9700…−8800, the beach
+  the Tuscan sea continues): 2 m at 81 m, 3 at 113, 4 at 169, 5 at 255, 6 at 393, 7 at 540, 8 at 692
+  and 9 at 881, and 10 m at 1,212 m off Fiumaretta, where Marinella's survey stops short of that
+  line; then the issue's shelf, 13 m at 2.2 km and 17 m at 7.8 km, level past it. The shelf alone
+  gave 0.54 m at 243 m off Marinella, where the survey reads 5 m, and 1 and 8 m at 450 m and 1.1 km,
+  where it reads 6.4 and 9.7. The floor is a function of the point alone, in + − × ÷ and sqrt
+  (`sea-floor.test.ts` checks it against a read of every segment, which found an off-by-one in the
+  bucket search, and that two tiles read the same bits at their seam). Built (2026-11-17), at the
+  10,642 isobath vertices in magra-coast's sea away from the river lines and the raised rock it
+  reads its line's depth to 0.00 m at the median, 96.7 % within 0.25 m (p1 −0.38, p99 +0.30 m), and
+  every line a transect crosses to 0.1 m:
 
-### 7. Road and rail profiles (`profiles.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`)
+  | Transect | Depth by distance from the first sea point |
+  |---|---|
+  | Fiumaretta, x −10600, south | 4 m at 346 m, 5 at 622, 6 at 962, 8 at 1,207, 10 at 1,536, 11 at 1,788 |
+  | the Magra's mouth, south from (−11300, −12775) | 3.5 m at the mouth, 6 at 480 m, 10 at 937, 13 at 1,621 |
+  | Punta Bianca, x −12160, south | 10.9 m at 50 m, 14.0 at 300 m, then 14.9 to the region's edge |
+  | Montemarcello, south-west | 8 m at 48 m, 15 at 343 m, 16 from 730 m |
+  | the Tuscan sea, x −8300, south | 2.0 m at 100 m, 5.0 at 350, 7.0 at 700, 9.0 at 1,500 |
+  | the islet at (−11810, −13624) | 0.4 m 2 m south of it, 5.3 m 20 m south |
 
-- Pieces are chained through nodes where exactly two ends meet. Each chain is resampled every 4 m
-  from the ground and smoothed with a moving average. Bridges and tunnels are straight between
-  their ends, and each end takes the ground 4 m out of it when that is nearer the line's level (a
-  tunnel's the lower, a bridge's the higher): at the Ugliancaldo tunnel's west portal the terrain
-  model climbs 3.6 m up the hill's face, and the rail's 2.5% grade limit carried 1.2–1.6 m of it
-  600 m along the line past Equi Terme; a bridge end on the slope of the Lucido's bank pulled
-  Monzone's line 0.7 m under the ground. A tunnel that OSM splits into pieces in a row (where its
-  tags change) is one bore, straight from portal to portal, and so is a road's bridge: taken piece
-  by piece, the joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the
-  ground 12 m under it, and the deck sagged 4.9 m there (12% and 6%), so a walker crossing it stayed
-  0.5 m under the deck; and the joint inside the Galleria del Lupacino, at its 140 km/h limit, took
-  the hill's 391 m. The rail keeps a bridge a piece: its 2.5% grade and 100 m smoothing hold a
-  joint to the line between its deck's ends, and its platforms and crossings are fitted on that
-  profile. An end the play area's outline cuts (a chain's end with no id) takes its other end's
-  level: the ground there is the hill over the bore or the valley under the deck. The Lupacino, cut
-  1,325 m in at x 6700, took the hill's 528 m at the cut and fell 3.7% to its portal at 357 m; it
-  now runs level from it. The SS63's bridge cut at y 13000 fell 17.9 m (15%) to the valley floor;
-  it now runs level at 971.3 m.
+  Off Marinella, x −9072, the floor lies 1.5 m deep 49 m from the coastline, 4.4 m at 215 m, 6.8 m
+  at 470 m, 8.7 m at 900 m and 10.0 m at the region's south edge, 1,550 m out; magra-coast's sea
+  cells are 9.60 m deep at the median and 16.0 m at most. The floor costs the tile pass 1.06 s
+  over magra-coast's 695,649 sea nodes, 132 candidate segments a node on average (the build 8.88 s
+  against about 7.7 s on the shelf before). Once the sea is carved, the ground under the piers'
+  areas and the breakwaters is raised to max(z, their top) at every node a cell of theirs touches
+  (`raiseAreas`, `firstCarving` in `build-grid.ts`), and no river line carves a raised node after:
+  the Parmignola's line cut a jetty at its mouth 1.8 m, to −0.3 m at (−8767, −13111). All 1,502
+  of magra-coast's raised nodes stand at their top.
+
+### 7. Road and rail profiles (`profiles.ts`, `chains.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`, `path-pass.ts`)
+
+- Pieces are chained through nodes where exactly two ends meet (`chainsOf` in `chains.ts`). Each chain is resampled every 4 m
+  from the ground and smoothed with a moving average. Bridges and tunnels are straight between their
+  ends, and each end takes the ground 4 m out of it when that is nearer the line's level (a tunnel's
+  the lower, a bridge's the higher): at the Ugliancaldo tunnel's west portal the terrain model
+  climbs 3.6 m up the hill's face, and the rail's 2.5% grade limit carried 1.2–1.6 m of it 600 m
+  along the line past Equi Terme; a bridge end on the slope of the Lucido's bank pulled Monzone's
+  line 0.7 m under the ground. A tunnel that OSM splits into pieces in a row (where its tags change)
+  is one bore, straight from portal to portal, and so is a road's bridge: taken piece by piece, the
+  joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m under
+  it, and the deck sagged 4.9 m there (12% and 6%), so a walker crossing it stayed 0.5 m under the
+  deck; and the joint inside the Galleria del Lupacino, at its 140 km/h limit, took the hill's 391
+  m. So is the rail's bridge of two pieces in a row, one deck, as a road's (since issue #19): kept a
+  deck a piece, the Pontremolese's second track's joint between 1045531416 (175 m) and 92904328 (391
+  m) stood at 79.8 m, 5.6 m under the line between the deck's ends, a 4.49% grade change over 20 m;
+  it now stands at 87.7 m, and no line passes 3.06%. With it Monzone's bridges over the Lucido
+  (140780341/47, 140780342/32) rose 0.9–1.1 m, the line through the station now keeps within about
+  0.4 m of the LiDAR ground, where it sagged up to 1.1 m under it, and the Lucido bridge
+  83729863/140780336/140780348 at (−1600, 2700) rose up to 2.3 m. A chain of the rail that ends at a
+  node only bridge or tunnel pieces touch (a switch in a tunnel, a crossover's switch on a deck, a
+  dead end in a tunnel; `insideNodes`, `Spec.inside`) ends at no portal or abutment: it takes the
+  level an earlier chain set at either end of its deck, else its other end's. North of Aulla a
+  Pontremolese switch in a tunnel took the hill's 114.9 m and humped the line 5.5 m over about 700
+  m, the line being at 99 m there, and a crossover's switch on the second track's deck over the
+  SS665 took the valley's 71.8 m and sagged that track 4.4 m. An end the play area's outline cuts (a
+  chain's end with no id) takes its other end's level: the ground there is the hill over the bore or
+  the valley under the deck. The Lupacino, cut 1,325 m in at x 6700, took the hill's 528 m at the
+  cut and fell 3.7% to its portal at 357 m; it now runs level from it. The SS63's bridge cut at y
+  13000 fell 17.9 m (15%) to the valley floor; it now runs level at 971.3 m.
 - Within each pass, the next chain profiled is the longest one that touches a node an earlier
   chain already set, else the longest left. Elevations spread along the network from where it is
   pinned, so a short link is not pinned at both ends by chains fitted apart (a lane in Codiponte
@@ -1941,8 +2516,12 @@ north-west ridge of Monte Grondilice).
 - The profile is then fitted to a grade limit through hard pins: elevations already set at
   shared nodes by earlier chains, and the rail's, the overpasses' and the junctions' bounds. The fit
   is the midpoint of the two grade envelopes, so cut and fill split evenly.
-- Where the fit strays more than 4 m from the smoothed ground, the grade limit within 60 m is
-  raised in 10% steps, up to 1.5× the class limit.
+- Where the fit strays more than 4 m from the smoothed ground, the grade limit within 60 m is raised
+  in 10% steps, up to 1.5× the class limit (`RELAX`), but for motorways and trunk roads, whose pass
+  never loosens it (`relax` 1 in `ROAD_PASSES`, issue #19), as on an embankment: the A15's Parma
+  carriageway at Calcinara, at grade over a dip the survey reads 13 m under its twin 12 m beside it,
+  relaxed, climbed 8.5% over 8 m and 6.7% over 100 m into it and out. Junction-reach links take
+  their pass's `relax` too.
 
 | Pass (in order, `RAIL_PASS` and `ROAD_PASSES` in `profiles.ts`) | Grade limit | Smoothing half-window | Rank |
 |---|---|---|---|
@@ -1952,9 +2531,12 @@ north-west ridge of Monte Grondilice).
 | unclassified, residential | 15% | 20 m | 3 |
 | service, track | 20% | 20 m | 4 |
 | tracks only the CTR has (written after every road) | the nearest running track's level | – | 5 |
+| paths and steps: their bridges and tunnels, and the paths and steps at grade that lead onto them (`PATH_PASS`, after every road) | 20% (30% relaxed) | none | 6 |
 
 - Motorways and trunk roads take the rail's long smoothing and a gentle grade, and their rank keeps
-  their cells against every road and the rail. Primary and secondary roads share tertiary's pass
+  their cells against every road and the rail. The A15's two carriageways keep within the
+  motorway's 6% over any 100 m, plus the 0.1 m rounding (`carriageways.map-test.ts`, on every
+  region). Primary and secondary roads share tertiary's pass
   and rank, so the SR445 keeps the profile it had as a tertiary road.
 
 - Each profile is written into the grid (recorded as a claim, then written in each tile's window in
@@ -1984,7 +2566,13 @@ north-west ridge of Monte Grondilice).
   write over): with a core a cell wider, 664 m of stream ran more than 1 m under the terrain against
   474 m before, and houses on a bank above a road lost up to 8 m of base (those above the SP59 by
   (50, −290)). At junctions the lower rank keeps the cell, so the main roads (motorway to
-  tertiary) beat the rail and the rail beats the rest.
+  tertiary) beat the rail and the rail beats the rest. But an approach's core past its deck's end,
+  in its own chain or where a deck of another chain ends, yields to any other core whatever the
+  ranks; behind the end the approach keeps its core (issue #19): the A15's approaches, rank 0,
+  held the track 137475085 under the Parma carriageway 491154909 at 84.6–85.7 m, now 78.7–78.8 m,
+  and the SP20 under 85957119 at 82.6–83.5 m, now 77.3 m, and lucido's rail bridge 140780342 held
+  the track 140780582 under it at (−640, 496) at 209.3 m, now 200.1 m; Cesena moved 3 nodes so and
+  the L 2.
 - The tracks only the CTR has take, point by point, the elevation of the nearest running track
   (the old yards lie level with the line; Equi's sidings are 17 m from it), set right after the
   rail pass so a road crossing one is pinned to it there. They are written last (rank 5), into
@@ -1997,7 +2585,55 @@ north-west ridge of Monte Grondilice).
   culvert, and under the rail its channel dips under the bed ([section
   8](#8-water-under-decks-waterts)), so neither is protected. Bridges and tunnels write nothing;
   the ground under the decks is lowered once the grid is built (below).
-  Paths and steps are not profiled.
+- **Paths and steps** at grade follow the terrain, but where they lead onto a path's or steps'
+  bridge or into its tunnel (issue #19). Their bridges and tunnels are profiled last (`PATH_PASS`
+  in `profiles.ts`, run by `path-pass.ts`), each chain from the levels set at its ends: the way it meets at grade (a
+  fitted road's level), the deck of its OSM `layer` it joins, else the ground; under the rail at
+  most the clearance below it. Each is fitted sample by sample (`ramps`), as a road at grade is,
+  at the service and track roads' 20% (30% where the fit strays from the ground), over or under
+  the ways it crosses (`road-levels.ts`: `maxheight`, else 2.5 m for a way only people use and
+  4 m for one vehicles do, plus the 1.5 m deck), and straight between two pins it cannot meet
+  within that grade (a stair). Unsmoothed, a deck is the line between its ends before the fit.
+  A bridge's deck then spans between its humps, each sample raised to the lower of the highest
+  before it and the highest after it (a bore keeps its dip, and so does a deck held under a way over
+  it): fitted sample by sample, the coast's 153 m cycle footbridge 522153380 fell from 7.7 m over a
+  driveway to 1.8 m and climbed back to 6.1 m over a footway, at 25–30%.
+  Their decks write no cell, and no road takes a bound from a path's deck. A deck's end where a
+  path or steps at grade leads on is left to the fit (`endLevel` undefined, `Spec.ends`), and that
+  path is its approach (`path-approaches.ts`): it meets the deck there at its level and closes its
+  offset from the terrain at its class's grade (`APPROACH_GRADE`: a path's 30%, `RELAX` × the
+  pass's 20%; steps' 70%, the tangent of `WALK_SLOPE`'s 35°, a stair's 16–20 cm risers on 25–30 cm
+  treads, where a path's 30% would stretch the station's 19.6 m steps at Aulla to the ground only at
+  their top), straight between pins it cannot both meet; that stretch is written into the grid at
+  the pass's rank, under every other claim, and the vertices it lifts pass the approach on to the
+  paths at grade beyond them; a path fitted before one of its vertices was lifted is fitted again
+  from it (fitted once, Aulla's path 717897182 stood 1.3 m over the steps 717897183 where they meet,
+  and Fosdinovo's 1326730177 0.9 m over 1335936638). A road's level bounds an approach but never
+  starts one: approaches are seeded from path decks alone, and from a pier deck's end where its way
+  runs on at grade. A dead end of a path deck takes the uncarved ground. The first
+  `MOUTH` m (5.66) out of each joint keep the grid at the joint's level, and at a bore's mouth the
+  hold is written ahead of every claim (the profiler's `mouth()` hook): the stream banks carved
+  under the footbridges' ends had sunk them 2.5–3.6 m. Crossing over a fitted tunnel or under a
+  fitted bridge, an approach is held at the breaking point and fitted again for its clearance
+  (Cesena's 22776463 over the Sottopasso Cervese's bore), and the sample where it crosses ships the
+  fit's level and is written into the grid; past a footbridge's end, under its deck, an approach's
+  core yields to any other (`deckEnd` in `flatten`), as a road's does: the ramps' cores of Cesena's
+  footbridge 683510421 held the ground under it at the deck's level, and the path 22776463 passing
+  under it ran 3.5 m under its deck (4.5 m now). A building's floor (`z0`) reads the ground as it
+  stood before the approaches' claims (`floors` of `tileByTile`, `floorsOf` in `build-output.ts`), so
+  the stairs to an underpass go down under it: on the grid they carved, Cesena's station (185180766)
+  sank 4.8 m into its plaza, 1.0 m of its 6 m showing, and 68910735 and 1270896860 by it 2.9 and
+  4.2 m, the footways to the underpass 43076054 running on its wall. Fitted at the terrain's
+  level, the station's steps at Aulla Lunigiana (1388757323, 1388757324, 1388757327) stood 5.8,
+  5.4 and 4.1 m over the underpass they lead into (1387000572), and now meet it, at 69–73%; the
+  ramp 1408285960 went from 34% to 20%, a joint of Fosdinovo's path 1409723237 from a 7.7 m step
+  to none, and 1339933984's step to none. Joints more than 0.5 m off their deck went from 68 of Lunigiana's
+  189 to 0, from 17 of Cesena's 110 to 1 and from 4 of the L's 7 to 0. Lunigiana's other
+  examples: the SS62 sidewalk bridge 1414943238 rose from 55.2 to 63.1 m, the old railway's
+  footbridge joint 1339933985/1393381543 from 52.5 to 63.0 m, and the joint by Equi
+  1181149127/1181149128 3.5 m; Cesena's footbridges keep their levels. A road tunnel under a path
+  or steps at grade dips under it: Aulla's car park aisles drop 2.8–3.0 m, and Cesena's Secante
+  (23130071, 23130300) 0.4–0.5 m.
 - A road tunnel's mouth opens at its approaches' level: each approach's first 5.7 m out of the
   mouth (a cell's diagonal, the farthest a corner of the cell holding the mouth lies), within its
   approach piece's own core (an end no piece leads out of has none) and ahead of the mouth (the
@@ -2015,56 +2651,81 @@ north-west ridge of Monte Grondilice).
 - What a road tunnel's mouth holds for the game is baked (`bakeMouths` in
   `src/render/mouths/index.ts`, the global file's `derived.mouths`), since its tunnel, and the roads
   and the houses round it, reach past the tiles round it: a mouth is an end of a road in a tunnel,
-  not a building passage, that no other road in a tunnel goes on from, more than 0.5 m inside the
-  play area. It holds its road, where its portal or head wall stands (the road's end, or `back` m
-  into the tunnel along its line where a portal at the end would stand on another road), the road's
-  surface there (the profile and `ROAD_LIFT`) and the heading out of the hill over 5 m, and either a
-  portal (its arch's crown and how far its throat runs in:
+  not a building passage, that no other road in a tunnel goes on from or runs through (a way ending
+  where another runs on through the bore is a junction inside it, no mouth: Aulla station's ramps
+  1408285960 and 1408285964 meet the underpass 1387000572 at its inner vertices), more than 0.5 m
+  inside the play area. It holds its road, where its portal or head wall stands (the road's end, or
+  `back` m into the tunnel along its line where a portal at the end would stand on another road),
+  the road's surface there (the profile and `ROAD_LIFT`) and the heading out of the hill over 5 m,
+  and either a portal (its arch's crown and how far its throat runs in:
   [architecture.md](architecture.md#road-tunnels)), an underpass's head wall (`head`, how far its
   box runs in, `back` 0) or `open`. Its end of the tunnel is its road's line from the mouth, run on
   along the roads of its tunnel that go on from it (each way a fork takes, so a way split inside a
-  tunnel reads as one), 40 m in, short of the tunnel's middle
-  (`src/render/mouths/tunnel-lines.ts`, every 0.5 m). The mouth is open, buried, where the ground at
-  the mouth already stands the bore's clear height over the road's surface (its ramp not in the
-  map's ground, so a face would stand inside it); else where a building stands over
-  the way there at its level, the ground
-  under its lowest corner (`z0`) less than the bore's clear height over the road (a covered way,
-  which its house hides; a house on the hill over a bore hides nothing); else a portal stands where
-  the ground over the tunnel (the roads in a tunnel joined end to end with it, every 2 m) rises as
-  high over the road as a portal's springing and face wall (`leastCover`: 6.2 m where the way has no
+  tunnel reads as one), 40 m in, short of the tunnel's middle (`src/render/mouths/tunnel-lines.ts`,
+  every 0.5 m). The mouth is open, buried, where the ground at the mouth already stands the bore's
+  clear height over the road's surface (its ramp not in the map's ground, so a face would stand
+  inside it); else where a building stands over the way there at its level, the ground under its
+  lowest corner (`z0`) less than the bore's clear height over the road (a covered way, which its
+  house hides; a house on the hill over a bore hides nothing); else a portal stands where the ground
+  over the tunnel (the roads in a tunnel joined end to end with it, every 2 m) rises as high over
+  the road as a portal's springing and face wall (`leastCover`: 6.2 m where the way has no
   `maxheight`) and a spot within 40 m of the end, short of the tunnel's middle, leaves it clear of
   the other roads and the track; else a head wall stands at the end where the ground over its end of
   the tunnel rises as high over the road's surface as its coping and 0.25 m (`leastWall`: 5.05 m
-  untagged) and its box,
-  clear of them, reaches that bank; else the mouth is open. On Lunigiana 56 mouths, 12 with a
-  portal: both of the SR445's 172 m tunnel by Groppoli, of the 196 m track south-east of Equi Terme
-  (OSM 214324514), of the 147 m quarry track (424169576), of the 87 m path under the line at Equi
-  Terme (1133296350, stood back 7 and 1 m) and of the 33 m track (1181149122), and the east mouths
-  of Via Gioco di Sopra's 52 m under Via Nuova and the line in Gragnola and of a 16 m unclassified
-  road under the SS63 (145347886); 2 with a head wall: the south mouth of Pieve San Lorenzo's 29 m
-  underpass under the station (756577583), under Via della Stazione, and the west mouth of the 16 m
-  road under the SS63, where the SS63 passes over lower than a portal's top; 42 open: four roads
-  under rail bridges (the SR445's 7.7 m by Gassano among them), Pieve San Lorenzo's north mouth (the
-  ground over its end 4.83 m at most), Via S. Nicola's 19 m in Gragnola and an 11 m path
-  (757045013), whose cover the map's ground does not hold, and Via Gioco di Sopra's west mouth, a
-  garage standing over the tunnel 1.5 m in, and Fosdinovo's 28, the mouths of its 24 roads in
+  untagged) and its box, clear of them, reaches that bank; else the mouth is open. A way leading out
+  of a mouth crowds it where it passes between the wall's foot (`wallFoot`: 0.5 m under the lower of
+  the road's surface and the ground at the face's ends) and its top. On Lunigiana 139 roads in
+  tunnels, 67 passages, 2,875 m and 8,283 wall triangles, and 123 mouths (56 before Aulla's part,
+  whose 80 tunnels brought 72, and 5 ends that are junctions in a bore left them): 24 portals, 3
+  head walls and 96 open, none buried, 27 under a house, 63 under too low a bank and 6 for want of
+  room: the primary 81880660 at (−13591.3, 6129.1), the Barbarasco Parma bore 85957081 at both ends,
+  (−14275.0, 8330.2) and (−14250.4, 8386.5), the La Spezia bore's north mouth (−14244.2, 8424.2),
+  each of the A15's twin bores' faces standing on the other carriageway (accepted: no rule for twin
+  bores), the station ramp 1430018871 at (−12214.3, 6377.7) and the car park aisle 1452661267 at
+  (−12980.3, 5377.8), whose face would stand on the covered aisle joining the two aisles' ends; the
+  other, 1452913567, opens on a portal stood back 2 m at (−12965.8, 5378.3), and Via Roberto
+  Accorsi's north portal now stands at its mouth, no longer 38 m in. Before Aulla's part, of the 56,
+  12 had a portal: both of the SR445's 172 m tunnel by Groppoli, of the 196 m track south-east of
+  Equi Terme (OSM 214324514), of the 147 m quarry track (424169576), of the 87 m path under the line
+  at Equi Terme (1133296350, stood back 7 and 1 m) and of the 33 m track (1181149122), and the east
+  mouths of Via Gioco di Sopra's 52 m under Via Nuova and the line in Gragnola and of a 16 m
+  unclassified road under the SS63 (145347886); 2 with a head wall: the south mouth of Pieve San
+  Lorenzo's 29 m underpass under the station (756577583), under Via della Stazione, and the west
+  mouth of the 16 m road under the SS63, where the SS63 passes over lower than a portal's top; 42
+  open: four roads under rail bridges (the SR445's 7.7 m by Gassano among them), Pieve San Lorenzo's
+  north mouth (the ground over its end 4.83 m at most), Via S. Nicola's 19 m in Gragnola and an 11 m
+  path (757045013), whose cover the map's ground does not hold, and Via Gioco di Sopra's west mouth,
+  a garage standing over the tunnel 1.5 m in, and Fosdinovo's 28, the mouths of its 24 roads in
   tunnels, all covered alleys and lanes in its villages (Giucano, Pulica, Fosdinovo, Bardine,
   Castelpoggio, Caniparola, Ponzanello, Canova and Ceserano): 13 under houses and 15 under too low a
-  bank, so it adds no portal or head wall. Cesena has 77 mouths, 6 with a portal (the Secante's four
-  and Via del Tunnel's two), 2 with a head wall (Via Spadolini's two, beside its cycle path's own
-  tunnel), 69 open: 7 buried (both of the Sottopasso Ravennate, of the path 43076054 under the
-  station and of the Sottopasso Cervese, and the Sottopasso del Mare's one, its other end on the
-  outline: the map's ground holds none of their ramps, standing 5.1–6.2 m over their floors at their
-  mouths; issue #127), 47 under houses (the centre's arcades and covered ways), 13 under too low a
-  bank and the cycle path's 2, for want of room. The L has 12, 3 with a portal, 9 open (1 under a
-  house). A part's road tunnels need nothing more: the
-  build finds and bakes their mouths in any region, and `src/render/__tests__/tunnels.map-test.ts`
-  (with its Cesena and L twins) checks every one drawn, finds again by geometry why each open one is
-  open, and pins each region's counts of roads in tunnels, passages, metres, wall triangles, mouths,
-  portals, head walls and open mouths by reason, so it fails until a new part's are looked at and
-  pinned. A bore's wall triangles are cut where the ground over its sides crosses its springing or
-  foot, so they follow the ground beside its mouths: with each approach cored at its own width, 13
-  of Lunigiana's 59 tunnels changed theirs, 3,459 → 3,574 in all, and the L's 633 → 650.
+  bank, so it adds no portal or head wall. Cesena has 76 mouths (70184534's end where 70184520 runs
+  on through the bore is a junction, no mouth), 6 with a portal (the Secante's four and Via del
+  Tunnel's two), 3 with a head wall (Via Spadolini's two, beside its cycle path's own tunnel, and
+  the Sottopasso Cervese's east mouth at (757.4, 622.3), buried before its approach cut it), 67
+  open: 2 buried (the Sottopasso del Mare's at (1932.9, 46.5) and the Sottopasso Ravennate's south
+  at (−15.8, 878.2), whose ends under the rail keep its clearance, 5.2 and 5.9 m under the roads
+  meeting them; issue #127), 46 under houses (the centre's arcades and covered ways), 15 under too
+  low a bank (the Sottopasso Cervese's west mouth and the Sottopasso Ravennate's north among them,
+  their ends risen to the ground their approaches lead on over) and 4 for want of room (the cycle
+  path's 2, and the path 43076054's two under the station, cut by their approaches to 0.4 and 1.0 m
+  under the ground, where a portal's face would stand on another path); 18,377 wall triangles. The L
+  has 12, 3 with a portal, 9 open (1 under a house), 654 wall triangles (Equi Terme's footway
+  underpass 1133296350 now rises to its approach 1306844336 at 264.2 m). A part's road tunnels need
+  nothing more: the build finds and bakes their mouths in any region, and
+  `src/render/__tests__/tunnels.map-test.ts` (with its Cesena, L and coast twins) checks every one
+  drawn, finds again by geometry why each open one is open, and pins each region's counts of roads
+  in tunnels, passages, metres, wall triangles, mouths, portals, head walls and open mouths by
+  reason, so it fails until a new part's are looked at and pinned. A bore's wall triangles are cut
+  where the ground over its sides crosses its springing or foot, so they follow the ground beside
+  its mouths: with each approach cored at its own width, 13 of Lunigiana's 59 tunnels changed
+  theirs, 3,459 → 3,574 in all, and the L's 633 → 650. The coast's are pinned at 6 roads in tunnels,
+  4 passages, 83 m, 225 wall triangles, 4 mouths, no portal, 1 head wall, 2 open under too low a
+  bank and 1 with no room. That last one is underpass 205932312's south mouth, under the A12 by the
+  coast's east edge, which the bake leaves open because the road out of it turns 43° and climbs
+  across where the head wall's side would stand: `whyOpen` (`mouth-checks.ts`) counts a road leading
+  out of a mouth as crowding its head wall where the road's carriageway reaches past the arch's
+  side, where it skipped every road leading out before and failed the mouth (a unit test in
+  `mouths.test.ts`); Lunigiana, Cesena and the L give the same counts as before.
 - Rail (`rail-levels.ts`): at a level crossing the rail keeps its own grade and the road meets it
   (the road's profile, after the rail's, is pinned to it at the shared node): a rail pinned to the
   road's natural level made a V of 3.8–5.1% in its grade within ±5 m (an 82 m vertical curve at
@@ -2097,6 +2758,19 @@ north-west ridge of Monte Grondilice).
   the streams on the hillside. The rail's output keeps the profile samples where its elevation
   bends by more than 0.03 m (roads: 0.25 m), so the line drawn and driven follows the grid it was
   written into: 823 vertices, 19.0 KB of the JSON line (223 vertices before the CTR).
+- **Twin tracks** (`rail-twins.ts`, issue #19): two tracks side by side stand on one formation. The
+  rail is profiled a chain at a time and a switch ends a chain, so each track of a double line was
+  fitted apart from the other: north of Aulla the Pontremolese's two, 3.9–5.6 m apart, stood 1.5 m
+  apart in level at their twin tunnels' south portals and 2.8 m at the north ones. A track fitted
+  after a twin of its kind (both bridges, both tunnels or both at grade) within 15° of parallel
+  keeps within 0.1 m of the twin's level where they run within 6 m of each other (`SIDE`, `TWIN`);
+  farther apart the allowance grows by 2/3 m a metre (`PART`, a 2:3 bank between their formations)
+  up to 12 m (`REACH`), past which they bind each other no more. Its points 2 m apart along it take
+  the bounds, each holding at its own sample (`Bound.here`), on a deck or not. It moved 43 of
+  Lunigiana's rail pieces and 452 terrain nodes, by up to 2.4 m, with the walls and a parked spot
+  beside them, along the Pontremolese by Aulla and the sidings at x 4900–5370, and on Cesena 18
+  pieces, 863 nodes (up to 0.5 m), a platform and 28 lamps round its station and two underpass
+  roads by 0.1 m.
 - Overpasses (`road-levels.ts`): the rail bridge's rule holds under every road bridge too, so local
   roads pass under a motorway's overpasses. A drivable road under a profiled road's bridge, or in a
   tunnel under a road, keeps its `maxheight` (4 m when untagged) plus a 1.5 m deck under it. Of the
@@ -2127,7 +2801,17 @@ north-west ridge of Monte Grondilice).
   streets. Both maps' checks (`map.map-test.ts`, `cesena.map-test.ts`) read every road bridge. Two
   Cesena tunnels keep less: the car park ramp 68296970 (a service road in its square's pass, which
   no pass before it bounds) stays at the square's level, and Via Giovanni Spadolini's 166880964 runs
-  5.1 m under two service roads, its ends pinned by junctions.
+  5.1 m under two service roads, its ends pinned by junctions. A bound holds across the other
+  road's carriageway, not only on its centreline: every 2 m while within the other road's w/2 of
+  its centreline and 2 m past, from its level beside each point; a bound at a deck's end holds
+  there alone.
+- **Twin carriageways** (`TWINS` in `road-levels.ts`, issue #19): two carriageways of one road (a
+  motorway's or a dual carriageway's two oneway ways, each its own chain) that overlap in plan at
+  grade keep within 1.5 m (`ONE_LEVEL` less 0.5 m) of the twin's fitted level where they overlap,
+  and a deck or a bore of one that overlaps its twin is held at both its ends within that of the
+  twin's level beside them. The A15's carriageways by Aulla, 136455102 and 491154922, stood
+  0.74–2.63 m apart in level and now −1.43…0.46 m; at Calcinara 31135803 and 136414830 stood
+  4.65–5.63 m apart and now 0.45–1.54 m.
 - The bed against the LiDAR (every 2 m of at-grade line, leaving out the 4 m+ gaps of streams):
   0.26 m off at the mean, 0.10 m at the median and 0.86 m at p90, 432 m of the line more than 1 m
   off (before these rules: 1.18, 0.87 and 2.77 m, 2 932 m). Its grade changes by at most 3.4% over
@@ -2142,8 +2826,9 @@ north-west ridge of Monte Grondilice).
   the line clips lies up to 5.7 m off it, outside the profile's 4.3 m core, and one stood 7 m
   under the track in the Aulella's carve north of its bridge. A run-out's at-grade track (section
   9) gets the same caps and floors beyond the play area alone (`BedLine.writes`), so no node in
-  play moves for it. On Lunigiana the pass lowers 3,040 nodes (2,902 before the run-outs) and
-  raises 72 (the build prints them as `bed`, 2026-11-07). On lucido, when the bed came in with the
+  play moves for it. On Lunigiana the pass lowers 5,191 nodes, at most 4.8 m, and raises 138 (the
+  build prints them as `bed`, 2026-11-18; 3,040 and 72 before Aulla's part, 2,902 lowered before
+  the run-outs). On lucido, when the bed came in with the
   trains (#61, 2026-10-29), it lowered 2 050 nodes, 25 of them by more than 0.3 m: 4.0 m on the
   slope of the cutting west of Equi Terme at (920, 756), a corner 4.7 m from the centreline, 1.5 m
   at the Ugliancaldo tunnel's east portal, up to 1.3 m by Via Riolo. 4 of those 25 lay under a
@@ -2181,13 +2866,13 @@ north-west ridge of Monte Grondilice).
   run) is laid again over the new stretch, until it lies still. A road's or the rail's core holds
   its nodes only behind a deck's ends (its approach): abeam of a deck, between the lines across its
   ends, a core is an approach's reaching past its end, beside or under it. Lunigiana's pass lowers
-  668 nodes (the build prints them as `decks`, 2026-11-07; 735 while each road chain was cored at
-  its widest piece's width, 618 before Fosdinovo's part, 208 of those 618 by less than 0.5 m), the
-  deepest by 3.8 m at (1840, 11124): the end of a
-  12 m footbridge (1161691572) climbing 60%, which as a bridge no chain profiles takes the elevation
-  model's point there (below), 3.4 m under the averaged node beside it. Cesena's lowers 510, at most
-  5.2 m at (−676, −568), and the L's 118 (132 with the widest cores), at most 1.8 m at (−368, 388),
-  under Via delle Cave's bridge. The SP59's bridge now has the ground 0.12–0.92 m under its top
+  1,522 nodes, at most 4.5 m (the build prints them as `decks`, 2026-11-18; 668 before Aulla's
+  part, the deepest by 3.8 m at (1840, 11124), the end of a 12 m footbridge (1161691572) climbing
+  60%, which no chain profiled then; 735 while each road chain was cored at its widest piece's
+  width, 618 before Fosdinovo's part, 208 of those 618 by less than 0.5 m). Cesena's lowers 462, at
+  most 2.4 m (510 and 5.2 m at (−676, −568) before the paths' decks were fitted), the L's 113, at
+  most 1.8 m (118, and 132 with the widest cores), under Via delle Cave's bridge, and the coast's
+  261, at most 2.9 m. The SP59's bridge now has the ground 0.12–0.92 m under its top
   along its first 4 m and clear of its slab past them, and Via delle Cave's 0.12–0.81 m under its
   top along its south end
   run and 1.03 m or more under it past 4 m from its ends. Beside the nodes, Lunigiana's map moves a
@@ -2199,33 +2884,51 @@ north-west ridge of Monte Grondilice).
   first cut, capping every corner of each cell the slab reaches over as the rail bed does, lowered
   1,204 nodes and cut a hillside 11.2 m at (2944, −88), 7.3 m off a track bridge whose slab only
   grazed that cell; digging as deep as it took made a 6.1 m pit in a stream's bed by an abutment.
-  `deck-ground.map-test.ts` checks every deck of Lunigiana, Cesena and the L ([Checks and
-  tools](#checks-and-tools)).
-- A bridge or tunnel no profiled chain covers (paths, steps) is a straight line between its ends.
-  Under the rail both ends keep the road clearance, as in a profiled tunnel (the pedestrian
-  underpass at Equi Terme station).
+  `deck-ground.map-test.ts` checks every deck of Lunigiana, Cesena, the L and the coast ([Checks
+  and tools](#checks-and-tools)).
+- Every bridge and tunnel is profiled, the paths' and steps' last (above), but a pier, which the
+  path pass leaves out: its deck is set vertex by vertex, at its water's level and 1 m
+  (`pierDeck`, [section 3](#3-features-featurests)); the ground under it is lowered as under any
+  deck (on magra-coast, under its piers and bridges together, 361 nodes, 3 m at most, before the
+  paths' decks were fitted; 261 and 2.9 m now).
 
 ### 8. Water under decks (`water.ts`)
 
-Bridges keep 2.5 m of clearance over the water: the surface is capped there, settled again
-downstream, and re-carved outside road cores. At-grade road crossings imply a culvert, where the
-water dips 0.3 m below the road (the two fords over the Aulella, at and below Codiponte, are such
-crossings). Water left perched more than 1 m above the terrain (streams that end at a road cut)
-drops to the terrain, except inside a wider channel it flows into or in a lake's water, whose
-carved beds lie under it, and there only while it still runs downhill (a stream dropped into a
-river's carved bed never steps back up): the Canale Doglio through the 18 m² lake at (2934, −2611).
-A lake's water stands within 1 m of its level; higher, a surface inside its outline is the stream's
-on the bank, and drops no lower than the level, where it meets the lake's. The Canale della Fola
-runs into a pond 570 m from Arlia at its ground, 1.7 m over the level the pond's outlet caps it at
-(its lowest edge node, down the outlet's cascade), and its last sample there, over the cascade
+Bridges keep 2.5 m of clearance over the water (`BRIDGE_CLEAR`) and piers 1 m (`PIER_DECK`), as a
+pier's deck stands that high over the water's level (`pierDeck`; capped 2.5 m under it, a river
+under a pontoon fell 1.5 m under its own level there and on downstream): the surface is capped
+there, settled again downstream, and re-carved outside road cores. At-grade road crossings imply a
+culvert, where the water dips 0.3 m below the road (the two fords over the Aulella, at and below
+Codiponte, are such crossings). Water left perched more than 1 m above the terrain (streams that end
+at a road cut) drops to the terrain, except inside a wider channel it flows into or in a lake's
+water, whose carved beds lie under it, and there only while it still runs downhill (a stream dropped
+into a river's carved bed never steps back up): the Canale Doglio through the 18 m² lake at (2934,
+−2611). A lake's water stands within 1 m of its level; higher, a surface inside its outline is the
+stream's on the bank, and drops no lower than the level, where it meets the lake's. The Canale della
+Fola runs into a pond 570 m from Arlia at its ground, 1.7 m over the level the pond's outlet caps it
+at (its lowest edge node, down the outlet's cascade), and its last sample there, over the cascade
 carved 4 m under it, stood 3.4 m over the ground; it now meets the pond at its level. Two streams
 into ponds by Agnolo drop to their levels: 791367422 up to 1.4 m on the bank its pond's outline
 reaches up, and the Rio di Antigo to a level 0.4 m under its own surface leaving the pond, where it
-steps back up. The grid is then rounded to 0.1 m and stored as integer decimetres. The capping and
-settling read no terrain and run before the grid is built (`capUnderDecks`); the re-carve runs in
-each tile's window, which then reads the terrain under the water samples of its own cells before
-rounding; the culverts and the perched drop run on those readings once every tile is built
-(`dropPerched`).
+steps back up. A sample after a dropped one stands no higher than the dropped surface while its own
+carved ground lies under it, except in a lake's water; where the ground rises past the dropped
+surface the stream keeps its own (way 791364133, past a path at grade). The Arcinasso stepped back
+up 1.0 m at (−8592, 4954) and way 1430400928 0.1 m into the Magra's gravel; fixed (issue #19, for
+every part), Lunigiana's samples that rise over the one before fell from 13,507 to 56, on 34 pieces,
+none in a river polygon (7 were), and 13,403 vertices on 3,276 pieces lie lower, by at most 1.3 m;
+Cesena's water is unchanged. A stream's dead end where its dropped culvert begins under at-grade
+track is cut back along its line (`clearOfTrack`), to stop w/2 + a margin off the track: 1 m plus a
+cell's 5.66 m diagonal for a stream 4 m wide or more, else 2 m. The build lists the cuts as
+`streamEnds` and throws on one past twice that reach: six, all in Aulla's part, the Fosso di
+Vezzale's 842172309 and 842172310 by 5.5 and 3.0 m, the Canale Manarola's 842172313 and 842172315
+and the Canale del Piccardo's 1452819624 by 4.5 m and 1452819622 by 8.5 m. The line hung 4.54 m over
+the Manarola's bed at (−14178, 11509), and the Piccardo stood 0.22 m deep on the rail bed at
+(−13423, 9190) at 1.72 m³/s per km². A stream under a bridge's end is no culvert under its approach
+(`bedOf`): 38 of Lunigiana's floors and 1 of the L's moved, by up to 4.2 m (789355109). The grid is
+then rounded to 0.1 m and stored as integer decimetres. The capping and settling read no terrain and
+run before the grid is built (`capUnderDecks`); the re-carve runs in each tile's window, which then
+reads the terrain under the water samples of its own cells before rounding; the culverts and the
+perched drop run on those readings once every tile is built (`dropPerched`).
 
 ### 9. The railway (`railway.ts`, `platforms.ts`, `rail-clear.ts`)
 
@@ -2239,15 +2942,31 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   horizontal edge lies 0.1 m or more away. From each terminal a walk goes on at every junction the
   way that turns least (under 60°, headings taken over 5 m: a single 0.3 m end segment turns up to
   12° on the 0.1 m grid, more than a turnout diverges) and never takes a piece twice; a walk that
-  ends at another terminal is a line, and of two between one pair of terminals the one turning
-  less in all. A dead end inside the map (a siding's buffer) is no terminal, and a ring with no way
-  off the map gives no line. Each line runs the way most of its length was drawn.
-  One line here: the Lucca–Aulla line's 102 pieces, 16,854.7 m from the outline at Pieve San
-  Lorenzo (6700, 3423.2), in the Galleria del Lupacino, to Fivizzano's west edge by Rometta (−5300,
-  4621.2), every piece in its OSM direction; 5 251.4 m in tunnels, 1 502.3 m on bridges. Its speed
-  limits are OSM's `maxspeed`, pieces with one limit merged: 140 km/h through the Lupacino to s
-  873.7, 85 to Equi Terme's stop (s 5979.8), 80 to Gragnola's track-2 stop (s 12016.7), 85 on to
-  that edge.
+  ends at another terminal is a line, and of two between one pair of terminals the one turning less
+  in all. A dead end inside the map (a siding's buffer) is no terminal, but a terminus is (issue
+  #19): a stop position where an OSM `route=train` relation starts or ends and that no route stops
+  at on its way (`routeEnds` in `rail-routes.ts`), at the end of the piece of the way the trains
+  reach it along (`terminiOf` in `railway.ts`). A walk ends at a terminus too, and its line runs
+  toward it, so its trains turn round there ([gameplay.md](gameplay.md#the-service)); a walk never
+  enters a stub, track that leads only to dead ends in the map (`deadEnds` in `rail-graph.ts`: the
+  safety stub past P.P. Chiesaccia's switch among them). A ring with no way off the
+  map gives no line. Each line runs the way most of its length was drawn. Three lines here:
+  - **0, Lucca–Aulla**: 140 pieces, 25,880.1 m from the outline at Pieve San Lorenzo (6700,
+    3423.2), in the Galleria del Lupacino, to Aulla Lunigiana's track 4, its stop 13949044083 at
+    (−12215.7, 6354.9) on OSM way 426008617, a terminus: the Aulla => Pisa route (21785496) starts
+    there and leaves along way 1571417875, while the Pisa => Aulla Lunigiana route (21785495) ends
+    at track 5's stop, which sits at no piece end. Its speed limits are OSM's `maxspeed`, pieces
+    with one limit merged: 140 km/h through the Lupacino to s 873.7, 85 to Equi Terme's stop (s
+    5979.9), 80 to Gragnola's track-2 stop (s 12016.8), 85 to s 22904.5 and 75 to s 25861.6; the
+    last 18.7 m (1571417875) carries no limit. Before Aulla's part it was 102 pieces, 16,854.7 m,
+    to Fivizzano's west edge by Rometta (−5300, 4621.2).
+  - **1, one of the Pontremolese's two tracks**: 38 pieces, 9,715.8 m from the north edge (−14234.6,
+    13000) to the south edge at y 3900, at 100, 110 and 180 km/h.
+  - **2, its other track**: 40 pieces, 9,715.4 m from the south edge (−12635, 3900) to the north
+    edge, at 180, 160, 110, 100, 110 and 100 km/h.
+
+  Lines 1 and 2 share the single track north of P.P. Chiesaccia and its run-out north of the play
+  area ([gameplay.md](gameplay.md#the-service)).
 - **Run-outs** (`continuations` in `rail-runouts.ts`, profiled in `build-terrain.ts`): past each
   terminal the build walks the track on along OSM's rail beyond the play area, cut to the built
   terrain's box (`clipBeyond`), so a train past a terminal runs on along the real line, over the
@@ -2268,50 +2987,52 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   on the map's bounds: once Fosdinovo grew the box to x −11500, Rometta's terminal (−5300, 4621.2)
   on Fivizzano's west edge had real terrain past it, the straight run 16.75 m under the hill 192 m
   on and the hill 7.17 m under it 24 m on, with no track drawn, and trains came out of the hill.
-  Lunigiana's two:
-  - past Rometta 1,154.4 m to (−6359.6, 4250.1), down the Aulella's valley at grade on OSM ways
-    183923123 and 61920253 (two stretches of 19 vertices; the bed from 123.4 to 115.2 m), the sim
-    running 1,128.6 m of it; over the drawn run (192 m, `DRAWN_RUN`) the terrain stands at most
-    0.025 m over its bed and 0.150 m under it, and its bank fills a gully 20–40 m past the
-    terminal that the straight run hung 7.2 m over;
-  - past Pieve San Lorenzo (6700, 3423.2) the Galleria del Lupacino, one stretch of 9 vertices,
-    3,950.2 m on to the box's edge at (10600, 2795.6), level at the bed's 356.9 m, the sim running
-    2,298.6 m of it, all in the bore.
+  Lunigiana's: past Pieve San Lorenzo (6700, 3423.2) the Galleria del Lupacino, one stretch of 9
+  vertices, 3,950.2 m on to the box's edge at (10600, 2795.6), level at the bed's 356.9 m, the sim
+  running 2,298.6 m of it, all in the bore; and past the Pontremolese's south ends, through the
+  notch west of Fosdinovo's part, 3,394 m on line 1 and 3,393.9 m on line 2, stored. The north
+  ends lie on the box's edge and have none: past them a train runs straight on, 1,409.1 m. A
+  terminus has no run-out. Rometta's run-out (1,154.4 m to (−6359.6, 4250.1), down the Aulella's
+  valley at grade, its bank filling a gully 20–40 m past the terminal that the straight run hung
+  7.2 m over) went with Aulla's part, which carries the line on in play.
 
   Cesena's four terminals and the L's two lie on their boxes' own edges and have none: past them a
   train runs straight on across the apron, as before. On the 3x lucido's east terminal (4900,
   3609.4) runs on 7,895.0 m east past Pieve San Lorenzo to its box's edge (12700, 2457.5), in 8
   stretches, the last two in tunnels.
 - **Kinds** (`kindsOf`): a piece on no line is a `siding` when it leads only to dead ends (pieces
-  with an end no other track shares, other than on a line, are taken away until none is left), else
-  a `loop`: Gragnola's track 1 (two pieces) and Pieve San Lorenzo's loop (13) are loops; Gragnola's
-  stub, Monzone's siding (two), Equi Terme's five pieces and Pieve San Lorenzo's yard (11, its track
-  only the CTR has among them) are sidings. OSM's `service` tags play no part, so an OSM passing
+  with an end no other track shares, other than on a line, are taken away until none is left, the
+  same `deadEnds` the lines' walk keeps out of), else a `loop`: Gragnola's track 1 (two pieces),
+  Pieve San Lorenzo's loop (13), Aulla's track 5 and the Lucca branch north of the terminus to the
+  north throat are loops; Gragnola's stub, Monzone's siding (two), Equi Terme's five pieces and
+  Pieve San Lorenzo's yard (11, its track only the CTR has among them) are sidings. Lunigiana holds
+  34 loop and 28 siding pieces. OSM's `service` tags play no part, so an OSM passing
   loop or siding gets its kind the same way.
-- **Platforms** (`platforms.ts`): each CTR `0141` polygon (OSM's `railway=platform`
-  where the 2019 sheets map no ground) is rasterised at 0.05 m and keeps the cells 1.60 m or more
-  from every track centreline out of the tunnels (the ATR 220 is 2.883 m wide), 0.5 m or more past
-  the edge of every at-grade carriageway, outside the CTR's level-crossing areas, and no more than
-  1 m under the platform's top (Gragnola's polygon wraps the station building, whose forecourt side
-  lies 2 m under the track). Each piece left is traced, simplified to 0.06 m and rounded to the
-  0.1 m grid point that keeps those clearances; the platforms' shipped rings stand 1.63–1.73 m
-  from the nearest track. A piece narrower than 1.2 m, or with tracks under 6 m apart on both sides
-  of most of it, is a rail-level walkway, not a platform: Gragnola's strip between tracks 1 and 2
-  (4.3–5.0 m apart; 1.74 m wide once clipped). Equi Terme's island platform lies between tracks
-  7.1–7.6 m apart and stays one. So is a piece no edge of which comes within `PLATFORM_EDGE` (2.2 m,
-  `src/sim/map/kinds.ts`, the reach of the render's yellow line) of a track: no train's step reaches
-  it, and nobody waits there. The CTR maps a strip north of Pieve San Lorenzo's line as a platform
-  (`23D15 AGE#252`, 381 m²), 2.45 m off it, between the track and Via Bugliatico's bank (the ground
-  stands up to 5 m over its top on 42% of it): bare ground on the 2010 orthophoto, a 1 m path along
-  the track and three low dark structures and a cabinet on the 2023 one, while the platform by the
-  building and the island between the loop and the line stand 1.63 m off their tracks.
-  A platform's top follows the rail head of the line beside it plus
-  0.25 m (a walkway's plus 0.02 m): the 2015 line study calls the platforms low, "secondo vecchi
-  standard", and RFI lists none raised to 55 cm; the exact height is not known. It is emitted per
-  vertex of an axis along the line, from 1 m before the platform to 1 m past it, because the line
-  climbs along them (Equi Terme's top falls 1.96 m over its 136 m). Platforms are `platform`
-  areas, walkways `paved` ones; each has a station name, from the nearest station or stop node
-  within 300 m.
+- **Platforms** (`platforms.ts`): each CTR `0141` polygon (OSM's platform areas where the 2019
+  sheets map no ground: `railway=platform`, or `public_transport=platform` with no `bus` or
+  `highway` tag, as OSM tags Aulla Lunigiana's three; each cut where a 2019 sheet maps the ground,
+  `leftTo`, rather than dropped whole by its first vertex) is rasterised at 0.05 m and keeps the
+  cells 1.60 m or more from every track centreline out of the tunnels (the ATR 220 is 2.883 m wide),
+  0.5 m or more past the edge of every at-grade carriageway, outside the CTR's level-crossing areas,
+  and no more than 1 m under the platform's top (Gragnola's polygon wraps the station building,
+  whose forecourt side lies 2 m under the track). Each piece left is traced, simplified to 0.06 m
+  and rounded to the 0.1 m grid point that keeps those clearances; the platforms' shipped rings
+  stand 1.63–1.81 m from the nearest track. A piece narrower than 1.2 m, or with tracks under 6 m
+  apart on both sides of most of it, is a rail-level walkway, not a platform: Gragnola's strip
+  between tracks 1 and 2 (4.3–5.0 m apart; 1.74 m wide once clipped). Equi Terme's island platform
+  lies between tracks 7.1–7.6 m apart and stays one. So is a piece no edge of which comes within
+  `PLATFORM_EDGE` (2.2 m, `src/sim/map/kinds.ts`, the reach of the render's yellow line) of a track:
+  no train's step reaches it, and nobody waits there. The CTR maps a strip north of Pieve San
+  Lorenzo's line as a platform (`23D15 AGE#252`, 381 m²), 2.45 m off it, between the track and Via
+  Bugliatico's bank (the ground stands up to 5 m over its top on 42% of it): bare ground on the 2010
+  orthophoto, a 1 m path along the track and three low dark structures and a cabinet on the 2023
+  one, while the platform by the building and the island between the loop and the line stand 1.63 m
+  off their tracks. A platform's top follows the rail head of the line beside it plus 0.25 m (a
+  walkway's plus 0.02 m): the 2015 line study calls the platforms low, "secondo vecchi standard",
+  and RFI lists none raised to 55 cm; the exact height is not known. It is emitted per vertex of an
+  axis along the line, from 1 m before the platform to 1 m past it, because the line climbs along
+  them (Equi Terme's top falls 1.96 m over its 136 m). Platforms are `platform` areas, walkways
+  `paved` ones; each has a station name, from the nearest station or stop node within 300 m.
 
   | Platform | Area | Width | Track side |
   |---|---|---|---|
@@ -2324,30 +3045,39 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   | Minucciano-Pieve-Casola, the island (`23D15 AGE#238`) | 355 m² | 3.50 m | between the loop and the line |
   | Minucciano-Pieve-Casola, north of the line (`23D15 AGE#252`) | 381 m² | 6.50 m | walkway, 2.45 m off the line |
   | Fivizzano-Gassano (`23D02 AGE#111`) | 601 m² | 9.68 m | north |
+  | Fivizzano-Rometta-Soliera (`23C08 AGE#27`), under a canopy | 817 m² | 9.32 m | 1.63 m off the line |
+  | at Serricciolo, no station or stop node within 300 m, so no name (`23C07 AGE#98`) | 233 m² | 5.20 m | 1.69 m off the line |
+  | Aulla Lunigiana (`24C60 AGE#173`, `#174`, `#175`) | 558, 434 and 240 m² | 6.10, 6.54 and 6.88 m | 1.68, 1.63 and 1.81 m off their tracks |
+  | Aulla Lunigiana, OSM's platforms 5, 6 and 7, which no 2019 sheet maps | 1,740, 2,006 and 2,373 m² | 6.74, 8.34 and 8.98 m | 1.63, 1.64 and 1.63 m off their tracks |
 
 - **Stations** (`stationsOf`): per line and station name, the extent along the line of that
   station's platforms within 2.5 m of it and of its station and stop nodes within 5 m, on the side
   of the biggest of those platforms: Minucciano-Pieve-Casola at s 1558.6–1667.1 (right of the line,
   which runs west there), Equi Terme at 5921.4–6057.0 (left), Monzone-Monte dei Bianchi-Isolano at
   8493.3–8597.1 (right, the building's side), Gragnola at 11911.6–12057.7 (left: track 2 trains call
-  along the walkway) and Fivizzano-Gassano at 14454.2–14550.8 (right).
+  along the walkway), Fivizzano-Gassano at 14454.2–14550.9 (right), Fivizzano-Rometta-Soliera at
+  17205.9–17295.4 (right) and Aulla Lunigiana at 25659.4–25880.1 (right); on lines 1 and 2 Aulla
+  Lunigiana alone, at 6915.4–7325.2 and 2390.7–2799.7 (right). A station's extent may reach 450 m.
 - **Level crossings** (`crossingBoxes`): every vertex a rail piece shares with a road, grouped
   into one box with the others on that road within 10 m, with its graph node (the graph keeps each
   vertex id's node, `buildGraph`'s `ids`) and the line's s at the node on the line: Equi Terme's
   foot crossing (s 5915.4), Via Riolo (8397.5), Viale 20 Settembre (11636.0), Via Castel dell'Aquila
-  over both Gragnola tracks (12089.6, two nodes 2.1 m apart), Via Nuova (12335.8) and the old SS445
-  by Gassano (13636.8); Pieve San Lorenzo's foot crossing lies on the loop alone, so it names no
+  over both Gragnola tracks (12089.6, two nodes 2.1 m apart), Via Nuova (12335.8), the old SS445
+  by Gassano (13636.9), and in Aulla's part the SP72 by Rometta (17024), the SP18 (19874.1), Via
+  Filippo Turati (21039.2), Via Guido Rossa (22327.2), the SP57 Ponzanello (22852.6) and the track
+  140771695 (23367.7); Pieve San Lorenzo's foot crossing lies on the loop alone, so it names no
   line (`line` and `s` −1).
-- **Clearance** (`rail-clear.ts`): outside the crossing boxes (within 15 m of a
-  box's nodes, on its road or within its verges: the crossing road's lanes and verges come within
-  2.8 m of the track up to 12.4 m away, Viale 20 Settembre crossing at a slant) and the platforms,
-  no walk verge or traffic lane comes within 2.8 m of an at-grade running-track centreline at its
-  level (within 2 m of the rail's bed): the ATR 220's half-width, a person's radius (0.35 m) and 1 m
-  between them. A road whose verge would is given a narrower one (`verge`, both sides, 0.05 m
-  clear); a lane that would stops the build (none does). Three of the five narrowed verges lie
-  inside their carriageway, along the whole road: Piazza della Liberazione's walkers go 0.13 m
-  inside its edge for its 44 m, Via Riolo's 0.12 m for its 182 m and a service road's by Gassano
-  0.15 m for its 153 m.
+- **Clearance** (`rail-clear.ts`): outside the crossing boxes (within 15 m of a box's nodes, on its
+  road or within its verges: the crossing road's lanes and verges come within 2.8 m of the track up
+  to 12.4 m away, Viale 20 Settembre crossing at a slant) and the platforms, no walk verge or
+  traffic lane comes within 2.8 m of an at-grade running-track centreline at its level (within 2 m
+  of the rail's bed): the ATR 220's half-width, a person's radius (0.35 m) and 1 m between them. A
+  road whose verge would is given a narrower one (`verge`, both sides, 0.05 m clear); a lane that
+  would stops the build (none does). Lunigiana narrows 13 verges (5 before Aulla's part, below; the
+  build prints them as `verges`). Three of the first five narrowed verges lie inside their
+  carriageway, along the whole road: Piazza della Liberazione's walkers go 0.13 m inside its edge
+  for its 44 m, Via Riolo's 0.12 m for its 182 m and a service road's by Gassano 0.15 m for its 153
+  m.
 
   | Road | Nearest its verge came | Verge (was) |
   |---|---|---|
@@ -2369,11 +3099,11 @@ majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 
 | Wall source | `walk` | `shore` | `drive` |
 |---|---|---|---|
-| Water cells (within max(w/2, 2) m of the centreline, and the cells of the lakes and river polygons) | no | yes, except on any road or a steep cell | no |
+| Water cells (within max(w/2, 2) m of the centreline, and the cells of the lakes, the river polygons and the sea, but a sea cell whose ground at its centre stands over 0 m) | no | yes, except on any road or a steep cell | no |
 | Slope | > 35°, except on any road | no | > 25°, except within w/2 + 1.5 m of a drivable road |
 | Building outlines | yes | no | yes |
 | `wall`, `cliff` barriers | yes | no | yes |
-| `guard_rail` barriers | no | no | yes |
+| `guard_rail` barriers, and `breakwater` ones (a breakwater's or a groyne's outline) | no | no | yes |
 | The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
 | Road-exit caps (4 m inside, where drivable roads leave the area) | no | no | yes |
 | Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them, each at its deck's level; open where a road on the deck's own level reaches them: a junction on the deck, the next piece of the same bridge, a road or tunnel carrying on from it, and the inside of the deck's own bends, where one segment's piece runs on across the next one's carriageway) | no | no | yes, on the deck's level |
@@ -2393,12 +3123,27 @@ walls held them before, and stores neither of those.
   carved to its river's floor: they are the way out of the water. A lake's bed only shelves, and so
   does a river polygon's whose river the map does not hold, so their banks are walled as steep as
   they are.
+- **The sea's cells** (issue #13) are the shore's as a lake's are, but where the ground at a cell's
+  centre (on the SW–NE diagonal the terrain splits it along) stands over the sea's 0 m: a
+  breakwater or a pier's area raised in the sea, or a shore cell's dry half, is dry land, so a
+  breakwater the coastline runs across holds no shore wall on its rock. On magra-coast 1,283 of the
+  694,775 sea cells are dry so, and the shore's blocked cells go from 41,019 without the sea to
+  733,868; it holds 6,137 shore walls, 32,214 walk and 37,773 drive walls (6,114, 32,096 and 37,498
+  on the shelf floor before the survey's). A breakwater's or a groyne's outline (`breakwater`,
+  [section 3](#3-features-featurests)) stops vehicles alone, as a guard rail does: its rocks are
+  too steep to drive up and walkable. It opens only where a drivable road's middle reaches it, as
+  a guard rail does, so a path onto it leaves it walled for vehicles; a crash into it sounds like
+  rock ([audio.md](audio.md)). Magra-coast's 20 make 20 of its 56 barriers.
 - Where a drivable road (not a tunnel) runs through or along a footprint, the house gives way:
   OSM centrelines and the surveys' footprints disagree by a metre or two, and none of these roads is
   tagged as a passage. `clipBuildings` cuts a corridor of min(w/2, 1.2) m half-width out of the
   footprint (rasterised at 0.2 m and traced like the walls), so the house drawn and its walls are
   one outline. A footprint cut in two becomes two buildings with the same id; slivers under
-  4 m² are dropped. Clipped houses lose their hip roof.
+  4 m² are dropped. Clipped houses lose their hip roof. A drivable bridge's deck clips over its
+  whole w/2, as a motor road does, since no house stands on a bridge (issue #19): the SR445
+  substation −284056252255931 stood under 552592647 at (−3256, 4472). It clips 11 footprints on
+  Lunigiana (2 of them under a deck's slab, the rest beside one), 2 on Cesena (153200101,
+  153200815) and 2 on the L (−284056253155587, −284056253205767), each staying one piece.
 - Tunnels, paths and steps under arches only open such a corridor in the walls: the house is
   drawn whole, the passage stays open and the interior stays closed. Within a footprint a corridor
   reaches, the walls are carved 0.25 m wider, half a raster cell and the trace's 0.15 m tolerance,
@@ -2428,12 +3173,17 @@ walls held them before, and stores neither of those.
   where its carriageway reaches the parapet, stands within 2 m of the deck's top there: a road carrying on
   from the deck, at any angle, opens it however the two are tagged, and one passing under it does
   not, even the SR445 itself, which runs on from its bridge 552592647 west of Gragnola and turns
-  back under it 5.8 m lower. Lunigiana has 766 parapet walls, and the parapets of 5 bridges close
-  over a road on another level (the viaduct; 552592647, over that loop; the SR445's 552592643, over
+  back under it 5.8 m lower. A deck is cut into parapet pieces whose top rises at most 0.1 m
+  (`LEVEL_STEP`) along each, and a parapet opens within `ONE_LEVEL` + 0.1 = 2.1 m of it (issue #19:
+  each piece took its deck's top at its middle, and along a climbing deck its ends stood off it).
+  Lunigiana has 5,402 parapet walls (766 before the pieces were cut so, 667 before Fosdinovo's
+  part), and the parapets of 30 bridges close over a road on another level; Cesena 1,040 walls and
+  15 bridges; the L 218 walls and none; the coast 142 walls and 3 bridges (the build prints them as
+  `parapets`, 2026-11-18). Before Aulla's part the parapets of 5 bridges closed over a road on
+  another level (the viaduct; 552592647, over that loop; the SR445's 552592643, over
   a track 15.8 m under it; the Ponte di Codiponte, 328463361, over a residential road 5.5 m under
   it; and since Fosdinovo's part Via Giuseppe Verdi's at Bardine di San Terenzo, 599910879, over
-  the track 599910873), Cesena 602 walls and 17 bridges, the L 79 walls and none (the build prints
-  them as `parapets`; 2026-11-07, Lunigiana's 667 and 4 before Fosdinovo's part). Read on the
+  the track 599910873), and Cesena's 17 (2026-11-07; 4 before Fosdinovo's part). Read on the
   profile alone (before issue #113), the parapet of Cesena's trunk bridge 24557433 (Via Ugo La
   Malfa) stood 4.7 m farther along the primary road 23136540 at its start, whose carriageway rises
   with the terrain there 2.25 m over its profile, and stopped a car on it 1.1 m under its level;
@@ -2465,9 +3215,12 @@ deck only from its level, along the road at its ends.
   past where its walkers go (`footReach`, w/2 + 1.3 m on a road, and the slab's 0.4 m past the
   carriageway at least) for the walk walls, half a metre past its parapets for the drive walls; and
   round its ends too, the top there the end's. There the ground at the terrain's level, as the game
-  reads it (`atGrade`: the terrain, a station platform's top, or a road at grade over it, an
-  approach's carriageway floating at the deck's level over far lower ground included, or a deck
-  within `ON_DECK` of the terrain, at its ends), stands within that headroom of the deck's top. The
+  reads it (`atGrade`: the terrain, a station platform's top, or a road at grade over it, or a deck
+  within `ON_DECK` of the terrain, at its ends), stands within that headroom of the deck's top.
+  Where a road at grade meets a deck's end, its surface stops there under the deck, inside the
+  width of any deck segment (`underCut` in `ground-model.ts`, issue #19); beside the deck it keeps
+  its rounded end, as the track 173044034 does at its 78° joint with the bridge 697036175. Before,
+  an approach's carriageway floated at the deck's level past its end, over far lower ground. The
   build reads it through the game's ground model (`src/tools/build-ground.ts`, issue #113): its own
   copy before left the platforms and the decks out and summed the junction blend in another order.
   Decks whose walls would touch are one space.
@@ -2485,11 +3238,13 @@ deck only from its level, along the road at its ends.
 - **Roads**: a road passing under a deck, its surface as the game reads it 2 m or more under the
   deck's top wherever it comes within the walls, keeps a corridor through the low space, 0.25 m past
   where its bodies go, where its ground stands 2 m or more under the top, walled along its sides;
-  where a bank its carriageway's edge climbs rises nearer, the walls stand across it. Any other road
-  opens a wall across its carriageway where its surface, as far along it either way as half the
-  longest vehicle (3.8 m), comes within 2 m of the wall's level: a road carrying on from a deck's
-  end, leaving it at an angle (the path 1240691428 off the end of 140780504 by Equi Terme), or
-  passing through. No wall stands on a road on its level.
+  its carriageway and 0.25 m more (`hold`, w/2 + `CORRIDOR`) stay in the corridor whatever the
+  ground, and past that a bank stays in the low space (issue #19: the walls stood up to 0.9 m inside
+  the tracks 137475085 and 754019191 and the SP20 275161288 beside the A15's approaches at Aulla).
+  Any other road opens a wall across its carriageway where its surface, as far along it either way
+  as half the longest vehicle (3.8 m), comes within 2 m of the wall's level: a road carrying on from
+  a deck's end, leaving it at an angle (the path 1240691428 off the end of 140780504 by Equi Terme),
+  or passing through. No wall stands on a road on its level.
 - **The verges at a deck's end**: pedestrians walk a road's verges (`walkSide`), off its
   carriageway, and onto a deck's at its end, where their ground comes within `ON_DECK` of it. A
   verge a few tenths of a metre to a metre under the end's top lies in the low space, so the walk
@@ -2503,35 +3258,36 @@ deck only from its level, along the road at its ends.
   along it, as 145347889 by 1362959048), still meets the walls, as anyone under or beside a deck
   does: 5 of Lunigiana's deck ends and 1 of Cesena's.
 
-Lunigiana has 6,122 walk walls and 10,346 drive walls under its 199 road decks, Cesena 2,079 and
-3,166 under its 50, the L 766 and 1,234 under its 23 (the build prints them as `underDecks`;
-2026-11-09). On the build's own ground copy they were 5,983 and 10,215 (5,120 and 8,580 under 167
-before Fosdinovo's part), 2,054 and 3,130, and 740 and 1,218 (6,032 and 10,166, 2,044 and 3,109,
-758 and 1,219 while each road chain was cored at its widest piece's width, which moved the ground
-by the decks' ends). Moving onto the game's ground changed 774 of Lunigiana's walk walls for 635 and
-1,023 drive walls for 892, round 131 and 150 of its decks, Cesena's 139 for 114 and 217 for 181,
-the L's 100 for 74 and 126 for 110, and no other part of the maps (`pnpm map-diff`): most of them by
-a few centimetres (half by 0.05 m or less, nine in ten by 0.16 m or less: the contour's crossings,
-from the junction blend summed in the game's order), the most 2.41 m, at the north end of
-140780504 by Equi Terme, where its deck within `ON_DECK` of the terrain is now the ground at grade
-(0.5 m over it). Of the walls left in place 3 of Lunigiana's walk walls and one of Cesena's took
-another level, by up to 0.4 m.
-When they came in (2026-11-06, before Fosdinovo's part) they added 44.4 KB to Lunigiana's files
-gzipped (32.02 to 32.06 MB), 13.1 KB to Cesena's and 6.0 KB to the L's, and against the same build
-without them `pnpm map-diff` moved the walls alone (on Cesena their extent moves the walk walls'
-lattice 1.8 m). They took the walls stage under half a second longer on Lunigiana (7.70 and 8.04 s
-over two builds, from 7.65 s without them).
+Lunigiana has 8,734 walk walls and 18,048 drive walls under its 353 road decks, Cesena 1,757 and
+2,878 under its 50, the L 614 and 1,149 under its 23, and the coast 1,509 and 2,406 under its 48
+(the build prints them as `underDecks`, 2026-11-18); before Aulla's part, 6,122 and 10,346 under
+199, 2,079 and 3,166, and 766 and 1,234 (2026-11-09). On the build's own ground copy they were 5,983
+and 10,215 (5,120 and 8,580 under 167 before Fosdinovo's part), 2,054 and 3,130, and 740 and 1,218
+(6,032 and 10,166, 2,044 and 3,109, 758 and 1,219 while each road chain was cored at its widest
+piece's width, which moved the ground by the decks' ends). Moving onto the game's ground changed 774
+of Lunigiana's walk walls for 635 and 1,023 drive walls for 892, round 131 and 150 of its decks,
+Cesena's 139 for 114 and 217 for 181, the L's 100 for 74 and 126 for 110, and no other part of the
+maps (`pnpm map-diff`): most of them by a few centimetres (half by 0.05 m or less, nine in ten by
+0.16 m or less: the contour's crossings, from the junction blend summed in the game's order), the
+most 2.41 m, at the north end of 140780504 by Equi Terme, where its deck within `ON_DECK` of the
+terrain is now the ground at grade (0.5 m over it). Of the walls left in place 3 of Lunigiana's walk
+walls and one of Cesena's took another level, by up to 0.4 m. When they came in (2026-11-06, before
+Fosdinovo's part) they added 44.4 KB to Lunigiana's files gzipped (32.02 to 32.06 MB), 13.1 KB to
+Cesena's and 6.0 KB to the L's, and against the same build without them `pnpm map-diff` moved the
+walls alone (on Cesena their extent moves the walk walls' lattice 1.8 m). They took the walls stage
+under half a second longer on Lunigiana (7.70 and 8.04 s over two builds, from 7.65 s without them).
 
 ### 11. Road graph (`graph.ts`)
 
-Nodes come from shared OSM node ids (clip points get their own), and edges are split to at most
-25 m. Where a road leaves the play area, its end is pulled back 8 m, past the exit cap. `traffic` is
-the largest connected component of the `motorway` to `service` edges (`isTraffic`: living streets
-and links included), minus private roads, dead-end tunnel spurs, and dead-end tips with no room for
-a car to turn (a 2.3 m circle clear of trunks and of the drive walls on the road's level, at its
-surface there: lanes that end between houses); tracks are drivable by the player but get no AI
-traffic. `walk` is the largest connected component of every edge except tunnels and motor roads
-(`isMotorRoad`: motorways, trunk roads and their slip roads, where the Codice della Strada,
+Nodes come from shared vertex ids (OSM's nodes, the conflation's `ctr:` and `culvert:` ones, and a
+pier's cuts at the water's edge, `pier:`); points the outline cuts get their own, and edges are
+split to at most 25 m. Where a road leaves the play area, its end is pulled back 8 m, past the exit
+cap. `traffic` is the largest connected component of the `motorway` to `service` edges (`isTraffic`:
+living streets and links included), minus private roads, dead-end tunnel spurs, and dead-end tips
+with no room for a car to turn (a 2.3 m circle clear of trunks and of the drive walls on the road's
+level, at its surface there: lanes that end between houses); tracks are drivable by the player but
+get no AI traffic. `walk` is the largest connected component of every edge except tunnels and motor
+roads (`isMotorRoad`: motorways, trunk roads and their slip roads, where the Codice della Strada,
 art. 175, bans people on foot), so nobody walks the Secante. The build keeps each vertex id's node
 (`ids`), so the level-crossing boxes name their nodes without matching coordinates.
 
@@ -2562,7 +3318,9 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   could switch its water between 8 and 4 m wide and move its bank trees 2 m. The water areas and the
   rivers' gravel are areas too, so neither lattice nor bank trees stand in them: 1,725 fewer on
   lucido, 1,655 of them in the UCS gravel, mostly by the Aulella, 31 in the lakes and the river
-  polygon and 39 at their edges, where the 2 m masks reach past the outlines. The UCS's woods add
+  polygon and 39 at their edges, where the 2 m masks reach past the outlines; and so are the sea
+  and the beaches, so no tree stands on the sand or in the sea (`trees.test.ts`; on the
+  magra-coast test region 91,376 trees, 56 fewer than with neither). The UCS's woods add
   43,294 lattice trees, and 256 bank trees standing in them give way: 43,038 more in all. The olive
   groves grow olives on a lattice of their own, a tree every 7 m (204 a hectare: the groves round
   Gragnola hold 150–280 on the 2023 orthophoto, the tended ones about 6 m apart, the old ones 7–8
@@ -2571,8 +3329,8 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   land cover draws the grove (no area over it in `FILL`), after the woods' and the banks' trees,
   which keep out of the groves as out of every other area. They add 216,330 olives on Lunigiana
   (139,583 before Fosdinovo's part, when the groves and vineyards over OSM's forest took 27,248 of
-  its trees and 104 bank trees). No cap: 5 090 371 trees on Lunigiana (216 330 olives and 2 829 on
-  the banks, 2026-11-07; lucido alone's 1 079 138, 35 733 and 930)
+  its trees and 104 bank trees). No cap: 7 390 587 trees on Lunigiana (2026-11-18; 5 090 371 before
+  Aulla's part, 216 330 olives and 2 829 on the banks; lucido alone's 1 079 138, 35 733 and 930)
   and 5 521 on Cesena (171 on the banks, no olive), positions rounded to 1 m (at most one tree per
   spot) and a scale of 0.8–1.3. Placement uses a fixed hash, not a random generator.
 - **A fixed lattice**: it starts at the region's anchor (`anchor` in `region.ts`: Lunigiana's
@@ -2612,7 +3370,8 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   roads (not bridges or tunnels; never by a motor road, where art. 176, comma 5 bans stopping on the
   carriageways and ramps), at least 12 m from junctions and 9 m from each other, with two or more
   buildings within 40 m, off every carriageway (tunnels included), clear of walls, its box's centre
-  and corners out of the lakes and river polygons (whose shore walls open on the roads beside them),
+  and corners out of the lakes, the river polygons and the sea (whose shore walls open on the roads
+  beside them) and off a beach's sand (on magra-coast 538 spots, the beaches taking 8),
   with the car's box at least 2.8 m from at-grade running track (the clearance rule) and 1.94 m from
   a loop or siding (a train's half-width, 1.44 m, plus 0.5 m: a spot by OSM's Gragnola loop stood
   1.4 m from it; measured from the car's centre, the rule kept a spot at (−1645.2, 3301.1) whose
@@ -2630,36 +3389,64 @@ art. 175, bans people on foot), so nobody walks the Secante. The build keeps eac
   share, and a part that grows the region keeps every other part's spots (before, a count of one per
   8 buildings cut the whole map's candidates in hash order, and Fivizzano's buildings and roads
   reshuffled it). Car parks within 150 m of Monzone station add up to 6 nose-in spots each, 8 in
-  all (3,500 spots on Lunigiana, 805 on lucido alone, 2026-11-07). The sim decides how many cars to
-  park on them.
-- **Districts** (`districts.ts`): 14 hand-placed discs (name, centre, radius) for Monzone's
-  station, streets and hill clusters, then a disc per OSM `town`, `village` and `hamlet` node in
-  play outside them (143 on Lunigiana: 26 of them lucido's, Gragnola, Equi Terme, Viano, Vinca,
-  Tenerano, Ugliancaldo...; 79 Fivizzano's part's, Fivizzano the one town; 38 Fosdinovo's,
-  Fosdinovo, Tendola, Ponzanello, Ceserano, Castelpoggio, Caniparola...), then 46 hand-placed
-  landmark discs for the unpopulated mountains (lucido's 35: Monte Sagro, Pizzo d'Uccello, Foce di
-  Vinca, Cava Cattani, Capanna Garnerone..., and the quarries of the Carrara side; Fivizzano's 7:
-  Passo dei Carpinelli, Passo di Tea, Passo del Romito, Cima Belfiore, Monte Tondo, Monte Cucu and
-  Monte Chiaro; Fosdinovo's 4: Foce del Cucco, La Pizza, Monte La Pianaccia and Monte Grugola; the
-  last two parts' radii fitted on the 2023 orthophoto with the built terrain's contours over it):
-  peaks, saddles and huts on their OSM nodes (Monte Chiaro on its castle's, on the hilltop, 72 m
-  west of OSM's peak), quarries on their pits, localities and ridges centred by hand on the slope
-  they name; 203 discs in all. None overlaps a village disc but Passo dei Carpinelli's, 70 m,
-  inside Casone Carpinelli's and small enough to take none of its buildings or spots, so the pass
-  names its own district (issue #17); Foce del Cucco's 200 m, which holds the SP72's and the SP9's
-  junction on the pass and its 17 houses, stops 47 m short of Monte Carboli's (issue #18). The
-  Fortezza della Verrucola is left to Verrucola's disc, the Castello Malaspina to Fosdinovo's, and
-  the Castello di Ponzanello, 67 m past Ponzanello's disc, takes the hamlet's name by the nearest
-  rim. A `locality` (a
-  named hillside or field, like I Pianelli above Equi Terme) gets none: it would claim the village's
-  station and spa. Each building outside Monzone's discs goes to the nearest place node within 600
-  m; the place's disc is centred on its node and covers 90% of those buildings plus 10 m, clamped to
-  80–400 m. `districtAt` picks the disc the point is relatively closest to, or the nearest rim
-  outside every disc. Of the buildings in a settlement, found by geometry (10 or more others within
-  150 m: 91% of lucido's and Fivizzano's part's buildings, 82% of Fosdinovo's), 86.9% stand in a
-  disc (lucido's 90.0%, Fivizzano's part's 88.8%, Fosdinovo's 80.8%, where 24 of its 38 discs stand
-  at the 400 m cap and Ceserano's disc leaves its western borgo out: [Known data
-  limitations](#known-data-limitations)); `map.map-test.ts` holds them to 80%.
+  all (6,472 spots on Lunigiana, 2026-11-18; 3,500 before Aulla's part, 805 on lucido alone). The
+  sim decides how many cars to park on them.
+- **Districts** (`districts.ts`): 14 hand-placed discs (name, centre, radius) for Monzone's station,
+  streets and hill clusters, then a disc per OSM `town`, `village` and `hamlet` node in play outside
+  them (244 on Lunigiana: 26 of them lucido's, Gragnola, Equi Terme, Viano, Vinca, Tenerano,
+  Ugliancaldo...; 79 Fivizzano's part's, Fivizzano among them; 38 Fosdinovo's, Fosdinovo, Tendola,
+  Ponzanello, Ceserano, Castelpoggio, Caniparola...; 101 Aulla's, Aulla, Podenzana, Terrarossa,
+  Barbarasco, Tresana, Licciana Nardi, Monti di Licciana, Bastia...; Fivizzano and Aulla the two
+  towns), then 51 hand-placed landmark discs for the unpopulated mountains (lucido's 35: Monte
+  Sagro, Pizzo d'Uccello, Foce di Vinca, Cava Cattani, Capanna Garnerone..., and the quarries of the
+  Carrara side; Fivizzano's 7: Passo dei Carpinelli, Passo di Tea, Passo del Romito, Cima Belfiore,
+  Monte Tondo, Monte Cucu and Monte Chiaro; Fosdinovo's 4: Foce del Cucco, La Pizza, Monte La
+  Pianaccia and Monte Grugola; Aulla's 5: the Fortezza della Brunella (−12550, 5236, 150 m), the
+  Castello di Giovagallo (−19888, 7334, 120 m), the Castello di Bigliolo (−6329, 9169, 130 m), Passo
+  Alpicella (−21897, 8680, 150 m) and Monte Borra Grande (−21833, 11192, 200 m); the last three
+  parts' radii fitted on the 2023 orthophoto with the built terrain's contours over it): peaks,
+  saddles, huts and castles on their OSM elements (Monte Chiaro on its castle's node, on the
+  hilltop, 72 m west of OSM's peak; the Brunella on the centre of the box of relation 9701877's
+  outer way 698125674, Giovagallo on the ruin 700011600, Bigliolo on the castle node 6703673726),
+  quarries on their pits, localities and ridges centred by hand on the slope they name; 309 discs in
+  all (203 before Aulla's part). The coast's two landmarks (issue #13) are Foce del Magra, at
+  (−11297.7, −12785.1) with 160 m, the middle of the coastline's 322 m closure across the mouth
+  (ways 1379669802 and 1379669801) between the jetties' heads, Bocca di Magra's node 321 m west, and
+  Punta Bianca, on its locality node 3200895827 at (−12162.7, −13987.1) with 150 m, the headland's
+  tip, the sea 35 m east and south of it and its rocky beach (way 176721000) out to 134 m west;
+  Bocca di Magra, Fiumaretta, Marinella di Sarzana, Montemarcello and Luni Mare are OSM villages.
+  Monzone's discs and the landmarks are kept only where the region's inputs reach, in the box round
+  its input parts' rectangles, so Lunigiana holds none of the coast's and the magra-coast test
+  region none of the mountains' (or Monzone's): its 10 discs are its 8 OSM places, each at the 400 m
+  cap, and the coast's two. Foce del Magra's overlaps Bocca di Magra's and names the mouth all the
+  same, as `districtAt` picks the disc a point is relatively closest to (below). On Lunigiana none
+  overlaps a village disc but Passo dei Carpinelli's, 70 m, inside Casone Carpinelli's and small
+  enough to take none of its buildings or spots, so the pass names its own district (issue #17);
+  Foce del Cucco's 200 m, which holds the SP72's and the SP9's junction on the pass and its 17
+  houses, stops 47 m short of Monte Carboli's (issue #18); and the Fortezza della Brunella's, inside
+  Aulla's town disc, 761 m from its node (issue #19): it names its hill alone, 21 buildings standing
+  at 77–138 m over the valley floor's 55–65 m, out to 97–130 m, the town round it keeping Aulla's
+  name. The Fortezza della Verrucola is left to Verrucola's disc, the Castello Malaspina to
+  Fosdinovo's, the Pieve di Santa Maria di Venelia, 194 m inside Monti di Licciana's disc among its
+  houses, to that village, and the Castello di Ponzanello, 67 m past Ponzanello's disc, takes the
+  hamlet's name by the nearest rim. Passo Alpicella lies 365 m past the play area, in Liguria, where
+  the RT photo all but stops: its disc is fitted on the contours alone and names the play area's
+  Tuscan flank below it by the nearest rim. A `locality` (a named hillside or field, like I Pianelli
+  above Equi Terme) gets none: it would claim the village's station and spa. Each building outside
+  Monzone's discs goes to the nearest place node within 600 m (`REACH`), or a town's within 1200 m
+  (`TOWN_REACH`: a town's streets run on past a village's, Aulla's 1.5 km up the Aulella from its
+  node); the place's disc is centred on its node and covers 90% of those buildings plus 10 m,
+  clamped to 80–400 m, but a town's reaches past 400 m, as far as its buildings: Aulla's 1030 m and
+  Fivizzano's 470 m (both 400 before issue #19). At a town reach of 1000 m Aulla's disc, 840 m, left
+  203 of the town's buildings to the Brunella's by the nearest rim, and capped at 400 m the Brunella
+  named 498 buildings past its disc, out to 1.9 km. `districtAt` picks the disc the point is
+  relatively closest to, or the nearest rim outside every disc. Of the buildings in a settlement,
+  found by geometry (10 or more others within 150 m: 91% of lucido's and Fivizzano's part's
+  buildings, 82% of Fosdinovo's, 89% of Aulla's), 83.5% stand in a disc (30,168 of 36,145: lucido's
+  90.0%, Fivizzano's part's 89.5%, Fosdinovo's 80.9%, where 24 of its 38 discs stand at the 400 m
+  cap and Ceserano's disc leaves its western borgo out, and Aulla's 77.9%, where 49 of its 101
+  places' discs stand at the cap: [Known data limitations](#known-data-limitations); 86.9% before
+  Aulla's part); `map.map-test.ts` holds them to 80%.
 
 ## Pinned inputs and CI
 
@@ -2689,7 +3476,10 @@ change an input.
   `raw-20261107-2`, 25.01 MB (the 31 sheets' 248 CTR files, 38
   files of the 2009 sheets, 29 terrain tiles of 17.48 MB, Fosdinovo's 23 and the 6 of Fivizzano's
   its box grew, the two parts' land cover, 2.98 MB, Liguria's 15 files and `osm/fosdinovo.osm.gz`,
-  2.03 MB). No entry names `raw-20261031` (#73's land cover), `raw-20261101` (#10's two terrains,
+  2.03 MB); and #13's 21 in `raw-20261117`, 2.67 MB (the coast test region's OSM extract,
+  Liguria's 17 files and its terrain's 3): 1,191 entries, 95.0 MB, on 2026-11-17, which
+  `pnpm fetch-raw` downloaded whole into an empty `data/raw`, byte for byte. No entry names `raw-20261031` (#73's land cover), `raw-20261101` (#10's
+  two terrains,
   lucido's one mosaic among them) or `raw-20261103-3` (#14's land cover with its woods) any more,
   nor `raw-20261104`'s land cover and those 6 tiles, nor `raw-20261107`'s Fivizzano land cover:
   only an older lock fetches them.
@@ -2700,8 +3490,9 @@ change an input.
   came from, and of a DBT layer's comune with the EPSG:3003 box its records were cut to
   (`…/DBT2K_045014_PONTREMOLI_…7z, the records whose box meets EPSG:3003 1568924,…`), the terrain's
   sources (each `dtm/<i>_<j>.bin`, or a test region's `dtm.bin`, `dtm.json` and `dtm-src.bin`: the
-  manifests' archives, the land-cover request with the date when the surface model fills, and
-  Emilia-Romagna's WCS when it does), and the WFS request with the date for the land cover.
+  manifests' archives, the land-cover request with the date when the surface model fills, the
+  part's OSM extract when the sea fills, and Emilia-Romagna's WCS when it does), and the WFS
+  request with the date for the land cover.
   `fetch-osm` gives every `/map` box, one a rectangle of its ground, and the date (and, for a test
   region's buildings, "buildings only"), `fetch-rer` the WCS request and the metadata URL, and
   `fetch-lig` each layer's first page and each crop's request, each with the date; `fetch-rt` names
@@ -2736,8 +3527,9 @@ change an input.
   checked again. Every job reads the version from `.node-version`: the runner images update their
   Node 24 on their own schedules, and the x64 jobs must look up the key the arm64 job saved. On a
   miss it restores `data/raw` from the cache under the lock's hash, runs `pnpm fetch-raw` (saving
-  `data/raw` once it checks) and `pnpm maps`, which builds the L test region too (`test-maps/`,
-  cached and hashed with the maps: [Test regions](#test-regions)). The cache's paths are the
+  `data/raw` once it checks) and `pnpm maps`, which builds the L and the coast test regions too
+  (`test-maps/`, cached and hashed with the maps: [Test regions](#test-regions)). The cache's
+  paths are the
   global files, the tiles and the overviews (`src/sim/map/*/overview.png`,
   `test-maps/*/overview.png`), the same in the restore and the reproducible job's save, so a hit
   brings back every file `vite build` and the map tests read but the raw inputs: the check job
@@ -2782,12 +3574,16 @@ The tiles hold the dense layers (terrain, walls, trees and land cover) and the v
 every road line, river, barrier, building and area, each whole in every tile it comes near. So the
 game downloads and decodes the vectors only near the player, as it does the dense layers: on
 Lunigiana the global file and the 4 tiles within 1 km of the start (−1_−1, 0_−1, −1_0 and 0_0) are
-3.35 MB to download (3,351,533 B: the global file 1,247,151 B, the tiles 2,104,382 B; 4.32 MB while
+4.23 MB to download (4,227,670 B: the global file 2,126,200 B, the tiles 2,101,470 B, 2026-11-18;
+3.35 MB before Aulla's part, the global file 1,247,151 B; 4.32 MB while
 the global file's line held the graph, the lanes and the residents, before format version 6, and
 3.62 MB before Fosdinovo's part; 2.31 MB on lucido alone, whose global file is 0.31 MB, 311,589 B,
 0.55 MB before version 6; 2.40 MB before the UCS's woods, 2.50 MB before its olive groves), where
 on lucido they were 3.10 MB with the vectors in the global file, and a production build's JS heap
-after a forced GC is 164 MB with Fosdinovo's part (2026-11-07, three runs on #18's final code; 161
+after a forced GC is 216 MB with Aulla's part (2026-11-18, `?seed=1`, three runs, against 164 MB
+for main's build that day: the whole map's graph, lanes, parked spots and residents grew with it),
+225 MB standing in Aulla, under the 245 MB issue #19 allows; 164 MB with Fosdinovo's part
+(2026-11-07, three runs on #18's final code; 161
 MB before its review's fixes, against 130–131 MB for main's build beside them, and under the
 245 MB issue #18 allows; 132–133 MB measured earlier that day with the olive groves, 130–132 MB
 before them; 89–90 MB on lucido alone, 88–89 MB before the woods) where
@@ -2796,10 +3592,12 @@ lucido's was 123–124 MB with the vectors in the global file (`pnpm playtest he
 
 A tile is the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin, keyed `i_j`
 (`TILE` and `tileKey` in `src/sim/map/kinds.ts`). The listed tiles are the region's, each tile one
-of its parts' rectangles meets (`tiles` in `region.ts`): Lunigiana's 102 of the 132 in its box (i
-−6…5, j −4…6) are Fosdinovo's i −6…−3 and lucido's i −2…2 up to j 0, the whole row j 1, where
-Fosdinovo's rectangle, lucido's and Fivizzano's meet, and Fivizzano's i −3…5 from j 2 up; its two
-notches are the 30 tiles no rectangle meets, i −6…−4 for j 2…6 and i 3…5 for j −4…0; Cesena's 4 are
+of its parts' rectangles meets (`tiles` in `region.ts`): Lunigiana's 153 of the 198 in its box (i
+−12…5, j −4…6) are Fosdinovo's i −6…−3 and lucido's i −2…2 up to j 0, then the whole rows j 1…6,
+Aulla's rectangle's i −12…−3 and Fivizzano's i −3…5 from y 3900, where they meet Fosdinovo's and
+lucido's; its two notches are the 45 tiles no rectangle meets, i −12…−7 for j −4…0, west of
+Fosdinovo's part and south of Aulla's, and i 3…5 for j −4…0 (102 of 132 before Aulla's part, the
+north-west notch i −6…−4 for j 2…6); Cesena's 4 are
 −1…0 both ways, the whole box round its one rectangle (`tileRange`). The render's 192 m apron past
 the bounds has no tiles of its own: it extends the edge nodes, as before. The game takes the box of
 tile indices from the listed tiles, not from the bounds, and a region whose parts make an L lists no
@@ -2840,9 +3638,12 @@ Fivizzano's part leaves as it was, shows more: 1,089 rays pass over its ground a
 
 | File | Lunigiana | Cesena |
 |---|---|---|
-| `src/sim/map/<name>.bin` (global) | 1.25 MB, 6.21 MB gunzipped | 0.40 MB, 1.74 MB gunzipped |
-| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 102, 42.4 MB in all, 0.04 (−6_−4) to 0.63 MB (2_1) each | 4, 1.7 MB in all, 0.37 to 0.45 MB each |
-| `src/sim/map/<name>/overview.png` | 5.56 MB, 4096 × 3540 px | 4.76 MB, 4000 × 4000 px |
+| `src/sim/map/<name>.bin` (global) | 2.13 MB, 10.23 MB gunzipped | 0.40 MB, 1.74 MB gunzipped |
+| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 153, 63.6 MB in all, 0.02 (−12_6) to 0.65 MB (−7_2) each | 4, 1.7 MB in all, 0.37 to 0.45 MB each |
+| `src/sim/map/<name>/overview.png` | 5.18 MB, 4096 × 2392 px | 4.76 MB, 4000 × 4000 px |
+
+Before Aulla's part Lunigiana's were 1.25 MB (6.21 MB gunzipped), 102 tiles of 42.4 MB and a
+5.56 MB overview of 4096 × 3540 px (2026-11-18 for the figures above).
 
 On lucido alone they are 0.31 MB (1.50 MB gunzipped; 0.55 MB and 1.9 MB before format version 6),
 30 tiles of 9.5 MB in all (the largest 0.59 MB) and 3.25 MB (3195 × 4096 px). With the vectors in
@@ -2866,8 +3667,8 @@ The build hash (`hash`, 16 hex digits of SHA-256 over every `.bin` file unstampe
 global file and in every tile: `provideTile` refuses a tile from another build ("map tile i_j is
 from another build"). The overview carries no hash: `overview.map-test.ts` checks it is the
 picture its map paints ([Checks and tools](#checks-and-tools)). The files are not in git:
-`pnpm maps` builds both maps from the pinned inputs, and CI caches them ([Pinned inputs and
-CI](#pinned-inputs-and-ci)).
+`pnpm maps` builds both maps and the L and coast test regions from the pinned inputs, and CI
+caches them ([Pinned inputs and CI](#pinned-inputs-and-ci)).
 
 ### The global file
 
@@ -2899,7 +3700,7 @@ counter-clockwise, holes clockwise.
 | `walls` | `reach` (how far any wall sticks out of its midpoint along either axis, 33 m: the 64 m outline walls), `lattice` (each wall kind's and the trees' broad-phase corner, below) and `counts` (`walk`, `drive`) |
 | `vectors` | how the vectors are cut into the tiles: `halo` (32 m, `HALO`: each feature lies whole in every tile it comes that near), `counts` (how many roads, buildings, water pieces, areas and barriers the whole map has, which a feature's index runs up to: 3,969, 24,331, 3,180, 13,570 and 87 on Lunigiana) and `lattice`, the corners of the broad phases that answer a box query over the tiles in the whole map's order, where the whole map's broad phase put them: the buildings' (the lowest corner of any building's box) and the rivers' sound's (the lowest water vertex) |
 | `spawns` | `player`: `{ x, y, angle }`; `parked`: `{ x, y, angle, rest, truck? }`, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked); `police?`: `{ x, y }`, the Carabinieri station the build chose (Lunigiana's POI 14183344901, Cesena's 806564311), whose two nearest level spots the game parks their cars on |
-| `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it; the line holds `table`, every distinct offset ascending (111 on Lunigiana, the lane fit's float noise such as 2.0500000000000003 among them, kept to the bit), and `counts`, each model's lanes in the order the decoded map lists the models; the lanes themselves are a section of indices into the table |
+| `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it; the line holds `table`, every distinct offset ascending (131 on Lunigiana, 111 before Aulla's part, the lane fit's float noise such as 2.0500000000000003 among them, kept to the bit), and `counts`, each model's lanes in the order the decoded map lists the models; the lanes themselves are a section of indices into the table |
 | `farms` | baked: `{ building, rural, pen }` per farm (`building` indexes the whole map's buildings, the index the tiles' buildings carry; its centre is in `derived.farms`) |
 | `lamps` | baked: every street lamp's lantern, `{ x, y, z, nx, ny, kind }` |
 | `derived` | what the build works out from the vectors for the readers far from the player, where the tiles holding them need not be in memory (`Derived` in `index.ts`): copies of what the railway points at, `crossings` (per level crossing, its road's line, which the trains and the crossings read anywhere), `platforms` (per platform, its area's rings, for the trains' look-out) and `stations` (per station, the first station building of its name, or null: its canopy's wall); and tables the game's own code bakes, `bells` (`{ id, x, y, z, h }`, the tallest church or tower of every district that has one, heard all over the map: 109 on Lunigiana), `residents` (per walk edge, `graph.walk` order, the residents of the homes within 60 m of its midpoint, float32; the line holds their count, a section their bit patterns), `farms` (per farm, its building's centre, flat x, y: the mean of its outer ring's vertices) and `mouths` (every road tunnel's mouth, by road and its first end first: `{ road, x, y, z, angle }` where its portal stands, and either `crown`, `throat` and `back` (how far it stands back into the tunnel from the road's end, m) for its portal, `head: true`, `throat` and `back` (0) for an underpass's head wall, or `open: true` at the road's end, [section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts); 56 on Lunigiana) |
@@ -2963,7 +3764,7 @@ and 0.8 KB (gzip at level 9, as the files are; 2026-11-07). The line is 2.64 MB 
 (2,639,642 B; 8,319,700 B before version 6, 5.54 MB before Fosdinovo's part) and the sections
 3.57 MB; Cesena's line is 0.96 MB (959,338 B; 2,355,974 before version 6), lucido's alone 0.65 MB
 (651,626 B; 1.88 MB before version 6, 6.20 MB with the vectors). Gzipped one layer and one tile at
-a time and summed over Lunigiana's 102 tiles, the
+a time and summed over Lunigiana's 102 tiles before Aulla's part (2026-11-07), the
 vectors are the areas 10.73 MB, the water 4.32 MB, the buildings 1.16 MB, the roads' lines 1.08 MB
 and the barriers 11 KB; before gzip 30.26, 14.22, 4.95, 2.83 and 0.02 MB, the largest tile's JSON
 line 0.97 MB (−4_1). On lucido alone's 30 tiles they are
@@ -2985,7 +3786,7 @@ feature's index in the whole map's list, ascending, and the feature, whole:
 | Layer | Each feature |
 |---|---|
 | `roads` | the road's line (`RoadLine`): `pts` and `z` (surface elevation per vertex); its attributes are `MAP.roads[id]` |
-| `buildings` | `id` (OSM id, or negative for a survey's: `survey-ids.ts`, [section 3](#3-features-featurests)), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint), `style`, `ruins?`, `tint`, `outer`, `holes?` |
+| `buildings` | `id` (OSM id, or negative for a survey's: `survey-ids.ts`, [section 3](#3-features-featurests)), `kind`, `name?`, `h` (wall height above `z0`), `z0` (lowest ground under the footprint: the grid at its rings' vertices, as it stood before the paths' approaches, [section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)), `style`, `ruins?`, `tint`, `outer`, `holes?` |
 | `water` | `id`, `kind` (`river` or `stream`), `name?`, `w` (the water's width), `bed` (the gravel bed's half-width), `depth` (the bed is carved `depth`/2 under `z`), `pts`, `z` (the built water surface per vertex), `area` (the catchment upstream of each vertex, km²), `floor` (baked: the bed under the centreline per vertex, m a.s.l.) |
 | `areas` | `kind` (one of `AREA_KINDS`), `name?`, `rings` (outer first, then holes), a water area's still `level?` (m) or its river's `waters?` (indices into the whole map's water; [section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)), whose pieces lie in every tile the area does; the platforms (`platform`) and walkways (`paved`) are the whole map's last |
 | `barriers` | `kind` (`wall`, `guard_rail`, `cliff`), `pts` |
@@ -3120,10 +3921,12 @@ rail, the roads by class, narrowest first and at least `OVERVIEW_MIN` px wide, a
 
 - **Size**: 4096 px on its long side (`OVERVIEW_SIDE`), or fewer where that would pass 16 MP, under
   Safari's 16.7 MP canvas limit; whole pixels across and down, so the bounds span it exactly.
-  Lunigiana's is 4096 × 3540 px at 0.19 px/m (3410 × 4096 px before Fosdinovo's part;
+  Lunigiana's is 4096 × 2392 px at 0.13 px/m (5,175,289 B; 4096 × 3540 px at 0.19 px/m before
+  Aulla's part, 3410 × 4096 px before Fosdinovo's;
   lucido's alone 3195 × 4096 px at 0.41 px/m), Cesena's
-  4000 × 4000 px at 1 px/m, the L test region's 4096 × 3328 px at 0.85 px/m and the 3x's 4096 × 1750
-  px at 0.18 px/m.
+  4000 × 4000 px at 1 px/m, the L test region's 4096 × 3328 px at 0.85 px/m, the coast test
+  region's 4096 × 2731 px at 0.68 px/m (2,059,293 B, the sea in `seaDeep` and the beaches in
+  `sand`, `AREA_HEX`) and the 3x's 4096 × 1750 px at 0.18 px/m.
 - **Look**: `OVERVIEW_RATIO` is 5, so its lines are as wide as on a map 4096 / 5 ≈ 820 px on its
   long side, between a 1280 × 720 window's map (694 px on its long side, east to west since
   Fosdinovo's part) and a 1920 × 1080 window's (1,111 px). Shown on those, they come out 0.85 and
@@ -3163,67 +3966,65 @@ buildings' ids and the 2009 sheets' buildings below, Pontremoli's town in [Test
 regions](#test-regions)), it held 142 tests in 43 files, all passing with the 3x built, in 10.5 s.
 On 2026-11-07, with Fosdinovo's part, it held 176 tests in 61 files, 171 passing and the 3x's 5
 skipped, in 38.7 s within `pnpm check`, and with the review's fixes 181 in 64 files, all passing
-with the 3x built, in 40.3 s.
+with the 3x built, in 40.3 s. On 2026-11-17, with the coast test region's checks (issue #13), it
+held 206 tests in 72 files, 201 passing and the 3x's 5 skipped.
 
 `src/sim/map/__tests__/map.map-test.ts` checks the built map in 4.4 s alone, read whole (`wholeMap`
 in `src/tools/map-file.ts` joins its tiles back into one heightmap, wall list, tree list, land cover
 and list of each layer of vectors, every feature once, in the whole map's order, each road its
 attributes and its line), as `rail.map-test.ts`, `railway.map-test.ts` and `clearance.map-test.ts`
-read it: heightmap coverage, spawns clear of walls and off traffic lanes (with parking in the
-district each village the map was widened for stands in, the disc at its point compared by object,
-as Aulla's Bardine and Fivizzano's share the name: with Aulla's 20 spots dropped, the old check by
-name still passed on Fivizzano's 5; the villages: Equi Terme, Gragnola, Colognola, Campiglione,
-Viano, Vinca, Ugliancaldo and Tenerano, and the 15 of Fivizzano's part: Fivizzano, Casola in
-Lunigiana, Gassano,
+read it: heightmap coverage, spawns clear of walls and off traffic lanes (a spot's walls read on its
+ground's level, as the build's clearance and the game's bodies meet them: Aulla's spot by Via Chiosi
+(−13593.1, 4595.9) lies under the A15's twin viaducts 136414829 and 311245878, between their
+parapets at 98.2 and 99.6 m, over its ground at 86.8 m; and a car's corners at least the lane's half
+width less 0.15 m off a lane, as the spot and the graph's nodes are each written to 0.1 m: Aulla's
+spots by Via Osca 243561892 and road 697041771 read 0.06 m in), with parking in the district each
+village the map was widened for stands in, the disc at its point compared by object, as Aulla's
+Bardine and Fivizzano's share the name: with Aulla's 20 spots dropped, the old check by name still
+passed on Fivizzano's 5; the villages: Equi Terme, Gragnola, Colognola, Campiglione, Viano, Vinca,
+Ugliancaldo and Tenerano, and the 15 of Fivizzano's part: Fivizzano, Casola in Lunigiana, Gassano,
 Soliera, Moncigoli, Mommio, Pugliano, Pieve San Lorenzo, Vigneta, Castiglioncello, Signano, Turano,
-Antognano, Pieve San Paolo and Verrucola, and Fosdinovo's 35: the issue's ten, Fosdinovo,
-Caniparola, Tendola, Ponzanello, San Terenzo Monti, Ceserano, Bardine, Marciaso, Pulica and Gignago,
-with Colla, Castelpoggio and 23 more hamlets the traffic graph reaches, each on its OSM place node,
-Ponzanello's on its own and not its castle's, where the issue put it, 237 m off and 124 m from any
-traffic; Canepari and Lorano, 197 and 86 m from traffic, are left out, and so is Fivizzano's
-Bardine, which shares Aulla's name), no walls on roads (read on the road's level, `roadLevel`:
-a bridge's parapets over one stand on the deck's), no drivable road inside a footprint, closed
-building interiors (a body starts on the nearest road where it stands clear of the walls: one
-already in two is pushed out in the order the broad phase hands them, which a grown region moves),
-one traffic component reaching the station, Monzone Alto and each of those villages, grades within
-1.5× the class limits, plus the 0.1 m elevations' rounding over the 8 m measured (every class but
-paths and steps has one; a track shortcut pinned at both ends by the bends of one quarry road may
-only be the straight line between them, and so may any road's stretch between two junctions where
-the uncarved DTM between them climbs steeper than that itself: Sercognano's Via Vittorio Emanuele at
-29%, the lane down from Posara at 43%, a track at Pieve San Lorenzo at 37%), bridge and underpass
-clearances (a road bridge 5.4 m or more over the rail's bed; a drivable road under a road bridge its
-`maxheight`, 4 m untagged, plus the 1.5 m deck, less that rounding), no perched water (but a lake's
-own, within 1 m of its level, over its carved bed: the stream through the pond 560 m east of Soliera
-stands 2.6 m over its bed), the rivers' widths by reach (the Lucido's, and the ways either side
-of each threshold of the Aulella's, the Rosaro's, the Mommio's, the Bardine's and the Bardinello's,
-whose gorge's pair lies within 2 m of its 267 m, and the Pesciola's head and last way at 6 m:
-with the gorge's threshold at 270 m the rebuilt map gave 797860907 6 m, and the check fails),
-catchments growing downstream with no jump at a
-tributary's mouth (the Lucido's 47 ± 2 km² at its mouth: 46.4; the Rosaro's 14.7 ± 0.5 at its entry,
-near half what it carried when its heads were sized as the gauge's 208 km² less the map's D8; the
-Aulella's 199 ± 3 leaving the play area: 199.4; the Bardine's 59 ± 2 leaving Fosdinovo's north
-edge: 59.0; and none of the three a fill lake's D8 ran a river down before the water beyond the
-play area was burned, the side stream 140780331 by Soliera under 1 km², Il Canalaccio under 6 and
-the Canale del Torchio under 2: 0.18, 5.06 and 0.82), no walk or drive wall in a wide river and
-shore walls by it, and valid names, classes, styles, area kinds and districts (each of those
-villages is its own HUD name, Equi Terme's station and spa included, the Fortezza della Verrucola
-Verrucola's; Monte Sagro, Pizzo d'Uccello, Cima Belfiore, Monte Tondo and La Pizza, and Passo dei
-Carpinelli, Passo di Tea, Passo del Romito and Foce del Cucco name themselves; at least 80% of the
-buildings in a settlement, those with 10 or more others within 150 m, stand in a district disc,
-86.9% today ([section 12](#12-trees-spawns-districts-treests-spawnsts-districtsts)), where the share
-of every building fell to 79.5% with Fosdinovo's farmhouses and huts; CTR street names cased like
-"Via XX Settembre" and "Via Castel dell'Aquila"). It also checks, on Lunigiana, Cesena and, when
-built, the L (in CI always), that no two buildings share an id but the pieces of one footprint:
-pieces alike in kind, name, style, ruins and tint, and a survey's each within 6 m of another piece
-of its id (`clipBuildings` cuts a road's corridor through a footprint: its pieces lie 4.11 m apart
-at most on Lunigiana), an OSM multipolygon's outer rings any distance apart (Cesena's relations
-1083815 and 2026837). Lunigiana holds 37 such ids, 36 a survey's road clips of 2 pieces and OSM's
-building 700764113 in 2 (19 before Fosdinovo's part; lucido alone 5, all a survey's), Cesena 6 of
-OSM and the L 1; a far house given another's id, in a scratch copy, failed it 7,471 m off. On the
-same three maps it checks that no two buildings share one outline (two comuni's DBT archives of one
-survey hold the same units, and the map drew 528 of them twice, under each comune's ids, which the
-id check could not see) and that no OSM building's centre stands in a DBT unit (red on the build
-that kept a zone's cut copy: 7 by the Carpinelli road, 849867953 among them; [section
+Antognano, Pieve San Paolo and Verrucola, Fosdinovo's 35: the issue's ten, Fosdinovo, Caniparola,
+Tendola, Ponzanello, San Terenzo Monti, Ceserano, Bardine, Marciaso, Pulica and Gignago, with Colla,
+Castelpoggio and 23 more hamlets the traffic graph reaches, each on its OSM place node, Ponzanello's
+on its own and not its castle's, where the issue put it, 237 m off and 124 m from any traffic;
+Canepari and Lorano, 197 and 86 m from traffic, are left out, and so is Fivizzano's Bardine, which
+shares Aulla's name; and Aulla's 93: the issue's eleven first, Aulla, Podenzana, Terrarossa,
+Barbarasco, Tresana, Lusuolo, Licciana Nardi, Monti, Pontebosio, Bastia and Serricciolo, then every
+other village and hamlet in its play area the traffic graph reaches, each on its OSM place node:
+Monti's 393.7 m south of the issue's point, its castle, Pontebosio's 56.8 m and Bastia's 21.7 m off
+theirs), no walls on roads (read on the road's level, `roadLevel`: a bridge's parapets over one
+stand on the deck's), no drivable road inside a footprint, closed building interiors (a body starts
+on the nearest road where it stands clear of the walls: one already in two is pushed out in the
+order the broad phase hands them, which a grown region moves), one traffic component reaching the
+station, Monzone Alto and each of those villages, grades within 1.5× the class limits, plus the 0.1
+m elevations' rounding over the 8 m measured (every class but paths and steps has one; a track
+shortcut pinned at both ends by the bends of one quarry road may only be the straight line between
+them, and so may any road's stretch between two junctions where the uncarved DTM between them climbs
+steeper than that itself: Sercognano's Via Vittorio Emanuele at 29%, the lane down from Posara at
+43%, a track at Pieve San Lorenzo at 37%), bridge and underpass clearances (a road bridge 5.4 m or
+more over the rail's bed; a drivable road under a road bridge its `maxheight`, 4 m untagged, plus
+the 1.5 m deck, less that rounding), no perched water (but a lake's own, within 1 m of its level,
+over its carved bed: the stream through the pond 560 m east of Soliera stands 2.6 m over its bed),
+and valid names, classes, styles, area kinds and districts (each of those villages is its own HUD
+name, Equi Terme's station and spa included, the Fortezza della Verrucola Verrucola's; Monte Sagro,
+Pizzo d'Uccello, Cima Belfiore, Monte Tondo and La Pizza, and Passo dei Carpinelli, Passo di Tea,
+Passo del Romito and Foce del Cucco name themselves; at least 80% of the buildings in a settlement,
+those with 10 or more others within 150 m, stand in a district disc, 86.9% today ([section
+12](#12-trees-spawns-districts-treests-spawnsts-districtsts)), where the share of every building
+fell to 79.5% with Fosdinovo's farmhouses and huts; CTR street names cased like "Via XX Settembre"
+and "Via Castel dell'Aquila"). It also checks, on Lunigiana, Cesena and, when built, the L and the
+coast (in CI always), that no two buildings share an id but the pieces of one footprint: pieces
+alike in kind, name, style, ruins and tint, and a survey's each within 6 m of another piece of its
+id (`clipBuildings` cuts a road's corridor through a footprint: its pieces lie 4.11 m apart at most
+on Lunigiana), an OSM multipolygon's outer rings any distance apart (Cesena's relations 1083815 and
+2026837). Lunigiana holds 37 such ids, 36 a survey's road clips of 2 pieces and OSM's building
+700764113 in 2 (19 before Fosdinovo's part; lucido alone 5, all a survey's), Cesena 6 of OSM and the
+L 1; a far house given another's id, in a scratch copy, failed it 7,471 m off. On the same four maps
+it checks that no two buildings share one outline (two comuni's DBT archives of one survey hold the
+same units, and the map drew 528 of them twice, under each comune's ids, which the id check could
+not see) and that no OSM building's centre stands in a DBT unit (red on the build that kept a zone's
+cut copy: 7 by the Carpinelli road, 849867953 among them; [section
 1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). And it checks that the Carrara
 side's buildings come from the CTR 1:2000 of 2009: some building carries the 2009 sheets' id slot
 (`SOURCES.ctr2009` × 2¹⁶ + section 22D, 197,183), and so does the church whose outline holds (−441,
@@ -3233,6 +4034,48 @@ buildings there and fail no other check; on #11's first build, whose buildings a
 fails on both counts. And that Fivizzano's walled centre is stone: every building whose centre lies
 5 m and more inside one of its four cores (`STONE_CORES`, traced on the walls' outline to 5 m) is
 stone, but its churches (#17's acceptance).
+
+`src/sim/map/__tests__/water.map-test.ts` holds the water's checks over the whole map that
+`map.map-test.ts` held before issue #19: the rivers' widths by reach (the Lucido's, and the ways
+either side of each threshold of the Aulella's, the Rosaro's, the Mommio's, the Bardine's, the
+Bardinello's, whose gorge's pair lies within 2 m of its 267 m, the Osca's and the Penolo's, the
+Taverone's and the Magra's, and the Pesciola's head and last way at 6 m: with the gorge's threshold
+at 270 m the rebuilt map gave 797860907 6 m, and the check fails; the sizes come from
+`water-sizes.ts`), catchments growing downstream with no jump at a tributary's mouth (the Lucido's
+47 ± 2 km² at its mouth: 46.4; the Rosaro's 14.7 ± 0.5 at its entry, near half what it carried
+when its heads were sized as the gauge's 208 km² less the map's D8; the Aulella's 199 ± 3 at
+Fivizzano's west edge, x −5300, and 313 ± 3 at its mouth, the 10 m DTM's 319.3 less the 1.9% the
+4 m grid's divides take there as at Soliera; the Bardine's 63 ± 2 at its mouth; the Magra's and the
+Taverone's heads, 420.9 and 69.1, and the Magra's 915 leaving; and none of the three a fill lake's
+D8 ran a river down before the water beyond the play area was burned, the side stream 140780331
+by Soliera under 1 km², Il Canalaccio under 6 and the Canale del Torchio under 3), and no walk or
+drive wall in a wide river and shore walls by it, read by the outline of the lake or river polygon
+the river runs in, points within 30 m of the play area's outline left out.
+`src/sim/map/__tests__/carriageways.map-test.ts` joins every motorway's pieces end to start into
+carriageways, on Lunigiana, Cesena and each built test region (`regions.ts` beside it, which the
+levels and approaches checks read too), and checks that each climbs or falls at most the motorway
+pass's 6% over any 100 m, plus the 0.1 m rounding (issue #19's acceptance): before the motorway
+pass stopped relaxing its grade the A15's Parma carriageway at Calcinara sagged 8.1 m under its
+twin and climbed 6.7% over 100 m out of the sag; today its steepest is 5.89%.
+`src/sim/map/__tests__/approaches.map-test.ts` checks, on Lunigiana, Cesena and each built test
+region (`regions.ts`), that every joint of a path or steps at grade with a path's or steps' bridge
+or tunnel (189 on Lunigiana, 110 on Cesena, 7 on the L, 28 on the coast), and with another path or
+steps at grade (1,452, 911, 22 and 278), ships both ways at one level, within half the 0.1 m
+rounding (Cesena's Sottopasso del Mare known, by OSM id; a known joint that meets its deck fails
+until it is dropped): a path fitted once, before a later approach lifted a vertex it shares, stood
+1.3 and 0.9 m off the steps and the path it meets at Aulla and Fosdinovo, and the coast's piers'
+dry pieces 0.2–0.4 m under their decks' ends. It also checks that a building an approach (or the
+way on from it) runs on, its far corners (15 m beyond those ways) on flat ground, stands no more
+than 1.5 m under them, where a gentle slope keeps Cesena's apartments 153198967 1.0 m under its far
+corners: on the grid the approaches carved, Cesena's station (185180766) stood 4.8 m under them.
+And it checks that no path's or steps' bridge dips more than 1 m between two higher points of it
+(35 on Lunigiana, 19 on Cesena, 2 on the L, 24 on the coast): the coast's cycle footbridge 522153380
+sagged 4.3 m. Fitted at the terrain's level, Aulla
+Lunigiana station's steps stood 4.1–5.8 m over its underpass at their joints, the sidewalk and the
+footway off two footbridges stood on the SS62's deck 7.7 and 9.9 m under them, and paths off
+footbridges over streams 2.5–3.6 m under them, in the bank's carve; `deckEndsShut` in the deck
+checks holds a path approach's deck end shut to the ground beside it, but for the steps' bridge
+717897184/1065384887 at (−16438, 5072).
 
 `global-file.test.ts` in `src/sim/map/format/__tests__/` round-trips a small global file through
 `encodeMap` and `decodeMap` (a newline inside a name, the coarse grid, and the graph, the lanes,
@@ -3249,7 +4092,7 @@ and checks that `heightAt`, `terrainZ` and `coverAt` answer to the bit as on Lun
 by `lookups.ts` in a process of its own) at 440 points round Monzone station; measuring from the
 first node instead, as before the anchor, it fails on all three.
 `src/sim/map/__tests__/tiles.map-test.ts` checks the cut: the listed tiles are the region's
-(Lunigiana's 102 of its bounds' 132, south to north then west to east), each with a file and the
+(Lunigiana's 153 of its bounds' 198, south to north then west to east), each with a file and the
 notches' none, with their lowest and highest nodes (the nodes two tiles share are
 `seams.map-test.ts`'s, below), each wall lives in the tile of its midpoint and each tree in the tile
 of its point and no wall reaches farther than `walls.reach`, `heightAt`, `terrainZ` and `coverAt`
@@ -3299,54 +4142,61 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   map's data, `wholeGround`, and the old surface and water broad phases), at 1,142,302 points on
   Lunigiana (seeded ones, half by the seams, every road and river vertex and every 16 m bucket of
   road; 13.8 s on 2026-11-07 at the 1,142,308 of #18's build before its review, against 658,633
-  points and 8.2 s on the map before Fosdinovo's part, one run each); `ground-cesena.map-test.ts` does the same on Cesena and `ground-l.map-test.ts` on
-  the L ([Test regions](#test-regions)). `ground.test.ts` checks round Monzone station's tile corner
-  (0, 0) that they answer the same whatever tiles are in memory and in whichever order they came,
-  and that a road's level is its surface's within the halo and none farther off.
-- `src/tools/__tests__/deck-ground.map-test.ts`: on Lunigiana, Cesena and the L, the ground
-  keeps out of every road and rail deck's slab (its 0.9 m under the deck's top) more than 4 m in
-  from its outer ends (the issue's measure, its own constant, not the pass's end runs; a joint with
-  the next piece of the bridge is no end, `jointsOf`), and nearer them stays at most 0.05 m over its
-  profile, read every 0.5 m along and across the slab on the drawn mesh; where a node behind the
-  ends of the deck and of the pieces joined to it is a corner of the triangle drawn there (its
-  abutment) the approach's ground decides (section 7). It fails on 125 of Lunigiana's 219 decks, 49
-  of Cesena's 56 and 32 of the L's 57 built on `main`, without the pass, and on 115, 45 and 30 with
-  the pass's first end runs, as long as the slab took to stand clear; it takes 1.1 s.
-- `src/tools/__tests__/parapets.map-test.ts`: on Lunigiana, Cesena and the L, every drivable
-  bridge's parapets read every 0.25 m along both sides of each deck segment (`parapetFaults` in
-  `parapets.ts` beside it): a car on the deck meets a wall wherever no road on the deck's level (its
-  surface as the game reads it, `roadLevel`, within 2 m of the deck's top, 0.15 m to spare) reaches
-  the parapet (its carriageway, 0.5 m to spare: the build reads it every 0.25 m, on 0.1 m); a car on
-  a road well inside its carriageway there meets no parapet, its surface read where the parapet
-  stands, which a junction on the deck closed or a parapet with the wrong level would (read on the
-  profile alone, it missed the 4.7 m Cesena's trunk bridge 24557433 closed over the primary road
-  23136540, and read beside the parapet's end it failed the parapet that now ends there, where that
-  road's surface climbs 0.4 m a metre with the terrain); and no wall with no level stands there over a road passing under or over the
-  deck. A car keeps to the drivable roads: a levelled wall across a footpath (the walls under a deck
-  across the path off the end of 140780504) stops none. It fails on 4 of Lunigiana's bridges and
-  16 of Cesena's built before the walls had levels (none of the L's), and on 4 and 14 with the
-  levels dropped from today's build; 1.3 s alone, most of it reading the three maps.
+  points and 8.2 s on the map before Fosdinovo's part, one run each); `ground-cesena.map-test.ts`
+  does the same on Cesena, `ground-l.map-test.ts` on the L and `ground-coast.map-test.ts` on the
+  coast, over its sea too (2.0 s; [Test regions](#test-regions)). `ground.test.ts` checks round
+  Monzone station's tile corner (0, 0) that they answer the same whatever tiles are in memory and in
+  whichever order they came, and that a road's level is its surface's within the halo and none
+  farther off.
+- `src/tools/__tests__/deck-ground.map-test.ts`: on Lunigiana, Cesena, the L and the coast (its 48
+  decks), the ground keeps out of every road and rail deck's slab (its 0.9 m under the deck's top)
+  more than 4 m in from its outer ends (the issue's measure, its own constant, not the pass's end
+  runs; a joint with the next piece of the bridge is no end, `jointsOf`), and nearer them stays at
+  most 0.05 m over its profile, read every 0.5 m along and across the slab on the drawn mesh; where
+  a node behind the ends of the deck and of the pieces joined to it is a corner of the triangle
+  drawn there (its abutment) the approach's ground decides (section 7). It fails on 125 of
+  Lunigiana's 219 decks, 49 of Cesena's 56 and 32 of the L's 57 built on `main`, without the pass,
+  and on 115, 45 and 30 with the pass's first end runs, as long as the slab took to stand clear; it
+  takes 1.1 s.
+- `src/tools/__tests__/parapets.map-test.ts`: on Lunigiana, Cesena, the L and the coast, every
+  drivable bridge's parapets read every 0.25 m along both sides of each deck segment
+  (`parapetFaults` in `parapets.ts` beside it): a car on the deck meets a wall wherever no road on
+  the deck's level (its surface as the game reads it, `roadLevel`, within 2 m of the deck's top,
+  0.15 m to spare) reaches the parapet (its carriageway, 0.5 m to spare: the build reads it every
+  0.25 m, on 0.1 m); a car on a road well inside its carriageway there meets no parapet, its surface
+  read where the parapet stands, which a junction on the deck closed or a parapet with the wrong
+  level would (read on the profile alone, it missed the 4.7 m Cesena's trunk bridge 24557433 closed
+  over the primary road 23136540, and read beside the parapet's end it failed the parapet that now
+  ends there, where that road's surface climbs 0.4 m a metre with the terrain); and no wall with no
+  level stands there over a road passing under or over the deck. A car keeps to the drivable roads:
+  a levelled wall across a footpath (the walls under a deck across the path off the end of
+  140780504) stops none. It fails on 4 of Lunigiana's bridges and 16 of Cesena's built before the
+  walls had levels (none of the L's), and on 4 and 14 with the levels dropped from today's build;
+  1.3 s alone before the coast, most of it reading the three maps.
 - `src/sim/__tests__/under-decks.map-test.ts`, `under-decks-cesena.map-test.ts` and
-  `under-decks-l.map-test.ts` (the L's skipped without its build, failing in CI): on every road
-  bridge, the game's own walking and driving (`under-decks.ts`). From every point under its slab,
-  every metre along and across it, where someone stands clear on the ground (not on another deck)
-  with room to stand (2.7 m under the deck's top) next to one with less, a walker heads straight for
-  the nearest ground under the slab within 0.45 m of the top and 4 m or more from its ends (the
-  issue's measure), 5 cm a step, keeping to its level (`footZ`) and stopped by the first walk wall
-  it meets (`walkBy`), or by stepping onto another deck: it never comes up onto the deck at a point
-  abeam of it. Under a drivable deck a Panda does the same from where there is room for the tallest
-  vehicle (3.55 m under the top), 0.1 m a step, its wheels on `groundZ` and stopped by the drive
-  walls on their level (`moveCar`). And along each road meeting each end, from 6 m back along it to
-  6 m onto the deck, a walker on its centreline and on either verge (`walkSide`, the road's then the
-  deck's) and a Panda on its centreline that with nothing in their way are on the deck as they cross
-  its end meet no wall with a level. A verge dipping 2 m (`ONE_LEVEL`) under the deck's end on its
-  way, or running beside the deck more than 2 m past its end, is left out: 14 of Lunigiana's verge
-  walks, 16 of Cesena's and 2 of the L's, the walls stopping 5 Lunigiana deck ends' and 1 Cesena
-  one's ([Walls under the decks](#walls-under-the-decks)). Built without the walls under the decks it
-  fails on 7 of Lunigiana's 167 road decks on foot and 7 by car, 1 of Cesena's 50 on foot and 2 and 2
-  of the L's 23 (the ground the pass lowers keeps most decks out of reach), and on the build before
-  the verges' openings round the ends (and the ground past 4 m) on 18 Lunigiana deck ends, 7 Cesena
-  and 2 on the L. It takes 2.3, 0.3 and 0.3 s.
+  `under-decks-l.map-test.ts` and `under-decks-coast.map-test.ts` (the test regions' skipped without
+  their builds, failing in CI): on every road bridge, the game's own walking and driving
+  (`under-decks.ts`). From every point under its slab, every metre along and across it, where
+  someone stands clear on the ground (not on another deck) with room to stand (2.7 m under the
+  deck's top) next to one with less, a walker heads straight for the nearest ground under the slab
+  within 0.45 m of the top and 4 m or more from its ends (the issue's measure), 5 cm a step, keeping
+  to its level (`footZ`) and stopped by the first walk wall it meets (`walkBy`), or by stepping onto
+  another deck: it never comes up onto the deck at a point abeam of it. Under a drivable deck a
+  Panda does the same from where there is room for the tallest vehicle (3.55 m under the top), 0.1 m
+  a step, its wheels on `groundZ` and stopped by the drive walls on their level (`moveCar`). And
+  along each road meeting each end, from 6 m back along it to 6 m onto the deck, a walker on its
+  centreline and on either verge (`walkSide`, the road's then the deck's) and a Panda on its
+  centreline that with nothing in their way are on the deck as they cross its end meet no wall with
+  a level. Since issue #19 each sets out on that road's level, and the car leaves out a road turning
+  30° or more onto the deck, as no car turns in place onto one. A verge dipping 2 m (`ONE_LEVEL`)
+  under the deck's end on its way, or running beside the deck more than 2 m past its end, is left
+  out: 14 of Lunigiana's verge walks, 16 of Cesena's and 2 of the L's, the walls stopping 5
+  Lunigiana deck ends' and 1 Cesena one's ([Walls under the decks](#walls-under-the-decks)). Built
+  without the walls under the decks it fails on 7 of Lunigiana's 167 road decks on foot and 7 by
+  car, 1 of Cesena's 50 on foot and 2 and 2 of the L's 23 (the ground the pass lowers keeps most
+  decks out of reach), and on the build before the verges' openings round the ends (and the ground
+  past 4 m) on 18 Lunigiana deck ends, 7 Cesena and 2 on the L. It takes 2.3, 0.3 and 0.3 s, and
+  0.33 s on the coast.
 - `src/sim/population/__tests__/density.map-test.ts` sums the residents at 6,000 points, half of
   them within 40 m of a seam, by 4 reaches (45, 60, 140 and 250 m), and `farms.map-test.ts` reads
   the buildings near 20,000 points and every farm by 3 reaches (10, 25 and 40 m), whether each
@@ -3401,15 +4251,17 @@ broad phase over the whole map joined from the tiles (`wholeMap`), as the game h
   fails when no seam is left there to excuse.
 
 The overview's checks: `src/tools/__tests__/overview.map-test.ts` fails when a built overview (both
-maps' and, built or in CI, the L's) is not the image its whole map paints now, so a change to the
-look, the palette or the vectors needs `pnpm maps` again, as a stale bake does; `overview.test.ts`
-checks its size (3195 × 4096 px for lucido's bounds, 4000 × 4000 for Cesena's), the look on an
-L-shaped map (grass on the play area alone, the areas, the water, the roads by class narrowest
-first, a tunnel dashed, no paths, the buildings on top, transparent in the notch) and that two
-paints give the same bytes, which `pngData` gives back as the pixels; `paint-raster.test.ts`
-checks that a fill covers the pixels inside and a pixel half inside by half by either rule, that
-a stroke covers its width with round ends, each pixel once however many segments reach it, and
-that a clip lets paint through by its coverage.
+maps' and, built or in CI, the L's and the coast's) is not the image its whole map paints now,
+so a change to the look, the palette or the vectors needs `pnpm maps` again, as a stale bake does;
+`overview.test.ts` checks its size (3195 × 4096 px for lucido's bounds, 4000 × 4000 for Cesena's),
+the look on an L-shaped map (grass on the play area alone, the areas, the water, the roads by class
+narrowest first, a tunnel dashed, no paths, the buildings on top, transparent in the notch), that
+three sea pieces meeting on tile lines inside a pixel, at the coast's 0.68 px/m, paint the sea's
+colour along them with no seam, and that two paints give the same bytes, which `pngData` gives back
+as the pixels; `paint-raster.test.ts`
+checks that a fill covers the pixels inside and a pixel half inside by half by either rule, that a
+stroke covers its width with round ends, each pixel once however many segments reach it, and that a
+clip lets paint through by its coverage.
 
 `src/tools/__tests__/bake.map-test.ts` runs the bakes again on the shipped map, given the whole
 map's vectors joined from its tiles, and compares them, and the place refitted over the nodes of
@@ -3439,9 +4291,10 @@ lines with no run-outs, as the same build of today's (`decodeUpgraded`).
 `build-output.test.ts` checks that `decimetres`, which rounds the grid into the
 `Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
 −4000 m, 3276.75 m, NaN, infinity) instead of wrapping it. `src/__tests__/maps.map-test.ts` checks
-that every listed tile of both maps has its file, of at most 0.7 MB, and that each map's global
-JSON line is at most 8,000,000 B (it failed on the build before version 6: "lunigiana: the global
-file's JSON line is 8319700 B"), and `maps.test.ts` one tile of each.
+that every listed tile of both maps and, built or in CI, both test regions has its file, of at
+most 0.7 MB, and that each map's global JSON line is at most 8,000,000 B (it failed on the build
+before version 6: "lunigiana: the global file's JSON line is 8319700 B"), and `maps.test.ts` one
+tile of each.
 
 `src/tools/__tests__/overlap.map-test.ts` reads every building of the shipped map: no two of
 different sources (OSM's and each survey's, by the id's slot) share half the smaller one's area,
@@ -3501,11 +4354,47 @@ lake, `walls.long-test.ts` (`pnpm test:long`) rings a lake with shore walls, lea
 polygon's carved banks open and keeps a house's walls out of the middle w/2 of a path that reaches
 into it (Giucano's footway four cells into a house, and Fivizzano's 0.56 m from a house's corner,
 which no cell centre's carve reached: each red before its fix), `cover.test.ts` pins the cover bytes
-(the olive groves last), draws the woods first, the UCS's conifer and mixed over a forest and every
-other area over each wood, an olive grove over a wood, grassland, farmland and residential land and
-a farmyard, a park and a square over it, and draws the bars over the river and the line's bed only
-outside the water, and `features.test.ts` maps the water tags, `ele`, the POIs and the orchards (an
-olive orchard a grove, an untyped one below 600 m of the ground given, none without it).
+(the sea's 27 and the sand's 28 last), draws the woods first, the UCS's conifer and mixed over a
+forest and every other area over each wood, an olive grove over a wood, grassland, farmland and
+residential land and a farmyard, a park and a square over it, draws the bars over the river and
+the line's bed only outside the water, and a beach's sand over the open land, the rock and the
+built covers over the sand and the sea over them all, and `features.test.ts` maps the water tags,
+`ele`, the POIs and the orchards (an olive orchard a grove, an untyped one below 600 m of the
+ground given, none without it).
+
+The sea and the shore (issue #13) are checked on synthetic inputs in `pnpm test`. `coast.test.ts`
+chains the coastline's ways in OSM's direction and throws where they branch or a node is missing,
+closes a coastline across a box into one counter-clockwise sea ring on its right, walks the box's
+corners on the sea's side alone, makes an islet a clockwise hole though it covers the box's
+centre, a box no line crosses sea or land whole by the nearest segment's side, two seas apart in
+one box two areas, leaves no spike where the coastline runs along the box's edge, throws on lines
+that disagree on the sea's side or end in the box, measures the distance from the coastline
+exactly against every segment, and drops from the shore line the segments that close a water
+across its mouth. `sea-fill.test.ts` fills the sea's cells and the empty shore it reaches, never
+a pocket inland, bends it onto the land, and gives a crop wholly on the land's side no sea step.
+`sea-floor.test.ts` reads a line's depth on it and two lines' between them by distance, the
+shoreface profile by the shore where no line lies across, the fade into the profile from 1 to
+1.5 km with no step, an islet's shore as shore, no line under 50 m, the same bits whichever read
+of the same inputs asks in whatever order, and each depth's nearest isobath exactly.
+`shore.test.ts` gives a beach Spiagge's material where it holds half the beach, else OSM's
+`surface`, else sand, a multipolygon beach its holes, Spiagge's own sand, pebbles and rocky shore
+as areas and no fill or river course, drops the land cover's gravel on a Spiagge polygon alone,
+makes an open pier a path on a bridge and a closed one a paved area raised to the deck, a
+breakwater or a groyne rock at 1.5 m (3.5 m wide along a line) with a drive wall round it, a
+pier's deck 1 m over the water whatever the DTM reads and its dry ends at the ground, cuts a pier
+at the water's edge, and cuts a breakwater wholly in the sea out of it. `water-areas.test.ts`
+carves the sea node by node to its floor in the pass before the claims and leaves it in the pass
+after them, the same in windows meeting through it as on the whole grid, raises a breakwater over
+it, keeps the sea's level and refuses a sea with no floor, reads the water's level for the piers,
+and marks the sea's nodes, no lake's, for the catchments; `build-grid.test.ts` carves no river
+line through a raised breakwater; `water.test.ts` keeps every water surface at the sea's level or
+over it, through the decks' cap and the perched check too, a river reaching the sea meeting it at
+0 m; `catchment.test.ts` drains the plain and a river into the sea's nodes, its ground never read;
+`walls.test.ts` opens a breakwater's outline only where a drivable road crosses it, and
+`walls.long-test.ts` rings the sea with shore walls but none on a raised breakwater, walled for
+vehicles alone; `spawns.test.ts` parks no car on sand or in the sea; `trees.test.ts` keeps the
+trees off the sand and the sea; and `districts.test.ts` gives Lunigiana the mountains' landmarks and
+none of the coast's.
 
 The survey adapters are checked on fixtures of a few records cut from real sheets
 (`src/tools/__tests__/fixtures/`, 36,163 B in all: cut by record with `subsetShp`, in file order,
@@ -3552,166 +4441,188 @@ UTF-8.
 
 `src/tools/__tests__/ctr-rail.test.ts` checks the track chaining, the tunnel cut and the clip on
 synthetic lines and reads synthetic CTR rail layers (`shapefile.ts` beside them writes those).
-`src/sim/map/__tests__/rail.map-test.ts` checks the rail in the built map: the running line is one
-chain from edge to edge of the play area's outline, past every station, its loops (Gragnola's and
-Pieve San Lorenzo's) ending on it and Gragnola's loop the track by the station building, every kind
-one of `RAIL_KINDS`; at grade, the
-rail meets roads and water only at vertices they share, level with the road (Via Riolo, Viale 20
-Settembre, Via Castel dell'Aquila twice, Via Nuova, and Equi Terme's foot crossing); no rail, road
-or water polyline repeats a vertex, and a rail segment under 1.85 m joins two shared vertices; no
-terrain stands more than 0.05 m over at-grade track more than 6 m from a level crossing, nor more
-than 1 m under it but beside a lower road running along it (within 30°, its core within one cell);
-no 40 m chord of the running line curves tighter than 250 m (the line's tightest curves are 300 m;
-chords under 40 m see the CTR's own drawing, 193 m at 20 m); and a parked car's box keeps 2.8 m from
-at-grade running track and 1.94 m from a loop or siding. On the map before the rail moved onto the
-CTR the chain, crossing, terrain-over-track and parked-car checks fail; the curve check fails
-without the spline's reweighting (249 m at the Terma tunnel's south portal); on the map before the
-switches, the bridges and the parked cars were mended the repeated vertex (Gragnola's loop at the
-stub's switch), the ground (8.2 m under the track north of the Aulella bridge) and the parked car
-(2.02 m) fail. `src/sim/rail/__tests__/lines.map-test.ts` holds each line's run-out
-([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)) on the stored track vertex by
-vertex, straight and level past its end, and over the drawn run (within the bounds, off bridges,
-out of tunnels) the terrain at most 0.05 m over its bed and 0.5 m under it (the rail bed's `BED`
-and `BANK`, `checkTerminals`): the map before the run-outs had it 16.75 m over the bed 192 m past
+`src/sim/map/__tests__/rail.map-test.ts` checks the rail in the built map, line by line: the running
+track runs unbroken from the play area's edge to its edge or a terminus, past every station, its
+loops (Gragnola's and Pieve San Lorenzo's) ending on it and Gragnola's loop the track by the station
+building, every kind one of `RAIL_KINDS`; at grade, the rail meets roads and water only at vertices
+they share, level with the road (Via Riolo, Viale 20 Settembre, Via Castel dell'Aquila twice, Via
+Nuova, and Equi Terme's foot crossing); no rail, road or water polyline repeats a vertex, and a rail
+segment under 1.85 m joins two shared vertices; no terrain stands more than 0.05 m over at-grade
+track more than 6 m from a level crossing, nor more than 1 m under it but beside a lower road
+running along it (within 30°, its core within one cell), or a road tunnel's bore within `MOUTH`
+(5.66 m) of its mouth, whose grid its approach holds (by Aulla station the Lucca–Aulla line runs 5.8
+m past the north mouth of Via Roberto Accorsi's underpass 92904277, the mouth's cells at 70.9–71.5
+m, the line at 77.9 m); no 40 m chord of any line curves tighter than 200 m (250 m before Aulla's
+part, from RFI's 300 m for the Lucca–Aulla line: the CTR surveys 212.2 m on the line's approach to
+Aulla, way 183923138 at (−11631, 4330), and the rounded tunnel 140772193 curves at 216.8 m; chords
+under 40 m see the CTR's own drawing, 191 m at 20 m); two tracks side by side within 6 m stand
+within 0.3 m of each other in level (the twin rule's 0.1 m, the 0.1 m rounding and `keepSamples`'
+0.03 m on each track); and a parked car's box keeps 2.8 m from at-grade running track and 1.94 m
+from a loop or siding. On the map before the rail moved onto the CTR the chain, crossing,
+terrain-over-track and parked-car checks fail; the curve check fails without the spline's
+reweighting (249 m at the Terma tunnel's south portal); on the map before the switches, the bridges
+and the parked cars were mended the repeated vertex (Gragnola's loop at the stub's switch), the
+ground (8.2 m under the track north of the Aulella bridge) and the parked car (2.02 m) fail.
+`src/sim/rail/__tests__/lines.map-test.ts` holds each line's run-out ([section
+9](#9-the-railway-railwayts-platformsts-rail-clearts)) on the stored track vertex by vertex,
+straight and level past its end, and over the drawn run (within the bounds, off bridges, out of
+tunnels) the terrain at most 0.05 m over its bed and 0.5 m under it (the rail bed's `BED` and
+`BANK`, `checkTerminals`): the map before the run-outs had it 16.75 m over the bed 192 m past
 Rometta, and 174 m past Pieve San Lorenzo, whose straight run had been at grade inside the hill.
-`src/render/__tests__/rail.map-test.ts`, `rail-cesena.map-test.ts` and `rail-l.map-test.ts`, each
-in a process of its own, find both rails drawn every metre of every drawn run out of a tunnel, at
-the rail head within the bounds (`checkDrawnRuns`: 384, 1,536 and 768 points; Lunigiana's east one
-lies in the Lupacino), the last two with `checkTerminals` on Cesena and the L; each failed on its
-map before (no rails drawn where the trains ride; on Cesena and the L the old apron track ran
-square to the edge, not along the run-out). In `src/tools/__tests__`, `rail-runouts.test.ts`
-checks the walk (OSM's way from its cut, then on at shared nodes the straightest way; none for a
-cut off the outline or where no piece of the terminal's way has its cut beside it; through a way
-the track passes a switch of); `rail-match.test.ts` checks the matching (a run keeps to
-its track past a nearer parallel one, tunnels and track ends stay unmatched), the simplification,
-the smoothing spline, `insertOn` giving its id to a vertex already there and `pruneShort`;
-`conflate.test.ts` conflates a synthetic line with a tunnel, a level crossing, a culvert, a loop and
-a siding crossed by roads, the half-segment guard, Gragnola-style swaps, a line no CTR maps (kept as
-OSM has it), the CTR's crossing polygons and a siding the CTR draws from beside its switch (it starts
-at the switch); `rail-spans.test.ts` slides a bridge end to keep its river (and its margin), adds a
-culvert, leaves a stream under a CTR bridge alone, cuts at-grade track into the CTR's bridges and
-takes one out past a stream crossing under it (`spanned`); `rail-graph.test.ts` cuts a piece at a
-switch, finds a line straight through turnouts past a passing loop, a yard and a spur, takes
-junction headings over 5 m, and finds no line on a ring, with each piece's kind;
-`rail-levels.test.ts` bounds the rail over a tagged and an untagged underpass, under a road bridge,
-at a level crossing (no pin) and over a river, a 2 m stream and a 4 m one, and never holds the rail
-under the ground where a road bridge crosses it (the road rises over it instead);
-`road-levels.test.ts` bounds a road under a bridge by its `maxheight` (4 m untagged) plus the 1.5 m
-deck, 2 m either side of the crossing, a bridge or tunnel in an earlier pass by the other road's
-natural level, and never a road at grade over a tunnel, and binds a chain that crosses itself from
-one natural level, its bridge clear over the road below; `features.test.ts` folds each link into
-the class below, gives a main road its `lanes` width, and makes a motorway, its links and a
-roundabout oneway and a motorway's or trunk road's link a ramp, makes no road of a highway line
-tagged `railway=platform` (Pieve San Lorenzo's footways; proven red without the rule), keeps one
-vertex of two in a row on one 0.1 m point (the one another way shares) and drops a culvert but
-under a bridge; `profiles.test.ts` levels a tunnel's portals and a bridge's ends with the ground
-outside them, runs a tunnel the outline cuts, in two pieces, level from its one portal, carries a
-tilted bound inside a climbing tunnel to its portals along its slope, writes two roads' claims into
-two windows that share a seam just as into the whole grid, lays a road's bridge of two pieces as
-one deck (the rail a deck a piece), opens a road tunnel's mouths at its approaches' level against a
-road over it and one beside it, keeps a junction it sets within reach of the short link to a
-junction set before, and holds each bound on its own piece where a chain crosses itself (a loop
-clears its own bridge), cores each piece at its own width (a wider piece joined on along its
-chain leaves the grid beside it as it was: with every piece cored at its chain's widest, as
-before, it fails at node (0, −12)) and holds a tunnel's mouths at their approach's width (4 m and
-5 m beside a 10 m bore), and runs a chain on from a start's level (`start`: the first vertex at
-it, a bore from it level to where the box cuts it, its claims only where `writes` lets them);
-`junction-reach.test.ts` keeps a junction within its links' steepest grade
-of the junctions they lead to; `rail-bed.test.ts` lowers a grid under a line, raises the corners
-far under it but a kept one, moves a window's nodes as it moves the whole grid's, levels a siding
-on the line beside it, and moves a run-out's nodes beyond the play area alone (`writes`);
-`deck-ground.test.ts` lowers a hump under a deck's slab and no node off it, each node it lowers
-onto a whole decimetre, leaves a bank the slab's edge grazes (the ground under
-the slab goes instead), brings a hillside down under the road along a deck's end run (the SP59's
-by Vinca) and clears the slab past `END_RUN` (4 m) though it first stands clear 19 m in, lowers the
-ground under a deck lying on it all along past its end runs, keeps a rail deck's ground off its
-ballast, lowers the ground at a joint between two pieces of a deck as under the deck whole (a deck
-0.5 m off the joint's level is no piece of it), and flags the nodes round a slab abeam of its deck
-or behind its ends; `grid-tiles.test.ts` checks that the tiles' windows cover the grid,
-neighbours sharing their border nodes, and that the tile `cellTile` names for a point (on and off
-the seams and the grid's edge) holds the four nodes of the cell read there, a point at a corner of
-Lunigiana's box in a notch (found from the list: its north-west and south-east today) in a tile off
-the list, and on the L test region's lattice that its notch's tiles get no window, `listedNodes`
-holding every node but the notch's 285,000, and that `extendEdges` gives each of those the listed
-node the game reads there (by its sides, its corner and its far corner) and leaves the rest;
-`catchment.test.ts` that a notch's nodes are outlets, that an inflow from beyond the grid is carried
-down its stream from its node, and only there, that a river cut short of the grid's edge drains on
-down the water beyond the cut, not down a side stream beside it, and that water coming in at the
-grid's edge is no outlet for the water it joins (each of the two red before the change it guards)
-([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)); `spawns.test.ts`
-parks cars off running track, off a siding and away from a level crossing; `platforms.test.ts` clips
-a platform off a track, a road and a crossing area, makes a strip between close tracks, a narrow one
-and one no edge of which comes within 2.2 m of a track walkways, and leaves out the ground far under
-a platform's top; `railway.test.ts` checks the
-speed limits, crossing boxes and stations; `rail-clear.test.ts` narrows a verge beside a track,
-leaves one at another level, in a box or on a platform alone, and throws for a lane.
-`src/sim/map/__tests__/railway.map-test.ts` checks `MAP.railway`: each line runs terminal to
-terminal, its pieces sharing their end vertices bit-identically, every running piece on one (today
-the one line, from the outline at Pieve San Lorenzo to the outline by Rometta); the speed limits
-cover it, 80 or 85 km/h but in the Galleria del Lupacino (OSM's 140), 80 km/h from Equi Terme's stop
-to Gragnola's; the five stations lie along their platforms, a platform within 4 m of the line's side
-at each one's middle; each crossing box's nodes are vertices of its road and of the rail, the line's
-s on one of them (a box on a loop alone, Pieve's foot crossing, names no line), and every vertex an
-at-grade road shares with at-grade rail is in a box; the
-platforms stand 1.55 m or more from every track and 0.44 m or more past every carriageway's edge
-(0.5 m less the rings' 0.06 m simplification), their top the rail head plus 0.25 m (Gragnola's
-walkway 0.02 m) and `groundZ` on them their top or the terrain where that is higher, or a footway
-OSM draws along one up to 0.09 m over it (Fivizzano-Gassano's); the line's grade changes by under 4%
-over 20 m, and under 2% through a level crossing (the map before the fixes changed it 4.1% at s
-6269); through its tunnels each stretch of 100 m or more (the whole of a shorter tunnel) climbs or
-falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17); and it runs on over lucido's
-seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
+`src/render/__tests__/rail.map-test.ts`, `rail-cesena.map-test.ts` and `rail-l.map-test.ts`, each in
+a process of its own, find both rails drawn every metre of every drawn run out of a tunnel, at the
+rail head within the bounds (`checkDrawnRuns`: 384, 1,536 and 768 points; Lunigiana's east one lies
+in the Lupacino), the last two with `checkTerminals` on Cesena and the L; each failed on its map
+before (no rails drawn where the trains ride; on Cesena and the L the old apron track ran square to
+the edge, not along the run-out). In `src/tools/__tests__`, `rail-runouts.test.ts` checks the walk
+(OSM's way from its cut, then on at shared nodes the straightest way; none for a cut off the outline
+or where no piece of the terminal's way has its cut beside it; through a way the track passes a
+switch of); `rail-match.test.ts` checks the matching (a run keeps to its track past a nearer
+parallel one, tunnels and track ends stay unmatched), the simplification, the smoothing spline,
+`insertOn` giving its id to a vertex already there and `pruneShort`; `conflate.test.ts` conflates a
+synthetic line with a tunnel, a level crossing, a culvert, a loop and a siding crossed by roads, the
+half-segment guard, Gragnola-style swaps, a line no CTR maps (kept as OSM has it), the CTR's
+crossing polygons and a siding the CTR draws from beside its switch (it starts at the switch);
+`rail-spans.test.ts` slides a bridge end to keep its river (and its margin), adds a culvert, leaves
+a stream under a CTR bridge alone, cuts at-grade track into the CTR's bridges and takes one out past
+a stream crossing under it (`spanned`); `rail-graph.test.ts` cuts a piece at a switch, finds a line
+straight through turnouts past a passing loop, a yard and a spur, takes junction headings over 5 m,
+and finds no line on a ring, with each piece's kind; `rail-levels.test.ts` bounds the rail over a
+tagged and an untagged underpass, under a road bridge, at a level crossing (no pin) and over a
+river, a 2 m stream and a 4 m one, and never holds the rail under the ground where a road bridge
+crosses it (the road rises over it instead); `road-levels.test.ts` bounds a road under a bridge by
+its `maxheight` (4 m untagged) plus the 1.5 m deck, 2 m either side of the crossing, a bridge or
+tunnel in an earlier pass by the other road's natural level, and never a road at grade over a
+tunnel, and binds a chain that crosses itself from one natural level, its bridge clear over the road
+below; `features.test.ts` folds each link into the class below, gives a main road its `lanes` width,
+and makes a motorway, its links and a roundabout oneway and a motorway's or trunk road's link a
+ramp, makes no road of a highway line tagged `railway=platform` (Pieve San Lorenzo's footways;
+proven red without the rule), keeps one vertex of two in a row on one 0.1 m point (the one another
+way shares) and drops a culvert but under a bridge; `profiles.test.ts` levels a tunnel's portals and
+a bridge's ends with the ground outside them, runs a tunnel the outline cuts, in two pieces, level
+from its one portal, carries a tilted bound inside a climbing tunnel to its portals along its slope,
+writes two roads' claims into two windows that share a seam just as into the whole grid, lays a
+road's bridge of two pieces as one deck (the rail a deck a piece), opens a road tunnel's mouths at
+its approaches' level against a road over it and one beside it, keeps a junction it sets within
+reach of the short link to a junction set before, and holds each bound on its own piece where a
+chain crosses itself (a loop clears its own bridge), cores each piece at its own width (a wider
+piece joined on along its chain leaves the grid beside it as it was: with every piece cored at its
+chain's widest, as before, it fails at node (0, −12)) and holds a tunnel's mouths at their
+approach's width (4 m and 5 m beside a 10 m bore), and runs a chain on from a start's level
+(`start`: the first vertex at it, a bore from it level to where the box cuts it, its claims only
+where `writes` lets them); `junction-reach.test.ts` keeps a junction within its links' steepest
+grade of the junctions they lead to; `rail-bed.test.ts` lowers a grid under a line, raises the
+corners far under it but a kept one, moves a window's nodes as it moves the whole grid's, levels a
+siding on the line beside it, and moves a run-out's nodes beyond the play area alone (`writes`);
+`deck-ground.test.ts` lowers a hump under a deck's slab and no node off it, each node it lowers onto
+a whole decimetre, leaves a bank the slab's edge grazes (the ground under the slab goes instead),
+brings a hillside down under the road along a deck's end run (the SP59's by Vinca) and clears the
+slab past `END_RUN` (4 m) though it first stands clear 19 m in, lowers the ground under a deck lying
+on it all along past its end runs, keeps a rail deck's ground off its ballast, lowers the ground at
+a joint between two pieces of a deck as under the deck whole (a deck 0.5 m off the joint's level is
+no piece of it), and flags the nodes round a slab abeam of its deck or behind its ends;
+`grid-tiles.test.ts` checks that the tiles' windows cover the grid, neighbours sharing their border
+nodes, and that the tile `cellTile` names for a point (on and off the seams and the grid's edge)
+holds the four nodes of the cell read there, a point at a corner of Lunigiana's box in a notch
+(found from the list: its north-west and south-east today) in a tile off the list, and on the L test
+region's lattice that its notch's tiles get no window, `listedNodes` holding every node but the
+notch's 285,000, and that `extendEdges` gives each of those the listed node the game reads there (by
+its sides, its corner and its far corner) and leaves the rest; `catchment.test.ts` that a notch's
+nodes are outlets, that an inflow from beyond the grid is carried down its stream from its node, and
+only there, that a river cut short of the grid's edge drains on down the water beyond the cut, not
+down a side stream beside it, and that water coming in at the grid's edge is no outlet for the water
+it joins (each of the two red before the change it guards) ([section
+6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)); `spawns.test.ts` parks cars
+off running track, off a siding and away from a level crossing; `platforms.test.ts` clips a platform
+off a track, a road and a crossing area, makes a strip between close tracks, a narrow one and one no
+edge of which comes within 2.2 m of a track walkways, and leaves out the ground far under a
+platform's top; `railway.test.ts` checks the speed limits, crossing boxes and stations;
+`rail-clear.test.ts` narrows a verge beside a track, leaves one at another level, in a box or on a
+platform alone, and throws for a lane. `src/sim/map/__tests__/railway.map-test.ts` checks
+`MAP.railway`, per line: each line runs terminal to terminal or to its terminus, its pieces sharing
+their end vertices bit-identically, every running piece on one (today the three: Lucca–Aulla from
+the outline at Pieve San Lorenzo to its terminus at Aulla Lunigiana, and the Pontremolese's two
+tracks from edge to edge); the lines that share track share it one way round (`checkSharedTrack`, in
+place of the one line's `checkNoSharedTrack`); a terminal's sample at s 0 lies within 1 m of the
+outline (the SS62's case, 0.94 m); the speed limits cover each line, 80 or 85 km/h but in the
+Galleria del Lupacino (OSM's 140), 80 km/h from Equi Terme's stop to Gragnola's; the 9 stations lie
+along their platforms, a station extending up to 450 m and its node by its line or by one of its
+platforms, a platform within 4 m of the line's side at each one's middle; the 17 platforms are
+pinned, 15 raised and 2 walkways, Aulla's six the CTR's AGE#173–175 and OSM's 5–7; each crossing
+box's nodes are vertices of its road and of the rail, the line's s on one of them (a box on a loop
+alone, Pieve's foot crossing, names no line), and every vertex an at-grade road shares with at-grade
+rail is in a box; the platforms stand 1.55 m or more from every track and 0.44 m or more past every
+carriageway's edge (0.5 m less the rings' 0.06 m simplification), their top the rail head plus 0.25
+m (Gragnola's walkway 0.02 m) and `groundZ` on them their top or the terrain where that is higher,
+or a footway OSM draws along one up to 0.06 m plus 0.75 m × 8%, 0.12 m, over it (Fivizzano-Gassano's
+0.09 m; Rometta's 0.106 m at a 6.1% cross-fall, footway 1352994572 at (−5638, 4445)); the line's
+grade changes by under 4% over 20 m, and under 2% through a level crossing (the map before the fixes
+changed it 4.1% at s 6269); through its tunnels each stretch of 100 m or more (the whole of a
+shorter tunnel) climbs or falls 2.5% at most, 0.1 m more for the bed's rounding (issue #17: the
+Pontremolese keeps within 2.27% over 100 m, and the Lucca–Aulla line passes 2.5% by 0.058 m at most
+in any window, 2.62% over 50 m at the Aulla tunnel 140772193, within that rounding); and it runs on
+over lucido's seam with fivizzano at Gragnola, between stations, within 2.5% over 100 m either way.
+Monzone's platform tops fall 0.23 m along them, the LiDAR ground 0.35 m (`station-checks.ts` fails
+past 0.15 m against it: they rose 0.51 m while the rail kept a deck a piece).
 `src/sim/map/__tests__/levels.map-test.ts` checks what the level rule (`onOneLevel`, 2 m, in
-`src/sim/one-level.ts`) rests on, on Lunigiana, Cesena and, when built, the L (in CI always):
-wherever two ways cross on two levels with no node in common (a road, path or rail bridge over a
-road, a path, steps or the rail, or a road, a path or the rail over a tunnel: `passesOver` in
-`road-levels.ts`), unless both are the rail, the way above stands more than 2.5 m over the one below
-between any two of their points within 3.99 m of each other and of the crossing, so a deck's slope
-toward its end counts too. That reach is the farthest of how far from a car's axis the person who
-gets into it stands (`ENTER_GAP` and the truck's half-width, 3.225 m), how far from its middle a
-vehicle reaches into a driver's path, where the driver reads its level (the truck's half-diagonal,
-3.99 m), and how far apart two bodies touching are read, each on its own axis where they touch (two
-trucks' half-widths, 2.45 m); a vehicle a person or an animal may run from is read on its axis
-abeam them, and past its bumpers on its axis's line too; a train's car is read at the rail head under
-its middle, which the line's 2.83% at most keeps within 0.28 m of the rail head where it reaches
-the path. Paths over paths count since
-people step apart only on one level. The 0.5 m over `ONE_LEVEL` covers the surfaces' lifts over
-their
-profiles (0.06–0.24 m), the 0.1 m rounding and a truck's wheels rolled 25° (0.16 m). It visits 50
-crossings on Lunigiana (49 before Fosdinovo's part; the least 4.24 m, a path over the rail's tunnel
-at (2544, 1057)), 161 on Cesena (2.63 m, a path bridge over a path at (−1044, −1321)) and 18 on
-the L (5.39 m), in 1.9 s;
-Lunigiana and the L have no path over a path. Out to 12 m of a crossing, where two bodies may still
-touch across an oblique one, no road over a road or a path, or path over a road, comes nearer than
-4.95 m on Lunigiana, 3.06 m on Cesena and 5.02 m on the L outside the listed ones. Cesena's
-crossings that keep less are listed by OSM id ([Known data limitations](#known-data-limitations)),
-and each must still fall short, so a fix drops it from the list. With the SR445's viaduct west of
-Gragnola lowered 4 m in memory, it falls short at 1.94 m over the residential road under it. Only
-crossings are visited: where a deck lifted 2.5 m or more over the terrain overlaps another way's
-carriageway in plan without crossing it and the two stand 2.5 m apart or less, that way meets the
-deck there, within 25 m of a node they share, or else joins its approach within three joints and
+`src/sim/one-level.ts`) rests on, on Lunigiana, Cesena and, when built, the L and the coast (in CI
+always): wherever two ways cross on two levels with no node in common, but a crossing on a path's or
+steps' bridge or tunnel no fit of the path pass could clear from its ends at grade ([Known data
+limitations](#known-data-limitations)) (a road, path or rail bridge over a road, a path, steps or
+the rail, or a road, a path or the rail over a tunnel: `passesOver` in `road-levels.ts`), unless
+both are the rail, the way above stands more than 2.5 m over the one below between any two of their
+points within 3.99 m of each other and of the crossing, so a deck's slope toward its end counts too.
+That reach is the farthest of how far from a car's axis the person who gets into it stands
+(`ENTER_GAP` and the truck's half-width, 3.225 m), how far from its middle a vehicle reaches into a
+driver's path, where the driver reads its level (the truck's half-diagonal, 3.99 m), and how far
+apart two bodies touching are read, each on its own axis where they touch (two trucks' half-widths,
+2.45 m); a vehicle a person or an animal may run from is read on its axis abeam them, and past its
+bumpers on its axis's line too; a train's car is read at the rail head under its middle, which the
+line's 2.83% at most keeps within 0.28 m of the rail head where it reaches the path. Paths over
+paths count since people step apart only on one level. The 0.5 m over `ONE_LEVEL` covers the
+surfaces' lifts over their profiles (0.06–0.24 m), the 0.1 m rounding and a truck's wheels rolled
+25° (0.16 m). It visits 163 crossings on Lunigiana (5 of them a path or steps over a path or
+steps, the micro-mapped knots by Aulla), 161 on Cesena, 18 on the L and 18 on the coast, in 5.9 s;
+outside the crossings it lists or leaves out the least is 2.79 m on Lunigiana (the track 140773011
+over the rail at (−11811, 5263)), 2.97 m on Cesena (the path 22776463 over the Secante at (760,
+626)), 4.52 m on the L (the rail over the path 1133296350) and 3.45 m on the coast (Via Palmiro
+Togliatti over the footway tunnel 757275375); of a road over a road or a path, or a path over a
+road, the least is 3.38 m on Lunigiana (the path 1452661254 over the service road 1452661267),
+2.97 m on Cesena, 5.49 m on the L and 3.45 m on the coast. Cesena's crossings that keep less are
+listed by OSM id ([Known data limitations](#known-data-limitations)), and each must still fall
+short, so a fix drops it from the list. So is the coast's one (`KNOWN["the coast"]`), the same
+limit of the build as Cesena's: Via Bassagrande's bridge (463589363), 1.93 m over the path along
+the Fossa Maestra's bank (326011444). The A12's foot and cycle bridge at Luni (ways 522153379,
+522153380 and 522153381) and the footway tunnel 757275375 under Via Palmiro Togliatti (381510717),
+straight between their ends at the terrain's level until the path pass fitted them, now clear what
+they cross. The coast is a test region, not a part, so its crossing is listed as Cesena's are;
+part 5 (#21), which brings the coast into the shipped map, must fix it, as a part's crossings are
+never listed ([standards/map.md](standards/map.md)). With the SR445's viaduct west of Gragnola
+lowered 4 m in memory, it falls short at 1.94 m over the residential road under it.
+Only crossings are visited: where a deck lifted 2.5 m or more over the terrain overlaps another
+way's carriageway in plan without crossing it and the two stand 2.5 m apart or less, that way meets
+the deck there, within 25 m of a node they share, or else joins its approach within three joints and
 comes within 4.8 m of its end (10 ways on Lunigiana, 3 of them on the L, none on Cesena): on its
-level there.
-`src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts` and `joints-l.map-test.ts`
-(each region in its own process, the L skipped without its build but required in CI) check what a
-driver's level rests on where its way meets a bridge's deck or a tunnel's floor: at every joint
-where a Panda may drive from a road onto or off a bridge or a tunnel, or from one bridge way onto
-the next, with no junction and no turn of 30° or more, a driver standing on its lane up to 40 m
-before the joint reads a Panda standing in its lane past it, together up to 40 m apart and every 2
-m along both, on its level, rolled along the arc it steers to it (`onPathLevel`, where that arc
-keeps to the carriageways; `joint-checks.ts`). 40 m covers a Panda at the primary roads' 16 m/s,
-which starts braking for a car standing 27.1 m ahead. It checks 68,167 places at 541 joints on
-Lunigiana, 16,189 at 105 on Cesena and 9,077 at 67 on the L, in 0.9 s (2026-11-07; 58,814 at 463
-and 8,393 at 63 before #18). Read as before, nearest the driver's ground carried along its lane's
-slope, the check failed at 30 joints on Lunigiana before #18 (among them the SR445 coming down 15%
-onto its viaduct from the east), 7 on Cesena and 8 on the L;
-rolled, only at a mouth of Pieve San Lorenzo's underpass (756577583) on Lunigiana, listed
-([Known data limitations](#known-data-limitations)), which must still fail, so a fix drops it.
-`src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule
-on the verges people walk (`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car
-stands within 20 m of a crossing node; on a map built without the narrowed verges and the parking
-rule, both fail (Piazza Paolo Sist at 2.75 m and Via Riolo at 1.92 m, a car 19.4 m from Viale 20
-Settembre).
+level there. `src/sim/map/__tests__/joints.map-test.ts`, `joints-cesena.map-test.ts`,
+`joints-l.map-test.ts` and `joints-coast.map-test.ts` (each region in its own process, the test
+regions skipped without their builds but required in CI; the coast's 6,721 places at 58 joints, its
+floor 5,000) check what a driver's level rests on where its way meets a bridge's deck or a tunnel's
+floor: at every joint where a Panda may drive from a road onto or off a bridge or a tunnel, or from
+one bridge way onto the next, with no junction and no turn of 30° or more, a driver standing on its
+lane up to 40 m before the joint reads a Panda standing in its lane past it, together up to 40 m
+apart and every 2 m along both, on its level, rolled along the arc it steers to it (`onPathLevel`,
+where that arc keeps to the carriageways; `joint-checks.ts`). 40 m covers a Panda at the primary
+roads' 16 m/s, which starts braking for a car standing 27.1 m ahead. It checks 68,167 places at 541
+joints on Lunigiana, 16,189 at 105 on Cesena and 9,077 at 67 on the L, in 0.9 s (2026-11-07; 58,814
+at 463 and 8,393 at 63 before #18). Read as before, nearest the driver's ground carried along its
+lane's slope, the check failed at 30 joints on Lunigiana before #18 (among them the SR445 coming
+down 15% onto its viaduct from the east), 7 on Cesena and 8 on the L; rolled, only at a mouth of
+Pieve San Lorenzo's underpass (756577583) on Lunigiana, listed ([Known data
+limitations](#known-data-limitations)), which must still fail, so a fix drops it.
+`src/sim/map/__tests__/clearance.map-test.ts` checks the clearance rule on the verges people walk
+(`walkSide`) and the lanes cars drive (`laneSide`), and that no parked car stands within 20 m of a
+crossing node; on a map built without the narrowed verges and the parking rule, both fail (Piazza
+Paolo Sist at 2.75 m and Via Riolo at 1.92 m, a car 19.4 m from Viale 20 Settembre).
 
 The part tools ([Adding a part](#adding-a-part)) are checked offline in `src/tools/__tests__`:
 `cartoteca.test.ts` parses GML and GetFeatureInfo answers trimmed from real ones (a hole, a
@@ -3884,7 +4795,8 @@ when the region loads, naming the fault: a mask round a gap the rectangles leave
 region's play area is the union of its parts' masks, or rectangles where a part has none, and its
 `bounds`, the built terrain, the box round every part's rectangles ([section
 2](#2-projection-and-play-area-geometryts-play-areats)). Lunigiana's parts are `lucido`, with no
-mask, `fivizzano`, masked off Emilia-Romagna, and `fosdinovo`, masked off Carrara's corner. Its
+mask, `fivizzano`, masked off Emilia-Romagna, `fosdinovo`, masked off Carrara's corner, and
+`aulla`, masked off Liguria. Its
 sources are its manifest, `data/parts/<part>.json`: `pick-sheets` writes `ctr`, `pick-lidar` `lidar`
 and `dsm2021`, and the rest are written by hand, `dtm10` from the provinces the LiDAR's holes lie in
 and the older surveys from `rt-index`'s lists: `ctr2009` the 2009 sheets whose own mapped area
@@ -3900,13 +4812,21 @@ code alone, and `readManifest` refuses two of one comune. A part in Liguria's co
 CTR or land cover of Regione Toscana's, runs `pnpm fetch-lig <part>` before `pnpm fetch-rt`: the
 build reads each of a region's parts' NC5 and land use from `data/raw/lig/<part>/`, and `fetch-rt`'s
 chain fills the cells its LiDAR leaves from the part's DTM crops there ([section
-1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). The tools below scope a part
+1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). A part on the coast (#21)
+runs `pnpm fetch-osm <part>` before `fetch-rt` too, so the order is `fetch-lig`, `fetch-osm`,
+`fetch-rt`: the chain's sea step reads the coastline in the part's own extract, and without it
+the sea's cells and the shore Liguria's DTM leaves empty fall through to Emilia-Romagna's DTM,
+which fills them with junk rather than failing ([Known data
+limitations](#known-data-limitations)). Its sea floor comes from the isobaths `fetch-lig` writes
+(every Liguria part's fetch writes the file, empty inland), its beaches' material from Spiagge,
+and a coastal corner past Liguria's border (the magra-coast test region's Carrara wedge) needs
+its province's 10 m DTM in the manifest. The tools below scope a part
 and check it. `rt-index`, `coverage` and `footprint-check` write their scratch in
 `.research/<part>/` (gitignored), `ortho` in `.research/ortho/` unless given a file, `playtest` in
 the folder it is given; every request names only the project in its `User-Agent` (`net.ts`), and the
 tools print paths relative to the repository. Measured on `lucido` on 2026-10-29, on `fivizzano`,
-issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (arm64, Node
-24.14.1).
+issue #17's part, on 2026-11-04, on `fosdinovo`, issue #18's, on 2026-11-07 and on `aulla`, issue
+#19's, on 2026-11-16 (arm64, Node 24.14.1).
 
 - **`pnpm footprint-check <part> [--refresh]`** (`footprint-check.ts`, the report in
   `footprint-report.ts`, geometry in `footprint.ts`) checks what the part's edges cut through: one
@@ -3950,7 +4870,16 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   locality and 5 houses stand 104–111 m past x −4000, and the SP73 leaves once, at (−4000, −5563),
   toward Gragnana. On the issue's mask, the line 1 km beyond the comuni alone, the critic found
   Castelpoggio 89 m out and the SP73 out 1,985 m and back, so the mask bends out east of x −4000
-  ([section 2](#2-projection-and-play-area-geometryts-play-areats)).
+  ([section 2](#2-projection-and-play-area-geometryts-play-areats)). `aulla`, with its mask (178
+  vertices, 179 edges, 2 of them seams: x −5300 for y 3900…13000 with Fivizzano and y 3900 for x
+  −11500…−5300 with Fosdinovo), over 199 places, 15,739 buildings and 4,456 highway ways: 19 places,
+  28 clusters, 38 drivable re-entries, 10 path notes and 9 unresolved roads (the A15's two
+  carriageways, the SS62, the SS 665 and the SP61 north of y 13000, and the A15's two south of y
+  3900 west of x −11500), one Overpass mirror timing out and the next serving it. Every finding lies
+  on an edge a later part joins: y 13000 (#22, #24: Villa di Panicale's 123 buildings straddle it,
+  and the SP26 by Virgoletta runs out 1,351 m and back), y 3900 west of x −11500 (#20: Via
+  Calamazza and the tracks south of Aulla, and houses by Casa Borsi astride it) and the Ligurian
+  mask (#20: the SP14 out 928 m and back west of Podenzana, and houses by Il Bosco astride it).
 - **`pnpm rt-index <part>`** (`rt-index.ts`, readers in `cartoteca.ts`, the box in
   `rt-index-file.ts`) lists the cartoteca over the box round every cell `fetch-rt` may read for the
   part, + 500 m (`indexBox`): for a Lunigiana part, the EPSG:3003 box round its tiles' squares cut to
@@ -4000,7 +4929,14 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   blocks (Aulla 1998, Carrara 2000, Fivizzano 1993–2000, Fosdinovo 2000) and 20 DSM elements, every
   archive answering, in 28 s; and Fivizzano's again, its box grown 698 m west to its tiles' strip
   (1583714, 4888033 to 1601445, 4904126): 208 CTR frames, 35 CTR 1:10 000 frames and 226 LiDAR
-  tiles.
+  tiles. `aulla` on 2026-11-16, over 1567652, 4891709 to 1586855, 4903919: 197 CTR frames (104 of
+  2019, none of 2009), 24 CTR 1:10 000 frames (the 2010 edition of 12 sections), 284 LiDAR tiles
+  (140 of lot 004, 62 of 003 and 12 of 014, RT's, the 003 tile 24c55 among them, whose
+  GetFeatureInfo names no archive or owner, so `pick-lidar` skips it; and 70 of MATTM's 006), 5 DBT
+  blocks (Aulla 1998, Fivizzano 1993–2000, Fosdinovo 2000, Licciana Nardi 1998, Tresana 1998–2000)
+  and 38 DSM elements, every archive answering; and Fosdinovo's again, its tiles' box grown 500 m
+  west to x −12000 (1577835, 4883725 to 1588962, 4894948): 119 CTR frames, 18 CTR 1:10 000 frames,
+  122 LiDAR tiles, 4 DBT blocks and 20 DSM elements.
 - **`pnpm pick-sheets <part> [--write]`** keeps the 2019 sheets whose mapped area (`AZR`), clipped
   to the part's rectangles, covers a positive area, and lists the frames that meet the part with
   only older sheets. Without `--write` it prints the difference from the manifest's `ctr`; with it,
@@ -4012,7 +4948,10 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   with only sheets of 1987–2006, none of 2009, in 15.5 s. `fosdinovo`: the issue's 31 sheets, every
   one kept (7.10 km² of `AZR` in its 84.98 km² play area), and 22 frames that meet it with only
   older sheets, 9 of them of 2009 (22C08, 22C16, 22D01, 22D02, 22D09, 22D10, 23C64, 23D57 and
-  23D58: its `ctr2009`), the rest of 1987 and 1993, in 9.6 s.
+  23D58: its `ctr2009`), the rest of 1987 and 1993, in 9.6 s. `aulla`: 75 of the index's 104
+  sheets of 2019 (31.53 km² of `AZR` in its 143.80 km² play area; of the issue's 78 candidates,
+  24D09, 24D41 and 24D49 map none of it), and 21 frames that meet it with only older sheets, none
+  of 2009.
 - **`pnpm pick-lidar <part> [--lots 004,005] [--write]`** replays `fetch-rt`'s first-wins mosaic
   (`dtm-mosaic.ts`'s reader) on a one-byte mask of the 1 m cells `fetch-rt` fills for the part. For
   a Lunigiana part those are the cells its tiles need (`partTiles`: each tile's square cut to the
@@ -4055,8 +4994,18 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   GetFeatureInfo grid 640 m apart, which missed `22d14` of lot 004, a 98 m wide 2010 sliver below
   Picco di Navola (19 518 m² in the crop, local x 3843–3943, y −5750…−5473) that `pick-lidar` added:
   506 heightmap nodes moved there, 474 of them under 0.5 m and none on average, up to 8.4 m on the
-  steep rock face, where the 2010 and 2012 flights classify the ground differently. The `dtm10` list
-  is written by hand, from the provinces the holes lie in (the 10 m DTMs have no index layer).
+  steep rock face, where the 2010 and 2012 flights classify the ground differently. `aulla`
+  (2026-11-16, `--lots 003,014,004`, the flood's flight first, issue #19): a crop of 18,266 ×
+  11,274 m; its 60 tiles need 201.32 km², 34.61 km² of them held by tile files, and the earlier
+  parts' 42 tiles over the crop write 12.34 km² first; of the 213 candidates (lot 006's 70 not
+  requested, the 003 tile 24c55 skipped, as no owner or licence is known) 145 are kept, 51 of lot
+  003, 9 of 014 and 85 of 004; two holes of 1.52 km² are left in Liguria past its mask, the larger
+  1.41 km² centred at (−21845, 5799), 608 × 2,360 m, under the surface model's elements 233153,
+  233154 and 248034. Fosdinovo's again, for the strip x −12000…−11500 that Aulla's box adds to its
+  tiles (`--lots 004,003,005`): its 30 tiles need 102.77 km², 97.66 km² of them held, and 7 lot-004
+  tiles new to its manifest fill the rest but for a 348 m² hole at (−12053, −3987), 4 × 87 m, under
+  the element 248081, which its manifest gained too. The `dtm10` list is written by hand, from the
+  provinces the holes lie in (the 10 m DTMs have no index layer).
 - **`pnpm coverage <part> [--refresh]`** (`coverage.ts`, raster in `coverage-grid.ts`) tallies, per
   comune (OSM `admin_level=8` boundaries), the part's play area (its mask, or else its rectangles)
   mapped by the manifest's 2019 sheets, by each LiDAR lot (the index footprints in manifest order,
@@ -4105,6 +5054,24 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   Lot 005's 1.77 km² in Carrara are lucido's tiles of 2012, which count first; the surface model and
   the DTM 5x5 fill none of it. OSM marks 93.4% of the 65.41 km² of UCS woods as forest (67.23 km² of
   OSM forest; the UCS stops at Liguria's border, and the tally reads none of Liguria's land use).
+  `aulla` (2026-11-17, its mask honoured, every part's LiDAR in `PARTS` order, so the earlier
+  parts' tiles of 2010 count first where they overlap), in km²:
+
+  | Comune | Play area | CTR 2019 | LiDAR (lot 004) | LiDAR (lot 003) | LiDAR (lot 014) |
+  |---|--:|--:|--:|--:|--:|
+  | Tresana | 44.04 | 7.35 (16.7%) | 30.52 (69.3%) | 8.00 (18.2%) | 5.52 (12.5%) |
+  | Aulla | 31.37 | 9.09 (29.0%) | 14.42 (46.0%) | 16.95 (54.0%) | 0 |
+  | Licciana Nardi | 25.62 | 9.31 (36.3%) | 11.41 (44.6%) | 14.21 (55.4%) | 0 |
+  | Podenzana | 15.61 | 3.34 (21.4%) | 8.26 (53.0%) | 7.34 (47.0%) | 0 |
+  | Villafranca in Lunigiana | 12.00 | 0.80 (6.7%) | 7.79 (64.9%) | 4.21 (35.1%) | 0 |
+  | Fivizzano | 6.72 | 1.44 (21.4%) | 6.20 (92.2%) | 0.52 (7.8%) | 0 |
+  | Mulazzo | 5.75 | 0.20 (3.5%) | 2.53 (44.1%) | 3.21 (55.9%) | 0 |
+  | Bagnone | 2.69 | 0.00 (0.1%) | 2.69 (100%) | 0 | 0 |
+  | Total | 143.79 | 31.53 (21.9%) | 83.84 (58.3%) | 54.44 (37.9%) | 5.52 (3.8%) |
+
+  No cell of it is without LiDAR, so no source of the chain fills any; Bolano and Calice al
+  Cornoviglio hold 0.00 km² of it. OSM marks 88.8% of the 105.23 km² of UCS woods as forest
+  (99.12 km² of OSM forest).
   `sillara`: see [Test regions](#test-regions).
 - **`pnpm ortho <x0>,<y0>,<x1>,<y1> [layer] [out.svg] [--px <m>] [--refresh]`** (`ortho.ts`,
   `ortho-wms.ts`) draws a Regione Toscana orthophoto crop (WMS GetMap in EPSG:4326, which maps
@@ -4150,7 +5117,14 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   Fosdinovo (2026-11-07, production build, `?seed=7`, three runs): first frame 0.41–0.47 s, slowest
   frame 16.8 ms, heap 161 MB, against main's 130–131 MB, under the 245 MB issue #18 allows; on
   #18's final code (1,036.60 kB of JS, 322.84 kB gzipped) first frame 0.40–0.41 s, slowest frame
-  16.8 ms, heap 164 MB.
+  16.8 ms, heap 164 MB. With Aulla (2026-11-18, production build of 1,055.68 kB of JS, 331.02 kB
+  gzipped, `?seed=1`, three runs): first frame 0.47–0.52 s, slowest frame 16.8 ms, heap 216 MB,
+  against main's 164 MB; standing at Aulla (`--at -12975,5867` on a production build with `gta`
+  turned on in a copy of `main.ts`, two runs) 225 MB, under the 245 MB issue #19 allows, where a dev
+  build reads 252–253 MB (the dev build's own 30 MB). The 40 m/s drive from Rometta west across
+  the x −6000…−12000 tile seams, over the y 4000 seam into Fosdinovo and back, up the Magra from
+  Aulla and east to Licciana (dev build): every seam's slowest frame 16.8 ms, at most 8 tiles in
+  memory, one frame of 33–50 ms by (−6500…−6760, 4434), away from a seam, in each of two runs.
 - **`pnpm playtest drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,…]`** (dev
   builds only: it needs `gta.player`, `gta.teleport` and `gta.tiles`) runs the tile streaming at
   speed. It dismisses the title card, teleports the player to the route's start and waits until the
@@ -4158,7 +5132,7 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   `--speed` (40 m/s) has reached along the route, held at its end, for `--seconds` (the route's
   length at that speed). The default route is the SP59 from Monzone to Vinca, chained from the
   whole map's roads with ref SP59 (`wholeMap`: their lines are in the tiles, so the tool reads all
-  102 at startup) through their shared ends, from the free end nearest the spawn and at a fork
+  153 at startup) through their shared ends, from the free end nearest the spawn and at a fork
   toward Vinca (it throws when the chain ends more than 500 m from Vinca, so a rebuild that splits
   the road fails loudly): 386 vertices, 7,937 m, 198.4 s at 40 m/s, through tiles 0_0, 0_-1, -1_-1,
   0_-2 and 1_-2. It prints one JSON line: the slowest and p99 frame, the slowest frame within 1 s of
@@ -4228,58 +5202,69 @@ issue #17's part, on 2026-11-04 and on `fosdinovo`, issue #18's, on 2026-11-07 (
   the cut moved every vector into the tiles unchanged (on Lunigiana, Cesena and the L test region).
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
-  Lunigiana's largest, 2_1 (x 4000…6000 by y 2000…4000: Argigliano, Pieve San Lorenzo and its
-  station), is 0.63 MB (632,249 B, 624,987 B before Fosdinovo's part; its JSON line 0.92 MB before
-  gzip), and Fosdinovo's, −4_1 (x −8000…−6000 by y 2000…4000: Ceserano, Canova and the Bardine),
-  0.63 MB too (627,856 B), its JSON line the map's longest, 0.97 MB; `lucido`'s alone, 0_0, is
+  Lunigiana's largest, Aulla's −7_2 (x −14000…−12000 by y 4000…6000: Aulla's centre, the Brunella
+  and the A15's junction), is 0.65 MB (648,580 B; its JSON line the map's longest, 1.13 MB before
+  gzip), Aulla's −8_2 0.64 MB (636,552 B), and 2_1 (x 4000…6000 by y 2000…4000: Argigliano, Pieve
+  San Lorenzo and its station), the largest before Aulla's part, 0.63 MB (631,905 B; 632,249 B
+  before, 624,987 B before Fosdinovo's part; its JSON line 0.92 MB before gzip) (2026-11-18);
+  Fosdinovo's, −4_1 (x −8000…−6000 by y 2000…4000: Ceserano, Canova and the Bardine), 0.54 MB
+  (537,980 B; 627,856 B before Aulla's part, its JSON line then the map's longest, 0.97 MB);
+  `lucido`'s alone, 0_0, is
   0.59 MB with its vectors (its JSON line 0.79 MB), where −1_−1's 0.31 MB was the largest without
   them; Cesena's largest is 0.45 MB and the L's 0.55 MB (2026-11-07).
 - **The global file's JSON line**: at most 8 MB, 8,000,000 B (issue #5's `map.json` check, which
   #18 asks of its part; `src/__tests__/maps.map-test.ts` fails past it on either map): the game
   parses it with `JSON.parse` at load, so a bulk array goes in a packed section after it ([The
-  global file](#the-global-file)). Lunigiana's is 2,639,642 B and Cesena's 959,338 B; Lunigiana's
-  was 8,319,700 B with Fosdinovo's part before version 6 (2026-11-07).
+  global file](#the-global-file)). Lunigiana's is 4,560,315 B and Cesena's 959,509 B (2026-11-18;
+  Lunigiana's 2,639,642 B before Aulla's part); Lunigiana's was 8,319,700 B with Fosdinovo's part
+  before version 6 (2026-11-07).
 
 Each part's inputs are its own files since #17 (Fivizzano, the first part after lucido), so a part
 adds files and cells and moves none (`--region cesena` builds the separate Cesena map instead, and
 the part tools refuse it; a [test region](#test-regions) builds from Lunigiana's inputs and fetches
 none, but `bagnone-ridge`'s terrain, `pontremoli-town`'s buildings and `sarzana-town`'s terrain and
 Liguria sources). `pnpm fetch-osm <part>` writes the part's own extract,
-`data/raw/osm/<part>.osm.gz`, over the ground of its tiles that the earlier parts' leave it and
-the ground its grown box adds to their tiles (`partGround`), so their extracts stay as pinned, as
-their cells do when `fetch-rt` adds to their tiles; the build merges every part's by id ([section
+`data/raw/osm/<part>.osm.gz`, over the ground of its tiles that the earlier parts' leave it and the
+ground its grown box adds to their tiles (`partGround`), so their extracts stay as pinned, as their
+cells do when `fetch-rt` adds to their tiles; the build merges every part's by id ([section
 1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)), so overlapping parts are
-harmless. Fivizzano's, its 6 ground rectangles plus 100 m (177.90 km²; the third, its tiles north
-of y 4000, split in four on HTTP 400: 9 `/map` calls), then 52 multipolygon relations whole, is
-195,450 nodes, 13,346 ways and 233 relations, 3,335,726 B, in about 22 s (2026-11-04); over its
-four rectangles alone it was 170,947 nodes and 2,906,965 B. Fosdinovo's, its 3 ground rectangles
-plus 100 m (79.45 km²; the first, its tiles south of y 2000, split in four: 6 `/map` calls), then 25
-multipolygon relations whole, is 115,713 nodes, 7,745 ways and 124 relations, 2,029,430 B, in
-20.5 s (2026-11-07). `pnpm fetch-rt <part>` adds the cells
-the part's tiles need to a file a tile (`rt/dtm/<i>_<j>.bin`), keeping every cell another part's
-fetch wrote, and its land cover to `rt/ucs/<part>.json.gz`. A part that grows the region's box grows
-the cells the earlier parts' tiles need too: Fivizzano's added 21.8 km² to lucido's (its tiles cut
-to the box reach past its rectangle), so lucido's manifest took 19 LiDAR tiles and a surface-model
-element more, `pnpm fetch-rt lucido` ran again and wrote those cells alone (69 s, 1.77 GB), and then
-`pnpm fetch-rt fivizzano` wrote its 49 tiles of its own and added nothing to the 7 it shares with
-lucido (232 s and 3.51 GB with its downloads; [section
+harmless. Fivizzano's, its 6 ground rectangles plus 100 m (177.90 km²; the third, its tiles north of
+y 4000, split in four on HTTP 400: 9 `/map` calls), then 52 multipolygon relations whole, is 195,450
+nodes, 13,346 ways and 233 relations, 3,335,726 B, in about 22 s (2026-11-04); over its four
+rectangles alone it was 170,947 nodes and 2,906,965 B. Fosdinovo's, its 3 ground rectangles plus 100
+m (79.45 km²; the first, its tiles south of y 2000, split in four: 6 `/map` calls), then 25
+multipolygon relations whole, is 115,713 nodes, 7,745 ways and 124 relations, 2,029,430 B, in 20.5 s
+(2026-11-07). Aulla's, its 4 ground rectangles plus 100 m (170.15 km²; the second, its tiles north
+of y 4000, split on HTTP 400: 10 `/map` calls), then its multipolygon relations whole, is 257,285
+nodes, 24,576 ways and 603 relations, 4,782,564 B (60.1 MB of XML; 2026-11-16). `pnpm fetch-rt
+<part>` adds the cells the part's tiles need to a file a tile (`rt/dtm/<i>_<j>.bin`), keeping every
+cell another part's fetch wrote, and its land cover to `rt/ucs/<part>.json.gz`. A part that grows
+the region's box grows the cells the earlier parts' tiles need too: Fivizzano's added 21.8 km² to
+lucido's (its tiles cut to the box reach past its rectangle), so lucido's manifest took 19 LiDAR
+tiles and a surface-model element more, `pnpm fetch-rt lucido` ran again and wrote those cells alone
+(69 s, 1.77 GB), and then `pnpm fetch-rt fivizzano` wrote its 49 tiles of its own and added nothing
+to the 7 it shares with lucido (232 s and 3.51 GB with its downloads; [section
 1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). Fosdinovo's added 7.77 km² to
 Fivizzano's, the strip x −6000…−5300 of its 6 tiles i −3, and none to lucido's, whose tiles i −2
 Fivizzano's box had already made whole: so `rt-index fivizzano` and `pick-lidar fivizzano` ran
-again, its manifest took 11 LiDAR tiles more, `pnpm fetch-rt fivizzano` wrote those cells alone
-(235 s, 2.38 GB, its land cover gaining 300 polygons there), and then `pnpm fetch-rt fosdinovo`
-wrote its 23 tiles of its own and added nothing to −3_1, Fivizzano's (115 s and 2.02 GB). The build
-names a tile whose file lacks a cell the box needs, so a fetch left out fails it. The part tools
-above work on those cells: `rt-index` asks over the box round them, `pick-lidar` replays the mosaic
-on them after the cells held and the earlier parts' tiles, and `coverage` reads the chain's sources
-from the part's tiles' files. The build works a tile at a time since issue #7
-([Pipeline](#pipeline)). Regione Liguria's inputs are a part's already (`data/raw/lig/<part>/`,
-`fetch-lig <part>`), its DTM cropped a tile at a time round the crop of the part's rectangles
-(`dtmTiles`), which holds the cells its tiles need only where the rectangles reach within the crop's
-margin of the tiles' outer edges or the region's bounds stop there: for `sarzana-town`'s rectangle
-as a part beside lucido, 47,467 of those 2 m cells, in the HALO bands past its tiles' north and east
-edges, lie beyond every crop, so a Liguria part of Lunigiana needs `dtmTiles` taken round its tiles
-first.
+again, its manifest took 11 LiDAR tiles more, `pnpm fetch-rt fivizzano` wrote those cells alone (235
+s, 2.38 GB, its land cover gaining 300 polygons there), and then `pnpm fetch-rt fosdinovo` wrote its
+23 tiles of its own and added nothing to −3_1, Fivizzano's (115 s and 2.02 GB). Aulla's added the
+strip x −12000…−11500 to Fosdinovo's 6 tiles i −6, and none to Fivizzano's column i −3, which
+Fosdinovo's box had made whole: so `rt-index fosdinovo` and `pick-lidar fosdinovo` ran again, its
+manifest took 7 LiDAR tiles and the surface model's element 248081 more, `pnpm fetch-rt fosdinovo`
+wrote those cells alone (its land cover gaining 30 polygons there), and then `pnpm fetch-rt aulla`
+wrote its 51 tiles of its own (2026-11-16). The build names a tile whose file lacks a cell the box
+needs, so a fetch left out fails it. The part tools above work on those cells: `rt-index` asks over
+the box round them, `pick-lidar` replays the mosaic on them after the cells held and the earlier
+parts' tiles, and `coverage` reads the chain's sources from the part's tiles' files. The build works
+a tile at a time since issue #7 ([Pipeline](#pipeline)). Regione Liguria's inputs are a part's
+already (`data/raw/lig/<part>/`, `fetch-lig <part>`), its DTM cropped a tile at a time round the
+crop of the part's rectangles (`dtmTiles`), which holds the cells its tiles need only where the
+rectangles reach within the crop's margin of the tiles' outer edges or the region's bounds stop
+there: for `sarzana-town`'s rectangle as a part beside lucido, 47,467 of those 2 m cells, in the
+HALO bands past its tiles' north and east edges, lie beyond every crop, so a Liguria part of
+Lunigiana needs `dtmTiles` taken round its tiles first.
 
 A part's new inputs are pinned like any other: after `pnpm fetch-osm <part>`, `pnpm fetch-rt <part>`
 (and that of every part whose tiles the grown box reaches) and `pnpm map`, `pnpm pin-raw` uploads
@@ -4561,6 +5546,71 @@ build before it (`pnpm map-diff`, 2026-11-07):
   Cristoforo, and 12 contested ways go to the street with more votes for them (587877842 to Via del
   Mare's 26, not Via Puglie's 2).
 
+#### Aulla (issue #19)
+
+Aulla's code and presence moved the earlier parts' map by these. `pnpm map-diff` compared main's
+builds (at 4803788, the coast's #130 merged in) with #19's final ones (2026-11-18): Lunigiana
+a070f6e1eeb1cf08 → 2553b5eb503319bd, Cesena 7949b292ff6b50a6 → 1fae65b26617c8f7, the L
+14225b3536fb61db → 3603bf102f978740 and the coast 2a653db1f28d317e → 0411548a5564f136. Unlike
+#17's and #18's, the pair was not split into a build of the code alone and one of the part's
+presence: the code alone shows on Cesena, the L and the coast, which the part does not reach, and
+each fix was measured against the build before it as it came (sections 3–12 give their figures).
+The part grows the box 10,600 m west, to x −22100, and makes two of the earlier parts' edges
+seams: Fivizzano's west side, x −5300 north of y 3900, and Fosdinovo's north side, y 3900 for
+x −11500…−5300. The box's notch north-west of Fosdinovo's part is Aulla's now, and a new one, 30
+tiles west of Fosdinovo's and south of Aulla's, joins the 15 east of lucido.
+
+The code alone (Cesena, the L and the coast):
+
+- **Cesena**: 3,497 of 1,002,001 heightmap nodes move, up to 5.5 m and 0.765 m RMS over them (the
+  paths' decks and their approaches, the bounds across a carriageway and at a deck's ends, the
+  twin rule beside the station), with 6 land-cover cells; 681 walk and 1,979 drive walls come and
+  1,008 and 1,823 go; 167 roads, 8 buildings, a water piece and 20 rail pieces change; a platform
+  and its 33 lamps move; 2 parked spots move, a traffic edge goes and the lanes follow.
+- **The L**: 2,956 of 1,172,176 nodes, up to 9.2 m and 0.531 m RMS; 22 roads, 28 buildings and 86
+  water pieces change, 37 rail pieces change and 10 are cut anew (the rail's bridges of two pieces
+  as one deck and its corners rounded); 2 platforms, 9 parked spots and 12 lamps move; and Aulla's 5
+  landmark discs are listed, as the landmarks are not cut to the play area.
+- **The coast**: 2,074 of 1,502,501 nodes, up to 5.8 m and 1.406 m RMS; 34 roads, 2 buildings and
+  6 water pieces change, and the walls with them.
+
+On Lunigiana, code and presence together:
+
+- **The place**: the floor goes from 162.3 to 98.4 m and the downslope from 2.918 to −3.130 rad
+  ([weather.md](weather.md#the-maps-place)); `REFERENCE_PLACE` follows, 98 m and −3.13 rad.
+- **The grid and the tiles**: the heightmap starts at x −22100, not −11500, with 8,176 columns, not
+  5,526, and the coarse grid at x −22144 with 513 columns, not 347; 153 tiles are listed, where 102
+  were. Inside the old play area 12,670 of its 19.3 million nodes move, up to 10.6 m and 0.61 m RMS
+  over them: the paths' approaches, the rail's twin rule and rounded corners, the clearance across a
+  deck's width, the A15's twin decks and the water's fixes, each measured where it is described.
+- **Walls**: the walk and drive broad phases' corner moves 10,600 m west with the box (the drive
+  walls' by 10,596.5 m), so 520 walk, 2,386 shore and 2,305 drive segments both maps hold come in
+  another order, and walls change along the old edges, where the outline walls go.
+- **The railway**: the line runs on from Rometta's terminal, in play now, to its terminus at Aulla
+  Lunigiana (25,880.1 m, from 16,854.7), and the Pontremolese's two lines come in (3 lines, from 1;
+  9 stations, 13 level-crossing boxes and 17 platforms, from 5, 7 and 9); Rometta's run-out goes
+  ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)). The rail's own fixes moved, on
+  the old map, 1,246 terrain nodes by up to 7 m in x −14212…5024 (Pieve San Lorenzo's yard by
+  `OWN`, and the Pontremolese north of Aulla) and the stations' POIs 1541502577 and 13949044084
+  about 4.4 m back to OSM, and 63 platform lamps came and 5 went; the next round's rail fixes (the
+  bridges of two pieces as one deck, the arcs at OSM's corners) moved 3,439 nodes, up to 3.6 m,
+  Monzone's bridges rising 0.9–1.1 m.
+- **Districts**: the town rule grows Fivizzano's disc from 400 to 470 m, which takes 39 buildings
+  by the nearest rim and 6 inside Certardola-Motta's disc; Aulla's disc, 1030 m, renames 643
+  buildings and 126 parked spots from the neighbouring villages' rims, and across both towns 130
+  parked spots change name ([section 12](#12-trees-spawns-districts-treests-spawnsts-districtsts)).
+- **Water**: the weirs' and the dam's crests left out raise 496 nodes by up to 6.4 m in x
+  −12240…60, the stream that stepped back up over a dropped sample lowers 13,403 vertices on 3,276
+  pieces (by at most 1.3 m), and the Aulella's last way, cut at x −5300 before, runs on to the Magra
+  (172808472's 30 vertices to 372); the Rosaro's, the Aulella's and the Bardine's catchments grow
+  with the box ([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)).
+- **Roads and buildings across the old edges**: 204 roads change, those the old edges cut running
+  on whole (the SS63 23487818 from 7 vertices to 12) and others' z where the ground moved, and 132
+  buildings change their floor or height; 10 go. A drivable deck clips 11 footprints over its whole
+  width ([section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)), and the parapets,
+  cut to their decks' rise, go from 766 walls to 5,402, most of them on Aulla's decks.
+- **The truck network** joins north of the SR445's bridge 552592647, a change of the code alone.
+
 #### Beside lucido: the 3x test region and a notch
 
 The 3x test region grows the box but not the play area, which stays lucido's: it shows what a part
@@ -4632,8 +5682,9 @@ longer lucido:
   fixed for good.
 - **The coarse grid** covers the box: its nodes past lucido's edge (x −2944 and 4928) read the
   land there, where lucido's read its edge.
-- **A notch**: where a part's rectangles leave tiles of the box off the list (#17's and #18's grow
-  Lunigiana's box to x −11500…10600 by y −6100…13000, 30 of its 132 tiles unlisted in two notches),
+- **A notch**: where a part's rectangles leave tiles of the box off the list (#17's and #18's grew
+  Lunigiana's box to x −11500…10600 by y −6100…13000, 30 of its 132 tiles unlisted in two notches,
+  and #19's to x −22100, 45 of its 198),
   the build reads
   no terrain ([Pipeline](#pipeline)): the place leaves those tiles out, and the catchments and the
   walls' slopes stop at the notch's sides as at the box's edge. Measured on the L test region on
@@ -4650,9 +5701,9 @@ longer lucido:
 
 ## Known data limitations
 
-- **Cesena's footbridges and two of its tunnels stand too near the ways they cross for the level
-  check.** Paths and steps are not profiled, so a footbridge runs straight between its ends at the
-  terrain's level
+- **Cesena's footbridges and two of its tunnels stood too near the ways they cross for the level
+  check.** Measured before the paths' and steps' bridges and tunnels were fitted (issue #19), when a
+  footbridge ran straight between its ends at the terrain's level
   ([section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)):
   within 4 m of where they cross, 57046028 stands 2.17–2.34 m over Viale Europa and Via Arturo
   Carlo Jemolo at (−296, 563) and 2.18 m over the path beside them, 137735218 and 137735231 1.90
@@ -4667,7 +5718,16 @@ longer lucido:
   under or over them, and a car on the road brakes for someone on the footbridge over it or in the
   underpass under it, can hit them, and they run from it; on the footbridges and the paths under
   them people step apart as if they met (`levels.map-test.ts` lists each crossing by its two ways'
-  OSM ids).
+  OSM ids). The path pass now fits them over and under what they cross, and Cesena's 683510421
+  stands 4.5 m over the Sottopasso Cervese (22776463), which lay 0.72 m under it;
+  `levels.map-test.ts` leaves out a crossing on a path's or steps' bridge or tunnel that no fit of
+  the pass could clear: from each of its ends that meets a way at grade, at 30% (`RELAX` ×
+  `PATH_PASS.grade`), measured from the crossing and from 3.49 m (`REACH` − `STEP`) back toward
+  that end. Only Lunigiana's 717088457/717088463, a 1.4 m footway tunnel 0.7 m from its dead end, is
+  left out so; the steps 717897184 and 717897185 clear the path 717897178 by 4.0 and 3.9 m.
+  `KNOWN` lists Cesena's car park ramp 55016697/68296970, Lunigiana's micro-mapped knots
+  1311831119/1311831121 (0.40 m) and 1311831120/1311862950 (0.30 m), whose approaches lead from the
+  bores' ends 0.7 and 1.5 m away, and the coast's 463589363/326011444.
 - **Pieve San Lorenzo's underpass meets the road out of one mouth a step over its floor.** The
   underpass under the station (756577583) lies level at 350.6 m to its mouth at (5040, 3634), where
   the road out of it, 1191727402, starts 0.9 m higher, as that mouth opens
@@ -4726,6 +5786,16 @@ longer lucido:
   with no carriageway has no surface (its road areas, `L6861`, are not read, where the DBT's fill
   in); its bell towers may be coded churches (Sarzana's cathedral's is). The land use keeps the open
   classes alone, and the Magra's gravel, inside its river bed (5111), is not drawn as pebble.
+  The coast test region's pebble beaches stand on that DTM (the region has no LiDAR), which,
+  interpolated from the NC5's contours, ramps from the shore up to the cliffs behind them: of
+  their 670 cells 283 stand over 3 m, every one on a cell of Liguria's DTM rather than the sea
+  step's, the median rising from 0.95 m within 5 m of the sea to 1.55 m at 5–10 m, 3.10 m at
+  15–20 m, 4.35 m at 25–30 m and 6.85 m at 35–40 m. The coves under Montemarcello and Punta Bianca
+  hold 221 of their 424 cells over 3 m, the highest 8.70 m at (−13514, −13526), 39 m from the sea,
+  and Bocca di Magra's beach 62 of its 246, up to 5.25 m (the 2a653db1f28d317e build,
+  2026-11-17). Reshaping them by hand would be no survey's ground, so `coast-sea.map-test.ts`
+  holds the 55 cells within 2 m of the coastline at 0–3 m, as the sand, and pins the rest: at
+  most 47 % of them over 3 m (46.0 % today) and none over 9 m.
 - **The rail is the CTR's where the CTR maps it, and OSM disagrees at Gragnola.** OSM draws
   Gragnola's loop on the east track, its "main" way crossing over to the west track inside the
   station and a south switch at (−1674.0, 3189.9); the map follows the CTR, the orthophoto and
@@ -4808,10 +5878,17 @@ longer lucido:
   run-out is profiled on its own, so the line in play keeps its profile: by Rometta the grade turns
   from −6.1‰ to −24.8‰ at the terminal (the ground beyond falls 2.4 m in its first 100 m), OSM's
   line beyond meets the CTR's 0.7 m off, a 4.1° turn there, and over the drawn run OSM's polyline
-  kinks 4–7° every 30–60 m, its tightest 20 m chord a curve of 152 m. Nothing lowers the ground
-  under a run-out's bridge or draws a portal at a run-out's bore within the drawn run: no map has
-  one today. Every cut end in play that OSM's rail carries on is profiled and carved, not a line's
-  terminals alone: on Lunigiana only the two terminals are.
+  kinks 4–7° every 30–60 m, its tightest 20 m chord a curve of 152 m (Rometta's terminal, before
+  Aulla's part carried the line on in play). The Pontremolese's north ends lie on the box's edge,
+  so their trains run straight on past y 13000. Nothing lowers the ground under a run-out's bridge
+  or draws a portal at a run-out's bore within the drawn run: no map has one today. Every cut end in
+  play that OSM's rail carries on is profiled and carved, not a line's terminals alone.
+- **A terminus is a buffer on through track.** A line ends at a terminus where OSM's train routes
+  start or end, at a piece end; the map holds the one at Aulla Lunigiana's track 4, where the track
+  runs on past the buffer stop as the Lucca branch to the north throat, a loop no train drives. A
+  stop where a route ends mid-piece is no terminus (the Pisa => Aulla Lunigiana route ends at track
+  5's stop, which sits at no piece end), and a buffer stands where the track runs on
+  ([section 9](#9-the-railway-railwayts-platformsts-rail-clearts)).
 - **Junction profiles disagree.** Each road's profile is a line, flat across its ribbon, so where
   two roads overlap their surfaces differ: by more than 0.15 m at 16% of the overlapping points
   and up to 2.9 m (measured over 6,000 of them). The ground the wheels and feet stand on
@@ -4823,9 +5900,20 @@ longer lucido:
   that runs into a tunnel through a stub of at-grade road over a river bank (the 3.4 m bridge at
   Gragnola, OSM 140780476) has no wall on the stub's sides, so a car can drive off it into the
   river.
-- **Paths and steps follow the terrain.** They can be very steep (the summary prints the worst
-  grade per class). Footways and pedestrian lanes are paths, so the HUD does not name them (Via
-  Buca in Equi Terme).
+- **Paths and steps follow the terrain**, but their approaches to a path's or steps' bridge or
+  tunnel ([section
+  7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)),
+  and approaches are seeded from the paths' decks alone: a path leading onto a road's bridge keeps
+  the terrain's level up to it. They can be very steep (the summary prints the worst grade per
+  class). Footways and pedestrian lanes are paths, so the HUD does not name them (Via Buca in Equi
+  Terme). The steps an approach fits at a steps' 70% stay steep: the station's steps at Aulla climb
+  69–73%.
+- **The A15's Parma approach at Calcinara runs under its twin.** Its carriageway 696529104, at grade
+  over a dip the LiDAR reads under it, runs 6.4 m below the La Spezia carriageway 12 m away,
+  climbing 5.89% over 100 m out of the dip, the steepest of the map's motorway: the motorway pass
+  never relaxes its 6%, and the twin rule binds the two only where they overlap in plan. Cesena's
+  Secante, trunk, climbs 8.94% over 100 m at Via Ugo La Malfa (23136193, at (1119.4, 487.7)), which
+  `carriageways.map-test.ts`, reading motorways alone, does not check.
 - **Roofs are procedural** (`src/render/roof.ts`: hip roof when the footprint nearly fills its
   minimum-area rectangle, flat otherwise): the CTR gives eave heights, not roof shapes. Small
   units (stairwells, extensions) are separate buildings, so roofs step where the real ones do,
@@ -4877,8 +5965,8 @@ longer lucido:
   holds no water (the intermittent pond at Prati di Campocecina), nor does a pool with no node all
   four of whose cells are water (the pool on the Canale Doglio). The intermittent Bozzetti pond is
   always full; under Fivizzano's Arlia power station forebay and a pond on a slope the LiDAR reads
-  no hollow either, and its 7 × 9 m pond by Pieve San Lorenzo and two pools on the Torrente
-  Arcinasso beyond its play area have no such node, so they hold none ([section
+  no hollow either, and its 7 × 9 m pond by Pieve San Lorenzo and, on Aulla's part, two pools on
+  the Torrente Arcinasso have no such node, so they hold none ([section
   6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts)). The river polygon OSM
   draws by the Tassonaro's mouth, the edge of the Aulella's bed, follows the Tassonaro and its
   tributaries, as no piece of the Aulella, 122 m west of it, runs through it. A river polygon's
@@ -4915,8 +6003,10 @@ longer lucido:
   its protected bed, 3 m either side, takes its CTR bridge out to 17.5 m (the bridge is 6.7 m).
 - **The Aulella is calibrated at Soliera alone.** The Soliera gauge's flows over its 208 km² set
   the discharge per km² everywhere, but the map's catchments are its own D8's and the Rosaro's
-  heads: 196.5 km² just below the Rosaro's mouth and 199.4 leaving the play area, as the gauge's
-  delineation is larger than the DTMs' (the 10 m DTM's basin there is 200.73 km²). Above the
+  heads: 196.5 km² just below the Rosaro's mouth, 199.4 at Fivizzano's west edge (x −5300) and
+  313.1 at its mouth in the Magra at Aulla, as the gauge's delineation is larger than the DTMs'
+  (the 10 m DTM's basin at Soliera is 200.73 km², and 319.3 above the mouth: the map reads 1.9%
+  under it at both, from the 4 m grid's divides). Above the
   Rosaro's mouth the Aulella carries what the map's own D8 gathers, 41–60 km² from Codiponte to the
   Lucido's mouth below Gragnola, so it runs 1.39 m deep there in a spate. Before #17 it ran about
   2.5 m deep there, as lucido added the 161 km² beyond its edge at Gragnola, the Rosaro's catchment
@@ -4926,6 +6016,17 @@ longer lucido:
   (3528, 13000) and 12 m inside the edge (`OFF_MAP`): 13.1 km² come down the Rosaro's own head and
   1.6 down rivulets west of it, which carry only their area in the map until they join the Rosaro,
   and the Rosaro all 14.7 km² from the edge.
+- **The Magra's and the Taverone's heads come in where they cross the north edge** (issue #19,
+  `OFF_MAP` in `build-terrain.ts`), each at its own crossing, measured by a D8 on the 10 m DTM: of
+  the 522.0 km² that come in north of y 13000 the Magra brings 420.9, the Taverone 69.1, the
+  Civiglia 4.5 and the Canale Torchio di Bacco and the Canale della Ghiaia, which join it, 3.8 and
+  3.0, the Canale Cravareccia 1.1 and the Rosaro its 14.7; the 4.9 km² of rivulets under 1 km² each
+  are left out. The map's 4 m D8 drains 6.8 km²
+  of land by the edge out across it, land which on the 10 m DTM comes back in with the rivers (3.4
+  km² by the Taverone, 1.5 by the Magra, 1.35 by the Rosaro): the Taverone's 3.4 is what separates
+  its 82.5 km² at the end of 700556145 from the 10 m DTM's 86.7 at (−12205, 7165). The Magra leaves
+  at y 3900 with 915.0 km² (the 10 m DTM's 930.5; the gauge at Calamazza is quoted at 932, not
+  verified), and the Taverone meets it with 115.4 ([water.md](water.md#depth-and-current)).
 - **Fivizzano's permanent edges cut the Serchio side.** Its edges in Minucciano and Sillano
   Giuncugnano face the Garfagnana, which no part of Lunigiana takes, and the roads there belong to
   its network, not to a line a rectangle can follow: 14 roads leave the play area there and come
@@ -4940,14 +6041,17 @@ longer lucido:
   y −6100 to Noceto and back, capped where it leaves, the Ruschetti locality and 5 houses stand
   104–111 m past x −4000, and the SP73 leaves once, at (−4000, −5563), toward Gragnana (`pnpm
   footprint-check fosdinovo`, [Adding a part](#adding-a-part)).
-- **The seams to come are edges until their parts join.** At x −5300 north of y 3900 and y 3900
-  west of it (#19), at x −11500 (#20), at y −6100 west of x −4600 (#21) and at y 13000 (#22, #23)
-  the map ends: 2 of the 6 buildings by Rometta's station stand in play at x −5300, the Aulella
-  leaves there 700 m short of the notch and the Bardine at (−10572, 3900), 100 m short of it,
-  Canepari's houses reach within 1 m of x −11500, 83 of the 132 buildings of a cluster by
-  Caniparola stand inside y −6100, Baccana's houses reach within 12 m of y 13000, and the SS63
-  crosses y 13000 three times (out at x 4441, back at 5106, out again at 5323), capped where it
-  leaves.
+- **The seams to come are edges until their parts join.** At x −11500, at y 3900 west of it and
+  along Aulla's Ligurian mask (#20), at y −6100 west of x −4600 (#21) and at y 13000 (#22, #23,
+  #24) the map ends: Canepari's houses reach within 1 m of x −11500, 83 of the 132 buildings of a
+  cluster by Caniparola stand inside y −6100, Baccana's houses reach within 12 m of y 13000 and 30
+  of Villa di Panicale's 123 stand inside it, the SS63 crosses y 13000 three times (out at x 4441,
+  back at 5106, out again at 5323), the A15's carriageways, the SS62 and the SS 665 leave across
+  y 13000 and the A15's across y 3900 at x −14627, the SP14 loops 928 m out across the mask and
+  back west of Podenzana, and houses by Il Bosco and Casa Borsi stand astride the mask and y 3900,
+  each road capped where it leaves (`pnpm footprint-check aulla`). Aulla's part joined x −5300 north
+  of y 3900 and y 3900 west of it to x −11500 (#19), where Rometta's station, the Aulella and the
+  Bardine had met the edge.
 - **Cima Belfiore's summit plays past OSM's border.** OSM puts the summit node (577763720, at
   (9705.5, 12014.0)) 3.6 m inside Emilia-Romagna (Ventasso), and the landmark point (9706, 12014)
   4.1 m; the mask bends out to (9726, 12014) round both, so the summit and a sliver of Emilia round
@@ -4982,5 +6086,38 @@ longer lucido:
   1.0–1.1 m from 28 of Lunigiana's drivable roads and 14 of Cesena's. Padding it as the arch
   corridors are would reshape the houses drawn ([section
   10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)).
+- **Emilia-Romagna's DTM answers outside Emilia-Romagna.** Its WCS gives 0 m over the sea and a
+  smooth surface of its own over Liguria and Tuscany, not no-data, so the terrain chain's last
+  step fills any cell a part's sources leave empty, anywhere, and its error for a cell no source
+  covers never fires there: on the magra-coast test region's first fetch it filled 1,374,110 m²,
+  down to −71.8 m, a pit 38 m deep ([section
+  1](#1-sources-osmts-ctrts-dbtts-nc5ts-ctr-railts-shpts-ucsts-crsts)). A part's manifest must list
+  its province's 10 m DTM where Liguria's stops, and a coastal part fetch its OSM extract before
+  its terrain; only a look at the mosaic (`pnpm coverage`, `preview-map`) catches one that does
+  not.
+- **The sea floor is a survey of 2010–2019, read between its lines.** The P.T.A.M.C.'s isobaths
+  stop at Liguria's sea border by the Parmignola, so the Tuscan sea past it is the shoreface
+  profile, the medians of Marinella's lines and the issue's two EMODnet constants, not a survey;
+  its model of the floor starts 1.5 m deep and its shallowest lines are 2 m, so within about 80 m
+  of the shore the floor is the profile's (the issue's 8 % beach face to 0.6 m, then Marinella's
+  medians), not a survey. Between the lines the rule leaves small artefacts: past the deepest line
+  the floor eases back toward the line before it, by 0.1 m off Punta Bianca; just short of a line
+  whose next line lies nearer than the shore line it dips up to 0.11 m (a synthetic case); and faint
+  creases show in the south-east at 9–13 m deep. The sea stands still at 0 m, with no tide or
+  waves ([water.md](water.md#known-limits)).
+- **The Magra drains only the map's own ground on the coast.** On the magra-coast test region it
+  reads 6.06 km² at its mouth, its basin of about 1,700 km² lying almost all beyond the map, so its
+  flow there is a stream's ([section 6](#6-river-carving-and-catchments-waterts-water-areasts-catchmentts));
+  its part (#21) brings the rest in with an `OFF_MAP` entry, as Aulla's part brings in its heads.
+- **Micro-mapped knots break the level rule.** Where OSM maps a path's bridge or tunnel too short to
+  clear what it crosses from its ends at grade, the two ways stay within 2 m (`levels.map-test.ts`'s
+  `KNOWN`): Lunigiana's [1311831119, 1311831121] and [1311831120, 1311862950]; and the steps'
+  bridge 717897184/1065384887 at (−16438, 5072) is `deckEndsShut`'s known one ([Checks and
+  tools](#checks-and-tools)).
+- **No licensed photo shows most of the coast.** Regione Liguria's AGEA orthophotos name no
+  licence and Regione Toscana's flights reach only 300 m into Liguria at Marinella, so the sand's,
+  the sea's and the foam's colours are measured at Marinella's east end and the Tuscan beach beside
+  it, and the beaches of Fiumaretta, Bocca di Magra and the coves under Montemarcello are drawn
+  from Spiagge's and OSM's outlines alone, unchecked by eye.
 - **Re-downloading changes the map.** `pnpm fetch-osm <part>` pulls current OSM edits;
   `data/raw.lock.json` pins the inputs the map is built from.

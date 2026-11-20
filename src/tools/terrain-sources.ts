@@ -9,6 +9,7 @@
 // - Regione Liguria's DTM ed. 2023 (CC BY 4.0): its WCS's native 5 m cells of whole metres in
 //   EPSG:3003, cropped per 2 km tile by `fetch-lig` (data/raw/lig/<part>/dtm), pasted onto its lattice
 //   and smoothed within half a metre of each whole metre (`ligRaster`, `unround`);
+// - the sea, 0 m seaward of OpenStreetMap's coastline (ODbL) in the part's own extract (`sea-fill.ts`);
 // - Regione Emilia-Romagna's DTM 5x5 (CC BY 4.0): its WCS's native 5 m grid, EPSG:7791, a GeoTIFF.
 // EPSG:7791 is RDN2008 / UTM 32N. A cell's place there comes from exact transforms on a lattice
 // every PROJ_STEP m over the crop, bilinear between, as `dtm.ts` places the map's points.
@@ -18,8 +19,12 @@ import { ascHeader, type Crop } from "./dtm-mosaic.ts"
 import type { Filler } from "./fill-chain.ts"
 import { fillPolygon } from "./geometry.ts"
 
-/** The terrain's sources in the chain's order: a cell's source code is the index of its source here. */
-export const SOURCES = ["lidar", "dsm2021", "dtm10", "lig", "rer"] as const
+/**
+ * The terrain's sources: a cell's source code is the index of its source here. The chain's order but
+ * the sea's, which fills between Liguria's DTM and Emilia-Romagna's (`fillCrop`) and comes last, so
+ * the codes before it keep their meaning in the files written before it.
+ */
+export const SOURCES = ["lidar", "dsm2021", "dtm10", "lig", "rer", "sea"] as const
 /** One of the terrain's sources. */
 export type Source = (typeof SOURCES)[number]
 

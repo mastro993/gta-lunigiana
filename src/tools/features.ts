@@ -33,6 +33,7 @@ import { apartFrom } from "./overlap.ts"
 import { clipPieces, inPlay, OUTLINE, type Piece } from "./play-area.ts"
 import { REGION } from "./region.ts"
 import { STONE_CORES } from "./stone-cores.ts"
+import { waterSize } from "./water-sizes.ts"
 
 export interface RoadF {
   readonly id: number
@@ -52,6 +53,8 @@ export interface RoadF {
   /** OSM maxheight (m) of an underpass. */
   readonly maxheight?: number
   readonly private: boolean
+  /** A pier (OSM `man_made=pier` mapped as a line, shore.ts): a path on a deck over the water, its ends' z by `pierDeck`. */
+  readonly pier?: true
   readonly pts: ReadonlyArray<V>
 }
 export interface WaterF {
@@ -122,7 +125,7 @@ const sharedNodes = (() => {
  * keeps the id the road graph, the catchments and the culverts join by. An edit glued four
  * streams' junctions 0.008–0.073 m from their next node (the Torrente Mommio's twice).
  */
-const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
+export const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
   const shared = sharedNodes(osm),
     out: Array<V> = []
   for (const v of vertices(osm, nds)) {
@@ -132,9 +135,11 @@ const lineVertices = (osm: Osm, nds: ReadonlyArray<string>): Array<V> => {
   }
   return out
 }
-const ringOf = (osm: Osm, nds: ReadonlyArray<string>): Array<P> =>
+/** A closed way's or an assembled ring's nodes (the first repeated last) as an open ring in local metres. */
+export const ringOf = (osm: Osm, nds: ReadonlyArray<string>): Array<P> =>
   vertices(osm, nds.slice(0, -1)).map((v) => [v.x, v.y])
-const closed = (w: OsmWay) => w.nds.length > 3 && w.nds[0] === w.nds.at(-1)
+/** Whether a way is closed: more than three nodes, its last its first. */
+export const closed = (w: OsmWay) => w.nds.length > 3 && w.nds[0] === w.nds.at(-1)
 /**
  * Whether tags `t` make a building: a `building` tag, but `no` (none, as `bridge=no` is no bridge)
  * and `roof` (a canopy, open at ground level, which the surveys leave out: ctr.ts).
@@ -214,97 +219,6 @@ export const extractRoads = (osm: Osm, clip: Clip = toPlay): Array<RoadF> =>
     }))
   })
 
-/** Mean ground (m) below which a Lucido or Caldanella way runs on the valley floor; above it, the stream is a wooded mountain gully. */
-const MAIN_BELOW = 500
-/**
- * Mean ground (m) below which a Torrente Aulella way runs in its open valley bed: halfway between
- * lucido's 788514356 (282.2 m), its last way under the Tassonaro's mouth, and 788514364 (294.3 m),
- * the first of the wooded gorge above it.
- */
-const AULELLA_VALLEY_BELOW = 288
-/** Mean ground (m) below which the Aulella's gorge keeps its bed: above it, past its first big tributary over Casola, its floor narrows to a headwater's (LiDAR 4–6.5 m against 6–8 m). */
-const AULELLA_GORGE_BELOW = 350
-/** Mean ground (m) below which the Torrente Mommio keeps its bed: its floor narrows between 766 m (way 788514696) and 782 m (788514702). */
-const MOMMIO_GORGE_BELOW = 775
-/**
- * Mean ground (m) below which a Torrente Bardine way runs in its open valley bed: halfway between
- * fosdinovo's 790365291 (87.8 m), its last above the Fosso del Lombardello's mouth by Bardine (OSM
- * node 7389111706), and 790365292 (81.8 m), the first below it: below that mouth its gravel bed
- * widens to the Aulella valley's (a median 27 m against the trunk's 15 m above).
- */
-const BARDINE_VALLEY_BELOW = 85
-/**
- * Mean ground (m) below which a Torrente Bardine way carries the Bardinello's water: halfway between
- * 797861302 (141.0 m), its first below the Bardinello's mouth (node 7462482431), and 797861301
- * (149.5 m), its 3.6 km² head down from the Canale del Vezzanello.
- */
-const BARDINE_BED_BELOW = 145
-/**
- * Mean ground (m) below which a Torrente Bardinello way runs in the Bardine's gravel bed: halfway
- * between 797861257 (150.4 m), its first below the Torrente Pesciola's mouth (node 7462482051, 33
- * km² there), and 797861254 (156.9 m, 15 km²), its last above it.
- */
-const BARDINELLO_BED_BELOW = 154
-/**
- * Mean ground (m) below which the Torrente Bardinello is a wooded torrent: halfway between 797860930
- * (265.7 m), its first below the Canale Caldia's mouth (node 7462477158), where it drains 9.3 km²
- * and its LiDAR floor widens from a headwater's 6 m to the wooded torrents' 7-7.5 m, and 797860907
- * (268.9 m, 7.0 km²).
- */
-const BARDINELLO_GORGE_BELOW = 267
-
-/**
- * Water width, gravel-bed half-width and depth, m, from the way's name, kind and mean ground `z`
- * (LiDAR, over its vertices). The rivers are measured on the 2010 orthophoto: the Aulella runs in
- * a 25-35 m gravel bed at Gragnola (a wooded 10 m channel at Codiponte), the Lucido in a 22 m one
- * below Monzone, the Rosaro in a 10-28 m one (median 13-15 m, its water 2-8 m) from Fivizzano to
- * Soliera. The Bardine runs in an 18-47 m one (median 27 m, its water 4-18 m, median 10) from
- * Bardine to the map's edge, as wide as the Aulella; above, from the Bardinello's mouth, and the
- * Bardinello below the Pesciola's, in a 6-32 m one (median 15 m, its water 2.5-12 m, upper quartile
- * 7), as the Rosaro (issue #18). The Lucido's Vinca branch and the Caldanella (from Equi) are the
- * main streams on the valley floor (5-16 m of open marble gravel below 400 m). The Aulella's gorge
- * above the Tassonaro's mouth, the Rosaro above Fivizzano, the Mommio, the Bardinello above the
- * Pesciola's mouth and the Torrente Pesciola, all its drawn course (8.9-18 km²), are torrents of
- * 9-49 km² in closed woods, whose canopy gaps show 3-10 m of bed over a LiDAR floor of 7-7.5 m
- * (`wooded`, issue #17). The Pesciola's gaps on the 2010 orthophoto show 7 m of bed at 797860993
- * (-6064, -1211), 8 m at 797861030 (-6281, -698) and 797861109 (-6485, -9), 10 m at 797861231
- * (-5916, 1052) and 7 m at 797861233 (-5550, 1172), over a LiDAR floor of a median 8-9 m: at its
- * mouth it drains 18 km² to the Bardinello's 15 (issue #18). Above Vinca the Lucido runs in a
- * beech-wood gully with only 3-6 m of bed showing, like the other named streams (4 m); unnamed ones
- * are 2 m. The depths are the classes' own, as no photo shows them.
- */
-const waterSize = (
-  name: string | undefined,
-  kind: "river" | "stream",
-  z: number,
-): { readonly w: number; readonly bed: number; readonly depth: number } => {
-  if (
-    (name === "Torrente Aulella" && z < AULELLA_VALLEY_BELOW) ||
-    (name === "Torrente Bardine" && z < BARDINE_VALLEY_BELOW)
-  )
-    return { w: 12, bed: 13, depth: 2.5 }
-  if (name === "Torrente Lucido" && kind === "river") return { w: 14, bed: 11, depth: 2.5 }
-  if (
-    (name === "Torrente Rosaro" && kind === "river") ||
-    (name === "Torrente Bardine" && z < BARDINE_BED_BELOW) ||
-    (name === "Torrente Bardinello" && z < BARDINELLO_BED_BELOW)
-  )
-    return { w: 7, bed: 7, depth: 2.5 }
-  const main = (name === "Torrente Lucido" || name === "Torrente Caldanella") && z < MAIN_BELOW
-  const wooded =
-    (name === "Torrente Aulella" && z < AULELLA_GORGE_BELOW) ||
-    name === "Torrente Rosaro" ||
-    (name === "Torrente Mommio" && z < MOMMIO_GORGE_BELOW) ||
-    (name === "Torrente Bardinello" && z < BARDINELLO_GORGE_BELOW) ||
-    name === "Torrente Pesciola"
-  const w = main ? 8 : wooded ? 6 : name === undefined ? 2 : 4
-  return {
-    w,
-    bed: Math.max(w / 2 + 1, 3),
-    depth: kind === "river" ? 2.5 : main || wooded ? 1.5 : 1,
-  }
-}
-
 /** Median cross-section between mapped riverbanks; missing outlines leave the existing default. */
 const mappedRiverWidth = (
   pts: ReadonlyArray<V>,
@@ -341,6 +255,15 @@ const mappedRiverWidth = (
 }
 
 /**
+ * The `waterway` values that are watercourses. A weir's or a dam's way is the structure's crest
+ * across the river, which no water runs along: carved as a 2 m stream, it cut a channel along the
+ * crest and burned it into the catchments. The weir 1161664525 across the Taverone stepped 0.3 m
+ * back up at its middle, and Fivizzano's dam 172651758 ran 24 m along its crest 6.2 m down into the
+ * gorge and 1.8 m back up.
+ */
+const WATERCOURSES: ReadonlySet<string> = new Set(["river", "stream", "canal", "ditch", "drain"])
+
+/**
  * The waterways, cut by `clip`, sized by `ground` under each piece. A culvert is dropped, as a stream
  * crossing a road at grade dips under it (water.ts), but where `open` says it runs in the open: under
  * a bridge the surveys map (`openCulvert` in build-sources.ts).
@@ -365,7 +288,7 @@ export const extractWater = (
         ]
       : []
   return [...osm.ways.values()]
-    .filter((w) => w.tags.waterway !== undefined && w.tags.waterway !== "riverbank")
+    .filter((w) => WATERCOURSES.has(w.tags.waterway ?? ""))
     .flatMap((w) => {
       const t = w.tags
       const kind = t.waterway === "river" ? "river" : "stream"
@@ -402,6 +325,15 @@ export const extractRail = (osm: Osm, clip: Clip = toPlay): Array<RailF> =>
         pts,
       })),
     )
+
+/**
+ * The ways OSM maps where a railway's rails are gone (`railway=abandoned` or `razed`), whole: the
+ * CTR's track along one is drawn no more (`alongGone` in rail-extra.ts).
+ */
+export const extractGoneRail = (osm: Osm): Array<Array<V>> =>
+  [...osm.ways.values()]
+    .filter((w) => w.tags.railway === "abandoned" || w.tags.railway === "razed")
+    .map((w) => lineVertices(osm, w.nds))
 
 /** Generic buildings closer than this (m) form a hamlet: up to HAMLET of them take one facade style. */
 const HAMLET_LINK = 25
@@ -633,7 +565,13 @@ const areaKind = (t: Tags): AreaKind | "orchard" | undefined => {
   if (t.highway === "pedestrian" && t.area === "yes") return "paved"
   if (t.leisure === "pitch" || t.leisure === "park") return t.leisure
   if (t.amenity === "parking" || t.amenity === "school") return t.amenity
-  if (t.railway === "platform") return "platform"
+  // A station's platform; OSM tags Aulla Lunigiana's `public_transport=platform` alone, and a bus
+  // stop's carries `bus` or `highway` too.
+  if (
+    t.railway === "platform" ||
+    (t.public_transport === "platform" && t.bus === undefined && t.highway === undefined)
+  )
+    return "platform"
   if (t.historic === "ruins" || t.historic === "archaeological_site") return "ruins"
   if (
     t.natural === "grassland" ||

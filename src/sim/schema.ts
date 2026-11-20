@@ -45,11 +45,11 @@ export const AGES = ["kid", "adult", "elder"] as const
 /** An age group. */
 export type Age = (typeof AGES)[number]
 /** What a person wears below the shirt: trousers, shorts (bare shins), a skirt, or a dress (the skirt in the shirt's colour). */
-export const OUTFITS = ["trousers", "shorts", "skirt", "dress"] as const
+const OUTFITS = ["trousers", "shorts", "skirt", "dress"] as const
 /** An outfit. */
 export type Outfit = (typeof OUTFITS)[number]
 /** A person's hair: short, long (to the shoulders), a bun, bald (skin on top) or under a flat cap. */
-export const HAIRDOS = ["short", "long", "bun", "bald", "cap"] as const
+const HAIRDOS = ["short", "long", "bun", "bald", "cap"] as const
 /** A hairdo. */
 export type Hairdo = (typeof HAIRDOS)[number]
 /**
@@ -72,7 +72,7 @@ export const Person = Descriptor.ConstructedComponent(
 /** A Person value. */
 export type Look = Descriptor.Descriptor.Value<typeof Person>
 /** What a pedestrian is doing; see `Pedestrian`. */
-export const MOODS = ["walk", "chat", "look", "shock", "gather", "flee"] as const
+const MOODS = ["walk", "chat", "look", "shock", "gather", "flee"] as const
 /** A pedestrian's mood. */
 export type Mood = (typeof MOODS)[number]
 /**
@@ -135,7 +135,8 @@ export const InWater = Descriptor.ConstructedComponent(v.object({ swimming: v.bo
 /**
  * The ground a person or an animal stands on, m a.s.l. (GLOSSARY.md), where its pose is once the step's moves are done: kept from
  * step to step on the level it was on (`settleFooting`), so someone on the track over a road tunnel or under a road bridge is on the
- * track, and someone in the tunnel or on the bridge is not. For the player driving, the ground under the vehicle on its wheels'
+ * track, and someone in the tunnel or on the bridge is not; swimming, where its feet hang in the water (`feetAfloat`). For the
+ * player driving, the ground under the vehicle on its wheels'
  * ground, or the rail head under the train's active cab. Every person and animal has one from its spawn (`firstFooting`); see
  * ./footing.ts.
  */
@@ -566,7 +567,7 @@ export const Honk = Descriptor.Event<{
   readonly y: number
 }>()("Lunigiana/Honk")
 /** How someone who cries out feels; see `Cry`. */
-export const FEELINGS = ["fright", "shock", "anger", "surprise"] as const
+const FEELINGS = ["fright", "shock", "anger", "surprise"] as const
 /** A feeling. */
 export type Feeling = (typeof FEELINGS)[number]
 /**

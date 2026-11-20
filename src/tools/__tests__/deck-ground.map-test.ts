@@ -1,27 +1,19 @@
 // Map check (pnpm test:map) on every road and rail bridge's deck of each built region: Lunigiana,
-// Cesena and the L test region, which `pnpm maps` builds into test-maps/. Without the L's build it
-// is left out, but in CI, which builds it, a missing build fails: a skip there would pass with
-// nothing checked.
+// Cesena and the test regions `pnpm maps` builds into test-maps/, the L and the coast. Without a
+// test region's build it is left out, but in CI, which builds it, a missing build fails: a skip
+// there would pass with nothing checked.
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
 import { test } from "node:test"
 
-import { builtMapUrl, type JoinedMap, readWholeMap, wholeMap } from "../map-file.ts"
-import { regionFromArgs } from "../region.ts"
+import { type JoinedMap, readWholeMap, wholeMap } from "../map-file.ts"
 import { deckShortfalls, mapDecks, meshOf } from "./decks.ts"
+import { builtTestMaps } from "./test-maps.ts"
 
-const L_URL = builtMapUrl(regionFromArgs(["--region", "lunigiana-l"]))
-
-test("decks: the ground keeps out of every road and rail deck's slab more than 4 m in from its outer ends, and off the road nearer them, on Lunigiana, Cesena and the L", (t) => {
-  // GitHub Actions sets CI=true.
-  if (!existsSync(L_URL)) {
-    assert.notEqual(process.env.CI, "true", "no lunigiana-l build in test-maps")
-    t.diagnostic("no lunigiana-l build in test-maps: the L is not checked")
-  }
+test("decks: the ground keeps out of every road and rail deck's slab more than 4 m in from its outer ends, and off the road nearer them, on Lunigiana, Cesena, the L and the coast", (t) => {
   const maps: ReadonlyArray<readonly [string, JoinedMap]> = [
     ["Lunigiana", wholeMap()],
     ["Cesena", wholeMap("cesena")],
-    ...(existsSync(L_URL) ? [["the L", readWholeMap(L_URL)] as const] : []),
+    ...builtTestMaps(t).map(([name, url]) => [name, readWholeMap(url)] as const),
   ]
   const short = maps.flatMap(([name, map]) =>
     deckShortfalls(mapDecks(map), meshOf(map)).map((d) => `${name}: ${d}`),

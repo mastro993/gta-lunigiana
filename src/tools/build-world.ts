@@ -6,16 +6,24 @@ import { isDrivable } from "../sim/map/kinds.ts"
 import { gridGround, levelOn } from "./build-ground.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
+import { lifted } from "./chains.ts"
 import { deckWalls } from "./deck-walls.ts"
 import { flatLine, r1, toLocal } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
 import { parapets } from "./parapets.ts"
 import { onOutline } from "./play-area.ts"
-import { lifted } from "./profiles.ts"
-import { clearVerges } from "./rail-clear.ts"
+import { clearVerges, onTrack } from "./rail-clear.ts"
 import { crossingBoxes, layRailway, toRailLines } from "./railway.ts"
 import { REGION } from "./region.ts"
-import { clearance, KERB_SHARE, parkedSpots, playerSpawn, regionPoi, startNear } from "./spawns.ts"
+import {
+  clearance,
+  KERB_SHARE,
+  parkedSpots,
+  playerSpawn,
+  regionPoi,
+  startNear,
+  trunkIndex,
+} from "./spawns.ts"
 import { sampleGrid } from "./terrain.ts"
 import { scatterTrees } from "./trees.ts"
 import { buildWalls } from "./walls.ts"
@@ -30,10 +38,12 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   const { grid, railLines, roadLines, levels } = terrain
   const at = (x: number, y: number) => sampleGrid(grid, x, y)
   // ---- the railway: lines over the running track, the platforms beside them, the stations ----
-  // A line's terminal: a dead end on the play area's outline, where the track runs on beyond it.
+  // A line's terminal: a dead end on the play area's outline, where the track runs on beyond it, or
+  // a terminus inside the map where OSM's train routes end.
   const { shipped, lines, kinds, platforms, stations } = layRailway(
     railLines,
     (x, y) => onOutline(x, y),
+    src.routeEnds,
     {
       polygons: src.platforms,
       roads: roads.flatMap((r) =>
@@ -66,17 +76,19 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   // Spawns and traffic's dead ends keep off the water as well. They stand on the ground, but a dead
   // end on its road's surface (a deck's, where its parapets stand).
   const levelled = (levels: ReadonlyArray<number>) => ({ levels, ground: at })
-  const walkClear = clearance(
-      [...walls.walk, ...walls.shore],
-      trees.trees,
-      levelled(walls.levels.walk),
-    ),
-    driveClear = clearance(
-      [...walls.drive, ...walls.driveShore],
-      trees.trees,
-      levelled(walls.levels.drive),
-    )
-  const graph = buildGraph(roads, (x, y, road) => driveClear.circle(x, y, TURN, level(road, x, y)))
+  const trunks = trunkIndex(trees.trees)
+  const walkClear = clearance([walls.walk, walls.shore], trunks, levelled(walls.levels.walk)),
+    driveClear = clearance([walls.drive, walls.driveShore], trunks, levelled(walls.levels.drive))
+  // At-grade running track: no dead end of the graph on it, nor a lane or verge beside it.
+  const track = railLines.flatMap(({ r, pts, z }, i) =>
+    kinds[i] === undefined && !lifted(r) ? [{ pts, z }] : [],
+  )
+  const standsOnTrack = onTrack(track)
+  const graph = buildGraph(
+    roads,
+    (x, y, road) => driveClear.circle(x, y, TURN, level(road, x, y)),
+    (x, y, road) => standsOnTrack(x, y, level(road, x, y)),
+  )
   // Level crossings: boxes of crossing nodes on one road; then no verge or lane beside the running track.
   const crossingNodes = levels.map(({ road, piece, v, vertex }) => ({
     road,
@@ -95,9 +107,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
       ...(r.oneway ? { oneway: true } : {}),
       ...roadLines[i]!,
     })),
-    track: railLines.flatMap(({ r, pts, z }, i) =>
-      kinds[i] === undefined && !lifted(r) ? [{ pts, z }] : [],
-    ),
+    track,
     boxes: levelCrossings.map((c) => ({
       road: c.road,
       at: c.nodes.map((n) => [graph.xy[2 * n]!, graph.xy[2 * n + 1]!] as const),

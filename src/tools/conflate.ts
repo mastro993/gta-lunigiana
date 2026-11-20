@@ -8,14 +8,15 @@
 // or a road tunnel's mouth lies under it (rail-spans.ts); the tracks only the CTR has are added
 // (rail-extra.ts); last, pieces are cut where tracks meet (rail-graph.ts).
 import { isDrivable } from "../sim/map/kinds.ts"
+import { chainsOf } from "./chains.ts"
 import { inPolygon, type CtrRail } from "./ctr-rail.ts"
 import type { RailF, RoadF, WaterF } from "./features.ts"
-import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
+import { arcLengths, pointAt, r1, segIndex, type V } from "./geometry.ts"
 import { coreHalf } from "./grid-claims.ts"
 import { outlineEdgeAt } from "./play-area.ts"
-import { beatsRail, chainsOf } from "./profiles.ts"
+import { beatsRail } from "./profiles.ts"
 import { checkCrossings, slideCrossing, type Slid } from "./rail-crossings.ts"
-import { buildExtras, type Report as ExtraReport } from "./rail-extra.ts"
+import { alongGone, buildExtras, type Report as ExtraReport } from "./rail-extra.ts"
 import { splitAtJunctions } from "./rail-graph.ts"
 import {
   footOn,
@@ -28,8 +29,9 @@ import {
   type Line,
   type Sample,
 } from "./rail-match.ts"
-import { smoothGap } from "./rail-smooth.ts"
+import { roundCorners, smoothGap } from "./rail-smooth.ts"
 import {
+  clearOfTrack,
   cutAtBridges,
   keepSpans,
   onBridge,
@@ -86,6 +88,15 @@ const KEEP = 0.05
 const NEAR_ID = 0.15
 /** Residual limits on matched at-grade and bridge samples, m: the CTR's 1:2000 survey is good to a few decimetres. */
 const RESIDUAL = { median: 0.2, p90: 0.5, max: 1 }
+/**
+ * A CTR track is the OSM track's nearest it: a sample may match it only where no other chain's track lies more than this
+ * nearer the foot, m (at a switch the two meet, so both match there). Aulla's track 5, which no 2019 sheet maps, matched the
+ * CTR's yard track 419182734 beside it, OSM's own 0.3 m off it, for 58 m up to 5.9 m away, and that dragged the whole track
+ * 5.9 m east, 8 m off its island platform.
+ */
+const OWN = 1
+/** How far from a CTR track another chain's track is looked for, m: the matcher's reach. */
+const OWN_REACH = 8
 
 /** Median, 90th percentile and maximum, m. */
 type Spread = readonly [number, number, number]
@@ -112,6 +123,8 @@ export interface Report {
   /** Level-crossing nodes moved along their road onto the CTR track, m. */
   readonly crossings: ReadonlyArray<Slid>
   readonly extras: ExtraReport
+  /** The CTR-only tracks left out, by their CTR lines: OSM maps their rails gone (`alongGone`). */
+  readonly gone: ReadonlyArray<string>
   readonly spans: SpanReport
 }
 
@@ -175,7 +188,8 @@ const moved = <T extends V>(pts: ReadonlyArray<T>, moves: ReadonlyMap<string, V>
   })
 
 /**
- * Moves OSM's running rail onto the CTR tracks and adds the tracks only the CTR has. `roads` are
+ * Moves OSM's running rail onto the CTR tracks and adds the tracks only the CTR has, but those
+ * along a way of `gone` (OSM's railways whose rails are gone: `extractGoneRail`). `roads` are
  * returned with their level-crossing nodes moved; throws when a crossing node would leave the
  * half of its road segment or the CTR's crossing polygon, an id is lost or the residuals break
  * the limits.
@@ -186,6 +200,7 @@ export const conflateRail = (
   osmWater: ReadonlyArray<WaterF>,
   ctr: CtrRail,
   layout: Layout = LAYOUT,
+  gone: ReadonlyArray<ReadonlyArray<V>> = [],
 ): Conflated => {
   const lines: Array<Line> = ctr.tracks.map((t) => lineOf(simplifyLine(t.pts, KEEP)))
   const surveyed = ctr.tracks.map((t) => lineOf(t.pts))
@@ -212,7 +227,21 @@ export const conflateRail = (
   const moves = new Map<string, V>()
   const crossings: Array<Slid> = []
   const used = ctr.tracks.map(() => false)
-  const chains = chainsOf(rail).map((chain) => {
+  const chained = chainsOf(rail)
+  // Each chain's OSM track, to tell whose a CTR track is (`OWN`).
+  const tracksOf = segIndex<number>()
+  chained.forEach((chain, c) => {
+    for (const { item } of chain) tracksOf.addLine(item.pts, OWN_REACH, c)
+  })
+  /** Whether chain c's sample may take the CTR track at `foot`: no other chain's track lies `OWN` m nearer it. */
+  const owns = (c: number, foot: Foot) => {
+    let other = Infinity
+    tracksOf.within(foot.x, foot.y, (seg, d2) => {
+      if (seg.data !== c) other = Math.min(other, Math.sqrt(d2))
+    })
+    return other >= foot.d - OWN
+  }
+  const chains = chained.map((chain, c) => {
     const runs = chain.map(({ item, rev }) => (rev ? [...item.pts].reverse() : [...item.pts]))
     const pts = runs.flatMap((r, i) => (i === 0 ? r : r.slice(1)))
     const s = arcLengths(pts)
@@ -227,7 +256,7 @@ export const conflateRail = (
       const i = pieceAt(at)
       return chain[i]!.item.tunnel === true && at > starts[i]! + 1e-6 && at < starts[i + 1]! - 1e-6
     })
-    const match = matchSamples(samples, lines, (k) => !reserved[k])
+    const match = matchSamples(samples, lines, (k, _, foot) => !reserved[k] && owns(c, foot))
     for (const m of match) if (m.track >= 0) used[m.track] = true
     // Each sample's displacement: to its foot where matched; between matched ends linear in s, held towards a chain end.
     const disp = samples.map((p, k) => {
@@ -309,6 +338,8 @@ export const conflateRail = (
       })
     }
     const isCrossing = (id: string | undefined) => id !== undefined && roadsAt.has(id)
+    // OSM's own vertices, where no CTR track guides them.
+    const free = new Set<V>()
     pts.forEach((v, j) => {
       if (isCrossing(v.id)) return // placed on the rail where it crosses the road, below
       const run = runAt(s[j]!)
@@ -326,13 +357,14 @@ export const conflateRail = (
       }
       const out = v.id === undefined ? at : { ...at, id: v.id }
       if (v.id !== undefined) moves.set(v.id, out)
+      if (run === undefined) free.add(out)
       items.push({ key, v: out })
     })
     items.sort((a, b) => a.key - b.key)
     // Where no CTR track guides it between two matched samples (a tunnel, a gap in the sheets),
     // OSM's few vertices are smoothed, holding the CTR's heading at both ends. Towards a chain end
     // OSM's line keeps its shape, moved as its last matched sample (smoothed, with no CTR at all a
-    // 20° kink came back 6 m off OSM).
+    // 20° kink came back 6 m off OSM), but for its corners (`roundCorners`, below).
     for (let k = 0; k < samples.length; k++) {
       if (match[k]!.track >= 0) continue
       let b = k
@@ -351,6 +383,12 @@ export const conflateRail = (
         Math.hypot(v.x - line[i - 1]!.x, v.y - line[i - 1]!.y) > 0.01 ||
         v.id !== undefined,
     )
+    // OSM's corners no survey guides are rounded through its vertices, which stay but a corner between long straights and a
+    // vertex beside a sharper corner, which slide onto the curve (the roads, water and stops sharing one go with it): no
+    // track turns at a point.
+    const sharp = line
+    line = roundCorners(sharp, (i) => free.has(sharp[i]!), KEEP)
+    for (const v of line) if (v.id !== undefined) moves.set(v.id, v)
     // Ends on the play area's outline stay on it.
     for (const end of [0, 1] as const) {
       const e = edgeOf(end === 0 ? pts[0]! : pts.at(-1)!)
@@ -392,7 +430,7 @@ export const conflateRail = (
   const waterIds = new Set(
     osmWater.flatMap((w) => w.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
   )
-  const spanReport: SpanReport = { slid: [], culverts: [], cut: [] }
+  const spanReport: SpanReport = { slid: [], culverts: [], cut: [], ends: [] }
   // The CTR's bridges, out past what they span by its margin (`spanned`), and the track over a drivable road's tunnel by its
   // mouth (the road's profile cuts the mouth then, a path keeps the terrain's), out past the road's core cells and a cell's
   // diagonal.
@@ -414,6 +452,14 @@ export const conflateRail = (
     ),
   ]
   const bridged = (x: number, y: number) => bridges.some((poly) => inPolygon(x, y, poly))
+  // How many rail bridges hold each node: a bridge's end that another bridge holds too (a
+  // crossover's switch on a main track's deck) lies on that deck.
+  const decks = new Map<string, number>()
+  for (const r of rail)
+    if (r.bridge === true)
+      for (const id of new Set(r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))))
+        decks.set(id, (decks.get(id) ?? 0) + 1)
+  const carried = (id: string) => (decks.get(id) ?? 0) >= 2
   for (const { chain, pts, line } of chains) {
     const spans = chain.map(({ item, rev }, i) => ({
       id: item.id,
@@ -423,16 +469,20 @@ export const conflateRail = (
       ...(i + 1 === chain.length ? {} : { to: (rev ? item.pts[0]! : item.pts.at(-1)!).id! }),
     }))
     const shared = (id: string) => roadsAt.has(id) || waterIds.has(id)
-    keepSpans(pts, line, spans, crossed, shared, bridged, spanReport)
+    keepSpans(pts, line, spans, crossed, shared, carried, bridged, spanReport)
     cutAtBridges(line, spans, bridges, (id) => roadsAt.has(id), spanReport)
   }
   // A bridge end slid along the track, and the culverts, are where the lines now have them.
   for (const { line } of chains) for (const v of line) if (v.id !== undefined) moves.set(v.id, v)
 
+  // A CTR-only track along a way OSM maps with its rails gone is drawn no more: its rails were
+  // taken up after the 2019 survey (Rometta's stub by the SS63's level crossing).
+  const isGone = alongGone(gone)
+  const left = ctr.tracks.flatMap((t, k) => (!used[k] && isGone(t.pts) ? [k] : []))
   const extra = buildExtras({
     tracks: ctr.tracks,
     lines,
-    extra: ctr.tracks.flatMap((_, k) => (used[k] ? [] : [k])),
+    extra: ctr.tracks.flatMap((_, k) => (used[k] || left.includes(k) ? [] : [k])),
     hosts: chains.map((c) => c.line),
     bridges: ctr.bridges.map((b) => b.rings),
     // A swapped node the play area leaves out (a test region without Gragnola) has nothing to re-home.
@@ -515,6 +565,12 @@ export const conflateRail = (
     )
   // Tracks meet only at piece ends: the running track is cut at its switches.
   const tracks = [...out, ...extra.pieces]
+  // A stream OSM ends at at-grade track, where its culvert under it begins, stops clear of it.
+  clearOfTrack(
+    crossed.filter((f) => f.water),
+    tracks.filter((t) => t.bridge !== true && t.tunnel !== true).map((t) => t.pts),
+    spanReport,
+  )
   const roads = osmRoads.map((r, k) => ({
     ...r,
     pts: roadPts[k]!.map((v) => (v.id === undefined ? v : (moves.get(v.id) ?? v))),
@@ -532,6 +588,7 @@ export const conflateRail = (
       offset: spread(all.offset),
       crossings,
       extras: extra.report,
+      gone: left.map((k) => ctr.tracks[k]!.src.join("+")),
       spans: spanReport,
     },
   }

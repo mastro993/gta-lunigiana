@@ -1,4 +1,4 @@
-// Road graph from shared OSM node ids (clip points get their own nodes), edges densified to <= 25 m.
+// Road graph from shared vertex ids (clip points get their own nodes), edges densified to <= 25 m.
 import { isMotorRoad, isTraffic } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
 import { arcLengths, pointAt, r1, type V } from "./geometry.ts"
@@ -7,7 +7,7 @@ const MAX_EDGE = 25
 /** Dead ends on the play area's outline stop this far (m) back along the road: past the road-exit caps (4 m in) with room for a car's nose. */
 const EXIT = 8
 
-/** The polyline with each end on the outline (a clip point: no OSM id) pulled EXIT m back along it. */
+/** The polyline with each end on the outline (a clip point: no id) pulled EXIT m back along it. */
 const trimExits = (pts: ReadonlyArray<V>): ReadonlyArray<V> => {
   const head = (q: ReadonlyArray<V>): Array<V> => {
     const s = arcLengths(q)
@@ -27,7 +27,7 @@ interface GraphOut {
   readonly walk: Array<number>
   /** Node degree over all edges. */
   readonly degree: Array<number>
-  /** The node of each vertex id (OSM's, or the conflation's `ctr:` and `culvert:` ones); clip and split points are keyed `clip:`/`mid:`. */
+  /** The node of each vertex id (OSM's, the conflation's `ctr:` and `culvert:` ones, or a pier's `pier:` cut at the water's edge); clip and split points are keyed `clip:`/`mid:`. */
   readonly ids: ReadonlyMap<string, number>
 }
 
@@ -70,11 +70,14 @@ const pruneSpurs = (
 
 /**
  * The road graph. Traffic drops tunnel spurs and dead-end tips where `roomy(x, y, road)` is false
- * (no room for a car to stop and turn on road `road`, its index: lanes that end between houses).
+ * (no room for a car to stop and turn on road `road`, its index: lanes that end between houses);
+ * traffic and walkers both drop dead-end tips where `onRail(x, y, road)` is true (on the running
+ * track: a driveway OSM ends 2.39 m from the Lucca–Aulla line by Aulla station).
  */
 export const buildGraph = (
   roads: ReadonlyArray<RoadF>,
   roomy: (x: number, y: number, road: number) => boolean,
+  onRail: (x: number, y: number, road: number) => boolean = () => false,
 ): GraphOut => {
   const ids = new Map<string, number>()
   const xy: Array<number> = [],
@@ -117,19 +120,27 @@ export const buildGraph = (
     all = Array.from({ length: edges.length / 3 }, (_, e) => e)
   const road = (e: number) => roads[edges[3 * e + 2]!]!
   const drivable = all.filter((e) => isTraffic(road(e).cls) && !road(e).private)
+  const railed = (e: number, n: number) => onRail(xy[2 * n]!, xy[2 * n + 1]!, edges[3 * e + 2]!)
   const traffic = largest(
     nodes,
     edges,
     pruneSpurs(
       edges,
       drivable,
-      (e, n) => road(e).tunnel === true || !roomy(xy[2 * n]!, xy[2 * n + 1]!, edges[3 * e + 2]!),
+      (e, n) =>
+        road(e).tunnel === true ||
+        !roomy(xy[2 * n]!, xy[2 * n + 1]!, edges[3 * e + 2]!) ||
+        railed(e, n),
     ),
   )
   const walk = largest(
     nodes,
     edges,
-    all.filter((e) => road(e).tunnel !== true && !isMotorRoad(road(e))),
+    pruneSpurs(
+      edges,
+      all.filter((e) => road(e).tunnel !== true && !isMotorRoad(road(e))),
+      railed,
+    ),
   )
   const degree = Array.from({ length: nodes }, () => 0)
   for (const e of all) {

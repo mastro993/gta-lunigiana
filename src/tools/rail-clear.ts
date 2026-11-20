@@ -80,13 +80,8 @@ interface Offender {
   readonly d: number
 }
 
-/**
- * The rule over the shipped data: the samples of graph edge `e`'s lines `off` m to either side that
- * come within RAIL_CLEAR of at-grade running track at its level, outside every box (within BOX_REACH
- * of a node, on the box's road or within its verges) and platform.
- */
-const makeRule = (input: ClearInput) => {
-  const { graph, roads, track, boxes, platforms } = input
+/** The at-grade running track's segments, each with its ends' heights, found within RAIL_CLEAR. */
+const trackIndex = (track: ReadonlyArray<Profiled>) => {
   const near = segIndex<{ za: number; zb: number }>()
   for (const t of track)
     for (let k = 0; k + 1 < t.z.length; k++)
@@ -94,6 +89,33 @@ const makeRule = (input: ClearInput) => {
         za: t.z[k]!,
         zb: t.z[k + 1]!,
       })
+  return near
+}
+
+/**
+ * Whether a point at height `z` lies within RAIL_CLEAR of at-grade running `track` at its level: a
+ * dead end there would stand on the track, so traffic and walkers keep out of it (`buildGraph`'s
+ * `onRail`). A driveway OSM ends 2.39 m from the Lucca–Aulla line by Aulla station is one.
+ */
+export const onTrack = (track: ReadonlyArray<Profiled>) => {
+  const near = trackIndex(track)
+  return (x: number, y: number, z: number): boolean => {
+    let hit = false
+    near.within(x, y, (s, _d2, t) => {
+      if (Math.abs(s.data.za + (s.data.zb - s.data.za) * t - z) < LEVELS) hit = true
+    })
+    return hit
+  }
+}
+
+/**
+ * The rule over the shipped data: the samples of graph edge `e`'s lines `off` m to either side that
+ * come within RAIL_CLEAR of at-grade running track at its level, outside every box (within BOX_REACH
+ * of a node, on the box's road or within its verges) and platform.
+ */
+const makeRule = (input: ClearInput) => {
+  const { graph, roads, track, boxes, platforms } = input
+  const near = trackIndex(track)
   const inBox = (x: number, y: number, road: number) =>
     boxes.some(
       (b) =>

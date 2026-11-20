@@ -130,18 +130,36 @@ type Point3 = readonly [number, number, number]
 /** A river vertex's own: its rise per unit stage (m: the depth at q^STAGE = 1), and its flow, map x east and y north (a unit vector) and its mean speed per unit (m/s). */
 export type Flowing = readonly [stage: number, x: number, y: number, speed: number]
 
+/** A value at each corner of a quad. */
+type Corners = readonly [number, number, number, number]
+const NONE: Corners = [0, 0, 0, 0]
+
+/** What a quad of water carries besides its corners' `Flowing`: still water's depth, the sea's hold and the share of the sea's look at each corner. */
+export interface WaterCorners {
+  /** How deep still water stands over each corner's node, m (`still`). */
+  readonly still?: Corners
+  /** How far the sea holds a river up over each corner's bed at least, m (`heldBySea`; `held`). */
+  readonly held?: Corners
+  /** The share of the sea's look at each corner (`sea`): 1 for the sea's water, which the shader colours by its depth and foams at the shore, a river's the sea holds up by `seaShare`, else 0. */
+  readonly sea?: Corners
+}
+
 /**
  * Water's triangles: each vertex lies on the river's bed and carries how far its surface rises
- * (`stage`) and the way and speed it flows (`flow`), which the water shader turns into the level
- * and current the rivers run at (`render/sky/surface`); a lake's lies on its still surface and
- * carries how deep the water stands there (`still`), which shades it.
+ * (`stage`), at least up to the sea's level (`held`), and the way and speed it flows (`flow`),
+ * which the water shader turns into the level and current the rivers run at
+ * (`render/sky/water-shader`); a lake's or the sea's lies on its still surface and carries how deep
+ * the water stands there (`still`), which shades it. Each carries its share of the sea's look
+ * (`sea`): the sea's whole, a river's the sea holds up by how far it holds it.
  */
 export class WaterTriangles extends Triangles {
   readonly stage: Array<number> = []
   readonly flow: Array<number> = []
   readonly still: Array<number> = []
+  readonly held: Array<number> = []
+  readonly sea: Array<number> = []
 
-  /** A quad a-b-c-d of water (counter-clockwise seen from above), each corner with its own `Flowing` and still depth (m). */
+  /** A quad a-b-c-d of water (counter-clockwise seen from above), each corner with its own `Flowing`, and what `corners` adds (none by default). */
   waterQuad(
     a: Point3,
     b: Point3,
@@ -149,23 +167,28 @@ export class WaterTriangles extends Triangles {
     d: Point3,
     hex: number,
     flowing: readonly [Flowing, Flowing, Flowing, Flowing],
-    still: readonly [number, number, number, number] = [0, 0, 0, 0],
+    corners: WaterCorners = {},
   ): void {
     this.quad(a, b, c, d, hex)
+    const { still = NONE, held = NONE, sea = NONE } = corners
     for (const k of [0, 1, 2, 0, 2, 3] as const) {
       const [stage, x, y, speed] = flowing[k]
       this.stage.push(stage)
       this.flow.push(x, y, speed)
       this.still.push(still[k])
+      this.held.push(held[k])
+      this.sea.push(sea[k])
     }
   }
 
-  /** The triangles as a non-indexed BufferGeometry, with `stage`, `flow` and `still`. */
+  /** The triangles as a non-indexed BufferGeometry, with `stage`, `flow`, `still`, `held` and `sea`. */
   override geometry(): BufferGeometry {
     const g = super.geometry()
     g.setAttribute("stage", new Float32BufferAttribute(this.stage, 1))
     g.setAttribute("flow", new Float32BufferAttribute(this.flow, 3))
     g.setAttribute("still", new Float32BufferAttribute(this.still, 1))
+    g.setAttribute("held", new Float32BufferAttribute(this.held, 1))
+    g.setAttribute("sea", new Float32BufferAttribute(this.sea, 1))
     return g
   }
 }

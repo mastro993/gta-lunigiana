@@ -16,17 +16,15 @@ import { join } from "node:path"
 
 import { assembleMap, writeMap } from "./build-output.ts"
 import { readSources } from "./build-sources.ts"
-import { buildTerrain } from "./build-terrain.ts"
+import { finishTerrain, profileTerrain } from "./build-terrain.ts"
 import { buildWorld } from "./build-world.ts"
-import { sourceAreas } from "./dtm.ts"
 import { writeOverview } from "./overview.ts"
-import { inPlay } from "./play-area.ts"
 import { printRail, railSummary } from "./rail-report.ts"
 import { mapDir, REGION } from "./region.ts"
 import { cutMap } from "./tile-map.ts"
 
 const ROOT = join(import.meta.dirname, "../..")
-if (REGION.ownTerrain)
+if (REGION.ownTerrain && !REGION.ownOsm)
   throw new Error(
     `--region ${REGION.key} has terrain of its own and no OSM, and builds no map: its map tests read its inputs (terrain-seams.map-test.ts, and sarzana.map-test.ts Liguria's)`,
   )
@@ -42,15 +40,22 @@ const lap = (label: string) =>
   )
 
 /**
- * The sources and the terrain built on them. The DTM (`dem`), which only these two read, lives in
- * this function's frame alone: a value a running function holds is never collected, so it goes
- * when this returns, before the world phase.
+ * The sources and the terrain's profiles on them. The DTM (`dem`), which only these two read, lives
+ * in this function's frame alone: a value a running function holds is never collected, so it goes
+ * when this returns, before the tile pass and the catchments.
+ */
+const sourcesAndProfiles = async () => {
+  const { dem, terrainSources: sources, ...src } = await readSources(ROOT, lap)
+  return { src, profiled: profileTerrain(src, dem, lap), sources }
+}
+
+/**
+ * The sources and the finished terrain. The profiles and the uncarved grid (which the catchments
+ * fill) live in this function's frame alone, so they go when it returns, before the world phase.
  */
 const sourcesAndTerrain = async () => {
-  const { dem, ...src } = await readSources(ROOT, lap)
-  const sources =
-    dem.source === undefined ? undefined : sourceAreas(dem.source, REGION.bounds, inPlay)
-  return { src, terrain: buildTerrain(src, dem, lap), sources }
+  const { src, profiled, sources } = await sourcesAndProfiles()
+  return { src, terrain: finishTerrain(src, profiled, lap), sources }
 }
 
 /** The map cut into tiles, the vectors the overview paints, and what the report prints about the build; every other intermediate is gone once it returns. */

@@ -1,8 +1,8 @@
 /**
  * Tyre smoke and dust: one InstancedMesh of low-poly puffs for the whole map, spawned from the
  * sim's Skid events in proportion to how far past its grip and how fast each tyre slides. Burnt
- * rubber is white-grey on asphalt and stone, dust tan on gravel and dirt, dark brown on leaves, and
- * grass hardly smokes; on snow it is white spray. A puff grows, rises, drifts and shrinks away over 1–2 s of sim time, so the
+ * rubber is white-grey on asphalt and stone, dust tan on gravel and dirt, dark brown on leaves, a pale
+ * spray of sand on a beach, and grass hardly smokes; on snow it is white spray. A puff grows, rises, drifts and shrinks away over 1–2 s of sim time, so the
  * smoke hangs still while the game is paused. When every puff is in the air, the puffs owed meanwhile are dropped.
  * Drawn after the tyre marks (render order 1).
  *
@@ -36,6 +36,8 @@ export const PUFF = {
   dirt: { hex: PALETTE.dirtTrack, rate: 2.5 },
   grass: { hex: PALETTE.grassDry, rate: 0.2 },
   leaves: { hex: PALETTE.woodBrown, rate: 1 },
+  // Loose and dry, every slide ploughs it up: a spray of its own colour, the thickest of any ground.
+  sand: { hex: PALETTE.sand, rate: 3 },
 } as const satisfies Record<Surface, { readonly hex: number; readonly rate: number }>
 
 /** What a tyre throws up from snow (Skid.snow 1): white spray. */

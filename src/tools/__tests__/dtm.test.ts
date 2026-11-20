@@ -33,12 +33,12 @@ const dtm = (): DtmData => {
   const [e, n] = latLonToGaussBoaga(...fromLocal(0, 0))
   const cols = 400,
     rows = 300
-  const z = new Float32Array(cols * rows)
+  const dm = new Int16Array(cols * rows)
   for (let r = 0; r < rows; r++)
     for (let c = 0; c < cols; c++)
-      z[r * cols + c] = Math.round(2000 + 3 * c - 2 * r + ((c * 7919 + r * 104729) % 97)) / 10
+      dm[r * cols + c] = 2000 + 3 * c - 2 * r + ((c * 7919 + r * 104729) % 97)
   const sources = { names: NAMES, codes: new Uint8Array(cols * rows) }
-  return { e0: Math.floor(e) - 401, n0: Math.floor(n) - 300, cols, rows, cell: 2, z, sources }
+  return { e0: Math.floor(e) - 401, n0: Math.floor(n) - 300, cols, rows, cell: 2, dm, sources }
 }
 
 test("a DTM's grid windows are makeGrid's nodes on its sampler, bit for bit", () => {
@@ -122,8 +122,7 @@ const tempDir = (t: TestContext) => {
  * delta-coded from its first value, deflated) and dtm-src.bin (`codes`, deflated).
  */
 const write = (dir: string, d: DtmData, codes = d.sources.codes) => {
-  const { z, sources, ...meta } = d
-  const dm = Int16Array.from(z, (h) => Math.round(h * 10))
+  const { dm, sources, ...meta } = d
   const deltas = dm.map((v, k) => (k % d.cols === 0 ? v : v - dm[k - 1]!))
   writeFileSync(join(dir, "dtm.json"), JSON.stringify({ ...meta, sources: sources.names }))
   writeFileSync(join(dir, "dtm.bin"), deflateSync(Buffer.from(deltas.buffer)))
@@ -137,7 +136,7 @@ const tiny = (): DtmData => ({
   cols: 3,
   rows: 2,
   cell: 2,
-  z: Float32Array.from([1203, 1198, 1250, -15, 0, 4321], (dm) => dm / 10),
+  dm: Int16Array.from([1203, 1198, 1250, -15, 0, 4321]),
   sources: { names: NAMES, codes: Uint8Array.from([0, 0, 2, 3, 1, 0]) },
 })
 
@@ -216,10 +215,10 @@ test("readTiles: the shipped map throws naming a listed tile with no file; a tes
   )
   const dtm = readTiles(dir, pair(true))
   assert.deepEqual([dtm.e0, dtm.n0, dtm.cols, dtm.rows], Object.values(tileGrid(0, 0)))
-  assert.ok(!dtm.z.some(Number.isNaN))
-  // The cell missing from 0_0's file holds the height west of it, drawn on along its row.
+  // The cell missing from 0_0's file, the one cell no file holds, holds the height west of it,
+  // drawn on along its row.
   const k = ((lack[1] - dtm.n0) / CELL) * dtm.cols + (lack[0] - dtm.e0) / CELL
-  assert.equal(dtm.z[k], dtm.z[k - 1])
+  assert.equal(dtm.dm[k], dtm.dm[k - 1])
 })
 
 test("readTiles: the shipped map throws naming a tile and the cell its file lacks within the box, not one past it", (t) => {

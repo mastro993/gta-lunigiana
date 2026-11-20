@@ -13,6 +13,7 @@ import {
   checkStoodBack,
   endsOf,
   type Mouth,
+  mouthsOf,
   whyOpen,
 } from "./mouth-checks.ts"
 import { aroundTunnels, bakedAt, PATH, PIEVE, SR445, TRACK, tunnelAt } from "./tunnels.ts"
@@ -102,6 +103,61 @@ test("Pieve San Lorenzo's underpass split into two ways 2 m from its south mouth
   assert.equal(wall.throat, bakedAt(south, id).throat)
   // Nor does `whyOpen` find the ground over its end too low to leave it open.
   assert.throws(() => whyOpen({ ...aroundTunnels(), roads: split }, south), /is open, though/)
+})
+
+test("a way in a tunnel branching off the 87 m path's at a vertex inside its bore (Aulla station's ramps off its underpass): no mouth at the branch, the path's mouths as baked, the branch's only at its other end", () => {
+  const { roads, buildings } = aroundTunnels(),
+    [road, id] = tunnelAt(PATH),
+    k = Math.floor(road.z.length / 2),
+    [x, y, z] = [road.pts[2 * k]!, road.pts[2 * k + 1]!, road.z[k]!]
+  // 30 m east from the vertex, level, in a tunnel of its own.
+  const branch: Road = { ...road, pts: [x, y, x + 30, y], z: [z, z] },
+    joined = {
+      ids: [...roads.ids, Number.MAX_SAFE_INTEGER],
+      items: [...roads.items, branch],
+    }
+  assert.ok(
+    k > 0 && k < road.z.length - 1,
+    `the vertex (${x}, ${y}) inside the path's line, not at its ends`,
+  )
+  const baked = bakeMouths(joined, buildings.items),
+    found = mouthsOf(joined)
+  for (const ends of [baked, found])
+    assert.deepEqual(
+      ends.flatMap((end) => (end.road === Number.MAX_SAFE_INTEGER ? [[end.x, end.y]] : [])),
+      [[x + 30, y]],
+      "the branch's mouth only at its far end",
+    )
+  assert.deepEqual(
+    found.filter((end) => end.road === id),
+    endsOf(road, id),
+  )
+  assert.deepEqual(
+    saved(baked.filter((mouth) => mouth.road === id)),
+    saved(MAP.derived.mouths.filter((mouth) => mouth.road === id)),
+  )
+})
+
+test("Pieve San Lorenzo's underpass with a road out of its south mouth turning 45° across where its head wall's side would stand: open, the road out crowding it", () => {
+  const { roads, buildings } = aroundTunnels(),
+    [road, id] = tunnelAt(PIEVE),
+    [south] = endsOf(road, id).sort((a, b) => a.y - b.y) as [Mouth, Mouth],
+    floor = road.pts[0] === south.x && road.pts[1] === south.y ? road.z[0]! : road.z.at(-1)!,
+    turn = south.angle + Math.PI / 4
+  // As wide as the underpass's road, 10 m on at its level: the coast's underpass under the A12 has
+  // one turning 43° at its south mouth.
+  const { tunnel: _tunnel, ...way } = road,
+    out: Road = {
+      ...way,
+      pts: [south.x, south.y, south.x + 10 * Math.cos(turn), south.y + 10 * Math.sin(turn)],
+      z: [floor, floor],
+    },
+    turned = { ids: [...roads.ids, Number.MAX_SAFE_INTEGER], items: [...roads.items, out] }
+  const baked = bakeMouths(turned, buildings.items).find(
+    (mouth) => mouth.road === id && mouth.x === south.x && mouth.y === south.y,
+  )
+  assert.ok(baked !== undefined && "open" in baked, "the south mouth open")
+  assert.equal(whyOpen({ ...aroundTunnels(), roads: turned }, south), "crowded")
 })
 
 /** A house 7 m high on a 10 m square round map point (x, y), its lowest corner's ground `z0` m a.s.l. */

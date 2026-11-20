@@ -99,6 +99,18 @@ How far a road's surface stands over its profile, by road class.
 How far either side of a deck or a tunnel's line someone on foot is still on its level.
 _Avoid_: Sidewalk, kerb
 
+**Approach**:
+The way at grade that leads onto a deck or into a tunnel and meets it at its level: a road's, and since issue #19 a path's or steps', which closes its offset from the terrain at its class's grade from the deck's level until it meets the ground.
+_Avoid_: Ramp (a motorway or trunk link), access, lead-in
+
+**Twin carriageways**:
+Two carriageways of one road, each its own oneway way, that overlap in plan: they keep within 1.5 m of each other's level where they overlap (`TWINS`).
+_Avoid_: Dual road, double road, parallel roads
+
+**Twin track**:
+A track running beside another of its kind (both on bridges, both in tunnels or both at grade) within 6 m and 15° of parallel: the one fitted later keeps to the other's level.
+_Avoid_: Double track, parallel line
+
 **Ground model**:
 The one set of rules that turns ground data into the ground at a point, for the game, the map build and the tests alike.
 
@@ -109,7 +121,7 @@ _Avoid_: Surface source
 ## Standing and rolling
 
 **Footing**:
-The ground under a person or an animal, on the level it is on: a bridge's deck, a tunnel's floor, a platform or the ground at grade. On foot it is what they stand on; for the player driving, the ground under the vehicle or train they drive. Every person and animal always has one.
+The ground under a person or an animal, on the level it is on: a bridge's deck, a tunnel's floor, a platform or the ground at grade. On foot it is what they stand on; swimming, where its feet hang in the water, 0.7 of its height under the surface and never under the bed; for the player driving, the ground under the vehicle or train they drive. Every person and animal always has one.
 _Avoid_: level (reserved for whether two things meet), standing height, ground (for a body on foot)
 
 **Wheels' ground**:
@@ -142,7 +154,7 @@ A road vehicle's level as read toward a point: along its pitch out to its bumper
 ## Tunnels
 
 **Mouth**:
-An end of a tunnel's line that no other line in a tunnel goes on from: where a road or the railway enters the hill.
+An end of a tunnel's line that no other line in a tunnel goes on from or runs through: where a road or the railway enters the hill.
 _Avoid_: Portal (that is what stands there), entrance, tunnel end
 
 **Portal**:
@@ -176,3 +188,75 @@ _Avoid_: Sunken mouth, underground portal
 **Covered way**:
 A stretch of a tunnel by its mouth under a house standing at the road's level, which leaves that mouth open.
 _Avoid_: Arcade, building passage (that is a tunnel through a house)
+
+## Water
+
+**Sea**:
+The still water at 0 m seaward of the coastline, an area kind of its own (`sea`): a water, as a lake is, cut into sea pieces, with no tide, waves or current.
+_Avoid_: Ocean, sea area (that is one of its pieces)
+
+**Sea piece**:
+A connected piece of the sea within one tile's square cut to the map's bounds (a tile may hold more than one), a water area at 0 m: the sea is its pieces, one water, so a swimmer in one heads for the coast in any of them.
+_Avoid_: Sea tile, sea polygon
+
+**Coastline**:
+OpenStreetMap's `natural=coastline` ways chained into lines, the land on their left: what the build closes the sea pieces from and the terrain's sea step fills from.
+_Avoid_: Coast (a sea piece's shore edges), shoreline
+
+**Coast**:
+A sea piece's edges that are its shore, an islet's included: every edge but the cuts along a tile's side or the map's bounds, where the sea goes on, and the closures across a river's or a lake's mouth, where the water goes on into the river (`coastOf`).
+_Avoid_: Coastline (that is OSM's line the build closes the pieces from), shore edge
+
+**Shore line**:
+The coastline less each segment that closes a river or a lake across its mouth (`shoreLines`): what the sea floor rises to, so a river's mouth holds no sill.
+_Avoid_: Shore (the water's edge walls), coast
+
+**Sea step**:
+The terrain chain's step that fills, at 0 m, the cells seaward of a part's coastline and the empty shore within 150 m of them, after Liguria's DTM and before Emilia-Romagna's (`sea-fill.ts`).
+_Avoid_: Sea fill, sea mask
+
+**Sea floor**:
+The ground under the sea, which the map build carves every sea node down to (`seaFloor`), from the isobaths and the shoreface profile.
+_Avoid_: Seabed, bed (a river's), bathymetry (the survey it is read from)
+
+**Isobath**:
+A survey's contour line of the sea floor at one depth: Regione Liguria's are a metre of depth apart.
+_Avoid_: Depth line, contour
+
+**Shoreface profile**:
+The sea floor's depth by the distance from the shore line, read where no isobath is near (`PROFILE` in `sea-floor.ts`), and as the shore line's own depth.
+_Avoid_: Shelf (the issue's EMODnet constants, the profile's far end), beach profile
+
+**Beach material**:
+What a beach is drawn and driven as: `sand`, `pebble` or `rock`, by Liguria's Spiagge where it covers half the beach, else by OSM's `surface`, else sand (`beachKind`).
+_Avoid_: Beach type, surface (that is OSM's tag, or what a foot or a tyre is on)
+
+**Pier deck**:
+A pier's stretch over the water: a path on a deck 1 m over the water's level, its ends on dry ground at the ground there (`pierDeck`). Its stretch on dry ground is a path at grade.
+_Avoid_: Jetty, boardwalk
+
+**Breakwater barrier**:
+A breakwater's or a groyne's outline (`breakwater`): a wall that stops vehicles alone, as a guard rail does, round rock raised 1.5 m over the sea.
+_Avoid_: Mole, groyne wall
+
+**Held by the sea**:
+A river whose bed lies under the sea's level standing at it (0 m) rather than at its bed plus its flow's depth, as at its mouth at low flow.
+_Avoid_: Backwater, tide
+
+**Sea share**:
+How much of the sea's look a water vertex takes (`sea`, `seaShare`): the sea's whole; a river held by the sea by how far the sea holds its own waterway's bed, none to 0.5 m and whole from 1.2 m; a lake or an inland river none.
+_Avoid_: Salinity, estuary blend, sea flag
+
+## Railway
+
+**Terminal**:
+An end of a railway line (`LINES`) on the play area's outline, where the track runs on beyond it: trains enter and leave the map there, along its run-out.
+_Avoid_: Terminus (a terminal inside the map), end station
+
+**Terminus**:
+An end of a railway line inside the map, at a stop where OSM's train routes start or end and none stops on its way: the line's trains dwell there and turn round, their driver changing ends.
+_Avoid_: Terminal (on the outline), dead end, head station
+
+**Buffer stop**:
+The beam and red board across the track at a terminus, where a driven train stops dead; the drawn run's end past a terminal holds an unseen one.
+_Avoid_: Bumper, end block

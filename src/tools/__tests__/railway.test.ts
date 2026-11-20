@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { findLines } from "../rail-graph.ts"
-import { crossingBoxes, maxspeedOf, stationsOf } from "../railway.ts"
+import { crossingBoxes, maxspeedOf, stationsOf, terminiOf } from "../railway.ts"
 
 const piece = (pts: ReadonlyArray<number>, maxspeed?: number) => ({
   ...(maxspeed === undefined ? {} : { maxspeed }),
@@ -86,4 +86,22 @@ test("stationsOf spans a station's platforms beside the line and its stop nodes,
     { name: "Sud", line: 0, s0: 15, s1: 80, side: 1 },
     { name: "Nord", line: 0, s0: 120, s1: 160, side: -1 },
   ])
+})
+
+test("terminiOf keys a route's end by its shipped point, on the pieces of the way it comes in on that end there", () => {
+  const v = (x: number, y: number, id?: string) => (id === undefined ? { x, y } : { x, y, id })
+  // Way 7 ends at stop "t" (its second piece runs on from it); way 8 runs through "u" inside a piece.
+  const shipped = [
+    { r: { id: 7, pts: [v(0, 0, "a"), v(100.04, 0, "t")] }, pts: [0, 0, 100, 0] },
+    { r: { id: 7, pts: [v(100.04, 0, "t"), v(200, 0)] }, pts: [100, 0, 200, 0] },
+    { r: { id: 8, pts: [v(0, 50), v(100, 50, "u"), v(200, 50)] }, pts: [0, 50, 100, 50, 200, 50] },
+  ]
+  assert.deepEqual(
+    terminiOf(shipped, [
+      { node: "t", way: 7 },
+      { node: "t", way: 9 },
+      { node: "u", way: 8 },
+    ]),
+    new Map([["100,0", new Set([0, 1])]]),
+  )
 })

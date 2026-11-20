@@ -56,7 +56,7 @@ const flipped = (t: Track): Track => ({
 /**
  * Every `MAP.rail` piece as drawn, in order, each line's terminal piece carried on over the first stretch of its drawn run
  * (`drawnRun`) where that runs on at its level, then the drawn runs' other stretches. A terminal two lines share is drawn
- * once.
+ * once, and a terminus inside the map, past which no train runs, has none.
  */
 export const drawnTrack = (): Array<Track> => {
   const before = new Map<number, Track>(),
@@ -65,6 +65,8 @@ export const drawnTrack = (): Array<Track> => {
     done = new Set<string>()
   for (const line of LINES)
     for (const end of [0, 1] as const) {
+      // A terminus has no run-out: the map's own track runs on past it, or none.
+      if (end === 1 && line.terminus) continue
       const { pieces } = MAP.railway.lines[line.index]!
       const { rail, rev } = end === 0 ? pieces[0]! : pieces.at(-1)!
       // The terminal is its piece's first vertex where the line leaves the piece from there.

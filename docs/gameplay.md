@@ -76,12 +76,13 @@ back once it rests on a seat.
   the deck, so nobody on the deck or on the road onto it meets them
   ([map.md](map.md#walls-under-the-decks)).
 - Knocked down, the player cannot steer and slides to a stop (10 m/s²).
-- **In a river, a stream or a lake** the player wades, slower the deeper it is (a sprint most of
-  all) and pushed by the current, until the water reaches his chest or the current takes his feet
-  (an adult's 1.2 m²/s of depth × speed); then he swims with the current at 0.9 m/s of his own
-  (sprinting, a hard crawl at 1.4 m/s), and swims out wherever he heads. He never drowns. Knocked
-  down in the water, the current takes him. The rivers' depth and current follow the rain; a lake
-  stands still at its level ([water.md](water.md)).
+- **In a river, a stream, a lake or the sea** the player wades, slower the deeper it is (a sprint
+  most of all) and pushed by the current, until the water reaches his chest or the current takes
+  his feet (an adult's 1.2 m²/s of depth × speed); then he swims with the current at 0.9 m/s of his
+  own (sprinting, a hard crawl at 1.4 m/s), his feet hanging 0.7 of his height under the surface,
+  his level, and swims out wherever he heads. He never drowns. Knocked down in the water, the
+  current takes him. The rivers' depth and current follow the rain; a lake stands still at its
+  level, the sea at 0 m ([water.md](water.md)).
 
 ## Entering, stealing, carjacking, exiting
 
@@ -164,7 +165,9 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
 - **Tyres** (`src/sim/tyres.ts`): sideways force rises with the slip angle to a peak (0.12–0.15
   rad) and falls toward sliding friction past it; along the tyre the drive, the brakes and the
   rolling resistance share one friction ellipse. A tyre asked for more than its grip spins (drive)
-  or locks (brakes without ABS, the handbrake) and slides. ABS holds a braked tyre at 85% of its
+  or locks (brakes without ABS, the handbrake) and slides; a spinning tyre pushes with its sliding
+  friction less the rolling resistance of the ground it rolls over as the car moves, so a wheel
+  spinning in sand digs in. ABS holds a braked tyre at 85% of its
   grip, leaving some to steer with; traction control holds a driven one under what cornering
   leaves. A loaded tyre grips less per newton (12% less at twice its static load). Nearly
   standing, a tyre holds like static friction, so the brakes and the handbrake hold a car on a
@@ -180,7 +183,17 @@ Simulation preset). A new game starts on the Balanced preset ([Presets](#presets
   | dirt | 0.6 / 0.39 (×0.65: mud) | 0.85 / 0.85 | 0.045 / 0.06 |
   | grass | 0.45 / 0.32 (×0.7) | 0.8 / 0.75 | 0.07 / 0.075 |
   | leaves (forest floor) | 0.5 / 0.33 (×0.65) | 0.8 / 0.75 | 0.06 / 0.065 |
+  | sand (a beach's and the sea's floor, `COVER_SURFACE`; a road tagged `surface=sand`) | 0.55 / 0.55 (×1: rain firms it) | 0.95 / 0.95 | 0.3 / 0.15 |
   | packed snow (`SNOW`, over any surface) | 0.3 | 0.85 | 0.03 |
+
+  A tyre in dry sand grips by shearing it, so its peak is the sand's own friction, tan φ for the
+  28–30° of the Land Locomotion Laboratory's dry sand (Wong, *Theory of Ground Vehicles*); loose
+  sand's shear stress climbs to that and holds it as the slip grows (the Janosi–Hanamoto curve),
+  with no peak to fall from, so a sliding tyre keeps 0.95 of it. The tyre sinks and ploughs: 0.30
+  for car tyres in sand against 0.015 on concrete and 0.08 on medium-hard soil (Wong, 2nd ed.
+  1993, p. 17). Wet sands carry vehicles better than dry ones, beach or desert alike (WES
+  Technical Memorandum 3-240, 15th supplement, 1959), so rain keeps sand's peak and halves its
+  rolling resistance (estimated, no tyre measured).
 
 - **Weather** (`weathered` in `tyres.ts`): each wheel asks the weather how wet and how
   snow-covered the ground is at its contact (`groundAt`,
@@ -226,9 +239,10 @@ Events: a wall or ground hit is an `Impact` (a ground hit names the face that st
 when the suspension bottoms out on landing, `roof`, `side`, `front`, `rear`), and each step a
 tyre slides past its grip it is a `Skid` (sliding speed, how far past its grip: 0.25 for ABS at
 the limit, 1 sliding, spinning or locked; the surface, and how snow-covered the ground is there).
-The renderer lays tyre marks and smoke from `Skid`, dark slush ruts and white spray on snow; the
-audio plays both ([audio.md](audio.md)), and every crash `Impact` harder than a scuff wears the
-vehicles it struck ([Damage](#damage)).
+The renderer lays tyre marks and smoke from `Skid`, a pale spray and damp ruts in sand, dark slush
+ruts and white spray on snow, and from a wheel under water (a river's, a lake's or the sea's) the
+mark alone; the audio plays both ([audio.md](audio.md)), and every crash
+`Impact` harder than a scuff wears the vehicles it struck ([Damage](#damage)).
 
 ### Vehicles
 
@@ -257,9 +271,14 @@ What follows from them, measured on flat ground with `advance` (the physics test
 
 On gravel a Panda stops from 100 km/h in 68.4 m and on grass in 84.9 m; full throttle from rest
 spins its front wheels on gravel but not on asphalt, and after 10 s up a 15% grade it does 16 m/s
-on asphalt and 1.5 m/s on grass. On a new game's Balanced handling it stops in 47.0 m on gravel
-and does 14.9 m/s up the 15% grass ([Presets](#presets)). On a fully wet road it stops from
-100 km/h in 56.1 m and on packed snow in 128 m. The Ape climbs 15% at 2.6 m/s. Adding a model to
+on asphalt, while on grass its front wheels spin where it stands (0.01 m/s). On a new game's
+Balanced handling it stops in 47.0 m on gravel and does 14.9 m/s up the 15% grass
+([Presets](#presets)). Coasting from 50 km/h onto dry sand it stops in 31.2 m (on dirt it rolls
+159 m); floored from rest on flat sand it digs in, its front wheels spinning every step for 10 s
+and the car at 0.01 m/s, where on Balanced (traction control, half the loss) it does 18.2 m/s; it
+stops from 100 km/h on sand in 70.2 m, 43.4 m on Balanced (`tyres.test.ts`). On a fully wet road
+it stops from 100 km/h in 56.1 m and on packed snow in 128 m. The Ape climbs 15% at 2.6 m/s.
+Adding a model to
 `VEHICLE_MODELS` fails to compile until it has data here, a durability ([Damage](#damage)), a mesh
 and an engine for its smoke and fire in `src/render/actors.ts`, and a trim in the audio.
 
@@ -356,7 +375,7 @@ than it can drive):
 | | stop from 100 km/h, asphalt | 42.4 m | 38.0 m | 20.9 m |
 | | stop from 100 km/h, gravel | 68.4 m | 47.0 m | 20.9 m |
 | | stop from 50 km/h, asphalt: dry / fully wet / packed snow | 10.8 / 14.2 / 33.2 m | 9.6 / 11.3 / 16.0 m | 5.4 / 5.8 / 6.7 m |
-| | after 10 s floored up a 15% grass bank | 1.5 m/s | 14.9 m/s | 31.6 m/s |
+| | after 10 s floored up a 15% grass bank | 0.0 m/s | 14.9 m/s | 31.6 m/s |
 | | lateral g | 1.01 | 1.06 | 2.08 |
 | `carabinieri` | 0–100 km/h | 6.5 s | 5.8 s | 3.1 s |
 | | top speed | 243 km/h | 260 km/h | 357 km/h |
@@ -386,7 +405,7 @@ Body and suspension), with each preset's value. Multipliers and shares move in s
 | Knob | Key | Range | Simulation (real) | Balanced (new game) | Arcade | Changing it |
 |---|---|---|---|---|---|---|
 | Tyre grip | `grip` | 0.5–2.5 × | 1 | 1.1 | 2 | every tyre's grip on every surface: higher corners faster, stops shorter and slides less, but lets a tall vehicle corner hard enough to roll over (a Panda held at full lock tips from 36 km/h at ×1.1 once held for 30 s, 41 km/h within 5 s, and from 24 km/h at ×1.5), so lower the weight transfer with it (at 0.5 none of the four tips at full lock at ×1.5); lower slides and spins sooner |
-| Off-road grip loss | `looseGround` | 0–1 | 1 | 0.5 | 0 | how far every surface but asphalt (stone, gravel, dirt, grass, leaves) differs from it in grip, sliding friction and rolling resistance; at 0 every surface drives like asphalt |
+| Off-road grip loss | `looseGround` | 0–1 | 1 | 0.5 | 0 | how far every surface but asphalt (stone, gravel, dirt, grass, leaves, sand) differs from it in grip, sliding friction and rolling resistance; at 0 every surface drives like asphalt |
 | Weather grip loss | `weatherGrip` | 0–1 | 1 | 0.6 | 0.3 | how much wet ground and snow cover take from every tyre's grip ([Surfaces](#the-body)): at 1 a wet road keeps 0.72 of its dry grip and packed snow 0.27, so stops are longer, corners slower and the lock at speed smaller; at 0 every vehicle drives as on a dry day whatever the weather. The traffic AI drives as carefully as the grip it leaves |
 | Engine power | `power` | 0.5–4 × | 1 | 1.15 | 2.5 | every engine's torque and power: harder acceleration where the tyres can take it (else the driven wheels spin), steeper climbs and a higher top speed; the truck's limiter still holds it to 90 km/h |
 | Brake power | `brakes` | 0.5–4 × | 1 | 1.15 | 2.5 | the brakes' force: higher stops shorter until the tyres' grip runs out, lower stops longer |
@@ -408,7 +427,7 @@ ground and asphalt unless named, no walls), the scenarios of `src/sim/__tests__/
 | Knob | Case | Real | Changed |
 |---|---|---|---|
 | Tyre grip 1.5 | a Panda's stop from 100 km/h on gravel | 68.4 m | 47.7 m |
-| Off-road grip loss 0 | a Panda floored for 10 s up a 15% grass bank | 1.5 m/s | 16.2 m/s |
+| Off-road grip loss 0 | a Panda floored for 10 s up a 15% grass bank | 0.0 m/s | 16.2 m/s |
 | Weather grip loss 0 | a Panda's stop from 50 km/h on packed snow (on a fully wet road) | 33.2 m (14.2 m) | 10.8 m, as dry (10.8 m) |
 | Weather grip loss 0 | a Panda's road-wheel angle after 0.5 s of full left at 15 m/s on packed snow | 5.9° (0.66 of dry) | 8.9°, as dry |
 | Engine power 2 | a Panda floored from 20 m/s, 5 s on | 25.4 m/s | 32.1 m/s |
@@ -559,8 +578,11 @@ the lane helpers in `src/sim/route.ts`.
   it. The offset shrinks in 0.25 m steps where houses crowd the road, until the body clears the
   walls. Each model has its own lane table, worked out at build time (`bakeLanes` in
   `src/sim/lanes.ts`) and kept in the map file (`MAP.lanes`), since fitting it reads every drive
-  wall along every traffic edge, a bridge's parapet only where the edge passes it on the deck's
-  level (its road's surface, where the edge passes nearest the wall, within 2 m of the wall's). Read
+  wall along every traffic edge: at each sample of the lane, the walls a body standing there meets,
+  at its road's level there (`roadLevel`, else the ground at grade) as `carClear` reads them, its
+  hull (the capsule its circles sweep along its axis) clearing them by its radius (since issue #19;
+  before, a bridge's parapet counted only where the edge passed nearest it, on the road's surface
+  there within 2 m of the wall's). Read
   at the road's point nearest the parapet's middle instead, Cesena's primary road 23635384, which
   passes 5.7 m under a bridge and climbs beside it, stood 1.5 m under one of its parapets there: its
   lane under the bridge shut one way, and the truck's loop with it. A model only uses edges where it
@@ -1278,22 +1300,36 @@ The same on every line, from `MAP.railway` alone (`rail/service.ts` drives the t
 `rail/dispatch.ts` brings them in and takes them off), so a map with more railways needs no new
 code:
 
-- **A line** (`LINES`, `rail/lines.ts`) is the map's running track from one terminal to the other
-  ([map.md](map.md)), joined into one polyline in arc length s (0 at its first terminal) and run
-  on past both terminals along the map's track beyond them (`runOuts` in `MAP.railway`,
+- **A line** (`LINES`, `rail/lines.ts`) is the map's running track from one terminal to the other,
+  or to a terminus inside the map, where OSM's train routes end
+  ([map.md](map.md#9-the-railway-railwayts-platformsts-rail-clearts)), joined into one polyline in
+  arc length s (0 at its first terminal) and run on past its terminals along the map's track beyond
+  them (`runOuts` in `MAP.railway`,
   [map.md](map.md)), straight and level past where that ends (and from a terminal with none): over
   the drawn run (`DRAWN_RUN`, 192 m, which the render draws, as far as its apron reaches) to the
   end of the run-out, where trains enter out of view. Each run-out is sized from
   the line speed at its end (`runOut`): the strike-in of a box at the map's edge
   ([Level crossings](#level-crossings)) plus the longest train's length, and never less than the
   drawn run, so a train entering at that speed is beyond view and finds even that box down before
-  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. Today's one line, Lucca–Aulla from
-  the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del Lupacino, which OSM tags
-  140 km/h: its run-out is 2298.6 m, all in the bore, which runs on level to the box's edge at
-  x 10600) to Fivizzano's west edge by Rometta (x −5300, whose run-out follows OSM's line 1128.6 m
-  on south-west down the Aulella's valley at grade), is 16,854.7 m, with
-  Minucciano-Pieve-Casola at s 1558.6–1667.1, Equi Terme at 5921.4–6057.0, Monzone at
-  8493.3–8597.1, Gragnola at 11911.6–12057.7 and the Fivizzano-Gassano halt at 14454.2–14550.8.
+  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. A terminus has no run-out. Today's
+  three lines (issue #19):
+  - **Lucca–Aulla**, from the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del
+    Lupacino, which OSM tags 140 km/h: its run-out is 2298.6 m, all in the bore, which runs on level
+    to the box's edge at x 10600) to its terminus at Aulla Lunigiana's track 4, 25,880.1 m, with
+    Minucciano-Pieve-Casola at s 1558.6–1667.1, Equi Terme at 5921.4–6057.0, Monzone at
+    8493.3–8597.0, Gragnola at 11911.6–12057.8, the Fivizzano-Gassano halt at 14454.2–14550.9,
+    Fivizzano-Rometta-Soliera at 17205.9–17295.4 and Aulla Lunigiana at 25659.4–25880.1 (16,854.7 m
+    to Fivizzano's west edge by Rometta before Aulla's part);
+  - **the Pontremolese's two tracks**, each from edge to edge through Aulla Lunigiana (9,715.8 and
+    9,715.4 m, the station at s 6915.4–7325.2 and 2390.7–2799.7), sharing the single track north of
+    P.P. Chiesaccia and its run-out north of the play area; past their south ends their run-outs
+    follow OSM's line 3,394 m on, and past their north ends, on the box's edge, they run straight
+    on, 1,409.1 m.
+- **At a terminus** the train dwells as at any station, its driver changing ends as the dwell starts
+  (`Dispatch` turns it round: its motion faces the other way and it is boarded at its far cab), and
+  then runs back down the line, calling at every station again. It never leaves by the terminus:
+  past its last station it runs on out of the line's open end and is removed beyond view, and the
+  line's next train enters from that end, after a layover.
 - **Shared track.** Lines that run on the same pieces of `MAP.rail`, or past the same terminal,
   share that track (`SHARED`): one line's s there maps onto the other's, either way round, one
   stretch for as many pieces in a row as they share (`sharedTrack` joins them, so two trains
@@ -1326,28 +1362,38 @@ code:
   train runs on its line, no train is on its run-out and none lies within its braking distance
   ahead of its nose, short of `KEEP_BEHIND` (`entryClear`: the driver's plan, 0.6 m/s² begun 1.5 s
   early, plus 30 m; 530 m from 85 km/h), and no AI train of another line runs the other way on
-  track the two share, anywhere on it: it would meet that one head-on, so it waits until that one
-  has run off. Entering 1 m outside that clearance of a train standing on
+  track the two share, on it or still ahead of it (a train still on its own track runs onto the
+  shared one later, and a terminus line's train runs its whole line back): it would meet that one
+  head-on, so it waits until that one has run off. Trains entering the same step count, so one
+  train comes in where two lines' entries share a run-out. Measured on the real map, 2 h of game
+  time from a new game, `railStep` alone, seeds 1–6: 27–29 trains (3 Lucca–Aulla and 12–13 on each
+  Pontremolese line), 2 turned round at the terminus, no train struck, and no train standing outside
+  a dwell for more than 3 s. Entering 1 m outside that clearance of a train standing on
   the line, it stops 30.2 m behind it, braking at 0.609 m/s² at most.
 - **A new game** starts with each line's train already dwelling at the station nearest the player's
   start whose platforms no train placed already stands on, with 30 m to spare (lines sharing track
   take the next nearest; a line with every one taken gets its first train from a run-out), its dwell
   drawn from `RailRng` (`FillTrains`). It faces the way that takes it past the line's point nearest
   the start, so it passes the player (drawn from `RailRng` where either way does), unless a train
-  placed already ahead that way on track the lines share faces it: then the other way, and, facing
-  one either way, the next station. The player starts 36.8 m from the line at Monzone, 81 m from Via
+  placed already ahead that way on track the lines share faces it, or would meet it there head-on
+  (a terminus line's train on its way back too): then the other way, and, facing one either way, the
+  next station. The player starts 36.8 m from the line at Monzone, 81 m from Via
   Riolo's crossing: the train leaves Monzone toward Equi Terme and passes the line's point nearest
   the start 44–68 s after play starts in seeds 1–16 (behind the title card the day, and the dwell,
   stand still), unseen at 1280×720 ([The first train passes out of view](#train-limits)).
-- **`SetTrains`** makes a train due now on every line no AI train runs on (`ApplyTrains`): the
+- **`SetTrains`** makes a train due now on every line no AI train runs on (`ApplyTrains`), and a
+  line whose train could meet another line's head-on stays due until it can enter: the
   tests send it, and so do the dev debug menu's "Call trains now" (P, Trains) and
   `gta.trains.call()`. Measured at seed 1 with the player's stolen train standing at Monzone: the
   call made the line's train due, and it entered at once from the end past Equi Terme, in the
   Galleria del Lupacino by Pieve San Lorenzo, at its line speed of 140 km/h.
 
-Measured over a round trip from the east end, a train entering at Pieve San Lorenzo's terminal and
-coming back from Rometta's (`railStep` alone; dry rail unless named; the dwells are those seed 1
-draws; the leading end's time from one terminal to the other):
+Measured over a round trip from the east end before Aulla's part (2026-11-07), on the 16,854.7 m
+line from Pieve San Lorenzo's terminal to Rometta's, a train entering at Pieve San Lorenzo and
+coming back from Rometta (`railStep` alone; dry rail unless named; the dwells are those seed 1
+draws; the leading end's time from one terminal to the other); the in-and-back trip to Aulla's
+terminus, 25.9 km each way, has not been timed so, and `trains.long-test.ts` bounds it at 4,942 s
+(`TRIP`):
 
 | Run | Terminal to terminal | Of it dwelling | Top speed under each limit, in running order |
 |---|---|---|---|
@@ -1519,20 +1565,22 @@ The player steals and drives a train as a car, with the same keys (`EnterExit`, 
   goes through the train to the far cab, which becomes the active one, so a train stopped on a
   viaduct or in a tunnel can be driven back the way it came, and the action key there again gets
   out at that cab where it can. The train is left on its emergency brake.
-- **SCMT and the buffer stops.** The player's train runs no farther than the end of the drawn
-  track, 192 m past each terminal along its run-out (`DRAWN_RUN`, the drawn run): a buffer stop
-  there. Its SCMT (`supervise`; on overspeed SCMT warns, cuts the traction and brakes, then applies
-  the emergency brake, Lupi's railway course, University of Pisa 2022–23) watches its speed against
-  the braking curve to the buffer ahead, the AI driver's plan (0.6 m/s², or what the rail's adhesion
-  allows, begun 1.5 s early), and, backing up, against 30 km/h: over it, it cuts the power and
-  applies the full service brake; 5 km/h over (`OVER`, the tolerance of SCMT's continuous
+- **SCMT and the buffer stops.** The player's train runs no farther than the end of the drawn track,
+  192 m past each terminal along its run-out (`DRAWN_RUN`, the drawn run): a buffer stop there; and
+  at a terminus the line's end itself, where the render draws a buffer stop of rail steel with a red
+  board facing the train coming in (`buffersOf`, `src/render/buffers.ts`), its head against the
+  beam's face. Its SCMT (`supervise`; on overspeed SCMT warns, cuts the traction and brakes, then
+  applies the emergency brake, Lupi's railway course, University of Pisa 2022–23) watches its speed
+  against the braking curve to the buffer ahead, the AI driver's plan (0.6 m/s², or what the rail's
+  adhesion allows, begun 1.5 s early), and, backing up, against 30 km/h: over it, it cuts the power
+  and applies the full service brake; 5 km/h over (`OVER`, the tolerance of SCMT's continuous
   supervision), the emergency brake. A train that still reaches the buffer stops dead against it,
-  and faster than 0.5 m/s that is a `wall` `Impact` with the train as its `car`. Measured toward
-  the buffer past Rometta's terminal, on its run-out, with the up key held from 1500 m short
-  (2026-11-07): from 20, 30 and 36 m/s the train tops out at 99.1, 115.9 and 130.0 km/h, begins
-  braking 671, 911 and 1140 m short, at the service brake (never the emergency), and stops touching
-  the buffer, under 0.5 m/s; one 60 m short at 25 m/s pulls the emergency brake and strikes it at
-  22.7 m/s.
+  and faster than 0.5 m/s that is a `wall` `Impact` with the train as its `car`. Measured toward the
+  buffer past Rometta's terminal, on its run-out, before Aulla's part, with the up key held from
+  1500 m short (2026-11-07): from 20, 30 and 36 m/s the train tops out at 99.1, 115.9 and 130.0
+  km/h, begins braking 671, 911 and 1140 m short, at the service brake (never the emergency), and
+  stops touching the buffer, under 0.5 m/s; one 60 m short at 25 m/s pulls the emergency brake and
+  strikes it at 22.7 m/s.
 - **What it meets**: other trains ([Train physics](#train-physics)), and vehicles, people and
   animals as any train ([What a train strikes](#what-a-train-strikes)): someone it knocks down
   scores a hit, as the car's do.
@@ -1637,8 +1685,8 @@ What the world does about the trains (`rail/roads.ts`, `rail/senses.ts`, `rail/s
   whistled at, as anywhere at grade; walking the track onto the bridge over the underpass, they step
   down under its deck ([Train limits](#train-limits)).
 - **Under the rail bridges, in the water.** No deck of a rail bridge is ground anyone stands on, so
-  whoever is at one is under it, wading or swimming on the river's bed (someone walking the track
-  onto a bridge steps off its end, [Train limits](#train-limits)): a swimmer swept under the
+  whoever is at one is under it, wading on the river's bed or swimming in it (someone walking the
+  track onto a bridge steps off its end, [Train limits](#train-limits)): a swimmer swept under the
   Aulella's bridge at Gragnola in a spate (its deck 9 m over the bed) is passed over exactly as with
   no train. The three streams that cross the track run through its culverts or under its deck
   ([water.md](water.md#depth-and-current)), so its whole rail bed stays dry there at every flow up
@@ -1669,7 +1717,8 @@ what people and animals run from ([Reactions](#reactions), [Animals](#animals)) 
   span rising from there: 0.54 m under its deck between OSM ways 689547598 and 1312766682, the one
   joint of the 297 crossings of every drivable bridge, both ways, from 12 m before it, where a
   walker kept to its footing strayed 0.5 m or more from the deck (`ground.map-test.ts` in
-  `src/render`).
+  `src/render`, which since issue #19 sets out along the road leading onto the bridge, no turn of
+  30° or more, straight on where none leads on in line, on that road's level).
 - **Onto a deck at the verge (a limit).** A body comes onto a deck only where its footing at the
   deck's end stands within 0.5 m of it (`ON_DECK`, `src/sim/map/ground-model.ts`). Where a road comes
   onto its bridge on an embankment, the walkers' verge beside it lies on the terrain, lower, so a
@@ -1867,15 +1916,16 @@ speed along the contact.
 ### Train limits
 
 - **One train per line, no track reserved.** On single track there is no opposing train to protect
-  against. Lines that share track (a future map) run it the same way, but a train enters seeing
-  only the trains on its own track: a branch's train still on its own track when the main line's
-  enters toward it may come onto the shared track and meet it head-on. Then both stop 30 m apart
-  and wait for each other for good: the hook is a block table both `TrainAI` and `Dispatch` would
-  consult.
-- **Terminals are open ends** on the play area's outline: the build makes no other kind, and
-  `lines.map-test.ts` fails on a terminal off the edge (`lines.test.ts` on one of a line by Monzone
-  station). A buffer stop inside the map would need the AI train to dwell and turn back there
-  instead of a run-out; the player's train already turns back by its far cab.
+  against. Lines that share track run it the same way, and since issue #19 no train enters or is
+  placed where it would meet another line's AI train on track they share the other way, whether on
+  it or still ahead ([The service](#the-service)), so two AI trains no longer come to stand face to
+  face for good; no block table is kept.
+- **A terminus is a piece end where OSM's routes end**: the build makes a line end inside the map
+  only there (`lines.map-test.ts` fails on any other end off the edge), and its buffer stop, drawn
+  and in the sim (`buffersOf`), stands at the line's end, the only one there: on through track
+  (Aulla's track 4 runs on north as the Lucca branch, a loop no train drives) the map's track is
+  drawn on past the beam. A route ending mid-piece (the Pisa => Aulla Lunigiana route at track 5's
+  stop) gives no terminus.
 - **A run-out with no track past it goes straight on**: past a terminal the run-out follows OSM's
   track beyond the play area as far as it runs in the built terrain's box, profiled from the
   terminal's level as the rail in play is, then straight and level along its heading. A terminal
@@ -1884,16 +1934,14 @@ speed along the contact.
   at its level, and the render draws it where the trains ride: Cesena's at most 0.7 m over that
   ground, the L's 8.1 m under it 180 m past Equi Terme's end of the foot (10.3° off square, along
   its hillside) and 8.8 m over it past the leg's north end. A run-out is profiled on its own, so
-  the line in play keeps its profile: by Rometta the grade turns from −6.1 ‰ to −24.8 ‰ at the
-  terminal (the ground beyond falls 2.4 m in its first 100 m), and OSM's line beyond meets the
-  CTR's 0.7 m off, a 4.1° turn there. Nothing lowers the ground under a run-out's bridge or draws a
-  portal at a run-out's bore within the drawn run: no map has one today.
-- **A run-out over a notch rides no ground of the game's**: Rometta's leaves Fivizzano's tiles at
-  x −6000, and its last 335 m, from 794 m past the terminal out to (−6334, 4251), lie over the
-  north-west notch, where no tile is listed ([map.md](map.md#map-files)): the build profiles it on
-  the edge's heights drawn on and writes no ground there, while the game's ground there is the
-  nearest listed node's, up to 13.7 m under the bed (0.22 m over it at most, every 2 m). It is out
-  of view, 602 m past the drawn run.
+  the line in play keeps its profile (by Rometta, before Aulla's part carried the line on in play,
+  the grade turned from −6.1 ‰ to −24.8 ‰ at the terminal). Nothing lowers the ground under a
+  run-out's bridge or draws a portal at a run-out's bore within the drawn run: no map has one today.
+- **A run-out over a notch rides no ground of the game's**: the Pontremolese's south run-outs run
+  through the notch west of Fosdinovo's part, where no tile is listed ([map.md](map.md#map-files)):
+  the build profiles them on the edge's heights drawn on and writes no ground there, while the
+  game's ground there is the nearest listed node's (Rometta's run-out did the same over the
+  north-west notch before Aulla's part, up to 13.7 m over that ground, out of view).
 - **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
   over the line speed, through a box whose arms are not down and onto another train. The lever
   forward rings the bell at once, but driven off Monzone at full power the train's nose reaches
@@ -1929,10 +1977,6 @@ speed along the contact.
   window (480 × 300 or 480 × 270 texels) catches it in that corner for 6.0–6.4 s, under the HUD's
   score. Showing it from the start would take a start nearer the line or a wider view there.
 - **No platform passengers**: nobody waits on the platforms or boards.
-- **A footpath tunnel's data.** The path into Equi Terme's pedestrian underpass from the north (way
-  1306844336) meets it 1.7 m over its floor (264.6 against 262.9 m), so someone walking in that way
-  stays on the bank over it, on the track's level: the map build cuts no path's mouth (paths keep
-  the terrain's level).
 - **Nobody on a rail deck.** The track over a rail bridge is no ground to stand on, so someone
   walking along it onto a bridge steps off the end onto the ground under it: over the underpasses
   at s 6324.6 and s 4777.6, walking the track, the footing falls 5.5 and 5.8 m into the road's cut
@@ -1944,12 +1988,10 @@ speed along the contact.
   it; neither is built.
 - **No derailment**: a train keeps to its line at any speed and whatever it strikes, though by a
   rule like OpenRails' (unbalanced lateral acceleration over 2.5 m/s² for a second or two derails,
-  over 3.5 m/s² tips) one would leave a 300 m curve at 116–125 km/h. The line's sharpest curve in
-  play is 193 m (over 20 m chords, at (−1253, 2271)), but Rometta's run-out follows OSM's polyline
-  as drawn, which turns 15° at one vertex 471 m past the terminal: a curve of about 76 m over the
-  same chords, which a train coming in from the run-out's end at 85 km/h runs at about 7.4 m/s²
-  unbalanced, out of view (a train leaving is removed 248 m past the terminal, its body past the
-  drawn run).
+  over 3.5 m/s² tips) one would leave a 300 m curve at 116–125 km/h. The lines in play curve no
+  tighter than 200 m over 40 m chords (the CTR's own drawing reads 191 m over 20 m), but a run-out
+  follows OSM's polyline as drawn: Rometta's turned 15° at one vertex 471 m past the terminal, a
+  curve of about 76 m over 20 m chords, before Aulla's part took it into play.
 
 ## Tuning
 
@@ -2036,7 +2078,8 @@ and kept to their side, the draws), `trains-driving.test.ts` the player's train 
 `liveKeys`, keys a test plays as it goes), and `src/sim/rail/__tests__/` checks the lines, the cars,
 the crossings, the dynamics, the AI driver, the bodies, the look-out, the crossing rules for
 traffic, the senses, boarding and the collisions; `src/sim/__tests__/physics.test.ts` drives each
-model on flat, sloping and ramped test ground with `advance` (no walls), and
+model on flat, sloping and ramped test ground with `advance` (no walls), `tyres.test.ts` checks the
+tyre's force and sand's grip and a Panda coasting into it and digging in, and
 `src/sim/__tests__/handling.test.ts` proves each handling knob's effect the same way, the weather
 grip loss's on wet and snowy ground included. Fixtures find map features by geometry, never by index
 (`BATTISTI` is the Via Cesare Battisti traffic edge nearest (-412, 438), eastbound), so they survive

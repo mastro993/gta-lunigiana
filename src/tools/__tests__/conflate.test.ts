@@ -5,6 +5,7 @@ import { conflateRail, type Layout } from "../conflate.ts"
 import type { CtrRail, CtrTrack } from "../ctr-rail.ts"
 import type { RailF, RoadF, WaterF } from "../features.ts"
 import type { P, V } from "../geometry.ts"
+import { surveyId } from "../survey-ids.ts"
 
 const NONE: Layout = { drop: new Set(), reserved: new Set(), swap: new Map() }
 const track = (src: string, ...pts: ReadonlyArray<P>): CtrTrack => ({ src: [src], pts })
@@ -24,6 +25,22 @@ const ctr = (tracks: ReadonlyArray<CtrTrack>): CtrRail => ({
   platforms: [],
   crossings: [],
 })
+
+/** The tightest bend along a line, m: 20 m over the heading's turn across 20 m of it, sampled each metre. */
+const tightest = (line: ReadonlyArray<V>) => {
+  const heads: Array<number> = []
+  for (let k = 1; k < line.length; k++) {
+    const [p, q] = [line[k - 1]!, line[k]!]
+    const len = Math.hypot(q.x - p.x, q.y - p.y)
+    for (let j = 0; j < Math.round(len); j++) heads.push(Math.atan2(q.y - p.y, q.x - p.x))
+  }
+  let least = Infinity
+  for (let k = 0; k + 20 < heads.length; k++) {
+    const turn = heads[k + 20]! - heads[k]!
+    least = Math.min(least, 20 / Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))))
+  }
+  return least
+}
 
 // The CTR's line at y 0, unmapped for 100 m around a tunnel (x 200–300); a loop north of it that
 // leaves and rejoins the line, and a siding to the south with both ends free.
@@ -100,8 +117,9 @@ test("conflateRail puts OSM's line on the CTR, its crossing nodes on the road wh
   assert.ok(c.report.residual[2] < 1e-9)
   // The loop's ends are switch vertices of the line; the siding's are free.
   const [loop, siding] = c.extra
-  assert.equal(loop!.id, -190020)
-  assert.equal(siding!.id, -190030)
+  // Numbered by sheet 23D01's section, record and part (`surveyId`, as the CTR's buildings).
+  assert.equal(loop!.id, surveyId("ctr2019", 601, 190020))
+  assert.equal(siding!.id, surveyId("ctr2019", 601, 190030))
   for (const end of [loop!.pts[0]!, loop!.pts.at(-1)!])
     assert.ok(
       east.pts.some((p) => p.id === end.id && p.x === end.x && p.y === end.y),
@@ -177,9 +195,11 @@ test("conflateRail re-homes OSM's ids by the layout: dropped ways, reserved CTR 
   )
 })
 
-// Regression: every unmatched run was smoothed, so with no CTR at all a 20°
-// kink in 1 km of open track came back 6 m off OSM, its node with it.
-test("conflateRail keeps OSM's line where no CTR track maps it", () => {
+// Regression: every unmatched run was smoothed, so with no CTR at all a 20° kink in 1 km of open track came back 6 m off OSM,
+// its node with it. The kink itself turned the track at a point: no curve through the far vertices rounds it within 1.5 m (the
+// Pontremolese's tunnels north of Aulla turn 9° between straights of 143–257 m, a bend of 127.6 m over 20 m chords), so the
+// track takes an arc inside it, the corner's node 1.5 m in, onto it.
+test("conflateRail keeps OSM's line where no CTR track maps it, but for an arc inside a corner between long straights", () => {
   const a = (20 * Math.PI) / 180
   const open: RailF = {
     id: 1,
@@ -190,8 +210,88 @@ test("conflateRail keeps OSM's line where no CTR track maps it", () => {
       v(500 + 500 * Math.cos(a), 500 * Math.sin(a), "d"),
     ],
   }
-  const c = conflateRail([open], [], [], ctr([]), NONE)
-  assert.deepEqual(c.rail[0]!.pts, open.pts)
+  const pts = conflateRail([open], [], [], ctr([]), NONE).rail[0]!.pts
+  assert.deepEqual(
+    pts.filter((p) => p.id !== undefined && p.id !== "c"),
+    open.pts.filter((p) => p.id !== "c"),
+    "the straights' own vertices where they were",
+  )
+  const c = pts.find((p) => p.id === "c")!
+  assert.ok(
+    Math.hypot(c.x - 500, c.y) <= 1.5 + 1e-9,
+    `the corner ${Math.hypot(c.x - 500, c.y)} m in`,
+  )
+  assert.ok(tightest(pts) > 90, `a bend of ${tightest(pts).toFixed(1)} m over 20 m`)
+})
+
+// Regression: Aulla's tunnel 140772193, which no survey maps, kept OSM's 11.4° corner between 41 and 52 m segments, a bend of
+// 100.9 m over 20 m chords, where an ATR 220's cars no longer met at their joints.
+test("conflateRail rounds a corner of OSM's line no survey guides along a curve through its vertices, which stay", () => {
+  const a = (11.4 * Math.PI) / 180
+  const open: RailF = {
+    id: 1,
+    pts: [v(-41, 0, "a"), v(0, 0, "k"), v(52 * Math.cos(a), 52 * Math.sin(a), "b")],
+  }
+  const [rounded] = conflateRail([open], [], [], ctr([]), NONE).rail
+  const pts = rounded!.pts
+  assert.deepEqual(
+    pts.filter((p) => p.id !== undefined),
+    open.pts,
+    "OSM's vertices, ids and all, where they were",
+  )
+  assert.ok(pts.length >= 8, `${pts.length} points`)
+  // No corner: the line turns 3° at most at any of its points (OSM's 11.4° at one), and bows no more than 1.5 m off OSM's segments.
+  for (let k = 1; k + 1 < pts.length; k++) {
+    const [p, q, r] = [pts[k - 1]!, pts[k]!, pts[k + 1]!]
+    const turn = Math.atan2(r.y - q.y, r.x - q.x) - Math.atan2(q.y - p.y, q.x - p.x)
+    assert.ok(
+      Math.abs(turn) < (3 * Math.PI) / 180,
+      `${((turn * 180) / Math.PI).toFixed(1)}° at ${k}`,
+    )
+    const along = q.x <= 0 ? Math.abs(q.y) : Math.abs(q.y * Math.cos(a) - q.x * Math.sin(a))
+    assert.ok(along <= 1.5, `${along.toFixed(2)} m off OSM's line`)
+  }
+})
+
+// Regression: north of Aulla the Pontremolese's 4.3 m bridge 842172344 runs on from OSM's 11.4° corner at its first node, in
+// line with the 176 m segment after it; the curve, held through its far node on that straight, turned in those 4.3 m, a bend of
+// 107.4 m over 20 m chords, where an ATR 220's cars no longer met at their joints. OSM's nodes there, from the corner.
+test("conflateRail rounds a corner past a short piece beside it: the piece's far node slides onto the curve, which bends no tighter than 200 m", () => {
+  const ways: ReadonlyArray<RailF> = [
+    { id: 1, pts: [v(27.8, 117.4, "q"), v(18.7, 59.1, "p"), v(0, 0, "a")] },
+    { id: 2, bridge: true, pts: [v(0, 0, "a"), v(-2.1, -3.8, "b")] },
+    { id: 3, pts: [v(-2.1, -3.8, "b"), v(-85.5, -154.4, "n"), v(-110.4, -204.7, "m")] },
+  ]
+  const c = conflateRail(ways, [], [], ctr([]), NONE)
+  const line = [1, 2, 3].flatMap((id, k) =>
+    c.rail.find((r) => r.id === id)!.pts.slice(k === 0 ? 0 : 1),
+  )
+  // Each node within OSM's accuracy of where OSM has it: the bridge's far one slides, the corners take arcs inside them.
+  for (const p of ways.flatMap((w) => w.pts)) {
+    const at = line.find((q) => q.id === p.id)!
+    assert.ok(Math.hypot(at.x - p.x, at.y - p.y) <= 1.5 + 1e-9, `${p.id} by where OSM has it`)
+  }
+  assert.ok(tightest(line) >= 200, `a bend of ${tightest(line).toFixed(1)} m over 20 m`)
+})
+
+// Regression: no 2019 sheet maps Aulla Lunigiana's track 5, which matched the CTR's yard track 419182734 beside it (OSM's own
+// 0.3 m off it) for 58 m, up to 5.9 m away, and the whole track moved 5.9 m east, 8 m off its island platform.
+test("conflateRail matches a CTR track only to the OSM track nearest it: a track the CTR leaves out beside one it maps keeps OSM's line", () => {
+  // OSM's two tracks 4 m apart; the CTR maps only the south one, 0.3 m off OSM's.
+  const south: RailF = { id: 1, pts: [v(0, 0, "a"), v(200, 0, "b")] },
+    north: RailF = { id: 2, pts: [v(0, 4, "c"), v(100, 4), v(200, 4, "d")] }
+  const c = conflateRail(
+    [south, north],
+    [],
+    [],
+    ctr([track("23D01 VLI#0.0", [-10, 0.3], [210, 0.3])]),
+    NONE,
+  )
+  assert.ok(
+    c.rail[0]!.pts.every((p) => Math.abs(p.y - 0.3) < 1e-9),
+    "the south track on the CTR",
+  )
+  assert.deepEqual(c.rail[1]!.pts, north.pts, "the north one where OSM draws it")
 })
 
 // Regression: a test region without Gragnola (issue #7) threw reading the missing node's id.
@@ -241,5 +341,23 @@ test("conflateRail starts a way that leaves another at a switch at the switch, w
   assert.ok(
     c.rail.filter((r) => r.id === 1).some((r) => r.pts.some((p) => p.id === "sw" && p.y === 0)),
     "the switch on the line",
+  )
+})
+
+// Regression: the CTR's 70 m stub 23D01 VLI#0.0 at Rometta, which OSM maps as an abandoned railway
+// (way 1252090894), was drawn as a siding 6.5 m from the SS63's level crossing: its box's stop line
+// stood 2 m from the stub's end, and the crossing's barrier and lights 0.8–1.1 m from its track.
+test("conflateRail leaves out a CTR-only track lying along a railway OSM maps with its rails gone, and only that", () => {
+  // The siding at y −5 (x 450–650) with an abandoned way 0.5 m off it over 90% of its length; the loop
+  // with one along a fifth of it.
+  const gone = [
+    [v(470, -5.5), v(660, -5.5)],
+    [v(460, 4.5), v(500, 4.5)],
+  ]
+  const c = conflateRail(RAIL, [], [], ctr(TRACKS), NONE, gone)
+  assert.deepEqual(c.report.gone, ["23D01 VLI#3.0"])
+  assert.deepEqual(
+    c.report.extras.map((e) => e.src),
+    ["23D01 VLI#2.0"],
   )
 })

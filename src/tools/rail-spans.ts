@@ -4,9 +4,10 @@
 // on a bridge (AFE Sede 063) and OSM draws it at grade, the track is cut into a bridge there (else
 // 12 m of track hung 12 m over the Fosso di Rubiana), and so it is over a road tunnel whose mouth
 // lies under it (`underpasses`). Water crossing at-grade track (a culvert, as OSM draws its small
-// streams) gets a vertex both share, so every crossing at grade is a shared vertex (rail.map-test.ts).
+// streams) gets a vertex both share, so every crossing at grade is a shared vertex (rail.map-test.ts),
+// and a stream OSM ends at the track, where its culvert under it begins, stops clear of the track.
 import { inPolygon, splitIn, type Polygon } from "./ctr-rail.ts"
-import { arcLengths, crossings, pointAt, type V } from "./geometry.ts"
+import { arcLengths, crossings, pointAt, segIndex, type V } from "./geometry.ts"
 import { insertOn } from "./rail-match.ts"
 
 /** A line the rail may cross: water or a road, with its width. */
@@ -36,11 +37,13 @@ export interface Span {
   readonly to?: string
 }
 
-/** What `keepSpans` and `cutAtBridges` changed: bridge ends slid along the track, culvert vertices added, at-grade track cut into bridges. */
+/** What `keepSpans`, `cutAtBridges` and `clearOfTrack` changed: bridge ends slid along the track, culvert vertices added, at-grade track cut into bridges, stream ends cut back. */
 export interface SpanReport {
   readonly slid: Array<{ readonly bridge: number; readonly end: string; readonly by: number }>
   readonly culverts: Array<string>
   readonly cut: Array<{ readonly piece: number; readonly m: number }>
+  /** Water lines' dead ends cut back off at-grade track (`clearOfTrack`), and by how much, m. */
+  readonly ends: Array<{ readonly water: string; readonly m: number }>
 }
 
 /** A bridge end looks this far (m) along the track beyond it for a crossing that slipped off. */
@@ -70,7 +73,9 @@ const indices = (pts: ReadonlyArray<V>, span: Span): [number, number] => [
  * that falls short slides along the track (OSM ended the Aulella bridge 3.1 m inside the river). Water that the at-grade track crosses gets
  * a shared vertex, unless it runs under a CTR bridge (`bridged`), which `cutAtBridges` makes one.
  * Throws when the conflated at-grade track crosses water OSM's did not, or when a bridge end to
- * slide is shared with another line (`shared`).
+ * slide is shared with another line (`shared`) or ends its chain. An end on another track's bridge
+ * (`carried`: a crossover's switch on the Pontremolese's two decks over the Aulella's bank road
+ * north of Aulla) stays: that deck spans what lies past it.
  */
 export const keepSpans = (
   osm: ReadonlyArray<V>,
@@ -78,6 +83,7 @@ export const keepSpans = (
   spans: ReadonlyArray<Span>,
   crossed: ReadonlyArray<Crossed>,
   shared: (id: string) => boolean,
+  carried: (id: string) => boolean,
   bridged: (x: number, y: number) => boolean,
   report: SpanReport,
 ): void => {
@@ -109,11 +115,12 @@ export const keepSpans = (
         need0 = Math.min(need0, now.sa - e2 - m2)
         need1 = Math.max(need1, now.sa + e2 + m2)
       }
-    for (const [end, id, need, at] of [
-      ["from", span.from, need0, b0],
-      ["to", span.to, need1, b1],
+    for (const [end, id, need, at, vertex] of [
+      ["from", span.from, need0, b0, bridge[0]!],
+      ["to", span.to, need1, b1, bridge.at(-1)!],
     ] as const) {
       if (Math.abs(need - at) < 1e-6) continue
+      if (vertex.id !== undefined && carried(vertex.id)) continue
       if (id === undefined || shared(id))
         throw new Error(
           `bridge ${span.id}: its ${end} end must slide but is ${id ?? "a chain end"}`,
@@ -269,3 +276,60 @@ export const onBridge = (pts: ReadonlyArray<V>, polygons: ReadonlyArray<Polygon>
 }
 
 const length = (pts: ReadonlyArray<V>) => arcLengths(pts).at(-1)!
+
+/** Half the at-grade track's bed, m: the rail pass cores it 4 m wide (build-terrain.ts). */
+const BED_HALF = 2
+/** How far (m) a water line's dead end steps back along it per try. */
+const STEP_BACK = 0.5
+/** A dead end cut back more than this many times its reach runs along the track: no culvert's end. */
+const ALONG = 2
+
+/**
+ * Cuts back each water line's dead end (a vertex no other water line has) within its reach of
+ * at-grade `track` to the first point along it out of that reach: w/2 and its `margin` (a wide
+ * stream's protected bed and a cell's diagonal, as a bridge over it reaches: `spanned`), or a narrow
+ * one's w/2 past BED_HALF, off the bed. Such an end is where OSM's culvert under the track begins,
+ * which the build drops (`extractWater`): the Canale Manarola, ended 4.5 m either side of the
+ * Pontremolese at (−14178, 11509), held the ground under the line 4.54 m down in its bed, and the
+ * Canale del Piccardo, ended 0.45 m off it at (−13423, 9190), stood 0.22 m deep on the rail bed in
+ * the 30 years' highest flood. The end's id goes with it: no other line joins there. Throws where
+ * the cut runs on past ALONG times the reach: that stream runs along the track, a data error.
+ */
+export const clearOfTrack = (
+  water: ReadonlyArray<Crossed>,
+  track: ReadonlyArray<ReadonlyArray<V>>,
+  report: SpanReport,
+): void => {
+  const reachOf = (f: Crossed) => f.w / 2 + (f.margin > 0 ? f.margin : BED_HALF)
+  const near = segIndex<null>()
+  const most = Math.max(0, ...water.map(reachOf))
+  for (const t of track) near.addLine(t, most, null)
+  const clear = (p: { readonly x: number; readonly y: number }, reach: number) => {
+    let d2 = Number.MAX_VALUE
+    near.within(p.x, p.y, (_, e2) => (d2 = Math.min(d2, e2)))
+    return d2 >= reach * reach
+  }
+  const lines = new Map<string, number>()
+  for (const { pts } of water)
+    for (const id of new Set(pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))))
+      lines.set(id, (lines.get(id) ?? 0) + 1)
+  for (const f of water) {
+    const reach = reachOf(f),
+      { pts } = f
+    for (const last of [false, true]) {
+      const end = last ? pts.at(-1)! : pts[0]!
+      if ((end.id !== undefined && lines.get(end.id)! > 1) || clear(end, reach)) continue
+      const line = last ? [...pts].reverse() : [...pts],
+        s = arcLengths(line)
+      let at = STEP_BACK
+      while (at < s.at(-1)! && !clear(pointAt(line, s, at), reach)) at += STEP_BACK
+      if (at > ALONG * reach)
+        throw new Error(`${f.what}: its end runs ${at.toFixed(1)} m along at-grade track`)
+      if (at >= s.at(-1)!) continue // a stub within reach all along: nothing of it is left clear
+      const p = pointAt(line, s, at)
+      const kept = [{ x: p.x, y: p.y }, ...line.slice(s.findIndex((d) => d > at))]
+      pts.splice(0, pts.length, ...(last ? kept.reverse() : kept))
+      report.ends.push({ water: f.what, m: at })
+    }
+  }
+}

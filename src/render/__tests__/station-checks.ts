@@ -124,7 +124,7 @@ const waitedOf = (platforms: ReadonlyArray<number> = [...MAP.railway.platforms.k
 /** Platform `i`'s area's rings (`MAP.derived.platforms`): its rim, then its holes. */
 const ringsOf = (i: number) => MAP.derived.platforms[i]!
 
-/** The platforms' tops follow the rail profile, within 2 cm of the map's platform top (the rail head + 0.25 m), and rise along Monzone's. */
+/** The platforms' tops follow the rail profile, within 2 cm of the map's platform top (the rail head + 0.25 m), and fall along Monzone's. */
 export const checkTops = ({ all }: Stations): void => {
   const tops = cornersOf(all.solid, PALETTE.asphaltWorn)
   assert.ok(tops.length > 1000, `${tops.length / 3} triangles of platform top`)
@@ -141,7 +141,9 @@ export const checkTops = ({ all }: Stations): void => {
     )
     rise = Math.max(rise, h)
   }
-  // Monzone's platforms rise with the line: a flat slab would be wrong by up to about half a metre at one end.
+  // Monzone's platforms follow the line, which falls 0.23 m west along them (the LiDAR's ground 0.35 m): a flat slab would
+  // be level with it at one end alone. Before the rail's bridges of two pieces were one deck, a sag at the bridges either side
+  // made the line rise 0.51 m there, and this asked over 0.4 m.
   const rings = [...MAP.railway.platforms.keys()]
     .filter((i) => MAP.railway.platforms[i]!.name?.startsWith("Monzone") === true)
     .map((i) => ringsOf(i)[0]!)
@@ -149,8 +151,8 @@ export const checkTops = ({ all }: Stations): void => {
     .filter(([x, , z]) => rings.some((ring) => pointInRing(x, -z, ring)))
     .map(([, y]) => y)
   assert.ok(
-    Math.max(...monzone) - Math.min(...monzone) > 0.4,
-    "the top rises along Monzone's platforms",
+    Math.max(...monzone) - Math.min(...monzone) > 0.15,
+    "the top falls along Monzone's platforms",
   )
 }
 
@@ -258,9 +260,16 @@ export const checkCanopies = ({ all, stations }: Stations): void => {
       return false
     })
   })
-  // Gragnola's, and since the map took in Fivizzano's part Pieve San Lorenzo's and Gassano's, whose platforms run along their
-  // buildings too (the CTR's at Pieve wraps the building's track side); Equi Terme's and Monzone's have grass or a forecourt.
-  const canopied = new Set(["Minucciano-Pieve-Casola", "Gragnola", "Fivizzano-Gassano"]),
+  // Gragnola's, and since the map took in Fivizzano's part Pieve San Lorenzo's and Gassano's, and Aulla's Rometta's, whose
+  // platforms run along their buildings too (the CTR's at Pieve wraps the building's track side); Equi Terme's and Monzone's
+  // have grass or a forecourt, and Aulla Lunigiana's platforms on the map stop north of its building, where 24C60's survey
+  // ends.
+  const canopied = new Set([
+      "Minucciano-Pieve-Casola",
+      "Gragnola",
+      "Fivizzano-Gassano",
+      "Fivizzano-Rometta-Soliera",
+    ]),
     name = (s: number) => MAP.railway.stations[s]!.name
   assert.deepEqual(
     along.map(name),

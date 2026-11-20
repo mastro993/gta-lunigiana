@@ -62,8 +62,9 @@ interface Line {
 
 /**
  * The mouths of `lines` that `mouthy` keeps: each end that no other line in a tunnel (`tunnel`)
- * ends at, off the play area's edge (farther than 0.5 m from its outline, where a line runs on past
- * it), with its vertex and the heading out along the line over CHORD m.
+ * ends at or runs through (a branch off a bore inside it, such as a ramp off an underpass), off the
+ * play area's edge (farther than 0.5 m from its outline, where a line runs on past it), with its
+ * vertex and the heading out along the line over CHORD m.
  */
 const mouthsOf = <L extends Line>(
   lines: ReadonlyArray<L>,
@@ -76,12 +77,13 @@ const mouthsOf = <L extends Line>(
   readonly y: number
   readonly angle: number
 }> => {
+  // The lines in a tunnel at each vertex: one at each of its ends, two where it runs through.
   const ends = new Map<string, number>()
   for (const line of lines)
     if (tunnel(line))
-      for (const k of [0, line.z.length - 1]) {
+      for (let k = 0; k < line.z.length; k++) {
         const key = `${line.pts[2 * k]},${line.pts[2 * k + 1]}`
-        ends.set(key, (ends.get(key) ?? 0) + 1)
+        ends.set(key, (ends.get(key) ?? 0) + (k === 0 || k === line.z.length - 1 ? 1 : 2))
       }
   return lines.flatMap((line, i) => {
     if (!mouthy(line)) return []
@@ -115,6 +117,19 @@ const mouthsOf = <L extends Line>(
 /** The lower of the terrain's heights (m a.s.l.) under the ends of a face wall `half` m either side of (x, y), across the heading (ux, uy). */
 const sidesLow = (x: number, y: number, ux: number, uy: number, half: number): number =>
   Math.min(terrainZ(x - uy * half, y + ux * half), terrainZ(x + uy * half, y - ux * half))
+
+/** How far a portal's or head wall's foot stands under the road's surface, or under the ground at its face's ends where that is lower, m. */
+const FOOT = 0.5
+
+/** The foot (m a.s.l.) of a face wall `half` m either side of (x, y) across the heading (ux, uy), on a road whose surface stands at `z`: what stands over it is in the wall's room (`clearance`). */
+export const wallFoot = (
+  x: number,
+  y: number,
+  ux: number,
+  uy: number,
+  half: number,
+  z: number,
+): number => Math.min(sidesLow(x, y, ux, uy, half), z) - FOOT
 
 /**
  * How far (m) the throat of a portal at (x, y), heading out (ux, uy), runs into the hill: from
@@ -290,7 +305,7 @@ export const bakeMouths = (
             uy = Ops.sin(heading),
             z = at.z + lift,
             most = Math.max(1, Math.min(THROAT.longest, Math.floor(length / 2 - THICK - back))),
-            foot = Math.min(sidesLow(at.x, at.y, ux, uy, shape.half), z) - 0.5,
+            foot = wallFoot(at.x, at.y, ux, uy, shape.half, z),
             clear = clearance(near, at.x, at.y, z, ux, uy, foot, print)
           if (clear === undefined || clear < Math.min(THROAT.shortest, most)) continue
           const throat = box(at.x, at.y, ux, uy, z, Math.min(most, Math.floor(clear)))

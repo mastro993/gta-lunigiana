@@ -75,24 +75,56 @@ const inBounds = (x: number, y: number) => {
   return x >= minX && x <= maxX && y >= minY && y <= maxY
 }
 
-/** The terrain's greatest rise over the bed of `line` from s `s` on `way` over the drawn run, and its greatest fall under it, each with how far on, m: at grade on the map's ground. */
+/**
+ * How far the terrain may lie under the bed at the terminal itself, m: it lies in play, where the at-grade check of
+ * src/sim/map/__tests__/rail.map-test.ts lets it lie 1 m under the bed (and more only beside a lower road running along the
+ * line, whose core holds the grid): the SS62 runs 7.9 m off the Pontremolese's terminal on the north edge, 2.7 m under it, and
+ * the terrain there lies 0.94 m under the bed. Past it, on the run-out's ground, `ON_GROUND` holds.
+ */
+const IN_PLAY_UNDER = 1
+
+/**
+ * The terrain's greatest rise over the bed of `line` from s `s` on `way` over the drawn run, and its greatest fall under it
+ * past the terminal's own `IN_PLAY_UNDER`, each with how far on, m: at grade on the map's ground.
+ */
 const groundPast = (line: Line, s: number, way: 1 | -1) => {
   let over = { by: -Number.MAX_VALUE, at: 0 },
     under = { by: -Number.MAX_VALUE, at: 0 }
   for (let d = 0; d <= DRAWN_RUN; d++) {
     const p = pointAt(line, s + way * d)
     if (p.bridge || p.tunnel || !inBounds(p.x, p.y)) continue
-    const up = terrainZ(p.x, p.y) - (p.z - RAIL_LIFT)
+    const up = terrainZ(p.x, p.y) - (p.z - RAIL_LIFT),
+      down = -up - (d === 0 ? IN_PLAY_UNDER - ON_GROUND.under : 0)
     if (up > over.by) over = { by: up, at: d }
-    if (-up > under.by) under = { by: -up, at: d }
+    if (down > under.by) under = { by: down, at: d }
   }
   return { over, under }
 }
 
 /**
- * Each of `lines` runs its pieces terminal to terminal from s 0, and past each terminal its run-out: over the drawn run, out
- * of a tunnel, off a bridge and on the map's ground, its bed on the terrain (`ON_GROUND`); along the map's stored track on
- * past the terminal (`runOuts`) vertex by vertex out to the run-out's length, then straight on and level past where it ends.
+ * Its terminus inside the map: a stop position (`railway=stop`) of the station the line calls at last, the end of its
+ * platforms' extent along the line or past it, with no run-out past it.
+ */
+const checkTerminus = (line: Line): void => {
+  const at = pointAt(line, line.length)
+  assert.deepEqual(MAP.railway.lines[line.index]!.runOuts[1], [], "no run-out past a terminus")
+  const last = MAP.railway.stations[line.stations.at(-1)!]!
+  const stop = MAP.pois.find(
+    (p) =>
+      p.kind === "railway=stop" && p.name === last.name && Ops.hypot(p.x - at.x, p.y - at.y) < 0.1,
+  )
+  assert.ok(
+    stop !== undefined,
+    `line ${line.index}'s terminus at (${at.x}, ${at.y}) a stop of ${last.name}`,
+  )
+  assert.ok(last.s1 <= line.length, `${last.name} ends at ${last.s1}, short of ${line.length}`)
+}
+
+/**
+ * Each of `lines` runs its pieces terminal to terminal from s 0, and past each terminal on the play area's outline its
+ * run-out: over the drawn run, out of a tunnel, off a bridge and on the map's ground, its bed on the terrain (`ON_GROUND`; at the
+ * terminal itself, in play, `IN_PLAY_UNDER`); along the map's stored track on past the terminal (`runOuts`) vertex by vertex out
+ * to the run-out's length, then straight on and level past where it ends. A line to a terminus ends there (`checkTerminus`).
  */
 export const checkTerminals = (lines: ReadonlyArray<number>): void => {
   for (const line of lines.map((l) => LINES[l]!)) {
@@ -106,12 +138,18 @@ export const checkTerminals = (lines: ReadonlyArray<number>): void => {
     assert.ok(Math.abs(line.length - length) < 0.01, `${line.length} m against ${length} m`)
     assert.deepEqual(
       [line.start, line.end],
-      [-runOut(speedAt(line, 0)), line.length + runOut(speedAt(line, line.length))],
+      [
+        -runOut(speedAt(line, 0)),
+        line.terminus ? line.length : line.length + runOut(speedAt(line, line.length)),
+      ],
     )
-    const ends = [
-      [0, -1, 0],
-      [line.length, 1, 1],
-    ] as const
+    if (line.terminus) checkTerminus(line)
+    const ends = line.terminus
+      ? ([[0, -1, 0]] as const)
+      : ([
+          [0, -1, 0],
+          [line.length, 1, 1],
+        ] as const)
     const ground = ends.map(([s, way]) => {
       const end = pointAt(line, s)
       assert.ok(onEdge(end.x, end.y), `terminal at (${end.x}, ${end.y}) on the play area's outline`)
@@ -122,7 +160,7 @@ export const checkTerminals = (lines: ReadonlyArray<number>): void => {
       ground
         .map(
           ({ end, over, under }) =>
-            `past (${end.x}, ${end.y}) the terrain ${over.by.toFixed(2)} m over the bed at ${over.at} m on, ${under.by.toFixed(2)} m under it at ${under.at} m`,
+            `past (${end.x}, ${end.y}) the terrain ${over.by.toFixed(2)} m over the bed at ${over.at} m on, ${under.by.toFixed(2)} m under its allowance at ${under.at} m`,
         )
         .join("; "),
     )
@@ -179,21 +217,26 @@ export const checkAtTheirS = ({ boxes, stations }: RailwayPart): void => {
   for (const station of stations.map((s) => MAP.railway.stations[s]!)) {
     const mid = (station.s0 + station.s1) / 2,
       at = pointAt(LINES[station.line]!, mid)
-    const platform = MAP.railway.platforms.find(
+    const platforms = MAP.railway.platforms.filter(
       (p) => p.name === station.name && p.walkway !== true,
     )
-    assert.ok(platform !== undefined)
-    // The platform's axis is the running track beside it: the line runs along it at the platform's middle.
+    assert.ok(platforms.length > 0)
+    // A platform's axis is the running track beside it: the line runs along one at the station's middle (of a station with
+    // platforms by several tracks, Aulla Lunigiana's, the one by its own).
     let near = Number.MAX_VALUE
-    for (let k = 0; k + 3 < platform.axis.length; k += 2) {
-      const [ax, ay, bx, by] = platform.axis.slice(k, k + 4) as [number, number, number, number]
-      near = Math.min(near, Math.sqrt(segDist2(at.x, at.y, ax, ay, bx, by).d2))
-    }
+    for (const { axis } of platforms)
+      for (let k = 0; k + 3 < axis.length; k += 2) {
+        const [ax, ay, bx, by] = axis.slice(k, k + 4) as [number, number, number, number]
+        near = Math.min(near, Math.sqrt(segDist2(at.x, at.y, ax, ay, bx, by).d2))
+      }
     assert.ok(near < 0.05, `${station.name}'s platform beside the line at its middle (${near} m)`)
   }
 }
 
-/** For each of `lines`, `linesNear` finds its s and the distance off it beside its longest straight, and nothing out of reach. */
+/**
+ * For each of `lines`, `linesNear` finds its s and the distance off it beside its longest straight, and not it out of reach;
+ * another line may run there too, on the same track or the next (the Pontremolese's two tracks, 4 m apart).
+ */
 export const checkLinesNear = (lines: ReadonlyArray<number>): void => {
   for (const line of lines.map((l) => LINES[l]!)) {
     // The middle of its longest straight between its terminals.
@@ -206,10 +249,10 @@ export const checkLinesNear = (lines: ReadonlyArray<number>): void => {
       x: at.x - 5 * Ops.sin(at.angle),
       y: at.y + 5 * Ops.cos(at.angle),
     }
-    const [found, ...more] = linesNear(off.x, off.y, 8)
-    assert.ok(found?.line === line.index && more.length === 0)
+    const found = linesNear(off.x, off.y, 8).find((near) => near.line === line.index)
+    assert.ok(found !== undefined, `line ${line.index} near its point at s ${s}`)
     assert.ok(Math.abs(found.s - s) < 0.05 && Math.abs(found.distance - 5) < 0.05)
-    assert.deepEqual(linesNear(off.x, off.y, 4), [])
+    assert.ok(linesNear(off.x, off.y, 4).every((near) => near.line !== line.index))
   }
 }
 
@@ -228,10 +271,38 @@ export const checkStops = (lines: ReadonlyArray<number>): void => {
   }
 }
 
-/** No two of `lines` share track (true of the map's lines today). */
-export const checkNoSharedTrack = (lines: ReadonlyArray<number>): void => {
+/**
+ * Two of `lines` share track exactly where they run the same pieces or past the same terminal (the Pontremolese's two tracks,
+ * north of P.P. Chiesaccia's switch, on the single track), and there one's s lands on the other's at the same point.
+ */
+export const checkSharedTrack = (lines: ReadonlyArray<number>): void => {
+  const length = (runs: ReadonlyArray<{ readonly from: number; readonly to: number }>) =>
+    runs.reduce((sum, run) => sum + run.to - run.from, 0)
   for (const i of lines)
-    for (const j of lines) assert.deepEqual(SHARED[i]![j], [], `lines ${i} and ${j}`)
+    for (const j of lines) {
+      const onto = LINES[i]!,
+        from = LINES[j]!,
+        parts = SHARED[i]![j]!
+      if (i === j) {
+        assert.deepEqual(parts, [])
+        continue
+      }
+      // Every stretch both run is shared, as far as both run it (a run-out as far as the shorter's).
+      const runs = new Map(onto.runs.map((run) => [run.key, run.to - run.from]))
+      const both = from.runs.flatMap((run) => {
+        const mine = runs.get(run.key)
+        return mine === undefined ? [] : [Math.min(mine, run.to - run.from)]
+      })
+      const sum = both.reduce((a, b) => a + b, 0)
+      assert.ok(Math.abs(length(parts) - sum) < 1e-6, `lines ${i} and ${j}`)
+      for (const part of parts)
+        for (const t of [0, 0.5, 1]) {
+          const s = part.from + (part.to - part.from) * t,
+            a = pointAt(from, s),
+            b = pointAt(onto, part.at + part.sign * s)
+          assert.ok(Ops.hypot(a.x - b.x, a.y - b.y) < 1e-6, `lines ${i} and ${j} at s ${s}`)
+        }
+    }
 }
 
 /** Each of `boxes` holds every line crossing it at grade, at the map's s, its carriageway's reach along it and its strike-in at line speed. */

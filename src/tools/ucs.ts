@@ -11,7 +11,10 @@
 // mixed ones refine its forest, and elsewhere a land-cover wood holds only ground no OSM area
 // claims; the olive groves and vineyards draw over OSM's woods, open covers, grassland, fields and
 // residential land (the 2023 orthophoto shows them where OSM draws its woods, grassland or fields),
-// and under its farmyards, parks, squares and the like.
+// and under its farmyards, parks, squares and the like. Liguria's beaches (Spiagge,
+// data/raw/lig/<part>/spiagge.json.gz, fetch-lig.ts, in the same shape) are read here too, in local
+// metres with their physical character's code (`readSpiagge`), and the isobaths of its sea floor
+// (data/raw/lig/<part>/isobaths.json.gz, fetch-lig.ts) with their depth (`readIsobaths`).
 import { readFileSync } from "node:fs"
 import { gunzipSync } from "node:zlib"
 
@@ -28,6 +31,7 @@ import {
   type P,
 } from "./geometry.ts"
 import type { Rect } from "./region.ts"
+import type { Isobath } from "./sea-floor.ts"
 
 /** UCS 2019 classes kept, and the area kind each becomes. */
 export const UCS_CODES = {
@@ -157,19 +161,90 @@ const readOne = (
   seen: ReadonlySet<string>,
   box: Rect,
 ): Array<Area> => {
-  const project = PROJECTIONS[file.crs]
-  if (project === undefined) throw new Error(`${path}: land cover in ${file.crs}`)
+  const project = projectionOf(path, file)
   const twice = new Set<string>()
   return file.polygons.flatMap(({ id, code, rings }) => {
     const key = `${id} ${rings[0]!.join(",")}`,
       kind = kindOfCode(code)
     if (seen.has(`${file.crs} ${id}`) || twice.has(key) || kind === undefined) return []
     twice.add(key)
-    const [outer, ...holes] = rings.map((r) => {
-      const ring: Array<P> = []
-      for (let i = 0; i + 1 < r.length; i += 2) ring.push(toLocal(...project(r[i]!, r[i + 1]!)))
-      return ring.slice(0, -1) // gml and GeoJSON repeat the first point
-    })
+    const [outer, ...holes] = localRings(project, rings)
     return ucsAreas(kind, outer!, holes, box)
+  })
+}
+
+/** The projection to lat/lon of a land cover or contour file's CRS; throws for a CRS it has none of. */
+const projectionOf = (path: string, file: { readonly crs: string }) => {
+  const project = PROJECTIONS[file.crs]
+  if (project === undefined) throw new Error(`${path}: land cover in ${file.crs}`)
+  return project
+}
+
+/** A polygon's rings as a file holds them (flat in its CRS, the first point repeated) in local metres, each open. */
+const localRings = (
+  project: (e: number, n: number) => [number, number],
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+): Array<Array<P>> =>
+  rings.map((r) => {
+    const ring: Array<P> = []
+    for (let i = 0; i + 1 < r.length; i += 2) ring.push(toLocal(...project(r[i]!, r[i + 1]!)))
+    return ring.slice(0, -1) // gml and GeoJSON repeat the first point
+  })
+
+/** A polygon of Liguria's beaches (Spiagge) in local metres: its id, its physical character's code and its rings, outer first, each open. */
+export interface Beach {
+  readonly id: number
+  /** `cod_caratt_fis`: 102 sand, 103 pebbles, 104 rocky shore, 106 fill, 301 and 302 a river's course. */
+  readonly code: string
+  readonly rings: ReadonlyArray<ReadonlyArray<P>>
+}
+
+/**
+ * The beaches of the Spiagge files at `paths` (`fetch-lig`'s spiagge.json.gz, in the land use's
+ * shape) in local metres, unclipped, in the files' order: a polygon two parts' files hold is read
+ * from the first, while the pieces of one multipolygon share its id.
+ */
+export const readSpiagge = (paths: ReadonlyArray<string>): Array<Beach> => {
+  const seen = new Set<number>()
+  return paths.flatMap((path) => {
+    const file = readUcsFile(path),
+      project = projectionOf(path, file)
+    const beaches = file.polygons.flatMap(({ id, code, rings }) =>
+      seen.has(id) ? [] : [{ id, code, rings: localRings(project, rings) }],
+    )
+    for (const { id } of file.polygons) seen.add(id)
+    return beaches
+  })
+}
+
+/** A contour file as `fetch-lig` writes it (isobaths.json.gz): its CRS and its lines, each an id, a depth (m) and its points flat. */
+interface ContourFile {
+  readonly crs: string
+  readonly lines: ReadonlyArray<{
+    readonly id: number
+    readonly depth: number
+    readonly line: ReadonlyArray<number>
+  }>
+}
+
+/**
+ * The isobaths of the contour files at `paths` (`fetch-lig`'s isobaths.json.gz) in local metres,
+ * in the files' order: a line two parts' files hold is read from the first, while the pieces of one
+ * multi-line share its id.
+ */
+export const readIsobaths = (paths: ReadonlyArray<string>): Array<Isobath> => {
+  const seen = new Set<number>()
+  return paths.flatMap((path) => {
+    const file = JSON.parse(gunzipSync(readFileSync(path)).toString()) as ContourFile,
+      project = projectionOf(path, file)
+    const lines = file.lines.flatMap(({ id, depth, line }) => {
+      if (seen.has(id)) return []
+      const pts: Array<P> = []
+      for (let i = 0; i + 1 < line.length; i += 2)
+        pts.push(toLocal(...project(line[i]!, line[i + 1]!)))
+      return [{ id, depth, pts }]
+    })
+    for (const { id } of file.lines) seen.add(id)
+    return lines
   })
 }

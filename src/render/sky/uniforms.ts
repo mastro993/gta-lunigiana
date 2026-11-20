@@ -17,6 +17,9 @@ import type { SkyFrame } from "./frame.ts"
  */
 export const TIME_WRAP = 600
 
+/** A number as a GLSL float literal, for the constants the shaders write into their text. */
+export const glslFloat = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n))
+
 /** The angular frequency (rad/s) nearest `omega` that turns a whole number of times in TIME_WRAP: `sin(uTime · it)` does not jump when `uTime` wraps. */
 export const phaseLocked = (omega: number): number =>
   (2 * Math.PI * Math.max(1, Math.round((omega * TIME_WRAP) / (2 * Math.PI)))) / TIME_WRAP

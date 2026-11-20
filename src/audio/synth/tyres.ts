@@ -3,8 +3,8 @@
  * as in CNOSSOS-EU; on stone setts an amplitude rumble at v / 0.14 m (one sett per 14 cm); a tonal
  * squeal from two very narrow bandpasses (980 and 1460 Hz) on asphalt and stone when the tyres skid
  * (the sim's `Skid`: sliding sideways, spinning or locked); a gravel crunch from noise grains on loose
- * ground that sprays instead of squealing. Heavy tyres (the truck) are darker and 6 dB louder; a
- * full slide at the Giulia's top speed peaks near 0.5.
+ * ground that sprays instead of squealing, in sand a low hiss of grains too dense to tell apart. Heavy
+ * tyres (the truck) are darker and 6 dB louder; a full slide at the Giulia's top speed peaks near 0.5.
  *
  * @module audio/synth/tyres
  */
@@ -21,19 +21,38 @@ interface Ground {
   readonly tone: number
   /** Sett rumble depth (share of the rolling level). */
   readonly setts: number
-  /** Grain crunch level. */
+  /** Grain crunch level, the centre of its band and the lowpass over it (Hz), and how densely its grains fall (× the kit's). */
   readonly crunch: number
+  readonly grainHz: number
+  readonly grainTop: number
+  readonly density: number
   /** Squeal level when sliding (only on hard, smooth-enough ground). */
   readonly squeal: number
 }
 
+/** The crunch of stones: the kit's grains as they are, in a band at 1800 Hz, nothing over it (a lowpass at Nyquist passes all). */
+const STONES = { grainHz: 1800, grainTop: 24000, density: 1 } as const
+
 const GROUND = {
-  asphalt: { roll: 1, tone: 1, setts: 0, crunch: 0, squeal: 1 },
-  stone: { roll: 1.2, tone: 1, setts: 0.8, crunch: 0.05, squeal: 0.8 },
-  gravel: { roll: 0.8, tone: 0.8, setts: 0, crunch: 1, squeal: 0 },
-  dirt: { roll: 0.7, tone: 0.6, setts: 0, crunch: 0.5, squeal: 0 },
-  grass: { roll: 0.4, tone: 0.4, setts: 0, crunch: 0.15, squeal: 0 },
-  leaves: { roll: 0.45, tone: 0.5, setts: 0, crunch: 0.35, squeal: 0 },
+  asphalt: { roll: 1, tone: 1, setts: 0, crunch: 0, squeal: 1, ...STONES },
+  stone: { roll: 1.2, tone: 1, setts: 0.8, crunch: 0.05, squeal: 0.8, ...STONES },
+  gravel: { roll: 0.8, tone: 0.8, setts: 0, crunch: 1, squeal: 0, ...STONES },
+  dirt: { roll: 0.7, tone: 0.6, setts: 0, crunch: 0.5, squeal: 0, ...STONES },
+  grass: { roll: 0.4, tone: 0.4, setts: 0, crunch: 0.15, squeal: 0, ...STONES },
+  leaves: { roll: 0.45, tone: 0.5, setts: 0, crunch: 0.35, squeal: 0, ...STONES },
+  // Loose, porous sand gives way under the tread and soaks up its noise: a soft, dark roll and no squeal. What a sliding or
+  // spinning tyre throws up is a spray of fine grains, three times as dense as the kit's and so too many to tell apart, in
+  // a band an octave under gravel's with its top cut: a low hiss, not a crunch. TUNED by rendering, no recording measured.
+  sand: {
+    roll: 0.5,
+    tone: 0.35,
+    setts: 0,
+    crunch: 0.7,
+    squeal: 0,
+    grainHz: 900,
+    grainTop: 1600,
+    density: 3,
+  },
 } as const satisfies Record<Surface, Ground>
 
 /** The squeal's two tones, Hz. */
@@ -61,7 +80,9 @@ interface TyreTargets {
   /** Squeal pitch factor on the two tones. */
   readonly pitch: number
   readonly crunch: number
-  /** Grain playback rate: grain density follows speed. */
+  /** The crunch's band centre and lowpass, Hz, and its grain playback rate: grain density follows speed. */
+  readonly grainHz: number
+  readonly grainTop: number
   readonly grains: number
 }
 
@@ -85,7 +106,9 @@ export const tyreTargets = (sound: TyreSound): TyreTargets => {
     squeal: SQUEAL_GAIN * size * ground.squeal * slide,
     pitch: (1 + 0.15 * (slide - 0.2)) * (sound.heavy ? 0.8 : 1),
     crunch: CRUNCH * size * ground.crunch * (0.15 * Math.min(1, kmh / 40) + 0.8 * slide),
-    grains: 0.5 + Math.min(1.5, kmh / 50) + 0.5 * slide,
+    grainHz: ground.grainHz,
+    grainTop: ground.grainTop,
+    grains: ground.density * (0.5 + Math.min(1.5, kmh / 50) + 0.5 * slide),
   }
 }
 
@@ -111,9 +134,11 @@ export const tyres: VoiceFactory<TyreSound> = (io) => {
   })
   squeal.connect(output)
   const grainBand = new BiquadFilterNode(ctx, { type: "bandpass", frequency: 1800, Q: 0.7 }),
+    nyquist = ctx.sampleRate / 2,
+    grainLp = new BiquadFilterNode(ctx, { type: "lowpass", frequency: nyquist }),
     grains = shuffled(ctx, kit.crackle, grainBand, 1, io.cents),
     crunch = new GainNode(ctx, { gain: 0 })
-  grainBand.connect(crunch).connect(output)
+  grainBand.connect(grainLp).connect(crunch).connect(output)
   for (const source of [pink, white]) io.cents.connect(source.detune)
   setts.start()
 
@@ -130,6 +155,8 @@ export const tyres: VoiceFactory<TyreSound> = (io) => {
       glide(squeal.gain, t.squeal, now, false, 0.03)
       bands.forEach((band, i) => glide(band.frequency, SQUEAL[i]! * t.pitch, now, jump, 0.1))
       glide(crunch.gain, t.crunch, now, false)
+      glide(grainBand.frequency, t.grainHz, now, jump)
+      glide(grainLp.frequency, Math.min(t.grainTop, nyquist), now, jump)
       glide(grains.rate, t.grains, now, jump)
       grains.update(now)
     },

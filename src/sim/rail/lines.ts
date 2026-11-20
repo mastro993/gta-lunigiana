@@ -2,7 +2,9 @@
  * The lines as trains run them: each of `MAP.railway.lines` as one polyline in arc length `s`, its
  * pieces of `MAP.rail` joined end to end and run on past both terminals along the map's track beyond
  * them (`runOuts`), straight on past where that ends: over the drawn run (`DRAWN_RUN`), past which
- * AI trains are removed, to the end of the run-out, where they enter out of view (`runOut`). A
+ * AI trains are removed, to the end of the run-out, where they enter out of view (`runOut`). A line
+ * to a terminus inside the map (`terminus`) runs on past its first terminal only: its track ends at
+ * the terminus, where its trains turn round. A
  * line's s counts from its first terminal (0) to its last (`length`), as the map's stations,
  * crossings and speed limits do; the run-outs are s < 0 and s > length. Lines that run on the same
  * pieces (or past the same terminal) share that track: `SHARED` maps one line's s onto another's
@@ -61,9 +63,11 @@ export interface Line {
   readonly index: number
   /** The s of its last terminal, m: the track between its terminals. */
   readonly length: number
-  /** The run-outs' far ends, m: −`runOut` at the start's line speed and length + `runOut` at the end's. */
+  /** The run-outs' far ends, m: −`runOut` at the start's line speed and length + `runOut` at the end's, or length at a terminus. */
   readonly start: number
   readonly end: number
+  /** Whether its last terminal is a terminus inside the map, where its trains turn round, with no run-out past it. */
+  readonly terminus: boolean
   /** Per vertex: s, x, y and the rail head's z (the bed's profile plus `RAIL_LIFT`), m. */
   readonly s: Float64Array
   readonly x: Float64Array
@@ -127,10 +131,10 @@ const speedSpans = (
 
 /**
  * A line from its pieces in running order (consecutive pieces share their end vertex), run on past
- * both ends by the `runOut` at the line speed there: along its stored run-out `outs` past each (the
- * map's track beyond its first terminal and beyond its last, walked away from each), straight on past
- * where that ends short (or from the terminal, with none) at its last height, along the heading over
- * its last `CHORD` m.
+ * both ends by the `runOut` at the line speed there, but past its last end when that is a `terminus`:
+ * along its stored run-out `outs` past each (the map's track beyond its first terminal and beyond its
+ * last, walked away from each), straight on past where that ends short (or from the terminal, with
+ * none) at its last height, along the heading over its last `CHORD` m.
  */
 export const makeLine = (
   index: number,
@@ -138,6 +142,7 @@ export const makeLine = (
   maxspeed: RailLine["maxspeed"] = [],
   stations: ReadonlyArray<number> = [],
   outs: readonly [ReadonlyArray<TrackPiece>, ReadonlyArray<TrackPiece>] = [[], []],
+  terminus = false,
 ): Line => {
   const xs: Array<number> = [],
     ys: Array<number> = [],
@@ -167,13 +172,15 @@ export const makeLine = (
   const length = inner.at(-1)!
   const speeds = speedSpans(maxspeed, 0, length)
   const before = runOut(speeds[0]!.v),
-    after = runOut(speeds.at(-1)!.v),
+    after = terminus ? 0 : runOut(speeds.at(-1)!.v),
     start = -before,
     end = length + after
   speeds[0] = { ...speeds[0]!, from: start }
   speeds[speeds.length - 1] = { ...speeds.at(-1)!, to: end }
   const head = runOn(xs, ys, zs[0]!, outs[0], before, CHORD),
-    tail = runOn(xs.toReversed(), ys.toReversed(), zs.at(-1)!, outs[1], after, CHORD)
+    tail = terminus
+      ? { x: [], y: [], z: [], d: [], level: [] }
+      : runOn(xs.toReversed(), ys.toReversed(), zs.at(-1)!, outs[1], after, CHORD)
   const m = head.x.length,
     n = m + xs.length + tail.x.length
   const s = new Float64Array(n),
@@ -237,14 +244,33 @@ export const makeLine = (
                   },
                 ],
           ),
-          {
-            key: -1 - (2 * lastPiece.rail + (lastPiece.rev === true ? 0 : 1)),
-            from: length,
-            to: end,
-            forward: true,
-          },
+          ...(terminus
+            ? []
+            : [
+                {
+                  key: -1 - (2 * lastPiece.rail + (lastPiece.rev === true ? 0 : 1)),
+                  from: length,
+                  to: end,
+                  forward: true,
+                },
+              ]),
         ]
-  return { index, length, start, end, s, x, y, z, level, speeds, stations, tunnels, runs }
+  return {
+    index,
+    length,
+    start,
+    end,
+    terminus,
+    s,
+    x,
+    y,
+    z,
+    level,
+    speeds,
+    stations,
+    tunnels,
+    runs,
+  }
 }
 
 /** A stretch of a line's run-out as trains ride it: the rail head `RAIL_LIFT` over its bed. */
@@ -273,6 +299,7 @@ export const LINES: ReadonlyArray<Line> = MAP.railway.lines.map((line, index) =>
     line.maxspeed,
     MAP.railway.stations.flatMap((station, i) => (station.line === index ? [i] : [])),
     [line.runOuts[0].map(onRail), line.runOuts[1].map(onRail)],
+    line.terminus === true,
   ),
 )
 

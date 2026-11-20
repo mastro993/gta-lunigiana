@@ -1,11 +1,14 @@
 /**
- * The dispatcher, the same on every line: it brings each line's trains in and takes them off. A new
- * game stands each line's first train at its station nearest the player's start (`FillTrains`); an AI
- * train whose body has run past the drawn run is removed, beyond view, and after a layover of `LAYOVER`
- * s (drawn from `RailRng`) the next enters at the end of the run-out there, the other way (`Dispatch`);
- * a stolen train the player has left goes once all of it is out of view (`VIEW_REACH` m from them, as
- * people and cars quietly go), so the line clears and its next train is due after a layover; a `SetTrains` call makes one due at once
- * (`ApplyTrains`). The trains themselves are drafted in ./service.ts, which drives them.
+ * The dispatcher, the same on every line: it brings each line's trains in, turns them round at a
+ * terminus and takes them off. A new game stands each line's first train at its station nearest the
+ * player's start (`FillTrains`); an AI train whose body has run past the drawn run is removed, beyond
+ * view, and after a layover of `LAYOVER` s (drawn from `RailRng`) the next enters at the end of the
+ * run-out there, the other way (`Dispatch`); one dwelling at its line's terminus with no call left
+ * ahead has its driver change ends, to run back; a stolen train the player has left goes once all of
+ * it is out of view (`VIEW_REACH` m from them, as people and cars quietly go), so the line clears and
+ * its next train is due after a layover; a `SetTrains` call makes one due at once (`ApplyTrains`). No
+ * train enters or is placed where it could meet another line's head-on on track the two share
+ * (`headOn`). The trains themselves are drafted in ./service.ts, which drives them.
  *
  * @module rail/dispatch
  */
@@ -29,12 +32,25 @@ import {
   Time,
   Train,
   TrainMotion,
+  type TrainMotionValue,
   TrainRun,
+  type TrainRunValue,
 } from "../schema.ts"
 import { VIEW_REACH } from "../view.ts"
+import { boarded } from "./boarding.ts"
 import { bodiesOn, offCar, type SeenTrain, trainCars } from "./bodies.ts"
 import { brakingDistance } from "./driver.ts"
-import { DRAWN_RUN, type Line, LINES, nextStop, pointAt, speedAt, stopPoint } from "./lines.ts"
+import {
+  DRAWN_RUN,
+  type Line,
+  LINES,
+  nextStop,
+  pointAt,
+  SHARED,
+  sharedPart,
+  speedAt,
+  stopPoint,
+} from "./lines.ts"
 import { spanOf, trainLength, type TrainModel } from "./models.ts"
 import { between, DWELL_STEPS, KEEP_BEHIND, trainDraft } from "./service.ts"
 
@@ -42,6 +58,64 @@ import { between, DWELL_STEPS, KEEP_BEHIND, trainDraft } from "./service.ts"
 export const LAYOVER = [60, 180] as const
 /** The model every AI train is. */
 const MODEL: TrainModel = "atr220"
+
+/** A stretch of its line a train will still run, from s to s, and the way it runs it (+1 toward +s). */
+interface Pass {
+  readonly line: number
+  readonly lo: number
+  readonly hi: number
+  readonly dir: 1 | -1
+}
+
+/**
+ * What a train of `model` will still run of its line (`motion`: its nose's s and the way it faces, which an AI train runs): from
+ * its tail on to the line's end that way and, on a line to a terminus running toward it, the whole line back, as it turns round
+ * there.
+ */
+const passesOf = (
+  motion: Pick<TrainMotionValue, "line" | "s" | "facing">,
+  model: TrainModel,
+): Array<Pass> => {
+  const line = LINES[motion.line]!,
+    dir = motion.facing,
+    { lo, hi } = spanOf(motion.s, dir, trainLength(model))
+  const on: Pass = {
+    line: line.index,
+    lo: dir > 0 ? lo : line.start,
+    hi: dir > 0 ? line.end : hi,
+    dir,
+  }
+  return line.terminus && dir > 0
+    ? [on, { line: line.index, lo: line.start, hi: line.end, dir: -1 }]
+    : [on]
+}
+
+/**
+ * Whether trains that will still run `a` and `b` (`passesOf`) could meet head-on: on track two lines share (`SHARED`) the one
+ * runs the other way from the other. Lines of different lengths sharing track, a train still on its own track would run onto
+ * the shared one later and meet one entering there head-on, and both would stand face to face for good.
+ */
+const headOn = (a: ReadonlyArray<Pass>, b: ReadonlyArray<Pass>): boolean =>
+  a.some((p) =>
+    b.some(
+      (q) =>
+        p.line !== q.line &&
+        sharedPart(SHARED[p.line]![q.line]!, q.lo, q.hi).some(
+          (part) => part.hi >= p.lo && part.lo <= p.hi && part.sign * q.dir === -p.dir,
+        ),
+    ),
+  )
+
+/** Whether an AI train of `model` (`motion`, `run`) dwells at its line's terminus with no call left ahead: its driver changes ends. */
+const turnsRound = (motion: TrainMotionValue, run: TrainRunValue, model: TrainModel): boolean => {
+  const line = LINES[motion.line]
+  return (
+    line?.terminus === true &&
+    run.state === "dwell" &&
+    run.dir > 0 &&
+    nextStop(line, motion.s, 1, trainLength(model)) < 0
+  )
+}
 
 /** How much track ahead of its nose a train entering at `v` m/s needs free of any train, m: its driver's braking distance, to stop KEEP_BEHIND m short of whatever is there (530 m at 85 km/h). */
 export const entryClear = (v: number): number => brakingDistance(v) + KEEP_BEHIND
@@ -87,11 +161,13 @@ const entry = (line: Line, from: 0 | 1, length: number) => {
 
 /**
  * The dispatcher: an AI train whose whole body has run past its line's drawn run is removed, and that line's next train is due
- * after a layover (drawn from `RailRng`) from that end; a line's due train enters at the run-out's end at line speed, beyond
- * view, once no AI train runs on its line, no train is on its run-out or within `entryClear` ahead of its nose, and no AI train
- * of another line runs the other way on track the two share (`SHARED`), which it would meet head-on. A stolen
- * train the player is not in is removed once all of it is out of view (`VIEW_REACH` m from them); its line, with no AI train on
- * it and none due, has its next due after a layover, from the end nearer where it stood.
+ * after a layover (drawn from `RailRng`) from that end; one dwelling at its line's terminus with no call left ahead is turned
+ * round as its dwell starts (its driver changes ends: `boarded` at its far cab), to run back once it ends; a line's due train
+ * enters at the run-out's end at line speed, beyond view, once no AI train runs on its line, no train (another line's entering
+ * this step included) is on its run-out or within `entryClear` ahead of its nose, and no AI train of another line, entering this step or running, would run track the
+ * two share (`SHARED`) the other way from it, on it or still ahead (`headOn`): they could meet head-on. A stolen train the
+ * player is not in is removed once all of it is out of view (`VIEW_REACH` m from them); its line, with no AI train on it and
+ * none due, has its next due after a layover, from the end nearer where it stood (its first, on a line to a terminus).
  */
 export const Dispatch = Game.System(
   "Lunigiana/Dispatch",
@@ -99,7 +175,7 @@ export const Dispatch = Game.System(
     queries: {
       trains: Game.Query({
         selection: {
-          motion: Game.Query.read(TrainMotion),
+          motion: Game.Query.write(TrainMotion),
           train: Game.Query.read(Train),
           run: Game.Query.optional(TrainRun),
           stolen: Game.Query.optional(Stolen),
@@ -117,6 +193,7 @@ export const Dispatch = Game.System(
     },
     commands: Game.System.commands(
       Game.System.spawns(Train, TrainMotion, CarInput, TrainRun),
+      Game.System.inserts(TrainRun),
       Game.System.despawns(Train),
     ),
   },
@@ -126,14 +203,18 @@ export const Dispatch = Game.System(
     const before = resources.railway.get()
     const service: Array<RailwayValue[number]> = [...before]
     const running = new Set<number>()
-    const trains = queries.trains.each().map(({ entity, data }) => ({
-      entity,
-      id: entity.id as number,
-      motion: data.motion.get(),
-      model: data.train.get().model,
-      run: data.run.value(),
-      stolen: data.stolen.present,
-    }))
+    const trains = queries.trains.each().map(({ entity, data }) => {
+      const model = data.train.get().model
+      let motion = data.motion.get(),
+        run = data.run.value()
+      if (run !== undefined && turnsRound(motion, run, model)) {
+        motion = boarded(motion, model, 1)
+        run = { ...run, dir: motion.facing }
+        data.motion.set(motion)
+        commands.insert(entity, [TrainRun, run])
+      }
+      return { entity, id: entity.id, motion, model, run, stolen: data.stolen.present }
+    })
     for (const { entity, motion, model, run } of trains) {
       const line = LINES[motion.line]
       if (run === undefined || line === undefined) continue
@@ -165,10 +246,14 @@ export const Dispatch = Game.System(
       if (running.has(i) || service[i]?.due !== null) continue
       service[i] = {
         due: step + between(random, LAYOVER_STEPS),
-        from: middle < line.length / 2 ? 0 : 1,
+        from: line.terminus || middle < line.length / 2 ? 0 : 1,
       }
     }
-    const ai = trains.filter((train) => train.run !== undefined)
+    // What each AI train will still run, and each entering this step; and every train's body, with theirs.
+    const ahead = trains.flatMap((train) =>
+        train.run === undefined ? [] : [passesOf(train.motion, train.model)],
+      ),
+      seen: Array<SeenTrain> = [...trains]
     for (const [i, line] of LINES.entries()) {
       const due = service[i]?.due ?? null
       if (due === null || due > step || running.has(i)) continue
@@ -179,15 +264,22 @@ export const Dispatch = Game.System(
         clear = entryClear(v)
       const lo = dir > 0 ? line.start : s - clear,
         hi = dir > 0 ? s + clear : line.end
-      if (bodiesOn(trains, i).some((body) => body.hi >= lo && body.lo <= hi)) continue
-      // Nor any AI train of a line sharing its track running on it the other way: they would meet head-on.
-      if (bodiesOn(ai, i).some((body) => body.facing === -dir)) continue
+      if (bodiesOn(seen, i).some((body) => body.hi >= lo && body.lo <= hi)) continue
+      // Nor any AI train of a line sharing its track that would run it the other way, on it or still ahead (a train still on
+      // its own track runs onto the shared one later): they could meet head-on and stand face to face for good.
+      const passes = passesOf({ line: i, s, facing: dir }, MODEL)
+      if (ahead.some((other) => headOn(passes, other))) continue
+      ahead.push(passes)
+      // Another line's entry this step sees its body on the track they share.
+      const motion = { line: i, s, facing: dir, v: dir * v }
+      seen.push({ id: -1 - i, motion: { ...motion, prev: s, power: 0, brake: 0 }, model: MODEL })
       commands.spawn(
-        trainDraft(
-          MODEL,
-          { line: i, s, facing: dir, v: dir * v },
-          { dir, stop: nextStop(line, s, dir, length), state: "run", until: 0 },
-        ),
+        trainDraft(MODEL, motion, {
+          dir,
+          stop: nextStop(line, s, dir, length),
+          state: "run",
+          until: 0,
+        }),
       )
       service[i] = { ...service[i]!, due: null }
     }
@@ -199,8 +291,8 @@ export const Dispatch = Game.System(
  * Setup: each line with service and stations gets its first train, dwelling at its station nearest the player's start whose
  * platforms no train placed already stands on (its line's train comes in from a run-out instead, when every one is taken), its
  * dwell drawn from `RailRng`; it faces the way that takes it past the line's point nearest the start (either, drawn, when both
- * do), so it passes the player, unless a train placed ahead that way on track the lines share faces it: then the other way, or,
- * facing one either way, the next station.
+ * do), so it passes the player, unless it could meet a train placed already head-on that way on track the lines share
+ * (`headOn`): then the other way, or, either way, the next station.
  */
 export const FillTrains = Game.System(
   "Lunigiana/FillTrains",
@@ -231,13 +323,14 @@ export const FillTrains = Game.System(
           ),
           first = ways.length === 1 ? ways[0]! : draw
         const bodies = bodiesOn(placed, i)
-        // Not on a train placed already, and never facing one ahead that faces it: they would meet head-on.
+        // Not on a train placed already, and never where it could meet one head-on (`headOn`).
         const dir = ([first, first > 0 ? -1 : 1] as const).find((dir) => {
-          const { lo, hi } = spanOf(stopPoint(station, dir, length), dir, length)
-          return !bodies.some(
-            (b) =>
-              (b.hi >= lo - KEEP_BEHIND && b.lo <= hi + KEEP_BEHIND) ||
-              (b.facing === -dir && (dir > 0 ? b.lo > hi : b.hi < lo)),
+          const s = stopPoint(station, dir, length),
+            { lo, hi } = spanOf(s, dir, length)
+          const passes = passesOf({ line: i, s, facing: dir }, MODEL)
+          return (
+            !bodies.some((b) => b.hi >= lo - KEEP_BEHIND && b.lo <= hi + KEEP_BEHIND) &&
+            !placed.some((b) => headOn(passes, passesOf(b.motion, b.model)))
           )
         })
         if (dir === undefined) continue

@@ -123,22 +123,23 @@ test("what broke stays broken: a side already hit at 12 m/s loses no mirror and 
   assert.ok(energy(side(0)) > 0 && energy(side(12)) === 0)
 })
 
-test("a tempered pane's shower is centred on the 8 kHz octave, and grass swallows it 14 dB and more", () => {
+test("a tempered pane's shower is centred on the 8 kHz octave, and grass and sand swallow it 14 dB and more", () => {
   const shower = (surface: Surface) =>
     layer(RATE, 2.5, seeded(3), (mix) =>
       tempered(mix, hitOf(crash({ speed: 12, zone: "side", surface }), seeded(4)), 0.02, 0.95),
     )
-  const asphalt = shower("asphalt"),
-    grass = shower("grass")
+  const asphalt = shower("asphalt")
   within(centroidOf(asphalt, RATE, 0.15, 1.4), 6000, 10000, "shower centroid, Hz")
-  assert.ok(
-    10 *
-      Math.log10(
-        bandEnergy(grass, RATE, 0.1, 2.4, 20, 20000) /
-          bandEnergy(asphalt, RATE, 0.1, 2.4, 20, 20000),
-      ) <=
-      -14,
-  )
+  for (const soft of ["grass", "sand"] as const)
+    assert.ok(
+      10 *
+        Math.log10(
+          bandEnergy(shower(soft), RATE, 0.1, 2.4, 20, 20000) /
+            bandEnergy(asphalt, RATE, 0.1, 2.4, 20, 20000),
+        ) <=
+        -14,
+      soft,
+    )
   // A single piece of debris too.
   const piece = (surface: Surface) =>
     layer(RATE, 1, seeded(5), (mix) =>
@@ -152,12 +153,14 @@ test("a tempered pane's shower is centred on the 8 kHz octave, and grass swallow
         0.5,
       ),
     )
-  assert.ok(
-    10 *
-      Math.log10(
-        bandEnergy(piece("grass"), RATE, 0, 1, 20, 20000) /
-          bandEnergy(piece("asphalt"), RATE, 0, 1, 20, 20000),
-      ) <=
-      -14,
-  )
+  for (const soft of ["grass", "sand"] as const)
+    assert.ok(
+      10 *
+        Math.log10(
+          bandEnergy(piece(soft), RATE, 0, 1, 20, 20000) /
+            bandEnergy(piece("asphalt"), RATE, 0, 1, 20, 20000),
+        ) <=
+        -14,
+      soft,
+    )
 })

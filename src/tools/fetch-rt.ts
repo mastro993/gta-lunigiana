@@ -40,8 +40,10 @@
 //   2010 flew only in part), then the fallback chain for the cells no tile has (`fill-chain.ts`,
 //   `terrain-sources.ts`): the 2021 surface model on open ground, the province 10 m DTMs, Liguria's
 //   DTM ed. 2023 from the crops `fetch-lig` wrote for the parts (data/raw/lig/<part>/dtm: run it
-//   first), Emilia-Romagna's DTM 5x5 beyond Tuscany, each bent onto the cells before it, the held
-//   ones among them. So a part adds its tiles, and fills in the cells its grown box adds to tiles
+//   first), the sea at 0 m seaward of OSM's coastline in the part's own extract and on the shore
+//   the sources before leave empty by it (`sea-fill.ts`; data/raw/osm/<part>.osm.gz: run
+//   `fetch-osm` first, and a part whose extract holds no coastline has no sea), Emilia-Romagna's DTM 5x5 beyond Tuscany, each bent onto the
+//   cells before it, the held ones among them. So a part adds its tiles, and fills in the cells its grown box adds to tiles
 //   another part's fetch wrote, without moving one (run the fetch of every part whose tiles the box
 //   grew into; the build names any it lacks). To fetch a part's terrain again, delete its tiles'
 //   files first. A test region with terrain of its own writes one mosaic instead, on its own cells:
@@ -66,6 +68,7 @@ import {
   wfsUrl,
   withoutSurveyors,
 } from "./cartoteca.ts"
+import { coastLines } from "./coast.ts"
 import { cropOf } from "./dtm-mosaic.ts"
 import { type DtmTile, partTiles } from "./dtm-tiles.ts"
 import { fillCrop, tileCrop, tileFiles, writeMosaic, writeTiles } from "./fetch-dtm.ts"
@@ -74,8 +77,9 @@ import { gaussBoagaBox } from "./geometry.ts"
 import { dtmTiles } from "./liguria.ts"
 import { manifestPath, readManifest } from "./manifest.ts"
 import { getText } from "./net.ts"
+import { readOsm } from "./osm.ts"
 import { fetchedToday, writeRaw } from "./raw-lock.ts"
-import { REGION, dtmDir, ligDir, surveyDir, ucsFile } from "./region.ts"
+import { REGION, dtmDir, ligDir, osmFile, surveyDir, ucsFile } from "./region.ts"
 import { fetch7z, fetchZip, findFile, mustFind } from "./rt-cache.ts"
 import { subsetShp } from "./shp.ts"
 import { UCS_CODES, readUcsFile } from "./ucs.ts"
@@ -306,6 +310,9 @@ const ligCrops = parts.flatMap((p) =>
     .map(({ i, j }) => join(ROOT, ligDir(p), "dtm", `${i}_${j}.tif`))
     .filter((f) => existsSync(f)),
 )
+/** OSM's coastline over the part, from its own extract: the chain's sea, none without one. */
+const extract = osmFile(PART),
+  coast = existsSync(join(ROOT, extract)) ? coastLines(readOsm(join(ROOT, extract))) : []
 const used = await fillCrop(crop, mosaic, {
   lidar: unique(manifests.map((m) => m.lidar)),
   lidarFrom: parts.map((p) => `data/parts/${p.key}.json`).join(", "),
@@ -317,6 +324,13 @@ const used = await fillCrop(crop, mosaic, {
       : {
           files: ligCrops,
           from: `the Liguria DTM ed. 2023's crops ${ligCrops.map((f) => relative(ROOT, f)).join(", ")} (pnpm fetch-lig <part>)`,
+        },
+  sea:
+    coast.length === 0
+      ? undefined
+      : {
+          lines: coast,
+          from: `the sea at 0 m, seaward of OpenStreetMap's coastline in ${extract} (pnpm fetch-osm <part>)`,
         },
   features,
   ucsFrom: fetchedToday(ucsUrl),

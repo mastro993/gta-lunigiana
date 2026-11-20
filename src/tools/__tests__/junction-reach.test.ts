@@ -1,9 +1,9 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import type { Linear } from "../chains.ts"
 import type { V } from "../geometry.ts"
 import { junctionReach } from "../junction-reach.ts"
-import type { Linear } from "../profiles.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
 /** A residential road's steepest grade (1.5 x 15 %). */

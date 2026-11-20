@@ -7,11 +7,9 @@
  *
  * @module lanes
  */
-import { Ops } from "@typeonce/ritmo-math"
-
-import { carCircles, carRadius, clearOf, meets } from "./body.ts"
-import { segDist2 } from "./collide.ts"
-import { roadLevel } from "./map/ground.ts"
+import { carRadius, crossesAny, meets } from "./body.ts"
+import { segmentDistance } from "./collide.ts"
+import { atGrade, roadLevel } from "./map/ground.ts"
 import {
   graph,
   isMotorRoad,
@@ -119,38 +117,17 @@ const PASS_REACH = 3
 
 /**
  * Copies of the drive walls (`wallsNear` reuses its answer) around `edge` that reach within `pad` m
- * of the line through `ab`, its lane a -> b, and that a car on the edge meets: a wall with a level (a
- * bridge's parapet) only where the road's surface at the point of the edge nearest the wall is on its
- * level (`meets`), so a deck's parapets crowd no road under it, however the road climbs beside it.
- * One query per edge. The lane tests take a min or a max over walls, so given every wall that can
- * narrow or block a sample they answer as they would over a query per sample and side step, at a
- * fraction of the cost.
+ * of the line through `ab`, its lane a -> b, each with its level: a lane's samples keep those a body
+ * standing there meets (`metAt`), as `carClear` reads them at the pose, since a wall past the edge's
+ * end or a road climbing beside a deck is met at one sample and not at another. One query per edge:
+ * the lane tests take a min or a max over walls, so given every wall that can narrow or block a
+ * sample they answer as they would over a query per sample and side step, at a fraction of the cost.
  */
-const wallsBeside = (edge: number, ab: Lane, pad: number): ReadonlyArray<Segment> => {
-  const { a, b, road } = graph.edges[edge]!,
+const wallsBeside = (edge: number, ab: Lane, pad: number): ReadonlyArray<Wall> => {
+  const { a, b } = graph.edges[edge]!,
     p = graph.nodes[a]!,
     q = graph.nodes[b]!
   const across = (x: number, y: number) => (x - ab.x) * ab.rx + (y - ab.y) * ab.ry
-  const metOnEdge = (s: Wall) => {
-    if (s.level === undefined) return true
-    // The point of the edge nearest the wall, read along the wall every metre or less.
-    const n = Math.max(1, Math.ceil(Ops.hypot(s.bx - s.ax, s.by - s.ay)))
-    let best = Infinity,
-      at = p
-    for (let k = 0; k <= n; k++) {
-      const { d2, t } = segDist2(
-        s.ax + ((s.bx - s.ax) * k) / n,
-        s.ay + ((s.by - s.ay) * k) / n,
-        p.x,
-        p.y,
-        q.x,
-        q.y,
-      )
-      if (d2 < best) [best, at] = [d2, { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t }]
-    }
-    const z = roadLevel(road, at.x, at.y)
-    return z === undefined || meets(s, z)
-  }
   return wallsNear(
     "traffic",
     Math.min(p.x, q.x) - pad,
@@ -161,11 +138,33 @@ const wallsBeside = (edge: number, ab: Lane, pad: number): ReadonlyArray<Segment
     .filter(
       (s) =>
         Math.max(across(s.ax, s.ay), across(s.bx, s.by)) >= -pad &&
-        Math.min(across(s.ax, s.ay), across(s.bx, s.by)) <= pad &&
-        metOnEdge(s),
+        Math.min(across(s.ax, s.ay), across(s.bx, s.by)) <= pad,
     )
-    .map(({ ax, ay, bx, by }) => ({ ax, ay, bx, by }))
+    .map(({ ax, ay, bx, by, level }) => ({ ax, ay, bx, by, level }))
 }
+
+/** Of `walls`, those a body standing at (x, y) on `edge`'s road meets, at its level there as traffic stands (`carClear`'s). */
+const metAt = (
+  walls: ReadonlyArray<Wall>,
+  edge: number,
+  x: number,
+  y: number,
+): ReadonlyArray<Wall> => {
+  if (walls.every((s) => s.level === undefined)) return walls
+  const z = roadLevel(graph.edges[edge]!.road, x, y) ?? atGrade(x, y)
+  return walls.filter((s) => meets(s, z))
+}
+
+/** The least distance between segments `p` and `q`, m: 0 where they cross. */
+const apart = (p: Segment, q: Segment): number =>
+  crossesAny([q], { x: p.ax, y: p.ay }, { x: p.bx, y: p.by })
+    ? 0
+    : Math.min(
+        segmentDistance(p, q.ax, q.ay),
+        segmentDistance(p, q.bx, q.by),
+        segmentDistance(q, p.ax, p.ay),
+        segmentDistance(q, p.bx, p.by),
+      )
 
 /** Free width across `walls` at `along` metres down `lane` (up to 2 × PASS_REACH where a side is open). */
 const freeWidth = (walls: ReadonlyArray<Segment>, lane: Lane, along: number): number => {
@@ -250,17 +249,26 @@ const lanesFor = (model: VehicleModel): Float64Array => {
     // Every wall `freeWidth` can meet within PASS_REACH, and every one a body circle can touch (half the body length out) at any side offset, with 1 m to spare.
     const walls = wallsBeside(edge, ab, Math.max(PASS_REACH, nominal + length / 2) + 1)
     let singleFile = false
-    for (let i = 0; i <= samples && !singleFile; i++)
-      singleFile = freeWidth(walls, ab, at(ab, i)) < passing
+    for (let i = 0; i <= samples && !singleFile; i++) {
+      const c = lanePoint(ab, at(ab, i), 0)
+      singleFile = freeWidth(metAt(walls, edge, c.x, c.y), ab, at(ab, i)) < passing
+    }
     if (singleFile) continue
     for (const forward of [false, true]) {
       const lane = laneOf(edge, forward)
-      const circles = carCircles(model, Ops.atan2(lane.dy, lane.dx))
-      // `carClear` with no slack: every body circle at least r from every wall.
+      // The body's hull (the capsule its circles sweep along its axis, `offBody`) at least r from
+      // every wall a body meets at that sample's level: in plan, the hulls of consecutive samples,
+      // LANE_SAMPLE m apart at most, cover every pose between the first and the last sample (the
+      // middle 80%) under every model's axis (the Ape's 1.5 m), so `carClear`'s circles clear those
+      // walls between the samples too, not only at them. Each sample reads its own level, so a wall
+      // met only at a level between two samples, or in an edge's end tenths, goes unchecked.
+      const fx = lane.dx * (length / 2 - r),
+        fy = lane.dy * (length / 2 - r)
       const fits = (side: number) => {
         for (let i = 0; i <= samples; i++) {
-          const c = lanePoint(lane, at(lane, i), side)
-          if (!circles.every((o) => clearOf(walls, c.x + o.x, c.y + o.y, r))) return false
+          const c = lanePoint(lane, at(lane, i), side),
+            axis = { ax: c.x - fx, ay: c.y - fy, bx: c.x + fx, by: c.y + fy }
+          if (!metAt(walls, edge, c.x, c.y).every((s) => apart(axis, s) >= r)) return false
         }
         return true
       }

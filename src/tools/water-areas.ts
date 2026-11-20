@@ -8,6 +8,7 @@ import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
 import { fillPolygon, pointInRing, r1, ringBox, segDist2 } from "./geometry.ts"
 import { anchorNode, gridLattice, type Grid, type Profile } from "./terrain.ts"
+import { carveAll } from "./water.ts"
 
 /** A lake's bed deepens by this much a metre from its shore (m/m) … */
 const SHELF = 0.1
@@ -40,6 +41,8 @@ export interface CarvedArea {
   readonly waters?: ReadonlyArray<number>
   /** The gravel bars inside a river polygon: the `pebble` areas whose box meets its own. */
   readonly bars: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>
+  /** The sea's floor at a node, m a.s.l. (`seaFloor`): the sea is carved to it node by node. */
+  readonly floor?: (x: number, y: number) => number
 }
 
 /** Whether (x, y) is inside `rings`, even-odd over them all (a hole's inside is outside). */
@@ -127,6 +130,28 @@ const eachNode = (
     }
 }
 
+/**
+ * Calls `set` with the index in `g.z` of each node of `g`'s window inside `rings` (even-odd), filled
+ * from the anchor as the cells are, on a lattice of cells centred on the nodes: a node comes out the
+ * same in every window that holds it.
+ */
+const nodesIn = (
+  g: Grid,
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+  set: (k: number) => void,
+): void => {
+  const span = g.span ?? { i0: 0, j0: 0, cols: g.cols, rows: g.rows }
+  const [ai, aj] = anchorNode(g)
+  fillPolygon(
+    rings,
+    g.ax - g.cell / 2,
+    g.ay - g.cell / 2,
+    g.cell,
+    { c0: span.i0 - ai, r0: span.j0 - aj, cols: span.cols, rows: span.rows },
+    set,
+  )
+}
+
 /** Calls `set` with each node of `g` a cell of `rings` touches, and whether it is on their edge (`eachNode`). */
 const nodesOf = (
   g: Grid,
@@ -149,8 +174,18 @@ const median = (values: Array<number>) => {
  * over a lake's surface, and reads it flat), or of the DTM at its vertices when no node falls inside,
  * but no higher than the lowest node of its edge, where it would spill: an outline the 4 m grid reads
  * up a slope, a cascade or a quarry face would otherwise hold its water over the ground beside it.
+ * A lake no node of whose cells lies inside its edge holds no water of its own, and the streams
+ * through it carry theirs: its spill is read on the ground as their channels (`water`, on the
+ * profiles `wp`) cut it, so it never stands over them. Two pools on the Torrente Arcinasso by the
+ * Fosso di Paretola's mouth (OSM 1473224065 and 1473224067) kept the LiDAR's 258.0 and 265.2 m once
+ * Aulla's part carved the stream through them, over every node of theirs.
  */
-const levelOf = (rings: ReadonlyArray<ReadonlyArray<number>>, dem: Dem) => {
+const levelOf = (
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+  dem: Dem,
+  water: ReadonlyArray<WaterF>,
+  wp: ReadonlyArray<Profile>,
+) => {
   const lattice = gridLattice(),
     [x0, y0, x1, y1] = ringBox(rings[0]!)
   // The nodes round the rings' box, and a node more: every node a cell of the rings touches.
@@ -159,14 +194,18 @@ const levelOf = (rings: ReadonlyArray<ReadonlyArray<number>>, dem: Dem) => {
     j0 = Math.max(0, Math.floor((y0 - lattice.y0) / lattice.cell) - 1),
     j1 = Math.min(lattice.rows - 1, Math.ceil((y1 - lattice.y0) / lattice.cell) + 1)
   const win = dem.grid({ i0, j0, cols: i1 - i0 + 1, rows: j1 - j0 + 1 })
-  const inside: Array<number> = []
-  let spill = Number.MAX_VALUE
+  const inside: Array<number> = [],
+    edges: Array<number> = []
+  let held = false
   nodesOf(win, rings, (k, edge) => {
     const x = lattice.x0 + (i0 + (k % (i1 - i0 + 1))) * lattice.cell,
       y = lattice.y0 + (j0 + Math.floor(k / (i1 - i0 + 1))) * lattice.cell
     if (inRings(rings, x, y)) inside.push(win.z[k]!)
-    if (edge) spill = Math.min(spill, win.z[k]!)
+    if (edge) edges.push(k)
+    else held = true
   })
+  if (!held) carveAll(win, water, wp)
+  const spill = Math.min(...edges.map((k) => win.z[k]!))
   if (inside.length === 0) {
     const outer = rings[0]!
     for (let k = 0; k < outer.length; k += 2) inside.push(dem.at(outer[k]!, outer[k + 1]!))
@@ -177,13 +216,15 @@ const levelOf = (rings: ReadonlyArray<ReadonlyArray<number>>, dem: Dem) => {
 /**
  * The water areas of `areas` with what the game reads of them (a lake's `level`, a river
  * polygon's `waters`: the pieces of `water` with a sample of `wp` inside it, or its `level` when it
- * has none, the map having cut its river away), in their order, and each as the tile pass carves it.
+ * has none, the map having cut its river away), in their order, and each as the tile pass carves it,
+ * the sea on `seaFloor` (throws on a sea with none).
  */
 export const waterAreas = (
   areas: ReadonlyArray<Area>,
   water: ReadonlyArray<WaterF>,
   wp: ReadonlyArray<Profile>,
   dem: Dem,
+  seaFloor?: (x: number, y: number) => number,
 ): { readonly areas: Array<Area>; readonly carved: Array<CarvedArea> } => {
   const pebbles = areas
     .filter((a) => a.kind === "pebble")
@@ -205,8 +246,15 @@ export const waterAreas = (
       carved.push({ rings: a.rings, box, waters, bars })
       return { ...a, waters }
     }
-    const level = a.level ?? levelOf(a.rings, dem)
-    carved.push({ rings: a.rings, box, level, bars: [] })
+    const level = a.level ?? levelOf(a.rings, dem, water, wp)
+    if (a.kind === "sea" && seaFloor === undefined) throw new Error("a sea area with no floor")
+    carved.push({
+      rings: a.rings,
+      box,
+      level,
+      bars: [],
+      ...(a.kind === "sea" ? { floor: seaFloor } : {}),
+    })
     return { ...a, level }
   })
   return { areas: out, carved }
@@ -283,16 +331,18 @@ const nearestOn = (
 }
 
 /**
- * Carves the water areas into the window `g`: a lake's nodes to its level less SHELF a metre from
- * its shore (DEEPEST at most), and its edge raised to the level (by a rounding at most: the level is
- * no higher than its spill), so the shore holds the water drawn over its cells; a river polygon's
- * inner nodes to its waterways' floor at the nearest point (depth/2 under their surface, where the
- * river line itself is carved, and HALF_STEP more), its edge left, so its bank starts on its
- * outline, but raised to that floor (and HALF_STEP over it) where it lies lower in the pass without
- * `raiseBars`, and with `raiseBars` its bars raised to BAR over that surface (the pass under the
- * water kept below the decks: a bar never stands over a capped surface). Ground BANK over the
- * water's top is left. Run this before the lines are carved, which then cut their channels through
- * a lake's edge and a river's bars.
+ * Carves the water areas into the window `g`: the sea's nodes (those inside it) to its floor in the
+ * pass without `raiseBars`, node by node, its shore left as the terrain has it; a lake's nodes to
+ * its level less SHELF a metre from its shore (DEEPEST at most), and its edge raised to the level
+ * (by a rounding at most: the level is no higher than its spill), so the shore holds the water
+ * drawn over its cells; a river polygon's inner nodes to its waterways' floor at the nearest point
+ * (depth/2 under their surface, where the river line itself is carved, and HALF_STEP more), its
+ * edge left, so its bank starts on its outline, but raised to that floor (and HALF_STEP over it)
+ * where it lies lower in the pass without `raiseBars`, and with `raiseBars` its bars raised to BAR
+ * over that surface (the pass under the water kept below the decks: a bar never stands over a
+ * capped surface). Ground BANK over a lake's or a river's top is left. Run this before the lines
+ * are carved, which then cut their channels through the sea's floor, a lake's edge and a river's
+ * bars.
  */
 export const carveAreas = (
   g: Grid,
@@ -312,6 +362,15 @@ export const carveAreas = (
   ]
   for (const area of here) fillCells(g, area.rings, whole)
   for (const area of here) {
+    const { floor } = area
+    if (floor !== undefined) {
+      if (!raiseBars)
+        nodesIn(g, area.rings, (k) => {
+          const [x, y] = node(k)
+          g.z[k] = floor(x, y)
+        })
+      continue
+    }
     const nearest = near.get(area)
     const bar = new Uint8Array(nearest === undefined ? 0 : g.z.length)
     if (nearest !== undefined) for (const rings of area.bars) nodesOf(g, rings, (k) => (bar[k] = 1))
@@ -350,6 +409,32 @@ export const carveAreas = (
   }
 }
 
+/** Whether each node of the window `g` (by its index in `g.z`) is the sea's: one `carveAreas` carves to its floor. */
+export const seaNodes = (g: Grid, areas: ReadonlyArray<CarvedArea>): Uint8Array => {
+  const out = new Uint8Array(g.z.length)
+  for (const { rings, floor } of inWindow(g, areas))
+    if (floor !== undefined) nodesIn(g, rings, (k) => (out[k] = 1))
+  return out
+}
+
+/**
+ * Raises each node of the window `g` a cell of an area of `raised` touches to at least its `top`,
+ * m a.s.l. (a pier's area, a breakwater: shore.ts), after the sea is carved under it; the nodes it
+ * raised, by their index in `g.z` (1), which no river line carves after (`carveAll`'s `keep`).
+ */
+export const raiseAreas = (
+  g: Grid,
+  raised: ReadonlyArray<Ringed & { readonly top: number }>,
+): Uint8Array => {
+  const out = new Uint8Array(g.z.length)
+  for (const { rings, top } of inWindow(g, raised))
+    nodesOf(g, rings, (k) => {
+      g.z[k] = Math.max(g.z[k]!, top)
+      out[k] = 1
+    })
+  return out
+}
+
 /** An area's rings and the box of its outer one. */
 interface Ringed {
   readonly rings: CarvedArea["rings"]
@@ -380,13 +465,34 @@ export const stillLevel = (areas: ReadonlyArray<CarvedArea>) => {
   }
 }
 
-/** Whether (x, y) lies in a water area (`isWaterArea`) of `areas`. */
-export const inWater = (areas: ReadonlyArray<Area>) =>
+/**
+ * The water's level at a point of the carved `areas` (`waterAreas`): a still water's (`stillLevel`:
+ * a lake's, the sea's 0 m), else a river polygon's waterways' surface at the nearest point (on `wp`);
+ * undefined on dry ground.
+ */
+export const waterLevel = (
+  areas: ReadonlyArray<CarvedArea>,
+  water: ReadonlyArray<WaterF>,
+  wp: ReadonlyArray<Profile>,
+) => {
+  const still = stillLevel(areas),
+    near = nearestOn(areas, water, wp)
+  return (x: number, y: number): number | undefined => {
+    const level = still(x, y)
+    if (level !== undefined) return level
+    for (const [area, nearest] of near) if (holds(area, x, y)) return nearest(x, y).surface
+    return undefined
+  }
+}
+
+/** Whether (x, y) lies in an area of `areas` whose kind `keep` takes. */
+export const inAreas = (areas: ReadonlyArray<Area>, keep: (kind: string) => boolean) =>
   inAny(
-    areas
-      .filter((a) => isWaterArea(a.kind))
-      .map((a) => ({ rings: a.rings, box: ringBox(a.rings[0]!) })),
+    areas.filter((a) => keep(a.kind)).map((a) => ({ rings: a.rings, box: ringBox(a.rings[0]!) })),
   )
+
+/** Whether (x, y) lies in a water area (`isWaterArea`) of `areas`. */
+export const inWater = (areas: ReadonlyArray<Area>) => inAreas(areas, isWaterArea)
 
 /**
  * Whether each node of the window `g` (by its index in `g.z`) is the water's, which roads may not

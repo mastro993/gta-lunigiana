@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
+import { MOUTH } from "../../../tools/grid-claims.ts"
 import { wholeMap } from "../../../tools/map-file.ts"
 import { segDist2 } from "../../collide.ts"
 import { terrainZ } from "../ground.ts"
@@ -18,30 +19,20 @@ const ends = (r: Rail) => [keyAt(r.pts, 0), keyAt(r.pts, r.pts.length / 2 - 1)] 
 const running = MAP.rail.filter((r) => r.kind === undefined)
 const atGrade = MAP.rail.filter((r) => r.bridge !== true && r.tunnel !== true)
 
-/** The running pieces walked end to end from the end that has no neighbour: one polyline. */
-const line = (): Array<number> => {
-  const at = new Map<string, Array<Rail>>()
-  for (const r of running) for (const k of ends(r)) at.set(k, [...(at.get(k) ?? []), r])
-  const free = [...at].filter(([, rs]) => rs.length === 1)
-  assert.equal(free.length, 2, `the running track has ${free.length} free ends`)
-  const pts: Array<number> = []
-  const seen = new Set<Rail>()
-  for (let key = free[0]![0]; ;) {
-    const r = at.get(key)!.find((q) => !seen.has(q))
-    if (r === undefined) break
-    seen.add(r)
-    const fwd = ends(r)[0] === key
-    const p: Array<number> = []
-    for (let i = 0; i < r.pts.length / 2; i++) {
-      const j = fwd ? i : r.pts.length / 2 - 1 - i
-      p.push(r.pts[2 * j]!, r.pts[2 * j + 1]!)
+/** Each line's pieces chained end to end (flat x, y), terminal to terminal: the running track as the lines run it. */
+const chains = (): Array<Array<number>> =>
+  MAP.railway.lines.map(({ pieces }) => {
+    const pts: Array<number> = []
+    for (const { rail, rev } of pieces) {
+      const p = MAP.rail[rail]!.pts,
+        n = p.length / 2
+      for (let k = pts.length === 0 ? 0 : 1; k < n; k++) {
+        const j = rev ? n - 1 - k : k
+        pts.push(p[2 * j]!, p[2 * j + 1]!)
+      }
     }
-    pts.push(...(pts.length === 0 ? p : p.slice(2)))
-    key = keyAt(p, p.length / 2 - 1)
-  }
-  assert.equal(seen.size, running.length, "every running piece is on the one chain")
-  return pts
-}
+    return pts
+  })
 
 /** Where segment a of polyline `p` (from vertex i) crosses segment b of `q` (from vertex j): t and u along them. */
 const crossingsOf = (p: ReadonlyArray<number>, q: ReadonlyArray<number>) => {
@@ -94,36 +85,56 @@ const levelCrossings = (() => {
   return out
 })()
 
-test("rail: the running track runs unbroken from edge to edge of the play area, through every station, its loop's ends on it", () => {
-  const pts = line()
-  const first = [pts[0]!, pts[1]!],
-    last = [pts.at(-2)!, pts.at(-1)!]
-  // The build cuts the line at the play area's outline (to 0.1 m): out of the strip's east edge at Pieve San Lorenzo, in the
-  // Lupacino tunnel, and out of the west edge by Rometta, 16 854.7 m in this build.
-  const onEdge = ([x, y]: Array<number>) => outlineDistance(x!, y!) < 0.08
-  assert.ok(onEdge(first) && onEdge(last), `ends at (${first.join(", ")}) and (${last.join(", ")})`)
+test("rail: the running track runs unbroken from the play area's edge to its edge or a terminus, through every station, its loops' ends on it", () => {
+  // The build cuts the track at the play area's outline (to 0.1 m): every end of the running track no other running piece
+  // shares is a terminal there (out of the strip's east edge at Pieve San Lorenzo, in the Lupacino tunnel; the Pontremolese's
+  // two tracks south of Aulla and its one north of P.P. Chiesaccia) or a line's terminus (the Lucca–Aulla line's on Aulla
+  // Lunigiana's track 4, which runs on as a loop), and every running piece is on a line.
+  const all = chains()
+  const termini = new Set(
+    MAP.railway.lines.flatMap((l, i) =>
+      l.terminus === true ? [keyAt(all[i]!, all[i]!.length / 2 - 1)] : [],
+    ),
+  )
+  const at = new Map<string, number>()
+  for (const r of running) for (const k of ends(r)) at.set(k, (at.get(k) ?? 0) + 1)
+  const tips = [...at].filter(([, n]) => n === 1).map(([k]) => k)
+  assert.ok(tips.length >= 2, `the running track has ${tips.length} free ends`)
+  for (const k of tips) {
+    const [x, y] = k.split(",").map(Number)
+    assert.ok(outlineDistance(x!, y!) < 0.08 || termini.has(k), `a free end at (${k})`)
+  }
+  const onLines = new Set(MAP.railway.lines.flatMap((l) => l.pieces.map((p) => MAP.rail[p.rail]!)))
+  assert.deepEqual(
+    running.filter((r) => !onLines.has(r)).map((r) => r.id),
+    [],
+    "every running piece is on a line",
+  )
   for (const station of MAP.railway.stations) {
     const stop = MAP.pois.find(
       (p) => (p.kind === "railway=station" || p.kind === "railway=halt") && p.name === station.name,
     )
     assert.ok(stop !== undefined, station.name)
     let near = Number.MAX_VALUE
-    for (let i = 0; i + 3 < pts.length; i += 2)
-      near = Math.min(
-        near,
-        Math.sqrt(segDist2(stop.x, stop.y, pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!).d2),
-      )
+    for (const pts of all)
+      for (let i = 0; i + 3 < pts.length; i += 2)
+        near = Math.min(
+          near,
+          Math.sqrt(segDist2(stop.x, stop.y, pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!).d2),
+        )
     assert.ok(near < 30, `${station.name}'s station ${near.toFixed(1)} m off the line`)
   }
+  const pts = all.flat()
   const vertices = new Set(pts.map((_, i) => (i % 2 === 0 ? keyAt(pts, i / 2) : "")))
   const loops = MAP.rail.filter((r) => r.kind === "loop")
   assert.ok(loops.length > 0, "a loop (Gragnola's track 1)")
-  // Their pieces (cut where a stub or another loop leaves them) chain end to end; each chain's two ends are on the line:
-  // Gragnola's and Pieve San Lorenzo's.
+  // Their pieces (cut where a stub or another loop leaves them) chain end to end, and every end is on a line: Gragnola's, Pieve
+  // San Lorenzo's and Aulla's (where track 5 and the Lucca branch meet north of the station, three ends to one network of
+  // loops, so their count need not be even).
   const loopEnds = new Map<string, number>()
   for (const r of loops) for (const k of ends(r)) loopEnds.set(k, (loopEnds.get(k) ?? 0) + 1)
   const free = [...loopEnds].filter(([, n]) => n === 1).map(([k]) => k)
-  assert.ok(free.length >= 2 && free.length % 2 === 0, `the loops have ${free.length} ends`)
+  assert.ok(free.length >= 2, `the loops have ${free.length} ends`)
   for (const k of free) assert.ok(vertices.has(k), `a loop ends at ${k}, off the running track`)
   for (const r of MAP.rail)
     assert.ok(r.kind === undefined || RAIL_KINDS.includes(r.kind), `rail ${r.id} kind ${r.kind}`)
@@ -135,16 +146,21 @@ test("rail: the running track runs unbroken from edge to edge of the play area, 
   const sy =
     station.outer.filter((_, i) => i % 2 === 1).reduce((a, v) => a + v, 0) /
     (station.outer.length / 2)
+  // Where a track crosses the building's y nearest it (a line crosses that y elsewhere too).
   const xAt = (p: ReadonlyArray<number>, y: number) => {
+    let x = Number.NaN
     for (let i = 0; i + 3 < p.length; i += 2)
-      if ((p[i + 1]! - y) * (p[i + 3]! - y) <= 0 && p[i + 1] !== p[i + 3])
-        return p[i]! + ((p[i + 2]! - p[i]!) * (y - p[i + 1]!)) / (p[i + 3]! - p[i + 1]!)
-    return Number.NaN
+      if ((p[i + 1]! - y) * (p[i + 3]! - y) <= 0 && p[i + 1] !== p[i + 3]) {
+        const at = p[i]! + ((p[i + 2]! - p[i]!) * (y - p[i + 1]!)) / (p[i + 3]! - p[i + 1]!)
+        if (!(Math.abs(x - sx) <= Math.abs(at - sx))) x = at
+      }
+    return x
   }
   const loop = loops.find((r) => Math.abs(xAt(r.pts, sy) - sx) < 30)
   assert.ok(loop !== undefined, "a loop passes the Gragnola station building")
+  const through = all.map((p) => xAt(p, sy)).filter((x) => Math.abs(x - sx) < 30)
   assert.ok(
-    xAt(loop.pts, sy) < xAt(pts, sy),
+    through.length > 0 && through.every((x) => xAt(loop.pts, sy) < x),
     "the loop is the track nearer the building, west of the line",
   )
 })
@@ -247,11 +263,31 @@ test("rail: no terrain stands over at-grade track more than 6 m from a level cro
 // track over the carved cells. A lower road running along the line keeps its cells, its core
 // (w/2 + 2.3 m) reaching a corner of a cell the line runs through (up to 5.7 m off it): the 4 m
 // grid holds one level (by the Aiola tunnel's west portal the tertiary 542115787 runs 5.4 m beside
-// the line, 6 m below; south of Gragnola the Via Provinciale 9.6 m off, 6.7 m below).
+// the line, 6 m below; south of Gragnola the Via Provinciale 9.6 m off, 6.7 m below). So does a
+// road tunnel's mouth, the grid round it held at its approach's level (`mouthClaim`): its bore's
+// last MOUTH m runs along the line as a lower road would. By Aulla station the Lucca–Aulla line runs
+// 5.8 m past the north mouth of Via Roberto Accorsi's underpass (92904277), whose bore runs at 24°
+// to it and whose approach turns off at 30.5°: the mouth's cells hold 70.9–71.5 m, the line 77.9 m.
 test("rail: at-grade track stands on the ground, but beside a lower road running along it", () => {
-  const roads = WHOLE.roads.filter((r) => r.bridge !== true && r.tunnel !== true)
+  const roads = WHOLE.roads.filter((r) => r.bridge !== true)
+  // A tunnel's mouths: its pieces' ends no other tunnel piece shares.
+  const tunnelEnds = new Map<string, number>()
+  for (const r of roads)
+    if (r.tunnel === true)
+      for (const key of new Set([keyAt(r.pts, 0), keyAt(r.pts, r.pts.length / 2 - 1)]))
+        tunnelEnds.set(key, (tunnelEnds.get(key) ?? 0) + 1)
+  const mouthsOf = (road: Road) =>
+    road.tunnel === true
+      ? [0, road.pts.length / 2 - 1].flatMap((i) =>
+          tunnelEnds.get(keyAt(road.pts, i)) === 1
+            ? [{ x: road.pts[2 * i]!, y: road.pts[2 * i + 1]! }]
+            : [],
+        )
+      : []
   const alongside = (x: number, y: number, z: number, dx: number, dy: number) =>
     roads.some((road) => {
+      const mouths = mouthsOf(road)
+      if (road.tunnel === true && mouths.length === 0) return false
       for (let k = 0; k + 1 < road.z.length; k++) {
         const ax = road.pts[2 * k]!,
           ay = road.pts[2 * k + 1]!,
@@ -263,9 +299,12 @@ test("rail: at-grade track stands on the ground, but beside a lower road running
         const l = hypot(bx - ax, by - ay) || 1,
           cos = Math.abs(((bx - ax) * dx + (by - ay) * dy) / l)
         const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (l * l)))
-        const d = hypot(x - ax - (bx - ax) * t, y - ay - (by - ay) * t)
+        const px = ax + (bx - ax) * t,
+          py = ay + (by - ay) * t,
+          d = hypot(x - px, y - py)
         const rz = road.z[k]! + (road.z[k + 1]! - road.z[k]!) * t
-        if (d <= reach && cos >= Ops.cos(Math.PI / 6) && rz < z - 1) return true
+        const open = road.tunnel !== true || mouths.some((m) => hypot(px - m.x, py - m.y) <= MOUTH)
+        if (open && d <= reach && cos >= Ops.cos(Math.PI / 6) && rz < z - 1) return true
       }
       return false
     })
@@ -292,34 +331,99 @@ test("rail: at-grade track stands on the ground, but beside a lower road running
     }
 })
 
-// The line's tightest curves are 300 m (RFI, "nei tratti più difficili"). The CTR draws curves with
-// a vertex every 12–21 m turning 2–5.5°, so chords shorter than 40 m see its own drawing (191 m at
-// 20 m chords); over 40 m it is 252 m at the least.
-test("rail: the running track curves no tighter than 250 m over 40 m chords", () => {
-  const pts = line()
-  const s = [0]
-  for (let i = 2; i < pts.length; i += 2)
-    s.push(s.at(-1)! + hypot(pts[i]! - pts[i - 2]!, pts[i + 1]! - pts[i - 1]!))
-  const at = (d: number) => {
-    let i = 1
-    while (i < s.length - 1 && s[i]! < d) i++
-    const t = (d - s[i - 1]!) / (s[i]! - s[i - 1]! || 1)
-    return [
-      pts[2 * i - 2]! + (pts[2 * i]! - pts[2 * i - 2]!) * t,
-      pts[2 * i - 1]! + (pts[2 * i + 1]! - pts[2 * i - 1]!) * t,
-    ] as const
+// The CTR draws curves with a vertex every 12–21 m turning 2–5.5°, so chords shorter than 40 m see
+// its own drawing (191 m at 20 m chords). The bound was 250 m, from RFI's 300 m for the Lucca–Aulla
+// line ("nei tratti più difficili") and 252 m at the least between Pieve San Lorenzo and Rometta;
+// loosened to 200 m, one bound for every line, since the map took in Aulla's part: the CTR surveys
+// 212.2 m on the line's approach to Aulla (way 183923138, 562 m of it on the CTR, at (−11631,
+// 4330)), the tunnel 221235472 west of it, smoothed onto the CTR's headings at both its portals,
+// curves at 225.0 m (−11788, 4454), and the tunnel 140772193, whose OSM corner `roundCorners`
+// rounds, at 216.8 m (−11769, 5200). The Lucca–Aulla line east of x −5300 stays at 253.5 m or
+// more, the Pontremolese at 275.1 m or more (measured on the built map, 2026-11-17).
+test("rail: every line curves no tighter than 200 m over 40 m chords", () => {
+  for (const pts of chains()) {
+    const s = [0]
+    for (let i = 2; i < pts.length; i += 2)
+      s.push(s.at(-1)! + hypot(pts[i]! - pts[i - 2]!, pts[i + 1]! - pts[i - 1]!))
+    const at = (d: number) => {
+      let i = 1
+      while (i < s.length - 1 && s[i]! < d) i++
+      const t = (d - s[i - 1]!) / (s[i]! - s[i - 1]! || 1)
+      return [
+        pts[2 * i - 2]! + (pts[2 * i]! - pts[2 * i - 2]!) * t,
+        pts[2 * i - 1]! + (pts[2 * i + 1]! - pts[2 * i - 1]!) * t,
+      ] as const
+    }
+    const L = 40
+    for (let d = L; d <= s.at(-1)! - L; d += 2) {
+      const [ax, ay] = at(d - L),
+        [bx, by] = at(d),
+        [cx, cy] = at(d + L)
+      const area2 = Math.abs((bx - ax) * (cy - ay) - (by - ay) * (cx - ax))
+      if (area2 < 1e-9) continue
+      const r =
+        (hypot(bx - ax, by - ay) * hypot(cx - bx, cy - by) * hypot(cx - ax, cy - ay)) / (2 * area2)
+      assert.ok(r >= 200, `radius ${r.toFixed(0)} m at (${bx.toFixed(1)}, ${by.toFixed(1)})`)
+    }
   }
-  const L = 40
-  for (let d = L; d <= s.at(-1)! - L; d += 2) {
-    const [ax, ay] = at(d - L),
-      [bx, by] = at(d),
-      [cx, cy] = at(d + L)
-    const area2 = Math.abs((bx - ax) * (cy - ay) - (by - ay) * (cx - ax))
-    if (area2 < 1e-9) continue
-    const r =
-      (hypot(bx - ax, by - ay) * hypot(cx - bx, cy - by) * hypot(cx - ax, cy - ay)) / (2 * area2)
-    assert.ok(r >= 250, `radius ${r.toFixed(0)} m at (${bx.toFixed(1)}, ${by.toFixed(1)})`)
+})
+
+// Regression: the Pontremolese's two tracks north of Aulla, 3.9–5.6 m apart, were profiled one at a
+// time, and stood 1.5 m apart in level at its twin tunnels' south portals and 2.8 m at their north
+// ones, on the viaduct over the Magra between them (rail-twins.ts).
+test("rail: two tracks side by side within 6 m stand within 0.3 m of each other in level", () => {
+  // Of one kind (both on a bridge, both in a tunnel, both at grade) and within 15° of parallel: a
+  // track crossing another, or one on a bridge over one at grade, is none.
+  const kind = (r: Rail) => (r.bridge === true ? 1 : r.tunnel === true ? 2 : 0)
+  /** The point of r nearest (x, y): its distance, its level and its segment's unit heading. */
+  const nearest = (r: Rail, x: number, y: number) => {
+    let out = { d: Number.MAX_VALUE, z: 0, hx: 1, hy: 0 }
+    for (let k = 0; k + 3 < r.pts.length; k += 2) {
+      const ex = r.pts[k + 2]! - r.pts[k]!,
+        ey = r.pts[k + 3]! - r.pts[k + 1]!,
+        l2 = ex * ex + ey * ey,
+        t =
+          l2 > 0
+            ? Math.max(0, Math.min(1, ((x - r.pts[k]!) * ex + (y - r.pts[k + 1]!) * ey) / l2))
+            : 0,
+        d = hypot(r.pts[k]! + ex * t - x, r.pts[k + 1]! + ey * t - y)
+      if (d < out.d)
+        out = {
+          d,
+          z: r.z[k / 2]! + (r.z[k / 2 + 1]! - r.z[k / 2]!) * t,
+          hx: ex / (Math.sqrt(l2) || 1),
+          hy: ey / (Math.sqrt(l2) || 1),
+        }
+    }
+    return out
   }
+  const bad: Array<string> = []
+  const boxes = MAP.rail.map((r) => box(r.pts))
+  MAP.rail.forEach((a, i) =>
+    MAP.rail.forEach((b, j) => {
+      const [ax0, ay0, ax1, ay1] = boxes[i]!,
+        [bx0, by0, bx1, by1] = boxes[j]!
+      if (j <= i || kind(a) !== kind(b)) return
+      if (ax0 > bx1 + 6 || bx0 > ax1 + 6 || ay0 > by1 + 6 || by0 > ay1 + 6) return
+      let worst = { gap: 0.3, x: 0, y: 0 }
+      for (let k = 0; k + 3 < a.pts.length; k += 2) {
+        const n = Math.ceil(hypot(a.pts[k + 2]! - a.pts[k]!, a.pts[k + 3]! - a.pts[k + 1]!) / 2)
+        for (let m = 0; m <= n; m++) {
+          const x = a.pts[k]! + ((a.pts[k + 2]! - a.pts[k]!) * m) / n,
+            y = a.pts[k + 1]! + ((a.pts[k + 3]! - a.pts[k + 1]!) * m) / n,
+            own = nearest(a, x, y),
+            o = nearest(b, x, y)
+          if (o.d > 6 || Math.abs(own.hx * o.hx + own.hy * o.hy) < Ops.cos(Math.PI / 12)) continue
+          if (Math.abs(own.z - o.z) > worst.gap) worst = { gap: Math.abs(own.z - o.z), x, y }
+        }
+      }
+      if (worst.gap > 0.3)
+        bad.push(
+          `${a.id} and ${b.id} ${worst.gap.toFixed(2)} m apart at (${worst.x.toFixed(0)}, ${worst.y.toFixed(0)})`,
+        )
+    }),
+  )
+  assert.deepEqual(bad, [])
 })
 
 // Regression: parked spot 408 stood 2.2 m from OSM's Gragnola loop, its car in a train's way; on

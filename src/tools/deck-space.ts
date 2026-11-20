@@ -132,19 +132,33 @@ export const nodesUnder = (field: ReadonlyMap<number, number>): Array<readonly [
   )
 
 /**
+ * A road's corridor through the low space under a deck it passes under, m off its centreline: as far
+ * as its bodies go and a wall's standoff past that (`reach`), where the ground stands ONE_LEVEL or
+ * more under the deck's top; elsewhere its carriageway and that standoff (`hold`). Held only where
+ * the ground stood that low, the walls under the A15's decks' ends at Aulla stood up to 0.9 m inside
+ * the carriageways of the tracks and the SP20 passing under them, where the ground climbed to an
+ * abutment's or an approach's embankment across a 4 m cell.
+ */
+export interface Corridor {
+  readonly reach: number
+  readonly hold: number
+}
+
+/**
  * Two fields at the lattice's nodes round the decks of `cluster`, each under 0 in its region: the
  * least over their segments of the most of how far past its walls (`side` m off its line, round
  * its ends too), how far under `room` m under its top (`low`, the low space) or under ON_DECK
- * (`onLevel`, the ground on its level) the `ground` stands, and how deep in one of its `corridors`
- * where that ground stands ONE_LEVEL or more under the top (a bank a corridor's carriageway climbs
- * nearer stays in the low space). A node farther from every deck is outside: it holds none.
+ * (`onLevel`, the ground on its level) the `ground` stands, and how deep in one of its `corridors`:
+ * its `reach` where that ground stands ONE_LEVEL or more under the top, its `hold` elsewhere (a bank
+ * climbing nearer past a corridor's carriageway stays in the low space). A node farther from every
+ * deck is outside: it holds none.
  */
 export const fieldsOf = (
   cluster: ReadonlyArray<number>,
   decks: ReadonlyArray<Deck>,
   side: ReadonlyArray<number>,
   room: number,
-  corridors: ReadonlyArray<ReturnType<typeof segIndex<number>>>,
+  corridors: ReadonlyArray<ReturnType<typeof segIndex<Corridor>>>,
   ground: (x: number, y: number) => number,
 ): { readonly low: Map<number, number>; readonly onLevel: Map<number, number> } => {
   const low = new Map<number, number>(),
@@ -169,10 +183,11 @@ export const fieldsOf = (
           let z = grounds.get(k)
           if (z === undefined) grounds.set(k, (z = ground(x, y)))
           let rest = off.d - side[di]!
-          if (off.z - z >= ONE_LEVEL)
-            corridors[di]!.within(x, y, (c, d2) => {
-              rest = Math.max(rest, c.r - Math.sqrt(d2))
-            })
+          const under = off.z - z >= ONE_LEVEL
+          corridors[di]!.within(x, y, ({ data }, d2) => {
+            const d = Math.sqrt(d2)
+            rest = Math.max(rest, (under ? data.reach : data.hold) - d)
+          })
           for (const [field, f] of [
             [low, Math.max(rest, off.z - z - room)],
             [onLevel, Math.max(rest, off.z - z - ON_DECK)],

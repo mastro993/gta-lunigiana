@@ -139,6 +139,57 @@ test("buildWalls walls the steep banks round a river polygon whose river the map
   assert.deepEqual(nearBend(still.drive), nearBend(lakeOnly.drive))
 })
 
+// The sea: a 200 m square of it at its level 0 m over flat ground at 0 m, and a breakwater raised
+// to 1.5 m in its middle, walled for vehicles along its outline (shore.ts), far from the pond and
+// the bend.
+const SEA: Area = {
+  kind: "sea",
+  level: 0,
+  rings: [[-1600, -3000, -1400, -3000, -1400, -2800, -1600, -2800]],
+}
+const ROCK: Area = {
+  kind: "rock",
+  rings: [[-1522, -2922, -1478, -2922, -1478, -2878, -1522, -2878]],
+}
+
+test("buildWalls rings the sea with shore walls and its raised breakwater too, dry land with no shore wall on it, walled for vehicles alone along its outline", () => {
+  const g = gridLattice(),
+    z = new Float64Array(g.cols * g.rows)
+  for (let x = -1524; x <= -1476; x += CELL)
+    for (let y = -2924; y <= -2876; y += CELL)
+      z[((y - g.y0) / CELL) * g.cols + (x - g.x0) / CELL] = 1.5
+  const outline = ROCK.rings[0]!
+  const walls = buildWalls(
+    { ...g, z },
+    [],
+    [],
+    [],
+    [{ kind: "breakwater", pts: [...outline, outline[0]!, outline[1]!] }],
+    [SEA, ROCK],
+    NO_PARAPETS,
+    NOTHING_UNDER,
+  )
+  const near = CELL + SLACK
+  const bySea = (flat: ReadonlyArray<number>) =>
+    samples(flat).filter(([x, y]) => toOutline(SEA, x, y) < 150)
+  const shore = bySea(walls.shore)
+  // Along the sea's outline, and round the breakwater: round its raised nodes and the cells round
+  // them whose centre stands over the level, two cells out at most. None on it.
+  assert.ok(shore.some(([x, y]) => toOutline(SEA, x, y) <= near))
+  const round = shore.filter(([x, y]) => toOutline(SEA, x, y) > near)
+  assert.ok(round.length > 0, "the breakwater's shore")
+  for (const [x, y] of round)
+    assert.ok(
+      toOutline(ROCK, x, y) <= 2 * CELL + SLACK,
+      `shore at (${x}, ${y}) off the breakwater's edge`,
+    )
+  // Its outline stops vehicles alone: walkable, its rocks too steep to drive up.
+  assert.deepEqual(bySea(walls.walk), [])
+  const drive = bySea(walls.drive)
+  assert.ok(drive.length > 0)
+  for (const [x, y] of drive) assert.ok(toOutline(ROCK, x, y) < 1e-6, `drive wall at (${x}, ${y})`)
+})
+
 // Regression: the parapets and the walls under the decks were spread into `push`, one argument per
 // number, which overflows the call stack past about 120,000 of them (30,000 walls): a map with a few
 // times today's bridges (Lunigiana's walk walls under its decks already hold 33,452 numbers).
