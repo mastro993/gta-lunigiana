@@ -285,6 +285,14 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   it (`GLOBAL_LAYOUT` in `src/sim/map/format/global-file.ts`), never on the line. Lunigiana's line
   is 2,639,642 B and Cesena's 959,338 B; with Fosdinovo's part and the graph, the lanes and the
   residents still on it (format version 5) Lunigiana's was 8,319,700 B.
+- The JS heap after GC at the start is at most 245 MB (issue #5's scale check; `pnpm playtest heap`
+  on a production build, three runs): Lunigiana's is 160–161 MB with Aulla's part (2026-11-21). What
+  the game builds at load from the whole map grows with every part: the road graph, the lookups
+  over it and the static grids over the whole map's box. So keep a table per node or edge in a
+  typed array, or a byte per edge for a set of edges, never an object or a `Set` per edge; work out
+  from `graph.nodes` what a lookup can, with nothing built per call, rather than store it; and let
+  go of a build's scratch that a closure would keep. Those four cuts took the start from 216 to
+  160–161 MB ([architecture.md](../architecture.md#start-up)).
 - A change to the code that bakes the global file's tables (lanes, parking, water beds, farms,
   lamps, and in `derived` the bells, the walkers' residents, the farms' centres and the road
   tunnels' mouths) needs both `pnpm map` and `pnpm map --region cesena`: `bake.map-test.ts` and

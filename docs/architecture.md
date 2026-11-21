@@ -398,7 +398,8 @@ spots, water beds and farms round Monzone and Cesena's start. The land cover is 
 (`coverAt` and `coverIndexAt` in `src/sim/map/cover.ts`: each tile holds its 500 × 500 cells,
 rasterised for that tile at build time), and `surfaceAt` (`src/sim/map/surface.ts`) buckets each
 tile's roads in 32 m cells the first time a query reaches it. The lookups are compact static grids
-(`staticGrid` in `src/sim/collide.ts`, item indices packed into one `Int32Array`), the walls, trees
+(`staticGrid` in `src/sim/collide.ts`, item indices packed into one `Int32Array`, the fill's
+cursor let go once filled), the walls, trees
 and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`):
 
 - `wallsNear` (`src/sim/map/walls.ts`) indexes each tile's walls straight from its decoded flat
@@ -440,7 +441,10 @@ and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`)
   fit, lightning); the sim never reads them.
 - `edgeIndex` (`src/sim/edges.ts`, re-exported by `src/sim/route.ts`), with its instances
   `trafficIndex` and `walkIndex` (`src/sim/route.ts`) and `peopledIndex`, answers nearest-edge and
-  spawn-band lookups without scanning the whole graph.
+  spawn-band lookups without scanning the whole graph. It reads each edge's chord and midpoint from
+  the edge's two nodes in `graph.nodes` when asked, building nothing per query (`distanceToEdge`
+  goes through `distanceToSegment`), and `isTrafficEdge` and `isWalkEdge` say which networks an
+  edge is in from a byte per edge ([Start-up](#start-up) has what they save).
 - `waterAt` (`src/sim/water/rivers.ts`) finds the lake, sea piece or river polygon a point lies in
   (still water first), else the nearest reach of a river or stream within its bed in 32 m buckets,
   all from the tile holding the point (`placeAt`), each reach with its two vertices' bed, depth and
@@ -612,18 +616,20 @@ cycle (its dev-server numbers are under [Measured](#measured)):
 | 4× CPU, 1.5 MB/s | the 15 MB script in at 9.8 s (a dead "Press any key" until then), one 3.5 s task, first frame at 13.5 s | map in at 4.6 s, ready at 7.1 s, longest task 0.64 s |
 
 With the map in tiles (production build served by `vite preview`, headless Chrome on an M-series
-Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the first row on 2026-11-07 with
-Fosdinovo's part and the global file in format version 6 (an earlier build of it, its line still
-holding the graph, the lanes and the residents, measured 0.41–0.47 s and 161 MB, against 130–131
-MB on the build before it in turn); the second on 2026-11-07 with the olive groves, against
-0.39–0.40 s and 130–132 MB on the build before in turn (0.41 s and 130–131 MB on 2026-11-04 with
-Fivizzano's part, against 0.33–0.36 s and 89–90 MB for lucido alone); the lucido rows with the
-vectors in the tiles and in the global file measured in turn on 2026-10-31, the first of them again
-on 2026-11-03 with the UCS's woods and the trees' species, against 0.34–0.38 s and 89 MB on the
-build before):
+Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the first row on 2026-11-21 with
+Aulla's part and the start's heap cuts below, interleaved with main's build before them, 0.52–0.55
+s and 217 MB; the second on 2026-11-07 with Fosdinovo's part and the global file in format version
+6 (an earlier build of it, its line still holding the graph, the lanes and the residents, measured
+0.41–0.47 s and 161 MB, against 130–131 MB on the build before it in turn); the third on 2026-11-07
+with the olive groves, against 0.39–0.40 s and 130–132 MB on the build before in turn (0.41 s and
+130–131 MB on 2026-11-04 with Fivizzano's part, against 0.33–0.36 s and 89–90 MB for lucido alone);
+the lucido rows with the vectors in the tiles and in the global file measured in turn on
+2026-10-31, the first of them again on 2026-11-03 with the UCS's woods and the trees' species,
+against 0.34–0.38 s and 89 MB on the build before):
 
 | Map | First frame | Slowest frame, p99 | JS heap after GC |
 |---|---|---|---|
+| Lunigiana, lucido and the parts of Fivizzano, Fosdinovo and Aulla, 153 tiles | 0.50–0.52 s | 16.8 ms, 16.8 ms | 161 MB |
 | Lunigiana, lucido and the parts of Fivizzano and Fosdinovo, 102 tiles | 0.40–0.41 s | 16.8 ms | 164 MB |
 | Lunigiana, lucido and Fivizzano's part, 79 tiles | 0.39–0.41 s | 16.8 ms, 16.8 ms | 132–133 MB |
 | Lunigiana, lucido alone, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 90 MB |
@@ -650,6 +656,35 @@ within 32 m of (a large area into all four): its download grows from 2.10 MB to 
 heap by 5 MB. The production JS is 1,255,961 B (`dist/assets/*.js` on 2026-11-07; 1,237,029 B on
 2026-11-04 with Fivizzano's part, 1,226,792 B before it, 1,224,715 B before the trees' species,
 1,212,397 B with the vectors in the global file, about 1.19 MB before the tiles).
+
+What the game builds at load from the whole map grows with every part as well: the road graph
+(137,905 nodes and 139,684 edges on Lunigiana with Aulla's part) and the lookups over it, and the
+static grids over the whole map's box (an edge grid's cell index over 1,022 × 597 cells of 32 m is
+2.44 MB). Four cuts keep it compact, each answering exactly as before, for issue #20's Sarzana part
+(the heap after GC at the start, `?seed=1`, three runs on 2026-11-21 interleaved with main's build,
+which read 216–217 MB):
+
+- `staticGrid` lets go of its fill's cursor once filled. The fill's arrow captured it in the scope
+  the returned query closes over, so every grid kept a second cell-sized `Int32Array` alive: 216 →
+  191–192 MB.
+- `buildGraph` copies each node's edges to an array of their own length, in push order: an array
+  grown by pushes from empty keeps room for 17, and 130,039 of the nodes have 2 edges: → 183 MB.
+- `src/sim/edges.ts` reads each edge's chord and midpoint from its two nodes when asked, with the
+  same arithmetic on the same doubles, instead of keeping an object of each per edge: → 165 MB.
+  The queries build nothing per edge, as they run every step; in Node, 20,000 pairs of traffic and
+  walk `nearest` queries round Monzone took 358–361 ms against 345–349 ms (best of five, the machine
+  under load), one `distanceToEdge` 9.5 ns against 7.
+- `isTrafficEdge` and `isWalkEdge` keep a byte per edge for the two networks, where the walkers'
+  routes kept a `Set` of the walk edges and the level crossings and their traffic rules a `Set` of
+  the traffic edges each: → 160–161 MB.
+
+Together they cut 55–56 MB. The saves of seeds 1, 7 and 42 after 3,600 steps hash the same with
+them and without (SHA-256 of the save's JSON every 600 steps), and every map built with them is the
+build before to the byte. On the dev server the 40 m/s drive along the SP59
+([map.md](map.md#adding-a-part)) kept every seam's slowest frame at 16.8 ms in two runs each, now
+with no frame over 30 ms, where main's build had one of 50 ms about 100 s in, off the seams, in
+both; the heap at its end was 186 MB against 243–244 MB. Standing in Aulla (`--at=-12975,5867`, dev
+build, two runs each) it is 185–186 MB against 242 MB.
 
 ## Host loop
 
@@ -1241,7 +1276,7 @@ build reads is in memory.
   through Gassano, Fivizzano, Casola and Pieve San Lorenzo, and back over the x = 4900 seam to
   Ugliancaldo's slope crossed 13 tile seams with its slowest frame at 16.8 ms everywhere and none
   over 30 ms; at most 10 tiles were in memory at once, and the heap after GC at the end was 187 MB.
-  Standing in Fivizzano (`--at -321,8511`, two runs) the first frame came at 0.45–0.54 s and the
+  Standing in Fivizzano (`--at=-321,8511`, two runs) the first frame came at 0.45–0.54 s and the
   heap was 160 MB.
 - Measured with Fosdinovo's part (dev build, `?seed=7`, 2026-11-07): `pnpm playtest drive` at 40
   m/s over 23,797 m from Monzone station across the x = −2900 seam to Marciaso, Fosdinovo, Tendola,
