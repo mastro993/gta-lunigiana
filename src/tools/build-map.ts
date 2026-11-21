@@ -58,27 +58,19 @@ const sourcesAndTerrain = async () => {
   return { src, terrain: finishTerrain(src, profiled, lap), sources }
 }
 
-/** The map cut into tiles, the vectors the overview paints, and what the report prints about the build; every other intermediate is gone once it returns. */
-const cutBuilt = async () => {
+/**
+ * The map put together, and what the report prints about the build. The sources, the terrain and
+ * the world live in this function's frame alone, so they go before the cut: the finished grid
+ * (Lunigiana's 45 million nodes, 362 MB), the features' vertex objects and what lies beyond the play
+ * area.
+ */
+const assembled = async () => {
   const { src, terrain, sources } = await sourcesAndTerrain()
   const world = buildWorld(src, terrain, lap)
   const built = assembleMap(src, terrain, world)
   lap("map")
-  const cut = cutMap(built, REGION.file)
-  lap("cut")
   return {
-    cut,
-    overview: {
-      bounds: built.bounds,
-      layers: {
-        outline: built.outline,
-        areas: built.areas,
-        water: built.water,
-        rail: built.rail,
-        roads: built.roads,
-        buildings: built.buildings,
-      },
-    },
+    built,
     report: {
       sources,
       rail: src.railReport,
@@ -95,6 +87,28 @@ const cutBuilt = async () => {
       shoreWalls: built.walls.shore.length / 4,
       trees: built.trees.length / 3,
     },
+  }
+}
+
+/** The map cut into tiles, the vectors the overview paints, and what the report prints about the build; every other intermediate is gone once it returns. */
+const cutBuilt = async () => {
+  const { built, report } = await assembled()
+  const cut = cutMap(built, REGION.file)
+  lap("cut")
+  return {
+    cut,
+    overview: {
+      bounds: built.bounds,
+      layers: {
+        outline: built.outline,
+        areas: built.areas,
+        water: built.water,
+        rail: built.rail,
+        roads: built.roads,
+        buildings: built.buildings,
+      },
+    },
+    report,
   }
 }
 
