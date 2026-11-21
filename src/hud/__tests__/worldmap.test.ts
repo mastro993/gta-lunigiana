@@ -67,9 +67,24 @@ test("labels: the majors are named together, a town's name taking its second sid
   assert.deepEqual(placeLabels([major(0, 0, box(20, 100), box(40)), major(1, 20, box(60))]), [1, 0])
 })
 
-test("labels: when the majors cannot all be named, they go rank by rank, so the town keeps its name", () => {
+test("labels: when the majors named together leave out a town, they go rank by rank, so the town keeps its name", () => {
   // Together, the village (the earlier of two with one side each) would take the town's only side.
   assert.deepEqual(placeLabels([major(1, 0, box(0)), major(0, 20, box(5))]), [undefined, 0])
+})
+
+test("labels: a village or the player's place no order can name leaves the rest of the majors named together", () => {
+  // The last village's or player's place's only side is under a fixed box (the north arrow), so
+  // rank by rank names no more of the towns and the player's place, and would leave out the
+  // village the town makes room for together.
+  for (const rank of [1, -1])
+    assert.deepEqual(
+      placeLabels(
+        [major(0, 0, box(0), box(40)), major(1, 20, box(5)), major(rank, 60, box(200))],
+        [box(200)],
+      ),
+      [1, 0, undefined],
+      `rank ${rank}`,
+    )
 })
 
 test("labels: named together, a major takes the free side that leaves the hamlets and peaks the most room", () => {
@@ -149,17 +164,19 @@ test("zoomed in, the map names only the places on its frame, inside it, and name
   assert.ok(labels.some((l) => !whole.has(l.name)))
 })
 
-test("the whole map's names stay inside the room within the margins across, some reaching past the frame into it", () => {
+test("the whole map's names stay inside the room within the margins across, a hamlet's or a peak's inside the frame", () => {
+  // worldmap.map-test.ts checks where the towns' and villages' names reach past the frame.
   for (const [width, height] of [
     [1920, 1080],
     [1280, 720],
+    [844, 390],
   ] as const) {
     const fit = fitMap({ bounds: MAP.bounds, width, height }),
       { frame, room } = fit
-    const labels = mapLabels(fit, (text, size) => (text.length * 1229 * size) / 2048)
-    for (const l of labels)
-      assert.ok(l.box.x0 >= room.x0 && l.box.x1 <= room.x1, `${l.name} at ${width}x${height}`)
-    assert.ok(labels.some((l) => l.box.x0 < frame.x0 || l.box.x1 > frame.x1))
+    for (const l of mapLabels(fit, (text, size) => (text.length * 1229 * size) / 2048)) {
+      const within = PLACES.find((p) => p.name === l.name)!.major ? room : frame
+      assert.ok(l.box.x0 >= within.x0 && l.box.x1 <= within.x1, `${l.name} at ${width}x${height}`)
+    }
   }
 })
 
