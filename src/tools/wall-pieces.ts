@@ -12,41 +12,67 @@ const RUN = 16
 /** Sample spacing along a barrier when looking for roads through it, m. */
 const OPEN_STEP = 0.25
 
-/** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` in walls.ts says. */
+/**
+ * A barrier's line `pts` (flat x, y) in runs by the class `classOf` gives its OPEN_STEP m samples:
+ * open where it is negative (a way passes), each run ending at the last free sample; where it
+ * changes between two others, the two runs meet at the first sample of the new class. Original
+ * vertices are kept.
+ */
+export const runs = (
+  pts: ReadonlyArray<number>,
+  classOf: (x: number, y: number) => number,
+): Array<{ readonly cls: number; readonly pts: Array<number> }> => {
+  const out: Array<{ readonly cls: number; readonly pts: Array<number> }> = []
+  let cur: Array<number> = [],
+    cls = 0,
+    last: readonly [number, number] | undefined
+  const push = (x: number, y: number) => {
+    if (cur.length === 0 || cur.at(-2) !== x || cur.at(-1) !== y) cur.push(x, y)
+  }
+  const close = () => {
+    if (cur.length >= 4) out.push({ cls, pts: cur })
+  }
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    const ax = pts[i]!,
+      ay = pts[i + 1]!,
+      bx = pts[i + 2]!,
+      by = pts[i + 3]!
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / OPEN_STEP))
+    for (let k = i === 0 ? 0 : 1; k <= n; k++) {
+      const x = r1(ax + ((bx - ax) * k) / n),
+        y = r1(ay + ((by - ay) * k) / n),
+        c = classOf(x, y)
+      if (c < 0) {
+        if (last !== undefined) push(...last)
+        close()
+        cur = []
+        last = undefined
+      } else if (cur.length > 0 && c !== cls) {
+        // The held sample lies on the line to this one: the run goes on straight to it.
+        push(x, y)
+        close()
+        cur = [x, y]
+        cls = c
+        last = undefined
+      } else if (k === n || cur.length === 0) {
+        if (cur.length === 0) cls = c
+        push(x, y)
+        last = undefined
+      } else last = [x, y]
+    }
+  }
+  close()
+  return out
+}
+
+/** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples (`runs`), as `openBarriers` in walls.ts says. */
 export const opened = (
   barriers: ReadonlyArray<Barrier>,
   open: (x: number, y: number) => boolean,
 ): Array<Barrier> =>
-  barriers.flatMap((b) => {
-    const out: Array<Barrier> = []
-    let cur: Array<number> = [],
-      last: readonly [number, number] | undefined
-    const push = (x: number, y: number) => {
-      if (cur.length === 0 || cur.at(-2) !== x || cur.at(-1) !== y) cur.push(x, y)
-    }
-    for (let i = 0; i + 3 < b.pts.length; i += 2) {
-      const ax = b.pts[i]!,
-        ay = b.pts[i + 1]!,
-        bx = b.pts[i + 2]!,
-        by = b.pts[i + 3]!
-      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / OPEN_STEP))
-      for (let k = i === 0 ? 0 : 1; k <= n; k++) {
-        const x = r1(ax + ((bx - ax) * k) / n),
-          y = r1(ay + ((by - ay) * k) / n)
-        if (open(x, y)) {
-          if (last !== undefined) push(...last)
-          if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
-          cur = []
-          last = undefined
-        } else if (k === n || cur.length === 0) {
-          push(x, y)
-          last = undefined
-        } else last = [x, y]
-      }
-    }
-    if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
-    return out
-  })
+  barriers.flatMap((b) =>
+    runs(b.pts, (x, y) => (open(x, y) ? -1 : 0)).map(({ pts }) => ({ kind: b.kind, pts })),
+  )
 
 /** Pushes a-b as pieces no longer than `run`. */
 export const pushSplit = (

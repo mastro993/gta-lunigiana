@@ -3,10 +3,10 @@ import { test } from "node:test"
 
 import type { BuildingF, RoadF } from "../features.ts"
 import { segDist2 } from "../geometry.ts"
-import { barrierWalls, clipBuildings, houseArches } from "../house-walls.ts"
+import { clipBuildings } from "../house-walls.ts"
 import { outlineOf } from "../play-area.ts"
 import { pushOutline } from "../wall-pieces.ts"
-import { openBarriers } from "../walls.ts"
+import { barrierWalls, boresOf, openBarriers } from "../walls.ts"
 import { segments } from "./wall-segments.ts"
 
 // walls.long-test.ts builds the walls round a staged lake and river polygon (about a second).
@@ -99,53 +99,83 @@ test("a guard rail stays whole along its road, inside its w/2, and opens where a
 // Regression (#20): the jersey barrier 887066016 runs between the underpasses of Via Alcide De
 // Gasperi and the container terminal's service road at (−17097, −1238), on the ground 5.3 m over the
 // bore of the unclassified road 1352409570 (layer −2), and stood at every level across it: traffic
-// edge 205834 in the bore ran into it. And the concrete wall 887046364, drawn from 2.4 m inside that
-// bore's north mouth on its floor, stood 0.95 m off its centreline.
-test("a barrier over a road tunnel's bore deep under it takes the ground's level there, so it stops nothing in the bore; on the bore's level the bore opens it, as a road at grade does; off the bore it stands at every level", () => {
-  const bore: RoadF = {
+// edge 205834 in the bore ran into it; levelled along its whole 16 m piece, it took the railway
+// embankment's level 10.6 m off the bore, over the underpass roads beside it. And the concrete wall
+// 887046364, drawn from 2.4 m inside that bore's north mouth on its floor, stood 0.95 m off its
+// centreline, and 1.37 m once the bore's middle 1.2 m alone opened it, in the northbound lane.
+test("a barrier over a road tunnel's bore deep under it takes the ground's level over its carriageway and a kerb alone; on the bore's level the bore opens it as a road at grade does; off the bore it stands at every level", () => {
+  const bore = (cls: RoadF["cls"], w: number): RoadF => ({
     id: 1,
-    cls: "unclassified",
-    w: 5,
+    cls,
+    w,
     surface: "asphalt",
     private: false,
     tunnel: true,
     pts: [
-      { x: 0, y: -40, id: "s" },
-      { x: 0, y: 40, id: "n" },
+      { x: 0, y: -40 },
+      { x: 0, y: 40 },
     ],
-  }
+  })
   // The bore's floor at 10.7 m, the ground over it 16 m to the north (5.3 m over: deep) and 12 m to
   // the south (1.3 m, under the bore's 4 m clear height: at its level).
-  const arches = houseArches([bore]),
-    level = () => 10.7,
+  const level = () => 10.7,
     terrain = (_: number, y: number) => (y > 0 ? 16 : 12)
-  const levelsOf = (y: number) => {
+  const wallsOf = (kind: string, y: number, road = bore("unclassified", 5)) => {
     const { walls, levels } = barrierWalls(
-      { kind: "wall", pts: [-30, y, 30, y] },
-      arches,
+      { kind, pts: [-30, y, 30, y] },
+      boresOf([road]),
       level,
       terrain,
     )
-    return segments(walls).map(([ax, , bx], w) => ({ ax: ax!, bx: bx!, level: levels[w]! }))
+    return segments(walls).map(([ax, , bx], w) => ({
+      x0: Math.min(ax!, bx!),
+      x1: Math.max(ax!, bx!),
+      level: levels[w]!,
+    }))
   }
-  const deep = levelsOf(20)
-  assert.equal(deep.length, 4, "pieces of at most 16 m")
-  for (const { ax, bx, level } of deep)
-    if (Math.min(Math.abs(ax), Math.abs(bx)) <= 2.2 || ax * bx < 0)
-      assert.equal(level, 16, `the piece at x ${ax}…${bx} over the bore: the ground's level`)
-    else assert.ok(Number.isNaN(level), `the piece at x ${ax}…${bx}, off the bore: every level`)
-  // On the bore's level its middle 1.2 m (min(w/2, ARCH), as an arch's) opens the wall.
-  const open = levelsOf(-20)
-  for (const { ax, bx, level } of open) {
-    assert.ok(Number.isNaN(level), "on the bore's level, at every level")
-    assert.ok(
-      Math.min(Math.abs(ax), Math.abs(bx)) >= 1.2 && ax * bx > 0,
-      `a piece at x ${ax}…${bx} in the bore`,
-    )
-  }
+  // Deep under it: the wall over the 5 m carriageway and a 1 m kerb either side (3.5 m, to the next
+  // 0.25 m sample) takes the ground's level; the rest stands at every level, round the whole line.
+  const deep = wallsOf("wall", 20)
+  for (const { x0, x1, level } of deep)
+    if (Math.abs(x0 + x1) / 2 < 3.5) {
+      assert.equal(level, 16, `the piece at x ${x0}…${x1} over the bore: the ground's level`)
+      assert.ok(x0 >= -3.75 && x1 <= 3.75, `the piece at x ${x0}…${x1} reaches past the kerb`)
+    } else assert.ok(Number.isNaN(level), `the piece at x ${x0}…${x1}, off the bore: every level`)
   assert.ok(
-    open.some(({ ax }) => ax === -30) && open.some(({ bx }) => bx === 30),
-    "the rest stands",
+    deep.some(({ level }) => level === 16),
+    "levelled over the bore",
+  )
+  assert.deepEqual(
+    [deep[0]!.x0, deep.at(-1)!.x1, deep.reduce((s, { x0, x1 }) => s + x1 - x0, 0)],
+    [-30, 30, 60],
+    "whole",
+  )
+  // On its level, a wall opens over the bore's w/2, as at grade: to the last free sample past 2.5 m.
+  const gap = (pieces: ReturnType<typeof wallsOf>) => {
+    for (const { level } of pieces) assert.ok(Number.isNaN(level), "at every level")
+    const west = pieces.filter(({ x1 }) => x1 <= 0),
+      east = pieces.filter(({ x0 }) => x0 >= 0)
+    assert.equal(west.length + east.length, pieces.length, "no piece across the bore")
+    return [
+      west.length === 0 ? Number.NaN : -Math.max(...west.map(({ x1 }) => x1)),
+      east.length === 0 ? Number.NaN : Math.min(...east.map(({ x0 }) => x0)),
+    ]
+  }
+  for (const side of gap(wallsOf("wall", -20)))
+    assert.ok(side >= 2.5 && side < 2.75, `a wall opens ${side} m off the bore's centreline`)
+  // A guard rail opens over a drivable bore's middle 1.2 m only, and on a path's bore not at all.
+  for (const side of gap(wallsOf("guard_rail", -20)))
+    assert.ok(side >= 1.2 && side < 1.45, `a guard rail opens ${side} m off the bore's centreline`)
+  const rail = wallsOf("guard_rail", -20, bore("path", 2))
+  assert.deepEqual(
+    rail.map(({ x0, x1 }) => [x0, x1]),
+    [
+      [-30, -15],
+      [-15, 0],
+      [0, 15],
+      [15, 30],
+    ],
+    "a guard rail stands whole over a path's bore",
   )
 })
 

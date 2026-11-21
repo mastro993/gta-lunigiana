@@ -2148,10 +2148,13 @@ y = north, in metres, rounded to 0.1 m. Lunigiana's play area is four parts (`PA
 - **Barriers**: `barrier=wall`, `barrier=guard_rail` and `natural=cliff` lines, and the
   breakwaters' and groynes' outlines (`breakwater`, above), which open as a guard rail does.
   Walls and cliffs
-  are opened wherever a road (not a tunnel) comes within w/2 of them (`openBarriers` in
+  are opened wherever a road at grade or on a bridge comes within w/2 of them (`openBarriers` in
   `walls.ts`): OSM draws cliffs across the paths that climb through them and garden walls up to
-  the centreline. A guard rail runs along its road, often inside its w/2 as OSM draws it (1,679 of
-  the 2,980 points 0.25 m apart along Lunigiana's 11 rails, on 9 of them), so it opens only where
+  the centreline. A road tunnel's bore opens them in the same way only where it passes at the level
+  of the ground they stand on, and over it deep they take that ground's level over its carriageway
+  (`barrierWalls`, [section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)). A guard
+  rail runs along its road, often inside its w/2 as OSM draws it (1,679 of the 2,980 points 0.25 m
+  apart along Lunigiana's 11 rails, on 9 of them), so it opens only where
   a drivable road's middle min(w/2, 1.2) m reaches it: by Tendola OSM's rail along the SP72 (way
   697624968) stops 0.7 m from the centreline of the track leaving the road there (833551261),
   through the 8.7 m OSM leaves between it and the next rail (697624966), and stood in its
@@ -3757,28 +3760,37 @@ walls held them before, and stores neither of those.
   and a 1 m kerb, where its traffic goes, take a level (a wall with a level, below): the terrain's
   midway along each, split where that ground spans 3 m or more (`SPAN`, as under the decks), so each
   stops anyone on the hill round the house within 1.5 m of its level and nothing in the bore; the
-  rest stand at every level. A barrier meets a bore as a house does (`barrierWalls` in
-  `house-walls.ts`): where the bore passes at the level of the ground the barrier stands on, the
-  bore's corridor (min(w/2, `ARCH`), as an arch's) opens it, as a road at grade's opens it
-  (`openBarriers`); each of its pieces within the corridor and the kerb where that ground (the
-  terrain at its point nearest the bore) is the bore's clear height or more over the road takes the
-  terrain's level along it, split as a house's are. Walled at every level, the jersey barrier
-  887066016 between the underpasses of Via Alcide De Gasperi and the container terminal's service
-  road at (−17097, −1238), on the ground at 16 m, stood across the bore of the unclassified road
-  1352409570 (layer −2) 5.3 m under it, 0.5 m off its traffic edge 205834, and the concrete wall
-  887046364, which OSM draws from 2.4 m inside that bore's north mouth, on its floor, up the
-  cutting, 0.95 m off it: no Panda's lane ran through the bore. On the four regions these are
-  three barriers, all on Lunigiana (`pnpm map-diff`, 2026-11-21): the jersey barrier's 3 walk and 3
-  drive pieces over the bore take 18.1, 16.2 and 16 m; the wall now starts 1.43 m off the bore's
-  line; and the 410 m noise barrier 1514011458 opens 2.4 m over the track's underpass 1512164508 at
-  (−18856, −358), on its floor's level on the grid there, its other pieces split anew along it.
-  With the walls under the decks that the fork and joint rules move ([Footing in
-  gameplay.md](gameplay.md#footing)), Lunigiana's map puts 38 walk and 84 drive walls for 34 and
-  72, and 7 lanes of each vehicle change. The A15's 10 m Galleria Fresonara opened the house
-  −1475651980358925 on
+  rest stand at every level. The A15's 10 m Galleria Fresonara opened the house −1475651980358925 on
   the hill 80 m over it at (−19236.6, −4601.2), and anyone walked in; each of a house's walls
   levelled whole at the ground at its middle, the wall from (−13542.7, −5846.7) to (−13555.5,
   −5846.3) stood 2.59 m off its level at its east end, and a walker passed it there.
+- **A barrier over a road tunnel's bore** (no building passage) meets it as it meets a road at
+  grade, by the ground it stands on (`barrierWalls` in `walls.ts`, issue #20), read every 0.25 m
+  along it: where the bore passes at that ground's level (the terrain there less than the bore's
+  clear height over its road), the bore opens it as `openBarriers` opens it at grade, a wall or a
+  cliff over its w/2 and a guard rail or a breakwater over its middle min(w/2, 1.2 m) on a drivable
+  way only; where the bore passes its clear height or more under that ground, the barrier keeps its
+  walls, and those over its carriageway and a 1 m kerb (where its traffic goes) take the terrain's
+  level along them, split as a house's are, so they stop anyone on the ground there and nothing in
+  the bore; the rest stands at every level. Walled at every level, the jersey barrier 887066016
+  ended on the centreline of the unclassified road 1352409570's bore (layer −2) at (−17096.7,
+  −1238.4), on the ground 5.3 m over it, and the concrete wall 887046364, which OSM draws from 2.4 m
+  inside that bore's north mouth on its floor up the cutting, stood 0.91 m off it: no Panda's lane
+  ran through the bore (traffic edge 205834). Opened over the bore's middle 1.2 m alone, the wall
+  stood 1.37 m off it, in a northbound car's way, and the lanes baked through the bore kept 0.45 m
+  (a Panda's) and 0.20 m (the carabinieri's) off the centreline going north; levelled along its
+  whole 16 m pieces over the bore, the jersey barrier took the railway embankment's 18.1 m 10.6 m
+  off the bore, over the underpass roads at 16.0 and 16.3 m beside it. Now the wall starts 2.60 m
+  off the bore's centreline, and every lane through it keeps its 1.45 m; the jersey barrier, which
+  OSM draws 2.9–3.5 m off Via Alcide De Gasperi's centreline, opens where it comes inside that
+  road's 3.25 m half-width along its underpass 139859535, at its level, as it opens along its
+  stretch at grade east of it, and a truck's lane through the underpass east keeps its 1.825 m
+  (1.575 m before). A guard rail (1514011457) and a 410 m noise barrier (1514011458) along the
+  secondary road at the Ponte Magra cross the track's underpass 1512164508 at (−18856, −358), where
+  the grid stands 1.6 m and 0 m over its floor: they open over its 1.2 m and its w/2, 1.5 m, either
+  side, their pieces split anew along them. On the four regions these are the barriers that change,
+  all on Lunigiana (`pnpm map-diff` against the map before it, 2026-11-21): 7 walk and 7 drive walls
+  for 9 and 9 at the bore, and 27 walk and 54 drive walls for as many at the underpass.
 - **Road-exit caps** (`exit-caps.ts`) shut their own road alone: a cap across a road leaving the
   play area stands 4 m in from its cut end along the road, on through the pieces joined end to end
   with it at a node no third way meets (one road OSM split; where a junction comes sooner, on along
