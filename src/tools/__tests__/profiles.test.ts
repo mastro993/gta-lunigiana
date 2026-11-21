@@ -232,7 +232,7 @@ test("profile holds a bound at a deck's end there alone: the straight deck keeps
 // between them (36%) and 4 m over the next 50 m, past the motorway's 6%.
 test("profile holds the bounds it breaks within its grade limit: a deck's end over its approach's lower bounds leaves it down the grade, not in a step", () => {
   // Flat ground at 100 m; a bridge from x 300 to 400, at least 106 m at its east end; past it, at
-  // grade, at least 1.5 m under a twin climbing 5.7% to 106 m at x 400.
+  // grade, within 1.5 m of a twin climbing 5.7% to 106 m at x 400 (`TWINS` in road-levels.ts).
   const ground = () => 100
   const deck = { id: 2, bridge: true as const, pts: [v(300, 0, "b0"), v(400, 0, "b1")] }
   const after = { id: 3, pts: [v(400, 0, "b1"), v(700, 0)] }
@@ -240,10 +240,11 @@ test("profile holds the bounds it breaks within its grade limit: a deck's end ov
     item,
     rev: false,
   }))
+  const twinAt = (x: number) => Math.max(100, 106 - 0.057 * (x - 400))
   const twin = Array.from({ length: 20 }, (_, i) => 404 + 4 * i).map((x) => ({
     x,
     y: 0,
-    z: Math.max(100, 106 - 0.057 * (x - 400)) - 1.5,
+    z: twinAt(x) - 1.5,
     kind: "min" as const,
     on: after,
   }))
@@ -252,6 +253,7 @@ test("profile holds the bounds it breaks within its grade limit: a deck's end ov
   profile(chain, { w: 10, ...motorway }, [
     { x: 400, y: 0, z: 106, kind: "min", tilt: true, on: deck },
     ...twin,
+    ...twin.map((b) => ({ ...b, z: twinAt(b.x) + 1.5, kind: "max" as const })),
   ])
   const { pts, z } = denseOf.get(after)!
   assert.ok(z[0]! >= 106 - 1e-6, `the deck's end at ${z[0]}`)

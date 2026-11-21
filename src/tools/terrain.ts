@@ -305,49 +305,61 @@ const fitOnce = (
 }
 
 /**
+ * How far every pin and bound of a fit, each at its own level, lets the profile stand within the
+ * grade budget `t`, by sample: `lo` the lowest level the pins and the minimums leave it, `hi` the
+ * highest the pins and the maximums do.
+ */
+const reachOf = (
+  pins: ReadonlyArray<Pin>,
+  t: Float64Array,
+): { readonly lo: Float64Array; readonly hi: Float64Array } => {
+  const lo = new Float64Array(t.length).fill(-Infinity),
+    hi = new Float64Array(t.length).fill(Infinity)
+  for (const { k, z, kind } of pins) {
+    if (kind !== "max") lo[k] = Math.max(lo[k]!, z)
+    if (kind !== "min") hi[k] = Math.min(hi[k]!, z)
+  }
+  return { lo: envelope(t, lo, -1), hi: envelope(t, hi, 1) }
+}
+
+/**
  * The pins a fit holds, in `hard`'s order: each at its level, but a broken bound (`kinds`, by sample)
  * past it where the broken bounds beside it, with no other pin between, reach within the grade budget
  * `t`: a minimum raised to the reach down from them and a maximum lowered to the reach up, so that two
  * bounds the fit broke side by side are met within the grade rather than in a step between them.
  * Pinned each at its own level, the A12's Livorno carriageway kept its Vara bridge's end at 29.56 m,
  * 5.5 m over the road under it, and the sample 4.2 m on at its twin's level less 1.5 m, 28.06 m: the
- * straight line between the two fell 36%. Nor is a bound moved past the reach of the pins that are no
- * bound (a junction's, a chain's end's), whose level is set: from them a bound reaches no further,
- * and none is raised from a junction's either. Raised from a broken bound beside it, past the
+ * straight line between the two fell 36%. None is moved past what every other pin and bound at its
+ * own level allows within the grade (`reach`, `reachOf`): a minimum is raised no higher than the
+ * reach of the maximums and the pins (a junction's, a chain's end's), the maximum at its own sample
+ * among them, and a maximum lowered no lower than the minimums' and the pins'. Raised past a
  * junction's reach, a bound of the SS330's ramp 1388645825 at Albiano took up the climb from that
- * junction to the one 17.6 m away, and left the 5.6 m 1250443404 before it climbing 87%.
+ * junction to the one 17.6 m away, and left the 5.6 m 1250443404 before it climbing 87%; raised past
+ * the maximum at its own sample, which a pinned sample no longer checks, a track's minimum beside
+ * its twin left the rail 206182844 falling 36.6% at (−19005, −3660), its twins 3.63 m apart.
+ * Nor is a bound raised from a junction's pin: its level is set.
  */
 const heldPins = (
   hard: ReadonlyMap<number, number>,
   kinds: ReadonlyMap<number, "min" | "max">,
   t: Float64Array,
+  reach: { readonly lo: Float64Array; readonly hi: Float64Array },
 ): Array<Pin> => {
   const at = new Map(hard)
   const ks = [...hard.keys()].sort((a, b) => a - b)
-  const pins = ks.filter((k) => !kinds.has(k))
-  /** How far the pins that are no bound let a broken bound at sample k be moved: up for a minimum, down for a maximum. */
-  const cap = (k: number, kind: "min" | "max") =>
-    pins.reduce(
-      (c, h) => {
-        const z = hard.get(h)!,
-          reach = Math.abs(t[k]! - t[h]!)
-        return kind === "min" ? Math.min(c, z + reach) : Math.max(c, z - reach)
-      },
-      kind === "min" ? Infinity : -Infinity,
-    )
   for (const order of [ks, [...ks].reverse()]) {
     let last: number | undefined
     for (const k of order) {
       const kind = kinds.get(k)
       if (kind !== undefined && last !== undefined) {
-        const reach = Math.abs(t[k]! - t[last]!),
+        const by = Math.abs(t[k]! - t[last]!),
           from = at.get(last)!,
           own = hard.get(k)!
         at.set(
           k,
           kind === "min"
-            ? Math.max(own, Math.min(Math.max(at.get(k)!, from - reach), cap(k, kind)))
-            : Math.min(own, Math.max(Math.min(at.get(k)!, from + reach), cap(k, kind))),
+            ? Math.max(own, Math.min(Math.max(at.get(k)!, from - by), reach.hi[k]!))
+            : Math.min(own, Math.max(Math.min(at.get(k)!, from + by), reach.lo[k]!)),
         )
       }
       last = kind === undefined ? undefined : k
@@ -379,7 +391,7 @@ export const fitProfile = (
   for (let round = 0; round < 12; round++) {
     const t = new Float64Array(n)
     for (let k = 1; k < n; k++) t[k] = t[k - 1]! + g[k - 1]! * (p.s[k]! - p.s[k - 1]!)
-    fitOnce(p, natural, t, heldPins(hard, kinds, t))
+    fitOnce(p, natural, t, heldPins(hard, kinds, t, reachOf(pins, t)))
     const broken = bounds.filter(
       (b) => !hard.has(b.k) && (b.kind === "min" ? p.z[b.k]! < b.z - 1e-6 : p.z[b.k]! > b.z + 1e-6),
     )
