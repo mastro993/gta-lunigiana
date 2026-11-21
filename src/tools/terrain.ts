@@ -347,8 +347,10 @@ export const fitProfile = (
 
 /**
  * Lowers the terrain along a water-surface profile: the bed `depth`/2 below the surface inside w/2,
- * a gravel slope to `bed`, then a one-cell bank back to the terrain. Uses min(), so order never
- * matters; nodes with `keep(n)` (road cores) are left alone.
+ * a gravel slope to `bed`, then a one-cell bank back to the terrain. Uses min(), so a node only goes
+ * down, but the bank leads back to the node's height as it stands, so carving again (the tile pass
+ * carves every line twice, `build-grid.ts`) or after another line lowers a bank node again; nodes
+ * with `keep(n)` (road cores) are left alone.
  */
 export const carve = (
   g: Grid,

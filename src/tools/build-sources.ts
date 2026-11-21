@@ -107,8 +107,13 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   lap("rail")
   fitRoads(roads, survey.roadAreas, survey.mapped)
   nameFromAddresses(osm, roads)
+  // A water area holding no cell of the grid holds no water the game draws or carves, and the game
+  // would read still water over the ground under it: a 6.0 m² pool under a path's bridge at the
+  // Mulini Bozzo Luero (OSM 1032984030, round (−15432, 1585)), 0.8 m deep. Left out before any other
+  // water is read against it.
+  const drawable = (a: Area) => !isWaterArea(a.kind) || holdsCell(a.rings)
   // Lunigiana's orchards with no trees tag are olive groves low down (`extractAreas`).
-  const osmAreas = extractAreas(osm, lunigiana ? dem.at : undefined),
+  const osmAreas = extractAreas(osm, lunigiana ? dem.at : undefined).filter(drawable),
     drawnWater = [...osmAreas, ...sea].filter((a) => isWaterArea(a.kind))
   // The sea's floor rises to the shore, the coastline less where it closes a river or a lake across
   // its mouth, from Liguria's survey of it (its isobaths, where a part's sources hold them).
@@ -136,10 +141,7 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     // The beaches, the piers' decks and the breakwaters, and the sea over them.
     ...shore.areas,
     ...sea,
-    // A water area holding no cell of the grid holds no water the game draws or carves, and the
-    // game would read still water over the ground under it: a 10 m² pool under a path's bridge at
-    // the Mulini Bozzo Luero (OSM 1032984030, round (−15432, 1586)), 0.8 m deep.
-  ].filter((a) => !isWaterArea(a.kind) || holdsCell(a.rings))
+  ].filter(drawable)
   // The piers last, as OSM maps them (no survey maps a pier's deck), decks over the water alone.
   roads.push(
     ...splitPiers(
