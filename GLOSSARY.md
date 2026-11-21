@@ -157,6 +157,10 @@ A road vehicle's level as read toward a point: along its pitch out to its bumper
 An end of a tunnel's line that no other line in a tunnel goes on from or runs through: where a road or the railway enters the hill.
 _Avoid_: Portal (that is what stands there), entrance, tunnel end
 
+**Hill's face**:
+The slope the terrain model reads over a cutting before a tunnel's mouth, where the ground falls away along the line more steeply than any way at grade climbs (20%): a rail tunnel's mouth takes the ground at its foot.
+_Avoid_: Head wall (that is what stands there), cutting
+
 **Portal**:
 The arched face wall and its throat that stand at a mouth the hill rises high enough over.
 _Avoid_: Mouth, arch

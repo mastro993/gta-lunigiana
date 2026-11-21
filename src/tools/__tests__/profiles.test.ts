@@ -50,6 +50,36 @@ test("profile takes a tunnel portal's and a bridge end's level from the ground j
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
 })
 
+// Regression: Liguria's DTM, interpolated from the NC5's heights, sees no cutting before Vezzano
+// Ligure's Pontremolese mouths and climbs 14–19 m over the 32 m before them; the mouths took the
+// face's ground 4 m out (35.4 and 41.5 m), and the line climbed into them at 2.5% to 28.6 and
+// 29.4 m, its grade changing 4.0 and 4.2% over 20 m there.
+test("profile takes a rail tunnel's mouth at the foot of the hill's face, however far out the face runs; a road's 4 m out", () => {
+  // Flat ground at 100 m, a hill over x 100–200 at 130 m, and on its west side a face falling from
+  // the mouth at x 100 to its foot at x 68, 0.45 m a metre (the Vezzano mouths' 0.44–0.47).
+  const ground = (x: number) =>
+    x >= 100 && x <= 200 ? 130 : x > 68 && x < 100 ? 100 + 0.45 * (x - 68) : 100
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(100, 0, "p0"), v(200, 0, "p1")] }
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(-400, 0), v(100, 0, "p0")] },
+    tunnel,
+    { id: 3, pts: [v(200, 0, "p1"), v(600, 0)] },
+  ]
+  /** The bore's middle, 50 m from either mouth, profiled with `spec`. */
+  const middle = (spec: Parameters<ReturnType<typeof makeProfiler>["profile"]>[1]) => {
+    const { profile, zOf } = makeProfiler((x) => ground(x))
+    profile(
+      pieces.map((item) => ({ item, rev: false })),
+      spec,
+    )
+    return (zOf.get(tunnel)![0]! + zOf.get(tunnel)![1]!) / 2
+  }
+  const rail = middle({ w: 4, ...RAIL_PASS }),
+    road = middle(SPEC)
+  assert.ok(Math.abs(rail - 100) < 0.05, `the rail's bore's middle at ${rail.toFixed(2)}`)
+  assert.ok(road > 102, `the road's bore's middle at ${road.toFixed(2)}, its mouth 4 m up the face`)
+})
+
 // Regression: the Galleria del Lupacino, cut by the play area's outline 1325 m in and split by OSM where its speed limit
 // changes, took the hill's surface at the cut and at the joint, and fell 3.7% to its portal.
 test("profile runs a tunnel the outline cuts, in two pieces, level from its one portal: no hill's surface at the cut or the joint", () => {

@@ -2682,21 +2682,39 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
 
 ### 7. Road and rail profiles (`profiles.ts`, `chains.ts`, `grid-claims.ts`, `terrain.ts`, `rail-levels.ts`, `road-levels.ts`, `junction-reach.ts`, `path-pass.ts`)
 
-- Pieces are chained through nodes where exactly two ends meet (`chainsOf` in `chains.ts`). Each chain is resampled every 4 m
-  from the ground and smoothed with a moving average. Bridges and tunnels are straight between their
-  ends, and each end takes the ground 4 m out of it when that is nearer the line's level (a tunnel's
-  the lower, a bridge's the higher): at the Ugliancaldo tunnel's west portal the terrain model
-  climbs 3.6 m up the hill's face, and the rail's 2.5% grade limit carried 1.2–1.6 m of it 600 m
-  along the line past Equi Terme; a bridge end on the slope of the Lucido's bank pulled Monzone's
-  line 0.7 m under the ground. A tunnel that OSM splits into pieces in a row (where its tags change)
-  is one bore, straight from portal to portal, and so is a road's bridge: taken piece by piece, the
-  joint of the SS63's two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m under
-  it, and the deck sagged 4.9 m there (12% and 6%), so a walker crossing it stayed 0.5 m under the
-  deck; and the joint inside the Galleria del Lupacino, at its 140 km/h limit, took the hill's 391
-  m. So is the rail's bridge of two pieces in a row, one deck, as a road's (since issue #19): kept a
-  deck a piece, the Pontremolese's second track's joint between 1045531416 (175 m) and 92904328 (391
-  m) stood at 79.8 m, 5.6 m under the line between the deck's ends, a 4.49% grade change over 20 m;
-  it now stands at 87.7 m, and no line passes 3.06%. With it Monzone's bridges over the Lucido
+- Pieces are chained through nodes where exactly two ends meet (`chainsOf` in `chains.ts`). Each
+  chain is resampled every 4 m from the ground and smoothed with a moving average. Bridges and
+  tunnels are straight between their ends, and each end takes the ground 4 m out of it when that is
+  nearer the line's level (a tunnel's the lower, a bridge's the higher): at the Ugliancaldo tunnel's
+  west portal the terrain model climbs 3.6 m up the hill's face, and the rail's 2.5% grade limit
+  carried 1.2–1.6 m of it 600 m along the line past Equi Terme; a bridge end on the slope of the
+  Lucido's bank pulled Monzone's line 0.7 m under the ground. A rail tunnel's mouth takes the ground
+  at the foot of that face (`Spec.faces`, the rail's pass): out along the line at grade, past the 4
+  m, while the ground falls away more steeply than any way at grade climbs (`FACE`, the service and
+  track roads' 20%), the samples between on the line from the mouth to the foot, the cutting's
+  floor. Liguria's DTM, interpolated from the NC5's heights, sees no cutting, and climbs 14–19 m
+  over the 32 m before Vezzano Ligure's two Pontremolese mouths (206182859 at (−18336, −3160),
+  54567426 at (−18332, −3174)): read 4 m out, they took 35.4 and 41.5 m, the line climbed into them
+  at 2.5% from 24.4–25.3 m to 28.6 and 29.4 m, and its grade changed 4.0 and 4.2% over 20 m there
+  (lines 4 and 2, `railway.map-test.ts`); they now take the foot's 25.6 and 25.5 m, and stand at
+  24.6–25.1 m. A road's mouth keeps the 4 m: on a hillside bench its line reads the valley under it
+  past the face, and taken to the foot the SR445's east mouth by Groppoli (552592651) sank from
+  159.9 to 152.2 m into a V, its approach falling 14.8% into it where it climbed 14.8% up the face.
+  On Lunigiana the rule moved 2,107 nodes: 539, by up to 4.3 m, at Vezzano Ligure's mouths, 172, by
+  up to 2.5 m, at Santo Stefano di Magra's (below), 1,249, by up to 0.5 m, at the Genova–Pisa's two
+  by the play area's west edge (x −21000) and 117, by up to 0.2 m, at the Pontremolese's tunnel
+  377677709 north of Aulla, the only ones in the earlier parts; 25 rail pieces, and 6 roads under or
+  by them (Via Aurelia under the Pontremolese by Santo Stefano di Magra by 1.6 m, the primary
+  1295717964 under Vezzano Ligure's junction by 1 m); Cesena, the L and the coast not at all. A
+  tunnel that OSM splits into pieces in a row (where its tags change) is one bore, straight from
+  portal to portal, and so is a road's bridge: taken piece by piece, the joint of the SS63's
+  two-piece bridge over the Rosaro at Soliera fell toward the ground 12 m under it, and the deck
+  sagged 4.9 m there (12% and 6%), so a walker crossing it stayed 0.5 m under the deck; and the
+  joint inside the Galleria del Lupacino, at its 140 km/h limit, took the hill's 391 m. So is the
+  rail's bridge of two pieces in a row, one deck, as a road's (since issue #19): kept a deck a
+  piece, the Pontremolese's second track's joint between 1045531416 (175 m) and 92904328 (391 m)
+  stood at 79.8 m, 5.6 m under the line between the deck's ends, a 4.49% grade change over 20 m; it
+  now stands at 87.7 m, and no line passes 3.06%. With it Monzone's bridges over the Lucido
   (140780341/47, 140780342/32) rose 0.9–1.1 m, the line through the station now keeps within about
   0.4 m of the LiDAR ground, where it sagged up to 1.1 m under it, and the Lucido bridge
   83729863/140780336/140780348 at (−1600, 2700) rose up to 2.3 m. A chain of the rail that ends at a

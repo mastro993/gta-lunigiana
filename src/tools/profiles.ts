@@ -19,6 +19,13 @@ import {
 /** A bridge's or tunnel's end may take the elevation of the ground this far (m) out of it along the chain. */
 const PORTAL = 4
 
+/**
+ * Ground falling away from a rail tunnel's mouth along the line more steeply than this (per metre)
+ * is the hill's face over its cutting, past PORTAL m too (`Spec.faces`): steeper than any way at
+ * grade climbs (the service and track roads' 20%, `ROAD_PASSES`).
+ */
+const FACE = 0.2
+
 /** An elevation at a point of a chain (nearest sample); `min`/`max` only bind when the fit crosses them. */
 export interface Bound {
   readonly x: number
@@ -82,8 +89,12 @@ export const ROAD_PASSES = [
  */
 export const PATH_PASS = { classes: ["path", "steps"], rank: 6, grade: 0.2, half: 0 } as const
 
-/** The rail's pass, before every road's: its rank (it keeps its cells against all but the main roads), grade limit and smoothing half-window (m). */
-export const RAIL_PASS = { rank: 2, grade: 0.025, half: 100 } as const
+/**
+ * The rail's pass, before every road's: its rank (it keeps its cells against all but the main
+ * roads), grade limit and smoothing half-window (m), and its tunnels' mouths at the foot of the
+ * hill's face (`Spec.faces`).
+ */
+export const RAIL_PASS = { rank: 2, grade: 0.025, half: 100, faces: true } as const
 
 /** Rank of the tracks only the CTR has: written after every road, into the cells no road took. */
 export const EXTRA_RANK = 5
@@ -143,6 +154,12 @@ interface Spec<T extends Linear> {
   readonly ends?: (v: V, piece: T) => number | undefined
   /** Whether node `id` lies inside a bore or on a deck (`insideNodes`): a chain's end there is no portal or abutment. */
   readonly inside?: (id: string) => boolean
+  /**
+   * Whether a tunnel's mouth takes the ground at the foot of the hill's face (`FACE`), the rail's:
+   * a road's mouth on a hillside bench reads the valley under its line past the face, and the SR445's
+   * east mouth by Groppoli sank 7.7 m into a V, its approach falling 14.8% into it.
+   */
+  readonly faces?: true
 }
 
 /** A piece as written to the map: its OSM vertices plus the profile samples where the elevation bends between them. */
@@ -281,17 +298,36 @@ export const makeProfiler = (
       // Each end takes the ground PORTAL m out of it when that is nearer the line's level: at a
       // tunnel's portal the terrain model climbs the hill's face (3.6 m over the cutting at the
       // Ugliancaldo tunnel's west portal), and a bridge's end may stand on the slope of what it
-      // spans (the Lucido's banks at Monzone).
-      const tunnel = isTunnel(i0)
-      for (const [k, step] of [
-        [k0, -1],
-        [k1, 1],
+      // spans (the Lucido's banks at Monzone). With `faces` a tunnel's mouth takes the ground at the
+      // foot of the face, out along the line at grade while the ground falls away more steeply than
+      // FACE: Liguria's DTM, interpolated from the NC5's heights, does not see a cutting, and before
+      // Vezzano Ligure's Pontremolese mouths climbs 14–19 m over 32 m.
+      for (const [k, step, tunnel] of [
+        [k0, -1, isTunnel(i0)],
+        [k1, 1, isTunnel(i1)],
       ] as const) {
         let o = k
         while (o + step >= 0 && o + step < p.z.length && Math.abs(p.s[o]! - p.s[k]!) < PORTAL)
           o += step
+        const portal = o
+        if (tunnel && spec.faces === true)
+          while (
+            o + step >= 0 &&
+            o + step < p.z.length &&
+            !isLifted(pieceOfSample(Math.min(o, o + step))) &&
+            p.z[o]! - p.z[o + step]! > FACE * Math.abs(p.s[o + step]! - p.s[o]!)
+          )
+            o += step
         if (o !== k && Math.abs(p.s[o]! - p.s[k]!) >= PORTAL)
           p.z[k] = tunnel ? Math.min(p.z[k]!, p.z[o]!) : Math.max(p.z[k]!, p.z[o]!)
+        // Past PORTAL m the face stands over the cutting's floor too: the line runs on from the
+        // mouth to the foot, not up the face.
+        if (o !== portal)
+          for (let j = k + step; j !== o; j += step)
+            p.z[j] = Math.min(
+              p.z[j]!,
+              p.z[k]! + ((p.z[o]! - p.z[k]!) * (p.s[j]! - p.s[k]!)) / (p.s[o]! - p.s[k]!),
+            )
       }
       // An end the play area's outline cut (the chain's own end, with no id: `clipPieces` gives a
       // cut point none) is no portal or abutment: the ground there is the hill over the tunnel or
