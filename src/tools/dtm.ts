@@ -8,7 +8,14 @@ import { join } from "node:path"
 import { inflateSync } from "node:zlib"
 
 import { latLonToGaussBoaga } from "./crs.ts"
-import { assembleTiles, drawEdgesOn, readTile, tileGrid, tileNeed, tilePath } from "./dtm-tiles.ts"
+import {
+  assembleTiles,
+  decodeTile,
+  drawEdgesOn,
+  tileGrid,
+  tileNeed,
+  tilePath,
+} from "./dtm-tiles.ts"
 import { NONE } from "./fill-chain.ts"
 import { BOUNDS, fromLocal } from "./geometry.ts"
 import { REGION, type Region } from "./region.ts"
@@ -190,17 +197,13 @@ export const loadDtm = (dir: string, region: TerrainOf = REGION): Dem =>
  */
 export const readTiles = (dir: string, region: TerrainOf): DtmData => {
   const tiles = region.tiles.flatMap(({ i, j }) => {
-    const missing = () =>
-      new Error(`no terrain for tile ${i}_${j}: run fetch-rt for the part it belongs to`)
-    if (!existsSync(tilePath(dir, i, j))) {
-      if (!region.test) throw missing()
+    const path = tilePath(dir, i, j)
+    if (!existsSync(path)) {
+      if (!region.test)
+        throw new Error(`no terrain for tile ${i}_${j}: run fetch-rt for the part it belongs to`)
       return []
     }
-    const read = () => {
-      const tile = readTile(dir, i, j)
-      if (tile === undefined) throw missing()
-      return tile
-    }
+    const read = () => decodeTile(inflateSync(readFileSync(path)), path)
     return [{ key: `${i}_${j}`, cells: tileGrid(i, j), read }]
   })
   const dtm = assembleTiles(tiles)
