@@ -126,8 +126,10 @@ const vergeAhead = (lane: Lane, along: number, side: number, most = lane.length)
  * up when behind and stands when the leader stands. Farther than CATCH_UP from its place it makes for the leader itself. When
  * a wall stands in the way of either (the leader has turned a corner, or skirts one on the follower's side), it heads LOOK m on
  * along the leader's lane (`route`, the leader's), on the line through the leader rather than the verge (which may run into the
- * wall the leader slides along), and no nearer the leader than its place is: in single file round the corner. The walls are those
- * the follower meets on its ground at `z` (m a.s.l.; every one when left out).
+ * wall the leader slides along), and no nearer the leader than its place is: in single file round the corner. So it does too
+ * on a bridge or in a tunnel (the leader's way is one): a walker keeps to a deck's verge, outside its parapets, so a place beside
+ * it lies past the deck's edge, off which a kid beside its parent on Via Borgo Lucido's bridge in Gragnola stepped onto the
+ * stream's bank 5 m under it. The walls are those the follower meets on its ground at `z` (m a.s.l.; every one when left out).
  */
 export const followVelocity = (
   at: Vec2.Vec2,
@@ -140,7 +142,12 @@ export const followVelocity = (
 ): Vec2.Vec2 => {
   const goal = Vec2.distanceSquared(at, place) > CATCH_UP ** 2 ? leader : place
   const way = Vec2.subtract(goal, at)
-  if (crossesAny(wallsAlong("land", at.x, at.y, way.x, way.y, 0, z), at, goal)) {
+  const { bridge, tunnel } = roadOf(route.edge)
+  if (
+    bridge === true ||
+    tunnel === true ||
+    crossesAny(wallsAlong("land", at.x, at.y, way.x, way.y, 0, z), at, goal)
+  ) {
     const lane = laneOf(route.edge, route.forward),
       side = (leader.x - lane.x) * lane.rx + (leader.y - lane.y) * lane.ry
     const target = vergeAhead(

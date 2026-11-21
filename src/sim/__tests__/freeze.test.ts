@@ -5,7 +5,7 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { settle } from "../chassis.ts"
 import { SetPlayer } from "../index.ts"
-import { MAP } from "../map/index.ts"
+import { inPlay, MAP } from "../map/index.ts"
 import { tileKey } from "../map/kinds.ts"
 import { setTileSource, tileFromDisk } from "../map/source.ts"
 import { dropTile, FROZEN_BEYOND, provideTile, STEP_REACH, tilesOver } from "../map/tiles.ts"
@@ -26,6 +26,20 @@ const ahead = (pose: typeof AWAY, m: number) => ({
   x: pose.x + Ops.cos(pose.angle) * m,
   y: pose.y + Ops.sin(pose.angle) * m,
 })
+/**
+ * Where the player comes within reach of `AWAY`: 50 m inside `FROZEN_BEYOND` of it toward the start,
+ * so in play whichever edge the far spot lies by (since Sarzana's part, 11 m in from the box's west
+ * edge, heading east: a point behind it lay off the map, and `SetPlayer` keeps to the play area).
+ */
+const WITHIN = (() => {
+  const d = Ops.hypot(START.x - AWAY.x, START.y - AWAY.y),
+    m = FROZEN_BEYOND - 50
+  return {
+    x: AWAY.x + ((START.x - AWAY.x) * m) / d,
+    y: AWAY.y + ((START.y - AWAY.y) * m) / d,
+    angle: 0,
+  }
+})()
 
 test("reach: within FROZEN_BEYOND along both axes (Chebyshev), and everywhere with no player", () => {
   const p = { x: 100, y: -200 }
@@ -37,6 +51,7 @@ test("reach: within FROZEN_BEYOND along both axes (Chebyshev), and everywhere wi
 
 test("freeze: cars past FROZEN_BEYOND keep their state bit for bit and read no tile, rolling and touching; within reach they move again", () => {
   assert.ok(off(AWAY) > 2 * STEP_REACH, `the far spot ${off(AWAY)} m out`)
+  assert.ok(inPlay(WITHIN.x, WITHIN.y), "the player comes within reach in play")
   // Rolling on at 5 m/s with its throttle on, its tail in a parked car's nose: awake, it would drive off and the two be shoved apart.
   const game = start(
     [],
@@ -69,7 +84,7 @@ test("freeze: cars past FROZEN_BEYOND keep their state bit for bit and read no t
     setTileSource(tileFromDisk)
   }
   // The player comes within reach: they roll on and the parked car is shoved.
-  game.runtime.send(SetPlayer, { ...ahead(AWAY, -(FROZEN_BEYOND - 50)), angle: 0 })
+  game.runtime.send(SetPlayer, WITHIN)
   game.run(30)
   const now = (throttle: number) => {
     const { id } = before.find((v) => v.input.throttle === throttle)!
@@ -104,7 +119,7 @@ test("a traffic wreck beyond reach is abandoned only once the player comes withi
   } finally {
     setTileSource(tileFromDisk)
   }
-  game.runtime.send(SetPlayer, { ...ahead(AWAY, -(FROZEN_BEYOND - 50)), angle: 0 })
+  game.runtime.send(SetPlayer, WITHIN)
   game.run(2)
   assert.equal(wreck()?.traffic, false, "abandoned")
   assert.ok(

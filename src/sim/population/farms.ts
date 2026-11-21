@@ -13,7 +13,7 @@ import { pointInRing, segDist2, staticGrid } from "../collide.ts"
 import { distanceToEdge, edgeIndex } from "../edges.ts"
 import { type Cover, coverAt } from "../map/cover.ts"
 import type { Layer } from "../map/format/tile-file.ts"
-import { type Building, type FarmEntry, graph, heightAt, MAP } from "../map/index.ts"
+import { ANCHOR, type Building, type FarmEntry, graph, heightAt, MAP } from "../map/index.ts"
 import { buildingAt, buildingsIn } from "../map/vectors.ts"
 import { buildingCentre, residentsNear } from "./density.ts"
 
@@ -85,6 +85,7 @@ const build = () => {
     list.length,
     (k) => [list[k]!.x, list[k]!.y, list[k]!.x, list[k]!.y],
     FARM_CELL,
+    ANCHOR,
   )
   // Roads in tunnels run under the fields: they keep no herd off.
   const roads = edgeIndex(

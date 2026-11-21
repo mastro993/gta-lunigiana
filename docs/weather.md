@@ -68,12 +68,13 @@ new map needs no weather data of its own.
 | Field | What it is | On the shipped map |
 |---|---|---|
 | `lat`, `lon` | the map's origin (`MAP.origin`, degrees north and east): the sun and the moon are worked out for it, and the latitude picks the climate | 44.16175 N, 10.13 E |
-| `floor` | the map's low ground, m: the 5th percentile of its heightmap | 98.4 m |
-| `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | −3.130 (toward the west, 0.65° south of it) |
+| `floor` | the map's low ground, m: the 5th percentile of its heightmap | 18.5 m |
+| `downslope` | the way its ground falls, rad counter-clockwise from east: the steepest descent of a least-squares plane through its heights | −2.911 (toward the west, 13.2° south of it) |
 
 - **Baked at build time.** The fit reads every height node the map's listed tiles hold
-  (`listedNodes`): on the shipped map 31.6 of the 39.0 million in its box, the rest lying in its 45
-  unlisted tiles, the two notches west of Fosdinovo's part (south of Aulla's) and east of lucido's.
+  (`listedNodes`): on the shipped map 41.8 of the 45.3 million in its box, the rest lying in its 26
+  unlisted tiles, the two notches south of Fosdinovo's part and lucido's (y −8500…−8000, east of
+  Sarzana's part) and east of lucido's.
   The game holds them only in the tiles near the player, so the build runs `placeFrom` over the
   heightmap (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file
   (`MAP.place`). A region whose parts leave tiles of its box unlisted, an L's notch, has no ground
@@ -81,12 +82,14 @@ new map needs no weather data of its own.
   `src/sim/map/global.ts` calls `providePlace({ ...MAP.origin, ...MAP.place })` right after
   decoding, as the host hands the map file to `provideMap`.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,
-  `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 98 m, downslope −3.13, the shipped map's own place
-  rounded, so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
+  `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 18.5 m, downslope −2.91, the shipped map's own
+  place rounded (the floor to the decimetre: 18.5 m lies half a metre from both 18 and 19, outside
+  the test's bound), so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
   the sky modules decode no map, and that once the map is decoded `place()` is the map's origin and
   the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the reference (the slope's
   direction compared round the circle, modulo 2π: Aulla's part turned it to −3.130 rad, 0.011 rad
-  short of ±π, where a later part may tip its sign while hardly turning it);
+  short of ±π, where a later part may tip its sign while hardly turning it, and Sarzana's back to
+  −2.911);
   `place.map-test.ts` (`pnpm test:map`) fits them again over the listed tiles' nodes of the
   heightmap joined from the tiles, the floor their 5th-percentile height, and `place.test.ts` checks
   that a notch holding 0 moves neither the floor nor the slope.
@@ -122,7 +125,16 @@ new map needs no weather data of its own.
   under its own floor. The map's top stays 1856 m; its lowest listed node is now 12.9 m at (−11968,
   −6040), on the Magra plain by Sarzana in the strip west of x −11500 that Aulla's grown box adds to
   Fosdinovo's tiles, so the snow line's floor falls from −32 m to −37 m. Level ground at 1100 m
-  holds snow 57.5 days a year, as before, and 123 at 1750 m (seed 1, 2026-11-18).
+  holds snow 57.5 days a year, as before, and 123 at 1750 m (seed 1, 2026-11-18). Sarzana's part
+  (issue #20) brought the lower Val di Magra: its rectangle holds 2,008,211 (96.2 %) of the
+  2,086,527 nodes now under the floor, 821,462 of them on its plain at 2–10 m (39.4 % of them). The
+  floor fell to 18.5 m and the downslope turned to −2.911 rad (toward the west, 13.2° south of it;
+  over the map less the part's rectangle the fit is 99.9 m and −2.995). On lucido the fog, the cloud
+  base, the wind's growth and the audio's wind law now count from 211.8 m under its own floor. The
+  map's top stays 1856 m; its lowest listed node is now −11.0 m, the sea's floor in the Gulf of La
+  Spezia in tile −12_−5, the box's south-west corner outside the play area, so the snow line's floor
+  falls from −37 m to −61 m. Level ground at 1100 m holds snow 57.6 days a year rather than 57.5,
+  and 123 at 1750 m (seed 1, build b5513ccf5f74b243, 2026-11-21).
 
 ## The sun and the moon
 
@@ -190,12 +202,12 @@ two nearest mid-month values.
 anchor latitude, held beyond them, the lapse rate and the range's fit. The normals on the 15th,
 before any weather (°C, maximum / minimum as the mean ± half the range):
 
-| Month | 38 N, 0 m | 42 N, 0 m | 45.5 N, 0 m | Shipped map (44.16 N), 98 m | 1000 m | 1800 m |
+| Month | 38 N, 0 m | 42 N, 0 m | 45.5 N, 0 m | Shipped map (44.16 N), 18.5 m | 1000 m | 1800 m |
 |---|---|---|---|---|---|---|
-| January | 14.4 / 8.3 | 12.3 / 5.1 | 8.1 / 0.0 | 9.4 / 1.8 | 5.6 / −1.7 | 2.3 / −4.8 |
-| April | 19.9 / 11.6 | 19.5 / 9.9 | 19.1 / 8.2 | 18.5 / 8.2 | 12.9 / 3.5 | 8.0 / −0.6 |
-| July | 31.5 / 21.7 | 31.4 / 20.3 | 30.4 / 18.1 | 30.1 / 18.4 | 24.5 / 13.5 | 19.5 / 9.2 |
-| October | 24.4 / 16.5 | 22.4 / 13.7 | 19.6 / 10.1 | 20.1 / 11.0 | 15.2 / 6.9 | 10.8 / 3.2 |
+| January | 14.4 / 8.3 | 12.3 / 5.1 | 8.1 / 0.0 | 9.8 / 2.1 | 5.6 / −1.7 | 2.3 / −4.8 |
+| April | 19.9 / 11.6 | 19.5 / 9.9 | 19.1 / 8.2 | 19.0 / 8.6 | 12.9 / 3.5 | 8.0 / −0.6 |
+| July | 31.5 / 21.7 | 31.4 / 20.3 | 30.4 / 18.1 | 30.6 / 18.8 | 24.5 / 13.5 | 19.5 / 9.2 |
+| October | 24.4 / 16.5 | 22.4 / 13.7 | 19.6 / 10.1 | 20.6 / 11.4 | 15.2 / 6.9 | 10.8 / 3.2 |
 
 ### The day's cycle
 
@@ -547,10 +559,10 @@ snow line at or under the height at 08:00), November to April, the mean of seeds
   test holds it there so it gets no worse ([Known limits](#known-limits)).
 - **The far south's coasts** (38 N, sea level) see 0.19 a year, and no place sees snow at sea level
   from June to September.
-- **The shipped map** (seed 1): snowfall 5.7 days a year on its floor (98 m; 6.0 at the 162 m floor
-  before Aulla's part and 6.3 at the 214 m one before Fosdinovo's), 10.5 at 600 m, 18.1 at 1000 m,
-  29.8 at 1400 m and 46.7 on its top (1856 m); snow lies on level ground 57.5 days a year at 1100 m
-  and 123 at 1750 m (asserted 25–70 and 90–170).
+- **The shipped map** (seed 1): snowfall 5.2 days a year on its floor (18.5 m; 5.7 at the 98 m
+  floor before Sarzana's part, 6.0 at the 162 m one before Aulla's and 6.3 at the 214 m one before
+  Fosdinovo's), 10.5 at 600 m, 18.1 at 1000 m, 29.8 at 1400 m and 46.7 on its top (1856 m); snow
+  lies on level ground 57.6 days a year at 1100 m and 123 at 1750 m (asserted 25–70 and 90–170).
 
 ## The climate sources record
 
@@ -644,8 +656,8 @@ and how snow-covered the ground is there, each 0 to 1.
   degree-day melt of 1 m per game hour for each °C above 0 at the line, twice that under rain
   (`MELTING`), and once 408 m over the map's top (`SNOW_REACH`: the steepest face that holds snow,
   at the edge's highest reach) no snow is left. It never falls below the map's lowest ground less 50
-  m (−37 m on the shipped map, whose lowest node is 12.9 m on the Magra plain), so all the map can
-  lie white. The rates are design values fitted to
+  m (−61 m on the shipped map, whose lowest node is −11.0 m, the sea's floor in the Gulf of La
+  Spezia in tile −12_−5), so all the map can lie white. The rates are design values fitted to
   Capozzi et al.'s snow-cover days ([Snow](#snow)).
 - **Aspect and slope.** The line stands 440 m lower (`SNOW_ASPECT`) for each unit of the ground's
   normal that points north, higher on a south face: a 30° north face (its normal 0.5 north) holds

@@ -319,23 +319,38 @@ const bodyGap = (a: PoseValue, b: PoseValue): number => {
  * (with `regime` given, under that weather settled, the clock stopped and the weather's grip loss at the real 1): how often it touched
  * a car, how far it backed up (m), its top speed (m/s), its controls after the last frame, and the closest its body came to each
  * parked car (m), over the whole run and from the step it first backed up to get unstuck. Staged alone: a coin from the shared Rng
- * decides whether the car turns round when it first backs up, and the people and animals Populate brings draw on that Rng too. These
- * scenes measure it backing along its lane, which is how the coin falls with seed 1 and no one else around. The Rng is set to seed 1
- * once the scene is staged (scene.ts `seeded`): the setup before it draws for every parked spot and passer-by of the map, so each
- * map rebuild moved the coin (seeds 3, 4 and 8 turn the car round).
+ * decides whether the car turns round when it first backs up (TrafficAI's `TURN_TRIES`), and the people and animals Populate
+ * brings round the player draw on that Rng before it, so how the coin falls moves with any change to what they draw (Sarzana's
+ * part reordering the traffic edges round the player turned the car round with seed 1; so did the houses a cat picks from taken
+ * by their index). These scenes measure the car backing along its lane: each takes the first seed from 1 on which it does.
  */
 const trafficAmong = (
   at: PoseValue,
   parked: ReadonlyArray<PoseValue>,
   frames: number,
-  { regime, speed = 0 }: { readonly regime?: Regime; readonly speed?: number } = {},
+  options: { readonly regime?: Regime; readonly speed?: number } = {},
+) => {
+  for (let seed = 1; seed <= 8; seed++) {
+    const scene = trafficScene(seed, at, parked, frames, options)
+    if (!scene.turned) return scene
+  }
+  assert.fail("the car turned round on its first try with every seed from 1 to 8")
+}
+
+/** `trafficAmong`'s scene with the Rng set to `seed` once it is staged (scene.ts `seeded`), and whether the car turned round on the coin. */
+const trafficScene = (
+  seed: number,
+  at: PoseValue,
+  parked: ReadonlyArray<PoseValue>,
+  frames: number,
+  { regime, speed = 0 }: { readonly regime?: Regime; readonly speed?: number },
 ) => {
   assert.ok(
     [at, ...parked].every((pose) => carClear("panda", pose, atGrade(pose.x, pose.y))),
     "staged clear of walls",
   )
   const { runtime, run, world, heard } = seeded(
-    1,
+    seed,
     [
       FAR,
       {
@@ -357,11 +372,17 @@ const trafficAmong = (
   const closest = parked.map(() => Number.MAX_VALUE),
     closestBacking = parked.map(() => Number.MAX_VALUE)
   let backed = 0,
-    top = 0
+    top = 0,
+    turned = false,
+    way = world().vehicles.find((v) => v.id === id)!.route!
   run(frames, () => {
     const vehicles = world().vehicles,
       car = vehicles.find((v) => v.id === id)!,
       ahead = car.vx * Ops.cos(car.angle) + car.vy * Ops.sin(car.angle)
+    // Turned round on the coin: its way the other way along the same edge, on its first try.
+    turned ||=
+      car.route!.edge === way.edge && car.route!.forward !== way.forward && car.pilot!.tries === 1
+    way = car.route!
     backed += Math.max(0, -ahead) * DT
     top = Math.max(top, ahead)
     others.forEach((other, k) => {
@@ -382,6 +403,7 @@ const trafficAmong = (
     input,
     closest,
     closestBacking,
+    turned,
   }
 }
 

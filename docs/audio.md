@@ -550,7 +550,7 @@ roof's drumming). The wind bed is never stiller than the rural background: 35 dB
 (`AMBIENT_DB`), falling to 28 at night (`NIGHT_DB`) as the sun sinks from 0° to 10° under the
 horizon (`floorDb` in `director/sky.ts`). What masks is what plays: the background is the wind bed,
 not a silent number, so from a closed car in a calm street the floor is 20 dB(A), and a downpour
-drowns a car at full load 230 m across a meadow that the dry day lets through. A sound at most 5 dB
+drowns a car at full load 200 m across a meadow that the dry day lets through. A sound at most 5 dB
 under the floor plays at full gain. Below that it fades linearly in dB, and 15 dB under the floor it
 is culled: a one-shot is dropped, a voice is no longer held and fades out. The margin is there
 because a narrow-band sound stays detectable 5–10 dB under a broadband dB(A) floor.
@@ -579,8 +579,18 @@ the nodes now under it, it is 98.4 m, so the law spans 18–868 m and lucido blo
 did: the meadow 0.415 → 0.483 (2.6 dB, 5.4 dB over the tuning on lucido's own floor), the woods
 above Isolano 0.330 → 0.403, the ridge above Aiola 0.951 → 0.954, the lane at Pian del Molino 0.267
 → 0.322; the car across the meadow is heard all the way to 240 m rather than 265, and at 8 m/s the
-meadow's wind culls a car across it from 35 m off, on foot as in a car (2026-11-17). It is never
-under the floor's stillest, 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds
+meadow's wind culls a car across it from 35 m off, on foot as in a car (2026-11-17). With
+Sarzana's lower Val di Magra, whose part holds 96.2 % of the nodes now under it (821,462 of them on
+its plain at 2–10 m), it is 18.5 m, so the law spans −61.5–788.5 m and lucido blows as 211.8 m
+higher did: the meadow 0.483 → 0.577 (3.1 dB, 8.4 dB over the tuning on lucido's own floor), the
+woods above Isolano 0.403 → 0.501, the lane at Pian del Molino 0.322 → 0.406, the ridge above Aiola
+0.954 as before (past the law's top), and the spawn's street in Monzone at the day's stillest as
+before, though in the usual wind it now blows over the night's (33.9 dB(A) against 28). Across the
+meadow a car at full load is heard all the way to 208 m rather than 240, a 2 m/s bump plays at a 20
+m/s crash's full gain out to 109 m rather than 141, a car in fresh snow is masked by 80 m (60 m off
+it plays 25.3 dB under the dry day's), a woman's talk 10 m off is masked where a man's is heard, and
+at 8 m/s the wind culls a car across it from 33 m off (2026-11-21, build b5513ccf5f74b243). It is
+never under the floor's stillest, 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds
 themselves: leaves and the far valley, heard even in a sheltered street), and at most 1.33, a gale's
 bed at `GALE_DB` (65 dB(A)). Its level is 60 + 40·log10(strength) dB(A): in the usual wind 35 in
 Monzone's streets, about 40–43 on open ground on the valley floor, 57–60 on the ridges. The voice

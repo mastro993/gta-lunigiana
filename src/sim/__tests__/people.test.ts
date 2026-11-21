@@ -20,7 +20,7 @@ import {
 } from "../route.ts"
 import { animal, parkedCar, pedestrian } from "../spawning.ts"
 import { deathChance, halfOf } from "../systems/contacts.ts"
-import { paceOf } from "../systems/pedestrians.ts"
+import { followVelocity, paceOf, placeBeside } from "../systems/pedestrians.ts"
 import { PEDESTRIANS } from "../systems/populate.ts"
 import {
   BATTISTI,
@@ -196,6 +196,35 @@ test("parties: a kid and a dog on the right of a grown-up walking round a house 
   )
   assert.ok(kid < 3, `the kid fell ${kid.toFixed(1)} m behind`)
   assert.ok(dog < 3, `the dog fell ${dog.toFixed(1)} m behind`)
+})
+
+// Regression: on a bridge a follower kept its place beside its leader, who walks the deck's verge, outside its parapets: on Via
+// Borgo Lucido's bridge in Gragnola that place lies past the deck's edge, and a kid beside its parent stepped off it onto the
+// stream's bank 5 m under it, and stood there while the parent walked on (since Sarzana's part seed 2's fill of Gragnola drew
+// that party: 16 m behind, population.long-test.ts).
+test("followVelocity: on a bridge a follower falls in behind its leader on the line through it; off it, it keeps its place beside", () => {
+  // Via Borgo Lucido's bridge over the Lucido in Gragnola, its deck 5 m over the stream's bank, found by geometry: the walk edge
+  // nearest (-1832, 3305), walked east; and the approach road it ends on, east of it.
+  const onBridge = walkIndex.nearest(-1832, 3305),
+    off = walkIndex.nearest(-1813.5, 3315.5)
+  assert.ok(roadOf(onBridge).bridge === true && roadOf(onBridge).name === "Via Borgo Lucido")
+  assert.ok(roadOf(off).bridge !== true && roadOf(off).tunnel !== true)
+  for (const [edge, bridge] of [
+    [onBridge, true],
+    [off, false],
+  ] as const) {
+    const forward = facesForward(edge, 0.51),
+      lane = laneOf(edge, forward),
+      route = { edge, forward, side: walkSide(roadOf(edge)) }
+    // The leader 1 m in on its right verge, walking on at 1.4 m/s; the kid at its place, 0.5 m on its right and 0.4 m back.
+    const at = lanePoint(lane, 1, route.side),
+      angle = Ops.atan2(lane.dy, lane.dx),
+      place = placeBeside({ ...at, angle }, 0.5, 0.4)
+    const v = followVelocity(place, place, at, { x: 1.4 * lane.dx, y: 1.4 * lane.dy }, 3, route)
+    const outward = v.x * lane.rx + v.y * lane.ry
+    if (bridge) assert.ok(outward < -0.5, `on the bridge: ${outward.toFixed(2)} m/s outward`)
+    else assert.ok(Math.abs(outward) < 1e-9, `off it: ${outward} m/s outward`)
+  }
 })
 
 // Regression: a fleeing leader ran at its own pace, so a tall father left a small kid 8 m behind.

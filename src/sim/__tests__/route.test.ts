@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { midpointOf } from "../edges.ts"
+import { edgeIndex, midpointOf } from "../edges.ts"
 import { graph } from "../map/index.ts"
 import {
   allowsModel,
@@ -111,5 +111,23 @@ test("edgeIndex.nearest: the nearest edge by brute force (first on a tie), by Mo
         [p],
       )
     }
+  }
+})
+
+// Regression: the grid counted from its edges' lowest corner, so the Sarzana part's edges, 10 km
+// south-west, reordered the 64 traffic edges round Monzone from the third on: Populate picked
+// another one with the same draw, and every draw on the shared Rng after it fell otherwise.
+test("edgeIndex.around by Monzone hands the same edges in the same order over the whole network as over it less every edge 5 km off", () => {
+  const off = (e: number) => {
+    const { x, y } = midpointOf(e)
+    return Math.max(Math.abs(x - STATION.x), Math.abs(y - STATION.y)) > 5000
+  }
+  for (const edges of [graph.trafficEdges, graph.walkEdges]) {
+    const near = edges.filter((e) => !off(e))
+    assert.ok(near.length < edges.length, "edges 5 km off")
+    const whole = [...edgeIndex(edges).around(STATION.x, STATION.y, [0, REACH])],
+      alone = [...edgeIndex(near).around(STATION.x, STATION.y, [0, REACH])]
+    assert.ok(whole.length > 100, `${whole.length} edges round the station`)
+    assert.deepEqual(whole, alone)
   }
 })

@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { Vec2 } from "@typeonce/ritmo-math"
 
 import { carCircles, carRadius, clearOf } from "../body.ts"
-import { fillPolygon, moveCircles, pushOutSegments } from "../collide.ts"
+import { fillPolygon, moveCircles, pushOutSegments, staticGrid } from "../collide.ts"
 import { VEHICLE_MODELS, VEHICLES } from "../vehicles.ts"
 
 test("moveCircles: no tunnelling, sliding, a 3-circle car stops at the wall", () => {
@@ -92,4 +92,32 @@ test("fillPolygon fills a block with the pixels a fill of a block round it sets 
     })
     assert.deepEqual(filled(block).sort(), inside.sort(), JSON.stringify(block))
   }
+})
+
+// Regression: a grid's cells counted from its items' lowest corner, so an item far off south-west
+// (a map part joining) moved every cell and reordered what a query hands back by Monzone: the
+// traffic edges Populate picks from, and so every draw on the shared Rng after it.
+test("staticGrid on a fixed corner: an item far off south-west moves no cell, so a query hands back the same items in the same order", () => {
+  // Points on a 7 m lattice round (100, 50), 32 m cells, and one more 1,003 m and 2,402 m off.
+  const near = Array.from({ length: 64 }, (_, k) => [100 + 7 * (k % 8), 50 + 7 * Math.floor(k / 8)])
+  const far = [...near, [-903, -2352]]
+  const order = (points: ReadonlyArray<ReadonlyArray<number>>, at?: readonly [number, number]) => {
+    const grid = staticGrid(
+      points.length,
+      (k) => [points[k]![0]!, points[k]![1]!, points[k]![0]!, points[k]![1]!],
+      32,
+      at,
+    )
+    const out: Array<number> = []
+    grid(90, 40, 170, 110, (k) => out.push(k))
+    return out
+  }
+  assert.equal(order(near).length, 64)
+  assert.notDeepEqual(order(far), order(near), "from the items' corner, the far item reorders them")
+  assert.deepEqual(order(far, [-2900, -6100]), order(near, [-2900, -6100]))
+  // Every item once, whatever the corner.
+  assert.deepEqual(
+    order(far, [-2900, -6100]).sort((a, b) => a - b),
+    near.map((_, k) => k),
+  )
 })

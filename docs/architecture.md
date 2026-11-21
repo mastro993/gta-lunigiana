@@ -403,8 +403,27 @@ spots, water beds and farms round Monzone and Cesena's start. The land cover is 
 rasterised for that tile at build time), and `surfaceAt` (`src/sim/map/surface.ts`) buckets each
 tile's roads in 32 m cells the first time a query reaches it. The lookups are compact static grids
 (`staticGrid` in `src/sim/collide.ts`, item indices packed into one `Int32Array`, the fill's
-cursor let go once filled), the walls, trees and buildings one per tile on the whole map's lattice
-(`src/sim/map/lattice.ts`):
+cursor let go once filled), the walls, trees
+and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`). A grid counts its
+cells from its items' lowest corner, but a lookup whose order the game draws on counts them from the
+region's anchor (`ANCHOR` in `src/sim/map/index.ts`): the traffic and walk edges round a point
+(`edgeIndex` in `src/sim/edges.ts`, which `Populate` picks from), the parked spots and the farms near
+one. From the lowest corner, Sarzana's part, 10 km south-west, reordered the 64 traffic edges round
+Monzone from the third on, so with the same draw `Populate` took another, every draw on the shared
+`Rng` after it fell otherwise, and the seeded scenes round Monzone played out anew
+(`route.test.ts`, `collide.test.ts`). Two lattices the game draws on still count from the lowest
+corner of their items, which the build bakes in the map file, so a part that reaches farther south
+or west moves them: the buildings' (`MAP.vectors.lattice.buildings`), in whose order a cat picks the
+house it sits by (`buildingsNear` in `src/sim/population/farms.ts`: on a 150 m grid round Monzone,
+43 of the 88 points with houses within 45 m have them in another order than on the map before
+Sarzana's part), and the walls' (`MAP.walls.lattice`), so a body meets the walls round it in another
+order and a collision at a corner may resolve otherwise. Counting either from the anchor moves every
+seeded game once, on every map (the houses by their index alone turned the stuck car round in three
+traffic scenes and let a cat into a road passage under a house in Gragnola), so the two are left to
+be counted from it together. Every other lookup the sim reads in its grid's order only adds (the
+residents round a point, whose sums come out the same in any order on 8,450 walk edges round
+Monzone), ORs or keeps the least of what it finds, or, as `ownSide` does with the lines round a
+walk, sorts it first:
 
 - `wallsNear` (`src/sim/map/walls.ts`) indexes each tile's walls straight from its decoded flat
   arrays and its trees as points, building a tile's grids the first time a query reaches it, and
@@ -1111,9 +1130,13 @@ The static world (`src/render/world.ts`) is cut into 128 m chunks (`src/render/c
 the chunks around the camera exist as meshes. Their squares count from the built terrain's
 south-west corner less the 192 m apron (`ORIGIN` there), so a part that grows the box west or south
 moves every square against the ground: Fosdinovo's moved the box's west edge 6,200 m, 48 chunks and
-56 m, so every square lies 56 m west of where it lay. A test that wants a chunk of some kind finds
-it by its cells, not by where its square falls (`terrain.test.ts`), and the cover's colours count
-from the region's anchor instead (below). A built chunk has a terrain mesh, a solid mesh
+56 m, so every square lies 56 m west of where it lay; Sarzana's moved its west edge 1,000 m (7
+chunks and 104 m) and its south edge 2,400 m (18 chunks and 96 m), which left the Bozzetti pond in
+one chunk and no chunk across the y 0 seam within a kilometre west of Monzone station. A test that
+wants a chunk of some kind finds it by its cells, not by where its square falls (`terrain.test.ts`;
+`water.test.ts` takes the smallest lake across two chunks, `rail.long-test.ts` a box a chunk's side
+past each seam), and the cover's colours count from the region's anchor instead (below). A built
+chunk has a terrain mesh, a solid mesh
 (buildings, roofs, bridges, the railway's ballast bed, platforms, canopies and name boards, the
 level crossings' housings and cabinets, tunnel portals, the lamps' iron, poles and lantern bodies),
 a buried mesh (the road tunnels' walls: the solid's material, casting no shadow, as the terrain over
@@ -1189,7 +1212,7 @@ build reads is in memory.
   chunk, so it gets the very triangles, in the very order, that cutting a whole-map build gives it,
   whichever order the tiles came in (`rail.map-test.ts` checks every chunk of the map against its
   cut of the whole build of every tile's vectors joined, the tiles handed in reverse key order;
-  `rail.test.ts` the chunks by Monzone station, the tiles handed both ways).
+  `rail.long-test.ts` the chunks by Monzone station, the tiles handed both ways).
 - **The tiles a chunk reads**: its terrain reads the tiles under its square (an apron chunk's, the
   edge tiles it clamps to; a notch chunk's, the listed tiles round the notch, `tilesOver`), which
   hold every building, road and river it draws. Its base is those and, for an apron chunk, the tiles
@@ -2650,12 +2673,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     trains on platforms apart and the same way, with no hit and nobody face to face in its first 15
     min, and two trains overlapping over a piece joint pushed apart just to touch; boarding and
     getting out (`boarding.test.ts`), SCMT, the end stops and trains meeting (`collisions.test.ts`);
-    the trains as bodies, fouling the track and the animals' side (`bodies.test.ts`), the look-out's
-    reach, its held states and its alarms at least 2 s apart, held again and again for someone
-    stepping on and off the track included (`lookout.test.ts`), the crossing rules for traffic, a
-    car already braking stopping at 6 m/s² in the warning and one too fast for the line holding
-    short of a full way in's junction included (`roads.test.ts`), and the senses with the train's
-    death curve (`senses.test.ts`).
+    the trains as bodies, fouling the track and the animals' side, kept 3 m off the nearer of two
+    lines side by side at Aulla and short of a bridge it crosses at grade (`bodies.test.ts`), the
+    look-out's reach, its held states and its alarms at least 2 s apart, held again and again for
+    someone stepping on and off the track included (`lookout.test.ts`), the crossing rules for
+    traffic, a car already braking stopping at 6 m/s² in the warning and one too fast for the line
+    holding short of a full way in's junction included (`roads.test.ts`), and the senses with the
+    train's death curve (`senses.test.ts`).
   - `src/sim/__tests__/handling.test.ts`: each handling knob's effect, the weather grip loss's
     included (a Panda brakes about 1.3 times further on a wet road and 3 times on packed snow, and
     turns its wheels less at speed; at 0 the weather changes nothing), each preset's behaviour, and
@@ -2663,7 +2687,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/sim/__tests__/walls.test.ts` (traffic): a driver stops for a car standing across its lane,
     backs up short of the car queued behind, waits for a car beside its front as it steers back
     into its lane, backs up straight past a car alongside, and keeps slower and further back on a
-    wet road.
+    wet road, each on the first seed from 1 on which its car backs up rather than turns round.
   - `src/sim/__tests__/viaduct.test.ts` (parapets, issue #91, at the crossing `viaduct.ts` finds
     for the level tests too): a Panda driven across the SR445's viaduct west of Gragnola over the
     residential road under it, either way, stays on the deck (before, it dropped 8 m onto that
@@ -2827,10 +2851,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     open and in the warning, across the road to the left of the way in closed, at 45° halfway; a
     demand while they rise lowering them from where they stood; the lamps and lights lit from the
     warning until the arms are up; the skirt plumb at every angle and folded flat standing up.
-  - `src/render/__tests__/rail.test.ts`: the chunks in the box −1000…0 × −100…900 by Monzone
-    station (across the x = 0 and y = 0 seams), built from the pieces of the tiles under them with
-    every tile dropped first and the tiles handed in key order and reversed, keeping exactly their
-    cut of the whole build (track and stations, roads and rivers, lamps, buildings); over the
+  - `src/render/__tests__/rail.long-test.ts` (0.5 s alone): the chunks in the box −1000…128 ×
+    −128…900 by Monzone station (a chunk's side past the x = 0 and y = 0 seams, wherever the chunks'
+    squares fall), built from the pieces of the tiles under them with every tile dropped first and
+    the tiles handed in key order and reversed, keeping exactly their cut of the whole build (track
+    and stations, roads and rivers, lamps, buildings). `src/render/__tests__/rail.test.ts`: over the
     railway within 4 km of Monzone station (its five crossings, Monzone's,
     Gragnola's and Equi Terme's, and seven of its eleven tunnel mouths, drawn from the pieces within
     100 m more: the file reads 16 of the 102 tiles), nothing 3D in a crossing's carriageway and the

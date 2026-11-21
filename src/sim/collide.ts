@@ -216,9 +216,16 @@ type Box = readonly [number, number, number, number]
  * `count` boxes, built once, with every cell's item indices packed into one Int32Array (SpatialGrid
  * is made to be rebuilt every step and keeps an array per cell: ~6x the memory for the map walls).
  * The query calls `visit` once for every item whose cells overlap the box (a superset: run the
- * exact test), in a fixed order: cells south to north, west to east, items by index.
+ * exact test), in a fixed order: cells south to north, west to east, items by index. The cells count
+ * from the items' lowest corner, or from `at` when given: a lookup whose order the game draws on
+ * counts from the region's anchor, so that a part joining the map far off moves none of its cells.
  */
-export const staticGrid = (count: number, boxOf: (item: number) => Box, cellSize: number) => {
+export const staticGrid = (
+  count: number,
+  boxOf: (item: number) => Box,
+  cellSize: number,
+  at?: readonly [x: number, y: number],
+) => {
   if (!(cellSize > 0)) throw new Error(`cell size must be > 0, got ${cellSize}`)
   // Each box asked for once, not again per cell pass: minX, minY, maxX, maxY at 4i (≈ 32 MB, freed once built, for the million trees).
   const boxes = new Float64Array(count * 4)
@@ -242,10 +249,15 @@ export const staticGrid = (count: number, boxOf: (item: number) => Box, cellSize
     x1 = i === 0 ? bx : Math.max(x1, bx)
     y1 = i === 0 ? by : Math.max(y1, by)
   }
-  const cols = Math.floor((x1 - x0) / cellSize) + 1,
-    rows = Math.floor((y1 - y0) / cellSize) + 1
-  const col = (x: number) => Math.floor((x - x0) / cellSize),
-    row = (y: number) => Math.floor((y - y0) / cellSize)
+  // The lattice's corner, and the cell of the items' lowest corner on it, the grid's first.
+  const ox = at?.[0] ?? x0,
+    oy = at?.[1] ?? y0,
+    c0 = Math.floor((x0 - ox) / cellSize),
+    r0 = Math.floor((y0 - oy) / cellSize)
+  const col = (x: number) => Math.floor((x - ox) / cellSize) - c0,
+    row = (y: number) => Math.floor((y - oy) / cellSize) - r0
+  const cols = col(x1) + 1,
+    rows = row(y1) + 1
   // `boxes` is passed, not captured: the query below shares this scope, and would keep it alive.
   const cells = (box: Float64Array, item: number, each: (cell: number) => void) => {
     const k = 4 * item

@@ -10,6 +10,7 @@ import { VOICED } from "../talk.ts"
 import {
   animal,
   away,
+  CALM,
   FRAME,
   MEADOW,
   type Played,
@@ -148,8 +149,10 @@ test("couples quiet between their bursts take no voice from a chat nearby", () =
     ...couple(21, 22, 8),
     ...pair(31, 32, 10, "chat"),
   ]
+  // On a still day, so that nothing masks the chat 10 m off: in the usual wind, on the map's floor of 18.5 m, the meadow's masks
+  // the woman's lines there, and the chat says half as many.
   const director = rig()
-  director.hear(world(MEADOW, { people }), 30 * 60)
+  director.hear(world(MEADOW, { people, weather: { ...CALM, wind: 0 } }), 30 * 60)
   const chat = lines(director.plays).filter(
     (l) => l.sound.speaker.voice === hash01(31) || l.sound.speaker.voice === hash01(32),
   )

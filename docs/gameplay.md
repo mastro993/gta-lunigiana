@@ -700,10 +700,13 @@ the lane helpers in `src/sim/route.ts`.
   queued 4.5 m behind one that backs up (the backing limit), a car alongside one backing up askew
   (the straight wheel), a driver steering back into its lane beside a standing car (the bent cone),
   and the same road wet (slower, easing off sooner, stopping and backing further from the cars
-  around it). `src/sim/__tests__/levels.test.ts` stages the level rule on and under the SR445's
-  viaduct, forward and backing up, through its dip, down the sags onto its deck and onto OSM way
-  237828927's, and over its deck over the railway; `traffic.test.ts` reads `onPathLevel` over
-  made-up ground (a deck, a train's car under it, a dip, a sag onto a rising deck, a bend).
+  around it). Whether a stuck car turns round on its first try is a coin from the shared dice, and
+  whatever Populate draws before it changes how the coin falls, so each scene takes the first seed
+  from 1 on which the car backs up along its lane. `src/sim/__tests__/levels.test.ts` stages the
+  level rule on and under the SR445's viaduct, forward and backing up, through its dip, down the
+  sags onto its deck and onto OSM way 237828927's, and over its deck over the railway;
+  `traffic.test.ts` reads `onPathLevel` over made-up ground (a deck, a train's car under it, a dip,
+  a sag onto a rising deck, a bend).
 - **How it flows.** With the player standing 3 real minutes while traffic fills the roads, on a
   new game (22 October 2026 from 08:00, Balanced handling) with the weather held clear, the share
   of the traffic's time under 1 m/s and the honks were 0.18 and 82 in Monzone's street, 0.13 and
@@ -785,7 +788,12 @@ A party's followers (a kid, a partner, a dog on a lead: `Follows`) keep a place 
   itself, whose path is walkable. When a walk wall stands in the way, it heads 1.5 m on along the
   leader's lane, no nearer the leader than its place: in single file round a corner. At a house
   corner in Vinca a kid stays within 1.92 m and a dog within 1.46 m of their leader; with no such
-  rule they fell 19.7 m and 17.1 m behind.
+  rule they fell 19.7 m and 17.1 m behind. It walks in single file too while the leader's way is a
+  bridge or a tunnel: a walker keeps to a deck's verge, outside its parapets (2.5 m off the middle
+  of Via Borgo Lucido's 3.4 m bridge in Gragnola, whose deck the walkers stand on out to about 3 m),
+  so a kid 0.5 m on its parent's right stood past the deck's edge, stepped off it onto the stream's
+  bank 5 m under it, and stayed there while the parent walked on (16 m behind on seed 2's fill of
+  Gragnola, `population.long-test.ts`).
 - It takes the leader's route each step, so it can carry on alone, and copies the leader's
   reactions: the mood, its point and its end.
 - A fleeing leader runs no faster than its slowest follower on its feet, so a 1.1 m kid stays
@@ -1201,8 +1209,17 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   cover (meadow, grassland, farmland), pigs on open ground, cats and dogs anywhere outdoors. A
   point on the railway's track at grade or over it is brought back to the animal's side, 3 m off
   the centreline beside where it was drawn (`ownSide`, `rail/bodies.ts`, with the same draws), so
-  animals never wander onto the line; a line on a bridge or in a tunnel there is no barrier. Blocked
-  for 1 s on the way it picks another point; with 4 points that will not do, it rests again.
+  animals never wander onto the line. A line on a bridge or in a tunnel is no barrier where the walk
+  meets it (passing under a viaduct), but one at grade there is, whatever the line does beside the
+  point drawn: judged beside the point, 210 of 212 walks from 8 m off the track 12 m short of a
+  bridge to 4 m off it on the other side 2 m onto the bridge, two at each of the 106 places on the
+  map's lines where a bridge 10 m long or more begins after 20 m at grade (counted along each line),
+  crossed the track at grade short of the bridge. Where two lines run side by side the one nearer
+  the animal counts first, as its walk meets it first: taken in the order the lines' grid met them,
+  408 of 1,059 points 8 m beside a track at grade with another 2.5–6 m beyond it, drawn 20 m across
+  both, came back short of 3 m off the nearer track's centreline, as near as 0.01 m, at Aulla and in
+  Sarzana's part (`bodies.test.ts`). Blocked for 1 s on the way it picks another point; with 4
+  points that will not do, it rests again.
 - **Fear.** What scares each species (TUNED; a crash is `Startle`'s, below):
 
   | Species | A vehicle | A person | A horn | A train's whistle | A crash or a body struck | Cries out (`Cry`) |
