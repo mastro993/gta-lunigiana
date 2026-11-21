@@ -30,6 +30,27 @@ const aboveSea = (wp: ReadonlyArray<Profile>) => {
 }
 
 /**
+ * The waters each of `water` flows into at its last node, by index, each with its vertex there: a
+ * receiver's, or a way's it continues into (its first), but none ending there too (siblings, which
+ * flow on together).
+ */
+const receivers = (water: ReadonlyArray<WaterF>): Array<Array<readonly [number, number]>> => {
+  const at = new Map<string, Array<readonly [number, number]>>()
+  water.forEach((r, j) =>
+    r.pts.forEach((q, v) => {
+      if (q.id === undefined || v === r.pts.length - 1) return
+      const list = at.get(q.id)
+      if (list === undefined) at.set(q.id, [[j, v]])
+      else if (list.at(-1)![0] !== j) list.push([j, v])
+    }),
+  )
+  return water.map((w, i) => {
+    const mouth = w.pts.at(-1)!.id
+    return mouth === undefined ? [] : (at.get(mouth) ?? []).filter(([j]) => j !== i)
+  })
+}
+
+/**
  * Monotone downstream and continuous at shared nodes: a way continuing another starts no higher
  * than it ends (and the upstream tail drops to meet it), but no lower than the level the water it
  * joins holds its own mouth at, so a way held up by the water it joins backs up the way it
@@ -41,16 +62,7 @@ const settle = (
   wp: ReadonlyArray<Profile>,
   mouths: ReadonlySet<number> = new Set(),
 ) => {
-  // Each node id's waters, in order, with the first vertex of each that has it.
-  const at = new Map<string, Array<readonly [number, number]>>()
-  water.forEach((r, j) =>
-    r.pts.forEach((q, v) => {
-      if (q.id === undefined) return
-      const list = at.get(q.id)
-      if (list === undefined) at.set(q.id, [[j, v]])
-      else if (list.at(-1)![0] !== j) list.push([j, v])
-    }),
-  )
+  const into = receivers(water)
   // The level each piece's mouth is held at, by index (-Infinity: none): the water it joins (a
   // receiver's, the sea's), or the way it continues into where that way holds it up. Lowered at
   // its start to the way it continues, a way ponded up to the water it joins was ponded again, and
@@ -60,10 +72,8 @@ const settle = (
   for (let it = 0; it < 20; it++) {
     let changed = false
     for (const p of wp) runningMin(p)
-    water.forEach((w, i) => {
-      const mouth = w.pts.at(-1)!.id,
-        p = wp[i]!,
-        end = p.z.length - 1
+    wp.forEach((p, i) => {
+      const end = p.z.length - 1
       /** Piece i's mouth meets water at `level`: its tail lowered to it, or the piece ponded up to it. */
       const meet = (level: number) => {
         if (Math.abs(p.z[end]! - level) < 1e-6) return
@@ -79,9 +89,7 @@ const settle = (
       }
       let hold = -Infinity
       if (mouths.has(i)) meet((hold = SEA))
-      for (const [j, v] of mouth === undefined ? [] : at.get(mouth)!) {
-        const r = water[j]!
-        if (j === i || v === r.pts.length - 1) continue // r ends there too: siblings, not a receiver
+      for (const [j, v] of into[i]!) {
         const q = wp[j]!
         let level = q.z[q.vertexSample[v]!]!
         if (v > 0) hold = Math.max(hold, level)
