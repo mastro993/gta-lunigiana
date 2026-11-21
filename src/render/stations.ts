@@ -89,10 +89,16 @@ const frameAt = (p: Placed, u: number) => {
   return { x, y, tx, ty, ox: -ty * side, oy: tx * side }
 }
 
-/** How far out from the axis point of `frame` the platform begins (its track-side edge), m; undefined when none lies within 15 m. */
+/**
+ * How far a platform may stand from its axis, the line whose rail head its top follows, m: across
+ * a station's other tracks, as Santo Stefano di Magra's platform by its loop, 17–20 m from the line.
+ */
+const EDGE_REACH = 25
+
+/** How far out from the axis point of `frame` the platform begins (its track-side edge), m; undefined when none lies within EDGE_REACH. */
 const edgeOf = (p: Placed, frame: ReturnType<typeof frameAt>): number | undefined => {
   const [outer, ...holes] = p.rings
-  for (let d = 0; d < 15; d += 0.05) {
+  for (let d = 0; d < EDGE_REACH; d += 0.05) {
     const x = frame.x + frame.ox * d,
       y = frame.y + frame.oy * d
     if (pointInRing(x, y, outer!) && !holes.some((hole) => pointInRing(x, y, hole))) return d
