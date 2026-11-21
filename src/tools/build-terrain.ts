@@ -25,6 +25,7 @@ import {
   ringBox,
   type V,
 } from "./geometry.ts"
+import { boreEnds, footwaysNear } from "./grid-claims.ts"
 import { pathPass } from "./path-pass.ts"
 import { inPlay, onOutline } from "./play-area.ts"
 import { EXTRA_RANK, makeProfiler, RAIL_PASS, ROAD_PASSES } from "./profiles.ts"
@@ -179,7 +180,13 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       l.bridge === true ? [l.pts[0]!.id, l.pts.at(-1)!.id].filter((id) => id !== undefined) : [],
     ),
   )
-  const profiler = makeProfiler(ground, links, bridgeEnds)
+  const profiler = makeProfiler(
+    ground,
+    links,
+    bridgeEnds,
+    boreEnds(roads, new Set(ROAD_PASSES.flatMap(({ classes }) => classes))),
+    footwaysNear(roads),
+  )
   const { profile, claim, claims, grown, nodeZ, zOf, denseOf, zAt } = profiler
 
   const { railRoad, levels, roadBounds, railBounds } = railLevels({

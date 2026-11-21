@@ -132,13 +132,16 @@ test("ruts in sand are its damp, darker under-layer: earthy, paler than a dirt r
   assert.ok(sand!.alpha < rubber!.alpha, "a sand rut is fainter than rubber on asphalt")
 })
 
-// Regression: a skid in a tunnel drew its mark on the hillside over it, 5.4 m up.
+// Regression: a skid in a tunnel drew its mark on the hillside over it, 5.4 m up. The 7.6 m
+// underpass's mouths hold the ground over its first metres at its floor (`mouthClaim`), in the
+// shipped decimetres 211.5 m over the floor's 211.42 m here, and the mark lies on it, 0.125 m over
+// the floor.
 test("a skid in the tunnel near Monzone lies on its floor, not on the hill above", () => {
   const marks = new Marks()
   for (const step of [1, 2])
     marks.add({ ...skid(step), x: -116.3 + step * 0.1, y: 324.2, z: 211.42 }, 0.2)
   for (const [, y] of corners(marks, 0))
-    assert.ok(Math.abs(y! - yOf(211.42)) < 0.1, `${y! - yOf(211.42)} m off the tunnel floor`)
+    assert.ok(Math.abs(y! - yOf(211.42)) < 0.15, `${y! - yOf(211.42)} m off the tunnel floor`)
 })
 
 test("on snow a sliding tyre leaves dark slush ruts, whatever the ground under the snow; marks draw before the smoke", () => {
