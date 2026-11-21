@@ -251,6 +251,8 @@ interface ParkingInput {
 
 /** The roads with kerbs to park by: no motor road (`isMotorRoad`: a motorway, a trunk road or their slip roads), where the Codice della Strada bans stopping (art. 176, comma 5). */
 const KERB_CLASSES = new Set(["primary", "secondary", "tertiary", "unclassified", "residential"])
+/** Kerbside spots stand at least this far apart, m. */
+const SPOT_GAP = 9
 /**
  * A parked car's box keeps this far (m) from a track centreline: from a siding's, the ATR 220's
  * half-width (2.883 m wide) plus 0.5 m; from running track's, the clearance rule's 1.44 + 0.35 + 1
@@ -412,10 +414,26 @@ export const parkedSpots = ({
     }
   })
   const spots: Array<Spawn> = []
+  // The spots taken by their SPOT_GAP m square: a spot SPOT_GAP from one taken lies in the 3 × 3
+  // squares round it. Asked of every spot taken, the candidates took time with the square of
+  // the map.
+  const taken = new Map<number, Array<Spawn>>()
+  const square = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096)
   const take = (list: ReadonlyArray<Spawn>, upTo: number) => {
     for (const c of list) {
       if (spots.length >= upTo) break
-      if (spots.every((o) => Math.hypot(o.x - c.x, o.y - c.y) >= 9)) spots.push(c)
+      const ci = Math.floor(c.x / SPOT_GAP),
+        cj = Math.floor(c.y / SPOT_GAP)
+      let clear = true
+      for (let j = cj - 1; j <= cj + 1 && clear; j++)
+        for (let i = ci - 1; i <= ci + 1 && clear; i++)
+          clear = (taken.get(square(i, j)) ?? []).every(
+            (o) => Math.hypot(o.x - c.x, o.y - c.y) >= SPOT_GAP,
+          )
+      if (!clear) continue
+      spots.push(c)
+      const q = square(ci, cj)
+      taken.set(q, [...(taken.get(q) ?? []), c])
     }
   }
   if (police !== undefined) {
