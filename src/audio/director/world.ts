@@ -66,7 +66,8 @@ const STREET_TAU = 0.5
  * Wind strength from the ears' height: a smoothstep over `ALTITUDE` m a.s.l., `CALM`…`GALE`, up to `OPEN` more in the open, `STREETS`
  * less in streets, in the usual wind. Tuned by ear on lucido alone over the 150–1000 m it spanned there: from 80 m under its 230 m
  * floor, about its lowest ground (147 m), to 770 m over it. It counts from the sea, not the map's floor, so a part moving the floor
- * moves no wind (the user's choice, issue #20): 132 m lower, where the floor of 98.4 m put it before Sarzana's part.
+ * moves no wind (the user's choice, issue #20): 132 m lower than it was tuned on lucido, where the floor of 98.4 m put it before
+ * Sarzana's part.
  */
 const ALTITUDE = [18, 868] as const,
   CALM = 0.15,

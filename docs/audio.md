@@ -555,8 +555,8 @@ under the floor plays at full gain. Below that it fades linearly in dB, and 15 d
 is culled: a one-shot is dropped, a voice is no longer held and fades out. The margin is there
 because a narrow-band sound stays detectable 5–10 dB under a broadband dB(A) floor.
 
-The wind's strength comes from the place and the weather. In the usual wind (3 m/s at 10 m on the
-map's low ground, `USUAL_WIND`: a cloudy day's, a little over the weather's own mean, 2.5 m/s in
+The wind's strength comes from the place and the weather. In the usual wind (3 m/s at 10 m on low
+ground, up to 98 m a.s.l., `USUAL_WIND`: a cloudy day's, a little over the weather's own mean, 2.5 m/s in
 October and 2.3–2.7 by month over 30 simulated years) it rises with the ears' height above the sea,
 from 0.15 at 18 m to 0.85 at 868 m (`ALTITUDE`, a smoothstep), up to 0.15 more on open ground, and
 0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s (`windFactor`). It
@@ -586,7 +586,8 @@ the usual wind, over the night's stillest (33.9 dB(A) against 28); across the me
 load was heard only to 208 m and a woman's talk 10 m off was masked (build b5513ccf5f74b243). The
 user chose then (issue #20) to count the law from the sea, where the 98.4 m floor had put it, so the
 earlier parts blow as before Sarzana's part and no later part moves the wind: the meadow 0.483
-(0.4834 against 0.4830, 0.02 dB; 5.4 dB over the tuning on lucido's own floor), the woods above
+(0.4834 against 0.4830, 0.02 dB; 5.4 dB over the tuning on lucido's own floor; the game in
+headless Chrome, `?seed=3`, holds its wind voice there at 0.4834 in the cloudy regime's 3 m/s), the woods above
 Isolano 0.404, the lane at Pian del Molino 0.322, the ridge above Aiola 0.954 (past the law's top),
 and the spawn's street at the day's stillest and, at night in the usual wind, the night's (28
 dB(A)). Across the meadow a car at full load is heard all the way to 239 m (240 on the 98.4 m
@@ -596,7 +597,9 @@ masked from 107 m, and at 8 m/s the wind culls a car across it from 35 m off, on
 blows hard everywhere, as high ground does. Averaged over the 64 m nodes of their play area, the
 height's share of the strength goes on Cesena (floor 26.5 m) from 0.177 to 0.153, at most 0.053
 less, its spawn's street from 0.243 to the day's stillest 0.237 (35.4 → 35.0 dB(A)); on the L (floor
-173.1 m) from 0.257 to 0.328; on the coast (floor −15 m, its sea floor) from 0.201 to 0.164. It is
+173.1 m) from 0.257 to 0.328, its spawn's street at the day's stillest as before (35.0 dB(A)); on
+the coast (floor −15 m, its sea floor) from 0.201 to 0.164, at most 0.138 less, its spawn's street
+from 0.255 to the day's stillest 0.237 (36.2 → 35.0 dB(A)). It is
 never under the floor's stillest, 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds
 themselves: leaves and the far valley, heard even in a sheltered street), and at most 1.33, a gale's
 bed at `GALE_DB` (65 dB(A)). Its level is 60 + 40·log10(strength) dB(A): in the usual wind 35 in

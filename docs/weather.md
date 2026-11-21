@@ -432,7 +432,7 @@ make of the days.
 | `windy` | Windy | 0.2 | 0 | 0 | 11 | south-west | 1.8 | 0 | −2 |
 | `snow` | Snow | 1 | 1.5 | 0 | 4 | south-west | 1.6 | 0.4 | −2.5 |
 
-- **Wind**: on the map's low ground at 10 m. Toward the north-east is a south-westerly off the sea,
+- **Wind**: at 10 m on low ground, up to 98 m a.s.l. ([Wind](#wind)). Toward the north-east is a south-westerly off the sea,
   which brings the rain; toward the south-west a cold northerly or north-easterly. The breeze blows
   up the map's slope while the sun is up and down it at night, along
   `place().downslope`. A windy day's 11 m/s (21.4 knots) blows over the 20 knots the odds count,
@@ -778,7 +778,7 @@ floor; `fogAt(z)` blends each in over 50 m of height.
 
 ## Wind
 
-`Weather` holds the wind on the map's low ground at 10 m (`wind`, m/s), the way the air moves
+`Weather` holds the wind at 10 m on low ground, up to 98 m a.s.l. (`wind`, m/s), the way the air moves
 (`windAngle`, rad counter-clockwise from east) and the gust factor (`gust`, peak over mean).
 `windAt(weather, z)` gives the air's velocity at a height, stronger on exposed ground: ×1 up to 98
 m above the sea, rising in a straight line to ×2.5 at 1648 m (`WIND_UP`): ×1.49 at 600 m and
@@ -797,9 +797,11 @@ people (the dev menu) names where the wind blows from, the opposite of `windAngl
   ×1.211) and no later part moves it; the fog and the cloud base still count from the floor
   ([The map's place](#the-maps-place)). On the other regions, averaged over the 64 m nodes of
   their play area: Cesena (floor 26.5 m, 94.5 % of its play area under 98 m) ×1.017 → ×1.001, its
-  spawn (30 m) ×1.004 → ×1; the L (floor 173.1 m) ×1.116 → ×1.188; the coast (floor −15 m, its sea
-  floor) ×1.043 → ×1.015 (2026-11-21). `weather.test.ts` checks the law under the shipped floor, a
-  floor at the sea and one at 1000 m.
+  spawn (30 m) ×1.004 → ×1; the L (floor 173.1 m, so even its lowest ground blows ×1.073 the
+  weather's `wind`) ×1.116 → ×1.188, its spawn (209 m) ×1.035 → ×1.108; the coast (floor −15 m,
+  its sea floor; 85.0 % of its play area under 98 m) ×1.043 → ×1.015, its spawn (8 m) ×1.023 → ×1
+  (2026-11-21). `weather.test.ts` checks the law under the shipped floor, a floor at the sea and
+  one at 1000 m.
 
 ## Lightning and the storm cell
 

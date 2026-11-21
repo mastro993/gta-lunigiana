@@ -14,7 +14,10 @@ export interface Place {
   /** The map's origin, degrees: the sun, the moon and the latitude's climate are worked out for it. */
   readonly lat: number
   readonly lon: number
-  /** The map's low ground, m a.s.l.: the 5th percentile of its heights. Fog, cloud base, wind exposure and drying air count from it. */
+  /**
+   * The map's low ground, m a.s.l.: the 5th percentile of its heights. Fog, cloud base and drying air count from it; the wind
+   * counts from the sea (`WIND_UP` in local.ts, `ALTITUDE` in src/audio/director/world.ts).
+   */
   readonly floor: number
   /** The way the ground falls across the map (steepest descent of a plane fitted to its heights): the night's breeze, the day's the other way. */
   readonly downslope: number
