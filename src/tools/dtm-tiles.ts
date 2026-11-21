@@ -236,28 +236,39 @@ export const emptyTile = (i: number, j: number, names: ReadonlyArray<string>): D
 }
 
 /**
- * The tiles' cells as one DTM over the box round them (`DtmData`, heights in decimetres) and which
- * of its cells some tile holds (`held`): two tiles holding one cell hold the same height and source
- * (a fetch keeps what is held), else it throws. Sources are named in the order first met. A cell no
- * tile holds is 0 until `drawEdgesOn` draws the edge on over it.
+ * The tiles' cells as one DTM over the box round them (`DtmData`, heights in decimetres), a cell
+ * some tile holds with its source and any other with NONE: two tiles holding one cell hold the same
+ * height and source (a fetch keeps what is held), else it throws. Each tile is read (`read`, which
+ * must give its `cells`) only when its cells are copied, so one tile at a time is held: all of
+ * Lunigiana's 190 at once took 640 MB beside the DTM. Sources are named in the order first met,
+ * NONE of them at most. A cell no tile holds is 0 until `drawEdgesOn` draws the edge on over it.
  */
 export const assembleTiles = (
-  tiles: ReadonlyArray<{ readonly key: string; readonly tile: DtmTile }>,
-): { readonly dtm: DtmData; readonly held: Uint8Array } => {
+  tiles: ReadonlyArray<{
+    readonly key: string
+    readonly cells: Cells
+    readonly read: () => DtmTile
+  }>,
+): DtmData => {
   if (tiles.length === 0) throw new Error("no terrain tiles")
-  const e0 = Math.min(...tiles.map((t) => t.tile.e0)),
-    n0 = Math.min(...tiles.map((t) => t.tile.n0))
-  const cols = (Math.max(...tiles.map((t) => t.tile.e0 + CELL * t.tile.cols)) - e0) / CELL,
-    rows = (Math.max(...tiles.map((t) => t.tile.n0 + CELL * t.tile.rows)) - n0) / CELL
+  const { e0, n0, cols, rows } = blockOf(tiles.map((t) => t.cells))
   const dm = new Int16Array(cols * rows),
     codes = new Uint8Array(cols * rows).fill(NONE),
-    held = new Uint8Array(cols * rows),
     names: Array<string> = []
-  for (const { key, tile } of tiles) {
+  for (const { key, cells, read } of tiles) {
+    const tile = read()
+    if (
+      tile.e0 !== cells.e0 ||
+      tile.n0 !== cells.n0 ||
+      tile.cols !== cells.cols ||
+      tile.rows !== cells.rows
+    )
+      throw new Error(`tile ${key} spans other cells than its file should`)
     const code = tile.names.map((name) => {
       if (!names.includes(name)) names.push(name)
       return names.indexOf(name)
     })
+    if (names.length > NONE) throw new Error(`tile ${key} brings the terrain's source ${NONE + 1}`)
     const dc = (tile.e0 - e0) / CELL,
       dr = (tile.n0 - n0) / CELL
     for (let r = 0; r < tile.rows; r++)
@@ -267,42 +278,39 @@ export const assembleTiles = (
         const q = (dr + r) * cols + dc + c,
           h = tile.dm[k]!,
           s = code[tile.codes[k]!]!
-        if (held[q] === 1 && (dm[q] !== h || codes[q] !== s))
+        if (codes[q] !== NONE && (dm[q] !== h || codes[q] !== s))
           throw new Error(
             `tile ${key} holds ${(h / 10).toFixed(1)} m (${names[s]}) at EPSG:3003 ${e0 + CELL * (dc + c)}, ${n0 + CELL * (dr + r)}, where another holds ${(dm[q]! / 10).toFixed(1)} m (${names[codes[q]!]})`,
           )
         dm[q] = h
         codes[q] = s
-        held[q] = 1
       }
   }
-  return {
-    dtm: { e0, n0, cols, rows, cell: CELL, dm, sources: { names, codes } },
-    held,
-  }
+  return { e0, n0, cols, rows, cell: CELL, dm, sources: { names, codes } }
 }
 
 /**
- * Fills `dtm`'s cells no tile holds (`held` 0) with the edge drawn on, as a sampler past a single
+ * Fills `dtm`'s cells no tile holds (their source NONE) with the edge drawn on, as a sampler past a single
  * mosaic's edge held its edge's value: along each row from the nearest cell held in it (the one
  * before, else after), then, in a row holding none, from the nearest row that holds one (below,
  * else above), column by column. Their source stays NONE.
  */
-export const drawEdgesOn = (dtm: DtmData, held: Uint8Array): void => {
-  const { cols, rows, dm } = dtm
+export const drawEdgesOn = (dtm: DtmData): void => {
+  const { cols, rows, dm } = dtm,
+    { codes } = dtm.sources
   const filled = new Uint8Array(rows)
   for (let r = 0; r < rows; r++) {
     const o = r * cols
     let first = -1
     for (let c = 0; c < cols; c++)
-      if (held[o + c] === 1) {
+      if (codes[o + c] !== NONE) {
         first = c
         break
       }
     if (first < 0) continue
     filled[r] = 1
     for (let c = 0; c < first; c++) dm[o + c] = dm[o + first]!
-    for (let c = first + 1; c < cols; c++) if (held[o + c] === 0) dm[o + c] = dm[o + c - 1]!
+    for (let c = first + 1; c < cols; c++) if (codes[o + c] === NONE) dm[o + c] = dm[o + c - 1]!
   }
   for (let r = 0; r < rows; r++) {
     if (filled[r] === 1) continue
