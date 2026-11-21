@@ -17,8 +17,9 @@ test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill
     // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts)
     // and the motorways' grade fitted unrelaxed (ROAD_PASSES) moved the bores' bend samples, and the
     // paths at grade out of the paths' underpasses are their approaches (path-approaches.ts), which
-    // cut their mouths: 18267 -> 18365 wall triangles.
-    walls: 18365,
+    // cut their mouths: 18267 -> 18365 wall triangles; the rail's twin rule binding the station's tracks on one formation
+    // (rail-twins.ts) moved the Sottopasso Ravennate's profile under them by up to 0.4 m: 18369.
+    walls: 18369,
     // 70184534's end where 70184520 runs on through the bore is a junction, no mouth.
     mouths: 76,
     portals: 6,
