@@ -321,8 +321,9 @@ const bodyGap = (a: PoseValue, b: PoseValue): number => {
  * parked car (m), over the whole run and from the step it first backed up to get unstuck. Staged alone: a coin from the shared Rng
  * decides whether the car turns round when it first backs up, and the people and animals Populate brings draw on that Rng too. These
  * scenes measure it backing along its lane, which is how the coin falls with seed 1 and no one else around. The Rng is set to seed 1
- * once the scene is staged (scene.ts `seeded`): the setup before it draws for every parked spot and passer-by of the map, so each
- * map rebuild moved the coin (seeds 3, 4 and 8 turn the car round).
+ * once the scene is staged (scene.ts `seeded`), and Populate's draws after it pick among the traffic edges round the player in the
+ * order `edgeIndex.around` hands them, its cells counted from the region's anchor: a part joining far off moves the coin no more
+ * (from the edges' lowest corner, Sarzana's part turned the car round with seed 1; seeds 3, 5 and 6 do).
  */
 const trafficAmong = (
   at: PoseValue,

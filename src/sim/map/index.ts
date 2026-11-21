@@ -412,6 +412,12 @@ const hm = MAP.heightmap
 const { minX, minY, maxX, maxY } = MAP.bounds
 const { x: AX, y: AY, i: AI, j: AJ } = anchorOf(hm)
 
+/**
+ * The region's anchor (src/tools/region.ts), map metres: the corner the game's lookups whose order
+ * it draws on count their cells from (`staticGrid`'s `at`), so a part joining far off reorders none.
+ */
+export const ANCHOR: readonly [x: number, y: number] = [AX, AY]
+
 /** Scratch for the four nodes of a cell. */
 const corners = new Int32Array(4)
 

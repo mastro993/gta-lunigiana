@@ -399,7 +399,14 @@ spots, water beds and farms round Monzone and Cesena's start. The land cover is 
 rasterised for that tile at build time), and `surfaceAt` (`src/sim/map/surface.ts`) buckets each
 tile's roads in 32 m cells the first time a query reaches it. The lookups are compact static grids
 (`staticGrid` in `src/sim/collide.ts`, item indices packed into one `Int32Array`), the walls, trees
-and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`):
+and buildings one per tile on the whole map's lattice (`src/sim/map/lattice.ts`). A grid counts its
+cells from its items' lowest corner, but a lookup whose order the game draws on counts them from the
+region's anchor (`ANCHOR` in `src/sim/map/index.ts`): the traffic and walk edges round a point
+(`edgeIndex` in `src/sim/edges.ts`, which `Populate` picks from), the parked spots and the farms near
+one. From the lowest corner, Sarzana's part, 10 km south-west, reordered the 64 traffic edges round
+Monzone from the third on, so with the same draw `Populate` took another, every draw on the shared
+`Rng` after it fell otherwise, and the seeded scenes round Monzone played out anew
+(`route.test.ts`, `collide.test.ts`):
 
 - `wallsNear` (`src/sim/map/walls.ts`) indexes each tile's walls straight from its decoded flat
   arrays and its trees as points, building a tile's grids the first time a query reaches it, and

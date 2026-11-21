@@ -218,7 +218,10 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   keeps each whole or drops it (they reach up to 19.2 m in on the 3x), and the walkers' residents
   count the homes within 60 m of a walk edge's midpoint (`EDGE_REACH`), a farm's rural flag those
   within 140 m (`RURAL_REACH`). The DTM's projection lattice, every terrain and cover lookup, the
-  terrain's colour patches, the owls' squares and the ambience blocks count from the anchor too.
+  terrain's colour patches, the owls' squares and the ambience blocks count from the anchor too, and
+  so do the game's lookups whose order it draws on (`ANCHOR`: the traffic and walk edges round a
+  point, the parked spots and the farms near one), so a seeded game round the earlier parts plays
+  as it did.
   `x3-region.map-test.ts` checks the terrain, the land cover, and the lamps, water beds and parked
   spots' rests on the 3x test region against lucido alone (`lunigiana-lucido`, as the shipped map
   is no longer lucido). What the grown box alone does change (the place, the catchments, the

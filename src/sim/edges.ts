@@ -7,7 +7,7 @@
  * @module edges
  */
 import { segmentDistance, staticGrid } from "./collide.ts"
-import { graph, type Segment } from "./map/index.ts"
+import { ANCHOR, graph, type Segment } from "./map/index.ts"
 
 /** Every graph edge as a segment a -> b, indexed like `graph.edges`. */
 const chords: ReadonlyArray<Segment> = graph.edges.map((e) => {
@@ -36,8 +36,9 @@ const EDGE_CELL = 32
 /**
  * Lookups over a fixed set of graph edges through a grid of their chords, so that no query scans
  * the whole map. `nearest`: the edge whose centreline is nearest (x, y), the first of `edges` on a
- * tie. `around`: the edges whose midpoint is `min` to `max` m from (x, y), in a fixed order, in an
- * array reused by the next call.
+ * tie. `around`: the edges whose midpoint is `min` to `max` m from (x, y), in a fixed order (the
+ * grid's cells, counted from the region's anchor, then `edges`' order), in an array reused by the
+ * next call: Populate picks from it, so a part joining far off must not reorder it.
  */
 export const edgeIndex = (edges: ReadonlyArray<number>) => {
   const grid = staticGrid(
@@ -52,6 +53,7 @@ export const edgeIndex = (edges: ReadonlyArray<number>) => {
       ]
     },
     EDGE_CELL,
+    ANCHOR,
   )
   const found: Array<number> = []
   return {
