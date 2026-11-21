@@ -36,6 +36,8 @@ if (REGION.ownBuildings)
 // The JS heap grows by a fifth of what a full collection leaves before the next one, not by V8's
 // own factor (up to fourfold): the garbage of a stage's short-lived indexes and fields took the
 // heap, and the resident set with it, 0.6-0.9 GB past what was live (docs/map.md, "Pipeline").
+// `pnpm map` and `pnpm maps` give it on node's command line, V8's supported way; set here too for a
+// build run as `node src/tools/build-map.ts`, though V8 may ignore a flag set once it has started.
 setFlagsFromString("--heap-growing-percent=20")
 const t0 = performance.now()
 // Each stage's end: seconds from the start and the process's resident memory then.
