@@ -254,11 +254,13 @@ export const conditionsAt = (
 }
 
 /**
- * How much stronger the wind blows on exposed ground than on the map's low ground: ×1 at its floor, rising in a straight line to ×2.5
- * 1550 m above it. A national design value, ×2–2.5 on crests: the Aeronautica Militare's exposed capes, islands and hill stations see a
- * wind over 20 knots about three times as often as its lowland airports (2.7–3.9 by month; Atlante Climatico 1971–2000).
+ * How much stronger the wind blows on exposed ground than on the low ground: ×1 up to `from` m a.s.l., rising in a straight line to
+ * ×2.5 1550 m higher. A national design value, ×2–2.5 on crests: the Aeronautica Militare's exposed capes, islands and hill stations
+ * see a wind over 20 knots about three times as often as its lowland airports (2.7–3.9 by month; Atlante Climatico 1971–2000). It
+ * counts from the sea, not the map's floor, so a part moving the floor moves no wind (the user's choice, issue #20): from 98 m, about
+ * the floor before Sarzana's part (98.4 m), as the earlier parts blew then.
  */
-const WIND_UP = { over: 1550, most: 2.5 } as const
+const WIND_UP = { from: 98, over: 1550, most: 2.5 } as const
 
 /** The wind at `z` m a.s.l. under `weather`, m/s (x east, y north: the way the air moves): the low ground's, stronger on exposed ground (`WIND_UP`). */
 export const windAt = (
@@ -269,7 +271,7 @@ export const windAt = (
     weather.wind *
     Math.max(
       1,
-      Math.min(WIND_UP.most, 1 + ((WIND_UP.most - 1) * (z - place().floor)) / WIND_UP.over),
+      Math.min(WIND_UP.most, 1 + ((WIND_UP.most - 1) * (z - WIND_UP.from)) / WIND_UP.over),
     )
   return { x: Ops.cos(weather.windAngle) * speed, y: Ops.sin(weather.windAngle) * speed }
 }

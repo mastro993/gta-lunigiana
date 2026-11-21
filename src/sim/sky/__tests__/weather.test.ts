@@ -28,7 +28,7 @@ import {
   snowCoverAt,
   windAt,
 } from "../local.ts"
-import { place } from "../place.ts"
+import { place, providePlace } from "../place.ts"
 import { calmPlan, dayWarmth, planFor, rainingAt, regimeAt } from "../plan.ts"
 import { describeWeather } from "../readout.ts"
 import { EVENTS, isRegime, REGIME_SPECS, REGIMES, SKIES } from "../regimes.ts"
@@ -513,7 +513,7 @@ test("ground: the season's snow on the map's highest north faces lasts while its
   )
 })
 
-test("local: a January front rains on the low ground and snows on the high ground; the wind grows to 2.5 times the low ground's 1550 m above it", () => {
+test("local: a January front rains on the low ground and snows on the high ground; the wind grows from 98 m a.s.l. to 2.5 times the low ground's 1550 m higher, whatever the map's floor", () => {
   const weather = settledAt(fresh(JANUARY), "rain", JANUARY)
   const low = conditionsAt(JANUARY, weather, 0, 0, FLOOR),
     high = conditionsAt(JANUARY, weather, 0, 0, 1700)
@@ -524,16 +524,25 @@ test("local: a January front rains on the low ground and snows on the high groun
   assert.ok(high.snow > low.rain, "more falls on the mountains")
   assert.ok(Math.abs(celsiusAt(airAt(JANUARY, weather), FLOOR) - low.celsius) < 1e-12)
   const speed = (z: number) => Ops.hypot(windAt(weather, z).x, windAt(weather, z).y) / weather.wind
-  assert.deepEqual(
-    [speed(FLOOR - 100), speed(FLOOR), speed(FLOOR + 1550), speed(FLOOR + 3000)].map(
-      (v) => Math.round(v * 1e9) / 1e9,
-    ),
-    [1, 1, 2.5, 2.5],
-  )
-  assert.ok(
-    Math.abs(speed(FLOOR + 790) - (1 + (1.5 * 790) / 1550)) < 1e-9,
-    `${speed(FLOOR + 790)} 790 m up`,
-  )
+  // Counted from the sea, so that a part moving the map's floor moves no wind (the user's choice, issue #20): from 98 m, about
+  // the floor before Sarzana's part (98.4 m), as the earlier parts blew then.
+  const shipped = place()
+  for (const floor of [shipped.floor, 0, 1000]) {
+    providePlace({ ...shipped, floor })
+    try {
+      assert.deepEqual(
+        [speed(0), speed(98), speed(98 + 1550), speed(3000)].map((v) => Math.round(v * 1e9) / 1e9),
+        [1, 1, 2.5, 2.5],
+        `under a floor of ${floor} m`,
+      )
+      assert.ok(
+        Math.abs(speed(98 + 790) - (1 + (1.5 * 790) / 1550)) < 1e-9,
+        `${speed(98 + 790)} 790 m up under a floor of ${floor} m`,
+      )
+    } finally {
+      providePlace(shipped)
+    }
+  }
 })
 
 test("local: radiation fog fills the low ground on the mornings the day's plan brings it, clear and calm, and is gone by the afternoon; a clear sky keeps the hills free", () => {

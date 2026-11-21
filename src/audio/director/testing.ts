@@ -43,10 +43,11 @@ import { USUAL_WIND } from "./sky.ts"
  */
 export const MEADOW = { x: -329, y: 1078 }
 /**
- * How far south across `MEADOW` a Panda at full load is heard in the tests' calm, m: all the way to 208 m on the map's floor of
- * 18.5 m, which puts the meadow's usual wind 8.4 dB over lucido's floor of 230.3 m (all the way to 288 m, then to 322 m with gaps).
+ * How far south across `MEADOW` a Panda at full load is heard in the tests' calm, m: all the way to 239 m under the wind law from 18 m
+ * a.s.l. (`ALTITUDE` in world.ts), which puts the meadow's usual wind 5.4 dB over its tuning on lucido's floor of 230.3 m (all the way
+ * to 288 m, then to 322 m with gaps).
  */
-export const ACROSS_MEADOW = 200
+export const ACROSS_MEADOW = 230
 /**
  * An olive grove 2 km west of Monzone, open ground to the sound (`AMBIENCE` in src/audio/places.ts), with no wood within 103 m
  * nor building within 160 m (a meadow with no tree within 99 m before the groves).

@@ -35,7 +35,7 @@ export interface RegimeSpec {
   readonly precip: number
   /** Thunderstorm activity, 0…1: how often lightning strikes. */
   readonly storm: number
-  /** Wind on the map's low ground at 10 m, m/s, where it blows, and its gust factor (peak over mean). */
+  /** Wind at 10 m on low ground (up to 98 m a.s.l.: `WIND_UP` in local.ts), m/s, where it blows, and its gust factor (peak over mean). */
   readonly wind: number
   readonly flow: Flow
   readonly gust: number

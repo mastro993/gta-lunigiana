@@ -434,10 +434,10 @@ const Plan = v.object({
  * never changed; each day's plan draws from it and the day alone), the `regime` it is moving toward (the
  * day's plan's at this hour, or the one the dev menu `forced`). Then what eases toward the regime's
  * targets: the sky's `cloud` cover (0…1), `precip` (mm/h liquid-equivalent at sea level; `orographic`
- * scales it with height), `storm` (thunderstorm activity 0…1), the `wind` on the map's low ground at 10 m
- * (m/s) and its `windAngle` (rad counter-clockwise from east, where the air moves), the `gust` factor (≥ 1,
- * peak over mean), `fog` (the regime's mist and low cloud, 0…1) and the air's temperature `anomaly` (°C
- * over the normal). Then the ground: its wetness `wet` (0…1, where no snow lies) and the `snowLine` (m
+ * scales it with height), `storm` (thunderstorm activity 0…1), the `wind` at 10 m on low ground (m/s;
+ * up to 98 m a.s.l., where `windAt` grows it no more) and its `windAngle` (rad counter-clockwise from
+ * east, where the air moves), the `gust` factor (≥ 1, peak over mean), `fog` (the regime's mist and low
+ * cloud, 0…1) and the air's temperature `anomaly` (°C over the normal). Then the ground: its wetness `wet` (0…1, where no snow lies) and the `snowLine` (m
  * a.s.l., the lowest ground with snow cover; `NO_SNOW` when none lies). The thunderstorm cell's centre
  * (`cellX`, `cellY`, m; far off the map when no storm is near). Last the day's `plan`. Saved; forced only
  * through `SetWeather`.
