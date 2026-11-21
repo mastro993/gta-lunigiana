@@ -40,4 +40,15 @@ test("underRail puts a road OSM lays under at-grade track it crosses with no nod
       [14, false],
     ],
   )
+  // Under or level with the track's own layer: a track on an embankment OSM lays at layer 1 has a road at layer 0 under it,
+  // one in a cutting at layer −1 none at −1.
+  const raised = [{ ...rail[0]!, layer: 1 }],
+    cut = [{ ...rail[0]!, layer: -1 }]
+  assert.deepEqual(
+    [
+      underRail([road(15, [v(20, -10), v(20, 10)])], raised)[0]!.tunnel,
+      underRail([roads[0]!], cut)[0]!.tunnel,
+    ],
+    [true, undefined],
+  )
 })

@@ -139,15 +139,17 @@ export const underRail = (
 ): Array<RoadF> => {
   const track = rail.filter((r) => r.bridge !== true && r.tunnel !== true)
   return roads.map((r) => {
-    if ((r.layer ?? 0) >= 0 || r.bridge === true || r.tunnel === true) return r
+    if (r.bridge === true || r.tunnel === true) return r
     const ids = new Set(r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id])))
-    const under = track.some((t) =>
-      crossings(t.pts, r.pts).some(
-        (c) =>
-          !t.pts.some(
-            (v) => v.id !== undefined && ids.has(v.id) && Math.hypot(v.x - c.x, v.y - c.y) < 0.1,
-          ),
-      ),
+    const under = track.some(
+      (t) =>
+        (r.layer ?? 0) < (t.layer ?? 0) &&
+        crossings(t.pts, r.pts).some(
+          (c) =>
+            !t.pts.some(
+              (v) => v.id !== undefined && ids.has(v.id) && Math.hypot(v.x - c.x, v.y - c.y) < 0.1,
+            ),
+        ),
     )
     return under ? { ...r, tunnel: true } : r
   })
