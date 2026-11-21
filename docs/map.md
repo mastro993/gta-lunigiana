@@ -587,7 +587,8 @@ given the buildings as one layer with their indices) and each farm's building ce
 residents (`bakeResidents`) read the buildings through the tiles, as the game would: the walk edges
 are worked out in the order of their midpoints' tiles, so the store holds the tiles a run of them
 reads (the bake took about 1.2 s, against about 3 s in the edges' own order). Then each tile's file
-is made again with its water's baked floors, the hash is taken over the global file and each tile,
+is made again with its water's baked floors (its line and its vectors' coordinates written again
+before its dense layers, `relineTile`), the hash is taken over the global file and each tile,
 all unstamped, and each file is stamped (a tile's JSON line rewritten with the hash), gzipped at
 level 9 and written, 8 at a time on libuv's 4 threads (`writeGzipped`): the same bytes as one at a
 time, in 0.5 s rather than 1.6 s on lucido and 1.6 s rather than 6 s on the 3x test region, whose 78
@@ -3574,14 +3575,17 @@ The tiles hold the dense layers (terrain, walls, trees and land cover) and the v
 every road line, river, barrier, building and area, each whole in every tile it comes near. So the
 game downloads and decodes the vectors only near the player, as it does the dense layers: on
 Lunigiana the global file and the 4 tiles within 1 km of the start (−1_−1, 0_−1, −1_0 and 0_0) are
-4.23 MB to download (4,227,670 B: the global file 2,126,200 B, the tiles 2,101,470 B, 2026-11-18;
+3.57 MB to download (3,568,415 B: the global file 1,822,535 B, the tiles 1,745,880 B, 2026-11-21;
+4.23 MB before format version 7 moved the parked spots, the farms and the lamps off the global
+file's line and the vectors' coordinates off the tiles', 4,227,693 B: 2,126,214 and 2,101,479 B;
 3.35 MB before Aulla's part, the global file 1,247,151 B; 4.32 MB while
 the global file's line held the graph, the lanes and the residents, before format version 6, and
 3.62 MB before Fosdinovo's part; 2.31 MB on lucido alone, whose global file is 0.31 MB, 311,589 B,
 0.55 MB before version 6; 2.40 MB before the UCS's woods, 2.50 MB before its olive groves), where
 on lucido they were 3.10 MB with the vectors in the global file, and a production build's JS heap
 after a forced GC is 216 MB with Aulla's part (2026-11-18, `?seed=1`, three runs, against 164 MB
-for main's build that day: the whole map's graph, lanes, parked spots and residents grew with it),
+for main's build that day: the whole map's graph, lanes, parked spots and residents grew with it;
+216–217 MB in format version 7 against 216 MB in version 6, five runs each in turn on 2026-11-21),
 225 MB standing in Aulla, under the 245 MB issue #19 allows; 164 MB with Fosdinovo's part
 (2026-11-07, three runs on #18's final code; 161
 MB before its review's fixes, against 130–131 MB for main's build beside them, and under the
@@ -3638,12 +3642,16 @@ Fivizzano's part leaves as it was, shows more: 1,089 rays pass over its ground a
 
 | File | Lunigiana | Cesena |
 |---|---|---|
-| `src/sim/map/<name>.bin` (global) | 2.13 MB, 10.23 MB gunzipped | 0.40 MB, 1.74 MB gunzipped |
-| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 153, 63.6 MB in all, 0.02 (−12_6) to 0.65 MB (−7_2) each | 4, 1.7 MB in all, 0.37 to 0.45 MB each |
+| `src/sim/map/<name>.bin` (global) | 1.82 MB, 7.69 MB gunzipped | 0.36 MB, 1.33 MB gunzipped |
+| `src/sim/map/<name>/<i>_<j>.bin` (tiles) | 153, 52.0 MB in all, 0.02 (−12_6) to 0.50 MB (−8_2) each | 4, 1.4 MB in all, 0.30 to 0.37 MB each |
 | `src/sim/map/<name>/overview.png` | 5.18 MB, 4096 × 2392 px | 4.76 MB, 4000 × 4000 px |
 
-Before Aulla's part Lunigiana's were 1.25 MB (6.21 MB gunzipped), 102 tiles of 42.4 MB and a
-5.56 MB overview of 4096 × 3540 px (2026-11-18 for the figures above).
+In format version 6, before the parked spots, the farms and the lamps left the global file's line
+and the vectors' coordinates the tiles' (2026-11-21, the same build), Lunigiana's global file was
+2.13 MB (10.23 MB gunzipped) and its tiles 63.6 MB, up to 0.65 MB (−7_2), Cesena's 0.40 MB
+(1.74 MB) and 1.7 MB, 0.37 to 0.45 MB each. Before Aulla's part Lunigiana's were 1.25 MB (6.21 MB
+gunzipped), 102 tiles of 42.4 MB and a 5.56 MB overview of 4096 × 3540 px (2026-11-18; the figures
+above 2026-11-21).
 
 On lucido alone they are 0.31 MB (1.50 MB gunzipped; 0.55 MB and 1.9 MB before format version 6),
 30 tiles of 9.5 MB in all (the largest 0.59 MB) and 3.25 MB (3195 × 4096 px). With the vectors in
@@ -3674,15 +3682,16 @@ caches them ([Pinned inputs and CI](#pinned-inputs-and-ci)).
 
 `MonzoneMapJson` in `src/sim/map/format/global-file.ts` is the schema of the JSON line: `MonzoneMap`
 (`src/sim/map/index.ts`, the decoded map the game reads; the railway's types, `Railway` and its
-parts, in `src/sim/map/railway.ts`) with its bulk arrays (the coarse grid's heights and cover, the
-graph, the lanes and the residents) left to the packed sections after the line, which holds how
-many values each section has in their place.
+parts, in `src/sim/map/railway.ts`) with its bulk arrays and tables (the coarse grid's heights and
+cover, the graph, the lanes, the residents, the parked spots, the farms, their centres and the
+lamps) left to the packed sections after the line, which holds how many values each section has in
+their place.
 Polylines and rings are flat `[x0, y0, x1, y1, ...]` arrays. Rings are open: outer rings
 counter-clockwise, holes clockwise.
 
 | Field | Contents |
 |---|---|
-| `version` | `6` (`MAP_VERSION` in `src/sim/map/format/sections.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the line into sections and gave the lines their run-outs). `readWholeMap` in `src/tools/map-file.ts` also reads the version before, and no older one (a format change writes the reader of the version it replaces and drops the one before it, [Map standards](standards/map.md)): a version-5 build's graph, lanes and residents from its line, decoded as a file whose sections hold none and given those of its line (`decodeUpgraded` in `src/tools/map-upgrade.ts`), its lines with no run-outs, so `pnpm map-diff` compares a build from before version 6 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
+| `version` | `7` (`MAP_VERSION` in `src/sim/map/format/sections.ts`; the decoders throw on any other, saying to run `pnpm map`, so a stale file says so: 3 cut the dense layers into tiles and baked the tables built from them, 4 moved the vectors into the tiles, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the line into sections and gave the lines their run-outs, 7 moved the parked spots, the farms, their centres and the lamps off the line into sections and the tiles' vector coordinates off theirs, [A tile](#a-tile)). `readWholeMap` in `src/tools/map-file.ts` also reads the version before, and no older one (a format change writes the reader of the version it replaces and drops the one before it, [Map standards](standards/map.md)): a version-6 build's parked spots, farms, farm centres and lamps from its global file's line, and each tile's vectors from its own line, each file decoded as one whose new sections hold none and given those of its line (`decodeUpgraded` in `src/tools/map-upgrade.ts`), so `pnpm map-diff` compares a build from before version 7 with one of today. A global file without the play area's `outline` makes the game throw, saying to run `pnpm maps` (`src/sim/map/global.ts`, `stale-map.test.ts`): it reads the outline everywhere and the Carabinieri's `spawns.police` |
 | `name`, `hash` | the map's file name (`monzone`, `cesena`: its tiles are in the directory of that name) and the build hash |
 | `origin`, `mPerDeg` | projection origin (lat, lon) and metres per degree |
 | `bounds` | the built terrain's box `minX`, `minY`, `maxX`, `maxY` (m): the box round every part's rectangles, which the heightmap spans |
@@ -3699,11 +3708,11 @@ counter-clockwise, holes clockwise.
 | `graph` | how many values each of `xy`, `edges`, `traffic` and `walk` holds; the node coordinates (flat x, y), the edges (flat `a, b, roadIndex` triples) and the traffic and walk edge indices are sections (below) |
 | `walls` | `reach` (how far any wall sticks out of its midpoint along either axis, 33 m: the 64 m outline walls), `lattice` (each wall kind's and the trees' broad-phase corner, below) and `counts` (`walk`, `drive`) |
 | `vectors` | how the vectors are cut into the tiles: `halo` (32 m, `HALO`: each feature lies whole in every tile it comes that near), `counts` (how many roads, buildings, water pieces, areas and barriers the whole map has, which a feature's index runs up to: 3,969, 24,331, 3,180, 13,570 and 87 on Lunigiana) and `lattice`, the corners of the broad phases that answer a box query over the tiles in the whole map's order, where the whole map's broad phase put them: the buildings' (the lowest corner of any building's box) and the rivers' sound's (the lowest water vertex) |
-| `spawns` | `player`: `{ x, y, angle }`; `parked`: `{ x, y, angle, rest, truck? }`, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked); `police?`: `{ x, y }`, the Carabinieri station the build chose (Lunigiana's POI 14183344901, Cesena's 806564311), whose two nearest level spots the game parks their cars on |
+| `spawns` | `player`: `{ x, y, angle }`; `parked`: the parked spots, `{ x, y, angle, rest, truck? }` decoded, `rest` per vehicle model that stands within 15° of level there its settled `[z, pitch, roll]`, `truck` where a truck also clears the walls (baked), which sections hold (below), the line holding `{ spots, rests, models }`: how many spots and rests there are and the vehicle models a spot's flags name bit by bit, in the order its `rest` lists them (`VEHICLE_MODELS` when it was built, so the file does not depend on that list's order); `police?`: `{ x, y }`, the Carabinieri station the build chose (Lunigiana's POI 14183344901, Cesena's 806564311), whose two nearest level spots the game parks their cars on |
 | `lanes` | baked: per vehicle model, each traffic edge's lane offset travelled b → a then a → b (`graph.traffic` order), −1 where the model may not drive it; the line holds `table`, every distinct offset ascending (131 on Lunigiana, 111 before Aulla's part, the lane fit's float noise such as 2.0500000000000003 among them, kept to the bit), and `counts`, each model's lanes in the order the decoded map lists the models; the lanes themselves are a section of indices into the table |
-| `farms` | baked: `{ building, rural, pen }` per farm (`building` indexes the whole map's buildings, the index the tiles' buildings carry; its centre is in `derived.farms`) |
-| `lamps` | baked: every street lamp's lantern, `{ x, y, z, nx, ny, kind }` |
-| `derived` | what the build works out from the vectors for the readers far from the player, where the tiles holding them need not be in memory (`Derived` in `index.ts`): copies of what the railway points at, `crossings` (per level crossing, its road's line, which the trains and the crossings read anywhere), `platforms` (per platform, its area's rings, for the trains' look-out) and `stations` (per station, the first station building of its name, or null: its canopy's wall); and tables the game's own code bakes, `bells` (`{ id, x, y, z, h }`, the tallest church or tower of every district that has one, heard all over the map: 109 on Lunigiana), `residents` (per walk edge, `graph.walk` order, the residents of the homes within 60 m of its midpoint, float32; the line holds their count, a section their bit patterns), `farms` (per farm, its building's centre, flat x, y: the mean of its outer ring's vertices) and `mouths` (every road tunnel's mouth, by road and its first end first: `{ road, x, y, z, angle }` where its portal stands, and either `crown`, `throat` and `back` (how far it stands back into the tunnel from the road's end, m) for its portal, `head: true`, `throat` and `back` (0) for an underpass's head wall, or `open: true` at the road's end, [section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts); 56 on Lunigiana) |
+| `farms` | baked: `{ building, rural, pen }` per farm decoded (`building` indexes the whole map's buildings, the index the tiles' buildings carry; its centre is in `derived.farms`), which sections hold; the line holds how many there are |
+| `lamps` | baked: every street lamp's lantern, `{ x, y, nx, ny, kind, z }` decoded (`kind` `wall` or `pole`), which sections hold; the line holds how many there are |
+| `derived` | what the build works out from the vectors for the readers far from the player, where the tiles holding them need not be in memory (`Derived` in `index.ts`): copies of what the railway points at, `crossings` (per level crossing, its road's line, which the trains and the crossings read anywhere), `platforms` (per platform, its area's rings, for the trains' look-out) and `stations` (per station, the first station building of its name, or null: its canopy's wall); and tables the game's own code bakes, `bells` (`{ id, x, y, z, h }`, the tallest church or tower of every district that has one, heard all over the map: 109 on Lunigiana), `residents` (per walk edge, `graph.walk` order, the residents of the homes within 60 m of its midpoint, float32; the line holds their count, a section their bit patterns), `farms` (per farm, its building's centre, flat x, y: the mean of its outer ring's vertices; the line holds how many values, a section their doubles) and `mouths` (every road tunnel's mouth, by road and its first end first: `{ road, x, y, z, angle }` where its portal stands, and either `crown`, `throat` and `back` (how far it stands back into the tunnel from the road's end, m) for its portal, `head: true`, `throat` and `back` (0) for an underpass's head wall, or `open: true` at the road's end, [section 7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts); 56 on Lunigiana) |
 
 The global file's sections follow its line in file order (each coded as a tile's are, [A
 tile](#a-tile)):
@@ -3717,22 +3726,44 @@ tile](#a-tile)):
 | graph traffic, walk | edge indices, ascending | 4 | 1 |
 | lanes | each model's lanes, model by model in the line's order, as indices into `lanes.table` | 2 | none |
 | residents | per walk edge, its float32's bit pattern | 4 | none |
+| parked xy | each parked spot's (x, y), decimetres (the build rounds them to 0.1 m) | 4 | 2: the previous x or y |
+| parked angles | each parked spot's angle, milliradians (the build rounds them so) | 2 | none |
+| parked flags | per spot, bit k where the k-th of the line's `spawns.parked.models` has a rest there, bit 6 (64) where a truck fits | 1 | none |
+| parked rests | every rest's z, then every one's pitch, then every one's roll (spot by spot, each spot's in the models' order), as int32 words | 4 | none |
+| farm buildings | each farm's building, ascending | 4 | 1 |
+| farm flags | per farm, 1 where it is rural, 2 where pigs are kept by it | 1 | none |
+| farm centres | `derived.farms`' flat x, y, as int32 words | 4 | none |
+| lamps | every lamp's x, then every one's y, z, nx and ny, as int32 words | 4 | none |
+| lamp kinds | per lamp, 0 for `wall`, 1 for `pole` | 1 | none |
 
 A section with no stride holds each value itself, zigzag-coded. The graph's integers take 4 bytes:
 on Lunigiana neighbouring coordinates lie up to 212,969 dm apart, too far for 2. A zigzag-coded
 byte holds lane indices below 128 only, so they take 2 bytes (0.8 KB more gzipped than 1 on
-Lunigiana), and a stride on the residents could overflow on negative values. Decoding gives plain
-arrays, as `JSON.parse` did, each value the same double: a coordinate's decimetres over 10, a lane
-its table's double, a resident its float32. So nothing the sim reads moved: every value decoded
-from the version-6 build was the version-5 build's to the bit on Lunigiana, Cesena, the L, lucido
-alone and the 3x, every tile byte for byte but its version and hash, and `pnpm map-diff` found no
-differences (2026-11-07). The build throws on a coordinate that is not a whole number of
-decimetres, a resident that is not a float32 and more than 32,768 distinct lane values. They moved
-off the line for issue #5's scale check (#18): the game parses the line with `JSON.parse` at load,
-and Lunigiana's was 8,319,700 B with Fosdinovo's part, 5.66 MB of it the graph, the lanes and the
-residents as text. Lunigiana's first `decodeMap` in a fresh Node process takes 23.1–23.5 ms and its
-gunzip 6.5–6.6 ms, about 30 ms together, against 21.2–21.6 and 12.4–12.8 ms, about 34 ms, with
-them on the line (three processes each, 2026-11-07).
+Lunigiana), and a stride on the residents could overflow on negative values. A double that is no
+whole number of a unit (a rest, a farm's centre, a lamp's numbers) travels as its two int32 words,
+big-endian, every value's high word and then every value's low word, so like bytes sit together,
+with no stride, which would overflow across a change of sign; −0 is written as 0, as JSON wrote
+it. Decoding gives plain arrays and objects, as `JSON.parse` did, each value the same double (a
+coordinate's decimetres over 10, a parked spot's angle its milliradians over 1000, a lane its
+table's double, a resident its float32, a double its words) and each object's keys in the bake's
+order, every array of its own length (a pushed one keeps up to half its length again spare). So
+nothing the sim reads moved: every value decoded from the version-7 build is the version-6
+build's to the bit, keys in the same order, on Lunigiana, Cesena, the L and the coast, global file
+and tiles alike, and `pnpm map-diff` found no differences (2026-11-21; version 6 against version 5
+likewise on 2026-11-07). The build throws on a coordinate or parked spot that is not a whole
+number of decimetres, an angle that is not one of milliradians, a double that is not finite, a
+rest out of the line's models' order, a lamp of another kind, a resident that is not a float32 and
+more than 32,768 distinct lane values. They moved off the line for issue #5's scale check: the
+game parses the line with `JSON.parse` at load, and Lunigiana's was 8,319,700 B with Fosdinovo's
+part (#18), 5.66 MB of it the graph, the lanes and the residents as text (version 6), and
+4,560,301 B with Aulla's part, 3.67 MB of it the parked spots (2.09 MB, their rests' 17-digit
+doubles most of it), the farms (0.65 MB), the lamps (0.52 MB) and the farms' centres (0.41 MB),
+which Sarzana's part (issue #20) was estimated from its inputs to take to 8.6–9.8 MB (version 7).
+Lunigiana's first
+`decodeMap` in a fresh Node process takes 31.0–34.7 ms after 8.6–9.9 ms of reading and gunzip,
+against 36.5–56.1 and 12.8–14.6 ms in version 6 (five processes each in turn, 2026-11-21, under a
+load average of 7–9; 23.1–23.5 and 6.5–6.6 ms in version 6 on 2026-11-07, at 3–4, against 21.2–21.6
+and 12.4–12.8 ms in version 5).
 
 The baked tables are what the game would otherwise work out at load from the dense layers and the
 vectors, which it now holds only near the player. Each is computed by the game's own code at build
@@ -3755,15 +3786,17 @@ parked spots, water beds and farms within 1 km of Monzone station and of Cesena'
 the mouths are worked out map-wide, and only the map checks catch them; `tunnels.test.ts` bakes
 the SR445's, the 196 m track's, the 87 m path's and Pieve San Lorenzo's underpass's mouths again).
 
-Gzipped on their own, the global JSON line's biggest fields on Lunigiana are the spawns 0.43 MB
-(the parked rests, most of it), the lamps 101 KB, `derived` 100 KB (the farms' centres 92 KB, the
-bells 2.3 KB, the mouths 1.6 KB), the farms 31 KB, the POIs 30 KB and the roads' attributes
-29 KB, and its sections the graph's coordinates 224 KB, the coarse heights 104 KB, the residents
-91 KB, the edges 51 KB, the coarse cover 20 KB, the lanes 15 KB and the traffic and walk sets 2.1
-and 0.8 KB (gzip at level 9, as the files are; 2026-11-07). The line is 2.64 MB before gzip
-(2,639,642 B; 8,319,700 B before version 6, 5.54 MB before Fosdinovo's part) and the sections
-3.57 MB; Cesena's line is 0.96 MB (959,338 B; 2,355,974 before version 6), lucido's alone 0.65 MB
-(651,626 B; 1.88 MB before version 6, 6.20 MB with the vectors). Gzipped one layer and one tile at
+Gzipped on their own (gzip at level 9, as the files are; 2026-11-21), Lunigiana's line is 147 KB,
+its biggest fields the roads' attributes 56 KB, the POIs 46 KB, the rail 19 KB and `derived`
+13 KB, and its sections the parked rests 505 KB, the graph's coordinates 349 KB, the residents
+164 KB, the coarse heights 153 KB, the farms' centres 151 KB, the lamps 139 KB, the edges 91 KB,
+the parked spots' positions 32 KB, the coarse cover 31 KB, the lanes 28 KB, their angles 12 KB,
+and the traffic and walk sets, the farms' buildings and flags, the spots' flags and the lamps'
+kinds 4 KB or less each. The line is 0.89 MB before gzip (892,288 B; 4,560,301 B before version 7,
+2,639,642 B before Aulla's part, 8,319,700 B before version 6 with Fosdinovo's) and the sections
+6.80 MB; Cesena's line is 0.34 MB (340,632 B; 959,515 B before version 7, 2,355,974 before
+version 6), lucido's alone 0.65 MB in version 6 (651,626 B; 1.88 MB before version 6, 6.20 MB
+with the vectors). Gzipped one layer and one tile at
 a time and summed over Lunigiana's 102 tiles before Aulla's part (2026-11-07), the
 vectors are the areas 10.73 MB, the water 4.32 MB, the buildings 1.16 MB, the roads' lines 1.08 MB
 and the barriers 11 KB; before gzip 30.26, 14.22, 4.95, 2.83 and 0.02 MB, the largest tile's JSON
@@ -3779,9 +3812,12 @@ with it).
 ### A tile
 
 A tile's JSON line (`TileJson` in `src/sim/map/format/tile-file.ts`) is `{ version, hash, i, j,
-walls, trees, vectors }`: the counts of its walk, shore and drive walls and of its trees, and the
-vectors round it (`TileVectors`, below). Each layer of the vectors is `{ ids, items }`: each
-feature's index in the whole map's list, ascending, and the feature, whole:
+walls, trees, coordinates, vectors }`: the counts of its walk, shore and drive walls, of its trees
+and of the integers its coordinates section holds, and the vectors round it (`TileVectors`, below),
+each xy array (a road's, a river's or a barrier's `pts`, a building's `outer` and each of its
+`holes`, each of an area's `rings`) replaced by its vertex count, its coordinates in the first
+section. Each layer of the vectors is `{ ids, items }`: each feature's index in the whole map's
+list, ascending, and the feature, whole:
 
 | Layer | Each feature |
 |---|---|
@@ -3795,13 +3831,35 @@ Its sections follow the newline in file order:
 
 | Section | Integers | Bytes | Stride |
 |---|---|---|---|
+| coordinates | every xy array of the vectors, layer by layer (roads, buildings, water, areas, barriers), feature by feature, a building's outer ring before its holes: each vertex (x, y) in decimetres from a point 100 m south-west of the tile's corner | 4 | 2: the previous x or y |
 | heightmap | 501 × 501 nodes, decimetres (int16), each row delta-coded from its first node | 2 | 501: the node to the south |
-| walk, shore, drive walls | (ax, ay, bx, by) decimetres from a point 100 m south-west of the tile's corner (the outline walls stick out of their tile) | 2 | 2: the previous x or y |
+| walk, shore, drive walls | (ax, ay, bx, by) decimetres from the same point (the outline walls stick out of their tile) | 2 | 2: the previous x or y |
 | walk, shore, drive wall ids | each wall's index in the whole map's list of its kind | 4 | 1 |
 | trees | (x, y) whole metres from the same point (trees stand on whole metres), the scale in hundredths | 2 | 3: the previous tree |
 | tree ids | each tree's id (its lattice cell's number, [Trees](#12-trees-spawns-districts-treests-spawnsts-districtsts); its look's seed), ascending | 4 | 1 |
 | cover | 500 × 500 cells, the land-cover index | 1 | 500: the cell to the south |
 | walk, drive wall levels | each wall's level (a bridge's parapet's, its deck's top; a wall under a deck's, the ground's there: [section 10](#10-collision-walls-wallsts-parapetsts-deck-wallsts)), decimetres a.s.l., or −32768 (`NO_LEVEL`) for a wall that stands at every level | 4 | 1 |
+
+The coordinates come first (format version 7 moved them off the line), so a reader of the vectors
+alone decodes the line and that one section (`decodeTileVectors`, through `decodeHead` in
+`sections.ts`; the full map's detail reads a tile so, [architecture.md](architecture.md): in Node
+1.09–1.12 ms at the median of Lunigiana's tiles and 2.27–2.39 ms for −7_2, against 1.25–1.28 and
+2.49–3.45 ms parsing the line alone in version 6, five fresh processes each in turn on 2026-11-21
+under a load average of 7–9), and
+`relineTile`, with which the build gives each tile its vectors once the cut has packed its dense
+layers, writes the line and the coordinates again and keeps the sections after them; stamping the
+build hash rewrites the line alone. Every vector coordinate the build writes is a whole number of
+decimetres (all 8,619,730 of Lunigiana's, Cesena's, the L's and the coast's tiles on 2026-11-21,
+`pts`, rings and the water's alike), so each decodes as the double JSON gave, and the build
+throws on one that is not. They take 4 bytes, from the same point as the walls: a feature lies
+whole in every tile it comes near, so a forest's rings reach kilometres past it. As text they were
+most of each line: on Lunigiana the move took the tiles from 63.6 to 52.0 MB gzipped (−18 %), the
+largest from −7_2's 648,583 B to −8_2's 499,103 B (−7_2 488,678 B), the four start tiles from
+2,101,479 to 1,745,880 B and the longest line from −7_2's 1,128,944 B to −10_4's 332,048 B;
+Cesena's tiles from 1,678,643 to 1,383,674 B, its largest from 450,541 to 365,994 B, the L's
+largest from 549,191 to 453,292 B and the coast's from 364,683 to 314,242 B (2026-11-21, the
+builds either side of it). The move is for Sarzana's part (issue #20): its densest tile, −7_−3 in
+the old town, estimated from its inputs at 0.70–0.75 MB in version 6, broke the 0.7 MB scale check.
 
 The levels come last (format version 5 added them). With the parapets' levels alone they added 15 KB
 to Lunigiana's tiles gzipped (30.47 to 30.48 MB) and 2.5 KB to Cesena's: most walls have none, so
@@ -4080,13 +4138,21 @@ checks holds a path approach's deck end shut to the ground beside it, but for th
 `global-file.test.ts` in `src/sim/map/format/__tests__/` round-trips a small global file through
 `encodeMap` and `decodeMap` (a newline inside a name, the coarse grid, and the graph, the lanes,
 their float noise and their models' order kept and a model with no lanes, and the residents, to the
-bit, the line holding their counts and the lanes' table), and `tile-file.test.ts` a tile through
-`encodeTile` and `decodeTile` (negative values, the widest deltas, an empty section, walls with and
-without a level); they check that a file of another version, a value too far for its section, a
-level for every wall but one, a wall or tree id short of its count, a tile whose sections do not
-end with the file, a graph coordinate off the decimetre, a resident that is not a float32 or more
-than 32,768 lane values throws; `stale-map.test.ts` that the game refuses a global file without the
-play area's outline. `anchor.test.ts` rewrites Lunigiana's
+bit, the line holding their counts and the lanes' table; the parked spots, a spot with no rest and
+a truck's among them, the farms, their centres and the lamps to the bit, −0 read back as 0, keys in
+the bake's order, and a spot's flags read against the models the line lists, in whatever order),
+and `tile-file.test.ts` a tile through `encodeTile` and `decodeTile` (negative values, the widest
+deltas, an empty section, walls with and without a level, the vectors' keys in their order, a
+building's holes and an area's rings kilometres past the tile, the line holding each xy array's
+vertex count), `decodeTileVectors` over the line and the coordinates alone, and `relineTile`
+setting the vectors (its line and coordinates written again) or the hash alone as `encodeTile`
+packs them; they check that a file of another version, a value too far for its section, a level
+for every wall but one, a wall or tree id short of its count, a tile whose sections do not end
+with the file, a graph, parked spot or vector coordinate off the decimetre, an xy array of an odd
+length, a parked spot's angle off the milliradian, a rest out of the models' order, a rest, farm
+centre or lamp value that is not finite, a lamp of another kind, a resident that is not a float32
+or more than 32,768 lane values throws; `stale-map.test.ts` that the game refuses a global file
+without the play area's outline. `anchor.test.ts` rewrites Lunigiana's
 global file to start its heightmap a tile east and north of its anchor, which the file then names,
 and checks that `heightAt`, `terrainZ` and `coverAt` answer to the bit as on Lunigiana itself (read
 by `lookups.ts` in a process of its own) at 440 points round Monzone station; measuring from the
@@ -4286,8 +4352,9 @@ puts each vector whole, with its index and the water's baked floor, in every til
 the halo of, joins them back and writes the vectors' counts and lattice corners; gives a vector by
 an unlisted tile to the listed tiles round it; refuses a road whose verge reaches past the halo and
 a tile from another build; and stamps each tile as `encodeTile` packs it with the build hash.
-`map-upgrade.test.ts` reads a version-5 build, its graph, lanes and residents on its line and its
-lines with no run-outs, as the same build of today's (`decodeUpgraded`).
+`map-upgrade.test.ts` reads a version-6 build, its parked spots, farms, farm centres and lamps on
+its global file's line and its vectors on its tiles' lines, as the same build of today's, keys in
+their order (`decodeUpgraded`).
 `build-output.test.ts` checks that `decimetres`, which rounds the grid into the
 `Int16Array` the cut reads, throws for a height that does not fit int16 decimetres (4000 m,
 −4000 m, 3276.75 m, NaN, infinity) instead of wrapping it. `src/__tests__/maps.map-test.ts` checks
@@ -5187,10 +5254,11 @@ issue #17's part, on 2026-11-04, on `fosdinovo`, issue #18's, on 2026-11-07 and 
   (Lunigiana's walk and drive walls each hold 4 segments twice, 8 while the buildings two sources
   both map stood twice and 4 before Fosdinovo's part, and Cesena's 28 segments 2 to 4 times, 51
   extra copies; 2026-11-07). It compares two builds of the format version the decoders read, or a
-  build of the version before (5: the graph, the lanes and the residents on the global file's line
-  and the lines with no run-outs) with one of today: the version-5 builds of
-  Lunigiana, Cesena, the L, lucido alone and the 3x against the same code's version 6 gave no
-  differences (2026-11-07), and it exits 0 for "no
+  build of the version before (6: the parked spots, the farms, their centres and the lamps on the
+  global file's line and the vectors' coordinates on the tiles') with one of today: the version-6
+  builds of Lunigiana, Cesena, the L and the coast against the same inputs' version 7 gave no
+  differences (2026-11-21; the version-5 builds against version 6 none on 2026-11-07), and it
+  exits 0 for "no
   differences", 1 when they differ and 2 on bad arguments, an unknown category among them, or a file
   it cannot read. `--except trees,walls` accepts those categories (the names its blocks print:
   `unhandled keys`, `top level`, `outline`, `tiles`, `heightmap`, `cover`, `walls`, `coarse`,
@@ -5202,22 +5270,28 @@ issue #17's part, on 2026-11-04, on `fosdinovo`, issue #18's, on 2026-11-07 and 
   the cut moved every vector into the tiles unchanged (on Lunigiana, Cesena and the L test region).
 - **The largest tile**: the build prints it; a tile is at most 0.7 MB gzipped (issue #3's scale
   checks for the parts, #18 and #21–#23; `src/__tests__/maps.map-test.ts` fails past it), and
-  Lunigiana's largest, Aulla's −7_2 (x −14000…−12000 by y 4000…6000: Aulla's centre, the Brunella
-  and the A15's junction), is 0.65 MB (648,580 B; its JSON line the map's longest, 1.13 MB before
-  gzip), Aulla's −8_2 0.64 MB (636,552 B), and 2_1 (x 4000…6000 by y 2000…4000: Argigliano, Pieve
-  San Lorenzo and its station), the largest before Aulla's part, 0.63 MB (631,905 B; 632,249 B
-  before, 624,987 B before Fosdinovo's part; its JSON line 0.92 MB before gzip) (2026-11-18);
-  Fosdinovo's, −4_1 (x −8000…−6000 by y 2000…4000: Ceserano, Canova and the Bardine), 0.54 MB
-  (537,980 B; 627,856 B before Aulla's part, its JSON line then the map's longest, 0.97 MB);
-  `lucido`'s alone, 0_0, is
-  0.59 MB with its vectors (its JSON line 0.79 MB), where −1_−1's 0.31 MB was the largest without
-  them; Cesena's largest is 0.45 MB and the L's 0.55 MB (2026-11-07).
+  Lunigiana's largest, Aulla's −8_2 (x −16000…−14000 by y 4000…6000), is 0.50 MB (499,103 B),
+  the start's 0_0 0.50 MB (495,756 B), 2_1 (x 4000…6000 by y 2000…4000: Argigliano, Pieve San
+  Lorenzo and its station) 0.49 MB (494,343 B) and Aulla's −7_2 (x −14000…−12000 by y
+  4000…6000: Aulla's centre, the Brunella and the A15's junction) 0.49 MB (488,678 B), the map's
+  longest JSON line −10_4's, 0.33 MB (332,048 B; 2026-11-21). With the vectors' coordinates on
+  the lines (format version 6, the same build) −7_2 was the largest, 0.65 MB (648,583 B; its line
+  the map's longest, 1.13 MB), −8_2 0.64 MB (636,552 B) and 2_1, the largest before Aulla's part,
+  0.63 MB (631,901 B; 632,249 B before, 624,987 B before Fosdinovo's part; its line 0.92 MB);
+  Fosdinovo's −4_1 (x −8000…−6000 by y 2000…4000: Ceserano, Canova and the Bardine) is 0.44 MB
+  (439,342 B; 537,986 B in version 6, 627,856 B before Aulla's part, its line then the map's
+  longest, 0.97 MB); `lucido`'s alone, 0_0, was 0.59 MB in version 6 with its vectors (its JSON
+  line 0.79 MB), where −1_−1's 0.31 MB was the largest without them (2026-11-07). Cesena's largest
+  is 0.37 MB (365,994 B; 450,541 B in version 6), the L's 0.45 MB (453,292 B; 549,191 B) and the
+  coast's 0.31 MB (314,242 B; 364,683 B; 2026-11-21).
 - **The global file's JSON line**: at most 8 MB, 8,000,000 B (issue #5's `map.json` check, which
   #18 asks of its part; `src/__tests__/maps.map-test.ts` fails past it on either map): the game
-  parses it with `JSON.parse` at load, so a bulk array goes in a packed section after it ([The
-  global file](#the-global-file)). Lunigiana's is 4,560,315 B and Cesena's 959,509 B (2026-11-18;
-  Lunigiana's 2,639,642 B before Aulla's part); Lunigiana's was 8,319,700 B with Fosdinovo's part
-  before version 6 (2026-11-07).
+  parses it with `JSON.parse` at load, so a bulk array or table goes in a packed section after it
+  ([The global file](#the-global-file)). Lunigiana's is 892,288 B, Cesena's 340,632 B, the L's
+  70,002 B and the coast's 111,558 B (2026-11-21); with the parked spots, the farms, their centres
+  and the lamps on it (format version 6, the same build) they were 4,560,301, 959,515, 390,601
+  and 436,086 B (Lunigiana's 2,639,642 B before Aulla's part), and Lunigiana's was 8,319,700 B
+  with Fosdinovo's part before version 6 (2026-11-07).
 
 Each part's inputs are its own files since #17 (Fivizzano, the first part after lucido), so a part
 adds files and cells and moves none (`--region cesena` builds the separate Cesena map instead, and

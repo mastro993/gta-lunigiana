@@ -5,7 +5,7 @@ import { decodeMap } from "../../sim/map/format/global-file.ts"
 import { decodeTile, encodeTile } from "../../sim/map/format/tile-file.ts"
 import { joinTiles } from "../map-file.ts"
 import { type BuiltMap, cutMap, stampMap } from "../tile-map.ts"
-import { built, cover, data } from "./built-map.ts"
+import { built, cover, data, withVectors } from "./built-map.ts"
 
 /** The stamped global map and the files of `map` cut as the build cuts it: the global file under "", each tile under its key. */
 const filesOf = (map: BuiltMap) => {
@@ -129,61 +129,6 @@ test("stamping a tile gives the file encodeTile packs with the build hash", () =
     assert.equal(tile.hash, "")
     assert.deepEqual(files.get(key), encodeTile({ ...tile, hash: global.hash }).file)
   }
-})
-
-/** `built(data)` with vectors near and far from the seams (the bounds are only the terrain's: the cut clamps a feature past them to the edge tiles, as a lookup's tile is clamped). */
-const withVectors = (map: BuiltMap): BuiltMap => ({
-  ...map,
-  roads: [
-    // across the x = 0 seam, 50 m north of y = 0: both northern tiles
-    {
-      id: 1,
-      cls: "residential",
-      w: 4.5,
-      surface: "asphalt",
-      pts: [-100, 50, 100, 50],
-      z: [300, 301.5],
-    },
-    // 500 m into the south-east tile
-    { id: 2, cls: "track", w: 3, surface: "gravel", pts: [500, -500, 600, -500], z: [310, 311] },
-  ],
-  buildings: [
-    {
-      id: 3,
-      kind: "house",
-      h: 6,
-      z0: 290,
-      style: "stone",
-      tint: 1,
-      outer: [-300, -300, -290, -300, -290, -290],
-    },
-    // in the north-east tile alone
-    {
-      id: 4,
-      kind: "house",
-      h: 6,
-      z0: 290,
-      style: "stone",
-      tint: 1,
-      outer: [100, 100, 110, 100, 110, 110],
-    },
-  ],
-  // 10 m east of x = 0, south of y = 0: its bed's box within the halo of both southern tiles
-  water: [
-    {
-      id: 5,
-      kind: "stream",
-      w: 2,
-      bed: 3,
-      depth: 1,
-      pts: [10, -40, 10, -100],
-      z: [280, 279],
-      area: [1.5, 1.6],
-    },
-  ],
-  // over every tile
-  areas: [{ kind: "forest", rings: [[-500, -500, 500, -500, 500, 500, -500, 500]] }],
-  barriers: [{ kind: "wall", pts: [40, 40, 60, 60] }],
 })
 
 test("cutMap puts each vector whole in every tile it comes within the halo of, with its index, and joinTiles puts them back", () => {

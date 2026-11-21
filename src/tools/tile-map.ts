@@ -106,7 +106,7 @@ export interface MapCut {
   readonly global: (bakes?: Partial<Bakes>) => Omit<MonzoneMap, "hash">
   /** The whole map's vectors, for the bakes that read them all (the water before its floors). */
   readonly whole: Pick<BuiltMap, "roads" | "buildings" | "water">
-  /** The bytes of each part of the tiles' dense layers, summed (`json` with the hash and the vectors still empty). */
+  /** The bytes of each part of the tiles' dense layers, summed (`json` with the hash and the vectors still empty, `coordinates` none). */
   readonly sizes: Readonly<Record<string, number>>
 }
 

@@ -115,9 +115,9 @@ export const provideTile = (file: Uint8Array): void => {
 }
 
 /**
- * Host only: the vectors of a gunzipped tile file, its line alone read, for a host that keeps them
- * apart from the tiles in memory (the full map's detail); one from another build throws, as
- * `provideTile` does.
+ * Host only: the vectors of a gunzipped tile file, its line and its first section (their coordinates)
+ * alone read, for a host that keeps them apart from the tiles in memory (the full map's detail); one
+ * from another build throws, as `provideTile` does.
  */
 export const tileFileVectors = (file: Uint8Array): TileVectors => {
   const { hash, i, j, vectors } = decodeTileVectors(file)

@@ -1,9 +1,10 @@
 /**
  * A tile file, `<name>/<i>_<j>.bin` (docs/map.md, "A tile"): its line is `TileJson`, which holds the
- * vectors round its square (`TileVectors`, as JSON: their doubles come back exact); its sections,
- * `TILE_LAYOUT`, hold the dense layers of its square. Decoding is exact: every wall coordinate and level is
- * an integer number of decimetres divided by 10, the same double JSON would give for a one-decimal
- * number. The host hands each tile to `provideTile` (`../tiles.ts`).
+ * vectors round its square (`TileVectors`, as JSON: their doubles come back exact) with a vertex
+ * count in place of each of their xy arrays; its sections, `TILE_LAYOUT`, hold those coordinates
+ * first, then the dense layers of its square. Decoding is exact: every vector and wall coordinate
+ * and every wall level is an integer number of decimetres divided by 10, the same double JSON would
+ * give for a one-decimal number. The host hands each tile to `provideTile` (`../tiles.ts`).
  *
  * @module map/format/tile-file
  */
@@ -11,11 +12,13 @@ import type { Area, Barrier, Building, RoadLine, Water } from "../index.ts"
 import { TILE } from "../kinds.ts"
 import {
   decodeFile,
+  decodeHead,
   encodeFile,
   fromRowDeltas,
   type Layout,
   lineOf,
   MAP_VERSION,
+  onGrid,
   relined,
   rowDeltas,
   type Section,
@@ -50,7 +53,44 @@ export interface TileVectors {
   readonly barriers: Layer<Barrier>
 }
 
-/** A tile file's JSON line: the build it belongs to, which tile it is, how many walls and trees its sections hold, and its vectors. */
+/** `TileVectors` with each xy array (a road's, a river's and a barrier's `pts`, a building's `outer` and `holes`, an area's `rings`) a `P`. */
+interface VectorsWith<P> {
+  readonly roads: Layer<Omit<RoadLine, "pts"> & { readonly pts: P }>
+  readonly buildings: Layer<
+    Omit<Building, "outer" | "holes"> & { readonly outer: P; readonly holes?: ReadonlyArray<P> }
+  >
+  readonly water: Layer<Omit<Water, "pts"> & { readonly pts: P }>
+  readonly areas: Layer<Omit<Area, "rings"> & { readonly rings: ReadonlyArray<P> }>
+  readonly barriers: Layer<Omit<Barrier, "pts"> & { readonly pts: P }>
+}
+
+/**
+ * `vectors` with each xy array what `xy` makes of it, called in the order the coordinates section
+ * holds them: layer by layer (`VECTOR_LAYERS`), feature by feature, a building's outer ring before
+ * its holes. Every feature keeps its keys in their order (a building's `holes` are its last).
+ */
+const mapXy = <A, B>(vectors: VectorsWith<A>, xy: (a: A) => B): VectorsWith<B> => {
+  const { roads, buildings, water, areas, barriers } = vectors
+  return {
+    roads: { ...roads, items: roads.items.map((f) => ({ ...f, pts: xy(f.pts) })) },
+    buildings: {
+      ...buildings,
+      items: buildings.items.map(({ holes, ...f }) => ({
+        ...f,
+        outer: xy(f.outer),
+        ...(holes === undefined ? {} : { holes: holes.map((h) => xy(h)) }),
+      })),
+    },
+    water: { ...water, items: water.items.map((f) => ({ ...f, pts: xy(f.pts) })) },
+    areas: {
+      ...areas,
+      items: areas.items.map((f) => ({ ...f, rings: f.rings.map((r) => xy(r)) })),
+    },
+    barriers: { ...barriers, items: barriers.items.map((f) => ({ ...f, pts: xy(f.pts) })) },
+  }
+}
+
+/** A tile file's JSON line: the build it belongs to, which tile it is, how many walls, trees and vector coordinates its sections hold, and its vectors, each xy array's vertex count in its place. */
 interface TileJson {
   readonly version: number
   /** `MonzoneMap.hash` of the build that wrote it: a tile from another build is refused. */
@@ -59,7 +99,22 @@ interface TileJson {
   readonly j: number
   readonly walls: { readonly walk: number; readonly shore: number; readonly drive: number }
   readonly trees: number
-  readonly vectors: TileVectors
+  readonly coordinates: number
+  readonly vectors: VectorsWith<number>
+}
+
+/** The line's `coordinates` and `vectors` for `vectors`: each xy array's vertex count in its place; an array of an odd length throws. */
+const vectorsLine = (
+  vectors: TileVectors,
+  what: string,
+): Pick<TileJson, "coordinates" | "vectors"> => {
+  let coordinates = 0
+  const counted = mapXy(vectors, (xy) => {
+    if (xy.length % 2 !== 0) throw new Error(`${what}: an xy array of ${xy.length} values`)
+    coordinates += xy.length
+    return xy.length / 2
+  })
+  return { coordinates, vectors: counted }
 }
 
 /** A decoded tile: its square's terrain nodes, walls, trees and land cover, and the vectors round it. */
@@ -102,7 +157,7 @@ type TileInput = Omit<TileData, "heights" | "cover" | "wallLevels"> & {
 /** A wall's level in a tile file where it has none, and stands at every level: below any ground (int16's least, decimetres). */
 const NO_LEVEL = -32768
 
-/** Where a tile's wall coordinates count from, decimetres: 100 m south-west of its corner (outline walls stick out). */
+/** Where a tile's wall and vector coordinates count from, decimetres: 100 m south-west of its corner (outline walls stick out). */
 const wallOrigin = (line: TileJson): { readonly x: number; readonly y: number } => ({
   x: Math.round(line.i * TILE * 10) - 1000,
   y: Math.round(line.j * TILE * 10) - 1000,
@@ -115,6 +170,43 @@ const treeOrigin = (line: TileJson): { readonly x: number; readonly y: number } 
 }
 
 type WallKind = keyof TileData["walls"]
+
+/**
+ * Every xy array of the vectors in `mapXy`'s order, each vertex (x, y) in decimetres from
+ * `wallOrigin`, each from the previous x or y: 4 bytes, as a feature lies whole in every tile it
+ * comes near and an area reaches kilometres past its tile. It decodes, with the line's vectors, into
+ * the vectors whole.
+ */
+const COORDINATES: Section<Pick<TileInput, "vectors">, TileJson, TileVectors> = {
+  label: "coordinates",
+  bytes: 4,
+  stride: 2,
+  count: (line) => line.coordinates,
+  encode: (tile, line, what) => {
+    const o = wallOrigin(line),
+      all: Array<number> = []
+    mapXy(tile.vectors, (xy) => {
+      for (const v of xy) all.push(v)
+    })
+    return onGrid(all, 10, "decimetres", what).map((dm, k) => dm - (k % 2 === 0 ? o.x : o.y))
+  },
+  decode: (dm, line) => {
+    const o = wallOrigin(line)
+    let at = 0
+    const vectors = mapXy(line.vectors, (n) => {
+      const xy: Array<number> = []
+      for (const stop = at + 2 * n; at < stop; at++)
+        xy.push((dm[at]! + (at % 2 === 0 ? o.x : o.y)) / 10)
+      // of its length, as `JSON.parse` gives it: a pushed array keeps up to half its length again spare
+      return xy.slice()
+    })
+    if (at !== dm.length)
+      throw new Error(
+        `map: tile ${line.i}_${line.j}'s vectors hold ${at} of its ${dm.length} coordinates`,
+      )
+    return vectors
+  },
+}
 
 /** A kind's walls: (ax, ay, bx, by) in decimetres from `wallOrigin`, each delta from the previous x or y. */
 const walls = (kind: WallKind): Section<TileInput, TileJson, Float64Array> => ({
@@ -162,8 +254,9 @@ const wallLevels = (
   decode: (dm) => Float64Array.from(dm, (v) => (v === NO_LEVEL ? NaN : v / 10)),
 })
 
-/** A tile file's sections, in file order (docs/map.md, "A tile"). */
+/** A tile file's sections, in file order (docs/map.md, "A tile"): the vectors' coordinates first, so the vectors decode alone (`decodeTileVectors`). */
 const TILE_LAYOUT = {
+  coordinates: COORDINATES,
   /** 501 × 501 nodes, each row delta-coded from its first node, then from the node to the south. */
   heightmap: {
     label: "heightmap",
@@ -228,7 +321,8 @@ const TILE_LAYOUT = {
 export const encodeTile = (
   tile: TileInput,
 ): { readonly file: Uint8Array; readonly sizes: Readonly<Record<string, number>> } => {
-  const { hash, i, j, walls, trees, vectors } = tile
+  const { hash, i, j, walls, trees, vectors } = tile,
+    prefix = `tile ${i}_${j} `
   const line: TileJson = {
     version: MAP_VERSION,
     hash,
@@ -240,9 +334,9 @@ export const encodeTile = (
       drive: walls.drive.length / 4,
     },
     trees: trees.length / 3,
-    vectors,
+    ...vectorsLine(vectors, `${prefix}coordinates`),
   }
-  return encodeFile(TILE_LAYOUT, line, tile, `tile ${i}_${j} `)
+  return encodeFile(TILE_LAYOUT, line, tile, prefix)
 }
 
 /** A tile from its gunzipped file. */
@@ -263,17 +357,42 @@ export const decodeTile = (file: Uint8Array): TileData => {
     trees: values.trees,
     ids: values.ids,
     cover: values.cover,
-    vectors: line.vectors,
+    vectors: values.coordinates,
   }
 }
 
-/** A tile's vectors alone from its gunzipped file, with which tile and build it is: its sections are left unread. */
+/** The sections `decodeTileVectors` reads: the first. */
+const VECTORS_HEAD = { coordinates: COORDINATES }
+
+/** A tile's vectors alone from its gunzipped file, with which tile and build it is: its line and its coordinates read, its dense layers left unread. */
 export const decodeTileVectors = (
   file: Uint8Array,
-): Pick<TileJson, "hash" | "i" | "j" | "vectors"> => lineOf(file, "a tile file") as TileJson
+): Pick<TileData, "hash" | "i" | "j" | "vectors"> => {
+  const { line, values } = decodeHead<TileJson, typeof VECTORS_HEAD>(
+    file,
+    VECTORS_HEAD,
+    "a tile file",
+  )
+  return { hash: line.hash, i: line.i, j: line.j, vectors: values.coordinates }
+}
 
-/** A tile file with its build hash or its vectors set, its sections unchanged: what `encodeTile` gives with them. */
+/**
+ * A tile file with its build hash or its vectors set, its dense layers' sections unchanged: what
+ * `encodeTile` gives with them. New vectors write its line and its coordinates again; a hash alone,
+ * its line.
+ */
 export const relineTile = (
   file: Uint8Array,
-  patch: Partial<Pick<TileJson, "hash" | "vectors">>,
-): Uint8Array => relined(file, patch)
+  { vectors, ...patch }: Partial<Pick<TileData, "hash" | "vectors">>,
+): Uint8Array => {
+  if (vectors === undefined) return relined(file, patch)
+  const old = lineOf(file, "a tile file") as TileJson,
+    prefix = `tile ${old.i}_${old.j} `,
+    line: TileJson = { ...old, ...patch, ...vectorsLine(vectors, `${prefix}coordinates`) },
+    head = encodeFile(VECTORS_HEAD, line, { vectors }, prefix).file,
+    dense = file.subarray(file.indexOf(10) + 1 + COORDINATES.bytes * old.coordinates),
+    out = new Uint8Array(head.length + dense.length)
+  out.set(head)
+  out.set(dense, head.length)
+  return out
+}

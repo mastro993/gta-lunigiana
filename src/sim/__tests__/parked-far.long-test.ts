@@ -6,11 +6,12 @@ import { test } from "node:test"
 import { editMap } from "../map/__tests__/edit-map.ts"
 
 let own = 0
-editMap((json) => {
-  const spots = json.spawns.parked
+editMap((map) => {
+  const spots = map.spawns.parked
   own = spots.length
-  const far = (dx: number) => spots.map((s) => ({ ...s, x: s.x + dx }))
-  return { spawns: { ...json.spawns, parked: [...spots, ...far(30_000), ...far(60_000)] } }
+  // on the decimetre, as the build places a spot and the global file holds it
+  const far = (dx: number) => spots.map((s) => ({ ...s, x: Math.round((s.x + dx) * 10) / 10 }))
+  return { spawns: { ...map.spawns, parked: [...spots, ...far(30_000), ...far(60_000)] } }
 })
 const { MAP } = await import("../map/index.ts")
 const { carOn, PARKED, PARKING, spotsWithin } = await import("../population/parked.ts")

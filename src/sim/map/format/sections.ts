@@ -13,8 +13,8 @@
  * @module map/format/sections
  */
 
-/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the global file's line and gave the lines their run-outs. */
-export const MAP_VERSION = 6
+/** The map files' format version (`MonzoneMap.version`): 3 cut the dense layers into tiles and baked the tables built from them, 4 the vectors, 5 gave the walls their levels, 6 moved the graph, the lanes and the residents off the global file's line and gave the lines their run-outs, 7 moved the parked spots, the farms, their centres and the lamps off it and the tiles' vector coordinates off theirs. */
+export const MAP_VERSION = 7
 
 /**
  * One section of a layout, in a file whose line is `L`: packed from an `E`, decoded as a `D`. Both
@@ -150,12 +150,12 @@ const lineAt = (
 /** A file's JSON line alone, its sections left unread; it must be of today's version. */
 export const lineOf = (file: Uint8Array, what: string): unknown => lineAt(file, what).line
 
-/** A file's JSON line, of type `L`, and the value of each section of `layout`, which must end with the file. */
-export const decodeFile = <L, S extends Layout<never, L>>(
+/** A file's JSON line, of type `L`, the value of each section of `layout`, its first sections, and the byte after them. */
+const readFile = <L, S extends Layout<never, L>>(
   file: Uint8Array,
   layout: S,
   what: string,
-): { readonly line: L; readonly values: Decoded<S> } => {
+): { readonly line: L; readonly values: Decoded<S>; readonly at: number } => {
   const read = lineAt(file, what),
     line = read.line as L,
     values: Record<string, unknown> = {}
@@ -165,11 +165,31 @@ export const decodeFile = <L, S extends Layout<never, L>>(
     values[name] = section.decode(unpack(file, at, n, section.bytes, strideOf(section, line)), line)
     at += n * section.bytes
   }
+  return { line, values: values as Decoded<S>, at }
+}
+
+/** A file's JSON line, of type `L`, and the value of each section of `layout`, which must end with the file. */
+export const decodeFile = <L, S extends Layout<never, L>>(
+  file: Uint8Array,
+  layout: S,
+  what: string,
+): { readonly line: L; readonly values: Decoded<S> } => {
+  const { line, values, at } = readFile<L, S>(file, layout, what)
   if (at !== file.length)
     throw new Error(
       `map: ${what}'s sections end at byte ${at} of ${file.length}; the file and this decoder disagree`,
     )
-  return { line, values: values as Decoded<S> }
+  return { line, values }
+}
+
+/** A file's JSON line, of type `L`, and the value of each section of `head`, the file's first sections; those after them are left unread. */
+export const decodeHead = <L, S extends Layout<never, L>>(
+  file: Uint8Array,
+  head: S,
+  what: string,
+): { readonly line: L; readonly values: Decoded<S> } => {
+  const { line, values } = readFile<L, S>(file, head, what)
+  return { line, values }
 }
 
 /**
@@ -194,5 +214,25 @@ export const fromRowDeltas = (deltas: Int32Array, cols: number): Int16Array => {
   const out = new Int16Array(deltas.length)
   for (let k = 0; k < out.length; k++)
     out[k] = k % cols === 0 ? deltas[k]! : out[k - 1]! + deltas[k]!
+  return out
+}
+
+/** Whole numbers of 1/`scale` (`unit`: decimetres for 10, milliradians for 1000) as those integers; a value off that grid throws. */
+export const onGrid = (
+  values: ArrayLike<number>,
+  scale: number,
+  unit: string,
+  what: string,
+): Array<number> =>
+  Array.from(values, (v, k) => {
+    const n = Math.round(v * scale)
+    if (n / scale !== v) throw new Error(`${what}: ${v} at ${k} is not a whole number of ${unit}`)
+    return n
+  })
+
+/** `onGrid`'s integers back as a plain array: each over `scale`, the double JSON gives for the number. */
+export const offGrid = (values: Int32Array, scale: number): Array<number> => {
+  const out: Array<number> = []
+  for (let k = 0; k < values.length; k++) out.push(values[k]! / scale)
   return out
 }

@@ -49,7 +49,7 @@ The JSON line that opens a map file: what is sparse in it, and how many values e
 _Avoid_: header, JSON header
 
 **Section**:
-One packed run of integers after a map file's line, holding one array of the map. A layer may span several sections (a tile's walls: their coordinates, ids and levels).
+One packed run of integers after a map file's line, holding one array of the map, one field of a baked table's entries (the parked spots' flags), or every xy array of a tile's vectors. A layer may span several sections (a tile's walls: their coordinates, ids and levels).
 _Avoid_: part (a part is a piece of a region), chunk, layer, block
 
 **Layout**:

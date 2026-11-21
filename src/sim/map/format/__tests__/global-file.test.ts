@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import type { MonzoneMap } from "../../index.ts"
+import type { Lamp, MonzoneMap } from "../../index.ts"
 import { decodeMap, encodeMap } from "../global-file.ts"
 import { MAP_VERSION } from "../sections.ts"
 import { plain } from "./plain.ts"
@@ -54,7 +54,7 @@ const map: MonzoneMap = {
   },
   lanes: { panda: [1.8, -1], ape: [1.6, 1.6], truck: [-1, -1], carabinieri: [1.5, 0] },
   farms: [{ building: 0, rural: true, pen: false }],
-  lamps: [{ x: 1, y: 2, z: 304.5, nx: 0, ny: 1, kind: "wall" }],
+  lamps: [{ x: 1, y: 2, nx: 0, ny: 1, kind: "wall", z: 304.5 }],
   derived: {
     crossings: [],
     platforms: [],
@@ -119,6 +119,94 @@ test("the graph, the lanes and the residents travel as sections after the JSON l
   assert.equal(line.derived.residents, 3)
 })
 
+/** `map`'s parked spots, farms, their centres and lamps as the build bakes them: positions on decimetres, angles on milliradians, the rests, centres and lamps full doubles. */
+const baked: Pick<MonzoneMap, "farms" | "lamps"> & {
+  readonly parked: MonzoneMap["spawns"]["parked"]
+  readonly centres: ReadonlyArray<number>
+} = {
+  parked: [
+    {
+      // far apart across Lunigiana's box (x deltas past 2 bytes), the angle near −π
+      x: -11500.3,
+      y: 13000.1,
+      angle: -3.093,
+      rest: { panda: [301.20000000000005, -0, 1e-300], truck: [301.9, 0.1 + 0.2, -0.2617] },
+      truck: true,
+    },
+    // a spot no model stands level on
+    { x: 0, y: 0.1, angle: 0, rest: {} },
+    { x: 5.5, y: -6, angle: 1.571, rest: { ape: [Math.PI, 0, -1e-17], carabinieri: [-2, 0, 0] } },
+  ],
+  farms: [
+    { building: 0, rural: true, pen: false },
+    { building: 4948, rural: false, pen: true },
+    { building: 2_147_483_647, rural: true, pen: true },
+  ],
+  centres: [1.5, 2.25, -12000.123456789, 5e-324, 0.1 + 0.7, -0],
+  lamps: [
+    { x: 1.0000000000000002, y: -2.5, nx: -0, ny: 1, kind: "wall", z: 304.53 },
+    { x: -11500.25, y: 13000, nx: Math.SQRT1_2, ny: -Math.SQRT1_2, kind: "pole", z: 87.1 },
+  ],
+}
+
+/** `value` with every −0 a 0, as JSON gives it. */
+const json = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+
+test("the parked spots, the farms, their centres and the lamps travel as sections after the JSON line, which holds their counts and the models, and come back to the bit, keys in their order", () => {
+  const { parked, farms, centres, lamps } = baked
+  const file = encodeMap({
+    ...map,
+    spawns: { ...map.spawns, parked },
+    farms,
+    lamps,
+    derived: { ...map.derived, farms: centres },
+  }).file
+  const decoded = decodeMap(file)
+  // to the bit (deepStrictEqual compares with Object.is), −0 read back as 0, as JSON did
+  assert.deepEqual(decoded.spawns.parked, json(parked))
+  assert.deepEqual(decoded.farms, farms)
+  assert.deepEqual(decoded.derived.farms, json(centres))
+  assert.deepEqual(decoded.lamps, json(lamps))
+  assert.ok(Object.is(decoded.spawns.parked[0]!.rest.panda![1], 0))
+  // the keys in the order the bake gives them, as JSON gave them
+  assert.equal(
+    JSON.stringify([decoded.spawns, decoded.farms, decoded.lamps, decoded.derived]),
+    JSON.stringify([{ ...map.spawns, parked }, farms, lamps, { ...map.derived, farms: centres }]),
+  )
+  const line = JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10)))) as {
+    readonly spawns: { readonly parked: unknown }
+    readonly farms: unknown
+    readonly lamps: unknown
+    readonly derived: { readonly farms: unknown }
+  }
+  assert.deepEqual(
+    [line.spawns.parked, line.farms, line.lamps, line.derived.farms],
+    [{ spots: 3, rests: 4, models: ["panda", "ape", "truck", "carabinieri"] }, 3, 2, 6],
+  )
+})
+
+test("the parked spots' flags name the models the line lists, whatever their order", () => {
+  const { parked } = baked
+  const file = encodeMap({ ...map, spawns: { ...map.spawns, parked } }).file
+  const end = file.indexOf(10),
+    line = JSON.parse(new TextDecoder().decode(file.subarray(0, end))) as {
+      readonly spawns: { readonly parked: { readonly models: ReadonlyArray<string> } }
+    }
+  // the same flags under the models in another order: each bit names the line's model
+  const models = ["carabinieri", "truck", "ape", "panda"]
+  const other = new Uint8Array([
+    ...new TextEncoder().encode(
+      JSON.stringify({
+        ...line,
+        spawns: { ...line.spawns, parked: { ...line.spawns.parked, models } },
+      }),
+    ),
+    ...file.subarray(end),
+  ])
+  const rests = decodeMap(other).spawns.parked.map((s) => Object.keys(s.rest).join(","))
+  assert.deepEqual(rests, ["carabinieri,ape", "", "truck,panda"])
+})
+
 test("encodeMap throws on a graph coordinate off the decimetre, a resident that is no float32 and lanes of more values than their indices hold", () => {
   assert.throws(
     () => encodeMap({ ...map, graph: { ...map.graph, xy: [0, 0.15] } }),
@@ -133,5 +221,38 @@ test("encodeMap throws on a graph coordinate off the decimetre, a resident that 
   assert.throws(
     () => encodeMap({ ...map, lanes: { ...map.lanes, panda: many } }),
     /lanes: 32769 distinct values, past the 32768 their 2-byte indices hold/,
+  )
+})
+
+test("encodeMap throws on a parked spot off the decimetre or the milliradian, a rest out of the models' order, a double that is not finite and a lamp of no kind it knows", () => {
+  const spot = map.spawns.parked[0]!,
+    parked = (s: Partial<MonzoneMap["spawns"]["parked"][number]>) => ({
+      ...map,
+      spawns: { ...map.spawns, parked: [spot, { ...spot, ...s }] },
+    })
+  assert.throws(
+    () => encodeMap(parked({ y: 4.05 })),
+    /parked xy: 4.05 at 3 is not a whole number of decimetres/,
+  )
+  assert.throws(
+    () => encodeMap(parked({ angle: 0.0005 })),
+    /parked angles: 0.0005 at 1 is not a whole number of milliradians/,
+  )
+  assert.throws(
+    () => encodeMap(parked({ rest: { ape: [1, 0, 0], panda: [1, 0, 0] } })),
+    /parked rests: spot 1's rest of panda is not in the order of panda, ape, truck, carabinieri/,
+  )
+  assert.throws(
+    () => encodeMap(parked({ rest: { panda: [1, NaN, 0] } })),
+    /parked rests: NaN at 3 is not finite/,
+  )
+  assert.throws(
+    () => encodeMap({ ...map, derived: { ...map.derived, farms: [1, Infinity] } }),
+    /farm centres: Infinity at 1 is not finite/,
+  )
+  const lamp = map.lamps[0]!
+  assert.throws(
+    () => encodeMap({ ...map, lamps: [lamp, { ...lamp, kind: "torch" as Lamp["kind"] }] }),
+    /lamp kinds: torch at 1 is not wall or pole/,
   )
 })

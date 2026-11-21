@@ -1,34 +1,42 @@
 /**
  * The global file, `<name>.bin` (docs/map.md, "The global file"): its line is `MonzoneMapJson`,
- * everything sparse (the roads' attributes, the railway, the tile list, the baked tables); its
- * sections, `GLOBAL_LAYOUT`, hold the coarse grid and the line's bulk arrays, whose counts the line
- * holds in their place, so the line that `JSON.parse` reads at load stays short (issue #5's 8 MB).
- * Decoding is exact: a graph coordinate is an integer number of decimetres divided by 10, the same
- * double JSON would give for a one-decimal number, a lane is its table's double and a resident its
- * float32. The graph's, the lanes' and the residents' sections decode as the plain arrays the line
- * gave before them, so the game reads the same arrays.
+ * everything sparse (the roads' attributes, the railway, the tile list, the smaller baked tables);
+ * its sections, `GLOBAL_LAYOUT`, hold the coarse grid and the line's bulk arrays and tables, whose
+ * counts the line holds in their place, so the line that `JSON.parse` reads at load stays short
+ * (issue #5's 8 MB). Decoding is exact: a graph coordinate or a parked spot's is an integer number
+ * of decimetres divided by 10 and a spot's angle of milliradians divided by 1000, the same double
+ * JSON would give for a one-decimal or three-decimal number, a lane is its table's double, a
+ * resident its float32, and a rest, a farm's centre and a lamp's numbers come back to the bit from
+ * their doubles' two int32 words. The sections decode as the plain arrays and objects the line gave
+ * before them, keys in the same order, so the game reads the same values.
  *
  * @module map/format/global-file
  */
-import type { VehicleModel } from "../../vehicles.ts"
+import { VEHICLE_MODELS, type VehicleModel } from "../../vehicles.ts"
 import type { Derived } from "../derived.ts"
-import type { Coarse, MonzoneMap } from "../index.ts"
+import type { Coarse, FarmEntry, Lamp, MonzoneMap, ParkedSpot, Rest } from "../index.ts"
 import {
   decodeFile,
   encodeFile,
   fromRowDeltas,
   type Layout,
   MAP_VERSION,
+  offGrid,
+  onGrid,
   rowDeltas,
   type Section,
 } from "./sections.ts"
 
 /**
- * The JSON line that opens the global file: `MonzoneMap` with its bulk arrays left to the sections
- * after it (the coarse grid's heights and cover, the graph, the lanes and the residents), and how
- * many values each of those sections holds in their place.
+ * The JSON line that opens the global file: `MonzoneMap` with its bulk arrays and tables left to
+ * the sections after it (the coarse grid's heights and cover, the graph, the lanes, the residents,
+ * the parked spots, the farms, their centres and the lamps), and how many of each those sections
+ * hold in their place.
  */
-export interface MonzoneMapJson extends Omit<MonzoneMap, "coarse" | "graph" | "lanes" | "derived"> {
+export interface MonzoneMapJson extends Omit<
+  MonzoneMap,
+  "coarse" | "graph" | "lanes" | "spawns" | "farms" | "lamps" | "derived"
+> {
   readonly coarse: Omit<Coarse, "heights" | "cover">
   /** How many values each of the graph's arrays holds. */
   readonly graph: Readonly<Record<keyof MonzoneMap["graph"], number>>
@@ -37,8 +45,23 @@ export interface MonzoneMapJson extends Omit<MonzoneMap, "coarse" | "graph" | "l
     readonly table: ReadonlyArray<number>
     readonly counts: Readonly<Record<VehicleModel, number>>
   }
-  /** `derived` with the residents' count in their place. */
-  readonly derived: Omit<Derived, "residents"> & { readonly residents: number }
+  /** `spawns` with how many parked spots and rests there are in their place, and the models a spot's flags name, bit by bit, in the order its `rest` lists them. */
+  readonly spawns: Omit<MonzoneMap["spawns"], "parked"> & {
+    readonly parked: {
+      readonly spots: number
+      readonly rests: number
+      readonly models: ReadonlyArray<VehicleModel>
+    }
+  }
+  /** How many farms there are. */
+  readonly farms: number
+  /** How many lamps there are. */
+  readonly lamps: number
+  /** `derived` with how many residents and farm centre values there are in their place. */
+  readonly derived: Omit<Derived, "residents" | "farms"> & {
+    readonly residents: number
+    readonly farms: number
+  }
 }
 
 /** How many distinct lane offsets the table holds at most: an index fits 2 bytes zigzag-coded. */
@@ -54,14 +77,83 @@ const laneTable = (lanes: MonzoneMap["lanes"]): Array<number> => {
   return table
 }
 
-// A loop each for the plain arrays: a third of `Array.from`'s time.
+/** A parked spot's flag where a truck fits: past the models' bits, under the 128 a zigzag-coded byte holds. */
+const TRUCK = 1 << 6
 
-/** A section's integers as a plain array. */
+/** A farm's flags: a field added to `FarmEntry` fails to compile until it has its place in the file. */
+const FARM_FLAGS = { rural: 1, pen: 2 } as const satisfies Record<
+  Exclude<keyof FarmEntry, "building">,
+  number
+>
+
+/** Each lamp number's place in the lamps' words: a field added to `Lamp` fails to compile until it has its place in the file. */
+const LAMP_WORDS = { x: 0, y: 1, z: 2, nx: 3, ny: 4 } as const satisfies Record<
+  Exclude<keyof Lamp, "kind">,
+  number
+>
+
+/** The lamps' numbers. */
+const LAMP_FIELDS = Object.keys(LAMP_WORDS) as Array<keyof typeof LAMP_WORDS>
+
+/** A lamp's kind as its index here. */
+const LAMP_KINDS = ["wall", "pole"] as const satisfies ReadonlyArray<Lamp["kind"]>
+
+/** A section's integers as a plain array (a loop: a third of `Array.from`'s time). */
 const listOf = (values: Int32Array): Array<number> => {
   const out: Array<number> = []
   for (let k = 0; k < values.length; k++) out.push(values[k]!)
   return out
 }
+
+/** Doubles as int32 words, big-endian: every value's high word, then every value's low word (−0 as 0, as JSON wrote it); a value not finite throws. */
+const toWords = (values: ArrayLike<number>, what: string): Int32Array => {
+  const n = values.length,
+    out = new Int32Array(2 * n),
+    view = new DataView(new ArrayBuffer(8))
+  for (let k = 0; k < n; k++) {
+    const v = values[k]!
+    if (!Number.isFinite(v)) throw new Error(`${what}: ${v} at ${k} is not finite`)
+    view.setFloat64(0, v === 0 ? 0 : v)
+    out[k] = view.getInt32(0)
+    out[n + k] = view.getInt32(4)
+  }
+  return out
+}
+
+/** `toWords`' doubles back, to the bit, as a plain array of their length, as `JSON.parse` gives (a pushed one keeps up to half its length again spare). */
+const fromWords = (words: Int32Array): Array<number> => {
+  const n = words.length / 2,
+    out: Array<number> = [],
+    view = new DataView(new ArrayBuffer(8))
+  for (let k = 0; k < n; k++) {
+    view.setInt32(0, words[k]!)
+    view.setInt32(4, words[n + k]!)
+    out.push(view.getFloat64(0))
+  }
+  return out.slice()
+}
+
+/**
+ * Every parked spot's rests, spot by spot, each spot's in `models`' order (the order the decoder
+ * gives them in); a rest of a model not in `models`, or out of their order, throws.
+ */
+const restsOf = (
+  parked: ReadonlyArray<ParkedSpot>,
+  models: ReadonlyArray<VehicleModel>,
+  what: string,
+): Array<Rest> =>
+  parked.flatMap((spot, k) => {
+    let last = -1
+    return Object.entries(spot.rest).flatMap(([model, rest]) => {
+      const m = models.indexOf(model as VehicleModel)
+      if (m <= last)
+        throw new Error(
+          `${what}: spot ${k}'s rest of ${model} is not in the order of ${models.join(", ")}`,
+        )
+      last = m
+      return rest === undefined ? [] : [rest]
+    })
+  })
 
 /** A graph array's section: its integers as they are, ascending or (a, b, road) per edge. */
 const graphList = (
@@ -74,6 +166,20 @@ const graphList = (
   count: (line) => line.graph[name],
   encode: (map) => map.graph[name],
   decode: listOf,
+})
+
+/** A section of flags or codes under 128, a byte each as they are (no stride), decoded as its integers. */
+const byteSection = (
+  label: string,
+  count: (line: MonzoneMapJson) => number,
+  encode: (map: MonzoneMap, line: MonzoneMapJson, what: string) => ArrayLike<number>,
+): Section<MonzoneMap, MonzoneMapJson, Int32Array> => ({
+  label,
+  bytes: 1,
+  stride: null,
+  count,
+  encode,
+  decode: (values) => values,
 })
 
 /** The global file's sections, in file order (docs/map.md, "The global file"). */
@@ -102,18 +208,8 @@ const GLOBAL_LAYOUT = {
     bytes: 4,
     stride: 2,
     count: (line) => line.graph.xy,
-    encode: (map, _, what) =>
-      Array.from(map.graph.xy, (v, k) => {
-        const dm = Math.round(v * 10)
-        if (dm / 10 !== v)
-          throw new Error(`${what}: ${v} at ${k} is not a whole number of decimetres`)
-        return dm
-      }),
-    decode: (dm) => {
-      const out: Array<number> = []
-      for (let k = 0; k < dm.length; k++) out.push(dm[k]! / 10)
-      return out
-    },
+    encode: (map, _, what) => onGrid(map.graph.xy, 10, "decimetres", what),
+    decode: (dm) => offGrid(dm, 10),
   },
   edges: graphList("edges", 3),
   traffic: graphList("traffic", 1),
@@ -163,6 +259,116 @@ const GLOBAL_LAYOUT = {
       return out
     },
   },
+  /** Each parked spot's (x, y) in decimetres (the build rounds them to 0.1 m), each from the previous x or y. */
+  parkedXy: {
+    label: "parked xy",
+    bytes: 4,
+    stride: 2,
+    count: (line) => 2 * line.spawns.parked.spots,
+    encode: (map, _, what) =>
+      onGrid(
+        map.spawns.parked.flatMap((s) => [s.x, s.y]),
+        10,
+        "decimetres",
+        what,
+      ),
+    decode: (dm) => dm,
+  },
+  /** Each parked spot's angle in milliradians (the build rounds them so). */
+  parkedAngles: {
+    label: "parked angles",
+    bytes: 2,
+    stride: null,
+    count: (line) => line.spawns.parked.spots,
+    encode: (map, _, what) =>
+      onGrid(
+        map.spawns.parked.map((s) => s.angle),
+        1000,
+        "milliradians",
+        what,
+      ),
+    decode: (mrad) => mrad,
+  },
+  /** Each parked spot's flags: bit k where the line's k-th model has a rest there, `TRUCK` where a truck fits. */
+  parkedFlags: byteSection(
+    "parked flags",
+    (line) => line.spawns.parked.spots,
+    (map, line, what) => {
+      const { models } = line.spawns.parked
+      if (1 << models.length > TRUCK)
+        throw new Error(`${what}: ${models.length} models, past the bits under the truck's`)
+      return map.spawns.parked.map(
+        (s) =>
+          models.reduce((bits, m, k) => bits | (s.rest[m] === undefined ? 0 : 1 << k), 0) |
+          (s.truck === true ? TRUCK : 0),
+      )
+    },
+  ),
+  /** Each rest's z, then each one's pitch, then each one's roll (spot by spot, model by model), as `toWords`. */
+  parkedRests: {
+    label: "parked rests",
+    bytes: 4,
+    stride: null,
+    count: (line) => 6 * line.spawns.parked.rests,
+    encode: (map, line, what) => {
+      const rests = restsOf(map.spawns.parked, line.spawns.parked.models, what)
+      return toWords(
+        [0, 1, 2].flatMap((c) => rests.map((r) => r[c]!)),
+        what,
+      )
+    },
+    decode: fromWords,
+  },
+  /** Each farm's building (its index in the whole map's), each from the previous farm's: they are ascending. */
+  farmBuildings: {
+    label: "farm buildings",
+    bytes: 4,
+    stride: 1,
+    count: (line) => line.farms,
+    encode: (map) => map.farms.map((f) => f.building),
+    decode: (buildings) => buildings,
+  },
+  /** Each farm's `FARM_FLAGS`: 1 where it is rural, 2 where pigs are kept by it. */
+  farmFlags: byteSection(
+    "farm flags",
+    (line) => line.farms,
+    (map) => map.farms.map((f) => (f.rural ? FARM_FLAGS.rural : 0) | (f.pen ? FARM_FLAGS.pen : 0)),
+  ),
+  /** Each farm's building centre (`derived.farms`, flat x, y), as `toWords`. */
+  farmCentres: {
+    label: "farm centres",
+    bytes: 4,
+    stride: null,
+    count: (line) => 2 * line.derived.farms,
+    encode: (map, _, what) => toWords(map.derived.farms, what),
+    decode: fromWords,
+  },
+  /** Every lamp's x, then every one's y, z, nx and ny (`LAMP_WORDS`), as `toWords`. */
+  lamps: {
+    label: "lamps",
+    bytes: 4,
+    stride: null,
+    count: (line) => 2 * LAMP_FIELDS.length * line.lamps,
+    encode: (map, _, what) => {
+      const n = map.lamps.length,
+        values = new Float64Array(LAMP_FIELDS.length * n)
+      for (const field of LAMP_FIELDS)
+        map.lamps.forEach((lamp, k) => (values[LAMP_WORDS[field] * n + k] = lamp[field]))
+      return toWords(values, what)
+    },
+    decode: fromWords,
+  },
+  /** Each lamp's kind, its index in `LAMP_KINDS`. */
+  lampKinds: byteSection(
+    "lamp kinds",
+    (line) => line.lamps,
+    (map, _, what) =>
+      map.lamps.map(({ kind }, k) => {
+        const index = LAMP_KINDS.indexOf(kind)
+        if (index < 0) throw new Error(`${what}: ${kind} at ${k} is not ${LAMP_KINDS.join(" or ")}`)
+        return index
+      }),
+  ),
 } satisfies Layout<MonzoneMap, MonzoneMapJson>
 
 /** The gunzipped global file `decodeMap` reads back into `map`, and the bytes of its line (`json`) and of each section. */
@@ -173,6 +379,7 @@ export const encodeMap = (
     coarse: { heights: _, cover: __, ...coarse },
     graph,
     lanes,
+    spawns,
     derived,
   } = map
   const line: MonzoneMapJson = {
@@ -191,9 +398,68 @@ export const encodeMap = (
         Object.entries(lanes).map(([model, sides]) => [model, sides.length]),
       ) as MonzoneMapJson["lanes"]["counts"],
     },
-    derived: { ...derived, residents: derived.residents.length },
+    spawns: {
+      ...spawns,
+      parked: {
+        spots: spawns.parked.length,
+        rests: restsOf(spawns.parked, VEHICLE_MODELS, "parked rests").length,
+        models: VEHICLE_MODELS,
+      },
+    },
+    farms: map.farms.length,
+    lamps: map.lamps.length,
+    derived: { ...derived, residents: derived.residents.length, farms: derived.farms.length },
   }
   return encodeFile(GLOBAL_LAYOUT, line, map, "")
+}
+
+// The tables are built as `JSON.parse` built them: arrays of their length (`Array.from`: a pushed
+// one keeps up to half its length again spare), each entry a literal of its keys.
+
+/** The parked spots from their sections, each as the build bakes it: `{ x, y, angle, rest, truck? }`, its rests in the line's order of the models. */
+const parkedOf = (
+  xy: Int32Array,
+  angles: Int32Array,
+  flags: Int32Array,
+  words: Array<number>,
+  models: ReadonlyArray<VehicleModel>,
+): Array<ParkedSpot> => {
+  const n = words.length / 3
+  let r = 0
+  return Array.from({ length: angles.length }, (_, k) => {
+    const rest: Partial<Record<VehicleModel, Rest>> = {}
+    for (let m = 0; m < models.length; m++)
+      if ((flags[k]! & (1 << m)) !== 0) {
+        rest[models[m]!] = [words[r]!, words[n + r]!, words[2 * n + r]!]
+        r++
+      }
+    const x = xy[2 * k]! / 10,
+      y = xy[2 * k + 1]! / 10,
+      angle = angles[k]! / 1000
+    return (flags[k]! & TRUCK) === 0 ? { x, y, angle, rest } : { x, y, angle, rest, truck: true }
+  })
+}
+
+/** The farms from their sections: `{ building, rural, pen }`. */
+const farmsOf = (buildings: Int32Array, flags: Int32Array): Array<FarmEntry> =>
+  Array.from({ length: buildings.length }, (_, k) => ({
+    building: buildings[k]!,
+    rural: (flags[k]! & FARM_FLAGS.rural) !== 0,
+    pen: (flags[k]! & FARM_FLAGS.pen) !== 0,
+  }))
+
+/** The lamps from their sections, in the key order the bake gives them (`bakeLamps`: `{ x, y, nx, ny, kind, z }`). */
+const lampsOf = (values: Array<number>, kinds: Int32Array): Array<Lamp> => {
+  const n = kinds.length,
+    at = (field: keyof typeof LAMP_WORDS, k: number) => values[LAMP_WORDS[field] * n + k]!
+  return Array.from({ length: n }, (_, k) => ({
+    x: at("x", k),
+    y: at("y", k),
+    nx: at("nx", k),
+    ny: at("ny", k),
+    kind: LAMP_KINDS[kinds[k]!]!,
+    z: at("z", k),
+  }))
 }
 
 /** The global map from its gunzipped file. */
@@ -208,6 +474,18 @@ export const decodeMap = (file: Uint8Array): MonzoneMap => {
     coarse: { ...line.coarse, heights: values.heights, cover: values.cover },
     graph: { xy: values.xy, edges: values.edges, traffic: values.traffic, walk: values.walk },
     lanes: values.lanes,
-    derived: { ...line.derived, residents: values.residents },
+    spawns: {
+      ...line.spawns,
+      parked: parkedOf(
+        values.parkedXy,
+        values.parkedAngles,
+        values.parkedFlags,
+        values.parkedRests,
+        line.spawns.parked.models,
+      ),
+    },
+    farms: farmsOf(values.farmBuildings, values.farmFlags),
+    lamps: lampsOf(values.lamps, values.lampKinds),
+    derived: { ...line.derived, residents: values.residents, farms: values.farmCentres },
   }
 }
