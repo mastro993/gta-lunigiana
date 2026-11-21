@@ -1,6 +1,6 @@
 // The lakes and river polygons of both built maps (water-areas.ts) read from their heights: their
 // levels and waterways, a lake's nodes carved under its level, its edge holding it and no level
-// over all its nodes, the lakes the LiDAR reads no hollow under or with no node inside their edge
+// over all its nodes, the lakes the terrain reads no hollow under or with no node inside their edge
 // left dry, the surface a river polygon is carved under falling downstream, its outer edge left as
 // the ground was, and no tree, parked car or player spawn in the water.
 import assert from "node:assert/strict"
@@ -11,13 +11,15 @@ import type { Area, Water } from "../../sim/map/index.ts"
 import { anchorOf, isWaterArea } from "../../sim/map/kinds.ts"
 import { reachOf } from "../../sim/water/channel.ts"
 import { ringBox, segDist2 } from "../geometry.ts"
+import { BLEND, coreHalf } from "../grid-claims.ts"
 import { listedNodes } from "../grid-tiles.ts"
 import { type JoinedMap, wholeMap } from "../map-file.ts"
 import { inRects, PARTS } from "../region.ts"
 import { inRings } from "../water-areas.ts"
+import { LINE_TOL } from "../water.ts"
 
 /**
- * Each map, and the lakes in it the LiDAR reads no hollow under (a point inside each). A lake every
+ * Each map, and the lakes in it the terrain reads no hollow under (a point inside each). A lake every
  * node of whose cells is its edge (no node all four of whose cells are water) holds none either,
  * and the test finds it by its nodes: the carve lowers only the nodes inside a lake's edge
  * (`carveAreas`), and its level is no higher than its spill (`levelOf`).
@@ -34,13 +36,20 @@ const MAPS: ReadonlyArray<readonly [string, JoinedMap, ReadonlyArray<readonly [n
         [688, 10840],
         // A 24 × 29 m pond on a slope 320 m past the play area's east edge, its foot 1.6 m under it.
         [10432, 8160],
+        // The Bottaccio, a mill pond OSM maps by Castelnuovo Magra (issue #20), 31 × 18 m on a
+        // hillside rising 9 m across it on Liguria's DTM: its foot, where it spills, 103 m.
+        [-8152, -6716],
       ],
     ],
     ["Cesena", wholeMap("cesena"), []],
   ]
 
-/** The rounding of the grid's heights (whole decimetres), m. */
-const ROUND = 0.05
+/**
+ * The rounding of the grid's heights (whole decimetres), m, and a float's slack: a node carved to
+ * 2.15 m rounds up to 2.2, which 2.15 + 0.05 misses by 3e-16 (a pond by Sarzana's Bozi di Saudino,
+ * (−13216, −6928), 23.5 m from its shore).
+ */
+const ROUND = 0.05 + 1e-9
 
 /** The heightmap cells (column, row) whose centre `rings` holds, filled as the land cover is. */
 const cellsOf = (map: JoinedMap, rings: ReadonlyArray<ReadonlyArray<number>>) => {
@@ -118,12 +127,26 @@ const shore = (rings: ReadonlyArray<ReadonlyArray<number>>, x: number, y: number
 }
 
 /** Whether the centreline of `w` passes within `d` m of (x, y). */
-const within = (w: Water, x: number, y: number, d: number) => {
+const within = (w: Pick<Water, "pts">, x: number, y: number, d: number) => {
   for (let k = 0; k + 3 < w.pts.length; k += 2)
     if (segDist2(x, y, w.pts[k]!, w.pts[k + 1]!, w.pts[k + 2]!, w.pts[k + 3]!).d2 <= d * d)
       return true
   return false
 }
+
+/**
+ * The lines of `map` whose claims may write on the ground (`claimOf` in grid-claims.ts): each road
+ * off a deck and out of a tunnel, and the rail, with how far its writes reach, its core and the
+ * blend back to the terrain.
+ */
+const claimsOf = (map: JoinedMap) => [
+  ...map.roads
+    .filter((r) => r.bridge !== true && r.tunnel !== true)
+    .map((r) => ({ pts: r.pts, reach: coreHalf(r.w, map.heightmap.cell) + BLEND })),
+  ...map.rail
+    .filter((r) => r.bridge !== true && r.tunnel !== true)
+    .map((r) => ({ pts: r.pts, reach: coreHalf(4, map.heightmap.cell) + BLEND })),
+]
 
 /** Whether a point of the centreline of `w`, read every half metre, lies inside `rings`. */
 const passesInside = (w: Water, rings: ReadonlyArray<ReadonlyArray<number>>) => {
@@ -179,6 +202,10 @@ test("water areas: lucido's 8 OSM water polygons as 7 lakes with their levels an
 })
 
 for (const [name, map, dry] of MAPS) {
+  // The lake's rules below are not the sea's: it is carved to its floor (sea-floor.ts), and a piece
+  // the build cuts at a tile's side or the box's edge with no shore of its own (Lunigiana's at
+  // (−23100, −8500), in the Gulf of La Spezia beyond the play area) stands over every node of it.
+  // coast-sea.map-test.ts checks the sea on the coast test region.
   const areas = map.areas.filter((a) => isWaterArea(a.kind))
   const nodes = areaNodes(map, areas)
 
@@ -197,7 +224,7 @@ for (const [name, map, dry] of MAPS) {
   test(`water areas, ${name}: a lake's nodes are carved under its level, deeper from its shore, but a bank over it, and its edge holds it but where a stream's channel leaves`, () => {
     areas.forEach((a, n) => {
       const level = a.level
-      if (level === undefined) return
+      if (level === undefined || a.kind === "sea") return
       for (const { x, y, z, edge } of nodes[n]!) {
         // The lines are carved after the lakes (`carveAreas`), out to their bed's half-width and a
         // cell more (`carve` in terrain.ts): where one leaves a lake, or runs in or along it (the
@@ -222,13 +249,13 @@ for (const [name, map, dry] of MAPS) {
 
   test(`water areas, ${name}: a lake's level is no higher than the highest node of its cells, so it never floats over them all (where a stream's channel crosses its whole edge too)`, () => {
     areas.forEach((a, n) => {
-      if (a.level === undefined || nodes[n]!.length === 0) return
+      if (a.level === undefined || a.kind === "sea" || nodes[n]!.length === 0) return
       const highest = Math.max(...nodes[n]!.map((v) => v.z))
       assert.ok(highest >= a.level - ROUND, `${a.kind} round ${a.rings[0]!.slice(0, 2)}`)
     })
   })
 
-  test(`water areas, ${name}: every lake holds water but where the LiDAR reads no hollow or no node lies inside its edge, where it stands at its spill over every node of it`, () => {
+  test(`water areas, ${name}: every lake holds water but where the terrain reads no hollow or no node lies inside its edge, where it stands at its spill over every node of it`, () => {
     let lakes = 0
     areas.forEach((a, n) => {
       const level = a.level
@@ -264,19 +291,29 @@ for (const [name, map, dry] of MAPS) {
       }
   })
 
-  test(`water areas, ${name}: a river polygon's outer edge is left as the ground was, over its waterways' bed but where their own channels cut it`, () => {
+  test(`water areas, ${name}: a river polygon's outer edge is left as the ground was, over its waterways' bed but where their own channels cut it or a road keeps its own level`, () => {
     let edges = 0
+    const claims = claimsOf(map)
     areas.forEach((a, n) => {
       if (a.waters === undefined) return
       const [x0, y0, x1, y1] = ringBox(a.rings[0]!)
-      // The lines carve out to their bed's half-width and a cell more (`carve` in terrain.ts).
-      const lines = map.water.filter((w) => {
-        const [bx0, by0, bx1, by1] = ringBox(w.pts),
-          r = reachOf(w) + map.heightmap.cell
+      const meets = (pts: ReadonlyArray<number>, r: number) => {
+        const [bx0, by0, bx1, by1] = ringBox(pts)
         return bx0 - r <= x1 && bx1 + r >= x0 && by0 - r <= y1 && by1 + r >= y0
-      })
+      }
+      // The lines carve out to their bed's half-width and a cell more (`carve` in terrain.ts).
+      const lines = map.water.filter((w) => meets(w.pts, reachOf(w) + map.heightmap.cell))
+      // The claims write on the outer edge after it is raised, and a road there keeps its own
+      // level (`carveAreas`): the Calcandola's polygon by Sarzana runs 6 m from a road 0.6 m under
+      // its bed, whose blend back to the terrain takes its edge.
+      const roads = claims.filter((c) => meets(c.pts, c.reach))
       for (const { x, y, z, edge } of nodes[n]!) {
-        if (!edge || lines.some((w) => within(w, x, y, reachOf(w) + map.heightmap.cell))) continue
+        if (
+          !edge ||
+          lines.some((w) => within(w, x, y, reachOf(w) + map.heightmap.cell)) ||
+          roads.some((c) => within(c, x, y, c.reach))
+        )
+          continue
         // The bed at the nearest point of its waterways: their built surface less depth/2.
         let best = Number.MAX_VALUE,
           bed = 0
@@ -295,11 +332,17 @@ for (const [name, map, dry] of MAPS) {
           }
         }
         edges++
-        // The bed reads the waterway's surface in whole decimetres, as the grid holds the edge.
-        assert.ok(z >= bed - ROUND, `edge (${x}, ${y}) at ${z} under the bed at ${bed.toFixed(2)}`)
+        // The build raises the edge HALF_STEP over the bed its 2 m samples give, so the grid's
+        // rounding keeps it over that; the shipped line strays up to LINE_TOL from the samples, and
+        // its vertices are rounded to the decimetre.
+        assert.ok(
+          z >= bed - LINE_TOL - ROUND,
+          `edge (${x}, ${y}) at ${z} under the bed at ${bed.toFixed(2)}`,
+        )
       }
     })
-    assert.ok(edges > (name === "Lunigiana" ? 100 : 500), `${edges} edge nodes`)
+    // With the nodes the roads' claims write left out, 408 on Cesena.
+    assert.ok(edges > (name === "Lunigiana" ? 100 : 300), `${edges} edge nodes`)
   })
 
   test(`water areas, ${name}: no tree, parked car or player spawn stands in the water`, () => {
