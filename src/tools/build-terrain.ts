@@ -178,8 +178,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     ),
   )
   const profiler = makeProfiler(ground, links, bridgeEnds)
-  const { profile, claim, claims, grown, nodeZ, zOf, denseOf } = profiler
-  const zAt = (l: Linear, s: number) => along(arcLengths(l.pts), zOf.get(l)!, s)
+  const { profile, claim, claims, grown, nodeZ, zOf, denseOf, zAt } = profiler
 
   const { railRoad, levels, roadBounds, railBounds } = railLevels({
     allRail,

@@ -190,3 +190,20 @@ test("slabNodes lists the corners of the cells a slab reaches over, flagging tho
   assert.equal(nodes.get(node(g, 35, 9)), false, "x 140: past its far end")
   assert.equal(nodes.get(node(g, 20, 8)), undefined)
 })
+
+// Regression (#20): the tertiary bridge 23277539 bends 14° at (−15613.6, −6220.8), and the node
+// (−15620, −6220) on the outside of the bend lay abeam of neither of its segments, so it counted as
+// behind the deck's end: the SP331's core beside the deck kept it 1.7 m over the deck, and the ground
+// stood 0.87 m under its top, in its slab.
+test("slabNodes flags a node on the outside of a deck's bend abeam of it, between the lines across its two segments", () => {
+  const g = grid(() => 0)
+  // The bridge's three vertices about its bend, moved by (15640, 6252).
+  const bent = roadSlab(
+    { cls: "tertiary", w: 6.5 },
+    { pts: [28.2, 12.2, 26.4, 31.2, 27.8, 40.9], z: [10, 10, 10] },
+  )
+  const nodes = new Map(slabNodes(g, [bent]))
+  // (20, 32): past the first segment's end, before the second's start, 6.5 m off the bend's vertex.
+  assert.equal(nodes.get(node(g, 5, 8)), true, "outside the bend")
+  assert.equal(nodes.get(node(g, 7, 2)), false, "behind the deck's first end")
+})

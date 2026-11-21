@@ -181,6 +181,13 @@ export const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
 export const ON_DECK = 0.5
 
 /**
+ * The clear height of an underpass or a road tunnel whose way has no `maxheight` tag, m: what the
+ * map build keeps under a bridge (src/tools/road-levels.ts) and a tunnel's bore is drawn to
+ * (src/render/bores.ts).
+ */
+export const UNDERPASS = 4
+
+/**
  * Two grounds this near in height (m) are one level: bodies meet, a body meets a train's car, and a
  * wall with a level (a bridge's parapet) stops a body, only on one level (`onOneLevel` in
  * src/sim/one-level.ts); a parapet opens only where a road this near its deck reaches it

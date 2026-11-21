@@ -3,8 +3,10 @@ import { test } from "node:test"
 
 import type { BuildingF, RoadF } from "../features.ts"
 import { segDist2 } from "../geometry.ts"
+import { clipBuildings } from "../house-walls.ts"
 import { outlineOf } from "../play-area.ts"
-import { clipBuildings, openBarriers, pushOutline } from "../walls.ts"
+import { pushOutline } from "../wall-pieces.ts"
+import { openBarriers } from "../walls.ts"
 import { segments } from "./wall-segments.ts"
 
 // walls.long-test.ts builds the walls round a staged lake and river polygon (about a second).

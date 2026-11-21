@@ -8,6 +8,7 @@ import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import { lifted } from "./chains.ts"
 import { deckWalls } from "./deck-walls.ts"
+import { floorsOf } from "./floors.ts"
 import { flatLine, r1, toLocal } from "./geometry.ts"
 import { buildGraph } from "./graph.ts"
 import { parapets } from "./parapets.ts"
@@ -66,7 +67,14 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     level = levelOn(ground)
   const decks = parapets(roads, level),
     under = deckWalls(ground, roads, roadLines)
-  const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks, under)
+  // The buildings' floors, which the shipped map carries, and the tunnels' levels on the ground: a
+  // bore opens a house's walls only where it passes the house at its level.
+  const floors = floorsOf(grid, terrain.floors, buildings)
+  const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks, under, {
+    floors,
+    level,
+    terrain: ground.terrainZ,
+  })
   lap("walls")
   const trees = scatterTrees(
     { areas, roads, buildings, water, rail: allRail, beyond: src.beyond },
@@ -179,6 +187,8 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     parapets: { walls: decks.levels.length, over: decks.over },
     /** The walls under the decks, walk and drive, and the decks they wall, for the build's report. */
     underDecks: under.report,
+    /** Each building's floor (`floorsOf`). */
+    floors,
     /** Each rail piece's kind (none on a line). */
     kinds,
     /** The lines and platforms as laid, for the build's report. */

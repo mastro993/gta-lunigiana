@@ -10,15 +10,13 @@
  */
 import { ROAD_LIFT } from "../sim/map/ground.ts"
 import { MAP, type Road, type RoadInfo, roadClassOf } from "../sim/map/index.ts"
-import { anchorOf } from "../sim/map/kinds.ts"
+import { anchorOf, UNDERPASS } from "../sim/map/kinds.ts"
 import type { Piece, Triangles } from "./geometry.ts"
 import { terrainY, yOf } from "./ground.ts"
 import { PALETTE } from "./palette.ts"
 
 /** Room either side of a road tunnel's carriageway, m: its kerbs. */
 const KERB = 1
-/** A road tunnel's clear height where its way has no `maxheight`, m: the clearance the build keeps under a bridge (src/tools/road-levels.ts). */
-const CLEARANCE = 4
 /** Headroom between the clear height and where the mouth's arch springs, m. */
 const HEADROOM = 0.5
 /** The walls reach this far under the road's surface, m. */
@@ -38,9 +36,9 @@ export interface Bore {
 /** Whether road `road` has a bore: in a tunnel, and not a building passage. */
 export const isBored = (road: RoadInfo): boolean => road.tunnel === true && road.passage !== true
 
-/** Road `road`'s tunnel cross-section: its carriageway and a KERB each side, its clear height (OSM's `maxheight`, else CLEARANCE) and HEADROOM over it. */
+/** Road `road`'s tunnel cross-section: its carriageway and a KERB each side, its clear height (OSM's `maxheight`, else UNDERPASS) and HEADROOM over it. */
 export const boreOf = (road: RoadInfo): Bore => {
-  const clear = road.maxheight ?? CLEARANCE
+  const clear = road.maxheight ?? UNDERPASS
   return { half: road.w / 2 + KERB, clear, spring: clear + HEADROOM }
 }
 

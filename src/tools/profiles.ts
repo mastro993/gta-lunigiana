@@ -3,7 +3,7 @@
 // into the terrain grid (except under bridges and tunnels).
 import type { RoadClass } from "../sim/map/kinds.ts"
 import { lifted, type Linear, type Link } from "./chains.ts"
-import { arcLengths, type V } from "./geometry.ts"
+import { along, arcLengths, type V } from "./geometry.ts"
 import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
 import { type Graded, junctionReach } from "./junction-reach.ts"
 import {
@@ -537,5 +537,17 @@ export const makeProfiler = (
       yield chains[next]!
     }
   }
-  return { profile, claim, mouth, claims, grown, nodeZ, zOf, denseOf }
+  /**
+   * A fitted line's level at arc length `s` along it, m: on its profile as written (`denseOf`, the
+   * bends between its vertices kept), else between its vertices. Read on the chord between them,
+   * the A12's 420870862, three vertices over 1.4 km, stood 17.6 m over the track's tunnel 205932308
+   * where its fit dips to 11.3 m, and the tunnel's bound left it 0.9 m under the motorway.
+   */
+  const zAt = (l: Linear, s: number): number => {
+    const d = denseOf.get(l)
+    return d === undefined
+      ? along(arcLengths(l.pts), zOf.get(l)!, s)
+      : along(arcLengths(d.pts), d.z, s)
+  }
+  return { profile, claim, mouth, claims, grown, nodeZ, zOf, denseOf, zAt }
 }

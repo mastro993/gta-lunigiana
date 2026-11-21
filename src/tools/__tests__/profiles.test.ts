@@ -225,6 +225,90 @@ test("profile holds a bound at a deck's end there alone: the straight deck keeps
   assert.ok(Math.abs(east! - 108) < 0.05, `east end at ${east}, not lifted with it`)
 })
 
+// Regression (#20): the A12's Livorno carriageway leaves its Vara bridge (60208802) on the deck's
+// level, 5.5 m over the road under its east end, and runs on at grade beside its twin, which climbs
+// to its own deck there: each bound the fit broke was pinned at its own level, the deck's end at
+// 29.56 m and the sample 4.2 m on at the twin's level less 1.5 m, 28.06 m, so the line fell 1.5 m
+// between them (36%) and 4 m over the next 50 m, past the motorway's 6%.
+test("profile holds the bounds it breaks within its grade limit: a deck's end over its approach's lower bounds leaves it down the grade, not in a step", () => {
+  // Flat ground at 100 m; a bridge from x 300 to 400, at least 106 m at its east end; past it, at
+  // grade, within 1.5 m of a twin climbing 5.7% to 106 m at x 400 (`TWINS` in road-levels.ts).
+  const ground = () => 100
+  const deck = { id: 2, bridge: true as const, pts: [v(300, 0, "b0"), v(400, 0, "b1")] }
+  const after = { id: 3, pts: [v(400, 0, "b1"), v(700, 0)] }
+  const chain = [{ id: 1, pts: [v(0, 0), v(300, 0, "b0")] }, deck, after].map((item) => ({
+    item,
+    rev: false,
+  }))
+  const twinAt = (x: number) => Math.max(100, 106 - 0.057 * (x - 400))
+  const twin = Array.from({ length: 20 }, (_, i) => 404 + 4 * i).map((x) => ({
+    x,
+    y: 0,
+    z: twinAt(x) - 1.5,
+    kind: "min" as const,
+    on: after,
+  }))
+  const motorway = ROAD_PASSES[0]
+  const { profile, denseOf } = makeProfiler(ground)
+  profile(chain, { w: 10, ...motorway }, [
+    { x: 400, y: 0, z: 106, kind: "min", tilt: true, on: deck },
+    ...twin,
+    ...twin.map((b) => ({ ...b, z: twinAt(b.x) + 1.5, kind: "max" as const })),
+  ])
+  const { pts, z } = denseOf.get(after)!
+  assert.ok(z[0]! >= 106 - 1e-6, `the deck's end at ${z[0]}`)
+  for (let k = 1; k < z.length; k++) {
+    const g = Math.abs(z[k]! - z[k - 1]!) / (pts[k]!.x - pts[k - 1]!.x)
+    assert.ok(g <= motorway.grade + 1e-6, `${(g * 100).toFixed(1)}% at x ${pts[k]!.x}`)
+  }
+  for (const b of twin) {
+    const k = pts.findIndex((p) => p.x >= b.x)
+    const at =
+      z[k - 1]! + ((z[k]! - z[k - 1]!) * (b.x - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+    assert.ok(at >= b.z - 1e-6, `${at.toFixed(2)} under ${b.z.toFixed(2)} at x ${b.x}`)
+  }
+})
+
+// Regression (#20): the SS330's ramp 1388645825 at Albiano runs from a junction pinned at 33.52 m
+// (its chain's start) past its twin's bounds, at least 34.25 m 5.7 m on and 40.16 m 17.6 m on: the
+// fit broke both, and the first, raised to the reach down from the second, 38.37 m, left the
+// junction's 5.6 m link 1250443404 climbing 87%; a bound beside a junction is raised no further than
+// the junction's reach.
+test("profile moves a broken bound to the reach of the broken bounds beside it, never past a junction's", () => {
+  const line = { id: 1, pts: [v(0, 0, "a"), v(5.7, 0), v(17.6, 0), v(40, 0)] }
+  const { profile, denseOf } = makeProfiler(() => 38)
+  profile([{ item: line, rev: false }], { w: 6, ...ROAD_PASSES[1] }, [
+    { x: 0, y: 0, z: 33.52 },
+    { x: 5.7, y: 0, z: 34.25, kind: "min" },
+    { x: 17.6, y: 0, z: 40.16, kind: "min" },
+  ])
+  const { pts, z } = denseOf.get(line)!
+  const at = (x: number) => z[pts.findIndex((p) => p.x === x)]!
+  assert.ok(at(5.7) >= 34.25 - 1e-6 && at(17.6) >= 40.16 - 1e-6, `${at(5.7)}, ${at(17.6)}`)
+  const g = (at(5.7) - at(0)) / 5.7
+  assert.ok(g <= 1.5 * ROAD_PASSES[1].grade + 1e-6, `${(g * 100).toFixed(1)}% from the junction`)
+})
+
+// Regression (#20): the A12's 420870862 is three OSM vertices over 1.4 km, and its fit dips 8 m
+// between the last two, to 11.3 m where a track's tunnel passes under it; read on the chord between
+// those vertices, 17.6 m there, the tunnel's bound left it 0.9 m under the motorway.
+test("profile's zAt reads a fitted line's level on its profile, the bends between its vertices kept, not on the chord between them", () => {
+  // Level ground at 100 m but a dip 10 m deep over x 300–500; a motorway of two vertices over it.
+  const ground = (x: number) => (x > 300 && x < 500 ? 90 : 100)
+  const line = { pts: [v(0, 0, "a"), v(800, 0, "b")] }
+  const profiler = makeProfiler((x) => ground(x))
+  profiler.profile([{ item: line, rev: false }], { w: 10, ...ROAD_PASSES[0] })
+  const { pts, z } = profiler.denseOf.get(line)!
+  const k = pts.findIndex((p) => p.x >= 400)
+  const fitted =
+    z[k - 1]! + ((z[k]! - z[k - 1]!) * (400 - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+  assert.ok(fitted < 97, `the fit dips to ${fitted.toFixed(2)} m at x 400`)
+  assert.ok(
+    Math.abs(profiler.zAt(line, 400) - fitted) < 1e-9,
+    `${profiler.zAt(line, 400)} read there`,
+  )
+})
+
 // Regression (review of #19): the A15's Parma carriageway at Calcinara runs at grade over a dip the
 // survey reads 13 m under its twin beside it; its fit, relaxed to stay within 4 m of the ground,
 // sagged 6-8 m into it and climbed up to 6.8% over 100 m out of it, past the motorway's 6%.
