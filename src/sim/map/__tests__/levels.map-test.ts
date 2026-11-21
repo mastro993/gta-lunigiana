@@ -218,8 +218,13 @@ const shortfalls = (
 /**
  * Crossings a region's build keeps too low, by the OSM ids of the way above and the one below
  * (docs/map.md, "Known data limitations"): the coast test region's Via Bassagrande's bridge over
- * the Fossa Maestra, 1.93 m over the path along its bank. Each must still fall short, so a fix drops
- * it from here: Cesena's car park ramp 68296970, which its square's pass left at the square's level,
+ * the Fossa Maestra, 1.93 m over the path along its bank, which the canal beside it keeps from
+ * dipping under the deck (path-pass.ts). Each must still fall short, so a fix drops it from here:
+ * Lunigiana's micro-mapped knot of approaches by Via Cospedo at Aulla, the footway 1311831119 0.4 m
+ * over the footway tunnel 1311831121 it leads out of 0.7 m on, clears it by 4.0 m since a path or
+ * steps at grade crossing a deck or a bore is fitted from its clearance there, before the
+ * approaches (path-approaches.ts, issue #20). Cesena's car park ramp 68296970, which its square's
+ * pass left at the square's level,
  * dips under it since a tunnel takes its bound from a road at grade of its own pass (issue #20).
  * Cesena's footbridges over Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its
  * pedestrian underpass under Via Giuseppe Di Vittorio, and the coast's foot and cycle bridge over
@@ -227,15 +232,11 @@ const shortfalls = (
  * the terrain's level until the paths' and steps' decks were fitted (PATH_PASS); Cesena's 5.5 m
  * path bridge 683510421 now stands 4.5 m over the path 22776463 under it, which ran 3.5 m under it
  * on the ground its ramps' claims held at the deck's level until the approach's crossing shipped its
- * fitted level (path-approaches.ts). One is a micro-mapped knot of approaches no fit of theirs
- * clears: on Lunigiana the footway 1311831119 crosses the footway tunnel 1311831121 0.7 m from the
- * node where it leads from the bore's end at its level. The footway 1311831120 over the tunnel
- * 1311862950, 1.5 m from its node, clears it since the bounds read the fitted roads' profiles as
- * written (`zAt` in profiles.ts, issue #20).
+ * fitted level (path-approaches.ts).
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [],
-  lunigiana: [[1311831119, 1311831121]],
+  lunigiana: [],
   "the coast": [[463589363, 326011444]],
 }
 

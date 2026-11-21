@@ -26,7 +26,7 @@ import {
   type V,
 } from "./geometry.ts"
 import { boreEnds, footwaysNear } from "./grid-claims.ts"
-import { pathPass } from "./path-pass.ts"
+import { pathPass, waterTopOf } from "./path-pass.ts"
 import { inPlay, onOutline } from "./play-area.ts"
 import { EXTRA_RANK, makeProfiler, RAIL_PASS, ROAD_PASSES } from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
@@ -263,6 +263,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       ])
   // The paths' and steps' bridges and tunnels and the piers, after every road, and the paths and
   // steps at grade leading from them (path-pass.ts).
+  const levelAt = waterLevel(wet.carved, water, wp0)
   const { pierZ, approaches } = pathPass({
     roads,
     ground,
@@ -271,7 +272,8 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     zAt,
     rail: { railRoad, roadBounds },
     overpasses,
-    levelAt: waterLevel(wet.carved, water, wp0),
+    levelAt,
+    waterTop: waterTopOf(water, wp0, levelAt),
   })
   // The extra tracks take only the cells no road took.
   for (const [piece, { profile: p }] of extraZ)

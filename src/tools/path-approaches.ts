@@ -6,7 +6,9 @@
 // other claim), and the rest of it keeps the terrain. A vertex of the stretch is set as the
 // profiles' shared nodes are, so the paths at grade on from it are approaches in turn, and a path
 // fitted before with it on the ground is fitted again. Fitted at the terrain's level, the station's
-// steps at Aulla Lunigiana stood 5.8 m over the underpass they lead into (1387000572).
+// steps at Aulla Lunigiana stood 5.8 m over the underpass they lead into (1387000572). A path or
+// steps at grade crossing a deck or a bore on another level is fitted so too, from its clearance
+// there, whether or not a deck leads onto it (`pathApproaches`'s `crossing`).
 import { Ops } from "@typeonce/ritmo-math"
 
 import { lifted } from "./chains.ts"
@@ -54,12 +56,16 @@ export const pathsAtGrade = (roads: ReadonlyArray<RoadF>): ReadonlyMap<string, A
   return through
 }
 
-/** What an approach adds to the map: its line, its claims on the grid, and the vertices whose level it set. */
+/**
+ * What an approach adds to the map: its line, its claims on the grid, the vertices whose level it
+ * set, and whether it keeps a clearance (`crosses`), whose claims go first.
+ */
 interface Fit {
   readonly line: ApproachLine
   readonly claims: ReadonlyArray<Claim>
   readonly mouths: ReadonlyArray<Claim>
   readonly set: ReadonlyArray<V>
+  readonly crosses: boolean
 }
 
 /** What an approach's fit reads round it besides the levels set. */
@@ -116,7 +122,7 @@ const fitApproach = (
     pins.set(k, { z, off: z - p.z[k]! })
     if (leads(v.id!)) starts.push(k)
   })
-  if (starts.length === 0) return undefined
+  if (starts.length === 0 && clears.length === 0) return undefined
   const terrain = Float64Array.from(p.z),
     off = new Uint8Array(n)
   /** Fits the stretches off the ground from `pins` into `off` and `p.z`. */
@@ -239,6 +245,7 @@ const fitApproach = (
       (v, i) =>
         v.id !== undefined && (off[p.vertexSample[i]!] === 1 || lead.has(p.vertexSample[i]!)),
     ),
+    crosses: clears.length > 0,
   }
 }
 
@@ -250,7 +257,16 @@ const fitApproach = (
  * grid and their mouths' claims, in order. A path fitted before a level was set at a vertex of it,
  * that vertex on the ground, is fitted again from it: fitted once, Aulla's path 717897182 stood
  * 1.3 m over the steps 717897183 where they meet, and Fosdinovo's 1326730177 0.9 m over
- * 1335936638. A level is set once, so each vertex sends its paths back at most once.
+ * 1335936638. A level is set once, so each vertex sends its paths back at most once. The paths and
+ * steps at grade that cross a fitted way on another level (`crossing`: under a bridge or over a
+ * tunnel) are fitted first, from their clearances (`clearOf`) whether or not a deck leads onto
+ * them: each keeps its level there as its own claim, dipped to the clearance where the ground
+ * breaks it (the A15's deck by its north end at Santo Stefano di Magra stood 0.6 m over the ground
+ * the steps 374756566 run on under it), and its claims go before every other approach's, as the
+ * holds and the cores round a deck's ends held the ground under it at the deck's level: Via
+ * Mazzini (814776126) at Sarzana's Via Cittadella arch (814776124, 7.2 m), whose ends' holds reach
+ * under all of it, at 24.6 m on its natural 20.3, and the path 205452561 under the A12's decks
+ * (205451511 and 205451513) at 37.4–39.1 m on its natural 33.8–34.6, 1.0–2.7 m under them.
  */
 export const pathApproaches = (
   through: ReadonlyMap<string, ReadonlyArray<RoadF>>,
@@ -258,6 +274,7 @@ export const pathApproaches = (
   nodeZ: Map<string, number>,
   clearOf: (piece: RoadF) => ReadonlyArray<Bound>,
   around: Around,
+  crossing: ReadonlyArray<RoadF> = [],
 ): {
   readonly lines: ReadonlyMap<RoadF, ApproachLine>
   readonly claims: Array<Claim>
@@ -266,30 +283,33 @@ export const pathApproaches = (
   const fits = new Map<RoadF, Fit>(),
     queue = [...seeds],
     led = new Set(seeds)
+  /** Fits `piece` from the levels set on it and its clearances, and sends its levels on. */
+  const take = (piece: RoadF) => {
+    const fit = fitApproach(
+      piece as RoadF & { cls: "path" | "steps" },
+      nodeZ,
+      (id) => led.has(id),
+      clearOf(piece),
+      around,
+    )
+    if (fit === undefined) return
+    fits.set(piece, fit)
+    for (const v of fit.set)
+      if (!nodeZ.has(v.id!)) {
+        nodeZ.set(v.id!, fit.line.z[fit.line.pts.indexOf(v)]!)
+        led.add(v.id!)
+        for (const other of through.get(v.id!) ?? []) if (other !== piece) fits.delete(other)
+        queue.push(v.id!)
+      }
+  }
+  for (const piece of crossing) if (!fits.has(piece)) take(piece)
   for (let q = 0; q < queue.length; q++)
-    for (const piece of through.get(queue[q]!) ?? []) {
-      if (fits.has(piece)) continue
-      const fit = fitApproach(
-        piece as RoadF & { cls: "path" | "steps" },
-        nodeZ,
-        (id) => led.has(id),
-        clearOf(piece),
-        around,
-      )
-      if (fit === undefined) continue
-      fits.set(piece, fit)
-      for (const v of fit.set)
-        if (!nodeZ.has(v.id!)) {
-          nodeZ.set(v.id!, fit.line.z[fit.line.pts.indexOf(v)]!)
-          led.add(v.id!)
-          for (const other of through.get(v.id!) ?? []) if (other !== piece) fits.delete(other)
-          queue.push(v.id!)
-        }
-    }
-  const all = [...fits]
+    for (const piece of through.get(queue[q]!) ?? []) if (!fits.has(piece)) take(piece)
+  const all = [...fits.values()],
+    ordered = [...all.filter((f) => f.crosses), ...all.filter((f) => !f.crosses)]
   return {
-    lines: new Map(all.map(([piece, fit]) => [piece, fit.line])),
-    claims: all.flatMap(([, fit]) => fit.claims),
-    mouths: all.flatMap(([, fit]) => fit.mouths),
+    lines: new Map([...fits].map(([piece, fit]) => [piece, fit.line])),
+    claims: ordered.flatMap((fit) => fit.claims),
+    mouths: all.flatMap((fit) => fit.mouths),
   }
 }

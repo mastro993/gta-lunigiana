@@ -1,7 +1,9 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { footReach } from "../../sim/map/kinds.ts"
 import type { Linear } from "../chains.ts"
+import { CORRIDOR, walkSide } from "../deck-space.ts"
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import type { Bound } from "../profiles.ts"
@@ -82,13 +84,14 @@ test("passesOver: a bridge or a road over a tunnel, on a higher OSM level", () =
 // Regression: Cesena's roads crossed under its bridges with 1.25 m to spare, and a service road ran 1.6 m under a slip road
 // whose bridge the junction under it held down.
 test("roadLevels: a road under a bridge keeps maxheight (4 m untagged) plus a 1.5 m deck; a bridge or tunnel in an earlier pass keeps it from the other's natural level", () => {
-  // A path at grade follows the terrain: no road's bridge over one is bound. A path's bridge or
-  // tunnel keeps a person's clearance (2.5 m) from a path, a vehicle's from a road.
+  // A path's bridge or tunnel, or a path at grade under a road's bridge, keeps a person's clearance
+  // (2.5 m) from a path, a vehicle's from a road.
   assert.deepEqual(
     make([]).over.map((o) => [o.up.id, o.down.id, o.clear]),
     [
       [1, 2, 5.5],
       [1, 3, 4.7],
+      [1, 4, 4],
       [6, 5, 5.5],
       [7, 8, 5.5],
       [9, 10, 3.6],
@@ -99,7 +102,8 @@ test("roadLevels: a road under a bridge keeps maxheight (4 m untagged) plus a 1.
   )
   // The motorway, fitted first, rises 5.5 m (4.7 m over the tagged road) and 0.3 m of slack over the
   // local roads' natural level, every 2 m across their 6 m carriageways and 2 m past them (7
-  // samples a crossing, 6 m either side); its own tunnel dips as far under the street's.
+  // samples a crossing, 6 m either side), but over the path at grade, which dips under it
+  // (`clearances`); its own tunnel dips as far under the street's.
   assert.deepEqual(zs(make([]).bounds([{ item: motorway }])), ["min 105.8", "min 105.0"])
   assert.equal(make([]).bounds([{ item: motorway }]).length, 2 * 7)
   assert.deepEqual(zs(make([]).bounds([{ item: trunk }])), ["max 94.2"])
@@ -128,6 +132,30 @@ test("roadLevels: a road's tunnel dips under a path at grade over it; a path's b
   // A path's underpass and bridge keep a person's 2.5 m and the deck from a path at grade's natural level.
   assert.deepEqual(zs(make([]).bounds([{ item: underpass }])), ["max 95.7"])
   assert.deepEqual(zs(make([]).bounds([{ item: steps }])), ["min 104.3"])
+})
+
+// Regression: a path or steps at grade under a road's bridge kept the ground's level there, which
+// the deck's approaches' cores lifted: the steps 374756566 ran 1.23 m under the A15's deck at Santo
+// Stefano di Magra, and the path 205452561 2.25 m under the A12's, 6 m over its natural level.
+test("roadLevels: a path or steps at grade keeps its clearance under a fitted bridge over it and over a fitted tunnel under it, across the other's carriageway", () => {
+  // Under the motorway's 6 m deck at 110 m, 4 m (a person's 2.5 m and the deck) every 2 m along it
+  // as far off the deck's line as its walk walls read a way under it, and a step of 2 m past that.
+  const kept = make([motorway]).clearances().get(path)!,
+    walls = walkSide(motorway) + footReach(path.cls, path.w) + CORRIDOR
+  assert.deepEqual(zs(kept), ["max 106.0"])
+  const ys = kept.map((b) => b.y)
+  assert.deepEqual(
+    ys,
+    ys.map((_, k) => 2 * k + ys[0]!),
+  )
+  assert.ok(ys[0]! <= -walls && ys.at(-1)! >= walls, `${ys} past ${walls}`)
+  assert.ok(ys[0]! >= -walls - 4 && ys.at(-1)! <= walls + 4, `${ys} within a step past ${walls}`)
+  // Over the fitted underpass, the same clearance over it; unfitted, none.
+  assert.deepEqual(zs(make([underpass]).clearances().get(over)!), ["min 114.0"])
+  assert.equal(make([]).clearances().has(over), false)
+  assert.equal(make([]).clearances().has(path), false)
+  // A road at grade keeps its own pass's bounds (`bounds`), never these.
+  assert.equal(make([motorway]).clearances().has(under), false)
 })
 
 test("roadLevels: a path's bridge ending on a road's deck of its OSM level takes the deck's level there", () => {

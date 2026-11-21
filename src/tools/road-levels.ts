@@ -6,14 +6,16 @@
 // pass than the other road (ROAD_PASSES) takes it too, from that road's natural level, as the rail
 // does over a tagged underpass: a junction pinned under a slip road's bridge held a Cesena service
 // road 1.6 m under it, and the Secante's tunnels ran 2.8 m under Cesena's streets; so does a road's
-// tunnel under a path or steps at grade, which no pass fits. A road at grade never rises over a
-// tunnel, and no road takes a bound from a path's or steps' bridge or tunnel: their pass
-// (PATH_PASS) comes after every road's, and they take it. One chain crossing itself takes both
+// tunnel under a path or steps at grade, which no road pass fits. A road at grade never rises over a
+// tunnel, and no road takes a bound from a path's or steps' bridge or tunnel, nor a road's bridge
+// from a path or steps at grade under it: their pass (PATH_PASS) comes after every road's, and they
+// take it (`clearances`, path-approaches.ts). One chain crossing itself takes both
 // bounds from one natural level. Each bound holds across the other way's carriageway, from its
 // level abeam. And two carriageways of one road that overlap in plan keep on one level there
 // (`TWINS`), a deck or a bore of one at both its ends.
-import { isDrivable, ONE_LEVEL, UNDERPASS } from "../sim/map/kinds.ts"
+import { footReach, isDrivable, ONE_LEVEL, UNDERPASS } from "../sim/map/kinds.ts"
 import { type Linear, lifted } from "./chains.ts"
+import { CORRIDOR, walkSide } from "./deck-space.ts"
 import type { RoadF } from "./features.ts"
 import { along, arcLengths, boxesMeet, crossings, lineBox, pointAt, type V } from "./geometry.ts"
 import { type Bound, ROAD_PASSES } from "./profiles.ts"
@@ -189,8 +191,8 @@ interface LevelsInput {
 
 /**
  * The crossings on two levels a fit keeps the clearance at (`over`: a way over a drivable road, or
- * over or under a path's or steps' bridge or tunnel; a path or steps at grade under a road's bridge
- * is left out, as no pass fits it and the bridge keeps its approaches' level), and the bounds they
+ * over or under a path's or steps' bridge or tunnel, or a road's bridge over a path or steps at
+ * grade, which keeps its approaches' level as the path dips under it: `clearances`), and the bounds they
  * put on a chain's profile: a way below a fitted one, or a tunnel below a later pass's road or a
  * path at grade (at its natural level), its clearance under it (`max`); a bridge, its clearance over
  * the way below, fitted or, in a later pass or at grade, at its natural level, and a tunnel over a
@@ -223,7 +225,7 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
   const over = pairs.flatMap(([i, j]) => {
     const up = roads[i]!,
       down = roads[j]!
-    if (!isDrivable(down.cls) && !pathDeck(up) && !pathDeck(down)) return []
+    if (!isDrivable(down.cls) && !pathDeck(up) && !pathDeck(down) && lifted(down)) return []
     const clear = (down.maxheight ?? (isDrivable(down.cls) ? UNDERPASS : PERSON)) + DECK
     return crossings(up.pts, down.pts)
       .filter((c) => !shared(up, down, c.x, c.y))
@@ -338,14 +340,50 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
       }
       // Only a bridge rises, or a tunnel over a fitted way under it (a path's underpass over a
       // road's, or two bores of one pass, the lower fitted first): a road at grade over a tunnel
-      // keeps its level (a car park's ramp under a square in Cesena lifted the square 5.6 m).
+      // keeps its level (a car park's ramp under a square in Cesena lifted the square 5.6 m). A
+      // road's bridge keeps its approaches' level over a path or steps at grade, which dips under
+      // it instead (`clearances`).
       if (up.bridge !== true && !(up.tunnel === true && fitted(down))) return []
+      if (!pathDeck(up) && !lifted(down) && !isDrivable(down.cls)) return []
       if (fitted(down)) return across(up, c.sa, down, (at) => zAt(down, at) + clear, "min")
       if (!later(down, up) || pathDeck(down)) return []
       const below = naturalAt(ground, down, c.sb) + SLACK
       return across(up, c.sa, down, () => below + clear, "min")
     })
     return [...crossed, ...level]
+  }
+  /**
+   * The clearances each path or steps at grade keeps where it crosses a fitted way on another level
+   * (path-approaches.ts): over a tunnel, its clearance over the bore (`min`), and under a bridge, a
+   * road's or a path's, its clearance under the deck (`max`), each across the other's carriageway,
+   * so a way running along under a deck keeps it all along: the steps 374756566, 45 m under the
+   * A15's 10.2 m deck by its north end at Santo Stefano di Magra, bound where the two centrelines
+   * cross alone, would have climbed back to 1.2 m under it within the levels check's 3.99 m.
+   */
+  const clearances = (): Map<RoadF, Array<Bound>> => {
+    const out = new Map<RoadF, Array<Bound>>()
+    const add = (piece: RoadF, bounds: ReadonlyArray<Bound>) =>
+      out.set(piece, [...(out.get(piece) ?? []), ...bounds])
+    const atGrade = (r: RoadF) => !lifted(r) && !isDrivable(r.cls)
+    for (const { up, down, c, clear } of over)
+      if (atGrade(up) && down.tunnel === true && fitted(down))
+        add(
+          up,
+          across(up, c.sa, down, (at) => zAt(down, at) + clear, "min"),
+        )
+      else if (atGrade(down) && up.bridge === true && fitted(up)) {
+        // As far off the deck's line as its walk walls read a way under it (deck-walls.ts), so it
+        // keeps a corridor through the low space: bound only across the A15's carriageway and 2 m
+        // past along the steps, which run under it at 6°, they climbed back to 1.65 m under it 6.6 m
+        // off its line, inside the walls' reach, and kept none: a walker in their cut came up onto
+        // the deck past its side.
+        const walls = walkSide(up) + footReach(down.cls, down.w) + CORRIDOR
+        add(
+          down,
+          across(down, c.sb, { ...up, w: 2 * walls }, (at) => zAt(up, at) - clear, "max"),
+        )
+      }
+    return out
   }
   /**
    * The level of a fitted road's bridge of `piece`'s OSM level that `v`, an end of `piece` (a path's
@@ -366,5 +404,5 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
     })
     return level
   }
-  return { over, bounds, deckUnder }
+  return { over, bounds, clearances, deckUnder }
 }

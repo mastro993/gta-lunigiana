@@ -1,15 +1,19 @@
 // The path pass, after every road's: the paths' and steps' bridges and tunnels profiled from their
 // ends' levels over or under the ways they cross (PATH_PASS in profiles.ts), the piers' decks over
 // their water, and the paths and steps at grade leading from them fitted as their approaches
-// (path-approaches.ts).
+// (path-approaches.ts), as are those crossing a deck or a bore on another level, from their
+// clearance there (`clearancesAtGrade`).
+import { isDrivable, reachOf } from "../sim/map/kinds.ts"
 import { chainsOf, lifted, type Linear } from "./chains.ts"
-import type { RoadF } from "./features.ts"
-import type { V } from "./geometry.ts"
+import type { RoadF, WaterF } from "./features.ts"
+import { lineBox, segDist2, type V } from "./geometry.ts"
+import { coreHalf } from "./grid-claims.ts"
 import { pathApproaches, pathsAtGrade } from "./path-approaches.ts"
 import { type Bound, type makeProfiler, PATH_PASS } from "./profiles.ts"
 import type { railLevels } from "./rail-levels.ts"
 import type { roadLevels } from "./road-levels.ts"
 import { pierDeck } from "./shore.ts"
+import { GRID_CELL, type Profile } from "./terrain.ts"
 
 /** What the path pass reads of the roads' and rail's fit before it. */
 export interface PathPassInput {
@@ -25,6 +29,70 @@ export interface PathPassInput {
   readonly overpasses: ReturnType<typeof roadLevels>
   /** The water's level at a point, if any stands there. */
   readonly levelAt: (x: number, y: number) => number | undefined
+  /** The highest water's surface whose bed reaches within `beyond` m of a point, if any (`waterTopOf`). */
+  readonly waterTop: (x: number, y: number, beyond?: number) => number | undefined
+}
+
+/**
+ * The highest surface at (x, y) of the water `levelAt` gives there (a lake's, a river polygon's)
+ * and of each water line whose bed reaches within `beyond` m of it (`reachOf`), on its surface
+ * profile (`wp`, by water): a path or steps at grade dipping under a deck there would run under it.
+ */
+export const waterTopOf = (
+  water: ReadonlyArray<WaterF>,
+  wp: ReadonlyArray<Profile>,
+  levelAt: (x: number, y: number) => number | undefined,
+): ((x: number, y: number, beyond?: number) => number | undefined) => {
+  const boxes = water.map((w) => lineBox(w.pts))
+  return (x, y, beyond = 0) => {
+    let top = levelAt(x, y)
+    water.forEach((w, i) => {
+      const p = wp[i]!,
+        r = reachOf(w) + beyond,
+        [x0, y0, x1, y1] = boxes[i]!
+      if (x < x0 - r || x > x1 + r || y < y0 - r || y > y1 + r) return
+      for (let k = 0; k + 1 < p.z.length; k++) {
+        const { d2, t } = segDist2(x, y, p.x[k]!, p.y[k]!, p.x[k + 1]!, p.y[k + 1]!)
+        if (d2 > r * r) continue
+        const z = p.z[k]! + (p.z[k + 1]! - p.z[k]!) * t
+        if (top === undefined || z > top) top = z
+      }
+    })
+    return top
+  }
+}
+
+/**
+ * The clearances each path or steps at grade keeps where it crosses a fitted way on another level:
+ * the roads' and the paths' (`clears`, road-levels.ts's `clearances`), and the rail's bridges'
+ * over it (`railRoad`, rail-levels.ts). Under the decks, none where one would take it under the
+ * water within its core's reach (`waterTop`, `coreHalf`), and it keeps the ground under them as
+ * before: the bank path 159053025 along the Canale Lunense, under Via Fonda's bridge (647881621)
+ * level with its bank, would have dipped to the canal's surface there, and shipped its natural
+ * level, 0.5 m over the deck; the coast's bank path 326011444 along the Fossa Maestra, 3.99 m under
+ * Via Bassagrande's bridge (463589363), at −1.53 m, beside the canal near the sea's level.
+ */
+export const clearancesAtGrade = (
+  clears: Map<RoadF, Array<Bound>>,
+  railRoad: ReturnType<typeof railLevels>["railRoad"],
+  zAt: (l: Linear, s: number) => number,
+  waterTop: (x: number, y: number, beyond?: number) => number | undefined,
+): Map<RoadF, Array<Bound>> => {
+  for (const { rl, rd, c, clear } of railRoad)
+    if (rl.bridge === true && !lifted(rd) && !isDrivable(rd.cls))
+      clears.set(rd, [
+        ...(clears.get(rd) ?? []),
+        { x: c.x, y: c.y, z: zAt(rl, c.sa) - clear, kind: "max" },
+      ])
+  const out = new Map<RoadF, Array<Bound>>()
+  for (const [piece, bounds] of clears) {
+    // Within its core's reach of the water, which its claim writes at its level.
+    const core = coreHalf(piece.w, GRID_CELL),
+      wet = bounds.some((b) => b.kind === "max" && b.z < (waterTop(b.x, b.y, core) ?? -Infinity))
+    const kept = wet ? bounds.filter((b) => b.kind !== "max") : bounds
+    if (kept.length > 0) out.set(piece, kept)
+  }
+  return out
 }
 
 /**
@@ -35,11 +103,12 @@ export const pathPass = ({
   roads,
   ground,
   bridgeEnds,
-  profiler: { profile, claims, mouth, grown, nodeZ, zOf },
+  profiler: { profile, claims, mouth, grown, nodeZ },
   zAt,
   rail: { railRoad, roadBounds },
   overpasses,
   levelAt,
+  waterTop,
 }: PathPassInput) => {
   // The paths and steps at grade, by the nodes they pass through: a deck's end they lead on from is
   // its approaches' to fit.
@@ -116,6 +185,7 @@ export const pathPass = ({
       nodeZ.set(id, z[k]!)
       pierEnds.push(id)
     }
+  const clears = clearancesAtGrade(overpasses.clearances(), railRoad, zAt, waterTop)
   const approaches = pathApproaches(
     leads,
     [
@@ -125,20 +195,13 @@ export const pathPass = ({
       ...pierEnds,
     ],
     nodeZ,
-    // Over a fitted tunnel or under a fitted bridge, the clearance between them (road-levels.ts).
-    (piece) =>
-      overpasses.over.flatMap(({ up, down, c, clear }): Array<Bound> =>
-        up === piece && down.tunnel === true && zOf.has(down)
-          ? [{ x: c.x, y: c.y, z: zAt(down, c.sb) + clear, kind: "min" }]
-          : down === piece && up.bridge === true && zOf.has(up)
-            ? [{ x: c.x, y: c.y, z: zAt(up, c.sa) - clear, kind: "max" }]
-            : [],
-      ),
+    (piece) => clears.get(piece) ?? [],
     {
       ground,
       mouthAt: (id) => mouths.has(id),
       deckEndAt: (id) => bridgeEnds.has(id),
     },
+    [...clears.keys()],
   )
   claims.push(...approaches.claims)
   for (const m of approaches.mouths) mouth(m)
