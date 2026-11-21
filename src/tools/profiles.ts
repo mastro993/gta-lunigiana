@@ -4,7 +4,7 @@
 import type { RoadClass } from "../sim/map/kinds.ts"
 import { lifted, type Linear, type Link } from "./chains.ts"
 import { along, arcLengths, type V } from "./geometry.ts"
-import { BLEND, type Claim, claimOf, mouthClaim } from "./grid-claims.ts"
+import { BLEND, type Claim, claimOf, type MouthEnd, mouthsAlong } from "./grid-claims.ts"
 import { type Graded, junctionReach } from "./junction-reach.ts"
 import {
   fitProfile,
@@ -105,8 +105,8 @@ export const beatsRail = (cls: string): boolean =>
  * pieces make one deck, straight from end to end, the rail's as the roads'. The rail keeps its own
  * grade at a level crossing: the road meets it there. With `mouths` (the roads'), a tunnel's approaches hold the grid round each of its
  * mouths at their level against every other claim: the first MOUTH m out of it, in their core, and
- * the corners behind the mouth of the cells they run in (`mouthClaim`), before anything else is
- * written. A road over the tunnel or beside the mouth took that cell at its
+ * the corners behind the mouth of the cells their carriageway runs in ahead of its face
+ * (`mouthsAlong`), before anything else is written. A road over the tunnel or beside the mouth took that cell at its
  * own level otherwise: Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m
  * from its south mouth, buried that mouth 5.8 m. The rail's portals open in their hills, and its
  * bridges over an underpass's mouth (`underpasses` in rail-spans.ts) write nothing there. With
@@ -448,59 +448,34 @@ export const makeProfiler = (
           deckEnd,
         ),
       )
-    // A tunnel's mouths, with `mouths`, written first (`mouthClaim`), each at its approach's width:
-    // the piece out of it, none past the chain's ends. An end the outline cut is no mouth.
-    if (spec.mouths === true)
+    // A tunnel's mouths, with `mouths`, written first (`mouthsAlong`), each at its approach's width:
+    // the piece out of it, none past the chain's ends (an end the outline cut is no mouth); and a
+    // mouth of another chain's bore where this one ends at grade.
+    if (spec.mouths === true) {
+      const ends: Array<MouthEnd> = []
       for (let i = 0; i < runs.length; i++) {
         if (!isTunnel(i)) continue
         const [i0, i1] = deckOf(i)
         i = i1
         const [v0, v1] = deckEnds([i0, i1]),
-          k0 = p.vertexSample[v0]!,
-          k1 = p.vertexSample[v1]!
-        // The bore's floor as shipped: straight from end to end.
-        const floor = (k: number) =>
-          p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
-        for (const [v, step] of [
-          [v0, -1],
-          [v1, 1],
-        ] as const) {
-          const out = step === 1 ? i1 + 1 : i0 - 1
-          if (pts[v]!.id === undefined || out < 0 || out >= runs.length) continue
-          const m = mouthClaim(
-            p,
-            p.vertexSample[v]!,
-            step,
-            widthOf(out),
-            (k) => !isLifted(pieceOf[k]!),
-            floor,
-            footways,
-          )
-          if (m !== undefined) mouth(m)
-        }
+          bore = [p.vertexSample[v0]!, p.vertexSample[v1]!] as const
+        for (const [v, step, out] of [
+          [v0, -1, i0 - 1],
+          [v1, 1, i1 + 1],
+        ] as const)
+          if (pts[v]!.id !== undefined && out >= 0 && out < runs.length)
+            ends.push({ k: p.vertexSample[v]!, step, w: widthOf(out), bore })
       }
-    // And a mouth of another chain's bore where this one ends at grade (its approach of another
-    // class, or one of the roads at a junction there): the corners behind it held at its level. The
-    // service tunnel 438625870 at Sarzana opens onto the residential 438625873, whose pass is
-    // another, and the hill over its bore lifted that road 4.6 m within 2 m of the mouth.
-    if (spec.mouths === true)
       for (const [k, step, i] of [
         [0, 1, 0],
         [last, -1, runs.length - 1],
       ] as const) {
         const id = (k === 0 ? pts[0] : pts.at(-1))!.id
-        if (id === undefined || !tunnelEnds.has(id) || isLifted(i)) continue
-        const m = mouthClaim(
-          p,
-          k,
-          step,
-          widthOf(i),
-          (o) => !isLifted(pieceOf[o]!),
-          () => p.z[k]!,
-          footways,
-        )
-        if (m !== undefined) mouth(m)
+        if (id !== undefined && tunnelEnds.has(id) && !isLifted(i))
+          ends.push({ k, step, w: widthOf(i) })
       }
+      for (const m of mouthsAlong(p, ends, (k) => !isLifted(pieceOf[k]!), footways)) mouth(m)
+    }
     runs.forEach((r, i) => {
       const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!),
         straight = isLifted(i) && spec.ramps !== true

@@ -19,21 +19,20 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
   // Sarzana's part brought 235 tunnels and 304 mouths, under the A12's and the A15's embankments,
   // Sarzana's streets and Vezzano Ligure's tracks. Via Termo's 29.3 m underpass under Vezzano
   // Ligure's four tracks rises to a head wall's height only 14.5 m in from its east mouth, past the
-  // 14 m its box reaches: low. A mouth holding the corners behind it of the cells its approach runs
-  // in at its floor (`mouthClaim`, issue #20), the bank no longer climbs the cell over the mouth:
-  // none of the 7 mouths it buried is buried now, 5 open mouths of Sarzana's get a head wall, the
-  // east portal of the 16 m road under the SS63 (145347886, at -1019.7, 7379) stands as a head wall,
-  // and 29 more throats and boxes run 1–6 m farther in, to where the bank stands over them again
-  // (portals 41 -> 40, heads 38 -> 44, buried 7 -> 0, low 211 -> 215, crowded 25 -> 23); the bores'
-  // walls are cut where the ground over their first metres is lower (30196 -> 29622).
+  // 14 m its box reaches: low. A mouth holding at its floor the corners behind it of the cells its
+  // approach's carriageway runs in ahead of its face (`mouthClaim`, issue #20), the bank no longer
+  // climbs the cell over the mouth: none of the 7 mouths it buried is buried now, 5 open mouths of
+  // Sarzana's get a head wall, and 26 throats and boxes run 1–6 m farther in, to where the bank
+  // stands over them again (heads 38 -> 43, buried 7 -> 0, low 211 -> 215, crowded 25 -> 23); the
+  // bores' walls are cut where the ground over their first metres is lower (30196 -> 29716).
   assert.deepEqual(checkTunnels(wholeVectors()), {
     tunnels: 374,
     passages: 140,
     metres: 10295,
-    walls: 29622,
+    walls: 29716,
     mouths: 427,
-    portals: 40,
-    heads: 44,
+    portals: 41,
+    heads: 43,
     buried: 0,
     housed: 105,
     low: 215,

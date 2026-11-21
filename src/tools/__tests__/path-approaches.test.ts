@@ -117,7 +117,7 @@ test("pathApproaches leaves a path at grade whose levels are the ground's or a r
   // Out of the bore's mouth, its first MOUTH m hold the grid at its level, ahead of the mouth.
   assert.equal(mouths.length, 1)
   assert.ok(mouths[0]!.p.z.every((z) => z === 100))
-  assert.deepEqual(mouths[0]!.ahead, [0, 0, mouths[0]!.p.x[1]!, 0, 0])
+  assert.deepEqual(mouths[0]!.ahead, [0, 0, mouths[0]!.p.x[1]!, 0])
 })
 
 // Regression: an approach climbing at its grade toward a slope steeper than it never caught the

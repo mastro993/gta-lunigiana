@@ -440,6 +440,124 @@ test("profile: a road tunnel's mouth inside a cell holds the cell's corners behi
   assert.equal(g.z[(20 / 4) * 161 + (108 + 20) / 4], 100)
 })
 
+// Regression (review of #20): held as deep behind the mouth as a corner of its cells may lie, across
+// the whole core, the 16 m underpass 145347886 under the SS63 at Fivizzano dropped the nodes under
+// the SS63's edges over it, 4.3 m behind each mouth, 6–7 m, and the node between them, which the
+// junction there holds 0.4 m over the SS63's profile, stood through its ribbon.
+test("profile: behind a road tunnel's mouth only the corners of the cells its carriageway runs in are held, a road over it keeps every other node", () => {
+  // Flat ground at 100 m; a straight chain heading north-east at 45°, its tunnel's west mouth at
+  // (98.34, 0) and kept 6 m under the ground midway; a road at grade over the bore along x 104,
+  // profiled first. The node (104, 0) lies 4 m behind the mouth and 4 m off the bore's axis: within
+  // the approach's core, but 4.24 m along x from the nearest point of its carriageway ahead of it.
+  const at = (s: number) => v(98.34 + s * Math.SQRT1_2, s * Math.SQRT1_2)
+  const approach = { id: 1, pts: [at(-100), { ...at(0), id: "m0" }] }
+  const chain = [
+    approach,
+    {
+      id: 2,
+      tunnel: true as const,
+      pts: [
+        { ...at(0), id: "m0" },
+        { ...at(100), id: "m1" },
+      ],
+    },
+    { id: 3, pts: [{ ...at(100), id: "m1" }, at(200)] },
+  ].map((item) => ({ item, rev: false }))
+  const { profile, claims, denseOf } = makeProfiler(() => 100)
+  profile([{ item: { pts: [v(104, -20), v(104, 20)] }, rev: false }], { ...SPEC, w: 6.5 })
+  const mid = at(50)
+  profile(chain, { w: 4, rank: 3, grade: 0.15, half: 20, mouths: true }, [
+    { x: mid.x, y: mid.y, z: 94, kind: "max", tilt: true },
+  ])
+  const g = grid()
+  replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+  // The approach's last 4 m stand on the terrain at its level, as before.
+  const { pts, z } = denseOf.get(approach)!
+  /** The approach's profile `s` m along the chain from the mouth (−100 at its start). */
+  const level = (s: number) => {
+    const k = pts.findIndex((p) => p.x >= at(s).x)
+    return (
+      z[k - 1]! + ((z[k]! - z[k - 1]!) * (at(s).x - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+    )
+  }
+  for (let s = -4; s <= -0.5; s += 0.5) {
+    const p = at(s)
+    assert.ok(
+      sampleGrid(g, p.x, p.y) - level(s) < 0.25,
+      `the terrain ${(sampleGrid(g, p.x, p.y) - level(s)).toFixed(2)} m over the road ${-s} m out`,
+    )
+  }
+  // The road over the bore keeps the node no cell of the approach's carriageway has for a corner.
+  assert.equal(g.z[(20 / 4) * 161 + (104 + 20) / 4], 100)
+})
+
+// Regression (review of #20): the road out of the east mouth of Fivizzano's 16 m underpass 145347886
+// turns 34° there, and its carriageway's inner edge, read ahead of the mouth along its heading,
+// reached 1.2 m behind the mouth's face: the corners of its cells under the SS63's edge over the
+// bore, held at the floor, left the node between them 0.4 m over the SS63's profile, through its
+// ribbon.
+test("profile: behind a road tunnel's mouth the corners are those of the cells its carriageway runs in ahead of the mouth's face, a road turning there", () => {
+  // Flat ground at 100 m; a tunnel east from (100, 0), on a node of the grid, kept 6 m under it
+  // midway; its approach leaves the mouth 40° off the bore's line; a road at grade over the bore
+  // along x 104, profiled first. The node (104, 0), 4 m behind the face, is the corner of no cell the
+  // carriageway runs in ahead of it, though its inner edge reaches 1.6 m behind it.
+  const out = (s: number) => v(100 - s * Math.cos(0.7), -s * Math.sin(0.7))
+  const approach = { id: 1, pts: [out(25), { ...out(0), id: "m0" }] }
+  const chain = [
+    approach,
+    { id: 2, tunnel: true as const, pts: [v(100, 0, "m0"), v(200, 0, "m1")] },
+    { id: 3, pts: [v(200, 0, "m1"), v(400, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const { profile, claims } = makeProfiler(() => 100)
+  profile([{ item: { pts: [v(104, -20), v(104, 20)] }, rev: false }], { ...SPEC, w: 6.5 })
+  profile(chain, { w: 5, rank: 3, grade: 0.15, half: 20, mouths: true }, [
+    { x: 150, y: 0, z: 94, kind: "max", tilt: true },
+  ])
+  const g = grid()
+  replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+  assert.equal(g.z[(20 / 4) * 161 + (104 + 20) / 4], 100)
+  // The corners of the cell the mouth opens in, ahead of the face, are held.
+  assert.ok(g.z[(20 / 4) * 161 + (100 + 20) / 4]! < 97, `${g.z[5 * 161 + 30]}`)
+})
+
+// Regression (review of #20): the service 378473978 climbs out of the underpass 378473973 at
+// Sarzana, whose bore climbs in from its mouth too; held at the bore's floor, the corner 2.3 m behind
+// the mouth stood 0.4 m over the road there, and the terrain mesh 0.12 m through its ribbon.
+test("profile: behind a road tunnel's mouth at the foot of its approach the corners are held no higher than the mouth", () => {
+  // Flat ground at 100 m, rising to 112 m 50 m into a tunnel from x 102 to 202, which a bound keeps
+  // at 95 m 2 m inside its west mouth: the bore climbs east from there, the approach west.
+  const ground = (x: number) => (x < 152 ? 100 : 112)
+  const approach = { id: 1, pts: [v(0, 0), v(102, 0, "m0")] }
+  const chain = [
+    approach,
+    { id: 2, tunnel: true as const, pts: [v(102, 0, "m0"), v(202, 0, "m1")] },
+    { id: 3, pts: [v(202, 0, "m1"), v(400, 0)] },
+  ].map((item) => ({ item, rev: false }))
+  const { profile, claims, denseOf } = makeProfiler(ground)
+  profile(chain, { w: 4.5, rank: 3, grade: 0.15, half: 20, mouths: true }, [
+    { x: 104, y: 0, z: 95, kind: "max", tilt: true },
+  ])
+  const g = grid()
+  for (let k = 0; k < g.z.length; k++) g.z[k] = ground(-20 + 4 * (k % 161))
+  replayClaims(g, claims, new Uint8Array(g.z.length).fill(255), new Uint8Array(g.z.length))
+  const { pts, z } = denseOf.get(approach)!,
+    mouth = z.at(-1)!
+  // The node 2 m behind the mouth no higher than the mouth, and the terrain over the approach's last
+  // 4 m within the chord of the cell its bend at the mouth lies in.
+  assert.ok(
+    g.z[(20 / 4) * 161 + (104 + 20) / 4]! <= mouth + 1e-9,
+    `${g.z[5 * 161 + 31]} over ${mouth}`,
+  )
+  for (let x = 98; x <= 102; x += 0.5) {
+    const k = pts.findIndex((p) => p.x >= x),
+      level = z[k - 1]! + ((z[k]! - z[k - 1]!) * (x - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+    assert.ok(
+      sampleGrid(g, x, 0) - level < 0.2,
+      `${(sampleGrid(g, x, 0) - level).toFixed(2)} m at x ${x}`,
+    )
+  }
+})
+
 // Regression (#20): the footway 1484690678 at Sarzana crosses over the service tunnel 376037643 5.5 m
 // behind its east mouth, on the bank 4.4 m over its floor; held at the floor, the mouth's cell under
 // its vertex dropped it 2.6 m, 1.7 m over the road in the bore.

@@ -24,10 +24,10 @@ test(
       // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts)
       // and the motorways' grade fitted unrelaxed (ROAD_PASSES) moved the bores' bend samples (+1);
       // Equi Terme's footway underpass 1133296350 now rises to its approach 1306844336 at 264.2 m (it
-      // ended 1.7 m under it, at 262.9) (+4). 650 -> 655 wall triangles. A mouth holding the corners
-      // behind it of the cells its approach runs in at its floor (issue #20) cuts the bores' walls
-      // where the ground over their first metres is lower: 640.
-      walls: 640,
+      // ended 1.7 m under it, at 262.9) (+4). 650 -> 655 wall triangles. A mouth holding at its floor
+      // the corners behind it of the cells its approach's carriageway runs in (issue #20) cuts the
+      // bores' walls where the ground over their first metres is lower: 645.
+      walls: 645,
       mouths: 12,
       portals: 3,
       heads: 0,
