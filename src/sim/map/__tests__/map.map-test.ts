@@ -5,6 +5,7 @@ import { test } from "node:test"
 import { Ops } from "@typeonce/ritmo-math"
 
 import { builtTestMaps } from "../../../tools/__tests__/test-maps.ts"
+import { LANDMARKS } from "../../../tools/districts.ts"
 import { type Dem, loadDtm } from "../../../tools/dtm.ts"
 import { pointInRing as inRing, ringBox } from "../../../tools/geometry.ts"
 import { listedNodes } from "../../../tools/grid-tiles.ts"
@@ -1055,6 +1056,28 @@ test("road names, classes, styles, area kinds and districts", () => {
     assert.ok(pass !== undefined, `${name}'s OSM node`)
     assert.equal(districtAt(pass.x, pass.y).name, name)
   }
+  // A landmark's disc holds its own ground against the villages round it (districts.ts's LANDMARKS):
+  // only these overlap a village's, the passes and fortresses inside their villages' discs and the
+  // three the 600 m cap brought within a village's rim (issue #20).
+  const landmark = (d: (typeof MAP.districts)[number]) =>
+    LANDMARKS.some((l) => l.name === d.name && l.x === d.x && l.y === d.y)
+  assert.deepEqual(
+    MAP.districts.flatMap((l) =>
+      landmark(l)
+        ? MAP.districts
+            .filter((v) => !landmark(v) && hypot(l.x - v.x, l.y - v.y) < l.r + v.r)
+            .map((v) => `${l.name} over ${v.name}`)
+        : [],
+    ),
+    [
+      "Passo dei Carpinelli over Casone Carpinelli",
+      "Foce del Cucco over Monte Carboli",
+      "Fortezza della Brunella over Aulla",
+      "Castello di Bigliolo over Fertigliana",
+      "Fortezza di Sarzanello over Sarzana",
+      "Fortezza di Sarzanello over Bradia",
+    ],
+  )
   // The Fortezza della Verrucola is the hamlet's, by the castle rule: its own disc holds it.
   assert.equal(districtAt(468, 9009).name, "Verrucola")
   assert.equal(districtAt(1379, -2603).name, "Vinca", "the SP59 hairpins below Vinca")

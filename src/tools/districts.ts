@@ -32,11 +32,15 @@ const MONZONE: ReadonlyArray<District> = [
  * Belfiore: peaks, saddles, huts and castles on their OSM elements, quarries on their pits,
  * localities and ridges centred by hand on the slope they name. None overlaps a village disc but
  * Passo dei Carpinelli, inside Casone Carpinelli's, kept small enough to take none of its
- * buildings: the pass names its own district (issue #17); and the Fortezza della Brunella, inside
- * Aulla's town disc (issue #19), and the Fortezza di Sarzanello, inside Sarzana's (issue #20). The Carrara and Massa sides of the ridge are in the rectangle too.
+ * buildings: the pass names its own district (issue #17); the Fortezza della Brunella, inside
+ * Aulla's town disc (issue #19), and the Fortezza di Sarzanello, inside Sarzana's (issue #20); and
+ * three the villages' larger discs reach since their cap went from 400 to 600 m (the user's choice,
+ * issue #20), the overlap named by the nearest rim: Foce del Cucco's by Monte Carboli's 63 m,
+ * Castello di Bigliolo's by Fertigliana's 89 m and Sarzanello's by Bradia's 68 m (map.map-test.ts
+ * lists them). The Carrara and Massa sides of the ridge are in the rectangle too.
  * And the coast's: the Magra's mouth and the headland of Punta Bianca, which no village names.
  */
-const LANDMARKS: ReadonlyArray<District> = [
+export const LANDMARKS: ReadonlyArray<District> = [
   { name: "Torre di Monzone", x: 300, y: -2560, r: 380 },
   { name: "Alpe di Monzone", x: -530, y: -2386, r: 200 },
   { name: "Rocca di Tenerano", x: -728, y: -3012, r: 300 },
@@ -84,7 +88,7 @@ const LANDMARKS: ReadonlyArray<District> = [
   // Fosdinovo's part (#18): on their OSM nodes, radii fitted on rt_ofc.5k23.32bit with the built
   // terrain's contours over it. The Castello Malaspina stands in Fosdinovo's own disc; the Castello
   // di Ponzanello, 67 m past Ponzanello's, takes the hamlet's name by the nearest rim.
-  { name: "Foce del Cucco", x: -8448, y: -1684, r: 200 }, // saddle 251988270: the SP72's and SP9's junction on the pass and its 17 houses; Monte Carboli's disc 47 m off
+  { name: "Foce del Cucco", x: -8448, y: -1684, r: 200 }, // saddle 251988270: the SP72's and SP9's junction on the pass and its 17 houses; Monte Carboli's disc 47 m off at the 400 m cap, 63 m over it at 600
   { name: "La Pizza", x: -3774, y: -4254, r: 300 }, // peak 4884214211: the wooded cone down to about its 800 m contour, and the Campo Cecina road's bends under its faces
   { name: "Monte La Pianaccia", x: -4815, y: -4449, r: 300 }, // peak 4878663147: the wooded dome, the Campo Cecina road across its south flank and its picnic site; past 300 m east the saddle holds Maestà's houses
   { name: "Monte Grugola", x: -7395, y: -3672, r: 250 }, // peak 4885328769: the wooded top and the SP73 under its west flank; past 250 m the ridge climbs to Monte Primicerri
@@ -97,7 +101,7 @@ const LANDMARKS: ReadonlyArray<District> = [
   // below it by the nearest rim.
   { name: "Fortezza della Brunella", x: -12550, y: 5236, r: 150 }, // relation 9701877's outer way 698125674, its box's centre: the fortress and its wooded hill to the foot, under 70 m at 126–164 m west to south
   { name: "Castello di Giovagallo", x: -19888, y: 7334, r: 120 }, // ruin 700011600: the castle's wooded knob; past 106–118 m south and south-west the ridge climbs over its 462 m
-  { name: "Castello di Bigliolo", x: -6329, y: 9169, r: 130 }, // castle 6703673726: the ruin's spur, under 200 m at 70–116 m south-west to south; north and east the ridge climbs to Fertigliana, whose disc is 11 m off
+  { name: "Castello di Bigliolo", x: -6329, y: 9169, r: 130 }, // castle 6703673726: the ruin's spur, under 200 m at 70–116 m south-west to south; north and east the ridge climbs to Fertigliana, whose disc was 11 m off at the 400 m cap and is 89 m over it at 600
   { name: "Passo Alpicella", x: -21897, y: 8680, r: 150 }, // saddle 577382401, out of play in Liguria: the col; Monte Alpicella's slope passes 730 m at 92–106 m south and south-west, the flanks drop under 680 m at 58–90 m east and north-west
   { name: "Monte Borra Grande", x: -21833, y: 11192, r: 200 }, // peak 2539782572: the wooded dome to about its 900 m contour (109–267 m out, inside 200 m on 10 of 15 rays) and the forest track round its flanks; its Liguria side out of play
   // Sarzana's part (#20): on their OSM elements, radii fitted on the built terrain's contours, over
@@ -111,7 +115,7 @@ const LANDMARKS: ReadonlyArray<District> = [
   // fort are left to their discs. Castello della Brina and Monte Zecchino get none: at 150 m their
   // rims would name 432 buildings of the Magra plain below the one and 57 on Bolano's ridge road
   // by the other.
-  { name: "Fortezza di Sarzanello", x: -12694, y: -5172, r: 150 }, // castle 89665866, its box's centre: the fortress, its outer wall 233737328 (to 86 m) and its hilltop, under 80 m at 90–125 m on 11 of 16 rays; 37 m inside Sarzana's rim, so its own rim names nothing
+  { name: "Fortezza di Sarzanello", x: -12694, y: -5172, r: 150 }, // castle 89665866, its box's centre: the fortress, its outer wall 233737328 (to 86 m) and its hilltop, under 80 m at 90–125 m on 11 of 16 rays; 37 m inside Sarzana's rim, so its own rim names nothing; Bradia's disc 68 m over it
   { name: "Forte Bastia", x: -20850, y: -2468, r: 200 }, // castle 980696353: the fort (its wall 157086371; NC5's four houses and two sheds within 46 m) and its hilltop to about its 250 m contour, inside 200 m on 12 of 16 rays (125–300 m out); with its rim it names 196 buildings and 21 parked spots out to 731 m, along Via Bastia, the road OSM names Forte Bastia and the SP16
   { name: "Monte Grosso", x: -13587, y: 1920, r: 200 }, // peak 9485751677 (665 m): the wooded dome to about its 600 m contour, inside 200 m on 10 of 16 rays (115–330 m out), the ridge north-west holding 600 m to 530 m
   { name: "Monte Boscoleto", x: -12720, y: 675, r: 150 }, // peak 10555505668 (599 m): the wooded top to about its 560 m contour, inside 150 m on 12 of 16 rays (80–195 m out), the ridges west-north-west and east-south-east holding it to 495 and 370 m
