@@ -16,7 +16,7 @@ import { segDist2 } from "../collide.ts"
 import { footZ, groundZ, platformTop, roadLevel } from "../map/ground.ts"
 import { graph, MAP, type Road, type RoadLine, wholeRoad } from "../map/index.ts"
 import { eachTile, placeAt, type Tile } from "../map/tiles.ts"
-import { laneOf, type Step } from "../route.ts"
+import { isTrafficEdge, laneOf, type Step } from "../route.ts"
 import {
   bindings,
   CarInput,
@@ -215,8 +215,7 @@ export const wayInto = (box: number, approach: number) => {
     lane = laneOf(step.edge, step.forward),
     { a, b } = graph.edges[step.edge]!,
     from = step.forward ? a : b
-  const traffic = new Set(graph.trafficEdges)
-  const before = graph.adjacency[from]!.filter((e) => e !== step.edge && traffic.has(e))
+  const before = graph.adjacency[from]!.filter((e) => e !== step.edge && isTrafficEdge(e))
     .map((e): Step => ({ edge: e, forward: graph.edges[e]!.b === from }))
     .reduce((p, q) => {
       const lp = laneOf(p.edge, p.forward),

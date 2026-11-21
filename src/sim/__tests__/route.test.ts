@@ -5,7 +5,15 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { midpointOf } from "../edges.ts"
 import { graph } from "../map/index.ts"
-import { allowsModel, distanceToEdge, roadOf, trafficIndex, walkIndex } from "../route.ts"
+import {
+  allowsModel,
+  distanceToEdge,
+  isTrafficEdge,
+  isWalkEdge,
+  roadOf,
+  trafficIndex,
+  walkIndex,
+} from "../route.ts"
 import { assertDeadEnds, assertLanesClear, assertNearest } from "./route-checks.ts"
 
 // route.map-test.ts (pnpm test:map) checks every node, lane and edge of the map; these, those by Monzone.
@@ -14,6 +22,32 @@ const STATION = { x: -493.8, y: 436.9 }
 const REACH = 800
 const near = (p: { readonly x: number; readonly y: number }) =>
   Ops.hypot(p.x - STATION.x, p.y - STATION.y) < REACH
+
+test("isTrafficEdge and isWalkEdge: exactly the traffic and walk edges, by Monzone", () => {
+  const traffic = new Set(graph.trafficEdges),
+    walk = new Set(graph.walkEdges)
+  // Within 1.5 km, so that the tracks east of the station off both networks are in.
+  const edges = graph.nodes.flatMap((n, i) =>
+    Ops.hypot(n.x - STATION.x, n.y - STATION.y) < 1500 ? graph.adjacency[i]! : [],
+  )
+  // Every mix: the motor roads and tunnels carry traffic alone, the paths walkers alone, and the
+  // tracks cut off from both networks neither.
+  for (const [inTraffic, inWalk] of [
+    [true, true],
+    [true, false],
+    [false, true],
+    [false, false],
+  ])
+    assert.ok(
+      edges.some((e) => traffic.has(e) === inTraffic && walk.has(e) === inWalk),
+      `an edge with traffic ${inTraffic} and walk ${inWalk}`,
+    )
+  assert.deepEqual(
+    edges.filter((e) => isTrafficEdge(e) !== traffic.has(e) || isWalkEdge(e) !== walk.has(e)),
+    [],
+  )
+  assert.ok(!isTrafficEdge(graph.edges.length) && !isWalkEdge(graph.edges.length))
+})
 
 test("dead ends: driving into a dead-end node is flagged, driving out of it is not, by Monzone", () => {
   const nodes = graph.nodes.flatMap((n, i) => (near(n) ? [i] : []))

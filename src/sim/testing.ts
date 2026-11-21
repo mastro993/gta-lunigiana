@@ -79,6 +79,7 @@ import {
   edgeIndex,
   endNode,
   facesForward,
+  isTrafficEdge,
   laneOf,
   lanePoint,
   laneSide,
@@ -555,9 +556,9 @@ export const straightOn = (step: Step): Step => {
     const there = laneOf(next.edge, next.forward)
     return here.dx * there.dx + here.dy * there.dy
   }
-  const options = graph.adjacency[node]!.filter(
-    (e) => e !== step.edge && graph.trafficEdges.includes(e),
-  ).map((e) => ({ edge: e, forward: graph.edges[e]!.a === node }))
+  const options = graph.adjacency[node]!.filter((e) => e !== step.edge && isTrafficEdge(e)).map(
+    (e) => ({ edge: e, forward: graph.edges[e]!.a === node }),
+  )
   return options.reduce((best, next) => (along(next) > along(best) ? next : best))
 }
 

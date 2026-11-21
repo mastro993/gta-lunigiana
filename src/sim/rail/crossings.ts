@@ -12,7 +12,7 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { segDist2 } from "../collide.ts"
 import { graph, isDrivable, type LevelCrossing, MAP, type RoadLine } from "../map/index.ts"
-import { stepKey } from "../route.ts"
+import { isTrafficEdge, stepKey } from "../route.ts"
 import { type CrossedLine, strikeIn } from "./barriers.ts"
 import { CHORD, LINES, linesNear, pointAt, speedAt } from "./lines.ts"
 
@@ -256,9 +256,7 @@ export const CROSSINGS_ON: ReadonlyArray<
   ).sort((a, b) => a.at.s - b.at.s),
 )
 
-const trafficSet: ReadonlySet<number> = new Set(graph.trafficEdges)
-const trafficDegree = (node: number) =>
-  graph.adjacency[node]!.filter((e) => trafficSet.has(e)).length
+const trafficDegree = (node: number) => graph.adjacency[node]!.filter(isTrafficEdge).length
 
 /** The traffic steps leading into each of `boxes` (built by `boxOf`): see `approachesOf`. */
 const approachesFrom = (
@@ -286,7 +284,7 @@ const approachesFrom = (
         const edge = graph.adjacency[node]!.find((e) => {
           const { a, b, road: on } = graph.edges[e]!
           const other = a === node ? b : a
-          if (!trafficSet.has(e) || seen.has(other) || inside.has(other)) return false
+          if (!isTrafficEdge(e) || seen.has(other) || inside.has(other)) return false
           if (node !== near.node) return true
           const { x, y } = graph.nodes[other]!
           return on === crossing.road && (roadAlong(road, arc, x, y) - near.u) * sign < 0
@@ -312,7 +310,7 @@ const approachesFrom = (
     for (const n of inside)
       for (const edge of graph.adjacency[n]!) {
         const { a, b } = graph.edges[edge]!
-        if (!trafficSet.has(edge) || !inside.has(a) || !inside.has(b)) continue
+        if (!isTrafficEdge(edge) || !inside.has(a) || !inside.has(b)) continue
         for (const forward of [true, false]) {
           const from = graph.nodes[forward ? a : b]!,
             to = graph.nodes[forward ? b : a]!

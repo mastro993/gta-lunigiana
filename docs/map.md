@@ -3582,15 +3582,16 @@ the global file's line held the graph, the lanes and the residents, before forma
 3.62 MB before Fosdinovo's part; 2.31 MB on lucido alone, whose global file is 0.31 MB, 311,589 B,
 0.55 MB before version 6; 2.40 MB before the UCS's woods, 2.50 MB before its olive groves), where
 on lucido they were 3.10 MB with the vectors in the global file, and a production build's JS heap
-after a forced GC is 216 MB with Aulla's part (2026-11-18, `?seed=1`, three runs, against 164 MB
-for main's build that day: the whole map's graph, lanes, parked spots and residents grew with it),
-225 MB standing in Aulla, under the 245 MB issue #19 allows; 164 MB with Fosdinovo's part
-(2026-11-07, three runs on #18's final code; 161
-MB before its review's fixes, against 130–131 MB for main's build beside them, and under the
-245 MB issue #18 allows; 132–133 MB measured earlier that day with the olive groves, 130–132 MB
-before them; 89–90 MB on lucido alone, 88–89 MB before the woods) where
-lucido's was 123–124 MB with the vectors in the global file (`pnpm playtest heap`, three runs each,
-2026-10-31, before and after main's water areas, #73; 2026-11-03 with the woods).
+after a forced GC is 160 MB with Aulla's part (2026-11-21, `?seed=1`, three runs, with the start's
+heap cuts, [architecture.md](architecture.md#start-up); 216 MB before them on 2026-11-18, against
+164 MB for main's build that day: the whole map's graph, lanes, parked spots and residents grew
+with it, and 225 MB standing in Aulla, under the 245 MB issue #19 allows); 164 MB with Fosdinovo's
+part (2026-11-07, three runs on #18's final code; 161 MB before its review's fixes, against
+130–131 MB for main's build beside them, and under the 245 MB issue #18 allows; 132–133 MB measured
+earlier that day with the olive groves, 130–132 MB before them; 89–90 MB on lucido alone, 88–89 MB
+before the woods) where lucido's was 123–124 MB with the vectors in the global file (`pnpm
+playtest heap`, three runs each, 2026-10-31, before and after main's water areas, #73; 2026-11-03
+with the woods).
 
 A tile is the square x 2000i … 2000(i + 1), y 2000j … 2000(j + 1) on the local origin, keyed `i_j`
 (`TILE` and `tileKey` in `src/sim/map/kinds.ts`). The listed tiles are the region's, each tile one
@@ -5115,18 +5116,24 @@ issue #17's part, on 2026-11-04, on `fosdinovo`, issue #18's, on 2026-11-07 and 
   slowest frame 16.8 ms in three runs, heap 100 MB, the same as main's. Lunigiana with Fivizzano
   (2026-11-04, production build of 1,237,029 B of JS, `?seed=7`, three runs): first frame 0.41 s,
   slowest frame 16.8 ms, heap 130–131 MB, against main's lucido at 0.33–0.36 s and 89–90 MB;
-  standing at Fivizzano (`--at -321,8511`, dev build, two runs) 0.45–0.54 s and 160 MB. With
+  standing at Fivizzano (`--at=-321,8511`, dev build, two runs) 0.45–0.54 s and 160 MB. With
   Fosdinovo (2026-11-07, production build, `?seed=7`, three runs): first frame 0.41–0.47 s, slowest
   frame 16.8 ms, heap 161 MB, against main's 130–131 MB, under the 245 MB issue #18 allows; on
   #18's final code (1,036.60 kB of JS, 322.84 kB gzipped) first frame 0.40–0.41 s, slowest frame
   16.8 ms, heap 164 MB. With Aulla (2026-11-18, production build of 1,055.68 kB of JS, 331.02 kB
   gzipped, `?seed=1`, three runs): first frame 0.47–0.52 s, slowest frame 16.8 ms, heap 216 MB,
-  against main's 164 MB; standing at Aulla (`--at -12975,5867` on a production build with `gta`
+  against main's 164 MB; standing at Aulla (`--at=-12975,5867` on a production build with `gta`
   turned on in a copy of `main.ts`, two runs) 225 MB, under the 245 MB issue #19 allows, where a dev
-  build reads 252–253 MB (the dev build's own 30 MB). The 40 m/s drive from Rometta west across
-  the x −6000…−12000 tile seams, over the y 4000 seam into Fosdinovo and back, up the Magra from
-  Aulla and east to Licciana (dev build): every seam's slowest frame 16.8 ms, at most 8 tiles in
-  memory, one frame of 33–50 ms by (−6500…−6760, 4434), away from a seam, in each of two runs.
+  build reads 252–253 MB (the dev build's own 30 MB). With the start's heap cuts
+  ([architecture.md](architecture.md#start-up); 2026-11-21, production build of 1,055.90 kB of JS,
+  331.09 kB gzipped, three runs each interleaved with main's build, the machine under load from
+  other builds): first frame 0.49–0.54 s at `?seed=1` and 0.50–0.52 s at `?seed=7`, against
+  0.51–0.53 and 0.52–0.55 s, slowest frame 16.8 ms in every run, heap 160 and 161 MB against 216–217
+  MB; standing at Aulla on dev builds (two runs each) 185–186 MB against 242 MB. The 40 m/s drive
+  from Rometta west across the x −6000…−12000 tile seams, over the y 4000 seam into Fosdinovo and
+  back, up the Magra from Aulla and east to Licciana (dev build): every seam's slowest frame 16.8
+  ms, at most 8 tiles in memory, one frame of 33–50 ms by (−6500…−6760, 4434), away from a seam, in
+  each of two runs.
 - **`pnpm playtest drive <url> [--port N] [--speed m/s] [--seconds s] [--route x1,y1,…]`** (dev
   builds only: it needs `gta.player`, `gta.teleport` and `gta.tiles`) runs the tile streaming at
   speed. It dismisses the title card, teleports the player to the route's start and waits until the
@@ -5154,7 +5161,11 @@ issue #17's part, on 2026-11-04, on `fosdinovo`, issue #18's, on 2026-11-07 and 
   station over the x −2900 seam to Marciaso, Fosdinovo, Tendola, Bardine and Ceserano and back over
   the y 3900 seam by Gragnola): 15 tile seams crossed (x −2000, −4000, −6000 and −8000, and y 0,
   −2000 and 2000, several twice), the slowest frame 16.8 ms at each and everywhere, none over 30
-  ms, at most 8 tiles in memory and 210 MB of heap at the end.
+  ms, at most 8 tiles in memory and 210 MB of heap at the end. With Aulla's part and the start's
+  heap cuts (2026-11-21, dev build, `?seed=7`, the default route, two runs each in turn with main's
+  build): the five seams at 16.8 ms at worst, none over 30 ms, at most 6 tiles in memory and 186 MB
+  of heap at the end, where main's build had the same seams, one frame of 49.9–50 ms about 100 s in
+  by (1252…1261, −2422…−2454), off the seams, and 243–244 MB.
 - **`pnpm map-diff <a.bin> <b.bin> [--except <category,...>]`** (`map-diff.ts`, `map-diff-args.ts`,
   `map-diff-dense.ts`, `diff-lists.ts`) prints, category by category, what differs between two
   built maps, each a global file with its tiles in the directory of its name beside it (keep a
