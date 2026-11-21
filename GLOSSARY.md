@@ -104,7 +104,7 @@ How far either side of a deck or a tunnel's line someone on foot is still on its
 _Avoid_: Sidewalk, kerb
 
 **Approach**:
-The way at grade that leads onto a deck or into a tunnel and meets it at its level: a road's, and since issue #19 a path's or steps', which closes its offset from the terrain at its class's grade from the deck's level until it meets the ground.
+The way at grade that leads onto a deck or into a tunnel and meets it at its level: a road's, and since issue #19 a path's or steps', which closes its offset from the terrain at its class's grade from the deck's level until it meets the ground. A path or steps at grade passing under a deck or over a bore is fitted the same way from its clearance there (issue #20), approach or not.
 _Avoid_: Ramp (a motorway or trunk link), access, lead-in
 
 **Twin carriageways**:

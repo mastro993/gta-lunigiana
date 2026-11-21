@@ -6,10 +6,22 @@ import type { Linear } from "./chains.ts"
 // set climbed 53% where the ground between them climbs 18%.
 import { arcLengths } from "./geometry.ts"
 
-/** A road piece the profiles fit, and the steepest grade its fit draws: its pass's `relax` times its class's limit. */
+/** A level a road's fit keeps at arc length `s` along it, under (`max`) or over (`min`). */
+export interface Limit {
+  readonly s: number
+  readonly z: number
+  readonly kind: "min" | "max"
+}
+
+/**
+ * A road piece the profiles fit, and the steepest grade its fit draws: its pass's `relax` times its
+ * class's limit; and the levels its fit keeps (`limits`, read when a junction asks: a rail bridge's
+ * clearance over it).
+ */
 export interface Graded {
   readonly piece: Linear
   readonly grade: number
+  readonly limits?: () => ReadonlyArray<Limit>
 }
 
 /** Where a node id lies: on which link, at which vertex. */
@@ -22,8 +34,11 @@ interface At {
  * The least and most z a junction may take: within reach of each junction already set (`zOf`) that
  * a link not yet fitted (`open`) leads to, along it and on through the joints where it alone runs
  * on. The reach is the link's steepest grade over the way there, or the ground's own climb between
- * the two where that is steeper (an old lane straight up a village's hillside). Cones that miss each
- * other give the span between them, as near both as the junction can stand.
+ * the two where that is steeper (an old lane straight up a village's hillside). So too of each level
+ * such a link keeps on the way there (`limits`), at its grade: the Pontremolese's bridge 617064928
+ * by Vezzano Ligure kept the primary 1295717964 5.5 m under it, but the junction 3.4 m from it,
+ * set at 22.0 m by the primary fitted before it, held the road 2.27 m under the deck. Cones that
+ * miss each other give the span between them, as near both as the junction can stand.
  */
 export const junctionReach = (
   links: ReadonlyArray<Graded>,
@@ -70,7 +85,15 @@ export const junctionReach = (
             seen.add(link)
             continue
           }
-          cost += links[link]!.grade * Math.abs(arcs[link]![i + dir]! - arcs[link]![i]!)
+          const from = arcs[link]![i]!,
+            to = arcs[link]![i + dir]!
+          for (const l of links[link]!.limits?.() ?? [])
+            if ((l.s - from) * (l.s - to) <= 0) {
+              const r = cost + links[link]!.grade * Math.abs(l.s - from)
+              if (l.kind === "max") hi = Math.min(hi, l.z + r)
+              else lo = Math.max(lo, l.z - r)
+            }
+          cost += links[link]!.grade * Math.abs(to - from)
           i += dir
           const w = pts[i]!,
             z = w.id === undefined ? undefined : zOf(w.id)

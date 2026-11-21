@@ -27,7 +27,8 @@ import {
   type V,
 } from "./geometry.ts"
 import { boreEnds, footwaysNear } from "./grid-claims.ts"
-import { pathPass } from "./path-pass.ts"
+import type { Limit } from "./junction-reach.ts"
+import { pathPass, waterTopOf } from "./path-pass.ts"
 import { inPlay, onOutline } from "./play-area.ts"
 import { EXTRA_RANK, makeProfiler, RAIL_PASS, ROAD_PASSES } from "./profiles.ts"
 import { extraLevels, RAIL_TOL } from "./rail-bed.ts"
@@ -169,11 +170,13 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   const wet = waterAreas(src.areas, water, wp0, dem, src.seaFloor)
   wet.areas.forEach((a, i) => (src.areas[i] = a))
   // Every road a pass profiles, at the steepest grade its fit draws: a junction keeps within reach
-  // of the junctions set before along the roads not yet fitted (junction-reach.ts).
+  // of the junctions set before along the roads not yet fitted, and of the rail's clearance over
+  // them (`railUnder`, set once the rail's levels are; junction-reach.ts).
+  const railUnder = new Map<Linear, Array<Limit>>()
   const links = ROAD_PASSES.flatMap(({ classes, grade, relax }) =>
     roads
       .filter((r) => (classes as ReadonlyArray<string>).includes(r.cls))
-      .map((piece) => ({ piece, grade: relax * grade })),
+      .map((piece) => ({ piece, grade: relax * grade, limits: () => railUnder.get(piece) ?? [] })),
   )
   // Where each road and rail bridge's deck ends: a line meeting it there runs on under it.
   const bridgeEnds = new Set(
@@ -256,6 +259,11 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
   )
   // A road crossing another on two levels keeps the clearance under it (road-levels.ts).
   const overpasses = roadLevels({ roads, ground, fitted: (l) => zOf.has(l), zAt })
+  for (const { rl, rd, c, clear } of railRoad)
+    railUnder.set(rd, [
+      ...(railUnder.get(rd) ?? []),
+      { s: c.sb, z: zAt(rl, c.sa) - clear, kind: "max" },
+    ])
   for (const { classes, rank, grade, half, relax } of ROAD_PASSES)
     for (const ch of grown(chainsOf(ofClass(classes))))
       profile(ch, { w: (r) => r.w, rank, grade, half, relax, mouths: true, reach: true }, [
@@ -264,6 +272,7 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       ])
   // The paths' and steps' bridges and tunnels and the piers, after every road, and the paths and
   // steps at grade leading from them (path-pass.ts).
+  const levelAt = waterLevel(wet.carved, water, wp0)
   const { pierZ, approaches } = pathPass({
     roads,
     ground,
@@ -272,7 +281,8 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     zAt,
     rail: { railRoad, roadBounds },
     overpasses,
-    levelAt: waterLevel(wet.carved, water, wp0),
+    levelAt,
+    waterTop: waterTopOf(water, wp0, levelAt),
   })
   // The extra tracks take only the cells no road took.
   for (const [piece, { profile: p }] of extraZ)

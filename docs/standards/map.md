@@ -135,10 +135,12 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   a path, steps or the rail; a road, a path or the rail over a tunnel; rail over rail left out), and
   fails where the way above stands 2.5 m or less (the level rule's 2 m, `ONE_LEVEL`, and a 0.5 m
   margin) over the one below between points of the two within 3.99 m of each other and of the
-  crossing, but at the crossings it lists by OSM id on Cesena, Lunigiana and the coast test region,
-  each of which must still fall short, and at a crossing on a path's or steps' bridge or tunnel no
-  fit of the path pass could clear from its ends at grade (micro-mapped crossings too short from
-  their ends, left out by rule: [Known data limitations](../map.md#known-data-limitations)). The
+  crossing, a way at grade read where the game stands on it (never under the terrain's mesh), but
+  at the crossings it lists by OSM id on Cesena, Lunigiana and the coast test region, each of which
+  must still fall short, and at a crossing on a path's or steps' bridge or tunnel no fit of the
+  path pass could clear from its ends at grade, a path or steps at grade it crosses free between
+  the vertices it shares with another way (micro-mapped crossings too short from their ends, left
+  out by rule: [Known data limitations](../map.md#known-data-limitations)). The
   level rule (`onOneLevel`) is code, so a failure on a new part is the data's (a deck too low over
   what it crosses, a crossing a fit could clear) or the profiles' pass's: fix that for every
   crossing alike, never by listing a new part's crossing (the coast is a test region, not a shipped

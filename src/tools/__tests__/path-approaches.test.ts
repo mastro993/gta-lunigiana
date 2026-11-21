@@ -4,7 +4,12 @@ import { test } from "node:test"
 import type { RoadF } from "../features.ts"
 import type { V } from "../geometry.ts"
 import { replayClaims } from "../grid-claims.ts"
-import { APPROACH_GRADE, pathApproaches, pathsAtGrade } from "../path-approaches.ts"
+import {
+  APPROACH_GRADE,
+  type ApproachLine,
+  pathApproaches,
+  pathsAtGrade,
+} from "../path-approaches.ts"
 import type { Grid } from "../terrain.ts"
 
 const v = (x: number, y: number, id?: string): V => (id === undefined ? { x, y } : { x, y, id })
@@ -267,8 +272,12 @@ test("pathApproaches fits a path again when a later approach sets the level of a
 
 // Regression: an approach's sample under a bridge shipped the finished grid, which the claims of the
 // bridge's own ramps raised: Cesena's path 22776463 ran 3.5 m under the footbridge 683510421, its
-// clearance 4 m, where the fit kept it 4.5 m under it on the ground.
-test("pathApproaches ships its fitted level where it crosses under a bridge, and writes it there", () => {
+// clearance 4 m, where the fit kept it 4.5 m under it on the ground. Its claim writes its level
+// there, and it ships the grid as finished, never a level over a road's cut beside it: the sidewalk
+// 1473703387 at Sarzana shipped its uncarved 11.0 m under the rail bridge 86258970, 2 m over the
+// SS62's cut it runs in. Over a bore it ships its level: on the grid, the footway 1462688623 ran
+// 0.01 m over the mouth of the service tunnel 376037643, whose hold lowered the grid there.
+test("pathApproaches writes its level where it crosses under a bridge on the ground, and ships the grid there", () => {
   const bridge = { ...way(1, "path", [v(-10, 0, "w"), v(0, 0, "u")]), bridge: true as const },
     lane = way(2, "path", [v(0, 0, "u"), v(40, 0, "t")])
   const { lines, claims } = pathApproaches(
@@ -279,7 +288,8 @@ test("pathApproaches ships its fitted level where it crosses under a bridge, and
     { ground: flat },
   )
   const line = lines.get(lane)!
-  assert.equal(line.z[line.pts.findIndex((p) => p.x === 20)], 100, "its level under the deck")
+  const under = line.pts.findIndex((p) => p.x === 20)
+  assert.ok(under >= 0 && line.z[under] === undefined, "on the grid under the deck")
   const cols = 21,
     g: Grid = {
       cell: 4,
@@ -293,6 +303,15 @@ test("pathApproaches ships its fitted level where it crosses under a bridge, and
     }
   replayClaims(g, claims, new Uint8Array(cols * 11).fill(255), new Uint8Array(cols * 11))
   assert.equal(g.z[5 * cols + (20 + 20) / 4], 100, "the grid under the deck at its level")
+  // Over a bore it ships its level, which the bore's mouth may hold the grid under.
+  const over = pathApproaches(
+    pathsAtGrade([bridge, lane]),
+    ["u"],
+    new Map([["u", 100]]),
+    () => [{ x: 20, y: 0, z: 96, kind: "min" as const }],
+    { ground: flat },
+  ).lines.get(lane)!
+  assert.equal(over.z[over.pts.findIndex((p) => p.x === 20)], 100, "its level over the bore")
 })
 
 // Regression: an approach's core round a footbridge's end held the ground under the deck at the
@@ -309,4 +328,99 @@ test("pathApproaches yields the ground under a bridge's deck past its end to any
     { ground: flat, deckEndAt: (id) => id === "u" },
   )
   assert.equal(claims[0]!.deckEnds?.[0], 1, "its core past the deck's end is under the deck")
+})
+
+// Regression: a path or steps at grade crossing under a bridge no deck of the path pass leads onto
+// kept the ground the deck's own approaches held at the deck's level: Via Mazzini (814776126) ran
+// level with Sarzana's Via Cittadella arch (814776124) over it, on its natural 20.3 m, and the
+// steps 374756566 1.23 m under the A15's deck, on ground 0.6 m under it.
+test("pathApproaches fits a path at grade crossing under a bridge from its clearance alone, its claims ahead of every other approach's", () => {
+  // A footbridge's end 4 m over flat ground at (20, -2) leads onto a ramp that meets a lane at
+  // (32, 0) before it reaches the ground; the lane runs east under a deck at (20, 0), led onto by no
+  // deck, its clearance 96 m (dipping 4 m) or 104 m (kept). Fitted first, the lane is fitted again
+  // once the ramp sets the level where they meet.
+  const deck = { ...way(1, "path", [v(20, -10, "w"), v(20, -2, "u")]), bridge: true as const },
+    ramp = way(2, "path", [v(20, -2, "u"), v(32, 0, "m"), v(32, 30, "t")]),
+    lane = way(3, "path", [v(0, 0, "a"), v(32, 0, "m"), v(40, 0, "b")])
+  const fit = (clear: number) =>
+    pathApproaches(
+      pathsAtGrade([deck, ramp, lane]),
+      ["w", "u"],
+      new Map([
+        ["w", 104],
+        ["u", 104],
+      ]),
+      (piece) =>
+        piece === lane
+          ? [18, 20, 22].map((x) => ({ x, y: 0, z: clear, kind: "max" as const }))
+          : [],
+      { ground: flat },
+      [lane],
+    )
+  const at = (line: ApproachLine, x: number) =>
+    line.z[line.pts.findIndex((p) => Math.abs(p.x - x) < 1e-9 && p.y === 0)]
+  // Under the deck it dips to its clearance, and its offset closes at its grade either way.
+  const dip = fit(96).lines.get(lane)!
+  assert.equal(at(dip, 20), 96)
+  for (let k = 1; k < dip.pts.length; k++) {
+    const rise = Math.abs((dip.z[k] ?? 100) - (dip.z[k - 1] ?? 100)),
+      run = dip.pts[k]!.x - dip.pts[k - 1]!.x
+    assert.ok(rise <= APPROACH_GRADE.path * run + 1e-6, `${rise} over ${run}`)
+  }
+  assert.equal(dip.z[0], undefined, "its ends keep the terrain")
+  // Where the ground keeps its clearance, it claims its own level there, ahead of the ramp's hold
+  // and stretch at the deck's level, and ships the grid.
+  const kept = fit(104),
+    line = kept.lines.get(lane)!
+  assert.ok(line.pts.some((p) => p.x === 20 && p.y === 0))
+  assert.equal(at(line, 20), undefined)
+  const cols = 21,
+    g: Grid = {
+      cell: 4,
+      cols,
+      rows: 11,
+      x0: -20,
+      y0: -20,
+      ax: -20,
+      ay: -20,
+      z: new Float64Array(cols * 11).fill(100),
+    }
+  replayClaims(g, kept.claims, new Uint8Array(cols * 11).fill(255), new Uint8Array(cols * 11))
+  assert.equal(g.z[5 * cols + (20 + 20) / 4], 100, "the grid under the deck at its level")
+})
+
+// Regression: of two clearances on one sample the fit kept the first it found broken, not the
+// tightest: Via Torrione San Francesco (48560613) shipped the 24.06 m under the footbridge
+// 1392737826 where the one beside it (1392737825) asked 23.2 m, 0.58 m under the first.
+test("pathApproaches holds a sample at the tightest of the clearances on it, whatever their order", () => {
+  const lane = way(3, "path", [v(0, 0, "a"), v(40, 0, "b")])
+  for (const order of [
+    [98, 96],
+    [96, 98],
+  ]) {
+    const line = pathApproaches(
+      pathsAtGrade([lane]),
+      [],
+      new Map(),
+      () => order.map((z) => ({ x: 20, y: 0, z, kind: "max" as const })),
+      { ground: flat },
+      [lane],
+    ).lines.get(lane)!
+    assert.equal(line.z[line.pts.findIndex((p) => p.x === 20)], 96, `${order}`)
+  }
+  // So too a path over two bores, at the higher of their clearances.
+  for (const order of [
+    [104, 106],
+    [106, 104],
+  ]) {
+    const line = pathApproaches(
+      pathsAtGrade([lane]),
+      [],
+      new Map(),
+      () => order.map((z) => ({ x: 20, y: 0, z, kind: "min" as const })),
+      { ground: flat },
+      [lane],
+    ).lines.get(lane)!
+    assert.equal(line.z[line.pts.findIndex((p) => p.x === 20)], 106, `${order}`)
+  }
 })
