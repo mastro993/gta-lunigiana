@@ -17,6 +17,7 @@ import {
   arcLengths,
   boxesMeet,
   crossings,
+  endsUnder,
   flatLine,
   lineBox,
   r1,
@@ -280,8 +281,20 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       s = arcLengths(l.pts),
       box = lineBox(l.pts)
     water.forEach((w, wi) => {
-      if (!boxesMeet(waterBox[wi]!, box)) return
-      for (const c of crossings(w.pts, l.pts))
+      // How far from a deck's centreline a water's end lies under it: the deck's half-width and the
+      // water's bed's reach (`reachOf` in sim/water/channel.ts).
+      const under = l.bridge === true ? lw / 2 + Math.max(w.bed, w.w / 2) : 0
+      const [x0, y0, x1, y1] = box
+      if (!boxesMeet(waterBox[wi]!, [x0 - under, y0 - under, x1 + under, y1 + under])) return
+      const met = crossings(w.pts, l.pts)
+      // A water ending under a deck keeps its clearance there too: where the build drops the culvert
+      // OSM maps on under it (features.ts), the ditch 864556128 by Piano di Vezzano started
+      // 2.7 m off the centreline of Via Pratolino's bridge (878660856), 0.65 m under its deck, and
+      // a spate stood on its verge.
+      if (under > 0)
+        for (const e of endsUnder(w.pts, l.pts, under))
+          if (!met.some((c) => Math.abs(c.sa - e.sa) <= lw / 2 + 2)) met.push(e)
+      for (const c of met)
         crossed.push({
           water: wi,
           at: c.sa,
