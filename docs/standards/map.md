@@ -28,8 +28,9 @@ never compares a change's map with the map before it, so these runs are yours.
   before it would be read wrong; a change to which entries the bake gives, in the same shape, is a
   rebuild (`pnpm maps`) alone (the user's answer to issue #111's seventh question). The parked
   spots, the farms and the lamps travel field by field in the global file's sections, so a field
-  added to one is such a change too: a farm's or a lamp's fails to compile until `FARM_FLAGS` or
-  `LAMP_WORDS` in `src/sim/map/format/global-file.ts` gives it its place.
+  added to one is such a change too: it fails to compile until `PARKED_FIELDS`, `FARM_FLAGS` or
+  `LAMP_WORDS` in `src/sim/map/format/global-file.ts` gives it its place, and the build throws on a
+  parked spot with a key `PARKED_FIELDS` lacks, which the file would drop.
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
   of the map live there, not in `pnpm test`, and so do the test regions' (the L and the coast:
   `pnpm maps` builds them into `test-maps/`; without one its checks are skipped, but fail in CI,

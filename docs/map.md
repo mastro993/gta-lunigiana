@@ -3,7 +3,7 @@
 `pnpm map` runs `src/tools/build-map.ts`. It turns the pinned inputs in `data/raw` into the default
 Lunigiana map of its four parts, lucido, fivizzano, fosdinovo and aulla ([section
 2](#2-projection-and-play-area-geometryts-play-areats)): the global file `src/sim/map/monzone.bin`
-(2.13 MB), 153 tiles of 2 km in `src/sim/map/monzone/` (63.6 MB in all, the largest 0.65 MB; see
+(1.82 MB), 153 tiles of 2 km in `src/sim/map/monzone/` (52.0 MB in all, the largest 0.50 MB; see
 [Map files](#map-files)) and, beside the tiles, the full map's picture `overview.png` (5.18 MB; [The
 overview](#the-overview)). The build is deterministic (gunzipped, its files are the same bytes on
 every machine, arm64 and x64 alike, and it prints the same build hash; gzipped, they are
@@ -27,9 +27,11 @@ of Liguria's DTM, Aulla's part all LiDAR, `sourceAreas` on 10 m cells; lucido's 
 and 0.63, and no Liguria), counts, the rail on the CTR (OSM's offset from it, the shipped residual,
 the level crossings' slides, the bridge ends slid, the culverts, the at-grade track cut into the
 CTR's bridges and the rail bed), the railway (its lines, stations, level-crossing boxes and the
-verges pulled in off the track), the steepest grade per road class, and the size of each part of the
-files before gzip (each layer of the tiles' vectors summed over the tiles). Inputs and attribution
-are in the [README](../README.md).
+verges pulled in off the track), the steepest grade per road class, the size of each part of the
+files before gzip, summed over the tiles, then each layer of the tiles' vectors (its JSON on the
+lines, a vertex count in place of each xy array, and its coordinates, 4 bytes each: its share of the
+tiles' lines and coordinates sections), and the global line's two biggest fields, the roads and the
+POIs. Inputs and attribution are in the [README](../README.md).
 
 `src/sim/map/kinds.ts` holds the vocabulary that the build and the game share: road classes and
 their default widths, where people walk and cars drive across them (`vergeOf`, `laneOffset`), how
@@ -3653,10 +3655,10 @@ and the vectors' coordinates the tiles' (2026-11-21, the same build), Lunigiana'
 gunzipped), 102 tiles of 42.4 MB and a 5.56 MB overview of 4096 × 3540 px (2026-11-18; the figures
 above 2026-11-21).
 
-On lucido alone they are 0.31 MB (1.50 MB gunzipped; 0.55 MB and 1.9 MB before format version 6),
-30 tiles of 9.5 MB in all (the largest 0.59 MB) and 3.25 MB (3195 × 4096 px). With the vectors in
-the global file, before #63, lucido's was 1.89 MB (6.26 MB gunzipped) and its tiles 5.70 MB, the
-largest 0.31 MB. Each `.bin` file is gzip (level 9)
+On lucido alone, in format version 6, they were 0.31 MB (1.50 MB gunzipped; 0.55 MB and 1.9 MB
+before format version 6), 30 tiles of 9.5 MB in all (the largest 0.59 MB) and 3.25 MB
+(3195 × 4096 px). With the vectors in the global file, before #63, lucido's was 1.89 MB (6.26 MB
+gunzipped) and its tiles 5.70 MB, the largest 0.31 MB. Each `.bin` file is gzip (level 9)
 of one JSON line, a newline, then packed sections. A run gets its map files from the map source
 (`src/sim/map/source.ts`), which decodes nothing: the global file once, before the map is decoded
 (handing one over after that throws: one map per process, [ADR
@@ -3752,14 +3754,14 @@ build's to the bit, keys in the same order, on Lunigiana, Cesena, the L and the 
 and tiles alike, and `pnpm map-diff` found no differences (2026-11-21; version 6 against version 5
 likewise on 2026-11-07). The build throws on a coordinate or parked spot that is not a whole
 number of decimetres, an angle that is not one of milliradians, a double that is not finite, a
-rest out of the line's models' order, a lamp of another kind, a resident that is not a float32 and
-more than 32,768 distinct lane values. They moved off the line for issue #5's scale check: the
-game parses the line with `JSON.parse` at load, and Lunigiana's was 8,319,700 B with Fosdinovo's
-part (#18), 5.66 MB of it the graph, the lanes and the residents as text (version 6), and
-4,560,301 B with Aulla's part, 3.67 MB of it the parked spots (2.09 MB, their rests' 17-digit
-doubles most of it), the farms (0.65 MB), the lamps (0.52 MB) and the farms' centres (0.41 MB),
-which Sarzana's part (issue #20) was estimated from its inputs to take to 8.6–9.8 MB (version 7).
-Lunigiana's first
+parked spot with a key the file has no place for (`PARKED_FIELDS`), a rest out of the line's
+models' order, a lamp of another kind, a resident that is not a float32 and more than 32,768
+distinct lane values. They moved off the line for issue #5's scale check: the game parses the line
+with `JSON.parse` at load, and Lunigiana's was 8,319,700 B with Fosdinovo's part (#18), 5.66 MB of
+it the graph, the lanes and the residents as text (version 6), and 4,560,301 B with Aulla's part,
+3.67 MB of it the parked spots (2.09 MB, their rests' 17-digit doubles most of it), the farms
+(0.65 MB), the lamps (0.52 MB) and the farms' centres (0.41 MB), which Sarzana's part (issue #20)
+was estimated from its inputs to take to 8.6–9.8 MB (version 7). Lunigiana's first
 `decodeMap` in a fresh Node process takes 31.0–34.7 ms after 8.6–9.9 ms of reading and gunzip,
 against 36.5–56.1 and 12.8–14.6 ms in version 6 (five processes each in turn, 2026-11-21, under a
 load average of 7–9; 23.1–23.5 and 6.5–6.6 ms in version 6 on 2026-11-07, at 3–4, against 21.2–21.6
@@ -3874,9 +3876,11 @@ width, stride, count (read from the line) and transform both ways, and both dire
 (`src/sim/map/format/`: `sections.ts`, `global-file.ts`, `tile-file.ts`), so the encoder and the
 decoder cannot disagree on where a section lies. `encodeMap` and `encodeTile` encode (the build
 throws if a value does not fit, or if two sections that share a count, a wall's segment and its id,
-disagree on it), `decodeMap` and `decodeTile` decode. The tables here and the layouts are the two
-places a section's facts are written: a change to one is a change to the other. Decoding is exact:
-the same numbers a one-decimal JSON array would give.
+disagree on it), `decodeMap` and `decodeTile` decode (they throw on a file that goes on past its
+sections, and every decoder, `decodeTileVectors` too, on one cut short of the sections it reads,
+rather than read the bytes past its end as 0). The tables here and the layouts are the two places a
+section's facts are written: a change to one is a change to the other. Decoding is exact: the same
+numbers a one-decimal JSON array would give.
 
 What goes in which tile:
 

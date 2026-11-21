@@ -291,7 +291,7 @@ export interface Lamp {
   readonly kind: "wall" | "pole"
 }
 
-/** The global map as the game reads it: the global file with its sections decoded (the coarse grid, the graph, the lanes, the residents: `./format/global-file.ts`). */
+/** The global map as the game reads it: the global file with its sections decoded (the coarse grid, the graph, the lanes, the residents, the parked spots, the farms, their centres and the lamps: `./format/global-file.ts`). */
 export interface MonzoneMap {
   /** `MAP_VERSION` (`./format/sections.ts`): the decoders throw on any other. */
   readonly version: number

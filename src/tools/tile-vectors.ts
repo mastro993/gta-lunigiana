@@ -8,6 +8,7 @@ import {
   type TileVectors,
   VECTOR_LAYERS,
   type VectorLayer,
+  vectorSizes,
 } from "../sim/map/format/tile-file.ts"
 import type { MonzoneMap, Road } from "../sim/map/index.ts"
 import { HALO, vergeOf, WATER_VERTICES } from "../sim/map/kinds.ts"
@@ -206,7 +207,8 @@ export const tilesOf = (
         }
       for (const key of files.keys()) {
         const vectors = tileVectors(whole, members, slots.get(key)!, floors)
-        for (const name of VECTOR_LAYERS) sizes[name] += JSON.stringify(vectors[name]).length
+        const bytes = vectorSizes(vectors)
+        for (const name of VECTOR_LAYERS) sizes[name] += bytes[name]
         out.set(key, relineTile(files.get(key)!, { vectors }))
       }
       return { files: out, sizes }

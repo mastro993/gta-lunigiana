@@ -14,7 +14,7 @@ import { NO_VECTORS } from "./tile-vectors.ts"
 const BEFORE = 6
 
 /** A file's JSON line, of any version. */
-const lineOf = (file: Uint8Array): unknown =>
+const rawLine = (file: Uint8Array): unknown =>
   JSON.parse(new TextDecoder().decode(file.subarray(0, file.indexOf(10))))
 
 /** The JSON line of a version-6 global file: what reading it as today's needs. */
@@ -33,7 +33,7 @@ type OldLine = { readonly version?: unknown } & Pick<MonzoneMap, "spawns" | "far
 export const decodeUpgraded = (
   file: Uint8Array,
 ): { readonly global: MonzoneMap; readonly decodeTile: (file: Uint8Array) => TileData } => {
-  const line = lineOf(file) as OldLine
+  const line = rawLine(file) as OldLine
   if (line.version !== BEFORE) return { global: decodeMap(file), decodeTile }
   const { spawns, farms, lamps, derived } = line
   const global = decodeMap(
@@ -54,7 +54,7 @@ export const decodeUpgraded = (
       derived: { ...global.derived, farms: derived.farms },
     },
     decodeTile: (tile) => {
-      const { vectors } = lineOf(tile) as Pick<TileData, "vectors">
+      const { vectors } = rawLine(tile) as Pick<TileData, "vectors">
       return {
         ...decodeTile(relined(tile, { version: MAP_VERSION, coordinates: 0, vectors: NO_VECTORS })),
         vectors,

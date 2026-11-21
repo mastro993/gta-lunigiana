@@ -48,7 +48,7 @@ test("decodeUpgraded reads a build of version 6, whose global file's line holds 
   // version 6's global file: its line with the four tables, then its sections up to the residents
   const parts = Object.keys(sizes),
     after = parts.slice(parts.indexOf("residents") + 1)
-  assert.deepEqual(after.length, 9)
+  assert.equal(after.length, 9)
   const { spawns, farms, lamps, derived } = global
   const v6 = relined(
     file.subarray(0, file.length - after.reduce((sum, part) => sum + sizes[part]!, 0)),

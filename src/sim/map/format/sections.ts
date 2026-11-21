@@ -150,7 +150,7 @@ const lineAt = (
 /** A file's JSON line alone, its sections left unread; it must be of today's version. */
 export const lineOf = (file: Uint8Array, what: string): unknown => lineAt(file, what).line
 
-/** A file's JSON line, of type `L`, the value of each section of `layout`, its first sections, and the byte after them. */
+/** A file's JSON line, of type `L`, the value of each section of `layout` (the file's first sections) and the byte after them; a section past the file's end throws. */
 const readFile = <L, S extends Layout<never, L>>(
   file: Uint8Array,
   layout: S,
@@ -161,9 +161,15 @@ const readFile = <L, S extends Layout<never, L>>(
     values: Record<string, unknown> = {}
   let at = read.at
   for (const [name, section] of Object.entries(layout)) {
-    const n = section.count(line)
+    const n = section.count(line),
+      end = at + n * section.bytes
+    // a byte past the end would read as 0
+    if (end > file.length)
+      throw new Error(
+        `map: ${what} ends at byte ${file.length}, inside its ${section.label} (to byte ${end})`,
+      )
     values[name] = section.decode(unpack(file, at, n, section.bytes, strideOf(section, line)), line)
-    at += n * section.bytes
+    at = end
   }
   return { line, values: values as Decoded<S>, at }
 }

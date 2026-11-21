@@ -8,6 +8,9 @@ import {
   relineTile,
   TILE_CELLS,
   TILE_NODES,
+  VECTOR_LAYERS,
+  type VectorLayer,
+  vectorSizes,
 } from "../tile-file.ts"
 import { plain } from "./plain.ts"
 
@@ -55,11 +58,12 @@ const tile = {
           tint: 2,
           outer: [0, 0, 4, 0, 4, 3],
         },
-        // a court: its holes after its outer ring, its last key; a survey's id past 2^32
+        // a court: its holes after its outer ring, its last key; a survey's id past 2^32; a name
+        // past ASCII
         {
           id: 1_099_511_627_779,
           kind: "church",
-          name: "San Giorgio",
+          name: "Madonna della Pietà",
           h: 12,
           z0: 301.4,
           style: "stone",
@@ -219,6 +223,27 @@ test("decodeTileVectors reads the line and the coordinates alone: the vectors, w
     [tile.hash, tile.i, tile.j, plain(tile.vectors)],
   )
   assert.equal(JSON.stringify(alone.vectors), JSON.stringify(tile.vectors))
+  // cut inside the coordinates, it throws rather than read the bytes past the end as 0
+  assert.throws(
+    () => decodeTileVectors(head.subarray(0, head.length - 1)),
+    new RegExp(
+      `map: a tile file ends at byte ${head.length - 1}, inside its coordinates \\(to byte ${head.length}\\)`,
+    ),
+  )
+})
+
+test("vectorSizes gives each layer's bytes in a tile file: its JSON on the line, in UTF-8, and its share of the coordinates", () => {
+  const { file, sizes } = encodeTile(tile),
+    vectors = (lineOf(file) as { readonly vectors: Record<VectorLayer, unknown> }).vectors,
+    bytes = vectorSizes(tile.vectors),
+    json = (name: VectorLayer) => Buffer.byteLength(JSON.stringify(vectors[name]))
+  // the buildings' 3 + 4 + 3 + 3 vertices, each an x and a y of 4 bytes; "Pietà" is 6 bytes
+  assert.equal(bytes.buildings, json("buildings") + 13 * 8)
+  // past the lines' JSON, the layers' shares sum to the coordinates section
+  assert.equal(
+    VECTOR_LAYERS.reduce((sum, name) => sum + bytes[name] - json(name), 0),
+    sizes.coordinates,
+  )
 })
 
 test("relineTile sets a tile's vectors, its line and its coordinates written again, or its hash alone, as encodeTile packs them, its dense layers' sections unchanged", () => {

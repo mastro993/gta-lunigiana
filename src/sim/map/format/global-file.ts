@@ -80,6 +80,15 @@ const laneTable = (lanes: MonzoneMap["lanes"]): Array<number> => {
 /** A parked spot's flag where a truck fits: past the models' bits, under the 128 a zigzag-coded byte holds. */
 const TRUCK = 1 << 6
 
+/** Each parked spot's field's section: a field added to `ParkedSpot` fails to compile until it has its place in the file, and a spot with a key not here throws. */
+const PARKED_FIELDS = {
+  x: "xy",
+  y: "xy",
+  angle: "angles",
+  rest: "rests",
+  truck: "flags",
+} as const satisfies Record<keyof ParkedSpot, string>
+
 /** A farm's flags: a field added to `FarmEntry` fails to compile until it has its place in the file. */
 const FARM_FLAGS = { rural: 1, pen: 2 } as const satisfies Record<
   Exclude<keyof FarmEntry, "building">,
@@ -259,7 +268,7 @@ const GLOBAL_LAYOUT = {
       return out
     },
   },
-  /** Each parked spot's (x, y) in decimetres (the build rounds them to 0.1 m), each from the previous x or y. */
+  /** Each parked spot's (x, y) in decimetres (the build rounds them to 0.1 m), each from the previous x or y; a spot's key not in `PARKED_FIELDS` throws. */
   parkedXy: {
     label: "parked xy",
     bytes: 4,
@@ -267,7 +276,12 @@ const GLOBAL_LAYOUT = {
     count: (line) => 2 * line.spawns.parked.spots,
     encode: (map, _, what) =>
       onGrid(
-        map.spawns.parked.flatMap((s) => [s.x, s.y]),
+        map.spawns.parked.flatMap((s, k) => {
+          const other = Object.keys(s).find((key) => !Object.hasOwn(PARKED_FIELDS, key))
+          if (other !== undefined)
+            throw new Error(`${what}: spot ${k}'s ${other} has no place in the file`)
+          return [s.x, s.y]
+        }),
         10,
         "decimetres",
         what,

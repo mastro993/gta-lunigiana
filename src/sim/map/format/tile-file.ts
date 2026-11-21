@@ -65,28 +65,35 @@ interface VectorsWith<P> {
 }
 
 /**
- * `vectors` with each xy array what `xy` makes of it, called in the order the coordinates section
- * holds them: layer by layer (`VECTOR_LAYERS`), feature by feature, a building's outer ring before
- * its holes. Every feature keeps its keys in their order (a building's `holes` are its last).
+ * `vectors` with each xy array what `xy` makes of it, called with its layer in the order the
+ * coordinates section holds them: layer by layer (`VECTOR_LAYERS`), feature by feature, a
+ * building's outer ring before its holes. Every feature keeps its keys in their order (a building's
+ * `holes` are its last).
  */
-const mapXy = <A, B>(vectors: VectorsWith<A>, xy: (a: A) => B): VectorsWith<B> => {
+const mapXy = <A, B>(
+  vectors: VectorsWith<A>,
+  xy: (a: A, layer: VectorLayer) => B,
+): VectorsWith<B> => {
   const { roads, buildings, water, areas, barriers } = vectors
   return {
-    roads: { ...roads, items: roads.items.map((f) => ({ ...f, pts: xy(f.pts) })) },
+    roads: { ...roads, items: roads.items.map((f) => ({ ...f, pts: xy(f.pts, "roads") })) },
     buildings: {
       ...buildings,
       items: buildings.items.map(({ holes, ...f }) => ({
         ...f,
-        outer: xy(f.outer),
-        ...(holes === undefined ? {} : { holes: holes.map((h) => xy(h)) }),
+        outer: xy(f.outer, "buildings"),
+        ...(holes === undefined ? {} : { holes: holes.map((h) => xy(h, "buildings")) }),
       })),
     },
-    water: { ...water, items: water.items.map((f) => ({ ...f, pts: xy(f.pts) })) },
+    water: { ...water, items: water.items.map((f) => ({ ...f, pts: xy(f.pts, "water") })) },
     areas: {
       ...areas,
-      items: areas.items.map((f) => ({ ...f, rings: f.rings.map((r) => xy(r)) })),
+      items: areas.items.map((f) => ({ ...f, rings: f.rings.map((r) => xy(r, "areas")) })),
     },
-    barriers: { ...barriers, items: barriers.items.map((f) => ({ ...f, pts: xy(f.pts) })) },
+    barriers: {
+      ...barriers,
+      items: barriers.items.map((f) => ({ ...f, pts: xy(f.pts, "barriers") })),
+    },
   }
 }
 
@@ -254,9 +261,12 @@ const wallLevels = (
   decode: (dm) => Float64Array.from(dm, (v) => (v === NO_LEVEL ? NaN : v / 10)),
 })
 
-/** A tile file's sections, in file order (docs/map.md, "A tile"): the vectors' coordinates first, so the vectors decode alone (`decodeTileVectors`). */
+/** The sections a tile file opens with, which `decodeTileVectors` reads alone: the vectors' coordinates. */
+const VECTORS_HEAD = { coordinates: COORDINATES }
+
+/** A tile file's sections, in file order (docs/map.md, "A tile"): `VECTORS_HEAD` first, so the vectors decode alone (`decodeTileVectors`). */
 const TILE_LAYOUT = {
-  coordinates: COORDINATES,
+  ...VECTORS_HEAD,
   /** 501 × 501 nodes, each row delta-coded from its first node, then from the node to the south. */
   heightmap: {
     label: "heightmap",
@@ -361,9 +371,6 @@ export const decodeTile = (file: Uint8Array): TileData => {
   }
 }
 
-/** The sections `decodeTileVectors` reads: the first. */
-const VECTORS_HEAD = { coordinates: COORDINATES }
-
 /** A tile's vectors alone from its gunzipped file, with which tile and build it is: its line and its coordinates read, its dense layers left unread. */
 export const decodeTileVectors = (
   file: Uint8Array,
@@ -395,4 +402,17 @@ export const relineTile = (
   out.set(head)
   out.set(dense, head.length)
   return out
+}
+
+const utf8 = new TextEncoder()
+
+/** Each layer of `vectors`' bytes in a tile file before gzip: its JSON on the line (UTF-8, a vertex count in place of each xy array) and its coordinates, 4 bytes each. */
+export const vectorSizes = (vectors: TileVectors): Record<VectorLayer, number> => {
+  const bytes = { roads: 0, buildings: 0, water: 0, areas: 0, barriers: 0 },
+    counted = mapXy(vectors, (xy, layer) => {
+      bytes[layer] += COORDINATES.bytes * xy.length
+      return xy.length / 2
+    })
+  for (const name of VECTOR_LAYERS) bytes[name] += utf8.encode(JSON.stringify(counted[name])).length
+  return bytes
 }

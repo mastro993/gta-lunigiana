@@ -126,10 +126,11 @@ const baked: Pick<MonzoneMap, "farms" | "lamps"> & {
 } = {
   parked: [
     {
-      // far apart across Lunigiana's box (x deltas past 2 bytes), the angle near −π
+      // far apart across Lunigiana's box (x deltas past 2 bytes), the angle near −π: its
+      // milliradians times 0.001 give another double than over 1000, as 842 of ±π's do
       x: -11500.3,
       y: 13000.1,
-      angle: -3.093,
+      angle: -3.139,
       rest: { panda: [301.20000000000005, -0, 1e-300], truck: [301.9, 0.1 + 0.2, -0.2617] },
       truck: true,
     },
@@ -224,12 +225,18 @@ test("encodeMap throws on a graph coordinate off the decimetre, a resident that 
   )
 })
 
-test("encodeMap throws on a parked spot off the decimetre or the milliradian, a rest out of the models' order, a double that is not finite and a lamp of no kind it knows", () => {
+test("encodeMap throws on a parked spot off the decimetre or the milliradian, a parked spot's field the file has no place for, a rest out of the models' order, a double that is not finite and a lamp of no kind it knows", () => {
   const spot = map.spawns.parked[0]!,
     parked = (s: Partial<MonzoneMap["spawns"]["parked"][number]>) => ({
       ...map,
       spawns: { ...map.spawns, parked: [spot, { ...spot, ...s }] },
     })
+  // the file would drop it, and the game read it as undefined
+  const painted = { x: 3, colour: "red" }
+  assert.throws(
+    () => encodeMap(parked(painted)),
+    /parked xy: spot 1's colour has no place in the file/,
+  )
   assert.throws(
     () => encodeMap(parked({ y: 4.05 })),
     /parked xy: 4.05 at 3 is not a whole number of decimetres/,
