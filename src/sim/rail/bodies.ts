@@ -172,10 +172,31 @@ export const offTrack = (x: number, y: number): boolean =>
     return at.bridge || at.tunnel
   })
 
+/** Whether the walk from `from` straight to `to` comes within `KEEP_OFF` m of `line`'s track where it lies at grade (1 m steps). */
+const meetsAtGrade = (
+  line: number,
+  from: { readonly x: number; readonly y: number },
+  to: { readonly x: number; readonly y: number },
+): boolean => {
+  const steps = Math.max(1, Math.ceil(Ops.hypot(to.x - from.x, to.y - from.y)))
+  for (let k = 0; k <= steps; k++) {
+    const x = from.x + ((to.x - from.x) * k) / steps,
+      y = from.y + ((to.y - from.y) * k) / steps
+    const near = linesNear(x, y, KEEP_OFF).find((p) => p.line === line)
+    if (near === undefined) continue
+    const at = pointAt(LINES[line]!, near.s)
+    if (!at.bridge && !at.tunnel) return true
+  }
+  return false
+}
+
 /**
  * `to`, or, where it lies across a line's track at grade from `from` or within `KEEP_OFF` m of it, the point `KEEP_OFF` m off the
- * centreline on `from`'s side, beside where `to` is: a body picking a place to walk to stays on its side of the railway (a line on a
- * bridge or in a tunnel there is no barrier). The nearest line within reach of the walk counts.
+ * centreline on `from`'s side, beside where `to` is: a body picking a place to walk to stays on its side of the railway. A line on
+ * a bridge or in a tunnel is no barrier where the walk meets it, as under a viaduct, but one at grade there is, whatever it does
+ * beside `to` (a place across the track beside a bridge's first metres is reached over the track short of it). Of the lines
+ * within reach of the walk, the one nearest `from` counts first: the walk meets it first, and a place kept off a farther one
+ * beyond it (two tracks side by side) would lie on its track.
  */
 export const ownSide = (
   from: { readonly x: number; readonly y: number },
@@ -184,12 +205,18 @@ export const ownSide = (
   const reach = Ops.hypot(to.x - from.x, to.y - from.y) / 2 + KEEP_OFF
   const mx = (from.x + to.x) / 2,
     my = (from.y + to.y) / 2
-  for (const near of linesNear(mx, my, reach)) {
+  // Every line within `reach` of the walk's middle lies within 2 × `reach` of `from`.
+  const fromNear = linesNear(from.x, from.y, 2 * reach),
+    distance = (line: number) => fromNear.find((p) => p.line === line)?.distance ?? Infinity
+  const lines = [...linesNear(mx, my, reach)].sort(
+    (a, b) => distance(a.line) - distance(b.line) || a.line - b.line,
+  )
+  for (const near of lines) {
     const line = LINES[near.line]!
     // The line beside the target: its nearest point to it, as far as the walk reaches.
     const there = linesNear(to.x, to.y, 2 * reach).find((p) => p.line === near.line)
     const at = pointAt(line, there?.s ?? near.s)
-    if (at.bridge || at.tunnel) continue
+    if (!meetsAtGrade(near.line, from, to)) continue
     const nx = -Ops.sin(at.angle),
       ny = Ops.cos(at.angle)
     const side = (p: { readonly x: number; readonly y: number }) =>

@@ -2604,12 +2604,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     trains on platforms apart and the same way, with no hit and nobody face to face in its first 15
     min, and two trains overlapping over a piece joint pushed apart just to touch; boarding and
     getting out (`boarding.test.ts`), SCMT, the end stops and trains meeting (`collisions.test.ts`);
-    the trains as bodies, fouling the track and the animals' side (`bodies.test.ts`), the look-out's
-    reach, its held states and its alarms at least 2 s apart, held again and again for someone
-    stepping on and off the track included (`lookout.test.ts`), the crossing rules for traffic, a
-    car already braking stopping at 6 m/s² in the warning and one too fast for the line holding
-    short of a full way in's junction included (`roads.test.ts`), and the senses with the train's
-    death curve (`senses.test.ts`).
+    the trains as bodies, fouling the track and the animals' side, kept 3 m off the nearer of two
+    lines side by side at Aulla and short of a bridge it crosses at grade (`bodies.test.ts`), the
+    look-out's reach, its held states and its alarms at least 2 s apart, held again and again for
+    someone stepping on and off the track included (`lookout.test.ts`), the crossing rules for
+    traffic, a car already braking stopping at 6 m/s² in the warning and one too fast for the line
+    holding short of a full way in's junction included (`roads.test.ts`), and the senses with the
+    train's death curve (`senses.test.ts`).
   - `src/sim/__tests__/handling.test.ts`: each handling knob's effect, the weather grip loss's
     included (a Panda brakes about 1.3 times further on a wet road and 3 times on packed snow, and
     turns its wheels less at speed; at 0 the weather changes nothing), each preset's behaviour, and

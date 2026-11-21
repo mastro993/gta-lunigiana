@@ -1206,8 +1206,17 @@ pigs pink 70 %, black 10 %, Cinta Senese (black with a white belt) 20 %.
   cover (meadow, grassland, farmland), pigs on open ground, cats and dogs anywhere outdoors. A
   point on the railway's track at grade or over it is brought back to the animal's side, 3 m off
   the centreline beside where it was drawn (`ownSide`, `rail/bodies.ts`, with the same draws), so
-  animals never wander onto the line; a line on a bridge or in a tunnel there is no barrier. Blocked
-  for 1 s on the way it picks another point; with 4 points that will not do, it rests again.
+  animals never wander onto the line. A line on a bridge or in a tunnel is no barrier where the walk
+  meets it (passing under a viaduct), but one at grade there is, whatever the line does beside the
+  point drawn: judged beside the point, 210 of 212 walks from 8 m off the track 12 m short of a
+  bridge to 4 m off it on the other side 2 m onto the bridge, two at each of the 106 places on the
+  map's lines where a bridge 10 m long or more begins after 20 m at grade (counted along each line),
+  crossed the track at grade short of the bridge. Where two lines run side by side the one nearer
+  the animal counts first, as its walk meets it first: taken in the order the lines' grid met them,
+  408 of 1,059 points 8 m beside a track at grade with another 2.5–6 m beyond it, drawn 20 m across
+  both, came back short of 3 m off the nearer track's centreline, as near as 0.01 m, at Aulla and in
+  Sarzana's part (`bodies.test.ts`). Blocked for 1 s on the way it picks another point; with 4
+  points that will not do, it rests again.
 - **Fear.** What scares each species (TUNED; a crash is `Startle`'s, below):
 
   | Species | A vehicle | A person | A horn | A train's whistle | A crash or a body struck | Cries out (`Cry`) |
