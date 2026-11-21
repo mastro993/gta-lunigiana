@@ -113,6 +113,80 @@ const nearest = (
   return { d, s }
 }
 
+/**
+ * Bounds on `l` where it crosses `other` at arc length `s`: every SPREAD m along it from `s` as far
+ * as it runs under or over `other`'s carriageway (within `other.w` / 2 of its centreline), and
+ * SPREAD m past that on either side, each `level` of the arc length of `other`'s point nearest it.
+ * A bound holds at the profile sample nearest its point, and the samples (at most 4 m apart)
+ * nearest the outermost bracket that stretch, so the profile between them keeps the bound across
+ * the carriageway too: bound where the centrelines cross alone, a track under the A15's bridge
+ * 136455101 kept 5.5 m there and 5.23 m under the deck's edge, 5 m along it.
+ */
+export const across = (
+  l: Linear,
+  s: number,
+  other: { readonly pts: ReadonlyArray<V>; readonly w: number },
+  level: (at: number) => number,
+  kind: "min" | "max",
+): Array<Bound> => {
+  const arc = arcLengths(l.pts),
+    arcOther = arcLengths(other.pts),
+    end = arc.at(-1)!
+  const at = (d: number) => pointAt(l.pts, arc, Math.min(end, Math.max(0, d)))
+  const abeam = (d: number) => {
+    const { x, y } = at(d)
+    return nearest(other.pts, arcOther, x, y)
+  }
+  /** How many SPREAD steps from `s` toward `dir` reach past the carriageway, and one more. */
+  const steps = (dir: 1 | -1) => {
+    let a = 0
+    while (s + dir * a >= 0 && s + dir * a <= end && abeam(s + dir * a).d <= other.w / 2) a += STEP
+    return Math.ceil(a / SPREAD) + 1
+  }
+  const out: Array<Bound> = []
+  for (let k = -steps(-1); k <= steps(1); k++) {
+    const { x, y } = at(s + k * SPREAD)
+    out.push({ x, y, z: level(abeam(s + k * SPREAD).s), kind, tilt: true, on: l })
+  }
+  return out
+}
+
+/** One crossing's clearances on a path or steps at grade (`clearanceAcross`): its bounds, and those of them under the other way. */
+export interface Clearance {
+  readonly bounds: ReadonlyArray<Bound>
+  /** The bounds within the reach of the other way's line, short of the brackets past it. */
+  readonly under: ReadonlyArray<Bound>
+}
+
+/**
+ * The clearance `l` (a path or steps at grade) keeps where it crosses `other` (a deck over it or a
+ * bore under it) at arc length `s`: `across` it as far as `half` m off its line, but only abeam of
+ * it, strictly between its ends. Past an end the nearest point of `other` is that end, whose level
+ * is the ground's where a deck meets it: the sidewalk 1473703399 by the SS62 at Sarzana, 5.8 m past
+ * the end of the sidewalk's bridge 1474250671 the build pins at the ground, took its 4 m under that
+ * ground and dug 4.4 m under the terrain beside the road's core.
+ */
+export const clearanceAcross = (
+  l: Linear,
+  s: number,
+  other: { readonly pts: ReadonlyArray<V> },
+  half: number,
+  level: (at: number) => number,
+  kind: "min" | "max",
+): Clearance => {
+  const arc = arcLengths(other.pts),
+    end = arc.at(-1)!,
+    bounds: Array<Bound> = [],
+    under: Array<Bound> = []
+  for (const b of across(l, s, { pts: other.pts, w: 2 * half }, level, kind)) {
+    const o = nearest(other.pts, arc, b.x, b.y)
+    if (o.s <= 0 || o.s >= end) continue
+    bounds.push(b)
+    if (o.d <= half) under.push(b)
+  }
+  return { bounds, under }
+}
+
 /** A chain, its members in order. */
 type Chain = ReadonlyArray<{ readonly item: Linear }>
 
@@ -231,44 +305,6 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
       .filter((c) => !shared(up, down, c.x, c.y))
       .map((c) => ({ up, down, c, clear }))
   })
-  /**
-   * Bounds on `l` where it crosses `other` at arc length `s`: every SPREAD m along it from `s` as far
-   * as it runs under or over `other`'s carriageway (within `other.w` / 2 of its centreline), and
-   * SPREAD m past that on either side, each `level` of the arc length of `other`'s point nearest it.
-   * A bound holds at the profile sample nearest its point, and the samples (at most 4 m apart)
-   * nearest the outermost bracket that stretch, so the profile between them keeps the bound across
-   * the carriageway too: bound where the centrelines cross alone, a track under the A15's bridge
-   * 136455101 kept 5.5 m there and 5.23 m under the deck's edge, 5 m along it.
-   */
-  const across = (
-    l: Linear,
-    s: number,
-    other: RoadF,
-    level: (at: number) => number,
-    kind: "min" | "max",
-  ): Array<Bound> => {
-    const arc = arcLengths(l.pts),
-      arcOther = arcLengths(other.pts),
-      end = arc.at(-1)!
-    const at = (d: number) => pointAt(l.pts, arc, Math.min(end, Math.max(0, d)))
-    const abeam = (d: number) => {
-      const { x, y } = at(d)
-      return nearest(other.pts, arcOther, x, y)
-    }
-    /** How many SPREAD steps from `s` toward `dir` reach past the carriageway, and one more. */
-    const steps = (dir: 1 | -1) => {
-      let a = 0
-      while (s + dir * a >= 0 && s + dir * a <= end && abeam(s + dir * a).d <= other.w / 2)
-        a += STEP
-      return Math.ceil(a / SPREAD) + 1
-    }
-    const out: Array<Bound> = []
-    for (let k = -steps(-1); k <= steps(1); k++) {
-      const { x, y } = at(s + k * SPREAD)
-      out.push({ x, y, z: level(abeam(s + k * SPREAD).s), kind, tilt: true, on: l })
-    }
-    return out
-  }
   /** Whether `a` is fitted after `b` for sure: in a later pass, or never (a path or steps at grade). */
   const later = (a: RoadF, b: RoadF) => passOf(a) > passOf(b)
   const twins = twinsOf(roads)
@@ -354,22 +390,23 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
   }
   /**
    * The clearances each path or steps at grade keeps where it crosses a fitted way on another level
-   * (path-approaches.ts): over a tunnel, its clearance over the bore (`min`), and under a bridge, a
-   * road's or a path's, its clearance under the deck (`max`), each across the other's carriageway,
-   * so a way running along under a deck keeps it all along: the steps 374756566, 45 m under the
-   * A15's 10.2 m deck by its north end at Santo Stefano di Magra, bound where the two centrelines
-   * cross alone, would have climbed back to 1.2 m under it within the levels check's 3.99 m.
+   * (path-approaches.ts), one a crossing: over a tunnel, its clearance over the bore (`min`), and
+   * under a bridge, a road's or a path's, its clearance under the deck (`max`), each across the
+   * other's carriageway and abeam of it (`clearanceAcross`), so a way running along under a deck
+   * keeps it all along: the steps 374756566, 45 m under the A15's 10.2 m deck by its north end at
+   * Santo Stefano di Magra, bound where the two centrelines cross alone, would have climbed back to
+   * 1.2 m under it within the levels check's 3.99 m.
    */
-  const clearances = (): Map<RoadF, Array<Bound>> => {
-    const out = new Map<RoadF, Array<Bound>>()
-    const add = (piece: RoadF, bounds: ReadonlyArray<Bound>) =>
-      out.set(piece, [...(out.get(piece) ?? []), ...bounds])
+  const clearances = (): Map<RoadF, Array<Clearance>> => {
+    const out = new Map<RoadF, Array<Clearance>>()
+    const add = (piece: RoadF, clearance: Clearance) =>
+      out.set(piece, [...(out.get(piece) ?? []), clearance])
     const atGrade = (r: RoadF) => !lifted(r) && !isDrivable(r.cls)
     for (const { up, down, c, clear } of over)
       if (atGrade(up) && down.tunnel === true && fitted(down))
         add(
           up,
-          across(up, c.sa, down, (at) => zAt(down, at) + clear, "min"),
+          clearanceAcross(up, c.sa, down, down.w / 2, (at) => zAt(down, at) + clear, "min"),
         )
       else if (atGrade(down) && up.bridge === true && fitted(up)) {
         // As far off the deck's line as its walk walls read a way under it (deck-walls.ts), so it
@@ -380,21 +417,23 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
         const walls = walkSide(up) + footReach(down.cls, down.w) + CORRIDOR
         add(
           down,
-          across(down, c.sb, { ...up, w: 2 * walls }, (at) => zAt(up, at) - clear, "max"),
+          clearanceAcross(down, c.sb, up, walls, (at) => zAt(up, at) - clear, "max"),
         )
       }
     return out
   }
   /**
-   * The level of a fitted road's bridge of `piece`'s OSM level that `v`, an end of `piece` (a path's
-   * or steps' bridge), stands on: abeam of its deck, their carriageways overlapping; undefined where
-   * none. A sidewalk drawn as its own bridge beside its road's ends on the road's deck.
+   * The level of a fitted road's bridge of `piece`'s OSM level (of any, with `anyLevel`) that `v`,
+   * an end of `piece` (a path's or steps' bridge), stands on: abeam of its deck, their carriageways
+   * overlapping; undefined where none. A sidewalk drawn as its own bridge beside its road's ends on
+   * the road's deck.
    */
-  const deckUnder = (v: V, piece: RoadF): number | undefined => {
+  const deckUnder = (v: V, piece: RoadF, anyLevel = false): number | undefined => {
     let level: number | undefined,
       least = Infinity
     roads.forEach((r, i) => {
-      if (r === piece || r.bridge !== true || !fitted(r) || levelOf(r) !== levelOf(piece)) return
+      if (r === piece || r.bridge !== true || !fitted(r)) return
+      if (!anyLevel && levelOf(r) !== levelOf(piece)) return
       const reach = (r.w + piece.w) / 2,
         [x0, y0, x1, y1] = box[i]!
       if (v.x < x0 - reach || v.x > x1 + reach || v.y < y0 - reach || v.y > y1 + reach) return

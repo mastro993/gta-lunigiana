@@ -167,7 +167,9 @@ const fitApproach = (
   }
   fit()
   // A clearance the fit breaks holds at its sample (the nearest its point) as a level set there, and
-  // the stretches are fitted again.
+  // the stretches are fitted again: the one it breaks most first, so that of two on one sample the
+  // tighter holds (the first found, Via Torrione San Francesco, 48560613, shipped the 24.06 m the
+  // footbridge 1392737826 asked where 1392737825 beside it asked 23.2 m).
   const at = clears.map((b) => {
     let best = 0
     for (let k = 1; k < n; k++)
@@ -179,9 +181,12 @@ const fitApproach = (
     return best
   })
   for (let round = 0; round < clears.length; round++) {
-    const broken = clears.findIndex(
-      (b, j) => !pins.has(at[j]!) && (b.kind === "min" ? p.z[at[j]!]! < b.z : p.z[at[j]!]! > b.z),
-    )
+    let broken = -1,
+      most = 0
+    clears.forEach((b, j) => {
+      const by = b.kind === "min" ? b.z - p.z[at[j]!]! : p.z[at[j]!]! - b.z
+      if (!pins.has(at[j]!) && by > most) [broken, most] = [j, by]
+    })
     if (broken < 0) break
     pins.set(at[broken]!, { z: clears[broken]!.z, off: clears[broken]!.z - terrain[at[broken]!]! })
     starts.push(at[broken]!)
@@ -190,8 +195,19 @@ const fitApproach = (
   // A clearance's sample ships the fit's level and its claim writes it there, never the grid other
   // claims raised: the ramps of Cesena's footbridge 683510421 held the grid under its deck at the
   // deck's level (their cores yield there now: `deckEndAt`), and the path 22776463, which the fit
-  // kept 4.5 m under the deck, ran 3.5 m under it.
-  for (const k of at) off[k] = 1
+  // kept 4.5 m under the deck, ran 3.5 m under it. But one under a deck alone that the fit left on
+  // the ground (`held`) ships the grid as finished, its claim writing its level there as well, ahead
+  // of the holds and the cores round a deck's ends: a road's core may hold the grid under it, and
+  // the deck's clearance holds the lower: shipped at its uncarved 11.0 m, the sidewalk 1473703387
+  // under the rail bridge 86258970 at Sarzana stood 2 m over the SS62's cut it runs in, at 9.0 m.
+  // Over a bore it keeps its level, which the bore's mouth's hold may have lowered the grid under:
+  // shipped on it, the footway 1462688623 over the service tunnel 376037643's mouth by Sarzana ran
+  // 0.01 m over it.
+  const over = new Set(at.filter((_, j) => clears[j]!.kind === "min")),
+    held = new Uint8Array(n)
+  for (const k of at)
+    if (off[k] === 1 || over.has(k)) off[k] = 1
+    else held[k] = 1
   // Its first MOUTH m out of each level it leads from hold the grid there, out of a bore's mouth
   // ahead of every other claim.
   const mouths: Array<Claim> = [],
@@ -210,7 +226,7 @@ const fitApproach = (
   const near = (k: number) => off[k] === 1 || off[k - 1] === 1 || off[k + 1] === 1
   const vertexAt = new Map(p.vertexSample.map((k, i) => [k, i]))
   const fixed = [...new Set([...p.vertexSample, ...at])].sort((a, b) => a - b)
-  const keep = keepSamples(p, fixed).filter((k) => vertexAt.has(k) || near(k))
+  const keep = keepSamples(p, fixed).filter((k) => vertexAt.has(k) || near(k) || held[k] === 1)
   const lead = new Set(starts)
   /** The vertex at sample `k` leads from a bridge's deck's end: past it, under the deck, its core yields to any other. */
   const deckEnd = (k: number) => {
@@ -224,14 +240,14 @@ const fitApproach = (
     },
     // The stretch first: its core keeps the nodes the round end of a hold's core reaches too.
     claims: [
-      ...(off.includes(1)
+      ...(off.includes(1) || held.includes(1)
         ? [
             claimOf(
               p,
               () => piece.w,
               PATH_PASS.rank,
               BLEND,
-              (k) => off[k] === 0 && off[k + 1] === 0,
+              (k) => (off[k]! | off[k + 1]! | held[k]! | held[k + 1]!) === 0,
               undefined,
               deckEnd,
             ),

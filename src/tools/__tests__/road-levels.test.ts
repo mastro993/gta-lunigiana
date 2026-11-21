@@ -140,9 +140,15 @@ test("roadLevels: a road's tunnel dips under a path at grade over it; a path's b
 test("roadLevels: a path or steps at grade keeps its clearance under a fitted bridge over it and over a fitted tunnel under it, across the other's carriageway", () => {
   // Under the motorway's 6 m deck at 110 m, 4 m (a person's 2.5 m and the deck) every 2 m along it
   // as far off the deck's line as its walk walls read a way under it, and a step of 2 m past that.
-  const kept = make([motorway]).clearances().get(path)!,
+  const [crossing] = make([motorway]).clearances().get(path)!,
+    kept = crossing!.bounds,
     walls = walkSide(motorway) + footReach(path.cls, path.w) + CORRIDOR
   assert.deepEqual(zs(kept), ["max 106.0"])
+  // Under it, those within that reach.
+  assert.deepEqual(
+    crossing!.under,
+    kept.filter((b) => Math.abs(b.y) <= walls),
+  )
   const ys = kept.map((b) => b.y)
   assert.deepEqual(
     ys,
@@ -151,11 +157,34 @@ test("roadLevels: a path or steps at grade keeps its clearance under a fitted br
   assert.ok(ys[0]! <= -walls && ys.at(-1)! >= walls, `${ys} past ${walls}`)
   assert.ok(ys[0]! >= -walls - 4 && ys.at(-1)! <= walls + 4, `${ys} within a step past ${walls}`)
   // Over the fitted underpass, the same clearance over it; unfitted, none.
-  assert.deepEqual(zs(make([underpass]).clearances().get(over)!), ["min 114.0"])
+  assert.deepEqual(zs(make([underpass]).clearances().get(over)![0]!.bounds), ["min 114.0"])
   assert.equal(make([]).clearances().has(over), false)
   assert.equal(make([]).clearances().has(path), false)
   // A road at grade keeps its own pass's bounds (`bounds`), never these.
   assert.equal(make([motorway]).clearances().has(under), false)
+})
+
+// Regression: past a deck's end the nearest point of it is that end, at the ground's level where the
+// deck meets it: the sidewalk 1473703399 by the SS62 at Sarzana, 5.8 m past the end of the sidewalk
+// bridge 1474250671, took its 4 m under that ground and dug 4.4 m under the terrain.
+test("roadLevels: a path or steps at grade keeps a clearance only abeam of the deck or the bore, never past its end", () => {
+  // A footbridge's deck from (0, 0) east to (30, 0), its west end on the ground, and a path at
+  // grade crossing under it 2 m in from that end, slanting north-east at 1 in 2.
+  const deck = road(40, "path", [v(0, 0), v(30, 0)], { bridge: true, w: 2 })
+  const slant = road(41, "path", [v(-18, -10), v(22, 10)], { w: 1.5 })
+  const [crossing] = roadLevels({
+    roads: [deck, slant],
+    ground: () => 100,
+    fitted: (l: Linear) => l === deck,
+    zAt: () => 100,
+  })
+    .clearances()
+    .get(slant)!
+  assert.ok(crossing!.bounds.length > 0, "abeam of it")
+  assert.ok(
+    crossing!.bounds.every((b) => b.x > 0),
+    `none west of its end: ${crossing!.bounds.map((b) => b.x.toFixed(1))}`,
+  )
 })
 
 test("roadLevels: a path's bridge ending on a road's deck of its OSM level takes the deck's level there", () => {
@@ -172,6 +201,9 @@ test("roadLevels: a path's bridge ending on a road's deck of its OSM level takes
   assert.equal(deckUnder(sidewalk.pts[0]!, sidewalk), 110)
   assert.equal(deckUnder(sidewalk.pts[1]!, sidewalk), undefined, "past the deck's end")
   assert.equal(deckUnder(sidewalk.pts[0]!, { ...sidewalk, layer: 2 }), undefined, "over it")
+  // Of any level, as a dead end reads it (path-pass.ts): the sidewalk 1474250671 at Sarzana, tagged
+  // a level under the SS62's bridge it is drawn along, ended on the ground.
+  assert.equal(deckUnder(sidewalk.pts[0]!, { ...sidewalk, layer: 2 }, true), 110)
 })
 
 // Regression: the SR445's loop at Gassano runs under its own bridge 13.6 m from where it leaves it;

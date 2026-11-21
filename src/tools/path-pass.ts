@@ -3,15 +3,16 @@
 // their water, and the paths and steps at grade leading from them fitted as their approaches
 // (path-approaches.ts), as are those crossing a deck or a bore on another level, from their
 // clearance there (`clearancesAtGrade`).
-import { isDrivable, reachOf } from "../sim/map/kinds.ts"
+import { DECK_BALLAST, DECK_SLAB, footReach, isDrivable, reachOf } from "../sim/map/kinds.ts"
 import { chainsOf, lifted, type Linear } from "./chains.ts"
+import { CORRIDOR } from "./deck-space.ts"
 import type { RoadF, WaterF } from "./features.ts"
 import { lineBox, segDist2, type V } from "./geometry.ts"
 import { coreHalf } from "./grid-claims.ts"
 import { pathApproaches, pathsAtGrade } from "./path-approaches.ts"
 import { type Bound, type makeProfiler, PATH_PASS } from "./profiles.ts"
 import type { railLevels } from "./rail-levels.ts"
-import type { roadLevels } from "./road-levels.ts"
+import { type Clearance, clearanceAcross, type roadLevels } from "./road-levels.ts"
 import { pierDeck } from "./shore.ts"
 import { GRID_CELL, type Profile } from "./terrain.ts"
 
@@ -63,33 +64,47 @@ export const waterTopOf = (
 }
 
 /**
+ * How far off a rail deck's line someone on foot under it is under its slab, m: its ballast and the
+ * slab's margin either side (`railSlab` in deck-ground.ts).
+ */
+const RAIL_SIDE = DECK_BALLAST.width / 2 + DECK_SLAB.margin
+
+/**
  * The clearances each path or steps at grade keeps where it crosses a fitted way on another level:
  * the roads' and the paths' (`clears`, road-levels.ts's `clearances`), and the rail's bridges'
- * over it (`railRoad`, rail-levels.ts). Under the decks, none where one would take it under the
- * water within its core's reach (`waterTop`, `coreHalf`), and it keeps the ground under them as
- * before: the bank path 159053025 along the Canale Lunense, under Via Fonda's bridge (647881621)
- * level with its bank, would have dipped to the canal's surface there, and shipped its natural
- * level, 0.5 m over the deck; the coast's bank path 326011444 along the Fossa Maestra, 3.99 m under
- * Via Bassagrande's bridge (463589363), at −1.53 m, beside the canal near the sea's level.
+ * over it (`railRoad`, rail-levels.ts), across the rail's slab as a road's deck's (`clearanceAcross`:
+ * bound where the lines cross alone, the sidewalk 1473703387 by the SS62 at Sarzana kept the rail
+ * bridge 86258970's 5.5 m there and 4.33 m within the levels check's reach). A crossing under a deck
+ * that would take it under the water within its core's reach (`waterTop`, `coreHalf`) keeps none,
+ * and it keeps the ground there as before: the bank path 159053025 along the Canale Lunense, under
+ * Via Fonda's bridge (647881621) level with its bank, would have dipped to the canal's surface
+ * there, and shipped its natural level, 0.5 m over the deck; the coast's bank path 326011444 along
+ * the Fossa Maestra, 3.99 m under Via Bassagrande's bridge (463589363), at −1.53 m, beside the
+ * canal near the sea's level. Only that crossing's: one deck's bound 0.6 m under the water dropped
+ * all six of the path 1134003774's.
  */
 export const clearancesAtGrade = (
-  clears: Map<RoadF, Array<Bound>>,
+  clears: ReadonlyMap<RoadF, ReadonlyArray<Clearance>>,
   railRoad: ReturnType<typeof railLevels>["railRoad"],
   zAt: (l: Linear, s: number) => number,
   waterTop: (x: number, y: number, beyond?: number) => number | undefined,
 ): Map<RoadF, Array<Bound>> => {
+  const all = new Map([...clears].map(([piece, list]) => [piece, [...list]]))
   for (const { rl, rd, c, clear } of railRoad)
-    if (rl.bridge === true && !lifted(rd) && !isDrivable(rd.cls))
-      clears.set(rd, [
-        ...(clears.get(rd) ?? []),
-        { x: c.x, y: c.y, z: zAt(rl, c.sa) - clear, kind: "max" },
+    if (rl.bridge === true && !lifted(rd) && !isDrivable(rd.cls)) {
+      const half = RAIL_SIDE + footReach(rd.cls, rd.w) + CORRIDOR
+      all.set(rd, [
+        ...(all.get(rd) ?? []),
+        clearanceAcross(rd, c.sb, rl, half, (at) => zAt(rl, at) - clear, "max"),
       ])
+    }
   const out = new Map<RoadF, Array<Bound>>()
-  for (const [piece, bounds] of clears) {
+  for (const [piece, list] of all) {
     // Within its core's reach of the water, which its claim writes at its level.
-    const core = coreHalf(piece.w, GRID_CELL),
-      wet = bounds.some((b) => b.kind === "max" && b.z < (waterTop(b.x, b.y, core) ?? -Infinity))
-    const kept = wet ? bounds.filter((b) => b.kind !== "max") : bounds
+    const core = coreHalf(piece.w, GRID_CELL)
+    const wet = ({ under }: Clearance) =>
+      under.some((b) => b.kind === "max" && b.z < (waterTop(b.x, b.y, core) ?? -Infinity))
+    const kept = list.filter((c) => !wet(c)).flatMap((c) => c.bounds)
     if (kept.length > 0) out.set(piece, kept)
   }
   return out
@@ -120,15 +135,25 @@ export const pathPass = ({
    * deck 11 m short of its end, over a track 8 m under it); else, where a path or steps at grade
    * leads on from it, none: the fit sets it and its approach climbs or dips from there to the ground
    * (pinned at the ground's level, the ramp 1408285960 out of Aulla Lunigiana station's underpass
-   * climbed 6.3 m in its 18.4 m, 34%, past its grade limit); else the uncarved ground's. Under the rail, no
-   * higher than the road's clearance under it, as in a profiled tunnel (the pedestrian underpass at
-   * Equi Terme station).
+   * climbed 6.3 m in its 18.4 m, 34%, past its grade limit); else, at a dead end, that of a road
+   * deck of any OSM level it stands on: the sidewalk 1474250671 (layer 1), drawn as its own bridge
+   * along the SS62's 26498548 (layer 2) at Sarzana, fell 5.5 m in its last 4.3 m to the ground at
+   * its dead end, 1.4 m from the sidewalk 1473703399 passing under it; else the uncarved ground's.
+   * Under the rail, no higher than the road's clearance under it, as in a profiled tunnel (the
+   * pedestrian underpass at Equi Terme station).
    */
+  const ends = new Map<string, number>()
+  for (const r of roads)
+    for (const v of new Set(r.pts.map((u) => u.id)))
+      if (v !== undefined) ends.set(v, (ends.get(v) ?? 0) + 1)
   const endLevel = (v: V, piece: RoadF) => {
     const at =
       nodeZ.get(v.id!) ??
       overpasses.deckUnder(v, piece) ??
-      (leads.has(v.id!) ? undefined : ground(v.x, v.y))
+      (leads.has(v.id!)
+        ? undefined
+        : ((ends.get(v.id!) === 1 ? overpasses.deckUnder(v, piece, true) : undefined) ??
+          ground(v.x, v.y)))
     return at === undefined
       ? undefined
       : Math.min(
