@@ -3,6 +3,7 @@
 import { Ops } from "@typeonce/ritmo-math"
 
 import { arcLengths, type V } from "./geometry.ts"
+import { headingOut } from "./rail-graph.ts"
 
 /** A piece of a line: its vertices, and whether it is a bridge or a tunnel. */
 export interface Linear {
@@ -22,14 +23,7 @@ export interface Link<T> {
 /** The unit heading out of node `id` along piece `t` (from its end there), over `span` m into it. */
 const leaving = (t: Linear, id: string, span: number): readonly [number, number] => {
   const p = t.pts[0]!.id === id ? t.pts : [...t.pts].reverse()
-  const a = p[0]!
-  let b = p[1]!
-  for (let k = 1; k < p.length; k++) {
-    b = p[k]!
-    if (Math.hypot(b.x - a.x, b.y - a.y) >= span) break
-  }
-  const d = Math.hypot(b.x - a.x, b.y - a.y) || 1
-  return [(b.x - a.x) / d, (b.y - a.y) / d]
+  return headingOut(p.length, (k) => [p[k]!.x, p[k]!.y], span)
 }
 
 /**

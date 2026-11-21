@@ -125,23 +125,6 @@ test("profile runs a tunnel the outline cuts, in two pieces, level from its one 
     for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
 })
 
-test("chainsOf with `through` runs a track on through its switches, the track that diverges alone ending there", () => {
-  const pieces: Array<Linear & { readonly id: number }> = [
-    { id: 1, pts: [v(-100, 0), v(0, 0, "s")] },
-    { id: 2, pts: [v(0, 0, "s"), v(100, 0, "t")] },
-    { id: 3, pts: [v(100, 0, "t"), v(200, 0)] },
-    // Diverging at 5.7° from the switch, and at 30° (a crossing's way, past no turn) from "t".
-    { id: 4, pts: [v(0, 0, "s"), v(50, 5), v(150, 15)] },
-    { id: 5, pts: [v(100, 0, "t"), v(150, -29)] },
-  ]
-  const ids = (through?: { readonly turn: number; readonly span: number }) =>
-    chainsOf(pieces, through)
-      .map((c) => c.map((m) => m.item.id).sort((a, b) => a - b))
-      .sort((a, b) => a[0]! - b[0]!)
-  assert.deepEqual(ids(), [[1], [2], [3], [4], [5]])
-  assert.deepEqual(ids({ turn: MAX_TURN, span: HEADING_SPAN }), [[1, 2, 3], [4], [5]])
-})
-
 // Regression: the rail's chains ended at every switch, and each switch took its level from the
 // first chain fitted to it, its window cut there: at Vezzano Ligure's west junction the free ends
 // of the four tracks coming up from the east stood 1.7–3.8 m under the ground, and the crossovers

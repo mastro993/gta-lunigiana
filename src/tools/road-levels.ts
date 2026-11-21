@@ -116,7 +116,7 @@ type Chain = ReadonlyArray<{ readonly item: Linear }>
 
 /**
  * The deck or bore of `chain` round member `i`, first and last: the consecutive bridge (or tunnel)
- * members round it, which a fit lays straight from end to end (`deckOf` in profiles.ts).
+ * members round it, which a fit lays straight from end to end (`deckOf` in lifted-runs.ts).
  */
 const deckOf = (chain: Chain, i: number): readonly [number, number] => {
   const tunnel = chain[i]!.item.tunnel === true
