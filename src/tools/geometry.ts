@@ -267,6 +267,36 @@ export const crossings = (a: ReadonlyArray<V>, b: ReadonlyArray<V>): Array<Cross
   return out
 }
 
+/**
+ * The ends of polyline `a` (its first and last vertex) lying within `reach` of polyline `b`, square
+ * to it between its ends (not past its first or last vertex), with the arc length along each, as
+ * `crossings` gives a meeting.
+ */
+export const endsUnder = (
+  a: ReadonlyArray<V>,
+  b: ReadonlyArray<V>,
+  reach: number,
+): Array<Crossing> => {
+  if (a.length < 2) return []
+  const out: Array<Crossing> = []
+  const lb = arcLengths(b)
+  for (const [p, sa] of [
+    [a[0]!, 0],
+    [a.at(-1)!, arcLengths(a).at(-1)!],
+  ] as const) {
+    let best = reach * reach,
+      sb: number | undefined
+    for (let j = 0; j + 1 < b.length; j++) {
+      const t = segT(p.x, p.y, b[j]!.x, b[j]!.y, b[j + 1]!.x, b[j + 1]!.y),
+        d2 = segD2(p.x, p.y, b[j]!.x, b[j]!.y, b[j + 1]!.x, b[j + 1]!.y, t)
+      if ((t <= 0 && j === 0) || (t >= 1 && j + 2 === b.length) || d2 > best) continue
+      ;[best, sb] = [d2, lb[j]! + t * (lb[j + 1]! - lb[j]!)]
+    }
+    if (sb !== undefined) out.push({ x: p.x, y: p.y, sa, sb })
+  }
+  return out
+}
+
 /** Point and unit tangent at arc length `at` along a polyline with precomputed arc lengths. */
 export const pointAt = (
   pts: ReadonlyArray<V>,

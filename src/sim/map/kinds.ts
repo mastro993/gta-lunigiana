@@ -352,6 +352,14 @@ export const isWaterArea = (kind: string): kind is "river" | "lake" | "sea" =>
   kind === "river" || kind === "lake" || kind === "sea"
 
 /**
+ * A river polygon's water is its waterways' where they run in it, each part of a reach or a 2 m
+ * sample segment inside it this long at least, m: a stream ending on its outline (OSM's riverbank
+ * node) runs in none of it, though rounding left 0.1 m of it inside, which held the Magra's polygon
+ * on the plain by (−15600, −5800) at a dead end's 3.2 m for 150 m round it, 1.9 m over the river.
+ */
+export const IN_POLYGON = 1
+
+/**
  * Track on no line, drawn and driven by no train: a loop rejoins other track at both ends
  * (Gragnola's track 1), a siding leads to a dead end (yard tracks, stubs).
  */

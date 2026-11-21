@@ -83,6 +83,44 @@ test("rivers: two river polygons of one river meeting across it send a body to t
   }
 })
 
+// Regression: a ditch on the terrace beside the Magra's polygon on the plain
+// (1070845492), whose course outside the polygon came nearest, held its water 7.3 m over the Magra.
+test("rivers: a river polygon holds its waterways' water where they run in it, not a ditch's beside it outside", () => {
+  // A ditch on a terrace along the polygon's north side (y 150), turning into it at x 140.
+  const ditch = piece(3, [40, 150, 140, 150, 140, 120], [103, 102.9, 97.4], [102.5, 102.4, 96.9])
+  const ditched = waterIndex(
+    [RIVER, ditch],
+    [{ kind: "river", rings: [[50, 60, 150, 60, 150, 140, 50, 140]], waters: [0, 1] }],
+  )
+  // 14 m from the ditch's course outside, 36 m from the river.
+  assert.equal(
+    ditched.at(60, 136, 96.5, Q)!.level,
+    index.at(60, 136, 96.5, Q)!.level,
+    "the river's level",
+  )
+  // On the ditch's own course inside the polygon, the ditch's water, 1.2 m over the river's floor.
+  const own = ditched.at(140, 130, 96.5, Q)!
+  assert.ok(own.level > index.at(140, 130, 96.5, Q)!.level + 1, `the ditch's level ${own.level}`)
+  assert.ok(own.vx === 0 && own.vy < 0, "running down its own course")
+  // Ending on the polygon's outline, 0.05 m in as rounding leaves it (`IN_POLYGON`), it runs in none
+  // of it: 10 m from its end, the river's level.
+  const ending = piece(
+    4,
+    [40, 150, 140, 150, 140, 139.95],
+    [103, 102.9, 102.3],
+    [102.5, 102.4, 101.8],
+  )
+  const ends = waterIndex(
+    [RIVER, ending],
+    [{ kind: "river", rings: [[50, 60, 150, 60, 150, 140, 50, 140]], waters: [0, 1] }],
+  )
+  assert.equal(
+    ends.at(130, 138, 96.5, Q)!.level,
+    index.at(130, 138, 96.5, Q)!.level,
+    "the river's level by a ditch ending on the outline",
+  )
+})
+
 test("rivers: a lake stands still at its level, the bank toward its nearest shore, over a stream through it", () => {
   const lake = index.at(335, 100, 93, Q)!
   assert.deepEqual(lake, { depth: 2, level: 95, vx: 0, vy: 0, bankX: 1, bankY: 0 })
@@ -104,12 +142,12 @@ test("rivers: a water area's surface whatever the flow, as the render draws it",
 
 // The sea as the map build cuts it: a piece per tile, each a tile's square cut to the map's bounds.
 // Here a coast runs east along y = COAST across two tiles (x 0 … 4000), the sea south of it down to
-// Lunigiana's south bound (y −8500 since Sarzana's part, −6100 before), the tile line CUT the first
-// north of it (y −8000; −6000 before): pieces A and C over the tiles x 0 … 2000 and 2000 … 4000
-// north of CUT, B a strip of the tile south of it, all sea, cut to the bound. A has an islet, a hole
-// in it. Every edge but the coast's and the islet's is a cut.
+// Lunigiana's south bound (y −8500 since Sarzana's part), north of which the tile line y = CUT
+// (−8000) runs: pieces A and C over the tiles x 0 … 2000 and 2000 … 4000 north of it, B a strip of
+// the tile south of it, all sea, cut to the bound. A has an islet, a hole in it. Every edge but the
+// coast's and the islet's is a cut.
 const SOUTH = MAP.bounds.minY
-const CUT = Math.ceil(SOUTH / TILE) * TILE
+const CUT = TILE * Math.ceil(SOUTH / TILE)
 const COAST = CUT + 1600
 const ISLET = [990, CUT + 210, 1010, CUT + 210, 1010, CUT + 190, 990, CUT + 190]
 const sea = (rings: ReadonlyArray<ReadonlyArray<number>>): Area => ({
@@ -122,11 +160,11 @@ const SEA_B = sea([[0, SOUTH, TILE, SOUTH, TILE, CUT, 0, CUT]])
 const SEA_C = sea([[TILE, CUT, 2 * TILE, CUT, 2 * TILE, COAST, TILE, COAST]])
 
 test("rivers: the sea's way to the bank is toward its coast, never toward where the build cut it at a tile's side or the map's bounds", () => {
-  assert.ok(SOUTH % TILE !== 0, "a bound off the tile lines")
+  assert.ok(SOUTH > CUT - TILE && SOUTH % TILE !== 0, "a bound off the tile lines")
   const index = waterIndex([], [SEA_A, SEA_B, SEA_C])
   for (const [x, y, bankX, bankY, why] of [
-    [TILE - 5, CUT + 1000, 0, 1, "5 m from the tile line x 2000, 600 m from the coast"],
-    [TILE + 5, CUT + 1000, 0, 1, "across the tile line, in the next tile's piece"],
+    [TILE - 5, COAST - 600, 0, 1, "5 m from the tile line x 2000, 600 m from the coast"],
+    [TILE + 5, COAST - 600, 0, 1, "across the tile line, in the next tile's piece"],
     [1000, SOUTH + 5, 0, 1, "5 m from the bound, in a piece with no coast of its own"],
     [970, CUT + 200, 1, 0, "beside the islet: its shore is a shore"],
   ] as const) {

@@ -2,8 +2,9 @@
 // carving under both, node by node. A node belongs to a water area when one of its four cells does
 // (the cell's centre in the polygon, the cells the land cover paints), so the water drawn over the
 // area's cells always lies on carved ground.
+import { insideSpans } from "../sim/collide.ts"
 import type { Area } from "../sim/map/index.ts"
-import { isWaterArea } from "../sim/map/kinds.ts"
+import { IN_POLYGON, isWaterArea } from "../sim/map/kinds.ts"
 import type { Dem } from "./dtm.ts"
 import type { WaterF } from "./features.ts"
 import { fillPolygon, pointInRing, r1, ringBox, segDist2 } from "./geometry.ts"
@@ -39,10 +40,37 @@ export interface CarvedArea {
   readonly level?: number
   /** A river polygon's waterways, indices in the water. */
   readonly waters?: ReadonlyArray<number>
+  /**
+   * Per waterway (as `waters`), the parts of its profile's 2 m segments inside the polygon
+   * (`insideSpans`): the segment from sample k, from share t0 to t1 along it. The water there is
+   * read on those alone (`nearestOn`).
+   */
+  readonly within?: ReadonlyArray<ReadonlyArray<readonly [number, number, number]>>
   /** The gravel bars inside a river polygon: the `pebble` areas whose box meets its own. */
   readonly bars: ReadonlyArray<ReadonlyArray<ReadonlyArray<number>>>
   /** The sea's floor at a node, m a.s.l. (`seaFloor`): the sea is carved to it node by node. */
   readonly floor?: (x: number, y: number) => number
+}
+
+/**
+ * Whether `rings` hold a cell of the grid's lattice (its centre inside, filled from the anchor as the
+ * land cover is): a water area holding none holds no water the game draws or carves.
+ */
+export const holdsCell = (rings: ReadonlyArray<ReadonlyArray<number>>): boolean => {
+  const g = gridLattice(),
+    [x0, y0, x1, y1] = ringBox(rings[0]!)
+  const c0 = Math.floor((x0 - g.ax) / g.cell) - 1,
+    r0 = Math.floor((y0 - g.ay) / g.cell) - 1
+  let held = false
+  fillPolygon(
+    rings,
+    g.ax,
+    g.ay,
+    g.cell,
+    { c0, r0, cols: Math.ceil((x1 - x0) / g.cell) + 3, rows: Math.ceil((y1 - y0) / g.cell) + 3 },
+    () => (held = true),
+  )
+  return held
 }
 
 /** Whether (x, y) is inside `rings`, even-odd over them all (a hole's inside is outside). */
@@ -176,9 +204,11 @@ const median = (values: Array<number>) => {
  * up a slope, a cascade or a quarry face would otherwise hold its water over the ground beside it.
  * A lake no node of whose cells lies inside its edge holds no water of its own, and the streams
  * through it carry theirs: its spill is read on the ground as their channels (`water`, on the
- * profiles `wp`) cut it, so it never stands over them. Two pools on the Torrente Arcinasso by the
- * Fosso di Paretola's mouth (OSM 1473224065 and 1473224067) kept the LiDAR's 258.0 and 265.2 m once
- * Aulla's part carved the stream through them, over every node of theirs.
+ * profiles `wp`) cut it, carved twice as the tile pass carves them, so it never stands over them.
+ * Two pools on the Torrente Arcinasso by the Fosso di Paretola's mouth (OSM 1473224065 and
+ * 1473224067) kept the LiDAR's 258.0 and 265.2 m once Aulla's part carved the stream through them,
+ * over every node of theirs; carved once, the Cascata del Corso's pool (−14157, 1256) stood at
+ * 244.5 m over its edge's 243.9, on the bank of the stream falling past it.
  */
 const levelOf = (
   rings: ReadonlyArray<ReadonlyArray<number>>,
@@ -204,7 +234,10 @@ const levelOf = (
     if (edge) edges.push(k)
     else held = true
   })
-  if (!held) carveAll(win, water, wp)
+  // As the tile pass carves them: before the claims and again after them (build-grid.ts), each time
+  // lowering a bank's node toward the gravel of every segment in reach (`carve`). Both times on the
+  // water as first settled and with no road core kept: the decks' caps and the claims come later.
+  if (!held) for (let pass = 0; pass < 2; pass++) carveAll(win, water, wp)
   const spill = Math.min(...edges.map((k) => win.z[k]!))
   if (inside.length === 0) {
     const outer = rings[0]!
@@ -243,7 +276,16 @@ export const waterAreas = (
         : []
     if (waters.length > 0) {
       const bars = pebbles.filter((b) => meet(b.box, box)).map((b) => b.rings)
-      carved.push({ rings: a.rings, box, waters, bars })
+      const spans = insideSpans(a.rings, IN_POLYGON)
+      const within = waters.map((i) => {
+        const p = wp[i]!,
+          out: Array<readonly [number, number, number]> = []
+        for (let k = 0; k + 1 < p.x.length; k++)
+          for (const [t0, t1] of spans(p.x[k]!, p.y[k]!, p.x[k + 1]!, p.y[k + 1]!))
+            out.push([k, t0, t1])
+        return out
+      })
+      carved.push({ rings: a.rings, box, waters, within, bars })
       return { ...a, waters }
     }
     const level = a.level ?? levelOf(a.rings, dem, water, wp)
@@ -263,7 +305,13 @@ export const waterAreas = (
 /** The nearest point on a river polygon's waterways: its surface there (m) and that water's depth. */
 type Nearest = (x: number, y: number) => { readonly surface: number; readonly depth: number }
 
-/** Nearest-point lookups on the profiles `wp` of each carved river polygon's waterways. */
+/**
+ * Nearest-point lookups on the profiles `wp` of each carved river polygon's waterways, on their
+ * segments inside it (`within`; all of them where none is): a waterway's course outside the polygon
+ * holds none of its water. Read on the whole course, a ditch along the Magra's polygon on the plain
+ * (1070845492) held it at 8.6 m over ground at 6.0 at (−15744, −4608), 7.3 m over the Magra's 1.3,
+ * from its stretch 259 m off on the terrace beside it.
+ */
 const nearestOn = (
   areas: ReadonlyArray<CarvedArea>,
   water: ReadonlyArray<WaterF>,
@@ -272,24 +320,36 @@ const nearestOn = (
   const out = new Map<CarvedArea, Nearest>()
   for (const area of areas) {
     if (area.waters === undefined) continue
-    // Each sample segment of the area's waterways, bucketed; a lookup searches rings of buckets
-    // out from its own until the next ring lies farther than the best found.
-    const segs: Array<readonly [number, number]> = [],
+    // Each part of a sample segment of the area's waterways inside it (all of them where none is):
+    // its water, its sample and its ends' shares along it, bucketed; a lookup searches rings of
+    // buckets out from its own until the next ring lies farther than the best found.
+    const segs: Array<readonly [number, number, number, number]> = [],
       buckets = new Map<number, Array<number>>()
     const key = (i: number, j: number) => (i + 32768) * 65536 + (j + 32768)
-    for (const w of area.waters) {
+    /** Sample segment k of `p` from share `t0` to `t1`: its ends. */
+    const ends = (p: Profile, k: number, t0: number, t1: number) => {
+      const dx = p.x[k + 1]! - p.x[k]!,
+        dy = p.y[k + 1]! - p.y[k]!
+      return [p.x[k]! + dx * t0, p.y[k]! + dy * t0, p.x[k]! + dx * t1, p.y[k]! + dy * t1] as const
+    }
+    const any = area.within?.some((parts) => parts.length > 0) ?? false
+    for (const [n0, w] of area.waters.entries()) {
       const p = wp[w]!
-      for (let k = 0; k + 1 < p.x.length; k++) {
-        const n = segs.length
-        segs.push([w, k])
+      const parts = any
+        ? area.within![n0]!
+        : Array.from({ length: Math.max(0, p.x.length - 1) }, (_, k) => [k, 0, 1] as const)
+      for (const [k, t0, t1] of parts) {
+        const n = segs.length,
+          [ax, ay, bx, by] = ends(p, k, t0, t1)
+        segs.push([w, k, t0, t1])
         for (
-          let i = Math.floor(Math.min(p.x[k]!, p.x[k + 1]!) / BUCKET);
-          i <= Math.floor(Math.max(p.x[k]!, p.x[k + 1]!) / BUCKET);
+          let i = Math.floor(Math.min(ax, bx) / BUCKET);
+          i <= Math.floor(Math.max(ax, bx) / BUCKET);
           i++
         )
           for (
-            let j = Math.floor(Math.min(p.y[k]!, p.y[k + 1]!) / BUCKET);
-            j <= Math.floor(Math.max(p.y[k]!, p.y[k + 1]!) / BUCKET);
+            let j = Math.floor(Math.min(ay, by) / BUCKET);
+            j <= Math.floor(Math.max(ay, by) / BUCKET);
             j++
           ) {
             const list = buckets.get(key(i, j))
@@ -310,12 +370,13 @@ const nearestOn = (
           const side = i === bi - ring || i === bi + ring
           for (let j = bj - ring; j <= bj + ring; j += side || ring === 0 ? 1 : 2 * ring)
             for (const n of buckets.get(key(i, j)) ?? []) {
-              const [w, k] = segs[n]!,
-                p = wp[w]!
-              const { d2, t } = segDist2(x, y, p.x[k]!, p.y[k]!, p.x[k + 1]!, p.y[k + 1]!)
+              const [w, k, t0, t1] = segs[n]!,
+                [ax, ay, bx, by] = ends(wp[w]!, k, t0, t1)
+              const { d2, t } = segDist2(x, y, ax, ay, bx, by)
               // The nearest, the first in the waters' order and along them on a tie: one answer
               // whatever order the buckets are searched in.
-              if (d2 < best || (d2 === best && n < hit)) [best, hit, at] = [d2, n, t]
+              if (d2 < best || (d2 === best && n < hit))
+                [best, hit, at] = [d2, n, t0 + (t1 - t0) * t]
             }
         }
         // What the rings past this one hold lies at least `ring` buckets away.

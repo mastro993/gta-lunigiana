@@ -472,14 +472,14 @@ walk, sorts it first:
   (still water first), else the nearest reach of a river or stream within its bed in 32 m buckets,
   all from the tile holding the point (`placeAt`), each reach with its two vertices' bed, depth and
   speed per unit discharge (`channelOf` in `src/sim/water/channel.ts`, from each water's baked bed,
-  `Water.floor`),
-  built from the whole pieces and areas the tile holds the first time a query reaches it; in a river
-  polygon, the nearest reach of its own waterways (the cut puts them in every tile the polygon lies
-  in). Of equally near reaches it keeps the first in (water piece, vertex) order, as one grid over
-  the whole map did. `waterUnder` and `walkDry` read them the same way, and `waterIndex` builds these
-  lookups over any water and areas: a test's, or the whole map's as the map checks' oracle.
-  `initialRivers` keeps the rivers it has worked out for a start and seed (a pure function of
-  them), and `petAt` the evapotranspiration's heat index per latitude.
+  `Water.floor`), built from the whole pieces and areas the tile holds the first time a query
+  reaches it; in a river polygon, the nearest reach of its own waterways where they run in it, each
+  cut at its edge (the cut puts them in every tile the polygon lies in). Of equally near reaches it
+  keeps the first in (water piece, vertex) order, as one grid over the whole map did. `waterUnder`
+  and `walkDry` read them the same way, and `waterIndex` builds these lookups over any water and
+  areas: a test's, or the whole map's as the map checks' oracle. `initialRivers` keeps the rivers it
+  has worked out for a start and seed (a pure function of them), and `petAt` the
+  evapotranspiration's heat index per latitude.
 - `groundZ` (`src/sim/map/ground.ts`) is where every wheel, foot, sound source and drawn actor
   stands, in m a.s.l. Its rules are the ground model's (`src/sim/map/ground-model.ts`), which reads
   no map: `ground.ts` binds it once at load to the game's ground data (a cell's nodes in whole

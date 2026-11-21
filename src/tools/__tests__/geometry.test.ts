@@ -7,6 +7,7 @@ import {
   type P,
   boxesMeet,
   clipRing,
+  endsUnder,
   fromLocal,
   gaussBoagaBox,
   hash01,
@@ -189,4 +190,42 @@ test("nearBoxes is true for every box that meets one of its boxes, and false far
   }
   assert.ok(meeting > 1000, `${meeting} boxes met one`)
   for (let k = 0; k < 100; k++) assert.equal(near(...box(k, 5000)), false, `box ${k} far off`)
+})
+
+// Regression: the build dropped the culvert OSM maps under Via Pratolino's bridge (878660856), and
+// the ditch 864556128 started under its deck without crossing it, so the deck never capped it.
+test("endsUnder finds the ends of a line lying within reach of another, square to it between its ends", () => {
+  const deck = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 20, y: 0 },
+  ]
+  // A ditch starting 2.7 m off the deck's middle and running away from it; its end 40 m off.
+  const ditch = [
+    { x: 12, y: 2.7 },
+    { x: 12, y: 42.7 },
+  ]
+  assert.deepEqual(endsUnder(ditch, deck, 3), [{ x: 12, y: 2.7, sa: 0, sb: 12 }])
+  assert.deepEqual(endsUnder(ditch, deck, 2.5), [], "out of reach")
+  // Ending past the deck's end, beyond its abutment: not under it.
+  const beyond = [
+    { x: 21, y: 30 },
+    { x: 21, y: 1 },
+  ]
+  assert.deepEqual(endsUnder(beyond, deck, 3), [])
+  // Both ends under it.
+  assert.deepEqual(
+    endsUnder(
+      [
+        { x: 2, y: -1 },
+        { x: 6, y: 2 },
+      ],
+      deck,
+      3,
+    ),
+    [
+      { x: 2, y: -1, sa: 0, sb: 2 },
+      { x: 6, y: 2, sa: 5, sb: 6 },
+    ],
+  )
 })

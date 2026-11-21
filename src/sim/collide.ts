@@ -316,3 +316,74 @@ export const pointInRing = (x: number, y: number, ring: ReadonlyArray<number>): 
   }
   return inside
 }
+
+/** Where along the segment a→b (a share, strictly inside it) it crosses the segment c→d; undefined where it does not. */
+const crossAt = (
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
+): number | undefined => {
+  const rx = bx - ax,
+    ry = by - ay,
+    sx = dx - cx,
+    sy = dy - cy,
+    den = rx * sy - ry * sx
+  if (den === 0) return undefined
+  const qx = cx - ax,
+    qy = cy - ay,
+    t = (qx * sy - qy * sx) / den,
+    u = (qx * ry - qy * rx) / den
+  return t > 0 && t < 1 && u >= 0 && u <= 1 ? t : undefined
+}
+
+/**
+ * The parts of a segment a→b inside flat `rings` (even-odd over them all), as shares along it from
+ * a, in order: the segment cut where it crosses their edges (found in a 32 m grid of them), each
+ * part kept whose middle lies inside and that is `shortest` m long at least.
+ */
+export const insideSpans = (rings: ReadonlyArray<ReadonlyArray<number>>, shortest = 0) => {
+  const edges: Array<number> = []
+  for (const ring of rings)
+    for (let k = 0, n = ring.length; k < n; k += 2)
+      edges.push(ring[k]!, ring[k + 1]!, ring[(k + 2) % n]!, ring[(k + 3) % n]!)
+  const near = staticGrid(
+    edges.length / 4,
+    (i) => [
+      Math.min(edges[4 * i]!, edges[4 * i + 2]!),
+      Math.min(edges[4 * i + 1]!, edges[4 * i + 3]!),
+      Math.max(edges[4 * i]!, edges[4 * i + 2]!),
+      Math.max(edges[4 * i + 1]!, edges[4 * i + 3]!),
+    ],
+    32,
+  )
+  const inside = (x: number, y: number) =>
+    rings.reduce((odd, ring) => odd !== pointInRing(x, y, ring), false)
+  return (ax: number, ay: number, bx: number, by: number): Array<readonly [number, number]> => {
+    const cuts = [0, 1]
+    near(Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by), (i) => {
+      const e = 4 * i,
+        t = crossAt(ax, ay, bx, by, edges[e]!, edges[e + 1]!, edges[e + 2]!, edges[e + 3]!)
+      if (t !== undefined) cuts.push(t)
+    })
+    cuts.sort((p, q) => p - q)
+    const out: Array<readonly [number, number]> = [],
+      length2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay)
+    for (let n = 0; n + 1 < cuts.length; n++) {
+      const t0 = cuts[n]!,
+        t1 = cuts[n + 1]!,
+        t = (t0 + t1) / 2
+      if (
+        t1 > t0 &&
+        (t1 - t0) * (t1 - t0) * length2 >= shortest * shortest &&
+        inside(ax + (bx - ax) * t, ay + (by - ay) * t)
+      )
+        out.push([t0, t1])
+    }
+    return out
+  }
+}

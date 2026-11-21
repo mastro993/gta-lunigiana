@@ -5,7 +5,7 @@
  * build carves its bank; across that the surface is level, downstream it runs from the depth and
  * speed of `channelOf` between its two vertices. A river polygon (`Area.waters`) widens its
  * waterways' beds to its outline: anywhere in it the water is that of the nearest reach of its own
- * waterways. A lake and the sea (`Area.level`) stand still at their level; no river stands under
+ * waterways where they run in it. A lake and the sea (`Area.level`) stand still at their level; no river stands under
  * the sea's (`SEA_LEVEL`), which holds it up at its mouth. The current runs down the reach, slower
  * where the water is shallower (Manning's speed with depth, `DEPTH_SPEED`); it is zero where the
  * water meets the bank, and in a lake or the sea. The water comes from the tile holding the point
@@ -17,11 +17,12 @@
 import { Ops } from "@typeonce/ritmo-math"
 
 import { walkBy } from "../body.ts"
-import { pointInRing, segDist2 } from "../collide.ts"
+import { insideSpans, pointInRing, segDist2 } from "../collide.ts"
 import { addToBuckets, bucketItems, emptyBuckets } from "../map/buckets.ts"
 import type { Layer } from "../map/format/tile-file.ts"
 import { atGrade, deckNear, groundZ } from "../map/ground.ts"
 import { type Area, isWaterArea, MAP, TILE, type Water } from "../map/index.ts"
+import { IN_POLYGON } from "../map/kinds.ts"
 import { derived, eachTile, type Place, placeAt } from "../map/tiles.ts"
 import { channelOf, reachOf, SEA_LEVEL, SPEED, STAGE } from "./channel.ts"
 
@@ -66,7 +67,7 @@ interface Pool {
   readonly level?: number
   /** Still water's banks, the edges it heads for the nearest of, flat (ax, ay, ex, ey) each (`poolsOf`); none for a river polygon. */
   readonly banks: ReadonlyArray<number>
-  /** A river polygon's reaches, by piece then vertex, when it has no `level`. */
+  /** A river polygon's reaches inside it (`insideOf`), by piece then vertex, when it has no `level`. */
   readonly reaches: ReadonlyArray<Reach>
   /** Its surface at (x, y) whatever the flow: its level, or its nearest waterway's bed, stage and flow there. */
   readonly surface: (x: number, y: number) => PoolSurface
@@ -155,6 +156,41 @@ const reachesOf = (w: Layer<Water>): Array<Reach> => {
     }
   })
   return out
+}
+
+/**
+ * The parts of `reaches` inside `rings`, each cut where it crosses their edges (`insideSpans`), its
+ * bed, stage and speed read at its new ends, in their order; all of `reaches` where none lies
+ * inside. A river polygon's water is its waterways' where they run in it, as the map build carves
+ * it (`nearestOn` in src/tools/water-areas.ts): a ditch on the terrace beside the Magra's polygon on the
+ * plain (1070845492), its nearest waterway 259 m off, held it 7.3 m over the Magra at (−15744, −4608).
+ */
+const insideOf = (
+  reaches: ReadonlyArray<Reach>,
+  rings: ReadonlyArray<ReadonlyArray<number>>,
+): Array<Reach> => {
+  const spans = insideSpans(rings, IN_POLYGON),
+    at = (a: number, b: number, t: number) => a + (b - a) * t
+  const out = reaches.flatMap((r) =>
+    spans(r.ax, r.ay, r.bx, r.by).map(([t0, t1]): Reach =>
+      t0 === 0 && t1 === 1
+        ? r
+        : {
+            ...r,
+            ax: at(r.ax, r.bx, t0),
+            ay: at(r.ay, r.by, t0),
+            bx: at(r.ax, r.bx, t1),
+            by: at(r.ay, r.by, t1),
+            bedA: at(r.bedA, r.bedB, t0),
+            bedB: at(r.bedA, r.bedB, t1),
+            stageA: at(r.stageA, r.stageB, t0),
+            stageB: at(r.stageA, r.stageB, t1),
+            speedA: at(r.speedA, r.speedB, t0),
+            speedB: at(r.speedA, r.speedB, t1),
+          },
+    ),
+  )
+  return out.length > 0 ? out : [...reaches]
 }
 
 /** A ring's ends within this of a line lie on it, m: half the rings' 0.1 m rounding. */
@@ -250,7 +286,13 @@ const poolsOf = (a: Layer<Area>, reaches: ReadonlyArray<Reach>): Array<Pool> => 
       }
       const ways = new Set(area.waters ?? []),
         { level } = area
-      const ownReaches = level === undefined ? reaches.filter((r) => ways.has(r.piece)) : []
+      const ownReaches =
+        level === undefined
+          ? insideOf(
+              reaches.filter((r) => ways.has(r.piece)),
+              area.rings,
+            )
+          : []
       return [
         {
           id: a.ids[k]!,
