@@ -142,8 +142,9 @@ const FLAT = 0.05
  * tunnel (an approach, or the way on from it) runs on, a vertex of it inside it or a segment of it
  * within 1 m of a corner, whose corners beyond REACH of those ways stand on flat ground (two or more,
  * within 0.5 m of each other, the ground round each within FLAT), but whose floor stands more than
- * SUNK under them: a house on Aulla's hillside by the footway tunnel 699457438, its two far corners
- * on one contour, stands 3.1 m under them.
+ * SUNK under them, and under the ground past REACH of the ways out from its lowest corner: a house
+ * on Aulla's hillside by the footway tunnel 699457438, its two far corners on one contour, stands
+ * 3.1 m under them.
  */
 const sunk = (map: JoinedMap): Array<string> => {
   let reached = new Set<string>()
@@ -199,8 +200,29 @@ const sunk = (map: JoinedMap): Array<string> => {
         groundAt(map, x, y + 4) - groundAt(map, x, y - 4),
       ) / 8
     if (far.some(([x, y]) => slope(x!, y!) > FLAT)) continue
-    if (b.z0 < Math.min(...ground) - SUNK)
-      out.push(`${b.kind} ${b.id} at ${b.z0} m on ground at ${Math.min(...ground).toFixed(1)} m`)
+    if (b.z0 >= Math.min(...ground) - SUNK) continue
+    // Nor where the ground falls on past the ways' reach out from its lowest corner: a house on a
+    // hilltop's edge steps down its natural slope, which no approach carved. The Fortezza di
+    // Sarzanello's footprint (−1475604735736255) reaches 1.6 m down the hill's south face from its
+    // flat top, to a corner the footway 139720096 passes 2.3 m off; 20 m on out from it, past the
+    // footway's reach, the hill stands at 275.1 m.
+    const cx = corners.reduce((sum, [x]) => sum + x!, 0) / corners.length,
+      cy = corners.reduce((sum, [, y]) => sum + y!, 0) / corners.length,
+      [lx, ly] = corners.reduce((low, c) =>
+        groundAt(map, c[0]!, c[1]!) < groundAt(map, low[0]!, low[1]!) ? c : low,
+      ),
+      d = Ops.hypot(lx! - cx, ly! - cy)
+    let past: number | undefined
+    for (let s = 0; s <= (d > 0 ? 4 * REACH : -1); s += 1) {
+      const x = lx! + ((lx! - cx) / d) * s,
+        y = ly! + ((ly! - cy) / d) * s
+      if (!within(x, y, REACH)) {
+        past = groundAt(map, x, y)
+        break
+      }
+    }
+    if (past !== undefined && past <= b.z0) continue
+    out.push(`${b.kind} ${b.id} at ${b.z0} m on ground at ${Math.min(...ground).toFixed(1)} m`)
   }
   return out
 }
