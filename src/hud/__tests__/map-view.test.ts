@@ -108,15 +108,17 @@ test("panning moves the map with the drag, never past its edges, and not at all 
     moved = fitMap(screen, panView(screen, zoomed, 30, -20))
   near(moved.ox - fit.ox, 30, "dragged east")
   near(moved.oy - fit.oy, -20, "dragged north")
-  // Zoomed in, the map fills the room however far it is dragged: its frame is the room.
+  // Zoomed in, the map fills the room however far it is dragged: its frame is the room, to the
+  // rounding of the bounds' metres (dragged east, Sarzana's west edge, x −23100, frames it 1e-13 px in).
   for (const [dx, dy] of [
     [1e6, 0],
     [-1e6, 0],
     [0, 1e6],
     [0, -1e6],
   ] as const) {
-    const far = fitMap(screen, panView(screen, zoomed, dx, dy))
-    assert.deepEqual(far.frame, room, `dragged ${dx},${dy}`)
+    const { frame } = fitMap(screen, panView(screen, zoomed, dx, dy))
+    for (const side of ["x0", "y0", "x1", "y1"] as const)
+      near(frame[side], room[side], `dragged ${dx},${dy}: ${side}`)
   }
   // The edge dragged to stays there: west edge at the room's west.
   near(fitMap(screen, panView(screen, zoomed, 1e6, 0)).ox, 24, "west edge")

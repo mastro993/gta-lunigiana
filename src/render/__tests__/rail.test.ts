@@ -5,7 +5,7 @@ import { MAP } from "../../sim/map/index.ts"
 import { setTileSource, tileFromDisk } from "../../sim/map/source.ts"
 import { dropTile, tileVectors } from "../../sim/map/tiles.ts"
 import { chunkTiles } from "../chunk-tiles.ts"
-import { CHUNKS, chunkRect } from "../chunks.ts"
+import { chunkOf, CHUNKS, chunkRect } from "../chunks.ts"
 import { Pieces } from "../pieces.ts"
 import { vectorsAround } from "../testing.ts"
 import { assertChunkCut, wholeBuild } from "./chunk-cut.ts"
@@ -27,11 +27,15 @@ const STATION = { x: -493.8, y: 436.9 }
  * and the tunnel mouths either side; rail.map-test.ts checks the whole map's.
  */
 const HERE = railwayNear(STATION, 4000)
+/** A chunk's side, m: the station's chunk's. */
+const CHUNK = (({ minX, maxX }) => maxX - minX)(chunkRect(chunkOf(STATION.x, STATION.y)))
 
 // rail.map-test.ts checks every chunk of the map.
 test("buildings, roads and rivers, rail, stations and lamps: a chunk by Monzone station built from the pieces of the tiles under it keeps exactly its cut of the whole build, whichever order the tiles come in", () => {
-  // Across the x = 0 and y = 0 seams by the station, and the whole build of everything the tiles round it hold.
-  const box = { minX: -1000, minY: -100, maxX: 0, maxY: 900 },
+  // Across the x = 0 and y = 0 seams by the station, and the whole build of everything the tiles round it hold. The chunks count
+  // from the box's corner, so where their squares fall moves as parts join: the box reaches a chunk's side past each seam, and so
+  // holds the chunks across them wherever they fall.
+  const box = { minX: -1000, minY: -CHUNK, maxX: CHUNK, maxY: 900 },
     plan = chunkTiles()
   const chunks = Array.from({ length: CHUNKS.x * CHUNKS.y }, (_, key) => key).filter((key) => {
     const r = chunkRect(key)
@@ -39,7 +43,7 @@ test("buildings, roads and rivers, rail, stations and lamps: a chunk by Monzone 
   })
   const whole = wholeBuild(vectorsAround([{ x: -500, y: 400 }], 600)),
     tiles = [...new Set(chunks.flatMap((key) => plan.terrain[key]!))]
-  assert.ok(tiles.length >= 2, `${tiles.length} tiles`)
+  assert.equal(tiles.length, 4, "the four tiles round (0, 0)")
   // Each time from no tile in memory: a lookup reads what it needs from disk.
   for (const order of [tiles, tiles.toReversed()]) {
     for (const { i, j } of MAP.tiles) dropTile(`${i}_${j}`)
@@ -48,7 +52,7 @@ test("buildings, roads and rivers, rail, stations and lamps: a chunk by Monzone 
     for (const t of order) pieces.provide(t, tileVectors(plan.keys[t]!))
     const drawn = assertChunkCut(whole, pieces, chunks)
     // A share, not a count: the chunks count from the map's west edge, so which of them fit in the box moves as parts join
-    // (49 with lucido's edge, 42 since Fivizzano's, 38 of them drawing some).
+    // (since Sarzana's, 49 on the 4 tiles round (0, 0), 13 of them across a seam and 43 drawing some).
     assert.ok(drawn >= 0.8 * chunks.length, `${drawn} of ${chunks.length} chunks draw some`)
   }
 })

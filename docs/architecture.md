@@ -1063,9 +1063,12 @@ The static world (`src/render/world.ts`) is cut into 128 m chunks (`src/render/c
 the chunks around the camera exist as meshes. Their squares count from the built terrain's
 south-west corner less the 192 m apron (`ORIGIN` there), so a part that grows the box west or south
 moves every square against the ground: Fosdinovo's moved the box's west edge 6,200 m, 48 chunks and
-56 m, so every square lies 56 m west of where it lay. A test that wants a chunk of some kind finds
-it by its cells, not by where its square falls (`terrain.test.ts`), and the cover's colours count
-from the region's anchor instead (below). A built chunk has a terrain mesh, a solid mesh
+56 m, so every square lies 56 m west of where it lay; Sarzana's moved its west edge 1,000 m (7
+chunks and 104 m) and its south edge 2,400 m (18 chunks and 96 m), which left the Bozzetti pond in
+one chunk and no chunk across the y 0 seam within a kilometre west of Monzone station. A test that
+wants a chunk of some kind finds it by its cells, not by where its square falls (`terrain.test.ts`;
+`water.test.ts` takes the smallest lake across two chunks, `rail.test.ts` a box a chunk's side past
+each seam), and the cover's colours count from the region's anchor instead (below). A built chunk has a terrain mesh, a solid mesh
 (buildings, roofs, bridges, the railway's ballast bed, platforms, canopies and name boards, the
 level crossings' housings and cabinets, tunnel portals, the lamps' iron, poles and lantern bodies),
 a buried mesh (the road tunnels' walls: the solid's material, casting no shadow, as the terrain over

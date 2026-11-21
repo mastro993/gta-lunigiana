@@ -5,7 +5,7 @@ import { Ops } from "@typeonce/ritmo-math"
 
 import { MEAN } from "../../sim/__tests__/flows.ts"
 import { terrainNodeZ } from "../../sim/map/ground.ts"
-import { MAP } from "../../sim/map/index.ts"
+import { type Area, MAP } from "../../sim/map/index.ts"
 import { heldBySea, SEA_LEVEL, STAGE } from "../../sim/water/channel.ts"
 import { emptySink, type Flowing, type Triangles } from "../geometry.ts"
 import { yOf, zOf } from "../ground.ts"
@@ -33,10 +33,9 @@ const NEAR = vectorsAround([{ x: 2220, y: 880 }, ON_AULELLA], 300)
 const POOL_AREAS = poolAreas(NEAR)
 const { wetCell, wetCellsOf } = wetCells(POOL_AREAS)
 
-/** The Bozzetti pond, a lake across two chunks: its cells, chunks, and the box round it whose tiles it reads. */
-const POND = (() => {
-  const area = NEAR.areas.items.find((a) => a.kind === "lake" && a.name === "Bozzetti")
-  assert.ok(area?.level !== undefined, "the Bozzetti pond, a lake with its level")
+/** A lake with its level: its cells, chunks, and the box round it whose tiles it reads. */
+const lakeOf = (area: Area) => {
+  assert.ok(area.level !== undefined, "a lake with its level")
   const cells = cellsOf(area),
     [x0, y0, x1, y1] = boxOf(area)
   return {
@@ -47,6 +46,28 @@ const POND = (() => {
     centre: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 },
     reach: Math.max(x1 - x0, y1 - y0) / 2 + 2 * hm.cell,
   }
+}
+
+/** The Bozzetti pond by the Solco di Equi, 31 by 14 m. */
+const POND = (() => {
+  const area = NEAR.areas.items.find((a) => a.kind === "lake" && a.name === "Bozzetti")
+  assert.ok(area !== undefined, "the Bozzetti pond")
+  return lakeOf(area)
+})()
+
+/**
+ * A lake across chunks, found by its cells: the smallest of those round the pond and the Aulella
+ * whose cells lie in two chunks or more. The chunks count from the box's corner, so a part that
+ * grows the box moves their squares over the lakes: Sarzana's put the pond in one chunk, and its
+ * neighbour 150 m east, 78 by 38 m, across two.
+ */
+const ACROSS = (() => {
+  const lakes = POOL_AREAS.filter((a) => a.level !== undefined)
+    .map(lakeOf)
+    .filter((lake) => lake.chunks.length >= 2)
+    .sort((a, b) => a.cells.length - b.cells.length)
+  assert.ok(lakes.length > 0, "a lake across chunks")
+  return lakes[0]!
 })()
 
 /** The Aulella's river polygon, found by geometry: the river polygon whose box holds `ON_AULELLA`. */
@@ -75,7 +96,7 @@ const ribbonQuads = (tris: Triangles): Array<ReadonlyArray<readonly [number, num
 
 test("poolWater: the Bozzetti pond is one quad over each cell whose centre it holds, flat at its level, with how deep it stands over each node", () => {
   residentAround([POND.centre], POND.reach)
-  assert.ok(POND.cells.length > 4 && POND.chunks.length === 2, "a pond across two chunks")
+  assert.ok(POND.cells.length > 4, `${POND.cells.length} cells`)
   const quads = POND.chunks.flatMap((key) => {
     const own = drawn(key)
     assert.deepEqual(
@@ -105,10 +126,10 @@ test("poolWater: the Bozzetti pond is one quad over each cell whose centre it ho
   )
 })
 
-test("poolWater: neighbouring chunks draw the same water at the nodes they share, the pond's and the Aulella's", () => {
-  residentAround([POND.centre], POND.reach)
+test("poolWater: neighbouring chunks draw the same water at the nodes they share, a lake's and the Aulella's", () => {
+  residentAround([ACROSS.centre], ACROSS.reach)
   for (const { name, chunks } of [
-    { name: "the pond", chunks: POND.chunks },
+    { name: "the lake", chunks: ACROSS.chunks },
     { name: "the Aulella", chunks: AULELLA.chunks },
   ]) {
     assert.ok(chunks.length >= 2, `${name} across chunks`)

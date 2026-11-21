@@ -104,29 +104,31 @@ test("rivers: a water area's surface whatever the flow, as the render draws it",
 
 // The sea as the map build cuts it: a piece per tile, each a tile's square cut to the map's bounds.
 // Here a coast runs east along y = COAST across two tiles (x 0 … 4000), the sea south of it down to
-// Lunigiana's south bound (y −6100), which the tile line y = −6000 crosses: pieces A and C over the
-// tiles x 0 … 2000 and 2000 … 4000 north of y −6000, B a strip of the tile south of it, all sea,
-// cut to the bound. A has an islet, a hole in it. Every edge but the coast's and the islet's is a cut.
-const COAST = -4400
+// Lunigiana's south bound (y −8500 since Sarzana's part, −6100 before), the tile line CUT the first
+// north of it (y −8000; −6000 before): pieces A and C over the tiles x 0 … 2000 and 2000 … 4000
+// north of CUT, B a strip of the tile south of it, all sea, cut to the bound. A has an islet, a hole
+// in it. Every edge but the coast's and the islet's is a cut.
 const SOUTH = MAP.bounds.minY
-const ISLET = [990, -5790, 1010, -5790, 1010, -5810, 990, -5810]
+const CUT = Math.ceil(SOUTH / TILE) * TILE
+const COAST = CUT + 1600
+const ISLET = [990, CUT + 210, 1010, CUT + 210, 1010, CUT + 190, 990, CUT + 190]
 const sea = (rings: ReadonlyArray<ReadonlyArray<number>>): Area => ({
   kind: "sea",
   level: 0,
   rings,
 })
-const SEA_A = sea([[0, -3 * TILE, TILE, -3 * TILE, TILE, COAST, 0, COAST], ISLET])
-const SEA_B = sea([[0, SOUTH, TILE, SOUTH, TILE, -3 * TILE, 0, -3 * TILE]])
-const SEA_C = sea([[TILE, -3 * TILE, 2 * TILE, -3 * TILE, 2 * TILE, COAST, TILE, COAST]])
+const SEA_A = sea([[0, CUT, TILE, CUT, TILE, COAST, 0, COAST], ISLET])
+const SEA_B = sea([[0, SOUTH, TILE, SOUTH, TILE, CUT, 0, CUT]])
+const SEA_C = sea([[TILE, CUT, 2 * TILE, CUT, 2 * TILE, COAST, TILE, COAST]])
 
 test("rivers: the sea's way to the bank is toward its coast, never toward where the build cut it at a tile's side or the map's bounds", () => {
-  assert.ok(SOUTH > -3 * TILE - TILE && SOUTH % TILE !== 0, "a bound off the tile lines")
+  assert.ok(SOUTH % TILE !== 0, "a bound off the tile lines")
   const index = waterIndex([], [SEA_A, SEA_B, SEA_C])
   for (const [x, y, bankX, bankY, why] of [
-    [TILE - 5, -5000, 0, 1, "5 m from the tile line x 2000, 600 m from the coast"],
-    [TILE + 5, -5000, 0, 1, "across the tile line, in the next tile's piece"],
+    [TILE - 5, CUT + 1000, 0, 1, "5 m from the tile line x 2000, 600 m from the coast"],
+    [TILE + 5, CUT + 1000, 0, 1, "across the tile line, in the next tile's piece"],
     [1000, SOUTH + 5, 0, 1, "5 m from the bound, in a piece with no coast of its own"],
-    [970, -5800, 1, 0, "beside the islet: its shore is a shore"],
+    [970, CUT + 200, 1, 0, "beside the islet: its shore is a shore"],
   ] as const) {
     const here = index.at(x, y, -8, Q)
     assert.ok(here?.level === 0, `the sea at (${x}, ${y}), at 0 m`)
@@ -145,7 +147,7 @@ test("rivers: a sea piece's edge closing a river across its mouth is no coast: a
   // SEA_C's coast with a river's mouth 100 m wide in it, the river polygon over the mouth sharing
   // the closure, its waterway running down into the sea.
   const mouth = sea([
-    [TILE, -3 * TILE, 2 * TILE, -3 * TILE, 2 * TILE, COAST, 3050, COAST, 2950, COAST, TILE, COAST],
+    [TILE, CUT, 2 * TILE, CUT, 2 * TILE, COAST, 3050, COAST, 2950, COAST, TILE, COAST],
   ])
   const river: Area = {
     kind: "river",

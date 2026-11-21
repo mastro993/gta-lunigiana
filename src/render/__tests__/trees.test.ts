@@ -14,18 +14,22 @@ import { assertChunkTrees } from "./chunk-trees.ts"
 
 /**
  * Where two listed tiles meet on the map's west edge, the bounds' (the apron mirrors trees across
- * it): the seam over the southmost listed tile there, found by geometry, as the box grows with parts.
+ * it): the seam nearest Monzone's row (y 0), found by geometry, as the box grows with parts. Not
+ * the southmost: since Sarzana's part the box's south-west corner lies in the Gulf of La Spezia,
+ * whose two tiles on the edge hold no tree.
  */
 const WEST_SEAM = (() => {
   const { minX } = MAP.bounds,
     i = Math.floor(minX / TILE),
-    j = Math.min(...MAP.tiles.flatMap((t) => (t.i === i ? [t.j] : [])))
-  assert.ok(
-    MAP.tiles.some((t) => t.i === i && t.j === j + 1),
-    "two listed tiles on the west edge",
-  )
-  return { x: minX, y: (j + 1) * TILE }
+    listed = (j: number) => MAP.tiles.some((t) => t.i === i && t.j === j),
+    seams = MAP.tiles.flatMap((t) => (t.i === i && listed(t.j - 1) ? [t.j] : []))
+  assert.ok(seams.length > 0, "two listed tiles on the west edge")
+  const j = seams.reduce((a, b) => (Math.abs(b) < Math.abs(a) ? b : a))
+  return { x: minX, y: j * TILE }
 })()
+
+/** How far the apron mirrors trees in from the bounds, m. */
+const REACH = APRON * MAP.heightmap.cell
 
 // trees.map-test.ts (pnpm test:map) checks every tile and every chunk; this, the tiles round Monzone and on the west edge.
 test("trees: each chunk's from the tiles it reads are the whole map's bucket for it, by Monzone and in the west edge's apron", () => {
@@ -34,17 +38,14 @@ test("trees: each chunk's from the tiles it reads are the whole map's bucket for
       // The four tiles meeting at (0, 0), by Monzone.
       ...tilesOver(-1, -1, 1, 1),
       // Those meeting at the west edge's seam, whose apron chunks hold the trees mirrored across
-      // it, out to the apron's reach in from the edge: x −22100 lies 100 m into its tile, so the
-      // chunks it mirrors trees into read the next column's two tiles too.
-      ...tilesOver(
-        WEST_SEAM.x,
-        WEST_SEAM.y - 1,
-        WEST_SEAM.x + APRON * MAP.heightmap.cell,
-        WEST_SEAM.y + 1,
-      ),
+      // it, out to the apron's reach in from the edge: the next column's two tiles too where the
+      // edge lies within that reach of its tile's east side (x −22100 did, 100 m into its tile;
+      // x −23100, 900 m into it, does not).
+      ...tilesOver(WEST_SEAM.x, WEST_SEAM.y - 1, WEST_SEAM.x + REACH, WEST_SEAM.y + 1),
     ]),
   ]
-  assert.equal(keys.length, 8, keys.join(" "))
+  const columns = Math.floor((WEST_SEAM.x + REACH) / TILE) - Math.floor(WEST_SEAM.x / TILE) + 1
+  assert.equal(keys.length, 4 + 2 * columns, keys.join(" "))
   const { checked, mirrored } = assertChunkTrees(keys)
   assert.ok(checked > 500, `${checked} chunks hold trees`)
   assert.ok(mirrored > 30, `${mirrored} apron chunks hold mirrored trees`)
