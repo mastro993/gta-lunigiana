@@ -347,14 +347,15 @@ test("bounds and heightmap cover the play area", () => {
   assert.equal(data.length, hm.cols * hm.rows)
   assert.ok(hm.x0 <= MAP.bounds.minX && hm.x0 + (hm.cols - 1) * hm.cell >= MAP.bounds.maxX)
   assert.ok(hm.y0 <= MAP.bounds.minY && hm.y0 + (hm.rows - 1) * hm.cell >= MAP.bounds.maxY)
-  // The listed tiles' nodes, from the Magra plain by Sarzana, west of Fosdinovo's edge (12.9 m at
-  // (−11968, −6040)), to the Emilian ridge by Cima Belfiore (1856 m); the notches', which no tile
-  // holds, are 0 in the joined map.
+  // The listed tiles' nodes, from the floor of the Gulf of La Spezia in Sarzana's box, past its play
+  // area (−11.0 m at (−22856, −8500), issue #20), to the Emilian ridge by Cima Belfiore (1856 m),
+  // none as low as the junk Emilia-Romagna's DTM gives outside its region (−71.8 m); the notch's,
+  // which no tile holds, are 0 in the joined map.
   const listed = listedNodes(hm, MAP.tiles)
   for (let k = 0; k < data.length; k++) {
     const v = data[k]!
     assert.ok(
-      listed[k] === 1 ? Number.isInteger(v) && v > 100 && v < 19000 : v === 0,
+      listed[k] === 1 ? Number.isInteger(v) && v > -150 && v < 19000 : v === 0,
       `node ${k}: ${v}`,
     )
   }

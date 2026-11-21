@@ -71,6 +71,7 @@ for (const [key, pairs] of [
       "dtm10-rer",
       "lidar-lig",
       "lidar-rer",
+      "lig-sea",
     ],
   ],
   ["bagnone-ridge", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar", "dtm10-rer"]],

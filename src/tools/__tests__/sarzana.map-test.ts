@@ -151,15 +151,20 @@ test("Sarzana's cathedral is a church, its station a station, and every id in th
   )
 })
 
-test("the land use's kept classes in the town are the Magra plain's basins and quarries", () => {
+test("the land use's kept classes in the town: the Magra plain's basins and quarries, the hills' woods, olive groves and vineyards", () => {
   const areas = readUcs([join(ROOT, ligDir(PART), "uds.json.gz")], TOWN)
-  assert.deepEqual(areas.map((a) => a.kind).sort(), [
-    ...Array.from({ length: 8 }, () => "lake"),
-    "quarry",
-    "quarry",
-  ])
-  // All on the plain south of the old town.
-  assert.ok(areas.every((a) => centroid(a.rings[0]!)[1] < -6800))
+  const count = (kind: string) => areas.filter((a) => a.kind === kind).length
+  // Fetched with the woods' (#14) and the groves' and vineyards' (#15) classes kept, which the
+  // test region's file of 2026-11-03 predated (it held the lakes and quarries alone).
+  assert.deepEqual(
+    ["lake", "quarry", "forest", "mixed", "olive", "vineyard"].map(count),
+    [8, 2, 29, 3, 16, 9],
+  )
+  assert.equal(areas.length, 67)
+  // The basins and quarries on the plain south of the old town.
+  for (const a of areas)
+    if (a.kind === "lake" || a.kind === "quarry")
+      assert.ok(centroid(a.rings[0]!)[1] < -6800, `${a.kind} at ${centroid(a.rings[0]!)}`)
 })
 
 test("away from the LiDAR the terrain is Liguria's DTM itself: its bend onto the LiDAR fades", async () => {
