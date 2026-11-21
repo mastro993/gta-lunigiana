@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { terrainZ } from "../../sim/map/ground.ts"
 import { MAP } from "../../sim/map/index.ts"
 import { type Corner, drape, DRAPE_POKE, drawn, layOver } from "../drape.ts"
 import { Triangles } from "../geometry.ts"
@@ -39,33 +40,63 @@ const inside = (a: Corner, b: Corner, c: Corner): Array<readonly [number, number
 }
 
 /** A road's surface at grade from its profile `z` and a 0.1 m lift, render y (`surfaceY`). */
-const surface = (x: number, y: number, z: number) => yOf(Math.max(z, terrainY(x, y) + 200) + 0.1)
+const surface = (x: number, y: number, z: number) => yOf(Math.max(z, terrainZ(x, y)) + 0.1)
+
+/**
+ * The nodes of the terrain mesh within 40 m of (x, y), row by row from the south-west, each with how
+ * far it stands over the mean of its four neighbours (a peak of the mesh where that is large).
+ */
+const nodesNear = (x: number, y: number): Array<readonly [x: number, y: number, rise: number]> => {
+  const { x0, y0, cell } = MAP.heightmap,
+    i0 = Math.round((x - x0) / cell),
+    j0 = Math.round((y - y0) / cell),
+    out: Array<readonly [number, number, number]> = []
+  for (let j = j0 - 10; j <= j0 + 10; j++)
+    for (let i = i0 - 10; i <= i0 + 10; i++)
+      out.push([
+        x0 + i * cell,
+        y0 + j * cell,
+        terrainNodeY(i, j) -
+          (terrainNodeY(i - 1, j) +
+            terrainNodeY(i + 1, j) +
+            terrainNodeY(i, j - 1) +
+            terrainNodeY(i, j + 1)) /
+            4,
+      ])
+  return out
+}
 
 /** The node of the terrain mesh within 40 m of (x, y) standing highest over the mean of its four neighbours: a peak of the mesh. */
 const peakNear = (x: number, y: number): readonly [number, number] => {
-  const { x0, y0, cell } = MAP.heightmap,
-    i0 = Math.round((x - x0) / cell),
-    j0 = Math.round((y - y0) / cell)
-  let best = -Infinity,
-    at: readonly [number, number] = [0, 0]
-  for (let i = i0 - 10; i <= i0 + 10; i++)
-    for (let j = j0 - 10; j <= j0 + 10; j++) {
-      const rise =
-        terrainNodeY(i, j) -
-        (terrainNodeY(i - 1, j) +
-          terrainNodeY(i + 1, j) +
-          terrainNodeY(i, j - 1) +
-          terrainNodeY(i, j + 1)) /
-          4
-      if (rise > best) [best, at] = [rise, [x0 + i * cell, y0 + j * cell]]
-    }
-  return at
+  const [px, py] = nodesNear(x, y).reduce((best, node) => (node[2] > best[2] ? node : best))
+  return [px, py]
+}
+
+/** The most two triangles drawn across side pq (map x, y), `inner` on its left, `outer` on its right, differ by along it: a crack. */
+const stepAlong = (
+  inner: ReadonlyArray<Tri>,
+  outer: ReadonlyArray<Tri>,
+  p: Corner,
+  q: Corner,
+): number => {
+  const ex = q[0] - p[0],
+    ey = q[1] - p[1],
+    // A hair off the side, to its left.
+    nx = -ey * 1e-6,
+    ny = ex * 1e-6
+  let step = 0
+  for (let t = 0.005; t < 1; t += 0.01) {
+    const x = p[0] + ex * t,
+      y = p[1] + ey * t
+    step = Math.max(step, Math.abs(topOf(inner, x + nx, y + ny)! - topOf(outer, x - nx, y - ny)!))
+  }
+  return step
 }
 
 test("drape: a ribbon's triangle whose corners stand on the road's surface over the terrain everywhere between them is drawn whole, as its corners put it", () => {
   residentAround([{ x: -1036, y: 7381 }], 40)
   // Its profile 5 m over the mesh: the road's surface is the profile's plane.
-  const z = terrainY(-1036, 7381) + 200 + 5
+  const z = terrainZ(-1036, 7381) + 5
   const a: Corner = [-1040, 7378, z],
     b: Corner = [-1032, 7379, z + 0.3],
     c: Corner = [-1036, 7385, z + 0.1]
@@ -114,18 +145,33 @@ test("drape: a ribbon's triangle over a peak of the terrain mesh is cut along th
       mirror: Corner = [2 * (p[0] + ex * s) - r[0], 2 * (p[1] + ey * s) - r[1], z]
     const across = new Triangles()
     drape(across, q, p, mirror, surface, 0)
-    for (let t = 0.005; t < 1; t += 0.01) {
-      const x = p[0] + ex * t,
-        y = p[1] + ey * t,
-        // Just inside each, a hair off the side.
-        nx = -ey * 1e-6,
-        ny = ex * 1e-6
-      assert.ok(
-        Math.abs(topOf(drawnTris, x + nx, y + ny)! - topOf(all(across), x - nx, y - ny)!) < 1e-4,
-        `a crack ${t.toFixed(3)} along the side from (${p[0]}, ${p[1]})`,
-      )
-    }
+    const step = stepAlong(drawnTris, all(across), p, q)
+    assert.ok(step < 1e-4, `a crack of ${step} m along the side from (${p[0]}, ${p[1]})`)
   }
+})
+
+test("drape: a triangle cut over a peak beside one drawn whole keeps their side straight, as the whole one draws it", () => {
+  // Near Sarzana's service tunnel 376037643: round a node a little over its neighbours, A and C on
+  // the terrain and B on a profile 0.5 m over it, so the surface along AB folds under the plane
+  // through its ends where the profile meets the terrain; the triangle BAD across it, on the terrain
+  // from D, stands nowhere under the mesh and is drawn whole.
+  residentAround([{ x: -14490, y: -4827 }], 80)
+  const cases = nodesNear(-14490, -4827).flatMap(([px, py, rise]) => {
+    if (rise < 0.15 || rise > 0.6) return []
+    const a: Corner = [px - 2.6, py - 1.9, 0],
+      b: Corner = [px + 2.7, py - 1.4, terrainZ(px + 2.7, py - 1.4) + 0.5],
+      c: Corner = [px - 0.3, py + 2.8, 0],
+      d: Corner = [px + 0.2, py - 5.5, 0]
+    const cut = new Triangles(),
+      whole = new Triangles()
+    drape(cut, a, b, c, surface, 0)
+    drape(whole, b, a, d, surface, 0)
+    return all(cut).length > 1 && all(whole).length === 1 ? [{ a, b, cut, whole }] : []
+  })
+  assert.ok(cases.length > 0, "a peak with a triangle cut over it beside one drawn whole")
+  const { a, b, cut, whole } = cases[0]!
+  const step = stepAlong(all(cut), all(whole), a, b)
+  assert.ok(step < 1e-4, `a crack of ${step} m along their side`)
 })
 
 test("layOver: a painted line over its ribbon's fold lies 2 cm over it on both sides, cut along the fold; over one plane it lies whole", () => {
