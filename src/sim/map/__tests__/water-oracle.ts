@@ -9,9 +9,9 @@
 import { Ops } from "@typeonce/ritmo-math"
 
 import { insideSpans, pointInRing, segDist2, staticGrid } from "../../collide.ts"
-import { channelOf, reachOf, SEA_LEVEL, SPEED, STAGE } from "../../water/channel.ts"
+import { channelOf, SEA_LEVEL, SPEED, STAGE } from "../../water/channel.ts"
 import { type Area, isWaterArea, MAP, TILE, type Water } from "../index.ts"
-import { IN_POLYGON } from "../kinds.ts"
+import { IN_POLYGON, reachOf } from "../kinds.ts"
 
 /** One straight reach between two vertices of a water piece, with what its two ends carry. */
 interface Reach {

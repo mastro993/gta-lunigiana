@@ -18,7 +18,8 @@ import {
   shoulderOf,
   type Water,
 } from "../sim/map/index.ts"
-import { channelOf, reachOf } from "../sim/water/channel.ts"
+import { reachOf } from "../sim/map/kinds.ts"
+import { channelOf } from "../sim/water/channel.ts"
 import { borePiece, isBored } from "./bores.ts"
 import type { Flowing, Piece, SinkAt } from "./geometry.ts"
 import { surfaceY, yOf } from "./ground.ts"

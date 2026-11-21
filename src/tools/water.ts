@@ -1,6 +1,7 @@
 // Water surfaces for the map build: monotone downstream profiles that meet at confluences and the
 // sea, never under its level, carved into the terrain, then kept below bridge decks and road
 // crossings.
+import { reachOf } from "../sim/map/kinds.ts"
 import type { WaterF } from "./features.ts"
 import { segIndex, type V } from "./geometry.ts"
 import { carve, keepSamples, resample, type Grid, type Profile } from "./terrain.ts"
@@ -241,9 +242,7 @@ export const dropPerched = (
     reaches = segIndex<number>()
   water.forEach((w, i) => {
     channels.addLine(w.pts, w.w / 2 + 1, i)
-    // Where it holds water across its line: its gravel bed's half-width, or its own where wider
-    // (`reachOf` in sim/water/channel.ts).
-    reaches.addLine(w.pts, Math.max(w.bed, w.w / 2), i)
+    reaches.addLine(w.pts, reachOf(w), i) // where it holds water across its line
   })
   const into = receivers(water)
   // The widest first, so that the water a narrower one flows into is final where it meets it.

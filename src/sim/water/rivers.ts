@@ -22,9 +22,9 @@ import { addToBuckets, bucketItems, emptyBuckets } from "../map/buckets.ts"
 import type { Layer } from "../map/format/tile-file.ts"
 import { atGrade, deckNear, groundZ } from "../map/ground.ts"
 import { type Area, isWaterArea, MAP, TILE, type Water } from "../map/index.ts"
-import { IN_POLYGON } from "../map/kinds.ts"
+import { IN_POLYGON, reachOf } from "../map/kinds.ts"
 import { derived, eachTile, type Place, placeAt } from "../map/tiles.ts"
-import { channelOf, reachOf, SEA_LEVEL, SPEED, STAGE } from "./channel.ts"
+import { channelOf, SEA_LEVEL, SPEED, STAGE } from "./channel.ts"
 
 /** One straight reach between two vertices of a water piece, with what its two ends carry. */
 interface Reach {

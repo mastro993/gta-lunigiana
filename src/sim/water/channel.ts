@@ -19,6 +19,7 @@ import { Ops } from "@typeonce/ritmo-math"
 import { segDist2, staticGrid } from "../collide.ts"
 import { atGrade, terrainZ } from "../map/ground.ts"
 import { MAP, type Water } from "../map/index.ts"
+import { reachOf } from "../map/kinds.ts"
 
 /** Jarrett's n = 0.39 S^0.38 R^−0.16 folded into Manning's V = R^(2/3) S^(1/2) / n: V = R^DEPTH S^GRADE / ROUGH. */
 const ROUGH = 0.39,
@@ -71,9 +72,6 @@ const railBedNear = (x: number, y: number, reach: number): number | undefined =>
   })
   return low
 }
-
-/** How far across its centreline `water` holds water, m: out to its gravel bed's half-width (`Water.bed`), or its own where wider. */
-export const reachOf = (water: Pick<Water, "bed" | "w">): number => Math.max(water.bed, water.w / 2)
 
 /** Depth (m) and mean speed (m/s) at a vertex are `stage` × q^STAGE and `speed` × q^SPEED, q the discharge per km² (m³/s). */
 export const STAGE = 1 / (1 + DEPTH),

@@ -358,6 +358,10 @@ export const isWood = (kind: string): kind is Wood => woods.has(kind)
 export const isWaterArea = (kind: string): kind is "river" | "lake" | "sea" =>
   kind === "river" || kind === "lake" || kind === "sea"
 
+/** How far across its centreline `water` holds water, m: out to its gravel bed's half-width (`Water.bed`), or its own where wider. */
+export const reachOf = (water: { readonly bed: number; readonly w: number }): number =>
+  Math.max(water.bed, water.w / 2)
+
 /**
  * A river polygon's water is its waterways' where they run in it, each part of a reach or a 2 m
  * sample segment inside it this long at least, m: a stream ending on its outline (OSM's riverbank
