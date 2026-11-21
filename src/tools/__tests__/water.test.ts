@@ -143,6 +143,114 @@ test("waterProfiles: no surface stands under the sea's level, and a river reachi
   assert.equal(low!.z.at(-1), 0, "under the sea's level, raised to it")
 })
 
+/** A river piece along `pts` ((x, y, node id) each), 4 m wide, 1 m deep. */
+const along = (id: number, pts: ReadonlyArray<readonly [number, number, string]>): WaterF => ({
+  id,
+  kind: "river",
+  w: 4,
+  bed: 3,
+  depth: 1,
+  pts: pts.map(([x, y, node]) => ({ x, y, id: node })),
+  from: 0,
+})
+
+// Regression: a braid of the Vara at (−21347, 1960) and a stream onto the Magra's gravel at Aulla
+// (way 791364133), each continuing a way that ends lower than the water it rejoins, were ponded up
+// to that water's level, then lowered at their start to the way they continue, and again for ever:
+// the settling stopped after its 20 rounds with each 0.55 and 0.05 m higher past its first sample.
+test("waterProfiles: a way ponded up to the water it joins backs up the way it continues, so both stand at that level where they meet", () => {
+  // The river at x = 0 stands at 7 m where the braid rejoins it, at (0, −100); the braid's way
+  // falls from 10 m to 5 m on its own ground, and the way continuing it runs over ground at 5.5 m.
+  const river = along(1, [
+      [0, 0, "r0"],
+      [0, -100, "c"],
+      [0, -200, "r2"],
+    ]),
+    braid = along(2, [
+      [100, 100, "b0"],
+      [100, 0, "n"],
+    ]),
+    on = along(3, [
+      [100, 0, "n"],
+      [0, -100, "c"],
+    ])
+  const ground = (x: number, y: number) =>
+    x === 0 ? 7.5 + (y + 100) / 1000 : x === 100 && y >= 0 ? 5.5 + y / 20 : 5.5
+  const [r, b, o] = waterProfiles([river, braid, on], ground)
+  for (const [name, p] of [
+    ["river", r!],
+    ["braid", b!],
+    ["the way on", o!],
+  ] as const)
+    p.z.forEach((z, k) =>
+      assert.ok(k === 0 || z <= p.z[k - 1]!, `${name} ${k}: ${z} after ${p.z[k - 1]}`),
+    )
+  const atC = r!.z[r!.vertexSample[1]!]!
+  assert.equal(atC, 7, "the river where the braid rejoins it")
+  assert.deepEqual([b!.z.at(-1), o!.z[0], o!.z.at(-1)], [atC, atC, atC], "ponded to it")
+  assert.equal(b!.z[0], 10, "the braid's head over it, as its ground has it")
+})
+
+// The hold above is the water's a way joins, never a way's own ground: held at the level each way
+// it continued into ended at, the Canale Lunense by Santo Stefano di Magra (351750746) would stand
+// 1.2 m over the 28.9 m the way before it ends at, along its whole 290 m.
+test("waterProfiles: a way continuing another over higher ground, which no water holds up, is lowered to it and holds nothing up", () => {
+  // The way before ends at 5 m; the two after it run over ground at 6.5 m to a river at 4 m.
+  const before = along(1, [
+      [100, 100, "b0"],
+      [100, 0, "n"],
+    ]),
+    on = along(2, [
+      [100, 0, "n"],
+      [50, -50, "m"],
+    ]),
+    further = along(3, [
+      [50, -50, "m"],
+      [0, -100, "c"],
+    ]),
+    river = along(4, [
+      [0, 0, "r0"],
+      [0, -100, "c"],
+      [0, -200, "r2"],
+    ])
+  const ground = (x: number, y: number) =>
+    x === 0 ? 4.5 + (y + 100) / 1000 : x === 100 && y >= 0 ? 5.5 + y / 20 : 6.5
+  const [b, o, f] = waterProfiles([before, on, further, river], ground)
+  assert.equal(b!.z.at(-1), 5, "the way before, as its ground has it")
+  assert.deepEqual([o!.z[0], o!.z.at(-1), f!.z[0]], [5, 5, 5], "lowered to it")
+  assert.equal(f!.z.at(-1), 4, "its tail to the river's level")
+})
+
+// Regression: a ditch on the coast's plain (135653574), ponded up to the canal it reaches 1 m over
+// its ground, ran under a footbridge whose clearance capped its head at 0 m, after the settling:
+// it rose from 0 to 1 m down its 14 m.
+test("capUnderDecks: a way ponded up to the water it joins, capped under a deck, falls on from the cap", () => {
+  // The braid's scene above, with a deck over the way on 10 m from its head, its top 7.5 m: the
+  // water under it 2.5 m lower, at 5 m, under the river's 7 m it is ponded to.
+  const ground = (x: number, y: number) =>
+    x === 0 ? 7.5 + (y + 100) / 1000 : x === 100 && y >= 0 ? 5.5 + y / 20 : 5.5
+  const river = along(1, [
+      [0, 0, "r0"],
+      [0, -100, "c"],
+      [0, -200, "r2"],
+    ]),
+    braid = along(2, [
+      [100, 100, "b0"],
+      [100, 0, "n"],
+    ]),
+    on = along(3, [
+      [100, 0, "n"],
+      [0, -100, "c"],
+    ])
+  const wp = waterProfiles([river, braid, on], ground)
+  capUnderDecks([river, braid, on], wp, [
+    { water: 2, at: 10, half: 3, deck: 7.5, clear: BRIDGE_CLEAR },
+  ])
+  const o = wp[2]!
+  o.z.forEach((z, k) => assert.ok(k === 0 || z <= o.z[k - 1]!, `${k}: ${z} after ${o.z[k - 1]}`))
+  assert.equal(o.z[o.s.findIndex((s) => s >= 10)], 5, "under the deck")
+})
+
 test("capUnderDecks and dropPerched keep the water at the sea's level or over it", () => {
   const [p] = waterProfiles([RIVER], () => 1.25, SEA)
   // A footbridge 1 m over the sea's level at y −150: the water capped 2.5 m under its deck stays at 0.
