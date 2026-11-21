@@ -785,7 +785,12 @@ A party's followers (a kid, a partner, a dog on a lead: `Follows`) keep a place 
   itself, whose path is walkable. When a walk wall stands in the way, it heads 1.5 m on along the
   leader's lane, no nearer the leader than its place: in single file round a corner. At a house
   corner in Vinca a kid stays within 1.92 m and a dog within 1.46 m of their leader; with no such
-  rule they fell 19.7 m and 17.1 m behind.
+  rule they fell 19.7 m and 17.1 m behind. It walks in single file too while the leader's way is a
+  bridge or a tunnel: a walker keeps to a deck's verge, outside its parapets (2.5 m off the middle
+  of Via Borgo Lucido's 3.4 m bridge in Gragnola, whose deck the walkers stand on out to about 3 m),
+  so a kid 0.5 m on its parent's right stood past the deck's edge, stepped off it onto the stream's
+  bank 5 m under it, and stayed there while the parent walked on (16 m behind on seed 2's fill of
+  Gragnola, `population.long-test.ts`).
 - It takes the leader's route each step, so it can carry on alone, and copies the leader's
   reactions: the mood, its point and its end.
 - A fleeing leader runs no faster than its slowest follower on its feet, so a 1.1 m kid stays
