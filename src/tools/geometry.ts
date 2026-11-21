@@ -4,7 +4,7 @@
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { segDist2 } from "../sim/collide.ts"
+import { segD2, segT } from "../sim/collide.ts"
 import { latLonToGaussBoaga, latLonToUtm32 } from "./crs.ts"
 import { REGION, type Rect } from "./region.ts"
 
@@ -153,7 +153,7 @@ export const ringBox = (ring: ReadonlyArray<number>): [number, number, number, n
   return [x0, y0, x1, y1]
 }
 
-export { fillPolygon, pointInRing, segDist2 } from "../sim/collide.ts"
+export { fillPolygon, pointInRing, segD2, segDist2 } from "../sim/collide.ts"
 
 /** Arc length at each vertex. */
 export const arcLengths = (pts: ReadonlyArray<V>): Array<number> => {
@@ -316,7 +316,7 @@ const roomI32 = (a: Int32Array<ArrayBuffer>, n: number): Int32Array<ArrayBuffer>
  * segment" queries. Each segment's ends and radius lie in one Float64Array and each bucket's
  * segments in a chain of entries in Int32Arrays, in the order added: an object a segment and an
  * array a bucket took about 300 MB of the walls' indexes of Lunigiana's roads and water. The query
- * hands `visit` one object it fills for each segment: read it there, never keep it.
+ * hands `visit` an object of its own for each segment it meets, which goes once the visit is done.
  */
 export const segIndex = <T>(bucket = 16) => {
   // Segment k's ends and radius at 5k, and its data.
@@ -381,8 +381,6 @@ export const segIndex = <T>(bucket = 16) => {
         add(vs[i]!.x, vs[i]!.y, vs[i + 1]!.x, vs[i + 1]!.y, r, item)
     }
   }
-  /** What `within` hands its visitor, filled for each segment. */
-  const seg = { ax: 0, ay: 0, bx: 0, by: 0, r: 0, data: undefined as T }
   /** Calls `visit` for each segment whose buffer contains (x,y), with the squared distance and projection t. */
   const within = (x: number, y: number, visit: (s: Buffered<T>, d2: number, t: number) => void) => {
     const b = numbers.get(key(Math.floor(x / bucket), Math.floor(y / bucket)))
@@ -394,23 +392,9 @@ export const segIndex = <T>(bucket = 16) => {
         bx = geo[5 * k + 2]!,
         by = geo[5 * k + 3]!,
         r = geo[5 * k + 4]!
-      // `segDist2`'s arithmetic, the same bits, with no object a segment.
-      const ex = bx - ax,
-        ey = by - ay,
-        l2 = ex * ex + ey * ey,
-        t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / l2)) : 0,
-        dx = ax + ex * t - x,
-        dy = ay + ey * t - y,
-        d2 = dx * dx + dy * dy
-      if (d2 < r * r) {
-        seg.ax = ax
-        seg.ay = ay
-        seg.bx = bx
-        seg.by = by
-        seg.r = r
-        seg.data = data[k] as T
-        visit(seg, d2, t)
-      }
+      const t = segT(x, y, ax, ay, bx, by),
+        d2 = segD2(x, y, ax, ay, bx, by, t)
+      if (d2 < r * r) visit({ ax, ay, bx, by, r, data: data[k] as T }, d2, t)
     }
   }
   const covers = (x: number, y: number, pred?: (data: T) => boolean): boolean => {
@@ -497,7 +481,7 @@ export const staticSegs = (parts: ReadonlyArray<ArrayLike<number>>, r: number, b
     for (let m = starts[q]!; m < starts[q + 1]!; m++) {
       const k = items[m]!
       load(k)
-      const { d2 } = segDist2(x, y, ax, ay, bx, by)
+      const d2 = segD2(x, y, ax, ay, bx, by)
       if (d2 < r * r) visit(k, d2, ax, ay, bx, by)
     }
   }

@@ -9,6 +9,36 @@ import { Collide2, Vec2 } from "@typeonce/ritmo-math"
 
 import type { Segment } from "./map/index.ts"
 
+/** The projection parameter t in [0,1] of (px,py) on segment a-b: `segDist2`'s, with no object. */
+export const segT = (
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number => {
+  const ex = bx - ax,
+    ey = by - ay,
+    l2 = ex * ex + ey * ey
+  return l2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * ex + (py - ay) * ey) / l2)) : 0
+}
+
+/** Squared distance from (px,py) to the point `t` along segment a-b, its projection's (`segT`) when not given: `segDist2`'s, with no object. */
+export const segD2 = (
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  t = segT(px, py, ax, ay, bx, by),
+): number => {
+  const dx = ax + (bx - ax) * t - px,
+    dy = ay + (by - ay) * t - py
+  return dx * dx + dy * dy
+}
+
 /** Squared distance from (px,py) to segment a-b and the projection parameter t in [0,1]. */
 export const segDist2 = (
   px: number,
@@ -18,13 +48,8 @@ export const segDist2 = (
   bx: number,
   by: number,
 ): { d2: number; t: number } => {
-  const ex = bx - ax,
-    ey = by - ay,
-    l2 = ex * ex + ey * ey
-  const t = l2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * ex + (py - ay) * ey) / l2)) : 0
-  const dx = ax + ex * t - px,
-    dy = ay + ey * t - py
-  return { d2: dx * dx + dy * dy, t }
+  const t = segT(px, py, ax, ay, bx, by)
+  return { d2: segD2(px, py, ax, ay, bx, by, t), t }
 }
 
 /** A block of a raster's pixels: columns c0 … c0 + cols − 1, rows r0 … r0 + rows − 1. */

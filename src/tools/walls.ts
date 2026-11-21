@@ -7,7 +7,7 @@ import type { Area, Barrier } from "../sim/map/index.ts"
 import { isDrivable, isMotorRoad, isWaterArea } from "../sim/map/kinds.ts"
 import type { Rings } from "../sim/map/outline.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
-import { flatRing, pointInRing, r1, ringBox, segDist2, segIndex, signedArea } from "./geometry.ts"
+import { flatRing, pointInRing, r1, ringBox, segD2, segIndex, signedArea } from "./geometry.ts"
 import { gridTiles } from "./grid-tiles.ts"
 import { simplifyLoop, traceLoops } from "./loops.ts"
 import { inPlay, OUTLINE } from "./play-area.ts"
@@ -170,10 +170,10 @@ const segSegDist2 = (
   )
     return 0
   return Math.min(
-    segDist2(ax, ay, cx, cy, dx, dy).d2,
-    segDist2(bx, by, cx, cy, dx, dy).d2,
-    segDist2(cx, cy, ax, ay, bx, by).d2,
-    segDist2(dx, dy, ax, ay, bx, by).d2,
+    segD2(ax, ay, cx, cy, dx, dy),
+    segD2(bx, by, cx, cy, dx, dy),
+    segD2(cx, cy, ax, ay, bx, by),
+    segD2(dx, dy, ax, ay, bx, by),
   )
 }
 
@@ -216,15 +216,9 @@ const carved = (b: BuildingF, roads: Corridors, pad = 0) => {
       let inside = false,
         clear = true
       for (const [ax, ay, bx, by, h] of cuts) {
-        // `segDist2`'s arithmetic, the same bits, with no object a cell: the features stage made
-        // about 87 GB of them on Lunigiana.
-        const ex = bx - ax,
-          ey = by - ay,
-          l2 = ex * ex + ey * ey,
-          t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / l2)) : 0,
-          dx = ax + ex * t - x,
-          dy = ay + ey * t - y,
-          d2 = dx * dx + dy * dy
+        // No object a cell (`segDist2` makes one): the features stage made about 87 GB of them on
+        // Lunigiana.
+        const d2 = segD2(x, y, ax, ay, bx, by)
         if (d2 < h * h) inside = true
         if (d2 < (h + pad) * (h + pad)) clear = false
       }
