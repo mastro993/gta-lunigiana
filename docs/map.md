@@ -2126,14 +2126,26 @@ the pieces where tracks meet (`rail-graph.ts`).
 - **Bridges keep what they span** (`rail-spans.ts`): moving a bridge sideways by d slides each
   crossing along it by d·cot θ. A river or road that was under a bridge stays under it, and the
   bridge reaches past it as far as the cells the at-grade track beyond cannot take: a wide stream's
-  protected bed (w ≥ 4 m: w/2 + 1 m) and a main road's core (motorway to tertiary, whose rank beats
+  protected bed (w ≥ 4 m: w/2 + 1 m), a main road's core (motorway to tertiary, whose rank beats
   the rail's, [section
-  7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts): w/2 + 2.3 m), each
-  plus a cell's diagonal (5.7 m, the farthest a corner of a cell the track runs through lies off
-  it). A bridge end that falls short slides along the track: 9 ends, among them the Aulella bridge
-  261445433's north end by 13.9 m (OSM ended it 3.1 m inside the river, and the track beyond hung
-  8.2 m over the river's carve) and both ends of the Via Provinciale bridge 83729869 by 5.7 and 11.0
-  m (the tertiary under it left 4.5 m of track 5.1 m over its carved core).
+  7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts): w/2 + 2.3 m), and the
+  core of any other road at grade a pass cores (unclassified to track; not a path or steps, which no
+  pass cores, nor a bridge or a tunnel, which write no cell): under the deck the rail's approach core
+  yields to it, so it holds its level lowered under the deck there, each plus a cell's diagonal (5.7
+  m, the farthest a corner of a cell the track runs through lies off it). A bridge end that falls
+  short slides along the track: on the L 9 ends, among them the Aulella bridge 261445433's north end
+  by 13.9 m (OSM ended it 3.1 m inside the river, and the track beyond hung 8.2 m over the river's
+  carve) and both ends of the Via Provinciale bridge 83729869 by 5.7 and 11.0 m (the tertiary under
+  it left 4.5 m of track 5.1 m over its carved core); on Lunigiana 41. Main roads alone reached past,
+  29 ends on Lunigiana: OSM ends the Genova–Pisa's two bridges over the Magra (111752512,
+  237352920) 3.7 m past the farm track 205932342 under their west ends, whose core, 3.8 m either
+  side, held the first cell of the track beyond at its level under the deck, and the track stood 3.6
+  and 2.5 m over the ground there (`rail.map-test.ts`); those ends now slide 5.4 and 5.2 m west.
+  The rule slid 12 ends more: lucido's 140780342's east end by 2.2 m off the track 140780582 under
+  it at (−643, 498) (5 nodes there move, by up to 5.7 m, on Lunigiana and the L), the Lucca–Aulla
+  line's 1501392820's ends by 4.8 and 3.2 m off the service road 1501392819 at (−3269, 4488) (35
+  nodes, up to 4.8 m), and in Sarzana's part the bridges over Via Ghiarettolo (186705708, 551694340)
+  and Viale Amendola (377807396, 372738047). No bridge end of Cesena's or the coast's slides.
 - **The CTR's bridges**: where the CTR maps the ballast on a bridge (`AFE` `Sede`
   063) and OSM draws the track at grade, the piece is cut at the polygon's edges (vertices
   `afe:<way>:<n>`; a stretch under 2 m joins its neighbour) and the stretch inside is a bridge: 31

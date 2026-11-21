@@ -371,3 +371,33 @@ test("conflateRail leaves out a CTR-only track lying along a railway OSM maps wi
     ["23D01 VLI#2.0"],
   )
 })
+
+// Regression: OSM ends the Genova–Pisa's bridge over the Magra (111752512) 3.7 m past the farm track 205932342 under it, whose
+// core, lowered under the deck, held the first cell of the at-grade track beyond the deck's end: the track stood 3.6 m over
+// the ground there. A bridge reaches past the core of every road at grade a pass cores under it, as past a main road's.
+test("conflateRail slides a bridge's end out past the core of a road at grade under it and a cell's diagonal, but not past a path's or a tunnel's", () => {
+  const rail: ReadonlyArray<RailF> = [
+    { id: 1, pts: [v(-100, 0, "a"), v(100, 0, "b")] },
+    { id: 2, bridge: true, pts: [v(100, 0, "b"), v(200, 0, "c")] },
+    { id: 3, pts: [v(200, 0, "c"), v(400, 0, "d")] },
+  ]
+  const under = (id: number, x: number, more: Partial<RoadF>) => ({
+    ...road(id, v(x, -20), v(x, 20)),
+    ...more,
+  })
+  const ends = (roads: ReadonlyArray<RoadF>) => {
+    const deck = conflateRail(rail, roads, [], ctr([]), NONE).rail.find((r) => r.id === 2)!
+    return [deck.pts[0]!.x, deck.pts.at(-1)!.x]
+  }
+  // A farm track (w 3) 3.7 m in from the east end: its core reaches 3.8 m, and a cell's diagonal 5.66 m past it.
+  const [, east] = ends([under(10, 196.3, { cls: "track", w: 3 })])
+  assert.ok(east! >= 196.3 + 3.8 + 4 * Math.SQRT2 - 1e-6, `the east end at x ${east}`)
+  // A footway and a road's tunnel write no core under the deck: the ends stay.
+  assert.deepEqual(
+    ends([
+      under(11, 196.3, { cls: "path", w: 1.5 }),
+      under(12, 103, { cls: "track", w: 3, tunnel: true }),
+    ]),
+    [100, 200],
+  )
+})

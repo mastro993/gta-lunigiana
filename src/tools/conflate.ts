@@ -404,9 +404,11 @@ export const conflateRail = (
 
   // Bridges keep what they span; streams under at-grade track share a culvert vertex with it. A
   // bridge reaches past the cells under it that the at-grade track cannot take: a wide stream's
-  // protected bed (w/2 + 1 m, build-grid.ts) and a main road's core (motorway to tertiary: their
-  // rank beats the rail's, profiles.ts),
-  // plus a cell's diagonal, the farthest a corner of a cell the track runs through lies off it.
+  // protected bed (w/2 + 1 m, build-grid.ts), a main road's core (motorway to tertiary: their rank
+  // beats the rail's, profiles.ts) and any other road's at grade a pass cores (under the deck the
+  // rail's approach core yields to it: the farm track 205932342, 3.7 m in from the west end of the
+  // Genova–Pisa's Magra bridge, held the at-grade track's first cell 3.6 m under it), plus a cell's
+  // diagonal, the farthest a corner of a cell the track runs through lies off it.
   const waterPts = osmWater.map((w) => moved(w.pts, moves))
   const corner = GRID_CELL * Math.SQRT2
   const crossed: Array<Crossed> = [
@@ -421,7 +423,10 @@ export const conflateRail = (
     ...osmRoads.map((r) => ({
       what: `road ${r.id}`,
       w: r.w,
-      margin: beatsRail(r.cls) ? coreHalf(r.w, GRID_CELL) - r.w / 2 + corner : 0,
+      margin:
+        beatsRail(r.cls) || (isDrivable(r.cls) && r.bridge !== true && r.tunnel !== true)
+          ? coreHalf(r.w, GRID_CELL) - r.w / 2 + corner
+          : 0,
       osm: r.pts,
       pts: moved(r.pts, moves),
       water: false,
