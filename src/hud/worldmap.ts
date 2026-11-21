@@ -44,7 +44,6 @@ const RANKS: ReadonlyArray<string> = ["place=town", "place=village", "place=haml
 
 const isPlace = (kind: string) =>
   kind === "place=town" || kind === "place=village" || kind === "place=hamlet"
-const districts: ReadonlySet<string> = new Set(MAP.districts.map((d) => d.name))
 const place = (
   name: string,
   p: { readonly x: number; readonly y: number; readonly kind: string },
@@ -55,13 +54,16 @@ const place = (
 
 /**
  * The towns, villages and hamlets OSM names inside the map (its `place=*` POIs; localities left
- * out), then the peaks the HUD names (a landmark district of the same name), once per name: OSM has
- * two Argigliano nodes and two Monte Borla summits.
+ * out), then the peaks the HUD names (inside a landmark district of the same name: Sarzana's Monte
+ * Grosso, not Fivizzano's, one of five peaks of that name, issue #20), once per name: OSM has two
+ * Argigliano nodes and two Monte Borla summits.
  */
 export const PLACES: ReadonlyArray<Place> = [
   ...MAP.pois.flatMap((p) => (p.name !== undefined && isPlace(p.kind) ? [place(p.name, p)] : [])),
   ...MAP.pois.flatMap((p) =>
-    p.name !== undefined && p.kind === "natural=peak" && districts.has(p.name)
+    p.name !== undefined &&
+    p.kind === "natural=peak" &&
+    MAP.districts.some((d) => d.name === p.name && Math.hypot(p.x - d.x, p.y - d.y) <= d.r)
       ? [place(p.name, p)]
       : [],
   ),

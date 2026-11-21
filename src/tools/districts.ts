@@ -33,7 +33,7 @@ const MONZONE: ReadonlyArray<District> = [
  * localities and ridges centred by hand on the slope they name. None overlaps a village disc but
  * Passo dei Carpinelli, inside Casone Carpinelli's, kept small enough to take none of its
  * buildings: the pass names its own district (issue #17); and the Fortezza della Brunella, inside
- * Aulla's town disc (issue #19). The Carrara and Massa sides of the ridge are in the rectangle too.
+ * Aulla's town disc (issue #19), and the Fortezza di Sarzanello, inside Sarzana's (issue #20). The Carrara and Massa sides of the ridge are in the rectangle too.
  * And the coast's: the Magra's mouth and the headland of Punta Bianca, which no village names.
  */
 const LANDMARKS: ReadonlyArray<District> = [
@@ -100,6 +100,21 @@ const LANDMARKS: ReadonlyArray<District> = [
   { name: "Castello di Bigliolo", x: -6329, y: 9169, r: 130 }, // castle 6703673726: the ruin's spur, under 200 m at 70–116 m south-west to south; north and east the ridge climbs to Fertigliana, whose disc is 11 m off
   { name: "Passo Alpicella", x: -21897, y: 8680, r: 150 }, // saddle 577382401, out of play in Liguria: the col; Monte Alpicella's slope passes 730 m at 92–106 m south and south-west, the flanks drop under 680 m at 58–90 m east and north-west
   { name: "Monte Borra Grande", x: -21833, y: 11192, r: 200 }, // peak 2539782572: the wooded dome to about its 900 m contour (109–267 m out, inside 200 m on 10 of 15 rays) and the forest track round its flanks; its Liguria side out of play
+  // Sarzana's part (#20): on their OSM elements, radii fitted on the built terrain's contours, over
+  // rt_ofc.5k23.32bit in Tuscany; in Liguria, where of the traceable RT flights only 1954's and
+  // 1978's reach, at Sarzanello alone (rt_ofc.10k54, 10k78), over OSM and Regione Liguria's NC5
+  // footprints. The Fortezza di Sarzanello, OSM's Fortezza Castracani (its Wikipedia article and
+  // its own site name it so; OSM's Sarzanello is the neighbourhood 1.8 km south-east), stands
+  // inside Sarzana's town disc and names its hill alone, as the Fortezza della Brunella does in
+  // Aulla's. Forte Bastia's rim names the houses on its hill's roads (the user's choice, issue #20).
+  // The castles of Trebiano and Bibola, 105 and 18 m from their villages' nodes, and Canarbino's
+  // fort are left to their discs. Castello della Brina and Monte Zecchino get none: at 150 m their
+  // rims would name 432 buildings of the Magra plain below the one and 57 on Bolano's ridge road
+  // by the other.
+  { name: "Fortezza di Sarzanello", x: -12694, y: -5172, r: 150 }, // castle 89665866, its box's centre: the fortress, its outer wall 233737328 (to 86 m) and its hilltop, under 80 m at 90–125 m on 11 of 16 rays; 37 m inside Sarzana's rim, so its own rim names nothing
+  { name: "Forte Bastia", x: -20850, y: -2468, r: 200 }, // castle 980696353: the fort (its wall 157086371; NC5's four houses and two sheds within 46 m) and its hilltop to about its 250 m contour, inside 200 m on 12 of 16 rays (125–300 m out); with its rim it names 196 buildings and 21 parked spots out to 731 m, along Via Bastia, the road OSM names Forte Bastia and the SP16
+  { name: "Monte Grosso", x: -13587, y: 1920, r: 200 }, // peak 9485751677 (665 m): the wooded dome to about its 600 m contour, inside 200 m on 10 of 16 rays (115–330 m out), the ridge north-west holding 600 m to 530 m
+  { name: "Monte Boscoleto", x: -12720, y: 675, r: 150 }, // peak 10555505668 (599 m): the wooded top to about its 560 m contour, inside 150 m on 12 of 16 rays (80–195 m out), the ridges west-north-west and east-south-east holding it to 495 and 370 m
   // The coast (#13): on OSM's coastline and its place nodes. Bocca di Magra, Fiumaretta, Marinella
   // di Sarzana, Montemarcello and Luni Mare are OSM villages, with discs of their own.
   { name: "Foce del Magra", x: -11297.7, y: -12785.1, r: 160 }, // the middle of the coastline's 322 m closure across the mouth (ways 1379669802 and 1379669801), between the jetties' heads: the mouth and its last reach; Bocca di Magra's node 321 m west

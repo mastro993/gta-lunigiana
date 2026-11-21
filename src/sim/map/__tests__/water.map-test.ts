@@ -108,6 +108,47 @@ test("water: the Taverone, the Osca, the Penolo, the lower Aulella and the Magra
   )
 })
 
+// Issue #20: the Vara's line runs in its river polygons all its course on the map and takes the
+// Magra's water; the Amola is a named stream in its hills, a fan across the plain and a named stream
+// again in its banked channel to the Magra; the Durasca is a wooded torrent; the Canale Lunense is
+// 5 m all its course. Each pair is the two ways either side of a threshold of water-sizes.ts, with
+// its mean ground.
+test("water: the Vara, the Amola, the Durasca and the Canale Lunense take their measured widths by reach", () => {
+  const size = (id: number) => {
+    const o = WHOLE.water.find((v) => v.id === id)
+    return [o?.w, o?.bed]
+  }
+  // Vara: 135716629, from the play area's north edge to Fornola.
+  assert.deepEqual(size(135716629), [25, 13.5])
+  // Amola: 206634001 (117.7 m) from its source to the foot of its hills, 917637857 (36.9 m) its
+  // first on the fan.
+  assert.deepEqual(
+    [size(206634001), size(917637857)],
+    [
+      [4, 3],
+      [4, 13],
+    ],
+  )
+  // Amola: 238383122 (29.3 m) its last on the fan, 238383121 (14.6 m) its channel to the Magra.
+  assert.deepEqual(
+    [size(238383122), size(238383121)],
+    [
+      [4, 13],
+      [4, 3],
+    ],
+  )
+  // Durasca: 157849907, its one way on the map, 11.0 km² across the west edge.
+  assert.deepEqual(size(157849907), [6, 4])
+  // Canale Lunense: 206635895 by Albiano, 843063273 above Sarzana.
+  assert.deepEqual(
+    [size(206635895), size(843063273)],
+    [
+      [5, 3.5],
+      [5, 3.5],
+    ],
+  )
+})
+
 test("water: catchments grow downstream; the Lucido drains 47 km² where it meets the Aulella, the Rosaro brings its 14.7 km² of heads, the Aulella drains 199 at Fivizzano's west edge and 313 at its mouth, the Bardine 63 at its", () => {
   for (const w of WHOLE.water)
     w.area.forEach((a, k) =>

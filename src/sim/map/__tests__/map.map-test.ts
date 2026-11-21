@@ -275,6 +275,66 @@ const VILLAGES = {
   "Villa Rosticciola": { x: -19020.1, y: 10396.8 }, // 10289122205
   Villanova: { x: -6569.4, y: 6722.5 }, // 1467639452
   Villecchia: { x: -19817.1, y: 11258.3 }, // 1003621973
+  // Sarzana's part (#20), each toLocal of its OSM place node to 0.1 m: the issue's ten, then
+  // every other village and hamlet in its play area that the traffic graph reaches.
+  Sarzana: { x: -13599.4, y: -5397.3 }, // 66586997, place=town
+  "Santo Stefano di Magra": { x: -17011, y: 372.2 }, // 1531400346, place=town
+  "Ponzano Magra": { x: -16389.8, y: -1548 }, // 66587022
+  Falcinello: { x: -13475.4, y: -1037.5 }, // 1229330058
+  "Vezzano Inferiore": { x: -19183.5, y: -2142.3 }, // 66587035
+  "Vezzano Superiore": { x: -19873.5, y: -2239.3 }, // 8631872417
+  Arcola: { x: -17919.9, y: -5263.3 }, // 1214195899, place=town
+  "Romito Magra": { x: -15692.4, y: -6974.4 }, // 316529666
+  Caprigliola: { x: -15772.8, y: 1466.5 }, // 866311548; the issue's (-15931, 1517), 166.1 m west-north-west, is its walls' node 8458093784
+  Ceparana: { x: -19497.3, y: 549.8 }, // 3311624642
+  Baccano: { x: -18669.3, y: -5488.8 }, // 1214196038
+  Bastremoli: { x: -22886.5, y: -641.9 }, // 316052356, Follo
+  Battifollo: { x: -14840.4, y: -6732.9 }, // 316529665
+  Bettola: { x: -16054.7, y: 1693.5 }, // 1267020425
+  Bibola: { x: -11897.9, y: 3383.3 }, // 1267021215
+  Bolano: { x: -18747.9, y: 2877.8 }, // 66586953
+  Boschetto: { x: -21202.3, y: 2228.1 }, // 1445480746
+  Bottagna: { x: -20101.2, y: -854.8 }, // 7395969782
+  Buonviaggio: { x: -21677, y: -1925.6 }, // 8566712344
+  Carignano: { x: -11606, y: -1538.8 }, // 1088681747
+  Carozzo: { x: -21704.2, y: -3322.7 }, // 1701180014, La Spezia: the mask bends out for it
+  "Casa Scattina": { x: -20199.9, y: 3055.5 }, // 1445480537
+  "Casesa -Pantano": { x: -13319.5, y: 73.5 }, // 12610476327, OSM's name as tagged
+  Castello: { x: -22177.9, y: 2585.3 }, // 6822457806, Follo; Follo's hamlet Castello (1389734280) lies outside the play area
+  Cerri: { x: -16957.8, y: -7318.8 }, // 1193262139
+  Chiamici: { x: -15362.9, y: 2000.7 }, // 6715770051
+  "Costa di Tivegna": { x: -21992.8, y: 1967.1 }, // 1445480956, Follo
+  Fornola: { x: -18394.7, y: -2929.8 }, // 8631872419
+  Fresonara: { x: -19270.2, y: -4340 }, // 4706304353
+  Guercio: { x: -16914.3, y: -7696.2 }, // 1724195028
+  "Guercio Carpione": { x: -16636.7, y: -7421.5 }, // 1724195023, Lerici
+  Isola: { x: -16366, y: 2530.8 }, // 1267019612
+  "La Serra": { x: -21935.9, y: 1053.6 }, // 6822457790, Follo
+  "Lago Scuro": { x: -19983.7, y: 835.2 }, // 1445480028
+  Masignano: { x: -18015, y: -4255 }, // 6814284197
+  "Montebello di Cima": { x: -19596.3, y: 4122.4 }, // 1445480005, Bolano's land in Aulla's rectangle, played since this part plays Bolano whole
+  "Montebello di Mezzo": { x: -20047, y: 3762.2 }, // 1445480724
+  "Monti di Arcola": { x: -18983.5, y: -4673.8 }, // 4706304354
+  Paghezzana: { x: -11660.5, y: -3875.5 }, // 1411140308
+  Pagliadiccio: { x: -21290.8, y: 3262.9 }, // 1445480953
+  Panigale: { x: -19246, y: 2947.5 }, // 1445480131
+  "Piana Battolla": { x: -22216.3, y: 3562.4 }, // 290590223, Follo
+  "Piano di Arcola": { x: -17344.9, y: -4031.8 }, // 8631872420
+  "Piano di Follo": { x: -21206, y: -147.8 }, // 316052360, Follo
+  "Piano di Valeriano": { x: -20655.8, y: -295.1 }, // 4416938602
+  "Piano di Vezzano 1": { x: -18373.6, y: -1274.4 }, // 11280401080
+  "Piano di Vezzano 2": { x: -16190, y: -3319.2 }, // 1267020874
+  Pietralba: { x: -18748.2, y: -6484 }, // 8631872421
+  "Ponte di Arcola": { x: -17421.1, y: -5056 }, // 66586870
+  "Ponzano Superiore": { x: -14787.1, y: -560.8 }, // 601383602
+  "Prati di Vezzano": { x: -18998, y: -3866.6 }, // 6814284196
+  Ressora: { x: -16885.3, y: -5757.1 }, // 1724200899
+  Senato: { x: -14029.9, y: -8378.8 }, // 316529667, Lerici
+  Serralta: { x: -20704, y: 3379 }, // 1445480702
+  Stadano: { x: -16349.5, y: 3078.1 }, // 1267019518
+  Tirolo: { x: -17769.6, y: 2181 }, // 1445480436
+  Trebiano: { x: -16534.3, y: -6562.7 }, // 1193262135
+  Villa: { x: -19057.5, y: 1930.1 }, // 1445480571
 }
 
 test("bounds and heightmap cover the play area", () => {
@@ -602,8 +662,12 @@ test("traffic graph: one component reaching the station, Monzone Alto and the vi
   const near = (p: { x: number; y: number }, r: number) =>
     graph.trafficEdges.some((e) => segmentDistance(chord(e), p.x, p.y) < r)
   assert.ok(near(STATION, 30) && near(ALTO, 60))
+  // Sarzana's and Arcola's town nodes stand in their pedestrian centres (OSM highway=pedestrian,
+  // walked as paths): Via Circonvallazione passes 106.1 m north of Sarzana's, a residential street
+  // (way 1116520102) 87.5 m west-south-west of Arcola's.
+  const reach: Readonly<Record<string, number>> = { Sarzana: 110, Arcola: 90 }
   for (const [name, p] of Object.entries(VILLAGES))
-    assert.ok(near(p, 80), `no traffic near ${name}`)
+    assert.ok(near(p, reach[name] ?? 80), `no traffic near ${name}`)
   const traffic = new Set(graph.trafficEdges)
   const seen = new Set([graph.edges[graph.trafficEdges[0]!]!.a])
   for (const stack = [...seen]; stack.length > 0;)
@@ -912,6 +976,26 @@ test("road names, classes, styles, area kinds and districts", () => {
       hypot(c.x - brunella.x, c.y - brunella.y) <= brunella.r,
       `(${c.x}, ${c.y}) named the fortress by its rim`,
     )
+  // Issue #20: the Fortezza di Sarzanello, inside Sarzana's town disc, names its hill alone (OSM's
+  // Fortezza Castracani, its area's point among it), every building it names in its disc; the fort
+  // and the peaks name their own districts, found by their OSM ids (five peaks are Monte Grosso).
+  const sarzanello = MAP.districts.find((d) => d.name === "Fortezza di Sarzanello")!
+  const castracani = MAP.pois.find((p) => p.name === "Fortezza Castracani")!
+  assert.equal(districtAt(castracani.x, castracani.y), sarzanello)
+  for (const c of centres.filter((c) => districtAt(c.x, c.y) === sarzanello))
+    assert.ok(
+      hypot(c.x - sarzanello.x, c.y - sarzanello.y) <= sarzanello.r,
+      `(${c.x}, ${c.y}) named the Fortezza di Sarzanello by its rim`,
+    )
+  for (const [id, name] of [
+    [980696353, "Forte Bastia"],
+    [9485751677, "Monte Grosso"],
+    [10555505668, "Monte Boscoleto"],
+  ] as const) {
+    const p = MAP.pois.find((q) => q.id === id)
+    assert.ok(p !== undefined, `${name}'s OSM node`)
+    assert.equal(districtAt(p.x, p.y).name, name)
+  }
   // Issues #17 and #18: the passes name their own districts, Carpinelli's inside Casone Carpinelli's
   // disc.
   for (const name of [
