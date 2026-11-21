@@ -74,6 +74,26 @@ test("dropPerched: no sample after a dropped one steps back up over it", () => {
   )
 })
 
+// Regression: a stream falling into the Magra's polygon by Caprigliola (way 789354420) dropped to
+// its ground, and its next samples, perched too, each to their own, which the polygon's carve left
+// rising under them: it stepped 0.1 m back up (32.5 m after 32.4 at (−16584.6, 2908.5)).
+test("dropPerched: no perched sample after a dropped one steps back up over it while its ground lies under it", () => {
+  const [p] = waterProfiles([STREAM], (x) => 100 - x / 2)
+  const before = Float64Array.from(p!.z),
+    at = p!.x.indexOf(40)
+  // From x 40 on, the carved ground lies 3 m under the surface (perched, dropped to 2.75 m under
+  // it), but at x 42 1.9 m under it (perched still): 0.1 m over x 40's ground, under its dropped
+  // surface, its own top 0.1 m over that.
+  const carved = Float64Array.from(before, (z, k) => z - (k < at ? 1.15 : k === at + 1 ? 1.9 : 3))
+  dropPerched([STREAM], [p!], [], [carved])
+  p!.z.forEach((z, k) =>
+    assert.ok(k === 0 || z <= p!.z[k - 1]!, `x = ${p!.x[k]}: ${z} after ${p!.z[k - 1]}`),
+  )
+  assert.equal(p!.z[at], carved[at]! + STREAM.depth / 2, "dropped to its top")
+  assert.equal(p!.z[at + 1], p!.z[at], "held at the dropped surface, over its own top")
+  assert.equal(p!.z[at + 2], carved[at + 2]! + STREAM.depth / 2, "under it, dropped to its own")
+})
+
 // The hold above stops where the ground rises past the dropped surface: pinned to its own ground
 // there, a stream onto the Magra's gravel (way 791364133), past the dip a path at grade takes it
 // under, rippled 0.3 m up and down.

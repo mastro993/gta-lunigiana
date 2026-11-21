@@ -197,11 +197,13 @@ export const capUnderDecks = (
  * approaches); then water left perched over a road cut (culverted streams end at the road) drops
  * to the terrain, except inside a wider channel it flows into or a lake's water, whose carved beds
  * lie under it, as long as it still runs downhill there (a stream dropped into a river's carved bed
- * never steps back up). Nor does a sample after a dropped one, though within PERCH of its own ground,
- * stand over it while that ground lies under it, but in a lake's water: it drops to the dropped
- * surface. A stream falling into the Magra's gravel at Aulla (way 1430400928) kept a sample 0.1 m
- * over the one before it, dropped to its ground, as the river polygon's carve deepened the bed under
- * it, and the Torrente Arcinasso 1.0 m at (−8592, 4954). Where the ground rises past the dropped
+ * never steps back up). Nor does a sample after a dropped one, within PERCH of its own ground or
+ * perched too, stand over it while that ground lies under it, but in a lake's water: it drops to the
+ * dropped surface (dropped each to its own top, a stream's perched samples falling into the Magra's
+ * polygon by Caprigliola, way 789354420, rose 0.1 m with the bed carved under them). A stream
+ * falling into the Magra's gravel at Aulla (way 1430400928) kept a sample 0.1 m over the one before
+ * it, dropped to its ground, as the river polygon's carve deepened the bed under it, and the
+ * Torrente Arcinasso 1.0 m at (−8592, 4954). Where the ground rises past the dropped
  * surface the stream is out of the hole it dropped into (a culvert's dip under a road at grade) and
  * keeps its own: pinned to its ground there, a stream onto the Magra's gravel at (−13976, 9447) (way
  * 791364133, past a path at grade) rippled 0.3 m up and down. A lake's water stands within PERCH of its
@@ -248,11 +250,18 @@ export const dropPerched = (
         ((lake !== undefined && p.z[k]! <= lake + PERCH) ||
           channels.covers(x, y, (j) => j !== i && water[j]!.w > w.w))
       if (joins) dropped = Number.POSITIVE_INFINITY
-      else dropped = p.z[k] = Math.min(p.z[k]!, Math.max(top, lake ?? top))
+      else {
+        const own = Math.min(p.z[k]!, Math.max(top, lake ?? top))
+        // Perched too, it drops no higher than the dropped surface while its ground lies under it.
+        dropped = p.z[k] = lake === undefined && ground < dropped ? Math.min(own, dropped) : own
+      }
     }
   })
   aboveSea(wp)
 }
+
+/** How far the output line of a water profile strays from its 2 m samples at most, m (`waterLine`). */
+export const LINE_TOL = 0.1
 
 /** Output polyline of a water profile: every OSM vertex plus the samples that keep the dips under decks and culverts, and the sample each is. */
 export const waterLine = (
@@ -260,7 +269,7 @@ export const waterLine = (
   p: Profile,
 ): { pts: Array<V>; z: Array<number>; keep: Array<number> } => {
   const vertexAt = new Map(p.vertexSample.map((k, v) => [k, pts[v]!]))
-  const keep = keepSamples(p, p.vertexSample, 0.1)
+  const keep = keepSamples(p, p.vertexSample, LINE_TOL)
   return {
     pts: keep.map((k) => vertexAt.get(k) ?? { x: p.x[k]!, y: p.y[k]! }),
     z: keep.map((k) => p.z[k]!),
