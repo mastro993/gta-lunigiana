@@ -179,6 +179,36 @@ test("deckGround lowers the ground at a joint between two pieces of a deck as un
   ])
 })
 
+// Regression: at Santo Stefano di Magra two yard tracks leave a switch side by side, each on its own deck over the road tunnel
+// 99395994, the track at grade behind it; read as joined there, neither kept an end run, and the ground at the switch fell
+// 1.5 m under the loop 377677815 leaving it at grade.
+test("deckGround keeps the end runs of two decks leaving one point the same way: side by side, no joint", () => {
+  // A switch at (22, 40), its two legs on decks over a valley from x 24 to x 90, the track at grade behind it (x < 22).
+  const ground = (x: number) => (x > 24 && x < 90 ? 0 : 10)
+  const legs = [
+    railSlab({ pts: [22, 40, 100, 40], z: [10, 10] }),
+    railSlab({ pts: [22, 40, 60, 44, 100, 46], z: [10, 10, 10] }),
+  ]
+  assert.deepEqual(jointsOf(legs), [
+    [[], []],
+    [[], []],
+  ])
+  // A deck on from the switch the other way makes it a joint of all three.
+  const on = railSlab({ pts: [2, 40, 22, 40], z: [10, 10] })
+  assert.deepEqual(jointsOf([...legs, on]), [
+    [[2], []],
+    [[2], []],
+    [[], [0, 1]],
+  ])
+  const g = grid(ground)
+  deckGround(g, legs, (n) => n % g.cols <= 5)
+  // 2 m in from the switch, under both decks: the end run keeps the approach's level, which the at-grade track's last cell
+  // reads.
+  assert.equal(g.z[node(g, 6, 10)], 10)
+  assert.equal(gridGround(g).terrainZ(22, 40), 10)
+  assert.deepEqual(short(g, ...legs), [])
+})
+
 test("slabNodes lists the corners of the cells a slab reaches over, flagging those abeam of its deck", () => {
   const g = grid(() => 0)
   const nodes = new Map(slabNodes(g, [tertiary(10, 10)]))

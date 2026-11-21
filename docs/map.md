@@ -2904,9 +2904,17 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   ground all across, and `END_RUN` (4 m, the issue's "more than a few metres") at most: there it
   meets the ground, which only stays at most 0.05 m (the rail bed's `BED`) over its profile, under
   every road's surface (`ROAD_LIFT`, 0.06 m or more). Between its end runs, the ground stays under
-  the slab. A deck's pieces join where they share a vertex with tops within `ON_DECK` (`jointsOf`):
-  OSM splits a viaduct into ways mid-span (24 of Lunigiana's pieces, 27 of Cesena's, 13 of the
-  L's), and a joint is no end. Read on `main`'s build, the slab first stood clear more than 4 m from
+  the slab. A deck's pieces join where they share a vertex with tops within `ON_DECK` (`jointsOf`)
+  and the other runs on past it, through it or leaving it the other way: OSM splits a viaduct into
+  ways mid-span (24 of Lunigiana's pieces, 27 of Cesena's, 13 of the L's), and a joint is no end.
+  Two decks leaving one vertex the same way stand side by side, a switch or a fork at their end with
+  the line at grade behind it, an outer end of each: Santo Stefano di Magra's yard tracks over the
+  road tunnel 99395994 leave their switches each on its own deck, and read as joined there they kept
+  no end run, so the ground at the switch at (−17647.4, −2269.4) fell 1.4 m under the loop 377677815
+  leaving it at grade, 1.07 m under its track (`rail.map-test.ts`). The rule moves 3 of that switch's
+  nodes on Lunigiana, by up to 1.4 m, and 13 of Cesena's, by up to 1.6 m, where the footways'
+  decks leave the Ponte del Risorgimento's end beside it (−570, 48) and where Via Ugo La Malfa's
+  and Via Corradino Fabbri's decks part (1860, 148). Read on `main`'s build, the slab first stood clear more than 4 m from
   an outer end on 120 of Lunigiana's decks, 24 of them nowhere, up to 20.4 m in (the rail bridge
   621942962) and 19.1 m on a road (260987314); on 43 of Cesena's, up to 143 m of the primary
   70194399's 246 m, an OSM bridge drawn over a bank; on 26 of the L's, up to 12.8 m. Past 4 m the

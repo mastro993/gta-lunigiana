@@ -52,10 +52,27 @@ const STEP = 0.5
  */
 export const END_RUN = 4
 
+/** The unit direction `slab` leaves its vertex `k` in along itself (from its end inward, or on from a vertex inside it). */
+const leaving = (slab: Slab, k: number): readonly [number, number] => {
+  const n = slab.z.length,
+    step = k === n - 1 ? -1 : 1
+  for (let m = k + step; m >= 0 && m < n; m += step) {
+    const dx = slab.pts[2 * m]! - slab.pts[2 * k]!,
+      dy = slab.pts[2 * m + 1]! - slab.pts[2 * k + 1]!,
+      d = Math.hypot(dx, dy)
+    if (d > 0) return [dx / d, dy / d]
+  }
+  return [0, 0]
+}
+
 /**
  * Per slab, the other slabs joined to it at its first and at its last vertex: those with a vertex at
- * the same point whose top there lies within ON_DECK of its own, the next piece of the same bridge
- * or a deck it meets on its level. An end with none is an outer end, where the deck meets the ground.
+ * the same point whose top there lies within ON_DECK of its own and that run on past it, through it
+ * or leaving it the other way (the next piece of the same bridge, or a deck it meets on its level).
+ * An end with none is an outer end, where the deck meets the ground: two decks leaving one point the
+ * same way are side by side, a switch at their end with track at grade behind it (Santo Stefano di
+ * Magra's yard tracks over the road tunnel 99395994, read as joined, kept no end run, and the ground
+ * at the switch fell 1.5 m under the at-grade track leaving it).
  */
 export const jointsOf = (
   slabs: ReadonlyArray<Slab>,
@@ -64,16 +81,21 @@ export const jointsOf = (
   const key = (slab: Slab, k: number) => `${slab.pts[2 * k]},${slab.pts[2 * k + 1]}`
   slabs.forEach((slab, i) => {
     for (let k = 0; k < slab.z.length; k++)
-      at.set(key(slab, k), [...(at.get(key(slab, k)) ?? []), [i, slab.z[k]! + slab.lift]])
+      at.set(key(slab, k), [...(at.get(key(slab, k)) ?? []), [i, k]])
   })
   return slabs.map((slab, i) => {
     const joined = (k: number) => {
-      const top = slab.z[k]! + slab.lift
+      const top = slab.z[k]! + slab.lift,
+        [ux, uy] = leaving(slab, k)
       return [
         ...new Set(
-          (at.get(key(slab, k)) ?? []).flatMap(([j, t]) =>
-            j !== i && Math.abs(t - top) < ON_DECK ? [j] : [],
-          ),
+          (at.get(key(slab, k)) ?? []).flatMap(([j, m]) => {
+            const other = slabs[j]!
+            if (j === i || Math.abs(other.z[m]! + other.lift - top) >= ON_DECK) return []
+            if (m > 0 && m < other.z.length - 1) return [j]
+            const [vx, vy] = leaving(other, m)
+            return ux * vx + uy * vy < 0 ? [j] : []
+          }),
         ),
       ]
     }
