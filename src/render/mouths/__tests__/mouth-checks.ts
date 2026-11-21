@@ -19,7 +19,7 @@ import { buildingBox } from "../../../sim/map/vectors.ts"
 import { boreOf, UNDER } from "../../bores.ts"
 import type { Vectors } from "../../testing.ts"
 import { leastWall, measured, type Standing, standing, wallFoot } from "../index.ts"
-import { headWall } from "../shapes.ts"
+import { headWall, THICK, THROAT } from "../shapes.ts"
 
 /** A road tunnel's mouth: its road (index in the whole map's roads), its end and the heading out of the hill (rad). */
 export interface Mouth {
@@ -317,8 +317,9 @@ export type Open = "buried" | "housed" | "low" | "crowded"
  * along the roads of its tunnel that go on from it, short of the tunnel's middle, probed every
  * 0.25 m, a house stands over the way there at its level, the ground under its lowest corner less
  * than the clear height over the road ("housed": a covered way, which the house hides); else
- * the ground over it never rises as high over the road as a head wall's top and its margin
- * (`leastWall`: "low"); else another road or the track runs through the room a head wall and its
+ * the ground over it, as far in as a head wall's box may run (in whole metres behind the wall,
+ * short of the tunnel's middle), never rises as high over the road as a head wall's top and its
+ * margin (`leastWall`: "low"); else another road or the track runs through the room a head wall and its
  * box would take, beside the bore's axis and between the wall's foot (`wallFoot`, as the bake
  * stands it: under the road, or under the ground at its face's ends where that is lower) and that
  * height, or a road carrying on out of the mouth reaches past the arch's side there ("crowded"), or
@@ -337,7 +338,12 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
         length += Math.hypot(pts[k]! - pts[k - 2]!, pts[k + 1]! - pts[k - 1]!)
   })
   const span = Math.min(40, length / 2),
-    probes: Array<{ readonly x: number; readonly y: number; readonly z: number }> = []
+    probes: Array<{
+      readonly x: number
+      readonly y: number
+      readonly z: number
+      readonly s: number
+    }> = []
   // Along `line` from its first vertex (`ahead`) or its last, `from` m into the tunnel there, then
   // on along each road of the tunnel that goes on from where it ends (each way a fork takes).
   const walk = (line: Road, ahead: boolean, from: number, used: ReadonlySet<Road>): void => {
@@ -357,6 +363,7 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
           x: line.pts[2 * a]! + (line.pts[2 * b]! - line.pts[2 * a]!) * t,
           y: line.pts[2 * a + 1]! + (line.pts[2 * b + 1]! - line.pts[2 * a + 1]!) * t,
           z: line.z[a]! + (line.z[b]! - line.z[a]!) * t,
+          s: s + d,
         })
       }
       s += l
@@ -394,10 +401,15 @@ export const whyOpen = ({ roads, buildings }: Vectors, end: Mouth): Open => {
     )
   )
     return "housed"
-  // Over the road's surface, as the bake asks and the box measures.
-  const least = leastWall(road),
+  // Over the road's surface, as the bake asks and the box measures, as far as the box may reach:
+  // its wall and whole metres behind it, short of the middle. Via Termo's 29.3 m underpass under
+  // Vezzano Ligure's tracks rises to a head wall's 4.95 m over its floor 14.5 m in from its east
+  // mouth, past the 14 m a box reaches there.
+  const reach = THICK + Math.max(1, Math.min(THROAT.longest, Math.floor(length / 2 - THICK))),
+    least = leastWall(road),
     highest =
-      Math.max(...probes.map(({ x, y, z }) => terrainZ(x, y) - z)) - ROAD_LIFT[roadClassOf(road)]
+      Math.max(...probes.filter(({ s }) => s <= reach).map(({ x, y, z }) => terrainZ(x, y) - z)) -
+      ROAD_LIFT[roadClassOf(road)]
   if (highest < least) return "low"
   const ux = Math.cos(end.angle),
     uy = Math.sin(end.angle),
