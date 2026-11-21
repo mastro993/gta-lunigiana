@@ -83,14 +83,25 @@ export const fillPolygon = (
   }
 }
 
-/** Distance from (x, y) to segment `s`, m. */
-export const segmentDistance = (s: Segment, x: number, y: number): number => {
-  const ex = s.bx - s.ax,
-    ey = s.by - s.ay
+/** Distance from (x, y) to the segment (ax, ay)-(bx, by), m: `segmentDistance` with no segment to build. */
+export const distanceToSegment = (
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  x: number,
+  y: number,
+): number => {
+  const ex = bx - ax,
+    ey = by - ay
   const len2 = ex * ex + ey * ey
-  const u = len2 > 1e-12 ? Math.max(0, Math.min(1, ((x - s.ax) * ex + (y - s.ay) * ey) / len2)) : 0
-  return Math.sqrt((x - s.ax - ex * u) ** 2 + (y - s.ay - ey * u) ** 2)
+  const u = len2 > 1e-12 ? Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / len2)) : 0
+  return Math.sqrt((x - ax - ex * u) ** 2 + (y - ay - ey * u) ** 2)
 }
+
+/** Distance from (x, y) to segment `s`, m. */
+export const segmentDistance = (s: Segment, x: number, y: number): number =>
+  distanceToSegment(s.ax, s.ay, s.bx, s.by, x, y)
 
 /**
  * Pushes a circle out of every segment it overlaps, leaving `skin`. Repeats

@@ -1,34 +1,31 @@
 /**
  * Lookups over the map graph's edges as straight chords: the distance to an edge's centreline, its
  * midpoint, and grids that find the nearest edge or the edges around a point without scanning the
- * whole map. Static, derived once from `graph`. Kept apart from `route` so that modules `route`
- * reads (the residents along each walk edge) can use them without an import cycle.
+ * whole map. Static, derived once from `graph`; a chord is read from its two nodes when asked, never
+ * stored (an object per edge for the chords and another for the midpoints kept 18 MB of the heap
+ * on Lunigiana). Kept apart from `route` so that modules `route` reads (the residents along each
+ * walk edge) can use them without an import cycle.
  *
  * @module edges
  */
-import { segmentDistance, staticGrid } from "./collide.ts"
-import { graph, type Segment } from "./map/index.ts"
-
-/** Every graph edge as a segment a -> b, indexed like `graph.edges`. */
-const chords: ReadonlyArray<Segment> = graph.edges.map((e) => {
-  const a = graph.nodes[e.a]!,
-    b = graph.nodes[e.b]!
-  return { ax: a.x, ay: a.y, bx: b.x, by: b.y }
-})
+import { distanceToSegment, staticGrid } from "./collide.ts"
+import { graph } from "./map/index.ts"
 
 /** Distance from (x, y) to the centreline of `edge`. */
-export const distanceToEdge = (edge: number, x: number, y: number): number =>
-  segmentDistance(chords[edge]!, x, y)
-
-/** Midpoint of every graph edge, indexed like `graph.edges`. */
-const midpoints: ReadonlyArray<{ readonly x: number; readonly y: number }> = chords.map((c) => ({
-  x: (c.ax + c.bx) / 2,
-  y: (c.ay + c.by) / 2,
-}))
+export const distanceToEdge = (edge: number, x: number, y: number): number => {
+  const e = graph.edges[edge]!,
+    a = graph.nodes[e.a]!,
+    b = graph.nodes[e.b]!
+  return distanceToSegment(a.x, a.y, b.x, b.y, x, y)
+}
 
 /** The midpoint of `edge`'s centreline. */
-export const midpointOf = (edge: number): { readonly x: number; readonly y: number } =>
-  midpoints[edge]!
+export const midpointOf = (edge: number): { readonly x: number; readonly y: number } => {
+  const e = graph.edges[edge]!,
+    a = graph.nodes[e.a]!,
+    b = graph.nodes[e.b]!
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+}
 
 /** Grid cell of `edgeIndex`, m (edges are at most ~25 m). */
 const EDGE_CELL = 32
@@ -43,13 +40,10 @@ export const edgeIndex = (edges: ReadonlyArray<number>) => {
   const grid = staticGrid(
     edges.length,
     (k) => {
-      const c = chords[edges[k]!]!
-      return [
-        Math.min(c.ax, c.bx),
-        Math.min(c.ay, c.by),
-        Math.max(c.ax, c.bx),
-        Math.max(c.ay, c.by),
-      ]
+      const e = graph.edges[edges[k]!]!,
+        a = graph.nodes[e.a]!,
+        b = graph.nodes[e.b]!
+      return [Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y)]
     },
     EDGE_CELL,
   )
@@ -76,8 +70,11 @@ export const edgeIndex = (edges: ReadonlyArray<number>) => {
     ): ReadonlyArray<number> => {
       found.length = 0
       grid(x - max, y - max, x + max, y + max, (k) => {
-        const m = midpoints[edges[k]!]!,
-          d2 = (m.x - x) ** 2 + (m.y - y) ** 2
+        // `midpointOf`'s arithmetic, with no point built per edge.
+        const e = graph.edges[edges[k]!]!,
+          a = graph.nodes[e.a]!,
+          b = graph.nodes[e.b]!,
+          d2 = ((a.x + b.x) / 2 - x) ** 2 + ((a.y + b.y) / 2 - y) ** 2
         if (d2 >= min * min && d2 <= max * max) found.push(edges[k]!)
       })
       return found
