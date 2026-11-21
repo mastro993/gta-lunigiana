@@ -43,6 +43,23 @@ export const MAX_TURN = 60
  */
 export const HEADING_SPAN = 5
 
+/**
+ * The unit heading from vertex 0 of a line of `n` vertices (`at(k)`, vertex k's x and y) to its first
+ * vertex `span` m or more from it, else its last: a piece's heading out of a node.
+ */
+export const headingOut = (
+  n: number,
+  at: (k: number) => readonly [number, number],
+  span: number,
+): readonly [number, number] => {
+  const [ax, ay] = at(0)
+  let k = 1
+  while (k < n - 1 && Math.hypot(at(k)[0] - ax, at(k)[1] - ay) < span) k++
+  const [bx, by] = at(k)
+  const d = Math.hypot(bx - ax, by - ay) || 1
+  return [(bx - ax) / d, (by - ay) / d]
+}
+
 /** Arc length of a flat polyline, m. */
 export const lengthOf = (pts: ReadonlyArray<number>): number => {
   let s = 0
@@ -179,13 +196,7 @@ export const findLines = (
     const p = rail[i]!.pts,
       n = p.length / 2
     const v = (k: number) => (end === 0 ? k : n - 1 - k)
-    const [ax, ay] = [p[2 * v(0)]!, p[2 * v(0) + 1]!]
-    let k = 1
-    while (k < n - 1 && Math.hypot(p[2 * v(k)]! - ax, p[2 * v(k) + 1]! - ay) < HEADING_SPAN) k++
-    const bx = p[2 * v(k)]!,
-      by = p[2 * v(k) + 1]!
-    const d = Math.hypot(bx - ax, by - ay) || 1
-    return [(bx - ax) / d, (by - ay) / d] as const
+    return headingOut(n, (k) => [p[2 * v(k)]!, p[2 * v(k) + 1]!], HEADING_SPAN)
   }
   const isTerminal = (k: string) => {
     if (at.get(k)!.length !== 1) return false

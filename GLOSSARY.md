@@ -111,6 +111,10 @@ _Avoid_: Dual road, double road, parallel roads
 A track running beside another of its kind (both on bridges, both in tunnels or both at grade) on one formation, no gap over 6 m between the tracks lying from one to the other, whatever their headings (farther apart, within 15° of parallel and parting by a 2:3 bank): the one fitted later keeps to the other's level.
 _Avoid_: Double track, parallel line
 
+**Knot**:
+A sample of a deck's profile where its shipped line bends to keep to its twin track, or one of the deck's ends: the deck runs straight from knot to knot.
+_Avoid_: Vertex (OSM's), bend (any change of grade)
+
 **Ground model**:
 The one set of rules that turns ground data into the ground at a point, for the game, the map build and the tests alike.
 
@@ -156,6 +160,10 @@ A road vehicle's level as read toward a point: along its pitch out to its bumper
 **Mouth**:
 An end of a tunnel's line that no other line in a tunnel goes on from or runs through: where a road or the railway enters the hill.
 _Avoid_: Portal (that is what stands there), entrance, tunnel end
+
+**Hill's face**:
+The slope the terrain model reads over a cutting before a tunnel's mouth, where the ground falls away along the line more steeply than any pass's grade limit (20%): a rail tunnel's mouth takes the ground at its foot, unless the ground past the foot climbs back by half the face's height (a gully's floor, crossed on a bank).
+_Avoid_: Head wall (that is what stands there), cutting
 
 **Portal**:
 The arched face wall and its throat that stand at a mouth the hill rises high enough over.
