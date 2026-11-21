@@ -555,8 +555,8 @@ test("water areas: a lake no node of whose cells lies inside its edge stands at 
   assert.equal(lake!.level, Math.min(...built), "its spill as built")
 })
 
-// Regression: a 10 m² pool under a path's bridge at the Mulini Bozzo Luero (OSM 1032984030, round
-// (−15432, 1586)) held no cell's centre: nothing drew or carved its water, and the game read still
+// Regression: a 6.0 m² pool under a path's bridge at the Mulini Bozzo Luero (OSM 1032984030, round
+// (−15432, 1585)) held no cell's centre: nothing drew or carved its water, and the game read still
 // water 0.8 m deep over the ground under it.
 test("water areas: a ring holds a cell where a cell's centre lies inside it, as the land cover fills it", () => {
   // The lattice's cells are centred 2 m off its nodes, which lie on multiples of 4 m here.
