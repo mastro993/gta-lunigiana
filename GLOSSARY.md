@@ -64,6 +64,12 @@ _Avoid_: map version, schema version
 What reads a map file one format version back as one of today's, so two builds either side of a format change can be compared.
 _Avoid_: migration, converter
 
+## Map checks
+
+**Known limit**:
+A new part's failure of a map check left after three rounds of fixes, each a rule for every feature alike, which the user accepted (issue #20): the check lists it by OSM id with the reason no rule clears it and asserts that it still fails, so a fix fails the check until the item is dropped; every other failure still fails.
+_Avoid_: exception, exemption, allowlist, known misread; left out (a kind of feature a check's rule passes over, never one feature named by id)
+
 ## Ground
 
 **Ground**:

@@ -134,11 +134,21 @@ follow from the discharge per km², q.
   reads, and the gauge at Calamazza is quoted at 932 km², not verified
   ([map.md](map.md#known-data-limitations)).
 - **The Vara** (issue #20) comes in over the box's west edge with 552.4 km² (`OFF_MAP`, a D8 on
-  Liguria's DTM) and reads 553.4 where the play area's outline cuts it, inside the box; it meets the
-  Magra at Fornola with 603.3 (the Autorità di bacino del Magra's PGRA gives it about 600 there, the
-  D8 605.6), the Magra reading 945.8 above it and 1,549.4 below. The Magra leaves the play area at
-  y −8500, 4.8 km above its mouth, with 1,618.8 of the about 1,700 km² the Autorità di bacino gives
-  its basin at the mouth. Their flows per km² are the Aulella's at Soliera too.
+  Liguria's DTM: 547.6 at its crossing, and the 4.7 of the box's own ground west of the divide
+  above Calice al Cornoviglio, which leave the box across the edge and come back down the Vara) and
+  reads 553.4 where the play area's outline cuts it, inside the box; it meets the Magra at Fornola
+  with 603.3 (the Autorità di bacino del Magra's PGRA gives it about 600 there, the D8 605.6), the
+  Magra reading 945.8 above it and 1,549.4 below. The Magra leaves the play area at y −8500, 4.8 km
+  above its mouth, with 1,618.8 of the about 1,700 km² the Autorità di bacino gives its basin at
+  the mouth. Their flows per km² are the Aulella's at Soliera too. Of the 566.4 km² that come in
+  over the west edge (x −23100), besides the Vara's 547.6, the Durasca brings 11.0 (its own 9.3 and
+  the 1.7 of a stream OSM does not map that joins it 1.5 km inside), the Fosso di Cambertano 2.3
+  and the Gorda 1.1, each at its own crossing; the rivulets' 2.5 km² are left out, and so are the
+  Torrente Dorgia's 1.8, which cross the edge at y −3396 but run down La Spezia's side to the gulf,
+  outside the play area: listed with the others, they were added to no water and nothing failed,
+  and `water.map-test.ts` now checks that every stream `OFF_MAP` brings in over the box's edge is
+  in play and reads its area. The 3.7 km² that come in over the south edge (y −8500) come down no
+  stream over 1 km² that OSM maps, and are left out too.
 - **The channel** (`channelOf`, `channel.ts`): as wide as the water (`Water.w`), its bed the terrain
   drawn under the centreline (except under an at-grade road, where it stays `depth`/2 under the
   culvert's dip, so the road stays dry until a flood overtops it; under ground standing more than
@@ -149,19 +159,21 @@ follow from the discharge per km², q.
   stood on the verge of the 6 m bridge 373320292 over it. 1,164 of Lunigiana's vertices on 580
   pieces lie so (9 of them 13–506 m from any road or track, up to 1.67 m under the ground), 37 of
   the L's on 17, 4 of the coast's and none of Cesena's, and their floors lie `depth`/2 under the
-  surface; and near the track, on the ground or a bridge, where it is no higher than that nor
-  `depth` under the rail bed: the map build lays the rail bed across a stream at grade, banks it up
-  beside it and leaves the ground under a low CTR bridge at the track's level, and the stream runs
-  through the culvert or under the deck. Near is within the water's own reach (`reachOf`, its gravel
-  bed's half-width: 3 m on a narrow stream) of the rail bed's 4 m, since a vertex holds water that
-  far across it: the vertices within 2 m of the centreline alone left 0.06 m on the bed's edge
-  beside two of the culverts at the mean flow and 0.24–0.31 m in a 0.6 m³/s per km² spate. The whole
-  rail bed stays dry where the three streams cross it at every flow up to the gauge's record flood
-  (688 m³/s at Soliera, 3.3 m³/s per km²)), and its grade the surface's fall over ±40 m. The bed
-  reads the terrain along the whole water, which the game holds only near the player, so the build
-  works it out (`bedOf`) and every tile holding the piece keeps it per vertex (`Water.floor`), which
-  `channelOf` reads. Depth and mean speed follow Manning's equation with Jarrett's (1984) roughness
-  for high-gradient streams, n = 0.39 S^0.38 R^−0.16, fitted on Colorado mountain streams of
+  surface; and near the track, on the ground, on a bridge or in either culvert (a culvert takes the
+  track's rule too since issue #20, which moved no vertex of the four maps), where it is no
+  higher than `depth`/2 under its surface nor `depth` under the rail bed: the map build lays the
+  rail bed across a stream at grade, banks it up beside it and leaves the ground under a low CTR
+  bridge at the track's level, and the stream runs through the culvert or under the deck. Near is
+  within the water's own reach (`reachOf`, its gravel bed's half-width: 3 m on a narrow stream) of
+  the rail bed's 4 m, since a vertex holds water that far across it: the vertices within 2 m of the
+  centreline alone left 0.06 m on the bed's edge beside two of the culverts at the mean flow and
+  0.24–0.31 m in a 0.6 m³/s per km² spate. The whole rail bed stays dry where the three streams
+  cross it at every flow up to the gauge's record flood (688 m³/s at Soliera, 3.3 m³/s per km²)),
+  and its grade the surface's fall over ±40 m. The bed reads the terrain along the whole water,
+  which the game holds only near the player, so the build works it out (`bedOf`) and every tile
+  holding the piece keeps it per vertex (`Water.floor`), which `channelOf` reads. Depth and mean
+  speed follow Manning's equation with Jarrett's (1984) roughness for high-gradient streams,
+  n = 0.39 S^0.38 R^−0.16, fitted on Colorado mountain streams of
   0.2–5.2 % grade (flatter and steeper reaches are held to that range); for a wide channel Q = w
   h^1.83 S^0.12 / 0.39, so the depth goes as q^0.547 and the speed as q^0.453.
 - **At a point** (`waterAt`, `rivers.ts`): the nearest reach within its gravel bed's half-width
@@ -198,7 +210,16 @@ follow from the discharge per km², q.
   below 15 m, 5,173 points hold water at the mean flow, 8 of them more than 1 m over the rivers
   (2.24 m at most): the Calcandola's, 375205186's and 238380857's own water falling into the Magra's
   polygon. The way to the bank is square to the reach, as on a line: an edge of the polygon may be
-  another polygon's of the same river (the Savio is 12 of them in Cesena).
+  another polygon's of the same river (the Savio is 12 of them in Cesena). OSM's water with no
+  `water=*` tag is a lake, but one a watercourse of its very name runs through is that river's
+  polygon (`riverOf` in `src/tools/features.ts`, issue #20,
+  [map.md](map.md#3-features-featurests)): the lower Calcandola, way 814811500, read as a lake held
+  at its lowest edge node (3.1 m, by the Magra) up to 17 m under the ground the stream through it
+  crosses, left the stream dry for its last 568 m and 1% of the polygon wet at the mean flow; as
+  the Calcandola's polygon, 52% of it is wet at the mean flow and 91% in a spate. Of the water
+  polygons in Lunigiana's OSM (95) and the coast's, Pontremoli's and Cesena's, the rule changes
+  this one alone: Lago Fario and the Canale di Agnolo's reservoirs, which unnamed or other streams
+  run through, stay lakes.
 - **In a lake** (`Area.level`): still water at its level, whatever the rivers carry, with no
   current; the way to the bank is toward its nearest shore. A lake wins over a stream through it.
   Its bed shelves 0.1 m a metre from the shore, 3 m deep at most: the lake by the Solco di Equi is
@@ -233,10 +254,12 @@ follow from the discharge per km², q.
   its bed plus its depth (stage × q^0.353) and 0 m, so at its mouth the sea holds it up at 0 m at
   low flow and a spate lifts it over. Where the sea holds it up the same flow runs through the
   deeper water slower, at the mean speed × (its depth at that flow / the water's depth over the
-  bed). Inland every bed lies above 18 m and nothing changes: the lookups at every vertex of
-  Lunigiana's water and at points up to 6.1 m either side of it, and on a 2 m lattice over its lakes
-  and river polygons, at five flows (0 to 3.3 m³/s per km²) and both floors, 36,998,350 of them,
-  answer to the bit as before, as do Cesena's 1,743,660 (2026-11-17). On the coast test region the
+  bed). Where every bed lies above 0 m nothing changes: before Sarzana's part, when Lunigiana's beds
+  all lay above 18 m, the lookups at every vertex of its water and at points up to 6.1 m either
+  side of it, and on a 2 m lattice over its lakes and river polygons, at five flows (0 to 3.3 m³/s
+  per km²) and both floors, 36,998,350 of them, answered to the bit as before the rule, as did
+  Cesena's 1,743,660 (2026-11-17); Sarzana's part brought in the Vara's and the Magra's plain,
+  down to 4.8 km above the Magra's mouth (not counted again). On the coast test region the
   Magra's bed lies 3.2 m under the sea's level at its mouth (its last vertex's baked bed, the sea
   floor there, −3.225 m), and the canals of the coastal plain, beds under 0 m too, stand at 0 m.
 
@@ -474,13 +497,13 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
 | `src/tools/__tests__/catchment.test.ts` | a braid's arms sharing the river's area at the fork and adding back to it at the rejoin; an unlisted tile's nodes (an L's notch) never read, outlets as the grid's edge is, so the ground beside them drains out and they bring no area; a river cut short of the grid's edge draining on down the water beyond the cut, not down a stream beside it; water coming in at the grid's edge no outlet for the water it joins; an inflow from beyond the grid carried down its stream from its node, and only there |
 | `src/sim/water/__tests__/rivers.test.ts` | over a synthetic river polygon with an island and a lake a stream runs through (`waterIndex`): the river's level and current across the polygon, the island dry, the river's own bed beyond it; the bank square to the reach either side of the seam between two polygons of one river; the lake still at its level, its bank the nearest shore, winning over the stream; a water area's surface as the render draws it; a river polygon holding the river's water 14 m from a ditch's course outside it, and the ditch's own on its course inside (red with the nearest reach read on the whole course); over a sea cut into pieces along a tile line and the map's bound, the bank toward the coast across the cuts, from a piece with no coast of its own too, an islet's shore a shore, and the nearest edge from a piece alone; an edge closing a river polygon across its mouth no coast, a swimmer off the mouth heading for the beach beside it (red with the closure a coast); a stream with its bed under the sea's level standing at 0 m, slower by the depth the sea holds it at, and running as any river once a spate lifts it over |
 | `src/sim/__tests__/water.test.ts` (the lakes) | the player swimming in the lake by the Solco di Equi and out; a Panda afloat there, drifting under 1 m with no current; in Lago Fario's 2.94 m, the swimming player's feet 0.7 of his height under the surface and his getting into a Panda afloat beside him, its wheels' ground more than 2 m over the bed |
-| `src/render/__tests__/water.test.ts`, `water-cesena.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes (over the smallest lake by it across two chunks, found by its cells, and the Aulella's polygon); on Cesena, the Savio's polygon carried on over the apron north of the map (Lunigiana's only lake or river polygon at its bounds, a river's north of Fosdinovo's part, meets them in the north-west notch, x −11500 at y 4192–4222, where no tile is listed); `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon; a river's ribbon over a bed falling from 0.5 m over the sea to 1.5 m under it, each vertex carrying `heldBySea` of its bed and `seaShare` of that, never drawn under 0 m at the mean flow (red with the two left off the ribbon, or `held` taken from the drawn height rather than the bed) |
+| `src/render/__tests__/water.test.ts`, `water-cesena.test.ts` | the Bozzetti pond one quad a cell at its level with its `still` depth; neighbouring chunks sharing their nodes (over the smallest lake by it across two chunks, found by its cells, and the Aulella's polygon); on Cesena, whose Savio's polygon reaches its map's north edge, the polygon carried on over the apron north of the map; `inPool` by cell; a ribbon's quad left out only under the water on all four corners, the Aulella's ribbons stopping over its polygon; a river's ribbon over a bed falling from 0.5 m over the sea to 1.5 m under it, each vertex carrying `heldBySea` of its bed and `seaShare` of that, never drawn under 0 m at the mean flow (red with the two left off the ribbon, or `held` taken from the drawn height rather than the bed) |
 | `src/render/__tests__/water-coast.map-test.ts` (`pnpm test:map`, on the coast test region) | off Marinella, the sea one quad a cell 0.05 m over 0 m in its shallows' colour, the sea's whole, as deep as it stands over each node; the sea carried on over the apron south of the map at the edge nodes' depth; the Magra's polygon at its mouth drawn where `waterAt` has its level at the mean flow and in a spate, the sea holding it up; the polygon meeting the sea flush at every node they share, wholly the sea's look there (red on the sea drawn at 0 m); the polygon's share of the sea's look at least 0.75, never stepping 0.2 between two neighbouring nodes (red with the share taken from the nearest reach: 0 where the Fosso Acque Medie's comes nearest); the ribbons of the 27 pieces whose bed dips under 0 m, 41,160 vertices, 24,975 of them on 26 pieces held up by the sea, none drawn under 0 m at the mean flow or in a spate, each in `seaShare` of its hold (red with the hold left off the ribbons); a cat swimming under the pier off Bocca di Magra, 1.66 m deep, floating in the water under its deck (red with the node floated over the ground on its footing's level: on the deck, 0.91 m) |
 | `src/render/sky/__tests__/water-shader.test.ts` | the water variant's lift (the flow's, at least the sea's hold, the streaks slower in the held water); the sea's colour ramp and its crisp foam under 0.3 m, on the sea's own water alone; the river's and the lake's look under each vertex's share of the sea's, the lakes' as before; `seaShare` none to 0.5 m, whole from 1.2 m, growing with no step between |
 | `src/tools/__tests__/water-areas.test.ts`, `water-areas.map-test.ts` (`pnpm test:map`) | the lakes and river polygons carved ([map.md](map.md#checks-and-tools)); on both maps, the lakes' beds, levels and shores (the sea left out: its floor is its own), the dry ones, a pool all of whose nodes are its edge at its spill as the tile pass carves the lines past it (red with the lines carved once), a ring holding a cell where a cell's centre lies in it (`holdsCell`), a river polygon carved to its waterways where they run in it, not a ditch's course on the terrace beside it (red with the whole course read), a river polygon's surface falling through it and its outer edge left over its waterways' bed inside it but where a road under that bed claims it, no tree, parked car or spawn in the water; Lunigiana's sea beyond the play area under 0 m but at its coastline and where the shore raises it, with no isobath of the survey in it (`sea-checks.ts`, the coast's checks) |
-| `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate |
+| `src/sim/__tests__/water.map-test.ts` (`pnpm test:map`) | every verge over the water of every bridge of the map on the deck in a spate, but Sarzana's closed footbridge 93746068 ([Known limits](#known-limits)), which must still flood, so a fix drops it |
 | `src/sim/map/__tests__/ground.test.ts`, `ground.map-test.ts` (`pnpm test:map`) | `waterAt` and `waterUnder`, with the ground and surface lookups, read from the tiles: round Monzone station and over the x = 0 and y = 0 seams, the same answers whichever of the 4 tiles there came in whichever order, with nothing else read; over the whole of Lunigiana, at 1,142,302 points (seeded ones, half of them by the seams, and every road and river vertex) dry, at the mean, in a spate and in a great flood, to the bit what one grid over the whole map's water answered (`water-oracle.ts`, with the sea's rules: still water's cuts no shore, the sea pieces' coast shared, its closures across a river's or a lake's mouth no coast, no river under the sea, and a river polygon's water read on its waterways where they run in it) |
-| `src/sim/map/__tests__/water.map-test.ts` (`pnpm test:map`) | the rivers' widths by reach (the Lucido's, the Aulella's, the Rosaro's, the Mommio's, the Bardine's, the Bardinello's, the Pesciola's, the Taverone's, the Osca's, the Penolo's and the Magra's, from `water-sizes.ts`); catchments growing downstream with no jump at a tributary's mouth the water it joins could have given (812989995's 1.47 km² over its last segment, where the ditch it joins reads 0, may), the Lucido's 47 ± 2 km², the Rosaro's 14.7 ± 0.5 at its entry, the Aulella's 199 ± 3 at x −5300 and 313 ± 3 at its mouth, the Bardine's 65.3 ± 2; the Magra's and the Taverone's heads (420.9 and 69.1 ± 0.5), the Taverone's 82 km² 1.3 km above its mouth and the Magra's 915 at y 3900; the Vara's 552.4 ± 2 over the west edge and 605.6 ± 5 at Fornola, adding to the Magra, which leaves the play area at y −8500 with 1,618.8 ± 5 of its 1,700; the Vara–Magra confluence monotone, each water within 3 km of Fornola and every piece of the Vara meeting the water it joins at its level, none perched over its bed on the plain (red with a way ponded at its mouth left lower at its start); on the plain, the Magra's and the Vara's polygons holding their waterways' water from inside them, over the rivers by more than 1 m only a tributary's that meets them (red with the whole courses read: 213 points of a 16 m lattice); none of the outline's cuts draining a river down a side stream (the stream by Soliera, way 140780331, under 1 km², Il Canalaccio under 6, the Canale del Torchio under 5); no walk or drive wall a body in a wide river meets (a parapet on its deck's level meets none), shore walls by it, read by the outline of the lake or river polygon it runs in, points within 30 m of the play area's outline left out |
+| `src/sim/map/__tests__/water.map-test.ts` (`pnpm test:map`) | the rivers' widths by reach (the Lucido's, the Aulella's, the Rosaro's, the Mommio's, the Bardine's, the Bardinello's, the Pesciola's, the Taverone's, the Osca's, the Penolo's, the Magra's, the Vara's, the Amola's, the Durasca's and the Canale Lunense's, from `water-sizes.ts`); every stream `OFF_MAP` brings in over the box's edge in play and reading its area there (red with the Torrente Dorgia's entry); catchments growing downstream with no jump at a tributary's mouth the water it joins could have given (812989995's 1.47 km² over its last segment, where the ditch it joins reads 0, may), the Lucido's 47 ± 2 km², the Rosaro's 14.7 ± 0.5 at its entry, the Aulella's 199 ± 3 at x −5300 and 313 ± 3 at its mouth, the Bardine's 65.3 ± 2; the Magra's and the Taverone's heads (420.9 and 69.1 ± 0.5), the Taverone's 82 km² 1.3 km above its mouth and the Magra's 915 at y 3900; the Vara's 552.4 ± 2 over the west edge and 605.6 ± 5 at Fornola, adding to the Magra, which leaves the play area at y −8500 with 1,618.8 ± 5 of its 1,700; the Vara–Magra confluence monotone, each water within 3 km of Fornola and every piece of the Vara meeting the water it joins at its level, none perched over its bed on the plain (red with a way ponded at its mouth left lower at its start); on the plain, the Magra's and the Vara's polygons holding their waterways' water from inside them, over the rivers by more than 1 m only a tributary's that meets them (red with the whole courses read: 213 points of a 16 m lattice); none of the outline's cuts draining a river down a side stream (the stream by Soliera, way 140780331, under 1 km², Il Canalaccio under 6, the Canale del Torchio under 5); no walk or drive wall a body in a wide river meets (a parapet on its deck's level meets none), shore walls by it, read by the outline of the lake or river polygon it runs in, points within 30 m of the play area's outline left out |
 | `src/render/__tests__/index.test.ts`, `figures.test.ts` | no x-ray in the water, a swimmer floating at its shoulders and never under the bed; the swim frames |
 
 ## Known limits
@@ -513,6 +536,13 @@ papers' ([weather.md](weather.md#the-climate-sources-record)); none of their dat
   whatever they carry.
 - **Under a bridge.** A body that walks under a bridge on the bank (not yet in the water) is taken
   to be on its deck there.
+- **A footbridge in a spate.** Sarzana's footbridge 93746068 (closed in OSM: `access=no`, fenced
+  and blocked at its entrances) runs 305 m straight from Via Aurelia's junction, which the rail's
+  fit holds at 18.1 m, down to the south bank, and stands 0.11 m under the spate at
+  (−17922.5, −2696.9): the map build's path pass fits its deck before the catchments give the
+  spate's level.
+  The user chose after three rounds of fixes to list it as a known limit (issue #20,
+  [map.md](map.md#known-data-limitations)).
 - **Engines.** An engine that stalled in the water runs again once out of it: nothing hydrolocks.
 - **A still sea.** The sea stands at 0 m: no tides, waves or currents, and a river stands no lower
   than it wherever its bed lies under 0 m, up a canal too, not only at its mouth.

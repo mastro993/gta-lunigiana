@@ -74,7 +74,13 @@ back once it rests on a seat.
   a bank under a deck, the player stops where the headroom runs out, and comes onto the deck only at
   its level, along the road at its ends. The walls stand at the ground's level, 2.5 m or more under
   the deck, so nobody on the deck or on the road onto it meets them
-  ([map.md](map.md#walls-under-the-decks)).
+  ([map.md](map.md#walls-under-the-decks)). Sarzana's part leaves three places that do otherwise,
+  which the user chose after three rounds of fixes to list as known limits (issue #20,
+  [map.md](map.md#known-data-limitations); `under-decks.map-test.ts`, which fails on any other and
+  on these once they are fixed): the road 491595994 runs beside the A15's viaduct 156568131, its
+  carriageway over the deck's edge on ground at the deck's level, so a walker or a car on it comes
+  up onto the deck there; and a verge of the roads onto the bridges 262912001 and 1149354824, short
+  decks over ditches, meets the wall under the deck 4.3 and 5 m before its end.
 - Knocked down, the player cannot steer and slides to a stop (10 m/s²).
 - **In a river, a stream, a lake or the sea** the player wades, slower the deeper it is (a sprint
   most of all) and pushed by the current, until the water reaches his chest or the current takes
@@ -657,9 +663,15 @@ the lane helpers in `src/sim/route.ts`.
   one 6.5 m onto its deck at 11.7 m/s; rolled there, it stops 6.1–6.4 m short. With a lane's slope
   for the pitch, that reading lost such a car at 30 of Lunigiana's 463 joints between a road and a
   bridge or a tunnel, 7 of Cesena's 105 and 8 of the L's 63 before #18 (541 and 67 joints now,
-  2026-11-07); rolled, at none but a mouth of Pieve
-  San Lorenzo's underpass ([map.md](map.md#known-data-limitations)), with Fosdinovo's joints too
-  (`joints.map-test.ts`). Rolled to the obstacle's
+  2026-11-07); rolled, at none but three of Sarzana's part, which the user chose after three rounds
+  of fixes to list as known limits (issue #20, [map.md](map.md#known-data-limitations)): the service
+  road 378584357 crosses over Via Alta's bore (106907873 to 107843275) at grade 2.5 m behind its
+  south mouth, its carriageway over the approach's last 2 m, and the ground blends the two; the SS62
+  (308956561 to 301036802) meets a junction pinned at the ground before its deck's clearance was
+  fitted; and 1352409569 runs into its mouth beside the yard's tracks, whose core holds the cells
+  under it at the rail's level (`joints.map-test.ts`, which fails on any other misread and on these
+  once they read on their level). The mouth of Pieve San Lorenzo's underpass, the one listed
+  before, reads on its level now. Rolled to the obstacle's
   middle, a train's car passing under a road bridge may lie off the deck: a car on the SR445's deck
   over the railway, 340 m east of the dip, then changed its way for a train passing under it at 16
   of 26 timings (from 60 m before the deck to 60 m past it every 10 m, both ways), and now goes on
@@ -1343,8 +1355,13 @@ code:
     1,409.1 m) through Aulla Lunigiana and Santo Stefano di Magra: the Parma–La Spezia's on its down
     track through Vezzano Ligure to the west edge (21,430.6 m) and the La Spezia–Parma's on its up
     track (21,265.9 m), and the Milano–Livorno's and Livorno–Milano's over the link at Santo Stefano
-    to the Genova–Pisa and through Sarzana to the south-east edge (27,789.1 and 27,795.3 m), the
-    four sharing the single track north of P.P. Chiesaccia;
+    to the Genova–Pisa and through Sarzana to the south-east edge (27,789.1 and 27,795.3 m; the
+    Livorno–Milano's, on the westbound track, calls at Arcola's halt too), the four sharing the
+    single track north of P.P. Chiesaccia. At the link the Milano–Livorno's leave the down track,
+    shared with the Parma–La Spezia's, for the Genova–Pisa's eastbound track, shared east of it with
+    the La Spezia–Pietrasanta's, and the Livorno–Milano's leave the westbound track, shared with the
+    Pietrasanta–La Spezia's, for the up track, shared with the La Spezia–Parma's
+    ([map.md](map.md#9-the-railway-railwayts-platformsts-rail-clearts));
   - **the Genova–Pisa's two tracks**, the Pietrasanta–La Spezia's and the La Spezia–Pietrasanta's
     (11,010.6 and 10,946.0 m), from the south-east edge through Sarzana, Arcola's halt (the
     westbound) and Vezzano Ligure to the west edge. Past their ends there the run-outs follow OSM's
@@ -1469,11 +1486,14 @@ the terminal, which it passes at 84.2 km/h (2026-11-07, with the run-outs on the
   dwell ends it runs on to the next station, or off the line past the last.
 - **Whistle.** 30 m before the mouth of a tunnel 200 m long or more (RFI's signal rules, art. 5:
   curved tunnels and long straight ones), it sounds a moderately long whistle (`Whistle`, about
-  1.5 s, for the audio to play): the Ugliancaldo tunnel (3194.6 m), and those of 271.1 and 225.0 m;
-  the 169.3 and 66.8 m ones get none. A tunnel's end at a terminal is where the map cuts it, no
-  mouth: a train coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's bore
-  already (1324.6 m of it in the map, and all of the 2298.6 m run-out past the terminal), and
-  whistles only running into it from Pieve, 30 m before its portal.
+  1.5 s, for the audio to play): on the Lucca–Aulla line as far as Rometta, the Ugliancaldo tunnel
+  (3194.6 m), and those of 271.1 and 225.0 m, while the 169.3 and 66.8 m ones get none (with
+  Fivizzano's part; the tunnels Aulla's and Sarzana's parts brought are not listed here). A mouth
+  past a terminal, on its run-out, gets none, nor does a bore's end at a terminal, which is where
+  the map cuts it: a train coming in at Pieve San Lorenzo's end is in the Galleria del Lupacino's
+  bore already (1324.6 m of it in the map, and all of the 2298.6 m run-out past the terminal), and
+  whistles only running into it from Pieve, 30 m before its portal; one coming in at the west edge
+  enters the Genova–Pisa's or the Pontremolese's bore 161–337 m past its terminal, silent.
 - **The look-out** (`rail/lookout.ts`; RFI's signal rules art. 5(e): people on or next to the track
   call for the whistle; the Italian investigation report on the Caluso crossing crash of 2018, of a
   driver at Bojano: the urgent brake and the horn together). A person, an animal or a vehicle on the
@@ -1628,14 +1648,17 @@ they stand 6.5 s later, the dwelling train shoved 22 m along.
 ### Level crossings
 
 `MAP.railway.crossings` gives the boxes (`CROSSINGS`, `rail/crossings.ts`; the cycle and demand
-are in `rail/barriers.ts`): today Via Riolo by Monzone, Viale 20 Settembre, Via Castel dell'Aquila
-(over Gragnola's two tracks) and Via Nuova, all automatic full barriers (half barriers need a median
-the roads lack, CdS art. 44), and Equi Terme's foot crossing, a path over the track: it runs the
-same cycle with no arms, light or bell, for walkers. The boxes, the lines each crosses and their
-approaches (`CROSSINGS`, `CROSSINGS_ON`, `APPROACHES`) are built at load from the global file: each
-box's road line is the copy the build keeps beside the railway (`MAP.derived.crossings`), and its
-width and class are the road's (`MAP.roads`). So no tile is read, though 4 of the 5 boxes lie
-2.4–3.4 km from the start.
+are in `rail/barriers.ts`): today Lunigiana's 13, all on the Lucca–Aulla railway (Sarzana's part
+brought none): Via Riolo by Monzone, Viale 20 Settembre, Via Castel dell'Aquila (over Gragnola's
+two tracks), Via Nuova, an unnamed road by Gassano and, from Rometta to Aulla, the SP72, the SP18,
+the SS63 (Via Filippo Turati), Via Guido Rossa, the SP57 and a track, all automatic full barriers
+(half barriers need a median the roads lack, CdS art. 44, though OSM tags some by Aulla so), and
+two foot crossings, paths over the track: Equi Terme's runs the same cycle with no arms, light or
+bell, for walkers, and Pieve San Lorenzo's crosses only its loop, which no line runs. The boxes,
+the lines each crosses and their approaches (`CROSSINGS`, `CROSSINGS_ON`, `APPROACHES`) are built
+at load from the global file: each box's road line is the copy the build keeps beside the railway
+(`MAP.derived.crossings`), and its width and class are the road's (`MAP.roads`). So no tile is
+read, though 12 of the 13 boxes lie 2.4–11.6 km from the start.
 
 - **The lines it crosses** (`on`): every line whose track passes within 0.5 m of one of the box's
   nodes (each node is a vertex both the road and a rail piece have; parallel tracks lie 4 m apart),
@@ -1748,7 +1771,14 @@ what people and animals run from ([Reactions](#reactions), [Animals](#animals)) 
   joint of the 297 crossings of every drivable bridge, both ways, from 12 m before it, where a
   walker kept to its footing strayed 0.5 m or more from the deck (`ground.map-test.ts` in
   `src/render`, which since issue #19 sets out along the road leading onto the bridge, no turn of
-  30° or more, straight on where none leads on in line, on that road's level).
+  30° or more, straight on where none leads on in line, on that road's level). Eight passes on
+  Sarzana's part still leave their deck, which the user chose after three rounds of fixes to list
+  as known limits (issue #20, [map.md](map.md#known-data-limitations); `KNOWN` in that test, which
+  fails on any other pass off its deck and on these once they keep to it): two ramps whose decks
+  fork off the A12's and the SS1's at a shared vertex and leave their level while the
+  carriageways still overlap, where the ground reads the flatter deck; two decks whose end a
+  junction pinned at the ground before their clearance was fitted; and four dead-end stub decks no
+  road leads onto in line, which the check sets out onto from the ground straight on.
 - **At a fork and at a widening.** Where several decks are within `ON_DECK` of the level a body
   was on (one viaduct forking in two, the joint of two spans), their surfaces blend, each weighted
   by the square of how far inside its reach the body stands, as a share of that reach, and by how
@@ -1996,12 +2026,18 @@ speed along the contact.
   its hillside) and 8.8 m over it past the leg's north end. A run-out is profiled on its own, so
   the line in play keeps its profile (by Rometta, before Aulla's part carried the line on in play,
   the grade turned from −6.1 ‰ to −24.8 ‰ at the terminal). Nothing lowers the ground under a
-  run-out's bridge or draws a portal at a run-out's bore within the drawn run: no map has one today.
-- **A run-out over a notch rides no ground of the game's**: the Pontremolese's south run-outs run
-  through the notch west of Fosdinovo's part, where no tile is listed ([map.md](map.md#map-files)):
-  the build profiles them on the edge's heights drawn on and writes no ground there, while the
-  game's ground there is the nearest listed node's (Rometta's run-out did the same over the
-  north-west notch before Aulla's part, up to 13.7 m over that ground, out of view).
+  run-out's bridge or draws a portal at a run-out's bore within the drawn run. No drawn run crosses
+  a bridge today, but since Sarzana's part one leaves a bore: past the west edge's westbound track
+  (the Parma–La Spezia's and the Pietrasanta–La Spezia's terminal) the run-out comes out of the
+  hill 161.4 m on, beyond the play area, and its last 31 m of drawn run lie in the open, past a
+  mouth with no portal.
+- **A run-out over a notch rides no ground of the game's**: where no tile is listed
+  ([map.md](map.md#map-files)) the build profiles a run-out on the edge's heights drawn on and
+  writes no ground there, while the game's ground there is the nearest listed node's. No run-out
+  crosses a notch today: the Pontremolese's south run-outs ran through the notch west of
+  Fosdinovo's part until Sarzana's part filled it and took its lines on to the west and south-east
+  edges, whose run-outs stay over listed tiles, and Rometta's ran over the north-west notch before
+  Aulla's part, up to 13.7 m over that ground, out of view.
 - **SCMT watches only the buffers and backing up**: the player may run at up to 130 km/h anywhere,
   over the line speed, through a box whose arms are not down and onto another train. The lever
   forward rings the bell at once, but driven off Monzone at full power the train's nose reaches

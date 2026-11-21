@@ -479,8 +479,10 @@ from one portal: its wheels jumped 2.9 dB as its last car went into the 271 m tu
 ([Inside a vehicle](#inside-a-vehicle)), in a tunnel too.
 
 A bore that a line's run-out carries on past its terminal ([The
-service](gameplay.md#the-service)) pairs its mouth in play with the run-out's far end, where the
-track trains ride stops inside the hill: the Galleria del Lupacino runs 1,324.6 m from its west
+service](gameplay.md#the-service)) pairs its mouth in play with its end along the run-out: where
+the run-out comes out of the hill, as the Genova–Pisa's and the Pontremolese's do 161–337 m past
+the west edge's terminals (issue #20), or the run-out's far end, where the track trains ride stops
+inside the hill: the Galleria del Lupacino runs 1,324.6 m from its west
 mouth at (5392, 3627) to Pieve San Lorenzo's terminal at (6700, 3423), then 2,298.6 m on in the
 bore along the run-out trains enter by, to (8970, 3058), 842 m south of the play area's nearest
 edge (y 3900). A train within 400 m of that far end is heard from it, though not at that edge, by
@@ -556,56 +558,55 @@ is culled: a one-shot is dropped, a voice is no longer held and fades out. The m
 because a narrow-band sound stays detectable 5–10 dB under a broadband dB(A) floor.
 
 The wind's strength comes from the place and the weather. In the usual wind (3 m/s at 10 m on low
-ground, up to 98 m a.s.l., `USUAL_WIND`: a cloudy day's, a little over the weather's own mean, 2.5 m/s in
-October and 2.3–2.7 by month over 30 simulated years) it rises with the ears' height above the sea,
-from 0.15 at 18 m to 0.85 at 868 m (`ALTITUDE`, a smoothstep), up to 0.15 more on open ground, and
-0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s (`windFactor`). It
-was tuned by ear on lucido alone over the 150–1,000 m it spanned there, from 80 m under its floor of
-230.3 m (about its lowest ground, 147 m) to 770 m over it, and counted from the map's floor
-(`place().floor`, its 5th-percentile height) until Sarzana's part, so each part that lowered the
-floor blew lucido harder. With Fivizzano's lower valleys (down to 105 m) the floor was 213.6 m, so
-the law spanned 134–984 m and lucido blew as 16.7 m higher did, up to 0.02 stronger: the meadow on
-Monte dei Bianchi (316 m) 0.355 → 0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 → 0.277
-(1.0 dB), the ridge above Aiola (899 m) 0.926 → 0.934, Monzone's streets at the stillest as before;
-a car at full load across that meadow was heard all the way to 284 m rather than 288. With
-Fosdinovo's Magra plain (down to 18.1 m) it was 162.3 m, so the law spanned 82–932 m and lucido
-blew as 68.0 m higher did, up to 0.05 stronger than with Fivizzano: the meadow 0.369 → 0.415 (2.1
-dB), the woods above Isolano 0.277 → 0.330 (3.1 dB), the ridge above Aiola 0.934 → 0.951, the
-spawn's street at the stillest as before, though the lane at Pian del Molino (−917, 1707) blew at
-0.267 over the stillest 0.237; the car across the meadow was heard all the way to 265 m rather than
-the 285 of the map before it (2026-11-07, the director's rig in its calm). With Aulla's Magra and
-lower Aulella valleys, which hold two thirds of the nodes under it, it was 98.4 m, so the law
-spanned 18–868 m and lucido blew as 131.9 m higher did: the meadow 0.415 → 0.483 (2.6 dB), the
-woods above Isolano 0.330 → 0.403, the ridge above Aiola 0.951 → 0.954, the lane at Pian del Molino
-0.267 → 0.322; the car across the meadow was heard all the way to 240 m rather than 265
-(2026-11-17). Sarzana's lower Val di Magra, whose part holds 96.2 % of the nodes now under it
-(821,462 of them on its plain at 2–10 m), took it to 18.5 m, which spanned the law −61.5–788.5 m and
-blew lucido as 211.8 m higher did: the meadow 0.483 → 0.577 (3.1 dB), the woods above Isolano 0.403
-→ 0.501, the lane at Pian del Molino 0.322 → 0.406, and the spawn's street in Monzone, at night in
-the usual wind, over the night's stillest (33.9 dB(A) against 28); across the meadow a car at full
-load was heard only to 208 m and a woman's talk 10 m off was masked (build b5513ccf5f74b243). The
-user chose then (issue #20) to count the law from the sea, where the 98.4 m floor had put it, so the
-earlier parts blow as before Sarzana's part and no later part moves the wind: the meadow 0.483
-(0.4834 against 0.4830, 0.02 dB; 5.4 dB over the tuning on lucido's own floor; the game in
-headless Chrome, `?seed=3`, holds its wind voice there at 0.4834 in the cloudy regime's 3 m/s), the woods above
-Isolano 0.404, the lane at Pian del Molino 0.322, the ridge above Aiola 0.954 (past the law's top),
-and the spawn's street at the day's stillest and, at night in the usual wind, the night's (28
-dB(A)). Across the meadow a car at full load is heard all the way to 239 m (240 on the 98.4 m
-floor), a 2 m/s bump plays at a 20 m/s crash's gain all the way to 141 m, a car in fresh snow is
-masked from 107 m, and at 8 m/s the wind culls a car across it from 35 m off, on foot as in a car
-(2026-11-21). A flat coastal map's low ground is as calm as lucido's valley floor, and an Alpine map
-blows hard everywhere, as high ground does. Averaged over the 64 m nodes of their play area, the
-height's share of the strength goes on Cesena (floor 26.5 m) from 0.177 to 0.153, at most 0.053
-less, its spawn's street from 0.243 to the day's stillest 0.237 (35.4 → 35.0 dB(A)); on the L (floor
-173.1 m) from 0.257 to 0.328, its spawn's street at the day's stillest as before (35.0 dB(A)); on
-the coast (floor −15 m, its sea floor) from 0.201 to 0.164, at most 0.138 less, its spawn's street
-from 0.255 to the day's stillest 0.237 (36.2 → 35.0 dB(A)). It is
-never under the floor's stillest, 0.24 by day and 0.16 at night (the 35 and 28 dB(A) backgrounds
-themselves: leaves and the far valley, heard even in a sheltered street), and at most 1.33, a gale's
-bed at `GALE_DB` (65 dB(A)). Its level is 60 + 40·log10(strength) dB(A): in the usual wind 35 in
-Monzone's streets, about 40–43 on open ground on the valley floor, 57–60 on the ridges. The voice
-plays at most its full strength 1, and past it the bed's gain carries the gale, so the usual wind
-keeps the voice it was tuned with.
+ground, up to 98 m a.s.l., `USUAL_WIND`: a cloudy day's, a little over the weather's own mean, 2.5
+m/s in October and 2.3–2.7 by month over 30 simulated years) it rises with the ears' height above
+the sea, from 0.15 at 18 m to 0.85 at 868 m (`ALTITUDE`, a smoothstep), up to 0.15 more on open
+ground, and 0.3 less in a street; the weather's low-ground wind scales that by wind / 3 m/s
+(`windFactor`). It was tuned by ear on lucido alone over the 150–1,000 m it spanned there, from 80 m
+under its floor of 230.3 m (about its lowest ground, 147 m) to 770 m over it, and counted from the
+map's floor (`place().floor`, its 5th-percentile height) until Sarzana's part, so each part that
+lowered the floor blew lucido harder. With Fivizzano's lower valleys (down to 105 m) the floor was
+213.6 m, so the law spanned 134–984 m and lucido blew as 16.7 m higher did, up to 0.02 stronger: the
+meadow on Monte dei Bianchi (316 m) 0.355 → 0.369 (0.6 dB), the woods above Isolano (364 m) 0.261 →
+0.277 (1.0 dB), the ridge above Aiola (899 m) 0.926 → 0.934, Monzone's streets at the stillest as
+before; a car at full load across that meadow was heard all the way to 284 m rather than 288. With
+Fosdinovo's Magra plain (down to 18.1 m) it was 162.3 m, so the law spanned 82–932 m and lucido blew
+as 68.0 m higher did, up to 0.05 stronger than with Fivizzano: the meadow 0.369 → 0.415 (2.1 dB),
+the woods above Isolano 0.277 → 0.330 (3.1 dB), the ridge above Aiola 0.934 → 0.951, the spawn's
+street at the stillest as before, though the lane at Pian del Molino (−917, 1707) blew at 0.267 over
+the stillest 0.237; the car across the meadow was heard all the way to 265 m rather than the 285 of
+the map before it (2026-11-07, the director's rig in its calm). With Aulla's Magra and lower Aulella
+valleys, which hold two thirds of the nodes under it, it was 98.4 m, so the law spanned 18–868 m and
+lucido blew as 131.9 m higher did: the meadow 0.415 → 0.483 (2.6 dB), the woods above Isolano 0.330
+→ 0.403, the ridge above Aiola 0.951 → 0.954, the lane at Pian del Molino 0.267 → 0.322; the car
+across the meadow was heard all the way to 240 m rather than 265 (2026-11-17). Sarzana's lower Val
+di Magra, whose part holds 96.2 % of the nodes now under it (821,462 of them on its plain at 2–10
+m), took it to 18.5 m, which spanned the law −61.5–788.5 m and blew lucido as 211.8 m higher did:
+the meadow 0.483 → 0.577 (3.1 dB), the woods above Isolano 0.403 → 0.501, the lane at Pian del
+Molino 0.322 → 0.406, and the spawn's street in Monzone, at night in the usual wind, over the
+night's stillest (33.9 dB(A) against 28); across the meadow a car at full load was heard only to 208
+m and a woman's talk 10 m off was masked (build b5513ccf5f74b243). The user chose then (issue #20)
+to count the law from the sea, where the 98.4 m floor had put it, so the earlier parts blow as
+before Sarzana's part and no later part moves the wind: the meadow 0.483 (0.4834 against 0.4830,
+0.02 dB; 5.4 dB over the tuning on lucido's own floor; the game in headless Chrome, `?seed=3`, holds
+its wind voice there at 0.4834 in the cloudy regime's 3 m/s), the woods above Isolano 0.404, the
+lane at Pian del Molino 0.322, the ridge above Aiola 0.954 (past the law's top), and the spawn's
+street at the day's stillest and, at night in the usual wind, the night's (28 dB(A)). Across the
+meadow a car at full load is heard all the way to 239 m (240 on the 98.4 m floor), a 2 m/s bump
+plays at a 20 m/s crash's gain all the way to 141 m, a car in fresh snow is masked from 107 m, and
+at 8 m/s the wind culls a car across it from 35 m off, on foot as in a car (2026-11-21). A flat
+coastal map's low ground is as calm as lucido's valley floor, and an Alpine map blows hard
+everywhere, as high ground does. Averaged over the 64 m nodes of their play area, the height's share
+of the strength goes on Cesena (floor 26.5 m) from 0.177 to 0.153, at most 0.053 less, its spawn's
+street from 0.243 to the day's stillest 0.237 (35.4 → 35.0 dB(A)); on the L (floor 173.1 m) from
+0.257 to 0.328, its spawn's street at the day's stillest as before (35.0 dB(A)); on the coast (floor
+−15 m, its sea floor) from 0.201 to 0.164, at most 0.138 less, its spawn's street from 0.255 to the
+day's stillest 0.237 (36.2 → 35.0 dB(A)). It is never under the floor's stillest, 0.24 by day and
+0.16 at night (the 35 and 28 dB(A) backgrounds themselves: leaves and the far valley, heard even in
+a sheltered street), and at most 1.33, a gale's bed at `GALE_DB` (65 dB(A)). Its level is 60 +
+40·log10(strength) dB(A): in the usual wind 35 in Monzone's streets, about 40–43 on open ground on
+the valley floor, 57–60 on the ridges. The voice plays at most its full strength 1, and past it the
+bed's gain carries the gale, so the usual wind keeps the voice it was tuned with.
 
 Over flat, open ground with nothing in the way, at the day's 35 dB(A) floor (at night's 28 every
 radius is about 2.2 times longer: 7 dB more of spreading):

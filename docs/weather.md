@@ -73,10 +73,10 @@ new map needs no weather data of its own.
 
 - **Baked at build time.** The fit reads every height node the map's listed tiles hold
   (`listedNodes`): on the shipped map 41.8 of the 45.3 million in its box, the rest lying in its 26
-  unlisted tiles, the two notches south of Fosdinovo's part and lucido's (y −8500…−8000, east of
-  Sarzana's part) and east of lucido's.
-  The game holds them only in the tiles near the player, so the build runs `placeFrom` over the
-  heightmap (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file
+  unlisted tiles, one notch in an L: the 11 along the box's south edge east of Sarzana's part
+  (x −10000…10600, y −8500…−8000) and the 15 east of lucido's south half. The game holds them only
+  in the tiles near the player, so the build runs `placeFrom` over the heightmap
+  (src/tools/tile-map.ts) and writes `floor` and `downslope` into the global file
   (`MAP.place`). A region whose parts leave tiles of its box unlisted, an L's notch, has no ground
   there, and its heightmap joined from the tiles holds 0 ([map.md](map.md#pipeline)).
   `src/sim/map/global.ts` calls `providePlace({ ...MAP.origin, ...MAP.place })` right after
@@ -84,15 +84,14 @@ new map needs no weather data of its own.
 - **Without a map** (the audio lab, the HUD and sky unit tests) `place()` is the reference site,
   `REFERENCE_PLACE`: 44.16175 N, 10.13 E, floor 18.5 m, downslope −2.91, the shipped map's own
   place rounded (the floor to the decimetre: 18.5 m lies half a metre from both 18 and 19, outside
-  the test's bound), so a map-free page hears and shows what the game does. `mapfree.test.ts` asserts that
-  the sky modules decode no map, and that once the map is decoded `place()` is the map's origin and
-  the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the reference (the slope's
-  direction compared round the circle, modulo 2π: Aulla's part turned it to −3.130 rad, 0.011 rad
-  short of ±π, where a later part may tip its sign while hardly turning it, and Sarzana's back to
-  −2.911);
-  `place.map-test.ts` (`pnpm test:map`) fits them again over the listed tiles' nodes of the
-  heightmap joined from the tiles, the floor their 5th-percentile height, and `place.test.ts` checks
-  that a notch holding 0 moves neither the floor nor the slope.
+  the test's bound), so a map-free page hears and shows what the game does. `mapfree.test.ts`
+  asserts that the sky modules decode no map, and that once the map is decoded `place()` is the
+  map's origin and the floor and plane fit the build baked, within 0.5 m and 0.005 rad of the
+  reference (the slope's direction compared round the circle, modulo 2π: Aulla's part turned it to
+  −3.130 rad, 0.011 rad short of ±π, where a later part may tip its sign while hardly turning it,
+  and Sarzana's back to −2.911); `place.map-test.ts` (`pnpm test:map`) fits them again over the
+  listed tiles' nodes of the heightmap joined from the tiles, the floor their 5th-percentile
+  height, and `place.test.ts` checks that a notch holding 0 moves neither the floor nor the slope.
 - **Absolute or over the floor.** Temperature, precipitation, snow and the wind's growth with
   height follow the height above sea level, so a high map is colder, snowier and windier. What
   relief sets counts from the floor instead, and still moves when a part moves the floor: the
@@ -778,8 +777,8 @@ floor; `fogAt(z)` blends each in over 50 m of height.
 
 ## Wind
 
-`Weather` holds the wind at 10 m on low ground, up to 98 m a.s.l. (`wind`, m/s), the way the air moves
-(`windAngle`, rad counter-clockwise from east) and the gust factor (`gust`, peak over mean).
+`Weather` holds the wind at 10 m on low ground, up to 98 m a.s.l. (`wind`, m/s), the way the air
+moves (`windAngle`, rad counter-clockwise from east) and the gust factor (`gust`, peak over mean).
 `windAt(weather, z)` gives the air's velocity at a height, stronger on exposed ground: ×1 up to 98
 m above the sea, rising in a straight line to ×2.5 at 1648 m (`WIND_UP`): ×1.49 at 600 m and
 ×1.91 at 1040 m on any map. It drifts the clouds, slants the rain and the snow, sways the trees

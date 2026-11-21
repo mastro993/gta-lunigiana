@@ -355,8 +355,8 @@ with their s and strike-in, its stop lines and arms; per line the boxes it cross
 AI drivers, the crossings' demand and the traffic's busy boxes walk instead of every box; and the
 traffic steps leading in, keyed by `stepKey`, each into the box it reaches first). Each box's road
 line is the copy the build keeps beside the railway (`MAP.derived.crossings`), its width and class
-the road's attributes in `MAP.roads`, so building them reads no tile: 4 of Lunigiana's 5 boxes lie
-2.4–3.4 km from the start, where no tile need be in memory. The traffic edges
+the road's attributes in `MAP.roads`, so building them reads no tile: 12 of Lunigiana's 13 boxes
+lie 2.4–11.6 km from the start, where no tile need be in memory. The traffic edges
 within 12 m of a line's track at grade, where no car turns round (`nearTrack` in
 `src/sim/rail/roads.ts`), are a set built at load too (80 of the map's 38,458 in 14–15 ms, three
 fresh processes on 2026-11-07; 80 of 23,323 before Fosdinovo's part, which has no railway, and 40
@@ -505,10 +505,10 @@ walk, sorts it first:
   than a wheel's reach, so the verges at a span's end hold no walker on its level over the next
   span rising from there; where several are within `ON_DECK` of that height, a fork or the joint of
   two spans, they blend, each weighted by the square of how far inside its reach the point lies, as
-  a share of that reach, and by how much nearer than `ON_DECK` it stands). `footZ` is where someone on
-  foot stands: given their previous height, the ground nearest it with the decks out to their verges
-  (what `FindFooting` keeps in `Footing`, through `settleFooting`, and where getting out of a train
-  steps down, nearest the rail head); with none to go by, on a road bridge's deck or in a road
+  a share of that reach, and by how much nearer than `ON_DECK` it stands). `footZ` is where someone
+  on foot stands: given their previous height, the ground nearest it with the decks out to their
+  verges (what `FindFooting` keeps in `Footing`, through `settleFooting`, and where getting out of a
+  train steps down, nearest the rail head); with none to go by, on a road bridge's deck or in a road
   tunnel within its reach to its verges, else the highest ground. The platforms are bucketed in 16 m
   cells at load; the road
   segments go into 16 m buckets on the origin's lattice, built from a tile's roads the first time a
@@ -675,7 +675,7 @@ against 0.34–0.38 s and 89 MB on the build before):
 | Cesena, the vectors in the tiles | 0.35–0.37 s | 16.8 ms, 16.8 ms | 99–100 MB |
 | Cesena, the vectors in the global file | 0.36–0.37 s | 16.8 ms, 16.8 ms | 94–95 MB |
 
-Lunigiana holds 4 of its 153 tiles at the start, so the vectors of the other 149 stay on the server,
+Lunigiana holds 4 of its 190 tiles at the start, so the vectors of the other 186 stay on the server,
 and the start's four hardly change as parts join (2.08 MB before Fosdinovo's part, 2.10 MB since).
 What grows with the map at the start is what the game holds whole: the global file, which gunzips
 to 6,214,128 B, its JSON line 2,639,642 B (the spawns 1.12 MB of it, the farms 0.46 MB,
@@ -870,11 +870,13 @@ so every tile a step reads is there before the step runs; the sim never sees whi
   vectors merged), so `tilesOver` names those for a box over it, and `isResidentAt` there
   answers whether they are all in memory. The coarse grid holds the same ground and cover there, so
   a host that falls back to it while they are not finds what the tiles give. Cesena lists every
-  tile of its box. Lunigiana, lucido and the parts of Fivizzano, Fosdinovo and Aulla, lists 153 of
-  its box's 198 (i −12…5, j −4…6), with two notches: the 15 at i 3…5 for j −4…0, east of lucido's
-  south half and south of Fivizzano's part, and the 30 at i −12…−7 for j −4…0, west of Fosdinovo's
-  part and south of Aulla's (102 of 132 before Aulla's part, whose rectangle fills the old
-  north-west notch, i −6…−4 for j 2…6).
+  tile of its box. Lunigiana, lucido and the parts of Fivizzano, Fosdinovo, Aulla and Sarzana, lists
+  190 of its box's 216 (i −12…5, j −5…6), with one notch of 26 tiles in an L: the 11 at i −5…5 for
+  j −5, along the box's south edge east of Sarzana's part, and the 15 at i 3…5 for j −4…0, east of
+  lucido's south half and south of Fivizzano's part (153 of 198 before Sarzana's part, whose
+  rectangle fills the old south-west notch, i −12…−7 for j −4…0, and adds the row j −5 west of
+  i −5; 102 of 132 before Aulla's part, whose rectangle fills the old north-west notch, i −6…−4 for
+  j 2…6).
 - **`ready(player, extra)`**: whether every listed tile a step reads round the player, and round
   `extra` when given, is in memory; `main.ts` pauses the game while it is not ([Host
   loop](#host-loop)).
@@ -1266,15 +1268,17 @@ build reads is in memory.
   look (seed 3 × its id, a mirror's one more; the id is its lattice cell's number, which no added
   part changes: [map.md](map.md#12-trees-spawns-districts-treests-spawnsts-districtsts)).
 - **Two levels**: each tile plans the chunks whose middle it holds, a notch chunk's the first listed
-  tile its middle reads (26–1,318 a tile, median 240, of Lunigiana's 26,928 chunks; -6_1, on the
-  west edge beside the north-west notch, plans 1,318; with Fivizzano's part 30–1,084, median 240, of
+  tile its middle reads (with Fosdinovo's part 26–1,318 a tile, median 240, of Lunigiana's 26,928
+  chunks, -6_1, on the west edge beside the north-west notch, planning 1,318; 45,657 chunks with
+  Sarzana's part, not counted a tile again; with Fivizzano's part 30–1,084, median 240, of
   19,584, the most in 2_-4 beside its notch; on lucido alone 18–272, median 225, of 5,248), and its
   box is the union of their boxes, so the apron chunks belong to the edge tiles. Distances are
   measured on the screen plane, from the focus to each box projected along the camera's right and up
   axes, terrain relief included: a valley far below a ridge counts as near when the camera shows it
-  beside the focus. The 102 tile boxes are projected again whenever the view's yaw changes, which is
-  every frame of a turn and every frame the view follows a turning car; a frame then measures only
-  the chunks of the tiles within the load radius, plus every built chunk (for the drops). At the
+  beside the focus. The tile boxes (Lunigiana's 190) are projected again whenever the view's yaw
+  changes, which is every frame of a turn and every frame the view follows a turning car; a frame
+  then measures only the chunks of the tiles within the load radius, plus every built chunk (for
+  the drops). At the
   spawn, the origin and the Sagro summit (2364, −5129) on lucido alone that was 3–6 tiles and
   526–1,360 chunks at reach 60–300 m, where all its 5,248 chunk boxes were projected before; a
   steady update took 0.043 ms at the median and 0.059 ms at p90 with the yaw changing every frame
@@ -1467,7 +1471,7 @@ lines lie 2 cm over that ribbon as it is drawn (`roadPieces` in `src/render/line
   texels a metre, and cut there, the ribbon drew the kink of the junction's blend as a dark crease
   across the road. A ridge where the mouth's hold behind Sarzana's service tunnel 376037643
   (`mouthClaim`, [map.md section
-  7](map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts))
+  7](map.md#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts))
   left a node at the bore's floor beside nodes it did not hold stood 0.56 m through the footway
   1462688623. Round Lunigiana's 427 mouths (12 m, every 0.125 m) the mesh stood more than 2 cm
   through a ribbon at 21,904 points (342 m²), up to 4.03 m, and now at none. Every road at grade is
@@ -1562,16 +1566,18 @@ only its road, under its house. Where each mouth is and what stands there is dec
   ground nearer the camera than where their sight line meets it, so it shows the road and the car on
   it inside the hill, the far wall whole and the near one a stub above the feet, as a building's
   walls ([See-through cut](#see-through-cut)). A building passage (`passage`, OSM's
-  `tunnel=building_passage`: 30 on Lunigiana, 22 on Cesena) has no bore: its house hides its road,
-  and the cut shows it. Lunigiana's 29 bores are 3,574 triangles in 26 chunks (the chunks their
-  triangles are drawn into; 14 bores, 3,166 triangles in 21 chunks before Fosdinovo's part, and
-  3,249 in 22 built without it today), Cesena's 42 are 18,120 in 45. The walls follow the ground
+  `tunnel=building_passage`: 140 on Lunigiana, 67 before Sarzana's part, and 22 on Cesena) has no
+  bore: its house hides its road, and the cut shows it. Lunigiana's 234 bores are 29,768 triangles
+  and Cesena's 42 are 18,480 (`tunnels.map-test.ts`; 72 bores and 8,293 triangles on Lunigiana
+  before Sarzana's part; with Fosdinovo's part its 29 were 3,574 triangles in 26 chunks, the chunks
+  their triangles are drawn into, 14 bores 3,166 triangles in 21 chunks before that part, and
+  3,249 in 22 built without it then, and Cesena's 18,120 in 45). The walls follow the ground
   over a bore's sides, so a change to the terrain by its mouths changes them: cored at the width of
   its chain's widest piece, a road's approach cut the ground there lower, and Lunigiana's bores were
   3,459 triangles in 25 chunks (13 of its 59 roads in tunnels change: 1503940160 from 4 to 32,
   696205205 from 15 to 7).
 - **Portals**: at each road tunnel mouth (`MAP.derived.mouths`, which the build bakes:
-  [map.md](map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts))
+  [map.md](map.md#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts))
   with a portal, the railway's shape round the bore
   (`portalRound`): the dark mouth as wide as the bore, its arch springing at the springing and
   rising half the bore's half width over it in three steps, the face wall 2.6 m past the mouth's
@@ -1618,11 +1624,15 @@ only its road, under its house. Where each mouth is and what stands there is dec
   3 m, a metre at a time, until the hill stands that high over the road, and must get there short of
   any road in its way and of the tunnel's middle, so its top always stands under the bank it meets;
   it never stands back (in a bank lower than a portal's, its road would run under the ground in
-  front of it). Lunigiana has 2: Pieve San Lorenzo's 29 m underpass under the station, at its south
-  mouth, in old stone under Via della Stazione (its coping 1 m under that road's surface, the bank
-  its throat meets 5.67 m over the road), and the SS63's 16 m underpass at its west mouth, in concrete
-  (the bank 6.67 m). Cesena has 2: Via Spadolini's two (concrete, their throats 10 and 11 m, the bank
-  5.10 and 5.13 m). The L has none. The shape is the user's answers to issue #111: the flat lintel
+  front of it). Lunigiana has 44, 3 before Sarzana's part and 2 before Aulla's: Pieve San
+  Lorenzo's 29 m underpass under the station, at its south mouth, in old stone under Via della
+  Stazione (its coping 1 m under that road's surface, the bank its throat meets 5.67 m over the
+  road), and the SS63's 16 m underpass at its west mouth, in concrete (the bank 6.67 m). Cesena has
+  4: Via Spadolini's two (concrete, their throats 10 and 11 m, the bank 5.10 and 5.13 m), the
+  Sottopasso Cervese's east mouth, buried before its approach cut it, and, since issue #20, the car
+  park ramp 68296970's north mouth, 6 m under the access road since the ramp keeps its clearance
+  under Via Piazzale Sanguinetti (`tunnels-cesena.map-test.ts`). The L has none, the coast 1. The
+  shape is the user's answers to issue #111: the flat lintel
   stays on old stone too (a segmental arch rising 0.5 m read as 1–2 texels of step at Pieve San
   Lorenzo and lifted its coping under Via della Stazione's deck; rising 1 m it opened the mouth), the
   0.5 m lintel stays (a thinner one opened no mouth on any region), the box may run in up to 40 m
@@ -1637,23 +1647,29 @@ only its road, under its house. Where each mouth is and what stands there is dec
   alike: Cesena's Sottopasso Ravennate, 5.84 and 5.41 m, and the path under the station by Piazza
   Giorgio Sanguinetti, OSM 43076054, 6.03 and 5.64 m, lost their head walls, the Sottopasso Cervese,
   6.20 and 5.10 m, and the Sottopasso del Mare, 5.14 m, their portals; the next highest ground at a
-  mouth is 2.21 m, at a covered stair in Fosdinovo; issue #127 is to cut their ramps); a house
+  mouth was 2.21 m, at a covered stair in Fosdinovo, before Aulla's part, and Vezzano Ligure
+  station's stair stubs 1419380924 and 1419380925 are buried since Sarzana's part, under the stairs
+  over them; issue #127 is to cut their ramps); a house
   stands over the way within the mouth's end of the tunnel at its level, the ground under its lowest
   corner (`z0`) less than the bore's clear height over the road (a covered way, which the house
   hides as it hides a building passage: Cesena's arcades and covered ways, and Via Gioco di Sopra's
   west mouth, where a garage stands over the tunnel 1.5 m in, which issue #128 is to check against
-  the orthophotos; every house that opens a mouth today stands within 5 m of it, so a window of 5 m
-  would open the same mouths; the lowest house over each of today's 62 such ways stands 6.5 m under
-  to level with its road, while a house on the hill over a bore keeps its mouth's portal); the
+  the orthophotos; with Fosdinovo's part every house that opened a mouth stood within 5 m of it, so
+  a window of 5 m would open the same mouths, and the lowest house over each of the 62 such ways
+  stood 6.5 m under to level with its road, while a house on the hill over a bore keeps its mouth's
+  portal); the
   ground over that end never rises to `leastWall` (a road under a rail bridge, whose deck stands
   over the lowered ground, or under a cover the map's ground does not hold: Via S. Nicola's 19 m in
   Gragnola, and Pieve San Lorenzo's north mouth, which runs under the rail decks, the ground over
   its end 4.83 m at most); or no room for either (another road or the track in the way of the wall
   or its throat: Cesena's cycle path beside Via Spadolini, where a service road on its bank, 3.2–3.4
-  m over its floor about 7 m in, stops each throat at 4 m, short of the bank). Lunigiana's 123
-  mouths: 24 portals, 3 head walls, 96 open (none buried, 27 under a house, 63 under too low a bank,
-  6 for want of room, among them the A15's twin bores at Barbarasco, each face standing on the other
-  carriageway); Cesena's 76: 6, 3, 67 (2, 46, 15, 4); the L's 12: 3, 0, 9 (0, 1, 8, 0). Before
+  m over its floor about 7 m in, stops each throat at 4 m, short of the bank). Lunigiana's 427
+  mouths: 42 portals, 44 head walls, 341 open (2 buried, 105 under a house, 214 under too low a
+  bank, 20 for want of room, among them the A15's twin bores at Barbarasco, each face standing on
+  the other carriageway); Cesena's 76: 6, 4, 66 (2, 46, 14, 4); the L's 12: 3, 0, 9 (0, 1, 8, 0);
+  the coast's 4: 0, 1, 3 (0, 0, 2, 1) (`tunnels.map-test.ts` and its regions' twins). Before
+  Sarzana's part, which brought 304 mouths (issue #20), Lunigiana's 123: 24 portals, 3 head walls,
+  96 open (none buried, 27 under a house, 63 under too low a bank, 6 for want of room). Before
   Aulla's part, and the paths' approaches that cut some of Cesena's (issue #19), Lunigiana's 56: 12
   portals, 2 head walls, 42 open (none buried, 14 under a house, 28 under too low a bank), and
   Cesena's 77: 6, 2, 69 (7, 47, 13, 2).
@@ -1738,8 +1754,14 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   (`throughApron`), so none was drawn past Rometta's, on Fivizzano's west edge since Fosdinovo's
   part grew the box, where the trains ran on straight and level, 16.75 m under the hill 192 m past
   it. `checkDrawnRuns` (`rail-checks.ts`) finds both rails drawn every metre of every drawn run out
-  of a tunnel, at the rail head within the bounds: 384 points on Lunigiana (its east drawn run lies
-  in the Galleria del Lupacino), 1,536 on Cesena and 768 on the L.
+  of a tunnel, at the rail head within the bounds: 3,196 points on Lunigiana, both rails over the
+  whole drawn run of the four lines ending at the north edge's terminal and of the four ending at
+  the Genova–Pisa's two on the south-east edge, and over the last 31 m of each of the two lines'
+  drawn runs past the west edge's westbound track, which comes out of its bore 161.4 m past the
+  terminal, beyond the play area, with no portal (portals stand at `MAP.rail`'s mouths alone; the
+  drawn runs past the west edge's other terminals, in their bores for 249.3 and 337.2 m, and Pieve
+  San Lorenzo's lie in their tunnels; 384 points before Sarzana's part), 1,536 on Cesena and 768 on
+  the L.
 - **Buffer stops** (`src/render/buffers.ts`, issue #19): at the end of every line that ends at a
   terminus inside the map (`bufferStops`: today Aulla Lunigiana's track 4, the Lucca–Aulla line's),
   a chunk piece drawn with the track: a beam of rail steel across the track at the height of a
@@ -1798,7 +1820,10 @@ nodes ([Trains and crossings](#trains-and-crossings)).
 - **Name boards**: one per platform people wait on, RFI blue with a white rim, as long as the
   station's name (0.16 m a character, 2–6 m), its words as white bars on both faces (lettering does
   not read at this pixel size), on two posts 1.8 m back from the track-side edge near the platform's
-  middle, 2.1–2.6 m up.
+  middle, 2.1–2.6 m up. The track-side edge is found along the normal from the platform's axis (the
+  line its top follows), within 25 m of it (`EDGE_REACH` in `src/render/stations.ts`), across a
+  station's other tracks: Santo Stefano di Magra's platform by its loop stands 17–20 m from that
+  line, and got neither board nor lamps while the search stopped at 15 m.
 - **Canopies** come from the map alone: a station's building (the first station-style building of
   its name, which the global file keeps a copy of: `MAP.derived.stations`) gets a flat grey metal
   canopy like Gragnola's along its wall facing the track where a
@@ -1807,10 +1832,12 @@ nodes ([Trains and crossings](#trains-and-crossings)).
   a hole), along the whole wall, 4.5 m deep and 3.4 m up on posts (the roof's height read in its
   first draw), keeping 1.95 m off the nearest
   track centreline (a train's half width, 1.44 m, and a margin). On this map that is Gragnola's,
-  Minucciano-Pieve-Casola's, Fivizzano-Gassano's and Fivizzano-Rometta-Soliera's; Aulla
-  Lunigiana's platforms on the map stop north of its building, where the 24C60 survey ends, so it
-  has none. Monzone's real canopy, a small green one over the door of a wall with grass between it
-  and the platform, is not drawn: the CTR maps canopies (code 0208, 653 over the sheets, one 7.5 m
+  Minucciano-Pieve-Casola's, Fivizzano-Gassano's, Fivizzano-Rometta-Soliera's and, since Sarzana's
+  part, Vezzano Ligure's, a platform running along its building; Santo Stefano di Magra's and
+  Sarzana's platforms run along none of theirs, and Aulla Lunigiana's on the map stop north of its
+  building, where the 24C60 survey ends, so they have none (`stations.map-test.ts`). Monzone's
+  real canopy, a small green one over the door of a wall with grass between it and the platform,
+  is not drawn: the CTR maps canopies (code 0208, 653 over the sheets, one 7.5 m
   from Monzone's building), but the map keeps no canopy yet (`ctr.ts`).
 - **Platform lamps** (`platformLamps`): a grey pole every 18 m along each platform people wait on,
   1 m in from its track-side edge, clear of its name board and 1.5 m from a canopy, the lantern
@@ -2443,10 +2470,13 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   about 10 ms to fetch from a local server, 57–64 ms to decode (Cesena's 90 ms) and 18–29 ms to draw
   scaled (71 ms the first time). The frame, the labels, the north arrow, the scale bar and the player
   are painted live at screen resolution over it. It names the OSM towns, villages and hamlets
-  (`place=*` POIs, localities left out), then the peaks that are HUD landmark districts (Monte
-  Sagro, Pizzo d'Uccello...), once per name: Lunigiana's 322, 5 towns, 49 villages, 251 hamlets and
-  17 peaks (257, 2, 25, 215 and 15 before Sarzana's part; 156, 1, 16, 125 and 14 before Aulla's;
-  116, 1, 11, 93 and 11 before Fosdinovo's). A town's name is 16 px and a village's 14 px, both
+  (`place=*` POIs, localities left out), then the peaks inside a HUD landmark district of their name
+  (Monte Sagro, Pizzo d'Uccello...), once per name: Lunigiana's 322, 5 towns, 49 villages, 251
+  hamlets and 17 peaks (257, 2, 25, 215 and 15 before Sarzana's part; 156, 1, 16, 125 and 14 before
+  Aulla's; 116, 1, 11, 93 and 11 before Fosdinovo's). A peak is named only inside its own
+  landmark's disc (`PLACES` in `worldmap.ts`): OSM names five peaks Monte Grosso, and read by the
+  landmark's name alone, Sarzana's Monte Grosso (issue #20) would have put its label on the first
+  of them, Fivizzano's. A town's name is 16 px and a village's 14 px, both
   yellow capitals, and a hamlet's or a peak's 11 px and white. Villages were 16 px, as towns, until
   Sarzana's part: at 15 px or more, every side of Piano di Valeriano's 18 letters (below) covers
   another town's or village's dot at 1280 × 720, so no placement names them all. A name goes above
@@ -2463,29 +2493,34 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   Battolla 101 px); at 1920 × 1080 the frame names them all and no name crosses its sides. A
   hamlet's or a peak's name always stays inside the frame across (sliding them into the margins too,
   the phone drew Monte Borra Grande, Cima Belfiore and Monte Tondo wholly outside it). Zoomed in,
-  the frame fills the room across. `placeLabels` places the majors first, together: the place named
+  the frame fills the room across. The placement lives in `src/hud/labels.ts`, which reads no map:
+  `worldmap.ts` hands it each place as a `Label`, its rank (the order labels are placed in, the
+  player's place first), whether it is a major (the player's place, a town or a village) and
+  whether it is a first (`first`: the player's place or a town), its dot's box and the boxes its
+  name may take, best first. `placeLabels` places the majors first, together: the place named
   after the player's district (the one the header shows), the towns and the villages, the label with
   the fewest free sides next (the earlier on a tie), so a name with room to spare does not take
   another's last side. A side is free when it overlaps no name or dot placed, the north arrow, the
   scale bar, its own dot or the dot of a major still to place (a name over a dot reads as that
   place's), and of its free sides a major's name takes the one that takes the least room from the
-  hamlets and peaks (each of their sides it overlaps, and all of a place's when it covers its dot),
-  the earlier on a tie. When that leaves out a town or the player's place, the majors are placed
-  again rank by rank, the player's place, the towns, then the villages, each name on its first free
-  side clear of its rank's dots still to place, and that stands if it names more of the towns and
-  the player's place, so a crowded map (a phone) names the place the player is in and the towns
-  before the villages. A village left out alone, or a player's place no order names, keeps the
-  majors named together: sending them all rank by rank then left out more villages (3 rather than 1
-  at 1280 × 800). The hamlets, then the peaks, always go after, rank by rank in the same way. A
-  place with no side free, or whose dot lies under a name or dot placed, the north arrow or the
-  scale bar, is left out with its dot. Of the 54 towns' and villages' names, 16 sit above their dot
-  at 1920 × 1080 (17 at a corner) and 2 at 1280 × 720 (38 at a corner), where before Sarzana's part
-  36 of 50 and 23 of 40 did: the side that leaves the hamlets the most room is seldom the one above.
-  Taking each major's first free side instead names every town and village too, 41 and 24 above
-  their dots, but 267 names rather than 286 and 171 rather than 190, and Tenerano, which the user
-  asked for, goes at 1280 × 720. Showing the whole map, a small screen still leaves villages
-  unnamed; zoomed in, it names them. With the player at the start, whose district (Monzone's
-  station) names no place, and the names as wide as Chrome draws Courier New, every town and village
+  hamlets and peaks (`roomTaken`: each of their sides it overlaps, and all of a place's when it
+  covers its dot), the earlier on a tie. When that leaves out a town or the player's place, the
+  majors are placed again rank by rank, the player's place, the towns, then the villages, each name
+  on its first free side clear of its rank's dots still to place, and that stands if it names more
+  of the firsts, the towns and the player's place, so a crowded map (a phone) names the place the
+  player is in and the towns before the villages. A village left out alone, or a player's place no
+  order names, keeps the majors named together: sending them all rank by rank then left out more
+  villages (3 rather than 1 at 1280 × 800). The hamlets, then the peaks, always go after, rank by
+  rank in the same way. A place with no side free, or whose dot lies under a name or dot placed,
+  the north arrow or the scale bar, is left out with its dot. Of the 54 towns' and villages' names,
+  16 sit above their dot at 1920 × 1080 (17 at a corner) and 2 at 1280 × 720 (38 at a corner),
+  where before Sarzana's part 36 of 50 and 23 of 40 did: the side that leaves the hamlets the most
+  room is seldom the one above. Taking each major's first free side instead names every town and
+  village too, 41 and 24 above their dots, but 267 names rather than 286 and 171 rather than 190,
+  and Tenerano, which the user asked for, goes at 1280 × 720. Showing the whole map, a small screen
+  still leaves villages unnamed; zoomed in, it names them. With the player at the start, whose
+  district (Monzone's station) names no place, and the names as wide as Chrome draws Courier New,
+  every town and village
   is named at 1920 × 1080 (286 names) and 1280 × 720 (190), 1280 × 800 (219) leaves out Ponzano
   Superiore, and an 844 × 390 phone (45) leaves out 23 villages, every town named: Casola in
   Lunigiana, Ponte di Arcola, Ponzano Magra, Piana Battolla, Piano di Follo, Romito Magra, Ponzano
@@ -2532,7 +2567,8 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   under a load average of 5.6–6.6, run in turn with the placement before the frame came first, which
   took 5.9–7.1, 4.7–5.8 and 3.1–3.8 ms); placed as before Sarzana's part, each label's free sides
   counted afresh at every step, the map with it took 104.6–105.6, 57.5–58.2 and 11.7–12.0 ms.
-  `placeGroup` counts them once a group and keeps the counts up to date. It takes more in the
+  `placeGroup` (`labels.ts`, which places one group: the majors together, or one rank) counts them
+  once a group and keeps the counts up to date. It takes more in the
   browser, which measures the text. The player is a red arrow in a red ring (no label is red), drawn
   on its own canvas over the map so CSS blinks it (steady under `prefers-reduced-motion`; zoomed
   away from the player, it is not drawn), with a scale bar and the player's district in the header.
@@ -2591,9 +2627,10 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   - Trains (`debug-trains.ts`): "Call trains now" (`#debug-trains-call`, the trains store's
     `call`), then readouts of each line, named by its first and last stations ("Equi Terme –
     Gragnola"), or, where those are one, by its one station and the compass points its ends lie
-    toward ("Aulla Lunigiana, north – south", the Pontremolese's two, calling at Aulla Lunigiana
-    alone: `endsOf`), with when its next train is due (in real seconds) and the end it enters from,
-    named the same way ("the Gragnola end", "the north end");
+    toward ("Aulla Lunigiana, north – south", as the Pontremolese's two were named while they called
+    at Aulla Lunigiana alone, before Sarzana's part: `endsOf`; every line of Lunigiana calls at two
+    stations or more now), with when its next train is due (in real seconds) and the end it enters
+    from, named the same way ("the Gragnola end", "the north end");
     each train by its entity id, with its model, line, km along it (on a run-out, how far short of
     its start or past its end), speed forward or backing up, the end it faces, who drives it (an
     AI driver and its state, the player, or no one), whether it
@@ -2942,16 +2979,21 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     painted only once it is in memory, nearest first, the minimap never asking for one;
     `src/hud/__tests__/location.test.ts`: the road named on a grid round Monzone and at every road
     vertex in it the old answer over every road near them, in two residency orders, and none where
-    the tile is not in memory; `src/hud/__tests__/worldmap.test.ts`: the fit, a point on its
-    screen the map point painted there and the room within the margins, the labels (ranks in order,
-    the fewest free sides first, each name on its first free side and never over a dot, a dot under
-    a name going with its label; the majors named together, a town's name taking its second side to
-    leave a village its only one, on the side that leaves the hamlets the most room, rank by rank,
-    the town first, when together they leave out a town, and together still when a village or the
-    player's place no order names is left out), the whole map's names inside the room within the
-    margins and a hamlet's or a peak's inside the frame, the places the user asked for, the full
-    map's canvases free of the HUD's letter-spacing, and the overview's download (once), decode (at
-    each opening) and release (at each closing, a late one included);
+    the tile is not in memory; `src/hud/__tests__/worldmap.test.ts`: the places the user asked
+    for, one label per name, each in play and in the HUD district of its name; zoomed in, only the
+    places on the frame named, inside it, some the whole map leaves out among them; the whole map's
+    names inside the room within the margins and a hamlet's or a peak's inside the frame; and the
+    full map's canvases free of the HUD's letter-spacing; `labels.test.ts`: the labels (ranks in
+    order, the fewest free sides first, each name on its first free side and never over a dot, a
+    dot under a name going with its label; the majors named together, a town's name taking its
+    second side to leave a village its only one, on the side that leaves the hamlets the most room,
+    rank by rank, the town first, when together they leave out a town, and together still when a
+    village or the player's place no order names is left out); `map-view.test.ts`: the fit inside
+    the margins, centred, north up and its aspect kept, and the room within the margins, a point on
+    its screen the map point painted there, the zoom about the cursor, the pan never past the map's
+    edges, and the gestures; `overview-bitmap.test.ts`: the overview's download (once, and again
+    after one that failed while the map was shut), decode (at each opening) and release (at each
+    closing, a late one included);
     `src/tools/__tests__/overview.test.ts` and `paint-raster.test.ts`: the overview's size under
     Safari's 16.7 MP, the full map's look in it (grass on the play area only, roads by class
     narrowest first, a tunnel dashed, buildings on top, the sea's pieces with no seam on the tile
@@ -3011,7 +3053,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     and stations, roads and rivers, lamps, buildings). `src/render/__tests__/rail.test.ts`: over the
     railway within 4 km of Monzone station (its five crossings, Monzone's,
     Gragnola's and Equi Terme's, and seven of its eleven tunnel mouths, drawn from the pieces within
-    100 m more: the file reads 16 of the 102 tiles), nothing 3D in a crossing's carriageway and the
+    100 m more: the file reads 16 of the 190 tiles), nothing 3D in a crossing's carriageway and the
     bed stopping a metre short of it; each panel, its rails and the stop lines over the road ribbon,
     and no road's centre dash under a panel (the roads within 25 m of a crossing drawn); sleepers
     and rails at reading widths; the bed's top within 0.15 m of the terrain on 90 % of the line at
@@ -3059,8 +3101,9 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     between its corners drawn whole; one over a peak of the terrain mesh cut along its folds, the
     peak on the surface, the mesh nowhere more than 2 cm over it, and the triangle across each of its
     sides meeting it there with no step, one drawn whole across a side the surface folds under
-    included (without the straight side, a 0.48 m crack); a painted line over a fold of its ribbon cut along it 2 cm
-    over both sides, and whole over one plane; and round the west mouths of Fivizzano's underpass
+    included (without the straight side, a 0.48 m crack); a painted line over a fold of its ribbon
+    cut along it 2 cm over both sides, and whole over one plane; and round the west mouths of
+    Fivizzano's underpass
     under the SS63 and of Sarzana's service tunnel 376037643, the roads at grade over the terrain
     and their lines over their ribbons (`checkLaid`; read at their corners alone, the SS63's centre
     line sank 0.13 m under its ribbon and the mesh stood 0.56 m through the footway 1462688623).
@@ -3167,7 +3210,17 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   `lamp-checks.ts`, `tile-paint.ts`, `track-checks.ts`, `bakes.ts`, `decks.ts`, `parapets.ts`,
   `under-decks.ts`, `overpass-checks.ts`, `ground-checks.ts`, `ground-oracle.ts`, `ground-scenes.ts`,
   `vectors-near.ts`,
-  `road-oracle.ts`, `shadow-turns.ts`, `joint-checks.ts`):
+  `road-oracle.ts`, `shadow-turns.ts`, `joint-checks.ts`). A few name the failures Sarzana's part
+  left after three rounds of fixes, which the user chose to list as known limits (issue #20,
+  [map.md](map.md#known-data-limitations)), each by its OSM ids: the check fails on any other
+  failure and on a listed one that passes, so a fix drops it from the list. They are, in
+  `src/sim/map/__tests__`, `levels.map-test.ts`'s eight crossings, `joints.map-test.ts`'s three
+  joints and `map.map-test.ts`'s three links past their class's grade and the track bridge
+  99473194's shortfall over the A12's two carriageways; in `src/sim/__tests__`,
+  `under-decks.map-test.ts`'s road 491595994, beside the A15's viaduct 156568131, coming up onto
+  its deck and the shut ends of the bridges 262912001 and 1149354824, and `water.map-test.ts`'s
+  flooded verge of the closed footbridge 93746068; and in `src/render/__tests__`,
+  `ground.map-test.ts`'s eight passes off their decks:
   - `src/sim/map/__tests__/map.map-test.ts`, `water.map-test.ts`, `rail.map-test.ts`,
     `railway.map-test.ts`, `clearance.map-test.ts`, `levels.map-test.ts`, `carriageways.map-test.ts`
     (every region's motorways within their grade) and `approaches.map-test.ts` (every path at
@@ -3195,13 +3248,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     6,000 points at four reaches, and the farms' ground checks and buildings near 20,000 points and
     every farm (half of the random points within 40 m of a seam), as one 64 m broad phase over the
     whole map's buildings gives them, and each farm's building read at its baked centre the one its
-    index names; `tiles.map-test.ts`: the tile list (Lunigiana's 153 of its box's 198, i −12…5
-    and j −4…6, south to north then west to east, each with a file and the two notches' 45 with
-    none) and its lowest and highest nodes, each wall and tree in its tile and no wall reaching past
+    index names; `tiles.map-test.ts`: the tile list (Lunigiana's 190 of its box's 216, i −12…5
+    and j −5…6, south to north then west to east, each with a file and the notch's 26 with none)
+    and its lowest and highest nodes, each wall and tree in its tile and no wall reaching past
     `walls.reach`, `heightAt`, `terrainZ` and `coverAt` bit for bit as the whole heightmap and land
     cover give them (in a notch the nearest listed node and cell; at points read in every tile of
     the box and far past each of its corners, with a notch at a corner of the box, found from the
-    list: Lunigiana's north-west and south-east ones today), and `wallsNear` and `treesIn`
+    list: Lunigiana's south-east one today), and `wallsNear` and `treesIn`
     answering exactly as one broad phase over the whole map (the same items in the same order, over
     1,500 boxes 1–60 m across, half of them within 40 m of a seam; the trees' on the region's fixed
     corner, which need not be their lowest); `olives.map-test.ts`: Lunigiana's olive groves growing
@@ -3235,13 +3288,14 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     wall, and corner of the map; `trees.map-test.ts`, `chunks.map-test.ts` and `rail.map-test.ts`:
     their checks over every chunk (`trees.map-test.ts` also the beech's share of the woods' trees in
     each band of height within 10 points of the forest inventory's,
-    [map.md](map.md#known-data-limitations)), `rail.map-test.ts`'s every one of the 39,627 chunks
-    built from the pieces of all 153 tiles, handed in reverse key order, against its cut of the
+    [map.md](map.md#known-data-limitations)), `rail.map-test.ts`'s every one of the 45,657 chunks
+    (267 × 171 over the box and its apron; 39,627 before Sarzana's part) built from the pieces of
+    all 190 tiles, handed in reverse key order, against its cut of the
     whole build of every tile's vectors joined (`chunk-cut.ts`), `rail.test.ts`'s checks over every
     crossing and tunnel mouth, and both rails drawn every metre of every drawn run out of a tunnel,
-    where the trains ride (`checkDrawnRuns` in `rail-checks.ts`, 384 points: it failed on all three
-    maps before the run-outs); `rail-cesena.map-test.ts` and `rail-l.map-test.ts`, each in a process
-    of its own: on Cesena and the L, `checkTerminals` (`lines.test.ts`'s run-out checks) and
+    where the trains ride (`checkDrawnRuns` in `rail-checks.ts`, 3,196 points: it failed on all
+    three maps before the run-outs); `rail-cesena.map-test.ts` and `rail-l.map-test.ts`, each in a
+    process of its own: on Cesena and the L, `checkTerminals` (`lines.test.ts`'s run-out checks) and
     `checkDrawnRuns` (1,536 and 768 points); `stations.map-test.ts`: `stations.test.ts`'s over every
     platform and station; `tunnels.map-test.ts`, `tunnels-cesena.map-test.ts`,
     `tunnels-l.map-test.ts` and `tunnels-coast.map-test.ts`, each in a process of its own
@@ -3263,11 +3317,18 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     60 m of every road in a tunnel built from the
     tiles' pieces as a whole-map build cuts them; each pins its counts (roads in tunnels, passages,
     metres, wall triangles, mouths, portals, head walls and the open mouths buried, under a house,
-    under too low a bank and with no room: Lunigiana 374, 140, 10,295 m, 29,764, 427, 41, 44, 0, 105,
-    215, 22; Cesena 64, 22, 5,264 m, 18,480, 76, 6, 4, 2, 46, 14, 4; the L 7, 1, 194 m, 645, 12, 3,
-    0, 0, 1, 8, 0; the coast 6, 4, 83 m, 226, 4, 0, 1, 0, 0, 2, 1), so a new part's tunnels show, and
-    so does a change to the ground by their mouths (the wall triangles were 3,459 and 633 while each
-    road was cored at its chain's widest piece);
+    under too low a bank and with no room: Lunigiana 374, 140, 10,295 m, 29,768, 427, 42, 44, 2,
+    105, 214, 20; Cesena 64, 22, 5,264 m, 18,480, 76, 6, 4, 2, 46, 14, 4; the L 7, 1, 194 m, 645,
+    12, 3, 0, 0, 1, 8, 0; the coast 6, 4, 83 m, 226, 4, 0, 1, 0, 0, 2, 1), so a new part's tunnels
+    show, and so does a change to the ground by their mouths (the wall triangles were 3,459 and 633
+    while each road was cored at its chain's widest piece). Lunigiana's two buried mouths are
+    Vezzano Ligure station's stair stubs 1419380924 and 1419380925: the path pass (issue #20) fits
+    the subway's stairs over them at grade from their clearance over the bores ([map.md section
+    7](map.md#7-road-and-rail-profiles-profilests-chainsts-lifted-runsts-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts-path-passts)),
+    so the stubs sink under the stairs and the ground at their mouths stands the bores' clear height
+    over them; the same pass moves the ground round three mouths, one of which gets a portal and
+    two of which are no longer crowded (29,764 wall triangles, 41 portals, none buried, 215 low and
+    22 crowded before it);
     `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
     `shadow-box-cesena.map-test.ts`: the shadow box through whole turns at the map's steepest fall,
     deepest gully and flattest ground, found over its whole coarse lattice (Lunigiana's and
