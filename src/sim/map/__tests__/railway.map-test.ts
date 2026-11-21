@@ -106,19 +106,24 @@ test("railway: each line runs terminal to terminal, its pieces sharing their end
     for (const { rail } of line.pieces) covered.set(rail, (covered.get(rail) ?? 0) + 1)
   }
   // A piece two lines run is track they share: the Pontremolese's single track north of P.P. Chiesaccia, which the lines of
-  // both its tracks run on to the north edge.
+  // both its tracks run on to the north edge, and each track the Parma–La Spezia's, the Milano–Livorno's and the Genova–Pisa's
+  // lines share south of it.
   assert.deepEqual(
     running.filter((i) => covered.get(i) === undefined),
     [],
     "every running piece is on a line",
   )
   // Each from the play area's outline, where the build cuts it (to 0.1 m), to its outline or to a terminus where OSM's train
-  // routes end, a stop position: the Lucca–Aulla line from Pieve San Lorenzo (in the Galleria del Lupacino, towards Piazza al
-  // Serchio) to Aulla Lunigiana's track 5, where the Pisa => Aulla Lunigiana route ends; the Pontremolese's two tracks between
-  // the south edge (towards La Spezia) and the north edge (towards Pontremoli).
+  // routes end, a stop position, as OSM's train routes run (`findLines`): the Lucca–Aulla line from Pieve San Lorenzo (in the
+  // Galleria del Lupacino, towards Piazza al Serchio) to Aulla Lunigiana's track 4, where the Aulla => Pisa route starts; then
+  // from the north edge (towards Pontremoli), on the Pontremolese's down track, the Milano–Livorno's to the Genova–Pisa's
+  // eastbound track on the south-east edge (towards Pisa) by the link at Santo Stefano di Magra and the Parma–La Spezia's to the
+  // west edge's westbound track (towards La Spezia); on its up track, from the Genova–Pisa's westbound track on the south-east
+  // edge, the Livorno–Milano's, and the La Spezia–Parma's from its own track on the west edge; and the Genova–Pisa's two,
+  // the Pietrasanta–La Spezia's westbound and the La Spezia–Pietrasanta's eastbound.
   assert.deepEqual(
     railway.lines.map((l) => l.terminus === true),
-    [true, false, false],
+    [true, false, false, false, false, false, false],
   )
   for (const [l, { pts }] of lines.entries()) {
     const [x, y] = [pts.at(-2)!, pts.at(-1)!]
@@ -134,9 +139,12 @@ test("railway: each line runs terminal to terminal, its pieces sharing their end
 
 test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's stop to Gragnola's", () => {
   // Each line's from its start, in order, each on from the last but over track OSM tags no limit on (the game reads it at its
-  // lower neighbour's), which lies only in a station: Aulla Lunigiana's tracks, which the Lucca–Aulla line runs in on.
+  // lower neighbour's), which lies only in a station (Aulla Lunigiana's tracks, which the Lucca–Aulla line runs in on) or is a
+  // crossover 150 m long or less: the Parma–La Spezia's 106.6 m at Vezzano Ligure's west throat (ways 1574014371 and
+  // 423877056), onto the Genova–Pisa's track, 560 m from the station.
   const inStation = (x: number, y: number) =>
     MAP.pois.some((p) => p.kind === "railway=station" && hypot(p.x - x, p.y - y) < 500)
+  const CROSSOVER = 150
   for (const [l, { maxspeed }] of railway.lines.entries()) {
     const chain = lines[l]!,
       gaps: Array<readonly [number, number]> = []
@@ -147,7 +155,7 @@ test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's
       at = to
     }
     if (at < chain.s.at(-1)! - 0.11) gaps.push([at, chain.s.at(-1)!])
-    for (const [a, b] of gaps)
+    for (const [a, b] of gaps.filter(([a, b]) => b - a > CROSSOVER))
       for (const t of [a, (a + b) / 2, b]) {
         const p = pointAt(chain, t)
         assert.ok(inStation(p.x, p.y), `line ${l}: no limit at ${a}–${b}, by no station`)
@@ -267,8 +275,7 @@ test("railway: each level-crossing box holds the vertices its road shares with t
       assert.equal(c.s, -1)
       continue
     }
-    assert.equal(c.line, 0)
-    const p = pointAt(lines[0]!, c.s)
+    const p = pointAt(lines[c.line]!, c.s)
     assert.ok(
       c.nodes.some((n) => hypot(graph.nodes[n]!.x - p.x, graph.nodes[n]!.y - p.y) < 0.1),
       `${road.name}: the line at s ${c.s} is on a node`,

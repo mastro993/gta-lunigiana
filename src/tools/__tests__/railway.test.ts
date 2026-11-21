@@ -121,10 +121,10 @@ test("terminiOf keys a route's end by its shipped point, on the pieces of the wa
   ]
   assert.deepEqual(
     terminiOf(shipped, [
-      { node: "t", way: 7 },
-      { node: "t", way: 9 },
-      { node: "u", way: 8 },
+      { node: "t", way: 7, station: "T" },
+      { node: "t", way: 9, station: "T" },
+      { node: "u", way: 8, station: "U" },
     ]),
-    new Map([["100,0", new Set([0, 1])]]),
+    new Map([["100,0", { pieces: new Set([0, 1]), station: "T" }]]),
   )
 })

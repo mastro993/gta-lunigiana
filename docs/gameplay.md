@@ -1311,8 +1311,10 @@ code:
   the line speed at its end (`runOut`): the strike-in of a box at the map's edge
   ([Level crossings](#level-crossings)) plus the longest train's length, and never less than the
   drawn run, so a train entering at that speed is beyond view and finds even that box down before
-  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. A terminus has no run-out. Today's
-  three lines (issue #19):
+  it would brake for it: 1128.6 m at 85 km/h, 2057 m at 130. A terminus has no run-out. The lines
+  run where OSM's train routes run ([map.md](map.md#9-the-railway-railwayts-platformsts-rail-clearts)),
+  each direction of a double line's service on its own track, a line to itself. Today's seven
+  (issues #19, #20):
   - **Lucca–Aulla**, from the play area's edge at Pieve San Lorenzo (x 6700, in the Galleria del
     Lupacino, which OSM tags 140 km/h: its run-out is 2298.6 m, all in the bore, which runs on level
     to the box's edge at x 10600) to its terminus at Aulla Lunigiana's track 4, 25,880.1 m, with
@@ -1320,11 +1322,18 @@ code:
     8493.3–8597.0, Gragnola at 11911.6–12057.8, the Fivizzano-Gassano halt at 14454.2–14550.9,
     Fivizzano-Rometta-Soliera at 17205.9–17295.4 and Aulla Lunigiana at 25659.4–25880.1 (16,854.7 m
     to Fivizzano's west edge by Rometta before Aulla's part);
-  - **the Pontremolese's two tracks**, each from edge to edge through Aulla Lunigiana (9,715.8 and
-    9,715.4 m, the station at s 6915.4–7325.2 and 2390.7–2799.7), sharing the single track north of
-    P.P. Chiesaccia and its run-out north of the play area; past their south ends their run-outs
-    follow OSM's line 3,394 m on, and past their north ends, on the box's edge, they run straight
-    on, 1,409.1 m.
+  - **the Pontremolese's**, from the north edge (on the box's edge: past it they run straight on,
+    1,409.1 m) through Aulla Lunigiana and Santo Stefano di Magra: the Parma–La Spezia's on its down
+    track through Vezzano Ligure to the west edge (21,430.6 m) and the La Spezia–Parma's on its up
+    track (21,265.9 m), and the Milano–Livorno's and Livorno–Milano's over the link at Santo Stefano
+    to the Genova–Pisa and through Sarzana to the south-east edge (27,789.1 and 27,795.3 m), the
+    four sharing the single track north of P.P. Chiesaccia;
+  - **the Genova–Pisa's two tracks**, the Pietrasanta–La Spezia's and the La Spezia–Pietrasanta's
+    (11,010.6 and 10,946.0 m), from the south-east edge through Sarzana, Arcola's halt (the
+    westbound) and Vezzano Ligure to the west edge. Past their ends there the run-outs follow OSM's
+    line 1,438–1,447 m to the box's south edge and 3,748–3,828 m to its west edge. Before Sarzana's
+    part the Pontremolese ran two lines, one a track, from the north edge to the south edge at y
+    3900 (9,715.8 and 9,715.4 m).
 - **At a terminus** the train dwells as at any station, its driver changing ends as the dwell starts
   (`Dispatch` turns it round: its motion faces the other way and it is boarded at its far cab), and
   then runs back down the line, calling at every station again. It never leaves by the terminus:
@@ -1366,9 +1375,11 @@ code:
   shared one later, and a terminus line's train runs its whole line back): it would meet that one
   head-on, so it waits until that one has run off. Trains entering the same step count, so one
   train comes in where two lines' entries share a run-out. Measured on the real map, 2 h of game
-  time from a new game, `railStep` alone, seeds 1–6: 27–29 trains (3 Lucca–Aulla and 12–13 on each
-  Pontremolese line), 2 turned round at the terminus, no train struck, and no train standing outside
-  a dwell for more than 3 s. Entering 1 m outside that clearance of a train standing on
+  time from a new game, `railStep` alone, seeds 1–6: 38–39 trains (3 Lucca–Aulla, 5 on each
+  Pontremolese line but 4–5 Livorno–Milano, 7–8 Pietrasanta–La Spezia and 8–9 La Spezia–Pietrasanta),
+  2 turned round at the terminus, no train struck, and no train standing outside a dwell for more
+  than 1.5 s, but 18 s in seed 6 (27–29 trains, 3 s at most, on the three lines before Sarzana's
+  part). Entering 1 m outside that clearance of a train standing on
   the line, it stops 30.2 m behind it, braking at 0.609 m/s² at most.
 - **A new game** starts with each line's train already dwelling at the station nearest the player's
   start whose platforms no train placed already stands on, with 30 m to spare (lines sharing track

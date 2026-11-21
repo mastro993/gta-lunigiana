@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Osm } from "../osm.ts"
-import { routeEnds } from "../rail-routes.ts"
+import { routeEnds, trainRoutes } from "../rail-routes.ts"
 
 /** An extract of `ways` (id → node ids) and route relations (tags, members as [type, ref, role]). */
 const extract = (
@@ -74,11 +74,29 @@ test("routeEnds: a train route's first and last stops with the ways it leaves an
       ],
     ],
   ])
+  // A stop's station is its name, else its id.
+  osm.nodes.set("t", { id: "t", lat: 0, lon: 0, tags: { name: "Aulla" } })
   assert.deepEqual(routeEnds(osm), [
-    { node: "a", way: 11 },
-    { node: "t", way: 12 },
-    { node: "y", way: 13 },
-    { node: "q", way: 14 },
-    { node: "x", way: 12 },
+    { node: "a", way: 11, station: "a" },
+    { node: "t", way: 12, station: "Aulla" },
+    { node: "y", way: 13, station: "y" },
+    { node: "q", way: 14, station: "q" },
+    { node: "x", way: 12, station: "x" },
   ])
+})
+
+test("trainRoutes: each train route's ways in its running order, its platforms left out, no other route's", () => {
+  const osm = extract({ 11: ["a", "x"], 12: ["x", "t"] }, [
+    [
+      TRAIN,
+      [
+        ["node", "a", "stop"],
+        ["way", "12", ""],
+        ["way", "77", "platform"],
+        ["way", "11", ""],
+      ],
+    ],
+    [{ type: "route", route: "bus" }, [["way", "11", ""]]],
+  ])
+  assert.deepEqual(trainRoutes(osm), [[12, 11]])
 })

@@ -103,9 +103,10 @@ test("findLines turns off a stub that leads only to dead ends in the map, onto t
     piece([560, 4, 600, 0]),
   ]
   const lines = findLines(rail, edge)
+  // The lines in the order of their first piece.
   assert.deepEqual(railsOf(lines), [
-    [2, 4, 1],
     [0, 1],
+    [2, 4, 1],
   ])
   assert.deepEqual(kindsOf(rail, lines), [undefined, undefined, undefined, "siding", undefined])
 })
@@ -119,7 +120,7 @@ test("findLines ends a walk at a terminus reached along the piece its trains com
     piece([700, 0, 1000, 0]),
     piece([400, 0, 500, 5, 600, 5, 700, 0]),
   ]
-  const termini = new Map([["400,0", new Set([0])]])
+  const termini = new Map([["400,0", { pieces: new Set([0]), station: "T" }]])
   const lines = findLines(rail, edge, termini)
   assert.deepEqual(
     lines.map((l) => [l.pieces, l.terminus]),
@@ -137,7 +138,7 @@ test("findLines ends a walk at a terminus reached along the piece its trains com
   )
   assert.deepEqual(kindsOf(rail, lines), [undefined, undefined, undefined, "loop"])
   // Reached from the east only, the terminus ends no walk from the west.
-  const east = findLines(rail, edge, new Map([["400,0", new Set([1])]]))
+  const east = findLines(rail, edge, new Map([["400,0", { pieces: new Set([1]), station: "T" }]]))
   assert.deepEqual(
     east.map((l) => [railsOf([l])[0], l.terminus]),
     [
@@ -145,4 +146,73 @@ test("findLines ends a walk at a terminus reached along the piece its trains com
       [[2, 1], true],
     ],
   )
+})
+
+// Regression: where two lines meet (Sarzana's part: the Pontremolese's double track, the Genova–Pisa's and the link between
+// them at Santo Stefano di Magra), the straightest walk kept one line per terminal and none on the track it did not take:
+// the Pontremolese's second track, through Aulla Lunigiana's platforms, and the link the Milano–Livorno trains run.
+test("findLines runs each of OSM's train routes from terminal to terminal, crossovers and branches as the route takes them; the straightest way where none runs", () => {
+  // Two tracks between x 0 and x 1000, 4 m apart: A (ways 10, 11) and B (20, 21), a crossover from A at x 400 onto B at
+  // x 500 (way 30) and a branch off A at x 400 to the east edge at y −200 (way 40).
+  const way = (pts: ReadonlyArray<number>, id: number) => ({ ...piece(pts), way: id })
+  const rail = [
+    way([0, 0, 400, 0], 10),
+    way([400, 0, 1000, 0], 11),
+    way([0, 4, 500, 4], 20),
+    way([500, 4, 1000, 4], 21),
+    way([400, 0, 500, 4], 30),
+    way([400, 0, 500, -10, 1000, -200], 40),
+  ]
+  // The straightest walks keep A and B whole and the branch, and leave the crossover a loop.
+  assert.deepEqual(railsOf(findLines(rail, edge)), [
+    [0, 5],
+    [0, 1],
+    [2, 3],
+  ])
+  // A route from A's west end over the crossover onto B's east end, one onto the branch, and one on B whose run leaves the
+  // map (its next way, 99, runs nowhere in it): the first two make lines; B's west end gets the straightest walk.
+  const routes = [
+    [10, 30, 21],
+    [40, 10],
+    [20, 99],
+  ]
+  const lines = findLines(rail, edge, new Map(), routes)
+  assert.deepEqual(railsOf(lines), [
+    [0, 5],
+    [0, 4, 3],
+    [0, 1],
+    [2, 3],
+  ])
+  assert.deepEqual(kindsOf(rail, lines), [
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+  ])
+})
+
+// Regression: Lucca–Aulla's two routes end at Aulla Lunigiana's two termini (the Aulla => Pisa route starts at track 4, the
+// Pisa => Aulla Lunigiana one ends at track 5), and each made a line of its own the whole way from Pieve San Lorenzo.
+test("findLines ends one line from a terminal at a station's termini, the one turning less, whichever routes reach them", () => {
+  // From the west edge to a switch at x 400: track 4 runs straight on to its terminus at x 600, track 5 leaves at 5.7° to its
+  // own at (600, 5); one route leaves track 4's, the other comes in to track 5's.
+  const way = (pts: ReadonlyArray<number>, id: number) => ({ ...piece(pts), way: id })
+  const rail = [way([0, 0, 400, 0], 1), way([400, 0, 600, 0], 2), way([400, 0, 450, 5, 600, 5], 3)]
+  const termini = new Map([
+    ["600,0", { pieces: new Set([1]), station: "Aulla" }],
+    ["600,5", { pieces: new Set([2]), station: "Aulla" }],
+  ])
+  const routes = [
+    [2, 1],
+    [1, 3],
+  ]
+  assert.deepEqual(railsOf(findLines(rail, edge, termini, routes)), [[0, 1]])
+  // Two stations' termini end a line each.
+  const two = new Map([...termini].map(([k, t], i) => [k, { ...t, station: `S${i}` }]))
+  assert.deepEqual(railsOf(findLines(rail, edge, two, routes)), [
+    [0, 2],
+    [0, 1],
+  ])
 })

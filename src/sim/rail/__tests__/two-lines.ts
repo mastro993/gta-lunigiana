@@ -8,15 +8,14 @@
  */
 import assert from "node:assert/strict"
 
-import { MAP, type RailLine, type Station } from "../../map/index.ts"
+import { type LevelCrossing, MAP, type RailLine, type Station } from "../../map/index.ts"
 
-// The map's own lines but the first are left out (the Pontremolese's two share track with each other), and the first runs on
-// past its terminus at Aulla as past a terminal on the edge, straight on: the second line here shares the first's whole track
-// and no other, run-outs and all.
-assert.ok(
-  MAP.railway.crossings.every((c) => c.line <= 0),
-  "every box on the first line or none",
-)
+// The map's own lines but the first are left out with their boxes (the Pontremolese's and the Genova–Pisa's share track with
+// each other), and the first runs on past its terminus at Aulla as past a terminal on the edge, straight on: the second line
+// here shares the first's whole track and no other, run-outs and all.
+const boxes = MAP.railway.crossings.filter((c) => c.line <= 0)
+;(MAP.railway.crossings as Array<LevelCrossing>).splice(0, MAP.railway.crossings.length, ...boxes)
+assert.ok(boxes.length > 0, "the first line's boxes")
 const { pieces, maxspeed, runOuts } = MAP.railway.lines[0]!,
   main: RailLine = { pieces, maxspeed, runOuts }
 const own = MAP.railway.stations.filter((station) => station.line === 0)

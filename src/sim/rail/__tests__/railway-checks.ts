@@ -168,7 +168,9 @@ export const checkTerminals = (lines: ReadonlyArray<number>): void => {
       const need = way < 0 ? -line.start : line.end - line.length
       let { x, y, z } = pointAt(line, s),
         d = 0
+      // Up to the run-out's end: the stored track runs on to the box's edge, 3,748 m past the Genova–Pisa's west ends.
       for (const piece of MAP.railway.lines[line.index]!.runOuts[which]) {
+        if (d >= need) break
         assert.deepEqual([piece.pts[0], piece.pts[1]], [x, y], "each stretch on from the last")
         for (let k = 1; k < piece.z.length && d < need; k++) {
           const px = piece.pts[2 * k]!,
@@ -311,13 +313,35 @@ export const checkBoxLines = (boxes: ReadonlyArray<number>): void => {
   for (const i of boxes) {
     const box = CROSSINGS[i]!,
       record = MAP.railway.crossings[i]!
-    // The build names the first line through the box (−1 for a loop or siding only); today no box has two.
+    // The build names the first line through the box (−1 for a loop or siding only); the box holds every line whose track
+    // runs through one of its nodes: Santo Stefano di Magra's, on the track the Parma–La Spezia and the Milano–Livorno share.
+    const through = MAP.railway.lines.flatMap(({ pieces }, l) =>
+      pieces.some(({ rail }) => {
+        const { pts } = MAP.rail[rail]!
+        return record.nodes.some((n) => {
+          for (let k = 0; k < pts.length; k += 2)
+            if (pts[k] === graph.nodes[n]!.x && pts[k + 1] === graph.nodes[n]!.y) return true
+          return false
+        })
+      })
+        ? [l]
+        : [],
+    )
     assert.deepEqual(
       box.on.map((at) => at.line),
-      record.line < 0 ? [] : [record.line],
+      through,
     )
+    assert.equal(through[0] ?? -1, record.line)
     for (const at of box.on) {
-      assert.ok(Math.abs(at.s - record.s) < 0.06, `box ${i}: s ${at.s} against ${record.s}`)
+      const p = pointAt(LINES[at.line]!, at.s)
+      assert.ok(
+        record.nodes.some(
+          (n) => Ops.hypot(graph.nodes[n]!.x - p.x, graph.nodes[n]!.y - p.y) < 0.06,
+        ),
+        `box ${i}: line ${at.line} at s ${at.s} on a node`,
+      )
+      if (at.line === record.line)
+        assert.ok(Math.abs(at.s - record.s) < 0.06, `box ${i}: s ${at.s} against ${record.s}`)
       const width = MAP.roads[record.road]!.w
       assert.ok(at.half >= width / 2 && at.half <= width / 2 / 0.3, `box ${i}: half ${at.half}`)
       assert.equal(at.reach, strikeIn(speedAt(LINES[at.line]!, at.s)))

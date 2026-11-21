@@ -31,7 +31,7 @@ import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
 import { clipBeyond, heldInPlay, inPlay } from "./play-area.ts"
 import { underRail } from "./rail-crossings.ts"
-import { routeEnds } from "./rail-routes.ts"
+import { routeEnds, trainRoutes } from "./rail-routes.ts"
 import { REGION, dtmDir, osmFiles, type Rect, ucsFile, ucsParts } from "./region.ts"
 import { seaFloor } from "./sea-floor.ts"
 import { extractShore, holedSea, offBeaches, splitPiers } from "./shore.ts"
@@ -201,6 +201,8 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     railCrossings: crossings.map((c) => c.rings),
     /** Where OSM's train routes end, and the ways they reach those stops along (`routeEnds`): the lines' termini in play. */
     routeEnds: routeEnds(osm),
+    /** The ways each of OSM's train routes runs, in its running order (`trainRoutes`): the lines in play run them. */
+    trainRoutes: trainRoutes(osm),
     districts,
     /** The ground raised under the piers' decks and the breakwaters (shore.ts). */
     raised: shore.raised,
