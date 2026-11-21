@@ -370,6 +370,27 @@ test("extractBuildings: an OSM building sharing half the smaller one's area with
   )
 })
 
+// Issue #20: the Fortezza di Sarzanello (OSM 89665866, building=yes, historic=castle) stood in no
+// survey's building layer (the NC5 keeps it among its monuments) and inside the NC5's mapped area,
+// which dropped OSM's footprint, so the map had no fortress. A castle or fort OSM maps stays where a
+// survey maps the ground, but where a surveyed building takes half of it, as any OSM building.
+test("extractBuildings: an OSM castle or fort stays where a survey maps the ground, unless a surveyed building takes half of it", () => {
+  const { osm, square } = areaOsm()
+  square(0, 0, 20, { building: "yes", historic: "castle" }) // no survey building on it
+  square(40, 0, 20, { building: "fortress" })
+  square(80, 0, 20, { building: "yes", historic: "fort" }) // a surveyed unit takes 80% of it
+  square(120, 0, 20, { building: "house" }) // any other building: dropped by the mapped area
+  const { held, beyond } = extractBuildings(osm, {
+    buildings: [{ id: -1, kind: "house", h: 6, outer: [80, 0, 96, 0, 96, 20, 80, 20] }],
+    roadAreas: [],
+    mapped: [[-10, -10, 200, -10, 200, 40, -10, 40]],
+  })
+  assert.deepEqual(
+    [...held, ...beyond].map((b) => b.id).sort((a, b) => a - b),
+    [-1, 1, 2],
+  )
+})
+
 test("extractBuildings: a surveyed building's tint is the one its 2019 CTR id always gave, in any section", () => {
   // The 2019 ids were -(sheet · 1e5 + layer base (AED 0, AGE 5e4) + index) - polygon · 1e7, and the
   // tint hashed -id % 1e9: each record below, in three sections, a 10 m square round Monzone.

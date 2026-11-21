@@ -196,4 +196,8 @@ export const STONE_CORES: ReadonlyArray<readonly [number, number, number]> = [
   [-18875, 2810, 65], // Bolano, the rows of Via Borgo Chiusura below Via Dietro le Mura
   [-18770, 2875, 80], // Bolano, the borgo round Santa Maria Assunta
   [-11905, 3370, 80], // Bibola, the ring borgo round the castle's ruins and San Bartolomeo
+  // The fortresses OSM maps where a survey keeps none among its buildings, built from OSM since
+  // issue #20, each one footprint centred on its centroid, as Castello dell'Aquila's.
+  [-12700, -5170, 40], // the Fortezza di Sarzanello (way 89665866, 1,839 m², 37.3 m to its farthest corner)
+  [-12550, 5235, 35], // the Fortezza della Brunella, Aulla (relation 9701877's outer way 698125674, 1,588 m², 33.3 m)
 ]

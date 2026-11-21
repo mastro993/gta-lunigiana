@@ -358,8 +358,9 @@ const styleOf = (t: Tags, cx: number, cy: number): BuildingStyle => {
 }
 
 /**
- * Buildings: the surveys' where they map the ground (`readSurveys`), OSM's elsewhere but where one
- * shares half the smaller one's area with a surveyed building (`apartFrom`), each clipped to the
+ * Buildings: the surveys' where they map the ground (`readSurveys`), OSM's elsewhere and its castles
+ * and forts everywhere, but where one shares half the smaller one's area with a surveyed building
+ * (`apartFrom`), each clipped to the
  * built terrain's box and kept (`held`) where the centre of its clipped outline is in the play area
  * (an outline edge inside the box may cut through a house, which then stands whole or not at all;
  * one across the box's edge stands clipped), the others `beyond` it, for the trees to keep off. A CTR
@@ -409,9 +410,15 @@ export const extractBuildings = (
       ...(c.holes === undefined ? {} : { holes: c.holes }),
     }
   })
+  // A castle or fort OSM maps stays where a survey maps the ground: a survey may keep one among its
+  // monuments rather than its buildings (the NC5's Fortezza di Sarzanello, issue #20).
+  const forts = fortified(osm)
   const unmapped = apartFrom(
     survey.buildings,
-    fromOsm.filter((b) => !survey.mapped.some((ring) => pointInRing(...centroid(b.outer), ring))),
+    fromOsm.filter(
+      (b) =>
+        forts.has(b.id) || !survey.mapped.some((ring) => pointInRing(...centroid(b.outer), ring)),
+    ),
   )
   const all = [...unmapped, ...fromCtr],
     held = all.map((b) => inPlay(...centroid(b.outer)))
@@ -426,6 +433,18 @@ export const extractBuildings = (
     ),
     beyond: all.filter((_, k) => !held[k]),
   }
+}
+
+/** The ids of OSM's castles and forts (`historic=castle|fort`, `building=castle|fortress`), ways and relations. */
+const fortified = (osm: Osm): ReadonlySet<number> => {
+  const fort = (t: Tags) =>
+    t.historic === "castle" ||
+    t.historic === "fort" ||
+    t.building === "castle" ||
+    t.building === "fortress"
+  return new Set(
+    [...osm.ways.values(), ...osm.relations.values()].flatMap((e) => (fort(e.tags) ? [+e.id] : [])),
+  )
 }
 
 const osmBuildings = (osm: Osm): Array<BuildingF> => {
