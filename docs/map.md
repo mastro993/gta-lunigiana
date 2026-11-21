@@ -3757,7 +3757,17 @@ walls held them before, and stores neither of those.
   and a 1 m kerb, where its traffic goes, take a level (a wall with a level, below): the terrain's
   midway along each, split where that ground spans 3 m or more (`SPAN`, as under the decks), so each
   stops anyone on the hill round the house within 1.5 m of its level and nothing in the bore; the
-  rest stand at every level. The A15's 10 m Galleria Fresonara opened the house −1475651980358925 on
+  rest stand at every level. A barrier over a bore deep under it does the same (`barrierWalls` in
+  `house-walls.ts`): each of its pieces within the bore's corridor and the kerb, where the ground it
+  stands on (the terrain at its point nearest the bore) is the bore's clear height or more over the
+  road there, takes the terrain's level along it, split as a house's are. Walled at every level,
+  the jersey barrier 887066016 between the underpasses of Via Alcide De Gasperi and the container
+  terminal's service road at (−17097, −1238), on the ground at 16 m, stood across the bore of the
+  unclassified road 1352409570 (layer −2) 5.3 m under it, 0.5 m off its traffic edge 205834, and no
+  Panda's lane ran through the bore. It is the only such barrier on the four regions: its 3 walk and
+  3 drive pieces there take 18.1, 16.2 and 16 m, and with them 7 Panda and Ape lanes and a
+  carabinieri lane change (`pnpm map-diff`, 2026-11-21). The A15's 10 m Galleria Fresonara opened
+  the house −1475651980358925 on
   the hill 80 m over it at (−19236.6, −4601.2), and anyone walked in; each of a house's walls
   levelled whole at the ground at its middle, the wall from (−13542.7, −5846.7) to (−13555.5,
   −5846.3) stood 2.59 m off its level at its east end, and a walker passed it there.
@@ -3789,7 +3799,7 @@ walls held them before, and stores neither of those.
   whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, `onOneLevel`): a car whose
   wheels, or a person whose footing, stand there. Every other wall stands at every level. The
   bridges' parapets, the walls under their decks ([below](#walls-under-the-decks)) and a house's
-  over a bore deep under it (above) are the walls with a level. A parapet (`parapets.ts`) needs
+  or a barrier's over a bore deep under it (above) are the walls with a level. A parapet (`parapets.ts`) needs
   one: walls are flat lines, so a parapet that stopped everyone would close the road under its
   deck too, and so it used to open wherever any
   road's carriageway reached it, the road under the deck included, and a car on the SR445's viaduct

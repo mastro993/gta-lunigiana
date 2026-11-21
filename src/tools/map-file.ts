@@ -37,7 +37,7 @@ export interface JoinedMap extends Omit<
     readonly walk: ArrayLike<number>
     readonly shore: ArrayLike<number>
     readonly drive: ArrayLike<number>
-    /** Each walk and drive wall's level, m a.s.l. (a bridge's parapet's, a wall's under a deck or of a house over a bore), NaN for one that stands at every level. */
+    /** Each walk and drive wall's level, m a.s.l. (a bridge's parapet's, a wall's under a deck or of a house or a barrier over a bore), NaN for one that stands at every level. */
     readonly levels: { readonly walk: ArrayLike<number>; readonly drive: ArrayLike<number> }
   }
   /** Flat (x, y, scale) triples in the whole map's order: by id. */

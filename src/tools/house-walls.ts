@@ -1,6 +1,7 @@
 // The houses' collision walls and footprints: a footprint's outline, opened where a way runs through
 // it on its level (a passage, steps under an arch, a tunnel's bore), and the footprints the drivable
-// roads cut, where OSM and the CTR disagree by a metre or two.
+// roads cut, where OSM and the CTR disagree by a metre or two; and the barriers' walls, which take
+// the ground's level over a bore deep under them, as a house's do.
 import { segT, staticGrid } from "../sim/collide.ts"
 import { isDrivable, isMotorRoad, ONE_LEVEL, UNDERPASS } from "../sim/map/kinds.ts"
 import type { BuildingF, RoadF } from "./features.ts"
@@ -297,16 +298,29 @@ export const houseWalls = (
     for (const ring of [b.outer, ...(b.holes ?? [])]) pushPolyline(traced, ring, true)
   else boundary(c.grid, c.blocked, [traced], TRACE_TOL)
   const deep = under(...ringBox(b.outer))
-  if (deep.length === 0)
-    return { walls: traced, levels: Array.from({ length: traced.length / 4 }, () => Number.NaN) }
+  return overBores(traced, terrain, (ax, ay, bx, by) =>
+    deep.some(
+      ([cx, cy, dx, dy, h]) => segSegDist2(ax, ay, bx, by, cx, cy, dx, dy) < (h + KERB) ** 2,
+    ),
+  )
+}
+
+/**
+ * Walls `traced`, flat (ax, ay, bx, by), each with its level, m a.s.l.: those `over` a bore deep
+ * under them, where its traffic goes, take the level of the `terrain` along them (`levelled`), so
+ * they stop anyone on the ground round them and nothing in the bore; the rest stand at every level
+ * (NaN).
+ */
+const overBores = (
+  traced: ReadonlyArray<number>,
+  terrain: (x: number, y: number) => number,
+  over: (ax: number, ay: number, bx: number, by: number) => boolean,
+): { readonly walls: Array<number>; readonly levels: Array<number> } => {
   const walls: Array<number> = [],
     levels: Array<number> = []
   for (let w = 0; w < traced.length; w += 4) {
     const [ax, ay, bx, by] = [traced[w]!, traced[w + 1]!, traced[w + 2]!, traced[w + 3]!]
-    const reached = deep.some(
-      ([cx, cy, dx, dy, h]) => segSegDist2(ax, ay, bx, by, cx, cy, dx, dy) < (h + KERB) ** 2,
-    )
-    for (const [px, py, qx, qy, z] of reached
+    for (const [px, py, qx, qy, z] of over(ax, ay, bx, by)
       ? levelled(ax, ay, bx, by, terrain)
       : [[ax, ay, bx, by, Number.NaN] as const]) {
       walls.push(px, py, qx, qy)
@@ -314,4 +328,77 @@ export const houseWalls = (
     }
   }
   return { walls, levels }
+}
+
+/** The points of segments a-b and c-d nearest each other, [px, py] on a-b and [qx, qy] on c-d: where they cross, the crossing. */
+const nearest = (
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
+): readonly [number, number, number, number] => {
+  const ex = bx - ax,
+    ey = by - ay,
+    fx = dx - cx,
+    fy = dy - cy,
+    den = ex * fy - ey * fx
+  if (den !== 0) {
+    const t = ((cx - ax) * fy - (cy - ay) * fx) / den,
+      u = ((cx - ax) * ey - (cy - ay) * ex) / den
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1)
+      return [ax + ex * t, ay + ey * t, ax + ex * t, ay + ey * t]
+  }
+  const onCd = (px: number, py: number) => {
+      const t = segT(px, py, cx, cy, dx, dy)
+      return [px, py, cx + fx * t, cy + fy * t] as const
+    },
+    onAb = (qx: number, qy: number) => {
+      const t = segT(qx, qy, ax, ay, bx, by)
+      return [ax + ex * t, ay + ey * t, qx, qy] as const
+    }
+  const pairs = [onCd(ax, ay), onCd(bx, by), onAb(cx, cy), onAb(dx, dy)]
+  let best = pairs[0]!
+  for (const p of pairs)
+    if (
+      (p[0] - p[2]) ** 2 + (p[1] - p[3]) ** 2 <
+      (best[0] - best[2]) ** 2 + (best[1] - best[3]) ** 2
+    )
+      best = p
+  return best
+}
+
+/**
+ * A barrier's walls along `pts` (a wall, a cliff, a guard rail, a breakwater), flat (ax, ay, bx, by)
+ * in pieces of at most 16 m, and each one's level, m a.s.l. (NaN for one that stands at every
+ * level): a piece within a road tunnel's corridor (`arches`) and a KERB, where the bore passes the
+ * clear height or more under the `terrain` it stands on, takes the terrain's level along it, as a
+ * house's walls over a bore deep under it do (`houseWalls`). Walled at every level, the jersey
+ * barrier 887066016 between the underpasses of Via Alcide De Gasperi and the container terminal's
+ * service road at (−17097, −1238) stopped the traffic in the unclassified road's bore 1352409570,
+ * 5.3 m under it.
+ */
+export const barrierWalls = (
+  pts: ReadonlyArray<number>,
+  arches: Arches,
+  level: Level,
+  terrain: (x: number, y: number) => number,
+): { readonly walls: Array<number>; readonly levels: Array<number> } => {
+  const traced: Array<number> = []
+  pushPolyline(traced, pts, false)
+  return overBores(traced, terrain, (ax, ay, bx, by) =>
+    arches(
+      Math.min(ax, bx) - KERB,
+      Math.min(ay, by) - KERB,
+      Math.max(ax, bx) + KERB,
+      Math.max(ay, by) + KERB,
+    ).some(([cx, cy, dx, dy, h, road, clear]) => {
+      if (road < 0 || segSegDist2(ax, ay, bx, by, cx, cy, dx, dy) >= (h + KERB) ** 2) return false
+      const [px, py, qx, qy] = nearest(ax, ay, bx, by, cx, cy, dx, dy)
+      return terrain(px, py) - level(road, qx, qy) >= clear
+    }),
+  )
 }

@@ -9,10 +9,10 @@ import { exitCaps } from "./exit-caps.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
 import { r1, ringBox, segIndex } from "./geometry.ts"
 import { gridTiles } from "./grid-tiles.ts"
-import { ARCH, houseArches, houseWalls } from "./house-walls.ts"
+import { ARCH, barrierWalls, houseArches, houseWalls } from "./house-walls.ts"
 import { inPlay, OUTLINE } from "./play-area.ts"
 import { anchorNode, cellSlope, type DmGrid } from "./terrain.ts"
-import { append, boundary, pushOutline, pushPolyline, pushSplit } from "./wall-pieces.ts"
+import { append, boundary, pushOutline, pushSplit } from "./wall-pieces.ts"
 
 /** The steepest ground (°) a walker climbs off a road: a steeper cell is a `walk` wall. */
 export const WALK_SLOPE = 35
@@ -103,7 +103,7 @@ interface Walls {
   readonly driveShore: Array<number>
   /**
    * Each walk and drive wall's level, m a.s.l.: a parapet's is its deck's top, a wall under a deck's
-   * and a house's over a bore deep under it the ground's there, and it stops only a body whose
+   * and a house's or a barrier's over a bore deep under it the ground's there, and it stops only a body whose
    * ground stands within ONE_LEVEL of it; NaN for every other wall, which stops anyone.
    */
   readonly levels: { readonly walk: Array<number>; readonly drive: Array<number> }
@@ -294,9 +294,20 @@ export const buildWalls = (
       append(out, walls)
     }
   })
+  // The barriers' walls, and the levels of those over a bore deep under them.
   for (const b of barriers) {
-    if (!DRIVE_ONLY.has(b.kind)) pushPolyline(walk, b.pts, false)
-    pushPolyline(drive, b.pts, false)
+    const { walls, levels } = barrierWalls(b.pts, arches, heights.level, heights.terrain)
+    for (const [out, by] of DRIVE_ONLY.has(b.kind)
+      ? ([[drive, driveLevels]] as const)
+      : ([
+          [walk, walkLevels],
+          [drive, driveLevels],
+        ] as const)) {
+      levels.forEach((z, w) => {
+        if (!Number.isNaN(z)) by.set(out.length / 4 + w, z)
+      })
+      append(out, walls)
+    }
   }
   const first = drive.length / 4
   append(drive, parapets.walls)

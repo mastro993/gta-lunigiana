@@ -3,7 +3,7 @@ import { test } from "node:test"
 
 import type { BuildingF, RoadF } from "../features.ts"
 import { segDist2 } from "../geometry.ts"
-import { clipBuildings } from "../house-walls.ts"
+import { barrierWalls, clipBuildings, houseArches } from "../house-walls.ts"
 import { outlineOf } from "../play-area.ts"
 import { pushOutline } from "../wall-pieces.ts"
 import { openBarriers } from "../walls.ts"
@@ -94,6 +94,41 @@ test("a guard rail stays whole along its road, inside its w/2, and opens where a
   // It ends at the last free 0.25 m sample: 1.2 m from the track's centreline, or a sample more.
   const gap = 50 - rail!.pts.at(-2)!
   assert.ok(gap >= 1.2 && gap < 1.2 + 0.25, `the rail ends ${gap} m from the track`)
+})
+
+// Regression (#20): the jersey barrier 887066016 runs between the underpasses of Via Alcide De
+// Gasperi and the container terminal's service road at (−17097, −1238), on the ground 5.3 m over the
+// bore of the unclassified road 1352409570 (layer −2), and stood at every level across it: traffic
+// edge 205834 in the bore ran into it.
+test("a barrier over a road tunnel's bore deep under it takes the ground's level there, so it stops nothing in the bore; over a shallow bore, and off the bore, it stands at every level", () => {
+  const bore: RoadF = {
+    id: 1,
+    cls: "unclassified",
+    w: 5,
+    surface: "asphalt",
+    private: false,
+    tunnel: true,
+    pts: [
+      { x: 0, y: -40, id: "s" },
+      { x: 0, y: 40, id: "n" },
+    ],
+  }
+  // The bore's floor at 10.7 m, the ground over it 16 m to the north (5.3 m over: deep) and 12 m to
+  // the south (1.3 m, under the bore's 4 m clear height: at its level).
+  const arches = houseArches([bore]),
+    level = () => 10.7,
+    terrain = (_: number, y: number) => (y > 0 ? 16 : 12)
+  const levelsOf = (y: number) => {
+    const { walls, levels } = barrierWalls([-30, y, 30, y], arches, level, terrain)
+    return segments(walls).map(([ax, , bx], w) => ({ ax: ax!, bx: bx!, level: levels[w]! }))
+  }
+  const deep = levelsOf(20)
+  assert.equal(deep.length, 4, "pieces of at most 16 m")
+  for (const { ax, bx, level } of deep)
+    if (Math.min(Math.abs(ax), Math.abs(bx)) <= 2.2 || ax * bx < 0)
+      assert.equal(level, 16, `the piece at x ${ax}…${bx} over the bore: the ground's level`)
+    else assert.ok(Number.isNaN(level), `the piece at x ${ax}…${bx}, off the bore: every level`)
+  for (const { level } of levelsOf(-20)) assert.ok(Number.isNaN(level), "over a shallow bore")
 })
 
 // Regression: a substation the CTR maps under the SR445's bridge west of Gragnola (552592647, at
