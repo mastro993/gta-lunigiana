@@ -59,7 +59,7 @@ export interface BuiltMap extends Omit<
     /** Each walk and drive wall's level, m a.s.l. (a bridge's parapet's), NaN for one that stands at every level. */
     readonly levels: { readonly walk: ArrayLike<number>; readonly drive: ArrayLike<number> }
   }
-  /** Flat (x, y, scale) triples, in id order. */
+  /** Flat (x, y, scale) triples, in id order: x and y whole metres, the scale whole decimetres (trees.ts `TreeList`). */
   readonly trees: ArrayLike<number>
   /** Each tree's id, ascending: its lattice cell's number, or its bank cell's past them (trees.ts). */
   readonly treeIds: ArrayLike<number>
@@ -88,6 +88,12 @@ const bySlot = (count: number, slots: number, slotOf: (item: number) => number) 
     next = starts.slice(0, -1)
   for (let k = 0; k < count; k++) items[next[slot[k]!]!++] = k
   return (s: number) => items.subarray(starts[s], starts[s + 1])
+}
+
+/** `trees`' (x, y, scale) triples with the scale in metres: the decimetres the build holds, read as the tile file takes them. */
+const metres = (trees: Float64Array): Float64Array => {
+  for (let k = 2; k < trees.length; k += 3) trees[k] = trees[k]! / 10
+  return trees
 }
 
 /** A map cut into its tiles, and the global map: both completed by the bakes, each missing one empty (the provisional map). */
@@ -310,7 +316,7 @@ export const cutMap = (map: BuiltMap, name: string): MapCut => {
           walk: flatOf(map.walls.levels.walk, walk, 1),
           drive: flatOf(map.walls.levels.drive, drive, 1),
         },
-        trees: flatOf(map.trees, trees, 3),
+        trees: metres(flatOf(map.trees, trees, 3)),
         ids: Int32Array.from(trees, (k) => map.treeIds[k]!),
         cover,
         vectors: NO_VECTORS,

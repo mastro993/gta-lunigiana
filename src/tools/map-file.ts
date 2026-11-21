@@ -94,7 +94,7 @@ export const joinTiles = (global: MonzoneMap, tiles: ReadonlyArray<TileData>): J
           cover[cj * (cols - 1) + ci] = t.cover[r * TILE_CELLS + c]!
       }
   }
-  const { trees, ids } = mergeTrees(listed)
+  const { trees, ids } = mergeTrees(listed, (n) => new Float64Array(n))
   const { heightmap, vectors: _, derived: __, ...rest } = global
   return {
     ...rest,

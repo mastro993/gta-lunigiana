@@ -39,8 +39,8 @@ export const built = (data: ReadonlyArray<number>): BuiltMap => ({
     levels: { walk: [NaN, NaN], drive: [148.5] },
   },
   // Sparse ids, as the scatter numbers trees (lattice cells, bank trees past 2^28): in id order the
-  // trees are not in their tiles' order (0_0's comes before 0_-1's).
-  trees: [-5, -5, 1.2, 0, 0, 0.9, 7, -3, 1],
+  // trees are not in their tiles' order (0_0's comes before 0_-1's). Their scales in decimetres.
+  trees: [-5, -5, 12, 0, 0, 9, 7, -3, 10],
   treeIds: [12, 40_000, 2 ** 28 + 5],
   treeCorner: [-11, -11],
   cover: (b) =>

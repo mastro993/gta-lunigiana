@@ -7,6 +7,9 @@ import { joinTiles } from "../map-file.ts"
 import { type BuiltMap, cutMap, stampMap } from "../tile-map.ts"
 import { built, cover, data, withVectors } from "./built-map.ts"
 
+/** `built`'s trees as the files hold them: their scales in metres. */
+const TREES = [-5, -5, 1.2, 0, 0, 0.9, 7, -3, 1]
+
 /** The stamped global map and the files of `map` cut as the build cuts it: the global file under "", each tile under its key. */
 const filesOf = (map: BuiltMap) => {
   const cut = cutMap(map, "test"),
@@ -30,7 +33,7 @@ test("cutMap cuts the dense layers into tiles that joinTiles puts back as they w
     assert.deepEqual(Array.from(whole.walls[kind]), built(data).walls[kind])
   for (const kind of ["walk", "drive"] as const)
     assert.deepEqual(Array.from(whole.walls.levels[kind]), built(data).walls.levels[kind])
-  assert.deepEqual(Array.from(whole.trees), built(data).trees)
+  assert.deepEqual(Array.from(whole.trees), TREES)
   assert.deepEqual(Array.from(whole.treeIds), built(data).treeIds)
   assert.deepEqual(
     tiles.map((t) => Array.from(t.ids)),
@@ -72,7 +75,7 @@ test("cutMap writes the listed tiles alone: a wall or tree in an unlisted one go
   )
   const joined = joinTiles(decodeMap(files.get("")!), tiles)
   assert.deepEqual(Array.from(joined.walls.walk), l.walls.walk)
-  assert.deepEqual(Array.from(joined.trees), l.trees)
+  assert.deepEqual(Array.from(joined.trees), TREES)
 })
 
 test("an unlisted tile's coarse nodes and cells read the nearest listed node and cell, as the game's lookups there do", () => {

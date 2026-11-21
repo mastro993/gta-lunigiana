@@ -12,7 +12,7 @@ import type { Area } from "../sim/map/index.ts"
 import { isWood, OLIVE_TREES, TILE } from "../sim/map/kinds.ts"
 import { fillRank } from "../sim/map/raster.ts"
 import type { BuildingF, RailF, RoadF, WaterF } from "./features.ts"
-import { arcLengths, fillPolygon, hash01, pointAt, r1, ringBox, segIndex } from "./geometry.ts"
+import { arcLengths, fillPolygon, hash01, pointAt, ringBox, segIndex } from "./geometry.ts"
 import type { Rect, Region } from "./region.ts"
 
 const TREE_AREA = 50 // m² per tree
@@ -232,7 +232,7 @@ export const treeScatter = (
         const tx = Math.round(x),
           ty = Math.round(y)
         if (mine(tx, ty) && at(WOOD, x, y) && free(x, y) && take(tx, ty)) {
-          trees.push(tx, ty, r1(0.8 + 0.5 * hash01(gi, gj, 3)))
+          trees.push(tx, ty, dm(0.8 + 0.5 * hash01(gi, gj, 3)))
           ids.push(latticeId(gi, gj))
         }
       }
@@ -246,7 +246,7 @@ export const treeScatter = (
       const id = bankId(Math.floor((tx - ax) / BANK_CELL), Math.floor((ty - ay) / BANK_CELL))
       if (cells.has(id) || !take(tx, ty)) return
       cells.add(id)
-      banks.push([id, tx, ty, r1(bank.scale[b]!)])
+      banks.push([id, tx, ty, dm(bank.scale[b]!)])
     })
     for (const [id, tx, ty, scale] of banks.sort((a, b) => a[0] - b[0])) {
       trees.push(tx, ty, scale)
@@ -263,28 +263,37 @@ export const treeScatter = (
         const tx = Math.round(x),
           ty = Math.round(y)
         if (mine(tx, ty) && at(GROVE, x, y) && !at(OVER, x, y) && clear(x, y) && take(tx, ty)) {
-          trees.push(tx, ty, r1(0.8 + 0.5 * hash01(gi, gj, 23)))
+          trees.push(tx, ty, dm(0.8 + 0.5 * hash01(gi, gj, 23)))
           ids.push(oliveId(gi, gj))
         }
       }
-    return { trees: Float64Array.from(trees), ids: Int32Array.from(ids) }
+    return { trees: Int32Array.from(trees), ids: Int32Array.from(ids) }
   }
 }
 
-/** Trees as flat (x, y, scale) triples on whole metres and each one's id (its look's seed), ascending. */
+/** A tree's scale in whole decimetres: read as `/ 10`, the scale rounded to 0.1 (`r1`), bit for bit. */
+const dm = (scale: number) => Math.round(scale * 10)
+
+/**
+ * Trees as flat (x, y, scale) triples, x and y whole metres and the scale whole decimetres (`dm`),
+ * and each one's id (its look's seed), ascending. In 32-bit integers: Lunigiana's 8.9 million trees
+ * took 214 MB as `Float64Array`, twice over while the tiles' scatters were merged.
+ */
 export interface TreeList {
-  readonly trees: Float64Array
+  readonly trees: Int32Array
   readonly ids: Int32Array
 }
 
 /**
- * The trees of `parts` (each in ascending id order, no id in two) merged in id order: each next
- * tree the least of the parts' next, from a heap of the parts by their next id (a sort of every
- * tree's id, part and place took 118 MB at Lunigiana's 7.4 million).
+ * The trees of `parts` (each in ascending id order, no id in two) merged in id order, into an array
+ * `make` gives (their triples as they are): each next tree the least of the parts' next, from a heap
+ * of the parts by their next id (a sort of every tree's id, part and place took 118 MB at
+ * Lunigiana's 7.4 million).
  */
-export const mergeTrees = (
+export const mergeTrees = <A extends Float64Array | Int32Array>(
   parts: ReadonlyArray<{ readonly trees: ArrayLike<number>; readonly ids: ArrayLike<number> }>,
-): TreeList => {
+  make: (length: number) => A,
+): { readonly trees: A; readonly ids: Int32Array } => {
   const n = parts.reduce((sum, p) => sum + p.ids.length, 0)
   // Each part's next tree, and the parts with trees left, a binary min-heap by their next id.
   const next = new Int32Array(parts.length)
@@ -303,7 +312,7 @@ export const mergeTrees = (
     }
   }
   for (let k = (heap.length >> 1) - 1; k >= 0; k--) sift(k)
-  const trees = new Float64Array(3 * n),
+  const trees = make(3 * n),
     ids = new Int32Array(n)
   for (let o = 0; o < n; o++) {
     const q = heap[0]!,
@@ -325,7 +334,7 @@ export const mergeTrees = (
 
 /**
  * The trees of every tile of `region` (each scattered on its own, `treeScatter`), merged in id
- * order: flat (x, y, scale) triples on whole metres and their ids.
+ * order (`TreeList`).
  */
 export const scatterTrees = (
   features: TreeFeatures,
@@ -334,6 +343,7 @@ export const scatterTrees = (
   const scatter = treeScatter(features, region)
   return mergeTrees(
     region.tiles.map(({ i, j }) => scatter([TILE * i, TILE * j, TILE * (i + 1), TILE * (j + 1)])),
+    (n) => new Int32Array(n),
   )
 }
 
