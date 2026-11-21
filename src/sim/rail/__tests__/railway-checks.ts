@@ -8,6 +8,7 @@ import { Ops } from "@typeonce/ritmo-math"
 import { segDist2 } from "../../collide.ts"
 import { terrainZ } from "../../map/ground.ts"
 import { graph, type LevelCrossing, MAP, outlineDistance, RAIL_LIFT } from "../../map/index.ts"
+import { PLATFORM_EDGE } from "../../map/kinds.ts"
 import { endNode, laneOf, lanePoint } from "../../route.ts"
 import { strikeIn } from "../barriers.ts"
 import { approachesOf, APPROACHES, CROSSINGS, linesAtGrade } from "../crossings.ts"
@@ -168,7 +169,9 @@ export const checkTerminals = (lines: ReadonlyArray<number>): void => {
       const need = way < 0 ? -line.start : line.end - line.length
       let { x, y, z } = pointAt(line, s),
         d = 0
+      // Up to the run-out's end: the stored track runs on to the box's edge, 3,748 m past the Genova–Pisa's west ends.
       for (const piece of MAP.railway.lines[line.index]!.runOuts[which]) {
+        if (d >= need) break
         assert.deepEqual([piece.pts[0], piece.pts[1]], [x, y], "each stretch on from the last")
         for (let k = 1; k < piece.z.length && d < need; k++) {
           const px = piece.pts[2 * k]!,
@@ -217,19 +220,39 @@ export const checkAtTheirS = ({ boxes, stations }: RailwayPart): void => {
   for (const station of stations.map((s) => MAP.railway.stations[s]!)) {
     const mid = (station.s0 + station.s1) / 2,
       at = pointAt(LINES[station.line]!, mid)
-    const platforms = MAP.railway.platforms.filter(
-      (p) => p.name === station.name && p.walkway !== true,
+    const platforms = MAP.railway.platforms.flatMap((p, i) =>
+      p.name === station.name && p.walkway !== true
+        ? [{ ...p, ring: MAP.derived.platforms[i]![0]! }]
+        : [],
     )
     assert.ok(platforms.length > 0)
     // A platform's axis is the running track beside it: the line runs along one at the station's middle (of a station with
-    // platforms by several tracks, Aulla Lunigiana's, the one by its own).
-    let near = Number.MAX_VALUE
-    for (const { axis } of platforms)
+    // platforms by several tracks, Aulla Lunigiana's, the one by its own), or along an island's other edge, a train's step
+    // from it (PLATFORM_EDGE), its axis on the track across it, past its far edge (Vezzano Ligure's and Sarzana's, between
+    // two lines' tracks). A side platform's edge lies a step from its own line too: its axis must lie on the line.
+    let near = Number.MAX_VALUE,
+      island = Number.MAX_VALUE
+    for (const { axis, ring } of platforms) {
+      let mine = Number.MAX_VALUE,
+        edge = Number.MAX_VALUE
       for (let k = 0; k + 3 < axis.length; k += 2) {
         const [ax, ay, bx, by] = axis.slice(k, k + 4) as [number, number, number, number]
-        near = Math.min(near, Math.sqrt(segDist2(at.x, at.y, ax, ay, bx, by).d2))
+        mine = Math.min(mine, Math.sqrt(segDist2(at.x, at.y, ax, ay, bx, by).d2))
       }
-    assert.ok(near < 0.05, `${station.name}'s platform beside the line at its middle (${near} m)`)
+      for (let k = 0; k < ring.length; k += 2) {
+        const j = (k + 2) % ring.length
+        edge = Math.min(
+          edge,
+          Math.sqrt(segDist2(at.x, at.y, ring[k]!, ring[k + 1]!, ring[j]!, ring[j + 1]!).d2),
+        )
+      }
+      near = Math.min(near, mine)
+      if (mine > edge + PLATFORM_EDGE) island = Math.min(island, edge)
+    }
+    assert.ok(
+      near < 0.05 || island <= PLATFORM_EDGE,
+      `${station.name}'s platform beside the line at its middle (${near} m, an island's edge ${island} m)`,
+    )
   }
 }
 
@@ -311,13 +334,35 @@ export const checkBoxLines = (boxes: ReadonlyArray<number>): void => {
   for (const i of boxes) {
     const box = CROSSINGS[i]!,
       record = MAP.railway.crossings[i]!
-    // The build names the first line through the box (−1 for a loop or siding only); today no box has two.
+    // The build names the first line through the box (−1 for a loop or siding only); the box holds every line whose track
+    // runs through one of its nodes: Santo Stefano di Magra's, on the track the Parma–La Spezia and the Milano–Livorno share.
+    const through = MAP.railway.lines.flatMap(({ pieces }, l) =>
+      pieces.some(({ rail }) => {
+        const { pts } = MAP.rail[rail]!
+        return record.nodes.some((n) => {
+          for (let k = 0; k < pts.length; k += 2)
+            if (pts[k] === graph.nodes[n]!.x && pts[k + 1] === graph.nodes[n]!.y) return true
+          return false
+        })
+      })
+        ? [l]
+        : [],
+    )
     assert.deepEqual(
       box.on.map((at) => at.line),
-      record.line < 0 ? [] : [record.line],
+      through,
     )
+    assert.equal(through[0] ?? -1, record.line)
     for (const at of box.on) {
-      assert.ok(Math.abs(at.s - record.s) < 0.06, `box ${i}: s ${at.s} against ${record.s}`)
+      const p = pointAt(LINES[at.line]!, at.s)
+      assert.ok(
+        record.nodes.some(
+          (n) => Ops.hypot(graph.nodes[n]!.x - p.x, graph.nodes[n]!.y - p.y) < 0.06,
+        ),
+        `box ${i}: line ${at.line} at s ${at.s} on a node`,
+      )
+      if (at.line === record.line)
+        assert.ok(Math.abs(at.s - record.s) < 0.06, `box ${i}: s ${at.s} against ${record.s}`)
       const width = MAP.roads[record.road]!.w
       assert.ok(at.half >= width / 2 && at.half <= width / 2 / 0.3, `box ${i}: half ${at.half}`)
       assert.equal(at.reach, strikeIn(speedAt(LINES[at.line]!, at.s)))

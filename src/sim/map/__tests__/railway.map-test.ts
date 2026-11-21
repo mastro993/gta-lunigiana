@@ -106,19 +106,24 @@ test("railway: each line runs terminal to terminal, its pieces sharing their end
     for (const { rail } of line.pieces) covered.set(rail, (covered.get(rail) ?? 0) + 1)
   }
   // A piece two lines run is track they share: the Pontremolese's single track north of P.P. Chiesaccia, which the lines of
-  // both its tracks run on to the north edge.
+  // both its tracks run on to the north edge, and each track the Parma–La Spezia's, the Milano–Livorno's and the Genova–Pisa's
+  // lines share south of it.
   assert.deepEqual(
     running.filter((i) => covered.get(i) === undefined),
     [],
     "every running piece is on a line",
   )
   // Each from the play area's outline, where the build cuts it (to 0.1 m), to its outline or to a terminus where OSM's train
-  // routes end, a stop position: the Lucca–Aulla line from Pieve San Lorenzo (in the Galleria del Lupacino, towards Piazza al
-  // Serchio) to Aulla Lunigiana's track 5, where the Pisa => Aulla Lunigiana route ends; the Pontremolese's two tracks between
-  // the south edge (towards La Spezia) and the north edge (towards Pontremoli).
+  // routes end, a stop position, as OSM's train routes run (`findLines`): the Lucca–Aulla line from Pieve San Lorenzo (in the
+  // Galleria del Lupacino, towards Piazza al Serchio) to Aulla Lunigiana's track 4, where the Aulla => Pisa route starts; then
+  // from the north edge (towards Pontremoli), on the Pontremolese's down track, the Milano–Livorno's to the Genova–Pisa's
+  // eastbound track on the south-east edge (towards Pisa) by the link at Santo Stefano di Magra and the Parma–La Spezia's to the
+  // west edge's westbound track (towards La Spezia); on its up track, from the Genova–Pisa's westbound track on the south-east
+  // edge, the Livorno–Milano's, and the La Spezia–Parma's from its own track on the west edge; and the Genova–Pisa's two,
+  // the Pietrasanta–La Spezia's westbound and the La Spezia–Pietrasanta's eastbound.
   assert.deepEqual(
     railway.lines.map((l) => l.terminus === true),
-    [true, false, false],
+    [true, false, false, false, false, false, false],
   )
   for (const [l, { pts }] of lines.entries()) {
     const [x, y] = [pts.at(-2)!, pts.at(-1)!]
@@ -134,9 +139,28 @@ test("railway: each line runs terminal to terminal, its pieces sharing their end
 
 test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's stop to Gragnola's", () => {
   // Each line's from its start, in order, each on from the last but over track OSM tags no limit on (the game reads it at its
-  // lower neighbour's), which lies only in a station: Aulla Lunigiana's tracks, which the Lucca–Aulla line runs in on.
+  // lower neighbour's), which lies only in a station (Aulla Lunigiana's tracks, which the Lucca–Aulla line runs in on) or is a
+  // crossover between two tracks of one formation, CROSSOVER m long or less with another track within SIDE m of it all along:
+  // the Parma–La Spezia's 106.6 m at Vezzano Ligure's west throat (ways 1574014371 and 423877056), onto the Genova–Pisa's
+  // track, 560 m from the station.
   const inStation = (x: number, y: number) =>
     MAP.pois.some((p) => p.kind === "railway=station" && hypot(p.x - x, p.y - y) < 500)
+  const CROSSOVER = 150,
+    SIDE = 6
+  /** Whether another track than the one at (x, y) runs within SIDE m of it. */
+  const beside = (x: number, y: number) =>
+    MAP.rail.some((r) => {
+      let d = Number.MAX_VALUE
+      for (let k = 0; k + 3 < r.pts.length; k += 2)
+        d = Math.min(d, segDist2(x, y, r.pts[k]!, r.pts[k + 1]!, r.pts[k + 2]!, r.pts[k + 3]!).d2)
+      return d > 0.01 && d <= SIDE * SIDE
+    })
+  const crossover = (chain: ReturnType<typeof chained>, a: number, b: number) =>
+    b - a <= CROSSOVER &&
+    Array.from({ length: Math.floor((b - a) / 2) + 1 }, (_, k) => a + 2 * k).every((t) => {
+      const p = pointAt(chain, t)
+      return beside(p.x, p.y)
+    })
   for (const [l, { maxspeed }] of railway.lines.entries()) {
     const chain = lines[l]!,
       gaps: Array<readonly [number, number]> = []
@@ -147,7 +171,7 @@ test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's
       at = to
     }
     if (at < chain.s.at(-1)! - 0.11) gaps.push([at, chain.s.at(-1)!])
-    for (const [a, b] of gaps)
+    for (const [a, b] of gaps.filter(([a, b]) => !crossover(chain, a, b)))
       for (const t of [a, (a + b) / 2, b]) {
         const p = pointAt(chain, t)
         assert.ok(inStation(p.x, p.y), `line ${l}: no limit at ${a}–${b}, by no station`)
@@ -186,7 +210,9 @@ test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's
 
 test("railway: each line calls at each station along its platforms, on their side", () => {
   // OSM's seven from Pieve San Lorenzo to Aulla on the Lucca–Aulla line (Fivizzano-Gassano a halt), the last its terminus; the
-  // Pontremolese's two tracks call at Aulla Lunigiana too.
+  // Pontremolese's lines call at Aulla Lunigiana and Santo Stefano di Magra, then Sarzana (by the link) or Vezzano Ligure, the
+  // Genova–Pisa's at Sarzana and Vezzano Ligure, and the westbound track's at Arcola's halt, whose platform 1 OSM draws beside
+  // it (its platform 2, which the ramp down to its subway runs inside, falls into pieces under `MIN_AREA`: no eastbound call).
   assert.deepEqual(
     railway.stations.map((st) => [st.name, st.line]),
     [
@@ -198,7 +224,23 @@ test("railway: each line calls at each station along its platforms, on their sid
       ["Fivizzano-Rometta-Soliera", 0],
       ["Aulla Lunigiana", 0],
       ["Aulla Lunigiana", 1],
+      ["Santo Stefano di Magra", 1],
+      ["Sarzana", 1],
       ["Aulla Lunigiana", 2],
+      ["Santo Stefano di Magra", 2],
+      ["Vezzano Ligure", 2],
+      ["Sarzana", 3],
+      ["Arcola", 3],
+      ["Santo Stefano di Magra", 3],
+      ["Aulla Lunigiana", 3],
+      ["Vezzano Ligure", 4],
+      ["Santo Stefano di Magra", 4],
+      ["Aulla Lunigiana", 4],
+      ["Sarzana", 5],
+      ["Arcola", 5],
+      ["Vezzano Ligure", 5],
+      ["Vezzano Ligure", 6],
+      ["Sarzana", 6],
     ],
   )
   const ringNear = (ring: ReadonlyArray<number>, x: number, y: number) => {
@@ -267,8 +309,7 @@ test("railway: each level-crossing box holds the vertices its road shares with t
       assert.equal(c.s, -1)
       continue
     }
-    assert.equal(c.line, 0)
-    const p = pointAt(lines[0]!, c.s)
+    const p = pointAt(lines[c.line]!, c.s)
     assert.ok(
       c.nodes.some((n) => hypot(graph.nodes[n]!.x - p.x, graph.nodes[n]!.y - p.y) < 0.1),
       `${road.name}: the line at s ${c.s} is on a node`,
@@ -298,8 +339,16 @@ test("railway: each level-crossing box holds the vertices its road shares with t
       .length,
     2,
   )
-  // Every vertex an at-grade road shares with at-grade rail is in a box.
+  // Every vertex an at-grade road shares with at-grade rail is in a box, but where one road alone ends on it, crossing nothing
+  // (the driveway 1455968336 on the Pontremolese at Santo Stefano di Magra).
   const boxed = new Set(railway.crossings.flatMap((c) => c.nodes))
+  const roadsAt = new Map<string, Array<{ readonly end: boolean }>>()
+  for (const road of WHOLE.roads)
+    for (let k = 0; k < road.pts.length; k += 2) {
+      const key = `${road.pts[k]},${road.pts[k + 1]}`
+      roadsAt.set(key, [...(roadsAt.get(key) ?? []), { end: k === 0 || k === road.pts.length - 2 }])
+    }
+  const endNodes = new Set<number>()
   for (const r of MAP.rail) {
     if (r.bridge === true || r.tunnel === true) continue
     for (const road of WHOLE.roads) {
@@ -307,10 +356,20 @@ test("railway: each level-crossing box holds the vertices its road shares with t
       for (let k = 0; k < road.pts.length; k += 2) {
         if (vertexOf(r.pts, road.pts[k]!, road.pts[k + 1]!) < 0) continue
         const n = graph.nodes.findIndex((g) => g.x === road.pts[k] && g.y === road.pts[k + 1])
+        const at = roadsAt.get(`${road.pts[k]},${road.pts[k + 1]}`)!
+        if (at.length === 1 && at[0]!.end) {
+          assert.ok(
+            !boxed.has(n),
+            `road ${road.id} ending on rail ${r.id} at node ${n} makes no box`,
+          )
+          endNodes.add(n)
+          continue
+        }
         assert.ok(boxed.has(n), `rail ${r.id} × road ${road.id} at node ${n} is in a box`)
       }
     }
   }
+  assert.equal(endNodes.size, 1, "one road ends on the track")
 })
 
 test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the carriageways, their top over the rail head", () => {
@@ -414,7 +473,10 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
   // equipment in 2023: no train's step reaches it); the other fifteen are platforms, the CTR's at Serricciolo (23C07 AGE#98)
   // with no station or stop node within 300 m. Aulla Lunigiana's six are the CTR's three on 24C60's sheet (AGE#173–175),
   // then OSM's three (public_transport=platform areas) on south of that sheet, where no 2019 sheet maps the ground: 1,865,
-  // 2,062 and 2,505 m², each with an edge 1.63–1.69 m off its track, as a train's step reaches.
+  // 2,062 and 2,505 m², each with an edge 1.63–1.69 m off its track, as a train's step reaches. Sarzana's part's are OSM's
+  // areas, Sarzana's shelter roof on its island, Vezzano Ligure's three (one in two pieces) and Santo Stefano di Magra's four,
+  // then the bands about the platforms OSM draws as lines (`platformLines`), last: Sarzana's (its platform 4's, by a siding
+  // and a loop 3 m off at a corner, a walkway, and the rest of it a platform) and Arcola's platform 1.
   assert.deepEqual(
     railway.platforms.map((p) => [p.name, p.walkway === true]),
     [
@@ -432,9 +494,23 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
+      ["Sarzana", false],
+      ["Vezzano Ligure", false],
+      ["Vezzano Ligure", false],
+      ["Vezzano Ligure", false],
+      ["Vezzano Ligure", false],
+      ["Santo Stefano di Magra", false],
+      ["Santo Stefano di Magra", false],
+      ["Santo Stefano di Magra", false],
+      ["Santo Stefano di Magra", false],
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
+      ["Sarzana", true],
+      ["Sarzana", false],
+      ["Sarzana", false],
+      ["Sarzana", false],
+      ["Arcola", false],
     ],
   )
 })

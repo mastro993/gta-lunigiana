@@ -11,6 +11,7 @@ import {
   lengthOf,
   type LineOut,
   type Piece as GraphPiece,
+  type Terminus,
 } from "./rail-graph.ts"
 import type { RouteEnd } from "./rail-routes.ts"
 
@@ -62,19 +63,23 @@ export const toRailLines = (
 
 /**
  * The termini on the shipped rail (`findLines`): by node ("x,y" as shipped), the pieces whose end lies at a route's end
- * (`routeEnds`) on the way its trains reach that stop along, OSM ids. A route end inside a piece makes none.
+ * (`routeEnds`) on the way its trains reach that stop along, OSM ids, and the stop's station. A route end inside a piece
+ * makes none.
  */
 export const terminiOf = (
   rail: ReadonlyArray<{ readonly r: RailF; readonly pts: ReadonlyArray<number> }>,
   ends: ReadonlyArray<RouteEnd>,
-): Map<string, Set<number>> => {
-  const out = new Map<string, Set<number>>()
+): Map<string, Terminus> => {
+  const out = new Map<string, { pieces: Set<number>; station: string }>()
   rail.forEach(({ r, pts }, i) => {
     for (const last of [false, true]) {
       const { id } = last ? r.pts.at(-1)! : r.pts[0]!
-      if (!ends.some((end) => end.node === id && end.way === r.id)) continue
+      const end = ends.find((e) => e.node === id && e.way === r.id)
+      if (end === undefined) continue
       const k = last ? `${pts.at(-2)},${pts.at(-1)}` : `${pts[0]},${pts[1]}`
-      out.set(k, (out.get(k) ?? new Set()).add(i))
+      const at = out.get(k) ?? { pieces: new Set<number>(), station: end.station }
+      at.pieces.add(i)
+      out.set(k, at)
     }
   })
   return out
@@ -98,7 +103,7 @@ const lineS = (
   return undefined
 }
 
-/** A rail vertex shared with a road vertex (a level-crossing node): the road, the node's graph index, its place and its rail piece and vertex. */
+/** A rail vertex shared with a road vertex (a level-crossing node): the road, the node's graph index, its place, its rail piece and vertex, and whether it is the road's end. */
 export interface LevelNode {
   readonly road: number
   readonly node: number
@@ -106,17 +111,29 @@ export interface LevelNode {
   readonly y: number
   readonly piece: number
   readonly vertex: number
+  readonly end: boolean
 }
 
-/** The level-crossing boxes: the nodes on one road within BOX_GROUP m of each other, each node in the first road's box only. */
+/**
+ * The level-crossing boxes: the nodes on one road within BOX_GROUP m of each other, each node in the
+ * first road's box only, but a node where one road alone ends: it crosses nothing (the graph drops
+ * such a tip on the running track, and a box's far stop line, laid on past the road's end, stood on
+ * the next track: the driveway 1455968336 ending on the Pontremolese at Santo Stefano di Magra).
+ */
 export const crossingBoxes = (
   nodes: ReadonlyArray<LevelNode>,
   lines: ReadonlyArray<LineOut>,
   rail: ReadonlyArray<Piece>,
 ): Array<LevelCrossing> => {
-  const firstRoad = new Map<number, number>()
-  for (const n of nodes) firstRoad.set(n.node, Math.min(n.road, firstRoad.get(n.node) ?? n.road))
-  const kept = nodes.filter((n) => firstRoad.get(n.node) === n.road)
+  const firstRoad = new Map<number, number>(),
+    roadsAt = new Map<number, Set<number>>()
+  for (const n of nodes) {
+    firstRoad.set(n.node, Math.min(n.road, firstRoad.get(n.node) ?? n.road))
+    roadsAt.set(n.node, (roadsAt.get(n.node) ?? new Set()).add(n.road))
+  }
+  const kept = nodes.filter(
+    (n) => firstRoad.get(n.node) === n.road && !(n.end && roadsAt.get(n.node)!.size === 1),
+  )
   const groups: Array<Array<LevelNode>> = []
   for (const n of kept) {
     const g = groups.find(
@@ -193,8 +210,9 @@ const STOPS = new Set(["railway=station", "railway=halt", "railway=stop"])
 /**
  * The lines over the shipped rail (each piece in `MAP.rail` order with its rounded polyline and
  * profile) from the dead ends where `terminal` holds to another or to where OSM's train routes end
- * (`ends`, `terminiOf`), each piece's kind, the platforms cut beside them and the stations where
- * they call. `pois` give the station names.
+ * (`ends`, `terminiOf`), the way those routes run (`routes`: each one's ways, in its running order),
+ * each piece's kind, the platforms cut beside them and the stations where they call. `pois` give
+ * the station names.
  */
 export const layRailway = (
   rail: ReadonlyArray<{
@@ -204,6 +222,7 @@ export const layRailway = (
   }>,
   terminal: (x: number, y: number) => boolean,
   ends: ReadonlyArray<RouteEnd>,
+  routes: ReadonlyArray<ReadonlyArray<number>>,
   input: Omit<PlatformInput, "tracks" | "lines" | "stops">,
   pois: ReadonlyArray<{
     readonly kind: string
@@ -216,8 +235,9 @@ export const layRailway = (
     ...(r.maxspeed === undefined ? {} : { maxspeed: r.maxspeed }),
     pts,
     z,
+    way: r.id,
   }))
-  const lines = findLines(shipped, terminal, terminiOf(rail, ends))
+  const lines = findLines(shipped, terminal, terminiOf(rail, ends), routes)
   const kinds = kindsOf(shipped, lines)
   const lineOf = new Map(lines.flatMap((l, li) => l.pieces.map((p) => [p.rail, li] as const)))
   const stops = pois.flatMap((p) =>
@@ -227,7 +247,15 @@ export const layRailway = (
     ...input,
     // A line's pieces are one track; each loop or siding is its own.
     tracks: rail.flatMap(({ r, pts }, i) =>
-      r.tunnel === true ? [] : [{ pts, group: lineOf.get(i) ?? lines.length + i }],
+      r.tunnel === true
+        ? []
+        : [
+            {
+              pts,
+              group: lineOf.get(i) ?? lines.length + i,
+              ...(kinds[i] === "siding" ? { siding: true } : {}),
+            },
+          ],
     ),
     lines,
     stops,

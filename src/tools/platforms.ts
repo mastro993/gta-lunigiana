@@ -51,8 +51,17 @@ const MARGIN = 0.045 + TOL
  * the track.
  */
 const PLATFORM_DROP = 1
-/** Pieces smaller than this (m²) are dropped. */
-const MIN_AREA = 4
+/**
+ * Pieces smaller than this (m²) are dropped: too small to wait on, with room for neither a name board
+ * nor two lamps 18 m apart (the tip of Vezzano Ligure's island, 33 m², cut off past the neck its
+ * converging tracks leave it, and the pieces of Arcola's platform 2, OSM's 44 m line 377807381, that
+ * PLATFORM_DROP leaves where the ramp 377807539 down to its footway subway's east mouth runs inside
+ * its band, the ramp's ground 4.9–10.4 m and the ground round it 6.6–9.5 m against its 11.05 m top);
+ * the smallest kept, Gragnola's walkway, holds 183 m².
+ */
+const MIN_AREA = 100
+/** A platform has at least this much of its edge (m) within a train's step (PLATFORM_EDGE) of a line or a loop: a car's door and more. */
+const SERVED = 10
 /** A platform takes the name of the nearest station or stop node within this distance (m). */
 const NAME_REACH = 300
 /** The axis runs this far (m) past the platform's ends along its track. */
@@ -76,8 +85,12 @@ export interface PlatformInput {
     readonly rings: Polygon
     readonly leftTo?: ReadonlyArray<ReadonlyArray<number>>
   }>
-  /** Every drawn track out of the tunnels, flat x, y; `group` tells tracks apart (a line's pieces share one). */
-  readonly tracks: ReadonlyArray<{ readonly pts: ReadonlyArray<number>; readonly group: number }>
+  /** Every drawn track out of the tunnels, flat x, y; `group` tells tracks apart (a line's pieces share one); a siding no train calls along. */
+  readonly tracks: ReadonlyArray<{
+    readonly pts: ReadonlyArray<number>
+    readonly group: number
+    readonly siding?: boolean
+  }>
   /** The running lines, chained, with the bed `z` per vertex. */
   readonly lines: ReadonlyArray<Track>
   /** At-grade drivable roads: centreline (flat x, y) and carriageway width. */
@@ -342,6 +355,14 @@ const piecesOf = (
   })
   const depth = depthOf(kept, cw, ch)
   const near = segmentsNear(input.tracks, () => 0, groups, BETWEEN, box)
+  // The tracks a train calls along, every one but the sidings.
+  const calling = segmentsNear(
+    input.tracks.filter((t) => t.siding !== true),
+    () => 0,
+    () => 0,
+    PLATFORM_EDGE + PLATFORM_CLEAR,
+    box,
+  )
   return piecesOfMask(kept, cw, ch).flatMap((cells, p): Array<PlatformOut> => {
     const area = cells.length * RES * RES
     if (area < MIN_AREA) return []
@@ -395,24 +416,32 @@ const piecesOf = (
       .filter((l) => signedArea(l) > 0)
       .sort((a, b) => signedArea(b) - signedArea(a))
     const ringsOut = [flat(outers[0]!), ...loops.filter((l) => signedArea(l) < 0).map(flat)]
-    let least = Number.MAX_VALUE
+    let least = Number.MAX_VALUE,
+      served = 0
     for (const ring of ringsOut)
       for (let k = 0; k < ring.length; k += 2) {
         const j = (k + 2) % ring.length,
-          n = Math.ceil(Math.hypot(ring[j]! - ring[k]!, ring[j + 1]! - ring[k + 1]!) / 0.1)
+          length = Math.hypot(ring[j]! - ring[k]!, ring[j + 1]! - ring[k + 1]!),
+          n = Math.ceil(length / 0.1)
         for (let q = 0; q <= n; q++) {
           const x = ring[k]! + ((ring[j]! - ring[k]!) * q) / n,
             y = ring[k + 1]! + ((ring[j + 1]! - ring[k + 1]!) * q) / n
           for (const [ax, ay, bx, by, , g] of obstacles)
             if (g >= 0) least = Math.min(least, Math.sqrt(segDist2(x, y, ax, ay, bx, by).d2))
+          const reached = calling.some(
+            ([ax, ay, bx, by]) => segDist2(x, y, ax, ay, bx, by).d2 <= PLATFORM_EDGE ** 2,
+          )
+          if (reached && q < n) served += length / n
         }
       }
     if (least < PLATFORM_CLEAR - 0.05)
       throw new Error(`platform ${src}: ${least.toFixed(2)} m from a track`)
-    // A walkway: too narrow, between close tracks, or with no edge a train's step reaches (the CTR's
-    // strip north of Pieve San Lorenzo's line, 23D15 AGE 252, 2.45 m off it: bare ground on the
-    // 2010 orthophoto, a service path and the line's equipment on the 2023 one).
-    const walkway = 2 * deepest < WALKWAY_WIDTH || share >= 0.5 || least > PLATFORM_EDGE
+    // A walkway: too narrow, between close tracks, or with under SERVED m of edge a train's step
+    // reaches on a line or a loop (the CTR's strip north of Pieve San Lorenzo's line, 23D15 AGE 252,
+    // 2.45 m off it: bare ground on the 2010 orthophoto, a service path and the line's equipment on the
+    // 2023 one; the band OSM's line for Sarzana's platform 4 makes between a loop 3 m off and a
+    // siding, where no train calls).
+    const walkway = 2 * deepest < WALKWAY_WIDTH || share >= 0.5 || served < SERVED
     const verts = ringsOut[0]!
     let s0 = Number.MAX_VALUE,
       s1 = -Number.MAX_VALUE

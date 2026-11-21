@@ -43,10 +43,10 @@ test("maxspeedOf merges the pieces of one limit, and a line with no tag has none
 test("crossingBoxes groups a road's crossing nodes within 10 m, at the line's s of the one on it", () => {
   const boxes = crossingBoxes(
     [
-      { road: 4, node: 11, x: 300, y: 10, piece: 4, vertex: 0 }, // the line's end: piece 4 is walked backwards
-      { road: 7, node: 20, x: 150, y: 5, piece: 6, vertex: 2 }, // the loop's crossing, 5 m from the line's
-      { road: 7, node: 21, x: 150, y: 0, piece: 3, vertex: 0 },
-      { road: 7, node: 30, x: 50, y: 5, piece: 6, vertex: 1 }, // 100 m on, a vertex of the loop alone: a box on no line
+      { road: 4, node: 11, x: 300, y: 10, piece: 4, vertex: 0, end: false }, // the line's end: piece 4 is walked backwards
+      { road: 7, node: 20, x: 150, y: 5, piece: 6, vertex: 2, end: false }, // the loop's crossing, 5 m from the line's
+      { road: 7, node: 21, x: 150, y: 0, piece: 3, vertex: 0, end: false },
+      { road: 7, node: 30, x: 50, y: 5, piece: 6, vertex: 1, end: false }, // 100 m on, a vertex of the loop alone: a box on no line
     ],
     lines,
     rail,
@@ -60,6 +60,29 @@ test("crossingBoxes groups a road's crossing nodes within 10 m, at the line's s 
     ],
   )
   assert.deepEqual([boxes[1]!.x, boxes[1]!.y], [150, 2.5])
+})
+
+// Regression: the driveway 1455968336 ends on the Pontremolese's track at Santo Stefano di Magra (the graph drops its tip there:
+// nobody drives onto the track), and made a box whose far stop line, laid on past the road's end, stood 0.65 m from the second
+// track.
+test("crossingBoxes makes no box where a road only ends on the track, but one where two roads meet across it", () => {
+  const boxes = crossingBoxes(
+    [
+      { road: 4, node: 11, x: 300, y: 10, piece: 4, vertex: 0, end: true }, // a driveway ending on the track
+      { road: 7, node: 21, x: 150, y: 0, piece: 3, vertex: 0, end: true }, // a road OSM splits at the track
+      { road: 8, node: 21, x: 150, y: 0, piece: 3, vertex: 0, end: true },
+      { road: 9, node: 22, x: 100, y: 0, piece: 2, vertex: 0, end: false }, // a road through the track
+    ],
+    lines,
+    rail,
+  )
+  assert.deepEqual(
+    boxes.map(({ road, nodes }) => ({ road, nodes })),
+    [
+      { road: 7, nodes: [21] },
+      { road: 9, nodes: [22] },
+    ],
+  )
 })
 
 test("stationsOf spans a station's platforms beside the line and its stop nodes, on the biggest platform's side", () => {
@@ -98,10 +121,10 @@ test("terminiOf keys a route's end by its shipped point, on the pieces of the wa
   ]
   assert.deepEqual(
     terminiOf(shipped, [
-      { node: "t", way: 7 },
-      { node: "t", way: 9 },
-      { node: "u", way: 8 },
+      { node: "t", way: 7, station: "T" },
+      { node: "t", way: 9, station: "T" },
+      { node: "u", way: 8, station: "U" },
     ]),
-    new Map([["100,0", new Set([0, 1])]]),
+    new Map([["100,0", { pieces: new Set([0, 1]), station: "T" }]]),
   )
 })

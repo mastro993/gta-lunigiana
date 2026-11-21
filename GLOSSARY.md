@@ -108,7 +108,7 @@ Two carriageways of one road, each its own oneway way, that overlap in plan: the
 _Avoid_: Dual road, double road, parallel roads
 
 **Twin track**:
-A track running beside another of its kind (both on bridges, both in tunnels or both at grade) within 6 m and 15° of parallel: the one fitted later keeps to the other's level.
+A track running beside another of its kind (both on bridges, both in tunnels or both at grade) on one formation, no gap over 6 m between the tracks lying from one to the other, whatever their headings (farther apart, within 15° of parallel and parting by a 2:3 bank): the one fitted later keeps to the other's level.
 _Avoid_: Double track, parallel line
 
 **Ground model**:
@@ -254,7 +254,7 @@ An end of a railway line (`LINES`) on the play area's outline, where the track r
 _Avoid_: Terminus (a terminal inside the map), end station
 
 **Terminus**:
-An end of a railway line inside the map, at a stop where OSM's train routes start or end and none stops on its way: the line's trains dwell there and turn round, their driver changing ends.
+An end of a railway line inside the map, at a stop where OSM's train routes start or end and none stops on its way: the line's trains dwell there and turn round, their driver changing ends. One station's termini end one line from a terminal.
 _Avoid_: Terminal (on the outline), dead end, head station
 
 **Buffer stop**:

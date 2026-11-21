@@ -3,7 +3,7 @@
 // where the sheets map one.
 import { inPolygon, type CtrArea } from "./ctr-rail.ts"
 import type { RailF, RoadF } from "./features.ts"
-import { segDist2, type V } from "./geometry.ts"
+import { crossings, segDist2, type V } from "./geometry.ts"
 import { hitsOn, insertOn } from "./rail-match.ts"
 
 /** A crossing node's new place: its id, the OSM road it is on, how far it slid along it (m), where it is. */
@@ -124,4 +124,33 @@ export const checkCrossings = (
       if (d > 0 && d < CROSSING_NEAR)
         throw new Error(`level crossing ${v.id} lies ${d.toFixed(2)} m outside CTR ${c.src}`)
     }
+}
+
+/**
+ * The roads, each one OSM lays on a lower layer than at-grade track it crosses with no node in common
+ * now in a tunnel: it runs under the track, though OSM tags no tunnel (the farm track 205932314, 17.7
+ * m at layer −1 under the Genova–Pisa's bank by Sarzana, crossed both its tracks at grade between
+ * their vertices). The tunnel is then the track's underpass as any other (`underpasses` in
+ * rail-spans.ts, `railLevels`).
+ */
+export const underRail = (
+  roads: ReadonlyArray<RoadF>,
+  rail: ReadonlyArray<RailF>,
+): Array<RoadF> => {
+  const track = rail.filter((r) => r.bridge !== true && r.tunnel !== true)
+  return roads.map((r) => {
+    if (r.bridge === true || r.tunnel === true) return r
+    const ids = new Set(r.pts.flatMap((v) => (v.id === undefined ? [] : [v.id])))
+    const under = track.some(
+      (t) =>
+        (r.layer ?? 0) < (t.layer ?? 0) &&
+        crossings(t.pts, r.pts).some(
+          (c) =>
+            !t.pts.some(
+              (v) => v.id !== undefined && ids.has(v.id) && Math.hypot(v.x - c.x, v.y - c.y) < 0.1,
+            ),
+        ),
+    )
+    return under ? { ...r, tunnel: true } : r
+  })
 }

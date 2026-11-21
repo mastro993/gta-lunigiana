@@ -4,7 +4,7 @@ import { test } from "node:test"
 import { Box3, Mesh, Vector3 } from "three"
 
 import { terrainZ } from "../../sim/map/ground.ts"
-import { curvatureAt, LINES, pointAt } from "../../sim/rail/lines.ts"
+import { curvatureAt, LINES, linesNear, pointAt } from "../../sim/rail/lines.ts"
 import { TRAINS, trainLength } from "../../sim/rail/models.ts"
 import { MONZONE, railBridge } from "../../sim/rail/testing.ts"
 import type { TrainMotionValue } from "../../sim/schema.ts"
@@ -45,15 +45,19 @@ const pivots = cars.map((car, k) => {
     ],
   }
 })
-/** How far each car's pivots are drawn from the rail head under them on the line, m (three space). */
+/**
+ * How far each car's pivots are drawn from the rail head under them on the line, m (three space): at the line's point nearest
+ * each, as the consist stands each pivot its spacing on from the last along the chord (`carsOf`), within a few cm of the arc
+ * length on this curve; and how far the first is from the nose's point, `bogie` m back along the arc.
+ */
 const offRails = (node: TrainNode, s: number, facing: 1 | -1): number =>
   Math.max(
     ...node.cars.flatMap((car, k) =>
       pivots[k]!.back.map((back, end) => {
-        const at = pointAt(line, s - facing * back)
-        return car
-          .localToWorld(new Vector3(pivots[k]!.local[end], 0, 0))
-          .distanceTo(new Vector3(at.x, yOf(at.z), -at.y))
+        const p = car.localToWorld(new Vector3(pivots[k]!.local[end], 0, 0))
+        const near = linesNear(p.x, -p.z, 1).find((n) => n.line === line.index)!
+        const at = pointAt(line, k === 0 && end === 0 ? s - facing * back : near.s)
+        return p.distanceTo(new Vector3(at.x, yOf(at.z), -at.y))
       }),
     ),
   )

@@ -42,7 +42,7 @@ test("profile keeps a track to the level of its twin fitted before it, on its de
   assert.ok(together <= TWIN + 1e-6, `twinned, ${together.toFixed(2)} m`)
 })
 
-test("railTwins pairs tracks of one kind side by side, near parallel, and twinBounds binds a chain by its fitted twins alone", () => {
+test("railTwins pairs tracks of one kind side by side, near parallel or within SIDE (a crossing at grade), and twinBounds binds a chain by its fitted twins alone", () => {
   const [a, deck] = track(1, 0),
     [b, other] = track(11, 4.5)
   // A track crossing the line at grade, and one parting from the first at 10°, 9.5 m from the
@@ -53,18 +53,26 @@ test("railTwins pairs tracks of one kind side by side, near parallel, and twinBo
   const pairs = new Set(twins.map((t) => `${t.on.id}-${t.other.id}`))
   assert.deepEqual([...pairs].sort(), [
     "1-11",
+    "1-30",
     "1-31",
     "11-1",
+    "11-30",
     "11-31",
     "12-2",
     "2-12",
+    "30-1",
+    "30-11",
+    "30-31",
     "31-1",
     "31-11",
+    "31-30",
   ])
   assert.ok(
-    twins.every((t) => t.d <= REACH),
+    twins.every((t) => t.gap <= REACH),
     "none farther apart than REACH",
   )
+  // The track crossing at grade binds the others within SIDE of them alone: one formation where they cross.
+  assert.ok(twins.filter((t) => t.on === across || t.other === across).every((t) => t.gap <= SIDE))
   const dense = { pts: a!.pts, z: [100, 100] }
   const fitted = (l: RailF) => (l === a ? dense : undefined)
   const bounds = twinBounds(twins, [{ item: b! }], fitted)
@@ -85,4 +93,22 @@ test("railTwins pairs tracks of one kind side by side, near parallel, and twinBo
   assert.ok(part.at(-1)!.z > part[0]!.z)
   assert.equal(twinSlack(SIDE), TWIN)
   assert.ok(twinSlack(SIDE + 3) > TWIN + 1.9)
+})
+
+// Regression: Vezzano Ligure's four tracks, 3.4–6 m apart, were fitted the outer two first, each from its own ground and 15–17
+// m apart, out of each other's reach: they stood 2.6 m apart in level, and the two between could keep to neither (2.5 m off).
+test("railTwins binds tracks on one formation, none more than SIDE apart between them, as twins however far apart they lie", () => {
+  const line = (id: number, y: number): RailF => ({ id, pts: [v(0, y), v(300, y)] })
+  const [a, b, c] = [line(1, 0), line(2, 5), line(3, 10)]
+  const dense = { pts: a.pts, z: [100, 100] }
+  const fitted = (l: RailF) => (l === a ? dense : undefined)
+  const slackOn = (rail: ReadonlyArray<RailF>) =>
+    Math.max(...twinBounds(railTwins(rail), [{ item: c }], fitted).map((x) => Math.abs(x.z - 100)))
+  // With b between them, a and c 10 m apart stand on one formation: c keeps to a's level.
+  assert.ok(Math.abs(slackOn([a, b, c]) - TWIN) < 1e-9)
+  // With nothing between, they part by a 2:3 bank over the 4 m past SIDE; and so with a deck between them, no track of their
+  // formation.
+  assert.ok(Math.abs(slackOn([a, c]) - twinSlack(10)) < 1e-9)
+  assert.ok(Math.abs(slackOn([a, { ...b, bridge: true }, c]) - twinSlack(10)) < 1e-9)
+  assert.ok(twinSlack(10) > TWIN + 2.6)
 })

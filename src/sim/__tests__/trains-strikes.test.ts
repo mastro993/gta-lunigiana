@@ -252,10 +252,16 @@ test("trains: someone too near to stop for is struck; the player on foot is kill
     { trains: true, alone: true },
   )
   const [train] = near.world().trains
-  near.run(4 * S)
+  // Down from the step it is struck: alive, it gets up 2.5 s on (`DOWN_TIME`), so the check is made then, whatever the death
+  // curve's draw (from `Rng`, whose draws before it the map's lines change).
+  let down: boolean | undefined
+  near.run(4 * S, () => {
+    if (down === undefined && near.heard.impacts.some((i) => i.hit === "person"))
+      down = near.world().peds[0]!.down
+  })
   const struck = near.heard.impacts.find((i) => i.hit === "person")
   assert.ok(struck !== undefined && struck.car === train!.id, "struck by the train")
-  assert.ok(struck.speed > 10 && near.world().peds[0]!.down, `knocked down at ${struck.speed}`)
+  assert.ok(struck.speed > 10 && down === true, `knocked down at ${struck.speed}`)
   // The player standing on the track, a driverless train 25 m off at 30 m/s: a 96 % death.
   const runaway = trainDraft("atr220", { line: line.index, s: riolo.s - 25, facing: 1, v: 30 })
   const game = start([], [{ x: ON_TRACK.x, y: ON_TRACK.y, angle: ROAD }, { trains: [runaway] }], {

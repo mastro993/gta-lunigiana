@@ -945,10 +945,13 @@ animal and vehicle registries in `src/render/registries.ts`, and `RenderClock` i
 - `PlaceTrains` puts each train's cars on the rails: the train's s blended `TrainMotion.prev` → `s`
   at the render alpha, then every car from the sim's `carsOf` at that s (`src/sim/rail/consist.ts`,
   shared with the sim and the audio): its middle on the rail head (`pointAt`'s z, the profile plus
-  `RAIL_LIFT`, at grade and on decks), heading, then pitch. Blending each car's pose instead would
-  cut the chord inside a curve, up to 0.33 m off the rails (the chord's sagitta) for a 20 m step on
-  the line's sharpest curve (151 m in radius, at grade by Pian del Molino). Below,
-  [Trains](#trains-and-crossings).
+  `RAIL_LIFT`, at grade and on decks), heading, then pitch. Each pivot stands its spacing on from
+  the one before along the chord, not the arc, so neighbouring cars meet at their Jacobs joint on
+  any bend: placed by arc length they stood 2.6 cm apart on the kink of the crossover at Vezzano
+  Ligure's west throat that the Parma–La Spezia trains take (122 m in radius over 5 m). Blending
+  each car's pose instead would cut the chord inside a curve, up to 0.33 m off the rails (the
+  chord's sagitta) for a 20 m step on the Lucca–Aulla line's sharpest curve (151 m in radius, at
+  grade by Pian del Molino). Below, [Trains](#trains-and-crossings).
 - `SpreadPools` spreads each dead body's blood pool under its node as placed this frame (below).
 - `DrawEffects` reads the `Skid` and `Explosion` events since the last frame and every vehicle's
   `Damage`, and feeds the effects host (`makeEffects` in `src/render/effects.ts`, made in `main.ts`

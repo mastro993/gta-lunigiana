@@ -30,8 +30,10 @@ import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { clipBuildings } from "./house-walls.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
+import { platformLines } from "./platform-lines.ts"
 import { clipBeyond, heldInPlay, inPlay } from "./play-area.ts"
-import { routeEnds } from "./rail-routes.ts"
+import { underRail } from "./rail-crossings.ts"
+import { routeEnds, trainRoutes } from "./rail-routes.ts"
 import { REGION, dtmDir, osmFiles, type Rect, ucsFile, ucsParts } from "./region.ts"
 import { seaFloor } from "./sea-floor.ts"
 import { extractShore, holedSea, offBeaches, splitPiers } from "./shore.ts"
@@ -97,9 +99,11 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has but where OSM maps
   // the rails gone; level-crossing nodes slide along their roads with it, and what its bridges span
   // stays under them (water widths depend on the way's mean ground, so the terrain is loaded first).
+  // A road OSM lays under the track with no tunnel tag runs under it (`underRail`).
+  const osmRail = extractRail(osm)
   const { rail, extra, roads, water, moves, report } = conflateRail(
-    extractRail(osm),
-    extractRoads(osm),
+    osmRail,
+    underRail(extractRoads(osm), osmRail),
     extractWater(osm, dem.at, undefined, openCulvert),
     { ...ctrRail, crossings },
     lunigiana ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
@@ -167,6 +171,15 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     ...osmAreas
       .filter((a) => a.kind === "platform")
       .map((a, i) => ({ src: `OSM platform ${i}`, rings: a.rings, leftTo: ctr2019.mapped })),
+    // And those OSM draws as lines, a band about each (`platformLines`): Sarzana's and Arcola's.
+    ...platformLines(
+      osm,
+      osmAreas.flatMap((a) => (a.kind === "platform" ? [a.rings] : [])),
+    ).map((rings, i) => ({
+      src: `OSM platform line ${i}`,
+      rings,
+      leftTo: ctr2019.mapped,
+    })),
   ])
   const districts: Array<District> = fitDistricts(osm, buildings)
   // What the map leaves out beyond the play area, in the built terrain's box: the trees keep off its
@@ -204,6 +217,8 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     railCrossings: crossings.map((c) => c.rings),
     /** Where OSM's train routes end, and the ways they reach those stops along (`routeEnds`): the lines' termini in play. */
     routeEnds: routeEnds(osm),
+    /** The ways each of OSM's train routes runs, in its running order (`trainRoutes`): the lines in play run them. */
+    trainRoutes: trainRoutes(osm),
     districts,
     /** The ground raised under the piers' decks and the breakwaters (shore.ts). */
     raised: shore.raised,

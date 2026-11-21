@@ -2248,14 +2248,26 @@ the pieces where tracks meet (`rail-graph.ts`).
 - **Bridges keep what they span** (`rail-spans.ts`): moving a bridge sideways by d slides each
   crossing along it by d·cot θ. A river or road that was under a bridge stays under it, and the
   bridge reaches past it as far as the cells the at-grade track beyond cannot take: a wide stream's
-  protected bed (w ≥ 4 m: w/2 + 1 m) and a main road's core (motorway to tertiary, whose rank beats
+  protected bed (w ≥ 4 m: w/2 + 1 m), a main road's core (motorway to tertiary, whose rank beats
   the rail's, [section
-  7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts): w/2 + 2.3 m), each
-  plus a cell's diagonal (5.7 m, the farthest a corner of a cell the track runs through lies off
-  it). A bridge end that falls short slides along the track: 9 ends, among them the Aulella bridge
-  261445433's north end by 13.9 m (OSM ended it 3.1 m inside the river, and the track beyond hung
-  8.2 m over the river's carve) and both ends of the Via Provinciale bridge 83729869 by 5.7 and 11.0
-  m (the tertiary under it left 4.5 m of track 5.1 m over its carved core).
+  7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts): w/2 + 2.3 m), and the
+  core of any other road at grade a pass cores (unclassified to track; not a path or steps, which no
+  pass cores, nor a bridge or a tunnel, which write no cell): under the deck the rail's approach core
+  yields to it, so it holds its level lowered under the deck there, each plus a cell's diagonal (5.7
+  m, the farthest a corner of a cell the track runs through lies off it). A bridge end that falls
+  short slides along the track: on the L 9 ends, among them the Aulella bridge 261445433's north end
+  by 13.9 m (OSM ended it 3.1 m inside the river, and the track beyond hung 8.2 m over the river's
+  carve) and both ends of the Via Provinciale bridge 83729869 by 5.7 and 11.0 m (the tertiary under
+  it left 4.5 m of track 5.1 m over its carved core); on Lunigiana 41. Main roads alone reached past,
+  29 ends on Lunigiana: OSM ends the Genova–Pisa's two bridges over the Magra (111752512,
+  237352920) 3.7 m past the farm track 205932342 under their west ends, whose core, 3.8 m either
+  side, held the first cell of the track beyond at its level under the deck, and the track stood 3.6
+  and 2.5 m over the ground there (`rail.map-test.ts`); those ends now slide 5.4 and 5.2 m west.
+  The rule slid 12 ends more: lucido's 140780342's east end by 2.2 m off the track 140780582 under
+  it at (−643, 498) (5 nodes there move, by up to 5.7 m, on Lunigiana and the L), the Lucca–Aulla
+  line's 1501392820's ends by 4.8 and 3.2 m off the service road 1501392819 at (−3269, 4488) (35
+  nodes, up to 4.8 m), and in Sarzana's part the bridges over Via Ghiarettolo (186705708, 551694340)
+  and Viale Amendola (377807396, 372738047). No bridge end of Cesena's or the coast's slides.
 - **The CTR's bridges**: where the CTR maps the ballast on a bridge (`AFE` `Sede`
   063) and OSM draws the track at grade, the piece is cut at the polygon's edges (vertices
   `afe:<way>:<n>`; a stretch under 2 m joins its neighbour) and the stretch inside is a bridge: 31
@@ -2281,8 +2293,30 @@ the pieces where tracks meet (`rail-graph.ts`).
   5.4 m, so a car drove in at the open north mouth, met the bank and was thrown about 80 m up. Its
   3.5 m CTR bridge piece, east of the road, grows to 20.7 m, and the track underpass 696231810 at s
   4777.6 (one mouth 5.0 m under) gets 19.4 m; both tunnels now open at both mouths at their floors'
-  level (`map/__tests__/rail.map-test.ts`). A path's tunnel gets none: the build cuts no path's
-  mouth.
+  level (`map/__tests__/rail.map-test.ts`). A path's or steps' tunnel too, since the path pass
+  profiles it (issue #19): its bore holds its mouths' first 5.7 m at its floor ahead of every claim
+  (`mouths` in `path-pass.ts`), but its approaches yield to the rail's core, so only that hold is in
+  the way: the track crossing it within a cell's diagonal of one of its mouths (an end no other piece
+  of the bore goes on from) gets the square. The 9.8 m path tunnel 375205228 dips under the
+  Genova–Pisa's bank east of the Magra 2.7 and 3.2 m from its two tracks, which stood 1.8 and 1.1 m
+  over that hold and its drain's water (377807385) on their bed (`channel.map-test.ts`); they now
+  pass over it on 17.4 m bridges. In the rest of Sarzana's part five more stretches become bridges:
+  the siding 237355325, the loop 237354303 (17.4 m each) and the station track 280926461 (12.0 m)
+  over Sarzana's station subway (309041252, its mouth 4.9 m from the siding), and 372738044 and
+  377807403 (17.4 m) over 378221868 by Arcola (3.0 m from 372738044); and bridges grow, the CTR's
+  on Vezzano Ligure's four tracks by 376349735 (5.1 m from 111646538) from 22.6 to 32.3 m, and
+  the underpass bridges of the tracks by 1375600992 at Santo Stefano di Magra's yard (5.0 m from
+  314462171) by 0.3–1.1 m. Cesena's Sottopasso Cervese (22868207) and Equi
+  Terme's footway underpass (1133296350) pass under the track 7.2 and 8.0 m from their mouths, and
+  Aulla Lunigiana's subway (1387000572) 6.4 m from an inner joint, where its ramps go on: none. Taken
+  within the road's core and a cell's diagonal of either end, as a drivable road's are, those three
+  got bridges too, and the decks' ground, lowered under their slabs, left one of Aulla Lunigiana's
+  platforms without its name board and lamps.
+- **A road OSM lays under the track** (`underRail` in `rail-crossings.ts`, before the conflation):
+  a road on a lower `layer` than at-grade track it crosses with no node in common runs under it in a
+  tunnel, though OSM tags none, and is then an underpass like any other. One does: the farm track
+  205932314, 17.7 m at layer −1 under the Genova–Pisa's bank east of the Magra, which the build drew
+  across both tracks at grade between their vertices, with no level crossing.
 - **No short segments**: a vertex no other line or piece shares (OSM's other
   vertices only carried its drawing) is dropped where it lies under 2 m from a kept neighbour,
   unless that moves the line more than 0.25 m. On the 0.1 m grid a short segment's heading is
@@ -2303,7 +2337,7 @@ the pieces where tracks meet (`rail-graph.ts`).
   2 m of the crossing node), and on Pieve's loop 0.27 m. It throws over 0.2, 0.5 and 1 m. It prints
   both figures per piece. It also checks the CTR's level-crossing polygons (`AGE` `0122`): each
   holds a crossing node, and no node within 10 m of one lies outside it (the six road nodes lie
-  1.4–3.0 m inside). The three lines run 25,880.1, 9,715.8 and 9,715.4 m ([section
+  1.4–3.0 m inside). The seven lines run 10,946.0–27,795.3 m ([section
   9](#9-the-railway-railwayts-platformsts-rail-clearts)).
 - **The tracks only the CTR has** are drawn and driven by no train: an end within 1 m of another
   track, heading along it within 20°, joins it at a switch vertex both share (`ctr:<line>:<end>`;
@@ -2933,10 +2967,17 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   (the road's profile, after the rail's, is pinned to it at the shared node): a rail pinned to the
   road's natural level made a V of 3.8–5.1% in its grade within ±5 m (an 82 m vertical curve at
   Via Nuova). A road under a rail bridge (or in a tunnel under the rail) keeps at least
-  `maxheight` (4 m when untagged) plus a 1.5 m deck below it, and a tagged underpass keeps the
-  rail at least that far over the road's natural level: a sign gives the least clearance, and an
-  exact pin at Via delle Cave (`maxheight` 3.20, the deck 1.1–3.3 m higher on the LiDAR) held the
-  line 2.5–3.0 m under its bed for 1.9 km, from Equi Terme to the Aiola tunnel. A road bridge over
+  `maxheight` (4 m when untagged) plus a 1.5 m deck below it, and a tagged underpass at grade under
+  a rail bridge keeps the rail at least that far over the road's natural level: a sign gives the
+  least clearance, and an exact pin at Via delle Cave (`maxheight` 3.20, the deck 1.1–3.3 m higher
+  on the LiDAR) held the line 2.5–3.0 m under its bed for 1.9 km, from Equi Terme to the Aiola
+  tunnel. A road's tunnel under the rail gives the rail no such bound: the ground over its bore is
+  the rail's own bank, not the road, so the road dips under the rail instead. Read off the bank, the
+  seven tagged tunnels under Sarzana's part's tracks asked the rail 2.6–6.6 m over its bank, humps
+  (Via Termo's, under Vezzano Ligure's four tracks, read 30.5 m off their 29.4–31.4 m bank and held
+  them at 35.9 m, with the platforms along them; Via Emiliana's, under the Genova–Pisa's 4 m bank
+  across the plain, at 19.8 m over its 14.5 m); the three tagged underpasses in Tuscany are roads at
+  grade under bridges. A road bridge over
   the rail keeps its surface at least 5.5 m over the rail's bed (the rail head 0.12 m, the ATR
   220's 4.185 m, 0.3 m clear and the render's 0.9 m deck), the rail held under the line between
   the uncarved ground at the bridge's ends less 5.5 m: at the Equi Terme overpass the roof
@@ -2965,15 +3006,47 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   rail is profiled a chain at a time and a switch ends a chain, so each track of a double line was
   fitted apart from the other: north of Aulla the Pontremolese's two, 3.9–5.6 m apart, stood 1.5 m
   apart in level at their twin tunnels' south portals and 2.8 m at the north ones. A track fitted
-  after a twin of its kind (both bridges, both tunnels or both at grade) within 15° of parallel
-  keeps within 0.1 m of the twin's level where they run within 6 m of each other (`SIDE`, `TWIN`);
-  farther apart the allowance grows by 2/3 m a metre (`PART`, a 2:3 bank between their formations)
-  up to 12 m (`REACH`), past which they bind each other no more. Its points 2 m apart along it take
-  the bounds, each holding at its own sample (`Bound.here`), on a deck or not. It moved 43 of
+  after a twin of its kind (both bridges, both tunnels or both at grade) keeps within 0.1 m of the
+  twin's level where they stand on one formation: no gap over 6 m (`SIDE`, `TWIN`) between the
+  tracks of their kind lying from one to the other (a deck or a bore between two tracks at grade is
+  no track of their formation; on Lunigiana's rail the kind filter changes no profile), whatever
+  their headings (a switch's diverging track, a crossing at grade); past that the allowance grows by 2/3 m a metre of the widest gap (`PART`, a
+  2:3 bank between their formations) between tracks within 15° of parallel, up to 40 m apart
+  (`REACH`, a yard's width), past which they bind each other no more. Its points 2 m apart along it
+  take the bounds, each holding at its own sample (`Bound.here`), on a deck or not. Bound only by a
+  twin within 6 m and 15° of parallel, the outer two of Vezzano Ligure's four tracks, 15–17 m apart
+  with 3.4–6 m between neighbours, were fitted each from its own ground, 2.6 m apart, and the two
+  between could keep to neither; the tracks of Santo Stefano di Magra's yard throat, leaving their
+  switches at over 15°, stood 0.4–0.7 m apart within 6 m: 54 pairs of tracks stood over 0.3 m apart
+  on Sarzana's part's first build (Via Termo's hump above among their causes), 3 now, a known limit
+  (`rail.map-test.ts` fails on them): the Pontremolese's two tracks 206182846 and 111752500 0.30 m
+  apart at (−18975, −3599) and 111646538 and the crossover 423877054 0.31 m apart at (−18903, −3506),
+  by the triangle's west junction, and the Pontremolese's down track and the link's up track
+  (1045531422, 1045531424), both on decks, 1.97 m apart where they part at the triangle's north apex,
+  (−17909, −2698): the link, fitted first, falls from the switch toward the Genova–Pisa as the
+  Pontremolese climbs toward Vezzano, and a deck's profile is the straight line between its ends,
+  so the bounds its twin puts on its samples between them hold in the fit but not in the deck
+  shipped. The junction's chains are fitted one at a time, each switch's level set by the first
+  chain through it; at the triangle's west junction the free end of 111646538's chain, smoothed over
+  the 100 m behind it alone on ground climbing 3% (its window cut at the switch), took 22.6 m, 2.4 m
+  under the ground there, and the crossover 423877054 from it climbs 5.5% to the next track's switch
+  (24.4 m): the line's grade changes 4.0–7.5% over 20 m there and at five more switches of the
+  triangle and Vezzano Ligure's throats (`railway.map-test.ts`), and the ATR 220's cars stand up to
+  0.109 m off the rail head on lines 2, 5 and 6's sharpest curves, Vezzano Ligure's west-throat
+  crossovers ((−19650, −4234), (−19607, −4148)) and (−18715, −3262) (`consist.test.ts`). Measured
+  offline on the rail pass alone (2026-11-21) against today's 14 places where a line's grade changes
+  4% or more over 20 m (up to 7.5%) and 3 twin pairs, four general fits each mend some and break
+  others, so none is taken: smoothing a cut window's end along its least-squares line leaves 12
+  places (up to 6.8%) and 15 pairs (Santo Stefano di Magra's yard 0.3–0.8 m apart); chaining the
+  track through each switch's straight way 5 (up to 6.6%) and 12; the smoothing reading the ground
+  on past a switch along the track that runs on 23 (up to 10.8%, Aulla's among them) and 14; and
+  binding tracks up to 8 m apart as one formation 21 (up to 9.7%) and 24. A fit of each formation's
+  switches together is open. The first rule moved 43 of
   Lunigiana's rail pieces and 452 terrain nodes, by up to 2.4 m, with the walls and a parked spot
   beside them, along the Pontremolese by Aulla and the sidings at x 4900–5370, and on Cesena 18
   pieces, 863 nodes (up to 0.5 m), a platform and 28 lamps round its station and two underpass
-  roads by 0.1 m.
+  roads by 0.1 m; the formation rule moves 10 of Cesena's rail pieces and 311 terrain nodes round its
+  station, by up to 0.2 m (0.10 m RMS), and its "Sottopasso Ravennate" under them by up to 0.4 m.
 - Overpasses (`road-levels.ts`): the rail bridge's rule holds under every road bridge too, so local
   roads pass under a motorway's overpasses. A drivable road under a profiled road's bridge, or in a
   tunnel under a road, keeps its `maxheight` (4 m when untagged) plus a 1.5 m deck under it. Of the
@@ -3072,9 +3145,17 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   ground all across, and `END_RUN` (4 m, the issue's "more than a few metres") at most: there it
   meets the ground, which only stays at most 0.05 m (the rail bed's `BED`) over its profile, under
   every road's surface (`ROAD_LIFT`, 0.06 m or more). Between its end runs, the ground stays under
-  the slab. A deck's pieces join where they share a vertex with tops within `ON_DECK` (`jointsOf`):
-  OSM splits a viaduct into ways mid-span (24 of Lunigiana's pieces, 27 of Cesena's, 13 of the
-  L's), and a joint is no end. Read on `main`'s build, the slab first stood clear more than 4 m from
+  the slab. A deck's pieces join where they share a vertex with tops within `ON_DECK` (`jointsOf`)
+  and the other runs on past it, through it or leaving it the other way: OSM splits a viaduct into
+  ways mid-span (24 of Lunigiana's pieces, 27 of Cesena's, 13 of the L's), and a joint is no end.
+  Two decks leaving one vertex the same way stand side by side, a switch or a fork at their end with
+  the line at grade behind it, an outer end of each: Santo Stefano di Magra's yard tracks over the
+  road tunnel 99395994 leave their switches each on its own deck, and read as joined there they kept
+  no end run, so the ground at the switch at (−17647.4, −2269.4) fell 1.4 m under the loop 377677815
+  leaving it at grade, 1.07 m under its track (`rail.map-test.ts`). The rule moves 3 of that switch's
+  nodes on Lunigiana, by up to 1.4 m, and 13 of Cesena's, by up to 1.6 m, where the footways'
+  decks leave the Ponte del Risorgimento's end beside it (−570, 48) and where Via Ugo La Malfa's
+  and Via Corradino Fabbri's decks part (1860, 148). Read on `main`'s build, the slab first stood clear more than 4 m from
   an outer end on 120 of Lunigiana's decks, 24 of them nowhere, up to 20.4 m in (the rail bridge
   621942962) and 19.1 m on a road (260987314); on 43 of Cesena's, up to 143 m of the primary
   70194399's 246 m, an OSM bridge drawn over a bank; on 26 of the L's, up to 12.8 m. Past 4 m the
@@ -3191,34 +3272,70 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   ([section 4](#4-the-rail-on-the-ctr)). A terminal is a dead end on the play area's outline, where
   the track runs on beyond it: within 0.08 m of it (`onOutline`), as rounding to 0.1 m moves an end
   cut on a slanted edge up to 0.05·√2 ≈ 0.071 m off it, while a lattice point off a vertical or
-  horizontal edge lies 0.1 m or more away. From each terminal a walk goes on at every junction the
-  way that turns least (under 60°, headings taken over 5 m: a single 0.3 m end segment turns up to
-  12° on the 0.1 m grid, more than a turnout diverges) and never takes a piece twice; a walk that
-  ends at another terminal is a line, and of two between one pair of terminals the one turning less
-  in all. A dead end inside the map (a siding's buffer) is no terminal, but a terminus is (issue
-  #19): a stop position where an OSM `route=train` relation starts or ends and that no route stops
-  at on its way (`routeEnds` in `rail-routes.ts`), at the end of the piece of the way the trains
-  reach it along (`terminiOf` in `railway.ts`). A walk ends at a terminus too, and its line runs
-  toward it, so its trains turn round there ([gameplay.md](gameplay.md#the-service)); a walk never
-  enters a stub, track that leads only to dead ends in the map (`deadEnds` in `rail-graph.ts`: the
-  safety stub past P.P. Chiesaccia's switch among them). A ring with no way off the
-  map gives no line. Each line runs the way most of its length was drawn. Three lines here:
+  horizontal edge lies 0.1 m or more away. From each terminal a walk goes on along each of OSM's
+  train routes (`route=train` relations: `trainRoutes` in `rail-routes.ts`, each route's ways in its
+  running order) that runs the terminal's piece, at every junction onto the piece of the way the
+  route runs on (`stepAlong`, past the ways no piece in the map carries), under 60° (headings taken
+  over 5 m: a single 0.3 m end segment turns up to 12° on the 0.1 m grid, more than a turnout
+  diverges), and never takes a piece twice. From a terminal no route's walk leads from to another
+  terminal (OSM maps no route there, or one that leaves its track) the walk takes the way that turns
+  least instead. A walk that ends at another terminal is a line, and of two between one pair of
+  terminals a route's over the straightest, then the one turning less in all. A dead end inside the
+  map (a siding's buffer) is no terminal, but a terminus is (issue #19): a stop position where an OSM
+  `route=train` relation starts or ends and that no route stops at on its way (`routeEnds` in
+  `rail-routes.ts`), at the end of the piece of the way the trains reach it along (`terminiOf` in
+  `railway.ts`). A walk ends at a terminus too, and its line runs toward it, so its trains turn round
+  there ([gameplay.md](gameplay.md#the-service)); the termini of one station (the stops' name) end
+  one line from a terminal, the one turning less: Aulla Lunigiana's are track 4's, where the Aulla
+  => Pisa route (21785496) starts along way 1571417875, and track 5's, where the Pisa => Aulla
+  Lunigiana route (21785495) ends along 1571417857, and each made a line of its own the whole way
+  from Pieve San Lorenzo. A walk never enters a stub, track that leads only to dead ends in the map
+  (`deadEnds` in `rail-graph.ts`: the safety stub past P.P. Chiesaccia's switch among them). A ring
+  with no way off the map gives no line. Each line runs the way most of its length was drawn, the
+  lines in the order of their first piece in `MAP.rail` (a branch's after the line it leaves), the
+  longer first of two from one piece. Taking the straightest way, the build kept one line between
+  each pair of terminals and none on the track it did not take: where Sarzana's part brought the
+  Pontremolese's two tracks on to the Genova–Pisa's, the Pontremolese's up track through Aulla
+  Lunigiana's platforms and the link the Milano–Livorno trains take at Santo Stefano di Magra were
+  loops, and Aulla's station stood 37.7 m off any line. OSM's routes in play are the REG
+  Parma–La Spezia pair (21846725, 21846726), the REG Milano–Livorno pair (21780039, 21780040), the
+  REG Pietrasanta–La Spezia pair (21718837, 21718838), the Lucca–Aulla line's three (6333346,
+  21785495, 21785496), the Frecciabianca pair (2215519, 2216863), which give OSM's older `forward`
+  and `backward` roles to all but 18 and 28 of their ways (`trainRoutes` reads a route's ways as
+  its members with no role, as the current scheme lists them, so their walks reach no other
+  terminal), and "da Aulla a La Spezia" (19196992), whose walk joins the north edge to the west
+  edge as the Parma–La Spezia's does: one line between them. Seven lines here:
   - **0, Lucca–Aulla**: 140 pieces, 25,880.1 m from the outline at Pieve San Lorenzo (6700,
     3423.2), in the Galleria del Lupacino, to Aulla Lunigiana's track 4, its stop 13949044083 at
-    (−12215.7, 6354.9) on OSM way 426008617, a terminus: the Aulla => Pisa route (21785496) starts
-    there and leaves along way 1571417875, while the Pisa => Aulla Lunigiana route (21785495) ends
-    at track 5's stop, which sits at no piece end. Its speed limits are OSM's `maxspeed`, pieces
-    with one limit merged: 140 km/h through the Lupacino to s 873.7, 85 to Equi Terme's stop (s
-    5979.9), 80 to Gragnola's track-2 stop (s 12016.8), 85 to s 22904.5 and 75 to s 25861.6; the
-    last 18.7 m (1571417875) carries no limit. Before Aulla's part it was 102 pieces, 16,854.7 m,
-    to Fivizzano's west edge by Rometta (−5300, 4621.2).
-  - **1, one of the Pontremolese's two tracks**: 38 pieces, 9,715.8 m from the north edge (−14234.6,
-    13000) to the south edge at y 3900, at 100, 110 and 180 km/h.
-  - **2, its other track**: 40 pieces, 9,715.4 m from the south edge (−12635, 3900) to the north
-    edge, at 180, 160, 110, 100, 110 and 100 km/h.
+    (−12215.7, 6354.9) on OSM way 426008617, a terminus. Its speed limits are OSM's `maxspeed`,
+    pieces with one limit merged: 140 km/h through the Lupacino to s 873.7, 85 to Equi Terme's stop
+    (s 5979.9), 80 to Gragnola's track-2 stop (s 12016.8), 85 to s 22904.5 and 75 to s 25861.4;
+    the last 18.7 m (1571417875) carries no limit. Before Aulla's part it was 102 pieces, 16,854.7
+    m, to Fivizzano's west edge by Rometta (−5300, 4621.2).
+  - **1, Milano–Livorno**: 110 pieces, 27,789.1 m from the north edge (−14234.6, 13000), down the
+    Pontremolese's down track through Aulla Lunigiana and Santo Stefano di Magra, over the link to
+    the Genova–Pisa's eastbound track and on through Sarzana to the south-east edge (−11500,
+    −7535.2), at 100–180 km/h (150 into Sarzana's part from the south-east).
+  - **2, Parma–La Spezia**: 80 pieces, 21,430.6 m from the north edge on the down track through Aulla
+    Lunigiana, Santo Stefano di Magra and Vezzano Ligure, over the crossovers at Vezzano's west
+    throat (106.6 m OSM tags no limit on, s 21085.6–21192.2) to the west edge's westbound track
+    (−19751.5, −4562.6).
+  - **3, Livorno–Milano**: 117 pieces, 27,795.3 m from the south-east edge's westbound track
+    (−11500, −7541.8) through Sarzana, over the link's other track and up the Pontremolese's up
+    track through Santo Stefano di Magra and Aulla Lunigiana to the north edge.
+  - **4, La Spezia–Parma**: 78 pieces, 21,265.9 m from the Pontremolese's own track on the west edge
+    (−19734.8, −4405.1) up its up track to the north edge.
+  - **5, Pietrasanta–La Spezia**: 65 pieces, 11,010.6 m, the Genova–Pisa's westbound track from the
+    south-east edge (−11500, −7541.8) through Sarzana and Vezzano Ligure to the west edge (−19751.5,
+    −4562.6), at 150, 105 and 115 km/h.
+  - **6, La Spezia–Pietrasanta**: 65 pieces, 10,946.0 m, its eastbound track from the west edge
+    (−19743.3, −4490.3) to the south-east edge (−11500, −7535.2).
 
-  Lines 1 and 2 share the single track north of P.P. Chiesaccia and its run-out north of the play
-  area ([gameplay.md](gameplay.md#the-service)).
+  Lines 1–4 share the single track north of P.P. Chiesaccia; 1 and 2 the down track and 3 and 4 the
+  up track as far as Santo Stefano di Magra; 2 and 5 the westbound track west of Vezzano Ligure's
+  throat; 1 and 6 the eastbound track and 3 and 5 the westbound one east of the link
+  ([gameplay.md](gameplay.md#the-service)). Before Sarzana's part the Pontremolese's were two
+  lines, one a track, from the north edge to the south edge at y 3900 (9,715.8 and 9,715.4 m).
 - **Run-outs** (`continuations` in `rail-runouts.ts`, profiled in `build-terrain.ts`): past each
   terminal the build walks the track on along OSM's rail beyond the play area, cut to the built
   terrain's box (`clipBeyond`), so a train past a terminal runs on along the real line, over the
@@ -3241,10 +3358,14 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   on and the hill 7.17 m under it 24 m on, with no track drawn, and trains came out of the hill.
   Lunigiana's: past Pieve San Lorenzo (6700, 3423.2) the Galleria del Lupacino, one stretch of 9
   vertices, 3,950.2 m on to the box's edge at (10600, 2795.6), level at the bed's 356.9 m, the sim
-  running 2,298.6 m of it, all in the bore; and past the Pontremolese's south ends, through the
-  notch west of Fosdinovo's part, 3,394 m on line 1 and 3,393.9 m on line 2, stored. The north
-  ends lie on the box's edge and have none: past them a train runs straight on, 1,409.1 m. A
-  terminus has no run-out. Rometta's run-out (1,154.4 m to (−6359.6, 4250.1), down the Aulella's
+  running 2,298.6 m of it, all in the bore; past the Genova–Pisa's two terminals on the south-east
+  edge, 1,446.7 m (the eastbound track, lines 1 and 6) and 1,438.0 m (the westbound, lines 3 and 5)
+  on to the box's edge at y −8500, in 3 stretches; and past the west edge's three, 3,747.8 m (the
+  westbound track, lines 2 and 5, 10 stretches), 3,790.4 m (the eastbound, line 6, 14) and 3,827.9
+  m (the Pontremolese's, line 4, 13), to the box's edge at x −23100, stored. The north ends lie on
+  the box's edge and have none: past them a train runs straight on, 1,409.1 m. Before Sarzana's
+  part the Pontremolese's south ends at y 3900 ran on 3,394 and 3,393.9 m through the notch west of
+  Fosdinovo's part. A terminus has no run-out. Rometta's run-out (1,154.4 m to (−6359.6, 4250.1), down the Aulella's
   valley at grade, its bank filling a gully 20–40 m past the terminal that the straight run hung
   7.2 m over) went with Aulla's part, which carries the line on in play.
 
@@ -3258,12 +3379,18 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   Pieve San Lorenzo's loop (13), Aulla's track 5 and the Lucca branch north of the terminus to the
   north throat are loops; Gragnola's stub, Monzone's siding (two), Equi Terme's five pieces and
   Pieve San Lorenzo's yard (11, its track only the CTR has among them) are sidings. Lunigiana holds
-  34 loop and 28 siding pieces. OSM's `service` tags play no part, so an OSM passing
-  loop or siding gets its kind the same way.
+  432 running, 167 loop and 77 siding pieces (with Sarzana's part's lines along OSM's train
+  routes; 34 loop and 28 siding pieces before the part). OSM's `service` tags play no part, so an
+  OSM passing loop or siding gets its kind the same way.
 - **Platforms** (`platforms.ts`): each CTR `0141` polygon (OSM's platform areas where the 2019
   sheets map no ground: `railway=platform`, or `public_transport=platform` with no `bus` or
   `highway` tag, as OSM tags Aulla Lunigiana's three; each cut where a 2019 sheet maps the ground,
-  `leftTo`, rather than dropped whole by its first vertex) is rasterised at 0.05 m and keeps the
+  `leftTo`, rather than dropped whole by its first vertex; and a band 3 m either side of each
+  platform OSM draws as a line, `platformLines` in `platform-lines.ts`, its `width` tag where it
+  has one, but a line whose middle lies in a platform OSM maps as an area too, as along Aulla
+  Lunigiana's: OSM draws all of Sarzana's platforms as lines but its island's 60 m shelter roof,
+  and Arcola's two, and the build called Sarzana's trains along that roof alone, a station 59.5 m
+  long) is rasterised at 0.05 m and keeps the
   cells 1.60 m or more from every track centreline out of the tunnels (the ATR 220 is 2.883 m wide),
   0.5 m or more past the edge of every at-grade carriageway, outside the CTR's level-crossing areas,
   and no more than 1 m under the platform's top (Gragnola's polygon wraps the station building,
@@ -3272,9 +3399,18 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   stand 1.63–1.81 m from the nearest track. A piece narrower than 1.2 m, or with tracks under 6 m
   apart on both sides of most of it, is a rail-level walkway, not a platform: Gragnola's strip
   between tracks 1 and 2 (4.3–5.0 m apart; 1.74 m wide once clipped). Equi Terme's island platform
-  lies between tracks 7.1–7.6 m apart and stays one. So is a piece no edge of which comes within
-  `PLATFORM_EDGE` (2.2 m, `src/sim/map/kinds.ts`, the reach of the render's yellow line) of a track:
-  no train's step reaches it, and nobody waits there. The CTR maps a strip north of Pieve San
+  lies between tracks 7.1–7.6 m apart and stays one. So is a piece with under 10 m of its edge
+  (`SERVED`) within `PLATFORM_EDGE` (2.2 m, `src/sim/map/kinds.ts`, the reach of the render's yellow
+  line) of a line's track or a loop: no train's step reaches it, and nobody waits there (OSM's line
+  for Sarzana's platform 4 runs along a siding no line takes, its band reaching a loop 3 m off at a
+  corner). A piece under 100 m² (`MIN_AREA`) is dropped: room for neither a name board nor two lamps
+  18 m apart (the tip of Vezzano Ligure's island, 33 m², cut off past the neck its converging tracks
+  leave it, and the pieces of the band about OSM's 44 m line 377807381 for Arcola's platform 2 that
+  the 1 m drop leaves where the ramp 377807539 down to the footway subway 373345638's east mouth runs
+  inside the band, its ground 4.9–10.4 m and the ground round it 6.6–9.5 m against the platform's
+  11.05 m top, so Arcola's eastbound lines, 1 and 6, call at no platform there: a known limit, as a
+  platform has no stairwell or ramp opening of its own); the smallest kept
+  is Gragnola's walkway, 183 m². The CTR maps a strip north of Pieve San
   Lorenzo's line as a platform (`23D15 AGE#252`, 381 m²), 2.45 m off it, between the track and Via
   Bugliatico's bank (the ground stands up to 5 m over its top on 42% of it): bare ground on the 2010
   orthophoto, a 1 m path along the track and three low dark structures and a cabinet on the 2023
@@ -3301,6 +3437,12 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   | at Serricciolo, no station or stop node within 300 m, so no name (`23C07 AGE#98`) | 233 m² | 5.20 m | 1.69 m off the line |
   | Aulla Lunigiana (`24C60 AGE#173`, `#174`, `#175`) | 558, 434 and 240 m² | 6.10, 6.54 and 6.88 m | 1.68, 1.63 and 1.81 m off their tracks |
   | Aulla Lunigiana, OSM's platforms 5, 6 and 7, which no 2019 sheet maps | 1,740, 2,006 and 2,373 m² | 6.74, 8.34 and 8.98 m | 1.63, 1.64 and 1.63 m off their tracks |
+  | Sarzana, the island's shelter roof (OSM's area 309025357) | 269 m² | 4.80 m | 1.63 m off its track |
+  | Sarzana, the island on either side of it (OSM's lines 146980826 and 309041251) | 512 and 338 m² | 4.60 and 5.00 m | 1.64 and 1.65 m off their tracks |
+  | Sarzana, platform 4 (OSM's line 146980824) | 974 m², and a 467 m² walkway | 6.10 m | 1.79 m off a loop; the walkway by a siding |
+  | Arcola, platform 1 (OSM's line 377807380; platform 2's 44 m line is cut apart by its subway's ramp, dropped) | 402 m² | 5.76 m | 1.65 m off the westbound track |
+  | Vezzano Ligure, OSM's three areas, one in two pieces (a 33 m² tip of another dropped) | 383 and 303, 1,307 and 1,121 m² | 4.63–6.08 m | 1.65–1.67 m off their tracks |
+  | Santo Stefano di Magra, OSM's four areas | 1,771, 2,638, 2,546 and 1,251 m² | 5.44–8.80 m | 1.63–1.68 m off their tracks |
 
 - **Stations** (`stationsOf`): per line and station name, the extent along the line of that
   station's platforms within 2.5 m of it and of its station and stop nodes within 5 m, on the side
@@ -3308,8 +3450,13 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   which runs west there), Equi Terme at 5921.4–6057.0 (left), Monzone-Monte dei Bianchi-Isolano at
   8493.3–8597.1 (right, the building's side), Gragnola at 11911.6–12057.7 (left: track 2 trains call
   along the walkway), Fivizzano-Gassano at 14454.2–14550.9 (right), Fivizzano-Rometta-Soliera at
-  17205.9–17295.4 (right) and Aulla Lunigiana at 25659.4–25880.1 (right); on lines 1 and 2 Aulla
-  Lunigiana alone, at 6915.4–7325.2 and 2390.7–2799.7 (right). A station's extent may reach 450 m.
+  17205.9–17295.4 (right) and Aulla Lunigiana at 25659.4–25880.1 (right); Aulla Lunigiana at
+  6915.4–7325.2 on lines 1 and 2 and 20470.6–20879.6 and 13941.2–14350.2 on lines 3 and 4 (right),
+  Santo Stefano di Magra at 16265.1–16645.7 on lines 1 and 2, 11148.7–11531.3 and 4619.3–5001.9 on
+  3 and 4 (right), Sarzana at 24913.5–25185.9 on line 1, 2605.3–2875.9 on 3 and 5 and 8070.5–8342.9
+  on 6 (right), Vezzano Ligure at 20382.1–20658.0 on line 2, 593.8–897.6 on 4, 9968.2–10272.1 on 5
+  and 697.1–973.3 on 6 (left), and Arcola at 6847.0–6939.5 on lines 3 and 5, the westbound track's
+  (left). A station's extent may reach 450 m.
 - **Level crossings** (`crossingBoxes`): every vertex a rail piece shares with a road, grouped
   into one box with the others on that road within 10 m, with its graph node (the graph keeps each
   vertex id's node, `buildGraph`'s `ids`) and the line's s at the node on the line: Equi Terme's
@@ -3318,7 +3465,10 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   by Gassano (13636.9), and in Aulla's part the SP72 by Rometta (17024), the SP18 (19874.1), Via
   Filippo Turati (21039.2), Via Guido Rossa (22327.2), the SP57 Ponzanello (22852.6) and the track
   140771695 (23367.7); Pieve San Lorenzo's foot crossing lies on the loop alone, so it names no
-  line (`line` and `s` −1).
+  line (`line` and `s` −1). A vertex where one road alone ends on the track makes none: nothing
+  crosses there (the graph drops such a road's tip off the running track), and the box the driveway
+  1455968336 made, ending on the Pontremolese at Santo Stefano di Magra, laid its far stop line on
+  past the road's end 0.65 m from the second track. Sarzana's part brings no level crossing.
 - **Clearance** (`rail-clear.ts`): outside the crossing boxes (within 15 m of a box's nodes, on its
   road or within its verges: the crossing road's lanes and verges come within 2.8 m of the track up
   to 12.4 m away, Viale 20 Settembre crossing at a slant) and the platforms, no walk verge or
@@ -4923,15 +5073,19 @@ platform's top; `railway.test.ts` checks the speed limits, crossing boxes and st
 `rail-clear.test.ts` narrows a verge beside a track, leaves one at another level, in a box or on a
 platform alone, and throws for a lane. `src/sim/map/__tests__/railway.map-test.ts` checks
 `MAP.railway`, per line: each line runs terminal to terminal or to its terminus, its pieces sharing
-their end vertices bit-identically, every running piece on one (today the three: Lucca–Aulla from
-the outline at Pieve San Lorenzo to its terminus at Aulla Lunigiana, and the Pontremolese's two
-tracks from edge to edge); the lines that share track share it one way round (`checkSharedTrack`, in
-place of the one line's `checkNoSharedTrack`); a terminal's sample at s 0 lies within 1 m of the
-outline (the SS62's case, 0.94 m); the speed limits cover each line, 80 or 85 km/h but in the
-Galleria del Lupacino (OSM's 140), 80 km/h from Equi Terme's stop to Gragnola's; the 9 stations lie
-along their platforms, a station extending up to 450 m and its node by its line or by one of its
-platforms, a platform within 4 m of the line's side at each one's middle; the 17 platforms are
-pinned, 15 raised and 2 walkways, Aulla's six the CTR's AGE#173–175 and OSM's 5–7; each crossing
+their end vertices bit-identically, every running piece on one (today the seven: Lucca–Aulla from
+the outline at Pieve San Lorenzo to its terminus at Aulla Lunigiana, and the six OSM's train routes
+run from edge to edge, [section 9](#9-the-railway-railwayts-platformsts-rail-clearts)); the lines
+that share track share it one way round (`checkSharedTrack`, in place of the one line's
+`checkNoSharedTrack`); a terminal's sample at s 0 lies within 1 m of the outline (the SS62's case,
+0.94 m); the speed limits cover each line but over track OSM tags none in a station or on a
+crossover of 150 m or less with another track within 6 m of it all along (the Parma–La Spezia's
+106.6 m at Vezzano Ligure's west throat), 80 or 85 km/h but in the Galleria del Lupacino (OSM's
+140), 80 km/h from Equi Terme's stop to Gragnola's; the 25 stations lie along their platforms, a
+station extending up to 450 m and its node by its line or by one of its platforms, a platform's axis
+on the line at each one's middle, or an island's far edge within a train's step of it, its axis on
+the track across it; the 31 platforms are pinned, 28 raised and 3 walkways, Aulla's six the CTR's
+AGE#173–175 and OSM's 5–7; each crossing
 box's nodes are vertices of its road and of the rail, the line's s on one of them (a box on a loop
 alone, Pieve's foot crossing, names no line), and every vertex an at-grade road shares with at-grade
 rail is in a box; the platforms stand 1.55 m or more from every track and 0.44 m or more past every

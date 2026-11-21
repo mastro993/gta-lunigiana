@@ -40,11 +40,12 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
   const at = (x: number, y: number) => sampleGrid(grid, x, y)
   // ---- the railway: lines over the running track, the platforms beside them, the stations ----
   // A line's terminal: a dead end on the play area's outline, where the track runs on beyond it, or
-  // a terminus inside the map where OSM's train routes end.
+  // a terminus inside the map where OSM's train routes end; a line runs where those routes run.
   const { shipped, lines, kinds, platforms, stations } = layRailway(
     railLines,
     (x, y) => onOutline(x, y),
     src.routeEnds,
+    src.trainRoutes,
     {
       polygons: src.platforms,
       roads: roads.flatMap((r) =>
@@ -105,6 +106,7 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     y: r1(v.y),
     piece,
     vertex,
+    end: roads[road]!.pts[0]!.id === v.id || roads[road]!.pts.at(-1)!.id === v.id,
   }))
   const levelCrossings = crossingBoxes(crossingNodes, lines, shipped)
   const { verges, report: clearReport } = clearVerges({

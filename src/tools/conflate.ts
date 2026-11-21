@@ -404,9 +404,11 @@ export const conflateRail = (
 
   // Bridges keep what they span; streams under at-grade track share a culvert vertex with it. A
   // bridge reaches past the cells under it that the at-grade track cannot take: a wide stream's
-  // protected bed (w/2 + 1 m, build-grid.ts) and a main road's core (motorway to tertiary: their
-  // rank beats the rail's, profiles.ts),
-  // plus a cell's diagonal, the farthest a corner of a cell the track runs through lies off it.
+  // protected bed (w/2 + 1 m, build-grid.ts), a main road's core (motorway to tertiary: their rank
+  // beats the rail's, profiles.ts) and any other road's at grade a pass cores (under the deck the
+  // rail's approach core yields to it: the farm track 205932342, 3.7 m in from the west end of the
+  // Genova–Pisa's Magra bridge, held the at-grade track's first cell 3.6 m under it), plus a cell's
+  // diagonal, the farthest a corner of a cell the track runs through lies off it.
   const waterPts = osmWater.map((w) => moved(w.pts, moves))
   const corner = GRID_CELL * Math.SQRT2
   const crossed: Array<Crossed> = [
@@ -421,7 +423,10 @@ export const conflateRail = (
     ...osmRoads.map((r) => ({
       what: `road ${r.id}`,
       w: r.w,
-      margin: beatsRail(r.cls) ? coreHalf(r.w, GRID_CELL) - r.w / 2 + corner : 0,
+      margin:
+        beatsRail(r.cls) || (isDrivable(r.cls) && r.bridge !== true && r.tunnel !== true)
+          ? coreHalf(r.w, GRID_CELL) - r.w / 2 + corner
+          : 0,
       osm: r.pts,
       pts: moved(r.pts, moves),
       water: false,
@@ -431,9 +436,17 @@ export const conflateRail = (
     osmWater.flatMap((w) => w.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
   )
   const spanReport: SpanReport = { slid: [], culverts: [], cut: [], ends: [] }
-  // The CTR's bridges, out past what they span by its margin (`spanned`), and the track over a drivable road's tunnel by its
-  // mouth (the road's profile cuts the mouth then, a path keeps the terrain's), out past the road's core cells and a cell's
-  // diagonal.
+  // The CTR's bridges, out past what they span by its margin (`spanned`), and the track over a road's tunnel by its mouth,
+  // out past the road's core cells and a cell's diagonal: a drivable road's profile cuts its mouths, and so does a path's or
+  // steps' (`PATH_PASS`), whose bore holds only its mouths' first MOUTH m at its floor, ahead of every claim, and whose
+  // approaches yield to the rail's core: the track crossing it within a cell's diagonal of a mouth stood on that hold,
+  // where a 9.8 m path tunnel (375205228) dips under the Genova–Pisa's bank by Sarzana 2.7 and 3.2 m from its tracks: they
+  // stood 1.8 m over the ground and its drain's water on their bed.
+  const bores = new Map<string, number>()
+  for (const r of osmRoads)
+    if (r.tunnel === true)
+      for (const v of r.pts) if (v.id !== undefined) bores.set(v.id, (bores.get(v.id) ?? 0) + 1)
+  const mouthAt = (v: V) => v.id !== undefined && bores.get(v.id) === 1
   const ctrBridges = ctr.bridges.map((b) => b.rings)
   const bridges = [
     ...ctrBridges,
@@ -444,11 +457,19 @@ export const conflateRail = (
     ),
     ...underpasses(
       chains.map((c) => c.line),
-      osmRoads.flatMap((r) =>
-        r.tunnel === true && isDrivable(r.cls)
-          ? [{ pts: moved(r.pts, moves), half: coreHalf(r.w, GRID_CELL) + corner }]
-          : [],
-      ),
+      osmRoads.flatMap((r) => {
+        if (r.tunnel !== true) return []
+        const tunnel = { pts: moved(r.pts, moves), half: coreHalf(r.w, GRID_CELL) + corner }
+        return isDrivable(r.cls)
+          ? [tunnel]
+          : [
+              {
+                ...tunnel,
+                reach: corner,
+                mouths: [mouthAt(r.pts[0]!), mouthAt(r.pts.at(-1)!)] as const,
+              },
+            ]
+      }),
     ),
   ]
   const bridged = (x: number, y: number) => bridges.some((poly) => inPolygon(x, y, poly))

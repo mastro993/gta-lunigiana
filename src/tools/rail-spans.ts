@@ -16,7 +16,7 @@ export interface Crossed {
   readonly w: number
   /**
    * How far (m) beyond its edge a bridge over it must reach: where the grid cells it keeps (a
-   * river's protected bed, a main road's core) end, plus one cell, so no at-grade track
+   * river's protected bed, a road's core at grade) end, plus one cell, so no at-grade track
    * beyond the bridge stands over them.
    */
   readonly margin: number
@@ -216,13 +216,25 @@ export const cutAtBridges = (
  * the road's centreline either way (and twice that along it, past the track's way through at down to 27° off square), for
  * `cutAtBridges` to make the track a bridge over it: at grade, the track's own cells and its bed would bury that mouth. Main's
  * OSM track lay over the middle of the residential underpass at s 6324.6 and buried both its mouths; on the CTR's, 1.8 m
- * further south, a car drove in at the north mouth, met the bank over the south one and was thrown 80 m up.
+ * further south, a car drove in at the north mouth, met the bank over the south one and was thrown 80 m up. A crossing counts
+ * within `reach` m (`half` unless given) of an end along the tunnel, and only of an end that is a mouth (`mouths`, both
+ * unless given).
  */
 export const underpasses = (
   lines: ReadonlyArray<ReadonlyArray<V>>,
-  tunnels: ReadonlyArray<{ readonly pts: ReadonlyArray<V>; readonly half: number }>,
+  tunnels: ReadonlyArray<{
+    readonly pts: ReadonlyArray<V>
+    readonly half: number
+    readonly reach?: number
+    readonly mouths?: readonly [boolean, boolean]
+  }>,
 ): Array<Polygon> =>
-  squaresWhere(lines, tunnels, (c, s, half) => c.sb <= half || c.sb >= s.at(-1)! - half)
+  tunnels.flatMap(({ reach, mouths = [true, true], ...tunnel }) =>
+    squaresWhere(lines, [tunnel], (c, s, half) => {
+      const r = reach ?? half
+      return (mouths[0] && c.sb <= r) || (mouths[1] && c.sb >= s.at(-1)! - r)
+    }),
+  )
 
 /**
  * Where track crosses a line inside one of the CTR's bridges (`bridged`), a square about the crossing reaching `half` m across
