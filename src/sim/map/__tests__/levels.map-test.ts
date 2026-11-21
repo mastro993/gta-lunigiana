@@ -227,17 +227,15 @@ const shortfalls = (
  * the terrain's level until the paths' and steps' decks were fitted (PATH_PASS); Cesena's 5.5 m
  * path bridge 683510421 now stands 4.5 m over the path 22776463 under it, which ran 3.5 m under it
  * on the ground its ramps' claims held at the deck's level until the approach's crossing shipped its
- * fitted level (path-approaches.ts). Two are micro-mapped knots of approaches no fit of theirs
- * clears: on Lunigiana the footways 1311831119 and 1311831120 cross the footway tunnels
- * 1311831121 and 1311862950 0.7 and 1.5 m from the nodes where they lead from the bores' ends at
- * their level.
+ * fitted level (path-approaches.ts). One is a micro-mapped knot of approaches no fit of theirs
+ * clears: on Lunigiana the footway 1311831119 crosses the footway tunnel 1311831121 0.7 m from the
+ * node where it leads from the bore's end at its level. The footway 1311831120 over the tunnel
+ * 1311862950, 1.5 m from its node, clears it since the bounds read the fitted roads' profiles as
+ * written (`zAt` in profiles.ts, issue #20).
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
   cesena: [],
-  lunigiana: [
-    [1311831119, 1311831121],
-    [1311831120, 1311862950],
-  ],
+  lunigiana: [[1311831119, 1311831121]],
   "the coast": [[463589363, 326011444]],
 }
 

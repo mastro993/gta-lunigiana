@@ -2814,9 +2814,16 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   bends between its vertices kept (`zAt` in `profiles.ts`, issue #20): read on the chord between its
   OSM vertices, the A12's 420870862, three of them over 1.4 km, stood 17.6 m over the track's tunnel
   205932308 at (−16017, −3846), where its fit dips to 11.3 m, and the tunnel, bound 5.5 m under the
-  chord, ran 0.90 m under it. Each bound holds on its own road's samples (`on` in `profiles.ts`):
-  where a chain crosses itself, the chain's nearest sample may lie on the other level, and the bridge's bound
-  lifted the loop to it. And it holds at the profile samples on both sides of the crossing (2 m
+  chord, ran 0.90 m under it. With the two rules beside it (a bound held no further than a
+  junction's reach, above; a tunnel under a road at grade of its own pass), it moved on the earlier
+  parts 63 nodes, up to 2.7 m, and 8 roads round Aulla's footway tunnels by Via Cospedo at
+  (−15348, 4933) (1311862946 and 1311862947 1.7 m lower), where the knot 1311831120/1311862950 now
+  clears 2.5 m, and on Cesena 359 nodes, up to 6 m, and 22 roads (the car park ramp below and the
+  Viadotto Pontescolle's 26154028, 2 m). Each bound holds on its own road's samples (`on` in
+  `profiles.ts`):
+  where a chain crosses itself, the chain's nearest sample may lie on the other level, and the
+  bridge's bound lifted the loop to it. And it holds at the profile samples on both sides of the
+  crossing (2 m
   either way), as one at the nearest sample left 0.1–0.2 m short between samples. Inside a bridge
   or tunnel it holds at both ends along the deck's slope (`tilt` in `profiles.ts`), so a climbing
   tunnel's far portal keeps its level, and bounds on one sample keep the strictest (several
@@ -3197,7 +3204,8 @@ walls held them before, and stores neither of those.
 - **Road-exit caps** (`exit-caps.ts`) shut their own road alone: a cap across a road leaving the
   play area, 4 m inside its cut end, stops 1 m past its carriageway's edges and on no other drivable
   road's carriageway (a tunnel's but under the ground), as the outline's walls close the edge behind
-  it (issue #20). Whole, the cap of the A12's Genova carriageway leaving at y 3900 reached 4.3 m into
+  it (issue #20). Whole, the cap of the A12's Genova carriageway leaving at y 3900 reached 4.3 m
+  into
   its twin's 5 m, 11 m inside the outline, and a residential stub leaving the play area 4.3 m from
   its junction with the Via Aurelia at Ponte di Arcola (1175456486) capped the Via Aurelia's lanes,
   1 m off its traffic edge 63390 at (−19730.6, −4399.5).
@@ -3207,8 +3215,9 @@ walls held them before, and stores neither of those.
   whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, `onOneLevel`): a car whose
   wheels, or a person whose footing, stand there. Every other wall stands at every level. The
   bridges' parapets, the walls under their decks ([below](#walls-under-the-decks)) and a house's
-  over a bore deep under it (above) are the walls with a level. A parapet (`parapets.ts`) needs one: walls are flat lines, so a parapet
-  that stopped everyone would close the road under its deck too, and so it used to open wherever any
+  over a bore deep under it (above) are the walls with a level. A parapet (`parapets.ts`) needs
+  one: walls are flat lines, so a parapet that stopped everyone would close the road under its
+  deck too, and so it used to open wherever any
   road's carriageway reached it, the road under the deck included, and a car on the SR445's viaduct
   west of Gragnola (552592654, at (−2674, 4584)) drove off it there and dropped from 148.5 m onto
   the residential road 140780578 under it. Each parapet wall takes its deck's top at its middle (its
@@ -5759,8 +5768,9 @@ longer lucido:
   even lies 0.72 m under the Sottopasso Cervese, the path it crosses at (763, 629). The pedestrian
   underpass 69488617 runs 0.68 m under Via Giuseppe Di Vittorio at (−1243, 440), and the car park
   ramp 68296970 stayed at its square's level, 0.24 m over Via Piazzale Sanguinetti at (586, 579),
-  until a tunnel took its bound from a road at grade of its own pass over it (issue #20). Within 2 m the level rule takes the two ways for one level: from the footbridges over Via
-  Riccione, or the underpass under Via Giuseppe Di Vittorio, a person can get into a car on the road
+  until a tunnel took its bound from a road at grade of its own pass over it (issue #20). Within
+  2 m the level rule takes the two ways for one level: from the footbridges over Via Riccione, or
+  the underpass under Via Giuseppe Di Vittorio, a person can get into a car on the road
   under or over them, and a car on the road brakes for someone on the footbridge over it or in the
   underpass under it, can hit them, and they run from it; on the footbridges and the paths under
   them people step apart as if they met (`levels.map-test.ts` lists each crossing by its two ways'
@@ -5771,9 +5781,10 @@ longer lucido:
   `PATH_PASS.grade`), measured from the crossing and from 3.49 m (`REACH` − `STEP`) back toward
   that end. Only Lunigiana's 717088457/717088463, a 1.4 m footway tunnel 0.7 m from its dead end, is
   left out so; the steps 717897184 and 717897185 clear the path 717897178 by 4.0 and 3.9 m.
-  `KNOWN` lists Lunigiana's micro-mapped knots
-  1311831119/1311831121 (0.40 m) and 1311831120/1311862950 (0.30 m), whose approaches lead from the
-  bores' ends 0.7 and 1.5 m away, and the coast's 463589363/326011444.
+  `KNOWN` lists Lunigiana's micro-mapped knot 1311831119/1311831121 (0.40 m), whose approach leads
+  from the bore's end 0.7 m away, and the coast's 463589363/326011444; the knot
+  1311831120/1311862950 (0.30 m) clears 2.5 m since the bounds read the fitted roads' profiles as
+  written (issue #20).
 - **Pieve San Lorenzo's underpass meets the road out of one mouth a step over its floor.** The
   underpass under the station (756577583) lies level at 350.6 m to its mouth at (5040, 3634), where
   the road out of it, 1191727402, starts 0.9 m higher, as that mouth opens
@@ -6157,7 +6168,7 @@ longer lucido:
   its part (#21) brings the rest in with an `OFF_MAP` entry, as Aulla's part brings in its heads.
 - **Micro-mapped knots break the level rule.** Where OSM maps a path's bridge or tunnel too short to
   clear what it crosses from its ends at grade, the two ways stay within 2 m (`levels.map-test.ts`'s
-  `KNOWN`): Lunigiana's [1311831119, 1311831121] and [1311831120, 1311862950]; and the steps'
+  `KNOWN`): Lunigiana's [1311831119, 1311831121]; and the steps'
   bridge 717897184/1065384887 at (−16438, 5072) is `deckEndsShut`'s known one ([Checks and
   tools](#checks-and-tools)).
 - **No licensed photo shows most of the coast.** Regione Liguria's AGEA orthophotos name no
