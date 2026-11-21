@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
 
 import { districtAt, inPlay, MAP } from "../../sim/map/index.ts"
@@ -160,4 +161,14 @@ test("the whole map's names stay inside the room within the margins across, some
       assert.ok(l.box.x0 >= room.x0 && l.box.x1 <= room.x1, `${l.name} at ${width}x${height}`)
     assert.ok(labels.some((l) => l.box.x0 < frame.x0 || l.box.x1 > frame.x1))
   }
+})
+
+test("the full map's canvases take no letter-spacing from the HUD, so Chrome lays the names out as wide as the tests measure them", () => {
+  // Chrome measures and draws a canvas's text with the canvas's CSS letter-spacing; #hud's 0.06em
+  // made each name 0.9 px a letter wider than Courier New's 0.6 em the tests measure (93.0 px for
+  // BASTREMOLI at 14 px, not 84.0), so the game named fewer places than the tests check: at
+  // 1280 × 720 it left out Valeriano, Ceparana and Piano di Valeriano.
+  const css = readFileSync(new URL("../hud.css", import.meta.url), "utf8")
+  const rule = /#hud-map canvas\s*\{([^}]*)\}/.exec(css)?.[1] ?? ""
+  assert.match(rule, /letter-spacing:\s*(0(px|em)?|normal)\s*;/)
 })

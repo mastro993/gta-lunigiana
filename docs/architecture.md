@@ -2394,33 +2394,40 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   Piana Battolla, Piano di Follo, Romito Magra, Ponzano Superiore, Vigneta, Caprigliola, Monti di
   Licciana, Trebiano, Cerri, Baccano, Falcinello, Terrarossa, Ressora, Ceparana, Mezzana, Piano di
   Valeriano, Caniparola, La Serra, Buonviaggio and Vezzano Superiore (`worldmap.map-test.ts` checks
-  both). 16 of the 23 are among the lower Val di Magra's 28 towns and villages (west of x −14 km),
-  whose dots lie in a strip 104 px wide on the phone. Placed as before Sarzana's part (rank by rank,
-  a town's name free to cover a village's dot, four sides each, kept inside the frame, villages 16
-  px), the map with it left out Ponte di Arcola, Valeriano, Ceparana and Vezzano Superiore at
-  1920 × 1080 (260 names), 9 villages at 1280 × 720 (161) and 31 on the phone (37), Gragnola among
-  them. Before Sarzana's part every town and village was named at 1920 × 1080 (222 names) and
-  1280 × 720 (160), and the phone (42) left out Casola in Lunigiana, Casciana, Pieve San Lorenzo,
-  Monti di Licciana, Serricciolo, Terrarossa and Alebbio (before Aulla's part 136, 102 and 31 names,
-  Caniparola left out in place of Aulla's three, and before Fosdinovo's part 102, 68 and 21, the
-  same four left out and Caniparola not on the map). A player in one of them finds it named, and
-  others may go instead: in Casola, Gragnola, Pieve San Lorenzo, Castiglioncello and Alebbio; in
-  Caniparola, Fosdinovo, Sarzana, Guercio and Prati di Vezzano, the player's place going before the
-  towns. Placed by kind, each above its dot or left out, on the map with Fivizzano's part, the names
-  were 52 at 1280 × 720, Castiglioncello, Alebbio and Mezzana left out, and 15 on the phone, 6
-  villages left out, Monzone and Gragnola among them. Placing them takes 4.3–5.6 ms at the median at
-  1280 × 720 in Node, 5.7–7.0 ms at 1920 × 1080 (about 20 ms the first call in a process) and
-  3.2–3.5 ms on the phone (three fresh processes on 2026-11-21 under a load average of 4.8–5.7),
-  where placed as before, each label's free sides counted afresh at every step, the map with
-  Sarzana's part took 57.5–58.2, 104.6–105.6 and 11.7–12.0 ms; `placeGroup` counts them once a group
-  and keeps the counts up to date. It takes more in the browser, which measures the text. The player
-  is a red arrow in a red ring (no label is red), drawn on its own canvas over the map so CSS blinks
-  it (steady under `prefers-reduced-motion`; zoomed away from the player, it is not drawn), with a
-  scale bar and the player's district in the header. It is repainted on open, on resize, when the
-  pixel ratio changes, when the overview arrives while it is open, and at the next frame after a
-  zoom or a pan. The dialog takes focus when it opens, so screen readers announce its title and the
-  district. The data credits (`.credits`) show along its bottom edge; hud.css hides them while the
-  map is closed, so play keeps a clear screen.
+  both), and headless Chrome paints those 285, 192 and 48 names (a hook on `fillText`, 2026-11-21).
+  16 of the 23 are among the lower Val di Magra's 28 towns and villages (west of x −14 km), whose
+  dots lie in a strip 104 px wide on the phone. Chrome measures and draws a canvas's text with the
+  canvas's CSS letter-spacing, so hud.css gives the map's canvases none: with the HUD's 0.06 em each
+  name was 0.9 px a letter wider than the tests measure it, measured and drawn alike (BASTREMOLI at
+  14 px 93.0 px, not 84.0), so the game named fewer places than the tests check: 251 names at
+  1920 × 1080, 144 at 1280 × 720 (10 villages left out) and 37 on the phone before this placement,
+  and with it, still spaced, it left out Valeriano, Ceparana and Piano di Valeriano at 1280 × 720.
+  Placed as before Sarzana's part (rank by rank, a town's name free to
+  cover a village's dot, four sides each, kept inside the frame, villages 16 px), the map with it
+  left out Ponte di Arcola, Valeriano, Ceparana and Vezzano Superiore at 1920 × 1080 (260 names), 9
+  villages at 1280 × 720 (161) and 31 on the phone (37), Gragnola among them. Before Sarzana's part
+  every town and village was named at 1920 × 1080 (222 names) and 1280 × 720 (160), and the phone
+  (42) left out Casola in Lunigiana, Casciana, Pieve San Lorenzo, Monti di Licciana, Serricciolo,
+  Terrarossa and Alebbio (before Aulla's part 136, 102 and 31 names, Caniparola left out in place of
+  Aulla's three, and before Fosdinovo's part 102, 68 and 21, the same four left out and Caniparola
+  not on the map). A player in one of them finds it named, and others may go instead: in Casola,
+  Gragnola, Pieve San Lorenzo, Castiglioncello and Alebbio; in Caniparola, Fosdinovo, Sarzana,
+  Guercio and Prati di Vezzano, the player's place going before the towns. Placed by kind, each
+  above its dot or left out, on the map with Fivizzano's part, the names were 52 at 1280 × 720,
+  Castiglioncello, Alebbio and Mezzana left out, and 15 on the phone, 6 villages left out, Monzone
+  and Gragnola among them. Placing them takes 4.3–5.6 ms at the median at 1280 × 720 in Node,
+  5.7–7.0 ms at 1920 × 1080 (about 20 ms the first call in a process) and 3.2–3.5 ms on the phone
+  (three fresh processes on 2026-11-21 under a load average of 4.8–5.7), where placed as before,
+  each label's free sides counted afresh at every step, the map with Sarzana's part took 57.5–58.2,
+  104.6–105.6 and 11.7–12.0 ms; `placeGroup` counts them once a group and keeps the counts up to
+  date. It takes more in the browser, which measures the text. The player is a red arrow in a red
+  ring (no label is red), drawn on its own canvas over the map so CSS blinks it (steady under
+  `prefers-reduced-motion`; zoomed away from the player, it is not drawn), with a scale bar and the
+  player's district in the header. It is repainted on open, on resize, when the pixel ratio changes,
+  when the overview arrives while it is open, and at the next frame after a zoom or a pan. The
+  dialog takes focus when it opens, so screen readers announce its title and the district. The data
+  credits (`.credits`) show along its bottom edge; hud.css hides them while the map is closed, so
+  play keeps a clear screen.
 - The settings (`src/hud/settings.ts`), in every build: Esc opens and closes them, except that
   Esc closes the full map first while it is open, and does nothing on the title card. In mobile
   mode the pause button (`#hud-pause`, II, top right) opens them, and Resume

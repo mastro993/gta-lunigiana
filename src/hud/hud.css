@@ -200,6 +200,9 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
+  /* Chrome measures and draws a canvas's text with the canvas's CSS letter-spacing: the HUD's 0.06em
+     made each place name 0.9 px a letter wider than the tests measure it, so the map named fewer. */
+  letter-spacing: 0;
 }
 #hud-map .marker {
   animation: blink 1s steps(2, start) infinite;
