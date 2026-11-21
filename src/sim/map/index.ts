@@ -477,7 +477,15 @@ const buildGraph = (): RoadGraph => {
     adjacency[b]!.push(edges.length)
     edges.push({ a, b, road: flat[i + 2]!, length: Math.sqrt(dx * dx + dy * dy) })
   }
-  return { nodes, edges, adjacency, trafficEdges: traffic, walkEdges: walk }
+  // Each node's edges copied to an array of their own length, in push order: one grown by pushes
+  // keeps room for 17 (8-9 MB more of the heap over Lunigiana's 137,905 nodes).
+  return {
+    nodes,
+    edges,
+    adjacency: adjacency.map((incident) => incident.slice()),
+    trafficEdges: traffic,
+    walkEdges: walk,
+  }
 }
 
 /** The road graph, rebuilt from shared OSM nodes at build time. */
