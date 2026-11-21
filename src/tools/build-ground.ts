@@ -2,7 +2,8 @@
 // traces the ground under the decks, the walls there and the parapets on the ground the game reads
 // (issue #113): the terrain's nodes in the whole decimetres the file ships, and the roads and
 // platforms as shipped.
-import { type Ground, type GroundRoad, wholeGround } from "../sim/map/ground-model.ts"
+import type { GroundRoad } from "../sim/map/ground-buckets.ts"
+import { type Ground, wholeGround } from "../sim/map/ground-model.ts"
 import type { PlatformOut } from "./platforms.ts"
 import type { DmGrid, Grid } from "./terrain.ts"
 

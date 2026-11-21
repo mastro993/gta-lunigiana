@@ -7,7 +7,8 @@
  *
  * @module map/ground
  */
-import { type GroundRoad, groundBuckets, groundModel } from "./ground-model.ts"
+import { type GroundRoad, groundBuckets } from "./ground-buckets.ts"
+import { groundModel } from "./ground-model.ts"
 import { MAP } from "./index.ts"
 import { anchorOf, ON_DECK, ROAD_LIFT } from "./kinds.ts"
 import { cellCorners, derived, nodeAt, type Place, placeAt } from "./tiles.ts"

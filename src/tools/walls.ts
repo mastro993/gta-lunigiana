@@ -4,24 +4,29 @@
 // road-exit caps. Flat (ax, ay, bx, by) arrays.
 import { fillPolygon } from "../sim/collide.ts"
 import type { Area, Barrier } from "../sim/map/index.ts"
-import { isDrivable, isWaterArea } from "../sim/map/kinds.ts"
+import { isDrivable, isWaterArea, UNDERPASS } from "../sim/map/kinds.ts"
 import { exitCaps } from "./exit-caps.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
-import { r1, ringBox, segIndex } from "./geometry.ts"
+import { ringBox, segIndex } from "./geometry.ts"
 import { gridTiles } from "./grid-tiles.ts"
-import { ARCH, houseArches, houseWalls } from "./house-walls.ts"
+import { ARCH, houseArches, houseWalls, KERB, type Level, levelled } from "./house-walls.ts"
 import { inPlay, OUTLINE } from "./play-area.ts"
 import { anchorNode, cellSlope, type DmGrid } from "./terrain.ts"
-import { append, boundary, pushOutline, pushPolyline, pushSplit } from "./wall-pieces.ts"
+import {
+  append,
+  boundary,
+  opened,
+  pushOutline,
+  pushPolyline,
+  pushSplit,
+  runs,
+} from "./wall-pieces.ts"
 
 /** The steepest ground (°) a walker climbs off a road: a steeper cell is a `walk` wall. */
 export const WALK_SLOPE = 35
 const DRIVE_SLOPE = 25
 /** Wall simplification tolerance, m; road buffers below are widened by it so walls never reach w/2. */
 const SLACK = 1.5
-
-/** Sample spacing along a barrier when looking for roads through it, m. */
-const OPEN_STEP = 0.25
 
 /**
  * The barriers that stop vehicles alone: a guard rail, which a walker steps over, and a breakwater's
@@ -37,7 +42,8 @@ const DRIVE_ONLY: ReadonlySet<string> = new Set(["guard_rail", "breakwater"])
  * its w/2 as OSM draws it, so it opens only where a drivable road's middle min(w/2, ARCH) reaches
  * it: a track OSM draws leaving its road past the rail's end, which stops 0.7 m short of the
  * track's centreline; so does a breakwater's outline, which a path onto it leaves walled for
- * vehicles. Tunnels open nothing (a bridge's parapets do open where the road runs on into one:
+ * vehicles. Tunnels open nothing here: a bore opens them only at its level, as `barrierWalls`
+ * reads the ground they stand on (a bridge's parapets do open where the road runs on into one:
  * parapets.ts).
  */
 export const openBarriers = (
@@ -56,41 +62,88 @@ export const openBarriers = (
   return barriers.flatMap((b) => opened([b], DRIVE_ONLY.has(b.kind) ? lane : way))
 }
 
-/** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` says. */
-export const opened = (
-  barriers: ReadonlyArray<Barrier>,
-  open: (x: number, y: number) => boolean,
-): Array<Barrier> =>
-  barriers.flatMap((b) => {
-    const out: Array<Barrier> = []
-    let cur: Array<number> = [],
-      last: readonly [number, number] | undefined
-    const push = (x: number, y: number) => {
-      if (cur.length === 0 || cur.at(-2) !== x || cur.at(-1) !== y) cur.push(x, y)
-    }
-    for (let i = 0; i + 3 < b.pts.length; i += 2) {
-      const ax = b.pts[i]!,
-        ay = b.pts[i + 1]!,
-        bx = b.pts[i + 2]!,
-        by = b.pts[i + 3]!
-      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / OPEN_STEP))
-      for (let k = i === 0 ? 0 : 1; k <= n; k++) {
-        const x = r1(ax + ((bx - ax) * k) / n),
-          y = r1(ay + ((by - ay) * k) / n)
-        if (open(x, y)) {
-          if (last !== undefined) push(...last)
-          if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
-          cur = []
-          last = undefined
-        } else if (k === n || cur.length === 0) {
-          push(x, y)
-          last = undefined
-        } else last = [x, y]
+/**
+ * A road tunnel's bore as the barriers meet it: its road's index in the map's roads, the half-width
+ * of its carriageway and of the middle a vehicle keeps to (min(w/2, ARCH), 0 on a way no vehicle
+ * drives), m, and its clear height, m (its `maxheight`, else UNDERPASS).
+ */
+interface Bore {
+  readonly road: number
+  readonly half: number
+  readonly lane: number
+  readonly clear: number
+}
+
+/** The road tunnels' bores (no building passage) of `roads`, each segment reaching its carriageway and a KERB either side, where its traffic goes. */
+export const boresOf = (roads: ReadonlyArray<RoadF>) => {
+  const bores = segIndex<Bore>()
+  roads.forEach((r, road) => {
+    if (r.tunnel === true && r.passage !== true)
+      bores.addLine(r.pts, r.w / 2 + KERB, {
+        road,
+        half: r.w / 2,
+        lane: isDrivable(r.cls) ? Math.min(r.w / 2, ARCH) : 0,
+        clear: r.maxheight ?? UNDERPASS,
+      })
+  })
+  return bores
+}
+
+/**
+ * Barrier `barrier`'s walls, flat (ax, ay, bx, by) in pieces of at most 16 m, and each one's level,
+ * m a.s.l. (NaN for one that stands at every level), as the road tunnels' `bores` meet it: where a
+ * bore passes at the level of the `terrain` the barrier stands on (under the bore's clear height over
+ * its road, `level`), it opens the barrier as a road at grade does (`openBarriers`: a wall or a cliff
+ * over its w/2, a guard rail or a breakwater over its middle min(w/2, ARCH) on a drivable way only);
+ * where one passes the clear height or more under that terrain, the barrier within its carriageway
+ * and a KERB, where its traffic goes, takes the terrain's level along it (`levelled`), as a house's
+ * walls over a bore deep under it do (`houseWalls`), so it stops anyone on the ground there and
+ * nothing in the bore; the rest stands at every level. Walled at every level, the jersey barrier
+ * 887066016 between the underpasses of Via Alcide De Gasperi and the container terminal's service
+ * road at (−17097, −1238) stopped the traffic in the unclassified road's bore 1352409570 5.3 m
+ * under it, and the concrete wall 887046364, drawn from 2.4 m inside that bore's north mouth on its
+ * floor up the cutting, stood 0.95 m off its centreline. Opened over the bore's middle 1.2 m alone,
+ * that wall's end stood 1.37 m off it, in the northbound lane; levelled along its whole 16 m piece
+ * over the bore, the jersey barrier took the railway embankment's 18.1 m 10.6 m off the bore, over
+ * the underpass roads at 16.0 and 16.3 m beside it.
+ */
+export const barrierWalls = (
+  barrier: Barrier,
+  bores: ReturnType<typeof boresOf>,
+  level: Level,
+  terrain: (x: number, y: number) => number,
+): { readonly walls: Array<number>; readonly levels: Array<number> } => {
+  const driveOnly = DRIVE_ONLY.has(barrier.kind)
+  /** -1 where a bore on the barrier's level opens it at (x, y), 1 where one passes deep under it, else 0. */
+  const classOf = (x: number, y: number): number => {
+    let open = false,
+      deep = false,
+      ground = Number.NaN
+    bores.within(x, y, ({ data }, d2) => {
+      if (Number.isNaN(ground)) ground = terrain(x, y)
+      const opens = driveOnly ? data.lane : data.half
+      if (ground - level(data.road, x, y) >= data.clear) deep = true
+      else if (d2 < opens * opens) open = true
+    })
+    return open ? -1 : deep ? 1 : 0
+  }
+  const walls: Array<number> = [],
+    levels: Array<number> = []
+  for (const { cls, pts } of runs(barrier.pts, classOf)) {
+    const pieces: Array<number> = []
+    pushPolyline(pieces, pts, false)
+    for (let w = 0; w < pieces.length; w += 4) {
+      const [ax, ay, bx, by] = [pieces[w]!, pieces[w + 1]!, pieces[w + 2]!, pieces[w + 3]!]
+      for (const [px, py, qx, qy, z] of cls === 1
+        ? levelled(ax, ay, bx, by, terrain)
+        : [[ax, ay, bx, by, Number.NaN] as const]) {
+        walls.push(px, py, qx, qy)
+        levels.push(z)
       }
     }
-    if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
-    return out
-  })
+  }
+  return { walls, levels }
+}
 
 interface Walls {
   /** What stops anyone on foot: buildings, steep ground, barriers, the play area's outline. */
@@ -103,7 +156,7 @@ interface Walls {
   readonly driveShore: Array<number>
   /**
    * Each walk and drive wall's level, m a.s.l.: a parapet's is its deck's top, a wall under a deck's
-   * and a house's over a bore deep under it the ground's there, and it stops only a body whose
+   * and a house's or a barrier's over a bore deep under it the ground's there, and it stops only a body whose
    * ground stands within ONE_LEVEL of it; NaN for every other wall, which stops anyone.
    */
   readonly levels: { readonly walk: Array<number>; readonly drive: Array<number> }
@@ -294,9 +347,21 @@ export const buildWalls = (
       append(out, walls)
     }
   })
+  // The barriers' walls, and the levels of those over a bore deep under them.
+  const bores = boresOf(roads)
   for (const b of barriers) {
-    if (!DRIVE_ONLY.has(b.kind)) pushPolyline(walk, b.pts, false)
-    pushPolyline(drive, b.pts, false)
+    const { walls, levels } = barrierWalls(b, bores, heights.level, heights.terrain)
+    for (const [out, by] of DRIVE_ONLY.has(b.kind)
+      ? ([[drive, driveLevels]] as const)
+      : ([
+          [walk, walkLevels],
+          [drive, driveLevels],
+        ] as const)) {
+      levels.forEach((z, w) => {
+        if (!Number.isNaN(z)) by.set(out.length / 4 + w, z)
+      })
+      append(out, walls)
+    }
   }
   const first = drive.length / 4
   append(drive, parapets.walls)

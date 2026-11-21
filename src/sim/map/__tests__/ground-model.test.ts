@@ -5,8 +5,8 @@ import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
 import { FLAT_GROUND } from "../../sky/local.ts"
-import { groundBuckets } from "../ground-model.ts"
-import { ON_DECK } from "../kinds.ts"
+import { type GroundRoad, groundBuckets } from "../ground-buckets.ts"
+import { ON_DECK, ROAD_LIFT } from "../kinds.ts"
 import { LIFT, road, scene } from "./ground-scenes.ts"
 
 // The ground model's rules on hand-made scenes, with no map loaded: ground.test.ts and
@@ -104,6 +104,84 @@ test("a road at grade meeting a deck's end reaches no farther under the deck: pa
     turn = scene({ roads: [side, deck] })
   assert.equal(turn.atGrade(2, 1), 100, "under the deck")
   assert.equal(turn.atGrade(-2, 1), 106 + LIFT, "beside the deck's end")
+})
+
+// Regression (#20): the A15's toll plaza 520616095 (lanes=6, 24 m) starts where the two-lane
+// 287552094 (10 m) ends, and its round end reached 12.3 m back round that joint, over the ramp of the
+// service road 100468086 climbing beside it to its bridge over the plaza at (−18205, −1690): the
+// ground there blended the ramp with the plaza 2.4 m under it, and a car on the ramp drove under its
+// own bridge.
+test("past a joint in line with a narrower road at grade, a road's surface reaches behind it no farther than the narrower one's: a widening starts at its joint", () => {
+  // A road 10 m wide along y = 0 to x = 0, and on from there one 24 m wide, over terrain at 99 m.
+  const narrow = road({ w: 10, from: [-50, 0], to: [0, 0], z: [100, 100] }),
+    wide = road({ w: 24, from: [0, 0], to: [50, 0], z: [100, 100] })
+  const { atGrade, drawnZ } = scene({ terrain: () => 99, roads: [narrow, wide] })
+  const road100 = (z: number) => Math.abs(z - (100 + LIFT)) < 1e-9
+  assert.equal(atGrade(-2, 10), 99, "behind the joint beside the narrow road: the terrain")
+  assert.equal(drawnZ(-2, 10, 99), 99, "and no ribbon drawn there")
+  assert.ok(road100(atGrade(2, 10)), "ahead of it, the wide road's carriageway")
+  assert.ok(road100(atGrade(-2, 4)), "within the narrow road's: both")
+  // Its first segment 1.7 m long, shorter than the halves' difference (7 m), the next one's round
+  // end reaches no farther behind the joint either (205932305, 12 m wide, at (−14524.5, −4924.6)).
+  const kinked = { ...wide, pts: [0, 0, 1.7, 0, 50, 0], z: [100, 100, 100] }
+  assert.equal(scene({ terrain: () => 99, roads: [narrow, kinked] }).atGrade(-2, 10), 99, "kinked")
+  // Where it keeps its round end: a third road ending there or running on through it (a junction),
+  // the narrower one a bridge's deck, or a turn of 30° or more (its round end fills the corner's outside).
+  const keeps = (roads: ReadonlyArray<Omit<GroundRoad, "index">>, why: string) =>
+    assert.ok(road100(scene({ terrain: () => 99, roads }).atGrade(-2, 10)), why)
+  keeps([narrow, wide, road({ w: 4, from: [0, 0], to: [0, -40], z: [100, 100] })], "a junction")
+  keeps(
+    [
+      narrow,
+      wide,
+      {
+        ...road({ w: 4, from: [-30, -40], to: [30, -40], z: [100, 100] }),
+        pts: [-30, -40, 0, 0, 30, -40],
+        z: [100, 100, 100],
+      },
+    ],
+    "a road through the joint",
+  )
+  keeps([{ ...narrow, bridge: true }, wide], "a deck's end")
+  keeps([road({ w: 10, from: [-40.96, -28.68], to: [0, 0], z: [100, 100] }), wide], "a turn of 35°")
+  assert.equal(
+    scene({
+      terrain: () => 99,
+      roads: [road({ w: 10, from: [-49.2, -8.7], to: [0, 0], z: [100, 100] }), wide],
+    }).atGrade(-2, 10),
+    99,
+    "a turn of 10°: in line",
+  )
+})
+
+// Regression (#20): the SS1's viaduct forks at (−15552, −6175) into its own deck 86257908, climbing
+// 8.3%, and the flat tertiary 23277539, their carriageways overlapping for 11 m: a car's wheels and
+// a walker on the SS1 kept to the flatter deck, the one nearer the level they had, 0.4–0.6 m under
+// the SS1's.
+test("decks within ON_DECK of the last level blend where they overlap, by how deep inside each the point is: at a fork each keeps to its own", () => {
+  // Coming in along y = 0 on a deck at 100 m to x = 0, the SS1 on from there climbing 8%, 12 m
+  // wide, and a deck 6.5 m wide forking off it flat, 18° off its line.
+  const lift = ROAD_LIFT.primary
+  const { rolledTo, groundZ } = scene({
+    terrain: () => 90,
+    roads: [
+      road({ cls: "primary", w: 12, from: [-50, 0], to: [0, 0], z: [100, 100], bridge: true }),
+      road({ cls: "primary", w: 12, from: [0, 0], to: [100, 0], z: [100, 108], bridge: true }),
+      road({ cls: "primary", w: 6.5, from: [0, 0], to: [95, -31], z: [100, 100], bridge: true }),
+    ],
+  })
+  for (const x of [2, 4, 6, 8, 10]) {
+    const wheel = rolledTo(-10, 0, 100 + lift, x, 0),
+      foot = rolledTo(-10, 0, 100 + lift, x, 0, (px, py, near) => groundZ(px, py, near, true))
+    for (const [who, z] of [
+      ["the wheel", wheel],
+      ["the walker", foot],
+    ] as const)
+      assert.ok(
+        Math.abs(z - (100 + 0.08 * x + lift)) < 0.25,
+        `${who} at x ${x}: ${z.toFixed(2)} on the SS1's ${(100 + 0.08 * x + lift).toFixed(2)}`,
+      )
+  }
 })
 
 test("a platform's top along its axis is the ground on it, unless the terrain stands higher", () => {

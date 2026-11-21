@@ -17,7 +17,7 @@ const TRACE_TOL = 0.15
 /** Smallest piece of a clipped footprint kept, m². */
 const MIN_PIECE = 4
 /** The kerb either side of a bore's carriageway, m, as its walls are drawn (`boreOf` in src/render/bores.ts). */
-const KERB = 1
+export const KERB = 1
 /**
  * The most the ground along a house's wall with a level spans, m: a wall meets the grounds within
  * ONE_LEVEL of its level, half a metre in from either end of that (`SPAN` in deck-walls.ts).
@@ -97,7 +97,7 @@ const corridors = (roads: ReadonlyArray<RoadF>, keep: (r: RoadF) => boolean, bor
 export type Arches = ReturnType<typeof corridors>
 
 /** Road `road`'s level at its point nearest (x, y), m a.s.l. (`levelOn` in build-ground.ts). */
-type Level = (road: number, x: number, y: number) => number
+export type Level = (road: number, x: number, y: number) => number
 
 /**
  * `arches` split as building `b`, its floor at `floor` m a.s.l., meets them: `at` its level, which
@@ -245,7 +245,7 @@ export const houseArches = (roads: ReadonlyArray<RoadF>): Arches =>
  * Wall a-b split where the `terrain` along it spans SPAN or more, each piece with the level midway
  * through the ground along it: anyone on that ground meets it, within ONE_LEVEL of its level.
  */
-const levelled = (
+export const levelled = (
   ax: number,
   ay: number,
   bx: number,

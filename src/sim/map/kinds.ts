@@ -174,9 +174,10 @@ export const DECK_SLAB = { depth: 0.9, margin: 0.4 } as const
 export const DECK_BALLAST = { width: 3.2, lift: 0.04 } as const
 
 /**
- * A bridge deck or tunnel within this height (m) of where an actor was is the one it is on
- * (`groundZ` in `./ground-model.ts`). The map build reads it too: the walls under the decks stand
- * farther than ONE_LEVEL and this under a deck's top (src/tools/deck-walls.ts).
+ * A bridge deck or tunnel within this height (m) of where an actor was holds it: it stands on that
+ * one, or where several are (a fork, two spans' joint) on their blend (`groundZ` in
+ * `./ground-model.ts`). The map build reads it too: the walls under the decks stand farther than
+ * ONE_LEVEL and this under a deck's top (src/tools/deck-walls.ts).
  */
 export const ON_DECK = 0.5
 

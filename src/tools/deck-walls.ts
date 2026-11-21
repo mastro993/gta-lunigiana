@@ -49,8 +49,8 @@ import type { RoadF } from "./features.ts"
 import { grownBox, nearBoxes, r1, ringBox, segIndex } from "./geometry.ts"
 import { simplifyLoop, traceContours } from "./loops.ts"
 import { PARAPET } from "./parapets.ts"
-import { pushPolyline } from "./wall-pieces.ts"
-import { type Levelled, opened } from "./walls.ts"
+import { opened, pushPolyline } from "./wall-pieces.ts"
+import type { Levelled } from "./walls.ts"
 
 /** How far an outline may stray from its simplified wall, m. */
 const TOL = 0.1

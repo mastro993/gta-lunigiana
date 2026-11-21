@@ -1,7 +1,8 @@
 // Hand-made scenes for the ground model's tests: terrain from a function on a 4 m lattice anchored
 // at the origin, and roads and platforms laid out in a few lines, read through `wholeGround` with no
 // map loaded.
-import { type GroundPlatform, type GroundRoad, wholeGround } from "../ground-model.ts"
+import type { GroundRoad } from "../ground-buckets.ts"
+import { type GroundPlatform, wholeGround } from "../ground-model.ts"
 import { ROAD_LIFT, type RoadClass } from "../kinds.ts"
 
 /** A road from (ax, ay) to (bx, by), `w` m wide, its profile `za` to `zb` m a.s.l. */

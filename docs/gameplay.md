@@ -1749,6 +1749,36 @@ what people and animals run from ([Reactions](#reactions), [Animals](#animals)) 
   walker kept to its footing strayed 0.5 m or more from the deck (`ground.map-test.ts` in
   `src/render`, which since issue #19 sets out along the road leading onto the bridge, no turn of
   30° or more, straight on where none leads on in line, on that road's level).
+- **At a fork and at a widening.** Where several decks are within `ON_DECK` of the level a body
+  was on (one viaduct forking in two, the joint of two spans), their surfaces blend, each weighted
+  by the square of how far inside its reach the body stands, as a share of that reach, and by how
+  much nearer than `ON_DECK` it stands, so it keeps to the deck it is on (`groundZ` in
+  `ground-model.ts`). The deck nearest its last level alone kept a car on the SS1's deck 86257908,
+  climbing 8.3% from its fork with the flat tertiary 23277539 by Sarzana (−15552, −6175), up to
+  0.48 m under it, and a walker 0.93 m (`ground.map-test.ts` failed there); now 0.10 and 0.13 m,
+  and on the tertiary 0.11 and 0.07 m (0.02 and 0.03 before). Weighted by the depth in metres,
+  the SS1's 12 m carriageway drew a car on the tertiary 0.5 m over its deck. And where a road at
+  grade goes on in line (a turn under 30°) from a narrower one, no third road ending at the joint
+  or running on through it, the wider reaches behind the joint no farther than the narrower one,
+  along every segment of it within its half-width of the joint (`behind` in `ground-buckets.ts`):
+  the A15's toll plaza 520616095, 24 m wide on OSM's `lanes=6` from its first vertex on, reached
+  12.3 m back round its joint with the 10 m 287552094, over the ramp of the service road 100468086
+  climbing beside it to its bridge 100468174 over the plaza (−18206, −1691), and the ground blended
+  the ramp with the plaza 1–2.4 m under it: a car on the ramp stood 2.68 m and a walker 5.6 m under
+  the bridge's deck, and a driver read a car on the bridge off its level (`joints.map-test.ts`);
+  now both cross on the deck. The rule cuts 1,041 joints on Lunigiana and 83 on Cesena, of the
+  1,393 and 129 where two roads at grade of two widths meet end to end with no third; at a turn of
+  30° or more (352 and 46; 240 and 29 of 45° or more) the wider one's round end still fills the
+  corner's outside, where a widening's start is no reason to cut it. Cut
+  round its first segment's end alone, the wider kept the next segment's round end reaching behind
+  the joint where its first was shorter than the two halves' difference (11 joints on Lunigiana:
+  205932305, 12 m wide, at (−14524.5, −4924.6) after 1.7 m). The walls under the decks are traced on
+  this ground, so the fork's and the joint's rules put 11 walk and 19 drive walls for 8 and 16 at
+  the ends of decks at three places on Lunigiana (the SS1's fork, 368233634 at (−16850, −700) and
+  26498548 at (−14050, −5800)), and 1 drive wall for 2 at the end of Cesena's bridge 23775227 at
+  (−276, 545), a few centimetres apart: there the residential 23047267's last 12.7 m, from
+  (−270.2, 531.3) to its dead end 7.2 m short of the deck's end, joins the traffic graph, a lane
+  for each vehicle (`pnpm map-diff`, 2026-11-21).
 - **Onto a deck at the verge (a limit).** A body comes onto a deck only where its footing at the
   deck's end stands within 0.5 m of it (`ON_DECK`, `src/sim/map/ground-model.ts`). Where a road comes
   onto its bridge on an embankment, the walkers' verge beside it lies on the terrain, lower, so a

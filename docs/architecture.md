@@ -495,12 +495,17 @@ walk, sorts it first:
   at-grade roads `ROAD_LIFT` above their profile (blended where several overlap, so a junction's
   ground stays continuous where their profiles disagree; a road at grade meeting a deck's end stops
   there under the deck, inside the width of any deck segment, and keeps its rounded end beside it,
-  as the track 173044034 does at its 78° joint with the bridge 697036175: `underCut`), and bridge
-  decks
+  as the track 173044034 does at its 78° joint with the bridge 697036175: `underCut`; where a road
+  at grade goes on in line (a turn under 30°) from a narrower one, no third road at the joint, it
+  reaches behind the joint no farther than the narrower one, `behind`, so a widening starts at its
+  joint; both in `src/sim/map/ground-buckets.ts`, which builds the road segments the model reads),
+  and bridge decks
   and tunnels kept to the level nearest the caller's previous height (with `verges`, a deck or a
   tunnel reaching out to its walkers' verges alongside it, and past its ends no farther along it
   than a wheel's reach, so the verges at a span's end hold no walker on its level over the next
-  span rising from there). `footZ` is where someone on
+  span rising from there; where several are within `ON_DECK` of that height, a fork or the joint of
+  two spans, they blend, each weighted by the square of how far inside its reach the point lies, as
+  a share of that reach, and by how much nearer than `ON_DECK` it stands). `footZ` is where someone on
   foot stands: given their previous height, the ground nearest it with the decks out to their verges
   (what `FindFooting` keeps in `Footing`, through `settleFooting`, and where getting out of a train
   steps down, nearest the rail head); with none to go by, on a road bridge's deck or in a road
