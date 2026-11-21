@@ -407,12 +407,17 @@ test("walls: none on a road; only buildings and barriers come inside w/2", () =>
   assert.ok(WHOLE.walls.walk.length > 0 && WHOLE.walls.drive.length > 0)
   const near = (x: number, y: number, ring: ReadonlyArray<number>, d: number) =>
     inRing(x, y, ring) || segsOf(ring, true).some((s) => segmentDistance(s, x, y) < d)
+  // A barrier's walls are its edges cut into pieces of at most 16 m, each end rounded to 0.1 m
+  // (`pushSplit` in wall-pieces.ts): up to 0.071 m off the barrier's line. At 0.05 m a guard rail
+  // along the deck of the Ponte "Magra" (1512164527), opened 1.2 m each side of the track 121716422
+  // under it, read as a terrain wall on the track at (−19137.7, −213.4) (issue #20).
+  const BARRIER_TOL = 0.075
   const buildings = bucketed(WHOLE.buildings, (b) => b.outer, 0.35),
-    barriers = bucketed(WHOLE.barriers, (b) => b.pts, 0.05)
+    barriers = bucketed(WHOLE.barriers, (b) => b.pts, BARRIER_TOL)
   const fixed = (s: Segment) => {
     const on = (x: number, y: number) =>
       buildings(x, y).some((b) => near(x, y, b.outer, 0.35)) ||
-      barriers(x, y).some((b) => segsOf(b.pts).some((q) => segmentDistance(q, x, y) < 0.05))
+      barriers(x, y).some((b) => segsOf(b.pts).some((q) => segmentDistance(q, x, y) < BARRIER_TOL))
     return on(s.ax, s.ay) && on(s.bx, s.by)
   }
   WHOLE.roads.forEach((r, i) => {
