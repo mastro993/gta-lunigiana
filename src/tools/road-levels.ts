@@ -329,9 +329,12 @@ export const roadLevels = ({ roads, ground, fitted, zAt }: LevelsInput) => {
       if (has(down)) {
         // Any way dips under a fitted one above it; a tunnel also under the natural level of a later
         // pass's road or of a path at grade (a bridge in a later pass rises over the way instead):
-        // the aisles of Aulla's covered car park (maxheight 2.1 m) ran 0.4–2.1 m under its footways.
+        // the aisles of Aulla's covered car park (maxheight 2.1 m) ran 0.4–2.1 m under its footways;
+        // and of a road at grade of its own pass fitted after it, which never rises over it: the
+        // A15's slip road 1364364906, fitted before the A12's 23487716 over it, stood 0.36 m over it.
         if (fitted(up)) return across(down, c.sb, up, (at) => zAt(up, at) - clear, "max")
-        if (down.tunnel !== true || !later(up, down) || pathDeck(up)) return []
+        const after = later(up, down) || (!lifted(up) && passOf(up) === passOf(down))
+        if (down.tunnel !== true || !after || pathDeck(up)) return []
         const above = naturalAt(ground, up, c.sa) - SLACK
         return across(down, c.sb, up, () => above - clear, "max")
       }

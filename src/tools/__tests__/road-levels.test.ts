@@ -107,10 +107,12 @@ test("roadLevels: a road under a bridge keeps maxheight (4 m untagged) plus a 1.
   assert.deepEqual(zs(make([motorway]).bounds([{ item: under }])), ["max 104.5"])
   assert.deepEqual(zs(make([motorway]).bounds([{ item: tagged }])), ["max 105.3"])
   // ...but a road at grade never rises over a tunnel, and one pass fits the square and its ramp
-  // in either order: the ramp dips under the square only once the square is fitted.
+  // in either order: fitted first, the ramp dips under the square's natural level, as under a later
+  // pass's road (issue #20: fitted first and bound by nothing, the A15's slip road 1364364906 stood
+  // 0.36 m over the A12's 23487716 at grade over it), and fitted after it under its level.
   assert.deepEqual(make([trunk]).bounds([{ item: street }]), [])
   assert.deepEqual(make([ramp]).bounds([{ item: square }]), [])
-  assert.deepEqual(make([]).bounds([{ item: ramp }]), [])
+  assert.deepEqual(zs(make([]).bounds([{ item: ramp }])), ["max 94.2"])
   assert.deepEqual(zs(make([square]).bounds([{ item: ramp }])), ["max 104.5"])
 })
 

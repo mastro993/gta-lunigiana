@@ -217,10 +217,11 @@ const shortfalls = (
 
 /**
  * Crossings a region's build keeps too low, by the OSM ids of the way above and the one below
- * (docs/map.md, "Known data limitations"): Cesena's car park ramp its square's pass leaves at the
- * square's level; the coast test region's Via Bassagrande's bridge over the Fossa Maestra, 1.93 m
- * over the path along its bank. Each must still fall short, so a fix drops it from here. Cesena's
- * footbridges over Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its
+ * (docs/map.md, "Known data limitations"): the coast test region's Via Bassagrande's bridge over
+ * the Fossa Maestra, 1.93 m over the path along its bank. Each must still fall short, so a fix drops
+ * it from here: Cesena's car park ramp 68296970, which its square's pass left at the square's level,
+ * dips under it since a tunnel takes its bound from a road at grade of its own pass (issue #20).
+ * Cesena's footbridges over Viale Europa, Via Riccione, the paths beside them and the Ippodromo's, and its
  * pedestrian underpass under Via Giuseppe Di Vittorio, and the coast's foot and cycle bridge over
  * the A12 at Luni and its footway under Via Palmiro Togliatti, ran straight between their ends at
  * the terrain's level until the paths' and steps' decks were fitted (PATH_PASS); Cesena's 5.5 m
@@ -232,7 +233,7 @@ const shortfalls = (
  * their level.
  */
 const KNOWN: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
-  cesena: [[55016697, 68296970]],
+  cesena: [],
   lunigiana: [
     [1311831119, 1311831121],
     [1311831120, 1311862950],

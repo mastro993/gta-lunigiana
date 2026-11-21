@@ -2517,10 +2517,15 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   shared nodes by earlier chains, and the rail's, the overpasses' and the junctions' bounds. The fit
   is the midpoint of the two grade envelopes, so cut and fill split evenly. A bound the fit breaks
   (a road under its minimum, or over its maximum) is pinned and the fit redone, the pin held
-  within the grade of the pins beside it (`heldPins` in `terrain.ts`): a minimum raised to the
-  reach down from them, a maximum lowered to the reach up, so two bounds broken side by side are met
-  within the grade, not in a step. Pinned each at its own level (issue #20), the A12's Livorno
-  carriageway left its Vara bridge (60208802) at its end's 29.56 m, 5.5 m over the road under it,
+  within the grade of the broken bounds beside it with no other pin between (`heldPins` in
+  `terrain.ts`): a minimum raised to the reach down from them, a maximum lowered to the reach up, so
+  two bounds broken side by side are met within the grade, not in a step; but never past the reach
+  of a pin that is no bound (a junction's, a chain's end's), whose level is set. Raised past it, a
+  bound of the SS330's ramp 1388645825 at Albiano, its twin's 34.25 m 5.7 m from a junction pinned
+  at 33.52 m, took the reach down from its twin's 40.16 m 11.9 m on, 38.37 m, and left the
+  junction's 5.6 m link 1250443404 climbing 87%. Pinned each at its own level (issue #20), the
+  A12's Livorno carriageway left its Vara bridge (60208802) at its end's 29.56 m, 5.5 m over the
+  road under it,
   and fell to 28.06 m 4.2 m on, its twin's level less 1.5 m (`TWINS`): 36%, and 24% over 8 m; the
   A15's 86257880 fell 2.9 m in 4 m off its deck onto 130432284, and the A12 at (−14607, −6387)
   7.25% over 100 m off its deck 23339993. They now leave their decks at 6%. On Sarzana's part it
@@ -2711,15 +2716,17 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   Castelpoggio, Caniparola, Ponzanello, Canova and Ceserano): 13 under houses and 15 under too low a
   bank, so it adds no portal or head wall. Cesena has 76 mouths (70184534's end where 70184520 runs
   on through the bore is a junction, no mouth), 6 with a portal (the Secante's four and Via del
-  Tunnel's two), 3 with a head wall (Via Spadolini's two, beside its cycle path's own tunnel, and
-  the Sottopasso Cervese's east mouth at (757.4, 622.3), buried before its approach cut it), 67
+  Tunnel's two), 4 with a head wall (Via Spadolini's two, beside its cycle path's own tunnel, the
+  Sottopasso Cervese's east mouth at (757.4, 622.3), buried before its approach cut it, and the car
+  park ramp 68296970's north mouth at (594.1, 599.6), at its square's level before issue #20), 66
   open: 2 buried (the Sottopasso del Mare's at (1932.9, 46.5) and the Sottopasso Ravennate's south
   at (−15.8, 878.2), whose ends under the rail keep its clearance, 5.2 and 5.9 m under the roads
-  meeting them; issue #127), 46 under houses (the centre's arcades and covered ways), 15 under too
+  meeting them; issue #127), 46 under houses (the centre's arcades and covered ways), 14 under too
   low a bank (the Sottopasso Cervese's west mouth and the Sottopasso Ravennate's north among them,
   their ends risen to the ground their approaches lead on over) and 4 for want of room (the cycle
   path's 2, and the path 43076054's two under the station, cut by their approaches to 0.4 and 1.0 m
-  under the ground, where a portal's face would stand on another path); 18,377 wall triangles. The L
+  under the ground, where a portal's face would stand on another path); 18,525 wall triangles
+  (18,365 before the ramp dipped). The L
   has 12, 3 with a portal, 9 open (1 under a house), 654 wall triangles (Equi Terme's footway
   underpass 1133296350 now rises to its approach 1306844336 at 264.2 m). A part's road tunnels need
   nothing more: the build finds and bakes their mouths in any region, and
@@ -2791,15 +2798,24 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   rail does over a tagged underpass: a junction pinned under a Cesena slip road's bridge held a
   service road 1.6 m under its deck (0.18 m over its natural level, which without the 0.3 m left it
   5.32 m), and the Secante's tunnels ran 2.8 m under Cesena's streets. A road at grade never rises
-  over a tunnel: a car park's ramp under a Cesena square lifted the square 5.6 m. One chain that
+  over a tunnel: a car park's ramp under a Cesena square lifted the square 5.6 m. So a tunnel
+  fitted before a road at grade of its own pass over it takes the bound from that road's natural
+  level too (issue #20): bound by nothing, the A15's slip road 1364364906 at (−18155, −1218),
+  fitted before the A12's slip road 23487716 over it, stood 0.36 m over it, and Cesena's car park
+  ramp 68296970 at its square's level, 0.24 m over Via Piazzale Sanguinetti at (586, 579); the ramp
+  now runs 29.3–29.4 m, 5.9 m under the street, its south mouth under a head wall. One chain that
   crosses itself (the SR445's loop at Gassano, built in 2017, runs under its own bridge 13.6 m from
   where it leaves it) takes both bounds from one natural level, as one fit sets both roads: the road
   below stays at most 0.3 m over its own, and a bridge keeps the clearance over that (over its own
   tunnel, a road at grade stays at least 0.3 m under its natural level, and the tunnel the clearance
   under that). The bridge stood 0.85 m over the loop; it now stands 5.86 m over it, its deck 5 m
   higher (143.0 m falling to 139.2), and the loop leaves it there and falls round to pass under it
-  at the ground. Each bound holds on its own road's samples (`on` in `profiles.ts`): where a chain
-  crosses itself, the chain's nearest sample may lie on the other level, and the bridge's bound
+  at the ground. A bound from a road fitted before reads its level on its profile as written, the
+  bends between its vertices kept (`zAt` in `profiles.ts`, issue #20): read on the chord between its
+  OSM vertices, the A12's 420870862, three of them over 1.4 km, stood 17.6 m over the track's tunnel
+  205932308 at (−16017, −3846), where its fit dips to 11.3 m, and the tunnel, bound 5.5 m under the
+  chord, ran 0.90 m under it. Each bound holds on its own road's samples (`on` in `profiles.ts`):
+  where a chain crosses itself, the chain's nearest sample may lie on the other level, and the bridge's bound
   lifted the loop to it. And it holds at the profile samples on both sides of the crossing (2 m
   either way), as one at the nearest sample left 0.1–0.2 m short between samples. Inside a bridge
   or tunnel it holds at both ends along the deck's slope (`tilt` in `profiles.ts`), so a climbing
@@ -2809,10 +2825,9 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   Sopra in its tunnel under the tertiary 1001748732 at (−1661, 3550), from 5.27 to 5.57 m. In Cesena
   the least clearance under a road bridge went from 1.25 m to 5.50 m (3.92 m under the Ponte Europa
   Unita, over a road tagged `maxheight` 2.4), and the Secante's tunnels run 5.41 m or more under its
-  streets. Both maps' checks (`map.map-test.ts`, `cesena.map-test.ts`) read every road bridge. Two
-  Cesena tunnels keep less: the car park ramp 68296970 (a service road in its square's pass, which
-  no pass before it bounds) stays at the square's level, and Via Giovanni Spadolini's 166880964 runs
-  5.1 m under two service roads, its ends pinned by junctions. A bound holds across the other
+  streets. Both maps' checks (`map.map-test.ts`, `cesena.map-test.ts`) read every road bridge. One
+  Cesena tunnel keeps less: Via Giovanni Spadolini's 166880964 runs 5.1 m under two service roads,
+  its ends pinned by junctions. A bound holds across the other
   road's carriageway, not only on its centreline: every 2 m while within the other road's w/2 of
   its centreline and 2 m past, from its level beside each point; a bound at a deck's end holds
   there alone.
@@ -5725,8 +5740,8 @@ longer lucido:
   dell'Ippodromo 23775268 2.27 m over the path under it at (−683, 1001); the path bridge 683510421
   even lies 0.72 m under the Sottopasso Cervese, the path it crosses at (763, 629). The pedestrian
   underpass 69488617 runs 0.68 m under Via Giuseppe Di Vittorio at (−1243, 440), and the car park
-  ramp 68296970 stays at its square's level, 0.24 m over Via Piazzale Sanguinetti at (586, 579).
-  Within 2 m the level rule takes the two ways for one level: from the footbridges over Via
+  ramp 68296970 stayed at its square's level, 0.24 m over Via Piazzale Sanguinetti at (586, 579),
+  until a tunnel took its bound from a road at grade of its own pass over it (issue #20). Within 2 m the level rule takes the two ways for one level: from the footbridges over Via
   Riccione, or the underpass under Via Giuseppe Di Vittorio, a person can get into a car on the road
   under or over them, and a car on the road brakes for someone on the footbridge over it or in the
   underpass under it, can hit them, and they run from it; on the footbridges and the paths under
@@ -5738,7 +5753,7 @@ longer lucido:
   `PATH_PASS.grade`), measured from the crossing and from 3.49 m (`REACH` − `STEP`) back toward
   that end. Only Lunigiana's 717088457/717088463, a 1.4 m footway tunnel 0.7 m from its dead end, is
   left out so; the steps 717897184 and 717897185 clear the path 717897178 by 4.0 and 3.9 m.
-  `KNOWN` lists Cesena's car park ramp 55016697/68296970, Lunigiana's micro-mapped knots
+  `KNOWN` lists Lunigiana's micro-mapped knots
   1311831119/1311831121 (0.40 m) and 1311831120/1311862950 (0.30 m), whose approaches lead from the
   bores' ends 0.7 and 1.5 m away, and the coast's 463589363/326011444.
 - **Pieve San Lorenzo's underpass meets the road out of one mouth a step over its floor.** The

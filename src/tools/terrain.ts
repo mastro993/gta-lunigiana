@@ -306,12 +306,16 @@ const fitOnce = (
 
 /**
  * The pins a fit holds, in `hard`'s order: each at its level, but a broken bound (`kinds`, by sample)
- * past it where the pins beside it reach within the grade budget `t`, a minimum raised to the reach
- * down from them and a maximum lowered to the reach up, so that two bounds the fit broke side by side
- * are met within the grade rather than in a step between them. Pinned each at its own level, the
- * A12's Livorno carriageway kept its Vara bridge's end at 29.56 m, 5.5 m over the road under it,
- * and the sample 4.2 m on at its twin's level less 1.5 m, 28.06 m: the straight line between the two
- * fell 36%.
+ * past it where the broken bounds beside it, with no other pin between, reach within the grade budget
+ * `t`: a minimum raised to the reach down from them and a maximum lowered to the reach up, so that two
+ * bounds the fit broke side by side are met within the grade rather than in a step between them.
+ * Pinned each at its own level, the A12's Livorno carriageway kept its Vara bridge's end at 29.56 m,
+ * 5.5 m over the road under it, and the sample 4.2 m on at its twin's level less 1.5 m, 28.06 m: the
+ * straight line between the two fell 36%. Nor is a bound moved past the reach of the pins that are no
+ * bound (a junction's, a chain's end's), whose level is set: from them a bound reaches no further,
+ * and none is raised from a junction's either. Raised from a broken bound beside it, past the
+ * junction's reach, a bound of the SS330's ramp 1388645825 at Albiano took up the climb from that
+ * junction to the one 17.6 m away, and left the 5.6 m 1250443404 before it climbing 87%.
  */
 const heldPins = (
   hard: ReadonlyMap<number, number>,
@@ -320,19 +324,33 @@ const heldPins = (
 ): Array<Pin> => {
   const at = new Map(hard)
   const ks = [...hard.keys()].sort((a, b) => a - b)
+  const pins = ks.filter((k) => !kinds.has(k))
+  /** How far the pins that are no bound let a broken bound at sample k be moved: up for a minimum, down for a maximum. */
+  const cap = (k: number, kind: "min" | "max") =>
+    pins.reduce(
+      (c, h) => {
+        const z = hard.get(h)!,
+          reach = Math.abs(t[k]! - t[h]!)
+        return kind === "min" ? Math.min(c, z + reach) : Math.max(c, z - reach)
+      },
+      kind === "min" ? Infinity : -Infinity,
+    )
   for (const order of [ks, [...ks].reverse()]) {
     let last: number | undefined
     for (const k of order) {
       const kind = kinds.get(k)
       if (kind !== undefined && last !== undefined) {
         const reach = Math.abs(t[k]! - t[last]!),
-          from = at.get(last)!
+          from = at.get(last)!,
+          own = hard.get(k)!
         at.set(
           k,
-          kind === "min" ? Math.max(at.get(k)!, from - reach) : Math.min(at.get(k)!, from + reach),
+          kind === "min"
+            ? Math.max(own, Math.min(Math.max(at.get(k)!, from - reach), cap(k, kind)))
+            : Math.min(own, Math.max(Math.min(at.get(k)!, from + reach), cap(k, kind))),
         )
       }
-      last = k
+      last = kind === undefined ? undefined : k
     }
   }
   return [...hard.keys()].map((k) => ({ k, z: at.get(k)! }))
