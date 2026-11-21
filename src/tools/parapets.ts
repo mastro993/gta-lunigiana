@@ -6,7 +6,7 @@
 // a car on the SR445's viaduct west of Gragnola drove off it over the road under it.
 import { isDrivable, ONE_LEVEL } from "../sim/map/kinds.ts"
 import type { RoadF } from "./features.ts"
-import { r1, segIndex } from "./geometry.ts"
+import { grownBox, lineBox, nearBoxes, r1, segIndex } from "./geometry.ts"
 import { opened, pushPolyline } from "./walls.ts"
 
 /** A bridge's parapets stand this far beyond half its carriageway, m: where `lines.ts` draws them. */
@@ -45,8 +45,32 @@ export const parapets = (
   roads: ReadonlyArray<RoadF>,
   level: (road: number, x: number, y: number) => number,
 ): Parapets => {
-  const ways = segIndex<number>()
-  roads.forEach((r, i) => ways.addLine(r.pts, r.w / 2, i))
+  // The roads' segments whose carriageways can reach a parapet: it stands r1-rounded PARAPET past
+  // its bridge's carriageway, its openings asked every OPEN_STEP m along it, rounded to 0.1 m too.
+  const ways = segIndex<number>(),
+    reaches = nearBoxes(
+      roads.flatMap((r) =>
+        r.bridge === true && isDrivable(r.cls)
+          ? [grownBox(lineBox(r.pts), r.w / 2 + PARAPET + 1)]
+          : [],
+      ),
+    )
+  roads.forEach((r, i) => {
+    const h = r.w / 2
+    for (let k = 0; k + 1 < r.pts.length; k++) {
+      const a = r.pts[k]!,
+        b = r.pts[k + 1]!
+      if (
+        reaches(
+          Math.min(a.x, b.x) - h,
+          Math.min(a.y, b.y) - h,
+          Math.max(a.x, b.x) + h,
+          Math.max(a.y, b.y) + h,
+        )
+      )
+        ways.add(a.x, a.y, b.x, b.y, h, i)
+    }
+  })
   const walls: Array<number> = [],
     levels: Array<number> = []
   let over = 0

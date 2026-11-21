@@ -183,6 +183,39 @@ export const lineBox = (l: ReadonlyArray<V>): [number, number, number, number] =
   return [x0, y0, x1, y1]
 }
 
+/** Side of the squares `nearBoxes` marks, m. */
+const NEAR_CELL = 64
+
+/**
+ * Whether a [minX, minY, maxX, maxY] box may meet any of `boxes`: true for every box that does, from
+ * the NEAR_CELL m squares they cover, and for a few that only share such a square with one. An
+ * index needs only the features that can meet its queries' boxes: those of every road took about a
+ * gigabyte at the walls stage's start, where the parapets and the walls under the decks ask near
+ * the bridges alone.
+ */
+export const nearBoxes = (
+  boxes: ReadonlyArray<readonly [number, number, number, number]>,
+): ((x0: number, y0: number, x1: number, y1: number) => boolean) => {
+  const squares = new Set<number>()
+  const key = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096)
+  for (const [x0, y0, x1, y1] of boxes)
+    for (let i = Math.floor(x0 / NEAR_CELL); i <= Math.floor(x1 / NEAR_CELL); i++)
+      for (let j = Math.floor(y0 / NEAR_CELL); j <= Math.floor(y1 / NEAR_CELL); j++)
+        squares.add(key(i, j))
+  return (x0, y0, x1, y1) => {
+    for (let i = Math.floor(x0 / NEAR_CELL); i <= Math.floor(x1 / NEAR_CELL); i++)
+      for (let j = Math.floor(y0 / NEAR_CELL); j <= Math.floor(y1 / NEAR_CELL); j++)
+        if (squares.has(key(i, j))) return true
+    return false
+  }
+}
+
+/** `box` grown by `r` on every side. */
+export const grownBox = (
+  [x0, y0, x1, y1]: readonly [number, number, number, number],
+  r: number,
+): [number, number, number, number] => [x0 - r, y0 - r, x1 + r, y1 + r]
+
 export interface Crossing {
   readonly x: number
   readonly y: number

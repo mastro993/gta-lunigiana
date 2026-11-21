@@ -43,7 +43,7 @@ import {
   segmentsOf,
 } from "./deck-space.ts"
 import type { RoadF } from "./features.ts"
-import { r1, segIndex } from "./geometry.ts"
+import { grownBox, nearBoxes, r1, ringBox, segIndex } from "./geometry.ts"
 import { simplifyLoop, traceContours } from "./loops.ts"
 import { PARAPET } from "./parapets.ts"
 import { type Levelled, opened, pushPolyline } from "./walls.ts"
@@ -64,6 +64,13 @@ const CORRIDOR = 0.25
 const ONTO = 2
 /** How far past its carriageway a car on a road reaches, m. */
 const CAR_PAD = 0.5
+/**
+ * How far past the widest walls round a deck the walls traced there, and the points `open` asks
+ * along them, may stand off its line, m: the fields' nodes lie within the walls' `side` and 2 RES
+ * of a deck, their contour within a lattice square of those, the simplified walls within TOL of
+ * that, and the points are rounded to 0.1 m: 1.2 m at most.
+ */
+const WAY_MARGIN = 2
 
 /** The tallest vehicle that drives the roads, m (`VEHICLES` heights: the truck's). */
 const TALLEST = Math.max(...VEHICLE_MODELS.map((m) => VEHICLES[m].height))
@@ -127,15 +134,46 @@ const wallsOf = (
   const sides = decks.map((d) => kind.side(roads[d.road]!)),
     widest = Math.max(0, ...sides)
   // The roads this kind's bodies use, each segment as far as a corridor reaches, and that plus the
-  // widest walls (to find those reaching within a deck's).
+  // widest walls (to find those reaching within a deck's): the segments that reach as far as
+  // WAY_MARGIN round the decks' walls, where both are asked.
   const ways = segIndex<{ readonly road: number; readonly seg: Segment }>(),
-    wide = segIndex<number>()
+    wide = segIndex<number>(),
+    reaches = nearBoxes(
+      decks.flatMap((d) =>
+        d.segs.map((s) =>
+          grownBox(
+            [
+              Math.min(s.ax, s.ax + s.ux * s.len),
+              Math.min(s.ay, s.ay + s.uy * s.len),
+              Math.max(s.ax, s.ax + s.ux * s.len),
+              Math.max(s.ay, s.ay + s.uy * s.len),
+            ],
+            WAY_MARGIN,
+          ),
+        ),
+      ),
+    )
   roads.forEach((r, i) => {
     if (!kind.uses(r.cls)) return
     const reach = kind.reach(r) + CORRIDOR
+    if (!reaches(...grownBox(ringBox(lines[i]!.pts), reach + widest + 1))) return
     for (const seg of segmentsOf(lines[i]!, 0)) {
       const bx = seg.ax + seg.ux * seg.len,
         by = seg.ay + seg.uy * seg.len
+      if (
+        !reaches(
+          ...grownBox(
+            [
+              Math.min(seg.ax, bx),
+              Math.min(seg.ay, by),
+              Math.max(seg.ax, bx),
+              Math.max(seg.ay, by),
+            ],
+            reach + widest,
+          ),
+        )
+      )
+        continue
       ways.add(seg.ax, seg.ay, bx, by, reach, { road: i, seg })
       wide.add(seg.ax, seg.ay, bx, by, reach + widest, i)
     }
