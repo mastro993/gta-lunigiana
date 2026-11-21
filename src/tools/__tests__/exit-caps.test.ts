@@ -148,3 +148,25 @@ test("a road-exit cap is not split where another road's carriageway crosses it n
     )
   assert.deepEqual(exitCaps([cut, side]), [[-3.5, -4, 3.5, -4]])
 })
+
+// Regression (review of #20): Cesena's 26491046 runs 4.1 m from its cut end to its joint with
+// 26491045, so its cap stood on it 0.1 m short of the joint, where 26491045's carriageway, not of
+// its run, covered it whole: the cap was gone.
+test("a road-exit cap standing just short of its road's joint is not trimmed by the piece joined on past it", () => {
+  const cut = road(1, "service", 3.5, [
+      [0, -4.1],
+      [0, 0],
+    ]),
+    on = road(
+      2,
+      "service",
+      3.5,
+      [
+        [-30, -10],
+        [0, -4.1],
+      ],
+      false,
+    )
+  const joined = { ...on, pts: [on.pts[0]!, { ...on.pts[1]!, id: cut.pts[0]!.id }] }
+  assert.deepEqual(exitCaps([joined, cut]), [[-2.75, -4, 2.75, -4]])
+})

@@ -36,7 +36,9 @@ const walked = (pts: ReadonlyArray<V>, reversed: boolean): Array<V> =>
  * The site IN m in from the cut end of `r` (its first point when `first`) along it, and on along the
  * pieces joined end to end with it at a node no third way meets (`ways`, by node id): its run, one
  * road that OSM split. Where the run ends sooner (a junction), the site stands on along its last
- * segment's line, as every cap stood before the run was walked.
+ * segment's line, as every cap stood before the run was walked. The run takes in the piece joined on
+ * past the site's piece too, whose carriageway may reach back over the site: Cesena's 26491046,
+ * 4.1 m from the cut end to its joint with 26491045, lost its cap to that piece's.
  */
 const siteOf = (
   r: RoadF,
@@ -44,6 +46,17 @@ const siteOf = (
   ways: ReadonlyMap<string, ReadonlyArray<RoadF>>,
 ): Site => {
   const run = new Set([r])
+  /** The piece joined end to end with `piece` at its point `b`, where no third way meets them. */
+  const joinedAt = (piece: RoadF, b: V) => {
+    const at = b.id === undefined ? undefined : ways.get(b.id)
+    const on = at?.length === 2 ? at.find((q) => q !== piece) : undefined
+    return on !== undefined &&
+      isDrivable(on.cls) &&
+      !run.has(on) &&
+      (on.pts[0]!.id === b.id || on.pts.at(-1)!.id === b.id)
+      ? on
+      : undefined
+  }
   let piece = r,
     pts = walked(r.pts, !first),
     left = IN
@@ -55,18 +68,15 @@ const siteOf = (
       const len = Math.hypot(b.x - a.x, b.y - a.y),
         tx = (a.x - b.x) / len,
         ty = (a.y - b.y) / len
-      if (len >= left)
+      if (len >= left) {
+        const past = joinedAt(piece, pts.at(-1)!)
+        if (past !== undefined) run.add(past)
         return { x: a.x - tx * left, y: a.y - ty * left, tx, ty, h: piece.w / 2, run }
+      }
       left -= len
       if (k + 2 < pts.length) continue
-      const at = b.id === undefined ? undefined : ways.get(b.id)
-      const on = at?.length === 2 ? at.find((q) => q !== piece) : undefined
-      if (
-        on === undefined ||
-        !isDrivable(on.cls) ||
-        run.has(on) ||
-        (on.pts[0]!.id !== b.id && on.pts.at(-1)!.id !== b.id)
-      )
+      const on = joinedAt(piece, b)
+      if (on === undefined)
         return { x: b.x - tx * left, y: b.y - ty * left, tx, ty, h: piece.w / 2, run }
       run.add(on)
       piece = on
