@@ -381,12 +381,16 @@ export const finishTerrain = (src: Sources, profiled: Profiled, lap: (label: str
   const { uncarved, input, crossed } = profiled
   const grid = tileByTile(uncarved, input)
   lap("grid")
+  // The sea's nodes are outlets, as a notch's are: the rivers and the canals drain into it. In a
+  // loop: `Uint8Array.from` with a mapping function lists every node first, 1.1 GB of the JS heap
+  // for Lunigiana's 45 million.
+  const land = new Uint8Array(grid.listed.length)
+  for (let n = 0; n < land.length; n++) land[n] = grid.sea[n] === 1 ? 0 : grid.listed[n]!
   const drained = catchments(
     uncarved,
     input.wp0,
     water.map((w) => w.pts.map((v) => v.id)),
-    // The sea's nodes are outlets, as a notch's are: the rivers and the canals drain into it.
-    Uint8Array.from(grid.listed, (on, n) => (grid.sea[n] === 1 ? 0 : on)),
+    land,
     profiled.inflows,
     profiled.beyond,
   )
