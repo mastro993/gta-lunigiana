@@ -6,7 +6,7 @@ import { checkTunnels } from "./tunnel-checks.ts"
 
 // Map check (pnpm test:map): every road tunnel of Lunigiana; tunnels-cesena.map-test.ts and
 // tunnels-l.map-test.ts check the other built regions', tunnels.test.ts four of Lunigiana's.
-test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the hill along both sides, a portal or a head wall clear of every other road at every mouth the hill stands over, else a reason by geometry for none, its chunks as a whole-map build cuts them", () => {
+test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the hill along both sides, a portal or a head wall clear of every other road at every mouth the hill stands over, else a reason by geometry for none, the roads at grade round each mouth over the terrain and their painted lines over them, its chunks as a whole-map build cuts them", () => {
   // Aulla's part brought 80 tunnels and 72 mouths; 5 open as crowded, 3 of them the Galleria
   // Barbarasco's, each of the A15's twin bores' faces standing on the other carriageway (accepted:
   // no rule for twin bores). The paths' and steps' tunnels fitted under what they cross then sank
@@ -24,12 +24,14 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
   // climbs the cell over the mouth: none of the 7 mouths it buried is buried now, 5 open mouths of
   // Sarzana's get a head wall, and 26 throats and boxes run 1–6 m farther in, to where the bank
   // stands over them again (heads 38 -> 43, buried 7 -> 0, low 211 -> 215, crowded 25 -> 23); the
-  // bores' walls are cut where the ground over their first metres is lower (30196 -> 29716).
+  // bores' walls are cut where the ground over their first metres is lower (30196 -> 29716). The
+  // same round's rail and water fixes moved the ground over 10 bores' ends and the Galleria
+  // Calcinara's profile (31135800) by up to 3.1 m: 29764.
   assert.deepEqual(checkTunnels(wholeVectors()), {
     tunnels: 374,
     passages: 140,
     metres: 10295,
-    walls: 29716,
+    walls: 29764,
     mouths: 427,
     portals: 41,
     heads: 43,
