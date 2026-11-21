@@ -24,6 +24,9 @@
 //   metres), else the SP59 from Monzone to Vinca out of the global map file. It reports, as one JSON
 //   line, the slowest frame and the 99th percentile, the slowest frame within 1 s of each tile-seam
 //   crossing, the most tiles resident at once, the tiles resident at the end and the heap after GC.
+// Every mode fails (exit 1, no report) once the game stops: at once when the page logs the halt
+// ("game stopped" and the error, which the game loop catches, so no exception reaches CDP), else
+// when the Stopped card is up at the end (a tile gone for good logs nothing).
 // The port defaults to 9333.
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -254,6 +257,39 @@ const framesScript = (seconds: number): string => `new Promise((done) => {
   setTimeout(() => done(deltas), ${seconds * 1000 + 5000})
 })`
 
+/**
+ * The text of the game's halt in a `Runtime.consoleAPICalled` event: a frame threw and the loop
+ * stopped (`crashed` in src/hud/title.ts, or src/main.ts's loop once the game had stopped), which logs
+ * "game stopped" and the error with console.error; else undefined. The loop catches what a frame
+ * throws, so no `Runtime.exceptionThrown` comes.
+ */
+export const haltOf = (params: Record<string, unknown>): string | undefined => {
+  const { type, args = [] } = params as {
+    type?: string
+    args?: ReadonlyArray<{ readonly value?: unknown; readonly description?: string }>
+  }
+  const [first, ...rest] = args
+  if (
+    type !== "error" ||
+    typeof first?.value !== "string" ||
+    !first.value.startsWith("game stopped")
+  )
+    return undefined
+  return [first.value, ...rest.map((arg) => arg.description ?? String(arg.value))].join(" ")
+}
+
+/**
+ * The Stopped card's reason once the game has stopped (`stopped` in src/hud/title.ts: a frame threw,
+ * or a tile it needs will never come, which logs nothing), else "": the card is back over the game
+ * with its error shown.
+ */
+export const STOPPED_SCRIPT = `(() => {
+  const error = document.getElementById("title-error")
+  return document.getElementById("title")?.hidden === false && error !== null && !error.hidden
+    ? error.textContent
+    : ""
+})()`
+
 /** The card's state: its error, "ready" once it says "Press any key", else "". */
 const READY_SCRIPT = `(() => {
   const error = document.getElementById("title-error")
@@ -332,7 +368,10 @@ const shoot = async (tab: Tab, path: string): Promise<void> => {
   console.log("shot", path)
 }
 
-const shots = async (tab: Tab, command: Extract<Command, { command: "shots" }>): Promise<void> => {
+const shots = async (
+  tab: Tab,
+  command: Extract<Command, { command: "shots" }>,
+): Promise<undefined> => {
   const seconds = await load(
     tab,
     command.url,
@@ -365,9 +404,10 @@ const shots = async (tab: Tab, command: Extract<Command, { command: "shots" }>):
     await sleep(command.waitS * 1000)
     await shoot(tab, join(command.outdir, `${spot.name}.png`))
   }
+  return undefined
 }
 
-const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): Promise<void> => {
+const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): Promise<string> => {
   await load(
     tab,
     command.url,
@@ -391,15 +431,13 @@ const heap = async (tab: Tab, command: Extract<Command, { command: "heap" }>): P
       command.seconds * 1000 + 10_000,
     ),
   )
-  console.log(
-    JSON.stringify({
-      url: command.url,
-      firstFrameS: Math.round(firstFrame / 10) / 100,
-      slowestFrameMs: tenths(slowest),
-      p99FrameMs: tenths(p99),
-      heapMB: await heapAfterGc(tab),
-    }),
-  )
+  return JSON.stringify({
+    url: command.url,
+    firstFrameS: Math.round(firstFrame / 10) / 100,
+    slowestFrameMs: tenths(slowest),
+    p99FrameMs: tenths(p99),
+    heapMB: await heapAfterGc(tab),
+  })
 }
 
 /** Puts the player at (x, y) facing `angle` and waits until the resident tiles hold still for 1 s (20 s at most). */
@@ -415,7 +453,10 @@ const settle = async (tab: Tab, x: number, y: number, angle: number): Promise<vo
   }
 }
 
-const drive = async (tab: Tab, command: Extract<Command, { command: "drive" }>): Promise<void> => {
+const drive = async (
+  tab: Tab,
+  command: Extract<Command, { command: "drive" }>,
+): Promise<string> => {
   const route = command.route ?? defaultRoute()
   const length = lengthOf(route),
     seconds = command.seconds ?? length / command.speed
@@ -434,41 +475,64 @@ const drive = async (tab: Tab, command: Extract<Command, { command: "drive" }>):
   )
   const { slowest, p99, seams, slow, maxTiles } = driveReport(frames)
   const tiles = await evaluate<Array<string>>(tab, "gta.tiles()")
-  console.log(
-    JSON.stringify({
-      url: command.url,
-      speed: command.speed,
-      routeM: Math.round(length),
-      seconds: tenths((frames.at(-1)?.[0] ?? 0) / 1000),
+  return JSON.stringify({
+    url: command.url,
+    speed: command.speed,
+    routeM: Math.round(length),
+    seconds: tenths((frames.at(-1)?.[0] ?? 0) / 1000),
+    slowestFrameMs: tenths(slowest),
+    p99FrameMs: tenths(p99),
+    seamFrameMs: tenths(seams.reduce((m, seam) => Math.max(m, seam.slowest), 0)),
+    seams: seams.map(({ axis, at, t, slowest }) => ({
+      axis,
+      at,
+      t: tenths(t / 1000),
       slowestFrameMs: tenths(slowest),
-      p99FrameMs: tenths(p99),
-      seamFrameMs: tenths(seams.reduce((m, seam) => Math.max(m, seam.slowest), 0)),
-      seams: seams.map(({ axis, at, t, slowest }) => ({
-        axis,
-        at,
-        t: tenths(t / 1000),
-        slowestFrameMs: tenths(slowest),
-      })),
-      framesOver30Ms: slow.map(({ t, x, y, dt }) => ({
-        t: tenths(t / 1000),
-        x: x === null ? null : Math.round(x),
-        y: y === null ? null : Math.round(y),
-        ms: tenths(dt),
-      })),
-      maxTiles,
-      tiles,
-      heapMB: await heapAfterGc(tab),
-    }),
-  )
+    })),
+    framesOver30Ms: slow.map(({ t, x, y, dt }) => ({
+      t: tenths(t / 1000),
+      x: x === null ? null : Math.round(x),
+      y: y === null ? null : Math.round(y),
+      ms: tenths(dt),
+    })),
+    maxTiles,
+    tiles,
+    heapMB: await heapAfterGc(tab),
+  })
 }
 
-/** Runs `command` in a new tab of the Chrome on its port, and closes the tab. */
+/** Rejects with the game's halt as soon as the page logs one (`haltOf`), its text on stderr at once. */
+const halted = (tab: Tab): Promise<never> =>
+  new Promise((_, fail) => {
+    tab.on("Runtime.consoleAPICalled", (params) => {
+      const halt = haltOf(params)
+      if (halt === undefined) return
+      console.error("page:", halt)
+      fail(new Error(`the game stopped while the bot ran: ${halt.split("\n")[0]}`))
+    })
+  })
+
+/**
+ * Runs `command` in a new tab of the Chrome on its port, and closes the tab. It fails, printing no
+ * report, as soon as the game halts, or when the Stopped card is up at the end (a halt that logs
+ * nothing): a report from a stopped game measures nothing.
+ */
 const run = async (command: Command): Promise<void> => {
   const tab = await openTab(command.port)
   try {
-    if (command.command === "shots") await shots(tab, command)
-    else if (command.command === "heap") await heap(tab, command)
-    else await drive(tab, command)
+    const stop = halted(tab)
+    const work =
+      command.command === "shots"
+        ? shots(tab, command)
+        : command.command === "heap"
+          ? heap(tab, command)
+          : drive(tab, command)
+    // Whichever loses the race fails later (the work once the tab is closed, a halt after the work): nothing is left to hear it.
+    for (const late of [stop, work]) late.catch(() => undefined)
+    const report = await Promise.race([work, stop])
+    const reason = await evaluate<string>(tab, STOPPED_SCRIPT)
+    if (reason !== "") throw new Error(`the game stopped while the bot ran: ${reason}`)
+    if (report !== undefined) console.log(report)
   } finally {
     await tab.close()
   }
