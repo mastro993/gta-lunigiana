@@ -2161,6 +2161,11 @@ the pieces where tracks meet (`rail-graph.ts`).
   4777.6 (one mouth 5.0 m under) gets 19.4 m; both tunnels now open at both mouths at their floors'
   level (`map/__tests__/rail.map-test.ts`). A path's tunnel gets none: the build cuts no path's
   mouth.
+- **A road OSM lays under the track** (`underRail` in `rail-crossings.ts`, before the conflation):
+  a road on a lower `layer` than at-grade track it crosses with no node in common runs under it in a
+  tunnel, though OSM tags none, and is then an underpass like any other. One does: the farm track
+  205932314, 17.7 m at layer −1 under the Genova–Pisa's bank east of the Magra, which the build drew
+  across both tracks at grade between their vertices, with no level crossing.
 - **No short segments**: a vertex no other line or piece shares (OSM's other
   vertices only carried its drawing) is dropped where it lies under 2 m from a kept neighbour,
   unless that moves the line more than 0.25 m. On the 0.1 m grid a short segment's heading is

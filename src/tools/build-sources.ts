@@ -30,6 +30,7 @@ import { centroid, pointInRing, r1, type V } from "./geometry.ts"
 import { ligFolders } from "./liguria.ts"
 import { readOsms } from "./osm.ts"
 import { clipBeyond, heldInPlay, inPlay } from "./play-area.ts"
+import { underRail } from "./rail-crossings.ts"
 import { routeEnds } from "./rail-routes.ts"
 import { REGION, dtmDir, osmFiles, type Rect, ucsFile, ucsParts } from "./region.ts"
 import { seaFloor } from "./sea-floor.ts"
@@ -96,9 +97,11 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
   // OSM's rail on the CTR's surveyed tracks, plus the tracks only the CTR has but where OSM maps
   // the rails gone; level-crossing nodes slide along their roads with it, and what its bridges span
   // stays under them (water widths depend on the way's mean ground, so the terrain is loaded first).
+  // A road OSM lays under the track with no tunnel tag runs under it (`underRail`).
+  const osmRail = extractRail(osm)
   const { rail, extra, roads, water, moves, report } = conflateRail(
-    extractRail(osm),
-    extractRoads(osm),
+    osmRail,
+    underRail(extractRoads(osm), osmRail),
     extractWater(osm, dem.at, undefined, openCulvert),
     { ...ctrRail, crossings },
     lunigiana ? undefined : { drop: new Set(), reserved: new Set(), swap: new Map() },
