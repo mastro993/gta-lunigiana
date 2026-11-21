@@ -2730,10 +2730,17 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   (the road's profile, after the rail's, is pinned to it at the shared node): a rail pinned to the
   road's natural level made a V of 3.8–5.1% in its grade within ±5 m (an 82 m vertical curve at
   Via Nuova). A road under a rail bridge (or in a tunnel under the rail) keeps at least
-  `maxheight` (4 m when untagged) plus a 1.5 m deck below it, and a tagged underpass keeps the
-  rail at least that far over the road's natural level: a sign gives the least clearance, and an
-  exact pin at Via delle Cave (`maxheight` 3.20, the deck 1.1–3.3 m higher on the LiDAR) held the
-  line 2.5–3.0 m under its bed for 1.9 km, from Equi Terme to the Aiola tunnel. A road bridge over
+  `maxheight` (4 m when untagged) plus a 1.5 m deck below it, and a tagged underpass at grade under
+  a rail bridge keeps the rail at least that far over the road's natural level: a sign gives the
+  least clearance, and an exact pin at Via delle Cave (`maxheight` 3.20, the deck 1.1–3.3 m higher
+  on the LiDAR) held the line 2.5–3.0 m under its bed for 1.9 km, from Equi Terme to the Aiola
+  tunnel. A road's tunnel under the rail gives the rail no such bound: the ground over its bore is
+  the rail's own bank, not the road, so the road dips under the rail instead. Read off the bank, the
+  seven tagged tunnels under Sarzana's part's tracks asked the rail 2.6–6.6 m over its bank, humps
+  (Via Termo's, under Vezzano Ligure's four tracks, read 30.5 m off their 29.4–31.4 m bank and held
+  them at 35.9 m, with the platforms along them; Via Emiliana's, under the Genova–Pisa's 4 m bank
+  across the plain, at 19.8 m over its 14.5 m); the three tagged underpasses in Tuscany are roads at
+  grade under bridges. A road bridge over
   the rail keeps its surface at least 5.5 m over the rail's bed (the rail head 0.12 m, the ATR
   220's 4.185 m, 0.3 m clear and the render's 0.9 m deck), the rail held under the line between
   the uncarved ground at the bridge's ends less 5.5 m: at the Equi Terme overpass the roof

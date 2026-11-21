@@ -109,3 +109,23 @@ test("railLevels never holds the rail under the ground where a road bridge cross
     assert.deepEqual(at.roadBounds([{ item: over }]), [{ x: 350, y: 0, z: 115.5, kind: "min" }])
   }
 })
+
+// Regression: Via Termo's tunnel under Vezzano Ligure's four tracks (maxheight 3.9) read its natural level, 30.5 m, off the
+// ground over its 29 m bore, which is the tracks' own bank (31.4 m), and lifted all four 4.5 m into a hump over it; so did six
+// other tagged tunnels under the Genova–Pisa's bank across the plain by Sarzana, up to 5.3 m (Via Emiliana's).
+test("railLevels bounds no rail over a road's tagged tunnel, whose ground is the bank over its bore: the road dips under the rail", () => {
+  const tunnel = road(15, [v(75, -20), v(75, 20)], { tunnel: true, maxheight: 3.9 })
+  const at = railLevels({
+    allRail: [atGrade, bridge, beyond],
+    roads: [tunnel],
+    water: [],
+    wp: [],
+    ground: () => 100,
+    zAt: () => 110,
+  })
+  assert.deepEqual(
+    at.railBounds(rail).filter((b) => b.x === 75),
+    [],
+  )
+  assert.deepEqual(at.roadBounds([{ item: tunnel }]), [{ x: 75, y: 0, z: 104.6, kind: "max" }])
+})
