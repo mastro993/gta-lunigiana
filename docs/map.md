@@ -2891,7 +2891,12 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   cross-section between its end runs left in its slab (the lowered ground cleared some in an end
   run) is laid again over the new stretch, until it lies still. A road's or the rail's core holds
   its nodes only behind a deck's ends (its approach): abeam of a deck, between the lines across its
-  ends, a core is an approach's reaching past its end, beside or under it. Lunigiana's pass lowers
+  ends, a core is an approach's reaching past its end, beside or under it. Abeam of a deck is
+  between the lines across one of its segments' ends, or outside a bend, past one segment's end and
+  before the next one's start (`abeamOf`, issue #20): abeam of neither of the two segments about the
+  14° bend of the tertiary bridge 23277539 at (−15613.6, −6220.8), a node 6.5 m off it counted as
+  behind the deck's end, where the SP331's core beside the deck held it 1.7 m over the deck, and the
+  ground stood 0.87 m under its top, in its slab. Lunigiana's pass lowers
   1,522 nodes, at most 4.5 m (the build prints them as `decks`, 2026-11-18; 668 before Aulla's
   part, the deepest by 3.8 m at (1840, 11124), the end of a 12 m footbridge (1161691572) climbing
   60%, which no chain profiled then; 735 while each road chain was cored at its widest piece's

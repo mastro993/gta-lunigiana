@@ -320,13 +320,24 @@ const lay = (
   })
 }
 
-/** Whether (x, y) lies abeam of `slab`'s deck, between the lines across the ends of one of its segments. */
-export const abeamOf = (slab: Slab, x: number, y: number): boolean =>
-  slab.z.slice(1).some((_, k) => {
-    const seg = segmentOf(slab, k),
-      d = seg === undefined ? -1 : (x - seg.ax) * seg.ux + (y - seg.ay) * seg.uy
-    return seg !== undefined && d >= 0 && d <= seg.len
-  })
+/**
+ * Whether (x, y) lies abeam of `slab`'s deck: between the lines across the ends of one of its
+ * segments, or on the outside of a bend, past one segment's end and before the next one's start.
+ * Abeam of neither of the two segments about the 14° bend of the tertiary bridge 23277539 at
+ * (−15613.6, −6220.8), a node 6.5 m off it counted as behind the deck's end, where the SP331's core
+ * beside the deck kept it 1.7 m over the deck: the ground stood 0.87 m under its top, in its slab.
+ */
+export const abeamOf = (slab: Slab, x: number, y: number): boolean => {
+  let before: number | undefined
+  for (let k = 0; k + 1 < slab.z.length; k++) {
+    const seg = segmentOf(slab, k)
+    if (seg === undefined) continue
+    const d = (x - seg.ax) * seg.ux + (y - seg.ay) * seg.uy
+    if ((d >= 0 || (before !== undefined && before > 0)) && d <= seg.len) return true
+    before = d - seg.len
+  }
+  return false
+}
 
 /**
  * Every whole-grid node a corner of a cell some slab reaches over, ascending, each with whether it
