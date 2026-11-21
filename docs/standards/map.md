@@ -264,8 +264,9 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   west edge cut the Aulella, and a 2 m side stream by Soliera read 108.5. A new part's edges cut new
   rivers: read the area each one leaves with against its basin, and the most any unnamed stream
   reads (11.33 km² today). `water.map-test.ts` checks the Aulella's 199 at Fivizzano's west edge and
-  313 at its mouth, the Bardine's 63, the Magra's and the Taverone's heads (420.9 and 69.1 km²) and
-  the Magra's 915 leaving, and the streams by them, and `catchment.test.ts` both rules; a failure is
+  313 at its mouth, the Bardine's 63, the Magra's and the Taverone's heads (420.9 and 69.1 km²),
+  the Magra's 915 at y 3900, the Vara's 552.4 in and 605.6 at the Magra, the Magra's 1,618.8 leaving
+  at y −8500, and the streams by them, and `catchment.test.ts` both rules; a failure is
   the catchments' code, so fix it for every river alike, never with an exception for one river or
   one part.
 - No building stands twice: `src/tools/__tests__/overlap.map-test.ts` reads every building of

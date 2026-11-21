@@ -2258,8 +2258,18 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
 - The water surface is sampled every 2 m at ground − depth/2. It is made monotone downstream and
   continuous at confluences: a tributary's tail is lowered (by at most 0.25 extra slope) or ponded
   up to the level of the water it joins. The Lucido meets the Aulella below Gragnola, the Rosaro at
-  Soliera. No surface stands under the sea's 0 m (raised to it, and again after the decks' cap and
-  the perched check), and a piece that reaches the sea (the point 1 m on past its last vertex
+  Soliera. A way continuing another starts no higher than it ends and no lower than the level the
+  water it joins holds its mouth at (a receiver's, the sea's, or a held way's it continues into),
+  so a way held up by the water it joins backs up the way it continues too (issue #20); a way's own
+  ground holds nothing up. Lowered at its start to the end of the way it continues, then ponded
+  again at its mouth, round after round, such a way never came to rest: on Lunigiana the settling
+  ran all its 20 rounds from Aulla's part on, and left the stream onto the Magra's gravel 791364133
+  at Aulla 0.05 m and a braid of the Vara at (−21347, 1960), rejoining the Vara 0.55 m over the end
+  of the way it continues, 0.55 m over their first samples (24.9 m after 24.4). The water's
+  profiles now rest, in 0.2 s, not 1.4. The water capped under a deck after the settling is settled
+  on downstream again, so a held way capped there falls on from the cap rather than rising back to
+  its level. No surface stands under the sea's 0 m (raised to it, and again after the decks' cap
+  and the perched check), and a piece that reaches the sea (the point 1 m on past its last vertex
   lies in it) meets it at 0 m as a tributary meets the water it joins, its tail lowered with the
   same fade (`waterProfiles` in `water.ts`): a river stands at the sea's level where it meets it,
   not under it. On the magra-coast test region six pieces end in the sea: the Magra, the
@@ -2301,8 +2311,10 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   Taken as the gauge's 208 less the map's 181.8, the heads were 26.2 km², near twice their ground,
   and the Rosaro reached its mouth with 93.1. The Aulella crosses Fivizzano's west edge (x −5300)
   with 199.42 (199.0 while that was the box's edge, before the Canale di Moncigoli's 0.4 km² of head
-  west of it lay in the box) and meets the Magra at Aulla with 313.11; the Bardine joins it with
-  63.00 at its mouth (59.0 where it crossed Fosdinovo's north edge, before Aulla's part). From
+  west of it lay in the box) and meets the Magra at Aulla with 315.43; the Bardine joins it with
+  65.31 at its mouth (59.0 where it crossed Fosdinovo's north edge, before Aulla's part; 63.00 and
+  313.11 before Sarzana's part, issue #20, made ground of the notch west of x −11500 and south of y
+  3900, whose outlet drained the Bardine's heads beside it, and the Canale del Torchio's, 4.39). From
   Codiponte down to the Lucido's mouth below Gragnola the Aulella drains 41–60 km², and 106 below
   the mouth.
 - **The Magra's and the Taverone's heads** (issue #19) come in over the north edge as the Rosaro's
@@ -2313,8 +2325,9 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   D8 sends each node across it at one point alone, so none is in the Taverone's 69.1); the Canale
   Cravareccia, which joins the Taverone 113 m down its line, 1.1; and the Rosaro's 14.7 (above). The
   other 4.9 km² come down rivulets under 1 km² each (the Fosso della Predella's 0.7 the most) and
-  are left out. On the map the Magra carries 420.9 km² from its entry and leaves at y 3900 with
-  915.0 (the 10 m DTM's D8 gives 930.5 there; 412.55 while the heads came in with nothing, when the
+  are left out. On the map the Magra carries 420.9 km² from its entry and crosses y 3900 with
+  918.0 (915.0 while it left the play area there, before Sarzana's part; the 10 m DTM's D8 gives
+  930.5 there; 412.55 while the heads came in with nothing, when the
   Taverone met it with 33.9), the Taverone 82.49 at the end of 700556145, 1.3 km above its mouth,
   and 115.4 at its mouth, the Civiglia joining it 84 m above its mouth with 32.15 km² (20.85 before
   its heads came in; the Canale Torchio di Bacco, 4.71, and the Canale della Ghiaia, 4.04, join the
@@ -2381,13 +2394,30 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   ways 1473224065 (17.5 m², 1 cell), where the Fosso di Paretola joins it, and 1473224067 (28.7 m²,
   3 cells), 52 m upstream. Such a pool's spill is read on the ground as the lines through it carve
   it: the two Arcinasso pools' levels went from 258.0 to 256.9 m and from 265.2 to 264.5 m, the
-  Doglio's pool and Pieve's pond keeping theirs. A river polygon follows its waterways: every water
-  piece with a 2 m sample inside it, a tributary running in too (by the Tassonaro's mouth, cut at
-  lucido's north edge, the Tassonaro's two pieces and the Fosso di Tufo, which joins it; whole on
-  Lunigiana, the Tassonaro's four, the Fosso di Tufo, the Canale della Trosella and two unnamed
-  streams; at Fivizzano the Rosaro and the Fosso del Tufo; the Savio's in Cesena), which the game's
-  water takes its level and current from ([water.md](water.md#depth-and-current)). The map file
-  keeps a lake's `level` and a river polygon's `waters`.
+  Doglio's pool and Pieve's pond keeping theirs. The lines are carved there twice, as the tile pass
+  carves them before the claims and again after them, each carving lowering a node of a line's bank
+  toward the gravel of every 2 m segment in reach: carved once, the Cascata del Corso's pool
+  (−14157, 1256, issue #20), on the bank of the stream falling past it, stood at 244.5 m over its
+  edge's 243.9, and the pool at (−15331, 1527) at 71.5 m over its edge's 71.4. A water area holding
+  no cell of the grid (no cell's centre inside it, `holdsCell`) is left out of the map: nothing drew
+  or carved its water, and the game read still water over the ground under it, 0.8 m deep in the 10
+  m² pool under a path's bridge at the Mulini Bozzo Luero (OSM 1032984030); with it two more of
+  Sarzana's part, a 9 m² pond by Castelnuovo Magra (1222775477) and the 5 m² Cascata d'Arlecchino
+  (1329416342). A river polygon follows its waterways: every water piece with a 2 m sample inside
+  it, a tributary running in too (by the Tassonaro's mouth, cut at lucido's north edge, the
+  Tassonaro's two pieces and the Fosso di Tufo, which joins it; whole on Lunigiana, the Tassonaro's
+  four, the Fosso di Tufo, the Canale della Trosella and two unnamed streams; at Fivizzano the
+  Rosaro and the Fosso del Tufo; the Savio's in Cesena), which the game's water takes its level and
+  current from ([water.md](water.md#depth-and-current)). The map file keeps a lake's `level` and a
+  river polygon's `waters`.
+- **The sea beyond the play area** (issue #20): Sarzana's part grows Lunigiana's box over the Gulf
+  of La Spezia, which its mask leaves out of the play area, so the shipped map holds the sea the coast
+  test region built first: 11 pieces in x −23100…−19995, y −8500…−5734, cut along the tiles' sides
+  and the box's edges and carved to Liguria's isobaths (data/raw/lig/sarzana), drawn beyond the
+  play area as its terrain and trees are. The lakes' checks of `water-areas.map-test.ts` leave the
+  sea out: it is carved to its floor, not to a lake's shelf, and a piece cut with no shore of its
+  own (the 1,100 × 500 m one at the box's south-west corner) stands over every node of it;
+  `coast-sea.map-test.ts` checks the sea on the coast test region.
 - They are carved node by node, each node from its own position and the vectors alone, so a tile's
   window needs no halo. A node is the area's when one of its four cells is (the cell's centre inside,
   filled from the anchor as the land cover is), and on the water's edge when one of its cells is in
@@ -2916,19 +2946,25 @@ surface the stream keeps its own (way 791364133, past a path at grade). The Arci
 up 1.0 m at (−8592, 4954) and way 1430400928 0.1 m into the Magra's gravel; fixed (issue #19, for
 every part), Lunigiana's samples that rise over the one before fell from 13,507 to 56, on 34 pieces,
 none in a river polygon (7 were), and 13,403 vertices on 3,276 pieces lie lower, by at most 1.3 m;
-Cesena's water is unchanged. A stream's dead end where its dropped culvert begins under at-grade
-track is cut back along its line (`clearOfTrack`), to stop w/2 + a margin off the track: 1 m plus a
-cell's 5.66 m diagonal for a stream 4 m wide or more, else 2 m. The build lists the cuts as
-`streamEnds` and throws on one past twice that reach: six, all in Aulla's part, the Fosso di
-Vezzale's 842172309 and 842172310 by 5.5 and 3.0 m, the Canale Manarola's 842172313 and 842172315
-and the Canale del Piccardo's 1452819624 by 4.5 m and 1452819622 by 8.5 m. The line hung 4.54 m over
-the Manarola's bed at (−14178, 11509), and the Piccardo stood 0.22 m deep on the rail bed at
-(−13423, 9190) at 1.72 m³/s per km². A stream under a bridge's end is no culvert under its approach
-(`bedOf`): 38 of Lunigiana's floors and 1 of the L's moved, by up to 4.2 m (789355109). The grid is
-then rounded to 0.1 m and stored as integer decimetres. The capping and settling read no terrain and
-run before the grid is built (`capUnderDecks`); the re-carve runs in each tile's window, which then
-reads the terrain under the water samples of its own cells before rounding; the culverts and the
-perched drop run on those readings once every tile is built (`dropPerched`).
+Cesena's water is unchanged. A perched sample after a dropped one dropped to its own top, wherever
+that stood: a stream falling into the Magra's polygon by Caprigliola (way 789354420) dropped its
+samples each to their own over the bed the polygon's carve left rising under them, and stepped
+0.1 m back up (32.5 m after 32.4 at (−16584.6, 2908.5)); held at the dropped surface too (issue
+#20), and with the settling at rest, Lunigiana's vertices that rise over the one before go from 74
+on 42 pieces to 51 on 35, the coast's from 4 to 3 and the L's stay none. A stream's dead end where
+its dropped culvert begins under at-grade track is cut back along its line (`clearOfTrack`), to stop
+w/2 + a margin off the track: 1 m plus a cell's 5.66 m diagonal for a stream 4 m wide or more, else
+2 m. The build lists the cuts as `streamEnds` and throws on one past twice that reach: six, all in
+Aulla's part, the Fosso di Vezzale's 842172309 and 842172310 by 5.5 and 3.0 m, the Canale Manarola's
+842172313 and 842172315 and the Canale del Piccardo's 1452819624 by 4.5 m and 1452819622 by 8.5 m.
+The line hung 4.54 m over the Manarola's bed at (−14178, 11509), and the Piccardo stood 0.22 m deep
+on the rail bed at (−13423, 9190) at 1.72 m³/s per km². A stream under a bridge's end is no culvert
+under its approach (`bedOf`): 38 of Lunigiana's floors and 1 of the L's moved, by up to 4.2 m
+(789355109). The grid is then rounded to 0.1 m and stored as integer decimetres. The capping and
+settling read no terrain and run before the grid is built (`capUnderDecks`); the re-carve runs in
+each tile's window, which then reads the terrain under the water samples of its own cells before
+rounding; the culverts and the perched drop run on those readings once every tile is built
+(`dropPerched`).
 
 ### 9. The railway (`railway.ts`, `platforms.ts`, `rail-clear.ts`)
 
@@ -4043,15 +4079,24 @@ either side of each threshold of the Aulella's, the Rosaro's, the Mommio's, the 
 Bardinello's, whose gorge's pair lies within 2 m of its 267 m, the Osca's and the Penolo's, the
 Taverone's and the Magra's, and the Pesciola's head and last way at 6 m: with the gorge's threshold
 at 270 m the rebuilt map gave 797860907 6 m, and the check fails; the sizes come from
-`water-sizes.ts`), catchments growing downstream with no jump at a tributary's mouth (the Lucido's
+`water-sizes.ts`), catchments growing downstream with no tributary's mouth taking the area of the
+water it joins (a jump over a dead end's last segment may be a D8 path crossing it: 812989995 on
+the plain by Santo Stefano di Magra gathers 1.47 km² 86 m before its end; the Lucido's
 47 ± 2 km² at its mouth: 46.4; the Rosaro's 14.7 ± 0.5 at its entry, near half what it carried
 when its heads were sized as the gauge's 208 km² less the map's D8; the Aulella's 199 ± 3 at
 Fivizzano's west edge, x −5300, and 313 ± 3 at its mouth, the 10 m DTM's 319.3 less the 1.9% the
 4 m grid's divides take there as at Soliera; the Bardine's 63 ± 2 at its mouth; the Magra's and the
-Taverone's heads, 420.9 and 69.1, and the Magra's 915 leaving; and none of the three a fill lake's
+Taverone's heads, 420.9 and 69.1, and the Magra's 915 at y 3900, where it left the play area before
+Sarzana's part; the Vara's 552.4 over the west edge and 605.6 ± 5 at Fornola, which the Magra adds,
+and the Magra's 1,618.8 ± 5 leaving at y −8500, under the 1,700 the Autorità di bacino gives it at
+its mouth; and none of the three a fill lake's
 D8 ran a river down before the water beyond the play area was burned, the side stream 140780331
-by Soliera under 1 km², Il Canalaccio under 6 and the Canale del Torchio under 3), and no walk or
-drive wall in a wide river and shore walls by it, read by the outline of the lake or river polygon
+by Soliera under 1 km², Il Canalaccio under 6 and the Canale del Torchio under 3); the Vara–Magra
+confluence monotone, every piece within 3 km of Fornola and every piece of the Vara falling down
+its course and meeting the water it joins at its level, none perched more than 1 m over its bed
+on the plain (issue #20's acceptance); and no walk or drive wall a body in a wide river meets (a
+parapet on its deck's level meets none: the A15's over the Magra by Caprigliola, at 69.8 m, passes
+1 m from it at 41.6 m) and shore walls by it, read by the outline of the lake or river polygon
 the river runs in, points within 30 m of the play area's outline left out.
 `src/sim/map/__tests__/carriageways.map-test.ts` joins every motorway's pieces end to start into
 carriageways, on Lunigiana, Cesena and each built test region (`regions.ts` beside it, which the
@@ -4340,7 +4385,13 @@ gravel bar raised only in the pass that raises bars) and a river polygon no rive
 the river polygons and the bar, carve every node as the whole grid does (red with the ring of cells
 round a window left out); and which nodes the roads may not claim. `water.test.ts` checks that
 `dropPerched` keeps a lake's samples, and drops a surface more than `PERCH` (1 m) over a lake's
-level, which is no water of the lake's, to that level. `water-areas.map-test.ts` checks both maps,
+level, which is no water of the lake's, to that level; that no sample after a dropped one, perched
+too or not, steps back up over it; that a way held up by the water it joins backs up the way it
+continues while a way's own ground holds nothing up; and that a held way capped under a deck falls
+on from the cap (each red before its fix, issue #20). `water-areas.test.ts` also checks that a
+pool all of whose nodes are its edge stands at its spill as the tile pass leaves it, the lines
+carved twice (red with them carved once), and that a ring holds a cell only where a cell's centre
+lies in it (`holdsCell`). `water-areas.map-test.ts` checks both maps,
 on the nodes their listed tiles hold (the joined heightmap holds 0 in a notch, where Fivizzano's 1
 km lake at x 9150…10110 by y −150…910 lies): lucido's 7 lakes (the one by the Solco di Equi OSM's,
 at 272.0 m) and the Aulella's river polygon on every stream with a sample in it, the Fosso di Tufo
@@ -6026,9 +6077,11 @@ longer lucido:
   are left out. The map's 4 m D8 drains 6.8 km²
   of land by the edge out across it, land which on the 10 m DTM comes back in with the rivers (3.4
   km² by the Taverone, 1.5 by the Magra, 1.35 by the Rosaro): the Taverone's 3.4 is what separates
-  its 82.5 km² at the end of 700556145 from the 10 m DTM's 86.7 at (−12205, 7165). The Magra leaves
-  at y 3900 with 915.0 km² (the 10 m DTM's 930.5; the gauge at Calamazza is quoted at 932, not
-  verified), and the Taverone meets it with 115.4 ([water.md](water.md#depth-and-current)).
+  its 82.5 km² at the end of 700556145 from the 10 m DTM's 86.7 at (−12205, 7165). The Magra crosses
+  y 3900 with 918.0 km² (the 10 m DTM's 930.5; the gauge at Calamazza is quoted at 932, not
+  verified), and the Taverone meets it with 115.4 ([water.md](water.md#depth-and-current)). It meets
+  the Vara at Fornola with 945.8 and leaves the play area at y −8500, 4.8 km above its mouth, with
+  1,618.8, where the Autorità di bacino del Magra gives its basin about 1,700 at the mouth.
 - **Fivizzano's permanent edges cut the Serchio side.** Its edges in Minucciano and Sillano
   Giuncugnano face the Garfagnana, which no part of Lunigiana takes, and the roads there belong to
   its network, not to a line a rectangle can follow: 14 roads leave the play area there and come
