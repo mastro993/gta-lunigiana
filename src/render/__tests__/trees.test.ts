@@ -39,8 +39,8 @@ test("trees: each chunk's from the tiles it reads are the whole map's bucket for
       ...tilesOver(-1, -1, 1, 1),
       // Those meeting at the west edge's seam, whose apron chunks hold the trees mirrored across
       // it, out to the apron's reach in from the edge: the next column's two tiles too where the
-      // edge lies within that reach of its tile's east side (x −22100 did, 100 m into its tile;
-      // x −23100, 900 m into it, does not).
+      // edge lies within that reach of its tile's east side (x −22100 did, 100 m short of it;
+      // x −23100, 1,100 m short of it, does not).
       ...tilesOver(WEST_SEAM.x, WEST_SEAM.y - 1, WEST_SEAM.x + REACH, WEST_SEAM.y + 1),
     ]),
   ]

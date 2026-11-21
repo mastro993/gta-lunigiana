@@ -1067,8 +1067,9 @@ moves every square against the ground: Fosdinovo's moved the box's west edge 6,2
 chunks and 104 m) and its south edge 2,400 m (18 chunks and 96 m), which left the Bozzetti pond in
 one chunk and no chunk across the y 0 seam within a kilometre west of Monzone station. A test that
 wants a chunk of some kind finds it by its cells, not by where its square falls (`terrain.test.ts`;
-`water.test.ts` takes the smallest lake across two chunks, `rail.test.ts` a box a chunk's side past
-each seam), and the cover's colours count from the region's anchor instead (below). A built chunk has a terrain mesh, a solid mesh
+`water.test.ts` takes the smallest lake across two chunks, `rail.long-test.ts` a box a chunk's side
+past each seam), and the cover's colours count from the region's anchor instead (below). A built
+chunk has a terrain mesh, a solid mesh
 (buildings, roofs, bridges, the railway's ballast bed, platforms, canopies and name boards, the
 level crossings' housings and cabinets, tunnel portals, the lamps' iron, poles and lantern bodies),
 a buried mesh (the road tunnels' walls: the solid's material, casting no shadow, as the terrain over
@@ -1144,7 +1145,7 @@ build reads is in memory.
   chunk, so it gets the very triangles, in the very order, that cutting a whole-map build gives it,
   whichever order the tiles came in (`rail.map-test.ts` checks every chunk of the map against its
   cut of the whole build of every tile's vectors joined, the tiles handed in reverse key order;
-  `rail.test.ts` the chunks by Monzone station, the tiles handed both ways).
+  `rail.long-test.ts` the chunks by Monzone station, the tiles handed both ways).
 - **The tiles a chunk reads**: its terrain reads the tiles under its square (an apron chunk's, the
   edge tiles it clamps to; a notch chunk's, the listed tiles round the notch, `tilesOver`), which
   hold every building, road and river it draws. Its base is those and, for an apron chunk, the tiles
@@ -2782,10 +2783,11 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     open and in the warning, across the road to the left of the way in closed, at 45° halfway; a
     demand while they rise lowering them from where they stood; the lamps and lights lit from the
     warning until the arms are up; the skirt plumb at every angle and folded flat standing up.
-  - `src/render/__tests__/rail.test.ts`: the chunks in the box −1000…0 × −100…900 by Monzone
-    station (across the x = 0 and y = 0 seams), built from the pieces of the tiles under them with
-    every tile dropped first and the tiles handed in key order and reversed, keeping exactly their
-    cut of the whole build (track and stations, roads and rivers, lamps, buildings); over the
+  - `src/render/__tests__/rail.long-test.ts` (0.5 s alone): the chunks in the box −1000…128 ×
+    −128…900 by Monzone station (a chunk's side past the x = 0 and y = 0 seams, wherever the chunks'
+    squares fall), built from the pieces of the tiles under them with every tile dropped first and
+    the tiles handed in key order and reversed, keeping exactly their cut of the whole build (track
+    and stations, roads and rivers, lamps, buildings). `src/render/__tests__/rail.test.ts`: over the
     railway within 4 km of Monzone station (its five crossings, Monzone's,
     Gragnola's and Equi Terme's, and seven of its eleven tunnel mouths, drawn from the pieces within
     100 m more: the file reads 16 of the 102 tiles), nothing 3D in a crossing's carriageway and the
