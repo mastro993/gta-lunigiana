@@ -177,3 +177,46 @@ test("readNc5: carriageways but those in a tunnel as paved road surfaces, a buil
   const nameless = part(t, { L6871: [building("", {}, [[square(E, N, 30, 39.04)]])] })
   assert.throws(() => readNc5([nameless], ANYWHERE), /L6871: a feature without its classref/)
 })
+
+test("readNc5: a polygon's first ring is its outline and the rest its holes, a hole touching the outline at a vertex too", (t) => {
+  // Trebiano's ruined castle 248083_1704235 (L6871): a courtyard whose ring starts on the outline's
+  // corner.
+  const outline = square(E, N, 30, 20),
+    // The courtyard, clockwise, from the outline's north-east corner through its middle: a test of
+    // its first vertex against the outline finds it outside.
+    yard = [
+      E + 30,
+      N + 30,
+      20,
+      E + 20,
+      N + 10,
+      20,
+      E + 10,
+      N + 10,
+      20,
+      E + 10,
+      N + 20,
+      20,
+      E + 30,
+      N + 30,
+      20,
+    ]
+  const dir = part(t, {
+    L6871: [building("248083_1704235", { edifc_stat: "02" }, [[outline, yard]])],
+    L6858: [
+      {
+        properties: { subregid: "248083_1752825", ac_vei_sed: "01" },
+        polygons: [[outline, yard]],
+      },
+    ],
+  })
+  const { buildings, roadAreas } = readNc5([dir], ANYWHERE)
+  assert.deepEqual(
+    buildings.map((b) => [b.outer.length / 2, b.holes?.length]),
+    [[4, 1]],
+  )
+  assert.deepEqual(
+    roadAreas.map((r) => r.rings.length),
+    [2],
+  )
+})
