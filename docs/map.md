@@ -2717,17 +2717,35 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   now stands at 87.7 m, and no line passes 3.06%. With it Monzone's bridges over the Lucido
   (140780341/47, 140780342/32) rose 0.9–1.1 m, the line through the station now keeps within about
   0.4 m of the LiDAR ground, where it sagged up to 1.1 m under it, and the Lucido bridge
-  83729863/140780336/140780348 at (−1600, 2700) rose up to 2.3 m. A chain of the rail that ends at a
-  node only bridge or tunnel pieces touch (a switch in a tunnel, a crossover's switch on a deck, a
-  dead end in a tunnel; `insideNodes`, `Spec.inside`) ends at no portal or abutment: it takes the
-  level an earlier chain set at either end of its deck, else its other end's. North of Aulla a
-  Pontremolese switch in a tunnel took the hill's 114.9 m and humped the line 5.5 m over about 700
-  m, the line being at 99 m there, and a crossover's switch on the second track's deck over the
-  SS665 took the valley's 71.8 m and sagged that track 4.4 m. An end the play area's outline cuts (a
-  chain's end with no id) takes its other end's level: the ground there is the hill over the bore or
-  the valley under the deck. The Lupacino, cut 1,325 m in at x 6700, took the hill's 528 m at the
-  cut and fell 3.7% to its portal at 357 m; it now runs level from it. The SS63's bridge cut at y
-  13000 fell 17.9 m (15%) to the valley floor; it now runs level at 971.3 m.
+  83729863/140780336/140780348 at (−1600, 2700) rose up to 2.3 m. A bridge and a tunnel joined end
+  to end are straight too, before the fit, from the outer end of the one to the outer end of the
+  other (each deck still ships straight between its own ends, at the fit's levels): the ground at
+  their joint is the hill's face over the mouth or the valley's side under the abutment, and 4 m out
+  of either is the other's, the hill over the bore or the valley under the deck. At Santo Stefano di
+  Magra the Pontremolese's two tracks run off their decks straight into their tunnels (206182854
+  into 206182859 at (−18112, −2984), 86258947 into 54567426 at (−18101, −2997), 15 m apart): read
+  so, their joints stood at 24.0 and 28.7 m (21.3 and 25.0 m once the mouths took the face's foot);
+  both now stand at 23.8 m. Rail and roads hold 18 such joints on Lunigiana (12 of the rail's) and
+  none on Cesena, the L or the coast. The rule moved 1,994 of Lunigiana's nodes, 1,137 of them in
+  the earlier parts: the Lucca–Aulla line's tunnel–bridge–tunnel by Aulla (221235472, 140772192,
+  140772193) up to 1.4 m, its grade over the bridge 1.37–2.57–0.85% before, 1.54–1.62–0.77% now; the
+  Pontremolese's joints at (−12130, 5131) by 1.8 m, and north of Aulla by up to 3.6 m, where the
+  line climbed 0.83, 1.1, 1.1 and 0.26% through the tunnel 62120871, the viaduct's two pieces and
+  the tunnel 92904197 and now climbs 0.69–0.70% all through (the joint of 1045531416 and 92904328
+  stood at 89.5 m on this part's build); the A15's Galleria Calcinara (31135800, 136414830) by 3.1
+  m; and two forest tracks by Equi Terme, whose 33 m tunnel 1181149122 climbed 19% to its joint with
+  the bridge 1181149123 and the bridge fell from it, by up to 2.7 m (the ground under them by up to
+  9.1 m): 19 roads and 46 rail pieces. A chain of the rail that ends at a node only bridge or tunnel
+  pieces touch (a switch in a tunnel, a crossover's switch on a deck, a dead end in a tunnel;
+  `insideNodes`, `Spec.inside`) ends at no portal or abutment: it takes the level an earlier chain
+  set at either end of its deck, else its other end's. North of Aulla a Pontremolese switch in a
+  tunnel took the hill's 114.9 m and humped the line 5.5 m over about 700 m, the line being at 99 m
+  there, and a crossover's switch on the second track's deck over the SS665 took the valley's 71.8 m
+  and sagged that track 4.4 m. An end the play area's outline cuts (a chain's end with no id) takes
+  its other end's level: the ground there is the hill over the bore or the valley under the deck.
+  The Lupacino, cut 1,325 m in at x 6700, took the hill's 528 m at the cut and fell 3.7% to its
+  portal at 357 m; it now runs level from it. The SS63's bridge cut at y 13000 fell 17.9 m (15%) to
+  the valley floor; it now runs level at 971.3 m.
 - Within each pass, the next chain profiled is the longest one that touches a node an earlier
   chain already set, else the longest left. Elevations spread along the network from where it is
   pinned, so a short link is not pinned at both ends by chains fitted apart (a lane in Codiponte

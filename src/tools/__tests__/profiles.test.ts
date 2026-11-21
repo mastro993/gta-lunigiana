@@ -80,6 +80,30 @@ test("profile takes a rail tunnel's mouth at the foot of the hill's face, howeve
   assert.ok(road > 102, `the road's bore's middle at ${road.toFixed(2)}, its mouth 4 m up the face`)
 })
 
+// Regression: the Pontremolese's up track at Santo Stefano di Magra runs off its deck 86258947
+// straight into its tunnel 54567426: the deck's end read the hill 4 m into the bore and the bore's
+// mouth the deck 4 m out of it, and the joint stood at 28.7 m, 4.7 m over the down track's 15 m away.
+test("profile lays a bridge and a tunnel joined end to end straight from the bridge's end to the portal: no hill's or valley's ground at their joint", () => {
+  // Flat ground at 100 m, a valley 20 m deep under the bridge (x 300–400), a hill 30 m high over the
+  // bore (x 400–500), its face standing at the joint.
+  const ground = (x: number) => (x > 300 && x < 400 ? 80 : x >= 400 && x <= 500 ? 130 : 100)
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(0, 0), v(300, 0, "b0")] },
+    { id: 2, bridge: true, pts: [v(300, 0, "b0"), v(400, 0, "j")] },
+    { id: 3, tunnel: true, pts: [v(400, 0, "j"), v(500, 0, "p")] },
+    { id: 4, pts: [v(500, 0, "p"), v(800, 0)] },
+  ]
+  for (const spec of [{ w: 4, ...RAIL_PASS }, SPEC]) {
+    const { profile, zOf } = makeProfiler((x) => ground(x))
+    profile(
+      pieces.map((item) => ({ item, rev: false })),
+      spec,
+    )
+    for (const p of pieces)
+      for (const z of zOf.get(p)!) assert.ok(Math.abs(z - 100) < 1e-6, `piece ${p.id} at ${z}`)
+  }
+})
+
 // Regression: the Galleria del Lupacino, cut by the play area's outline 1325 m in and split by OSM where its speed limit
 // changes, took the hill's surface at the cut and at the joint, and fell 3.7% to its portal.
 test("profile runs a tunnel the outline cuts, in two pieces, level from its one portal: no hill's surface at the cut or the joint", () => {

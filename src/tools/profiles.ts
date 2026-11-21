@@ -290,9 +290,23 @@ export const makeProfiler = (
         p.z[k] = z
         endPins.push({ k, z })
       }
+    // Before the fit, the lifted pieces in a row are straight from end to end, a bridge and a tunnel
+    // joined end to end too (each deck still ships straight between its own ends, at the fit's
+    // levels): the ground at their joint is the hill's face over the mouth or the valley's side
+    // under the abutment, and 4 m out of either is the other's, the hill over the bore or the valley
+    // under the deck. Read so, the Pontremolese's up track at Santo Stefano di Magra, off its deck
+    // 86258947 into its tunnel 54567426, stood at 28.7 m there, 4.7 m over the down track's joint
+    // 15 m away; both now stand at 23.8 m.
+    const liftedRunOf = (i: number): readonly [number, number] => {
+      let a = i,
+        b = i
+      while (a > 0 && isLifted(a - 1)) a--
+      while (b + 1 < runs.length && isLifted(b + 1)) b++
+      return [a, b]
+    }
     for (let i = 0; i < runs.length; i++) {
       if (!isLifted(i)) continue
-      const [i0, i1] = deckOf(i)
+      const [i0, i1] = liftedRunOf(i)
       i = i1
       const [k0, k1] = deckEnds([i0, i1]).map((v) => p.vertexSample[v]!) as [number, number]
       // Each end takes the ground PORTAL m out of it when that is nearer the line's level: at a
