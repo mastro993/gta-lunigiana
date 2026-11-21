@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 
 import { FLAT_GROUND } from "../../sky/local.ts"
 import { groundBuckets } from "../ground-model.ts"
-import { ON_DECK } from "../kinds.ts"
+import { ON_DECK, ROAD_LIFT } from "../kinds.ts"
 import { LIFT, road, scene } from "./ground-scenes.ts"
 
 // The ground model's rules on hand-made scenes, with no map loaded: ground.test.ts and
@@ -124,6 +124,36 @@ test("past a joint with another road at grade, a road's surface reaches no farth
   // Where a third road meets them it is a junction, and the wide road keeps its round end there.
   const side = road({ w: 4, from: [0, 0], to: [0, -40], z: [100, 100] })
   assert.ok(road100(scene({ terrain: () => 99, roads: [narrow, wide, side] }).atGrade(-2, 10)))
+})
+
+// Regression (#20): the SS1's viaduct forks at (−15552, −6175) into its own deck 86257908, climbing
+// 8.3%, and the flat tertiary 23277539, their carriageways overlapping for 11 m: a car's wheels and
+// a walker on the SS1 kept to the flatter deck, the one nearer the level they had, 0.4–0.6 m under
+// the SS1's.
+test("decks within ON_DECK of the last level blend where they overlap, by how deep inside each the point is: at a fork each keeps to its own", () => {
+  // Coming in along y = 0 on a deck at 100 m to x = 0, the SS1 on from there climbing 8%, 12 m
+  // wide, and a deck 6.5 m wide forking off it flat, 18° off its line.
+  const lift = ROAD_LIFT.primary
+  const { rolledTo, groundZ } = scene({
+    terrain: () => 90,
+    roads: [
+      road({ cls: "primary", w: 12, from: [-50, 0], to: [0, 0], z: [100, 100], bridge: true }),
+      road({ cls: "primary", w: 12, from: [0, 0], to: [100, 0], z: [100, 108], bridge: true }),
+      road({ cls: "primary", w: 6.5, from: [0, 0], to: [95, -31], z: [100, 100], bridge: true }),
+    ],
+  })
+  for (const x of [2, 4, 6, 8, 10]) {
+    const wheel = rolledTo(-10, 0, 100 + lift, x, 0),
+      foot = rolledTo(-10, 0, 100 + lift, x, 0, (px, py, near) => groundZ(px, py, near, true))
+    for (const [who, z] of [
+      ["the wheel", wheel],
+      ["the walker", foot],
+    ] as const)
+      assert.ok(
+        Math.abs(z - (100 + 0.08 * x + lift)) < 0.25,
+        `${who} at x ${x}: ${z.toFixed(2)} on the SS1's ${(100 + 0.08 * x + lift).toFixed(2)}`,
+      )
+  }
 })
 
 test("a platform's top along its axis is the ground on it, unless the terrain stands higher", () => {

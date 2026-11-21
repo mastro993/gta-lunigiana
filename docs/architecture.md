@@ -502,7 +502,9 @@ walk, sorts it first:
   and tunnels kept to the level nearest the caller's previous height (with `verges`, a deck or a
   tunnel reaching out to its walkers' verges alongside it, and past its ends no farther along it
   than a wheel's reach, so the verges at a span's end hold no walker on its level over the next
-  span rising from there). `footZ` is where someone on
+  span rising from there; where several are within `ON_DECK` of that height, a fork or the joint of
+  two spans, they blend, each weighted by the square of how far inside its reach the point lies, as
+  a share of that reach, and by how much nearer than `ON_DECK` it stands). `footZ` is where someone on
   foot stands: given their previous height, the ground nearest it with the decks out to their verges
   (what `FindFooting` keeps in `Footing`, through `settleFooting`, and where getting out of a train
   steps down, nearest the rail head); with none to go by, on a road bridge's deck or in a road

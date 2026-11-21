@@ -10,7 +10,7 @@
  *
  * @module map/ground-model
  */
-import { pointInRing, segDist2, segT } from "../collide.ts"
+import { pointInRing, segD2, segDist2, segT } from "../collide.ts"
 import { type FacingAt, FLAT_GROUND } from "../sky/local.ts"
 import { addToBuckets, bucketItems, type Buckets, emptyBuckets } from "./buckets.ts"
 import { footReach, HALO, ON_DECK, ROAD_LIFT, ROAD_PAD, roadClassOf } from "./kinds.ts"
@@ -345,8 +345,14 @@ export const groundModel = (data: GroundData) => {
    * tunnels compete with that ground for the one nearest `near`, the actor's previous elevation, so it
    * stays on the level it was on; without `near`, the highest wins. A deck within ON_DECK of `near`
    * wins outright: on a ramp over a gully the ground below can be nearer than the climbing deck, and
-   * the actor must not drop onto it. With `verges`, for someone on foot, a deck or a tunnel reaches
-   * out to its walkers' verges.
+   * the actor must not drop onto it. Where several decks or tunnels are within ON_DECK of it (a fork,
+   * the joint of two spans) they blend, each weighted by the square of how far inside its reach the
+   * point lies, as a share of that reach, and by how much nearer than ON_DECK it stands, so the actor
+   * keeps to the deck it is on, not to the one nearer its last level: at the SS1's fork by Sarzana
+   * (86257908 climbing 8.3%, the tertiary 23277539 flat) the nearer kept a car's wheels 0.4 m and a
+   * walker 0.6 m under the SS1's deck; weighted by the depth in metres, the SS1's 12 m carriageway
+   * drew a car on the tertiary 0.5 m over its deck. With `verges`, for someone on foot, a deck or a
+   * tunnel reaches out to its walkers' verges.
    */
   const groundZ = (x: number, y: number, near?: number, verges = false): number => {
     const segments = segmentsIn(Math.floor(x / BUCKET), Math.floor(y / BUCKET))
@@ -365,16 +371,33 @@ export const groundModel = (data: GroundData) => {
       weights += weight
     }
     if (weights > 0) best = Math.max(best, sum / weights)
-    let score = near === undefined ? -best : Math.abs(best - near)
+    let score = near === undefined ? -best : Math.abs(best - near),
+      // The decks and tunnels within ON_DECK of `near`: how many, the first's surface, and their blend.
+      held = 0,
+      first = 0,
+      heldSum = 0,
+      heldWeights = 0
     for (const s of segments) {
       if (!s.lifted) continue
       const h = verges ? onVerge(s, x, y) : onSegment(s, x, y)
       if (h === undefined) continue
-      const off = near === undefined ? 0 : Math.abs(h - near)
-      const sc = near === undefined ? -h : off < ON_DECK ? off - ON_DECK : off
-      if (sc < score) [best, score] = [h, sc]
+      if (near === undefined) {
+        if (-h < score) [best, score] = [h, -h]
+        continue
+      }
+      const off = Math.abs(h - near)
+      if (off >= ON_DECK) {
+        if (off < score) [best, score] = [h, off]
+        continue
+      }
+      const inside =
+          1 - Math.sqrt(segD2(x, y, s.ax, s.ay, s.bx, s.by)) / (verges ? s.foot : s.half),
+        weight = inside * inside * (ON_DECK - off) + 1e-9
+      if (held++ === 0) first = h
+      heldSum += weight * h
+      heldWeights += weight
     }
-    return best
+    return held === 0 ? best : held === 1 ? first : heldSum / heldWeights
   }
 
   /**
