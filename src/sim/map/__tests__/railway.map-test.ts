@@ -212,7 +212,7 @@ test("railway: each line calls at each station along its platforms, on their sid
   // OSM's seven from Pieve San Lorenzo to Aulla on the Lucca–Aulla line (Fivizzano-Gassano a halt), the last its terminus; the
   // Pontremolese's lines call at Aulla Lunigiana and Santo Stefano di Magra, then Sarzana (by the link) or Vezzano Ligure, the
   // Genova–Pisa's at Sarzana and Vezzano Ligure, and the westbound track's at Arcola's halt, whose platform 1 OSM draws beside
-  // it (its platform 2 is too small once clipped: `MIN_AREA`).
+  // it (its platform 2, which the ramp down to its subway runs inside, falls into pieces under `MIN_AREA`: no eastbound call).
   assert.deepEqual(
     railway.stations.map((st) => [st.name, st.line]),
     [

@@ -2815,11 +2815,30 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   with 3.4–6 m between neighbours, were fitted each from its own ground, 2.6 m apart, and the two
   between could keep to neither; the tracks of Santo Stefano di Magra's yard throat, leaving their
   switches at over 15°, stood 0.4–0.7 m apart within 6 m: 54 pairs of tracks stood over 0.3 m apart
-  on Sarzana's part's first build (Via Termo's hump above among their causes), 3 now (a known
-  limit: two of them 0.30 and 0.31 m apart at the triangle's west junction, (−18903, −3506), and the
-  Pontremolese's down track and the link's up track, both on decks, 1.97 m apart where they part at
-  the triangle's north apex, (−17909, −2698): the link, fitted first, falls from the switch toward
-  the Genova–Pisa as the Pontremolese climbs toward Vezzano). The first rule moved 43 of
+  on Sarzana's part's first build (Via Termo's hump above among their causes), 3 now, a known limit
+  (`rail.map-test.ts` fails on them): the Pontremolese's two tracks 206182846 and 111752500 0.30 m
+  apart at (−18975, −3599) and 111646538 and the crossover 423877054 0.31 m apart at (−18903, −3506),
+  by the triangle's west junction, and the Pontremolese's down track and the link's up track
+  (1045531422, 1045531424), both on decks, 1.97 m apart where they part at the triangle's north apex,
+  (−17909, −2698): the link, fitted first, falls from the switch toward the Genova–Pisa as the
+  Pontremolese climbs toward Vezzano, and a deck's profile is the straight line between its ends,
+  so the bounds its twin puts on its samples between them hold in the fit but not in the deck
+  shipped. The junction's chains are fitted one at a time, each switch's level set by the first
+  chain through it; at the triangle's west junction the free end of 111646538's chain, smoothed over
+  the 100 m behind it alone on ground climbing 3% (its window cut at the switch), took 22.6 m, 2.4 m
+  under the ground there, and the crossover 423877054 from it climbs 5.5% to the next track's switch
+  (24.4 m): the line's grade changes 4.0–7.5% over 20 m there and at five more switches of the
+  triangle and Vezzano Ligure's throats (`railway.map-test.ts`), and the ATR 220's cars stand up to
+  0.109 m off the rail head on lines 2, 5 and 6's sharpest curves, Vezzano Ligure's west-throat
+  crossovers ((−19650, −4234), (−19607, −4148)) and (−18715, −3262) (`consist.test.ts`). Measured
+  offline on the rail pass alone (2026-11-21) against today's 14 places where a line's grade changes
+  4% or more over 20 m (up to 7.5%) and 3 twin pairs, four general fits each mend some and break
+  others, so none is taken: smoothing a cut window's end along its least-squares line leaves 12
+  places (up to 6.8%) and 15 pairs (Santo Stefano di Magra's yard 0.3–0.8 m apart); chaining the
+  track through each switch's straight way 5 (up to 6.6%) and 12; the smoothing reading the ground
+  on past a switch along the track that runs on 23 (up to 10.8%, Aulla's among them) and 14; and
+  binding tracks up to 8 m apart as one formation 21 (up to 9.7%) and 24. A fit of each formation's
+  switches together is open. The first rule moved 43 of
   Lunigiana's rail pieces and 452 terrain nodes, by up to 2.4 m, with the walls and a parked spot
   beside them, along the Pontremolese by Aulla and the sidings at x 4900–5370, and on Cesena 18
   pieces, 863 nodes (up to 0.5 m), a platform and 28 lamps round its station and two underpass
@@ -3029,8 +3048,11 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   loops, and Aulla's station stood 37.7 m off any line. OSM's routes in play are the REG
   Parma–La Spezia pair (21846725, 21846726), the REG Milano–Livorno pair (21780039, 21780040), the
   REG Pietrasanta–La Spezia pair (21718837, 21718838), the Lucca–Aulla line's three (6333346,
-  21785495, 21785496), and the Frecciabianca pair (2215519, 2216863) and "da Aulla a La Spezia"
-  (19196992), whose ways in play give no line of their own. Seven lines here:
+  21785495, 21785496), the Frecciabianca pair (2215519, 2216863), which give OSM's older `forward`
+  and `backward` roles to all but 18 and 28 of their ways (`trainRoutes` reads a route's ways as
+  its members with no role, as the current scheme lists them, so their walks reach no other
+  terminal), and "da Aulla a La Spezia" (19196992), whose walk joins the north edge to the west
+  edge as the Parma–La Spezia's does: one line between them. Seven lines here:
   - **0, Lucca–Aulla**: 140 pieces, 25,880.1 m from the outline at Pieve San Lorenzo (6700,
     3423.2), in the Galleria del Lupacino, to Aulla Lunigiana's track 4, its stop 13949044083 at
     (−12215.7, 6354.9) on OSM way 426008617, a terminus. Its speed limits are OSM's `maxspeed`,
