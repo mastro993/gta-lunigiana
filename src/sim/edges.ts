@@ -1,10 +1,10 @@
 /**
  * Lookups over the map graph's edges as straight chords: the distance to an edge's centreline, its
- * midpoint, and grids that find the nearest edge or the edges around a point without scanning the
- * whole map. Static, derived once from `graph`; a chord is read from its two nodes when asked, never
- * stored (an object per edge for the chords and another for the midpoints kept 18 MB of the heap
- * on Lunigiana). Kept apart from `route` so that modules `route` reads (the residents along each
- * walk edge) can use them without an import cycle.
+ * midpoint, which networks it is in, and grids that find the nearest edge or the edges around a point
+ * without scanning the whole map. Static, derived once from `graph`; a chord is read from its two
+ * nodes when asked, never stored (an object per edge for the chords and another for the midpoints
+ * kept 18 MB of the heap on Lunigiana). Kept apart from `route` so that modules `route` reads (the
+ * residents along each walk edge) can use them without an import cycle.
  *
  * @module edges
  */
@@ -26,6 +26,20 @@ export const midpointOf = (edge: number): { readonly x: number; readonly y: numb
     b = graph.nodes[e.b]!
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
 }
+
+/** Per graph edge, 1 where `edges` holds it: a set of edges at a byte each (three `Set`s of them kept 4-5 MB of the heap on Lunigiana). */
+const flagsOf = (edges: ReadonlyArray<number>): Uint8Array => {
+  const flags = new Uint8Array(graph.edges.length)
+  for (const e of edges) flags[e] = 1
+  return flags
+}
+const trafficFlags = flagsOf(graph.trafficEdges),
+  walkFlags = flagsOf(graph.walkEdges)
+
+/** Whether AI traffic may drive `edge`: one of `graph.trafficEdges`. */
+export const isTrafficEdge = (edge: number): boolean => trafficFlags[edge] === 1
+/** Whether people walk `edge`: one of `graph.walkEdges`. */
+export const isWalkEdge = (edge: number): boolean => walkFlags[edge] === 1
 
 /** Grid cell of `edgeIndex`, m (edges are at most ~25 m). */
 const EDGE_CELL = 32
