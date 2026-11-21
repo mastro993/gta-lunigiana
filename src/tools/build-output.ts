@@ -19,7 +19,7 @@ import type { BuildingF, RoadF } from "./features.ts"
 import { BOUNDS, M_PER_DEG, ORIGIN, r1 } from "./geometry.ts"
 import { OUTLINE } from "./play-area.ts"
 import { REGION } from "./region.ts"
-import { sampleGrid, type Grid } from "./terrain.ts"
+import { type DmGrid, sampleGrid } from "./terrain.ts"
 import { type BuiltMap, type MapCut, stampMap } from "./tile-map.ts"
 import { treeCorner } from "./trees.ts"
 
@@ -36,12 +36,12 @@ const EAVE = { min: 1.5, max: 45 }
  * nodes' levels without them for the reading alone.
  */
 export const floorsOf = (
-  grid: Grid,
+  grid: DmGrid,
   before: ReadonlyMap<number, number>,
   buildings: ReadonlyArray<Pick<BuildingF, "outer" | "holes">>,
 ): Array<number> => {
-  const after = [...before.keys()].map((n) => grid.z[n]!)
-  for (const [n, z] of before) grid.z[n] = z
+  const after = [...before.keys()].map((n) => grid.dm[n]!)
+  for (const [n, z] of before) grid.dm[n] = Math.round(z * 10)
   const floors = buildings.map((b) => {
     let z0 = Number.MAX_VALUE
     for (const ring of [b.outer, ...(b.holes ?? [])])
@@ -50,7 +50,7 @@ export const floorsOf = (
     return z0
   })
   let k = 0
-  for (const n of before.keys()) grid.z[n] = after[k++]!
+  for (const n of before.keys()) grid.dm[n] = after[k++]!
   return floors
 }
 
@@ -96,7 +96,7 @@ export const assembleMap = (
       y0: grid.y0,
       // The lookups' anchor, named only where it is not the first node (`anchorOf`).
       ...(grid.ax === grid.x0 && grid.ay === grid.y0 ? {} : { ax: grid.ax, ay: grid.ay }),
-      data: decimetres(grid),
+      data: grid.dm,
     },
     roads: roads.map(roadOut),
     buildings: buildings.map((b, i) => {
@@ -140,20 +140,6 @@ export const assembleMap = (
   }
   // Rasterised a tile at a time, as the cut asks for it.
   return { ...map, cover: coverBlocks(map) }
-}
-
-/** The grid's nodes in whole decimetres, each checked to fit int16 (a NaN or a height past ±3276.7 m fails the build). */
-export const decimetres = (grid: Grid): Int16Array => {
-  const out = new Int16Array(grid.z.length)
-  for (let k = 0; k < out.length; k++) {
-    const v = Math.round(grid.z[k]! * 10)
-    if (!(v >= -32768 && v <= 32767))
-      throw new Error(
-        `heightmap: ${v} at node (${k % grid.cols}, ${Math.floor(k / grid.cols)}) does not fit int16`,
-      )
-    out[k] = v
-  }
-  return out
 }
 
 /** Decoded tiles the bake keeps at once: past them the first read goes, and is read again if needed. */

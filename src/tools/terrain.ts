@@ -36,6 +36,24 @@ export interface Grid {
 }
 
 /**
+ * The finished terrain grid, whole, each node in the whole decimetres the file ships (`decimetre`),
+ * which the phases after the terrain read as `dm / 10` m: the metres the tile pass rounded it to
+ * (`Math.round(z * 10) / 10`), bit for bit, in a quarter of the bytes (Lunigiana's 45 million nodes
+ * as 362 MB of `Float64Array` held the world phase 0.27 GB higher).
+ */
+export interface DmGrid extends Omit<Grid, "z" | "span"> {
+  readonly dm: Int16Array
+}
+
+/** Height `z` m of whole-grid node (i, j) in whole decimetres, checked to fit int16 (a NaN or a height past ±3276.7 m throws). */
+export const decimetre = (z: number, i: number, j: number): number => {
+  const v = Math.round(z * 10)
+  if (!(v >= -32768 && v <= 32767))
+    throw new Error(`heightmap: ${v} at node (${i}, ${j}) does not fit int16`)
+  return v
+}
+
+/**
  * The cell (0 … n − 2) of a lattice of `n` nodes that holds the point `f` cells past its node `o`,
  * clamped to the lattice. `o` goes on the whole cells alone, so the point's fraction of its cell
  * (`fractionOf`) keeps its bits however far the lattice reaches past `o`.
@@ -100,14 +118,17 @@ export const makeGrid = (dem: (x: number, y: number) => number, span: Span): Gri
 }
 
 /** Index in `g.z` of whole-grid node (i, j), which `g` must hold. */
-export const slotOf = (g: Grid, i: number, j: number): number =>
-  g.span === undefined ? j * g.cols + i : (j - g.span.j0) * g.span.cols + i - g.span.i0
+export const slotOf = (
+  g: { readonly cols: number; readonly span?: Span },
+  i: number,
+  j: number,
+): number => (g.span === undefined ? j * g.cols + i : (j - g.span.j0) * g.span.cols + i - g.span.i0)
 
 /**
  * Bilinear terrain at (x, y), clamped to the whole grid, measured from its anchor (the same bits on
  * any grid round it); `g` must hold the four nodes of the cell read.
  */
-export const sampleGrid = (g: Grid, x: number, y: number): number => {
+export const sampleGrid = (g: Grid | DmGrid, x: number, y: number): number => {
   const fx = (x - g.ax) / g.cell,
     fy = (y - g.ay) / g.cell,
     oi = (g.ax - g.x0) / g.cell,
@@ -117,16 +138,23 @@ export const sampleGrid = (g: Grid, x: number, y: number): number => {
   const tx = fractionOf(fx, oi, i),
     ty = fractionOf(fy, oj, j)
   const k = slotOf(g, i, j),
-    up = g.span?.cols ?? g.cols
-  const s = g.z[k]! + (g.z[k + 1]! - g.z[k]!) * tx,
-    n = g.z[k + up]! + (g.z[k + up + 1]! - g.z[k + up]!) * tx
+    up = "dm" in g ? g.cols : (g.span?.cols ?? g.cols)
+  // A decimetre grid's nodes in metres; a window's as they are (`z / 1` is `z`, bit for bit).
+  const nodes = "dm" in g ? g.dm : g.z,
+    per = "dm" in g ? 10 : 1
+  const sw = nodes[k]! / per,
+    se = nodes[k + 1]! / per,
+    nw = nodes[k + up]! / per,
+    ne = nodes[k + up + 1]! / per
+  const s = sw + (se - sw) * tx,
+    n = nw + (ne - nw) * tx
   return s + (n - s) * ty
 }
 
 /** Slope in degrees of cell (i, j) (between nodes (i, j) and (i+1, j+1)) of the whole grid `g`, over a 3-cell (12 m) baseline: shorter steps (terrace walls, road cuts) are not slopes the player is stopped by. */
-export const cellSlope = (g: Grid, i: number, j: number): number => {
+export const cellSlope = (g: DmGrid, i: number, j: number): number => {
   const z = (a: number, b: number) =>
-    g.z[Math.min(g.rows - 1, Math.max(0, b)) * g.cols + Math.min(g.cols - 1, Math.max(0, a))]!
+    g.dm[Math.min(g.rows - 1, Math.max(0, b)) * g.cols + Math.min(g.cols - 1, Math.max(0, a))]! / 10
   const dx = (z(i + 2, j) + z(i + 2, j + 1) - z(i - 1, j) - z(i - 1, j + 1)) / (6 * g.cell)
   const dy = (z(i, j + 2) + z(i + 1, j + 2) - z(i, j - 1) - z(i + 1, j - 1)) / (6 * g.cell)
   return (Ops.atan(Math.hypot(dx, dy)) * 180) / Math.PI

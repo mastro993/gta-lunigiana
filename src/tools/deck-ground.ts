@@ -10,7 +10,7 @@
 import { DECK_BALLAST, DECK_SLAB, isRoadClass, ON_DECK, ROAD_LIFT } from "../sim/map/kinds.ts"
 import { gridGround } from "./build-ground.ts"
 import { BED } from "./rail-bed.ts"
-import { anchorNode, type Grid } from "./terrain.ts"
+import { anchorNode, type DmGrid, type Grid } from "./terrain.ts"
 
 /** A deck as shipped: its flat polyline and profile per vertex, its slab's half width and its top over the profile, m. */
 export interface Slab {
@@ -265,7 +265,7 @@ const clip = (
  * bridge), and no deep pit is dug to make up for one.
  */
 const lay = (
-  g: Grid,
+  g: DmGrid,
   seg: Segment,
   d0: number,
   d1: number,
@@ -295,7 +295,8 @@ const lay = (
         const excess = () =>
           nodes.map(
             (n, q) =>
-              g.z[n]! - plane(g.x0 + (i + corners[q]![0]) * c, g.y0 + (j + corners[q]![1]) * c),
+              g.dm[n]! / 10 -
+              plane(g.x0 + (i + corners[q]![0]) * c, g.y0 + (j + corners[q]![1]) * c),
           )
         for (;;) {
           const e = excess(),
@@ -313,7 +314,7 @@ const lay = (
           if (best < 0) break
           const n = nodes[best]!,
             drop = Math.min(e[best]! + DECK_SLAB.depth, over / w[best]!)
-          lower(n, Math.floor((g.z[n]! - drop) * 10 + 1e-6) / 10)
+          lower(n, Math.floor((g.dm[n]! / 10 - drop) * 10 + 1e-6) / 10)
         }
       }
     }
@@ -364,15 +365,16 @@ export const slabNodes = (
  * still. Returns each node moved, by whole-grid index, with how far (negative), ascending.
  */
 export const deckGround = (
-  g: Grid,
+  g: DmGrid,
   slabs: ReadonlyArray<Slab>,
   keep: (n: number) => boolean,
 ): Array<readonly [number, number]> => {
   const was = new Map<number, number>()
   const lower = (n: number, z: number) => {
-    if (keep(n) || z >= g.z[n]!) return
-    if (!was.has(n)) was.set(n, g.z[n]!)
-    g.z[n] = z
+    const at = g.dm[n]! / 10
+    if (keep(n) || z >= at) return
+    if (!was.has(n)) was.set(n, at)
+    g.dm[n] = Math.round(z * 10)
   }
   // The terrain as the game draws it, read live as the nodes are lowered.
   const { terrainZ: terrain } = gridGround(g)
@@ -408,7 +410,7 @@ export const deckGround = (
       }
     }
   }
-  return [...was].sort((a, b) => a[0] - b[0]).map(([n, z]) => [n, g.z[n]! - z] as const)
+  return [...was].sort((a, b) => a[0] - b[0]).map(([n, z]) => [n, g.dm[n]! / 10 - z] as const)
 }
 
 /** The nodes `deckGround` lowered and the deepest cut, m. */

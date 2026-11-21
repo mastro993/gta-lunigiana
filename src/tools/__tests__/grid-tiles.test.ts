@@ -85,7 +85,7 @@ test("gridTiles gives an L its listed tiles alone, and listedNodes every node th
 test("extendEdges gives each node no listed tile holds the listed node the game reads there, and leaves the rest", () => {
   const z = Float64Array.from({ length: lLattice.cols * lLattice.rows }, (_, k) => k)
   const listed = listedNodes(lLattice, L.tiles)
-  extendEdges({ ...lLattice, z }, listed, L.tiles)
+  extendEdges(lLattice, z, listed, L.tiles)
   for (let k = 0; k < z.length; k++) if (listed[k] === 1) assert.equal(z[k], k, `node ${k}`)
   const at = (x: number, y: number) => z[lNode(x, y)]
   // Beside the notch's west side, the leg's edge (tile -1_1); beside its south side, the foot's (0_0)

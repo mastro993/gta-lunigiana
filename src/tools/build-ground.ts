@@ -4,7 +4,7 @@
 // platforms as shipped.
 import { type Ground, type GroundRoad, wholeGround } from "../sim/map/ground-model.ts"
 import type { PlatformOut } from "./platforms.ts"
-import type { Grid } from "./terrain.ts"
+import type { DmGrid, Grid } from "./terrain.ts"
 
 /** A whole lattice of terrain nodes: its first node, its anchor where that is not it (`anchorOf`), its cell and its size. */
 interface Lattice {
@@ -49,19 +49,20 @@ export const latticeGround = (
 }
 
 /**
- * The ground over the whole grid `g` as the file ships it, each node rounded to the decimetre, and
+ * The ground over the whole grid `g` as the file ships it, each node rounded to the decimetre (as
+ * a `DmGrid` holds it), and
  * over `roads` with their shipped `lines` and the laid `platforms`. The roads' walkers' verges are
  * set later (rail-clear.ts): only `footZ` and `groundZ` with verges read them, which the build does not.
  */
 export const gridGround = (
-  g: Grid,
+  g: Grid | DmGrid,
   roads: ReadonlyArray<Pick<GroundRoad, "cls" | "w" | "bridge" | "tunnel">> = [],
   lines: ReadonlyArray<Pick<GroundRoad, "pts" | "z">> = [],
   platforms: ReadonlyArray<Pick<PlatformOut, "rings" | "axis" | "top">> = [],
 ): Ground =>
   latticeGround(
     g,
-    (n) => Math.round(g.z[n]! * 10),
+    "dm" in g ? (n) => g.dm[n]! : (n) => Math.round(g.z[n]! * 10),
     roads.map(({ cls, w, bridge, tunnel }, i) => ({ cls, w, bridge, tunnel, ...lines[i]! })),
     platforms,
   )

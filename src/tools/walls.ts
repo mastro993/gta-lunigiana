@@ -11,7 +11,7 @@ import { flatRing, pointInRing, r1, ringBox, segD2, segIndex, signedArea } from 
 import { gridTiles } from "./grid-tiles.ts"
 import { simplifyLoop, traceLoops } from "./loops.ts"
 import { inPlay, OUTLINE } from "./play-area.ts"
-import { anchorNode, cellSlope, type Grid } from "./terrain.ts"
+import { anchorNode, cellSlope, type DmGrid } from "./terrain.ts"
 
 const RUN = 16 // max wall segment length, m
 /** The steepest ground (°) a walker climbs off a road: a steeper cell is a `walk` wall. */
@@ -72,7 +72,7 @@ const append = (out: Array<number>, walls: ReadonlyArray<number>) => {
 
 /** Walls around the blocked cells: traced loops, simplified within `tol` m, split into <= RUN m segments, into every list in `outs`. */
 const boundary = (
-  g: Pick<Grid, "cell" | "cols" | "rows" | "x0" | "y0">,
+  g: Pick<DmGrid, "cell" | "cols" | "rows" | "x0" | "y0">,
   blocked: Uint8Array,
   outs: ReadonlyArray<Array<number>>,
   tol = SLACK,
@@ -379,7 +379,7 @@ export interface Levelled {
  * the walls `under` the decks (deck-walls.ts) last of the walk and the drive walls.
  */
 export const buildWalls = (
-  g: Grid,
+  g: DmGrid,
   roads: ReadonlyArray<RoadF>,
   water: ReadonlyArray<WaterF>,
   buildings: ReadonlyArray<BuildingF>,
@@ -451,7 +451,7 @@ export const buildWalls = (
     const centreZ = (k: number) => {
       const i = ci0 + (k % (ci1 - ci0)),
         j = cj0 + Math.floor(k / (ci1 - ci0))
-      return (g.z[j * g.cols + i]! + g.z[(j + 1) * g.cols + i + 1]!) / 2
+      return (g.dm[j * g.cols + i]! / 10 + g.dm[(j + 1) * g.cols + i + 1]! / 10) / 2
     }
     for (const { rings, box, dryOver } of pools)
       if (

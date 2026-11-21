@@ -62,20 +62,20 @@ const RIVER: Area = {
 const STILL: Area = { kind: "river", level: -CARVE, rings: [] }
 const walled = () => {
   const g = gridLattice(),
-    z = new Float64Array(g.cols * g.rows),
+    dm = new Int16Array(g.cols * g.rows),
     [x0, y0, x1, y1] = ringBox(RIVER.rings[0]!)
   assert.equal(g.cell, CELL)
   for (let j = Math.floor((y0 - g.y0) / CELL); j <= Math.ceil((y1 - g.y0) / CELL); j++)
     for (let i = Math.floor((x0 - g.x0) / CELL); i <= Math.ceil((x1 - g.x0) / CELL); i++)
-      if (inRings(RIVER.rings, g.x0 + i * CELL, g.y0 + j * CELL)) z[j * g.cols + i] = -CARVE
+      if (inRings(RIVER.rings, g.x0 + i * CELL, g.y0 + j * CELL)) dm[j * g.cols + i] = -CARVE * 10
   return {
     /** With both areas. */
-    both: buildWalls({ ...g, z }, [], [], [], [], [LAKE, RIVER], NO_PARAPETS, NOTHING_UNDER),
+    both: buildWalls({ ...g, dm }, [], [], [], [], [LAKE, RIVER], NO_PARAPETS, NOTHING_UNDER),
     /** The same ground with no river polygon over its carve. */
-    lakeOnly: buildWalls({ ...g, z }, [], [], [], [], [LAKE], NO_PARAPETS, NOTHING_UNDER),
+    lakeOnly: buildWalls({ ...g, dm }, [], [], [], [], [LAKE], NO_PARAPETS, NOTHING_UNDER),
     /** The same polygon holding still water, its river not in the map: carved as a lake is. */
     still: buildWalls(
-      { ...g, z },
+      { ...g, dm },
       [],
       [],
       [],
@@ -154,13 +154,13 @@ const ROCK: Area = {
 
 test("buildWalls rings the sea with shore walls and its raised breakwater too, dry land with no shore wall on it, walled for vehicles alone along its outline", () => {
   const g = gridLattice(),
-    z = new Float64Array(g.cols * g.rows)
+    dm = new Int16Array(g.cols * g.rows)
   for (let x = -1524; x <= -1476; x += CELL)
     for (let y = -2924; y <= -2876; y += CELL)
-      z[((y - g.y0) / CELL) * g.cols + (x - g.x0) / CELL] = 1.5
+      dm[((y - g.y0) / CELL) * g.cols + (x - g.x0) / CELL] = 15
   const outline = ROCK.rings[0]!
   const walls = buildWalls(
-    { ...g, z },
+    { ...g, dm },
     [],
     [],
     [],
@@ -200,7 +200,7 @@ test("buildWalls appends 50,000 parapets and as many walls under the decks, each
     levels: Array.from({ length: 50_000 }, (_, k) => k % 89),
   }
   const walls = buildWalls(
-    { ...g, z: new Float64Array(g.cols * g.rows) },
+    { ...g, dm: new Int16Array(g.cols * g.rows) },
     [],
     [],
     [],
@@ -265,7 +265,7 @@ test("buildWalls keeps a house's walls out of the middle w/2 of a path that reac
   }))
   const g = gridLattice()
   const { walk, drive } = buildWalls(
-    { ...g, z: new Float64Array(g.cols * g.rows) },
+    { ...g, dm: new Int16Array(g.cols * g.rows) },
     footways,
     [],
     houses,

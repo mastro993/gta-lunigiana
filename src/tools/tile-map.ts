@@ -46,8 +46,8 @@ export interface BuiltMap extends Omit<
   readonly barriers: ReadonlyArray<Barrier>
   /**
    * `cols` × `rows` nodes, decimetres, row-major from the south-west node (x0, y0) (`decimetres` in
-   * build-output.ts fits them to int16); a node no listed tile holds is the edge's (`extendEdges` in
-   * grid-tiles.ts), which no tile writes and the place leaves out.
+   * terrain.ts fits them to int16: the finished grid's own array); a node no listed tile holds is
+   * the edge's (`extendEdges` in grid-tiles.ts), which no tile writes and the place leaves out.
    */
   readonly heightmap: MonzoneMap["heightmap"] & { readonly data: Int16Array }
   /** The tiles to cut and write, the region's (`tiles` in region.ts): those of the bounds' box its parts leave out (an L's notch) are not. */
