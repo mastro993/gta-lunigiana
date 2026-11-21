@@ -1465,7 +1465,16 @@ lines lie 2 cm over that ribbon as it is drawn (`roadPieces` in `src/render/line
   7](map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts))
   left a node at the bore's floor beside nodes it did not hold stood 0.56 m through the footway
   1462688623. Round Lunigiana's 427 mouths (12 m, every 0.125 m) the mesh stood more than 2 cm
-  through a ribbon at 21,904 points (342 m²), up to 4.03 m, and now at none.
+  through a ribbon at 21,904 points (342 m²), up to 4.03 m, and now at none. Every road at grade is
+  drawn so, not those by a mouth alone: over the whole of Lunigiana, read at their corners alone,
+  4,017 of the 3,249,670 ribbon triangles had a node of the mesh inside them more than 2 cm
+  through (3,883 farther than 40 m from a mouth, on 1,573 roads: 109 over 0.5 m and 21 over 1 m),
+  and now 1 of 3,507,996, by 2.0 cm. Where a bank stood through a road's edge the road now shows
+  whole (the primary 157169406's carriageway, the tertiary 1571048637's dashes), and where the
+  ground under a way's vertex is far off its neighbours the ribbon follows it: the path 1235787900,
+  whose vertex 38 lies 51 m down a pit in the terrain between vertices at 1,003 and 1,017 m, now
+  runs down the pit's face, as the sim walks it, where the face hid it (6.41 m through it; the
+  data's: OSM maps the path across the pit).
 - **The painted lines** lie on the ribbon as drawn, or on the road's surface where that stands
   higher: read at its corners alone, the ribbon stands over the surface between them where the
   terrain under one of its edges stands over the profile and under the rest does not, and a line on
@@ -1481,21 +1490,32 @@ lines lie 2 cm over that ribbon as it is drawn (`roadPieces` in `src/render/line
   underpass 145347886 sank 0.13 m under their ribbon, which the corners held 3.7 m behind the mouth
   tilt across the carriageway; round the 427 mouths a line lay under its own ribbon at 5,619
   points (88 m²), up to 2.06 m, and now at none. At a junction another road's ribbon still covers
-  a line where it stands higher: 320 points (5.0 m²) of the 5,860 hidden before, up to 0.27 m (by
-  Sarzana's 178397573's mouth), 12 and 13 round Fivizzano's two mouths, up to 1.1 cm.
-- **Cost** (2026-11-21): over Lunigiana's 14,783 roads at grade the ribbons and lines draw
-  4,358,497 decal triangles, 7.5% more than read at their corners alone (4,054,610; the lines
-  849,169 of them, 804,940), in 4.06 s of Node against 3.98 s. Built one an update in Node, the 393
-  chunks round Fivizzano's SS63, 376037643's mouth, Aulla, Sarzana and (0, 0) hold 288,947 decal
-  triangles (280,423) and take 2.24–2.33 ms on average, 1.26–1.34 ms at the median, 5.1–5.3 ms at
-  p90 and 20.1 ms at worst, against 1.73–1.88, 0.95–1.00, 3.6–4.3 and 19.2 ms (31.4 ms once, a
-  garbage collection) on the build before, two runs each in turn. In headless Chrome (dev build,
-  `pnpm playtest drive` at 40 m/s, one run each in turn) the 4,349 m from Sarzana's centre past
-  378473973's mouth to 376037643's draw at 16.8 ms at p99 with two frames over 30 ms (33.4 and 83.3
-  ms, where the build before drew three: 33.4, 116.7 and 249.9 ms) and 246 MB of heap at the end
-  as before, and the 1,206 m over Fivizzano's SS63 junction none over 16.8 ms (239 MB, 238
-  before); `pnpm playtest heap` standing at 376037643's mouth reads a first frame at 0.64 s and
-  228 MB (0.71 s and 230 MB before).
+  a line where it stands higher (a line reads its own ribbon alone, as a chunk draws no other
+  road's segments for it): 320 points (5.0 m²) round the mouths of the 5,860 hidden before, up to
+  0.27 m (by Sarzana's 178397573's mouth, where its approach 521733181 dips toward the mouth 0.33 m
+  under the tertiary 1337771220 it meets), 12 and 13 round Fivizzano's two mouths, up to 1.1 cm,
+  where the arm 1509747143's ribbon, read at its corners, stands 7.8 cm over its own surface across
+  the Y's centre. Over the whole map, at the centroids of the lines' triangles, another road's
+  ribbon stands over 4,744 of 849,105 (0.56%, on 448 roads, up to 1.59 m), where at its corners
+  alone it stood over 5,126 of 804,876 (0.64%, 504 roads, up to 1.73 m). Laid on its surface both
+  ways (a ribbon cut wherever it stands more than 2 cm over its surface too), the ribbons drew 3.0
+  times the decal triangles read at their corners; within a carriageway's width of a road's ends
+  alone, 20.1% more (7.5% now), which left Fivizzano's Y whole but uncovered 9% of those points; so
+  neither is done.
+- **Cost** (2026-11-21): over Lunigiana's 14,783 roads at grade the ribbons and lines draw 4,357,165
+  decal triangles, 7.5% more than read at their corners alone (4,054,610; the lines 849,169 of them,
+  804,940). Built one an update in Node, the 393 chunks round Fivizzano's SS63, 376037643's mouth,
+  Aulla, Sarzana and (0, 0) hold 288,929 decal triangles (280,423) and take 2.16–2.18 ms on average,
+  1.24–1.28 ms at the median, 5.1–5.3 ms at p90 and 19.7–24.0 ms at worst, against 1.67–1.71,
+  0.88–0.91, 3.3–3.7 and 19.6–31.7 ms on the build before (three runs each, in turn). Handing a
+  segment's ribbon to its lines without a sink a quad and a sort a lookup moved none of that
+  (2.12–2.18 ms on average), so it is not done. In headless Chrome (dev build, `pnpm playtest drive`
+  at 40 m/s, one run each in turn) the 4,349 m from Sarzana's centre past 378473973's mouth to
+  376037643's draw at 16.8 ms at p99 with two frames over 30 ms (33.4 and 83.3 ms, where the build
+  before drew three: 33.4, 116.7 and 249.9 ms) and 246 MB of heap at the end as before, and the
+  1,206 m over Fivizzano's SS63 junction none over 16.8 ms (239 MB, 238 before); `pnpm playtest
+  heap` standing at 376037643's mouth reads a first frame at 0.64 s and 228 MB (0.71 s and 230 MB
+  before).
 
 ### Road tunnels
 
@@ -3033,7 +3053,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   - `src/render/__tests__/drape.test.ts`: a ribbon's triangle over the road's surface everywhere
     between its corners drawn whole; one over a peak of the terrain mesh cut along its folds, the
     peak on the surface, the mesh nowhere more than 2 cm over it, and the triangle across each of its
-    sides meeting it there with no step; a painted line over a fold of its ribbon cut along it 2 cm
+    sides meeting it there with no step, one drawn whole across a side the surface folds under
+    included (without the straight side, a 0.48 m crack); a painted line over a fold of its ribbon cut along it 2 cm
     over both sides, and whole over one plane; and round the west mouths of Fivizzano's underpass
     under the SS63 and of Sarzana's service tunnel 376037643, the roads at grade over the terrain
     and their lines over their ribbons (`checkLaid`; read at their corners alone, the SS63's centre
