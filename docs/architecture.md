@@ -406,7 +406,19 @@ region's anchor (`ANCHOR` in `src/sim/map/index.ts`): the traffic and walk edges
 one. From the lowest corner, Sarzana's part, 10 km south-west, reordered the 64 traffic edges round
 Monzone from the third on, so with the same draw `Populate` took another, every draw on the shared
 `Rng` after it fell otherwise, and the seeded scenes round Monzone played out anew
-(`route.test.ts`, `collide.test.ts`):
+(`route.test.ts`, `collide.test.ts`). Two lattices the game draws on still count from the lowest
+corner of their items, which the build bakes in the map file, so a part that reaches farther south
+or west moves them: the buildings' (`MAP.vectors.lattice.buildings`), in whose order a cat picks the
+house it sits by (`buildingsNear` in `src/sim/population/farms.ts`: on a 150 m grid round Monzone,
+43 of the 88 points with houses within 45 m have them in another order than on the map before
+Sarzana's part), and the walls' (`MAP.walls.lattice`), so a body meets the walls round it in another
+order and a collision at a corner may resolve otherwise. Counting either from the anchor moves every
+seeded game once, on every map (the houses by their index alone turned the stuck car round in three
+traffic scenes and let a cat into a road passage under a house in Gragnola), so the two are left to
+be counted from it together. Every other lookup the sim reads in its grid's order only adds (the
+residents round a point, whose sums come out the same in any order on 8,450 walk edges round
+Monzone), ORs or keeps the least of what it finds, or, as `ownSide` does with the lines round a
+walk, sorts it first:
 
 - `wallsNear` (`src/sim/map/walls.ts`) indexes each tile's walls straight from its decoded flat
   arrays and its trees as points, building a tile's grids the first time a query reaches it, and

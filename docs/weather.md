@@ -126,15 +126,15 @@ new map needs no weather data of its own.
   −6040), on the Magra plain by Sarzana in the strip west of x −11500 that Aulla's grown box adds to
   Fosdinovo's tiles, so the snow line's floor falls from −32 m to −37 m. Level ground at 1100 m
   holds snow 57.5 days a year, as before, and 123 at 1750 m (seed 1, 2026-11-18). Sarzana's part
-  (issue #20) brought the lower Val di Magra's plain, 821,359 of its nodes at 2–10 m, which hold
-  96.2 % of the 2,086,527 nodes now under the floor: the floor fell to 18.5 m and the downslope
-  turned to −2.911 rad (toward the west, 13.2° south of it; over the map less the part's rectangle
-  the fit is 99.9 m and −2.995). On lucido the fog, the cloud base, the wind's growth and the
-  audio's wind law now count from 211.8 m under its own floor. The map's top stays 1856 m; its
-  lowest listed node is now −11.0 m, the sea's floor in the Gulf of La Spezia in tile −12_−5, the
-  box's south-west corner outside the play area, so the snow line's floor falls from −37 m to −61
-  m. Level ground at 1100 m holds snow 57.6 days a year rather than 57.5, and 123 at 1750 m (seed
-  1, build b5513ccf5f74b243, 2026-11-21).
+  (issue #20) brought the lower Val di Magra: its rectangle holds 2,008,211 (96.2 %) of the
+  2,086,527 nodes now under the floor, 821,462 of them on its plain at 2–10 m (39.4 % of them). The
+  floor fell to 18.5 m and the downslope turned to −2.911 rad (toward the west, 13.2° south of it;
+  over the map less the part's rectangle the fit is 99.9 m and −2.995). On lucido the fog, the cloud
+  base, the wind's growth and the audio's wind law now count from 211.8 m under its own floor. The
+  map's top stays 1856 m; its lowest listed node is now −11.0 m, the sea's floor in the Gulf of La
+  Spezia in tile −12_−5, the box's south-west corner outside the play area, so the snow line's floor
+  falls from −37 m to −61 m. Level ground at 1100 m holds snow 57.6 days a year rather than 57.5,
+  and 123 at 1750 m (seed 1, build b5513ccf5f74b243, 2026-11-21).
 
 ## The sun and the moon
 
@@ -656,8 +656,8 @@ and how snow-covered the ground is there, each 0 to 1.
   degree-day melt of 1 m per game hour for each °C above 0 at the line, twice that under rain
   (`MELTING`), and once 408 m over the map's top (`SNOW_REACH`: the steepest face that holds snow,
   at the edge's highest reach) no snow is left. It never falls below the map's lowest ground less 50
-  m (−37 m on the shipped map, whose lowest node is 12.9 m on the Magra plain), so all the map can
-  lie white. The rates are design values fitted to
+  m (−61 m on the shipped map, whose lowest node is −11.0 m, the sea's floor in the Gulf of La
+  Spezia in tile −12_−5), so all the map can lie white. The rates are design values fitted to
   Capozzi et al.'s snow-cover days ([Snow](#snow)).
 - **Aspect and slope.** The line stands 440 m lower (`SNOW_ASPECT`) for each unit of the ground's
   normal that points north, higher on a south face: a 30° north face (its normal 0.5 north) holds
