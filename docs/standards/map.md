@@ -293,6 +293,15 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   Lunigiana's line is 892,288 B and Cesena's 340,632 B; with the parked spots, the farms, their
   centres and the lamps still on it (format version 6) Lunigiana's was 4,560,301 B, and with
   Fosdinovo's part and the graph, the lanes and the residents too (format version 5) 8,319,700 B.
+- The build peaks under 3 GB resident (issue #3's scale check, CI's runners; `/usr/bin/time -l pnpm
+  map`, its maximum resident set size, and its peak memory footprint beside it, which memory
+  compression under other work does not lower): Lunigiana's peaked at 2.69–2.74 GB resident and
+  2.32–2.35 GB of footprint with Sarzana's part (2026-11-21), from 4.20–4.27 GB and 3.78–3.84
+  GB before the memory work ([Pipeline](../map.md#pipeline)). What grows with the box is held in
+  typed arrays, by the phase that reads it and no longer; a stage's indexes hold what its queries
+  reach (`nearBoxes`); a bake whose items read the tiles round them takes them tile by tile
+  (`byTile`), as the build keeps 16 tiles decoded; and no `TypedArray.from` maps a grid, which
+  lists every node first.
 - The JS heap after GC at the start is at most 245 MB (issue #5's scale check; `pnpm playtest heap`
   on a production build, three runs): Lunigiana's is 160–161 MB with Aulla's part (2026-11-21). What
   the game builds at load from the whole map grows with every part: the road graph, the lookups
