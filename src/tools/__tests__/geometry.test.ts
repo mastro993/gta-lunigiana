@@ -5,10 +5,12 @@ import { staticGrid } from "../../sim/collide.ts"
 import { latLonToGaussBoaga } from "../crs.ts"
 import {
   type P,
+  boxesMeet,
   clipRing,
   fromLocal,
   gaussBoagaBox,
   hash01,
+  nearBoxes,
   segDist2,
   segIndex,
   staticPoints,
@@ -167,4 +169,24 @@ test("staticPoints visits the points staticGrid visits as boxes, in the same ord
   }
   assert.ok(hits > 5000, `the boxes meet points (${hits})`)
   staticPoints([], 3, 16)(-1, -1, 1, 1, () => assert.fail("no points, no visit"))
+})
+
+test("nearBoxes is true for every box that meets one of its boxes, and false far from them all", () => {
+  /** A box from a pseudo-random point in a 2 km square, up to 300 m a side, k its seed. */
+  const box = (k: number, at = 0): [number, number, number, number] => {
+    const x = at + 2000 * hash01(k, 1) - 1000,
+      y = at + 2000 * hash01(k, 2) - 1000
+    return [x, y, x + 300 * hash01(k, 3), y + 300 * hash01(k, 4)]
+  }
+  const boxes = Array.from({ length: 40 }, (_, k) => box(k))
+  const near = nearBoxes(boxes)
+  let meeting = 0
+  for (let k = 100; k < 3100; k++) {
+    const q = box(k)
+    if (!boxes.some((b) => boxesMeet(b, q))) continue
+    meeting++
+    assert.ok(near(...q), `box ${k} meets one`)
+  }
+  assert.ok(meeting > 1000, `${meeting} boxes met one`)
+  for (let k = 0; k < 100; k++) assert.equal(near(...box(k, 5000)), false, `box ${k} far off`)
 })
