@@ -16,23 +16,27 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
   // joining their ends (crowded). A way in a tunnel ending where another runs through it is a
   // junction in the bore, no mouth: 5 such ends left the mouths (both station ramps' at the
   // underpass, read low before they sank, buried after; three paths' under houses).
+  // Sarzana's part brought 235 tunnels and 304 mouths, under the A12's and the A15's embankments,
+  // Sarzana's streets and Vezzano Ligure's tracks. Via Termo's 29.3 m underpass under Vezzano
+  // Ligure's four tracks rises to a head wall's height only 14.5 m in from its east mouth, past the
+  // 14 m its box reaches: low. A mouth holding the corners behind it of the cells its approach runs
+  // in at its floor (`mouthClaim`, issue #20), the bank no longer climbs the cell over the mouth:
+  // none of the 7 mouths it buried is buried now, 5 open mouths of Sarzana's get a head wall, the
+  // east portal of the 16 m road under the SS63 (145347886, at -1019.7, 7379) stands as a head wall,
+  // and 29 more throats and boxes run 1–6 m farther in, to where the bank stands over them again
+  // (portals 41 -> 40, heads 38 -> 44, buried 7 -> 0, low 211 -> 215, crowded 25 -> 23); the bores'
+  // walls are cut where the ground over their first metres is lower (30196 -> 29622).
   assert.deepEqual(checkTunnels(wholeVectors()), {
-    tunnels: 139,
-    passages: 67,
-    metres: 2875,
-    // The profiles' bounds across a crossing's carriageway and at a deck's ends (road-levels.ts)
-    // and the motorways' grade fitted unrelaxed (ROAD_PASSES) moved the bores' bend samples (+10);
-    // the paths at grade out of the paths' tunnels, their approaches (path-approaches.ts), meet them
-    // at their level and cut the ground round their mouths, and their ends rise to them: Aulla
-    // station's ramps' mouths 1.5-2.7 m lower, Equi Terme's underpass's 1.3 m higher (-22). 8305 ->
-    // 8293 wall triangles.
-    walls: 8293,
-    mouths: 123,
-    portals: 24,
-    heads: 3,
+    tunnels: 374,
+    passages: 140,
+    metres: 10295,
+    walls: 29622,
+    mouths: 427,
+    portals: 40,
+    heads: 44,
     buried: 0,
-    housed: 27,
-    low: 63,
-    crowded: 6,
+    housed: 105,
+    low: 215,
+    crowded: 23,
   })
 })

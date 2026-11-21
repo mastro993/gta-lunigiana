@@ -104,8 +104,9 @@ export const beatsRail = (cls: string): boolean =>
  * road not yet fitted leads it to (`junctionReach`): the roads'. Consecutive bridge (or tunnel)
  * pieces make one deck, straight from end to end, the rail's as the roads'. The rail keeps its own
  * grade at a level crossing: the road meets it there. With `mouths` (the roads'), a tunnel's approaches hold the grid round each of its
- * mouths at their level against every other claim: the first MOUTH m out of it, in their core,
- * before anything else is written. A road over the tunnel or beside the mouth took that cell at its
+ * mouths at their level against every other claim: the first MOUTH m out of it, in their core, and
+ * the corners behind the mouth of the cells they run in (`mouthClaim`), before anything else is
+ * written. A road over the tunnel or beside the mouth took that cell at its
  * own level otherwise: Via della Stazione, a tertiary road over Pieve San Lorenzo's underpass 4.5 m
  * from its south mouth, buried that mouth 5.8 m. The rail's portals open in their hills, and its
  * bridges over an underpass's mouth (`underpasses` in rail-spans.ts) write nothing there. With
@@ -200,12 +201,18 @@ const minHeap = () => {
  * grid, in order (`replayClaims` writes them). Elevations set at shared nodes (`nodeZ`) pin every
  * later chain through them; `zOf` holds per-vertex z and `denseOf` the output polyline. `links` are
  * the roads a chain's junctions keep within reach of (`Spec.reach`); `bridgeEnds` the node ids where a
- * bridge's deck ends, past which a chain ending there runs on under it (`deckEnd` in `flatten`).
+ * bridge's deck ends, past which a chain ending there runs on under it (`deckEnd` in `flatten`);
+ * `tunnelEnds` those where a road tunnel's bore opens (an end of a road's tunnel piece no other one
+ * goes on from), where a chain ending there at grade, with `Spec.mouths`, holds its mouth; and
+ * `footways` the vertices of the paths and steps at grade within a distance of a point, whose cells
+ * a mouth's hold behind it leaves (`mouthClaim`).
  */
 export const makeProfiler = (
   ground: (x: number, y: number) => number,
   links: ReadonlyArray<Graded> = [],
   bridgeEnds: ReadonlySet<string> = new Set(),
+  tunnelEnds: ReadonlySet<string> = new Set(),
+  footways?: (x: number, y: number, r: number) => ReadonlyArray<V>,
 ) => {
   const nodeZ = new NodeZ()
   const zOf = new Map<Linear, Array<number>>()
@@ -448,7 +455,12 @@ export const makeProfiler = (
         if (!isTunnel(i)) continue
         const [i0, i1] = deckOf(i)
         i = i1
-        const [v0, v1] = deckEnds([i0, i1])
+        const [v0, v1] = deckEnds([i0, i1]),
+          k0 = p.vertexSample[v0]!,
+          k1 = p.vertexSample[v1]!
+        // The bore's floor as shipped: straight from end to end.
+        const floor = (k: number) =>
+          p.z[k0]! + ((p.z[k1]! - p.z[k0]!) * (p.s[k]! - p.s[k0]!)) / (p.s[k1]! - p.s[k0]!)
         for (const [v, step] of [
           [v0, -1],
           [v1, 1],
@@ -461,9 +473,33 @@ export const makeProfiler = (
             step,
             widthOf(out),
             (k) => !isLifted(pieceOf[k]!),
+            floor,
+            footways,
           )
           if (m !== undefined) mouth(m)
         }
+      }
+    // And a mouth of another chain's bore where this one ends at grade (its approach of another
+    // class, or one of the roads at a junction there): the corners behind it held at its level. The
+    // service tunnel 438625870 at Sarzana opens onto the residential 438625873, whose pass is
+    // another, and the hill over its bore lifted that road 4.6 m within 2 m of the mouth.
+    if (spec.mouths === true)
+      for (const [k, step, i] of [
+        [0, 1, 0],
+        [last, -1, runs.length - 1],
+      ] as const) {
+        const id = (k === 0 ? pts[0] : pts.at(-1))!.id
+        if (id === undefined || !tunnelEnds.has(id) || isLifted(i)) continue
+        const m = mouthClaim(
+          p,
+          k,
+          step,
+          widthOf(i),
+          (o) => !isLifted(pieceOf[o]!),
+          () => p.z[k]!,
+          footways,
+        )
+        if (m !== undefined) mouth(m)
       }
     runs.forEach((r, i) => {
       const z = r.map((_, j) => p.z[p.vertexSample[first[i]! + j]!]!),

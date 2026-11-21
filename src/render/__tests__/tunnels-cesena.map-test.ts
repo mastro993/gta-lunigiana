@@ -20,8 +20,10 @@ test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill
     // cut their mouths: 18267 -> 18365 wall triangles; the car park ramp 68296970, dipping under
     // its square since a tunnel takes its bound from a road at grade of its own pass, 18525; the
     // rail's twin rule binding the station's tracks on one formation (rail-twins.ts) moved the
-    // Sottopasso Ravennate's profile under them by up to 0.4 m: 18369 on its own, 18529 with both.
-    walls: 18529,
+    // Sottopasso Ravennate's profile under them by up to 0.4 m: 18369 on its own, 18529 with both. A
+    // mouth holding the corners behind it of the cells its approach runs in at its floor (issue #20)
+    // cuts the bores' walls where the ground over their first metres is lower: 18475.
+    walls: 18475,
     // 70184534's end where 70184520 runs on through the bore is a junction, no mouth.
     mouths: 76,
     portals: 6,
