@@ -25,7 +25,9 @@ test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill
     portals: 6,
     // The Sottopasso Cervese's east mouth (757.4, 622.3), 3.1 m under the ground there and 5.05 m
     // or more over its end: buried before its approach cut it; and the car park ramp 68296970's
-    // north mouth (594.1, 599.6), under too low a bank while the ramp kept its square's level.
+    // north mouth (594.1, 599.6), 6 m under the access road since the ramp keeps its clearance under
+    // Via Piazzale Sanguinetti (issue #20). Its bank stood too low for a head wall while the ramp
+    // ran at the square's level.
     heads: 4,
     // The Sottopasso del Mare's (23605012, at 1932.9, 46.5) and the Sottopasso Ravennate's south (at
     // -15.8, 878.2):

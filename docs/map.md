@@ -2513,25 +2513,33 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   climbs 22%. A 55 m residential link at Giuncugnano went from 24.7% to its ground's 23.0%, and
   Sercognano's Via Vittorio Emanuele from 32–34% to its ground's 28–29%. The rail keeps its own
   grade: the roads meet it at level crossings.
-- The profile is then fitted to a grade limit through hard pins: elevations already set at
-  shared nodes by earlier chains, and the rail's, the overpasses' and the junctions' bounds. The fit
-  is the midpoint of the two grade envelopes, so cut and fill split evenly. A bound the fit breaks
-  (a road under its minimum, or over its maximum) is pinned and the fit redone, the pin held
-  within the grade of the broken bounds beside it with no other pin between (`heldPins` in
-  `terrain.ts`): a minimum raised to the reach down from them, a maximum lowered to the reach up, so
-  two bounds broken side by side are met within the grade, not in a step; but never past the reach
-  of a pin that is no bound (a junction's, a chain's end's), whose level is set. Raised past it, a
-  bound of the SS330's ramp 1388645825 at Albiano, its twin's 34.25 m 5.7 m from a junction pinned
-  at 33.52 m, took the reach down from its twin's 40.16 m 11.9 m on, 38.37 m, and left the
-  junction's 5.6 m link 1250443404 climbing 87%. Pinned each at its own level (issue #20), the
-  A12's Livorno carriageway left its Vara bridge (60208802) at its end's 29.56 m, 5.5 m over the
-  road under it,
+- The profile is then fitted to a grade limit through hard pins: elevations already set at shared
+  nodes by earlier chains, and the rail's, the overpasses' and the junctions' bounds. The fit is the
+  midpoint of the two grade envelopes, so cut and fill split evenly. A bound the fit breaks (a road
+  under its minimum, or over its maximum) is pinned and the fit redone, the pin held within the
+  grade of the broken bounds beside it with no other pin between (`heldPins` in `terrain.ts`): a
+  minimum raised to the reach down from them, a maximum lowered to the reach up, so two bounds
+  broken side by side are met within the grade, not in a step. None is moved past what every other
+  pin and bound, each at its own level, allows within the grade (`reachOf`): a minimum is raised no
+  higher than the reach of the maximums and of the pins that are no bound (a junction's, a chain's
+  end's), the maximum at its own sample among them, which the fit checks no more once the sample is
+  pinned; a maximum is lowered no lower than the minimums' and the pins'. And none is raised from a
+  junction's pin, whose level is set. Raised past a junction's reach, a bound of the SS330's ramp
+  1388645825 at Albiano, its twin's 34.25 m 5.7 m from a junction pinned at 33.52 m, took the reach
+  down from its twin's 40.16 m 11.9 m on, 38.37 m, and left the junction's 5.6 m link 1250443404
+  climbing 87%; raised past the maximum at its own sample, a track's minimum beside its twin left
+  the rail 206182844 falling 3.9 m in 5.6 m (36.6%) at (−19005, −3660), 111752500 beside it 48.3%,
+  and the twins 206182846 and 111752500 3.63 m apart at (−19011, −3655): 60 pairs of tracks side by
+  side stood more than 0.3 m apart, 56 with every bound held, as before the rule (review of issue
+  #20; they fall 5.8% and 14.8% again). Pinned each at its own level (issue #20), the A12's Livorno
+  carriageway left its Vara bridge (60208802) at its end's 29.56 m, 5.5 m over the road under it,
   and fell to 28.06 m 4.2 m on, its twin's level less 1.5 m (`TWINS`): 36%, and 24% over 8 m; the
-  A15's 86257880 fell 2.9 m in 4 m off its deck onto 130432284, and the A12 at (−14607, −6387)
-  7.25% over 100 m off its deck 23339993. They now leave their decks at 6%. On Sarzana's part it
-  moved 3,680 nodes, up to 3.4 m, 50 roads and 93 rail pieces (the twin tracks' bounds,
-  `rail-twins.ts`); on the earlier parts 2 nodes and the rail bridge 621942962 at (4952, 3617), by
-  0.1 m.
+  A15's 86257880 fell 2.9 m in 4 m off its deck onto 130432284, and the A12 at (−14607, −6387) 7.25%
+  over 100 m off its deck 23339993. They now leave their decks at 6%. With the profile rules below
+  (`zAt` and a tunnel's bound from a road at grade of its own pass), on Sarzana's part they moved
+  5,384 nodes, up to 6.2 m, 118 roads and 78 rail pieces (the twin tracks' bounds, `rail-twins.ts`);
+  on the earlier parts the nodes and roads listed with those rules, and on Fivizzano's 2 nodes and
+  the rail bridge 621942962 at (4952, 3617), by 0.1 m.
 - Where the fit strays more than 4 m from the smoothed ground, the grade limit within 60 m is raised
   in 10% steps, up to 1.5× the class limit (`RELAX`), but for motorways and trunk roads, whose pass
   never loosens it (`relax` 1 in `ROAD_PASSES`, issue #19), as on an embankment: the A15's Parma
@@ -2636,7 +2644,7 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   core yields to any other (`deckEnd` in `flatten`), as a road's does: the ramps' cores of Cesena's
   footbridge 683510421 held the ground under it at the deck's level, and the path 22776463 passing
   under it ran 3.5 m under its deck (4.5 m now). A building's floor (`z0`) reads the ground as it
-  stood before the approaches' claims (`floors` of `tileByTile`, `floorsOf` in `build-output.ts`), so
+  stood before the approaches' claims (`floors` of `tileByTile`, `floorsOf` in `floors.ts`), so
   the stairs to an underpass go down under it: on the grid they carved, Cesena's station (185180766)
   sank 4.8 m into its plaza, 1.0 m of its 6 m showing, and 68910735 and 1270896860 by it 2.9 and
   4.2 m, the footways to the underpass 43076054 running on its wall. Fitted at the terrain's
@@ -2803,7 +2811,9 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   level too (issue #20): bound by nothing, the A15's slip road 1364364906 at (−18155, −1218),
   fitted before the A12's slip road 23487716 over it, stood 0.36 m over it, and Cesena's car park
   ramp 68296970 at its square's level, 0.24 m over Via Piazzale Sanguinetti at (586, 579); the ramp
-  now runs 29.3–29.4 m, 5.9 m under the street, its south mouth under a head wall. One chain that
+  now runs 29.3–29.4 m, 5.9 m under the street, its north mouth at (594.1, 599.6) under a head
+  wall, and the roads at grade at its two mouths fall 6 m into it ([Known data
+  limitations](#known-data-limitations)). One chain that
   crosses itself (the SR445's loop at Gassano, built in 2017, runs under its own bridge 13.6 m from
   where it leaves it) takes both bounds from one natural level, as one fit sets both roads: the road
   below stays at most 0.3 m over its own, and a bridge keeps the clearance over that (over its own
@@ -2814,19 +2824,20 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   bends between its vertices kept (`zAt` in `profiles.ts`, issue #20): read on the chord between its
   OSM vertices, the A12's 420870862, three of them over 1.4 km, stood 17.6 m over the track's tunnel
   205932308 at (−16017, −3846), where its fit dips to 11.3 m, and the tunnel, bound 5.5 m under the
-  chord, ran 0.90 m under it. With the two rules beside it (a bound held no further than a
-  junction's reach, above; a tunnel under a road at grade of its own pass), it moved on the earlier
-  parts 63 nodes, up to 2.7 m, and 8 roads round Aulla's footway tunnels by Via Cospedo at
-  (−15348, 4933) (1311862946 and 1311862947 1.7 m lower), where the knot 1311831120/1311862950 now
-  clears 2.5 m, and on Cesena 359 nodes, up to 6 m, and 22 roads (the car park ramp below and the
-  Viadotto Pontescolle's 26154028, 2 m). Each bound holds on its own road's samples (`on` in
-  `profiles.ts`):
-  where a chain crosses itself, the chain's nearest sample may lie on the other level, and the
-  bridge's bound lifted the loop to it. And it holds at the profile samples on both sides of the
-  crossing (2 m
-  either way), as one at the nearest sample left 0.1–0.2 m short between samples. Inside a bridge
-  or tunnel it holds at both ends along the deck's slope (`tilt` in `profiles.ts`), so a climbing
-  tunnel's far portal keeps its level, and bounds on one sample keep the strictest (several
+  chord, ran 0.90 m under it. With the two rules beside it (bounds held within the grade, above; a
+  tunnel under a road at grade of its own pass), it moved on Aulla's part 63 nodes and 8 roads: 16
+  nodes, up to 2.7 m, and the footways and steps 1311831120, 1311862946, 1311862947 and
+  1311862952 (up to 1.7 m lower) round its footway tunnels by Via Cospedo at (−15348, 4933), where
+  the knot 1311831120/1311862950 now clears 2.5 m, and 47 nodes and the primaries 81880655,
+  81880660, 169014781 and 169014782 at (−13550, 6120) by 0.1 m; on Cesena 359 nodes, up to 6 m, and
+  22 roads (the car park ramp below, the Viadotto Pontescolle's 26154028 and 26154029, 2 m); on the
+  coast 863 nodes, up to 3.6 m, the A12's 205903779 and 596517075 and the path 1379028354; and
+  nothing of the L's. Each bound holds on its own road's samples (`on` in `profiles.ts`): where a
+  chain crosses itself, the chain's nearest sample may lie on the other level, and the bridge's
+  bound lifted the loop to it. And it holds at the profile samples on both sides of the crossing
+  (2 m either way), as one at the nearest sample left 0.1–0.2 m short between samples. Inside a
+  bridge or tunnel it holds at both ends along the deck's slope (`tilt` in `profiles.ts`), so a
+  climbing tunnel's far portal keeps its level, and bounds on one sample keep the strictest (several
   crossings under one deck). In the Lucido valley the rule dropped the residential 328463362 1.2 m
   under the bridge 328463361 at (1643, 3286), from 4.36 to 5.52 m below its deck, and Via Gioco di
   Sopra in its tunnel under the tertiary 1001748732 at (−1661, 3550), from 5.27 to 5.57 m. In Cesena
@@ -3143,7 +3154,7 @@ majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 | `wall`, `cliff` barriers | yes | no | yes |
 | `guard_rail` barriers, and `breakwater` ones (a breakwater's or a groyne's outline) | no | no | yes |
 | The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
-| Road-exit caps (4 m inside, where drivable roads leave the area: across the road's carriageway and 1 m past, but on no other drivable road's carriageway, `exit-caps.ts`) | no | no | yes |
+| Road-exit caps (4 m in along the road, where drivable roads leave the area: across its carriageway and 1 m past, but on no other drivable road's carriageway, `exit-caps.ts`) | no | no | yes |
 | Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them, each at its deck's level; open where a road on the deck's own level reaches them: a junction on the deck, the next piece of the same bridge, a road or tunnel carrying on from it, and the inside of the deck's own bends, where one segment's piece runs on across the next one's carriageway) | no | no | yes, on the deck's level |
 | The low space under a road bridge's deck ([below](#walls-under-the-decks)), on the ground's level | where the deck's underside stands under 1.8 m over the ground | no | under 2.65 m |
 
@@ -3195,20 +3206,39 @@ walls held them before, and stores neither of those.
   its whole w/2: no arch spans a motorway's or trunk road's tunnel, and the 1.2 m left the Secante's
   7 m tunnel under a house in Cesena a 2.4 m gap, too narrow for traffic, which cut 1.45 km of it
   off. A tunnel opens a house's walls only where its bore passes the house at its level, the house's
-  floor (`z0`) less than the bore's clear height (its `maxheight`, else 4 m) over the road abeam the
-  footprint's middle, as the mouths' bake reads a house over a way; over a bore deep under it the
-  house keeps its walls, each on the ground's level at its middle (a wall with a level, below), so
-  they stop anyone on the hill round it and nothing in the bore (issue #20): the A15's 10 m Galleria
-  Fresonara opened the house −1475651980358925 on the hill 80 m over it at (−19236.6, −4601.2),
-  and anyone walked in.
+  floor (`z0`) less than the bore's clear height (its `maxheight`, else 4 m, `UNDERPASS` in
+  `kinds.ts`) over the road abeam the footprint's middle (its level read off the ground model,
+  `levelOn`), as the mouths' bake reads a house over a way (`houseWalls` in `house-walls.ts`). Over
+  a bore deep under it the house keeps its walls (issue #20), and those within the bore's corridor
+  and a 1 m kerb, where its traffic goes, take a level (a wall with a level, below): the terrain's
+  midway along each, split where that ground spans 3 m or more (`SPAN`, as under the decks), so each
+  stops anyone on the hill round the house within 1.5 m of its level and nothing in the bore; the
+  rest stand at every level. The A15's 10 m Galleria Fresonara opened the house −1475651980358925 on
+  the hill 80 m over it at (−19236.6, −4601.2), and anyone walked in; each of a house's walls
+  levelled whole at the ground at its middle, the wall from (−13542.7, −5846.7) to (−13555.5,
+  −5846.3) stood 2.59 m off its level at its east end, and a walker passed it there.
 - **Road-exit caps** (`exit-caps.ts`) shut their own road alone: a cap across a road leaving the
-  play area, 4 m inside its cut end, stops 1 m past its carriageway's edges and on no other drivable
-  road's carriageway (a tunnel's but under the ground), as the outline's walls close the edge behind
-  it (issue #20). Whole, the cap of the A12's Genova carriageway leaving at y 3900 reached 4.3 m
-  into
-  its twin's 5 m, 11 m inside the outline, and a residential stub leaving the play area 4.3 m from
-  its junction with the Via Aurelia at Ponte di Arcola (1175456486) capped the Via Aurelia's lanes,
-  1 m off its traffic edge 63390 at (−19730.6, −4399.5).
+  play area stands 4 m in from its cut end along the road, on through the pieces joined end to end
+  with it at a node no third way meets (one road OSM split; where a junction comes sooner, on along
+  the last segment's line), and reaches 1 m past its carriageway's edges, but on no other drivable
+  road's carriageway (a tunnel's lies under the ground; its own run's pieces are its road), with no
+  piece narrower than a car (1.65 m), as the outline's walls close the edge behind it (issue #20).
+  Whole, the cap of the A12's Genova carriageway leaving at y 3900 reached 4.3 m into its twin's
+  5 m, 11 m inside the outline, and a residential stub leaving the play area 4.3 m from its junction
+  with the Via Aurelia at Ponte di Arcola (1175456486) capped the Via Aurelia's lanes, 1 m off its
+  traffic edge 63390 at (−19730.6, −4399.5). Trimmed against its own continuation too, the cap of
+  the L's primary bridge 1551433107, cut 2.3 m from its joint with 552595853, was gone, and
+  Cesena's 26491046, 4.1 m from its joint with 26491045, whose carriageway reached back over it;
+  split where another road's carriageway grazed it, the L's 719407874 kept two 3 m pieces, the gap
+  between them closed to cars. Against the caps stood 4 m in along each cut end's last segment,
+  whole (b5513ccf5f74b243 and the regions' builds before issue #20), Lunigiana's moved up to 3.2 m
+  along their roads (68), 6 of them shortened, and 8 of Sarzana's are gone, each on a road leaving
+  the play area 2.4–7.8 m past a junction whose carriageways cover its site (the Via Aurelia's
+  stub 1175456486 among them, and the secondary 1338324377 at (−17213, −8244)); Cesena's 12 moved up
+  to 2.6 m, 2 shortened, and 69271414's at (−66, −1996) is gone; the L's 6 moved up to 1.2 m and
+  689546076's at (702, 1398), a 1 m stub off the track 227686934, is gone; the coast's 16 moved up
+  to 5.8 m, 2 shortened, and 430206451's at (−12839, −11002) is gone. Where a cap is gone, the
+  outline's walls stop a car at the edge.
 - Tree trunks are not stored as walls. `wallsNear` indexes the trees as points and adds a 0.5 m
   square (`pushTrunk`, `TRUNK` in `kinds.ts`) around each tree a query reaches.
 - **Walls with a level** (issue #91): a wall may carry a level, m a.s.l., and then stops only a body
@@ -5785,6 +5815,19 @@ longer lucido:
   from the bore's end 0.7 m away, and the coast's 463589363/326011444; the knot
   1311831120/1311862950 (0.30 m) clears 2.5 m since the bounds read the fitted roads' profiles as
   written (issue #20).
+- **Cesena's car park ramp drops into a garage mapped at grade.** The ramp 68296970, a straight
+  36 m bore (`tunnel`, `layer` −1), runs from the access road 68296965 down under Via Piazzale
+  Sanguinetti (55016697) into the car park's aisle 68301723, which OSM tags `layer` −1 but no tunnel
+  or covered way, so the build lays it at grade. Since a tunnel takes its bound from a road at grade
+  of its own pass over it (issue #20, [section
+  7](#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)),
+  the bore keeps the clearance under the street, 22 m from its north mouth and 14 m from its south
+  one, and so lies at 29.3–29.4 m, both mouths 6 m under the ground: the access road falls from
+  35.4 m to 29.3 m in its 12.7 m (48%, a service road's limit 20%, 30% relaxed), and the aisle
+  climbs back 5.3 m over its first 30.5 m (17%). No straight bore under the street meets both roads
+  within their grade; before, the ramp ran at the square's level, 0.24 m over the street. Cesena has
+  no class-grade check. A garage's aisles tagged as a tunnel, or a bore fitted sample by sample as
+  the paths' are (`ramps`), would let the ramp descend inside its bore.
 - **Pieve San Lorenzo's underpass meets the road out of one mouth a step over its floor.** The
   underpass under the station (756577583) lies level at 350.6 m to its mouth at (5040, 3634), where
   the road out of it, 1191727402, starts 0.9 m higher, as that mouth opens
