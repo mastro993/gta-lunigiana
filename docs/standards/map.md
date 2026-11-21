@@ -174,8 +174,9 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   facing out of its bank at the bore's width and clear height with its top under that bank, either
   clear of every other road and the track, an open mouth with none and a reason for it found again
   by geometry (`whyOpen`: the ground at the mouth the clear height over the road, buried; a house at
-  the way's level over it by the mouth, the ground over it lower
-  than a head wall, or another road or the track in the wall's room; any other open mouth fails),
+  the way's level over it by the mouth, the ground over it, as far in as a head wall's box may
+  run, lower than a head wall, or another road or the track in the wall's room; any other open
+  mouth fails),
   and the chunks round it as a whole-map build cuts them, and pin each region's counts (roads in
   tunnels, passages, metres, wall triangles, mouths, portals, head walls and open mouths by reason)
   ([Road and rail
