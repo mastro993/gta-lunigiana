@@ -177,14 +177,18 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   the way's level over it by the mouth, the ground over it, as far in as a head wall's box may
   run, lower than a head wall, or another road or the track in the wall's room; any other open
   mouth fails),
-  and the chunks round it as a whole-map build cuts them, and pin each region's counts (roads in
-  tunnels, passages, metres, wall triangles, mouths, portals, head walls and open mouths by reason)
+  round each mouth the roads at grade over the terrain (2 cm at most under it, `DRAPE_POKE`) and
+  their painted lines 1 cm or more over their ribbons, with no step where a ribbon's triangles
+  meet (`checkLaid`: the hold behind a mouth drops the ground as much as 7 m under a road over a
+  shallow bore), and the chunks round it as a whole-map build cuts them, and pin each region's
+  counts (roads in tunnels, passages, metres, wall triangles, mouths, portals, head walls and open
+  mouths by reason)
   ([Road and rail
   profiles](../map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts)).
   A new part changes the counts: look at its tunnels drawn (its new head walls and open mouths
   in the browser too), then pin the new counts. A failure of the checks themselves is the data's (a
   tunnel's profile over the hill, a mouth's road, a ramp the ground does not hold) or the build's
-  (the mouths' bake, `src/render/mouths/`, `bores.ts`, the ribbons' `ribbons.ts`): fix
+  (the mouths' bake, `src/render/mouths/`, `bores.ts`, the ribbons' `ribbons.ts` and `drape.ts`): fix
   that for every tunnel alike, never with an exception for one tunnel or one part.
 - The shadow box holds its size through a turn over the region's ground:
   `src/render/__tests__/shadow-box.map-test.ts` and `shadow-box-cesena.map-test.ts` turn the view

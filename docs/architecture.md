@@ -1440,6 +1440,63 @@ The pixel pipeline (`src/render/pipeline.ts`):
 - The far plane is 3 km from the camera (2.5 km past the focus): from the Apuan summits the
   deepest ground in view is ≈ 2.45 km from the camera, past the 1 km the plane used to stop at.
 
+### Roads at grade
+
+A road at grade is a ribbon on its road's surface, where the sim stands wheels and feet (the higher
+of its profile and the terrain mesh, plus `ROAD_LIFT`: `surfaceY`), and a main road's painted
+lines lie 2 cm over that ribbon as it is drawn (`roadPieces` in `src/render/lines.ts`; `strips` in
+`src/render/ribbons.ts`; `drape` and `layOver` in `src/render/drape.ts`).
+
+- **The ribbon**: a mitred section every 2 m and at each vertex, each quad two triangles through
+  its corners, which alone read the surface. Where the mesh folds up between them (a ridge along a
+  cell's diagonal, a node far off its neighbours), a triangle the terrain would stand more than 2
+  cm over (`DRAPE_POKE`) is cut along the mesh's cell sides and south-west to north-east diagonals
+  and where the profile meets the terrain, each piece on the surface (`drape`). `drape` reads the
+  mesh at its nodes inside the triangle and where its sides cross a fold, where alone it folds,
+  and at none when every node of the cells round it stands that little or less over the plane
+  through its corners. A side the mesh stands no higher than that over stays straight, as the
+  triangle across it draws it: cut along such a side too, a triangle stepped off its whole
+  neighbour, 1.35 m on Cesena's trunk 23130070, and the terrain showed through the crack. 2 cm, as
+  the decals' polygon offset pulls a ribbon a texel's depth toward the camera: the 1.1 cm the mesh
+  stood over the SS63's ribbon at Fivizzano's junction shows at none of the game's zooms nor at 40
+  texels a metre, and cut there, the ribbon drew the kink of the junction's blend as a dark crease
+  across the road. A ridge where the mouth's hold behind Sarzana's service tunnel 376037643
+  (`mouthClaim`, [map.md section
+  7](map.md#7-road-and-rail-profiles-profilests-grid-claimsts-terraints-rail-levelsts-road-levelsts-junction-reachts))
+  left a node at the bore's floor beside nodes it did not hold stood 0.56 m through the footway
+  1462688623. Round Lunigiana's 427 mouths (12 m, every 0.125 m) the mesh stood more than 2 cm
+  through a ribbon at 21,904 points (342 m²), up to 4.03 m, and now at none.
+- **The painted lines** lie on the ribbon as drawn, or on the road's surface where that stands
+  higher: read at its corners alone, the ribbon stands over the surface between them where the
+  terrain under one of its edges stands over the profile and under the rest does not, and a line on
+  the surface sank under it. Each line triangle takes its corners 2 cm over the ribbon's triangles
+  along the same segment, or over the surface, the higher, and is cut along the ribbon's triangles'
+  sides where it would come within 1 cm of one (`layOver`). The surface keeps a line at a junction
+  where it showed before, over another road's ribbon standing higher than this one's (round
+  Fivizzano's west mouth another arm's ribbon covered the Y at 20 points of a 0.125 m lattice over
+  its own ribbon alone, and covers it at 12). The ribbon hands each segment's triangles to its
+  lines as it draws them (`drawnBySegment`), so a line reads no neighbouring segment, which a chunk
+  draws with its far mitre unmade, and a chunk still equals its cut of a whole-map build. Read on
+  the surface alone, the SS63's centre lines at its junction by the west mouth of Fivizzano's
+  underpass 145347886 sank 0.13 m under their ribbon, which the corners held 3.7 m behind the mouth
+  tilt across the carriageway; round the 427 mouths a line lay under its own ribbon at 5,619
+  points (88 m²), up to 2.06 m, and now at none. At a junction another road's ribbon still covers
+  a line where it stands higher: 320 points (5.0 m²) of the 5,860 hidden before, up to 0.27 m (by
+  Sarzana's 178397573's mouth), 12 and 13 round Fivizzano's two mouths, up to 1.1 cm.
+- **Cost** (2026-11-21): over Lunigiana's 14,783 roads at grade the ribbons and lines draw
+  4,358,497 decal triangles, 7.5% more than read at their corners alone (4,054,610; the lines
+  849,169 of them, 804,940), in 4.06 s of Node against 3.98 s. Built one an update in Node, the 393
+  chunks round Fivizzano's SS63, 376037643's mouth, Aulla, Sarzana and (0, 0) hold 288,947 decal
+  triangles (280,423) and take 2.24–2.33 ms on average, 1.26–1.34 ms at the median, 5.1–5.3 ms at
+  p90 and 20.1 ms at worst, against 1.73–1.88, 0.95–1.00, 3.6–4.3 and 19.2 ms (31.4 ms once, a
+  garbage collection) on the build before, two runs each in turn. In headless Chrome (dev build,
+  `pnpm playtest drive` at 40 m/s, one run each in turn) the 4,349 m from Sarzana's centre past
+  378473973's mouth to 376037643's draw at 16.8 ms at p99 with two frames over 30 ms (33.4 and 83.3
+  ms, where the build before drew three: 33.4, 116.7 and 249.9 ms) and 246 MB of heap at the end
+  as before, and the 1,206 m over Fivizzano's SS63 junction none over 16.8 ms (239 MB, 238
+  before); `pnpm playtest heap` standing at 376037643's mouth reads a first frame at 0.64 s and
+  228 MB (0.71 s and 230 MB before).
+
 ### Road tunnels
 
 Every road in a tunnel is drawn as the sim drives it, at its tunnel's floor, with dark walls through
@@ -1456,8 +1513,9 @@ only its road, under its house. Where each mouth is and what stands there is dec
   tilt off the profile along the centreline by about g · s · d / (L + d) (the slope g, s from the
   vertex, the skew d, the quad's length L), whichever diagonal. So a ribbon that holds its road's
   profile, a tunnel's or a deck's (`profile` in `src/render/ribbons.ts`), draws each quad as two
-  halves meeting on its own line, an edge they share, which holds the profile exactly; at-grade
-  ribbons and water are drawn whole. Drawn whole, Giucano's path 1335936010, 48% through a 60° turn,
+  halves meeting on its own line, an edge they share, which holds the profile exactly; water is
+  drawn whole, and at-grade ribbons whole but where the terrain would stand through them ([Roads at
+  grade](#roads-at-grade)). Drawn whole, Giucano's path 1335936010, 48% through a 60° turn,
   lay 10.3 cm off its floor, two of Lunigiana's bridges (1062529400, 232588086) 2.75 cm and Cesena's
   tunnel 166880971 5.2 cm. Lunigiana's 59 roads in tunnels (1,186 m) draw 3,012 decal triangles and
   its bridges 18,640, Cesena's 64 (5,264 m) 20,344 and 21,780, twice what whole quads drew; the
@@ -2972,6 +3030,14 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     it along its line through a sharp bend on a slope (Giucano's path 1326730181 as a line of its
     own, 12% down through an 85° turn, 3 cm under its profile past the bend when its quads were
     drawn whole).
+  - `src/render/__tests__/drape.test.ts`: a ribbon's triangle over the road's surface everywhere
+    between its corners drawn whole; one over a peak of the terrain mesh cut along its folds, the
+    peak on the surface, the mesh nowhere more than 2 cm over it, and the triangle across each of its
+    sides meeting it there with no step; a painted line over a fold of its ribbon cut along it 2 cm
+    over both sides, and whole over one plane; and round the west mouths of Fivizzano's underpass
+    under the SS63 and of Sarzana's service tunnel 376037643, the roads at grade over the terrain
+    and their lines over their ribbons (`checkLaid`; read at their corners alone, the SS63's centre
+    line sank 0.13 m under its ribbon and the mesh stood 0.56 m through the footway 1462688623).
   - `src/render/__tests__/stations.test.ts`, over the stations within 4 km of Monzone station
     (Monzone's, Gragnola's and Equi Terme's): the platforms' tops following the rail profile, their
     yellow lines, nothing standing in a train's way, one name board per platform people wait on,
@@ -3164,14 +3230,18 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     the mouth the clear height over the road, buried; a house over the way at its level within the
     mouth's end of the tunnel, the ground over that end lower than `leastWall`, or another road or
     the track in the room a head wall and its box would take, a road leading out of the mouth among
-    them where its carriageway reaches past the arch's side, else it fails), and the chunks within
-    60 m of every road in a tunnel built from the tiles' pieces as a whole-map build cuts them; each
-    pins its counts (roads in tunnels, passages, metres, wall triangles, mouths, portals, head walls
-    and the open mouths buried, under a house, under too low a bank and with no room: Lunigiana 59,
-    30, 1,186 m, 3,574, 56, 12, 2, 0, 14, 28, 0; Cesena 64, 22, 5,264 m, 18,120, 77, 6, 2, 7, 47,
-    13, 2; the L 7, 1, 194 m, 650, 12, 3, 0, 0, 1, 8, 0; the coast 6, 4, 83 m, 225, 4, 0, 1, 0, 0,
-    2, 1), so a new part's tunnels show, and so does a change to the ground by their mouths (the
-    wall triangles were 3,459 and 633 while each road was cored at its chain's widest piece);
+    them where its carriageway reaches past the arch's side, else it fails), round each mouth, 12 m,
+    the roads at grade with the terrain 2 cm at most over them and their painted lines 1 cm or more
+    over their ribbons at every point of a 0.25 m lattice on the mesh's grid, and no step where a
+    ribbon's triangles meet (`checkLaid`: [Roads at grade](#roads-at-grade)), and the chunks within
+    60 m of every road in a tunnel built from the
+    tiles' pieces as a whole-map build cuts them; each pins its counts (roads in tunnels, passages,
+    metres, wall triangles, mouths, portals, head walls and the open mouths buried, under a house,
+    under too low a bank and with no room: Lunigiana 374, 140, 10,295 m, 29,764, 427, 41, 43, 0, 105,
+    215, 23; Cesena 64, 22, 5,264 m, 18,480, 76, 6, 4, 2, 46, 14, 4; the L 7, 1, 194 m, 645, 12, 3,
+    0, 0, 1, 8, 0; the coast 6, 4, 83 m, 226, 4, 0, 1, 0, 0, 2, 1), so a new part's tunnels show, and
+    so does a change to the ground by their mouths (the wall triangles were 3,459 and 633 while each
+    road was cored at its chain's widest piece);
     `ground.map-test.ts`: every drivable bridge; `shadow-box.map-test.ts` and
     `shadow-box-cesena.map-test.ts`: the shadow box through whole turns at the map's steepest fall,
     deepest gully and flattest ground, found over its whole coarse lattice (Lunigiana's and

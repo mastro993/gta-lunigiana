@@ -230,8 +230,8 @@ const carriagewayCells = (
  * behind the mouth heading out (ux, uy)) across the whole core, the cells behind Fivizzano's 16 m
  * underpass 145347886 dropped the nodes under the SS63's edges over it 4.3 m behind each mouth 6–7
  * m, and the node between them, which the junction there holds 0.4 m over the SS63's profile, stood
- * through its ribbon, which reads the ground at its edges alone. A path or steps at grade over the
- * bore keeps the cells of its vertices behind the mouth too (`footways`, their vertices within a
+ * through its ribbon, which read the ground at its corners alone then. A path or steps at grade over
+ * the bore keeps the cells of its vertices behind the mouth too (`footways`, their vertices within a
  * distance of a point; within the bore's kerbs, `BORE_SIDE` past its carriageway, of its line): it
  * follows the terrain, and held at the floor, the cell under the footway 1484690678, 5.5 m behind
  * the east mouth of the service tunnel 376037643 at Sarzana, dropped it 2.6 m, to 1.7 m over the

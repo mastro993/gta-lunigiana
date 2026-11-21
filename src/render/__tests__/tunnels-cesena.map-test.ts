@@ -9,7 +9,7 @@ import { checkTunnels } from "./tunnel-checks.ts"
 // (tunnels.map-test.ts checks Lunigiana). Its tunnels are the Secante's cut and cover under the
 // city, underpasses under the railway and the arcades of the centre.
 
-test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill along both sides, a portal or a head wall clear of every other road at every mouth the hill stands over, else a reason by geometry for none, its chunks as a whole-map build cuts them", () => {
+test("Cesena: every road in a tunnel drawn at its floor, its bore under the hill along both sides, a portal or a head wall clear of every other road at every mouth the hill stands over, else a reason by geometry for none, the roads at grade round each mouth over the terrain and their painted lines over them, its chunks as a whole-map build cuts them", () => {
   assert.deepEqual(checkTunnels(wholeVectors()), {
     tunnels: 64,
     passages: 22,

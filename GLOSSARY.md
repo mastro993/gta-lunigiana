@@ -95,6 +95,10 @@ _Avoid_: Z, elevation line
 **Lift**:
 How far a road's surface stands over its profile, by road class.
 
+**Drape**:
+How a road's ribbon at grade is drawn on its road's surface where the terrain would stand through it between its corners: cut along the terrain's folds, each piece on the surface (`drape`); a painted line lies on its ribbon as drawn the same way (`layOver`).
+_Avoid_: Conform, project, snap
+
 **Walkers' verge**:
 How far either side of a deck or a tunnel's line someone on foot is still on its level.
 _Avoid_: Sidewalk, kerb
