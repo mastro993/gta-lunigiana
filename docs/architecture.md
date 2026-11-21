@@ -312,13 +312,17 @@ Static data is module content, not state. `MAP` (`src/sim/map/global.ts`, which
 `src/sim/map/index.ts` re-exports with `graph`) is the map's global file, decoded once at load: the
 roads' attributes, the rail, the graph, the railway, the tile list, the coarse grid and the tables
 baked from the tiles' layers ([map.md](map.md#map-files)), and no vector geometry. Its JSON line
-holds all but the bulk arrays, which follow it as packed sections of whole numbers: the coarse
-grid's heights and cover, the graph's coordinates (in decimetres), edges and traffic and walk
-sets, the lanes (indices into the line's table of their distinct values) and the walk edges'
-residents (their float32 bits). `decodeMap` (`src/sim/map/format/global-file.ts`) hands them
-back as plain arrays, every value the double `JSON.parse` gave when they were on the line (up to
-format version 5), so the line the game parses at load stays within the 8 MB issue #5 set: as text
-they were 5.66 MB of Lunigiana's 8,319,700 B line ([map.md](map.md#the-global-file)). The dense layers
+holds all but the bulk arrays and tables, which follow it as packed sections of whole numbers: the
+coarse grid's heights and cover, the graph's coordinates (in decimetres), edges and traffic and
+walk sets, the lanes (indices into the line's table of their distinct values), the walk edges'
+residents (their float32 bits), and the parked spots (decimetres, milliradians, flags and their
+rests' doubles as int32 words), the farms, their centres and the lamps. `decodeMap`
+(`src/sim/map/format/global-file.ts`) hands them back as plain arrays and objects, every value the
+double `JSON.parse` gave when they were on the line (up to format versions 5 and 6), so the line
+the game parses at load stays within the 8 MB issue #5 set: as text the graph, the lanes and the
+residents were 5.66 MB of Lunigiana's 8,319,700 B line, and the parked spots, the farms, their
+centres and the lamps 3.67 MB of its 4,560,301 B with Aulla's part
+([map.md](map.md#the-global-file)). The dense layers
 (terrain, walls, trees, land cover) and the vectors (the roads' lines, the buildings, the water, the
 areas and the barriers) live in 2 km tiles, and only the tiles round the player are in memory
 (`src/sim/map/tiles.ts`, the vectors' lookups in `src/sim/map/vectors.ts`): the host hands them over
@@ -566,18 +570,25 @@ once the first frame is drawn.
    decoded: its JSON line parsed, then its packed sections, [Where state lives](#where-state-lives))
    and `src/sim/map/tiles.ts`. "Downloading terrain" fetches the start tiles: every listed
    tile over [`MAP.spawns.player` ± 1000 m]² (`tilesOver`, `NEAR`), on Lunigiana -1_-1, 0_-1, -1_0
-   and 0_0, 2,104,382 B gzipped: with the global file's 1,247,151 B, 3.35 MB before the first frame
-   (4.32 MB while the global file's line held the graph, the lanes and the residents, before
-   format version 6; 3.62 MB before Fosdinovo's part; on lucido alone, `lunigiana-lucido`,
-   1,996,776 and 311,589 B, 2.31 MB; 3.10 MB while the global file held the vectors). They come in
-   parallel, all their headers first, so the bar (22% to 60%, `GLOBAL` and `DOWNLOAD` in
-   `boot.ts`, shares set by the bytes: the global file 1.25 MB against its start tiles' 2.10 MB)
-   counts the bytes against their summed `Content-Length` and never runs backwards, at 17.6% a MB
-   through the global file and 18.1% through the tiles. "Decoding terrain" hands each to
-   `provideTile` (in Node, decoding a tile takes 4.3–4.6 ms at the median over Lunigiana's 102 and
-   5.5–5.9 ms for the largest, 2_1, in ten fresh processes on 2026-11-07 under a load average of
-   4–5, against 4.2–4.4 and 5.7–7.2 ms over the 79 before Fosdinovo's part in six more, run in
-   turn; over lucido's 30, its largest 0_0, 3.1–3.2 and 4.1–4.9 ms in three on 2026-11-04). Then
+   and 0_0, 1,745,880 B gzipped: with the global file's 1,822,535 B, 3.57 MB before the first frame
+   (2026-11-21; 4.23 MB in format version 6, its line holding the parked spots, the farms and the
+   lamps and the tiles' theirs holding the vectors' coordinates, 2,101,479 and 2,126,214 B; 3.35 MB
+   before Aulla's part, 2,104,382 and 1,247,151 B; 4.32 MB while the global file's line held the
+   graph, the lanes and the residents, before format version 6; 3.62 MB before Fosdinovo's part; on
+   lucido alone, `lunigiana-lucido`, 1,996,776 and 311,589 B, 2.31 MB; 3.10 MB while the global
+   file held the vectors). They come in parallel, all their headers first, so the bar (22% to 60%,
+   `GLOBAL` and `DOWNLOAD` in `boot.ts`, shares set by the bytes before Aulla's part: the global
+   file 1.25 MB against its start tiles' 2.10 MB) counts the bytes against their summed
+   `Content-Length` and never runs backwards, at 12.1% a MB through the global file and 21.8%
+   through the tiles today (17.6% and 18.1% then). "Decoding terrain" hands each to
+   `provideTile` (in Node, decoding a tile takes 4.5–4.7 ms at the median over Lunigiana's 153 and
+   6.2–6.7 ms (once 10.1) for Aulla's −7_2 in format version 7, against 4.7–4.9 and 6.4–7.1 ms
+   in version 6, in five fresh processes each in turn on 2026-11-21 under a load average of 7–9;
+   4.3–4.6 ms at the
+   median over the 102 before Aulla's part and 5.5–5.9 ms for the largest, 2_1, in ten fresh
+   processes on 2026-11-07 under a load average of 4–5, against 4.2–4.4 and 5.7–7.2 ms over the 79
+   before Fosdinovo's part in six more, run in turn; over lucido's 30, its largest 0_0, 3.1–3.2 and
+   4.1–4.9 ms in three on 2026-11-04). Then
    come `src/sim/route.ts` ("Planning traffic": each vehicle
    model's lanes, from the baked tables) and `main.ts` ("Loading the game").
 4. `main.ts` first makes the sky host, every light and weather mesh in it, so they exist before
@@ -618,7 +629,9 @@ cycle (its dev-server numbers are under [Measured](#measured)):
 With the map in tiles (production build served by `vite preview`, headless Chrome on an M-series
 Mac, 1280×720, `?seed=7`, `pnpm playtest heap`, three runs each; the first row on 2026-11-21 with
 Aulla's part and the start's heap cuts below, interleaved with main's build before them, 0.52–0.55
-s and 217 MB; the second on 2026-11-07 with Fosdinovo's part and the global file in format version
+s and 217 MB (format version 7, measured apart on main's code with `?seed=1`, five runs in turn
+against version 6, held the heap: 216–217 MB against 216 MB, first frame 0.50–0.55 s against
+0.50–0.53 s); the second on 2026-11-07 with Fosdinovo's part and the global file in format version
 6 (an earlier build of it, its line still holding the graph, the lanes and the residents, measured
 0.41–0.47 s and 161 MB, against 130–131 MB on the build before it in turn); the third on 2026-11-07
 with the olive groves, against 0.39–0.40 s and 130–132 MB on the build before in turn (0.41 s and
@@ -650,7 +663,13 @@ parses at load, so the graph, the lanes and the residents moved into packed sect
 (format version 6, [Where state lives](#where-state-lives)), and `src/__tests__/maps.map-test.ts`
 fails a line past 8,000,000 B. The limits issue #5 set on the game hold too: the first frame within
 0.9 s and the heap at the start within 245 MB (the table's first row), and every tile at most 0.7
-MB gzipped (the largest, 2_1, 632,249 B). Cesena's 4 tiles are the whole map, all in memory at
+MB gzipped (the largest, 2_1, 632,249 B). Aulla's part took the line to 4,560,301 B and the largest
+tile, −7_2, to 648,583 B, and estimates from Sarzana's inputs (issue #20) put both past their
+limits with its part, so
+format version 7 moved the parked spots, the farms, their centres and the lamps into sections after
+the line and each tile's vector coordinates into a section after its own: the line is 892,288 B,
+the global file 7,690,080 B gunzipped (from 10,227,101 B) and the largest tile, −8_2, 499,103 B
+(2026-11-21, [map.md](map.md#a-tile)). Cesena's 4 tiles are the whole map, all in memory at
 once, so moving the vectors into them saves nothing and copies every feature into each tile it comes
 within 32 m of (a large area into all four): its download grows from 2.10 MB to 2.28 MB, and its
 heap by 5 MB. The production JS is 1,255,961 B (`dist/assets/*.js` on 2026-11-07; 1,237,029 B on
@@ -2280,8 +2299,9 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   resolution (`paintMap` with `overviewRoad`: roads 1.6 times their width, or `OVERVIEW_MIN` px,
   whichever is wider), each clipped to its own square on whole device pixels so no seam shows the
   overview through. A tile in memory lends its vectors (`residentTile`); any other is downloaded
-  (`tileUrl`, the stream's own files, which the browser caches) and only its JSON line read
-  (`tileFileVectors` in `src/sim/map/tiles.ts`, which refuses a tile from another build as
+  (`tileUrl`, the stream's own files, which the browser caches) and only its JSON line and its first
+  section, the vectors' coordinates, read (`tileFileVectors` in `src/sim/map/tiles.ts`, which
+  refuses a tile from another build as
   `provideTile` does), the vectors kept while the map is open (past 16, `KEPT`, those off the
   frame go first) and let go when it closes. The detail is painted once for the frame as it stands
   and again 120 ms (`SETTLE`) after the map last moved or a tile came; in between, it is drawn
@@ -2718,7 +2738,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     out of the page, so the game would fail to start on reading it: the game reads the map tools'
     `geometry.ts` (`hash01`, `segDist2`), and through it `region.ts`.
   - The `notch.test.ts` beside each runtime reader of the map's tiles and play area, each on
-    Lunigiana's global file rewritten before anything decodes it (`notchMap` in
+    Lunigiana's global file rewritten before the map module decodes it (`notchMap` in
     `src/sim/map/__tests__/edit-map.ts`), cut to lucido's rectangle with its four tiles north-east
     of (2000, 0) unlisted and an L outline, as a region of parts in an L gives, a notch that stays
     put however the region grows: in `src/sim/map/__tests__` the lookups there read
@@ -3090,7 +3110,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `src/__tests__/maps.map-test.ts`: every tile of both maps and, built or in CI, of both test
     regions (the L and the coast) at its URL, at most 0.7 MB, and each map's global JSON line at
     most 8,000,000 B (Lunigiana's was 8,319,700 B before format version 6 moved the graph, the lanes
-    and the residents off it);
+    and the residents off it, and 4,560,301 B before version 7 moved the parked spots, the farms,
+    their centres and the lamps off it: 892,288 B, 2026-11-21);
     `src/tools/__tests__/seams.map-test.ts`: on both maps, one height for every node two tiles
     share, and every wall stored once, those across a seam carrying on and found from either side
     within `walls.reach`.
@@ -3146,7 +3167,10 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
   of reading and gunzip, five runs on 2026-11-07 under a load average of 3–4; measured in turn
   against the build before, three fresh processes each, the sections took the first decode from
   21.2–21.6 to 23.1–23.5 ms and its gunzip from 12.4–12.8 to 6.5–6.6 ms, and a warm decode from
-  17.2–18.3 to 12.7–13.1 ms at the median of 25), and each `World` plans every chunk
+  17.2–18.3 to 12.7–13.1 ms at the median of 25; with Aulla's part, the parked spots, the farms,
+  their centres and the lamps moving into sections too, format version 7, from 36.5–56.1 to
+  31.0–34.7 ms after reading and gunzip from 12.8–14.6 to 8.6–9.9 ms, five fresh processes each in
+  turn on 2026-11-21 under a load average of 7–9), and each `World` plans every chunk
   ([Rendering](#rendering)).
 
   On 2026-11-01 (#70) the long checks left `pnpm test` for `pnpm test:long`, the chats' watch

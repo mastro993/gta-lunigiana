@@ -20,12 +20,17 @@ never compares a change's map with the map before it, so these runs are yours.
   file format (`MAP_VERSION` in `src/sim/map/format/sections.ts`) rewrites the reader of the version
   before (`src/tools/map-upgrade.ts`, which `readWholeMap` calls) for the version it replaces, so
   `pnpm map-diff` still compares the build before with the new one, and drops the reader of the
-  version before that: no build of it is left to compare. Today it reads version 5 as one of 6, and
-  version 6's move of the graph, the lanes and the residents into sections diffed as no difference
-  on Lunigiana, Cesena and the L. A change to the shape of a baked table's entry (a mouth's new kind,
-  or a field added, renamed or removed) is such a change, since a build before it would be read
-  wrong; a change to which entries the bake gives, in the same shape, is a rebuild (`pnpm maps`)
-  alone (the user's answer to issue #111's seventh question).
+  version before that: no build of it is left to compare. Today it reads version 6 as one of 7, and
+  version 7's move of the parked spots, the farms, their centres and the lamps into the global
+  file's sections, and of the tiles' vector coordinates into a section of their own, diffed as no
+  difference on Lunigiana, Cesena, the L and the coast. A change to the shape of a baked table's
+  entry (a mouth's new kind, or a field added, renamed or removed) is such a change, since a build
+  before it would be read wrong; a change to which entries the bake gives, in the same shape, is a
+  rebuild (`pnpm maps`) alone (the user's answer to issue #111's seventh question). The parked
+  spots, the farms and the lamps travel field by field in the global file's sections, so a field
+  added to one is such a change too: it fails to compile until `PARKED_FIELDS`, `FARM_FLAGS` or
+  `LAMP_WORDS` in `src/sim/map/format/global-file.ts` gives it its place, and the build throws on a
+  parked spot with a key `PARKED_FIELDS` lacks, which the file would drop.
 - Run `pnpm test:map` (or `pnpm check`) on the rebuilt map: the checks over every tile and feature
   of the map live there, not in `pnpm test`, and so do the test regions' (the L and the coast:
   `pnpm maps` builds them into `test-maps/`; without one its checks are skipped, but fail in CI,
@@ -276,15 +281,18 @@ acceptance criteria in the part's issue (#17–#26) or the biome's (#13–#16).
   lying outside its own source's mapped area, and 70 pairs failed before it, among them two 2019
   CTR houses at the Liguria border with the NC5's copies. A failure on a new part or source is the
   merge's: fix it for every source alike, never by dropping one building by hand.
-- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.63 MB, Lunigiana's
-  2_1 by Pieve San Lorenzo with the vectors round it, 632,249 B, and Fosdinovo's largest −4_1
-  627,856 B; the build prints it, and `src/__tests__/maps.map-test.ts` fails past it).
+- A tile is at most 0.7 MB gzipped (issue #3's scale checks; today's largest is 0.50 MB, Lunigiana's
+  −8_2 by Aulla, 499,103 B; the build prints it, and `src/__tests__/maps.map-test.ts` fails past
+  it). A tile's vector coordinates go in its first packed section (`TILE_LAYOUT` in
+  `src/sim/map/format/tile-file.ts`), never on its line: with them on it (format version 6) the
+  largest was −7_2's 648,583 B.
 - The global file's JSON line is at most 8 MB, 8,000,000 B (issue #5's map.json scale check, which
   #18 asks; `src/__tests__/maps.map-test.ts` fails past it on either map): the game parses the
-  line with `JSON.parse` at load, its slowest step, so a bulk array goes in a packed section after
-  it (`GLOBAL_LAYOUT` in `src/sim/map/format/global-file.ts`), never on the line. Lunigiana's line
-  is 2,639,642 B and Cesena's 959,338 B; with Fosdinovo's part and the graph, the lanes and the
-  residents still on it (format version 5) Lunigiana's was 8,319,700 B.
+  line with `JSON.parse` at load, its slowest step, so a bulk array or table goes in a packed
+  section after it (`GLOBAL_LAYOUT` in `src/sim/map/format/global-file.ts`), never on the line.
+  Lunigiana's line is 892,288 B and Cesena's 340,632 B; with the parked spots, the farms, their
+  centres and the lamps still on it (format version 6) Lunigiana's was 4,560,301 B, and with
+  Fosdinovo's part and the graph, the lanes and the residents too (format version 5) 8,319,700 B.
 - The JS heap after GC at the start is at most 245 MB (issue #5's scale check; `pnpm playtest heap`
   on a production build, three runs): Lunigiana's is 160–161 MB with Aulla's part (2026-11-21). What
   the game builds at load from the whole map grows with every part: the road graph, the lookups

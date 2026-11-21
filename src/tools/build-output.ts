@@ -221,22 +221,29 @@ export const writeMap = async (
   const stamped = stampMap(cut.global(bakes), files.values())
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
-  let json = 0
+  let json = 0,
+    all = 0
   const [global, ...tiles] = await writeGzipped(
     (function* () {
       yield [out, stamped.file] as const
       for (const [key, file] of files) {
         const tile = stamped.tile(file)
         json += tile.indexOf(10) + 1
+        all += tile.length
         yield [join(dir, `${key}.bin`), tile] as const
       }
     })(),
   )
   lap("write")
+  // the cut packed the dense layers with no vectors: the coordinates are what the files hold past them and the lines
+  const dense = Object.entries(cut.sizes).reduce(
+    (sum, [part, n]) => sum + (part === "json" ? 0 : n),
+    0,
+  )
   const sizes: Record<string, number> = {}
   for (const [part, n] of Object.entries(stamped.sizes)) sizes[`global ${part}`] = n
   for (const [part, n] of Object.entries(cut.sizes))
-    sizes[`tile ${part}`] = part === "json" ? json : n
+    sizes[`tile ${part}`] = part === "json" ? json : part === "coordinates" ? all - json - dense : n
   for (const [layer, n] of Object.entries(vectorSizes)) sizes[`tile ${layer}`] = n
   return {
     global: stamped.global,

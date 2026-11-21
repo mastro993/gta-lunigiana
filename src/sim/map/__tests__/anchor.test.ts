@@ -32,9 +32,9 @@ for (let k = 0; k < 20; k++) {
   POINTS.push([x - 1e-13, STATION.y + 1.3 * k], [STATION.x + 1.3 * k, y - 1e-13])
 }
 
-editMap((json) => {
-  const { cell, cols, rows, x0, y0, ax = x0, ay = y0 } = json.heightmap,
-    { maxX, maxY } = json.bounds,
+editMap((map) => {
+  const { cell, cols, rows, x0, y0, ax = x0, ay = y0 } = map.heightmap,
+    { maxX, maxY } = map.bounds,
     minX = ax + TILE,
     minY = ay + TILE,
     range = tileRange({ minX, minY, maxX, maxY })
@@ -42,7 +42,7 @@ editMap((json) => {
     bounds: { minX, minY, maxX, maxY },
     outline: [[minX, minY, maxX, minY, maxX, maxY, minX, maxY]],
     heightmap: {
-      ...json.heightmap,
+      ...map.heightmap,
       x0: minX,
       y0: minY,
       cols: cols - (minX - x0) / cell,
@@ -50,7 +50,7 @@ editMap((json) => {
       ax,
       ay,
     },
-    tiles: json.tiles.filter(({ i, j }) => i >= range.i0 && j >= range.j0),
+    tiles: map.tiles.filter(({ i, j }) => i >= range.i0 && j >= range.j0),
   }
 })
 const { heightAt, MAP } = await import("../index.ts")

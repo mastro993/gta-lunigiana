@@ -1,37 +1,24 @@
 /**
- * Lunigiana's global file edited before anything decodes it: maps the build does not make from
+ * Lunigiana's global map edited before the map module decodes it: maps the build does not make from
  * Lunigiana's parts, such as lucido alone cut into an L (`notchMap`, issue #7). A test calls one of
  * these first and imports every map module after it (`await import`), or picks the L by importing
  * `./use-notch.ts` on its first line.
  */
 
 import { partOf } from "../../../tools/region.ts"
-import type { MonzoneMapJson } from "../format/global-file.ts"
-import { lineOf, relined } from "../format/sections.ts"
+import { decodeMap, encodeMap } from "../format/global-file.ts"
+import type { MonzoneMap } from "../index.ts"
 import { tileRange } from "../kinds.ts"
 import { MAP_URL, provideMap, readMapFile } from "../source.ts"
 
 /**
- * What on the line says how many values the sections hold, which an edit must leave as it is: the
- * sections stay unchanged (a type cannot say so: a callback's returned object is not checked for
- * keys it should not have).
+ * Hands over Lunigiana's global map with its keys set to what `edit` makes of it (in place, so the
+ * key order stays), encoded again, before the map module decodes it; its tiles are read from disk as
+ * Lunigiana's.
  */
-const counts = (line: MonzoneMapJson): string =>
-  JSON.stringify([line.version, line.coarse, line.graph, line.lanes, line.derived.residents])
-
-/**
- * Hands over Lunigiana's global file with its JSON line's keys set to what `edit` makes of the line
- * (in place, so the key order stays), its sections unchanged, before any module decodes the map;
- * its tiles are read from disk as Lunigiana's.
- * An edit that changes the counts the line holds throws.
- */
-export const editMap = (edit: (line: MonzoneMapJson) => Partial<MonzoneMapJson>): void => {
-  const file = readMapFile(MAP_URL),
-    line = lineOf(file, "the global map file") as MonzoneMapJson,
-    patch = edit(line)
-  if (counts({ ...line, ...patch }) !== counts(line))
-    throw new Error("editMap: an edit changed the counts of the global file's sections")
-  provideMap(relined(file, patch), MAP_URL)
+export const editMap = (edit: (map: MonzoneMap) => Partial<MonzoneMap>): void => {
+  const map = decodeMap(readMapFile(MAP_URL))
+  provideMap(encodeMap({ ...map, ...edit(map) }).file, MAP_URL)
 }
 
 /** Lucido's rectangle, the region's first part: the box `notchMap` cuts the map to. */
@@ -65,8 +52,8 @@ export const AROUND: ReadonlyArray<string> = ["0_-1", "1_-1", "2_-1", "0_0", "0_
  * listed tiles.
  */
 export const notchMap = (): void =>
-  editMap((json) => {
-    const { ax, ay, ...hm } = json.heightmap,
+  editMap((map) => {
+    const { ax, ay, ...hm } = map.heightmap,
       anchor = { ax: ax ?? hm.x0, ay: ay ?? hm.y0 },
       { i0, i1, j0, j1 } = tileRange({ minX: MIN_X, minY: MIN_Y, maxX: MAX_X, maxY: MAX_Y })
     return {
@@ -80,7 +67,7 @@ export const notchMap = (): void =>
         // named only where it is not the first node, as the build writes it
         ...(anchor.ax === MIN_X && anchor.ay === MIN_Y ? {} : anchor),
       },
-      tiles: json.tiles.filter(
+      tiles: map.tiles.filter(
         ({ i, j }) => i >= i0 && i <= i1 && j >= j0 && j <= j1 && !(i >= 1 && j >= 0),
       ),
       outline: [L],
