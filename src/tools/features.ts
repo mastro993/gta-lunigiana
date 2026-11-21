@@ -627,11 +627,28 @@ export const extractAreas = (osm: Osm, ground?: (x: number, y: number) => number
     for (let k = 0; k < ring.length; k += 2) sum += ground(ring[k]!, ring[k + 1]!)
     return sum / (ring.length / 2) < UNTYPED_OLIVES_BELOW ? "olive" : undefined
   }
+  // Each named watercourse's vertices, for the untagged water its namesake runs through (`riverOf`).
+  const courses = new Map<string, Array<P>>()
+  for (const w of osm.ways.values())
+    if (WATERCOURSES.has(w.tags.waterway ?? "") && w.tags.name !== undefined)
+      courses.set(w.tags.name, [...(courses.get(w.tags.name) ?? []), ...ringOf(osm, w.nds)])
+  /**
+   * A lake tagged `t`, as `kind`, is its namesake's river polygon when it has no `water=*` and a
+   * watercourse of its very name runs through it (a vertex inside `ring`): OSM's lower Calcandola,
+   * way 814811500, held as a lake at its lowest edge node dried the stream through it (issue #20).
+   */
+  const riverOf = (kind: AreaKind | undefined, t: Tags, ring: ReadonlyArray<number>) =>
+    kind === "lake" &&
+    t.water === undefined &&
+    t.name !== undefined &&
+    (courses.get(t.name) ?? []).some(([x, y]) => pointInRing(x, y, ring))
+      ? "river"
+      : kind
   for (const w of osm.ways.values()) {
     const tagged = areaKind(w.tags)
     if (tagged === undefined || isBuilding(w.tags) || !closed(w)) continue
     const ring = flatRing(clipRing(ringOf(osm, w.nds), TERRAIN_BOX), true)
-    const kind = ring === undefined ? undefined : kindOf(tagged, ring)
+    const kind = ring === undefined ? undefined : riverOf(kindOf(tagged, ring), w.tags, ring)
     if (ring !== undefined && kind !== undefined)
       areas.push({
         kind,
@@ -647,7 +664,7 @@ export const extractAreas = (osm: Osm, ground?: (x: number, y: number) => number
     for (const outer of assembleRings(osm, rel, "outer").map((r) => ringOf(osm, r))) {
       const flat = outer.flatMap(([x, y]) => [x, y])
       const ring = flatRing(clipRing(outer, TERRAIN_BOX), true)
-      const kind = ring === undefined ? undefined : kindOf(tagged, ring)
+      const kind = ring === undefined ? undefined : riverOf(kindOf(tagged, ring), rel.tags, ring)
       if (ring === undefined || kind === undefined) continue
       const holes = inners
         .filter((h) => pointInRing(h[0]![0], h[0]![1], flat))
