@@ -146,6 +146,16 @@ test("conflateRail throws when a crossing node would slide past half of its road
   )
 })
 
+test("conflateRail moves a road that ends on the line with it, onto the CTR's track", () => {
+  // As driveway 1455968336 at Santo Stefano di Magra: it ends on OSM's line, which the CTR puts 1 m
+  // south, short of the road's last segment, so the road's end comes onto the line where it is nearest.
+  const ends = road(10, v(500, 20, "r0"), v(500, 1, "lc"))
+  const c = conflateRail(RAIL, [ends], [], ctr(TRACKS.slice(0, 2)), NONE)
+  assert.deepEqual(c.roads[0]!.pts.at(-1), { x: 500, y: 0, id: "lc" })
+  assert.ok(c.rail.some((r) => r.pts.some((p) => p.id === "lc" && p.x === 500 && p.y === 0)))
+  assert.equal(c.report.crossings[0]!.shift, 1)
+})
+
 test("conflateRail re-homes OSM's ids by the layout: dropped ways, reserved CTR tracks, swapped nodes", () => {
   // As at Gragnola: OSM's line crosses over to where the CTR has the loop (its node "lc" there), and
   // OSM's loop way 9 lies on the CTR's line (its node "lc2"). Way 9 is dropped, the CTR loop may not
