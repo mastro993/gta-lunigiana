@@ -2906,8 +2906,9 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   culvert, and under the rail its channel dips under the bed ([section
   8](#8-water-under-decks-waterts)), so neither is protected. Bridges and tunnels write nothing;
   the ground under the decks is lowered once the grid is built (below).
-- **Paths and steps** at grade follow the terrain, but where they lead onto a path's or steps'
-  bridge or into its tunnel (issue #19). Their bridges and tunnels are profiled last (`PATH_PASS`
+- **Paths and steps** at grade follow the terrain as the game draws it (each vertex on the mesh
+  under its point as shipped, a cell split along its south-west to north-east diagonal), but where
+  they lead onto a path's or steps' bridge or into its tunnel (issue #19). Their bridges and tunnels are profiled last (`PATH_PASS`
   in `profiles.ts`, run by `path-pass.ts`), each chain from the levels set at its ends: the way it meets at grade (a
   fitted road's level), the deck of its OSM `layer` it joins, else the ground; under the rail at
   most the clearance below it. Each is fitted sample by sample (`ramps`), as a road at grade is,
@@ -2977,11 +2978,10 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   out (ux, uy)) across the whole core, the cells behind Fivizzano's 16 m underpass 145347886 dropped
   the nodes under the SS63's edges over it, 4.3 m behind each mouth, 6–7 m, and the node between
   them, which the junction there holds 0.4 m over the SS63's profile, stood through its ribbon,
-  which read the ground at its corners alone then; read ahead along the approach's heading, the
-  road out of its east mouth, turning 34° there, reached 1.2 m behind the face; held at the bore's
-  floor where the bore climbs in from the mouth, the corner 2.3 m behind the underpass 378473973
-  stood 0.4 m over the service 378473978 climbing out of it, and the mesh 0.12 m through its
-  ribbon; held at
+  which read the ground at its corners alone then; read ahead along the approach's heading, the road
+  out of its east mouth, turning 34° there, reached 1.2 m behind the face; held at the bore's floor
+  where the bore climbs in from the mouth, the corner 2.3 m behind the underpass 378473973 stood 0.4
+  m over the service 378473978 climbing out of it, and the mesh 0.12 m through its ribbon; held at
   the floor, the cell under the footway 1484690678, 5.5 m behind the east mouth of the service
   tunnel 376037643, dropped it 2.6 m, 1.7 m over the road in the bore; kept beside the bore too, the
   footway 1462688623, 3.7 m off the axis of its west mouth, lifted the road out of it 1.4 m. The
@@ -3003,20 +3003,31 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   nodes left beside the held ones at two mouths, so the renderer lays each ribbon on that surface
   between its corners too and the painted lines on the ribbon as drawn ([Roads at
   grade](architecture.md#roads-at-grade)): the SS63's centre line at its junction over Fivizzano's
-  underpass sank 0.13 m under its own ribbon, which the held corners 3.7 m behind the west mouth tilt
-  across the carriageway, and the footway 1462688623, following the held corner beside 376037643's
-  west mouth down 1.3 m, had the mesh 0.56 m through its ribbon (0.15 m before the hold); round the
-  427 mouths the mesh now stands no more than 2 cm through a ribbon, which shows at no zoom, and no
-  line lies under its own ribbon (`checkLaid` in `src/render/__tests__/tunnel-checks.ts`). A road
-  over the tunnel or beside the mouth took that cell at its own level otherwise: at Pieve San
-  Lorenzo's underpass under the
-  station (756577583) Via della Stazione, a tertiary road over it 4.5 m from its south mouth, held
-  that mouth 5.8 m over the floor, and Via Bugliatico, at a junction 4.2 m beyond the north one, 1.6
-  m over (its level there smoothed 1.6 m over the LiDAR's dip). With issue #17's rule both opened
-  0.7 and 0.9 m over the floor; Gragnola's 52 m tunnel under Via Nuova, 1.2 m before, at its floor,
-  two nodes beside its west mouth 5.1–5.3 m lower (163.4–163.6 to 158.3 m, the LiDAR 159.1–160.8 m),
-  and the other road tunnels' approaches own their cells, 0.1–0.6 m from what a road beside them
-  wrote.
+  underpass sank 0.13 m under its own ribbon, which the held corners 3.7 m behind the west mouth
+  tilt across the carriageway, and the footway 1462688623, following the held corner beside
+  376037643's west mouth down 1.3 m, had the mesh 0.56 m through its ribbon (0.15 m before the
+  hold); round the 427 mouths the mesh now stands no more than 2 cm through a ribbon, which shows at
+  no zoom, and no line lies under its own ribbon (`checkLaid` in
+  `src/render/__tests__/tunnel-checks.ts`). The footways beside 376037643 sank into the hold too, as
+  a path at grade read its vertices' level off the finished grid bilinearly, which gives a cell's
+  sunk corner a share where the drawn mesh, split along its south-west to north-east diagonal, gives
+  it none: 1462688623's vertex 4.2 m from the west mouth lay 0.92 m under the mesh and 1484690678's
+  6.8 m from the east one 0.96 m, and each climbed 1.16–1.18 m in a metre out of the dip (0.25–0.26
+  m before the hold). Read off the drawn mesh at the point as shipped (`finishTerrain`), they lie on
+  it and climb 0.33 m at most in a metre there; of the 47,794 vertices of Lunigiana's paths and
+  steps at grade 11,205 lay 0.1 m or more off the mesh and 506 do now (the approaches' own levels,
+  below), and of the 2,742 within 12 m of a mouth 67 climb more than 0.5 m in a metre (69 read
+  bilinearly, 67 before the hold). Kept out of the hold instead (its vertices' cells never held,
+  beside the bore too), each footway kept its level, but onto 376037643 from the service
+  1579722847 at its west mouth the joints' check read a car 2 m past the joint 1.36 m off its way's
+  level (14.53 m, its way 2 m before at 15.89 m), a misread the hold had fixed. A road over the tunnel or beside the mouth
+  took that cell at its own level otherwise: at Pieve San Lorenzo's underpass under the station
+  (756577583) Via della Stazione, a tertiary road over it 4.5 m from its south mouth, held that
+  mouth 5.8 m over the floor, and Via Bugliatico, at a junction 4.2 m beyond the north one, 1.6 m
+  over (its level there smoothed 1.6 m over the LiDAR's dip). With issue #17's rule both opened 0.7
+  and 0.9 m over the floor; Gragnola's 52 m tunnel under Via Nuova, 1.2 m before, at its floor, two
+  nodes beside its west mouth 5.1–5.3 m lower (163.4–163.6 to 158.3 m, the LiDAR 159.1–160.8 m), and
+  the other road tunnels' approaches own their cells, 0.1–0.6 m from what a road beside them wrote.
 - What a road tunnel's mouth holds for the game is baked (`bakeMouths` in
   `src/render/mouths/index.ts`, the global file's `derived.mouths`), since its tunnel, and the roads
   and the houses round it, reach past the tiles round it: a mouth is an end of a road in a tunnel,
@@ -3049,9 +3060,11 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   the lower of the road's surface and the ground at the face's ends) and its top. On Lunigiana 374
   roads in tunnels, 140 passages, 10,295 m and 29,764 wall triangles (29,716 on the build before
   the same round's rail and water fixes, which moved the ground over 10 bores' ends and the
-  Galleria Calcinara's profile, 31135800, by up to 3.1 m), and 427 mouths: 41 portals, 43
-  head walls and 343 open, none buried, 105 under a house, 215 under too low a bank and 23 for want
-  of room (Sarzana's part, issue #20, brought 235 roads in tunnels and 304 mouths, under the A12's
+  Galleria Calcinara's profile, 31135800, by up to 3.1 m), and 427 mouths: 41 portals, 44
+  head walls and 342 open, none buried, 105 under a house, 215 under too low a bank and 22 for want
+  of room (43 head walls and 23 crowded while the paths at grade read the grid bilinearly: the
+  footway 1462688623, sunk 0.92 m into the hold beside 376037643's west mouth, stood in its head
+  wall's room; Sarzana's part, issue #20, brought 235 roads in tunnels and 304 mouths, under the A12's
   and the A15's embankments, Sarzana's streets and Vezzano Ligure's tracks; with the mouths' hold
   behind them, above, the build before it gave 38 head walls, 7 buried, 211 low, 25 crowded and
   30,196 wall triangles: 5 of Sarzana's open mouths get a head wall and 26 throats and boxes run
@@ -5239,7 +5252,10 @@ crosses it (the road rises over it instead); `road-levels.test.ts` bounds a road
 its `maxheight` (4 m untagged) plus the 1.5 m deck, 2 m either side of the crossing, a bridge or
 tunnel in an earlier pass by the other road's natural level, and never a road at grade over a
 tunnel, and binds a chain that crosses itself from one natural level, its bridge clear over the road
-below; `features.test.ts` folds each link into the class below, gives a main road its `lanes` width,
+below; `build-terrain.test.ts`, on the built map round the mouths of Sarzana's service tunnel
+376037643, has every vertex of the paths and steps at grade there on the terrain as drawn and none
+climbing more than 0.5 m in a metre (read bilinearly, the footways 1462688623 and 1484690678 lay
+0.92 and 0.96 m under it and climbed 1.2 m in a metre); `features.test.ts` folds each link into the class below, gives a main road its `lanes` width,
 and makes a motorway, its links and a roundabout oneway and a motorway's or trunk road's link a
 ramp, makes no road of a highway line tagged `railway=platform` (Pieve San Lorenzo's footways;
 proven red without the rule), keeps one vertex of two in a row on one 0.1 m point (the one another

@@ -3237,8 +3237,8 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     60 m of every road in a tunnel built from the
     tiles' pieces as a whole-map build cuts them; each pins its counts (roads in tunnels, passages,
     metres, wall triangles, mouths, portals, head walls and the open mouths buried, under a house,
-    under too low a bank and with no room: Lunigiana 374, 140, 10,295 m, 29,764, 427, 41, 43, 0, 105,
-    215, 23; Cesena 64, 22, 5,264 m, 18,480, 76, 6, 4, 2, 46, 14, 4; the L 7, 1, 194 m, 645, 12, 3,
+    under too low a bank and with no room: Lunigiana 374, 140, 10,295 m, 29,764, 427, 41, 44, 0, 105,
+    215, 22; Cesena 64, 22, 5,264 m, 18,480, 76, 6, 4, 2, 46, 14, 4; the L 7, 1, 194 m, 645, 12, 3,
     0, 0, 1, 8, 0; the coast 6, 4, 83 m, 226, 4, 0, 1, 0, 0, 2, 1), so a new part's tunnels show, and
     so does a change to the ground by their mouths (the wall triangles were 3,459 and 633 while each
     road was cored at its chain's widest piece);

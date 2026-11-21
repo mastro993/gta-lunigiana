@@ -26,7 +26,10 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
   // stands over them again (heads 38 -> 43, buried 7 -> 0, low 211 -> 215, crowded 25 -> 23); the
   // bores' walls are cut where the ground over their first metres is lower (30196 -> 29716). The
   // same round's rail and water fixes moved the ground over 10 bores' ends and the Galleria
-  // Calcinara's profile (31135800) by up to 3.1 m: 29764.
+  // Calcinara's profile (31135800) by up to 3.1 m: 29764. With the paths at grade on the terrain
+  // as drawn, the footway 1462688623 no longer sinks 0.92 m into the hold beside the west mouth of
+  // Sarzana's service tunnel 376037643, out of the room its head wall takes: heads 43 -> 44,
+  // crowded 23 -> 22.
   assert.deepEqual(checkTunnels(wholeVectors()), {
     tunnels: 374,
     passages: 140,
@@ -34,10 +37,10 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
     walls: 29764,
     mouths: 427,
     portals: 41,
-    heads: 43,
+    heads: 44,
     buried: 0,
     housed: 105,
     low: 215,
-    crowded: 23,
+    crowded: 22,
   })
 })

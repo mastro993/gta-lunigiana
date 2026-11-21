@@ -7,6 +7,7 @@
 import type { Water } from "../sim/map/index.ts"
 import { reachOf } from "../sim/map/kinds.ts"
 import { tileByTile, uncarvedGrid } from "./build-grid.ts"
+import { gridGround } from "./build-ground.ts"
 import type { Sources } from "./build-sources.ts"
 import { catchments, type Inflow } from "./catchment.ts"
 import { chainsOf, insideNodes, lifted, type Linear } from "./chains.ts"
@@ -36,7 +37,7 @@ import { continuations } from "./rail-runouts.ts"
 import { railTwins, twinBounds } from "./rail-twins.ts"
 import { roadLevels } from "./road-levels.ts"
 import { PIER_DECK } from "./shore.ts"
-import { type Profile, resample, sampleGrid } from "./terrain.ts"
+import { type Profile, resample } from "./terrain.ts"
 import { inAreas, stillLevel, waterAreas, waterLevel } from "./water-areas.ts"
 import {
   BRIDGE_CLEAR,
@@ -378,11 +379,11 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
     railLines,
     /** Each terminal's run-out by its point (`x,y` as shipped), walked away from it. */
     runOuts: new Map(runOuts.map((o) => [o.at, o.pieces])),
-    /** Each road's line, but a path's on the ground (no profile, not lifted), which the finished grid gives. */
+    /** Each road's line, but a path's on the ground (no profile, not lifted), which the finished grid's drawn mesh gives. */
     roadLines: roads.map((r) =>
       denseOf.has(r) || zOf.has(r) || lifted(r) ? lineOut(r, unread(`road ${r.id}`)) : undefined,
     ),
-    /** The approaches' lines by road (path-approaches.ts), their z undefined where the finished grid gives it. */
+    /** The approaches' lines by road (path-approaches.ts), their z undefined where the finished grid's drawn mesh gives it. */
     approaches: approaches.lines,
     /** The level crossings: the road and rail piece sharing a vertex (with its index in the piece's output polyline). */
     levels: levels.map(({ rl, rd, v }) => ({
@@ -419,13 +420,20 @@ export const finishTerrain = (src: Sources, profiled: Profiled, lap: (label: str
   )
   dropPerched(water, input.wp, crossed, grid.perched, profiled.still)
   lap("water")
+  // A path or steps at grade follows the terrain as the game draws it, each cell split along its
+  // south-west to north-east diagonal (`terrainZ`): read bilinearly, a vertex in a cell with a node
+  // far off the others took that node's share where the drawn mesh does not, and the footways
+  // beside Sarzana's service tunnel 376037643, whose mouths' hold sinks a corner of their cells to
+  // the bore's floor, lay 0.92 and 0.96 m under the mesh there and climbed 1.2 m in a metre out of it.
+  const { terrainZ: onMesh } = gridGround(grid.grid)
   return {
     grid: grid.grid,
     floors: grid.floors,
     railLines: profiled.railLines,
     runOuts: profiled.runOuts,
     roadLines: profiled.roadLines.map((line, i) => {
-      const onGrid = (v: V) => r1(sampleGrid(grid.grid, v.x, v.y))
+      // At the point as shipped (`flatLine`), where the game reads the mesh under it.
+      const onGrid = (v: V) => r1(onMesh(r1(v.x), r1(v.y)))
       const a = profiled.approaches.get(roads[i]!)
       if (a !== undefined)
         return { pts: flatLine(a.pts), z: a.pts.map((v, k) => r1(a.z[k] ?? onGrid(v))) }
