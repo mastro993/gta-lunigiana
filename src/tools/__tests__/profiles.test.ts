@@ -81,6 +81,36 @@ test("profile takes a rail tunnel's mouth at the foot of the hill's face, howeve
   assert.ok(road > 102, `the road's bore's middle at ${road.toFixed(2)}, its mouth 4 m up the face`)
 })
 
+test("profile keeps a rail tunnel's mouth over a gully its line crosses on a bank before it: a gully's floor is no cutting's", () => {
+  // Flat ground at 100 m, a hill over x 100–200 at 130 m, and before its west mouth a gully 20 m
+  // deep over x 40–96, its sides falling 0.71 m a metre to its floor at x 68.
+  const ground = (x: number) =>
+    x >= 100 && x <= 200 ? 130 : x > 40 && x < 96 ? 80 + (20 * Math.abs(x - 68)) / 28 : 100
+  const tunnel = { id: 2, tunnel: true as const, pts: [v(100, 0, "p0"), v(200, 0, "p1")] }
+  const pieces: Array<Linear & { readonly id: number }> = [
+    { id: 1, pts: [v(-400, 0), v(100, 0, "p0")] },
+    tunnel,
+    { id: 3, pts: [v(200, 0, "p1"), v(600, 0)] },
+  ]
+  /** The west mouth's level, profiled with `spec`. */
+  const mouth = (spec: Parameters<ReturnType<typeof makeProfiler>["profile"]>[1]) => {
+    const { profile, zOf } = makeProfiler((x) => ground(x))
+    profile(
+      pieces.map((item) => ({ item, rev: false })),
+      spec,
+    )
+    return zOf.get(tunnel)![0]!
+  }
+  // As the mouth's level read 4 m out, with no face walked: the gully's floor is 20 m under it.
+  const { faces: _, ...plain } = RAIL_PASS
+  const rail = mouth({ w: 4, ...RAIL_PASS }),
+    fourOut = mouth({ w: 4, ...plain })
+  assert.ok(
+    Math.abs(rail - fourOut) < 1e-6,
+    `the mouth at ${rail.toFixed(2)}, not ${fourOut.toFixed(2)}`,
+  )
+})
+
 // Regression: the Pontremolese's up track at Santo Stefano di Magra runs off its deck 86258947
 // straight into its tunnel 54567426: the deck's end read the hill 4 m into the bore and the bore's
 // mouth the deck 4 m out of it, and the joint stood at 28.7 m, 4.7 m over the down track's 15 m away.

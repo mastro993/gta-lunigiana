@@ -63,6 +63,8 @@ export interface LiftedSpec {
    * the hill's face over its cutting, past PORTAL m too: the rail's (`Spec.faces` in profiles.ts).
    */
   readonly face?: number
+  /** The pass's smoothing half-window, m: how far past a face's foot a gully's far side counts. */
+  readonly half: number
   /** Whether the chain runs on from a level already set at its first vertex (`Spec.start`). */
   readonly start: boolean
   /** Whether node `id` lies inside a bore or on a deck (`Spec.inside`). */
@@ -109,12 +111,22 @@ export const levelLifted = (
       while (o + step >= 0 && o + step < p.z.length && Math.abs(p.s[o]! - p.s[k]!) < PORTAL)
         o += step
       const portal = o
-      if (tunnel && spec.face !== undefined)
+      if (tunnel && spec.face !== undefined) {
         while (
           atGrade(o + step) &&
           p.z[o]! - p.z[o + step]! > spec.face * Math.abs(p.s[o + step]! - p.s[o]!)
         )
           o += step
+        // A foot the ground beyond climbs back over by half the face's height, within the
+        // smoothing window, is a gully's floor, which the line crosses on a bank, not a cutting's:
+        // the mouth keeps the ground PORTAL m out. A cutting's approach runs on at the foot's level:
+        // over the 100 m past Vezzano Ligure's feet the ground's highest stands 0.6 and 0.2 m under.
+        for (let j = o + step; atGrade(j) && Math.abs(p.s[j]! - p.s[o]!) <= spec.half; j += step)
+          if (p.z[j]! - p.z[o]! > (p.z[portal]! - p.z[o]!) / 2) {
+            o = portal
+            break
+          }
+      }
       if (o !== k && Math.abs(p.s[o]! - p.s[k]!) >= PORTAL)
         p.z[k] = tunnel ? Math.min(p.z[k]!, p.z[o]!) : Math.max(p.z[k]!, p.z[o]!)
       // Past PORTAL m the face stands over the cutting's floor too: the line runs on from the

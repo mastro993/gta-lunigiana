@@ -155,8 +155,10 @@ interface Spec<T extends Linear> {
   readonly inside?: (id: string) => boolean
   /**
    * Whether a tunnel's mouth takes the ground at the foot of the hill's face (`FACE`), the rail's:
-   * a road's mouth on a hillside bench reads the valley under its line past the face, and the SR445's
-   * east mouth by Groppoli sank 7.7 m into a V, its approach falling 14.8% into it.
+   * ground falling 20% a metre along a line whose grade limit is 2.5% can only be a face over its
+   * cutting, but along a road's it may be the valley's side under a bench its OSM line misses. The
+   * SR445's east mouth by Groppoli, its line's ground falling on past the foot, sank 7.7 m into a V,
+   * its approach falling 14.8% into it; no gully's guard (`levelLifted`) holds that.
    */
   readonly faces?: true
 }
@@ -277,6 +279,7 @@ export const makeProfiler = (
       laid,
       {
         ...(spec.faces === true ? { face: FACE } : {}),
+        half: spec.half,
         start: spec.start !== undefined,
         ...(spec.inside === undefined ? {} : { inside: spec.inside }),
       },
