@@ -265,3 +265,20 @@ for (const [region, read, skip] of REGIONS)
       assert.deepEqual(sags, [])
     },
   )
+
+// The check left out a house whose ground falls on past the ways' reach (the Fortezza di
+// Sarzanello), and must still catch the plaza an approach carved: Cesena's station, sunk the 4.8 m
+// it stood under its plaza before the floors were read off the uncarved ground.
+test("approaches: the hillside rule still finds a station an approach sank 4.8 m into its plaza", () => {
+  const map = REGIONS.find(([name]) => name === "cesena")![1]()
+  const station = map.buildings.find((b) => b.id === 185180766)
+  assert.ok(station !== undefined, "Cesena's station 185180766")
+  const sunken = {
+    ...map,
+    buildings: map.buildings.map((b) => (b === station ? { ...b, z0: b.z0 - 4.8 } : b)),
+  }
+  assert.ok(
+    sunk(sunken).some((line) => line.includes("185180766")),
+    `the station ${station.z0 - 4.8} m: ${sunk(sunken).join("; ")}`,
+  )
+})

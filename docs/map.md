@@ -4636,9 +4636,10 @@ ground falls on past those ways' reach out from its lowest corner stands on a hi
 carved, and is left out: the Fortezza di Sarzanello's survey footprint (−1475604735736255) reaches
 from its flat hilltop at 279.5 m 1.6 m down the hill's south face, to a corner the footway
 139720096 passes 2.3 m off, and 20 m on out from that corner, past the footway's reach, the hill
-stands at 275.1 m. And it checks
-that no path's or steps' bridge dips more than 1 m between two higher points of it (35 on Lunigiana,
-19 on Cesena, 2 on the L, 24 on the coast): the coast's cycle footbridge 522153380 sagged 4.3 m.
+stands at 275.1 m. The rule still finds Cesena's station lowered the 4.8 m it once stood under its
+plaza, which its own test checks. And it checks that no path's or steps' bridge dips more than 1
+m between two higher points of it (35 on Lunigiana, 19 on Cesena, 2 on the L, 24 on the coast):
+the coast's cycle footbridge 522153380 sagged 4.3 m.
 Fitted at the terrain's level, Aulla Lunigiana station's steps stood 4.1–5.8 m over its underpass at
 their joints, the sidewalk and the footway off two footbridges stood on the SS62's deck 7.7 and
 9.9 m under them, and paths off footbridges over streams 2.5–3.6 m under them, in the bank's carve;
