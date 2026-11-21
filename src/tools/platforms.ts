@@ -51,8 +51,15 @@ const MARGIN = 0.045 + TOL
  * the track.
  */
 const PLATFORM_DROP = 1
-/** Pieces smaller than this (m²) are dropped. */
-const MIN_AREA = 4
+/**
+ * Pieces smaller than this (m²) are dropped: too small to wait on, with room for neither a name board
+ * nor two lamps 18 m apart (the tip of Vezzano Ligure's island, 33 m², cut off past the neck its
+ * converging tracks leave it, and the pieces of Arcola's platform 2, OSM's 44 m line 377807381, that
+ * PLATFORM_DROP leaves where the ramp 377807539 down to its footway subway's east mouth runs inside
+ * its band, the ramp's ground 4.9–10.4 m and the ground round it 6.6–9.5 m against its 11.05 m top);
+ * the smallest kept, Gragnola's walkway, holds 183 m².
+ */
+const MIN_AREA = 100
 /** A platform has at least this much of its edge (m) within a train's step (PLATFORM_EDGE) of a line or a loop: a car's door and more. */
 const SERVED = 10
 /** A platform takes the name of the nearest station or stop node within this distance (m). */

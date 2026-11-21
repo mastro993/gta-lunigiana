@@ -457,7 +457,10 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
   // equipment in 2023: no train's step reaches it); the other fifteen are platforms, the CTR's at Serricciolo (23C07 AGE#98)
   // with no station or stop node within 300 m. Aulla Lunigiana's six are the CTR's three on 24C60's sheet (AGE#173–175),
   // then OSM's three (public_transport=platform areas) on south of that sheet, where no 2019 sheet maps the ground: 1,865,
-  // 2,062 and 2,505 m², each with an edge 1.63–1.69 m off its track, as a train's step reaches.
+  // 2,062 and 2,505 m², each with an edge 1.63–1.69 m off its track, as a train's step reaches. Sarzana's part's are OSM's
+  // areas, Sarzana's shelter roof on its island, Vezzano Ligure's three (one in two pieces) and Santo Stefano di Magra's four,
+  // then the bands about the platforms OSM draws as lines (`platformLines`), last: Sarzana's (its platform 4's, by a siding
+  // and a loop 3 m off at a corner, a walkway, and the rest of it a platform) and Arcola's platform 1.
   assert.deepEqual(
     railway.platforms.map((p) => [p.name, p.walkway === true]),
     [
@@ -475,9 +478,23 @@ test("railway: platforms stand 1.55 m clear of every track and 0.5 m off the car
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
+      ["Sarzana", false],
+      ["Vezzano Ligure", false],
+      ["Vezzano Ligure", false],
+      ["Vezzano Ligure", false],
+      ["Vezzano Ligure", false],
+      ["Santo Stefano di Magra", false],
+      ["Santo Stefano di Magra", false],
+      ["Santo Stefano di Magra", false],
+      ["Santo Stefano di Magra", false],
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
       ["Aulla Lunigiana", false],
+      ["Sarzana", true],
+      ["Sarzana", false],
+      ["Sarzana", false],
+      ["Sarzana", false],
+      ["Arcola", false],
     ],
   )
 })

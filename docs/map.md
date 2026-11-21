@@ -3091,7 +3091,14 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   (`SERVED`) within `PLATFORM_EDGE` (2.2 m, `src/sim/map/kinds.ts`, the reach of the render's yellow
   line) of a line's track or a loop: no train's step reaches it, and nobody waits there (OSM's line
   for Sarzana's platform 4 runs along a siding no line takes, its band reaching a loop 3 m off at a
-  corner). The CTR maps a strip north of Pieve San
+  corner). A piece under 100 m² (`MIN_AREA`) is dropped: room for neither a name board nor two lamps
+  18 m apart (the tip of Vezzano Ligure's island, 33 m², cut off past the neck its converging tracks
+  leave it, and the pieces of the band about OSM's 44 m line 377807381 for Arcola's platform 2 that
+  the 1 m drop leaves where the ramp 377807539 down to the footway subway 373345638's east mouth runs
+  inside the band, its ground 4.9–10.4 m and the ground round it 6.6–9.5 m against the platform's
+  11.05 m top, so Arcola's eastbound lines, 1 and 6, call at no platform there: a known limit, as a
+  platform has no stairwell or ramp opening of its own); the smallest kept
+  is Gragnola's walkway, 183 m². The CTR maps a strip north of Pieve San
   Lorenzo's line as a platform (`23D15 AGE#252`, 381 m²), 2.45 m off it, between the track and Via
   Bugliatico's bank (the ground stands up to 5 m over its top on 42% of it): bare ground on the 2010
   orthophoto, a 1 m path along the track and three low dark structures and a cabinet on the 2023
@@ -3118,6 +3125,12 @@ rail, so the game finds the same arc lengths in `MAP.rail` (`MAP.railway`).
   | at Serricciolo, no station or stop node within 300 m, so no name (`23C07 AGE#98`) | 233 m² | 5.20 m | 1.69 m off the line |
   | Aulla Lunigiana (`24C60 AGE#173`, `#174`, `#175`) | 558, 434 and 240 m² | 6.10, 6.54 and 6.88 m | 1.68, 1.63 and 1.81 m off their tracks |
   | Aulla Lunigiana, OSM's platforms 5, 6 and 7, which no 2019 sheet maps | 1,740, 2,006 and 2,373 m² | 6.74, 8.34 and 8.98 m | 1.63, 1.64 and 1.63 m off their tracks |
+  | Sarzana, the island's shelter roof (OSM's area 309025357) | 269 m² | 4.80 m | 1.63 m off its track |
+  | Sarzana, the island on either side of it (OSM's lines 146980826 and 309041251) | 512 and 338 m² | 4.60 and 5.00 m | 1.64 and 1.65 m off their tracks |
+  | Sarzana, platform 4 (OSM's line 146980824) | 974 m², and a 467 m² walkway | 6.10 m | 1.79 m off a loop; the walkway by a siding |
+  | Arcola, platform 1 (OSM's line 377807380; platform 2's 44 m line is cut apart by its subway's ramp, dropped) | 402 m² | 5.76 m | 1.65 m off the westbound track |
+  | Vezzano Ligure, OSM's three areas, one in two pieces (a 33 m² tip of another dropped) | 383 and 303, 1,307 and 1,121 m² | 4.63–6.08 m | 1.65–1.67 m off their tracks |
+  | Santo Stefano di Magra, OSM's four areas | 1,771, 2,638, 2,546 and 1,251 m² | 5.44–8.80 m | 1.63–1.68 m off their tracks |
 
 - **Stations** (`stationsOf`): per line and station name, the extent along the line of that
   station's platforms within 2.5 m of it and of its station and stop nodes within 5 m, on the side

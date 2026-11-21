@@ -108,13 +108,15 @@ test("buildPlatforms makes a piece no edge of which comes within reach of a trai
   assert.equal(siding.walkway, true, `${siding.clear.toFixed(2)} m off the siding`)
 })
 
-test("buildPlatforms leaves out ground more than 1 m under the platform's top, and pieces under 4 m²", () => {
+// Regression: the tip of Vezzano Ligure's island platform, cut off past the neck its converging tracks leave it, was a 33 m²
+// platform of its own, with room for neither a name board nor two lamps.
+test("buildPlatforms leaves out ground more than 1 m under the platform's top, and pieces under 100 m²", () => {
   const out = buildPlatforms({
     ...base,
-    // The back of the platform, past y 6, drops to a forecourt 2 m down; a 1.5 m² corner stands apart.
+    // The back of the platform, past y 6, drops to a forecourt 2 m down; a 33 m² tip stands apart.
     polygons: [
       { src: "forecourt", rings: [box(0, 1, 40, 10)] },
-      { src: "corner", rings: [box(60, 2, 61, 3.5)] },
+      { src: "tip", rings: [box(60, 2, 72, 4.75)] },
     ],
     terrain: (x, y) => bed(x) - (y > 6 ? 2 : 0),
   })
