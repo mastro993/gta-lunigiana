@@ -9,9 +9,10 @@ import { buildWalls } from "../walls.ts"
 import { inRings } from "../water-areas.ts"
 import { segments } from "./wall-segments.ts"
 
-/** No bridge, so no parapet and no wall under a deck. */
+/** No bridge, so no parapet and no wall under a deck; no building's floor and no tunnel's level. */
 const NO_PARAPETS = { walls: [], levels: [] },
-  NOTHING_UNDER = { walk: NO_PARAPETS, drive: NO_PARAPETS }
+  NOTHING_UNDER = { walk: NO_PARAPETS, drive: NO_PARAPETS },
+  NO_HEIGHTS = { floors: [], lines: [] }
 
 /** Points every metre or less along each of the walls' segments. */
 const samples = (flat: ReadonlyArray<number>) =>
@@ -70,9 +71,29 @@ const walled = () => {
       if (inRings(RIVER.rings, g.x0 + i * CELL, g.y0 + j * CELL)) z[j * g.cols + i] = -CARVE
   return {
     /** With both areas. */
-    both: buildWalls({ ...g, z }, [], [], [], [], [LAKE, RIVER], NO_PARAPETS, NOTHING_UNDER),
+    both: buildWalls(
+      { ...g, z },
+      [],
+      [],
+      [],
+      [],
+      [LAKE, RIVER],
+      NO_PARAPETS,
+      NOTHING_UNDER,
+      NO_HEIGHTS,
+    ),
     /** The same ground with no river polygon over its carve. */
-    lakeOnly: buildWalls({ ...g, z }, [], [], [], [], [LAKE], NO_PARAPETS, NOTHING_UNDER),
+    lakeOnly: buildWalls(
+      { ...g, z },
+      [],
+      [],
+      [],
+      [],
+      [LAKE],
+      NO_PARAPETS,
+      NOTHING_UNDER,
+      NO_HEIGHTS,
+    ),
     /** The same polygon holding still water, its river not in the map: carved as a lake is. */
     still: buildWalls(
       { ...g, z },
@@ -83,6 +104,7 @@ const walled = () => {
       [LAKE, { ...STILL, rings: RIVER.rings }],
       NO_PARAPETS,
       NOTHING_UNDER,
+      NO_HEIGHTS,
     ),
   }
 }
@@ -168,6 +190,7 @@ test("buildWalls rings the sea with shore walls and its raised breakwater too, d
     [SEA, ROCK],
     NO_PARAPETS,
     NOTHING_UNDER,
+    NO_HEIGHTS,
   )
   const near = CELL + SLACK
   const bySea = (flat: ReadonlyArray<number>) =>
@@ -208,6 +231,7 @@ test("buildWalls appends 50,000 parapets and as many walls under the decks, each
     [],
     many,
     { walk: many, drive: many },
+    NO_HEIGHTS,
   )
   assert.deepEqual(walls.walk.slice(-many.walls.length), many.walls)
   assert.deepEqual(walls.drive.slice(-many.walls.length), many.walls)
@@ -273,6 +297,7 @@ test("buildWalls keeps a house's walls out of the middle w/2 of a path that reac
     [],
     NO_PARAPETS,
     NOTHING_UNDER,
+    NO_HEIGHTS,
   )
   FOOTWAYS.forEach(({ pts }, f) => {
     // The house's walls: nothing else stands within 30 m on the flat grid, far from the outline.
@@ -293,4 +318,63 @@ test("buildWalls keeps a house's walls out of the middle w/2 of a path that reac
       }
     }
   })
+})
+
+// Regression (#20): a house at Fresonara stands on the hill over the A15's Galleria Fresonara, its
+// floor far over the bore, and the motorway tunnel's corridor (its whole 5 m half-width) opened its
+// walls, so anyone walked into it; walled at every level, it would stop the cars in the bore.
+test("buildWalls opens a house's walls for a tunnel only where the bore passes it at its level; over a bore deep under it they stand on the ground's level", () => {
+  // Two motorway bores 200 m apart, each under a house whose floor stands at 100 m: one 60 m over
+  // the road, one 3 m over it.
+  const at = [
+    { x: 3000, z: 40 },
+    { x: 3200, z: 97 },
+  ]
+  const tunnels = at.map(({ x }, k): RoadF => ({
+    id: k + 1,
+    cls: "motorway",
+    w: 10,
+    surface: "asphalt",
+    private: false,
+    oneway: true,
+    tunnel: true,
+    pts: [
+      { x, y: -3040, id: `${k}a` },
+      { x, y: -2960, id: `${k}b` },
+    ],
+  }))
+  const houses = at.map(({ x }, k): BuildingF => ({
+    id: 100 + k,
+    kind: "house",
+    h: 8,
+    style: "plaster",
+    tint: 0,
+    outer: [x - 6, -3006, x + 6, -3006, x + 6, -2994, x - 6, -2994],
+  }))
+  const g = gridLattice()
+  const { walk, levels } = buildWalls(
+    { ...g, z: new Float64Array(g.cols * g.rows).fill(97) },
+    tunnels,
+    [],
+    houses,
+    [],
+    [],
+    NO_PARAPETS,
+    NOTHING_UNDER,
+    {
+      floors: [100, 100],
+      lines: at.map(({ x, z }) => ({ pts: [x, -3040, x, -2960], z: [z, z] })),
+    },
+  )
+  /** The levels of the walls on the house's south side over the bore at `x`. */
+  const walled = (x: number) =>
+    segments(walk).flatMap(([ax, ay, bx, by], w) =>
+      segDist2(x, -3006, ax!, ay!, bx!, by!).d2 < 0.04 ? [levels.walk[w]] : [],
+    )
+  assert.deepEqual(
+    walled(3000),
+    [97],
+    "a house 60 m over the bore keeps its walls, on the ground's level",
+  )
+  assert.deepEqual(walled(3200), [], "a bore passing the house at its level opens it")
 })

@@ -3136,7 +3136,7 @@ majority-filtered (3 × 3) so the walls follow slopes, not single-cell bumps.
 | `wall`, `cliff` barriers | yes | no | yes |
 | `guard_rail` barriers, and `breakwater` ones (a breakwater's or a groyne's outline) | no | no | yes |
 | The play area's outline (each ring's edges in ring order, 64 m pieces) | yes | no | yes |
-| Road-exit caps (4 m inside, where drivable roads leave the area) | no | no | yes |
+| Road-exit caps (4 m inside, where drivable roads leave the area: across the road's carriageway and 1 m past, but on no other drivable road's carriageway, `exit-caps.ts`) | no | no | yes |
 | Bridge parapets (w/2 + 0.25 m each side of a drivable bridge's deck, where `lines.ts` draws them, each at its deck's level; open where a road on the deck's own level reaches them: a junction on the deck, the next piece of the same bridge, a road or tunnel carrying on from it, and the inside of the deck's own bends, where one segment's piece runs on across the next one's carriageway) | no | no | yes, on the deck's level |
 | The low space under a road bridge's deck ([below](#walls-under-the-decks)), on the ground's level | where the deck's underside stands under 1.8 m over the ground | no | under 2.65 m |
 
@@ -3187,14 +3187,27 @@ walls held them before, and stores neither of those.
   corridor unpadded ([Known data limitations](#known-data-limitations)). A motor road's corridor is
   its whole w/2: no arch spans a motorway's or trunk road's tunnel, and the 1.2 m left the Secante's
   7 m tunnel under a house in Cesena a 2.4 m gap, too narrow for traffic, which cut 1.45 km of it
-  off.
+  off. A tunnel opens a house's walls only where its bore passes the house at its level, the house's
+  floor (`z0`) less than the bore's clear height (its `maxheight`, else 4 m) over the road abeam the
+  footprint's middle, as the mouths' bake reads a house over a way; over a bore deep under it the
+  house keeps its walls, each on the ground's level at its middle (a wall with a level, below), so
+  they stop anyone on the hill round it and nothing in the bore (issue #20): the A15's 10 m Galleria
+  Fresonara opened the house −1475651980358925 on the hill 80 m over it at (−19236.6, −4601.2),
+  and anyone walked in.
+- **Road-exit caps** (`exit-caps.ts`) shut their own road alone: a cap across a road leaving the
+  play area, 4 m inside its cut end, stops 1 m past its carriageway's edges and on no other drivable
+  road's carriageway (a tunnel's but under the ground), as the outline's walls close the edge behind
+  it (issue #20). Whole, the cap of the A12's Genova carriageway leaving at y 3900 reached 4.3 m into
+  its twin's 5 m, 11 m inside the outline, and a residential stub leaving the play area 4.3 m from
+  its junction with the Via Aurelia at Ponte di Arcola (1175456486) capped the Via Aurelia's lanes,
+  1 m off its traffic edge 63390 at (−19730.6, −4399.5).
 - Tree trunks are not stored as walls. `wallsNear` indexes the trees as points and adds a 0.5 m
   square (`pushTrunk`, `TRUNK` in `kinds.ts`) around each tree a query reaches.
 - **Walls with a level** (issue #91): a wall may carry a level, m a.s.l., and then stops only a body
   whose ground stands within 2 m of it (`ONE_LEVEL` in `kinds.ts`, `onOneLevel`): a car whose
   wheels, or a person whose footing, stand there. Every other wall stands at every level. The
-  bridges' parapets and the walls under their decks ([below](#walls-under-the-decks)) are the walls
-  with a level. A parapet (`parapets.ts`) needs one: walls are flat lines, so a parapet
+  bridges' parapets, the walls under their decks ([below](#walls-under-the-decks)) and a house's
+  over a bore deep under it (above) are the walls with a level. A parapet (`parapets.ts`) needs one: walls are flat lines, so a parapet
   that stopped everyone would close the road under its deck too, and so it used to open wherever any
   road's carriageway reached it, the road under the deck included, and a car on the SR445's viaduct
   west of Gragnola (552592654, at (−2674, 4584)) drove off it there and dropped from 148.5 m onto

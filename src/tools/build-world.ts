@@ -4,6 +4,7 @@
 // here.
 import { isDrivable } from "../sim/map/kinds.ts"
 import { gridGround, levelOn } from "./build-ground.ts"
+import { floorsOf } from "./build-output.ts"
 import type { Sources } from "./build-sources.ts"
 import type { Terrain } from "./build-terrain.ts"
 import { lifted } from "./chains.ts"
@@ -66,7 +67,13 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     level = levelOn(ground)
   const decks = parapets(roads, level),
     under = deckWalls(ground, roads, roadLines)
-  const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks, under)
+  // The buildings' floors, which the shipped map carries, and the tunnels' levels: a bore opens a
+  // house's walls only where it passes the house at its level.
+  const floors = floorsOf(grid, terrain.floors, buildings)
+  const walls = buildWalls(grid, roads, water, buildings, barriers, areas, decks, under, {
+    floors,
+    lines: roadLines,
+  })
   lap("walls")
   const trees = scatterTrees(
     { areas, roads, buildings, water, rail: allRail, beyond: src.beyond },
@@ -179,6 +186,8 @@ export const buildWorld = (src: Sources, terrain: Terrain, lap: (label: string) 
     parapets: { walls: decks.levels.length, over: decks.over },
     /** The walls under the decks, walk and drive, and the decks they wall, for the build's report. */
     underDecks: under.report,
+    /** Each building's floor (`floorsOf`). */
+    floors,
     /** Each rail piece's kind (none on a line). */
     kinds,
     /** The lines and platforms as laid, for the build's report. */

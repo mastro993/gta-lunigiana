@@ -62,8 +62,7 @@ export const assembleMap = (
 ): BuiltMap => {
   const { roads, buildings, areas, barriers, pois, districts } = src
   const { grid, roadLines, railLines } = terrain
-  const { verges, kinds } = world
-  const floors = floorsOf(grid, terrain.floors, buildings)
+  const { verges, kinds, floors } = world
   const roadOut = (r: RoadF, i: number) => ({
     id: r.id,
     cls: r.cls,
