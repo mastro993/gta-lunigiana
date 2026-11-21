@@ -221,8 +221,11 @@ export const staticGrid = (count: number, boxOf: (item: number) => Box, cellSize
   for (let i = 0; i < count; i++) cells(boxes, i, (k) => starts[k + 1]!++)
   for (let k = 0; k < cols * rows; k++) starts[k + 1]! += starts[k]!
   const items = new Int32Array(starts[cols * rows]!)
-  const next = starts.slice(0, -1)
+  // The fill's cursor, let go once filled: its arrow captures it in the scope the query below keeps
+  // alive (2.4 MB per edge grid over Lunigiana's box, 24-25 MB of the heap in all).
+  let next = starts.slice(0, -1)
   for (let i = 0; i < count; i++) cells(boxes, i, (k) => (items[next[k]!++] = i))
+  next = new Int32Array(0)
   // seen[item] === query marks an item already visited by this query (items spanning several cells).
   const seen = new Int32Array(count)
   let query = 0
