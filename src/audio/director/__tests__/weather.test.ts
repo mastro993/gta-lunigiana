@@ -89,7 +89,7 @@ test("rain plays a bed at the ears while it falls, at the rate falling there; dr
   assert.equal(rain({ ...raining(20), anomaly: -15 }), undefined)
 })
 
-test("heavy rain raises the masking floor: a car at full load 230 m across the meadow, heard in the dry, is lost in a downpour", () => {
+test("heavy rain raises the masking floor: a car at full load 200 m across the meadow, heard in the dry, is lost in a downpour", () => {
   const engine = (weather: WeatherValue) => {
     const director = rig()
     director.hear(
@@ -403,9 +403,10 @@ test("the wind blows as the weather does: stiller than usual down to the rural f
     Math.abs(windDb(still.strength) - floorDb(MORNING.sun)) < 1e-9,
     `${windDb(still.strength)} dB(A)`,
   )
-  // Twice the usual wind is twice the strength: 12 dB louder, until the gale's.
-  const breeze = windAt(MEADOW),
-    windy = windAt(MEADOW, { wind: 2 * USUAL_WIND })
+  // Twice the usual wind is twice the strength: 12 dB louder, until the gale's. In the lane at Pian del Molino (0.406 on the
+  // map's floor of 18.5 m): on the meadow, at 0.577, twice is past the voice's full strength.
+  const breeze = windAt(STREET),
+    windy = windAt(STREET, { wind: 2 * USUAL_WIND })
   assert.ok(Math.abs(windy.strength / breeze.strength - 2) < 1e-9 && windDb(1) === BEDS.wind)
 })
 
@@ -432,7 +433,7 @@ test("the usual wind the law was tuned for is a cloudy day's, a little over the 
 // regime's 8 m/s a car 20 m off was culled, though on foot it was heard 12 dB under its full gain.
 test("in a car the wind masks as it plays there, through the cabin: a car across the meadow is heard as on foot less the cabin's loss, in any wind", () => {
   for (const wind of [USUAL_WIND, 6, 8]) {
-    // Within 30 m: on the map's floor of 98.4 m the meadow blows hard enough at 8 m/s that this car is culled from 35 m on
+    // Within 30 m: on the map's floor of 18.5 m the meadow blows hard enough at 8 m/s that this car is culled from 33 m on
     // foot as in the car (40 m was heard on Fosdinovo's floor of 162.3 m), and two culled gains, 0/0, compare as NaN.
     for (const metres of [10, 20, 30]) {
       const engine = (inside: boolean) => {
@@ -459,7 +460,9 @@ test("in a car the wind masks as it plays there, through the cabin: a car across
 
 test("night stills the valley: the wind's floor falls to the night's, so steps are heard farther; no songbird sings in the woods all night", () => {
   const director = rig()
-  director.hear(world(SPAWN, { sky: NIGHT }), 2)
+  // In still air, so the bed is the floor itself: in the usual wind Monzone's street blows over the night's floor on the map's
+  // floor of 18.5 m (33.9 dB(A) against 28), as the meadow below does by day.
+  director.hear(world(SPAWN, { sky: NIGHT, weather: { ...CALM, wind: 0 } }), 2)
   const wind = director.held().get("wind")?.sound
   assert.ok(
     wind?.kind === "wind" && Math.abs(windDb(wind.strength) - NIGHT_DB) < 1e-9,
@@ -590,10 +593,11 @@ test("crickets sing in warm, dry air at the ears: on the meadow at 11 °C, not o
 })
 
 test("snow hushes the valley: a car farther off is fainter, a street's reverb drier, the leaves stiller, and steps crunch in it", () => {
+  // 60 m off, both heard: on the map's floor of 18.5 m the meadow's wind masks the car in fresh snow by 80 m (100 m before it).
   const gain = (weather: WeatherValue) => {
     const director = rig()
     director.hear(
-      world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, 100, SOUTH), FULL)], weather }),
+      world(MEADOW, { vehicles: [car(1, "panda", away(MEADOW, 60, SOUTH), FULL)], weather }),
     )
     return director.held().get("engine:1")!.at.gain
   }
