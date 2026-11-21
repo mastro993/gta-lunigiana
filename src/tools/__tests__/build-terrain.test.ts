@@ -9,12 +9,14 @@ import { MAP, roadClassOf } from "../../sim/map/index.ts"
 // (`finishTerrain`). Read bilinearly off the finished grid, the footways 1462688623 and 1484690678
 // beside Sarzana's service tunnel 376037643 took the share of a corner the mouths' hold sinks to
 // the bore's floor where the drawn mesh does not, lay 0.92 and 0.96 m under it at a vertex, and
-// climbed 1.2 m in a metre out of the dip. Found by geometry: the mouths baked nearest the points.
+// climbed 1.2 m in a metre out of the dip. A path over a bore keeps its own level there, standing
+// over the mouth's held cut on its head wall (the path pass), so no vertex stands under the terrain
+// as drawn, whatever stands over it. Found by geometry: the mouths baked nearest the points.
 
 /** How far round each mouth (m) the paths are read: past the cells held behind it. */
 const REACH = 12
 
-test("paths at grade: round the mouths of Sarzana's service tunnel 376037643, every vertex on the terrain as drawn, and the way climbing 0.5 m at most in a metre", () => {
+test("paths at grade: round the mouths of Sarzana's service tunnel 376037643, no vertex under the terrain as drawn, and the way climbing 0.5 m at most in a metre", () => {
   const mouths = [
     { x: -14489.6, y: -4827.4 },
     { x: -14472.3, y: -4822.1 },
@@ -43,8 +45,8 @@ test("paths at grade: round the mouths of Sarzana's service tunnel 376037643, ev
           vertices++
           const off = road.z[k]! - terrainZ(ax, ay)
           assert.ok(
-            Math.abs(off) <= 0.05 + 1e-9,
-            `${cls} ${road.id}'s vertex ${k} ${off.toFixed(2)} m off the terrain`,
+            off >= -0.05 - 1e-9,
+            `${cls} ${road.id}'s vertex ${k} ${(-off).toFixed(2)} m under the terrain`,
           )
         }
         for (let q = 0; q < n; q++) {

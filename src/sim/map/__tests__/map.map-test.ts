@@ -33,6 +33,7 @@ import {
   type Segment,
   wallsNear,
 } from "../index.ts"
+import { UNDERPASS } from "../kinds.ts"
 import { overpassShortfalls } from "./overpass-checks.ts"
 
 const { hypot } = Ops
@@ -760,6 +761,19 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
     const ground = (k: number) => dem!.at(r.pts[2 * k]!, r.pts[2 * k + 1]!)
     return Math.abs(ground(b) - ground(a)) / (s[b]! - s[a]!) > max
   }
+  // Sarzana's part's three links drawn straight between two junctions they cannot meet within the
+  // grade, over ground the survey reads gentler (issue #20; the user's choice, after three rounds of
+  // fixes, to list them as known limits): Via Emiliana 135711072 at 59.1% and 205932313 at 53.5%,
+  // each between a junction pinned at the ground and a deck's end whose clearance was fitted later,
+  // and the 16 m secondary 1571048638 in a junction's knot at (−22214, −911), 21.1% where the
+  // survey climbs 15.6%, the road it leaves (42178953) ending 1.65 m under the ground. Each must
+  // still climb past its limit, so a fix drops it from here.
+  const steepKnown = new Map<number, boolean>([
+    [135711072, false],
+    [205932313, false],
+    [1571048638, false],
+  ])
+  const steep: string[] = []
   for (const r of [...WHOLE.roads, ...MAP.rail.map((q) => ({ ...q, cls: "rail" }))]) {
     const max = limit[r.cls]
     if (max === undefined) continue
@@ -777,13 +791,20 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
       for (let j = i + 1; j < r.z.length; j++)
         if (s[j]! - s[i]! >= 8) {
           const g = Math.abs(r.z[j]! - r.z[i]!) / (s[j]! - s[i]!)
-          assert.ok(
-            g <= max || (r.cls !== "rail" && steepPinned(r as Road, s, i, j, max)),
-            `${r.cls} ${r.id} grade ${(g * 100).toFixed(1)}% at ${r.pts[2 * i]},${r.pts[2 * i + 1]}`,
-          )
+          const within: boolean =
+            g <= max || (r.cls !== "rail" && steepPinned(r as Road, s, i, j, max))
+          if (r.cls !== "rail" && steepKnown.has(r.id)) {
+            if (!within) steepKnown.set(r.id, true)
+          } else if (!within)
+            steep.push(
+              `${r.cls} ${r.id} grade ${(g * 100).toFixed(1)}% at ${r.pts[2 * i]},${r.pts[2 * i + 1]}`,
+            )
           break
         }
   }
+  assert.deepEqual(steep, [], `${steep.length} links climb past their class grade`)
+  for (const [id, climbs] of steepKnown)
+    assert.ok(climbs, `${id} keeps its class grade now: drop it from the known steep links`)
   const decks = [
     ...WHOLE.roads.filter((r) => r.bridge === true),
     ...MAP.rail.filter((r) => r.bridge === true),
@@ -794,15 +815,32 @@ test("profiles: class grades (1.5x relaxed at most), deck and underpass clearanc
         const gap = zAt(d.z, c.j, c.u) - zAt(w.z, c.i, c.t)
         assert.ok(gap >= 2.4, `bridge ${d.id} only ${gap.toFixed(1)} m over water ${w.id}`)
       }
+  // A road under the rail keeps its maxheight (UNDERPASS untagged) plus 0.6 m: a sign gives a lower
+  // clearance under Sarzana's tracks (Via Ghiarettolo's and Via Madonna dei Mari's underpasses at
+  // 2 m, Via Caduti del Lavoro's and Via Penten's at 2.9 m: rail-levels.ts).
   for (const rl of MAP.rail)
     for (const rd of WHOLE.roads)
       if (rl.bridge === true || rd.tunnel === true)
         for (const c of crossings(rl.pts, rd.pts)) {
           const gap = zAt(rl.z, c.i, c.t) - zAt(rd.z, c.j, c.u)
-          assert.ok(gap >= 4.6, `rail ${rl.id} only ${gap.toFixed(1)} m over road ${rd.id}`)
+          assert.ok(
+            gap >= (rd.maxheight ?? UNDERPASS) + 0.6,
+            `rail ${rl.id} only ${gap.toFixed(1)} m over road ${rd.id}`,
+          )
         }
   // A road under a road bridge keeps its maxheight (4 m untagged) plus a 1.5 m deck (road-levels.ts).
-  assert.deepEqual(overpassShortfalls(WHOLE.roads), [])
+  // The track bridge 99473194 over the A12's two carriageways at (−15376, −4706), a known limit
+  // (levels.map-test.ts), must still fall short, so a fix drops it from here.
+  const shortfalls = overpassShortfalls(WHOLE.roads),
+    shortKnown = (s: string) => s.startsWith("track bridge 99473194 ")
+  assert.deepEqual(
+    shortfalls.filter((s) => !shortKnown(s)),
+    [],
+  )
+  assert.ok(
+    shortfalls.some(shortKnown),
+    "99473194 clears the A12 now: drop it from the known shortfalls",
+  )
   // A road bridge over the rail clears the ATR 220 (4.185 m over the rail head, 0.12 m over the
   // bed) under its 0.9 m deck, with 0.3 m to spare (rail-levels.ts; the Equi Terme overpass left
   // the roof 0.46 m in the deck).

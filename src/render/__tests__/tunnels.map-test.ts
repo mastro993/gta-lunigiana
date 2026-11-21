@@ -29,18 +29,22 @@ test("Lunigiana: every road in a tunnel drawn at its floor, its bore under the h
   // Calcinara's profile (31135800) by up to 3.1 m: 29764. With the paths at grade on the terrain
   // as drawn, the footway 1462688623 no longer sinks 0.92 m into the hold beside the west mouth of
   // Sarzana's service tunnel 376037643, out of the room its head wall takes: heads 43 -> 44,
-  // crowded 23 -> 22.
+  // crowded 23 -> 22. With a path or steps at grade fitted from its clearance under a deck or over a
+  // bore (the path pass, issue #20), Vezzano Ligure station's stair stubs 1419380924 and 1419380925
+  // sink under the stairs over them, their mouths buried (buried 0 -> 2), and the ground round three
+  // mouths moves: one gets a portal, two are no longer crowded (portals 41 -> 42, crowded 22 -> 20,
+  // low 215 -> 214, walls 29764 -> 29768).
   assert.deepEqual(checkTunnels(wholeVectors()), {
     tunnels: 374,
     passages: 140,
     metres: 10295,
-    walls: 29764,
+    walls: 29768,
     mouths: 427,
-    portals: 41,
+    portals: 42,
     heads: 44,
-    buried: 0,
+    buried: 2,
     housed: 105,
-    low: 215,
-    crowded: 22,
+    low: 214,
+    crowded: 20,
   })
 })
