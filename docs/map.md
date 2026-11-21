@@ -3757,17 +3757,25 @@ walls held them before, and stores neither of those.
   and a 1 m kerb, where its traffic goes, take a level (a wall with a level, below): the terrain's
   midway along each, split where that ground spans 3 m or more (`SPAN`, as under the decks), so each
   stops anyone on the hill round the house within 1.5 m of its level and nothing in the bore; the
-  rest stand at every level. A barrier over a bore deep under it does the same (`barrierWalls` in
-  `house-walls.ts`): each of its pieces within the bore's corridor and the kerb, where the ground it
-  stands on (the terrain at its point nearest the bore) is the bore's clear height or more over the
-  road there, takes the terrain's level along it, split as a house's are. Walled at every level,
-  the jersey barrier 887066016 between the underpasses of Via Alcide De Gasperi and the container
-  terminal's service road at (−17097, −1238), on the ground at 16 m, stood across the bore of the
-  unclassified road 1352409570 (layer −2) 5.3 m under it, 0.5 m off its traffic edge 205834, and no
-  Panda's lane ran through the bore. It is the only such barrier on the four regions: its 3 walk and
-  3 drive pieces there take 18.1, 16.2 and 16 m, and with them 7 Panda and Ape lanes and a
-  carabinieri lane change (`pnpm map-diff`, 2026-11-21). The A15's 10 m Galleria Fresonara opened
-  the house −1475651980358925 on
+  rest stand at every level. A barrier meets a bore as a house does (`barrierWalls` in
+  `house-walls.ts`): where the bore passes at the level of the ground the barrier stands on, the
+  bore's corridor (min(w/2, `ARCH`), as an arch's) opens it, as a road at grade's opens it
+  (`openBarriers`); each of its pieces within the corridor and the kerb where that ground (the
+  terrain at its point nearest the bore) is the bore's clear height or more over the road takes the
+  terrain's level along it, split as a house's are. Walled at every level, the jersey barrier
+  887066016 between the underpasses of Via Alcide De Gasperi and the container terminal's service
+  road at (−17097, −1238), on the ground at 16 m, stood across the bore of the unclassified road
+  1352409570 (layer −2) 5.3 m under it, 0.5 m off its traffic edge 205834, and the concrete wall
+  887046364, which OSM draws from 2.4 m inside that bore's north mouth, on its floor, up the
+  cutting, 0.95 m off it: no Panda's lane ran through the bore. On the four regions these are
+  three barriers, all on Lunigiana (`pnpm map-diff`, 2026-11-21): the jersey barrier's 3 walk and 3
+  drive pieces over the bore take 18.1, 16.2 and 16 m; the wall now starts 1.43 m off the bore's
+  line; and the 410 m noise barrier 1514011458 opens 2.4 m over the track's underpass 1512164508 at
+  (−18856, −358), on its floor's level on the grid there, its other pieces split anew along it.
+  With the walls under the decks that the fork and joint rules move ([Footing in
+  gameplay.md](gameplay.md#footing)), Lunigiana's map puts 38 walk and 84 drive walls for 34 and
+  72, and 7 lanes of each vehicle change. The A15's 10 m Galleria Fresonara opened the house
+  −1475651980358925 on
   the hill 80 m over it at (−19236.6, −4601.2), and anyone walked in; each of a house's walls
   levelled whole at the ground at its middle, the wall from (−13542.7, −5846.7) to (−13555.5,
   −5846.3) stood 2.59 m off its level at its east end, and a walker passed it there.

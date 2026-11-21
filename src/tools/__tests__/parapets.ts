@@ -22,7 +22,7 @@ interface DriveWalls {
 
 /** Where a bridge's parapets stand past half its carriageway, m (`lines.ts` draws them there). */
 const PARAPET = 0.25
-/** How far apart the check reads the parapet line, m: the build's own step (`OPEN_STEP` in walls.ts). */
+/** How far apart the check reads the parapet line, m: the build's own step (`OPEN_STEP` in wall-pieces.ts). */
 const STEP = 0.25
 /** A wall this near a point of the parapet line stands on it, m: the walls lie on 0.1 m, and a deck's line on 0.1 m tilts a short segment's parapet a little. */
 const ON = 0.3

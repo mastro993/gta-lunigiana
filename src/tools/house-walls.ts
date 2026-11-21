@@ -3,11 +3,12 @@
 // roads cut, where OSM and the CTR disagree by a metre or two; and the barriers' walls, which take
 // the ground's level over a bore deep under them, as a house's do.
 import { segT, staticGrid } from "../sim/collide.ts"
+import type { Barrier } from "../sim/map/index.ts"
 import { isDrivable, isMotorRoad, ONE_LEVEL, UNDERPASS } from "../sim/map/kinds.ts"
 import type { BuildingF, RoadF } from "./features.ts"
 import { flatRing, pointInRing, r1, ringBox, segD2, signedArea } from "./geometry.ts"
 import { simplifyLoop, traceLoops } from "./loops.ts"
-import { boundary, pushPolyline } from "./wall-pieces.ts"
+import { boundary, opened, pushPolyline } from "./wall-pieces.ts"
 
 /** Half-width of the corridor kept open where a road centreline runs through or along a footprint. */
 export const ARCH = 1.2
@@ -372,23 +373,34 @@ const nearest = (
 }
 
 /**
- * A barrier's walls along `pts` (a wall, a cliff, a guard rail, a breakwater), flat (ax, ay, bx, by)
- * in pieces of at most 16 m, and each one's level, m a.s.l. (NaN for one that stands at every
- * level): a piece within a road tunnel's corridor (`arches`) and a KERB, where the bore passes the
- * clear height or more under the `terrain` it stands on, takes the terrain's level along it, as a
- * house's walls over a bore deep under it do (`houseWalls`). Walled at every level, the jersey
- * barrier 887066016 between the underpasses of Via Alcide De Gasperi and the container terminal's
- * service road at (−17097, −1238) stopped the traffic in the unclassified road's bore 1352409570,
- * 5.3 m under it.
+ * A barrier's walls (a wall, a cliff, a guard rail, a breakwater), flat (ax, ay, bx, by) in pieces of
+ * at most 16 m, and each one's level, m a.s.l. (NaN for one that stands at every level), as a house's
+ * meet a road tunnel's bore (`arches`): where the bore passes at the level of the `terrain` the
+ * barrier stands on (under the bore's clear height over its road), its corridor opens the barrier,
+ * as a road at grade's does (`openBarriers` in walls.ts); a piece within the corridor and a KERB
+ * where the bore passes the clear height or more under that terrain takes the terrain's level along
+ * it, as a house's walls over a bore deep under it do (`houseWalls`). Walled at every level, the
+ * jersey barrier 887066016 between the underpasses of Via Alcide De Gasperi and the container
+ * terminal's service road at (−17097, −1238) stopped the traffic in the unclassified road's bore
+ * 1352409570 5.3 m under it, and the concrete wall 887046364, drawn from 2.4 m inside that bore's
+ * north mouth on its floor up the cutting, stood 0.95 m off its centreline.
  */
 export const barrierWalls = (
-  pts: ReadonlyArray<number>,
+  barrier: Barrier,
   arches: Arches,
   level: Level,
   terrain: (x: number, y: number) => number,
 ): { readonly walls: Array<number>; readonly levels: Array<number> } => {
+  const atLevel = (x: number, y: number) =>
+    arches(x, y, x, y).some(([ax, ay, bx, by, h, road, clear]) => {
+      if (road < 0) return false
+      const t = segT(x, y, ax, ay, bx, by),
+        qx = ax + (bx - ax) * t,
+        qy = ay + (by - ay) * t
+      return (qx - x) ** 2 + (qy - y) ** 2 < h * h && terrain(x, y) - level(road, qx, qy) < clear
+    })
   const traced: Array<number> = []
-  pushPolyline(traced, pts, false)
+  for (const piece of opened([barrier], atLevel)) pushPolyline(traced, piece.pts, false)
   return overBores(traced, terrain, (ax, ay, bx, by) =>
     arches(
       Math.min(ax, bx) - KERB,

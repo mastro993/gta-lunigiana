@@ -7,21 +7,18 @@ import type { Area, Barrier } from "../sim/map/index.ts"
 import { isDrivable, isWaterArea } from "../sim/map/kinds.ts"
 import { exitCaps } from "./exit-caps.ts"
 import type { BuildingF, RoadF, WaterF } from "./features.ts"
-import { r1, ringBox, segIndex } from "./geometry.ts"
+import { ringBox, segIndex } from "./geometry.ts"
 import { gridTiles } from "./grid-tiles.ts"
 import { ARCH, barrierWalls, houseArches, houseWalls } from "./house-walls.ts"
 import { inPlay, OUTLINE } from "./play-area.ts"
 import { anchorNode, cellSlope, type DmGrid } from "./terrain.ts"
-import { append, boundary, pushOutline, pushSplit } from "./wall-pieces.ts"
+import { append, boundary, opened, pushOutline, pushSplit } from "./wall-pieces.ts"
 
 /** The steepest ground (°) a walker climbs off a road: a steeper cell is a `walk` wall. */
 export const WALK_SLOPE = 35
 const DRIVE_SLOPE = 25
 /** Wall simplification tolerance, m; road buffers below are widened by it so walls never reach w/2. */
 const SLACK = 1.5
-
-/** Sample spacing along a barrier when looking for roads through it, m. */
-const OPEN_STEP = 0.25
 
 /**
  * The barriers that stop vehicles alone: a guard rail, which a walker steps over, and a breakwater's
@@ -37,7 +34,8 @@ const DRIVE_ONLY: ReadonlySet<string> = new Set(["guard_rail", "breakwater"])
  * its w/2 as OSM draws it, so it opens only where a drivable road's middle min(w/2, ARCH) reaches
  * it: a track OSM draws leaving its road past the rail's end, which stops 0.7 m short of the
  * track's centreline; so does a breakwater's outline, which a path onto it leaves walled for
- * vehicles. Tunnels open nothing (a bridge's parapets do open where the road runs on into one:
+ * vehicles. Tunnels open them only at their level, on the ground the walls stand on
+ * (`barrierWalls` in house-walls.ts; a bridge's parapets do open where the road runs on into one:
  * parapets.ts).
  */
 export const openBarriers = (
@@ -55,42 +53,6 @@ export const openBarriers = (
     lane = (x: number, y: number) => lanes.covers(x, y)
   return barriers.flatMap((b) => opened([b], DRIVE_ONLY.has(b.kind) ? lane : way))
 }
-
-/** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` says. */
-export const opened = (
-  barriers: ReadonlyArray<Barrier>,
-  open: (x: number, y: number) => boolean,
-): Array<Barrier> =>
-  barriers.flatMap((b) => {
-    const out: Array<Barrier> = []
-    let cur: Array<number> = [],
-      last: readonly [number, number] | undefined
-    const push = (x: number, y: number) => {
-      if (cur.length === 0 || cur.at(-2) !== x || cur.at(-1) !== y) cur.push(x, y)
-    }
-    for (let i = 0; i + 3 < b.pts.length; i += 2) {
-      const ax = b.pts[i]!,
-        ay = b.pts[i + 1]!,
-        bx = b.pts[i + 2]!,
-        by = b.pts[i + 3]!
-      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / OPEN_STEP))
-      for (let k = i === 0 ? 0 : 1; k <= n; k++) {
-        const x = r1(ax + ((bx - ax) * k) / n),
-          y = r1(ay + ((by - ay) * k) / n)
-        if (open(x, y)) {
-          if (last !== undefined) push(...last)
-          if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
-          cur = []
-          last = undefined
-        } else if (k === n || cur.length === 0) {
-          push(x, y)
-          last = undefined
-        } else last = [x, y]
-      }
-    }
-    if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
-    return out
-  })
 
 interface Walls {
   /** What stops anyone on foot: buildings, steep ground, barriers, the play area's outline. */
@@ -296,7 +258,7 @@ export const buildWalls = (
   })
   // The barriers' walls, and the levels of those over a bore deep under them.
   for (const b of barriers) {
-    const { walls, levels } = barrierWalls(b.pts, arches, heights.level, heights.terrain)
+    const { walls, levels } = barrierWalls(b, arches, heights.level, heights.terrain)
     for (const [out, by] of DRIVE_ONLY.has(b.kind)
       ? ([[drive, driveLevels]] as const)
       : ([

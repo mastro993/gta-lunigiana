@@ -99,8 +99,9 @@ test("a guard rail stays whole along its road, inside its w/2, and opens where a
 // Regression (#20): the jersey barrier 887066016 runs between the underpasses of Via Alcide De
 // Gasperi and the container terminal's service road at (−17097, −1238), on the ground 5.3 m over the
 // bore of the unclassified road 1352409570 (layer −2), and stood at every level across it: traffic
-// edge 205834 in the bore ran into it.
-test("a barrier over a road tunnel's bore deep under it takes the ground's level there, so it stops nothing in the bore; over a shallow bore, and off the bore, it stands at every level", () => {
+// edge 205834 in the bore ran into it. And the concrete wall 887046364, drawn from 2.4 m inside that
+// bore's north mouth on its floor, stood 0.95 m off its centreline.
+test("a barrier over a road tunnel's bore deep under it takes the ground's level there, so it stops nothing in the bore; on the bore's level the bore opens it, as a road at grade does; off the bore it stands at every level", () => {
   const bore: RoadF = {
     id: 1,
     cls: "unclassified",
@@ -119,7 +120,12 @@ test("a barrier over a road tunnel's bore deep under it takes the ground's level
     level = () => 10.7,
     terrain = (_: number, y: number) => (y > 0 ? 16 : 12)
   const levelsOf = (y: number) => {
-    const { walls, levels } = barrierWalls([-30, y, 30, y], arches, level, terrain)
+    const { walls, levels } = barrierWalls(
+      { kind: "wall", pts: [-30, y, 30, y] },
+      arches,
+      level,
+      terrain,
+    )
     return segments(walls).map(([ax, , bx], w) => ({ ax: ax!, bx: bx!, level: levels[w]! }))
   }
   const deep = levelsOf(20)
@@ -128,7 +134,19 @@ test("a barrier over a road tunnel's bore deep under it takes the ground's level
     if (Math.min(Math.abs(ax), Math.abs(bx)) <= 2.2 || ax * bx < 0)
       assert.equal(level, 16, `the piece at x ${ax}…${bx} over the bore: the ground's level`)
     else assert.ok(Number.isNaN(level), `the piece at x ${ax}…${bx}, off the bore: every level`)
-  for (const { level } of levelsOf(-20)) assert.ok(Number.isNaN(level), "over a shallow bore")
+  // On the bore's level its middle 1.2 m (min(w/2, ARCH), as an arch's) opens the wall.
+  const open = levelsOf(-20)
+  for (const { ax, bx, level } of open) {
+    assert.ok(Number.isNaN(level), "on the bore's level, at every level")
+    assert.ok(
+      Math.min(Math.abs(ax), Math.abs(bx)) >= 1.2 && ax * bx > 0,
+      `a piece at x ${ax}…${bx} in the bore`,
+    )
+  }
+  assert.ok(
+    open.some(({ ax }) => ax === -30) && open.some(({ bx }) => bx === 30),
+    "the rest stands",
+  )
 })
 
 // Regression: a substation the CTR maps under the SR445's bridge west of Gragnola (552592647, at

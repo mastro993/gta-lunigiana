@@ -1,5 +1,6 @@
 // The collision walls' pieces: lines and traced outlines cut into flat (ax, ay, bx, by) segments of
 // at most RUN m (walls.ts, house-walls.ts, parapets.ts, deck-walls.ts).
+import type { Barrier } from "../sim/map/index.ts"
 import type { Rings } from "../sim/map/outline.ts"
 import { r1 } from "./geometry.ts"
 import { simplifyLoop, traceLoops } from "./loops.ts"
@@ -7,6 +8,45 @@ import type { DmGrid } from "./terrain.ts"
 
 /** The longest wall piece, m. */
 const RUN = 16
+
+/** Sample spacing along a barrier when looking for roads through it, m. */
+const OPEN_STEP = 0.25
+
+/** `barriers` cut open wherever `open(x, y)` (a way passes) at OPEN_STEP m samples, as `openBarriers` in walls.ts says. */
+export const opened = (
+  barriers: ReadonlyArray<Barrier>,
+  open: (x: number, y: number) => boolean,
+): Array<Barrier> =>
+  barriers.flatMap((b) => {
+    const out: Array<Barrier> = []
+    let cur: Array<number> = [],
+      last: readonly [number, number] | undefined
+    const push = (x: number, y: number) => {
+      if (cur.length === 0 || cur.at(-2) !== x || cur.at(-1) !== y) cur.push(x, y)
+    }
+    for (let i = 0; i + 3 < b.pts.length; i += 2) {
+      const ax = b.pts[i]!,
+        ay = b.pts[i + 1]!,
+        bx = b.pts[i + 2]!,
+        by = b.pts[i + 3]!
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / OPEN_STEP))
+      for (let k = i === 0 ? 0 : 1; k <= n; k++) {
+        const x = r1(ax + ((bx - ax) * k) / n),
+          y = r1(ay + ((by - ay) * k) / n)
+        if (open(x, y)) {
+          if (last !== undefined) push(...last)
+          if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
+          cur = []
+          last = undefined
+        } else if (k === n || cur.length === 0) {
+          push(x, y)
+          last = undefined
+        } else last = [x, y]
+      }
+    }
+    if (cur.length >= 4) out.push({ kind: b.kind, pts: cur })
+    return out
+  })
 
 /** Pushes a-b as pieces no longer than `run`. */
 export const pushSplit = (
