@@ -2805,8 +2805,9 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   apart in level at their twin tunnels' south portals and 2.8 m at the north ones. A track fitted
   after a twin of its kind (both bridges, both tunnels or both at grade) keeps within 0.1 m of the
   twin's level where they stand on one formation: no gap over 6 m (`SIDE`, `TWIN`) between the
-  tracks lying from one to the other, whatever their headings (a switch's diverging track, a
-  crossing at grade); past that the allowance grows by 2/3 m a metre of the widest gap (`PART`, a
+  tracks of their kind lying from one to the other (a deck or a bore between two tracks at grade is
+  no track of their formation; on Lunigiana's rail the kind filter changes no profile), whatever
+  their headings (a switch's diverging track, a crossing at grade); past that the allowance grows by 2/3 m a metre of the widest gap (`PART`, a
   2:3 bank between their formations) between tracks within 15° of parallel, up to 40 m apart
   (`REACH`, a yard's width), past which they bind each other no more. Its points 2 m apart along it
   take the bounds, each holding at its own sample (`Bound.here`), on a deck or not. Bound only by a

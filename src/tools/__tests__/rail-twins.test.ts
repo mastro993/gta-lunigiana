@@ -106,7 +106,9 @@ test("railTwins binds tracks on one formation, none more than SIDE apart between
     Math.max(...twinBounds(railTwins(rail), [{ item: c }], fitted).map((x) => Math.abs(x.z - 100)))
   // With b between them, a and c 10 m apart stand on one formation: c keeps to a's level.
   assert.ok(Math.abs(slackOn([a, b, c]) - TWIN) < 1e-9)
-  // With nothing between, they part by a 2:3 bank over the 4 m past SIDE.
+  // With nothing between, they part by a 2:3 bank over the 4 m past SIDE; and so with a deck between them, no track of their
+  // formation.
   assert.ok(Math.abs(slackOn([a, c]) - twinSlack(10)) < 1e-9)
+  assert.ok(Math.abs(slackOn([a, { ...b, bridge: true }, c]) - twinSlack(10)) < 1e-9)
   assert.ok(twinSlack(10) > TWIN + 2.6)
 })

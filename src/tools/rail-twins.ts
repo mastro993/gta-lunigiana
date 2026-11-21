@@ -71,7 +71,8 @@ const crossedAt = (pts: ReadonlyArray<V>, px: number, py: number, qx: number, qy
  * Where a track runs beside another of its kind (both on a bridge, both in a tunnel or both at
  * grade), REACH m apart or less: its points SPREAD m apart along it, each with the widest gap
  * between the tracks lying from it to the other (`gap`: its distance to the other where none lies
- * between). Tracks with no gap over SIDE between them stand on one formation, whatever their
+ * between, of their kind: a deck or a bore between two tracks at grade is no formation of theirs). Tracks with no gap over
+ * SIDE between them stand on one formation, whatever their
  * headings (a switch's diverging track, a crossing at grade); farther apart, only near parallel ones
  * bind. The outer two of Vezzano Ligure's four tracks, 15–17 m apart with 3.4–6 m between
  * neighbours, were fitted each from its own ground, 2.6 m apart, and the two between them could keep
@@ -105,7 +106,9 @@ export const railTwins = (rail: ReadonlyArray<RailF>) => {
           qy = b.pts[o.k]!.y + (b.pts[o.k + 1]!.y - b.pts[o.k]!.y) * o.t
         const at = [
           0,
-          ...near.flatMap((c) => (c === b ? [] : crossedAt(c.pts, x, y, qx, qy))),
+          ...near.flatMap((c) =>
+            c === b || kind(c) !== kind(a) ? [] : crossedAt(c.pts, x, y, qx, qy),
+          ),
           o.d,
         ].sort((p, q) => p - q)
         let gap = 0
