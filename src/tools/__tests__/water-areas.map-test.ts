@@ -4,19 +4,26 @@
 // left dry, the surface a river polygon is carved under falling downstream, its outer edge left as
 // the ground was, and no tree, parked car or player spawn in the water.
 import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
+import { join } from "node:path"
 import { test } from "node:test"
 
-import { fillPolygon } from "../../sim/collide.ts"
+import { fillPolygon, insideSpans } from "../../sim/collide.ts"
 import type { Area, Water } from "../../sim/map/index.ts"
-import { anchorOf, isWaterArea } from "../../sim/map/kinds.ts"
+import { heightAt } from "../../sim/map/index.ts"
+import { anchorOf, IN_POLYGON, isWaterArea } from "../../sim/map/kinds.ts"
 import { reachOf } from "../../sim/water/channel.ts"
 import { ringBox, segDist2 } from "../geometry.ts"
 import { BLEND, coreHalf } from "../grid-claims.ts"
 import { listedNodes } from "../grid-tiles.ts"
 import { type JoinedMap, wholeMap } from "../map-file.ts"
-import { inRects, PARTS } from "../region.ts"
+import { inRects, ligDir, PARTS } from "../region.ts"
 import { inRings } from "../water-areas.ts"
 import { LINE_TOL } from "../water.ts"
+import { checkSeaUnderZero, floorErrors } from "./sea-checks.ts"
+
+/** The repository's root, which the raw inputs' paths are read from. */
+const ROOT = join(import.meta.dirname, "../../..")
 
 /**
  * Each map, and the lakes in it the terrain reads no hollow under (a point inside each). A lake every
@@ -136,17 +143,29 @@ const within = (w: Pick<Water, "pts">, x: number, y: number, d: number) => {
 
 /**
  * The lines of `map` whose claims may write on the ground (`claimOf` in grid-claims.ts): each road
- * off a deck and out of a tunnel, and the rail, with how far its writes reach, its core and the
- * blend back to the terrain.
+ * off a deck and out of a tunnel, and the rail, with their heights and how far their writes reach,
+ * the core and the blend back to the terrain.
  */
 const claimsOf = (map: JoinedMap) => [
   ...map.roads
     .filter((r) => r.bridge !== true && r.tunnel !== true)
-    .map((r) => ({ pts: r.pts, reach: coreHalf(r.w, map.heightmap.cell) + BLEND })),
+    .map((r) => ({ pts: r.pts, z: r.z, reach: coreHalf(r.w, map.heightmap.cell) + BLEND })),
   ...map.rail
     .filter((r) => r.bridge !== true && r.tunnel !== true)
-    .map((r) => ({ pts: r.pts, reach: coreHalf(4, map.heightmap.cell) + BLEND })),
+    .map((r) => ({ pts: r.pts, z: r.z, reach: coreHalf(4, map.heightmap.cell) + BLEND })),
 ]
+
+/** The lowest height of the lines of `claims` whose writes reach (x, y) (their own height there), Infinity where none does. */
+const claimedUnder = (claims: ReturnType<typeof claimsOf>, x: number, y: number) => {
+  let low = Number.POSITIVE_INFINITY
+  for (const c of claims)
+    for (let k = 0; k + 3 < c.pts.length; k += 2) {
+      const { d2, t } = segDist2(x, y, c.pts[k]!, c.pts[k + 1]!, c.pts[k + 2]!, c.pts[k + 3]!)
+      if (d2 <= c.reach * c.reach)
+        low = Math.min(low, c.z[k / 2]! + (c.z[k / 2 + 1]! - c.z[k / 2]!) * t)
+    }
+  return low
+}
 
 /** Whether a point of the centreline of `w`, read every half metre, lies inside `rings`. */
 const passesInside = (w: Water, rings: ReadonlyArray<ReadonlyArray<number>>) => {
@@ -291,7 +310,7 @@ for (const [name, map, dry] of MAPS) {
       }
   })
 
-  test(`water areas, ${name}: a river polygon's outer edge is left as the ground was, over its waterways' bed but where their own channels cut it or a road keeps its own level`, () => {
+  test(`water areas, ${name}: a river polygon's outer edge is left as the ground was, over its waterways' bed where they run in it, but where their own channels cut it or a road under that bed keeps its own level`, () => {
     let edges = 0
     const claims = claimsOf(map)
     areas.forEach((a, n) => {
@@ -307,30 +326,42 @@ for (const [name, map, dry] of MAPS) {
       // level (`carveAreas`): the Calcandola's polygon by Sarzana runs 6 m from a road 0.6 m under
       // its bed, whose blend back to the terrain takes its edge.
       const roads = claims.filter((c) => meets(c.pts, c.reach))
+      // Its waterways' parts inside it (`nearestOn` in water-areas.ts), each with its surface and
+      // depth at both ends.
+      const spans = insideSpans(a.rings, IN_POLYGON)
+      const parts = a.waters.flatMap((i) => {
+        const w = map.water[i]!
+        return w.z.slice(1).flatMap((_, v) => {
+          const [ax, ay, bx, by] = w.pts.slice(2 * v, 2 * v + 4) as [number, number, number, number]
+          const za = w.z[v]!,
+            zb = w.z[v + 1]!
+          return spans(ax, ay, bx, by).map(([t0, t1]) => ({
+            ax: ax + (bx - ax) * t0,
+            ay: ay + (by - ay) * t0,
+            bx: ax + (bx - ax) * t1,
+            by: ay + (by - ay) * t1,
+            za: za + (zb - za) * t0 - w.depth / 2,
+            zb: za + (zb - za) * t1 - w.depth / 2,
+          }))
+        })
+      })
       for (const { x, y, z, edge } of nodes[n]!) {
-        if (
-          !edge ||
-          lines.some((w) => within(w, x, y, reachOf(w) + map.heightmap.cell)) ||
-          roads.some((c) => within(c, x, y, c.reach))
-        )
-          continue
-        // The bed at the nearest point of its waterways: their built surface less depth/2.
+        if (!edge || lines.some((w) => within(w, x, y, reachOf(w) + map.heightmap.cell))) continue
+        // The bed at the nearest point of its waterways where they run in it: their built surface
+        // less depth/2. The build cuts its 2 m samples at the polygon's edge as it stood before the
+        // map rounded it and the line, so where the water enters it the build's point may lie up to
+        // IN_POLYGON along from this one: the lower bed within that. The stream 789354484 falls 2.1 m
+        // over the 6.1 m where it enters the Magra's polygon by (−14264, 4212).
         let best = Number.MAX_VALUE,
           bed = 0
-        for (const i of a.waters) {
-          const w = map.water[i]!
-          for (let v = 0; v + 1 < w.z.length; v++) {
-            const { d2, t } = segDist2(
-              x,
-              y,
-              w.pts[2 * v]!,
-              w.pts[2 * v + 1]!,
-              w.pts[2 * v + 2]!,
-              w.pts[2 * v + 3]!,
-            )
-            if (d2 < best) [best, bed] = [d2, w.z[v]! + (w.z[v + 1]! - w.z[v]!) * t - w.depth / 2]
-          }
+        for (const p of parts) {
+          const { d2, t } = segDist2(x, y, p.ax, p.ay, p.bx, p.by)
+          if (d2 >= best) continue
+          const slack = IN_POLYGON / (Math.hypot(p.bx - p.ax, p.by - p.ay) || 1),
+            at = (u: number) => p.za + (p.zb - p.za) * Math.min(1, Math.max(0, u))
+          ;[best, bed] = [d2, Math.min(at(t - slack), at(t + slack))]
         }
+        if (claimedUnder(roads, x, y) < bed) continue
         edges++
         // The build raises the edge HALF_STEP over the bed its 2 m samples give, so the grid's
         // rounding keeps it over that; the shipped line strays up to LINE_TOL from the samples, and
@@ -341,8 +372,9 @@ for (const [name, map, dry] of MAPS) {
         )
       }
     })
-    // With the nodes the roads' claims write left out, 408 on Cesena.
-    assert.ok(edges > (name === "Lunigiana" ? 100 : 300), `${edges} edge nodes`)
+    // 30,998 on Lunigiana and 523 on Cesena (measured 2026-11-21): a road under the bed takes none
+    // of Cesena's.
+    assert.ok(edges > (name === "Lunigiana" ? 30_000 : 500), `${edges} edge nodes`)
   })
 
   test(`water areas, ${name}: no tree, parked car or player spawn stands in the water`, () => {
@@ -367,3 +399,25 @@ for (const [name, map, dry] of MAPS) {
       assert.ok(!inWater(s.x, s.y), `spawn at ${s.x}, ${s.y}`)
   })
 }
+
+// Sarzana's part (issue #20) grows Lunigiana's box over the Gulf of La Spezia beyond the play area,
+// so the shipped map holds the sea the coast test region checks (coast-sea.map-test.ts): the same
+// rules on it here. No isobath of Regione Liguria's survey lies in it (the nearest vertex 455 m south
+// of the box), so the floor is the shoreface profile's, blended to the survey's within 1 km of it
+// (sea-floor.ts): the survey check has nothing to read, and the day the survey reaches it, the check
+// below says so.
+test("the sea beyond the play area, Lunigiana: every node of its areas stands under 0 m but where the shore holds it, and no isobath of the survey lies in it", () => {
+  const lunigiana = MAPS[0]![1]
+  const { nodes, atCoast, tops } = checkSeaUnderZero(lunigiana)
+  // 276,387 sea nodes, 683 at the coastline, 45 raised (measured 2026-11-21)
+  assert.ok(
+    nodes > 250_000 && atCoast <= 800 && tops <= 100,
+    `${nodes} sea nodes, ${atCoast} at the coastline, ${tops} raised`,
+  )
+  const files = PARTS.map((part) => join(ROOT, ligDir(part), "isobaths.json.gz")).filter((f) =>
+    existsSync(f),
+  )
+  assert.ok(files.length > 0, "Regione Liguria's isobaths: pnpm fetch-raw restores them")
+  const errors = floorErrors(lunigiana, heightAt, files)
+  assert.equal(errors.length, 0, "isobath vertices in Lunigiana's sea: check its floor on them")
+})

@@ -9,8 +9,12 @@ import { pointInRing as inRing } from "../../../tools/geometry.ts"
 import { wholeMap } from "../../../tools/map-file.ts"
 import { PARTS } from "../../../tools/region.ts"
 import { PERCH } from "../../../tools/water.ts"
+import { MEAN } from "../../__tests__/flows.ts"
 import { meets } from "../../body.ts"
-import { segmentDistance } from "../../collide.ts"
+import { fillPolygon, segDist2, segmentDistance } from "../../collide.ts"
+import { SEA_LEVEL, STAGE } from "../../water/channel.ts"
+import { waterIndex } from "../../water/rivers.ts"
+import { terrainZ } from "../ground.ts"
 import { MAP, outlineDistance, wallsNear } from "../index.ts"
 import { isWaterArea } from "../kinds.ts"
 
@@ -116,22 +120,23 @@ test("water: catchments grow downstream; the Lucido drains 47 km² where it meet
       assert.ok(k === 0 || a >= w.area[k - 1]!, `water ${w.id} shrinks at ${k}`),
     )
   // Regression: a tributary's mouth read the receiving river's node, so a trickle's last vertex took
-  // the river's 45 km². A jump over its last segment is the receiver's area where the mouth meets
-  // another water's vertex and reads half of what that water reads there or more; a dead end's last
-  // segment may gather a D8 path crossing it on a plain (812989995 by Santo Stefano di Magra, 1.47
-  // km² 86 m before its end, on a last segment of 105 m).
-  const joined = new Map<string, Array<number>>()
+  // the river's 45 km². A jump over the last segment is that fault where the water it joins reads
+  // as much there or more (none joined, it reads 0); one it reads less than can be no area of its,
+  // but a D8 path crossing the last segment on a plain: the ditch 812989995 by Santo Stefano di Magra
+  // gathers 1.47 km² 86 m before its end, on a last segment of 105 m, where the ditch 896202894 it
+  // joins reads 0.
+  const joined = new Map<string, number>()
   for (const w of WHOLE.water)
     for (let k = 0; k + 1 < w.area.length; k++) {
       const key = `${w.pts[2 * k]},${w.pts[2 * k + 1]}`
-      joined.set(key, [...(joined.get(key) ?? []), w.area[k]!])
+      joined.set(key, Math.max(joined.get(key) ?? 0, w.area[k]!))
     }
   for (const w of WHOLE.water) {
     const [before, mouth] = w.area.slice(-2)
-    const receiver = Math.max(0, ...(joined.get(`${w.pts.at(-2)},${w.pts.at(-1)}`) ?? []))
+    const receiver = joined.get(`${w.pts.at(-2)},${w.pts.at(-1)}`) ?? 0
     if (before !== undefined)
       assert.ok(
-        mouth! <= 1.5 * before + 1 || receiver === 0 || mouth! < receiver / 2,
+        mouth! <= 1.5 * before + 1 || receiver < mouth!,
         `water ${w.id}: ${before} km² jumps to ${mouth} at its mouth, the water it joins ${receiver}`,
       )
   }
@@ -249,7 +254,8 @@ const fornola = () => {
 test("water: the Vara brings its 552 km² over the west edge and meets the Magra with 603; the Magra leaves the play area at y −8500 with 1,619 of its 1,700", () => {
   // The Vara's first piece starts where the play area's outline cuts it, inside the box: the
   // 552.4 km² a D8 on Liguria's DTM gives it at the box's edge, and the ground in between.
-  const first = named("Fiume Vara").find((w) => outlineDistance(w.pts[0]!, w.pts[1]!) < 1)!
+  const first = named("Fiume Vara").find((w) => outlineDistance(w.pts[0]!, w.pts[1]!) < 1)
+  assert.ok(first !== undefined, "a piece of the Vara starts on the play area's outline")
   assert.ok(Math.abs(first.area[0]! - 552.4) < 2, `the Vara brings ${first.area[0]} km²`)
   // The Autorità di bacino del Magra's PGRA gives the Vara about 600 km² at the Magra, and the
   // D8 on Liguria's DTM 605.6: its last piece ends on a vertex of the Magra's, which adds it.
@@ -336,6 +342,108 @@ test("water: the Vara–Magra confluence at Fornola is monotone, each water meet
   assert.ok(here.length > 5, `${here.length} pieces round the confluence`)
 })
 
+/** The Magra's and the Vara's water under this level lies on the plain they meet on, m: Fornola's 12.3 m and on down. */
+const PLAIN = 15
+/** The lattice the plain's polygons are read on, m. */
+const STEP = 16
+
+/** The nearest of `reaches` to (x, y) (one at least), and where along it. */
+const nearestReach = <R extends { ax: number; ay: number; bx: number; by: number }>(
+  reaches: ReadonlyArray<R>,
+  x: number,
+  y: number,
+) => {
+  let best = { reach: reaches[0]!, t: 0, d2: Number.MAX_VALUE }
+  for (const reach of reaches) {
+    const { d2, t } = segDist2(x, y, reach.ax, reach.ay, reach.bx, reach.by)
+    if (d2 < best.d2) best = { reach, t, d2 }
+  }
+  return best
+}
+
+// Issue #20's acceptance, over the river polygons the Magra and the Vara run in (OSM's relation
+// 1328370 and the Vara's own): their water is that of the nearest of their waterways where they run
+// in them (`insideOf` in water/rivers.ts, as `nearestOn` in tools/water-areas.ts carves them).
+// Regression: read on the whole course of a ditch on the terrace beside the Magra's plain
+// (1070845492), 259 m off outside the polygon, the Magra's polygon held its water at (−15744, −4608)
+// at 8.6 m, 7.3 m over the Magra's and 2.6 m deep.
+test("water: on the plain the Magra's and the Vara's polygons hold their waterways' water where they run in them, over the rivers' by more than 1 m only a tributary's that meets them", () => {
+  const index = waterIndex(WHOLE.water, WHOLE.areas)
+  const rivers = new Set(
+    WHOLE.water.flatMap((w, i) => (w.name === "Fiume Magra" || w.name === "Fiume Vara" ? [i] : [])),
+  )
+  // The waters that meet them: ending on a vertex of theirs, or of a water that does.
+  const at = new Map<string, Array<number>>()
+  WHOLE.water.forEach((w, i) =>
+    w.z.forEach((_, v) => {
+      const key = `${w.pts[2 * v]},${w.pts[2 * v + 1]}`
+      at.set(key, [...(at.get(key) ?? []), i])
+    }),
+  )
+  const meet = new Set(rivers)
+  for (let size = 0; size !== meet.size;) {
+    size = meet.size
+    WHOLE.water.forEach((w, i) => {
+      const on = at.get(`${w.pts.at(-2)},${w.pts.at(-1)}`) ?? []
+      if (on.some((j) => j !== i && meet.has(j))) meet.add(i)
+    })
+  }
+  /** The level of the water of `reach` `t` along it at the mean flow, as `waterAt` reads it. */
+  const levelOn = (r: (typeof index.pools)[number]["reaches"][number], t: number) =>
+    Math.max(
+      SEA_LEVEL,
+      r.bedA +
+        (r.bedB - r.bedA) * t +
+        (r.stageA + (r.stageB - r.stageA) * t) * Ops.pow(MEAN, STAGE),
+    )
+  const faults: Array<string> = []
+  let wet = 0,
+    over = 0
+  for (const pool of index.pools) {
+    const own = pool.reaches.filter((r) => rivers.has(r.piece))
+    // The plain's part of the polygon: round the rivers' reaches under PLAIN, as far as its width.
+    const low = own.filter((r) => Math.min(r.bedA, r.bedB) < PLAIN)
+    if (pool.level !== undefined || low.length === 0) continue
+    const [x0, y0, x1, y1] = pool.box
+    const c0 = Math.floor(x0 / STEP),
+      r0 = Math.floor(y0 / STEP),
+      cols = Math.ceil(x1 / STEP) - c0 + 1
+    fillPolygon(
+      pool.rings,
+      -STEP / 2,
+      -STEP / 2,
+      STEP,
+      { c0, r0, cols, rows: Math.ceil(y1 / STEP) - r0 + 1 },
+      (k) => {
+        const x = (c0 + (k % cols)) * STEP,
+          y = (r0 + Math.floor(k / cols)) * STEP
+        const river = nearestReach(own, x, y),
+          base = levelOn(river.reach, river.t)
+        if (base >= PLAIN) return
+        const here = index.at(x, y, terrainZ(x, y), MEAN)
+        if (here === undefined) return
+        wet++
+        const { reach: r } = nearestReach(pool.reaches, x, y),
+          id = WHOLE.water[r.piece]!.id
+        const mx = (r.ax + r.bx) / 2,
+          my = (r.ay + r.by) / 2
+        if (pool.rings.filter((ring) => inRing(mx, my, ring)).length % 2 === 0)
+          faults.push(`(${x}, ${y}) holds ${id}'s water from outside its polygon`)
+        if (here.level <= base + PERCH) return
+        over++
+        if (!meet.has(r.piece))
+          faults.push(
+            `(${x}, ${y}) holds ${id}'s water at ${here.level.toFixed(2)}, the rivers' ${base.toFixed(2)}, and it meets neither`,
+          )
+      },
+    )
+  }
+  assert.deepEqual(faults, [])
+  // 5,173 wet points, 8 of them over the rivers by more than 1 m, at most 2.24: the Calcandola's,
+  // 375205186's and 238380857's water where they fall into the Magra's polygon (2026-11-21)
+  assert.ok(wet > 5000, `${wet} wet points on the plain, ${over} over the rivers by more than 1 m`)
+})
+
 test("walls: water stops neither feet nor wheels; the shore walls ring it, and people and animals keep to them", () => {
   // The middle of every wide river's reach away from the roads and the map's edge: no walk or drive wall within 2 m, a shore wall
   // within its bed, or within 5 m past the nearest ground in no lake or river polygon, whose edge
@@ -368,7 +476,7 @@ test("walls: water stops neither feet nor wheels; the shore walls ring it, and p
       checked++
       // A wall a body in the water meets (`meets`): one with no level, or one on the water's level.
       // A bridge's parapet stands at its deck's top and stops no swimmer under it: the A15's over the
-      // Magra by Caprigliola, at 69.8 m, passes 1 m from a point of the river at 41.6 m.
+      // Magra by Caprigliola, at 69.8 m, passes 0.005 m from a vertex of the river at 41.5 m.
       const near = (kind: "walk" | "land" | "drive", r: number) =>
         wallsNear(kind, x - r, y - r, x + r, y + r).some(
           (s) => segmentDistance(s, x, y) < r && meets(s, w.z[k]!),
