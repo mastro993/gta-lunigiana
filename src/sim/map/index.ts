@@ -36,6 +36,7 @@ export {
   type AreaKind,
   BUILDING_STYLES,
   type BuildingStyle,
+  byTile,
   DECK_BALLAST,
   DECK_SLAB,
   isAreaKind,
@@ -455,7 +456,7 @@ interface RoadGraph {
   /**
    * Edges AI cars may use: motorway..service, public, one connected component. Where a lane
    * crosses a footprint the house is clipped to ~2.4 m around it, so keep vehicles wider than
-   * ~2.2 m on the main and unclassified roads (`lanesFor` in lanes.ts fits each model to the walls).
+   * ~2.2 m on the main and unclassified roads (`fitLanes` in lanes.ts fits each model to the walls).
    */
   readonly trafficEdges: ReadonlyArray<number>
   /** Edges pedestrians may use: every road but motorways, trunk roads and their slip roads (`isMotorRoad`), out of tunnels, one connected component. */

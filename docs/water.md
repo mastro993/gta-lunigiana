@@ -347,7 +347,7 @@ dry half) as their own walls, the shore, and `wallsNear` answers four kinds:
 | `walk` | buildings, slopes over 35°, cliffs, walls, the play area's outline, trunks, the low space under a road deck (on the ground's level, under 1.8 m of headroom) | everyone on foot and every animal |
 | `land` | `walk` and the shore | where people and animals spawn; a follower's way to its leader |
 | `drive` | `walk`'s but those under the decks, slopes over 25° off the roads, guard rails, the breakwaters' and groynes' outlines, parapets (on their deck's level), the low space under a road deck (on the ground's level, under 2.65 m of headroom), road-exit caps | every vehicle's physics |
-| `traffic` | `drive` and the shore | AI drivers' lanes (`lanesFor`), where vehicles spawn |
+| `traffic` | `drive` and the shore | AI drivers' lanes (`fitLanes`), where vehicles spawn |
 
 Traffic's dead ends and the spawns are worked out against the water's edge, as before, so the road
 graph, the parked spots and the player's spawn are the same; a parked car's box and the player's

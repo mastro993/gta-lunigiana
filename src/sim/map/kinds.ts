@@ -64,6 +64,28 @@ export const anchorOf = (hm: {
   return { x, y, i: (x - hm.x0) / hm.cell, j: (y - hm.y0) / hm.cell }
 }
 
+/**
+ * The items 0 … count − 1 in the order of the tiles their points `at` lie in (south to north, then
+ * west to east), each tile's in index order. A bake whose items each read the tiles round them runs
+ * through them so, as the build keeps only a few tiles decoded (`RESIDENT` in
+ * src/tools/build-output.ts): in the items' own order it decoded a tile again for almost every item.
+ */
+export const byTile = (
+  count: number,
+  at: (k: number) => { readonly x: number; readonly y: number },
+): Int32Array => {
+  const ti = new Int32Array(count),
+    tj = new Int32Array(count)
+  for (let k = 0; k < count; k++) {
+    const { x, y } = at(k)
+    ti[k] = Math.floor(x / TILE)
+    tj[k] = Math.floor(y / TILE)
+  }
+  return Int32Array.from({ length: count }, (_, k) => k).sort(
+    (a, b) => tj[a]! - tj[b]! || ti[a]! - ti[b]! || a - b,
+  )
+}
+
 /** How many rings round a tile `tilesRound` searches before it gives up: farther than any map's tiles reach. */
 const RINGS = 64
 
