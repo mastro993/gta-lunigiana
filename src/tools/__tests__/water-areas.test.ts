@@ -7,7 +7,9 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { insideSpans } from "../../sim/collide.ts"
 import type { Area } from "../../sim/map/index.ts"
+import { IN_POLYGON } from "../../sim/map/kinds.ts"
 import { firstCarving } from "../build-grid.ts"
 import { coastIndex } from "../coast.ts"
 import type { Dem } from "../dtm.ts"
@@ -162,25 +164,47 @@ const shore = (ring: ReadonlyArray<number>, x: number, y: number) => {
     )
   return Math.sqrt(best)
 }
-/** The nearest point on the profiles of `waters`, searched whole: its surface, and that water's depth. */
-const nearest = (waters: ReadonlyArray<number>, x: number, y: number) => {
+/**
+ * The nearest point on the profiles of `waters` where they run in `ring` (each 2 m segment cut
+ * where it crosses its edges), searched whole: its surface, and that water's depth.
+ */
+const nearest = (
+  waters: ReadonlyArray<number>,
+  ring: ReadonlyArray<number>,
+  x: number,
+  y: number,
+) => {
+  const spans = insideSpans([ring], IN_POLYGON)
   let best = Infinity,
     out = { surface: NaN, depth: NaN }
   for (const w of waters) {
     const p = wp[w]!
-    for (let k = 0; k + 1 < p.x.length; k++) {
-      const { d2, t } = segDist2(x, y, p.x[k]!, p.y[k]!, p.x[k + 1]!, p.y[k + 1]!)
-      if (d2 < best) {
-        best = d2
-        out = { surface: p.z[k]! + (p.z[k + 1]! - p.z[k]!) * t, depth: WATER[w]!.depth }
+    for (let k = 0; k + 1 < p.x.length; k++)
+      for (const [t0, t1] of spans(p.x[k]!, p.y[k]!, p.x[k + 1]!, p.y[k + 1]!)) {
+        const dx = p.x[k + 1]! - p.x[k]!,
+          dy = p.y[k + 1]! - p.y[k]!
+        const { d2, t } = segDist2(
+          x,
+          y,
+          p.x[k]! + dx * t0,
+          p.y[k]! + dy * t0,
+          p.x[k]! + dx * t1,
+          p.y[k]! + dy * t1,
+        )
+        if (d2 < best) {
+          const along = t0 + (t1 - t0) * t
+          best = d2
+          out = { surface: p.z[k]! + (p.z[k + 1]! - p.z[k]!) * along, depth: WATER[w]!.depth }
+        }
       }
-    }
   }
   return out
 }
-/** The waterways of the first river polygon whose cells touch the node at (x, y), if any. */
-const watersAt = (x: number, y: number) =>
-  carved.find((a) => a.waters !== undefined && touches(a.rings[0]!, x, y))?.waters
+/** The nearest point on its waterways (`nearest`) of each river polygon whose cells touch the node at (x, y), in their order. */
+const riversAt = (x: number, y: number) =>
+  carved
+    .filter((a) => a.waters !== undefined && touches(a.rings[0]!, x, y))
+    .map((a) => nearest(a.waters!, a.rings[0]!, x, y))
 const close = (a: number, b: number, what: string) =>
   assert.ok(Math.abs(a - b) < 1e-9, `${what}: ${a}, want ${b}`)
 
@@ -255,20 +279,29 @@ test("water areas: a river polygon is carved to its waterways' floor at the near
     if (x >= 250 || touches(BAR, x, y)) continue // the lake's and the bar's own tests
     const z = at(raised, x, y),
       z0 = at(bare, x, y),
-      waters = watersAt(x, y)
-    if (waters === undefined) assert.equal(z, z0, `(${x}, ${y}) outside`)
+      rivers = riversAt(x, y)
+    if (rivers.length === 0) assert.equal(z, z0, `(${x}, ${y}) outside`)
     else if (onEdge(x, y)) {
       assert.equal(z, z0, `(${x}, ${y}) on the outer edge`)
       count.edge++
     } else {
-      const { surface, depth } = nearest(waters, x, y)
-      if (z0 > surface + depth / 2 + 1) {
+      // Each polygon in turn, on the ground the one before left: on its seam, the lower floor.
+      let want = z0,
+        reached = false,
+        stream = false
+      for (const { surface, depth } of rivers) {
+        if (want > surface + depth / 2 + 1) continue
+        reached = true
+        if (surface - depth / 2 - 0.05 < want)
+          [want, stream] = [surface - depth / 2 - 0.05, depth === STREAM.depth]
+      }
+      if (reached) {
+        close(z, want, `floor (${x}, ${y})`)
+        count.floor++
+        if (stream) count.stream++
+      } else {
         assert.equal(z, z0, `bank (${x}, ${y})`)
         count.bank++
-      } else {
-        close(z, Math.min(z0, surface - depth / 2 - 0.05), `floor (${x}, ${y})`)
-        count.floor++
-        if (depth === STREAM.depth) count.stream++
       }
     }
   }
@@ -295,8 +328,8 @@ test("water areas: a gravel bar in a river polygon is raised 0.3 m over the surf
       continue
     }
     assert.equal(at(kept, x, y), z0, `bar (${x}, ${y}) left`)
-    const { surface } = nearest(watersAt(x, y)!, x, y)
-    close(at(raised, x, y), Math.max(z0, surface + 0.3), `bar (${x}, ${y}) raised`)
+    const top = Math.max(...riversAt(x, y).map(({ surface }) => surface + 0.3))
+    close(at(raised, x, y), Math.max(z0, top), `bar (${x}, ${y}) raised`)
     if (at(raised, x, y) > z0) lifted++
   }
   assert.ok(lifted > 10, `${lifted} nodes of the bar raised`)
@@ -315,7 +348,7 @@ test("water areas: a river polygon's outer edge under its waterways' floor is ra
   for (let x = 40; x <= 80; x += 4) {
     assert.ok(onEdge(x, 40) && touches(WEST, x, 40))
     const z0 = at(lowered.grid(WHOLE), x, 40),
-      { surface, depth } = nearest([0], x, 40)
+      { surface, depth } = nearest([0], WEST, x, 40)
     assert.ok(z0 < surface - depth / 2, `(${x}, 40) under the floor`)
     close(at(before, x, 40), surface - depth / 2 + 0.05, `(${x}, 40) raised`)
     assert.equal(at(after, x, 40), z0, `(${x}, 40) left`)
@@ -324,13 +357,66 @@ test("water areas: a river polygon's outer edge under its waterways' floor is ra
   assert.equal(edge, 11)
 })
 
+// Regression: a ditch on the terrace beside the Magra's polygon on the plain
+// (1070845492), whose course outside the polygon came nearest, held its water 7.3 m over the Magra.
+test("water areas: a river polygon reads its waterways where they run in it, not a ditch's course on the terrace beside it", () => {
+  // A plain at 10 m under a terrace at 14 m north of y 124; a polygon x 20…220, y 40…120, its river
+  // along y 60; a ditch along the terrace (y 130), turning down into the polygon at x 200.
+  const plain = demOf((_, y) => (y > 124 ? 14 : 10))
+  const river: WaterF = {
+    id: 1,
+    kind: "river",
+    w: 8,
+    bed: 6,
+    depth: 1.5,
+    pts: [
+      { x: 0, y: 60 },
+      { x: 240, y: 60 },
+    ],
+    from: 0,
+  }
+  const ditch: WaterF = {
+    id: 2,
+    kind: "stream",
+    w: 2,
+    bed: 3,
+    depth: 1,
+    pts: [
+      { x: 20, y: 130 },
+      { x: 200, y: 130 },
+      { x: 200, y: 108 },
+    ],
+    from: 0,
+  }
+  const both = [river, ditch],
+    profiles = waterProfiles(both, plain.at)
+  const terrace = waterAreas(
+    [{ kind: "river", rings: [[20, 40, 220, 40, 220, 120, 20, 120]] }],
+    both,
+    profiles,
+    plain,
+  )
+  assert.deepEqual(terrace.areas[0]!.waters, [0, 1], "the ditch is one of its waterways")
+  const g = plain.grid(WHOLE)
+  carveAreas(g, terrace.carved, both, profiles, false)
+  // 14 m from the ditch's course outside, 56 m from the river: the river's water, on its floor.
+  const level = waterLevel(terrace.carved, both, profiles)
+  close(level(60, 116)!, 10 - 0.75, "the river's surface at (60, 116)")
+  close(at(g, 60, 116), 10 - 1.5 - 0.05, "carved to the river's floor")
+  // On the ditch's own course inside the polygon, the ditch's water.
+  close(level(200, 112)!, 10 - 0.5, "the ditch's surface at (200, 112)")
+})
+
 test("water areas: the seam between two river polygons across the river is carved as their inside, not left as an edge", () => {
   let seam = 0
   for (let y = 44; y <= 156; y += 4) {
     if (touches(BAR, 120, y)) continue
     assert.ok(touches(WEST, 120, y) && touches(EAST, 120, y) && !onEdge(120, y))
-    const { surface, depth } = nearest([0], 120, y)
-    close(at(raised, 120, y), surface - depth / 2 - 0.05, `seam (120, ${y})`)
+    // Each polygon reads the river where it runs in it: the seam, the lower of their floors.
+    const floor = Math.min(
+      ...riversAt(120, y).map(({ surface, depth }) => surface - depth / 2 - 0.05),
+    )
+    close(at(raised, 120, y), floor, `seam (120, ${y})`)
     seam++
   }
   assert.ok(seam > 20)

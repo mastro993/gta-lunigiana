@@ -83,6 +83,44 @@ test("rivers: two river polygons of one river meeting across it send a body to t
   }
 })
 
+// Regression: a ditch on the terrace beside the Magra's polygon on the plain
+// (1070845492), whose course outside the polygon came nearest, held its water 7.3 m over the Magra.
+test("rivers: a river polygon holds its waterways' water where they run in it, not a ditch's beside it outside", () => {
+  // A ditch on a terrace along the polygon's north side (y 150), turning into it at x 140.
+  const ditch = piece(3, [40, 150, 140, 150, 140, 120], [103, 102.9, 97.4], [102.5, 102.4, 96.9])
+  const ditched = waterIndex(
+    [RIVER, ditch],
+    [{ kind: "river", rings: [[50, 60, 150, 60, 150, 140, 50, 140]], waters: [0, 1] }],
+  )
+  // 14 m from the ditch's course outside, 36 m from the river.
+  assert.equal(
+    ditched.at(60, 136, 96.5, Q)!.level,
+    index.at(60, 136, 96.5, Q)!.level,
+    "the river's level",
+  )
+  // On the ditch's own course inside the polygon, the ditch's water, 1.2 m over the river's floor.
+  const own = ditched.at(140, 130, 96.5, Q)!
+  assert.ok(own.level > index.at(140, 130, 96.5, Q)!.level + 1, `the ditch's level ${own.level}`)
+  assert.ok(own.vx === 0 && own.vy < 0, "running down its own course")
+  // Ending on the polygon's outline, 0.05 m in as rounding leaves it (`IN_POLYGON`), it runs in none
+  // of it: 10 m from its end, the river's level.
+  const ending = piece(
+    4,
+    [40, 150, 140, 150, 140, 139.95],
+    [103, 102.9, 102.3],
+    [102.5, 102.4, 101.8],
+  )
+  const ends = waterIndex(
+    [RIVER, ending],
+    [{ kind: "river", rings: [[50, 60, 150, 60, 150, 140, 50, 140]], waters: [0, 1] }],
+  )
+  assert.equal(
+    ends.at(130, 138, 96.5, Q)!.level,
+    index.at(130, 138, 96.5, Q)!.level,
+    "the river's level by a ditch ending on the outline",
+  )
+})
+
 test("rivers: a lake stands still at its level, the bank toward its nearest shore, over a stream through it", () => {
   const lake = index.at(335, 100, 93, Q)!
   assert.deepEqual(lake, { depth: 2, level: 95, vx: 0, vy: 0, bankX: 1, bankY: 0 })
