@@ -1378,8 +1378,10 @@ code:
   time from a new game, `railStep` alone, seeds 1–6: 38–39 trains (3 Lucca–Aulla, 5 on each
   Pontremolese line but 4–5 Livorno–Milano, 7–8 Pietrasanta–La Spezia and 8–9 La Spezia–Pietrasanta),
   2 turned round at the terminus, no train struck, and no train standing outside a dwell for more
-  than 1.5 s, but 18 s in seed 6 (27–29 trains, 3 s at most, on the three lines before Sarzana's
-  part). Entering 1 m outside that clearance of a train standing on
+  than 1.5 s, but 18.3 s in seed 6, 1 h 16 min in: a train on the Milano–Livorno line held 86 m
+  behind one on the La Spezia–Pietrasanta line dwelling at Sarzana's platform, both running west on
+  the track the two lines share, until that one left (27–29 trains, 3 s at most, on the three lines
+  before Sarzana's part). Entering 1 m outside that clearance of a train standing on
   the line, it stops 30.2 m behind it, braking at 0.609 m/s² at most.
 - **A new game** starts with each line's train already dwelling at the station nearest the player's
   start whose platforms no train placed already stands on, with 30 m to spare (lines sharing track
