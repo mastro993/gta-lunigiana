@@ -3219,49 +3219,72 @@ coast the Canale Fossa Maestra starts 1.1 m under Via Carlo Fabbricotti's bridge
 112 nodes go down by up to 1.4 m; Cesena and the L hold none. The deck's clearance wins over a
 junction: a way ponded up to the water it joins and capped under a footbridge near its mouth ends
 under that water's level, as the water after a cap falls on from it (`capUnderDecks`), so the
-junctions where a water's end stands more than 0.1 m off the water it joins go from 153 to 156 on
+junctions where a water's end stands more than 0.1 m off the water it joins went from 153 to 156 on
 Lunigiana with issue #20's water rules (the stream 791364133 at Aulla ends 2.1 m under the Magra's
 74.7 m, where it rose 72.6 → 74.7 over its last vertices before, and 214322146, capped under a
 track's bridge, 0.3 m under the Solco di Equi it joins), and from 1 to 4 on the coast, each 1.0 m
-(the plain's ditches by (−11360…−11084, −11192…−11064)); the L stays at 9 and Cesena at none. A
-bridge stands its 2.5 m over the water a walker on it could reach in a spate, which a deck over
-backwater that ponding held up would not. At-grade road crossings imply a culvert, where the water
-dips 0.3 m below the road (the two fords over the Aulella, at and below Codiponte, are such
-crossings). Water left perched more than 1 m above the terrain (streams that end at a road cut)
-drops to the terrain, except inside a wider channel it flows into or in a lake's water, whose carved
-beds lie under it, and there only while it still runs downhill (a stream dropped into a river's
-carved bed never steps back up): the Canale Doglio through the 18 m² lake at (2934, −2611). A lake's
-water stands within 1 m of its level; higher, a surface inside its outline is the stream's on the
-bank, and drops no lower than the level, where it meets the lake's. The Canale della Fola runs into
-a pond 570 m from Arlia at its ground, 1.7 m over the level the pond's outlet caps it at (its lowest
-edge node, down the outlet's cascade), and its last sample there, over the cascade carved 4 m under
-it, stood 3.4 m over the ground; it now meets the pond at its level. Two streams into ponds by
-Agnolo drop to their levels: 791367422 up to 1.4 m on the bank its pond's outline reaches up, and
-the Rio di Antigo to a level 0.4 m under its own surface leaving the pond, where it steps back up. A
-sample after a dropped one stands no higher than the dropped surface while its own carved ground
-lies under it, except in a lake's water; where the ground rises past the dropped surface the stream
-keeps its own (way 791364133, past a path at grade). The Arcinasso stepped back up 1.0 m at (−8592,
-4954) and way 1430400928 0.1 m into the Magra's gravel; fixed (issue #19, for every part),
-Lunigiana's samples that rise over the one before fell from 13,507 to 56, on 34 pieces, none in a
-river polygon (7 were), and 13,403 vertices on 3,276 pieces lie lower, by at most 1.3 m; Cesena's
-water is unchanged. A perched sample after a dropped one dropped to its own top, wherever that
-stood: a stream falling into the Magra's polygon by Caprigliola (way 789354420) dropped its samples
-each to their own over the bed the polygon's carve left rising under them, and stepped 0.1 m back up
-(32.5 m after 32.4 at (−16584.6, 2908.5)); held at the dropped surface too (issue #20), and with the
-settling at rest, Lunigiana's vertices that rise over the one before go from 74 on 42 pieces to 51
-on 35, the coast's from 4 to 3 and the L's stay none. A stream's dead end where its dropped culvert
-begins under at-grade track is cut back along its line (`clearOfTrack`), to stop w/2 + a margin off
-the track: 1 m plus a cell's 5.66 m diagonal for a stream 4 m wide or more, else 2 m. The build
-lists the cuts as `streamEnds` and throws on one past twice that reach: six, all in Aulla's part,
-the Fosso di Vezzale's 842172309 and 842172310 by 5.5 and 3.0 m, the Canale Manarola's 842172313 and
-842172315 and the Canale del Piccardo's 1452819624 by 4.5 m and 1452819622 by 8.5 m. The line hung
-4.54 m over the Manarola's bed at (−14178, 11509), and the Piccardo stood 0.22 m deep on the rail
-bed at (−13423, 9190) at 1.72 m³/s per km². A stream under a bridge's end is no culvert under its
-approach (`bedOf`): 38 of Lunigiana's floors and 1 of the L's moved, by up to 4.2 m (789355109). The
-grid is then rounded to 0.1 m and stored as integer decimetres. The capping and settling read no
-terrain and run before the grid is built (`capUnderDecks`); the re-carve runs in each tile's window,
-which then reads the terrain under the water samples of its own cells before rounding; the culverts
-and the perched drop run on those readings once every tile is built (`dropPerched`).
+(the plain's ditches by (−11360…−11084, −11192…−11064)); Cesena holds none. With the perched drop
+held at the level of the wider water a stream flows into (below), Lunigiana's go from 157 to 92 (the
+ends under the water they join from 102 to 37, those over it 55 as before) and the L's from 9 to
+none; the coast's 4 and Cesena's none stay. A bridge stands its 2.5 m over the water a walker on it
+could reach in a spate, which a deck over backwater that ponding held up would not. At-grade road
+crossings imply a culvert, where the water dips 0.3 m below the road (the two fords over the
+Aulella, at and below Codiponte, are such crossings). Water left perched more than 1 m above the
+terrain (streams that end at a road cut) drops to the terrain, except inside a wider channel it
+flows into or in a lake's water, whose carved beds lie under it, and there only while it still runs
+downhill (a stream dropped into a river's carved bed never steps back up): the Canale Doglio through
+the 18 m² lake at (2934, −2611). Within the reach of the wider water it flows into (`reachOf`: its
+gravel bed's half-width, or its own where wider), a sample that no longer runs downhill drops no
+lower than the level it meets that water at, as in a lake's (issue #20, round 2). Dropped to its own
+top there, on that water's floor, a stream stood half their depths' difference under its surface
+(0.75 m for a stream in a river): once the Vara took the Magra's 25 m class, its carve reached the
+ditch 819040162 at Fornola on its bank, 14 m off the Vara's line, and the ditch, dropped there, fell
+on to 12.5 m in the Vara's channel and met the Vara 0.8 m under its 13.3 m; 64 more ends on
+Lunigiana met the water they join 0.2–1.1 m under (21 on the Aulella, 7 on the Lucido, 4 on the
+Taverone, 3 on the Magra, another on the Vara and 28 on 4 m streams), and the L's 9 on the Lucido
+and the Aulella. The level is read where they meet: read at the nearest point of any wider water, it
+held a stream up beside the steeper sibling it runs down with (788514911 by 788514912), 1.6 m over
+the way both continue into. It holds in the reach, not in the channel (w/2 + 1 m) alone: held there
+alone, the stream 797866067, dropped to its own top on the Aulella's bank between its channel, 7 m
+off its line, and its reach, 13 m off, under the Aulella's level, still ended 0.5 m under it. Only the
+water's lines move (`pnpm map-diff`: the water alone): on Lunigiana 79 pieces, 134 of their vertices
+up by up to 1.1 m and none down; on the L 9 pieces, 14 vertices up by up to 1.0 m; the coast and
+Cesena build the same. Of the 37 ends still under on Lunigiana, two are a deck's caps (791364133,
+214322146), three dropped under the level before the reach, where the ground beside the water they
+join lies under its level (790365012 0.8 m under the Fosso di Parmola, 790365069 0.6 m under the
+Fosso di Fossa Cieca, 1312816849 0.2 m under the Magra), and the rest meet a water no wider, as the
+settling's continuations leave them. A lake's water stands within 1 m of its level; higher, a
+surface inside its outline is the stream's on the bank, and drops no lower than the level, where it
+meets the lake's. The Canale della Fola runs into a pond 570 m from Arlia at its ground, 1.7 m over
+the level the pond's outlet caps it at (its lowest edge node, down the outlet's cascade), and its
+last sample there, over the cascade carved 4 m under it, stood 3.4 m over the ground; it now meets
+the pond at its level. Two streams into ponds by Agnolo drop to their levels: 791367422 up to 1.4 m
+on the bank its pond's outline reaches up, and the Rio di Antigo to a level 0.4 m under its own
+surface leaving the pond, where it steps back up. A sample after a dropped one stands no higher than
+the dropped surface while its own carved ground lies under it, except in a lake's water; where the
+ground rises past the dropped surface the stream keeps its own (way 791364133, past a path at
+grade). The Arcinasso stepped back up 1.0 m at (−8592, 4954) and way 1430400928 0.1 m into the
+Magra's gravel; fixed (issue #19, for every part), Lunigiana's samples that rise over the one before
+fell from 13,507 to 56, on 34 pieces, none in a river polygon (7 were), and 13,403 vertices on 3,276
+pieces lie lower, by at most 1.3 m; Cesena's water is unchanged. A perched sample after a dropped
+one dropped to its own top, wherever that stood: a stream falling into the Magra's polygon by
+Caprigliola (way 789354420) dropped its samples each to their own over the bed the polygon's carve
+left rising under them, and stepped 0.1 m back up (32.5 m after 32.4 at (−16584.6, 2908.5)); held at
+the dropped surface too (issue #20), and with the settling at rest, Lunigiana's vertices that rise
+over the one before go from 74 on 42 pieces to 51 on 35, the coast's from 4 to 3 and the L's stay
+none. A stream's dead end where its dropped culvert begins under at-grade track is cut back along
+its line (`clearOfTrack`), to stop w/2 + a margin off the track: 1 m plus a cell's 5.66 m diagonal
+for a stream 4 m wide or more, else 2 m. The build lists the cuts as `streamEnds` and throws on one
+past twice that reach: six, all in Aulla's part, the Fosso di Vezzale's 842172309 and 842172310 by
+5.5 and 3.0 m, the Canale Manarola's 842172313 and 842172315 and the Canale del Piccardo's
+1452819624 by 4.5 m and 1452819622 by 8.5 m. The line hung 4.54 m over the Manarola's bed at
+(−14178, 11509), and the Piccardo stood 0.22 m deep on the rail bed at (−13423, 9190) at 1.72 m³/s
+per km². A stream under a bridge's end is no culvert under its approach (`bedOf`): 38 of Lunigiana's
+floors and 1 of the L's moved, by up to 4.2 m (789355109). The grid is then rounded to 0.1 m and
+stored as integer decimetres. The capping and settling read no terrain and run before the grid is
+built (`capUnderDecks`); the re-carve runs in each tile's window, which then reads the terrain under
+the water samples of its own cells before rounding; the culverts and the perched drop run on those
+readings once every tile is built (`dropPerched`).
 
 ### 9. The railway (`railway.ts`, `platforms.ts`, `rail-clear.ts`)
 
@@ -4859,7 +4882,11 @@ the river polygons and the bar, carve every node as the whole grid does (red wit
 round a window left out); and which nodes the roads may not claim. `water.test.ts` checks that
 `dropPerched` keeps a lake's samples, and drops a surface more than `PERCH` (1 m) over a lake's
 level, which is no water of the lake's, to that level; that no sample after a dropped one, perched
-too or not, steps back up over it; that a way held up by the water it joins backs up the way it
+too or not, steps back up over it; that a ditch dropped down the bank of the wider water it flows
+into, the Vara's class and the Aulella's valley bed, drops no lower than the level it meets that
+water at in its channel and, past it, within its reach (red with the drop to its own top there, and
+the second with the channel alone: issue #20, round 2); that a way held up by the water it
+joins backs up the way it
 continues while a way's own ground holds nothing up; and that a held way capped under a deck falls
 on from the cap (each red before its fix, issue #20). `water-areas.test.ts` also checks that a
 pool all of whose nodes are its edge stands at its spill as the tile pass leaves it, the lines
