@@ -205,7 +205,13 @@ export const capUnderDecks = (
  * approaches); then water left perched over a road cut (culverted streams end at the road) drops
  * to the terrain, except inside a wider channel it flows into or a lake's water, whose carved beds
  * lie under it, as long as it still runs downhill there (a stream dropped into a river's carved bed
- * never steps back up). Nor does a sample after a dropped one, within PERCH of its own ground or
+ * never steps back up). Within the reach of the wider water it flows into (where that water holds
+ * water across its line), it drops no lower than the level it meets that water at, as in a lake's:
+ * dropped down the Vara's bank, the ditch 819040162 fell on to its own top over the Vara's floor
+ * and met the Vara 0.8 m under its surface at Fornola (12.5 m, the Vara 13.3 there). The
+ * level is read where they meet: read at the nearest point of any wider water, it held a stream up
+ * at the steeper sibling it runs down beside (788514911 by 788514912), 1.6 m over the way both
+ * continue into. Nor does a sample after a dropped one, within PERCH of its own ground or
  * perched too, stand over it while that ground lies under it, but in a lake's water: it drops to the
  * dropped surface (dropped each to its own top, a stream's perched samples falling into the Magra's
  * polygon by Caprigliola, way 789354420, rose 0.1 m with the bed carved under them). A stream
@@ -231,10 +237,29 @@ export const dropPerched = (
 ): void => {
   for (const c of crossed)
     if (c.clear === undefined) cap(wp[c.water]!, c.at, c.half, c.deck - CULVERT, true)
-  const channels = segIndex<number>()
-  water.forEach((w, i) => channels.addLine(w.pts, w.w / 2 + 1, i))
+  const channels = segIndex<number>(),
+    reaches = segIndex<number>()
   water.forEach((w, i) => {
-    const p = wp[i]!
+    channels.addLine(w.pts, w.w / 2 + 1, i)
+    // Where it holds water across its line: its gravel bed's half-width, or its own where wider
+    // (`reachOf` in sim/water/channel.ts).
+    reaches.addLine(w.pts, Math.max(w.bed, w.w / 2), i)
+  })
+  const into = receivers(water)
+  // The widest first, so that the water a narrower one flows into is final where it meets it.
+  const order = water.map((_, i) => i).sort((a, b) => water[b]!.w - water[a]!.w || a - b)
+  for (const i of order) {
+    const w = water[i]!,
+      p = wp[i]!
+    // The level the wider water it flows into stands at where they meet, within that water's reach.
+    const meets = into[i]!.filter(([j]) => water[j]!.w > w.w)
+    const level = (x: number, y: number) => {
+      let z: number | undefined
+      for (const [j, v] of meets)
+        if (reaches.covers(x, y, (o) => o === j))
+          z = Math.max(z ?? -Infinity, wp[j]!.z[wp[j]!.vertexSample[v]!]!)
+      return z
+    }
     // The surface the last sample dropped to, while the samples after it would stand over it.
     let dropped = Number.POSITIVE_INFINITY
     for (let k = 0; k < p.z.length; k++) {
@@ -259,12 +284,14 @@ export const dropPerched = (
           channels.covers(x, y, (j) => j !== i && water[j]!.w > w.w))
       if (joins) dropped = Number.POSITIVE_INFINITY
       else {
-        const own = Math.min(p.z[k]!, Math.max(top, lake ?? top))
+        // In a lake's water no lower than its level; within the reach of the wider water it flows
+        // into, no lower than the level it meets that water at.
+        const own = Math.min(p.z[k]!, Math.max(top, lake ?? level(x, y) ?? top))
         // Perched too, it drops no higher than the dropped surface while its ground lies under it.
         dropped = p.z[k] = lake === undefined && ground < dropped ? Math.min(own, dropped) : own
       }
     }
-  })
+  }
   aboveSea(wp)
 }
 
