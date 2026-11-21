@@ -39,13 +39,16 @@ const named = (width: number, height: number, here: string) =>
 
 const majors = PLACES.filter((p) => p.major).map((p) => p.name)
 
-test("the full map names every town and village at 1920 × 1080 and 1280 × 720, and all but seven on a phone, Monzone and Gragnola among them", () => {
+test("the full map names every town and village at 1920 × 1080 and 1280 × 720, and all but 23 on a phone, Monzone and Gragnola among them", () => {
   // The player at the start, in a district (Monzone's station) that names no place, so no name
   // goes first.
   const start = districtAt(MAP.spawns.player.x, MAP.spawns.player.y).name
   // At 1280 × 720 Colognola and Campiglione, 631 m apart, vie for the same room, and a fraction of
-  // a pixel picks which is named (at a flat 0.6 em, Colognola), so neither is asked for there. The
-  // villages a phone leaves out are the ones docs/architecture.md lists.
+  // a pixel picks which is named (at a flat 0.6 em, Campiglione), so neither is asked for there.
+  // The villages a phone leaves out are the ones docs/architecture.md lists: 16 of them among the
+  // lower Val di Magra's 28 towns and villages (Sarzana's part, west of x -14 km), whose dots lie
+  // in a strip 104 px wide there, and 7 elsewhere; towns go first when not all fit, so it names
+  // all five.
   const crowded = new Set(["Colognola", "Campiglione"])
   for (const [width, height, asked, unnamed] of [
     [1920, 1080, ASKED, []],
@@ -56,12 +59,28 @@ test("the full map names every town and village at 1920 × 1080 and 1280 × 720,
       ["Monzone", "Equi Terme", "Gragnola", "Vinca", "Monte Sagro"],
       [
         "Casola in Lunigiana",
-        "Casciana",
-        "Pieve San Lorenzo",
+        "Ponte di Arcola",
+        "Ponzano Magra",
+        "Piana Battolla",
+        "Piano di Follo",
+        "Romito Magra",
+        "Ponzano Superiore",
+        "Vigneta",
+        "Caprigliola",
         "Monti di Licciana",
-        "Serricciolo",
+        "Trebiano",
+        "Cerri",
+        "Baccano",
+        "Falcinello",
         "Terrarossa",
-        "Alebbio",
+        "Ressora",
+        "Ceparana",
+        "Mezzana",
+        "Piano di Valeriano",
+        "Caniparola",
+        "La Serra",
+        "Buonviaggio",
+        "Vezzano Superiore",
       ],
     ],
   ] as const) {

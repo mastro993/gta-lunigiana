@@ -45,6 +45,8 @@ test("the map fits the screen inside the margins, centred, with north up and the
     near(fit.frame.x1, fit.ox + mapW, "frame east")
     near(fit.frame.y0, fit.oy, "frame north")
     near(fit.frame.y1, fit.oy + mapH, "frame south")
+    // The room is the screen inside the margins, whatever the map leaves of it.
+    assert.deepEqual(fit.room, { x0: 24, y0: 64, x1: w - 24, y1: h - 56 })
   }
 })
 

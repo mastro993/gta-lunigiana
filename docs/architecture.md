@@ -2359,37 +2359,63 @@ sky store `SkyView`, and the dev trains store `TrainView`:
   In headless Chrome with Metal on an M-series Mac, lucido's alone (3195 × 4096 px, 3.06 MB) took
   about 10 ms to fetch from a local server, 57–64 ms to decode (Cesena's 90 ms) and 18–29 ms to draw
   scaled (71 ms the first time). The frame, the labels, the north arrow, the scale bar and the player
-  are painted live at screen resolution over it. It names the OSM town and villages (big) and
-  hamlets (`place=*` POIs, localities left out), then the peaks that are HUD landmark districts
-  (Monte Sagro, Pizzo d'Uccello...), once per name: Lunigiana's 257, 2 towns, 25 villages, 215
-  hamlets and 15 peaks (156, 1, 16, 125 and 14 before Aulla's part; 116, 1, 11, 93 and 11 before
-  Fosdinovo's). `placeLabels` places them in
-  that order, but the place named after the player's district (the one the header shows) goes first,
-  so a crowded map still names the village the player is in; within a kind the label with the fewest
-  free sides goes first (the earlier on a tie), so a name with room to spare does not take another's
-  last side. A name goes above its dot, else below, right or left of it: on the first side that
-  overlaps no name or dot placed, the north arrow, the scale bar, its own dot or a dot of its kind
-  still to place (a name over a dot reads as that place's). A place with no side free, or whose dot
-  lies under a name or dot placed, the north arrow or the scale bar, is left out with its dot.
-  Showing the whole map, a small screen still leaves villages unnamed; zoomed in, it names them.
-  With the player at the start, whose district (Monzone's station) names no place, and the names as
-  wide as Chrome draws Courier New, every town and village is named at 1920 × 1080 (222 names) and
-  1280 × 720 (160), and an 844 × 390 phone (42) leaves out Casola in Lunigiana, Casciana, Pieve San
-  Lorenzo, Monti di Licciana, Serricciolo, Terrarossa and Alebbio (`worldmap.map-test.ts` checks
-  both; before Aulla's part 136, 102 and 31 names, Caniparola left out in place of Aulla's three,
-  and before Fosdinovo's part 102, 68 and 21, the same four left out and Caniparola not on the
-  map). A player in one of them finds it
-  named, and others may go instead: in Casola, Pieve San Lorenzo, Vigneta, Castiglioncello,
-  Alebbio, Mezzana and Caniparola; in Caniparola, Casola, Casciana, Castelpoggio, Pieve San Lorenzo
-  and Alebbio. Placed as before (by kind, each above its dot or left out), on the map with
-  Fivizzano's part, the names were 52 at 1280 × 720, Castiglioncello, Alebbio and Mezzana left out,
-  and 15 on the phone, 6 villages left out, Monzone and Gragnola among them. Placing them takes
-  9.3–9.4 ms at the median at 1280 × 720 in Node and about 19 ms the first call in a process
-  (13.0–13.4 and about 24 ms at 1920 × 1080, 2.5–2.6 and about 8 ms on the phone; three fresh
-  processes on 2026-11-07 under a load average of 12–14, against 3.8, 5.6 and 1.1 ms at the median
-  before Fosdinovo's part, run in turn), more in the browser, which measures the text. The player is
-  a red arrow in a red ring (no label is red), drawn on its own canvas over the map so CSS blinks it
-  (steady under `prefers-reduced-motion`; zoomed away from the player, it is not drawn), with a
+  are painted live at screen resolution over it. It names the OSM towns, villages and hamlets
+  (`place=*` POIs, localities left out), then the peaks that are HUD landmark districts (Monte
+  Sagro, Pizzo d'Uccello...), once per name: Lunigiana's 322, 5 towns, 49 villages, 251 hamlets and
+  17 peaks (257, 2, 25, 215 and 15 before Sarzana's part; 156, 1, 16, 125 and 14 before Aulla's;
+  116, 1, 11, 93 and 11 before Fosdinovo's). A town's name is 16 px and a village's 14 px, both
+  yellow capitals, and a hamlet's or a peak's 11 px and white. Villages were 16 px, as towns, until
+  Sarzana's part: at 15 px or more, every side of Piano di Valeriano's 18 letters (below) covers
+  another town's or village's dot at 1280 × 720, so no placement names them all. A name goes above
+  its dot, else below, right or left of it; a town's or a village's may also take the corners round
+  it (above or below it, to the right or the left), which the dense villages of the plains need. A
+  hamlet's or a peak's keeps the four sides: with the corners too, 302 names rather than 285 at
+  1920 × 1080, but round Monzone the hamlets take each other's room and Campiglione, which the user
+  asked for, goes. A name slides across to stay inside the room within the margins (`room` in
+  `map-view.ts`'s fit), so where the whole map is narrower than the screen a name by the frame's
+  side reaches past it into the margin, as on Sarzana's plain by the west edge; zoomed in, the frame
+  fills the room across. `placeLabels` places the majors first, together: the place named after the
+  player's district (the one the header shows), the towns and the villages, the label with the
+  fewest free sides next (the earlier on a tie), so a name with room to spare does not take
+  another's last side. A side is free when it overlaps no name or dot placed, the north arrow, the
+  scale bar, its own dot or the dot of a major still to place (a name over a dot reads as that
+  place's), and of its free sides a major's name takes the one that takes the least room from the
+  hamlets and peaks (each of their sides it overlaps, and all of a place's when it covers its dot),
+  the earlier on a tie. When that names every major it stands; else, as on a phone, they go rank by
+  rank, the player's place, the towns, then the villages, each name on its first free side clear of
+  its rank's dots still to place, so a crowded map still names the place the player is in and the
+  towns before the villages. The hamlets, then the peaks, always go after, rank by rank in the same
+  way. A place with no side free, or whose dot lies under a name or dot placed, the north arrow or
+  the scale bar, is left out with its dot. Showing the whole map, a small screen still leaves
+  villages unnamed; zoomed in, it names them. With the player at the start, whose district
+  (Monzone's station) names no place, and the names as wide as Chrome draws Courier New, every town
+  and village is named at 1920 × 1080 (285 names) and 1280 × 720 (192), and an 844 × 390 phone (48)
+  leaves out 23 villages, every town named: Casola in Lunigiana, Ponte di Arcola, Ponzano Magra,
+  Piana Battolla, Piano di Follo, Romito Magra, Ponzano Superiore, Vigneta, Caprigliola, Monti di
+  Licciana, Trebiano, Cerri, Baccano, Falcinello, Terrarossa, Ressora, Ceparana, Mezzana, Piano di
+  Valeriano, Caniparola, La Serra, Buonviaggio and Vezzano Superiore (`worldmap.map-test.ts` checks
+  both). 16 of the 23 are among the lower Val di Magra's 28 towns and villages (west of x −14 km),
+  whose dots lie in a strip 104 px wide on the phone. Placed as before Sarzana's part (rank by rank,
+  a town's name free to cover a village's dot, four sides each, kept inside the frame, villages 16
+  px), the map with it left out Ponte di Arcola, Valeriano, Ceparana and Vezzano Superiore at
+  1920 × 1080 (260 names), 9 villages at 1280 × 720 (161) and 31 on the phone (37), Gragnola among
+  them. Before Sarzana's part every town and village was named at 1920 × 1080 (222 names) and
+  1280 × 720 (160), and the phone (42) left out Casola in Lunigiana, Casciana, Pieve San Lorenzo,
+  Monti di Licciana, Serricciolo, Terrarossa and Alebbio (before Aulla's part 136, 102 and 31 names,
+  Caniparola left out in place of Aulla's three, and before Fosdinovo's part 102, 68 and 21, the
+  same four left out and Caniparola not on the map). A player in one of them finds it named, and
+  others may go instead: in Casola, Gragnola, Pieve San Lorenzo, Castiglioncello and Alebbio; in
+  Caniparola, Fosdinovo, Sarzana, Guercio and Prati di Vezzano, the player's place going before the
+  towns. Placed by kind, each above its dot or left out, on the map with Fivizzano's part, the names
+  were 52 at 1280 × 720, Castiglioncello, Alebbio and Mezzana left out, and 15 on the phone, 6
+  villages left out, Monzone and Gragnola among them. Placing them takes 4.3–5.6 ms at the median at
+  1280 × 720 in Node, 5.7–7.0 ms at 1920 × 1080 (about 20 ms the first call in a process) and
+  3.2–3.5 ms on the phone (three fresh processes on 2026-11-21 under a load average of 4.8–5.7),
+  where placed as before, each label's free sides counted afresh at every step, the map with
+  Sarzana's part took 57.5–58.2, 104.6–105.6 and 11.7–12.0 ms; `placeGroup` counts them once a group
+  and keeps the counts up to date. It takes more in the browser, which measures the text. The player
+  is a red arrow in a red ring (no label is red), drawn on its own canvas over the map so CSS blinks
+  it (steady under `prefers-reduced-motion`; zoomed away from the player, it is not drawn), with a
   scale bar and the player's district in the header. It is repainted on open, on resize, when the
   pixel ratio changes, when the overview arrives while it is open, and at the next frame after a
   zoom or a pan. The dialog takes focus when it opens, so screen readers announce its title and the
@@ -2798,10 +2824,13 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `src/hud/__tests__/location.test.ts`: the road named on a grid round Monzone and at every road
     vertex in it the old answer over every road near them, in two residency orders, and none where
     the tile is not in memory; `src/hud/__tests__/worldmap.test.ts`: the fit, a point on its
-    screen the map point painted there, the labels (ranks in order, the fewest free sides first,
-    each name on its first free side and never over a dot, a dot under a name going with its
-    label), the places the user asked for, and the overview's download (once), decode (at each
-    opening) and release (at each closing, a late one included);
+    screen the map point painted there and the room within the margins, the labels (ranks in order,
+    the fewest free sides first, each name on its first free side and never over a dot, a dot under
+    a name going with its label; the majors named together, a town's name taking its second side to
+    leave a village its only one, on the side that leaves the hamlets the most room, and rank by
+    rank, the town first, when not all of them fit), the whole map's names inside the room, some
+    past the frame, the places the user asked for, and the overview's download (once), decode (at
+    each opening) and release (at each closing, a late one included);
     `src/tools/__tests__/overview.test.ts` and `paint-raster.test.ts`: the overview's size under
     Safari's 16.7 MP, the full map's look in it (grass on the play area only, roads by class
     narrowest first, a tunnel dashed, buildings on top, the sea's pieces with no seam on the tile
@@ -3115,7 +3144,7 @@ inputs and checks a second build on another runner matches ([map.md](map.md#pinn
     `location.map-test.ts`: the road named the old answer over the whole map's roads, by every road
     and along every tile seam; `worldmap.map-test.ts`: the names the full map draws over the whole
     map's places with the player at the start: every town and village at 1920 × 1080 and 1280 × 720
-    and all but the seven the full map's paragraph lists on an 844 × 390 phone; the 11 places the
+    and all but the 23 the full map's paragraph lists on an 844 × 390 phone; the 11 places the
     user asked it to name at 1920 × 1080, all but Colognola and Campiglione at 1280 × 720 (631 m
     apart, they vie for the same room and a fraction of a pixel picks which is named) and Monzone,
     Equi Terme, Gragnola, Vinca and Monte Sagro on the phone; and a player in each village's or
