@@ -86,3 +86,65 @@ test("a road-exit cap shuts its own road alone: on no other drivable road's carr
     ])
   assert.deepEqual(exitCaps([main, stub]), [])
 })
+
+// Regression (review of #20): trimmed against every other drivable piece, a cap lost the pieces on
+// its own road's continuation: the L's primary bridge 1551433107, cut 2.3 m from its joint with
+// 552595853, had none, and Cesena's 23564329 kept one with a 3.6–5.7 m gap.
+test("a road-exit cap stands 4 m in along its road, on through a joint with its continuation, and shuts it whole; a piece of it narrower than a car is dropped", () => {
+  const on = road(
+      1,
+      "primary",
+      7,
+      [
+        [0, -100],
+        [0, -2],
+      ],
+      false,
+    ),
+    cut = road(2, "primary", 7, [
+      [0, -2],
+      [0, 0],
+    ])
+  // The continuation's last vertex is the cut piece's first: one node, no third way at it. Its
+  // first segment from there is 1 m: the cap stands on its second, 4 m in from the cut end.
+  const joined = {
+    ...on,
+    pts: [on.pts[0]!, { x: 0, y: -3, id: "1:9" }, { ...on.pts[1]!, id: cut.pts[0]!.id }],
+  }
+  assert.deepEqual(exitCaps([joined, cut]), [[-4.5, -4, 4.5, -4]])
+  // A lane overlapping its carriageway 2 m off its centreline leaves 0.5 m of the cap past it, which
+  // no car would pass: that piece is dropped, the rest kept.
+  const lane = road(
+    3,
+    "residential",
+    4,
+    [
+      [-2, -100],
+      [-2, 50],
+    ],
+    false,
+  )
+  assert.deepEqual(exitCaps([joined, cut, lane]), [[0, -4, 4.5, -4]])
+})
+
+// Regression (review of #20): the L's 719407874 leaves 7.4 m from its junction with 175092604, whose
+// carriageway reaches 1 m across the middle of its cap; split there into two 3 m pieces, the cap
+// shut the road all the same, as no car passes the gap.
+test("a road-exit cap is not split where another road's carriageway crosses it narrower than a car", () => {
+  const cut = road(1, "unclassified", 5, [
+      [0, -50],
+      [0, 0],
+    ]),
+    // Its end 3.36 m short of the cap's middle, its 3.4 m half-width reaching 0.52 m either side.
+    side = road(
+      2,
+      "unclassified",
+      6.8,
+      [
+        [-20, -20],
+        [0, -7.36],
+      ],
+      false,
+    )
+  assert.deepEqual(exitCaps([cut, side]), [[-3.5, -4, 3.5, -4]])
+})
