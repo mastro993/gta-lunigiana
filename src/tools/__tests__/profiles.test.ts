@@ -225,6 +225,48 @@ test("profile holds a bound at a deck's end there alone: the straight deck keeps
   assert.ok(Math.abs(east! - 108) < 0.05, `east end at ${east}, not lifted with it`)
 })
 
+// Regression (#20): the A12's Livorno carriageway leaves its Vara bridge (60208802) on the deck's
+// level, 5.5 m over the road under its east end, and runs on at grade beside its twin, which climbs
+// to its own deck there: each bound the fit broke was pinned at its own level, the deck's end at
+// 29.56 m and the sample 4.2 m on at the twin's level less 1.5 m, 28.06 m, so the line fell 1.5 m
+// between them (36%) and 4 m over the next 50 m, past the motorway's 6%.
+test("profile holds the bounds it breaks within its grade limit: a deck's end over its approach's lower bounds leaves it down the grade, not in a step", () => {
+  // Flat ground at 100 m; a bridge from x 300 to 400, at least 106 m at its east end; past it, at
+  // grade, at least 1.5 m under a twin climbing 5.7% to 106 m at x 400.
+  const ground = () => 100
+  const deck = { id: 2, bridge: true as const, pts: [v(300, 0, "b0"), v(400, 0, "b1")] }
+  const after = { id: 3, pts: [v(400, 0, "b1"), v(700, 0)] }
+  const chain = [{ id: 1, pts: [v(0, 0), v(300, 0, "b0")] }, deck, after].map((item) => ({
+    item,
+    rev: false,
+  }))
+  const twin = Array.from({ length: 20 }, (_, i) => 404 + 4 * i).map((x) => ({
+    x,
+    y: 0,
+    z: Math.max(100, 106 - 0.057 * (x - 400)) - 1.5,
+    kind: "min" as const,
+    on: after,
+  }))
+  const motorway = ROAD_PASSES[0]
+  const { profile, denseOf } = makeProfiler(ground)
+  profile(chain, { w: 10, ...motorway }, [
+    { x: 400, y: 0, z: 106, kind: "min", tilt: true, on: deck },
+    ...twin,
+  ])
+  const { pts, z } = denseOf.get(after)!
+  assert.ok(z[0]! >= 106 - 1e-6, `the deck's end at ${z[0]}`)
+  for (let k = 1; k < z.length; k++) {
+    const g = Math.abs(z[k]! - z[k - 1]!) / (pts[k]!.x - pts[k - 1]!.x)
+    assert.ok(g <= motorway.grade + 1e-6, `${(g * 100).toFixed(1)}% at x ${pts[k]!.x}`)
+  }
+  for (const b of twin) {
+    const k = pts.findIndex((p) => p.x >= b.x)
+    const at =
+      z[k - 1]! + ((z[k]! - z[k - 1]!) * (b.x - pts[k - 1]!.x)) / (pts[k]!.x - pts[k - 1]!.x)
+    assert.ok(at >= b.z - 1e-6, `${at.toFixed(2)} under ${b.z.toFixed(2)} at x ${b.x}`)
+  }
+})
+
 // Regression (review of #19): the A15's Parma carriageway at Calcinara runs at grade over a dip the
 // survey reads 13 m under its twin beside it; its fit, relaxed to stay within 4 m of the ground,
 // sagged 6-8 m into it and climbed up to 6.8% over 100 m out of it, past the motorway's 6%.

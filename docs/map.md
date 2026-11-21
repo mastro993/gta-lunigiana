@@ -2515,7 +2515,18 @@ from −16.0 m, the floor at its south-west corner, to 359.5 m.
   grade: the roads meet it at level crossings.
 - The profile is then fitted to a grade limit through hard pins: elevations already set at
   shared nodes by earlier chains, and the rail's, the overpasses' and the junctions' bounds. The fit
-  is the midpoint of the two grade envelopes, so cut and fill split evenly.
+  is the midpoint of the two grade envelopes, so cut and fill split evenly. A bound the fit breaks
+  (a road under its minimum, or over its maximum) is pinned and the fit redone, the pin held
+  within the grade of the pins beside it (`heldPins` in `terrain.ts`): a minimum raised to the
+  reach down from them, a maximum lowered to the reach up, so two bounds broken side by side are met
+  within the grade, not in a step. Pinned each at its own level (issue #20), the A12's Livorno
+  carriageway left its Vara bridge (60208802) at its end's 29.56 m, 5.5 m over the road under it,
+  and fell to 28.06 m 4.2 m on, its twin's level less 1.5 m (`TWINS`): 36%, and 24% over 8 m; the
+  A15's 86257880 fell 2.9 m in 4 m off its deck onto 130432284, and the A12 at (−14607, −6387)
+  7.25% over 100 m off its deck 23339993. They now leave their decks at 6%. On Sarzana's part it
+  moved 3,680 nodes, up to 3.4 m, 50 roads and 93 rail pieces (the twin tracks' bounds,
+  `rail-twins.ts`); on the earlier parts 2 nodes and the rail bridge 621942962 at (4952, 3617), by
+  0.1 m.
 - Where the fit strays more than 4 m from the smoothed ground, the grade limit within 60 m is raised
   in 10% steps, up to 1.5× the class limit (`RELAX`), but for motorways and trunk roads, whose pass
   never loosens it (`relax` 1 in `ROAD_PASSES`, issue #19), as on an embankment: the A15's Parma

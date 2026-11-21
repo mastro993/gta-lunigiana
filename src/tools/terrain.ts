@@ -305,9 +305,44 @@ const fitOnce = (
 }
 
 /**
- * Grade-limited fit of the (smoothed) profile through `pins`. Violated bounds become pins and the
- * fit is redone; where it strays more than CAP m from the smoothed ground, the grade limit of the
- * surrounding RELAX_REACH m is raised step by step, up to `relax` times `grade`.
+ * The pins a fit holds, in `hard`'s order: each at its level, but a broken bound (`kinds`, by sample)
+ * past it where the pins beside it reach within the grade budget `t`, a minimum raised to the reach
+ * down from them and a maximum lowered to the reach up, so that two bounds the fit broke side by side
+ * are met within the grade rather than in a step between them. Pinned each at its own level, the
+ * A12's Livorno carriageway kept its Vara bridge's end at 29.56 m, 5.5 m over the road under it,
+ * and the sample 4.2 m on at its twin's level less 1.5 m, 28.06 m: the straight line between the two
+ * fell 36%.
+ */
+const heldPins = (
+  hard: ReadonlyMap<number, number>,
+  kinds: ReadonlyMap<number, "min" | "max">,
+  t: Float64Array,
+): Array<Pin> => {
+  const at = new Map(hard)
+  const ks = [...hard.keys()].sort((a, b) => a - b)
+  for (const order of [ks, [...ks].reverse()]) {
+    let last: number | undefined
+    for (const k of order) {
+      const kind = kinds.get(k)
+      if (kind !== undefined && last !== undefined) {
+        const reach = Math.abs(t[k]! - t[last]!),
+          from = at.get(last)!
+        at.set(
+          k,
+          kind === "min" ? Math.max(at.get(k)!, from - reach) : Math.min(at.get(k)!, from + reach),
+        )
+      }
+      last = k
+    }
+  }
+  return [...hard.keys()].map((k) => ({ k, z: at.get(k)! }))
+}
+
+/**
+ * Grade-limited fit of the (smoothed) profile through `pins`. Violated bounds become pins, held
+ * within the grade of the pins beside them (`heldPins`), and the fit is redone; where it strays more
+ * than CAP m from the smoothed ground, the grade limit of the surrounding RELAX_REACH m is raised
+ * step by step, up to `relax` times `grade`.
  */
 export const fitProfile = (
   p: Profile,
@@ -321,19 +356,19 @@ export const fitProfile = (
   const hard = new Map<number, number>()
   for (const pn of pins) if (pn.kind === undefined && !hard.has(pn.k)) hard.set(pn.k, pn.z)
   const bounds = pins.filter((pn) => pn.kind !== undefined)
+  /** The kind of each bound broken and pinned, by its sample. */
+  const kinds = new Map<number, "min" | "max">()
   for (let round = 0; round < 12; round++) {
     const t = new Float64Array(n)
     for (let k = 1; k < n; k++) t[k] = t[k - 1]! + g[k - 1]! * (p.s[k]! - p.s[k - 1]!)
-    fitOnce(
-      p,
-      natural,
-      t,
-      [...hard].map(([k, z]) => ({ k, z })),
-    )
+    fitOnce(p, natural, t, heldPins(hard, kinds, t))
     const broken = bounds.filter(
       (b) => !hard.has(b.k) && (b.kind === "min" ? p.z[b.k]! < b.z - 1e-6 : p.z[b.k]! > b.z + 1e-6),
     )
-    for (const b of broken) hard.set(b.k, b.z)
+    for (const b of broken) {
+      hard.set(b.k, b.z)
+      kinds.set(b.k, b.kind!)
+    }
     let relaxed = false
     for (let k = 0; k < n; k++) {
       if (Math.abs(p.z[k]! - natural[k]!) <= CAP) continue
