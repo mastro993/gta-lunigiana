@@ -8,6 +8,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Area } from "../../sim/map/index.ts"
+import { firstCarving } from "../build-grid.ts"
 import { coastIndex } from "../coast.ts"
 import type { Dem } from "../dtm.ts"
 import type { WaterF } from "../features.ts"
@@ -16,6 +17,7 @@ import { seaFloor } from "../sea-floor.ts"
 import { gridLattice, makeGrid, type Grid, type Span } from "../terrain.ts"
 import {
   carveAreas,
+  holdsCell,
   raiseAreas,
   seaNodes,
   waterAreas,
@@ -23,7 +25,7 @@ import {
   waterNodes,
   type CarvedArea,
 } from "../water-areas.ts"
-import { waterProfiles } from "../water.ts"
+import { carveAll, waterProfiles } from "../water.ts"
 
 /** The scene: the lattice's 101 × 51 nodes (4 m apart) from its node at x = 0, y = 0. */
 const lattice = gridLattice(),
@@ -418,6 +420,64 @@ test("water areas: a lake no node of whose cells lies inside its edge stands at 
   // The brook's surface 99.5 m, its floor 99.0 m out to w/2, where the cell's nodes lie.
   assert.equal(level([brook]), 99)
   assert.equal(level([]), 100, "no stream through it: the LiDAR's ground")
+})
+
+// Regression: the Cascata del Corso's pool (−14157, 1256), every node of it on its edge, took its
+// spill 244.5 m from the lines carved once, where the tile pass carves them twice, and its lowest
+// edge node, on the bank of the stream falling past it, stood at 243.9 m as built: its water
+// floated over it.
+test("water areas: a lake no node of whose cells lies inside its edge stands at its spill as the tile pass leaves its edge, the lines carved before the claims and again after them", () => {
+  // A brook falling 0.25 m a metre east along y = 91 past a pond on flat ground at 100 m: one cell,
+  // round (398, 98), its south nodes 5 m off the brook's centreline, on its bank (from 3 m out,
+  // `bed`, to a cell further), where each 2 m segment of the brook in reach lowers them toward its
+  // own gravel; its north nodes 9 m off it, past it.
+  const falls = demOf((x, y) => (y < 94 ? 100 - (x - 380) / 4 : 100))
+  const pond: Area = { kind: "lake", rings: [[397, 97, 399, 97, 399, 99, 397, 99]] }
+  const brook: WaterF = {
+    id: 3,
+    kind: "stream",
+    w: 2,
+    bed: 3,
+    depth: 1,
+    pts: [
+      { x: 380, y: 91 },
+      { x: 420, y: 91 },
+    ],
+    from: 0,
+  }
+  const wp = waterProfiles([brook], falls.at),
+    {
+      areas: [lake],
+      carved: here,
+    } = waterAreas([pond], [brook], wp, falls)
+  /** The pond's four nodes on a window round it (x 376…408, y 80…112) once `carve` has run, rounded as built. */
+  const pondNodes = (carve: (win: Grid) => void) => {
+    const win = falls.grid({ i0: WHOLE.i0 + 94, j0: WHOLE.j0 + 20, cols: 9, rows: 9 })
+    carve(win)
+    return [396, 400].flatMap((x) =>
+      [96, 100].map((y) => Math.round(win.z[(y / 4 - 20) * 9 + x / 4 - 94]! * 10) / 10),
+    )
+  }
+  // The tile pass: its first carving, no claims, then the second.
+  const built = pondNodes((win) => {
+    firstCarving(win, here, [], [brook], wp)
+    carveAreas(win, here, [brook], wp, true)
+    carveAll(win, [brook], wp)
+  })
+  const once = pondNodes((win) => carveAll(win, [brook], wp))
+  assert.ok(Math.min(...built) < Math.min(...once), `${built} as built, ${once} carved once`)
+  assert.equal(lake!.level, Math.min(...built), "its spill as built")
+})
+
+// Regression: a 10 m² pool under a path's bridge at the Mulini Bozzo Luero (OSM 1032984030, round
+// (−15432, 1586)) held no cell's centre: nothing drew or carved its water, and the game read still
+// water 0.8 m deep over the ground under it.
+test("water areas: a ring holds a cell where a cell's centre lies inside it, as the land cover fills it", () => {
+  // The lattice's cells are centred 2 m off its nodes, which lie on multiples of 4 m here.
+  assert.ok(holdsCell([[397, 97, 399, 97, 399, 99, 397, 99]]), "round the centre (398, 98)")
+  assert.ok(!holdsCell([[399, 99, 401, 99, 401, 101, 399, 101]]), "round the node (400, 100)")
+  assert.ok(!holdsCell([[396.5, 96.5, 397.5, 96.5, 397.5, 97.5]]), "a sliver short of it")
+  assert.ok(holdsCell([LAKE]))
 })
 
 // The sea: a coastline running east along y = 31, the land north of it (OSM's rule), the sea south

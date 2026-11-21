@@ -37,7 +37,7 @@ import { extractShore, holedSea, offBeaches, splitPiers } from "./shore.ts"
 import { NO_SURVEY, readSurveys } from "./surveys.ts"
 import { readIsobaths, readSpiagge, readUcs } from "./ucs.ts"
 import { clipBuildings, openBarriers } from "./walls.ts"
-import { inAreas } from "./water-areas.ts"
+import { holdsCell, inAreas } from "./water-areas.ts"
 
 /** Whether two water areas draw the same water: either's centroid lies in the other's outer ring. */
 const overlap = (a: Area, b: Area): boolean => {
@@ -136,7 +136,10 @@ export const readSources = async (root: string, lap: (label: string) => void) =>
     // The beaches, the piers' decks and the breakwaters, and the sea over them.
     ...shore.areas,
     ...sea,
-  ]
+    // A water area holding no cell of the grid holds no water the game draws or carves, and the
+    // game would read still water over the ground under it: a 10 m² pool under a path's bridge at
+    // the Mulini Bozzo Luero (OSM 1032984030, round (−15432, 1586)), 0.8 m deep.
+  ].filter((a) => !isWaterArea(a.kind) || holdsCell(a.rings))
   // The piers last, as OSM maps them (no survey maps a pier's deck), decks over the water alone.
   roads.push(
     ...splitPiers(

@@ -45,6 +45,27 @@ export interface CarvedArea {
   readonly floor?: (x: number, y: number) => number
 }
 
+/**
+ * Whether `rings` hold a cell of the grid's lattice (its centre inside, filled from the anchor as the
+ * land cover is): a water area holding none holds no water the game draws or carves.
+ */
+export const holdsCell = (rings: ReadonlyArray<ReadonlyArray<number>>): boolean => {
+  const g = gridLattice(),
+    [x0, y0, x1, y1] = ringBox(rings[0]!)
+  const c0 = Math.floor((x0 - g.ax) / g.cell) - 1,
+    r0 = Math.floor((y0 - g.ay) / g.cell) - 1
+  let held = false
+  fillPolygon(
+    rings,
+    g.ax,
+    g.ay,
+    g.cell,
+    { c0, r0, cols: Math.ceil((x1 - x0) / g.cell) + 3, rows: Math.ceil((y1 - y0) / g.cell) + 3 },
+    () => (held = true),
+  )
+  return held
+}
+
 /** Whether (x, y) is inside `rings`, even-odd over them all (a hole's inside is outside). */
 export const inRings = (rings: ReadonlyArray<ReadonlyArray<number>>, x: number, y: number) => {
   let inside = false
@@ -176,9 +197,11 @@ const median = (values: Array<number>) => {
  * up a slope, a cascade or a quarry face would otherwise hold its water over the ground beside it.
  * A lake no node of whose cells lies inside its edge holds no water of its own, and the streams
  * through it carry theirs: its spill is read on the ground as their channels (`water`, on the
- * profiles `wp`) cut it, so it never stands over them. Two pools on the Torrente Arcinasso by the
- * Fosso di Paretola's mouth (OSM 1473224065 and 1473224067) kept the LiDAR's 258.0 and 265.2 m once
- * Aulla's part carved the stream through them, over every node of theirs.
+ * profiles `wp`) cut it, carved twice as the tile pass carves them, so it never stands over them.
+ * Two pools on the Torrente Arcinasso by the Fosso di Paretola's mouth (OSM 1473224065 and
+ * 1473224067) kept the LiDAR's 258.0 and 265.2 m once Aulla's part carved the stream through them,
+ * over every node of theirs; carved once, the Cascata del Corso's pool (−14157, 1256) stood at
+ * 244.5 m over its edge's 243.9, on the bank of the stream falling past it.
  */
 const levelOf = (
   rings: ReadonlyArray<ReadonlyArray<number>>,
@@ -204,7 +227,9 @@ const levelOf = (
     if (edge) edges.push(k)
     else held = true
   })
-  if (!held) carveAll(win, water, wp)
+  // As the tile pass carves them: before the claims and again after them (build-grid.ts), each time
+  // lowering a bank's node toward the gravel of every segment in reach.
+  if (!held) for (let pass = 0; pass < 2; pass++) carveAll(win, water, wp)
   const spill = Math.min(...edges.map((k) => win.z[k]!))
   if (inside.length === 0) {
     const outer = rings[0]!
