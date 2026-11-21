@@ -205,17 +205,26 @@ const carved = (b: BuildingF, roads: Corridors, pad = 0) => {
     gy = y0 - res
   const cw = Math.ceil((x1 - x0) / res) + 2,
     ch = Math.ceil((y1 - y0) / res) + 2
-  const blocked = new Uint8Array(cw * ch)
+  const blocked = new Uint8Array(cw * ch),
+    holes = b.holes ?? []
   let cut = false
   for (let j = 0; j < ch; j++)
     for (let i = 0; i < cw; i++) {
       const x = gx + (i + 0.5) * res,
         y = gy + (j + 0.5) * res
-      if (!pointInRing(x, y, b.outer) || (b.holes ?? []).some((h) => pointInRing(x, y, h))) continue
+      if (!pointInRing(x, y, b.outer) || holes.some((h) => pointInRing(x, y, h))) continue
       let inside = false,
         clear = true
       for (const [ax, ay, bx, by, h] of cuts) {
-        const { d2 } = segDist2(x, y, ax, ay, bx, by)
+        // `segDist2`'s arithmetic, the same bits, with no object a cell: the features stage made
+        // about 87 GB of them on Lunigiana.
+        const ex = bx - ax,
+          ey = by - ay,
+          l2 = ex * ex + ey * ey,
+          t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / l2)) : 0,
+          dx = ax + ex * t - x,
+          dy = ay + ey * t - y,
+          d2 = dx * dx + dy * dy
         if (d2 < h * h) inside = true
         if (d2 < (h + pad) * (h + pad)) clear = false
       }

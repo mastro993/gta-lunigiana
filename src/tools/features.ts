@@ -413,12 +413,18 @@ export const extractBuildings = (
   // A castle or fort OSM maps stays where a survey maps the ground: a survey may keep one among its
   // monuments rather than its buildings (the NC5's Fortezza di Sarzanello, issue #20).
   const forts = fortified(osm)
+  // The survey's mapped areas by their boxes: every OSM building against every sheet's area made
+  // 10 GB of garbage on Lunigiana, and grew with both.
+  const { mapped } = survey,
+    mappedIn = staticGrid(mapped.length, (k) => ringBox(mapped[k]!), 256)
+  const inMapped = ([x, y]: readonly [number, number]): boolean => {
+    let hit = false
+    mappedIn(x, y, x, y, (k) => (hit ||= pointInRing(x, y, mapped[k]!)))
+    return hit
+  }
   const unmapped = apartFrom(
     survey.buildings,
-    fromOsm.filter(
-      (b) =>
-        forts.has(b.id) || !survey.mapped.some((ring) => pointInRing(...centroid(b.outer), ring)),
-    ),
+    fromOsm.filter((b) => forts.has(b.id) || !inMapped(centroid(b.outer))),
   )
   const all = [...unmapped, ...fromCtr],
     held = all.map((b) => inPlay(...centroid(b.outer)))
