@@ -144,13 +144,12 @@ export const ringBox = (ring: ReadonlyArray<number>): [number, number, number, n
     y0 = Infinity,
     x1 = -Infinity,
     y1 = -Infinity
-  for (let i = 0; i + 1 < ring.length; i += 2)
-    [x0, y0, x1, y1] = [
-      Math.min(x0, ring[i]!),
-      Math.min(y0, ring[i + 1]!),
-      Math.max(x1, ring[i]!),
-      Math.max(y1, ring[i + 1]!),
-    ]
+  for (let i = 0; i + 1 < ring.length; i += 2) {
+    x0 = Math.min(x0, ring[i]!)
+    y0 = Math.min(y0, ring[i + 1]!)
+    x1 = Math.max(x1, ring[i]!)
+    y1 = Math.max(y1, ring[i + 1]!)
+  }
   return [x0, y0, x1, y1]
 }
 
@@ -178,8 +177,13 @@ export const lineBox = (l: ReadonlyArray<V>): [number, number, number, number] =
     y0 = Infinity,
     x1 = -Infinity,
     y1 = -Infinity
-  for (const p of l)
-    [x0, y0, x1, y1] = [Math.min(x0, p.x), Math.min(y0, p.y), Math.max(x1, p.x), Math.max(y1, p.y)]
+  // Each bound on its own: an array a vertex made 9 GB of garbage in Lunigiana's sources stage.
+  for (const p of l) {
+    x0 = Math.min(x0, p.x)
+    y0 = Math.min(y0, p.y)
+    x1 = Math.max(x1, p.x)
+    y1 = Math.max(y1, p.y)
+  }
   return [x0, y0, x1, y1]
 }
 
