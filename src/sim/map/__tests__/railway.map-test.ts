@@ -140,11 +140,27 @@ test("railway: each line runs terminal to terminal, its pieces sharing their end
 test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's stop to Gragnola's", () => {
   // Each line's from its start, in order, each on from the last but over track OSM tags no limit on (the game reads it at its
   // lower neighbour's), which lies only in a station (Aulla Lunigiana's tracks, which the Lucca–Aulla line runs in on) or is a
-  // crossover 150 m long or less: the Parma–La Spezia's 106.6 m at Vezzano Ligure's west throat (ways 1574014371 and
-  // 423877056), onto the Genova–Pisa's track, 560 m from the station.
+  // crossover between two tracks of one formation, CROSSOVER m long or less with another track within SIDE m of it all along:
+  // the Parma–La Spezia's 106.6 m at Vezzano Ligure's west throat (ways 1574014371 and 423877056), onto the Genova–Pisa's
+  // track, 560 m from the station.
   const inStation = (x: number, y: number) =>
     MAP.pois.some((p) => p.kind === "railway=station" && hypot(p.x - x, p.y - y) < 500)
-  const CROSSOVER = 150
+  const CROSSOVER = 150,
+    SIDE = 6
+  /** Whether another track than the one at (x, y) runs within SIDE m of it. */
+  const beside = (x: number, y: number) =>
+    MAP.rail.some((r) => {
+      let d = Number.MAX_VALUE
+      for (let k = 0; k + 3 < r.pts.length; k += 2)
+        d = Math.min(d, segDist2(x, y, r.pts[k]!, r.pts[k + 1]!, r.pts[k + 2]!, r.pts[k + 3]!).d2)
+      return d > 0.01 && d <= SIDE * SIDE
+    })
+  const crossover = (chain: ReturnType<typeof chained>, a: number, b: number) =>
+    b - a <= CROSSOVER &&
+    Array.from({ length: Math.floor((b - a) / 2) + 1 }, (_, k) => a + 2 * k).every((t) => {
+      const p = pointAt(chain, t)
+      return beside(p.x, p.y)
+    })
   for (const [l, { maxspeed }] of railway.lines.entries()) {
     const chain = lines[l]!,
       gaps: Array<readonly [number, number]> = []
@@ -155,7 +171,7 @@ test("railway: OSM's speed limits run along each line, 80 km/h from Equi Terme's
       at = to
     }
     if (at < chain.s.at(-1)! - 0.11) gaps.push([at, chain.s.at(-1)!])
-    for (const [a, b] of gaps.filter(([a, b]) => b - a > CROSSOVER))
+    for (const [a, b] of gaps.filter(([a, b]) => !crossover(chain, a, b)))
       for (const t of [a, (a + b) / 2, b]) {
         const p = pointAt(chain, t)
         assert.ok(inStation(p.x, p.y), `line ${l}: no limit at ${a}–${b}, by no station`)

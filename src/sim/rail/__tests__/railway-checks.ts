@@ -228,13 +228,16 @@ export const checkAtTheirS = ({ boxes, stations }: RailwayPart): void => {
     assert.ok(platforms.length > 0)
     // A platform's axis is the running track beside it: the line runs along one at the station's middle (of a station with
     // platforms by several tracks, Aulla Lunigiana's, the one by its own), or along an island's other edge, a train's step
-    // from it (PLATFORM_EDGE), its axis on the track across it (Vezzano Ligure's and Sarzana's, between two lines' tracks).
+    // from it (PLATFORM_EDGE), its axis on the track across it, past its far edge (Vezzano Ligure's and Sarzana's, between
+    // two lines' tracks). A side platform's edge lies a step from its own line too: its axis must lie on the line.
     let near = Number.MAX_VALUE,
-      edge = Number.MAX_VALUE
+      island = Number.MAX_VALUE
     for (const { axis, ring } of platforms) {
+      let mine = Number.MAX_VALUE,
+        edge = Number.MAX_VALUE
       for (let k = 0; k + 3 < axis.length; k += 2) {
         const [ax, ay, bx, by] = axis.slice(k, k + 4) as [number, number, number, number]
-        near = Math.min(near, Math.sqrt(segDist2(at.x, at.y, ax, ay, bx, by).d2))
+        mine = Math.min(mine, Math.sqrt(segDist2(at.x, at.y, ax, ay, bx, by).d2))
       }
       for (let k = 0; k < ring.length; k += 2) {
         const j = (k + 2) % ring.length
@@ -243,10 +246,12 @@ export const checkAtTheirS = ({ boxes, stations }: RailwayPart): void => {
           Math.sqrt(segDist2(at.x, at.y, ring[k]!, ring[k + 1]!, ring[j]!, ring[j + 1]!).d2),
         )
       }
+      near = Math.min(near, mine)
+      if (mine > edge + PLATFORM_EDGE) island = Math.min(island, edge)
     }
     assert.ok(
-      near < 0.05 || edge <= PLATFORM_EDGE,
-      `${station.name}'s platform beside the line at its middle (${near} m, its edge ${edge} m)`,
+      near < 0.05 || island <= PLATFORM_EDGE,
+      `${station.name}'s platform beside the line at its middle (${near} m, an island's edge ${island} m)`,
     )
   }
 }

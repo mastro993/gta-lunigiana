@@ -4670,15 +4670,19 @@ platform's top; `railway.test.ts` checks the speed limits, crossing boxes and st
 `rail-clear.test.ts` narrows a verge beside a track, leaves one at another level, in a box or on a
 platform alone, and throws for a lane. `src/sim/map/__tests__/railway.map-test.ts` checks
 `MAP.railway`, per line: each line runs terminal to terminal or to its terminus, its pieces sharing
-their end vertices bit-identically, every running piece on one (today the three: Lucca–Aulla from
-the outline at Pieve San Lorenzo to its terminus at Aulla Lunigiana, and the Pontremolese's two
-tracks from edge to edge); the lines that share track share it one way round (`checkSharedTrack`, in
-place of the one line's `checkNoSharedTrack`); a terminal's sample at s 0 lies within 1 m of the
-outline (the SS62's case, 0.94 m); the speed limits cover each line, 80 or 85 km/h but in the
-Galleria del Lupacino (OSM's 140), 80 km/h from Equi Terme's stop to Gragnola's; the 9 stations lie
-along their platforms, a station extending up to 450 m and its node by its line or by one of its
-platforms, a platform within 4 m of the line's side at each one's middle; the 17 platforms are
-pinned, 15 raised and 2 walkways, Aulla's six the CTR's AGE#173–175 and OSM's 5–7; each crossing
+their end vertices bit-identically, every running piece on one (today the seven: Lucca–Aulla from
+the outline at Pieve San Lorenzo to its terminus at Aulla Lunigiana, and the six OSM's train routes
+run from edge to edge, [section 9](#9-the-railway-railwayts-platformsts-rail-clearts)); the lines
+that share track share it one way round (`checkSharedTrack`, in place of the one line's
+`checkNoSharedTrack`); a terminal's sample at s 0 lies within 1 m of the outline (the SS62's case,
+0.94 m); the speed limits cover each line but over track OSM tags none in a station or on a
+crossover of 150 m or less with another track within 6 m of it all along (the Parma–La Spezia's
+106.6 m at Vezzano Ligure's west throat), 80 or 85 km/h but in the Galleria del Lupacino (OSM's
+140), 80 km/h from Equi Terme's stop to Gragnola's; the 25 stations lie along their platforms, a
+station extending up to 450 m and its node by its line or by one of its platforms, a platform's axis
+on the line at each one's middle, or an island's far edge within a train's step of it, its axis on
+the track across it; the 31 platforms are pinned, 28 raised and 3 walkways, Aulla's six the CTR's
+AGE#173–175 and OSM's 5–7; each crossing
 box's nodes are vertices of its road and of the rail, the line's s on one of them (a box on a loop
 alone, Pieve's foot crossing, names no line), and every vertex an at-grade road shares with at-grade
 rail is in a box; the platforms stand 1.55 m or more from every track and 0.44 m or more past every
