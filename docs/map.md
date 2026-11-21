@@ -2171,8 +2171,25 @@ the pieces where tracks meet (`rail-graph.ts`).
   5.4 m, so a car drove in at the open north mouth, met the bank and was thrown about 80 m up. Its
   3.5 m CTR bridge piece, east of the road, grows to 20.7 m, and the track underpass 696231810 at s
   4777.6 (one mouth 5.0 m under) gets 19.4 m; both tunnels now open at both mouths at their floors'
-  level (`map/__tests__/rail.map-test.ts`). A path's tunnel gets none: the build cuts no path's
-  mouth.
+  level (`map/__tests__/rail.map-test.ts`). A path's or steps' tunnel too, since the path pass
+  profiles it (issue #19): its bore holds its mouths' first 5.7 m at its floor ahead of every claim
+  (`mouths` in `path-pass.ts`), but its approaches yield to the rail's core, so only that hold is in
+  the way: the track crossing it within a cell's diagonal of one of its mouths (an end no other piece
+  of the bore goes on from) gets the square. The 9.8 m path tunnel 375205228 dips under the
+  Genova–Pisa's bank east of the Magra 2.7 and 3.2 m from its two tracks, which stood 1.8 and 1.1 m
+  over that hold and its drain's water (377807385) on their bed (`channel.map-test.ts`); they now
+  pass over it on 17.4 m bridges. In the rest of Sarzana's part five more stretches become bridges:
+  the siding 237355325, the loop 237354303 (17.4 m each) and the station track 280926461 (12.0 m)
+  over Sarzana's station subway (309041252, its mouth 4.9 m from the siding), and 372738044 and
+  377807403 (17.4 m) over 378221868 by Arcola (3.0 m from 372738044); and bridges grow, the CTR's
+  on Vezzano Ligure's four tracks by 376349735 (5.1 m from 111646538) from 22.6 to 32.3 m, and
+  the underpass bridges of the tracks by 1375600992 at Santo Stefano di Magra's yard (5.0 m from
+  314462171) by 0.3–1.1 m. Cesena's Sottopasso Cervese (22868207) and Equi
+  Terme's footway underpass (1133296350) pass under the track 7.2 and 8.0 m from their mouths, and
+  Aulla Lunigiana's subway (1387000572) 6.4 m from an inner joint, where its ramps go on: none. Taken
+  within the road's core and a cell's diagonal of either end, as a drivable road's are, those three
+  got bridges too, and the decks' ground, lowered under their slabs, left one of Aulla Lunigiana's
+  platforms without its name board and lamps.
 - **A road OSM lays under the track** (`underRail` in `rail-crossings.ts`, before the conflation):
   a road on a lower `layer` than at-grade track it crosses with no node in common runs under it in a
   tunnel, though OSM tags none, and is then an underpass like any other. One does: the farm track

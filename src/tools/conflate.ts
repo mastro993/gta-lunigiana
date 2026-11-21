@@ -436,9 +436,17 @@ export const conflateRail = (
     osmWater.flatMap((w) => w.pts.flatMap((v) => (v.id === undefined ? [] : [v.id]))),
   )
   const spanReport: SpanReport = { slid: [], culverts: [], cut: [], ends: [] }
-  // The CTR's bridges, out past what they span by its margin (`spanned`), and the track over a drivable road's tunnel by its
-  // mouth (the road's profile cuts the mouth then, a path keeps the terrain's), out past the road's core cells and a cell's
-  // diagonal.
+  // The CTR's bridges, out past what they span by its margin (`spanned`), and the track over a road's tunnel by its mouth,
+  // out past the road's core cells and a cell's diagonal: a drivable road's profile cuts its mouths, and so does a path's or
+  // steps' (`PATH_PASS`), whose bore holds only its mouths' first MOUTH m at its floor, ahead of every claim, and whose
+  // approaches yield to the rail's core: the track crossing it within a cell's diagonal of a mouth stood on that hold,
+  // where a 9.8 m path tunnel (375205228) dips under the Genova–Pisa's bank by Sarzana 2.7 and 3.2 m from its tracks: they
+  // stood 1.8 m over the ground and its drain's water on their bed.
+  const bores = new Map<string, number>()
+  for (const r of osmRoads)
+    if (r.tunnel === true)
+      for (const v of r.pts) if (v.id !== undefined) bores.set(v.id, (bores.get(v.id) ?? 0) + 1)
+  const mouthAt = (v: V) => v.id !== undefined && bores.get(v.id) === 1
   const ctrBridges = ctr.bridges.map((b) => b.rings)
   const bridges = [
     ...ctrBridges,
@@ -449,11 +457,19 @@ export const conflateRail = (
     ),
     ...underpasses(
       chains.map((c) => c.line),
-      osmRoads.flatMap((r) =>
-        r.tunnel === true && isDrivable(r.cls)
-          ? [{ pts: moved(r.pts, moves), half: coreHalf(r.w, GRID_CELL) + corner }]
-          : [],
-      ),
+      osmRoads.flatMap((r) => {
+        if (r.tunnel !== true) return []
+        const tunnel = { pts: moved(r.pts, moves), half: coreHalf(r.w, GRID_CELL) + corner }
+        return isDrivable(r.cls)
+          ? [tunnel]
+          : [
+              {
+                ...tunnel,
+                reach: corner,
+                mouths: [mouthAt(r.pts[0]!), mouthAt(r.pts.at(-1)!)] as const,
+              },
+            ]
+      }),
     ),
   ]
   const bridged = (x: number, y: number) => bridges.some((poly) => inPolygon(x, y, poly))

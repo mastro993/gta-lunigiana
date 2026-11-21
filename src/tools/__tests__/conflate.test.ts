@@ -401,3 +401,27 @@ test("conflateRail slides a bridge's end out past the core of a road at grade un
     [100, 200],
   )
 })
+// Regression: the 9.8 m path tunnel 375205228 dips under the Genova–Pisa's bank by Sarzana 2.7 and 3.2 m from its two tracks;
+// the path pass holds its mouths' first MOUTH m at its floor ahead of every claim, and the tracks stood on that hold, 1.8 m over
+// the ground, its drain's water on their bed.
+test("conflateRail makes track crossing a path's tunnel within a cell's diagonal of its mouth a bridge, but not farther in or by a bore's inner end", () => {
+  const rail: ReadonlyArray<RailF> = [{ id: 1, pts: [v(0, 0, "a"), v(200, 0, "b")] }]
+  const path = (id: number, ...pts: ReadonlyArray<V>): RoadF => ({
+    ...road(id, ...pts),
+    cls: "path",
+    w: 1.5,
+    tunnel: true,
+  })
+  const bridged = (roads: ReadonlyArray<RoadF>) =>
+    conflateRail(rail, roads, [], ctr([]), NONE)
+      .rail.filter((r) => r.bridge === true)
+      .map((r) => Math.round((r.pts[0]!.x + r.pts.at(-1)!.x) / 2))
+  // Its south mouth 3 m from the track: a bridge about the crossing at x 50.
+  assert.deepEqual(bridged([path(10, v(50, -3, "m0"), v(50, 7, "m1"))]), [50])
+  // 7 m in from its mouth, or 3 m from an end another piece of its bore goes on from (an inner joint): none.
+  assert.deepEqual(bridged([path(10, v(50, -7, "m0"), v(50, 7, "m1"))]), [])
+  assert.deepEqual(
+    bridged([path(10, v(50, -3, "j"), v(50, 7, "m1")), path(11, v(50, -3, "j"), v(70, -20, "m2"))]),
+    [],
+  )
+})
