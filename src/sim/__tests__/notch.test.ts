@@ -33,7 +33,9 @@ const firstAlong = (what: string, from: number, step: number, ok: (y: number) =>
 
 test("an L: herds graze only the play area, a pasture by the notch included", () => {
   // The first rural pasture 20 m inside the notch's west side, from its south end: herds drawn 90-140 m off
-  // fall in the notch about half the time.
+  // fall in the notch about half the time. Watched each second until cows have grazed for 2 s, up to 30 s: when the first herd
+  // comes hangs on every draw before it on the world's stream (on seeds 1–6, 2–15 s in), so a fixed 15 s missed it on seed 1 once
+  // traffic drew otherwise.
   const y = firstAlong(
     "rural pasture",
     100,
@@ -41,15 +43,16 @@ test("an L: herds graze only the play area, a pasture by the notch included", ()
     (y) => pasture(1980, y) && residentsNear(1980, y, RURAL_REACH) < RURAL,
   )
   const game = start([], [{ x: 1980, y, angle: 0 }])
-  let cows = 0
-  game.run(900, (frame) => {
-    if (frame % 60 !== 0) return
-    for (const a of game.world().animals) {
-      if (a.species !== "cow") continue
-      cows++
+  let cows = 0,
+    grazed = 0
+  for (let second = 0; second < 30 && grazed < 2; second++) {
+    game.run(60)
+    const herd = game.world().animals.filter((a) => a.species === "cow")
+    for (const a of herd)
       assert.ok(inPlay(a.x, a.y), `a cow at ${a.x.toFixed(1)}, ${a.y.toFixed(1)}`)
-    }
-  })
+    cows += herd.length
+    if (herd.length > 0) grazed++
+  }
   assert.ok(cows > 0, `${cows} cows by (1980, ${y})`)
 })
 

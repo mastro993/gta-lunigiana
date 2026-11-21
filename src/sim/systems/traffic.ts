@@ -592,6 +592,14 @@ export const TrafficAI = Game.System(
               ? Math.abs(across)
               : Math.abs(Ops.hypot(front, across - radius) - Math.abs(radius))
         if (off - extent.across >= spec.width / 2 + CONE_CLEARANCE) continue
+        // A bent cone reaches `range` round its arc, as the path its axis is: what stands by the circle's far side, a few metres
+        // ahead along the heading but up to 2 km across, lies half a turn round it (and its level would be read all the way there).
+        if (
+          radius !== 0 &&
+          Math.abs(radius * Ops.atan2(radius * front, radius * (radius - across))) >
+            range + extent.along
+        )
+          continue
         const limit = followSpeed(
           front - spec.length / 2 - extent.along - GAP,
           grip,

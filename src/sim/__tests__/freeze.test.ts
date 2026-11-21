@@ -3,13 +3,14 @@ import { test } from "node:test"
 
 import { Ops } from "@typeonce/ritmo-math"
 
-import { settle } from "../chassis.ts"
-import { SetPlayer } from "../index.ts"
+import { RIGS, settle } from "../chassis.ts"
+import { Game, SetPlayer } from "../index.ts"
 import { inPlay, MAP } from "../map/index.ts"
 import { tileKey } from "../map/kinds.ts"
 import { setTileSource, tileFromDisk } from "../map/source.ts"
 import { dropTile, FROZEN_BEYOND, provideTile, STEP_REACH, tilesOver } from "../map/tiles.ts"
-import { parkedCar } from "../spawning.ts"
+import { Chassis } from "../schema.ts"
+import { parkedCar, rollingChassis } from "../spawning.ts"
 import { inReach } from "../systems/reach.ts"
 import { battistiTraffic, door, ON_BATTISTI, press, rolling, start, wear } from "../testing.ts"
 
@@ -155,6 +156,42 @@ test("a jump: the people and animals left beyond reach go at once, and nothing r
   } finally {
     setTileSource(tileFromDisk)
   }
+})
+
+// Regression: the braking cone took in what stood near the far side of the circle the wheels steer, a few metres "ahead" across
+// it, and the driver read the ground all round the arc to there: "map tile -7_-4 not loaded" 2 km from the player at 40 m/s.
+test("a traffic car steering a gentle curve reads no tile across its circle: what stands on the far side is not in its cone", () => {
+  // Rolling at 8 m/s on Via Cesare Battisti, its wheels turned for a circle of 900 m to the left (a curvature just over the
+  // cone's 0.001 per m), the player on foot 10 m behind it; a car parked across that circle, 6 m ahead along the heading.
+  const radius = 900,
+    steer = Ops.atan(RIGS.panda.wheelbase / radius),
+    at = ON_BATTISTI,
+    across = { x: at.x - Ops.sin(at.angle) * 2 * radius, y: at.y + Ops.cos(at.angle) * 2 * radius },
+    opposite = ahead({ ...across, angle: at.angle }, 6)
+  const traffic = Game.Command.extend(battistiTraffic(0x3d6155, at, 8), [
+    Chassis,
+    { ...rollingChassis("panda", at, 8), steer },
+  ])
+  const scene = (cars: ReadonlyArray<ReturnType<typeof parkedCar>>) =>
+    start([], [ahead(at, -10), { traffic: [traffic], cars }], { alone: true })
+  const near = tilesOver(at.x - STEP_REACH, at.y - STEP_REACH, at.x + STEP_REACH, at.y + STEP_REACH)
+  assert.ok(
+    !near.includes(tilesOver(opposite.x, opposite.y, opposite.x, opposite.y)[0]!),
+    "the parked car's tile lies beyond the player's",
+  )
+  const driven = (cars: ReadonlyArray<ReturnType<typeof parkedCar>>) => {
+    const game = scene(cars)
+    try {
+      for (const key of near) provideTile(tileFromDisk(key))
+      setTileSource(undefined)
+      for (const { i, j } of MAP.tiles) if (!near.includes(tileKey(i, j))) dropTile(tileKey(i, j))
+      game.run(1)
+    } finally {
+      setTileSource(tileFromDisk)
+    }
+    return game.world().vehicles.find((v) => v.traffic)!.input
+  }
+  assert.deepEqual(driven([parkedCar("panda", 0xb8312b, opposite)]), driven([]))
 })
 
 test("SetPlayer: on foot the player stands still at the pose; driving, the car is settled there; off the map or not a number, it is dropped", () => {
