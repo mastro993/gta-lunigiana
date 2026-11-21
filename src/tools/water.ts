@@ -1,6 +1,7 @@
 // Water surfaces for the map build: monotone downstream profiles that meet at confluences and the
 // sea, never under its level, carved into the terrain, then kept below bridge decks and road
 // crossings.
+import { reachOf } from "../sim/map/kinds.ts"
 import type { WaterF } from "./features.ts"
 import { segIndex, type V } from "./geometry.ts"
 import { carve, keepSamples, resample, type Grid, type Profile } from "./terrain.ts"
@@ -30,6 +31,51 @@ const aboveSea = (wp: ReadonlyArray<Profile>) => {
 }
 
 /**
+ * The waters each of `water` flows into at its last node, by index, each with its vertex there: a
+ * receiver's, or a way's it continues into (its first), but none ending there too (siblings, which
+ * flow on together).
+ */
+const receivers = (water: ReadonlyArray<WaterF>): Array<Array<readonly [number, number]>> => {
+  const at = new Map<string, Array<readonly [number, number]>>()
+  water.forEach((r, j) =>
+    r.pts.forEach((q, v) => {
+      if (q.id === undefined || v === r.pts.length - 1) return
+      const list = at.get(q.id)
+      if (list === undefined) at.set(q.id, [[j, v]])
+      else if (list.at(-1)![0] !== j) list.push([j, v])
+    }),
+  )
+  return water.map((w, i) => {
+    const mouth = w.pts.at(-1)!.id
+    return mouth === undefined ? [] : (at.get(mouth) ?? []).filter(([j]) => j !== i)
+  })
+}
+
+/**
+ * Every piece's index once, each after the pieces it flows into (`into`, by index: a piece's
+ * receivers), so that those are final when it reads them; a loop's pieces in the order they are
+ * met.
+ */
+const downstreamFirst = (into: ReadonlyArray<ReadonlyArray<readonly [number, number]>>) => {
+  const order: Array<number> = [],
+    seen = new Uint8Array(into.length)
+  for (let root = 0; root < into.length; root++) {
+    if (seen[root] === 1) continue
+    seen[root] = 1
+    const path = [root]
+    while (path.length > 0) {
+      const next = into[path.at(-1)!]!.find(([j]) => seen[j] === 0)
+      if (next === undefined) order.push(path.pop()!)
+      else {
+        seen[next[0]] = 1
+        path.push(next[0])
+      }
+    }
+  }
+  return order
+}
+
+/**
  * Monotone downstream and continuous at shared nodes: a way continuing another starts no higher
  * than it ends (and the upstream tail drops to meet it), but no lower than the level the water it
  * joins holds its own mouth at, so a way held up by the water it joins backs up the way it
@@ -41,16 +87,7 @@ const settle = (
   wp: ReadonlyArray<Profile>,
   mouths: ReadonlySet<number> = new Set(),
 ) => {
-  // Each node id's waters, in order, with the first vertex of each that has it.
-  const at = new Map<string, Array<readonly [number, number]>>()
-  water.forEach((r, j) =>
-    r.pts.forEach((q, v) => {
-      if (q.id === undefined) return
-      const list = at.get(q.id)
-      if (list === undefined) at.set(q.id, [[j, v]])
-      else if (list.at(-1)![0] !== j) list.push([j, v])
-    }),
-  )
+  const into = receivers(water)
   // The level each piece's mouth is held at, by index (-Infinity: none): the water it joins (a
   // receiver's, the sea's), or the way it continues into where that way holds it up. Lowered at
   // its start to the way it continues, a way ponded up to the water it joins was ponded again, and
@@ -60,10 +97,8 @@ const settle = (
   for (let it = 0; it < 20; it++) {
     let changed = false
     for (const p of wp) runningMin(p)
-    water.forEach((w, i) => {
-      const mouth = w.pts.at(-1)!.id,
-        p = wp[i]!,
-        end = p.z.length - 1
+    wp.forEach((p, i) => {
+      const end = p.z.length - 1
       /** Piece i's mouth meets water at `level`: its tail lowered to it, or the piece ponded up to it. */
       const meet = (level: number) => {
         if (Math.abs(p.z[end]! - level) < 1e-6) return
@@ -79,9 +114,7 @@ const settle = (
       }
       let hold = -Infinity
       if (mouths.has(i)) meet((hold = SEA))
-      for (const [j, v] of mouth === undefined ? [] : at.get(mouth)!) {
-        const r = water[j]!
-        if (j === i || v === r.pts.length - 1) continue // r ends there too: siblings, not a receiver
+      for (const [j, v] of into[i]!) {
         const q = wp[j]!
         let level = q.z[q.vertexSample[v]!]!
         if (v > 0) hold = Math.max(hold, level)
@@ -197,7 +230,19 @@ export const capUnderDecks = (
  * approaches); then water left perched over a road cut (culverted streams end at the road) drops
  * to the terrain, except inside a wider channel it flows into or a lake's water, whose carved beds
  * lie under it, as long as it still runs downhill there (a stream dropped into a river's carved bed
- * never steps back up). Nor does a sample after a dropped one, within PERCH of its own ground or
+ * never steps back up). Within the reach (`reachOf`) of a water no narrower than it that it flows
+ * into, a river it joins or the way it continues into, it drops no lower than the level it meets
+ * that water at, as in a lake's: dropped down the Vara's bank, the ditch 819040162 fell on to its
+ * own top over the Vara's floor and met the Vara 0.8 m under its surface at Fornola (12.5 m, the
+ * Vara 13.3 there), and 789354818, its last sample pulled down to the hollow it dropped into before
+ * the way of its size it continues into, met that way 0.7 m under its start. The level is read where
+ * they meet: read at the nearest point of any wider water, it held a stream up at the steeper
+ * sibling it runs down beside (788514911 by 788514912), 1.6 m over the way both continue into. That
+ * water drops first: dropped after the pieces flowing into it (the widest first, ties by index), it
+ * left 180 of their samples on Lunigiana held at its level before it dropped, perched. A narrower
+ * water's is no such level: the 4 m streams 501653280 and 797865829 flow into 2 m ways kept in their
+ * channel over the bed their carve lowers, and held at it they stood 1.0 and 1.4 m over their own
+ * top. Nor does a sample after a dropped one, within PERCH of its own ground or
  * perched too, stand over it while that ground lies under it, but in a lake's water: it drops to the
  * dropped surface (dropped each to its own top, a stream's perched samples falling into the Magra's
  * polygon by Caprigliola, way 789354420, rose 0.1 m with the bed carved under them). A stream
@@ -223,10 +268,28 @@ export const dropPerched = (
 ): void => {
   for (const c of crossed)
     if (c.clear === undefined) cap(wp[c.water]!, c.at, c.half, c.deck - CULVERT, true)
-  const channels = segIndex<number>()
-  water.forEach((w, i) => channels.addLine(w.pts, w.w / 2 + 1, i))
+  const channels = segIndex<number>(),
+    reaches = segIndex<number>()
   water.forEach((w, i) => {
-    const p = wp[i]!
+    channels.addLine(w.pts, w.w / 2 + 1, i)
+    reaches.addLine(w.pts, reachOf(w), i) // where it holds water across its line
+  })
+  // The waters no narrower than it each piece flows into, each with its vertex where they meet.
+  const meetsOf = receivers(water).map((list, i) =>
+    list.filter(([j]) => water[j]!.w >= water[i]!.w),
+  )
+  for (const i of downstreamFirst(meetsOf)) {
+    const w = water[i]!,
+      p = wp[i]!,
+      meets = meetsOf[i]!
+    // The level the water it flows into stands at where they meet, within that water's reach.
+    const level = (x: number, y: number) => {
+      let z: number | undefined
+      for (const [j, v] of meets)
+        if (reaches.covers(x, y, (o) => o === j))
+          z = Math.max(z ?? -Infinity, wp[j]!.z[wp[j]!.vertexSample[v]!]!)
+      return z
+    }
     // The surface the last sample dropped to, while the samples after it would stand over it.
     let dropped = Number.POSITIVE_INFINITY
     for (let k = 0; k < p.z.length; k++) {
@@ -251,12 +314,14 @@ export const dropPerched = (
           channels.covers(x, y, (j) => j !== i && water[j]!.w > w.w))
       if (joins) dropped = Number.POSITIVE_INFINITY
       else {
-        const own = Math.min(p.z[k]!, Math.max(top, lake ?? top))
+        // In a lake's water no lower than its level; within the reach of the wider water it flows
+        // into, no lower than the level it meets that water at.
+        const own = Math.min(p.z[k]!, Math.max(top, lake ?? level(x, y) ?? top))
         // Perched too, it drops no higher than the dropped surface while its ground lies under it.
         dropped = p.z[k] = lake === undefined && ground < dropped ? Math.min(own, dropped) : own
       }
     }
-  })
+  }
   aboveSea(wp)
 }
 

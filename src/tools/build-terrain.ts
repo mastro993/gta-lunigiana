@@ -5,6 +5,7 @@
 // grid built tile by tile (build-grid.ts), the paths on it, the catchments on the uncarved grid and
 // the perched water dropped.
 import type { Water } from "../sim/map/index.ts"
+import { reachOf } from "../sim/map/kinds.ts"
 import { tileByTile, uncarvedGrid } from "./build-grid.ts"
 import type { Sources } from "./build-sources.ts"
 import { catchments, type Inflow } from "./catchment.ts"
@@ -281,8 +282,8 @@ export const profileTerrain = (src: Sources, dem: Dem, lap: (label: string) => v
       box = lineBox(l.pts)
     water.forEach((w, wi) => {
       // How far from a deck's centreline a water's end lies under it: the deck's half-width and the
-      // water's bed's reach (`reachOf` in sim/water/channel.ts).
-      const under = l.bridge === true ? lw / 2 + Math.max(w.bed, w.w / 2) : 0
+      // water's bed's reach.
+      const under = l.bridge === true ? lw / 2 + reachOf(w) : 0
       const [x0, y0, x1, y1] = box
       if (!boxesMeet(waterBox[wi]!, [x0 - under, y0 - under, x1 + under, y1 + under])) return
       const met = crossings(w.pts, l.pts)
