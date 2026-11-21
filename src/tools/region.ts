@@ -6,12 +6,12 @@
 //   a lattice from a corner fixed for good (`anchor`, trees.ts).
 // - Test regions (issue #7): other shapes and sizes built from Lunigiana's inputs, in its frame and
 //   on its anchor, into `test-maps/` (gitignored), to check the build; the game never loads them.
-//   Three far from lucido have terrain of their own (`ownTerrain`, issues #10, #12 and #13), one
+//   Two far from lucido have terrain of their own (`ownTerrain`, issues #10 and #13), one
 //   buildings of its own (`ownBuildings`, issue #11) and one OSM of its own (`ownOsm`, issue #13);
 //   a part's Regione Liguria sources are its own anyway (`ligDir`, issue #12).
 // - Parts (issue #3): the Lunigiana map grows one part at a time, each a key, a title and its
 //   rectangles in local metres, on 100 m multiples, and optionally a mask inside them. Today's map
-//   is part `lucido`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
+//   is parts `lucido`, `fivizzano`, `fosdinovo`, `aulla` and `sarzana`. The part tools (`rt-index`, `pick-sheets`, `pick-lidar`, `coverage`,
 //   `footprint-check`), `fetch-rt`, `fetch-lig` and `fetch-osm` take parts from here, and each part
 //   has an OSM extract of its own (`osmFile`), which the build merges with its region's others'.
 

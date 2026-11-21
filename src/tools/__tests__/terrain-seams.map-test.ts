@@ -3,10 +3,11 @@
 // hold: Lunigiana's, where the 10 m DTM fills three patches of lucido, Carrara's ground past
 // Fosdinovo's LiDAR (its edge as far as 130 m into Luni) and, with the 2021 surface model,
 // Fivizzano's past its own, Liguria's DTM ed. 2023 Castelnuovo Magra's and Luni's past both (issue
-// #18), and Emilia-Romagna's DTM 5x5 its strip along the Emilian border; the Bagnone ridge test region's, where the LiDAR stops 1–2 km below
-// the crest and the 2021 surface model, the 10 m DTM and Emilia-Romagna's DTM 5x5 fill the rest;
-// the Sarzana test region's, where Liguria's DTM ed. 2023 meets a corner of LiDAR (issue #12); and
-// the Magra coast test region's, where the sea at 0 m meets Liguria's DTM and, past the Tuscan
+// #18) and Sarzana's (issue #20), Emilia-Romagna's DTM 5x5 its strip along the Emilian border,
+// and the sea at 0 m Liguria's DTM at the Gulf of La Spezia's corner of Sarzana's tiles, beyond its
+// play area; the Bagnone ridge test region's, where the LiDAR stops 1–2 km below the crest and the
+// 2021 surface model, the 10 m DTM and Emilia-Romagna's DTM 5x5 fill the rest; and the Magra coast
+// test region's, where the sea at 0 m meets Liguria's DTM and, past the Tuscan
 // border, Massa-Carrara's 10 m DTM, which meets Liguria's along it (issue #13).
 // A map test: it walks every node of each.
 import assert from "node:assert/strict"

@@ -1,12 +1,12 @@
-// Issue #12's checks of Regione Liguria's sources, on Sarzana's town in the shipped map's Sarzana
-// part (issue #20, `sarzana` in region.ts): its window x −14400…−12800 by y −8000…−3600 (TOWN),
-// from the Magra plain's quarries through the old town to the hills below Sarzanello, over the raw
-// inputs and the terrain tiles alone: the NC5 read through adapter (c) (`readNc5`) stands on the
-// terrain fetch-rt's chain wrote from the LiDAR and Liguria's DTM ed. 2023 (`loadDtm`), at least 90%
-// of its buildings 1.5–45 m over their ground, the cathedral a church, and every NC5 building in the
-// window one building of the map's. `fetch-lig sarzana` wrote data/raw/lig/sarzana, `fetch-rt
-// sarzana` the tiles' terrain in data/raw/rt/dtm, and `pnpm fetch-raw` restores both. A map test: it
-// walks every building in the window.
+// Issue #12's checks of Regione Liguria's sources, on Sarzana's town in the Sarzana part's inputs
+// (issue #20, `sarzana` in region.ts): its window x −14400…−12800 by y −8000…−3600 (TOWN), from the
+// Magra plain's quarries through the old town to the hills below Sarzanello, over the raw inputs
+// and the terrain tiles alone, not the built map: the NC5 read through adapter (c) (`readNc5`) gives
+// one building per polygon of the files whose centroid lies in the window, by its id, and stands on
+// the terrain fetch-rt's chain wrote from the LiDAR and Liguria's DTM ed. 2023 (`loadDtm`), at least
+// 90% of its buildings 1.5–45 m over their ground, the cathedral a church. `fetch-lig sarzana` wrote
+// data/raw/lig/sarzana, `fetch-rt sarzana` the tiles' terrain in data/raw/rt/dtm, and `pnpm
+// fetch-raw` restores both. A map test: it walks every building in the window.
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -54,7 +54,7 @@ const minor = (id: number) => -id % 2 ** 32 >= 1e9
 /** The whole plane: the outlines unclipped, for their centroids. */
 const PLANE: Rect = [-Infinity, -Infinity, Infinity, Infinity]
 
-test("every NC5 building and minor building in the play area is one building, by its id", (t) => {
+test("the reader gives every NC5 building and minor building in the window as one building, by its id", (t) => {
   const unclipped = readNc5([NC5], PLANE).buildings
   for (const [layer, base] of [
     [NC5_LAYERS.buildings, 0],
@@ -63,7 +63,7 @@ test("every NC5 building and minor building in the play area is one building, by
     const file = layerFile(layer)
     // fetch-lig checked the pages against the server's count; the file keeps every feature.
     assert.equal(file.features.length, file.numberMatched, layer)
-    // Each polygon of a feature whose outline's centroid lies in the play area (the build keeps a
+    // Each polygon of a feature whose outline's centroid lies in the window (the build keeps a
     // building by its centroid, play-area.ts), but a sliver under 0.5 m², which every survey's
     // reader drops (`flatRing`).
     let slivers = 0
@@ -83,7 +83,7 @@ test("every NC5 building and minor building in the play area is one building, by
     const built = unclipped
       .filter((b) => minor(b.id) === base > 0 && inRects(RECTS, ...centroid(b.outer)))
       .map((b) => b.id)
-    t.diagnostic(`${layer}: ${expected.length} in play, ${slivers} slivers in the file`)
+    t.diagnostic(`${layer}: ${expected.length} in the window, ${slivers} slivers in the file`)
     assert.deepEqual(
       built.sort((a, b) => a - b),
       expected.sort((a, b) => a - b),
