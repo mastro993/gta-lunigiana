@@ -74,7 +74,6 @@ for (const [key, pairs] of [
     ],
   ],
   ["bagnone-ridge", ["dsm2021-dtm10", "dsm2021-lidar", "dtm10-lidar", "dtm10-rer"]],
-  ["sarzana-town", ["lidar-lig"]],
   ["magra-coast", ["dtm10-lig", "dtm10-sea", "lig-sea"]],
 ] as const)
   test(`${key}: no seam between terrain sources steps over 1 m more than the terrain round it`, () => {

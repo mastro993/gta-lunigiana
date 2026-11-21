@@ -44,19 +44,36 @@ import {
 } from "./water.ts"
 
 /**
- * Catchments beyond the map's box that drain into it, km², each at the point on the box's north
- * edge (y 13000) where its stream comes in: the ground north of the edge whose flow crosses it there,
- * by a D8 on the MS 10 m DTM. Of the 522.0 km² that come in, the Torrente Aulella's heads under the
- * Cerreto pass are 14.7, all of which reach the Torrente Rosaro above Fivizzano, 13.1 down the
- * Rosaro's own head and 1.6 down rivulets west of it, so the Rosaro brings them all. The Fiume Magra
- * brings 420.9 of its upper valley and the Torrente Taverone 69.1, each at its own crossing, 15 and
- * 8 m from OSM's; the Torrente Civiglia, which joins the Taverone 84 m above its mouth, 4.5, and the
- * Canale Torchio di Bacco and the Canale della Ghiaia, which join the Civiglia, 3.8 and 3.0. Each
- * crosses the edge 3.7 to 5.6 km west of the Taverone, and D8 sends each node across it at one point
- * alone, so none of the three is in the Taverone's 69.1. The Canale Cravareccia, which joins the
- * Taverone 113 m down its line, brings 1.1. The other 4.9 km² come down rivulets under 1 km² each
- * (the Fosso della Predella's 0.7 the most) and are left out. The 10 m DTM's D8 gives the Magra 930.5
- * km² where it leaves the play area at y 3900.
+ * Catchments beyond the map's box that drain into it, km², each at the point on the box's edge where
+ * its stream comes in (OSM's crossing): the ground beyond the edge whose flow crosses it there, by a
+ * D8. North of the north edge (y 13000), on the MS 10 m DTM: of the 522.0 km² that come in, the
+ * Torrente Aulella's heads under the Cerreto pass are 14.7, all of which reach the Torrente Rosaro
+ * above Fivizzano, 13.1 down the Rosaro's own head and 1.6 down rivulets west of it, so the Rosaro
+ * brings them all. The Fiume Magra brings 420.9 of its upper valley and the Torrente Taverone 69.1,
+ * each at its own crossing, 15 and 8 m from OSM's; the Torrente Civiglia, which joins the Taverone
+ * 84 m above its mouth, 4.5, and the Canale Torchio di Bacco and the Canale della Ghiaia, which join
+ * the Civiglia, 3.8 and 3.0. Each crosses the edge 3.7 to 5.6 km west of the Taverone, and D8 sends
+ * each node across it at one point alone, so none of the three is in the Taverone's 69.1. The Canale
+ * Cravareccia, which joins the Taverone 113 m down its line, brings 1.1. The other 4.9 km² come down
+ * rivulets under 1 km² each (the Fosso della Predella's 0.7 the most) and are left out. The 10 m
+ * DTM's D8 gives the Magra 930.5 km² where it leaves the play area at y 3900.
+ * West of the west edge (x −23100, Sarzana's part, issue #20), on Liguria's DTM ed. 2023 averaged
+ * from 5 to 10 m (the MS 10 m DTM over the Vara's 9.6–11.2 km² in Zeri), OSM's rivers and streams
+ * burned 10 m into it, two D8s on grids 5 m apart agreeing to 0.1 km²: of the 566.4 km² that come in,
+ * the Fiume Vara brings 547.6 at its crossing, 2–3 m from OSM's, and 552.4 with the 4.7 km² of the
+ * box's own ground west of the divide above Calice al Cornoviglio, which leave the box across the
+ * edge at y 6100–10700 and come back down the Vara (the Autorità di bacino del Magra's PGRA, 2016,
+ * gives the Vara about 600 km² at the Magra; the D8 605.6). The Durasca brings 9.3, and a stream OSM
+ * does not map, crossing at y −29 and joining it 1.5 km inside, 1.7, so the Durasca brings both;
+ * its D8 crossing lies 204 m north of OSM's, where OSM's line leaves the valley floor (69 m on the
+ * edge) for its south side (110 m). The Fosso di Cambertano brings 2.3 (its D8 crossing 45 m north of
+ * OSM's, which climbs a 13 m hump), the Torrente Dorgia 1.8 and the Gorda 1.1 (within 5 m). The
+ * other 2.5 km² come down rivulets under 1 km² each (the Fosso dei Gatti's 0.8, which leaves again
+ * across the north edge, the most). Across the south edge (y −8500) 3.7 km² come in, none down a
+ * stream over 1 km² that OSM maps (1.4 at x −17201 meets no OSM water in its first 1.7 km, 1.0 at
+ * x −13647 meets the Magra 208 m inside, the Canale dei Sardi brings 0.3), and across the tiles'
+ * south edge at y −8000 east of x −10000 0.6 km², 0.4 at most at a point, every stream OSM maps
+ * there flowing out; all are left out.
  */
 const OFF_MAP: ReadonlyArray<{
   readonly name: string
@@ -70,6 +87,11 @@ const OFF_MAP: ReadonlyArray<{
   { name: "Canale Torchio di Bacco", at: [-10417, 13000], km2: 3.8 },
   { name: "Canale della Ghiaia", at: [-11105, 13000], km2: 3.0 },
   { name: "Canale Cravareccia", at: [-5874, 13000], km2: 1.1 },
+  { name: "Fiume Vara", at: [-23100, 4103], km2: 552.4 },
+  { name: "Durasca", at: [-23100, -1360], km2: 11.0 },
+  { name: "Fosso di Cambertano", at: [-23100, 3261], km2: 2.3 },
+  { name: "Torrente Dorgia", at: [-23100, -3396], km2: 1.8 },
+  { name: "Gorda", at: [-23100, 1430], km2: 1.1 },
 ]
 
 /**
